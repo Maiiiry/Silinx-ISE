@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 import { packDevice, loadDevice, DeviceBuilder, toBase64, fromBase64, PIP_ROUTETHRU, PIP_BIDI, DEVICE_FORMAT_VERSION } from '../core/fpga/device.js';
 import { buildDeviceCache, loadDeviceCache, packDeviceFile } from '../core/fpga/device-node.js';
@@ -121,6 +122,10 @@ test('device-node: the cache is built from the report file, gzipped, and loads b
   try {
     const p = await packDeviceFile(RC);
     assert.equal(p.counts.pips, 60);
+    // a gzipped report (how large reports are kept and copied) gives the same graph
+    const gz = path.join(dir, 'r.xdlrc.gz');
+    fs.writeFileSync(gz, zlib.gzipSync(fs.readFileSync(RC)));
+    assert.deepEqual(await packDeviceFile(gz), p);
     const out = path.join(dir, 'x.json.gz');
     const r = await buildDeviceCache(RC, out);
     assert.equal(r.path, out);

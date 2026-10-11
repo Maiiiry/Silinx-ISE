@@ -35,6 +35,10 @@ The bitstream generator needs a **bit database**: which configuration bits set e
 chip (each LUT memory bit, each multiplexer setting inside a slice, each I/O setting, each routing
 switch). It is built by black-box observation, as described below.
 
+**Devices.** The open toolchain is developed for the Spartan-3E: the XC3S250E (Basys2-250) first,
+then the other Spartan-3E boards. It does not yet support the Spartan-6 boards (Nexys3, Atlys):
+that is planned ([TODO.md](../TODO.md)).
+
 ## Method: observation of a tool's behaviour (black-box)
 
 The bit database is built the same way the open-source projects for other FPGAs built theirs:

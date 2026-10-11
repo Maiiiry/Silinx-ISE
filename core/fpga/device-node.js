@@ -44,10 +44,13 @@ export function findDeviceGraph(part) {
   return tries.find(f => fs.existsSync(f)) || null;
 }
 
-/** Stream-parse a device report file into the packed graph (the report is ~200 MB: never read whole). */
+/** Stream-parse a device report file (plain or gzipped: .gz) into the packed graph (the report is
+ *  ~200 MB for the XC3S250E, more for larger chips: never read whole). */
 export async function packDeviceFile(xdlrcPath) {
   const b = new DeviceBuilder();
-  const rl = readline.createInterface({ input: fs.createReadStream(xdlrcPath), crlfDelay: Infinity });
+  const file = fs.createReadStream(xdlrcPath);
+  const input = /\.gz$/i.test(xdlrcPath) ? file.pipe(zlib.createGunzip()) : file;
+  const rl = readline.createInterface({ input, crlfDelay: Infinity });
   for await (const l of rl) { b.line(l); if (b.done) { rl.close(); break; } }
   return b.finish();
 }

@@ -279,8 +279,10 @@ Silinx also places, routes and writes the bitstream itself: the device descripti
 Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. For now
 this full flow runs from the command line (`node research/s3e-route/open-flow.mjs <project folder>
 <out folder>`); its Implement option in the interface is coming. For other devices the device
-description is built once from your own ISE installation. How it is developed, and what may be
-shipped: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
+description is built once from your own ISE installation. The open toolchain does **not yet
+support the Spartan-6 boards (Nexys3, Atlys)**; it will (they work with ISE, as every board does).
+How it is developed, and what may be shipped: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md);
+what is planned: [TODO.md](TODO.md).
 
 **Recommended on Windows, macOS (Intel / Apple Silicon) and Linux:** build a private Docker image
 once with the kit in [`docker/ise/`](docker/ise/README.md), from your own installer and WebPACK
