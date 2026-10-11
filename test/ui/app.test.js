@@ -212,6 +212,14 @@ uiTest('Toolchain Settings: the SSH mode takes a Docker image on the remote host
   await env.server.api('PUT', '/api/toolchain', { mode: 'local', ssh: { host: '', user: '', image: '' } });
 });
 
+uiTest('the test harness opens a menu even when its first click is lost (as on slow CI machines)', E, async (page) => {
+  // the next press on the menu bar is swallowed before the app sees it
+  await page.eval(() => document.getElementById('menubar').addEventListener('mousedown', (e) => e.stopImmediatePropagation(), { capture: true, once: true }));
+  const items = await page.openMenu('Help');
+  assert.ok(items.some((i) => i.label === 'About Silinx ISE'), JSON.stringify(items));
+  await page.closeMenus();
+});
+
 uiTest('About shows the version and the GitHub link', E, async (page) => {
   await page.menu('Help', 'About Silinx ISE');
   await page.waitDialog('About');
