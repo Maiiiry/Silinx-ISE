@@ -271,8 +271,16 @@ them). Synthesis, implementation and programming need the full application (`npm
 
 ## Synthesis and bitstreams (Xilinx ISE 14.7)
 
-There is no open-source toolchain that generates bitstreams for these Xilinx families, so
-implementation uses the ISE 14.7 command-line tools (WebPACK edition: free, with a free license).
+Implementation uses the ISE 14.7 command-line tools (WebPACK edition: free, with a free license).
+
+**Without ISE (open toolchain, in development):** *Synthesize - Yosys (open)* synthesizes any
+design in the browser (Yosys compiled to WebAssembly). For the **Basys2-250 (XC3S250E-CP132)**
+Silinx also places, routes and writes the bitstream itself: the device description ships with
+Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. For now
+this full flow runs from the command line (`node research/s3e-route/open-flow.mjs <project folder>
+<out folder>`); its Implement option in the interface is coming. For other devices the device
+description is built once from your own ISE installation. How it is developed, and what may be
+shipped: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
 
 **Recommended on Windows, macOS (Intel / Apple Silicon) and Linux:** build a private Docker image
 once with the kit in [`docker/ise/`](docker/ise/README.md), from your own installer and WebPACK

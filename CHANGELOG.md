@@ -3,6 +3,14 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.2
+
+- The device description of the XC3S250E-CP132 (Basys2-250) ships with Silinx
+  (`core/fpga/devices/`): the open toolchain places, routes and writes the bitstream for that board
+  without ISE (for now from the command line: `research/s3e-route/open-flow.mjs`). For other
+  devices it is built once from the user's own ISE installation (`~/.silinx/devices/`, which takes
+  precedence). The whole open flow on blinky is now part of the tests.
+
 ## 15.10.1
 
 - Fixed in Safari: after a click on a schematic symbol, an ASM chart block or a state of a state

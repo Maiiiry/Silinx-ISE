@@ -13,9 +13,9 @@
 // wires join across tiles; that is stored as the list of *nodes* (sets of tile wires joined by
 // metal). Packed this way the graph is a few MB, small enough for the browser.
 //
-// The device description comes from the user's own ISE installation and is never committed to
-// the repository (docs/OPEN-TOOLCHAIN.md, open legal question): each user builds the cache once
-// (core/fpga/device-node.js, Node only).
+// The description of the XC3S250E-CP132 (Basys2-250) ships with Silinx (core/fpga/devices/); for
+// any other device each user builds it once from their own ISE installation (core/fpga/device-node.js,
+// Node only). See docs/OPEN-TOOLCHAIN.md.
 //
 // Vocabulary used below:
 //   tile          index into the tile arrays (row-major order of the report)

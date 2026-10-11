@@ -20,7 +20,8 @@ import { XC3S250E, writeBit, setBit } from './bitstream.js';
  * The I/O sites of the package's pins: pad name -> [tile, index of the pad among the I/O sites of
  * its tile (IOB, IBUF, DIFFM/DIFFS…, bonded or not)], so that an IOB's settings can be stored once
  * per tile type (features IOB<index>:…). It comes from the device (core/fpga/device.js, built on the
- * user's machine from their ISE's device report), never from the committed database.
+ * device description: shipped for the XC3S250E-CP132, else built from the user's ISE), never from
+ * the bit database.
  */
 export function padsFromDevice(device) {
   const pads = {};
