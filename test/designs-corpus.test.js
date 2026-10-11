@@ -170,5 +170,5 @@ test('boardClockUcf: the clock on B8 with a 20 ns PERIOD', () => {
   assert.equal(u.clocks.length, 1);
   assert.equal(u.clocks[0].net, 'i_Clk');
   assert.equal(u.clocks[0].period, 20);
-  assert.match(boardClockUcf('clk'), /NET "clk" LOC = "B8"/);
+  assert.match(boardClockUcf('clk'), /NET "clk" LOC = "B8" ;/);
 });

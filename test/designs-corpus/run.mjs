@@ -280,10 +280,10 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
     t = Date.now();
     const { bytes, unknown } = bitgen(routedText, db, { name: `${d.name}.ncd`, crc: true, startupClk: 'JtagClk' });
     step('bitgen', t, { bytes: bytes.length, unknown: unknown.length });
-    if (unknown.length) { res.flow = `fail: bitgen: ${unknown.length} features not in the bit database (${clean(unknown.slice(0, 3).map(u => `${u.tile} ${u.feature}`).join(', '))})`; return; }
+    if (unknown.length) { res.flow = `fail: bitgen: ${unknown.length} features not in the bit database (${clean([...new Set(unknown.map(u => u.feature))].slice(0, 4).join(', '))})`; res.details.unknownFeatures = unknown.slice(0, 20).map(u => `${u.tile} ${u.feature}`); return; }
     res.flow = 'complete';
     if (opts.bits) { fs.mkdirSync(opts.bits, { recursive: true }); fs.writeFileSync(path.join(opts.bits, `${d.name}.bit`), bytes); }
-    if (opts.projects) writeProject(path.join(opts.projects, d.name), d, flowSrcs, wrapper, ports, ucf);
+    if (opts.projects) writeProject(path.join(opts.projects, d.name), d, flowSrcs, wrapper, ports, ucf, steps.retry ? flowSyn.files[`${flowSyn.top}.json`] : null);
   } catch (e) {
     res.flow = `error: ${clean(e.message)}`;
   } finally {
@@ -293,8 +293,10 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
   }
 }
 
-/** A minimal Silinx project (silinx.json + sources + UCF) of a design, for scripts/check-open-flow.mjs. */
-function writeProject(dir, d, srcs, wrapper, ports, ucf) {
+/** A minimal Silinx project (silinx.json + sources + UCF) of a design, for scripts/check-open-flow.mjs;
+ *  netlist: the netlist synthesized again for the packer, as netlist.json (check-open-flow.mjs
+ *  <project> --json <project>/netlist.json). */
+function writeProject(dir, d, srcs, wrapper, ports, ucf, netlist = null) {
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   let top = wrapper ? wrapper.name : d.top;
@@ -314,6 +316,7 @@ function writeProject(dir, d, srcs, wrapper, ports, ucf) {
   }
   const proj = { name: d.name, version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top, files, impl: { startupClk: 'JtagClk' } };
   if (ucf) { fs.writeFileSync(path.join(dir, 'top.ucf'), ucf); proj.constraints = 'top.ucf'; }
+  if (netlist) fs.writeFileSync(path.join(dir, 'netlist.json'), netlist);
   fs.writeFileSync(path.join(dir, 'silinx.json'), `${JSON.stringify(proj, null, 2)}\n`);
 }
 

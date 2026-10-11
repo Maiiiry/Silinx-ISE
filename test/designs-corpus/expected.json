@@ -161,7 +161,7 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "fail: bitgen: 9 features not in the bit database (CLB_X15Y5 SLICE0:C2VDD:, CLB_X15Y5 SLICE1:C2VDD:, CLB_X15Y6 SLICE0:C2VDD:)",
+  "flow": "fail: bitgen: 9 features not in the bit database (SLICE0:C2VDD:, SLICE1:C2VDD:, SLICE2:C2VDD:, SLICE3:C2VDD:)",
   "warnings": {
    "synth": [
     "Warning: Shift register inference not yet supported for family xc3se."
@@ -490,7 +490,7 @@
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
-  "diff": "mismatch: cycle 1: m_axis_tdata",
+  "diff": "pass",
   "flow": "complete",
   "warnings": {
    "frontend": [

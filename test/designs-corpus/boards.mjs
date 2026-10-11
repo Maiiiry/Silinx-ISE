@@ -28,14 +28,14 @@ export const BOARD_DESIGNS = [
     pins: { sw: ['sw', 0, 8], btn: ['btn', 0, 3], led: ['led', 0, 8] },
     look: 'LD3..LD0 show the mantissa and LD6..LD4 the exponent of the 11-bit integer {BTN2, BTN1, BTN0, SW7..SW0} as a 7-bit float; LD7 is on. All switches off: only LD7; SW0 alone: LD0 (mantissa 1); SW7 alone (128): LD6 and LD3 (exponent 4, mantissa 8); BTN2 held (1024): LD6..LD3 (exponent 7, mantissa 8).' },
   { name: 'corpus-prbs', design: 'verilog-lfsr-prbs', top: 'prbs_basys2', file: 'boards/prbs_basys2.v',
-    pins: { mclk: ['mclk', 0, 1], btn: ['btn', 0, 4], sw: ['sw', 0, 8], led: ['led', 0, 8] }, clock: 'mclk',
+    pins: { mclk: ['mclk', 0, 1], reset: ['btn', 0, 1], freeze: ['sw', 0, 1], led: ['led', 0, 8] }, clock: 'mclk',
     look: 'LD7..LD0 change to a new pseudo-random pattern about 3 times a second; SW0 on freezes it; BTN0 restarts the sequence (the same patterns again in the same order).' },
   { name: 'corpus-spi', design: 'nandland-spi-verilog', top: 'spi_basys2', file: 'boards/spi_basys2.v',
-    pins: { mclk: ['mclk', 0, 1], btn: ['btn', 0, 4], sw: ['sw', 0, 8], led: ['led', 0, 8] }, clock: 'mclk',
+    pins: { mclk: ['mclk', 0, 1], btn: ['btn', 0, 2], sw: ['sw', 0, 8], led: ['led', 0, 8] }, clock: 'mclk',
     look: 'LEDs off after configuration; set the switches and press BTN1: the byte goes out through the SPI master and comes back on MISO (looped to MOSI), and LD7..LD0 show it. Changing the switches without pressing BTN1 changes nothing; BTN0 is the SPI master\'s reset.' },
   { name: 'corpus-serv', design: 'serv', top: 'serv_basys2', file: 'boards/serv_basys2.v', synthFlags: '-nobram -nolutram -nosrl',
     tb: { top: 'serv_basys2_tb', file: 'boards/serv_basys2_tb.v', pass: /^PASS/, until: 5e9 },
-    pins: { mclk: ['mclk', 0, 1], btn: ['btn', 0, 4], led: ['led', 0, 8] }, clock: 'mclk',
+    pins: { mclk: ['mclk', 0, 1], reset: ['btn', 0, 1], led: ['led', 0, 8] }, clock: 'mclk',
     look: 'the SERV RISC-V CPU runs its 8-instruction program: LD7..LD0 count in binary, about one step a second (LD0 toggles about every second); BTN0 held stops the CPU (reset), released the count starts again from 1.' },
 ];
 
@@ -46,7 +46,7 @@ export function boardUcf(bd, board = BOARDS.find(b => b.id === 'basys2')) {
     const r = board.resources.find(x => x.name === res);
     if (!r) throw new Error(`basys2 has no resource ${res}`);
     for (let i = 0; i < count; i++) {
-      const net = count === 1 && r.pins.length === 1 ? port : `${port}<${i}>`;
+      const net = count === 1 ? port : `${port}<${i}>`;   // one pin: a scalar port
       lines.push(`NET "${net}" LOC = "${r.pins[first + i]}" | IOSTANDARD = ${r.iostandard || 'LVCMOS33'} ;`);
     }
   }

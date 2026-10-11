@@ -15,8 +15,8 @@
 // Memory map: instructions from the ROM (addresses 0x00..0x1c); a data write to 0x4xxxxxxx sets
 // the LEDs; data reads give 0.
 module serv_basys2 #(parameter [31:0] DELAY_INSN = 32'h000801b7)   // lui x3, 0x80
-  (input wire mclk, input wire [3:0] btn, output reg [7:0] led = 8'h00);
-  wire rst = btn[0];
+  (input wire mclk, input wire reset, output reg [7:0] led = 8'h00);   // reset: BTN0
+  wire rst = reset;
   wire [31:0] ibus_adr, dbus_adr, dbus_dat;
   wire [3:0] dbus_sel;
   wire ibus_cyc, dbus_we, dbus_cyc;

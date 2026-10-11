@@ -4,13 +4,13 @@
 `timescale 1ns / 1ps
 module serv_basys2_tb;
   reg clk = 0;
-  reg [3:0] btn = 4'b0001;
+  reg reset = 1'b1;
   wire [7:0] led;
   integer n = 0;
-  serv_basys2 #(.DELAY_INSN(32'h00300193)) dut (.mclk(clk), .btn(btn), .led(led));
+  serv_basys2 #(.DELAY_INSN(32'h00300193)) dut (.mclk(clk), .reset(reset), .led(led));
   always #10 clk = ~clk;
   initial begin
-    #200 btn = 4'b0000;
+    #200 reset = 1'b0;
     #2000000 $display("FAIL: the LEDs counted to %0d only", led);
     $finish;
   end
