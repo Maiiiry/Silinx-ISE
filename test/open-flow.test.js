@@ -83,3 +83,17 @@ test('the open flow on the shipped graph: blinky from VHDL to a complete bitstre
   }
   assert.ok(luts > 50 && swapped > 10, `${swapped} of ${luts} LUTs with their inputs swapped`);
 });
+
+test('the open flow with --tries 2: two placements routed, the one with the shorter critical path kept', { timeout: 300000 }, () => {
+  const out = path.join(tmp, 'blinky-tries');
+  const json = path.join(tmp, 'blinky', 'top.json');   // the netlist of the test above
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'examples/blinky'), out, ...(fs.existsSync(json) ? ['--json', json] : []), '--tries', '2', '--seed', '3'],
+    { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
+  const periods = [...r.stdout.matchAll(/^ {2}seed (\d+): ([\d.]+) ns$/gm)].map(m => [+m[1], +m[2]]);
+  assert.deepEqual(periods.map(p => p[0]), [3, 4]);
+  const kept = +/clock \S+clk: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(out, 'timing.txt'), 'utf8'))[1];
+  assert.equal(kept, Math.min(...periods.map(p => p[1])));
+  assert.match(r.stdout, /top\.bit: complete/);
+});
