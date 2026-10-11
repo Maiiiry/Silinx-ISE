@@ -526,10 +526,21 @@ function tieConstants(nets, kind, { device, usedSites, errors, allowPip, allowSo
     .filter(s => !usedSites.has(s.name) && (!allowSource || allowSource(kind, s)))
     .map(s => ({ ...s, node: device.sitePinNode(s.name, pin) }))
     .filter(s => s.node >= 0);
-  const reachesDirectly = (src, sink) => {
-    let ok = false;
-    device.forEachPip(src, (to, k, i, f) => { if (to === sink && !(f & PIP_ROUTETHRU) && (!allowPip || allowPip(device.tileNames[k], ...device.pipWires(k, i)))) ok = true; });
-    return ok;
+  // the PIPs (1 or 2; 3: more) from a VCC site to a sink: a slice pin is one PIP from its tile's
+  // VCC_PINWIRE; a block RAM's or multiplier's pin two, through the input wire of its interconnect
+  // tile (BRAM_VCC_WIRE -> BRAM_DIB_B18 of the second interconnect tile, then BRAM_DIB_B18_INT1 ->
+  // MULT18X18SIO_B6 in the site tile), so only the VCC site of the pin's own interconnect tile
+  // reaches it on known switches (issue #35: the nearest by position, a tile away, did not)
+  const ok = (k, i, f) => !(f & PIP_ROUTETHRU) && (!allowPip || allowPip(device.tileNames[k], ...device.pipWires(k, i)));
+  const hops = (src, sink) => {
+    let h = 3;
+    device.forEachPip(src, (to, k, i, f) => {
+      if (h === 1 || !ok(k, i, f)) return;
+      if (to === sink) { h = 1; return; }
+      if (h === 2) return;
+      device.forEachPip(to, (to2, k2, i2, f2) => { if (to2 === sink && ok(k2, i2, f2)) h = 2; });
+    });
+    return h;
   };
   const groups = new Map();
   for (const n of nets) for (const s of n.sinks) {
@@ -537,7 +548,9 @@ function tieConstants(nets, kind, { device, usedSites, errors, allowPip, allowSo
     let best = null, bd = Infinity;
     for (const v of cands) {
       let d = Math.abs(device.tileRow[v.tile] - r) + Math.abs(device.tileCol[v.tile] - c);
-      if (kind === 'vcc') d = reachesDirectly(v.node, s.node) ? d : d + 1000;
+      // (a VCC site reaches only the pins of its own tile, or of the block-RAM site tile beside its
+      // four interconnect tiles: the sites farther away are not tried)
+      if (kind === 'vcc') d += [0, 0, 500, 1000][d <= 5 ? hops(v.node, s.node) : 3];
       if (d < bd) { bd = d; best = v; }
     }
     if (!best) { errors.push(`net ${n.name}: no free site for a ${kind} source`); continue; }

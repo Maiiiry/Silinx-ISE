@@ -114,6 +114,8 @@ test('the open flow with --tries 2: two placements routed, the one with the shor
 const FEATURES = {
   feat_bram: [/^pack \(\d+ slices\)/m, 'RAMB16'],
   feat_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
+  // multiplications by a constant (inputs tied to 1) and a 14-bit memory word (#35)
+  feat_constmult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
   feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],

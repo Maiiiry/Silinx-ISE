@@ -5,6 +5,12 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **Silinx toolchain: multiplications by a constant** (such as the stopwatch example's x * 6554)
+  failed in Place & Route on every Spartan-3E device: the multiplier's inputs tied to 1 could not
+  be routed on the switches of known bits. Each is now tied, as ISE does, to the constant-1 source
+  of the block-RAM interconnect tile its pin comes from (#35). A block-RAM word with a bit in a
+  parity position that its port writes but does not read (a 14-bit memory) is laid out on the data
+  bits instead, as ISE's map does: ISE's design rule check warned about it.
 - **The Silinx toolchain for the other Spartan-3E boards:** the Basys2-100 (XC3S100E), the Nexys2-500
   (XC3S500E) and the Nexys2-1200 (XC3S1200E) have their bit databases, measured as the
   Basys2-250's was: Implement Design and Generate Programming File work for them with no Xilinx

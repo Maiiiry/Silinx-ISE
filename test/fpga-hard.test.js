@@ -333,3 +333,97 @@ test('bufgReach: each output of the top-left DCM reaches its global buffer throu
   // without the restriction: the four buffers of the top edge
   assert.deepEqual(bufgReach(g, 'DCM_X0Y1', 'CLK90').sort(), ['BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']);
 });
+
+// A 14-bit memory on 1024 x 18 ports, as Yosys maps it: its 18-bit word is DI0-7, DIP0, DI8-15,
+// DIP1, so bit 8 of the word is written on DIPA0 and read on DOPB0; port A writes, port B reads
+function bram14(params = {}) {
+  return yjson({ clk: ['input', 1], a: ['input', 10], d: ['input', 14], we: ['input', 1], q: ['output', 14] }, [
+    ...clock, ...ibuf('a', 10), ...ibuf('d', 14), ...ibuf('we', 1),
+    { name: 'm', type: 'RAMB16_S18_S18', params: { WRITE_MODE_A: 'READ_FIRST', WRITE_MODE_B: 'READ_FIRST', ...params },
+      conns: { ADDRA: bus('a_i', 10), DIA: [...bus('d_i', 8), ...bus('d_i', 5, 9), 'x', 'x', 'x'], DIPA: ['d_i[8]', 'x'], DOA: bus('qa', 16), DOPA: bus('qap', 2),
+        CLKA: 'clk_g', ENA: '1', SSRA: '0', WEA: 'we_i',
+        ADDRB: bus('a_i', 10).reverse(), DIB: Array(16).fill('x'), DIPB: ['x', 'x'], DOB: bus('qb', 16), DOPB: bus('qbp', 2), CLKB: 'clk_g', ENB: '1', SSRB: '0', WEB: '0' },
+      outs: ['DOA', 'DOPA', 'DOB', 'DOPB'] },
+    ...[...bus('qb', 8), 'qbp[0]', ...bus('qb', 5, 8)].map((n, i) => obuf(`q[${i}]`, n)),
+  ]);
+}
+
+test('block RAMs: a word bit in a parity position that its port writes and does not read moves to a free data bit (pins, contents, initial / reset values), as ISE\'s map lays it out (#35)', () => {
+  // word 0: data bit 13 set; word 1: parity bit 0 set; word 0: parity bit 1 set (stays)
+  const nl = bram14({ INIT_00: bin((1n << 13n) | 0xABCn, 256), INITP_00: bin(0b110, 256), INIT_A: bin(0x10000, 18), SRVAL_B: bin(0x02001, 18) });
+  const p = pack(nl);
+  assert.deepEqual(p.warnings, []);
+  const m = p.insts.find(i => i.name === 'm');
+  const k = p.insts.indexOf(m);
+  // each input pin: the input buffer driving it (named after its port bit), or the constant
+  const ins = new Map(p.nets.flatMap(n => n.inpins.filter(x => x.inst === k).map(x => [x.pin, n.type === 'wire' ? p.insts[n.outpins[0].inst].name : n.type])));
+  const outs = p.nets.flatMap(n => n.outpins.filter(x => x.inst === k).map(x => x.pin)).sort();
+  // bit 8 of the word on DI13 / DO13 (the first data bit no port uses); the parity inputs tied to 0
+  assert.equal(ins.get('DIA13'), 'd<8>');
+  assert.deepEqual(['DIPA0', 'DIPA1', 'DIPB0', 'DIPB1'].map(x => ins.get(x)), ['gnd', 'gnd', 'gnd', 'gnd']);
+  assert.ok(!ins.has('DIA14') && !ins.has('DIA15') && !ins.has('DIB13'));
+  assert.deepEqual(outs, Array.from({ length: 14 }, (_, i) => `DOB${i}`).sort());
+  // the contents: data bit 13 and parity bit 0 of every word swapped
+  assert.equal(val(m, 'INIT_00'), ((1n << 29n) | 0xABCn).toString(16).toUpperCase().padStart(64, '0'));
+  assert.equal(val(m, 'INITP_00'), '3'.padStart(64, '0'));
+  assert.deepEqual([val(m, 'INIT_A'), val(m, 'SRVAL_B'), val(m, 'INIT_B'), val(m, 'SRVAL_A')], ['02000', '10001', '00000', '00000']);
+  // the netlist itself is not changed
+  assert.equal(nl.cells.find(c => c.name === 'm').params.INIT_A, bin(0x10000, 18));
+  same(nl, p, 300);
+  // a parity bit its port reads back stays where it is
+  const read = yjson({ clk: ['input', 1], a: ['input', 10], d: ['input', 14], we: ['input', 1], q: ['output', 2] }, [
+    ...clock, ...ibuf('a', 10), ...ibuf('d', 14), ...ibuf('we', 1),
+    { name: 'm', type: 'RAMB16_S18', conns: { ADDR: bus('a_i', 10), DI: [...bus('d_i', 13), 'x', 'x', 'x'], DIP: ['d_i[13]', 'x'], DO: bus('qa', 16), DOP: bus('qap', 2), CLK: 'clk_g', EN: '1', SSR: '0', WE: 'we_i' }, outs: ['DO', 'DOP'] },
+    obuf('q[0]', 'qap[0]'), obuf('q[1]', 'qa[0]'),
+  ]);
+  const pr = pack(read);
+  assert.deepEqual(pr.warnings, []);
+  const kr = pr.insts.findIndex(i => i.name === 'm');
+  assert.equal(pr.insts[pr.nets.find(n => n.inpins.some(x => x.inst === kr && x.pin === 'DIPA0')).outpins[0].inst].name, 'd<13>');
+  same(read, pr, 200);
+});
+
+// x * 6554 (x / 10 = x * 6554 / 65536, as the stopwatch example computes it) on all 12 multipliers:
+// the B inputs tied to 0 and 1 (GLOBAL_LOGIC0 / GLOBAL_LOGIC1)
+function constMults() {
+  const B = [...bin(6554, 18)].reverse();
+  const cells = [...ibuf('a', 14)];
+  for (let k = 0; k < 12; k++) {
+    cells.push({ name: `m${k}`, type: 'MULT18X18', conns: { A: [...bus('a_i', 14), '0', '0', '0', '0'], B, P: bus(`p${k}`, 36) }, outs: ['P'] });
+    cells.push(obuf(`p[${k}]`, `p${k}[${16 + k}]`));
+  }
+  return yjson({ a: ['input', 14], p: ['output', 12] }, cells);
+}
+
+test('multipliers with constant inputs (x * 6554) on every multiplier site: every input tied to 1 routed on switches of known bits, from the VCC site of its own block-RAM interconnect tile, as ISE does (#35)', { timeout: 120000 }, async () => {
+  const { routeDesign, checkRouting } = await import('../core/fpga/route.js');
+  const { knownRouting, bitgen } = await import('../core/fpga/bitgen.js');
+  const { loadDb } = await import('../research/s3e-bitstream/db.mjs');
+  const { placedXdl } = await import('../core/fpga/place.js');
+  const { parseXdl, writeXdl } = await import('../core/xdl.js');
+  const g = loadDeviceCache('xc3s250ecp132-4');
+  const db = loadDb('xc3s250ecp132-4', { graph: g });
+  const nl = constMults();
+  const p = pack(nl);
+  assert.deepEqual(p.warnings, []);
+  assert.equal(p.stats.mults, 12);
+  const r = place(p, device(), { seed: 1, effort: 0.1 });
+  assert.equal(new Set(p.insts.map((x, k) => (x.kind === 'mult' ? r.sites[k].site : null)).filter(Boolean)).size, 12);
+  const routed = routeDesign(parseXdl(writeXdl(placedXdl(p, r))), g, knownRouting(db));
+  assert.deepEqual([routed.failed, routed.unreached, routed.errors], [[], [], []]);
+  const text = writeXdl(routed.design);
+  const check = checkRouting(parseXdl(text), g);
+  assert.ok(check.ok, check.problems.slice(0, 5).join('\n'));
+  // 7 inputs tied to 1 per multiplier (6554 has 7 bits set), each from the VCC site of the
+  // interconnect tile of its pin: BRAM_VCC_WIRE -> the pin's wire there, then the site tile's PIP
+  const isMult = x => /^m\d+$/.test(x.inst);
+  const vcc = routed.design.nets.filter(n => n.type === 'vcc' && n.inpins.some(isMult));
+  assert.equal(vcc.flatMap(n => n.inpins.filter(isMult)).length, 12 * 7);
+  for (const n of vcc) {
+    assert.match(n.outpins[0].inst, /^XDL_DUMMY_BRAM[0-3]_SMALL(_BRK)?_X\d+Y\d+_VCC_X\d+Y\d+$/, n.name);
+    assert.equal(n.pips.length, 2 * n.inpins.length, `${n.name}: two switches per pin`);
+    for (const pip of n.pips) assert.ok(pip.from === 'BRAM_VCC_WIRE' || /^BRAMSITE2_/.test(pip.tile), `${n.name}: ${pip.tile} ${pip.from} -> ${pip.to}`);
+  }
+  // a complete bitstream: every switch and setting in the bit database
+  assert.deepEqual(bitgen(text, db).unknown, []);
+});
