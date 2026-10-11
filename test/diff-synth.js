@@ -330,8 +330,9 @@ export function compareNetlist(design, syn, spec) {
   try {
     if (eng === 'cells') net = runCells(nl, { clocks, sim, stim, outs });
     else {
-      // a flip-flop whose register had no initial value gets INIT x from Yosys: 0 in the bitstream
-      const text = syn.files[`${syn.top}_yosys.v`].replace(/\.INIT\((\d+)'([bh])([0-9a-fx]+)\)/g, (_, w, b, d) => `.INIT(${w}'${b}${d.replace(/x/g, '0')})`);
+      // a flip-flop whose register had no initial value gets INIT x from Yosys, a block RAM never
+      // written INIT_xx / INITP_xx, INIT_A / B and SRVAL_A / B x: 0 in the bitstream
+      const text = syn.files[`${syn.top}_yosys.v`].replace(/\.(INIT\w*|SRVAL\w*)\((\d+)'([bh])([0-9a-fx]+)\)/g, (_, p, w, b, d) => `.${p}(${w}'${b}${d.replace(/x/g, '0')})`);
       const src = { path: `${syn.top}_yosys.v`, lang: 'verilog', text };
       const fn = frontEnd([UNISIM_SOURCE, src, ...harness], harness.length ? sim.harnessTop : syn.top);
       if (!fn.design) return done({ status: 'error', stage: 'netlist-sim', reason: `the Yosys netlist does not elaborate: ${fn.reason}`, cells: syn.cells, engine: eng });

@@ -253,7 +253,11 @@ class Parser {
         if (pkg !== 'all') {
           this.packageNames.add(pkg);
           if (!STD_LIBS.has(lib)) out.push(pkg);
-          else this.stdUses.add(pkg.toLowerCase());
+          else {
+            this.stdUses.add(pkg.toLowerCase());
+            // ieee.math_real: its VHDL part is a package compiled with the design (core/vhdl/math-real.js)
+            if (pkg.toLowerCase() === 'math_real') out.push('math_real');
+          }
         }
       }
     } while (this.acceptOp(','));

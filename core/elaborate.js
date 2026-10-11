@@ -264,6 +264,7 @@ function newSignal(E, name, t, init, kind, loc) {
 
 function elabPort(E, p, conn) {
   const t = elabType(E, p.type);
+  if (conn?.aggregate && !conn.node) conn.node = bindExpr(conn.E, conn.aggregate, t, conn.loc);
   let init = defaultValue(t, E.lang);
   if (p.default) init = fitAny(constOf(E, bindExpr(E, p.default, t), p.loc), t);
   if (conn && conn.node && conn.node.k === 'sig' && conn.node.t.w === t.w && (t.kind === 'array') === (conn.node.t.kind === 'array') && p.dir !== undefined) {
@@ -417,6 +418,12 @@ function elabChild(E, it) {
     const pdecl = childPorts.find(p => p.name === c.port);
     let node = null, lnode = null;
     try {
+      // VHDL `P => (others => '0')`: an aggregate takes the type of the port, known once the instance's
+      // generics are (bound in elabPort)
+      if (E.lang === 'vhdl' && c.expr.op === 'aggregate' && !c.formal && pdecl && pdecl.dir === 'in' && c.expr.items.some(i => i.choices)) {
+        portConns.set(c.port, { node: null, aggregate: c.expr, E, loc: it.loc, text: exprText(c.expr) });
+        continue;
+      }
       node = bindExpr({ ...E, implicitNets: true }, c.expr, null, it.loc);
       if (pdecl && pdecl.dir !== 'in' && isLvalueExpr(c.expr)) lnode = bindLvalue({ ...E, implicitNets: true }, c.expr, it.loc);
     } catch (e) {
@@ -1415,6 +1422,13 @@ function bindBuiltin(E, name, rawArgs, expect, loc) {
     }
     case 'to_string': case 'to_bstring': return { k: 'image', a: A(0), t: STR, ts: true };
     case 'to_hstring': return { k: 'image', a: A(0), t: STR, hex: true };
+    // ieee.math_real: ceil, floor, round, trunc, sqrt, log2, log10, log (natural, or to a base), exp, sign,
+    // realmax, realmin (on reals; folded when constant, as in `constant W : natural := integer(ceil(log2(real(N))));`)
+    case 'ceil': case 'floor': case 'round': case 'trunc': case 'sqrt': case 'log2': case 'log10': case 'log': case 'exp': case 'sign': case 'realmax': case 'realmin': {
+      const ra = args.map((_, i) => { const a = A(i); return a.t.kind === 'real' ? a : fold({ k: 'conv', a, ext: !!a.t.s, t: REAL }); });
+      if (!ra.length || ra.length > 2) throw new ElabError(`'${name}' takes one or two real arguments`, loc);
+      return fold({ k: 'rfn', f: name, a: ra[0], b: ra[1], t: REAL });
+    }
     case 'minimum': case 'maximum': {
       const a = A(0), b = A(1);
       const c = { k: 'bin', o: name === 'minimum' ? '<' : '>', a, b, t: BOOL };
@@ -1581,7 +1595,8 @@ function bindSubprogram(entry, args, key, sigActuals, consts) {
   const DE = entry.E;
   const fb = new FrameBuilder();
   const sc = new Scope(DE.sc);
-  const FE = { ...DE, sc, fb, inProcess: true, inFunction: true };
+  // inTask: a Verilog task or a VHDL procedure, which may assign the signals it sees (a function should not)
+  const FE = { ...DE, sc, fb, inProcess: true, inFunction: true, inTask: decl.kind === 'task' || !decl.returnType };
   const fn = { name: decl.name, params: [], body: null, retSlot: null, retT: null, impure: false };
   if (!sigActuals) entry.cache.set(key, fn);
   try {
@@ -1765,7 +1780,7 @@ function bindStmt0(E, s, loc) {
       checkAssignable(E, target, value, loc);
       const root = lroot(target.k === 'cat' ? target.parts[0] : target);
       if (E.lang === 'vhdl' && s.nonblocking && root.k === 'loc' && !E.inFunction) diag(E, `'${root.name}' is a variable: use ':='`, loc, 'warning');
-      if (E.inFunction && root.k === 'sig' && !s.nonblocking) diag(E, `function assigns signal '${root.name}'`, loc, 'warning');
+      if (E.inFunction && !E.inTask && root.k === 'sig' && !s.nonblocking) diag(E, `function assigns signal '${root.name}'`, loc, 'warning');
       const asg = {
         k: 'asg', target, value, nb: !!s.nonblocking && root.k !== 'loc',
         delay: s.delay ? bindExpr(E, s.delay, null, loc) : null, delayUnit: E.lang === 'vhdl' ? 1 : E.timeUnit, prec: E.timePrec, loc,

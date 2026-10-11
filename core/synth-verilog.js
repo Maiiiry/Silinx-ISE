@@ -412,7 +412,8 @@ export function toVerilog(design, { name } = {}) {
       const init0 = f.frameInit ? f.frameInit() : [];
       const inits = [...fctx.locals.entries()].filter(([i, l]) => !l.param && init0[i] && !Array.isArray(init0[i]) && init0[i].v !== undefined && !init0[i].x)
         .map(([i, l]) => `    ${l.name} = ${lit(V.resize(init0[i], wOf(l.t)), wOf(l.t))};\n`).join('');
-      const loc = [...fctx.locals.values()].filter(l => !l.param).map(l => `    reg ${sgn(l.t) ? 'signed ' : ''}[${wOf(l.t) - 1}:0] ${l.name};`);
+      // (a local memory keeps its words: reg [w-1:0] m [0:n-1], as the processes' locals)
+      const loc = [...fctx.locals.values()].filter(l => !l.param).map(l => `    reg ${sgn(l.t) ? 'signed ' : ''}${l.t.kind === 'array' ? `[${wOf(l.t.elem) - 1}:0] ${l.name} [0:${l.t.len - 1}]` : `[${wOf(l.t) - 1}:0] ${l.name}`};`);
       funcs.push(`  function automatic ${sgn(f.retT) ? 'signed ' : ''}[${rw - 1}:0] ${fname}(${params.join(', ')});\n${['    reg __ret;', ...loc, ...fctx.flags.map(x => `    reg ${x};`)].join('\n')}\n  begin\n    __ret = 0;\n    ${fname} = 0;\n${inits}${body}  end\n  endfunction`);
     }
     const args = n.args.map((a, k) => { const v = e(a, ctx); const p = f.params[k]; return fit(v.x, v.w, v.s, wOf(p.t)); });
