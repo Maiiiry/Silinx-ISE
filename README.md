@@ -286,7 +286,9 @@ timing against the UCF's PERIOD constraints), *Generate Programming File* (`buil
 Summary* (utilization, timing) as with ISE; *Configure Target Device* programs the board as usual
 and *View Implemented Design (FPGA)* shows the routed design. The processes that need ISE
 (simulation models of the implementation, power, back-annotated pins, technology schematic) are
-disabled in that mode. A design the open toolchain cannot implement yet (a feature not in the bit
+disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
+RAMs, multipliers, distributed RAMs, shift registers (SRL16) and the top-left DCM (CLK0, CLK2X,
+CLKDV, CLKFX). A design the open toolchain cannot implement yet (a feature not in the bit
 database, a net it cannot route) fails with the list of what is missing: implement it in an ISE
 mode. For another package of a supported chip, the device description is built once from your
 own ISE (*Build Device Description* in *Toolchain Settings*, through the ISE set there: local,
