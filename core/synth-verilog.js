@@ -160,6 +160,22 @@ export function toVerilog(design, { name, tables = true } = {}) {
     sigName.set(s, esc(uniq(loopVars.has(s) ? path.replace(/[^\w$]/g, '_') : path)));
   }
 
+  // ---------------- constant signals: driven only by one concurrent assignment of a constant (VHDL
+  // `w_cpol <= '1' when SPI_MODE = 2 else '0';`, folded): read as that constant, so that a reset
+  // value or a condition that reads one is a constant for Yosys (#14: as an asynchronous reset value
+  // it made the flip-flops load a signal, 2.5 times the logic)
+  const constSig = new Map();
+  {
+    const drivers = new Map();
+    for (const p of design.procs) if (!skipProc.has(p)) for (const sg of p.writes || []) drivers.set(sg, [...(drivers.get(sg) || []), p]);
+    for (const [sg, ps] of drivers) {
+      const p = ps[0], b = p.body;
+      if (ps.length !== 1 || p.kind !== 'assign' || !b || b.k !== 'asg' || b.delay || b.target.k !== 'sig' || b.target.sig !== sg) continue;
+      if (b.value.k !== 'c' || Array.isArray(b.value.val) || b.value.val.v === undefined || sg.t.kind === 'array' || sg.wired) continue;
+      constSig.set(sg, b.value.val);
+    }
+  }
+
   // ---------------- wired nets (wand / wor, IEEE 1364-2005 4.6.4) with several drivers: each
   // driver (a continuous assignment, an instance's output) assigns a signal of its own, which starts
   // at the value that does not change the result (all ones for wand, zeros for wor, its bits no
@@ -244,6 +260,10 @@ export function toVerilog(design, { name, tables = true } = {}) {
       case 'sig': {
         const s = n.sig;
         if (isRec(s.t)) return { x: sigName.get(s), w: wOf(s.t), s: false };   // (a record: one vector)
+        if (constSig.has(s)) {   // (a constant signal: its value)
+          const cw = s.t.kind === 'int' ? s.t.w : wOf(s.t), cs = s.t.kind === 'int' ? true : !!(n.t?.s ?? s.t.s);
+          return { x: lit(V.resize(constSig.get(s), cw), cw), w: cw, s: cs };
+        }
         if (Array.isArray(s.val) || s.t.kind === 'array') fail(`array ${s.name} used as a whole value`, n);
         const w = wOf(s.t), x = sigName.get(s);
         // integer signals narrower than their 32-bit simulation width: extended back to 32 bits
@@ -348,7 +368,15 @@ export function toVerilog(design, { name, tables = true } = {}) {
   // x (a Verilog text signed when xs) with the sign s (a select of a signed vector is unsigned)
   const asSign = (x, xs, s) => (!!xs === !!s ? x : s ? `$signed(${x})` : `$unsigned(${x})`);
   const lowBits = (x, lo, w) => `${w}'((${lo}) < 0 ? ${x} << -(${lo}) : ${x} >> (${lo}))`;
+  // an index that is an unsigned vector widened to an integer (VHDL to_integer(u)): the vector
+  // itself (a 3-bit index, not a 32-bit signed one: Yosys built 32-bit index logic for it, #14)
+  const narrowIndex = idx => {
+    let n = idx;
+    while (n.k === 'conv' && !n.ext && n.a.t.kind === 'logic' && !n.a.t.s && n.a.t.w > 0 && n.a.t.w < (n.t.w || 32)) n = n.a;
+    return n;
+  };
   function posExpr(t, idx, ctx, signedPos = false) {
+    idx = narrowIndex(idx);
     const i = e(idx, ctx);
     // (signedPos: the position as a signed number, it can be below 0; read selects only: Yosys 0.68
     // fails on a signed index in a memory word's part-select write)
@@ -611,7 +639,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     const P = place(n.base, ctx, lv);
     if (!P) return null;
     const lo = P.t.lo ?? 0;
-    const idx = () => { const iv = e(n.index, ctx); return iv.s ? S(iv.x) : iv.x; };
+    const idx = () => { const iv = e(narrowIndex(n.index), ctx); return iv.s ? S(iv.x) : iv.x; };
     if (P.mem) {   // a word of the memory
       const ix = idx();
       return { base: `${P.base}[${lo ? `${ix} - ${lo}` : ix}]`, full: wOf(P.t.elem), t: P.t.elem, mem: false, off: 0, offX: null };

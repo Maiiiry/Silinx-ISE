@@ -8,6 +8,7 @@ import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, cellCounts, uti
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { netlistSim } from './fpga-sim.js';
+import { toVerilog } from '../core/synth-verilog.js';
 
 const COUNTER = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 entity counter is port (clk, rst, en : in std_logic; q : out std_logic_vector(3 downto 0)); end counter;
@@ -153,4 +154,44 @@ test('Yosys messages that say nothing about the design: its block-RAM mapping\'s
   // a resized port of the design's own cells still counts
   assert.ok(!quiet('Warning: Resizing cell port top.u_add.A from 16 bits to 8 bits.'));
   assert.ok(!quiet('Warning: Resizing cell port top.ram.0.0.ADDR from 14 bits to 10 bits.'));
+});
+
+// Regression (#14): VHDL's to_integer(u) as a bit index was a 32-bit signed index for Yosys (32-bit
+// index logic: nandland's SPI master 74 LUTs in VHDL against 46 in Verilog), and a constant signal
+// as an asynchronous reset value was a signal: the same receiver in VHDL and in Verilog now gives the
+// same cells
+test('VHDL bit indexes by to_integer(unsigned) and constant reset-value signals: the same cells as the Verilog design (#14)', { timeout: 120000 }, async () => {
+  const VHD = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity rx is generic (MODE : integer := 0); port (clk, rst_l, en, din : in std_logic; q : out std_logic_vector(7 downto 0); bit_o : out std_logic; sck : out std_logic); end;
+architecture rtl of rx is
+  signal cpol : std_logic;
+  signal cnt : unsigned(2 downto 0);
+  signal sh : std_logic_vector(7 downto 0);
+  signal ck : std_logic;
+begin
+  cpol <= '1' when MODE = 2 or MODE = 3 else '0';
+  process (clk, rst_l) begin
+    if rst_l = '0' then cnt <= "111"; sh <= (others => '0'); ck <= cpol;
+    elsif rising_edge(clk) then
+      if en = '1' then sh(to_integer(cnt)) <= din; cnt <= cnt - 1; ck <= not ck; end if;
+    end if;
+  end process;
+  q <= sh; bit_o <= sh(to_integer(cnt)); sck <= ck;
+end;`;
+  const VLG = `module rx(input clk, rst_l, en, din, output [7:0] q, output bit_o, output sck);
+  reg [2:0] cnt; reg [7:0] sh; reg ck;
+  always @(posedge clk or negedge rst_l)
+    if (!rst_l) begin cnt <= 3'd7; sh <= 8'd0; ck <= 1'b0; end
+    else if (en) begin sh[cnt] <= din; cnt <= cnt - 3'd1; ck <= ~ck; end
+  assign q = sh; assign bit_o = sh[cnt]; assign sck = ck;
+endmodule`;
+  const cellsOf = async (text, p) => {
+    const d = elaborate(compile([{ path: p, text }]), 'rx');
+    const r = await synthesizeOpen(d, { run: yosysNode });
+    return { cells: Object.fromEntries(Object.entries(r.cells).sort()), text: toVerilog(d).text };
+  };
+  const a = await cellsOf(VHD, 'rx.vhd'), b = await cellsOf(VLG, 'rx.v');
+  assert.deepEqual(a.cells, b.cells);
+  assert.match(a.text, /^ {8}sh\[cnt\] <= din;$/m, 'the 3-bit counter itself is the index');
+  assert.match(a.text, /^ {6}ck <= 1'h0;$/m, 'the reset value is the constant');
 });
