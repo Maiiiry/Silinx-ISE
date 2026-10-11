@@ -22,6 +22,9 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   block-RAM pins (research/s3e-bitstream/README.md, stage D). The open flow fails with the reason
   for a design that needs one of them. Done in 15.10.2: block RAM, multipliers, distributed RAM,
   shift registers and the top-left DCM in the open flow (test/fixtures/open-flow).
+- **A missing bit of a bottom I/O tile's routing switch:** dram routed at seed 1 differs from
+  ISE's bitgen by one bit in BIOIS_X24Y0 (`IOIS_Y1->OMUX10` / `OMUX_S3->IOIS_G3_B0`,
+  research/s3e-bitstream/README.md, stage E): measure those PIPs in the bottom I/O tiles.
 - **Measuring the device description ourselves** (black-box, like the bit database) instead of
   computing it from ISE's device report: about 2-4 weeks for one device.
 - **Synthesis quality** (research/synth-quality/README.md). Done in 15.10.2: the open synthesis's

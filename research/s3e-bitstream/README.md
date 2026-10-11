@@ -368,6 +368,13 @@ What ISE's tools want, found on the way:
   other periods change 2 bits, not measured); `C2VDD` (the carry chain's constant 1 on the G side,
   never in ISE's designs) sets none either. DSSEN tied to 0 is left open, as ISE's map does.
 
+After merging the timing-driven placer and the router's LUT input swapping (main 7f4ab2f) the
+same designs are byte-identical again but dram at seed 1: one bit (frame +7, bit 79 of the bottom
+I/O tile BIOIS_X24Y0) that ISE sets and the database does not, in a tile whose features are an
+input pad and the PIPs `IOIS_Y1->OMUX10`, `OMUX_S3->IOIS_G3_B0` (a routing switch of the bottom I/O
+tiles with one bit missing, not a block of this stage); at seed 2 dram is byte-identical. To
+measure (gen-pipcover.mjs on that PIP in the bottom I/O tiles).
+
 **What fails clearly** (the packer or placer stops with the reason): the DCM outputs CLK90, CLK180,
 CLK270, CLK2X180, CLKFX180 on a global buffer and the other three DCMs (no measured path), CLKIN
 from another pad, `STARTUP_WAIT` (it also changes the COR register), `CLKIN_DIVIDE_BY_2`,
