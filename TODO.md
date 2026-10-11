@@ -8,27 +8,31 @@ What is planned for Silinx ISE, most important first. Done items move to the
 How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
 
 - **The other Spartan-3E boards, on the boards:** blinky and lab11 for the Basys2-100, Nexys2-500
-  and Nexys2-1200 are byte-identical to ISE's bitgen; program them on the boards. Their DCMs (the
-  XC3S1200E's side DCMs too) are not measured; the XC3S1200E's long-line splitters are measured but
-  not used by the router (a routed design does not tell their direction: resolve it from the device
-  graph). The FG320 pads' other I/O standards, drive, slew and pull (`gen-iob.mjs --perpad /
-  --perstd` on the XC3S500E and XC3S1200E: 430 ISE runs each; the Spartan-3E Starter Kit uses LVTTL,
-  drive 8 and pull-ups), then `gen-iorand.mjs` as a check.
+  and Nexys2-1200 are byte-identical to ISE's bitgen; program them on the boards (and the Spartan-3E
+  Starter Kit's test, test/fixtures/open-flow/feat_starter). The XC3S1200E's long-line splitters are
+  measured but not used by the router (a routed design does not tell their direction: resolve it
+  from the device graph). The open flow places one DCM only, on the top-left site: the others are
+  measured now (settings, pins), to place a DCM on any of them (the clock input's pad and the
+  global buffers it reaches decide which).
+- **XC3S250E (and all) features not measured yet:** the settings of the IOB flip-flops and DDR
+  registers (their clock pins' switches are measured; gen-sitedrop.mjs found the clock inverters and
+  D multiplexers, not the input delays, which are bits near the pads: a per-pad campaign as
+  gen-iob.mjs --perpad, on designs whose IOB registers ISE placed); the 16 global buffers of the
+  left and right sides (their settings set no bits, but the side clock tiles' input switches set bits
+that depend on the other inputs used: a campaign of their own); CLKIN_DIVIDE_BY_2 and DESKEW_ADJUST =
+  SOURCE_SYNCHRONOUS (xdl refuses the changed XDL: designs implemented by ISE); the DCM input
+  frequencies between the measured limits (the open flow refuses them: dcmPeriodFeatures); a few
+  corner pins (research/s3e-bitstream/README.md, stages D and F). The open flow fails with the
+  reason for a design that needs one of them. Done in 15.10.2: block RAM, multipliers, distributed
+  RAM, shift registers and the top-left DCM in the open flow (test/fixtures/open-flow); the DCMs'
+  pins, the BUFGMUX inputs, select and its inverter for all 8 buffers of the top and bottom; the
+  missing bit of dram at seed 1 (a horizontal clock row's bit in a block-RAM column); every DCM's
+  settings, input period and STARTUP_WAIT; the FG320 pads' I/O settings.
 - **Spartan-6 boards: Nexys3 (XC6SLX16) and Atlys (XC6SLX45).** Not supported by the open
   toolchain yet (they work with ISE, and *Synthesize - Yosys (open)* already synthesizes for them).
   To do: the Spartan-6 packer and placer (6-input LUTs, SLICEX / SLICEL / SLICEM), the bit database
   (a new measurement campaign), the bitstream writer (the Spartan-6 format, UG380), the delay
   model; the device descriptions of the two parts.
-- **XC3S250E features not measured yet:** the settings of the other 3 DCMs (their pins' switches
-  are measured), input periods other than 20 ns (CLKIN_PERIOD changes 2 bits), STARTUP_WAIT (the
-  COR register), the settings of the IOB flip-flops and DDR registers (their clock pins' switches
-  are measured; gen-sitedrop.mjs found the clock inverters and D multiplexers, not the input
-  delays, which are bits near the pads), a few corner pins (research/s3e-bitstream/README.md,
-  stages D and F). The open flow fails with the reason for a design that needs one of them. Done
-  in 15.10.2: block RAM, multipliers, distributed RAM, shift registers and the top-left DCM in the
-  open flow (test/fixtures/open-flow); the DCMs' pins, the BUFGMUX inputs, select and its inverter
-  for all 8 buffers of the top and bottom; the missing bit of dram at seed 1 (a horizontal clock
-  row's bit in a block-RAM column).
 - **Measuring the device description ourselves** (black-box, like the bit database) instead of
   computing it from ISE's device report: about 2-4 weeks for one device.
 - **Synthesis quality** (research/synth-quality/README.md). Done in 15.10.2: the open synthesis's

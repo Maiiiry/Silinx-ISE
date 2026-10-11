@@ -139,17 +139,18 @@ for (const [name, [packLine, type, settings = []]] of Object.entries(FEATURES)) 
 }
 
 test('the open flow fails clearly for what the bit database does not have: a DCM output with no known path to a global buffer', { timeout: 300000 }, () => {
-  const dir = path.join(tmp, 'dcm90');
+  // (CLK2X180 of the top-left DCM: no measured path; CLK90 has one since stage F's designs of every DCM)
+  const dir = path.join(tmp, 'dcm2x180');
   fs.mkdirSync(dir, { recursive: true });
-  const src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm/top.vhd'), 'utf8').replace('CLK90 => open', 'CLK90 => clk2x_u').replace('CLK2X => clk2x_u', 'CLK2X => open');
+  const src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm/top.vhd'), 'utf8').replace('CLK2X180 => open', 'CLK2X180 => clk2x_u').replace('CLK2X => clk2x_u', 'CLK2X => open');
   fs.writeFileSync(path.join(dir, 'top.vhd'), src);
-  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm90', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'top',
+  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm2x180', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'top',
     // the constraints by an absolute path (on Windows a relative one across drives is absolute too: it was
     // joined onto the project folder, CI b898d8e)
     files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }], constraints: path.join(ROOT, 'test/fixtures/open-flow/basys2.ucf') }));
   const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, path.join(dir, 'out')], { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
   assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /u_b2x: no free global clock buffer reachable from u_dcm\.CLK90 through switches of known bits/);
+  assert.match(r.stderr, /u_b2x: no free global clock buffer reachable from u_dcm\.CLK2X180 through switches of known bits/);
 });
 
 // blinky on the other boards (stage F of research/s3e-bitstream): the Basys2-100 with the Basys2's
