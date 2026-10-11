@@ -5,6 +5,10 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **Silinx toolchain: a clock with no pin location** could fail in Place & Route (a design with no
+  UCF: its clock could not reach a block RAM on the switches of known bits). A clock input with no
+  `LOC` is now put on a free GCLK pin, a pad whose dedicated path reaches a global clock buffer (B8
+  -> BUFGMUX_X2Y11 on every Spartan-3E device of the toolchain), as ISE places a clock (#49).
 - **Silinx toolchain: multiplications by a constant** (such as the stopwatch example's x * 6554)
   failed in Place & Route on every Spartan-3E device: the multiplier's inputs tied to 1 could not
   be routed on the switches of known bits. Each is now tied, as ISE does, to the constant-1 source

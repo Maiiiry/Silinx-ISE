@@ -12,7 +12,8 @@
 // that falls as the temperature falls; the move window shrinks to keep about 44% of the moves
 // accepted. Everything follows one seeded random generator: the same seed gives the same placement.
 // Instances of type SLICEM (RAMs, shift registers) stay on SLICEM sites; a DCM takes its site (the
-// packer's loc) and the global buffers its outputs reach (option bufgSites).
+// packer's loc) and the global buffers its outputs reach (option bufgSites); a clock input with no
+// LOC takes a free pad whose dedicated path of known bits reaches a global buffer (a GCLK pin).
 //
 //   const dev = deviceSites(parseXdlrc(text))   the sites with their positions
 //   const r = place(packed, dev, { seed, effort })
@@ -209,7 +210,7 @@ export function analyzeTiming(tg, pos, delays = null) {
 }
 
 /** Place a packed design. Options: seed (1), effort (1: moves per temperature scale with it),
- *  bufgSites(siteName, pin) (the global clock buffers a DCM output reaches: route.js bufgReach),
+ *  bufgSites(siteName, pin) (the global clock buffers a DCM output, or a pad's pin I, reaches: route.js bufgReach),
  *  timing (1.5: the weight of the timing cost, lambda = timing / (2 + timing) against 1 - lambda for
  *  the wirelength; 0: wirelength only), delays (timing.js delayTable(device): the delay of a
  *  connection by its offset; default: from the distance, the model's dist), clockSites (bufgmux site name -> Set of the slice sites its clock reaches, or null for all:
@@ -268,6 +269,30 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     sites[o.inst] = p;
   }
   const freePads = (dir, v) => [...dev.pads.values()].filter(p => !padUsed.has(p.name) && (dir === 'in' || !p.inputOnly) && bankOk(p, v));
+  // a clock input with no LOC (its pad drives a global buffer straight): on a pad from which a
+  // global buffer is reached through the dedicated clock paths of known bits (a GCLK pin, as ISE
+  // places it: B8 -> BUFGMUX_X2Y11), the buffers in BUFG_ORDER's order, and kept there (#49)
+  const bufgRank = new Map();
+  [...BUFG_ORDER, ...dev.bufgmux.map(b => b.name)].forEach((n, k) => { if (!bufgRank.has(n)) bufgRank.set(n, k); });
+  const drivesBufg = o => packed.nets.some(n => n.outpins[0]?.inst === o.inst && n.inpins.some(p => p.pin === 'I0' && packed.insts[p.inst].kind === 'bufg'));
+  const padReach = new Map();   // pad name -> the buffers its dedicated paths of known bits reach
+  const bufClaimed = new Set();
+  if (bufgSites) for (const o of objs) if (o.kind === 'iob' && !o.fixed && o.dir === 'in' && drivesBufg(o)) {
+    let best = null;
+    for (const p of freePads('in', vccoOf(o.inst))) {
+      if (!padReach.has(p.name)) padReach.set(p.name, bufgSites(p.name, 'I') || []);
+      for (const b of padReach.get(p.name)) {
+        const k = bufgRank.get(b) ?? Infinity;
+        if (!bufClaimed.has(b) && (!best || k < best.k)) best = { p, b, k };
+      }
+    }
+    if (!best) continue;   // no GCLK pin free: a pad like any other (general routing to the buffer)
+    bufClaimed.add(best.b);
+    bankAdd(best.p, vccoOf(o.inst), 1);
+    padUsed.set(best.p.name, o);
+    sites[o.inst] = best.p;
+    o.fixed = o.gclk = true;
+  }
   for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
     const fp = freePads(o.dir, vccoOf(o.inst));
     if (!fp.length) throw new PlaceError('place: not enough pads');
@@ -290,10 +315,11 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const byName = new Map(dev.bufgmux.map(b => [b.name, b]));
   const driverOfPin = new Map();
   for (const n of packed.nets) for (const ip of n.inpins) driverOfPin.set(`${ip.inst}:${ip.pin}`, n.outpins[0]);
-  // a buffer driven by a DCM output: one of the buffers that output reaches (bufgSites: the
-  // dedicated paths of known bits, route.js bufgReach), those first
+  // a buffer driven by a DCM output, or by a clock pad put on a GCLK pin: one of the buffers that
+  // output reaches (bufgSites: the dedicated paths of known bits, route.js bufgReach), those first
   const reachOf = o => {
     const d = driverOfPin.get(`${o.inst}:I0`);
+    if (d && padReach.size && objs[objOf[d.inst]].gclk) return new Set(padReach.get(sites[d.inst].name));   // a clock pad put on a GCLK pin
     return d && bufgSites && packed.insts[d.inst].kind === 'dcm' ? new Set(bufgSites(sites[d.inst].name, d.pin)) : null;
   };
   // (the most constrained first: a DCM output that reaches fewer buffers chooses before the others)
