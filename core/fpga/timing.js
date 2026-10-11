@@ -76,6 +76,16 @@ export const SPEED_4 = {
     Tsrck: [0.910, 0.910],     // SR
   },
   pad: { Tiopi: 1.3, Tioop: 3.25 },
+  // the SLICEM's RAMs and shift registers, block RAMs, multipliers (est.: of the order of the
+  // Spartan-3E data sheet's -4 values, not fitted to trce yet)
+  mem: {
+    Tshcko: 2.0,    // CLK -> X / Y of a shift register (the stage at the address after the shift)
+    Tds: 0.46,      // BX / BY (data in) setup
+    Tas: 0.46,      // F1-4 / G1-4 (address) setup of a write
+    Tws: 0.87,      // SR (write / shift enable) setup
+  },
+  bram: { Tbcko: 2.39, Tback: 0.38, Tbdck: 0.33, Tbeck: 0.65, Tbwck: 0.74, Tbrck: 0.43 },
+  mult: { Tmult: 4.9, Tmsck: 0.36, Tmsckp: 1.0, Tmsdck: 5.2, Tmscka: 4.6 },
 };
 
 // ------------------------------------------------------------------ wire classes
@@ -207,6 +217,8 @@ export function instArcs(inst, model = SPEED_4) {
     out.output.push(['O', model.pad.Tioop]);
     return out;
   }
+  if (inst.type === 'RAMB16') return bramArcs(inst, model, out);
+  if (inst.type === 'MULT18X18SIO') return multArcs(inst, model, out);
   if (!/^SLICE[LM]$/.test(inst.type)) return out;
   const m = new Map(inst.cfg.map(c => [c.attr, c.value]));
   // SLICEM or SLICEL by the site (a slice may be written SLICEL on a SLICEM site): the left column of a CLB
@@ -251,7 +263,59 @@ export function instArcs(inst, model = SPEED_4) {
   };
   ff('FFX', 'DXMUX', toX, 'BX', 'XQ', 'TckoX');
   ff('FFY', 'DYMUX', toY, 'BY', 'YQ', 'TckoY');
-  if (out.clock) setup.push(['CE', T('Tceck')], ['SR', T('Tsrck')]);
+  // RAMs and shift registers (SLICEM, LUT #RAM): written on CLK (data BX / BY, enable SR, write
+  // address on the LUT pins); a shift register's output changes after the clock edge
+  const M = model.mem;
+  const memSides = ['F', 'G'].filter(l => /^#RAM/.test(m.get(l) || ''));
+  if (memSides.length) {
+    out.clock = true;
+    setup.push(['SR', M.Tws]);
+    if (m.has('DIF_MUX') || m.has('DIG_MUX')) setup.push(['BY', M.Tds]);
+    if (m.get('DIF_MUX') === 'BX' || m.has('SLICEWE0USED')) setup.push(['BX', M.Tds]);
+    for (const l of memSides) {
+      const o = l === 'F' ? 'X' : 'Y', shift = m.get(`${l}_ATTR`) === 'SHIFT_REG';
+      if (shift) clkToOut.push([o, M.Tshcko]);
+      else for (const p of l === 'F' ? F_PINS : G_PINS) setup.push([p, M.Tas]);
+    }
+  }
+  if (out.clock && !memSides.length) setup.push(['CE', T('Tceck')], ['SR', T('Tsrck')]);
+  else if (m.has('FFX') || m.has('FFY')) setup.push(['CE', T('Tceck')]);
+  return out;
+}
+
+/** A block RAM: synchronous, the output latches change after the clock edge (CLKA / CLKB). */
+function bramArcs(inst, model, out) {
+  const B = model.bram;
+  const ports = ['A', 'B'].filter(x => inst.cfg.some(c => c.attr === `PORT${x}_ATTR`));
+  out.clock = ports.length > 0;
+  for (const x of ports) {
+    for (let k = 0; k < 32; k++) out.clkToOut.push([`DO${x}${k}`, B.Tbcko]);
+    for (let k = 0; k < 4; k++) out.clkToOut.push([`DOP${x}${k}`, B.Tbcko]);
+    for (let k = 0; k < 14; k++) out.setup.push([`ADDR${x}${k}`, B.Tback]);
+    for (let k = 0; k < 32; k++) out.setup.push([`DI${x}${k}`, B.Tbdck]);
+    for (let k = 0; k < 4; k++) out.setup.push([`DIP${x}${k}`, B.Tbdck]);
+    out.setup.push([`EN${x}`, B.Tbeck], [`WE${x}`, B.Tbwck], [`SSR${x}`, B.Tbrck]);
+  }
+  return out;
+}
+
+/** A multiplier: combinational A, B -> P, or through its registers (AREG, BREG, PREG). */
+function multArcs(inst, model, out) {
+  const M = model.mult, m = new Map(inst.cfg.map(c => [c.attr, c.value]));
+  const areg = m.get('AREG') === '1', breg = m.get('BREG') === '1', preg = m.get('PREG') === '1';
+  const ins = [...(areg ? [] : Array.from({ length: 18 }, (_, k) => `A${k}`)), ...(breg ? [] : Array.from({ length: 18 }, (_, k) => `B${k}`))];
+  out.clock = areg || breg || preg;
+  for (let j = 0; j < 36; j++) {
+    const p = `P${j}`;
+    if (preg) out.clkToOut.push([p, M.Tmsckp]);
+    else {
+      for (const i of ins) out.comb.push([i, p, M.Tmult]);
+      if (areg || breg) out.clkToOut.push([p, M.Tmscka]);
+    }
+  }
+  for (const [reg, x] of [[areg, 'A'], [breg, 'B']]) for (let k = 0; k < 18; k++) out.setup.push([`${x}${k}`, reg ? M.Tmsck : preg ? M.Tmsdck : 0]);
+  if (!preg) out.setup = out.setup.filter(([, d]) => d > 0);
+  for (const p of ['CEA', 'CEB', 'CEP', 'RSTA', 'RSTB', 'RSTP']) if (out.clock) out.setup.push([p, M.Tmsck]);
   return out;
 }
 
@@ -274,7 +338,8 @@ export function timingGraph(design, model = SPEED_4) {
   const instByName = new Map(design.insts.map(i => [i.name, i]));
   // the clock of each instance: the net on its CLK pin
   const clockOf = new Map();
-  for (const n of design.nets) for (const p of n.inpins) if (p.pin === 'CLK') clockOf.set(p.inst, n.name);
+  // (a block RAM's CLKA / CLKB: its clock too)
+  for (const n of design.nets) for (const p of n.inpins) if (/^CLK[AB]?$/.test(p.pin)) clockOf.set(p.inst, n.name);
   // edges: from pin, to pin, delay, connection (-1: an arc through an instance)
   const eFrom = [], eTo = [], eDelay = [], eConn = [];
   const conns = [], connIndex = new Map();
@@ -283,7 +348,7 @@ export function timingGraph(design, model = SPEED_4) {
     const src = n.outpins[0];
     if (/^BUFG/.test(instByName.get(src.inst)?.type || '')) continue;
     for (const p of n.inpins) {
-      if (p.pin === 'CLK') continue;
+      if (/^CLK[AB]?$/.test(p.pin)) continue;
       const c = conns.length;
       conns.push({ net: n.name, fromPin: src, toPin: p });
       connIndex.set(`${n.name}\u0000${p.inst}\u0000${p.pin}`, c);

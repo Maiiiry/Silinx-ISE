@@ -12,11 +12,16 @@
 //
 // pack(netlist, { ucf, part }) -> {
 //   name, part, cfg (the design's cfg string: the ports' bus information, raw XDL text),
-//   insts:  [{ name, type: 'SLICEL' | 'IBUF' | 'IOB' | 'BUFGMUX', cfg: [{ attr, name, value }], loc: pad | null }],
+//   insts:  [{ name, type: 'SLICEL' | 'SLICEM' | 'IBUF' | 'IOB' | 'BUFGMUX' | 'RAMB16' | 'MULT18X18SIO' | 'DCM',
+//              kind: 'slice' | 'iob' | 'bufg' | 'bram' | 'mult' | 'dcm', cfg: [{ attr, name, value }],
+//              loc: pad | site | null, wide (bram: a 36-bit port) }],
 //   nets:   [{ name, type: 'wire' | 'gnd' | 'vcc', outpins: [{ inst, pin }], inpins: [{ inst, pin }] }]   (inst = index)
 //   macros: [{ kind: 'carry' | 'F6' | 'F7' | 'F8', members: [{ inst, dx, dy }] }]   slices that must keep these
 //           relative positions (slice coordinates: SLICE_X(x+dx)Y(y+dy))
-//   stats:  { slices, luts, ffs, carry, muxes, iobs, bufgs, copies, passthru }, warnings: [] }
+//   stats:  { slices, luts, ffs, carry, muxes, iobs, bufgs, copies, passthru, unusedInputs, slicem, brams, mults, dcms },
+//           warnings: [] }
+// Besides the slices: distributed RAMs and shift registers in SLICEMs, block RAMs, multipliers and the
+// DCM on sites of their own (the sections below say how, as ISE's map writes them).
 // The cfg strings are those ISE writes for the same settings (xdl -ncd2xdl), without the settings
 // that are off, which is what xdl -xdl2ncd expects of a design.
 import { paramBits, paramInt } from './netlist.js';
@@ -42,6 +47,21 @@ const ffKind = type => {
   return k ? { ...k, neg: !!m[2] } : null;
 };
 const MUXF = { MUXF5: 5, MUXF6: 6, MUXF7: 7, MUXF8: 8 };
+// cells in the LUTs of a SLICEM (the left column of a CLB): distributed RAMs and shift registers
+const SLICEM_MEM = {
+  RAM16X1S: 'ram', RAM16X1D: 'ramd', RAM32X1S: 'ram32',
+  SRL16: 'srl', SRL16E: 'srl', SRL16_1: 'srl', SRL16E_1: 'srl', SRLC16: 'srl', SRLC16E: 'srl', SRLC16_1: 'srl', SRLC16E_1: 'srl',
+};
+// block RAMs (single port: port A) and multipliers
+const BRAM_TYPE = /^RAMB16_S(1|2|4|9|18|36)(_S(1|2|4|9|18|36))?$/;
+const MULT_TYPE = /^MULT18X18(S|SIO)?$/;
+const DCM_TYPE = /^DCM(_SP)?$/;
+// a block-RAM port of each width: its PORTx_ATTR, data bits, parity bits, address bits
+export const BRAM_WIDTH = {
+  1: { attr: '16384X1', data: 1, par: 0, addr: 14 }, 2: { attr: '8192X2', data: 2, par: 0, addr: 13 },
+  4: { attr: '4096X4', data: 4, par: 0, addr: 12 }, 9: { attr: '2048X9', data: 8, par: 1, addr: 11 },
+  18: { attr: '1024X18', data: 16, par: 2, addr: 10 }, 36: { attr: '512X36', data: 32, par: 4, addr: 9 },
+};
 
 // Wide multiplexers in a CLB (slices S0 = (0,0), S1 = (0,1), S2 = (1,0), S3 = (1,1) from the CLB's
 // bottom-left slice): which FiMUX each slice has, and where its inputs come from (I1 on FXINA,
@@ -83,7 +103,45 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   const ci = c => c.idx;
   const isLut = c => LUT_K[c.type] !== undefined;
   const driverCell = n => (nets[n].driver ? cells[nets[n].driver.cell] : null);
-  const unsupported = cells.filter(c => !isLut(c) && !ffKind(c.type) && !MUXF[c.type] && !/^(MUXCY|XORCY|IBUF|IBUFG|OBUF|BUFG)$/.test(c.type));
+  // A RAM64X1S is two RAM32X1S (addresses 0-31 and 32-63, each written when WE and A5 select it)
+  // and a 3-input LUT choosing the read word by A5, as ISE's map builds it on the Spartan-3E
+  for (const c of cells.filter(x => x.type === 'RAM64X1S')) lowerRam64(c);
+  function lowerRam64(c) {
+    const addNet = name => { const k = nets.length; nets.push({ id: k, name: uniqueNetName(name), driver: null, port: null, loads: [] }); return k; };
+    const addCell = (name, type, params, pins, outs) => {
+      const cell = { name, type, params, attrs: {}, pins, dirs: {}, idx: cells.length };
+      cells.push(cell);
+      for (const [p, n] of Object.entries(pins)) {
+        if (outs.includes(p)) { cell.dirs[p] = 'output'; nets[n].driver = { cell: cell.idx, pin: p }; } else { cell.dirs[p] = 'input'; nets[n].loads.push({ cell: cell.idx, pin: p }); }
+      }
+      return cell;
+    };
+    const p = c.pins;
+    // the RAM64X1S's own pins leave its nets
+    for (const n of new Set(Object.values(p))) nets[n].loads = nets[n].loads.filter(l => l.cell !== c.idx);
+    const init = paramBits(c.params.INIT) || [];
+    const half = h => init.slice(32 * h, 32 * h + 32).concat(new Array(32).fill(0)).slice(0, 32).reverse().join('');
+    const weLo = addNet(`${c.name}_we0`), weHi = addNet(`${c.name}_we1`), oLo = addNet(`${c.name}_o0`), oHi = addNet(`${c.name}_o1`);
+    // LUT INIT strings, most significant bit first (I0 = bit 0 of the index)
+    addCell(`${c.name}_we0`, 'LUT2', { INIT: '0010' }, { I0: p.WE, I1: p.A5, O: weLo }, ['O']);
+    addCell(`${c.name}_we1`, 'LUT2', { INIT: '1000' }, { I0: p.WE, I1: p.A5, O: weHi }, ['O']);
+    for (const [h, we, o] of [[0, weLo, oLo], [1, weHi, oHi]]) {
+      addCell(`${c.name}_${h ? 'hi' : 'lo'}`, 'RAM32X1S', { INIT: half(h), IS_WCLK_INVERTED: c.params.IS_WCLK_INVERTED ?? 0 },
+        { A0: p.A0, A1: p.A1, A2: p.A2, A3: p.A3, A4: p.A4, D: p.D, WCLK: p.WCLK, WE: we, O: o }, ['O']);
+    }
+    nets[p.O].driver = null;
+    addCell(`${c.name}_mux`, 'LUT3', { INIT: '11001010' }, { I0: oLo, I1: oHi, I2: p.A5, O: p.O }, ['O']);
+    c.lowered = true;
+  }
+  function uniqueNetName(base) { let n = base, k = 1; const names = new Set(nets.map(x => x.name)); while (names.has(n)) n = `${base}_${k++}`; return n; }
+  const liveCells = () => cells.filter(c => !c.lowered);
+  const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|BUFG)$/.test(c.type) || SLICEM_MEM[c.type]
+    || BRAM_TYPE.test(c.type) || MULT_TYPE.test(c.type) || DCM_TYPE.test(c.type);
+  for (const c of liveCells()) {
+    if (c.type === 'BUFGMUX') throw new PackError(`pack: BUFGMUX ${c.name}: the open toolchain cannot switch clocks with a BUFGMUX yet (its I1 / S inputs are measured on one of the 8 buffers only)`);
+    if (/^SRLC16E?(_1)?$/.test(c.type) && nets[c.pins.Q15]?.loads.length) throw new PackError(`pack: ${c.type} ${c.name}: the cascade output Q15 is not supported yet`);
+  }
+  const unsupported = liveCells().filter(c => !supported(c));
   if (unsupported.length) throw new PackError(`pack: cells not supported yet: ${[...new Set(unsupported.map(c => c.type))].join(', ')}`);
 
   // ---------------------------------------------------------------- the placed elements
@@ -421,6 +479,117 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     if (otherLoads(o, parent.map(l => [l.cell, l.pin])).length) s.out.X = 'F5';
     if (!s.out.X || s.out.X === 'F5') { absorbFf(s, 'X', o); if (s.ff.X) s.out.X = 'F5'; }
   }
+  // ---------------------------------------------------------------- distributed RAMs and shift registers
+  // In a SLICEM (as ISE's map packs them, research/s3e-bitstream stage D): the LUT is a #RAM, its
+  // address on the LUT's pins 1-4 (A0-A3); the write clock on CLK (CLKINV), the write enable (RAM)
+  // or shift enable (shift register) on SR through the write strobe generator WSGEN; the data in
+  // through BX (DIF_MUX = BX: LUT F) or BY (DIG_MUX = BY: LUT G; DIF_MUX = ALTDIF: F takes BY's).
+  //   RAM16X1S   F or G (two in a slice share the address, WE and clock)
+  //   RAM16X1D   G = the write port and SPO (A), F = DPO (DPRA), F_ATTR / G_ATTR = DUAL_PORT
+  //   RAM32X1S   G = addresses 0-15, F = 16-31, A4 on BX (F5 multiplexer and SLICEWE0), O = F5
+  //   SRL16(E)   F or G, F_ATTR / G_ATTR = SHIFT_REG; two in a slice share the clock and CE; the
+  //              flip-flop of a side may take the shift register's output (DXMUX = 1) when the
+  //              shift is always enabled (SR = 1) and the flip-flop has no CE, no set / reset
+  const memCells = liveCells().filter(c => SLICEM_MEM[c.type]);
+  const memInit = (c, n) => { const b = paramBits(c.params.INIT) || []; let v = 0; for (let a = 0; a < n; a++) if (b[a]) v += 2 ** a; return v; };
+  const memClk = c => {
+    const kind = SLICEM_MEM[c.type];
+    const pin = kind === 'srl' ? 'CLK' : 'WCLK';
+    const inv = (/_1$/.test(c.type) ? 1 : 0) ^ paramInt(c.params[`IS_${pin}_INVERTED`]);
+    return { pin, net: c.pins[pin], inv };
+  };
+  // the enable on SR: a RAM's WE, a shift register's CE (none: SR = 1)
+  const memEn = c => (SLICEM_MEM[c.type] === 'srl' ? (c.pins.CE === undefined ? 1 : c.pins.CE) : c.pins.WE);
+  const memKey = c => { const k = memClk(c); return `${SLICEM_MEM[c.type] === 'srl' ? 'srl' : 'ram'}|${k.net}|${k.inv}|${memEn(c)}`; };
+  const addrNets = c => [0, 1, 2, 3].map(j => c.pins[`A${j}`]);
+  function memSlice(c) {
+    const s = newSlice();
+    s.type = 'SLICEM';
+    s.slicem = true;
+    const k = memClk(c);
+    s.mctrl = { clk: k.net, clkInv: k.inv, en: memEn(c), srl: SLICEM_MEM[c.type] === 'srl' };
+    return s;
+  }
+  // the clock and the enable of a memory cell of slice s
+  function memCtrl(s, c) {
+    setSink(ci(c), memClk(c).pin, { inst: s.idx, pin: 'CLK', kind: 'gen' });
+    const en = SLICEM_MEM[c.type] === 'srl' ? 'CE' : 'WE';
+    if (c.pins[en] !== undefined) setSink(ci(c), en, { inst: s.idx, pin: 'SR', kind: 'gen' });
+    else extra.push({ net: 1, inst: s.idx, pin: 'SR', kind: 'gen' });
+  }
+  // a memory LUT on side `side`: address pins, data in, contents
+  function memLut(s, side, c, { addr = addrNets(c), addrPins = ['A0', 'A1', 'A2', 'A3'], init, mode, out }) {
+    const two = SLICEM_MEM[c.type] === 'ramd' || SLICEM_MEM[c.type] === 'ram32';
+    const lut = { name: two ? `${c.name}.SLICEM_${side}` : c.name, k: 4, init: null, inputs: addr, pins: [1, 2, 3, 4], cell: -1, out, mem: { init, mode } };
+    placeLut(s, side, lut, -1);
+    memCtrl(s, c);
+    // (an address pin already on the other LUT's pins: the LUT inputs below connect this one too)
+    addrPins.forEach((p, j) => { if (c.pins[p] !== undefined && !sink.has(`${ci(c)}:${p}`)) setSink(ci(c), p, { inst: s.idx, pin: `${side}${j + 1}`, kind: 'gen' }); });
+    // the address pins of the LUT the cell does not give (an SRL16 always has 4): constant 0
+    lut.inputs = lut.inputs.map(n => (n === undefined ? 0 : n));
+    return lut;
+  }
+  const memData = (s, side, c, pin = 'D') => {
+    const X = side === 'F' ? 'X' : 'Y';
+    setBypass(s, X, c.pins[pin]);
+    setSink(ci(c), pin, { inst: s.idx, pin: `B${X}`, kind: 'gen' });
+    s.dmux = s.dmux || {};
+    s.dmux[side] = side === 'F' ? 'BX' : 'BY';
+  };
+  const memUsed = new Set();
+  for (const c of memCells) {
+    if (memUsed.has(c)) continue;
+    memUsed.add(c);
+    const kind = SLICEM_MEM[c.type];
+    const s = memSlice(c);
+    if (kind === 'ramd') {
+      // G: the write port, read at A (SPO); F: read at DPRA (DPO), written at G's address (WF from WG)
+      memLut(s, 'G', c, { init: memInit(c, 16), mode: 'DUAL_PORT', out: c.pins.SPO });
+      memLut(s, 'F', c, { addr: [0, 1, 2, 3].map(j => c.pins[`DPRA${j}`]), addrPins: ['DPRA0', 'DPRA1', 'DPRA2', 'DPRA3'], init: memInit(c, 16), mode: 'DUAL_PORT', out: c.pins.DPO });
+      memData(s, 'G', c);
+      s.dmux.F = 'ALTDIF';
+      s.wf = s.wg = true;
+      where.set(ci(c), { inst: s.idx, bel: 'SITE', outs: { SPO: 'G', DPO: 'F' } });
+      continue;
+    }
+    if (kind === 'ram32') {
+      const init = memInit(c, 32);
+      memLut(s, 'G', c, { init: init % 65536, out: null });
+      memLut(s, 'F', c, { init: Math.floor(init / 65536), out: null });
+      memData(s, 'G', c);
+      s.dmux.F = 'ALTDIF';
+      // A4: the F5 multiplexer's select (F = A4 high) and the write strobe's address bit (SLICEWE0)
+      setBypass(s, 'X', c.pins.A4);
+      setSink(ci(c), 'A4', { inst: s.idx, pin: 'BX', kind: 'gen' });
+      s.f5 = { name: `${c.name}_F5` };
+      s.wf = s.wg = true;
+      s.we0 = true;
+      where.set(ci(c), { inst: s.idx, bel: 'SITE', outs: { O: 'F5' } });
+      continue;
+    }
+    // RAM16X1S / SRL16: G first; a second cell of the same kind and controls (and, for RAMs, the
+    // same address) takes F
+    const mode = kind === 'srl' ? 'SHIFT_REG' : null;
+    const outPin = kind === 'srl' ? 'Q' : 'O';
+    const put = (side, cc) => {
+      memLut(s, side, cc, { init: memInit(cc, 16), mode, out: cc.pins[outPin] });
+      memData(s, side, cc);
+      if (kind !== 'srl') s[side === 'F' ? 'wf' : 'wg'] = true;
+      where.set(ci(cc), { inst: s.idx, bel: side });
+      // the shift register's output into the flip-flop of its side (always shifting: SR = 1)
+      if (kind === 'srl' && s.mctrl.en === 1) {
+        const X = side === 'F' ? 'X' : 'Y';
+        const f = ffsOn(cc.pins.Q).find(x => x.ctrl.ce === null && x.ctrl.sr === null && !x.ctrl.latch && x.ctrl.clk === s.mctrl.clk && x.ctrl.clkInv === s.mctrl.clkInv);
+        if (f && !s.ff[X]) { placeFf(s, X, f, 'mux'); s.out[X] = side; }
+      }
+    };
+    put('G', c);
+    const sameAddr = x => kind === 'srl' || addrNets(x).every((n, j) => n === addrNets(c)[j]);
+    const mate = memCells.find(x => !memUsed.has(x) && SLICEM_MEM[x.type] === kind && memKey(x) === memKey(c) && sameAddr(x));
+    if (mate) { memUsed.add(mate); put('F', mate); }
+  }
+  stats.slicem = insts.filter(s => s.slicem).length;
+
   // ---------------------------------------------------------------- the rest: LUTs and flip-flops
   // Units: a LUT with the flip-flop it feeds (the flip-flop's D from the LUT inside the slice), a LUT
   // alone, a flip-flop alone (D through BX / BY). Slices are filled greedily: a seed unit, then
@@ -447,6 +616,8 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   const done = new Set();
   // can unit u go into slice s? returns the side(s) it would take, or null
   const fits = (s, u) => {
+    // (a SLICEM with RAMs or shift registers: SR is their enable; nothing else goes in)
+    if (s.mctrl) return null;
     const f = u.ff >= 0 ? ffs.get(u.ff) : null;
     if (f && !ctrlOk(s, f)) return null;
     if (u.lut >= 0 && f) { for (const side of ['F', 'G']) { const X = side === 'F' ? 'X' : 'Y'; if (!s.lut[side] && !s.ff[X]) return { lutSide: side, ffSide: X }; } return null; }
@@ -514,6 +685,9 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     if (/^(IBUF|IBUFG)$/.test(c.type)) {
       const port = portOfNet.get(c.pins.I);
       if (!port) throw new PackError(`pack: ${c.name}: input buffer not on a port`);
+      // an input nothing reads gets no pad (as ISE's map trims it; ISE's DRC calls its buffer's
+      // output a dangling pin)
+      if (!loadsOf(c.pins.O).length) { where.set(ci(c), { inst: -1, bel: 'UNUSED' }); setSink(ci(c), 'I', 'int'); stats.unusedInputs = (stats.unusedInputs || 0) + 1; continue; }
       const a = cons[port.name] || {};
       const cfg = [['IDELMUX', '', '1'], ['IMUX', '', '1'], ['IOATTRBOX', '', a.iostandard || 'LVCMOS25'], ['INBUF', `${port.name}_IBUF`, ''], ['PAD', port.name, '']];
       if (a.pull) cfg.push(['PULL', '', { up: 'PULLUP', down: 'PULLDOWN', keeper: 'KEEPER' }[a.pull]]);
@@ -539,9 +713,96 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       setSink(ci(c), 'I', { inst: s.idx, pin: 'I0', kind: 'gen' });
       // the select input is tied high (SINV inverts it: I0 selected), as ISE's map does
       extra.push({ net: 1, inst: s.idx, pin: 'S', kind: 'gen' });
-    }
+    } else if (BRAM_TYPE.test(c.type)) packBram(c);
+    else if (MULT_TYPE.test(c.type)) packMult(c);
+    else if (DCM_TYPE.test(c.type)) packDcm(c);
   }
-  for (const c of cells) if (!where.has(ci(c))) throw new PackError(`pack: ${c.type} ${c.name} was not packed`);
+  // a site of its own whose pins are the cell's: pin map cell pin -> site pin (inputs), outputs by name
+  function hardSite(c, kind, type, pinMap) {
+    const s = { kind, type, name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c), params: c.params, inv: new Set() };
+    insts.push(s);
+    const outs = {};
+    for (const [p, n] of Object.entries(c.pins)) {
+      const sp = pinMap(p);
+      if (c.dirs[p.replace(/<\d+>$/, '')] === 'output') { if (sp) outs[p] = sp; continue; }
+      // inputs the site does not have (a cascade input tied to 0…) are left out, and so are a
+      // block RAM's data inputs Yosys leaves undriven (ISE's DRC calls the output bit of a data
+      // input tied to a constant a dangling pin); parity inputs stay connected (DRC: all or none)
+      const skip = !sp || (kind === 'bram' && /^DI[AB]?\d+$/.test(sp) && c.undriven?.includes(p)) || (kind === 'dcm' && sp === 'DSSEN' && nets[n].const === 0);
+      // an enable, write enable or reset tied to 1: the constant 0 through the pin's inverter (the
+      // switches from the VCC sites to these pins are not all in the bit database; GND comes from
+      // a slice through general routing)
+      if (!skip && nets[n].const === 1 && /^((EN|WE|SSR)[AB]|CE[ABP]|RST[ABP])$/.test(sp)) {
+        setSink(ci(c), p, 'int');
+        s.inv.add(sp);
+        extra.push({ net: 0, inst: s.idx, pin: sp, kind: 'gen' });
+        continue;
+      }
+      setSink(ci(c), p, skip ? 'int' : { inst: s.idx, pin: sp, kind: 'gen' });
+    }
+    where.set(ci(c), { inst: s.idx, bel: 'SITE', outs });
+    return s;
+  }
+  // Block RAM: RAMB16_S<w> (port A) or RAMB16_S<wa>_S<wb>. A port of w bits uses the address pins
+  // ADDR(14 - n) … ADDR13 (n address bits), data DI0…, parity DIP0… (as ISE's map writes it).
+  function packBram(c) {
+    const m = BRAM_TYPE.exec(c.type);
+    const ports = m[3] ? { A: +m[1], B: +m[3] } : { A: +m[1] };
+    const single = !m[3];
+    const s = hardSite(c, 'bram', 'RAMB16', p => {
+      const q = /^(DOP|DIP|DO|DI|ADDR|CLK|EN|SSR|WE)([AB])?(?:<(\d+)>)?$/.exec(p);
+      if (!q) return null;
+      const port = single ? 'A' : q[2];
+      if (!port || ports[port] === undefined) return null;
+      const w = BRAM_WIDTH[ports[port]], i = q[3] === undefined ? 0 : +q[3];
+      if (q[1] === 'ADDR') return `ADDR${port}${14 - w.addr + i}`;
+      if (/^(DO|DI|DOP|DIP)$/.test(q[1])) return `${q[1]}${port}${i}`;
+      return `${q[1]}${port}`;
+    });
+    s.ports = ports;
+    s.single = single;
+  }
+  // DCM (DCM_SP): its pins by name (STATUS<i> -> STATUSi); only the settings measured on the
+  // top-left DCM (research/s3e-bitstream/README.md, stage D) are accepted
+  function packDcm(c) {
+    const p = c.params;
+    const str = k => String(p[k] ?? '').trim().toUpperCase();
+    const bad = why => { throw new PackError(`pack: ${c.type} ${c.name}: ${why}`); };
+    if (str('STARTUP_WAIT') === 'TRUE') bad('STARTUP_WAIT = TRUE is not supported yet (it also changes the configuration options register)');
+    if (str('CLKIN_DIVIDE_BY_2') === 'TRUE') bad('CLKIN_DIVIDE_BY_2 = TRUE is not in the bit database yet');
+    const deskew = str('DESKEW_ADJUST') || 'SYSTEM_SYNCHRONOUS';
+    if (deskew !== 'SYSTEM_SYNCHRONOUS' && !/^([0-9]|1[0-5])$/.test(deskew)) bad(`DESKEW_ADJUST = ${deskew} is not in the bit database yet`);
+    const s = hardSite(c, 'dcm', 'DCM', pin => {
+      const q = /^STATUS<(\d+)>$/.exec(pin);
+      if (q) return `STATUS${q[1]}`;
+      return /^(CLKIN|CLKFB|RST|DSSEN|PSCLK|PSEN|PSINCDEC|CLK0|CLK90|CLK180|CLK270|CLK2X|CLK2X180|CLKDV|CLKFX|CLKFX180|LOCKED|PSDONE)$/.test(pin) ? pin : null;
+    });
+    // a real as XDL writes it: 2.5 -> 2_5, 20 -> 20.0000000000000000 (the input period)
+    const real = k => { const v = parseFloat(p[k]); return Number.isNaN(v) ? null : v; };
+    const int = (k, d) => (p[k] === undefined ? d : paramInt(p[k], d));
+    const dv = real('CLKDV_DIVIDE') ?? 2;
+    s.dcm = {
+      CLKDV_DIVIDE: String(dv).replace('.', '_'), CLKFX_DIVIDE: String(int('CLKFX_DIVIDE', 1)), CLKFX_MULTIPLY: String(int('CLKFX_MULTIPLY', 4)),
+      CLKOUT_PHASE_SHIFT: str('CLKOUT_PHASE_SHIFT') || 'NONE', CLK_FEEDBACK: str('CLK_FEEDBACK') || '1X',
+      DESKEW_ADJUST: deskew === 'SYSTEM_SYNCHRONOUS' ? '7' : deskew, DFS_FREQUENCY_MODE: str('DFS_FREQUENCY_MODE') || 'LOW',
+      DLL_FREQUENCY_MODE: str('DLL_FREQUENCY_MODE') || 'LOW', DUTY_CYCLE_CORRECTION: str('DUTY_CYCLE_CORRECTION') === 'FALSE' ? 'FALSE' : 'TRUE',
+      PHASE_SHIFT: String(p.PHASE_SHIFT === undefined ? 0 : BigInt.asIntN(32, BigInt(paramInt(p.PHASE_SHIFT, 0)))),
+      period: real('CLKIN_PERIOD'),
+    };
+    s.loc = 'DCM_X0Y1';
+  }
+  // Multiplier: MULT18X18 (no registers), MULT18X18S (registered product: C, CE, R) or MULT18X18SIO
+  function packMult(c) {
+    const s = hardSite(c, 'mult', 'MULT18X18SIO', p => {
+      const q = /^(A|B|P|BCIN|BCOUT)<(\d+)>$/.exec(p);
+      if (q) return q[1] === 'BCIN' || q[1] === 'BCOUT' ? null : `${q[1]}${q[2]}`;
+      if (c.type === 'MULT18X18S') return { C: 'CLK', CE: 'CEP', R: 'RSTP' }[p] || null;
+      return /^(CLK|CEA|CEB|CEP|RSTA|RSTB|RSTP)$/.test(p) ? p : null;
+    });
+    s.mult = c.type;
+    for (const p of ['BCIN', 'BCOUT']) for (const k of Object.keys(c.pins)) if (k.startsWith(`${p}<`) && p === 'BCIN' && nets[c.pins[k]].const === undefined) throw new PackError(`pack: ${c.type} ${c.name}: the multiplier cascade (BCIN) is not supported yet`);
+  }
+  for (const c of cells) if (!c.lowered && !where.has(ci(c))) throw new PackError(`pack: ${c.type} ${c.name} was not packed`);
 
   // ---------------------------------------------------------------- site pins of every connection
   // the inputs of the LUTs in slices, by pin
@@ -555,7 +816,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     });
   }
   // the source pin of a cell's output for a connection of this kind
-  const srcPin = (cell, kind) => {
+  const srcPin = (cell, kind, cellPin) => {
     const w = (kind === 'gen' && tapOf.get(cell)) || where.get(cell);
     const s = insts[w.inst];
     if (kind === 'f5') { s.f5out = true; return { inst: w.inst, pin: 'F5' }; }
@@ -567,6 +828,13 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       s.used[X] = true;
       return { inst: w.inst, pin: X };
     };
+    if (w.bel === 'SITE') {
+      const o = w.outs[cellPin];
+      if (!o) throw new PackError(`pack: ${cells[cell].type} ${cells[cell].name}: no site pin for ${cellPin}`);
+      // a SLICEM memory's output through X / Y (F, G or the F5 multiplexer)
+      if (s.kind === 'slice') return o === 'G' ? sel('Y', 'G') : sel('X', o);
+      return { inst: w.inst, pin: o };
+    }
     switch (w.bel) {
       case 'F': return sel('X', 'F');
       case 'G': return sel('Y', 'G');
@@ -604,7 +872,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     const d = nets[n].driver;
     if (!d) { warnings.push(`net ${nets[n].name} has no driver: ${insts[to.inst].name || to.inst}.${to.pin} tied to 0`); constNet(0).inpins.push({ inst: to.inst, pin: to.pin }); return; }
     if (to.kind === 'cy') { xdlNet(n, { inst: to.from, pin: 'COUT' }, 'cy').inpins.push({ inst: to.inst, pin: 'CIN' }); return; }
-    xdlNet(n, srcPin(d.cell, to.kind), to.kind).inpins.push({ inst: to.inst, pin: to.pin });
+    xdlNet(n, srcPin(d.cell, to.kind, d.pin), to.kind).inpins.push({ inst: to.inst, pin: to.pin });
   };
   const seenPin = new Set();
   for (const [n, net] of nets.entries()) {
@@ -641,7 +909,65 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       s.cfg = [['DISABLE_ATTR', '', 'LOW'], ['I0_USED', '', '0'], ['SINV', '', 'S_B'], ['GCLKMUX', `${n}.GCLKMUX`, ''], ['GCLK_BUFFER', n, '']].map(([attr, name, value]) => ({ attr, name, value }));
       continue;
     }
+    if (s.kind === 'bram') { s.name = uniqueName(s.name); bramCfg(s); continue; }
+    if (s.kind === 'mult') { s.name = uniqueName(s.name); multCfg(s); continue; }
+    if (s.kind === 'dcm') { s.name = uniqueName(s.name); dcmCfg(s); continue; }
     sliceCfg(s);
+  }
+  // a parameter (binary string, most significant bit first, x read as 0) as hexadecimal of `bits` bits
+  function paramHex(v, bits) {
+    const b = paramBits(v) || [];
+    let n = 0n;
+    for (let i = Math.min(b.length, bits) - 1; i >= 0; i--) n = (n << 1n) | BigInt(b[i]);
+    return n.toString(16).toUpperCase().padStart(Math.ceil(bits / 4), '0');
+  }
+  // the pins of a hard site that are connected (inverter settings are written for those)
+  function hasPin(s, pin) { return Object.keys(cells[s.cell].pins).some(p => { const v = sink.get(`${s.cell}:${p}`); return v && v !== 'int' && v.pin === pin; }); }
+  function bramCfg(s) {
+    const cfg = [];
+    const add = (attr, name, value) => cfg.push({ attr, name, value });
+    const p = s.params, n = escCfg(s.name);
+    const prm = (name, port) => (s.single ? p[name] : p[`${name}_${port}`]);
+    for (const port of Object.keys(s.ports)) {
+      for (const pin of ['CLK', 'EN', 'SSR', 'WE']) add(`${pin}${port}INV`, '', s.inv.has(`${pin}${port}`) ? `${pin}${port}_B` : `${pin}${port}`);
+      add(`PORT${port}_ATTR`, '', BRAM_WIDTH[s.ports[port]].attr);
+      add(`WRITEMODE${port}`, '', String(prm('WRITE_MODE', port) || 'WRITE_FIRST').trim());
+    }
+    add('RAMB16', `${n}.RAMB16`, '');
+    for (const port of Object.keys(s.ports)) add(`RAMB16${port}`, `${n}.${port}`, '');
+    const get = k => p[k] ?? p[k.toLowerCase()] ?? p[k.replace(/_([0-9A-F]{2})$/, (m, h) => `_${h.toLowerCase()}`)];
+    for (let i = 0; i < 8; i++) { const k = `INITP_${i.toString(16).padStart(2, '0').toUpperCase()}`; add(`INITP_0${i}`, '', paramHex(get(k), 256)); }
+    for (let i = 0; i < 64; i++) { const h = i.toString(16).padStart(2, '0'); add(`INIT_${h}`, '', paramHex(get(`INIT_${h.toUpperCase()}`), 256)); }
+    for (const port of Object.keys(s.ports)) {
+      const w = BRAM_WIDTH[s.ports[port]], bits = w.data + w.par;
+      add(`INIT_${port}`, '', paramHex(prm('INIT', port), bits));
+      add(`SRVAL_${port}`, '', paramHex(prm('SRVAL', port), bits));
+    }
+    s.cfg = cfg;
+  }
+  // as ISE's map writes a DCM_SP (the FACTORY_JF and LL_HEX settings set no bits)
+  function dcmCfg(s) {
+    const d = s.dcm;
+    const cfg = [['CLKDV_DIVIDE', '', d.CLKDV_DIVIDE], ['CLKOUT_PHASE_SHIFT', '', d.CLKOUT_PHASE_SHIFT], ['CLK_FEEDBACK', '', d.CLK_FEEDBACK],
+      ['DESKEW_ADJUST', '', d.DESKEW_ADJUST], ['DFS_FREQUENCY_MODE', '', d.DFS_FREQUENCY_MODE], ['DLL_FREQUENCY_MODE', '', d.DLL_FREQUENCY_MODE],
+      ['DUTY_CYCLE_CORRECTION', '', d.DUTY_CYCLE_CORRECTION], ['FACTORY_JF1', '', '0XC0'], ['FACTORY_JF2', '', '0X80']];
+    for (const pin of ['PSCLK', 'PSEN', 'PSINCDEC', 'RST']) cfg.push([`${pin}INV`, '', s.inv.has(pin) ? `${pin}_B` : pin]);
+    cfg.push(['DCM', escCfg(s.name), ''], ['CLKFX_DIVIDE', '', d.CLKFX_DIVIDE], ['CLKFX_MULTIPLY', '', d.CLKFX_MULTIPLY]);
+    for (const h of ['COM', 'DFS', 'DLLC', 'DLLS', 'MISC']) cfg.push([`LL_HEX_${h}`, '', '']);
+    cfg.push(['PHASE_SHIFT', '', d.PHASE_SHIFT]);
+    if (d.period !== null) cfg.push(['X_CLKIN_PERIOD', '', d.period.toFixed(16)]);
+    s.cfg = cfg.map(([attr, name, value]) => ({ attr, name, value }));
+  }
+  function multCfg(s) {
+    const p = s.params;
+    const reg = k => (s.mult === 'MULT18X18SIO' ? String(paramInt(p[k], 1)) : s.mult === 'MULT18X18S' && k === 'PREG' ? '1' : '0');
+    const cfg = [['AREG', '', reg('AREG')], ['BREG', '', reg('BREG')], ['B_INPUT', '', String(p.B_INPUT || 'DIRECT').trim()]];
+    const inv = pin => (s.inv.has(pin) ? [[`${pin}INV`, '', `${pin}_B`]] : hasPin(s, pin) ? [[`${pin}INV`, '', pin]] : []);
+    for (const pin of ['CEA', 'CEB', 'CEP', 'CLK']) cfg.push(...inv(pin));
+    cfg.push(['PREG', '', reg('PREG')], ['PREG_CLKINVERSION', '', '0']);
+    for (const pin of ['RSTA', 'RSTB', 'RSTP']) cfg.push(...inv(pin));
+    cfg.push(['MULT18X18SIO', escCfg(s.name), '']);
+    s.cfg = cfg.map(([attr, name, value]) => ({ attr, name, value }));
   }
   function sliceCfg(s) {
     const cfg = [];
@@ -649,20 +975,37 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     const nm = x => escCfg(x);
     for (const side of ['F', 'G']) {
       const lut = s.lut[side];
-      if (lut) add(side, nm(lut.name), `#LUT:${initToEquation(lut.init, lut.k, lut.pins)}`);
+      if (lut?.mem) {
+        // a RAM / shift register: its contents in hexadecimal (bit a = address a)
+        add(side, nm(lut.name), `#RAM:D=0x${lut.mem.init.toString(16).toUpperCase().padStart(4, '0')}`);
+        if (lut.mem.mode) add(`${side}_ATTR`, '', lut.mem.mode);
+      } else if (lut) add(side, nm(lut.name), `#LUT:${initToEquation(lut.init, lut.k, lut.pins)}`);
     }
     for (const X of ['X', 'Y']) {
       const f = s.ff[X];
       if (!f) continue;
       add(`FF${X}`, nm(f.name), f.ctrl.latch ? '#LATCH' : '#FF');
       add(`FF${X}_INIT_ATTR`, '', f.init ? 'INIT1' : 'INIT0');
-      add(`FF${X}_SR_ATTR`, '', f.kind.sr && f.kind.high ? 'SRHIGH' : f.kind.sr ? 'SRLOW' : (f.init ? 'SRHIGH' : 'SRLOW'));
+      // (beside a shift register, whose shift enable has SR, ISE's map writes SRLOW)
+      add(`FF${X}_SR_ATTR`, '', f.kind.sr && f.kind.high ? 'SRHIGH' : f.kind.sr ? 'SRLOW' : (f.init && !s.mctrl ? 'SRHIGH' : 'SRLOW'));
       add(`D${X}MUX`, '', f.dsrc === 'mux' ? '1' : '0');
+    }
+    if (s.mctrl) {
+      // a SLICEM's RAMs / shift registers: write clock, enable on SR, data in, write strobe
+      const m = s.mctrl;
+      if (!s.ctrl) add('CLKINV', '', m.clkInv ? 'CLK_B' : 'CLK');
+      add('SRINV', '', 'SR');
+      if (s.dmux?.F) add('DIF_MUX', '', s.dmux.F);
+      if (s.dmux?.G) add('DIG_MUX', '', s.dmux.G);
+      const first = s.lut.F || s.lut.G;
+      add('WSGEN', `${nm(first.name)}.${m.srl ? 'CE' : 'WE'}`, '');
+      if (s.we0) add('SLICEWE0USED', '', '0');
+      for (const [on, w] of [[s.wf, 'WF'], [s.wg, 'WG']]) if (on) for (let j = 1; j <= 4; j++) add(`${w}${j}USED`, '', '0');
     }
     if (s.ctrl) {
       add('CLKINV', '', s.ctrl.clkInv ? 'CLK_B' : 'CLK');
       if (s.ctrl.ce !== null) add('CEINV', '', s.ctrl.ceInv ? 'CE_B' : 'CE');
-      if (s.ctrl.sr !== null) add('SRINV', '', s.ctrl.srInv ? 'SR_B' : 'SR');
+      if (s.ctrl.sr !== null && !s.mctrl) add('SRINV', '', s.ctrl.srInv ? 'SR_B' : 'SR');
       add('SYNC_ATTR', '', s.ctrl.sync ? 'SYNC' : 'ASYNC');
     }
     if (s.b.X !== null) add('BXINV', '', 'BX');
@@ -714,13 +1057,15 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   }
   const out = {
     name: nl.name, part, cfg: designCfg.join('\n       '),
-    insts: insts.map(s => ({ name: s.name, type: s.type, cfg: s.cfg, loc: s.loc || null, kind: s.kind, dir: s.dir })),
+    insts: insts.map(s => ({ name: s.name, type: s.type, cfg: s.cfg, loc: s.loc || null, kind: s.kind, dir: s.dir, ...(s.kind === 'bram' ? { wide: Object.values(s.ports).includes(36) } : {}) })),
     nets: outNets.filter(n => n.inpins.length),
     macros,
     stats: {
       slices: slices.length, luts: slices.reduce((a, s) => a + !!s.lut.F + !!s.lut.G, 0), ffs: slices.reduce((a, s) => a + !!s.ff.X + !!s.ff.Y, 0),
       carry: stats.carry, muxes: stats.muxes, iobs: insts.filter(s => s.kind === 'iob').length, bufgs: insts.filter(s => s.kind === 'bufg').length,
       copies: stats.copies, passthru: stats.passthru, muxLuts: stats.muxLuts || 0,
+      unusedInputs: stats.unusedInputs || 0, slicem: stats.slicem, brams: insts.filter(s => s.kind === 'bram').length, mults: insts.filter(s => s.kind === 'mult').length,
+      dcms: insts.filter(s => s.kind === 'dcm').length,
     },
     warnings,
   };

@@ -14,6 +14,7 @@ import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
 import { expectWarnings } from './diff-synth.js';
+import { compareSims } from './fpga-sim.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const langOf = f => (/\.(vhd|vhdl)$/i.test(f) ? 'vhdl' : 'verilog');
@@ -63,6 +64,9 @@ const BUDGETS = {
   'examples/blinky': { design: () => example('blinky'), luts: 78, muxes: 19, slices: 95 },
   fsm: { design: () => fixture('fsm'), luts: 14, muxes: 4, slices: 10 },
   adder: { design: () => fixture('adder'), luts: 72, muxes: 2, slices: 63 },
+  // shift registers: the fixed chains in SRL16E (15.10.2: 63 slices; in flip-flops 79; XST about 9
+  // slices, with the variable-tap register in SRL16 too)
+  srl: { design: () => fixture('srl'), luts: 120, muxes: 60, slices: 70 },
 };
 
 for (const [name, b] of Object.entries(BUDGETS)) {
@@ -80,3 +84,24 @@ test('blinky: (1 << level) - 1 of a 3-bit level is a table, not a 32-bit subtrac
   assert.match(r.files['top_syn.v'], /function automatic \[31:0\] tab\d+\(input \[2:0\] i\)/);
   assert.equal(longestChain(r.nl), 19);   // 20-bit counters: 19 MUXCY and their carry in
 });
+
+test('shift registers: chains of 3 or more flip-flops without reset become SRL16E (falling edge: SRL16E_1), chains longer than 16 several', { timeout: 120000 }, async () => {
+  const r = await synth(fixture('srl'));
+  // fix: 20 stages (SRL16E of 16 + SRL16E of 4); f0 / f1: 8 stages on the falling edge; the 16 x 4
+  // variable-tap register stays in flip-flops (its read is a $pmux, not a $shiftx)
+  assert.deepEqual([r.cells.SRL16E, r.cells.SRL16E_1], [2, 2]);
+  const srls = r.nl.cells.filter(c => /^SRL16E/.test(c.type));
+  assert.ok(srls.every(c => c.pins.CE === 1), 'always enabled');
+  assert.equal(r.packed.stats.slicem, 2, 'two shift registers per SLICEM');
+});
+
+// the open synthesis's netlists of the fixtures with memories and multipliers, packed: the packed
+// design (simulated from its XDL settings) behaves like the netlist (whose equivalence with the RTL
+// test/synth-diff-fixtures.test.js checks)
+for (const name of ['srl', 'dram', 'bram_sp', 'bram_dp', 'bram_prim', 'mult']) {
+  test(`packed ${name} behaves like its netlist (block RAM, distributed RAM, shift registers, multipliers)`, { timeout: 120000 }, async () => {
+    const r = await synth(fixture(name));
+    const d = compareSims(r.nl, r.packed, { cycles: 200, seed: 11 });
+    assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
+  });
+}

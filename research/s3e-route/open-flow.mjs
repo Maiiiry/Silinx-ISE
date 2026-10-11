@@ -19,7 +19,7 @@ import { readYosysJson } from '../../core/fpga/netlist.js';
 import { pack } from '../../core/fpga/pack.js';
 import { deviceSites, place, placedXdl } from '../../core/fpga/place.js';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
-import { routeDesign, checkRouting, clockReach } from '../../core/fpga/route.js';
+import { routeDesign, checkRouting, clockReach, bufgReach } from '../../core/fpga/route.js';
 import { bitgen, knownRouting } from '../../core/fpga/bitgen.js';
 import { analyzeTiming, timingReport, checkPeriods } from '../../core/fpga/timing.js';
 import { parseUcf } from '../../core/ucf.js';
@@ -67,7 +67,8 @@ const device = loadDeviceCache(part);
 const db = loadDb();
 const known = knownRouting(db);
 // each clock's flip-flops on the slices its global line reaches through switches of known bits
-const r = place(packed, deviceSites(device), { seed, effort, timing, clockSites: site => clockReach(device, site, known.allowPip) });
+// (a DCM's outputs on the global buffers their dedicated paths of known bits reach)
+const r = place(packed, deviceSites(device), { seed, effort, timing, clockSites: site => clockReach(device, site, known.allowPip), bufgSites: (site, pin) => bufgReach(device, site, pin, known.allowPip) });
 console.log(`place: estimated critical path ${r.delay.toFixed(1)} ns`);
 fs.writeFileSync(path.join(outDir, 'placed.xdl'), writeXdl(placedXdl(packed, r)));
 step('place', t);

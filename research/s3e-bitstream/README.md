@@ -219,7 +219,7 @@ the same settings in the XDL (they are set for a `_GND_SOURCE::Y` SLICEM).
 emulation), about 4 hours of wall time in batches; the analyses run in seconds.
 
 **Open problems.** PIPs not reachable by the test router (long lines, TBUF, some I/O switches) and
-the route-throughs; block RAM, multipliers, DCM settings; I/O standards other than LVCMOS33 / 25
+the route-throughs; block RAM, multipliers, DCM settings (done in stage D); I/O standards other than LVCMOS33 / 25
 and DRIVE / SLEW / PULL changes; IFF / OFF registers in the IOBs; SLICEM as RAM / shift register;
 BUFGMUX with I1 / S used. A design using one of these reports it (`unknown` features of
 `bitgen()`), the bitstream is then incomplete.
@@ -318,6 +318,62 @@ reports it (`unknown`). The 113 PIPs measured with different bits in different t
 by majority and artefact rules (`resolvePatterns`, `stripLutRuns`, empty measurements against the
 same bits in two tiles); the rest are BX / BY bounces and global clock pins with bits of the clock
 rows, kept by majority.
+
+### Stage E: block RAM, multipliers, distributed RAM, shift registers and the DCM in the open flow (2026-10-11)
+
+**Result: designs with block RAMs, multipliers, distributed RAMs, shift registers in SRL16 and the
+top-left DCM, synthesized, packed, placed, routed and written by Silinx, are converted by ISE
+(`xdl -xdl2ncd`, `drc`, `bitgen`) to byte-identical .bit files (CRC on and off), with no DRC error
+or warning** (`scripts/check-open-flow.mjs`): the projects of `test/fixtures/open-flow` (feat_bram:
+an inferred block-RAM ROM; feat_mult: inferred multipliers; feat_srl: inferred SRL16E; feat_dcm: a
+DCM_SP with CLK0, CLKDV, CLKFX, CLK2X; hard_prim: instantiated RAMB16_S9_S36, RAMB16_S18_S18,
+RAMB16_S1_S4, MULT18X18SIO, MULT18X18S, RAM16X1D, RAM32X1S, SRL16E_1) and the fixtures bram_sp,
+dram, srl and dcm of `test/fixtures/designs` (as XC3S250E-CP132 projects). No new measurement was
+needed but two settings without bits (`measured/fix-16open.json`); what the database had from
+stage D (the settings, and the PIPs of ISE's own designs with these blocks) was enough.
+
+The XDL the packer writes is ISE's map's (`xdl -ncd2xdl` of ISE's designs of the same blocks).
+What ISE's tools want, found on the way:
+
+- **Element names are unique within an instance.** The two LUTs of one RAM16X1D or RAM32X1S named
+  alike make `xdl -xdl2ncd` fail with an internal error ("Caught Xdm_Exception - Cannot continue:
+  'X'"); ISE's names are `<ram>.SLICEM_F` / `<ram>.SLICEM_G`.
+- **Block-RAM data inputs:** a data input tied to a constant whose output bit is not used is a DRC
+  warning (812, "Dangling pin <DOA15>"): Yosys leaves the data bits beyond the memory's width
+  undriven (x), and the packer leaves those inputs unconnected. The parity inputs of a port must
+  all be connected (DRC error 1061 otherwise).
+- **Enables tied to 1** (a block RAM's EN / WE / SSR, a multiplier's CE / RST, a DCM's RST /
+  PS…): not all the switches from the VCC sites to these pins are in the database, so the packer
+  ties them to the constant 0 through the pin's inverter (`ENAINV::ENA_B`); GND comes from a slice
+  through general routing.
+- **Multipliers without registers:** ISE's bitgen sets the bits of the CEA / CEB / CEP inverters
+  ("not inverted") even when the XDL has no CEAINV (3 bits in the third block-RAM interconnect tile
+  of the multiplier): `bitgen.js` does the same (as for the enables of a block RAM's unused port).
+- **Unused inputs:** an input buffer whose output goes nowhere is a DRC warning (812, "Dangling pin
+  <OUT>") and its pad bits differ: ISE's map trims it, and so does the packer.
+- **A RAM64X1S** is two RAM32X1S and LUTs (the write enables by A5, the read multiplexer), as ISE's
+  map builds it; RAM16X1D in one SLICEM (G the write port, F read at DPRA, `DIF_MUX::ALTDIF`);
+  RAM32X1S with A4 on BX (F5 multiplexer and `SLICEWE0USED`).
+- **A flip-flop beside an always-enabled shift register** (SR = 1, the shift enable): ISE's map
+  packs it so (`FFX_SR_ATTR::SRLOW` with `FFX_INIT_ATTR::INIT1`): the flip-flops of a SLICEM whose
+  LUTs are RAMs or shift registers do not see SR.
+- **A multiplier and a block RAM in one tile** share its routing: the placer keeps a multiplier out
+  of the tile of a block RAM with a 36-bit port (ISE's own placements pair multipliers with 18-bit
+  or narrower block RAMs).
+- **The DCM:** the PIPs of ISE's DCM design (pd-dcm) route CLKIN from the pad B8
+  (`CLKT_CKI4->CLKT_DLL_CLKPAD4`, `DCM_DLL_CLKPAD0->DCM_CLKIN`), CLKFB from a global line, LOCKED to
+  general routing, and each of CLK0, CLK2X, CLKDV, CLKFX to one global buffer of the top edge
+  (`route.js bufgReach`: BUFGMUX_X2Y10, X1Y11, X2Y11, X1Y10); the placer gives those buffers to the
+  outputs. `X_CLKIN_PERIOD` 20 ns sets no bits (ISE's own DCM design is byte-identical without it;
+  other periods change 2 bits, not measured); `C2VDD` (the carry chain's constant 1 on the G side,
+  never in ISE's designs) sets none either. DSSEN tied to 0 is left open, as ISE's map does.
+
+**What fails clearly** (the packer or placer stops with the reason): the DCM outputs CLK90, CLK180,
+CLK270, CLK2X180, CLKFX180 on a global buffer and the other three DCMs (no measured path), CLKIN
+from another pad, `STARTUP_WAIT` (it also changes the COR register), `CLKIN_DIVIDE_BY_2`,
+`DESKEW_ADJUST = SOURCE_SYNCHRONOUS`, input periods other than 20 ns (the bitstream would lack
+2 bits: "features not in the bit database"), BUFGMUX clock switching (I1 / S measured on one buffer
+only), the SRLC16 cascade output and the multiplier cascade (BCIN / BCOUT).
 
 ### Open synthesis on the board (2026-10-10)
 
