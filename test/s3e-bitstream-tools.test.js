@@ -119,6 +119,10 @@ test('dcm-mirror: the other DCMs\' settings are the top-left one\'s mirrored, bu
   assert.deepEqual(['CLK0', 'CLK90', 'CLK180', 'CLK270', 'CLK2X', 'CLK2X180', 'CLKDV', 'CLKFX', 'CLKFX180', 'LOCKED'].map(p => d[`DCM:OUT:${p}`]),
     [['0,73'], ['0,75'], ['0,74'], ['0,76'], ['0,97'], ['0,98'], ['0,99'], [], [], []]);
   assert.ok(!d['DCM:USED'].some(b => ['0,73', '0,97', '0,99'].includes(b)));
+  // the DCMs' pins measured on designs of every DCM of each device (learn-9): the outputs into the switch box
+  assert.deepEqual(t.DCM_BL_CENTER.features['DCM_CLK90->OMUX9'], ['7,28']);
+  assert.deepEqual(t.DCM_TR_CENTER.features['DCM_CLK270->OMUX1'], ['6,63', '7,58']);
+  for (const type of ['DCM_H_BL_CENTER', 'DCM_H_TL_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_TR_CENTER']) assert.ok(Object.keys(t[type].features).some(k => k.includes('->')), type);
   // the CLKFX input range is its own feature, not CLKFX_DIVIDE 31 / 32's
   assert.deepEqual(d['DCM:CLKFX_DIVIDE:32'], ['-39,27', '-39,28', '-39,29', '-39,30', '-39,31']);
 });

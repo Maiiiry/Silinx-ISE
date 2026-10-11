@@ -22,7 +22,7 @@ const PARTS = {
   'xc3s100ecp132-4': { device: 'xc3s100e', pkg: 'cp132', slices: 960, pads: 83, brams: 4, settings: true, outs: 72 },
   'xc3s250ecp132-4': { device: 'xc3s250e', pkg: 'cp132', slices: 2448, pads: 92, brams: 12, settings: true, outs: 85 },
   'xc3s500efg320-4': { device: 'xc3s500e', pkg: 'fg320', slices: 4656, pads: 232, brams: 20, settings: true, outs: 176 },
-  'xc3s1200efg320-4': { device: 'xc3s1200e', pkg: 'fg320', slices: 8672, pads: 250, brams: 28 },
+  'xc3s1200efg320-4': { device: 'xc3s1200e', pkg: 'fg320', slices: 8672, pads: 250, brams: 28, settings: true, outs: 194 },
 };
 // the pad features of every I/O setting (stage F, per pad)
 const PAD_IN = ['I:LVCMOS33', 'I:LVCMOS25', 'I:LVCMOS18', 'I:LVCMOS15', 'I:LVCMOS12', 'I:LVTTL', 'I:PULL:PULLUP', 'I:PULL:PULLDOWN', 'I:PULL:KEEPER'];
