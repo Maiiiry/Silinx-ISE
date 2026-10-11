@@ -342,6 +342,38 @@ end a;`)], 'n', { reset: 'none' });
   assert.doesNotMatch(text, /\\p\d+\./);
 });
 
+// Regression (#61): a process that only assigns vectors of no bit has no always block (not an
+// empty one); a non-constant slice against its direction is null: nothing assigned
+test('VHDL null ranges: processes left with no statement are left out; non-constant null slices assign nothing (#61)', () => {
+  const sources = [vhd(`${PRE}entity nz is
+  generic (N : natural := 0);
+  port (clk, rst : in std_logic; a : in std_logic_vector(7 downto 0); y : out std_logic_vector(7 downto 0); q : out std_logic_vector(7 downto 0));
+end;
+architecture rtl of nz is
+  signal e, f, g : std_logic_vector(N - 1 downto 0);
+  signal r : std_logic_vector(7 downto 0) := (others => '0');
+begin
+  process (clk) begin if rising_edge(clk) then e <= (others => '0'); end if; end process;
+  process (clk, rst) begin if rst = '1' then f <= (others => '0'); elsif rising_edge(clk) then f <= a(N - 1 downto 0); end if; end process;
+  process (a) begin g <= a(N - 1 downto 0); end process;
+  process (a)
+    variable v : std_logic_vector(7 downto 0);
+  begin
+    v := a;
+    for i in 0 to 3 loop v(i + N - 1 downto i) := not a(2 * i + N - 1 downto 2 * i); end loop;
+    y <= v;
+  end process;
+  process (clk) begin if rising_edge(clk) then r <= a xor r; end if; end process;
+  q <= r;
+end;`)];
+  const r = toVerilog(build(sources, 'nz'));
+  assert.deepEqual(r.warnings, []);
+  assert.equal((r.text.match(/\balways\b/g) || []).length, 3, `the loop process, the register and q:\n${r.text}`);
+  assert.doesNotMatch(r.text, /begin\n\s*end\n\s*(\/\/|endmodule)|if \(rst\)/, 'no empty block, no empty reset branch');
+  assert.doesNotMatch(r.text, /\+: 2\]/, 'no two-bit slice from the null one');
+  equivalent(sources, 'nz', { reset: 'rst', minStates: 3 });
+});
+
 test('Xilinx primitives instantiated by name stay instances with their generics; their simulation models are left out', () => {
   const src = vhd(`library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;
 entity pr is port (clk, d, ce : in std_logic; a : in std_logic_vector(3 downto 0); q, q2 : out std_logic); end pr;

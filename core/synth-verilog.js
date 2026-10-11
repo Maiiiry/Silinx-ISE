@@ -863,9 +863,11 @@ export function toVerilog(design, { name, tables = true } = {}) {
         const ev = [`${clock.pos ? 'posedge' : 'negedge'} ${sigName.get(clock.sig)}`, ...resets.map(r => `${r.high ? 'posedge' : 'negedge'} ${sigName.get(r.sig)}`)];
         head = `always @(${ev.join(' or ')})`;
         let txt = '';
-        resets.forEach((r, k) => { txt += `    ${k ? 'else ' : ''}if (${r.high ? '' : '!'}${sigName.get(r.sig)}) begin\n${stmt(r.body, ctx, '      ', 'proc')}    end\n`; });
+        const rb = resets.map(r => stmt(r.body, ctx, '      ', 'proc'));
+        resets.forEach((r, k) => { txt += `    ${k ? 'else ' : ''}if (${r.high ? '' : '!'}${sigName.get(r.sig)}) begin\n${rb[k]}    end\n`; });
         const cb = stmt(clock.body, ctx, resets.length ? '      ' : '    ', 'proc');
-        body = resets.length ? `${txt}    else begin\n${cb}    end\n` : cb;
+        // (nothing left in any branch: no body, the block is left out)
+        body = !cb.trim() && rb.every(x => !x.trim()) ? '' : resets.length ? `${txt}    else begin\n${cb}    end\n` : cb;
       }
       if (hasEdge(p.body) && !head.includes('edge')) fail('a clock edge not at the top of the process', p);
       // a process variable keeps its value from one activation to the next: its declared initial
@@ -880,6 +882,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
         loc.push(`  reg ${nm};`);
         text = text.replaceAll(new RegExp(`\\b${f}\\b`, 'g'), nm);
       }
+      // a process left with no statement (it only assigned vectors of no bit, VHDL null ranges, #61):
+      // no always block (an empty one is noise)
+      if (!text.trim() && !loc.length) return;
       // process variables first assigned in the process: blocking (as in VHDL)
       blocks.push(`${loc.join('\n')}${loc.length ? '\n' : ''}  // ${p.name || p.kind}${p.loc ? ` (${p.file || ''}:${p.loc.line})` : ''}\n  ${head} begin\n${text}  end`);
     } catch (err) {

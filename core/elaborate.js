@@ -798,7 +798,11 @@ function elabType(E, ts, allowUnconstrained = false) {
       if (ts.range) {
         const r = evalRange(E, ts.range);
         t.rlo = Math.min(r.left, r.right); t.rhi = Math.max(r.left, r.right);
-        if (r.left > r.right) t.rdown = true;   // `range 10 downto 0`: 'left is the high bound
+        // its bounds and direction as written (#61): `range 10 downto 0` ('left is the high bound),
+        // and a null range (`range 5 to 3`: no value, 'low = 'left) kept null
+        t.rleft = r.left; t.rright = r.right;
+        if (r.desc) t.rdown = true;
+        if (r.isNull) t.rnull = true;
       }
       return t;
     }
@@ -880,11 +884,11 @@ function evalRange0(E, r) {
     const t = te ? te.t : elabType(E, stdTypeName(r.of.name));
     if (!t) throw new ElabError(`'${r.of.name}' has no range`, r.of.loc);
     let lr;
-    if (t.kind === 'int') lr = t.rdown ? [t.rhi ?? 2147483647, t.rlo ?? -2147483648] : [t.rlo ?? -2147483648, t.rhi ?? 2147483647];
+    if (t.kind === 'int') lr = scalarBounds(t);
     else if (t.kind === 'enum') lr = [0, t.names.length - 1];
     else if (t.kind === 'bool') lr = [0, 1];
     else lr = [t.left, t.right];
-    const desc = t.kind === 'int' || t.kind === 'enum' || t.kind === 'bool' ? lr[0] > lr[1] : t.desc;
+    const desc = t.kind === 'int' ? !!t.rdown : t.kind === 'enum' || t.kind === 'bool' ? false : t.desc;
     if (r.reverse) return { left: lr[1], right: lr[0], desc: !desc };
     return { left: lr[0], right: lr[1], desc };
   }
@@ -904,12 +908,16 @@ function evalRange0(E, r) {
 // The number of elements of an evaluated range (0 for a VHDL null range)
 const rangeLen = r => (r.isNull ? 0 : Math.abs(r.left - r.right) + 1);
 
+// [left, right] of an integer (sub)type, as declared (integer: -2**31 to 2**31 - 1)
+const scalarBounds = t => (t.rleft !== undefined ? [t.rleft, t.rright]
+  : t.rlo !== undefined ? (t.rdown ? [t.rhi, t.rlo] : [t.rlo, t.rhi]) : [-2147483648, 2147483647]);
+
 export function defaultValue(t, lang, net) {
   switch (t.kind) {
     case 'logic': return V.allX(t.w, t.s);
     case 'int': {
       if (lang === 'verilog') return V.allX(32, true);
-      return V.fromInt(t.rlo !== undefined ? (t.rdown ? t.rhi : t.rlo) : -2147483648, 32, true);
+      return V.fromInt(scalarBounds(t)[0], 32, true);   // T'left
     }
     case 'bool': return V.ZERO;
     case 'enum': return V.mk(t.w, 0n);
@@ -1387,15 +1395,19 @@ function sliceNode(E, base, leftE, rightE, loc, dir) {
     return { k: 'slice', base, lo, t: { ...vecT(w, base.t.kind === 'logic' && E.lang === 'vhdl' ? base.t.s : false), ...(base.t.mark ? { mark: base.t.mark } : {}) } };
   }
   // dynamic slice: width from a probe evaluation (loop variables at their initial values)
+  // A VHDL slice keeps its direction: against it, it is null (`v(i + N - 1 downto i)` with N = 0,
+  // #61): no element, nothing read or written
+  const vdir = E.lang === 'vhdl' && dir ? dir : undefined;
   let w;
   try {
     // (probe: loop variables are not at real values yet, so no run-time checks)
     const ctx = { frame: E.fb ? E.fb.probe() : [], sim: null, depth: 0, probe: true };
-    w = Math.abs(V.toNum(evalE(left, ctx)) - V.toNum(evalE(right, ctx))) + 1;
+    const l = V.toNum(evalE(left, ctx)), r = V.toNum(evalE(right, ctx));
+    w = vdir && (vdir === 'downto' ? l < r : l > r) ? 0 : Math.abs(l - r) + 1;
   } catch {
     throw new ElabError('slice bounds must be constant (or depend only on loop variables)', loc);
   }
-  return { k: 'dslice', base, left, right, t: vecT(w) };
+  return { k: 'dslice', base, left, right, t: vecT(w), ...(vdir ? { dir: vdir } : {}) };
 }
 
 // A VHDL string literal of std_logic characters (kept as a string inside report / assert
@@ -1506,10 +1518,11 @@ function bindAttr(E, e, loc) {
   if (t.kind === 'str' && at === 'length' && node) return { k: 'strlen', a: node, t: INT };
   if (t.kind === 'str' && at !== 'event') throw new ElabError(`'${at} of a string is not supported (use std_logic_vector)`, loc);
   if ((t.kind === 'int' || t.kind === 'enum' || t.kind === 'bool') && ['left', 'right', 'high', 'low'].includes(at)) {
-    // scalar types: bounds of the range (integer ranges are ascending here)
-    const lo = t.kind === 'int' ? (t.rlo ?? -2147483648) : 0;
-    const hi = t.kind === 'int' ? (t.rhi ?? 2147483647) : t.kind === 'bool' ? 1 : t.names.length - 1;
-    const v = at === 'low' || (at === 'left') !== !!t.rdown ? lo : hi;
+    // scalar types: bounds of the range; T'low is T'left of an ascending range, T'right of a
+    // descending one (a null range too: `range 5 to 3` has 'low 5, 'high 3; IEEE 1076-2008 16.2.2)
+    const [l, r] = t.kind === 'int' ? scalarBounds(t) : [0, t.kind === 'bool' ? 1 : t.names.length - 1];
+    const down = t.kind === 'int' && !!t.rdown;
+    const v = { left: l, right: r, low: down ? r : l, high: down ? l : r }[at];
     return t.kind === 'int' ? cint(v) : { k: 'c', val: V.fromInt(v, t.w, false), t };
   }
   switch (at) {
@@ -1517,17 +1530,18 @@ function bindAttr(E, e, loc) {
       if (!edgeOperand(node)) throw new ElabError("'event requires a signal", loc);
       return { k: 'event', ...edgeOperand(node), t: BOOL };
     case 'length': return cint(t.kind === 'array' ? t.len : t.w);
-    case 'ascending': return { k: 'c', val: V.fromBool(t.kind === 'int' || t.kind === 'enum' || t.kind === 'bool' ? true : !t.desc), t: BOOL };
+    case 'ascending': return { k: 'c', val: V.fromBool(t.kind === 'int' ? !t.rdown : t.kind === 'enum' || t.kind === 'bool' ? true : !t.desc), t: BOOL };
     case 'left': return cint(t.left);
     case 'right': return cint(t.right);
-    case 'high': return cint(Math.max(t.left, t.right));
-    case 'low': return cint(Math.min(t.left, t.right));
+    // (by the direction: a null range `3 downto 5` has 'high 3, 'low 5)
+    case 'high': return cint(t.desc === undefined ? Math.max(t.left, t.right) : t.desc ? t.left : t.right);
+    case 'low': return cint(t.desc === undefined ? Math.min(t.left, t.right) : t.desc ? t.right : t.left);
     case 'pos': return fold({ k: 'conv', a: bindExpr(E, e.args[0], t, loc), ext: false, t: INT });
     case 'val': return fold({ k: 'conv', a: bindExpr(E, e.args[0], null, loc), ext: true, t });
     case 'succ': case 'pred': case 'leftof': case 'rightof': {
-      // (scalar types are ascending here: 'leftof is 'pred, 'rightof is 'succ)
+      // ('leftof is 'pred, 'rightof is 'succ; the other way round for a descending integer subtype)
       const a = bindExpr(E, e.args[0], null, loc);
-      const up = at === 'succ' || at === 'rightof';
+      const up = at === 'succ' || (at === 'rightof') !== (t.kind === 'int' && !!t.rdown);
       if (t.kind === 'int') return fold({ k: 'bin', o: up ? '+' : '-', a, b: cint(1), t: INT });
       return fold({ k: 'bin', o: up ? '+' : '-', a, b: { k: 'c', val: V.fromInt(1, a.t.w, false), t: vecT(a.t.w) }, t });
     }

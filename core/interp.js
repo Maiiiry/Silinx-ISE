@@ -5,6 +5,9 @@
 // (evaluation width from Verilog context sizing). See elaborate.js for the node catalogue.
 import * as V from './values.js';
 
+// A VHDL slice against its direction (`v(-1 downto 0)`, `v(i + N - 1 downto i)` with N = 0): null
+const nullSlice = (dir, l, r) => (dir === 'downto' ? l < r : l > r);
+
 export class SimError extends Error {
   constructor(msg, loc) { super(msg); this.loc = loc; }
 }
@@ -44,6 +47,7 @@ export function evalE(n, ctx) {
     case 'dslice': {
       const b = evalE(n.base, ctx), l = evalE(n.left, ctx), r = evalE(n.right, ctx);
       if (l.x || r.x) return V.allX(n.t.w);
+      if (n.dir && nullSlice(n.dir, V.toNum(l), V.toNum(r))) return V.resize(V.mk(0, 0n, 0n), n.t.w);   // (VHDL null slice)
       const p1 = bitpos(n.base.t, V.toNum(l)), p2 = bitpos(n.base.t, V.toNum(r));
       const lo = Math.min(p1, p2), w = Math.abs(p1 - p2) + 1;
       return V.resize(V.getBits(b, lo, w), n.t.w);
@@ -516,6 +520,7 @@ function resolveTarget(L, ctx, out) {
         lo = psliceLo(L.base.t, V.toNum(st), w, L.dir);
       } else {
         const l = evalE(L.left, ctx), r = evalE(L.right, ctx);
+        if (L.dir && !l.x && !r.x && nullSlice(L.dir, V.toNum(l), V.toNum(r))) return;   // (a VHDL null slice: nothing written)
         const p1 = bitpos(L.base.t, V.toNum(l)), p2 = bitpos(L.base.t, V.toNum(r));
         lo = Math.min(p1, p2); w = Math.abs(p1 - p2) + 1;
       }

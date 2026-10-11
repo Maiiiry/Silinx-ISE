@@ -92,6 +92,14 @@ the "What's new" text of its GitHub release.
   still shows only its own modules.
 - **Design checks:** an input read only by a pin a primitive samples at its clock edge (an
   `FDCE`'s `D` or `CE`) is no longer reported as `Input <d> is never used.` (#66).
+- **VHDL null ranges, the rest:** an integer subtype with a null range (`range 5 to 3`) is null:
+  loops over it do not run and arrays of it have no element. A slice with non-constant bounds
+  against its direction (`v(i + N - 1 downto i)` with `N = 0`) reads and writes nothing. A process
+  that only assigns vectors of no bit no longer gives the open synthesis an empty `always` block
+  (#61).
+- **VHDL integer subtype attributes:** `'high`, `'ascending`, `'leftof` and `'rightof` of a
+  descending subtype (`integer range 10 downto 0`) were those of an ascending one; `'low` and
+  `'high` of a null range follow its direction (#67).
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and

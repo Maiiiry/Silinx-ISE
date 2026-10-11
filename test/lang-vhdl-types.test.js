@@ -212,6 +212,41 @@ test('null ranges: vectors and arrays of no element, loops not run, null slices,
   assert.deepEqual(r, ['0 0 0 0', '-1 0 false true', '10100101 0 0', '01', '10100101']);
 });
 
+// Regression (#61): an integer subtype keeps its bounds and direction as declared; a null one
+// (`range 5 to 3`) has no value: loops over it do not run, arrays of it have no element
+test('integer subtypes: \'left / \'right / \'low / \'high / \'ascending, \'leftof / \'rightof and loops, descending and null ranges (#61)', () => {
+  const img = (t) => `integer'image(${t}'left) & " " & integer'image(${t}'right) & " " & integer'image(${t}'low) & " " & integer'image(${t}'high) & " " & boolean'image(${t}'ascending)`;
+  const r = outW(vproc(`
+    report ${img('up')}; report ${img('dn')}; report ${img('nu')}; report ${img('nd')};
+    for i in dn loop acc := acc * 10 + i; end loop;
+    report integer'image(acc);
+    report integer'image(dn'leftof(2)) & " " & integer'image(dn'rightof(2)) & " " & integer'image(up'leftof(2)) & " " & integer'image(up'rightof(2));
+    for i in nu loop report "never"; end loop;
+    for i in nu'range loop report "never"; end loop;
+    for i in nu'reverse_range loop report "never"; end loop;
+    for i in nd loop report "never"; end loop;
+    report integer'image(arr'length) & " " & integer'image(nv'low) & " " & integer'image(nv'high) & " " & integer'image(nv'length);`,
+  `variable acc : integer := 0;`,
+  `subtype up is integer range 1 to 3; subtype dn is integer range 3 downto 1;
+   subtype nu is integer range 5 to 3; subtype nd is integer range 3 downto 5;
+   type nu_arr is array (nu) of bit; constant arr : nu_arr := (others => '0');
+   signal nv : std_logic_vector(3 downto 5);`));
+  assert.deepEqual(r, ['1 3 1 3 true', '3 1 1 3 false', '5 3 5 3 true', '3 5 5 3 false', '321', '3 1 1 3', '0 5 3 0']);
+});
+
+// Regression (#61): a slice with non-constant bounds against its direction is null too
+// (`v(i + N - 1 downto i)` with N = 0): nothing read or written
+test('null ranges: a non-constant slice against its direction reads and writes nothing (#61)', () => {
+  const r = outW(vproc(`
+    v := x"B2";
+    for i in 0 to 3 loop v(i + N - 1 downto i) := a(2 * i + N - 1 downto 2 * i); end loop;
+    report to_string(v);
+    for i in 0 to 3 loop report integer'image(a(i + N - 1 downto i)'length); exit; end loop;`,
+  `variable v : std_logic_vector(7 downto 0); variable a : std_logic_vector(7 downto 0) := x"FF";`,
+  `constant N : natural := 0;`));
+  assert.deepEqual(r, ['10110010', '0']);
+});
+
 test('null ranges: a generic entity with an optional port of N = 0 bits (#15)', () => {
   const r = outW(vhd(`
   u : entity work.opt generic map (N => 0) port map (x => none, a => "1010", y => y);
