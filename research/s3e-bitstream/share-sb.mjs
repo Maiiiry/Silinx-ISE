@@ -16,9 +16,9 @@ export const SHIFTS = {
   '0,16': ['TIOIS', 'TIBUFS', 'UR'],
   '2,16': ['UL'],
 };
-// the XC3S100E's tiles at the places of the missing DCMs (stage E: their PIPs measured in its
-// reference designs have the CLB's bits)
-SHIFTS['0,0'].push('DCMAUX_BL_CENTER', 'DCMAUX_TL_CENTER');
+// the XC3S100E's tiles at the places of the missing DCMs and the XC3S1200E's DCMs on the left and right
+// sides (stage E: their PIPs measured in the reference designs have the CLB's bits)
+SHIFTS['0,0'].push('DCMAUX_BL_CENTER', 'DCMAUX_TL_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_TL_CENTER', 'DCM_H_TR_CENTER');
 // the tiles of the horizontal clock rows in the I/O and block-RAM columns are GCLKH tiles with other
 // names (GCLKH_PCI_CE_N / _S, the block RAM's …UP_GCLKH… / …DN_GCLKH…): the same switches, one bit in
 // the I/O rows at the top or bottom of the frame like GCLKH (the layout's typeRows, by the row);
@@ -70,6 +70,8 @@ if (process.argv[1] && process.argv[1].endsWith('share-sb.mjs')) {
   // (thousands of measurements without bits; the few with bits were bits of the I/O tile measured
   // in the same frames)
   let term = 0;
+  // the terminal tiles of the other devices (stage E): the same kind of tile
+  for (const type of ['TTERM1', 'TTERM4_BRAM2', 'BTERM1', 'BTERM4_BRAM2', 'LTERM2', 'LTERM3', 'RTERM2', 'RTERM3', 'DCM_H_TR_TERM', 'DCM_H_BR_TERM']) db.types[type] ||= { features: {} };
   for (const [type, t] of Object.entries(db.types)) {
     if (!/TERM|^BRAMSITE2(_BRK)?$/.test(type)) continue;
     t.pipsWithoutBits = true;
