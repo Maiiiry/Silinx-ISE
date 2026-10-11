@@ -150,4 +150,20 @@ test('Silinx\'s own checks say which XST message they correspond to (Silinx:NNN 
   // a message of XST itself (ISE modes), or of another tool: no such note
   assert.doesNotMatch(hintText({ ...d, tool: 'Xst' }, 'en').explain, /reports this as/);
   assert.doesNotMatch(hintText({ ...d, tool: 'Lint' }, 'en').explain, /reports this as/);
+  // a check without an XST number: labelled Silinx (#16), no such note either
+  assert.doesNotMatch(hintText({ message: "Case statement without 'default' in a combinational always block", tool: 'Silinx', check: 'case-default' }, 'en').explain, /reports this as/);
+});
+
+test('help for the unused bits of an input bus and for names that differ only in case (#38)', () => {
+  const bits = hintFor({ message: 'Input <btn<2:1>> is never used.', tool: 'Silinx:647', check: 'unused-input' });
+  assert.equal(bits.id, 'unused-input-bits');
+  assert.match(bits.en.explain, /^Only some bits of the input bus 'btn' are read: bits 2:1 are never used/);
+  assert.match(bits.en.explain, /XST reports this as Xst:647\.\)$/);
+  assert.match(bits.pt.explain, /^Só alguns bits do barramento de entrada 'btn' são lidos: os bits 2:1 nunca são usados/);
+  assert.equal(hintFor({ message: 'Input <c> is never used.', check: 'unused-input' }).id, 'unused-input');
+  const nc = hintFor({ message: 'Name conflict (<scorer> and <scoreR>, renaming scorer as scorer_rnm0)', tool: 'Silinx:863', check: 'name-case' });
+  assert.equal(nc.id, 'name-case');
+  assert.match(nc.en.explain, /^'scorer' and 'scoreR' differ only in upper \/ lower case\./);
+  assert.match(nc.en.explain, /XST reports this as Xst:863\.\)$/);
+  assert.match(nc.pt.fix, /nome claramente diferente/);
 });

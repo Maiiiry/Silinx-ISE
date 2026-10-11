@@ -188,10 +188,11 @@ class Parser {
         do {
           if (this.is('parameter') || this.is('localparam')) kind = this.next().v;
           const { type } = this.paramType();
+          const ploc = this.loc();
           const pn = this.ident();
           // (SystemVerilog: a parameter of the port list may have no default; the instance sets it)
           const def = this.accept('=') ? this.expr() : null;
-          mod.params.push({ name: pn, type, default: def, local: kind === 'localparam' });
+          mod.params.push({ name: pn, type, default: def, local: kind === 'localparam', loc: ploc });
         } while (this.accept(','));
       }
       this.expect(')');
@@ -452,10 +453,11 @@ class Parser {
         const local = this.next().v === 'localparam' || !topLevel;
         const { type } = this.paramType();
         do {
+          const ploc = this.loc();
           const pn = this.ident(); this.expect('=');
           const value = this.expr();
           if (local) decls.push({ kind: 'const', name: pn, type, value, loc: this.loc(t) });
-          else this.cur.params.push({ name: pn, type, default: value, local: false });
+          else this.cur.params.push({ name: pn, type, default: value, local: false, loc: ploc });
         } while (this.accept(','));
         this.expect(';');
         return;

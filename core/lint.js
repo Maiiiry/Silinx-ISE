@@ -10,8 +10,9 @@
 //  - lint warnings: latch inferred, incomplete sensitivity list, multiple drivers, combinational
 //    loop, output never assigned, input never used, signal assigned but never read, signal read but
 //    never assigned, clock used as data, logic used as clock, blocking / non-blocking assignments in
-//    the wrong kind of Verilog always block, case without others / default, and (info) integers
-//    without a range.
+//    the wrong kind of Verilog always block, case without others / default, Verilog names that
+//    differ only in case, and (info) integers without a range. An input bus of which only some bits
+//    are read gets the unused bit ranges (Input <btn<2:1>> is never used.).
 // A clocked process without a reset branch is fine and is not reported.
 //
 // Each diagnostic has { file, line, col, severity, message, tool, check, source: 'lint' }; `check`
@@ -25,7 +26,7 @@ import { clocksOf } from './schematic.js';
 import { readsOf } from './elaborate.js';
 
 export const LINT_CHECKS = ['latch', 'sensitivity', 'multi-driver', 'comb-loop', 'unassigned-output', 'unused-input', 'unused-signal',
-  'unassigned-signal', 'clock-as-data', 'data-as-clock', 'blocking', 'nonblocking', 'case-default', 'integer-range'];
+  'unassigned-signal', 'clock-as-data', 'data-as-clock', 'blocking', 'nonblocking', 'case-default', 'name-case', 'integer-range'];
 export const RULE_CHECKS = ['mode-in', 'mode-out', 'type-mismatch', 'missing-library', 'wire-procedural', 'reg-continuous'];
 
 // ------------------------------------------------------------------------- tree helpers
@@ -138,6 +139,19 @@ function readBits(n, out = new Map()) {
 const overlap = (a, b) => a === null || b === null || [...a].some(x => b.has(x));
 const sameBits = (a, b) => (a === null && b === null) || (a !== null && b !== null && a.size === b.size && [...a].every(x => b.has(x)));
 const short = s => s.name.split('.').pop();
+/** Bit positions (0 = the rightmost) of a vector that are not in `read` -> its unused index ranges
+ *  in XST's style, in the declaration's direction: ['2:1', '5'] (sw<2:1>, sw<5>). */
+function unusedRanges(t, read) {
+  const idx = k => (t.desc ? t.right + k : t.right - k);
+  const runs = [];
+  for (let k = t.w - 1; k >= 0; k--) {
+    if (read.has(k)) continue;
+    const last = runs[runs.length - 1];
+    if (last && last.lo === k + 1) last.lo = k; else runs.push({ hi: k, lo: k });
+  }
+  // from the left index to the right one, as the vector is declared
+  return runs.map(({ hi, lo }) => (hi === lo ? `${idx(hi)}` : `${idx(hi)}:${idx(lo)}`));
+}
 
 // ------------------------------------------------------------------------- suppression
 const IGNORE_RE = /(?:--|\/\/)\s*silinx\s*:\s*ignore\b([^\n]*)/i;
@@ -242,7 +256,8 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
   const roles = new Map(parsed.map(p => [p.file, p.role]));
   const out = [];
   const seen = new Set();
-  const add = (check, severity, file, line, message, tool = 'Lint', col = 1) => {
+  // (a check without an XST number is Silinx's own: labelled Silinx, #16)
+  const add = (check, severity, file, line, message, tool = 'Silinx', col = 1) => {
     if (!file || String(file).startsWith('<')) return;
     const key = `${file}:${line}:${message}`;
     if (seen.has(key)) return;
@@ -557,6 +572,24 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
 
   // ===================================================================== unused / unassigned
   const anyIn = (list, inst) => { const st = subtree(inst); return (list || []).some(x => st.has(x.inst)); };
+  // the bit positions of a vector input read in the instance (and below it); null: all of them (or
+  // read in a way not known bit by bit: a primitive, a variable index, a whole-vector read)
+  const inputBitsRead = (sig, inst) => {
+    const t = sig.t;
+    if (!t || t.kind !== 'logic' || !(t.w > 1)) return null;
+    const st = subtree(inst);
+    const bits = new Set();
+    for (const p of readers.get(sig) || []) {
+      if (!st.has(p.inst)) continue;
+      if (p.kind === 'native' || !p.body) return null;
+      const r = new Map();
+      eachStmt(p.body, (s) => readBits(exprsOf(s), r));
+      for (const tr of p.triggers || []) if (tr.sig === sig && tr.edge !== 'any') return null;
+      if (!r.has(sig) || r.get(sig) === null) return null;
+      for (const b of r.get(sig)) if (typeof b === 'number') bits.add(b); else return null;
+    }
+    return bits.size < t.w ? bits : null;
+  };
   for (const i of dInsts) {
     // an empty architecture / module, or a skeleton still marked TODO (New Source, Module Wizard):
     // its ports are not reported as unused yet
@@ -567,6 +600,12 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
       const file = i.mod.file || i.file, line = ast?.loc?.line ?? i.mod.loc?.line;
       if (port.dir === 'in' && !anyIn(readers.get(port.sig), i))
         add('unused-input', 'warning', file, line, `Input <${port.name}> is never used.`, 'Silinx:647');
+      else if (port.dir === 'in') {
+        // a bus of which only some bits are read: the others, as XST does (Input <btn<2:1>> is never used.)
+        const bits = inputBitsRead(port.sig, i);
+        if (bits) for (const r of unusedRanges(port.sig.t, bits))
+          add('unused-input', 'warning', file, line, `Input <${port.name}<${r}>> is never used.`, 'Silinx:647');
+      }
       if (port.dir === 'out' && !anyIn(writers.get(port.sig), i))
         add('unassigned-output', 'warning', file, line, `Signal <${port.name}>, unconnected in block <${i.module}>, is tied to its initial value.`, 'Silinx:2935');
     }
@@ -578,6 +617,22 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
         add('unused-signal', 'warning', s.file || i.file, s.loc.line, `Signal <${short(s)}> is assigned but never used. This unconnected signal will be trimmed during the optimization process.`, 'Silinx:646');
       if (r && !w && !s.hasInit && !(writers.get(s) || []).length)
         add('unassigned-signal', 'warning', s.file || i.file, s.loc.line, `Signal <${short(s)}> is used but never assigned. This sourceless signal will be automatically connected to value GND.`, 'Silinx:653');
+    }
+  }
+
+  // ===================================================================== names that differ only in case
+  // Verilog is case-sensitive, XST is not: it renames one of them (Xst:863)
+  for (const i of dInsts) {
+    if (i.lang !== 'verilog') continue;
+    const first = new Map();   // scope + lower-case name -> the first signal of that name
+    for (const s of i.signals) {
+      if (!s.loc || s.inst !== i) continue;
+      const cut = s.name.lastIndexOf('.');
+      const key = `${s.name.slice(0, cut + 1)}${s.name.slice(cut + 1).toLowerCase()}`;
+      const f = first.get(key);
+      if (!f) { first.set(key, s); continue; }
+      if (f.name === s.name) continue;
+      add('name-case', 'warning', s.file || i.file, s.loc.line, `Name conflict (<${short(s)}> and <${short(f)}>, renaming ${short(s)} as ${short(s)}_rnm0)`, 'Silinx:863');
     }
   }
 

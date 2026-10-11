@@ -198,7 +198,7 @@
   "flow": "complete",
   "warnings": {
    "frontend": [
-    "WARNING:Silinx - SPI_Master.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+    "WARNING:Silinx - SPI_Master.v:60: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
    ],
    "synth": [
     "Warning: Shift register inference not yet supported for family xc3se."
@@ -265,8 +265,16 @@
     "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:360: Signal <xbus_terminate> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:647 (unused-input) - neorv32_core_complex.vhd:100: Input <dbi_i> is never used.",
     "WARNING:Silinx:647 (unused-input) - neorv32_cpu.vhd:94: Input <dbi_i> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_cpu_control.vhd:78: Input <alu_add_i<0>> is never used.",
     "WARNING:Silinx:647 (unused-input) - neorv32_cpu_control.vhd:83: Input <irq_dbg_i> is never used.",
     "WARNING:Silinx:647 (unused-input) - neorv32_cpu_regfile.vhd:35: Input <rstn_i> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_dmem.vhd:28: Input <req_addr_i<1:0>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_dmem.vhd:28: Input <req_addr_i<31:13>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_gpio.vhd:29: Input <port_in_i<31:8>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:146: Input <addr_i<1:0>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:146: Input <addr_i<31:10>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:29: Input <req_addr_i<1:0>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:29: Input <req_addr_i<31:10>> is never used.",
     "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:30: Input <req_data_i> is never used.",
     "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:31: Input <req_ben_i> is never used."
    ]
@@ -280,16 +288,16 @@
   "flow": "too large: 3090 slices, the XC3S250E has 2448",
   "warnings": {
    "frontend": [
-    "WARNING:Lint (blocking) - picorv32.v:1406: Blocking assignment (=) to <set_mem_do_rinst> in a clocked always block; use a non-blocking assignment (<=).",
-    "WARNING:Lint (blocking) - picorv32.v:1407: Blocking assignment (=) to <set_mem_do_rdata> in a clocked always block; use a non-blocking assignment (<=).",
-    "WARNING:Lint (blocking) - picorv32.v:1408: Blocking assignment (=) to <set_mem_do_wdata> in a clocked always block; use a non-blocking assignment (<=).",
-    "WARNING:Lint (blocking) - picorv32.v:1440: Blocking assignment (=) to <next_irq_pending> in a clocked always block; use a non-blocking assignment (<=).",
-    "WARNING:Lint (blocking) - picorv32.v:1495: Blocking assignment (=) to <current_pc> in a clocked always block; use a non-blocking assignment (<=).",
-    "WARNING:Lint (case-default) - picorv32.v:1252: Case statement without 'default' in a combinational always block",
-    "WARNING:Lint (case-default) - picorv32.v:1269: Case statement without 'default' in a combinational always block",
-    "WARNING:Lint (case-default) - picorv32.v:1315: Case statement without 'default' in a combinational always block",
-    "WARNING:Lint (case-default) - picorv32.v:332: Case statement without 'default' in a combinational always block",
-    "WARNING:Lint (case-default) - picorv32.v:403: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (blocking) - picorv32.v:1406: Blocking assignment (=) to <set_mem_do_rinst> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Silinx (blocking) - picorv32.v:1407: Blocking assignment (=) to <set_mem_do_rdata> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Silinx (blocking) - picorv32.v:1408: Blocking assignment (=) to <set_mem_do_wdata> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Silinx (blocking) - picorv32.v:1440: Blocking assignment (=) to <next_irq_pending> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Silinx (blocking) - picorv32.v:1495: Blocking assignment (=) to <current_pc> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Silinx (case-default) - picorv32.v:1252: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - picorv32.v:1269: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - picorv32.v:1315: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - picorv32.v:332: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - picorv32.v:403: Case statement without 'default' in a combinational always block",
     "WARNING:Silinx:646 (unused-signal) - picorv32.v:1184: Signal <dbg_ascii_state> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:646 (unused-signal) - picorv32.v:181: Signal <dbg_insn_addr> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:646 (unused-signal) - picorv32.v:183: Signal <dbg_mem_valid> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
@@ -357,7 +365,7 @@
   "flow": "too large: 3437 slices, the XC3S250E has 2448",
   "warnings": {
    "frontend": [
-    "WARNING:Lint (case-default) - sha1_core.v:373: Case statement without 'default' in a combinational always block"
+    "WARNING:Silinx (case-default) - sha1_core.v:373: Case statement without 'default' in a combinational always block"
    ],
    "synth": [
     "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha1_core_syn.v:86",
@@ -373,7 +381,7 @@
   "flow": "too large: 3437 slices, the XC3S250E has 2448",
   "warnings": {
    "frontend": [
-    "WARNING:Lint (case-default) - sha256_core.v:493: Case statement without 'default' in a combinational always block"
+    "WARNING:Silinx (case-default) - sha256_core.v:493: Case statement without 'default' in a combinational always block"
    ],
    "synth": [
     "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha256_core_syn.v:304",
@@ -401,16 +409,23 @@
   "flow": "complete",
   "warnings": {
    "frontend": [
-    "WARNING:Silinx - serv_rf_ram.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x2)",
+    "WARNING:Silinx - serv_rf_ram.v:12: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - serv_rf_ram.v:15: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
     "WARNING:Silinx - serv_rf_ram.v:41: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x2)",
-    "WARNING:Silinx - serv_rf_ram_if.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x2)",
+    "WARNING:Silinx - serv_rf_ram_if.v:24: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - serv_rf_ram_if.v:25: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
     "WARNING:Silinx - serv_rf_ram_if.v:53: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
     "WARNING:Silinx - serv_rf_ram_if.v:54: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
-    "WARNING:Silinx - serv_rf_top.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - serv_rf_top.v:40: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
     "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:16: Input <i_cnt_done> is never used.",
     "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:25: Input <i_shift_op> is never used.",
     "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:26: Input <i_right_shift_op> is never used.",
     "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:27: Input <i_shamt> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_decode.v:14: Input <i_wb_rdt<11:7>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_decode.v:14: Input <i_wb_rdt<19:15>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_decode.v:14: Input <i_wb_rdt<24:23>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_decode.v:14: Input <i_wb_rdt<29:27>> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_decode.v:14: Input <i_wb_rdt<31>> is never used.",
     "WARNING:Silinx:647 (unused-input) - serv_rf_top.v:84: Input <i_ext_rd> is never used.",
     "WARNING:Silinx:647 (unused-input) - serv_top.v:76: Input <i_ext_rd> is never used."
    ],
@@ -460,11 +475,11 @@
   "flow": "too large: 2616 slices, the XC3S250E has 2448",
   "warnings": {
    "frontend": [
-    "WARNING:Lint (case-default) - T80_MCode.vhd:1173: Case statement without 'when others' choice",
-    "WARNING:Lint (case-default) - T80_MCode.vhd:1345: Case statement without 'when others' choice",
-    "WARNING:Lint (case-default) - T80_MCode.vhd:1484: Case statement without 'when others' choice",
-    "WARNING:Lint (case-default) - T80_MCode.vhd:257: Case statement without 'when others' choice",
-    "WARNING:Lint (case-default) - T80_MCode.vhd:920: Case statement without 'when others' choice"
+    "WARNING:Silinx (case-default) - T80_MCode.vhd:1173: Case statement without 'when others' choice",
+    "WARNING:Silinx (case-default) - T80_MCode.vhd:1345: Case statement without 'when others' choice",
+    "WARNING:Silinx (case-default) - T80_MCode.vhd:1484: Case statement without 'when others' choice",
+    "WARNING:Silinx (case-default) - T80_MCode.vhd:257: Case statement without 'when others' choice",
+    "WARNING:Silinx (case-default) - T80_MCode.vhd:920: Case statement without 'when others' choice"
    ],
    "synth": [
     "Warning: Shift register inference not yet supported for family xc3se."
@@ -494,7 +509,11 @@
   "flow": "complete",
   "warnings": {
    "frontend": [
-    "WARNING:Silinx - axis_fifo.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x6)",
+    "WARNING:Silinx - axis_fifo.v:130: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - axis_fifo.v:131: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - axis_fifo.v:137: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x2)",
+    "WARNING:Silinx - axis_fifo.v:138: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - axis_fifo.v:140: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
     "WARNING:Silinx:647 (unused-input) - axis_fifo.v:101: Input <s_axis_tkeep> is never used.",
     "WARNING:Silinx:647 (unused-input) - axis_fifo.v:105: Input <s_axis_tid> is never used.",
     "WARNING:Silinx:647 (unused-input) - axis_fifo.v:106: Input <s_axis_tdest> is never used.",
@@ -523,8 +542,8 @@
   "flow": "complete",
   "warnings": {
    "frontend": [
-    "WARNING:Lint (case-default) - i2c_master.v:329: Case statement without 'default' in a combinational always block",
-    "WARNING:Lint (case-default) - i2c_master.v:634: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - i2c_master.v:329: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - i2c_master.v:634: Case statement without 'default' in a combinational always block",
     "WARNING:Silinx:646 (unused-signal) - i2c_master.v:285: Signal <scl_posedge> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:646 (unused-signal) - i2c_master.v:286: Signal <scl_negedge> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
    ],
@@ -713,7 +732,7 @@
   "flow": "complete",
   "warnings": {
    "frontend": [
-    "WARNING:Lint (nonblocking) - lfsr_prbs_gen.v:205: Non-blocking assignment (<=) to <output_reg> in a combinational always block; use a blocking assignment (=)."
+    "WARNING:Silinx (nonblocking) - lfsr_prbs_gen.v:205: Non-blocking assignment (<=) to <output_reg> in a combinational always block; use a blocking assignment (=)."
    ],
    "synth": [
     "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:179$15.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
@@ -896,9 +915,9 @@
   "flow": "complete",
   "warnings": {
    "frontend": [
-    "WARNING:Lint (case-default) - ch_intrinsics.v:282: Case statement without 'default' in a combinational always block",
-    "WARNING:Lint (case-default) - ch_intrinsics.v:53: Case statement without 'default' in a combinational always block",
-    "WARNING:Lint (case-default) - ch_intrinsics.v:63: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - ch_intrinsics.v:282: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - ch_intrinsics.v:53: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx (case-default) - ch_intrinsics.v:63: Case statement without 'default' in a combinational always block",
     "WARNING:Silinx:646 (unused-signal) - ch_intrinsics.v:141: Signal <var0> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:737 (latch) - ch_intrinsics.v:282: Found 1-bit latch for signal <memory_controller_write_enable>. Latches may be generated from incomplete case or if statements.",
     "WARNING:Silinx:737 (latch) - ch_intrinsics.v:282: Found 32-bit latch for signal <memory_controller_address>. Latches may be generated from incomplete case or if statements.",

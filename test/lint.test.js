@@ -169,6 +169,102 @@ endmodule
   assert.deepEqual(ids(lint({ 't.v': v }, 't')), ['unassigned-output@2', 'unused-input@2']);
 });
 
+test('input bus of which only some bits are read: the unused bit ranges, as XST (Input <btn<2:1>> is never used.) (#38)', () => {
+  // the pong example's buttons as found by XST: only btn[0] and btn[3] read (through instances)
+  const v = `module db(input clk, input b, output reg q);
+always @(posedge clk) q <= b;
+endmodule
+module t(input clk, input [3:0] btn, input [7:0] sw, input [0:3] up, input [3:0] k, output [3:0] y);
+db r(.clk(clk), .b(btn[0]), .q(y[0]));
+db l(.clk(clk), .b(btn[3]), .q(y[1]));
+assign y[2] = sw[0] ^ sw[5] ^ sw[7] ^ (^sw[4:3]) ^ up[1];
+assign y[3] = k[sw[1]];
+endmodule
+`;
+  const r = lint({ 't.v': v }, 't');
+  // one warning per unused range, from the left index as declared ([0:3]: ascending); k is read
+  // with a variable index (all of it may be read): not reported
+  assert.deepEqual(r.map(d => `${d.severity}:${d.tool} ${d.check}@${d.line} ${d.message}`), [
+    'warning:Silinx:647 unused-input@4 Input <btn<2:1>> is never used.',
+    'warning:Silinx:647 unused-input@4 Input <sw<6>> is never used.',
+    'warning:Silinx:647 unused-input@4 Input <sw<2>> is never used.',
+    'warning:Silinx:647 unused-input@4 Input <up<0>> is never used.',
+    'warning:Silinx:647 unused-input@4 Input <up<2:3>> is never used.',
+  ]);
+  // VHDL, read in a clocked process; the whole bus or a variable index: nothing reported
+  const vh = lint({ 't.vhd': VH('', "process (a) begin if rising_edge(a) then y <= b(0) and b(2) and c(3); end if; end process;\nz <= c(to_integer(unsigned(b(1 downto 0))));", 'a : in std_logic; b : in std_logic_vector(3 downto 0); c : in std_logic_vector(0 to 3); y, z : out std_logic') }, 't');
+  assert.deepEqual(vh.map(d => `${d.line} ${d.message}`), ['2 Input <b<3>> is never used.']);
+  assert.deepEqual(ids(lint({ 't.vhd': VH('', 'y <= b(0) xor b(1);\nz <= (b(1) and b(0));', 'b : in std_logic_vector(1 downto 0); y, z : out std_logic') }, 't')), []);
+  assert.deepEqual(ids(lint({ 't.v': 'module t(input [3:0] a, input [1:0] s, output y, output [3:0] z);\nassign y = a[s];\nassign z = {a[1:0], a[3:2]};\nendmodule\n' }, 't')), []);
+  // suppressed like the other checks
+  assert.deepEqual(ids(lint({ 't.v': 'module t(\n  // silinx: ignore unused-input\n  input [3:0] a,\n  output y);\nassign y = a[0];\nendmodule\n' }, 't')), []);
+});
+
+test('Verilog names that differ only in case: XST renames one (Silinx:863); VHDL and other scopes are fine (#38)', () => {
+  const v = `module t(input clk, input a, output y);
+reg scoreR = 0;
+wire scorer = a;
+always @(posedge clk) scoreR <= scorer;
+assign y = scoreR;
+endmodule
+`;
+  const r = lint({ 't.v': v }, 't');
+  assert.deepEqual(r.map(d => `${d.severity}:${d.tool} ${d.check}@${d.line} ${d.message}`),
+    ['warning:Silinx:863 name-case@3 Name conflict (<scorer> and <scoreR>, renaming scorer as scorer_rnm0)']);
+  // a port against a signal too
+  assert.deepEqual(ids(lint({ 't.v': 'module t(input A, output y);\nwire a = A;\nassign y = a;\nendmodule\n' }, 't')), ['name-case@2']);
+  // the same name in two generate blocks, or in a module and its submodule: different scopes
+  const g = `module sub(input x, output Q); assign Q = ~x; endmodule
+module t(input clk, input [1:0] a, output [1:0] y);
+wire q = a[0];
+sub u(.x(q), .Q(y[0]));
+genvar i;
+generate for (i = 0; i < 1; i = i + 1) begin : gb
+  reg R = 0;
+  always @(posedge clk) R <= a[1];
+  assign y[1] = R;
+end endgenerate
+endmodule
+`;
+  assert.deepEqual(ids(lint({ 't.v': g }, 't')), []);
+});
+
+test('$clog2 in a declaration\'s range is reported at the declaration\'s line, not line 1 (#16)', () => {
+  // (in a range, in a localparam, in a parameter of the header and of the body, in a port's range)
+  const v = `module t #(parameter N = 10,
+  parameter A = $clog2(N)) (input clk, output [3:0] q,
+  output [$clog2(N):0] r);
+parameter B = $clog2(N + A);
+localparam W = $clog2(N);
+reg [$clog2(N)-1:0] c = 0;
+always @(posedge clk) c <= c + 1;
+assign q = c;
+assign r = {1'b0, c};
+endmodule
+`;
+  const lib = compile([{ path: 't.v', text: v }]);
+  const d = elaborate(lib, 't');
+  const w = '$clog2 is not supported by XST (ISE 14.7); use a constant function instead';
+  assert.deepEqual([...lib.errors, ...d.diags].map(x => `${x.severity} ${x.file}:${x.line} ${x.message}`).sort(),
+    [2, 3, 4, 5, 6].map(l => `warning t.v:${l} ${w}`));
+  // (Silinx's own message: labelled Silinx, as the design checks)
+  assert.ok(d.diags.every(x => x.tool === 'Silinx'));
+  assert.deepEqual(designChecks(lib, d), []);
+});
+
+test('design checks without an XST number are labelled Silinx, not Lint (#16)', () => {
+  const v = `module t(input clk, a, b, output reg q, output reg y, output reg z);
+always @(posedge clk) q = a;
+always @* y <= a & b;
+always @* begin case ({a, b}) 2'b00: z = 1'b1; 2'b01: z = 1'b0; endcase end
+endmodule
+`;
+  const r = lint({ 't.v': v }, 't').filter(d => d.check !== 'latch');
+  assert.deepEqual(r.map(d => `${d.tool} ${d.check}@${d.line}`), ['Silinx case-default@4', 'Silinx blocking@2', 'Silinx nonblocking@3']);
+  // every message of the checks says which tool: Silinx (or Silinx:NNN), or the HDLCompiler of a rule
+  assert.ok(r.every(d => /^Silinx(:\d+)?$/.test(d.tool)));
+});
+
 // ===================================================================================== clocks
 test('clock used as data, logic used as a clock (divided clock); enable and clk\'event and clk = \'1\' are fine', () => {
   const r = lint({ 't.vhd': VH('', "process (a) begin\n  if rising_edge(a) then y <= b; end if;\nend process;\nz <= a and b;", 'a, b : in std_logic; y, z : out std_logic') }, 't');

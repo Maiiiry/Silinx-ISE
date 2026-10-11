@@ -62,6 +62,12 @@ the "What's new" text of its GitHub release.
   (`WARNING:Silinx:646 - Signal <…> is assigned but never used…`) keep XST's number for the same
   finding, and their explanation says "Xilinx ISE's XST reports this as Xst:646"; the open
   toolchain's errors are `ERROR:Silinx`. XST's own messages (ISE modes) keep `Xst`.
+- **Design checks, closer to XST:** an input bus of which only some bits are read gets the unused
+  bits, as XST does (`WARNING:Silinx:647 - Input <btn<2:1>> is never used.`), and Verilog names
+  that differ only in case (`scorer` and `scoreR`, which XST renames) are reported
+  (`WARNING:Silinx:863 - Name conflict (<scorer> and <scoreR>, …)`) (#38). The checks without an
+  XST number are labelled `Silinx`, no longer `Lint`, and the `$clog2` warning is at the line of
+  its declaration or parameter, no longer at line 1 (#16).
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and

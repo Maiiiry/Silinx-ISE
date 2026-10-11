@@ -296,6 +296,13 @@ export const HINTS = [
       fix: "Use-a na lógica onde é precisa (verifique se não há um erro de escrita: outro nome pode estar a ser usado em vez de '$1'), ou retire o porto se não for preciso." },
   },
   {
+    id: 'unused-input-bits', check: 'unused-input', re: /^Input <([^<>]+)<([^>]+)>> is never used/,
+    en: { explain: "Only some bits of the input bus '$1' are read: bits $2 are never used, so whatever is connected to them has no effect.",
+      fix: "Use those bits where they are needed (check the indices: '$1(…)' / '$1[…]' may select the wrong bit), or make the port narrower if they are not needed." },
+    pt: { explain: "Só alguns bits do barramento de entrada '$1' são lidos: os bits $2 nunca são usados, por isso o que lhes estiver ligado não tem efeito.",
+      fix: "Use esses bits onde são precisos (verifique os índices: '$1(…)' / '$1[…]' pode selecionar o bit errado), ou torne o porto mais estreito se não forem precisos." },
+  },
+  {
     id: 'unused-signal', check: 'unused-signal', re: /^Signal <([^>]+)> is assigned but never used/,
     en: { explain: "'$1' gets a value but nothing reads it, so the logic that computes it is useless (synthesis removes it).",
       fix: "Use '$1' where it was meant to be used (perhaps an output should be assigned from it), or remove it." },
@@ -343,6 +350,13 @@ export const HINTS = [
       fix: "Add a last branch: VHDL 'when others => y <= …;' (or 'when others => null;' in a clocked process); Verilog 'default: y = …;'." },
     pt: { explain: "Esta instrução case não tem um ramo '$1', por isso alguns valores do seletor não são tratados. Num process combinatório as saídas ficam então com o valor antigo para esses valores (um latch). Em VHDL um case sobre std_logic / std_logic_vector tem de cobrir todos os valores (também 'X', 'Z'…), por isso o ISE exige 'when others'.",
       fix: "Acrescente um último ramo: VHDL 'when others => y <= …;' (ou 'when others => null;' num process com relógio); Verilog 'default: y = …;'." },
+  },
+  {
+    id: 'name-case', check: 'name-case', re: /^Name conflict \(<([^>]+)> and <([^>]+)>/,
+    en: { explain: "'$1' and '$2' differ only in upper / lower case. Verilog sees two names, but XST (ISE's synthesis) does not tell them apart: it renames one of them, and the two are easily mixed up when reading the code.",
+      fix: "Give one of them a clearly different name (e.g. scoreRight instead of scoreR), and check that each place uses the one it means." },
+    pt: { explain: "'$1' e '$2' só diferem em maiúsculas / minúsculas. O Verilog vê dois nomes, mas o XST (a síntese do ISE) não os distingue: muda o nome de um deles, e os dois confundem-se facilmente ao ler o código.",
+      fix: "Dê a um deles um nome claramente diferente (p. ex. scoreRight em vez de scoreR), e verifique que cada sítio usa o que pretende." },
   },
   {
     id: 'integer-range', check: 'integer-range', re: /^(?:Signal|Variable) <([^>]+)> is an integer without a range/,
