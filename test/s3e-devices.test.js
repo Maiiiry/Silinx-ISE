@@ -1,4 +1,4 @@
-// The bit databases of the Spartan-3E devices (research/s3e-bitstream/db, stage E): the bitstream
+// The bit databases of the Spartan-3E devices (research/s3e-bitstream/db, stage F): the bitstream
 // format of each device, the one loader (research/s3e-bitstream/db.mjs: shared tile types, the
 // device's own files, the pads per package), and the committed files checked against the shipped
 // device descriptions (core/fpga/devices/), without ISE.
@@ -218,7 +218,7 @@ test('the tile types are shared: the XC3S250E\'s measurements serve the other de
     const L = readDbFiles(d).layout;
     for (const [y, b] of Object.entries(L.typeRows.GCLKH)) for (const a of ['GCLKH_PCI_CE_N', 'GCLKH_PCI_CE_S']) if (L.typeRows[a]?.[y] !== undefined) assert.equal(L.typeRows[a][y], b, `${d} ${a} ${y}`);
   }
-  // the REV pin of a flip-flop: one bit per slice position (stage E)
+  // the REV pin of a flip-flop: one bit per slice position (stage F)
   assert.deepEqual(['SLICE0', 'SLICE1', 'SLICE2', 'SLICE3'].map(s => t.CENTER_SMALL.features[`${s}:REVUSED:0`]), [['1,40'], ['1,8'], ['2,40'], ['2,8']]);
 });
 

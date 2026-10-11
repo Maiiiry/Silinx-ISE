@@ -36,7 +36,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-harness.mjs`, `gen-hvar.mjs` | Stage B2: the slice under test with all its pins connected, routed once by ISE; one variant per setting |
 | `db/xc3s250e-slice.json` | Result of stages B and C: the bits of each slice setting, per slice position (any slice; a table generated from `db/s3e-tiles.json`) |
 | `compare-sim.mjs` | Does the netlist of open synthesis behave like the design? Simulates both with Silinx |
-| `db/<device>-lut.json` | Result of stage A (stage E for the XC3S100E, XC3S500E, XC3S1200E): where every LUT of the chip is in the bitstream |
+| `db/<device>-lut.json` | Result of stage A (stage F for the XC3S100E, XC3S500E, XC3S1200E): where every LUT of the chip is in the bitstream |
 | `xdlrc-graph.mjs`, `router.mjs` | The device's routing graph from `xdl -report -pips -all_conns` (cached), and a small router for test designs |
 | `run-many.sh` | Inside the ISE container: `xdl -xdl2ncd -force` + `bitgen` for every `.xdl` of several folders, 3 at a time (`-c`: also with CRC) |
 | `gen-pipdrop.mjs`, `gen-pipcover.mjs`, `gen-clock.mjs`, `ana-pipdrop.mjs`, `pips-to-db.mjs` | Stage C: routing switches in batches (variants remove PIPs by codewords); a design routed by ISE, designs routed by `router.mjs`, the global clock tree |
@@ -51,8 +51,8 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `share-sb.mjs`, `gen-branch.mjs`, `ana-perpad.mjs`, `ise-impl.sh` | Stage D: the CLB switch box shared by the I/O, block-RAM and DCM tiles; PIPs measured as dead-end branches of routed nets; I/O settings per pad (`gen-iob.mjs --perpad / --perstd`); designs implemented by ISE from HDL (reference designs) |
 | `gen-bram.mjs`, `ana-bram.mjs`, `db/<device>-bram.json` | Stage D: every memory bit of the block RAMs, by binary codes |
 | `gen-sitevar.mjs`, `ana-sitevar.mjs`, `sitevar-features.mjs`, `bram-features.mjs` | Stage D: the settings of block RAMs, multipliers and DCMs, changed one at a time in designs implemented by ISE |
-| `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-E: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
-| `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs` | Stage E: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE |
+| `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-F: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
+| `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters |
 
 ## Results
 
@@ -387,6 +387,106 @@ from another pad, `STARTUP_WAIT` (it also changes the COR register), `CLKIN_DIVI
 `DESKEW_ADJUST = SOURCE_SYNCHRONOUS`, input periods other than 20 ns (the bitstream would lack
 2 bits: "features not in the bit database"), BUFGMUX clock switching (I1 / S measured on one buffer
 only), the SRLC16 cascade output and the multiplier cascade (BCIN / BCOUT).
+
+### Stage F: the other Spartan-3E devices — XC3S100E, XC3S500E, XC3S1200E (2026-10-11)
+
+**Result: the fully open flow writes byte-identical bitstreams (CRC on and off) for the Basys2-100
+(XC3S100E-CP132), the Nexys2-500 (XC3S500E-FG320) and the Nexys2-1200 (XC3S1200E-FG320)**: blinky
+and lab11 on each board, placed and routed by Silinx, are converted by ISE (`xdl -xdl2ncd`, `drc`,
+`bitgen`) to the same .bit files, with no DRC error, no DRC warning and no xdl2ncd warning
+(`scripts/check-open-flow.mjs`, which now also fails on a warning); the open flow itself gives no
+warning on them. Designs implemented by ISE from HDL on each device (`ise-impl.sh` with `PART`:
+blinky with the board's pins, bram_sp, brmul, bufgmux, dcm, dram, ramprim, srl) are byte-identical
+too, but for what is listed below.
+
+**The database per device** (`db.mjs`, the one loader of the open flow, the interface and the
+experiments: `loadDb('xc3s500efg320-4')`):
+
+| File | What | Per |
+|---|---|---|
+| `s3e-tiles.json` | the tile types' features (PIPs, site settings) | shared by the devices |
+| `<device>-tiles.json` | features of one device only (the XC3S1200E's long-line splitters) | device |
+| `<device>-layout.json` | where every tile is, the bitstream format (IDCODE, frame length, frames), the bits of an empty design | device |
+| `<device>-lut.json`, `<device>-bram.json` | where every LUT, every block-RAM memory bit is | device |
+| `<device>-<package>-pads.json` | the pads' own bits (absolute, per direction, standard, drive, slew, pull) | device and package |
+
+**Bitstream format** (an empty design written by bitgen; the packet sequence and the COR / CRC rules
+are the XC3S250E's, `chkempty`: Silinx's writer gives ISE's empty and map designs byte for byte):
+
+| Device | IDCODE | Frame (words) | Frames | Frame bits = 160 + 64 x CLB rows |
+|---|---|---|---|---|
+| XC3S100E | `01C10093` | 49 | 369 | 22 rows |
+| XC3S250E | `01C1A093` | 73 | 578 | 34 rows |
+| XC3S500E | `01C22093` | 97 | 730 | 46 rows |
+| XC3S1200E | `01C2E093` | 125 | 959 | 60 rows |
+
+**Layout** (`gen-map.mjs`: one design per 4000 slices numbers every slice in its LUT; `decode-map.mjs`;
+`gen-layout.mjs` from the map, the empty design and the device grid): every slice found once, one
+frame per slice column and one bit per slice row on every device. Every tile column but the I/O
+columns has CLB tiles (the block-RAM columns at their top and bottom), so the map gives all the
+columns: the global clock columns (3 frames; 4 on the XC3S1200E), the left I/O column (21 frames),
+the CLB columns of the main block (19 each), the right I/O column, then the block-RAM columns' CLB
+and content frames and their interconnect columns, as on the XC3S250E. The horizontal clock rows
+(GCLKH) take one bit each in the I/O rows: the outermost row of each half first (top: bits 3, 2;
+bottom: FB-1, FB-2); on the XC3S1200E the top rows start one bit further (bits 4, 3: its bits 1-3 are
+the long-line splitters').
+
+**The shared switch box hypothesis holds**: the XC3S250E's features, relative to their tiles, gave
+byte-identical bitstreams on the three other devices for every design above. What was missing:
+
+- **Tile types the XC3S250E does not have**: the XC3S100E's DCMAUX_BL / TL_CENTER (where it has no
+  DCM) and the XC3S1200E's side DCMs (DCM_H_BL / BR / TL / TR_CENTER) have the CLB switch box (shift
+  0,0, `share-sb.mjs`); the XC3S1200E's clock tiles CLKT_LL, CLKB_LL, CLKC_LL, CLKV_LL are CLKT, CLKB,
+  CLKC, CLKV (`ALIASES`); the new terminal tiles (TTERM1, LTERM2/3, RTERM2/3, BTERM1, …_BRAM2,
+  DCM_H_…_TERM) have no bits like the others.
+- **The horizontal clock rows of the I/O and block-RAM columns** (GCLKH_PCI_CE_N / S, …UP_GCLKH…,
+  …DN_GCLKH…) are GCLKH tiles with other names: the same switches and bits, one bit by row as GCLKH
+  (`GCLKH_TYPES`). Measured on the XC3S250E as offsets from their own row, which held for one row of
+  each type only; this also gives the bit that made `dram` (seed 1) differ in stage E
+  (`BRAM2_DN_GCLKH_FEEDTHRUA_X24Y5 GCLK4->GCLK_DN4`, frame +7 of BIOIS_X24Y0's column, bit 79 of its
+  row: the GCLKH bit FB-1; measured empty before, a bit given to a neighbouring tile). That design is
+  byte-identical now.
+- **The XC3S1200E's long-line splitters** (CLKH_LL, the centre row: each vertical long line joined
+  across the centre in either direction, one bit each in the I/O rows; `gen-pipcover.mjs --types
+  CLKH_LL --long 1`, 298 PIPs in 38 tiles, all 48 switches the same in every tile, `clkh-ll.mjs`;
+  `db/xc3s1200e-tiles.json`). A routed design names them `a =- b` with the line's driver in another
+  tile, so the writer cannot tell the direction: the router does not use them (`noRoute`).
+- **REVUSED** (a flip-flop's REV pin used): one bit per slice position, seen in all four positions in
+  ISE's designs of the three devices; the input pads' pin wires of the top I/O tiles (no bits).
+- **Pads** per package (`gen-iob.mjs --third / --sparse`, `ana-pads.mjs`: the LVCMOS33 / 25 inputs
+  and outputs of every bonded pad, 83 / 232 / 250 pads, every changed bit near exactly one used pad;
+  `--perpad / --perstd`, `ana-perpad.mjs`: the other standards, drive, slew and pull). The pads'
+  bits follow the XC3S250E's patterns relative to the I/O tiles only in families that depend on the
+  pad's place, so they were measured on each device. Checked with every pad at random settings
+  (`gen-iorand.mjs`: LVCMOS33 and LVTTL outputs with random drive / slew / pull, inputs of random
+  standards and pulls): byte-identical on the XC3S100E.
+- **Block RAM** (`gen-bram.mjs`, `ana-bram.mjs` with `PART`): every memory bit of all 4 / 20 / 28
+  block RAMs has the same place relative to its RAM as on the XC3S250E; only the columns and rows
+  differ.
+
+**XC3S250E items of stage D measured here** (designs implemented by ISE: all 8 BUFGMUX of the top and
+bottom with I0, I1 and S used; the 4 DCMs with every pin used; IOB flip-flops and DDR registers;
+`gen-pipdrop.mjs` on each): the PIPs of the DCMs' pins (all four DCMs), of the BUFGMUX inputs and
+select from the fabric, and of the I/O clock pins (`measured/learn-8stage-f-pips.json`); the select
+inverter of each of the 8 BUFGMUX (one bit each, `gen-sitevar.mjs` per buffer; I1_USED none:
+`fix-21stage-f-bufgmux.json`); with the DCM pins, CLK0 and CLKFX of the top-left DCM also reach
+BUFGMUX_X2Y11 / X1Y11 (the placer now gives the buffers to the most constrained output first). Not
+done: the settings of the IOB flip-flops and DDR registers and of the other three DCMs
+(`gen-sitedrop.mjs` / `ana-sitedrop.mjs` remove one setting at a time; the I/O registers' clock
+inverters, D multiplexers and set / reset settings are consistent between instances, but the input
+delay settings are not, being bits near the pads, and the DCMs' settings lie in the DCM_TERM tiles
+around them: the stage-D `gen-sitevar.mjs` campaign is needed per DCM); CLKIN_PERIOD other than
+20 ns, STARTUP_WAIT. A design using one of them is refused (`unknown`).
+
+**Other things learned**: the device reports of the larger chips are too large to read as one string
+(the XC3S1200E's is 595 MB): the experiments use the device description instead (`xdlrc-graph.mjs`
+`graphFromDevice`, the same graph); two BUFGMUX in a pair of sites (X1Y10 / X1Y11) used as muxes need
+each other's inputs swapped (ISE's placer refuses otherwise); a DCM_SP's STATUS(3..6) are not
+connected (ISE's router reports them unroutable).
+
+**Runtime** (ISE on the Intel Mac, 2-4 runs at a time): about 2000 runs (`xdl -xdl2ncd` + `bitgen`; the
+I/O settings per pad are most of them, 430 per device), 30 designs implemented from HDL, 20 checks of
+the open flow, in about 7 hours of wall time.
 
 ### Open synthesis on the board (2026-10-10)
 

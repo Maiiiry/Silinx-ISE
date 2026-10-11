@@ -143,7 +143,7 @@ test('the open flow fails clearly for what the bit database does not have: a DCM
   assert.match(r.stderr, /u_b2x: no free global clock buffer reachable from u_dcm\.CLK90 through switches of known bits/);
 });
 
-// blinky on the other boards (stage E of research/s3e-bitstream): the Basys2-100 with the Basys2's
+// blinky on the other boards (stage F of research/s3e-bitstream): the Basys2-100 with the Basys2's
 // pins, the Nexys2-500 / -1200 with the Nexys2's (LD4-LD7 differ by die)
 const NEXYS2 = led => [['clk', 'B8'], ['sw<0>', 'G18'], ['sw<1>', 'H18'], ['sw<2>', 'K18'], ['sw<3>', 'K17'], ['btn<0>', 'B18'], ['btn<1>', 'D18'],
   ...led.map((p, i) => [`led<${i}>`, p])].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;`).join('\n') + '\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\n';

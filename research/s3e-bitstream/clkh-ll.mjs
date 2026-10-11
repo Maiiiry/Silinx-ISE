@@ -1,4 +1,4 @@
-// Stage E: the XC3S1200E's long-line splitters (CLKH_LL tiles, the row of the centre): each of the 24
+// Stage F: the XC3S1200E's long-line splitters (CLKH_LL tiles, the row of the centre): each of the 24
 // vertical long lines can be joined across the centre in either direction, one bit each, in the I/O
 // row at the top or at the bottom of the frame (measured with gen-pipcover.mjs --types CLKH_LL --long
 // 1, ana-pipdrop.mjs). The features: frame offset from the tile's column, the bit of the frame (layout
@@ -24,4 +24,4 @@ for (const [f, s] of [...seen].sort()) {
   feats[f] = [...s.keys()][0].split(' ');
 }
 console.error(`${Object.keys(feats).length} PIPs of CLKH_LL, ${bad} different in different tiles`);
-console.log(JSON.stringify({ source: 'research/s3e-bitstream stage E: gen-pipcover.mjs --types CLKH_LL --long 1 on the XC3S1200E (298 PIPs in 38 tiles), ana-pipdrop.mjs, clkh-ll.mjs; ISE 14.7 xdl P.20131013 + bitgen; 2026-10-11', types: { CLKH_LL: { features: feats } } }));
+console.log(JSON.stringify({ source: 'research/s3e-bitstream stage F: gen-pipcover.mjs --types CLKH_LL --long 1 on the XC3S1200E (298 PIPs in 38 tiles), ana-pipdrop.mjs, clkh-ll.mjs; ISE 14.7 xdl P.20131013 + bitgen; 2026-10-11', types: { CLKH_LL: { features: feats } } }));

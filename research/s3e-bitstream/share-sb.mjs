@@ -17,12 +17,12 @@ export const SHIFTS = {
   '2,16': ['UL'],
 };
 // the XC3S100E's tiles at the places of the missing DCMs and the XC3S1200E's DCMs on the left and right
-// sides (stage E: their PIPs measured in the reference designs have the CLB's bits)
+// sides (stage F: their PIPs measured in the reference designs have the CLB's bits)
 SHIFTS['0,0'].push('DCMAUX_BL_CENTER', 'DCMAUX_TL_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_TL_CENTER', 'DCM_H_TR_CENTER');
 // the tiles of the horizontal clock rows in the I/O and block-RAM columns are GCLKH tiles with other
 // names (GCLKH_PCI_CE_N / _S, the block RAM's …UP_GCLKH… / …DN_GCLKH…): the same switches, one bit in
 // the I/O rows at the top or bottom of the frame like GCLKH (the layout's typeRows, by the row);
-// measured on the XC3S250E as offsets from their own row, which hold for one row only (stage E)
+// measured on the XC3S250E as offsets from their own row, which hold for one row only (stage F)
 export const GCLKH_TYPES = ['GCLKH_PCI_CE_N', 'GCLKH_PCI_CE_S', 'BRAMSITE2_UP_GCLKH', 'BRAM2_UP_GCLKH_FEEDTHRU', 'BRAM2_UP_GCLKH_FEEDTHRUA',
   'BRAMSITE2_DN_GCLKH', 'BRAM2_DN_GCLKH_FEEDTHRU', 'BRAM2_DN_GCLKH_FEEDTHRUA'];
 export const GCLKH_RENAME = [['BRAMSITE2_GCLKH_', 'GCLKH_']];
@@ -70,7 +70,7 @@ if (process.argv[1] && process.argv[1].endsWith('share-sb.mjs')) {
   // (thousands of measurements without bits; the few with bits were bits of the I/O tile measured
   // in the same frames)
   let term = 0;
-  // the terminal tiles of the other devices (stage E): the same kind of tile
+  // the terminal tiles of the other devices (stage F): the same kind of tile
   for (const type of ['TTERM1', 'TTERM4_BRAM2', 'BTERM1', 'BTERM4_BRAM2', 'LTERM2', 'LTERM3', 'RTERM2', 'RTERM3', 'DCM_H_TR_TERM', 'DCM_H_BR_TERM']) db.types[type] ||= { features: {} };
   for (const [type, t] of Object.entries(db.types)) {
     if (!/TERM|^BRAMSITE2(_BRK)?$/.test(type)) continue;
