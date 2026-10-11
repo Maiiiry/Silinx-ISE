@@ -101,7 +101,8 @@ test('toolchain configuration: the open mode, its ISE for device descriptions, t
   assert.equal(r.body.ise.mode, 'open');
   assert.equal(r.body.deviceBuilder.mode, 'ssh');
   assert.equal(r.body.deviceBuilder.available, false);
-  assert.match(r.body.deviceBuilder.reason, /no ssh host configured/);
+  // (the tools are checked first: a Windows runner may have no tar on the test's PATH)
+  assert.match(r.body.deviceBuilder.reason, process.platform === 'win32' ? /no ssh host configured|tar not found/ : /no ssh host configured/);
   assert.equal(r.body.open.available, false);
   assert.match(r.body.open.reason, /no bit database for xc3s500e yet/);
   assert.equal((await app.call('GET', '/toolchain')).body.open, undefined);

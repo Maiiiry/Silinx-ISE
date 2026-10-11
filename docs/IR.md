@@ -72,7 +72,13 @@ Range = { left: Expr, right: Expr, dir: 'downto'|'to'|null }
 { kind: 'signal', name, type: TypeSpec, init: Expr|null, net: 'wire'|'reg'|'signal'|'variable', loc }
     // Verilog wire/reg/integer/logic; VHDL signal (net 'signal') and process/function variables ('variable')
 { kind: 'const', name, type: TypeSpec|null, value: Expr, loc }    // VHDL constant
-{ kind: 'type', name, type: TypeSpec, loc }                       // VHDL type / subtype
+{ kind: 'type', name, type: TypeSpec, loc }                       // VHDL type / subtype, Verilog typedef
+    // SystemVerilog TypeSpecs: { kind: 'logic', range, signed, inner: [Range] } (packed dimensions
+    // after the first: logic [0:3][7:0]); { kind: 'named', name, dims: [Range] } (a typedef name,
+    // with packed dimensions); { kind: 'struct', fields: [{ name, type }], signed } (packed);
+    // { kind: 'svenum', base: TypeSpec|null, items: [{ name, value: Expr|null }] }.
+    // Elaborated, a packed array is a vector with t.packed = { left, right, desc, n, elem }, a
+    // structure a vector with t.members = [{ name, t, lo }].
 { kind: 'function', name, params: [{ name, type, dir:'in'|'out'|'inout' }], returnType: TypeSpec|null,
   decls: Decl[], body: Stmt[], retVar: string|undefined, loc }
     // Verilog: result assigned to function name -> retVar = name. VHDL: uses 'return' stmt.
@@ -100,14 +106,20 @@ VHDL `component` declarations, `attribute` declarations/specs and `alias` may be
     // VHDL selected assignment `with s select y <= a when "00", b when others;` -> desugar to
     //   process { sens:'all', body:[case] } with nonblocking assignments.
 { kind: 'instance', name, module, params: [{ name: string|null, value: Expr }],
-  conns: [{ port: string|null, expr: Expr|null }], loc }
+  conns: [{ port: string|null, expr: Expr|null }], array: Range|undefined, loc }
+    // array: Verilog arrays of instances `u [3:0] (…)` (instances u[3] … u[0])
     // name null => positional. expr null => unconnected (`open`, `.p()`).
     // VHDL `u1: entity work.cnt port map(...)` and `u1: cnt port map(...)` -> module 'cnt'.
 { kind: 'generate_for', label, var, init: Expr, cond: Expr, step: Expr, decls: Decl[], items: Item[], loc }
     // Verilog `for (i=0; i<N; i=i+1) begin : lbl ... end` -> init 0, cond i<N, step `i+1` (the next value)
     // VHDL `lbl: for i in 0 to N-1 generate` -> init 0, cond (i <= N-1), step (i + 1); downto uses >= and -
-{ kind: 'generate_if', label, cond: Expr, then: Item[], else: Item[], decls: Decl[], loc }
+{ kind: 'generate_if', label, cond: Expr, then: Item[], else: Item[], decls: Decl[], loc,
+  elseDecls?: Decl[], elseLabel?: string, elseChain?: bool }
+    // Verilog: elseChain, the else items are the next branch of the same construct (else if, the
+    // next case alternative), in the same scope; elseLabel, the name of the else block. Unnamed
+    // generate blocks are named genblk<n> by the parser (IEEE 1364-2005 12.4.3; autoLabel).
 { kind: 'decl', decl: Decl }   // only used inside generate bodies when needed
+{ kind: 'elabtask', name: '$info'|'$warning'|'$error'|'$fatal', args: Expr[], loc }   // SystemVerilog elaboration tasks
 ```
 
 ## Statements
@@ -153,6 +165,8 @@ VHDL `component` declarations, `attribute` declarations/specs and `alias` may be
 { op: 'phys', value: 10, unit: 'fs'|'ps'|'ns'|'us'|'ms'|'sec' }   // VHDL time literal `10 ns`
 { op: 'str', value: 'text' }
 { op: 'ref', name }                  // identifier (also VHDL enum literals, true/false, constants)
+    // Verilog hierarchical names: name 'a.b[2].c'; with an index that is not a number, path:
+    // [{ name, index: Expr|null }] (blk[i - 1].x)
 { op: 'index', base: Expr, index: Expr }               // Verilog a[i]
 { op: 'slice', base: Expr, left: Expr, right: Expr }   // Verilog a[7:4]; VHDL a(7 downto 4)
 { op: 'pslice', base: Expr, start: Expr, width: Expr, dir: '+'|'-' }   // Verilog a[i +: 4]

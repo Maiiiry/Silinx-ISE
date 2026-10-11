@@ -45,6 +45,17 @@ export function diags(src, top = 'tb', { lang } = {}) {
   return all.map(d => ({ severity: d.severity, line: d.line, col: d.col, message: d.message, file: d.file }));
 }
 
+// Output lines, after checking the warnings (and notes) of compilation and elaboration: exactly
+// `warnings`, each as "line: message" (none by default: a supported construct gives none).
+export function outW(src, warnings = [], top = 'tb', opts) {
+  const ws = diags(src, top).filter(d => d.severity !== 'error').map(d => `${d.line}: ${d.message}`);
+  assert.deepEqual(ws, warnings, 'warnings');
+  return out(src, top, opts);
+}
+
+// The warnings (and notes) of a sim() result, "line: message"
+export const warningsOf = res => [...(res.r.lib?.errors || []), ...(res.design?.diags || [])].filter(d => d.severity !== 'error').map(d => `${d.line}: ${d.message}`);
+
 // VHDL testbench skeleton: `decls` go in the architecture declarative part, `body` is the
 // concurrent part, `ctx` extra context clauses, `pre` extra design units before the testbench.
 export const vhd = (body, decls = '', { ctx = '', pre = '' } = {}) => `${pre}
