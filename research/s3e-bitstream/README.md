@@ -455,7 +455,10 @@ byte-identical bitstreams on the three other devices for every design above. Wha
   ISE's designs of the three devices; the input pads' pin wires of the top I/O tiles (no bits).
 - **Pads** per package (`gen-iob.mjs --third / --sparse`, `ana-pads.mjs`: the LVCMOS33 / 25 inputs
   and outputs of every bonded pad, 83 / 232 / 250 pads, every changed bit near exactly one used pad;
-  `--perpad / --perstd`, `ana-perpad.mjs`: the other standards, drive, slew and pull). The pads'
+  `--perpad / --perstd`, `ana-perpad.mjs`: the other standards, drive, slew and pull, done for the
+  XC3S100E only: the 430 runs of each FG320 part were cut off when the ISE machine became
+  unreachable, so the XC3S500E and XC3S1200E have LVCMOS33 / LVCMOS25 at drive 12, slow, no pull,
+  what the Nexys2 designs use; a design with other settings is refused (`unknown`)). The pads'
   bits follow the XC3S250E's patterns relative to the I/O tiles only in families that depend on the
   pad's place, so they were measured on each device. Checked with every pad at random settings
   (`gen-iorand.mjs`: LVCMOS33 and LVTTL outputs with random drive / slew / pull, inputs of random
@@ -484,9 +487,9 @@ around them: the stage-D `gen-sitevar.mjs` campaign is needed per DCM); CLKIN_PE
 each other's inputs swapped (ISE's placer refuses otherwise); a DCM_SP's STATUS(3..6) are not
 connected (ISE's router reports them unroutable).
 
-**Runtime** (ISE on the Intel Mac, 2-4 runs at a time): about 2000 runs (`xdl -xdl2ncd` + `bitgen`; the
-I/O settings per pad are most of them, 430 per device), 30 designs implemented from HDL, 20 checks of
-the open flow, in about 7 hours of wall time.
+**Runtime** (ISE on the Intel Mac, 2-4 runs at a time): about 1100 runs (`xdl -xdl2ncd` + `bitgen`;
+the XC3S100E's I/O settings per pad are 430 of them), 30 designs implemented from HDL, 30 checks of
+the open flow, in about 6 hours of wall time.
 
 ### Open synthesis on the board (2026-10-10)
 

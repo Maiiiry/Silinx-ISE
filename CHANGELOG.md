@@ -9,8 +9,8 @@ the "What's new" text of its GitHub release.
   (XC3S500E) and the Nexys2-1200 (XC3S1200E) have their bit databases, measured as the
   Basys2-250's was: Implement Design and Generate Programming File work for them with no Xilinx
   tool. blinky and lab11 on each are byte-identical to ISE's bitgen, with no DRC error or warning.
-  The pads are measured for the boards' packages (CP132, FG320: every I/O standard, drive, slew and
-  pull). The tile types' bits are shared by the four devices (`research/s3e-bitstream/db`: one
+  The pads are measured for the boards' packages (CP132: every I/O standard, drive, slew and pull;
+  FG320: LVCMOS33 / LVCMOS25 at the default drive, slew and pull, what the Nexys2 designs use). The tile types' bits are shared by the four devices (`research/s3e-bitstream/db`: one
   file of tile types, the layout, LUTs, block RAMs and pads per device), read by one loader.
 - More of the XC3S250E (and the others) measured: the DCMs' pins, the inputs and the select of
   every global clock buffer (BUFGMUX) of the top and bottom; a placement where the DCM outputs

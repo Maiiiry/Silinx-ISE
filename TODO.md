@@ -11,7 +11,9 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   and Nexys2-1200 are byte-identical to ISE's bitgen; program them on the boards. Their DCMs (the
   XC3S1200E's side DCMs too) are not measured; the XC3S1200E's long-line splitters are measured but
   not used by the router (a routed design does not tell their direction: resolve it from the device
-  graph). The Spartan-3E Starter Kit (XC3S500E-FG320) has its pads measured: check a design on it.
+  graph). The FG320 pads' other I/O standards, drive, slew and pull (`gen-iob.mjs --perpad /
+  --perstd` on the XC3S500E and XC3S1200E: 430 ISE runs each; the Spartan-3E Starter Kit uses LVTTL,
+  drive 8 and pull-ups), then `gen-iorand.mjs` as a check.
 - **Spartan-6 boards: Nexys3 (XC6SLX16) and Atlys (XC6SLX45).** Not supported by the open
   toolchain yet (they work with ISE, and *Synthesize - Yosys (open)* already synthesizes for them).
   To do: the Spartan-6 packer and placer (6-input LUTs, SLICEX / SLICEL / SLICEM), the bit database
