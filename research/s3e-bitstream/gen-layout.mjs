@@ -68,6 +68,9 @@ for (const type of Object.keys(tilesOf)) if (/^(GCLKH_PCI_CE_[NS]|BRAM\w*_(UP|DN
   typeRows[type] = Object.fromEntries(tilesOf[type].map(([, y]) => [y, typeRows.GCLKH[y]]));
   typeBits[type] = 1;
 }
+// the XC3S1200E's long-line splitters at the centre row (CLKH_LL): one bit each in the I/O rows of the
+// frame, stored as bits of the whole frame (row bit 0; clkh-ll.mjs)
+if (tilesOf.CLKH_LL) { typeRows.CLKH_LL = Object.fromEntries(tilesOf.CLKH_LL.map(([, y]) => [y, 0])); typeBits.CLKH_LL = FB; }
 const empty = readBit(fs.readFileSync(emptyBit));
 const defaults = diffFrames(new Uint32Array(empty.frames.length), empty.frames, map.frameWords).map(d => [d.frame, d.bit]);
 const idcode = empty.packets.find(p => p.reg === 'IDCODE').words[0];

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { S3E_DEVICES, XC3S250E, bitFormat, writeBit, readBit, setBit, diffFrames } from '../core/fpga/bitstream.js';
-import { makeDb, layoutFormat, bitgen, frameData, padsFromDevice } from '../core/fpga/bitgen.js';
+import { makeDb, layoutFormat, bitgen, frameData, padsFromDevice, knownRouting, featureBits, tileOf, tileBase } from '../core/fpga/bitgen.js';
 import { parseXdl } from '../core/xdl.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { DB_DIR, splitPart, mergeTiles, hasBitDb, readDbFiles, dbPackages, loadDb, edges } from '../research/s3e-bitstream/db.mjs';
@@ -220,4 +220,24 @@ test('the tile types are shared: the XC3S250E\'s measurements serve the other de
   }
   // the REV pin of a flip-flop: one bit per slice position (stage E)
   assert.deepEqual(['SLICE0', 'SLICE1', 'SLICE2', 'SLICE3'].map(s => t.CENTER_SMALL.features[`${s}:REVUSED:0`]), [['1,40'], ['1,8'], ['2,40'], ['2,8']]);
+});
+
+test('the XC3S1200E\'s own features: the long-line splitters of the centre row, not used by the router', () => {
+  const db = loadDb('xc3s1200efg320-4', { graph: { siteIndex: new Map() } });
+  const t = tileOf('CLKH_LL_X7Y30', db);
+  assert.equal(t.type, 'CLKH_LL');
+  // one bit in the I/O row at the top (bits 1, 2) or at the bottom (bit FB - 3) of the tile's column
+  assert.deepEqual(tileBase(t, db), { frame: db.layout.cols[7], bit: 0 });
+  assert.deepEqual(featureBits(db.types.CLKH_LL, 'CLKH_LLT_LV6->CLKH_LLB_LV6'), ['15,1']);
+  assert.deepEqual(featureBits(db.types.CLKH_LL, 'CLKH_LLB_LV1->CLKH_LLT_LV1'), ['18,1']);
+  assert.deepEqual(featureBits(db.types.CLKH_LL, 'CLKH_LLT_LV1->CLKH_LLB_LV1'), [`18,${125 * 32 - 3}`]);
+  assert.equal([...db.types.CLKH_LL.feats.keys()].length, 48);
+  const k = knownRouting(db);
+  assert.equal(k.allowPip('CLKH_LL_X7Y30', 'CLKH_LLT_LV6', 'CLKH_LLB_LV6'), false, 'noRoute: the direction of "a =- b" is not known');
+  assert.equal(k.allowPip('CLB_X7Y30', 'OMUX0', 'E2BEG0'), k.allowPip('CLB_X7Y31', 'OMUX0', 'E2BEG0'));
+  // the other devices have no such tiles: the shared file does not hold them
+  assert.equal(JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types.CLKH_LL, undefined);
+  // the upper horizontal clock rows of the XC3S1200E start one bit further than the others' (bits 1-3 are the splitters')
+  assert.deepEqual(db.layout.typeRows.GCLKH, { 6: 125 * 32 - 1, 22: 125 * 32 - 2, 38: 3, 54: 4 });
+  assert.deepEqual(readDbFiles('xc3s500e').layout.typeRows.GCLKH, { 7: 97 * 32 - 1, 15: 97 * 32 - 2, 31: 2, 39: 3 });
 });

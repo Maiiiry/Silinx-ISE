@@ -277,7 +277,10 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  COUT -> CIN, pin wires, the clock spines, the terminations), not
  *                                  for a switch driving a general routing wire (such an entry was
  *                                  a measurement artefact: W6END4->E2BEG4 of the left I/O tiles
- *                                  sets 2 bits; the I/O tiles now share the CLB switch box)
+ *                                  sets 2 bits; the I/O tiles now share the CLB switch box); never
+ *                                  in a tile type marked noRoute (the XC3S1200E's long-line
+ *                                  splitters: a routed design names them "a =- b", the line's driver
+ *                                  is in another tile, so the direction their bits need is not known)
  *   allowConstSource(kind, site)   a VCC site (no settings of its own) or a slice whose settings as
  *                                  a GND source (USED, _GND_SOURCE:Y) are known
  */
@@ -289,6 +292,8 @@ export function knownRouting(db) {
   const known = (tileName, feature) => !!bitsOf(tileName, feature);
   return {
     allowPip: (tileName, from, to) => {
+      const t = tileOf(tileName, db);
+      if (t && db.types[t.type]?.noRoute) return false;
       const bits = bitsOf(tileName, `${from}->${to}`);
       return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to));
     },

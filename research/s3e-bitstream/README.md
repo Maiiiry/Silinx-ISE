@@ -19,6 +19,11 @@ Yosys 0.66 (`hdlc/ghdl:yosys` image); Node 22+.
 | `top.v`, `top.ucf` | Step 4: the reference design, switch SW0 (pin P11) -> LED LD0 (pin M5) |
 | `gen-e4.mjs`, `gen-e5.mjs`, `compose3.mjs` | Steps 3-4: the reference design taken apart (empty, pads, the net's pin connections, each routing switch in context), then rebuilt from those parts and compared with ISE's bitstream |
 
+The scripts work on one part, `PART` in the environment (default `xc3s250ecp132-4`): its device
+description (`core/fpga/devices/`, or `~/.silinx/devices/`) gives the graph (`xdlrc-graph.mjs`
+`loadGraph(part)`: the device reports of the larger chips are too large to read as one string) and
+`db.mjs` its database.
+
 Inputs the scripts expect (not in the repository: they come from your own ISE installation):
 `device.xdlrc` (or `XDLRC=…`) from `xdl -report xc3s250ecp132-4 device.xdlrc`, and in `ref/` the
 reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.ucf`).
@@ -26,27 +31,28 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | More files | |
 |---|---|
 | `lib.mjs` | Shared helpers (LUT equation from its 16 bits) |
-| `gen-map.mjs`, `decode-map.mjs` | Stage A: one design with every slice numbered in its LUT F; the frame of every slice column and the bit of every slice row |
+| `gen-map.mjs`, `decode-map.mjs` | Stage A: one design with every slice numbered in its LUT F (one per 4000 slices), and an empty design; the frame of every slice column, the bit of every slice row, the bitstream format |
 | `gen-slice.mjs`, `analyze-slice.mjs` | Stage B: the settings inside a slice (flip-flops, inverters, multiplexers, carry), one design per setting |
 | `gen-harness.mjs`, `gen-hvar.mjs` | Stage B2: the slice under test with all its pins connected, routed once by ISE; one variant per setting |
-| `db/xc3s250e-slice.json` | Result of stages B and C: the bits of each slice setting, per slice position (any slice) |
+| `db/xc3s250e-slice.json` | Result of stages B and C: the bits of each slice setting, per slice position (any slice; a table generated from `db/s3e-tiles.json`) |
 | `compare-sim.mjs` | Does the netlist of open synthesis behave like the design? Simulates both with Silinx |
-| `db/xc3s250e-lut.json` | Result of stage A: where every LUT of the chip is in the bitstream |
+| `db/<device>-lut.json` | Result of stage A (stage E for the XC3S100E, XC3S500E, XC3S1200E): where every LUT of the chip is in the bitstream |
 | `xdlrc-graph.mjs`, `router.mjs` | The device's routing graph from `xdl -report -pips -all_conns` (cached), and a small router for test designs |
 | `run-many.sh` | Inside the ISE container: `xdl -xdl2ncd -force` + `bitgen` for every `.xdl` of several folders, 3 at a time (`-c`: also with CRC) |
 | `gen-pipdrop.mjs`, `gen-pipcover.mjs`, `gen-clock.mjs`, `ana-pipdrop.mjs`, `pips-to-db.mjs` | Stage C: routing switches in batches (variants remove PIPs by codewords); a design routed by ISE, designs routed by `router.mjs`, the global clock tree |
 | `gen-iob.mjs`, `ana-pads.mjs`, `ana-iob.mjs`, `ana-io2.mjs` | Stage C: the I/O pads (direction, I/O standard, drive, slew, pull) |
 | `gen-attrdrop.mjs`, `ana-attrdrop.mjs`, `gen-slicedb.mjs`, `gen-slicetable.mjs` | Stage C: slice settings in every slice position |
 | `ana-residual.mjs`, `explain-diff.mjs` | What the database does not explain in designs implemented by ISE, per tile and feature |
-| `gen-layout.mjs`, `merge-db.mjs`, `build-db.sh`, `db.mjs` | Build the database (`db/*.json`) from the experiments' results; the pads of the package (pin -> I/O tile) are not in it: `db.mjs` takes them from the device cache (`padsFromDevice`) |
+| `gen-layout.mjs`, `merge-db.mjs`, `build-db.sh`, `db.mjs` | Build the database (`db/*.json`) from the experiments' results; `db.mjs` is the one loader (the open flow, the interface, the experiments: `loadDb(part)`); the pads of the package (pin -> I/O tile) are not in it: it takes them from the device description (`padsFromDevice`) |
 | `measured/` | Results of the analyses that `build-db.sh` merges (slice harnesses, learned and corrected features: our own observations, no Xilinx files) |
 | `learn-single.mjs`, `unify-io.mjs` | Features measured in the reference designs; shared switch boxes of the I/O tile types |
 | `check-writer.mjs` | Acceptance test of the writer (`core/fpga/bitgen.js`): byte comparison with ISE's bitgen |
 | `fuzz-remote.sh` | Stage D: `run-many.sh` on another machine with Docker and the ISE image (`SILINX_FUZZ_HOST=user@host`, set on the command line only) |
 | `share-sb.mjs`, `gen-branch.mjs`, `ana-perpad.mjs`, `ise-impl.sh` | Stage D: the CLB switch box shared by the I/O, block-RAM and DCM tiles; PIPs measured as dead-end branches of routed nets; I/O settings per pad (`gen-iob.mjs --perpad / --perstd`); designs implemented by ISE from HDL (reference designs) |
-| `gen-bram.mjs`, `ana-bram.mjs`, `db/xc3s250e-bram.json` | Stage D: every memory bit of the block RAMs, by binary codes |
+| `gen-bram.mjs`, `ana-bram.mjs`, `db/<device>-bram.json` | Stage D: every memory bit of the block RAMs, by binary codes |
 | `gen-sitevar.mjs`, `ana-sitevar.mjs`, `sitevar-features.mjs`, `bram-features.mjs` | Stage D: the settings of block RAMs, multipliers and DCMs, changed one at a time in designs implemented by ISE |
-| `db/xc3s250e-layout.json`, `db/xc3s250e-tiles.json` | Result of stage C: where every tile is in the frame data; the bits of every measured feature (PIPs, site settings, pads) per tile type |
+| `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-E: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
+| `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs` | Stage E: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE |
 
 ## Results
 

@@ -24,6 +24,8 @@ const db = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {
   types: {},
 };
 let n = 0;
+// a new file of one device: the source of the first file merged into it
+if (!fs.existsSync(file) && args.includes('--device')) { const first = args.find(a => !a.startsWith('--')); const src = first && JSON.parse(fs.readFileSync(first, 'utf8')).source; if (src) db.source = src; }
 let padsChanged = false;
 for (const f of args.filter(a => !a.startsWith('--'))) {
   const add = JSON.parse(fs.readFileSync(f, 'utf8'));

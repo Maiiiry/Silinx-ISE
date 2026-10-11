@@ -184,6 +184,9 @@
   },
   "BRAM2_DN_GCLKH_FEEDTHRUA": {
    "6": 3999
+  },
+  "CLKH_LL": {
+   "30": 0
   }
  },
  "typeFrames": {
@@ -207,7 +210,8 @@
   "GCLKH_PCI_CE_S": 1,
   "BRAMSITE2_DN_GCLKH": 1,
   "BRAM2_DN_GCLKH_FEEDTHRU": 1,
-  "BRAM2_DN_GCLKH_FEEDTHRUA": 1
+  "BRAM2_DN_GCLKH_FEEDTHRUA": 1,
+  "CLKH_LL": 4000
  },
  "defaults": [
   [4, 37],
