@@ -515,13 +515,13 @@ export async function runImplementation(job, { project, projectDir, steps, gener
   return result;
 }
 
-function runLocal(job, cfg, det, gen, steps, onLine) {
+export function runLocal(job, cfg, det, gen, steps, onLine) {
   const settings = cfg.local.settings || det.ise.settings || '';
   const env = settings ? { ISE_SETTINGS: settings } : {};
   return runCommand(job, det.helpers.bash || 'bash', ['run.sh', ...steps], { cwd: gen.buildDir, env, onLine });
 }
 
-function runDocker(job, cfg, gen, steps, onLine) {
+export function runDocker(job, cfg, gen, steps, onLine) {
   const d = cfg.docker;
   const args = ['run', '--rm'];
   if (d.platform) args.push('--platform', d.platform);
@@ -555,7 +555,9 @@ export function remoteDirFor(cfg, projectName) {
   return `${base}/${projectName}`;
 }
 
-async function runSsh(job, cfg, det, project, gen, steps, onLine) {
+/** Run run.sh on the ssh host: upload build/, run, download the results. cleanup: remove the
+ *  remote folder afterwards (the device report job: its report is large). */
+export async function runSsh(job, cfg, det, project, gen, steps, onLine, { cleanup = false } = {}) {
   const { target, opts } = sshParts(cfg);
   const rdir = remoteDirFor(cfg, project.name);
   const rq = shQuote(rdir);
@@ -572,6 +574,7 @@ async function runSsh(job, cfg, det, project, gen, steps, onLine) {
     ['ssh', [...opts, '--', target, `tar -C ${rq} --exclude=./src -cf - .`]],
     ['tar', ['-C', gen.buildDir, '-xf', '-']]);
   if (code !== 0) job.log('WARNING: downloading results failed');
+  if (cleanup) await runCommand(job, 'ssh', [...opts, '--', target, `rm -rf ${rq}`]).catch(() => {});
   return flow;
 }
 
