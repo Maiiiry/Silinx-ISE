@@ -100,9 +100,12 @@ complete bitstream) against ISE's place and route:
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding
-  -> ALU carry chain -> result multiplexer -> register, about 8 ns of logic), but about 6 ns of
-  routing against XST's 4: Silinx's placer and router, not the synthesis. (XST also replicates the
-  state register's flip-flops to cut their fanout.)
+  -> ALU carry chain -> result multiplexer -> register, about 8 ns of logic), but had about 6 ns of
+  routing against XST's 4: Silinx's placer and router, not the synthesis. Since closed to 4.3 ns
+  (timing-driven placement with the device's delay table, LUT input swapping, branch loads in the
+  router: lab11 11.6 ns by ISE's trce, blinky 7.4 ns; research/s3e-route/README.md, "Closing the
+  routing gap"). Left: XST replicates the state register's flip-flops to cut their fanout (54 on
+  lab11's critical path, about 0.5 ns of branch load); the open flow does not.
 - **Shift registers in SRL16** (prototyped in 15.10.2, not taken: it pays off only for designs
   with shift registers, and none of lab11, project 2, blinky or cpu8 has one of 3 or more stages
   without a reset; the srl fixture: 79 slices, XST about 9). What the prototype found:
