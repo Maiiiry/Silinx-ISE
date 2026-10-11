@@ -17,7 +17,8 @@
 //
 //   const r = await diffSynth({ name, sources, top, sim, seed, engine })
 //   r = { name, status: 'pass' | 'mismatch' | 'unsupported' | 'error', stage, reason, engine, cells,
-//         cycles, states, mismatch: { cycle, inputs, rtl, netlist, ports }, report, ms }
+//         cycles, states, mismatch: { cycle, inputs, rtl, netlist, ports }, report, ms, warnings }
+//   (warnings: the front end's 'file:line message' and the synthesis's, once synthesized)
 //
 // The stimulus (as in test/netgen-fixtures.test.js): cycle k's clock rises at R = (k + 1/2) * P, the
 // inputs of cycle k are applied at R + P/4 (the `late` ones at R + 3P/4) and the outputs are sampled
@@ -43,11 +44,30 @@ import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
 import * as V from '../core/values.js';
 import { primitiveSources, UNISIM_SOURCE } from '../core/unisim.js';
-import { synthesizeOpen, cellCounts } from '../core/synth-open.js';
+import { synthesizeOpen, cellCounts, QUIET } from '../core/synth-open.js';
 import { SynthError } from '../core/synth-verilog.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { netlistSim, CELLS_SIMULATED } from './fpga-sim.js';
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+// The expected warnings of the open synthesis of every design the tests synthesize (front end +
+// core/synth-verilog.js + Yosys), by test key: test/fixtures/synth-warnings.json. A change of the
+// warnings shows as a diff of that file. SILINX_UPDATE_WARNINGS=1 (with node --test
+// --test-concurrency=1) rewrites the entries the tests reach instead of checking them.
+const WARNINGS_FILE = new URL('./fixtures/synth-warnings.json', import.meta.url);
+export function expectWarnings(key, warnings) {
+  const all = JSON.parse(fs.readFileSync(WARNINGS_FILE, 'utf8'));
+  if (process.env.SILINX_UPDATE_WARNINGS) {
+    all[key] = warnings;
+    const sorted = Object.fromEntries(Object.keys(all).sort().map(k => [k, all[k]]));
+    fs.writeFileSync(WARNINGS_FILE, `${JSON.stringify(sorted, null, 2)}\n`);
+    return;
+  }
+  assert.ok(key in all, `no expected warnings for '${key}' in test/fixtures/synth-warnings.json`);
+  assert.deepEqual(warnings, all[key], `the warnings of '${key}' changed (test/fixtures/synth-warnings.json)`);
+}
 
 // deterministic pseudo-random numbers (mulberry32)
 export function rng(seed) {
@@ -291,7 +311,11 @@ export async function diffSynth(spec) {
     const yosys = lines.find(l => /^ERROR/.test(l));
     return done({ status: e instanceof SynthError ? 'unsupported' : 'error', stage: e instanceof SynthError ? 'synth-verilog' : 'yosys', reason: yosys || e.message });
   }
-  return done(compareNetlist(design, syn, { ...spec, sim, seed, engine }));
+  // the warnings: the front end's (parse, elaborate: file:line message) and the synthesis's
+  // (core/synth-verilog.js, Yosys), for the tests to check exactly
+  const warnings = [...fe.lib.errors, ...design.diags].filter(d => d.severity === 'warning').map(d => `${d.file}:${d.line} ${d.message}`)
+    .concat(syn.warnings || lines.filter(l => /^Warning:/.test(l) && !QUIET.some(re => re.test(l))));
+  return done({ ...compareNetlist(design, syn, { ...spec, sim, seed, engine }), warnings });
 }
 
 /**

@@ -465,6 +465,23 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       if (fCell >= 0) { s.out[X] = how.lutSide; placeFf(s, how.ffSide, ffs.get(fCell), 'mux'); }
     } else placeFf(s, how.ffSide, ffs.get(u.ff), 'bypass');
   };
+  // A flip-flop alone (D through BX / BY) first tries the free flip-flop slots of the slices of the
+  // carry chains and wide multiplexers (their BX / BY often free): one that holds logic of its nets,
+  // else any. (Yosys's netlists have many: shift registers, registers loaded from other registers.)
+  const macroSlices = insts.filter(s => s.kind === 'slice');
+  const sliceOfNets = u => {
+    const score = new Map();
+    for (const n of u.nets) for (const c of [nets[n].driver?.cell, ...loadsOf(n).map(l => l.cell)]) {
+      const w = c !== undefined && where.get(c);
+      if (w && insts[w.inst].kind === 'slice') score.set(w.inst, (score.get(w.inst) || 0) + 1);
+    }
+    return [...score].sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([k]) => insts[k]);
+  };
+  for (const u of units) {
+    if (u.lut >= 0 || done.has(u.k)) continue;
+    const s = sliceOfNets(u).find(x => fits(x, u)) || macroSlices.find(x => fits(x, u));
+    if (s) putUnit(s, u, fits(s, u));
+  }
   // seeds in netlist order (keeps related logic together, deterministic); units with a flip-flop first
   const order = [...units].sort((a, b) => (b.ff >= 0) - (a.ff >= 0) || a.k - b.k);
   for (const seed of order) {

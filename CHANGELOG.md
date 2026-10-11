@@ -36,6 +36,18 @@ the "What's new" text of its GitHub release.
   precedence). The whole open flow on blinky is now part of the tests.
 - TODO.md: what is planned. The open toolchain does not support the Spartan-6 boards (Nexys3,
   Atlys) yet; it will.
+- **Smaller, faster netlists from the open synthesis** (research/synth-quality/README.md): lab11
+  now needs 165 slices instead of 403 (XST: 180) and runs at 14.1 ns instead of 17.6 ns in the
+  open flow; the blinky example 86 slices instead of 104 (XST: 99), 7.7 ns instead of 11.8 ns.
+  Yosys's LUT mapping for the Spartan-3E (LUTs of up to 8 inputs, each split into LUT4s and
+  MUXF5-8) is replaced by ABC on LUTs of up to 6 inputs at their real cost; arithmetic that reads
+  at most 6 input bits (VHDL integers, `shift_left(to_unsigned(1, 32), n) - 1`) is written as a
+  table of its values instead of 32-bit carry chains; the packer puts flip-flops fed by
+  flip-flops into the free slots of carry-chain and multiplexer slices. Size budgets in the tests
+  (test/synth-quality.test.js, a new 42-state accumulator machine fixture `cpu8`).
+- The open synthesis of a Spartan-3E design no longer prints Yosys's "Shift register inference
+  not yet supported for family xc3se" (it came on every run, whatever the design) nor counts it
+  as a warning.
 
 ## 15.10.1
 

@@ -1,0 +1,58 @@
+{
+  "designs/adder": [],
+  "designs/adder (Yosys's front end)": [],
+  "designs/blinky": [],
+  "designs/bram_dp": [
+    "Warning: Resizing cell port top.tdp.0.0.DOPB from 8 bits to 2 bits.",
+    "Warning: Resizing cell port top.tdp.0.0.DIPB from 8 bits to 2 bits.",
+    "Warning: Resizing cell port top.tdp.0.0.DOPA from 8 bits to 2 bits.",
+    "Warning: Resizing cell port top.tdp.0.0.DIPA from 8 bits to 2 bits.",
+    "Warning: Resizing cell port top.tdp.0.0.DIB from 64 bits to 16 bits.",
+    "Warning: Resizing cell port top.tdp.0.0.DOB from 64 bits to 16 bits.",
+    "Warning: Resizing cell port top.tdp.0.0.DIA from 64 bits to 16 bits.",
+    "Warning: Resizing cell port top.tdp.0.0.DOA from 64 bits to 16 bits.",
+    "Warning: Resizing cell port top.sdp.0.0.DOPB from 8 bits to 4 bits.",
+    "Warning: Resizing cell port top.sdp.0.0.DOPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port top.sdp.0.0.DIPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port top.sdp.0.0.DOB from 64 bits to 32 bits.",
+    "Warning: Resizing cell port top.sdp.0.0.DIA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port top.sdp.0.0.DOA from 64 bits to 32 bits."
+  ],
+  "designs/bram_prim": [],
+  "designs/bram_sp": [
+    "Warning: Resizing cell port top.ram_wf.0.0.DOP from 8 bits to 1 bits.",
+    "Warning: Resizing cell port top.ram_wf.0.0.DI from 64 bits to 8 bits.",
+    "Warning: Resizing cell port top.ram_wf.0.0.DO from 64 bits to 8 bits.",
+    "Warning: Resizing cell port top.ram_rf.0.0.DOP from 8 bits to 2 bits.",
+    "Warning: Resizing cell port top.ram_rf.0.0.DIP from 8 bits to 2 bits.",
+    "Warning: Resizing cell port top.ram_rf.0.0.DI from 64 bits to 16 bits.",
+    "Warning: Resizing cell port top.ram_rf.0.0.DO from 64 bits to 16 bits.",
+    "Warning: Resizing cell port top.ram_nc.0.0.DI from 64 bits to 4 bits.",
+    "Warning: Resizing cell port top.ram_nc.0.0.DO from 64 bits to 4 bits."
+  ],
+  "designs/bufgmux": [],
+  "designs/cpu8": [],
+  "designs/dcm": [],
+  "designs/dram": [],
+  "designs/fsm": [],
+  "designs/fsm (Yosys's front end)": [],
+  "designs/latch": [
+    "Warning: Latch inferred for signal `\\top.\\l3' from process `\\top.$proc$top_syn.v:40$10': $auto$proc_dlatch.cc:547:proc_dlatch$1142",
+    "Warning: Latch inferred for signal `\\top.\\l2' from process `\\top.$proc$top_syn.v:30$6': $auto$proc_dlatch.cc:545:proc_dlatch$1155",
+    "Warning: Latch inferred for signal `\\top.\\l1' from process `\\top.$proc$top_syn.v:20$1': $auto$proc_dlatch.cc:543:proc_dlatch$1174"
+  ],
+  "designs/mult": [],
+  "designs/srl": [
+    "Warning: Replacing memory \\dyn with list of registers. See top_syn.v:41, top_syn.v:17"
+  ],
+  "designs/tristate": [],
+  "examples/blinky": [],
+  "fixtures/verilog/counter_top": [],
+  "fixtures/vhdl/counter": [],
+  "fixtures/vhdl/seg7": [],
+  "fixtures/vhdl/seq_detect": [],
+  "fixtures/vhdl/top (generate, package, hierarchy)": [
+    "Warning: Replacing memory \\bank with list of registers. See top_syn.v:107, top_syn.v:88, top_syn.v:69, top_syn.v:50"
+  ],
+  "synth-diff: synthesis front end": []
+}
