@@ -212,7 +212,8 @@ module top (input clk, input [7:0] d, output [7:0] q);
   pipe u (.clk(clk), .d(d), .q(q));
 endmodule`)] });
   assert.equal(r.status, 'pass', r.report || `${r.stage}: ${r.reason}`);
-  assert.equal(r.cells.FDRE, 32, JSON.stringify(r.cells));
+  // the FIFO's 32 pipeline bits: flip-flops, or (since SRL16 inference) shift registers of 4 bits each
+  assert.ok((r.cells.FDRE ?? 0) === 32 || (r.cells.SRL16E ?? 0) === 8, JSON.stringify(r.cells));
 });
 
 test('RAMB16 model: a port reading the word the other port writes at the same edge reads the old word (verilog-axis FIFO)', async () => {

@@ -33,16 +33,20 @@ function bramMemory(initBits) {
 }
 /** A clock edge on an enabled port (as core/unisim.js RAMB16_S*): SSR loads SRVAL, else the read
  *  word (WRITE_MODE), and the write. inp: { a, ssr, we, di: [bits], dip: [bits] }; out: the output
- *  latches (data then parity bits). Returns the new output latches; writes into m. */
+ *  latches (data then parity bits). Returns the new output latches; writes into m — after the reads
+ *  of every port at this edge (m.writes: a port reading the word the other one writes at the same
+ *  edge reads the old word, as core/unisim.js and the hardware's READ_FIRST). */
 function bramEdge(m, w, mode, srval, inp, out) {
   const [d, p] = BRAM_W[w];
   let o = out;
   if (inp.ssr) o = srval.slice(0, d + p);
   else if (!inp.we || mode === 'READ_FIRST') o = [...Array.from({ length: d }, (_, k) => m.mem[inp.a * d + k]), ...Array.from({ length: p }, (_, k) => m.par[inp.a * p + k])];
   else if (mode === 'WRITE_FIRST') o = [...inp.di, ...inp.dip];
-  if (inp.we) { inp.di.forEach((b, k) => { m.mem[inp.a * d + k] = b; }); inp.dip.forEach((b, k) => { m.par[inp.a * p + k] = b; }); }
+  if (inp.we) (m.writes ||= []).push(() => { inp.di.forEach((b, k) => { m.mem[inp.a * d + k] = b; }); inp.dip.forEach((b, k) => { m.par[inp.a * p + k] = b; }); });
   return o;
 }
+/** The writes of a block RAM's ports at an edge, after their reads (bramEdge). */
+function bramWrites(m) { for (const w of m.writes || []) w(); m.writes = []; }
 const bitsOf = (v, n) => { const b = paramBits(v) || []; return Array.from({ length: n }, (_, i) => b[i] || 0); };
 const hexBits = (h, n) => { let x = BigInt(`0x${h || '0'}`); return Array.from({ length: n }, () => { const b = Number(x & 1n); x >>= 1n; return b; }); };
 /** The product of a multiplier: signed 18 x 18 -> 36 bits (as bits). */
@@ -202,7 +206,7 @@ export function netlistSim(nl) {
           if (clk && !r.prevClk && (c.pins.CE === undefined || v[c.pins.CE])) later.push(() => { r.mem = [v[c.pins.D], ...r.mem.slice(0, 15)]; });
           r.nextClk = clk;
         }
-        for (const r of brams) for (const pt of r.ports) {
+        for (const r of brams) for (const [n, pt] of r.ports.entries()) {
           const c = r.c, clk = v[c.pins[`CLK${pt.x}`]];
           if (clk && !pt.prevClk && v[c.pins[`EN${pt.x}`]]) {
             const [d, p, aw] = BRAM_W[pt.w];
@@ -213,6 +217,7 @@ export function netlistSim(nl) {
             later.push(() => { pt.out = bramEdge(r.m, pt.w, pt.mode, pt.srval, inp, pt.out); });
           }
           pt.nextClk = clk;
+          if (n === r.ports.length - 1) later.push(() => bramWrites(r.m));
         }
         for (const r of mults) {
           const c = r.c, clk = v[c.pins.CLK ?? c.pins.C];
@@ -389,6 +394,7 @@ export function packedSim(packed) {
         }
         pt.prevClk = clk;
       }
+      later.push(() => bramWrites(r.m));
       return;
     }
     if (inst.kind === 'mult') {
