@@ -1,0 +1,24 @@
+{
+  "name": "feat_starter",
+  "description": "Board test (Spartan-3E Starter Kit, XC3S500E-FG320) with the kit's I/O settings (LVTTL, drive 8 / 4, slow and fast slew, pull-ups and pull-downs): switches and buttons on the LEDs, the rotary encoder, RS-232 echo, VGA sync, LCD lines",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s500e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "board": "s3e-starter",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.v",
+      "lang": "verilog",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

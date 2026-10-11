@@ -19,11 +19,15 @@ test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
 // the boards' parts: device, package, slices, bonded pads, block RAMs (DS312)
 const PARTS = {
-  'xc3s100ecp132-4': { device: 'xc3s100e', pkg: 'cp132', slices: 960, pads: 83, brams: 4 },
-  'xc3s250ecp132-4': { device: 'xc3s250e', pkg: 'cp132', slices: 2448, pads: 92, brams: 12 },
-  'xc3s500efg320-4': { device: 'xc3s500e', pkg: 'fg320', slices: 4656, pads: 232, brams: 20 },
+  'xc3s100ecp132-4': { device: 'xc3s100e', pkg: 'cp132', slices: 960, pads: 83, brams: 4, settings: true, outs: 72 },
+  'xc3s250ecp132-4': { device: 'xc3s250e', pkg: 'cp132', slices: 2448, pads: 92, brams: 12, settings: true, outs: 85 },
+  'xc3s500efg320-4': { device: 'xc3s500e', pkg: 'fg320', slices: 4656, pads: 232, brams: 20, settings: true, outs: 176 },
   'xc3s1200efg320-4': { device: 'xc3s1200e', pkg: 'fg320', slices: 8672, pads: 250, brams: 28 },
 };
+// the pad features of every I/O setting (stage F, per pad)
+const PAD_IN = ['I:LVCMOS33', 'I:LVCMOS25', 'I:LVCMOS18', 'I:LVCMOS15', 'I:LVCMOS12', 'I:LVTTL', 'I:PULL:PULLUP', 'I:PULL:PULLDOWN', 'I:PULL:KEEPER'];
+const PAD_OUT = ['O:LVCMOS33', 'O:LVTTL', 'O:LVCMOS25', 'O:PULL:PULLUP', 'O:PULL:PULLDOWN', 'O:PULL:KEEPER',
+  ...['', 'LVTTL:', 'LVCMOS25:'].flatMap(s => [...['2', '4', '6', '8', ...(s === 'LVCMOS25:' ? [] : ['16'])].map(d => `O:${s}DRIVE:${d}`), `O:${s}SLEW:FAST`])];
 
 test('bitstream formats: IDCODE, frame length and frames of each device (measured on empty designs)', () => {
   assert.deepEqual(Object.keys(S3E_DEVICES), ['xc3s100e', 'xc3s250e', 'xc3s500e', 'xc3s1200e']);
@@ -197,6 +201,25 @@ for (const [part, want] of Object.entries(PARTS)) {
     for (const p of Object.keys(pads)) {
       assert.ok(db.padFeats[p]?.['I:LVCMOS33']?.length, `${p} I:LVCMOS33`);
       if (dev.site(p).type !== 'IBUF' && !/I$/.test(dev.site(p).type)) assert.ok(db.padFeats[p]?.['O:LVCMOS33']?.length, `${p} O:LVCMOS33`);
+    }
+    // the other I/O standards, drive, slew and pull of every pad (gen-iob.mjs --perpad / --perstd):
+    // every input standard and pull; on the pads that can be outputs, LVCMOS33 / LVTTL / LVCMOS25 with
+    // every drive, fast slew and every pull
+    if (want.settings) {
+      let outs = 0;
+      for (const p of Object.keys(pads)) {
+        const has = Object.keys(db.padFeats[p] || {});
+        for (const f of PAD_IN) assert.ok(has.includes(f), `${p} ${f}`);
+        if (!has.includes('O:LVCMOS33')) continue;
+        outs++;
+        for (const f of PAD_OUT) assert.ok(has.includes(f), `${p} ${f}`);
+      }
+      assert.equal(outs, want.outs, 'the pads that can be outputs');
+    } else assert.ok(Object.values(db.padFeats).every(f => !f['O:LVTTL']), 'no other standards measured');
+    // the pads' features hold bits ("frame,bit" or "!frame,bit") inside the frame data
+    for (const [p, fs] of Object.entries(db.padFeats)) for (const [k, bits] of Object.entries(fs)) for (const b of bits) {
+      const [fr, bit] = b.replace('!', '').split(',').map(Number);
+      assert.ok(fr >= 0 && fr < f.frames && bit >= 0 && bit < f.frameWords * 32, `${p} ${k} ${b}`);
     }
     // the block RAMs: every memory bit, every block RAM
     assert.equal(Object.keys(db.bram.colFrame).length * Object.keys(db.bram.rowBit).length >= want.brams, true);

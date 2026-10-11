@@ -110,15 +110,18 @@ test('the open flow with --tries 2: two placements routed, the one with the shor
 // The rest of the Spartan-3E in the open flow (test/fixtures/open-flow: the board tests and the ISE
 // check of instantiated primitives; ISE converts the same routed XDL to the same .bit, with no DRC
 // error or warning: npm run check:open-flow on these folders): block RAM, multipliers, shift
-// registers in SRL16, distributed RAM, the top-left DCM, each to a complete bitstream with no warning.
+// registers in SRL16, distributed RAM, the top-left DCM, each to a complete bitstream with no warning;
+// feat_starter: the Spartan-3E Starter Kit's I/O settings on the XC3S500E-FG320 (LVTTL, drive 8 and 4,
+// slow and fast slew, pull-ups and pull-downs: the FG320 pads' settings, stage F).
 const FEATURES = {
   feat_bram: [/^pack \(\d+ slices\)/m, 'RAMB16'],
   feat_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
   feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+  feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
-for (const [name, [packLine, type]] of Object.entries(FEATURES)) {
+for (const [name, [packLine, type, settings = []]] of Object.entries(FEATURES)) {
   test(`the open flow: ${name} (${type}) to a complete bitstream, no warning`, { timeout: 300000 }, () => {
     const out = path.join(tmp, name);
     const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'test/fixtures/open-flow', name), out],
@@ -127,7 +130,9 @@ for (const [name, [packLine, type]] of Object.entries(FEATURES)) {
     assert.match(r.stdout, packLine);
     assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
     assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
-    assert.match(fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8'), new RegExp(`^inst "[^"]+" "${type}",placed `, 'm'));
+    const routed = fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8');
+    assert.match(routed, new RegExp(`^inst "[^"]+" "${type}",placed `, 'm'));
+    for (const re of settings) assert.match(routed, re);
   });
 }
 
