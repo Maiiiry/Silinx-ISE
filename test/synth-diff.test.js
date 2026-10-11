@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { diffSynth, stimulus, rng, isReset, activeLow, compareRuns, netlistClocks } from './diff-synth.js';
+import { diffSynth, expectWarnings, stimulus, rng, isReset, activeLow, compareRuns, netlistClocks } from './diff-synth.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -114,6 +114,7 @@ module top(input clk, input rst, input en, input signed [1:0] a, input signed [2
 endmodule`;
   const r = await diffSynth({ name: 'syn', sources: [{ path: 'syn.v', lang: 'verilog', text }], top: 'top', sim: { cycles: 120 }, powerUp: true });
   expectPass(r);
+  expectWarnings('synth-diff: synthesis front end', r.warnings);
 });
 
 test('example projects: RTL and Yosys netlist agree', { timeout: 600000 }, async (t) => {
@@ -123,7 +124,9 @@ test('example projects: RTL and Yosys netlist agree', { timeout: 600000 }, async
     const proj = JSON.parse(read(pj));
     await t.test(name, async () => {
       const sources = proj.files.filter(f => f.role !== 'sim').map(f => ({ path: f.path, lang: f.lang, text: read('examples', name, f.path) }));
-      expectPass(await diffSynth({ name, sources, top: proj.top, sim: { cycles: 300 } }));
+      const r = await diffSynth({ name, sources, top: proj.top, sim: { cycles: 300 } });
+      expectPass(r);
+      expectWarnings(`examples/${name}`, r.warnings);
     });
   }
 });
@@ -142,6 +145,7 @@ test('test fixtures: VHDL and Verilog designs agree with their netlists', { time
       const r = await diffSynth({ name, sources, top, sim: { cycles: 300 } });
       expectPass(r);
       assert.ok(r.states > 1, `${name}: the outputs change (${r.states} states)`);
+      expectWarnings(`fixtures/${name}`, r.warnings);
     });
   }
 });

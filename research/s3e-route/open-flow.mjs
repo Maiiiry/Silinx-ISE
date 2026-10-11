@@ -48,7 +48,9 @@ if (!netFile) {
   const design = elaborate(lib, top);
   const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
   if (errs.length) fail('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`));
-  const r = await synthesizeOpen(design, { family: proj.device.family || 'spartan3e', run: yosysNode, onLine: l => { if (/^(Warning|ERROR)/.test(l)) console.log(`  ${l}`); } });
+  for (const w of [...lib.errors, ...design.diags].filter(d => d.severity === 'warning')) console.log(`  Warning: ${w.file}:${w.line} ${w.message}`);
+  const r = await synthesizeOpen(design, { family: proj.device.family || 'spartan3e', run: yosysNode, onLine: l => { if (/^ERROR/.test(l)) console.log(`  ${l}`); } });
+  for (const w of r.warnings) console.log(`  ${/^Warning:/.test(w) ? w : `Warning: ${w}`}`);
   for (const [name, text] of Object.entries(r.files)) fs.writeFileSync(path.join(outDir, name), text);
   netFile = path.join(outDir, `${top}.json`);
   step(`synthesis (${r.util.cells} cells)`, t);
@@ -57,6 +59,7 @@ if (!netFile) {
 t = Date.now();
 const ucf = proj.constraints ? fs.readFileSync(path.join(projDir, proj.constraints), 'utf8') : null;
 const packed = pack(readYosysJson(fs.readFileSync(netFile, 'utf8')), { ucf, part, carryOut: 'xor' });
+for (const w of packed.warnings) console.log(`  Warning: pack: ${w}`);
 step(`pack (${packed.stats.slices} slices)`, t);
 // place, on the sites of the device cache
 t = Date.now();

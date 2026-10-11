@@ -40,6 +40,8 @@ test('the open flow on the shipped graph: blinky from VHDL to a complete bitstre
     { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
   assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+  // no warnings (front end, synthesis, packer: each printed as "  Warning: …")
+  assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
   assert.match(r.stdout, /timing: constraint PERIOD 20 ns on clk: met/);
   const bit = fs.readFileSync(path.join(out, 'top.bit'));
   assert.ok(bit.length > 160000);

@@ -13,6 +13,7 @@ import { synthesizeOpen } from '../core/synth-open.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
+import { expectWarnings } from './diff-synth.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const langOf = f => (/\.(vhd|vhdl)$/i.test(f) ? 'vhdl' : 'verilog');
@@ -20,19 +21,26 @@ const langOf = f => (/\.(vhd|vhdl)$/i.test(f) ? 'vhdl' : 'verilog');
 function fixture(name) {
   const dir = path.join(ROOT, 'test/fixtures/designs', name);
   const spec = JSON.parse(fs.readFileSync(path.join(dir, 'design.json'), 'utf8'));
-  return { top: spec.top, sources: spec.files.map(f => ({ path: f, lang: langOf(f), text: fs.readFileSync(path.join(dir, f), 'utf8') })) };
+  return { key: `designs/${name}`, top: spec.top, sources: spec.files.map(f => ({ path: f, lang: langOf(f), text: fs.readFileSync(path.join(dir, f), 'utf8') })) };
 }
 function example(name) {
   const dir = path.join(ROOT, 'examples', name);
   const proj = JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8'));
   const files = proj.files.filter(f => (f.role || 'design') === 'design' && (f.lang === 'vhdl' || f.lang === 'verilog'));
-  return { top: proj.top, sources: files.map(f => ({ path: f.path, lang: f.lang, text: fs.readFileSync(path.join(dir, f.path), 'utf8') })) };
+  return { key: `examples/${name}`, top: proj.top, sources: files.map(f => ({ path: f.path, lang: f.lang, text: fs.readFileSync(path.join(dir, f.path), 'utf8') })) };
 }
-async function synth({ top, sources }) {
+// (the warnings, front end and synthesis, as test/diff-synth.js gathers them, checked against
+// test/fixtures/synth-warnings.json; the packer's must be none)
+async function synth({ key, top, sources }) {
   const lib = compile([...primitiveSources(sources), ...sources]);
-  const r = await synthesizeOpen(elaborate(lib, top), { family: 'spartan3e', run: yosysNode });
+  const design = elaborate(lib, top);
+  const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
+  const fe = [...lib.errors, ...design.diags].filter(d => d.severity === 'warning').map(d => `${d.file}:${d.line} ${d.message}`);
+  expectWarnings(key, [...fe, ...r.warnings]);
   const nl = readYosysJson(r.files[`${r.top}.json`]);
-  return { ...r, nl, packed: pack(nl, { carryOut: 'xor' }) };
+  const packed = pack(nl, { carryOut: 'xor' });
+  assert.deepEqual(packed.warnings, [], `${key}: the packer's warnings`);
+  return { ...r, nl, packed };
 }
 // the longest carry chain of a netlist (MUXCY stages)
 function longestChain(nl) {
