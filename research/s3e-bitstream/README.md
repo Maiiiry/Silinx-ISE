@@ -337,6 +337,11 @@ to place and route and slower on the chip. To improve later: Yosys options and s
 settings, `-nowidelut`, `-widemux`, retiming), and / or Silinx's own mapping of multiplexers,
 decoders and ROMs before Yosys. Measure on lab11 and the example designs against XST.
 
+Done (15.10.2, research/synth-quality/README.md): the size came from synth_xilinx's LUT mapping
+for the Spartan-3E (LUTs of up to 8 inputs, each split into LUT4s and MUXF5-8); with ABC mapping
+onto LUTs of up to 6 inputs at their cost in LUT4s, and arithmetic of few input bits written as
+tables, lab11 needs 278 LUTs / 165 slices (XST: 309 / 180).
+
 ## Conclusion
 
 The method works for this device: LUT contents, I/O pads and routing switches can be located by

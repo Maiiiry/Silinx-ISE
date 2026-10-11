@@ -26,8 +26,13 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   (research/s3e-bitstream/README.md, stage D).
 - **Measuring the device description ourselves** (black-box, like the bit database) instead of
   computing it from ISE's device report: about 2-4 weeks for one device.
-- **Synthesis quality:** Yosys's netlists of lab11 are about 2.9 times larger than XST's
-  (research/s3e-bitstream/README.md, "To do later").
+- **Synthesis quality** (research/synth-quality/README.md). Done in 15.10.2: the open synthesis's
+  netlists are now as small as XST's or smaller (lab11: 165 slices against XST's 180, was 403).
+  Left: shift registers as SRL16 (Yosys does not infer them for the Spartan-3E; the packer and
+  placer would need SLICEM sites), distributed RAM in the packer (RAM16X1S…), the remaining speed
+  gap (lab11 14.1 ns in the open flow against 10.9 ns after ISE's place and route: mostly
+  placement and routing, the logic depth is XST's), FSM re-encoding (Yosys finds no state machine
+  in lab11's control unit).
 - **Timing:** hold time, clock skew and pad (OFFSET) paths; the router's cost with the branch loads.
 
 ## Front ends and simulator

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, yosysScript, cellCounts, utilization, lineStream, YOSYS_FAMILY } from '../core/synth-open.js';
+import { synthesizeOpen, yosysScript, synthCommands, cellCounts, utilization, lineStream, YOSYS_FAMILY } from '../core/synth-open.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { netlistSim } from './fpga-sim.js';
@@ -24,8 +24,16 @@ end rtl;
 const design = (text, top) => elaborate(compile([{ path: 'd.vhd', lang: 'vhdl', text }]), top);
 
 test('the Yosys script and the device families', () => {
+  // 4-input-LUT families: synth_xilinx with its LUT mapping replaced (ABC on LUTs of up to 6 inputs
+  // at their cost in LUT4s, not LUTs of up to 8 inputs split into LUT4s and MUXF5 … MUXF8)
   assert.equal(yosysScript('top', 'spartan3e'),
-    'read_verilog -sv top_syn.v; synth_xilinx -family xc3se -ise -flatten -top top; delete t:$scopeinfo; write_json top.json; write_verilog -noattr top_yosys.v; tee -q -o top_stat.txt stat');
+    'read_verilog -sv top_syn.v; synth_xilinx -family xc3se -ise -flatten -top top -run :map_luts; opt_expr -mux_undef -noclkinv; '
+    + 'abc -luts 1,1,1,1,2,4; clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
+    + 'xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:; '
+    + 'delete t:$scopeinfo; write_json top.json; write_verilog -noattr top_yosys.v; tee -q -o top_stat.txt stat');
+  assert.equal(synthCommands('m', 'spartan3'), synthCommands('m', 'spartan3e').replaceAll('xc3se', 'xc3s'));
+  // 6-input-LUT families: synth_xilinx as it is
+  assert.equal(synthCommands('m', 'spartan6'), 'synth_xilinx -family xc6s -ise -flatten -top m');
   assert.match(yosysScript('m', 'spartan6'), /-family xc6s /);
   assert.throws(() => yosysScript('m', 'cyclone'), /no Yosys mapping for the device family 'cyclone'/);
   for (const f of ['spartan3', 'spartan3e', 'spartan3a', 'spartan3adsp', 'spartan6', 'virtex4', 'virtex5', 'virtex6', 'artix7', 'kintex7', 'zynq']) assert.ok(YOSYS_FAMILY[f], f);
@@ -66,6 +74,22 @@ test('a counter synthesized by Yosys (WebAssembly) counts like the design', { ti
   for (let k = 1; k <= 18; k++) { cycle({ rst: 0, en: 1 }); assert.equal(q(), k % 16, `count ${k}`); }
   cycle({ rst: 0, en: 0 }); cycle({ rst: 0, en: 0 });
   assert.equal(q(), 2);
+});
+
+test('Spartan-3E: Yosys\'s "Shift register inference not yet supported" (printed on every run) is not a warning of the design', { timeout: 120000 }, async () => {
+  // Yosys does print it
+  const raw = [];
+  await yosysNode(['-q', '-p', yosysScript('counter', 'spartan3e')], { 'counter_syn.v': (await import('../core/synth-verilog.js')).toVerilog(design(COUNTER, 'counter')).text }, l => raw.push(l));
+  assert.ok(raw.some(l => /Shift register inference not yet supported for family xc3se/.test(l)), raw.join('\n'));
+  // the open synthesis leaves it out of its log, its onLine and its warnings
+  const lines = [];
+  const r = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run: yosysNode, onLine: l => lines.push(l) });
+  for (const l of [...lines, ...r.log, ...r.warnings]) assert.doesNotMatch(String(l), /Shift register inference/);
+  assert.deepEqual(r.warnings, []);
+  // other Yosys warnings still count
+  const run = async (args, files, onLine) => { onLine('Warning: Shift register inference not yet supported for family xc3se.'); onLine('Warning: wire q is used but has no driver.'); return yosysNode(args, files); };
+  const r2 = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run });
+  assert.deepEqual(r2.warnings, ['Warning: wire q is used but has no driver.']);
 });
 
 test('a design Yosys cannot map is reported with its messages', { timeout: 120000 }, async () => {

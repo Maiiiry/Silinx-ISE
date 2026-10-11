@@ -16,12 +16,33 @@ export const YOSYS_FAMILY = {
   virtex4: 'xc4v', virtex5: 'xc5v', virtex6: 'xc6v', artix7: 'xc7', kintex7: 'xc7', zynq: 'xc7',
 };
 
-/** The Yosys script: read the flat module, map it, write the netlist and its statistics. */
-export function yosysScript(top, family) {
+// families of 4-input LUTs (MUXF5 … MUXF8 combine them)
+const LUT4_FAMILIES = new Set(['xc3s', 'xc3se', 'xc3sa', 'xc3sda', 'xc4v']);
+// ABC's cost of a LUT of 1 … 6 inputs on those families: a 5-input function is two LUT4s and a
+// MUXF5 (one slice), a 6-input one four LUT4s, two MUXF5 and a MUXF6. synth_xilinx's own LUT
+// mapping there (LUTs of up to 8 inputs, each split by lut_map.v into LUT4s and MUXF5 … MUXF8)
+// makes netlists about 2.5 times larger (research/synth-quality/README.md).
+export const LUT4_COSTS = '1,1,1,1,2,4';
+
+/**
+ * The Yosys commands that map the module `top` onto the cells of the family (synth_xilinx, with
+ * the LUT mapping of the 4-input-LUT families replaced: synth_xilinx up to its map_luts step, then
+ * the steps of map_luts with ABC on LUT4_COSTS, then synth_xilinx from its finalize step).
+ */
+export function synthCommands(top, family) {
   const fam = YOSYS_FAMILY[family];
   if (!fam) throw new Error(`open synthesis: no Yosys mapping for the device family '${family}'`);
+  const synth = `synth_xilinx -family ${fam} -ise -flatten -top ${top}`;
+  if (!LUT4_FAMILIES.has(fam)) return synth;
+  return `${synth} -run :map_luts; opt_expr -mux_undef -noclkinv; abc -luts ${LUT4_COSTS}; clean; `
+    + 'techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
+    + `xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; ${synth} -run finalize:`;
+}
+
+/** The Yosys script: read the flat module, map it, write the netlist and its statistics. */
+export function yosysScript(top, family) {
   // $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing
-  return `read_verilog -sv ${top}_syn.v; synth_xilinx -family ${fam} -ise -flatten -top ${top}; delete t:$scopeinfo; `
+  return `read_verilog -sv ${top}_syn.v; ${synthCommands(top, family)}; delete t:$scopeinfo; `
     + `write_json ${top}.json; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;
 }
 
@@ -54,6 +75,12 @@ export function utilization(counts) {
   };
 }
 
+// Yosys messages that say nothing about the design, left out of the log and of the warnings:
+// synth_xilinx prints "Shift register inference not yet supported for family xc3se" (and the
+// other 4-input-LUT families) on every run, whatever the design (its shift registers become
+// flip-flops). (Not -nosrl instead: that option also skips pmux2shiftx, which changes netlists.)
+export const QUIET = [/^Warning: Shift register inference not yet supported for family \w+\.$/];
+
 /**
  * Synthesize an elaborated design (core/elaborate.js). run(args, files, onLine) runs Yosys and
  * resolves with its output files ({ name: text }), or rejects with an error whose `lines` holds
@@ -63,7 +90,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   const { text, top, warnings } = toVerilog(design);
   const script = yosysScript(top, family);
   const log = [];
-  const line = l => { log.push(l); onLine(l); };
+  const line = l => { if (!QUIET.some(re => re.test(l))) { log.push(l); onLine(l); } };
   const out = await run(['-q', '-p', script], { [`${top}_syn.v`]: text }, line);
   const json = out[`${top}.json`];
   if (!json) throw Object.assign(new Error('Yosys wrote no netlist'), { lines: log });

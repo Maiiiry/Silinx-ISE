@@ -141,6 +141,37 @@ architecture x of m is begin
 end x;`)], 'm', { clock: 'none' });
 });
 
+test('expressions of few input bits become tables of their values; wider ones stay operators', () => {
+  const { text } = equivalent([vhd(`${PRE}entity t is port (clk : in std_logic; lvl : in std_logic_vector(2 downto 0); cnt, a, b : in unsigned(7 downto 0);
+  kin : in unsigned(3 downto 0); sin : in signed(2 downto 0); ge, odd : out std_logic; m, s : out unsigned(7 downto 0);
+  n, kk : out integer range 0 to 31; sq : out integer range -16 to 16; q : out unsigned(7 downto 0)); end t;
+architecture x of t is
+  signal r : unsigned(7 downto 0) := (others => '0');
+  signal k : integer range 0 to 15; signal si : integer range -4 to 3;   -- integer ports would get other random values
+begin
+  k <= to_integer(kin); si <= to_integer(sin);
+  -- (1 << lvl) - 1 at 32 bits, then compared with 8 bits: the table of lvl, then the comparator
+  ge <= '1' when cnt >= shift_left(to_unsigned(1, 32), to_integer(unsigned(lvl))) - 1 else '0';
+  m <= resize(shift_left(to_unsigned(1, 8), to_integer(unsigned(lvl))) - 1, 8);
+  n <= k + 3;                                  -- an integer of 4 bits: 32-bit addition
+  sq <= si * si - 1;                           -- signed
+  odd <= '1' when (k mod 2) = 1 else '0';
+  s <= a + b;                                  -- 16 input bits: an adder
+  process (lvl) variable v : integer range 0 to 7; begin
+    v := to_integer(unsigned(lvl));
+    kk <= v * 3 + 1;                           -- a process variable
+  end process;
+  process (clk) begin if rising_edge(clk) then r <= r + unsigned(lvl); end if; end process;
+  q <= r;
+end x;`)], 't');
+  const tabs = text.match(/function automatic \[\d+:0\] tab\d+\(input \[\d:0\] i\)/g) || [];
+  assert.ok(tabs.length >= 5, text);
+  assert.match(text, /tab\d+\(lvl\)/);
+  assert.match(text, /tab\d+\(si\)/);
+  assert.match(text, /8'\(a \+ b\)/);           // the adder of 16 input bits stays
+  assert.match(text, /8'\(r \+ /);              // so does r + lvl (11 bits)
+});
+
 test('functions, procedures with signal outputs, loops with exit, case with ranges, process variables', () => {
   equivalent([vhd(`${PRE}entity p is port (clk : in std_logic; x : in std_logic_vector(7 downto 0); ones, lead : out integer range 0 to 8;
   par, big : out std_logic; seg : out std_logic_vector(6 downto 0); acc : out unsigned(7 downto 0)); end p;
