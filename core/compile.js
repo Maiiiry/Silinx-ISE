@@ -3,6 +3,7 @@ import { parse as parseVerilog } from './verilog/parser.js';
 import { parse as parseVhdl } from './vhdl/parser.js';
 import { buildLibrary, elaborate, topCandidates } from './elaborate.js';
 import { Simulator } from './simulator.js';
+import { MATH_REAL_SOURCE, usesMathReal } from './vhdl/math-real.js';
 
 export function langOfPath(p) {
   return /\.(vhd|vhdl)$/i.test(p) ? 'vhdl' : /\.(v|vh|sv)$/i.test(p) ? 'verilog' : null;
@@ -10,6 +11,8 @@ export function langOfPath(p) {
 
 // sources: [{ path, text, lang?, role? }]
 export function compile(sources) {
+  // ieee.math_real: its VHDL part (constants, UNIFORM) compiled with the design that uses it
+  if (sources.some(s => (s.lang || langOfPath(s.path)) === 'vhdl' && s !== MATH_REAL_SOURCE && usesMathReal(s.text)) && !sources.includes(MATH_REAL_SOURCE)) sources = [MATH_REAL_SOURCE, ...sources];
   const parsed = [];
   // Verilog `include "name": a project file of that path (or base name)
   const include = name => {

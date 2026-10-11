@@ -1,0 +1,1038 @@
+{
+ "epfl-adder": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  }
+ },
+ "epfl-bar": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 2456 slices, the XC3S250E has 2448",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "epfl-cavlc": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "epfl-ctrl": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "epfl-dec": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "epfl-i2c": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "epfl-int2float": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "epfl-max": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  }
+ },
+ "epfl-priority": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  }
+ },
+ "epfl-router": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "femtorv32-quark": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DIA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DIPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOB from 64 bits to 32 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOPB from 8 bits to 4 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DIA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DIPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOB from 64 bits to 32 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOPB from 8 bits to 4 bits.",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S36_S36: synthesized again with -nobram -nolutram -nosrl -nodsp",
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  }
+ },
+ "fpu-adder": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "fail: bitgen: 9 features not in the bit database (SLICE0:C2VDD:, SLICE1:C2VDD:, SLICE2:C2VDD:, SLICE3:C2VDD:)",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "fpu-multiplier": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 2568 slices, the XC3S250E has 2448",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: MULT18X18: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "light8080": {
+  "frontend": "unsupported: elaborate: mcu80_pkg.vhdl:78: array slices are not supported",
+  "tb": "unsupported: elaborate: mcu80_pkg.vhdl:78: array slices are not supported",
+  "synth": "skip: front end",
+  "diff": "skip: front end",
+  "flow": "skip: front end"
+ },
+ "nandland-spi-verilog": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx - SPI_Master.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+   ],
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "nandland-spi-vhdl": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:HDLCompiler:92 (sensitivity) - SPI_Master.vhd:102: w_cpol should be on the sensitivity list of the process",
+    "WARNING:HDLCompiler:92 (sensitivity) - SPI_Master.vhd:204: w_cpol should be on the sensitivity list of the process"
+   ],
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "neorv32": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "unsupported: assignment of an array to a part of an array (line 544)",
+  "diff": "skip: synthesis",
+  "flow": "skip: synthesis",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx - neorv32_cpu_trace.vhd:789: file declarations are not supported and are ignored",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_core_complex.vhd:109: Signal <cpu_d_fence> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_core_complex.vhd:109: Signal <cpu_i_fence> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_core_complex.vhd:109: Signal <dcache_sync> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_core_complex.vhd:109: Signal <icache_sync> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu.vhd:128: Signal <if_pmp_addr> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu.vhd:129: Signal <if_pmp_priv> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu.vhd:88: Signal <cfu_inst> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu.vhd:89: Signal <cfu_busy> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu.vhd:89: Signal <cfu_done> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu.vhd:89: Signal <fpu_csr_en> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu.vhd:89: Signal <fpu_csr_we> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu.vhd:90: Signal <cfu_res> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu.vhd:90: Signal <fpu_csr_rd> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu_shifter.vhd:45: Signal <sgn> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_alu_shifter.vhd:51: Signal <lvl> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_counters.vhd:49: Signal <pmf_acc> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_counters.vhd:50: Signal <cfg_re> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_counters.vhd:50: Signal <cfg_we> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_counters.vhd:54: Signal <pmf_cy> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_counters.vhd:54: Signal <pmf_ir> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_counters.vhd:59: Signal <hpmevent_rd> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_counters.vhd:60: Signal <hpmcnt_rd> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_regfile.vhd:55: Signal <wdata> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_cpu_regfile.vhd:56: Signal <onehot> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:334: Signal <rstn_ext> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:337: Signal <clk_gen> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:340: Signal <dmi_req> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:341: Signal <dmi_rsp> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:358: Signal <dma_req> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:358: Signal <smc_req> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:358: Signal <xbus_req> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:359: Signal <dma_rsp> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - neorv32_top.vhd:360: Signal <xbus_terminate> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_core_complex.vhd:100: Input <dbi_i> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_cpu.vhd:94: Input <dbi_i> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_cpu_control.vhd:83: Input <irq_dbg_i> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_cpu_regfile.vhd:35: Input <rstn_i> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:30: Input <req_data_i> is never used.",
+    "WARNING:Silinx:647 (unused-input) - neorv32_imem.vhd:31: Input <req_ben_i> is never used."
+   ]
+  }
+ },
+ "picorv32": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 3090 slices, the XC3S250E has 2448",
+  "warnings": {
+   "frontend": [
+    "WARNING:Lint (blocking) - picorv32.v:1406: Blocking assignment (=) to <set_mem_do_rinst> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Lint (blocking) - picorv32.v:1407: Blocking assignment (=) to <set_mem_do_rdata> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Lint (blocking) - picorv32.v:1408: Blocking assignment (=) to <set_mem_do_wdata> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Lint (blocking) - picorv32.v:1440: Blocking assignment (=) to <next_irq_pending> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Lint (blocking) - picorv32.v:1495: Blocking assignment (=) to <current_pc> in a clocked always block; use a non-blocking assignment (<=).",
+    "WARNING:Lint (case-default) - picorv32.v:1252: Case statement without 'default' in a combinational always block",
+    "WARNING:Lint (case-default) - picorv32.v:1269: Case statement without 'default' in a combinational always block",
+    "WARNING:Lint (case-default) - picorv32.v:1315: Case statement without 'default' in a combinational always block",
+    "WARNING:Lint (case-default) - picorv32.v:332: Case statement without 'default' in a combinational always block",
+    "WARNING:Lint (case-default) - picorv32.v:403: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:1184: Signal <dbg_ascii_state> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:181: Signal <dbg_insn_addr> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:183: Signal <dbg_mem_valid> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:184: Signal <dbg_mem_instr> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:185: Signal <dbg_mem_ready> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:186: Signal <dbg_mem_addr> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:187: Signal <dbg_mem_wdata> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:188: Signal <dbg_mem_wstrb> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:189: Signal <dbg_mem_rdata> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:375: Signal <mem_busy> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:696: Signal <dbg_rs1val> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:697: Signal <dbg_rs2val> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:698: Signal <dbg_rs1val_valid> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:699: Signal <dbg_rs2val_valid> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - picorv32.v:769: Signal <dbg_valid_insn> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:737 (latch) - picorv32.v:403: Found 32-bit latch for signal <mem_la_wdata>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - picorv32.v:403: Found 32-bit latch for signal <mem_rdata_word>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - picorv32.v:403: Found 4-bit latch for signal <mem_la_wstrb>. Latches may be generated from incomplete case or if statements."
+   ],
+   "synth": [
+    "Warning: Latch inferred for signal `mem_la_wdata' from process `\\picorv32.$proc': $auto",
+    "Warning: Latch inferred for signal `mem_la_wstrb' from process `\\picorv32.$proc': $auto",
+    "Warning: Latch inferred for signal `mem_rdata_word [15:8]' from process `\\picorv32.$proc': $auto",
+    "Warning: Latch inferred for signal `mem_rdata_word [31:16]' from process `\\picorv32.$proc': $auto",
+    "Warning: Latch inferred for signal `mem_rdata_word [7:0]' from process `\\picorv32.$proc': $auto",
+    "Warning: Resizing cell port picorv32.cpuregs.0.0.DIA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.0.0.DIPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOB from 64 bits to 32 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOPB from 8 bits to 4 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.1.0.DIA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.1.0.DIPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOA from 64 bits to 32 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOB from 64 bits to 32 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOPA from 8 bits to 4 bits.",
+    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOPB from 8 bits to 4 bits.",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S36_S36: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "secworks-aes": {
+  "frontend": "pass",
+  "tb": "unsupported: elaborate: tb_aes_core.v:409: 'tb_aes_core' is not declared",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 13078 slices, the XC3S250E has 2448",
+  "warnings": {
+   "synth": [
+    "Warning: Replacing memory \\dec_block.inv_sbox_inst.inv_sbox with list of registers. See aes_core_syn.v:1609, aes_core_syn.v:1605, aes_core_syn.v:1601, aes_core_syn.v:1597, aes_core_syn.v:1593, aes_core_syn.v:1589, aes_core_syn.v:1585, aes_core_syn.v:1581, aes_core_syn.v:1577, aes_core_syn.v:1573, ae",
+    "Warning: Replacing memory \\keymem.key_mem with list of registers. See aes_core_syn.v:1835",
+    "Warning: Replacing memory \\sbox_inst.sbox with list of registers. See aes_core_syn.v:3086, aes_core_syn.v:3082, aes_core_syn.v:3078, aes_core_syn.v:3074, aes_core_syn.v:3070, aes_core_syn.v:3066, aes_core_syn.v:3062, aes_core_syn.v:3058, aes_core_syn.v:3054, aes_core_syn.v:3050, aes_core_syn.v:3046,",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "secworks-sha1": {
+  "frontend": "pass",
+  "tb": "unsupported: elaborate: tb_sha1_core.v:151: 'dut.state_logic.f' is not declared",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 3437 slices, the XC3S250E has 2448",
+  "warnings": {
+   "frontend": [
+    "WARNING:Lint (case-default) - sha1_core.v:373: Case statement without 'default' in a combinational always block"
+   ],
+   "synth": [
+    "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha1_core_syn.v:86",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "secworks-sha256": {
+  "frontend": "pass",
+  "tb": "pass",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 3437 slices, the XC3S250E has 2448",
+  "warnings": {
+   "frontend": [
+    "WARNING:Lint (case-default) - sha256_core.v:493: Case statement without 'default' in a combinational always block"
+   ],
+   "synth": [
+    "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha256_core_syn.v:304",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "secworks-siphash": {
+  "frontend": "pass",
+  "tb": "pass",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "serv": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx - serv_rf_ram.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x2)",
+    "WARNING:Silinx - serv_rf_ram.v:41: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x2)",
+    "WARNING:Silinx - serv_rf_ram_if.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x2)",
+    "WARNING:Silinx - serv_rf_ram_if.v:53: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - serv_rf_ram_if.v:54: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx - serv_rf_top.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead",
+    "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:16: Input <i_cnt_done> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:25: Input <i_shift_op> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:26: Input <i_right_shift_op> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_bufreg.v:27: Input <i_shamt> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_rf_top.v:84: Input <i_ext_rd> is never used.",
+    "WARNING:Silinx:647 (unused-input) - serv_top.v:76: Input <i_ext_rd> is never used."
+   ],
+   "synth": [
+    "Warning: Resizing cell port serv_rf_top.rf_ram.memory.0.0.DIA from 64 bits to 2 bits.",
+    "Warning: Resizing cell port serv_rf_top.rf_ram.memory.0.0.DOA from 64 bits to 2 bits.",
+    "Warning: Resizing cell port serv_rf_top.rf_ram.memory.0.0.DOB from 64 bits to 2 bits.",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S2_S2: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "spi-fpga-master": {
+  "frontend": "pass",
+  "tb": "pass",
+  "synth": "pass",
+  "diff": "mismatch: cycle 0: dout, mosi",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - spi_master.vhd:52: Signal <addr_reg> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "spi-fpga-slave": {
+  "frontend": "pass",
+  "tb": "pass",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "t80": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 2616 slices, the XC3S250E has 2448",
+  "warnings": {
+   "frontend": [
+    "WARNING:Lint (case-default) - T80_MCode.vhd:1173: Case statement without 'when others' choice",
+    "WARNING:Lint (case-default) - T80_MCode.vhd:1345: Case statement without 'when others' choice",
+    "WARNING:Lint (case-default) - T80_MCode.vhd:1484: Case statement without 'when others' choice",
+    "WARNING:Lint (case-default) - T80_MCode.vhd:257: Case statement without 'when others' choice",
+    "WARNING:Lint (case-default) - T80_MCode.vhd:920: Case statement without 'when others' choice"
+   ],
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "uart-for-fpga": {
+  "frontend": "pass",
+  "tb": "pass",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:647 (unused-input) - uart_clk_div.vhd:21: Input <rst> is never used."
+   ],
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "verilog-axis-fifo": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx - axis_fifo.v:1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead (x6)",
+    "WARNING:Silinx:647 (unused-input) - axis_fifo.v:101: Input <s_axis_tkeep> is never used.",
+    "WARNING:Silinx:647 (unused-input) - axis_fifo.v:105: Input <s_axis_tid> is never used.",
+    "WARNING:Silinx:647 (unused-input) - axis_fifo.v:106: Input <s_axis_tdest> is never used.",
+    "WARNING:Silinx:647 (unused-input) - axis_fifo.v:124: Input <pause_req> is never used."
+   ],
+   "synth": [
+    "Warning: Replacing memory \\m_axis_pipe_reg with list of registers. See axis_fifo_syn.v:242",
+    "Warning: Resizing cell port axis_fifo.mem.0.0.DIA from 64 bits to 8 bits.",
+    "Warning: Resizing cell port axis_fifo.mem.0.0.DIPA from 8 bits to 1 bits.",
+    "Warning: Resizing cell port axis_fifo.mem.0.0.DOA from 64 bits to 8 bits.",
+    "Warning: Resizing cell port axis_fifo.mem.0.0.DOB from 64 bits to 8 bits.",
+    "Warning: Resizing cell port axis_fifo.mem.0.0.DOPA from 8 bits to 1 bits.",
+    "Warning: Resizing cell port axis_fifo.mem.0.0.DOPB from 8 bits to 1 bits.",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S9_S9: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "verilog-i2c-master": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Lint (case-default) - i2c_master.v:329: Case statement without 'default' in a combinational always block",
+    "WARNING:Lint (case-default) - i2c_master.v:634: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx:646 (unused-signal) - i2c_master.v:285: Signal <scl_posedge> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - i2c_master.v:286: Signal <scl_negedge> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "verilog-lfsr-crc": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:176$15.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:176$15.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:176$15.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:176$15.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:184$16.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:184$16.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:184$16.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:184$16.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:192$17.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:192$17.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:192$17.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:192$17.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:200$18.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:200$18.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:200$18.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:200$18.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:208$19.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:208$19.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:208$19.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:208$19.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:216$20.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:216$20.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:216$20.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:216$20.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:224$21.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:224$21.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:224$21.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:224$21.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:232$22.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:232$22.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:232$22.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:232$22.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:240$23.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:240$23.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:240$23.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:240$23.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:248$24.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:248$24.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:248$24.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:248$24.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:256$25.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:256$25.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:256$25.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:256$25.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:264$26.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:264$26.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:264$26.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:264$26.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:272$27.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:272$27.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:272$27.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:272$27.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:280$28.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:280$28.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:280$28.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:280$28.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:288$29.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:288$29.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:288$29.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:288$29.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:296$30.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:296$30.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:296$30.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:296$30.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:304$31.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:304$31.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:304$31.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:304$31.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:312$32.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:312$32.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:312$32.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:312$32.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:320$33.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:320$33.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:320$33.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:320$33.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:328$34.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:328$34.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:328$34.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:328$34.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:336$35.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:336$35.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:336$35.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:336$35.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:344$36.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:344$36.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:344$36.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:344$36.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:352$37.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:352$37.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:352$37.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:352$37.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:360$38.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:360$38.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:360$38.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:360$38.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:368$39.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:368$39.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:368$39.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:368$39.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:376$40.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:376$40.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:376$40.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:376$40.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:384$41.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:384$41.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:384$41.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:384$41.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:392$42.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:392$42.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:392$42.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:392$42.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:400$43.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:400$43.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:400$43.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:400$43.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:408$44.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:408$44.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:408$44.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:408$44.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:416$45.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:416$45.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:416$45.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:416$45.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:424$46.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:424$46.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:424$46.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:424$46.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:432$47.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:432$47.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:432$47.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:432$47.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:440$48.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:440$48.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:440$48.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:440$48.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:448$49.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:448$49.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:448$49.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:448$49.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:456$50.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:456$50.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:456$50.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:456$50.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:464$51.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:464$51.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:464$51.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:464$51.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:472$52.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:472$52.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:472$52.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:472$52.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:480$53.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:480$53.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:480$53.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:480$53.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "verilog-lfsr-prbs": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Lint (nonblocking) - lfsr_prbs_gen.v:205: Non-blocking assignment (<=) to <output_reg> in a combinational always block; use a blocking assignment (=)."
+   ],
+   "synth": [
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:179$15.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:179$15.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:179$15.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:179$15.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:187$16.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:187$16.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:187$16.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:187$16.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:195$17.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:195$17.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:195$17.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:195$17.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:203$18.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:203$18.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:203$18.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:203$18.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:211$19.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:211$19.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:211$19.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:211$19.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:219$20.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:219$20.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:219$20.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:219$20.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:227$21.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:227$21.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:227$21.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:227$21.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:235$22.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:235$22.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:235$22.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:235$22.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:243$23.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:243$23.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:243$23.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:243$23.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:251$24.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:251$24.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:251$24.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:251$24.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:259$25.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:259$25.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:259$25.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:259$25.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:267$26.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:267$26.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:267$26.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:267$26.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:275$27.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:275$27.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:275$27.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:275$27.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:283$28.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:283$28.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:283$28.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:283$28.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:291$29.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:291$29.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:291$29.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:291$29.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:299$30.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:299$30.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:299$30.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:299$30.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:307$31.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:307$31.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:307$31.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:307$31.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:315$32.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:315$32.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:315$32.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:315$32.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:323$33.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:323$33.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:323$33.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:323$33.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:331$34.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:331$34.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:331$34.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:331$34.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:339$35.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:339$35.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:339$35.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:339$35.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:347$36.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:347$36.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:347$36.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:347$36.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:355$37.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:355$37.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:355$37.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:355$37.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:363$38.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:363$38.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:363$38.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:363$38.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:371$39.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:371$39.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:371$39.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:371$39.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:379$40.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:379$40.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:379$40.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:379$40.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:387$41.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:387$41.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:387$41.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:387$41.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:395$42.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:395$42.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:395$42.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:395$42.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:403$43.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:403$43.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:403$43.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:403$43.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:411$44.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:411$44.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:411$44.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:411$44.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:419$45.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:419$45.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:419$45.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:419$45.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:427$46.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:427$46.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:427$46.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:427$46.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:435$47.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:435$47.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:435$47.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:435$47.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:443$48.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:443$48.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:443$48.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:443$48.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:451$49.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:451$49.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:451$49.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:451$49.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:459$50.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:459$50.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:459$50.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:459$50.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:467$51.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:467$51.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:467$51.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:467$51.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:475$52.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:475$52.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:475$52.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:475$52.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "verilog-uart": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "vtr-ch-intrinsics": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "mismatch: cycle 0: memory_controller_write_enable",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Lint (case-default) - ch_intrinsics.v:282: Case statement without 'default' in a combinational always block",
+    "WARNING:Lint (case-default) - ch_intrinsics.v:53: Case statement without 'default' in a combinational always block",
+    "WARNING:Lint (case-default) - ch_intrinsics.v:63: Case statement without 'default' in a combinational always block",
+    "WARNING:Silinx:646 (unused-signal) - ch_intrinsics.v:141: Signal <var0> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:737 (latch) - ch_intrinsics.v:282: Found 1-bit latch for signal <memory_controller_write_enable>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - ch_intrinsics.v:282: Found 32-bit latch for signal <memory_controller_address>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - ch_intrinsics.v:282: Found 32-bit latch for signal <memory_controller_in>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - ch_intrinsics.v:53: Found 1-bit latch for signal <str_write_enable>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - ch_intrinsics.v:53: Found 5-bit latch for signal <str_address>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - ch_intrinsics.v:53: Found 8-bit latch for signal <str_in>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:737 (latch) - ch_intrinsics.v:63: Found 32-bit latch for signal <memory_controller_out>. Latches may be generated from incomplete case or if statements.",
+    "WARNING:Silinx:905 (sensitivity) - ch_intrinsics.v:279: One or more signals are missing in the sensitivity list of always block. The missing signals are: <s_07> <c>",
+    "WARNING:Silinx:905 (sensitivity) - ch_intrinsics.v:50: One or more signals are missing in the sensitivity list of always block. The missing signals are: <prevTag> <str_out>"
+   ],
+   "synth": [
+    "Warning: Latch inferred for signal `memory_controller_address' from process `\\memset.$proc': $auto",
+    "Warning: Latch inferred for signal `memory_controller_in' from process `\\memset.$proc': $auto",
+    "Warning: Latch inferred for signal `memory_controller_out [31:8]' from process `\\memset.$proc': $auto",
+    "Warning: Latch inferred for signal `memory_controller_out [7:0]' from process `\\memset.$proc': $auto",
+    "Warning: Latch inferred for signal `memory_controller_write_enable' from process `\\memset.$proc': $auto",
+    "Warning: Latch inferred for signal `memtroll.str_address' from process `\\memset.$proc': $auto",
+    "Warning: Latch inferred for signal `memtroll.str_in' from process `\\memset.$proc': $auto",
+    "Warning: Latch inferred for signal `memtroll.str_write_enable' from process `\\memset.$proc': $auto",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: RAM32X1S: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "vtr-diffeq1": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 5869 slices, the XC3S250E has 2448",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: MULT18X18: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "vtr-diffeq2": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 5825 slices, the XC3S250E has 2448",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: MULT18X18: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "vtr-mkPktMerge": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "too large: 5982 slices, the XC3S250E has 2448",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:100: Signal <WILL_FIRE_iport0_put> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:101: Signal <WILL_FIRE_iport1_put> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:102: Signal <WILL_FIRE_oport_get> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1138: Signal <full> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1139: Signal <empty> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1140: Signal <full_n> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1141: Signal <empty_n> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1142: Signal <full_n_r> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1143: Signal <empty_n_r> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1144: Signal <level> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1146: Signal <always_one> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:1147: Signal <always_zero> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:309: Signal <full> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:310: Signal <empty> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:311: Signal <full_n> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:312: Signal <empty_n> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:313: Signal <full_n_r> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:314: Signal <empty_n_r> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:315: Signal <level> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:317: Signal <always_one> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:318: Signal <always_zero> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:724: Signal <full> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:725: Signal <empty> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:726: Signal <full_n> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:727: Signal <empty_n> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:728: Signal <full_n_r> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:729: Signal <empty_n_r> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:730: Signal <level> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:732: Signal <always_one> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:733: Signal <always_zero> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:94: Signal <CAN_FIRE_iport0_put> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:95: Signal <CAN_FIRE_iport1_put> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:96: Signal <CAN_FIRE_oport_get> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ],
+   "flow": [
+    "WARNING:Silinx (pack) - cells not supported yet: RAM16X1S: synthesized again with -nobram -nolutram -nosrl -nodsp"
+   ]
+  }
+ },
+ "vtr-sha": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ },
+ "vtr-stereovision3": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "fail: route: 1 nets cannot be routed on PIPs of known bits",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:647 (unused-input) - stereovision3.v:6: Input <tm3_vidin_llc> is never used.",
+    "WARNING:Silinx:737 (latch) - stereovision3.v:642: Found 1-bit latch for signal <rst_done>. Latches may be generated from incomplete case or if statements."
+   ],
+   "synth": [
+    "Warning: Latch inferred for signal `rst_done' from process `\\sv_chip3_hierarchy_no_mem.$proc': $auto",
+    "Warning: Shift register inference not yet supported for family xc3se."
+   ]
+  }
+ }
+}

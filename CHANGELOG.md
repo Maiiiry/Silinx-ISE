@@ -17,6 +17,17 @@ the "What's new" text of its GitHub release.
   switching, `STARTUP_WAIT`, the SRLC16 cascade). Shift registers make designs smaller (the srl
   fixture: 63 slices instead of 79). Unused inputs no longer get a pad. Yosys's "Resizing cell
   port" messages of its block-RAM mapping are not warnings of the design.
+- **Design corpus:** 38 real open-source designs (SERV, PicoRV32, FemtoRV32, NEORV32, light8080, T80,
+  UARTs, SPI, I2C, CRC, FIFO, AES / SHA / SipHash, the VTR and EPFL benchmarks; Verilog and VHDL;
+  fetched at pinned commits, never committed) go through every stage of the toolchain, with the
+  time and the warnings of each (`npm run test:designs`, test/designs-corpus/README.md): 24 complete the
+  fully open flow on the XC3S250E (10 through an I/O wrapper). Fixed on the way: `ieee.math_real` (`ceil`,
+  `log2`… and `UNIFORM`), aggregates such as `(others => '0')` as port and generic actuals,
+  `boolean(…)`, generics of an unconstrained array type, a Verilog `?:` of strings in a parameter,
+  `$display("%02d")` padding with zeros, a spurious "function assigns signal" warning for tasks and
+  procedures, a function's local memory in the open synthesis (a CRC and a PRBS generator became
+  constant). Fully open bitstreams of four corpus designs for the Basys2, among them SERV, a RISC-V
+  CPU, counting on the LEDs.
 - Silinx's own messages are labelled Silinx, not XST: the design checks of Check Syntax
   (`WARNING:Silinx:646 - Signal <…> is assigned but never used…`) keep XST's number for the same
   finding, and their explanation says "Xilinx ISE's XST reports this as Xst:646"; the open

@@ -142,7 +142,23 @@ export function toVerilog(design, { name, tables = true } = {}) {
     }
   })(top);
   for (const p of top.ports) sigName.set(p.sig, esc(uniq(p.name)));
-  for (const s of design.signals) if (!sigName.has(s) && !skipSig.has(s)) sigName.set(s, esc(uniq(s.path.startsWith(prefix) ? s.path.slice(prefix.length) : s.path)));
+  // the variable of a for loop gets a plain name: Yosys 0.68 does not unroll a loop on an escaped
+  // name holding a dot (`for (\u.j = 3; …)` in an instance's process: the loop and the logic it
+  // drives vanish from the netlist; verilog-axis's FIFO inside another module)
+  const loopVars = new Set();
+  const findLoops = (x, depth = 0) => {
+    if (!x || typeof x !== 'object' || depth > 200) return;
+    if (Array.isArray(x)) { for (const y of x) findLoops(y, depth + 1); return; }
+    if (x.k === 'for' && x.init?.target?.k === 'sig') loopVars.add(x.init.target.sig);
+    for (const key of ['body', 'stmts', 'then', 'else', 'items', 'def', 'default', 'init', 'step']) if (x[key]) findLoops(x[key], depth + 1);
+    if (Array.isArray(x.cases)) for (const c of x.cases) findLoops(c.body ?? c, depth + 1);
+  };
+  for (const p of design.procs) if (!skipProc.has(p)) findLoops(p.body);
+  for (const s of design.signals) {
+    if (sigName.has(s) || skipSig.has(s)) continue;
+    const path = s.path.startsWith(prefix) ? s.path.slice(prefix.length) : s.path;
+    sigName.set(s, esc(uniq(loopVars.has(s) ? path.replace(/[^\w$]/g, '_') : path)));
+  }
 
   // ---------------- wired nets (wand / wor, IEEE 1364-2005 4.6.4) with several drivers: each
   // driver (a continuous assignment, an instance's output) assigns a signal of its own, which starts
@@ -533,7 +549,8 @@ export function toVerilog(design, { name, tables = true } = {}) {
       const init0 = f.frameInit ? f.frameInit() : [];
       const inits = [...fctx.locals.entries()].filter(([i, l]) => !l.param && init0[i] && !Array.isArray(init0[i]) && init0[i].v !== undefined && !init0[i].x)
         .map(([i, l]) => `    ${l.name} = ${lit(V.resize(init0[i], wOf(l.t)), wOf(l.t))};\n`).join('');
-      const loc = [...fctx.locals.values()].filter(l => !l.param).map(l => `    reg ${sgn(l.t) ? 'signed ' : ''}[${wOf(l.t) - 1}:0] ${l.name};`);
+      // (a local memory keeps its words: reg [w-1:0] m [0:n-1], as the processes' locals)
+      const loc = [...fctx.locals.values()].filter(l => !l.param).map(l => `    reg ${sgn(l.t) ? 'signed ' : ''}${l.t.kind === 'array' ? `[${wOf(l.t.elem) - 1}:0] ${l.name} [0:${l.t.len - 1}]` : `[${wOf(l.t) - 1}:0] ${l.name}`};`);
       funcs.push(`  function automatic ${sgn(f.retT) ? 'signed ' : ''}[${rw - 1}:0] ${fname}(${params.join(', ')});\n${['    reg __ret;', ...loc, ...fctx.flags.map(x => `    reg ${x};`)].join('\n')}\n  begin\n    __ret = 0;\n    ${fname} = 0;\n${inits}${body}  end\n  endfunction`);
     }
     const args = n.args.map((a, k) => { const v = e(a, ctx); const p = f.params[k]; return fit(v.x, v.w, v.s, wOf(p.t)); });

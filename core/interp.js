@@ -54,12 +54,14 @@ export function evalE(n, ctx) {
       const lo = psliceLo(n.base.t, V.toNum(st), n.t.w, n.dir);
       return V.getBits(b, lo, n.t.w);
     }
+    case 'rfn': return V.real(mathReal(n.f, V.toReal(evalE(n.a, ctx)), n.b ? V.toReal(evalE(n.b, ctx)) : undefined));
     case 'un': return evalUn(n, ctx);
     case 'bin': return evalBin(n, ctx);
     case 'cond': {
       const w = n.ew || n.t.w;
       const c = V.truth(evalE(n.c, ctx));
-      if (n.vh) { const r = evalE(c === 1 ? n.a : n.b, ctx); return Array.isArray(r) || isStr(r) ? r : fit(r, w, n.t.s); }
+      // VHDL, and a Verilog ?: of strings (a parameter = c ? "A" : "B"): the value chosen as it is
+      if (n.vh || n.t.kind === 'str') { const r = evalE(c === 1 ? n.a : n.b, ctx); return Array.isArray(r) || isStr(r) ? r : fit(r, w, n.t.s); }
       if (n.t.kind === 'real') return evalE(c === 0 ? n.b : n.a, ctx);
       const s = esign(n);
       if (c === 1) return fitOp(evalE(n.a, ctx), w, s);
@@ -393,7 +395,8 @@ function fmtOne(v, t, spec, width, ctx, prec = '') {
       s = t && t.kind === 'enum' ? imageOf(v, t) : V.toDec(v, v.s);
       if (width === '' && t && t.kind !== 'enum') s = s.padStart(Math.ceil(v.w * Math.log10(2)) + (v.s ? 1 : 0), ' ');
   }
-  if (width !== '' && width !== '0') s = s.padStart(+width, spec === 'd' ? ' ' : '0');
+  // %5d pads with blanks, %05d (a leading zero) with zeros, as Icarus and the commercial simulators do
+  if (width !== '' && width !== '0') s = s.padStart(+width, spec === 'd' && !/^0\d/.test(width) ? ' ' : '0');
   return s;
 }
 
@@ -845,5 +848,24 @@ function* execSys(s, ctx) {
       return;
     default:
       sim?.report('warning', `system task ${s.name} not supported (ignored)`, s.loc);
+  }
+}
+
+// ieee.math_real (VHDL): the functions on reals that elaborate.js binds as { k: 'rfn', f, a, b }
+export function mathReal(f, x, y) {
+  switch (f) {
+    case 'ceil': return Math.ceil(x);
+    case 'floor': return Math.floor(x);
+    case 'round': return Math.sign(x) * Math.round(Math.abs(x));   // halves away from zero
+    case 'trunc': return Math.trunc(x);
+    case 'sqrt': if (x < 0) throw new SimError('sqrt of a negative real'); return Math.sqrt(x);
+    case 'log2': if (x <= 0) throw new SimError('log2 of a real <= 0'); return Math.log2(x);
+    case 'log10': if (x <= 0) throw new SimError('log10 of a real <= 0'); return Math.log10(x);
+    case 'log': if (x <= 0) throw new SimError('log of a real <= 0'); return y === undefined ? Math.log(x) : Math.log(x) / Math.log(y);
+    case 'exp': return Math.exp(x);
+    case 'sign': return Math.sign(x);
+    case 'realmax': return Math.max(x, y);
+    case 'realmin': return Math.min(x, y);
+    default: throw new SimError(`math_real function ${f} not supported`);
   }
 }
