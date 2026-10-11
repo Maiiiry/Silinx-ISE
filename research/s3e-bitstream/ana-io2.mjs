@@ -9,23 +9,24 @@ import fs from 'node:fs';
 import { parseXdl } from '../../core/xdl.js';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
 import { frameData, tileOf } from '../../core/fpga/bitgen.js';
-import { loadDb } from './db.mjs';
+import { loadDb, edges } from './db.mjs';
 
 const db = loadDb();
+const { maxX: MX, maxY: MY } = edges(db.layout);
 const L = db.layout;
 // where a bit is in the I/O ring: side, the x / y of its tile, df / db inside that tile
-const colOf = f => { for (const [x, b] of Object.entries(L.cols)) { const n = +x === 0 || +x === 27 ? 21 : 19; if (f >= b && f < b + n) return { x: +x, df: f - b }; } return null; };
-const rowOf = b => { for (const [y, s] of Object.entries(L.rows)) { const n = +y === 0 || +y === 35 ? 80 : 64; if (b >= s && b < s + n) return { y: +y, db: b - s }; } return null; };
+const colOf = f => { for (const [x, b] of Object.entries(L.cols)) { const n = +x === 0 || +x === MX ? 21 : 19; if (f >= b && f < b + n) return { x: +x, df: f - b }; } return null; };
+const rowOf = b => { for (const [y, s] of Object.entries(L.rows)) { const n = +y === 0 || +y === MY ? 80 : 64; if (b >= s && b < s + n) return { y: +y, db: b - s }; } return null; };
 function where(f, b) {
   const c = colOf(f), r = rowOf(b);
   if (!c || !r) return null;
   if (c.x === 0) return { side: 'L', ...c, ...r };
-  if (c.x === 27) return { side: 'R', ...c, ...r };
-  if (r.y === 35) return { side: 'T', ...c, ...r };
+  if (c.x === MX) return { side: 'R', ...c, ...r };
+  if (r.y === MY) return { side: 'T', ...c, ...r };
   if (r.y === 0) return { side: 'B', ...c, ...r };
   return null;
 }
-const sideOf = t => (t.x === 0 ? 'L' : t.x === 27 ? 'R' : t.y === 35 ? 'T' : 'B');
+const sideOf = t => (t.x === 0 ? 'L' : t.x === MX ? 'R' : t.y === MY ? 'T' : 'B');
 const samples = [];   // { key, tile, bits: Map(spec -> 1) }
 const amb = [];       // [bit, candidates]
 let other = 0;

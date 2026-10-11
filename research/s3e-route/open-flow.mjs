@@ -65,7 +65,7 @@ step(`pack (${packed.stats.slices} slices)`, t);
 // place, on the sites of the device cache
 t = Date.now();
 const device = loadDeviceCache(part);
-const db = loadDb();
+const db = loadDb(part, { graph: device });
 const known = knownRouting(db);
 // the delays of the fastest routes on known switches, for the placer's timing estimate
 const delays = delayTable(device, { allowPip: known.allowPip });

@@ -5,10 +5,11 @@ import fs from 'node:fs';
 import { parseXdl } from '../../core/xdl.js';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
 import { frameData, designFeatures, tileOf, tileBase } from '../../core/fpga/bitgen.js';
-import { loadDb } from './db.mjs';
+import { loadDb, edges } from './db.mjs';
 
 const [xdl, bit] = process.argv.slice(2);
 const db = loadDb();
+const { maxX: MX, maxY: MY } = edges(db.layout);
 const design = parseXdl(fs.readFileSync(xdl, 'utf8'));
 const d = diffFrames(frameData(design, db).frames, readBit(fs.readFileSync(bit)).frames);
 const { feats } = designFeatures(design, db);
@@ -22,7 +23,7 @@ for (const x of d) {
     const t = tileOf(name, db), b = t && tileBase(t, db);
     if (!b) continue;
     const df = x.frame - b.frame, dbit = x.bit - b.bit;
-    if (df >= 0 && df < 19 && dbit >= 0 && dbit < (t.y === 0 || t.y === 35 ? 80 : 64)) { hit = { name, df, dbit }; break; }
+    if (df >= 0 && df < 19 && dbit >= 0 && dbit < (t.y === 0 || t.y === MY ? 80 : 64)) { hit = { name, df, dbit }; break; }
   }
   const k = hit ? hit.name : `frame ${x.frame}`;
   if (!groups.has(k)) groups.set(k, []);

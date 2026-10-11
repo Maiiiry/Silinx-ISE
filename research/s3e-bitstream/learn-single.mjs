@@ -6,9 +6,10 @@ import fs from 'node:fs';
 import { parseXdl } from '../../core/xdl.js';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
 import { frameData, designFeatures, tileOf, tileBase } from '../../core/fpga/bitgen.js';
-import { loadDb } from './db.mjs';
+import { loadDb, edges } from './db.mjs';
 
 const db = loadDb();
+const { maxX: MX, maxY: MY } = edges(db.layout);
 const args = process.argv.slice(2);
 const seen = new Map();   // type \t feature -> Map(pattern -> count)
 for (let i = 0; i < args.length; i += 2) {
@@ -19,7 +20,7 @@ for (let i = 0; i < args.length; i += 2) {
   for (const u of unknown) { if (u.tile[0] === '@') continue; if (!byTile.has(u.tile)) byTile.set(u.tile, []); byTile.get(u.tile).push(u.feature); }
   // windows of all the design's tiles, to make sure a bit is in one tile only
   const tiles = [...new Set(designFeatures(design, db).feats.map(f => f.tile))].filter(n => n[0] !== '@').map(n => { const t = tileOf(n, db); return { n, t, b: t && tileBase(t, db) }; }).filter(x => x.b);
-  const inWin = (x, w) => { const df = x.frame - w.b.frame, db2 = x.bit - w.b.bit; return df >= 0 && df < (db.layout.typeFrames?.[w.t.type] ?? (w.t.x === 0 || w.t.x === 27 ? 21 : 19)) && db2 >= 0 && db2 < (db.layout.typeBits?.[w.t.type] ?? (w.t.y === 0 || w.t.y === 35 ? 80 : 64)); };
+  const inWin = (x, w) => { const df = x.frame - w.b.frame, db2 = x.bit - w.b.bit; return df >= 0 && df < (db.layout.typeFrames?.[w.t.type] ?? (w.t.x === 0 || w.t.x === MX ? 21 : 19)) && db2 >= 0 && db2 < (db.layout.typeBits?.[w.t.type] ?? (w.t.y === 0 || w.t.y === MY ? 80 : 64)); };
   for (const [tile, fs1] of byTile) {
     if (fs1.length !== 1) continue;
     const w = tiles.find(x => x.n === tile);

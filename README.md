@@ -274,8 +274,9 @@ them). Synthesis, implementation and programming need the full application (`npm
 Implementation uses the ISE 14.7 command-line tools (WebPACK edition: free, with a free license).
 
 **Without ISE (open toolchain, experimental):** *Synthesize - Yosys (open)* synthesizes any
-design in the browser (Yosys compiled to WebAssembly). For the **Basys2-250 (XC3S250E-CP132)**
-Silinx also places, routes and writes the bitstream itself: the device description ships with
+design in the browser (Yosys compiled to WebAssembly). For the **Basys2-100 and Basys2-250
+(XC3S100E / XC3S250E-CP132) and the Nexys2-500 and Nexys2-1200 (XC3S500E / XC3S1200E-FG320)**
+Silinx also places, routes and writes the bitstream itself: the device descriptions ship with
 Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. To use it,
 choose *Tools ▸ Toolchain Settings ▸ Execution mode: Open toolchain (experimental, no ISE)*. The
 usual processes then run Silinx's own flow on this machine: *Synthesize - Yosys* (Yosys),
@@ -292,8 +293,8 @@ CLKDV, CLKFX). A design the open toolchain cannot implement yet (a feature not i
 database, a net it cannot route) fails with the list of what is missing: implement it in an ISE
 mode. For another package of a supported chip, the device description is built once from your
 own ISE (*Build Device Description* in *Toolchain Settings*, through the ISE set there: local,
-Docker or SSH; it goes to `~/.silinx/devices/`). The device descriptions of the other Spartan-3E
-boards (Basys2-100, Nexys2, Spartan-3E Starter Kit) ship too; their bit databases are next. The open
+Docker or SSH; it goes to `~/.silinx/devices/`) once the pads of that package are in the bit
+database (the Spartan-3E Starter Kit's XC3S500E-FG320 is the Nexys2-500's chip and package). The open
 toolchain does **not yet support the Spartan-6 boards (Nexys3, Atlys)**; it will (they work with
 ISE, as every board does). From the command line: `node research/s3e-route/open-flow.mjs <project
 folder> <out folder>`.

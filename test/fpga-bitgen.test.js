@@ -232,7 +232,7 @@ test('bitgen: a complete .bit file whose frame data is the design', () => {
 const dbDir = new URL('../research/s3e-bitstream/db/', import.meta.url);
 const measured = () => {
   const read = f => JSON.parse(fs.readFileSync(new URL(f, dbDir), 'utf8'));
-  return makeDb({ layout: read('xc3s250e-layout.json'), lut: read('xc3s250e-lut.json').lutF, tiles: read('xc3s250e-tiles.json') });
+  return makeDb({ layout: read('xc3s250e-layout.json'), lut: read('xc3s250e-lut.json').lutF, tiles: read('s3e-tiles.json') });
 };
 
 test('measured database: a LUT and a slice setting where stage A and B found them', () => {
@@ -307,6 +307,6 @@ test('padsFromDevice: the bonded I/O sites of the device, by their index among t
   };
   assert.deepEqual(padsFromDevice(device), { A3: ['TIOIS_X1Y35', 0], B3: ['TIOIS_X1Y35', 1], C4: ['TIOIS_X1Y35', 3] });
   // the committed database has no pad table (it comes from the user's device report)
-  const tiles = JSON.parse(fs.readFileSync(new URL('../research/s3e-bitstream/db/xc3s250e-tiles.json', import.meta.url), 'utf8'));
+  const tiles = JSON.parse(fs.readFileSync(new URL('../research/s3e-bitstream/db/s3e-tiles.json', import.meta.url), 'utf8'));
   assert.equal(tiles.pads, undefined);
 });

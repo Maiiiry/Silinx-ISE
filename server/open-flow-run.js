@@ -19,7 +19,8 @@ import { pack } from '../core/fpga/pack.js';
 import { deviceSites, place, placedXdl } from '../core/fpga/place.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { routeDesign, checkRouting, clockReach, bufgReach } from '../core/fpga/route.js';
-import { bitgen, knownRouting, makeDb, padsFromDevice } from '../core/fpga/bitgen.js';
+import { bitgen, knownRouting } from '../core/fpga/bitgen.js';
+import { loadDb } from '../research/s3e-bitstream/db.mjs';
 import { analyzeTiming, timingReport, checkPeriods, clockPort, delayTable } from '../core/fpga/timing.js';
 
 const spec = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
@@ -41,12 +42,7 @@ const util = (name, used, total) => ({ name, used, total, percent: pct(used, tot
 // the device and the bit database are loaded once, when first needed
 let dev = null, db = null, known = null;
 const device = () => (dev ||= loadDeviceCache(spec.graph));
-function bitDb() {
-  if (db) return db;
-  const read = k => { const f = path.join(spec.bitDbDir, `${spec.device}-${k}.json`); return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null; };
-  db = makeDb({ layout: read('layout'), lut: read('lut').lutF, tiles: read('tiles') || { types: {} }, pads: padsFromDevice(device()), bram: read('bram') });
-  return db;
-}
+const bitDb = () => (db ||= loadDb(`${spec.device}${spec.pkg}`, { graph: device(), dir: spec.bitDbDir }));
 const knownPips = () => (known ||= knownRouting(bitDb()));
 
 const ucfText = spec.ucf ? fs.readFileSync(spec.ucf, 'utf8') : null;

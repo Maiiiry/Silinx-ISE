@@ -36,7 +36,8 @@ chip (each LUT memory bit, each multiplexer setting inside a slice, each I/O set
 switch). It is built by black-box observation, as described below.
 
 **Devices.** The open toolchain is developed for the Spartan-3E: the XC3S250E (Basys2-250) first,
-then the other Spartan-3E boards. It does not yet support the Spartan-6 boards (Nexys3, Atlys):
+then the other Spartan-3E boards (XC3S100E, XC3S500E, XC3S1200E: their bit databases share the
+tile types' bits with the XC3S250E's; research/s3e-bitstream/README.md, stage F). It does not yet support the Spartan-6 boards (Nexys3, Atlys):
 that is planned ([TODO.md](../TODO.md)).
 
 ## Method: observation of a tool's behaviour (black-box)
@@ -119,7 +120,7 @@ or Digilent, or endorsed by them.
 
 ## Open questions for the legal review
 
-- Whether publishing the bit database (facts about the XC3S250E) needs any further care, for
+- Whether publishing the bit database (facts about the Spartan-3E devices) needs any further care, for
   example under the EU sui generis database right. The database is created by Silinx itself, from
   its own experiments.
 - Whether the device description computed from `xdl -report` (the chip's tiles, sites, wires and

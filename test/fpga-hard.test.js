@@ -313,6 +313,10 @@ test('DCM: the top-left DCM site, the settings as ISE\'s map writes them, consta
   assert.equal(r.sites[p.insts.findIndex(i => i.name === 'b0')].site, 'BUFGMUX_X2Y10');
   assert.equal(r.sites[p.insts.findIndex(i => i.name === 'bfx')].site, 'BUFGMUX_X1Y10');
   assert.throws(() => place(p, device(), { seed: 1, effort: 0.1, bufgSites: () => [] }), /no free global clock buffer reachable from u\.CLK0 through switches of known bits/);
+  // the output that reaches fewer buffers chooses first: CLKFX takes X1Y10, CLK0 the other one it reaches
+  const r2 = place(p, device(), { seed: 1, effort: 0.1, bufgSites: (site, pin) => (pin === 'CLK0' ? ['BUFGMUX_X1Y10', 'BUFGMUX_X2Y10'] : pin === 'CLKFX' ? ['BUFGMUX_X1Y10'] : []) });
+  assert.equal(r2.sites[p.insts.findIndex(i => i.name === 'bfx')].site, 'BUFGMUX_X1Y10');
+  assert.equal(r2.sites[p.insts.findIndex(i => i.name === 'b0')].site, 'BUFGMUX_X2Y10');
 });
 
 test('bufgReach: each output of the top-left DCM reaches its global buffer through switches of known bits (CLK0, CLK2X, CLKDV, CLKFX)', async () => {
@@ -322,7 +326,8 @@ test('bufgReach: each output of the top-left DCM reaches its global buffer throu
   const known = knownRouting(loadDb());
   const g = loadDeviceCache('xc3s250ecp132-4');
   const got = Object.fromEntries(['CLK0', 'CLK2X', 'CLKDV', 'CLKFX', 'CLK90', 'CLKFX180'].map(p => [p, bufgReach(g, 'DCM_X0Y1', p, known.allowPip)]));
-  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X1Y10'], CLK90: [], CLKFX180: [] });
+  // (the DCM pins' switches measured in stage F of research/s3e-bitstream add CLK0 -> X2Y11 and CLKFX -> X1Y11)
+  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK90: [], CLKFX180: [] });
   // without the restriction: the four buffers of the top edge
   assert.deepEqual(bufgReach(g, 'DCM_X0Y1', 'CLK90').sort(), ['BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']);
 });

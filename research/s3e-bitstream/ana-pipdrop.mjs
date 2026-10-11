@@ -10,19 +10,20 @@ import { loadGraph } from './xdlrc-graph.mjs';
 import { tileWindow, setGrid } from './layout.mjs';
 import { parseXdl } from '../../core/xdl.js';
 import { pipFeatures, tileOf, tileBase } from '../../core/fpga/bitgen.js';
-import { loadDb } from './db.mjs';
+import { loadDb, edges } from './db.mjs';
 
 const [dir, xdlrc] = process.argv.slice(2);
 const key = JSON.parse(fs.readFileSync(`${dir}/key.json`, 'utf8'));
 const g = loadGraph(xdlrc);
 setGrid(g.tiles);
 const db = loadDb();
+const { maxX: MX, maxY: MY } = edges(db.layout);
 // the window of a tile: from the database's layout when it knows the tile
 const windowOf = t => {
   const tt = tileOf(t.name, db), b = tt && tileBase(tt, db);
   if (!b) return tileWindow(t);
   const L = db.layout;
-  return { frame: b.frame, frames: L.typeFrames?.[tt.type] ?? (tt.x === 0 || tt.x === 27 ? 21 : 19), bit: b.bit, bits: L.typeBits?.[tt.type] ?? (tt.y === 0 || tt.y === 35 ? 80 : 64) };
+  return { frame: b.frame, frames: L.typeFrames?.[tt.type] ?? (tt.x === 0 || tt.x === MX ? 21 : 19), bit: b.bit, bits: L.typeBits?.[tt.type] ?? (tt.y === 0 || tt.y === MY ? 80 : 64) };
 };
 // the feature name of every PIP of the base design (bidirectional PIPs get their direction)
 const featName = new Map();

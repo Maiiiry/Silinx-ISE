@@ -1,0 +1,160 @@
+{
+ "device": "xc3s100e-4-cp132",
+ "source": "research/s3e-bitstream: gen-layout.mjs from the chip map (gen-map.mjs, decode-map.mjs), the empty design and the device grid; ISE 14.7 xdl P.20131013 + bitgen; measured 2026-10-10 (XC3S250E), 2026-10-11 (XC3S100E, XC3S500E, XC3S1200E)",
+ "note": "Tile TYPE_X<x>Y<y> starts at frame cols[x] (typeCols[TYPE][x] for special types) and bit rows[y]. CLB tiles (CLB_X<x>Y<y>) are of type CENTER_SMALL, CENTER_SMALL_BRK in rows brkRows. defaults: [frame, bit] set in the frame data of an empty design. idcode, frameWords, frames: the bitstream format (an empty design written by bitgen).",
+ "idcode": "0x01c10093",
+ "frameWords": 49,
+ "frames": 369,
+ "brkRows": [],
+ "cols": {
+  "0": 3,
+  "1": 24,
+  "2": 43,
+  "3": 349,
+  "4": 273,
+  "5": 292,
+  "6": 311,
+  "7": 62,
+  "8": 81,
+  "9": 100,
+  "10": 119,
+  "11": 138,
+  "12": 157,
+  "13": 176,
+  "14": 195,
+  "15": 214,
+  "16": 233,
+  "17": 252
+ },
+ "rows": {
+  "0": 1488,
+  "1": 1424,
+  "2": 1360,
+  "3": 1296,
+  "4": 1232,
+  "5": 1168,
+  "6": 1104,
+  "7": 1040,
+  "8": 976,
+  "9": 912,
+  "10": 848,
+  "11": 784,
+  "12": 720,
+  "13": 656,
+  "14": 592,
+  "15": 528,
+  "16": 464,
+  "17": 400,
+  "18": 336,
+  "19": 272,
+  "20": 208,
+  "21": 144,
+  "22": 80,
+  "23": 0
+ },
+ "typeCols": {
+  "CLKB": {
+   "8": 0
+  },
+  "CLKT": {
+   "8": 0
+  },
+  "CLKC": {
+   "8": 2
+  },
+  "GCLKVML": {
+   "2": 0
+  },
+  "GCLKVMR": {
+   "14": 1
+  }
+ },
+ "typeRows": {
+  "CLKB": {
+   "0": 1488
+  },
+  "CLKT": {
+   "23": 0
+  },
+  "CLKC": {
+   "11": 720
+  },
+  "GCLKVML": {
+   "11": 720
+  },
+  "GCLKVMR": {
+   "11": 720
+  },
+  "GCLKH": {
+   "7": 1567,
+   "15": 3
+  },
+  "GCLKH_PCI_CE_N": {
+   "15": 3
+  },
+  "BRAMSITE2_UP_GCLKH": {
+   "15": 3
+  },
+  "BRAM2_UP_GCLKH_FEEDTHRU": {
+   "15": 3
+  },
+  "BRAM2_UP_GCLKH_FEEDTHRUA": {
+   "15": 3
+  },
+  "GCLKH_PCI_CE_S": {
+   "7": 1567
+  },
+  "BRAMSITE2_DN_GCLKH": {
+   "7": 1567
+  },
+  "BRAM2_DN_GCLKH_FEEDTHRU": {
+   "7": 1567
+  },
+  "BRAM2_DN_GCLKH_FEEDTHRUA": {
+   "7": 1567
+  }
+ },
+ "typeFrames": {
+  "CLKB": 3,
+  "CLKT": 3,
+  "CLKC": 1,
+  "GCLKVML": 1,
+  "GCLKVMR": 1
+ },
+ "typeBits": {
+  "CLKB": 80,
+  "CLKT": 80,
+  "CLKC": 128,
+  "GCLKVML": 128,
+  "GCLKVMR": 128,
+  "GCLKH": 1,
+  "GCLKH_PCI_CE_N": 1,
+  "BRAMSITE2_UP_GCLKH": 1,
+  "BRAM2_UP_GCLKH_FEEDTHRU": 1,
+  "BRAM2_UP_GCLKH_FEEDTHRUA": 1,
+  "GCLKH_PCI_CE_S": 1,
+  "BRAMSITE2_DN_GCLKH": 1,
+  "BRAM2_DN_GCLKH_FEEDTHRU": 1,
+  "BRAM2_DN_GCLKH_FEEDTHRUA": 1
+ },
+ "defaults": [
+  [3, 37],
+  [3, 39],
+  [3, 41],
+  [3, 43],
+  [4, 1522],
+  [4, 1524],
+  [4, 1526],
+  [4, 1528],
+  [4, 1539],
+  [4, 1540],
+  [272, 28],
+  [272, 30],
+  [272, 32],
+  [272, 34],
+  [272, 1515],
+  [272, 1517],
+  [272, 1541],
+  [272, 1543]
+ ]
+}

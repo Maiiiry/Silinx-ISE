@@ -5,6 +5,16 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **The open toolchain for the other Spartan-3E boards:** the Basys2-100 (XC3S100E), the Nexys2-500
+  (XC3S500E) and the Nexys2-1200 (XC3S1200E) have their bit databases, measured as the
+  Basys2-250's was: Implement Design and Generate Programming File work for them with no Xilinx
+  tool. blinky and lab11 on each are byte-identical to ISE's bitgen, with no DRC error or warning.
+  The pads are measured for the boards' packages (CP132: every I/O standard, drive, slew and pull;
+  FG320: LVCMOS33 / LVCMOS25 at the default drive, slew and pull, what the Nexys2 designs use). The tile types' bits are shared by the four devices (`research/s3e-bitstream/db`: one
+  file of tile types, the layout, LUTs, block RAMs and pads per device), read by one loader.
+- More of the XC3S250E (and the others) measured: the DCMs' pins, the inputs and the select of
+  every global clock buffer (BUFGMUX) of the top and bottom; a placement where the DCM outputs
+  could not all get a global buffer is found now.
 - **The rest of the Spartan-3E in the open toolchain:** block RAMs (inferred by the open synthesis
   or instantiated: `RAMB16_S*` / `RAMB16_S*_S*`, every port width and write mode, `INIT_xx`,
   `INIT` / `SRVAL`), multipliers (`MULT18X18`, `MULT18X18S`, `MULT18X18SIO` with its registers),

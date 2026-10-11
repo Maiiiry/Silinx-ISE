@@ -2,6 +2,7 @@
 // driven by its own driver slice, every output loaded, the carry chain connected below and above.
 // Written unrouted; ISE's par routes it (placement kept); the routed XDL is the base of the variants.
 import fs from 'node:fs';
+import { PART } from './db.mjs';
 const out = process.argv[2];
 fs.mkdirSync(out, { recursive: true });
 const slices = JSON.parse(fs.readFileSync(process.env.SLICES || 'e7/slices.json', 'utf8'));
@@ -44,5 +45,5 @@ nets.push({ name: 'carry_out', out: [T, 'COUT'], ins: [[COUT_TO, 'CIN']] });
 // COUT_TO's X goes to the 4th... keep it loaded by its own BX? (a net needs a load): to LOADS[3] F2
 nets.push({ name: 'carry_sum', out: [COUT_TO, 'X'], ins: [[LOADS[3], 'F2']] });
 const netText = nets.map(n => `net "${n.name}" ,\n  outpin "${n.out[0]}" ${n.out[1]} ,\n${n.ins.map(([i, p]) => `  inpin "${i}" ${p} ,`).join('\n')}\n  ;`).join('\n');
-fs.writeFileSync(`${out}/H.xdl`, `design "harness" xc3s250ecp132-4 v3.2 ,\n  cfg "";\n${insts.join('\n')}\n${netText}\n`);
+fs.writeFileSync(`${out}/H.xdl`, `design "harness" ${PART} v3.2 ,\n  cfg "";\n${insts.join('\n')}\n${netText}\n`);
 console.log(`${insts.length} slices, ${nets.length} nets`);

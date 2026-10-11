@@ -1,12 +1,13 @@
 #!/bin/bash
-# Inside the ISE container: implement HDL designs with ISE (xst, ngdbuild, map, par) for the XC3S250E
-# CP132 and write the routed XDL and the bitstream (-g CRC:Disable), as reference designs for the
-# residual analysis (ana-residual.mjs, learn-single.mjs) and check-writer.mjs.
-#   ise-impl.sh dir…     (each dir: top.vhd and / or top.v, top.ucf; top entity / module "top")
+# Inside the ISE container: implement HDL designs with ISE (xst, ngdbuild, map, par) for a part
+# (PART, default the XC3S250E CP132) and write the routed XDL and the bitstreams (top.bit with
+# -g CRC:Disable, top.crc.bit with the CRC), as reference designs for the residual analysis
+# (ana-residual.mjs, learn-single.mjs) and check-writer.mjs.
+#   [PART=xc3s500e-fg320-4] ise-impl.sh dir…     (each dir: *.vhd and / or *.v, top.ucf; top entity / module "top")
 # Run the container with --network none.
 ARGS=("$@"); set --
 source /opt/Xilinx/14.7/ISE_DS/settings64.sh >/dev/null 2>&1
-P=xc3s250e-cp132-4
+P=${PART:-xc3s250e-cp132-4}
 for d in "${ARGS[@]}"; do
   (
     cd "$d" || exit 1
@@ -22,6 +23,7 @@ for d in "${ARGS[@]}"; do
     par -w top_map.ncd top.ncd top.pcf > par.log 2>&1 || { echo "$d: par FAILED"; exit 1; }
     xdl -ncd2xdl top.ncd top.xdl > n2x.log 2>&1
     bitgen -w -d -g CRC:Disable top.ncd top.bit > bitgen.log 2>&1
+    cp top.ncd top.crc.ncd; bitgen -w -d top.crc.ncd top.crc.bit > bitgen-crc.log 2>&1; rm -f top.crc.ncd top.crc.bgn top.crc_bitgen.xwbt
     echo "$d: $([ -s top.bit ] && echo ok || echo FAILED) $(grep -h 'Number of occupied Slices' map.log | head -1 | sed 's/  */ /g')"
   )
 done

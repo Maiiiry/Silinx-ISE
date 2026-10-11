@@ -10,15 +10,16 @@ import fs from 'node:fs';
 import { parseXdl } from '../../core/xdl.js';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
 import { frameData, designFeatures, tileOf, tileBase } from '../../core/fpga/bitgen.js';
-import { loadDb } from './db.mjs';
+import { loadDb, edges } from './db.mjs';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
 const learn = opt('--learn', null), min = +opt('--min', '2'), verbose = opt('--verbose', '0') === '1';
 const db = loadDb();
+const { maxX: MX, maxY: MY } = edges(db.layout);
 const samples = [];   // { tile, type, unknown: Set, bits: Set("df,db") }
 let totalRes = 0, unplaced = 0;
-const rows = (y, t) => (t.type.match(/^(T|B)/) && (y === 0 || y === 35) ? 80 : 64);
+const rows = (y, t) => (t.type.match(/^(T|B)/) && (y === 0 || y === MY) ? 80 : 64);
 for (let i = 0; i < args.length; i += 2) {
   const design = parseXdl(fs.readFileSync(args[i], 'utf8'));
   const ise = readBit(fs.readFileSync(args[i + 1]));
@@ -38,7 +39,7 @@ for (let i = 0; i < args.length; i += 2) {
     let hit = false;
     for (const t of placed) {
       const df = r.frame - t.base.frame, dbit = r.bit - t.base.bit;
-      const nf = db.layout.typeFrames?.[t.type] ?? (t.t.x === 0 || t.t.x === 27 ? 21 : 19), nb = db.layout.typeBits?.[t.type] ?? ((t.t.y === 0 || t.t.y === 35) ? 80 : 64);
+      const nf = db.layout.typeFrames?.[t.type] ?? (t.t.x === 0 || t.t.x === MX ? 21 : 19), nb = db.layout.typeBits?.[t.type] ?? ((t.t.y === 0 || t.t.y === MY) ? 80 : 64);
       // I/O tiles also set bits in the column before theirs
       const f0 = /IOIS|IBUFS/.test(t.type) ? -19 : 0;
       if (df >= f0 && df < nf && dbit >= 0 && dbit < nb) { t.bits.add(`${r.value ? '' : '!'}${df},${dbit}`); hit = true; }

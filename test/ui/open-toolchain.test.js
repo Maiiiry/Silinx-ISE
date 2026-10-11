@@ -6,12 +6,24 @@
 // open toolchain does not support, and the Portuguese texts.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { setupUi, uiTest, makeProject } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
+import { DB_DIR } from '../../research/s3e-bitstream/db.mjs';
 
 let env;
-before(async () => { env = await setupUi(); });
-after(async () => { await env?.teardown?.(); });
+// the server's bit database: the shipped one, plus the (empty) pads of the XC3S250E in the TQ144
+// package, whose device description does not ship (the case where Silinx offers to build it)
+const dbDir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-ui-bitdb-'));
+before(async () => {
+  for (const f of fs.readdirSync(DB_DIR)) fs.copyFileSync(path.join(DB_DIR, f), path.join(dbDir, f));
+  fs.writeFileSync(path.join(dbDir, 'xc3s250e-tq144-pads.json'), '{"padFeatures":{}}');
+  process.env.SILINX_BIT_DB_DIR = dbDir;
+  env = await setupUi();
+});
+after(async () => { await env?.teardown?.(); delete process.env.SILINX_BIT_DB_DIR; fs.rmSync(dbDir, { recursive: true, force: true }); });
 const E = () => env;
 
 const procLabels = (page) => page.eval(() => [...document.querySelectorAll('#procs .row')].map((r) => ({ label: r.querySelector('.lbl').textContent, disabled: r.classList.contains('disabled'), title: r.title })));
@@ -113,13 +125,13 @@ uiTest('open mode: Generate Programming File of blinky without ISE; the Processe
 uiTest('open mode: a device without a bit database fails clearly; a device without a description offers to build it', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'open' });
   const V = { 'src/top.v': 'module top(input a, output y);\n  assign y = ~a;\nendmodule\n' };
-  await makeProject(env, { name: 'Open500', template: 'empty', device: { family: 'spartan3e', part: 'xc3s500e', package: 'fg320', speed: '-4' }, files: V, top: 'top' });
-  await page.openProject('Open500');
+  await makeProject(env, { name: 'Open1600', template: 'empty', device: { family: 'spartan3e', part: 'xc3s1600e', package: 'fg320', speed: '-4' }, files: V, top: 'top' });
+  await page.openProject('Open1600');
   await reloadToolchain(page);
   await page.treeRow('#procs', 'Implement Design', { dbl: true, exact: true });
   await page.waitConsole(DONE('Implement Design'), { timeout: 30000 });
   const text = await page.consoleText();
-  assert.match(text, /ERROR: the open toolchain cannot implement this design: no bit database for xc3s500e yet \(only the XC3S250E\): use an ISE mode for this device\./);
+  assert.match(text, /ERROR: the open toolchain cannot implement this design: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\), XC3S250E \(CP132\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
   assert.equal(await page.eval(() => window.SilinxApp.S.status.impl), 'err');
   // the same chip in another package: no description; Silinx offers to build it from ISE
   await makeProject(env, { name: 'OpenTq', template: 'empty', device: { family: 'spartan3e', part: 'xc3s250e', package: 'tq144', speed: '-4' },

@@ -1,0 +1,206 @@
+{
+ "device": "xc3s500e-4-fg320",
+ "source": "research/s3e-bitstream: gen-layout.mjs from the chip map (gen-map.mjs, decode-map.mjs), the empty design and the device grid; ISE 14.7 xdl P.20131013 + bitgen; measured 2026-10-10 (XC3S250E), 2026-10-11 (XC3S100E, XC3S500E, XC3S1200E)",
+ "note": "Tile TYPE_X<x>Y<y> starts at frame cols[x] (typeCols[TYPE][x] for special types) and bit rows[y]. CLB tiles (CLB_X<x>Y<y>) are of type CENTER_SMALL, CENTER_SMALL_BRK in rows brkRows. defaults: [frame, bit] set in the frame data of an empty design. idcode, frameWords, frames: the bitstream format (an empty design written by bitgen).",
+ "idcode": "0x01c22093",
+ "frameWords": 97,
+ "frames": 730,
+ "brkRows": [11, 35],
+ "cols": {
+  "0": 3,
+  "1": 24,
+  "2": 43,
+  "3": 691,
+  "4": 539,
+  "5": 558,
+  "6": 577,
+  "7": 62,
+  "8": 81,
+  "9": 100,
+  "10": 119,
+  "11": 138,
+  "12": 157,
+  "13": 176,
+  "14": 195,
+  "15": 214,
+  "16": 233,
+  "17": 252,
+  "18": 271,
+  "19": 290,
+  "20": 309,
+  "21": 328,
+  "22": 347,
+  "23": 366,
+  "24": 385,
+  "25": 404,
+  "26": 423,
+  "27": 442,
+  "28": 461,
+  "29": 710,
+  "30": 615,
+  "31": 634,
+  "32": 653,
+  "33": 480,
+  "34": 499,
+  "35": 518
+ },
+ "rows": {
+  "0": 3024,
+  "1": 2960,
+  "2": 2896,
+  "3": 2832,
+  "4": 2768,
+  "5": 2704,
+  "6": 2640,
+  "7": 2576,
+  "8": 2512,
+  "9": 2448,
+  "10": 2384,
+  "11": 2320,
+  "12": 2256,
+  "13": 2192,
+  "14": 2128,
+  "15": 2064,
+  "16": 2000,
+  "17": 1936,
+  "18": 1872,
+  "19": 1808,
+  "20": 1744,
+  "21": 1680,
+  "22": 1616,
+  "23": 1552,
+  "24": 1488,
+  "25": 1424,
+  "26": 1360,
+  "27": 1296,
+  "28": 1232,
+  "29": 1168,
+  "30": 1104,
+  "31": 1040,
+  "32": 976,
+  "33": 912,
+  "34": 848,
+  "35": 784,
+  "36": 720,
+  "37": 656,
+  "38": 592,
+  "39": 528,
+  "40": 464,
+  "41": 400,
+  "42": 336,
+  "43": 272,
+  "44": 208,
+  "45": 144,
+  "46": 80,
+  "47": 0
+ },
+ "typeCols": {
+  "CLKB": {
+   "17": 0
+  },
+  "CLKT": {
+   "17": 0
+  },
+  "CLKC": {
+   "17": 2
+  },
+  "GCLKVML": {
+   "9": 0
+  },
+  "GCLKVMR": {
+   "25": 1
+  }
+ },
+ "typeRows": {
+  "CLKB": {
+   "0": 3024
+  },
+  "CLKT": {
+   "47": 0
+  },
+  "CLKC": {
+   "23": 1488
+  },
+  "GCLKVML": {
+   "23": 1488
+  },
+  "GCLKVMR": {
+   "23": 1488
+  },
+  "GCLKH": {
+   "7": 3103,
+   "15": 3102,
+   "31": 2,
+   "39": 3
+  },
+  "GCLKH_PCI_CE_N": {
+   "31": 2,
+   "39": 3
+  },
+  "BRAMSITE2_UP_GCLKH": {
+   "39": 3
+  },
+  "BRAM2_UP_GCLKH_FEEDTHRU": {
+   "39": 3
+  },
+  "BRAM2_UP_GCLKH_FEEDTHRUA": {
+   "39": 3
+  },
+  "GCLKH_PCI_CE_S": {
+   "7": 3103,
+   "15": 3102
+  },
+  "BRAMSITE2_DN_GCLKH": {
+   "7": 3103
+  },
+  "BRAM2_DN_GCLKH_FEEDTHRU": {
+   "7": 3103
+  },
+  "BRAM2_DN_GCLKH_FEEDTHRUA": {
+   "7": 3103
+  }
+ },
+ "typeFrames": {
+  "CLKB": 3,
+  "CLKT": 3,
+  "CLKC": 1,
+  "GCLKVML": 1,
+  "GCLKVMR": 1
+ },
+ "typeBits": {
+  "CLKB": 80,
+  "CLKT": 80,
+  "CLKC": 128,
+  "GCLKVML": 128,
+  "GCLKVMR": 128,
+  "GCLKH": 1,
+  "GCLKH_PCI_CE_N": 1,
+  "BRAMSITE2_UP_GCLKH": 1,
+  "BRAM2_UP_GCLKH_FEEDTHRU": 1,
+  "BRAM2_UP_GCLKH_FEEDTHRUA": 1,
+  "GCLKH_PCI_CE_S": 1,
+  "BRAMSITE2_DN_GCLKH": 1,
+  "BRAM2_DN_GCLKH_FEEDTHRU": 1,
+  "BRAM2_DN_GCLKH_FEEDTHRUA": 1
+ },
+ "defaults": [
+  [3, 37],
+  [3, 39],
+  [3, 41],
+  [3, 43],
+  [4, 3058],
+  [4, 3060],
+  [4, 3062],
+  [4, 3064],
+  [4, 3075],
+  [4, 3076],
+  [538, 28],
+  [538, 30],
+  [538, 32],
+  [538, 34],
+  [538, 3051],
+  [538, 3053],
+  [538, 3077],
+  [538, 3079]
+ ]
+}

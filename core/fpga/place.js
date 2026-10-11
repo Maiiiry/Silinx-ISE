@@ -296,7 +296,9 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     const d = driverOfPin.get(`${o.inst}:I0`);
     return d && bufgSites && packed.insts[d.inst].kind === 'dcm' ? new Set(bufgSites(sites[d.inst].name, d.pin)) : null;
   };
-  const bufgObjs = objs.filter(o => o.kind === 'bufg').sort((a, b) => !!reachOf(b) - !!reachOf(a));
+  // (the most constrained first: a DCM output that reaches fewer buffers chooses before the others)
+  const reachSize = o => reachOf(o)?.size ?? Infinity;
+  const bufgObjs = objs.filter(o => o.kind === 'bufg').sort((a, b) => reachSize(a) - reachSize(b));
   for (const o of bufgObjs) {
     const d = driverOfPin.get(`${o.inst}:I0`);
     const pad = d && sites[d.inst];

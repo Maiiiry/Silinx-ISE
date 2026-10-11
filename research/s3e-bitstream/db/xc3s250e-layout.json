@@ -1,7 +1,8 @@
 {
  "device": "xc3s250e-4-cp132",
- "source": "research/s3e-bitstream: gen-layout.mjs from the chip map (gen-map.mjs, decode-map.mjs) and the routing switches measured with gen-pipdrop.mjs / ana-pipdrop.mjs; ISE 14.7 xdl P.20131013 + bitgen; 2026-10-10",
- "note": "Tile TYPE_X<x>Y<y> starts at frame cols[x] (typeCols[TYPE][x] for special types) and bit rows[y]. CLB tiles (CLB_X<x>Y<y>) are of type CENTER_SMALL, CENTER_SMALL_BRK in rows brkRows. defaults: [frame, bit] set in the frame data of an empty design.",
+ "source": "research/s3e-bitstream: gen-layout.mjs from the chip map (gen-map.mjs, decode-map.mjs), the empty design and the device grid; ISE 14.7 xdl P.20131013 + bitgen; measured 2026-10-10 (XC3S250E), 2026-10-11 (XC3S100E, XC3S500E, XC3S1200E)",
+ "note": "Tile TYPE_X<x>Y<y> starts at frame cols[x] (typeCols[TYPE][x] for special types) and bit rows[y]. CLB tiles (CLB_X<x>Y<y>) are of type CENTER_SMALL, CENTER_SMALL_BRK in rows brkRows. defaults: [frame, bit] set in the frame data of an empty design. idcode, frameWords, frames: the bitstream format (an empty design written by bitgen).",
+ "idcode": "0x01c1a093",
  "frameWords": 73,
  "frames": 578,
  "brkRows": [9, 25],
@@ -111,6 +112,32 @@
    "13": 2334,
    "21": 2,
    "29": 3
+  },
+  "GCLKH_PCI_CE_N": {
+   "21": 2,
+   "29": 3
+  },
+  "BRAMSITE2_UP_GCLKH": {
+   "29": 3
+  },
+  "BRAM2_UP_GCLKH_FEEDTHRU": {
+   "29": 3
+  },
+  "BRAM2_UP_GCLKH_FEEDTHRUA": {
+   "29": 3
+  },
+  "GCLKH_PCI_CE_S": {
+   "5": 2335,
+   "13": 2334
+  },
+  "BRAMSITE2_DN_GCLKH": {
+   "5": 2335
+  },
+  "BRAM2_DN_GCLKH_FEEDTHRU": {
+   "5": 2335
+  },
+  "BRAM2_DN_GCLKH_FEEDTHRUA": {
+   "5": 2335
   }
  },
  "typeFrames": {
@@ -126,7 +153,15 @@
   "CLKC": 128,
   "GCLKVML": 128,
   "GCLKVMR": 128,
-  "GCLKH": 1
+  "GCLKH": 1,
+  "GCLKH_PCI_CE_N": 1,
+  "BRAMSITE2_UP_GCLKH": 1,
+  "BRAM2_UP_GCLKH_FEEDTHRU": 1,
+  "BRAM2_UP_GCLKH_FEEDTHRUA": 1,
+  "GCLKH_PCI_CE_S": 1,
+  "BRAMSITE2_DN_GCLKH": 1,
+  "BRAM2_DN_GCLKH_FEEDTHRU": 1,
+  "BRAM2_DN_GCLKH_FEEDTHRUA": 1
  },
  "defaults": [
   [3, 37],

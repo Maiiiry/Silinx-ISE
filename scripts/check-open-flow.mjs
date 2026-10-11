@@ -2,7 +2,8 @@
 // Docker image (e.g. an Intel Mac, where ISE runs natively): for each project, the open flow
 // (research/s3e-route/open-flow.mjs: no Xilinx tool) writes routed.xdl and its .bit; ISE converts
 // the same routed.xdl, runs its design rule check and writes its own .bit (ise-open-check.sh); the
-// two .bit files must be byte-identical (CRC on and off) and the DRC must find no error.
+// two .bit files must be byte-identical (CRC on and off), and ISE's xdl -xdl2ncd and DRC must give
+// no error and no warning. The open flow's own warnings are listed.
 //
 //   SILINX_ISE_HOST=user@host node scripts/check-open-flow.mjs [project folder [open-flow options] …]   (default: examples/blinky)
 //   (also: SILINX_ISE_IMAGE, default xilinx/ise:14.7). Needs the device cache (~/.silinx/devices).
@@ -41,7 +42,8 @@ for (const { dir, opts } of projects) {
   while (names.includes(name)) name += '_';
   names.push(name);
   const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, path.join(work, name), ...opts], { encoding: 'utf8' });
-  console.log(`${name}: open flow ${r.status === 0 ? 'ok' : 'FAILED'}`);
+  const warns = `${r.stdout}\n${r.stderr}`.split('\n').filter(l => /warning/i.test(l)).map(l => l.trim());
+  console.log(`${name}: open flow ${r.status === 0 ? 'ok' : 'FAILED'}; ${warns.length} warning(s)${warns.length ? `: ${warns.join(' | ')}` : ''}`);
   if (r.status !== 0) { console.log(r.stderr.trim().split('\n').slice(-10).join('\n')); failed++; names.pop(); }
 }
 if (!names.length) process.exit(1);
@@ -54,7 +56,7 @@ ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
 run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${work}/`, `${HOST}:${remote}/`]);
 const out = ssh(`docker run --rm -v "$HOME/${remote}":/w ${IMAGE} bash /w/ise-open-check.sh /w ${names.join(' ')}`);
 process.stdout.write(out.split('\n').map(l => (l ? `  ISE ${l}` : l)).join('\n'));
-run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', '--include=*/', '--include=ise*.bit', '--include=drc.log', '--include=routed.twr', '--include=routed.dly', '--exclude=*', `${HOST}:${remote}/`, `${work}/`]);
+run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', '--include=*/', '--include=ise*.bit', '--include=drc.log', '--include=xdl2ncd.log', '--include=routed.twr', '--include=routed.dly', '--exclude=*', `${HOST}:${remote}/`, `${work}/`]);
 ssh(`rm -rf ${remote}`);
 
 // 3. Silinx's .bit against ISE's, from the same routed.xdl (the header's name, date and time are ISE's)
@@ -62,12 +64,16 @@ for (const name of names) {
   const d = path.join(work, name);
   const drc = fs.existsSync(path.join(d, 'drc.log')) ? fs.readFileSync(path.join(d, 'drc.log'), 'utf8') : '';
   const drcOk = /PhysDesignRules results include: <0> errors/.test(drc);
+  const drcWarn = +(/<(\d+)> warnings/.exec(drc)?.[1] ?? NaN);
+  const x2n = fs.existsSync(path.join(d, 'xdl2ncd.log')) ? fs.readFileSync(path.join(d, 'xdl2ncd.log'), 'utf8') : '';
+  const x2nWarn = (x2n.match(/^WARNING/gm) || []).length;
   const check = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-bitstream/check-writer.mjs'),
     path.join(d, 'routed.xdl'), path.join(d, 'ise.bit'), path.join(d, 'routed.xdl'), path.join(d, 'ise-nocrc.bit')], { encoding: 'utf8' });
   const same = (check.stdout.match(/BYTE-IDENTICAL/g) || []).length === 2;
-  console.log(`${name}: DRC ${drcOk ? '0 errors' : 'ERRORS'}; .bit vs ISE's bitgen: ${same ? 'byte-identical (CRC on and off)' : 'DIFFERENT'}`);
+  console.log(`${name}: DRC ${drcOk ? '0 errors' : 'ERRORS'}, ${Number.isNaN(drcWarn) ? '?' : drcWarn} warnings; xdl2ncd ${x2nWarn} warnings; .bit vs ISE's bitgen: ${same ? 'byte-identical (CRC on and off)' : 'DIFFERENT'}`);
   if (!same) console.log(check.stdout.trim());
-  if (!drcOk || !same) failed++;
+  if (x2nWarn) console.log(x2n.split('\n').filter(l => /^WARNING/.test(l)).join('\n'));
+  if (!drcOk || drcWarn !== 0 || x2nWarn || !same) failed++;
 }
 if (!process.env.SILINX_KEEP) fs.rmSync(work, { recursive: true, force: true }); else console.log(`kept: ${work}`);
 console.log(failed ? `${failed} design(s) failed` : 'the open flow matches ISE');

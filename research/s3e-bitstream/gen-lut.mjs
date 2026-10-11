@@ -3,7 +3,8 @@
 import fs from 'node:fs';
 
 import { eqOf } from './lib.mjs';
-const design = (insts) => `design "fuzz" xc3s250ecp132-4 v3.2 ,\n  cfg "";\n${insts.map(({ site, tile, type, f, g }) => `inst "${site}" "${type}",placed ${tile} ${site} ,\n  cfg " F:${site}_f:#LUT:${eqOf(f)} G:${site}_g:#LUT:${eqOf(g)} FXMUX::F GYMUX::G XUSED::0 YUSED::0 "\n  ;`).join('\n')}\n`;
+import { PART } from './db.mjs';
+const design = (insts) => `design "fuzz" ${PART} v3.2 ,\n  cfg "";\n${insts.map(({ site, tile, type, f, g }) => `inst "${site}" "${type}",placed ${tile} ${site} ,\n  cfg " F:${site}_f:#LUT:${eqOf(f)} G:${site}_g:#LUT:${eqOf(g)} FXMUX::F GYMUX::G XUSED::0 YUSED::0 "\n  ;`).join('\n')}\n`;
 
 // the slices under test: [site, tile, type]
 const SITES = JSON.parse(process.argv[2] || "[]");

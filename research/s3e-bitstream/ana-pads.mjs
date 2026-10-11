@@ -10,23 +10,24 @@ import fs from 'node:fs';
 import { parseXdl } from '../../core/xdl.js';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
 import { frameData, tileOf } from '../../core/fpga/bitgen.js';
-import { loadDb } from './db.mjs';
+import { loadDb, edges } from './db.mjs';
 
 const [third, sparse] = process.argv.slice(2);
 const db = loadDb();
+const { maxX: MX, maxY: MY } = edges(db.layout);
 const L = db.layout;
-const colOf = f => { for (const [x, b] of Object.entries(L.cols)) { const n = +x === 0 || +x === 27 ? 21 : 19; if (f >= b && f < b + n) return +x; } return null; };
-const rowOf = b => { for (const [y, s] of Object.entries(L.rows)) { const n = +y === 0 || +y === 35 ? 80 : 64; if (b >= s && b < s + n) return +y; } return null; };
+const colOf = f => { for (const [x, b] of Object.entries(L.cols)) { const n = +x === 0 || +x === MX ? 21 : 19; if (f >= b && f < b + n) return +x; } return null; };
+const rowOf = b => { for (const [y, s] of Object.entries(L.rows)) { const n = +y === 0 || +y === MY ? 80 : 64; if (b >= s && b < s + n) return +y; } return null; };
 function where(f, b) {
   const x = colOf(f), y = rowOf(b);
   if (x === null || y === null) return null;
   if (x === 0) return { side: 'L', x, y };
-  if (x === 27) return { side: 'R', x, y };
-  if (y === 35) return { side: 'T', x, y };
+  if (x === MX) return { side: 'R', x, y };
+  if (y === MY) return { side: 'T', x, y };
   if (y === 0) return { side: 'B', x, y };
   return null;
 }
-const sideOf = t => (t.x === 0 ? 'L' : t.x === 27 ? 'R' : t.y === 35 ? 'T' : 'B');
+const sideOf = t => (t.x === 0 ? 'L' : t.x === MX ? 'R' : t.y === MY ? 'T' : 'B');
 const near = (t, w) => t.side === w.side && (w.side === 'L' || w.side === 'R' ? Math.abs(t.y - w.y) <= 1 : Math.abs(t.x - w.x) <= 1);
 const spec = x => `${x.value ? '' : '!'}${x.frame},${x.bit}`;
 const residual = (dir, f) => {
