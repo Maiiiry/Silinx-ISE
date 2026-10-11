@@ -12,6 +12,11 @@ the "What's new" text of its GitHub release.
   the Silinx toolchain's pads now use it, and Check Constraints accepts it — and reports the HDL
   name (`NET "opcode[0]"`) as the error ngdbuild gives (ConstraintSystem:59), with the right name.
   The EPFL designs epfl-ctrl, epfl-cavlc and epfl-int2float now build with ISE to a bitstream (#34).
+- **Silinx toolchain: an input pad that drives nothing** is written as ISE's bitgen writes it: the
+  pad without its input, whatever its I/O standard (3 bits per pad differed). Measured on every pad
+  of the four Spartan-3E devices (`I:NOLOAD` in the pads' bit database). The open flow leaves such
+  inputs out, as ISE's map does; the corpus designs that differed (verilog-lfsr-prbs,
+  spi-fpga-master, verilog-axis-fifo) are byte-identical to ISE's bitgen (#18).
 - **Silinx toolchain: multiplications by a constant** (such as the stopwatch example's x * 6554)
   failed in Place & Route on every Spartan-3E device: the multiplier's inputs tied to 1 could not
   be routed on the switches of known bits. Each is now tied, as ISE does, to the constant-1 source

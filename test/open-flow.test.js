@@ -140,6 +140,20 @@ for (const [name, [packLine, type, settings = []]] of Object.entries(FEATURES)) 
   });
 }
 
+// #18: inputs that drive nothing get no pad, as ISE's map trims them (an XDL that has such a pad is
+// written as ISE's bitgen writes it: test/fpga-bitgen.test.js). Checked against ISE: the .bit is
+// byte-identical to ISE's bitgen of the same routed XDL, DRC 0 errors and 0 warnings.
+test('the open flow: inputs that drive nothing (the clock, the buttons) get no pad; complete bitstream, no warning', { timeout: 300000 }, () => {
+  const out = path.join(tmp, 'feat_unused_in');
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'test/fixtures/open-flow/feat_unused_in'), out],
+    { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+  assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
+  const pads = [...fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8').matchAll(/^inst "([^"]+)" "(?:IBUF|IOB)",placed/gm)].map(m => m[1]).sort();
+  assert.deepEqual(pads, [...[0, 1, 2, 3, 4, 5, 6, 7].map(i => `led<${i}>`), ...[0, 1, 2, 3, 4, 5, 6, 7].map(i => `sw<${i}>`)].sort());
+});
+
 test('the open flow fails clearly for what the bit database does not have: a DCM output with no known path to a global buffer', { timeout: 300000 }, () => {
   // (CLK2X180 of the top-left DCM: no measured path; CLK90 has one since stage F's designs of every DCM)
   const dir = path.join(tmp, 'dcm2x180');
