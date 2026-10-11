@@ -220,6 +220,19 @@ uiTest('the test harness opens a menu even when its first click is lost (as on s
   await page.closeMenus();
 });
 
+uiTest('the test harness opens the right menu when the menu bar moves under the pointer (as when a project opens)', E, async (page) => {
+  // the first time the pointer reaches the menu bar, the bar shifts by one title: a click at the
+  // position taken before lands on the next menu (on CI: Edit opened instead of File)
+  await page.eval(() => {
+    const bar = document.getElementById('menubar');
+    bar.addEventListener('mousemove', () => { bar.style.paddingLeft = `${bar.querySelector('.item').getBoundingClientRect().width + 4}px`; }, { once: true });
+  });
+  const items = await page.openMenu('File');
+  assert.ok(items.some((i) => i.label === 'New Project…'), JSON.stringify(items.map((i) => i.label)));
+  await page.closeMenus();
+  await page.eval(() => { document.getElementById('menubar').style.paddingLeft = ''; });
+});
+
 uiTest('About shows the version and the GitHub link', E, async (page) => {
   await page.menu('Help', 'About Silinx ISE');
   await page.waitDialog('About');

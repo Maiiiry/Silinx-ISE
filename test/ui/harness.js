@@ -272,7 +272,6 @@ class PageBase {
     const items = await this.eval(() => [...document.querySelectorAll('#menubar .item')].map((e) => e.textContent.trim()));
     const idx = typeof label === 'number' ? label : items.indexOf(label);
     if (idx < 0) throw new Error(`no menu '${label}' (menus: ${items.join(', ')})`);
-    const { x, y } = await this.point('#menubar .item', { index: idx });
     // this menu's popup: its title is the open one and only one top-level popup is left (a popup of
     // the menu open before can still be there for a moment, and would be read instead: a CI-only race)
     const isOpen = (i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open')
@@ -280,6 +279,14 @@ class PageBase {
     // a click that lands while the menus are still closing (or a dialog going away) can toggle the
     // menu shut again: on slow CI machines the menu then never opened; so the click is tried again
     for (let attempt = 1; ; attempt++) {
+      // the title's position, now: the menu bar moves when the header changes (a project opened, its
+      // name shown), and a point taken before that lands on the next menu (Edit opened instead of File)
+      const { x, y } = await this.point('#menubar .item', { index: idx });
+      if (!await this.eval((i, px, py) => document.querySelectorAll('#menubar .item')[i].contains(document.elementFromPoint(px, py)), idx, x, y)) {
+        if (attempt > 50) throw new Error(`menu '${label}': its title is not under its own position (covered?)`);
+        await sleep(100);
+        continue;
+      }
       await this.mouse('mouseMoved', x, y);
       // (moving onto a menu title while another menu is open opens it already)
       if (!await this.eval((i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open'), idx)) {
