@@ -133,6 +133,12 @@ give ISE's bitstream (0 frame bits differ, `cmpbit.mjs`), so the writer loses no
 0 warnings) and writing the bitstream (`bitgen -g StartUpClk:JtagClk`), both work on a Basys2
 (XC3S250E-CP132): the first bitstreams in which no ISE tool chose a cell, a site or a wire.
 
+2026-10-11: **fully open bitstreams on the board.** blinky and lab11 synthesized (Silinx + Yosys
+in WebAssembly), packed, placed, routed (timing-driven, on PIPs of known bits) and written as .bit
+by Silinx, with no Xilinx tool at any step (`open-flow.mjs`): `blinky-open-timing.bit` (11.5 ns by
+ISE's trce), `lab11-open-timing.bit` (17.2 ns) and `lab11-open-timing-s3.bit` (16.9 ns, placer
+seed 3) all work on a Basys2 (XC3S250E-CP132).
+
 ## Fully open bitstreams (2026-10-10)
 
 **Result: blinky and lab11 go from their VHDL / Verilog sources to a `.bit` file with no Xilinx

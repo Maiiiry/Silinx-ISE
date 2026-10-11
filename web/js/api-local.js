@@ -141,7 +141,7 @@ export const api = {
   devices: async () => getDeviceDb(),
   toolchain: async () => ({
     platform: 'browser', configPath: '(browser — standalone edition)',
-    config: { mode: 'local', local: { settings: '' }, docker: { image: '', settings: '' }, ssh: { host: '', user: '', port: 22, remoteDir: '', settings: '' }, programmer: { tool: '', cable: '' } },
+    config: { mode: 'local', local: { settings: '' }, docker: { image: '', settings: '' }, ssh: { host: '', user: '', port: 22, remoteDir: '', settings: '' }, programmer: { tool: '', cable: '' }, open: { iseMode: 'docker' } },
     ise: { mode: 'browser', available: false, reason: 'standalone edition: synthesis and programming need the Silinx server and Xilinx ISE 14.7', help: NEED_SERVER.join(' ') },
     programmers: {}, helpers: {},
   }),

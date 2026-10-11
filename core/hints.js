@@ -371,8 +371,12 @@ export function hintFor(d) {
   }
   if (!h) for (const x of HINTS) { if (!x.re) continue; const mm = x.re.exec(msg); if (mm) { h = x; m = mm; break; } }
   if (!h) return null;
-  const tr = L => ({ explain: fill(L.explain, m), fix: fill(L.fix, m) });
-  return { id: h.id, en: tr(h.en), pt: tr(h.pt) };
+  // Silinx's own checks keep the number of XST's message for the same finding (Silinx:646 is
+  // Xst:646): say so, for whoever meets it in Xilinx ISE or looks it up in its documentation
+  const xst = /^Silinx:(\d+)$/.exec(d.tool || '');
+  const also = { en: xst ? ` (Xilinx ISE's XST reports this as Xst:${xst[1]}.)` : '', pt: xst ? ` (O XST do Xilinx ISE reporta isto como Xst:${xst[1]}.)` : '' };
+  const tr = (L, lang) => ({ explain: fill(L.explain, m) + also[lang], fix: fill(L.fix, m) });
+  return { id: h.id, en: tr(h.en, 'en'), pt: tr(h.pt, 'pt') };
 }
 
 /** { explain, fix } of a diagnostic in a language ('en' | 'pt'; English when missing), or null. */

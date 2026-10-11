@@ -142,3 +142,12 @@ test('Verilog: a missing end / endfunction is reported (the parser used to loop 
   const f = diags(VL('function f; input x; begin f = x;\nassign y = a;'), 't');
   assert.ok(f.some(d => /expected 'end(function)?' but found/.test(d.message)));
 });
+
+test('Silinx\'s own checks say which XST message they correspond to (Silinx:NNN is Xst:NNN)', () => {
+  const d = { message: 'Found 1-bit latch for signal <q>. Latches may be generated from incomplete case or if statements.', tool: 'Silinx:737', check: 'latch' };
+  assert.match(hintText(d, 'en').explain, / \(Xilinx ISE's XST reports this as Xst:737\.\)$/);
+  assert.match(hintText(d, 'pt').explain, / \(O XST do Xilinx ISE reporta isto como Xst:737\.\)$/);
+  // a message of XST itself (ISE modes), or of another tool: no such note
+  assert.doesNotMatch(hintText({ ...d, tool: 'Xst' }, 'en').explain, /reports this as/);
+  assert.doesNotMatch(hintText({ ...d, tool: 'Lint' }, 'en').explain, /reports this as/);
+});

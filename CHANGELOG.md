@@ -5,9 +5,33 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- Silinx's own messages are labelled Silinx, not XST: the design checks of Check Syntax
+  (`WARNING:Silinx:646 - Signal <…> is assigned but never used…`) keep XST's number for the same
+  finding, and their explanation says "Xilinx ISE's XST reports this as Xst:646"; the open
+  toolchain's errors are `ERROR:Silinx`. XST's own messages (ISE modes) keep `Xst`.
+- **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
+  and written by Silinx with no Xilinx tool, work on a Basys2-250.
+- **Open toolchain in the interface:** *Toolchain Settings* has a new execution mode, *Open
+  toolchain (experimental, no ISE)*. *Synthesize*, *Implement Design* and *Generate Programming
+  File* then run Silinx's own flow on the server, with no Xilinx tool (Yosys synthesis, pack,
+  place, route on the switches whose bits are known, static timing against the UCF's PERIOD
+  constraints, bitgen), with the usual console, process icons, Stop and *Design Summary*
+  (utilization and timing, marked "open toolchain"). It writes `build/<top>.bit` (what *Configure
+  Target Device* programs) and `build/<top>_prom.bit`; *View Implemented Design (FPGA)* shows the
+  routed design on the device description. For now for the XC3S250E (Basys2-250). A device the
+  open toolchain does not support, or a design it cannot implement yet, fails with the reason and
+  what is missing; the processes that need ISE are disabled in that mode, with a tooltip.
+- **Build Device Description** (*Toolchain Settings*, or offered when the open toolchain needs it):
+  the description of a device that does not ship with Silinx is built from your own ISE
+  (`xdl -report -pips -all_conns`, run through the ISE configured there: local, Docker or SSH,
+  compressed where ISE runs) into `~/.silinx/devices/`.
+- The device descriptions of the XC3S100E-CP132 (Basys2-100), XC3S500E-FG320 (Nexys2-500,
+  Spartan-3E Starter Kit) and XC3S1200E-FG320 (Nexys2-1200) ship with Silinx too (their bit
+  databases are next).
 - The device description of the XC3S250E-CP132 (Basys2-250) ships with Silinx
   (`core/fpga/devices/`): the open toolchain places, routes and writes the bitstream for that board
-  without ISE (for now from the command line: `research/s3e-route/open-flow.mjs`). For other
+  without ISE (from the interface, see above, or from the command line:
+  `research/s3e-route/open-flow.mjs`). For other
   devices it is built once from the user's own ISE installation (`~/.silinx/devices/`, which takes
   precedence). The whole open flow on blinky is now part of the tests.
 - TODO.md: what is planned. The open toolchain does not support the Spartan-6 boards (Nexys3,

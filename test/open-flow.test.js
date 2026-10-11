@@ -22,8 +22,8 @@ test('the routing graph of the XC3S250E-CP132 ships with Silinx; the user\'s own
   assert.ok(fs.existsSync(shipped));
   assert.equal(findDeviceGraph('xc3s250ecp132-4'), shipped);
   assert.equal(findDeviceGraph('xc3s250ecp132-5'), shipped);
-  assert.equal(findDeviceGraph('xc3s500efg320-4'), null);
-  assert.throws(() => loadDeviceCache('xc3s500efg320-4'), /no routing graph of xc3s500efg320-4: build it from your ISE's device report/);
+  assert.equal(findDeviceGraph('xc3s1600efg320-4'), null);
+  assert.throws(() => loadDeviceCache('xc3s1600efg320-4'), /no routing graph of xc3s1600efg320-4: build it from your ISE's device report/);
   const dev = loadDeviceCache('xc3s250ecp132-4');
   assert.equal(dev.part.replace(/-\d+$/, ''), 'xc3s250ecp132');
   assert.ok(dev.nodeCount > 100000);
@@ -32,6 +32,17 @@ test('the routing graph of the XC3S250E-CP132 ships with Silinx; the user\'s own
   fs.writeFileSync(deviceCachePath('xc3s250ecp132-4'), zlib.gzipSync('{}'));
   assert.equal(findDeviceGraph('xc3s250ecp132-4'), deviceCachePath('xc3s250ecp132-4'));
   fs.rmSync(deviceCachePath('xc3s250ecp132-4'));
+});
+
+test('every shipped device description loads and has the datasheet\'s slices and user I/O pins', async () => {
+  const { deviceSites } = await import('../core/fpga/place.js');
+  // DS312 (Spartan-3E family data sheet): CLB slices; user I/O of the package
+  const want = { 'xc3s100ecp132-4': [960, 83], 'xc3s250ecp132-4': [2448, 92], 'xc3s500efg320-4': [4656, 232], 'xc3s1200efg320-4': [8672, 250] };
+  for (const [part, [slices, pads]] of Object.entries(want)) {
+    assert.equal(findDeviceGraph(part), shippedDevicePath(part), part);
+    const s = deviceSites(loadDeviceCache(part));
+    assert.deepEqual([s.slices.size, s.pads.size], [slices, pads], part);
+  }
 });
 
 test('the open flow on the shipped graph: blinky from VHDL to a complete bitstream, no Xilinx tool', { timeout: 300000 }, () => {

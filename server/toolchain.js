@@ -7,6 +7,10 @@
 //   ssh    - build/ is streamed (tar over ssh) to another machine, run there (with ISE installed
 //            on it, or in a docker image on it: ssh.image, e.g. an Intel Mac) and the results
 //            are streamed back
+//   open   - no ISE: the open toolchain (experimental) runs on this machine (server/open-flow.js:
+//            Yosys + Silinx's pack, place, route and bitgen) for the devices with a device
+//            description and a bit database. ISE is still used (open.iseMode: local / docker / ssh,
+//            with the settings of that mode) to build the description of another device.
 // Programmers always run locally (they need the USB device).
 
 import fs from 'node:fs/promises';
@@ -18,6 +22,12 @@ import { capture } from './jobs.js';
 export const ISE_TOOLS = ['xst', 'ngdbuild', 'map', 'par', 'trce', 'bitgen'];
 export const PROGRAMMERS = ['openFPGALoader', 'xc3sprog', 'djtgcfg', 'impact'];
 export const DEFAULT_SETTINGS = '/opt/Xilinx/14.7/ISE_DS/settings64.sh';
+// the ways of running ISE, and the open toolchain (no ISE)
+export const ISE_MODES = ['local', 'docker', 'ssh'];
+export const MODES = [...ISE_MODES, 'open'];
+
+/** The ISE mode used for the tasks that need ISE (in open mode: open.iseMode, e.g. building a device description). */
+export const iseModeOf = cfg => (ISE_MODES.includes(cfg.mode) ? cfg.mode : cfg.open?.iseMode || 'local');
 
 export function configDir() {
   return process.env.SILINX_CONFIG_DIR || path.join(os.homedir(), '.silinx');
@@ -29,6 +39,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   local: { settings: '' },                      // '' = auto-detect
   docker: { command: 'docker', image: '', platform: 'linux/amd64', settings: DEFAULT_SETTINGS, extraArgs: [] },
   ssh: { host: '', user: '', port: 22, identity: '', remoteDir: 'silinx-build', settings: DEFAULT_SETTINGS, image: '', sshArgs: [] },   // image: docker image on the host ('' = ISE installed there)
+  open: { iseMode: 'docker' },                  // open mode: the ISE that builds device descriptions (local|docker|ssh)
   programmer: { tool: '', cable: '' },          // global defaults (board defaults take precedence when empty)
   paths: {},                                    // explicit binary paths, e.g. { djtgcfg: '/usr/local/bin/djtgcfg' }
 });
@@ -52,7 +63,8 @@ export async function loadConfig() {
 export async function saveConfig(partial) {
   if (!partial || typeof partial !== 'object') throw Object.assign(new Error('config must be an object'), { status: 400 });
   const cfg = merge(await loadConfig(), partial);
-  if (!['local', 'docker', 'ssh'].includes(cfg.mode)) throw Object.assign(new Error(`invalid mode '${cfg.mode}' (local|docker|ssh)`), { status: 400 });
+  if (!MODES.includes(cfg.mode)) throw Object.assign(new Error(`invalid mode '${cfg.mode}' (${MODES.join('|')})`), { status: 400 });
+  if (!ISE_MODES.includes(cfg.open.iseMode)) throw Object.assign(new Error(`invalid open.iseMode '${cfg.open.iseMode}' (${ISE_MODES.join('|')})`), { status: 400 });
   for (const k of ['extraArgs']) if (!Array.isArray(cfg.docker[k])) throw Object.assign(new Error(`docker.${k} must be an array of strings`), { status: 400 });
   if (!Array.isArray(cfg.ssh.sshArgs)) throw Object.assign(new Error('ssh.sshArgs must be an array of strings'), { status: 400 });
   if (cfg.ssh.host && !/^[A-Za-z0-9._@:\-[\]]+$/.test(cfg.ssh.host)) throw Object.assign(new Error('ssh.host contains invalid characters'), { status: 400 });
@@ -167,16 +179,19 @@ export async function detectToolchain() {
   if (cfg.docker.command && cfg.docker.command !== 'docker') helpers.docker = which(cfg.docker.command);
 
   let dockerImage = null;
-  if (cfg.mode === 'docker' && helpers.docker && cfg.docker.image) {
+  if (iseModeOf(cfg) === 'docker' && helpers.docker && cfg.docker.image) {
     const r = await capture(helpers.docker, ['image', 'inspect', '--format', '{{.Id}}', cfg.docker.image], { timeoutMs: 5000 });
     dockerImage = { image: cfg.docker.image, present: r.code === 0, detail: r.code === 0 ? r.out.trim() : (r.error || r.out.trim().slice(0, 200)) };
   }
   const status = iseStatus(cfg, { ise, helpers, dockerImage });
+  // open mode: can ISE still build device descriptions (with the settings of open.iseMode)?
+  const builder = cfg.mode === 'open' ? iseStatus({ ...cfg, mode: iseModeOf(cfg) }, { ise, helpers, dockerImage }) : status;
   return {
     platform: process.platform,
     config: cfg,
     configPath: configPath(),
     ise: { ...ise, ...status },
+    deviceBuilder: { mode: iseModeOf(cfg), available: builder.available, reason: builder.reason },
     programmers,
     helpers,
     dockerImage,
@@ -208,11 +223,15 @@ export function iseStatus(cfg, det) {
     if (!cfg.ssh.host) return { mode, available: false, reason: 'no ssh host configured (ssh.host)', help };
     return { mode, available: true, reason: `remote host ${cfg.ssh.user ? cfg.ssh.user + '@' : ''}${cfg.ssh.host}${cfg.ssh.image ? ` (docker image ${cfg.ssh.image})` : ''}`, help };
   }
+  if (mode === 'open') {
+    return { mode, available: true, reason: 'open toolchain (experimental, no ISE): synthesis, place and route and bitstream by Silinx and Yosys, for the devices with a device description and a bit database (the XC3S250E)', help };
+  }
   return { mode, available: false, reason: `unknown mode '${mode}'`, help: HELP.local };
 }
 
 export const HELP = {
   local: 'Install Xilinx ISE 14.7 (WebPACK) on a Linux/Windows machine and either put its bin directory on PATH or set "local.settings" to .../14.7/ISE_DS/settings64.sh via PUT /api/toolchain. On macOS use mode "docker" (an x86-64 image containing ISE 14.7 at /opt/Xilinx/14.7/ISE_DS) or mode "ssh" (a Linux host with ISE). You can also choose "generate scripts only" and run build/run.sh on any machine with ISE.',
   docker: 'Set {"mode":"docker","docker":{"image":"<your-ise-image>","settings":"/opt/Xilinx/14.7/ISE_DS/settings64.sh"}} via PUT /api/toolchain. The image must already exist locally (Silinx never pulls/builds images). The build directory is mounted at /work and run.sh is executed there.',
+  open: 'The open toolchain needs no Xilinx tool: Implement Design and Generate Programming File run Silinx\'s own flow (Yosys synthesis, pack, place, route, bitstream) on this machine. It supports the Spartan-3E XC3S250E (Basys2-250) for now; a device whose description does not ship with Silinx can be built once from your own ISE (Toolchain Settings: Build Device Description). Use an ISE mode for the other devices.',
   ssh: 'Set {"mode":"ssh","ssh":{"host":"build-box","user":"me","remoteDir":"silinx-build","settings":"/opt/Xilinx/14.7/ISE_DS/settings64.sh"}} via PUT /api/toolchain. Password-less (key) authentication is required; the build directory is streamed with tar over ssh into <remoteDir>/<project> and the results are copied back the same way. With "image" (a docker image with ISE 14.7 on the host, e.g. on an Intel Mac) the flow runs in that image instead of an ISE installed on the host.',
 };
