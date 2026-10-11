@@ -137,7 +137,23 @@ export function toVerilog(design, { name } = {}) {
     }
   })(top);
   for (const p of top.ports) sigName.set(p.sig, esc(uniq(p.name)));
-  for (const s of design.signals) if (!sigName.has(s) && !skipSig.has(s)) sigName.set(s, esc(uniq(s.path.startsWith(prefix) ? s.path.slice(prefix.length) : s.path)));
+  // the variable of a for loop gets a plain name: Yosys 0.68 does not unroll a loop on an escaped
+  // name holding a dot (`for (\u.j = 3; …)` in an instance's process: the loop and the logic it
+  // drives vanish from the netlist; verilog-axis's FIFO inside another module)
+  const loopVars = new Set();
+  const findLoops = (x, depth = 0) => {
+    if (!x || typeof x !== 'object' || depth > 200) return;
+    if (Array.isArray(x)) { for (const y of x) findLoops(y, depth + 1); return; }
+    if (x.k === 'for' && x.init?.target?.k === 'sig') loopVars.add(x.init.target.sig);
+    for (const key of ['body', 'stmts', 'then', 'else', 'items', 'def', 'default', 'init', 'step']) if (x[key]) findLoops(x[key], depth + 1);
+    if (Array.isArray(x.cases)) for (const c of x.cases) findLoops(c.body ?? c, depth + 1);
+  };
+  for (const p of design.procs) if (!skipProc.has(p)) findLoops(p.body);
+  for (const s of design.signals) {
+    if (sigName.has(s) || skipSig.has(s)) continue;
+    const path = s.path.startsWith(prefix) ? s.path.slice(prefix.length) : s.path;
+    sigName.set(s, esc(uniq(loopVars.has(s) ? path.replace(/[^\w$]/g, '_') : path)));
+  }
 
   // ---------------- values: every expression as an unsigned, exactly-sized Verilog expression
   // fit(x, wFrom, sFrom, wTo): the value extended (by sFrom) or truncated to wTo bits. An assigned

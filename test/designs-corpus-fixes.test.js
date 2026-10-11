@@ -196,3 +196,34 @@ endmodule`)]);
   const bad = pack(nl, { ucf: `${ucf}NET "q<0>" LOC = "A10" | IOSTANDARD = LVCMOS25 ;\n`, part: 'xc3s250ecp132-4' });
   assert.throws(() => place(bad, sites, { seed: 1, effort: 0.3 }), e => e instanceof PlaceError && /bank 0.*VCCO 3.3 V, not 2.5 V/.test(e.message));
 });
+
+test('open synthesis: a for loop in an instance\'s process (its variable named after the instance: \\u.j) is not lost (verilog-axis FIFO in a wrapper)', async () => {
+  // Yosys 0.68 does not unroll `for (\u.j = 3; …)` on an escaped name with a dot: the pipeline vanished
+  const r = await diffSynth({ name: 'loop-in-instance', top: 'top', sim: { cycles: 60 }, sources: [v(`module pipe (input clk, input [7:0] d, output [7:0] q);
+  reg [7:0] p [0:3];
+  integer j;
+  always @(posedge clk) begin
+    for (j = 3; j > 0; j = j - 1) p[j] <= p[j - 1];
+    p[0] <= d;
+  end
+  assign q = p[3];
+endmodule
+module top (input clk, input [7:0] d, output [7:0] q);
+  pipe u (.clk(clk), .d(d), .q(q));
+endmodule`)] });
+  assert.equal(r.status, 'pass', r.report || `${r.stage}: ${r.reason}`);
+  assert.equal(r.cells.FDRE, 32, JSON.stringify(r.cells));
+});
+
+test('RAMB16 model: a port reading the word the other port writes at the same edge reads the old word (verilog-axis FIFO)', async () => {
+  // Yosys maps the memory's write port READ_FIRST; the model used to write port A before reading port B
+  const r = await diffSynth({ name: 'bram-collision', top: 'm', sim: { cycles: 200, ranges: { wa: [0, 3], ra: [0, 3] } }, sources: [v(`module m (input clk, input we, input [5:0] wa, input [5:0] ra, input [7:0] d, output reg [7:0] q);
+  reg [7:0] mem [0:63];
+  always @(posedge clk) begin
+    if (we) mem[wa] <= d;
+    q <= mem[ra];
+  end
+endmodule`)] });
+  assert.equal(r.status, 'pass', r.report || `${r.stage}: ${r.reason}`);
+  assert.ok(Object.keys(r.cells).some(c => /^RAMB16/.test(c)), JSON.stringify(r.cells));
+});

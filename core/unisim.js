@@ -314,7 +314,7 @@ const bram = (ws, simprim = false) => {
   const dual = ws.length === 2;
   const name = `${simprim ? 'X_' : ''}RAMB16_${ws.map((w) => `S${w}`).join('_')}`;
   const parity = ws.some((w) => BRAM_W[w][1]);
-  const ports = [], gens = [], init = [], body = [];
+  const ports = [], gens = [], init = [], body = [], writes = [], vars = [];
   ws.forEach((w, k) => {
     const [dw, pw, aw] = BRAM_W[w];
     const x = dual ? 'AB'[k] : '', g = dual ? `_${x}` : '';
@@ -325,25 +325,29 @@ const bram = (ws, simprim = false) => {
     gens.push(`INIT${g} : bit_vector(${iw - 1} downto 0) := ${hexZeros(iw)}`, `SRVAL${g} : bit_vector(${iw - 1} downto 0) := ${hexZeros(iw)}`, `WRITE_MODE${g} : string := "WRITE_FIRST"`);
     const load = (v) => [`DO${x} <= to_stdlogicvector(${v}(${dw - 1} downto 0));`, ...(pw ? [`DOP${x} <= to_stdlogicvector(${v}(${dw + pw - 1} downto ${dw}));`] : [])];
     init.push(...load(`INIT${g}`));
-    const dSl = `mem(a * ${dw} + ${dw - 1} downto a * ${dw})`, pSl = `par(a * ${pw} + ${pw - 1} downto a * ${pw})`;
+    const dSl = `mem(a${x} * ${dw} + ${dw - 1} downto a${x} * ${dw})`, pSl = `par(a${x} * ${pw} + ${pw - 1} downto a${x} * ${pw})`;
+    vars.push(`    variable a${x} : integer;`, `    variable bad${x} : boolean;`);
+    // the reads of every port first, then the writes: a port reading the word the other port writes
+    // in the same clock edge gets the old word (as the RTL's nonblocking read; Yosys maps a memory's
+    // write port as READ_FIRST for that)
     body.push(`    if rising_edge(CLK${x}) and EN${x} = '1' then
-      a := 0; bad := false;
+      a${x} := 0; bad${x} := false;
       for i in ${aw - 1} downto 0 loop
-        a := a * 2;
-        if ADDR${x}(i) = '1' then a := a + 1; elsif ADDR${x}(i) /= '0' then bad := true; end if;
+        a${x} := a${x} * 2;
+        if ADDR${x}(i) = '1' then a${x} := a${x} + 1; elsif ADDR${x}(i) /= '0' then bad${x} := true; end if;
       end loop;
       if SSR${x} = '1' then
         ${load(`SRVAL${g}`).join('\n        ')}
-      elsif bad then
+      elsif bad${x} then
         DO${x} <= (others => 'X');${pw ? ` DOP${x} <= (others => 'X');` : ''}
       elsif WE${x} /= '1' or WRITE_MODE${g} = "READ_FIRST" then
         DO${x} <= to_stdlogicvector(${dSl});${pw ? `\n        DOP${x} <= to_stdlogicvector(${pSl});` : ''}
       elsif WRITE_MODE${g} = "WRITE_FIRST" then
         DO${x} <= DI${x};${pw ? ` DOP${x} <= DIP${x};` : ''}
       end if;
-      if WE${x} = '1' and not bad then
-        ${dSl} := to_bitvector(DI${x});${pw ? `\n        ${pSl} := to_bitvector(DIP${x});` : ''}
-      end if;
+    end if;`);
+    writes.push(`    if rising_edge(CLK${x}) and EN${x} = '1' and WE${x} = '1' and not bad${x} then
+      ${dSl} := to_bitvector(DI${x});${pw ? `\n      ${pSl} := to_bitvector(DIP${x});` : ''}
     end if;`);
   });
   gens.push('SIM_COLLISION_CHECK : string := "ALL"', ...(simprim ? XBRAM_GENS : []), ...bramInitGens(parity));
@@ -358,8 +362,7 @@ begin
   process (${dual ? 'CLKA, CLKB' : 'CLK'})
     variable mem : bit_vector(16383 downto 0);${parity ? '\n    variable par : bit_vector(2047 downto 0);' : ''}
     variable started : boolean := false;
-    variable a : integer;
-    variable bad : boolean;
+${vars.join('\n')}
   begin
     if not started then
       started := true;
@@ -367,6 +370,7 @@ ${bramInitLoad(parity)}
       ${init.join('\n      ')}
     end if;
 ${body.join('\n')}
+${writes.join('\n')}
   end process;
 end silinx;`;
 };
