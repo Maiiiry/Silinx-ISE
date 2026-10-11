@@ -141,7 +141,19 @@ design (the whole logic between two registers): the PERIOD warning is expected t
 with ISE 14.7 in Docker): ISE converts each routed XDL, runs its DRC and bitgen; Silinx's .bit
 must be byte-identical (CRC on and off). `run.mjs --projects dir` writes a Silinx project for each
 design whose flow completed (the I/O wrapper and a wrapper setting the generics included);
-`boards.mjs` the board versions below. See the CHANGELOG / report of the run for the results.
+`boards.mjs` the board versions below (a design synthesized again for the packer: its
+`netlist.json`, given with `--json`).
+
+Result (2026-10-11, the 24 corpus designs whose flow completes and the 4 board designs, one ISE
+job): **every design passes ISE's DRC (0 errors, 0 warnings); 25 of 28 bitstreams are
+byte-identical to ISE's bitgen** (CRC on and off), the 4 board bitstreams among them. The 3 others
+(verilog-lfsr-prbs: 1 frame bit, spi-fpga-master: 6, verilog-axis-fifo: 57) differ only in the
+tiles of **input pads whose input drives nothing** (ports the design declares but does not use:
+`pause_req`, `s_axis_tid`…) and, for the FIFO, one left I/O tile's switches (`W6END6->E2BEG6`,
+`LH6->E6BEG0`): bit-database cases, listed below. Before the placer's VCCO fix, 4 designs
+(verilog-i2c-master, uart-for-fpga, spi-fpga-slave, verilog-lfsr-crc) failed ISE's DRC
+(PhysDesignRules:755). ISE's trce agrees with Silinx's STA within about 5% (vtr-sha 17.82 vs
+17.55 ns, siphash 18.00 vs 17.89, i2c-master 13.24 vs 13.77, the SERV board 16.97 vs 16.15).
 
 ## Board versions (Basys2-250): `boards.mjs`
 
@@ -229,7 +241,9 @@ Back end (`core/fpga`, bit database):
 - **Unused inputs**: a port that is an input of the design but drives nothing (an IOB with its
   input buffer and no load): Silinx's bitgen sets bits that ISE's bitgen clears
   (in the unused pads' tiles and in the clock pad B8's tile) (`IOB:IMUX:1`, `IDELMUX:1`…: 6 to 30 frame bits; corpus-spi /
-  corpus-prbs / corpus-serv with BTN1..3, SW1..7 declared but unused). The board tops declare only
+  corpus-prbs / corpus-serv with BTN1..3, SW1..7 declared but unused; verilog-lfsr-prbs, spi-fpga-master,
+  verilog-axis-fifo in the corpus), and a left I/O tile's `W6END6->E2BEG6` / `LH6->E6BEG0`
+  (verilog-axis-fifo). The board tops declare only
   the pins they use; the bit database needs the case measured.
 - fpu-adder: bitgen: `SLICE0:C2VDD:` / `SLICE1:C2VDD:` (a carry chain whose first input is VCC)
   are not in the bit database.
