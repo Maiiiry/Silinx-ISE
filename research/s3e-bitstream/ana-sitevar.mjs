@@ -5,7 +5,8 @@
 // before the RAM's); --center: where an instance's bits are around its tile base, to tell instances
 // apart (default 9,32: a tile of 19 frames and 64 bits)
 // A variant that sets a value gives the bits of that value against the base's (bits set by the
-// variant, "!" cleared); with the setting removed (RM_ATTR) the base value's own bits. Code variants
+// variant, "!" cleared); with the setting removed (RM_ATTR) the base value's own bits. The patterns are
+// per tile type of the instances (key.sites: only those instances were changed). Code variants
 // (code: [attr, k]) give the place of every bit of a hexadecimal value: feature ATTR:<bit i>.
 import fs from 'node:fs';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
@@ -37,7 +38,7 @@ const baseOf = i => {
 const perInst = v => {
   bases[v.base] ||= rd(v.base);
   const d = diffFrames(bases[v.base], rd(v.name));
-  const is = insts[v.base].filter(i => !v.site || i.site === v.site).map(i => ({ i, b: baseOf(i), bits: [] })).filter(x => x.b);
+  const is = insts[v.base].filter(i => (v.site ? i.site === v.site : !key.sites || key.sites.includes(i.site))).map(i => ({ i, b: baseOf(i), bits: [] })).filter(x => x.b);
   let far = 0;
   for (const x of d) {
     let best = null, bd = Infinity;
@@ -54,16 +55,18 @@ const codes = {};   // attr -> bit pattern -> code
 for (const v of key.variants) {
   if (!fs.existsSync(`${dir}/${v.name}.bit`)) { report.push(`${v.name}: missing`); continue; }
   const { is, far } = perInst(v);
-  const pats = {};
-  for (const c of is) { const p = c.bits.sort().join(' '); pats[p] = (pats[p] || 0) + 1; }
-  const best = Object.entries(pats).sort((a, b) => b[1] - a[1]);
-  report.push(`${v.name.padEnd(22)} ${Object.entries(pats).map(([p, n]) => `[${p}]x${n}`).join(' | ')}${far ? ` (+${far} far)` : ''}`);
+  // the patterns of the instances, per tile type (DCM_TL_CENTER, DCM_BR_CENTER…: each its own place)
+  const byType = {};
+  for (const c of is) { const t = c.i.tile.replace(/_X\d+Y\d+$/, ''), p = c.bits.sort().join(' '); (byType[t] ||= {})[p] = (byType[t][p] || 0) + 1; }
+  const types = Object.keys(byType);
+  report.push(`${v.name.padEnd(22)} ${types.map(t => `${types.length > 1 ? `${t}: ` : ''}${Object.entries(byType[t]).map(([p, n]) => `[${p}]x${n}`).join(' | ')}`).join(' ; ')}${far ? ` (+${far} far)` : ''}`);
+  const best = Object.entries(byType[types[0]] || {}).sort((a, b) => b[1] - a[1]);
   if (v.code) {
     // every instance the same: the code of each changed bit
     const [attr, k] = v.code;
     for (const s of (best[0]?.[0] || '').split(' ').filter(Boolean)) ((codes[attr] ||= {})[s.replace('!', '')] ||= 0, k >= 0 && (codes[attr][s.replace('!', '')] |= 1 << k));
   }
-  (feats[is[0]?.i.tile.replace(/_X\d+Y\d+$/, '')] ||= {})[v.name] = best;
+  for (const t of types) (feats[t] ||= {})[v.name] = Object.entries(byType[t]).sort((a, b) => b[1] - a[1]);
 }
 console.error(report.join('\n'));
 console.log(JSON.stringify({ feats, codes }));

@@ -147,6 +147,9 @@ export function bramBits(cfg) {
  *  pins). Site settings are `${site kind}${index}:${attr}:${value}` (value '' for a named element). */
 export function designFeatures(design, db) {
   const feats = [], luts = [], brams = [];
+  // the output pins of each instance that drive a net (a DCM's clock outputs: DCM:OUT:<pin>)
+  const outPins = new Map();
+  for (const n of design.nets) for (const o of n.outpins) (outPins.get(o.inst) || outPins.set(o.inst, new Set()).get(o.inst)).add(o.pin);
   for (const inst of design.insts) {
     if (!inst.placed) continue;
     const kind = siteKind(inst, db);
@@ -198,6 +201,11 @@ export function designFeatures(design, db) {
       if (!inst.cfg.some(c => c.attr === l && /^#(LUT|ROM|RAM):/.test(c.value))) luts.push({ site: inst.site, lut: l, bits: new Array(16).fill(0), kind: 'OFF' });
       else if (!on(out) && !(on(ff) && val(dmux) === '1')) feats.push({ tile: inst.tile, feature: `${kind}:${mux}:#OFF` });
     }
+    if (kind === 'DCM') {
+      for (const feature of dcmPeriodFeatures(val('X_CLKIN_PERIOD'), val('CLKFX_DIVIDE'), val('CLKFX_MULTIPLY'))) feats.push({ tile: inst.tile, feature });
+      // each clock output used has its own enable bit (CLKFX, CLKFX180 and the status pins none)
+      for (const pin of outPins.get(inst.name) || []) feats.push({ tile: inst.tile, feature: `DCM:OUT:${pin}` });
+    }
     // flip-flops without a clock enable: the enable is on (feature SLICEk:CEINV:#OFF)
     if (/^SLICE/.test(kind) && (on('FFX') || on('FFY')) && !on('CEINV')) feats.push({ tile: inst.tile, feature: `${kind}:CEINV:#OFF` });
     for (const c of inst.cfg) {
@@ -213,6 +221,8 @@ export function designFeatures(design, db) {
       }
       // an I/O's drive, slew and pull are the pad's own features (above)
       if (/^IOB\d/.test(kind) && /^(DRIVEATTRBOX|SLEW|PULL)$/.test(c.attr)) continue;
+      // a DCM's input period: its frequency ranges (dcmPeriodFeatures)
+      if (kind === 'DCM' && c.attr === 'X_CLKIN_PERIOD') continue;
       if ((c.attr === 'F' || c.attr === 'G') && /^#(LUT|ROM|RAM):/.test(c.value)) {
         const eq = c.value.replace(/^#\w+:/, '');
         luts.push({ site: inst.site, lut: c.attr, bits: lutBits(eq), kind: c.value.slice(1, 4) });
@@ -230,6 +240,28 @@ export function designFeatures(design, db) {
     net.pips.forEach((p, i) => feats.push({ tile: p.tile, feature: names[i] }));
   }
   return { feats, luts, brams };
+}
+
+/** A DCM's input period (X_CLKIN_PERIOD, ns) as the features of its frequency ranges (measured on
+ *  the XC3S250E's four DCMs, research/s3e-bitstream stage F): DCM:CLKIN:LOW for a period of 25 ns or
+ *  more (24.9 sets nothing); DCM:CLKFX_IN:LOW (bits shared by the two DCMs of the top or bottom pair)
+ *  when the CLKFX output is under 5 MHz, ISE computing it from CLKIN's period less a margin of
+ *  0.4-0.64 ns (CLKFX_MULTIPLY / CLKFX_DIVIDE as given, not in lowest terms), or when CLKIN is
+ *  3.33 MHz or less (5 MHz is not). Where the margin or the CLKIN limit leave ISE's choice open, the
+ *  feature DCM:CLKFX_IN:? (not in the database) refuses the design. Without a period, the range is
+ *  not known either when CLKFX_DIVIDE is 31 or more (slow even at 50 MHz). */
+export function dcmPeriodFeatures(period, divide, multiply) {
+  const p = period === undefined || period === null || period === '#OFF' ? null : parseFloat(period);
+  const d = parseInt(divide ?? '1', 10) || 1, m = parseInt(multiply ?? '4', 10) || 4;
+  if (p === null || Number.isNaN(p) || p <= 0) return d >= 31 ? ['DCM:CLKFX_IN:?'] : [];
+  const out = [];
+  const e = 1e-9;
+  if (p >= 25 - e) out.push('DCM:CLKIN:LOW');
+  const fx = margin => (1000 / (p - margin)) * m / d;   // MHz
+  const fin = 1000 / p;
+  if (fin <= 3.334 || fx(0.645) < 5 - e) out.push('DCM:CLKFX_IN:LOW');
+  else if (fin < 5 - e || fx(0.4) < 5 - e) out.push('DCM:CLKFX_IN:?');
+  return out;
 }
 
 /** The feature names of a net's PIPs: "from->to". A bidirectional PIP (XDL "a =- b") is used in one
@@ -366,11 +398,16 @@ export function frameData(design, db, device = db.format || XC3S250E) {
 /** A .bit file for a placed and routed design: { bytes (Uint8Array), unknown }. design: XDL text or
  *  a parseXdl() result. opts: name (the design file name in the header, default `${design}.ncd`),
  *  date, time, crc (default true), startupClk, part (default the database's: its layout's device and
- *  package). The format (frames, IDCODE) is the database's device's (db.format). */
+ *  package). A DCM with STARTUP_WAIT sets the COR register's wait for its lock. The format (frames, IDCODE) is the database's device's (db.format). */
 export function bitgen(design, db, opts = {}) {
   const d = typeof design === 'string' ? parseXdl(design) : design;
   const device = db.format || XC3S250E;
   const { frames, unknown } = frameData(d, db, device);
-  const bytes = writeBit({ frames, name: opts.name || `${d.name || 'design'}.ncd`, device, ...opts });
+  // a DCM with STARTUP_WAIT: the startup sequence waits for its lock (the COR register). ISE's bitgen
+  // does so only for the DCMs at the sites DCM_X0Y0, X1Y0, X0Y1, X1Y1 (measured one DCM at a time on
+  // the XC3S250E, XC3S500E and XC3S1200E: on the XC3S1200E only X0Y1 and X1Y0 of its eight; the bit of
+  // the DCM's own setting is written for every DCM)
+  const startupWait = d.insts.some(i => i.type === 'DCM' && /^DCM_X[01]Y[01]$/.test(i.site || '') && i.cfg.some(c => c.attr === 'STARTUP_WAIT' && c.value !== '#OFF'));
+  const bytes = writeBit({ frames, name: opts.name || `${d.name || 'design'}.ncd`, device, startupWait, ...opts });
   return { bytes, unknown };
 }

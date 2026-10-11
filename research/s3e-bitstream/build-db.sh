@@ -44,6 +44,8 @@ if [ -f "$W/io4/key.json" ]; then node ana-perpad.mjs "$W/io4" > "$W/perpad.json
 if [ -f "$W/io7/key.json" ] && [ -f "$W/io7/LVCMOS12_BASE.bit" ]; then node ana-perpad.mjs "$W/io7" > "$W/perstd.json" && node merge-db.mjs "$W/perstd.json"; fi
 # corrections found by comparing whole designs with ISE (check-writer.mjs, explain-diff.mjs)
 for f in measured/fix-*.json; do [ -f "$f" ] && node merge-db.mjs "$f"; done
+# the other three DCMs' settings: the top-left one's mirrored (stage F, dcm-mirror.mjs)
+node dcm-mirror.mjs > "$W/dcm-mirror.json" && node merge-db.mjs "$W/dcm-mirror.json"
 
 node gen-slicetable.mjs > db/xc3s250e-slice.json
 # block-RAM contents (gen-bram.mjs, stage D)

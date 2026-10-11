@@ -13,7 +13,8 @@ const [specFile, anaFile, type, kind] = args;
 const rmName = opt('--rm', 'RM_ALL');
 const spec = JSON.parse(fs.readFileSync(specFile, 'utf8'));
 const ana = JSON.parse(fs.readFileSync(anaFile, 'utf8')).feats;
-const pats = Object.values(ana)[0];
+// the patterns of the tile type TYPE (ana-sitevar.mjs: per tile type), or of the only one
+const pats = ana[type] || Object.values(ana)[0];
 const one = name => { const p = pats[name]; if (!p || p.length !== 1) return null; return p[0][0] ? p[0][0].split(' ') : []; };
 // a pattern as a map position -> value
 const asMap = bits => new Map(bits.map(s => [s.replace('!', ''), s[0] === '!' ? 0 : 1]));

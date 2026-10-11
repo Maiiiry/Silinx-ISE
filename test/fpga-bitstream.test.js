@@ -21,6 +21,10 @@ test('COR: the values bitgen writes (CRC off / JTAG startup clock)', () => {
   assert.equal(corValue({ crc: false }), 0x200031e5);
   assert.equal(corValue({ crc: true, startupClk: 'JtagClk' }), 0x000131e5);
   assert.equal(corValue({}), 0x000031e5);
+  // a DCM with STARTUP_WAIT: the startup sequence waits for its lock (measured: Cclk / CRC off, JtagClk / CRC on)
+  assert.equal(corValue({ crc: false, startupWait: true }), 0x2000211d);
+  assert.equal(corValue({ startupClk: 'JtagClk', startupWait: true }), 0x0001211d);
+  assert.equal(readBit(writeBit({ frames: new Uint32Array(XC3S250E.frames * XC3S250E.frameWords), startupWait: true })).cor, 0x0000211d);
 });
 
 test('CRC: writing the CRC itself (register 0) brings it back to 0', () => {

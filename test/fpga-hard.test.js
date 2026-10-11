@@ -197,7 +197,10 @@ test('multipliers: MULT18X18SIO sites, registers and inverters as ISE writes the
 test('cells the Silinx toolchain cannot implement yet are reported clearly', () => {
   const one = (type, conns, outs) => yjson({ clk: ['input', 1], o: ['output', 1] }, [...clock, { name: 'u', type, conns, outs }, obuf('o', 'y')]);
   const dcm = params => yjson({ clk: ['input', 1], o: ['output', 1] }, [...clock, { name: 'u', type: 'DCM_SP', params, conns: { CLKIN: 'clk_i', CLK0: 'y' }, outs: ['CLK0'] }, obuf('o', 'y')]);
-  assert.throws(() => pack(dcm({ STARTUP_WAIT: 'TRUE' })), /DCM_SP u: STARTUP_WAIT = TRUE is not supported yet/);
+  // STARTUP_WAIT is written (its bit and the COR register: bitgen.js, measured in stage F)
+  const sw = pack(dcm({ STARTUP_WAIT: 'TRUE' })).insts.find(i => i.type === 'DCM');
+  assert.equal(val(sw, 'STARTUP_WAIT'), 'STARTUP_WAIT');
+  assert.equal(val(pack(dcm({ STARTUP_WAIT: 'FALSE' })).insts.find(i => i.type === 'DCM'), 'STARTUP_WAIT'), undefined);
   assert.throws(() => pack(dcm({ CLKIN_DIVIDE_BY_2: 'TRUE' })), /DCM_SP u: CLKIN_DIVIDE_BY_2 = TRUE is not in the bit database yet/);
   assert.throws(() => pack(dcm({ DESKEW_ADJUST: 'SOURCE_SYNCHRONOUS' })), /DESKEW_ADJUST = SOURCE_SYNCHRONOUS is not in the bit database yet/);
   assert.throws(() => pack(one('BUFGMUX', { I0: 'clk_i', I1: 'clk_i', S: 'clk_i', O: 'y' }, ['O'])), /BUFGMUX u: the Silinx toolchain cannot switch clocks with a BUFGMUX yet/);
@@ -328,8 +331,9 @@ test('bufgReach: each output of the top-left DCM reaches its global buffer throu
   const known = knownRouting(loadDb());
   const g = loadDeviceCache('xc3s250ecp132-4');
   const got = Object.fromEntries(['CLK0', 'CLK2X', 'CLKDV', 'CLKFX', 'CLK90', 'CLKFX180'].map(p => [p, bufgReach(g, 'DCM_X0Y1', p, known.allowPip)]));
-  // (the DCM pins' switches measured in stage F of research/s3e-bitstream add CLK0 -> X2Y11 and CLKFX -> X1Y11)
-  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK90: [], CLKFX180: [] });
+  // (the DCM pins' switches measured in stage F of research/s3e-bitstream add CLK0 -> X2Y11 and CLKFX -> X1Y11;
+  // the designs of every DCM, CLK90 -> X1Y11 and CLKFX -> X2Y11: CLK90 on a global buffer is byte-identical to ISE)
+  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X2Y11', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK90: ['BUFGMUX_X1Y11'], CLKFX180: [] });
   // without the restriction: the four buffers of the top edge
   assert.deepEqual(bufgReach(g, 'DCM_X0Y1', 'CLK90').sort(), ['BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']);
 });

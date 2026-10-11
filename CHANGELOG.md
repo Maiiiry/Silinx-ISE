@@ -9,9 +9,19 @@ the "What's new" text of its GitHub release.
   (XC3S500E) and the Nexys2-1200 (XC3S1200E) have their bit databases, measured as the
   Basys2-250's was: Implement Design and Generate Programming File work for them with no Xilinx
   tool. blinky and lab11 on each are byte-identical to ISE's bitgen, with no DRC error or warning.
-  The pads are measured for the boards' packages (CP132: every I/O standard, drive, slew and pull;
-  FG320: LVCMOS33 / LVCMOS25 at the default drive, slew and pull, what the Nexys2 designs use). The tile types' bits are shared by the four devices (`research/s3e-bitstream/db`: one
+  The pads are measured for the boards' packages, every I/O standard, drive, slew and pull of every
+  pad (CP132 and FG320): the Spartan-3E Starter Kit's settings (LVTTL, drive 8 and 4, fast and slow
+  slew, pull-ups and pull-downs) work in the open toolchain too, byte-identical to ISE's bitgen.
+  The tile types' bits are shared by the four devices (`research/s3e-bitstream/db`: one
   file of tile types, the layout, LUTs, block RAMs and pads per device), read by one loader.
+- **All the DCMs measured:** the settings of every DCM of the four devices (the XC3S1200E's eight
+  too), their pins' routing, any input period (`CLKIN_PERIOD`: the DCM's frequency ranges, as ISE
+  computes them), and `STARTUP_WAIT` (the configuration waits for the DCM's lock), which the open
+  toolchain now accepts. Designs of every DCM of each device implemented by ISE give the same .bit
+  with Silinx's writer (but for the side global buffers' clock tiles, not measured yet, and the
+  XC3S1200E's long-line splitters).
+  Fixed on the way: a DCM's clock outputs CLK0, CLK2X and CLKDV had their enable bits set whether
+  they were used or not (each output used has its own bit).
 - More of the XC3S250E (and the others) measured: the DCMs' pins, the inputs and the select of
   every global clock buffer (BUFGMUX) of the top and bottom; a placement where the DCM outputs
   could not all get a global buffer is found now.
@@ -23,8 +33,8 @@ the "What's new" text of its GitHub release.
   DCM (`DCM_SP` on the top-left DCM: CLK0, CLK2X, CLKDV, CLKFX on global buffers, LOCKED; input
   period 20 ns) are packed, placed, routed and written into the bitstream with no Xilinx tool. ISE
   converts the routed designs to the same .bit with no DRC error or warning. What the bit database
-  does not have yet fails with the reason (the other DCM outputs and DCMs, `BUFGMUX` clock
-  switching, `STARTUP_WAIT`, the SRLC16 cascade). Shift registers make designs smaller (the srl
+  does not have yet fails with the reason (the DCM outputs CLK2X180 / CLKFX180 on a global buffer,
+  a second DCM, `BUFGMUX` clock switching, the SRLC16 cascade). Shift registers make designs smaller (the srl
   fixture: 63 slices instead of 79). Unused inputs no longer get a pad. Yosys's "Resizing cell
   port" messages of its block-RAM mapping are not warnings of the design.
 - **Design corpus:** 38 real open-source designs (SERV, PicoRV32, FemtoRV32, NEORV32, light8080, T80,

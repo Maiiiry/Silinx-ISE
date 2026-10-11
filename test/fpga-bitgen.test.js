@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { parseXdl } from '../core/xdl.js';
-import { makeDb, tileOf, tileBase, designFeatures, pipFeatures, frameData, bitgen, siteKind, padsFromDevice, shiftBit, featureBits, knownRouting, lutBits, bramBits } from '../core/fpga/bitgen.js';
+import { makeDb, tileOf, tileBase, designFeatures, pipFeatures, frameData, bitgen, dcmPeriodFeatures, siteKind, padsFromDevice, shiftBit, featureBits, knownRouting, lutBits, bramBits } from '../core/fpga/bitgen.js';
 import { XC3S250E, readBit, getBit, diffFrames } from '../core/fpga/bitstream.js';
 
 const FW = XC3S250E.frameWords;
@@ -234,6 +234,62 @@ const measured = () => {
   const read = f => JSON.parse(fs.readFileSync(new URL(f, dbDir), 'utf8'));
   return makeDb({ layout: read('xc3s250e-layout.json'), lut: read('xc3s250e-lut.json').lutF, tiles: read('s3e-tiles.json') });
 };
+
+test('a DCM\'s input period: its frequency ranges as measured (stage F)', () => {
+  // [period, CLKFX_DIVIDE, CLKFX_MULTIPLY] -> features, every case measured with ISE (CLKFX in MHz)
+  const f = (p, d, m = '3') => dcmPeriodFeatures(p, d, m);
+  assert.deepEqual(f('20.0000000000000000', '2'), []);
+  assert.deepEqual(f('24.9', '2'), []);
+  assert.deepEqual(f('25.0', '2'), ['DCM:CLKIN:LOW']);
+  assert.deepEqual(f('20.0', '30'), [], 'CLKFX 5.0');
+  assert.deepEqual(f('20.4', '30'), [], 'CLKFX 4.90, 5.0 with the margin');
+  assert.deepEqual(f('20.0', '31'), ['DCM:CLKFX_IN:LOW'], 'CLKFX 4.84');
+  assert.deepEqual(f('20.0', '31', '7'), [], 'CLKFX 11.3');
+  assert.deepEqual(f('20.0', '32', '4'), [], 'CLKFX 6.25');
+  assert.deepEqual(f('38.4', '16'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 4.88');
+  assert.deepEqual(f('37.8', '16'), ['DCM:CLKIN:LOW'], 'CLKFX 4.96');
+  assert.deepEqual(f('152.0', '4'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 4.93');
+  assert.deepEqual(f('150.0', '4'), ['DCM:CLKIN:LOW'], 'CLKFX 5.0');
+  assert.deepEqual(f('150.0', '6'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 3.33 (x 3 / 6, not reduced)');
+  assert.deepEqual(f('300.0', '2'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKIN 3.33 MHz');
+  assert.deepEqual(f('200.0', '2'), ['DCM:CLKIN:LOW'], 'CLKIN 5 MHz, CLKFX 7.5');
+  assert.deepEqual(f('1000.0', undefined), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW']);
+  assert.deepEqual(f('20.2', '30'), [], 'CLKFX 4.95');
+  // where the margin or the CLKIN limit leave ISE's choice open: a feature the database does not have
+  assert.deepEqual(f('20.5', '30'), ['DCM:CLKFX_IN:?'], 'CLKFX 4.88: 4.98 / 5.04 with the margins');
+  assert.deepEqual(f('250.0', '1', '2'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:?'], 'CLKIN 4 MHz');
+  // no period: a divider of 31 or more is slow even at 50 MHz
+  assert.deepEqual(f(undefined, '4'), []);
+  assert.deepEqual(f(undefined, '32'), ['DCM:CLKFX_IN:?']);
+});
+
+test('a DCM: its period ranges, an enable per clock output used, STARTUP_WAIT in the COR register', () => {
+  const dcm = (cfg, outs) => `design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "u" "DCM",placed DCM_BL_CENTER_X13Y1 DCM_X0Y0 ,
+  cfg " CLKFX_DIVIDE::4 CLKFX_MULTIPLY::2 X_CLKIN_PERIOD::40.0000000000000000 ${cfg} "
+  ;
+${outs.map(p => `net "n_${p}" ,
+  outpin "u" ${p} ,
+  ;
+`).join('')}`;
+  const names = d => designFeatures(parseXdl(d), measured()).feats.filter(f => f.tile === 'DCM_BL_CENTER_X13Y1').map(f => f.feature);
+  const n = names(dcm('', ['CLK0', 'CLKFX', 'LOCKED']));
+  for (const f of ['DCM:USED', 'DCM:CLKIN:LOW', 'DCM:OUT:CLK0', 'DCM:OUT:CLKFX', 'DCM:OUT:LOCKED']) assert.ok(n.includes(f), f);
+  assert.ok(!n.some(f => /X_CLKIN_PERIOD|CLKFX_IN|OUT:CLK2X/.test(f)), n.join());
+  const db = measured();
+  const r = bitgen(dcm('STARTUP_WAIT::STARTUP_WAIT', ['CLK0']), db, { crc: false, startupClk: 'JtagClk' });
+  assert.deepEqual(r.unknown, []);
+  const b = readBit(r.bytes);
+  assert.equal(b.cor, 0x2001211d);
+  // the bottom-left DCM's bits: STARTUP_WAIT (0,-26), CLK0's enable (0,-10), the input period (-39,-58 / -78)
+  const base = tileBase(tileOf('DCM_BL_CENTER_X13Y1', db), db);
+  for (const [df, db_] of [[0, -26], [0, -10], [-39, -58], [-39, -78]]) assert.equal(getBit(b.frames, FW, base.frame + df, base.bit + db_), 1, `${df},${db_}`);
+  assert.equal(readBit(bitgen(dcm('', ['CLK0']), db, { crc: false }).bytes).cor, 0x200031e5);
+  // ISE's bitgen waits only for the DCMs at the sites DCM_X0Y0 … X1Y1 (an XC3S1200E's DCM_X2Y0 not)
+  const x2 = bitgen(dcm('STARTUP_WAIT::STARTUP_WAIT', ['CLK0']).replace('DCM_X0Y0', 'DCM_X2Y0'), db, { crc: false });
+  assert.equal(readBit(x2.bytes).cor, 0x200031e5);
+  assert.equal(getBit(readBit(x2.bytes).frames, FW, base.frame, base.bit - 26), 1, 'the DCM\'s own STARTUP_WAIT bit');
+});
 
 test('measured database: a LUT and a slice setting where stage A and B found them', () => {
   const db = measured();

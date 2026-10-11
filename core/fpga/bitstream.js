@@ -57,9 +57,11 @@ export function crcUpdate(crc, reg, word) {
 }
 
 /** The value of the COR register for the bitgen options used here: the default startup sequence;
- *  StartUpClk Cclk (default) / UserClk / JtagClk; CRC checked unless crc is false. */
-export function corValue({ crc = true, startupClk = 'Cclk' } = {}) {
-  let cor = 0x000031e5;
+ *  StartUpClk Cclk (default) / UserClk / JtagClk; CRC checked unless crc is false. startupWait: a DCM
+ *  with STARTUP_WAIT, whose lock the startup sequence waits for (bitgen then moves the cycles of the
+ *  sequence: 0x31E5 -> 0x211D, measured with Cclk and JtagClk, research/s3e-bitstream stage F). */
+export function corValue({ crc = true, startupClk = 'Cclk', startupWait = false } = {}) {
+  let cor = startupWait ? 0x0000211d : 0x000031e5;
   const clk = String(startupClk).toLowerCase();
   if (clk === 'jtagclk') cor |= 0x00010000;
   else if (clk === 'userclk') cor |= 0x00008000;
@@ -82,9 +84,10 @@ const ascii = s => Array.from(String(s), ch => ch.charCodeAt(0) & 0xff);
 
 /** The .bit file of a configuration: { frames, name ('top.ncd'), part ('3s250ecp132'), date
  *  ('2026/10/10'), time ('12:00:00'), crc (true: bitgen's default; false: -g CRC:Disable),
- *  startupClk ('Cclk' | 'UserClk' | 'JtagClk'), device (S3E_DEVICES: the frame length, the frames,
- *  the IDCODE; default the XC3S250E; part defaults to the device's) }. Returns a Uint8Array. */
-export function writeBit({ frames, name = 'design.ncd', part = null, date = '2026/01/01', time = '00:00:00', crc = true, startupClk = 'Cclk', device = XC3S250E }) {
+ *  startupClk ('Cclk' | 'UserClk' | 'JtagClk'), startupWait (a DCM waits: corValue), device
+ *  (S3E_DEVICES: the frame length, the frames, the IDCODE; default the XC3S250E; part defaults to
+ *  the device's) }. Returns a Uint8Array. */
+export function writeBit({ frames, name = 'design.ncd', part = null, date = '2026/01/01', time = '00:00:00', crc = true, startupClk = 'Cclk', startupWait = false, device = XC3S250E }) {
   part ||= device.part;
   const fw = device.frameWords;
   if (frames.length !== device.frames * fw) throw new Error(`frame data: ${frames.length} words, expected ${device.frames * fw}`);
@@ -100,7 +103,7 @@ export function writeBit({ frames, name = 'design.ncd', part = null, date = '202
   };
   write(REG.CMD, CMD.RCRC);
   write(REG.FLR, fw - 1);
-  write(REG.COR, corValue({ crc, startupClk }));
+  write(REG.COR, corValue({ crc, startupClk, startupWait }));
   write(REG.IDCODE, device.idcode);
   write(REG.MASK, 0);
   write(REG.CMD, CMD.SWITCH);

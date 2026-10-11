@@ -768,7 +768,6 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     const p = c.params;
     const str = k => String(p[k] ?? '').trim().toUpperCase();
     const bad = why => { throw new PackError(`pack: ${c.type} ${c.name}: ${why}`); };
-    if (str('STARTUP_WAIT') === 'TRUE') bad('STARTUP_WAIT = TRUE is not supported yet (it also changes the configuration options register)');
     if (str('CLKIN_DIVIDE_BY_2') === 'TRUE') bad('CLKIN_DIVIDE_BY_2 = TRUE is not in the bit database yet');
     const deskew = str('DESKEW_ADJUST') || 'SYSTEM_SYNCHRONOUS';
     if (deskew !== 'SYSTEM_SYNCHRONOUS' && !/^([0-9]|1[0-5])$/.test(deskew)) bad(`DESKEW_ADJUST = ${deskew} is not in the bit database yet`);
@@ -787,7 +786,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       DESKEW_ADJUST: deskew === 'SYSTEM_SYNCHRONOUS' ? '7' : deskew, DFS_FREQUENCY_MODE: str('DFS_FREQUENCY_MODE') || 'LOW',
       DLL_FREQUENCY_MODE: str('DLL_FREQUENCY_MODE') || 'LOW', DUTY_CYCLE_CORRECTION: str('DUTY_CYCLE_CORRECTION') === 'FALSE' ? 'FALSE' : 'TRUE',
       PHASE_SHIFT: String(p.PHASE_SHIFT === undefined ? 0 : BigInt.asIntN(32, BigInt(paramInt(p.PHASE_SHIFT, 0)))),
-      period: real('CLKIN_PERIOD'),
+      period: real('CLKIN_PERIOD'), startupWait: str('STARTUP_WAIT') === 'TRUE',
     };
     s.loc = 'DCM_X0Y1';
   }
@@ -951,6 +950,8 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     const cfg = [['CLKDV_DIVIDE', '', d.CLKDV_DIVIDE], ['CLKOUT_PHASE_SHIFT', '', d.CLKOUT_PHASE_SHIFT], ['CLK_FEEDBACK', '', d.CLK_FEEDBACK],
       ['DESKEW_ADJUST', '', d.DESKEW_ADJUST], ['DFS_FREQUENCY_MODE', '', d.DFS_FREQUENCY_MODE], ['DLL_FREQUENCY_MODE', '', d.DLL_FREQUENCY_MODE],
       ['DUTY_CYCLE_CORRECTION', '', d.DUTY_CYCLE_CORRECTION], ['FACTORY_JF1', '', '0XC0'], ['FACTORY_JF2', '', '0X80']];
+    // the startup sequence waits for the lock (also the COR register: bitgen.js)
+    if (d.startupWait) cfg.push(['STARTUP_WAIT', '', 'STARTUP_WAIT']);
     for (const pin of ['PSCLK', 'PSEN', 'PSINCDEC', 'RST']) cfg.push([`${pin}INV`, '', s.inv.has(pin) ? `${pin}_B` : pin]);
     cfg.push(['DCM', escCfg(s.name), ''], ['CLKFX_DIVIDE', '', d.CLKFX_DIVIDE], ['CLKFX_MULTIPLY', '', d.CLKFX_MULTIPLY]);
     for (const h of ['COM', 'DFS', 'DLLC', 'DLLS', 'MISC']) cfg.push([`LL_HEX_${h}`, '', '']);
