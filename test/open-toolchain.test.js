@@ -191,7 +191,7 @@ test('open mode: a design with errors fails in Synthesize with the messages; Sto
   assert.equal(j.status, 'error');
   assert.equal(j.result.failedStep, 'synth');
   assert.match(j.error, /open toolchain failed in step 'synth'/);
-  assert.ok(j.lines.includes('ERROR:OpenFlow - the design has errors'), j.lines.join('\n'));
+  assert.ok(j.lines.includes('ERROR:Silinx - the design has errors'), j.lines.join('\n'));
   assert.ok(j.lines.some(l => /^ {2}src\/top\.v:2 .*nope/.test(l)), j.lines.join('\n'));
   assert.ok(j.lines.includes('=== SILINX FAILED synth (exit 1) ==='));
   const rep = (await app.call('GET', '/projects/Bad/reports')).body;

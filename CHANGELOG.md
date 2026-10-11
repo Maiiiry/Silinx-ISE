@@ -5,6 +5,10 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- Silinx's own messages are labelled Silinx, not XST: the design checks of Check Syntax
+  (`WARNING:Silinx:646 - Signal <…> is assigned but never used…`) keep XST's number for the same
+  finding, and their explanation says "Xilinx ISE's XST reports this as Xst:646"; the open
+  toolchain's errors are `ERROR:Silinx`. XST's own messages (ISE modes) keep `Xst`.
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **Open toolchain in the interface:** *Toolchain Settings* has a new execution mode, *Open

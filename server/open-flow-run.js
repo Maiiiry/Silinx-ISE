@@ -211,7 +211,7 @@ async function main() {
   } catch (e) {
     save();
     const msg = e instanceof StepError ? e.message : `${e.message}${e.stack ? `\n${e.stack.split('\n').slice(1, 4).join('\n')}` : ''}`;
-    console.log(`ERROR:OpenFlow - ${msg}`);
+    console.log(`ERROR:Silinx - ${msg}`);
     for (const x of e.list || []) console.log(`  ${x}`);
     if (e.hint !== '') console.log(e.hint || ISE_HINT);
     console.log(`=== SILINX FAILED ${current || 'synth'} (exit 1) ===`);
