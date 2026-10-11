@@ -3,6 +3,13 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.3
+
+- **Open synthesis: constant function calls** of a function that reads no signal (verilog-lfsr's
+  `lfsr_mask(n)` in a generate loop) are evaluated by the translator, their values literals: the
+  CRC-32 synthesizes in 2.4 s (was 160 s) and the PRBS31 in 1.7 s (was 110 s), with the same cells
+  and without the ~160 `Replacing memory … with list of registers` warnings each (#13).
+
 ## 15.10.2
 
 In short:

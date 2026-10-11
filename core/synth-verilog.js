@@ -588,9 +588,41 @@ export function toVerilog(design, { name, tables = true } = {}) {
     return { x: `${roms.get(key)}(${fit(i.x, i.w, i.s, 32)})`, w: ew, s: !!n.t.s };
   }
 
+  // a function that can be evaluated here: it reads and writes no signal and has no timing control
+  // or random value (its messages, such as an $error for a bad parameter, do not matter: a function
+  // that only has them is "impure" for the simulator)
+  const foldMemo = new Map();
+  function foldable(f) {
+    if (foldMemo.has(f)) return foldMemo.get(f);
+    foldMemo.set(f, false);   // (a recursive call: not folded)
+    let ok = true;
+    const walk = (x, d = 0) => {
+      if (!ok || !x || typeof x !== 'object' || d > 400) return;
+      if (Array.isArray(x)) { for (const y of x) walk(y, d + 1); return; }
+      if (x.k === 'sig' || x.k === 'xloc' || ['delay', 'event', 'wait', 'fork', 'waitfork', 'edge', 'now', 'sigattr'].includes(x.k)) { ok = false; return; }
+      if (x.k === 'sys' && /random|time|fopen|fclose|readmem|fgets|fscanf|feof|fread/.test(x.name || '')) { ok = false; return; }
+      if ((x.k === 'call' || x.k === 'task') && x.fn && x.fn.body && !foldable(x.fn)) { ok = false; return; }
+      for (const k in x) if (k !== 't' && k !== 'fn' && k !== 'loc' && k !== 'val') walk(x[k], d + 1);
+    };
+    walk(f.body);
+    foldMemo.set(f, ok);
+    return ok;
+  }
+
   // user functions: automatic SystemVerilog functions with the same body
   function call(n, ctx) {
     const f = n.fn;
+    // a pure function called with constant arguments (verilog-lfsr's lfsr_mask(n) in a generate
+    // loop): evaluated here, its value a literal; Yosys took ~110 s on such calls, with ~160
+    // warnings (#13)
+    if (f && f.body && foldable(f) && f.retT && f.retT.kind !== 'array' && n.args.every(a => a.k === 'c' && !Array.isArray(a.val) && a.val.str === undefined && a.val.real === undefined)) {
+      let v = null;
+      try { v = evalE(n, { frame: [], sim: null, depth: 0 }); } catch { v = null; }
+      if (v && !Array.isArray(v) && v.v !== undefined && v.str === undefined && v.real === undefined) {
+        const w = f.retT.w || v.w;
+        return { x: lit(V.resize(v, w), w), w, s: !!f.retT.s };
+      }
+    }
     if (!f || !f.body) fail(`function ${n.name || ''} cannot be synthesized (no body)`, n);
     if (!funcName.has(f)) {
       const fname = esc(uniq(`fn_${(f.name || 'f').replace(/[^\w]/g, '_')}`));

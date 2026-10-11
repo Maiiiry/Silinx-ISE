@@ -392,6 +392,38 @@ test('VHDL records: packed fields of every width, arrays of records, record port
   assert.match(text, /\[30:0\] leafs \[0:3\];/);
 });
 
+// Regression (#13): a function that reads no signal, called with constant arguments (verilog-lfsr's
+// lfsr_mask(n) in a generate loop), is evaluated by the translator: its value is a literal (Yosys
+// took ~110 s on the calls, with ~160 warnings); a call whose evaluation fails ($finish on a bad
+// argument) stays a function
+test('constant calls of signal-free functions are folded to literals; a call that fails stays a call (#13)', () => {
+  const src = vlog(`module cf(input clk, input [7:0] a, output reg [7:0] q, output [7:0] y);
+  function [7:0] mask(input integer k);
+    reg [7:0] t [0:3]; integer i;
+    begin
+      if (k > 5) begin $error("bad"); $finish; end
+      for (i = 0; i < 4; i = i + 1) t[i] = 8'h11 << i;
+      mask = t[k % 4] ^ k;
+    end
+  endfunction
+  genvar n;
+  wire [7:0] m [0:3];
+  generate for (n = 0; n < 4; n = n + 1) begin : g
+    assign m[n] = mask(n);
+  end endgenerate
+  always @(posedge clk) q <= a ^ m[a[1:0]];
+  assign y = a + mask(2);
+endmodule`, 'cf.v');
+  const { text, warnings } = equivalent([src], 'cf', { reset: 'none' });
+  assert.deepEqual(warnings, []);
+  assert.doesNotMatch(text, /fn_mask/, 'every call of constant arguments is a literal: no function left');
+  assert.match(text, /8'h46/, 'mask(2) = 8\'h44 ^ 2');
+  // (mask(9) runs $finish: not evaluated here, it stays a call)
+  const bad = toVerilog(build([vlog(src.text.replace('output [7:0] y);', 'output [7:0] y, output [7:0] z);').replace('assign y = a + mask(2);', 'assign y = a + mask(2);\n  assign z = a ^ mask(9);'), 'cf.v')], 'cf')).text;
+  assert.match(bad, /fn_mask\(32'h9\)/);
+  assert.doesNotMatch(bad, /fn_mask\(32'h2\)/);
+});
+
 test('Xilinx primitives instantiated by name stay instances with their generics; their simulation models are left out', () => {
   const src = vhd(`library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;
 entity pr is port (clk, d, ce : in std_logic; a : in std_logic_vector(3 downto 0); q, q2 : out std_logic); end pr;
