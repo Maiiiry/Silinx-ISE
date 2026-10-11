@@ -403,8 +403,11 @@ export function bitgen(design, db, opts = {}) {
   const d = typeof design === 'string' ? parseXdl(design) : design;
   const device = db.format || XC3S250E;
   const { frames, unknown } = frameData(d, db, device);
-  // a DCM with STARTUP_WAIT: the startup sequence waits for its lock (the COR register)
-  const startupWait = d.insts.some(i => i.type === 'DCM' && i.cfg.some(c => c.attr === 'STARTUP_WAIT' && c.value !== '#OFF'));
+  // a DCM with STARTUP_WAIT: the startup sequence waits for its lock (the COR register). ISE's bitgen
+  // does so only for the DCMs at the sites DCM_X0Y0, X1Y0, X0Y1, X1Y1 (measured one DCM at a time on
+  // the XC3S250E, XC3S500E and XC3S1200E: on the XC3S1200E only X0Y1 and X1Y0 of its eight; the bit of
+  // the DCM's own setting is written for every DCM)
+  const startupWait = d.insts.some(i => i.type === 'DCM' && /^DCM_X[01]Y[01]$/.test(i.site || '') && i.cfg.some(c => c.attr === 'STARTUP_WAIT' && c.value !== '#OFF'));
   const bytes = writeBit({ frames, name: opts.name || `${d.name || 'design'}.ncd`, device, startupWait, ...opts });
   return { bytes, unknown };
 }

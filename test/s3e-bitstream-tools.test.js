@@ -105,7 +105,16 @@ test('dcm-mirror: the other DCMs\' settings are the top-left one\'s mirrored, bu
     'DCM:CLKIN:LOW': ['-39,-58', '-39,-78'], 'DCM:CLKFX_IN:LOW': ['!37,-80', '37,-78'], 'DCM:RSTINV:RST': ['3,38'] });
   assert.deepEqual(mirrorFeatures(tl, 'DCM_BR_CENTER')['DCM:STARTUP_WAIT:STARTUP_WAIT'], ['18,-26']);
   assert.deepEqual(mirrorFeatures(tl, 'DCM_BR_CENTER')['DCM:CLKFX_IN:LOW'], ['!18,-80', '18,-78']);
-  assert.deepEqual(Object.keys(MIRRORS), ['DCM_TR_CENTER', 'DCM_BL_CENTER', 'DCM_BR_CENTER']);
+  assert.deepEqual(Object.keys(MIRRORS), ['DCM_TR_CENTER', 'DCM_BL_CENTER', 'DCM_BR_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_TR_CENTER', 'DCM_H_TL_CENTER']);
+  // the XC3S1200E's side DCMs, measured on each (sv-dcmh-a / sv-dcmh-b): the same four images, their own pairs
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_BR_CENTER')['DCM:CLKIN:LOW'], ['-39,121', '-39,141']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_BR_CENTER')['DCM:CLKFX_IN:LOW'], ['!0,240', '0,242']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_BL_CENTER')['DCM:STARTUP_WAIT:STARTUP_WAIT'], ['18,89']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_BL_CENTER')['DCM:CLKFX_IN:LOW'], ['!18,-144', '18,-142']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_TR_CENTER')['DCM:STARTUP_WAIT:STARTUP_WAIT'], ['0,-26']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_TR_CENTER')['DCM:CLKFX_IN:LOW'], ['!0,304', '0,306']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_TL_CENTER')['DCM:DUTY_CYCLE_CORRECTION:FALSE'], ['!18,-14']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_H_TL_CENTER')['DCM:CLKFX_IN:LOW'], ['!18,-80', '18,-78']);
   // the committed database: the three other DCMs have every setting of the top-left one, their PIPs kept
   const t = read('s3e-tiles.json').types;
   const own = Object.fromEntries(Object.entries(t.DCM_TL_CENTER.features).filter(([k]) => k.startsWith('DCM:')));

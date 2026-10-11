@@ -285,6 +285,10 @@ ${outs.map(p => `net "n_${p}" ,
   const base = tileBase(tileOf('DCM_BL_CENTER_X13Y1', db), db);
   for (const [df, db_] of [[0, -26], [0, -10], [-39, -58], [-39, -78]]) assert.equal(getBit(b.frames, FW, base.frame + df, base.bit + db_), 1, `${df},${db_}`);
   assert.equal(readBit(bitgen(dcm('', ['CLK0']), db, { crc: false }).bytes).cor, 0x200031e5);
+  // ISE's bitgen waits only for the DCMs at the sites DCM_X0Y0 … X1Y1 (an XC3S1200E's DCM_X2Y0 not)
+  const x2 = bitgen(dcm('STARTUP_WAIT::STARTUP_WAIT', ['CLK0']).replace('DCM_X0Y0', 'DCM_X2Y0'), db, { crc: false });
+  assert.equal(readBit(x2.bytes).cor, 0x200031e5);
+  assert.equal(getBit(readBit(x2.bytes).frames, FW, base.frame, base.bit - 26), 1, 'the DCM\'s own STARTUP_WAIT bit');
 });
 
 test('measured database: a LUT and a slice setting where stage A and B found them', () => {
