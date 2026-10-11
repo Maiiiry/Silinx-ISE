@@ -183,3 +183,28 @@ for (const [board, part, pkg, ucf, size] of BOARDS) {
     assert.ok(bit.includes(Buffer.from(`${part.slice(2)}${pkg}\0`)), 'the part in the header');
   });
 }
+
+// A clock with no LOC (no UCF at all): the placer puts it on a GCLK pin, a pad whose dedicated path
+// of known bits reaches a global buffer (B8 -> BUFGMUX_X2Y11, the buffer whose lines reach every
+// slice, block RAM and multiplier on known switches), and every net routes on known switches (#49:
+// feat_constmult's clock on another pad could not reach its block RAM's CLKA / CLKB). No warning.
+const NO_UCF_WARNINGS = [];
+for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s500e', 'fg320'], ['xc3s1200e', 'fg320']]) {
+  test(`the open flow with no constraints on the ${part.toUpperCase()}-${pkg.toUpperCase()}: the clock on a GCLK pin, every net routed (#49)`, { timeout: 300000 }, () => {
+    const dir = path.join(tmp, `noucf-${part}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_constmult/top.vhd'), path.join(dir, 'top.vhd'));
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: `noucf-${part}`, version: 1, device: { family: 'spartan3e', part, package: pkg, speed: '-4' }, top: 'top',
+      files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }] }));
+    const r = openFlow(dir, path.join(dir, 'out'));
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.doesNotMatch(r.stdout, /cannot be routed/);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    assert.deepEqual(r.warnings, NO_UCF_WARNINGS);
+    const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
+    const placedOf = type => [...routed.matchAll(new RegExp(`^inst "([^"]+)" "${type}",placed \\S+ (\\S+) `, 'gm'))].map(m => `${m[1]} ${m[2]}`);
+    assert.deepEqual(placedOf('IBUF').filter(s => s.startsWith('clk ')), ['clk B8']);
+    assert.deepEqual(placedOf('BUFGMUX').map(s => s.split(' ')[1]), ['BUFGMUX_X2Y11']);
+    for (const type of ['RAMB16', 'MULT18X18SIO']) assert.ok(placedOf(type).length > 0, type);
+  });
+}

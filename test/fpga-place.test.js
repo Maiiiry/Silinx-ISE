@@ -158,6 +158,37 @@ test('placement timing with the device\'s delay table: connections by their offs
   assert.ok(analyzeTiming(tg, asM, rows).dmax > analyzeTiming(tg, asL, rows).dmax);
 });
 
+test('a clock with no LOC goes on a GCLK pin: the free pad whose known dedicated path reaches the best global buffer, kept there (#49)', () => {
+  // made-up GCLK pins: P73 (bottom, input-only) reaches BUFGMUX_X2Y1, P70 reaches BUFGMUX_X1Y0,
+  // P30 (left) reaches BUFGMUX_X1Y10; no other pad has a dedicated path
+  const gclk = { P73: ['BUFGMUX_X2Y1'], P70: ['BUFGMUX_X1Y0'], P30: ['BUFGMUX_X1Y10'] };
+  const asked = [];
+  const bufgSites = (site, pin) => { asked.push(`${site}.${pin}`); return pin === 'I' ? gclk[site] || [] : []; };
+  const p = pack(load('counter'));
+  const clk = p.insts.findIndex(i => i.name === 'clk'), buf = p.insts.findIndex(i => i.kind === 'bufg');
+  for (const seed of [1, 2, 3]) {
+    const r = place(p, dev, { seed, effort: 0.3, bufgSites });
+    checkLegal(p, r);
+    // BUFGMUX_X1Y10 comes before the bottom buffers in BUFG_ORDER (ISE's B8 -> BUFGMUX_X2Y11 first)
+    assert.equal(r.sites[clk].site, 'P30', `seed ${seed}`);
+    assert.equal(r.sites[buf].site, 'BUFGMUX_X1Y10', `seed ${seed}`);
+  }
+  // only the pads' pin I is asked (no DCM in the design)
+  assert.ok(asked.length > 0 && asked.every(a => /^P\d+\.I$/.test(a)), asked.join());
+  // that pin taken by another port's LOC: the next GCLK pin
+  const taken = place(pack(load('counter'), { ucf: 'NET "en" LOC = "P30";' }), dev, { seed: 1, effort: 0.2, bufgSites });
+  assert.equal(taken.sites[clk].site, 'P73');
+  assert.equal(taken.sites[buf].site, 'BUFGMUX_X2Y1');
+  // a clock with a LOC stays on it (a pin with no dedicated path: the buffer by the pad's edge, as before)
+  const fixed = place(pack(load('counter'), { ucf: 'NET "clk" LOC = "P3";' }), dev, { seed: 1, effort: 0.2, bufgSites });
+  assert.equal(fixed.sites[clk].site, 'P3');
+  assert.equal(fixed.sites[buf].site, 'BUFGMUX_X2Y11');
+  // no GCLK pin known: any free pad, as before
+  const none = place(p, dev, { seed: 1, effort: 0.2, bufgSites: () => [] });
+  checkLegal(p, none);
+  assert.deepEqual(none.sites, place(p, dev, { seed: 1, effort: 0.2 }).sites);
+});
+
 test('placement errors: unknown LOC, input-only pad for an output, too many slices', () => {
   assert.throws(() => place(pack(load('sw'), { ucf: 'NET "sw" LOC = "Z99";' }), dev), e => e instanceof PlaceError && /Z99/.test(e.message));
   const inOnly = [...dev.pads.values()].find(p => p.inputOnly).name;
