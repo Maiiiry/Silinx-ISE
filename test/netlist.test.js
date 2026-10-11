@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
 import * as V from '../core/values.js';
-import { primitiveSources, usesUnisim, usesSimprim } from '../core/unisim.js';
+import { primitiveSources, usesUnisim, usesSimprim, vlogUsesUnisim } from '../core/unisim.js';
 import { regroupNetlist, scalarizeNetlist, parseNetgenVhdl } from '../core/netlist-hier.js';
 
 // a netgen-style post-synthesis netlist: 2-bit counter (LUTs + FDC) with an enable, IBUF/OBUF/BUFGP
@@ -686,4 +686,41 @@ end s;` }];
   r = run('DCM_SP', 'CLKIN_DIVIDE_BY_2 => TRUE, CLKFX_MULTIPLY => 3, CLKFX_DIVIDE => 1');
   assert.deepEqual(['c0', 'c90', 'cdv'].map(r.period), [40, 40, 80]);
   assert.ok(Math.abs(r.period('cfx') - 13.3) < 0.2);
+});
+
+test('Verilog instances of Xilinx primitives bring in the UNISIM models, with no library clause (#17)', () => {
+  const paths = (...srcs) => primitiveSources(srcs).map((p) => p.path);
+  const v = (text, path = 'm.v') => ({ path, lang: 'verilog', text });
+  assert.deepEqual(paths(v('module m(input c, output g); BUFG b0 (.I(c), .O(g)); endmodule')), ['<silinx>/unisim.vhd']);
+  assert.deepEqual(paths(v("module m; FDCE #(.INIT(1'b0)) r (.C(c)); RAMB16_S9 ram [1:0] (.CLK(c)); endmodule")), ['<silinx>/unisim.vhd']);
+  // the language from the path when a source has none
+  assert.deepEqual(paths({ path: 'm.v', text: 'module m; BUFG b0 (.I(c)); endmodule' }), ['<silinx>/unisim.vhd']);
+  // not: in comments, in another case (Verilog is case-sensitive), a function call, or a module of the project
+  assert.deepEqual(paths(v('module m; // BUFG b0 (.I(c));\n /* FD f (.C(c)); */ endmodule')), []);
+  assert.deepEqual(paths(v('module m; Bufg b0 (.I(c)); bufg b1 (.I(c)); endmodule')), []);
+  assert.deepEqual(paths(v('module m; wire x = FOO(1); endmodule')), []);
+  assert.deepEqual(paths(v('module BUFG(input I, output O); assign O = I; endmodule'), v('module m; BUFG b0 (.I(c), .O(g)); endmodule', 'n.v')), []);
+  assert.deepEqual(paths({ path: 'b.vhd', lang: 'vhdl', text: 'entity BUFG is end BUFG;' }, v('module m; BUFG b0 (.I(c)); endmodule')), []);
+  assert.equal(vlogUsesUnisim('module m; BUFG b0 (.I(c)); endmodule', new Set(['BUFG'])), false);
+  // a library already among the sources is not repeated (a netlist that came with its models)
+  const uni = primitiveSources([v('module m; BUFG b0 (.I(c)); endmodule')])[0];
+  assert.deepEqual(paths(uni, v('module m; BUFG b0 (.I(c)); endmodule')), []);
+});
+
+test('a Verilog design simulates with the Xilinx primitives it instantiates (BUFG, FDE, LUT4) (#17)', () => {
+  const tb = { path: 'tb.v', lang: 'verilog', text: `module tb;
+  reg clk = 0, d = 0; wire q, gclk, q2, o; wire [3:0] a = 4'b0101;
+  BUFG b0 (.I(clk), .O(gclk));
+  FDE #(.INIT(1'b0)) f0 (.C(gclk), .CE(1'b1), .D(d), .Q(q));
+  FD f1 (.C(gclk), .D(q), .Q(q2));
+  LUT4 #(.INIT(16'h0020)) l0 (.I0(a[0]), .I1(a[1]), .I2(a[2]), .I3(a[3]), .O(o));
+  always #5 clk = ~clk;
+  initial begin #2 $display("o=%b q=%b", o, q); #10 d = 1; #20 $display("q=%b q2=%b", q, q2); $finish; end
+endmodule` };
+  const lib = compile([...primitiveSources([tb]), tb]);
+  const d = elaborate(lib, 'tb');
+  assert.deepEqual([...lib.errors, ...d.diags].map((e) => `${e.severity} ${e.file}:${e.line} ${e.message}`), []);
+  const sim = new Simulator(d);
+  sim.run(1e6);
+  assert.deepEqual(sim.log.map((l) => l.text), ['o=1 q=0', 'q=1 q2=1', 'simulation finished ($finish) at 32 ns']);
 });

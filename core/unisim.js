@@ -733,9 +733,43 @@ export const UNISIM_SOURCE = { path: '<silinx>/unisim.vhd', lang: 'vhdl', text: 
 export const SIMPRIM_SOURCE = { path: '<silinx>/simprim.vhd', lang: 'vhdl', text: SIMPRIM_VHDL };   // needs UNISIM_SOURCE (LUT4)
 export const usesSimprim = (text) => /\blibrary\s+simprim\b/i.test(String(text || ''));
 
-/** Library sources to compile with `sources` (netlists written by netgen). */
+let PRIM_NAMES = null;   // the UNISIM primitives' names (BUFG, FDCE, RAMB16_S9, DCM_SP …)
+const primNames = () => (PRIM_NAMES ??= new Set([...UNISIM_VHDL.matchAll(/^entity\s+(\w+)\s+is\b/gim)].map((m) => m[1].toUpperCase())));
+const isVerilog = (s) => s.lang ? s.lang === 'verilog' : /\.(v|vh|sv)$/i.test(String(s.path || ''));
+const stripVlogComments = (t) => String(t || '').replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/.*$/gm, '');
+
+/**
+ * True if a Verilog source instantiates a Xilinx primitive (`BUFG b (.I(c), .O(g));`,
+ * `FDCE #(.INIT(1'b0)) r (…);`) that is not one of `defined` (the names of the project's own
+ * modules / entities, upper case). XST knows the UNISIM primitives in Verilog without a library
+ * clause (#17); their names are upper case there (Verilog is case-sensitive).
+ */
+export function vlogUsesUnisim(text, defined = new Set()) {
+  const prims = primNames();
+  const re = /(?:^|[;\s)])([A-Z][A-Z0-9_]*)(?![\w$])\s*(?:#\s*\(|[A-Za-z_][\w$]*\s*(?:\[[^\]]*\]\s*)?\()/g;
+  for (const m of stripVlogComments(text).matchAll(re)) if (prims.has(m[1]) && !defined.has(m[1])) return true;
+  return false;
+}
+
+/**
+ * Library sources to compile with `sources`: Silinx's UNISIM models for netlists written by
+ * netgen and designs that instantiate primitives (VHDL `library UNISIM`, or a Verilog instance of
+ * one), and SIMPRIM's for netgen's post-implementation netlists. Libraries already among
+ * `sources` are not repeated.
+ */
 export function primitiveSources(sources) {
-  const texts = (sources || []).map((s) => s.text);
+  const list = sources || [];
+  const texts = list.map((s) => s.text);
   const sim = texts.some(usesSimprim);
-  return sim || texts.some(usesUnisim) ? [UNISIM_SOURCE, ...(sim ? [SIMPRIM_SOURCE] : [])] : [];
+  let uni = sim || texts.some(usesUnisim);
+  if (!uni && list.some(isVerilog)) {
+    const defined = new Set();
+    for (const s of list) {
+      const t = isVerilog(s) ? stripVlogComments(s.text) : String(s.text || '');
+      for (const m of t.matchAll(isVerilog(s) ? /\b(?:module|macromodule|primitive)\s+([A-Za-z_]\w*)/g : /\bentity\s+([A-Za-z_]\w*)\s+is\b/gi)) defined.add(m[1].toUpperCase());
+    }
+    uni = list.some((s) => isVerilog(s) && vlogUsesUnisim(s.text, defined));
+  }
+  const have = new Set(list.map((s) => s.path));
+  return [...(uni ? [UNISIM_SOURCE] : []), ...(sim ? [SIMPRIM_SOURCE] : [])].filter((s) => !have.has(s.path));
 }

@@ -7,6 +7,7 @@
 import { api } from './api.js';
 import { h, alertDlg, toast } from './ui.js';
 import { compile, elaborate, simulate } from '/core/compile.js';
+import { primitiveSources } from '/core/unisim.js';
 import { clocksOf } from '/core/schematic.js';
 import { tbPorts, guessClockReset, makeVectors, parseValue, parseDrive, showValue, generateTestbench, generateSkeleton, expectedFromTrace, MAX_VECTORS } from '/core/testbench.js';
 import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere } from './wizards.js';
@@ -255,7 +256,7 @@ export async function testBenchWizard({ module, name = null, location = null, la
       const name = `${tbName.value.trim()}_trace`;
       const text = generateTestbench(tbOpts(vectors, { name, trace: true }));
       const tb = { path: `${name}.${lang.value === 'vhdl' ? 'vhd' : 'v'}`, lang: lang.value, text };
-      const r = simulate([...designSources(), tb], name, { until: 1e15 });
+      const r = simulate([...primitiveSources([...designSources(), tb]), ...designSources(), tb], name, { until: 1e15 });
       if (r.errors.length) throw new Error(r.errors.slice(0, 3).map(e => `${e.file}:${e.line} ${e.message}`).join('\n'));
       const exp = expectedFromTrace(r.sim.log.map(l => l.text), chk(), rows.length);
       if (exp.some(e => !e)) throw new Error('the simulation did not reach every vector');

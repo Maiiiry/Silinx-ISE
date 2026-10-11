@@ -290,3 +290,42 @@ end Structure;
   await page.waitNoDialog();
   assert.equal(await page.eval(() => !!window.SilinxApp.findDoc('isim')), false);
 });
+
+uiTest('Verilog design with Xilinx primitives (BUFG, FDCE): Check Syntax and Simulate Behavioral Model find them, no library clause (#17)', E, async (page) => {
+  const TOP = `module top (input clk, input clr, input d, output q);
+  wire gclk;
+  BUFG ub (.I(clk), .O(gclk));
+  FDCE #(.INIT(1'b0)) uf (.C(gclk), .CE(1'b1), .CLR(clr), .D(d), .Q(q));
+endmodule
+`;
+  const TB = `module tb_top;
+  reg clk = 0, clr = 1, d = 0; wire q;
+  top uut (.clk(clk), .clr(clr), .d(d), .q(q));
+  always #5 clk = ~clk;
+  initial begin
+    #12 clr = 0; d = 1;
+    #20 if (q === 1'b1) $display("TEST PASSED"); else $display("TEST FAILED q=%b", q);
+    $finish;
+  end
+endmodule
+`;
+  await makeProject(env, { name: 'PrimV', board: 'basys2', top: 'top', files: { 'src/top.v': TOP, 'sim/tb_top.v': TB }, roles: { 'sim/tb_top.v': 'sim' } });
+  await page.openProject('PrimV');
+  // the project's modules are its own: the primitives are not listed as modules
+  await page.waitFor(() => (window.Silinx.modules || []).length > 0, [], { what: 'modules compiled' });
+  assert.deepEqual(await page.eval(() => window.Silinx.modules.map((m) => m.name).sort()), ['tb_top', 'top']);
+  await page.treeRow('#hier', 'top');
+  await page.treeRow('#procs', 'Check Syntax', { dbl: true, exact: true });
+  await page.waitFor(() => /Process "Check Syntax" (completed successfully|failed)/.test(document.getElementById('console-log').innerText), [], { what: 'Check Syntax done' });
+  const log = await page.eval(() => document.getElementById('console-log').innerText.split('Started : "Check Syntax"').pop());
+  // no 'module/entity BUFG not found', and no warning (d, read only at the FDCE's clock edge, is used)
+  assert.match(log, /Process "Check Syntax" completed successfully\s*$/);
+  assert.doesNotMatch(log, /not found|WARNING/);
+  assert.equal(await page.eval(() => document.getElementById('console-errors').innerText.trim()), 'No messages.');
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_top');
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return /TEST (PASSED|FAILED)/.test(t) ? t : null; }, [], { timeout: 20000, what: 'TEST PASSED / FAILED' });
+  assert.match(out, /TEST PASSED/);
+});

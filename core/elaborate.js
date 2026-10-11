@@ -242,6 +242,9 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
       const proc = addProc(E, { name: mod.name.toUpperCase(), kind: 'native', mode: 'native', native: nat.fn, body: { k: 'null' },
         triggers: nat.inputs.map((sig) => ({ sig, edge: 'any' })), lang: 'vhdl', loc: mod.loc, file: inst.file, inst });
       proc.writes = new Set(nat.outputs);
+      // it reads every input pin, not only the ones that trigger it (a flip-flop's D, CE, R: sampled
+      // at the clock edge): the design checks see them used (no 'Input <d> is never used.')
+      proc.reads = new Set([...nat.inputs, ...inst.ports.filter(pt => pt.dir !== 'out').map(pt => pt.sig)].filter(Boolean));
       return inst;
     }
   }

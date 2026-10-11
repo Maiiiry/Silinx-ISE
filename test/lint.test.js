@@ -566,3 +566,21 @@ endmodule
   assert.deepEqual(lintProject([{ path: 'dec.vhd', text: dec }], ['dec']), []);
   assert.deepEqual(lintProject([{ path: 'vfsm.v', text: vfsm }], ['vfsm']), []);
 });
+
+test('an input read only by a primitive\'s sampled pin (FDCE D / CE) is used; an input read by nothing still is not (VHDL and Verilog)', () => {
+  const v = lint({ 'top.v': `module top (input clk, input clr, input d, input ce, input spare, output q);
+  wire gclk;
+  BUFG ub (.I(clk), .O(gclk));
+  FDCE #(.INIT(1'b0)) uf (.C(gclk), .CE(ce), .CLR(clr), .D(d), .Q(q));
+endmodule
+` }, 'top');
+  assert.deepEqual(v.map(d => `${d.severity} ${d.line} ${d.tool} ${d.message}`), ['warning 1 Silinx:647 Input <spare> is never used.']);
+  const h = lint({ 'top.vhd': `library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;
+entity top is port (clk, clr, d, ce, spare : in std_logic; q : out std_logic); end top;
+architecture a of top is signal gclk : std_logic; begin
+  ub : BUFG port map (I => clk, O => gclk);
+  uf : FDCE generic map (INIT => '0') port map (C => gclk, CE => ce, CLR => clr, D => d, Q => q);
+end a;
+` }, 'top');
+  assert.deepEqual(h.map(d => `${d.severity} ${d.line} ${d.tool} ${d.message}`), ['warning 2 Silinx:647 Input <spare> is never used.']);
+});

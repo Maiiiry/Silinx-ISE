@@ -4,6 +4,7 @@ import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, menuBar, splitter, toast, downloadText } from './ui.js';
 import { createEditor, instTemplate, SNIPPETS, defineUcfMode, typeText } from './editor.js';
 import { compile, elaborate, topCandidates } from '/core/compile.js';
+import { primitiveSources } from '/core/unisim.js';
 import { Simulator } from '/core/simulator.js';
 import { buildSchematic } from '/core/schematic.js';
 import * as wiz from './wizards.js';
@@ -120,6 +121,10 @@ onLanguageChange(() => renderDiagnostics());
 export function status(text) { $('status-text').textContent = text; }
 
 // ------------------------------------------------------------------ compile
+// Sources plus Silinx's UNISIM models when they instantiate Xilinx primitives (VHDL `library
+// UNISIM`, a Verilog BUFG / FDCE … instance, #17), for elaborating a design. The project's module
+// list (compileProject) is compiled without them: the primitives are not project modules.
+const withPrimitives = srcs => [...primitiveSources(srcs), ...srcs];
 export function compileProject() {
   if (!S.project) return;
   const srcs = S.sources.filter(s => s.lang === 'vhdl' || s.lang === 'verilog');
@@ -672,7 +677,7 @@ async function checkSyntaxInner(mod, sim, id) {
   log(`\nStarted : "${sim ? 'Behavioral Check Syntax' : 'Check Syntax'}".\n`, 'hdr');
   const srcs = S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && inView(s.role, sim));
   for (const s of srcs) log(`${s.lang === 'vhdl' ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${s.path}" into library work`);
-  const lib = compile(srcs);
+  const lib = compile(withPrimitives(srcs));
   const design = elaborate(lib, mod);
   const diags = diagsFor(lib, design, designDiags(lib, design));   // + design checks (core/lint.js)
   setDiagnostics(diags);
@@ -693,7 +698,7 @@ function hdlDiagnostics(path, text, info = []) {
   const sim = fi?.role === 'sim';
   const srcs = S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && (inView(s.role, sim) || s.path === path))
     .map(s => (s.path === path && text != null ? { ...s, text } : s));
-  const lib = compile(srcs);
+  const lib = compile(withPrimitives(srcs));
   const units = (lib.parsed.find(p => p.file === path)?.units || []).filter(u => u.kind === 'module');
   let diags = [...lib.errors];
   for (const u of units) {
@@ -1063,7 +1068,6 @@ async function synthOpen(mod) {
     log(`\nStarted : "${SYNTH_OPEN}".\n`, 'hdr');
     const family = S.project.device?.family || 'spartan3e';
     const srcs = S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && inView(s.role, false));
-    const { primitiveSources } = await import('/core/unisim.js');
     const design = elaborate(compile([...primitiveSources(srcs), ...srcs]), mod);
     const { synthesizeOpen } = await import('/core/synth-open.js');
     const { yosysBrowser } = await import('./yosys-client.js');
@@ -1394,7 +1398,6 @@ async function netlistSources(step, { hier = false } = {}) {
   const stage = { postsynth: 'synth', posttrans: 'translate', postmap: 'map', postpar: 'par' }[step];
   if (S.status[stage] === 'stale' || S.status[step] === 'stale') log(`WARNING: the ${name.toLowerCase()} model is older than the sources (run "${EXTRA_STEPS[step]}" again to update it).`, 'warn');
   const raw = await api.readFile(S.project.name, m.path);
-  const { primitiveSources } = await import('/core/unisim.js');
   const { scalarizeNetlist, regroupNetlist } = await import('/core/netlist-hier.js');
   // single-bit nets simulate several times faster than netgen's vector signals (same behaviour);
   // the technology schematic regroups the flat netlist by the design's own instances
@@ -1420,7 +1423,7 @@ async function openSchematic(mod, { netlist = null } = {}) {
   await saveAll();
   const sim = S.view === 'sim';
   const srcs = netlist || S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && inView(s.role, sim));
-  const lib = compile(srcs);
+  const lib = compile(withPrimitives(srcs));
   const design = elaborate(lib, mod);
   const diags = diagsFor(lib, design);
   setDiagnostics(diags);
@@ -1509,7 +1512,7 @@ async function runSimulationInner(mod, model) {
   setStatus(procId, 'running');
   log(`\nStarted : "${title}".\n\nBuilding simulation model for top '${mod}'${model ? ` with the ${SIM_MODEL_NAMES[model].toLowerCase()} netlist of '${S.project.top}'` : ''}...`, 'hdr');
   const srcs = [...S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && inView(s.role, true)), ...(net || [])];   // no implementation-only files
-  const lib = compile(srcs);
+  const lib = compile(withPrimitives(srcs));
   if (model) lib.errors = lib.errors.filter(e => !/redefined/.test(e.message));
   const design = elaborate(lib, mod);
   const files = await readDataFiles();
@@ -1563,7 +1566,7 @@ async function openEmulator(mod, { scale, model = null } = {}) {
   const { timingGenerics, autoTimeScale, scaledGenerics } = await import('/core/emulate.js');
   let design, lib, gens = [];
   try {
-    lib = compile(srcs);
+    lib = compile(withPrimitives(srcs));
     design = elaborate(lib, mod);
     if (!design.top) throw new Error(design.diags.map(d => d.message).join('; ') || `cannot elaborate '${mod}'`);
     // large timing generics (dividers, debouncers) divided so that the design visibly runs

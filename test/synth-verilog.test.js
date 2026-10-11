@@ -358,6 +358,26 @@ end a;`);
   assert.doesNotMatch(text, /started|rising_edge|\bus\.r\b/i, 'nothing of the simulation model');
 });
 
+test('Xilinx primitives instantiated from Verilog (no library clause) stay instances with their parameters (#17)', () => {
+  const src = vlog(`module pv (input clk, d, ce, input [3:0] a, output q, q2, q3);
+  wire clkb, s;
+  BUFG ub (.I(clk), .O(clkb));
+  SRL16E #(.INIT(16'hA5C3)) us (.CLK(clkb), .CE(ce), .D(d), .A0(a[0]), .A1(a[1]), .A2(a[2]), .A3(a[3]), .Q(s));
+  FDE #(.INIT(1'b1)) uf (.C(clkb), .CE(ce), .D(s), .Q(q3));
+  assign q = s;
+  reg r = 1'b0;
+  always @(posedge clkb) r <= s ^ d;
+  assign q2 = r;
+endmodule`, 'pv.v');
+  const prims = primitiveSources([src]);
+  assert.deepEqual(prims.map(p => p.path), ['<silinx>/unisim.vhd']);
+  const { text, primitives, warnings } = equivalent([...prims, src], 'pv', { reset: 'none' });
+  assert.deepEqual(primitives.sort(), ['BUFG', 'FDRE', 'SRL16E']);   // (FDE: the FDRE Yosys knows, R tied low)
+  assert.deepEqual(warnings, []);
+  assert.match(text, /SRL16E #\(\n {4}\.INIT\(16'ha5c3\)\n {2}\) us \(/);
+  assert.match(text, /BUFG ub \(\n {4}\.I\(clk\),\n {4}\.O\(clkb\)\n {2}\);/);
+});
+
 // ---------------------------------------------------------------- the fixture designs
 // test/fixtures/designs/<design>: sources and design.json (top, files, the `sim` section with the
 // stimulus, as test/netgen-fixtures.test.js uses it). Each design is translated; the translation is
