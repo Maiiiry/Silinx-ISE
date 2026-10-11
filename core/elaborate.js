@@ -815,7 +815,13 @@ function elabType(E, ts, allowUnconstrained = false) {
     case 'boolean': return BOOL;
     case 'time': return TIME;
     case 'real': return REAL;
-    case 'string': return STR;
+    // string(1 to n): its length, for its default value (n times character'left: a variable that is
+    // then written character by character, neorv32's to_hexstring_f)
+    case 'string': {
+      if (!ts.range) return STR;
+      const r = evalRange(E, ts.range);
+      return { ...STR, slen: rangeLen(r) };
+    }
     case 'character': return CHAR;
     case 'array': {
       const elem = elabType(E, ts.elem);
@@ -932,7 +938,7 @@ export function defaultValue(t, lang, net) {
     case 'enum': return V.mk(t.w, 0n);
     case 'time': return V.fromInt(0, 64, true);
     case 'real': return V.fromInt(0, 64, true);
-    case 'str': return { str: '' };
+    case 'str': return { str: t.slen ? '\u0000'.repeat(t.slen) : '' };
     case 'array':
       if (t.fields) return t.fields.map(f => defaultValue(f.t, lang, net));
       return t.unconstrained ? [] : Array.from({ length: t.len }, () => defaultValue(t.elem, lang, net));

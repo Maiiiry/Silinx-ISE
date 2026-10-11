@@ -348,3 +348,20 @@ end a;`;
   assert.deepEqual(diags(src, 'tb').map(d => `${d.severity} ${d.line} ${d.message}`),
     ["warning 7 procedure 'write' (textio) is not supported", "warning 7 procedure 'writeline' (textio) is not supported"]);
 });
+
+// Regression (#70): a constrained string variable has its n characters (character'left each) from
+// the start; it was empty (the parser dropped the range), so writing a character failed
+test('constrained string variables: string(1 to n) in a process and in a function, n from a parameter (#70)', () => {
+  const r = outW(vproc(`
+    v(2) := 'b';
+    report integer'image(v'length) & " " & v(2) & " " & boolean'image(v(1) = character'left);
+    report hx(x"12") & " " & integer'image(hx(x"ABCD")'length);`,
+  `variable v : string(1 to 3);`,
+  `function hx(d : std_ulogic_vector) return string is
+     variable s : string(1 to d'length / 4);
+   begin
+     for i in 0 to d'length / 4 - 1 loop s(i + 1) := character'val(65 + i); end loop;
+     return s;
+   end function;`));
+  assert.deepEqual(r, ['3 b true', 'AB 4']);
+});

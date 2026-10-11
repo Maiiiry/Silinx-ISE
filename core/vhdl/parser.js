@@ -1775,7 +1775,7 @@ function makeType(name, range, hasRange) {
     case 'positive': return { kind: 'integer', range: hasRange ? range : { left: int(1), right: int(INT_MAX), dir: 'to' } };
     case 'boolean': return { kind: 'boolean' };
     case 'time': case 'delay_length': return { kind: 'time' };
-    case 'string': return { kind: 'string' };
+    case 'string': return hasRange && range ? { kind: 'string', range } : { kind: 'string' };
     case 'real': return { kind: 'real' };
     default: {
       const t = { kind: 'named', name };

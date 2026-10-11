@@ -139,6 +139,14 @@ In detail:
   function, as light8080's `objcode_to_bram`) are simulated (#11).
 - **VHDL file objects** (`file f : TEXT open write_mode is "log.txt";`, `file` parameters, `LINE`
   variables) elaborate; the textio calls on them are still ignored, with their warning.
+- **Open synthesis: VHDL bit indexes by `to_integer`** (`sh(to_integer(cnt)) <= din`) are the
+  vector itself for Yosys, no longer a 32-bit signed index: nandland's SPI master in VHDL is 49
+  LUTs (was 74; 46 in Verilog), and a small receiver gives exactly the Verilog design's cells. A
+  signal driven only by a constant (`w_cpol <= '1' when MODE = 2 else '0';`) is read as that
+  constant, so a reset value that names it is a constant (#14).
+- **VHDL: constrained string variables** (`variable v : string(1 to n);`) start with their n
+  characters; they were empty, so writing a character into one stopped the simulation (neorv32's
+  version banner) (#70).
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and

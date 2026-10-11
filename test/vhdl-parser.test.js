@@ -256,7 +256,7 @@ describe('types and declarations', () => {
     assert.deepEqual(t.k, { kind: 'integer', range: { left: I(0), right: I(9), dir: 'to' } });
     assert.deepEqual(t.l, { kind: 'boolean' });
     assert.deepEqual(t.m, { kind: 'time' });
-    assert.deepEqual(t.n, { kind: 'string' });
+    assert.deepEqual(t.n, { kind: 'string', range: { left: { op: 'int', value: '1' }, right: { op: 'int', value: '4' }, dir: 'to' } });   // (its length kept, #70)
     assert.deepEqual(t.o, { kind: 'real' });
     assert.deepEqual(t.p, { kind: 'named', name: 'my_type' });
     assert.deepEqual(t.q, LOGIC);
