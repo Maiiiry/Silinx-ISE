@@ -68,6 +68,10 @@ the "What's new" text of its GitHub release.
   (`WARNING:Silinx:863 - Name conflict (<scorer> and <scoreR>, …)`) (#38). The checks without an
   XST number are labelled `Silinx`, no longer `Lint`, and the `$clog2` warning is at the line of
   its declaration or parameter, no longer at line 1 (#16).
+- **Verilog: `$clog2` inside a constant function:** `$clog2` of the function's own argument
+  (`function integer f(input integer v); f = $clog2(v); endfunction` with `localparam W = f(N);`)
+  was refused as `expression is not constant`. It now folds when the function is evaluated as a
+  constant, and works at run time too (#59).
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and

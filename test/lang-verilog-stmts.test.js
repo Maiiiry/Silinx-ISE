@@ -3,7 +3,7 @@
 // (IEEE 1364-2005 §3–§12, §17, §19).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { out, sim, vinit, vlog } from './lang-util.js';
+import { out, sim, vinit, vlog, diags } from './lang-util.js';
 
 test('reg / wire / integer defaults: reg and integer start as x, an undriven wire is z', () => {
   const r = out(vinit(`#1 $display("%b %b %0d %b", r, w, i, t);`, `reg [3:0] r; wire [3:0] w; integer i; tri t;`));
@@ -142,6 +142,25 @@ test('functions: automatic recursive, functions calling functions, integer and v
     $display("%h", rev(rev(8'hA7)));
   end`));
   assert.deepEqual(r, ['3628800 11000000 7 7', 'a7']);
+});
+
+test('$clog2 of a constant function\'s own argument folds when the function is called as a constant (#59)', () => {
+  const src = `module tb;
+  parameter N = 9;
+  function integer f(input integer v); f = $clog2(v); endfunction
+  localparam Z = f(5), Y = f(N), A0 = f(0), A1 = f(1), A2 = f(2), K = f(1024), K1 = f(1025);
+  reg [Y-1:0] r;
+  integer k; reg [7:0] b;
+  initial begin
+    $display("%0d %0d %0d %0d %0d %0d %0d %0d", Z, Y, A0, A1, A2, K, K1, $bits(r));
+    for (k = 0; k < 6; k = k + 1) $write("%0d ", f(k));
+    b = 8'd200; $display("| %0d", $clog2(b));
+  end
+endmodule`;
+  assert.deepEqual(out(src, 'tb'), ['3 4 0 0 1 10 11 4', '0 0 1 2 2 3 | 8']);
+  // the XST warning, once per $clog2 written (ISE 14.7 has no $clog2), and nothing else
+  const w = '$clog2 is not supported by XST (ISE 14.7); use a constant function instead';
+  assert.deepEqual(diags(src, 'tb').map(d => `${d.severity} ${d.line} ${d.message}`), [`warning 3 ${w}`, `warning 10 ${w}`]);
 });
 
 test('tasks: input / output / inout arguments, timing inside tasks, automatic tasks', () => {

@@ -1765,9 +1765,23 @@ function bindVlogCall(E, e, expect, loc) {
       }
       case '$clog2': {
         diag(E, '$clog2 is not supported by XST (ISE 14.7); use a constant function instead', loc, 'warning', 'Silinx');   // (Silinx's own message)
-        const v = V.toBig(constOf(E, A(0), loc));
-        let r = 0; while ((1n << BigInt(r)) < v) r++;
-        return { k: 'c', val: V.fromInt(r), t: INT };
+        const a = A(0);
+        if (isConstNode(a)) {
+          const v = V.toBig(constOf(E, a, loc));
+          let r = 0; while ((1n << BigInt(r)) < v) r++;
+          return { k: 'c', val: V.fromInt(r), t: INT };
+        }
+        // a non-constant argument (a constant function's own argument, #59): the number of powers of
+        // two below the value, sum of (a > 2**i) for i < its width; folds when the call is evaluated
+        const w = Math.max(1, a.t.w), ut = vecT(w, false);
+        const ua = { k: 'conv', a, ext: !!a.t.s, t: ut };
+        let sum = cI(0);
+        for (let i = 0; i < w; i++) {
+          const p2 = { k: 'c', val: V.fromInt(1n << BigInt(i), w, false), t: ut };
+          const gt = { k: 'bin', o: '>', a: ua, b: p2, t: BIT };
+          sum = { k: 'bin', o: '+', a: sum, b: { k: 'conv', a: gt, ext: false, t: INT }, t: INT };
+        }
+        return fold(sum);
       }
       case '$bits': { const t = T(0); return cI(t.kind === 'array' && !t.fields ? t.len * t.elem.w : t.w); }
       // array queries (IEEE 1800-2017 20.7) of dimension d (1: the first unpacked one, or the
