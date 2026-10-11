@@ -19,6 +19,16 @@ import { instArcs, SPEED_4 } from './timing.js';
 
 export class PlaceError extends Error {}
 
+// I/O banks of the Spartan-3E: one per side (top 0, right 1, bottom 2, left 3), named by the I/O
+// tile (TIOIS, RIOIS_PCI, BIBUFS, LIOIS_CLK_PCI…). Every I/O of a bank, input or output, shares the
+// bank's output voltage (VCCO), which its I/O standard sets: ISE's DRC refuses a mix
+// (PhysDesignRules:755, "IOB comp … is VCCO incompatible for bank …").
+export const bankOfPad = p => ({ T: 0, R: 1, B: 2, L: 3 })[String(p.tile || '')[0]] ?? -1;
+const VCCO = [[/^(LVTTL|LVCMOS33|PCI33_3|PCI66_3)$/, 3.3], [/^(LVCMOS25|LVDS_25|BLVDS_25|LVPECL_25|RSDS_25|MINI_LVDS_25|SSTL2_I|SSTL2_II|DIFF_SSTL2_I|DIFF_SSTL2_II)$/, 2.5],
+  [/^(LVCMOS18|SSTL18_I|DIFF_SSTL18_I|HSTL_I_18|HSTL_III_18|DIFF_HSTL_I_18|DIFF_HSTL_III_18)$/, 1.8], [/^(LVCMOS15|HSTL_I|HSTL_III)$/, 1.5], [/^LVCMOS12$/, 1.2]];
+/** The VCCO an I/O standard needs (null: unknown, no constraint). */
+export const vccoOfStandard = std => VCCO.find(([re]) => re.test(String(std || '').toUpperCase()))?.[1] ?? null;
+
 // ------------------------------------------------------------------ the device
 /** Sites of the device by kind, with positions: slices by (x, y), pads by name, clock buffers.
  *  dev: parseXdlrc() of the device report, or the routing graph (core/fpga/device.js Device). */
@@ -198,20 +208,33 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
 
   // ---------------------------------------------------------------- pads and clock buffers
   const padUsed = new Map();   // pad name -> obj
+  // the VCCO of each bank, from the I/O standards of the IOBs placed in it (bankOfPad, vccoOfStandard)
+  const vccoOf = i => vccoOfStandard((packed.insts[i].cfg || []).find(c => c.attr === 'IOATTRBOX')?.value);
+  const bankV = new Map();     // bank -> { v, n }
+  const bankAdd = (p, v, k) => {
+    if (v == null) return;
+    const b = bankOfPad(p), e = bankV.get(b) || { v, n: 0 };
+    e.n += k;
+    if (e.n <= 0) bankV.delete(b); else bankV.set(b, e);
+  };
+  const bankOk = (p, v) => v == null || !bankV.has(bankOfPad(p)) || bankV.get(bankOfPad(p)).v === v;
   for (const o of objs) if (o.kind === 'iob' && o.fixed) {
     const inst = packed.insts[o.inst];
     const p = dev.pads.get(inst.loc);
     if (!p) throw new PlaceError(`place: ${inst.name}: LOC ${inst.loc} is not a bonded pad of ${dev.part}`);
     if (p.inputOnly && o.dir !== 'in') throw new PlaceError(`place: ${inst.name}: pad ${inst.loc} is input-only`);
     if (padUsed.has(p.name)) throw new PlaceError(`place: two ports on pad ${p.name}`);
+    if (!bankOk(p, vccoOf(o.inst))) throw new PlaceError(`place: ${inst.name}: pad ${p.name} is in bank ${bankOfPad(p)}, whose other I/Os need VCCO ${bankV.get(bankOfPad(p)).v} V, not ${vccoOf(o.inst)} V (I/O standards)`);
+    bankAdd(p, vccoOf(o.inst), 1);
     padUsed.set(p.name, o);
     sites[o.inst] = p;
   }
-  const freePads = dir => [...dev.pads.values()].filter(p => !padUsed.has(p.name) && (dir === 'in' || !p.inputOnly));
+  const freePads = (dir, v) => [...dev.pads.values()].filter(p => !padUsed.has(p.name) && (dir === 'in' || !p.inputOnly) && bankOk(p, v));
   for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
-    const fp = freePads(o.dir);
+    const fp = freePads(o.dir, vccoOf(o.inst));
     if (!fp.length) throw new PlaceError('place: not enough pads');
     const p = fp[ri(fp.length)];
+    bankAdd(p, vccoOf(o.inst), 1);
     padUsed.set(p.name, o);
     sites[o.inst] = p;
   }
@@ -342,6 +365,12 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
       const other = padUsed.get(p.name);
       if (other === o) return null;
       if (other && (other.fixed || (other.dir !== 'in' && sites[o.inst].inputOnly))) return null;
+      // both I/Os must suit the VCCO of the bank they go to
+      const old = sites[o.inst], vo = vccoOf(o.inst), vt = other ? vccoOf(other.inst) : null;
+      bankAdd(old, vo, -1); if (other) bankAdd(p, vt, -1);
+      const ok = bankOk(p, vo) && (!other || bankOk(old, vt)) && (bankOfPad(p) !== bankOfPad(old) || vo == null || vt == null || vo === vt);
+      bankAdd(old, vo, 1); if (other) bankAdd(p, vt, 1);
+      if (!ok) return null;
       const ch = [[o.inst, p]];
       if (other) ch.push([other.inst, sites[o.inst]]);
       return { ch, kind: 'iob', o, other, p };
@@ -381,6 +410,9 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
     if (mv.kind === 'iob') {
       const { o, other, p } = mv;
       const old = sites[o.inst];
+      const vo = vccoOf(o.inst), vt = other ? vccoOf(other.inst) : null;
+      bankAdd(old, vo, -1); bankAdd(p, vo, 1);
+      if (other) { bankAdd(p, vt, -1); bankAdd(old, vt, 1); }
       padUsed.delete(old.name);
       if (other) { padUsed.set(old.name, other); sites[other.inst] = old; pos[other.inst] = [old.px, old.py]; }
       padUsed.set(p.name, o); sites[o.inst] = p; pos[o.inst] = [p.px, p.py];

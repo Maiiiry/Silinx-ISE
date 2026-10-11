@@ -159,3 +159,40 @@ begin
 end architecture;`, 'tb.vhd')], 'tb');
   assert.ok(prints(r).includes('y1=255 y2=85 n=3'), prints(r).join('; '));
 });
+
+test('placer: the I/Os of a bank share its VCCO (ISE DRC PhysDesignRules:755: a 3.3 V clock on B8 and 2.5 V outputs in bank 0)', async () => {
+  const { synthesizeOpen } = await import('../core/synth-open.js');
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  const { readYosysJson } = await import('../core/fpga/netlist.js');
+  const { pack } = await import('../core/fpga/pack.js');
+  const { deviceSites, place, PlaceError, bankOfPad, vccoOfStandard } = await import('../core/fpga/place.js');
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  assert.equal(vccoOfStandard('LVCMOS33'), 3.3);
+  assert.equal(vccoOfStandard('lvttl'), 3.3);
+  assert.equal(vccoOfStandard('LVCMOS25'), 2.5);
+  assert.equal(vccoOfStandard('FOO'), null);
+  const lib = compile([v(`module m (input clk, input [15:0] a, output reg [31:0] q);
+  always @(posedge clk) q <= {a, ~a};
+endmodule`)]);
+  const syn = await synthesizeOpen(elaborate(lib, 'm'), { run: yosysNode });
+  const nl = readYosysJson(syn.files['m.json']);
+  const sites = deviceSites(loadDeviceCache('xc3s250ecp132-4'));
+  // the clock at 3.3 V on B8 (bank 0); everything else unconstrained: LVCMOS25, ISE's default
+  const ucf = 'NET "clk" LOC = "B8" | IOSTANDARD = LVCMOS33 ;\n';
+  for (const seed of [1, 2, 3]) {
+    const packed = pack(nl, { ucf, part: 'xc3s250ecp132-4' });
+    const r = place(packed, sites, { seed, effort: 0.3 });
+    const banks = new Map();
+    packed.insts.forEach((inst, i) => {
+      if (inst.kind !== 'iob') return;
+      const std = inst.cfg.find(c => c.attr === 'IOATTRBOX').value;
+      const b = bankOfPad(r.sites[i]);
+      (banks.get(b) || banks.set(b, new Set()).get(b)).add(vccoOfStandard(std));
+    });
+    for (const [b, vs] of banks) assert.equal(vs.size, 1, `seed ${seed}: bank ${b} mixes ${[...vs].join(' and ')} V`);
+    assert.deepEqual([...banks.get(0)], [3.3]);
+  }
+  // two fixed I/Os of one bank at different voltages: refused, as ISE refuses them
+  const bad = pack(nl, { ucf: `${ucf}NET "q<0>" LOC = "A10" | IOSTANDARD = LVCMOS25 ;\n`, part: 'xc3s250ecp132-4' });
+  assert.throws(() => place(bad, sites, { seed: 1, effort: 0.3 }), e => e instanceof PlaceError && /bank 0.*VCCO 3.3 V, not 2.5 V/.test(e.message));
+});
