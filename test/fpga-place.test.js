@@ -12,7 +12,7 @@ import { parseXdlrc, parseXdl } from '../core/xdl.js';
 import { packDevice, loadDevice } from '../core/fpga/device.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
-import { deviceSites, place, placedXdl, PlaceError, rng, timingGraph, analyzeTiming } from '../core/fpga/place.js';
+import { deviceSites, place, placedXdl, PlaceError, rng, timingGraph, analyzeTiming, connDelay } from '../core/fpga/place.js';
 import { SPEED_4 } from '../core/fpga/timing.js';
 import { writeXdl } from '../core/xdl.js';
 
@@ -120,6 +120,42 @@ test('placement timing: delays of core/fpga/timing.js (ns), flip-flop to flip-fl
   const far = analyzeTiming(tg, pos.map(([x, y]) => [x * 3, y * 3]));
   assert.ok(far.dmax >= t.dmax);
   assert.ok(far.conns.every((c, i) => c.delay >= near[i]) && far.conns.some((c, i) => c.delay > near[i]));
+});
+
+test('placement timing with the device\'s delay table: connections by their offset, SLICEL / SLICEM arcs by the site, the timing cost follows the table', () => {
+  const p = pack(load('counter'), { ucf: 'NET "clk" LOC = "P3";' });
+  const tg = timingGraph(p);
+  // a made-up table: rows cost much more than columns (dr: tile rows, down; the placer's y is up)
+  const table = (col, row) => ({ at: (dc, dr) => 0.2 + col * Math.abs(dc) + row * Math.abs(dr) });
+  const rows = table(0.05, 0.5), cols = table(0.5, 0.05);
+  close(connDelay([1.5, 4], [3, 2.5], SPEED_4, rows), 0.2 + 0.05 * 2 + 0.5 * 2);
+  close(connDelay([1, 4], [3, 2], SPEED_4), SPEED_4.dist.base + 4 * SPEED_4.dist.perTile);
+  const posOf = r => r.sites.map(s => { const x = [...dev.slices.values()].find(v => v.name === s.site) || dev.pads.get(s.site) || dev.bufgmux.find(b => b.name === s.site); return [x.px, x.py]; });
+  const r = place(p, dev, { seed: 1, effort: 0.3, delays: rows });
+  checkLegal(p, r);
+  const pos = posOf(r);
+  const t = analyzeTiming(tg, pos, rows);
+  close(t.dmax, r.delay);
+  for (const c of t.conns) close(c.delay, c.dedicated ? 0 : connDelay(pos[c.src], pos[c.dst], SPEED_4, rows));
+  assert.deepEqual(place(p, dev, { seed: 1, effort: 0.3, delays: rows }).sites, r.sites, 'deterministic');
+  // the critical connections span fewer rows when rows are slow, fewer columns when columns are
+  // (srmux: registers and multiplexers spread over several CLBs)
+  const q = pack(load('srmux')), tq = timingGraph(q);
+  const spread = (x, k) => { const ps = posOf(x), a = analyzeTiming(tq, ps, rows).conns.filter(c => !c.dedicated); return a.reduce((s, c) => s + c.crit * Math.abs(Math.floor(ps[c.src][k]) - Math.floor(ps[c.dst][k])), 0) / a.reduce((s, c) => s + c.crit, 0); };
+  const qr = place(q, dev, { seed: 1, effort: 0.3, delays: rows }), qc = place(q, dev, { seed: 1, effort: 0.3, delays: cols });
+  checkLegal(q, qr);
+  assert.ok(spread(qr, 1) < spread(qc, 1), `rows: ${spread(qr, 1)} vs ${spread(qc, 1)}`);
+  assert.ok(spread(qc, 0) < spread(qr, 0), `columns: ${spread(qc, 0)} vs ${spread(qr, 0)}`);
+  // the arcs of a slice on a SLICEM (an even column of slices, a whole x) are slower: the same
+  // placement moved to the SLICEM of each CLB is no faster
+  const f1x = (i, k) => tg.arcs[i][k].deps.X?.find(([q]) => q === 'F1')?.[1];
+  const xor = tg.arcs.findIndex((a, i) => p.insts[i].cfg.some(c => c.attr === 'FXMUX' && c.value === 'FXOR'));
+  assert.ok(xor >= 0);
+  assert.deepEqual([f1x(xor, 0), f1x(xor, 1)], [SPEED_4.slice.Topx[0], SPEED_4.slice.Topx[1]]);
+  assert.ok(f1x(xor, 1) > f1x(xor, 0));
+  const asL = pos.map(([x, y], i) => (p.insts[i].kind === 'slice' ? [Math.floor(x) + 0.5, y] : [x, y]));
+  const asM = pos.map(([x, y], i) => (p.insts[i].kind === 'slice' ? [Math.floor(x), y] : [x, y]));
+  assert.ok(analyzeTiming(tg, asM, rows).dmax > analyzeTiming(tg, asL, rows).dmax);
 });
 
 test('placement errors: unknown LOC, input-only pad for an output, too many slices', () => {

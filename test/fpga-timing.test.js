@@ -12,7 +12,7 @@ import { routeDesign, checkRouting, netEndpoints } from '../core/fpga/route.js';
 import { parseXdl, writeXdl } from '../core/xdl.js';
 import {
   WIRE, SPEED_4, classOfWires, nodeClasses, nodeDelays, netTree, treePath, pathDelay, distanceDelay,
-  instArcs, timingGraph, analyzeTiming, timingReport, clockPort, checkPeriods,
+  instArcs, timingGraph, analyzeTiming, timingReport, clockPort, checkPeriods, delayTable,
 } from '../core/fpga/timing.js';
 import { parseDly } from '../research/s3e-route/timing-fit.mjs';
 
@@ -240,4 +240,26 @@ net "slow" , outpin "div" YQ , inpin "div" BY , ;
   const lines = timingReport({ clocks: [{ clock: 'clk_g', period: 17.5, path: [] }] }, checks);
   assert.equal(lines[0], 'constraint PERIOD 20 ns on CLK: met (period 17.500 ns, slack 2.500 ns)');
   assert.equal(lines[1], 'constraint PERIOD 10 ns on other: no clock of the design comes from this port');
+});
+
+test('delayTable: the fastest routes from a CLB\'s outputs to the inputs at each offset, on the allowed PIPs only; cached', () => {
+  // route-device: two CLBs joined by doubles; east, a slice output reaches F1 of both slices of the
+  // next CLB by OMUX + a double, BX0 by one more input multiplexer and BX1 by two (BX0 =- BX1);
+  // F2 only from the west; west, only F2 of the lower slice
+  const rdev = loadDevice(packDevice(fs.readFileSync(path.join(FIX, 'route-device.xdlrc'), 'utf8')));
+  const W = SPEED_4.wire, hop = W[WIRE.OMUX] + W[WIRE.DOUBLE];
+  const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);   // (a Float32Array)
+  const t = delayTable(rdev);
+  assert.deepEqual([t.w, t.h], [3, 1]);
+  near(t.at(1, 0), SPEED_4.base + (hop + hop + (hop + W[WIRE.IMUX]) + (hop + 2 * W[WIRE.IMUX])) / 4);
+  near(t.at(-1, 0), SPEED_4.base + hop);
+  // beyond the table: its edge
+  assert.equal(t.at(5, 3), t.at(1, 0));
+  assert.equal(delayTable(rdev), t, 'cached on the device');
+  // F1_B_PINWIRE0 not allowed: the lower slice's F1 is no longer counted east
+  const allow = (tile, from, to) => to !== 'F1_B_PINWIRE0';
+  const r = delayTable(rdev, { allowPip: allow });
+  assert.notEqual(r, t);
+  near(r.at(1, 0), SPEED_4.base + (hop + (hop + W[WIRE.IMUX]) + (hop + 2 * W[WIRE.IMUX])) / 3);
+  assert.equal(delayTable(rdev, { allowPip: allow }), r);
 });
