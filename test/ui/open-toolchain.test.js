@@ -131,7 +131,8 @@ uiTest('open mode: a device without a bit database fails clearly; a device witho
   await page.treeRow('#procs', 'Implement Design', { dbl: true, exact: true });
   await page.waitConsole(DONE('Implement Design'), { timeout: 30000 });
   const text = await page.consoleText();
-  assert.match(text, /ERROR: the open toolchain cannot implement this design: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\), XC3S250E \(CP132\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
+  // (the TQ144 is listed: this test's copy of the bit database has its (empty) pads, see above)
+  assert.match(text, /ERROR: the open toolchain cannot implement this design: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
   assert.equal(await page.eval(() => window.SilinxApp.S.status.impl), 'err');
   // the same chip in another package: no description; Silinx offers to build it from ISE
   await makeProject(env, { name: 'OpenTq', template: 'empty', device: { family: 'spartan3e', part: 'xc3s250e', package: 'tq144', speed: '-4' },

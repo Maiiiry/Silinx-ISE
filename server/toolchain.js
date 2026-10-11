@@ -224,7 +224,7 @@ export function iseStatus(cfg, det) {
     return { mode, available: true, reason: `remote host ${cfg.ssh.user ? cfg.ssh.user + '@' : ''}${cfg.ssh.host}${cfg.ssh.image ? ` (docker image ${cfg.ssh.image})` : ''}`, help };
   }
   if (mode === 'open') {
-    return { mode, available: true, reason: 'open toolchain (experimental, no ISE): synthesis, place and route and bitstream by Silinx and Yosys, for the devices with a device description and a bit database (the XC3S250E)', help };
+    return { mode, available: true, reason: 'open toolchain (experimental, no ISE): synthesis, place and route and bitstream by Silinx and Yosys, for the devices with a device description and a bit database (the Spartan-3E XC3S100E, XC3S250E, XC3S500E and XC3S1200E: Basys2, Nexys2)', help };
   }
   return { mode, available: false, reason: `unknown mode '${mode}'`, help: HELP.local };
 }
