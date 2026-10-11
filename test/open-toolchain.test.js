@@ -231,16 +231,16 @@ test('Build Device Description: xdl -report through docker, gzipped there, packe
   assert.ok(loadDeviceCache(out).nodeCount > 0);
   assert.deepEqual((await fs.readdir(devicesDir())).filter(f => f.startsWith('.build')), [], 'the work folder (and the report) are removed');
   // the part is checked against the report; xdl failing; a bad part
-  const j2 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s100ecp132-4' })).body.job, { timeoutMs: 50000 });
+  const j2 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s1600efg320-4' })).body.job, { timeoutMs: 50000 });
   assert.equal(j2.status, 'error');
-  assert.match(j2.error, /the report is of xc3s50etq144-4, not of xc3s100ecp132-4/);
-  assert.equal(findDeviceGraph('xc3s100ecp132-4'), null);
+  assert.match(j2.error, /the report is of xc3s50etq144-4, not of xc3s1600efg320-4/);
+  assert.equal(findDeviceGraph('xc3s1600efg320-4'), null);
   process.env.FAKE_XDL_FAIL = '1';
-  const j3 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s100ecp132-4' })).body.job, { timeoutMs: 50000 });
+  const j3 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s1600efg320-4' })).body.job, { timeoutMs: 50000 });
   delete process.env.FAKE_XDL_FAIL;
   assert.equal(j3.status, 'error');
   assert.ok(j3.lines.includes('=== SILINX FAILED xdlreport (exit 1) ==='), j3.lines.join('\n'));
-  assert.match(j3.error, /the device report of xc3s100ecp132-4 could not be made/);
+  assert.match(j3.error, /the device report of xc3s1600efg320-4 could not be made/);
   assert.equal((await app.call('POST', '/toolchain/build-device', { part: 'nope; rm -rf /' })).status, 400);
   // a project's device
   await app.call('POST', '/projects', { name: 'Tq', device: DEV('xc3s250e', 'tq144') });

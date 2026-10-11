@@ -22,8 +22,8 @@ test('the routing graph of the XC3S250E-CP132 ships with Silinx; the user\'s own
   assert.ok(fs.existsSync(shipped));
   assert.equal(findDeviceGraph('xc3s250ecp132-4'), shipped);
   assert.equal(findDeviceGraph('xc3s250ecp132-5'), shipped);
-  assert.equal(findDeviceGraph('xc3s500efg320-4'), null);
-  assert.throws(() => loadDeviceCache('xc3s500efg320-4'), /no routing graph of xc3s500efg320-4: build it from your ISE's device report/);
+  assert.equal(findDeviceGraph('xc3s1600efg320-4'), null);
+  assert.throws(() => loadDeviceCache('xc3s1600efg320-4'), /no routing graph of xc3s1600efg320-4: build it from your ISE's device report/);
   const dev = loadDeviceCache('xc3s250ecp132-4');
   assert.equal(dev.part.replace(/-\d+$/, ''), 'xc3s250ecp132');
   assert.ok(dev.nodeCount > 100000);

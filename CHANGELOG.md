@@ -5,6 +5,8 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
+  and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **Open toolchain in the interface:** *Toolchain Settings* has a new execution mode, *Open
   toolchain (experimental, no ISE)*. *Synthesize*, *Implement Design* and *Generate Programming
   File* then run Silinx's own flow on the server, with no Xilinx tool (Yosys synthesis, pack,
