@@ -180,11 +180,11 @@ export function analyzeTiming(tg, pos, delays = null) {
 }
 
 /** Place a packed design. Options: seed (1), effort (1: moves per temperature scale with it),
- *  timing (1: the weight of the timing cost, lambda = timing / (2 + timing) against 1 - lambda for
+ *  timing (1.5: the weight of the timing cost, lambda = timing / (2 + timing) against 1 - lambda for
  *  the wirelength; 0: wirelength only), delays (timing.js delayTable(device): the delay of a
  *  connection by its offset; default: from the distance, the model's dist), clockSites (bufgmux site name -> Set of the slice sites its clock reaches, or null for all:
  *  the flip-flops of a clock are kept on them; route.js clockReach), log (function for progress lines). */
-export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSites = null, delays = null, log = null } = {}) {
+export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, delays = null, log = null } = {}) {
   const t0 = Date.now();
   if (!dev.slices) throw new PlaceError('place: pass deviceSites(parseXdlrc(…))');
   const random = rng(seed);

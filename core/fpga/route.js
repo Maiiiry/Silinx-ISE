@@ -27,15 +27,21 @@
 //   from the tree with each node's delay from the source, so a critical load gets a direct, fast path
 //   while the others share wires. The criticalities start from the distances and are recomputed
 //   from the routed delays after each pass; the most critical loads of a net are routed first.
-//   Once the routing is legal, more passes reroute the critical nets as long as the analysis says
+//   A new branch off the tree loads the node it leaves (the model's branch delays: the driver's pin
+//   most): the new connection pays that load and the routed connections below the node theirs, by
+//   their criticalities, so a net's critical loads keep a lightly loaded path. Once the routing is legal, more passes reroute the critical nets as long as the analysis says
 //   the critical path gets shorter; the best legal routing is kept.
+// - LUT inputs (opts.swapLutPins, default on): the four inputs of a LUT are interchangeable, so a
+//   net may end on any input of its LUT no other net takes (as ISE's router swaps them): the one
+//   its fastest or least congested path reaches; the LUT's equation is rewritten for the inputs
+//   taken (not the carry's data input CY0F / CY0G, nor the pins of nets the router does not route).
 // - Known switches only (opts.allowPip): the router can be restricted to the PIPs a bitstream writer
 //   knows the bits of (core/fpga/bitgen.js knownRouting(db)), so the routed design can be turned
 //   into a complete bitstream without Xilinx's bitgen; a sink that cannot be reached that way makes
 //   its net fail (listed in `failed`), never a route through an unknown switch.
 
 import { PIP_ROUTETHRU } from './device.js';
-import { timingGraph, nodeDelays, pathDelay, distanceDelay, SPEED_4 } from './timing.js';
+import { timingGraph, nodeDelays, nodeClasses, pathDelay, distanceDelay, SPEED_4 } from './timing.js';
 
 // ------------------------------------------------------------------ the nets of a design
 /** The site of an instance, or of the made-up source of a power net ("XDL_DUMMY_<tile>_<site>"). */
@@ -126,7 +132,9 @@ function globalClockMask(device) {
  * VCC / GND net without one; site: { name, tileName, type }; default all), timing (false: route
  * for wirelength and congestion only; true: timing-driven, with the delay model of
  * core/fpga/timing.js), timingPasses (2: passes after the routing is legal, for timing only),
- * maxCriticality (0.99), model (timing.js SPEED_4).
+ * maxCriticality (0.99), model (timing.js SPEED_4), branchLoad (1: the weight of the branch loads
+ * a new branch puts on the routed connections; 0: not counted), swapLutPins (true: LUT inputs may
+ * be permuted; the returned design then has the LUT equations and inpins rewritten).
  * Returns { design (a copy with the PIPs of every routed net), routed, failed: [names],
  * unreached: [{ net, inst, pin }] (the sinks of the failed nets not reached), iterations,
  * overused (nodes still shared at the end: 0 when successful), errors, pips, timeMs,
@@ -143,7 +151,9 @@ export function routeDesign(design, device, opts = {}) {
   const timing = !!opts.timing;
   const model = opts.model || SPEED_4;
   const ndel = timing ? nodeDelays(device, model) : null;
-  const D0 = 0.3, H_DELAY = opts.astarDelay ?? 0.1;     // ns per unit of congestion cost; the A* estimate's delay per tile (a little over the fastest wires': faster search)
+  const ncls = timing ? nodeClasses(device) : null;
+  const BRANCH = opts.branchLoad ?? 1;
+  const D0 = 0.3, H_DELAY = 0.1;     // ns per unit of congestion cost; the A* estimate's delay per tile (a little over the fastest wires': faster search)
   const maxCrit = opts.maxCriticality ?? 0.99;
   // the PIPs the router may use (opts.allowPip), decided once per edge when the search first meets it
   const allowPip = opts.allowPip || null;
@@ -198,7 +208,7 @@ export function routeDesign(design, device, opts = {}) {
   // A* from the tree to one sink; returns the list of edges of the new branch (sink first) or null.
   // crit (timing): the criticality of the connection; a node costs crit x delay / D0 + (1 - crit) x
   // congestion, and a tree node starts at crit x its delay from the source (tdel) / D0
-  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null, targets = null) => {
+  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null, targets = null, start = null) => {
     curStamp++;
     heap.clear();
     // equivalent pins (a LUT's inputs): any of them not yet in the tree ends the search
@@ -210,7 +220,7 @@ export function routeDesign(design, device, opts = {}) {
       const dc = tc < device.nodeC0[m] ? device.nodeC0[m] - tc : tc > device.nodeC1[m] ? tc - device.nodeC1[m] : 0;
       return hf * (dr + dc);
     };
-    for (const n of tree.keys()) { stamp[n] = curStamp; g[n] = dw && tdel ? dw * tdel.get(n) : 0; prev[n] = -1; done[n] = 0; heap.push(g[n] + h(n), n); }
+    for (const n of tree.keys()) { stamp[n] = curStamp; g[n] = start ? start(n, dw) : dw && tdel ? dw * tdel.get(n) : 0; prev[n] = -1; done[n] = 0; heap.push(g[n] + h(n), n); }
     let expanded = 0;
     while (heap.n) {
       const n = heap.pop();
@@ -256,18 +266,41 @@ export function routeDesign(design, device, opts = {}) {
     const dist = s => Math.abs(device.nodeR0[s.node] - device.nodeR0[src]) + Math.abs(device.nodeC0[s.node] - device.nodeC0[src]);
     const critOf = s => (timing && s.conn >= 0 ? sinkCrit[s.conn] : 0);
     const sinks = [...net.sinks].sort((a, b) => critOf(b) - critOf(a) || dist(a) - dist(b));
+    // timing: a new branch off a tree node loads it (the model's branch delay: model.source at the
+    // driver's pin, model.branch[class] at a wire), which slows the new connection (its delay to the
+    // node with the loads of the branches already there) and every routed connection below the node
+    // (x their criticalities)
+    let start = null;
+    const kids = timing && BRANCH ? new Map() : null, below = kids ? new Map() : null;
+    if (kids) {
+      const srcSet = new Set(net.sources);
+      const br = n => (srcSet.has(n) ? model.source : model.branch[ncls[n]]);
+      start = (n, dw) => {
+        let load = 0;
+        for (let m = n; m >= 0; m = tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]) { const k = kids.get(m) || 0; if (k > 1) load += br(m) * (k - 1); }
+        const k = kids.get(n) || 0;
+        return dw * (tdel.get(n) + load + br(n) * k) + (k ? BRANCH * br(n) * (below.get(n) || 0) / D0 : 0);
+      };
+    }
     let ok = true;
     unreached.delete(i);
     for (const s of sinks) {
       if (!s.targets && tree.has(s.node)) continue;
       let path = net.clock ? search(tree, s.node, i, pf, gclk) : null;
-      if (!path) path = search(tree, s.node, i, pf, null, critOf(s), tdel, s.targets);
+      if (!path) path = search(tree, s.node, i, pf, null, critOf(s), tdel, s.targets, start);
       if (!path) { ok = false; unreached.set(i, [...(unreached.get(i) || []), s.pin]); continue; }
       if (s.targets) s.node = E.edgeTo[path[0]];     // the LUT input it took
       for (let j = path.length - 1; j >= 0; j--) {
         const e = path[j], m = E.edgeTo[e];
         tree.set(m, e);
         if (tdel) tdel.set(m, tdel.get(edgeFrom[e]) + ndel[m]);
+      }
+      if (kids) {
+        const top = edgeFrom[path[path.length - 1]];
+        kids.set(top, (kids.get(top) || 0) + 1);
+        for (let j = path.length - 1; j > 0; j--) kids.set(E.edgeTo[path[j]], 1);
+        const c = critOf(s);
+        for (let m = s.node; m >= 0; m = tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]) below.set(m, (below.get(m) || 0) + c);
       }
     }
     for (const n of tree.keys()) occ[n]++;

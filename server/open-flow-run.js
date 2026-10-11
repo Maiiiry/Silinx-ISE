@@ -120,7 +120,7 @@ function runPar() {
   let r;
   try {
     // each clock's flip-flops on the slices its global line reaches through switches of known bits
-    r = place(packed, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, timing: 1, delays: delayTable(d, { allowPip: k.allowPip }), clockSites: site => clockReach(d, site, k.allowPip) });
+    r = place(packed, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, delays: delayTable(d, { allowPip: k.allowPip }), clockSites: site => clockReach(d, site, k.allowPip) });
   } catch (e) { throw new StepError(`placement failed: ${e.message}`); }
   const placedText = writeXdl(placedXdl(packed, r));
   fs.writeFileSync(path.join(outDir, 'placed.xdl'), placedText);

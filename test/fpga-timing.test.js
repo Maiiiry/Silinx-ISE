@@ -263,3 +263,23 @@ test('delayTable: the fastest routes from a CLB\'s outputs to the inputs at each
   near(r.at(1, 0), SPEED_4.base + (hop + (hop + W[WIRE.IMUX]) + (hop + 2 * W[WIRE.IMUX])) / 3);
   assert.equal(delayTable(rdev, { allowPip: allow }), r);
 });
+
+test('timing-driven routing: branch loads (XC3S250E graph): a net of 17 timed loads branches less at its driver and gets faster', async () => {
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  const at = (name, site, cfg) => inst(name, 'SLICEL', dev.site(site).tileName, site, cfg);
+  const loads = Array.from({ length: 16 }, (_, k) => [`c${k}`, 'G1']);
+  const text = `design "t" xc3s250ecp132-4 v3.2 ,\n  cfg "";\n${at('a', 'SLICE_X20Y20', ' FFX:a:#FF DXMUX::0 ')}${at('b', 'SLICE_X22Y21', ' F:b_f:#LUT:D=A1 FXMUX::F FFX:b:#FF DXMUX::1 ')}`
+    + loads.map(([n], k) => at(n, `SLICE_X${17 + (k % 4) * 2}Y${16 + Math.floor(k / 4) * 2}`, ` G:${n}_g:#LUT:D=A1 GYMUX::G FFY:${n}:#FF DYMUX::1 `)).join('')
+    + net('clk', [], [['a', 'CLK'], ['b', 'CLK'], ...loads.map(([n]) => [n, 'CLK'])]) + net('d', [['a', 'XQ']], [['b', 'F1'], ...loads]);
+  const src = dev.sitePinNode('SLICE_X20Y20', 'XQ');
+  const run = branchLoad => {
+    const r = routeDesign(parseXdl(text), dev, { timing: true, branchLoad });
+    assert.deepEqual(r.failed, []);
+    assert.deepEqual(checkRouting(parseXdl(writeXdl(r.design)), dev).problems.filter(p => !/^net clk: sink/.test(p)), []);   // (the clock has no source here)
+    return { period: analyzeTiming(parseXdl(writeXdl(r.design)), dev).period, branches: netTree(r.design.nets.find(n => n.name === 'd').pips, [src], dev).children.get(src) };
+  };
+  const without = run(0), withLoads = run(1);
+  assert.ok(withLoads.branches < without.branches, `${withLoads.branches} < ${without.branches} branches at the driver`);
+  assert.ok(withLoads.period < without.period, `${withLoads.period} < ${without.period} ns`);
+});

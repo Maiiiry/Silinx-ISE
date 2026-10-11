@@ -28,7 +28,7 @@ import { loadDb } from '../s3e-bitstream/db.mjs';
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); if (i < 0) return def; const v = args[i + 1]; args.splice(i, 2); return v; };
 const flag = name => { const i = args.indexOf(name); if (i >= 0) args.splice(i, 1); return i >= 0; };
-const json = opt('--json', null), seed = +opt('--seed', '1'), effort = +opt('--effort', '1'), timing = +opt('--timing', '1'), timingRoute = opt('--timing-route', '1') !== '0', noCrc = flag('--no-crc');
+const json = opt('--json', null), seed = +opt('--seed', '1'), effort = +opt('--effort', '1'), timing = opt('--timing', null), timingRoute = opt('--timing-route', '1') !== '0', noCrc = flag('--no-crc');
 const [projDir, outDir] = args;
 if (!projDir || !outDir) { console.error('usage: open-flow.mjs <project folder> <out folder> [--json netlist.json] [--seed N] [--effort E] [--timing T] [--timing-route 0|1] [--no-crc]'); process.exit(2); }
 const proj = JSON.parse(fs.readFileSync(path.join(projDir, 'silinx.json'), 'utf8'));
@@ -69,7 +69,7 @@ const known = knownRouting(db);
 // each clock's flip-flops on the slices its global line reaches through switches of known bits
 // the delays of the fastest routes on known switches, for the placer's timing estimate
 const delays = delayTable(device, { allowPip: known.allowPip });
-const r = place(packed, deviceSites(device), { seed, effort, timing, delays, clockSites: site => clockReach(device, site, known.allowPip) });
+const r = place(packed, deviceSites(device), { seed, effort, ...(timing !== null && { timing: +timing }), delays, clockSites: site => clockReach(device, site, known.allowPip) });
 console.log(`place: estimated critical path ${r.delay.toFixed(1)} ns`);
 fs.writeFileSync(path.join(outDir, 'placed.xdl'), writeXdl(placedXdl(packed, r)));
 step('place', t);

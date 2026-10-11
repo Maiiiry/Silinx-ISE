@@ -45,7 +45,7 @@ test('every shipped device description loads and has the datasheet\'s slices and
   }
 });
 
-test('the open flow on the shipped graph: blinky from VHDL to a complete bitstream, no Xilinx tool', { timeout: 300000 }, () => {
+test('the open flow on the shipped graph: blinky from VHDL to a complete bitstream, no Xilinx tool', { timeout: 300000 }, async () => {
   const out = path.join(tmp, 'blinky');
   const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'examples/blinky'), out],
     { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
@@ -58,4 +58,28 @@ test('the open flow on the shipped graph: blinky from VHDL to a complete bitstre
   assert.ok(bit.length > 160000);
   assert.ok(bit.includes(Buffer.from([0xaa, 0x99, 0x55, 0x66])), 'the sync word');
   for (const f of ['top.json', 'placed.xdl', 'routed.xdl', 'timing.txt']) assert.ok(fs.existsSync(path.join(out, f)), f);
+  // the router swaps LUT inputs: every LUT of the routed design computes the same function of the
+  // same nets as in the placed design (an input not connected reads 1 in both)
+  const { parseXdl, evalLut } = await import('../core/xdl.js');
+  const [placed, routed] = ['placed.xdl', 'routed.xdl'].map(f => parseXdl(fs.readFileSync(path.join(out, f), 'utf8')));
+  const pinNets = d => new Map(d.nets.flatMap(n => n.inpins.map(p => [`${p.inst}.${p.pin}`, n.name])));
+  const pa = pinNets(placed), pb = pinNets(routed), byName = new Map(routed.insts.map(i => [i.name, i]));
+  let luts = 0, swapped = 0;
+  for (const ia of placed.insts.filter(i => /^SLICE/.test(i.type))) {
+    for (const L of ['F', 'G']) {
+      const ea = ia.cfg.find(c => c.attr === L && /^#LUT:/.test(c.value));
+      if (!ea) continue;
+      const eb = byName.get(ia.name).cfg.find(c => c.attr === L);
+      const na = [1, 2, 3, 4].map(k => pa.get(`${ia.name}.${L}${k}`)), nb = [1, 2, 3, 4].map(k => pb.get(`${ia.name}.${L}${k}`));
+      luts++;
+      if (na.join() !== nb.join()) swapped++;
+      const nets = [...new Set(na.filter(Boolean))];
+      assert.deepEqual([...new Set(nb.filter(Boolean))].sort(), [...nets].sort(), `${ia.name} ${L}: the same nets`);
+      for (let v = 0; v < 1 << nets.length; v++) {
+        const env = ns => Object.fromEntries(ns.map((n, k) => [`A${k + 1}`, n ? (v >> nets.indexOf(n)) & 1 : 1]));
+        assert.equal(evalLut(eb.value.slice(5), env(nb)), evalLut(ea.value.slice(5), env(na)), `${ia.name} ${L}: ${ea.value} / ${eb.value}`);
+      }
+    }
+  }
+  assert.ok(luts > 50 && swapped > 10, `${swapped} of ${luts} LUTs with their inputs swapped`);
 });
