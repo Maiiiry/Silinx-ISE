@@ -1,8 +1,9 @@
 // The release zip, as users get it: built by scripts/package-release.mjs (the script the Release
 // workflow runs), unzipped into a clean folder, checked (production dependencies only, Yosys's
 // WebAssembly, the notices, executable launchers, a size budget), then started with its own launcher
-// and used: the page and the API answer, an example project is created, and Synthesize - Yosys (open)
-// runs in headless Chrome from the unzipped app, with no request to any other host (offline use; the
+// and used: the page and the API answer, an example project is created, Generate Programming File
+// runs in the default mode (the Silinx toolchain: a bitstream with no Xilinx tool), and in an ISE mode
+// Synthesize - Yosys (open) runs in headless Chrome from the unzipped app, with no request to any other host (offline use; the
 // only one allowed is the update check against GitHub at start-up, which fails quietly offline).
 //   npm run test:release          (Linux / macOS: needs zip, unzip and npm; Chrome for the browser part)
 import { test, before, after } from 'node:test';
@@ -118,7 +119,7 @@ for (const launcher of launchersOf()) {
   });
 }
 
-test('release zip: Synthesize - Yosys (open) in the browser from the unzipped app, without the Internet', { skip: SKIP, timeout: 180000 }, async (t) => {
+test('release zip: a bitstream in the default mode (Silinx toolchain), Synthesize - Yosys (open) in the browser, from the unzipped app, without the Internet', { skip: SKIP, timeout: 360000 }, async (t) => {
   const env = await setupUi({ server: false, offline: true });
   if (env.skip) { t.skip(env.skip); return; }
   const srv = await startLauncher(APP, launchersOf()[0], await fsp.mkdtemp(path.join(tmp, 'browser-')));
@@ -141,6 +142,15 @@ test('release zip: Synthesize - Yosys (open) in the browser from the unzipped ap
     page = await env.newPage(srv.url, { updateCheck: true });
     await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot', timeout: 30000 });
     await page.openProject('OpenSynth');
+    // a new installation: the Silinx toolchain, a bitstream with no Xilinx tool (#27)
+    assert.equal((await (await fetch(`${srv.url}/api/toolchain`)).json()).config.mode, 'silinx');
+    await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+    await page.waitConsole(/Process "Generate Programming File" (completed successfully|failed|stopped)/, { timeout: 180000 });
+    assert.match(await page.consoleText(), /Process "Generate Programming File" completed successfully/, (await page.consoleText()).slice(-2000));
+    assert.ok(fs.existsSync(path.join(srv.workspace, 'OpenSynth', 'build', 'top.bit')), 'the bitstream');
+    // an ISE mode (no ISE here): Synthesize - Yosys (open) runs in the browser
+    await fetch(`${srv.url}/api/toolchain`, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ mode: 'local' }) });
+    await page.eval(async () => { window.SilinxApp.S.toolchain = await (await import('/js/api.js')).api.toolchain(); window.SilinxApp.renderProcesses(); });
     await page.treeRow('#procs', 'Synthesize - Yosys (open)', { dbl: true, exact: true });
     await page.waitConsole(/Process "Synthesize - Yosys \(open\)" (completed successfully|failed|stopped)/, { timeout: 120000 });
     const text = await page.consoleText();
