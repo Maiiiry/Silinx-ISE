@@ -274,6 +274,8 @@ test('placement: block RAMs and multipliers on their sites, never a multiplier b
   assert.equal(new Set(r.sites.map(s => s.site)).size, r.sites.length, 'one instance per site');
   // 12 multipliers leave no tile for it
   assert.throws(() => place(pack(multsAndBram(12)), d, { seed: 1, effort: 0.1 }), err => err instanceof PlaceError && /no free block RAM site/.test(err.message));
+  // more multipliers than the device has: said plainly, up front (#19)
+  assert.throws(() => place(pack(multsAndBram(13)), d, { seed: 1, effort: 0.1 }), err => err instanceof PlaceError && err.message === 'place: 13 multipliers needed, the device has 12');
 });
 
 test('placement: RAMs and shift registers (SLICEM instances) only on SLICEM sites', () => {

@@ -250,7 +250,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
     catch (e) {
       // fewer pads than ports once the clock pad and the input-only pads are counted: the I/O wrapper
       if (/not enough pads/.test(e.message) && !wrapper) { again = true; await backEnd(d, design, syn, srcs, res, opts, m, true); return; }
-      if (/slices needed|not enough pads|no room/.test(e.message)) { res.flow = `too large: ${clean(e.message.replace(/^place: /, ''))}`; return; }
+      if (/slices needed|block RAMs needed|multipliers needed|not enough pads|no room/.test(e.message)) { res.flow = `too large: ${clean(e.message.replace(/^place: /, ''))}`; return; }
       throw e;
     }
     step('place', t, { estimate: +pl.delay.toFixed(2) });

@@ -332,6 +332,11 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     tileUse.get(site.tile)[o.kind] = o;
     sites[o.inst] = site;
   };
+  // more than the device has: say so plainly, before trying them one by one (#19)
+  for (const kind of ['bram', 'mult']) {
+    const n = objs.filter(o => o.kind === kind).length, have = hardSites[kind].length;
+    if (n > have) throw new PlaceError(`place: ${n} ${kind === 'bram' ? 'block RAMs' : 'multipliers'} needed, the device has ${have}`);
+  }
   for (const o of objs) if (o.kind === 'bram' || o.kind === 'mult') {
     const inst = packed.insts[o.inst];
     const free = hardSites[o.kind].filter(s => !hardUsed[o.kind].has(s.name) && hardOk(o, s) && (!inst.loc || s.name === inst.loc));
