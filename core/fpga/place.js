@@ -5,8 +5,9 @@
 // its shape (a carry chain up a slice column, the slices of an F6 / F7 / F8 multiplexer) and
 // every pad without a LOC constraint is an object; a move takes one object to another position
 // nearby (swapping with what is there); the cost is the half-perimeter wirelength of the nets,
-// weighted for nets with many pins, in units of a CLB. Clock nets (from a BUFGMUX) run on the global
-// clock lines and are left out. Moves that make the cost worse are accepted with a probability
+// weighted for nets with many pins, in units of a CLB, and (timing-driven, as VPR's placer) the
+// estimated delay of every connection weighted by its criticality, the two normalised and mixed.
+// Clock nets (from a BUFGMUX) run on the global clock lines and are left out. Moves that make the cost worse are accepted with a probability
 // that falls as the temperature falls; the move window shrinks to keep about 44% of the moves
 // accepted. Everything follows one seeded random generator: the same seed gives the same placement.
 //
@@ -77,7 +78,9 @@ const BUFG_ORDER = ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_
 const DEDICATED_PINS = new Set(['CIN', 'FXINA', 'FXINB']);
 
 /** Connections and their timing: every driver pin -> load pin of the nets (clocks and constants
- *  left out), with the arcs of each instance (timing.js instArcs: comb, setup, clkToOut). */
+ *  left out), with the arcs of each instance (timing.js instArcs: comb, setup, clkToOut) on a SLICEL
+ *  and on a SLICEM site (arcs[inst] = [SLICEL, SLICEM]: the SLICEM's LUTs and F5 multiplexers are
+ *  slower). */
 export function timingGraph(packed, model = SPEED_4) {
   const conns = [];
   packed.nets.forEach((n, k) => {
@@ -86,28 +89,40 @@ export function timingGraph(packed, model = SPEED_4) {
     if (packed.insts[src.inst].kind === 'bufg') return;
     for (const p of n.inpins) if (p.pin !== 'CLK') conns.push({ net: k, src: src.inst, srcPin: src.pin, dst: p.inst, dstPin: p.pin, dedicated: DEDICATED_PINS.has(p.pin) });
   });
+  const none = { deps: {}, start: {}, setup: {} };
   const arcs = packed.insts.map(inst => {
-    if (inst.kind !== 'slice') return { deps: {}, start: {}, setup: {} };
-    const a = instArcs({ type: 'SLICEL', site: null, cfg: inst.cfg }, model);
-    const deps = {}, start = {}, setup = {};
-    for (const [i, o, d] of a.comb) (deps[o] ||= []).push([i, d]);
-    for (const [o, d] of a.clkToOut) start[o] = d;
-    for (const [i, d] of a.setup) setup[i] = Math.max(setup[i] ?? -Infinity, d);
-    return { deps, start, setup };
+    if (inst.kind !== 'slice') return [none, none];
+    // the site decides SLICEL / SLICEM (timing.js instArcs): an odd column of slices is a SLICEL
+    return ['SLICE_X1Y0', 'SLICE_X0Y0'].map(site => {
+      const a = instArcs({ type: 'SLICEL', site, cfg: inst.cfg }, model);
+      const deps = {}, start = {}, setup = {};
+      for (const [i, o, d] of a.comb) (deps[o] ||= []).push([i, d]);
+      for (const [o, d] of a.clkToOut) start[o] = d;
+      for (const [i, d] of a.setup) setup[i] = Math.max(setup[i] ?? -Infinity, d);
+      return { deps, start, setup };
+    });
   });
   return { conns, arcs, model };
 }
 
-/** Static timing on a placement (ns, by the model): the critical path delay (flip-flop to
- *  flip-flop) and the criticality (0..1) of every connection. pos[inst] = [x, y] in tiles. */
-export function analyzeTiming(tg, pos) {
-  const { conns, arcs, model } = tg;
+/** The estimated delay of a connection between two positions ([x, y] in tiles, y upward): from the
+ *  device's table of the fastest routes (timing.js delayTable: by tile offset) when given, else from
+ *  the Manhattan distance (the model's dist). */
+export function connDelay(a, b, model = SPEED_4, delays = null) {
+  if (delays) return delays.at(Math.floor(b[0]) - Math.floor(a[0]), Math.floor(a[1]) - Math.floor(b[1]));
   const { base, perTile, knee, far } = model.dist;
-  const delay = c => {
-    if (c.dedicated) return 0;
-    const d = Math.abs(pos[c.src][0] - pos[c.dst][0]) + Math.abs(pos[c.src][1] - pos[c.dst][1]);
-    return base + perTile * Math.min(d, knee) + far * Math.max(0, d - knee);
-  };
+  const d = Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]);
+  return base + perTile * Math.min(d, knee) + far * Math.max(0, d - knee);
+}
+
+/** Static timing on a placement (ns, by the model): the critical path delay (flip-flop to
+ *  flip-flop) and the criticality (0..1) of every connection. pos[inst] = [x, y] in tiles; delays:
+ *  the device's delay table (connDelay). */
+export function analyzeTiming(tg, pos, delays = null) {
+  const { conns, model } = tg;
+  // the arcs of each instance on its site: a SLICEM (an even column of slices) at a whole x
+  const arcs = tg.arcs.map((a, i) => a[pos[i] && pos[i][0] % 1 === 0 ? 1 : 0]);
+  const delay = c => (c.dedicated ? 0 : connDelay(pos[c.src], pos[c.dst], model, delays));
   // pins as nodes: `${inst}:${pin}`
   const into = new Map();    // input pin -> connections arriving
   const outOf = new Map();   // output pin -> connections leaving
@@ -165,10 +180,11 @@ export function analyzeTiming(tg, pos) {
 }
 
 /** Place a packed design. Options: seed (1), effort (1: moves per temperature scale with it),
- *  timing (1: how much more the nets on the slowest paths weigh; 0: wirelength only),
- *  clockSites (bufgmux site name -> Set of the slice sites its clock reaches, or null for all:
+ *  timing (1.5: the weight of the timing cost, lambda = timing / (2 + timing) against 1 - lambda for
+ *  the wirelength; 0: wirelength only), delays (timing.js delayTable(device): the delay of a
+ *  connection by its offset; default: from the distance, the model's dist), clockSites (bufgmux site name -> Set of the slice sites its clock reaches, or null for all:
  *  the flip-flops of a clock are kept on them; route.js clockReach), log (function for progress lines). */
-export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSites = null, log = null } = {}) {
+export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, delays = null, log = null } = {}) {
   const t0 = Date.now();
   if (!dev.slices) throw new PlaceError('place: pass deviceSites(parseXdlrc(…))');
   const random = rng(seed);
@@ -308,23 +324,33 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
     for (const i of n.pins) { const [x, y] = pos[i]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
     return n.w * ((x1 - x0) + (y1 - y0));
   };
-  let cost = 0;
-  for (const n of nets) { n.cost = netCost(n); cost += n.cost; }
-  const initialCost = cost;
-  // timing: a net weighs more the more critical its most critical connection is; the weights
-  // follow the placement (recomputed at every temperature, as VPR's timing-driven placer does)
+  let bb = 0;
+  for (const n of nets) { n.cost = netCost(n); bb += n.cost; }
+  const initialCost = bb;
+  // timing (VPR's timing-driven placer): a second cost, the sum over the connections of
+  // criticality^exp x estimated delay (the device's delay table when given), mixed with the
+  // wirelength as lambda x timing / its value + (1 - lambda) x wirelength / its value, both
+  // normalised at every temperature; the criticalities follow the placement (recomputed at every
+  // temperature) and the exponent grows from 1 to 8 as the move window shrinks
   const tg = timing > 0 ? timingGraph(packed) : null;
-  const netIndex = new Map(nets.map((n, k) => [n.src, k]));
-  let dmax = 0;
+  const lambda = tg ? timing / (2 + timing) : 0;
+  const tconns = tg ? tg.conns.filter(c => !c.dedicated && c.src !== c.dst) : [];
+  const connsOf = Array.from({ length: N }, () => []);
+  tconns.forEach((c, j) => { c.w = 0; c.d = 0; connsOf[c.src].push(j); if (c.dst !== c.src) connsOf[c.dst].push(j); });
+  let tc = 0, bbNorm = 1, tcNorm = 1, dmax = 0, critExp = 1;
+  const cdelay = c => connDelay(pos[c.src], pos[c.dst], tg.model, delays);
   const reweight = () => {
+    bb = 0;
+    for (const n of nets) { n.cost = netCost(n); bb += n.cost; }
+    bbNorm = Math.max(bb, 1e-9);
     if (!tg) return;
-    const t = analyzeTiming(tg, pos);
+    const t = analyzeTiming(tg, pos, delays);
     dmax = t.dmax;
-    const crit = new Array(nets.length).fill(0);
-    for (const c of t.conns) { const k = netIndex.get(packed.nets[c.net]); if (k !== undefined && c.crit > crit[k]) crit[k] = c.crit; }
-    cost = 0;
-    nets.forEach((n, k) => { n.w = n.base * (1 + timing * crit[k] ** 4); n.cost = netCost(n); cost += n.cost; });
+    tc = 0;
+    for (const c of tconns) { c.w = c.crit ** critExp; c.d = cdelay(c); tc += c.w * c.d; }
+    tcNorm = Math.max(tc, 1e-9);
   };
+  const totalCost = () => (1 - lambda) * bb / bbNorm + lambda * tc / tcNorm;
   reweight();
   const initialDelay = dmax;
 
@@ -367,17 +393,18 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
     return { ch, kind: 'slice', o, x, y, displaced, freed };
   }
   function delta(ch) {
-    const touched = new Set();
-    for (const [i] of ch) for (const k of netsOf[i]) touched.add(k);
+    const touched = new Set(), tTouched = new Set();
+    for (const [i] of ch) { for (const k of netsOf[i]) touched.add(k); if (lambda) for (const j of connsOf[i]) tTouched.add(j); }
     const save = ch.map(([i]) => pos[i]);
+    let dbb = 0, dtc = 0;
     for (const [i, s] of ch) pos[i] = [s.px, s.py];
-    let d = 0;
-    const newCosts = [];
-    for (const k of touched) { const c = netCost(nets[k]); newCosts.push([k, c]); d += c - nets[k].cost; }
+    const newCosts = [], newDelays = [];
+    for (const k of touched) { const c = netCost(nets[k]); newCosts.push([k, c]); dbb += c - nets[k].cost; }
+    for (const j of tTouched) { const c = tconns[j], d = cdelay(c); newDelays.push([j, d]); dtc += c.w * (d - c.d); }
     ch.forEach(([i], j) => { pos[i] = save[j]; });
-    return { d, newCosts };
+    return { d: (1 - lambda) * dbb / bbNorm + lambda * dtc / tcNorm, newCosts, newDelays, dbb, dtc };
   }
-  function commit(mv, newCosts) {
+  function commit(mv, { newCosts, newDelays, dbb, dtc }) {
     if (mv.kind === 'iob') {
       const { o, other, p } = mv;
       const old = sites[o.inst];
@@ -396,7 +423,9 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
       setAt(o, x, y);
       for (const m of o.members) pos[m.inst] = [sites[m.inst].px, sites[m.inst].py];
     }
-    for (const [k, c] of newCosts) { cost += c - nets[k].cost; nets[k].cost = c; }
+    for (const [k, c] of newCosts) nets[k].cost = c;
+    for (const [j, d] of newDelays) tconns[j].d = d;
+    bb += dbb; tc += dtc;
   }
 
   // ---------------------------------------------------------------- annealing
@@ -406,6 +435,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
   const mean = sample.reduce((a, b) => a + b, 0) / Math.max(1, sample.length);
   const sd = Math.sqrt(sample.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, sample.length));
   let T = 20 * sd || 1;
+  const rlim0 = rlim;
   const perT = Math.max(100, Math.round(effort * 10 * Math.pow(movable.length, 4 / 3)));
   for (;;) {
     let acc = 0, tried = 0;
@@ -413,31 +443,30 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1, clockSite
       const mv = propose();
       if (!mv) continue;
       tried++;
-      const { d, newCosts } = delta(mv.ch);
-      if (d <= 0 || random() < Math.exp(-d / T)) { commit(mv, newCosts); acc++; }
+      const dl = delta(mv.ch);
+      if (dl.d <= 0 || random() < Math.exp(-dl.d / T)) { commit(mv, dl); acc++; }
     }
     moves += perT; temps++;
+    critExp = 1 + 7 * Math.max(0, 1 - (rlim - 1) / Math.max(1, rlim0 - 1));
     reweight();
     const a = tried ? acc / tried : 0;
     // VPR's schedule: cool slowly while many moves are accepted
     T *= a > 0.96 ? 0.5 : a > 0.8 ? 0.9 : a > 0.15 ? 0.95 : 0.8;
     rlim = Math.min(Math.max(maxX, maxY), Math.max(1, rlim * (1 - 0.44 + a)));
-    if (log && temps % 10 === 0) log(`T=${T.toFixed(3)} cost=${cost.toFixed(1)} accept=${a.toFixed(2)} rlim=${rlim.toFixed(1)}`);
-    if (T < 0.005 * cost / Math.max(1, nets.length) || temps > 400) break;
+    if (log && temps % 10 === 0) log(`T=${T.toFixed(4)} wirelength=${bb.toFixed(1)} delay=${dmax.toFixed(2)} accept=${a.toFixed(2)} rlim=${rlim.toFixed(1)}`);
+    if (T < 0.005 * totalCost() / Math.max(1, nets.length) || temps > 400) break;
   }
   // a last greedy pass (temperature 0)
-  for (let k = 0; k < perT; k++) { const mv = propose(); if (!mv) continue; const { d, newCosts } = delta(mv.ch); if (d < 0) commit(mv, newCosts); }
-  // the result: the wirelength alone (no drift), and the estimated critical path
+  for (let k = 0; k < perT; k++) { const mv = propose(); if (!mv) continue; const dl = delta(mv.ch); if (dl.d < 0) commit(mv, dl); }
+  // the result: the wirelength (recomputed: no drift), and the estimated critical path
   reweight();
-  if (!tg) dmax = analyzeTiming(timingGraph(packed), pos).dmax;
-  cost = 0;
-  for (const n of nets) { n.w = n.base; n.cost = netCost(n); cost += n.cost; }
+  if (!tg) dmax = analyzeTiming(timingGraph(packed), pos, delays).dmax;
   return finish();
 
   function finish() {
     return {
       sites: sites.map(s => ({ tile: s.tile, site: s.name })),
-      cost, delay: dmax, stats: { initialCost, initialDelay, moves, temps, seconds: (Date.now() - t0) / 1000, objects: objs.length },
+      cost: bb, delay: dmax, stats: { initialCost, initialDelay, moves, temps, seconds: (Date.now() - t0) / 1000, objects: objs.length },
     };
   }
 }

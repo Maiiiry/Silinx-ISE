@@ -52,9 +52,13 @@ What the packer does:
 
 The placer: simulated annealing over slices, groups (carry chains, F6 / F7 / F8 patterns, moved
 as one with their alignment: F6 on an even row, F7 / F8 on a CLB) and pads without LOC; cost =
-half-perimeter wirelength with VPR's correction for nets with many pins, each net weighted by
-`1 + timing x criticality^4` (criticality from a static timing estimate in ns with the delay model
-of `core/fpga/timing.js`, recomputed at every temperature); clock nets (from a BUFGMUX) are left out. BUFGMUX: on the edge of the pad that drives
+half-perimeter wirelength with VPR's correction for nets with many pins, mixed (VPR's
+timing-driven placer, 15.10.2) with a timing cost: the sum over the connections of
+criticality^exp x their estimated delay (the device's delay table, `timing.js delayTable`: the
+fastest routes by offset; criticalities from a static timing estimate in ns with the delay model
+of `core/fpga/timing.js`, SLICEL / SLICEM arcs by the site, recomputed at every temperature; exp
+from 1 to 8), each part normalised, lambda = timing / (2 + timing) (default timing 1.5;
+research/s3e-route/README.md, "Closing the routing gap"); clock nets (from a BUFGMUX) are left out. BUFGMUX: on the edge of the pad that drives
 it (B8 -> BUFGMUX_X2Y11, as ISE). Deterministic: the same seed gives the same placement.
 
 ## Scripts

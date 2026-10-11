@@ -25,11 +25,14 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   Left: shift registers as SRL16 (prototyped, not done: it pays off only for designs with shift
   registers of 3 or more stages without reset, none of lab11, blinky or cpu8; see the README for
   what it needs: Yosys passes and a map file, the variable tap, SLICEM in the packer, placer,
-  timing model and simulators), distributed RAM in the packer (RAM16X1S…), the remaining speed
-  gap (lab11 14.1 ns in the open flow against 10.9 ns after ISE's place and route: mostly
-  placement and routing, the logic depth is XST's), FSM re-encoding (Yosys finds no state machine
-  in lab11's control unit).
-- **Timing:** hold time, clock skew and pad (OFFSET) paths; the router's cost with the branch loads.
+  timing model and simulators), distributed RAM in the packer (RAM16X1S…), FSM re-encoding (Yosys
+  finds no state machine in lab11's control unit).
+- **Speed of the open flow** (research/s3e-route/README.md, "Closing the routing gap"): lab11 11.6
+  ns against 10.9 ns with ISE (was 13.7), blinky 7.4 against 6.7. Left: replication of high-fanout
+  flip-flops (lab11's state register drives 54 loads; XST replicates it), the carry's data input
+  (CY0F / CY0G) swappable between F1 / F2, placements of a design with few slices in one CLB
+  sharing one output (blinky's 9-load net).
+- **Timing:** hold time, clock skew and pad (OFFSET) paths.
 
 ## Front ends and simulator
 
