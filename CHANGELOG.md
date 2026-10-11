@@ -111,6 +111,17 @@ the "What's new" text of its GitHub release.
   `blk.inner.v`, in generate blocks too) are read from the block's process, from the testbench,
   another process or a module above; `$dumpvars` accepts scopes (the testbench's own name, an
   instance, a path) (#12).
+- **Open synthesis: VHDL records** are packed vectors, each field at its own bits: a record was
+  written with every field at the first field's width, so wider fields were cut off in the netlist
+  (#69). Arrays of records (and of arrays) are memories of those vectors; a field or element is
+  read and assigned at any depth, also with a variable index; a record port connects to an
+  element of an array of records (neorv32's `trace_o => cpu_trace(i)`), constant arrays of records
+  are tables (#10). Constant slices of arrays (`h(0 to 1) <= m(2 to 3)`) are synthesized word by
+  word.
+- **VHDL: array slices with run-time bounds** (`br(n to size - 1) := (others => x"00")` in a
+  function, as light8080's `objcode_to_bram`) are simulated (#11).
+- **VHDL file objects** (`file f : TEXT open write_mode is "log.txt";`, `file` parameters, `LINE`
+  variables) elaborate; the textio calls on them are still ignored, with their warning.
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and

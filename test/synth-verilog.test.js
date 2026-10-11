@@ -270,12 +270,10 @@ test('what cannot be synthesized is reported with its line, not guessed', () => 
   process begin o <= '0'; wait for 10 ns; o <= '1'; wait for 10 ns; end process; end a;`, 'w'), /waits cannot be synthesized|cannot be synthesized here/);
   assert.match(err(`${PRE}entity w is port (clk, d : in std_logic; o : out std_logic); end w; architecture a of w is begin
   process (clk) begin if rising_edge(clk) then o <= d; else o <= not d; end if; end process; end a;`, 'w'), /after the clock edge/);
-  // slices of arrays of vectors (#11): simulated, not synthesized yet
-  const arr = `type m_t is array (0 to 3) of std_logic_vector(1 downto 0); signal m : m_t := (others => "00"); signal h : m_t := (others => "00");`;
-  assert.match(err(`${PRE}entity w is port (clk : in std_logic; o : out std_logic_vector(1 downto 0)); end w; architecture a of w is ${arr} begin
-  process (clk) begin if rising_edge(clk) then h(0 to 1) <= m(2 to 3); end if; end process; o <= h(0); end a;`, 'w'), /^assignment to an array slice \(a part of an array of vectors\) is not supported by the open synthesis \(line 3\)$/);
-  assert.match(err(`${PRE}entity w is port (clk : in std_logic; o : out std_logic_vector(1 downto 0)); end w; architecture a of w is ${arr} begin
-  process (clk) begin if rising_edge(clk) then h <= m(0 to 3); end if; end process; o <= h(0); end a;`, 'w'), /^array slices \(a part of an array of vectors\) are not supported by the open synthesis \(line 3\)$/);
+  // array slices of non-constant bounds (#11): simulated only
+  assert.match(err(`${PRE}entity w is port (clk : in std_logic; n : in integer range 0 to 3; o : out std_logic_vector(1 downto 0)); end w; architecture a of w is
+  type m_t is array (0 to 3) of std_logic_vector(1 downto 0); signal h : m_t := (others => "00"); begin
+  process (clk) begin if rising_edge(clk) then h(n to 3) <= (others => "11"); end if; end process; o <= h(0); end a;`, 'w'), /^assignment to an array slice of non-constant bounds is not supported by the open synthesis \(line 4\)$/);
 });
 
 test('Verilog front end: SystemVerilog size casts W\'(expr) truncate, extend by the sign and keep the signedness', () => {
@@ -380,6 +378,18 @@ end;`)];
   assert.doesNotMatch(r.text, /begin\n\s*end\n\s*(\/\/|endmodule)|if \(rst\)/, 'no empty block, no empty reset branch');
   assert.doesNotMatch(r.text, /\+: 2\]/, 'no two-bit slice from the null one');
   equivalent(sources, 'nz', { reset: 'rst', minStates: 3 });
+});
+
+// Regression (#69, #10): a record is one packed vector (it was written with every field at the first
+// field's width: wider fields truncated); arrays of records are memories of those vectors; a record
+// port connects to an element of an array of records (neorv32's trace_o => cpu_trace(i))
+test('VHDL records: packed fields of every width, arrays of records, record ports on array elements, constants, functions (#69, #10)', () => {
+  const sources = [vhd(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'vhdl-records.vhd'), 'utf8'), 'vhdl-records.vhd')];
+  const { text, warnings } = equivalent(sources, 'rtop', { reset: 'none', minStates: 20, cycles: 300 });
+  assert.deepEqual(warnings, []);
+  // (st 2 + cnt 4 + dat 12 + nibs 12 + ok 1 = 31 bits a record; the arrays: memories of 31-bit words)
+  assert.match(text, /\[30:0\] arr \[0:3\];/);
+  assert.match(text, /\[30:0\] leafs \[0:3\];/);
 });
 
 test('Xilinx primitives instantiated by name stay instances with their generics; their simulation models are left out', () => {

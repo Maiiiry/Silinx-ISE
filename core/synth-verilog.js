@@ -188,8 +188,27 @@ export function toVerilog(design, { name, tables = true } = {}) {
   const fit = (x, wf, sf, wt, xs = false) => (wf === wt ? x : `${wt}'(${sf ? `$signed(${x})` : xs ? `$unsigned(${x})` : x})`);
   const S = x => `$signed(${x})`;
 
-  // the widths the translator gives a node: integer signals / locals narrower than 32
-  const wOf = t => (t ? synthWidth(t) : 1);
+  // the widths the translator gives a node: integer signals / locals narrower than 32; a record is
+  // one packed vector of its fields (#69), an array inside a packed value its elements side by side
+  const wOf = t => (!t ? 1 : t.kind === 'array' ? (t.fields ? t.fields.reduce((a, f) => a + wOf(f.t), 0) : (t.len ?? 0) * wOf(t.elem)) : synthWidth(t));
+  const isRec = t => t?.kind === 'array' && !!t.fields;
+  // an array at the root of a signal / variable: a memory, reg [w-1:0] m [0:n-1] (its elements may
+  // be packed records or arrays)
+  const isMem = t => t?.kind === 'array' && !t.fields;
+  // a record's field k: its bits start above those of the fields after it (field 0 is the most
+  // significant); an array's element lo + j starts at bit j * (its width)
+  const fieldOff = (t, k) => t.fields.slice(k + 1).reduce((a, f) => a + wOf(f.t), 0);
+  // a value (a record / array value: a JS array) packed into one vector of wOf(t) bits
+  const packVal = (v, t) => {
+    const w = wOf(t);
+    if (t?.kind !== 'array') return Array.isArray(v) ? V.allX(w) : V.resize(v, w);
+    if (!Array.isArray(v)) return V.allX(w);
+    let bv = 0n, bx = 0n, at = 0;
+    const put = (x, ft) => { const fw = wOf(ft), pv = packVal(x, ft), m = (1n << BigInt(fw)) - 1n; bv |= (pv.v & m) << BigInt(at); bx |= (pv.x & m) << BigInt(at); at += fw; };
+    if (t.fields) for (let k = t.fields.length - 1; k >= 0; k--) put(v[k], t.fields[k].t);
+    else for (let k = 0; k < (t.len ?? v.length); k++) put(v[k], t.elem);
+    return V.mk(w, bv, bx);
+  };
   // a vector of no bit (a VHDL null range): not declared, not assigned
   const nullVec = t => t?.kind === 'logic' && t.w === 0;
 
@@ -216,7 +235,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     const t = n.t || {};
     switch (n.k) {
       case 'c': {
-        if (Array.isArray(n.val)) return romRef(n, ctx);
+        if (Array.isArray(n.val)) return isRec(t) ? { x: lit(packVal(n.val, t), wOf(t)), w: wOf(t), s: false } : romRef(n, ctx);
         if (n.val.str !== undefined) fail('a string value cannot be synthesized', n);
         if (n.val.real !== undefined || t.kind === 'real') fail('a real value cannot be synthesized', n);
         const w = n.val.w || 1;
@@ -224,6 +243,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
       }
       case 'sig': {
         const s = n.sig;
+        if (isRec(s.t)) return { x: sigName.get(s), w: wOf(s.t), s: false };   // (a record: one vector)
         if (Array.isArray(s.val) || s.t.kind === 'array') fail(`array ${s.name} used as a whole value`, n);
         const w = wOf(s.t), x = sigName.get(s);
         // integer signals narrower than their 32-bit simulation width: extended back to 32 bits
@@ -270,13 +290,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
       case 'elem': {
         const base = n.base;
         if (base.k === 'c' && Array.isArray(base.val)) return romRef(n, ctx);
-        if (base.k !== 'sig' && base.k !== 'loc') fail('indexing an array expression', n);
-        const arrName = base.k === 'sig' ? sigName.get(base.sig) : localName(ctx, base.i, base.t);
-        const lo = base.t.lo ?? 0;
-        const idx = e(n.index, ctx);
-        const ix = idx.s ? S(idx.x) : idx.x;
-        const w = wOf(t);
-        const x = `${arrName}[${lo ? `${ix} - ${lo}` : ix}]`;
+        const P = place(n, ctx, false);
+        if (!P) fail('indexing an array expression', n);
+        const w = wOf(t), x = placeText(P);
         if (t.kind === 'int' && w !== t.w) return { x: fit(x, w, signedInt(t), t.w), w: t.w, s: true };
         return { x, w, s: !!t.s };
       }
@@ -319,7 +335,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
       case 'edge': case 'event': fail('a clock edge outside the clock condition of a process', n); break;
       case 'sys': case 'now': case 'str': case 'image': case 'strcat': case 'chr': case 'strlen': case 'sigattr':
         fail(`'${n.name || n.k}' cannot be synthesized`, n); break;
-      case 'aslice': fail('array slices (a part of an array of vectors) are not supported by the open synthesis', n); break;
+      case 'aslice': case 'daslice': fail('array slices (a part of an array of vectors) are not supported by the open synthesis', n); break;
       case 'xloc': fail(`'${n.name}': a hierarchical reference to a variable of another block cannot be synthesized`, n); break;
       default: fail(`expression '${n.k}' not supported by synthesis`, n);
     }
@@ -522,10 +538,16 @@ export function toVerilog(design, { name, tables = true } = {}) {
   const roms = new Map();
   function romRef(n, ctx) {
     const arrNode = n.k === 'elem' ? n.base : n;
-    const vals = arrNode.val;
+    let vals = arrNode.val;
     if (n.k !== 'elem') fail('a constant array used as a whole value', n);
-    if (vals.some(v => Array.isArray(v) || v.v === undefined)) fail('a constant array of arrays or records', n);
-    const ew = n.t.w;
+    if (vals.some(v => !Array.isArray(v) && v.v === undefined)) fail('a constant array of strings or reals', n);
+    const ew = wOf(n.t);
+    // (elements that are records / arrays: packed; a constant index: the element itself)
+    if (n.index.k === 'c') {
+      const v = vals[V.toNum(n.index.val) - (arrNode.t.lo ?? 0)];
+      return { x: lit(v === undefined ? V.allX(ew) : packVal(v, n.t), ew), w: ew, s: !!n.t.s };
+    }
+    if (vals.some(v => Array.isArray(v))) vals = vals.map(v => packVal(v, n.t));   // (a copy: the design's constant stays)
     const key = `${ew}:${arrNode.t.lo ?? 0}:${vals.map(v => lit(v, ew)).join(',')}`;
     if (!roms.has(key)) {
       const fname = `rom${roms.size}`;
@@ -558,7 +580,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
       const inits = [...fctx.locals.entries()].filter(([i, l]) => !l.param && init0[i] && !Array.isArray(init0[i]) && init0[i].v !== undefined && !init0[i].x)
         .map(([i, l]) => `    ${l.name} = ${lit(V.resize(init0[i], wOf(l.t)), wOf(l.t))};\n`).join('');
       // (a local memory keeps its words: reg [w-1:0] m [0:n-1], as the processes' locals)
-      const loc = [...fctx.locals.values()].filter(l => !l.param).map(l => `    reg ${sgn(l.t) ? 'signed ' : ''}${l.t.kind === 'array' ? `[${wOf(l.t.elem) - 1}:0] ${l.name} [0:${l.t.len - 1}]` : `[${wOf(l.t) - 1}:0] ${l.name}`};`);
+      const loc = [...fctx.locals.values()].filter(l => !l.param).map(l => `    reg ${sgn(l.t) ? 'signed ' : ''}${isMem(l.t) ? `[${wOf(l.t.elem) - 1}:0] ${l.name} [0:${l.t.len - 1}]` : `[${wOf(l.t) - 1}:0] ${l.name}`};`);
       funcs.push(`  function automatic ${sgn(f.retT) ? 'signed ' : ''}[${rw - 1}:0] ${fname}(${params.join(', ')});\n${['    reg __ret;', ...loc, ...fctx.flags.map(x => `    reg ${x};`)].join('\n')}\n  begin\n    __ret = 0;\n    ${fname} = 0;\n${inits}${body}  end\n  endfunction`);
     }
     const args = n.args.map((a, k) => { const v = e(a, ctx); const p = f.params[k]; return fit(v.x, v.w, v.s, wOf(p.t)); });
@@ -566,6 +588,52 @@ export function toVerilog(design, { name, tables = true } = {}) {
     const x = `${funcName.get(f)}(${args.join(', ')})`;
     if (f.retT?.kind === 'int' && rw !== f.retT.w) return { x: fit(x, rw, signedInt(f.retT), f.retT.w), w: f.retT.w, s: true };
     return { x, w: rw, s: !!f.retT?.s };
+  }
+
+  // ---------------- elements of memories, fields of records (#69): where a chain of selects
+  // (m(i).f(j)) lands: { base: the Verilog name or memory word, full: its width, t, mem: still a
+  // memory to index, off / offX: the bit offset in the word (constant / an expression) }
+  function place(n, ctx, lv) {
+    if (n.k === 'sig') {
+      const name = lv ? (wiredDrv.get(n.sig)?.get(ctx.proc) ?? sigName.get(n.sig)) : sigName.get(n.sig);
+      return { base: name, full: wOf(n.sig.t), t: n.sig.t, mem: isMem(n.sig.t), off: 0, offX: null };
+    }
+    if (n.k === 'loc') {
+      if (ctx.subst?.has(n.i)) { const sb = ctx.subst.get(n.i); const sub = lv ? sb.lv : sb.rv; return sub ? place(sub, sb.ctx, lv) : null; }
+      return { base: localName(ctx, n.i, n.t), full: wOf(n.t), t: n.t, mem: isMem(n.t), off: 0, offX: null };
+    }
+    if (n.k !== 'elem') return null;
+    // a word of a constant array (a ROM function's result): read only, its fields by shifting
+    if (!lv && n.base.k === 'c' && Array.isArray(n.base.val)) {
+      const r = romRef(n, ctx);
+      return { base: r.x, full: r.w, t: n.t, mem: false, off: 0, offX: null, expr: true };
+    }
+    const P = place(n.base, ctx, lv);
+    if (!P) return null;
+    const lo = P.t.lo ?? 0;
+    const idx = () => { const iv = e(n.index, ctx); return iv.s ? S(iv.x) : iv.x; };
+    if (P.mem) {   // a word of the memory
+      const ix = idx();
+      return { base: `${P.base}[${lo ? `${ix} - ${lo}` : ix}]`, full: wOf(P.t.elem), t: P.t.elem, mem: false, off: 0, offX: null };
+    }
+    if (isRec(P.t)) {   // a field of a packed record
+      if (n.index.k !== 'c') fail('a record field selected by a non-constant index', n);
+      const k = V.toNum(n.index.val) - lo;
+      return { ...P, t: P.t.fields[k].t, off: P.off + fieldOff(P.t, k) };
+    }
+    if (P.t.kind === 'array') {   // an element of an array inside a packed value
+      const ew = wOf(P.t.elem);
+      if (n.index.k === 'c') return { ...P, t: P.t.elem, off: P.off + (V.toNum(n.index.val) - lo) * ew };
+      const ix = idx(), term = `(${lo ? `${ix} - ${lo}` : ix}) * ${ew}`;
+      return { ...P, t: P.t.elem, offX: P.offX ? `${P.offX} + ${term}` : term };
+    }
+    return null;
+  }
+  function placeText(P) {
+    const w = wOf(P.t);
+    if (P.expr) return P.off === 0 && !P.offX && w === P.full ? P.base : `${w}'((${P.base}) >> ${P.offX ? `(${P.offX}${P.off ? ` + ${P.off}` : ''})` : P.off})`;
+    if (P.offX) return `${P.base}[${P.offX}${P.off ? ` + ${P.off}` : ''} +: ${w}]`;
+    return P.off === 0 && w === P.full ? P.base : `${P.base}[${P.off + w - 1}:${P.off}]`;
   }
 
   // ---------------- statements
@@ -600,16 +668,16 @@ export function toVerilog(design, { name, tables = true } = {}) {
         return { x: `${b.x}[${up ? st : `${st} - ${L.t.w - 1}`} +: ${L.t.w}]`, w: L.t.w };
       }
       case 'elem': {
-        if (L.base.k !== 'sig' && L.base.k !== 'loc') fail('assignment to an element of an array expression', L);
-        const name = L.base.k === 'sig' ? sigName.get(L.base.sig) : localName(ctx, L.base.i, L.base.t);
-        const lo = L.base.t.lo ?? 0, i = e(L.index, ctx), ix = i.s ? S(i.x) : i.x;
-        return { x: `${name}[${lo ? `${ix} - ${lo}` : ix}]`, w: wOf(L.t) };
+        const P = place(L, ctx, true);
+        if (!P) fail('assignment to an element of an array expression', L);
+        return { x: placeText(P), w: wOf(L.t) };
       }
       case 'cat': {
         const parts = L.parts.map(p => lvalue(p, ctx)).filter(p => p.w > 0);
         return { x: `{${parts.map(p => p.x).join(', ')}}`, w: parts.reduce((s, p) => s + p.w, 0) };
       }
-      case 'aslice': fail('assignment to an array slice (a part of an array of vectors) is not supported by the open synthesis', L); break;
+      case 'aslice': return { x: null, w: L.t.len ? wOf(L.t) : 0, slice: true };   // (assigned word by word: arrayCopy)
+      case 'daslice': fail('assignment to an array slice of non-constant bounds is not supported by the open synthesis', L); break;
       default: fail(`assignment target '${L.k}' not supported by synthesis`, L);
     }
     return null;
@@ -636,7 +704,11 @@ export function toVerilog(design, { name, tables = true } = {}) {
         if (s.intra) fail('an intra-assignment delay cannot be synthesized', s);
         const L = lvalue(s.target, ctx);
         if (L.w === 0) return '';   // (a null array: nothing to assign)
-        if (Array.isArray(s.value?.val) || (s.value.k === 'sig' && Array.isArray(s.value.sig.val))) return arrayCopy(s, ctx, ind);
+        // a whole memory (array signal / variable) assigned: word by word; a record, or a word of a
+        // memory of records / arrays (#10), is one vector
+        const tgtT = s.target.t;
+        if (isMem(tgtT) && (s.target.k === 'sig' || s.target.k === 'loc' || s.target.k === 'aslice')) return arrayCopy(s, ctx, ind);
+        if (isMem(tgtT)) fail('assignment of an array to a part of an array', s);
         const v = e(s.value, ctx);
         const val = s.target.k === 'cat' ? fit(v.x, v.w, v.s, L.w) : fitTarget(v, s.target, L.w);
         return `${ind}${L.x} ${s.nb && mode === 'proc' ? '<=' : '='} ${val};\n`;
@@ -779,15 +851,27 @@ export function toVerilog(design, { name, tables = true } = {}) {
   const leaveFlags = (ctx, loop) => [ctx.fn ? '__ret' : null, loop?.brk, loop?.cont].filter(Boolean).join(' || ');
 
   // whole-array assignment (array signal <= constant or another array)
+  // a memory (or a slice of one, #11) and its words: { name, off, len } for name[off + k]
+  function memWords(n, ctx, lv) {
+    if (n.k === 'sig') return { name: lv ? (wiredDrv.get(n.sig)?.get(ctx.proc) ?? sigName.get(n.sig)) : sigName.get(n.sig), off: 0, len: n.sig.t.len ?? (Array.isArray(n.sig.val) ? n.sig.val.length : 0) };
+    if (n.k === 'loc') {
+      if (ctx.subst?.has(n.i)) { const sb = ctx.subst.get(n.i); const sub = lv ? sb.lv : sb.rv; return sub ? memWords(sub, sb.ctx, lv) : null; }
+      return { name: localName(ctx, n.i, n.t), off: 0, len: n.t.len ?? 0 };
+    }
+    if (n.k === 'aslice') { const b = memWords(n.base, ctx, lv); return b && { name: b.name, off: b.off + n.off, len: n.t.len }; }
+    return null;
+  }
   function arrayCopy(s, ctx, ind) {
-    const L = s.target;
-    if (L.k !== 'sig' && L.k !== 'loc') fail('assignment of an array to a part of an array', s);
-    const name = L.k === 'sig' ? sigName.get(L.sig) : localName(ctx, L.i, L.t);
-    const et = (L.k === 'sig' ? L.sig.t : L.t).elem || { w: 1 };
+    const T = memWords(s.target, ctx, true);
+    if (!T) fail('assignment of an array to a part of an array', s);
+    const et = s.target.t.elem || { w: 1 };
     const op = s.nb ? '<=' : '=';
-    if (s.value.k === 'c') return s.value.val.map((v, k) => `${ind}${name}[${k}] ${op} ${lit(v, wOf(et))};\n`).join('');
-    const src = sigName.get(s.value.sig);
-    return s.value.sig.val.map((_, k) => `${ind}${name}[${k}] ${op} ${src}[${k}];\n`).join('');
+    if (s.value.k === 'c' && Array.isArray(s.value.val)) {
+      return s.value.val.slice(0, T.len).map((v, k) => `${ind}${T.name}[${T.off + k}] ${op} ${lit(packVal(v, et), wOf(et))};\n`).join('');
+    }
+    const S0 = memWords(s.value, ctx, false);
+    if (!S0) fail('an array expression assigned to an array (only a constant, another array or a slice of one)', s);
+    return Array.from({ length: T.len }, (_, k) => `${ind}${T.name}[${T.off + k}] ${op} ${S0.name}[${S0.off + k}];\n`).join('');
   }
 
   // ---------------- processes
@@ -877,7 +961,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
       // value is the register's (the INIT of its flip-flops)
       const init0 = p.frameInit ? p.frameInit() : [];
       const vinit = (i, l) => { const v = typeof i === 'number' ? init0[i] : undefined; return v && !Array.isArray(v) && v.str === undefined && l.t.kind !== 'array' && v.w > 0 && v.x !== (1n << BigInt(v.w)) - 1n ? ` = ${lit(V.resize(v, wOf(l.t)), wOf(l.t))}` : ''; };
-      const loc = [...[...ctx.locals.entries()].map(([i, l]) => [i, l]), ...(ctx.extraLocals || []).map(l => [null, l])].map(([i, l]) => `  reg ${sgn(l.t) ? 'signed ' : ''}${l.t.kind === 'array' ? `[${wOf(l.t.elem) - 1}:0] ${l.name} [0:${l.t.len - 1}]` : `[${wOf(l.t) - 1}:0] ${l.name}${vinit(i, l)}`};`);
+      const loc = [...[...ctx.locals.entries()].map(([i, l]) => [i, l]), ...(ctx.extraLocals || []).map(l => [null, l])].map(([i, l]) => `  reg ${sgn(l.t) ? 'signed ' : ''}${isMem(l.t) ? `[${wOf(l.t.elem) - 1}:0] ${l.name} [0:${l.t.len - 1}]` : `[${wOf(l.t) - 1}:0] ${l.name}${vinit(i, l)}`};`);
       let text = body;
       for (const [sg, m] of wiredDrv) if (m.has(p)) text = `    ${m.get(p)} = ${lit(V.mk(wOf(sg.t), sg.wired === 'and' ? V.mask(wOf(sg.t)) : 0n))};\n${text}`;
       for (const f of ctx.flags) {
@@ -977,7 +1061,11 @@ export function toVerilog(design, { name, tables = true } = {}) {
   // value out of its FSM re-encoding, which could otherwise start it in another state)
   const startVal = sg => (primDriven.has(sg) ? undefined : initVal.has(sg) ? initVal.get(sg) : sg.hasInit || sg.t?.kind === 'enum' || sg.t?.kind === 'bool' ? sg.init : undefined);
   const allX = v => !v || v.w <= 0 || v.x === (1n << BigInt(v.w)) - 1n;
-  const initOf = (sg, w) => { const v = startVal(sg); return v && !Array.isArray(v) && v.str === undefined && !allX(v) ? ` = ${lit(V.resize(v, w), w)}` : ''; };
+  const initOf = (sg, w) => {
+    let v = startVal(sg);
+    if (Array.isArray(v) && isRec(sg.t)) v = packVal(v, sg.t);   // (a record: its fields packed)
+    return v && !Array.isArray(v) && v.str === undefined && !allX(v) ? ` = ${lit(V.resize(v, w), w)}` : '';
+  };
   const portDecl = [];
   for (const p of top.ports) {
     const s = p.sig, w = wOf(s.t);
@@ -987,14 +1075,13 @@ export function toVerilog(design, { name, tables = true } = {}) {
   for (const s of design.signals) {
     if (portOf.has(s) || skipSig.has(s) || nullVec(s.t)) continue;
     const t = s.t, name = sigName.get(s);
-    if (t.kind === 'array' || Array.isArray(s.val)) {
+    if (isMem(t) || (Array.isArray(s.val) && !isRec(t))) {
       const et = t.elem || { w: s.val[0]?.w || 1 };
       const len = Array.isArray(s.init) ? s.init.length : (t.len ?? s.val.length);
       decls.push(`  logic ${et.s ? 'signed ' : ''}[${wOf(et) - 1}:0] ${name} [0:${len - 1}];`);
       const v0 = startVal(s);
       if (Array.isArray(v0)) {
-        if (v0.some(v => Array.isArray(v))) fail(`the initial value of ${s.name}, an array of arrays`, s, s.file);
-        const set = v0.map((v, k) => (allX(v) ? null : `    ${name}[${k}] = ${lit(v, wOf(et))};`)).filter(Boolean);
+        const set = v0.map((v, k) => { const pv = packVal(v, et); return allX(pv) ? null : `    ${name}[${k}] = ${lit(pv, wOf(et))};`; }).filter(Boolean);
         if (set.length) blocks.push(`  initial begin\n${set.join('\n')}\n  end`);
       }
       continue;

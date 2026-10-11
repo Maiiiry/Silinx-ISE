@@ -33,5 +33,8 @@
   ],
   "synth-diff: VHDL enumeration state machine without a reset": [],
   "synth-diff: VHDL null ranges": [],
+  "synth-diff: VHDL records and arrays of records": [
+    "Warning: Replacing memory \\leafs with list of registers. See rtop_syn.v:77, rtop_syn.v:63"
+  ],
   "synth-diff: synthesis front end": []
 }

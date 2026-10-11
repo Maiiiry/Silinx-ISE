@@ -2,7 +2,7 @@
 // vectors, 2-D), records, constants, aliases and the predefined attributes (IEEE 1076-2008 §5, §16.2).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { out, outW, vproc, vhd, sim } from './lang-util.js';
+import { out, outW, vproc, vhd, sim, diags } from './lang-util.js';
 
 test('integer, natural, positive and ranged subtypes: defaults are the left bound', () => {
   const r = out(vproc(`
@@ -274,6 +274,35 @@ test('arrays of vectors: slices read and assigned, signals, aggregates, slices o
   assert.deepEqual(r, ['4477 4 2 5', '33 51 0 0', '00003300', 'AABB 33', 'FF1122 0560']);
 });
 
+// Regression (#11, light8080's objcode_to_bram): a slice of an array with bounds known at run time
+// only: (others => …) into it, a copy into it and out of it, a null one
+test('arrays of vectors: slices with run-time bounds, filled with others, copied, null (#11)', () => {
+  const r = outW(vproc(`
+    report to_hstring(INIT(0)) & to_hstring(INIT(2)) & to_hstring(INIT(3)) & to_hstring(INIT(7));
+    n := 5;
+    w(n to 7) := ROM(0 to 7 - n);
+    report to_hstring(w(4)) & to_hstring(w(5)) & to_hstring(w(7));
+    v := ROM(n - 4 to n - 1);
+    report to_hstring(v(0)) & to_hstring(v(3));
+    n := 8;
+    w(n to 7) := (others => x"EE");
+    report to_hstring(w(7));`,
+  `variable n : integer; variable v : mem_t(0 to 3); variable w : mem_t(0 to 7) := (others => x"00");`,
+  `type mem_t is array (natural range <>) of std_logic_vector(7 downto 0);
+   constant ROM : mem_t(0 to 7) := (x"00", x"11", x"22", x"33", x"44", x"55", x"66", x"77");
+   function to_bram(oc : mem_t; size : integer) return mem_t is
+     variable br : mem_t(0 to size - 1);
+     variable obj_size : integer;
+   begin
+     if oc'length > size then obj_size := size; else obj_size := oc'length; end if;
+     for i in 0 to obj_size - 1 loop br(i) := oc(oc'low + i); end loop;
+     br(obj_size to size - 1) := (others => x"A5");
+     return br;
+   end function;
+   constant INIT : mem_t(0 to 7) := to_bram(ROM(1 to 3), 8);`));
+  assert.deepEqual(r, ['1133A5A5', '000022', '1144', '22']);   // (the null slice w(8 to 7) leaves w(7))
+});
+
 // Regression (#68): a subprogram with an unconstrained parameter was bound once per argument width,
 // so a later call with another index range of the same width took the first call's 'range / 'left
 test('unconstrained parameters take each call\'s index range: vectors and arrays of the same width (#68)', () => {
@@ -299,4 +328,23 @@ test('null ranges: a generic entity with an optional port of N = 0 bits (#15)', 
 entity opt is generic (N : natural := 0); port (x : in std_logic_vector(N - 1 downto 0); a : in std_logic_vector(3 downto 0); y : out std_logic_vector(N + 3 downto 0)); end;
 architecture rtl of opt is begin y <= x & a; end;` }));
   assert.deepEqual(r, ['1010 4']);
+});
+
+// File objects (light8080's and neorv32's testbenches): declared, passed to `file` parameters,
+// TEXT / LINE types; the textio calls on them are ignored with their warning (not modelled)
+test('VHDL file declarations and file parameters elaborate; textio writes are ignored with a warning', () => {
+  const src = `library ieee; use ieee.std_logic_1164.all; use std.textio.all;
+entity tb is end tb;
+architecture a of tb is
+  file log_file : TEXT open write_mode is "log.txt";
+  file a_file, b_file : text is out "ab.txt";
+  procedure note(file f : TEXT; n : integer) is variable l : line; begin
+    write(l, n); writeline(f, l);
+  end procedure;
+begin
+  process begin note(log_file, 3); note(b_file, 4); report "done"; wait; end process;
+end a;`;
+  assert.deepEqual(out(src, 'tb'), ['done']);
+  assert.deepEqual(diags(src, 'tb').map(d => `${d.severity} ${d.line} ${d.message}`),
+    ["warning 7 procedure 'write' (textio) is not supported", "warning 7 procedure 'writeline' (textio) is not supported"]);
 });

@@ -287,3 +287,13 @@ test('test fixtures: VHDL and Verilog designs agree with their netlists', { time
     });
   }
 });
+
+// Regression (#69, #10): records packed into vectors, arrays of records, record ports on array
+// elements, through Yosys: the netlist behaves as the RTL
+test('VHDL records and arrays of records through Yosys: the netlist behaves as the RTL (#69, #10)', { timeout: 300000 }, async () => {
+  const text = fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'vhdl-records.vhd'), 'utf8');
+  const r = await diffSynth({ name: 'rtop', sources: [{ path: 'vhdl-records.vhd', lang: 'vhdl', text }], top: 'rtop', sim: { cycles: 200 }, powerUp: true });
+  expectPass(r);
+  assert.ok(r.states > 10, `the outputs change (${r.states} states)`);
+  expectWarnings('synth-diff: VHDL records and arrays of records', r.warnings);
+});

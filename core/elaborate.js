@@ -722,6 +722,8 @@ function bindDecl(E, d) {
       E.sc.def(d.name, ent);
       return;
     }
+    // a VHDL file object: a name (procedures take it as a file parameter; textio writes are ignored)
+    case 'file': E.sc.def(d.name, { kind: 'const', val: { str: d.name }, t: STR, file: true }); return;
     case 'subalias': defSubAlias(E, d.name, d.target); return;
     case 'alias': {   // VHDL object alias: reads and writes go to the aliased object (or slice)
       // `alias f is g;` without a signature: an alias of subprogram g when g is one
@@ -856,6 +858,9 @@ function stdTypeName(n) {
   switch (n.toLowerCase()) {
     case 'std_logic': case 'std_ulogic': case 'bit': return { kind: 'logic', range: null, signed: false };
     case 'std_logic_vector': case 'std_ulogic_vector': return { kind: 'logic', range: null, signed: false, unconstrained: true, mark: 'std_logic_vector' };
+    // std.textio's TEXT (a file of lines) and LINE: names only (reading / writing files is not
+    // modelled: textio calls are ignored with a warning)
+    case 'text': case 'line': return { kind: 'string' };
     case 'bit_vector': return { kind: 'logic', range: null, signed: false, unconstrained: true, mark: 'bit_vector' };
     case 'unsigned': return { kind: 'logic', range: null, signed: false, unconstrained: true };
     case 'signed': return { kind: 'logic', range: null, signed: true, unconstrained: true };
@@ -1429,9 +1434,22 @@ function sliceNode(E, base, leftE, rightE, loc, dir) {
 // range, as an array of the same element type (arrays are stored by ascending index, so the
 // slice is the elements from its low bound on); a null range has none
 function arraySliceNode(E, base, left, right, loc, dir) {
-  if (left.k !== 'c' || right.k !== 'c') throw new ElabError('array slices with non-constant bounds are not supported', loc);
-  const l = V.toNum(left.val), r = V.toNum(right.val), t = base.t;
+  const t = base.t;
   const desc = dir ? dir === 'downto' : t.desc;
+  // bounds known at run time only (`br(n to size - 1) := (others => x"00")` in a function): the
+  // elements are found when it is evaluated; its length here is the probe's (loop variables at their
+  // first values), 0 when it cannot be probed
+  if (left.k !== 'c' || right.k !== 'c') {
+    let len = 0, l0 = t.lo, r0 = t.lo - 1;
+    try {
+      const ctx = { frame: E.fb ? E.fb.probe() : [], sim: null, depth: 0, probe: true };
+      l0 = V.toNum(evalE(left, ctx)); r0 = V.toNum(evalE(right, ctx));
+      len = (E.lang === 'vhdl' && (desc ? l0 < r0 : l0 > r0)) ? 0 : Math.abs(l0 - r0) + 1;
+    } catch { /* not probed */ }
+    return { k: 'daslice', base, left, right, ...(E.lang === 'vhdl' ? { dir: desc ? 'downto' : 'to' } : {}),
+      t: { kind: 'array', left: l0, right: r0, desc, lo: Math.min(l0, r0), len, elem: t.elem, w: t.elem.w, dynamic: true }, loc };
+  }
+  const l = V.toNum(left.val), r = V.toNum(right.val);
   const isNull = E.lang === 'vhdl' && (desc ? l < r : l > r);
   const lo = Math.min(l, r), len = isNull ? 0 : Math.abs(l - r) + 1, off = lo - t.lo;
   if (len && (off < 0 || off + len > t.len)) diag(E, `slice out of range for '${base.name || 'expression'}'`, loc, 'warning');
@@ -2199,7 +2217,10 @@ function bindStmt0(E, s, loc) {
     case 'disablefork': return { k: 'disablefork', loc };
     case 'assign': {
       const target = bindLvalue(E, s.target, loc);
-      const value = bindExpr(E, s.value, target.t, loc);
+      // (others => v) into a slice of run-time bounds: v into each of its elements (#11)
+      const fill = target.k === 'daslice' && s.value.op === 'aggregate' && s.value.items.length === 1
+        && s.value.items[0].choices?.length === 1 && s.value.items[0].choices[0] === 'others';
+      const value = fill ? { k: 'afill', a: bindExpr(E, s.value.items[0].value, target.t.elem, loc), t: target.t } : bindExpr(E, s.value, target.t, loc);
       if (E.lang === 'verilog') ctxSize(value, target.t.w);
       checkAssignable(E, target, value, loc);
       const root = lroot(target.k === 'cat' ? target.parts[0] : target);

@@ -7,6 +7,14 @@ import * as V from './values.js';
 
 // A VHDL slice against its direction (`v(-1 downto 0)`, `v(i + N - 1 downto i)` with N = 0): null
 const nullSlice = (dir, l, r) => (dir === 'downto' ? l < r : l > r);
+// The elements of a slice of an array with run-time bounds: { off, len } (null: an unknown bound)
+function dasliceRange(n, ctx) {
+  const l = evalE(n.left, ctx), r = evalE(n.right, ctx);
+  if (l.x || r.x) return null;
+  const a = V.toNum(l), b = V.toNum(r);
+  if (n.dir && nullSlice(n.dir, a, b)) return { off: 0, len: 0 };
+  return { off: Math.min(a, b) - (n.base.t.lo ?? 0), len: Math.abs(a - b) + 1 };
+}
 
 export class SimError extends Error {
   constructor(msg, loc) { super(msg); this.loc = loc; }
@@ -55,6 +63,12 @@ export function evalE(n, ctx) {
       const arr = evalE(n.base, ctx), et = n.t.elem;
       return Array.from({ length: n.t.len }, (_, j) => arr[n.off + j] ?? (et.kind === 'array' ? [] : V.allX(et.w, et.s)));
     }
+    case 'daslice': {   // a slice of run-time bounds
+      const arr = evalE(n.base, ctx), et = n.t.elem, r = dasliceRange(n, ctx);
+      if (!r) return [];
+      return Array.from({ length: r.len }, (_, j) => arr[r.off + j] ?? (et.kind === 'array' ? [] : V.allX(et.w, et.s)));
+    }
+    case 'afill': return evalE(n.a, ctx);   // (others => v) into a slice of run-time bounds: each element
     case 'dslice': {
       const b = evalE(n.base, ctx), l = evalE(n.left, ctx), r = evalE(n.right, ctx);
       if (l.x || r.x) return V.allX(n.t.w);
@@ -507,12 +521,14 @@ function resolveTarget(L, ctx, out) {
       out.push(wr);
       return;
     }
-    case 'aslice': {   // a slice of an array (#11): one write per element
+    case 'aslice': case 'daslice': {   // a slice of an array (#11): one write per element
       const base = [];
       resolveTarget(L.base, ctx, base);
       const b = base[0];
-      for (let j = 0; j < L.t.len; j++) {
-        const elem = L.off + j;
+      const rg = L.k === 'aslice' ? { off: L.off, len: L.t.len } : dasliceRange(L, ctx);
+      if (!rg) { out.push({ ...b, invalid: true, w: L.t.elem.w }); return; }
+      for (let j = 0; j < rg.len; j++) {
+        const elem = rg.off + j;
         if (elem < 0 || elem >= L.base.t.len) { out.push({ ...b, invalid: true, w: L.t.elem.w }); continue; }
         const wr = { ...b, elem, lo: 0, w: L.t.elem.w, whole: false, sub: L.t.elem.kind === 'array' };
         if (b.elem != null) wr.path = [...(b.path || []), b.elem];
@@ -594,7 +610,7 @@ function prepAssign(s, ctx) {
   resolveTarget(s.target, ctx, writes);
   // Split the value for concatenation targets (MSB part first).
   let parts;
-  if (s.target.k === 'aslice') parts = writes.map((_, k) => (Array.isArray(val) ? val[k] : val));   // element by element
+  if (s.target.k === 'aslice' || s.target.k === 'daslice') parts = writes.map((_, k) => (Array.isArray(val) ? val[k] : val));   // element by element
   else if (writes.length === 1) parts = [val];
   else {
     const total = writes.reduce((a, w) => a + w.w, 0);

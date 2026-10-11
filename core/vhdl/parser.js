@@ -598,9 +598,15 @@ class Parser {
         return [{ kind: 'alias', name, type, target, loc: this.loc(tok) }];
       }
       case 'file': {
-        this.warn('file declarations are not supported and are ignored');
-        this.sync();
-        return [];
+        // file f : TEXT [open write_mode] is "name"; : an object procedures take as a file parameter;
+        // what is written to it is not kept (textio writes are ignored)
+        this.next();
+        const names = this.parseIdList();
+        this.expectOp(':');
+        const type = this.parseSubtypeIndication();
+        while (!this.atEof() && !this.isOp(';')) this.next();
+        this.expectOp(';');
+        return names.map((name) => ({ kind: 'file', name, type, loc: this.loc(tok) }));
       }
       case 'use': {
         uses.push(...this.parseUseClause());
