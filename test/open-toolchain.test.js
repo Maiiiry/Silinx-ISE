@@ -192,6 +192,32 @@ test('open mode: Implement + Generate Programming File of blinky, for real: step
   assert.equal((await app.call('GET', '/projects/Blinky/fpga-view')).body.available, false);
 });
 
+// the other boards (research/s3e-bitstream, stage F): blinky for the Nexys2-1200 (its LEDs LD4-LD7)
+// and the Basys2-100, Implement + Generate Programming File through the API, no warning
+const NEXYS2_UCF = [['clk', 'B8'], ['sw<0>', 'G18'], ['sw<1>', 'H18'], ['sw<2>', 'K18'], ['sw<3>', 'K17'], ['btn<0>', 'B18'], ['btn<1>', 'D18'],
+  ...['J14', 'J15', 'K15', 'K14', 'E16', 'P16', 'E4', 'P4'].map((p, i) => [`led<${i}>`, p])].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;`).join('\n')
+  + '\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\n';
+for (const [name, part, pkg, ucf, slices, iobs, bytes] of [['N2', 'xc3s1200e', 'fg320', NEXYS2_UCF, 8672, 250, 480219], ['B100', 'xc3s100e', 'cp132', null, 960, 83, 72738]]) {
+  test(`open mode: Implement + Generate Programming File of blinky for ${part}-${pkg}, no warning`, { timeout: 180000 }, async () => {
+    await writeConfig({ mode: 'open' });
+    assert.equal((await app.call('POST', '/projects', { name, template: 'blinky' })).status, 200);
+    await P.updateProject(name, pj => { pj.board = null; pj.device = DEV(part, pkg); });
+    if (ucf) await fs.writeFile(path.join(P.projectDir(name), 'constraints', 'top.ucf'), ucf);
+    const j = await waitJob(jobs, await implement(name, { steps: ['synth', 'translate', 'map', 'par', 'bitgen'] }), { timeoutMs: 170000 });
+    const log = j.lines.join('\n');
+    assert.equal(j.status, 'ok', log);
+    assert.match(log, new RegExp(`Device: ${part}${pkg}-4: device description \\(shipped with Silinx\\) and bit database\\.`));
+    assert.match(log, new RegExp(`Number of occupied Slices: \\d+ out of ${slices} \\d+%`));
+    assert.match(log, /Bitstream: build\/top\.bit \(\d+ bytes, every feature in the bit database\)/);
+    assert.deepEqual(j.lines.filter(l => /warning/i.test(l)), []);
+    assert.deepEqual(j.result.warnings, []);
+    const rep = (await app.call('GET', '/projects/' + name + '/reports')).body;
+    assert.equal(rep.map.summary.iobs.total, iobs);
+    assert.equal(rep.bit.header.part, `${part.slice(2)}${pkg}`);
+    assert.equal(fss.statSync(path.join(P.projectDir(name), 'build', 'top.bit')).size, bytes);
+  });
+}
+
 test('open mode: a device without a bit database fails with the reason; the ISE-only steps are refused', async () => {
   await writeConfig({ mode: 'open' });
   await app.call('POST', '/projects', { name: 'Big', template: 'blinky', device: DEV('xc3s1600e', 'fg320') });
