@@ -21,7 +21,7 @@ const enabled = process.env.SILINX_ISE_TESTS === '1';
 const HOST = /^(?:([\w.-]+)@)?([\w.:-]+)$/.exec(process.env.SILINX_ISE_HOST || '');
 const skip = !enabled ? 'set SILINX_ISE_TESTS=1 to run the ISE tests' : !HOST ? 'set SILINX_ISE_HOST=user@host (the machine with the ISE Docker image)' : false;
 // known failures of the Silinx toolchain, with their issue
-const KNOWN = { stopwatch: '#35: the multiplier\'s constant inputs cannot be routed' };
+const KNOWN = {};
 // the warnings ISE gives on each example (the same on every device): XST, map, par
 const ISE_WARNINGS = {
   blinky: [],

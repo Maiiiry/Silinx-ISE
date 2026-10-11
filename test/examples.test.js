@@ -14,7 +14,7 @@ import { designChecks } from '../core/lint.js';
 import { EXAMPLES, TARGETS, example, exampleUcf, exampleProject, runTestbench, silinxFlow } from './examples-lib.mjs';
 
 // known failures, with their issue: the test still runs, as a todo
-const KNOWN = { stopwatch: '#35: the multiplier\'s constant inputs cannot be routed' };
+const KNOWN = {};
 
 for (const name of EXAMPLES) {
   test(`example ${name}: no error, no warning, no design-check message`, () => {
