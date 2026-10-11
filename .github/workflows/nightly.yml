@@ -47,3 +47,30 @@ jobs:
         with:
           name: vloghammer-failures
           path: vloghammer-failures
+  designs:
+    # open-source designs (CPUs, peripherals, crypto, benchmarks; test/designs-corpus/manifest.json,
+    # fetched at pinned commits, never committed) through the whole toolchain: front end, their own
+    # testbenches, open synthesis, netlist vs RTL, the fully open flow to a bitstream; every stage's
+    # status and every warning checked against test/designs-corpus/expected.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: .cache/designs-corpus
+          key: designs-corpus-${{ hashFiles('test/designs-corpus/manifest.json') }}
+      - run: npm run fetch:designs
+      - name: Open designs through the whole toolchain
+        run: npm run test:designs -- --jobs 4
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: designs-results
+          path: .cache/designs-corpus/results.json
+          if-no-files-found: ignore
