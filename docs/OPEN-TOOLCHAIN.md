@@ -128,7 +128,11 @@ or Digilent, or endorsed by them.
   the Xilinx 7-series chips, obtained from Vivado. The author decided (2026-10-11) to ship it for
   the devices of the Spartan-3E boards Silinx supports (XC3S100E-CP132, XC3S250E-CP132,
   XC3S500E-FG320, XC3S1200E-FG320), so that the Silinx toolchain works without ISE on them; for
-  every other device each user builds it from their own ISE installation.
+  every other device each user builds it from their own ISE installation. Measuring it instead by
+  black-box observation, as the bit database is, would remove the question: the method and a first
+  prototype on the XC3S250E's CLB array are in
+  [research/s3e-device/README.md](../research/s3e-device/README.md)
+  ([#3](https://github.com/pmnmalo/Silinx-ISE/issues/3)).
 
 ## Author
 

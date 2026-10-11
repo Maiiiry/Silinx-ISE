@@ -1,0 +1,85 @@
+// Candidates for the probes (probe-run.mjs): tiles, sites, the census of the CLBs' PIPs
+// (research/s3e-device/README.md). From what ISE's routed designs showed (prototype.mjs observe) and
+// the bit database; no device report.
+//   node candidates.mjs tiles obs.json out.json      switch-box tiles: the observed prefixes at every X / Y of their kind
+//   node candidates.mjs sites clb-tiles.txt out.json  a SLICEM on every slice site (the SLICEL sites refuse it), VCC sites
+//   node candidates.mjs census clb-tiles.txt out.json every PIP of the database's CLB types in every CLB
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { tileXY } from './observe.mjs';
+import { clbSlices } from './gen-observe.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const PART = process.env.PART || 'xc3s250ecp132-4';
+const DEVICE = PART.replace(/(cp|fg|vq|tq|pq|ft)\d+-\d+$/, '');
+const SWITCH = /^(CLB|BRAM\d_SMALL(_BRK)?|[LRTB]IOIS.*|[LRTB]IBUFS.*)$/;
+
+/** Switch-box tile candidates: each observed prefix at every X / Y of its kind (I/O tiles on their
+ *  side, block-RAM interconnect in the observed block-RAM columns, CLBs inside), with a PIP every
+ *  switch box has; the tiles already seen are not asked. */
+export function tileCandidates(obsTiles) {
+  const seen = new Set(obsTiles);
+  const prefixes = new Set(); let maxX = 0, maxY = 0;
+  const bramX = new Set();
+  for (const t of seen) {
+    const p = tileXY(t);
+    if (!p) continue;
+    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+    if (SWITCH.test(p.prefix)) prefixes.add(p.prefix);
+    if (/^BRAM\d_SMALL/.test(p.prefix)) bramX.add(p.x);
+  }
+  const pips = [];
+  for (const pre of prefixes) {
+    const side = pre[0], io = /IOIS|IBUFS/.test(pre);
+    for (let x = 0; x <= maxX; x++) for (let y = 0; y <= maxY; y++) {
+      if (io) { if ((side === 'L' && x) || (side === 'R' && x !== maxX) || (side === 'B' && y) || (side === 'T' && y !== maxY)) continue; } else if (!x || !y || x === maxX || y === maxY) continue;
+      if (/^BRAM/.test(pre) && !bramX.has(x)) continue;
+      const t = `${pre}_X${x}Y${y}`;
+      if (!seen.has(t)) pips.push({ tile: t, from: 'W2END4', to: 'W2BEG4' });
+    }
+  }
+  return { pips, known: [...seen].filter(t => SWITCH.test(tileXY(t)?.prefix || '')) };
+}
+
+/** Site candidates: a SLICEM instance on every slice of the CLB tiles, VCC sites over the grid
+ *  (their names run to max X + 2 / max Y + 2). */
+export function siteCandidates(clbs) {
+  const sites = clbs.flatMap(t => clbSlices(t).map(site => ({ site, type: 'SLICEM' })));
+  const xs = clbs.map(t => tileXY(t).x), ys = clbs.map(t => tileXY(t).y);
+  for (let x = 0; x <= Math.max(...xs) + 2; x++) for (let y = 0; y <= Math.max(...ys) + 3; y++) sites.push({ site: `VCC_X${x}Y${y}`, type: 'VCC' });
+  return sites;
+}
+
+/** Census candidates: every PIP feature of the database's type of each CLB (the break rows' type
+ *  with the CLB's it shares); BX / BY pairs written as bidirectional. */
+export function censusCandidates(clbs, tilesDb, brkRows) {
+  const feats = name => {
+    const ty = tilesDb.types[name] || {};
+    const all = [...Object.keys(ty.features || {}), ...Object.keys(tilesDb.types[ty.sameAs]?.features || {})];
+    return [...new Set(all)].map(f => /^(\S+)->(\S+)$/.exec(f)).filter(Boolean).map(m => [m[1], m[2]]);
+  };
+  const F = { CENTER_SMALL: feats('CENTER_SMALL'), CENTER_SMALL_BRK: feats('CENTER_SMALL_BRK') };
+  const pips = [];
+  for (const t of clbs) {
+    for (const [a, b] of F[brkRows.includes(tileXY(t).y) ? 'CENTER_SMALL_BRK' : 'CENTER_SMALL']) {
+      pips.push({ tile: t, from: a, to: b, dir: /^B[XY]\d$/.test(a) && /^B[XY]\d$/.test(b) ? '=-' : '->' });
+    }
+  }
+  return pips;
+}
+
+if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {
+  const [cmd, input, out] = process.argv.slice(2);
+  const read = f => JSON.parse(fs.readFileSync(f, 'utf8'));
+  const lines = f => fs.readFileSync(f, 'utf8').split('\n').map(s => s.trim()).filter(t => t.startsWith('CLB_'));
+  let res;
+  if (cmd === 'tiles') { const o = read(input); res = { part: PART, ...tileCandidates([...o.pips.map(p => p.tile), ...o.sites.map(s => s.tile)]) }; }
+  else if (cmd === 'sites') res = { part: PART, sites: siteCandidates(lines(input)) };
+  else if (cmd === 'census') {
+    const db = path.join(HERE, '../s3e-bitstream/db');
+    res = { part: PART, pips: censusCandidates(lines(input), read(path.join(db, 's3e-tiles.json')), read(path.join(db, `${DEVICE}-layout.json`)).brkRows || []) };
+  } else { console.error('usage: candidates.mjs tiles|sites|census input out.json'); process.exit(1); }
+  fs.writeFileSync(out, JSON.stringify(res));
+  console.log(`${(res.pips || res.sites).length} candidates`);
+}
