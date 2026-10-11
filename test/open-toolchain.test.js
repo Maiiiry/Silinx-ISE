@@ -236,6 +236,19 @@ test('open mode: a device without a bit database fails with the reason; the ISE-
   assert.match(r.body.error, /not available in the Silinx toolchain \(they need Xilinx ISE\): postsynth/);
 });
 
+test('open mode: a VHDL top with capital letters (its netlist is named in lower case) goes through Translate and Map (#31)', { timeout: 120000 }, async () => {
+  await writeConfig({ mode: 'silinx' });
+  await app.call('POST', '/projects', { name: 'VhdlCaps', device: DEV('xc3s250e', 'cp132') });
+  await app.call('PUT', '/projects/VhdlCaps/file?path=src/Blink_Top.vhd', [
+    'library ieee;', 'use ieee.std_logic_1164.all;', 'entity Blink_Top is', '  port (CLK : in std_logic; D : in std_logic; Q : out std_logic);', 'end Blink_Top;',
+    'architecture rtl of Blink_Top is', 'begin', '  process (CLK) begin if rising_edge(CLK) then Q <= not D; end if; end process;', 'end rtl;', ''].join('\n'));
+  await P.updateProject('VhdlCaps', pj => { pj.top = 'Blink_Top'; });
+  const j = await waitJob(jobs, await implement('VhdlCaps', { steps: ['synth', 'translate', 'map'] }), { timeoutMs: 110000 });
+  assert.equal(j.status, 'ok', j.lines.join('\n'));
+  assert.ok(j.lines.some(l => /^Netlist: build\/open\/blink_top\.json/.test(l)), j.lines.join('\n'));
+  assert.ok(j.lines.some(l => /Number of occupied Slices: 1 out of 2448/.test(l)), j.lines.join('\n'));
+});
+
 test('open mode: a design with errors fails in Synthesize with the messages; Stop cancels a run', { timeout: 60000 }, async () => {
   await writeConfig({ mode: 'silinx' });
   await app.call('POST', '/projects', { name: 'Bad', device: DEV('xc3s250e', 'cp132') });

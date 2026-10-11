@@ -75,14 +75,17 @@ async function runSynth() {
   for (const i of items) console.log(`  ${i.name}: ${i.used}`);
   report.synthesis = { tool: 'Yosys', utilization: items, cells: u.cells, warnings: r.warnings.length, errors: 0,
     summary: { luts: { used: u.luts || 0 }, ffs: { used: u.flipFlops || 0 }, iobs: { used: u.ios || 0 } } };
-  report.files.netlist = rel(path.join(outDir, `${top}.json`));
-  report.files.synthesis = rel(path.join(outDir, `${top}_stat.txt`));
+  // (the netlist's name is the elaborated top's: a VHDL top is lower case, #31)
+  report.files.netlist = rel(path.join(outDir, `${r.top}.json`));
+  report.files.synthesis = rel(path.join(outDir, `${r.top}_stat.txt`));
   synth = r;
   console.log(`Netlist: ${report.files.netlist} (${u.cells} cells) in ${ms(t)}`);
 }
 
 function runTranslate() {
-  const text = synth ? synth.files[`${top}.json`] : fs.readFileSync(path.join(outDir, `${top}.json`), 'utf8');
+  // the netlist of an earlier run: its name may differ from the project's top in case (VHDL, #31)
+  const earlier = () => fs.readdirSync(outDir).find(f => f.toLowerCase() === `${top}.json`.toLowerCase());
+  const text = synth ? synth.files[`${synth.top}.json`] : fs.readFileSync(path.join(outDir, earlier() || `${top}.json`), 'utf8');
   netlist = readYosysJson(text);
   let ucf = { assignments: {}, clocks: [] };
   try { if (ucfText) ucf = parseUcf(ucfText); } catch (e) { throw new StepError(`the constraints cannot be read: ${e.message}`, [], 'Fix the constraints (Check Constraints).'); }
