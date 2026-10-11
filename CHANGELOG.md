@@ -9,6 +9,18 @@ the "What's new" text of its GitHub release.
   UCF: its clock could not reach a block RAM on the switches of known bits). A clock input with no
   `LOC` is now put on a free GCLK pin, a pad whose dedicated path reaches a global clock buffer (B8
   -> BUFGMUX_X2Y11 on every Spartan-3E device of the toolchain), as ISE places a clock (#49).
+- **Escaped port names in the UCF** (Verilog `\opcode[0] `, as in the EPFL benchmarks): XST names
+  such a port `_opcode[0]_` in its netlist (between underscores, with `. + / \ ~ ^ * = % & $` turned
+  into `_`; a plain name's `$` too: `b$c` is `b_c`), the only spelling ngdbuild finds (measured with
+  ISE 14.7). The automatic pins of the ISE modes, I/O Pin Planning, the board's pin assignment and
+  the Silinx toolchain's pads now use it, and Check Constraints accepts it — and reports the HDL
+  name (`NET "opcode[0]"`) as the error ngdbuild gives (ConstraintSystem:59), with the right name.
+  The EPFL designs epfl-ctrl, epfl-cavlc and epfl-int2float now build with ISE to a bitstream (#34).
+- **Silinx toolchain: an input pad that drives nothing** is written as ISE's bitgen writes it: the
+  pad without its input, whatever its I/O standard (3 bits per pad differed). Measured on every pad
+  of the four Spartan-3E devices (`I:NOLOAD` in the pads' bit database). The open flow leaves such
+  inputs out, as ISE's map does; the corpus designs that differed (verilog-lfsr-prbs,
+  spi-fpga-master, verilog-axis-fifo) are byte-identical to ISE's bitgen (#18).
 - **Silinx toolchain: multiplications by a constant** (such as the stopwatch example's x * 6554)
   failed in Place & Route on every Spartan-3E device: the multiplier's inputs tied to 1 could not
   be routed on the switches of known bits. Each is now tied, as ISE does, to the constant-1 source

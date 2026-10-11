@@ -22,7 +22,7 @@ export function mountPinPlanner(el, doc, top) {
   });
   const nets = [];
   for (const p of ports) {
-    if (!p.bus) nets.push({ net: p.name, port: p, bit: null });
+    if (!p.bus) nets.push({ net: bitName(p.name), port: p, bit: null });
     else {
       const step = p.msb >= p.lsb ? -1 : 1;
       for (let i = p.lsb; ; i -= step) { nets.push({ net: bitName(p.name, i), port: p, bit: i }); if (i === p.msb) break; }
@@ -123,8 +123,8 @@ export function mountPinPlanner(el, doc, top) {
       let r = byName.get(key) || byName.get(aliases[key]) || (aliases[key] === 'clk' ? board.resources.find(x => x.group === 'Clock') : null);
       if (!r) continue;
       if (!p.bus) {
-        asg[p.name] = { ...(asg[p.name] || {}), loc: r.pins[0], pull: r.pull };   // I/O Std. stays default
-        if (r.group === 'Clock' && r.extra?.period && !clocks.some(c => c.net === p.name)) clocks.push({ net: p.name, period: parseFloat(r.extra.period), duty: 50 });
+        asg[bitName(p.name)] = { ...(asg[bitName(p.name)] || {}), loc: r.pins[0], pull: r.pull };   // I/O Std. stays default
+        if (r.group === 'Clock' && r.extra?.period && !clocks.some(c => c.net === bitName(p.name))) clocks.push({ net: bitName(p.name), period: parseFloat(r.extra.period), duty: 50 });
         n++;
       } else {
         const lo = Math.min(p.msb, p.lsb);

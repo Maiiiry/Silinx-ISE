@@ -180,7 +180,11 @@ export function designFeatures(design, db) {
       const has = a => inst.cfg.some(c => c.attr === a && c.value !== '#OFF');
       const mode = has('OUTBUF') ? (has('INBUF') ? 'IO' : 'O') : 'I';
       const std = (inst.cfg.find(c => c.attr === 'IOATTRBOX') || {}).value || 'NONE';
-      feats.push({ tile: `@${inst.site}`, feature: `${mode}:${std}` });
+      // an input whose buffer drives nothing (no net on any output pin of the site): ISE's bitgen
+      // writes the pad without its input (I:NOLOAD, whatever the I/O standard; ISE's DRC warns
+      // PhysDesignRules:812, dangling pin; measured on every pad of the four devices, #18)
+      const noLoad = mode === 'I' && has('INBUF') && !outPins.get(inst.name)?.size;
+      feats.push({ tile: `@${inst.site}`, feature: noLoad ? 'I:NOLOAD' : `${mode}:${std}` });
       // drive strength, slew rate and pull: changes to the pad's bits, measured against DRIVE 12
       // (8 for LVCMOS15, 6 for LVCMOS12: db padDriveDefault), SLOW, no pull; the drive and slew of
       // each standard separately (O:DRIVE:8 for LVCMOS33, O:LVTTL:DRIVE:8…)

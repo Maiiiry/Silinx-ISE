@@ -10,9 +10,24 @@
 // Clock object:
 //   { net: 'clk', period: 20 (ns, number or '20 ns'/'50 MHz' string), duty: 50, name: 'TS_clk' }
 
+/**
+ * The name XST gives a top-level port in its netlist, which is the one the UCF must use. A plain
+ * identifier keeps its name. A name that is not one (a Verilog escaped identifier such as
+ * `\opcode[0] `, a VHDL extended identifier) is put between underscores, with + . / \ ~ ^ * = % & $
+ * replaced by '_'; the '$' of a plain Verilog identifier is replaced too. Measured with ISE 14.7:
+ * `\opcode[0] ` -> `_opcode[0]_`, `\a.b ` -> `_a_b_`, `\1abc ` -> `_1abc_`, `b$c` -> `b_c`; the other
+ * characters (- ( ) [ ] < > { } : ; # | @ ? ! ' ` , ") are kept. ngdbuild finds no NET `opcode[0]`,
+ * `\opcode[0]`, `opcode\[0\]` or `b$c` (ConstraintSystem:59).
+ */
+export function ucfPortName(port) {
+  const s = String(port);
+  return /^[A-Za-z_][\w$]*$/.test(s) ? s.replace(/\$/g, '_') : `_${s.replace(/[+./\\~^*=%&$]/g, '_')}_`;
+}
+
 /** UCF net name for one bit of a port (`bit` undefined/null for scalars). */
 export function bitName(port, bit) {
-  return bit === undefined || bit === null ? port : `${port}<${bit}>`;
+  const n = ucfPortName(port);
+  return bit === undefined || bit === null ? n : `${n}<${bit}>`;
 }
 
 /**
@@ -41,7 +56,7 @@ export function normalizePort(p) {
 /** All UCF net names of a port, LSB first. */
 export function expandPort(p) {
   const n = normalizePort(p);
-  if (!n.bus) return [n.name];
+  if (!n.bus) return [bitName(n.name)];
   const out = [];
   const step = n.msb >= n.lsb ? 1 : -1;
   for (let i = n.lsb; ; i += step) { out.push(bitName(n.name, i)); if (i === n.msb) break; }
@@ -318,8 +333,8 @@ export function boardAutoAssign(ports, board) {
     };
     const width = p.width || 1;
     if (width === 1 && (p.msb === null || p.msb === undefined)) {
-      assignments[p.name] = attrs(r.pins[0]);
-      if (r.group === 'Clock') clocks.push({ net: p.name, period: periodNs(r.extra?.period || '20 ns'), duty: 50 });
+      assignments[bitName(p.name)] = attrs(r.pins[0]);
+      if (r.group === 'Clock') clocks.push({ net: bitName(p.name), period: periodNs(r.extra?.period || '20 ns'), duty: 50 });
     } else {
       const lo = Math.min(p.msb, p.lsb);
       if (width > r.pins.length) unmatched.push(`${p.name}[${lo + r.pins.length}..]`);
@@ -400,6 +415,13 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
 
   const portMap = new Map();
   for (const p of ports) portMap.set(p.name.toLowerCase(), normalizePort(p));
+  // ports whose netlist (UCF) name is not their HDL name (escaped identifiers: \opcode[0] ->
+  // _opcode[0]_, b$c -> b_c): by UCF name and by HDL name
+  const renamed = new Map(), renamedRaw = new Map();
+  for (const p of portMap.values()) {
+    const u = ucfPortName(p.name);
+    if (u !== p.name) { renamed.set(u.toLowerCase(), p); renamedRaw.set(p.name.toLowerCase(), p); }
+  }
   const boardPins = board ? new Map() : null;
   if (board) for (const r of board.resources || []) r.pins.forEach((pin, i) => boardPins.set(String(pin).toUpperCase(), r.pins.length > 1 ? `${r.name}<${i}>` : r.name));
   const bga = /^(cp|cs|csg|ft|ftg|fg|fgg|bg|bf|ff|cpg|clg|tqg)?/i.exec(pkg || '')[1];
@@ -468,29 +490,46 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
     }
 
     // does the net exist in the top module?
-    if (!ports.length || /[/*?]/.test(net)) continue;   // hierarchical names / wildcards: resolved by the tools
-    const m = /^([A-Za-z_][\w$]*)\s*(?:([<([])\s*(-?\d+)\s*[>)\]])?$/.exec(net);
-    if (!m) { add('error', netPos, `invalid net name '${net}'`); continue; }
-    const port = portMap.get(m[1].toLowerCase());
+    if (!ports.length) continue;
     const ioAttr = attrs.some(a => IO_ATTRS.has(a));
+    // a port with an escaped name, by its netlist name (_opcode[0]_, _v_x_<1>)
+    const mEsc = /^(.*?)\s*<\s*(-?\d+)\s*>$/.exec(net);
+    let m = renamed.has(net.toLowerCase()) ? [net, net] : mEsc && renamed.has(mEsc[1].toLowerCase()) ? [net, mEsc[1], '<', mEsc[2]] : null;
+    if (!m) {
+      // ... or by its HDL name, which ngdbuild does not find (ConstraintSystem:59)
+      const rawNet = net.replace(/^\\/, '').trim().toLowerCase();   // also as written in Verilog: \opcode[0]
+      const mRaw = /^(.*?)\s*[<([]\s*(-?\d+)\s*[>)\]]$/.exec(rawNet);
+      const raw = renamedRaw.has(rawNet) ? [renamedRaw.get(rawNet)] : mRaw && renamedRaw.has(mRaw[1]) ? [renamedRaw.get(mRaw[1]), mRaw[2]] : null;
+      if (raw) {
+        const [p, b] = raw;
+        const want = bitName(p.name, p.bus ? (b ?? p.lsb) : null);
+        add('error', netPos, `NET "${net}" is not found by ISE: XST names the port '${p.name}' ${bitName(p.name)} in its netlist (use NET "${want}")`);
+        continue;
+      }
+      if (/[/*?]/.test(net)) continue;   // hierarchical names / wildcards: resolved by the tools
+      m = /^([A-Za-z_][\w$]*)\s*(?:([<([])\s*(-?\d+)\s*[>)\]])?$/.exec(net);
+    }
+    if (!m) { add('error', netPos, `invalid net name '${net}'`); continue; }
+    const port = portMap.get(m[1].toLowerCase()) || renamed.get(m[1].toLowerCase());
     if (!port) {
       const msg = `NET "${net}" does not exist in the top module '${top}'`;
       if (ioAttr) add('error', netPos, `${msg} (no port named '${m[1]}')`);
       else add('warning', netPos, `${msg} as a port (timing constraints on internal nets are resolved after synthesis)`);
       continue;
     }
-    if (lang === 'verilog' && port.name !== m[1]) add('error', netPos, `NET "${net}": the port is called '${port.name}' (UCF names are case-sensitive for Verilog designs)`);
+    const uName = bitName(port.name);   // the port's name in the UCF (XST's)
+    if (lang === 'verilog' && uName !== m[1]) add('error', netPos, `NET "${net}": the port is called '${uName}' (UCF names are case-sensitive for Verilog designs)`);
     if (m[2] && m[2] !== '<') add('warning', at(st, m[2]), `use ${m[1]}<${m[3]}> for a bus bit in UCF (the default bus delimiter is <>)`);
     if (port.bus && m[3] === undefined) {
       if (ioAttr) add('error', netPos, `'${m[1]}' is a ${port.width}-bit bus: constrain each bit (NET "${m[1]}<${port.lsb}>" …)`);
       continue;
     }
-    if (!port.bus && m[3] !== undefined) { add('error', netPos, `'${port.name}' is a single bit, not a bus: use NET "${port.name}"`); continue; }
+    if (!port.bus && m[3] !== undefined) { add('error', netPos, `'${port.name}' is a single bit, not a bus: use NET "${uName}"`); continue; }
     if (port.bus) {
       const b = +m[3], lo = Math.min(port.msb, port.lsb), hi = Math.max(port.msb, port.lsb);
       if (b < lo || b > hi) { add('error', at(st, m[3]), `bit ${b} is out of range for '${port.name}' (${port.msb} downto ${port.lsb})`); continue; }
-      if (attrs.includes('LOC')) constrained.add(`${port.name.toLowerCase()}<${b}>`);
-    } else if (attrs.includes('LOC')) constrained.add(port.name.toLowerCase());
+      if (attrs.includes('LOC')) constrained.add(bitName(port.name, b).toLowerCase());
+    } else if (attrs.includes('LOC')) constrained.add(uName.toLowerCase());
   }
 
   for (const t of tsRefs) if (!tnms.has(t.tnm)) add('error', t.pos, `TIMESPEC refers to the timing group "${t.tnm}", which no TNM_NET/TNM/TIMEGRP defines`);

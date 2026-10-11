@@ -31,6 +31,13 @@ test('ports: one entry per bit, named as UCF names them', () => {
   assert.equal(nl.nets[clk.bits[0].net].port, 'clk');
 });
 
+test('ports with escaped names are named as XST names them, as the UCF must (#34): \\opcode[0]  -> _opcode[0]_', () => {
+  const nl = readYosysJson(JSON.stringify({ modules: { top: { attributes: { top: '00000000000000000000000000000001' },
+    ports: { 'opcode[0]': { direction: 'input', bits: [2] }, 'v.x': { direction: 'input', bits: [3, 4] }, 'res[0]': { direction: 'output', bits: [2] } },
+    cells: {}, netnames: {} } } }));
+  assert.deepEqual(nl.ports.map(p => [p.name, p.bits.map(b => b.name)]), [['opcode[0]', ['_opcode[0]_']], ['v.x', ['_v_x_<0>', '_v_x_<1>']], ['res[0]', ['_res[0]_']]]);
+});
+
 test('cells, nets, drivers and loads refer to each other', () => {
   const nl = load('counter');
   const types = {};

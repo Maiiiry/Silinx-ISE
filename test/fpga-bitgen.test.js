@@ -366,3 +366,47 @@ test('padsFromDevice: the bonded I/O sites of the device, by their index among t
   const tiles = JSON.parse(fs.readFileSync(new URL('../research/s3e-bitstream/db/s3e-tiles.json', import.meta.url), 'utf8'));
   assert.equal(tiles.pads, undefined);
 });
+
+// #18: an input pad whose buffer drives nothing. ISE's bitgen writes the pad without its input: of
+// the input bits it keeps those of the 1.8 V standards less one, whatever the standard; the pull is
+// written as usual. The expected bits are ISE's (XC3S250E-CP132, routed XDL with dangling inputs at
+// B8, C11, G12 and A7; ISE's DRC: 0 errors, one PhysDesignRules:812 warning per pad, dangling pin).
+test('an input pad that drives nothing: the bits ISE\'s bitgen writes (I:NOLOAD), with its pull; a connected input keeps its standard (#18)', async () => {
+  const { loadDb } = await import('../research/s3e-bitstream/db.mjs');
+  const db = loadDb('xc3s250ecp132-4');
+  const pad = (name, tile, site, cfg) => `inst "${name}" "IBUF",placed ${tile} ${site} ,\n  cfg " IDELMUX::1 IMUX::1 ${cfg} INBUF:${name}_IBUF: PAD:${name}: "\n  ;\n`;
+  const xdl = `design "top" xc3s250ecp132-4 v3.2 , cfg "";\n${pad('clk', 'TIBUFS_X13Y35', 'B8', 'IOATTRBOX::LVCMOS33')}${pad('b1', 'TIOIS_X20Y35', 'C11', 'IOATTRBOX::LVCMOS33 PULL::PULLUP')}${pad('b0', 'RIBUFS_PCI_X27Y21', 'G12', 'IOATTRBOX::LVCMOS18')}${pad('b3', 'TIOIS_X12Y35', 'A7', 'IOATTRBOX::LVTTL PULL::PULLDOWN')}`;
+  const { feats } = designFeatures(parseXdl(xdl), db);
+  assert.deepEqual(feats.filter(f => f.tile[0] === '@').map(f => `${f.tile} ${f.feature}`), ['@B8 I:NOLOAD', '@C11 I:NOLOAD', '@C11 I:PULL:PULLUP', '@G12 I:NOLOAD', '@A7 I:NOLOAD', '@A7 I:PULL:PULLDOWN']);
+  const { frames, unknown } = frameData(parseXdl(xdl), db);
+  assert.deepEqual(unknown, []);
+  const bits = list => list.split(' ').map(s => getBit(frames, db.format.frameWords, ...s.split(',').map(Number)));
+  // ISE: set / clear
+  assert.deepEqual(bits('177,14 178,11'), [1, 1]);
+  assert.deepEqual(bits('177,11 178,14 178,15'), [0, 0, 0]);
+  assert.deepEqual(bits('310,12 310,14 311,13 315,12 310,15'), [1, 1, 1, 1, 1]);
+  assert.deepEqual(bits('313,12 314,13 316,14'), [0, 0, 0]);
+  assert.deepEqual(bits('385,917 385,918'), [1, 1]);
+  assert.deepEqual(bits('385,928 385,929 385,935'), [0, 0, 0]);
+  assert.deepEqual(bits('188,12 189,13 192,14'), [1, 1, 1]);
+  assert.deepEqual(bits('189,11 191,13 192,15 193,14'), [0, 0, 0, 0]);
+  // the same pad with a load: its I/O standard as before
+  const loaded = `${xdl}inst "s" "SLICEL",placed CLB_X1Y1 SLICE_X0Y0 ,\n  cfg " "\n  ;\nnet "clk_i" ,\n  outpin "clk" I ,\n  inpin "s" BX ,\n  ;\n`;
+  assert.ok(designFeatures(parseXdl(loaded), db).feats.some(f => f.tile === '@B8' && f.feature === 'I:LVCMOS33'));
+  const f2 = frameData(parseXdl(loaded), db).frames;
+  assert.deepEqual('177,11 177,14 178,11 178,14 178,15'.split(' ').map(s => getBit(f2, db.format.frameWords, ...s.split(',').map(Number))), [1, 1, 1, 1, 1]);
+});
+
+test('the bit database: every pad of every package has I:NOLOAD, its 1.8 V input bits less one (#18)', async () => {
+  const { loadDb } = await import('../research/s3e-bitstream/db.mjs');
+  for (const part of ['xc3s100ecp132-4', 'xc3s250ecp132-4', 'xc3s500efg320-4', 'xc3s1200efg320-4']) {
+    const db = loadDb(part);
+    const pads = Object.entries(db.padFeats);
+    assert.ok(pads.length > 80, part);
+    for (const [p, f] of pads) {
+      assert.ok(f['I:NOLOAD'], `${part} ${p}`);
+      assert.equal(f['I:NOLOAD'].length, f['I:LVCMOS18'].length - 1, `${part} ${p}`);
+      assert.ok(f['I:NOLOAD'].every(b => f['I:LVCMOS18'].includes(b)), `${part} ${p}`);
+    }
+  }
+});

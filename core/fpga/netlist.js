@@ -18,6 +18,8 @@
 // string parameter that looks binary gets a trailing space in Yosys's JSON; it is trimmed).
 // paramBits / paramInt read them.
 
+import { bitName } from '../ucf.js';
+
 /** The bits of a parameter value, least significant first (x / z read as 0). */
 export function paramBits(v) {
   const s = String(v ?? '').trim();
@@ -67,14 +69,15 @@ export function readYosysJson(json, { top } = {}) {
     return k;
   };
 
-  // ports: bit names as UCF writes them (bus bits name<i>, i counted as the HDL declares them)
+  // ports: bit names as UCF writes them (bus bits name<i>, i counted as the HDL declares them;
+  // escaped names as XST's: \opcode[0]  -> _opcode[0]_)
   const ports = [];
   for (const [pname, p] of Object.entries(mod.ports || {})) {
     const dir = p.direction === 'input' ? 'in' : p.direction === 'output' ? 'out' : 'inout';
     const w = p.bits.length, off = p.offset ?? 0, bus = w > 1 || p.offset !== undefined || p.upto !== undefined;
     const bits = p.bits.map((b, i) => {
       const idx = p.upto ? off + (w - 1 - i) : off + i;
-      return { net: netOf(b), name: bus ? `${pname}<${idx}>` : pname };
+      return { net: netOf(b), name: bus ? bitName(pname, idx) : bitName(pname) };
     });
     ports.push({ name: pname, dir, bits });
     for (const b of bits) if (nets[b.net].const === undefined) nets[b.net].port = b.name;
