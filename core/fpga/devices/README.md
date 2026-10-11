@@ -1,7 +1,7 @@
 # Device descriptions shipped with Silinx
 
 `<part>.json.gz`: the routing graph of a device (its tiles, sites, wires and routing switches) in
-Silinx's own packed format (`core/fpga/device.js`, `packDevice`), used by the open toolchain's
+Silinx's own packed format (`core/fpga/device.js`, `packDevice`), used by the Silinx toolchain's
 placer, router and bitstream writer (`core/fpga/`).
 
 | File | Device | Board |
@@ -11,7 +11,7 @@ placer, router and bitstream writer (`core/fpga/`).
 | `xc3s500efg320-4.json.gz` | XC3S500E, FG320 package (any speed grade) | Digilent Nexys2-500, Xilinx Spartan-3E Starter Kit |
 | `xc3s1200efg320-4.json.gz` | XC3S1200E, FG320 package (any speed grade) | Digilent Nexys2-1200 |
 
-The open toolchain writes bitstreams for the devices that also have a bit database
+The Silinx toolchain writes bitstreams for the devices that also have a bit database
 (research/s3e-bitstream/db): all four, for these packages.
 
 Each file was computed by Silinx from the output of ISE 14.7's documented

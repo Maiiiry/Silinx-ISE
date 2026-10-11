@@ -194,13 +194,13 @@ test('multipliers: MULT18X18SIO sites, registers and inverters as ISE writes the
   same(nl, p, 300);
 });
 
-test('cells the open toolchain cannot implement yet are reported clearly', () => {
+test('cells the Silinx toolchain cannot implement yet are reported clearly', () => {
   const one = (type, conns, outs) => yjson({ clk: ['input', 1], o: ['output', 1] }, [...clock, { name: 'u', type, conns, outs }, obuf('o', 'y')]);
   const dcm = params => yjson({ clk: ['input', 1], o: ['output', 1] }, [...clock, { name: 'u', type: 'DCM_SP', params, conns: { CLKIN: 'clk_i', CLK0: 'y' }, outs: ['CLK0'] }, obuf('o', 'y')]);
   assert.throws(() => pack(dcm({ STARTUP_WAIT: 'TRUE' })), /DCM_SP u: STARTUP_WAIT = TRUE is not supported yet/);
   assert.throws(() => pack(dcm({ CLKIN_DIVIDE_BY_2: 'TRUE' })), /DCM_SP u: CLKIN_DIVIDE_BY_2 = TRUE is not in the bit database yet/);
   assert.throws(() => pack(dcm({ DESKEW_ADJUST: 'SOURCE_SYNCHRONOUS' })), /DESKEW_ADJUST = SOURCE_SYNCHRONOUS is not in the bit database yet/);
-  assert.throws(() => pack(one('BUFGMUX', { I0: 'clk_i', I1: 'clk_i', S: 'clk_i', O: 'y' }, ['O'])), /BUFGMUX u: the open toolchain cannot switch clocks with a BUFGMUX yet/);
+  assert.throws(() => pack(one('BUFGMUX', { I0: 'clk_i', I1: 'clk_i', S: 'clk_i', O: 'y' }, ['O'])), /BUFGMUX u: the Silinx toolchain cannot switch clocks with a BUFGMUX yet/);
   const cascade = yjson({ clk: ['input', 1], o: ['output', 2] }, [...clock,
     { name: 'u', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'clk_i', Q: 'y', Q15: 'y15' }, outs: ['Q', 'Q15'] }, obuf('o[0]', 'y'), obuf('o[1]', 'y15')]);
   assert.throws(() => pack(cascade), /SRLC16E u: the cascade output Q15 is not supported yet/);

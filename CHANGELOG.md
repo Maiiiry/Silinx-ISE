@@ -5,7 +5,7 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
-- **The open toolchain for the other Spartan-3E boards:** the Basys2-100 (XC3S100E), the Nexys2-500
+- **The Silinx toolchain for the other Spartan-3E boards:** the Basys2-100 (XC3S100E), the Nexys2-500
   (XC3S500E) and the Nexys2-1200 (XC3S1200E) have their bit databases, measured as the
   Basys2-250's was: Implement Design and Generate Programming File work for them with no Xilinx
   tool. blinky and lab11 on each are byte-identical to ISE's bitgen, with no DRC error or warning.
@@ -15,7 +15,7 @@ the "What's new" text of its GitHub release.
 - More of the XC3S250E (and the others) measured: the DCMs' pins, the inputs and the select of
   every global clock buffer (BUFGMUX) of the top and bottom; a placement where the DCM outputs
   could not all get a global buffer is found now.
-- **The rest of the Spartan-3E in the open toolchain:** block RAMs (inferred by the open synthesis
+- **The rest of the Spartan-3E in the Silinx toolchain:** block RAMs (inferred by the open synthesis
   or instantiated: `RAMB16_S*` / `RAMB16_S*_S*`, every port width and write mode, `INIT_xx`,
   `INIT` / `SRVAL`), multipliers (`MULT18X18`, `MULT18X18S`, `MULT18X18SIO` with its registers),
   distributed RAMs (`RAM16X1S`, `RAM16X1D`, `RAM32X1S`, `RAM64X1S`), shift registers in SRL16 LUTs
@@ -44,31 +44,31 @@ the "What's new" text of its GitHub release.
   toolchain's errors are `ERROR:Silinx`. XST's own messages (ISE modes) keep `Xst`.
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
-- **Open toolchain in the interface:** *Toolchain Settings* has a new execution mode, *Open
-  toolchain (experimental, no ISE)*. *Synthesize*, *Implement Design* and *Generate Programming
-  File* then run Silinx's own flow on the server, with no Xilinx tool (Yosys synthesis, pack,
-  place, route on the switches whose bits are known, static timing against the UCF's PERIOD
-  constraints, bitgen), with the usual console, process icons, Stop and *Design Summary*
-  (utilization and timing, marked "open toolchain"). It writes `build/<top>.bit` (what *Configure
-  Target Device* programs) and `build/<top>_prom.bit`; *View Implemented Design (FPGA)* shows the
-  routed design on the device description. For now for the XC3S250E (Basys2-250). A device the
-  open toolchain does not support, or a design it cannot implement yet, fails with the reason and
-  what is missing; the processes that need ISE are disabled in that mode, with a tooltip.
-- **Build Device Description** (*Toolchain Settings*, or offered when the open toolchain needs it):
-  the description of a device that does not ship with Silinx is built from your own ISE
-  (`xdl -report -pips -all_conns`, run through the ISE configured there: local, Docker or SSH,
-  compressed where ISE runs) into `~/.silinx/devices/`.
+- **The Silinx toolchain, the default:** *Toolchain Settings* has a new execution mode, *Silinx
+  toolchain (experimental, no ISE)*, and a new installation starts in it, so students need no
+  Xilinx tool for the Basys2 and Nexys2 boards (a saved configuration keeps its mode; one that says
+  `open`, the name it had during development, is read as `silinx`). *Synthesize*, *Implement
+  Design* and *Generate Programming File* then run Silinx's own flow on the server (Yosys
+  synthesis, pack, place, route on the switches whose bits are known, static timing against the
+  UCF's PERIOD constraints, bitgen), with the usual console, process icons, Stop and *Design
+  Summary* (utilization and timing, marked "Silinx toolchain"). It writes `build/<top>.bit` (what
+  *Configure Target Device* programs) and `build/<top>_prom.bit`; *View Implemented Design (FPGA)*
+  shows the routed design on the device description. The supported devices' descriptions and bit
+  databases ship with Silinx: the mode has no ISE setting. A device the Silinx toolchain does not
+  support, or a design it cannot implement yet, fails with the reason and what is missing (use an
+  ISE mode); the processes that need ISE are disabled in that mode, with a tooltip. Developers can
+  build another device's description from an ISE (`research/s3e-route/build-device.mjs`).
 - The device descriptions of the XC3S100E-CP132 (Basys2-100), XC3S500E-FG320 (Nexys2-500,
   Spartan-3E Starter Kit) and XC3S1200E-FG320 (Nexys2-1200) ship with Silinx too (their bit
   databases are next).
 - The device description of the XC3S250E-CP132 (Basys2-250) ships with Silinx
-  (`core/fpga/devices/`): the open toolchain places, routes and writes the bitstream for that board
+  (`core/fpga/devices/`): the Silinx toolchain places, routes and writes the bitstream for that board
   without ISE (from the interface, see above, or from the command line:
   `research/s3e-route/open-flow.mjs`). For other
   devices it is built once from the user's own ISE installation (`~/.silinx/devices/`, which takes
   precedence). The whole open flow on blinky is now part of the tests.
 - What is planned, bugs and feature requests are GitHub issues
-  (https://github.com/pmnmalo/Silinx-ISE/issues; TODO.md is gone). The open toolchain does not support the Spartan-6 boards (Nexys3,
+  (https://github.com/pmnmalo/Silinx-ISE/issues; TODO.md is gone). The Silinx toolchain does not support the Spartan-6 boards (Nexys3,
   Atlys) yet; it will.
 - Verilog / SystemVerilog constructs Silinx now reads, simulates and synthesizes (found by the
   corpus of Yosys's test designs): hierarchical names into generate blocks and named blocks
@@ -92,7 +92,7 @@ the "What's new" text of its GitHub release.
   table of its values instead of 32-bit carry chains; the packer puts flip-flops fed by
   flip-flops into the free slots of carry-chain and multiplexer slices. Size budgets in the tests
   (test/synth-quality.test.js, a new 42-state accumulator machine fixture `cpu8`).
-- **Faster designs from the open toolchain's place and route** (research/s3e-route/README.md):
+- **Faster designs from the Silinx toolchain's place and route** (research/s3e-route/README.md):
   lab11 runs at 11.6 ns by ISE's own timing analyzer (was 13.7 ns; ISE's whole flow: 10.9 ns), the
   blinky example at 7.4 ns (was 8.0; ISE: 6.7), and both are placed and routed faster. The placer
   is timing-driven as VPR's (the estimated delay of every connection, from a table of the fastest

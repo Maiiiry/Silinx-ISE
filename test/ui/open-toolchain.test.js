@@ -1,9 +1,9 @@
-// UI: the toolchain mode "Open toolchain (experimental, no ISE)": chosen in Toolchain Settings (with
+// UI: the toolchain mode "Silinx toolchain (experimental, no ISE)": chosen in Toolchain Settings (with
 // the status of the project's device; no ISE setting nor Build Device Description, #8), Generate
 // Programming File of blinky for real (the device description and the bit database of the XC3S250E
 // ship with Silinx: no ISE), the Processes icons and the Design Summary, the FPGA view of the routed
 // design, the processes that need ISE disabled with a tooltip, the clear failure for a device the
-// open toolchain does not support, and the Portuguese texts.
+// Silinx toolchain does not support, and the Portuguese texts.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -31,10 +31,10 @@ const procLabels = (page) => page.eval(() => [...document.querySelectorAll('#pro
 const reloadToolchain = (page) => page.eval(async () => { window.SilinxApp.S.toolchain = await (await import('/js/api.js')).api.toolchain(); window.SilinxApp.renderProcesses(); });
 const DONE = (name) => new RegExp(`Process "${name.replace(/[()]/g, '\\$&')}" (completed successfully|failed)`);
 
-uiTest('a new installation starts in the open toolchain: Implement Design and Generate Programming File need no ISE (#27)', E, async (page) => {
+uiTest('a new installation starts in the Silinx toolchain: Implement Design and Generate Programming File need no ISE (#27)', E, async (page) => {
   await fs.promises.rm(path.join(env.server.configDir, 'config.json'));
   const tc = await env.server.api('GET', '/api/toolchain');
-  assert.equal(tc.config.mode, 'open');
+  assert.equal(tc.config.mode, 'silinx');
   assert.equal(tc.ise.available, true);
   await makeProject(env, { name: 'OpenDefault', template: 'blinky' });
   await page.openProject('OpenDefault');
@@ -53,16 +53,16 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
   await page.waitDialog('Toolchain Settings');
   const modeSel = '.dlg-overlay .form-grid select';
-  assert.equal(await page.eval((s) => [...document.querySelector(s).options].pop().textContent, modeSel), 'Open toolchain (experimental, no ISE)');
+  assert.equal(await page.eval((s) => [...document.querySelector(s).options].pop().textContent, modeSel), 'Silinx toolchain (experimental, no ISE)');
   // not in open mode: no open status
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .open-status').style.display), 'none');
-  await page.eval((s) => { const m = document.querySelector(s); m.value = 'open'; m.dispatchEvent(new Event('change')); }, modeSel);
+  await page.eval((s) => { const m = document.querySelector(s); m.value = 'silinx'; m.dispatchEvent(new Event('change')); }, modeSel);
   const labels = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .form-grid label')].map((l) => l.textContent));
   // the supported devices' descriptions ship with Silinx: no ISE in open mode (#8)
   assert.deepEqual(labels, ['Execution mode:', 'Programmer tool:', 'Cable:']);
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .dlg-buttons .btn')].map((b) => b.textContent)), ['Save', 'Cancel']);
   const status = await page.eval(() => document.querySelector('.dlg-overlay .open-status').innerText);
-  assert.match(status, /Open toolchain for xc3s250ecp132-4: available/);
+  assert.match(status, /Silinx toolchain for xc3s250ecp132-4: available/);
   assert.match(status, /xc3s250ecp132-4: device description \(shipped with Silinx\) and bit database/);
   assert.doesNotMatch(status, /Build Device Description|xdl -report/);
   // Portuguese: the dialog in open mode has no untranslated text (server data apart)
@@ -73,13 +73,13 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   await setLang('en'); const en = await page.eval(() => window.__uiTexts(document.querySelector('.dlg-overlay')));
   await setLang('pt'); const pt = await page.eval(() => window.__uiTexts(document.querySelector('.dlg-overlay')));
   assert.deepEqual(untranslated(en, pt, [/^\(.*\)$/, { test: (s) => data.has(s) || /^Settings file:|^Ficheiro de definições:|^\/|not found$/.test(s) }]), []);
-  assert.ok(pt.includes('Toolchain aberta para xc3s250ecp132-4: disponível'), pt.join(' | '));
+  assert.ok(pt.includes('Toolchain Silinx para xc3s250ecp132-4: disponível'), pt.join(' | '));
   await setLang('en');
   await page.dialogButton('Save');
   await page.waitNoDialog();
-  await page.waitConsole(/Toolchain settings saved \(open: open toolchain \(experimental, no ISE\)/);
+  await page.waitConsole(/Toolchain settings saved \(silinx: Silinx toolchain \(experimental, no ISE\)/);
   const cfg = (await env.server.api('GET', '/api/toolchain')).config;
-  assert.equal(cfg.mode, 'open');
+  assert.equal(cfg.mode, 'silinx');
   assert.equal(cfg.open.iseMode, 'ssh');
   // the Processes follow at once: Synthesize is the open synthesis, the ISE-only ones are disabled
   const procs = await procLabels(page);
@@ -88,19 +88,19 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   for (const l of ['Generate Post-Synthesis Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Text Power Report', 'Back-annotate Pin Locations', 'View Technology Schematic']) {
     const p = procs.find((x) => x.label === l);
     assert.ok(p?.disabled, l);
-    assert.equal(p.title, 'Needs Xilinx ISE: not available with the open toolchain (choose an ISE mode in Toolchain Settings)');
+    assert.equal(p.title, 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)');
   }
   for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Configure Target Device']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
   await setLang('pt');
   const ptProcs = await procLabels(page);
   assert.ok(ptProcs.some((p) => p.label === 'Sintetizar - Yosys'));
-  assert.ok(ptProcs.some((p) => p.title === 'Requer o Xilinx ISE: não disponível com a toolchain aberta (escolha um modo ISE nas Definições da Toolchain)'));
+  assert.ok(ptProcs.some((p) => p.title === 'Requer o Xilinx ISE: não disponível com a toolchain Silinx (escolha um modo ISE nas Definições da Toolchain)'));
   await setLang('en');
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });
 
 uiTest('open mode: Generate Programming File of blinky without ISE; the Processes icons, the Design Summary, the FPGA view', E, async (page) => {
-  await env.server.api('PUT', '/api/toolchain', { mode: 'open' });
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenImpl', template: 'blinky' });
   await page.openProject('OpenImpl');
   await reloadToolchain(page);
@@ -108,20 +108,20 @@ uiTest('open mode: Generate Programming File of blinky without ISE; the Processe
   await page.waitConsole(DONE('Generate Programming File'), { timeout: 120000 });
   const text = await page.consoleText();
   assert.match(text, /Process "Generate Programming File" completed successfully/, text.slice(-3000));
-  assert.match(text, /Silinx implementation with the open toolchain \(experimental, no ISE\)/);
+  assert.match(text, /Silinx implementation with the Silinx toolchain \(experimental, no ISE\)/);
   assert.match(text, /All signals are completely routed\./);
   assert.match(text, /Bitstream: build\/top\.bit \(\d+ bytes, every feature in the bit database\)/);
   const st = await page.eval(() => window.SilinxApp.S.status);
   for (const id of ['synth', 'translate', 'map', 'par', 'impl', 'bitgen']) assert.ok(['ok', 'warn'].includes(st[id]), `${id}: ${st[id]}`);
   // the Design Summary
   await page.eval(() => window.SilinxApp.openSummary());
-  await page.waitFor(() => [...document.querySelectorAll('.page')].some((p) => /open toolchain, no ISE/.test(p.innerText)), [], { what: 'summary of the open run' });
-  const sum = await page.eval(() => [...document.querySelectorAll('.page')].find((p) => /open toolchain, no ISE/.test(p.innerText)).innerText);
+  await page.waitFor(() => [...document.querySelectorAll('.page')].some((p) => /Silinx toolchain, no ISE/.test(p.innerText)), [], { what: 'summary of the open run' });
+  const sum = await page.eval(() => [...document.querySelectorAll('.page')].find((p) => /Silinx toolchain, no ISE/.test(p.innerText)).innerText);
   assert.match(sum, /Implementation State:\s*Programming File Generated/);
-  assert.match(sum, /Device Utilization Summary \(open toolchain\)/);
+  assert.match(sum, /Device Utilization Summary \(Silinx toolchain\)/);
   assert.match(sum, /Number of occupied Slices\s+\d+\s+2448\s+\d+%/);
   assert.match(sum, /Number of bonded IOBs\s+15\s+92\s+16%/);
-  assert.match(sum, /Timing \(post Place & Route, open toolchain estimate\)/);
+  assert.match(sum, /Timing \(post Place & Route, Silinx toolchain estimate\)/);
   assert.match(sum, /All constraints met/);
   assert.match(sum, /PERIOD 20 ns on clk/);
   assert.match(sum, /Bitstream\s+build\/top\.bit/);
@@ -136,7 +136,7 @@ uiTest('open mode: Generate Programming File of blinky without ISE; the Processe
 });
 
 uiTest('open mode: a device without a bit database or without a shipped description fails clearly (no offer to build it, #8)', E, async (page) => {
-  await env.server.api('PUT', '/api/toolchain', { mode: 'open' });
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   const V = { 'src/top.v': 'module top(input a, output y);\n  assign y = ~a;\nendmodule\n' };
   await makeProject(env, { name: 'Open1600', template: 'empty', device: { family: 'spartan3e', part: 'xc3s1600e', package: 'fg320', speed: '-4' }, files: V, top: 'top' });
   await page.openProject('Open1600');
@@ -145,7 +145,7 @@ uiTest('open mode: a device without a bit database or without a shipped descript
   await page.waitConsole(DONE('Implement Design'), { timeout: 30000 });
   const text = await page.consoleText();
   // (the TQ144 is listed: this test's copy of the bit database has its (empty) pads, see above)
-  assert.match(text, /ERROR: the open toolchain cannot implement this design: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
+  assert.match(text, /ERROR: the Silinx toolchain cannot implement this design: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
   assert.equal(await page.eval(() => window.SilinxApp.S.status.impl), 'err');
   // the same chip in another package (its pads in this test's bit database): no description ships; no dialog
   await makeProject(env, { name: 'OpenTq', template: 'empty', device: { family: 'spartan3e', part: 'xc3s250e', package: 'tq144', speed: '-4' },
@@ -154,7 +154,7 @@ uiTest('open mode: a device without a bit database or without a shipped descript
   await page.treeRow('#procs', 'Implement Design', { dbl: true, exact: true });
   await page.waitConsole(/no device description of xc3s250etq144-4 ships with Silinx/, { timeout: 30000 });
   await page.waitConsole(DONE('Implement Design'));
-  assert.match(await page.consoleText(), /ERROR: the open toolchain cannot implement this design: no device description of xc3s250etq144-4 ships with Silinx \(the open toolchain supports the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
+  assert.match(await page.consoleText(), /ERROR: the Silinx toolchain cannot implement this design: no device description of xc3s250etq144-4 ships with Silinx \(the Silinx toolchain supports the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
   assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });

@@ -792,7 +792,7 @@ export async function toolchainDialog() {
   try { tc = await api.toolchain(pjName); } catch (e) { return alertDlg('Toolchain', e.message, 'error'); }
   const cfg = JSON.parse(JSON.stringify(tc.config));
   const ISE_OPTS = [['local', 'Local (Xilinx ISE installed locally)'], ['docker', 'Docker image with Xilinx ISE'], ['ssh', 'Remote host with Xilinx ISE via SSH']];
-  const mode = select([...ISE_OPTS, ['open', 'Open toolchain (experimental, no ISE)']], cfg.mode);
+  const mode = select([...ISE_OPTS, ['silinx', 'Silinx toolchain (experimental, no ISE)']], cfg.mode);
   const inputs = {
     'local.settings': h('input', { type: 'text', value: cfg.local.settings || '', placeholder: 'auto-detect (…/14.7/ISE_DS/settings64.sh)' }),
     'docker.image': h('input', { type: 'text', value: cfg.docker.image || '', placeholder: 'e.g. my-ise:14.7' }),
@@ -815,15 +815,15 @@ export async function toolchainDialog() {
     'programmer.tool': 'Programmer tool:', 'programmer.cable': 'Cable:',
   };
   const modeBox = h('div', { class: 'form-grid' });
-  // the open toolchain and the project's device: available, or why not
+  // the Silinx toolchain and the project's device: available, or why not
   const os = tc.open;
   const openBox = h('div', { class: `msg open-status ${os?.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, os?.available ? '✓' : '!'),
-    h('div', { class: 'msg-text' }, h('b', {}, os ? `Open toolchain for ${os.part || S.project?.device?.part || 'this device'}: ${os.available ? 'available' : 'not available'}` : 'Open toolchain: open a project to see whether its device is supported'),
+    h('div', { class: 'msg-text' }, h('b', {}, os ? `Silinx toolchain for ${os.part || S.project?.device?.part || 'this device'}: ${os.available ? 'available' : 'not available'}` : 'Silinx toolchain: open a project to see whether its device is supported'),
       os ? h('div', {}, os.reason) : null,
       h('div', { style: { color: '#555', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2). Experimental: check the design on the board.')));
   const renderMode = () => {
     modeBox.innerHTML = '';
-    const open = mode.value === 'open';
+    const open = mode.value === 'silinx';
     // open mode: no ISE (the supported devices' descriptions ship with Silinx); the ISE modes' settings are kept
     for (const k of open ? [] : groups[mode.value]) modeBox.append(h('label', {}, labels[k]), inputs[k]);
     openBox.style.display = open ? '' : 'none';
@@ -836,7 +836,7 @@ export async function toolchainDialog() {
     title: 'Toolchain Settings', width: 640,
     body: h('div', {},
       h('div', { class: `msg ${st.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, st.available ? '✓' : '!'),
-        h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'open' ? 'Open toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: '#555' } }, st.help),
+        h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'silinx' ? 'Silinx toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: '#555' } }, st.help),
           st.available ? null : h('div', { style: { marginTop: '8px' } }, h('b', {}, 'Easiest setup on any OS: '), 'build the private Docker image with the Silinx kit (docker/ise/README.md): ',
             h('code', {}, 'docker/ise/build-ise-image.sh --installer <Xilinx_ISE_DS_Lin_14.7_1015_1.tar> --license <Xilinx.lic>'), ' (Windows: build-ise-image.ps1). It configures Silinx automatically.'))),
       h('div', { class: 'form-grid' }, h('label', {}, 'Execution mode:'), mode),

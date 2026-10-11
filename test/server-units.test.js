@@ -269,7 +269,7 @@ test('toolchain: iseStatus for every mode, which(), version probe fallback, conf
   assert.equal(det.programmers.openFPGALoader.version, 'some tool without version banner');
   // a broken config file falls back to the defaults
   await fs.writeFile(tc.configPath(), '{broken');
-  assert.equal((await tc.loadConfig()).mode, 'local');
+  assert.equal((await tc.loadConfig()).mode, 'silinx');
   await assert.rejects(tc.saveConfig(null), /config must be an object/);
   await assert.rejects(tc.saveConfig('x'), /config must be an object/);
   await fs.rm(tc.configPath());

@@ -471,20 +471,20 @@ const STATUS_ICON = { ok: 'ok', warn: 'warn', err: 'err', running: 'running', st
 
 // The Design Summary can always be (re)opened from the Processes panel: whatever is selected, in both views
 const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'summary', run: () => openSummary() };
-// The open toolchain (Toolchain Settings: "Open toolchain (experimental, no ISE)"): Synthesize,
+// The Silinx toolchain (Toolchain Settings: "Silinx toolchain (experimental, no ISE)"): Synthesize,
 // Implement Design and Generate Programming File run Silinx's own flow on the server; the processes
 // that need Xilinx ISE are disabled (their tooltip says why).
-export const openMode = () => S.toolchain?.config?.mode === 'open';
+export const openMode = () => S.toolchain?.config?.mode === 'silinx';
 const OPEN_SYNTH = 'Synthesize - Yosys';
 const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr', 'pin2ucf', 'tech']);
-const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the open toolchain (choose an ISE mode in Toolchain Settings)';
+const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';
 function forOpenMode(defs) {
   const conv = p => {
     if (p.id === 'synth-open') return null;   // Synthesize is the open synthesis already
     const q = { ...p };
     if (ISE_ONLY.has(p.id)) Object.assign(q, { disabled: true, title: ISE_ONLY_TIP });
     if (p.id === 'synth') q.label = OPEN_SYNTH;
-    if (['synth', 'impl', 'bitgen'].includes(p.id)) q.title = 'Open toolchain (experimental, no ISE)';
+    if (['synth', 'impl', 'bitgen'].includes(p.id)) q.title = 'Silinx toolchain (experimental, no ISE)';
     if (p.children) q.children = p.children.map(conv).filter(Boolean);
     return q;
   };
@@ -972,13 +972,13 @@ async function runImplInner(mod, steps, opts, pjName) {
     log(`Process "${procName}" stopped: the constraints have errors.`, 'err');
     return;
   }
-  // the open toolchain: is the project's device supported (a device description and a bit database)?
+  // the Silinx toolchain: is the project's device supported (a device description and a bit database)?
   if (openMode()) {
     const st = await api.openStatus(S.project.name).catch(e => ({ available: false, reason: e.message }));
     if (!st.available) {
       setStatus(procId, 'err');
-      log(`\nStarted : "${procName}" (open toolchain).\n`, 'hdr');
-      log(`ERROR: the open toolchain cannot implement this design: ${st.reason}.`, 'err');
+      log(`\nStarted : "${procName}" (Silinx toolchain).\n`, 'hdr');
+      log(`ERROR: the Silinx toolchain cannot implement this design: ${st.reason}.`, 'err');
       log(`\nProcess "${procName}" failed`, 'err');
       return;
     }
@@ -3212,7 +3212,7 @@ async function boot() {
   try { S.devices = await api.devices(); } catch (e) { log(`ERROR: cannot reach the Silinx server: ${e.message}`, 'err'); }
   api.toolchain().then(tc => {
     S.toolchain = tc;
-    if (tc.ise.mode === 'open') log(`Toolchain: ${tc.ise.reason}.`, 'ok');
+    if (tc.ise.mode === 'silinx') log(`Toolchain: ${tc.ise.reason}.`, 'ok');
     else log(`Toolchain: ISE ${tc.ise.available ? 'available' : 'not available'} (${tc.ise.mode}: ${tc.ise.reason}).`, tc.ise.available ? 'ok' : 'warn');
     renderProcesses();
     const progs = Object.entries(tc.programmers).filter(([, v]) => v.found).map(([k]) => k);

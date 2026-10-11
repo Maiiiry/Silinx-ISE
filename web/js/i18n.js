@@ -293,13 +293,13 @@ const PT_PATTERNS = [
   [/^Balanced \((Speed|Area)\)$/, (m, g) => `Equilibrado (${g === 'Speed' ? 'Velocidade' : 'Área'})`],
   [/^Example: (.*)$/, 'Exemplo: $1'],
   [/^Settings file: (.*)$/, 'Ficheiro de definições: $1'],
-  // the open toolchain: the status of the project's device
-  [/^Open toolchain for (\S+): (available|not available)$/, (m, p, a) => `Toolchain aberta para ${p}: ${a === 'available' ? 'disponível' : 'não disponível'}`],
+  // the Silinx toolchain: the status of the project's device
+  [/^Silinx toolchain for (\S+): (available|not available)$/, (m, p, a) => `Toolchain Silinx para ${p}: ${a === 'available' ? 'disponível' : 'não disponível'}`],
   [/^(\S+): device description \((shipped with Silinx|built from your ISE)\) and bit database$/, (m, p, w) => `${p}: descrição do dispositivo (${w === 'built from your ISE' ? 'construída a partir do seu ISE' : 'fornecida com o Silinx'}) e base de dados de bits`],
   [/^no bit database for (\S+) yet \(only the (.+)\): use an ISE mode for this device$/, 'ainda não há base de dados de bits para o $1 (só para o $2): use um modo ISE para este dispositivo'],
   [/^no bit database for the pads of the (\S+) in the (\S+) package yet \((?:only (.+)|no package yet)\): use an ISE mode for this device$/, (m, d, p, o) => `ainda não há base de dados de bits para os pinos do ${d} no encapsulamento ${p} (${o ? `só ${o}` : 'nenhum encapsulamento ainda'}): use um modo ISE para este dispositivo`],
-  [/^no device description of (\S+) ships with Silinx \(the open toolchain supports the (.+)\): use an ISE mode for this device$/, 'o Silinx não inclui a descrição do dispositivo $1 (a toolchain aberta suporta o $2): use um modo ISE para este dispositivo'],
-  [/^the open toolchain does not support the (\S+) family yet \(only the Spartan-3E (.+)\): use an ISE mode$/, 'a toolchain aberta ainda não suporta a família $1 (só o Spartan-3E $2): use um modo ISE'],
+  [/^no device description of (\S+) ships with Silinx \(the Silinx toolchain supports the (.+)\): use an ISE mode for this device$/, 'o Silinx não inclui a descrição do dispositivo $1 (a toolchain Silinx suporta o $2): use um modo ISE para este dispositivo'],
+  [/^the Silinx toolchain does not support the (\S+) family yet \(only the Spartan-3E (.+)\): use an ISE mode$/, 'a toolchain Silinx ainda não suporta a família $1 (só o Spartan-3E $2): use um modo ISE'],
   [/^Not met \((\d+) constraints\)$/, 'Não cumpridas ($1 restrições)'],
   [/^Version (\d[\w.-]*)$/, 'Versão $1'],
   // schematic palette: "<SYMBOL>: <description>"
@@ -328,18 +328,18 @@ Object.assign(PT, {
   'Synthesis, place & route and bitstream generation use the Xilinx ISE 14.7 command-line tools. Xilinx, ISE, ISim, iMPACT and Spartan are trademarks of AMD/Xilinx; Silinx ISE is an independent project, not affiliated with or endorsed by AMD/Xilinx.':
     'A síntese, o place & route e a geração do bitstream usam as ferramentas de linha de comandos do Xilinx ISE 14.7. Xilinx, ISE, ISim, iMPACT e Spartan são marcas registadas da AMD/Xilinx; o Silinx ISE é um projeto independente, sem afiliação nem aprovação da AMD/Xilinx.',
   'F12 or Ctrl/Cmd+Click': 'F12 ou Ctrl/Cmd+Clique',
-  // the open toolchain (Toolchain Settings, Processes, Design Summary)
-  'Open toolchain (experimental, no ISE)': 'Toolchain aberta (experimental, sem ISE)', 'Synthesize - Yosys': 'Sintetizar - Yosys',
-  'Open toolchain (experimental, no ISE): selected': 'Toolchain aberta (experimental, sem ISE): selecionada',
-  'Needs Xilinx ISE: not available with the open toolchain (choose an ISE mode in Toolchain Settings)': 'Requer o Xilinx ISE: não disponível com a toolchain aberta (escolha um modo ISE nas Definições da Toolchain)',
-  'Open toolchain: open a project to see whether its device is supported': 'Toolchain aberta: abra um projeto para ver se o seu dispositivo é suportado',
+  // the Silinx toolchain (Toolchain Settings, Processes, Design Summary)
+  'Silinx toolchain (experimental, no ISE)': 'Toolchain Silinx (experimental, sem ISE)', 'Synthesize - Yosys': 'Sintetizar - Yosys',
+  'Silinx toolchain (experimental, no ISE): selected': 'Toolchain Silinx (experimental, sem ISE): selecionada',
+  'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)': 'Requer o Xilinx ISE: não disponível com a toolchain Silinx (escolha um modo ISE nas Definições da Toolchain)',
+  'Silinx toolchain: open a project to see whether its device is supported': 'Toolchain Silinx: abra um projeto para ver se o seu dispositivo é suportado',
   'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2). Experimental: check the design on the board.': 'Suportado agora: o Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E e XC3S1200E (Nexys2). Experimental: verifique o projeto na placa.',
-  'Device Utilization Summary (open toolchain)': 'Resumo da Utilização do Dispositivo (toolchain aberta)',
-  'Timing (post Place & Route, open toolchain estimate)': 'Temporização (após Posicionar e Encaminhar, estimativa da toolchain aberta)',
+  'Device Utilization Summary (Silinx toolchain)': 'Resumo da Utilização do Dispositivo (toolchain Silinx)',
+  'Timing (post Place & Route, Silinx toolchain estimate)': 'Temporização (após Posicionar e Encaminhar, estimativa da toolchain Silinx)',
   'Synthesis Report (Yosys)': 'Relatório de Síntese (Yosys)', 'Placed Design (XDL)': 'Projeto Posicionado (XDL)', 'Routed Design (XDL)': 'Projeto Encaminhado (XDL)',
   'Static Timing Report': 'Relatório de Temporização Estática',
-  'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the open toolchain (experimental, no ISE): Tools ▸ Toolchain Settings.':
-    'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese e a implementação usam a toolchain aberta (experimental, sem ISE): Ferramentas ▸ Definições da Toolchain.',
+  'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the Silinx toolchain (experimental, no ISE): Tools ▸ Toolchain Settings.':
+    'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese e a implementação usam a toolchain Silinx (experimental, sem ISE): Ferramentas ▸ Definições da Toolchain.',
   // board emulator
   'Max speed': 'Velocidade máxima', '▶ Run': '▶ Executar', '⏸ Pause': '⏸ Pausa', '⏭ Step': '⏭ Passo', '⟲ Power cycle': '⟲ Desligar/ligar',
   'Advance one clock cycle': 'Avançar um ciclo de relógio', 'Power-cycle the board: restart the design from time 0': 'Desligar e ligar a placa: reiniciar o projeto a partir do instante 0',

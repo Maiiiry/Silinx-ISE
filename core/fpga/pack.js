@@ -138,7 +138,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|BUFG)$/.test(c.type) || SLICEM_MEM[c.type]
     || BRAM_TYPE.test(c.type) || MULT_TYPE.test(c.type) || DCM_TYPE.test(c.type);
   for (const c of liveCells()) {
-    if (c.type === 'BUFGMUX') throw new PackError(`pack: BUFGMUX ${c.name}: the open toolchain cannot switch clocks with a BUFGMUX yet (its I1 / S inputs are measured on one of the 8 buffers only)`);
+    if (c.type === 'BUFGMUX') throw new PackError(`pack: BUFGMUX ${c.name}: the Silinx toolchain cannot switch clocks with a BUFGMUX yet (its I1 / S inputs are measured on one of the 8 buffers only)`);
     if (/^SRLC16E?(_1)?$/.test(c.type) && nets[c.pins.Q15]?.loads.length) throw new PackError(`pack: ${c.type} ${c.name}: the cascade output Q15 is not supported yet`);
   }
   const unsupported = liveCells().filter(c => !supported(c));

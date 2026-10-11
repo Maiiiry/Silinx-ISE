@@ -1,6 +1,6 @@
-# How the Silinx open toolchain is developed
+# How the Silinx Silinx toolchain is developed
 
-This document records how Silinx develops its open toolchain for the Xilinx Spartan-3E: synthesis,
+This document records how Silinx develops its Silinx toolchain for the Xilinx Spartan-3E: synthesis,
 place and route, and bitstream generation without Xilinx ISE. It describes the method, the
 limits the project keeps to, and the legal basis it relies on. It is kept up to date as the
 work progresses, and the experiments it describes are kept in the repository so that anyone can
@@ -21,7 +21,7 @@ The goal is **interoperability**: to let the owners of these boards keep using h
 already own, with a free, maintained toolchain. The goal is not to copy ISE, to compete with AMD's current products,
 or to get around any protection.
 
-## What the open toolchain is made of
+## What the Silinx toolchain is made of
 
 | Stage | Tool | Origin |
 |---|---|---|
@@ -35,7 +35,7 @@ The bitstream generator needs a **bit database**: which configuration bits set e
 chip (each LUT memory bit, each multiplexer setting inside a slice, each I/O setting, each routing
 switch). It is built by black-box observation, as described below.
 
-**Devices.** The open toolchain is developed for the Spartan-3E: the XC3S250E (Basys2-250) first,
+**Devices.** The Silinx toolchain is developed for the Spartan-3E: the XC3S250E (Basys2-250) first,
 then the other Spartan-3E boards (XC3S100E, XC3S500E, XC3S1200E: their bit databases share the
 tile types' bits with the XC3S250E's; research/s3e-bitstream/README.md, stage F). It does not yet support the Spartan-6 boards (Nexys3, Atlys):
 that is planned ([#1](https://github.com/pmnmalo/Silinx-ISE/issues/1)).
@@ -127,7 +127,7 @@ or Digilent, or endorsed by them.
   routing switches) may be redistributed. Project X-Ray publishes the equivalent description of
   the Xilinx 7-series chips, obtained from Vivado. The author decided (2026-10-11) to ship it for
   the devices of the Spartan-3E boards Silinx supports (XC3S100E-CP132, XC3S250E-CP132,
-  XC3S500E-FG320, XC3S1200E-FG320), so that the open toolchain works without ISE on them; for
+  XC3S500E-FG320, XC3S1200E-FG320), so that the Silinx toolchain works without ISE on them; for
   every other device each user builds it from their own ISE installation.
 
 ## Author

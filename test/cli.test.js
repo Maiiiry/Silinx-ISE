@@ -213,8 +213,8 @@ test('ucf: unknown / missing board and a top that does not elaborate exit 1', as
 test('toolchain: report, --docker configuration (available / not available)', { skip: POSIX_ONLY }, async () => {
   let r = await cli(['toolchain']);
   assert.equal(r.code, 0, r.err);
-  // a new installation: the open toolchain, no ISE needed (#27)
-  assert.match(r.out, /^toolchain \(open\): available - open toolchain \(experimental, no ISE\)/m);
+  // a new installation: the Silinx toolchain, no ISE needed (#27)
+  assert.match(r.out, /^toolchain \(silinx\): available - Silinx toolchain \(experimental, no ISE\)/m);
   assert.match(r.out, /^programmers: none$/m);
 
   const withTools = { PATH: isolatedPath(fakes.prog, fakes.docker) };

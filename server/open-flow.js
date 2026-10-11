@@ -1,4 +1,4 @@
-// The open toolchain (toolchain mode 'open', experimental): Implement Design and Generate
+// The Silinx toolchain (toolchain mode 'silinx', experimental): Implement Design and Generate
 // Programming File without Xilinx ISE, for the devices with a device description (the routing
 // graph: core/fpga/devices/ or ~/.silinx/devices) and a bit database (research/s3e-bitstream/db).
 //
@@ -58,7 +58,7 @@ export function reportPart(device) {
 }
 
 /**
- * Can the open toolchain implement a design for this device?
+ * Can the Silinx toolchain implement a design for this device?
  * { available, reason, part, device, graph (file or null), shipped, bitDb, canBuild (a device
  * description built from an ISE would make it available: developers only, POST
  * /toolchain/build-device; the interface does not offer it, #8) }.
@@ -71,7 +71,7 @@ export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
   Object.assign(out, { part, device: dev });
   const fam = deviceFamily(device) || '';
   if (fam !== 'spartan3e') {
-    out.reason = `the open toolchain does not support the ${fam || dev} family yet (only the Spartan-3E ${supported(dbDir)}): use an ISE mode`;
+    out.reason = `the Silinx toolchain does not support the ${fam || dev} family yet (only the Spartan-3E ${supported(dbDir)}): use an ISE mode`;
     return out;
   }
   const pkg = String(device.package || '').toLowerCase();
@@ -87,7 +87,7 @@ export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
   }
   if (!out.graph) {
     out.canBuild = true;
-    out.reason = `no device description of ${part} ships with Silinx (the open toolchain supports the ${supported(dbDir)}): use an ISE mode for this device`;
+    out.reason = `no device description of ${part} ships with Silinx (the Silinx toolchain supports the ${supported(dbDir)}): use an ISE mode for this device`;
     return out;
   }
   out.available = true;
@@ -99,7 +99,7 @@ export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
 export function openSteps(steps) {
   const st = normalizeSteps(steps);
   const bad = st.filter(s => !OPEN_STEPS.includes(s));
-  if (bad.length) throw Object.assign(new Error(`not available in the open toolchain (they need Xilinx ISE): ${bad.join(', ')}. Choose an ISE mode in Toolchain Settings.`), { status: 400 });
+  if (bad.length) throw Object.assign(new Error(`not available in the Silinx toolchain (they need Xilinx ISE): ${bad.join(', ')}. Choose an ISE mode in Toolchain Settings.`), { status: 400 });
   const last = Math.max(-1, ...st.map(s => CHAIN.indexOf(s)));
   const out = CHAIN.slice(0, last + 1);
   if (st.includes('fpgaview')) {
@@ -117,11 +117,11 @@ export function openSteps(steps) {
 export async function runOpenImplementation(job, { project, projectDir, steps, seed = 1, effort = 1 }) {
   const st = openSteps(steps);
   const status = openStatus(project.device || {});
-  job.log(`Silinx implementation with the open toolchain (experimental, no ISE): ${project.name} top=${project.top} device=${status.part || '?'}`);
-  const result = { buildDir: path.join(projectDir, 'build'), steps: st, warnings: [], mode: 'open', reports: null, completedSteps: [], failedStep: null };
+  job.log(`Silinx implementation with the Silinx toolchain (experimental, no ISE): ${project.name} top=${project.top} device=${status.part || '?'}`);
+  const result = { buildDir: path.join(projectDir, 'build'), steps: st, warnings: [], mode: 'silinx', reports: null, completedSteps: [], failedStep: null };
   if (!status.available) {
-    job.log(`ERROR: the open toolchain cannot implement this design: ${status.reason}.`);
-    throw Object.assign(new Error(`open toolchain not available for ${status.part || 'this device'}: ${status.reason}`), { result, openStatus: status });
+    job.log(`ERROR: the Silinx toolchain cannot implement this design: ${status.reason}.`);
+    throw Object.assign(new Error(`Silinx toolchain not available for ${status.part || 'this device'}: ${status.reason}`), { result, openStatus: status });
   }
   job.log(`Device: ${status.reason}.`);
   // the sources and the UCF, as the ISE flow takes them (build/src, build/<top>.ucf; the checks of
@@ -160,7 +160,7 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
     } catch (e) { job.log(`WARNING: report writing failed: ${e.message}`); }
   }
   if (code !== 0) {
-    throw Object.assign(new Error(`open toolchain failed${result.failedStep ? ` in step '${result.failedStep}'` : ''}: see the messages above. Designs the open toolchain does not support yet can be implemented in an ISE mode (Toolchain Settings).`), { result });
+    throw Object.assign(new Error(`Silinx toolchain failed${result.failedStep ? ` in step '${result.failedStep}'` : ''}: see the messages above. Designs the Silinx toolchain does not support yet can be implemented in an ISE mode (Toolchain Settings).`), { result });
   }
   job.log(result.reports?.bit ? `Bitstream: ${result.reports.bit.path}` : 'Flow finished.');
   return result;

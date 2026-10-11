@@ -37,7 +37,7 @@ export function parseXdlrc(text) {
 }
 
 /** The same grid as parseXdlrc() from a device routing graph (core/fpga/device.js Device: the
- *  description of the open toolchain), for the FPGA view of a design routed by Silinx. */
+ *  description of the Silinx toolchain), for the FPGA view of a design routed by Silinx. */
 export function deviceGrid(dev) {
   const tiles = [];
   for (let k = 0; k < dev.tileCount; k++) {

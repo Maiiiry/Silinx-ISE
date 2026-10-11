@@ -42,9 +42,10 @@ export async function scratchEnv(prefix) {
   return tmp;
 }
 
+// (an ISE mode unless cfg says otherwise: a new installation starts in the Silinx toolchain, #27)
 export async function writeConfig(cfg) {
   await fs.mkdir(process.env.SILINX_CONFIG_DIR, { recursive: true });
-  await fs.writeFile(path.join(process.env.SILINX_CONFIG_DIR, 'config.json'), JSON.stringify(cfg));
+  await fs.writeFile(path.join(process.env.SILINX_CONFIG_DIR, 'config.json'), JSON.stringify({ mode: 'local', ...cfg }));
 }
 
 // ------------------------------------------------------------------------------------------------

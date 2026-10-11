@@ -25,7 +25,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
   // ----- devices / toolchain ------------------------------------------------------------------
   api.get('/devices', wrap(async () => getDeviceDb()));
 
-  // ?project=<name>: also whether the open toolchain can implement that project's device (open)
+  // ?project=<name>: also whether the Silinx toolchain can implement that project's device (open)
   const withOpen = async (tc, name) => {
     if (!name) return tc;
     try { const pj = await P.readProject(String(name)); return { ...tc, open: openStatus(pj.device || {}) }; } catch { return tc; }
@@ -38,7 +38,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
     return withOpen(await detectToolchain(), req.query.project);
   }));
 
-  // the open toolchain for a project's device: { available, reason, part, graph, bitDb, canBuild }
+  // the Silinx toolchain for a project's device: { available, reason, part, graph, bitDb, canBuild }
   api.get('/projects/:p/open-status', wrap(async req => openStatus((await P.readProject(req.params.p)).device || {})));
 
   // build the description of a device (its routing graph) from the user's own ISE: { part } or
@@ -70,11 +70,11 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
     const key = name.toLowerCase();   // case-insensitive file systems: one folder
     const running = implJobs.get(key);
     if (running && getJob(running)?.status === 'running') throw bad(`an implementation of '${name}' is already running (job ${running}); wait for it or cancel it`, 409);
-    // the open toolchain (mode 'open'): no ISE, Silinx's own flow (server/open-flow.js)
-    const open = body.toolchain ? body.toolchain === 'open' : (await loadConfig()).mode === 'open';
+    // the Silinx toolchain (mode 'silinx'): no ISE, Silinx's own flow (server/open-flow.js)
+    const open = body.toolchain ? ['silinx', 'open'].includes(body.toolchain) : (await loadConfig()).mode === 'silinx';
     if (open) { try { steps = openSteps(body.steps); } catch (e) { throw bad(e.message); } }
     const job = open
-      ? createJob('implement', j => runOpenImplementation(j, { project, projectDir, steps }), { meta: { project: name, steps, toolchain: 'open' } })
+      ? createJob('implement', j => runOpenImplementation(j, { project, projectDir, steps }), { meta: { project: name, steps, toolchain: 'silinx' } })
       : createJob('implement', j => runImplementation(j, { project, projectDir, steps, generateOnly: !!body.generateOnly }), { meta: { project: name, steps } });
     implJobs.set(key, job.id);
     return { job: job.id };
@@ -90,7 +90,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
   }));
 
   // the implemented design inside the FPGA (web/js/fpgaview.js): build/<top>.xdl + build/device.xdlrc,
-  // written by the 'fpgaview' step; the model is cached in build/fpga-view.json. The open toolchain's
+  // written by the 'fpgaview' step; the model is cached in build/fpga-view.json. The Silinx toolchain's
   // routed design (build/open/routed.xdl) with the device description when it is newer than ISE's.
   api.get('/projects/:p/fpga-view', wrap(async req => {
     const project = await P.readProject(req.params.p);

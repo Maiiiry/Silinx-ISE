@@ -216,7 +216,7 @@ In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releas
 - **Synthesis needs Xilinx ISE 14.7** (free WebPACK): build your own Docker image with
   **`silinx-ise-docker-kit-<version>.zip`** (see [below](#synthesis-and-bitstreams-xilinx-ise-147)).
   Without ISE, *Synthesize - Yosys (open)* synthesizes the design in the browser with Yosys compiled
-  to WebAssembly, and for the **Basys2-250** the *Open toolchain (experimental, no ISE)* mode goes
+  to WebAssembly, and for the **Basys2-250** the *Silinx toolchain (experimental, no ISE)* mode goes
   all the way to the bitstream ([below](#synthesis-and-bitstreams-xilinx-ise-147)).
 
 ## For developers
@@ -273,7 +273,7 @@ them). Synthesis, implementation and programming need the full application (`npm
 
 Implementation uses the ISE 14.7 command-line tools (WebPACK edition: free, with a free license).
 
-**Without ISE (open toolchain, experimental):** *Synthesize - Yosys (open)* synthesizes any
+**Without ISE (Silinx toolchain, experimental):** *Synthesize - Yosys (open)* synthesizes any
 design in the browser (Yosys compiled to WebAssembly). For the **Basys2-100 and Basys2-250
 (XC3S100E / XC3S250E-CP132) and the Nexys2-500 and Nexys2-1200 (XC3S500E / XC3S1200E-FG320)**
 Silinx also places, routes and writes the bitstream itself: the device descriptions ship with
@@ -290,9 +290,9 @@ and *View Implemented Design (FPGA)* shows the routed design. The processes that
 (simulation models of the implementation, power, back-annotated pins, technology schematic) are
 disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
 RAMs, multipliers, distributed RAMs, shift registers (SRL16) and the top-left DCM (CLK0, CLK2X,
-CLKDV, CLKFX). A design the open toolchain cannot implement yet (a feature not in the bit
+CLKDV, CLKFX). A design the Silinx toolchain cannot implement yet (a feature not in the bit
 database, a net it cannot route) fails with the list of what is missing: implement it in an ISE
-mode. The supported devices' descriptions and bit databases ship with Silinx: the open toolchain
+mode. The supported devices' descriptions and bit databases ship with Silinx: the Silinx toolchain
 needs no ISE at all (the Spartan-3E Starter Kit's XC3S500E-FG320 is the Nexys2-500's chip and
 package). Developers can build another package's description from an ISE
 (`research/s3e-route/build-device.mjs`, into `~/.silinx/devices/`) once its pads are in the bit

@@ -256,7 +256,7 @@ test('devices DB and toolchain configuration', async () => {
 
   let r = await call('GET', '/toolchain');
   assert.equal(r.status, 200);
-  assert.equal(r.body.config.mode, 'local');
+  assert.equal(r.body.config.mode, 'silinx');   // a new installation: the Silinx toolchain (#27)
   assert.equal(r.body.configPath, path.join(process.env.SILINX_CONFIG_DIR, 'config.json'));
   assert.equal(r.body.platform, process.platform);
   assert.ok('openFPGALoader' in r.body.programmers && 'adepttool' in r.body.programmers);

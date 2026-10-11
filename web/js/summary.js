@@ -22,18 +22,18 @@ export function mountSummary(el) {
     const sum = rep?.summary || {};
     const implState = sum.bitstream ? 'Programming File Generated' : sum.routed ? 'Placed and Routed' : sum.mapped ? 'Mapped' : sum.synthesized ? 'Synthesized' : 'New';
     const board = S.devices?.boards.find(b => b.id === pj.board);
-    // made by the open toolchain (no ISE): its reports are in build/open/
+    // made by the Silinx toolchain (no ISE): its reports are in build/open/
     const open = rep?.source === 'open';
     page.append(h('table', { class: 'summary-table' },
       row('Project File:', `${pj.name}/silinx.json`, 'Parser Errors:', h('span', { class: errs ? 'status-bad' : 'status-good' }, errs ? `${errs} Errors` : 'No Errors')),
       row('Module Name:', pj.top || '(not set)', 'Implementation State:', implState),
       row('Target Device:', `${pj.device.part}${pj.device.speed}-${pj.device.package}`, 'Warnings:', warns ? `${warns} Warnings` : 'No Warnings'),
       row('Board:', board ? board.name : 'None Specified', 'Test Benches:', String((pj.files || []).filter(f => f.role === 'sim').length)),
-      row('Product Version:', `${PRODUCT} ${VERSION} (${open ? 'open toolchain, no ISE' : 'Xilinx ISE 14.7 flow'})`, 'Constraints:', pj.constraints || '(none)'),
+      row('Product Version:', `${PRODUCT} ${VERSION} (${open ? 'Silinx toolchain, no ISE' : 'Xilinx ISE 14.7 flow'})`, 'Constraints:', pj.constraints || '(none)'),
       row('Design Goal:', `Balanced (${pj.impl?.optMode || 'Speed'})`, 'Sources:', `${pj.files.length} HDL files`),
     ));
     // utilization (from the MAP report when available)
-    const tbl = h('table', { class: 'summary-table' }, h('caption', {}, `Device Utilization Summary${rep?.map ? (open ? ' (open toolchain)' : '') : ' (not yet implemented)'}`),
+    const tbl = h('table', { class: 'summary-table' }, h('caption', {}, `Device Utilization Summary${rep?.map ? (open ? ' (Silinx toolchain)' : '') : ' (not yet implemented)'}`),
       h('tr', {}, h('th', {}, 'Logic Utilization'), h('th', {}, 'Used'), h('th', {}, 'Available'), h('th', {}, 'Utilization'), h('th', {}, '')));
     let lines = (rep?.map?.utilization || []).filter(u => u.total).map(u => [u.name, u.used, u.total, u.percent]);
     if (!lines.length && part) {
@@ -49,7 +49,7 @@ export function mountSummary(el) {
     // timing
     const tm = rep?.timing;
     if (tm) {
-      page.append(h('table', { class: 'summary-table' }, h('caption', {}, open ? 'Timing (post Place & Route, open toolchain estimate)' : 'Timing (post Place & Route)'),
+      page.append(h('table', { class: 'summary-table' }, h('caption', {}, open ? 'Timing (post Place & Route, Silinx toolchain estimate)' : 'Timing (post Place & Route)'),
         h('tr', {}, h('th', {}, 'Timing Constraints'), h('td', { class: tm.met === false ? 'status-bad' : 'status-good' }, tm.met === false ? (open ? `Not met (${tm.timingErrors} constraints)` : `Not met (${tm.timingErrors} errors, score ${tm.score})`) : 'All constraints met')),
         tm.minPeriodNs ? h('tr', {}, h('th', {}, 'Minimum period'), h('td', {}, `${tm.minPeriodNs} ns (maximum frequency ${tm.maxFreqMHz} MHz)`)) : null,
         ...(tm.constraints || []).map(c => h('tr', {}, h('th', {}, c.name), h('td', {}, `${c.constraint} — ${c.timingErrors ? `${c.timingErrors} errors` : 'met'}, ${c.minPeriodNs} ns`)))));
@@ -69,7 +69,7 @@ export function mountSummary(el) {
         .map(([n, f, r]) => h('tr', {}, h('td', {}, n), h('td', {}, r ? h('a', { onclick: () => app.openFile(`build/${f}`) }, 'Current') : '')))));
     // quick links (ISE sidebar style)
     page.append(h('div', { style: { color: '#555', marginTop: '8px' } },
-      app.openMode?.() ? 'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the open toolchain (experimental, no ISE): Tools ▸ Toolchain Settings.'
+      app.openMode?.() ? 'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the Silinx toolchain (experimental, no ISE): Tools ▸ Toolchain Settings.'
         : 'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis/implementation require Xilinx ISE 14.7 (Tools ▸ Toolchain Settings).'));
   };
   return { refresh, onActivate: refresh };

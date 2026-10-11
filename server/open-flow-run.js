@@ -1,4 +1,4 @@
-// The open toolchain's flow, in its own process (started by server/open-flow.js, so that the long
+// The Silinx toolchain's flow, in its own process (started by server/open-flow.js, so that the long
 // synchronous parts, placing and routing, never hold the server; Stop kills it):
 //   node server/open-flow-run.js build/open/flow.json
 // flow.json: { top, part, device, family, pkg, graph, bitDbDir, sources: [{ path, lang, file }], ucf,
@@ -28,7 +28,7 @@ const { top, outDir, buildDir } = spec;
 const report = { files: {} };
 const save = () => fs.writeFileSync(path.join(outDir, 'report.json'), JSON.stringify(report, null, 2) + '\n');
 const rel = f => path.relative(path.dirname(buildDir), f).split(path.sep).join('/');   // build/open/…
-const ISE_HINT = 'The open toolchain does not support this yet: implement the design in an ISE mode (Toolchain Settings).';
+const ISE_HINT = 'The Silinx toolchain does not support this yet: implement the design in an ISE mode (Toolchain Settings).';
 
 class StepError extends Error {
   constructor(message, list = [], hint = ISE_HINT) { super(message); this.list = list; this.hint = hint; }
@@ -146,7 +146,7 @@ function runTiming() {
   const constraints = ucfText ? parseUcf(ucfText).clocks || [] : [];
   const checks = checkPeriods(sta, design, constraints);
   const lines = timingReport(sta, checks);
-  fs.writeFileSync(path.join(outDir, 'timing.txt'), `Static timing analysis of ${top} (open toolchain, delay model of core/fpga/timing.js)\n\n${lines.join('\n')}\n`);
+  fs.writeFileSync(path.join(outDir, 'timing.txt'), `Static timing analysis of ${top} (Silinx toolchain, delay model of core/fpga/timing.js)\n\n${lines.join('\n')}\n`);
   report.files.timing = rel(path.join(outDir, 'timing.txt'));
   const failed = checks.filter(c => !c.missing && !c.met);
   for (const l of lines) if (/^(clock|constraint)/.test(l)) console.log(l);
