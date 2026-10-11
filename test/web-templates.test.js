@@ -149,7 +149,9 @@ test('example projects (New Project ▸ Start from): sources compile, top and te
     if (pj.constraints && fs.existsSync(path.join(dir, ex, pj.constraints))) {
       const ucf = fs.readFileSync(path.join(dir, ex, pj.constraints), 'utf8');
       const design = check(sources.filter((s) => s.role !== 'sim'), pj.top);
-      const ports = design.top.ports.map((p) => ({ name: p.name, dir: p.dir, width: p.sig.t.w, msb: p.sig.t.w > 1 ? p.sig.t.left : null, lsb: p.sig.t.w > 1 ? p.sig.t.right : null }));
+      // as the application's Check Constraints (app.js ucfPort): a 1-bit vector is a bus, x<0>
+      const bus = (t) => t.w > 1 || (t.kind === 'logic' && !t.scalar);
+      const ports = design.top.ports.map((p) => ({ name: p.name, dir: p.dir, width: p.sig.t.w, msb: bus(p.sig.t) ? p.sig.t.left : null, lsb: bus(p.sig.t) ? p.sig.t.right : null }));
       assert.deepEqual(checkUcf(ucf, { top: pj.top, ports, lang: 'vhdl' }).filter((d) => d.severity === 'error'), [], `${ex}: ${pj.constraints}`);
     }
   }

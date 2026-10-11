@@ -1,0 +1,48 @@
+{
+  "name": "stopwatch",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "stopwatch",
+  "simTop": "tb_stopwatch",
+  "files": [
+    {
+      "path": "src/debounce.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "src/to_decimal.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "src/sevenseg.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "src/stopwatch.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "sim/tb_stopwatch.vhd",
+      "lang": "vhdl",
+      "role": "sim"
+    }
+  ],
+  "constraints": "constraints/top.ucf",
+  "stimuli": {},
+  "impl": {
+    "optMode": "Speed",
+    "optLevel": 1,
+    "startupClk": "JtagClk"
+  },
+  "preferredLanguage": "vhdl"
+}

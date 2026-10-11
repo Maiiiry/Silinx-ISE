@@ -7,7 +7,7 @@
 //
 //   SILINX_ISE_HOST=user@host node scripts/check-open-flow.mjs [project folder [open-flow options] …]   (default: examples/blinky)
 //   (also: SILINX_ISE_IMAGE, default xilinx/ise:14.7). Needs the device cache (~/.silinx/devices).
-// Options after a project folder go to its open flow (e.g. `lab11 --seed 2 --timing-route 0`); the
+// Options after a project folder go to its open flow (e.g. `examples/pong --seed 2 --timing-route 0`); the
 // same project may be given several times with different options. With SILINX_KEEP=1 the work
 // folder is kept, with ISE's timing report (routed.twr, trce -a) and every connection's delay
 // (routed.dly, reportgen -delay) next to each routed.xdl: research/s3e-route/timing-fit.mjs.

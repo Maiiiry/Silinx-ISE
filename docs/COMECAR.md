@@ -16,7 +16,7 @@ Não precisa de ferramentas de programação nem de git. Escolha **uma** das dua
 1. Abra a **[última versão](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Em **Assets**, clique em **`Silinx-ISE.html`** para o descarregar.
 3. Faça duplo clique no ficheiro descarregado. Abre no browser (Chrome, Edge, Firefox ou Safari).
-4. Na página inicial clique em **Open Example (blinky)** ou **New Project…**.
+4. Na página inicial clique em **Open Example (blinky)** (ou *pong*, um jogo para dois, ou *stopwatch*) ou **New Project…**.
 
 É tudo. A saber:
 

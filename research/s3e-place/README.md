@@ -77,7 +77,7 @@ it (B8 -> BUFGMUX_X2Y11, as ISE). Deterministic: the same seed gives the same pl
 | `gen-test-device.mjs` | the made-up device of the unit tests (`test/fixtures/fpga/place-device.xdlrc`) |
 | `try-pack.mjs`, `show-net.mjs`, `count.cjs`, `devinfo.mjs` | inspection helpers |
 
-`node validate.mjs sims/lab11.json /tmp/work` (needs `yosys`, the private `xilinx/ise:14.7`
+`node validate.mjs sims/blinky.json /tmp/work` (needs `yosys`, the private `xilinx/ise:14.7`
 image, and the device report `XDLRC=…`, default `/tmp/claude-501/xdl/dev.xdlrc`).
 
 ## Results

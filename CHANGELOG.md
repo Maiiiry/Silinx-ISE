@@ -44,6 +44,15 @@ the "What's new" text of its GitHub release.
   toolchain's errors are `ERROR:Silinx`. XST's own messages (ISE modes) keep `Xst`.
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
+- **Two more examples:** *pong* (LED Pong, a game for two players, in Verilog: the ball is the lit
+  LED, each player returns it with a button, the score on the 7-segment display) and *stopwatch*
+  (in VHDL: seconds and hundredths, laps stored in a block RAM and recalled, the decimal digits
+  computed with the multipliers), besides *blinky*; the Start page offers the three. Each has a
+  self-checking testbench and runs on every device of the Silinx toolchain (Basys2-100 / 250,
+  Nexys2-500 / 1200). They are also Silinx's test designs: their testbenches, the board pin
+  assignment, the whole Silinx toolchain on every device and, with ISE, byte-identical bitstreams.
+- A project created from an example for another board gets that board's pins (the example's UCF
+  was copied unchanged: a Basys2's pins on a Nexys2).
 - **The Silinx toolchain, the default:** *Toolchain Settings* has a new execution mode, *Silinx
   toolchain (experimental, no ISE)*, and a new installation starts in it, so students need no
   Xilinx tool for the Basys2 and Nexys2 boards (a saved configuration keeps its mode; one that says

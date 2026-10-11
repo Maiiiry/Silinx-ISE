@@ -62,6 +62,9 @@ const BUDGETS = {
   blinky: { design: () => fixture('blinky'), luts: 70, muxes: 16, slices: 78 },
   // the example project (stock: 104 slices; XST: 104 LUTs, 99 slices)
   'examples/blinky': { design: () => example('blinky'), luts: 78, muxes: 19, slices: 95 },
+  // the other examples (the game: state machine, display; the stopwatch: block RAM, multipliers)
+  'examples/pong': { design: () => example('pong'), luts: 310, muxes: 68, slices: 300 },
+  'examples/stopwatch': { design: () => example('stopwatch'), luts: 255, muxes: 62, slices: 243 },
   fsm: { design: () => fixture('fsm'), luts: 14, muxes: 4, slices: 10 },
   adder: { design: () => fixture('adder'), luts: 72, muxes: 2, slices: 63 },
   // shift registers: the fixed chains in SRL16E (15.10.2: 63 slices; in flip-flops 79; XST about 9
@@ -78,6 +81,11 @@ for (const [name, b] of Object.entries(BUDGETS)) {
     assert.ok(r.packed.stats.slices <= b.slices, s);
   });
 }
+
+test('stopwatch: its lap memory is a block RAM, its divisions by 10, 100 and 1000 three multipliers', { timeout: 120000 }, async () => {
+  const r = await synth(example('stopwatch'));
+  assert.deepEqual([r.util.blockRam, r.util.multipliers, r.util.distributedRam], [1, 3, 0]);
+});
 
 test('blinky: (1 << level) - 1 of a 3-bit level is a table, not a 32-bit subtracter (the longest carry chain is a 20-bit counter)', { timeout: 120000 }, async () => {
   const r = await synth(example('blinky'));

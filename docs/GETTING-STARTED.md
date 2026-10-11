@@ -16,7 +16,7 @@ No programming tools or git needed. Pick **one** of the two ways below.
 1. Open the **[latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Under **Assets**, click **`Silinx-ISE.html`** to download it.
 3. Double-click the downloaded file. It opens in your browser (Chrome, Edge, Firefox or Safari).
-4. On the Start page click **Open Example (blinky)** or **New Project…**.
+4. On the Start page click **Open Example (blinky)** (or *pong*, a game for two, or *stopwatch*) or **New Project…**.
 
 That's all. Things to know:
 

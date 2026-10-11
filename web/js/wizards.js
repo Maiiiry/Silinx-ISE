@@ -155,7 +155,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
   const db = S.devices || await api.devices();
   const templates = await api.templates().catch(() => []);
   const st = {
-    name: template === 'blinky' ? 'blinky' : '', template, board: '',
+    name: template !== 'empty' ? template : '', template, board: '',
     device: { ...DEFAULT_DEVICE }, lang: 'vhdl',
   };
   const name = h('input', { type: 'text', value: st.name, placeholder: 'project name' });

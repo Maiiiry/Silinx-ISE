@@ -22,6 +22,8 @@
   ],
   "designs/tristate": [],
   "examples/blinky": [],
+  "examples/pong": [],
+  "examples/stopwatch": [],
   "fixtures/verilog/counter_top": [],
   "fixtures/vhdl/counter": [],
   "fixtures/vhdl/seg7": [],

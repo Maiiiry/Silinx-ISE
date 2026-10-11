@@ -266,8 +266,8 @@ npm run build:standalone    # writes dist/Silinx-ISE.html (~2.5 MB)
 ```
 
 One file, no server: open it in a browser or share it. It includes the editor, schematics, ASM
-editor, simulation/ISim, pin planner and ISE project import/export; the *blinky* example is
-embedded. Projects are stored in the browser (*File ▸ Download / Open Project Bundle* to move
+editor, simulation/ISim, pin planner and ISE project import/export; the examples (*blinky*, *pong*,
+*stopwatch*) are embedded. Projects are stored in the browser (*File ▸ Download / Open Project Bundle* to move
 them). Synthesis, implementation and programming need the full application (`npm start`).
 
 ## Synthesis and bitstreams (Xilinx ISE 14.7)
@@ -363,7 +363,8 @@ server/     HTTP server, projects, ISE flow, programmers, boards/devices, .xise
 web/        Project Navigator UI (modern and ISE-like, web/css/modern.css): editor, ISim, schematics, ASM, pin planner, iMPACT
 docker/ise/ builder kit for the private Xilinx ISE 14.7 Docker image
 scripts/    adepttool installer/patch, Platform Flash programmer, standalone build
-examples/   example projects (mixed VHDL+Verilog blinky for the Digilent Basys2, XC3S250E-CP132)
+examples/   example projects for the Basys2 / Nexys2 (the Silinx toolchain's devices): blinky (VHDL + Verilog, an ASM chart),
+            pong (a game for two, Verilog), stopwatch (VHDL, block RAM and multipliers); each with a self-checking testbench
 docs/       IR.md (parser intermediate representation), PROJECT.md (project model and API),
             OPEN-TOOLCHAIN.md (how the open Spartan-3E toolchain is developed)
 research/   s3e-bitstream: experiments towards an open toolchain for the Spartan-3E (Basys2)

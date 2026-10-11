@@ -82,6 +82,36 @@ uiTest('New Project wizard: every device family (no board), the device list foll
   assert.equal(await readWs(env, 'FromExample', 'src/counter.v').then((t) => /module prescaler/.test(t)), true);
 });
 
+uiTest('Start page: the three examples; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
+  await page.eval(() => window.SilinxApp.closeProject?.());
+  await page.waitForSelector('#start-page .start-box');
+  const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
+  for (const t of ['blinky', 'pong', 'stopwatch']) assert.ok(entries.includes(`Open Example (${t})`), entries.join(', '));
+  await page.click('#start-page .entry a', { text: 'Open Example (pong)' });
+  await page.waitDialog('New Project Wizard');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main input[type=text]').value), 'pong');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main select').value), 'pong');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'PongN2');
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Settings');
+  await page.fill('.dlg-overlay .wiz-main select', 'nexys2', { index: 0 });
+  await page.fill('.dlg-overlay .wiz-main select', 'xc3s1200e', { index: 3 });
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Summary');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'PongN2', [], { what: 'project PongN2 open' });
+  const pj = await page.eval(() => window.Silinx.project);
+  assert.equal(pj.top, 'pong');
+  assert.deepEqual([pj.device.part, pj.device.package], ['xc3s1200e', 'fg320']);
+  assert.ok(pj.files.some((f) => f.path === 'sim/tb_pong.v' && f.role === 'sim'));
+  // the constraints are the Nexys2's (BTN0 on B18, LD0 on J14), not the Basys2's the example ships
+  const ucf = await readWs(env, 'PongN2', 'constraints/top.ucf');
+  assert.match(ucf, /NET "btn<0>" +LOC = "B18"/);
+  assert.match(ucf, /NET "led<0>" +LOC = "J14"/);
+  assert.doesNotMatch(ucf, /"G12"/);
+});
+
 uiTest('open, switch and close projects (Open Project dialog, Recent Projects, Start page)', E, async (page) => {
   for (const n of ['Alpha', 'Beta']) {
     await makeProject(env, { name: n, files: { [`src/${n.toLowerCase()}.vhd`]: `library ieee; use ieee.std_logic_1164.all;\nentity ${n.toLowerCase()} is port (a : in std_logic; y : out std_logic); end;\narchitecture r of ${n.toLowerCase()} is begin y <= not a; end r;\n` }, top: n.toLowerCase() });
