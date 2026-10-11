@@ -72,7 +72,7 @@ test('SystemVerilog conveniences accepted: logic, always_ff / always_comb, ++ / 
   assert.deepEqual(r, ['6 3 1100 1010']);
 });
 
-test('instance arrays (u[3:0]) connect one bit of each vector actual per instance', { todo: 'arrays of instances are not supported by the Verilog parser' }, () => {
+test('instance arrays (u[3:0]) connect one bit of each vector actual per instance', () => {
   const r = out(`
 module inv(input a, output y); assign y = ~a; endmodule
 module tb; reg [3:0] a = 4'b1010; wire [3:0] y; inv u[3:0] (.a(a), .y(y)); initial #1 $display("%b", y); endmodule`);

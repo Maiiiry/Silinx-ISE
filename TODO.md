@@ -33,5 +33,12 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
 ## Front ends and simulator
 
 - Verilog constructs Silinx cannot read yet, found by the corpus test (test/corpus/README.md):
-  hierarchical names into generate blocks, instance arrays, `localparam` in functions, `$size`,
-  `$floor`, `$countbits`, `wand` / `wor` / `supply1` ports, typedefs and structs, `specify`.
+  explicit port expressions in a module header (`.a(x[3:0])`; constmsk_testmap.v also uses Yosys's
+  own `(...)`), `rand` / `const` qualifiers, identifiers that start with `$` (a Yosys extension,
+  shregmap.v), unions and enumeration name ranges (`A[3]`), SystemVerilog functions with output
+  arguments called in expressions, packages and `import`.
+- A variable's initializer that is not constant (`output integer y = x + 1`, fib.v): per the
+  standard an initial value set once at time 0; Silinx reports "expression is not constant", Yosys
+  appears to make it a continuous assignment (to be checked before choosing).
+- Hierarchical references to a constant (a parameter, a specparam) of another instance (`u.P`):
+  only signals are found today.

@@ -19,6 +19,11 @@
 // test/corpus/expected.json holds the expected result of every key. The run fails only on a
 // regression: a key expected to 'pass' that does not. Keys that pass now and did not before are
 // listed (newly passing); --update rewrites expected.json with the results of this run.
+//
+// test/corpus/warnings.json holds the warnings (and notes) Silinx gives for each file and top module
+// ("<dir>/<file>": the parser's, "<dir>/<file>:<top>": the elaborator's), as "line: message". A
+// warning that is new fails the run (a construct read with a spurious warning, or a new check to
+// review); one that vanished is listed. --update records them too.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,6 +32,7 @@ import { Worker, isMainThread, parentPort, workerData } from 'node:worker_thread
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXPECTED = path.join(HERE, 'expected.json');
+const WARNINGS = path.join(HERE, 'warnings.json');
 const TIMEOUT = 900000;   // per file (hana/test_intermout.v: 33 modules, two netlists each)
 
 /** One line of a reason: no newlines, no absolute paths, bounded. */
@@ -35,6 +41,7 @@ const clean = s => String(s).replace(/\s+/g, ' ').replace(/(src\d+_)/g, '').slic
 /** Results of one file: { key: status }. */
 async function runFile(dir, rel, cycles) {
   const { compile, topCandidates } = await import('../../core/compile.js');
+  const { elaborate } = await import('../../core/elaborate.js');
   const { diffSynth } = await import('../diff-synth.js');
   const text = fs.readFileSync(path.join(dir, rel), 'utf8');
   const src = { path: path.basename(rel), lang: 'verilog', text };
@@ -46,7 +53,11 @@ async function runFile(dir, rel, cycles) {
   if (perr.length) { out[rel] = `unsupported: parse: line ${perr[0].line}: ${clean(perr[0].message)}`; return out; }
   const tops = topCandidates(lib);
   if (!tops.length) { out[rel] = 'unsupported: parse: no module'; return out; }
+  // the warnings: of the parser (the file), of the elaboration (each top module)
+  const warns = list => [...new Set(list.filter(d => d.severity !== 'error').map(d => `${d.line}: ${clean(d.message)}`))].sort();
+  out[`${rel}#warnings`] = warns(lib.errors);
   for (const top of tops) {
+    try { out[`${rel}:${top}#warnings`] = warns(elaborate(lib, top).diags); } catch (e) { out[`${rel}:${top}#warnings`] = [`elaboration failed: ${clean(e.message)}`]; }
     for (const from of ['source', 'silinx']) {
       const key = `${rel}:${top}${from === 'silinx' ? ' (synth)' : ''}`;
       let r;
@@ -86,7 +97,7 @@ if (!isMainThread) {
   }
   const todo = files.filter(f => f.includes(filter)).map(f => f);
   const testsDir = path.join(dir, 'tests');
-  const results = {}, reports = {};
+  const results = {}, reports = {}, warnings = {};
   const t0 = Date.now();
   let next = 0, doneN = 0;
   await new Promise(resolve => {
@@ -104,7 +115,7 @@ if (!isMainThread) {
       };
       w.on('message', ({ rel, res }) => {
         clearTimeout(timer);
-        for (const [k, v] of Object.entries(res)) (k.endsWith('#report') ? reports : results)[k.replace(/#report$/, '')] = v;
+        for (const [k, v] of Object.entries(res)) (k.endsWith('#report') ? reports : k.endsWith('#warnings') ? warnings : results)[k.replace(/#(report|warnings)$/, '')] = v;
         doneN++;
         process.stderr.write(`\r${doneN}/${todo.length} ${rel.padEnd(60).slice(0, 60)}`);
         cur = null;
@@ -159,6 +170,23 @@ if (!isMainThread) {
     fs.writeFileSync(EXPECTED, JSON.stringify(sorted, null, 1) + '\n');
     console.log(`\nwrote ${path.relative(process.cwd(), EXPECTED)} (${Object.keys(sorted).length} entries)`);
   }
+  // warnings: new ones fail the run, vanished ones are listed
+  const expW = fs.existsSync(WARNINGS) ? JSON.parse(fs.readFileSync(WARNINGS, 'utf8')) : {};
+  const newW = [], goneW = [];
+  for (const [k, ws] of Object.entries(warnings)) {
+    const old = new Set(expW[k] || []), now = new Set(ws);
+    for (const w of ws) if (!old.has(w)) newW.push(`  ${k}: ${w}`);
+    for (const w of old) if (!now.has(w)) goneW.push(`  ${k}: ${w}`);
+  }
+  for (const [k, ws] of Object.entries(expW)) if (ran.has(k.split(':')[0]) && !(k in warnings)) for (const w of ws) goneW.push(`  ${k}: ${w}`);
+  if (goneW.length) console.log(`\nwarnings no longer given (${goneW.length}):\n${goneW.join('\n')}`);
+  if (newW.length) console.log(`\nNEW WARNINGS (${newW.length}; review them, then --update records them):\n${newW.join('\n')}`);
+  if (update) {
+    const mergedW = filter ? { ...Object.fromEntries(Object.entries(expW).filter(([k]) => !ran.has(k.split(':')[0]))), ...warnings } : warnings;
+    const sortedW = Object.fromEntries(Object.keys(mergedW).sort().filter(k => mergedW[k].length).map(k => [k, mergedW[k]]));
+    fs.writeFileSync(WARNINGS, JSON.stringify(sortedW, null, 1) + '\n');
+    console.log(`wrote ${path.relative(process.cwd(), WARNINGS)} (${Object.keys(sortedW).length} entries)`);
+  } else if (newW.length) process.exitCode = 1;
   if (regress.length) {
     console.log(`\nREGRESSIONS (${regress.length}): expected to pass\n${regress.map(k => `  ${k}: ${results[k]}`).join('\n')}`);
     if (!update) process.exitCode = 1;

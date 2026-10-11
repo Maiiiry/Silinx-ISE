@@ -7,7 +7,7 @@ posedge negedge or and not generate endgenerate function endfunction task endtas
 supply0 supply1 tri wait disable fork join automatic real realtime time defparam
 nand nor xor xnor buf bufif0 bufif1 notif0 notif1 event wand wor triand trior tri0 tri1 specify endspecify`.split(/\s+/));
 
-const OPS = ['<<<=', '>>>=', '++', '--', '+=', '-=', '|=', '&=', '^=', '===', '!==', '<<<', '>>>', '~&', '~|', '~^', '^~', '==', '!=', '<=', '>=', '&&', '||', '<<', '>>', '**', '+:', '-:', '->',
+const OPS = ['<<<=', '>>>=', '<<=', '>>=', '*=', '/=', '%=', '++', '--', '+=', '-=', '|=', '&=', '^=', '===', '!==', '<<<', '>>>', '~&', '~|', '~^', '^~', '==', '!=', '<=', '>=', '&&', '||', '<<', '>>', '**', '+:', '-:', '->',
   '+', '-', '*', '/', '%', '<', '>', '!', '~', '&', '|', '^', '?', ':', ';', ',', '.', '(', ')', '[', ']', '{', '}', '=', '#', '@'];
 
 const UNIT = { s: 1e12, ms: 1e9, us: 1e6, ns: 1e3, ps: 1, fs: 1e-3 };
@@ -20,7 +20,7 @@ export function tokenize(src, file, errors, opts = {}) {
   const cond = []; // stack of { active, taken }
   let timescale = opts.timescale;
   const active = () => cond.every(c => c.active);
-  let i = 0, line = 1, col = 1;
+  let i = 0, line = 1, col = 1, expansions = 0, lastId = null;
   const err = (msg, l = line, c = col, sev = 'error') => errors.push({ file, line: l, col: c, message: msg, severity: sev });
 
   function adv(n = 1) {
@@ -49,7 +49,7 @@ export function tokenize(src, file, errors, opts = {}) {
       while (i < src.length && !(src[i] === '*' && src[i + 1] === '/')) adv();
       adv(2); continue;
     }
-    const l0 = line, c0 = col;
+    const l0 = line, c0 = col, b0 = i;
     // Verilog-2001 attribute instances (* ... *) are ignored (but not @(*)).
     if (c === '(' && src[i + 1] === '*' && src[i + 2] !== ')' && !(toks.length && toks[toks.length - 1].v === '@')) {
       adv(2);
@@ -83,7 +83,9 @@ export function tokenize(src, file, errors, opts = {}) {
         const body = restOfLine().trim();
         const m = /^([A-Za-z_][A-Za-z0-9_]*)(\([^)]*\))?\s*(.*)$/.exec(body);
         if (!m) { err('bad `define'); continue; }
-        const params = m[2] ? m[2].slice(1, -1).split(',').map(x => x.trim()).filter(Boolean) : null;
+        // parameters: `name` or `name = default text` (SystemVerilog)
+        const params = m[2] ? m[2].slice(1, -1).split(',').map(x => x.trim()).filter(Boolean)
+          .map(x => { const k = x.indexOf('='); return k < 0 ? { name: x } : { name: x.slice(0, k).trim(), def: x.slice(k + 1).trim() }; }) : null;
         defines.set(m[1], { params, body: m[3] || '' });
       } else if (name === 'undef') {
         defines.delete(restOfLine().trim());
@@ -105,32 +107,48 @@ export function tokenize(src, file, errors, opts = {}) {
       } else if (['default_nettype', 'resetall', 'celldefine', 'endcelldefine', 'unconnected_drive', 'nounconnected_drive'].includes(name)) {
         restOfLine();
       } else if (defines.has(name)) {
+        // The macro's text replaces its use in the source (IEEE 1364-2005 19.3.1), so it joins the
+        // text around it (`WIDTH'b0110, f4_`name). A body has no newlines (line continuations are
+        // spaces); the newlines of the arguments are kept after it, so the next lines keep their
+        // numbers.
         const mac = defines.get(name);
-        let body = mac.body;
+        let body = mac.body, nl = '', j = i;
         if (mac.params) {
           // actual arguments: comma-separated at parenthesis depth 0; each replaces its parameter
-          while (src[i] === ' ' || src[i] === '\t') adv();
+          // (an empty one: the parameter's default value, SystemVerilog `define F(a = text))
+          while (src[j] === ' ' || src[j] === '\t') j++;
           const args = [];
-          if (src[i] === '(') {
-            adv();
+          if (src[j] === '(') {
+            j++;
             let depth = 0, cur = '';
-            while (i < src.length && !(depth === 0 && src[i] === ')')) {
-              const ch = src[i];
+            while (j < src.length && !(depth === 0 && src[j] === ')')) {
+              const ch = src[j];
               if (ch === '(' || ch === '[' || ch === '{') depth++;
               if (ch === ')' || ch === ']' || ch === '}') depth--;
+              if (ch === '\n') nl += '\n';
               if (ch === ',' && depth === 0) { args.push(cur.trim()); cur = ''; } else cur += ch;
-              adv();
+              j++;
             }
-            adv();
+            j++;
             args.push(cur.trim());
           }
-          if (args.length !== mac.params.length) err(`macro \`${name} expects ${mac.params.length} argument(s)`, l0, c0);
-          const P = new Map(mac.params.map((p, k) => [p, args[k] ?? '']));
-          body = body.replace(/[A-Za-z_][A-Za-z0-9_$]*/g, w => (P.has(w) ? P.get(w) : w));
+          if (!mac.params.length && args.length === 1 && args[0] === '') args.length = 0;
+          const missing = mac.params.slice(args.length).some(p => p.def === undefined);
+          if (args.length > mac.params.length || missing) err(`macro \`${name} expects ${mac.params.length} argument(s)`, l0, c0);
+          const P = new Map(mac.params.map((p, k) => [p.name, args[k] || p.def || '']));
+          // (not inside string literals; `" is a quote whose string the arguments do fill)
+          body = body.replace(/`"/g, '\u0001').replace(/"(?:[^"\\]|\\.)*"|[A-Za-z_][A-Za-z0-9_$]*/g, w => (P.has(w) ? P.get(w) : w)).replace(/\u0001/g, '"');
         }
-        if ((opts.depth || 0) > 32) { err(`macro \`${name} expands too deeply`, l0, c0); continue; }
-        const sub = tokenize(body, file, errors, { ...opts, defines, depth: (opts.depth || 0) + 1 });
-        for (const t of sub.tokens) { if (t.t !== 'eof') toks.push({ ...t, line: l0, col: c0 }); }
+        body = body.replace(/``/g, '');   // `` joins the text on its two sides
+        if (++expansions > 100000) { err(`macro \`${name} expands too deeply`, l0, c0); i = j; continue; }
+        src = src.slice(0, b0) + body + nl + src.slice(j);
+        i = b0; line = l0; col = c0;
+        // an identifier just before the use joins the body's first word (f4_`name)
+        const last = toks[toks.length - 1];
+        if (lastId && lastId.tok === last && lastId.end === b0 && /^[A-Za-z0-9_$]/.test(body)) {
+          toks.pop();
+          i = b0 - last.v.length; line = last.line; col = last.col;
+        }
       } else {
         err(`undefined macro \`${name}`, l0, c0);
       }
@@ -144,6 +162,9 @@ export function tokenize(src, file, errors, opts = {}) {
       while (i < src.length && /[A-Za-z0-9_$]/.test(src[i])) { s += src[i]; adv(); }
       if (s[0] === '$') toks.push({ t: 'sys', v: s, line: l0, col: c0 });
       else toks.push({ t: KEYWORDS.has(s) ? 'kw' : 'id', v: s, line: l0, col: c0 });
+      lastId = { tok: toks[toks.length - 1], end: i };
+      // SystemVerilog cast to a type: my_t'(expr), signed'(expr) -> the name and a cast mark
+      if (src[i] === "'" && src[i + 1] === '(' && s[0] !== '$') { adv(); toks.push({ t: 'cast', v: "'", line, col }); }
       continue;
     }
     if (c === '\\') { // escaped identifier
