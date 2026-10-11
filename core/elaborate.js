@@ -780,8 +780,8 @@ function elabType(E, ts, allowUnconstrained = false) {
         if (ts.unconstrained) return { ...vecT(1, ts.signed), unconstrained: true, ...mk };
         return { ...BIT, s: !!ts.signed };
       }
-      const { left, right, desc } = evalRange(E, ts.range);
-      const w = Math.abs(left - right) + 1;
+      const r = evalRange(E, ts.range), { left, right, desc } = r;
+      const w = rangeLen(r);
       return { kind: 'logic', w, s: !!ts.signed, left, right, desc, ...mk };
     }
     case 'integer': {
@@ -801,8 +801,8 @@ function elabType(E, ts, allowUnconstrained = false) {
     case 'array': {
       const elem = elabType(E, ts.elem);
       if (!ts.range) return { kind: 'array', unconstrained: true, elem, w: 0 };
-      const { left, right, desc } = evalRange(E, ts.range);
-      const lo = Math.min(left, right), len = Math.abs(left - right) + 1;
+      const r = evalRange(E, ts.range), { left, right, desc } = r;
+      const lo = Math.min(left, right), len = rangeLen(r);
       if (len > 1 << 22) throw new ElabError(`array too large (${len} elements)`);
       return { kind: 'array', left, right, desc, lo, len, elem, w: elem.w };
     }
@@ -857,6 +857,14 @@ function stdTypeName(n) {
 }
 
 function evalRange(E, r) {
+  const er = evalRange0(E, r);
+  // VHDL null range (`-1 downto 0`, `0 to -1`, IEEE 1076-2008 5.2.1): no element (a Verilog range
+  // takes its direction from its bounds, so it is never null)
+  if (er.desc ? er.left < er.right : er.left > er.right) er.isNull = true;
+  return er;
+}
+
+function evalRange0(E, r) {
   if (r.of && r.of.op === 'ref' && (E.sc.lookup(r.of.name)?.kind === 'type' || (!E.sc.lookup(r.of.name) && stdTypeName(r.of.name)))) {
     // the range of a (sub)type: integer subtypes, enumerations, constrained vectors
     const te = E.sc.lookup(r.of.name);
@@ -883,6 +891,9 @@ function evalRange(E, r) {
   const desc = r.dir ? r.dir === 'downto' : left >= right;
   return { left, right, desc };
 }
+
+// The number of elements of an evaluated range (0 for a VHDL null range)
+const rangeLen = r => (r.isNull ? 0 : Math.abs(r.left - r.right) + 1);
 
 export function defaultValue(t, lang, net) {
   switch (t.kind) {
@@ -1155,7 +1166,7 @@ function bindExpr0(E, e, expect, loc) {
     }
     case 'slice': {
       const base = strVec(E, bindExpr(E, e.base, null, loc));
-      return fold(sliceNode(E, base, e.left, e.right, loc));
+      return fold(sliceNode(E, base, e.left, e.right, loc, e.dir));
     }
     case 'pslice': {
       const base = strVec(E, bindExpr(E, e.base, null, loc));
@@ -1352,10 +1363,14 @@ function indexNode(E, base, idxExpr, loc) {
   return { k: 'bit', base, index, t: BIT, ...(E.lang === 'vhdl' ? { chk: true } : {}) };
 }
 
-function sliceNode(E, base, leftE, rightE, loc) {
+function sliceNode(E, base, leftE, rightE, loc, dir) {
   if (base.t.kind === 'array') throw new ElabError('array slices are not supported', loc);
   const left = bindExpr(E, leftE, null, loc), right = bindExpr(E, rightE, null, loc);
   if (left.k === 'c' && right.k === 'c') {
+    // a VHDL null slice (`v(-1 downto 0)`, `v(0 to -1)`): no element
+    if (E.lang === 'vhdl' && dir && (dir === 'downto' ? V.toNum(left.val) < V.toNum(right.val) : V.toNum(left.val) > V.toNum(right.val))) {
+      return { k: 'slice', base, lo: 0, t: { ...vecT(0, base.t.kind === 'logic' ? base.t.s : false), ...(base.t.mark ? { mark: base.t.mark } : {}) } };
+    }
     const p1 = bitpos(base.t, V.toNum(left.val)), p2 = bitpos(base.t, V.toNum(right.val));
     const lo = Math.min(p1, p2), w = Math.abs(p1 - p2) + 1;
     if (lo < 0 || lo + w > base.t.w) diag(E, `slice out of range for '${base.name || 'expression'}'`, loc, 'warning');
@@ -1580,7 +1595,7 @@ function bindAggregate(E, e, expect, loc) {
         if (ch === 'others') { for (let k = 0; k < slots.length; k++) if (!slots[k]) slots[k] = val; }
         else if (ch.range) {
           const r = evalRange(E, ch.range);
-          for (let i = Math.min(r.left, r.right); i <= Math.max(r.left, r.right); i++) slots[i - expect.lo] = val;
+          if (!r.isNull) for (let i = Math.min(r.left, r.right); i <= Math.max(r.left, r.right); i++) slots[i - expect.lo] = val;
         } else slots[V.toNum(constOf(E, bindExpr(E, ch, null, loc), loc)) - expect.lo] = val;
       }
     }
@@ -1611,10 +1626,12 @@ function bindAggregate(E, e, expect, loc) {
       if (ch === 'others') { for (let k = 0; k < w; k++) if (!bits[k]) bits[k] = val; }
       else if (ch.range) {
         const r = evalRange(E, ch.range);
-        for (let i = Math.min(r.left, r.right); i <= Math.max(r.left, r.right); i++) bits[bitpos(t, i)] = val;
+        if (!r.isNull) for (let i = Math.min(r.left, r.right); i <= Math.max(r.left, r.right); i++) bits[bitpos(t, i)] = val;
       } else bits[bitpos(t, V.toNum(constOf(E, bindExpr(E, ch, null, loc), loc)))] = val;
     }
   }
+  // (a null array: no element; its choices are still bound, for their diagnostics)
+  if (w === 0) return { k: 'c', val: V.mk(0, 0n, 0n, !!t.s), t: vecT(0, t.s) };
   const zero = { k: 'c', val: V.ZERO, t: BIT };
   const parts = [];
   for (let p = w - 1; p >= 0; p--) parts.push(bits[p] || zero);
@@ -1637,7 +1654,7 @@ function bindApply(E, e, expect, loc) {
     }
     if (args.length !== 1) throw new ElabError(`'${name}' indexed with ${args.length} indices`, loc);
     const a = args[0].named !== undefined ? args[0].value : args[0];
-    if (a.op === 'slice' && a.base == null) return fold(sliceNode(E, base, a.left, a.right, loc));
+    if (a.op === 'slice' && a.base == null) return fold(sliceNode(E, base, a.left, a.right, loc, a.dir));
     return fold(indexNode(E, base, a, loc));
   }
   if (entry && entry.kind === 'func') return bindCall(E, entry, args, name, loc);
@@ -2013,7 +2030,7 @@ function bindLvalue(E, e, loc) {
     }
     case 'slice': {
       const base = bindLvalue(E, e.base, loc);
-      const n = sliceNode(E, base, e.left, e.right, loc);
+      const n = sliceNode(E, base, e.left, e.right, loc, e.dir);
       return n;
     }
     case 'pslice': {
@@ -2031,7 +2048,7 @@ function bindLvalue(E, e, loc) {
         base = { k: 'elem', base, index: bindExpr(E, a, null, loc), t: base.t.elem };
       }
       const a = args[args.length - 1];
-      if (a.op === 'slice' && a.base == null) return sliceNode(E, base, a.left, a.right, loc);
+      if (a.op === 'slice' && a.base == null) return sliceNode(E, base, a.left, a.right, loc, a.dir);
       const index = bindExpr(E, a, null, loc);
       const chk = E.lang === 'vhdl' ? { chk: true } : {};
       if (base.t.kind === 'array') return { k: 'elem', base, index, t: base.t.elem, ...chk };

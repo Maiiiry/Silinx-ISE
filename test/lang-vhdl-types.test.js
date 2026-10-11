@@ -2,7 +2,7 @@
 // vectors, 2-D), records, constants, aliases and the predefined attributes (IEEE 1076-2008 §5, §16.2).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { out, vproc, vhd, sim } from './lang-util.js';
+import { out, outW, vproc, vhd, sim } from './lang-util.js';
 
 test('integer, natural, positive and ranged subtypes: defaults are the left bound', () => {
   const r = out(vproc(`
@@ -187,4 +187,38 @@ test("'image of integers, booleans, enumerations and std_logic", () => {
     report integer'image(-42) & "|" & boolean'image(false) & "|" & e_t'image(two) & "|" & std_logic'image('Z');`,
   '', `type e_t is (one, two);`));
   assert.deepEqual(r, ["-42|false|two|'Z'"]);
+});
+
+// Regression (#15): a null range (`N - 1 downto 0` with N = 0, `0 to -1`) has no element; it gave
+// one bit (two for `-1 downto 0`)
+test('null ranges: vectors and arrays of no element, loops not run, null slices, aggregates and concatenations (#15)', () => {
+  const r = outW(vproc(`
+    report integer'image(a'length) & " " & integer'image(b'length) & " " & integer'image(c'length) & " " & integer'image(m'length);
+    report integer'image(a'left) & " " & integer'image(a'right) & " " & boolean'image(a'ascending) & " " & boolean'image(b'ascending);
+    for i in -1 downto 0 loop report "never"; end loop;
+    for i in 0 to -1 loop report "never"; end loop;
+    for i in a'range loop report "never"; end loop;
+    for i in m'range loop report "never"; end loop;
+    a := (others => '1');
+    v := v(-1 downto 0) & v & b;
+    report to_string(v) & " " & integer'image(v(-1 downto 0)'length) & " " & integer'image(v(7 downto 8)'length);
+    report to_string(a & "01" & b);
+    v(-1 downto 0) := a;
+    report to_string(v);`,
+  `variable a : std_logic_vector(-1 downto 0); variable b : std_logic_vector(0 to -1);
+   variable v : std_logic_vector(7 downto 0) := x"A5"; variable m : int_arr(0 to -1);`,
+  `constant N : natural := 0; signal c : std_logic_vector(N - 1 downto 0);
+   type int_arr is array (natural range <>) of integer;`));
+  assert.deepEqual(r, ['0 0 0 0', '-1 0 false true', '10100101 0 0', '01', '10100101']);
+});
+
+test('null ranges: a generic entity with an optional port of N = 0 bits (#15)', () => {
+  const r = outW(vhd(`
+  u : entity work.opt generic map (N => 0) port map (x => none, a => "1010", y => y);
+  process begin wait for 1 ns; report to_string(y) & " " & integer'image(y'length); wait; end process;`,
+  `signal none : std_logic_vector(-1 downto 0); signal y : std_logic_vector(3 downto 0);`,
+  { pre: `library ieee; use ieee.std_logic_1164.all;
+entity opt is generic (N : natural := 0); port (x : in std_logic_vector(N - 1 downto 0); a : in std_logic_vector(3 downto 0); y : out std_logic_vector(N + 3 downto 0)); end;
+architecture rtl of opt is begin y <= x & a; end;` }));
+  assert.deepEqual(r, ['1010 4']);
 });

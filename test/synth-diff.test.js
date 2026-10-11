@@ -117,7 +117,73 @@ endmodule`;
   expectWarnings('synth-diff: synthesis front end', r.warnings);
 });
 
-test('example projects: RTL and Yosys netlist agree', { timeout: 600000 }, async (t) => {
+// Regression (#9, found on the design corpus's spi-fpga-master): a VHDL state machine whose state
+// signal has no initial value and no reset powers up in its first state (T'left) in the RTL; the
+// netlist started in another state (Yosys re-encoded the state register freely)
+test('VHDL enumeration state machine without a reset: the netlist powers up in the first state (#9)', { timeout: 120000 }, async () => {
+  const text = `library ieee; use ieee.std_logic_1164.all;
+entity fsm_pu is port (clk, go : in std_logic; busy, done : out std_logic; st : out std_logic_vector(1 downto 0)); end;
+architecture rtl of fsm_pu is
+  type state_t is (idle, load, run, finish);
+  signal s : state_t;
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      case s is
+        when idle => if go = '1' then s <= load; end if;
+        when load => s <= run;
+        when run => if go = '0' then s <= finish; end if;
+        when finish => s <= idle;
+      end case;
+    end if;
+  end process;
+  busy <= '1' when s = load or s = run else '0';
+  done <= '1' when s = finish else '0';
+  st <= "00" when s = idle else "01" when s = load else "10" when s = run else "11";
+end;`;
+  const r = await diffSynth({ name: 'fsm_pu', sources: [{ path: 'fsm_pu.vhd', lang: 'vhdl', text }], top: 'fsm_pu', sim: { cycles: 100 }, powerUp: true });
+  expectPass(r);
+  assert.ok(r.states > 1, `the outputs change (${r.states} states)`);
+  expectWarnings('synth-diff: VHDL enumeration state machine without a reset', r.warnings);
+});
+
+// Regression (#15): a generic design with an optional port of N = 0 bits (a null range)
+test('VHDL null ranges: a generic design with ports and signals of N = 0 bits (#15)', { timeout: 120000 }, async () => {
+  const text = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity opt is
+  generic (N : natural := 0);
+  port (clk : in std_logic; a : in std_logic_vector(3 downto 0); x : in std_logic_vector(N - 1 downto 0);
+        y : out std_logic_vector(N + 3 downto 0); n_out : out std_logic_vector(N - 1 downto 0); cnt : out unsigned(3 downto 0));
+end;
+architecture rtl of opt is
+  signal r : std_logic_vector(N - 1 downto 0);
+  signal c : unsigned(3 downto 0) := (others => '0');
+begin
+  y <= x & a;
+  n_out <= r;
+  process (clk) begin
+    if rising_edge(clk) then
+      r <= x;
+      for i in 0 to N - 1 loop c <= c + 1; end loop;
+      if N = 0 then c <= c + 3; end if;
+    end if;
+  end process;
+  cnt <= c;
+end;
+library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity top is port (clk : in std_logic; a : in std_logic_vector(3 downto 0); y : out std_logic_vector(3 downto 0); cnt : out unsigned(3 downto 0)); end;
+architecture rtl of top is
+  signal none : std_logic_vector(-1 downto 0);
+begin
+  u : entity work.opt generic map (N => 0) port map (clk => clk, a => a, x => none, y => y, n_out => open, cnt => cnt);
+end;`;
+  const r = await diffSynth({ name: 'null_range', sources: [{ path: 'opt.vhd', lang: 'vhdl', text }], top: 'top', sim: { cycles: 100 }, powerUp: true });
+  expectPass(r);
+  assert.ok(r.states > 1, `the outputs change (${r.states} states)`);
+  expectWarnings('synth-diff: VHDL null ranges', r.warnings);
+});
+
+test('example projects: RTL and Yosys netlist agree',{ timeout: 600000 }, async (t) => {
   for (const name of fs.readdirSync(path.join(ROOT, 'examples')).sort()) {
     const pj = path.join('examples', name, 'silinx.json');
     if (!fs.existsSync(path.join(ROOT, pj))) continue;

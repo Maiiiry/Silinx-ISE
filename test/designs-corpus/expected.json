@@ -429,7 +429,7 @@
   "frontend": "pass",
   "tb": "pass",
   "synth": "pass",
-  "diff": "mismatch: cycle 0: dout, mosi",
+  "diff": "pass",
   "flow": "complete",
   "warnings": {
    "frontend": [

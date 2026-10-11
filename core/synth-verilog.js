@@ -190,6 +190,8 @@ export function toVerilog(design, { name, tables = true } = {}) {
 
   // the widths the translator gives a node: integer signals / locals narrower than 32
   const wOf = t => (t ? synthWidth(t) : 1);
+  // a vector of no bit (a VHDL null range): not declared, not assigned
+  const nullVec = t => t?.kind === 'logic' && t.w === 0;
 
   function ctxFor(proc) {
     return { proc, locals: new Map(), fn: null, flags: [] };
@@ -205,6 +207,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
 
   // e(n) -> { x: expression string, w, s } (x is w bits; s = the value's signedness)
   function e(n, ctx) {
+    // a VHDL null array (std_logic_vector(-1 downto 0)): no bit; Verilog has no zero-width value, so
+    // it is left out of concatenations and assignments (anything else reads it as 0)
+    if (nullVec(n.t)) return { x: "1'b0", w: 0, s: !!n.t.s };
     return (TAB_ROOT.has(n.k) && tabulate(n, ctx)) || e0(n, ctx);
   }
   function e0(n, ctx) {
@@ -287,8 +292,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
         return { x: `(${c} ? ${br(a)} : ${br(b)})`, w, s: es };
       }
       case 'cat': {
-        const vals = n.parts.map(p => e(p, ctx));
-        const parts = vals.map((v, i) => sized(fit(v.x, v.w, v.s, n.parts[i].t.w), n.parts[i].t.w));
+        const ps = n.parts.filter(p => !nullVec(p.t));
+        const vals = ps.map(p => e(p, ctx));
+        const parts = vals.map((v, i) => sized(fit(v.x, v.w, v.s, ps[i].t.w), ps[i].t.w));
         // (a concatenation is unsigned: {s} of a signed s is $unsigned(s))
         const one = parts.length === 1 && vals[0].s && !t.s ? `$unsigned(${parts[0]})` : parts[0];
         return { x: parts.length === 1 ? one : `{${parts.join(', ')}}`, w: t.w, s: !!t.s };
@@ -562,6 +568,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
 
   // ---------------- statements
   function lvalue(L, ctx) {
+    if (nullVec(L.t)) return { x: null, w: 0 };
     switch (L.k) {
       case 'sig': return { x: wiredDrv.get(L.sig)?.get(ctx.proc) ?? sigName.get(L.sig), w: wOf(L.sig.t) };
       case 'loc': {
@@ -597,7 +604,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
         return { x: `${name}[${lo ? `${ix} - ${lo}` : ix}]`, w: wOf(L.t) };
       }
       case 'cat': {
-        const parts = L.parts.map(p => lvalue(p, ctx));
+        const parts = L.parts.map(p => lvalue(p, ctx)).filter(p => p.w > 0);
         return { x: `{${parts.map(p => p.x).join(', ')}}`, w: parts.reduce((s, p) => s + p.w, 0) };
       }
       default: fail(`assignment target '${L.k}' not supported by synthesis`, L);
@@ -625,6 +632,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
       case 'asg': {
         if (s.intra) fail('an intra-assignment delay cannot be synthesized', s);
         const L = lvalue(s.target, ctx);
+        if (L.w === 0) return '';   // (a null array: nothing to assign)
         if (Array.isArray(s.value?.val) || (s.value.k === 'sig' && Array.isArray(s.value.sig.val))) return arrayCopy(s, ctx, ind);
         const v = e(s.value, ctx);
         const val = s.target.k === 'cat' ? fit(v.x, v.w, v.s, L.w) : fitTarget(v, s.target, L.w);
@@ -954,17 +962,22 @@ export function toVerilog(design, { name, tables = true } = {}) {
 
   // ---------------- declarations
   // the value a signal starts with: what the initial blocks left in it, else its declared initial
-  // value; none for the outputs of primitives (the primitive gives them their value)
-  const startVal = sg => (primDriven.has(sg) ? undefined : initVal.has(sg) ? initVal.get(sg) : sg.hasInit ? sg.init : undefined);
+  // value; none for the outputs of primitives (the primitive gives them their value). A VHDL
+  // signal of an enumeration type (a state machine's state) or a boolean starts at its type's
+  // first value (T'left, the VHDL default initial value) when it declares none: written too, so that the
+  // netlist powers up in that state, as the RTL and XST do (Yosys keeps a register with an initial
+  // value out of its FSM re-encoding, which could otherwise start it in another state)
+  const startVal = sg => (primDriven.has(sg) ? undefined : initVal.has(sg) ? initVal.get(sg) : sg.hasInit || sg.t?.kind === 'enum' || sg.t?.kind === 'bool' ? sg.init : undefined);
   const allX = v => !v || v.w <= 0 || v.x === (1n << BigInt(v.w)) - 1n;
   const initOf = (sg, w) => { const v = startVal(sg); return v && !Array.isArray(v) && v.str === undefined && !allX(v) ? ` = ${lit(V.resize(v, w), w)}` : ''; };
   const portDecl = [];
   for (const p of top.ports) {
     const s = p.sig, w = wOf(s.t);
+    if (nullVec(s.t)) continue;   // (a port of no bit: not a port of the netlist)
     portDecl.push(`  ${p.dir === 'in' ? 'input' : p.dir === 'out' ? 'output' : 'inout'} ${p.dir === 'in' ? 'wire' : 'logic'} ${sgn(s.t) ? 'signed ' : ''}${w > 1 || !s.t.scalar ? `[${w - 1}:0] ` : ''}${sigName.get(s)}${p.dir === 'in' ? '' : initOf(s, w)}`);
   }
   for (const s of design.signals) {
-    if (portOf.has(s) || skipSig.has(s)) continue;
+    if (portOf.has(s) || skipSig.has(s) || nullVec(s.t)) continue;
     const t = s.t, name = sigName.get(s);
     if (t.kind === 'array' || Array.isArray(s.val)) {
       const et = t.elem || { w: s.val[0]?.w || 1 };

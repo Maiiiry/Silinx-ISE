@@ -553,3 +553,67 @@ end rtl;
   assert.match(r.text, /reg \[0:0\] p0_v0 = 1'h1;/);
   assert.match(r.text, /p1_addk0_v0 = a;\n {4}p1_addk0_v1 = 4'h3;\n {4}p1_addk0_v1 = 4'\(p1_addk0_v1 \+ p1_addk0_v0\);/);
 });
+
+// Regression (#9): a VHDL enumeration signal without an initial value starts at its first literal
+// (T'left): written as its initial value, so that Yosys's FSM re-encoding cannot start it elsewhere
+test('VHDL enumeration and boolean signals start at their declared or default (first) value (#9)', () => {
+  const text = `${PRE}entity t is port (clk, go : in std_logic; q, z : out std_logic); end t;
+architecture rtl of t is
+  type state_t is (idle, load, run, finish);
+  signal s : state_t; signal s2 : state_t := run; signal b : boolean; signal l : std_logic; signal n : natural range 0 to 7;
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      if go = '1' then s <= state_t'succ(s); s2 <= s; b <= not b; l <= go; n <= n + 1; end if;
+    end if;
+  end process;
+  q <= '1' when s = run or s2 = load or b else '0';
+  z <= l when n = 3 else '0';
+end rtl;
+`;
+  const r = toVerilog(build([vhd(text)], 't'));
+  assert.deepEqual(r.warnings, []);
+  assert.match(r.text, /^ {2}logic \[1:0\] s = 2'h0;$/m, 'the first literal');
+  assert.match(r.text, /^ {2}logic \[1:0\] s2 = 2'h2;$/m, 'the declared value');
+  assert.match(r.text, /^ {2}logic \[0:0\] b = 1'h0;$/m, 'false');
+  assert.match(r.text, /^ {2}logic \[0:0\] l;$/m, "std_logic: 'U', no initial value");
+  assert.match(r.text, /^ {2}logic \[2:0\] n;$/m, 'integers: unchanged');
+});
+
+// Regression (#15): a vector of a null range has no bit: not declared (Verilog has no zero-width
+// vector: [-1:0] is two bits), left out of concatenations and assignments, not a port
+test('VHDL null ranges: vectors of no bit are left out of the module, its ports and its concatenations (#15)', () => {
+  const sources = [vhd(`${PRE}entity opt is
+  generic (N : natural := 0);
+  port (clk : in std_logic; a : in std_logic_vector(3 downto 0); x : in std_logic_vector(N - 1 downto 0);
+        y : out std_logic_vector(N + 3 downto 0); n_out : out std_logic_vector(N - 1 downto 0); cnt : out unsigned(3 downto 0));
+end;
+architecture rtl of opt is
+  signal r : std_logic_vector(N - 1 downto 0);
+  signal c : unsigned(3 downto 0) := (others => '0');
+begin
+  y <= x & a;
+  n_out <= r;
+  process (clk) begin
+    if rising_edge(clk) then
+      r <= x;
+      for i in 0 to N - 1 loop c <= c + 1; end loop;
+      if N = 0 then c <= c + 3; end if;
+    end if;
+  end process;
+  cnt <= c;
+end;
+${PRE}entity top is port (clk : in std_logic; a : in std_logic_vector(3 downto 0); y : out std_logic_vector(3 downto 0); cnt : out unsigned(3 downto 0)); end;
+architecture rtl of top is
+  signal none : std_logic_vector(-1 downto 0);
+begin
+  u : entity work.opt generic map (N => 0) port map (clk => clk, a => a, x => none, y => y, n_out => open, cnt => cnt);
+end;`)];
+  const r = toVerilog(build(sources, 'opt'));
+  assert.deepEqual(r.warnings, []);
+  assert.match(r.text, /^module opt \(\n {2}input wire clk,\n {2}input wire \[3:0\] a,\n {2}output logic \[3:0\] y,\n {2}output logic \[3:0\] cnt\n\);$/m);
+  assert.doesNotMatch(r.text, /\[-1:0\]|\bx\b|n_out|\br\b/);
+  assert.match(r.text, /^ {4}y <= a;$/m);
+  const { text } = equivalent(sources, 'top', { minStates: 3 });
+  assert.doesNotMatch(text, /\[-1:0\]|none/);
+});

@@ -133,6 +133,14 @@ the "What's new" text of its GitHub release.
 - The open synthesis of a Spartan-3E design no longer prints Yosys's "Shift register inference
   not yet supported for family xc3se" (it came on every run, whatever the design) nor counts it
   as a warning.
+- VHDL null ranges (`N - 1 downto 0` with N = 0, `0 to -1`) have no element, as the language
+  says: they gave one bit (two for `-1 downto 0`). Generic designs with optional ports of N = 0
+  bits simulate and synthesize (a vector of no bit is left out of the open synthesis's module and
+  its ports) (#15).
+- Open synthesis: a VHDL state machine whose state signal has no initial value powers up in its
+  first state, as in simulation and with XST: the default initial value of an enumeration (or
+  boolean) signal is written for Yosys, which could start the re-encoded state register in another
+  state (#9).
 
 ## 15.10.1
 
