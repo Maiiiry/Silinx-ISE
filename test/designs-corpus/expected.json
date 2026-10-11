@@ -6,9 +6,6 @@
   "diff": "pass",
   "flow": "complete",
   "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
    "flow": [
     "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
    ]
@@ -19,72 +16,42 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 2456 slices, the XC3S250E has 2448",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "epfl-cavlc": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "epfl-ctrl": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "epfl-dec": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "epfl-i2c": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "epfl-int2float": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "epfl-max": {
   "frontend": "pass",
@@ -93,9 +60,6 @@
   "diff": "pass",
   "flow": "complete",
   "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
    "flow": [
     "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
    ]
@@ -108,9 +72,6 @@
   "diff": "pass",
   "flow": "complete",
   "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
    "flow": [
     "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
    ]
@@ -121,67 +82,28 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "femtorv32-quark": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DIA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DIPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOB from 64 bits to 32 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.0.0.DOPB from 8 bits to 4 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DIA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DIPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOB from 64 bits to 32 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port FemtoRV32.registerFile.1.0.DOPB from 8 bits to 4 bits.",
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
-   "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S36_S36: synthesized again with -nobram -nolutram -nosrl -nodsp",
-    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
-   ]
-  }
+  "flow": "complete"
  },
  "fpu-adder": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "fail: bitgen: 9 features not in the bit database (SLICE0:C2VDD:, SLICE1:C2VDD:, SLICE2:C2VDD:, SLICE3:C2VDD:)",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "fpu-multiplier": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 2568 slices, the XC3S250E has 2448",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
-   "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: MULT18X18: synthesized again with -nobram -nolutram -nosrl -nodsp"
-   ]
-  }
+  "flow": "complete"
  },
  "light8080": {
   "frontend": "unsupported: elaborate: mcu80_pkg.vhdl:78: array slices are not supported",
@@ -199,9 +121,6 @@
   "warnings": {
    "frontend": [
     "WARNING:Silinx - SPI_Master.v:60: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
-   ],
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
    ]
   }
  },
@@ -215,9 +134,6 @@
    "frontend": [
     "WARNING:HDLCompiler:92 (sensitivity) - SPI_Master.vhd:102: w_cpol should be on the sensitivity list of the process",
     "WARNING:HDLCompiler:92 (sensitivity) - SPI_Master.vhd:204: w_cpol should be on the sensitivity list of the process"
-   ],
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
    ]
   }
  },
@@ -285,7 +201,7 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 3090 slices, the XC3S250E has 2448",
+  "flow": "complete",
   "warnings": {
    "frontend": [
     "WARNING:Silinx (blocking) - picorv32.v:1406: Blocking assignment (=) to <set_mem_do_rinst> in a clocked always block; use a non-blocking assignment (<=).",
@@ -322,23 +238,7 @@
     "Warning: Latch inferred for signal `mem_la_wstrb' from process `\\picorv32.$proc': $auto",
     "Warning: Latch inferred for signal `mem_rdata_word [15:8]' from process `\\picorv32.$proc': $auto",
     "Warning: Latch inferred for signal `mem_rdata_word [31:16]' from process `\\picorv32.$proc': $auto",
-    "Warning: Latch inferred for signal `mem_rdata_word [7:0]' from process `\\picorv32.$proc': $auto",
-    "Warning: Resizing cell port picorv32.cpuregs.0.0.DIA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.0.0.DIPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOB from 64 bits to 32 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.0.0.DOPB from 8 bits to 4 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.1.0.DIA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.1.0.DIPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOA from 64 bits to 32 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOB from 64 bits to 32 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOPA from 8 bits to 4 bits.",
-    "Warning: Resizing cell port picorv32.cpuregs.1.0.DOPB from 8 bits to 4 bits.",
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
-   "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S36_S36: synthesized again with -nobram -nolutram -nosrl -nodsp"
+    "Warning: Latch inferred for signal `mem_rdata_word [7:0]' from process `\\picorv32.$proc': $auto"
    ]
   }
  },
@@ -347,13 +247,15 @@
   "tb": "unsupported: elaborate: tb_aes_core.v:409: 'tb_aes_core' is not declared",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 13078 slices, the XC3S250E has 2448",
+  "flow": "complete: on the XC3S1200E",
   "warnings": {
    "synth": [
-    "Warning: Replacing memory \\dec_block.inv_sbox_inst.inv_sbox with list of registers. See aes_core_syn.v:1609, aes_core_syn.v:1605, aes_core_syn.v:1601, aes_core_syn.v:1597, aes_core_syn.v:1593, aes_core_syn.v:1589, aes_core_syn.v:1585, aes_core_syn.v:1581, aes_core_syn.v:1577, aes_core_syn.v:1573, ae",
-    "Warning: Replacing memory \\keymem.key_mem with list of registers. See aes_core_syn.v:1835",
-    "Warning: Replacing memory \\sbox_inst.sbox with list of registers. See aes_core_syn.v:3086, aes_core_syn.v:3082, aes_core_syn.v:3078, aes_core_syn.v:3074, aes_core_syn.v:3070, aes_core_syn.v:3066, aes_core_syn.v:3062, aes_core_syn.v:3058, aes_core_syn.v:3054, aes_core_syn.v:3050, aes_core_syn.v:3046,",
-    "Warning: Shift register inference not yet supported for family xc3se."
+    "Warning: Replacing memory \\dec_block.inv_sbox_inst.inv_sbox with list of registers. See aes_core_syn.v:1629, aes_core_syn.v:1625, aes_core_syn.v:1621, aes_core_syn.v:1617, aes_core_syn.v:1613, aes_core_syn.v:1609, aes_core_syn.v:1605, aes_core_syn.v:1601, aes_core_syn.v:1597, aes_core_syn.v:1593, ae",
+    "Warning: Replacing memory \\keymem.key_mem with list of registers. See aes_core_syn.v:1855",
+    "Warning: Replacing memory \\sbox_inst.sbox with list of registers. See aes_core_syn.v:3106, aes_core_syn.v:3102, aes_core_syn.v:3098, aes_core_syn.v:3094, aes_core_syn.v:3090, aes_core_syn.v:3086, aes_core_syn.v:3082, aes_core_syn.v:3078, aes_core_syn.v:3074, aes_core_syn.v:3070, aes_core_syn.v:3066,"
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
    ]
   }
  },
@@ -362,14 +264,13 @@
   "tb": "unsupported: elaborate: tb_sha1_core.v:151: 'dut.state_logic.f' is not declared",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 3437 slices, the XC3S250E has 2448",
+  "flow": "complete",
   "warnings": {
    "frontend": [
     "WARNING:Silinx (case-default) - sha1_core.v:373: Case statement without 'default' in a combinational always block"
    ],
    "synth": [
-    "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha1_core_syn.v:86",
-    "Warning: Shift register inference not yet supported for family xc3se."
+    "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha1_core_syn.v:86"
    ]
   }
  },
@@ -378,14 +279,16 @@
   "tb": "pass",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 3437 slices, the XC3S250E has 2448",
+  "flow": "complete",
   "warnings": {
    "frontend": [
     "WARNING:Silinx (case-default) - sha256_core.v:493: Case statement without 'default' in a combinational always block"
    ],
    "synth": [
-    "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha256_core_syn.v:304",
-    "Warning: Shift register inference not yet supported for family xc3se."
+    "Warning: Replacing memory \\w_mem_inst.w_mem with list of registers. See sha256_core_syn.v:440"
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
    ]
   }
  },
@@ -394,12 +297,7 @@
   "tb": "pass",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "serv": {
   "frontend": "pass",
@@ -428,15 +326,6 @@
     "WARNING:Silinx:647 (unused-input) - serv_decode.v:14: Input <i_wb_rdt<31>> is never used.",
     "WARNING:Silinx:647 (unused-input) - serv_rf_top.v:84: Input <i_ext_rd> is never used.",
     "WARNING:Silinx:647 (unused-input) - serv_top.v:76: Input <i_ext_rd> is never used."
-   ],
-   "synth": [
-    "Warning: Resizing cell port serv_rf_top.rf_ram.memory.0.0.DIA from 64 bits to 2 bits.",
-    "Warning: Resizing cell port serv_rf_top.rf_ram.memory.0.0.DOA from 64 bits to 2 bits.",
-    "Warning: Resizing cell port serv_rf_top.rf_ram.memory.0.0.DOB from 64 bits to 2 bits.",
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
-   "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S2_S2: synthesized again with -nobram -nolutram -nosrl -nodsp"
    ]
   }
  },
@@ -449,9 +338,6 @@
   "warnings": {
    "frontend": [
     "WARNING:Silinx:646 (unused-signal) - spi_master.vhd:52: Signal <addr_reg> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
-   ],
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
    ]
   }
  },
@@ -460,19 +346,14 @@
   "tb": "pass",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "t80": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 2616 slices, the XC3S250E has 2448",
+  "flow": "complete",
   "warnings": {
    "frontend": [
     "WARNING:Silinx (case-default) - T80_MCode.vhd:1173: Case statement without 'when others' choice",
@@ -481,8 +362,8 @@
     "WARNING:Silinx (case-default) - T80_MCode.vhd:257: Case statement without 'when others' choice",
     "WARNING:Silinx (case-default) - T80_MCode.vhd:920: Case statement without 'when others' choice"
    ],
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk_n not met"
    ]
   }
  },
@@ -495,9 +376,6 @@
   "warnings": {
    "frontend": [
     "WARNING:Silinx:647 (unused-input) - uart_clk_div.vhd:21: Input <rst> is never used."
-   ],
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
    ]
   }
  },
@@ -520,17 +398,7 @@
     "WARNING:Silinx:647 (unused-input) - axis_fifo.v:124: Input <pause_req> is never used."
    ],
    "synth": [
-    "Warning: Replacing memory \\m_axis_pipe_reg with list of registers. See axis_fifo_syn.v:242",
-    "Warning: Resizing cell port axis_fifo.mem.0.0.DIA from 64 bits to 8 bits.",
-    "Warning: Resizing cell port axis_fifo.mem.0.0.DIPA from 8 bits to 1 bits.",
-    "Warning: Resizing cell port axis_fifo.mem.0.0.DOA from 64 bits to 8 bits.",
-    "Warning: Resizing cell port axis_fifo.mem.0.0.DOB from 64 bits to 8 bits.",
-    "Warning: Resizing cell port axis_fifo.mem.0.0.DOPA from 8 bits to 1 bits.",
-    "Warning: Resizing cell port axis_fifo.mem.0.0.DOPB from 8 bits to 1 bits.",
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
-   "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: RAMB16_S9_S9: synthesized again with -nobram -nolutram -nosrl -nodsp"
+    "Warning: Replacing memory \\m_axis_pipe_reg with list of registers. See axis_fifo_syn.v:242"
    ]
   }
  },
@@ -546,9 +414,6 @@
     "WARNING:Silinx (case-default) - i2c_master.v:634: Case statement without 'default' in a combinational always block",
     "WARNING:Silinx:646 (unused-signal) - i2c_master.v:285: Signal <scl_posedge> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:646 (unused-signal) - i2c_master.v:286: Signal <scl_negedge> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
-   ],
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
    ]
   }
  },
@@ -719,8 +584,7 @@
     "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v2 with list of registers. See lfsr_crc_syn.v:110, lfsr_crc_syn.v:68",
     "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v3 with list of registers. See lfsr_crc_syn.v:111, lfsr_crc_syn.v:70",
     "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v4 with list of registers. See lfsr_crc_syn.v:118, lfsr_crc_syn.v:73",
-    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77",
-    "Warning: Shift register inference not yet supported for family xc3se."
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_crc_syn.v:488$54.v5 with list of registers. See lfsr_crc_syn.v:119, lfsr_crc_syn.v:77"
    ]
   }
  },
@@ -890,8 +754,7 @@
     "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v2 with list of registers. See lfsr_prbs_gen_syn.v:80, lfsr_prbs_gen_syn.v:67",
     "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v3 with list of registers. See lfsr_prbs_gen_syn.v:81, lfsr_prbs_gen_syn.v:69",
     "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v4 with list of registers. See lfsr_prbs_gen_syn.v:94, lfsr_prbs_gen_syn.v:72",
-    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76",
-    "Warning: Shift register inference not yet supported for family xc3se."
+    "Warning: Replacing memory \\fn_lfsr_mask$func$lfsr_prbs_gen_syn.v:483$53.v5 with list of registers. See lfsr_prbs_gen_syn.v:95, lfsr_prbs_gen_syn.v:76"
    ]
   }
  },
@@ -900,18 +763,13 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "vtr-ch-intrinsics": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
-  "diff": "mismatch: cycle 0: memory_controller_write_enable",
+  "diff": "mismatch: cycle 199: memory_controller_in",
   "flow": "complete",
   "warnings": {
    "frontend": [
@@ -937,11 +795,7 @@
     "Warning: Latch inferred for signal `memory_controller_write_enable' from process `\\memset.$proc': $auto",
     "Warning: Latch inferred for signal `memtroll.str_address' from process `\\memset.$proc': $auto",
     "Warning: Latch inferred for signal `memtroll.str_in' from process `\\memset.$proc': $auto",
-    "Warning: Latch inferred for signal `memtroll.str_write_enable' from process `\\memset.$proc': $auto",
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
-   "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: RAM32X1S: synthesized again with -nobram -nolutram -nosrl -nodsp"
+    "Warning: Latch inferred for signal `memtroll.str_write_enable' from process `\\memset.$proc': $auto"
    ]
   }
  },
@@ -950,13 +804,10 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 5869 slices, the XC3S250E has 2448",
+  "flow": "complete: on the XC3S500E",
   "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
    "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: MULT18X18: synthesized again with -nobram -nolutram -nosrl -nodsp"
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
    ]
   }
  },
@@ -965,13 +816,10 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 5825 slices, the XC3S250E has 2448",
+  "flow": "complete: on the XC3S500E",
   "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
    "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: MULT18X18: synthesized again with -nobram -nolutram -nosrl -nodsp"
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
    ]
   }
  },
@@ -980,7 +828,7 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "too large: 5982 slices, the XC3S250E has 2448",
+  "flow": "complete",
   "warnings": {
    "frontend": [
     "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:100: Signal <WILL_FIRE_iport0_put> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
@@ -1016,12 +864,6 @@
     "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:94: Signal <CAN_FIRE_iport0_put> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:95: Signal <CAN_FIRE_iport1_put> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:646 (unused-signal) - mkPktMerge.v:96: Signal <CAN_FIRE_oport_get> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
-   ],
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ],
-   "flow": [
-    "WARNING:Silinx (pack) - cells not supported yet: RAM16X1S: synthesized again with -nobram -nolutram -nosrl -nodsp"
    ]
   }
  },
@@ -1030,27 +872,21 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "synth": [
-    "Warning: Shift register inference not yet supported for family xc3se."
-   ]
-  }
+  "flow": "complete"
  },
  "vtr-stereovision3": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "fail: route: 1 nets cannot be routed on PIPs of known bits",
+  "flow": "complete",
   "warnings": {
    "frontend": [
     "WARNING:Silinx:647 (unused-input) - stereovision3.v:6: Input <tm3_vidin_llc> is never used.",
     "WARNING:Silinx:737 (latch) - stereovision3.v:642: Found 1-bit latch for signal <rst_done>. Latches may be generated from incomplete case or if statements."
    ],
    "synth": [
-    "Warning: Latch inferred for signal `rst_done' from process `\\sv_chip3_hierarchy_no_mem.$proc': $auto",
-    "Warning: Shift register inference not yet supported for family xc3se."
+    "Warning: Latch inferred for signal `rst_done' from process `\\sv_chip3_hierarchy_no_mem.$proc': $auto"
    ]
   }
  }
