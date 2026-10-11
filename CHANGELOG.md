@@ -22,6 +22,14 @@ the "What's new" text of its GitHub release.
 - **Simulator: errors, not crashes:** a function calling itself without end is a simulation error
   (`recursion too deep in function f`), and so is a scheduled assignment that does not fit its target;
   both stopped the simulator with an internal error (#73).
+- **SystemVerilog packages:** `package … endpackage` with parameters, typedefs, enumerations and
+  functions, in its own file or with the design; `import p::*;` in the compilation unit, a module's
+  header or body, or another package; scoped names (`p::W`, `p::word_t`, `p::f(x)`). Simulated and
+  synthesized by the open synthesis (#6).
+- **More SystemVerilog** (#6): `return` statements; a function's `output` arguments when it is
+  called in an expression (they were not assigned); `$floor`, `$ceil`, `$sqrt`… of values known at
+  run time; an instance's parameter by its hierarchical name (`u.P`); `rand` / `randc` / `const`
+  qualifiers; packed unions; enumeration name ranges (`S[3]`, `T[5:7] = 20`).
 
 ## 15.10.2
 

@@ -26,8 +26,27 @@ export function compile(sources) {
     const r = lang === 'vhdl' ? parseVhdl(s.text, s.path) : parseVerilog(s.text, s.path, { include });
     r.role = s.role || 'design';
     r.text = s.text;   // (design checks: suppression comments, use clauses)
+    r.src = s;
     parsed.push(r);
   }
+  // SystemVerilog packages' type names, for the files that use them (`w_t x;` after `import p::*;`
+  // reads as a declaration only when w_t is known to be a type): those files are read again
+  // (again while new names appear: a package that uses another package's types is read whole only
+  // once those are known)
+  const typeNames = new Set();
+  for (let round = 0; round < 8; round++) {
+    const n0 = typeNames.size;
+    for (const r of parsed) if (r.lang === 'verilog') for (const u of r.units) if (u.kind === 'package') for (const d of u.decls) if (d.kind === 'type') typeNames.add(d.name);
+    if (typeNames.size === n0) break;
+    for (let k = 0; k < parsed.length; k++) {
+      const r = parsed[k];
+      if (r.lang !== 'verilog' || !r.errors.some(e => e.severity === 'error')) continue;
+      const again = parseVerilog(r.src.text, r.src.path, { include, typeNames });
+      Object.assign(again, { role: r.role, text: r.text, src: r.src });
+      parsed[k] = again;
+    }
+  }
+  for (const r of parsed) delete r.src;
   const lib = buildLibrary(parsed);
   lib.parsed = parsed;
   return lib;

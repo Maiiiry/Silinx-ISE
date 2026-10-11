@@ -27,6 +27,8 @@ export function parse(source, file = 'input', opts = {}) {
   const errors = [];
   const { tokens, timescale } = tokenize(source, file, errors, { include: opts.include });
   const p = new Parser(tokens, file, errors, timescale);
+  // (typedef names of other files: a package's types, so that `w_t x;` reads as a declaration)
+  for (const n of opts.typeNames || []) p.typeNames.add(n);
   const units = p.parseFile();
   return { file, lang: 'verilog', units, errors };
 }
@@ -45,6 +47,8 @@ class Parser {
     const t = this.tok;
     if (t.t !== 'id') return false;
     if (t.v === 'struct' || t.v === 'enum' || t.v === 'union') return this.peek().t === 'id' || this.is('{', this.peek());
+    // p::type_t name / p::type_t [7:0] name
+    if (this.is('::', this.peek()) && this.peek(2).t === 'id') { const a = this.peek(3); return a.t === 'id' || this.is('[', a); }
     if (!TYPEWORDS.has(t.v) && !this.typeNames.has(t.v)) return false;
     const p = this.peek();
     if (p.t === 'id') return !this.is('(', this.peek(2));
@@ -55,6 +59,7 @@ class Parser {
   blockDecls() {
     const decls = [];
     for (;;) {
+      this.skipQualifiers();
       if (this.isAny('reg', 'integer', 'logic', 'real', 'time') || this.isTypeStart()) this.netDecl([], decls, true);
       else if (this.isAny('parameter', 'localparam')) {
         this.next();
@@ -118,7 +123,7 @@ class Parser {
     const units = [];
     // the compilation unit's own declarations (SystemVerilog): typedefs, functions, tasks,
     // parameters outside any module; every module of the file sees them
-    const unitDecls = [], unitItems = [];
+    const unitDecls = [], unitItems = [], unitUses = [];
     while (this.tok.t !== 'eof') {
       if (this.is('module') || this.is('macromodule')) {
         try { units.push(this.module()); }
@@ -130,14 +135,58 @@ class Parser {
       } else if (this.isAny('function', 'task', 'localparam', 'parameter') || this.isWord('typedef')) {
         this.cur = { params: [] };
         this.moduleItem(unitItems, unitDecls, false);
+      } else if (this.isWord('package')) {
+        try { units.push(this.packageUnit()); }
+        catch (e) {
+          if (!(e instanceof Sync)) throw e;
+          while (this.tok.t !== 'eof' && !this.isWord('endpackage')) this.next();
+          this.next();
+        }
+      } else if (this.isWord('import')) {
+        // an import in the compilation unit: every module after it sees the package's names
+        try { this.importDecl(unitUses); } catch (e) { if (!(e instanceof Sync)) throw e; this.sync(); }
       } else {
         this.error(`unexpected '${this.tok.v}' outside module`);
         this.next();
       }
     }
-    if (unitDecls.length) for (const u of units) u.decls = [...unitDecls, ...u.decls];
+    if (unitDecls.length) for (const u of units) if (u.kind === 'module') u.decls = [...unitDecls, ...u.decls];
+    if (unitUses.length) for (const u of units) u.uses = [...new Set([...unitUses, ...(u.uses || [])])];
     return units;
   }
+
+  // SystemVerilog package: package p; parameters, typedefs, functions, tasks; endpackage
+  packageUnit() {
+    const start = this.next();
+    const name = this.ident();
+    this.expect(';');
+    const pkg = { kind: 'package', name, lang: 'verilog', file: this.file, loc: this.loc(start), decls: [], uses: [] };
+    if (this.timescale) pkg.timescale = this.timescale;
+    const items = [];
+    this.cur = { params: [], uses: pkg.uses };
+    while (!this.isWord('endpackage') && this.tok.t !== 'eof') {
+      if (this.isWord('import')) { this.importDecl(pkg.uses); continue; }
+      this.moduleItem(items, pkg.decls, false);
+    }
+    this.expectWord('endpackage');
+    if (this.accept(':')) this.ident();
+    // (a package's parameters are constants: nothing overrides them)
+    for (const pr of this.cur.params) pkg.decls.push({ kind: 'const', name: pr.name, type: pr.type, value: pr.default, loc: pr.loc });
+    return pkg;
+  }
+  // import p::*; / import p::name, q::*; : the packages whose names a scope sees (a named import
+  // is read as importing the whole package)
+  importDecl(uses) {
+    this.next();
+    do {
+      const pn = this.ident();
+      this.expect('::');
+      if (!this.accept('*')) this.ident();
+      if (!uses.includes(pn)) uses.push(pn);
+    } while (this.accept(','));
+    this.expect(';');
+  }
+  expectWord(w) { if (this.isWord(w)) return this.next(); this.error(`expected '${w}' but found '${this.tok.v || this.tok.t}'`); throw new Sync(); }
 
   // generate scopes (the module, each generate block): an unnamed generate block is named
   // genblk<n>, n the number of its generate construct in the scope (IEEE 1364-2005 12.4.3), with
@@ -181,6 +230,7 @@ class Parser {
     if (this.timescale) mod.timescale = this.timescale;
     this.cur = mod;
     this.portNames = new Map();
+    while (this.isWord('import')) this.importDecl(mod.uses);   // module m import p::*; #(…) (…);
     if (this.accept('#')) {
       this.expect('(');
       if (!this.is(')')) {
@@ -325,6 +375,12 @@ class Parser {
     }
     if (this.isWord('struct') || this.isWord('union')) return this.structType();
     if (this.isWord('enum')) return this.enumType();
+    if (t.t === 'id' && this.is('::', this.peek()) && this.peek(2).t === 'id') {   // p::type_t
+      this.next(); this.next();
+      const n = `${t.v}::${this.ident()}`;
+      const dims = this.packedDims();
+      return { kind: 'named', name: n, ...(dims.length ? { dims } : {}) };
+    }
     if (t.t === 'id' && this.typeNames.has(t.v)) {
       this.next();
       const dims = this.packedDims();
@@ -343,8 +399,9 @@ class Parser {
   // most significant (an unpacked struct is read as a packed one; a union is not supported)
   structType() {
     const loc = this.loc();
-    if (this.isWord('union')) { this.error('unions are not supported'); throw new Sync(); }
+    const union = this.isWord('union');   // a packed union: every member at bit 0
     this.next();
+    if (union && this.isWord('tagged')) { this.error('tagged unions are not supported'); throw new Sync(); }
     this.isWord('packed') && this.next();
     const signed = !!this.accept('signed');
     this.accept('unsigned');
@@ -359,7 +416,7 @@ class Parser {
     }
     this.expect('}');
     const dims = this.packedDims();
-    return { kind: 'struct', fields, signed, loc, ...(dims.length ? { dims } : {}) };
+    return { kind: 'struct', fields, signed, loc, ...(union ? { union: true } : {}), ...(dims.length ? { dims } : {}) };
   }
 
   // enum [base type] { A, B = 5, C } : the names are constants of the base type (int by
@@ -373,7 +430,18 @@ class Parser {
     do {
       const loc = this.loc();
       const name = this.ident();
-      if (this.is('[')) { this.error('enum name ranges are not supported'); throw new Sync(); }
+      // name ranges (IEEE 1800-2017 6.19.2): S[3] is S0, S1, S2; S[2:4] is S2, S3, S4 (integer
+      // literals); a value given is the first name's
+      if (this.accept('[')) {
+        const num = () => { const t = this.tok; if (t.t !== 'int' || !/^\d+$/.test(String(t.v))) { this.error('an enum name range needs integer literals'); throw new Sync(); } this.next(); return Number(t.v); };
+        let a = num(), b;
+        if (this.accept(':')) b = num(); else { b = a - 1; a = 0; }
+        this.expect(']');
+        const value = this.accept('=') ? this.expr() : null;
+        const step = a <= b ? 1 : -1;
+        for (let k = a, first = true; step > 0 ? k <= b : k >= b; k += step, first = false) items.push({ name: `${name}${k}`, value: first ? value : null, loc });
+        continue;
+      }
       items.push({ name, value: this.accept('=') ? this.expr() : null, loc });
     } while (this.accept(','));
     this.expect('}');
@@ -396,14 +464,21 @@ class Parser {
   }
 
   // Parses one module/generate item, appending to items/decls.
+  // SystemVerilog qualifiers before a declaration: rand / randc (randomization, not modelled), const
+  // (a variable that is not assigned again): read as the declaration itself
+  skipQualifiers() {
+    while ((this.isWord('rand') || this.isWord('randc') || this.isWord('const')) && (this.peek().t === 'kw' || this.peek().t === 'id')) this.next();
+  }
   moduleItem(items, decls, topLevel) {
     const t = this.tok;
     try {
       if (this.accept(';')) return;
+      this.skipQualifiers();
       if (this.isAny('input', 'output', 'inout')) return this.portDecl();
       if (this.isAny('wire', 'reg', 'logic', 'integer', 'tri', 'supply0', 'supply1', 'genvar', 'time', 'real', 'realtime', ...Object.keys(WIRED)) || this.isTypeStart())
         return this.netDecl(items, decls, this.blockDepth > 0);
       if (this.isWord('typedef')) return this.typedef(decls);
+      if (this.isWord('import') && this.peek().t === 'id' && this.is('::', this.peek(2))) return this.importDecl(this.cur.uses || (this.cur.uses = []));
       if (this.is('specify')) {   // specify blocks (path delays, timing checks): ignored by simulation
         while (!this.is('endspecify') && this.tok.t !== 'eof') this.next();
         this.expect('endspecify');
@@ -878,6 +953,13 @@ class Parser {
     const t = this.tok;
     try {
       if (this.accept(';')) return { kind: 'null' };
+      // SystemVerilog return [expression]; (a function's value / leaving a task)
+      if (this.isWord('return') && !this.is('=', this.peek()) && !this.is('<=', this.peek())) {
+        this.next();
+        const value = this.is(';') ? null : this.expr();
+        this.expect(';');
+        return { kind: 'return', value };
+      }
       // a statement label (SystemVerilog name: statement): the name of a block
       if (t.t === 'id' && this.is(':', this.peek()) && !this.is(':', this.peek(2))) {
         this.next(); this.next();
@@ -1093,6 +1175,7 @@ class Parser {
   // list of its parts { name, index } when an index is not a number (else null).
   hierName() {
     let n = this.ident();
+    while (this.is('::') && this.peek().t === 'id') { this.next(); n += '::' + this.ident(); }   // p::name
     const path = [{ name: n, index: null }];
     let dyn = false;
     for (;;) {

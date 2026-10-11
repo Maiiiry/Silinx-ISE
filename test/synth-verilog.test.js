@@ -424,6 +424,28 @@ endmodule`, 'cf.v');
   assert.doesNotMatch(bad, /fn_mask\(32'h2\)/);
 });
 
+// #6: a design that uses a SystemVerilog package (types, an enumeration, a function) synthesizes as
+// its RTL; a function's output argument used in an expression is refused, at its line
+test('SystemVerilog packages in the open synthesis; output arguments of a function in an expression refused (#6)', () => {
+  const sources = [vlog(`package cfg_pkg;
+  parameter int W = 6;
+  typedef logic [W-1:0] word_t;
+  typedef enum logic [1:0] { ADD, SUB, XOR_, PASS } op_t;
+  function automatic word_t step(op_t op, word_t a, word_t b);
+    case (op) ADD: return a + b; SUB: return a - b; XOR_: return a ^ b; default: return b; endcase
+  endfunction
+endpackage`, 'cfg_pkg.sv'), vlog(`module acc import cfg_pkg::*; (input clk, input rst, input op_t op, input word_t d, output word_t q);
+  always_ff @(posedge clk) if (rst) q <= '0; else q <= step(op, q, d);
+endmodule`, 'acc.sv')];
+  const { text, warnings } = equivalent(sources, 'acc', { minStates: 10 });
+  assert.deepEqual(warnings, []);
+  assert.match(text, /input wire \[1:0\] op/);
+  const err = (src) => { try { toVerilog(build([vlog(src, 'o.sv')], 'o')); return null; } catch (e) { assert.ok(e instanceof SynthError, e.stack); return e.message; } };
+  assert.match(err(`module o(input [3:0] a, output [3:0] y, output [3:0] z);
+  function automatic [3:0] f(input [3:0] k, output [3:0] h); h = ~k; f = k + 1; endfunction
+  reg [3:0] t, u; always @* begin t = f(a, u); end assign y = t; assign z = u; endmodule`), /^function f: output arguments of a function called in an expression cannot be synthesized \(line 3\)$/);
+});
+
 test('Xilinx primitives instantiated by name stay instances with their generics; their simulation models are left out', () => {
   const src = vhd(`library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;
 entity pr is port (clk, d, ce : in std_logic; a : in std_logic_vector(3 downto 0); q, q2 : out std_logic); end pr;

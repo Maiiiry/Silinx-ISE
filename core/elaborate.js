@@ -46,10 +46,11 @@ function mergeFuncs(a, b) {
 class Scope {
   constructor(parent = null) { this.map = new Map(); this.parent = parent; }
   def(name, entry) { this.map.set(name, entry); return entry; }
+  get(name) { return this.map.get(name); }
   lookup(name) {
     let found = null;
     for (let s = this; s; s = s.parent) {
-      const e = s.map.get(name);
+      const e = s.get(name);
       if (!e) continue;
       if (!found) { if (!vhdlFunc(e)) return e; found = e; continue; }
       if (!vhdlFunc(e)) break;
@@ -57,7 +58,22 @@ class Scope {
     }
     return found;
   }
-  local(name) { return this.map.get(name) || null; }
+  local(name) { return this.get(name) || null; }
+}
+
+// SystemVerilog: the scope of the packages a module (or package) imports and of every package's
+// scoped names (p::name), looked up in the package scopes when used (packages that import each
+// other are complete by then; a copy made while one was being elaborated would miss its names)
+class ImportScope extends Scope {
+  constructor(parent, imports, scoped) { super(parent); this.imports = imports; this.scoped = scoped; }
+  get(name) {
+    const own = this.map.get(name);
+    if (own) return own;
+    const i = name.indexOf('::');
+    if (i > 0) return this.scoped.get(name.slice(0, i))?.map.get(name.slice(i + 2));
+    for (const ps of this.imports) { const e = ps.map.get(name); if (e) return e; }
+    return undefined;
+  }
 }
 
 class FrameBuilder {
@@ -163,11 +179,14 @@ function packageScope(ctx, name, file, loc, diagE) {
     if (diagE) diag(diagE, `package '${name}' not found`, loc);
     return null;
   }
-  const sc = new Scope(usesScope(ctx, pkg, 'vhdl'));
+  const lang = pkg.lang || 'vhdl';
+  // (cached before its parent scope is made: packages that refer to each other)
+  const sc = new Scope(null);
   ctx.pkgScopes.set(name, sc);
+  sc.parent = usesScope(ctx, pkg, lang);
   // package-level signals (e.g. SIMPRIM's GSR / GTS) belong to the package: one per design
   const pinst = { name: pkg.name, path: pkg.name, signals: [], procs: [], children: [], params: [], ports: [] };
-  const E = { ctx, lang: 'vhdl', sc, inst: pinst, file: pkg.file, timeUnit: 1, fb: null, prefix: '', slvArith: pkg.slvArith };
+  const E = { ctx, lang, sc, inst: pinst, file: pkg.file, timeUnit: lang === 'verilog' ? (pkg.timescale?.unit ?? 1000) : 1, fb: null, prefix: '', slvArith: pkg.slvArith };
   for (const d of pkg.decls) {
     try { bindDecl(E, d); } catch (e) { if (!(e instanceof ElabError)) throw e; diag(E, e.message, e.loc || d.loc); }
   }
@@ -176,9 +195,17 @@ function packageScope(ctx, name, file, loc, diagE) {
 
 function usesScope(ctx, mod, lang) {
   const base = lang === 'vhdl' ? BUILTIN_VHDL : BUILTIN_VLOG;
-  if (!mod.uses || !mod.uses.length) return base;
+  // SystemVerilog: every package's names by their scoped names (p::W, p::w_t, p::f(x))
+  const vpkgs = lang === 'verilog' ? [...ctx.lib.packages.values()].filter(p => p.lang === 'verilog' && p !== mod) : [];
+  if ((!mod.uses || !mod.uses.length) && !vpkgs.length) return base;
+  if (lang === 'verilog') {
+    const scoped = new Map(), imports = [];
+    for (const p of vpkgs) { const ps = packageScope(ctx, p.name, mod.file, mod.loc, null); if (ps) scoped.set(p.name, ps); }
+    for (const u of mod.uses || []) { const ps = packageScope(ctx, u, mod.file, mod.loc, { ctx, file: mod.file }); if (ps) imports.push(ps); }
+    return new ImportScope(base, imports, scoped);
+  }
   const sc = new Scope(base);
-  for (const u of mod.uses) {
+  for (const u of mod.uses || []) {
     const ps = packageScope(ctx, u, mod.file, mod.loc, { ctx, file: mod.file });
     if (ps) for (const [k, v] of ps.map) { const prev = sc.local(k); sc.def(k, vhdlFunc(prev) && vhdlFunc(v) ? mergeFuncs(prev, v) : v); }
   }
@@ -781,6 +808,11 @@ function elabType(E, ts, allowUnconstrained = false) {
     case 'struct': {
       // packed structure: the first member is the most significant
       const fields = ts.fields.map(f => ({ name: f.name, t: elabType(E, f.type) }));
+      // (a packed union: every member from bit 0, the union as wide as its widest member)
+      if (ts.union) {
+        const w = Math.max(0, ...fields.map(f => f.t.w));
+        return { kind: 'logic', w, s: !!ts.signed, left: w - 1, right: 0, desc: true, members: fields.map(f => ({ name: f.name, t: f.t, lo: 0 })) };
+      }
       let lo = fields.reduce((a, f) => a + f.t.w, 0);
       const w = lo;
       const members = fields.map(f => { lo -= f.t.w; return { name: f.name, t: f.t, lo }; });
@@ -1391,7 +1423,10 @@ function hierLookup(E, name) {
   const rest = parts.slice(k);
   if (rest.length > 1) return blockVar(cur, rest.join('.'), name);
   const sig = cur.signals.find(s => s.name === rest[0]) || cur.ports.find(p => p.name === rest[0])?.sig;
-  return sig ? { k: 'sig', sig, t: sig.t, name } : null;
+  if (sig) return { k: 'sig', sig, t: sig.t, name };
+  // a parameter of the instance (u.P): its value
+  const prm = cur.params?.find(p => p.name === rest[0]);
+  return prm && prm.value ? { k: 'c', val: prm.value, t: prm.t, name } : null;
 }
 
 // an element of a packed array (logic [0:3][7:0], my_t [3:0]): its bits of the vector, the
@@ -1934,7 +1969,13 @@ function bindVlogCall(E, e, expect, loc) {
       case '$isunknown': { const a = A(0); return fold({ k: 'bin', o: '===', a: { k: 'un', o: '^', a, t: BIT }, b: { k: 'c', val: V.X1, t: BIT }, t: BIT }); }
       // real math functions of constant arguments (20.8)
       case '$floor': case '$ceil': case '$sqrt': case '$ln': case '$log10': case '$exp': case '$pow': case '$sin': case '$cos': case '$tan': case '$asin': case '$acos': case '$atan': case '$atan2': case '$hypot': case '$sinh': case '$cosh': case '$tanh': {
-        const r = e.args.map((_, k) => { const n = A(k); const v = constOf(E, n, loc); return n.t.kind === 'real' ? V.toReal(v) : Number(V.toDec(v, !!n.t.s)); });
+        // (an argument known at run time only: evaluated by the simulator)
+        const ns = e.args.map((_, k) => A(k));
+        if (!ns.every(isConstNode)) {
+          const ra = ns.map(a => (a.t.kind === 'real' ? a : fold({ k: 'conv', a, ext: !!a.t.s, t: REAL })));
+          return fold({ k: 'rfn', f: name, a: ra[0], b: ra[1], t: REAL });
+        }
+        const r = ns.map(n => { const v = constOf(E, n, loc); return n.t.kind === 'real' ? V.toReal(v) : Number(V.toDec(v, !!n.t.s)); });
         const f = { $floor: Math.floor, $ceil: Math.ceil, $sqrt: Math.sqrt, $ln: Math.log, $log10: Math.log10, $exp: Math.exp, $pow: Math.pow, $sin: Math.sin, $cos: Math.cos, $tan: Math.tan, $asin: Math.asin, $acos: Math.acos, $atan: Math.atan, $atan2: Math.atan2, $hypot: Math.hypot, $sinh: Math.sinh, $cosh: Math.cosh, $tanh: Math.tanh }[name];
         return { k: 'c', val: V.real(f(...r)), t: REAL };
       }
@@ -2032,6 +2073,10 @@ function bindCall(E, entry, rawArgs, name, loc) {
   const fn = boundFunction(entry, args, loc);
   if (decl.kind === 'task' || !fn.retT) throw new ElabError(`'${name}' is a procedure/task, not a function`, loc);
   args.forEach((a, k) => { if (E.lang === 'verilog') ctxSize(a, fn.params[k].t.w); });
+  // a function's output / inout arguments (SystemVerilog f(k, o) in an expression): the actuals
+  // are assigned when it returns
+  const outs = decl.params.map((p, k) => (p.dir === 'out' || p.dir === 'inout') && argExprs[k] && isLvalueExpr(argExprs[k]) ? bindLvalue(E, argExprs[k], loc) : null);
+  if (outs.some(Boolean)) return { k: 'call', fn, args, t: fn.retT, outTargets: outs, loc };
   return fold({ k: 'call', fn, args, t: fn.retT });
 }
 

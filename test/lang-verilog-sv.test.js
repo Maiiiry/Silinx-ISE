@@ -263,3 +263,52 @@ module tb;
 endmodule`);
   assert.deepEqual(r, ['16 64']);
 });
+
+// Packages (#6): parameters, typedefs, enumerations and functions in a package of its own file,
+// imported in the compilation unit, in a module header or body, by another package; scoped names
+// (p::W, p::word_t, p::f(x)); return statements
+test('packages and import: across files, imports in headers and bodies, a package importing another, scoped names (#6)', () => {
+  const r = outW({
+    'base_pkg.sv': `package base_pkg; parameter int WIDTH = 8; typedef logic [WIDTH-1:0] word_t; endpackage`,
+    'alu_pkg.sv': `package alu_pkg;
+  import base_pkg::*;
+  typedef enum logic [1:0] { ADD, SUB, AND_, OR_ } op_t;
+  function automatic word_t alu(op_t op, word_t a, word_t b);
+    case (op) ADD: return a + b; SUB: return a - b; AND_: return a & b; default: return a | b; endcase
+  endfunction
+endpackage : alu_pkg`,
+    'alu.sv': `module alu import alu_pkg::*; (input op_t op, input base_pkg::word_t a, b, output base_pkg::word_t y);
+  assign y = alu(op, a, b);
+endmodule`,
+    'tb.sv': `import base_pkg::*;
+module tb;
+  word_t y, a = 8'd12, b = 8'd5;
+  alu_pkg::op_t op = alu_pkg::SUB;
+  alu u (.op(op), .a(a), .b(b), .y(y));
+  initial begin
+    #1 $display("%0d %0d %0d %0d", y, base_pkg::WIDTH, $bits(word_t), alu_pkg::alu(alu_pkg::ADD, 8'd1, 8'd2));
+    op = alu_pkg::OR_; #1 $display("%0d", y);
+  end
+endmodule`,
+  }, [], 'tb');
+  assert.deepEqual(r, ['7 8 8 3', '13']);
+});
+
+// #6: function output arguments in an expression, real math of run-time values, an instance's
+// parameter (u.P), rand / randc / const qualifiers, packed unions, enum name ranges
+test('SystemVerilog: function output arguments in expressions, run-time real math, u.P, qualifiers, unions, enum ranges (#6)', () => {
+  const r = outW(vlog(`
+  function automatic integer f(input integer k, output integer o); o = k * 2; return k + 1; endfunction
+  module_sub #(7) u ();
+  typedef union packed { logic [7:0] b; logic [1:0][3:0] n; } u_t;
+  typedef enum { S[3], T[5:7] = 20, V } st_t;
+  rand const reg rx; const integer iy = 4; randc reg rz;
+  integer a, b; real r = 2.7; u_t un; st_t s = S2;
+  initial begin
+    a = f(3, b);
+    un.b = 8'hA5;
+    #1 $display("%0d %0d | %0d %0d | %0d %0d | %h %h | %0d %0d %0d %0d", a, b, $floor(r), $ceil(r + 1), u.P, iy, un.n[1], un.n[0], s, T5, T7, V);
+  end`, '') + `
+module module_sub #(parameter P = 5) (); endmodule`, [], 'tb');
+  assert.deepEqual(r, ['4 6 | 2 4 | 7 4 | a 5 | 2 20 22 23']);
+});

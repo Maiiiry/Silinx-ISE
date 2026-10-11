@@ -512,6 +512,11 @@ function callFunction(n, ctx) {
     else if (f.retSlot != null) val = frame[f.retSlot];
     else throw new SimError(`function ${f.name} ended without return`);
     if (val === undefined) throw new SimError(`function ${f.name} returned nothing`);
+    // output / inout arguments: their final values into the actuals (blocking)
+    if (n.outTargets) f.params.forEach((p, k) => {
+      const L = n.outTargets[k];
+      if (L && p.i != null) doAssign({ target: L, value: { k: 'c', val: frame[p.i], t: p.t }, nb: false }, ctx);
+    });
     return Array.isArray(val) || isStr(val) ? val : fit(val, f.retT.w, f.retT.s);
   } finally { ctx.depth--; }
 }
@@ -914,7 +919,9 @@ function* execSys(s, ctx) {
 }
 
 // ieee.math_real (VHDL): the functions on reals that elaborate.js binds as { k: 'rfn', f, a, b }
+const VLOG_MATH = { $floor: Math.floor, $ceil: Math.ceil, $sqrt: Math.sqrt, $ln: Math.log, $log10: Math.log10, $exp: Math.exp, $pow: Math.pow, $sin: Math.sin, $cos: Math.cos, $tan: Math.tan, $asin: Math.asin, $acos: Math.acos, $atan: Math.atan, $atan2: Math.atan2, $hypot: Math.hypot, $sinh: Math.sinh, $cosh: Math.cosh, $tanh: Math.tanh };
 export function mathReal(f, x, y) {
+  if (VLOG_MATH[f]) return VLOG_MATH[f](x, y);   // Verilog's real math functions (IEEE 1800-2017 20.8)
   switch (f) {
     case 'ceil': return Math.ceil(x);
     case 'floor': return Math.floor(x);

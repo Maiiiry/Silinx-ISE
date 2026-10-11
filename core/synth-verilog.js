@@ -612,6 +612,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
   // user functions: automatic SystemVerilog functions with the same body
   function call(n, ctx) {
     const f = n.fn;
+    if (n.outTargets) fail(`function ${f?.name || ''}: output arguments of a function called in an expression cannot be synthesized`, n);
     // a pure function called with constant arguments (verilog-lfsr's lfsr_mask(n) in a generate
     // loop): evaluated here, its value a literal; Yosys took ~110 s on such calls, with ~160
     // warnings (#13)
