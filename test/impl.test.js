@@ -120,6 +120,10 @@ test('run.sh contents and syntax', async () => {
   assert.match(sh, /par -w -intstyle xflow -ol high -t 1 top_map\.ncd top\.ncd top\.pcf/);
   assert.match(sh, /trce -intstyle xflow -v 3 -s 4 -n 3 -fastpaths -xml top\.twx top\.ncd -o top\.twr top\.pcf -ucf top\.ucf/);
   assert.match(sh, /bitgen -intstyle xflow -f top\.ut top\.ncd/);
+  // impl.mapPackFactor: map's -c (1 .. 100)
+  assert.match(ise.generateRunSh({ top: 'top', device: DEVICE, hasUcf: true, impl: { mapPackFactor: 1 } }), / -c 1 -o top_map\.ncd/);
+  assert.match(ise.generateRunSh({ top: 'top', device: DEVICE, hasUcf: true, impl: { mapPackFactor: 'x' } }), / -c 100 -o top_map\.ncd/);
+  assert.match(ise.generateRunSh({ top: 'top', device: DEVICE, hasUcf: true, impl: { mapPackFactor: 500 } }), / -c 100 -o top_map\.ncd/);
   const noUcf = ise.generateRunSh({ top: 'top', device: DEVICE, hasUcf: false });
   assert.doesNotMatch(noUcf, /-uc /);
   assert.throws(() => ise.generateRunSh({ top: 'a;rm', device: DEVICE }), /invalid top/);

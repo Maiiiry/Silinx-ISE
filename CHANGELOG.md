@@ -60,6 +60,12 @@ the "What's new" text of its GitHub release.
   toolchain's errors are `ERROR:Silinx`. XST's own messages (ISE modes) keep `Xst`.
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
+- **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and
+  speed of what it generates against ISE 14.7 (XST, map, par) on the open-source designs of the design
+  corpus, on the same chip and the same top, ISE given its best chance (map packing tightly, a tight
+  clock constraint), both critical paths by ISE's trce. On the 22 designs both build: 23% fewer logic
+  LUTs and 18% fewer slices than ISE, critical paths 15% longer; XST cannot read 11 of the designs.
+  ISE projects can set map's packing (`impl.mapPackFactor`, map -c).
 - **Two more examples:** *pong* (LED Pong, a game for two players, in Verilog: the ball is the lit
   LED, each player returns it with a button, the score on the 7-segment display) and *stopwatch*
   (in VHDL: seconds and hundredths, laps stored in a block RAM and recalled, the decimal digits

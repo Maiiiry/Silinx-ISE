@@ -17,14 +17,16 @@
 //             them (-nobram -nolutram -nosrl -nodsp) to test the rest of the flow.
 //
 //   node test/designs-corpus/run.mjs [--filter name[,name]] [--jobs n] [--cycles n] [--update]
-//        [--stages frontend,tb,…] [--projects dir] [--bits dir] [--json file]
+//        [--stages frontend,tb,…] [--projects dir] [--bits dir] [--sizes dir] [--json file]
 //   (npm run test:designs)
 //
 // test/designs-corpus/expected.json holds the expected status and warnings of every stage of every
 // design. The run fails on a regression (a stage expected 'pass' / 'complete' that is not) and on a
 // warning that appeared or vanished; improvements are listed; --update records the results.
 // --projects dir writes a Silinx project folder per design whose flow completed (for
-// scripts/check-open-flow.mjs, the check against ISE); --bits dir keeps the bitstreams.
+// scripts/check-open-flow.mjs, the check against ISE); --bits dir keeps the bitstreams; --sizes dir
+// writes a project per design once packed (on the XC3S1200E-FG320, the largest supported chip) with
+// Silinx's size in size.json, for test/designs-corpus/xst-size.mjs (the size against XST's).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -240,6 +242,12 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
     }
     w.push(...(packed.warnings || []).map(x => `WARNING:Silinx (pack) - ${x}`));
     step('pack', t, { slices: packed.stats.slices, luts: packed.stats.luts, ffs: packed.stats.ffs });
+    if (opts.sizes) {
+      const u = flowSyn.util;
+      const size = { slices: packed.stats.slices, luts: packed.stats.luts, ffs: packed.stats.ffs, srl16: u.shiftRegisters, lutRam: u.distributedRam, bram: u.blockRam, mult: u.multipliers,
+        retry: !!steps.retry, wrapper: !!wrapper };
+      writeProject(path.join(opts.sizes, d.name), d, flowSrcs, wrapper, ports, ucf, null, { family: 'spartan3e', part: 'xc3s1200e', package: 'fg320', speed: '-4' }, size);
+    }
     if (packed.stats.slices > sites.slices.size) { res.flow = `too large: ${packed.stats.slices} slices, the XC3S250E has ${sites.slices.size}`; return; }
     // place
     t = Date.now();
@@ -296,7 +304,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
 /** A minimal Silinx project (silinx.json + sources + UCF) of a design, for scripts/check-open-flow.mjs;
  *  netlist: the netlist synthesized again for the packer, as netlist.json (check-open-flow.mjs
  *  <project> --json <project>/netlist.json). */
-function writeProject(dir, d, srcs, wrapper, ports, ucf, netlist = null) {
+function writeProject(dir, d, srcs, wrapper, ports, ucf, netlist = null, device = { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, size = null) {
   fs.rmSync(dir, { recursive: true, force: true });
   fs.mkdirSync(path.join(dir, 'src'), { recursive: true });
   let top = wrapper ? wrapper.name : d.top;
@@ -314,9 +322,10 @@ function writeProject(dir, d, srcs, wrapper, ports, ucf, netlist = null) {
     fs.writeFileSync(path.join(dir, rel), s.text);
     files.push({ path: rel, lang: s.lang, role: 'design' });
   }
-  const proj = { name: d.name, version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top, files, impl: { startupClk: 'JtagClk' } };
+  const proj = { name: d.name, version: 1, device, top, files, impl: { startupClk: 'JtagClk' } };
   if (ucf) { fs.writeFileSync(path.join(dir, 'top.ucf'), ucf); proj.constraints = 'top.ucf'; }
   if (netlist) fs.writeFileSync(path.join(dir, 'netlist.json'), netlist);
+  if (size) fs.writeFileSync(path.join(dir, 'size.json'), `${JSON.stringify(size)}\n`);
   fs.writeFileSync(path.join(dir, 'silinx.json'), `${JSON.stringify(proj, null, 2)}\n`);
 }
 
@@ -339,6 +348,7 @@ if (!isMainThread) {
     cycles: +opt('--cycles', 200),
     stages: opt('--stages', STAGES.join(',')).split(','),
     projects: opt('--projects', null) && path.resolve(opt('--projects')),
+    sizes: opt('--sizes', null) && path.resolve(opt('--sizes')),
     bits: opt('--bits', null) && path.resolve(opt('--bits')),
   };
   const manifest = JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8'));

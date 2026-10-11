@@ -1,0 +1,920 @@
+{
+  "generatedAt": "2026-10-11T17:57:47.650Z",
+  "silinxVersion": "15.10.1",
+  "device": "xc3s1200efg320-4",
+  "steps": [
+    "synth",
+    "translate",
+    "map",
+    "par",
+    "trce",
+    "bitgen"
+  ],
+  "isePeriodNs": 5,
+  "notBuilt": [
+    "neorv32",
+    "light8080"
+  ],
+  "designs": [
+    {
+      "name": "epfl-adder",
+      "wrapper": true,
+      "silinx": {
+        "slices": 264,
+        "luts": 477,
+        "ffs": 386,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": null,
+        "seconds": 11,
+        "error": "ERROR:Silinx - 4 net(s) cannot be routed on the routing switches whose bits are known (the bit database does not know every switch of the device yet)",
+        "periodNs": null
+      },
+      "ise": {
+        "slices": 446,
+        "luts": 696,
+        "ffs": 386,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 12.249,
+        "seconds": 159.1
+      }
+    },
+    {
+      "name": "epfl-bar",
+      "wrapper": true,
+      "silinx": {
+        "slices": 855,
+        "luts": 1709,
+        "ffs": 264,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 11.112,
+        "seconds": 30.1,
+        "periodNs": 11.132
+      },
+      "ise": {
+        "slices": 534,
+        "luts": 939,
+        "ffs": 269,
+        "srl16": 1,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 9.077,
+        "seconds": 145.9
+      }
+    },
+    {
+      "name": "epfl-cavlc",
+      "silinx": {
+        "slices": 160,
+        "luts": 256,
+        "ffs": 0,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": null,
+        "seconds": 18.1,
+        "periodNs": null
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 29.6,
+        "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"totalcoeffs[0]\" LOC = \"C3\" ;>"
+      }
+    },
+    {
+      "name": "epfl-ctrl",
+      "silinx": {
+        "slices": 25,
+        "luts": 46,
+        "ffs": 0,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": null,
+        "seconds": 5,
+        "periodNs": null
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 23.7,
+        "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"opcode[0]\" LOC = \"C3\" ;>"
+      }
+    },
+    {
+      "name": "epfl-dec",
+      "wrapper": true,
+      "silinx": {
+        "slices": 187,
+        "luts": 373,
+        "ffs": 265,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 6.182,
+        "seconds": 8.5,
+        "periodNs": 6.232
+      },
+      "ise": {
+        "slices": 190,
+        "luts": 373,
+        "ffs": 265,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 6.121,
+        "seconds": 76.3
+      }
+    },
+    {
+      "name": "epfl-i2c",
+      "wrapper": true,
+      "silinx": {
+        "slices": 255,
+        "luts": 452,
+        "ffs": 276,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 6.933,
+        "seconds": 12,
+        "periodNs": 6.823
+      },
+      "ise": {
+        "slices": 355,
+        "luts": 589,
+        "ffs": 270,
+        "srl16": 6,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 6.813,
+        "seconds": 403
+      }
+    },
+    {
+      "name": "epfl-int2float",
+      "silinx": {
+        "slices": 57,
+        "luts": 80,
+        "ffs": 0,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": null,
+        "seconds": 4.5,
+        "periodNs": null
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 37.1,
+        "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"B[0]\" LOC = \"C3\" ;> [top.ucf(1)]:"
+      }
+    },
+    {
+      "name": "epfl-max",
+      "wrapper": true,
+      "silinx": {
+        "slices": 610,
+        "luts": 1090,
+        "ffs": 643,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 71.003,
+        "seconds": 23.6,
+        "periodNs": 69.859
+      },
+      "ise": {
+        "slices": 927,
+        "luts": 1386,
+        "ffs": 643,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 25.677,
+        "seconds": 220.3
+      }
+    },
+    {
+      "name": "epfl-priority",
+      "wrapper": true,
+      "silinx": {
+        "slices": 162,
+        "luts": 261,
+        "ffs": 137,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": null,
+        "seconds": 8.5,
+        "error": "ERROR:Silinx - 1 net(s) cannot be routed on the routing switches whose bits are known (the bit database does not know every switch of the device yet)",
+        "periodNs": null
+      },
+      "ise": {
+        "slices": 257,
+        "luts": 417,
+        "ffs": 137,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 20.829,
+        "seconds": 64.2
+      }
+    },
+    {
+      "name": "epfl-router",
+      "wrapper": true,
+      "silinx": {
+        "slices": 39,
+        "luts": 63,
+        "ffs": 64,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 10.193,
+        "seconds": 4.5,
+        "periodNs": 9.873
+      },
+      "ise": {
+        "slices": 87,
+        "luts": 125,
+        "ffs": 64,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 9.357,
+        "seconds": 56.2
+      }
+    },
+    {
+      "name": "femtorv32-quark",
+      "wrapper": true,
+      "silinx": {
+        "slices": 536,
+        "luts": 721,
+        "ffs": 224,
+        "srl16": 0,
+        "bram": 2,
+        "mult": 0,
+        "estimateNs": 18.964,
+        "seconds": 43.6,
+        "periodNs": 19.218
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 9,
+        "error": "ERROR:HDLCompilers:28 - \"src/src/femtorv32_quark.v\" line 63 'instr' has not been declared"
+      }
+    },
+    {
+      "name": "fpu-adder",
+      "wrapper": true,
+      "silinx": {
+        "slices": 375,
+        "luts": 522,
+        "ffs": 389,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 11.478,
+        "seconds": 22.5,
+        "periodNs": 11.508
+      },
+      "ise": {
+        "slices": 446,
+        "luts": 699,
+        "ffs": 389,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 12.07,
+        "seconds": 236.8
+      }
+    },
+    {
+      "name": "fpu-multiplier",
+      "wrapper": true,
+      "silinx": {
+        "slices": 255,
+        "luts": 381,
+        "ffs": 404,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 4,
+        "estimateNs": 15.976,
+        "seconds": 11,
+        "periodNs": 16.418
+      },
+      "ise": {
+        "slices": 397,
+        "luts": 539,
+        "ffs": 406,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 4,
+        "periodNs": 14.607,
+        "seconds": 135.5
+      }
+    },
+    {
+      "name": "nandland-spi-verilog",
+      "silinx": {
+        "slices": 52,
+        "luts": 46,
+        "ffs": 37,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 5.24,
+        "seconds": 4.5,
+        "periodNs": 5.3
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 11,
+        "error": "ERROR:HDLCompilers:26 - \"src/src/SPI_Master.v\" line 60 unexpected token: '$clog2'"
+      }
+    },
+    {
+      "name": "nandland-spi-vhdl",
+      "silinx": {
+        "slices": 88,
+        "luts": 74,
+        "ffs": 39,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 11.057,
+        "seconds": 4.5,
+        "periodNs": 11.115
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 12.5,
+        "error": "ERROR:HDLParsers:1401 - \"/work/src/src/SPI_Master.vhd\" Line 161. Object o_TX_Ready of mode OUT can not be read."
+      }
+    },
+    {
+      "name": "picorv32",
+      "wrapper": true,
+      "silinx": {
+        "slices": 823,
+        "luts": 1274,
+        "ffs": 767,
+        "srl16": 0,
+        "bram": 2,
+        "mult": 0,
+        "estimateNs": 12.442,
+        "seconds": 69.7,
+        "periodNs": 13.786
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 12,
+        "error": "ERROR:HDLCompilers:26 - \"src/src/picorv32.v\" line 549 Macro reference `assert is not defined"
+      }
+    },
+    {
+      "name": "secworks-aes",
+      "wrapper": true,
+      "silinx": {
+        "slices": 7662,
+        "luts": 10353,
+        "ffs": 2996,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 27.508,
+        "seconds": 2465.1,
+        "periodNs": 27.567
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 17.1,
+        "error": "ERROR:Xst:1468 - \"src/src/aes_key_mem.v\" line 180: Unexpected event in always block sensitivity list."
+      }
+    },
+    {
+      "name": "secworks-sha1",
+      "wrapper": true,
+      "silinx": {
+        "slices": 1883,
+        "luts": 2234,
+        "ffs": 1528,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 17.402,
+        "seconds": 482.8,
+        "periodNs": 17.178
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 13,
+        "error": "ERROR:Xst:902 - \"src/src/sha1_w_mem.v\" line 146: Unexpected w_mem event in always block sensitivity list."
+      }
+    },
+    {
+      "name": "secworks-sha256",
+      "wrapper": true,
+      "silinx": {
+        "slices": 2400,
+        "luts": 3072,
+        "ffs": 1809,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 25.885,
+        "seconds": 585.4,
+        "periodNs": 26.148
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 13,
+        "error": "ERROR:Xst:902 - \"src/src/sha256_w_mem.v\" line 138: Unexpected w_mem event in always block sensitivity list."
+      }
+    },
+    {
+      "name": "secworks-siphash",
+      "wrapper": true,
+      "silinx": {
+        "slices": 1055,
+        "luts": 1220,
+        "ffs": 798,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 15.522,
+        "seconds": 91.4,
+        "periodNs": 15.678
+      },
+      "ise": {
+        "slices": 727,
+        "luts": 1180,
+        "ffs": 798,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 13.976,
+        "seconds": 143.5
+      }
+    },
+    {
+      "name": "serv",
+      "wrapper": true,
+      "silinx": {
+        "slices": 215,
+        "luts": 319,
+        "ffs": 354,
+        "srl16": 1,
+        "bram": 1,
+        "mult": 0,
+        "estimateNs": 13.627,
+        "seconds": 9.5,
+        "periodNs": 13.478
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 11.5,
+        "error": "ERROR:HDLCompilers:26 - \"src/src/serv_rf_ram.v\" line 12 unexpected token: '$clog2'"
+      }
+    },
+    {
+      "name": "spi-fpga-master",
+      "silinx": {
+        "slices": 19,
+        "luts": 27,
+        "ffs": 23,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 4.407,
+        "seconds": 4,
+        "periodNs": 4.39
+      },
+      "ise": {
+        "slices": 17,
+        "luts": 29,
+        "ffs": 21,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 4.992,
+        "seconds": 50.2
+      }
+    },
+    {
+      "name": "spi-fpga-slave",
+      "silinx": {
+        "slices": 16,
+        "luts": 21,
+        "ffs": 21,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 5.303,
+        "seconds": 4,
+        "periodNs": 5.356
+      },
+      "ise": {
+        "slices": 29,
+        "luts": 50,
+        "ffs": 20,
+        "srl16": 2,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 4.939,
+        "seconds": 79.4
+      }
+    },
+    {
+      "name": "t80",
+      "silinx": {
+        "slices": 1539,
+        "luts": 2288,
+        "ffs": 361,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 23.409,
+        "seconds": 84.7,
+        "periodNs": 22.966
+      },
+      "ise": {
+        "slices": 1000,
+        "luts": 1874,
+        "ffs": 247,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 18.129,
+        "seconds": 236.3
+      }
+    },
+    {
+      "name": "uart-for-fpga",
+      "silinx": {
+        "slices": 43,
+        "luts": 56,
+        "ffs": 58,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 4.442,
+        "seconds": 4.5,
+        "periodNs": 4.407
+      },
+      "ise": {
+        "slices": 38,
+        "luts": 52,
+        "ffs": 52,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 4.689,
+        "seconds": 49.2
+      }
+    },
+    {
+      "name": "verilog-axis-fifo",
+      "silinx": {
+        "slices": 19,
+        "luts": 16,
+        "ffs": 32,
+        "srl16": 0,
+        "bram": 1,
+        "mult": 0,
+        "estimateNs": 5.466,
+        "seconds": 4.5,
+        "periodNs": 5.67
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 6.5,
+        "error": "ERROR:HDLCompilers:26 - \"src/src/axis_fifo.v\" line 130 unexpected token: '$clog2'"
+      }
+    },
+    {
+      "name": "verilog-i2c-master",
+      "silinx": {
+        "slices": 135,
+        "luts": 198,
+        "ffs": 72,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 11.292,
+        "seconds": 6,
+        "periodNs": 11.221
+      },
+      "ise": {
+        "slices": 145,
+        "luts": 266,
+        "ffs": 91,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 9.883,
+        "seconds": 66.7
+      }
+    },
+    {
+      "name": "verilog-lfsr-crc",
+      "silinx": {
+        "slices": 55,
+        "luts": 103,
+        "ffs": 64,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 3.999,
+        "seconds": 109.9,
+        "periodNs": 4.097
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 10.5,
+        "error": "ERROR:Xst:890 - \"src/src/lfsr.v\" line 271: For statement is only supported when the new step evaluation is based on one the following operator: +, -."
+      }
+    },
+    {
+      "name": "verilog-lfsr-prbs",
+      "silinx": {
+        "slices": 16,
+        "luts": 16,
+        "ffs": 31,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 2.276,
+        "seconds": 85.3,
+        "periodNs": 2.345
+      },
+      "ise": {
+        "slices": null,
+        "luts": null,
+        "ffs": null,
+        "srl16": null,
+        "bram": null,
+        "mult": null,
+        "periodNs": null,
+        "seconds": 9,
+        "error": "ERROR:Xst:890 - \"src/src/lfsr.v\" line 235: For statement is only supported when the new step evaluation is based on one the following operator: +, -."
+      }
+    },
+    {
+      "name": "verilog-uart",
+      "silinx": {
+        "slices": 131,
+        "luts": 132,
+        "ffs": 79,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 6.651,
+        "seconds": 5.5,
+        "periodNs": 11.892
+      },
+      "ise": {
+        "slices": 84,
+        "luts": 160,
+        "ffs": 79,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 9.239,
+        "seconds": 58.2
+      }
+    },
+    {
+      "name": "vtr-ch-intrinsics",
+      "wrapper": true,
+      "silinx": {
+        "slices": 281,
+        "luts": 145,
+        "ffs": 509,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 6.831,
+        "seconds": 8.5,
+        "periodNs": 6.757
+      },
+      "ise": {
+        "slices": 273,
+        "luts": 154,
+        "ffs": 425,
+        "srl16": 1,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 5.061,
+        "seconds": 81.8
+      }
+    },
+    {
+      "name": "vtr-diffeq1",
+      "wrapper": true,
+      "silinx": {
+        "slices": 263,
+        "luts": 409,
+        "ffs": 451,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 13,
+        "estimateNs": 42.628,
+        "seconds": 18.1,
+        "periodNs": 38.064
+      },
+      "ise": {
+        "slices": 321,
+        "luts": 346,
+        "ffs": 451,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 13,
+        "periodNs": 35.797,
+        "seconds": 69.7
+      }
+    },
+    {
+      "name": "vtr-diffeq2",
+      "wrapper": true,
+      "silinx": {
+        "slices": 161,
+        "luts": 311,
+        "ffs": 258,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 13,
+        "estimateNs": 33.144,
+        "seconds": 13.1,
+        "periodNs": 30.743
+      },
+      "ise": {
+        "slices": 208,
+        "luts": 312,
+        "ffs": 258,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 13,
+        "periodNs": 26.737,
+        "seconds": 64.2
+      }
+    },
+    {
+      "name": "vtr-mkPktMerge",
+      "wrapper": true,
+      "silinx": {
+        "slices": 733,
+        "luts": 267,
+        "ffs": 962,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 8.02,
+        "seconds": 51.7,
+        "periodNs": 8.217
+      },
+      "ise": {
+        "slices": 5812,
+        "luts": 4018,
+        "ffs": 8153,
+        "srl16": 153,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 9.273,
+        "seconds": 668.3
+      }
+    },
+    {
+      "name": "vtr-sha",
+      "silinx": {
+        "slices": 837,
+        "luts": 1610,
+        "ffs": 893,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 16.591,
+        "seconds": 67.7,
+        "periodNs": 16.864
+      },
+      "ise": {
+        "slices": 1149,
+        "luts": 2255,
+        "ffs": 900,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 19.919,
+        "seconds": 181.9
+      }
+    },
+    {
+      "name": "vtr-stereovision3",
+      "silinx": {
+        "slices": 118,
+        "luts": 140,
+        "ffs": 120,
+        "srl16": 0,
+        "bram": 0,
+        "mult": 0,
+        "estimateNs": 8.464,
+        "seconds": 7,
+        "periodNs": 8.597
+      },
+      "ise": {
+        "slices": 92,
+        "luts": 109,
+        "ffs": 101,
+        "srl16": 4,
+        "bram": 0,
+        "mult": 0,
+        "periodNs": 4.916,
+        "seconds": 80.8
+      }
+    }
+  ]
+}

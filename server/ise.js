@@ -192,12 +192,15 @@ export function generateUt({ impl = {}, family = 'spartan3e' } = {}) {
 }
 
 /** Contents of run.sh. Usage: ./run.sh [synth translate map par trce bitgen] */
-export function generateRunSh({ top, device, hasUcf, defaultSteps = STEPS }) {
+export function generateRunSh({ top, device, hasUcf, defaultSteps = STEPS, impl = {} }) {
   // Spartan-3 / Virtex-4 generation: placement in PAR. Spartan-6, Virtex-5/6 and 7-series:
   // timing-driven placement happens in MAP and PAR rejects "-t" (Par:526) - options as ISE's
   // Project Navigator writes them for those families.
   const legacy = /^(spartan3|virtex4)/.test(deviceFamily(device) || 'spartan3e');
-  const mapOpts = legacy ? '-cm area -ir off -pr off -c 100' : '-w -logic_opt off -ol high -t 1 -xt 0 -register_duplication off -r 4 -global_opt off -mt off -ir off -pr off -lc off -power off';
+  // impl.mapPackFactor: map's -c (Spartan-3 generation): 100, the default, packs unrelated logic into
+  // a slice only when the device is full; 1 packs as tightly as it can (as Silinx's packer does)
+  const pack = Math.min(100, Math.max(1, Math.round(+impl.mapPackFactor || 100)));
+  const mapOpts = legacy ? `-cm area -ir off -pr off -c ${pack}` : '-w -logic_opt off -ol high -t 1 -xt 0 -register_duplication off -r 4 -global_opt off -mt off -ir off -pr off -lc off -power off';
   const parOpts = legacy ? '-ol high -t 1' : '-ol high -mt off';
   if (!IDENT.test(top)) throw new Error(`invalid top module name '${top}'`);
   const ps = partStrings(device);
@@ -434,7 +437,7 @@ export async function generateBuild(project, projectDir, { steps } = {}) {
     [`${top}.xst`]: generateXst({ top, device, impl: project.impl || {}, includeDirs: [...includeDirs].sort() }),
     [`${top}.ut`]: generateUt({ impl: project.impl || {}, family: deviceFamily(device) }),
     [`${top}_prom.ut`]: generateUt({ impl: { ...(project.impl || {}), startupClk: 'Cclk' }, family: deviceFamily(device) }),
-    'run.sh': generateRunSh({ top, device, hasUcf, defaultSteps: STEPS }),
+    'run.sh': generateRunSh({ top, device, hasUcf, defaultSteps: STEPS, impl: project.impl || {} }),
   };
   for (const [name, text] of Object.entries(files)) await fs.writeFile(path.join(buildDir, name), text);
   await fs.chmod(path.join(buildDir, 'run.sh'), 0o755);

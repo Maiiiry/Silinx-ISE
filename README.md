@@ -301,7 +301,8 @@ database. The open
 toolchain does **not yet support the Spartan-6 boards (Nexys3, Atlys)**; it will (they work with
 ISE, as every board does). From the command line: `node research/s3e-route/open-flow.mjs <project
 folder> <out folder>`.
-How it is developed, and what may be shipped: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md);
+How its circuits compare with ISE's (size and speed on the open-source designs of the design corpus):
+[docs/QUALITY.md](docs/QUALITY.md). How it is developed, and what may be shipped: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md);
 what is planned: the [issues](https://github.com/pmnmalo/Silinx-ISE/issues).
 
 **Recommended on Windows, macOS (Intel / Apple Silicon) and Linux:** build a private Docker image

@@ -1,0 +1,186 @@
+#!/usr/bin/env node
+// The quality of what the Silinx toolchain generates against Xilinx ISE (XST + map + par), on the
+// design corpus: the size (LUTs, flip-flops, slices, shift registers, block RAMs, multipliers) and the
+// speed (the critical path of the routed design) of each design, both flows on the same project (the
+// same top, I/O wrapper included) and the same chip, the XC3S1200E-FG320 (the largest the Silinx
+// toolchain supports, so that the larger designs fit). Both run as the application runs them: the
+// Silinx toolchain's job (server/open-flow.js) here, and the ISE flow's job (server/ise.js) through
+// Silinx's SSH mode, with the ISE settings of ~/.silinx/config.json (its ssh host is never written in
+// a file). ISE gets its best chance: map packs slices as tightly as it can (-c 1, as Silinx's packer
+// always does) and the board clock's PERIOD is tightened to --period ns (default 5) so that par works
+// for speed (ISE stops improving once a constraint is met; Silinx always optimises for speed). The
+// speed of Silinx's routing is measured by ISE's own trce (ise-open-check.sh on the same
+// host), so that both critical paths come from the same timing analyser; Silinx's estimate is kept too.
+//
+//   node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes <dir>     (the projects)
+//   node test/designs-corpus/compare-ise.mjs <dir> [--filter a,b] [--jobs n] [--ise-jobs n] [--period ns]
+//   node test/designs-corpus/compare-ise.mjs --report        (docs/QUALITY.md from the results only)
+//
+// Results (numbers only, never ISE's own files): test/designs-corpus/ise-comparison.json, and the
+// page for users, docs/QUALITY.md.
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { qualityPage } from './quality-page.mjs';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.join(HERE, '..', '..');
+const RESULTS = path.join(HERE, 'ise-comparison.json');
+const PAGE = path.join(ROOT, 'docs', 'QUALITY.md');
+const STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen'];
+
+const args = process.argv.slice(2);
+const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
+
+if (args.includes('--report')) {
+  const res = JSON.parse(fs.readFileSync(RESULTS, 'utf8'));
+  const names = new Set(res.designs.map(d => d.name));
+  res.notBuilt ??= JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8')).designs.map(d => d.name).filter(n => !names.has(n));
+  fs.writeFileSync(RESULTS, `${JSON.stringify(res, null, 2)}\n`);
+  fs.writeFileSync(PAGE, qualityPage(res));
+  console.log(`wrote ${path.relative(ROOT, PAGE)}`);
+  process.exit(0);
+}
+
+// ---------------------------------------------------------------------------------------- the runs
+const dir = args.find((a, k) => !a.startsWith('--') && !['--filter', '--jobs', '--ise-jobs', '--period'].includes(args[k - 1]));
+const PERIOD = +opt('--period', 5);
+if (!dir || !fs.existsSync(dir)) { console.error('usage: compare-ise.mjs <dir of projects from run.mjs --sizes> [--filter a,b] [--jobs n] [--ise-jobs n] | --report'); process.exit(2); }
+const filter = opt('--filter', null)?.split(',');
+const names = fs.readdirSync(dir).filter(n => fs.existsSync(path.join(dir, n, 'silinx.json')) && (!filter || filter.includes(n))).sort();
+
+// the user's ISE settings, in SSH mode, in a configuration of this run's own
+const userCfg = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.silinx', 'config.json'), 'utf8'));
+if (!userCfg.ssh?.host) { console.error('~/.silinx/config.json: no ssh host (the ISE machine)'); process.exit(2); }
+const work = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-compare-'));
+process.env.SILINX_CONFIG_DIR = path.join(work, 'config');
+fs.mkdirSync(process.env.SILINX_CONFIG_DIR, { recursive: true });
+fs.writeFileSync(path.join(process.env.SILINX_CONFIG_DIR, 'config.json'), JSON.stringify({ ...userCfg, mode: 'ssh' }));
+const { createJob } = await import('../../server/jobs.js');
+const { runImplementation } = await import('../../server/ise.js');
+const { runOpenImplementation } = await import('../../server/open-flow.js');
+
+const copyProject = (name, side) => {
+  const to = path.join(work, side, name);
+  fs.cpSync(path.join(dir, name), to, { recursive: true, filter: f => !/[\\/](build|size\.json)$/.test(f) });
+  return to;
+};
+const runJob = (fn) => new Promise(resolve => {
+  const t = Date.now();
+  const job = createJob('compare', fn);
+  const iv = setInterval(() => {
+    if (job.status === 'running') return;
+    clearInterval(iv);
+    resolve({ job, ms: Date.now() - t });
+  }, 500);
+});
+const used = x => (x && typeof x === 'object' ? x.used : x) ?? null;
+const item = (items, re) => used((items || []).find(i => re.test(i.name)));
+// the first specific error (ERROR:Silinx - …, ERROR:Pack:…), not the run's summary line (ERROR: …)
+const lastError = job => (job.lines.find(l => /^ERROR:\S/.test(l)) || job.lines.filter(l => /ERROR/.test(l)).pop() || job.error || '').replace(/\s+/g, ' ').slice(0, 160);
+
+async function silinxRun(name) {
+  const projectDir = copyProject(name, 'silinx');
+  const project = JSON.parse(fs.readFileSync(path.join(projectDir, 'silinx.json'), 'utf8'));
+  const { job, ms } = await runJob(j => runOpenImplementation(j, { project, projectDir, steps: STEPS }));
+  let rep = {};
+  try { rep = JSON.parse(fs.readFileSync(path.join(projectDir, 'build', 'open', 'report.json'), 'utf8')); } catch { /* nothing written */ }
+  const syn = rep.synthesis?.utilization;
+  return {
+    slices: used(rep.map?.summary?.slices), luts: item(syn, /4 input LUTs/), ffs: used(rep.map?.summary?.ffs),
+    srl16: item(syn, /shift registers/i) ?? (syn ? 0 : null), bram: item(syn, /RAMB16/) ?? (syn ? 0 : null), mult: item(syn, /MULT18X18/) ?? (syn ? 0 : null),
+    estimateNs: rep.timing?.minPeriodNs ?? null, seconds: +(ms / 1000).toFixed(1),
+    routed: path.join(projectDir, 'build', 'open', 'routed.xdl'),
+    error: job.status === 'ok' ? undefined : lastError(job),
+  };
+}
+
+// ISE's 4-input LUTs used as logic: map's breakdown when it prints one, else the total less the LUTs
+// used as route-throughs, shift registers or RAM
+const logicLuts = (map, mu) => item(mu, /used as logic/i)
+  ?? ((used(map?.summary?.luts) ?? 0) - (item(mu, /route-thru/i) ?? 0) - (item(mu, /Shift registers/i) ?? 0) - (item(mu, /RAMs?$/i) ?? 0));
+
+async function iseRun(name) {
+  const projectDir = copyProject(name, 'ise');
+  const project = JSON.parse(fs.readFileSync(path.join(projectDir, 'silinx.json'), 'utf8'));
+  project.impl = { ...(project.impl || {}), mapPackFactor: 1 };
+  const ucf = project.constraints && path.join(projectDir, project.constraints);
+  if (ucf && fs.existsSync(ucf)) fs.writeFileSync(ucf, fs.readFileSync(ucf, 'utf8').replace(/PERIOD "(\w+)" [\d.]+ ns/g, `PERIOD "$1" ${PERIOD} ns`));
+  const { job, ms } = await runJob(j => runImplementation(j, { project, projectDir, steps: STEPS }));
+  const r = job.result?.reports || {};
+  const mu = r.map?.utilization;
+  return {
+    slices: used(r.map?.summary?.slices), luts: mu ? logicLuts(r.map, mu) : null, ffs: used(r.map?.summary?.ffs) ?? (mu ? item(mu, /Flip Flops/i) : null),
+    srl16: mu ? item(mu, /used as Shift registers/i) ?? 0 : null, bram: mu ? used(r.map?.summary?.bram) ?? 0 : null, mult: mu ? used(r.map?.summary?.mult) ?? 0 : null,
+    periodNs: r.timing?.minPeriodNs ?? r.trce?.minPeriodNs ?? null, seconds: +(ms / 1000).toFixed(1),
+    error: job.status === 'ok' ? undefined : lastError(job),
+  };
+}
+
+async function pool(items, n, fn) {
+  const out = new Array(items.length);
+  let next = 0;
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, async () => {
+    while (next < items.length) { const k = next++; out[k] = await fn(items[k], k); }
+  }));
+  return out;
+}
+
+console.log(`${names.length} designs; work folder ${work}`);
+const [sil, ise] = await Promise.all([
+  pool(names, +opt('--jobs', 3), async n => { const r = await silinxRun(n); console.log(`silinx ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.estimateNs} ns (estimate), ${r.seconds} s`}`); return r; }),
+  pool(names, +opt('--ise-jobs', 2), async n => { const r = await iseRun(n); console.log(`ise    ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.periodNs} ns, ${r.seconds} s`}`); return r; }),
+]);
+
+// ISE's trce on Silinx's routed designs (ise-open-check.sh: xdl -xdl2ncd, drc, bitgen, trce)
+const host = `${userCfg.ssh.user ? `${userCfg.ssh.user}@` : ''}${userCfg.ssh.host}`;
+const image = userCfg.ssh.image || 'xilinx/ise:14.7';
+const tdir = path.join(work, 'trce');
+const timedNames = names.filter((n, k) => !sil[k].error && fs.existsSync(sil[k].routed));
+for (const n of timedNames) { fs.mkdirSync(path.join(tdir, n), { recursive: true }); fs.copyFileSync(sil[names.indexOf(n)].routed, path.join(tdir, n, 'routed.xdl')); }
+fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(tdir, 'ise-open-check.sh'));
+const sshArgs = ['-o', 'BatchMode=yes', ...(userCfg.ssh.port && userCfg.ssh.port !== 22 ? ['-p', String(userCfg.ssh.port)] : [])];
+const ssh = cmd => execFileSync('ssh', [...sshArgs, '--', host, `export PATH="$PATH:/usr/local/bin"; ${cmd}`], { encoding: 'utf8', maxBuffer: 64 << 20 });
+const remote = `silinx-compare/${path.basename(work)}`;
+const trce = {};
+if (timedNames.length) {
+  try {
+    ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
+    execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, `${tdir}/`, `${host}:${remote}/`]);
+    const out = ssh(`docker run --rm --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
+    process.stdout.write(out.split('\n').map(l => (l ? `  ISE ${l}\n` : '')).join(''));
+    for (const l of out.split('\n')) {
+      const m = /^(\S+): timing: .*?Minimum period:\s+([\d.]+)ns/.exec(l);
+      if (m) trce[m[1]] = +m[2];
+      const p = /^(\S+): timing: .*?Maximum path delay from\/to any node:\s+([\d.]+)ns/.exec(l);
+      if (p && !trce[p[1]]) trce[p[1]] = +p[2];
+    }
+    ssh(`rm -rf ${remote}`);
+  } catch (e) { console.error(`trce of Silinx's routing on the ISE host failed: ${e.message.split('\n')[0]}`); }
+}
+
+const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+// the corpus's designs that have no project: Silinx cannot read or synthesize them yet
+const manifest = JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8'));
+const notBuilt = filter ? undefined : manifest.designs.map(d => d.name).filter(n => !fs.existsSync(path.join(dir, n, 'silinx.json')));
+const res = {
+  generatedAt: new Date().toISOString(), silinxVersion: pkg.version, device: 'xc3s1200efg320-4', steps: STEPS, isePeriodNs: PERIOD, notBuilt,
+  designs: names.map((name, k) => {
+    const { routed, ...s } = sil[k];
+    const size = JSON.parse(fs.readFileSync(path.join(dir, name, 'size.json'), 'utf8'));
+    return { name, wrapper: size.wrapper || undefined, silinx: { ...s, periodNs: trce[name] ?? null }, ise: ise[k] };
+  }),
+};
+// merge into the earlier results (a --filter run updates only its designs)
+let all = res;
+if (filter && fs.existsSync(RESULTS)) {
+  const old = JSON.parse(fs.readFileSync(RESULTS, 'utf8'));
+  all = { ...res, notBuilt: old.notBuilt, designs: [...old.designs.filter(d => !names.includes(d.name)), ...res.designs].sort((a, b) => a.name.localeCompare(b.name)) };
+}
+fs.writeFileSync(RESULTS, `${JSON.stringify(all, null, 2)}\n`);
+fs.writeFileSync(PAGE, qualityPage(all));
+console.log(`wrote ${path.relative(ROOT, RESULTS)} and ${path.relative(ROOT, PAGE)}`);
+if (!process.env.SILINX_KEEP) fs.rmSync(work, { recursive: true, force: true }); else console.log(`kept: ${work}`);
+process.exit(0);
