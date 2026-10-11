@@ -17,7 +17,7 @@
 //
 //   const r = await diffSynth({ name, sources, top, sim, seed, engine })
 //   r = { name, status: 'pass' | 'mismatch' | 'unsupported' | 'error', stage, reason, engine, cells,
-//         cycles, states, mismatch: { cycle, inputs, rtl, netlist, ports }, report, ms, warnings }
+//         cycles, states, mismatch: { cycle, inputs, rtl, rtlX, netlist, ports }, report, ms, warnings }
 //   (warnings: the front end's 'file:line message' and the synthesis's, once synthesized)
 //
 // The stimulus (as in test/netgen-fixtures.test.js): cycle k's clock rises at R = (k + 1/2) * P, the
@@ -38,8 +38,14 @@
 //     bit (an X there is a difference);
 //   - cycles before `sim.skip` (default 0) are not compared;
 //   - when the RTL powered up at 0 differs, it is run again with the X's kept (the language's
-//     power-up): Yosys may give a register or memory word that is never set any value; the design
-//     passes if that run agrees (result powerUp: 'x'). powerUp: true / false forces one rule.
+//     power-up): Yosys may give a register or memory word that is never set any value. An output
+//     then agrees when it agrees with either run: its known bits in the run at 0, or those in the
+//     run with X's (an X there depends on a power-up value). Both runs are needed, port by port: in
+//     the run with X's a case on a state still at X takes its default (an if, its else branch) and
+//     gives a known value that the netlist, powered up in a defined state, need not give, while
+//     the run at 0 has a known value for a latch or register that Yosys gave its own power-up value
+//     (#20). A difference is one from both runs (result powerUp: 'x' when the run with X's was
+//     needed). powerUp: true / false forces one rule.
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
 import * as V from '../core/values.js';
@@ -238,15 +244,20 @@ const fmt = (val, w) => {
   return s;
 };
 
-/** First cycle where a known RTL output bit differs from the netlist's (from cycle `skip`). */
-export function compareRuns(rtl, net, widths, skip = 0) {
+/**
+ * First cycle where a known RTL output bit differs from the netlist's (from cycle `skip`). With
+ * `rtlX` (the RTL run again with its X power-up values), a port differs only when it differs from
+ * both runs: the netlist's value agrees with one run or the other (its known bits equal), port by
+ * port, not bit by bit (a value made of bits of both runs is not one the RTL can have).
+ */
+export function compareRuns(rtl, net, widths, skip = 0, rtlX = null) {
+  const differs = (a, b, m) => (a ? m & ~a.x & ((a.v ^ b.v) | b.x) : 0n);
   for (let k = skip; k < rtl.length; k++) {
     const bad = [];
     for (const [n, w] of widths) {
       const a = rtl[k][n], b = net[k][n], m = V.mask(w);
       if (!a || !b) continue;
-      const known = m & ~a.x;
-      if (((a.v ^ b.v) & known) || (b.x & known)) bad.push(n);
+      if (differs(a, b, m) && !(rtlX && !differs(rtlX[k]?.[n], b, m))) bad.push(n);
     }
     if (bad.length) return { cycle: k, ports: bad };
   }
@@ -364,22 +375,27 @@ export function compareNetlist(design, syn, spec) {
     }
   } catch (e) { return done({ status: 'error', stage: 'netlist-sim', reason: e.message, cells: syn.cells, engine: eng }); }
   const states = new Set(rtl.map(o => outs.map(n => `${o[n].v}/${o[n].x}`).join())).size;
-  const mm = compareRuns(rtl, net, widths, sim.skip || 0);
+  let mm = compareRuns(rtl, net, widths, sim.skip || 0);
   if (spec.keep) Object.assign(spec.keep, { rtl, net, stim, outs, syn });
   if (!mm) return done({ status: 'pass', engine: eng, cells: syn.cells, cycles: stim.length, states });
   // the registers without an initial value at X (as the language says) instead of 0: Yosys may
-  // implement an X power-up value as anything (a memory word never written, a register never set)
+  // implement an X power-up value as anything (a memory word never written, a register never set);
+  // a netlist bit agrees when it agrees with either run (see the power-up rule above)
+  let rtlX = null;
   if (spec.powerUp === undefined) {
     try {
-      const rtlX = runSilinx(design, { clocks, sim, stim, outs, power: false });
-      if (!compareRuns(rtlX, net, widths, sim.skip || 0)) return done({ status: 'pass', engine: eng, cells: syn.cells, cycles: stim.length, states, powerUp: 'x' });
-    } catch { /* the first difference is reported */ }
+      rtlX = runSilinx(design, { clocks, sim, stim, outs, power: false });
+      mm = compareRuns(rtl, net, widths, sim.skip || 0, rtlX);
+      if (spec.keep) spec.keep.rtlX = rtlX;
+      if (!mm) return done({ status: 'pass', engine: eng, cells: syn.cells, cycles: stim.length, states, powerUp: 'x' });
+    } catch { rtlX = null; /* the first difference is reported */ }
   }
   const k = mm.cycle, W = new Map(widths);
-  const line = (o, which) => mm.ports.map(n => `${n}=${fmt(o[n], W.get(n))}`).join(' ') + (which ? '' : '');
+  const line = o => mm.ports.map(n => `${n}=${fmt(o[n], W.get(n))}`).join(' ');
+  const showX = rtlX && line(rtlX[k]) !== line(rtl[k]);
   const report = `${name}: the netlist differs from the RTL at cycle ${k} (engine ${eng}, seed ${JSON.stringify(seed)})\n`
     + `  inputs  ${hex(stim[k])}${clocks.length ? ` (clocks ${clocks.join(', ')})` : ''}\n`
-    + `  RTL     ${line(rtl[k])}\n  netlist ${line(net[k])}`
+    + `  RTL     ${line(rtl[k])}\n${showX ? `  RTL (X) ${line(rtlX[k])}\n` : ''}  netlist ${line(net[k])}`
     + (k > 0 ? `\n  (cycle ${k - 1}: inputs ${hex(stim[k - 1])})` : '');
-  return done({ status: 'mismatch', engine: eng, cells: syn.cells, cycles: stim.length, states, mismatch: { ...mm, inputs: stim[k], rtl: rtl[k], netlist: net[k] }, report, reason: `cycle ${k}: ${mm.ports.join(', ')}` });
+  return done({ status: 'mismatch', engine: eng, cells: syn.cells, cycles: stim.length, states, mismatch: { ...mm, inputs: stim[k], rtl: rtl[k], ...(rtlX ? { rtlX: rtlX[k] } : {}), netlist: net[k] }, report, reason: `cycle ${k}: ${mm.ports.join(', ')}` });
 }

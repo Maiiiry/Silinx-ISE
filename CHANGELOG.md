@@ -133,6 +133,10 @@ the "What's new" text of its GitHub release.
 - The open synthesis of a Spartan-3E design no longer prints Yosys's "Shift register inference
   not yet supported for family xc3se" (it came on every run, whatever the design) nor counts it
   as a warning.
+- The differential test of the open synthesis (RTL against the netlist) no longer reports a false
+  difference when the RTL's state is at X at power-up: an output of the netlist agrees when it
+  agrees with the RTL powered up at 0 or with the RTL with its X's (where a case on an X state
+  takes its default), port by port; a difference from both is still reported (#20).
 
 ## 15.10.1
 
