@@ -1,0 +1,289 @@
+// The toolchain mode 'open' (server/open-flow.js): Implement Design and Generate Programming File
+// without Xilinx ISE through the REST API, for real on examples/blinky (the device description of the
+// XC3S250E-CP132 and its bit database ship with Silinx), the clear failures (a device without a bit
+// database or a description, a design with errors, the ISE-only steps), Stop, the FPGA view of the
+// routed design, and the job that builds a device description from the user's ISE (fake xdl / docker /
+// ssh of test/server-helpers.js, the small report test/fixtures/fpga/route-device.xdlrc).
+import { test, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import fss from 'node:fs';
+import path from 'node:path';
+import zlib from 'node:zlib';
+import { scratchEnv, makeFakes, isolatedPath, startApp, waitJob, waitLine, writeConfig, HERE, POSIX_ONLY } from './server-helpers.js';
+
+let tmp, fakes, app, jobs, P, oldPath, OF, tc;
+const XDLRC = path.join(HERE, 'fixtures', 'fpga', 'route-device.xdlrc');   // xc3s50etq144-4
+// fake xdl: "xdl -report -pips -all_conns <part> <out>" copies $FAKE_XDLRC (FAKE_XDL_FAIL: fails)
+const FAKE_XDL = `#!/bin/sh
+for a in "$@"; do last="$a"; done
+[ -n "$FAKE_XDL_LOG" ] && echo "xdl $*" >> "$FAKE_XDL_LOG"
+[ -n "$FAKE_XDL_FAIL" ] && { echo "ERROR:xdl - fake failure" >&2; exit 2; }
+echo "Release 14.7 - xdl P.20131013 (fake)"
+cp "$FAKE_XDLRC" "$last"
+`;
+
+before(async () => {
+  tmp = await scratchEnv('silinx-open-test-');
+  fakes = await makeFakes(tmp);
+  await fs.writeFile(path.join(fakes.ise, 'xdl'), FAKE_XDL, { mode: 0o755 });
+  oldPath = process.env.PATH;
+  process.env.PATH = isolatedPath(fakes.ise, fakes.docker, fakes.ssh);
+  process.env.FAKE_XDLRC = XDLRC;
+  process.env.FAKE_SSH_HOME = path.join(tmp, 'remote-home');
+  jobs = await import('../server/jobs.js');
+  P = await import('../server/projects.js');
+  OF = await import('../server/open-flow.js');
+  tc = await import('../server/toolchain.js');
+  app = await startApp();
+});
+after(async () => {
+  for (const j of jobs.listJobs()) if (j.status === 'running') jobs.cancelJob(j.id);
+  for (let i = 0; i < 300 && jobs.listJobs().some(j => j.status === 'running'); i++) await new Promise(r => setTimeout(r, 10));
+  await app.close();
+  process.env.PATH = oldPath;
+  await fs.rm(tmp, { recursive: true, force: true });
+});
+
+const DEV = (part, pkg, family = 'spartan3e') => ({ family, part, package: pkg, speed: '-4' });
+
+async function implement(name, body = {}) {
+  const r = await app.call('POST', `/projects/${name}/implement`, body);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  return r.body.job;
+}
+
+test('openStatus: available for the XC3S250E-CP132; why not for the other devices', () => {
+  const ok = OF.openStatus(DEV('xc3s250e', 'cp132'));
+  assert.equal(ok.available, true, ok.reason);
+  assert.equal(ok.part, 'xc3s250ecp132-4');
+  assert.equal(ok.shipped, true);
+  assert.match(ok.reason, /xc3s250ecp132-4: device description \(shipped with Silinx\) and bit database/);
+  const s500 = OF.openStatus(DEV('xc3s500e', 'fg320'));
+  assert.equal(s500.available, false);
+  assert.equal(s500.canBuild, false);
+  assert.equal(s500.reason, 'no bit database for xc3s500e yet (only the XC3S250E): use an ISE mode for this device');
+  // same chip, another package: the bit database is there, the description can be built from ISE
+  const tq = OF.openStatus(DEV('xc3s250e', 'tq144'));
+  assert.equal(tq.available, false);
+  assert.equal(tq.canBuild, true);
+  assert.match(tq.reason, /^no device description of xc3s250etq144-4: build it from your ISE \(Toolchain Settings: Build Device Description\)$/);
+  const s6 = OF.openStatus(DEV('xc6slx16', 'csg324', 'spartan6'));
+  assert.equal(s6.available, false);
+  assert.match(s6.reason, /does not support the spartan6 family yet/);
+  assert.equal(OF.hasBitDatabase('xc3s250e'), true);
+  assert.equal(OF.hasBitDatabase('xc3s500e'), false);
+});
+
+test('openSteps: the chain up to the last step; the ISE-only steps are refused', () => {
+  assert.deepEqual(OF.openSteps(['synth']), ['synth']);
+  assert.deepEqual(OF.openSteps(['synth', 'translate', 'map']), ['synth', 'translate', 'map']);
+  assert.deepEqual(OF.openSteps(['map']), ['synth', 'translate', 'map']);
+  assert.deepEqual(OF.openSteps(['synth', 'translate', 'map', 'par']), ['synth', 'translate', 'map', 'par', 'trce']);
+  assert.deepEqual(OF.openSteps(['bitgen']), ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
+  assert.deepEqual(OF.openSteps([]), ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
+  assert.deepEqual(OF.openSteps(['fpgaview']), ['synth', 'translate', 'map', 'par', 'trce', 'fpgaview']);
+  assert.throws(() => OF.openSteps(['synth', 'postsynth', 'xpwr']), /not available in the open toolchain \(they need Xilinx ISE\): postsynth, xpwr/);
+});
+
+test('toolchain configuration: the open mode, its ISE for device descriptions, the status', async () => {
+  const cfg = await tc.saveConfig({ mode: 'open', open: { iseMode: 'ssh' } });
+  assert.equal(cfg.mode, 'open');
+  assert.equal(tc.iseModeOf(cfg), 'ssh');
+  assert.equal(tc.iseModeOf({ mode: 'docker', open: { iseMode: 'ssh' } }), 'docker');
+  await assert.rejects(tc.saveConfig({ open: { iseMode: 'cloud' } }), /invalid open.iseMode 'cloud' \(local\|docker\|ssh\)/);
+  const st = tc.iseStatus(cfg, { ise: {}, helpers: {} });
+  assert.equal(st.available, true);
+  assert.match(st.reason, /^open toolchain \(experimental, no ISE\)/);
+  assert.match(st.help, /needs no Xilinx tool/);
+  await app.call('POST', '/projects', { name: 'Stat', device: DEV('xc3s500e', 'fg320') });
+  const r = await app.call('GET', '/toolchain?project=Stat');
+  assert.equal(r.body.ise.mode, 'open');
+  assert.equal(r.body.deviceBuilder.mode, 'ssh');
+  assert.equal(r.body.deviceBuilder.available, false);
+  assert.match(r.body.deviceBuilder.reason, /no ssh host configured/);
+  assert.equal(r.body.open.available, false);
+  assert.match(r.body.open.reason, /no bit database for xc3s500e yet/);
+  assert.equal((await app.call('GET', '/toolchain')).body.open, undefined);
+  assert.equal((await app.call('GET', '/projects/Stat/open-status')).body.part, 'xc3s500efg320-4');
+});
+
+test('open mode: Implement + Generate Programming File of blinky, for real: steps, reports, bitstream, FPGA view', { timeout: 180000 }, async () => {
+  await writeConfig({ mode: 'open' });
+  const c = await app.call('POST', '/projects', { name: 'Blinky', template: 'blinky' });
+  assert.equal(c.status, 200, JSON.stringify(c.body));
+  const id = await implement('Blinky', { steps: ['synth', 'translate', 'map', 'par', 'bitgen'] });
+  const j = await waitJob(jobs, id, { timeoutMs: 170000 });
+  const log = j.lines.join('\n');
+  assert.equal(j.status, 'ok', log);
+  assert.equal(j.meta.toolchain, 'open');
+  assert.deepEqual(j.result.completedSteps, ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
+  assert.equal(j.result.mode, 'open');
+  // the same step markers as ISE's run.sh, in order
+  assert.deepEqual(j.lines.filter(l => /^=== SILINX/.test(l)), ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'].map(s => `=== SILINX STEP ${s} ===`).concat('=== SILINX DONE ==='));
+  assert.match(log, /Device: xc3s250ecp132-4: device description \(shipped with Silinx\) and bit database\./);
+  assert.match(log, /Number of occupied Slices: \d+ out of 2448 \d+%/);
+  assert.match(log, /All signals are completely routed\./);
+  assert.match(log, /constraint PERIOD 20 ns on clk: met/);
+  assert.match(log, /Bitstream: build\/top\.bit \(\d+ bytes, every feature in the bit database\)/);
+  const dir = P.projectDir('Blinky');
+  for (const f of ['open/top.json', 'open/placed.xdl', 'open/routed.xdl', 'open/timing.txt', 'top.bit', 'top_prom.bit', 'reports.json']) assert.ok(fss.existsSync(path.join(dir, 'build', f)), f);
+  // the Design Summary's reports
+  const rep = (await app.call('GET', '/projects/Blinky/reports')).body;
+  assert.equal(rep.source, 'open');
+  assert.equal(rep.summary.synthesized, true);
+  assert.equal(rep.summary.routed, true);
+  assert.equal(rep.summary.timingMet, true);
+  assert.equal(rep.summary.bitstream, true);
+  assert.ok(rep.summary.maxFreqMHz > 50);
+  assert.deepEqual(rep.map.utilization.map(u => u.name), ['Number of Slice Flip Flops', 'Number of 4 input LUTs', 'Number of occupied Slices', 'Number of bonded IOBs', 'Number of BUFGMUXs']);
+  assert.equal(rep.map.summary.iobs.total, 92);
+  assert.equal(rep.map.summary.bufg.used, 1);
+  assert.equal(rep.timing.constraints[0].constraint, 'PERIOD 20 ns on clk');
+  assert.equal(rep.timing.clocks[0].port, 'clk');
+  assert.equal(rep.files.routed, 'build/open/routed.xdl');
+  assert.equal(rep.bit.header.part, '3s250ecp132');
+  // what Program uses: build/top.bit, for the project's device
+  const bi = (await app.call('GET', '/projects/Blinky/bitinfo')).body;
+  assert.equal(bi.available, true);
+  assert.equal(bi.warning ?? null, null);
+  // View Implemented Design (FPGA): the routed design on the device description
+  const fv = (await app.call('GET', '/projects/Blinky/fpga-view')).body;
+  assert.equal(fv.available, true, JSON.stringify(fv).slice(0, 300));
+  assert.equal(fv.source, 'open');
+  assert.equal(fv.util.IOBs.used, 15);
+  assert.ok(fv.util.Slices.used > 50);
+  assert.ok(fv.nets.some(n => n.kind === 'clock'));
+  assert.ok(fv.insts.some(i => i.cells.some(c => c.kind === 'lut' && c.text)));
+  assert.ok(fss.existsSync(path.join(dir, 'build', 'open', 'fpga-view.json')), 'cached');
+  assert.deepEqual((await app.call('GET', '/projects/Blinky/fpga-view')).body.util, fv.util);
+  // Synthesize alone: only the synthesis; the previous products are gone (they no longer match)
+  const j2 = await waitJob(jobs, await implement('Blinky', { steps: ['synth'] }), { timeoutMs: 60000 });
+  assert.equal(j2.status, 'ok', j2.lines.join('\n'));
+  assert.deepEqual(j2.result.completedSteps, ['synth']);
+  const rep2 = (await app.call('GET', '/projects/Blinky/reports')).body;
+  assert.equal(rep2.summary.synthesized, true);
+  assert.equal(rep2.summary.mapped, false);
+  assert.equal(rep2.summary.bitstream, false);
+  assert.ok(!fss.existsSync(path.join(dir, 'build', 'top.bit')));
+  assert.equal((await app.call('GET', '/projects/Blinky/fpga-view')).body.available, false);
+});
+
+test('open mode: a device without a bit database fails with the reason; the ISE-only steps are refused', async () => {
+  await writeConfig({ mode: 'open' });
+  await app.call('POST', '/projects', { name: 'Big', template: 'blinky', device: DEV('xc3s500e', 'fg320') });
+  await P.updateProject('Big', pj => { pj.board = null; pj.device = DEV('xc3s500e', 'fg320'); });
+  const j = await waitJob(jobs, await implement('Big', { steps: ['synth'] }));
+  assert.equal(j.status, 'error');
+  assert.match(j.error, /^open toolchain not available for xc3s500efg320-4: no bit database for xc3s500e yet \(only the XC3S250E\)/);
+  assert.ok(j.lines.some(l => /^ERROR: the open toolchain cannot implement this design: no bit database for xc3s500e yet/.test(l)));
+  const r = await app.call('POST', '/projects/Big/implement', { steps: ['synth', 'postsynth'] });
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /not available in the open toolchain \(they need Xilinx ISE\): postsynth/);
+});
+
+test('open mode: a design with errors fails in Synthesize with the messages; Stop cancels a run', { timeout: 60000 }, async () => {
+  await writeConfig({ mode: 'open' });
+  await app.call('POST', '/projects', { name: 'Bad', device: DEV('xc3s250e', 'cp132') });
+  await app.call('PUT', '/projects/Bad/file?path=src/top.v', 'module top(input a, output y);\n  assign y = a & nope;\nendmodule\n');
+  await P.updateProject('Bad', pj => { pj.top = 'top'; });
+  const j = await waitJob(jobs, await implement('Bad', { steps: ['synth', 'translate', 'map', 'par', 'bitgen'] }), { timeoutMs: 50000 });
+  assert.equal(j.status, 'error');
+  assert.equal(j.result.failedStep, 'synth');
+  assert.match(j.error, /open toolchain failed in step 'synth'/);
+  assert.ok(j.lines.includes('ERROR:OpenFlow - the design has errors'), j.lines.join('\n'));
+  assert.ok(j.lines.some(l => /^ {2}src\/top\.v:2 .*nope/.test(l)), j.lines.join('\n'));
+  assert.ok(j.lines.includes('=== SILINX FAILED synth (exit 1) ==='));
+  const rep = (await app.call('GET', '/projects/Bad/reports')).body;
+  assert.equal(rep.source, 'open');
+  assert.equal(rep.summary.synthesized, false);
+  // Stop: the flow's process is killed
+  await app.call('POST', '/projects', { name: 'Stop1', template: 'blinky' });
+  const id = await implement('Stop1');
+  await waitLine(jobs, id, /^=== SILINX STEP synth ===/, { timeoutMs: 20000 });
+  jobs.cancelJob(id);
+  const k = await waitJob(jobs, id, { timeoutMs: 20000 });
+  assert.equal(k.status, 'error');
+  assert.equal(k.cancelled, true);
+});
+
+test('Build Device Description: xdl -report through docker, gzipped there, packed into ~/.silinx/devices', { skip: POSIX_ONLY, timeout: 60000 }, async () => {
+  const { devicesDir, findDeviceGraph, loadDeviceCache } = await import('../core/fpga/device-node.js');
+  await writeConfig({ mode: 'open', open: { iseMode: 'docker' }, docker: { image: 'silinx/ise:14.7' } });
+  const tcr = (await app.call('GET', '/toolchain')).body;
+  assert.equal(tcr.deviceBuilder.mode, 'docker');
+  assert.equal(tcr.deviceBuilder.available, true, tcr.deviceBuilder.reason);
+  process.env.FAKE_DOCKER_LOG = path.join(tmp, 'docker.log');
+  process.env.FAKE_XDL_LOG = path.join(tmp, 'xdl.log');
+  const r = await app.call('POST', '/toolchain/build-device', { part: 'xc3s50etq144-4' });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  const j = await waitJob(jobs, r.body.job, { timeoutMs: 50000 });
+  const log = j.lines.join('\n');
+  assert.equal(j.status, 'ok', log);
+  assert.match(log, /Building the device description of xc3s50etq144-4 from Xilinx ISE \(docker mode\)/);
+  assert.match(log, /=== SILINX STEP xdlreport ===[\s\S]*=== SILINX STEP gzip ===[\s\S]*=== SILINX STEP pack ===/);
+  assert.equal((await fs.readFile(process.env.FAKE_XDL_LOG, 'utf8')).trim(), 'xdl -report -pips -all_conns xc3s50etq144-4 device.xdlrc');
+  assert.match(await fs.readFile(process.env.FAKE_DOCKER_LOG, 'utf8'), /run --rm --platform linux\/amd64 -v .*:\/work -w \/work .*silinx\/ise:14\.7 bash run\.sh xc3s50etq144-4/);
+  const out = path.join(devicesDir(), 'xc3s50etq144-4.json.gz');
+  assert.equal(j.result.path, out);
+  assert.equal(findDeviceGraph('xc3s50etq144-4'), out);
+  assert.equal(JSON.parse(zlib.gunzipSync(await fs.readFile(out))).part, 'xc3s50etq144-4');
+  assert.ok(loadDeviceCache(out).nodeCount > 0);
+  assert.deepEqual((await fs.readdir(devicesDir())).filter(f => f.startsWith('.build')), [], 'the work folder (and the report) are removed');
+  // the part is checked against the report; xdl failing; a bad part
+  const j2 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s100ecp132-4' })).body.job, { timeoutMs: 50000 });
+  assert.equal(j2.status, 'error');
+  assert.match(j2.error, /the report is of xc3s50etq144-4, not of xc3s100ecp132-4/);
+  assert.equal(findDeviceGraph('xc3s100ecp132-4'), null);
+  process.env.FAKE_XDL_FAIL = '1';
+  const j3 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s100ecp132-4' })).body.job, { timeoutMs: 50000 });
+  delete process.env.FAKE_XDL_FAIL;
+  assert.equal(j3.status, 'error');
+  assert.ok(j3.lines.includes('=== SILINX FAILED xdlreport (exit 1) ==='), j3.lines.join('\n'));
+  assert.match(j3.error, /the device report of xc3s100ecp132-4 could not be made/);
+  assert.equal((await app.call('POST', '/toolchain/build-device', { part: 'nope; rm -rf /' })).status, 400);
+  // a project's device
+  await app.call('POST', '/projects', { name: 'Tq', device: DEV('xc3s250e', 'tq144') });
+  const rp = await app.call('POST', '/toolchain/build-device', { project: 'Tq' });
+  assert.equal(rp.body.part, 'xc3s250etq144-4');
+  await waitJob(jobs, rp.body.job, { timeoutMs: 50000 });
+  delete process.env.FAKE_DOCKER_LOG; delete process.env.FAKE_XDL_LOG;
+});
+
+test('Build Device Description: over ssh (ISE on the host, then a docker image there); ISE not configured', { skip: POSIX_ONLY, timeout: 60000 }, async () => {
+  const { devicesDir } = await import('../core/fpga/device-node.js');
+  await fs.rm(path.join(devicesDir(), 'xc3s50etq144-4.json.gz'), { force: true });
+  await writeConfig({ mode: 'open', open: { iseMode: 'ssh' }, ssh: { host: 'build-box', user: 'me', remoteDir: 'sx' } });
+  process.env.FAKE_SSH_LOG = path.join(tmp, 'ssh.log');
+  const j = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s50etq144-4' })).body.job, { timeoutMs: 50000 });
+  assert.equal(j.status, 'ok', j.lines.join('\n'));
+  assert.ok(fss.existsSync(path.join(devicesDir(), 'xc3s50etq144-4.json.gz')));
+  const ssh = await fs.readFile(process.env.FAKE_SSH_LOG, 'utf8');
+  assert.match(ssh, /me@build-box cd sx\/device-xc3s50etq144-4 && ISE_SETTINGS=\S+ bash run\.sh xc3s50etq144-4/);
+  assert.match(ssh, /me@build-box rm -rf sx\/device-xc3s50etq144-4/);
+  assert.ok(!fss.existsSync(path.join(process.env.FAKE_SSH_HOME, 'sx', 'device-xc3s50etq144-4')), 'the remote folder is removed');
+  // with a docker image on the host
+  await writeConfig({ mode: 'open', open: { iseMode: 'ssh' }, ssh: { host: 'mini', user: 'dev', image: 'xilinx/ise:14.7' } });
+  const j2 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s50etq144-4' })).body.job, { timeoutMs: 50000 });
+  assert.equal(j2.status, 'ok', j2.lines.join('\n'));
+  assert.match(await fs.readFile(process.env.FAKE_SSH_LOG, 'utf8'), /dev@mini .*docker run --rm -v "\$PWD":\/work -w \/work .*xilinx\/ise:14\.7 bash run\.sh xc3s50etq144-4/);
+  delete process.env.FAKE_SSH_LOG;
+  // ISE not configured: the job says why
+  await writeConfig({ mode: 'open', open: { iseMode: 'docker' }, docker: { image: '' } });
+  const j3 = await waitJob(jobs, (await app.call('POST', '/toolchain/build-device', { part: 'xc3s50etq144-4' })).body.job);
+  assert.equal(j3.status, 'error');
+  assert.match(j3.error, /Xilinx ISE not available \(docker mode\): no docker image configured/);
+});
+
+test('deviceGrid: the FPGA view\'s grid from a device description equals the one from the device report', async () => {
+  const { deviceGrid, parseXdlrc } = await import('../core/xdl.js');
+  const { packDeviceFile } = await import('../core/fpga/device-node.js');
+  const { loadDevice } = await import('../core/fpga/device.js');
+  const g = deviceGrid(loadDevice(await packDeviceFile(XDLRC)));
+  const x = parseXdlrc(await fs.readFile(XDLRC, 'utf8'));
+  assert.equal(g.part, x.part);
+  assert.equal(g.rows, x.rows);
+  assert.equal(g.cols, x.cols);
+  const key = t => `${t.r},${t.c},${t.name},${t.type}:${t.sites.map(s => `${s.name}/${s.type}/${s.bonded}`).join(' ')}`;
+  assert.deepEqual(g.tiles.map(key).sort(), x.tiles.map(key).sort());
+});

@@ -471,7 +471,30 @@ const STATUS_ICON = { ok: 'ok', warn: 'warn', err: 'err', running: 'running', st
 
 // The Design Summary can always be (re)opened from the Processes panel: whatever is selected, in both views
 const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'summary', run: () => openSummary() };
+// The open toolchain (Toolchain Settings: "Open toolchain (experimental, no ISE)"): Synthesize,
+// Implement Design and Generate Programming File run Silinx's own flow on the server; the processes
+// that need Xilinx ISE are disabled (their tooltip says why).
+export const openMode = () => S.toolchain?.config?.mode === 'open';
+const OPEN_SYNTH = 'Synthesize - Yosys';
+const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr', 'pin2ucf', 'tech']);
+const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the open toolchain (choose an ISE mode in Toolchain Settings)';
+function forOpenMode(defs) {
+  const conv = p => {
+    if (p.id === 'synth-open') return null;   // Synthesize is the open synthesis already
+    const q = { ...p };
+    if (ISE_ONLY.has(p.id)) Object.assign(q, { disabled: true, title: ISE_ONLY_TIP });
+    if (p.id === 'synth') q.label = OPEN_SYNTH;
+    if (['synth', 'impl', 'bitgen'].includes(p.id)) q.title = 'Open toolchain (experimental, no ISE)';
+    if (p.children) q.children = p.children.map(conv).filter(Boolean);
+    return q;
+  };
+  return defs.map(conv).filter(Boolean);
+}
 function processDefs() {
+  const defs = processDefsAll();
+  return openMode() ? forOpenMode(defs) : defs;
+}
+function processDefsAll() {
   if (!S.project) return [];
   const defs = selectionProcesses();
   return defs.some(p => p.id === 'summary') ? defs : [SUMMARY_PROC, ...defs.filter(p => p.id !== 'none')];
@@ -576,7 +599,7 @@ export function renderProcesses() {
     const group = !!p.children?.length;
     const tw = h('span', { class: 'twisty' }, group ? (collapsed ? '▸' : '▾') : '');
     const isSel = S.selProc?.id === p.id && S.selProc?.label === p.label;
-    const row = h('div', { class: `row${p.disabled ? ' disabled' : ''}${isSel ? ' sel' : ''}` }, tw, h('span', { class: 'status', html: st ? icons[STATUS_ICON[st]] : '' }), icon(p.ico || 'process'), h('span', { class: 'lbl' }, p.label));
+    const row = h('div', { class: `row${p.disabled ? ' disabled' : ''}${isSel ? ' sel' : ''}`, ...(p.title ? { title: p.title } : {}) }, tw, h('span', { class: 'status', html: st ? icons[STATUS_ICON[st]] : '' }), icon(p.ico || 'process'), h('span', { class: 'lbl' }, p.label));
     const sub = h('ul');
     if (collapsed) sub.style.display = 'none';
     li.append(row, sub);
@@ -593,7 +616,7 @@ export function renderProcesses() {
     const ico = row.children[2];
     if (group && ico) { ico.style.cursor = 'pointer'; ico.addEventListener('click', e => { e.stopPropagation(); toggle(); }); ico.addEventListener('dblclick', e => e.stopPropagation()); }
     row.addEventListener('click', () => { host.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel')); row.classList.add('sel'); S.selProc = p; });
-    row.addEventListener('dblclick', () => p.run && !p.disabled && runProcess(p));
+    row.addEventListener('dblclick', () => { if (p.disabled && p.title) toast(p.title); else if (p.run && !p.disabled) runProcess(p); });
     row.addEventListener('contextmenu', e => {
       e.preventDefault(); row.click();
       popupMenu([
@@ -937,7 +960,7 @@ async function runImplInner(mod, steps, opts, pjName) {
   S.diags = S.diags.filter(d => d.source !== 'console');   // new run: drop the previous run's messages
   const extra = [...steps].reverse().find(st => EXTRA_STEPS[st] && st !== 'trce') || (opts.timing ? 'trce' : null);
   const procId = extra || (steps.includes('bitgen') ? 'bitgen' : steps.includes('translate') ? 'impl' : 'synth');
-  const procName = EXTRA_STEPS[procId] || { synth: 'Synthesize - XST', impl: 'Implement Design', bitgen: 'Generate Programming File' }[procId];
+  const procName = EXTRA_STEPS[procId] || { synth: openMode() ? OPEN_SYNTH : 'Synthesize - XST', impl: 'Implement Design', bitgen: 'Generate Programming File' }[procId];
   // Synthesize - XST always starts with Check Syntax (same messages as the Check Syntax process)
   if (!await checkSyntax(mod)) {
     setStatus('synth', 'err');
@@ -948,6 +971,21 @@ async function runImplInner(mod, steps, opts, pjName) {
     setStatus(steps.includes('translate') ? 'translate' : 'synth', 'err');
     log(`Process "${procName}" stopped: the constraints have errors.`, 'err');
     return;
+  }
+  // the open toolchain: is the project's device supported (a device description and a bit database)?
+  if (openMode()) {
+    const st = await api.openStatus(S.project.name).catch(e => ({ available: false, reason: e.message }));
+    if (!st.available) {
+      setStatus(procId, 'err');
+      log(`\nStarted : "${procName}" (open toolchain).\n`, 'hdr');
+      log(`ERROR: the open toolchain cannot implement this design: ${st.reason}.`, 'err');
+      log(`\nProcess "${procName}" failed`, 'err');
+      if (st.canBuild && await confirmDlg('Build Device Description', `There is no device description of ${st.part} yet.\n\nBuild it now from your Xilinx ISE (the ISE set in Toolchain Settings)? It takes a few minutes; then run "${procName}" again.`)) {
+        S.busy = false;
+        await buildDeviceDescription(st.part);
+      }
+      return;
+    }
   }
   // Clear the icons of the processes this run will redo (they get running/ok/warn/err as it goes).
   const runs = new Set([...(steps.includes('synth') ? ['synth'] : []), ...(steps.includes('translate') ? ['translate', 'impl'] : []), ...(steps.includes('map') ? ['map'] : []), ...(steps.includes('par') ? ['par'] : []), ...(steps.includes('bitgen') ? ['bitgen'] : [])]);
@@ -1005,6 +1043,35 @@ async function runImplInner(mod, steps, opts, pjName) {
     renderProcesses();
   }
   return ok;
+}
+
+// Build Device Description: the device report of the user's own ISE (xdl -report -pips -all_conns)
+// packed into the open toolchain's description of the device (~/.silinx/devices), a server job.
+export async function buildDeviceDescription(part) {
+  const what = 'Build Device Description';
+  if (S.busy) { toast('An implementation is already running (use Stop to cancel it)', 'error'); return false; }
+  S.busy = true;
+  log(`\nStarted : "${what}" (${part}).\n`, 'hdr');
+  status(`${what}: ${part}…`);
+  try {
+    const { job } = await api.buildDevice({ part });
+    S.currentJob = job;
+    S.stopRequested = false;
+    renderProcesses();
+    const res = await followJob(job, logLine);
+    if (res.status === 'ok') { log(`\nProcess "${what}" completed successfully (${part}).`, 'ok'); return true; }
+    log(`\nProcess "${what}" failed: ${res.error || 'see log'}`, 'err');
+    showConsolePage('console');
+    return false;
+  } catch (e) {
+    log(`ERROR: ${e.message}`, 'err');
+    return false;
+  } finally {
+    S.busy = false;
+    S.currentJob = null;
+    status('Ready');
+    renderProcesses();
+  }
 }
 
 // ---- optional ISE processes: simulation models, timing, power, pins
@@ -3178,7 +3245,9 @@ async function boot() {
   try { S.devices = await api.devices(); } catch (e) { log(`ERROR: cannot reach the Silinx server: ${e.message}`, 'err'); }
   api.toolchain().then(tc => {
     S.toolchain = tc;
-    log(`Toolchain: ISE ${tc.ise.available ? 'available' : 'not available'} (${tc.ise.mode}: ${tc.ise.reason}).`, tc.ise.available ? 'ok' : 'warn');
+    if (tc.ise.mode === 'open') log(`Toolchain: ${tc.ise.reason}.`, 'ok');
+    else log(`Toolchain: ISE ${tc.ise.available ? 'available' : 'not available'} (${tc.ise.mode}: ${tc.ise.reason}).`, tc.ise.available ? 'ok' : 'warn');
+    renderProcesses();
     const progs = Object.entries(tc.programmers).filter(([, v]) => v.found).map(([k]) => k);
     log(`Programmers found: ${progs.length ? progs.join(', ') : 'none (install openFPGALoader, xc3sprog, Digilent Adept or ISE iMPACT)'}`, progs.length ? 'ok' : 'warn');
   }).catch(() => {});
@@ -3193,6 +3262,6 @@ async function boot() {
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});
 }
 
-export const app = { showInSim, saveAll, openTt, openFsm, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, S };
+export const app = { showInSim, saveAll, openTt, openFsm, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, buildDeviceDescription, openMode, S };
 window.SilinxApp = app;
 boot();

@@ -9,8 +9,9 @@ import fss from 'node:fs';
 import path from 'node:path';
 import { getDeviceDb, resolveBoard } from './devices.js';
 import { createJob, getJob, cancelJob, listJobs } from './jobs.js';
-import { detectToolchain, saveConfig } from './toolchain.js';
+import { detectToolchain, saveConfig, loadConfig } from './toolchain.js';
 import { runImplementation, collectReports, normalizeSteps } from './ise.js';
+import { runOpenImplementation, openStatus, openSteps, buildDeviceJob, reportPart } from './open-flow.js';
 import { programJob, scanJob, promJob, readBitInfo, checkBitPart, expectedDevice } from './programmer.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from './xise.js';
 
@@ -24,12 +25,36 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
   // ----- devices / toolchain ------------------------------------------------------------------
   api.get('/devices', wrap(async () => getDeviceDb()));
 
-  api.get('/toolchain', wrap(() => detectToolchain()));
+  // ?project=<name>: also whether the open toolchain can implement that project's device (open)
+  const withOpen = async (tc, name) => {
+    if (!name) return tc;
+    try { const pj = await P.readProject(String(name)); return { ...tc, open: openStatus(pj.device || {}) }; } catch { return tc; }
+  };
+  api.get('/toolchain', wrap(async req => withOpen(await detectToolchain(), req.query.project)));
 
   api.put('/toolchain', wrap(async req => {
     try { await saveConfig(req.body || {}); }
     catch (e) { throw bad(e.message, e.status || 400); }
-    return detectToolchain();
+    return withOpen(await detectToolchain(), req.query.project);
+  }));
+
+  // the open toolchain for a project's device: { available, reason, part, graph, bitDb, canBuild }
+  api.get('/projects/:p/open-status', wrap(async req => openStatus((await P.readProject(req.params.p)).device || {})));
+
+  // build the description of a device (its routing graph) from the user's own ISE: { part } or
+  // { project } (that project's device)
+  const deviceJobs = new Map();   // part -> job id
+  api.post('/toolchain/build-device', wrap(async req => {
+    const b = req.body || {};
+    let part = b.part;
+    if (!part && b.project) { try { part = reportPart((await P.readProject(b.project)).device || {}); } catch (e) { throw bad(e.message); } }
+    part = String(part || '').toLowerCase();
+    if (!/^xc[a-z0-9]+-\d+$/.test(part)) throw bad(`invalid part '${part}' (e.g. xc3s250ecp132-4)`);
+    const running = deviceJobs.get(part);
+    if (running && getJob(running)?.status === 'running') throw bad(`the description of ${part} is already being built (job ${running})`, 409);
+    const job = createJob('build-device', j => buildDeviceJob(j, { part }), { meta: { part } });
+    deviceJobs.set(part, job.id);
+    return { job: job.id, part };
   }));
 
   // ----- implementation -----------------------------------------------------------------------
@@ -45,7 +70,12 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
     const key = name.toLowerCase();   // case-insensitive file systems: one folder
     const running = implJobs.get(key);
     if (running && getJob(running)?.status === 'running') throw bad(`an implementation of '${name}' is already running (job ${running}); wait for it or cancel it`, 409);
-    const job = createJob('implement', j => runImplementation(j, { project, projectDir, steps, generateOnly: !!body.generateOnly }), { meta: { project: name, steps } });
+    // the open toolchain (mode 'open'): no ISE, Silinx's own flow (server/open-flow.js)
+    const open = body.toolchain ? body.toolchain === 'open' : (await loadConfig()).mode === 'open';
+    if (open) { try { steps = openSteps(body.steps); } catch (e) { throw bad(e.message); } }
+    const job = open
+      ? createJob('implement', j => runOpenImplementation(j, { project, projectDir, steps }), { meta: { project: name, steps, toolchain: 'open' } })
+      : createJob('implement', j => runImplementation(j, { project, projectDir, steps, generateOnly: !!body.generateOnly }), { meta: { project: name, steps } });
     implJobs.set(key, job.id);
     return { job: job.id };
   }));
@@ -60,7 +90,8 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
   }));
 
   // the implemented design inside the FPGA (web/js/fpgaview.js): build/<top>.xdl + build/device.xdlrc,
-  // written by the 'fpgaview' step; the model is cached in build/fpga-view.json
+  // written by the 'fpgaview' step; the model is cached in build/fpga-view.json. The open toolchain's
+  // routed design (build/open/routed.xdl) with the device description when it is newer than ISE's.
   api.get('/projects/:p/fpga-view', wrap(async req => {
     const project = await P.readProject(req.params.p);
     if (!project.top) return { available: false, reason: 'no-top' };
@@ -69,6 +100,18 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
     const mtime = p => { try { return fss.statSync(p).mtimeMs; } catch { return 0; } };
     const { MODEL_VERSION } = await import('../core/xdl.js');
     const ncd = mtime(f(`${project.top}.ncd`)), xdl = mtime(f(`${project.top}.xdl`)), dev = mtime(f('device.xdlrc'));
+    const openXdl = mtime(f('open/routed.xdl'));
+    if (openXdl && openXdl >= ncd) {
+      const st = openStatus(project.device || {});
+      if (!st.graph) return { available: false, reason: 'error', error: st.reason };
+      const key = `open:${MODEL_VERSION}:${openXdl}:${st.graph}:${mtime(st.graph)}`;
+      try { const c = JSON.parse(await fs.readFile(f('open/fpga-view.json'), 'utf8')); if (c.key === key) return c.model; } catch { /* not cached */ }
+      const { parseXdl, fpgaModel, deviceGrid } = await import('../core/xdl.js');
+      const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+      const model = { available: true, source: 'open', ...fpgaModel(parseXdl(await fs.readFile(f('open/routed.xdl'), 'utf8')), deviceGrid(loadDeviceCache(st.graph))) };
+      await fs.writeFile(f('open/fpga-view.json'), JSON.stringify({ key, model }));
+      return model;
+    }
     if (!ncd) return { available: false, reason: 'no-ncd' };
     if (!xdl || !dev || xdl < ncd) return { available: false, reason: xdl ? 'stale' : 'no-xdl' };
     const key = `${MODEL_VERSION}:${ncd}:${xdl}:${dev}`;   // a new model format rebuilds the cache

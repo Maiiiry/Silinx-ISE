@@ -36,6 +36,19 @@ export function parseXdlrc(text) {
   return out;
 }
 
+/** The same grid as parseXdlrc() from a device routing graph (core/fpga/device.js Device: the
+ *  description of the open toolchain), for the FPGA view of a design routed by Silinx. */
+export function deviceGrid(dev) {
+  const tiles = [];
+  for (let k = 0; k < dev.tileCount; k++) {
+    const types = dev.templates[dev.tileTemplate[k]].sites;
+    // the Device keeps the sites of a tile as [name, bonded (0 internal, 1 bonded, 2 unbonded)]
+    const sites = dev.tileSites[k].map(([name, b], i) => ({ name, type: types[i].type, bonded: b === 1 })).filter(s => !HIDDEN_SITES.test(s.type));
+    if (sites.length) tiles.push({ r: dev.tileRow[k], c: dev.tileCol[k], name: dev.tileNames[k], type: dev.templates[dev.tileTemplate[k]].type, sites });
+  }
+  return { part: dev.part, family: dev.family, rows: dev.rows, cols: dev.cols, tiles };
+}
+
 // ------------------------------------------------------------------ XDL design
 // tokens: "quoted strings" (\" escapes), ',' ';' and words
 function tokenize(text) {
