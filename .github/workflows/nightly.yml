@@ -53,7 +53,7 @@ jobs:
     # testbenches, open synthesis, netlist vs RTL, the fully open flow to a bitstream; every stage's
     # status and every warning checked against test/designs-corpus/expected.json
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

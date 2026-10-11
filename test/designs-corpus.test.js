@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateManifest, compareExpectations, updatedExpectations, normalizeWarning, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, isGood, kindOf } from './designs-corpus/lib.mjs';
+import { validateManifest, compareExpectations, updatedExpectations, normalizeWarning, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, isGood, kindOf, FLOW_PARTS, chipOf, deviceOf } from './designs-corpus/lib.mjs';
 import { remoteFiles } from '../scripts/fetch-design-corpus.mjs';
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
@@ -171,4 +171,21 @@ test('boardClockUcf: the clock on B8 with a 20 ns PERIOD', () => {
   assert.equal(u.clocks[0].net, 'i_Clk');
   assert.equal(u.clocks[0].period, 20);
   assert.match(boardClockUcf('clk'), /NET "clk" LOC = "B8" ;/);
+});
+
+test('design corpus: the devices of the flow, smallest first, each with a device description and a bit database (#7)', async () => {
+  const { findDeviceGraph } = await import('../core/fpga/device-node.js');
+  const { loadDb } = await import('../research/s3e-bitstream/db.mjs');
+  assert.deepEqual(FLOW_PARTS.map(chipOf), ['XC3S250E', 'XC3S500E', 'XC3S1200E']);
+  assert.deepEqual(deviceOf('xc3s500efg320-4'), { family: 'spartan3e', part: 'xc3s500e', package: 'fg320', speed: '-4' });
+  assert.throws(() => deviceOf('xc6slx16csg324-3'), /not a device of the flow/);
+  for (const p of FLOW_PARTS) {
+    assert.ok(findDeviceGraph(p), `${p}: device description`);
+    assert.ok(loadDb(p), `${p}: bit database`);
+  }
+  // the board clock's pad (B8) is on every package of the flow
+  for (const pkg of ['cp132', 'fg320']) {
+    const pads = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'research/s3e-bitstream/db', `${pkg === 'cp132' ? 'xc3s250e' : 'xc3s500e'}-${pkg}-pads.json`), 'utf8'));
+    assert.ok(JSON.stringify(pads).includes('"B8"'), `B8 on the ${pkg}`);
+  }
 });

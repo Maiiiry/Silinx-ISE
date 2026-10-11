@@ -8,7 +8,8 @@
 //   tb        the design's own self-checking testbench in Silinx's simulator (pass / fail)
 //   synth     the open synthesis: Silinx's synthesis front end + Yosys (YoWASP)
 //   diff      the netlist simulated against the RTL, cycle by cycle (test/diff-synth.js)
-//   flow      the open back end on the XC3S250E (Basys2-250): pack, place, route on the PIPs of
+//   flow      the open back end on the XC3S250E (Basys2-250), or the larger XC3S500E / XC3S1200E
+//             (Nexys2) for a design too large for it: pack, place, route on the PIPs of
 //             known bits, static timing, bitgen ('complete' when the bitstream is complete). The
 //             clock is put on the board's oscillator pin (B8, PERIOD 20 ns). A design with more port
 //             bits than the package has pins goes through an I/O wrapper (lib.mjs ioWrapper); cells
@@ -32,13 +33,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf } from './lib.mjs';
+import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf } from './lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
 const EXPECTED = path.join(HERE, 'expected.json');
-const TIMEOUT = 40 * 60000;   // per design
-const PART = 'xc3s250ecp132-4';
+// per design: the largest (AES on the XC3S1200E) take about 40 min on an Apple-silicon Mac, more on CI (#55)
+const TIMEOUT = 120 * 60000;
+
 const clean = s => String(s).replace(/\s+/g, ' ').replace(/(?:\/[^\s:'"]+)*\/\.cache\/designs-corpus\/[^/\s]+\/[0-9a-f]{40}\//g, '').slice(0, 200);
 
 /** The sources of a design: { design: [{ path, lang, text, role }], tb: [...] }. */
@@ -169,7 +171,7 @@ async function runDesign(manifest, d, opts) {
     });
   }
 
-  // ---- the open back end on the XC3S250E
+  // ---- the open back end on the XC3S250E (or a larger device)
   if (stages.has('flow')) {
     if (!syn) res.flow = 'skip: synthesis';
     else await timed('flow', () => backEnd(d, design, syn, srcs, res, opts, { compile, elaborate, primitiveSources, synthesizeOpen, yosysScript, toVerilog, cellCounts, utilization, yosysNode }));
@@ -188,7 +190,7 @@ async function synthWith(design, flags, m) {
   return { top, files: { [`${top}.json`]: out[`${top}.json`], [`${top}_syn.v`]: text }, cells, util: m.utilization(cells), warnings: [...warnings, ...lines.filter(l => /^Warning:/.test(l))] };
 }
 
-async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
+async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, part = PARTS[0]) {
   const { readYosysJson } = await import('../../core/fpga/netlist.js');
   const { pack, PackError } = await import('../../core/fpga/pack.js');
   const { deviceSites, place, placedXdl } = await import('../../core/fpga/place.js');
@@ -204,7 +206,8 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
   res.details.flowSteps = steps;
   const step = (k, t, v) => { steps[k] = { ms: Date.now() - t, ...v }; };
   try {
-    const device = loadDeviceCache(PART);
+    res.details.part = part;
+    const device = loadDeviceCache(part);
     const sites = deviceSites(device);
     const pads = sites.pads.size, outPads = [...sites.pads.values()].filter(p => !p.inputOnly).length;
     // the design itself, or the I/O wrapper around it
@@ -232,13 +235,13 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
     // pack (the cells it does not support yet: synthesized again without them)
     let t = Date.now();
     let packed;
-    try { packed = pack(readYosysJson(flowSyn.files[`${flowSyn.top}.json`]), { ucf, part: PART, carryOut: 'xor' }); }
+    try { packed = pack(readYosysJson(flowSyn.files[`${flowSyn.top}.json`]), { ucf, part, carryOut: 'xor' }); }
     catch (e) {
       if (!(e instanceof PackError) || !/not supported yet/.test(e.message)) throw e;
       w.push(`WARNING:Silinx (pack) - ${e.message.replace(/^pack: /, '')}: synthesized again with -nobram -nolutram -nosrl -nodsp`);
       flowSyn = await synthWith(flowDesign, '-nobram -nolutram -nosrl -nodsp', m);
       steps.retry = { cells: flowSyn.util };
-      packed = pack(readYosysJson(flowSyn.files[`${flowSyn.top}.json`]), { ucf, part: PART, carryOut: 'xor' });
+      packed = pack(readYosysJson(flowSyn.files[`${flowSyn.top}.json`]), { ucf, part, carryOut: 'xor' });
     }
     w.push(...(packed.warnings || []).map(x => `WARNING:Silinx (pack) - ${x}`));
     step('pack', t, { slices: packed.stats.slices, luts: packed.stats.luts, ffs: packed.stats.ffs });
@@ -248,17 +251,26 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
         retry: !!steps.retry, wrapper: !!wrapper };
       writeProject(path.join(opts.sizes, d.name), d, flowSrcs, wrapper, ports, ucf, null, { family: 'spartan3e', part: 'xc3s1200e', package: 'fg320', speed: '-4' }, size);
     }
-    if (packed.stats.slices > sites.slices.size) { res.flow = `too large: ${packed.stats.slices} slices, the XC3S250E has ${sites.slices.size}`; return; }
+    // too large: the next, larger device
+    const larger = PARTS[PARTS.indexOf(part) + 1];
+    const tryLarger = async () => { again = true; await backEnd(d, design, syn, srcs, res, opts, m, false, larger); };
+    if (packed.stats.slices > sites.slices.size) {
+      if (larger) { await tryLarger(); return; }
+      res.flow = `too large: ${packed.stats.slices} slices, the ${chipOf(part)} has ${sites.slices.size}`; return;
+    }
     // place
     t = Date.now();
-    const db = loadDb();
+    const db = loadDb(part);
     const known = knownRouting(db);
     let pl;
     try { pl = place(packed, sites, { seed: 1, clockSites: site => clockReach(device, site, known.allowPip) }); }
     catch (e) {
       // fewer pads than ports once the clock pad and the input-only pads are counted: the I/O wrapper
       if (/not enough pads/.test(e.message) && !wrapper) { again = true; await backEnd(d, design, syn, srcs, res, opts, m, true); return; }
-      if (/slices needed|block RAMs needed|multipliers needed|not enough pads|no room/.test(e.message)) { res.flow = `too large: ${clean(e.message.replace(/^place: /, ''))}`; return; }
+      if (/slices needed|block RAMs needed|multipliers needed|not enough pads|no room/.test(e.message)) {
+        if (larger) { await tryLarger(); return; }
+        res.flow = `too large: ${clean(e.message.replace(/^place: /, ''))}`; return;
+      }
       throw e;
     }
     step('place', t, { estimate: +pl.delay.toFixed(2) });
@@ -286,16 +298,18 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false) {
     step('sta', t, { clocks: sta.clocks.map(c => ({ clock: String(c.clock).replace(/[^\w]/g, '_').slice(0, 40), period: +c.period.toFixed(3) })) });
     // bitgen
     t = Date.now();
-    const { bytes, unknown } = bitgen(routedText, db, { name: `${d.name}.ncd`, crc: true, startupClk: 'JtagClk' });
+    const { bytes, unknown } = bitgen(routedText, db, { name: `${d.name}.ncd`, crc: true, startupClk: 'JtagClk', part: part.replace(/^xc/, '').replace(/-\d$/, '') });
     step('bitgen', t, { bytes: bytes.length, unknown: unknown.length });
     if (unknown.length) { res.flow = `fail: bitgen: ${unknown.length} features not in the bit database (${clean([...new Set(unknown.map(u => u.feature))].slice(0, 4).join(', '))})`; res.details.unknownFeatures = unknown.slice(0, 20).map(u => `${u.tile} ${u.feature}`); return; }
     res.flow = 'complete';
     if (opts.bits) { fs.mkdirSync(opts.bits, { recursive: true }); fs.writeFileSync(path.join(opts.bits, `${d.name}.bit`), bytes); }
-    if (opts.projects) writeProject(path.join(opts.projects, d.name), d, flowSrcs, wrapper, ports, ucf, steps.retry ? flowSyn.files[`${flowSyn.top}.json`] : null);
+    if (opts.projects) writeProject(path.join(opts.projects, d.name), d, flowSrcs, wrapper, ports, ucf, steps.retry ? flowSyn.files[`${flowSyn.top}.json`] : null, deviceOf(part));
   } catch (e) {
     res.flow = `error: ${clean(e.message)}`;
   } finally {
     if (again) return;
+    // built on a larger device than the first: say on which
+    if (part !== PARTS[0] && !/^too large/.test(res.flow)) res.flow = res.flow === 'complete' ? `complete: on the ${chipOf(part)}` : `${res.flow} (on the ${chipOf(part)})`;
     const ww = countWarnings(w);
     if (ww.length) res.warnings.flow = ww;
   }
@@ -371,7 +385,7 @@ if (!isMainThread) {
       const give = () => {
         if (next >= todo.length) { w.terminate(); return; }
         cur = todo[next++];
-        timer = setTimeout(() => { results[cur] = { name: cur, frontend: 'error: timeout', warnings: {}, times: {}, details: {} }; done++; cur = null; w.terminate(); }, TIMEOUT);
+        timer = setTimeout(() => { results[cur] = { name: cur, frontend: `error: timeout (no result after ${TIMEOUT / 60000} min)`, warnings: {}, times: {}, details: {} }; done++; cur = null; w.terminate(); }, TIMEOUT);
         w.postMessage(cur);
       };
       w.on('message', r => {
