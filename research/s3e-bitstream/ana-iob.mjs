@@ -5,10 +5,11 @@
 import fs from 'node:fs';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
 import { tileOf, tileBase } from '../../core/fpga/bitgen.js';
-import { loadDb } from './db.mjs';
+import { loadDb, edges } from './db.mjs';
 
 const dir = process.argv[2];
 const db = loadDb();
+const { maxX: MX, maxY: MY } = edges(db.layout);
 const key = JSON.parse(fs.readFileSync(`${dir}/key.json`, 'utf8'));
 const padOf = Object.fromEntries(key.pads.map(p => [p.site, p]));
 const res = {};   // type|idx|mode|change -> Map(pattern -> count)
@@ -22,7 +23,7 @@ for (const v of key.variants) {
     return { site, change, p, t, base, bits: [] };
   });
   for (const x of d) {
-    const w = wins.find(w => w.base && x.frame - w.base.frame >= 0 && x.frame - w.base.frame < 19 && x.bit - w.base.bit >= 0 && x.bit - w.base.bit < (w.t.y === 0 || w.t.y === 35 ? 80 : 64));
+    const w = wins.find(w => w.base && x.frame - w.base.frame >= 0 && x.frame - w.base.frame < 19 && x.bit - w.base.bit >= 0 && x.bit - w.base.bit < (w.t.y === 0 || w.t.y === MY ? 80 : 64));
     if (!w) { outside.push({ variant: v.name, ...x }); continue; }
     w.bits.push(`${x.value ? '' : '!'}${x.frame - w.base.frame},${x.bit - w.base.bit}`);
   }

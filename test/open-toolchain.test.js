@@ -53,26 +53,44 @@ async function implement(name, body = {}) {
   return r.body.job;
 }
 
-test('openStatus: available for the XC3S250E-CP132; why not for the other devices', () => {
+test('openStatus: available for the Basys2 and Nexys2 parts; why not for the other devices', () => {
   const ok = OF.openStatus(DEV('xc3s250e', 'cp132'));
   assert.equal(ok.available, true, ok.reason);
   assert.equal(ok.part, 'xc3s250ecp132-4');
   assert.equal(ok.shipped, true);
   assert.match(ok.reason, /xc3s250ecp132-4: device description \(shipped with Silinx\) and bit database/);
-  const s500 = OF.openStatus(DEV('xc3s500e', 'fg320'));
-  assert.equal(s500.available, false);
-  assert.equal(s500.canBuild, false);
-  assert.equal(s500.reason, 'no bit database for xc3s500e yet (only the XC3S250E): use an ISE mode for this device');
-  // same chip, another package: the bit database is there, the description can be built from ISE
+  // the other boards' parts (stage E): Basys2-100, Nexys2-500, Nexys2-1200
+  for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s500e', 'fg320'], ['xc3s1200e', 'fg320']]) {
+    const s = OF.openStatus(DEV(part, pkg));
+    assert.equal(s.available, true, `${part}: ${s.reason}`);
+    assert.equal(s.shipped, true);
+    assert.equal(OF.hasBitDatabase(part, pkg), true, part);
+  }
+  // a Spartan-3E without a bit database
+  const s1600 = OF.openStatus(DEV('xc3s1600e', 'fg320'));
+  assert.equal(s1600.available, false);
+  assert.equal(s1600.canBuild, false);
+  assert.equal(s1600.reason, 'no bit database for xc3s1600e yet (only the XC3S100E (CP132), XC3S250E (CP132), XC3S500E (FG320), XC3S1200E (FG320)): use an ISE mode for this device');
+  // same chip, another package: the pads of that package are not measured
   const tq = OF.openStatus(DEV('xc3s250e', 'tq144'));
   assert.equal(tq.available, false);
-  assert.equal(tq.canBuild, true);
-  assert.match(tq.reason, /^no device description of xc3s250etq144-4: build it from your ISE \(Toolchain Settings: Build Device Description\)$/);
+  assert.equal(tq.canBuild, false);
+  assert.equal(tq.reason, 'no bit database for the pads of the xc3s250e in the tq144 package yet (only cp132): use an ISE mode for this device');
+  // a package with its pads in the database but no device description: it can be built from ISE
+  const dbDir = path.join(tmp, 'bitdb');
+  fss.mkdirSync(dbDir, { recursive: true });
+  for (const f of ['s3e-tiles.json', 'xc3s250e-layout.json', 'xc3s250e-lut.json']) fss.copyFileSync(path.join(OF.BIT_DB_DIR, f), path.join(dbDir, f));
+  fss.writeFileSync(path.join(dbDir, 'xc3s250e-tq144-pads.json'), '{"padFeatures":{}}');
+  const tq2 = OF.openStatus(DEV('xc3s250e', 'tq144'), { dbDir });
+  assert.equal(tq2.available, false);
+  assert.equal(tq2.canBuild, true);
+  assert.match(tq2.reason, /^no device description of xc3s250etq144-4: build it from your ISE \(Toolchain Settings: Build Device Description\)$/);
   const s6 = OF.openStatus(DEV('xc6slx16', 'csg324', 'spartan6'));
   assert.equal(s6.available, false);
-  assert.match(s6.reason, /does not support the spartan6 family yet/);
+  assert.match(s6.reason, /does not support the spartan6 family yet \(only the Spartan-3E XC3S100E \(CP132\), XC3S250E/);
   assert.equal(OF.hasBitDatabase('xc3s250e'), true);
-  assert.equal(OF.hasBitDatabase('xc3s500e'), false);
+  assert.equal(OF.hasBitDatabase('xc3s250e', 'tq144'), false);
+  assert.equal(OF.hasBitDatabase('xc3s1600e'), false);
 });
 
 test('openSteps: the chain up to the last step; the ISE-only steps are refused', () => {
@@ -96,16 +114,16 @@ test('toolchain configuration: the open mode, its ISE for device descriptions, t
   assert.equal(st.available, true);
   assert.match(st.reason, /^open toolchain \(experimental, no ISE\)/);
   assert.match(st.help, /needs no Xilinx tool/);
-  await app.call('POST', '/projects', { name: 'Stat', device: DEV('xc3s500e', 'fg320') });
+  await app.call('POST', '/projects', { name: 'Stat', device: DEV('xc3s1600e', 'fg320') });
   const r = await app.call('GET', '/toolchain?project=Stat');
   assert.equal(r.body.ise.mode, 'open');
   assert.equal(r.body.deviceBuilder.mode, 'ssh');
   assert.equal(r.body.deviceBuilder.available, false);
   assert.match(r.body.deviceBuilder.reason, /no ssh host configured/);
   assert.equal(r.body.open.available, false);
-  assert.match(r.body.open.reason, /no bit database for xc3s500e yet/);
+  assert.match(r.body.open.reason, /no bit database for xc3s1600e yet/);
   assert.equal((await app.call('GET', '/toolchain')).body.open, undefined);
-  assert.equal((await app.call('GET', '/projects/Stat/open-status')).body.part, 'xc3s500efg320-4');
+  assert.equal((await app.call('GET', '/projects/Stat/open-status')).body.part, 'xc3s1600efg320-4');
 });
 
 test('open mode: Implement + Generate Programming File of blinky, for real: steps, reports, bitstream, FPGA view', { timeout: 180000 }, async () => {
@@ -171,12 +189,12 @@ test('open mode: Implement + Generate Programming File of blinky, for real: step
 
 test('open mode: a device without a bit database fails with the reason; the ISE-only steps are refused', async () => {
   await writeConfig({ mode: 'open' });
-  await app.call('POST', '/projects', { name: 'Big', template: 'blinky', device: DEV('xc3s500e', 'fg320') });
-  await P.updateProject('Big', pj => { pj.board = null; pj.device = DEV('xc3s500e', 'fg320'); });
+  await app.call('POST', '/projects', { name: 'Big', template: 'blinky', device: DEV('xc3s1600e', 'fg320') });
+  await P.updateProject('Big', pj => { pj.board = null; pj.device = DEV('xc3s1600e', 'fg320'); });
   const j = await waitJob(jobs, await implement('Big', { steps: ['synth'] }));
   assert.equal(j.status, 'error');
-  assert.match(j.error, /^open toolchain not available for xc3s500efg320-4: no bit database for xc3s500e yet \(only the XC3S250E\)/);
-  assert.ok(j.lines.some(l => /^ERROR: the open toolchain cannot implement this design: no bit database for xc3s500e yet/.test(l)));
+  assert.match(j.error, /^open toolchain not available for xc3s1600efg320-4: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\)/);
+  assert.ok(j.lines.some(l => /^ERROR: the open toolchain cannot implement this design: no bit database for xc3s1600e yet/.test(l)));
   const r = await app.call('POST', '/projects/Big/implement', { steps: ['synth', 'postsynth'] });
   assert.equal(r.status, 400);
   assert.match(r.body.error, /not available in the open toolchain \(they need Xilinx ISE\): postsynth/);

@@ -45,15 +45,53 @@ test('every shipped device description loads and has the datasheet\'s slices and
   }
 });
 
+// the open flow of a project: its exit status, output and warnings (every line that says "warning")
+const openFlow = (dir, out) => {
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, out],
+    { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  return { ...r, warnings: `${r.stdout}\n${r.stderr}`.split('\n').filter(l => /warning/i.test(l)).map(l => l.trim()) };
+};
+// the warnings of the open flow on blinky, the same on every device: Yosys's note about shift registers
+const BLINKY_WARNINGS = ['Warning: Shift register inference not yet supported for family xc3se.'];
+
 test('the open flow on the shipped graph: blinky from VHDL to a complete bitstream, no Xilinx tool', { timeout: 300000 }, () => {
   const out = path.join(tmp, 'blinky');
-  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'examples/blinky'), out],
-    { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  const r = openFlow(path.join(ROOT, 'examples/blinky'), out);
   assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
   assert.match(r.stdout, /timing: constraint PERIOD 20 ns on clk: met/);
+  assert.deepEqual(r.warnings, BLINKY_WARNINGS);
   const bit = fs.readFileSync(path.join(out, 'top.bit'));
   assert.ok(bit.length > 160000);
   assert.ok(bit.includes(Buffer.from([0xaa, 0x99, 0x55, 0x66])), 'the sync word');
   for (const f of ['top.json', 'placed.xdl', 'routed.xdl', 'timing.txt']) assert.ok(fs.existsSync(path.join(out, f)), f);
 });
+
+// blinky on the other boards (stage E of research/s3e-bitstream): the Basys2-100 with the Basys2's
+// pins, the Nexys2-500 / -1200 with the Nexys2's (LD4-LD7 differ by die)
+const NEXYS2 = led => [['clk', 'B8'], ['sw<0>', 'G18'], ['sw<1>', 'H18'], ['sw<2>', 'K18'], ['sw<3>', 'K17'], ['btn<0>', 'B18'], ['btn<1>', 'D18'],
+  ...led.map((p, i) => [`led<${i}>`, p])].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;`).join('\n') + '\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\n';
+const BOARDS = [
+  ['Basys2-100', 'xc3s100e', 'cp132', null, 72738],
+  ['Nexys2-500', 'xc3s500e', 'fg320', NEXYS2(['J14', 'J15', 'K15', 'K14', 'E17', 'P15', 'F4', 'R4']), 283846],
+  ['Nexys2-1200', 'xc3s1200e', 'fg320', NEXYS2(['J14', 'J15', 'K15', 'K14', 'E16', 'P16', 'E4', 'P4']), 480219],
+];
+for (const [board, part, pkg, ucf, size] of BOARDS) {
+  test(`the open flow for the ${board} (${part.toUpperCase()}-${pkg.toUpperCase()}): blinky to a complete bitstream, the exact warnings`, { timeout: 300000 }, () => {
+    const dir = path.join(tmp, `proj-${board}`);
+    fs.cpSync(path.join(ROOT, 'examples/blinky'), dir, { recursive: true });
+    const pj = JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8'));
+    Object.assign(pj.device, { part, package: pkg });
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify(pj, null, 2));
+    if (ucf) fs.writeFileSync(path.join(dir, pj.constraints), ucf);
+    const out = path.join(tmp, `out-${board}`);
+    const r = openFlow(dir, out);
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    assert.match(r.stdout, /timing: constraint PERIOD 20 ns on clk: met/);
+    assert.deepEqual(r.warnings, BLINKY_WARNINGS);
+    const bit = fs.readFileSync(path.join(out, 'top.bit'));
+    assert.equal(bit.length, size, 'the .bit of the device');
+    assert.ok(bit.includes(Buffer.from(`${part.slice(2)}${pkg}\0`)), 'the part in the header');
+  });
+}

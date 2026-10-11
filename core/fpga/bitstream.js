@@ -4,14 +4,35 @@
 // packets of UG332 (Spartan-3 Generation Configuration User Guide): a sync word, Type 1 / Type 2
 // packet headers and register writes (CMD, FLR, COR, IDCODE, MASK, FAR, FDRI, CTL, CRC). The frame
 // data is written to FDRI in one Type 2 packet; the packet sequence written here is the one ISE's
-// bitgen writes for an XC3S250E with its default options, so a design with the same frame data
-// gives a byte-identical file.
+// bitgen writes for a Spartan-3E (the same for the XC3S100E, XC3S250E, XC3S500E and XC3S1200E) with
+// its default options, so a design with the same frame data gives a byte-identical file.
 //
 // Frame data: Uint32Array of frames * frameWords words, as written to FDRI. Bit b of a frame is bit
 // (31 - b % 32) of word floor(b / 32) (the first bit of a frame is the most significant bit).
 
+/** The bitstream format of the Spartan-3E devices with a bit database: IDCODE (UG332), frame length in
+ *  words (FLR + 1) and the number of frames written to FDRI, as bitgen writes them for an empty
+ *  design (research/s3e-bitstream gen-map.mjs, decode-map.mjs; the layout files of the bit database
+ *  repeat them). part: the part of the .bit header for the package of the boards (the header is the
+ *  only place the package appears). */
+export const S3E_DEVICES = {
+  xc3s100e: { device: 'xc3s100e', part: '3s100ecp132', idcode: 0x01c10093, frameWords: 49, frames: 369 },
+  xc3s250e: { device: 'xc3s250e', part: '3s250ecp132', idcode: 0x01c1a093, frameWords: 73, frames: 578 },
+  xc3s500e: { device: 'xc3s500e', part: '3s500efg320', idcode: 0x01c22093, frameWords: 97, frames: 730 },
+  xc3s1200e: { device: 'xc3s1200e', part: '3s1200efg320', idcode: 0x01c2e093, frameWords: 125, frames: 959 },
+};
 /** The XC3S250E: frames of 73 words (FLR = 72), 578 frames written to FDRI. */
-export const XC3S250E = { device: 'xc3s250e', part: '3s250ecp132', idcode: 0x01c1a093, frameWords: 73, frames: 578 };
+export const XC3S250E = S3E_DEVICES.xc3s250e;
+
+/** The format of a device ('xc3s500e', or a part such as 'xc3s500efg320-4') for another package:
+ *  the device's format with the part of the header for that package. null when not known. */
+export function bitFormat(device, pkg = null) {
+  const m = /^(?:xc)?(3s\d+e)([a-z]+\d+)?/i.exec(String(device || ''));
+  const f = m && S3E_DEVICES[`xc${m[1].toLowerCase()}`];
+  if (!f) return null;
+  const p = (pkg || m[2] || '').toLowerCase();
+  return p ? { ...f, part: `${m[1].toLowerCase()}${p}` } : f;
+}
 
 // configuration registers (UG332)
 export const REG = { CRC: 0, FAR: 1, FDRI: 2, FDRO: 3, CMD: 4, CTL: 5, MASK: 6, STAT: 7, LOUT: 8, COR: 9, MFWR: 10, FLR: 11, KEY: 12, CBC: 13, IDCODE: 14 };
@@ -61,8 +82,10 @@ const ascii = s => Array.from(String(s), ch => ch.charCodeAt(0) & 0xff);
 
 /** The .bit file of a configuration: { frames, name ('top.ncd'), part ('3s250ecp132'), date
  *  ('2026/10/10'), time ('12:00:00'), crc (true: bitgen's default; false: -g CRC:Disable),
- *  startupClk ('Cclk' | 'UserClk' | 'JtagClk') }. Returns a Uint8Array. */
-export function writeBit({ frames, name = 'design.ncd', part = XC3S250E.part, date = '2026/01/01', time = '00:00:00', crc = true, startupClk = 'Cclk', device = XC3S250E }) {
+ *  startupClk ('Cclk' | 'UserClk' | 'JtagClk'), device (S3E_DEVICES: the frame length, the frames,
+ *  the IDCODE; default the XC3S250E; part defaults to the device's) }. Returns a Uint8Array. */
+export function writeBit({ frames, name = 'design.ncd', part = null, date = '2026/01/01', time = '00:00:00', crc = true, startupClk = 'Cclk', device = XC3S250E }) {
+  part ||= device.part;
   const fw = device.frameWords;
   if (frames.length !== device.frames * fw) throw new Error(`frame data: ${frames.length} words, expected ${device.frames * fw}`);
   const words = [0xffffffff, 0xaa995566];
@@ -112,7 +135,8 @@ export function writeBit({ frames, name = 'design.ncd', part = XC3S250E.part, da
 }
 
 /** Read a .bit file: { header: { a, b, c, d }, packets: [{ reg, words }], frames (Uint32Array, the
- *  FDRI data), cor, crcChecks: [{ expected, computed }] }. Throws if there is no sync word. */
+ *  FDRI data; frames.frameWords: the frame length of the FLR register), cor, crcChecks: [{ expected,
+ *  computed }], frameWords }. Throws if there is no sync word. */
 export function readBit(bytes) {
   const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
   const header = {};
@@ -132,7 +156,7 @@ export function readBit(bytes) {
   const words = [];
   for (let i = s; i + 4 <= b.length; i += 4) words.push(((b[i] << 24) | (b[i + 1] << 16) | (b[i + 2] << 8) | b[i + 3]) >>> 0);
   const packets = [], crcChecks = [];
-  let last = 0, fdri = [], cor = null, c = 0;
+  let last = 0, fdri = [], cor = null, c = 0, flr = null;
   for (let k = 0; k < words.length;) {
     const h = words[k++];
     const t = h >>> 29;
@@ -144,6 +168,7 @@ export function readBit(bytes) {
       if (h === NOOP) continue;
       packets.push({ reg: REG_NAME[reg] ?? reg, words: data });
       if (reg === REG.COR && n) cor = data[0];
+      if (reg === REG.FLR && n) flr = data[0];
       if (reg === REG.FDRI) fdri = fdri.concat(data);
     } else if (t === 2) {
       const n = h & 0x7ffffff;
@@ -157,11 +182,14 @@ export function readBit(bytes) {
       }
     } else if (h !== 0xffffffff) packets.push({ unknown: h });
   }
-  return { header, packets, frames: Uint32Array.from(fdri), cor, crcChecks };
+  const frames = Uint32Array.from(fdri);
+  if (flr !== null) frames.frameWords = flr + 1;
+  return { header, packets, frames, cor, crcChecks, frameWords: flr === null ? null : flr + 1 };
 }
 
-/** The bits that differ between two frame data arrays: [{ frame, bit, value (in b) }]. */
-export function diffFrames(a, b, fw = XC3S250E.frameWords) {
+/** The bits that differ between two frame data arrays: [{ frame, bit, value (in b) }]. fw: the frame
+ *  length in words (default: the arrays' own frameWords, from readBit / frameData, else the XC3S250E's). */
+export function diffFrames(a, b, fw = a.frameWords || b.frameWords || XC3S250E.frameWords) {
   const out = [];
   const n = Math.max(a.length, b.length);
   for (let w = 0; w < n; w++) {

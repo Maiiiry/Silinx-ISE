@@ -1,9 +1,9 @@
-// db/xc3s250e-slice.json: the slice settings of the database (db/xc3s250e-tiles.json, CLB tile
+// db/xc3s250e-slice.json: the slice settings of the database (db/s3e-tiles.json, CLB tile
 // features SLICE<i>:…) as a table per slice position, with the formula that places them in any slice.
 //   node gen-slicetable.mjs > db/xc3s250e-slice.json
 import fs from 'node:fs';
 
-const tiles = JSON.parse(fs.readFileSync(new URL('./db/xc3s250e-tiles.json', import.meta.url), 'utf8'));
+const tiles = JSON.parse(fs.readFileSync(new URL('./db/s3e-tiles.json', import.meta.url), 'utf8'));
 const layout = JSON.parse(fs.readFileSync(new URL('./db/xc3s250e-layout.json', import.meta.url), 'utf8'));
 const positions = {};
 for (const [f, bits] of Object.entries(tiles.types.CENTER_SMALL.features)) {

@@ -1,0 +1,4 @@
+{"source":"stage E: designs implemented by ISE for the XC3S100E, XC3S500E and XC3S1200E (ise-impl.sh, explain-diff.mjs): a flip-flop's REV pin used (REVUSED:0) sets one bit per slice position (observed in all four positions: SLICE0 CLB_X9Y11 of the XC3S100E, CLB_X28Y34 of the XC3S500E; SLICE1 CLB_X9Y12; SLICE2 CLB_X28Y34; SLICE3 CLB_X27Y34; all three in CLB_X36Y47 of the XC3S1200E); the input pads' pin wires of the top I/O tiles set no bits, as on the other sides (blinky on the XC3S100E byte-identical with them)",
+"types":{"CENTER_SMALL":{"features":{"SLICE0:REVUSED:0":["1,40"],"SLICE1:REVUSED:0":["1,8"],"SLICE2:REVUSED:0":["2,40"],"SLICE3:REVUSED:0":["2,8"]}},
+"TIOIS":{"features":{"I0_PINWIRE->IOIS_Y0":[],"I1_PINWIRE->IOIS_Y1":[],"I2_PINWIRE->IOIS_Y2":[]}},
+"TIBUFS":{"features":{"I0_PINWIRE->IOIS_Y0":[],"I1_PINWIRE->IOIS_Y1":[],"I2_PINWIRE->IOIS_Y2":[]}}}}

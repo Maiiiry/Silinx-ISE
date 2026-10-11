@@ -5,7 +5,7 @@
 // own measurements without bits where the CLB's have bits (bits given to a neighbouring tile by
 // ana-pipdrop.mjs). A measurement that contradicts the CLB's is reported and kept. The I/O tiles'
 // own pin wires are renamed to the CLB's (RENAME).
-//   node share-sb.mjs [--check]      (rewrites db/xc3s250e-tiles.json; --check: only the report)
+//   node share-sb.mjs [--check]      (rewrites db/s3e-tiles.json; --check: only the report)
 import fs from 'node:fs';
 import { shiftBit } from '../../core/fpga/bitgen.js';
 
@@ -16,6 +16,19 @@ export const SHIFTS = {
   '0,16': ['TIOIS', 'TIBUFS', 'UR'],
   '2,16': ['UL'],
 };
+// the XC3S100E's tiles at the places of the missing DCMs (stage E: their PIPs measured in its
+// reference designs have the CLB's bits)
+SHIFTS['0,0'].push('DCMAUX_BL_CENTER', 'DCMAUX_TL_CENTER');
+// the tiles of the horizontal clock rows in the I/O and block-RAM columns are GCLKH tiles with other
+// names (GCLKH_PCI_CE_N / _S, the block RAM's …UP_GCLKH… / …DN_GCLKH…): the same switches, one bit in
+// the I/O rows at the top or bottom of the frame like GCLKH (the layout's typeRows, by the row);
+// measured on the XC3S250E as offsets from their own row, which hold for one row only (stage E)
+export const GCLKH_TYPES = ['GCLKH_PCI_CE_N', 'GCLKH_PCI_CE_S', 'BRAMSITE2_UP_GCLKH', 'BRAM2_UP_GCLKH_FEEDTHRU', 'BRAM2_UP_GCLKH_FEEDTHRUA',
+  'BRAMSITE2_DN_GCLKH', 'BRAM2_DN_GCLKH_FEEDTHRU', 'BRAM2_DN_GCLKH_FEEDTHRUA'];
+export const GCLKH_RENAME = [['BRAMSITE2_GCLKH_', 'GCLKH_']];
+// the XC3S1200E's clock tiles (…_LL) are the others' with another name: the same wires and bits
+// (CLKT_LL's switches and buffer settings measured in its reference designs have CLKT's bits)
+export const ALIASES = { CLKT_LL: 'CLKT', CLKB_LL: 'CLKB', CLKC_LL: 'CLKC', CLKV_LL: 'CLKV' };
 // the I/O tiles' own pin wires are the CLB's with another name (IOIS_X0 = X0, IOIS_F1_B0 = F1_B0,
 // IOIS_VCC_WIRE = VCC_PINWIRE): every one measured in both has the same bits; not the clock pins
 // (IOIS_CLK0-7: other bits than the CLB's CLK0-3)
@@ -25,7 +38,7 @@ const renamed = f => RENAME.reduce((x, [a, b]) => x.replace(new RegExp(a, 'g'), 
 
 if (process.argv[1] && process.argv[1].endsWith('share-sb.mjs')) {
   const check = process.argv.includes('--check');
-  const file = new URL('./db/xc3s250e-tiles.json', import.meta.url);
+  const file = new URL('./db/s3e-tiles.json', import.meta.url);
   const db = JSON.parse(fs.readFileSync(file, 'utf8'));
   const clb = db.types.CENTER_SMALL.features;
   let same = 0, empty = 0, conflict = 0;
@@ -62,9 +75,29 @@ if (process.argv[1] && process.argv[1].endsWith('share-sb.mjs')) {
     t.pipsWithoutBits = true;
     for (const f of Object.keys(t.features)) if (/->|=-/.test(f)) { if (t.features[f].length) term++; delete t.features[f]; }
   }
+  // the horizontal clock rows' tiles in the I/O and block-RAM columns: GCLKH's switches
+  let gsame = 0, gconf = 0;
+  const gclkh = db.types.GCLKH.features;
+  for (const type of GCLKH_TYPES) {
+    const t = (db.types[type] ||= { features: {} });
+    t.sameAs = 'GCLKH'; t.rename = GCLKH_RENAME;
+    for (const [f, bits] of Object.entries(t.features)) {
+      const g = gclkh[GCLKH_RENAME.reduce((x, [a, b]) => x.replace(new RegExp(a, 'g'), b), f)];
+      if (!g) continue;
+      const own = bits.map(b => b.replace(/,-?\d+$/, ',0')).sort().join(' ');
+      if (own === g.slice().sort().join(' ') || !bits.length) { delete t.features[f]; gsame++; } else { gconf++; console.error(`${type} ${f}: [${bits.join(' ')}], GCLKH's [${g.join(' ')}]`); }
+    }
+  }
+  console.log(`horizontal clock rows: ${gsame} own features as GCLKH's, ${gconf} different (kept)`);
+  for (const [type, of] of Object.entries(ALIASES)) {
+    const t = (db.types[type] ||= { features: {} });
+    t.sameAs = of;
+    // (set below for CLKT / CLKB)
+    if (/^CLK[TB]_LL$/.test(type)) t.emptyFeatures = null;
+  }
   // the global clock buffers' settings of a buffer driven from I0 set no bits (measured for 2 of the 8
   // buffers, BUFGMUX_X2Y1 and X2Y11, in gen-clock.mjs's design; the same settings for the others)
-  for (const type of ['CLKT', 'CLKB']) if (db.types[type]) db.types[type].emptyFeatures = '^BUFGMUX_X\\d+Y\\d+:(USED|DISABLE_ATTR:LOW|GCLK_BUFFER:|GCLKMUX:|I0_USED:0|SINV:S_B)$';
+  for (const type of ['CLKT', 'CLKB', 'CLKT_LL', 'CLKB_LL']) if (db.types[type]) db.types[type].emptyFeatures = '^BUFGMUX_X\\d+Y\\d+:(USED|DISABLE_ATTR:LOW|GCLK_BUFFER:|GCLKMUX:|I0_USED:0|SINV:S_B)$';
   console.log(`terminal tiles: PIPs without bits (${term} measurements with bits dropped)`);
   console.log(`switch boxes shared: ${same} own features as the CLB's, ${empty} without bits dropped, ${conflict} different (kept)`);
   if (!check) fs.writeFileSync(file, JSON.stringify(db, null, 0).replace(/("[^"]+":\[[^\]]*\]),/g, '$1,\n'));

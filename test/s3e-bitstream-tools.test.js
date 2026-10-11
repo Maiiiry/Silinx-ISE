@@ -37,7 +37,7 @@ const dbDir = new URL('../research/s3e-bitstream/db/', import.meta.url);
 const read = f => JSON.parse(fs.readFileSync(new URL(f, dbDir), 'utf8'));
 
 test('measured database: the I/O, block-RAM and DCM tiles use the CLB switch box', () => {
-  const tiles = read('xc3s250e-tiles.json');
+  const tiles = read('s3e-tiles.json');
   for (const [sh, types] of Object.entries(SHIFTS)) for (const t of types) {
     assert.equal(tiles.types[t]?.sameAs, 'CENTER_SMALL', t);
     assert.deepEqual(tiles.types[t].shift || [0, 0], sh.split(',').map(Number), t);
@@ -53,7 +53,7 @@ test('measured database: the I/O, block-RAM and DCM tiles use the CLB switch box
 });
 
 test('measured database: the terminal tiles\' PIPs set no bits', () => {
-  const tiles = read('xc3s250e-tiles.json');
+  const tiles = read('s3e-tiles.json');
   const term = Object.entries(tiles.types).filter(([t]) => /TERM/.test(t));
   assert.ok(term.length > 20);
   for (const [t, ty] of term) {
@@ -63,7 +63,7 @@ test('measured database: the terminal tiles\' PIPs set no bits', () => {
 });
 
 test('measured database: SLICEM instances, the constant sources and the carry outputs', () => {
-  const f = read('xc3s250e-tiles.json').types.CENTER_SMALL.features;
+  const f = read('s3e-tiles.json').types.CENTER_SMALL.features;
   assert.deepEqual(f['SLICE0:SLICEM'], ['1,55', '1,57']);
   assert.deepEqual(f['SLICE1:SLICEM'], ['1,23', '1,25']);
   assert.deepEqual(f['SLICE1:_GND_SOURCE:Y'], []);
@@ -80,7 +80,7 @@ test('measured database: every memory bit of the block RAMs has its own place', 
 });
 
 test('measured database: block-RAM, multiplier and DCM settings', () => {
-  const t = read('xc3s250e-tiles.json').types;
+  const t = read('s3e-tiles.json').types;
   const b = t.BRAMSITE2.features;
   // the port widths: a 3-bit code per port
   assert.deepEqual(b['RAMB16:PORTA_ATTR:16384X1'], []);
@@ -95,14 +95,14 @@ test('measured database: block-RAM, multiplier and DCM settings', () => {
 });
 
 test('measured database: SLICEM as RAM / shift register, I/O drive, slew and pull per pad', () => {
-  const tiles = read('xc3s250e-tiles.json');
+  const tiles = read('s3e-tiles.json');
   const f = tiles.types.CENTER_SMALL.features;
   assert.deepEqual(f['SLICE0:F:#RAM'], ['!1,50']);
   assert.deepEqual(f['SLICE1:G:#RAM:SHIFT_REG'], ['!1,25']);
   assert.deepEqual(f['SLICE0:WSGEN:'], ['1,46']);
   assert.equal(tiles.padDriveDefault.LVCMOS15, '8');
   // every pad of the package with an output: the drive, slew, pull and standard changes
-  const pads = Object.values(tiles.padFeatures).filter(p => p['O:LVCMOS33']);
+  const pads = Object.values(read('xc3s250e-cp132-pads.json').padFeatures).filter(p => p['O:LVCMOS33']);
   assert.ok(pads.length > 80);
   for (const p of pads) for (const k of ['O:DRIVE:8', 'O:SLEW:FAST', 'O:PULL:PULLUP', 'O:LVTTL', 'O:LVTTL:DRIVE:8']) assert.ok(Array.isArray(p[k]), k);
 });

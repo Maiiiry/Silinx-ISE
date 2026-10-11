@@ -24,24 +24,31 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deviceFamily } from '../core/family.js';
 import { findDeviceGraph, shippedDevicePath, buildDeviceCache, devicesDir, SHIPPED_DEVICES_DIR } from '../core/fpga/device-node.js';
+import { S3E_DEVICES } from '../core/fpga/bitstream.js';
+import { DB_DIR, hasBitDb, dbPackages } from '../research/s3e-bitstream/db.mjs';
 import { runCommand } from './jobs.js';
 import { loadConfig, detectIse, iseStatus, iseModeOf, which } from './toolchain.js';
 import { generateBuild, partStrings, collectReports, runLocal, runDocker, runSsh, normalizeSteps, STEPS } from './ise.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-/** The bit database (research/s3e-bitstream/db/<device>-*.json). */
-export const BIT_DB_DIR = path.join(HERE, '..', 'research', 's3e-bitstream', 'db');
+/** The bit database (research/s3e-bitstream/db: <device>-*.json, s3e-tiles.json; SILINX_BIT_DB_DIR:
+ *  another folder, for tests). */
+export const BIT_DB_DIR = process.env.SILINX_BIT_DB_DIR || DB_DIR;
 // the devices whose bitstream format Silinx writes (core/fpga/bitstream.js)
-const BITSTREAM_DEVICES = ['xc3s250e'];
+const BITSTREAM_DEVICES = Object.keys(S3E_DEVICES);
+/** The devices with a bit database, for the messages: 'XC3S100E (CP132), XC3S250E (CP132)…'. */
+const supported = (dir = BIT_DB_DIR) => BITSTREAM_DEVICES.map(d => [d, hasBitDatabase(d, null, dir) ? dbPackages(d, dir) : []]).filter(([, p]) => p.length)
+  .map(([d, p]) => `${d.toUpperCase()} (${p.join(', ').toUpperCase()})`).join(', ');
 
 /** The steps of the open flow (the ISE flow's names). The others (simulation models, power,
  *  back-annotated pins) need ISE. */
 export const OPEN_STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit', 'fpgaview'];
 const CHAIN = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
 
-/** Does a bit database exist for this device (e.g. 'xc3s250e')? */
-export function hasBitDatabase(dev) {
-  return BITSTREAM_DEVICES.includes(dev) && ['layout', 'lut', 'tiles'].every(k => fss.existsSync(path.join(BIT_DB_DIR, `${dev}-${k}.json`)));
+/** Does a bit database exist for this device (e.g. 'xc3s250e'), and with pkg for the pads of that
+ *  package (e.g. 'cp132')? */
+export function hasBitDatabase(dev, pkg = null, dir = BIT_DB_DIR) {
+  return BITSTREAM_DEVICES.includes(dev) && hasBitDb(dev, { pkg, dir });
 }
 
 /** The device part as the device report names it: xc3s250ecp132-4. */
@@ -55,7 +62,7 @@ export function reportPart(device) {
  * { available, reason, part, device, graph (file or null), shipped, bitDb, canBuild (a device
  * description built from the user's ISE would make it available) }.
  */
-export function openStatus(device) {
+export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
   const out = { available: false, reason: '', part: null, device: null, graph: null, shipped: false, bitDb: false, canBuild: false };
   let part;
   try { part = reportPart(device || {}); } catch (e) { out.reason = e.message; return out; }
@@ -63,14 +70,18 @@ export function openStatus(device) {
   Object.assign(out, { part, device: dev });
   const fam = deviceFamily(device) || '';
   if (fam !== 'spartan3e') {
-    out.reason = `the open toolchain does not support the ${fam || dev} family yet (only the Spartan-3E XC3S250E): use an ISE mode`;
+    out.reason = `the open toolchain does not support the ${fam || dev} family yet (only the Spartan-3E ${supported(dbDir)}): use an ISE mode`;
     return out;
   }
-  out.bitDb = hasBitDatabase(dev);
+  const pkg = String(device.package || '').toLowerCase();
+  out.bitDb = hasBitDatabase(dev, pkg, dbDir);
   out.graph = findDeviceGraph(part);
   out.shipped = !!out.graph && path.dirname(out.graph) === SHIPPED_DEVICES_DIR;
   if (!out.bitDb) {
-    out.reason = `no bit database for ${dev} yet (only the XC3S250E): use an ISE mode for this device`;
+    const pkgs = dbPackages(dev, dbDir);
+    out.reason = hasBitDatabase(dev, null, dbDir)
+      ? `no bit database for the pads of the ${dev} in the ${pkg} package yet (${pkgs.length ? `only ${pkgs.join(', ')}` : 'no package yet'}): use an ISE mode for this device`
+      : `no bit database for ${dev} yet (only the ${supported(dbDir)}): use an ISE mode for this device`;
     return out;
   }
   if (!out.graph) {

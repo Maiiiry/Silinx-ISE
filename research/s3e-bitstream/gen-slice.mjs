@@ -1,6 +1,7 @@
 // Full project, stage B: the settings inside a Spartan-3E slice. A base slice (SLICE_X31Y47) with
 // both LUTs and both flip-flops; one design per changed setting; compare each with the base.
 import fs from 'node:fs';
+import { PART } from './db.mjs';
 const out = process.argv[2];
 fs.mkdirSync(out, { recursive: true });
 const SITE = 'SLICE_X31Y47', TILE = 'CLB_X16Y24';
@@ -25,7 +26,7 @@ const VARIANTS = [
   ['F5MUX', 's_f5:'], ['FXMUX5', ''], ['XORF', 's_xf:'], ['XORG', 's_xg:'], ['CYMUXF', 's_cf:'], ['CYMUXG', 's_cg:'],
 ].filter(([k]) => k !== 'FXMUX5');
 const cfg = o => Object.entries(o).filter(([, v]) => !/^:#OFF$/.test(v)).map(([k, v]) => `${k}:${v}`).join(' ');
-const xdl = o => `design "fuzz" xc3s250ecp132-4 v3.2 ,\n  cfg "";\ninst "s" "SLICEL",placed ${TILE} ${SITE} ,\n  cfg " ${cfg(o)} "\n  ;\n`;
+const xdl = o => `design "fuzz" ${PART} v3.2 ,\n  cfg "";\ninst "s" "SLICEL",placed ${TILE} ${SITE} ,\n  cfg " ${cfg(o)} "\n  ;\n`;
 fs.writeFileSync(`${out}/BASE.xdl`, xdl(BASE));
 const names = [];
 VARIANTS.forEach(([k, v], i) => {

@@ -822,7 +822,7 @@ export async function toolchainDialog() {
   const openBox = h('div', { class: `msg open-status ${os?.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, os?.available ? '✓' : '!'),
     h('div', { class: 'msg-text' }, h('b', {}, os ? `Open toolchain for ${os.part || S.project?.device?.part || 'this device'}: ${os.available ? 'available' : 'not available'}` : 'Open toolchain: open a project to see whether its device is supported'),
       os ? h('div', {}, os.reason) : null,
-      h('div', { style: { color: '#555', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S250E (Basys2-250). Experimental: check the design on the board.'),
+      h('div', { style: { color: '#555', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2). Experimental: check the design on the board.'),
       os && (os.canBuild || !os.available) && os.bitDb ? h('div', { style: { marginTop: '4px' } }, `Build Device Description runs xdl -report on your Xilinx ISE (${tc.deviceBuilder?.mode || iseMode.value} mode${tc.deviceBuilder?.available === false ? `: not available, ${tc.deviceBuilder.reason}` : ''}).`) : null));
   let buildBtn = null;
   const renderMode = () => {

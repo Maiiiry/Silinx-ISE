@@ -10,6 +10,7 @@
 //   g.pips[t] = [[from, to, bidir, routeThrough], …] (wire names of tile t)
 import fs from 'node:fs';
 import v8 from 'node:v8';
+import { loadDeviceCache } from '../../core/fpga/device-node.js';
 
 const W = 1 << 16;   // wire name ids per tile in a wire key (key = tile * W + name id)
 
@@ -70,8 +71,61 @@ function parse(file) {
   return { names, tiles, keys: Float64Array.from(keys), roots: Float64Array.from(roots), pipT, pipA, pipB, pipBi, rt };
 }
 
-/** The device graph (parsed once, then cached as dev-full.cache next to the report). */
+/** The same graph from Silinx's device description (core/fpga/device.js; a part such as
+ *  'xc3s500efg320-4', or a .json.gz file): the reports of the larger devices are too large to read
+ *  as one string, and the description has everything the experiments use. A node is numbered as
+ *  tile * W + name of one of its wires, so Math.floor(node / W) is a tile of the node. */
+export function graphFromDevice(d) {
+  const names = d.names, nameId = new Map(names.map((s, i) => [s, i]));
+  const tiles = [], tileByName = new Map();
+  for (let k = 0; k < d.tileCount; k++) {
+    const tp = d.templates[d.tileTemplate[k]];
+    const sites = d.tileSites[k].map(([name, bonded], i) => ({
+      name, type: tp.sites[i].type, bonded: ['internal', 'bonded', 'unbonded'][bonded] || 'internal',
+      pins: Object.fromEntries([...tp.sites[i].pins].map(([pin, p]) => [pin, { dir: p.dir === 'o' ? 'output' : 'input', wire: names[tp.wires[p.wire]] }])),
+    }));
+    tiles.push({ r: d.tileRow[k], c: d.tileCol[k], name: d.tileNames[k], type: tp.type, sites });
+    tileByName.set(d.tileNames[k], k);
+  }
+  // the key of every wire's node: the key (tile * W + name) of the node's first wire
+  const keyOfWire = w => { const k = d.wireTile[w]; return k * W + d.templates[d.tileTemplate[k]].wires[w - d.tileWireBase[k]]; };
+  const nodeKey = new Float64Array(d.nodeCount);
+  for (let n = 0; n < d.nodeCount; n++) nodeKey[n] = keyOfWire(d.nodeWires[d.nodeStart[n]]);
+  const node = (t, w) => {
+    const id = typeof w === 'number' ? w : nameId.get(w);
+    const l = d.templates[d.tileTemplate[t]].local.get(names[id]);
+    return l === undefined ? t * W + id : nodeKey[d.nodeOf[d.tileWireBase[t] + l]];
+  };
+  const P = d.pipCount;
+  const pipT = new Int32Array(P), pipA = new Int32Array(P), pipB = new Int32Array(P), pipBi = new Uint8Array(P), rt = {};
+  const pipsOf = [];
+  let i = 0;
+  for (let k = 0; k < d.tileCount; k++) {
+    const tp = d.templates[d.tileTemplate[k]];
+    const list = pipsOf[k] = [];
+    for (let j = 0; j < tp.from.length; j++, i++) {
+      pipT[i] = k; pipA[i] = tp.wires[tp.from[j]]; pipB[i] = tp.wires[tp.to[j]]; pipBi[i] = tp.flags[j] & 1;
+      if (tp.rt[j] >= 0) rt[i] = d.routethrus[tp.rt[j]];
+      list.push(i);
+    }
+  }
+  return {
+    names, nameId, tiles, tileByName, node, W,
+    pipCount: P,
+    pip: q => ({ t: pipT[q], from: names[pipA[q]], to: names[pipB[q]], bidir: !!pipBi[q], rt: rt[q] || null }),
+    pipT, pipA, pipB, pipBi, rt, pipsOf: t => pipsOf[t] || [],
+    members(n) {
+      const t = Math.floor(n / W), l = d.templates[d.tileTemplate[t]].local.get(names[n % W]);
+      if (l === undefined) return [[t, names[n % W]]];
+      return Array.from(d.nodeWireIds(d.nodeOf[d.tileWireBase[t] + l]), w => { const x = d.wireInfo(w); return [tileByName.get(x.tile), x.name]; });
+    },
+  };
+}
+
+/** The device graph: of a device report (parsed once, then cached as dev-full.cache next to it), or
+ *  of a part's device description (graphFromDevice). */
 export function loadGraph(file) {
+  if (!/\.xdlrc$/.test(file)) return graphFromDevice(loadDeviceCache(file));
   const cache = file.replace(/\.xdlrc$/, '') + '.cache';
   let raw;
   if (fs.existsSync(cache) && fs.statSync(cache).mtimeMs > fs.statSync(file).mtimeMs) raw = v8.deserialize(fs.readFileSync(cache));

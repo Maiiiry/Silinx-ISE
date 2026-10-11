@@ -5,6 +5,7 @@
 //   node gen-bram.mjs dev-full.xdlrc outdir
 import fs from 'node:fs';
 import { loadGraph } from './xdlrc-graph.mjs';
+import { PART } from './db.mjs';
 
 const [xdlrc, out] = process.argv.slice(2);
 const g = loadGraph(xdlrc);
@@ -26,7 +27,7 @@ const inits = on => {
   return cfg.join(' ');
 };
 const write = (name, on) => {
-  const txt = [`design "bram" xc3s250ecp132-4 v3.2 ,\n  cfg "";`];
+  const txt = [`design "bram" ${PART} v3.2 ,\n  cfg "";`];
   for (const { site, tile } of sites) txt.push(`inst "${site}" "RAMB16",placed ${tile} ${site} ,\n  cfg " RAMB16:${site}_r: PORTA_ATTR::512X36 PORTB_ATTR::512X36 WRITEMODEA::WRITE_FIRST WRITEMODEB::WRITE_FIRST ${inits(on)} "\n  ;`);
   fs.writeFileSync(`${out}/${name}.xdl`, txt.join('\n') + '\n');
 };

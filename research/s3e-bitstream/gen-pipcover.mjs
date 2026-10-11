@@ -9,6 +9,7 @@
 // measured.json: { "TYPE": ["from->to", …] } PIPs already measured (not chosen again unless all are).
 import fs from 'node:fs';
 import { loadGraph } from './xdlrc-graph.mjs';
+import { PART } from './db.mjs';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
@@ -183,7 +184,7 @@ const inst = s => {
   return `inst "${s}" "${u.type}",placed ${u.tile} ${s} ,\n  cfg " ${cfg.join(' ')} "\n  ;`;
 };
 const write = (file, v) => {
-  const txt = [`design "cover" xc3s250ecp132-4 v3.2 ,\n  cfg "";`];
+  const txt = [`design "cover" ${PART} v3.2 ,\n  cfg "";`];
   for (const s of sliceUse.keys()) txt.push(inst(s));
   nets.forEach((n, j) => {
     const drop = v !== null && testCode.get(j).includes(v);

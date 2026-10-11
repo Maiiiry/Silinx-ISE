@@ -1,5 +1,5 @@
-// Silinx - bitstream generation for the Spartan-3E XC3S250E (browser + Node): a placed and routed
-// design (XDL, core/xdl.js parseXdl) -> frame data -> a .bit file.
+// Silinx - bitstream generation for the Spartan-3E (browser + Node: XC3S100E, XC3S250E, XC3S500E,
+// XC3S1200E): a placed and routed design (XDL, core/xdl.js parseXdl) -> frame data -> a .bit file.
 //
 // The configuration is the sum of the design's features. A feature belongs to a tile of the device
 // and sets a few bits at fixed positions relative to the tile (its column of frames and its row of
@@ -7,14 +7,15 @@
 // contents of a LUT. The positions come from the bit database (research/s3e-bitstream/db/*.json),
 // built by observing which bits ISE's bitgen sets for small test designs (docs/OPEN-TOOLCHAIN.md).
 //
-//   const db = makeDb({ layout, lut, tiles, pads, bram })    the JSON files of the database; pads from
-//                                                      padsFromDevice(the user's device cache)
+//   const db = makeDb({ layout, lut, tiles, pads, padFeatures, bram })    the JSON files of the
+//        database of one device (research/s3e-bitstream/db.mjs loadDb reads them); pads from
+//        padsFromDevice(the device description); the bitstream format from the layout
 //   const { bytes, unknown } = bitgen(xdlText, db, { name: 'top.ncd', crc: true })
 //
 // `unknown` lists the features of the design that the database does not know (their bits are not
 // set), so a caller can tell whether the bitstream is complete.
 import { parseXdl, lutTable } from '../xdl.js';
-import { XC3S250E, writeBit, setBit } from './bitstream.js';
+import { XC3S250E, S3E_DEVICES, writeBit, setBit } from './bitstream.js';
 
 /**
  * The I/O sites of the package's pins: pad name -> [tile, index of the pad among the I/O sites of
@@ -33,8 +34,22 @@ export function padsFromDevice(device) {
   return pads;
 }
 
-/** Join the database files (and the pads of the device) into one object with fast lookups. */
-export function makeDb({ layout, lut, tiles, pads = {}, bram = null }) {
+/** The bitstream format of a database's device: from its layout (idcode, frameWords, frames; the
+ *  device 'xc3s500e-4-fg320'), else the XC3S250E's. */
+export function layoutFormat(layout) {
+  const m = /^(xc3s\d+e)(?:-\d+)?(?:-([a-z]+\d+))?$/.exec(String(layout?.device || ''));
+  const base = (m && S3E_DEVICES[m[1]]) || XC3S250E;
+  const f = { ...base };
+  if (m && m[2]) f.part = `${m[1].slice(2)}${m[2]}`;
+  if (layout?.idcode) f.idcode = Number(layout.idcode);
+  if (layout?.frameWords) f.frameWords = layout.frameWords;
+  if (layout?.frames) f.frames = layout.frames;
+  return f;
+}
+
+/** Join the database files (and the pads of the device) into one object with fast lookups.
+ *  padFeatures: the pads' own features (absolute bits, per package), default tiles.padFeatures. */
+export function makeDb({ layout, lut, tiles, pads = {}, padFeatures = null, bram = null }) {
   const types = {};
   for (const [type, t] of Object.entries(tiles.types || {})) {
     const feats = new Map();
@@ -56,7 +71,7 @@ export function makeDb({ layout, lut, tiles, pads = {}, bram = null }) {
     // tile's IOIS_X0, IOIS_F1_B0… are the CLB's X0, F1_B0…): `rename: [[regexp, replacement], …]`
     t.rename = (t.rename || []).map(([re, to]) => [new RegExp(re, 'g'), to]);
   }
-  return { layout, lut, tiles, types, pads, padFeats: tiles.padFeatures || {}, bram };
+  return { layout, lut, tiles, types, pads, padFeats: padFeatures || tiles.padFeatures || {}, bram, format: layoutFormat(layout) };
 }
 
 /** The bits of a feature of a tile type (undefined when the database does not know it). */
@@ -286,9 +301,10 @@ export function knownRouting(db) {
 }
 
 /** The frame data of a design: { frames, unknown: [{ tile, feature }] }. */
-export function frameData(design, db, device = XC3S250E) {
+export function frameData(design, db, device = db.format || XC3S250E) {
   const fw = device.frameWords;
   const frames = new Uint32Array(device.frames * fw);
+  frames.frameWords = fw;
   for (const [f, b] of db.layout.defaults || []) setBit(frames, fw, f, b, 1);
   const { feats, luts, brams } = designFeatures(design, db);
   const unknown = [];
@@ -338,10 +354,12 @@ export function frameData(design, db, device = XC3S250E) {
 
 /** A .bit file for a placed and routed design: { bytes (Uint8Array), unknown }. design: XDL text or
  *  a parseXdl() result. opts: name (the design file name in the header, default `${design}.ncd`),
- *  date, time, crc (default true), startupClk. */
+ *  date, time, crc (default true), startupClk, part (default the database's: its layout's device and
+ *  package). The format (frames, IDCODE) is the database's device's (db.format). */
 export function bitgen(design, db, opts = {}) {
   const d = typeof design === 'string' ? parseXdl(design) : design;
-  const { frames, unknown } = frameData(d, db);
-  const bytes = writeBit({ frames, name: opts.name || `${d.name || 'design'}.ncd`, ...opts });
+  const device = db.format || XC3S250E;
+  const { frames, unknown } = frameData(d, db, device);
+  const bytes = writeBit({ frames, name: opts.name || `${d.name || 'design'}.ncd`, device, ...opts });
   return { bytes, unknown };
 }

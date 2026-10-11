@@ -61,7 +61,7 @@ step(`pack (${packed.stats.slices} slices)`, t);
 // place, on the sites of the device cache
 t = Date.now();
 const device = loadDeviceCache(part);
-const db = loadDb();
+const db = loadDb(part, { graph: device });
 const known = knownRouting(db);
 // each clock's flip-flops on the slices its global line reaches through switches of known bits
 const r = place(packed, deviceSites(device), { seed, effort, timing, clockSites: site => clockReach(device, site, known.allowPip) });

@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import { loadGraph } from './xdlrc-graph.mjs';
 import { makeRouter } from './router.mjs';
+import { PART } from './db.mjs';
 
 const [xdlrc, out, mode] = process.argv.slice(2);
 const g = loadGraph(xdlrc);
@@ -64,7 +65,7 @@ const route = mode => {
 const OUT = { DRIVEATTRBOX: '12', IOATTRBOX: 'LVCMOS33', O1INV: 'O1', OMUX: 'O1', SLEW: 'SLOW' };
 const IN = { IDELMUX: '1', IMUX: '1', IOATTRBOX: 'LVCMOS33' };
 const write = (name, r, changes, keep = () => true) => {
-  const txt = [`design "iob" xc3s250ecp132-4 v3.2 ,\n  cfg "";`];
+  const txt = [`design "iob" ${PART} v3.2 ,\n  cfg "";`];
   const nets = r.nets.filter(n => keep(n.pad));
   const used = new Set(nets.map(n => n.text.match(/(?:outpin|inpin) "(SLICE_X\d+Y\d+)"/)[1]));
   for (const [s, u] of r.slices) {

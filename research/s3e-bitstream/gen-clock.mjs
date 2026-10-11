@@ -6,6 +6,7 @@
 import fs from 'node:fs';
 import { loadGraph } from './xdlrc-graph.mjs';
 import { makeRouter } from './router.mjs';
+import { PART } from './db.mjs';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
@@ -96,7 +97,7 @@ for (const ps of Object.values(key)) {
   ps.forEach((p, k) => { p.code = words[pool[k]]; code.set(p.e, p.code); });
 }
 const write = (file, v) => {
-  const txt = [`design "clock" xc3s250ecp132-4 v3.2 ,\n  cfg "";`];
+  const txt = [`design "clock" ${PART} v3.2 ,\n  cfg "";`];
   for (const b of bufs) txt.push(`inst "b_${b.site}" "BUFGMUX",placed ${b.tile} ${b.site} ,\n  cfg " DISABLE_ATTR::LOW I0_USED::0 SINV::S_B GCLKMUX:b_${b.site}.GCLKMUX: GCLK_BUFFER:b_${b.site}: "\n  ;`);
   for (const [s, u] of slices) {
     const cfg = [];
