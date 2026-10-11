@@ -40,6 +40,11 @@ refuses a source without one, or not pinned to a commit.
 | [VTR benchmarks](https://github.com/verilog-to-routing/vtr-verilog-to-routing) | sha, diffeq1, diffeq2, ch_intrinsics, stereovision3, mkPktMerge | open source, each under the terms in its own source (VTR's LICENSE.md); sha: OpenCores BSD-style | Verilog |
 | [EPFL combinational suite](https://github.com/lsils/benchmarks) | ctrl, int2float, cavlc, router, priority, dec, i2c, adder, bar, max | MIT | Verilog (gates) |
 
+The VTR benchmarks (sha, diffeq1, diffeq2, ch_intrinsics, stereovision3, mkPktMerge) carry no licence
+of their own beyond VTR's LICENSE.md; the author decided (2026-10-11) to keep them in the corpus on
+the condition that they are only downloaded for testing (scripts/fetch-design-corpus.mjs) and never
+committed or redistributed with Silinx, as every design of the corpus.
+
 Not included: ISCAS'85 / '89 (no repository with a licence found), the GHDL test suite (optional,
 later), the larger VTR and EPFL designs (too large for the XC3S250E: kept for the XC3S500E /
 1200E when their bit databases exist), Plasma (licence unclear).
