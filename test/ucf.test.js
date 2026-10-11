@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateUcf, parseUcf, expandPort, normalizePort, periodNs, bitName } from '../core/ucf.js';
+import { generateUcf, parseUcf, expandPort, normalizePort, periodNs, bitName, ucfPortName, boardAutoAssign } from '../core/ucf.js';
 
 test('bus naming: led[7:0] bit 3 -> led<3>', () => {
   assert.equal(bitName('led', 3), 'led<3>');
@@ -125,6 +125,45 @@ test('checkUcf: unknown nets, bus bits, duplicate pins, values and syntax are re
   at(7, /not a UCF statement/);
   at(8, /single bit/);
   at(9, /missing ';'/);
+});
+
+// #34: XST's names of escaped Verilog identifiers, measured with ISE 14.7 (the netlist's port names
+// and the UCF names ngdbuild finds)
+test('ucfPortName / bitName: XST\'s netlist names of escaped ports (measured with ISE)', () => {
+  const xst = {
+    'opcode[0]': '_opcode[0]_', 'res[0]': '_res[0]_', '1abc': '_1abc_', 'a[1:0]': '_a[1:0]_', 'm(2)': '_m(2)_', 'n<4>': '_n<4>_', 'A[0]': '_A[0]_',
+    'a+b': '_a_b_', 'foo.bar': '_foo_bar_', 'x/y': '_x_y_', 'p~z': '_p_z_', 'p^z': '_p_z_', 'p*z': '_p_z_', 'p=z': '_p_z_', 'p%z': '_p_z_', 'p&z': '_p_z_', 'p\\z': '_p_z_', 'w[0]$x': '_w[0]_x_', '9$': '_9__',
+    'p-z': '_p-z_', 'p{z': '_p{z_', 'p}z': '_p}z_', 'p:z': '_p:z_', 'p;z': '_p;z_', 'p#z': '_p#z_', 'p|z': '_p|z_', 'p@z': '_p@z_', 'p?z': '_p?z_', 'p!z': '_p!z_', "p'z": "_p'z_", 'p`z': '_p`z_', 'p,z': '_p,z_',
+    plain: 'plain', _q_: '_q_', 'b$c': 'b_c', 'q$': 'q_', clk: 'clk',
+  };
+  for (const [hdl, net] of Object.entries(xst)) assert.equal(ucfPortName(hdl), net, hdl);
+  assert.equal(bitName('opcode[0]'), '_opcode[0]_');
+  assert.equal(bitName('v.x', 1), '_v_x_<1>');
+  assert.deepEqual(expandPort({ name: 'v.x', msb: 1, lsb: 0 }), ['_v_x_<0>', '_v_x_<1>']);
+  assert.deepEqual(expandPort({ name: 'opcode[0]' }), ['_opcode[0]_']);
+  // a UCF written for such ports, and the board's automatic pins
+  const ports = [{ name: 'opcode[0]', dir: 'in' }, { name: 'v.x', dir: 'in', msb: 1, lsb: 0 }];
+  assert.match(generateUcf({ ports, assignments: { '_opcode[0]_': { loc: 'A1' }, '_v_x_<1>': { loc: 'B2' } } }),
+    /^NET "_opcode\[0\]_" LOC = "A1" ;\n# NET "_v_x_<0>" +LOC = "" ; {2}# unassigned\nNET "_v_x_<1>" +LOC = "B2" ;$/m);
+  const board = { name: 'B', resources: [{ name: 'clk$', group: 'Clock', pins: ['B8'], extra: { period: '20 ns' } }] };
+  const auto = boardAutoAssign([{ name: 'clk$', width: 1 }], board);
+  assert.deepEqual(auto.assignments, { clk_: { loc: 'B8' } });
+  assert.deepEqual(auto.clocks, [{ net: 'clk_', period: 20, duty: 50 }]);
+});
+
+test('checkUcf: escaped ports by XST\'s names are accepted; by their HDL names, an error as in ngdbuild (#34)', () => {
+  const ports = [{ name: 'opcode[0]', dir: 'in' }, { name: 'opcode[1]', dir: 'in' }, { name: 'v.x', dir: 'in', msb: 1, lsb: 0 }, { name: 'b$c', dir: 'in' }, { name: 'clk', dir: 'in' }];
+  const c = t => checkUcf(t, { top: 'top', ports, lang: 'verilog', package: 'cp132' }).map(d => `${d.line}:${d.col} ${d.severity}: ${d.message}`);
+  assert.deepEqual(c('NET "_opcode[0]_" LOC = "A1" ;\nNET "_opcode[1]_" LOC = "A2" ;\nNET "_v_x_<0>" LOC = "A3" ;\nNET "_v_x_<1>" LOC = "B3" ;\nNET "b_c" LOC = "B1";\nNET "clk" LOC = "C8";\n'), []);
+  assert.deepEqual(c('NET "opcode[0]" LOC = "A1" ;\nNET "\\opcode[1]" LOC = "A2" ;\nNET "v.x<0>" LOC = "A3" ;\nNET "_v_x_" LOC = "B3" ;\nNET "b$c" LOC = "B1";\nNET "_OPCODE[1]_" LOC = "B2";\n'), [
+    '1:6 error: NET "opcode[0]" is not found by ISE: XST names the port \'opcode[0]\' _opcode[0]_ in its netlist (use NET "_opcode[0]_")',
+    '2:6 error: NET "\\opcode[1]" is not found by ISE: XST names the port \'opcode[1]\' _opcode[1]_ in its netlist (use NET "_opcode[1]_")',
+    '3:6 error: NET "v.x<0>" is not found by ISE: XST names the port \'v.x\' _v_x_ in its netlist (use NET "_v_x_<0>")',
+    '4:6 error: \'_v_x_\' is a 2-bit bus: constrain each bit (NET "_v_x_<0>" …)',
+    '5:6 error: NET "b$c" is not found by ISE: XST names the port \'b$c\' b_c in its netlist (use NET "b_c")',
+    '6:1 warning: 5 port bit(s) of \'top\' have no LOC: _opcode[0]_, _v_x_<0>, _v_x_<1>, b_c, clk',
+    '6:6 error: NET "_OPCODE[1]_": the port is called \'_opcode[1]_\' (UCF names are case-sensitive for Verilog designs)',
+  ]);
 });
 
 test('checkUcf: timing constraints on internal nets are warnings; QFP pins and board pins are checked', () => {

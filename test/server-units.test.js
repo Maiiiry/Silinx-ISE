@@ -509,6 +509,16 @@ test('unconstrainedPorts: a 1-bit vector port is x<0> in the UCF (VHDL and Veril
   assert.deepEqual((await ise.unconstrainedPorts([v], 'm', '')).map(u => u.net), ['a', 'b<0>', 'c<0>', 'c<1>']);
 });
 
+test('unconstrainedPorts: escaped port names are XST\'s (\\opcode[0]  -> _opcode[0]_, b$c -> b_c), a LOC on them is seen (#34)', async () => {
+  const v = { path: 'e.v', lang: 'verilog', text: 'module e(\\opcode[0] , \\opcode[1] , \\v.x , b$c, clk, \\res[0] );\n input \\opcode[0] , \\opcode[1] , b$c, clk;\n input [1:0] \\v.x ;\n output \\res[0] ;\n reg r;\n always @(posedge clk) r <= \\opcode[0] ^ \\opcode[1] ^ b$c ^ ^\\v.x ;\n assign \\res[0] = r;\nendmodule\n' };
+  assert.deepEqual(await ise.unconstrainedPorts([v], 'e', ''), [
+    { net: '_opcode[0]_', dir: 'in', clock: false }, { net: '_opcode[1]_', dir: 'in', clock: false },
+    { net: '_v_x_<0>', dir: 'in' }, { net: '_v_x_<1>', dir: 'in' },
+    { net: 'b_c', dir: 'in', clock: false }, { net: 'clk', dir: 'in', clock: true }, { net: '_res[0]_', dir: 'out', clock: false }]);
+  assert.deepEqual((await ise.unconstrainedPorts([v], 'e', 'NET "_opcode[0]_" LOC = "P1";\nNET "_v_x_<1>" LOC = "P2";\nNET "b_c" LOC = "P3";')).map(u => u.net),
+    ['_opcode[1]_', '_v_x_<0>', 'clk', '_res[0]_']);
+});
+
 test('unconstrainedPorts: latch gates are clocks (GCLK pins); default-then-if logic and muxes are not', async () => {
   const vhd = { path: 't.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all;
 entity t is port(g, d, e, s, a, b, x : in std_logic; q, r, y, z : out std_logic); end t;

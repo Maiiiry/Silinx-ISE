@@ -7,6 +7,7 @@ import fs from 'node:fs/promises';
 import fss from 'node:fs';
 import path from 'node:path';
 import { scratchEnv, makeFakes, isolatedPath, startApp, waitJob, waitLine, writeConfig, makeBit, POSIX_ONLY } from './server-helpers.js';
+import { checkUcf } from '../core/ucf.js';
 
 let tmp, fakes, app, jobs, P, oldPath;
 const FAKE_ENV = ['FAKE_ISE_FAIL', 'FAKE_ISE_SLEEP', 'FAKE_ISE_LOG', 'FAKE_DOCKER_NO_IMAGE', 'FAKE_DOCKER_LOG', 'FAKE_SSH_LOG', 'FAKE_SSH_FAIL'];
@@ -168,6 +169,29 @@ test('local mode: run.sh runs the ISE tools found on PATH; ports without LOC get
   assert.match(calls, /^ngdbuild -intstyle xflow -dd _ngo -nt timestamp -uc top.ucf -p xc3s250e-cp132-4 top.ngc top.ngd$/m);
   assert.match(calls, /^par -w -intstyle xflow -ol high -t 1 top_map.ncd top.ncd top.pcf$/m);
   assert.match(calls, /^trce -intstyle xflow -v 3 -s 4 -n 3 -fastpaths -xml top.twx top.ncd -o top.twr top.pcf -ucf top.ucf$/m);
+});
+
+// #34: the EPFL benchmarks' escaped port names (\opcode[0] ): XST calls them _opcode[0]_, the
+// only spelling ngdbuild finds (measured with ISE 14.7); Silinx's Check Constraints accepts it
+test('local mode: pins for escaped port names are written with XST\'s names (_opcode[0]_), which Check Constraints accepts', { skip: POSIX_ONLY }, async () => {
+  await writeConfig({ mode: 'local' });
+  const dir = await makeProject('Flow4e', { board: null, ucf: null });
+  const src = 'module top(\\opcode[0] , \\opcode[1] , \\v.x , \\res[0] );\n  input \\opcode[0] , \\opcode[1] ;\n  input [1:0] \\v.x ;\n  output \\res[0] ;\n  assign \\res[0] = \\opcode[0] ^ \\opcode[1] ^ ^\\v.x ;\nendmodule\n';
+  await app.call('PUT', '/projects/Flow4e/file?path=src/top.v', src);
+  const j = await waitJob(jobs, await implement('Flow4e', { steps: ['translate'] }));
+  assert.equal(j.status, 'ok', j.lines.join('\n'));
+  assert.ok(j.result.warnings.includes('5 port bit(s) have no LOC constraint (_opcode[0]_, _opcode[1]_, _v_x_<0>, _v_x_<1>, _res[0]_): Silinx assigns free I/O pins automatically - do NOT program real hardware with this bitstream'), j.result.warnings.join('\n'));
+  const ucf = await fs.readFile(path.join(dir, 'build', 'top.ucf'), 'utf8');
+  const nets = [...ucf.matchAll(/^NET "([^"]+)" LOC = "\w+" ; # assigned by Silinx \(no LOC given\)$/gm)].map(m => m[1]);
+  assert.deepEqual(nets, ['_opcode[0]_', '_opcode[1]_', '_v_x_<0>', '_v_x_<1>', '_res[0]_']);
+  assert.deepEqual(j.lines.filter(l => /^WARNING: .* -> pin /.test(l)).map(l => l.replace(/pin \w+/, 'pin X')), [
+    'WARNING: _opcode[0]_ -> pin X (assigned automatically, no LOC constraint)',
+    'WARNING: _opcode[1]_ -> pin X (assigned automatically, no LOC constraint)',
+    'WARNING: _v_x_<0> -> pin X (assigned automatically, no LOC constraint)',
+    'WARNING: _v_x_<1> -> pin X (assigned automatically, no LOC constraint)',
+    'WARNING: _res[0]_ -> pin X (assigned automatically, no LOC constraint)']);
+  const ports = [{ name: 'opcode[0]', dir: 'in' }, { name: 'opcode[1]', dir: 'in' }, { name: 'v.x', dir: 'in', msb: 1, lsb: 0 }, { name: 'res[0]', dir: 'out' }];
+  assert.deepEqual(checkUcf(ucf, { top: 'top', ports, lang: 'verilog', package: 'cp132' }), []);
 });
 
 test('local mode: a board project with unconstrained ports is refused before running anything', async () => {

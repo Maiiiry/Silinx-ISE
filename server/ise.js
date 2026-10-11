@@ -351,8 +351,9 @@ export async function unconstrainedPorts(sources, top, ucfText) {
   const out = [];
   for (const p of design.top.ports) {
     const t = p.sig.t;
-    // a 1-bit vector (std_logic_vector(0 downto 0), [0:0]) is a bus in the UCF: x<0>
-    if (t.w === 1 && (t.scalar || t.kind !== 'logic')) { if (!has(p.name)) out.push({ net: p.name, dir: p.dir, clock: p.dir === 'in' && clocks.has(p.sig) }); continue; }
+    // a 1-bit vector (std_logic_vector(0 downto 0), [0:0]) is a bus in the UCF: x<0>; an escaped
+    // name (\opcode[0] ) is XST's: _opcode[0]_ (bitName)
+    if (t.w === 1 && (t.scalar || t.kind !== 'logic')) { const n = bitName(p.name); if (!has(n)) out.push({ net: n, dir: p.dir, clock: p.dir === 'in' && clocks.has(p.sig) }); continue; }
     const lo = Math.min(t.left, t.right), hi = Math.max(t.left, t.right);
     for (let i = lo; i <= hi; i++) { const n = bitName(p.name, i); if (!has(n)) out.push({ net: n, dir: p.dir }); }
   }

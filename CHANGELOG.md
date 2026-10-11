@@ -5,6 +5,13 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **Escaped port names in the UCF** (Verilog `\opcode[0] `, as in the EPFL benchmarks): XST names
+  such a port `_opcode[0]_` in its netlist (between underscores, with `. + / \ ~ ^ * = % & $` turned
+  into `_`; a plain name's `$` too: `b$c` is `b_c`), the only spelling ngdbuild finds (measured with
+  ISE 14.7). The automatic pins of the ISE modes, I/O Pin Planning, the board's pin assignment and
+  the Silinx toolchain's pads now use it, and Check Constraints accepts it — and reports the HDL
+  name (`NET "opcode[0]"`) as the error ngdbuild gives (ConstraintSystem:59), with the right name.
+  The EPFL designs epfl-ctrl, epfl-cavlc and epfl-int2float now build with ISE to a bitstream (#34).
 - **Silinx toolchain: multiplications by a constant** (such as the stopwatch example's x * 6554)
   failed in Place & Route on every Spartan-3E device: the multiplier's inputs tied to 1 could not
   be routed on the switches of known bits. Each is now tied, as ISE does, to the constant-1 source
