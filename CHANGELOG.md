@@ -107,6 +107,10 @@ the "What's new" text of its GitHub release.
 - **VHDL: unconstrained parameters:** a function or procedure called with vectors or arrays of the
   same width but other index ranges took its first call's `'range`, `'left` and indexing
   (`v'left` of a `7 downto 0` argument after a `15 downto 8` one gave 15) (#68).
+- **Verilog testbenches: hierarchical names** of a named block's variables (`dut.state_logic.f`,
+  `blk.inner.v`, in generate blocks too) are read from the block's process, from the testbench,
+  another process or a module above; `$dumpvars` accepts scopes (the testbench's own name, an
+  instance, a path) (#12).
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and

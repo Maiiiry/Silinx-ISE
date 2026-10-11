@@ -163,6 +163,54 @@ endmodule`;
   assert.deepEqual(diags(src, 'tb').map(d => `${d.severity} ${d.line} ${d.message}`), [`warning 3 ${w}`, `warning 10 ${w}`]);
 });
 
+// Regression (#12): the variables of a named block are static: another process, the testbench or a
+// module above reads them by their hierarchical name (dut.state_logic.f, as secworks' testbenches do)
+test('hierarchical names of named-block variables: from the testbench, another process, nested blocks, generate blocks (#12)', () => {
+  const src = `module core (input clk, input [3:0] a, output reg [3:0] q);
+  always @* begin : state_logic
+    reg [3:0] f;
+    f = a + 1;
+    q = f;
+  end
+  genvar i;
+  generate for (i = 0; i < 2; i = i + 1) begin : g
+    always @(posedge clk) begin : b reg [3:0] v; v = a + i; end
+  end endgenerate
+  always @(posedge clk) begin : cnt
+    reg [3:0] n;
+    begin : inner reg [3:0] m; m = (n === 4'bx) ? 0 : n + 1; n = m; end
+  end
+  initial begin : seen reg [3:0] s = 4'd9; end
+endmodule
+module tb;
+  initial begin
+    #1 $display("%0d %0d %b %0d", q, dut.state_logic.f, dut.cnt.n, dut.seen.s);
+    #20 $display("%0d %0d %0d %0d", dut.cnt.n, dut.cnt.inner.m, dut.g[0].b.v, tb.dut.g[1].b.v);
+    a = 7; #1 $display("%0d", dut.state_logic.f);
+  end
+  reg clk = 0; reg [3:0] a = 3; wire [3:0] q;
+  always #5 clk = ~clk;
+  core dut (.clk(clk), .a(a), .q(q));
+endmodule`;
+  assert.deepEqual(out(src, 'tb'), ['4 4 xxxx 9', '1 1 3 4', '8']);
+  assert.deepEqual(diags(src, 'tb').map(d => `${d.severity} ${d.line} ${d.message}`), []);
+});
+
+// Regression (#12): $dumpvars names scopes: the testbench module itself (secworks-aes:
+// `$dumpvars(0, tb_aes_core);`), an instance (declared before or after), a path; a name that is
+// neither a value nor a scope is still an error
+test('$dumpvars with scope arguments: the module\'s own name, instances, paths; unknown names are errors (#12)', () => {
+  const core = 'module core; reg r = 1; endmodule\n';
+  const ok = `${core}module tb_x;
+  initial begin $dumpfile("x.vcd"); $dumpvars(0, tb_x); $dumpvars(1, dut, dut.r, tb_x.dut); $dumpvars; #1 $display("ok"); end
+  core dut();
+endmodule`;
+  assert.deepEqual(out(ok, 'tb_x'), ['ok']);
+  assert.deepEqual(diags(ok, 'tb_x').map(d => `${d.severity} ${d.line} ${d.message}`), []);
+  const bad = `${core}module tb_x; core dut(); initial $dumpvars(0, tb_y); endmodule`;
+  assert.deepEqual(diags(bad, 'tb_x').map(d => `${d.severity} ${d.line} ${d.message}`), ["error 2 'tb_y' is not declared"]);
+});
+
 test('tasks: input / output / inout arguments, timing inside tasks, automatic tasks', () => {
   const r = sim(vlog(`
   reg [7:0] a; integer q, rr, acc = 1;

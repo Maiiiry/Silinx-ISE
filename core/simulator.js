@@ -345,6 +345,9 @@ export class Simulator {
     this.active.push({ rt: rec.rt, val: why });
   }
 
+  /** The frame (variables) of a design process, once it has started; null before. */
+  frameOf(p) { return this.rts[p.id]?.ctx?.frame || null; }
+
   makeGen(rt) {
     const p = rt.p;
     const ctx = { frame: p.frameInit ? p.frameInit() : [], sim: this, depth: 0, timeUnit: p.timeUnit, scopeName: p.inst.path };

@@ -331,6 +331,8 @@ test('initial blocks that cannot be synthesized are reported: delays, reading a 
   assert.match(err('module e1(input clk, output reg q); initial begin q = 0; #5 q = 1; end endmodule', 'e1'), /waits cannot be synthesized \(line 1\)/);
   assert.match(err('module e2(input clk, input d, output reg q, output reg r); always @(posedge clk) q <= d; initial r = q; endmodule', 'e2'), /reads q, which another process drives/);
   assert.match(err('module e3(input [1:0] a, output [7:0] q); reg [7:0] m [0:3]; initial $readmemh("m.hex", m); assign q = m[a]; endmodule', 'e3'), /\$readmemh/);
+  // a variable of another block's named block, read by its hierarchical name (#12): simulated only
+  assert.match(err('module e4(input clk, input [3:0] d, output [3:0] q);\nalways @(posedge clk) begin : b reg [3:0] v; v = d; end\nassign q = b.v; endmodule', 'e4'), /^'b\.v': a hierarchical reference to a variable of another block cannot be synthesized \(line 3\)$/);
 });
 
 test('process variables and loop flags are named without dots (Yosys takes a dotted name for a hierarchical one)', () => {

@@ -28,6 +28,13 @@ export function evalE(n, ctx) {
       return n.t !== n.sig.t && v && v.s !== undefined && !!v.s !== !!n.t.s && n.t.kind === 'logic' ? V.withSign(v, !!n.t.s) : v;
     }
     case 'loc': return ctx.frame[n.i];
+    // a variable of another process's named block (dut.blk.v, #12): its current value in that
+    // process's frame (its initial value before the process has run)
+    case 'xloc': {
+      const p = n.ref.proc, f = p && ctx.sim?.frameOf(p);
+      if (f) return f[n.i];
+      return p?.frameInit ? p.frameInit()[n.i] : V.allX(n.t.w, n.t.s);
+    }
     case 'bit': {
       const b = evalE(n.base, ctx), i = evalE(n.index, ctx);
       if (i.x) return V.X1;

@@ -428,7 +428,9 @@ function elabAssignItem(E, it) {
 
 function elabProcess(E, it) {
   const fb = new FrameBuilder();
-  const PE = { ...E, sc: new Scope(E.sc), fb, inProcess: true };
+  // procRef: the process, once added (its named blocks' variables are read from its frame by
+  // hierarchical names: dut.blk.v, #12)
+  const PE = { ...E, sc: new Scope(E.sc), fb, inProcess: true, procRef: {}, blockPath: [] };
   for (const d of it.decls || []) bindDecl(PE, d);
   const body = bindBlock(PE, it.body, it.loc);
   let mode, triggers = [];
@@ -440,10 +442,12 @@ function elabProcess(E, it) {
     mode = E.lang === 'vhdl' ? 'sens' : (edged ? 'wait-first' : 'comb');
   }
   const label = it.label || (it.initial ? `initial_${it.loc?.line}` : `${E.lang === 'vhdl' ? 'process' : 'always'}_${it.loc?.line}`);
-  addProc(E, {
+  const proc = addProc(E, {
     name: E.prefix + label, kind: 'process', mode, body, triggers, lang: E.lang, loc: it.loc, file: E.file,
     frameInit: fb.makeInit(), item: it, sens: it.sens,
   });
+  // (not enumerable: the expression walkers do not go from a reference into the whole process)
+  Object.defineProperty(PE.procRef, 'proc', { value: proc, enumerable: false });
 }
 
 function elabChild(E, it) {
@@ -1173,7 +1177,7 @@ function bindExpr0(E, e, expect, loc) {
         const gs = E.inst.signals.find(x => x.name === E.prefix + e.name) || E.inst.signals.find(x => x.name === e.name);
         if (gs) return { k: 'sig', sig: gs, t: gs.t, name: e.name };
         const hs = hierLookup(E, e.name);
-        if (hs) return { k: 'sig', sig: hs, t: hs.t, name: e.name };
+        if (hs) return hs.k === 'xloc' ? { ...hs, loc } : hs;
       }
       throw notDeclared(e.name, loc);
     }
@@ -1335,20 +1339,31 @@ function hierResolve(E, name, path, loc) {
   return node ? { node } : { entry: cur };
 }
 
+// Verilog hierarchical reference relative to the current instance or from the top: a signal
+// (inst.sub.sig) or a variable of a named block of a process (inst.blk.v, a node reading the
+// process's frame: #12). Returns a node, or null.
 function hierLookup(E, name) {
-  // Verilog hierarchical reference relative to current instance or from the top.
   const parts = name.split('.');
-  let inst = E.inst;
   const findChild = (i, n) => i.children.find(c => c.name === n);
+  const blockVar = (inst, key, nm) => {
+    const bv = inst?.blockVars?.get(key);
+    return bv ? { k: 'xloc', ref: bv.ref, i: bv.i, t: bv.t, name: nm } : null;
+  };
+  // a named block of this instance (blk.v from another process)
+  const own = blockVar(E.inst, E.prefix + name, name) || blockVar(E.inst, name, name);
+  if (own) return own;
   // walk up to find the first component
-  let start = inst;
+  let start = E.inst;
   while (start && !findChild(start, parts[0]) && start.name !== parts[0]) start = start.parent;
   if (!start) return null;
   let cur = start.name === parts[0] && !findChild(start, parts[0]) ? start : findChild(start, parts[0]);
-  for (let k = 1; k < parts.length - 1 && cur; k++) cur = findChild(cur, parts[k]);
+  let k = 1;
+  for (; k < parts.length - 1 && cur && findChild(cur, parts[k]); k++) cur = findChild(cur, parts[k]);
   if (!cur) return null;
-  const sn = parts[parts.length - 1];
-  return cur.signals.find(s => s.name === sn) || cur.ports.find(p => p.name === sn)?.sig || null;
+  const rest = parts.slice(k);
+  if (rest.length > 1) return blockVar(cur, rest.join('.'), name);
+  const sig = cur.signals.find(s => s.name === rest[0]) || cur.ports.find(p => p.name === rest[0])?.sig;
+  return sig ? { k: 'sig', sig, t: sig.t, name } : null;
 }
 
 // an element of a packed array (logic [0:3][7:0], my_t [3:0]): its bits of the vector, the
@@ -2161,9 +2176,15 @@ function bindStmt0(E, s, loc) {
       const BE = { ...E, sc };
       // a named block is a scope: blk.x names its variable x from outside it (Verilog)
       if (s.label && E.lang === 'verilog') E.sc.def(s.label, { kind: 'gen', sc });
+      // (its variables are static: other processes and instances read them by their hierarchical
+      // name, dut.blk.x, from the process's frame; #12)
+      const path = s.label && E.lang === 'verilog' && E.procRef && E.blockPath ? [...E.blockPath, s.label] : null;
+      if (path) BE.blockPath = path;
       for (const d of s.decls || []) {
         if (d.kind === 'signal') d.net = 'variable';
         bindDecl(BE, d);
+        const ent = path && d.kind === 'signal' ? sc.local(d.name) : null;
+        if (ent?.kind === 'loc' && E.inst) (E.inst.blockVars ??= new Map()).set(`${E.prefix}${path.join('.')}.${d.name}`, { ref: E.procRef, i: ent.i, t: ent.t });
       }
       return { k: 'blk', stmts: s.stmts.map(x => bindStmt(BE, x, loc)).filter(Boolean), loc, ...(s.label ? { label: s.label } : {}) };
     }
@@ -2294,6 +2315,18 @@ function evalRangeDyn(E, r, loc) {
   return { from, to, down };
 }
 
+// True if a Verilog name (dotted or not) starts with a scope: the module itself or a module above
+// it, an instance in this module, or a named / generate block of it ($dumpvars arguments)
+function isScopeName(E, name) {
+  const first = String(name).split('.')[0].replace(/\[.*\]$/, '');
+  for (let i = E.inst; i; i = i.parent) if (i.module === first || i.name === first) return true;
+  if (E.sc.lookup(first)?.kind === 'gen' || E.sc.lookup(first)?.kind === 'genarr') return true;
+  const insts = new Set();
+  const visit = items => { for (const it of items || []) { if (it.kind === 'instance') insts.add(it.name); visit(it.items); visit(it.then); visit(it.else); } };
+  visit(E.inst?.mod?.items);
+  return insts.has(first);
+}
+
 function bindCallStmt(E, s, loc) {
   if (E.lang === 'verilog' && (s.path || s.name.includes('.')) && !E.sc.lookup(s.name)) {
     // a task of another scope: top.t(x), blk.t(x)
@@ -2311,7 +2344,19 @@ function bindCallStmt(E, s, loc) {
   const name = s.name;
   const sysName = name[0] === '$' ? name : (['finish', 'stop'].includes(name.toLowerCase()) ? name.toLowerCase() : null);
   if (sysName && !(name[0] !== '$' && E.sc.lookup(name))) {
-    const args = s.args.map(a => (a.op === 'str' ? { k: 'str', value: a.value, t: STR } : bindExpr(E, a, null, loc)));
+    // $dumpvars(levels, tb_top, dut, …): an argument may name a scope (the module, an instance, a
+    // named or generate block) rather than a value (#12); the VCD tasks only note it
+    const scopeArgs = /^\$(dumpvars|dumpports|printtimescale)$/.test(sysName);
+    const args = s.args.map(a => {
+      if (a.op === 'str') return { k: 'str', value: a.value, t: STR };
+      if (scopeArgs && a.op === 'ref') {
+        try { return bindExpr(E, a, null, loc); } catch (e) {
+          if (!(e instanceof ElabError) || !isScopeName(E, a.name)) throw e;
+          return { k: 'str', value: a.name, t: STR, scope: true };
+        }
+      }
+      return bindExpr(E, a, null, loc);
+    });
     if (/^\$(monitor|display[bho]?|write[bho]?|strobe|fdisplay|fwrite|fstrobe|sformat|swrite)$/.test(sysName)) args.forEach(a => { if (a.k !== 'str' && E.lang === 'verilog') ctxSize(a, a.t.w); });
     if ((sysName === '$readmemh' || sysName === '$readmemb') && args[1]) {
       const L = bindLvalue(E, s.args[1], loc);

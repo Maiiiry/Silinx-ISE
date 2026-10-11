@@ -320,6 +320,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
       case 'sys': case 'now': case 'str': case 'image': case 'strcat': case 'chr': case 'strlen': case 'sigattr':
         fail(`'${n.name || n.k}' cannot be synthesized`, n); break;
       case 'aslice': fail('array slices (a part of an array of vectors) are not supported by the open synthesis', n); break;
+      case 'xloc': fail(`'${n.name}': a hierarchical reference to a variable of another block cannot be synthesized`, n); break;
       default: fail(`expression '${n.k}' not supported by synthesis`, n);
     }
     return null;
