@@ -216,8 +216,8 @@ In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releas
 - **Synthesis needs Xilinx ISE 14.7** (free WebPACK): build your own Docker image with
   **`silinx-ise-docker-kit-<version>.zip`** (see [below](#synthesis-and-bitstreams-xilinx-ise-147)).
   Without ISE, *Synthesize - Yosys (open)* synthesizes the design in the browser with Yosys compiled
-  to WebAssembly (a netlist and its utilization; the open place and route and bitstream for the
-  Spartan-3E are still being developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md)).
+  to WebAssembly, and for the **Basys2-250** the *Open toolchain (experimental, no ISE)* mode goes
+  all the way to the bitstream ([below](#synthesis-and-bitstreams-xilinx-ise-147)).
 
 ## For developers
 
@@ -290,7 +290,8 @@ disabled in that mode. A design the open toolchain cannot implement yet (a featu
 database, a net it cannot route) fails with the list of what is missing: implement it in an ISE
 mode. For another package of a supported chip, the device description is built once from your
 own ISE (*Build Device Description* in *Toolchain Settings*, through the ISE set there: local,
-Docker or SSH; it goes to `~/.silinx/devices/`). The other Spartan-3E boards are next; the open
+Docker or SSH; it goes to `~/.silinx/devices/`). The device descriptions of the other Spartan-3E
+boards (Basys2-100, Nexys2, Spartan-3E Starter Kit) ship too; their bit databases are next. The open
 toolchain does **not yet support the Spartan-6 boards (Nexys3, Atlys)**; it will (they work with
 ISE, as every board does). From the command line: `node research/s3e-route/open-flow.mjs <project
 folder> <out folder>`.

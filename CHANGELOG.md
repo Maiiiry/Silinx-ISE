@@ -21,6 +21,9 @@ the "What's new" text of its GitHub release.
   the description of a device that does not ship with Silinx is built from your own ISE
   (`xdl -report -pips -all_conns`, run through the ISE configured there: local, Docker or SSH,
   compressed where ISE runs) into `~/.silinx/devices/`.
+- The device descriptions of the XC3S100E-CP132 (Basys2-100), XC3S500E-FG320 (Nexys2-500,
+  Spartan-3E Starter Kit) and XC3S1200E-FG320 (Nexys2-1200) ship with Silinx too (their bit
+  databases are next).
 - The device description of the XC3S250E-CP132 (Basys2-250) ships with Silinx
   (`core/fpga/devices/`): the open toolchain places, routes and writes the bitstream for that board
   without ISE (from the interface, see above, or from the command line:
