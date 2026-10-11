@@ -287,7 +287,19 @@ class PageBase {
         await this.mouse('mouseReleased', x, y);
       }
       try { await this.waitFor(isOpen, [idx], { what: `menu '${label}' open`, timeout: attempt < 3 ? 3000 : 10000 }); break; }
-      catch (e) { if (attempt >= 3) throw e; debug(`menu ${label}: not open, clicking again`); await this.closeMenus(); await sleep(200); }
+      catch (e) {
+        if (attempt >= 3) {
+          // say what was in the way (a dialog over the menu bar, the menus' state)
+          const why = await this.eval(() => ({
+            dialogs: [...document.querySelectorAll('.dlg-overlay .dlg-title')].map((t) => t.textContent.trim()),
+            popups: document.querySelectorAll('body > .menu-popup').length,
+            open: [...document.querySelectorAll('#menubar .item.open')].map((x) => x.textContent.trim()),
+            active: document.activeElement?.tagName + (document.activeElement?.className ? `.${document.activeElement.className}` : ''),
+          })).catch(() => null);
+          throw new Error(`${e.message} (${JSON.stringify(why)})`);
+        }
+        debug(`menu ${label}: not open, clicking again`); await this.closeMenus(); await sleep(200);
+      }
     }
     return this.eval(() => [...document.querySelectorAll('body > .menu-popup > .mi')].map((r) => ({ label: r.querySelector('.lbl').textContent, disabled: r.classList.contains('disabled'), submenu: r.querySelector('.sc').textContent === '▸' })));
   }
