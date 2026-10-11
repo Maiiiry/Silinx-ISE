@@ -5,6 +5,23 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+In short:
+
+- **No Xilinx tool needed for the Basys2 and Nexys2:** the *Silinx toolchain* is the default mode of a
+  new installation and builds bitstreams for the Basys2-100 / 250 and the Nexys2-500 / 1200 by
+  itself (synthesis, place and route, bitstream), byte-identical to ISE's bitgen on the tested
+  designs, with block RAMs, multipliers, distributed RAM, shift registers and DCMs.
+- **Two more examples**, *pong* (a game for two) and *stopwatch*, besides *blinky*: each runs on all
+  four boards' chips and builds with no warning, with the Silinx toolchain and with ISE.
+- **How it compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): on open-source designs, the
+  Silinx toolchain's circuits are smaller than ISE's (23% fewer LUTs) and about 15% slower; XST
+  cannot read 11 of those designs.
+- **More VHDL and Verilog:** records, slices of arrays, file objects, null ranges, Xilinx primitives
+  from Verilog, hierarchical names in testbenches, and design checks closer to XST's.
+- Many fixes, each tracked as a GitHub issue (https://github.com/pmnmalo/Silinx-ISE/issues).
+
+In detail:
+
 - **Silinx toolchain: a clock with no pin location** could fail in Place & Route (a design with no
   UCF: its clock could not reach a block RAM on the switches of known bits). A clock input with no
   `LOC` is now put on a free GCLK pin, a pad whose dedicated path reaches a global clock buffer (B8
