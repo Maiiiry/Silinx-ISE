@@ -28,14 +28,17 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   netlists are now as small as XST's or smaller (lab11: 165 slices against XST's 180, was 403).
   Done in 15.10.2 too: fixed-length shift registers in SRL16 (the srl fixture 63 slices instead of
   79). Left: variable-tap shift registers (`q <= sr(tap)`: Yosys infers them only from a 1-bit
-  $shiftx, Silinx's array read gives a $pmux), the SRLC16 cascade (Q15), the remaining speed
-  gap (lab11 14.1 ns in the open flow against 10.9 ns after ISE's place and route: mostly
-  placement and routing, the logic depth is XST's), FSM re-encoding (Yosys finds no state machine
-  in lab11's control unit).
-- **Timing:** hold time, clock skew and pad (OFFSET) paths; the router's cost with the branch loads;
-  the delays of block RAMs, multipliers and the SLICEM's RAMs / shift registers are estimates of
-  the data sheet's order (core/fpga/timing.js), to fit to trce like the slices' (and the paths
-  through a DCM: its output clocks are analysed as clocks of their own).
+  $shiftx, Silinx's array read gives a $pmux), the SRLC16 cascade (Q15), FSM re-encoding (Yosys
+  finds no state machine in lab11's control unit).
+- **Speed of the open flow** (research/s3e-route/README.md, "Closing the routing gap"): lab11 11.6
+  ns against 10.9 ns with ISE (was 13.7), blinky 7.4 against 6.7. Left: replication of high-fanout
+  flip-flops (lab11's state register drives 54 loads; XST replicates it), the carry's data input
+  (CY0F / CY0G) swappable between F1 / F2, placements of a design with few slices in one CLB
+  sharing one output (blinky's 9-load net).
+- **Timing:** hold time, clock skew and pad (OFFSET) paths; the delays of block RAMs, multipliers
+  and the SLICEM's RAMs / shift registers are estimates of the data sheet's order
+  (core/fpga/timing.js), to fit to trce like the slices' (and the paths through a DCM: its output
+  clocks are analysed as clocks of their own).
 
 ## Front ends and simulator
 

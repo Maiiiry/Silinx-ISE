@@ -27,15 +27,21 @@
 //   from the tree with each node's delay from the source, so a critical load gets a direct, fast path
 //   while the others share wires. The criticalities start from the distances and are recomputed
 //   from the routed delays after each pass; the most critical loads of a net are routed first.
-//   Once the routing is legal, more passes reroute the critical nets as long as the analysis says
+//   A new branch off the tree loads the node it leaves (the model's branch delays: the driver's pin
+//   most): the new connection pays that load and the routed connections below the node theirs, by
+//   their criticalities, so a net's critical loads keep a lightly loaded path. Once the routing is legal, more passes reroute the critical nets as long as the analysis says
 //   the critical path gets shorter; the best legal routing is kept.
+// - LUT inputs (opts.swapLutPins, default on): the four inputs of a LUT are interchangeable, so a
+//   net may end on any input of its LUT no other net takes (as ISE's router swaps them): the one
+//   its fastest or least congested path reaches; the LUT's equation is rewritten for the inputs
+//   taken (not the carry's data input CY0F / CY0G, nor the pins of nets the router does not route).
 // - Known switches only (opts.allowPip): the router can be restricted to the PIPs a bitstream writer
 //   knows the bits of (core/fpga/bitgen.js knownRouting(db)), so the routed design can be turned
 //   into a complete bitstream without Xilinx's bitgen; a sink that cannot be reached that way makes
 //   its net fail (listed in `failed`), never a route through an unknown switch.
 
 import { PIP_ROUTETHRU } from './device.js';
-import { timingGraph, nodeDelays, pathDelay, distanceDelay, SPEED_4 } from './timing.js';
+import { timingGraph, nodeDelays, nodeClasses, pathDelay, distanceDelay, SPEED_4 } from './timing.js';
 
 // ------------------------------------------------------------------ the nets of a design
 /** The site of an instance, or of the made-up source of a power net ("XDL_DUMMY_<tile>_<site>"). */
@@ -126,7 +132,9 @@ function globalClockMask(device) {
  * VCC / GND net without one; site: { name, tileName, type }; default all), timing (false: route
  * for wirelength and congestion only; true: timing-driven, with the delay model of
  * core/fpga/timing.js), timingPasses (2: passes after the routing is legal, for timing only),
- * maxCriticality (0.99), model (timing.js SPEED_4).
+ * maxCriticality (0.99), model (timing.js SPEED_4), branchLoad (1: the weight of the branch loads
+ * a new branch puts on the routed connections; 0: not counted), swapLutPins (true: LUT inputs may
+ * be permuted; the returned design then has the LUT equations and inpins rewritten).
  * Returns { design (a copy with the PIPs of every routed net), routed, failed: [names],
  * unreached: [{ net, inst, pin }] (the sinks of the failed nets not reached), iterations,
  * overused (nodes still shared at the end: 0 when successful), errors, pips, timeMs,
@@ -143,6 +151,8 @@ export function routeDesign(design, device, opts = {}) {
   const timing = !!opts.timing;
   const model = opts.model || SPEED_4;
   const ndel = timing ? nodeDelays(device, model) : null;
+  const ncls = timing ? nodeClasses(device) : null;
+  const BRANCH = opts.branchLoad ?? 1;
   const D0 = 0.3, H_DELAY = 0.1;     // ns per unit of congestion cost; the A* estimate's delay per tile (a little over the fastest wires': faster search)
   const maxCrit = opts.maxCriticality ?? 0.99;
   // the PIPs the router may use (opts.allowPip), decided once per edge when the search first meets it
@@ -178,11 +188,15 @@ export function routeDesign(design, device, opts = {}) {
   const owner = new Int32Array(N).fill(-1);
   const isSource = new Int32Array(N);     // net index + 1 of the source pins
   work.forEach((n, i) => { for (const s of n.sources) { owner[s] = i; isSource[s] = i + 1; } for (const s of n.sinks) owner[s.node] = i; });
+  // LUT inputs are interchangeable (opts.swapLutPins): a net may reach any free input of its LUT,
+  // whose equation is rewritten for the inputs taken (as ISE's router swaps them)
+  const lutGroups = opts.swapLutPins === false ? [] : lutPinGroups(design, work, device);
+  for (const grp of lutGroups) for (const p of grp.free) owner[grp.node[p]] = -1;
 
   const occ = new Int32Array(N);
   const hist = new Float32Array(N);
   const trees = work.map(() => null);      // Map node -> entering edge (-1 for a source)
-  const g = new Float64Array(N), stamp = new Int32Array(N), prev = new Int32Array(N), done = new Int32Array(N);
+  const g = new Float64Array(N), stamp = new Int32Array(N), prev = new Int32Array(N), done = new Int32Array(N), tmark = new Int32Array(N);
   let curStamp = 0;
   // the from-node of each edge (the CSR keeps only edgeTo), to walk a path back
   const edgeFrom = new Int32Array(E.edgeTo.length);
@@ -194,9 +208,11 @@ export function routeDesign(design, device, opts = {}) {
   // A* from the tree to one sink; returns the list of edges of the new branch (sink first) or null.
   // crit (timing): the criticality of the connection; a node costs crit x delay / D0 + (1 - crit) x
   // congestion, and a tree node starts at crit x its delay from the source (tdel) / D0
-  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null) => {
+  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null, targets = null, start = null) => {
     curStamp++;
     heap.clear();
+    // equivalent pins (a LUT's inputs): any of them not yet in the tree ends the search
+    if (targets) for (const t of targets) if (!tree.has(t)) tmark[t] = curStamp;
     const tr = device.nodeR0[sink], tc = device.nodeC0[sink];
     const cw = 1 - crit, dw = crit / D0, hf = 0.3 * cw + dw * H_DELAY;
     const h = m => {
@@ -204,13 +220,13 @@ export function routeDesign(design, device, opts = {}) {
       const dc = tc < device.nodeC0[m] ? device.nodeC0[m] - tc : tc > device.nodeC1[m] ? tc - device.nodeC1[m] : 0;
       return hf * (dr + dc);
     };
-    for (const n of tree.keys()) { stamp[n] = curStamp; g[n] = dw && tdel ? dw * tdel.get(n) : 0; prev[n] = -1; done[n] = 0; heap.push(g[n] + h(n), n); }
+    for (const n of tree.keys()) { stamp[n] = curStamp; g[n] = start ? start(n, dw) : dw && tdel ? dw * tdel.get(n) : 0; prev[n] = -1; done[n] = 0; heap.push(g[n] + h(n), n); }
     let expanded = 0;
     while (heap.n) {
       const n = heap.pop();
       if (done[n] === curStamp) continue;
       done[n] = curStamp;
-      if (n === sink) {
+      if (targets ? tmark[n] === curStamp : n === sink) {
         const path = [];
         for (let m = n; !tree.has(m); m = edgeFrom[prev[m]]) path.push(prev[m]);
         return path;
@@ -250,17 +266,41 @@ export function routeDesign(design, device, opts = {}) {
     const dist = s => Math.abs(device.nodeR0[s.node] - device.nodeR0[src]) + Math.abs(device.nodeC0[s.node] - device.nodeC0[src]);
     const critOf = s => (timing && s.conn >= 0 ? sinkCrit[s.conn] : 0);
     const sinks = [...net.sinks].sort((a, b) => critOf(b) - critOf(a) || dist(a) - dist(b));
+    // timing: a new branch off a tree node loads it (the model's branch delay: model.source at the
+    // driver's pin, model.branch[class] at a wire), which slows the new connection (its delay to the
+    // node with the loads of the branches already there) and every routed connection below the node
+    // (x their criticalities)
+    let start = null;
+    const kids = timing && BRANCH ? new Map() : null, below = kids ? new Map() : null;
+    if (kids) {
+      const srcSet = new Set(net.sources);
+      const br = n => (srcSet.has(n) ? model.source : model.branch[ncls[n]]);
+      start = (n, dw) => {
+        let load = 0;
+        for (let m = n; m >= 0; m = tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]) { const k = kids.get(m) || 0; if (k > 1) load += br(m) * (k - 1); }
+        const k = kids.get(n) || 0;
+        return dw * (tdel.get(n) + load + br(n) * k) + (k ? BRANCH * br(n) * (below.get(n) || 0) / D0 : 0);
+      };
+    }
     let ok = true;
     unreached.delete(i);
     for (const s of sinks) {
-      if (tree.has(s.node)) continue;
+      if (!s.targets && tree.has(s.node)) continue;
       let path = net.clock ? search(tree, s.node, i, pf, gclk) : null;
-      if (!path) path = search(tree, s.node, i, pf, null, critOf(s), tdel);
+      if (!path) path = search(tree, s.node, i, pf, null, critOf(s), tdel, s.targets, start);
       if (!path) { ok = false; unreached.set(i, [...(unreached.get(i) || []), s.pin]); continue; }
+      if (s.targets) s.node = E.edgeTo[path[0]];     // the LUT input it took
       for (let j = path.length - 1; j >= 0; j--) {
         const e = path[j], m = E.edgeTo[e];
         tree.set(m, e);
         if (tdel) tdel.set(m, tdel.get(edgeFrom[e]) + ndel[m]);
+      }
+      if (kids) {
+        const top = edgeFrom[path[path.length - 1]];
+        kids.set(top, (kids.get(top) || 0) + 1);
+        for (let j = path.length - 1; j > 0; j--) kids.set(E.edgeTo[path[j]], 1);
+        const c = critOf(s);
+        for (let m = s.node; m >= 0; m = tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]) below.set(m, (below.get(m) || 0) + c);
       }
     }
     for (const n of tree.keys()) occ[n]++;
@@ -311,7 +351,7 @@ export function routeDesign(design, device, opts = {}) {
     if (timing) {
       exp = Math.min(8, exp + 1);
       period = updateCrit(false);
-      if (!overused && (!best || period < best.period)) best = { period, trees: trees.map(t => t && new Map(t)), failed: new Set(failed), unreached: new Map(unreached) };
+      if (!overused && (!best || period < best.period)) best = { period, trees: trees.map(t => t && new Map(t)), nodes: work.map(w => w.sinks.map(s => s.node)), failed: new Set(failed), unreached: new Map(unreached) };
     }
     log(`iteration ${iter}: ${toRoute.length} nets routed, ${overused} nodes overused, ${failed.size} unroutable${timing ? `, critical path ${period.toFixed(3)} ns` : ''}`);
     if (!overused) {
@@ -329,6 +369,7 @@ export function routeDesign(design, device, opts = {}) {
     // back to the best legal routing found
     for (let i = 0; i < trees.length; i++) ripUp(i);
     best.trees.forEach((t, i) => { trees[i] = t; if (t) for (const n of t.keys()) occ[n]++; });
+    best.nodes.forEach((ns, i) => work[i].sinks.forEach((s, j) => { s.node = ns[j]; }));
     failed.clear(); for (const i of best.failed) failed.add(i);
     unreached.clear(); for (const [k, v] of best.unreached) unreached.set(k, v);
     overused = 0; period = best.period;
@@ -338,7 +379,8 @@ export function routeDesign(design, device, opts = {}) {
   // the made-up sources are declared as instances, as ISE writes them (xdl -xdl2ncd rejects an
   // outpin on an undeclared "XDL_DUMMY_…" instance)
   const dummies = work.filter(w => w.synthetic && !design.insts.some(i => i.name === w.outpins[0].inst)).map(w => w.dummy);
-  const out = { ...design, insts: [...design.insts, ...dummies], nets: [] };
+  const { insts: swapped, pinOf } = applyLutSwaps(design.insts, lutGroups);
+  const out = { ...design, insts: [...swapped, ...dummies], nets: [] };
   const routedBy = new Map();
   work.forEach((n, i) => routedBy.set(n.net, [...(routedBy.get(n.net) || []), i]));
   let pipCount = 0;
@@ -358,13 +400,109 @@ export function routeDesign(design, device, opts = {}) {
     for (const i of idx) {
       const w = work[i];
       if (w.synthetic) out.nets.push({ ...net, name: w.name, outpins: w.outpins, inpins: w.sinks.map(s => s.pin), pips: pipsOf(i) });
-      else out.nets.push({ ...net, pips: pipsOf(i) });
+      else out.nets.push({ ...net, inpins: net.inpins.map(p => (pinOf.has(p) ? { ...p, pin: pinOf.get(p) } : p)), pips: pipsOf(i) });
     }
   }
   return {
     design: out, routed: work.length - failed.size, failed: [...failed].map(i => work[i].name),
     unreached: [...failed].flatMap(i => (unreached.get(i) || []).map(p => ({ net: work[i].name, inst: p.inst, pin: p.pin }))),
     iterations: Math.min(iter, maxIter), overused, errors, pips: pipCount, timeMs: Date.now() - t0, period,
+  };
+}
+
+// ------------------------------------------------------------------ LUT input swapping
+const LUT_PIN = /^[FG][1-4]$/;
+/**
+ * The LUTs whose inputs the router may permute: every input pin of a LUT (F1-F4 or G1-G4 of a slice
+ * whose F / G is a #LUT equation) reached by a routed net (not a clock, not a made-up power net) is
+ * movable; the pins of other nets and the carry's data input (CY0F / CY0G = F1 / F2…) stay. Each
+ * movable sink gets `targets` (the nodes of the LUT's movable pins) and `orig` (its pin). Returns
+ * [{ inst, letter, node: { F1: node… }, fixed: Set, free: [pins], sinks }].
+ */
+function lutPinGroups(design, work, device) {
+  const instByName = new Map(design.insts.map(i => [i.name, i]));
+  const groups = new Map();
+  const groupOf = (instName, pin) => {
+    const key = `${instName}\u0000${pin[0]}`;
+    if (groups.has(key)) return groups.get(key);
+    let grp = null;
+    const inst = instByName.get(instName);
+    const cfg = inst && inst.placed && /^SLICE[LM]$/.test(inst.type) ? inst.cfg || [] : [];
+    const lut = cfg.find(c => c.attr === pin[0]);
+    if (lut && /^#LUT:/.test(lut.value)) {
+      const node = {};
+      for (let k = 1; k <= 4; k++) { const n = device.sitePinNode(inst.site, `${pin[0]}${k}`); if (n >= 0) node[`${pin[0]}${k}`] = n; }
+      if (Object.keys(node).length > 1) {
+        // (a pin the site does not have keeps its variable)
+        const fixed = new Set([1, 2, 3, 4].map(k => `${pin[0]}${k}`).filter(p => !(p in node)));
+        const cy = cfg.find(c => c.attr === `CY0${pin[0]}`);
+        if (cy && LUT_PIN.test(cy.value)) fixed.add(cy.value);
+        grp = { inst, letter: pin[0], node, fixed, sinks: [] };
+      }
+    }
+    groups.set(key, grp);
+    return grp;
+  };
+  const movable = new Set(work.filter(w => !w.synthetic && !w.clock).flatMap(w => w.sinks));
+  for (const w of work) for (const s of w.sinks) {
+    if (!LUT_PIN.test(s.pin.pin)) continue;
+    const grp = groupOf(s.pin.inst, s.pin.pin);
+    if (!grp) continue;
+    if (movable.has(s) && !grp.fixed.has(s.pin.pin)) grp.sinks.push(s); else grp.fixed.add(s.pin.pin);
+  }
+  // the pins of nets the router does not route (no source…) stay too
+  for (const n of design.nets) for (const p of n.inpins) {
+    if (!LUT_PIN.test(p.pin)) continue;
+    const grp = groups.get(`${p.inst}\u0000${p.pin[0]}`);
+    if (grp && !grp.sinks.some(s => s.pin === p)) grp.fixed.add(p.pin);
+  }
+  const out = [];
+  for (const grp of groups.values()) {
+    if (!grp || !grp.sinks.length) continue;
+    grp.free = Object.keys(grp.node).filter(p => !grp.fixed.has(p));
+    if (grp.free.length < 2) continue;
+    const targets = grp.free.map(p => grp.node[p]);
+    for (const s of grp.sinks) { s.targets = targets; s.orig = s.pin.pin; }
+    out.push(grp);
+  }
+  return out;
+}
+
+/**
+ * The instances with the LUT equations rewritten for the inputs the router chose (Ak of the
+ * equation is the input on pin k): returns { insts (the changed ones copied, their cfg rewritten),
+ * pinOf: Map inpin -> its new pin name }.
+ */
+function applyLutSwaps(insts, groups) {
+  const pinOf = new Map();
+  const changed = new Map();   // inst -> { letter: perm (old k -> new k) }
+  for (const grp of groups) {
+    const pinName = n => Object.keys(grp.node).find(p => grp.node[p] === n);
+    const perm = {};
+    for (const s of grp.sinks) {
+      const to = pinName(s.node);
+      if (!to) continue;
+      perm[s.orig[1]] = to[1];
+      if (to !== s.orig) pinOf.set(s.pin, to);
+    }
+    if (!Object.entries(perm).some(([a, b]) => a !== b)) continue;
+    // the other variables (fixed pins, unused inputs) onto the pins left
+    for (const p of grp.fixed) perm[p[1]] = p[1];
+    const left = ['1', '2', '3', '4'].filter(k => !Object.values(perm).includes(k));
+    for (const k of ['1', '2', '3', '4']) if (!(k in perm)) perm[k] = left.shift();
+    if (!changed.has(grp.inst)) changed.set(grp.inst, {});
+    changed.get(grp.inst)[grp.letter] = perm;
+  }
+  if (!changed.size) return { insts, pinOf };
+  return {
+    pinOf,
+    insts: insts.map(inst => {
+      const perms = changed.get(inst);
+      if (!perms) return inst;
+      const cfg = inst.cfg.map(c => (perms[c.attr] && /^#LUT:/.test(c.value) ? { ...c, value: c.value.replace(/A([1-4])/g, (_, k) => `A${perms[c.attr][k]}`) } : c));
+      const { cfgRaw, ...rest } = inst;
+      return { ...rest, cfg };
+    }),
   };
 }
 

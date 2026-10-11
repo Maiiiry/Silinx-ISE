@@ -70,6 +70,13 @@ the "What's new" text of its GitHub release.
   table of its values instead of 32-bit carry chains; the packer puts flip-flops fed by
   flip-flops into the free slots of carry-chain and multiplexer slices. Size budgets in the tests
   (test/synth-quality.test.js, a new 42-state accumulator machine fixture `cpu8`).
+- **Faster designs from the open toolchain's place and route** (research/s3e-route/README.md):
+  lab11 runs at 11.6 ns by ISE's own timing analyzer (was 13.7 ns; ISE's whole flow: 10.9 ns), the
+  blinky example at 7.4 ns (was 8.0; ISE: 6.7), and both are placed and routed faster. The placer
+  is timing-driven as VPR's (the estimated delay of every connection, from a table of the fastest
+  routes of the device, weighted by its criticality), the router may swap the inputs of a LUT
+  (rewriting its equation), as ISE's does, and counts the load each new branch of a net puts on
+  its critical connections. `open-flow.mjs --tries N` keeps the fastest of N placements.
 - The open synthesis of a Spartan-3E design no longer prints Yosys's "Shift register inference
   not yet supported for family xc3se" (it came on every run, whatever the design) nor counts it
   as a warning.

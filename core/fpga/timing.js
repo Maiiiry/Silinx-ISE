@@ -200,6 +200,109 @@ export function distanceDelay(a, b, device, model = SPEED_4) {
   return base + perTile * Math.min(d, knee) + far * Math.max(0, d - knee);
 }
 
+/**
+ * The delay of the fastest route from a slice's outputs to the slices' inputs at each offset, by the
+ * model and the device's own wires (for the placer: what a connection over a distance costs once
+ * routed, the direct connections to the neighbours and the reach of hexes and long lines included).
+ * From each of a few CLBs spread over the device, a search by delay (Dijkstra, no congestion) from
+ * the X, Y, XQ and YQ pins of its slices to the LUT and BX / BY pins of every slice; the delay at an
+ * offset (columns, rows: tiles) is the mean over the target's pins of the fastest arrival, averaged
+ * over the source CLBs. allowPip(tileName, from, to): only these PIPs (as the router). Returns
+ * { at(dc, dr) -> ns, dc0, dr0, w, h, d: Float32Array } (cached on the device per allowPip and model).
+ */
+export function delayTable(device, { allowPip = null, model = SPEED_4, sources = null } = {}) {
+  device._delayTable ||= new Map();
+  const key = allowPip || 'all';
+  const cached = device._delayTable.get(key);
+  if (cached && cached.model === model && !sources) return cached.table;
+  const E = device.routingEdges();
+  const N = device.nodeCount;
+  const ndel = nodeDelays(device, model);
+  const ok = new Uint8Array(E.edgeTo.length);   // 0 undecided, 1 allowed, 2 not
+  const edgeOk = e => {
+    if (!ok[e]) {
+      if (E.edgeFlags[e] & 2) ok[e] = 2;     // route-through (core/fpga/device.js PIP_ROUTETHRU)
+      else if (!allowPip) ok[e] = 1;
+      else { const [a, b] = device.pipWires(E.edgeTile[e], E.edgePip[e]); ok[e] = allowPip(device.tileNames[E.edgeTile[e]], a, b) ? 1 : 2; }
+    }
+    return ok[e] === 1;
+  };
+  // the CLBs: tile of each slice
+  const clbs = new Map();     // tile index -> [slice names]
+  for (const s of [...device.sites('SLICEL'), ...device.sites('SLICEM')]) { if (!clbs.has(s.tile)) clbs.set(s.tile, []); clbs.get(s.tile).push(s.name); }
+  const tiles = [...clbs.keys()];
+  const rows = tiles.map(k => device.tileRow[k]), cols = tiles.map(k => device.tileCol[k]);
+  const r0 = Math.min(...rows), r1 = Math.max(...rows), c0 = Math.min(...cols), c1 = Math.max(...cols);
+  const h = 2 * (r1 - r0) + 1, w = 2 * (c1 - c0) + 1, dc0 = c1 - c0, dr0 = r1 - r0;
+  const sum = new Float64Array(w * h), cnt = new Float64Array(w * h);
+  // source CLBs: the one nearest the centre and four around it, halfway to the corners
+  const nearest = (r, c) => tiles.reduce((b, k) => (Math.abs(device.tileRow[k] - r) + Math.abs(device.tileCol[k] - c) < Math.abs(device.tileRow[b] - r) + Math.abs(device.tileCol[b] - c) ? k : b), tiles[0]);
+  const mr = (r0 + r1) / 2, mc = (c0 + c1) / 2, qr = (r1 - r0) / 4, qc = (c1 - c0) / 4;
+  const srcTiles = sources || [...new Set([[mr, mc], [mr - qr, mc - qc], [mr - qr, mc + qc], [mr + qr, mc - qc], [mr + qr, mc + qc]].map(([r, c]) => nearest(Math.round(r), Math.round(c))))];
+  const g = new Float64Array(N);
+  const heapK = [], heapV = [];
+  const push = (k, v) => {
+    let i = heapK.length; heapK.push(k); heapV.push(v);
+    while (i > 0) { const p = (i - 1) >> 1; if (heapK[p] <= k) break; heapK[i] = heapK[p]; heapV[i] = heapV[p]; i = p; }
+    heapK[i] = k; heapV[i] = v;
+  };
+  const pop = () => {
+    const top = heapV[0], k = heapK.pop(), v = heapV.pop(), n = heapK.length;
+    if (!n) return top;
+    let i = 0;
+    for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && heapK[c + 1] < heapK[c]) c++; if (heapK[c] >= k) break; heapK[i] = heapK[c]; heapV[i] = heapV[c]; i = c; }
+    heapK[i] = k; heapV[i] = v;
+    return top;
+  };
+  const IN_PINS = ['F1', 'F2', 'F3', 'F4', 'G1', 'G2', 'G3', 'G4', 'BX', 'BY'];
+  for (const st of srcTiles) {
+    g.fill(Infinity);
+    heapK.length = 0; heapV.length = 0;
+    for (const s of clbs.get(st)) for (const p of ['X', 'Y', 'XQ', 'YQ']) { const n = device.sitePinNode(s, p); if (n >= 0) { g[n] = 0; push(0, n); } }
+    while (heapK.length) {
+      const d = heapK[0], n = pop();
+      if (d > g[n]) continue;
+      for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
+        const m = E.edgeTo[e], dm = d + ndel[m];
+        if (dm < g[m] && edgeOk(e)) { g[m] = dm; push(dm, m); }
+      }
+    }
+    for (const [k, names] of clbs) {
+      let s = 0, c = 0;
+      for (const sn of names) for (const p of IN_PINS) { const n = device.sitePinNode(sn, p); if (n >= 0 && g[n] < Infinity) { s += g[n]; c++; } }
+      if (!c) continue;
+      const i = (device.tileRow[k] - device.tileRow[st] + dr0) * w + (device.tileCol[k] - device.tileCol[st] + dc0);
+      sum[i] += s / c + model.base; cnt[i]++;
+    }
+  }
+  const d = new Float32Array(w * h);
+  for (let i = 0; i < d.length; i++) if (cnt[i]) d[i] = sum[i] / cnt[i];
+  // offsets no source CLB has a CLB at (rows of clock tiles, block-RAM columns, beyond the
+  // device): from their neighbours, outwards
+  for (let filled = true; filled;) {
+    filled = false;
+    const next = cnt.slice();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (cnt[i]) continue;
+      let s = 0, c = 0;
+      for (const [u, v] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) if (u >= 0 && v >= 0 && u < w && v < h && cnt[v * w + u]) { s += d[v * w + u]; c++; }
+      if (c) { d[i] = s / c; next[i] = 1; filled = true; }
+    }
+    cnt.set(next);
+  }
+  // rows count down the device: dr is in tile rows, as the placer's y counts up (dr = -dy)
+  const table = {
+    dc0, dr0, w, h, d,
+    at(dc, dr) {
+      const x = Math.max(0, Math.min(w - 1, Math.round(dc) + dc0)), y = Math.max(0, Math.min(h - 1, Math.round(dr) + dr0));
+      return d[y * w + x];
+    },
+  };
+  if (!sources) device._delayTable.set(key, { model, table });
+  return table;
+}
+
 // ------------------------------------------------------------------ logic
 const F_PINS = ['F1', 'F2', 'F3', 'F4'], G_PINS = ['G1', 'G2', 'G3', 'G4'];
 
