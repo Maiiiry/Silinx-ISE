@@ -60,7 +60,8 @@ export function reportPart(device) {
 /**
  * Can the open toolchain implement a design for this device?
  * { available, reason, part, device, graph (file or null), shipped, bitDb, canBuild (a device
- * description built from the user's ISE would make it available) }.
+ * description built from an ISE would make it available: developers only, POST
+ * /toolchain/build-device; the interface does not offer it, #8) }.
  */
 export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
   const out = { available: false, reason: '', part: null, device: null, graph: null, shipped: false, bitDb: false, canBuild: false };
@@ -86,7 +87,7 @@ export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
   }
   if (!out.graph) {
     out.canBuild = true;
-    out.reason = `no device description of ${part}: build it from your ISE (Toolchain Settings: Build Device Description)`;
+    out.reason = `no device description of ${part} ships with Silinx (the open toolchain supports the ${supported(dbDir)}): use an ISE mode for this device`;
     return out;
   }
   out.available = true;

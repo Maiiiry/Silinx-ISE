@@ -53,7 +53,6 @@ export const api = {
   toolchain: (project = null) => req('GET', `/api/toolchain${project ? `?project=${enc(project)}` : ''}`),
   saveToolchain: (cfg, project = null) => req('PUT', `/api/toolchain${project ? `?project=${enc(project)}` : ''}`, cfg),
   openStatus: name => req('GET', `/api/projects/${enc(name)}/open-status`),
-  buildDevice: body => req('POST', '/api/toolchain/build-device', body),
   implement: (name, body) => req('POST', `/api/projects/${enc(name)}/implement`, body),
   reports: name => req('GET', `/api/projects/${enc(name)}/reports`),
   fpgaView: name => req('GET', `/api/projects/${enc(name)}/fpga-view`),

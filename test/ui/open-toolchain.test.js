@@ -1,5 +1,5 @@
 // UI: the toolchain mode "Open toolchain (experimental, no ISE)": chosen in Toolchain Settings (with
-// the status of the project's device and the ISE that builds device descriptions), Generate
+// the status of the project's device; no ISE setting nor Build Device Description, #8), Generate
 // Programming File of blinky for real (the device description and the bit database of the XC3S250E
 // ship with Silinx: no ISE), the Processes icons and the Design Summary, the FPGA view of the routed
 // design, the processes that need ISE disabled with a tooltip, the clear failure for a device the
@@ -31,25 +31,26 @@ const procLabels = (page) => page.eval(() => [...document.querySelectorAll('#pro
 const reloadToolchain = (page) => page.eval(async () => { window.SilinxApp.S.toolchain = await (await import('/js/api.js')).api.toolchain(); window.SilinxApp.renderProcesses(); });
 const DONE = (name) => new RegExp(`Process "${name.replace(/[()]/g, '\\$&')}" (completed successfully|failed)`);
 
-uiTest('Toolchain Settings: the open mode, the status of the project\'s device, the ISE for device descriptions; Portuguese', E, async (page) => {
+uiTest('Toolchain Settings: the open mode, the status of the project\'s device, no ISE setting; Portuguese', E, async (page) => {
+  // an ISE for device descriptions set before (#8 removed it from the interface): kept on Save
+  await env.server.api('PUT', '/api/toolchain', { open: { iseMode: 'ssh' } });
   await makeProject(env, { name: 'OpenSet', template: 'blinky' });
   await page.openProject('OpenSet');
   await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
   await page.waitDialog('Toolchain Settings');
   const modeSel = '.dlg-overlay .form-grid select';
   assert.equal(await page.eval((s) => [...document.querySelector(s).options].pop().textContent, modeSel), 'Open toolchain (experimental, no ISE)');
-  // not in open mode: no open status, no Build button
+  // not in open mode: no open status
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .open-status').style.display), 'none');
   await page.eval((s) => { const m = document.querySelector(s); m.value = 'open'; m.dispatchEvent(new Event('change')); }, modeSel);
   const labels = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .form-grid label')].map((l) => l.textContent));
-  assert.deepEqual(labels.slice(0, 4), ['Execution mode:', 'Xilinx ISE for device descriptions:', 'Docker image:', 'settings64.sh in image:']);
+  // the supported devices' descriptions ship with Silinx: no ISE in open mode (#8)
+  assert.deepEqual(labels, ['Execution mode:', 'Programmer tool:', 'Cable:']);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .dlg-buttons .btn')].map((b) => b.textContent)), ['Save', 'Cancel']);
   const status = await page.eval(() => document.querySelector('.dlg-overlay .open-status').innerText);
   assert.match(status, /Open toolchain for xc3s250ecp132-4: available/);
   assert.match(status, /xc3s250ecp132-4: device description \(shipped with Silinx\) and bit database/);
-  assert.equal(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .dlg-buttons .btn')].find((b) => b.textContent === 'Build Device Description').style.display), '');
-  // the ISE for device descriptions: ssh shows the ssh fields
-  await page.eval(() => { const m = document.querySelectorAll('.dlg-overlay .form-grid select')[1]; m.value = 'ssh'; m.dispatchEvent(new Event('change')); });
-  assert.ok((await page.eval(() => [...document.querySelectorAll('.dlg-overlay .form-grid label')].map((l) => l.textContent))).includes('Host:'));
+  assert.doesNotMatch(status, /Build Device Description|xdl -report/);
   // Portuguese: the dialog in open mode has no untranslated text (server data apart)
   await page.eval(TEXTS);
   const tc = await env.server.api('GET', '/api/toolchain?project=OpenSet');
@@ -59,15 +60,13 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   await setLang('pt'); const pt = await page.eval(() => window.__uiTexts(document.querySelector('.dlg-overlay')));
   assert.deepEqual(untranslated(en, pt, [/^\(.*\)$/, { test: (s) => data.has(s) || /^Settings file:|^Ficheiro de definições:|^\/|not found$/.test(s) }]), []);
   assert.ok(pt.includes('Toolchain aberta para xc3s250ecp132-4: disponível'), pt.join(' | '));
-  assert.ok(pt.includes('Construir Descrição do Dispositivo'));
   await setLang('en');
-  await page.eval(() => { const m = document.querySelectorAll('.dlg-overlay .form-grid select')[1]; m.value = 'docker'; m.dispatchEvent(new Event('change')); });
   await page.dialogButton('Save');
   await page.waitNoDialog();
   await page.waitConsole(/Toolchain settings saved \(open: open toolchain \(experimental, no ISE\)/);
   const cfg = (await env.server.api('GET', '/api/toolchain')).config;
   assert.equal(cfg.mode, 'open');
-  assert.equal(cfg.open.iseMode, 'docker');
+  assert.equal(cfg.open.iseMode, 'ssh');
   // the Processes follow at once: Synthesize is the open synthesis, the ISE-only ones are disabled
   const procs = await procLabels(page);
   assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
@@ -122,7 +121,7 @@ uiTest('open mode: Generate Programming File of blinky without ISE; the Processe
   assert.equal(await page.eval(() => window.SilinxApp.S.active.title), 'FPGA (top)');
 });
 
-uiTest('open mode: a device without a bit database fails clearly; a device without a description offers to build it', E, async (page) => {
+uiTest('open mode: a device without a bit database or without a shipped description fails clearly (no offer to build it, #8)', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'open' });
   const V = { 'src/top.v': 'module top(input a, output y);\n  assign y = ~a;\nendmodule\n' };
   await makeProject(env, { name: 'Open1600', template: 'empty', device: { family: 'spartan3e', part: 'xc3s1600e', package: 'fg320', speed: '-4' }, files: V, top: 'top' });
@@ -134,15 +133,14 @@ uiTest('open mode: a device without a bit database fails clearly; a device witho
   // (the TQ144 is listed: this test's copy of the bit database has its (empty) pads, see above)
   assert.match(text, /ERROR: the open toolchain cannot implement this design: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
   assert.equal(await page.eval(() => window.SilinxApp.S.status.impl), 'err');
-  // the same chip in another package: no description; Silinx offers to build it from ISE
+  // the same chip in another package (its pads in this test's bit database): no description ships; no dialog
   await makeProject(env, { name: 'OpenTq', template: 'empty', device: { family: 'spartan3e', part: 'xc3s250e', package: 'tq144', speed: '-4' },
     files: V, top: 'top' });
   await page.openProject('OpenTq');
   await page.treeRow('#procs', 'Implement Design', { dbl: true, exact: true });
-  await page.waitDialog('Build Device Description');
-  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .dlg-body').innerText), /There is no device description of xc3s250etq144-4 yet\./);
-  await page.dialogButton('No');
-  await page.waitNoDialog();
-  assert.match(await page.consoleText(), /no device description of xc3s250etq144-4: build it from your ISE/);
+  await page.waitConsole(/no device description of xc3s250etq144-4 ships with Silinx/, { timeout: 30000 });
+  await page.waitConsole(DONE('Implement Design'));
+  assert.match(await page.consoleText(), /ERROR: the open toolchain cannot implement this design: no device description of xc3s250etq144-4 ships with Silinx \(the open toolchain supports the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
+  assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });

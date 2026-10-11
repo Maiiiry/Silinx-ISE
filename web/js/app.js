@@ -980,10 +980,6 @@ async function runImplInner(mod, steps, opts, pjName) {
       log(`\nStarted : "${procName}" (open toolchain).\n`, 'hdr');
       log(`ERROR: the open toolchain cannot implement this design: ${st.reason}.`, 'err');
       log(`\nProcess "${procName}" failed`, 'err');
-      if (st.canBuild && await confirmDlg('Build Device Description', `There is no device description of ${st.part} yet.\n\nBuild it now from your Xilinx ISE (the ISE set in Toolchain Settings)? It takes a few minutes; then run "${procName}" again.`)) {
-        S.busy = false;
-        await buildDeviceDescription(st.part);
-      }
       return;
     }
   }
@@ -1043,35 +1039,6 @@ async function runImplInner(mod, steps, opts, pjName) {
     renderProcesses();
   }
   return ok;
-}
-
-// Build Device Description: the device report of the user's own ISE (xdl -report -pips -all_conns)
-// packed into the open toolchain's description of the device (~/.silinx/devices), a server job.
-export async function buildDeviceDescription(part) {
-  const what = 'Build Device Description';
-  if (S.busy) { toast('An implementation is already running (use Stop to cancel it)', 'error'); return false; }
-  S.busy = true;
-  log(`\nStarted : "${what}" (${part}).\n`, 'hdr');
-  status(`${what}: ${part}…`);
-  try {
-    const { job } = await api.buildDevice({ part });
-    S.currentJob = job;
-    S.stopRequested = false;
-    renderProcesses();
-    const res = await followJob(job, logLine);
-    if (res.status === 'ok') { log(`\nProcess "${what}" completed successfully (${part}).`, 'ok'); return true; }
-    log(`\nProcess "${what}" failed: ${res.error || 'see log'}`, 'err');
-    showConsolePage('console');
-    return false;
-  } catch (e) {
-    log(`ERROR: ${e.message}`, 'err');
-    return false;
-  } finally {
-    S.busy = false;
-    S.currentJob = null;
-    status('Ready');
-    renderProcesses();
-  }
 }
 
 // ---- optional ISE processes: simulation models, timing, power, pins
@@ -3262,6 +3229,6 @@ async function boot() {
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});
 }
 
-export const app = { showInSim, saveAll, openTt, openFsm, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, buildDeviceDescription, openMode, S };
+export const app = { showInSim, saveAll, openTt, openFsm, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, openMode, S };
 window.SilinxApp = app;
 boot();

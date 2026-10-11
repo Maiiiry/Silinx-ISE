@@ -76,7 +76,7 @@ test('openStatus: available for the Basys2 and Nexys2 parts; why not for the oth
   assert.equal(tq.available, false);
   assert.equal(tq.canBuild, false);
   assert.equal(tq.reason, 'no bit database for the pads of the xc3s250e in the tq144 package yet (only cp132): use an ISE mode for this device');
-  // a package with its pads in the database but no device description: it can be built from ISE
+  // a package with its pads in the database but no device description: not supported (developers can build it from ISE)
   const dbDir = path.join(tmp, 'bitdb');
   fss.mkdirSync(dbDir, { recursive: true });
   for (const f of ['s3e-tiles.json', 'xc3s250e-layout.json', 'xc3s250e-lut.json']) fss.copyFileSync(path.join(OF.BIT_DB_DIR, f), path.join(dbDir, f));
@@ -84,7 +84,7 @@ test('openStatus: available for the Basys2 and Nexys2 parts; why not for the oth
   const tq2 = OF.openStatus(DEV('xc3s250e', 'tq144'), { dbDir });
   assert.equal(tq2.available, false);
   assert.equal(tq2.canBuild, true);
-  assert.match(tq2.reason, /^no device description of xc3s250etq144-4: build it from your ISE \(Toolchain Settings: Build Device Description\)$/);
+  assert.equal(tq2.reason, 'no device description of xc3s250etq144-4 ships with Silinx (the open toolchain supports the XC3S250E (TQ144)): use an ISE mode for this device');
   const s6 = OF.openStatus(DEV('xc6slx16', 'csg324', 'spartan6'));
   assert.equal(s6.available, false);
   assert.match(s6.reason, /does not support the spartan6 family yet \(only the Spartan-3E XC3S100E \(CP132\), XC3S250E/);

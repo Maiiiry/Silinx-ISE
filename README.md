@@ -291,10 +291,11 @@ disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-f
 RAMs, multipliers, distributed RAMs, shift registers (SRL16) and the top-left DCM (CLK0, CLK2X,
 CLKDV, CLKFX). A design the open toolchain cannot implement yet (a feature not in the bit
 database, a net it cannot route) fails with the list of what is missing: implement it in an ISE
-mode. For another package of a supported chip, the device description is built once from your
-own ISE (*Build Device Description* in *Toolchain Settings*, through the ISE set there: local,
-Docker or SSH; it goes to `~/.silinx/devices/`) once the pads of that package are in the bit
-database (the Spartan-3E Starter Kit's XC3S500E-FG320 is the Nexys2-500's chip and package). The open
+mode. The supported devices' descriptions and bit databases ship with Silinx: the open toolchain
+needs no ISE at all (the Spartan-3E Starter Kit's XC3S500E-FG320 is the Nexys2-500's chip and
+package). Developers can build another package's description from an ISE
+(`research/s3e-route/build-device.mjs`, into `~/.silinx/devices/`) once its pads are in the bit
+database. The open
 toolchain does **not yet support the Spartan-6 boards (Nexys3, Atlys)**; it will (they work with
 ISE, as every board does). From the command line: `node research/s3e-route/open-flow.mjs <project
 folder> <out folder>`.
