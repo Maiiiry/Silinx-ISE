@@ -87,8 +87,12 @@ uiTest('Start page: the three examples; Open Example (pong) for the Nexys2-1200:
   await page.waitForSelector('#start-page .start-box');
   const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
   for (const t of ['blinky', 'pong', 'stopwatch']) assert.ok(entries.includes(`Open Example (${t})`), entries.join(', '));
-  await page.click('#start-page .entry a', { text: 'Open Example (pong)' });
-  await page.waitDialog('New Project Wizard');
+  // (the Start page is drawn again asynchronously after the project closes: a click on the link it
+  // replaces is lost, so click until the wizard opens)
+  for (let k = 0; ; k++) {
+    await page.click('#start-page .entry a', { text: 'Open Example (pong)' });
+    try { await page.waitDialog('New Project Wizard', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
+  }
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main input[type=text]').value), 'pong');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main select').value), 'pong');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'PongN2');
