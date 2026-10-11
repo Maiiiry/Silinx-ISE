@@ -127,8 +127,10 @@ export function elaborate(lib, topName, opts = {}) {
   return design;
 }
 
-function diag(E, msg, loc, sev = 'error') {
-  E.ctx.design.diags.push({ file: E.file, line: loc?.line || 1, col: loc?.col || 1, severity: sev, message: msg });
+function diag(E, msg, loc, sev = 'error', tool) {
+  // (an expression without a location, as a call in a declaration's range: the declaration's, #16)
+  if (!loc?.line) loc = E.at || loc;
+  E.ctx.design.diags.push({ file: E.file, line: loc?.line || 1, col: loc?.col || 1, severity: sev, message: msg, ...(tool ? { tool } : {}) });
 }
 
 // ---------------------------------------------------------------- scopes for packages
@@ -192,6 +194,7 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
   // parameters / generics
   for (const p of mod.params) {
     let entry, given = false;   // given: set by the instance (generic map / #(…)), not the default
+    E.at = p.loc?.line ? p.loc : undefined;   // (for diagnostics without a location, #16)
     try {
       const ov = paramOverrides.get(p.name) ?? paramOverrides.get(p.name.toLowerCase());
       // (an unconstrained array type: the actual gives the range, as light8080's OBJ_CODE : obj_code_t)
@@ -217,6 +220,7 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
       diag(E, e.message, e.loc || mod.loc);
       entry = { kind: 'const', val: V.fromInt(0), t: INT };
     }
+    E.at = undefined;
     E.sc.def(p.name, entry);
     inst.params.push({ name: p.name, value: entry.val, t: entry.t, given });
   }
@@ -261,11 +265,13 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
 }
 
 function safe(E, loc, fn) {
+  const at = E.at;
+  if (loc?.line) E.at = loc;   // the location of what is being bound, for diagnostics without one
   try { return fn(); }
   catch (e) {
     if (e instanceof ElabError || e instanceof SimError) { diag(E, e.message, e.loc || loc); return null; }
     throw e;
-  }
+  } finally { E.at = at; }
 }
 
 function newSignal(E, name, t, init, kind, loc) {
@@ -1741,7 +1747,7 @@ function bindVlogCall(E, e, expect, loc) {
         return fold({ k: 'conv', a, ext: a.t.s, t });
       }
       case '$clog2': {
-        diag(E, '$clog2 is not supported by XST (ISE 14.7); use a constant function instead', loc, 'warning');
+        diag(E, '$clog2 is not supported by XST (ISE 14.7); use a constant function instead', loc, 'warning', 'Silinx');   // (Silinx's own message)
         const v = V.toBig(constOf(E, A(0), loc));
         let r = 0; while ((1n << BigInt(r)) < v) r++;
         return { k: 'c', val: V.fromInt(r), t: INT };

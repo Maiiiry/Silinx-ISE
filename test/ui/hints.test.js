@@ -119,3 +119,51 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   await page.click('#console-errors .diag .diag-more');
   assert.match(await page.eval(() => document.querySelector('#console-errors .diag-hint').textContent), /Explanation: 'q' is an output port \(mode out\)\. In VHDL-93[\s\S]*How to fix: Use an internal signal: declare 'signal q_reg/);
 });
+
+// #16, #38: a Verilog design with the unused bits of an input bus, two names that differ only in
+// case, a case without default (a check without an XST number) and $clog2 in a register's range:
+// every warning in the console and the Warnings tab, labelled Silinx, at its line.
+const VTOP = `module top #(parameter N = 10) (input clk, input [3:0] btn, input a, b, output reg y, output [3:0] q);
+  reg scoreR = 1'b0;
+  wire scorer = btn[0] ^ btn[3];
+  reg [$clog2(N)-1:0] c = 0;
+  always @(posedge clk) begin scoreR <= scorer; c <= c + 1; end
+  always @* begin
+    y = scoreR;
+    case ({a, b}) 2'b00: y = 1'b1; 2'b01: y = 1'b0; endcase
+  end
+  assign q = c;
+endmodule
+`;
+
+uiTest('Verilog: unused bits of an input bus, names that differ only in case, Silinx labels, $clog2 at its line (#16, #38)', E, async (page) => {
+  await makeProject(env, { name: 'BitsPj', files: { 'src/top.v': VTOP }, top: 'top' });
+  await page.openProject('BitsPj');
+  await page.eval(() => window.SilinxApp.openFile('src/top.v'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.v' && window.Silinx.active.editor);
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+  await page.eval(() => { document.getElementById('console-log').innerHTML = ''; });
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
+  await page.waitConsole(/Process "Check Syntax" completed successfully with 4 warning\(s\)/);
+  const lines = (await page.consoleText()).split('\n').filter((l) => l.startsWith('WARNING:'));
+  assert.deepEqual(lines.sort(), [
+    'WARNING:Silinx - "src/top.v" Line 4: $clog2 is not supported by XST (ISE 14.7); use a constant function instead',
+    'WARNING:Silinx - "src/top.v" Line 8: Case statement without \'default\' in a combinational always block',
+    'WARNING:Silinx:647 - "src/top.v" Line 1: Input <btn<2:1>> is never used.',
+    'WARNING:Silinx:863 - "src/top.v" Line 3: Name conflict (<scorer> and <scoreR>, renaming scorer as scorer_rnm0)',
+  ]);
+  await page.click('#console-tabs .tab[data-page=warnings]');
+  await page.waitFor(() => !document.getElementById('console-warnings').hidden);
+  assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '(4)');
+  const rows = await page.eval(() => [...document.querySelectorAll('#console-warnings .diag')].map((d) => d.textContent));
+  assert.ok(rows.every((r) => /^WARNING:Silinx(:\d+)? - /.test(r)), rows.join('\n'));
+  // the help of the bus's unused bits and of the name conflict
+  const help = async (re, id) => {
+    const i = rows.findIndex((r) => re.test(r));
+    assert.ok(i >= 0, String(re));
+    await page.eval((k) => document.querySelectorAll('#console-warnings .diag')[k].querySelector('.diag-more').click(), i);
+    return page.waitFor((x) => { const b = document.querySelector(`#console-warnings .diag-hint[data-hint="${x}"]`); return b && !b.hidden && b.textContent; }, [id], { what: `help ${id}` });
+  };
+  assert.match(await help(/Input <btn<2:1>>/, 'unused-input-bits'), /^Explanation: Only some bits of the input bus 'btn' are read: bits 2:1 are never used[\s\S]*Xst:647/);
+  assert.match(await help(/Name conflict/, 'name-case'), /^Explanation: 'scorer' and 'scoreR' differ only in upper \/ lower case\.[\s\S]*Xst:863/);
+});

@@ -205,6 +205,10 @@ board design's own testbench in Silinx's simulator when it has one, and the full
 - **RAMB16 model**: port B reading the word port A writes at the same edge got the new word; the
   reads of both ports now come before the writes (old word, as Yosys's READ_FIRST mapping
   expects) (`core/unisim.js`; verilog-axis FIFO `diff`).
+- **Design checks: `$clog2` warned at line 1** when it was in a declaration's or a parameter's
+  range (serv, verilog-axis, nandland SPI); the checks without an XST number were labelled `Lint`,
+  not `Silinx` (#16; `core/elaborate.js`, `core/verilog/parser.js`, `core/lint.js`; test in
+  `test/lint.test.js`).
 - Differential test: a block RAM never written gets `INIT_xx`, `INIT_A/B`, `SRVAL_A/B` = x from
   Yosys; 0 in the bitstream, so 0 in the netlist simulation (`test/diff-synth.js`).
 
@@ -215,12 +219,8 @@ Front end (Verilog / VHDL):
   vectors): "array slices are not supported".
 - secworks sha1 testbench: **hierarchical reference into a named block** (`dut.state_logic.f`);
   aes testbench: **a reference through the top's own name** (`tb_aes_core.dut.…`).
-- `$clog2` warning ("not supported by XST") is reported at **line 1** when `$clog2` is in a
-  declaration's range (`reg [$clog2(N)-1:0] c;`): the call node has no location.
 - VHDL **null ranges**: `a : std_logic_vector(N-1 downto 0)` with N = 0 has one bit instead of
   none (`y <= b & a` gives a's bit).
-- Lint label: the design checks without an XST number are labelled `WARNING:Lint (case-default)`,
-  `WARNING:Lint (blocking)`, not `Silinx`.
 
 Open synthesis (`core/synth-verilog.js`, Yosys):
 - NEORV32: "assignment of an array to a part of an array (line 544)" (unsupported).
