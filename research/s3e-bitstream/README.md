@@ -333,7 +333,8 @@ top-left DCM, synthesized, packed, placed, routed and written by Silinx, are con
 or warning** (`scripts/check-open-flow.mjs`): the projects of `test/fixtures/open-flow` (feat_bram:
 an inferred block-RAM ROM; feat_mult: inferred multipliers; feat_srl: inferred SRL16E; feat_dcm: a
 DCM_SP with CLK0, CLKDV, CLKFX, CLK2X; hard_prim: instantiated RAMB16_S9_S36, RAMB16_S18_S18,
-RAMB16_S1_S4, MULT18X18SIO, MULT18X18S, RAM16X1D, RAM32X1S, SRL16E_1) and the fixtures bram_sp,
+RAMB16_S1_S4, MULT18X18SIO, MULT18X18S, RAM16X1D, RAM32X1S, SRL16E_1; feat_constmult:
+multiplications by a constant and a 14-bit memory word, #35) and the fixtures bram_sp,
 dram, srl and dcm of `test/fixtures/designs` (as XC3S250E-CP132 projects). No new measurement was
 needed but two settings without bits (`measured/fix-16open.json`); what the database had from
 stage D (the settings, and the PIPs of ISE's own designs with these blocks) was enough.
@@ -347,7 +348,20 @@ What ISE's tools want, found on the way:
 - **Block-RAM data inputs:** a data input tied to a constant whose output bit is not used is a DRC
   warning (812, "Dangling pin <DOA15>"): Yosys leaves the data bits beyond the memory's width
   undriven (x), and the packer leaves those inputs unconnected. The parity inputs of a port must
-  all be connected (DRC error 1061 otherwise).
+  all be connected (DRC error 1061 otherwise). A port that writes a signal into a parity input
+  and does not read that parity output is a DRC warning (1060, "The block is configured to use
+  input parity pins. There are dangling output parity pins."): Yosys's 18-bit word is DI0-7,
+  DIP0, DI8-15, DIP1, so a 14-bit memory written on port A and read on port B writes bit 8 into
+  DIPA0. ISE's map lays the same memory out on DI0-13 with the parity inputs tied to 0; the packer
+  moves such a parity bit to a data bit no port uses (pins, contents, INIT / SRVAL), for ports of
+  one width (#35, the stopwatch example; the variants were checked with ISE's DRC: parity inputs
+  left open on a 1024X18 port are error 1061, tied to 0 with the bit on DI13 / DO13 are clean).
+- **Multiplier inputs tied to 1** (a multiplication by a constant: the A / B pins of the
+  constant's 1 bits): ISE ties each to the VCC site of the block-RAM interconnect tile the pin's
+  wire comes from (`BRAM1_SMALL BRAM_VCC_WIRE -> BRAM_DIB_B16`, then `BRAMSITE2 BRAM_DIB_B16_INT1 ->
+  MULT18X18SIO_B4`: two switches, both known). The router chose the VCC site by distance, and
+  a multiplier's pins of the second to fourth interconnect tile then had no path on known switches
+  (#35): it now prefers a site one or two switches from the pin.
 - **Enables tied to 1** (a block RAM's EN / WE / SSR, a multiplier's CE / RST, a DCM's RST /
   PS…): not all the switches from the VCC sites to these pins are in the database, so the packer
   ties them to the constant 0 through the pin's inverter (`ENAINV::ENA_B`); GND comes from a slice

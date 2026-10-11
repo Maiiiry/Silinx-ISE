@@ -68,8 +68,11 @@ varint-coded. 293 templates (576 CLBs share one), 200 181 nodes.
   GCLKH -> the CLBs' `GCLK0..7 -> CLK0..3`; every wire of that network has GCLK in its name. The
   slices' CLK pins can also be reached from general routing (and the GCLK network leaks into general
   routing), so a clock net must be kept on it explicitly.
-- Constants: ISE ties VCC to a VCC site (in every CLB and I/O tile; pin VCCOUT; `VCC_PINWIRE`,
-  `IOIS_VCC_WIRE`…) and GND to the Y output of an unused slice, naming the source
+- Constants: ISE ties VCC to a VCC site (in every CLB, I/O and block-RAM interconnect tile; pin
+  VCCOUT; `VCC_PINWIRE`, `IOIS_VCC_WIRE`, `BRAM_VCC_WIRE`…: the one of the pin's own tile; a block
+  RAM's or multiplier's pin is two switches from the VCC site of the interconnect tile its wire
+  comes from, `BRAM_VCC_WIRE -> BRAM_DIB_B16`, `BRAM_DIB_B16_INT1 -> MULT18X18SIO_B4`) and GND to
+  the Y output of an unused slice, naming the source
   `XDL_DUMMY_<tile>_<site>` (e.g. `outpin "XDL_DUMMY_CLB_X9Y1_SLICE_X17Y1" Y`); `xdl -xdl2ncd`
   accepts these (ISE's lab11 written back by Silinx gives ISE's bitstream, 0 frame bits differ).
 
