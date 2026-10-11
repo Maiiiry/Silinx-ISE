@@ -130,3 +130,32 @@ endmodule`)] });
   assert.equal(r.status, 'pass', r.report || `${r.stage}: ${r.reason}`);
   assert.ok(Object.keys(r.cells).some(c => /^RAMB16/.test(c)), JSON.stringify(r.cells));
 });
+
+test('VHDL: boolean(c), an aggregate as a generic\'s actual, an unconstrained array generic (NEORV32, light8080)', () => {
+  const r = run([vhd(`library ieee; use ieee.std_logic_1164.all;
+package p is
+  type bytes_t is array (natural range <>) of std_logic_vector(7 downto 0);
+  constant code : bytes_t(0 to 2) := (x"c3", x"60", x"55");
+end package;`, 'p.vhd'), vhd(`library ieee; use ieee.std_logic_1164.all; use work.p.all;
+entity sub is
+  generic (BASE : std_ulogic_vector(7 downto 0) := x"00"; EN : boolean := false; CODE_G : bytes_t);
+  port (y : out std_logic_vector(7 downto 0); n : out integer);
+end entity;
+architecture rtl of sub is begin
+  y <= std_logic_vector(BASE) when EN else CODE_G(CODE_G'high);
+  n <= CODE_G'length;
+end architecture;`, 'sub.vhd'), vhd(`library ieee; use ieee.std_logic_1164.all; use work.p.all;
+entity tb is end entity;
+architecture sim of tb is
+  constant MODE : natural := 2;
+  constant EN_C : boolean := boolean(MODE = 2);
+  signal y1, y2 : std_logic_vector(7 downto 0);
+  signal n1 : integer;
+begin
+  u1 : entity work.sub generic map (BASE => (others => '1'), EN => EN_C, CODE_G => code) port map (y => y1, n => n1);
+  u2 : entity work.sub generic map (BASE => (others => '1'), EN => boolean(MODE = 0), CODE_G => code) port map (y => y2, n => open);
+  process begin wait for 1 ns;
+    report "y1=" & integer'image(to_integer(unsigned(y1))) & " y2=" & integer'image(to_integer(unsigned(y2))) & " n=" & integer'image(n1); wait; end process;
+end architecture;`, 'tb.vhd')], 'tb');
+  assert.ok(prints(r).includes('y1=255 y2=85 n=3'), prints(r).join('; '));
+});

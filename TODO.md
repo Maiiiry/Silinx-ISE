@@ -22,6 +22,11 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   computing it from ISE's device report: about 2-4 weeks for one device.
 - **Synthesis quality:** Yosys's netlists of lab11 are about 2.9 times larger than XST's
   (research/s3e-bitstream/README.md, "To do later").
+- **Design corpus** (test/designs-corpus/README.md, "Open"): the packer's block RAM, distributed RAM,
+  SRL16 and MULT18X18 (every CPU and FIFO of the corpus needs one); `C2VDD` carry inputs in the bit
+  database (fpu-adder); a second clock from a pad (BUFGMUX inputs); constant function calls folded
+  and VHDL constant signals and enum initial values in the open synthesis; check the corpus's
+  larger designs on the XC3S500E / 1200E once their bit databases exist.
 - **Timing:** hold time, clock skew and pad (OFFSET) paths; the router's cost with the branch loads.
 
 ## Front ends and simulator
@@ -29,3 +34,6 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
 - Verilog constructs Silinx cannot read yet, found by the corpus test (test/corpus/README.md):
   hierarchical names into generate blocks, instance arrays, `localparam` in functions, `$size`,
   `$floor`, `$countbits`, `wand` / `wor` / `supply1` ports, typedefs and structs, `specify`.
+- From the design corpus (test/designs-corpus/README.md): VHDL slices of arrays of vectors
+  (light8080), null ranges, hierarchical references into named blocks and through the top's name
+  (secworks testbenches), the location of the `$clog2` warning in a declaration's range.

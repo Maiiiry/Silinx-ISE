@@ -185,7 +185,8 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
     let entry, given = false;   // given: set by the instance (generic map / #(…)), not the default
     try {
       const ov = paramOverrides.get(p.name) ?? paramOverrides.get(p.name.toLowerCase());
-      const ptype = p.type ? elabType(E, p.type) : null;
+      // (an unconstrained array type: the actual gives the range, as light8080's OBJ_CODE : obj_code_t)
+      const ptype = p.type ? elabType(E, p.type, true) : null;
       if (ov && !p.local) {
         given = true;
         entry = { kind: 'const', val: ov.val, t: ov.t };
@@ -467,7 +468,14 @@ function elabChild(E, it) {
       }
       pname = decl.name;
     }
-    const n = bindExpr(E, p.value, null, it.loc);
+    // VHDL `G => (others => '0')`: an aggregate takes the generic's declared type (when it does not
+    // depend on the instance's other generics)
+    let expect = null;
+    if (E.lang === 'vhdl' && p.value.op === 'aggregate') {
+      const pd = mod.params.find(x => x.name === pname);
+      try { if (pd?.type) expect = elabType(E, pd.type); } catch (e) { if (!(e instanceof ElabError)) throw e; }
+    }
+    const n = bindExpr(E, p.value, expect, it.loc);
     ov.set(pname, { val: constOf(E, n, it.loc), t: n.t, text: n.strText });
   });
   // defparams naming this instance: its own parameters, and the ones further down (passed on)
@@ -1397,6 +1405,8 @@ function bindBuiltin(E, name, rawArgs, expect, loc) {
     case 'conv_std_logic_vector': return conv(A(0), C(1), false);
     case 'to_integer': case 'conv_integer': case 'integer': case 'natural': case 'positive': { const a = slvNum(E, A(0)); return conv(a, 32, true, a.t.s, 'int'); }
     case 'real': { const a = A(0); return fold({ k: 'conv', a, ext: a.t.s, t: REAL }); }
+    // boolean(c): a conversion to the type it already has (NEORV32: boolean(BOOT_MODE_SELECT = 0))
+    case 'boolean': { const a = A(0); if (a.t.kind !== 'bool') throw new ElabError(`cannot convert to boolean`, loc); return a; }
     case 'resize': {
       const a = A(0), w = C(1);
       if (a.t.s && a.t.kind === 'logic' && w < a.t.w) return fold({ k: 'conv', a, ext: true, sres: true, t: vecT(w, true) });
