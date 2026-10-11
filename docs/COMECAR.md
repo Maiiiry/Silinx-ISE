@@ -98,10 +98,12 @@ antiga). **Os seus projetos não estão dentro dessa pasta**, por isso mantêm-s
 
 ## Síntese e programação de uma placa (opcional)
 
-Precisam de mais duas coisas. O seu professor pode já as ter preparadas.
+Precisam de até mais duas coisas. O seu professor pode já as ter preparadas.
 
-1. **Xilinx ISE 14.7** (licença WebPACK gratuita) para sintetizar e gerar o bitstream. Em qualquer
-   computador corre dentro do **Docker**:
+1. **Para as placas Basys2 e Nexys2, nada:** a *toolchain Silinx*, o modo por omissão, sintetiza e
+   gera o bitstream sem nenhuma ferramenta Xilinx. Para as outras placas (ou os processos que
+   precisam do ISE), o **Xilinx ISE 14.7** (licença WebPACK gratuita); em qualquer computador corre
+   dentro do **Docker**, e depois escolha um modo ISE em *Tools ▸ Toolchain Settings*:
    - instale o [Docker Desktop](https://www.docker.com/products/docker-desktop/) (nos Mac com
      Apple Silicon, o OrbStack é uma alternativa mais rápida);
    - descarregue `silinx-ise-docker-kit-<versão>.zip` da mesma página e siga o seu
