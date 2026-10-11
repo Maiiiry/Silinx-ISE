@@ -94,10 +94,12 @@ one). **Your projects are not inside that folder**, so they are kept.
 
 ## Synthesis and programming a board (optional)
 
-These need two more things. Your teacher may provide them already set up.
+These need up to two more things. Your teacher may provide them already set up.
 
-1. **Xilinx ISE 14.7** (free WebPACK licence) to synthesize and generate the bitstream. On any
-   computer it runs inside **Docker**:
+1. **For the Basys2 and Nexys2 boards, nothing:** the *Silinx toolchain*, the default mode,
+   synthesizes and generates the bitstream with no Xilinx tool. For the other boards (or the
+   processes that need ISE), **Xilinx ISE 14.7** (free WebPACK licence); on any computer it runs
+   inside **Docker**, then choose an ISE mode in *Tools ▸ Toolchain Settings*:
    - install [Docker Desktop](https://www.docker.com/products/docker-desktop/) (on Apple Silicon
      Macs, OrbStack is a faster alternative);
    - download `silinx-ise-docker-kit-<version>.zip` from the release and follow its `ise/README.md`:

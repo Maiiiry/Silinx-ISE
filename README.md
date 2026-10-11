@@ -213,11 +213,12 @@ In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releas
   **`silinx-ise-<version>.zip`**, unzip it and double-click **`Start Silinx-ISE.bat`** (Windows),
   **`Start Silinx-ISE.command`** (macOS) or **`start-silinx-ise.sh`** (Linux). Your browser opens
   Silinx; projects are folders in `Silinx-projects` in your user folder.
-- **Synthesis needs Xilinx ISE 14.7** (free WebPACK): build your own Docker image with
-  **`silinx-ise-docker-kit-<version>.zip`** (see [below](#synthesis-and-bitstreams-xilinx-ise-147)).
-  Without ISE, *Synthesize - Yosys (open)* synthesizes the design in the browser with Yosys compiled
-  to WebAssembly, and for the **Basys2-250** the *Silinx toolchain (experimental, no ISE)* mode goes
-  all the way to the bitstream ([below](#synthesis-and-bitstreams-xilinx-ise-147)).
+- **Synthesis and bitstreams need no Xilinx tool** for the **Basys2-100 / 250 and Nexys2-500 / 1200**:
+  the *Silinx toolchain (experimental, no ISE)*, the default mode, synthesizes (Yosys), places,
+  routes and writes the bitstream itself. For the other boards (and the ISE-only processes:
+  simulation models of the implementation, power, …) use **Xilinx ISE 14.7** (free WebPACK): build
+  your own Docker image with **`silinx-ise-docker-kit-<version>.zip`** (see
+  [below](#synthesis-and-bitstreams-xilinx-ise-147)) and choose an ISE mode in *Toolchain Settings*.
 
 ## For developers
 
