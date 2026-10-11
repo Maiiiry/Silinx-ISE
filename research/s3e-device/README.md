@@ -1,0 +1,296 @@
+# Spartan-3E device descriptions measured black-box (2026-10-11)
+
+Issue [#3](https://github.com/pmnmalo/Silinx-ISE/issues/3). The device descriptions that ship with
+Silinx (`core/fpga/devices/*.json.gz`: tiles, sites, wires, PIPs and the nodes that join wires across
+tiles) are today computed from ISE's device report (`xdl -report -pips -all_conns`,
+`research/s3e-route/build-device.mjs`). The bit database (`research/s3e-bitstream/db`) was instead
+measured: designs written by Silinx, implemented by ISE, their outputs compared. This folder works
+out how to obtain the device descriptions the same way, from what Silinx observes when ISE runs on
+designs it writes, so that what ships derives from Silinx's own measurements (the open legal
+question in [docs/OPEN-TOOLCHAIN.md](../../docs/OPEN-TOOLCHAIN.md)).
+
+**Rule kept here:** no measurement reads the device report or anything built from it. The shipped
+graph is used only afterwards, locally, to score how complete and how right a measured description
+is (as the issue suggests); a fact enters the measured description only when an experiment on ISE
+showed it.
+
+| File | What it does |
+|---|---|
+| `oracle.sh` | Inside the ISE container, for every `.xdl` of a folder: `xdl -xdl2ncd` (and `-force`), `drc -z`, with `-r` also `par -p` (ISE routes, the placement kept) and `xdl -ncd2xdl`; only the logs and the routed XDL come back |
+| `ise-remote.sh` | Runs `oracle.sh` on another machine with Docker and the ISE image (`SILINX_ISE_HOST=user@host` in the environment only); its remote folder is removed afterwards |
+| `probe.mjs`, `probe-run.mjs` | xdl -xdl2ncd as an oracle of existence: probe designs holding many candidate PIPs (tiles) or sites, asked in rounds |
+| `candidates.mjs` | The probes' candidates: switch-box tiles, slice and VCC sites, the census of the CLBs' PIPs |
+| `observe.mjs` | What a design routed by ISE shows: PIPs, sites, site pin wires, and the joins between tiles inferred net by net |
+| `model.mjs` | Joins as rules in switch-box coordinates, applied to every switch box: the predicted joins |
+| `hypotheses.mjs` | Test designs for joins: one net per hypothesis; ISE's DRC says which are joined |
+| `gen-observe.mjs` | Random designs over the CLB slices for ISE to route |
+| `build.mjs` | Measurements -> the packed format of the shipped graphs (`core/fpga/device.js`) |
+| `prototype.mjs` | The phase-2 prototype: observe, predict, tests, verdicts, build the measured CLB array, compare it with the shipped graph |
+
+What the experiments produce (ISE's routed XDL and logs, the candidates, the verdicts) stays in the
+working folders, out of the repository; only the scripts and this record are here.
+
+## 1. Method
+
+### What the description holds, and what Silinx needs of it
+
+The packed description (`core/fpga/device.js`) holds, per device: the tile grid (name, row, column,
+type of every tile); per tile *template* the wires, the PIPs (from, to, bidirectional, route-through)
+and the sites with the tile wire of each pin; per tile its sites' names and whether a pad is bonded;
+and the *nodes*, the sets of tile wires joined by metal. The open flow uses it to place (sites), route
+(nodes and PIPs), time (`timing.js`: node classes from the wire names and the delay table, the
+fastest routes over the graph) and write the bitstream (the PIP and pin names, which the bit
+database knows by tile type).
+
+The router of the open flow only takes PIPs whose bits are measured (`knownRouting`,
+`core/fpga/bitgen.js`). So a measured description needs, for routing, the PIPs of the bit database
+and the nodes of their wires; the other PIPs of the chip are of no use to the open flow until their
+bits are measured too (and measuring their bits needs to know they exist: the same probe).
+
+### What is measured how
+
+| Part of the description | Observation | Experiment |
+|---|---|---|
+| Tiles that hold a switch box or a PIP | the tile names in ISE-routed designs | **arc probe**: a PIP known in the tile type, placed in each candidate tile name: `xdl -xdl2ncd` says `Could not find arc in tile T…` when the tile does not exist. (Tiles with no PIP and no site cannot be named and are not needed; rows and columns are Silinx's own, from the names) |
+| Sites, their type | instances placed by ISE (map / par) | **placement probe**: one instance per candidate site: `Placement site S for instance I of type T … is invalid for device` when the site does not exist or does not take the type (a SLICEM site takes SLICEL and SLICEM, a SLICEL site only SLICEL) |
+| The tile of a site | the `placed TILE SITE` that ISE writes (`xdl -xdl2ncd` ignores the tile name it reads, `xdl -ncd2xdl` writes the right one) | a design with an instance on every site, read back |
+| Bonded pads, package pins | IOB sites are named by package pin | placement probe of the package's ball names |
+| Site pin -> tile wire | the first PIP of an ISE-routed net leaves its source pin's wire; the last ends on the sink pin's | DRC of a net driven from the pin through a PIP out of that wire (an island if wrong) |
+| Wires of a tile type | the ends of its PIPs and its pin wires | — (a wire with no PIP and no pin cannot be named in XDL: not observable, and of no use to the router) |
+| PIPs of a tile type | the bit database (every PIP it has bits for, or measured without bits, was accepted by `xdl -xdl2ncd` and programmed by bitgen); ISE-routed designs | arc probe of candidates; bidirectional: ISE writes `=-`; route-throughs: ISE's routes |
+| Joins (nodes) | ISE-routed nets: a from-wire no PIP of the net drives in its tile is joined to a to-wire of the same family in another tile (`observe.mjs`) | rules in switch-box coordinates predict the joins of every tile (`model.mjs`); each predicted join is tested (`hypotheses.mjs`) |
+| Delays | already measured: `research/s3e-route/timing-fit.mjs` fitted the wire classes to ISE's `reportgen -delay` | the delay table is computed from the graph |
+
+### The oracles (measured 2026-10-11 on the XC3S250E, ISE 14.7, `xdl` P.20131013)
+
+- **`xdl -xdl2ncd` checks every PIP and every placement before converting**, and names each one that
+  does not exist (`ERROR:XDL:198 - Could not find arc in tile CLB_X5Y5 with connecting wires F1_B0
+  and X0 around line 121`; the same message for a tile that does not exist; `ERROR:XDL:190 -
+  Placement site SLICE_X99Y99 for instance s1 of type SLICEL … is invalid for device`, also for a
+  SLICEM instance on a SLICEL site). It **stops after 20 errors** (`XDL file processing stopped after
+  20 errors were found`), so a probe design answers for every candidate up to its 20th error: those
+  before it without an error exist; the rest are asked again (`probe-run.mjs`). A probe round of 8
+  designs takes about 10 s.
+- **The tile name of `placed TILE SITE` is not checked** (a slice placed in a tile that does not exist
+  is converted): sites are probed by name only.
+- **`drc -z` names every net whose PIPs are not one tree**: `The network <n> has island(s)` (PIPs cut
+  off from the source), next to `has an antenna` (a PIP leading nowhere) and `is only partially
+  routed`. Islands and antennas are all reported (it stops listing only the unrouted messages). So
+  a net from a slice output through PIPs of tile T to wire A, plus one PIP of tile U out of wire B,
+  has an island exactly when A and B are not one node. One design holds hundreds to thousands of
+  such nets, each with its own source and its own wires (`hypotheses.mjs`).
+- **`par -p` routes a placed XDL design** (the placement kept): ISE's router then shows, in its
+  routed XDL, PIPs and joins Silinx chose nothing of.
+
+### Joins: from observed nets to the whole chip
+
+A routed net lists its PIPs sorted by tile, not as a path. In a legal net every PIP's from-wire is
+driven: by a PIP of the same tile ending on the same wire, by the source pin, or by a to-wire of
+another tile it is joined to. The candidates for that last case are the net's to-wires of the same
+*family* (`wireFamily`: doubles and hexes by direction and length, as UG331 describes them — BEG,
+A, B, MID, C, D, END taps; long lines; the output multiplexer lines; the carry chain; the global
+clock lines; the block-RAM pins). One candidate: a join. Several: the join is decided by a join of
+the same wires at the same offset seen elsewhere (`resolveAmbiguous`), or left for a test.
+
+The general routing is one switch box repeated in every CLB, block-RAM interconnect and I/O tile
+(stage D of the bit database). Doubles, hexes and long lines join switch boxes a fixed number of
+switch boxes apart, whatever lies between (the block-RAM site and feed-through tiles, the clock
+column and rows hold none): so a join is written as a rule, `E2BEG0 2,0 E2END0`, counted in switch
+boxes of the row (the block-RAM columns hold one where the CLB rows above and below hold four), then
+of the column (the DCMs interrupt some columns), and applied to every switch box that has the wire
+(`model.mjs`). The taps no routed design happened to use are predicted from the names alone
+(`segmentRules`: a double passes BEG, MID, END, a hex BEG, A, B, MID, C, D, END, one switch box
+apart, with the same index; END_S / END_N one row down / up). The predictions are hypotheses, and so
+are the joins decided by rules from ambiguous observations: each is tested by a DRC design. A test
+design should hold no DRC error but the expected ones (an island for a wrong join; an antenna and an
+unrouted sink in every net): xdl -xdl2ncd spends about 30 ms on every error it reports, so a LUT with
+an unconnected input in every source slice made the first test designs five times slower.
+
+Not covered by the switch-box rules, each to be observed and tested on its own: the terminal tiles
+at the edges (where doubles and hexes end), the global clock network (BUFGMUX -> spines -> GCLKH ->
+the tiles' clock pins), the block-RAM and multiplier pins (their site tile to the four interconnect
+tiles), the DCMs, the carry chain across tiles, the corner tiles.
+
+### Provenance notes on what is already measured
+
+- The **bit database's PIP list** holds measured facts (each PIP was accepted by `xdl -xdl2ncd` and
+  its bits found by comparing bitstreams), but which PIPs to try was chosen with the device report
+  (`gen-pipcover.mjs` routes test designs over the report's graph). A measured description that
+  takes its PIPs from the database keeps facts measured by Silinx, chosen with the report's help.
+  The stricter way (candidates from observed wire names only, each asked by the arc probe) costs
+  far more because of the 20-error limit (above).
+- The I/O tile types share their features in the database (`unify-io.mjs`: the I/O tiles of one side
+  share one switch box): a feature of one I/O tile type is not proof that another has the PIP. The
+  first join tests found three such PIPs that ISE refuses (`LIOIS_PCI_X0Y16 OMUX_W14 ->
+  IOIS_STUB_F1_B3`, `LIOIS_PCI_X0Y19 OMUX_NW10 -> IOIS_STUB_F4_B0`, `RIOIS_X27Y12 OMUX_NE12 ->
+  IOIS_STUB_F2_B3`). Every PIP of every tile type must be confirmed by the arc probe on that type.
+- The layout (`<device>-layout.json`) was built with the device grid of the report (`gen-layout.mjs`);
+  the grid itself (tile names and positions) is measurable by the probes above.
+
+## 2. Prototype on the XC3S250E (2026-10-11)
+
+Sources: 11 designs routed by ISE that the bit database already had (the reference designs and the
+designs implemented from HDL), 4 random designs routed by ISE (`gen-observe.mjs`, a quarter of the
+CLBs each, `par -p`: 90 s for the four), the probes and tests below. Scored against the shipped
+graph (local scoring only). ISE ran in Docker on an Intel Mac mini (one or two containers).
+
+```
+node gen-observe.mjs clb-tiles.txt obs/ 4 11 0.25 && ise-remote.sh -r obs/      # ISE routes them
+node prototype.mjs observe obs.json <routed.xdl…>
+node candidates.mjs tiles obs.json t.json && node probe-run.mjs t.json tiles.json   # also: sites, census
+node prototype.mjs predict obs.json switch-tiles.txt pred.json                  # SEG=1: the name grammar too
+node prototype.mjs tests pred.json obs.json tests/ && ise-remote.sh -f tests/ && node prototype.mjs verdicts tests/
+CENSUS=census.json node prototype.mjs build obs.json clb-tiles.txt measured.json.gz tests/…
+BAND=8,22 node prototype.mjs compare measured.json.gz
+```
+(`SILINX_ISE_HOST=user@host` in the environment for `ise-remote.sh` and `probe-run.mjs`.)
+
+**What ISE's routed designs show** (15 designs, 119 199 PIPs, 104 205 distinct, in 941 of the 1057
+tiles that have PIPs, 72 tile types): 2050 sites with their tile and type; 19 131 site pin -> tile
+wire facts, **all right**; 43 322 joins: 17 076 with a single candidate (**all right**) and 26 246
+decided by the joins seen elsewhere (2 wrong: these must be tested too); 3781 left ambiguous (mostly
+the global clock lines, every GCLKH of a clock net is a candidate), 535 from-wires unexplained (the
+block-RAM output pins, whose source pin is in another tile).
+
+**Tile probe** (`probe-run.mjs`; candidates: the tile-name prefixes of the switch-box tiles seen in
+ISE's designs, at every X / Y of their kind — the I/O tiles on their side, the block-RAM interconnect
+in the observed block-RAM columns —, a PIP `W2END4 -> W2BEG4` in each): 1206 candidates, 27 rounds of
+up to 8 designs, 4 min. 216 tiles found, 990 refused: **no error** against the shipped graph (none
+accepted that it does not have, none refused that it has). With the 562 tiles already seen: 778 of
+the 780 switch-box tiles; the 2 missing (`LIBUFS_CLK_PCI_X0Y18`, `LIBUFS_PCI_X0Y14`) are of prefixes
+no design used (the prefix grammar — side, IOIS / IBUFS, _BRK / _PCI / _CLK_PCI — would find them).
+The CLB array is not a rectangle: the block-RAM columns hold CLBs in their top and bottom rows
+(CLB_X22Y1); only the probe finds them.
+
+**Site probe**: a SLICEM instance on each of the 2448 slice sites: the 1224 SLICEM sites accept it,
+the 1224 SLICEL sites refuse it — **every slice's type right**. VCC sites `VCC_X<x>Y<y>` (their names
+are not those of their tiles: CLB_X10Y10 holds VCC_X11Y11): 1073 candidates, 727 found, 346 refused,
+no error (the 65 others of the 792 are at Y37, outside the candidates: the range must reach max Y + 2).
+11 rounds, 88 designs.
+
+**PIP census** (every PIP of the bit database's CLB types, in each of the 612 CLB tiles: 1 738 008
+probes in 116 designs, 18 rounds, 548 s of ISE): 1 736 790 accepted, 1218 refused, **no error**
+against the shipped graph. The refused: the CLB features the break rows' type shares with the CLB
+(`sameAs`) but does not have (`GCLKk -> CLKn`: its clock lines are `GCLKk_BRK`, 1152 in 36 tiles), and
+`FXk -> FX_Sk` (34) and `COUT2 -> COUT_N1`, `COUT3 -> COUT_N3` (32) in the top row, where there is no
+CLB above. So the database's features are right per tile type, but not every tile of a type has
+them all: the description needs the census, tile by tile (or per template).
+
+**The join oracle checked**: 600 predicted joins of the CLB array (300 the shipped graph has, 300 it
+has not), one test net each in 6 designs: ISE's DRC agreed with the shipped graph on all 576 (290
+joins, 286 islands); 24 could not be driven from a slice.
+
+**Joins of the CLB array.** 327 rules (switch-box coordinates) from the 43 322 observed joins
+predict 170 365 joins in the switch-box tiles, of which 127 321 were not observed; 62% of these are
+right (the shipped graph). The wrong ones come from rules learnt next to irregular places (the
+block-RAM and DCM columns, the edges) applied elsewhere; the tests sort them. `closeRules` (the
+taps of one line joined to each other) reaches more taps but brings 351 541 predictions, half wrong:
+it is not used. Tested in the rows Y8-Y22 (the break row, two GCLKH rows and the centre clock row,
+the block-RAM rows):
+
+| Step | Tests | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| predicted by the observed rules (`tests`, 29 designs, 1168 s) | 41 479 | 25 303 joins, 16 176 islands | **all** |
+| predicted by the names alone (`segmentRules`: the taps of the doubles and hexes no routed design used; 6 designs, 49 s) | 3873 | 3873 joins | **all** |
+| (3344 + 3352 predictions could not be driven from a CLB: their driver is a block-RAM or I/O switch box) | | | |
+
+15 836 of the first tests also had a *routing conflict* (two test nets on one node, where the
+predicted nodes that keep tests apart were still incomplete): it does not change the verdict (an
+island is a PIP cut off from its own net's source), and all of them agreed too.
+
+The measured CLB array (`build`: the 612 CLBs, the database's PIPs less the 1218 the census refused,
+the observed and the confirmed joins) against the shipped graph, in the rows Y8-Y22 (270 CLBs):
+
+| | Measured | Shipped (on the measured wires) |
+|---|---|---|
+| Tiles, sites, site types | 270, 1080, all right | |
+| PIPs | 766 260, none that the shipped graph lacks | 780 300: 14 040 missing, all route-throughs and SLICEM-internal (52 per CLB) |
+| Wires | 118 404 | 125 280 with a PIP or a pin: 7020 missing (the pins below); 35 736 more with neither |
+| Pin wires | 23 220, all right | 30 780: 7560 missing (carry, SLICEM and XB / YB pins no design used) |
+| Nodes, pieces of more than one wire (the shipped nodes cut to the measured wires) | 20 350 exact (84%), **none merged** | 24 252: 3902 still split |
+| from observations only | 5743 exact (24%) | |
+| + the tested predictions of the observed rules | 18 878 exact (78%) | |
+
+The pieces still split: the global clock lines (576: `GCLKk` of a CLB to the CLBs above and below,
+fed by the GCLKH rows; not switch-box rules: the clock network needs its own), the doubles and hexes
+whose start is in a block-RAM or I/O switch box (the tests need a driver there: through a neighbouring
+CLB and a confirmed join, or from an I/O pad or block RAM), and the END / END_S pairs at the edges
+(both ends of a test would be from-wires: they join through the start in the I/O tile). Over the
+whole array (only the band was tested) one piece is merged: the two wrong rule-decided joins of the
+observations, which a test would have refused.
+
+**What the measured CLB array lacks** (all 612 tiles): 52 PIPs per CLB, the route-throughs
+(`F1_B_PINWIRE0 -> X0`: a path through a LUT, `CIN -> X`, `COUT -> YB`, `FX -> Y`, `SHIFTOUT -> XB`)
+and the SLICEM's internal ones (`BYINVOUT -> SLICEWE`, `DIG -> ALTDIG`, `SHIFTOUT -> SHIFTIN`): the
+database has no bits of their own for them, and the open flow takes a route-through only out of a
+net's own source site (`COUT -> YB`); they are seen in ISE's routes (`# _ROUTETHROUGH`) or probed. The pins no design of these used: the carry chain (CIN,
+COUT), XB / YB, the SLICEM's shift and RAM pins (SHIFTIN / SHIFTOUT, ALTDIG / DIG, SLICEWE1, BYOUT /
+BYINVOUT) and FXINB: designs with carry chains, shift registers and distributed RAM give them. 28
+wires per tile without a PIP in the database (those pins, and the long lines' test wires) are not
+in it; the shipped graph's CLB tiles also have 129 wires each with no PIP and no pin there (the
+taps of hexes and long lines that pass through: E6A1, LH1…), which no design can name: they belong
+to nodes but no route turns there, so the router does not need them.
+Sites, their types and every pin wire found are right; the bidirectional flag differs on 216 PIPs
+(only the ones ISE was seen to write `=-` are marked; the census can ask both ways).
+
+## 3. Cost
+
+Measured here (one Intel Mac mini, Docker, one or two containers, shared with other work):
+
+| Experiment | Size | ISE time |
+|---|---|---|
+| tile probe | 1206 candidates, 27 rounds | 4 min (fewer rounds now: `probe-run.mjs` spreads what is left over the round's designs) |
+| site probe | 3521 candidates, 11 rounds, 88 designs | about 7 min |
+| PIP census | 1 738 008 PIPs, 116 designs | 9 min |
+| ISE routes random designs (`par -p`) | 4 designs, a quarter of the CLBs each, 100 k PIPs | 90 s (a design of every slice took par over 15 min: not worth it) |
+| join tests, first designs | 41 479 nets, 29 designs | 19.5 min: about 90 ms per net, 30 ms of it per DRC error xdl2ncd reports (each source slice's unused LUT input was one) |
+| join tests, lean designs (only the LUTs used) | 3873 nets, 6 designs | 49 s: about 17 ms per net |
+
+The XC3S250E, all of it (an estimate from the above): about 200 000 join tests (the switch-box
+rules and the name grammar over every switch box, the I/O and block-RAM switch boxes, the edges, the
+clock network) at 17-20 ms, two or three rounds as new rules come: 2-3 hours; the census of every
+tile (about 2.1 million PIPs): 15 min; tiles, sites, pads: 15 min; 20-40 designs for ISE to route
+(I/O, block RAM, multipliers, DCM, clocks, carry chains, shift registers, distributed RAM): 30 min.
+**About 3-5 hours of ISE per device**, which the scripts run unattended.
+
+The work is in the irregular parts, each needing its observation designs, its hypotheses and its
+tests (the CLB array is the regular part, done here in a few hours): the joins whose driver is an
+I/O or block-RAM switch box (drive them through a neighbouring CLB and a confirmed join), the edges
+and terminal tiles, the global clock network, the I/O tiles' sites and pins, the block RAMs and
+multipliers (their site tile to the four interconnect tiles), the DCMs, the corners, the
+route-throughs; then the full measured graph (Silinx's own rows and columns), the open flow on it
+(its tests expect exact numbers of the shipped graph's routes), `scripts/check-open-flow.mjs`
+byte-identical on the examples. **Estimate: 2-3 weeks for the XC3S250E** (the issue's estimate
+holds), then **1-2 days per other device** (the XC3S100E, XC3S500E, XC3S1200E share the tile types and
+the rules; their own tiles are the XC3S100E's DCMAUX, the XC3S1200E's side DCMs and long-line
+splitters; ISE time grows with the chip: the XC3S1200E has about 3.5 times the XC3S250E's CLBs).
+
+## 4. Findings
+
+- The oracles are exact: every answer of ISE agreed with the shipped graph — 1.74 million PIP
+  probes, 3521 site probes, 1206 tile probes, 45 928 join tests, 19 131 pin wires and 17 076
+  single-candidate joins read from routed designs. The method can measure the device description.
+- Joins decided by rules from ambiguous observations were wrong twice in 26 246: they must be tested
+  like predictions.
+- The bit database's features are per tile type, but a tile type's tiles do not all have every PIP
+  (the break rows' CLB has no `GCLKk -> CLKn`, the top row no `FXk -> FX_Sk` / `COUT -> COUT_N`), and
+  the I/O tile types share features they do not all have (3 refused in the first tests): a measured
+  description needs the census of every tile. (Harmless for the bitstream writer, which only meets
+  PIPs the device has.)
+- The database's PIP list was measured, but its candidates came from the device report
+  (`gen-pipcover.mjs`); the layout used the report's grid (`gen-layout.mjs`). If what ships must not
+  depend on the report at all, the candidates need another source: observations, the name grammar and
+  the census are cheap for the switch boxes; asking xdl -xdl2ncd about arbitrary wire pairs is not
+  (20 errors per run).
+
+## 5. Recommendation
+
+The method works and is affordable in ISE time; the prototype shows it on the CLB array (84% of
+the node pieces exact after two test rounds on the rows tested, no wrong join, every PIP, site and
+pin it has right). Finishing it is the 2-3 weeks above, mostly the irregular tiles: worth doing as
+its own piece of work, in this order: (1) tests driven through a neighbouring CLB, for the I/O and
+block-RAM switch boxes and the edges; (2) the clock network; (3) the I/O, block-RAM / multiplier and
+DCM sites and pins; (4) the census of every tile; (5) the full measured graph, compared until the
+open flow routes legally on it, then shipped in place of the report-built one, with the tests'
+expectations updated; (6) `scripts/check-open-flow.mjs` byte-identical. Until then the report-built
+graphs stay, and serve locally to score the measured one.
