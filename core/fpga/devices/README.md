@@ -6,7 +6,13 @@ placer, router and bitstream writer (`core/fpga/`).
 
 | File | Device | Board |
 |---|---|---|
+| `xc3s100ecp132-4.json.gz` | XC3S100E, CP132 package (any speed grade) | Digilent Basys2-100 |
 | `xc3s250ecp132-4.json.gz` | XC3S250E, CP132 package (any speed grade) | Digilent Basys2-250 |
+| `xc3s500efg320-4.json.gz` | XC3S500E, FG320 package (any speed grade) | Digilent Nexys2-500, Xilinx Spartan-3E Starter Kit |
+| `xc3s1200efg320-4.json.gz` | XC3S1200E, FG320 package (any speed grade) | Digilent Nexys2-1200 |
+
+The open toolchain writes bitstreams for the devices that also have a bit database: the XC3S250E
+today (research/s3e-bitstream/db); the others are being measured ([TODO.md](../../../TODO.md)).
 
 Each file was computed by Silinx from the output of ISE 14.7's documented
 `xdl -report -pips -all_conns <part>` command (`xdl` P.20131013), with

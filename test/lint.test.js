@@ -42,7 +42,7 @@ test('latch: VHDL if without else in a combinational process (at the if line); e
   assert.deepEqual(ids(r), ['latch@7']);
   assert.match(r[0].message, /^Found 1-bit latch for signal <y>\. Latches may be generated from incomplete case or if statements\.$/);
   assert.equal(r[0].severity, 'warning');
-  assert.equal(r[0].tool, 'Xst:737');
+  assert.equal(r[0].tool, 'Silinx:737');
   assert.equal(r[0].file, 't.vhd');
   // else branch
   assert.deepEqual(ids(lint({ 't.vhd': VH('', 'process (a, b) begin\n  if a = \'1\' then y <= b; else y <= \'0\'; end if;\nend process;') }, 't')), []);

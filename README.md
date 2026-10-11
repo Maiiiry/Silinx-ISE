@@ -216,8 +216,8 @@ In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releas
 - **Synthesis needs Xilinx ISE 14.7** (free WebPACK): build your own Docker image with
   **`silinx-ise-docker-kit-<version>.zip`** (see [below](#synthesis-and-bitstreams-xilinx-ise-147)).
   Without ISE, *Synthesize - Yosys (open)* synthesizes the design in the browser with Yosys compiled
-  to WebAssembly (a netlist and its utilization; the open place and route and bitstream for the
-  Spartan-3E are still being developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md)).
+  to WebAssembly, and for the **Basys2-250** the *Open toolchain (experimental, no ISE)* mode goes
+  all the way to the bitstream ([below](#synthesis-and-bitstreams-xilinx-ise-147)).
 
 ## For developers
 
@@ -273,14 +273,28 @@ them). Synthesis, implementation and programming need the full application (`npm
 
 Implementation uses the ISE 14.7 command-line tools (WebPACK edition: free, with a free license).
 
-**Without ISE (open toolchain, in development):** *Synthesize - Yosys (open)* synthesizes any
+**Without ISE (open toolchain, experimental):** *Synthesize - Yosys (open)* synthesizes any
 design in the browser (Yosys compiled to WebAssembly). For the **Basys2-250 (XC3S250E-CP132)**
 Silinx also places, routes and writes the bitstream itself: the device description ships with
-Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. For now
-this full flow runs from the command line (`node research/s3e-route/open-flow.mjs <project folder>
-<out folder>`); its Implement option in the interface is coming. For other devices the device
-description is built once from your own ISE installation. The open toolchain does **not yet
-support the Spartan-6 boards (Nexys3, Atlys)**; it will (they work with ISE, as every board does).
+Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. To use it,
+choose *Tools ▸ Toolchain Settings ▸ Execution mode: Open toolchain (experimental, no ISE)*. The
+usual processes then run Silinx's own flow on this machine: *Synthesize - Yosys* (Yosys),
+*Translate* and *Map* (the netlist and the constraints read, then packed into slices and I/O
+sites), *Place & Route* (placement, routing on the routing switches whose bits are known, static
+timing against the UCF's PERIOD constraints), *Generate Programming File* (`build/<top>.bit`, and
+`build/<top>_prom.bit` for the PROM), with the same console, process icons, Stop and *Design
+Summary* (utilization, timing) as with ISE; *Configure Target Device* programs the board as usual
+and *View Implemented Design (FPGA)* shows the routed design. The processes that need ISE
+(simulation models of the implementation, power, back-annotated pins, technology schematic) are
+disabled in that mode. A design the open toolchain cannot implement yet (a feature not in the bit
+database, a net it cannot route) fails with the list of what is missing: implement it in an ISE
+mode. For another package of a supported chip, the device description is built once from your
+own ISE (*Build Device Description* in *Toolchain Settings*, through the ISE set there: local,
+Docker or SSH; it goes to `~/.silinx/devices/`). The device descriptions of the other Spartan-3E
+boards (Basys2-100, Nexys2, Spartan-3E Starter Kit) ship too; their bit databases are next. The open
+toolchain does **not yet support the Spartan-6 boards (Nexys3, Atlys)**; it will (they work with
+ISE, as every board does). From the command line: `node research/s3e-route/open-flow.mjs <project
+folder> <out folder>`.
 How it is developed, and what may be shipped: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md);
 what is planned: [TODO.md](TODO.md).
 

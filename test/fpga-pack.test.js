@@ -15,7 +15,7 @@ const load = n => readYosysJson(fs.readFileSync(path.join(FIX, `${n}.json`), 'ut
 const cfgOf = inst => Object.fromEntries(inst.cfg.map(c => [c.attr, c]));
 const val = (inst, a) => cfgOf(inst)[a]?.value;
 
-for (const [name, cycles] of [['sw', 50], ['counter', 600], ['ffs', 400], ['widemux', 300], ['mux64', 150], ['latches', 600]]) {
+for (const [name, cycles] of [['sw', 50], ['counter', 600], ['ffs', 400], ['widemux', 300], ['mux64', 150], ['latches', 600], ['srmux', 300]]) {
   test(`packed ${name} behaves like its netlist (random stimulus, ${cycles} cycles)`, () => {
     const nl = load(name);
     const p = pack(nl);
@@ -158,6 +158,17 @@ test('wide multiplexers: F5 in every slice, F6 / F7 / F8 in their fixed slices',
   // the registered output: the flip-flop sits in the F8's slice, fed through GYMUX = FX
   const top = at.get('1,1');
   assert.deepEqual([val(top, 'GYMUX'), val(top, 'DYMUX'), val(top, 'FFY')], ['FX', '1', '#FF']);
+});
+
+test('flip-flops fed by flip-flops (D through BX / BY) fill the free slots of the multiplexers\' slices', () => {
+  const p = pack(load('srmux'));
+  const slices = p.insts.filter(i => i.type === 'SLICEL');
+  // FFY of a slice whose F5MUX selects through BX and whose BY no F6MUX uses: D from BY
+  const shared = slices.filter(i => cfgOf(i).F5MUX && !cfgOf(i).F6MUX && val(i, 'FFY') === '#FF' && val(i, 'DYMUX') === '0');
+  assert.ok(shared.length >= 4, `${shared.length} multiplexer slices with a shift-register flip-flop`);
+  for (const i of slices) if (cfgOf(i).F5MUX) assert.notEqual(val(i, 'DXMUX'), '0', 'BX is the F5 select: no flip-flop from BX');
+  assert.equal(p.stats.ffs, 8);
+  assert.ok(p.stats.slices <= 18, `${p.stats.slices} slices`);   // 20 when the shift register had slices of its own
 });
 
 test('flip-flop kinds: set / reset, synchronous / asynchronous, falling edge, never two control sets in a slice', () => {

@@ -188,7 +188,7 @@ uiTest('Toolchain Settings: the SSH mode takes a Docker image on the remote host
   await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
   await page.waitDialog('Toolchain Settings');
   assert.deepEqual(await page.eval(() => [...document.querySelector('.dlg-overlay select').options].map((o) => o.textContent)),
-    ['Local (Xilinx ISE installed locally)', 'Docker image with Xilinx ISE', 'Remote host with Xilinx ISE via SSH']);
+    ['Local (Xilinx ISE installed locally)', 'Docker image with Xilinx ISE', 'Remote host with Xilinx ISE via SSH', 'Open toolchain (experimental, no ISE)']);
   await page.eval(() => { const s = document.querySelector('.dlg-overlay select'); s.value = 'ssh'; s.dispatchEvent(new Event('change')); });
   const labels = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .form-grid label')].map((l) => l.textContent));
   assert.deepEqual(labels.slice(1, 7), ['Host:', 'User:', 'Port:', 'Remote build dir:', 'Docker image on the remote host:', 'Remote settings64.sh:']);
@@ -210,6 +210,14 @@ uiTest('Toolchain Settings: the SSH mode takes a Docker image on the remote host
   await page.dialogButton('Cancel');
   await page.waitNoDialog();
   await env.server.api('PUT', '/api/toolchain', { mode: 'local', ssh: { host: '', user: '', image: '' } });
+});
+
+uiTest('the test harness opens a menu even when its first click is lost (as on slow CI machines)', E, async (page) => {
+  // the next press on the menu bar is swallowed before the app sees it
+  await page.eval(() => document.getElementById('menubar').addEventListener('mousedown', (e) => e.stopImmediatePropagation(), { capture: true, once: true }));
+  const items = await page.openMenu('Help');
+  assert.ok(items.some((i) => i.label === 'About Silinx ISE'), JSON.stringify(items));
+  await page.closeMenus();
 });
 
 uiTest('About shows the version and the GitHub link', E, async (page) => {

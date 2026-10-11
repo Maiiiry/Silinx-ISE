@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { diffSynth } from './diff-synth.js';
+import { diffSynth, expectWarnings } from './diff-synth.js';
 
 const DESIGNS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'designs');
 const langOf = f => (/\.(vhd|vhdl)$/i.test(f) ? 'vhdl' : 'verilog');
@@ -29,6 +29,7 @@ for (const name of fs.readdirSync(DESIGNS).sort()) {
     const r = await diffSynth({ name, sources: spec.files.map(rd), top: spec.top, sim });
     assert.equal(r.status, 'pass', r.report || `${name}: ${r.status} at ${r.stage}: ${r.reason}`);
     assert.ok(r.states > 3, `${name}: the outputs change (${r.states} states)`);
+    expectWarnings(`designs/${name}`, r.warnings);
   });
 }
 
@@ -39,5 +40,6 @@ for (const name of ['adder', 'fsm']) {
   test(`Yosys reading the source vs Silinx's simulation: ${name}`, { timeout: 120000 }, async () => {
     const r = await diffSynth({ name, from: 'source', sources: spec.files.map(f => ({ path: f, lang: langOf(f), text: fs.readFileSync(path.join(dir, f), 'utf8') })), top: spec.top, sim: spec.sim });
     assert.equal(r.status, 'pass', r.report || `${name}: ${r.status} at ${r.stage}: ${r.reason}`);
+    expectWarnings(`designs/${name} (Yosys's front end)`, r.warnings);
   });
 }

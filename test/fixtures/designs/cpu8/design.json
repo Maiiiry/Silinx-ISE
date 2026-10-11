@@ -1,0 +1,8 @@
+{
+  "description": "Accumulator machine (VHDL): a 42-state control unit decoding a 5-bit opcode (binary state encoding, Moore outputs), an 8-bit data path with four registers, an ALU behind a priority encoder and flags, a multiplexed seven-segment display: the open synthesis's size budgets (test/synth-quality.test.js)",
+  "device": { "family": "spartan3e", "part": "xc3s250e", "package": "cp132", "speed": "-4" },
+  "top": "top",
+  "files": ["top.vhd"],
+  "ucf": "top.ucf",
+  "sim": { "clock": "clk", "period": 20000, "cycles": 600, "prob": { "rst": 0.01, "exec": 0.5 } }
+}

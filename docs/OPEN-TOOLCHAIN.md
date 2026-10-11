@@ -29,7 +29,7 @@ or to get around any protection.
 | Synthesis | Yosys `synth_xilinx -family xc3se` (ISC), compiled to WebAssembly by YoWASP: it runs in the browser | independent open-source projects |
 | Place and route | Silinx (AGPL-3.0) | written for Silinx |
 | Bitstream | Silinx (AGPL-3.0), from the bit database below | written for Silinx |
-| Device description (the chip's wires and routing switches) | XC3S250E-CP132 (Basys2-250): shipped with Silinx (`core/fpga/devices/`). Other devices: each user builds it once from their own ISE | computed by Silinx from the output of ISE's documented `xdl -report` command |
+| Device description (the chip's wires and routing switches) | The Spartan-3E boards' devices (XC3S100E-CP132, XC3S250E-CP132, XC3S500E-FG320, XC3S1200E-FG320): shipped with Silinx (`core/fpga/devices/`). Other devices: each user builds it once from their own ISE | computed by Silinx from the output of ISE's documented `xdl -report` command |
 
 The bitstream generator needs a **bit database**: which configuration bits set each feature of the
 chip (each LUT memory bit, each multiplexer setting inside a slice, each I/O setting, each routing
@@ -125,7 +125,8 @@ or Digilent, or endorsed by them.
 - Whether the device description computed from `xdl -report` (the chip's tiles, sites, wires and
   routing switches) may be redistributed. Project X-Ray publishes the equivalent description of
   the Xilinx 7-series chips, obtained from Vivado. The author decided (2026-10-11) to ship it for
-  the XC3S250E-CP132 (Basys2-250), so that the open toolchain works without ISE on that board; for
+  the devices of the Spartan-3E boards Silinx supports (XC3S100E-CP132, XC3S250E-CP132,
+  XC3S500E-FG320, XC3S1200E-FG320), so that the open toolchain works without ISE on them; for
   every other device each user builds it from their own ISE installation.
 
 ## Author

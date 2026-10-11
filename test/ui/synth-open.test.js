@@ -24,7 +24,12 @@ uiTest('Synthesize - Yosys (open): the blinky example synthesized in the browser
   assert.match(text, /Process "Synthesize - Yosys \(open\)" completed successfully/, text.slice(-2000));
   assert.match(text, /Device utilization \(open synthesis, spartan3e\):\n {2}LUTs: \d+\n {2}Flip-flops: \d+/);
   assert.match(text, new RegExp(`Netlist: build/open/${top}\\.json \\(and ${top}_yosys\\.v, ${top}_stat\\.txt\\) in [\\d.]+ s\\.`));
-  assert.ok(['ok', 'warn'].includes(await page.eval(() => window.SilinxApp.S.status['synth-open'])));
+  // Yosys's "Shift register inference not yet supported for family xc3se" (printed on every
+  // Spartan-3E run) is neither in the console nor counted: blinky has no warning
+  assert.doesNotMatch(text, /Shift register inference/);
+  assert.match(text, /Process "Synthesize - Yosys \(open\)" completed successfully(\n|$)/);
+  assert.doesNotMatch(text, /completed successfully with \d+ warning/);
+  assert.equal(await page.eval(() => window.SilinxApp.S.status['synth-open']), 'ok');
   // the files, and the project's sources unchanged
   const json = JSON.parse(await env.server.api('GET', `/api/projects/OpenPj/file?path=build/open/${top}.json`));
   assert.ok(Object.keys(json.modules).includes(top));

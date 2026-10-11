@@ -273,16 +273,22 @@ class PageBase {
     const idx = typeof label === 'number' ? label : items.indexOf(label);
     if (idx < 0) throw new Error(`no menu '${label}' (menus: ${items.join(', ')})`);
     const { x, y } = await this.point('#menubar .item', { index: idx });
-    await this.mouse('mouseMoved', x, y);
-    // (moving onto a menu title while another menu is open opens it already)
-    if (!await this.eval((i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open'), idx)) {
-      await this.mouse('mousePressed', x, y);
-      await this.mouse('mouseReleased', x, y);
-    }
     // this menu's popup: its title is the open one and only one top-level popup is left (a popup of
     // the menu open before can still be there for a moment, and would be read instead: a CI-only race)
-    await this.waitFor((i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open')
-      && document.querySelectorAll('body > .menu-popup:not(.sub)').length === 1, [idx], { what: `menu '${label}' open` });
+    const isOpen = (i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open')
+      && document.querySelectorAll('body > .menu-popup:not(.sub)').length === 1;
+    // a click that lands while the menus are still closing (or a dialog going away) can toggle the
+    // menu shut again: on slow CI machines the menu then never opened; so the click is tried again
+    for (let attempt = 1; ; attempt++) {
+      await this.mouse('mouseMoved', x, y);
+      // (moving onto a menu title while another menu is open opens it already)
+      if (!await this.eval((i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open'), idx)) {
+        await this.mouse('mousePressed', x, y);
+        await this.mouse('mouseReleased', x, y);
+      }
+      try { await this.waitFor(isOpen, [idx], { what: `menu '${label}' open`, timeout: attempt < 3 ? 3000 : 10000 }); break; }
+      catch (e) { if (attempt >= 3) throw e; debug(`menu ${label}: not open, clicking again`); await this.closeMenus(); await sleep(200); }
+    }
     return this.eval(() => [...document.querySelectorAll('body > .menu-popup > .mi')].map((r) => ({ label: r.querySelector('.lbl').textContent, disabled: r.classList.contains('disabled'), submenu: r.querySelector('.sc').textContent === '▸' })));
   }
   /** Close the open menus the way the app does (a mouse press outside them). */
