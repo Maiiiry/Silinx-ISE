@@ -67,7 +67,8 @@ the "What's new" text of its GitHub release.
   `research/s3e-route/open-flow.mjs`). For other
   devices it is built once from the user's own ISE installation (`~/.silinx/devices/`, which takes
   precedence). The whole open flow on blinky is now part of the tests.
-- TODO.md: what is planned. The open toolchain does not support the Spartan-6 boards (Nexys3,
+- What is planned, bugs and feature requests are GitHub issues
+  (https://github.com/pmnmalo/Silinx-ISE/issues; TODO.md is gone). The open toolchain does not support the Spartan-6 boards (Nexys3,
   Atlys) yet; it will.
 - Verilog / SystemVerilog constructs Silinx now reads, simulates and synthesizes (found by the
   corpus of Yosys's test designs): hierarchical names into generate blocks and named blocks
