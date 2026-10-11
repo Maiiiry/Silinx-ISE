@@ -140,6 +140,9 @@ export async function startSilinxServer(tmp) {
     USERPROFILE: path.join(tmp, 'home'),
   };
   for (const d of [env.SILINX_WORKSPACE, env.SILINX_CONFIG_DIR, env.HOME]) await fsp.mkdir(d, { recursive: true });
+  // an ISE mode (no ISE here: not available), what most tests' Processes expect; a new installation
+  // starts in the open toolchain (#27): its tests set it, or remove this file
+  await fsp.writeFile(path.join(env.SILINX_CONFIG_DIR, 'config.json'), '{ "mode": "local" }\n');
   const proc = spawn(process.execPath, [path.join(ROOT, 'test/ui/serve.js')], { env, stdio: ['pipe', 'pipe', 'pipe'], cwd: tmp });
   let out = '', err = '';
   proc.stderr.on('data', (d) => { err = (err + d).slice(-4000); });

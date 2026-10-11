@@ -105,7 +105,7 @@ async function main() {
         console.log(`Silinx configured to run Xilinx ISE from docker image '${image}'.`);
       }
       const t = await detectToolchain();
-      console.log(`ISE (${t.ise.mode}): ${t.ise.available ? 'available' : 'NOT available'} - ${t.ise.reason}`);
+      console.log(`${t.ise.mode === 'open' ? 'toolchain' : 'ISE'} (${t.ise.mode}): ${t.ise.available ? 'available' : 'NOT available'} - ${t.ise.reason}`);
       console.log(`programmers: ${Object.entries(t.programmers).filter(([, v]) => v.found).map(([k]) => k).join(', ') || 'none'}`);
       if (image && !t.ise.available) process.exit(1);
       break;

@@ -35,7 +35,7 @@ export function configDir() {
 export const configPath = () => path.join(configDir(), 'config.json');
 
 export const DEFAULT_CONFIG = Object.freeze({
-  mode: 'local',
+  mode: 'open',                                 // the open toolchain: no ISE to install for the supported boards (#27)
   local: { settings: '' },                      // '' = auto-detect
   docker: { command: 'docker', image: '', platform: 'linux/amd64', settings: DEFAULT_SETTINGS, extraArgs: [] },
   ssh: { host: '', user: '', port: 22, identity: '', remoteDir: 'silinx-build', settings: DEFAULT_SETTINGS, image: '', sshArgs: [] },   // image: docker image on the host ('' = ISE installed there)

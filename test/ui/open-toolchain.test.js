@@ -31,6 +31,20 @@ const procLabels = (page) => page.eval(() => [...document.querySelectorAll('#pro
 const reloadToolchain = (page) => page.eval(async () => { window.SilinxApp.S.toolchain = await (await import('/js/api.js')).api.toolchain(); window.SilinxApp.renderProcesses(); });
 const DONE = (name) => new RegExp(`Process "${name.replace(/[()]/g, '\\$&')}" (completed successfully|failed)`);
 
+uiTest('a new installation starts in the open toolchain: Implement Design and Generate Programming File need no ISE (#27)', E, async (page) => {
+  await fs.promises.rm(path.join(env.server.configDir, 'config.json'));
+  const tc = await env.server.api('GET', '/api/toolchain');
+  assert.equal(tc.config.mode, 'open');
+  assert.equal(tc.ise.available, true);
+  await makeProject(env, { name: 'OpenDefault', template: 'blinky' });
+  await page.openProject('OpenDefault');
+  await reloadToolchain(page);
+  const procs = await procLabels(page);
+  assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
+  for (const l of ['Implement Design', 'Generate Programming File']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+});
+
 uiTest('Toolchain Settings: the open mode, the status of the project\'s device, no ISE setting; Portuguese', E, async (page) => {
   // an ISE for device descriptions set before (#8 removed it from the interface): kept on Save
   await env.server.api('PUT', '/api/toolchain', { open: { iseMode: 'ssh' } });

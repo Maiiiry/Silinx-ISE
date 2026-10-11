@@ -277,8 +277,9 @@ Implementation uses the ISE 14.7 command-line tools (WebPACK edition: free, with
 design in the browser (Yosys compiled to WebAssembly). For the **Basys2-100 and Basys2-250
 (XC3S100E / XC3S250E-CP132) and the Nexys2-500 and Nexys2-1200 (XC3S500E / XC3S1200E-FG320)**
 Silinx also places, routes and writes the bitstream itself: the device descriptions ship with
-Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. To use it,
-choose *Tools ▸ Toolchain Settings ▸ Execution mode: Open toolchain (experimental, no ISE)*. The
+Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. It is the
+default execution mode of a new installation, so students need nothing else for these boards; for
+the other boards choose an ISE mode in *Tools ▸ Toolchain Settings ▸ Execution mode*. The
 usual processes then run Silinx's own flow on this machine: *Synthesize - Yosys* (Yosys),
 *Translate* and *Map* (the netlist and the constraints read, then packed into slices and I/O
 sites), *Place & Route* (placement, routing on the routing switches whose bits are known, static
