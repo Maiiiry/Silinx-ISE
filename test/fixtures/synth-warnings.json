@@ -31,5 +31,7 @@
   "fixtures/vhdl/top (generate, package, hierarchy)": [
     "Warning: Replacing memory \\bank with list of registers. See top_syn.v:107, top_syn.v:88, top_syn.v:69, top_syn.v:50"
   ],
+  "synth-diff: VHDL enumeration state machine without a reset": [],
+  "synth-diff: VHDL null ranges": [],
   "synth-diff: synthesis front end": []
 }

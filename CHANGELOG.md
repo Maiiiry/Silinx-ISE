@@ -141,6 +141,14 @@ the "What's new" text of its GitHub release.
   difference when the RTL's state is at X at power-up: an output of the netlist agrees when it
   agrees with the RTL powered up at 0 or with the RTL with its X's (where a case on an X state
   takes its default), port by port; a difference from both is still reported (#20).
+- VHDL null ranges (`N - 1 downto 0` with N = 0, `0 to -1`) have no element, as the language
+  says: they gave one bit (two for `-1 downto 0`). Generic designs with optional ports of N = 0
+  bits simulate and synthesize (a vector of no bit is left out of the open synthesis's module and
+  its ports) (#15).
+- Open synthesis: a VHDL state machine whose state signal has no initial value powers up in its
+  first state, as in simulation and with XST: the default initial value of an enumeration (or
+  boolean) signal is written for Yosys, which could start the re-encoded state register in another
+  state (#9).
 
 ## 15.10.1
 

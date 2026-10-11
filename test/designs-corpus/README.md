@@ -105,7 +105,7 @@ stages, seconds, on an Apple-silicon Mac, 6 jobs.
 | verilog-lfsr-prbs | Verilog | MIT | 16 / 31 | pass | - | pass | pass | complete | 16 | 3.031 | 158 (frontend 1, synth 157) | 96 |
 | verilog-axis-fifo | Verilog | MIT | 16 / 32 | pass | - | pass | pass | complete (r) | 814 | 10.763 | 14 (frontend 5, synth 8, flow 1) | 33 |
 | uart-for-fpga | VHDL | MIT | 55 / 58 | pass | pass | pass | pass | complete | 45 | 4.992 | 2 (frontend 1, synth 1) | 56 |
-| spi-fpga-master | VHDL | MIT | 27 / 23 | pass | pass | pass | mismatch | complete | 19 | 4.921 | 2 (frontend 1, synth 1) | 4 |
+| spi-fpga-master | VHDL | MIT | 27 / 23 | pass | pass | pass | pass | complete | 19 | 4.921 | 2 (frontend 1, synth 1) | 4 |
 | spi-fpga-slave | VHDL | MIT | 89 / 21 | pass | pass | pass | pass | complete | 87 | 5.067 | 1 (synth 1) | 6 |
 | nandland-spi-verilog | Verilog | MIT | 45 / 37 | pass | - | pass | pass | complete | 54 | 6.178 | 2 (frontend 1, synth 1) | 3 |
 | nandland-spi-vhdl | VHDL | MIT | 73 / 37 | pass | - | pass | pass | complete | 131 | 12.542 | 3 (frontend 2, synth 1) | 4 |
@@ -133,7 +133,7 @@ stages, seconds, on an Apple-silicon Mac, 6 jobs.
 | epfl-max | Verilog | MIT | 1746 / 0 | pass | - | pass | pass | complete (w) | 881 | 81.233 | 2 (synth 1, flow 1) | 45 |
 
 Summary: 38 designs; front end 37 / 38; own testbenches 5 / 8 pass; synthesis 36; netlist =
-RTL 34 (2 mismatches, open below); fully open bitstream complete on the XC3S250E for 24 designs
+RTL 35 (1 mismatch, open below); fully open bitstream complete on the XC3S250E for 24 designs
 (10 of them through the I/O wrapper), 10 too large for it, 2 fail (a bit-database gap, a
 second clock).
 
@@ -217,8 +217,6 @@ Front end (Verilog / VHDL):
   aes testbench: **a reference through the top's own name** (`tb_aes_core.dut.…`).
 - `$clog2` warning ("not supported by XST") is reported at **line 1** when `$clog2` is in a
   declaration's range (`reg [$clog2(N)-1:0] c;`): the call node has no location.
-- VHDL **null ranges**: `a : std_logic_vector(N-1 downto 0)` with N = 0 has one bit instead of
-  none (`y <= b & a` gives a's bit).
 - Lint label: the design checks without an XST number are labelled `WARNING:Lint (case-default)`,
   `WARNING:Lint (blocking)`, not `Silinx`.
 
@@ -230,9 +228,6 @@ Open synthesis (`core/synth-verilog.js`, Yosys):
 - **VHDL signals assigned a constant** (`w_CPOL <= '1' when SPI_MODE = 2 else '0'`) used as an
   asynchronous reset value: the netlist gets async-load flip-flop emulation. nandland's SPI master:
   258 LUTs in VHDL, 105 in Verilog for the same design, 12.5 ns vs 6.2 ns.
-- **VHDL enumerated state signals** without an initial value are written without one: Yosys
-  re-encodes the FSM and the power-up state is not the RTL's `'left` (spi-fpga-master, `diff`
-  mismatch at cycle 0, before the reset has acted).
 - Yosys's "Shift register inference not yet supported for family xc3se." on every design
   (spurious: `synth_xilinx -family xc3se` without `-nosrl`).
 - Size: T80 2860 LUT4 + 3083 MUXF (ISE ~1.5k LUT for this core); secworks sha1 2660 LUT4 alone but
