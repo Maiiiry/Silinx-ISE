@@ -96,6 +96,78 @@ test('a netlist with one wrong LUT is caught (the comparison sees the cells)', {
   assert.equal(r.status, 'mismatch', r.reason);
 });
 
+test('comparison with the run at X: a port differs only when it differs from both runs (#20)', () => {
+  const W = [['y', 1], ['en', 1]];
+  const at = (y, en) => ({ y, en });
+  const b = (v, x = 0n) => ({ v, x });
+  // run at 0: en known 0 (the netlist's latch is at 1); run at X: en at X, y taken from a case default
+  const rtl = [at(b(1n), b(0n))], rtlX = [at(b(0n), b(0n, 1n))], net = [at(b(1n), b(1n))];
+  assert.deepEqual(compareRuns(rtl, net, W), { cycle: 0, ports: ['en'] }, 'the run at 0 alone');
+  assert.deepEqual(compareRuns(rtlX, net, W), { cycle: 0, ports: ['y'] }, 'the run at X alone');
+  assert.equal(compareRuns(rtl, net, W, 0, rtlX), null, 'each port agrees with one of the runs');
+  // the same value known in both runs, another in the netlist: still a difference
+  assert.deepEqual(compareRuns([at(b(1n), b(1n))], [at(b(0n), b(1n))], W, 0, [at(b(1n), b(1n))]), { cycle: 0, ports: ['y'] });
+  // a 2-bit port: its value must agree with one run, not bit 0 with one and bit 1 with the other
+  const W2 = [['q', 2]];
+  assert.deepEqual(compareRuns([{ q: b(1n) }], [{ q: b(3n) }], W2, 0, [{ q: b(2n) }]), { cycle: 0, ports: ['q'] }, 'not a value made of bits of both runs');
+  assert.equal(compareRuns([{ q: b(1n) }], [{ q: b(3n) }], W2, 0, [{ q: b(1n, 2n) }]), null, 'bit 1 at X in the run at X, bit 0 equal');
+  assert.deepEqual(compareRuns([{ q: b(1n) }], [{ q: b(1n, 1n) }], W2, 0, [{ q: b(0n, 2n) }]), { cycle: 0, ports: ['q'] }, 'an X of the netlist where both runs know the bit');
+});
+
+// #20 (found on the design corpus's vtr-ch-intrinsics): a state register without reset nor
+// initial value. In the RTL run with X's, the case on the state takes its default (y = 0) where
+// the netlist, from its defined power-up, does not; in the run at 0, the latch en (only ever set
+// to 1) is 0 where Yosys made it a constant 1. Neither run agrees alone: each port agrees with one.
+const XCASE = `module xcase(input clk, input [1:0] d, output reg y, output reg en);
+  reg [1:0] st;
+  always @(posedge clk) st <= st + d;
+  always @* case (st) 2'b00: y = 1; 2'b01: y = 0; 2'b10: y = 1; default: y = 0; endcase
+  always @* if (st == 2'b11) en = 1;
+endmodule
+`;
+const XCASE_WARNINGS = ["Warning: Latch inferred for signal `\\xcase.\\en' from process `\\xcase.$proc$xcase_syn.v:31$4': $auto$proc_dlatch.cc:545:proc_dlatch$1113"];
+
+test('a case taking its default on an X state at power-up is not a mismatch (#20)', { timeout: 120000 }, async () => {
+  const sources = [{ path: 'xcase.v', lang: 'verilog', text: XCASE }];
+  const r = await diffSynth({ name: 'xcase', sources, top: 'xcase', sim: { cycles: 60 } });
+  expectPass(r);
+  assert.equal(r.powerUp, 'x');
+  assert.deepEqual(r.warnings, XCASE_WARNINGS);
+  // each rule alone reports the false difference
+  const r0 = await diffSynth({ name: 'xcase', sources, top: 'xcase', sim: { cycles: 60 }, powerUp: true });
+  assert.equal(r0.status, 'mismatch'); assert.equal(r0.reason, 'cycle 0: en');
+  assert.deepEqual(r0.warnings, XCASE_WARNINGS);
+  const rx = await diffSynth({ name: 'xcase', sources, top: 'xcase', sim: { cycles: 60 }, powerUp: false });
+  assert.equal(rx.status, 'mismatch'); assert.equal(rx.reason, 'cycle 1: y');
+  assert.deepEqual(rx.warnings, XCASE_WARNINGS);
+});
+
+test('a real difference is still reported with both power-up runs (#20)', { timeout: 120000 }, async () => {
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  // Yosys, then the cell that drives y's output buffer inverted (an INV made a BUF, a LUT's INIT)
+  const run = async (args, files, onLine) => {
+    const out = await yosysNode(args, files, onLine);
+    const k = Object.keys(out).find(f => f.endsWith('.json'));
+    const json = JSON.parse(out[k]);
+    const mod = Object.values(json.modules).find(m => m.attributes?.top), cells = Object.values(mod.cells);
+    const obuf = cells.find(c => c.type === 'OBUF' && c.connections.O.some(n => mod.ports.y.bits.includes(n)));
+    const cell = cells.find(c => c.connections.O?.[0] === obuf.connections.I[0]);
+    if (cell.type === 'INV') cell.type = 'BUF';
+    else cell.parameters.INIT = [...cell.parameters.INIT].map(x => (x === '1' ? '0' : '1')).join('');
+    out[k] = JSON.stringify(json);
+    return out;
+  };
+  const r = await diffSynth({ name: 'xcase', sources: [{ path: 'xcase.v', lang: 'verilog', text: XCASE }], top: 'xcase', run, sim: { cycles: 60 } });
+  assert.equal(r.status, 'mismatch', r.reason);
+  assert.equal(r.reason, 'cycle 0: y');
+  assert.deepEqual(r.warnings, XCASE_WARNINGS);
+  assert.ok(r.mismatch.rtlX, 'the run at X was made');
+  // both runs have y = 0 at cycle 0 (st = 1; at X: the default), the netlist 1 (a line 'RTL (X)'
+  // shows the run at X only where it differs from the run at 0)
+  assert.equal(r.report, 'xcase: the netlist differs from the RTL at cycle 0 (engine cells, seed "xcase")\n  inputs  d=1 (clocks clk)\n  RTL     y=0\n  netlist y=1');
+  assert.deepEqual(r.mismatch.rtlX.y, { v: 0n, x: 0n });
+});
+
 // Regressions of core/synth-verilog.js found on Yosys's test designs (asicworld gray_counter,
 // simple/signedexpr.v, simple/partsel.v, simple/defvalue.sv): Yosys 0.68 sized an xor of size
 // casts inside a concatenation at the casts' operand width; {a + b} of signed operands is
