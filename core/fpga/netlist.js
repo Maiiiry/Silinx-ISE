@@ -8,7 +8,8 @@
 //   const nl = readYosysJson(json, { top })
 //   nl = { name,
 //          ports: [{ name, dir: 'in' | 'out' | 'inout', bits: [{ net, name }] }]   bit names as in UCF: led<3>
-//          cells: [{ name, type, params: { INIT: '0110…' (msb first) … }, attrs, pins: { I0: net … }, dirs: { I0: 'input' … } }]
+//          cells: [{ name, type, params: { INIT: '0110…' (msb first) … }, attrs, pins: { I0: net … }, dirs: { I0: 'input' … },
+//                   undriven: [pins Yosys left undriven (x / z), tied to 0] (when there are any) }]
 //          nets:  [{ id, name, const: 0 | 1 | undefined, driver: { cell, pin } | null, port: 'name<3>' | null,
 //                    loads: [{ cell, pin }] }] }
 //   (cells and nets refer to each other by index; nets[0] is the constant 0, nets[1] the constant 1)
@@ -102,6 +103,8 @@ export function readYosysJson(json, { top } = {}) {
         const pn = bits.length > 1 ? `${pin}<${i}>` : pin;
         const k = netOf(b);
         cell.pins[pn] = k;
+        // inputs Yosys leaves undriven (x / z) are tied to 0 above; which ones they were is kept
+        if (b === 'x' || b === 'z') (cell.undriven ||= []).push(pn);
         if (cell.dirs[pin] === 'output') {
           if (k > 1) {
             if (nets[k].driver) throw new Error(`netlist: net ${nets[k].name} has two drivers (${cells[nets[k].driver.cell].name}, ${cell.name})`);

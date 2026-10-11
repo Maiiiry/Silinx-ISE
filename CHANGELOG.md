@@ -5,6 +5,18 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **The rest of the Spartan-3E in the open toolchain:** block RAMs (inferred by the open synthesis
+  or instantiated: `RAMB16_S*` / `RAMB16_S*_S*`, every port width and write mode, `INIT_xx`,
+  `INIT` / `SRVAL`), multipliers (`MULT18X18`, `MULT18X18S`, `MULT18X18SIO` with its registers),
+  distributed RAMs (`RAM16X1S`, `RAM16X1D`, `RAM32X1S`, `RAM64X1S`), shift registers in SRL16 LUTs
+  (inferred: chains of 3 or more flip-flops without reset; `SRL16(E)(_1)` instantiated) and the
+  DCM (`DCM_SP` on the top-left DCM: CLK0, CLK2X, CLKDV, CLKFX on global buffers, LOCKED; input
+  period 20 ns) are packed, placed, routed and written into the bitstream with no Xilinx tool. ISE
+  converts the routed designs to the same .bit with no DRC error or warning. What the bit database
+  does not have yet fails with the reason (the other DCM outputs and DCMs, `BUFGMUX` clock
+  switching, `STARTUP_WAIT`, the SRLC16 cascade). Shift registers make designs smaller (the srl
+  fixture: 63 slices instead of 79). Unused inputs no longer get a pad. Yosys's "Resizing cell
+  port" messages of its block-RAM mapping are not warnings of the design.
 - Silinx's own messages are labelled Silinx, not XST: the design checks of Check Syntax
   (`WARNING:Silinx:646 - Signal <…> is assigned but never used…`) keep XST's number for the same
   finding, and their explanation says "Xilinx ISE's XST reports this as Xst:646"; the open

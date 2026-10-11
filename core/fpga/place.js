@@ -2,14 +2,17 @@
 // (browser + Node).
 //
 // Simulated annealing (in the manner of VPR): every slice, every group of slices that must keep
-// its shape (a carry chain up a slice column, the slices of an F6 / F7 / F8 multiplexer) and
-// every pad without a LOC constraint is an object; a move takes one object to another position
-// nearby (swapping with what is there); the cost is the half-perimeter wirelength of the nets,
+// its shape (a carry chain up a slice column, the slices of an F6 / F7 / F8 multiplexer), every
+// pad without a LOC constraint and every block RAM and multiplier is an object; a move takes one
+// object to another position nearby, a block RAM / multiplier to another site of its kind
+// (swapping with what is there); the cost is the half-perimeter wirelength of the nets,
 // weighted for nets with many pins, in units of a CLB, and (timing-driven, as VPR's placer) the
 // estimated delay of every connection weighted by its criticality, the two normalised and mixed.
 // Clock nets (from a BUFGMUX) run on the global clock lines and are left out. Moves that make the cost worse are accepted with a probability
 // that falls as the temperature falls; the move window shrinks to keep about 44% of the moves
 // accepted. Everything follows one seeded random generator: the same seed gives the same placement.
+// Instances of type SLICEM (RAMs, shift registers) stay on SLICEM sites; a DCM takes its site (the
+// packer's loc) and the global buffers its outputs reach (option bufgSites).
 //
 //   const dev = deviceSites(parseXdlrc(text))   the sites with their positions
 //   const r = place(packed, dev, { seed, effort })
@@ -25,7 +28,7 @@ export class PlaceError extends Error {}
  *  dev: parseXdlrc() of the device report, or the routing graph (core/fpga/device.js Device). */
 export function deviceSites(dev) {
   const rows = dev.rows;
-  const slices = new Map(), pads = new Map(), bufgmux = [];
+  const slices = new Map(), pads = new Map(), bufgmux = [], hard = { RAMB16: [], MULT18X18SIO: [] }, dcms = [];
   // the Device keeps the sites per tile as [name, bonded (0 internal, 1 bonded, 2 unbonded)]
   const tiles = dev.tiles || Array.from(dev.tileNames, (name, k) => ({
     name, r: dev.tileRow[k], c: dev.tileCol[k],
@@ -43,10 +46,16 @@ export function deviceSites(dev) {
         pads.set(s.name, { name: s.name, tile: t.name, type: s.type, px: t.c, py: rows - 1 - t.r, inputOnly: /^(IBUF|DIFFMI|DIFFSI)$/.test(s.type) });
       } else if (s.type === 'BUFGMUX') {
         bufgmux.push({ name: s.name, tile: t.name, px: t.c, py: rows - 1 - t.r });
+      } else if (s.type === 'DCM') {
+        dcms.push({ name: s.name, tile: t.name, type: s.type, px: t.c, py: rows - 1 - t.r });
+      } else if (hard[s.type]) {
+        // a block RAM and the multiplier of its tile (they share the tile's routing): four CLB rows
+        // high, the site's tile at the top
+        hard[s.type].push({ name: s.name, tile: t.name, type: s.type, px: t.c, py: rows - 1 - t.r - 1.5 });
       }
     }
   }
-  return { part: dev.part, rows, cols: dev.cols, slices, pads, bufgmux };
+  return { part: dev.part, rows, cols: dev.cols, slices, pads, bufgmux, brams: hard.RAMB16, mults: hard.MULT18X18SIO, dcms };
 }
 
 // ------------------------------------------------------------------ random numbers
@@ -91,6 +100,16 @@ export function timingGraph(packed, model = SPEED_4) {
   });
   const none = { deps: {}, start: {}, setup: {} };
   const arcs = packed.insts.map(inst => {
+    // block RAMs and multipliers: their own arcs (the same on any site)
+    if (inst.kind === 'bram' || inst.kind === 'mult') {
+      const a = instArcs({ type: inst.type, site: null, cfg: inst.cfg }, model);
+      const deps = {}, start = {}, setup = {};
+      for (const [i, o, d] of a.comb) (deps[o] ||= []).push([i, d]);
+      for (const [o, d] of a.clkToOut) start[o] = d;
+      for (const [i, d] of a.setup) setup[i] = Math.max(setup[i] ?? -Infinity, d);
+      const x = { deps, start, setup };
+      return [x, x];
+    }
     if (inst.kind !== 'slice') return [none, none];
     // the site decides SLICEL / SLICEM (timing.js instArcs): an odd column of slices is a SLICEL
     return ['SLICE_X1Y0', 'SLICE_X0Y0'].map(site => {
@@ -180,11 +199,12 @@ export function analyzeTiming(tg, pos, delays = null) {
 }
 
 /** Place a packed design. Options: seed (1), effort (1: moves per temperature scale with it),
+ *  bufgSites(siteName, pin) (the global clock buffers a DCM output reaches: route.js bufgReach),
  *  timing (1.5: the weight of the timing cost, lambda = timing / (2 + timing) against 1 - lambda for
  *  the wirelength; 0: wirelength only), delays (timing.js delayTable(device): the delay of a
  *  connection by its offset; default: from the distance, the model's dist), clockSites (bufgmux site name -> Set of the slice sites its clock reaches, or null for all:
  *  the flip-flops of a clock are kept on them; route.js clockReach), log (function for progress lines). */
-export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, delays = null, log = null } = {}) {
+export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, bufgSites = null, delays = null, log = null } = {}) {
   const t0 = Date.now();
   if (!dev.slices) throw new PlaceError('place: pass deviceSites(parseXdlrc(…))');
   const random = rng(seed);
@@ -209,6 +229,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     if (inst.kind === 'slice') addObj({ kind: 'macro', members: [{ inst: i, dx: 0, dy: 0 }], align: [1, 1], anchor: null });
     else if (inst.kind === 'iob') addObj({ kind: 'iob', inst: i, fixed: !!inst.loc, dir: inst.dir });
     else if (inst.kind === 'bufg') addObj({ kind: 'bufg', inst: i });
+    else if (inst.kind === 'bram' || inst.kind === 'mult') addObj({ kind: inst.kind, inst: i });
+    else if (inst.kind === 'dcm') addObj({ kind: 'dcm', inst: i, fixed: true });
     else throw new PlaceError(`place: unknown instance kind ${inst.kind}`);
   });
 
@@ -231,20 +253,66 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     padUsed.set(p.name, o);
     sites[o.inst] = p;
   }
-  // clock buffers: by the pad that drives them
+  // DCMs: on their site (the packer gives the top-left one, the only one whose settings are in the
+  // bit database), before the clock buffers they drive
+  for (const o of objs) if (o.kind === 'dcm') {
+    const inst = packed.insts[o.inst];
+    const site = (dev.dcms || []).find(d => d.name === inst.loc);
+    if (!site) throw new PlaceError(`place: ${inst.name}: no DCM site ${inst.loc} on ${dev.part}`);
+    if (objs.some(x => x !== o && x.kind === 'dcm' && sites[x.inst] === site)) throw new PlaceError(`place: ${inst.name}: DCM site ${inst.loc} used twice (the other DCMs' settings are not in the bit database yet)`);
+    sites[o.inst] = site;
+  }
+  // clock buffers: by the pad (or DCM) that drives them
   const bufUsed = new Set();
   const byName = new Map(dev.bufgmux.map(b => [b.name, b]));
   const driverOfPin = new Map();
   for (const n of packed.nets) for (const ip of n.inpins) driverOfPin.set(`${ip.inst}:${ip.pin}`, n.outpins[0]);
-  for (const o of objs) if (o.kind === 'bufg') {
+  // a buffer driven by a DCM output: one of the buffers that output reaches (bufgSites: the
+  // dedicated paths of known bits, route.js bufgReach), those first
+  const reachOf = o => {
+    const d = driverOfPin.get(`${o.inst}:I0`);
+    return d && bufgSites && packed.insts[d.inst].kind === 'dcm' ? new Set(bufgSites(sites[d.inst].name, d.pin)) : null;
+  };
+  const bufgObjs = objs.filter(o => o.kind === 'bufg').sort((a, b) => !!reachOf(b) - !!reachOf(a));
+  for (const o of bufgObjs) {
     const d = driverOfPin.get(`${o.inst}:I0`);
     const pad = d && sites[d.inst];
     const top = pad && pad.py > dev.rows / 2;
+    const reach = reachOf(o);
     const order = [...BUFG_ORDER.slice(top ? 0 : 4, top ? 4 : 8), ...BUFG_ORDER.slice(top ? 4 : 0, top ? 8 : 4), ...dev.bufgmux.map(b => b.name)];
-    const b = order.map(n => byName.get(n)).find(b => b && !bufUsed.has(b.name));
+    const b = order.map(n => byName.get(n)).find(b => b && !bufUsed.has(b.name) && (!reach || reach.has(b.name)));
+    if (!b && reach) throw new PlaceError(`place: ${packed.insts[o.inst].name}: no free global clock buffer reachable from ${packed.insts[d.inst].name}.${d.pin} through switches of known bits${reach.size ? ` (${[...reach].join(', ')})` : ''}`);
     if (!b) throw new PlaceError('place: no free global clock buffer');
     bufUsed.add(b.name);
     sites[o.inst] = b;
+  }
+  // block RAMs and multipliers: on their sites (RAMB16_XxYy, MULT18X18_XxYy); a block RAM and the
+  // multiplier of the same tile share the tile's routing: both only when the block RAM's ports are
+  // at most 18 bits wide (Spartan-3E: the multiplier's inputs take the upper data bits)
+  const hardSites = { bram: dev.brams || [], mult: dev.mults || [] };
+  const hardUsed = { bram: new Map(), mult: new Map() };   // site name -> obj
+  const tileUse = new Map();                                // tile -> { bram: obj, mult: obj }
+  const wideBram = o => !!packed.insts[o.inst].wide;
+  const hardOk = (o, site, other = null) => {
+    const t = tileUse.get(site.tile) || {};
+    const k = o.kind === 'bram' ? 'mult' : 'bram';
+    const nb = t[k] && t[k] !== other ? t[k] : null;   // the neighbour in that tile (unless it moves away)
+    return !nb || !(o.kind === 'bram' ? wideBram(o) : wideBram(nb));
+  };
+  const setHard = (o, site) => {
+    const old = sites[o.inst];
+    if (old && hardUsed[o.kind].get(old.name) === o) { hardUsed[o.kind].delete(old.name); delete (tileUse.get(old.tile) || {})[o.kind]; }
+    hardUsed[o.kind].set(site.name, o);
+    if (!tileUse.has(site.tile)) tileUse.set(site.tile, {});
+    tileUse.get(site.tile)[o.kind] = o;
+    sites[o.inst] = site;
+  };
+  for (const o of objs) if (o.kind === 'bram' || o.kind === 'mult') {
+    const inst = packed.insts[o.inst];
+    const free = hardSites[o.kind].filter(s => !hardUsed[o.kind].has(s.name) && hardOk(o, s) && (!inst.loc || s.name === inst.loc));
+    if (!free.length) throw new PlaceError(`place: ${inst.name}: no free ${o.kind === 'bram' ? 'block RAM' : 'multiplier'} site${inst.loc ? ` ${inst.loc}` : ''} (the device has ${hardSites[o.kind].length}${o.kind === 'bram' ? '' : '; a multiplier cannot share its tile with a block RAM of 36-bit ports'})`);
+    o.fixed = !!inst.loc;
+    setHard(o, free[ri(free.length)]);
   }
   // the slices a clock may reach (clockSites): the flip-flops of each clock stay on them
   const allowedOf = new Array(N).fill(null);
@@ -254,7 +322,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     const reach = clockSites(sites[n.outpins[0].inst].name);
     if (reach) for (const p of n.inpins) if (p.pin === 'CLK' && packed.insts[p.inst].kind === 'slice') allowedOf[p.inst] = reach;
   }
-  const allowedAt = (i, k) => !allowedOf[i] || allowedOf[i].has(dev.slices.get(k).name);
+  // RAMs and shift registers (instances of type SLICEM) only on SLICEM sites (the left column of a CLB)
+  const allowedAt = (i, k) => (!allowedOf[i] || allowedOf[i].has(dev.slices.get(k).name)) && (packed.insts[i].type !== 'SLICEM' || dev.slices.get(k).type === 'SLICEM');
 
   // ---------------------------------------------------------------- slices: legal anchors, occupancy
   const occ = new Map();   // `${x},${y}` -> inst
@@ -355,13 +424,25 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const initialDelay = dmax;
 
   // ---------------------------------------------------------------- moves
-  const movable = objs.filter(o => (o.kind === 'macro') || (o.kind === 'iob' && !o.fixed));
+  const movable = objs.filter(o => (o.kind === 'macro') || (o.kind === 'iob' && !o.fixed) || ((o.kind === 'bram' || o.kind === 'mult') && !o.fixed && hardSites[o.kind].length > 1));
   if (!movable.length) return finish();
   // propose: returns the list of [inst, newSite] changes, or null
   let rlim = Math.max(maxX, maxY);
   const padsFor = { in: [...dev.pads.values()], out: [...dev.pads.values()].filter(p => !p.inputOnly) };
   function propose() {
     const o = movable[ri(movable.length)];
+    if (o.kind === 'bram' || o.kind === 'mult') {
+      // another site of its kind (swapping with the instance there)
+      const cands = hardSites[o.kind];
+      const p = cands[ri(cands.length)];
+      const other = hardUsed[o.kind].get(p.name);
+      if (other === o || (other && other.fixed)) return null;
+      const cur = sites[o.inst];
+      if (!hardOk(o, p, other) || (other && !hardOk(other, cur, o))) return null;
+      const ch = [[o.inst, p]];
+      if (other) ch.push([other.inst, cur]);
+      return { ch, kind: 'hard', o, other, p };
+    }
     if (o.kind === 'iob') {
       const cands = padsFor[o.dir === 'in' ? 'in' : 'out'];
       const p = cands[ri(cands.length)];
@@ -405,7 +486,12 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     return { d: (1 - lambda) * dbb / bbNorm + lambda * dtc / tcNorm, newCosts, newDelays, dbb, dtc };
   }
   function commit(mv, { newCosts, newDelays, dbb, dtc }) {
-    if (mv.kind === 'iob') {
+    if (mv.kind === 'hard') {
+      const { o, other, p } = mv;
+      const old = sites[o.inst];
+      if (other) { hardUsed[o.kind].delete(p.name); setHard(o, p); setHard(other, old); pos[other.inst] = [old.px, old.py]; } else setHard(o, p);
+      pos[o.inst] = [p.px, p.py];
+    } else if (mv.kind === 'iob') {
       const { o, other, p } = mv;
       const old = sites[o.inst];
       padUsed.delete(old.name);

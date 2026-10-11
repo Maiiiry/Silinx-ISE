@@ -185,8 +185,8 @@ test('names are plain words; unsupported cells are reported', () => {
   for (const i of p.insts) { assert.doesNotMatch(i.name, /[\s:"\\]/); for (const c of i.cfg) assert.doesNotMatch(c.name, /[\s:"\\]/); }
   for (const n of p.nets) assert.doesNotMatch(n.name, /[\s:"\\]/);
   const nl = load('sw');
-  nl.cells.push({ name: 'ram', type: 'RAMB16_S9', params: {}, attrs: {}, pins: {}, dirs: {} });
-  assert.throws(() => pack(nl), e => e instanceof PackError && /RAMB16_S9/.test(e.message));
+  nl.cells.push({ name: 'ram', type: 'RAMB16BWE_S18', params: {}, attrs: {}, pins: {}, dirs: {} });
+  assert.throws(() => pack(nl), e => e instanceof PackError && /cells not supported yet: RAMB16BWE_S18/.test(e.message));
 });
 
 test('latches: #LATCH, transparent while CLKINV gives 0 (an active-high gate takes CLK_B, as ISE writes it)', () => {

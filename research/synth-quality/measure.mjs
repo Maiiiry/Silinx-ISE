@@ -1,7 +1,9 @@
 // Size (and the placer's estimate of the critical path) of the open synthesis's netlists, three ways:
 //   stock   core/synth-verilog.js without tables + Yosys's own synth_xilinx (Silinx 15.10.1)
 //   luts    without tables + the LUT mapping of core/synth-open.js (ABC on LUT4_COSTS)
-//   now     what the open synthesis does (tables of expressions of few input bits + that mapping)
+//   nosrl   tables + that mapping, shift registers left in flip-flops (Silinx 15.10.2 before SRL16)
+//   now     what the open synthesis does (tables of expressions of few input bits + that mapping,
+//           shift registers in SRL16E)
 // on the fixture designs the packer supports, the blinky example and the Silinx projects given:
 //   node research/synth-quality/measure.mjs [--place] [project folder…]
 // Columns: cells, LUTs, MUXF5-8, carry cells, flip-flops, slices after core/fpga/pack.js (carryOut
@@ -12,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { compile, elaborate } from '../../core/compile.js';
 import { primitiveSources } from '../../core/unisim.js';
 import { toVerilog } from '../../core/synth-verilog.js';
-import { synthCommands, cellCounts, utilization, YOSYS_FAMILY } from '../../core/synth-open.js';
+import { synthCommands, yosysFiles, SRL_CELLS_FILE, cellCounts, utilization, YOSYS_FAMILY } from '../../core/synth-open.js';
 import { yosysNode } from '../../core/synth-open-node.js';
 import { readYosysJson } from '../../core/fpga/netlist.js';
 import { pack } from '../../core/fpga/pack.js';
@@ -40,7 +42,8 @@ for (const dir of [path.join(ROOT, 'examples/blinky'), ...projects]) {
 const sites = doPlace ? deviceSites(loadDeviceCache('xc3s250ecp132-4')) : null;
 const WAYS = {
   stock: { tables: false, synth: top => `synth_xilinx -family ${YOSYS_FAMILY.spartan3e} -ise -flatten -top ${top}` },
-  luts: { tables: false, synth: top => synthCommands(top, 'spartan3e') },
+  luts: { tables: false, synth: top => synthCommands(top, 'spartan3e', { srl: false }) },
+  nosrl: { tables: true, synth: top => synthCommands(top, 'spartan3e', { srl: false }) },
   now: { tables: true, synth: top => synthCommands(top, 'spartan3e') },
 };
 const pad = (x, n) => String(x).padStart(n);
@@ -50,7 +53,7 @@ for (const d of designs) {
   const design = elaborate(lib, d.top);
   for (const [way, w] of Object.entries(WAYS)) {
     const { text, top } = toVerilog(design, { tables: w.tables });
-    const out = await yosysNode(['-q', '-p', `read_verilog -sv ${top}_syn.v; ${w.synth(top)}; delete t:$scopeinfo; write_json ${top}.json`], { [`${top}_syn.v`]: text });
+    const out = await yosysNode(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${w.synth(top)}; delete t:$scopeinfo; write_json ${top}.json`], yosysFiles(top, text));
     const u = utilization(cellCounts(out[`${top}.json`], top));
     let slices = '-', est = '';
     try {

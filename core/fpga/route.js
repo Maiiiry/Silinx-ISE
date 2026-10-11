@@ -585,6 +585,36 @@ export function clockReach(device, bufgSite, allowPip = null) {
   return out;
 }
 
+/**
+ * The global clock buffers (BUFGMUX site names) whose I0 an output pin of a site (a DCM's CLK0,
+ * CLKFX…) reaches through the device's dedicated paths: PIPs (with allowPip: allowed ones only, no
+ * route-throughs) not entering general routing, for the placer (place()'s bufgSites option).
+ */
+export function bufgReach(device, siteName, pin, allowPip = null) {
+  const E = device.routingEdges();
+  const start = device.sitePinNode(siteName, pin);
+  if (start < 0) return [];
+  const targets = new Map(device.sites('BUFGMUX').map(s => [device.sitePinNode(s.name, 'I0'), s.name]));
+  const seen = new Uint8Array(device.nodeCount), out = [];
+  const q = [start];
+  seen[start] = 1;
+  for (let steps = 0; q.length && steps < 20000; steps++) {
+    const n = q.shift();
+    if (targets.has(n)) { out.push(targets.get(n)); continue; }
+    for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
+      const m = E.edgeTo[e];
+      if (seen[m] || E.edgeFlags[e] & PIP_ROUTETHRU) continue;
+      const [from, to] = device.pipWires(E.edgeTile[e], E.edgePip[e]);
+      // the dedicated clock paths only (DCM outputs, the clock tiles' wires): not into general routing
+      if (/^([NSEW](2|6)(BEG|MID|END|[A-D])\d|L[HV]\d)/.test(to)) continue;
+      if (allowPip && !allowPip(device.tileNames[E.edgeTile[e]], from, to)) continue;
+      seen[m] = 1;
+      q.push(m);
+    }
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ checking a routed design
 /**
  * Check the routing of a design against the device: every PIP exists, every sink is reached from

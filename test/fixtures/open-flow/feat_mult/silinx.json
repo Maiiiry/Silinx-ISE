@@ -1,0 +1,24 @@
+{
+  "name": "feat_mult",
+  "description": "Board test: the square of the switches (a MULT18X18) in hexadecimal on the display",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.v",
+      "lang": "verilog",
+      "role": "design"
+    }
+  ],
+  "constraints": "../basys2.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

@@ -97,3 +97,39 @@ test('the open flow with --tries 2: two placements routed, the one with the shor
   assert.equal(kept, Math.min(...periods.map(p => p[1])));
   assert.match(r.stdout, /top\.bit: complete/);
 });
+
+// The rest of the Spartan-3E in the open flow (test/fixtures/open-flow: the board tests and the ISE
+// check of instantiated primitives; ISE converts the same routed XDL to the same .bit, with no DRC
+// error or warning: npm run check:open-flow on these folders): block RAM, multipliers, shift
+// registers in SRL16, distributed RAM, the top-left DCM, each to a complete bitstream with no warning.
+const FEATURES = {
+  feat_bram: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+  feat_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
+  feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],
+  feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
+  hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+};
+for (const [name, [packLine, type]] of Object.entries(FEATURES)) {
+  test(`the open flow: ${name} (${type}) to a complete bitstream, no warning`, { timeout: 300000 }, () => {
+    const out = path.join(tmp, name);
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'test/fixtures/open-flow', name), out],
+      { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, packLine);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
+    assert.match(fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8'), new RegExp(`^inst "[^"]+" "${type}",placed `, 'm'));
+  });
+}
+
+test('the open flow fails clearly for what the bit database does not have: a DCM output with no known path to a global buffer', { timeout: 300000 }, () => {
+  const dir = path.join(tmp, 'dcm90');
+  fs.mkdirSync(dir, { recursive: true });
+  const src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm/top.vhd'), 'utf8').replace('CLK90 => open', 'CLK90 => clk2x_u').replace('CLK2X => clk2x_u', 'CLK2X => open');
+  fs.writeFileSync(path.join(dir, 'top.vhd'), src);
+  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm90', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'top',
+    files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }], constraints: path.relative(dir, path.join(ROOT, 'test/fixtures/open-flow/basys2.ucf')) }));
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, path.join(dir, 'out')], { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /u_b2x: no free global clock buffer reachable from u_dcm\.CLK90 through switches of known bits/);
+});

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, yosysScript, synthCommands, cellCounts, utilization, lineStream, YOSYS_FAMILY } from '../core/synth-open.js';
+import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET } from '../core/synth-open.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { netlistSim } from './fpga-sim.js';
@@ -26,12 +26,17 @@ const design = (text, top) => elaborate(compile([{ path: 'd.vhd', lang: 'vhdl', 
 test('the Yosys script and the device families', () => {
   // 4-input-LUT families: synth_xilinx with its LUT mapping replaced (ABC on LUTs of up to 6 inputs
   // at their cost in LUT4s, not LUTs of up to 8 inputs split into LUT4s and MUXF5 … MUXF8)
+  // (shift registers: xilinx_srl on the bit-level flip-flops before map_ffs, mapped to SRL16E /
+  // SRL16E_1 by Silinx's own map file; srl: false keeps them in flip-flops)
   assert.equal(yosysScript('top', 'spartan3e'),
-    'read_verilog -sv top_syn.v; synth_xilinx -family xc3se -ise -flatten -top top -run :map_luts; opt_expr -mux_undef -noclkinv; '
+    'read_verilog -lib silinx_srl_cells.v; read_verilog -sv top_syn.v; synth_xilinx -family xc3se -ise -flatten -top top -run :map_ffs; '
+    + 'xilinx_srl -fixed -minlen 3; techmap -map silinx_srl_map.v; synth_xilinx -family xc3se -ise -flatten -top top -run map_ffs:map_luts; opt_expr -mux_undef -noclkinv; '
     + 'abc -luts 1,1,1,1,2,4; clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
     + 'xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:; '
     + 'delete t:$scopeinfo; write_json top.json; write_verilog -noattr top_yosys.v; tee -q -o top_stat.txt stat');
   assert.equal(synthCommands('m', 'spartan3'), synthCommands('m', 'spartan3e').replaceAll('xc3se', 'xc3s'));
+  assert.match(synthCommands('m', 'spartan3e', { srl: false }), /^synth_xilinx -family xc3se -ise -flatten -top m -run :map_luts; /);
+  assert.doesNotMatch(yosysScript('m', 'spartan3e', { srl: false }), /xilinx_srl|silinx_srl/);
   // 6-input-LUT families: synth_xilinx as it is
   assert.equal(synthCommands('m', 'spartan6'), 'synth_xilinx -family xc6s -ise -flatten -top m');
   assert.match(yosysScript('m', 'spartan6'), /-family xc6s /);
@@ -79,7 +84,7 @@ test('a counter synthesized by Yosys (WebAssembly) counts like the design', { ti
 test('Spartan-3E: Yosys\'s "Shift register inference not yet supported" (printed on every run) is not a warning of the design', { timeout: 120000 }, async () => {
   // Yosys does print it
   const raw = [];
-  await yosysNode(['-q', '-p', yosysScript('counter', 'spartan3e')], { 'counter_syn.v': (await import('../core/synth-verilog.js')).toVerilog(design(COUNTER, 'counter')).text }, l => raw.push(l));
+  await yosysNode(['-q', '-p', yosysScript('counter', 'spartan3e')], yosysFiles('counter', (await import('../core/synth-verilog.js')).toVerilog(design(COUNTER, 'counter')).text), l => raw.push(l));
   assert.ok(raw.some(l => /Shift register inference not yet supported for family xc3se/.test(l)), raw.join('\n'));
   // the open synthesis leaves it out of its log, its onLine and its warnings
   const lines = [];
@@ -138,4 +143,14 @@ end rtl;
   sim.step({ ...ins(1, 0), clk: 0, g: 1 }); assert.equal(sim.out().q3, 1);
   sim.step({ ...ins(0, 0), clk: 0, g: 0 }); assert.equal(sim.out().q3, 1);
   sim.step({ ...ins(0, 0), clk: 0, g: 1 }); assert.equal(sim.out().q3, 0);
+});
+
+test('Yosys messages that say nothing about the design: its block-RAM mapping\'s port resizing', () => {
+  const quiet = l => QUIET.some(re => re.test(l));
+  assert.ok(quiet('Warning: Resizing cell port top.ram_wf.0.0.DI from 64 bits to 8 bits.'));
+  assert.ok(quiet('Warning: Resizing cell port top.tdp.0.0.DOPB from 8 bits to 2 bits.'));
+  assert.ok(quiet('Warning: Shift register inference not yet supported for family xc3se.'));
+  // a resized port of the design's own cells still counts
+  assert.ok(!quiet('Warning: Resizing cell port top.u_add.A from 16 bits to 8 bits.'));
+  assert.ok(!quiet('Warning: Resizing cell port top.ram.0.0.ADDR from 14 bits to 10 bits.'));
 });

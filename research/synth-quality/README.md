@@ -24,8 +24,9 @@ changed in 15.10.2 and what is left. `measure.mjs` reproduces the tables:
 3. **The packer** gave flip-flops fed by flip-flops (shift registers, registers loaded from
    registers: D through BX / BY) slices of their own, though the slices of carry chains and wide
    multiplexers often have both flip-flop slots and BX / BY free.
-4. **Shift registers** (not changed): XST puts them in SRL16 LUTs; Yosys does not infer them for
-   the Spartan-3E ("Shift register inference not yet supported for family xc3se").
+4. **Shift registers**: XST puts them in SRL16 LUTs; Yosys does not infer them for the Spartan-3E
+   ("Shift register inference not yet supported for family xc3se"). Done in 15.10.2 for
+   fixed-length chains (below, "Shift registers in SRL16").
 
 The way the front end writes processes and case statements was not found to matter: with the LUT
 mapping fixed, lab11's LUT and flip-flop counts are at or below XST's.
@@ -47,6 +48,42 @@ mapping fixed, lab11's LUT and flip-flop counts are at or below XST's.
   the operators (their widths). `toVerilog(design, { tables: false })` turns it off.
 - **Packer**: a flip-flop whose D comes through BX / BY first tries the free flip-flop slots of the
   carry-chain and multiplexer slices (one holding logic of its nets, else any).
+
+## Shift registers in SRL16 (15.10.2)
+
+`core/synth-open.js` (synthCommands, SRL_MAP, SRL_CELLS): `synth_xilinx … -run :map_ffs`, then
+`xilinx_srl -fixed -minlen 3` on the bit-level flip-flops (before map_ffs: after it xc3se's
+dfflegalize has made them `$_SDFFE_` cells with a reset, which xilinx_srl skips), then Silinx's
+own map file for `$__XILINX_SHREG_` (`silinx_srl_map.v`, given to Yosys with the design): a chain
+of up to 16 stages is one SRL16E (address = length - 1), a longer one an SRL16E of 16 stages
+(address 15) followed by the rest (Yosys's own cells_map.v writes SRLC32E, which the Spartan-3E
+does not have); a falling clock is `SRL16E_1`, a black box declared for Yosys (`silinx_srl_cells.v`:
+its cell library has no SRL16E_1, and `IS_CLK_INVERTED` would become an inverter on the clock,
+extractinv of `-ise`). Then `synth_xilinx -run map_ffs:map_luts` and the LUT mapping as before.
+`synthCommands(top, family, { srl: false })` keeps the shift registers in flip-flops.
+
+The packer puts an SRL16E in the F or G LUT of a SLICEM (`#RAM:D=0x…`, `F_ATTR::SHIFT_REG`, D
+through BX / BY with DIF_MUX / DIG_MUX, the shift enable on SR through WSGEN, `CLKINV::CLK_B` for
+SRL16E_1), two in a slice when they share the clock and the enable; an always-enabled one (SR = 1)
+may feed the flip-flop of its side when that flip-flop has no CE and no set / reset (as ISE's map
+packs them: `FFX_SR_ATTR::SRLOW`, the flip-flop does not see SR). The placer keeps SLICEM
+instances on the SLICEM sites (the left column of a CLB); `core/fpga/timing.js` has their arcs
+(clock to the output after a shift, setup of BX / BY and SR); both simulators of
+`test/fpga-sim.js` model them; the bitstream has the measured shift-register features (stage D).
+ISE converts the open flow's designs to the same .bit with no DRC error or warning (srl fixture,
+test/fixtures/open-flow/feat_srl, hard_prim).
+
+| design | shift registers in flip-flops | in SRL16 | XST |
+|---|---|---|---|
+| srl fixture | 102 FFs, 79 slices | 66 FFs, 2 SRL16E + 2 SRL16E_1, 63 slices | 5 FFs + 8 SRL16, about 9 slices |
+| lab11, blinky, cpu8 | | unchanged (no chain of 3 or more flip-flops without reset) | |
+
+Left: **variable taps** (`q <= sr(to_integer(tap))`, the srl fixture's 16 x 4 bits): Yosys infers
+them (`xilinx_srl -variable`) only from a 1-bit `$shiftx` over the chain; Yosys's own memory-to-
+registers conversion of Silinx's array read gives a `$pmux` whose `tap = 0` case is its default
+(pmux2shiftx does not turn it into a `$shiftx`), 4 bits wide. It needs the front end to write the
+read as a shift (or a pass splitting the `$pmux`). **The SRLC16 cascade** (Q15, DIF_MUX = SHIFTIN):
+a chain longer than 16 uses general routing between its SRL16Es instead.
 
 ## Results
 
@@ -86,7 +123,8 @@ not in the repository.
 
 (XST: lab11 and project 2 from ISE's map report; the fixtures' cells from their netgen
 post-synthesis netlists, test/fixtures/netgen; the designs with block RAMs, DCM, multipliers,
-distributed RAM or tri-state buffers are left out: the packer does not take those cells yet.)
+distributed RAM or tri-state buffers are left out: the packer did not take those cells then. The
+srl row: before SRL16; with them, below.)
 
 The full open flow (`research/s3e-route/open-flow.mjs`: pack, place, route, static timing, a
 complete bitstream) against ISE's place and route:
@@ -106,9 +144,8 @@ complete bitstream) against ISE's place and route:
   router: lab11 11.6 ns by ISE's trce, blinky 7.4 ns; research/s3e-route/README.md, "Closing the
   routing gap"). Left: XST replicates the state register's flip-flops to cut their fanout (54 on
   lab11's critical path, about 0.5 ns of branch load); the open flow does not.
-- **Shift registers in SRL16** (prototyped in 15.10.2, not taken: it pays off only for designs
-  with shift registers, and none of lab11, project 2, blinky or cpu8 has one of 3 or more stages
-  without a reset; the srl fixture: 79 slices, XST about 9). What the prototype found:
+- **Shift registers in SRL16**: done in 15.10.2 for fixed-length chains (above); variable taps
+  and the cascade left. What the prototype (before it) found:
   - fixed-length chains: `xilinx_srl -fixed -minlen 3` must run on the bit-level flip-flops
     before `map_ffs` (after it, xc3se's dfflegalize has made them $_SDFFE_ cells with a reset,
     which xilinx_srl skips), with Silinx's own map file for `$__XILINX_SHREG_` (Yosys's
@@ -126,7 +163,7 @@ complete bitstream) against ISE's place and route:
     placer (place.js allowedAt), its clock-to-out and setup in core/fpga/timing.js, SRL16E in
     test/fpga-sim.js (netlistSim and packedSim), and a check of the bitstream against ISE's
     (the bit database has the SLICEM shift-register features, measured with ISE's designs).
-- **Distributed RAM, block RAM, multipliers, DCM, tri-state buffers in the packer** (other designs
-  cannot go through the open flow yet; not a matter of synthesis size).
+- **Tri-state buffers in the packer** (distributed RAM, block RAM, multipliers and the DCM are in
+  the open flow since 15.10.2: research/s3e-bitstream/README.md, stage E).
 - **State machines**: Yosys's `fsm` pass finds no state machine in lab11's control unit (its
   `state_id` output reads the state register); XST kept its binary encoding too.
