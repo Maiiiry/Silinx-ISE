@@ -44,7 +44,7 @@ let t = Date.now();
 let netFile = json;
 if (!netFile) {
   const srcs = proj.files.filter(f => (f.role || 'design') === 'design' && (f.lang === 'vhdl' || f.lang === 'verilog'))
-    .map(f => ({ path: f.path, lang: f.lang, text: fs.readFileSync(path.join(projDir, f.path), 'utf8') }));
+    .map(f => ({ path: f.path, lang: f.lang, text: fs.readFileSync(path.resolve(projDir, f.path), 'utf8') }));
   const lib = compile([...primitiveSources(srcs), ...srcs]);
   const design = elaborate(lib, top);
   const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
@@ -58,7 +58,7 @@ if (!netFile) {
 }
 // pack: a carry out read by logic leaves through an XOR stage, not XB / YB (not in the database)
 t = Date.now();
-const ucf = proj.constraints ? fs.readFileSync(path.join(projDir, proj.constraints), 'utf8') : null;
+const ucf = proj.constraints ? fs.readFileSync(path.resolve(projDir, proj.constraints), 'utf8') : null;
 const packed = pack(readYosysJson(fs.readFileSync(netFile, 'utf8')), { ucf, part, carryOut: 'xor' });
 for (const w of packed.warnings) console.log(`  Warning: pack: ${w}`);
 step(`pack (${packed.stats.slices} slices)`, t);
