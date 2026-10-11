@@ -297,3 +297,36 @@ test('VHDL records and arrays of records through Yosys: the netlist behaves as t
   assert.ok(r.states > 10, `the outputs change (${r.states} states)`);
   expectWarnings('synth-diff: VHDL records and arrays of records', r.warnings);
 });
+
+// Regression (#60): a VHDL integer signal with no initial value starts at T'left in simulation (1 for
+// range 1 to 10); an output port with a default value connected straight to its actual starts at
+// it. The netlist started both at 0
+test('VHDL integers start at T\'left and output ports at their default value in the netlist too (#60)', { timeout: 120000 }, async () => {
+  const text = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity tgl is port (clk, en : in std_logic; q : buffer std_logic := '1'); end;
+architecture a of tgl is begin
+  process (clk) begin if rising_edge(clk) then if en = '1' then q <= not q; end if; end if; end process;
+end;
+library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity ints is port (clk, en : in std_logic; q : out std_logic; c : out unsigned(3 downto 0); d : out unsigned(2 downto 0)); end;
+architecture a of ints is
+  signal k : integer range 1 to 10;
+  signal m : integer range -3 to 3;
+begin
+  u : entity work.tgl port map (clk => clk, en => en, q => q);
+  process (clk) begin
+    if rising_edge(clk) then
+      if en = '1' then
+        if k = 10 then k <= 1; else k <= k + 1; end if;
+        if m = 3 then m <= -3; else m <= m + 1; end if;
+      end if;
+    end if;
+  end process;
+  c <= to_unsigned(k, 4);
+  d <= unsigned(to_signed(m, 3));
+end;`;
+  const r = await diffSynth({ name: 'ints', sources: [{ path: 'ints.vhd', lang: 'vhdl', text }], top: 'ints', sim: { cycles: 80, prob: { en: 0.3 } }, powerUp: true });
+  expectPass(r);
+  assert.ok(r.states > 5, `the outputs change (${r.states} states)`);
+  expectWarnings('synth-diff: VHDL integers and port defaults start values', r.warnings);
+});

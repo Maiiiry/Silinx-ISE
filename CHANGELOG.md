@@ -9,6 +9,9 @@ the "What's new" text of its GitHub release.
   `lfsr_mask(n)` in a generate loop) are evaluated by the translator, their values literals: the
   CRC-32 synthesizes in 2.4 s (was 160 s) and the PRBS31 in 1.7 s (was 110 s), with the same cells
   and without the ~160 `Replacing memory … with list of registers` warnings each (#13).
+- **Open synthesis: start values as in simulation.** A VHDL integer signal with no initial value
+  starts at `T'left` (1 for `range 1 to 10`), a `bit` at `'0'`, and an output port at its default
+  value (`q : out std_logic := '1'`) in the netlist too: they powered up at 0 there (#60).
 
 ## 15.10.2
 

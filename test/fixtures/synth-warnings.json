@@ -32,6 +32,7 @@
     "Warning: Replacing memory \\bank with list of registers. See top_syn.v:107, top_syn.v:88, top_syn.v:69, top_syn.v:50"
   ],
   "synth-diff: VHDL enumeration state machine without a reset": [],
+  "synth-diff: VHDL integers and port defaults start values": [],
   "synth-diff: VHDL null ranges": [],
   "synth-diff: VHDL records and arrays of records": [
     "Warning: Replacing memory \\leafs with list of registers. See rtop_syn.v:77, rtop_syn.v:63"

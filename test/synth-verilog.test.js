@@ -121,7 +121,7 @@ begin
   n <= c;
   st <= std_logic_vector(to_unsigned(state_t'pos(s), 2));
 end a;`)], 'f');
-  assert.match(text, /logic \[3:0\] c;/, 'integer range 0 to 9 -> 4 bits');
+  assert.match(text, /logic \[3:0\] c = 4'h0;/, 'integer range 0 to 9 -> 4 bits, starting at its T\'left (#60)');
 });
 
 test('arithmetic: unsigned / signed numeric_std, resize, comparisons, shifts, rotations, multiplication', () => {
@@ -679,7 +679,7 @@ end rtl;
   assert.match(r.text, /^ {2}logic \[1:0\] s2 = 2'h2;$/m, 'the declared value');
   assert.match(r.text, /^ {2}logic \[0:0\] b = 1'h0;$/m, 'false');
   assert.match(r.text, /^ {2}logic \[0:0\] l;$/m, "std_logic: 'U', no initial value");
-  assert.match(r.text, /^ {2}logic \[2:0\] n;$/m, 'integers: unchanged');
+  assert.match(r.text, /^ {2}logic \[2:0\] n = 3'h0;$/m, 'integers: their T\'left too (#60)');
 });
 
 // Regression (#15): a vector of a null range has no bit: not declared (Verilog has no zero-width

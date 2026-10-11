@@ -1119,7 +1119,11 @@ export function toVerilog(design, { name, tables = true } = {}) {
   // first value (T'left, the VHDL default initial value) when it declares none: written too, so that the
   // netlist powers up in that state, as the RTL and XST do (Yosys keeps a register with an initial
   // value out of its FSM re-encoding, which could otherwise start it in another state)
-  const startVal = sg => (primDriven.has(sg) ? undefined : initVal.has(sg) ? initVal.get(sg) : sg.hasInit || sg.t?.kind === 'enum' || sg.t?.kind === 'bool' ? sg.init : undefined);
+  // (a signal starts at its declared value, or at the default its type gives it in simulation when
+  // that is known: T'left of a VHDL integer, an enumeration or a boolean, '0' of a bit, a port's
+  // default value (#60); an unknown start (std_logic 'U', Verilog x) gets no initial value)
+  const startVal = sg => (primDriven.has(sg) ? undefined : initVal.has(sg) ? initVal.get(sg)
+    : sg.hasInit || sg.t?.kind === 'enum' || sg.t?.kind === 'bool' || sg.t?.kind === 'int' || sg.t?.kind === 'logic' ? sg.init : undefined);
   const allX = v => !v || v.w <= 0 || v.x === (1n << BigInt(v.w)) - 1n;
   const initOf = (sg, w) => {
     let v = startVal(sg);
