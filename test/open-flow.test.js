@@ -51,20 +51,96 @@ const openFlow = (dir, out) => {
     { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
   return { ...r, warnings: `${r.stdout}\n${r.stderr}`.split('\n').filter(l => /warning/i.test(l)).map(l => l.trim()) };
 };
-// the warnings of the open flow on blinky, the same on every device: Yosys's note about shift registers
-const BLINKY_WARNINGS = ['Warning: Shift register inference not yet supported for family xc3se.'];
+// the warnings of the open flow on blinky: none, on every device
+const BLINKY_WARNINGS = [];
 
-test('the open flow on the shipped graph: blinky from VHDL to a complete bitstream, no Xilinx tool', { timeout: 300000 }, () => {
+test('the open flow on the shipped graph: blinky from VHDL to a complete bitstream, no Xilinx tool', { timeout: 300000 }, async () => {
   const out = path.join(tmp, 'blinky');
   const r = openFlow(path.join(ROOT, 'examples/blinky'), out);
   assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
   assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+  // no warnings (front end, synthesis, packer: each printed as "  Warning: …")
+  assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
   assert.match(r.stdout, /timing: constraint PERIOD 20 ns on clk: met/);
   assert.deepEqual(r.warnings, BLINKY_WARNINGS);
   const bit = fs.readFileSync(path.join(out, 'top.bit'));
   assert.ok(bit.length > 160000);
   assert.ok(bit.includes(Buffer.from([0xaa, 0x99, 0x55, 0x66])), 'the sync word');
   for (const f of ['top.json', 'placed.xdl', 'routed.xdl', 'timing.txt']) assert.ok(fs.existsSync(path.join(out, f)), f);
+  // the router swaps LUT inputs: every LUT of the routed design computes the same function of the
+  // same nets as in the placed design (an input not connected reads 1 in both)
+  const { parseXdl, evalLut } = await import('../core/xdl.js');
+  const [placed, routed] = ['placed.xdl', 'routed.xdl'].map(f => parseXdl(fs.readFileSync(path.join(out, f), 'utf8')));
+  const pinNets = d => new Map(d.nets.flatMap(n => n.inpins.map(p => [`${p.inst}.${p.pin}`, n.name])));
+  const pa = pinNets(placed), pb = pinNets(routed), byName = new Map(routed.insts.map(i => [i.name, i]));
+  let luts = 0, swapped = 0;
+  for (const ia of placed.insts.filter(i => /^SLICE/.test(i.type))) {
+    for (const L of ['F', 'G']) {
+      const ea = ia.cfg.find(c => c.attr === L && /^#LUT:/.test(c.value));
+      if (!ea) continue;
+      const eb = byName.get(ia.name).cfg.find(c => c.attr === L);
+      const na = [1, 2, 3, 4].map(k => pa.get(`${ia.name}.${L}${k}`)), nb = [1, 2, 3, 4].map(k => pb.get(`${ia.name}.${L}${k}`));
+      luts++;
+      if (na.join() !== nb.join()) swapped++;
+      const nets = [...new Set(na.filter(Boolean))];
+      assert.deepEqual([...new Set(nb.filter(Boolean))].sort(), [...nets].sort(), `${ia.name} ${L}: the same nets`);
+      for (let v = 0; v < 1 << nets.length; v++) {
+        const env = ns => Object.fromEntries(ns.map((n, k) => [`A${k + 1}`, n ? (v >> nets.indexOf(n)) & 1 : 1]));
+        assert.equal(evalLut(eb.value.slice(5), env(nb)), evalLut(ea.value.slice(5), env(na)), `${ia.name} ${L}: ${ea.value} / ${eb.value}`);
+      }
+    }
+  }
+  assert.ok(luts > 50 && swapped > 10, `${swapped} of ${luts} LUTs with their inputs swapped`);
+});
+
+test('the open flow with --tries 2: two placements routed, the one with the shorter critical path kept', { timeout: 300000 }, () => {
+  const out = path.join(tmp, 'blinky-tries');
+  const json = path.join(tmp, 'blinky', 'top.json');   // the netlist of the test above
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'examples/blinky'), out, ...(fs.existsSync(json) ? ['--json', json] : []), '--tries', '2', '--seed', '3'],
+    { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
+  const periods = [...r.stdout.matchAll(/^ {2}seed (\d+): ([\d.]+) ns$/gm)].map(m => [+m[1], +m[2]]);
+  assert.deepEqual(periods.map(p => p[0]), [3, 4]);
+  const kept = +/clock \S+clk: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(out, 'timing.txt'), 'utf8'))[1];
+  assert.equal(kept, Math.min(...periods.map(p => p[1])));
+  assert.match(r.stdout, /top\.bit: complete/);
+});
+
+// The rest of the Spartan-3E in the open flow (test/fixtures/open-flow: the board tests and the ISE
+// check of instantiated primitives; ISE converts the same routed XDL to the same .bit, with no DRC
+// error or warning: npm run check:open-flow on these folders): block RAM, multipliers, shift
+// registers in SRL16, distributed RAM, the top-left DCM, each to a complete bitstream with no warning.
+const FEATURES = {
+  feat_bram: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+  feat_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
+  feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],
+  feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
+  hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+};
+for (const [name, [packLine, type]] of Object.entries(FEATURES)) {
+  test(`the open flow: ${name} (${type}) to a complete bitstream, no warning`, { timeout: 300000 }, () => {
+    const out = path.join(tmp, name);
+    const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'test/fixtures/open-flow', name), out],
+      { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, packLine);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
+    assert.match(fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8'), new RegExp(`^inst "[^"]+" "${type}",placed `, 'm'));
+  });
+}
+
+test('the open flow fails clearly for what the bit database does not have: a DCM output with no known path to a global buffer', { timeout: 300000 }, () => {
+  const dir = path.join(tmp, 'dcm90');
+  fs.mkdirSync(dir, { recursive: true });
+  const src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm/top.vhd'), 'utf8').replace('CLK90 => open', 'CLK90 => clk2x_u').replace('CLK2X => clk2x_u', 'CLK2X => open');
+  fs.writeFileSync(path.join(dir, 'top.vhd'), src);
+  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm90', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'top',
+    files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }], constraints: path.relative(dir, path.join(ROOT, 'test/fixtures/open-flow/basys2.ucf')) }));
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, path.join(dir, 'out')], { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  assert.notEqual(r.status, 0);
+  assert.match(r.stderr, /u_b2x: no free global clock buffer reachable from u_dcm\.CLK90 through switches of known bits/);
 });
 
 // blinky on the other boards (stage E of research/s3e-bitstream): the Basys2-100 with the Basys2's

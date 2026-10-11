@@ -386,7 +386,7 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
     const report = (sig, stmt) => {
       if (latched.has(sig)) return;
       latched.add(sig);
-      add('latch', 'warning', fileOf(p), stmt?.loc?.line ?? p.loc?.line, `Found ${sig.t?.w || 1}-bit latch for signal <${short(sig)}>. Latches may be generated from incomplete case or if statements.`, 'Xst:737');
+      add('latch', 'warning', fileOf(p), stmt?.loc?.line ?? p.loc?.line, `Found ${sig.t?.w || 1}-bit latch for signal <${short(sig)}>. Latches may be generated from incomplete case or if statements.`, 'Silinx:737');
     };
     if (p.kind === 'assign') {
       // q <= d when g = '1' [else q];   assign q = g ? d : q;
@@ -430,7 +430,7 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
     if (p.lang === 'verilog') {
       if ((p.triggers || []).some(t => t.edge !== 'any')) continue;
       const missing = [...p.reads].filter(s => !listed.has(s));
-      if (missing.length) add('sensitivity', 'warning', fileOf(p), p.loc?.line, `One or more signals are missing in the sensitivity list of always block. The missing signals are: ${missing.map(s => `<${short(s)}>`).join(' ')}`, 'Xst:905');
+      if (missing.length) add('sensitivity', 'warning', fileOf(p), p.loc?.line, `One or more signals are missing in the sensitivity list of always block. The missing signals are: ${missing.map(s => `<${short(s)}>`).join(' ')}`, 'Silinx:905');
       continue;
     }
     // VHDL: what is read outside the clock-edge branch must be in the list
@@ -551,7 +551,7 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
       reported.add(id);
       let at = null;
       for (const n of comp) for (const e of edges.get(n) || []) if (inComp.has(e.to) && (!at || (at.file === e.file ? e.line < at.line : false))) at = e;
-      if (at) add('comb-loop', 'warning', at.file, at.line, `Unit <${at.module}> : the following signal(s) form a combinatorial loop: ${sigs.map(s => `<${short(s)}>`).join(', ')}.`, 'Xst:2170');
+      if (at) add('comb-loop', 'warning', at.file, at.line, `Unit <${at.module}> : the following signal(s) form a combinatorial loop: ${sigs.map(s => `<${short(s)}>`).join(', ')}.`, 'Silinx:2170');
     }
   }
 
@@ -566,18 +566,18 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
       const ast = (i.mod.ports || []).find(x => x.name === port.name);
       const file = i.mod.file || i.file, line = ast?.loc?.line ?? i.mod.loc?.line;
       if (port.dir === 'in' && !anyIn(readers.get(port.sig), i))
-        add('unused-input', 'warning', file, line, `Input <${port.name}> is never used.`, 'Xst:647');
+        add('unused-input', 'warning', file, line, `Input <${port.name}> is never used.`, 'Silinx:647');
       if (port.dir === 'out' && !anyIn(writers.get(port.sig), i))
-        add('unassigned-output', 'warning', file, line, `Signal <${port.name}>, unconnected in block <${i.module}>, is tied to its initial value.`, 'Xst:2935');
+        add('unassigned-output', 'warning', file, line, `Signal <${port.name}>, unconnected in block <${i.module}>, is tied to its initial value.`, 'Silinx:2935');
     }
     for (const s of i.signals) {
       if (s.kind !== 'signal' || !s.loc) continue;
       const r = anyIn(readers.get(s), i), w = anyIn(writers.get(s), i);
       const readAnywhere = (readers.get(s) || []).length > 0;
       if (w && !r && !readAnywhere)
-        add('unused-signal', 'warning', s.file || i.file, s.loc.line, `Signal <${short(s)}> is assigned but never used. This unconnected signal will be trimmed during the optimization process.`, 'Xst:646');
+        add('unused-signal', 'warning', s.file || i.file, s.loc.line, `Signal <${short(s)}> is assigned but never used. This unconnected signal will be trimmed during the optimization process.`, 'Silinx:646');
       if (r && !w && !s.hasInit && !(writers.get(s) || []).length)
-        add('unassigned-signal', 'warning', s.file || i.file, s.loc.line, `Signal <${short(s)}> is used but never assigned. This sourceless signal will be automatically connected to value GND.`, 'Xst:653');
+        add('unassigned-signal', 'warning', s.file || i.file, s.loc.line, `Signal <${short(s)}> is used but never assigned. This sourceless signal will be automatically connected to value GND.`, 'Silinx:653');
     }
   }
 

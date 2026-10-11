@@ -18,7 +18,39 @@ import { paramBits, paramInt } from '../core/fpga/netlist.js';
 const LUT_K = { LUT1: 1, LUT2: 2, LUT3: 3, LUT4: 4 };
 const RAM_A = { RAM16X1S: 4, RAM32X1S: 5, RAM64X1S: 6, RAM16X1D: 4 };
 /** The cell types netlistSim models. */
-export const CELLS_SIMULATED = /^(LUT[1-4]|INV|MUXF[5-8]|MUXCY|XORCY|(FDRE|FDSE|FDCE|FDPE|LDCE|LDPE)(_1)?|IBUF|IBUFG|OBUF|BUFG|BUF|RAM16X1S|RAM32X1S|RAM64X1S|RAM16X1D|MULT18X18|\$_(BUF|NOT|AND|NAND|OR|NOR|XOR|XNOR|ANDNOT|ORNOT|MUX|NMUX|AOI3|OAI3|AOI4|OAI4)_)$/;
+export const CELLS_SIMULATED = /^(LUT[1-4]|INV|MUXF[5-8]|MUXCY|XORCY|(FDRE|FDSE|FDCE|FDPE|LDCE|LDPE)(_1)?|IBUF|IBUFG|OBUF|BUFG|BUF|RAM16X1S|RAM32X1S|RAM64X1S|RAM16X1D|MULT18X18|MULT18X18S|MULT18X18SIO|SRLC?16E?(_1)?|RAMB16_S(1|2|4|9|18|36)(_S(1|2|4|9|18|36))?|\$_(BUF|NOT|AND|NAND|OR|NOR|XOR|XNOR|ANDNOT|ORNOT|MUX|NMUX|AOI3|OAI3|AOI4|OAI4)_)$/;
+
+// ------------------------------------------------------------------ block RAM and multiplier (both simulators)
+// a block-RAM port of each width: data bits, parity bits, address bits (as core/unisim.js)
+const BRAM_W = { 1: [1, 0, 14], 2: [2, 0, 13], 4: [4, 0, 12], 9: [8, 1, 11], 18: [16, 2, 10], 36: [32, 4, 9] };
+const WIDTH_OF_ATTR = { '16384X1': 1, '8192X2': 2, '4096X4': 4, '2048X9': 9, '1024X18': 18, '512X36': 36 };
+/** The memory of a block RAM: initBits(name) -> the 256 bits (least significant first) of INIT_xx / INITP_xx. */
+function bramMemory(initBits) {
+  const mem = new Uint8Array(16384), par = new Uint8Array(2048);
+  for (let k = 0; k < 64; k++) { const b = initBits(`INIT_${k.toString(16).toUpperCase().padStart(2, '0')}`); for (let j = 0; j < 256; j++) mem[k * 256 + j] = b[j] || 0; }
+  for (let k = 0; k < 8; k++) { const b = initBits(`INITP_${k.toString(16).toUpperCase().padStart(2, '0')}`); for (let j = 0; j < 256; j++) par[k * 256 + j] = b[j] || 0; }
+  return { mem, par };
+}
+/** A clock edge on an enabled port (as core/unisim.js RAMB16_S*): SSR loads SRVAL, else the read
+ *  word (WRITE_MODE), and the write. inp: { a, ssr, we, di: [bits], dip: [bits] }; out: the output
+ *  latches (data then parity bits). Returns the new output latches; writes into m. */
+function bramEdge(m, w, mode, srval, inp, out) {
+  const [d, p] = BRAM_W[w];
+  let o = out;
+  if (inp.ssr) o = srval.slice(0, d + p);
+  else if (!inp.we || mode === 'READ_FIRST') o = [...Array.from({ length: d }, (_, k) => m.mem[inp.a * d + k]), ...Array.from({ length: p }, (_, k) => m.par[inp.a * p + k])];
+  else if (mode === 'WRITE_FIRST') o = [...inp.di, ...inp.dip];
+  if (inp.we) { inp.di.forEach((b, k) => { m.mem[inp.a * d + k] = b; }); inp.dip.forEach((b, k) => { m.par[inp.a * p + k] = b; }); }
+  return o;
+}
+const bitsOf = (v, n) => { const b = paramBits(v) || []; return Array.from({ length: n }, (_, i) => b[i] || 0); };
+const hexBits = (h, n) => { let x = BigInt(`0x${h || '0'}`); return Array.from({ length: n }, () => { const b = Number(x & 1n); x >>= 1n; return b; }); };
+/** The product of a multiplier: signed 18 x 18 -> 36 bits (as bits). */
+function mult18(a, b) {
+  const num = bits => { let n = 0n; bits.forEach((x, j) => { if (x) n |= 1n << BigInt(j); }); return BigInt.asIntN(18, n); };
+  const prod = BigInt.asUintN(36, num(a) * num(b));
+  return Array.from({ length: 36 }, (_, j) => Number((prod >> BigInt(j)) & 1n));
+}
 // Yosys's internal gates (techlibs/common/simcells.v): output Y
 const GATE = {
   $_BUF_: p => p('A'), $_NOT_: p => 1 - p('A'),
@@ -49,6 +81,24 @@ export function netlistSim(nl) {
     rams.push({ c, k: RAM_A[c.type], mem: Array.from({ length: n }, (_, i) => bits[i] || 0), prevClk: 0 });
   }
   const ramOf = new Map(rams.map(r => [r.c, r]));
+  // shift registers (SRL16*: Q = the stage at A, D shifts in at address 0), block RAMs, multipliers
+  const pinOf = (c, name, i, w) => (w === 1 && c.pins[name] !== undefined ? c.pins[name] : c.pins[`${name}<${i}>`]);
+  const srls = [], brams = [], mults = [];
+  for (const c of nl.cells) {
+    if (/^SRLC?16E?(_1)?$/.test(c.type)) srls.push({ c, mem: bitsOf(c.params.INIT, 16), prevClk: 0, inv: (/_1$/.test(c.type) ? 1 : 0) ^ paramInt(c.params.IS_CLK_INVERTED) });
+    const m = /^RAMB16_S(\d+)(?:_S(\d+))?$/.exec(c.type);
+    if (m) {
+      const ports = (m[2] ? [['A', +m[1]], ['B', +m[2]]] : [['', +m[1]]]).map(([x, w]) => {
+        const [d, p] = BRAM_W[w], g = x ? `_${x}` : '';
+        return { x, w, mode: String(c.params[`WRITE_MODE${g}`] || 'WRITE_FIRST').trim(), init: bitsOf(c.params[`INIT${g}`], d + p), srval: bitsOf(c.params[`SRVAL${g}`], d + p), prevClk: 0 };
+      });
+      for (const pt of ports) pt.out = pt.init.slice();
+      brams.push({ c, ports, m: bramMemory(k => bitsOf(c.params[k] ?? c.params[k.replace(/[A-F]$/, x => x.toLowerCase())], 256)) });
+    }
+    if (/^MULT18X18S(IO)?$/.test(c.type)) mults.push({ c, a: new Array(18).fill(0), b: new Array(18).fill(0), p: new Array(36).fill(0), prevClk: 0 });
+  }
+  const bus = (c, name, n) => Array.from({ length: n }, (_, j) => v[c.pins[`${name}<${j}>`]] || 0);
+  const multReg = (c, k) => (c.type === 'MULT18X18S' ? k === 'PREG' : paramInt(c.params[k], 1) === 1);
   const addr = (c, pfx, k) => { let a = 0; for (let j = 0; j < k; j++) a |= v[c.pins[`${pfx}${j}`]] << j; return a; };
   const setOut = (c, val) => { const n = c.pins.O; if (n !== undefined && n > 1) v[n] = val; };
   const comb = () => {
@@ -70,6 +120,25 @@ export function netlistSim(nl) {
           const r = ramOf.get(c);
           if (c.type === 'RAM16X1D') { put(c.pins.SPO, r.mem[addr(c, 'A', 4)]); put(c.pins.DPO, r.mem[addr(c, 'DPRA', 4)]); continue; }
           o = r.mem[addr(c, 'A', r.k)];
+        } else if (/^SRLC?16E?(_1)?$/.test(c.type)) {
+          const r = srls.find(x => x.c === c);
+          o = r.mem[addr(c, 'A', 4)];
+          put(c.pins.Q, o);
+          if (c.pins.Q15 !== undefined) put(c.pins.Q15, r.mem[15]);
+          continue;
+        } else if (/^RAMB16_S/.test(c.type)) {
+          const r = brams.find(x => x.c === c);
+          for (const pt of r.ports) {
+            const [d, p] = BRAM_W[pt.w];
+            for (let k = 0; k < d; k++) { const n = pinOf(c, `DO${pt.x}`, k, d); if (n !== undefined) put(n, pt.out[k]); }
+            for (let k = 0; k < p; k++) { const n = pinOf(c, `DOP${pt.x}`, k, p); if (n !== undefined) put(n, pt.out[d + k]); }
+          }
+          continue;
+        } else if (/^MULT18X18S(IO)?$/.test(c.type)) {
+          const r = mults.find(x => x.c === c);
+          const pr = multReg(c, 'PREG') ? r.p : mult18(multReg(c, 'AREG') ? r.a : bus(c, 'A', 18), multReg(c, 'BREG') ? r.b : bus(c, 'B', 18));
+          for (let j = 0; j < 36; j++) put(c.pins[`P<${j}>`], pr[j]);
+          continue;
         } else if (c.type === 'MULT18X18') {
           // signed 18 x 18 -> 36 bits
           const num = pfx => { let n = 0n; for (let j = 0; j < 18; j++) if (v[c.pins[`${pfx}<${j}>`]]) n |= 1n << BigInt(j); return BigInt.asIntN(18, n); };
@@ -126,6 +195,43 @@ export function netlistSim(nl) {
         }
         for (const [r, a, d] of writes) if (r.mem[a] !== d) { r.mem[a] = d; again = true; }
         for (const r of rams) r.prevClk = r.nextClk;
+        // shift registers, block RAMs and multipliers (their inputs as before the edge)
+        const later = [];
+        for (const r of srls) {
+          const c = r.c, clk = v[c.pins.CLK] ^ r.inv;
+          if (clk && !r.prevClk && (c.pins.CE === undefined || v[c.pins.CE])) later.push(() => { r.mem = [v[c.pins.D], ...r.mem.slice(0, 15)]; });
+          r.nextClk = clk;
+        }
+        for (const r of brams) for (const pt of r.ports) {
+          const c = r.c, clk = v[c.pins[`CLK${pt.x}`]];
+          if (clk && !pt.prevClk && v[c.pins[`EN${pt.x}`]]) {
+            const [d, p, aw] = BRAM_W[pt.w];
+            let a = 0;
+            for (let j = 0; j < aw; j++) a |= (v[pinOf(c, `ADDR${pt.x}`, j, aw)] || 0) << j;
+            const inp = { a, ssr: v[c.pins[`SSR${pt.x}`]], we: v[c.pins[`WE${pt.x}`]],
+              di: Array.from({ length: d }, (_, k) => v[pinOf(c, `DI${pt.x}`, k, d)] || 0), dip: Array.from({ length: p }, (_, k) => v[pinOf(c, `DIP${pt.x}`, k, p)] || 0) };
+            later.push(() => { pt.out = bramEdge(r.m, pt.w, pt.mode, pt.srval, inp, pt.out); });
+          }
+          pt.nextClk = clk;
+        }
+        for (const r of mults) {
+          const c = r.c, clk = v[c.pins.CLK ?? c.pins.C];
+          if (clk && !r.prevClk) {
+            const pin = k => (c.pins[k] === undefined ? 0 : v[c.pins[k]]);
+            const A = bus(c, 'A', 18), B = bus(c, 'B', 18);
+            const a = multReg(c, 'AREG') ? r.a : A, b = multReg(c, 'BREG') ? r.b : B, prod = mult18(a, b);
+            const S = c.type === 'MULT18X18S';
+            later.push(() => {
+              if (!S) { if (pin('RSTA')) r.a = new Array(18).fill(0); else if (pin('CEA')) r.a = A; if (pin('RSTB')) r.b = new Array(18).fill(0); else if (pin('CEB')) r.b = B; }
+              if (pin(S ? 'R' : 'RSTP')) r.p = new Array(36).fill(0); else if (pin(S ? 'CE' : 'CEP')) r.p = prod;
+            });
+          }
+          r.nextClk = clk;
+        }
+        if (later.length) again = true;
+        for (const f of later) f();
+        for (const r of [...srls, ...mults]) r.prevClk = r.nextClk;
+        for (const r of brams) for (const pt of r.ports) pt.prevClk = pt.nextClk;
         for (const f of ffs) if (!f.latch) { if (f.q !== f.next) again = true; f.q = f.next; f.prevClk = f.nextClk; }
         comb();
       }
@@ -155,7 +261,19 @@ export function packedSim(packed) {
   const st = insts.map((inst, i) => {
     const c = C[i];
     const init = X => (c.get(`FF${X}_INIT_ATTR`)?.value === 'INIT1' ? 1 : 0);
-    return { q: { X: init('X'), Y: init('Y') }, prevClk: 0 };
+    const r = { q: { X: init('X'), Y: init('Y') }, prevClk: 0 };
+    // a SLICEM's RAM / shift-register LUTs: their 16 bits (D=0x…: bit a = address a)
+    for (const side of ['F', 'G']) { const m = /^#RAM:D=0x([0-9a-fA-F]+)$/.exec(c.get(side)?.value || ''); if (m) (r.mem ||= {})[side] = hexBits(m[1], 16); }
+    if (inst.kind === 'bram') {
+      r.m = bramMemory(k => hexBits(c.get(`${k.slice(0, -2)}${k.slice(-2).toLowerCase()}`)?.value ?? c.get(k)?.value, 256));
+      r.ports = ['A', 'B'].filter(x => c.has(`PORT${x}_ATTR`)).map(x => {
+        const w = WIDTH_OF_ATTR[c.get(`PORT${x}_ATTR`).value], [d, p] = BRAM_W[w];
+        const init = hexBits(c.get(`INIT_${x}`)?.value, d + p);
+        return { x, w, mode: c.get(`WRITEMODE${x}`)?.value || 'WRITE_FIRST', srval: hexBits(c.get(`SRVAL_${x}`)?.value, d + p), out: init, prevClk: 0 };
+      });
+    }
+    if (inst.kind === 'mult') Object.assign(r, { a: new Array(18).fill(0), b: new Array(18).fill(0), p: new Array(36).fill(0) });
+    return r;
   });
   const pads = new Map();
   insts.forEach((inst, i) => { if (inst.kind === 'iob') pads.set(C[i].get('PAD').name, i); });
@@ -166,9 +284,29 @@ export function packedSim(packed) {
     if (inst.kind === 'iob') { if (inst.dir === 'in') o.I = padIn.get(c.get('PAD').name) || 0; return o; }
     if (inst.kind === 'bufg') { o.O = pin(i, 'I0'); return o; }
     const val = a => c.get(a)?.value;
+    if (inst.kind === 'bram') {
+      for (const pt of st[i].ports) {
+        const [d, p] = BRAM_W[pt.w];
+        for (let k = 0; k < d; k++) o[`DO${pt.x}${k}`] = pt.out[k];
+        for (let k = 0; k < p; k++) o[`DOP${pt.x}${k}`] = pt.out[d + k];
+      }
+      return o;
+    }
+    if (inst.kind === 'mult') {
+      const r = st[i], bus = (n, w) => Array.from({ length: w }, (_, j) => pin(i, `${n}${j}`));
+      const pr = val('PREG') === '1' ? r.p : mult18(val('AREG') === '1' ? r.a : bus('A', 18), val('BREG') === '1' ? r.b : bus('B', 18));
+      pr.forEach((x, j) => { o[`P${j}`] = x; });
+      return o;
+    }
     const lut = side => {
       const e = c.get(side);
       if (!e) return 0;
+      if (st[i].mem?.[side]) {
+        // read address: the LUT's own pins (A1-A4 = pins 1-4)
+        let a = 0;
+        for (let j = 0; j < 4; j++) a |= pin(i, `${side}${j + 1}`) << j;
+        return st[i].mem[side][a];
+      }
       const eq = e.value.replace(/^#LUT:/, '');
       return evalLut(eq, { A1: pin(i, `${side}1`), A2: pin(i, `${side}2`), A3: pin(i, `${side}3`), A4: pin(i, `${side}4`) });
     };
@@ -223,6 +361,10 @@ export function packedSim(packed) {
     const srv = val(`FF${X}_SR_ATTR`) === 'SRHIGH' ? 1 : 0;
     const sync = val('SYNC_ATTR') === 'SYNC';
     const q = st[i].q[X];
+    // in a slice whose SR is the write / shift enable of its RAMs or shift registers (WSGEN), the
+    // flip-flops have no set / reset (ISE's map packs flip-flops beside an always-enabled shift
+    // register this way, SR = 1)
+    if (c.has('WSGEN')) return latch ? q : (clk && !st[i].prevClk && ce ? outs[i]._d[X] : q);
     if (sr && !sync) return srv;
     if (latch) return !clk && ce ? (sr ? srv : outs[i]._d[X]) : q;   // open while CLKINV's output is low
     const edge = clk && !st[i].prevClk;
@@ -230,12 +372,69 @@ export function packedSim(packed) {
     if (sr) return srv;
     return ce ? outs[i]._d[X] : q;
   }
+  // the clock edges of the memories of instance i (RAM / shift-register LUTs, block RAM, multiplier):
+  // their inputs sampled now, their updates pushed to `later`
+  function memEdges(i, later) {
+    const inst = insts[i], c = C[i], r = st[i], val = a => c.get(a)?.value;
+    if (inst.kind === 'bram') {
+      for (const pt of r.ports) {
+        const x = pt.x, inv = n => (val(`${n}${x}INV`) === `${n}${x}_B` ? 1 - pin(i, `${n}${x}`) : pin(i, `${n}${x}`));
+        const clk = inv('CLK');
+        if (clk && !pt.prevClk && inv('EN')) {
+          const [d, p, aw] = BRAM_W[pt.w];
+          let a = 0;
+          for (let j = 0; j < aw; j++) a |= pin(i, `ADDR${x}${14 - aw + j}`) << j;
+          const inp = { a, ssr: inv('SSR'), we: inv('WE'), di: Array.from({ length: d }, (_, k) => pin(i, `DI${x}${k}`)), dip: Array.from({ length: p }, (_, k) => pin(i, `DIP${x}${k}`)) };
+          later.push(() => { pt.out = bramEdge(r.m, pt.w, pt.mode, pt.srval, inp, pt.out); });
+        }
+        pt.prevClk = clk;
+      }
+      return;
+    }
+    if (inst.kind === 'mult') {
+      const clk = val('CLKINV') === 'CLK_B' ? 1 - pin(i, 'CLK') : pin(i, 'CLK');
+      if (clk && !r.prevClk) {
+        const bus = (n, w) => Array.from({ length: w }, (_, j) => pin(i, `${n}${j}`));
+        const A = bus('A', 18), B = bus('B', 18);
+        const prod = mult18(val('AREG') === '1' ? r.a : A, val('BREG') === '1' ? r.b : B);
+        const p = n => (val(`${n}INV`) === `${n}_B` ? 1 - pin(i, n) : pin(i, n));
+        later.push(() => {
+          if (p('RSTA')) r.a = new Array(18).fill(0); else if (p('CEA')) r.a = A;
+          if (p('RSTB')) r.b = new Array(18).fill(0); else if (p('CEB')) r.b = B;
+          if (p('RSTP')) r.p = new Array(36).fill(0); else if (p('CEP')) r.p = prod;
+        });
+      }
+      r.prevClk = clk;
+      return;
+    }
+    if (!r.mem) return;
+    // (the slice's clock state prevClk is the flip-flops'; the memories keep their own)
+    const clk = val('CLKINV') === 'CLK_B' ? 1 - pin(i, 'CLK') : pin(i, 'CLK');
+    if (clk && !r.memClk && pin(i, 'SR')) {
+      const BX = pin(i, 'BX'), BY = pin(i, 'BY');
+      const din = { F: { BX, ALTDIF: BY }[val('DIF_MUX')] ?? 0, G: BY };
+      const addrOf = side => { let a = 0; for (let j = 0; j < 4; j++) a |= pin(i, `${side}${j + 1}`) << j; return a; };
+      for (const side of ['F', 'G']) {
+        if (!r.mem[side]) continue;
+        const mode = val(`${side}_ATTR`);
+        if (mode === 'SHIFT_REG') { const d = din[side]; later.push(() => { r.mem[side] = [d, ...r.mem[side].slice(0, 15)]; }); continue; }
+        // RAM32X1S: BX (A4) chooses the LUT written (F: A4 = 1)
+        if (val('SLICEWE0USED') !== undefined && (side === 'F') !== !!BX) continue;
+        // a dual-port F is written at G's address
+        const a = side === 'F' && mode !== 'DUAL_PORT' ? addrOf('F') : addrOf('G'), d = din[side];
+        later.push(() => { r.mem[side] = r.mem[side].slice(); r.mem[side][a] = d; });
+      }
+    }
+    r.memClk = clk;
+  }
   return {
     step(inputs) {
       for (const [k, v] of Object.entries(inputs)) padIn.set(k, v);
       comb();
       for (let round = 0; round < 4; round++) {
         let again = false;
+        const later = [];
+        insts.forEach((inst, i) => memEdges(i, later));
         const next = insts.map((inst, i) => {
           if (inst.kind !== 'slice' || !C[i].has('CLKINV')) return null;
           const c = C[i], val = a => c.get(a)?.value;
@@ -249,6 +448,7 @@ export function packedSim(packed) {
           for (const X of ['X', 'Y']) if (r[X] !== undefined && r[X] !== st[i].q[X]) { st[i].q[X] = r[X]; again = true; }
           st[i].prevClk = r.clk;
         });
+        for (const f of later) { f(); again = true; }
         comb();
         if (!again) break;
       }

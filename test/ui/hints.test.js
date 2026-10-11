@@ -43,12 +43,12 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
 
   // ---- Check Syntax: one warning, the ISE-style message first
   await checkSyntax(/Process "Check Syntax" completed successfully with 1 warning\(s\)/);
-  assert.match(await page.consoleText(), /WARNING:Xst:737 - "src\/top\.vhd" Line 10: Found 1-bit latch for signal <q>\./);
+  assert.match(await page.consoleText(), /WARNING:Silinx:737 - "src\/top\.vhd" Line 10: Found 1-bit latch for signal <q>\./);
   await page.click('#console-tabs .tab[data-page=warnings]');
   await page.waitFor(() => !document.getElementById('console-warnings').hidden);
   assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '(1)');
   const row = await page.eval(() => document.querySelector('#console-warnings .diag').textContent);
-  assert.match(row, /^WARNING:Xst:737 - "src\/top\.vhd" Line 10: Found 1-bit latch for signal <q>\. Latches may be generated from incomplete case or if statements\./);
+  assert.match(row, /^WARNING:Silinx:737 - "src\/top\.vhd" Line 10: Found 1-bit latch for signal <q>\. Latches may be generated from incomplete case or if statements\./);
   assert.match(row, /▸ Explanation and fix$/);
   // the help is collapsed; clicking "Explanation and fix" opens it (and does not jump to the file)
   assert.equal(await page.eval(() => document.querySelector('#console-warnings .diag-hint').hidden), true);
@@ -56,6 +56,7 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   await page.waitFor(() => !document.querySelector('#console-warnings .diag-hint').hidden);
   const help = await page.eval(() => document.querySelector('#console-warnings .diag-hint').textContent);
   assert.match(help, /^Explanation: A latch is inferred for 'q'/);
+  assert.match(help, /\(Xilinx ISE's XST reports this as Xst:737\.\)/);
   assert.match(help, /How to fix: Give 'q' a value on every path: add an 'else' branch/);
   assert.equal(await page.eval(() => document.querySelector('#console-warnings .diag-hint').dataset.hint), 'latch');
 

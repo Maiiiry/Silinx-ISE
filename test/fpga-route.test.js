@@ -182,6 +182,43 @@ test('routeDesign: existing PIPs are replaced; nets without sinks get none; the 
   assert.deepEqual(d.nets[0].pips, [{ tile: 'CLB_X1Y0', from: 'X1', dir: '->', to: 'OMUX1' }]);
 });
 
+test('routeDesign: LUT inputs are swapped when the pin a net reaches is not the one it was given; the equation follows', () => {
+  // b0.F2 is reached only from W2END0 (nothing east of CLB_X2Y0) or VCC: a0.X -> b0.F2 cannot be
+  // routed as given, but the LUT's F1 is free and reached by E2END0
+  const lut = (cfg, nets) => parseXdl(`design "t" xc3s50etq144-4 v3.2 ,\n  cfg "";\n${INSTS.replace(/(inst "b0"[^\n]*\n {2}cfg ")[^"]*"/, `$1${cfg}"`)}${nets}`);
+  const d = lut(' F:b0_f:#LUT:D=(~A2*A3) CY0F::0 ', net('n', '', [['a0', 'X']], [['b0', 'F2']]));
+  const r = routeDesign(d, device);
+  assert.deepEqual(r.failed, []);
+  assert.deepEqual(r.errors, []);
+  const n = r.design.nets.find(x => x.name === 'n');
+  assert.deepEqual(n.inpins, [{ inst: 'b0', pin: 'F1' }]);
+  assert.deepEqual(pipsOf(r, 'n'), ['CLB_X1Y0 OMUX0 -> E2BEG0', 'CLB_X1Y0 X0 -> OMUX0', 'CLB_X2Y0 E2END0 -> F1_B_PINWIRE0']);
+  // the variable of F2 is now A1 (A3: a pin this site does not have, kept)
+  const b0 = r.design.insts.find(i => i.name === 'b0');
+  assert.equal(b0.cfg.find(c => c.attr === 'F').value, '#LUT:D=(~A1*A3)');
+  assert.equal(b0.cfgRaw, undefined, 'written from the items');
+  assert.match(writeXdl(r.design), /cfg " F:b0_f:#LUT:D=\(~A1\*A3\) CY0F::0 "/);
+  assert.ok(checkRouting(parseXdl(writeXdl(r.design)), device).ok);
+  // the input design is not changed
+  assert.deepEqual(d.nets[0].inpins, [{ inst: 'b0', pin: 'F2' }]);
+  assert.equal(d.insts.find(i => i.name === 'b0').cfg[0].value, '#LUT:D=(~A2*A3)');
+  // not swapped: the option off, the carry's data input on that pin, a LUT that is not an equation
+  for (const [cfg, opts] of [[' F:b0_f:#LUT:D=~A2 ', { swapLutPins: false }], [' F:b0_f:#LUT:D=~A2 CY0F::F2 ', {}], [' F:b0_f:#RAM:D=~A2 ', {}], [' A::B ', {}]]) {
+    const x = routeDesign(lut(cfg, net('n', '', [['a0', 'X']], [['b0', 'F2']])), device, opts);
+    assert.deepEqual(x.failed, ['n'], cfg);
+    assert.deepEqual(x.unreached, [{ net: 'n', inst: 'b0', pin: 'F2' }]);
+  }
+  // a pin of a net the router does not route (no source) stays: F1 is not free, F2 cannot be reached
+  const y = routeDesign(lut(' F:b0_f:#LUT:D=(A1*~A2) ', net('n', '', [['a0', 'X']], [['b0', 'F2']]) + net('z', '', [], [['b0', 'F1']])), device);
+  assert.deepEqual(y.failed, ['n']);
+  assert.equal(y.design.insts.find(i => i.name === 'b0').cfg[0].value, '#LUT:D=(A1*~A2)');
+  // nor does a made-up power net's (VCC reaches F2 only: n keeps F1, nothing moves)
+  const v = routeDesign(lut(' F:b0_f:#LUT:D=(A1*~A2) ', net('n', '', [['a0', 'X']], [['b0', 'F1']]) + net('v', 'vcc', [], [['b0', 'F2']])), device);
+  assert.deepEqual(v.failed, []);
+  assert.deepEqual(v.design.nets.find(x => x.name === 'n').inpins, [{ inst: 'b0', pin: 'F1' }]);
+  assert.equal(v.design.insts.find(i => i.name === 'b0').cfg[0].value, '#LUT:D=(A1*~A2)');
+});
+
 test('clockReach: the slices whose clock pin a global buffer reaches on the clock network, through allowed PIPs only', () => {
   assert.deepEqual([...clockReach(device, 'BUFGMUX_X1Y1')].sort(), ['SLICE_X0Y0', 'SLICE_X0Y1', 'SLICE_X1Y0', 'SLICE_X1Y1']);
   // GCLK0 -> CLK1 of CLB_X2Y0 not allowed: its upper slice is not reached (S2END0 -> CLK is general routing, not followed)

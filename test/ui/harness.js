@@ -272,7 +272,6 @@ class PageBase {
     const items = await this.eval(() => [...document.querySelectorAll('#menubar .item')].map((e) => e.textContent.trim()));
     const idx = typeof label === 'number' ? label : items.indexOf(label);
     if (idx < 0) throw new Error(`no menu '${label}' (menus: ${items.join(', ')})`);
-    const { x, y } = await this.point('#menubar .item', { index: idx });
     // this menu's popup: its title is the open one and only one top-level popup is left (a popup of
     // the menu open before can still be there for a moment, and would be read instead: a CI-only race)
     const isOpen = (i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open')
@@ -280,6 +279,14 @@ class PageBase {
     // a click that lands while the menus are still closing (or a dialog going away) can toggle the
     // menu shut again: on slow CI machines the menu then never opened; so the click is tried again
     for (let attempt = 1; ; attempt++) {
+      // the title's position, now: the menu bar moves when the header changes (a project opened, its
+      // name shown), and a point taken before that lands on the next menu (Edit opened instead of File)
+      const { x, y } = await this.point('#menubar .item', { index: idx });
+      if (!await this.eval((i, px, py) => document.querySelectorAll('#menubar .item')[i].contains(document.elementFromPoint(px, py)), idx, x, y)) {
+        if (attempt > 50) throw new Error(`menu '${label}': its title is not under its own position (covered?)`);
+        await sleep(100);
+        continue;
+      }
       await this.mouse('mouseMoved', x, y);
       // (moving onto a menu title while another menu is open opens it already)
       if (!await this.eval((i) => document.querySelectorAll('#menubar .item')[i].classList.contains('open'), idx)) {
@@ -287,7 +294,19 @@ class PageBase {
         await this.mouse('mouseReleased', x, y);
       }
       try { await this.waitFor(isOpen, [idx], { what: `menu '${label}' open`, timeout: attempt < 3 ? 3000 : 10000 }); break; }
-      catch (e) { if (attempt >= 3) throw e; debug(`menu ${label}: not open, clicking again`); await this.closeMenus(); await sleep(200); }
+      catch (e) {
+        if (attempt >= 3) {
+          // say what was in the way (a dialog over the menu bar, the menus' state)
+          const why = await this.eval(() => ({
+            dialogs: [...document.querySelectorAll('.dlg-overlay .dlg-title')].map((t) => t.textContent.trim()),
+            popups: document.querySelectorAll('body > .menu-popup').length,
+            open: [...document.querySelectorAll('#menubar .item.open')].map((x) => x.textContent.trim()),
+            active: document.activeElement?.tagName + (document.activeElement?.className ? `.${document.activeElement.className}` : ''),
+          })).catch(() => null);
+          throw new Error(`${e.message} (${JSON.stringify(why)})`);
+        }
+        debug(`menu ${label}: not open, clicking again`); await this.closeMenus(); await sleep(200);
+      }
     }
     return this.eval(() => [...document.querySelectorAll('body > .menu-popup > .mi')].map((r) => ({ label: r.querySelector('.lbl').textContent, disabled: r.classList.contains('disabled'), submenu: r.querySelector('.sc').textContent === '▸' })));
   }
@@ -457,6 +476,16 @@ const MODIFIER_KEYS = [[1, 'Alt'], [2, 'Control'], [4, 'Meta'], [8, 'Shift']];  
  * chromium). The same API as Page: mouse / key take the CDP event names and modifier bits; send()
  * knows the few CDP methods the tests use that have an equivalent.
  */
+// a Playwright call that gets no answer (the page stuck in a script, a click waiting for an element
+// that never settles) fails after this long, naming the call and the page's last action, instead of
+// hanging until the test's own timeout without a clue (CI, WebKit: the ASM editor test, 12ce296)
+const PW_TIMEOUT = +process.env.SILINX_UI_PW_TIMEOUT || 30000;
+export function pwLimit(what, promise, page, ms = PW_TIMEOUT) {
+  let timer;
+  const stuck = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${what}: no answer from ${BROWSER} within ${ms} ms (the page may be stuck; last action: ${page.lastAction || 'none'})`)), ms); });
+  return Promise.race([promise, stuck]).finally(() => clearTimeout(timer));
+}
+
 export class PwPage extends PageBase {
   constructor(env, context, page, downloadDir) {
     super(env, downloadDir);
@@ -488,14 +517,18 @@ export class PwPage extends PageBase {
     const expression = typeof fn === 'function'
       ? `(async () => { const r = await (${fn})(...${JSON.stringify(args)}); try { return r === undefined ? undefined : JSON.parse(JSON.stringify(r)); } catch { return ${JSON.stringify(fallback)}; } })()`
       : fn;
-    try { return await this.page.evaluate(expression); } catch (e) { throw new Error(`page eval failed: ${e.message.replace(/^page\.evaluate: /, '')}`); }
+    try { return await pwLimit(`page eval ${String(fn).replace(/\s+/g, ' ').slice(0, 80)}`, this.page.evaluate(expression), this); } catch (e) { throw new Error(`page eval failed: ${e.message.replace(/^page\.evaluate: /, '')}`); }
   }
   async reload() {
     await this.page.reload({ timeout: 30000 });
     await this.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot after reload' });
   }
   async goto(url) { await this.page.goto(url, { timeout: 30000 }); }
-  async mouse(type, x, y, { button = 'left', clickCount = 1, modifiers = 0 } = {}) {
+  async mouse(type, x, y, opts = {}) {
+    this.lastAction = `mouse ${type} at ${Math.round(x)},${Math.round(y)}`;
+    return pwLimit(this.lastAction, this.mouse0(type, x, y, opts), this);
+  }
+  async mouse0(type, x, y, { button = 'left', clickCount = 1, modifiers = 0 } = {}) {
     const m = this.page.mouse;
     if (type === 'mouseMoved') return m.move(x, y);
     if (type === 'mousePressed') {
@@ -508,7 +541,8 @@ export class PwPage extends PageBase {
     while (this.held.length) await this.page.keyboard.up(this.held.pop());
   }
   async key(key, { modifiers = 0 } = {}) {
-    await this.page.keyboard.press([...MODIFIER_KEYS.filter(([bit]) => modifiers & bit).map(([, k]) => k), key].join('+'));
+    this.lastAction = `key ${key}`;
+    await pwLimit(this.lastAction, this.page.keyboard.press([...MODIFIER_KEYS.filter(([bit]) => modifiers & bit).map(([, k]) => k), key].join('+')), this);
   }
   async type(text) { await this.page.keyboard.insertText(text); }
   /** Give an <input type=file> local files (Playwright fires input + change). */

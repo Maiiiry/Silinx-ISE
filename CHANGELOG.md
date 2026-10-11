@@ -5,6 +5,22 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **The rest of the Spartan-3E in the open toolchain:** block RAMs (inferred by the open synthesis
+  or instantiated: `RAMB16_S*` / `RAMB16_S*_S*`, every port width and write mode, `INIT_xx`,
+  `INIT` / `SRVAL`), multipliers (`MULT18X18`, `MULT18X18S`, `MULT18X18SIO` with its registers),
+  distributed RAMs (`RAM16X1S`, `RAM16X1D`, `RAM32X1S`, `RAM64X1S`), shift registers in SRL16 LUTs
+  (inferred: chains of 3 or more flip-flops without reset; `SRL16(E)(_1)` instantiated) and the
+  DCM (`DCM_SP` on the top-left DCM: CLK0, CLK2X, CLKDV, CLKFX on global buffers, LOCKED; input
+  period 20 ns) are packed, placed, routed and written into the bitstream with no Xilinx tool. ISE
+  converts the routed designs to the same .bit with no DRC error or warning. What the bit database
+  does not have yet fails with the reason (the other DCM outputs and DCMs, `BUFGMUX` clock
+  switching, `STARTUP_WAIT`, the SRLC16 cascade). Shift registers make designs smaller (the srl
+  fixture: 63 slices instead of 79). Unused inputs no longer get a pad. Yosys's "Resizing cell
+  port" messages of its block-RAM mapping are not warnings of the design.
+- Silinx's own messages are labelled Silinx, not XST: the design checks of Check Syntax
+  (`WARNING:Silinx:646 - Signal <…> is assigned but never used…`) keep XST's number for the same
+  finding, and their explanation says "Xilinx ISE's XST reports this as Xst:646"; the open
+  toolchain's errors are `ERROR:Silinx`. XST's own messages (ISE modes) keep `Xst`.
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **Open toolchain in the interface:** *Toolchain Settings* has a new execution mode, *Open
@@ -32,6 +48,38 @@ the "What's new" text of its GitHub release.
   precedence). The whole open flow on blinky is now part of the tests.
 - TODO.md: what is planned. The open toolchain does not support the Spartan-6 boards (Nexys3,
   Atlys) yet; it will.
+- Verilog / SystemVerilog constructs Silinx now reads, simulates and synthesizes (found by the
+  corpus of Yosys's test designs): hierarchical names into generate blocks and named blocks
+  (`blk.x`, `blk[i - 1].x`, `genblk1.t`: unnamed generate blocks are named as IEEE 1364-2005
+  12.4.3 says), the module's own name as a scope, functions and tasks called by hierarchical names,
+  arrays of instances (`inv u[3:0] (…)`), `wand` / `wor` / `tri0` / `tri1` / `supply0` /
+  `supply1` ports (and wired nets with several drivers in synthesis), typedefs, enumerations,
+  packed structures, multi-dimensional packed arrays, unpacked `[N]`, casts `T'(x)`, declarations
+  outside modules, `localparam` in functions and blocks, `specparam` and `specify`, immediate
+  assertions, `$size` / `$left` / `$right` / `$low` / `$high` / `$increment` / `$dimensions`,
+  `$countbits` / `$onehot` / `$onehot0` / `$isunknown`, `$floor` / `$ceil` and the other real math
+  functions, elaboration tasks (`$info`, `$warning`, `$error`), `*=` `/=` `%=` `<<=` `>>=`, strings
+  used as values, macros that join the text around them (`` `WIDTH'b0 ``, `` f_`name ``), `` ``
+  pasting and default macro arguments, an output net's `= value` as a continuous assignment.
+- **Smaller, faster netlists from the open synthesis** (research/synth-quality/README.md): lab11
+  now needs 165 slices instead of 403 (XST: 180) and runs at 14.1 ns instead of 17.6 ns in the
+  open flow; the blinky example 86 slices instead of 104 (XST: 99), 7.7 ns instead of 11.8 ns.
+  Yosys's LUT mapping for the Spartan-3E (LUTs of up to 8 inputs, each split into LUT4s and
+  MUXF5-8) is replaced by ABC on LUTs of up to 6 inputs at their real cost; arithmetic that reads
+  at most 6 input bits (VHDL integers, `shift_left(to_unsigned(1, 32), n) - 1`) is written as a
+  table of its values instead of 32-bit carry chains; the packer puts flip-flops fed by
+  flip-flops into the free slots of carry-chain and multiplexer slices. Size budgets in the tests
+  (test/synth-quality.test.js, a new 42-state accumulator machine fixture `cpu8`).
+- **Faster designs from the open toolchain's place and route** (research/s3e-route/README.md):
+  lab11 runs at 11.6 ns by ISE's own timing analyzer (was 13.7 ns; ISE's whole flow: 10.9 ns), the
+  blinky example at 7.4 ns (was 8.0; ISE: 6.7), and both are placed and routed faster. The placer
+  is timing-driven as VPR's (the estimated delay of every connection, from a table of the fastest
+  routes of the device, weighted by its criticality), the router may swap the inputs of a LUT
+  (rewriting its equation), as ISE's does, and counts the load each new branch of a net puts on
+  its critical connections. `open-flow.mjs --tries N` keeps the fastest of N placements.
+- The open synthesis of a Spartan-3E design no longer prints Yosys's "Shift register inference
+  not yet supported for family xc3se" (it came on every run, whatever the design) nor counts it
+  as a warning.
 
 ## 15.10.1
 

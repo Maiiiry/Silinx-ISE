@@ -1,0 +1,24 @@
+{
+  "name": "feat_bram",
+  "description": "Board test: a block-RAM ROM of 7-segment patterns scrolls a message on the display",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "../basys2.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

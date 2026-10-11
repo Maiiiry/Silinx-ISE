@@ -18,10 +18,10 @@ import { readYosysJson } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
 import { deviceSites, place, placedXdl } from '../core/fpga/place.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
-import { routeDesign, checkRouting, clockReach } from '../core/fpga/route.js';
+import { routeDesign, checkRouting, clockReach, bufgReach } from '../core/fpga/route.js';
 import { bitgen, knownRouting } from '../core/fpga/bitgen.js';
 import { loadDb } from '../research/s3e-bitstream/db.mjs';
-import { analyzeTiming, timingReport, checkPeriods, clockPort } from '../core/fpga/timing.js';
+import { analyzeTiming, timingReport, checkPeriods, clockPort, delayTable } from '../core/fpga/timing.js';
 
 const spec = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const { top, outDir, buildDir } = spec;
@@ -116,7 +116,7 @@ function runPar() {
   let r;
   try {
     // each clock's flip-flops on the slices its global line reaches through switches of known bits
-    r = place(packed, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, timing: 1, clockSites: site => clockReach(d, site, k.allowPip) });
+    r = place(packed, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, delays: delayTable(d, { allowPip: k.allowPip }), clockSites: site => clockReach(d, site, k.allowPip), bufgSites: (site, pin) => bufgReach(d, site, pin, k.allowPip) });
   } catch (e) { throw new StepError(`placement failed: ${e.message}`); }
   const placedText = writeXdl(placedXdl(packed, r));
   fs.writeFileSync(path.join(outDir, 'placed.xdl'), placedText);
@@ -207,7 +207,7 @@ async function main() {
   } catch (e) {
     save();
     const msg = e instanceof StepError ? e.message : `${e.message}${e.stack ? `\n${e.stack.split('\n').slice(1, 4).join('\n')}` : ''}`;
-    console.log(`ERROR:OpenFlow - ${msg}`);
+    console.log(`ERROR:Silinx - ${msg}`);
     for (const x of e.list || []) console.log(`  ${x}`);
     if (e.hint !== '') console.log(e.hint || ISE_HINT);
     console.log(`=== SILINX FAILED ${current || 'synth'} (exit 1) ===`);

@@ -15,17 +15,46 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   To do: the Spartan-6 packer and placer (6-input LUTs, SLICEX / SLICEL / SLICEM), the bit database
   (a new measurement campaign), the bitstream writer (the Spartan-6 format, UG380), the delay
   model; the device descriptions of the two parts.
-- **XC3S250E features not measured yet:** the DCMs' own pins and the other 3 DCMs, IOB flip-flops
-  and DDR, the inputs of 7 of the 8 BUFGMUX, a few corner and block-RAM pins
-  (research/s3e-bitstream/README.md, stage D).
+- **XC3S250E features not measured yet:** the other 3 DCMs, the top-left DCM's outputs other than
+  CLK0 / CLK2X / CLKDV / CLKFX on global buffers, CLKIN from pads other than B8, input periods
+  other than 20 ns (CLKIN_PERIOD changes 2 bits), STARTUP_WAIT (the COR register), IOB flip-flops
+  and DDR, the inputs of 7 of the 8 BUFGMUX (clock switching with a BUFGMUX), a few corner and
+  block-RAM pins (research/s3e-bitstream/README.md, stage D). The open flow fails with the reason
+  for a design that needs one of them. Done in 15.10.2: block RAM, multipliers, distributed RAM,
+  shift registers and the top-left DCM in the open flow (test/fixtures/open-flow).
+- **A missing bit of a bottom I/O tile's routing switch:** dram routed at seed 1 differs from
+  ISE's bitgen by one bit in BIOIS_X24Y0 (`IOIS_Y1->OMUX10` / `OMUX_S3->IOIS_G3_B0`,
+  research/s3e-bitstream/README.md, stage E): measure those PIPs in the bottom I/O tiles.
 - **Measuring the device description ourselves** (black-box, like the bit database) instead of
   computing it from ISE's device report: about 2-4 weeks for one device.
-- **Synthesis quality:** Yosys's netlists of lab11 are about 2.9 times larger than XST's
-  (research/s3e-bitstream/README.md, "To do later").
-- **Timing:** hold time, clock skew and pad (OFFSET) paths; the router's cost with the branch loads.
+- **Synthesis quality** (research/synth-quality/README.md). Done in 15.10.2: the open synthesis's
+  netlists are now as small as XST's or smaller (lab11: 165 slices against XST's 180, was 403).
+  Done in 15.10.2 too: fixed-length shift registers in SRL16 (the srl fixture 63 slices instead of
+  79). Left: variable-tap shift registers (`q <= sr(tap)`: Yosys infers them only from a 1-bit
+  $shiftx, Silinx's array read gives a $pmux), the SRLC16 cascade (Q15), FSM re-encoding (Yosys
+  finds no state machine in lab11's control unit).
+- **Speed of the open flow** (research/s3e-route/README.md, "Closing the routing gap"): lab11 11.6
+  ns against 10.9 ns with ISE (was 13.7), blinky 7.4 against 6.7. Left: replication of high-fanout
+  flip-flops (lab11's state register drives 54 loads; XST replicates it), the carry's data input
+  (CY0F / CY0G) swappable between F1 / F2, placements of a design with few slices in one CLB
+  sharing one output (blinky's 9-load net).
+- **Timing:** hold time, clock skew and pad (OFFSET) paths; the delays of block RAMs, multipliers
+  and the SLICEM's RAMs / shift registers are estimates of the data sheet's order
+  (core/fpga/timing.js), to fit to trce like the slices' (and the paths through a DCM: its output
+  clocks are analysed as clocks of their own).
 
 ## Front ends and simulator
 
+- Xilinx primitives (RAMB16_S9, MULT18X18SIO, DCM_SP…) instantiated in Verilog: only VHDL's
+  `library UNISIM` brings in their models (core/unisim.js primitiveSources), so the open flow takes
+  them from VHDL only (test/fixtures/open-flow/hard_prim).
 - Verilog constructs Silinx cannot read yet, found by the corpus test (test/corpus/README.md):
-  hierarchical names into generate blocks, instance arrays, `localparam` in functions, `$size`,
-  `$floor`, `$countbits`, `wand` / `wor` / `supply1` ports, typedefs and structs, `specify`.
+  explicit port expressions in a module header (`.a(x[3:0])`; constmsk_testmap.v also uses Yosys's
+  own `(...)`), `rand` / `const` qualifiers, identifiers that start with `$` (a Yosys extension,
+  shregmap.v), unions and enumeration name ranges (`A[3]`), SystemVerilog functions with output
+  arguments called in expressions, packages and `import`.
+- A variable's initializer that is not constant (`output integer y = x + 1`, fib.v): per the
+  standard an initial value set once at time 0; Silinx reports "expression is not constant", Yosys
+  appears to make it a continuous assignment (to be checked before choosing).
+- Hierarchical references to a constant (a parameter, a specparam) of another instance (`u.P`):
+  only signals are found today.

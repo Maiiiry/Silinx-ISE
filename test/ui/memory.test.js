@@ -117,7 +117,7 @@ uiTest('memory: the FPGA view — opening and closing it, selecting sites and ne
   await noLeak(page, 'FPGA view reopened while open', 10, () => openFpga(page));
   await closeActive(page);
   await withinBudget(page);
-});
+}, { timeout: 240000 });   // many repetitions, each with a garbage collection: slow CI runners took up to 74 s of 90
 
 uiTest('memory: editors (HDL, ASM chart, Design Summary) opened and closed leave nothing behind', E, async (page) => {
   await makeProject(env, { name: 'MemEd', template: 'blinky' });
@@ -135,7 +135,7 @@ uiTest('memory: editors (HDL, ASM chart, Design Summary) opened and closed leave
     await closeActive(page);
   });
   await withinBudget(page);
-});
+}, { timeout: 240000 });   // many repetitions, each with a garbage collection: slow CI runners took up to 74 s of 90
 
 uiTest('memory: ISim and the board emulator, run and closed, leave nothing behind', E, async (page) => {
   await makeProject(env, { name: 'MemSim', template: 'blinky' });
@@ -156,7 +156,7 @@ uiTest('memory: ISim and the board emulator, run and closed, leave nothing behin
     await closeActive(page);
   });
   await withinBudget(page);
-});
+}, { timeout: 240000 });   // many repetitions, each with a garbage collection: slow CI runners took up to 74 s of 90
 
 uiTest('memory: switching projects and a long console stay bounded', E, async (page) => {
   await makeProject(env, { name: 'MemA', template: 'blinky' });
@@ -166,4 +166,4 @@ uiTest('memory: switching projects and a long console stay bounded', E, async (p
   await page.eval(() => { for (let i = 0; i < 20000; i++) window.SilinxApp.log(`line ${i}`); });
   assert.equal(await page.eval(() => document.getElementById('console-log').childElementCount), 5000);
   await withinBudget(page);
-});
+}, { timeout: 240000 });   // many repetitions, each with a garbage collection: slow CI runners took up to 74 s of 90

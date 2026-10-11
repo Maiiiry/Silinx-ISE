@@ -119,7 +119,8 @@ test('toolchain configuration: the open mode, its ISE for device descriptions, t
   assert.equal(r.body.ise.mode, 'open');
   assert.equal(r.body.deviceBuilder.mode, 'ssh');
   assert.equal(r.body.deviceBuilder.available, false);
-  assert.match(r.body.deviceBuilder.reason, /no ssh host configured/);
+  // (the tools are checked first: a Windows runner may have no tar on the test's PATH)
+  assert.match(r.body.deviceBuilder.reason, process.platform === 'win32' ? /no ssh host configured|tar not found/ : /no ssh host configured/);
   assert.equal(r.body.open.available, false);
   assert.match(r.body.open.reason, /no bit database for xc3s1600e yet/);
   assert.equal((await app.call('GET', '/toolchain')).body.open, undefined);
@@ -144,6 +145,10 @@ test('open mode: Implement + Generate Programming File of blinky, for real: step
   assert.match(log, /All signals are completely routed\./);
   assert.match(log, /constraint PERIOD 20 ns on clk: met/);
   assert.match(log, /Bitstream: build\/top\.bit \(\d+ bytes, every feature in the bit database\)/);
+  // the warnings, exactly: none for blinky (Yosys's "Shift register inference not yet supported
+  // for family xc3se", printed on every run, is not one: core/synth-open.js QUIET)
+  assert.deepEqual(j.lines.filter(l => /warning/i.test(l)), []);
+  assert.deepEqual(j.result.warnings, []);
   const dir = P.projectDir('Blinky');
   for (const f of ['open/top.json', 'open/placed.xdl', 'open/routed.xdl', 'open/timing.txt', 'top.bit', 'top_prom.bit', 'reports.json']) assert.ok(fss.existsSync(path.join(dir, 'build', f)), f);
   // the Design Summary's reports
@@ -209,7 +214,7 @@ test('open mode: a design with errors fails in Synthesize with the messages; Sto
   assert.equal(j.status, 'error');
   assert.equal(j.result.failedStep, 'synth');
   assert.match(j.error, /open toolchain failed in step 'synth'/);
-  assert.ok(j.lines.includes('ERROR:OpenFlow - the design has errors'), j.lines.join('\n'));
+  assert.ok(j.lines.includes('ERROR:Silinx - the design has errors'), j.lines.join('\n'));
   assert.ok(j.lines.some(l => /^ {2}src\/top\.v:2 .*nope/.test(l)), j.lines.join('\n'));
   assert.ok(j.lines.includes('=== SILINX FAILED synth (exit 1) ==='));
   const rep = (await app.call('GET', '/projects/Bad/reports')).body;

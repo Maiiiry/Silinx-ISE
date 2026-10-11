@@ -76,6 +76,16 @@ export const SPEED_4 = {
     Tsrck: [0.910, 0.910],     // SR
   },
   pad: { Tiopi: 1.3, Tioop: 3.25 },
+  // the SLICEM's RAMs and shift registers, block RAMs, multipliers (est.: of the order of the
+  // Spartan-3E data sheet's -4 values, not fitted to trce yet)
+  mem: {
+    Tshcko: 2.0,    // CLK -> X / Y of a shift register (the stage at the address after the shift)
+    Tds: 0.46,      // BX / BY (data in) setup
+    Tas: 0.46,      // F1-4 / G1-4 (address) setup of a write
+    Tws: 0.87,      // SR (write / shift enable) setup
+  },
+  bram: { Tbcko: 2.39, Tback: 0.38, Tbdck: 0.33, Tbeck: 0.65, Tbwck: 0.74, Tbrck: 0.43 },
+  mult: { Tmult: 4.9, Tmsck: 0.36, Tmsckp: 1.0, Tmsdck: 5.2, Tmscka: 4.6 },
 };
 
 // ------------------------------------------------------------------ wire classes
@@ -190,6 +200,109 @@ export function distanceDelay(a, b, device, model = SPEED_4) {
   return base + perTile * Math.min(d, knee) + far * Math.max(0, d - knee);
 }
 
+/**
+ * The delay of the fastest route from a slice's outputs to the slices' inputs at each offset, by the
+ * model and the device's own wires (for the placer: what a connection over a distance costs once
+ * routed, the direct connections to the neighbours and the reach of hexes and long lines included).
+ * From each of a few CLBs spread over the device, a search by delay (Dijkstra, no congestion) from
+ * the X, Y, XQ and YQ pins of its slices to the LUT and BX / BY pins of every slice; the delay at an
+ * offset (columns, rows: tiles) is the mean over the target's pins of the fastest arrival, averaged
+ * over the source CLBs. allowPip(tileName, from, to): only these PIPs (as the router). Returns
+ * { at(dc, dr) -> ns, dc0, dr0, w, h, d: Float32Array } (cached on the device per allowPip and model).
+ */
+export function delayTable(device, { allowPip = null, model = SPEED_4, sources = null } = {}) {
+  device._delayTable ||= new Map();
+  const key = allowPip || 'all';
+  const cached = device._delayTable.get(key);
+  if (cached && cached.model === model && !sources) return cached.table;
+  const E = device.routingEdges();
+  const N = device.nodeCount;
+  const ndel = nodeDelays(device, model);
+  const ok = new Uint8Array(E.edgeTo.length);   // 0 undecided, 1 allowed, 2 not
+  const edgeOk = e => {
+    if (!ok[e]) {
+      if (E.edgeFlags[e] & 2) ok[e] = 2;     // route-through (core/fpga/device.js PIP_ROUTETHRU)
+      else if (!allowPip) ok[e] = 1;
+      else { const [a, b] = device.pipWires(E.edgeTile[e], E.edgePip[e]); ok[e] = allowPip(device.tileNames[E.edgeTile[e]], a, b) ? 1 : 2; }
+    }
+    return ok[e] === 1;
+  };
+  // the CLBs: tile of each slice
+  const clbs = new Map();     // tile index -> [slice names]
+  for (const s of [...device.sites('SLICEL'), ...device.sites('SLICEM')]) { if (!clbs.has(s.tile)) clbs.set(s.tile, []); clbs.get(s.tile).push(s.name); }
+  const tiles = [...clbs.keys()];
+  const rows = tiles.map(k => device.tileRow[k]), cols = tiles.map(k => device.tileCol[k]);
+  const r0 = Math.min(...rows), r1 = Math.max(...rows), c0 = Math.min(...cols), c1 = Math.max(...cols);
+  const h = 2 * (r1 - r0) + 1, w = 2 * (c1 - c0) + 1, dc0 = c1 - c0, dr0 = r1 - r0;
+  const sum = new Float64Array(w * h), cnt = new Float64Array(w * h);
+  // source CLBs: the one nearest the centre and four around it, halfway to the corners
+  const nearest = (r, c) => tiles.reduce((b, k) => (Math.abs(device.tileRow[k] - r) + Math.abs(device.tileCol[k] - c) < Math.abs(device.tileRow[b] - r) + Math.abs(device.tileCol[b] - c) ? k : b), tiles[0]);
+  const mr = (r0 + r1) / 2, mc = (c0 + c1) / 2, qr = (r1 - r0) / 4, qc = (c1 - c0) / 4;
+  const srcTiles = sources || [...new Set([[mr, mc], [mr - qr, mc - qc], [mr - qr, mc + qc], [mr + qr, mc - qc], [mr + qr, mc + qc]].map(([r, c]) => nearest(Math.round(r), Math.round(c))))];
+  const g = new Float64Array(N);
+  const heapK = [], heapV = [];
+  const push = (k, v) => {
+    let i = heapK.length; heapK.push(k); heapV.push(v);
+    while (i > 0) { const p = (i - 1) >> 1; if (heapK[p] <= k) break; heapK[i] = heapK[p]; heapV[i] = heapV[p]; i = p; }
+    heapK[i] = k; heapV[i] = v;
+  };
+  const pop = () => {
+    const top = heapV[0], k = heapK.pop(), v = heapV.pop(), n = heapK.length;
+    if (!n) return top;
+    let i = 0;
+    for (;;) { let c = 2 * i + 1; if (c >= n) break; if (c + 1 < n && heapK[c + 1] < heapK[c]) c++; if (heapK[c] >= k) break; heapK[i] = heapK[c]; heapV[i] = heapV[c]; i = c; }
+    heapK[i] = k; heapV[i] = v;
+    return top;
+  };
+  const IN_PINS = ['F1', 'F2', 'F3', 'F4', 'G1', 'G2', 'G3', 'G4', 'BX', 'BY'];
+  for (const st of srcTiles) {
+    g.fill(Infinity);
+    heapK.length = 0; heapV.length = 0;
+    for (const s of clbs.get(st)) for (const p of ['X', 'Y', 'XQ', 'YQ']) { const n = device.sitePinNode(s, p); if (n >= 0) { g[n] = 0; push(0, n); } }
+    while (heapK.length) {
+      const d = heapK[0], n = pop();
+      if (d > g[n]) continue;
+      for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
+        const m = E.edgeTo[e], dm = d + ndel[m];
+        if (dm < g[m] && edgeOk(e)) { g[m] = dm; push(dm, m); }
+      }
+    }
+    for (const [k, names] of clbs) {
+      let s = 0, c = 0;
+      for (const sn of names) for (const p of IN_PINS) { const n = device.sitePinNode(sn, p); if (n >= 0 && g[n] < Infinity) { s += g[n]; c++; } }
+      if (!c) continue;
+      const i = (device.tileRow[k] - device.tileRow[st] + dr0) * w + (device.tileCol[k] - device.tileCol[st] + dc0);
+      sum[i] += s / c + model.base; cnt[i]++;
+    }
+  }
+  const d = new Float32Array(w * h);
+  for (let i = 0; i < d.length; i++) if (cnt[i]) d[i] = sum[i] / cnt[i];
+  // offsets no source CLB has a CLB at (rows of clock tiles, block-RAM columns, beyond the
+  // device): from their neighbours, outwards
+  for (let filled = true; filled;) {
+    filled = false;
+    const next = cnt.slice();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (cnt[i]) continue;
+      let s = 0, c = 0;
+      for (const [u, v] of [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]]) if (u >= 0 && v >= 0 && u < w && v < h && cnt[v * w + u]) { s += d[v * w + u]; c++; }
+      if (c) { d[i] = s / c; next[i] = 1; filled = true; }
+    }
+    cnt.set(next);
+  }
+  // rows count down the device: dr is in tile rows, as the placer's y counts up (dr = -dy)
+  const table = {
+    dc0, dr0, w, h, d,
+    at(dc, dr) {
+      const x = Math.max(0, Math.min(w - 1, Math.round(dc) + dc0)), y = Math.max(0, Math.min(h - 1, Math.round(dr) + dr0));
+      return d[y * w + x];
+    },
+  };
+  if (!sources) device._delayTable.set(key, { model, table });
+  return table;
+}
+
 // ------------------------------------------------------------------ logic
 const F_PINS = ['F1', 'F2', 'F3', 'F4'], G_PINS = ['G1', 'G2', 'G3', 'G4'];
 
@@ -207,6 +320,8 @@ export function instArcs(inst, model = SPEED_4) {
     out.output.push(['O', model.pad.Tioop]);
     return out;
   }
+  if (inst.type === 'RAMB16') return bramArcs(inst, model, out);
+  if (inst.type === 'MULT18X18SIO') return multArcs(inst, model, out);
   if (!/^SLICE[LM]$/.test(inst.type)) return out;
   const m = new Map(inst.cfg.map(c => [c.attr, c.value]));
   // SLICEM or SLICEL by the site (a slice may be written SLICEL on a SLICEM site): the left column of a CLB
@@ -251,7 +366,59 @@ export function instArcs(inst, model = SPEED_4) {
   };
   ff('FFX', 'DXMUX', toX, 'BX', 'XQ', 'TckoX');
   ff('FFY', 'DYMUX', toY, 'BY', 'YQ', 'TckoY');
-  if (out.clock) setup.push(['CE', T('Tceck')], ['SR', T('Tsrck')]);
+  // RAMs and shift registers (SLICEM, LUT #RAM): written on CLK (data BX / BY, enable SR, write
+  // address on the LUT pins); a shift register's output changes after the clock edge
+  const M = model.mem;
+  const memSides = ['F', 'G'].filter(l => /^#RAM/.test(m.get(l) || ''));
+  if (memSides.length) {
+    out.clock = true;
+    setup.push(['SR', M.Tws]);
+    if (m.has('DIF_MUX') || m.has('DIG_MUX')) setup.push(['BY', M.Tds]);
+    if (m.get('DIF_MUX') === 'BX' || m.has('SLICEWE0USED')) setup.push(['BX', M.Tds]);
+    for (const l of memSides) {
+      const o = l === 'F' ? 'X' : 'Y', shift = m.get(`${l}_ATTR`) === 'SHIFT_REG';
+      if (shift) clkToOut.push([o, M.Tshcko]);
+      else for (const p of l === 'F' ? F_PINS : G_PINS) setup.push([p, M.Tas]);
+    }
+  }
+  if (out.clock && !memSides.length) setup.push(['CE', T('Tceck')], ['SR', T('Tsrck')]);
+  else if (m.has('FFX') || m.has('FFY')) setup.push(['CE', T('Tceck')]);
+  return out;
+}
+
+/** A block RAM: synchronous, the output latches change after the clock edge (CLKA / CLKB). */
+function bramArcs(inst, model, out) {
+  const B = model.bram;
+  const ports = ['A', 'B'].filter(x => inst.cfg.some(c => c.attr === `PORT${x}_ATTR`));
+  out.clock = ports.length > 0;
+  for (const x of ports) {
+    for (let k = 0; k < 32; k++) out.clkToOut.push([`DO${x}${k}`, B.Tbcko]);
+    for (let k = 0; k < 4; k++) out.clkToOut.push([`DOP${x}${k}`, B.Tbcko]);
+    for (let k = 0; k < 14; k++) out.setup.push([`ADDR${x}${k}`, B.Tback]);
+    for (let k = 0; k < 32; k++) out.setup.push([`DI${x}${k}`, B.Tbdck]);
+    for (let k = 0; k < 4; k++) out.setup.push([`DIP${x}${k}`, B.Tbdck]);
+    out.setup.push([`EN${x}`, B.Tbeck], [`WE${x}`, B.Tbwck], [`SSR${x}`, B.Tbrck]);
+  }
+  return out;
+}
+
+/** A multiplier: combinational A, B -> P, or through its registers (AREG, BREG, PREG). */
+function multArcs(inst, model, out) {
+  const M = model.mult, m = new Map(inst.cfg.map(c => [c.attr, c.value]));
+  const areg = m.get('AREG') === '1', breg = m.get('BREG') === '1', preg = m.get('PREG') === '1';
+  const ins = [...(areg ? [] : Array.from({ length: 18 }, (_, k) => `A${k}`)), ...(breg ? [] : Array.from({ length: 18 }, (_, k) => `B${k}`))];
+  out.clock = areg || breg || preg;
+  for (let j = 0; j < 36; j++) {
+    const p = `P${j}`;
+    if (preg) out.clkToOut.push([p, M.Tmsckp]);
+    else {
+      for (const i of ins) out.comb.push([i, p, M.Tmult]);
+      if (areg || breg) out.clkToOut.push([p, M.Tmscka]);
+    }
+  }
+  for (const [reg, x] of [[areg, 'A'], [breg, 'B']]) for (let k = 0; k < 18; k++) out.setup.push([`${x}${k}`, reg ? M.Tmsck : preg ? M.Tmsdck : 0]);
+  if (!preg) out.setup = out.setup.filter(([, d]) => d > 0);
+  for (const p of ['CEA', 'CEB', 'CEP', 'RSTA', 'RSTB', 'RSTP']) if (out.clock) out.setup.push([p, M.Tmsck]);
   return out;
 }
 
@@ -274,7 +441,8 @@ export function timingGraph(design, model = SPEED_4) {
   const instByName = new Map(design.insts.map(i => [i.name, i]));
   // the clock of each instance: the net on its CLK pin
   const clockOf = new Map();
-  for (const n of design.nets) for (const p of n.inpins) if (p.pin === 'CLK') clockOf.set(p.inst, n.name);
+  // (a block RAM's CLKA / CLKB: its clock too)
+  for (const n of design.nets) for (const p of n.inpins) if (/^CLK[AB]?$/.test(p.pin)) clockOf.set(p.inst, n.name);
   // edges: from pin, to pin, delay, connection (-1: an arc through an instance)
   const eFrom = [], eTo = [], eDelay = [], eConn = [];
   const conns = [], connIndex = new Map();
@@ -283,7 +451,7 @@ export function timingGraph(design, model = SPEED_4) {
     const src = n.outpins[0];
     if (/^BUFG/.test(instByName.get(src.inst)?.type || '')) continue;
     for (const p of n.inpins) {
-      if (p.pin === 'CLK') continue;
+      if (/^CLK[AB]?$/.test(p.pin)) continue;
       const c = conns.length;
       conns.push({ net: n.name, fromPin: src, toPin: p });
       connIndex.set(`${n.name}\u0000${p.inst}\u0000${p.pin}`, c);

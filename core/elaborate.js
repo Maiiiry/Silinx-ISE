@@ -179,7 +179,16 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
     file: inst.file, timeUnit: mod.timescale?.unit ?? (mod.lang === 'vhdl' ? 1 : 1000), fb: null, prefix: '', depth,
     timePrec: mod.lang === 'verilog' ? mod.timescale?.precision : undefined,   // delays round to the precision
     slvArith: mod.slvArith,   // VHDL: std_logic_vector arithmetic of std_logic_unsigned / std_logic_signed
+    deferred: [],             // items naming a generate block elaborated later (hierResolve), retried at the end
   };
+  E.modSc = E.sc;             // the module's scope (hierarchical names that start with the module's name)
+  // Verilog: the typedefs the parameters' types may name (bound again with the other declarations,
+  // once the parameters are known; one that needs a parameter fails here, silently)
+  if (mod.lang === 'verilog' && mod.params.some(p => p.type?.kind === 'named')) {
+    const diags = ctx.design.diags, n0 = diags.length;
+    for (const d of mod.decls) if (d.kind === 'type') { try { bindDecl(E, d); } catch { /* needs a parameter */ } }
+    diags.length = n0;
+  }
   // parameters / generics
   for (const p of mod.params) {
     let entry, given = false;   // given: set by the instance (generic map / #(…)), not the default
@@ -193,12 +202,14 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
         if (ptype?.kind === 'bool' && /^(true|false)$/i.test(ov.val?.str ?? '')) entry = { kind: 'const', val: V.fromBool(/^true$/i.test(ov.val.str)), t: ptype };
         // an unconstrained generic (INIT : std_logic_vector) takes the actual's width
         else if (ptype && ptype.unconstrained && ov.t && ov.t.kind === ptype.kind) entry = { kind: 'const', val: ov.val, t: { ...ov.t, s: ptype.s } };
-        else if (ptype && ptype.kind !== 'str') entry = { kind: 'const', val: fitVal(ov.val, ptype), t: ptype };
+        else if (ptype?.signedOnly) { const n = signedOnly({ k: 'c', val: ov.val, t: ov.t }); entry = { kind: 'const', val: constOf(E, n, mod.loc), t: n.t }; }
+        else if (ptype && ptype.kind !== 'str') entry = { kind: 'const', val: fitVal(ov.val?.str !== undefined && E.lang === 'verilog' ? strToVal(ov.val.str) : ov.val, ptype), t: ptype };
         else if (ptype && ov.text !== undefined) entry = { kind: 'const', val: { str: ov.text }, t: STR };   // NAME => "u1"
       } else if (p.default) {
-        const n = bindExpr(E, p.default, ptype);
+        let n = strVec(E, bindExpr(E, p.default, ptype));
+        if (ptype?.signedOnly) n = signedOnly(n);
         const val = constOf(E, n, p.loc);
-        entry = { kind: 'const', val: ptype && ptype.kind !== 'str' ? fitVal(val, ptype) : val, t: ptype || n.t };
+        entry = { kind: 'const', val: ptype && ptype.kind !== 'str' && !ptype.signedOnly ? fitVal(val, ptype) : val, t: ptype && !ptype.signedOnly ? ptype : n.t };
       } else throw new ElabError(`generic '${p.name}' has no value`, mod.loc);
     } catch (e) {
       if (!(e instanceof ElabError)) throw e;
@@ -240,6 +251,11 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
     });
   }
   elabItems(E, mod.items);
+  // items with a hierarchical name into a generate block that comes after them (a forward
+  // reference): elaborated again, now that every generate block exists
+  const deferred = E.deferred;
+  E.deferred.done = true;
+  for (const [GE, it] of deferred) elabItems(GE, [it]);
   return inst;
 }
 
@@ -264,6 +280,7 @@ function newSignal(E, name, t, init, kind, loc) {
 
 function elabPort(E, p, conn) {
   const t = elabType(E, p.type);
+  if (conn?.arr) conn = arrayConn(E, conn, t.w, p.name);
   let init = defaultValue(t, E.lang);
   if (p.default) init = fitAny(constOf(E, bindExpr(E, p.default, t), p.loc), t);
   if (conn && conn.node && conn.node.k === 'sig' && conn.node.t.w === t.w && (t.kind === 'array') === (conn.node.t.kind === 'array') && p.dir !== undefined) {
@@ -275,15 +292,21 @@ function elabPort(E, p, conn) {
       sig.init = init; sig.val = init; sig.portInitSet = true;
       if (E.lang === 'verilog') { sig.hasInit = true; sig.netZ = false; }
     }
+    if (p.wired && !sig.wired) { sig.wired = p.wired; sig.netZ = false; }   // (input wor x: the net resolves as wired-or)
     E.sc.def(p.name, { kind: 'sig', sig, t });
-    E.inst.ports.push({ name: p.name, dir: p.dir, sig, t, alias: true, conn: conn.text });
+    E.inst.ports.push({ name: p.name, dir: p.dir, sig, t, alias: true, conn: conn.text, ...(conn.fromArr ? { connNode: conn.node, connLnode: conn.lnode } : {}) });
     return;
   }
   const sig = newSignal(E, p.name, t, init, 'port', p.loc);
   sig.portDir = p.dir;
+  if (p.wired) {
+    sig.wired = p.wired;
+    // (tri0 / tri1: pulled to 0 / 1 while nothing drives it)
+    if (!p.default && (p.wired === 'tri0' || p.wired === 'tri1')) sig.init = sig.val = p.wired === 'tri0' ? V.zero(t.w) : V.mk(t.w, V.mask(t.w));
+  }
   if (p.default && E.lang === 'verilog') sig.hasInit = true;   // (input [3:0] d = 10, output logic q = 1)
   E.sc.def(p.name, { kind: 'sig', sig, t });
-  E.inst.ports.push({ name: p.name, dir: p.dir, sig, t, alias: false, conn: conn?.text ?? null });
+  E.inst.ports.push({ name: p.name, dir: p.dir, sig, t, alias: false, conn: conn?.text ?? null, ...(conn?.fromArr ? { connNode: conn.node, connLnode: conn.lnode } : {}) });
   if (!conn) return;
   const pE = conn.E;
   if (conn.parts) {
@@ -333,19 +356,47 @@ function addProc(E, proc) {
 
 function elabItems(E, items) {
   for (const it of items) {
-    safe(E, it.loc, () => {
+    try {
       switch (it.kind) {
-        case 'assign': return elabAssignItem(E, it);
-        case 'process': return elabProcess(E, it);
-        case 'instance': return elabChild(E, it);
-        case 'generate_for': return elabGenFor(E, it);
-        case 'generate_if': return elabGenIf(E, it);
-        case 'decl': return bindDecl(E, it.decl);
-        case 'defparam': return;   // (applied when the instance it names is elaborated)
+        case 'assign': elabAssignItem(E, it); break;
+        case 'process': elabProcess(E, it); break;
+        case 'instance': elabChild(E, it); break;
+        case 'generate_for': elabGenFor(E, it); break;
+        case 'generate_if': elabGenIf(E, it); break;
+        case 'decl': bindDecl(E, it.decl); break;
+        case 'defparam': break;   // (applied when the instance it names is elaborated)
+        case 'elabtask': elabTask(E, it); break;
         default: diag(E, `unsupported item '${it.kind}'`, it.loc, 'warning');
       }
-    });
+    } catch (e) {
+      if (e instanceof ElabError && e.hier && E.deferred && !E.deferred.done) { E.deferred.push([E, it]); continue; }
+      if (e instanceof ElabError || e instanceof SimError) { diag(E, e.message, e.loc || it.loc); continue; }
+      throw e;
+    }
   }
+}
+
+// SystemVerilog elaboration system tasks in a generate scope: $info / $warning / $error / $fatal
+// (IEEE 1800-2017 20.11), the message formatted like $display's
+function elabTask(E, it) {
+  const sev = { $info: 'info', $warning: 'warning', $error: 'error', $fatal: 'error' }[it.name];
+  const args = it.name === '$fatal' ? it.args.slice(1) : it.args;
+  let msg = '';
+  if (args.length) {
+    const nodes = args.map(a => (a.op === 'str' ? { k: 'str', value: a.value, t: STR } : bindExpr(E, a, null, it.loc)));
+    const vals = nodes.map(n => (n.k === 'str' ? { str: n.value } : constOf(E, n, it.loc)));
+    let k = 1;
+    msg = vals[0].str !== undefined
+      ? vals[0].str.replace(/%(0?\d*)([dDbBhHsS%])/g, (m, w, f) => {
+        if (f === '%') return '%';
+        const v = vals[k++];
+        if (!v) return m;
+        if (v.str !== undefined) return v.str;
+        return f === 'b' || f === 'B' ? V.toBin(v) : f === 'h' || f === 'H' ? V.toHex(v) : V.toDec(v, !!v.s);
+      }) + vals.slice(k).map(v => (v.str !== undefined ? v.str : V.toDec(v, !!v.s))).join('')
+      : vals.map(v => (v.str !== undefined ? v.str : V.toDec(v, !!v.s))).join('');
+  }
+  diag(E, `${it.name}${msg ? `: ${msg}` : ''}`, it.loc, sev);
 }
 
 function elabAssignItem(E, it) {
@@ -474,30 +525,83 @@ function elabChild(E, it) {
     if (!decl) { diag(E, `defparam: module '${mod.name}' has no parameter '${rest[0]}'`, it.loc); continue; }
     ov.set(decl.name, { val: dp.val, t: dp.t });
   }
-  const child = elabInstance(E.ctx, mod, name, `${E.inst.path}.${name}`, ov, portConns, E.inst, (E.depth || 0) + 1);
-  child.loc = it.loc; child.instFile = E.file;
-  child.connInfo = mod.ports.map(p => {
-    const c = portConns.get(p.name);
-    const port = child.ports.find(x => x.name === p.name);
-    const parts = c?.parts || [];
-    return {
-      port: p.name, dir: p.dir, t: port?.t, text: c?.text ?? null, node: c?.node ?? null,
-      reads: c?.node ? readsOf(c.node) : new Set(parts.flatMap(x => (x.node ? [...readsOf(x.node)] : []))),
-      writes: c?.lnode ? writesOfL(c.lnode) : new Set(parts.flatMap(x => (x.lnode ? [...writesOfL(x.lnode)] : []))),
-    };
-  });
-  for (const p of mod.ports) {
-    if (p.dir === 'in' && !portConns.has(p.name) && !p.default)
-      diag(E, `input port '${p.name}' of '${name}' is not connected`, it.loc, 'warning');
+  // an array of instances (u [3:0] (…), IEEE 1364-2005 12.1.2): one instance per index, u[3] … u[0];
+  // an actual as wide as the port goes to every instance, one n times as wide is split, its most
+  // significant part to the leftmost index (arrayConn, when the port's width is known)
+  let idxs = [null];
+  if (it.array) {
+    const r = evalRange(E, it.array);
+    idxs = [];
+    for (let k = r.left; ; k += r.left > r.right ? -1 : 1) { idxs.push(k); if (k === r.right) break; }
   }
-  E.inst.children.push(child);
+  idxs.forEach((idx, j) => {
+    const iname = idx === null ? name : `${name}[${idx}]`;
+    let pc = portConns;
+    if (idx !== null) pc = new Map([...portConns].map(([k, c]) => [k, c.parts ? c : { ...c, arr: { n: idxs.length, j } }]));
+    const child = elabInstance(E.ctx, mod, iname, `${E.inst.path}.${iname}`, ov, pc, E.inst, (E.depth || 0) + 1);
+    child.loc = it.loc; child.instFile = E.file;
+    child.connInfo = mod.ports.map(p => {
+      const c = pc.get(p.name);
+      const port = child.ports.find(x => x.name === p.name);
+      const parts = c?.parts || [];
+      const node = port?.connNode ?? c?.node ?? null, lnode = port?.connLnode ?? c?.lnode;
+      return {
+        port: p.name, dir: p.dir, t: port?.t, text: c?.text ?? null, node,
+        reads: node ? readsOf(node) : new Set(parts.flatMap(x => (x.node ? [...readsOf(x.node)] : []))),
+        writes: lnode ? writesOfL(lnode) : new Set(parts.flatMap(x => (x.lnode ? [...writesOfL(x.lnode)] : []))),
+      };
+    });
+    for (const p of mod.ports) {
+      if (p.dir === 'in' && !portConns.has(p.name) && !p.default)
+        diag(E, `input port '${p.name}' of '${iname}' is not connected`, it.loc, 'warning');
+    }
+    E.inst.children.push(child);
+  });
 }
 
+// The bits of lvalue L from bit lo, w bits (a concatenation: the parts these bits fall in)
+function sliceL(L, lo, w) {
+  if (lo === 0 && w === L.t.w) return L;
+  if (L.k !== 'cat') return { k: 'slice', base: L, lo, t: vecT(w) };
+  const pieces = [];
+  let off = 0;
+  for (let k = L.parts.length - 1; k >= 0; k--) {
+    const P = L.parts[k], pw = P.t.w;
+    const a = Math.max(lo, off), b = Math.min(lo + w, off + pw);
+    if (a < b) pieces.unshift(sliceL(P, a - off, b - a));
+    off += pw;
+  }
+  return pieces.length === 1 ? pieces[0] : { k: 'cat', parts: pieces, t: vecT(w) };
+}
+
+// The connection of one instance of an array of instances to a port of w bits
+function arrayConn(E, conn, w, pname) {
+  const { n, j } = conn.arr;
+  const c = { ...conn };
+  delete c.arr;
+  const aw = (conn.node || conn.lnode)?.t?.w;
+  if (aw === undefined || aw === w) return c;
+  if (aw !== n * w) {
+    diag(conn.E, `port '${pname}': the actual has ${aw} bits, neither ${w} nor ${n} x ${w}`, conn.loc, 'warning');
+    return c;
+  }
+  const lo = (n - 1 - j) * w;
+  c.fromArr = true;
+  if (c.node) c.node = { k: 'slice', base: c.node, lo, t: vecT(w) };
+  if (c.lnode) c.lnode = sliceL(c.lnode, lo, w);
+  return c;
+}
+
+// Generate blocks are scopes of their own: a named one (or an unnamed one, genblk<n>) is entered
+// in the enclosing scope as { kind: 'gen', sc }, a generate loop as { kind: 'genarr', elems: index ->
+// { kind: 'gen', sc } }, so that hierarchical names reach into them (hierResolve).
 function elabGenFor(E, it) {
   const genScope = new Scope(E.sc);
   const GE0 = { ...E, sc: genScope };
   let i = constOf(GE0, bindExpr(GE0, it.init), it.loc);
   let guard = 0;
+  const arr = { kind: 'genarr', elems: new Map() };
+  if (it.label) E.sc.def(it.label, arr);
   for (;;) {
     const sc = new Scope(E.sc);
     sc.def(it.var, { kind: 'const', val: V.resize(V.withSign(i, true), 32), t: INT });
@@ -506,6 +610,7 @@ function elabGenFor(E, it) {
     if (++guard > 4096) throw new ElabError('generate loop does not terminate', it.loc);
     const idx = V.toDec(i, true);
     GE.prefix = `${E.prefix}${it.label}[${idx}].`;
+    arr.elems.set(Number(idx), { kind: 'gen', sc });
     for (const d of it.decls || []) safe(GE, d.loc, () => bindDecl(GE, d));
     elabItems(GE, it.items);
     i = constOf(GE, bindExpr(GE, it.step), it.loc);
@@ -513,16 +618,16 @@ function elabGenFor(E, it) {
 }
 
 function elabGenIf(E, it) {
-  const c = constOf(E, bindExpr(E, it.cond), it.loc);
+  const c = V.isTrue(constOf(E, bindExpr(E, it.cond), it.loc));
+  // else if / the next case alternative: the same construct, in the same scope
+  if (!c && it.elseChain) { elabItems(E, it.else); return; }
+  if (!c && !it.else?.length && !it.elseDecls?.length) return;
+  const label = c ? it.label : it.elseLabel ?? it.label;
   const sc = new Scope(E.sc);
-  const GE = { ...E, sc, prefix: it.label ? `${E.prefix}${it.label}.` : E.prefix };
-  if (V.isTrue(c)) {
-    for (const d of it.decls || []) safe(GE, d.loc, () => bindDecl(GE, d));
-    elabItems(GE, it.then);
-  } else {
-    for (const d of it.elseDecls || []) safe(GE, d.loc, () => bindDecl(GE, d));
-    elabItems(GE, it.else || []);
-  }
+  const GE = { ...E, sc, prefix: label ? `${E.prefix}${label}.` : E.prefix };
+  if (label) E.sc.def(label, { kind: 'gen', sc });
+  for (const d of (c ? it.decls : it.elseDecls) || []) safe(GE, d.loc, () => bindDecl(GE, d));
+  elabItems(GE, (c ? it.then : it.else) || []);
 }
 
 // ---------------------------------------------------------------- declarations
@@ -547,11 +652,12 @@ function bindDecl(E, d) {
     }
     case 'const': {
       const t = d.type ? elabType(E, d.type, true) : null;
-      const n = bindExpr(E, d.value, t, d.loc);
-      if (E.lang === 'verilog' && t) ctxSize(n, t.w);
+      let n = bindExpr(E, d.value, t, d.loc);
+      if (t?.signedOnly) n = signedOnly(n);
+      else if (E.lang === 'verilog' && t) { n = strVec(E, n); ctxSize(n, t.w); }
       let val = constOf(E, n, d.loc);
       let ft = t;
-      if (!t || (t.kind === 'logic' && t.unconstrained)) ft = n.t;
+      if (!t || (t.kind === 'logic' && t.unconstrained) || t.signedOnly) ft = n.t;
       else val = fitAny(val, t);
       E.sc.def(d.name, { kind: 'const', val, t: ft });
       return;
@@ -606,11 +712,55 @@ function bindDecl(E, d) {
   }
 }
 
+// A packed array of elements of type elem (SystemVerilog logic [0:3][7:0], my_t [3:0]): a vector
+// [n * w - 1 : 0] whose packed.left / right / desc are the declared range of its elements
+function packedOf(E, range, elem, signed = false) {
+  const { left, right, desc } = evalRange(E, range);
+  const n = Math.abs(left - right) + 1, w = n * elem.w;
+  return { kind: 'logic', w, s: !!signed, left: w - 1, right: 0, desc: true, packed: { left, right, desc, n, elem } };
+}
+
 function elabType(E, ts, allowUnconstrained = false) {
+  // SystemVerilog packed dimensions after the first one (logic [0:3][7:0]): the outer dimensions
+  // are arrays of the inner ones
+  if (ts.kind === 'logic' && ts.inner?.length) {
+    const elem = elabType(E, { ...ts, range: ts.inner[0], inner: ts.inner.slice(1), signed: false });
+    return packedOf(E, ts.range, elem, ts.signed);
+  }
+  if ((ts.kind === 'named' || ts.kind === 'struct' || ts.kind === 'svenum') && ts.dims?.length) {
+    const elem = elabType(E, { ...ts, dims: ts.dims.slice(1) });
+    return packedOf(E, ts.dims[0], elem);
+  }
   switch (ts.kind) {
+    case 'struct': {
+      // packed structure: the first member is the most significant
+      const fields = ts.fields.map(f => ({ name: f.name, t: elabType(E, f.type) }));
+      let lo = fields.reduce((a, f) => a + f.t.w, 0);
+      const w = lo;
+      const members = fields.map(f => { lo -= f.t.w; return { name: f.name, t: f.t, lo }; });
+      return { kind: 'logic', w, s: !!ts.signed, left: w - 1, right: 0, desc: true, members };
+    }
+    case 'svenum': {
+      // the names are constants of the base type (int by default): each one more than the one
+      // before it, unless it is given a value (IEEE 1800-2017 6.19)
+      const base = ts.base ? elabType(E, ts.base) : INT;
+      let next = V.fromInt(0, base.w, !!base.s);
+      for (const it of ts.items) {
+        if (it.value) {
+          const n = bindExpr(E, it.value, base, it.loc);
+          ctxSize(n, base.w);
+          next = fitAny(constOf(E, n, it.loc), base);
+        }
+        E.sc.def(it.name, { kind: 'const', val: next, t: base });
+        next = V.withSign(V.add(next, V.fromInt(1, base.w, false), base.w, !!base.s), !!base.s);
+      }
+      return base;
+    }
     case 'logic': {
       // mark: std_logic_vector / bit_vector (not the numeric_std unsigned / signed types)
       const mk = ts.mark ? { mark: ts.mark } : null;
+      // a Verilog parameter declared `signed` without a range: the range of its value (signedOnly)
+      if (!ts.range && ts.signedOnly) return { ...BIT, s: true, signedOnly: true };
       if (!ts.range) {
         if (ts.unconstrained) return { ...vecT(1, ts.signed), unconstrained: true, ...mk };
         return { ...BIT, s: !!ts.signed };
@@ -656,6 +806,7 @@ function elabType(E, ts, allowUnconstrained = false) {
         return { ...elabType(E, { ...e.unconstrained, range: ts.range }), name: e.name };
       }
       if (ts.range && e.t.kind === 'logic') return elabType(E, { kind: 'logic', range: ts.range, signed: e.t.s, mark: e.t.mark });
+      if (E.lang === 'verilog' && e.t?.name) { const { name, ...t } = e.t; return t; }   // (a Verilog typedef: the type itself)
       return e.t;
     }
     case 'enum': throw new ElabError('anonymous enum types are not supported');
@@ -735,6 +886,31 @@ export function defaultValue(t, lang, net) {
       return t.unconstrained ? [] : Array.from({ length: t.len }, () => defaultValue(t.elem, lang, net));
   }
   return V.allX(t.w || 1);
+}
+
+// The dimensions of a type, { left, right } each: the unpacked ones (arrays), then the packed ones
+function dimsOf(t) {
+  if (t.kind === 'array' && !t.fields) return [{ left: t.left, right: t.right }, ...dimsOf(t.elem)];
+  if (t.packed) return [{ left: t.packed.left, right: t.packed.right }, ...dimsOf(t.packed.elem)];
+  if (t.kind === 'logic' || t.kind === 'int' || t.kind === 'enum') return [{ left: t.left, right: t.right }];
+  return [];
+}
+
+// A Verilog string used as a value: a vector of 8 bits per character (IEEE 1364-2005 3.6)
+function strVec(E, n) {
+  if (E.lang !== 'verilog' || n.t.kind !== 'str') return n;
+  const str = n.k === 'str' ? n.value : n.k === 'c' && n.val?.str !== undefined ? n.val.str : null;
+  if (str === null) return n;
+  const val = strToVal(str);
+  return { k: 'c', val, t: vecT(val.w) };
+}
+
+// the value of a parameter declared `signed` without a range: its own width, signed; a real value
+// converted to an integer
+function signedOnly(n) {
+  if (n.t.kind === 'real') return fold({ k: 'conv', a: n, ext: true, rtoi: true, round: true, t: INT });
+  if (n.t.kind === 'str') return n;
+  return fold({ k: 'conv', a: n, ext: !!n.t.s, t: n.t.kind === 'int' ? INT : vecT(n.t.w, true) });
 }
 
 function fitVal(v, t) {
@@ -929,11 +1105,20 @@ function bindExpr0(E, e, expect, loc) {
       if (entry?.kind === 'subalias') return bindExpr0(E, { ...e, name: entry.target }, expect, loc);
       if (entry) {
         const n = refNode(E, entry, e.name);
-        if (n) return n;
+        if (n) return expect?.kind === 'logic' ? strVec(E, n) : n;
         if (entry.kind === 'func') return bindCall(E, entry, [], e.name, loc);
         if (entry.kind === 'type') throw new ElabError(`type '${e.name}' used as a value`, loc);
       }
       if (E.lang === 'vhdl' && e.name === 'now') return { k: 'now', t: TIME, unit: 1 };
+      if (!entry && E.lang === 'verilog' && (e.path || e.name.includes('.'))) {
+        const r = hierResolve(E, e.name, e.path, loc);
+        if (r?.node) return r.node;
+        if (r?.entry) {
+          const n = refNode(E, r.entry, e.name);
+          if (n) return n;
+          if (r.entry.kind === 'func') return bindCall(E, r.entry, [], e.name, loc);
+        }
+      }
       if (E.implicitNets && E.lang === 'verilog' && E.inst && !e.name.includes('.')) {
         diag(E, `implicit net '${e.name}' (declare it with 'wire')`, loc, 'warning');
         const sig = newSignal(E, E.prefix + e.name, BIT, V.allX(1), 'signal', loc);
@@ -947,18 +1132,18 @@ function bindExpr0(E, e, expect, loc) {
         const hs = hierLookup(E, e.name);
         if (hs) return { k: 'sig', sig: hs, t: hs.t, name: e.name };
       }
-      throw new ElabError(`'${e.name}' is not declared`, loc);
+      throw notDeclared(e.name, loc);
     }
     case 'index': {
-      const base = bindExpr(E, e.base, null, loc);
+      const base = strVec(E, bindExpr(E, e.base, null, loc));
       return fold(indexNode(E, base, e.index, loc));
     }
     case 'slice': {
-      const base = bindExpr(E, e.base, null, loc);
+      const base = strVec(E, bindExpr(E, e.base, null, loc));
       return fold(sliceNode(E, base, e.left, e.right, loc));
     }
     case 'pslice': {
-      const base = bindExpr(E, e.base, null, loc);
+      const base = strVec(E, bindExpr(E, e.base, null, loc));
       const w = V.toNum(constOf(E, bindExpr(E, e.width), loc));
       const start = bindExpr(E, e.start, null, loc);
       return fold({ k: 'pslice', base, start, dir: e.dir, t: vecT(w) });
@@ -973,7 +1158,7 @@ function bindExpr0(E, e, expect, loc) {
           ? { k: 'str', value: p.strText ?? e.parts[k].ch, t: STR } : p));
         return { k: 'strcat', parts, t: STR };
       }
-      if (E.lang === 'verilog') parts = parts.map(p => (p.k === 'str' ? { k: 'c', val: strToVal(p.value), t: vecT(Math.max(8, p.value.length * 8)) } : p));
+      if (E.lang === 'verilog') parts = parts.map(p => strVec(E, p));
       if (parts.some(p => p.t.kind === 'str')) return { k: 'strcat', parts, t: STR };
       if (parts.length === 1 && E.lang === 'verilog') return { k: 'conv', a: parts[0], ext: false, t: vecT(parts[0].t.w) };
       const w = parts.reduce((a, p) => a + p.t.w, 0);
@@ -999,6 +1184,7 @@ function bindExpr0(E, e, expect, loc) {
     case 'cond': {
       const c = bindExpr(E, e.cond, null, loc);
       let a = bindExpr(E, e.then, expect, loc), b = bindExpr(E, e.else, expect, loc);
+      if (E.lang === 'verilog' && (a.t.kind === 'str' || b.t.kind === 'str')) { a = strVec(E, a); b = strVec(E, b); }
       if (E.lang === 'verilog' && (a.t.kind === 'real') !== (b.t.kind === 'real')) {
         // Verilog: an operand of type real makes the whole ?: real (IEEE 1364-2005 4.8.1)
         const toReal = x => (x.t.kind === 'real' ? x : fold({ k: 'conv', a: x, ext: !!x.t.s, t: REAL }));
@@ -1035,11 +1221,75 @@ function bindExpr0(E, e, expect, loc) {
 
 // VHDL record element selection r.f: the element of the record (an array of its fields)
 function fieldNode(E, base, name, loc) {
+  // a member of a SystemVerilog packed structure: its bits of the vector
+  if (base.t.members) {
+    const m = base.t.members.find(x => x.name === name);
+    if (!m) throw new ElabError(`structure has no member '${name}'`, loc);
+    return { k: 'slice', base, lo: m.lo, t: m.t };
+  }
   const F = base.t.fields;
   if (!F) throw new ElabError(`'${name}' selected from an expression that is not a record`, loc);
   const k = F.findIndex(f => f.name === name);
   if (k < 0) throw new ElabError(`record has no field '${name}'`, loc);
   return { k: 'elem', base, index: { k: 'c', val: V.fromInt(k), t: INT }, t: F[k].t };
+}
+
+// (hier: a hierarchical name, which may name a generate block elaborated later)
+function notDeclared(name, loc) {
+  const err = new ElabError(`'${name}' is not declared`, loc);
+  if (name.includes('.')) err.hier = true;
+  return err;
+}
+
+// the parts of a hierarchical name's text: a.b[2].c -> [{ name: 'a' }, { name: 'b', index: 2 }, { name: 'c' }]
+function splitHier(name) {
+  return name.split('.').map(p => {
+    const m = /^(.*)\[(-?\d+)\]$/.exec(p);
+    return m ? { name: m[1], index: { op: 'int', value: m[2] } } : { name: p, index: null };
+  });
+}
+
+// A hierarchical name inside the module (IEEE 1364-2005 12.5-12.6, 1800-2017 23.6-23.9): the first
+// name is found upwards in the enclosing scopes (a generate block, a named block, a generate loop
+// indexed by a constant expression, the module itself by the module's name); each next name in the
+// scope the name before it names, or a member of the packed structure it selects (s.a, s[1].b).
+// Returns { entry } (what the scope declares under the last name: signal, constant, variable,
+// function, task) or { node } (a member or element select), or null.
+function hierResolve(E, name, path, loc) {
+  const segs = path || splitHier(name);
+  if (segs.length < 2) return null;
+  let cur = E.sc.lookup(segs[0].name), node = null;
+  if (!cur && E.modSc && segs[0].name === E.inst?.module && !segs[0].index) cur = { kind: 'gen', sc: E.modSc };
+  if (!cur) return null;
+  const toNode = seg => {
+    if (!node) node = refNode(E, cur, seg.name);
+    if (!node) throw new ElabError(`'${seg.name}' is not a value`, loc);
+  };
+  const select = seg => {
+    if (!seg.index) return true;
+    if (!node && cur.kind === 'genarr') {
+      const i = V.toNum(constOf(E, bindExpr(E, seg.index, null, loc), loc));
+      cur = cur.elems.get(i);
+      return !!cur;
+    }
+    toNode(seg);
+    node = fold(indexNode(E, node, seg.index, loc));
+    return true;
+  };
+  if (!select(segs[0])) return null;
+  for (let k = 1; k < segs.length; k++) {
+    const seg = segs[k];
+    if (!node && cur.kind === 'gen') {
+      cur = cur.sc.local(seg.name);
+      if (!cur) return null;
+    } else {
+      if (!node && (cur.kind === 'genarr' || cur.kind === 'func')) return null;
+      toNode(segs[k - 1]);
+      node = fold(fieldNode(E, node, seg.name, loc));
+    }
+    if (!select(seg)) return null;
+  }
+  return node ? { node } : { entry: cur };
 }
 
 function hierLookup(E, name) {
@@ -1058,8 +1308,25 @@ function hierLookup(E, name) {
   return cur.signals.find(s => s.name === sn) || cur.ports.find(p => p.name === sn)?.sig || null;
 }
 
+// an element of a packed array (logic [0:3][7:0], my_t [3:0]): its bits of the vector, the
+// first element the most significant when the range is ascending, the last when descending
+function packedElem(base, index) {
+  const p = base.t.packed, ew = p.elem.w;
+  if (index.k === 'c' && !index.val.x) {
+    const off = bitpos(p, V.toNum(index.val));
+    if (off >= 0 && off < p.n) return { k: 'slice', base, lo: off * ew, t: p.elem };
+  }
+  // offset of the element: (i - right) or (right - i), times the element's width
+  const cI32 = n => ({ k: 'c', val: V.fromInt(n), t: INT });
+  const i = { k: 'conv', a: index, ext: !!index.t.s, t: INT };
+  const off = p.desc ? { k: 'bin', o: '-', a: i, b: cI32(p.right), t: INT } : { k: 'bin', o: '-', a: cI32(p.right), b: i, t: INT };
+  const start = { k: 'bin', o: '*', a: off, b: cI32(ew), t: INT };
+  return { k: 'pslice', base, start, dir: '+', t: p.elem };
+}
+
 function indexNode(E, base, idxExpr, loc) {
   const index = bindExpr(E, idxExpr, null, loc);
+  if (base.t.packed) return packedElem(base, index);
   // (chk: VHDL, an index outside the range of the array is a run-time error)
   if (base.t.kind === 'array') return { k: 'elem', base, index, t: base.t.elem, ...(E.lang === 'vhdl' ? { chk: true } : {}) };
   if (base.t.kind === 'str') return { k: 'chr', base, index, t: CHAR };   // s(i): a CHARACTER
@@ -1127,6 +1394,7 @@ function bindBinary(E, e, expect, loc) {
   if (e.a.op === 'aggregate' && e.b.op !== 'aggregate') { b = bindExpr(E, e.b, null, loc); a = bindExpr(E, e.a, b.t, loc); }
   else { a = bindExpr(E, e.a, ARITH.has(o) || BITWISE.has(o) ? expect : null, loc); b = bindExpr(E, e.b, a.t.kind === 'logic' || a.t.kind === 'enum' ? a.t : null, loc); }
   if (E.lang === 'vhdl' && (BITWISE.has(o) || ARITH.has(o))) { a = strAsLogic(a, b); b = strAsLogic(b, a); }
+  if (E.lang === 'verilog') { a = strVec(E, a); b = strVec(E, b); }
   if (E.lang === 'vhdl' && (ARITH.has(o) || CMP.has(o))) { a = slvNum(E, a); b = slvNum(E, b); }
   // REAL operands: floating point (time * real, real / real, comparisons...)
   const fp = a.t.kind === 'real' || b.t.kind === 'real';
@@ -1431,18 +1699,66 @@ function bindVlogCall(E, e, expect, loc) {
   const name = e.name;
   if (name[0] === '$') {
     const A = i => bindExpr(E, e.args[i], null, loc);
+    // the type of an argument that may be a type's name ($bits(my_t))
+    const T = i => { const a = e.args[i]; const te = a?.op === 'ref' ? E.sc.lookup(a.name) : null; return te?.kind === 'type' ? te.t : A(i).t; };
     switch (name) {
       case '$signed': { const a = A(0); return fold({ k: 'conv', a, ext: a.t.s, t: vecT(a.t.w, true) }); }
       case '$unsigned': { const a = A(0); return fold({ k: 'conv', a, ext: a.t.s, t: vecT(a.t.w, false) }); }
       // SystemVerilog size cast W'(expr): the value at W bits, extended by its own sign, signedness kept
       case '$__size_cast': { const w = Number(e.args[0].value), a = A(1); return fold({ k: 'conv', a, ext: a.t.s, t: vecT(w, a.t.s) }); }
+      // a cast to a type T'(expr): signed'(x), unsigned'(x), int'(x), my_t'(x) (IEEE 1800-2017 6.24.1)
+      case '$__type_cast': {
+        const tn = e.args[0].name, a = strVec(E, A(1));
+        if (tn === 'signed' || tn === 'unsigned') return fold({ k: 'conv', a, ext: a.t.s, t: vecT(a.t.w, tn === 'signed') });
+        const te = E.sc.lookup(tn);
+        const t = te?.kind === 'type' ? te.t : tn === 'int' || tn === 'integer' ? INT : { byte: vecT(8, true), shortint: vecT(16, true), longint: vecT(64, true), bit: BIT }[tn];
+        if (!t || t.kind === 'array' || t.kind === 'real' || t.kind === 'str') throw new ElabError(`cast to '${tn}' is not supported`, loc);
+        ctxSize(a, Math.max(a.t.w, t.w));
+        return fold({ k: 'conv', a, ext: a.t.s, t });
+      }
       case '$clog2': {
         diag(E, '$clog2 is not supported by XST (ISE 14.7); use a constant function instead', loc, 'warning');
         const v = V.toBig(constOf(E, A(0), loc));
         let r = 0; while ((1n << BigInt(r)) < v) r++;
         return { k: 'c', val: V.fromInt(r), t: INT };
       }
-      case '$bits': return { k: 'c', val: V.fromInt(A(0).t.w), t: INT };
+      case '$bits': { const t = T(0); return cI(t.kind === 'array' && !t.fields ? t.len * t.elem.w : t.w); }
+      // array queries (IEEE 1800-2017 20.7) of dimension d (1: the first unpacked one, or the
+      // first packed one of a vector)
+      case '$left': case '$right': case '$low': case '$high': case '$size': case '$increment': {
+        const dims = dimsOf(T(0));
+        const d = e.args[1] ? V.toNum(constOf(E, A(1), loc)) : 1;
+        if (d < 1 || d > dims.length) throw new ElabError(`${name}: no dimension ${d}`, loc);
+        const { left, right } = dims[d - 1];
+        const v = { $left: left, $right: right, $low: Math.min(left, right), $high: Math.max(left, right), $size: Math.abs(left - right) + 1, $increment: left >= right ? 1 : -1 }[name];
+        return cI(v);
+      }
+      case '$dimensions': return cI(dimsOf(T(0)).length);
+      // $countbits(e, c…): the number of bits of e equal (===) to one of the control bits (20.9)
+      case '$countbits': case '$countones': case '$onehot': case '$onehot0': {
+        const a = A(0);
+        const ctl = name === '$countbits'
+          ? [...new Set(e.args.slice(1).map((_, k) => { const v = constOf(E, A(k + 1), loc); return V.toBin(V.resize(v, Math.max(1, v.w))).slice(-1); }))]
+          : ['1'];
+        const bitLit = b => ({ k: 'c', val: V.fromBits(b), t: BIT });
+        let sum = cI(0);
+        for (let i = 0; i < a.t.w; i++) {
+          const bit = { k: 'slice', base: a, lo: i, t: BIT };
+          const hit = ctl.map(c => ({ k: 'bin', o: '===', a: bit, b: bitLit(c), t: BIT })).reduce((x, y) => ({ k: 'bin', o: '|', a: x, b: y, t: BIT }));
+          sum = { k: 'bin', o: '+', a: sum, b: { k: 'conv', a: hit, ext: false, t: INT }, t: INT };
+        }
+        if (name === '$onehot') return fold({ k: 'bin', o: '==', a: sum, b: cI(1), t: BIT });
+        if (name === '$onehot0') return fold({ k: 'bin', o: '<=', a: sum, b: cI(1), t: BIT });
+        return fold(sum);
+      }
+      // $isunknown(e): a bit of e is x or z (the reduction xor of e is x)
+      case '$isunknown': { const a = A(0); return fold({ k: 'bin', o: '===', a: { k: 'un', o: '^', a, t: BIT }, b: { k: 'c', val: V.X1, t: BIT }, t: BIT }); }
+      // real math functions of constant arguments (20.8)
+      case '$floor': case '$ceil': case '$sqrt': case '$ln': case '$log10': case '$exp': case '$pow': case '$sin': case '$cos': case '$tan': case '$asin': case '$acos': case '$atan': case '$atan2': case '$hypot': case '$sinh': case '$cosh': case '$tanh': {
+        const r = e.args.map((_, k) => { const n = A(k); const v = constOf(E, n, loc); return n.t.kind === 'real' ? V.toReal(v) : Number(V.toDec(v, !!n.t.s)); });
+        const f = { $floor: Math.floor, $ceil: Math.ceil, $sqrt: Math.sqrt, $ln: Math.log, $log10: Math.log10, $exp: Math.exp, $pow: Math.pow, $sin: Math.sin, $cos: Math.cos, $tan: Math.tan, $asin: Math.asin, $acos: Math.acos, $atan: Math.atan, $atan2: Math.atan2, $hypot: Math.hypot, $sinh: Math.sinh, $cosh: Math.cosh, $tanh: Math.tanh }[name];
+        return { k: 'c', val: V.real(f(...r)), t: REAL };
+      }
       case '$time': case '$stime': return { k: 'sys', name, args: [], t: vecT(64) };
       case '$realtime': return { k: 'sys', name, args: [], t: REAL };
       case '$fopen': return { k: 'sys', name, args: [], t: vecT(32) };   // (file output goes to the log)
@@ -1450,12 +1766,6 @@ function bindVlogCall(E, e, expect, loc) {
       case '$random': return { k: 'sys', name, args: e.args.length ? [bindLvalue(E, e.args[0], loc)] : [], t: INT };
       case '$urandom': return { k: 'sys', name, args: [], t: vecT(32) };
       case '$urandom_range': return { k: 'sys', name, args: e.args.map((_, i) => A(i)), t: vecT(32) };
-      case '$countones': {
-        const a = A(0);
-        let sum = { k: 'c', val: V.fromInt(0), t: INT };
-        for (let i = 0; i < a.t.w; i++) sum = { k: 'bin', o: '+', a: sum, b: { k: 'conv', a: { k: 'bit', base: a, index: { k: 'c', val: V.fromInt(a.t.desc ? a.t.right + i : a.t.right - i), t: INT }, t: BIT }, ext: false, t: INT }, t: INT };
-        return fold(sum);
-      }
       case '$rtoi': { const a = A(0); return fold({ k: 'conv', a, ext: true, rtoi: true, t: INT }); }   // truncates
       case '$itor': { const a = A(0); return fold({ k: 'conv', a, ext: a.t.s, t: REAL }); }
       case '$realtobits': case '$bitstoreal': return A(0);
@@ -1465,6 +1775,7 @@ function bindVlogCall(E, e, expect, loc) {
   let entry = E.sc.lookup(name);
   // a recursive call: inside the function its name is the return variable; find the function
   for (let sc = E.sc; entry && entry.kind !== 'func' && sc; sc = sc.parent) { const x = sc.local(name); if (x && x.kind === 'func') entry = x; }
+  if (!entry && (e.path || name.includes('.'))) entry = hierResolve(E, name, e.path, loc)?.entry || null;   // top.f(x), blk.f(x)
   if (!entry || entry.kind !== 'func') throw new ElabError(`function '${name}' is not declared`, loc);
   return bindCall(E, entry, e.args, name, loc);
 }
@@ -1530,7 +1841,7 @@ function bindCall(E, entry, rawArgs, name, loc) {
     if (!a) throw new ElabError(`missing argument '${decl.params[k].name}' in call to '${name}'`, loc);
     let at = null;   // an aggregate actual takes the type of its parameter
     if (a.op === 'aggregate') { try { at = elabType(entry.E, decl.params[k].type, true); } catch { at = null; } }
-    const n = bindExpr(E, a, at && !at.unconstrained ? at : null, loc);
+    const n = strVec(E, bindExpr(E, a, at && !at.unconstrained ? at : null, loc));
     // a std_logic string literal (kept as a string in report messages) for a vector parameter
     const pt = decl.params[k].type;
     if (E.lang === 'vhdl' && n.k === 'str' && pt && (pt.kind === 'logic' || (pt.kind === 'named' && stdTypeName(pt.name)?.kind === 'logic'))) return strAsLogic(n, { t: { kind: 'logic' } });
@@ -1651,10 +1962,15 @@ function isLvalueExpr(e) {
 function bindLvalue(E, e, loc) {
   switch (e.op) {
     case 'ref': {
-      const entry = E.sc.lookup(e.name);
+      let entry = E.sc.lookup(e.name);
+      if (!entry && E.lang === 'verilog' && (e.path || e.name.includes('.'))) {
+        const r = hierResolve(E, e.name, e.path, loc);
+        if (r?.node) return r.node;
+        entry = r?.entry || null;
+      }
       if (!entry) {
         if (E.implicitNets) return bindExpr(E, e, null, loc);
-        throw new ElabError(`'${e.name}' is not declared`, loc);
+        throw notDeclared(e.name, loc);
       }
       if (entry.kind === 'sig') return { k: 'sig', sig: entry.sig, t: entry.t || entry.sig.t, name: e.name };
       if (entry.kind === 'loc') return { k: 'loc', i: entry.i, t: entry.t, name: e.name };
@@ -1665,6 +1981,7 @@ function bindLvalue(E, e, loc) {
       const base = bindLvalue(E, e.base, loc);
       const index = bindExpr(E, e.index, null, loc);
       const chk = E.lang === 'vhdl' ? { chk: true } : {};
+      if (base.t.packed) return packedElem(base, index);
       if (base.t.kind === 'array') return { k: 'elem', base, index, t: base.t.elem, ...chk };
       if (base.t.kind === 'str') return { k: 'chr', base, index, t: CHAR };
       return { k: 'bit', base, index, t: BIT, ...chk };
@@ -1733,6 +2050,7 @@ function bindStmt(E, s, ploc) {
     return bindStmt0(E, s, loc);
   } catch (e) {
     if (!(e instanceof ElabError) && !(e instanceof SimError)) throw e;
+    if (e.hier && E.deferred && !E.deferred.done && !E.inFunction) throw e;   // (the whole item is elaborated again later)
     diag(E, e.message, e.loc || loc);
     return { k: 'null', loc };
   }
@@ -1743,6 +2061,8 @@ function bindStmt0(E, s, loc) {
     case 'block': {
       const sc = new Scope(E.sc);
       const BE = { ...E, sc };
+      // a named block is a scope: blk.x names its variable x from outside it (Verilog)
+      if (s.label && E.lang === 'verilog') E.sc.def(s.label, { kind: 'gen', sc });
       for (const d of s.decls || []) {
         if (d.kind === 'signal') d.net = 'variable';
         bindDecl(BE, d);
@@ -1877,6 +2197,17 @@ function evalRangeDyn(E, r, loc) {
 }
 
 function bindCallStmt(E, s, loc) {
+  if (E.lang === 'verilog' && (s.path || s.name.includes('.')) && !E.sc.lookup(s.name)) {
+    // a task of another scope: top.t(x), blk.t(x)
+    const r = hierResolve(E, s.name, s.path, loc);
+    if (r?.entry?.kind === 'func') {
+      const alias = `\u0000${s.name}`;
+      const sc = new Scope(E.sc);
+      sc.def(alias, r.entry);
+      return bindCallStmt({ ...E, sc }, { ...s, name: alias, path: null }, loc);
+    }
+    throw notDeclared(s.name, loc);
+  }
   const sub = E.sc.lookup(s.name);
   if (sub?.kind === 'subalias') return bindCallStmt(E, { ...s, name: sub.target }, loc);
   const name = s.name;

@@ -305,8 +305,103 @@ On the board (to test): `~/Silinx-projects/open-flow/lab11-open-timing.bit` (def
 ns), `lab11-open-timing-s3.bit` (seed 3, 16.89 ns), `blinky-open-timing.bit` (11.49 ns).
 
 Not done / next: hold-time analysis and clock skew (trce's skew was 0-0.02 ns here), pad-to-pad
-and OFFSET paths (`instArcs` has rough pad delays only), the branch loads in the router's cost (the
-STA has them), more designs for the fit (the carry XOR / BY arcs marked *est.*).
+and OFFSET paths (`instArcs` has rough pad delays only), more designs for the fit (the carry XOR /
+BY arcs marked *est.*). (The branch loads in the router's cost: done, below.)
+
+## Closing the routing gap (2026-10-11, 15.10.2)
+
+**Result: lab11 11.60 ns by ISE's trce (was 13.73; ISE's own flow, XST + map + par: 10.9 ns, so
+6% slower instead of 26%), blinky 7.37 ns (was 7.96; ISE: 6.7 ns, 10% slower)**, the netlists of
+the open synthesis of 15.10.2 unchanged, still fully open (known PIPs, DRC 0 errors 0 warnings,
+`.bit` byte-identical to ISE's bitgen with CRC on and off), and faster to place and route than
+before. On lab11's critical path trce now counts 4.26 ns of routing (was ~6 ns; XST's design with
+ISE's place and route: about 4) and 8.2 ns of logic.
+
+What was found (`crit`-style analysis: each connection of the critical path against the fastest
+route the device has between the same pins, no congestion, known PIPs only): with the old placer
+and router, lab11's critical path had 5.96 ns of routing where 5.0 ns was possible for that
+placement; the router was close to the best it could do on given pins, the rest was placement
+(critical cells 3-7 tiles apart) and **pins**: the packer fixes which LUT input each net uses, and
+the fast direct connections (a slice output to some inputs of its own and the neighbouring CLBs)
+reach only some of them. With any input of the LUT allowed, the fastest routing of the same path
+was 1-1.2 ns shorter.
+
+The changes, each measured on lab11 and blinky (Silinx STA, mean over placer seeds: one seed
+moves the result by ±0.3-0.5 ns, so single runs say little; ISE's trce on seed 1, the default):
+
+| Change | lab11 STA (seeds) | blinky STA (seeds) | ISE trce lab11 / blinky |
+|---|---|---|---|
+| before (15.10.2 synthesis, 15.10.1 place and route) | 13.97 (4) | 8.21 (8) | 13.73 / 7.96 |
+| placer: VPR's timing cost, linear distance model | 13.12 (6) | | |
+| placer: the same with the device's delay table | 12.63 (6), 12.83 (12) | | |
+| router: LUT input swapping | 12.22 (12) | 7.48 (8) | 12.48 / 7.41 |
+| router: branch loads in the cost | 12.10 (8) | 7.42 (8) | |
+| placer: timing weight 1.5 (lambda 0.43, was 0.33) | **12.01 (16)** | **7.44 (8)** | **11.60 / 7.37** |
+
+Tried and not kept (no gain beyond the seed noise, or worse): a fanout term in the placer's
+estimate (what routing adds on average, by fanout, fitted to the routed delays), a penalty in the
+placer for critical slices on SLICEM sites (their LUTs and F5 multiplexers are 0.05-0.16 ns
+slower), smoothing the criticalities between router passes (mean or max with the last pass), more
+timing passes (2 -> 5-8), a lower A* delay estimate (0.06 ns / tile), more placer effort (2.5),
+timing weights 0.1-0.3 and 2-3. The branch-load penalty with weights above 1 is worse.
+
+- **Delay table** (`timing.js delayTable(device, { allowPip })`): the fastest route by the model
+  (Dijkstra over the device graph, known PIPs only) from the X / Y / XQ / YQ outputs of a CLB to
+  the LUT and BX / BY inputs of every slice, the mean over those inputs of the fastest arrival at
+  each offset (columns, rows), averaged over five source CLBs (the centre and four around it);
+  offsets with no CLB (clock rows, block-RAM columns) from their neighbours. 0.25-0.5 s, once per
+  device and process (cached). Same CLB 0.16 ns (direct connections), next CLB 0.37-0.55, 7 rows
+  0.72, 15 columns 1.0: hexes and long lines make it far from linear.
+- **Timing-driven placement** (`place.js`): VPR's cost, `(1 - lambda) x wirelength / its value +
+  lambda x sum(criticality^exp x delay) / its value`, both normalised at every temperature, the
+  delay of a connection from the table (or the old linear model without one), the exponent from 1
+  to 8 as the move window shrinks; lambda = timing / (2 + timing), timing 1.5 by default. It
+  replaces the net weights `1 + timing x criticality^4` on the wirelength. The placer's STA takes
+  the SLICEL or SLICEM arcs by the site. (A change in the cost and annealing only; the site rules
+  of the placer are untouched.)
+- **LUT input swapping** (`route.js`, `swapLutPins`, default on): the inputs of a LUT whose F / G
+  is a `#LUT:` equation are interchangeable; a net may end on any of its LUT's inputs that no
+  other net takes (the search ends on any of them). Not moved: the carry's data input (`CY0F` /
+  `CY0G` = F1 / F2…), the pins of nets the router does not route (no source, made-up power
+  nets), RAM / ROM / shift-register LUTs. The equation is rewritten for the permutation (`Ak` is the
+  input on pin k; unused variables onto the pins left) and the inpins follow; the routed XDL is
+  what bitgen and ISE read, so nothing else changes. On lab11 277 of 330 LUTs end up with their
+  inputs swapped, blinky 125 of 171; every LUT computes the same function of the same nets (checked
+  on both, and in `test/open-flow.test.js` on blinky).
+- **Branch loads** (`route.js`, `branchLoad`, default 1): the model's delay of a node grows with
+  the branches the net takes off it (0.049 ns per extra branch at the driver's pin, 0.027 at an
+  OMUX, 0.213 at an input multiplexer…). A new branch now starts at the delay to its tree node
+  including the loads already there and the one it adds, plus (weighted by `branchLoad`) the load
+  it puts on the routed connections below that node x their criticalities. A 17-load net routed
+  on the real device branches 3 times at its driver instead of 6 and is faster (test).
+- `open-flow.mjs --tries N`: N placements (seeds seed .. seed + N - 1), each routed, the fastest
+  by the STA kept: lab11 with 3 tries 11.60 ns (STA) instead of 11.69, at three times the time.
+
+Checked with ISE (`SILINX_ISE_HOST=… node scripts/check-open-flow.mjs examples/blinky
+~/Silinx-projects/lab11`, default options):
+
+| Design | xdl2ncd | DRC | .bit vs ISE's bitgen | trce (ns) | Silinx STA (ns) | ISE (XST + par) |
+|---|---|---|---|---|---|---|
+| lab11 (clk) | 0 warnings | 0 errors, 0 warnings | byte-identical (CRC on / off) | **11.598** | 11.691 | 10.9 |
+| lab11 (bit_ready) | | | | 2.353 | 2.279 | |
+| blinky | 0 warnings | 0 errors, 0 warnings | byte-identical (CRC on / off) | **7.374** | 7.317 | 6.7 |
+
+Times (Apple Silicon, Node 25, default options; before -> now): lab11 placement 1.95 -> 1.4-1.6 s
+(+0.3-0.5 s for the delay table), routing 1.05 -> 0.7-0.8 s; blinky placement 0.57 -> 0.27 s,
+routing 0.37 -> 0.19 s (lab11: 3209 PIPs instead of 3470, 11 passes instead of 10).
+
+What is left of the gap: lab11's critical path is now state register -> decoding (F5 / F6) ->
+three LUTs -> ALU carry (2 stages) -> LUT -> F5 -> register, 9 levels, 8.2 ns of logic and 4.26 ns
+of routing; the routing is at ISE's level. The largest single connection is the state register's
+(fanout 54): 1.03 ns to a slice next to it, of which about 0.5 ns is the load of its branches. XST
+replicates such flip-flops; the open flow does not yet (a netlist change: the packer's side, or a
+replication step between the packer and the placer). blinky: 5.3 ns of logic (a 3-stage comparator
+chain, two LUTs) and 2.0 ns of routing on its critical path, where the fastest routes of that
+placement would give 1.4 ns; its loads are 9 LUT inputs of one CLB driven by one output, which
+must branch at the driver. Both run on the board's 50 MHz with a wide margin.
+
+The bitstreams: `~/Silinx-projects/open-flow/lab11-open-v3.bit` (11.60 ns) and
+`blinky-open-v3.bit` (7.37 ns), the files checked above (to test on the board).
 
 ## Open problems
 

@@ -159,6 +159,12 @@ export function designFeatures(design, db) {
         if (!c || c.value === '#OFF') feats.push({ tile: inst.tile, feature: `RAMB16:${p}INV:${p}` });
       }
     }
+    // a multiplier's clock enables not connected (no registers): as if not inverted (ISE's bitgen
+    // sets their bits; measured on a design of multipliers without registers)
+    if (inst.type === 'MULT18X18SIO') for (const p of ['CEA', 'CEB', 'CEP']) {
+      const c = inst.cfg.find(x => x.attr === `${p}INV`);
+      if (!c || c.value === '#OFF') feats.push({ tile: inst.tile, feature: `MULT18X18SIO:${p}INV:${p}` });
+    }
     if (!kind) continue;
     // the site is used: some settings are set for every used site
     feats.push({ tile: inst.tile, feature: `${kind}:USED` });

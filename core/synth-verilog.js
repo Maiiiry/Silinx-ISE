@@ -22,9 +22,10 @@
 //
 //   const { text, top, warnings, primitives } = toVerilog(design)   // design = elaborate(lib, top)
 //   (primitives: the names of the Xilinx primitives the text instantiates; to simulate the text,
-//   compile it with core/unisim.js's UNISIM_SOURCE)
+//   compile it with core/unisim.js's UNISIM_SOURCE; option tables: false writes every operator as
+//   an operator, see tabulate)
 import * as V from './values.js';
-import { bitpos, psliceLo, exec, applyWrite, SimError } from './interp.js';
+import { bitpos, psliceLo, exec, applyWrite, SimError, evalE } from './interp.js';
 
 export class SynthError extends Error {
   constructor(msg, loc, file) { super(msg); this.loc = loc; this.file = file; }
@@ -45,6 +46,10 @@ function balanced(x) {
   return false;
 }
 const esc = n => (IDENT.test(n) && !KEYWORDS.has(n) ? n : `\\${n} `);
+// expressions written as tables of their values (toVerilog's tabulate): the kinds of node, the
+// most input bits
+const TAB_ROOT = new Set(['bin', 'un', 'cond', 'conv']);
+export const TAB_BITS = 6;
 
 /** The width a signal or local gets: integers the width of their range, the rest their own. */
 export function synthWidth(t) {
@@ -96,7 +101,7 @@ export function yosysCell(name, ports) {
   return { name: `${full[0]}${m[3] || ''}`, tie };
 }
 
-export function toVerilog(design, { name } = {}) {
+export function toVerilog(design, { name, tables = true } = {}) {
   const top = design.top;
   const warnings = [];
   const prefix = `${top.path}.`;
@@ -139,6 +144,19 @@ export function toVerilog(design, { name } = {}) {
   for (const p of top.ports) sigName.set(p.sig, esc(uniq(p.name)));
   for (const s of design.signals) if (!sigName.has(s) && !skipSig.has(s)) sigName.set(s, esc(uniq(s.path.startsWith(prefix) ? s.path.slice(prefix.length) : s.path)));
 
+  // ---------------- wired nets (wand / wor, IEEE 1364-2005 4.6.4) with several drivers: each
+  // driver (a continuous assignment, an instance's output) assigns a signal of its own, which starts
+  // at the value that does not change the result (all ones for wand, zeros for wor, its bits no
+  // driver sets), and the net is the and / or of them
+  const wiredDrv = new Map();    // signal -> Map(process -> its driver signal's name)
+  for (const s of design.signals) {
+    if ((s.wired !== 'and' && s.wired !== 'or') || skipSig.has(s) || s.t.kind === 'array') continue;
+    const ds = design.procs.filter(p => !skipProc.has(p) && p.mode !== 'initial' && p.mode !== 'loop' && p.writes?.has(s));
+    if (ds.length < 2) continue;
+    const base = s.path.startsWith(prefix) ? s.path.slice(prefix.length) : s.path;
+    wiredDrv.set(s, new Map(ds.map((p, k) => [p, esc(uniq(`${base}__drv${k}`))])));
+  }
+
   // ---------------- values: every expression as an unsigned, exactly-sized Verilog expression
   // fit(x, wFrom, sFrom, wTo): the value extended (by sFrom) or truncated to wTo bits. An assigned
   // value is extended by its own sign; the operand of an operator by the sign of the operator's
@@ -171,6 +189,9 @@ export function toVerilog(design, { name } = {}) {
 
   // e(n) -> { x: expression string, w, s } (x is w bits; s = the value's signedness)
   function e(n, ctx) {
+    return (TAB_ROOT.has(n.k) && tabulate(n, ctx)) || e0(n, ctx);
+  }
+  function e0(n, ctx) {
     const t = n.t || {};
     switch (n.k) {
       case 'c': {
@@ -373,6 +394,106 @@ export function toVerilog(design, { name } = {}) {
     return null;
   }
 
+  // ---------------- expressions of few input bits, as tables
+  // An arithmetic expression (+ - * / shifts, comparisons…) that reads at most TAB_BITS bits of
+  // signals and variables is written as a table of its values (a function with a case over those
+  // bits), computed by the simulator's own evaluator (interp.js evalE) for every combination: Yosys
+  // maps each operator onto a carry chain at the operator's width (VHDL integers: 32 bits), and a
+  // table of k <= 6 input bits is at most a few LUTs per result bit. Blinky's
+  // `ticks >= shift_left(to_unsigned(1, 32), level) - 1` (level: 3 bits) was a 32-bit subtracter
+  // and a comparator in series (16 slices, the critical path), as a table one LUT per bit.
+  // Taken only when the table is estimated smaller than the operators (tabCost < opCost).
+  const tabs = new Map();
+  let tabOff = 0;
+  function tabulate(n, ctx) {
+    if (tabOff || !tables) return null;
+    // the inputs (whole signals and variables) and the cost of the operators, or null
+    const leaves = new Map();
+    let ops = 0, bits = 0;
+    const walk = m => {
+      if (!m || typeof m !== 'object') return false;
+      switch (m.k) {
+        case 'c': return !Array.isArray(m.val) && m.val?.w !== undefined && m.val.real === undefined;
+        case 'sig': case 'loc': {
+          const tt = m.k === 'sig' ? m.sig.t : m.t;
+          if (!tt || tt.kind === 'real' || tt.kind === 'array' || tt.kind === 'record' || tt.kind === 'str' || !(tt.w > 0)) return false;
+          if (m.k === 'sig' && (Array.isArray(m.sig.val) || m.sig.val?.w !== tt.w || !sigName.has(m.sig))) return false;
+          if (m.k === 'loc' && ctx.subst?.has(m.i)) return false;
+          const key = m.k === 'sig' ? m.sig : `loc${m.i}`;
+          if (!leaves.has(key)) { leaves.set(key, { node: m, t: tt, w: wOf(tt) }); bits += wOf(tt); }
+          return bits <= TAB_BITS;
+        }
+        case 'bit': case 'slice': case 'dslice': case 'pslice':
+          return walk(m.base) && [m.index, m.left, m.right, m.start].every(x => x === undefined || walk(x));
+        case 'un': {
+          if (m.fp) return false;
+          if (m.o === '-' || m.o === 'abs') ops += m.ew || m.t.w;
+          return walk(m.a);
+        }
+        case 'bin': {
+          if (m.fp || m.match) return false;
+          const w = m.ew || m.t.w, ow = Math.max(m.cw || 0, m.a.t?.w || 0, m.b.t?.w || 0);
+          if (['+', '-', '<', '<=', '>', '>='].includes(m.o)) ops += ['+', '-'].includes(m.o) ? w : ow;
+          else if (['*', '/', '%', 'rem', 'mod'].includes(m.o)) ops += w * w;
+          else if (['<<', '<<<', '>>', '>>>', '**'].includes(m.o) && m.b.k !== 'c') ops += 2 * w;
+          return walk(m.a) && walk(m.b);
+        }
+        case 'cond': return walk(m.c) && walk(m.a) && walk(m.b);
+        case 'cat': return m.parts.every(walk);
+        case 'repl': return m.count.k === 'c' && walk(m.a);
+        case 'conv': return m.t.kind !== 'real' && !m.rtoi && walk(m.a);
+        default: return false;
+      }
+    };
+    if (!walk(n) || !ops) return null;
+    // the expression as the translator writes it: its width and sign
+    tabOff++;
+    let r;
+    try { r = e0(n, ctx); } finally { tabOff--; }
+    // its value for every combination of the input bits (input j: bits off[j] … of the index)
+    const L = [...leaves.values()];
+    const vals = [];
+    for (let i = 0; i < 1 << bits; i++) {
+      const frame = [];
+      let off = 0;
+      const sub = new Map();
+      for (const l of L) {
+        let p = BigInt((i >> off) & ((1 << l.w) - 1));
+        off += l.w;
+        if (l.t.kind === 'int' && signedInt(l.t)) p = BigInt.asIntN(l.w, p);
+        const v = l.t.kind === 'int' ? V.fromInt(p, l.t.w, true) : V.mk(l.t.w, BigInt.asUintN(l.t.w, p), 0n, !!l.t.s);
+        if (l.node.k === 'loc') frame[l.node.i] = v; else sub.set(l.node.sig, { ...l.node.sig, val: v });
+      }
+      const swap = m => {
+        if (!m || typeof m !== 'object' || Array.isArray(m)) return m;
+        if (m.k === 'sig') return sub.has(m.sig) ? { ...m, sig: sub.get(m.sig) } : m;
+        if (m.k === 'c' || m.k === 'loc') return m;
+        const c = { ...m };
+        for (const f of ['a', 'b', 'c', 'base', 'index', 'left', 'right', 'start', 'count']) if (m[f]) c[f] = swap(m[f]);
+        if (m.parts) c.parts = m.parts.map(swap);
+        return c;
+      };
+      let v;
+      try { v = evalE(swap(n), { frame, probe: true }); } catch { v = V.allX(r.w); }
+      if (!v || Array.isArray(v) || v.w !== r.w) return null;
+      vals.push(v);
+    }
+    // cost: the result bits that are not constant, each a LUT of `bits` inputs (4-input LUTs)
+    const varying = vals.reduce((m, v) => m | ((v.v ^ vals[0].v) | v.x | vals[0].x), 0n).toString(2).replace(/0/g, '').length;
+    if (varying * (bits <= 4 ? 1 : 1 << (bits - 4)) >= ops) return null;
+    if (!bits) return { x: lit(vals[0], r.w), w: r.w, s: r.s };
+    const key = `${r.w}:${bits}:${vals.map(v => lit(v, r.w)).join(',')}`;
+    if (!tabs.has(key)) {
+      const fname = esc(uniq(`tab${tabs.size}`));
+      funcs.push(`  function automatic [${r.w - 1}:0] ${fname}(input [${bits - 1}:0] i);\n    case (i)\n${vals.map((v, k) => `      ${bits}'d${k}: ${fname} = ${lit(v, r.w)};`).join('\n')}\n    endcase\n  endfunction`);
+      tabs.set(key, fname);
+    }
+    // the index: the inputs' bits, the first input lowest
+    const parts = L.map(l => (l.node.k === 'sig' ? sigName.get(l.node.sig) : localName(ctx, l.node.i, l.t))).reverse();
+    const x = `${tabs.get(key)}(${parts.length > 1 ? `{${parts.join(', ')}}` : parts[0]})`;
+    return { x: r.s ? `$signed(${x})` : x, w: r.w, s: r.s };
+  }
+
   // constant arrays (VHDL ROMs): a function with a case over the index
   const roms = new Map();
   function romRef(n, ctx) {
@@ -425,7 +546,7 @@ export function toVerilog(design, { name } = {}) {
   // ---------------- statements
   function lvalue(L, ctx) {
     switch (L.k) {
-      case 'sig': return { x: sigName.get(L.sig), w: wOf(L.sig.t) };
+      case 'sig': return { x: wiredDrv.get(L.sig)?.get(ctx.proc) ?? sigName.get(L.sig), w: wOf(L.sig.t) };
       case 'loc': {
         if (ctx.subst?.has(L.i)) { const sb = ctx.subst.get(L.i); if (sb.lv) return lvalue(sb.lv, sb.ctx); }
         return { x: localName(ctx, L.i, L.t), w: wOf(L.t) };
@@ -728,6 +849,7 @@ export function toVerilog(design, { name } = {}) {
       const vinit = (i, l) => { const v = typeof i === 'number' ? init0[i] : undefined; return v && !Array.isArray(v) && v.str === undefined && l.t.kind !== 'array' && v.w > 0 && v.x !== (1n << BigInt(v.w)) - 1n ? ` = ${lit(V.resize(v, wOf(l.t)), wOf(l.t))}` : ''; };
       const loc = [...[...ctx.locals.entries()].map(([i, l]) => [i, l]), ...(ctx.extraLocals || []).map(l => [null, l])].map(([i, l]) => `  reg ${sgn(l.t) ? 'signed ' : ''}${l.t.kind === 'array' ? `[${wOf(l.t.elem) - 1}:0] ${l.name} [0:${l.t.len - 1}]` : `[${wOf(l.t) - 1}:0] ${l.name}${vinit(i, l)}`};`);
       let text = body;
+      for (const [sg, m] of wiredDrv) if (m.has(p)) text = `    ${m.get(p)} = ${lit(V.mk(wOf(sg.t), sg.wired === 'and' ? V.mask(wOf(sg.t)) : 0n))};\n${text}`;
       for (const f of ctx.flags) {
         const nm = uniq(`${ctx.base}${f}`);
         loc.push(`  reg ${nm};`);
@@ -848,6 +970,11 @@ export function toVerilog(design, { name } = {}) {
   }
   for (const p of design.procs) if (!skipProc.has(p) && p.mode !== 'initial' && p.mode !== 'loop') process(p);
   for (const pr of prims) instance(pr);
+  for (const [sg, m] of wiredDrv) {
+    const w = wOf(sg.t);
+    for (const nm of m.values()) decls.push(`  logic [${w - 1}:0] ${nm};`);
+    blocks.push(`  // ${sg.path}: wired-${sg.wired} of its drivers\n  assign ${sigName.get(sg)} = ${[...m.values()].join(sg.wired === 'and' ? ' & ' : ' | ')};`);
+  }
 
   const mod = esc(name || top.name);
   const text = `// Generated by Silinx (core/synth-verilog.js) from the design '${top.name}': one flat module for synthesis.\n`
