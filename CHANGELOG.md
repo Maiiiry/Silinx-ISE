@@ -5,9 +5,24 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.2
 
+- **Open toolchain in the interface:** *Toolchain Settings* has a new execution mode, *Open
+  toolchain (experimental, no ISE)*. *Synthesize*, *Implement Design* and *Generate Programming
+  File* then run Silinx's own flow on the server, with no Xilinx tool (Yosys synthesis, pack,
+  place, route on the switches whose bits are known, static timing against the UCF's PERIOD
+  constraints, bitgen), with the usual console, process icons, Stop and *Design Summary*
+  (utilization and timing, marked "open toolchain"). It writes `build/<top>.bit` (what *Configure
+  Target Device* programs) and `build/<top>_prom.bit`; *View Implemented Design (FPGA)* shows the
+  routed design on the device description. For now for the XC3S250E (Basys2-250). A device the
+  open toolchain does not support, or a design it cannot implement yet, fails with the reason and
+  what is missing; the processes that need ISE are disabled in that mode, with a tooltip.
+- **Build Device Description** (*Toolchain Settings*, or offered when the open toolchain needs it):
+  the description of a device that does not ship with Silinx is built from your own ISE
+  (`xdl -report -pips -all_conns`, run through the ISE configured there: local, Docker or SSH,
+  compressed where ISE runs) into `~/.silinx/devices/`.
 - The device description of the XC3S250E-CP132 (Basys2-250) ships with Silinx
   (`core/fpga/devices/`): the open toolchain places, routes and writes the bitstream for that board
-  without ISE (for now from the command line: `research/s3e-route/open-flow.mjs`). For other
+  without ISE (from the interface, see above, or from the command line:
+  `research/s3e-route/open-flow.mjs`). For other
   devices it is built once from the user's own ISE installation (`~/.silinx/devices/`, which takes
   precedence). The whole open flow on blinky is now part of the tests.
 - TODO.md: what is planned. The open toolchain does not support the Spartan-6 boards (Nexys3,
