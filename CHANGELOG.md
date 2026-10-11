@@ -12,6 +12,16 @@ the "What's new" text of its GitHub release.
 - **Open synthesis: start values as in simulation.** A VHDL integer signal with no initial value
   starts at `T'left` (1 for `range 1 to 10`), a `bit` at `'0'`, and an output port at its default
   value (`q : out std_logic := '1'`) in the netlist too: they powered up at 0 there (#60).
+- **VHDL testbenches: light8080's own testbench runs and passes.** Subprograms of one name from a
+  package and from a use clause are overloads of each other (a package's `hstr(unsigned)` hid
+  `txt_util`'s `hstr(std_logic_vector)` and called itself without end); string slices
+  (`buf(1 to n)`), `'high` / `'low` of strings, string aggregates (`(others => ' ')`), and string
+  signals, which kept their initial value whatever was assigned to them; a character literal picks a
+  `character` overload, `std_logic_vector(u)` and `std_logic_vector'(…)` a `std_logic_vector` one
+  (#72).
+- **Simulator: errors, not crashes:** a function calling itself without end is a simulation error
+  (`recursion too deep in function f`), and so is a scheduled assignment that does not fit its target;
+  both stopped the simulator with an internal error (#73).
 
 ## 15.10.2
 

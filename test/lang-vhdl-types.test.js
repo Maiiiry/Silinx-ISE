@@ -365,3 +365,64 @@ test('constrained string variables: string(1 to n) in a process and in a functio
    end function;`));
   assert.deepEqual(r, ['3 b true', 'AB 4']);
 });
+
+// Regression (#72, light8080's testbench): overloads of one name from a package's own region and
+// from a use clause are both visible (hstr(unsigned) calls hstr(std_logic_vector)); two packages
+// with the same subprogram name add up; string slices, bounds and aggregates
+test('VHDL overloads across packages and use clauses; string slices, bounds and aggregates (#72)', () => {
+  const r = outW({
+    'util.vhd': `library ieee; use ieee.std_logic_1164.all;
+package util is
+  function hstr(v : std_logic_vector) return string;
+  function tag(c : character) return string;
+end;
+package body util is
+  function hstr(v : std_logic_vector) return string is begin return "slv" & integer'image(v'length); end function;
+  function tag(c : character) return string is begin return "char"; end function;
+end;`,
+    'more.vhd': `package more is
+  function tag(s : string) return string;
+end;
+package body more is
+  function tag(s : string) return string is begin return "string" & integer'image(s'length); end function;
+end;`,
+    'tbp.vhd': `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all; use work.util.all;
+package tbp is
+  function hstr(v : unsigned) return string;
+end;
+package body tbp is
+  function hstr(v : unsigned) return string is begin return "u:" & hstr(std_logic_vector(v)); end function;
+end;`,
+    't.vhd': `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all; use work.util.all; use work.more.all; use work.tbp.all;
+entity tb is end;
+architecture a of tb is
+  signal buf : string(1 to 6) := (others => '.');
+  signal ix : integer := 3;
+begin
+  process
+    constant c : string(1 to 4) := ('a', 'b', others => 'z');
+  begin
+    report hstr(unsigned'(x"AB")) & " " & hstr(std_logic_vector'(x"ABC"));
+    report tag('q') & " " & tag("hey") & " " & tag(c(2 to ix));
+    buf(ix) <= '#';
+    wait for 1 ns;
+    report buf & " " & buf(1 to ix) & " " & integer'image(buf'high) & integer'image(buf'low) & " " & c & " [" & buf(4 to 3) & "]";
+    wait;
+  end process;
+end;`,
+  }, [], 'tb');
+  assert.deepEqual(r, ['u:slv8 slv12', 'char string3 string2', '..#... ..# 61 abzz []']);
+});
+
+// Regression (#73): a function calling itself without end is a simulation error (the guard never
+// fired: the JavaScript stack overflowed); an error in a scheduled write is reported and stops the run
+test('simulation errors: endless recursion, a scheduled write that does not fit (#73)', () => {
+  const rec = sim(`entity tb is end tb; architecture a of tb is
+  function f(k : integer) return integer is begin return f(k + 1); end function;
+  function g(k : integer) return integer is begin if k = 0 then return 0; else return 1 + g(k - 1); end if; end function;
+begin process begin report integer'image(g(100)); report integer'image(f(1)); wait; end process; end a;`, 'tb', { allowErrors: true });
+  assert.deepEqual(rec.lines, ['0 note 100', '0 error recursion too deep in function f (in tb/process_4)', '0 note simulation finished ($error) at 0 ns']);
+  const wr = sim(`entity tb is end tb; architecture a of tb is signal s : string(1 to 2) := "ab"; begin
+process begin s(3) <= 'x'; wait for 1 ns; report "after"; wait; end process; end a;`, 'tb', { allowErrors: true });
+  assert.deepEqual(wr.lines, ['0 error index 3 out of range for a string of length 2', '0 note simulation finished ($error) at 0 ns']);
+});

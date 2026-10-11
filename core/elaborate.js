@@ -34,12 +34,28 @@ class ElabError extends Error {
   constructor(msg, loc) { super(msg); this.loc = loc; }
 }
 
+// VHDL subprograms of one name from several regions (a package's own and one a use clause makes
+// visible: light8080's hstr(unsigned) and txt_util's hstr(std_logic_vector)) are overloads of each
+// other; the inner ones come first, so one of the same signature hides the outer one
+const vhdlFunc = e => e?.kind === 'func' && e.E?.lang === 'vhdl';
+function mergeFuncs(a, b) {
+  const alts = [...new Set([...(a.alts || [a]), ...(b.alts || [b])])];
+  return alts.length === (a.alts || [a]).length ? a : { ...a, alts };
+}
+
 class Scope {
   constructor(parent = null) { this.map = new Map(); this.parent = parent; }
   def(name, entry) { this.map.set(name, entry); return entry; }
   lookup(name) {
-    for (let s = this; s; s = s.parent) { const e = s.map.get(name); if (e) return e; }
-    return null;
+    let found = null;
+    for (let s = this; s; s = s.parent) {
+      const e = s.map.get(name);
+      if (!e) continue;
+      if (!found) { if (!vhdlFunc(e)) return e; found = e; continue; }
+      if (!vhdlFunc(e)) break;
+      found = mergeFuncs(found, e);
+    }
+    return found;
   }
   local(name) { return this.map.get(name) || null; }
 }
@@ -164,7 +180,7 @@ function usesScope(ctx, mod, lang) {
   const sc = new Scope(base);
   for (const u of mod.uses) {
     const ps = packageScope(ctx, u, mod.file, mod.loc, { ctx, file: mod.file });
-    if (ps) for (const [k, v] of ps.map) sc.def(k, v);
+    if (ps) for (const [k, v] of ps.map) { const prev = sc.local(k); sc.def(k, vhdlFunc(prev) && vhdlFunc(v) ? mergeFuncs(prev, v) : v); }
   }
   return sc;
 }
@@ -1270,7 +1286,8 @@ function bindExpr0(E, e, expect, loc) {
       }
       let inner = bindExpr(E, e.expr, t || expect, loc);
       if (sn && sn.kind === 'logic' && inner.k === 'str') inner = strAsLogic(inner, { t: vecT(1) });
-      if (sn && inner.t.kind === 'logic') return fold({ k: 'conv', a: inner, ext: inner.t.s, t: { ...inner.t, s: !!sn.signed } });
+      // (std_logic_vector'(…) / bit_vector'(…) carry their type mark: overloads on the type, #72)
+      if (sn && inner.t.kind === 'logic') { const { mark: _m, ...it } = inner.t; return fold({ k: 'conv', a: inner, ext: inner.t.s, t: { ...it, s: !!sn.signed, ...(sn.mark ? { mark: sn.mark } : {}) } }); }
       return inner;
     }
   }
@@ -1408,6 +1425,8 @@ function indexNode(E, base, idxExpr, loc) {
 
 function sliceNode(E, base, leftE, rightE, loc, dir) {
   const left = bindExpr(E, leftE, null, loc), right = bindExpr(E, rightE, null, loc);
+  // a slice of a string (s(1 to n), n known at run time too): a string
+  if (base.t.kind === 'str') return { k: 'strslice', base, left, right, ...(dir ? { dir } : {}), t: STR };
   if (base.t.kind === 'array') return arraySliceNode(E, base, left, right, loc, dir);
   if (left.k === 'c' && right.k === 'c') {
     // a VHDL null slice (`v(-1 downto 0)`, `v(0 to -1)`): no element
@@ -1568,6 +1587,11 @@ function bindAttr(E, e, loc) {
     for (let k = 1; k < dim; k++) { if (t.elem?.kind !== 'array' && t.elem?.kind !== 'logic') throw new ElabError(`'${at}(${dim}): no dimension ${dim}`, loc); t = t.elem; }
   }
   if (t.kind === 'str' && at === 'length' && node) return { k: 'strlen', a: node, t: INT };
+  // the bounds of a string (strings index from 1 here): 'low / 'left 1, 'high / 'right its length
+  if (t.kind === 'str' && ['left', 'low'].includes(at)) return cint(1);
+  if (t.kind === 'str' && ['right', 'high'].includes(at)) return t.slen !== undefined ? cint(t.slen) : node ? { k: 'strlen', a: node, t: INT } : cint(0);
+  if (t.kind === 'str' && at === 'ascending') return { k: 'c', val: V.fromBool(true), t: BOOL };
+  if (t.kind === 'str' && at === 'length' && t.slen !== undefined) return cint(t.slen);
   if (t.kind === 'str' && at !== 'event') throw new ElabError(`'${at} of a string is not supported (use std_logic_vector)`, loc);
   if ((t.kind === 'int' || t.kind === 'enum' || t.kind === 'bool') && ['left', 'right', 'high', 'low'].includes(at)) {
     // scalar types: bounds of the range; T'low is T'left of an ascending range, T'right of a
@@ -1633,6 +1657,28 @@ function bindAggregate(E, e, expect, loc) {
       return fold({ k: 'cat', parts, t: vecT(parts.reduce((a, p) => a + p.t.w, 0)) });
     }
     throw new ElabError('cannot determine the type of the aggregate', loc);
+  }
+  if (expect.kind === 'str') {
+    // a string aggregate ((others => ' '), ('a', 'b'), (1 => 'x', others => '.')) of constant
+    // characters: its declared length, or as many characters as it lists (strings index from 1 here)
+    const chars = [];
+    let pos = 0, other = null;
+    const ch = it => String.fromCharCode(V.toNum(constOf(E, bindExpr(E, it.value, CHAR, loc), loc)) & 255);
+    for (const it of e.items) {
+      if (!it.choices) { chars[pos++] = ch(it); continue; }
+      for (const c of it.choices) {
+        if (c === 'others') { other = ch(it); continue; }
+        if (c.range) { const r = evalRange(E, c.range); if (!r.isNull) for (let i = Math.min(r.left, r.right); i <= Math.max(r.left, r.right); i++) chars[i - 1] = ch(it); continue; }
+        chars[V.toNum(constOf(E, bindExpr(E, c, null, loc), loc)) - 1] = ch(it);
+      }
+    }
+    const n = expect.slen ?? chars.length;
+    let str = '';
+    for (let i = 0; i < n; i++) {
+      if (chars[i] === undefined && other === null) throw new ElabError(`string aggregate: no value for character ${i + 1}`, loc);
+      str += chars[i] ?? other;
+    }
+    return { k: 'str', value: str, t: expect.slen !== undefined ? expect : STR };
   }
   if (expect.kind === 'array' && expect.fields) {
     // record aggregate: positional and / or named (field => value, others => value)
@@ -1777,7 +1823,10 @@ function bindBuiltin(E, name, rawArgs, expect, loc) {
     case 'unsigned': case 'std_logic_vector': case 'std_ulogic_vector': case 'to_stdlogicvector': case 'to_bitvector': case 'to_stdulogicvector': case 'bit_vector': {
       const a = A(0);
       if (a.t.kind === 'int') throw new ElabError(`cannot convert an integer with ${name}(); use to_unsigned(x, n)`, loc);
-      return conv(a, a.t.w, false);
+      const n = conv(a, a.t.w, false);
+      // (std_logic_vector(u) / bit_vector(…) keep their type mark: overloads on the type, #72)
+      const mark = name === 'unsigned' ? null : /bit/.test(name) ? 'bit_vector' : 'std_logic_vector';
+      return mark ? { ...n, t: { ...n.t, mark } } : n;
     }
     case 'signed': { const a = A(0); return conv(a, a.t.w, true); }
     case 'to_01': case 'to_x01': case 'std_logic': case 'to_stdulogic': case 'to_bit': return A(0);
@@ -1934,6 +1983,8 @@ function pickOverload(E, entry, rawArgs, loc) {
       default: return true;
     }
   };
+  // a character literal ('q') is a character, not a one-character string (it binds as either)
+  const charLit = k => { const r = rawArgs[k]; const x = r && r.named !== undefined ? r.value : r; return !!(x && ((x.op === 'str' && x.char) || (x.op === 'lit' && x.scalar && x.ch))); };
   const fits = (alt, strict) => {
     const ps = alt.decl.params, used = new Set();
     if (acts.length > ps.length) return false;
@@ -1945,6 +1996,7 @@ function pickOverload(E, entry, rawArgs, loc) {
       used.add(i);
       let pt;
       try { pt = elabType(alt.E, ps[i].type, true); } catch { return false; }
+      if (charLit(k)) { if (pt.char) continue; if (pt.kind === 'str' && strict) return false; }
       if (!fitsType(a.n, pt, strict)) return false;
     }
     return ps.every((p, i) => used.has(i) || p.default);

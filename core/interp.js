@@ -6,6 +6,7 @@
 import * as V from './values.js';
 
 // A VHDL slice against its direction (`v(-1 downto 0)`, `v(i + N - 1 downto i)` with N = 0): null
+const MAX_CALL_DEPTH = 1000;   // nested function calls (recursion)
 const nullSlice = (dir, l, r) => (dir === 'downto' ? l < r : l > r);
 // The elements of a slice of an array with run-time bounds: { off, len } (null: an unknown bound)
 function dasliceRange(n, ctx) {
@@ -115,7 +116,12 @@ export function evalE(n, ctx) {
       }
       return V.withSign(V.resize(V.withSign(a, n.ext), n.t.w), n.t.s);
     }
-    case 'call': return callFunction(n, ctx);
+    case 'call':
+      try { return callFunction(n, ctx); } catch (e) {
+        // (the JavaScript stack ran out first: a recursion too deep for the simulator)
+        if (e instanceof RangeError) throw new SimError(`recursion too deep in function ${n.fn?.name || ''}`);
+        throw e;
+      }
     case 'sys': return evalSys(n, ctx);
     case 'edge': {
       const s = n.sig;
@@ -149,6 +155,14 @@ export function evalE(n, ctx) {
       return V.fromInt(str.charCodeAt(k) & 255, 8, false);
     }
     case 'strlen': return V.fromInt(toStr(evalE(n.a, ctx)).length);
+    case 'strslice': {   // s(l to r) of a string (strings index from 1 here); null: ''
+      const str = toStr(evalE(n.base, ctx)), l = evalE(n.left, ctx), r = evalE(n.right, ctx);
+      if (l.x || r.x) throw new SimError('a string slice with an unknown bound');
+      const a = V.toNum(l), b = V.toNum(r);
+      if (n.dir === 'downto' || (n.dir ? a > b : false)) return { str: '' };
+      if (a < 1 || b > str.length) throw new SimError(`slice ${a} to ${b} out of range for a string of length ${str.length}`);
+      return { str: str.slice(a - 1, b) };
+    }
     case 'image': {
       const v = evalE(n.a, ctx);
       if (n.hex && !Array.isArray(v) && !isStr(v)) return { str: V.toHex(v).padStart(Math.ceil(v.w / 4), '0').toUpperCase() };
@@ -487,8 +501,10 @@ function callFunction(n, ctx) {
     const v = evalE(a, ctx);
     frame[p.i] = Array.isArray(v) ? v.slice() : (p.t.kind === 'str' ? v : fit(v, p.t.w, p.t.s));
   });
+  // (the depth counts in the callee's context too: it was copied before the increment, so a function
+  // calling itself without end overflowed the JavaScript stack instead of this error)
+  if (++ctx.depth > MAX_CALL_DEPTH) { ctx.depth--; throw new SimError(`recursion too deep in function ${f.name} (more than ${MAX_CALL_DEPTH} nested calls)`); }
   const sub = { ...ctx, frame, inFn: true };
-  if (++ctx.depth > 2000) throw new SimError(`recursion too deep in function ${f.name}`);
   try {
     const r = runSync(exec(f.body, sub));
     let val;

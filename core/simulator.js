@@ -271,6 +271,8 @@ export class Simulator {
     const old = sig.val;
     if (Array.isArray(nv)) {
       if (Array.isArray(old) && nv.length === old.length && nv.every((e, i) => (Array.isArray(e) ? sameDeep(e, old[i]) : V.same(e, old[i])))) return;
+    } else if (old?.str !== undefined || nv?.str !== undefined) {
+      if (old?.str === nv?.str) return;   // (a string signal: its text; V.same took any two strings as equal)
     } else if (!Array.isArray(old) && V.same(old, nv) && old.w === nv.w) return;
     this.changed(sig, old, nv);
   }
@@ -507,11 +509,27 @@ export class Simulator {
   run(until = Infinity, { maxSteps = Infinity } = {}) {
     this.start();
     let steps = 0, brokeEarly = false;
+    try {
+      this.runLoop(until, maxSteps, () => { brokeEarly = true; });
+    } catch (e) {
+      // an error outside a process (a scheduled write that does not fit its target: a string
+      // character out of range): reported, the simulation stops, as for an error in a process
+      if (!(e instanceof SimError)) throw e;
+      this.emit({ kind: 'error', text: e.message, file: e.file, line: e.loc?.line });
+      this.finish('error');
+    }
+    if (!this.finished && !brokeEarly && until !== Infinity && until > this.now) this.now = until;
+    if (this.writeBuf) this.print('');
+    return { now: this.now, finished: this.finished, pending: this.heap.size > 0, stats: this.stats };
+  }
+
+  runLoop(until, maxSteps, onBreak) {
+    let steps = 0;
     if (this.active.length || this.nbaQ.length || this.nextDelta.length) this.deltaLoop();
     while (!this.finished) {
       const top = this.heap.peek();
       if (!top || top.t > until) break;
-      if (++steps > maxSteps) { brokeEarly = true; break; }
+      if (++steps > maxSteps) { onBreak(); break; }
       this.now = top.t;
       this.stamp++;
       while (this.heap.size && this.heap.peek().t === this.now) {
@@ -535,9 +553,6 @@ export class Simulator {
       }
       this.deltaLoop();
     }
-    if (!this.finished && !brokeEarly && until !== Infinity && until > this.now) this.now = until;
-    if (this.writeBuf) this.print('');
-    return { now: this.now, finished: this.finished, pending: this.heap.size > 0, stats: this.stats };
   }
 
   // Run fn(sim) at absolute time t (ps), inside that time step (before its delta cycles).
