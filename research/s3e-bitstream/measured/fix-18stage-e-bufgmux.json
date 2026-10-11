@@ -1,0 +1,5 @@
+{"source":"stage E: the 8 BUFGMUX of the top and bottom with I0, I1 and S used (a design implemented by ISE for the XC3S250E), gen-sitevar.mjs with the select inverter or I1_USED removed from one buffer at a time: the select pin not inverted (SINV:S) sets one bit per buffer, I1_USED none",
+"types":{"CLKT":{"features":{"BUFGMUX_X1Y10:SINV:S":["2,13"],"BUFGMUX_X1Y11:SINV:S":["2,40"],"BUFGMUX_X2Y10:SINV:S":["2,56"],"BUFGMUX_X2Y11:SINV:S":["2,77"],
+"BUFGMUX_X1Y10:I1_USED:0":[],"BUFGMUX_X1Y11:I1_USED:0":[],"BUFGMUX_X2Y10:I1_USED:0":[],"BUFGMUX_X2Y11:I1_USED:0":[]}},
+"CLKB":{"features":{"BUFGMUX_X1Y0:SINV:S":["2,70"],"BUFGMUX_X1Y1:SINV:S":["2,39"],"BUFGMUX_X2Y0:SINV:S":["2,23"],"BUFGMUX_X2Y1:SINV:S":["2,2"],
+"BUFGMUX_X1Y0:I1_USED:0":[],"BUFGMUX_X1Y1:I1_USED:0":[],"BUFGMUX_X2Y0:I1_USED:0":[],"BUFGMUX_X2Y1:I1_USED:0":[]}}}}
