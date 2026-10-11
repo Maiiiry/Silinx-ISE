@@ -10,6 +10,15 @@ const BIN_PREC = [
   ['<', '<=', '>', '>='], ['<<', '>>', '<<<', '>>>'], ['+', '-'], ['*', '/', '%'], ['**'],
 ];
 const UNARY = new Set(['!', '~', '-', '+', '&', '|', '^', '~&', '~|', '~^']);
+// SystemVerilog data types that are not Verilog-2001 keywords: identifiers everywhere else (a
+// Verilog-2001 design may name a signal `bit`); int / shortint / longint / byte are signed
+const ATOMS = { int: 32, shortint: 16, longint: 64, byte: 8 };
+const TYPEWORDS = new Set(['bit', ...Object.keys(ATOMS)]);
+// nets of a port declaration (input wor x): the wired ones resolve their drivers (WIRED)
+const PORT_NETS = ['wire', 'reg', 'logic', 'tri', 'var', 'supply0', 'supply1', ...Object.keys(WIRED)];
+// immediate and concurrent assertions (assert (e); assert property (e);)
+const ASSERTIONS = new Set(['assert', 'assume', 'cover', 'restrict']);
+const lit1 = b => ({ op: 'lit', bits: b, signed: false, sized: true });
 
 class Sync extends Error {}
 
@@ -25,6 +34,48 @@ export function parse(source, file = 'input', opts = {}) {
 class Parser {
   constructor(tokens, file, errors, timescale) {
     this.toks = tokens; this.i = 0; this.file = file; this.errors = errors; this.timescale = timescale;
+    this.typeNames = new Set();   // typedef names (a declaration may start with one)
+    this.genScopes = [];          // generate scopes: the count of their generate constructs
+    this.blockDepth = 0;          // inside generate blocks (their declarations are their own)
+    this.portNames = new Map();
+  }
+  isWord(v, t = this.tok) { return t.t === 'id' && t.v === v; }
+  // does a declaration start here with a data type (not an instance of a module: `bit u1 (…)`)
+  isTypeStart() {
+    const t = this.tok;
+    if (t.t !== 'id') return false;
+    if (t.v === 'struct' || t.v === 'enum' || t.v === 'union') return this.peek().t === 'id' || this.is('{', this.peek());
+    if (!TYPEWORDS.has(t.v) && !this.typeNames.has(t.v)) return false;
+    const p = this.peek();
+    if (p.t === 'id') return !this.is('(', this.peek(2));
+    return this.is('[', p) || this.is('signed', p) || this.is('unsigned', p);
+  }
+
+  // the declarations at the start of a block: its variables, parameters, types
+  blockDecls() {
+    const decls = [];
+    for (;;) {
+      if (this.isAny('reg', 'integer', 'logic', 'real', 'time') || this.isTypeStart()) this.netDecl([], decls, true);
+      else if (this.isAny('parameter', 'localparam')) {
+        this.next();
+        const { type } = this.paramType();
+        do { const loc = this.loc(); const n = this.ident(); this.expect('='); decls.push({ kind: 'const', name: n, type, value: this.expr(), loc }); } while (this.accept(','));
+        this.expect(';');
+      } else if (this.isWord('typedef')) this.typedef(decls);
+      else break;
+    }
+    for (const d of decls) if (d.kind === 'signal') d.net = 'variable';
+    return decls;
+  }
+  // the index of the ']' closing the '[' at token k (-1: none)
+  closeBracket(k) {
+    for (let d = 0; k < this.toks.length; k++) {
+      const t = this.toks[k];
+      if (t.t === 'eof') return -1;
+      if (this.is('[', t)) d++;
+      else if (this.is(']', t) && --d === 0) return k;
+    }
+    return -1;
   }
   get tok() { return this.toks[this.i]; }
   peek(k = 1) { return this.toks[Math.min(this.i + k, this.toks.length - 1)]; }
@@ -65,6 +116,9 @@ class Parser {
 
   parseFile() {
     const units = [];
+    // the compilation unit's own declarations (SystemVerilog): typedefs, functions, tasks,
+    // parameters outside any module; every module of the file sees them
+    const unitDecls = [], unitItems = [];
     while (this.tok.t !== 'eof') {
       if (this.is('module') || this.is('macromodule')) {
         try { units.push(this.module()); }
@@ -73,12 +127,47 @@ class Parser {
           while (this.tok.t !== 'eof' && !this.is('endmodule')) this.next();
           this.accept('endmodule');
         }
+      } else if (this.isAny('function', 'task', 'localparam', 'parameter') || this.isWord('typedef')) {
+        this.cur = { params: [] };
+        this.moduleItem(unitItems, unitDecls, false);
       } else {
         this.error(`unexpected '${this.tok.v}' outside module`);
         this.next();
       }
     }
+    if (unitDecls.length) for (const u of units) u.decls = [...unitDecls, ...u.decls];
     return units;
+  }
+
+  // generate scopes (the module, each generate block): an unnamed generate block is named
+  // genblk<n>, n the number of its generate construct in the scope (IEEE 1364-2005 12.4.3), with
+  // zeros after "genblk" while that name is declared in the scope
+  beginGenScope() { this.genScopes.push({ n: 0, autos: [] }); }
+  endGenScope(items, decls, extra = []) {
+    const s = this.genScopes.pop();
+    if (!s.autos.length) return;
+    const names = new Set(extra);
+    for (const d of decls) if (d.name) names.add(d.name);
+    const visit = its => {
+      for (const it of its) {
+        if (it.kind === 'instance') names.add(it.name.replace(/\[.*$/, ''));
+        if (it.kind === 'generate_if' || it.kind === 'generate_for') {
+          if (it.label && !it.autoLabel) names.add(it.label);
+          if (it.elseLabel && !it.autoElse) names.add(it.elseLabel);
+          if (it.elseChain) visit(it.else);
+        }
+      }
+    };
+    visit(items);
+    for (const { node, key, n } of s.autos) {
+      let name = `genblk${n}`;
+      while (names.has(name)) name = `genblk0${name.slice(6)}`;
+      node[key] = name;
+    }
+  }
+  autoLabel(node, key, n) {
+    node[key === 'label' ? 'autoLabel' : 'autoElse'] = true;
+    this.genScopes[this.genScopes.length - 1]?.autos.push({ node, key, n });
   }
 
   // ---------------- module ----------------
@@ -100,8 +189,9 @@ class Parser {
           if (this.is('parameter') || this.is('localparam')) kind = this.next().v;
           const { type } = this.paramType();
           const pn = this.ident();
-          this.expect('=');
-          mod.params.push({ name: pn, type, default: this.expr(), local: kind === 'localparam' });
+          // (SystemVerilog: a parameter of the port list may have no default; the instance sets it)
+          const def = this.accept('=') ? this.expr() : null;
+          mod.params.push({ name: pn, type, default: def, local: kind === 'localparam' });
         } while (this.accept(','));
       }
       this.expect(')');
@@ -121,34 +211,54 @@ class Parser {
       this.expect(')');
     }
     this.expect(';');
+    this.beginGenScope();
     while (!this.is('endmodule') && this.tok.t !== 'eof') this.moduleItem(mod.items, mod.decls, true);
+    this.endGenScope(mod.items, mod.decls, mod.ports.map(p => p.name));
     this.expect('endmodule');
+    if (this.accept(':')) this.ident();
     for (const p of mod.ports) {
       if (p.declared === false) this.error(`port '${p.name}' has no direction declaration`, { line: p.loc.line, col: p.loc.col });
       delete p.declared;
+      // a supply0 / supply1 port: a net driven by a constant
+      if (p.net === 'supply0' || p.net === 'supply1') mod.items.push({ kind: 'assign', target: { op: 'ref', name: p.name }, value: lit1(p.net === 'supply1' ? '1' : '0'), delay: null, loc: p.loc });
+      // output wire y = e: a continuous assignment (a net declaration assignment)
+      if (p.default && p.dir === 'out' && p.isNet) { mod.items.push({ kind: 'assign', target: { op: 'ref', name: p.name }, value: p.default, delay: null, loc: p.loc }); p.default = null; }
+      delete p.isNet;
     }
     return mod;
   }
 
+  // the net kind and the type of a port declaration, after its direction
+  // (isNet: a net, not a variable: a net keyword, or no data type at all; the `= value` of an
+  // output net is a continuous assignment, of a variable its initial value)
+  portType() {
+    let net = 'wire', isNet = true;
+    if (this.isAny(...PORT_NETS) || this.isWord('var')) { net = this.next().v; isNet = !['reg', 'logic', 'var'].includes(net); }
+    if (this.isAny('logic', 'reg')) { this.next(); if (net === 'wire' && isNet && this.toks[this.i - 2].v !== 'wire') isNet = false; }
+    const t = this.tok;
+    // (a port named like a type: input bit, …)
+    if (t.t === 'id' && (TYPEWORDS.has(t.v) || this.typeNames.has(t.v)) && [',', ')', ';', '='].includes(this.peek().v)) return { net, isNet, type: { kind: 'logic', range: null, signed: false } };
+    if (net === 'wire' && (this.isAny('integer', 'time', 'real', 'realtime') || (t.t === 'id' && (TYPEWORDS.has(t.v) || this.typeNames.has(t.v) || t.v === 'struct' || t.v === 'enum'))) && this.toks[this.i - 1].v !== 'wire') isNet = false;
+    return { net, isNet, type: this.dataType() };
+  }
+
   ansiPorts(mod) {
-    let dir = 'in', type = null, net = 'wire';
+    let dir = 'in', type = null, net = 'wire', isNet = true;
     do {
       if (this.isAny('input', 'output', 'inout')) {
         const d = this.next().v;
         dir = d === 'input' ? 'in' : d === 'output' ? 'out' : 'inout';
-        net = 'wire';
-        if (this.isAny('wire', 'reg', 'logic', 'tri')) net = this.next().v;
-        if (this.is('integer')) { this.next(); type = { kind: 'integer', range: null }; }
-        else {
-          const signed = !!this.accept('signed');
-          type = { kind: 'logic', range: this.optRange(), signed };
-        }
+        ({ net, type, isNet } = this.portType());
       }
       const loc = this.loc();
       const pn = this.ident();
+      let t = type;
+      const dims = this.unpackedDims();
+      for (let k = dims.length - 1; k >= 0; k--) t = { kind: 'array', range: dims[k], elem: t };
       let def = null;
       if (this.accept('=')) def = this.expr();
-      const port = { name: pn, dir, type, default: def, loc, net };
+      const port = { name: pn, dir, type: t, default: def, loc, net, isNet };
+      if (WIRED[net]) port.wired = WIRED[net];
       if (this.portNames.has(pn)) { this.error(`port '${pn}' is declared twice`, this.toks[this.i - 1]); continue; }
       mod.ports.push(port); this.portNames.set(pn, port);
     } while (this.accept(','));
@@ -157,9 +267,16 @@ class Parser {
   paramType() {
     if (this.is('integer')) { this.next(); return { type: { kind: 'integer', range: null } }; }
     if (this.is('real')) { this.next(); return { type: { kind: 'real' } }; }
+    // a data type before the name: parameter logic [3:0] P, parameter int N, parameter my_t P
+    if (this.isAny('logic', 'reg') || ((this.isTypeStart() || this.isWord('struct') || this.isWord('enum')) && !this.is('=', this.peek()))) {
+      this.accept('logic') || this.accept('reg');
+      return { type: this.dataType() };
+    }
     const signed = !!this.accept('signed');
+    this.accept('unsigned');
     const range = this.optRange();
-    return { type: range || signed ? { kind: 'logic', range, signed } : null };
+    // (signed without a range: the range of the value, signedOnly)
+    return { type: range || signed ? { kind: 'logic', range, signed, ...(range ? {} : { signedOnly: true }) } : null };
   }
 
   optRange() {
@@ -170,17 +287,159 @@ class Parser {
     return { left, right, dir: null };
   }
 
+  // packed dimensions: [7:0][3:0] (the first is the outermost)
+  packedDims() {
+    const dims = [];
+    while (this.is('[')) dims.push(this.optRange());
+    return dims;
+  }
+
+  // unpacked dimensions of a declared name: [0:3], [16] (SystemVerilog: 16 elements, 0 to 15)
+  unpackedDims() {
+    const dims = [];
+    while (this.is('[')) {
+      this.next();
+      const left = this.expr();
+      if (this.accept(':')) { const right = this.expr(); this.expect(']'); dims.push({ left, right, dir: null }); continue; }
+      this.expect(']');
+      dims.push({ left: { op: 'int', value: '0' }, right: { op: 'binary', o: '-', a: left, b: { op: 'int', value: '1' } }, dir: null });
+    }
+    return dims;
+  }
+
+  // A data type (after a net or variable keyword, if any): [signed | unsigned] [packed dimensions];
+  // SystemVerilog: bit, int, shortint, longint, byte, a typedef name with packed dimensions,
+  // struct packed { … }, enum [base type] { … }. The IR types: logic (range, signed, inner: the
+  // packed dimensions after the first), integer, named (name, dims), struct (fields), svenum.
+  dataType() {
+    if (this.accept('integer') || this.accept('time')) return { kind: 'integer', range: null };
+    if (this.isAny('real', 'realtime')) { this.next(); return { kind: 'real' }; }
+    const t = this.tok;
+    if (t.t === 'id' && ATOMS[t.v]) {
+      this.next();
+      const unsigned = !!this.accept('unsigned');
+      this.accept('signed');
+      if (t.v === 'int' && !unsigned) return { kind: 'integer', range: null };
+      return { kind: 'logic', range: { left: { op: 'int', value: String(ATOMS[t.v] - 1) }, right: { op: 'int', value: '0' }, dir: null }, signed: !unsigned };
+    }
+    if (this.isWord('struct') || this.isWord('union')) return this.structType();
+    if (this.isWord('enum')) return this.enumType();
+    if (t.t === 'id' && this.typeNames.has(t.v)) {
+      this.next();
+      const dims = this.packedDims();
+      return { kind: 'named', name: t.v, ...(dims.length ? { dims } : {}) };
+    }
+    if (this.isWord('bit')) this.next();
+    const signed = !!this.accept('signed');
+    this.accept('unsigned');
+    const dims = this.packedDims();
+    const ty = { kind: 'logic', range: dims[0] || null, signed };
+    if (dims.length > 1) ty.inner = dims.slice(1);
+    return ty;
+  }
+
+  // struct packed [signed] { type name, name; … } [packed dimensions]: the first member is the
+  // most significant (an unpacked struct is read as a packed one; a union is not supported)
+  structType() {
+    const loc = this.loc();
+    if (this.isWord('union')) { this.error('unions are not supported'); throw new Sync(); }
+    this.next();
+    this.isWord('packed') && this.next();
+    const signed = !!this.accept('signed');
+    this.accept('unsigned');
+    this.expect('{');
+    const fields = [];
+    while (!this.is('}') && this.tok.t !== 'eof') {
+      if (this.isWord('rand') || this.isWord('randc')) this.next();
+      this.accept('logic') || this.accept('reg') || this.accept('wire');
+      const type = this.dataType();
+      do { fields.push({ name: this.ident(), type }); } while (this.accept(','));
+      this.expect(';');
+    }
+    this.expect('}');
+    const dims = this.packedDims();
+    return { kind: 'struct', fields, signed, loc, ...(dims.length ? { dims } : {}) };
+  }
+
+  // enum [base type] { A, B = 5, C } : the names are constants of the base type (int by
+  // default), each one more than the one before unless it is given a value
+  enumType() {
+    this.next();
+    let base = null;
+    if (!this.is('{')) { this.accept('logic') || this.accept('reg'); base = this.dataType(); }
+    this.expect('{');
+    const items = [];
+    do {
+      const loc = this.loc();
+      const name = this.ident();
+      if (this.is('[')) { this.error('enum name ranges are not supported'); throw new Sync(); }
+      items.push({ name, value: this.accept('=') ? this.expr() : null, loc });
+    } while (this.accept(','));
+    this.expect('}');
+    const dims = this.packedDims();
+    return { kind: 'svenum', base, items, ...(dims.length ? { dims } : {}) };
+  }
+
+  // typedef <data type> name [unpacked dimensions];
+  typedef(decls) {
+    const loc = this.loc();
+    this.next();
+    this.accept('logic') || this.accept('reg') || this.accept('wire');
+    let type = this.dataType();
+    const name = this.ident();
+    const dims = this.unpackedDims();
+    for (let k = dims.length - 1; k >= 0; k--) type = { kind: 'array', range: dims[k], elem: type };
+    this.expect(';');
+    this.typeNames.add(name);
+    decls.push({ kind: 'type', name, type, loc });
+  }
+
   // Parses one module/generate item, appending to items/decls.
   moduleItem(items, decls, topLevel) {
     const t = this.tok;
     try {
       if (this.accept(';')) return;
       if (this.isAny('input', 'output', 'inout')) return this.portDecl();
-      if (this.isAny('wire', 'reg', 'logic', 'integer', 'tri', 'supply0', 'supply1', 'genvar', 'time', 'real', 'realtime', ...Object.keys(WIRED)))
-        return this.netDecl(items, decls);
+      if (this.isAny('wire', 'reg', 'logic', 'integer', 'tri', 'supply0', 'supply1', 'genvar', 'time', 'real', 'realtime', ...Object.keys(WIRED)) || this.isTypeStart())
+        return this.netDecl(items, decls, this.blockDepth > 0);
+      if (this.isWord('typedef')) return this.typedef(decls);
       if (this.is('specify')) {   // specify blocks (path delays, timing checks): ignored by simulation
         while (!this.is('endspecify') && this.tok.t !== 'eof') this.next();
         this.expect('endspecify');
+        return;
+      }
+      if (this.isWord('specparam')) {   // specify parameters: constants (used by specify blocks)
+        this.next();
+        this.optRange();
+        do {
+          const loc = this.loc();
+          const pn = this.ident(); this.expect('=');
+          let value = this.expr();
+          if (this.accept(':')) { value = this.expr(); this.expect(':'); this.expr(); }   // min:typ:max: typ
+          decls.push({ kind: 'const', name: pn, type: null, value, loc });
+        } while (this.accept(','));
+        this.expect(';');
+        return;
+      }
+      // concurrent assertions (assert property (…);): not checked by simulation
+      if ((t.t === 'id' && ASSERTIONS.has(t.v)) || (t.t === 'id' && this.is(':', this.peek()) && this.peek(2).t === 'id' && ASSERTIONS.has(this.peek(2).v))) {
+        let depth = 0;
+        while (this.tok.t !== 'eof' && !(depth === 0 && this.is(';'))) {
+          if (this.is('(')) depth++;
+          else if (this.is(')')) depth--;
+          this.next();
+        }
+        this.expect(';');
+        return;
+      }
+      // elaboration system tasks ($info, $warning, $error, $fatal): messages of the elaboration
+      if (t.t === 'sys' && ['$info', '$warning', '$error', '$fatal'].includes(t.v)) {
+        const loc = this.loc();
+        this.next();
+        const args = [];
+        if (this.accept('(')) { if (!this.is(')')) do { args.push(this.expr()); } while (this.accept(',')); this.expect(')'); }
+        this.expect(';');
+        items.push({ kind: 'elabtask', name: t.v, args, loc });
         return;
       }
       if (this.is('event')) {   // named events: 1-bit variables toggled by `-> e`
@@ -224,9 +483,13 @@ class Parser {
         this.expect('endgenerate');
         return;
       }
-      if (this.is('for')) return items.push(this.genFor());
-      if (this.is('if')) return items.push(this.genIf());
-      if (this.is('case')) return items.push(this.genCase());
+      // generate constructs: numbered in their scope (the names of their unnamed blocks)
+      if (this.isAny('for', 'if', 'case')) {
+        const n = this.genScopes.length ? ++this.genScopes[this.genScopes.length - 1].n : 0;
+        if (this.is('for')) return items.push(this.genFor(n));
+        if (this.is('if')) return items.push(this.genIf(n));
+        return items.push(this.genCase(n));
+      }
       if (this.is('begin')) { // bare generate block
         const blk = this.genBlock();
         items.push({ kind: 'generate_if', label: blk.label, cond: { op: 'int', value: '1' }, then: blk.items, else: [], decls: blk.decls, loc: this.loc(t) });
@@ -257,11 +520,7 @@ class Parser {
   portDecl() {
     const d = this.next().v;
     const dir = d === 'input' ? 'in' : d === 'output' ? 'out' : 'inout';
-    let net = 'wire';
-    if (this.isAny('wire', 'reg', 'logic', 'tri')) net = this.next().v;
-    let type;
-    if (this.accept('integer')) type = { kind: 'integer', range: null };
-    else { const signed = !!this.accept('signed'); type = { kind: 'logic', range: this.optRange(), signed }; }
+    const { net, type, isNet } = this.portType();
     do {
       const loc = this.loc();
       const pn = this.ident();
@@ -270,7 +529,11 @@ class Parser {
         this.error(`'${pn}' is not in the port list`, this.toks[this.i - 1]);
         port = { name: pn, dir, type, default: null, loc };
       }
-      port.dir = dir; port.type = type; port.declared = true; port.net = net;
+      let t = type;
+      const dims = this.unpackedDims();
+      for (let k = dims.length - 1; k >= 0; k--) t = { kind: 'array', range: dims[k], elem: t };
+      port.dir = dir; port.type = t; port.declared = true; port.net = net; port.isNet = isNet;
+      if (WIRED[net]) port.wired = WIRED[net];
       if (this.accept('=')) port.default = this.expr();
     } while (this.accept(','));
     this.expect(';');
@@ -278,15 +541,16 @@ class Parser {
 
   // local: a declaration in a function, task or block (never the module port of that name)
   netDecl(items, decls, local = false) {
-    const kw = this.next().v;
+    // (a declaration that starts with its data type, int x / my_t y: a variable)
+    const kw = this.tok.t === 'id' ? 'logic' : this.next().v;
     if (kw === 'genvar') { do { this.ident(); } while (this.accept(',')); this.expect(';'); return; }
     let type;
     if (kw === 'integer' || kw === 'time') type = { kind: 'integer', range: null };
     else if (kw === 'real' || kw === 'realtime') type = { kind: 'real' };
     else {
       if (this.isAny('reg', 'logic', 'wire')) this.next();
-      const signed = !!this.accept('signed'); this.accept('unsigned');
-      type = { kind: 'logic', range: this.optRange(), signed };
+      if (this.isWord('var')) this.next();
+      type = this.dataType();
     }
     const net = kw === 'reg' || kw === 'logic' || kw === 'integer' || kw === 'time' || kw === 'real' ? 'reg' : 'wire';
     const wired = WIRED[kw];
@@ -294,17 +558,18 @@ class Parser {
       const loc = this.loc();
       const name = this.ident();
       let t = type;
-      const dims = [];
-      while (this.is('[')) dims.push(this.optRange());   // memory dimensions: m [0:1][0:3] is 2 arrays of 4
+      const dims = this.unpackedDims();   // memory dimensions: m [0:1][0:3] is 2 arrays of 4; m [16]: 0 to 15
       for (let k = dims.length - 1; k >= 0; k--) t = { kind: 'array', range: dims[k], elem: t };
       let init = null;
       if (this.accept('=')) init = this.expr();
       const port = local ? null : this.portNames.get(name);
       if (port) {
         // `output q; reg [3:0] q;` -> refine the port declaration
-        if (type.range && !port.type.range) port.type = type;
+        if ((type.range || type.kind !== 'logic') && !port.type.range) port.type = type;
         if (type.signed) port.type = { ...port.type, signed: true };
         port.net = kw === 'logic' ? 'logic' : net;
+        if (wired) port.wired = wired;
+        if (kw === 'supply0' || kw === 'supply1') port.net = kw;
         if (init) items.push({ kind: 'process', label: null, sens: null, initial: true, decls: [], body: [{ kind: 'assign', target: { op: 'ref', name }, value: init, nonblocking: false, delay: null }], loc });
         continue;
       }
@@ -351,22 +616,27 @@ class Parser {
     return evs;
   }
 
+  // a generate block: begin [: name] items end [: name], or a single item (its own scope)
   genBlock() {
     let label = null;
-    if (this.accept('begin')) {
-      if (this.accept(':')) label = this.ident();
-      const items = [], decls = [];
-      while (!this.is('end') && this.tok.t !== 'eof') this.moduleItem(items, decls, false);
-      this.expect('end');
-      if (this.accept(':')) this.ident();
-      return { label, items, decls };
-    }
     const items = [], decls = [];
-    this.moduleItem(items, decls, false);
+    this.beginGenScope();
+    this.blockDepth++;
+    try {
+      if (this.accept('begin')) {
+        if (this.accept(':')) label = this.ident();
+        while (!this.is('end') && this.tok.t !== 'eof') this.moduleItem(items, decls, false);
+        this.expect('end');
+        if (this.accept(':')) this.ident();
+      } else this.moduleItem(items, decls, false);
+    } finally {
+      this.blockDepth--;
+    }
+    this.endGenScope(items, decls);
     return { label, items, decls };
   }
 
-  genFor() {
+  genFor(n = 0) {
     const loc = this.loc();
     this.expect('for'); this.expect('(');
     this.accept('genvar');
@@ -377,7 +647,9 @@ class Parser {
     const step = this.stepValue(v);
     this.expect(')');
     const blk = this.genBlock();
-    return { kind: 'generate_for', label: blk.label || `genblk_${v}`, var: v, init, cond, step, decls: blk.decls, items: blk.items, loc };
+    const node = { kind: 'generate_for', label: blk.label, var: v, init, cond, step, decls: blk.decls, items: blk.items, loc };
+    if (!blk.label) this.autoLabel(node, 'label', n);
+    return node;
   }
 
   // after `i` in a step: `= expr`, `++`, `--`, `+= e`, `-= e`
@@ -391,8 +663,9 @@ class Parser {
     this.error('expected loop step assignment'); throw new Sync();
   }
 
-  // case generate: a chain of if-generates on `expr == choice`
-  genCase() {
+  // case generate: a chain of if-generates on `expr == choice` (elseChain: the else branch is the
+  // next alternative, in the same scope); the default is the last else branch
+  genCase(n = 0) {
     const loc = this.loc();
     this.expect('case'); this.expect('(');
     const sel = this.expr(); this.expect(')');
@@ -406,33 +679,39 @@ class Parser {
       alts.push({ choices, blk: this.genBlock() });
     }
     this.expect('endcase');
-    const wrap = b => (b.label ? [{ kind: 'generate_if', label: b.label, cond: { op: 'int', value: '1' }, then: b.items, else: [], decls: b.decls, loc }] : b.items);
-    let rest = def ? wrap(def) : [];
-    let restDecls = def && !def.label ? def.decls : [];
+    if (!alts.length) alts.push({ choices: [], blk: { label: null, items: [], decls: [] } });
+    let next = null;
     for (let k = alts.length - 1; k >= 0; k--) {
       const { choices, blk } = alts[k];
-      const cond = choices.map(c => ({ op: 'binary', o: '==', a: sel, b: c })).reduce((x, y) => ({ op: 'binary', o: '||', a: x, b: y }));
-      const node = { kind: 'generate_if', label: blk.label, cond, then: blk.items, else: rest, decls: blk.decls, loc };
-      if (restDecls.length) node.elseDecls = restDecls;
-      rest = [node]; restDecls = [];
+      const cond = choices.length ? choices.map(c => ({ op: 'binary', o: '==', a: sel, b: c })).reduce((x, y) => ({ op: 'binary', o: '||', a: x, b: y })) : { op: 'int', value: '0' };
+      const node = { kind: 'generate_if', label: blk.label, cond, then: blk.items, else: [], decls: blk.decls, loc };
+      if (!blk.label) this.autoLabel(node, 'label', n);
+      if (next) { node.else = [next]; node.elseChain = true; }
+      else if (def) {
+        node.else = def.items; node.elseDecls = def.decls; node.elseLabel = def.label;
+        if (!def.label) this.autoLabel(node, 'elseLabel', n);
+      }
+      next = node;
     }
-    if (rest.length === 1 && rest[0].kind === 'generate_if') return rest[0];
-    const node = { kind: 'generate_if', label: null, cond: { op: 'int', value: '1' }, then: rest, else: [], decls: restDecls, loc };
-    return node;
+    return next;
   }
 
-  genIf() {
+  genIf(n = 0) {
     const loc = this.loc();
     this.expect('if'); this.expect('(');
     const cond = this.expr(); this.expect(')');
     const thenB = this.genBlock();
-    let elseItems = [], elseDecls = [];
+    const node = { kind: 'generate_if', label: thenB.label, cond, then: thenB.items, else: [], decls: thenB.decls, loc };
+    if (!thenB.label) this.autoLabel(node, 'label', n);
     if (this.accept('else')) {
-      if (this.is('if')) elseItems = [this.genIf()];
-      else { const b = this.genBlock(); elseItems = b.items; elseDecls = b.decls; if (b.label) elseItems = [{ kind: 'generate_if', label: b.label, cond: { op: 'int', value: '1' }, then: b.items, else: [], decls: b.decls, loc }], elseDecls = []; }
+      // else if: the next branch of the same construct (same number, same scope)
+      if (this.is('if')) { node.else = [this.genIf(n)]; node.elseChain = true; }
+      else {
+        const b = this.genBlock();
+        node.else = b.items; node.elseDecls = b.decls; node.elseLabel = b.label;
+        if (!b.label) this.autoLabel(node, 'elseLabel', n);
+      }
     }
-    const node = { kind: 'generate_if', label: thenB.label, cond, then: thenB.items, else: elseItems, decls: thenB.decls, loc };
-    if (elseDecls.length) node.elseDecls = elseDecls;
     return node;
   }
 
@@ -442,32 +721,38 @@ class Parser {
     this.accept('automatic');
     let returnType = null;
     if (kind === 'function') {
-      if (this.accept('integer')) returnType = { kind: 'integer', range: null };
-      else { const signed = !!this.accept('signed'); this.accept('reg'); this.accept('logic'); returnType = { kind: 'logic', range: this.optRange(), signed }; }
+      if (this.isWord('void')) this.next();
+      else if (this.tok.t === 'id' && !this.is(';', this.peek()) && !this.is('(', this.peek()) && !this.is('.', this.peek())) returnType = this.dataType();   // int f, my_t f
+      else { this.accept('reg'); this.accept('logic'); returnType = this.dataType(); }
     }
     const name = this.ident();
     const params = [], decls = [];
+    const parseType = () => {
+      this.accept('reg'); this.accept('wire'); this.accept('logic');
+      if (this.isWord('var')) this.next();
+      // (a parameter named like a type word: input bit)
+      if (this.tok.t === 'id' && (TYPEWORDS.has(this.tok.v) || this.typeNames.has(this.tok.v)) && [',', ')', ';'].includes(this.peek().v)) return { kind: 'logic', range: null, signed: false };
+      return this.dataType();
+    };
     const parseParamGroup = () => {
       const d = this.next().v;
       const dir = d === 'input' ? 'in' : d === 'output' ? 'out' : 'inout';
-      this.accept('reg'); this.accept('wire'); this.accept('logic');
-      let type;
-      if (this.accept('integer')) type = { kind: 'integer', range: null };
-      else { const signed = !!this.accept('signed'); type = { kind: 'logic', range: this.optRange(), signed }; }
-      return { dir, type };
+      return { dir, type: parseType() };
     };
     if (this.accept('(')) { // ANSI style
       if (!this.is(')')) {
         let cur = { dir: 'in', type: { kind: 'logic', range: null, signed: false } };
         do {
           if (this.isAny('input', 'output', 'inout')) cur = parseParamGroup();
+          // a type without a direction: the direction of the parameter before (input first)
+          else if (this.isAny('integer', 'reg', 'logic', 'signed', 'time', 'real', '[') || this.isTypeStart()) cur = { dir: cur.dir, type: parseType() };
           params.push({ name: this.ident(), ...cur });
         } while (this.accept(','));
       }
       this.expect(')');
     }
     this.expect(';');
-    while (this.isAny('input', 'output', 'inout', 'reg', 'integer', 'logic', 'parameter', 'localparam', 'real', 'time')) {
+    for (;;) {
       if (this.isAny('input', 'output', 'inout')) {
         const g = parseParamGroup();
         do { params.push({ name: this.ident(), ...g }); } while (this.accept(','));
@@ -476,11 +761,21 @@ class Parser {
         this.next(); const { type } = this.paramType();
         do { const n = this.ident(); this.expect('='); decls.push({ kind: 'const', name: n, type, value: this.expr(), loc: this.loc() }); } while (this.accept(','));
         this.expect(';');
-      } else this.netDecl([], decls, true);
+      } else if (this.isAny('reg', 'integer', 'logic', 'real', 'time') || this.isTypeStart()) this.netDecl([], decls, true);
+      else if (this.isWord('typedef')) this.typedef(decls);
+      else break;
     }
     const body = [];
     while (!this.isAny('endfunction', 'endtask', 'endmodule') && this.tok.t !== 'eof') { const i0 = this.i; body.push(this.stmt()); if (this.i === i0) break; }
     if (this.isAny('endfunction', 'endtask')) this.next(); else this.error(`expected '${kind === 'task' ? 'endtask' : 'endfunction'}' but found '${this.tok.v || this.tok.t}'`);
+    // `input [4:0] r; reg [4:0] r;` / `input x; integer x;`: the second declaration gives the
+    // argument's type (it does not declare a variable of its own)
+    for (let k = decls.length - 1; k >= 0; k--) {
+      const d = decls[k], p = d.kind === 'signal' && params.find(q => q.name === d.name);
+      if (!p) continue;
+      if (d.type.kind !== 'logic' || d.type.range || !p.type.range) p.type = { ...d.type, signed: d.type.signed || p.type.signed };
+      decls.splice(k, 1);
+    }
     for (const d of decls) if (d.kind === 'signal') d.net = 'variable';
     const fn = { kind, name, params, returnType, decls, body, loc };
     if (kind === 'function') fn.retVar = name;
@@ -541,7 +836,7 @@ class Parser {
     do {
       const iloc = this.loc();
       const name = this.ident();
-      if (this.is('[')) { this.error('instance arrays are not supported'); throw new Sync(); }
+      const array = this.optRange();   // an array of instances: u [3:0] (…)
       this.expect('(');
       const conns = [];
       if (!this.is(')')) {
@@ -558,7 +853,7 @@ class Parser {
         } while (this.accept(','));
       }
       this.expect(')');
-      items.push({ kind: 'instance', name, module, params, conns, loc: items.length && name !== undefined ? iloc : loc });
+      items.push({ kind: 'instance', name, module, params, conns, loc: items.length && name !== undefined ? iloc : loc, ...(array ? { array } : {}) });
     } while (this.accept(','));
     this.expect(';');
   }
@@ -581,15 +876,41 @@ class Parser {
     const t = this.tok;
     try {
       if (this.accept(';')) return { kind: 'null' };
+      // a statement label (SystemVerilog name: statement): the name of a block
+      if (t.t === 'id' && this.is(':', this.peek()) && !this.is(':', this.peek(2))) {
+        this.next(); this.next();
+        const s = this.stmt();
+        if (s && s.kind === 'block' && !s.label) s.label = t.v;
+        return s;
+      }
+      // immediate assertions: assert (e) [pass] [else fail]; a false, x or z value fails
+      if (t.t === 'id' && ASSERTIONS.has(t.v) && (this.is('(', this.peek()) || this.isWord('property', this.peek()) || this.isWord('final', this.peek()) || this.is('#', this.peek()))) {
+        this.next();
+        if (this.isWord('property') || this.isWord('final') || this.is('#') || t.v === 'cover' || t.v === 'restrict') {   // (not checked)
+          let depth = 0;
+          while (this.tok.t !== 'eof' && !(depth === 0 && this.is(';'))) {
+            if (this.is('(')) depth++;
+            else if (this.is(')')) depth--;
+            this.next();
+          }
+          this.expect(';');
+          return { kind: 'null' };
+        }
+        this.expect('(');
+        const cond = this.expr(); this.expect(')');
+        const pass = this.is('else') ? null : this.stmt();
+        const fail = this.accept('else') ? this.stmt() : null;
+        if (!fail) return pass && pass.kind !== 'null' ? { kind: 'block', label: null, decls: [], stmts: [{ kind: 'assert', cond, message: null, severity: 'error' }, { kind: 'if', cond, then: pass, else: null }] } : { kind: 'assert', cond, message: null, severity: 'error' };
+        return { kind: 'if', cond, then: pass || { kind: 'null' }, else: fail };
+      }
       if (this.is('begin')) {
         this.next();
         let label = null;
         if (this.accept(':')) label = this.ident();
-        const decls = [], stmts = [];
-        while (this.isAny('reg', 'integer', 'logic', 'real', 'time')) this.netDecl([], decls, true);
-        for (const d of decls) d.net = 'variable';
+        const decls = this.blockDecls();
         // a missing 'end' must not loop forever: stop at 'endmodule' or a module item (assign, always…)
         // and on a statement that consumes nothing
+        const stmts = [];
         while (!this.isAny('end', 'endmodule', 'assign', 'always', 'initial', 'module') && this.tok.t !== 'eof') { const i0 = this.i; stmts.push(this.stmt()); if (this.i === i0) break; }
         this.expect('end');
         if (this.accept(':')) this.ident();
@@ -600,9 +921,7 @@ class Parser {
         this.next();
         let label = null;
         if (this.accept(':')) label = this.ident();
-        const decls = [], stmts = [];
-        while (this.isAny('reg', 'integer', 'logic', 'real', 'time')) this.netDecl([], decls, true);
-        for (const d of decls) d.net = 'variable';
+        const decls = this.blockDecls(), stmts = [];
         const isEnd = () => this.is('join') || (this.tok.t === 'id' && (this.tok.v === 'join_any' || this.tok.v === 'join_none'));
         while (!isEnd() && !this.isAny('end', 'endmodule') && this.tok.t !== 'eof') stmts.push(this.stmt());
         let join = 'all';
@@ -694,11 +1013,11 @@ class Parser {
         this.expect(';');
         return { kind: 'call', name: t.v, args };
       }
-      if (t.t === 'id' && (this.peek().v === ';' || (this.peek().v === '(' && this.isTaskCall()))) {
-        const name = this.ident(); const args = [];
+      if (t.t === 'id' && (this.peek().v === ';' || (this.peek().v === '(' && this.isTaskCall()) || (this.peek().v === '.' && this.isHierTaskCall()))) {
+        const name = this.hierName(), path = this.hierPath; const args = [];
         if (this.accept('(')) { if (!this.is(')')) do { args.push(this.expr()); } while (this.accept(',')); this.expect(')'); }
         this.expect(';');
-        return { kind: 'call', name, args };
+        return { kind: 'call', name, args, ...(path ? { path } : {}) };
       }
       // assignment
       const target = this.lvalue();
@@ -707,7 +1026,7 @@ class Parser {
         this.expect(';');
         return { kind: 'assign', target, value: { op: 'binary', o, a: target, b: { op: 'int', value: '1' } }, nonblocking: false, delay: null };
       }
-      for (const [co, o] of [['+=', '+'], ['-=', '-'], ['|=', '|'], ['&=', '&'], ['^=', '^']]) {
+      for (const [co, o] of [['+=', '+'], ['-=', '-'], ['*=', '*'], ['/=', '/'], ['%=', '%'], ['|=', '|'], ['&=', '&'], ['^=', '^'], ['<<=', '<<'], ['>>=', '>>'], ['<<<=', '<<<'], ['>>>=', '>>>']]) {
         if (this.accept(co)) { const v = this.expr(); this.expect(';'); return { kind: 'assign', target, value: { op: 'binary', o, a: target, b: v }, nonblocking: false, delay: null }; }
       }
       let nonblocking = false;
@@ -737,6 +1056,24 @@ class Parser {
     return this.toks[k + 1]?.v === ';';
   }
 
+  // a.b.t(…); / blk[1].t; at statement level: a call of a task of another scope
+  isHierTaskCall() {
+    let k = this.i + 1;
+    for (;;) {
+      const t = this.toks[k];
+      if (this.is('.', t) && this.toks[k + 1].t === 'id') { k += 2; continue; }
+      if (this.is('[', t)) { const e = this.closeBracket(k); if (e < 0) return false; k = e + 1; continue; }
+      break;
+    }
+    if (this.is(';', this.toks[k])) return true;
+    if (!this.is('(', this.toks[k])) return false;
+    const save = this.i;
+    this.i = k - 1;
+    const r = this.isTaskCall();
+    this.i = save;
+    return r;
+  }
+
   lvalue() {
     if (this.is('{')) {
       this.next();
@@ -745,17 +1082,31 @@ class Parser {
       this.expect('}');
       return { op: 'concat', parts };
     }
-    return this.postfix({ op: 'ref', name: this.hierName() });
+    const name = this.hierName();
+    return this.postfix(this.hierPath ? { op: 'ref', name, path: this.hierPath } : { op: 'ref', name });
   }
 
+  // a name, or a hierarchical name: a.b.c, blk[2].x, blk[i - 1].x (an instance of a generate loop,
+  // an element of an array of structures). The text is the name (blk[2].x); this.hierPath is the
+  // list of its parts { name, index } when an index is not a number (else null).
   hierName() {
     let n = this.ident();
+    const path = [{ name: n, index: null }];
+    let dyn = false;
     for (;;) {
-      if (this.is('.') && this.peek().t === 'id') { this.next(); n += '.' + this.ident(); continue; }
-      // a generate-for block instance: name[3].x
-      if (this.is('[') && this.peek().t === 'int' && this.is(']', this.peek(2)) && this.is('.', this.peek(3)) && this.peek(4).t === 'id') {
-        this.next(); n += `[${this.next().v}]`; this.next(); continue;
+      if (this.is('.') && this.peek().t === 'id') { this.next(); const s = this.ident(); n += '.' + s; path.push({ name: s, index: null }); continue; }
+      if (this.is('[')) {
+        const k = this.closeBracket(this.i);
+        if (k > 0 && this.is('.', this.toks[k + 1]) && this.toks[k + 2].t === 'id') {
+          this.next();
+          const e = this.expr(); this.expect(']');
+          path[path.length - 1].index = e;
+          if (e.op === 'int') n += `[${e.value}]`;
+          else { n += '[*]'; dyn = true; }
+          continue;
+        }
       }
+      this.hierPath = dyn ? path : null;
       return n;
     }
   }
@@ -831,16 +1182,22 @@ class Parser {
       this.expect('}');
       return this.postfix({ op: 'concat', parts });
     }
+    // a cast to a type: my_t'(e), int'(e), signed'(e)
+    if ((t.t === 'id' || this.is('signed') || this.is('unsigned')) && this.peek().t === 'cast') {
+      this.next(); this.next(); this.expect('(');
+      const e = this.expr(); this.expect(')');
+      return { op: 'call', name: '$__type_cast', args: [{ op: 'ref', name: t.v }, e] };
+    }
     if (t.t === 'id') {
-      const name = this.hierName();
+      const name = this.hierName(), path = this.hierPath;
       if (this.is('(')) {
         this.next();
         const args = [];
         if (!this.is(')')) do { args.push(this.expr()); } while (this.accept(','));
         this.expect(')');
-        return { op: 'call', name, args };
+        return path ? { op: 'call', name, args, path } : { op: 'call', name, args };
       }
-      return this.postfix({ op: 'ref', name });
+      return this.postfix(path ? { op: 'ref', name, path } : { op: 'ref', name });
     }
     this.error(`unexpected '${t.v || t.t}' in expression`);
     throw new Sync();

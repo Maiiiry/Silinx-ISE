@@ -76,7 +76,8 @@ export function evalE(n, ctx) {
     case 'conv': { // resize/sign conversion; ext = signedness used for extension
       const a = evalE(n.a, ctx);
       if (n.t.kind === 'real') return a.real !== undefined ? a : V.real(V.toNum(V.withSign(a, n.ext)));
-      if (n.rtoi && a.real !== undefined) return V.fromInt(Math.trunc(a.real), n.t.w, true);
+      // (round: a real assigned to an integer rounds, halves away from zero; $rtoi truncates)
+      if (n.rtoi && a.real !== undefined) return V.fromInt(n.round ? Math.sign(a.real) * Math.round(Math.abs(a.real)) : Math.trunc(a.real), n.t.w, true);
       if (n.sres && n.t.w < a.w) { // numeric_std resize(signed): sign bit + low bits
         const w = n.t.w, low = w > 1 ? V.getBits(a, 0, w - 1) : V.mk(0);
         return V.withSign(V.concat([V.getBits(a, a.w - 1, 1), low]), true);

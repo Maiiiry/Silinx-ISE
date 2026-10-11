@@ -36,6 +36,19 @@ the "What's new" text of its GitHub release.
   precedence). The whole open flow on blinky is now part of the tests.
 - TODO.md: what is planned. The open toolchain does not support the Spartan-6 boards (Nexys3,
   Atlys) yet; it will.
+- Verilog / SystemVerilog constructs Silinx now reads, simulates and synthesizes (found by the
+  corpus of Yosys's test designs): hierarchical names into generate blocks and named blocks
+  (`blk.x`, `blk[i - 1].x`, `genblk1.t`: unnamed generate blocks are named as IEEE 1364-2005
+  12.4.3 says), the module's own name as a scope, functions and tasks called by hierarchical names,
+  arrays of instances (`inv u[3:0] (…)`), `wand` / `wor` / `tri0` / `tri1` / `supply0` /
+  `supply1` ports (and wired nets with several drivers in synthesis), typedefs, enumerations,
+  packed structures, multi-dimensional packed arrays, unpacked `[N]`, casts `T'(x)`, declarations
+  outside modules, `localparam` in functions and blocks, `specparam` and `specify`, immediate
+  assertions, `$size` / `$left` / `$right` / `$low` / `$high` / `$increment` / `$dimensions`,
+  `$countbits` / `$onehot` / `$onehot0` / `$isunknown`, `$floor` / `$ceil` and the other real math
+  functions, elaboration tasks (`$info`, `$warning`, `$error`), `*=` `/=` `%=` `<<=` `>>=`, strings
+  used as values, macros that join the text around them (`` `WIDTH'b0 ``, `` f_`name ``), `` ``
+  pasting and default macro arguments, an output net's `= value` as a continuous assignment.
 - **Smaller, faster netlists from the open synthesis** (research/synth-quality/README.md): lab11
   now needs 165 slices instead of 403 (XST: 180) and runs at 14.1 ns instead of 17.6 ns in the
   open flow; the blinky example 86 slices instead of 104 (XST: 99), 7.7 ns instead of 11.8 ns.
