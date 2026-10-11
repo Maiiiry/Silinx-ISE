@@ -103,10 +103,26 @@ complete bitstream) against ISE's place and route:
   -> ALU carry chain -> result multiplexer -> register, about 8 ns of logic), but about 6 ns of
   routing against XST's 4: Silinx's placer and router, not the synthesis. (XST also replicates the
   state register's flip-flops to cut their fanout.)
-- **Shift registers in SRL16**: needs Yosys's `xilinx_srl` passes with a mapping onto SRL16E /
-  SRLC16E (cells_map.v writes SRLC32E for chains longer than 16), the packer and the placer for
-  SLICEM sites (the bit database knows `F_ATTR:SHIFT_REG`), SRL16E in test/fpga-sim.js. The srl
-  fixture: 79 slices, XST about 9.
+- **Shift registers in SRL16** (prototyped in 15.10.2, not taken: it pays off only for designs
+  with shift registers, and none of lab11, project 2, blinky or cpu8 has one of 3 or more stages
+  without a reset; the srl fixture: 79 slices, XST about 9). What the prototype found:
+  - fixed-length chains: `xilinx_srl -fixed -minlen 3` must run on the bit-level flip-flops
+    before `map_ffs` (after it, xc3se's dfflegalize has made them $_SDFFE_ cells with a reset,
+    which xilinx_srl skips), with Silinx's own map file for `$__XILINX_SHREG_` (Yosys's
+    cells_map.v writes SRLC32E, which the Spartan-3E does not have, for chains of 17-32; the map
+    splits chains into SRL16E of 16 stages, and writes SRL16E with IS_CLK_INVERTED, not
+    SRL16E_1, which Yosys's cell library lacks). The srl fixture's 36 flip-flops of fixed chains
+    become 4 SRL16E (about 63 slices instead of 79).
+  - variable taps (`q <= sr(to_integer(tap))`, the srl fixture's 16 x 4 bits): Yosys infers them
+    only from a 1-bit `$shiftx` over the chain. Silinx's array read gives a `$pmux` whose
+    `tap = 0` case stays outside the `$shiftx` (so the first stage fans out elsewhere), and a
+    4-bit-wide `$shiftx` that has to be split into 1-bit ones (a small techmap does it).
+  - then: SRL16E in the packer (a SLICEM: the LUT as `#RAM` with `F_ATTR::SHIFT_REG`, D through
+    BX / BY with DIF_MUX / DIG_MUX, the shift enable through SR (SRINV, WSGEN), no flip-flops in
+    that slice since SR would reset them), slices of type SLICEM kept on SLICEM sites by the
+    placer (place.js allowedAt), its clock-to-out and setup in core/fpga/timing.js, SRL16E in
+    test/fpga-sim.js (netlistSim and packedSim), and a check of the bitstream against ISE's
+    (the bit database has the SLICEM shift-register features, measured with ISE's designs).
 - **Distributed RAM, block RAM, multipliers, DCM, tri-state buffers in the packer** (other designs
   cannot go through the open flow yet; not a matter of synthesis size).
 - **State machines**: Yosys's `fsm` pass finds no state machine in lab11's control unit (its

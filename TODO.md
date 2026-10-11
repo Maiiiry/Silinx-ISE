@@ -22,8 +22,10 @@ How it is developed: [docs/OPEN-TOOLCHAIN.md](docs/OPEN-TOOLCHAIN.md).
   computing it from ISE's device report: about 2-4 weeks for one device.
 - **Synthesis quality** (research/synth-quality/README.md). Done in 15.10.2: the open synthesis's
   netlists are now as small as XST's or smaller (lab11: 165 slices against XST's 180, was 403).
-  Left: shift registers as SRL16 (Yosys does not infer them for the Spartan-3E; the packer and
-  placer would need SLICEM sites), distributed RAM in the packer (RAM16X1S…), the remaining speed
+  Left: shift registers as SRL16 (prototyped, not done: it pays off only for designs with shift
+  registers of 3 or more stages without reset, none of lab11, blinky or cpu8; see the README for
+  what it needs: Yosys passes and a map file, the variable tap, SLICEM in the packer, placer,
+  timing model and simulators), distributed RAM in the packer (RAM16X1S…), the remaining speed
   gap (lab11 14.1 ns in the open flow against 10.9 ns after ISE's place and route: mostly
   placement and routing, the logic depth is XST's), FSM re-encoding (Yosys finds no state machine
   in lab11's control unit).

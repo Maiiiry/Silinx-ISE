@@ -126,6 +126,10 @@ test('open mode: Implement + Generate Programming File of blinky, for real: step
   assert.match(log, /All signals are completely routed\./);
   assert.match(log, /constraint PERIOD 20 ns on clk: met/);
   assert.match(log, /Bitstream: build\/top\.bit \(\d+ bytes, every feature in the bit database\)/);
+  // the warnings, exactly: none for blinky (Yosys's "Shift register inference not yet supported
+  // for family xc3se", printed on every run, is not one: core/synth-open.js QUIET)
+  assert.deepEqual(j.lines.filter(l => /warning/i.test(l)), []);
+  assert.deepEqual(j.result.warnings, []);
   const dir = P.projectDir('Blinky');
   for (const f of ['open/top.json', 'open/placed.xdl', 'open/routed.xdl', 'open/timing.txt', 'top.bit', 'top_prom.bit', 'reports.json']) assert.ok(fss.existsSync(path.join(dir, 'build', f)), f);
   // the Design Summary's reports
