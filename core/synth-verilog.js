@@ -319,6 +319,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
       case 'edge': case 'event': fail('a clock edge outside the clock condition of a process', n); break;
       case 'sys': case 'now': case 'str': case 'image': case 'strcat': case 'chr': case 'strlen': case 'sigattr':
         fail(`'${n.name || n.k}' cannot be synthesized`, n); break;
+      case 'aslice': fail('array slices (a part of an array of vectors) are not supported by the open synthesis', n); break;
       default: fail(`expression '${n.k}' not supported by synthesis`, n);
     }
     return null;
@@ -607,6 +608,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
         const parts = L.parts.map(p => lvalue(p, ctx)).filter(p => p.w > 0);
         return { x: `{${parts.map(p => p.x).join(', ')}}`, w: parts.reduce((s, p) => s + p.w, 0) };
       }
+      case 'aslice': fail('assignment to an array slice (a part of an array of vectors) is not supported by the open synthesis', L); break;
       default: fail(`assignment target '${L.k}' not supported by synthesis`, L);
     }
     return null;

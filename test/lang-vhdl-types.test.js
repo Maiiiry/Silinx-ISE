@@ -247,6 +247,49 @@ test('null ranges: a non-constant slice against its direction reads and writes n
   assert.deepEqual(r, ['10110010', '0']);
 });
 
+// Regression (#11): slices of arrays of vectors (`mem(0 to 3)`): read, assigned (variables,
+// signals, aggregates), sliced again, null, passed to an unconstrained parameter, in a constant
+test('arrays of vectors: slices read and assigned, signals, aggregates, slices of slices, null slices, constants and calls (#11)', () => {
+  const r = outW(vproc(`
+    v := ROM(4 to 7);
+    report to_hstring(v(0)) & to_hstring(v(3)) & " " & integer'image(ROM(2 to 5)'length) & " " & integer'image(ROM(2 to 5)'left) & " " & integer'image(ROM(2 to 5)'right);
+    report to_hstring(HEAD(3)) & " " & integer'image(sum(ROM(1 to 2))) & " " & integer'image(sum(ROM(3 to 2))) & " " & integer'image(ROM(3 to 2)'length);
+    w(2 to 5) := ROM(0 to 3);
+    report to_hstring(w(1)) & to_hstring(w(2)) & to_hstring(w(5)) & to_hstring(w(6));
+    w(0 to 1) := (x"AA", x"BB");
+    report to_hstring(w(0)) & to_hstring(w(1)) & " " & to_hstring(ROM(0 to 5)(2 to 3)(3));
+    sm(6 to 7) <= ROM(1 to 2);
+    dm(3 downto 2) <= (x"5", x"6");
+    wait for 1 ns;
+    report to_hstring(sm(5)) & to_hstring(sm(6)) & to_hstring(sm(7)) & " " & to_hstring(dm(4)) & to_hstring(dm(3)) & to_hstring(dm(2)) & to_hstring(dm(1));`,
+  `variable v : mem_t(0 to 3); variable w : mem_t(0 to 7) := (others => x"00");`,
+  `type mem_t is array (natural range <>) of std_logic_vector(7 downto 0);
+   constant ROM : mem_t(0 to 7) := (x"00", x"11", x"22", x"33", x"44", x"55", x"66", x"77");
+   constant HEAD : mem_t(0 to 3) := ROM(0 to 3);
+   function sum(m : mem_t) return integer is variable s : integer := 0; begin
+     for i in m'range loop s := s + to_integer(unsigned(m(i))); end loop; return s; end function;
+   signal sm : mem_t(0 to 7) := (others => x"FF");
+   type dm_t is array (7 downto 0) of std_logic_vector(3 downto 0);
+   signal dm : dm_t := (others => x"0");`));
+  assert.deepEqual(r, ['4477 4 2 5', '33 51 0 0', '00003300', 'AABB 33', 'FF1122 0560']);
+});
+
+// Regression (#68): a subprogram with an unconstrained parameter was bound once per argument width,
+// so a later call with another index range of the same width took the first call's 'range / 'left
+test('unconstrained parameters take each call\'s index range: vectors and arrays of the same width (#68)', () => {
+  const r = outW(vproc(`
+    report integer'image(sum(X)) & " " & integer'image(sum(Y)) & " " & integer'image(sum(X));
+    report integer'image(lft(hi)) & " " & integer'image(lft(lo)) & " " & integer'image(lft(up)) & " " & integer'image(lft(hi));`, '',
+  `type mem_t is array (natural range <>) of std_logic_vector(7 downto 0);
+   function sum(m : mem_t) return integer is variable s : integer := 0; begin
+     for i in m'range loop s := s + to_integer(unsigned(m(i))); end loop; return s; end function;
+   function lft(v : std_logic_vector) return integer is begin return v'left; end function;
+   constant X : mem_t(1 to 2) := (x"11", x"22");
+   constant Y : mem_t(3 to 5) := (x"01", x"02", x"03");
+   signal hi : std_logic_vector(15 downto 8); signal lo : std_logic_vector(7 downto 0); signal up : std_logic_vector(0 to 7);`));
+  assert.deepEqual(r, ['51 6 51', '15 7 0 15']);
+});
+
 test('null ranges: a generic entity with an optional port of N = 0 bits (#15)', () => {
   const r = outW(vhd(`
   u : entity work.opt generic map (N => 0) port map (x => none, a => "1010", y => y);

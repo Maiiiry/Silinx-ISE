@@ -100,6 +100,13 @@ the "What's new" text of its GitHub release.
 - **VHDL integer subtype attributes:** `'high`, `'ascending`, `'leftof` and `'rightof` of a
   descending subtype (`integer range 10 downto 0`) were those of an ascending one; `'low` and
   `'high` of a null range follow its direction (#67).
+- **VHDL: slices of arrays of vectors** (`mem(0 to 3)` of an array of `std_logic_vector`) are
+  simulated: read, assigned to variables and signals, from aggregates, sliced again, null, in
+  constants and as arguments (#11). The open synthesis reports them as not supported yet, at their
+  line.
+- **VHDL: unconstrained parameters:** a function or procedure called with vectors or arrays of the
+  same width but other index ranges took its first call's `'range`, `'left` and indexing
+  (`v'left` of a `7 downto 0` argument after a `15 downto 8` one gave 15) (#68).
 - **Fully open bitstreams, tested on the board:** blinky and lab11, synthesized, placed, routed
   and written by Silinx with no Xilinx tool, work on a Basys2-250.
 - **How the Silinx toolchain compares with ISE** ([docs/QUALITY.md](docs/QUALITY.md)): the size and

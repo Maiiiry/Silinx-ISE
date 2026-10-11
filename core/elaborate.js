@@ -1381,8 +1381,8 @@ function indexNode(E, base, idxExpr, loc) {
 }
 
 function sliceNode(E, base, leftE, rightE, loc, dir) {
-  if (base.t.kind === 'array') throw new ElabError('array slices are not supported', loc);
   const left = bindExpr(E, leftE, null, loc), right = bindExpr(E, rightE, null, loc);
+  if (base.t.kind === 'array') return arraySliceNode(E, base, left, right, loc, dir);
   if (left.k === 'c' && right.k === 'c') {
     // a VHDL null slice (`v(-1 downto 0)`, `v(0 to -1)`): no element
     if (E.lang === 'vhdl' && dir && (dir === 'downto' ? V.toNum(left.val) < V.toNum(right.val) : V.toNum(left.val) > V.toNum(right.val))) {
@@ -1408,6 +1408,19 @@ function sliceNode(E, base, leftE, rightE, loc, dir) {
     throw new ElabError('slice bounds must be constant (or depend only on loop variables)', loc);
   }
   return { k: 'dslice', base, left, right, t: vecT(w), ...(vdir ? { dir: vdir } : {}) };
+}
+
+// A slice of an array (`mem(0 to 3)` of an array of vectors, #11): the elements of a constant
+// range, as an array of the same element type (arrays are stored by ascending index, so the
+// slice is the elements from its low bound on); a null range has none
+function arraySliceNode(E, base, left, right, loc, dir) {
+  if (left.k !== 'c' || right.k !== 'c') throw new ElabError('array slices with non-constant bounds are not supported', loc);
+  const l = V.toNum(left.val), r = V.toNum(right.val), t = base.t;
+  const desc = dir ? dir === 'downto' : t.desc;
+  const isNull = E.lang === 'vhdl' && (desc ? l < r : l > r);
+  const lo = Math.min(l, r), len = isNull ? 0 : Math.abs(l - r) + 1, off = lo - t.lo;
+  if (len && (off < 0 || off + len > t.len)) diag(E, `slice out of range for '${base.name || 'expression'}'`, loc, 'warning');
+  return { k: 'aslice', base, off, t: { kind: 'array', left: l, right: r, desc, lo, len, elem: t.elem, w: t.elem.w }, loc };
 }
 
 // A VHDL string literal of std_logic characters (kept as a string inside report / assert
@@ -1935,9 +1948,15 @@ function bindCall(E, entry, rawArgs, name, loc) {
 // VHDL: when the generic binding fails (e.g. a width depends on an integer parameter:
 // `variable r : std_logic_vector(n-1 downto 0)`, `to_unsigned(i, w)`), the subprogram is bound
 // again with its constant integer arguments known as constants (cached per argument value).
+// The cache key of an argument's type: its kind, width and sign, and for a vector or an array its
+// index range and direction (an unconstrained parameter takes them: 'range, 'left, indexing)
+const argTypeKey = t => `${t.kind}${t.w}${t.s ? 's' : ''}`
+  + (t.kind === 'array' ? `[${t.left}:${t.right}${t.desc ? 'd' : ''}x${t.len}]{${t.elem ? argTypeKey(t.elem) : ''}}`
+    : t.kind === 'logic' && t.left !== undefined ? `[${t.left}:${t.right}${t.desc ? 'd' : ''}]` : '');
+
 function boundFunction(entry, args, loc, sigActuals = null) {
   const decl = entry.decl;
-  const key = args.map(a => `${a.t.kind}${a.t.w}${a.t.s ? 's' : ''}`).join(',');
+  const key = args.map(a => argTypeKey(a.t)).join(',');
   const consts = new Map();
   if (entry.E.lang === 'vhdl') {
     decl.params.forEach((p, k) => {

@@ -44,6 +44,10 @@ export function evalE(n, ctx) {
       return arr[k];
     }
     case 'slice': return { ...V.getBits(evalE(n.base, ctx), n.lo, n.t.w), s: n.t.s };
+    case 'aslice': {   // a slice of an array (#11): its elements (unknown outside the array)
+      const arr = evalE(n.base, ctx), et = n.t.elem;
+      return Array.from({ length: n.t.len }, (_, j) => arr[n.off + j] ?? (et.kind === 'array' ? [] : V.allX(et.w, et.s)));
+    }
     case 'dslice': {
       const b = evalE(n.base, ctx), l = evalE(n.left, ctx), r = evalE(n.right, ctx);
       if (l.x || r.x) return V.allX(n.t.w);
@@ -496,6 +500,19 @@ function resolveTarget(L, ctx, out) {
       out.push(wr);
       return;
     }
+    case 'aslice': {   // a slice of an array (#11): one write per element
+      const base = [];
+      resolveTarget(L.base, ctx, base);
+      const b = base[0];
+      for (let j = 0; j < L.t.len; j++) {
+        const elem = L.off + j;
+        if (elem < 0 || elem >= L.base.t.len) { out.push({ ...b, invalid: true, w: L.t.elem.w }); continue; }
+        const wr = { ...b, elem, lo: 0, w: L.t.elem.w, whole: false, sub: L.t.elem.kind === 'array' };
+        if (b.elem != null) wr.path = [...(b.path || []), b.elem];
+        out.push(wr);
+      }
+      return;
+    }
     case 'chr': {
       const base = [];
       resolveTarget(L.base, ctx, base);
@@ -570,7 +587,8 @@ function prepAssign(s, ctx) {
   resolveTarget(s.target, ctx, writes);
   // Split the value for concatenation targets (MSB part first).
   let parts;
-  if (writes.length === 1) parts = [val];
+  if (s.target.k === 'aslice') parts = writes.map((_, k) => (Array.isArray(val) ? val[k] : val));   // element by element
+  else if (writes.length === 1) parts = [val];
   else {
     const total = writes.reduce((a, w) => a + w.w, 0);
     const v = V.resize(val, total);

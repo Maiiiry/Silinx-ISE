@@ -270,6 +270,12 @@ test('what cannot be synthesized is reported with its line, not guessed', () => 
   process begin o <= '0'; wait for 10 ns; o <= '1'; wait for 10 ns; end process; end a;`, 'w'), /waits cannot be synthesized|cannot be synthesized here/);
   assert.match(err(`${PRE}entity w is port (clk, d : in std_logic; o : out std_logic); end w; architecture a of w is begin
   process (clk) begin if rising_edge(clk) then o <= d; else o <= not d; end if; end process; end a;`, 'w'), /after the clock edge/);
+  // slices of arrays of vectors (#11): simulated, not synthesized yet
+  const arr = `type m_t is array (0 to 3) of std_logic_vector(1 downto 0); signal m : m_t := (others => "00"); signal h : m_t := (others => "00");`;
+  assert.match(err(`${PRE}entity w is port (clk : in std_logic; o : out std_logic_vector(1 downto 0)); end w; architecture a of w is ${arr} begin
+  process (clk) begin if rising_edge(clk) then h(0 to 1) <= m(2 to 3); end if; end process; o <= h(0); end a;`, 'w'), /^assignment to an array slice \(a part of an array of vectors\) is not supported by the open synthesis \(line 3\)$/);
+  assert.match(err(`${PRE}entity w is port (clk : in std_logic; o : out std_logic_vector(1 downto 0)); end w; architecture a of w is ${arr} begin
+  process (clk) begin if rising_edge(clk) then h <= m(0 to 3); end if; end process; o <= h(0); end a;`, 'w'), /^array slices \(a part of an array of vectors\) are not supported by the open synthesis \(line 3\)$/);
 });
 
 test('Verilog front end: SystemVerilog size casts W\'(expr) truncate, extend by the sign and keep the signedness', () => {
