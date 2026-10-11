@@ -293,6 +293,16 @@ const PT_PATTERNS = [
   [/^Balanced \((Speed|Area)\)$/, (m, g) => `Equilibrado (${g === 'Speed' ? 'Velocidade' : 'Área'})`],
   [/^Example: (.*)$/, 'Exemplo: $1'],
   [/^Settings file: (.*)$/, 'Ficheiro de definições: $1'],
+  // the open toolchain: the status of the project's device, the build of a device description
+  [/^Open toolchain for (\S+): (available|not available)$/, (m, p, a) => `Toolchain aberta para ${p}: ${a === 'available' ? 'disponível' : 'não disponível'}`],
+  [/^(\S+): device description \((shipped with Silinx|built from your ISE)\) and bit database$/, (m, p, w) => `${p}: descrição do dispositivo (${w === 'built from your ISE' ? 'construída a partir do seu ISE' : 'fornecida com o Silinx'}) e base de dados de bits`],
+  [/^no bit database for (\S+) yet \(only the XC3S250E\): use an ISE mode for this device$/, 'ainda não há base de dados de bits para o $1 (só para o XC3S250E): use um modo ISE para este dispositivo'],
+  [/^no device description of (\S+): build it from your ISE \(Toolchain Settings: Build Device Description\)$/, 'não há descrição do dispositivo $1: construa-a a partir do seu ISE (Definições da Toolchain: Construir Descrição do Dispositivo)'],
+  [/^the open toolchain does not support the (\S+) family yet \(only the Spartan-3E XC3S250E\): use an ISE mode$/, 'a toolchain aberta ainda não suporta a família $1 (só o Spartan-3E XC3S250E): use um modo ISE'],
+  [/^Build Device Description runs xdl -report on your Xilinx ISE \((\w+) mode(?:: not available, (.*))?\)\.$/, (m, mode, why) => `Construir Descrição do Dispositivo executa xdl -report no seu Xilinx ISE (modo ${mode}${why ? `: não disponível, ${why}` : ''}).`],
+  [/^There is no device description of (\S+) yet\.\n\nBuild it now from your Xilinx ISE \(the ISE set in Toolchain Settings\)\? It takes a few minutes; then run "(.*)" again\.$/,
+    (m, p, proc) => `Ainda não há descrição do dispositivo ${p}.\n\nConstruí-la agora a partir do seu Xilinx ISE (o ISE indicado nas Definições da Toolchain)? Demora alguns minutos; depois execute "${t(proc)}" novamente.`],
+  [/^Not met \((\d+) constraints\)$/, 'Não cumpridas ($1 restrições)'],
   [/^Version (\d[\w.-]*)$/, 'Versão $1'],
   // schematic palette: "<SYMBOL>: <description>"
   [/^([A-Z][A-Z0-9_]*(?: [A-Z]+)?): (.+)$/, (m, a, b) => `${a}: ${t(b)}`],
@@ -320,6 +330,21 @@ Object.assign(PT, {
   'Synthesis, place & route and bitstream generation use the Xilinx ISE 14.7 command-line tools. Xilinx, ISE, ISim, iMPACT and Spartan are trademarks of AMD/Xilinx; Silinx ISE is an independent project, not affiliated with or endorsed by AMD/Xilinx.':
     'A síntese, o place & route e a geração do bitstream usam as ferramentas de linha de comandos do Xilinx ISE 14.7. Xilinx, ISE, ISim, iMPACT e Spartan são marcas registadas da AMD/Xilinx; o Silinx ISE é um projeto independente, sem afiliação nem aprovação da AMD/Xilinx.',
   'F12 or Ctrl/Cmd+Click': 'F12 ou Ctrl/Cmd+Clique',
+  // the open toolchain (Toolchain Settings, Processes, Design Summary)
+  'Open toolchain (experimental, no ISE)': 'Toolchain aberta (experimental, sem ISE)', 'Synthesize - Yosys': 'Sintetizar - Yosys',
+  'Open toolchain (experimental, no ISE): selected': 'Toolchain aberta (experimental, sem ISE): selecionada',
+  'Needs Xilinx ISE: not available with the open toolchain (choose an ISE mode in Toolchain Settings)': 'Requer o Xilinx ISE: não disponível com a toolchain aberta (escolha um modo ISE nas Definições da Toolchain)',
+  'Xilinx ISE for device descriptions:': 'Xilinx ISE para as descrições de dispositivos:',
+  'Open toolchain: open a project to see whether its device is supported': 'Toolchain aberta: abra um projeto para ver se o seu dispositivo é suportado',
+  'Supported now: the Spartan-3E XC3S250E (Basys2-250). Experimental: check the design on the board.': 'Suportado agora: o Spartan-3E XC3S250E (Basys2-250). Experimental: verifique o projeto na placa.',
+  'Build Device Description': 'Construir Descrição do Dispositivo',
+  "Build the description of the project's device from your Xilinx ISE (xdl -report), for the open toolchain": 'Construir a descrição do dispositivo do projeto a partir do seu Xilinx ISE (xdl -report), para a toolchain aberta',
+  'Device Utilization Summary (open toolchain)': 'Resumo da Utilização do Dispositivo (toolchain aberta)',
+  'Timing (post Place & Route, open toolchain estimate)': 'Temporização (após Posicionar e Encaminhar, estimativa da toolchain aberta)',
+  'Synthesis Report (Yosys)': 'Relatório de Síntese (Yosys)', 'Placed Design (XDL)': 'Projeto Posicionado (XDL)', 'Routed Design (XDL)': 'Projeto Encaminhado (XDL)',
+  'Static Timing Report': 'Relatório de Temporização Estática',
+  'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the open toolchain (experimental, no ISE): Tools ▸ Toolchain Settings.':
+    'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese e a implementação usam a toolchain aberta (experimental, sem ISE): Ferramentas ▸ Definições da Toolchain.',
   // board emulator
   'Max speed': 'Velocidade máxima', '▶ Run': '▶ Executar', '⏸ Pause': '⏸ Pausa', '⏭ Step': '⏭ Passo', '⟲ Power cycle': '⟲ Desligar/ligar',
   'Advance one clock cycle': 'Avançar um ciclo de relógio', 'Power-cycle the board: restart the design from time 0': 'Desligar e ligar a placa: reiniciar o projeto a partir do instante 0',

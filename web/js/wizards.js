@@ -788,9 +788,13 @@ export async function implProperties() {
 // ------------------------------------------------------------------ toolchain
 export async function toolchainDialog() {
   let tc;
-  try { tc = await api.toolchain(); } catch (e) { return alertDlg('Toolchain', e.message, 'error'); }
+  const pjName = S.project?.name || null;
+  try { tc = await api.toolchain(pjName); } catch (e) { return alertDlg('Toolchain', e.message, 'error'); }
   const cfg = JSON.parse(JSON.stringify(tc.config));
-  const mode = select([['local', 'Local (Xilinx ISE installed locally)'], ['docker', 'Docker image with Xilinx ISE'], ['ssh', 'Remote host with Xilinx ISE via SSH']], cfg.mode);
+  const ISE_OPTS = [['local', 'Local (Xilinx ISE installed locally)'], ['docker', 'Docker image with Xilinx ISE'], ['ssh', 'Remote host with Xilinx ISE via SSH']];
+  const mode = select([...ISE_OPTS, ['open', 'Open toolchain (experimental, no ISE)']], cfg.mode);
+  // open mode: the ISE that builds the descriptions of the devices that do not ship with Silinx
+  const iseMode = select(ISE_OPTS, cfg.open?.iseMode || 'docker');
   const inputs = {
     'local.settings': h('input', { type: 'text', value: cfg.local.settings || '', placeholder: 'auto-detect (…/14.7/ISE_DS/settings64.sh)' }),
     'docker.image': h('input', { type: 'text', value: cfg.docker.image || '', placeholder: 'e.g. my-ise:14.7' }),
@@ -813,11 +817,24 @@ export async function toolchainDialog() {
     'programmer.tool': 'Programmer tool:', 'programmer.cable': 'Cable:',
   };
   const modeBox = h('div', { class: 'form-grid' });
+  // the open toolchain and the project's device: available, or why not
+  const os = tc.open;
+  const openBox = h('div', { class: `msg open-status ${os?.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, os?.available ? '✓' : '!'),
+    h('div', { class: 'msg-text' }, h('b', {}, os ? `Open toolchain for ${os.part || S.project?.device?.part || 'this device'}: ${os.available ? 'available' : 'not available'}` : 'Open toolchain: open a project to see whether its device is supported'),
+      os ? h('div', {}, os.reason) : null,
+      h('div', { style: { color: '#555', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S250E (Basys2-250). Experimental: check the design on the board.'),
+      os && (os.canBuild || !os.available) && os.bitDb ? h('div', { style: { marginTop: '4px' } }, `Build Device Description runs xdl -report on your Xilinx ISE (${tc.deviceBuilder?.mode || iseMode.value} mode${tc.deviceBuilder?.available === false ? `: not available, ${tc.deviceBuilder.reason}` : ''}).`) : null));
+  let buildBtn = null;
   const renderMode = () => {
     modeBox.innerHTML = '';
-    for (const k of groups[mode.value]) modeBox.append(h('label', {}, labels[k]), inputs[k]);
+    const open = mode.value === 'open';
+    if (open) modeBox.append(h('label', {}, 'Xilinx ISE for device descriptions:'), iseMode);
+    for (const k of groups[open ? iseMode.value : mode.value]) modeBox.append(h('label', {}, labels[k]), inputs[k]);
+    openBox.style.display = open ? '' : 'none';
+    if (buildBtn) buildBtn.style.display = open ? '' : 'none';
   };
   mode.addEventListener('change', renderMode);
+  iseMode.addEventListener('change', renderMode);
   renderMode();
   const st = tc.ise;
   const progRows = Object.entries(tc.programmers).map(([k, v]) => h('tr', {}, h('td', {}, k), h('td', { html: v.found ? icons.ok : icons.err }), h('td', {}, v.found ? `${v.path}${v.version ? ` (${v.version})` : ''}` : 'not found')));
@@ -825,19 +842,23 @@ export async function toolchainDialog() {
     title: 'Toolchain Settings', width: 640,
     body: h('div', {},
       h('div', { class: `msg ${st.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, st.available ? '✓' : '!'),
-        h('div', { class: 'msg-text' }, h('b', {}, `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: '#555' } }, st.help),
+        h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'open' ? 'Open toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: '#555' } }, st.help),
           st.available ? null : h('div', { style: { marginTop: '8px' } }, h('b', {}, 'Easiest setup on any OS: '), 'build the private Docker image with the Silinx kit (docker/ise/README.md): ',
             h('code', {}, 'docker/ise/build-ise-image.sh --installer <Xilinx_ISE_DS_Lin_14.7_1015_1.tar> --license <Xilinx.lic>'), ' (Windows: build-ise-image.ps1). It configures Silinx automatically.'))),
       h('div', { class: 'form-grid' }, h('label', {}, 'Execution mode:'), mode),
       h('div', { style: { margin: '6px 0 10px' } }, modeBox),
+      openBox,
       h('div', { style: { fontWeight: 'bold', margin: '8px 0 4px' } }, 'Device programmers'),
       h('table', { class: 'grid' }, h('tr', {}, h('th', {}, 'Tool'), h('th', {}, ''), h('th', {}, 'Location')), ...progRows),
       h('div', { class: 'form-grid', style: { marginTop: '8px' } }, h('label', {}, labels['programmer.tool']), inputs['programmer.tool'], h('label', {}, labels['programmer.cable']), inputs['programmer.cable']),
       h('div', { style: { color: '#777', marginTop: '8px' } }, `Settings file: ${tc.configPath}`)),
-    buttons: [{ label: 'Save', primary: true, value: true }, { label: 'Cancel', value: null }],
+    buttons: [{ label: 'Save', primary: true, value: true },
+      { label: 'Build Device Description', value: 'build', disabled: !os?.part || !os.bitDb || api.standalone },
+      { label: 'Cancel', value: null }],
+    onOpen: ({ buttons }) => { buildBtn = buttons[1].el; buildBtn.title = 'Build the description of the project\'s device from your Xilinx ISE (xdl -report), for the open toolchain'; renderMode(); },
   });
   if (!r) return;
-  const out = { mode: mode.value, local: {}, docker: {}, ssh: {}, programmer: {} };
+  const out = { mode: mode.value, local: {}, docker: {}, ssh: {}, programmer: {}, open: { iseMode: iseMode.value } };
   for (const [k, el] of Object.entries(inputs)) {
     const [g, f] = k.split('.');
     out[g][f] = f === 'port' ? (+el.value || 22) : el.value.trim();
@@ -845,7 +866,9 @@ export async function toolchainDialog() {
   try {
     S.toolchain = await api.saveToolchain(out);
     app.log(`Toolchain settings saved (${S.toolchain.ise.mode}: ${S.toolchain.ise.reason}).`, S.toolchain.ise.available ? 'ok' : 'warn');
-  } catch (e) { alertDlg('Toolchain Settings', e.message, 'error'); }
+    app.renderProcesses();
+  } catch (e) { alertDlg('Toolchain Settings', e.message, 'error'); return; }
+  if (r === 'build' && os?.part) await app.buildDeviceDescription(os.part);
 }
 
 const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
