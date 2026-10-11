@@ -1,0 +1,24 @@
+{
+  "name": "feat_dcm_wait",
+  "description": "Board test: a DCM whose lock the startup waits for (STARTUP_WAIT), a slow CLKFX input (CLKIN / 32), only CLK0 and CLKFX used",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "../basys2.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

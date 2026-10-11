@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { resolvePatterns, stripLutRuns } from '../research/s3e-bitstream/lib.mjs';
 import { SHIFTS } from '../research/s3e-bitstream/share-sb.mjs';
+import { MIRRORS, mirrorFeatures } from '../research/s3e-bitstream/dcm-mirror.mjs';
 import { makeDb, featureBits } from '../core/fpga/bitgen.js';
 
 test('resolvePatterns: a PIP measured with different bits keeps the pattern without artefacts', () => {
@@ -92,6 +93,34 @@ test('measured database: block-RAM, multiplier and DCM settings', () => {
   const d = t.DCM_TL_CENTER.features;
   for (let m = 2; m <= 32; m++) assert.ok(Array.isArray(d[`DCM:CLKFX_MULTIPLY:${m}`]), `CLKFX_MULTIPLY ${m}`);
   assert.ok(d['DCM:USED'].length > 20);
+});
+
+test('dcm-mirror: the other DCMs\' settings are the top-left one\'s mirrored, but for the inverters and the pair\'s bits', () => {
+  const tl = { 'DCM:STARTUP_WAIT:STARTUP_WAIT': ['0,89'], 'DCM:DUTY_CYCLE_CORRECTION:FALSE': ['!0,77'], 'DCM:CLKIN:LOW': ['-39,121', '-39,141'],
+    'DCM:CLKFX_IN:LOW': ['!37,240', '37,242'], 'DCM:RSTINV:RST': ['3,38'], 'E2MID1->DCM_G1_B1': ['1,2'] };
+  // measured on each DCM (sv-dcm-a / sv-dcm-b): STARTUP_WAIT, DCC, the input period, the CLKFX input range, an inverter
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_TR_CENTER'), { 'DCM:STARTUP_WAIT:STARTUP_WAIT': ['18,89'], 'DCM:DUTY_CYCLE_CORRECTION:FALSE': ['!18,77'],
+    'DCM:CLKIN:LOW': ['57,121', '57,141'], 'DCM:CLKFX_IN:LOW': ['!18,240', '18,242'], 'DCM:RSTINV:RST': ['3,38'] });
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_BL_CENTER'), { 'DCM:STARTUP_WAIT:STARTUP_WAIT': ['0,-26'], 'DCM:DUTY_CYCLE_CORRECTION:FALSE': ['!0,-14'],
+    'DCM:CLKIN:LOW': ['-39,-58', '-39,-78'], 'DCM:CLKFX_IN:LOW': ['!37,-80', '37,-78'], 'DCM:RSTINV:RST': ['3,38'] });
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_BR_CENTER')['DCM:STARTUP_WAIT:STARTUP_WAIT'], ['18,-26']);
+  assert.deepEqual(mirrorFeatures(tl, 'DCM_BR_CENTER')['DCM:CLKFX_IN:LOW'], ['!18,-80', '18,-78']);
+  assert.deepEqual(Object.keys(MIRRORS), ['DCM_TR_CENTER', 'DCM_BL_CENTER', 'DCM_BR_CENTER']);
+  // the committed database: the three other DCMs have every setting of the top-left one, their PIPs kept
+  const t = read('s3e-tiles.json').types;
+  const own = Object.fromEntries(Object.entries(t.DCM_TL_CENTER.features).filter(([k]) => k.startsWith('DCM:')));
+  for (const type of Object.keys(MIRRORS)) {
+    const f = t[type].features;
+    assert.deepEqual(Object.fromEntries(Object.entries(f).filter(([k]) => k.startsWith('DCM:'))), mirrorFeatures(own, type), type);
+    assert.ok(Object.keys(f).some(k => k.includes('->')), `${type}: its PIPs`);
+  }
+  // each clock output has its own enable bit (no longer in DCM:USED); CLKFX and the status pins none
+  const d = t.DCM_TL_CENTER.features;
+  assert.deepEqual(['CLK0', 'CLK90', 'CLK180', 'CLK270', 'CLK2X', 'CLK2X180', 'CLKDV', 'CLKFX', 'CLKFX180', 'LOCKED'].map(p => d[`DCM:OUT:${p}`]),
+    [['0,73'], ['0,75'], ['0,74'], ['0,76'], ['0,97'], ['0,98'], ['0,99'], [], [], []]);
+  assert.ok(!d['DCM:USED'].some(b => ['0,73', '0,97', '0,99'].includes(b)));
+  // the CLKFX input range is its own feature, not CLKFX_DIVIDE 31 / 32's
+  assert.deepEqual(d['DCM:CLKFX_DIVIDE:32'], ['-39,27', '-39,28', '-39,29', '-39,30', '-39,31']);
 });
 
 test('measured database: SLICEM as RAM / shift register, I/O drive, slew and pull per pad', () => {

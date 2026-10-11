@@ -118,6 +118,8 @@ const FEATURES = {
   feat_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
   feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
+  // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
+  feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],
   hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };

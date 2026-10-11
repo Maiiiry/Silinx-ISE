@@ -19,7 +19,7 @@ for (let i = 0; i < files.length; i += 2) {
   const design = parseXdl(fs.readFileSync(files[i], 'utf8'));
   const iseBytes = fs.readFileSync(files[i + 1]);
   const ise = readBit(iseBytes);
-  const crc = ise.cor === corValue({ crc: true }) || ise.cor === corValue({ crc: true, startupClk: 'JtagClk' });
+  const crc = !(ise.cor & 0x20000000);
   const startupClk = (ise.cor & 0x00018000) === 0x00010000 ? 'JtagClk' : (ise.cor & 0x00018000) === 0x00008000 ? 'UserClk' : 'Cclk';
   const db = dbOf(design.part);
   const { bytes, unknown } = bitgen(design, db, { name: ise.header.a, date: ise.header.c, time: ise.header.d, crc, startupClk });
