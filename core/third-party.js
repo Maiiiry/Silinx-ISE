@@ -20,7 +20,8 @@ export const THIRD_PARTY = [
     "version": "ported",
     "license": "MIT",
     "url": "https://github.com/mwkmwkmwk/adepttool",
-    "standalone": true
+    "standalone": true,
+    "ported": true
   },
   {
     "name": "array-flatten",

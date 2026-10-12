@@ -76,7 +76,8 @@ test('release zip: the app with its production dependencies only, Yosys\'s WebAs
   assert.equal(JSON.parse(fs.readFileSync(path.join(APP, 'package.json'), 'utf8')).version, VERSION);
   // every package shipped has its notice (and nothing listed is missing)
   const { THIRD_PARTY } = await import(pathToFileURL(path.join(APP, 'core/third-party.js')).href);
-  const listed = THIRD_PARTY.map((c) => `${c.name}@${c.version}`).sort();
+  // (code ported into Silinx, e.g. adepttool, is listed but is not a package)
+  const listed = THIRD_PARTY.filter((c) => !c.ported).map((c) => `${c.name}@${c.version}`).sort();
   assert.deepEqual(packages(path.join(APP, 'node_modules')), listed, 'node_modules of the zip = THIRD-PARTY-NOTICES.md (node scripts/third-party.mjs)');
   const notices = fs.readFileSync(path.join(APP, 'THIRD-PARTY-NOTICES.md'), 'utf8');
   for (const c of listed) assert.ok(notices.includes(`## ${c.replace(/@(?=[^@]+$)/, ' ')} `), `${c} in THIRD-PARTY-NOTICES.md`);
