@@ -8,7 +8,8 @@ the "What's new" text of its GitHub release.
 In short:
 
 - **The browser edition keeps projects in a folder on your disk** (Chrome, Edge: *File* ▸ *Open
-  Workspace Folder…*), in the full application's format; the browser's storage stays the default.
+  Workspace Folder…*), in the full application's format, a build's reports, FPGA view and netlist
+  read back from it after a reload; the browser's storage stays the default.
 - **Back-annotate Pin Locations and View Technology Schematic** work with the Silinx toolchain (no
   ISE), in the full application and in the browser edition.
 - Fixes, each a GitHub issue.
