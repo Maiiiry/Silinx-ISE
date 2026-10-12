@@ -222,3 +222,37 @@ for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s5
     for (const type of ['RAMB16', 'MULT18X18SIO']) assert.ok(placedOf(type).length > 0, type);
   });
 }
+
+// The clocks of #56, #57, #58 through the whole open flow (checked against ISE: npm run
+// check:open-flow on the same projects gives DRC 0 errors / 0 warnings and a byte-identical .bit):
+// feat_constmult's clock LOC'd on the bottom GCLK pin (its buffer's lines reach no block RAM /
+// multiplier clock on known switches: BUFGMUX_X2Y11 through general routing, a warning), feat_dcm
+// with no constraints (the clock on B8, the pad whose dedicated path reaches the DCM's CLKIN), and
+// feat_constmult's clock LOC'd on a side GCLK pin (its buffers' settings are not known yet, #45: a
+// warning).
+const CLOCK_CASES = [
+  ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y11' },
+    ['Warning: place: clk: the global buffer BUFGMUX_X2Y1 that its pad M4 reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing']],
+  ['#57', 'feat_dcm', 'xc3s500e', 'fg320', null, { clk: 'B8', dcm: 'DCM_X0Y1' }, []],
+  ['#58', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X2Y11' },
+    ['Warning: place: clk: its pad K3 reaches on a dedicated path only global buffers whose settings are not in the bit database yet (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): BUFGMUX_X2Y11 instead, through general routing']],
+];
+for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
+  test(`the open flow: ${fixture} on the ${part.toUpperCase()}-${pkg.toUpperCase()}, the clock ${loc ? `LOC'd on ${loc}` : 'with no LOC'}: complete bitstream, the exact warnings (${issue})`, { timeout: 300000 }, () => {
+    const dir = path.join(tmp, `clock-${issue.slice(1)}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(path.join(ROOT, 'test/fixtures/open-flow', fixture, 'top.vhd'), path.join(dir, 'top.vhd'));
+    if (loc) fs.writeFileSync(path.join(dir, 'top.ucf'), `NET "clk" LOC = "${loc}";\n`);
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: `clock-${issue.slice(1)}`, version: 1, device: { family: 'spartan3e', part, package: pkg, speed: '-4' }, top: 'top',
+      files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }], ...(loc && { constraints: 'top.ucf' }) }));
+    const r = openFlow(dir, path.join(dir, 'out'));
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    assert.deepEqual(r.warnings, warnings);
+    const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
+    const placedOf = type => [...routed.matchAll(new RegExp(`^inst "([^"]+)" "${type}",placed \\S+ (\\S+) `, 'gm'))].map(m => [m[1], m[2]]);
+    assert.equal(placedOf('IBUF').find(([n]) => n === 'clk')?.[1], want.clk);
+    if (want.bufg) assert.deepEqual(placedOf('BUFGMUX').map(([, s]) => s), [want.bufg]);
+    if (want.dcm) assert.deepEqual(placedOf('DCM').map(([, s]) => s), [want.dcm]);
+  });
+}

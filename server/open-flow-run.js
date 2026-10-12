@@ -119,8 +119,9 @@ function runPar() {
   let r;
   try {
     // each clock's flip-flops on the slices its global line reaches through switches of known bits
-    r = place(packed, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, delays: delayTable(d, { allowPip: k.allowPip }), clockSites: site => clockReach(d, site, k.allowPip), bufgSites: (site, pin) => bufgReach(d, site, pin, k.allowPip) });
+    r = place(packed, deviceSites(d, k), { seed: spec.seed || 1, effort: spec.effort || 1, delays: delayTable(d, { allowPip: k.allowPip }), clockSites: site => clockReach(d, site, k.allowPip), bufgSites: (site, pin, to) => bufgReach(d, site, pin, k.allowPip, to) });
   } catch (e) { throw new StepError(`placement failed: ${e.message}`); }
+  for (const w of r.warnings || []) console.log(`WARNING:Place - ${w}`);
   const placedText = writeXdl(placedXdl(packed, r));
   fs.writeFileSync(path.join(outDir, 'placed.xdl'), placedText);
   report.files.placed = rel(path.join(outDir, 'placed.xdl'));
