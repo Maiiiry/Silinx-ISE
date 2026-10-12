@@ -134,7 +134,10 @@ function globalClockMask(device) {
  * core/fpga/timing.js), timingPasses (2: passes after the routing is legal, for timing only),
  * maxCriticality (0.99), model (timing.js SPEED_4), branchLoad (1: the weight of the branch loads
  * a new branch puts on the routed connections; 0: not counted), swapLutPins (true: LUT inputs may
- * be permuted; the returned design then has the LUT equations and inpins rewritten).
+ * be permuted; the returned design then has the LUT equations and inpins rewritten), searchCap
+ * (400 000: the nodes one search from a net's tree to a sink may expand) and searchCapRetry
+ * (8 000 000: a second search for a sink the first did not reach; #33: on the XC3S1200E a slice's
+ * BY input reached only past 400 000, which failed EPFL priority and adder).
  * Returns { design (a copy with the PIPs of every routed net), routed, failed: [names],
  * unreached: [{ net, inst, pin }] (the sinks of the failed nets not reached), iterations,
  * overused (nodes still shared at the end: 0 when successful), errors, pips, timeMs,
@@ -155,6 +158,7 @@ export function routeDesign(design, device, opts = {}) {
   const BRANCH = opts.branchLoad ?? 1;
   const D0 = 0.3, H_DELAY = 0.1;     // ns per unit of congestion cost; the A* estimate's delay per tile (a little over the fastest wires': faster search)
   const maxCrit = opts.maxCriticality ?? 0.99;
+  const SEARCH_CAP = opts.searchCap ?? 400000, SEARCH_CAP_RETRY = opts.searchCapRetry ?? 8000000;
   // the PIPs the router may use (opts.allowPip), decided once per edge when the search first meets it
   const allowPip = opts.allowPip || null;
   const allowed = allowPip ? new Uint8Array(E.edgeTo.length) : null;   // 0 not decided, 1 yes, 2 no
@@ -208,7 +212,7 @@ export function routeDesign(design, device, opts = {}) {
   // A* from the tree to one sink; returns the list of edges of the new branch (sink first) or null.
   // crit (timing): the criticality of the connection; a node costs crit x delay / D0 + (1 - crit) x
   // congestion, and a tree node starts at crit x its delay from the source (tdel) / D0
-  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null, targets = null, start = null) => {
+  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null, targets = null, start = null, cap = SEARCH_CAP) => {
     curStamp++;
     heap.clear();
     // equivalent pins (a LUT's inputs): any of them not yet in the tree ends the search
@@ -231,7 +235,7 @@ export function routeDesign(design, device, opts = {}) {
         for (let m = n; !tree.has(m); m = edgeFrom[prev[m]]) path.push(prev[m]);
         return path;
       }
-      if (++expanded > 400000) return null;
+      if (++expanded > cap) return null;
       for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
         const m = E.edgeTo[e];
         // a route-through (a path through a site) only out of the net's own source site, onto an
@@ -288,6 +292,9 @@ export function routeDesign(design, device, opts = {}) {
       if (!s.targets && tree.has(s.node)) continue;
       let path = net.clock ? search(tree, s.node, i, pf, gclk) : null;
       if (!path) path = search(tree, s.node, i, pf, null, critOf(s), tdel, s.targets, start);
+      // a sink the bounded search did not reach (a long way round on the larger devices): once more
+      // with a search that may look much further
+      if (!path && SEARCH_CAP_RETRY > SEARCH_CAP) path = search(tree, s.node, i, pf, null, critOf(s), tdel, s.targets, start, SEARCH_CAP_RETRY);
       if (!path) { ok = false; unreached.set(i, [...(unreached.get(i) || []), s.pin]); continue; }
       if (s.targets) s.node = E.edgeTo[path[0]];     // the LUT input it took
       for (let j = path.length - 1; j >= 0; j--) {

@@ -3,6 +3,21 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.3
+
+- **Silinx toolchain: timing analysis.** A path through a carry chain's data input taken from BX
+  (`CY0F = BX`, as comparators are packed) into the XOR of the slice's G stage was not timed, and a
+  LUT input the LUT does not read (the carry's data input on a LUT pin) counted as a path through
+  the LUT; the false loops this made left everything after them out of the analysis. verilog-uart
+  of the design corpus: 6.7 ns by Silinx's analysis, 11.9 ns by ISE's trce on the same routed
+  design; now 12.1 ns, and the placer and router see that path (10.2-10.4 ns routed). The carry's
+  data input on F1 / F2 (1.16 ns to COUT) and BY into the Y flip-flop (0.36 / 0.38 ns) are trce's.
+  On 14 designs of the corpus the analysis is within 0-5 % of trce (part of #26).
+- **Silinx toolchain: nets that could not be routed on the XC3S1200E** (EPFL priority and adder of
+  the design corpus, and the no-UCF test design on some placements): the router's search for a
+  sink stopped after 400 000 nodes; a sink it did not reach is now searched again, much further.
+  Both now build to a bitstream (#33).
+
 ## 15.10.2
 
 - **Silinx toolchain: a clock with no pin location** could fail in Place & Route (a design with no
