@@ -32,7 +32,7 @@ export function addAnalyticsToSite(site, code) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       const f = path.join(dir, e.name);
       if (e.isDirectory() && e.name !== 'assets') walk(f);
-      else if (e.name === 'index.html') { fs.writeFileSync(f, addAnalytics(fs.readFileSync(f, 'utf8'), code)); out.push(path.relative(site, f)); }
+      else if (e.name === 'index.html') { fs.writeFileSync(f, addAnalytics(fs.readFileSync(f, 'utf8'), code)); out.push(path.relative(site, f).split(path.sep).join('/')); }
     }
   };
   walk(site);
