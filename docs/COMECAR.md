@@ -26,7 +26,10 @@ projetos ficam nesse browser) e passe ao passo 4. Ou descarregue-o, para trabalh
 - Os projetos ficam guardados **dentro deste browser**, neste computador. Para guardar uma cópia
   ou passar para outro computador use **File ▸ Download Project Bundle** (e **File ▸ Open Project
   Bundle** para o voltar a abrir). Apagar os dados do browser apaga os projetos.
-- A síntese e a programação da placa não estão disponíveis nesta edição (precisam da Forma 2).
+- Em **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** e **Generate Programming
+  File** correm a cadeia de ferramentas Silinx no browser (placas Basys2 e Nexys2; a primeira vez
+  descarrega as ferramentas, cerca de 100 MB, que o browser guarda): o bitstream (`top.bit`) é
+  descarregado. Programar a placa precisa da Forma 2 (ou do Digilent Adept / iMPACT com esse ficheiro).
 - A interface pode ser posta em português em **View ▸ Language**.
 
 ---

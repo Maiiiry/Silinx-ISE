@@ -1,16 +1,18 @@
 // UI: the standalone single-file edition (scripts/build-standalone.mjs -> Silinx-ISE.html, built
 // here into a temp directory): it loads from file:// without a server, creates a project from an
-// example and simulates it.
+// example and simulates it; the site (--site: the page and the assets of the Silinx toolchain, as
+// GitHub Pages publishes it), served over HTTP, implements blinky in the browser down to the bitstream.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { setupUi, uiTest, ROOT } from './harness.js';
+import { setupUi, uiTest, waitDownload, ROOT } from './harness.js';
 
-let env, html, skip = null;
+let env, html, site, server, siteUrl, skip = null;
 before(async () => {
   env = await setupUi({ server: false });
   if (env.skip) return;
@@ -26,14 +28,28 @@ before(async () => {
   const root = path.join(env.tmp, 'standalone');
   await fs.mkdir(path.join(root, 'scripts'), { recursive: true });
   await fs.copyFile(path.join(ROOT, 'scripts/build-standalone.mjs'), path.join(root, 'scripts/build-standalone.mjs'));
-  for (const d of ['web', 'core', 'server', 'examples']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
+  for (const d of ['web', 'core', 'server', 'examples', 'research']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
   for (const f of ['LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await fs.copyFile(path.join(ROOT, f), path.join(root, f));   // the embedded notices
   await fs.symlink(modules, path.join(root, 'node_modules'), 'dir');
-  const r = spawnSync(process.execPath, [path.join(root, 'scripts/build-standalone.mjs')], { cwd: root, encoding: 'utf8', timeout: 120000 });
+  site = path.join(root, 'site');
+  const r = spawnSync(process.execPath, [path.join(root, 'scripts/build-standalone.mjs'), '--site', site], { cwd: root, encoding: 'utf8', timeout: 180000 });
   if (r.status !== 0) throw new Error(`standalone build failed: ${r.stderr || r.stdout}`);
   html = path.join(root, 'dist', 'Silinx-ISE.html');
+  // the site over HTTP, as GitHub Pages serves it (no Content-Encoding: the .json.gz are fetched as bytes)
+  const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.gz': 'application/gzip' };
+  server = http.createServer(async (req, res) => {
+    const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
+    const f = path.join(site, rel);
+    if (!f.startsWith(site + path.sep)) { res.writeHead(403).end(); return; }
+    try {
+      const data = await fs.readFile(f);
+      res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream' }).end(data);
+    } catch { res.writeHead(404).end(); }
+  });
+  await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
+  siteUrl = `http://127.0.0.1:${server.address().port}/`;
 });
-after(async () => { await env?.teardown?.(); });
+after(async () => { server?.close(); await env?.teardown?.(); });
 const E = () => (skip ? { skip } : env);
 
 uiTest('standalone edition (dist build): loads from file://, creates a project from an example, simulates it', E, async (page) => {
@@ -45,7 +61,7 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.goto(pathToFileURL(html).href);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'standalone boot' });
   assert.match(await page.eval(() => document.title), /Silinx ISE .*Project Navigator/);
-  await page.waitConsole(/Standalone edition: projects are stored in this browser/);
+  await page.waitConsole(/Browser edition: projects are stored in this browser/);
   // File menu: the bundle commands of the standalone edition
   const file = (await page.openMenu('File')).map((i) => i.label);
   assert.ok(file.includes('Open Project Bundle…') && file.includes('Download Project Bundle…'), file.join(' | '));
@@ -69,17 +85,13 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'simulation ran', timeout: 30000 });
   assert.ok(await page.eval(() => window.Silinx.active.view.state.rows.find((r) => r.name === 'clk').sig.wave.t.length) > 50);
-  // synthesis needs the full application: a clear message, no crash
+  // a project that synthesizes with XST needs Xilinx ISE: a clear message, no crash
+  await page.eval(async () => { window.Silinx.project.synthTool = 'xst'; await window.SilinxApp.saveProjectJson(); });
   await page.click('input[name=view][value=impl]');
   await page.menu('Process', 'Implement Top Module');
-  await page.waitConsole(/This is the standalone \(single HTML file\) edition of Silinx\./, { timeout: 15000 });
+  await page.waitConsole(/This project synthesizes with XST, which needs Xilinx ISE 14\.7: not available in the browser edition\./, { timeout: 15000 });
   await page.waitFor(() => !window.Silinx.busy);
-  // so does the open synthesis (Yosys in WebAssembly is loaded from the application)
-  await page.treeRow('#procs', 'Synthesize - Yosys (open)', { dbl: true, exact: true });
-  await page.waitDialog('Synthesize - Yosys (open)');
-  assert.match(await page.eval(() => document.querySelector('.dlg-overlay').innerText), /needs the full Silinx application/);
-  await page.dialogButton('OK');
-  await page.waitNoDialog();
+  await page.eval(async () => { window.Silinx.project.synthTool = 'silinx'; await window.SilinxApp.saveProjectJson(); });
   // edits are kept across a reload (localStorage)
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
@@ -103,3 +115,30 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.click(`${ED} .se-simbar .lv-step`);
   assert.equal(await leds(), '10', 'one LED step after a clock cycle with step = 1');
 }, { url: () => 'about:blank' });
+
+uiTest('browser edition (the site over HTTP): Generate Programming File runs the Silinx toolchain in the browser', E, async (page) => {
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Web');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Web' && window.Silinx.project.top);
+  assert.ok(await page.eval(() => window.SilinxApp.openMode()), 'the browser edition synthesizes with Silinx');
+  await page.click('input[name=view][value=impl]');
+  await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+  await page.waitConsole(/=== SILINX DONE ===/, { timeout: 120000 });
+  await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
+  const log = await page.consoleText();
+  for (const re of [/=== SILINX STEP synth ===/, /=== SILINX STEP par ===/, /=== SILINX STEP bitgen ===/, /Bitstream: build\/top\.bit/, /Bitstream downloaded: top\.bit/])
+    assert.match(log, re);
+  assert.doesNotMatch(log, /SILINX FAILED|Process failed/);
+  // the bitstream is downloaded
+  const { size } = await fs.stat(await waitDownload(page, 'top.bit'));
+  assert.ok(size > 100_000, `top.bit downloaded (${size} bytes)`);
+}, { url: () => 'about:blank', timeout: 240000 });

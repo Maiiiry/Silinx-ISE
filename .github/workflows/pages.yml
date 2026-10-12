@@ -39,13 +39,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Build the single-file edition
-        run: node scripts/build-standalone.mjs
-      - name: The site
-        run: |
-          mkdir -p site
-          cp dist/Silinx-ISE.html site/index.html
-          cp dist/Silinx-ISE.html site/Silinx-ISE.html
+      # the page (index.html, Silinx-ISE.html) and the assets of the Silinx toolchain in the browser
+      # (assets/: the device descriptions, the bit database, Yosys in WebAssembly)
+      - name: Build the site
+        run: node scripts/build-standalone.mjs --site site
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

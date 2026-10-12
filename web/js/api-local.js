@@ -1,11 +1,14 @@
 // Standalone (server-less) backend: same interface as api.js, with projects kept in the
-// browser's localStorage. Used by the single-file build (dist/Silinx-ISE.html).
-// Synthesis/implementation and device programming need the Silinx server + Xilinx ISE,
-// so those operations report that they are unavailable here.
+// browser's localStorage. Used by the single-file build (dist/Silinx-ISE.html, on GitHub Pages).
+// Implement Design / Generate Programming File run the Silinx toolchain in the browser
+// (web/js/open-flow-browser.js: no server, no Xilinx tool); the build's files are kept in memory
+// (they are too large for localStorage) and the bitstream is downloaded. XST (Xilinx ISE) and
+// programming a board need the full application.
 import { getDeviceDb } from '../../server/devices.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from '../../server/xise.js';
 import EXAMPLES from 'silinx-examples';
 import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
+import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 
 const KEY = 'silinx.standalone.fs';
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -62,7 +65,7 @@ function createProjectSync({ name, template = 'empty', device, board }) {
   return clone(mem[name].json);
 }
 
-// ---- fake jobs (for operations that need the server)
+// ---- jobs: the Silinx toolchain's runs in the browser, and the operations that need the server
 const jobs = new Map();
 let jobSeq = 0;
 function fakeJob(kind, lines, status = 'error', error) {
@@ -70,12 +73,28 @@ function fakeJob(kind, lines, status = 'error', error) {
   jobs.set(id, { id, kind, status, lines, next: lines.length, error });
   return { job: id };
 }
+const FULL_APP = 'the full Silinx application (run `npm start` in the Silinx folder and open http://127.0.0.1:8642; File > Download Project Bundle moves a project there)';
 const NEED_SERVER = [
-  'This is the standalone (single HTML file) edition of Silinx.',
-  'Synthesis, implementation (Xilinx ISE 14.7) and device programming need the full Silinx',
-  'application: run `npm start` in the Silinx folder and open http://127.0.0.1:8642.',
-  'Tip: File > Download Project Bundle, then open it in the full application.',
+  'This is the browser (single HTML file) edition of Silinx.',
+  `Programming a board needs ${FULL_APP}.`,
 ];
+const NEED_ISE = [
+  'This project synthesizes with XST, which needs Xilinx ISE 14.7: not available in the browser edition.',
+  'Choose Silinx as the synthesis tool (Project > Design Properties) to implement it here, with no Xilinx tool,',
+  `or open it in ${FULL_APP} with ISE.`,
+];
+// the build of each project (this session only): { files: { 'build/…': text | bytes }, report, view }
+const builds = new Map();
+const buildOf = name => { if (!builds.has(name)) builds.set(name, { files: {}, report: null, view: null }); return builds.get(name); };
+// build/reports.json's shape (server/open-flow.js openReports) from the flow's report
+function reportsOf(pj, r) {
+  const out = { top: pj.top, device: pj.device || null, source: 'open', synthesis: r.synthesis, map: r.map, par: r.par, timing: r.timing,
+    bit: r.bit ? { ...r.bit, header: { design: `${pj.top}.ncd`, part: `${String(pj.device.part).replace(/^xc/i, '')}${pj.device.package}` } } : undefined,
+    prom: r.prom, simModels: {}, files: r.files || {} };
+  out.summary = { synthesized: !!out.synthesis, mapped: !!out.map, routed: out.par ? out.par.routed : null, timingMet: out.timing ? out.timing.met : null,
+    maxFreqMHz: out.timing?.maxFreqMHz ?? null, utilization: out.map?.summary || null, bitstream: !!out.bit };
+  return out;
+}
 
 export const api = {
   standalone: true,
@@ -140,22 +159,50 @@ export const api = {
   },
   devices: async () => getDeviceDb(),
   toolchain: async () => ({
-    platform: 'browser', configPath: '(browser — standalone edition)',
-    config: { mode: 'local', local: { settings: '' }, docker: { image: '', settings: '' }, ssh: { host: '', user: '', port: 22, remoteDir: '', settings: '' }, programmer: { tool: '', cable: '' }, open: { iseMode: 'docker' } },
-    ise: { mode: 'browser', available: false, reason: 'standalone edition: synthesis and programming need the Silinx server and Xilinx ISE 14.7', help: NEED_SERVER.join(' ') },
+    platform: 'browser', configPath: '(browser edition)',
+    config: { mode: 'silinx', local: { settings: '' }, docker: { image: '', settings: '' }, ssh: { host: '', user: '', port: 22, remoteDir: '', settings: '' }, programmer: { tool: '', cable: '' }, open: { iseMode: 'docker' } },
+    // the Silinx toolchain runs in the browser (Spartan-3E); XST (Xilinx ISE) does not
+    ise: { mode: 'silinx', available: true, reason: 'the Silinx toolchain, in the browser (no Xilinx tool)', help: NEED_ISE.join(' ') },
     programmers: {}, helpers: {},
   }),
   saveToolchain: async () => api.toolchain(),
-  implement: async () => fakeJob('implement', NEED_SERVER),
-  reports: async () => ({ available: false }),
-  fpgaView: async () => ({ available: false, reason: 'standalone' }),
+  openStatus: async name => browserOpenStatus(proj(name).json.device || {}),
+  implement: async (name, { steps } = {}) => {
+    const p = proj(name);
+    if (p.json.synthTool === 'xst') return fakeJob('implement', NEED_ISE, 'error', 'XST needs Xilinx ISE 14.7 (choose Silinx as the synthesis tool in Design Properties)');
+    const id = `local-${++jobSeq}`;
+    const job = { id, kind: 'implement', status: 'running', lines: [], next: 0, error: null };
+    jobs.set(id, job);
+    const b = buildOf(name);
+    const push = l => { job.lines.push(l); job.next = job.lines.length; };
+    // the outputs of a previous run no longer match the design (a failure must not leave a bitstream)
+    for (const k of Object.keys(b.files)) if (/^build\/[^/]+\.bit$|^build\/open\/(placed|routed)\.xdl$|^build\/open\/timing\.txt$/.test(k)) delete b.files[k];
+    b.view = null;
+    runBrowserFlow({
+      project: p.json, files: { ...p.files, ...b.files }, steps,
+      onLine: push,
+      onWrite: (path, data) => { b.files[path] = data; },
+      onReport: r => { b.report = reportsOf(p.json, r); },
+    }).then(res => {
+      if (res.report) b.report = reportsOf(p.json, res.report);
+      if (res.view) b.view = res.view;
+      const bit = b.files[`build/${p.json.top}.bit`];
+      if (res.ok && bit) job.download = { filename: `${p.json.top}.bit`, url: URL.createObjectURL(new Blob([bit], { type: 'application/octet-stream' })) };
+      job.status = res.ok ? 'ok' : 'error';
+      job.error = res.ok ? null : `Silinx toolchain failed${res.error ? `: ${res.error}` : ''}`;
+    }).catch(e => { push(`ERROR:Silinx - ${e.message}`); job.status = 'error'; job.error = e.message; });
+    return { job: id };
+  },
+  reports: async name => (builds.get(name)?.report || { available: false }),
+  fpgaView: async name => (builds.get(name)?.view || { available: false, reason: 'no-ncd' }),
+  buildFile: async (name, path) => builds.get(name)?.files[path],
   bitinfo: async () => ({ available: false, reason: 'standalone edition' }),
   program: async () => fakeJob('program', NEED_SERVER),
   scan: async () => fakeJob('scan', NEED_SERVER),
   prom: async () => fakeJob('prom', NEED_SERVER),
   job: async (id, since = 0) => {
     const j = jobs.get(id) || fail(`job '${id}' not found`);
-    return { ...j, lines: j.lines.slice(+since) };
+    return { ...j, lines: j.lines.slice(+since), next: j.lines.length };
   },
   cancelJob: async id => jobs.get(id),
   exportXiseUrl: name => {
@@ -264,8 +311,14 @@ export const api = {
   },
 };
 
+// as api.js's: the lines as they come, until the job ends (the browser flow runs in a Web Worker)
 export async function followJob(id, onLine) {
-  const j = await api.job(id, 0);
-  for (const l of j.lines) onLine(l);
-  return j;
+  let since = 0;
+  for (;;) {
+    const j = await api.job(id, since);
+    for (const l of j.lines) onLine(l);
+    since = j.next;
+    if (j.status !== 'running') return j;
+    await new Promise(r => setTimeout(r, 150));
+  }
 }

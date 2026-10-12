@@ -26,7 +26,10 @@ That's all. Things to know:
 - Your projects are saved **inside this browser** on this computer. To keep a copy or move it to
   another computer use **File ▸ Download Project Bundle** (and **File ▸ Open Project Bundle** to
   load it back). Clearing the browser's data deletes them.
-- Synthesis and board programming are not available in this edition (they need Way 2).
+- On **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** and **Generate Programming
+  File** run the Silinx toolchain in the browser (Basys2 and Nexys2 boards; the first run downloads
+  its tools, about 100 MB, then the browser keeps them): the bitstream (`top.bit`) is downloaded.
+  Programming the board needs Way 2 (or Digilent Adept / iMPACT with that file).
 
 ---
 

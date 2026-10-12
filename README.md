@@ -209,7 +209,8 @@ In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releas
 
 - **Just design and simulate:** open **https://pmnmalo.github.io/Silinx-ISE/** (the latest version of main, in the
   browser), or download **`Silinx-ISE.html`** and double-click it. Nothing to install; projects are kept
-  in the browser. For a course page (Moodle…), link that address as a URL: an HTML file uploaded to
+  in the browser. The site also synthesizes, places, routes and writes the bitstream (the Silinx
+  toolchain, for the Spartan-3E boards), downloaded as a `.bit`. For a course page (Moodle…), link that address as a URL: an HTML file uploaded to
   Moodle does not work (Moodle's filtering of uploaded HTML files removes its scripts).
 - **Also synthesize and program boards:** install [Node.js](https://nodejs.org) (LTS), download
   **`silinx-ise-<version>.zip`**, unzip it and double-click **`Start Silinx-ISE.bat`** (Windows),
@@ -271,7 +272,11 @@ npm run build:standalone    # writes dist/Silinx-ISE.html (~2.5 MB)
 One file, no server: open it in a browser or share it. It includes the editor, schematics, ASM
 editor, simulation/ISim, pin planner and ISE project import/export; the examples (*blinky*, *pong*,
 *stopwatch*, *clock*) are embedded. Projects are stored in the browser (*File ▸ Download / Open Project Bundle* to move
-them). Synthesis, implementation and programming need the full application (`npm start`).
+them). `--site <dir>` also writes the GitHub Pages site: the page and its `assets/` (the device
+descriptions, the bit database and Yosys in WebAssembly, ~115 MB), with which the site runs the
+Silinx toolchain in the browser: *Implement Design* and *Generate Programming File* for the
+Spartan-3E boards (the bitstream is downloaded). XST (Xilinx ISE) and programming a board need the
+full application (`npm start`).
 
 ## Synthesis and bitstreams (Xilinx ISE 14.7)
 

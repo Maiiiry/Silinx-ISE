@@ -9,7 +9,9 @@ In short:
 
 - **Silinx in the browser at https://pmnmalo.github.io/Silinx-ISE/** (the single-file edition, rebuilt
   from main after every CI run that passes, so the site always has the latest fixes): a course page, Moodle for instance, links it as a URL (an uploaded HTML file is
-  filtered by Moodle and does not run).
+  filtered by Moodle and does not run). **It also builds the bitstream:** *Implement Design* and
+  *Generate Programming File* run the Silinx toolchain in the browser (Basys2, Nexys2), and the
+  `.bit` is downloaded (#108).
 - **A fourth example, *clock***, set with the buttons; the Start page offers the four.
 - **The synthesis tool is a project setting:** *Silinx* (no ISE needed) by default for new projects,
   or *XST*.

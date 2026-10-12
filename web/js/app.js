@@ -481,7 +481,8 @@ const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'sum
 // that need Xilinx ISE are disabled (their tooltip says why).
 // the project's synthesis tool (Design Properties: Silinx or XST), else Toolchain Settings' mode; never
 // in the single-file edition (no server: the Silinx toolchain runs on it)
-export const openMode = () => !api.standalone && (S.project?.synthTool ? S.project.synthTool === 'silinx' : S.toolchain?.config?.mode === 'silinx');
+// (the browser edition: the Silinx toolchain, unless the project chose XST)
+export const openMode = () => (S.project?.synthTool ? S.project.synthTool === 'silinx' : api.standalone || S.toolchain?.config?.mode === 'silinx');
 const OPEN_SYNTH = 'Synthesize - Yosys';
 const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr', 'pin2ucf', 'tech']);
 const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';
@@ -1025,6 +1026,12 @@ async function runImplInner(mod, steps, opts, pjName) {
       log(`\nProcess "${procName}" completed successfully${track.warnings ? ` with ${track.warnings} warning(s)` : ''}`, 'ok');
       if (extra) setStatus(procId, track.warnings ? 'warn' : 'ok');
       ok = true;
+      // the browser edition: the bitstream is downloaded (there is no build folder to find it in)
+      if (res.download && steps.includes('bitgen')) {
+        const a = h('a', { href: res.download.url, download: res.download.filename });
+        document.body.append(a); a.click(); a.remove();
+        log(`Bitstream downloaded: ${res.download.filename} (program the board with the full Silinx application, Digilent Adept or iMPACT).`, 'info');
+      }
     } else if (res.status === 'ok') {
       setStatus(procId, 'warn');
       log(`\nScripts generated in ${S.project.name}/build (ISE not run).`, 'warn');
@@ -1056,7 +1063,7 @@ const SYNTH_OPEN = 'Synthesize - Yosys (open)';
 let synthOpenRunning = false;
 async function synthOpen(mod) {
   if (!S.project || !mod) return;
-  if (api.standalone) { alertDlg(SYNTH_OPEN, 'The open synthesis needs the full Silinx application (it loads Yosys, compiled to WebAssembly, from it).'); return; }
+  if (api.standalone) { alertDlg(SYNTH_OPEN, 'In the browser edition, choose Silinx as the synthesis tool (Project > Design Properties): Synthesize then runs Yosys in the browser, and so does Implement Design.'); return; }
   if (synthOpenRunning) return;
   synthOpenRunning = true;
   try {
@@ -2658,7 +2665,6 @@ function hierarchyEntities(top) {
 async function openFpgaView(mod = S.project?.top) {
   if (!S.project || !mod) return;
   const title = 'View Implemented Design (FPGA)';
-  if (api.standalone) { alertDlg(title, 'The FPGA view needs the full Silinx application with Xilinx ISE (it reads the placed and routed design).'); return; }
   let m = await api.fpgaView(S.project.name).catch(e => ({ available: false, reason: 'error', error: e.message }));
   if (!m.available) {
     if (m.reason === 'error') { alertDlg(title, m.error, 'error'); return; }
@@ -3043,7 +3049,7 @@ function setupMenus() {
       { label: 'iMPACT (Configure Target Device)', icon: icon('impact'), action: () => openImpact() },
       { label: 'Board Emulator', icon: icon('board'), action: () => openEmulator(S.project.top), disabled: hasPj },
       { label: 'RTL Schematic', icon: icon('schematic'), action: () => S.sel?.module && openSchematic(S.sel.module), disabled: () => !S.sel?.module },
-      { label: 'Implemented Design (FPGA View)', icon: icon('chip'), action: () => openFpgaView(), disabled: () => !S.project?.top || api.standalone },
+      { label: 'Implemented Design (FPGA View)', icon: icon('chip'), action: () => openFpgaView(), disabled: () => !S.project?.top },
       '-',
       { label: 'Toolchain Settings (ISE / Programmers)…', icon: icon('gear'), action: () => wiz.toolchainDialog() },
     ] },
@@ -3220,7 +3226,7 @@ async function boot() {
 
   updateTitle();
   log(`${PRODUCT} ${VERSION} Project Navigator — HDL design, schematics, behavioural simulation and Xilinx FPGA implementation/programming.`, 'info');
-  if (api.standalone) log('Standalone edition: projects are stored in this browser (File > Download Project Bundle to keep a copy). Synthesis/programming need the full Silinx application.', 'warn');
+  if (api.standalone) log('Browser edition: projects are stored in this browser (File > Download Project Bundle to keep a copy). Implement Design and Generate Programming File run the Silinx toolchain here (Spartan-3E); programming a board needs the full Silinx application.', 'info');
   try { S.devices = await api.devices(); } catch (e) { log(`ERROR: cannot reach the Silinx server: ${e.message}`, 'err'); }
   api.toolchain().then(tc => {
     S.toolchain = tc;

@@ -11,31 +11,9 @@
 // every value; sv-dcmh-b = top left + bottom right, a subset) are the same four images.
 import fs from 'node:fs';
 
-const PAIR = 37;   // the top-left DCM's frame of the pair's shared bits
-const m = (flipF, flipB, pairF, pairB) => ([df, db]) => (df === PAIR ? [pairF, db + pairB] : [flipF ? 18 - df : df, flipB ? 63 - db : db]);
-export const MIRRORS = {
-  DCM_TR_CENTER: m(true, false, 18, 0),
-  DCM_BL_CENTER: m(false, true, 37, -320),
-  DCM_BR_CENTER: m(true, true, 18, -320),
-  // the XC3S1200E's side DCMs (DCM_H_…): the bottom-right one is the top-left DCM, the others its
-  // mirrors; their pairs (left, right) share two bits as the top and bottom pairs do
-  DCM_H_BR_CENTER: m(false, false, 0, 0),
-  DCM_H_BL_CENTER: m(true, false, 18, -384),
-  DCM_H_TR_CENTER: m(false, true, 0, 64),
-  DCM_H_TL_CENTER: m(true, true, 18, -320),
-};
-
-/** The features of the top-left DCM's settings (not its PIPs) mirrored onto tile type `type`. */
-export function mirrorFeatures(tl, type) {
-  const m = MIRRORS[type];
-  const out = {};
-  for (const [k, bits] of Object.entries(tl)) {
-    if (!k.startsWith('DCM:')) continue;
-    if (/^DCM:\w+INV:/.test(k)) { out[k] = [...bits]; continue; }
-    out[k] = bits.map(s => { const [df, db] = m(s.replace('!', '').split(',').map(Number)); return `${s[0] === '!' ? '!' : ''}${df},${db}`; }).sort();
-  }
-  return out;
-}
+// (the mirror functions are core/fpga/bitdb.js's, shared with the browser)
+import { MIRRORS, mirrorFeatures } from '../../core/fpga/bitdb.js';
+export { MIRRORS, mirrorFeatures };
 
 if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*\//, ''))) {
   const tl = JSON.parse(fs.readFileSync(new URL('./db/s3e-tiles.json', import.meta.url), 'utf8')).types.DCM_TL_CENTER.features;
