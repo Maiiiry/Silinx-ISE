@@ -340,7 +340,9 @@ export async function unconstrainedPorts(sources, top, ucfText) {
   try { design = elaborate(compile([...primitiveSources(sources), ...sources]), top); } catch { return []; }
   if (!design?.top) return [];
   let asg = {};
-  try { asg = parseUcf(ucfText || '').assignments || {}; } catch { /* unparsable: treat as empty */ }
+  // (given the top's ports, a name such as x[1] is a bus bit only when x is a bus: #63, #84)
+  const ucfPorts = design.top.ports.map(p => { const t = p.sig.t, bus = t.w > 1 || (t.kind === 'logic' && !t.scalar); return { name: p.name, msb: bus ? t.left : null, lsb: bus ? t.right : null }; });
+  try { asg = parseUcf(ucfText || '', { ports: ucfPorts }).assignments || {}; } catch { /* unparsable: treat as empty */ }
   const has = net => Object.entries(asg).some(([k, a]) => a.loc && k.toLowerCase() === net.toLowerCase());
   // ports used as clocks anywhere in the hierarchy must go to global-clock (GCLK) pins
   const clocks = new Set();

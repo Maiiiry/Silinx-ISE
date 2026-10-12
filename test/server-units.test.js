@@ -201,6 +201,8 @@ test('generateBuild: invalid top name / device, missing sources, include files, 
   await assert.rejects(ise.generateBuild({ ...base, device: undefined }, dir), e => e.status === 400);
   assert.deepEqual(await ise.unconstrainedPorts([{ path: 'x.v', text: 'module' }], 'x', ''), []);
   assert.deepEqual((await ise.unconstrainedPorts([{ path: 'x.v', lang: 'verilog', text: 'module x(input [1:0] a); endmodule' }], 'x', 'NET "a<0>" LOC = "P1";\nNET garbage')).map(u => u.net), ['a<1>']);
+  // a bus bit written a[1] (or a(1)) is a<1>: read with the top's ports (#84)
+  assert.deepEqual((await ise.unconstrainedPorts([{ path: 'x.v', lang: 'verilog', text: 'module x(input [1:0] a, input b); endmodule' }], 'x', 'NET "a[1]" LOC = "P1";\nNET "a(0)" LOC = "P2";')).map(u => u.net), ['b']);
 });
 
 test('report parsers: odd and partial inputs', () => {

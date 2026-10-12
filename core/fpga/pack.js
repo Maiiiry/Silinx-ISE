@@ -80,6 +80,14 @@ export const WIDE_MUX = {
 const clean = s => String(s).replace(/^\\/, '').replace(/[\s"\\:]/g, '_');
 const escCfg = clean;
 
+/** The top's ports as parseUcf takes them: a bus with the range of its bits (named name<i>). */
+export function ucfPortsOf(nl) {
+  return (nl.ports || []).map(p => {
+    const idx = (p.bits || []).map(b => /<(-?\d+)>$/.exec(b.name)).filter(Boolean).map(m => +m[1]);
+    return idx.length ? { name: p.name, msb: Math.max(...idx), lsb: Math.min(...idx) } : { name: p.name };
+  });
+}
+
 /** Pack a netlist. ucf: UCF text or parseUcf() result (LOC, IOSTANDARD, DRIVE, SLEW, PULL).
  *  carryOut: how the carry out of a chain's last stage leaves the slice when logic reads it:
  *  'pin' (default, as ISE does: the XB / YB pin of the carry multiplexer) or 'xor' (one more
@@ -87,7 +95,8 @@ const escCfg = clean;
  *  switches and settings Silinx's bitstream writer does not know yet). */
 export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' } = {}) {
   const warnings = [];
-  const parsedUcf = typeof ucf === 'string' ? parseUcf(ucf) : ucf;
+  // (given the top's ports, a name such as x[1] is a bus bit only when x is a bus: #63, #84)
+  const parsedUcf = typeof ucf === 'string' ? parseUcf(ucf, { ports: ucfPortsOf(nl) }) : ucf;
   const cons = typeof ucf === 'string' ? parsedUcf.assignments : ucf?.assignments || ucf || {};
   // INST "name" LOC = "DCM_X1Y0": the site of a DCM (#47; the placer chooses one otherwise)
   const instLocs = new Map();

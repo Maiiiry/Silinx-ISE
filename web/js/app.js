@@ -922,7 +922,7 @@ async function checkConstraints() {
   if (!pj.constraints || !S.fileTree.includes(pj.constraints)) return true;
   const { parseUcf, locsNotOnBoard } = await import('/core/ucf.js');
   let bad = [];
-  try { bad = locsNotOnBoard(parseUcf(await api.readFile(pj.name, pj.constraints)).assignments, board); } catch { return true; }
+  try { bad = locsNotOnBoard(parseUcf(await api.readFile(pj.name, pj.constraints), { ports: topUcfPorts() }).assignments, board); } catch { return true; }
   if (!bad.length) return true;
   const list = bad.slice(0, 8).map(b => `${b.net}=${b.loc}`).join(', ') + (bad.length > 8 ? ', …' : '');
   log(`ERROR: ${pj.constraints} uses ${bad.length} pin(s) that are not on the ${board.name}: ${list}`, 'err');
@@ -1124,8 +1124,9 @@ async function backAnnotatePins(mod) {
   await loadUcfText();
   const { parseUcf } = await import('/core/ucf.js');
   let pins;
-  try { pins = parseUcf(await api.readFile(S.project.name, `build/${S.project.top}_pins.ucf`)).assignments; } catch (e) { log(`WARNING: no pin file: ${e.message}`, 'warn'); return; }
-  const cur = S.ucfText ? parseUcf(S.ucfText).assignments : {};
+  const ports = topUcfPorts();
+  try { pins = parseUcf(await api.readFile(S.project.name, `build/${S.project.top}_pins.ucf`), { ports }).assignments; } catch (e) { log(`WARNING: no pin file: ${e.message}`, 'warn'); return; }
+  const cur = S.ucfText ? parseUcf(S.ucfText, { ports }).assignments : {};
   const have = new Set(Object.keys(cur).filter(k => cur[k].loc).map(k => k.toLowerCase()));
   const add = Object.entries(pins).filter(([net, a]) => a.loc && !have.has(net.toLowerCase()));
   if (!add.length) { log('Back-annotate Pin Locations: every port already has a LOC in the UCF (nothing to add).', 'ok'); return; }
@@ -1578,7 +1579,7 @@ async function openEmulator(mod, { scale, model = null } = {}) {
   } catch (e) { alertDlg('Board Emulator', `Cannot build the design: ${e.message}`, 'error'); return; }
   if (!await confirmElabErrors('Board Emulator', lib, design)) return;
   const { parseUcf } = await import('/core/ucf.js');
-  const assignments = S.ucfText ? parseUcf(S.ucfText).assignments : {};
+  const assignments = S.ucfText ? parseUcf(S.ucfText, { ports: design.top.ports.map(ucfPort) }).assignments : {};
   if (!S.ucfText) log('WARNING: the project has no UCF: the ports are not connected to the board (use I/O Pin Planning).', 'warn');
   const files = await readDataFiles();
   const { mountEmulator } = await import('./emulator.js');
@@ -2303,6 +2304,12 @@ function refreshSyncBanner(path) {
 }
 
 // a top port as the UCF sees it: vectors (also 1-bit ones, x<0>) have msb / lsb
+// the top's ports as parseUcf takes them (undefined when the design does not elaborate: parseUcf then
+// treats any name[i] as a bus bit, as before)
+function topUcfPorts() {
+  try { const d = S.lib && S.project?.top ? elaborate(S.lib, S.project.top) : null; return d?.top ? d.top.ports.map(ucfPort) : undefined; } catch { return undefined; }
+}
+
 function ucfPort(p) {
   const t = p.sig.t, bus = t.w > 1 || (t.kind === 'logic' && !t.scalar);
   return { name: p.name, dir: p.dir, width: t.w, msb: bus ? t.left : null, lsb: bus ? t.right : null };

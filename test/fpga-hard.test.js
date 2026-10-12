@@ -6,7 +6,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readYosysJson } from '../core/fpga/netlist.js';
-import { pack, PackError, BRAM_WIDTH } from '../core/fpga/pack.js';
+import { pack, PackError, BRAM_WIDTH, ucfPortsOf } from '../core/fpga/pack.js';
 import { instArcs } from '../core/fpga/timing.js';
 import { compareSims, netlistSim } from './fpga-sim.js';
 
@@ -687,4 +687,16 @@ test('clockReach: the DCM clock inputs (CLKIN, CLKFB) a global buffer reaches on
   const r = place(p, sites, { seed: 1, effort: 0.1, ...opts });
   assert.deepEqual(['clk', 'u1', 'ba0', 'u2', 'bb0', 'bb2'].map(n => siteOf(p, r, n)), ['B8', 'DCM_X0Y1', 'BUFGMUX_X2Y11', 'DCM_X0Y0', 'BUFGMUX_X2Y1', 'BUFGMUX_X1Y1']);
   assert.deepEqual(r.warnings, []);
+});
+
+// #84: the packer reads the UCF with the top's ports, as Check Constraints does (#63): a bus bit
+// written x[1] is x<1>; a name like n[1] that is not a bit of a bus stays as written
+test('packer: the UCF read with the top\'s ports (a bus bit written x[1] is x<1>, another bracket name kept as written) (#84)', () => {
+  const nl = yjson({ x: ['input', 2], n: ['input', 1], y: ['output', 1] }, [...ibuf('x', 2), ...ibuf('n', 1),
+    { name: 'l', type: 'LUT3', params: { INIT: '10010110' }, conns: { I0: 'x_i[0]', I1: 'x_i[1]', I2: 'n_i', O: 'yy' }, outs: ['O'] }, obuf('y', 'yy')]);
+  assert.deepEqual(ucfPortsOf(nl), [{ name: 'x', msb: 1, lsb: 0 }, { name: 'n' }, { name: 'y' }]);
+  const p = pack(nl, { ucf: 'NET "x[1]" LOC = "P11" ;\nNET "x(0)" LOC = "L3" ;\nNET "n[0]" LOC = "K3" ;\nNET "y" LOC = "M5" ;\n' });
+  const loc = n => p.insts.find(i => i.kind === 'iob' && i.name === n)?.loc;
+  assert.deepEqual([loc('x<1>'), loc('x<0>'), loc('y'), loc('n')], ['P11', 'L3', 'M5', null]);
+  assert.deepEqual(p.warnings, []);
 });
