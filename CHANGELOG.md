@@ -37,6 +37,11 @@ the "What's new" text of its GitHub release.
 - **Design corpus:** NEORV32 and light8080 now go through the whole open flow (synthesis, the
   netlist compared with the RTL cycle by cycle, place and route); light8080's, secworks-sha1's and
   secworks-aes's own testbenches pass. Every design of the corpus synthesizes and builds.
+- **Design corpus: the board designs synthesized with synth_xilinx options** (SERV on the Basys2:
+  `-nobram -nolutram -nosrl`) build again: Yosys was given only the design, not Silinx's
+  shift-register map and cells its script reads (`File silinx_srl_cells.v not found`). The options
+  now go to every synth_xilinx step, and `-nosrl` also leaves out Silinx's own shift-register
+  mapping; the same for the corpus runner's retry without RAMs (#62).
 
 ## 15.10.2
 

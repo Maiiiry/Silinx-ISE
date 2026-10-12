@@ -2,6 +2,7 @@
 // manifest's validation, the comparison of a run with the expectations (results and warnings), the
 // normalization of warnings, the I/O wrapper of a design with more ports than the package has pins.
 // Unit-tested on synthetic data (test/designs-corpus.test.js).
+import { yosysScript, yosysFiles } from '../../core/synth-open.js';
 
 /** The stages of a design, in order. Each records 'pass' (the flow: 'complete') or a reason. */
 export const STAGES = ['frontend', 'tb', 'synth', 'diff', 'flow'];
@@ -216,4 +217,16 @@ export function boardClockUcf(port) {
     + `NET "${port}" CLOCK_DEDICATED_ROUTE = FALSE ;\n`
     + `NET "${port}" TNM_NET = "${port}" ;\n`
     + `TIMESPEC "TS_${port}" = PERIOD "${port}" 20 ns HIGH 50% ;\n`;
+}
+
+/**
+ * Yosys's arguments and files to synthesize a flat module (core/synth-verilog.js toVerilog) with
+ * extra synth_xilinx options (e.g. '-nobram -nolutram -nosrl'): the options go to every
+ * synth_xilinx step of the script, -nosrl also leaves out Silinx's own shift-register mapping, and
+ * the files are all those the script reads (yosysFiles: the module, the SRL map and cells, #62).
+ */
+export function flaggedSynth(top, text, flags, family = 'spartan3e') {
+  const srl = !/(^|\s)-nosrl(\s|$)/.test(flags);
+  const script = yosysScript(top, family, { srl }).replaceAll('synth_xilinx ', `synth_xilinx ${flags} `);
+  return { args: ['-q', '-p', script], files: yosysFiles(top, text) };
 }

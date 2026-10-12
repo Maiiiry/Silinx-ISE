@@ -83,7 +83,7 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
   const { compile, elaborate } = await import('../../core/compile.js');
   const { Simulator } = await import('../../core/simulator.js');
   const { toVerilog } = await import('../../core/synth-verilog.js');
-  const { yosysScript } = await import('../../core/synth-open.js');
+  const { flaggedSynth } = await import('./lib.mjs');
   const { yosysNode } = await import('../../core/synth-open-node.js');
   const args = process.argv.slice(2);
   const fi = args.indexOf('--filter');
@@ -118,7 +118,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.a
       const lib = compile(sources);
       const des = elaborate(lib, bd.top);
       const { text, top } = toVerilog(des);
-      const out = await yosysNode(['-q', '-p', yosysScript(top, 'spartan3e').replace('-ise ', `-ise ${bd.synthFlags} `)], { [`${top}_syn.v`]: text }, () => {});
+      const { args, files } = flaggedSynth(top, text, bd.synthFlags);
+      const out = await yosysNode(args, files, () => {});
       fs.writeFileSync(path.join(pdir, 'netlist.json'), out[`${top}.json`]);
       flowOpts.push('--json', path.join(pdir, 'netlist.json'));
     }
