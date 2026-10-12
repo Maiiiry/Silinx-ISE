@@ -902,6 +902,8 @@ export function mountFsmEditor(container, opts = {}) {
 
   return {
     getModel: () => clone(M),
+    undo: () => undo(), redo: () => redo(),
+    canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1,
     setModel(m) {
       closeInline(false);
       M = normalizeFsm(m);

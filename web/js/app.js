@@ -14,6 +14,8 @@ import { onLanguageChange } from './i18n.js';
 import { designDiags, hintRow, sevWord, lintEnabled, setLintEnabled } from './diaghelp.js';
 import { applyPrefs, getInterface, setInterface, getTheme, setTheme, toggleTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
+import { createHistory } from './history.js';
+import { setActionRunner, runAction } from './ui.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -412,61 +414,66 @@ async function removeFile(file) {
   for (const d of [...S.docs]) if (d.path === file || String(d.id || '').endsWith(`:${file}`)) await closeDoc(d);
   return serialOp(() => removeNow(file));
 }
-async function removeNow(file, { redo = false } = {}) {
+async function removeNow(file) {
   const pj = S.project;
-  if (!redo) S.lastUndone = null;   // a new removal: nothing to redo
-  const undo = { project: pj.name, path: file, entry: pj.files.find(f => f.path === file) || null, constraints: pj.constraints === file, at: Date.now() };
-  if (undo.entry) pj.files = pj.files.filter(f => f.path !== file);
-  if (undo.constraints) pj.constraints = '';
-  if (!undo.entry) pj.excluded = [...new Set([...(pj.excluded || []), file])];
-  S.lastRemoval = undo;   // before the reload: Undo is available as soon as the file is out
+  const entry = pj.files.find(f => f.path === file) || null;
+  if (entry) pj.files = pj.files.filter(f => f.path !== file);
+  if (pj.constraints === file) pj.constraints = '';
+  if (!entry) pj.excluded = [...new Set([...(pj.excluded || []), file])];
   await saveProjectJson();
   await reloadProject();
   log(`Removed ${file} from the project (the file is kept in the project folder).`, 'info');
-  toast(`Removed ${file.split('/').pop()} from the project`, 'info', 10000, { label: 'Undo', run: () => undoRemove() });
+  toast(`Removed ${file.split('/').pop()} from the project`, 'info', 10000, { label: 'Undo', run: () => projectUndo() });
 }
 
-// undo the last Remove from Project
-function undoRemove() { return serialOp(undoRemoveNow); }
-// Redo of an undone removal: the file leaves the project again (no question)
-function redoRemove() {
-  const u = S.lastUndone;
-  if (!u || u.project !== S.project?.name) return null;
-  S.lastUndone = null;
-  return serialOp(async () => {
-    for (const d of [...S.docs]) if (d.path === u.path || String(d.id || '').endsWith(`:${u.path}`)) { d.dirty = false; clearTimeout(d._autosave); await closeDoc(d); }
-    await removeNow(u.path, { redo: true });
-  });
+// ---- Undo / Redo of the project's commands (web/js/history.js): every menu, context menu and
+// command palette command is recorded (what it changes in the project folder and settings); the
+// processes (runs, simulations) are not commands that change the project
+const NOT_RECORDED = /^(Implement|Generate Programming File|Synthesize|Simulate|Run|Rerun|Re-run|Emulate|Configure Target|Program|Initialize Chain|Check Syntax|View RTL|Analyze|Undo|Redo|Open|Find|Replace|Go to|Print|Download|Export|Help|About|Check for Updates|Language|Theme|Interface|Zoom|Close|New Project|Open Project|Recent)/;
+const docPath = d => d.path || (/^(file|sch|asm|tt|fsm):/.test(String(d.id || '')) ? String(d.id).replace(/^[a-z]+:/, '') : null);
+export const history = createHistory(api, {
+  project: () => S.project?.name,
+  files: () => S.diskTree || S.fileTree || [],
+  settings: () => { if (!S.project) return null; const pj = { ...S.project }; delete pj.fileTree; return JSON.stringify(pj); },
+  flush: () => saveAll(),
+  before: (changed) => confirmDlg('Undo / Redo', `Changed since:\n${changed.slice(0, 12).join('\n')}${changed.length > 12 ? '\n…' : ''}\n\nUndo / Redo anyway (those changes are lost)?`),
+  restored: async (e, paths) => {
+    // the documents of the files it changed: closed (without saving), opened again from the files
+    const reopen = [];
+    for (const d of [...S.docs]) {
+      const p = docPath(d);
+      if (p && paths.includes(p)) { if (S.active === d) reopen.unshift(p); else reopen.push(p); d.dirty = false; clearTimeout(d._autosave); await closeDoc(d); }
+    }
+    await reloadProject();
+    for (const p of reopen.reverse()) if ((S.diskTree || []).includes(p)) await openFile(p).catch(() => {});
+  },
+});
+setActionRunner((label, fn) => (NOT_RECORDED.test(String(label || '')) ? fn() : history.run(label, fn)));
+
+// Undo / Redo (Edit menu, toolbar, Ctrl+Z / Ctrl+Y outside an editor): the project's last command
+// when it is newer than the last edit of the active document, else the document's own undo
+const docEditor = d => d && (d.editor ? { undo: () => d.editor.exec('undo'), redo: () => d.editor.exec('redo') } : d.schEditor || d.asmEditor || d.fsmEditor || d.ttEditor || d.pinPlanner || null);
+const undoesProject = () => history.canUndo() && !(S.active?._editedAt > history.lastAt() && docEditor(S.active));
+const redoesProject = () => history.canRedo() && !(S.active?._editedAt > history.redoAt() && docEditor(S.active));
+async function projectUndo() {
+  const e = await history.undo();
+  if (e) log(`Undo: ${e.label}.`, 'ok');
 }
-function redoesRemoval() {
-  const u = S.lastUndone;
-  if (!u || u.project !== S.project?.name) return false;
-  return !S.active?.editor || !(S.active._editedAt > u.at);
+async function projectRedo() {
+  const e = await history.redo();
+  if (e) log(`Redo: ${e.label}.`, 'ok');
 }
-// does Undo (menu / Ctrl+Z) undo a removal? yes when the last removal is newer than the last edit
-// of the active editor (or no editor is active)
-function undoesRemoval() {
-  const u = S.lastRemoval;
-  if (!u || u.project !== S.project?.name) return false;
-  return !S.active?.editor || !(S.active._editedAt > u.at);
-}
-async function undoRemoveNow() {
-  const u = S.lastRemoval;
-  if (!u || u.project !== S.project?.name) return;
-  S.lastRemoval = null;
-  S.lastUndone = { ...u, at: Date.now() };   // Redo removes it again (set first: a Redo clicked meanwhile waits for this undo)
-  await addNow(u.path, u);
-  log(`Undo: ${u.path} is back in the project.`, 'ok');
-}
+const undoAny = () => (undoesProject() ? projectUndo() : docEditor(S.active)?.undo());
+const redoAny = () => (redoesProject() ? projectRedo() : docEditor(S.active)?.redo());
 
 // put a file of the project folder (back) into the project
-function addToProject(file, undo = null) { return serialOp(() => addNow(file, undo)); }
-async function addNow(file, undo = null) {
+function addToProject(file) { return serialOp(() => addNow(file)); }
+async function addNow(file) {
   const pj = S.project;
   pj.excluded = (pj.excluded || []).filter(f => f !== file);
   const lang = /\.vhdl?$/i.test(file) ? 'vhdl' : /\.(v|sv)$/i.test(file) ? 'verilog' : null;
-  if (lang && !pj.files.some(f => f.path === file)) pj.files.push(undo?.entry || { path: file, lang, role: /^(sim|tb|test)\//.test(file) || /(^|\/)tb_|_tb\./.test(file) ? 'sim' : 'design' });
-  if (undo?.constraints || (/\.ucf$/i.test(file) && !pj.constraints)) pj.constraints = file;
+  if (lang && !pj.files.some(f => f.path === file)) pj.files.push({ path: file, lang, role: /^(sim|tb|test)\//.test(file) || /(^|\/)tb_|_tb\./.test(file) ? 'sim' : 'design' });
+  if (/\.ucf$/i.test(file) && !pj.constraints) pj.constraints = file;
   await saveProjectJson();
   await reloadProject();
 }
@@ -1228,7 +1235,7 @@ async function flushDoc(doc, opts) {
   if (doc.project && S.project?.name !== doc.project) return false;
   const edits = doc._edits;
   try {
-    doc._saving = doc.save(opts);
+    doc._saving = history.unrecorded(() => doc.save(opts));
     await doc._saving;
     if (doc._saveFailed) { doc._saveFailed = false; log(`${doc.path || doc.title} saved.`, 'ok'); }
     // edited while it was being saved (the save marked it clean): those edits are saved next
@@ -3053,12 +3060,12 @@ function setupMenus() {
     ].filter(Boolean) },
     { label: 'Edit', items: () => [
       // one Undo: the last removal from the project when that was the last action, else the editor's undo
-      undoesRemoval()
-        ? { label: 'Undo Remove from Project', icon: icon('undo'), action: () => undoRemove(), shortcut: 'Ctrl+Z' }
-        : { label: 'Undo', icon: icon('undo'), action: () => S.active?.editor?.exec('undo'), shortcut: 'Ctrl+Z', disabled: () => !S.active?.editor },
-      redoesRemoval()
-        ? { label: 'Redo Remove from Project', icon: icon('redo'), action: () => redoRemove(), shortcut: 'Ctrl+Y' }
-        : { label: 'Redo', icon: icon('redo'), action: () => S.active?.editor?.exec('redo'), shortcut: 'Ctrl+Y', disabled: () => !S.active?.editor },
+      undoesProject()
+        ? { label: `Undo ${history.undoLabel()}`, icon: icon('undo'), action: () => projectUndo(), shortcut: 'Ctrl+Z' }
+        : { label: 'Undo', icon: icon('undo'), action: () => undoAny(), shortcut: 'Ctrl+Z', disabled: () => !docEditor(S.active) },
+      redoesProject()
+        ? { label: `Redo ${history.redoLabel()}`, icon: icon('redo'), action: () => projectRedo(), shortcut: 'Ctrl+Y' }
+        : { label: 'Redo', icon: icon('redo'), action: () => redoAny(), shortcut: 'Ctrl+Y', disabled: () => !docEditor(S.active) },
       '-',
       { label: 'Find…', icon: icon('find'), action: () => S.active?.editor?.exec('findPersistent'), shortcut: 'Ctrl+F', disabled: () => !S.active?.editor },
       { label: 'Replace…', action: () => S.active?.editor?.exec('replace'), disabled: () => !S.active?.editor },
@@ -3133,7 +3140,7 @@ function setupMenus() {
 function setupToolbar() {
   const tb = $('toolbar');
   const btn = (ico, title, fn, enabled = () => true) => {
-    const b = h('button', { class: 'tb-btn', title, 'data-cmd': ico, html: icons[ico], onclick: () => enabled() && fn() });
+    const b = h('button', { class: 'tb-btn', title, 'data-cmd': ico, html: icons[ico], onclick: () => enabled() && runAction(title, fn) });
     b.dataset.enabled = '1';
     b._enabled = enabled;
     return b;
@@ -3142,8 +3149,8 @@ function setupToolbar() {
     btn('newProject', 'New Project', () => wiz.newProjectWizard()),
     btn('open', 'Open Project', () => wiz.openProjectDialog()),
     h('div', { class: 'tb-sep' }),
-    btn('undo', 'Undo', () => (undoesRemoval() ? undoRemove() : S.active?.editor?.exec('undo'))),   // as Edit ▸ Undo
-    btn('redo', 'Redo', () => (redoesRemoval() ? redoRemove() : S.active?.editor?.exec('redo'))),   // as Edit ▸ Redo
+    btn('undo', 'Undo', () => undoAny()),   // as Edit ▸ Undo
+    btn('redo', 'Redo', () => redoAny()),   // as Edit ▸ Redo
     h('div', { class: 'tb-sep' }),
     btn('cut', 'Cut', () => document.execCommand('cut')),
     btn('copy', 'Copy', () => document.execCommand('copy')),
@@ -3326,11 +3333,12 @@ async function boot() {
       && !document.querySelector('.dlg-overlay')) { e.preventDefault(); showPalette(); return; }
     if (!e.defaultPrevented && (e.metaKey || e.ctrlKey) && (e.key === 'p' || e.key === 'P') && (S.active?.asmEditor || S.active?.schEditor || S.active?.fsmEditor)) { e.preventDefault(); printActive(); return; }
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (S.active) flushDoc(S.active); }  // nothing to do: edits are saved automatically
-    // Ctrl/Cmd+Z outside an editor or text field: undo the last Remove from Project
-    const outside = !e.target.closest?.('.CodeMirror, input, textarea, [contenteditable]');
-    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && outside && undoesRemoval()) { e.preventDefault(); undoRemove(); }
+    // Ctrl/Cmd+Z outside an editor or text field (the diagram editors handle their own keys): undo the
+    // project's last command when it is newer than the active document's last edit
+    const outside = !e.defaultPrevented && !e.target.closest?.('.CodeMirror, input, textarea, select, [contenteditable], .sch-editor, .asm-editor, .fsm-editor, .tt-editor, .pin-planner') && !document.querySelector('.dlg-overlay');
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && outside && undoesProject()) { e.preventDefault(); projectUndo(); }
     // Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z outside an editor: redo it
-    if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) && outside && redoesRemoval()) { e.preventDefault(); redoRemove(); }
+    if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) && outside && redoesProject()) { e.preventDefault(); projectRedo(); }
   });
   addEventListener('beforeunload', e => { if (S.docs.some(d => d.dirty)) { e.preventDefault(); e.returnValue = ''; } });
 

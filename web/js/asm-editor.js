@@ -1207,6 +1207,8 @@ export function mountAsmEditor(container, { model, onChange, onGenerate } = {}) 
 
   return {
     getModel: () => clone(M),
+    undo: () => undo(), redo: () => redo(),
+    canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1,
     setModel(m) {
       M = normalizeModel(m || newModel('fsm', 'vhdl'));
       hist = [JSON.stringify(M)]; hi = 0; lastKey = null;

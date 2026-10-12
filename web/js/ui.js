@@ -94,6 +94,11 @@ addEventListener('mousedown', e => { if (!e.target.closest('.menu-popup') && !e.
 addEventListener('blur', closeMenus);
 
 // items: [{ label, action, shortcut, disabled, checked, icon }|'-'|{label, submenu:[...]}]
+// how a menu command runs (the app records the ones that change the project: Undo / Redo)
+let actionRunner = (label, fn) => fn();
+export function setActionRunner(f) { actionRunner = f; }
+export const runAction = (label, fn) => actionRunner(label, fn);
+
 export function popupMenu(items, x, y) {
   closeMenus();
   const m = buildMenu(items);
@@ -134,7 +139,7 @@ function buildMenu(items) {
     }
     if (!disabled && it.action) row.addEventListener('click', e => {
       e.stopPropagation(); closeMenus();
-      Promise.resolve().then(() => it.action()).catch(err => { console.error(err); toast(`${it.label}: ${err.message || err}`, 'error'); });
+      Promise.resolve().then(() => runAction(it.label, it.action)).catch(err => { console.error(err); toast(`${it.label}: ${err.message || err}`, 'error'); });
     });
     m.append(row);
   }

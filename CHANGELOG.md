@@ -3,6 +3,16 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.6
+
+In detail:
+
+- **Undo / Redo for everything:** Edit ▸ Undo (Ctrl+Z) undoes the project's commands, not only
+  *Remove from Project*: *Remove Synchronized Schematic / ASM / FSM / Table*, *Convert to
+  Schematic…*, *Rename*, *New Source*, *Delete Folder*, *Design Properties*… (the menu names the
+  command; Redo does it again), and reaches every editor (text, schematic, ASM, FSM, truth table,
+  pin planner); the truth table and the pin planner have undo now (#136).
+
 ## 15.10.5
 
 In short:

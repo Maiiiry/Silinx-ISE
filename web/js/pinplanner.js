@@ -35,6 +35,22 @@ export function mountPinPlanner(el, doc, top) {
   const iostds = db?.families?.find(f => f.id === famId)?.ioStandards || db?.iostandards || ['LVCMOS33', 'LVCMOS25', 'LVTTL'];
 
   let asg = {}, clocks = [], other = [];
+  // Undo / Redo of the assignments (Edit menu, Ctrl+Z / Ctrl+Y on the page)
+  const hist = [];
+  let hi = -1;
+  const snap = () => { const t = JSON.stringify({ asg, clocks }); if (t === hist[hi]) return; hist.length = hi + 1; hist.push(t); if (hist.length > 200) hist.shift(); hi = hist.length - 1; };
+  const restore = i => { hi = i; ({ asg, clocks } = JSON.parse(hist[hi])); render(); setDirty(doc, true); };
+  const changed = () => { snap(); setDirty(doc, true); };
+  doc.pinPlanner = {
+    undo: () => { if (hi > 0) restore(hi - 1); }, redo: () => { if (hi < hist.length - 1) restore(hi + 1); },
+    canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1,
+  };
+  root.addEventListener('keydown', e => {
+    if (/^(INPUT|TEXTAREA)$/.test(e.target.tagName)) return;
+    const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); doc.pinPlanner.undo(); }
+    else if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); e.stopPropagation(); doc.pinPlanner.redo(); }
+  });
   const load = async () => {
     if (pj.constraints && S.fileTree.includes(pj.constraints)) {
       try {
@@ -43,6 +59,7 @@ export function mountPinPlanner(el, doc, top) {
         asg = u.assignments || {}; clocks = u.clocks || []; other = u.other || [];
       } catch (e) { toast(`Cannot parse UCF: ${e.message}`, 'error'); }
     }
+    snap();
     render();
   };
 
@@ -51,7 +68,7 @@ export function mountPinPlanner(el, doc, top) {
   const status = h('span', { style: { color: '#555', marginLeft: '10px' } });
   const bar = h('div', { class: 'pp-bar' },
     h('button', { class: 'btn', onclick: () => autoAssign(), disabled: !board, title: board ? 'Match port names with board resources (clk, led, sw, btn, seg, an…)' : 'Select a board in Design Properties' }, 'Auto-assign from Board'),
-    h('button', { class: 'btn', onclick: () => { asg = {}; clocks = []; render(); setDirty(doc, true); } }, 'Clear All'),
+    h('button', { class: 'btn', onclick: () => { asg = {}; clocks = []; render(); changed(); } }, 'Clear All'),
     h('span', {}, `Top: ${top} · Device ${pj.device.part}-${pj.device.package}${board ? ` · Board: ${board.name}` : ' · no board selected'}`),
     status);
   root.append(bar, h('div', { class: 'pp-body' }, tableHost, resHost));
@@ -68,7 +85,7 @@ export function mountPinPlanner(el, doc, top) {
     const tbl = h('table', { class: 'grid' }, h('tr', {}, ...['I/O Name', 'Direction', 'Board Resource', 'Site (LOC)', 'I/O Std.', 'Drive', 'Slew', 'Pull', 'Clock period (ns)'].map(t => h('th', {}, t))));
     for (const n of nets) {
       const a = asg[n.net] || {};
-      const set = (k, v) => { asg[n.net] = { ...(asg[n.net] || {}), [k]: v || undefined }; setDirty(doc, true); };
+      const set = (k, v) => { asg[n.net] = { ...(asg[n.net] || {}), [k]: v || undefined }; changed(); };
       const loc = h('input', { type: 'text', value: a.loc || '', list: 'pp-pins', style: { textTransform: 'uppercase' } });
       loc.addEventListener('change', () => { set('loc', loc.value.trim().toUpperCase()); render(); });
       const resSel = h('select', {}, h('option', { value: '' }, '—'), ...resPins.map(r => h('option', { value: r.pin, selected: a.loc && r.pin === a.loc.toUpperCase() }, `${r.label} (${r.pin})`)));
@@ -91,7 +108,7 @@ export function mountPinPlanner(el, doc, top) {
       per.addEventListener('change', () => {
         clocks = clocks.filter(c => c.net !== n.net);
         if (per.value.trim()) clocks.push({ net: n.net, period: per.value.trim(), duty: 50 });
-        setDirty(doc, true);
+        changed();
       });
       const conflict = a.loc && (u.get(a.loc.toUpperCase()) || []).length > 1;
       tbl.append(h('tr', {}, h('td', {}, n.net), h('td', {}, n.port.dir === 'in' ? 'Input' : n.port.dir === 'out' ? 'Output' : 'Bidir'),
@@ -136,7 +153,7 @@ export function mountPinPlanner(el, doc, top) {
         }
       }
     }
-    setDirty(doc, true);
+    changed();
     render();
     toast(`${n} I/Os assigned from ${board.name}`, 'ok');
   }

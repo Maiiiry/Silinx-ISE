@@ -36,6 +36,24 @@ export function mountTtEditor(container, opts = {}) {
   let mine = '';                 // the student's expression for the selected output
   let nand = false;
   let destroyed = false;
+  // Undo / Redo: snapshots of the table (the notes typed are one step per pause)
+  const hist = [JSON.stringify(M)];
+  let hi = 0;
+  const snap = () => {
+    const s = JSON.stringify(M);
+    if (s === hist[hi]) return;
+    hist.length = hi + 1; hist.push(s);
+    if (hist.length > 200) hist.shift();
+    hi = hist.length - 1;
+  };
+  const restore = i => {
+    hi = i;
+    M = normalizeTable(JSON.parse(hist[hi]));
+    if (!M.outputs.includes(out)) out = M.outputs[0];
+    render(); opts.onChange?.(M);
+  };
+  const undo = () => { if (hi > 0) restore(hi - 1); };
+  const redo = () => { if (hi < hist.length - 1) restore(hi + 1); };
 
   container.innerHTML = '';
   const root = h('div', { class: 'tt-editor' });
@@ -68,6 +86,8 @@ export function mountTtEditor(container, opts = {}) {
   const btn = (label, title, onclick, cls = '') => h('button', { type: 'button', class: `btn tt-btn ${cls}`, title, onclick }, label);
   const link = h('span', { class: 'tt-link' });
   const toolbar = h('div', { class: 'tt-toolbar' },
+    btn('↶', 'Undo (Ctrl+Z)', () => undo(), 'tt-undo'), btn('↷', 'Redo (Ctrl+Y)', () => redo(), 'tt-redo'),
+    h('span', { class: 'tt-sep' }),
     h('label', {}, 'Inputs:'), inIn, h('label', {}, 'Outputs:'), outIn, btn('Apply', 'Apply the input and output names', applyShape), shapeErr,
     h('span', { class: 'tt-sep' }),
     h('label', { title: 'Form of the logic in the generated HDL module' }, 'HDL logic:'), formSel,
@@ -83,7 +103,8 @@ export function mountTtEditor(container, opts = {}) {
   // ------------------------------------------------------------------ body
   const tableHost = h('div', { class: 'tt-table-host' });
   const notes = h('textarea', { class: 'tt-notes', placeholder: 'Notes (saved with the table)', rows: 3 });
-  notes.addEventListener('input', () => { M.notes = notes.value; opts.onChange?.(M); });
+  let notesT = null;
+  notes.addEventListener('input', () => { M.notes = notes.value; opts.onChange?.(M); clearTimeout(notesT); notesT = setTimeout(snap, 600); });
   const left = h('div', { class: 'tt-left' }, h('div', { class: 'tt-caption' }, 'Truth table'), h('div', { class: 'hint' }, 'Click an output cell to change it: 0 → 1 → X (don\'t care).'), tableHost, h('div', { class: 'tt-caption' }, 'Notes'), notes);
   const tabs = h('div', { class: 'tt-tabs' });
   const exprIn = h('input', { type: 'text', class: 'tt-expr-in', spellcheck: 'false', placeholder: "e.g. a'b + c" });
@@ -116,10 +137,17 @@ export function mountTtEditor(container, opts = {}) {
     h('div', { class: 'tt-caption' }, 'Check my answer'),
     h('div', { class: 'tt-row' }, h('span', { class: 'tt-expr-lbl' }, 'My expression:'), mineIn), mineOut);
   root.append(toolbar, h('div', { class: 'tt-body' }, left, right));
+  root.tabIndex = -1;
+  root.addEventListener('keydown', e => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;   // (their own undo)
+    const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); undo(); }
+    else if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); e.stopPropagation(); redo(); }
+  });
 
   // ------------------------------------------------------------------ rendering
   let A = null;   // analysis of the selected output
-  const changed = () => { render(); opts.onChange?.(M); };
+  const changed = () => { snap(); render(); opts.onChange?.(M); };
   const cycle = (o, r) => {
     const c = M.table[o][r];
     M.table[o] = M.table[o].slice(0, r) + NEXT[c] + M.table[o].slice(r + 1);
@@ -291,7 +319,10 @@ export function mountTtEditor(container, opts = {}) {
 
   return {
     getModel: () => JSON.parse(JSON.stringify(M)),
-    setModel(m) { M = normalizeTable(m); render(); },
+    setModel(m) { M = normalizeTable(m); hist.length = 0; hist.push(JSON.stringify(M)); hi = 0; render(); },
+    undo, redo,
+    canUndo: () => hi > 0,
+    canRedo: () => hi < hist.length - 1,
     refreshLink: () => renderLink(),
     select(o) { if (M.outputs.includes(o)) { out = o; render(); } },
     destroy() { destroyed = true; clearTimeout(mineT); container.innerHTML = ''; },

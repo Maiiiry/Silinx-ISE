@@ -128,6 +128,18 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.click(`${ED} .lv-ctl[data-port="${stepId}"]`);
   await page.click(`${ED} .se-simbar .lv-step`);
   assert.equal(await leds(), '10', 'one LED step after a clock cycle with step = 1');
+  // Remove Synchronized Schematic, then Edit ▸ Undo / Redo: the schematic and its link come back (browser storage)
+  await page.treeRow('#hier', 'u_knight - knight', { right: true });
+  await page.click('body > .menu-popup .mi', { text: 'Remove Synchronized Schematic…' });
+  await page.waitDialog('Remove Synchronized Schematic');
+  await page.dialogButton('Yes');
+  await page.waitFor(() => !window.Silinx.hdlToSch?.['src/knight.vhd'], [], { what: 'schematic removed' });
+  await page.menu('Edit', 'Undo Remove Synchronized Schematic');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/knight.vhd'] === 'src/knight.sch.json', [], { what: 'undo: schematic back' });
+  await page.menu('Edit', 'Redo Remove Synchronized Schematic');
+  await page.waitFor(() => !window.Silinx.hdlToSch?.['src/knight.vhd'], [], { what: 'redo: removed again' });
+  await page.menu('Edit', 'Undo Remove Synchronized Schematic');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/knight.vhd'] === 'src/knight.sch.json', [], { what: 'undo again' });
 }, { url: () => 'about:blank' });
 
 uiTest('browser edition (the site over HTTP): Generate Programming File runs the Silinx toolchain in the browser', E, async (page) => {

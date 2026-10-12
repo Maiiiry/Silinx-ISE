@@ -1,6 +1,6 @@
 // Command palette (Ctrl+K / Cmd+K, Ctrl+Shift+P): search the menu commands and the project files by
 // name and run / open the chosen one, all from the keyboard. Matching: web/js/modern.js.
-import { h } from './ui.js';
+import { h, runAction } from './ui.js';
 import { t } from './i18n.js';
 import { rankEntries } from './modern.js';
 
@@ -35,7 +35,7 @@ export function openPalette({ commands = [], files = [], placeholder = 'Search c
   const run = e => {
     if (!e) return;
     close(e);
-    Promise.resolve().then(() => (e.kind === 'command' ? e.c.action() : e.f.open())).catch(err => console.error(err));
+    Promise.resolve().then(() => (e.kind === 'command' ? runAction(e.c.label, e.c.action) : e.f.open())).catch(err => console.error(err));
   };
   const mark = () => {
     [...list.children].forEach((el, i) => { el.classList.toggle('sel', i === sel); el.setAttribute('aria-selected', String(i === sel)); });

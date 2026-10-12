@@ -1637,6 +1637,8 @@ export function mountSchEditor(container, opts = {}) {
 
   return {
     getDoc: () => clone(normalizeDoc(doc)),
+    undo: () => undo(), redo: () => redo(),
+    canUndo: () => undoStack.length > 0 && !live, canRedo: () => redoStack.length > 0 && !live,
     setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc()); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; langSel.value = genLang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
     setModules(m) { leaveSim(); modules = normMods(m); renderPalette(); render(); renderProps(); },
     check: () => runCheck(true),
