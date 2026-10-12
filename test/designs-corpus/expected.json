@@ -157,10 +157,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 536,
-   "luts": 1068,
+   "slices": 476,
+   "luts": 948,
    "ffs": 224,
-   "period": 18.989
+   "period": 18.054
   }
  },
  "fpu-adder": {

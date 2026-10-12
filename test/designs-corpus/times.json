@@ -51,9 +51,9 @@
    "total": 8864
   },
   "femtorv32-quark": {
-   "synth": 8006,
-   "flow": 16057,
-   "total": 25112
+   "synth": 6314,
+   "flow": 10423,
+   "total": 17524
   },
   "fpu-adder": {
    "synth": 7811,
