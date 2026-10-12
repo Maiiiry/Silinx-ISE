@@ -274,3 +274,14 @@ test('logic depth: a comparator written as a chain of gates is mapped again for 
   assert.deepEqual([c.depth.tried, c.depth.kept], [true, false]);
   assert.deepEqual(c.warnings, []);
 });
+
+// Regression (#83): ports that differ only in case reach the netlist as ports of their own
+test('Yosys netlist: ports that differ only in case stay apart (a / A) (#83)', { timeout: 120000 }, async () => {
+  const d = elaborate(compile([{ path: 'c.v', text: 'module c(input a, input A, output y, output Y); assign y = a & A; assign Y = a | A; endmodule' }]), 'c');
+  const r = await synthesizeOpen(d, { run: yosysNode });
+  const nl = readYosysJson(r.files['c.json'], { top: 'c' });
+  assert.deepEqual(nl.ports.map(p => p.name).sort(), ['A', 'Y', 'a', 'y']);
+  const sim = netlistSim(nl);
+  sim.step({ a: 1, A: 0 });
+  assert.deepEqual([sim.out().y, sim.out().Y], [0, 1]);
+});

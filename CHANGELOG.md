@@ -111,6 +111,9 @@ the "What's new" text of its GitHub release.
   with a digit (`\1abc `) are XST's `_1abc_` too (they were `__1abc_`).
 - **SystemVerilog: variable initializers that are not constant** (`integer b = a + 1;`) are evaluated
   once at time 0, before the initial and always procedures (#6).
+- **Open synthesis: names that differ only in case** (Verilog `a` and `A`, VHDL `\Mixed\` and
+  `\mixed\`) keep their names in the netlist; the second was renamed (`a_1`, `\mixed\_1`), so
+  its pin in the UCF no longer matched (#83).
 
 ## 15.10.2
 

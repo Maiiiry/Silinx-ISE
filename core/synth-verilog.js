@@ -107,7 +107,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
   const prefix = `${top.path}.`;
   const sigName = new Map();     // signal -> Verilog name
   const used = new Set();
-  const uniq = n => { let k = n, i = 1; while (used.has(k.toLowerCase())) k = `${n}_${i++}`; used.add(k.toLowerCase()); return k; };
+  // (names compared as written: Verilog is case-sensitive, VHDL's plain names are lower case already,
+  // and a / A or \\mixed\\ / \\Mixed\\ are names of their own, kept as XST keeps them: #83)
+  const uniq = n => { let k = n, i = 1; while (used.has(k)) k = `${n}_${i++}`; used.add(k); return k; };
   const portOf = new Map(top.ports.map(p => [p.sig, p]));
 
   const decls = [], blocks = [], funcs = [];

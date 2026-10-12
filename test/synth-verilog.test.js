@@ -446,6 +446,20 @@ endmodule`, 'acc.sv')];
   reg [3:0] t, u; always @* begin t = f(a, u); end assign y = t; assign z = u; endmodule`), /^function f: output arguments of a function called in an expression cannot be synthesized \(line 3\)$/);
 });
 
+// Regression (#83): names that differ only in case are names of their own (Verilog a / A, VHDL
+// extended identifiers \\Mixed\\ / \\mixed\\): not renamed (they were a_1, \\mixed\\_1)
+test('ports and signals that differ only in case keep their names (#83)', () => {
+  const v = equivalent([vlog(`module c(input clk, input a, input A, output reg y, output reg Y); reg t, T;
+  always @(posedge clk) begin t <= a ^ A; T <= a & A; y <= t; Y <= T | t; end endmodule`, 'c.v')], 'c', { reset: 'none', minStates: 1 });
+  assert.match(v.text, /^ {2}input wire a,\n {2}input wire A,\n {2}output logic y,\n {2}output logic Y$/m);
+  assert.match(v.text, /^ {2}logic \[0:0\] t;$/m);
+  assert.match(v.text, /^ {2}logic \[0:0\] T;$/m);
+  assert.doesNotMatch(v.text, /_1\b/);
+  const h = equivalent([vhd(`${PRE}entity m is port (clk, \\Mixed\\, \\mixed\\, mixed : in std_logic; q : out std_logic_vector(2 downto 0)); end;
+architecture a of m is begin process (clk) begin if rising_edge(clk) then q <= \\Mixed\\ & \\mixed\\ & mixed; end if; end process; end;`)], 'm', { reset: 'none', minStates: 1 });
+  assert.match(h.text, /input wire \\\\Mixed\\ ,\n {2}input wire \\\\mixed\\ ,\n {2}input wire mixed,/);
+});
+
 test('Xilinx primitives instantiated by name stay instances with their generics; their simulation models are left out', () => {
   const src = vhd(`library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;
 entity pr is port (clk, d, ce : in std_logic; a : in std_logic_vector(3 downto 0); q, q2 : out std_logic); end pr;
