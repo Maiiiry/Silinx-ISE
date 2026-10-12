@@ -658,48 +658,53 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   // order met), their new costs and delays kept for commit
   const netMark = new Int32Array(NN), connMark = new Int32Array(NC);
   let mark = 0;
-  const tNets = new Int32Array(NN), tNetCost = new Float64Array(NN), tMoved = new Int32Array(NN), tMovedC = new Int32Array(NN), netQ = new Int32Array(NN);
+  const tNets = new Int32Array(NN), tNetCost = new Float64Array(NN), netQ = new Int32Array(NN);
   const tBox = new Float64Array(4 * NN), tBoxN = new Int32Array(4 * NN);
   const tConns = new Int32Array(NC), tConnDelay = new Float64Array(NC);
   let nT = 0, nTC = 0, dbbL = 0, dtcL = 0;
   const saveX = new Float64Array(chInst.length), saveY = new Float64Array(chInst.length);
-  // the box of the net at box[b] after one pin moves from (ox, oy) to (nx, ny), into tBox[o]:
-  // its half-perimeter, or -1 when the pins must be scanned again
-  const edge1 = (b, o, ov, nv) => {
-    let lo = box[b], hi = box[b + 1], nlo = boxN[b], nhi = boxN[b + 1];
-    if (nv < ov) {
-      if (ov === hi) { if (nhi === 1) return false; nhi--; }
-      if (nv < lo) { lo = nv; nlo = 1; } else if (nv === lo) nlo++;
-    } else if (nv > ov) {
-      if (ov === lo) { if (nlo === 1) return false; nlo--; }
-      if (nv > hi) { hi = nv; nhi = 1; } else if (nv === hi) nhi++;
+  // the moved pins of each touched net: a list per net (head[q], then next[]) of change indexes
+  let maxNets = 1;
+  for (let i = 0; i < N; i++) maxNets = Math.max(maxNets, instNetStart[i + 1] - instNetStart[i]);
+  const head = new Int32Array(NN), lnkC = new Int32Array(chInst.length * maxNets), lnkNext = new Int32Array(chInst.length * maxNets);
+  // one side (x: o = 0, y: o = 2) of the box of touched net q after its moved pins leave their old
+  // positions (saved) for their new ones (pos), from its box before (box[b]), into tBox[4q + o]:
+  // false when an edge loses all its pins (the pins must be scanned again)
+  const moveSide = (q, b, o, P, S) => {
+    let lo = box[b + o], hi = box[b + o + 1], nlo = boxN[b + o], nhi = boxN[b + o + 1];
+    for (let l = head[q]; l >= 0; l = lnkNext[l]) { const v = S[lnkC[l]]; if (v === lo) nlo--; if (v === hi) nhi--; }
+    for (let l = head[q]; l >= 0; l = lnkNext[l]) {
+      const v = P[chInst[lnkC[l]]];
+      if (v < lo) { lo = v; nlo = 1; } else if (v === lo) nlo++;
+      if (v > hi) { hi = v; nhi = 1; } else if (v === hi) nhi++;
     }
-    tBox[o] = lo; tBox[o + 1] = hi; tBoxN[o] = nlo; tBoxN[o + 1] = nhi;
+    if (nlo <= 0 || nhi <= 0) return false;
+    const w = 4 * q + o;
+    tBox[w] = lo; tBox[w + 1] = hi; tBoxN[w] = nlo; tBoxN[w + 1] = nhi;
     return true;
-  };
-  const boxMove = (b, o, ox, nx, oy, ny) => {
-    if (!edge1(b, o, ox, nx) || !edge1(b + 2, o + 2, oy, ny)) return -1;
-    return (tBox[o + 1] - tBox[o]) + (tBox[o + 3] - tBox[o + 2]);
   };
   function delta() {
     mark++;
     nT = 0; nTC = 0;
+    let nl = 0;
     for (let c = 0; c < chN; c++) {
       const i = chInst[c];
       for (let q = instNetStart[i], e = instNetStart[i + 1]; q < e; q++) {
         const k = netOf[q];
-        if (netMark[k] !== mark) { netMark[k] = mark; netQ[k] = nT; tMoved[nT] = 1; tMovedC[nT] = c; tNets[nT++] = k; } else tMoved[netQ[k]]++;
+        if (netMark[k] !== mark) { netMark[k] = mark; netQ[k] = nT; head[nT] = -1; tNets[nT++] = k; }
+        const qk = netQ[k];
+        lnkC[nl] = c; lnkNext[nl] = head[qk]; head[qk] = nl++;
       }
       if (lambda) for (let q = instConnStart[i], e = instConnStart[i + 1]; q < e; q++) { const j = connOf[q]; if (connMark[j] !== mark) { connMark[j] = mark; tConns[nTC++] = j; } }
     }
     for (let c = 0; c < chN; c++) { const i = chInst[c]; saveX[c] = posX[i]; saveY[c] = posY[i]; posX[i] = chSite[c].px; posY[i] = chSite[c].py; }
     let dbb = 0, dtc = 0;
     for (let q = 0; q < nT; q++) {
-      const k = tNets[q], o = 4 * q, b = 4 * k, m = tMovedC[q];
+      const k = tNets[q], o = 4 * q;
       let c;
-      // one pin of a larger net moves: its box from the old one, unless that pin alone held an edge
-      // it leaves (a small net: scanned, as fast)
-      if (tMoved[q] === 1 && netStart[k + 1] - netStart[k] > BOX_SCAN && (c = boxMove(b, o, saveX[m], posX[chInst[m]], saveY[m], posY[chInst[m]])) >= 0) c *= netW[k];
+      // a larger net: its box from the old one and its moved pins, unless an edge loses all its
+      // pins (a small net: scanned, as fast)
+      if (netStart[k + 1] - netStart[k] > BOX_SCAN && moveSide(q, 4 * k, 0, posX, saveX) && moveSide(q, 4 * k, 2, posY, saveY)) c = netW[k] * ((tBox[o + 1] - tBox[o]) + (tBox[o + 3] - tBox[o + 2]));
       else c = scanBox(k, tBox, tBoxN, o);
       tNetCost[q] = c; dbb += c - netCostOf[k];
     }
