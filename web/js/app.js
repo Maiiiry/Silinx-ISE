@@ -484,8 +484,9 @@ const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'sum
 // (the browser edition: the Silinx toolchain, unless the project chose XST)
 export const openMode = () => (S.project?.synthTool ? S.project.synthTool === 'silinx' : api.standalone || S.toolchain?.config?.mode === 'silinx');
 const OPEN_SYNTH = 'Synthesize - Yosys';
-// (Back-annotate Pin Locations is the Silinx toolchain's own: the pads its placer chose)
-const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr', 'tech']);
+// (Back-annotate Pin Locations and View Technology Schematic are the Silinx toolchain's own: the pads
+// its placer chose, the netlist of its synthesis)
+const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr']);
 const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';
 function forOpenMode(defs) {
   const conv = p => {
@@ -1437,8 +1438,41 @@ const isPrimitive = inst => /^<silinx>\//.test(inst?.mod?.file || inst?.file || 
 
 // View Technology Schematic: the post-synthesis netlist (LUTs, flip-flops, carry chain…)
 async function openTechSchematic(mod) {
+  if (openMode()) return openSilinxTechSchematic(mod);
   const srcs = await netlistSources('postsynth', { hier: true });
   if (srcs) return openSchematic(mod, { netlist: srcs });
+}
+
+// …in the Silinx toolchain: the netlist of its synthesis (Yosys's JSON, build/open/<top>.json; Synthesize
+// runs first when there is none or the sources changed since), drawn by core/fpga/techview.js
+async function openSilinxTechSchematic(mod) {
+  let top = S.project.top;
+  const netlistOf = async () => {
+    const rep = await api.reports(S.project.name).catch(() => null);
+    return rep && rep.top === top && rep.files?.netlist ? rep.files.netlist : null;
+  };
+  let file = ['ok', 'warn'].includes(S.status.synth) && mod === top ? await netlistOf() : null;
+  if (!file) {
+    if (!await runImpl(mod, ['synth'])) return;
+    top = S.project.top;
+    file = await netlistOf();
+  }
+  let json;
+  try { json = await readBuildFile(file || `build/open/${top}.json`); } catch (e) { log(`ERROR: Technology Schematic: no netlist of '${top}' (${e.message}): run Synthesize.`, 'err'); return; }
+  setStatus('tech', 'running');
+  status(`Reading the netlist of ${top}…`);
+  let groups;
+  try {
+    const design = elaborate(compile(S.sources.filter(x => inView(x.role, false) && (x.lang === 'vhdl' || x.lang === 'verilog'))), top);
+    groups = (design.top?.children || []).map(c => c.name);
+  } catch { /* the instances from the netlist's names */ }
+  const { technologyNetlist } = await import('/core/fpga/techview.js');
+  let r;
+  try { r = technologyNetlist(json, { groups }); } catch (e) { setStatus('tech', 'err'); log(`ERROR: Technology Schematic: ${e.message}`, 'err'); status('Ready'); return; }
+  const blocks = Object.entries(r.groups);
+  log(`Technology Schematic of '${top}': the netlist of the Silinx toolchain's synthesis (${file || `build/open/${top}.json`}), ${r.cells} cells${blocks.length ? ` in ${blocks.length} block(s): ${blocks.map(([g, n]) => `${g} (${n})`).join(', ')}` : ''}.`, 'info');
+  const net = { path: (file || `build/open/${top}.json`).replace(/\.json$/, '_tech.vhd'), lang: 'vhdl', text: r.text, role: 'design', netlist: 'open' };
+  return openSchematic(r.name, { netlist: [...primitiveSources([net]), net] });
 }
 
 async function openSchematic(mod, { netlist = null } = {}) {
@@ -1498,6 +1532,7 @@ async function openSchematic(mod, { netlist = null } = {}) {
                 if (child && !child.blackbox && !isPrimitive(child)) show(child);
               },
             });
+            docRef.viewer = ed;   // (the read-only editor of the view: tests)
           } else ed.setDoc(doc);
           setTimeout(() => ed.fit?.(), 50);
         } catch (e) { log(`ERROR: ${kindName} schematic of ${inst.module}: ${e.message}`, 'err'); }

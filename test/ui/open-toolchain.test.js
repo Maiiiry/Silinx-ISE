@@ -85,12 +85,12 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   const procs = await procLabels(page);
   assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
   assert.ok(!procs.some((p) => p.label === 'Synthesize - Yosys (open)' || p.label === 'Synthesize - XST'));
-  for (const l of ['Generate Post-Synthesis Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Text Power Report', 'View Technology Schematic']) {
+  for (const l of ['Generate Post-Synthesis Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Text Power Report']) {
     const p = procs.find((x) => x.label === l);
     assert.ok(p?.disabled, l);
     assert.equal(p.title, 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)');
   }
-  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'Configure Target Device']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
+  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
   await setLang('pt');
   const ptProcs = await procLabels(page);
   assert.ok(ptProcs.some((p) => p.label === 'Sintetizar - Yosys'));
@@ -206,3 +206,73 @@ uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose 
   assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 240000 });
+
+// View Technology Schematic in the Silinx toolchain (#119): the netlist of its synthesis (Synthesize runs
+// first), drawn by Silinx's schematic engine: blocks by instance, primitives inside, a LUT's function
+const TECH = '.doc:not([hidden])';
+const techView = (page) => page.eval(() => {
+  const ed = window.Silinx.active?.viewer;
+  return ed ? { id: window.Silinx.active.id, title: window.Silinx.active.title, crumbs: document.querySelector('.doc:not([hidden]) .rtl-crumbs').innerText.replace(/\s+/g, ' '),
+    syms: ed.getDoc().symbols.map((x) => ({ id: x.id, type: x.type, name: x.name, module: x.params?.module || null, generics: x.params?.generics || null })) } : null;
+});
+async function checkTechSchematic(page, { top, blocks, message, inside }) {
+  await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
+  await page.waitFor((t) => window.Silinx.active?.id === `tech:${t}` && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [top], { what: 'technology schematic', timeout: 180000 });
+  const log = await page.consoleText();
+  assert.match(log, /Process "Synthesize - Yosys" completed successfully/);
+  assert.ok(log.includes(message), log.slice(-1500));
+  let v = await techView(page);
+  assert.equal(v.title, `${top} (Technology)`);
+  assert.ok(v.crumbs.includes(`Technology Schematic (read-only): the post-synthesis netlist — ${top} : ${top}`), v.crumbs);
+  assert.equal(await page.eval(() => window.Silinx.status.tech), 'ok');
+  const mods = new Set(v.syms.map((x) => x.module));
+  for (const m of ['ibuf', 'obuf', 'bufg', ...blocks.map((b) => b.toLowerCase())]) assert.ok(mods.has(m), `${m} on the top level: ${[...mods].join(' ')}`);
+  // push into an instance: its LUTs, flip-flops, carry chain
+  const blk = v.syms.find((x) => x.module === inside.toLowerCase());
+  await page.dblclick(`${TECH} .se-svg [data-kind=sym][data-id="${blk.id}"]`);
+  await page.waitFor((b) => document.querySelector('.doc:not([hidden]) .rtl-crumbs b')?.textContent === `${b} : ${b}`, [inside.toLowerCase()], { what: `inside ${inside}`, timeout: 60000 });
+  await page.waitFor((n) => window.Silinx.active.viewer.getDoc().symbols.length > 5 && !window.Silinx.active.viewer.getDoc().symbols.some((x) => x.params?.module === n), [inside.toLowerCase()]);
+  v = await techView(page);
+  const types = new Set(v.syms.map((x) => x.module));
+  for (const t of ['fdre', 'muxcy', 'xorcy']) assert.ok(types.has(t), `${t} in ${inside}: ${[...types].join(' ')}`);
+  // a LUT: its function from its INIT, on demand (a collapsed section of its properties)
+  const lut = v.syms.find((x) => x.module === 'lut4');
+  await page.click(`${TECH} .se-svg [data-kind=sym][data-id="${lut.id}"]`);
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .se-lutfn'), [], { what: 'LUT function' });
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-lutfn').open), false);
+  await page.click(`${TECH} .se-lutfn > summary`);
+  const fn = await page.eval(async (init) => (await import('/core/fpga/techview.js')).lutFunction(init, 4), lut.generics.init);
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-lut-eq').textContent), fn.equation);
+  assert.match(fn.equation, /^O = /);
+  assert.equal(await page.eval(() => document.querySelectorAll('.doc:not([hidden]) .se-lut-tt tr').length), 17);
+  return v;
+}
+
+uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the Silinx toolchain\'s netlist by instance, a LUT\'s function; Portuguese', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenTech', template: 'blinky' });
+  await page.openProject('OpenTech');
+  await reloadToolchain(page);
+  await page.click('input[name=view][value=impl]');
+  assert.deepEqual((await procLabels(page)).find((p) => p.label === 'View Technology Schematic'), { label: 'View Technology Schematic', disabled: false, title: '' });
+  await checkTechSchematic(page, { top: 'top', blocks: ['u_pre', 'u_speed', 'u_knight'], inside: 'u_pre',
+    message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 367 cells in 3 block(s): u_knight (50), u_speed (215), u_pre (70)." });
+  assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
+  // Portuguese: the view's bar, its tab and the LUT's function have no untranslated text (the netlist's names apart)
+  await page.eval(TEXTS);
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  const texts = () => page.eval(() => ['.doc:not([hidden]) .rtl-crumbs', '.doc:not([hidden]) .se-lutfn', '#doc-tabs .tab.active'].flatMap((q) => (document.querySelector(q) ? window.__uiTexts(document.querySelector(q)) : [])));
+  await setLang('en'); const en = await texts();
+  await setLang('pt'); const pt = await texts();
+  assert.deepEqual(untranslated(en, pt, [/^\w+ : \w+$/, /^\w+$/]), []);
+  assert.ok(pt.includes('Esquemático Tecnológico (só de leitura): a netlist pós-síntese'), pt.join(' | '));
+  assert.ok(pt.includes('Função do LUT (INIT)'), pt.join(' | '));
+  await setLang('en');
+  // pong: the instances of the design, and the logic of its top module by signal (blocks *_logic)
+  await makeProject(env, { name: 'OpenTechPong', template: 'pong' });
+  await page.openProject('OpenTechPong');
+  await page.click('input[name=view][value=impl]');
+  await checkTechSchematic(page, { top: 'pong', blocks: ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], inside: 'dbL',
+    message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1068 cells in 20 block(s): " });
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 400000 });

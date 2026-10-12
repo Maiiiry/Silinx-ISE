@@ -114,6 +114,10 @@
 .sch-editor .se-pbtns .btn { min-width: 0; }
 .sch-editor .se-sec { margin: 8px 0; border-top: 1px solid var(--se-border-light); padding-top: 4px; }
 .sch-editor .se-sec > summary { cursor: default; color: var(--se-title-fg); font-weight: bold; user-select: none; }
+.sch-editor .se-lut-eq { font: 12px var(--mono, monospace); margin: 4px 0; word-break: break-word; }
+.sch-editor .se-lut-tt { border-collapse: collapse; font: 11px var(--mono, monospace); margin: 2px 0 4px; }
+.sch-editor .se-lut-tt th, .sch-editor .se-lut-tt td { border: 1px solid var(--se-border-light); padding: 0 6px; text-align: center; }
+.sch-editor .se-lut-tt tr.one td:last-child { font-weight: bold; }
 .sch-editor .se-pins { margin: 4px 0; font: 11px/1.35 var(--se-mono); white-space: pre-wrap; color: #333; background: #fafafa; border: 1px solid #eee; padding: 3px 5px; max-height: 220px; overflow: auto; }
 
 /* classic button fallback when theme.css is not loaded */

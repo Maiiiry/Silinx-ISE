@@ -19,6 +19,7 @@ import {
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
+import { lutFunction } from '/core/fpga/techview.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
 import { popupMenu } from './ui.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
@@ -776,6 +777,16 @@ export function mountSchEditor(container, opts = {}) {
     propBody.append(sec);
     propBody.append(h('div', { class: 'se-note', text: 'Tip: drag symbols from the Symbols panel; double-click a module symbol to open its source.' }));
   }
+  // the function of a LUT: its equation and truth table (a collapsed section, opened on demand)
+  function lutSection(fn) {
+    const sec = h('details', { class: 'se-sec se-lutfn' });
+    sec.append(h('summary', { text: 'LUT function (INIT)' }), h('div', { class: 'se-lut-eq', 'data-no-i18n': '', text: fn.equation }));
+    const tbl = h('table', { class: 'se-lut-tt' });
+    tbl.append(h('tr', {}, ...[...fn.inputs, 'O'].map(x => h('th', { 'data-no-i18n': '', text: x }))));
+    for (const r of fn.rows) tbl.append(h('tr', { class: r.out ? 'one' : '' }, ...[...r.in, r.out].map(v => h('td', { text: String(v) }))));
+    sec.append(tbl);
+    return sec;
+  }
   function ta(value, set, rows = 4) {
     const el = h('textarea', { rows, spellcheck: 'false' });
     el.value = value;
@@ -810,6 +821,11 @@ export function mountSchEditor(container, opts = {}) {
         for (const g of gens) box.append(h('div', { class: 'se-row' }, h('span', { class: 'gn', text: g.name }), inp(s.params.generics?.[g.name] ?? '', x => { s.params.generics ||= {}; if (String(x).trim()) s.params.generics[g.name] = String(x).trim(); else delete s.params.generics[g.name]; }, { placeholder: g.default || '' })));
         propBody.append(field(m?.lang === 'verilog' || doc.lang === 'verilog' ? 'Parameters' : 'Generics', box, 'empty = module default'));
       }
+      // a LUT of a technology schematic: its function from its INIT, on demand
+      const lut = /^LUT([1-6])(_[LD])?$/i.exec(s.params.module || '');
+      const init = lut && Object.entries(s.params.generics || {}).find(([k]) => k.toUpperCase() === 'INIT')?.[1];
+      const fn = init ? lutFunction(init, +lut[1]) : null;
+      if (fn) propBody.append(lutSection(fn));
       if (opts.onOpenModule) propBody.append(h('div', { class: 'se-pbtns' }, h('button', { class: 'btn ro-ok', type: 'button', text: readOnly ? 'Open this instance' : 'Open module source', onclick: () => opts.onOpenModule(s.params.module, { instance: s.name, symbol: clone(s) }) })));
     }
     if (s.type === 'hdlblock') {

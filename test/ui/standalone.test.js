@@ -413,3 +413,32 @@ uiTest('browser edition: Back-annotate Pin Locations runs the Silinx toolchain i
   await page.waitConsole(/every port already has a LOC in the UCF \(nothing to add\)\./, { timeout: 120000 });
   assert.deepEqual((await page.consoleText()).split('Back-annotated 5 pin location(s)').pop().split('\n').filter((l) => /warning/i.test(l)), []);
 }, { url: () => 'about:blank', timeout: 240000 });
+
+uiTest('browser edition: View Technology Schematic of blinky and pong: the netlist of the Silinx toolchain\'s synthesis in the browser, by instance (#119)', E, async (page) => {
+  const view = () => page.eval(() => {
+    const ed = window.Silinx.active?.viewer;
+    return ed ? { id: window.Silinx.active.id, crumb: document.querySelector('.doc:not([hidden]) .rtl-crumbs b')?.textContent, syms: ed.getDoc().symbols.map((x) => ({ id: x.id, module: x.params?.module || null })) } : null;
+  });
+  for (const [name, top, blocks, inside] of [['blinky', 'top', ['u_pre', 'u_speed', 'u_knight'], 'u_knight'], ['pong', 'pong', ['display', 'dbl', 'dbr', 'db1', 'db2', 'timer_logic'], 'display']]) {
+    await newSiteProject(page, `WebTech_${name}`, name);
+    await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
+    await page.waitFor((t) => window.Silinx.active?.id === `tech:${t}` && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [top], { what: `technology schematic of ${name}`, timeout: 180000 });
+    const log = await page.consoleText();
+    assert.match(log, /=== SILINX STEP synth ===/);
+    assert.match(log, new RegExp(`Technology Schematic of '${top}': the netlist of the Silinx toolchain's synthesis \\(build/open/${top}\\.json\\), \\d+ cells in \\d+ block\\(s\\): `));
+    assert.doesNotMatch(log, /SILINX FAILED|ERROR/);
+    let v = await view();
+    assert.equal(v.crumb, `${top} : ${top}`);
+    const mods = new Set(v.syms.map((x) => x.module));
+    for (const m of ['ibuf', 'obuf', 'bufg', ...blocks]) assert.ok(mods.has(m), `${name}: ${m} (${[...mods].join(' ')})`);
+    // push into an instance: LUTs and flip-flops; a LUT's function on demand
+    await page.dblclick(`.doc:not([hidden]) .se-svg [data-kind=sym][data-id="${v.syms.find((x) => x.module === inside).id}"]`);
+    await page.waitFor((b) => document.querySelector('.doc:not([hidden]) .rtl-crumbs b')?.textContent === `${b} : ${b}` && window.Silinx.active.viewer.getDoc().symbols.length > 5, [inside], { what: `inside ${inside}`, timeout: 60000 });
+    v = await view();
+    assert.ok(v.syms.some((x) => x.module === 'fdre'), `${name}/${inside}: flip-flops`);
+    const lut = v.syms.find((x) => /^lut[1-4]$/.test(x.module));
+    await page.click(`.doc:not([hidden]) .se-svg [data-kind=sym][data-id="${lut.id}"]`);
+    await page.click('.doc:not([hidden]) .se-lutfn > summary');
+    assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-lut-eq').textContent), /^O = (0|1|!?I\d)/);
+  }
+}, { url: () => 'about:blank', timeout: 400000 });
