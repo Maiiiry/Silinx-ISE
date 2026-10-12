@@ -282,6 +282,12 @@ export function toVerilog(design, { name, tables = true } = {}) {
         return { x, w, s: !!t.s };
       }
       case 'bit': {
+        // (a constant bit of a signal: name[p], which Yosys matches with an edge on that bit, as
+        // an asynchronous reset rs[1] of always @(… or posedge rs[1]), #98)
+        if (n.index.k === 'c' && n.base.k === 'sig' && !isRec(n.base.sig.t) && !constSig.has(n.base.sig) && n.base.sig.t.w > 1 && !wiredDrv.has(n.base.sig)) {
+          const p = bitpos(n.base.t, V.toNum(n.index.val));
+          if (p >= 0 && p < wOf(n.base.sig.t) && !(n.base.sig.t.kind === 'int' && wOf(n.base.sig.t) !== n.base.sig.t.w)) return { x: `${sigName.get(n.base.sig)}[${p}]`, w: 1, s: false };
+        }
         const b = e(n.base, ctx);
         if (n.index.k === 'c') {
           const p = bitpos(n.base.t, V.toNum(n.index.val));
@@ -939,25 +945,33 @@ export function toVerilog(design, { name, tables = true } = {}) {
 
   // ---------------- processes
   // the clock condition: rising_edge(clk) / falling_edge(clk) / clk'event and clk = '1'
+  // a one-bit signal or a constant bit of a vector (clks(k) in a for-generate, #98): { sig, bit }
+  const bitRef = n => {
+    if (n?.k === 'sig' && n.sig.t.w === 1) return { sig: n.sig, bit: null };
+    if (n?.k === 'bit' && n.base.k === 'sig' && n.index.k === 'c') return { sig: n.base.sig, bit: bitpos(n.base.t, V.toNum(n.index.val)) };
+    return null;
+  };
+  // the Verilog name of a clock / reset: the signal, or its bit
+  const edgeName = r => `${sigName.get(r.sig)}${r.bit != null && (r.sig.t.w > 1 || !r.sig.t.scalar) ? `[${r.bit}]` : ''}`;
   function edgeOf(c) {
     if (!c) return null;
-    if (c.k === 'edge' && c.sig) return { sig: c.sig, pos: c.pos !== false };
+    if (c.k === 'edge' && c.sig) return { sig: c.sig, bit: c.bit ?? null, pos: c.pos !== false };
     if (c.k === 'bin' && (c.o === '&' || c.o === '&&')) {
       const ev = [c.a, c.b].find(x => x.k === 'event'), lv = [c.a, c.b].find(x => x.k === 'bin' && x.o === '==');
       if (ev && lv) {
-        const s = lv.a.k === 'sig' ? lv.a : lv.b.k === 'sig' ? lv.b : null, k = lv.a.k === 'c' ? lv.a : lv.b.k === 'c' ? lv.b : null;
-        if (s && k && s.sig === ev.sig) return { sig: s.sig, pos: V.toNum(k.val) === 1 };
+        const s = bitRef(lv.a) || bitRef(lv.b), k = lv.a.k === 'c' ? lv.a : lv.b.k === 'c' ? lv.b : null;
+        if (s && k && s.sig === ev.sig && (s.bit ?? 0) === (ev.bit ?? 0)) return { sig: s.sig, bit: s.bit, pos: V.toNum(k.val) === 1 };
       }
     }
     return null;
   }
-  // an asynchronous reset condition: sig = '1' / '0', sig, not sig
+  // an asynchronous reset condition: sig = '1' / '0', sig, not sig (a bit of a vector too)
   function levelOf(c) {
-    if (c.k === 'sig' && c.sig.t.w === 1) return { sig: c.sig, high: true };
-    if (c.k === 'un' && (c.o === '!' || c.o === '~') && c.a.k === 'sig' && c.a.sig.t.w === 1) return { sig: c.a.sig, high: false };
+    if (bitRef(c)) return { ...bitRef(c), high: true };
+    if (c.k === 'un' && (c.o === '!' || c.o === '~') && bitRef(c.a)) return { ...bitRef(c.a), high: false };
     if (c.k === 'bin' && c.o === '==') {
-      const s = c.a.k === 'sig' ? c.a : c.b.k === 'sig' ? c.b : null, k = c.a.k === 'c' ? c.a : c.b.k === 'c' ? c.b : null;
-      if (s && k && s.sig.t.w === 1 && !k.val.x) return { sig: s.sig, high: V.toNum(k.val) === 1 };
+      const s = bitRef(c.a) || bitRef(c.b), k = c.a.k === 'c' ? c.a : c.b.k === 'c' ? c.b : null;
+      if (s && k && !k.val.x) return { ...s, high: V.toNum(k.val) === 1 };
     }
     return null;
   }
@@ -987,7 +1001,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
         // Verilog always @(…): the event list as written
         const edges = p.triggers.filter(t => t.edge === 'pos' || t.edge === 'neg');
         if (edges.length && edges.length !== p.triggers.length) fail('an event list mixing edges and levels', p);
-        head = edges.length ? `always @(${edges.map(t => `${t.edge === 'pos' ? 'posedge' : 'negedge'} ${sigName.get(t.sig)}`).join(' or ')})` : 'always @*';
+        head = edges.length ? `always @(${edges.map(t => `${t.edge === 'pos' ? 'posedge' : 'negedge'} ${edgeName({ sig: t.sig, bit: t.pos ?? null })}`).join(' or ')})` : 'always @*';
         body = stmt(p.body, ctx, '    ', 'proc');
       } else if (!hasEdge(p.body)) {
         if (p.mode !== 'comb' && p.mode !== 'sens' && p.kind !== 'assign' && p.kind !== 'glue') fail('a process with waits cannot be synthesized', p);
@@ -1010,11 +1024,11 @@ export function toVerilog(design, { name, tables = true } = {}) {
         }
         if (!clock) fail('no clock edge found in this process', p);
         if (clock.rest) fail('statements after the clock edge branch (elsif / else after rising_edge)', p);
-        const ev = [`${clock.pos ? 'posedge' : 'negedge'} ${sigName.get(clock.sig)}`, ...resets.map(r => `${r.high ? 'posedge' : 'negedge'} ${sigName.get(r.sig)}`)];
+        const ev = [`${clock.pos ? 'posedge' : 'negedge'} ${edgeName(clock)}`, ...resets.map(r => `${r.high ? 'posedge' : 'negedge'} ${edgeName(r)}`)];
         head = `always @(${ev.join(' or ')})`;
         let txt = '';
         const rb = resets.map(r => stmt(r.body, ctx, '      ', 'proc'));
-        resets.forEach((r, k) => { txt += `    ${k ? 'else ' : ''}if (${r.high ? '' : '!'}${sigName.get(r.sig)}) begin\n${rb[k]}    end\n`; });
+        resets.forEach((r, k) => { txt += `    ${k ? 'else ' : ''}if (${r.high ? '' : '!'}${edgeName(r)}) begin\n${rb[k]}    end\n`; });
         const cb = stmt(clock.body, ctx, resets.length ? '      ' : '    ', 'proc');
         // (nothing left in any branch: no body, the block is left out)
         body = !cb.trim() && rb.every(x => !x.trim()) ? '' : resets.length ? `${txt}    else begin\n${cb}    end\n` : cb;

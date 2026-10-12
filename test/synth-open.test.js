@@ -285,3 +285,17 @@ test('Yosys netlist: ports that differ only in case stay apart (a / A) (#83)', {
   sim.step({ a: 1, A: 0 });
   assert.deepEqual([sim.out().y, sim.out().Y], [0, 1]);
 });
+
+// Regression (#98): per-bit clocks of a for-generate reach Yosys as bits (it failed: "posedge … not
+// 1 bit wide"); one flip-flop with an asynchronous clear per bit
+test('Yosys: clocks and resets that are bits of a vector synthesize, one FDCE per bit (#98)', { timeout: 120000 }, async () => {
+  const text = `library ieee; use ieee.std_logic_1164.all;
+entity g is port (clks, rs, d : in std_logic_vector(3 downto 0); q : out std_logic_vector(3 downto 0)); end;
+architecture a of g is begin
+  gen : for k in 0 to 3 generate
+    process (clks(k), rs(k)) begin if rs(k) = '1' then q(k) <= '0'; elsif rising_edge(clks(k)) then q(k) <= d(k); end if; end process;
+  end generate;
+end;`;
+  const r = await synthesizeOpen(elaborate(compile([{ path: 'g.vhd', text }]), 'g'), { run: yosysNode });
+  assert.equal(r.cells.FDCE, 4);
+});

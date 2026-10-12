@@ -137,6 +137,9 @@ the "What's new" text of its GitHub release.
 - **Open synthesis: names that differ only in case** (Verilog `a` and `A`, VHDL `\Mixed\` and
   `\mixed\`) keep their names in the netlist; the second was renamed (`a_1`, `\mixed\_1`), so
   its pin in the UCF no longer matched (#83).
+- **Open synthesis: a clock or asynchronous reset that is a bit of a vector** (`rising_edge(clks(k))`
+  in a `for … generate`, `clks(k)'event and clks(k) = '1'`, Verilog `posedge clks[0]`) is that bit;
+  it was the whole vector, which Yosys refuses (`posedge … not 1 bit wide`) (#98).
 - **Silinx toolchain: large designs build several times faster** (secworks AES on the XC3S1200E,
   7662 slices: about 40 min -> about 6 min, synthesis included; place and route of SHA-256 on the
   XC3S250E 600 -> 32 s, of T80 99 -> 16 s, of NEORV32 305 -> 27 s), with the same circuits.

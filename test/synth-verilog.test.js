@@ -460,6 +460,28 @@ architecture a of m is begin process (clk) begin if rising_edge(clk) then q <= \
   assert.match(h.text, /input wire \\\\Mixed\\ ,\n {2}input wire \\\\mixed\\ ,\n {2}input wire mixed,/);
 });
 
+// Regression (#98): a clock or asynchronous reset that is a bit of a vector (rising_edge(clks(k))
+// in a for-generate, clk'event and clk = '1' forms, Verilog posedge clks[0]) is that bit, not the
+// whole vector (Yosys: "posedge … not 1 bit wide")
+test('clocks and asynchronous resets that are bits of a vector: VHDL for-generate, \'event form, Verilog (#98)', () => {
+  const h = equivalent([vhd(`${PRE}entity h is port (clks, rs, d : in std_logic_vector(1 downto 0); q, q2 : out std_logic_vector(1 downto 0)); end;
+architecture a of h is begin
+  g : for k in 0 to 1 generate
+    process (clks(k), rs(k)) begin if rs(k) = '1' then q(k) <= '0'; elsif rising_edge(clks(k)) then q(k) <= d(k); end if; end process;
+    process (clks(k)) begin if clks(k)'event and clks(k) = '0' then q2(k) <= not d(k); end if; end process;
+  end generate;
+end;`)], 'h', { clock: 'none', reset: 'none', minStates: 4, cycles: 300 });
+  assert.match(h.text, /always @\(posedge clks\[0\] or posedge rs\[0\]\) begin\n {4}if \(rs\[0\]\) begin/);
+  assert.match(h.text, /always @\(posedge clks\[1\] or posedge rs\[1\]\)/);
+  assert.match(h.text, /always @\(negedge clks\[1\]\)/);
+  const v = equivalent([vlog(`module v(input [1:0] clks, input [1:0] rs, input [1:0] d, output reg [1:0] q);
+  always @(posedge clks[0] or posedge rs[1]) if (rs[1]) q[0] <= 0; else q[0] <= d[0];
+  always @(negedge clks[1]) q[1] <= d[1];
+endmodule`, 'v.v')], 'v', { clock: 'none', reset: 'none', minStates: 2, cycles: 300 });
+  assert.match(v.text, /always @\(posedge clks\[0\] or posedge rs\[1\]\) begin\n {4}if \(rs\[1\]\) begin/);
+  assert.match(v.text, /always @\(negedge clks\[1\]\)/);
+});
+
 test('Xilinx primitives instantiated by name stay instances with their generics; their simulation models are left out', () => {
   const src = vhd(`library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;
 entity pr is port (clk, d, ce : in std_logic; a : in std_logic_vector(3 downto 0); q, q2 : out std_logic); end pr;
