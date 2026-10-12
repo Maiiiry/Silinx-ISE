@@ -180,6 +180,41 @@ test('parseUcf: bus bits written as a(0) or a[0] map to a<0>', () => {
   assert.equal(a['led<2>'].loc, 'P7');
 });
 
+// #63, measured with ISE 14.7 (Verilog top: input [1:0] x, input \opcode[1] ): ngdbuild finds
+// NET "x[1]", "x(1)" and "x<1>" (the same net), and "_opcode[1]_", but not "opcode[1]"
+// (ConstraintSystem:59)
+test('parseUcf with the ports: bus bits written x[1] / x(1) are x<1>, any other bracket name is kept as written (#63)', () => {
+  const ports = [{ name: 'x', dir: 'in', msb: 1, lsb: 0 }, { name: 'opcode[1]', dir: 'in' }, { name: 'v.x', dir: 'in', msb: 1, lsb: 0 }, { name: 'clk', dir: 'in' }, { name: 'd', dir: 'in', msb: 0, lsb: 0, bus: true }];
+  const src = 'NET "x[1]" LOC = "P11";\nNET "x(0)" LOC = "L3";\nNET "opcode[1]" LOC = "K3";\nNET "_opcode[1]_" IOSTANDARD = LVCMOS33;\n'
+    + 'NET "_v_x_[1]" LOC = "B4";\nNET "clk[0]" LOC = "B8";\nNET "d[0]" LOC = "G3";\nNET "y[2]" LOC = "F3";\nNET "X[0]" PULLUP;\n';
+  const u = parseUcf(src, { ports });
+  assert.deepEqual(u.assignments, {
+    'x<1>': { loc: 'P11' }, 'x<0>': { loc: 'L3' }, 'opcode[1]': { loc: 'K3' }, '_opcode[1]_': { iostandard: 'LVCMOS33' },
+    '_v_x_<1>': { loc: 'B4' }, 'clk[0]': { loc: 'B8' }, 'd<0>': { loc: 'G3' }, 'y[2]': { loc: 'F3' }, 'X<0>': { pull: 'up' },
+  });
+  assert.deepEqual(u.other, []);
+  // a TNM_NET / PERIOD on such a name keeps it too
+  const t = parseUcf('NET "opcode[1]" TNM_NET = "g";\nTIMESPEC "TS_g" = PERIOD "g" 10 ns;\nNET "x[1]" PERIOD = 20 ns;', { ports });
+  assert.deepEqual(t.clocks, [{ net: 'x<1>', period: 20, duty: 50 }, { net: 'opcode[1]', name: 'TS_g', tnm: 'g', period: 10, duty: 50 }]);
+  // without the ports, every name of that shape is a bus bit (the netlist consumers: pack, emulator)
+  assert.deepEqual(Object.keys(parseUcf(src).assignments), ['x<1>', 'x<0>', 'opcode<1>', '_opcode[1]_', '_v_x_<1>', 'clk<0>', 'd<0>', 'y<2>', 'X<0>']);
+  // the pin planner's round trip: the ports' bits under their names, the hand-written name as written
+  const text = generateUcf({ ports, assignments: u.assignments });
+  assert.match(text, /^NET "opcode\[1\]" +LOC = "K3" ; {2}# not a port of the top module$/m);
+  assert.match(text, /^NET "x<1>" +LOC = "P11" ;$/m);
+  assert.doesNotMatch(text, /opcode<1>/);
+  // and Check Constraints says what ngdbuild says about each
+  const c = s => checkUcf(s, { top: 't', ports: ports.slice(0, 2), lang: 'verilog', package: 'cp132' }).map(d => `${d.line}:${d.col} ${d.severity}: ${d.message}`);
+  assert.deepEqual(c('NET "x[1]" LOC = "P11";\nNET "x(0)" LOC = "L3";\nNET "_opcode[1]_" LOC = "K3";\n'), [
+    '1:7 warning: use x<1> for a bus bit in UCF (the default bus delimiter is <>)',
+    '2:7 warning: use x<0> for a bus bit in UCF (the default bus delimiter is <>)',
+  ]);
+  assert.deepEqual(c('NET "x<1>" LOC = "P11";\nNET "x<0>" LOC = "L3";\nNET "opcode[1]" LOC = "K3";\n'), [
+    '3:1 warning: 1 port bit(s) of \'t\' have no LOC: _opcode[1]_',
+    '3:6 error: NET "opcode[1]" is not found by ISE: XST names the port \'opcode[1]\' _opcode[1]_ in its netlist (use NET "_opcode[1]_")',
+  ]);
+});
+
 test('parseUcf -> generateUcf keeps INST/OFFSET/TIMEGRP, derived TIMESPECs and their TNM_NETs', () => {
   const src = `NET "clk" LOC = "C9" | IOSTANDARD = LVCMOS33;
 NET "clk" TNM_NET = "clk";

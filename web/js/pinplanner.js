@@ -38,7 +38,8 @@ export function mountPinPlanner(el, doc, top) {
   const load = async () => {
     if (pj.constraints && S.fileTree.includes(pj.constraints)) {
       try {
-        const u = parseUcf(await api.readFile(pj.name, pj.constraints));
+        // the bits of the buses written x[1] or x(1) become x<1>; any other name stays as written (#63)
+        const u = parseUcf(await api.readFile(pj.name, pj.constraints), { ports });
         asg = u.assignments || {}; clocks = u.clocks || []; other = u.other || [];
       } catch (e) { toast(`Cannot parse UCF: ${e.message}`, 'error'); }
     }

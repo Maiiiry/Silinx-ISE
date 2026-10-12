@@ -46,6 +46,11 @@ the "What's new" text of its GitHub release.
   `npm dependencies missing from node_modules (…): run npm ci`, instead of failing every test with
   the page's `Cannot read properties of undefined (reading 'fold')` (no CodeMirror served). One UI
   test runs alone with `node --test --test-name-pattern=…` (tested; README) (#64).
+- **I/O Pin Planning keeps a hand-written `NET "opcode[1]"` as written** (the HDL name of the
+  escaped port `\opcode[1] `, whose UCF name is `_opcode[1]_`), so Check Constraints still says
+  which name ngdbuild finds; it was rewritten as `opcode<1>`, a net of no port. Only the bits of
+  the top's buses written `x[1]` or `x(1)` become `x<1>`: ngdbuild finds all three spellings
+  (measured with ISE 14.7) (#63).
 
 ## 15.10.2
 

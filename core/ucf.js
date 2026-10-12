@@ -199,8 +199,17 @@ function statements(text) {
 }
 
 const unq = s => s.trim().replace(/^"(.*)"$/, '$1');
-// ISE accepts bus bits as a<0>, a(0) or a[0]: keep the canonical a<0>
-const busBit = s => s.replace(/^([A-Za-z_][\w$]*)\s*[([]\s*(-?\d+)\s*[)\]]$/, '$1<$2>');
+// ngdbuild finds a bit of a bus port written a<0>, a(0) or a[0] (measured with ISE 14.7): the
+// canonical a<0>. But a name such as opcode[1] may also be a port's HDL name (Verilog \opcode[1] ,
+// netlist name _opcode[1]_, #34), not a bit: given the ports, only the bits of their buses are
+// rewritten; anything else is kept as written (#63).
+const BUS_BIT = /^([A-Za-z_][\w$]*)\s*[([]\s*(-?\d+)\s*[)\]]$/;
+function busBitOf(ports) {
+  if (!ports) return s => s.replace(BUS_BIT, '$1<$2>');
+  const buses = new Set();
+  for (const p of ports) { const n = normalizePort(p); if (n.bus) buses.add(ucfPortName(n.name).toLowerCase()); }
+  return s => { const m = BUS_BIT.exec(s); return m && buses.has(m[1].toLowerCase()) ? `${m[1]}<${m[2]}>` : s; };
+}
 
 /**
  * Parse the remainder of a simple PERIOD spec: '20 ns HIGH 50%', '50 MHz', '20'. Anchored: derived
@@ -226,10 +235,13 @@ function periodSpecOk(s) {
 }
 
 /**
- * Parse UCF text.
+ * Parse UCF text. Net names are kept as written, but for bus bits written a(0) or a[0], which
+ * become a<0>: with `ports` (the top's, as normalizePort takes them), only the bits of its buses;
+ * without, every name of that shape (#63).
  * @returns {{ assignments: Object<string, object>, clocks: Array, other: string[] }}
  */
-export function parseUcf(text) {
+export function parseUcf(text, { ports } = {}) {
+  const busBit = busBitOf(ports);
   const assignments = {};
   const clocks = [];
   const other = [];          // [{ i, text }] sorted by statement position at the end
