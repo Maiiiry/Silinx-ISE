@@ -5,6 +5,14 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.3
 
+- **Silinx toolchain: logic depth.** The open synthesis maps a design a second time for depth (ABC's
+  SOP balancing, `if -g`, then the usual area recovery) and keeps that netlist when its estimated
+  critical path is shorter without more LUTs in proportion (or it is as fast and smaller). Logic
+  written as long chains of gates gets much faster: the EPFL max benchmark 71 -> 37 ns (ISE: 25.7),
+  EPFL priority 43 -> 17 ns (ISE: 21), vtr-stereovision3 -9 %, verilog-i2c-master -6 %, T80 -4 %;
+  -6 % over 32 designs of the corpus and the examples (geometric mean), with 1 % fewer slices. The
+  examples keep their netlists. Synthesis runs Yosys's LUT mapping twice on designs of up to 5000
+  LUTs (research/synth-quality/README.md, "Logic depth") (#52).
 - **Silinx toolchain: timing analysis.** A path through a carry chain's data input taken from BX
   (`CY0F = BX`, as comparators are packed) into the XOR of the slice's G stage was not timed, and a
   LUT input the LUT does not read (the carry's data input on a LUT pin) counted as a path through

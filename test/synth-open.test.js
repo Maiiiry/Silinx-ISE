@@ -4,7 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET } from '../core/synth-open.js';
+import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, PREMAP_FILE, DEPTH_RULE } from '../core/synth-open.js';
+import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { netlistSim } from './fpga-sim.js';
@@ -153,4 +154,82 @@ test('Yosys messages that say nothing about the design: its block-RAM mapping\'s
   // a resized port of the design's own cells still counts
   assert.ok(!quiet('Warning: Resizing cell port top.u_add.A from 16 bits to 8 bits.'));
   assert.ok(!quiet('Warning: Resizing cell port top.ram.0.0.ADDR from 14 bits to 10 bits.'));
+});
+
+// ------------------------------------------------------------------ logic depth (#52, 15.10.3)
+const cell = (type, ins, outs) => ({ type, port_directions: { ...Object.fromEntries(Object.keys(ins).map(p => [p, 'input'])), ...Object.fromEntries(Object.keys(outs).map(p => [p, 'output'])) },
+  connections: { ...Object.fromEntries(Object.entries(ins).map(([p, b]) => [p, [b]])), ...Object.fromEntries(Object.entries(outs).map(([p, b]) => [p, [b]])) } });
+const netlistOf = cells => ({ modules: { t: { attributes: { top: 1 }, cells } } });
+
+test('logic depth: the scripts (the design before the LUT mapping written, mapped again by the depth-oriented ABC script)', () => {
+  assert.equal(yosysScript('top', 'spartan3e', { premap: PREMAP_FILE }), yosysScript('top', 'spartan3e').replace('abc -luts', 'write_rtlil silinx_premap.il; abc -luts'));
+  assert.equal(remapCommands('top', 'spartan3e'), 'read_rtlil silinx_premap.il; abc -luts 1,1,1,1,2,4 -script silinx_depth.abc; clean; techmap -map +/xilinx/ff_map.v; '
+    + 'techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
+  assert.match(DEPTH_ABC, /if -g; .*if; mfs2$/);
+  // 6-input-LUT families: synth_xilinx as it is, nothing written
+  assert.equal(synthCommands('m', 'spartan6', { premap: PREMAP_FILE }), 'synth_xilinx -family xc6s -ise -flatten -top m');
+});
+
+test('logic depth: the estimated critical path of a netlist (flip-flop to flip-flop; none inside a slice; the outputs when no flip-flop)', () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  // FF -> LUT -> LUT -> FF: clock-to-out, two connections and LUTs, the setup through the last LUT
+  const two = { f1: cell('FDRE', { C: 2, D: 3, CE: '1', R: '0' }, { Q: 10 }), l1: cell('LUT2', { I0: 10, I1: 10 }, { O: 11 }), l2: cell('LUT1', { I0: 11 }, { O: 12 }), f2: cell('FDRE', { C: 2, D: 12, CE: '1', R: '0' }, { Q: 13 }) };
+  close(criticalDelay(netlistOf(two), 't'), 0.59 + 0.45 + 0.70 + 0.45 + 0.70 + 0.13);
+  // a LUT into its carry stage (inside the slice), the carry out to another slice's flip-flop
+  const cy = { f1: cell('FDRE', { C: 2, D: 3, CE: '1', R: '0' }, { Q: 10 }), l1: cell('LUT2', { I0: 10, I1: 10 }, { O: 11 }), m: cell('MUXCY', { S: 11, DI: '0', CI: '1' }, { O: 12 }), f2: cell('FDRE', { C: 2, D: 12, CE: '1', R: '0' }, { Q: 13 }) };
+  close(criticalDelay(netlistOf(cy), 't'), 0.59 + 0.45 + 0.70 + 0.25 + 0.45 + 0.13);
+  // the clock enable is an end too
+  const ce = { f1: cell('FDRE', { C: 2, D: 3, CE: '1', R: '0' }, { Q: 10 }), l1: cell('LUT1', { I0: 10 }, { O: 11 }), f2: cell('FDRE', { C: 2, D: 3, CE: 11, R: '0' }, { Q: 13 }) };
+  close(criticalDelay(netlistOf(ce), 't'), 0.59 + 0.45 + 0.70 + 0.45 + 0.55);
+  // no flip-flop: from the inputs to the outputs
+  const comb = { i: cell('IBUF', { I: 2 }, { O: 3 }), l: cell('LUT1', { I0: 3 }, { O: 4 }), o: cell('OBUF', { I: 4 }, { O: 5 }) };
+  close(criticalDelay(netlistOf(comb), 't'), 0.45 + 0.70 + 0.45);
+  // a combinational loop does not hang it
+  const loop = { f1: cell('FDRE', { C: 2, D: 3, CE: '1', R: '0' }, { Q: 10 }), a: cell('LUT2', { I0: 10, I1: 12 }, { O: 11 }), b: cell('LUT1', { I0: 11 }, { O: 12 }), f2: cell('FDRE', { C: 2, D: 12, CE: '1', R: '0' }, { Q: 13 }) };
+  assert.ok(criticalDelay(netlistOf(loop), 't') > 0);
+});
+
+test('logic depth: the depth-oriented netlist is kept when 3 % faster and not larger in proportion (10 % more LUTs at least)', () => {
+  assert.equal(DEPTH_RULE.gain, 0.03);
+  assert.ok(keepDepth([68.7, 32.6], [1090, 1168]), 'EPFL max: twice as fast, 7 % more LUTs');
+  assert.ok(keepDepth([10.89, 8.65], [33, 37]), '21 % faster, 12 % more LUTs');
+  assert.ok(!keepDepth([10, 9.8], [100, 101]), 'not 3 % faster, larger');
+  assert.ok(keepDepth([10, 9.8], [100, 100]), 'a little faster, as large');
+  assert.ok(!keepDepth([10, 9], [100, 112]), '10 % faster, 12 % more LUTs');
+  assert.ok(keepDepth([10, 9], [100, 110]));
+  assert.ok(keepDepth([10, 10], [100, 99]), 'as fast and smaller');
+  assert.ok(!keepDepth([10, 10], [100, 100]) && !keepDepth([10, 10.1], [100, 80]), 'the same, or slower');
+});
+
+const CHAIN = `module chain(input clk, input [23:0] a, input [23:0] b, output reg gt);
+  reg [23:0] ra, rb;
+  integer i;
+  reg g;
+  always @* begin
+    g = 1'b0;
+    for (i = 0; i < 24; i = i + 1) g = (ra[i] & ~rb[i]) | (~(ra[i] ^ rb[i]) & g);
+  end
+  always @(posedge clk) begin ra <= a; rb <= b; gt <= g; end
+endmodule
+`;
+test('logic depth: a comparator written as a chain of gates is mapped again for depth, that netlist kept and equal to the RTL; a counter keeps its usual mapping', { timeout: 180000 }, async () => {
+  const chain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain');
+  const r = await synthesizeOpen(chain, { family: 'spartan3e', run: yosysNode });
+  assert.equal(r.depth.tried, true);
+  assert.equal(r.depth.kept, true, JSON.stringify(r.depth));
+  assert.ok(r.depth.ns[1] < r.depth.ns[0] * 0.9, JSON.stringify(r.depth));
+  assert.equal(r.util.luts, r.depth.luts[1]);
+  assert.deepEqual(r.warnings, []);
+  assert.equal(criticalDelay(r.files['chain.json'], 'chain'), r.depth.ns[1]);
+  const d = compareNetlist(chain, r, { name: 'depth-chain', sim: { cycles: 300 } });
+  assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+  // without it: the usual mapping, one Yosys run
+  let runs = 0;
+  const r0 = await synthesizeOpen(chain, { family: 'spartan3e', run: (...a) => { runs++; return yosysNode(...a); }, depth: false });
+  assert.deepEqual([runs, r0.depth.tried, r0.util.luts], [1, false, r.depth.luts[0]]);
+  assert.equal(criticalDelay(r0.files['chain.json'], 'chain'), r.depth.ns[0]);
+  // the counter: tried, not kept (no faster)
+  const c = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run: yosysNode });
+  assert.deepEqual([c.depth.tried, c.depth.kept], [true, false]);
+  assert.deepEqual(c.warnings, []);
 });
