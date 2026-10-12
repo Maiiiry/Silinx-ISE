@@ -116,8 +116,13 @@ uiTest('New Project wizard: the synthesis tool, Silinx by default (no ISE); Desi
   });
   await page.dialogButton('OK');
   await page.waitNoDialog();
-  await page.treeRow('#hier', 'top');
-  await page.waitFor(() => [...document.querySelectorAll('#procs .row .lbl')].some((e) => e.textContent === 'Synthesize - XST'), [], { what: 'XST processes' });
+  // (the project is saved and reloaded asynchronously: wait for the setting, then select the top until
+  // its processes are drawn again — a selection made before the reload is lost)
+  await page.waitFor(() => window.Silinx.project?.synthTool === 'xst', [], { what: 'the setting saved' });
+  for (let k = 0; ; k++) {
+    await page.treeRow('#hier', 'top');
+    try { await page.waitFor(() => [...document.querySelectorAll('#procs .row .lbl')].some((e) => e.textContent === 'Synthesize - XST'), [], { what: 'XST processes', timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
+  }
   assert.equal((await env.server.api('GET', '/api/projects/SynthTool')).synthTool, 'xst');
 });
 
