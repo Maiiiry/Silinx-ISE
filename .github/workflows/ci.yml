@@ -1,8 +1,12 @@
 name: CI
+# not for a push or pull request that changes only documentation (#149): .github/workflows/docs.yml
+# checks those (links, the paths and menus they name, the CHANGELOG, the quality page)
 on:
   push:
     branches: [main]
+    paths-ignore: ['**.md', 'docs/**']
   pull_request:
+    paths-ignore: ['**.md', 'docs/**']
 # a newer push to the same branch / pull request cancels the run still going
 concurrency:
   group: ci-${{ github.ref }}

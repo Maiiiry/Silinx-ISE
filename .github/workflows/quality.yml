@@ -17,8 +17,26 @@ concurrency:
   group: ise                  # one ISE job at a time on the runner
   cancel-in-progress: false
 jobs:
+  # whether main changed since this workflow's last successful run (a scheduled run with nothing new to
+  # test is skipped; by hand it always runs): scripts/changed-since-last-run.mjs, here on GitHub's runner
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.changed.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changed
+        run: node scripts/changed-since-last-run.mjs quality.yml
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
   compare:
-    if: github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
+    needs: changes
+    if: needs.changes.outputs.run == 'true' && github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, ise]
     timeout-minutes: 600
     env:

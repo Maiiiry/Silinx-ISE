@@ -1,0 +1,28 @@
+name: Docs
+# A push or pull request that changes only documentation (*.md, docs/) does not run CI (#149): the
+# tests of the documentation run instead (a minute): its links and anchors, the repository paths,
+# npm scripts and menu items it names, the facts it states about the code (test/docs.test.js), the
+# CHANGELOG (test/changelog.test.js), and docs/QUALITY.md against its results (test/quality-page.test.js).
+on:
+  push:
+    branches: [main]
+    paths: ['**.md', 'docs/**']
+  pull_request:
+    paths: ['**.md', 'docs/**']
+permissions:
+  contents: read
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --test test/docs.test.js test/changelog.test.js test/quality-page.test.js

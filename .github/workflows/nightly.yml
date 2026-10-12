@@ -13,7 +13,26 @@ on:
         description: VlogHammer modules
         default: '500'
 jobs:
+  # whether main changed since this workflow's last successful run (a scheduled run with nothing new to
+  # test is skipped; by hand it always runs): scripts/changed-since-last-run.mjs, here on GitHub's runner
+  changes:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.changed.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: changed
+        run: node scripts/changed-since-last-run.mjs nightly.yml
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
   corpus:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -31,6 +50,8 @@ jobs:
       - name: Yosys's test designs (Silinx vs Yosys)
         run: npm run test:corpus -- --jobs 4
   vloghammer:
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -55,6 +76,8 @@ jobs:
     # size and speed (fails when a design gets larger or slower beyond the noise); the run times
     # against the 'ci' baseline of test/designs-corpus/times.json (CI=true; warnings only; record
     # it from the results artifact: run.mjs --record-times designs-corpus/results.json --machine ci)
+    needs: changes
+    if: needs.changes.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
