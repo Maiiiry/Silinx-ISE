@@ -162,7 +162,7 @@ test('checkUcf: escaped ports by XST\'s names are accepted; by their HDL names, 
     '4:6 error: \'_v_x_\' is a 2-bit bus: constrain each bit (NET "_v_x_<0>" …)',
     '5:6 error: NET "b$c" is not found by ISE: XST names the port \'b$c\' b_c in its netlist (use NET "b_c")',
     '6:1 warning: 5 port bit(s) of \'top\' have no LOC: _opcode[0]_, _v_x_<0>, _v_x_<1>, b_c, clk',
-    '6:6 error: NET "_OPCODE[1]_": the port is called \'_opcode[1]_\' (UCF names are case-sensitive for Verilog designs)',
+    '6:6 warning: NET "_OPCODE[1]_": the port is called \'_opcode[1]_\' (ISE matches it ignoring the case; Verilog names are case-sensitive)',
   ]);
 });
 
@@ -326,4 +326,25 @@ test('checkUcf positions are right after comments with emoji (astral characters)
   assert.equal(d.length, 1);
   assert.deepEqual([d[0].line, d[0].col], [2, 28]);
   assert.match(d[0].message, /invalid DRIVE/);
+});
+
+// measured with ISE 14.7 (#85): for a Verilog design ngdbuild takes a UCF name as written first
+// (ports a and A get their own LOCs), else the one port that matches ignoring case (CLK -> clk)
+test('checkUcf: Verilog ports that differ only in case (a / A) are kept apart; another case matches the only port so named, with a warning (#85)', () => {
+  const ports = [{ name: 'a', dir: 'in' }, { name: 'A', dir: 'in' }, { name: 'clk', dir: 'in' }, { name: 'y', dir: 'out' }, { name: 'Y', dir: 'out' }];
+  const diag = text => checkUcf(text, { top: 'top', ports, lang: 'verilog' }).map(d => `${d.line}:${d.col} ${d.severity}: ${d.message}`);
+  // each port by its own name: no message
+  assert.deepEqual(diag('NET "a" LOC = "P11" ;\nNET "A" LOC = "L3" ;\nNET "clk" LOC = "B8" ;\nNET "y" LOC = "M5" ;\nNET "Y" LOC = "M11" ;\n'), []);
+  // a and A on the same pin: two nets, a conflict
+  assert.deepEqual(diag('NET "a" LOC = "P11" ;\nNET "A" LOC = "P11" ;\nNET "clk" LOC = "B8" ;\nNET "y" LOC = "M5" ;\nNET "Y" LOC = "M11" ;\n'),
+    ['2:16 error: pin P11 is already assigned to NET "a" (line 1)']);
+  // CLK: the only port named so ignoring case (ngdbuild takes it); A without LOC is reported missing
+  assert.deepEqual(diag('NET "a" LOC = "P11" ;\nNET "CLK" LOC = "B8" ;\nNET "y" LOC = "M5" ;\nNET "Y" LOC = "M11" ;\n'), [
+    '2:6 warning: NET "CLK": the port is called \'clk\' (ISE matches it ignoring the case; Verilog names are case-sensitive)',
+    "4:1 warning: 1 port bit(s) of 'top' have no LOC: A",
+  ]);
+  // neither as written nor unique ignoring case
+  assert.deepEqual(diag('NET "a" LOC = "P11" ;\nNET "A" LOC = "L3" ;\nNET "clk" LOC = "B8" ;\nNET "Y" LOC = "M11" ;\nNET "y" LOC = "M5" ;\nNET "y" IOSTANDARD = LVCMOS33 ;\n').filter(l => /matches/.test(l)), []);
+  assert.deepEqual(checkUcf('NET "Ya" LOC = "M5" ;\n', { top: 'top', ports: [{ name: 'ya', dir: 'out' }, { name: 'YA', dir: 'out' }], lang: 'verilog' }).map(d => d.message),
+    ["2 port bit(s) of 'top' have no LOC: ya, YA", 'NET "Ya" matches no port as written and several ignoring case (ya, YA): write the one you mean']);
 });

@@ -5,6 +5,11 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.3
 
+- **Check Constraints, ports that differ only in case:** in a Verilog design, ports such as `a` and
+  `A` are kept apart, as ngdbuild does (measured with ISE 14.7): a UCF name is taken as written
+  first, else the one port that matches ignoring case, now with a warning instead of the earlier
+  error (ISE accepts `NET "CLK"` for a port `clk`); a name that matches several ports only ignoring
+  case is an error.
 - **The synthesis tool is a setting of the project** (New Project Wizard and Design Properties:
   *Silinx*, no ISE needed, or *XST*, Xilinx ISE): new projects use Silinx. A project's processes
   and its Implement Design follow it, whatever the execution mode of Toolchain Settings (XST runs

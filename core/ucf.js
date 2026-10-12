@@ -430,8 +430,15 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
   };
   const add = (severity, p, message) => diags.push({ ...p, severity, message });
 
-  const portMap = new Map();
-  for (const p of ports) portMap.set(p.name.toLowerCase(), normalizePort(p));
+  // the ports by name as written, and by name in lower case (several when they differ only in case:
+  // Verilog a / A). ngdbuild takes the name as written first, else the one port that matches
+  // ignoring case (measured with ISE 14.7, #85)
+  const portMap = new Map(), portsLc = new Map();
+  for (const p of ports) {
+    const n = normalizePort(p);
+    portMap.set(n.name, n);
+    portsLc.set(n.name.toLowerCase(), [...(portsLc.get(n.name.toLowerCase()) || []), n]);
+  }
   // ports whose netlist (UCF) name is not their HDL name (escaped identifiers: \opcode[0] ->
   // _opcode[0]_, b$c -> b_c): by UCF name and by HDL name
   const renamed = new Map(), renamedRaw = new Map();
@@ -494,12 +501,12 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
           else if (qfpPins && (!/^P\d{1,3}$/.test(pin) || +pin.slice(1) < 1 || +pin.slice(1) > +qfpPins[2])) add('error', pp, `'${val}' is not a pin of the ${pkg} package (P1…P${qfpPins[2]})`);
           else if (boardPins && !boardPins.has(pin)) add('warning', pp, `pin ${pin} is not connected to any resource of the ${board.name}`);
           const prev = locs.get(pin);
-          if (prev && prev.net.toLowerCase() !== net.toLowerCase()) {
+          if (prev && prev.net !== net) {
             add('error', pp, `pin ${pin} is already assigned to NET "${prev.net}" (line ${prev.pos.line})`);
           } else locs.set(pin, { net, pos: pp });
-          const pl = netLoc.get(net.toLowerCase());
+          const pl = netLoc.get(net);
           if (pl && pl.loc !== pin) add('warning', pp, `NET "${net}" already has LOC = ${pl.loc} (line ${pl.pos.line}); this one overrides it`);
-          netLoc.set(net.toLowerCase(), { loc: pin, pos: pp });
+          netLoc.set(net, { loc: pin, pos: pp });
         } else if (key === 'IOSTANDARD' && iostandards?.length && !iostandards.includes(val.toUpperCase())) {
           add('error', at(st, val), `IOSTANDARD '${val}' is not supported by this device family`);
         } else if (key === 'DRIVE' && !DRIVES.has(+val)) {
@@ -532,7 +539,12 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
       m = /^([A-Za-z_][\w$]*)\s*(?:([<([])\s*(-?\d+)\s*[>)\]])?$/.exec(net);
     }
     if (!m) { add('error', netPos, `invalid net name '${net}'`); continue; }
-    const port = portMap.get(m[1].toLowerCase()) || renamed.get(m[1].toLowerCase());
+    const ci = portsLc.get(m[1].toLowerCase()) || [];
+    if (!portMap.has(m[1]) && ci.length > 1) {
+      add('error', netPos, `NET "${net}" matches no port as written and several ignoring case (${ci.map(p => p.name).join(', ')}): write the one you mean`);
+      continue;
+    }
+    const port = portMap.get(m[1]) || ci[0] || renamed.get(m[1].toLowerCase());
     if (!port) {
       const msg = `NET "${net}" does not exist in the top module '${top}'`;
       if (ioAttr) add('error', netPos, `${msg} (no port named '${m[1]}')`);
@@ -540,7 +552,8 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
       continue;
     }
     const uName = bitName(port.name);   // the port's name in the UCF (XST's)
-    if (lang === 'verilog' && uName !== m[1]) add('error', netPos, `NET "${net}": the port is called '${uName}' (UCF names are case-sensitive for Verilog designs)`);
+    // (ngdbuild takes it, ignoring the case, as the only port of that name)
+    if (lang === 'verilog' && uName !== m[1] && uName.toLowerCase() === m[1].toLowerCase()) add('warning', netPos, `NET "${net}": the port is called '${uName}' (ISE matches it ignoring the case; Verilog names are case-sensitive)`);
     if (m[2] && m[2] !== '<') add('warning', at(st, m[2]), `use ${m[1]}<${m[3]}> for a bus bit in UCF (the default bus delimiter is <>)`);
     if (port.bus && m[3] === undefined) {
       if (ioAttr) add('error', netPos, `'${m[1]}' is a ${port.width}-bit bus: constrain each bit (NET "${m[1]}<${port.lsb}>" …)`);
@@ -550,8 +563,8 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
     if (port.bus) {
       const b = +m[3], lo = Math.min(port.msb, port.lsb), hi = Math.max(port.msb, port.lsb);
       if (b < lo || b > hi) { add('error', at(st, m[3]), `bit ${b} is out of range for '${port.name}' (${port.msb} downto ${port.lsb})`); continue; }
-      if (attrs.includes('LOC')) constrained.add(bitName(port.name, b).toLowerCase());
-    } else if (attrs.includes('LOC')) constrained.add(uName.toLowerCase());
+      if (attrs.includes('LOC')) constrained.add(bitName(port.name, b));
+    } else if (attrs.includes('LOC')) constrained.add(uName);
   }
 
   for (const t of tsRefs) if (!tnms.has(t.tnm)) add('error', t.pos, `TIMESPEC refers to the timing group "${t.tnm}", which no TNM_NET/TNM/TIMEGRP defines`);
@@ -559,7 +572,7 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
   // ports without a pin (only when the file places pins at all)
   if (anyLoc && ports.length) {
     const missing = [];
-    for (const p of portMap.values()) for (const n of expandPort(p)) if (!constrained.has(n.toLowerCase())) missing.push(n);
+    for (const p of portMap.values()) for (const n of expandPort(p)) if (!constrained.has(n)) missing.push(n);
     if (missing.length) add('warning', { line: Math.max(1, lineStarts.length - (src.endsWith('\n') ? 1 : 0)), col: 1 },
       `${missing.length} port bit(s) of '${top}' have no LOC: ${missing.slice(0, 10).join(', ')}${missing.length > 10 ? ', …' : ''}`);
   }
