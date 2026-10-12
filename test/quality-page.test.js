@@ -7,6 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './designs-corpus/quality-page.mjs';
+import { lastError, newFailures } from './designs-corpus/compare-lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -47,4 +48,20 @@ test('quality page: docs/QUALITY.md is the page of test/designs-corpus/ise-compa
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/designs-corpus/manifest.json'), 'utf8'));
   // every design of the corpus is either compared or listed as not built
   assert.deepEqual([...res.designs.map(d => d.name), ...(res.notBuilt || [])].sort(), manifest.designs.map(d => d.name).sort());
+});
+
+test('compare-ise: the error of a failed run says what happened, not only "see the messages above"', () => {
+  assert.equal(lastError({ lines: ['=== SILINX STEP par ===', 'ERROR:Silinx - 4 net(s) cannot be routed', 'ERROR: Silinx toolchain failed: see the messages above.'] }), 'ERROR:Silinx - 4 net(s) cannot be routed');
+  assert.equal(lastError({ lines: ['=== SILINX STEP map ===', 'Packing 7662 slices', 'RangeError: Array buffer allocation failed', 'ERROR: Silinx toolchain failed: see the messages above.'] }),
+    'ERROR: Silinx toolchain failed: see the messages above. (Packing 7662 slices / RangeError: Array buffer allocation failed)');
+  assert.equal(lastError({ lines: [], error: 'killed' }), 'killed');
+  assert.equal(lastError({ lines: [] }), 'failed');
+});
+
+test('compare-ise --guard: a design built before that fails now is not published', () => {
+  const before = { designs: [{ name: 'aes', silinx: { slices: 7662 }, ise: { error: 'ERROR:Xst:1468' } }, { name: 't80', silinx: { slices: 1539 }, ise: { slices: 1000 } }] };
+  const now = { designs: [{ name: 'aes', silinx: { error: 'out of memory' }, ise: { error: 'ERROR:Xst:1468' } }, { name: 't80', silinx: { slices: 1540 }, ise: { error: 'timeout' } }, { name: 'new', silinx: { error: 'x' } }] };
+  assert.deepEqual(newFailures(before, now), ['aes (Silinx): out of memory', 't80 (ISE): timeout']);
+  assert.deepEqual(newFailures(before, before), []);
+  assert.deepEqual(newFailures(null, now), []);
 });

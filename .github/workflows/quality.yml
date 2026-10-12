@@ -38,7 +38,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.run == 'true' && github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, ise]
-    timeout-minutes: 600
+    timeout-minutes: 900
     env:
       SILINX_ISE_HOST: local    # ISE from the Docker image on the runner itself
     steps:
@@ -57,10 +57,12 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/quality"
           # (the nightly checks the corpus's expectations: here only the projects are needed)
-          node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes "$RUNNER_TEMP/quality" --jobs 3 || true
+          node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes "$RUNNER_TEMP/quality" --sizes-only --jobs 1 || true
           ls "$RUNNER_TEMP/quality" | wc -l
       - name: Silinx toolchain vs ISE
-        run: node test/designs-corpus/compare-ise.mjs "$RUNNER_TEMP/quality" --jobs 3 --ise-jobs 2
+        # one build at a time, the ISE ones after the Silinx ones (8 GB of memory: a large design needs
+        # some GB on each side); --guard: nothing published when a design built before fails now
+        run: node test/designs-corpus/compare-ise.mjs "$RUNNER_TEMP/quality" --jobs 1 --ise-jobs 1 --serial --guard
       - name: Commit the results
         run: |
           git add test/designs-corpus/ise-comparison.json docs/QUALITY.md

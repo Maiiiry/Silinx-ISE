@@ -13,7 +13,10 @@
 // host), so that both critical paths come from the same timing analyser; Silinx's estimate is kept too.
 //
 //   node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes <dir>     (the projects)
-//   node test/designs-corpus/compare-ise.mjs <dir> [--filter a,b] [--jobs n] [--ise-jobs n] [--period ns]
+//   node test/designs-corpus/compare-ise.mjs <dir> [--filter a,b] [--jobs n] [--ise-jobs n] [--period ns] [--serial] [--guard]
+//   --serial: the ISE builds after the Silinx ones, not at the same time (a machine with little memory:
+//   a large design needs some GB on each side); --guard: the results are not written when a design
+//   that was built before (test/designs-corpus/ise-comparison.json) fails now, on either side (exit 1)
 //   node test/designs-corpus/compare-ise.mjs --report        (docs/QUALITY.md from the results only)
 //   SILINX_ISE_HOST=local …: ISE from the Docker image on this machine, no ssh (the self-hosted runner
 //   of .github/workflows/quality.yml, weekly)
@@ -26,6 +29,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './quality-page.mjs';
+import { lastError, newFailures } from './compare-lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -48,6 +52,7 @@ if (args.includes('--report')) {
 
 // ---------------------------------------------------------------------------------------- the runs
 const dir = args.find((a, k) => !a.startsWith('--') && !['--filter', '--jobs', '--ise-jobs', '--period'].includes(args[k - 1]));
+const SERIAL = args.includes('--serial'), GUARD = args.includes('--guard');
 const PERIOD = +opt('--period', 5);
 if (!dir || !fs.existsSync(dir)) { console.error('usage: compare-ise.mjs <dir of projects from run.mjs --sizes> [--filter a,b] [--jobs n] [--ise-jobs n] | --report'); process.exit(2); }
 const filter = opt('--filter', null)?.split(',');
@@ -85,8 +90,6 @@ const runJob = (fn) => new Promise(resolve => {
 });
 const used = x => (x && typeof x === 'object' ? x.used : x) ?? null;
 const item = (items, re) => used((items || []).find(i => re.test(i.name)));
-// the first specific error (ERROR:Silinx - …, ERROR:Pack:…), not the run's summary line (ERROR: …)
-const lastError = job => (job.lines.find(l => /^ERROR:\S/.test(l)) || job.lines.filter(l => /ERROR/.test(l)).pop() || job.error || '').replace(/\s+/g, ' ').slice(0, 160);
 
 async function silinxRun(name) {
   const projectDir = copyProject(name, 'silinx');
@@ -136,10 +139,9 @@ async function pool(items, n, fn) {
 }
 
 console.log(`${names.length} designs; work folder ${work}`);
-const [sil, ise] = await Promise.all([
-  pool(names, +opt('--jobs', 3), async n => { const r = await silinxRun(n); console.log(`silinx ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.estimateNs} ns (estimate), ${r.seconds} s`}`); return r; }),
-  pool(names, +opt('--ise-jobs', 2), async n => { const r = await iseRun(n); console.log(`ise    ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.periodNs} ns, ${r.seconds} s`}`); return r; }),
-]);
+const silinxAll = () => pool(names, +opt('--jobs', 3), async n => { const r = await silinxRun(n); console.log(`silinx ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.estimateNs} ns (estimate), ${r.seconds} s`}`); return r; });
+const iseAll = () => pool(names, +opt('--ise-jobs', 2), async n => { const r = await iseRun(n); console.log(`ise    ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.periodNs} ns, ${r.seconds} s`}`); return r; });
+const [sil, ise] = SERIAL ? [await silinxAll(), await iseAll()] : await Promise.all([silinxAll(), iseAll()]);
 
 // ISE's trce on Silinx's routed designs (ise-open-check.sh: xdl -xdl2ncd, drc, bitgen, trce)
 const host = LOCAL ? null : `${userCfg.ssh.user ? `${userCfg.ssh.user}@` : ''}${userCfg.ssh.host}`;
@@ -189,6 +191,16 @@ let all = res;
 if (filter && fs.existsSync(RESULTS)) {
   const old = JSON.parse(fs.readFileSync(RESULTS, 'utf8'));
   all = { ...res, notBuilt: old.notBuilt, designs: [...old.designs.filter(d => !names.includes(d.name)), ...res.designs].sort((a, b) => a.name.localeCompare(b.name)) };
+}
+// the guard: a design built before that fails now (on either side) is a problem of this run or a
+// regression, not a result to publish
+if (GUARD && fs.existsSync(RESULTS)) {
+  const regressions = newFailures(JSON.parse(fs.readFileSync(RESULTS, 'utf8')), all);
+  if (regressions.length) {
+    console.error(`not written: ${regressions.length} design(s) built before fail now:\n  ${regressions.join('\n  ')}`);
+    fs.writeFileSync(path.join(work, '..', `silinx-compare-${path.basename(work)}.json`), `${JSON.stringify(all, null, 2)}\n`);
+    process.exit(1);
+  }
 }
 fs.writeFileSync(RESULTS, `${JSON.stringify(all, null, 2)}\n`);
 fs.writeFileSync(PAGE, qualityPage(all));

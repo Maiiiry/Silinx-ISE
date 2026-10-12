@@ -19,7 +19,7 @@
 //             them (-nobram -nolutram -nosrl -nodsp) to test the rest of the flow.
 //
 //   node test/designs-corpus/run.mjs [--filter name[,name]] [--jobs n] [--cycles n] [--update]
-//        [--stages frontend,tb,…] [--projects dir] [--bits dir] [--sizes dir] [--json file]
+//        [--stages frontend,tb,…] [--projects dir] [--bits dir] [--sizes dir [--sizes-only]] [--json file]
 //        [--size-tolerance 5] [--period-tolerance 15] [--seed n] [--machine name]
 //   node test/designs-corpus/run.mjs --record-times results.json --machine ci
 //   node test/designs-corpus/run.mjs --table      (the README's results table, from expected.json)
@@ -265,6 +265,8 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
       const size = { slices: packed.stats.slices, luts: packed.stats.luts, ffs: packed.stats.ffs, srl16: u.shiftRegisters, lutRam: u.distributedRam, bram: u.blockRam, mult: u.multipliers,
         retry: !!steps.retry, wrapper: !!wrapper };
       writeProject(path.join(opts.sizes, d.name), d, flowSrcs, wrapper, ports, ucf, null, { family: 'spartan3e', part: 'xc3s1200e', package: 'fg320', speed: '-4' }, size);
+      // --sizes-only: the project is all that is wanted (compare-ise.mjs builds it), not the rest of the flow
+      if (opts.sizesOnly) { res.flow = 'sizes only (--sizes-only)'; return; }
     }
     // too large: the next, larger device
     const larger = PARTS[PARTS.indexOf(part) + 1];
@@ -390,6 +392,7 @@ if (!isMainThread) {
     stages: opt('--stages', STAGES.join(',')).split(','),
     projects: opt('--projects', null) && path.resolve(opt('--projects')),
     sizes: opt('--sizes', null) && path.resolve(opt('--sizes')),
+    sizesOnly: args.includes('--sizes-only'),
     bits: opt('--bits', null) && path.resolve(opt('--bits')),
     // the placer's seed: fixed (1), so that the circuit's size and speed are reproducible; another
     // seed only to measure the placement noise (the expectations are seed 1's)
