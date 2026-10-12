@@ -51,6 +51,13 @@ the "What's new" text of its GitHub release.
   which name ngdbuild finds; it was rewritten as `opcode<1>`, a net of no port. Only the bits of
   the top's buses written `x[1]` or `x(1)` become `x<1>`: ngdbuild finds all three spellings
   (measured with ISE 14.7) (#63).
+- **VHDL extended identifiers keep their case** and are names of their own, as in VHDL
+  (`\Mixed\`, `\mixed\` and `mixed` are three names; they were all `mixed`). In the UCF they are
+  XST's names, between underscores even when their text is a plain name: `\Mixed\` is `_Mixed_`,
+  `\a.b\` is `_a_b_`, `\Bus\(1)` is `_Bus_<1>` (measured with ISE 14.7), in I/O Pin Planning, the
+  automatic pins, Check Constraints (which reports `NET "Mixed"` as ngdbuild's error, with the
+  right name) and the Silinx toolchain's pads (#65). The pads of Verilog escaped names that start
+  with a digit (`\1abc `) are XST's `_1abc_` too (they were `__1abc_`).
 
 ## 15.10.2
 

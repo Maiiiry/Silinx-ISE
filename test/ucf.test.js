@@ -254,6 +254,73 @@ test('parseUcf does not throw on attributes without a value (kept verbatim)', ()
   assert.ok(checkUcf('NET "a" LOC;').some(d => /LOC needs a value/.test(d.message)));
 });
 
+// #65, measured with ISE 14.7 (VHDL top: \Mixed\, \lower\, \a.b\ : std_logic; \Bus\ :
+// std_logic_vector(1 downto 0)): ngdbuild finds _Mixed_, _lower_, _a_b_, _Bus_<1> (and _mixed_: the
+// UCF of a VHDL design is case-insensitive), not Mixed, lower or Bus<1> (ConstraintSystem:59)
+test('VHDL extended identifiers: case kept, names of their own, XST\'s _Mixed_ in the UCF (measured with ISE) (#65)', async () => {
+  for (const [hdl, net] of [['\\Mixed\\', '_Mixed_'], ['\\lower\\', '_lower_'], ['\\a.b\\', '_a_b_'], ['\\x y\\', '_x y_'], ['\\a\\\\b\\', '_a_b_'], ['\\1st\\', '_1st_']]) assert.equal(ucfPortName(hdl), net, hdl);
+  assert.equal(bitName('\\Bus\\', 1), '_Bus_<1>');
+  // the elaborated ports: \Mixed\, \mixed\ and mixed are three ports (extended identifiers are
+  // case-sensitive and never a basic identifier); a reference in another case is the basic one
+  const { compile, elaborate } = await import('../core/compile.js');
+  const V = `library ieee; use ieee.std_logic_1164.all;
+entity t is port (\\Mixed\\, \\mixed\\, mixed, \\a.b\\ : in std_logic; \\Bus\\ : in std_logic_vector(1 downto 0); y : out std_logic_vector(2 downto 0)); end t;
+architecture rtl of t is begin
+  y(0) <= \\Mixed\\ and not \\mixed\\;
+  y(1) <= MIXED xor \\a.b\\;
+  y(2) <= \\Bus\\(0) xor \\Bus\\(1);
+end rtl;
+`;
+  const lib = compile([{ path: 't.vhd', lang: 'vhdl', text: V }]);
+  const d = elaborate(lib, 't');
+  assert.deepEqual([...lib.errors, ...d.diags], []);
+  assert.deepEqual(d.top.ports.map(p => p.name), ['\\Mixed\\', '\\mixed\\', 'mixed', '\\a.b\\', '\\Bus\\', 'y']);
+  assert.deepEqual(d.top.ports.flatMap(p => (p.sig.t.w > 1 ? [bitName(p.name, 0), bitName(p.name, 1)] : [bitName(p.name)])).slice(0, 7),
+    ['_Mixed_', '_mixed_', 'mixed', '_a_b_', '_Bus_<0>', '_Bus_<1>', 'y<0>']);
+  // the same \Mixed\ twice is one name; an undeclared spelling is an error naming it as written
+  const bad = compile([{ path: 'b.vhd', lang: 'vhdl', text: 'library ieee; use ieee.std_logic_1164.all;\nentity b is port (\\Mixed\\ : in std_logic; y : out std_logic); end b;\narchitecture rtl of b is begin\n  y <= \\MIXED\\;\nend rtl;\n' }]);
+  const bd = elaborate(bad, 'b');
+  assert.deepEqual([...bad.errors, ...bd.diags].map(x => `${x.line}: ${x.message}`), ["4: '\\MIXED\\' is not declared"]);
+  // Check Constraints: XST's names accepted; the HDL names are ngdbuild's error, with the right name
+  const ports = [{ name: '\\Mixed\\', dir: 'in' }, { name: '\\lower\\', dir: 'in' }, { name: '\\a.b\\', dir: 'in' }, { name: '\\Bus\\', dir: 'in', msb: 1, lsb: 0 }, { name: 'y', dir: 'out' }];
+  const c = s => checkUcf(s, { top: 't', ports, lang: 'vhdl', package: 'cp132' }).map(x => `${x.line}:${x.col} ${x.severity}: ${x.message}`);
+  assert.deepEqual(c('NET "_Mixed_" LOC = "P11";\nNET "_LOWER_" LOC = "L3";\nNET "_a_b_" LOC = "K3";\nNET "_Bus_<0>" LOC = "B4";\nNET "_Bus_<1>" LOC = "G3";\nNET "y" LOC = "M5";\n'), []);
+  assert.deepEqual(c('NET "Mixed" LOC = "P11";\nNET "lower" LOC = "L3";\nNET "\\a.b\\" LOC = "K3";\nNET "Bus<0>" LOC = "B4";\nNET "\\Bus\\(1)" LOC = "G3";\nNET "y" LOC = "M5";\n'), [
+    '1:6 error: NET "Mixed" is not found by ISE: XST names the port \'\\Mixed\\\' _Mixed_ in its netlist (use NET "_Mixed_")',
+    '2:6 error: NET "lower" is not found by ISE: XST names the port \'\\lower\\\' _lower_ in its netlist (use NET "_lower_")',
+    '3:6 error: NET "\\a.b\\" is not found by ISE: XST names the port \'\\a.b\\\' _a_b_ in its netlist (use NET "_a_b_")',
+    '4:6 error: NET "Bus<0>" is not found by ISE: XST names the port \'\\Bus\\\' _Bus_ in its netlist (use NET "_Bus_<0>")',
+    '5:6 error: NET "\\Bus\\(1)" is not found by ISE: XST names the port \'\\Bus\\\' _Bus_ in its netlist (use NET "_Bus_<1>")',
+    '6:1 warning: 5 port bit(s) of \'t\' have no LOC: _Mixed_, _lower_, _a_b_, _Bus_<0>, _Bus_<1>',
+  ]);
+});
+
+test('VHDL extended identifiers through the open synthesis: the netlist\'s pads are XST\'s names (#65)', { timeout: 120000 }, async () => {
+  const { compile, elaborate } = await import('../core/compile.js');
+  const { synthesizeOpen } = await import('../core/synth-open.js');
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  const { readYosysJson } = await import('../core/fpga/netlist.js');
+  const V = `library ieee; use ieee.std_logic_1164.all;
+entity t is port (\\Mixed\\, \\a.b\\ : in std_logic; \\Bus\\ : in std_logic_vector(1 downto 0); y : out std_logic_vector(1 downto 0)); end t;
+architecture rtl of t is begin
+  y(0) <= \\Mixed\\ xor \\a.b\\;
+  y(1) <= \\Bus\\(0) xor \\Bus\\(1);
+end rtl;
+`;
+  const r = await synthesizeOpen(elaborate(compile([{ path: 't.vhd', lang: 'vhdl', text: V }]), 't'), { run: yosysNode });
+  assert.deepEqual(r.warnings, []);
+  // Yosys keeps the escape of these names in its JSON (\\Mixed\): the port is \Mixed\
+  assert.deepEqual(Object.keys(JSON.parse(r.files['t.json']).modules.t.ports), ['\\\\Mixed\\', '\\\\a.b\\', '\\\\Bus\\', 'y']);
+  const nl = readYosysJson(r.files['t.json']);
+  assert.deepEqual(nl.ports.map(p => [p.name, p.bits.map(b => b.name)]), [
+    ['\\Mixed\\', ['_Mixed_']], ['\\a.b\\', ['_a_b_']], ['\\Bus\\', ['_Bus_<0>', '_Bus_<1>']], ['y', ['y<0>', 'y<1>']],
+  ]);
+  // so is a Verilog escaped name that starts with a digit (\1abc  is \1abc in the JSON): XST's _1abc_
+  const v = await synthesizeOpen(elaborate(compile([{ path: 'm.v', lang: 'verilog', text: 'module m(input \\1abc , input \\opcode[0] , output y);\n  assign y = \\1abc ^ \\opcode[0] ;\nendmodule\n' }]), 'm'), { run: yosysNode });
+  assert.deepEqual(v.warnings, []);
+  assert.deepEqual(readYosysJson(v.files['m.json']).ports.map(p => p.bits.map(b => b.name).join()), ['_1abc_', '_opcode[0]_', 'y']);
+});
+
 test('checkUcf positions are right after comments with emoji (astral characters)', () => {
   const d = checkUcf('# pins \u{1F389}\u{1F389} for the board\nNET "a" LOC = A1 | DRIVE = 7;\n');
   assert.equal(d.length, 1);

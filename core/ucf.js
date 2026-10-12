@@ -21,6 +21,11 @@
  */
 export function ucfPortName(port) {
   const s = String(port);
+  // a VHDL extended identifier (its name keeps the backslashes, core/vhdl/lexer.js) is always put
+  // between underscores, its case kept, even when its text is a plain name: \Mixed\ -> _Mixed_,
+  // \a.b\ -> _a_b_, \Bus\(1) -> _Bus_<1> (measured with ISE 14.7, #65)
+  const ext = /^\\(.*)\\$/s.exec(s);
+  if (ext) return `_${ext[1].replace(/\\\\/g, '\\').replace(/[+./\\~^*=%&$]/g, '_')}_`;
   return /^[A-Za-z_][\w$]*$/.test(s) ? s.replace(/\$/g, '_') : `_${s.replace(/[+./\\~^*=%&$]/g, '_')}_`;
 }
 
@@ -432,7 +437,11 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
   const renamed = new Map(), renamedRaw = new Map();
   for (const p of portMap.values()) {
     const u = ucfPortName(p.name);
-    if (u !== p.name) { renamed.set(u.toLowerCase(), p); renamedRaw.set(p.name.toLowerCase(), p); }
+    if (u !== p.name) {
+      renamed.set(u.toLowerCase(), p);
+      // a VHDL extended identifier (\Mixed\) also by its text (Mixed)
+      renamedRaw.set(p.name.replace(/^\\(.*)\\$/s, '$1').toLowerCase(), p);
+    }
   }
   const boardPins = board ? new Map() : null;
   if (board) for (const r of board.resources || []) r.pins.forEach((pin, i) => boardPins.set(String(pin).toUpperCase(), r.pins.length > 1 ? `${r.name}<${i}>` : r.name));
@@ -509,7 +518,8 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
     let m = renamed.has(net.toLowerCase()) ? [net, net] : mEsc && renamed.has(mEsc[1].toLowerCase()) ? [net, mEsc[1], '<', mEsc[2]] : null;
     if (!m) {
       // ... or by its HDL name, which ngdbuild does not find (ConstraintSystem:59)
-      const rawNet = net.replace(/^\\/, '').trim().toLowerCase();   // also as written in Verilog: \opcode[0]
+      // also as written in Verilog (\opcode[0]) or VHDL (\Mixed\, \Bus\(1))
+      const rawNet = net.trim().replace(/^\\([^\\]*)\\/, '$1').replace(/^\\/, '').trim().toLowerCase();
       const mRaw = /^(.*?)\s*[<([]\s*(-?\d+)\s*[>)\]]$/.exec(rawNet);
       const raw = renamedRaw.has(rawNet) ? [renamedRaw.get(rawNet)] : mRaw && renamedRaw.has(mRaw[1]) ? [renamedRaw.get(mRaw[1]), mRaw[2]] : null;
       if (raw) {
