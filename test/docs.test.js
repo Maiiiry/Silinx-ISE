@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_CONFIG } from '../server/toolchain.js';
 import { BOARDS } from '../server/devices.js';
 import { openStatus } from '../server/open-flow.js';
+import { transformSync } from 'esbuild';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
@@ -64,8 +65,13 @@ test('docs: the repository paths and npm scripts they name exist', () => {
 });
 
 // the interface's labels: every string literal of web/js
-const UI = fs.readdirSync(path.join(ROOT, 'web/js')).filter(f => f.endsWith('.js'))
-  .flatMap(f => [...read(`web/js/${f}`).matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`([^`$]*)/g)].map(m => (m[1] ?? m[2] ?? m[3]).replace(/\\'/g, "'")));
+// the string literals of a JavaScript file, its comments removed first (by esbuild: an apostrophe in a
+// comment would otherwise pair with the next quote and shift every literal after it, #127)
+export function literalsOf(code) {
+  const text = transformSync(code, { loader: 'js', legalComments: 'none', charset: 'utf8' }).code;
+  return [...text.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`([^`$]*)/g)].map(m => (m[1] ?? m[2] ?? m[3]).replace(/\\(['"])/g, '$1'));
+}
+const UI = fs.readdirSync(path.join(ROOT, 'web/js')).filter(f => f.endsWith('.js')).flatMap(f => literalsOf(read(`web/js/${f}`)));
 const MENUS = ['File', 'Edit', 'View', 'Project', 'Source', 'Process', 'Tools', 'Window', 'Help'];
 
 test('docs: the menu paths they give (File ▸ …, Tools ▸ …) are the interface\'s', () => {
@@ -135,4 +141,11 @@ test('docs: the boards the Silinx toolchain supports are the ones the code suppo
   const unsupported6 = boardsOf(a => !a).filter(b => ['nexys3', 'atlys'].includes(b.board));
   assert.equal(unsupported6.length, 2);
   assert.match(section, /does \*\*not yet support the Spartan-6 boards \(Nexys3, Atlys\)\*\*/);
+});
+
+test('docs test: the interface\'s labels are read past comments with quotes in them (#127)', () => {
+  const code = "// the user's menu (an apostrophe in a comment)\nconst a = 'Open Project…';\n/* don't */ const b = \"Design Properties…\";\nconst c = `Synthesize - XST`;\n";
+  assert.deepEqual(literalsOf(code).filter(s => /…|XST/.test(s)), ['Open Project…', 'Design Properties…', 'Synthesize - XST']);
+  // a label that only app.js has (no translation needed): found
+  assert.ok(UI.includes('Open Workspace Folder…'));
 });
