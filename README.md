@@ -300,9 +300,10 @@ sites), *Place & Route* (placement, routing on the routing switches whose bits a
 timing against the UCF's PERIOD constraints), *Generate Programming File* (`build/<top>.bit`, and
 `build/<top>_prom.bit` for the PROM), with the same console, process icons, Stop and *Design
 Summary* (utilization, timing) as with ISE; *Configure Target Device* programs the board as usual
-and *View Implemented Design (FPGA)* shows the routed design. The processes that need ISE
-(simulation models of the implementation, power, back-annotated pins, technology schematic) are
-disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
+and *View Implemented Design (FPGA)* shows the routed design; *Back-annotate Pin Locations* adds the
+pads the placer chose to the UCF and *View Technology Schematic* draws the netlist of its synthesis
+(Yosys's LUTs, flip-flops, carry chains, block RAMs…, by instance of the design). The processes that
+need ISE (simulation models of the implementation, power) are disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
 RAMs, multipliers, distributed RAMs, shift registers (SRL16) and DCMs (any DCM site, more than one
 per design, each clock output on a global buffer its dedicated path reaches; `INST "u" LOC =
 "DCM_X1Y0"` picks the site). A design the Silinx toolchain cannot implement yet (a feature not in the bit

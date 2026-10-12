@@ -15,6 +15,18 @@ the "What's new" text of its GitHub release.
   Start page); *Copy Browser Projects to the Folder* copies the projects kept in the browser, *Use
   Browser Storage* goes back to the browser, and the status bar shows which is in use. Firefox and
   Safari cannot open a folder: the item is disabled there, and says why (#107).
+- **Back-annotate Pin Locations in the Silinx toolchain** (no ISE), in the full application and in
+  the browser edition: the pads the placer chose for the ports without a LOC are written as Xilinx
+  pin2ucf writes them (build/*top*_pins.ucf) and, after the same preview and confirmation as in the
+  ISE modes, added to the project's UCF; the constraints already there are kept. Built again from
+  that UCF, every port stays on its pad (#118).
+- **View Technology Schematic in the Silinx toolchain** (no ISE), in the full application and in the
+  browser edition: the netlist of its synthesis (Synthesize runs first when needed) drawn by the
+  schematic engine of View RTL Schematic, as ISE's technology view: LUTs, flip-flops, MUXF5-8, carry
+  chains, block RAMs, multipliers, DCMs, I/O and clock buffers, one block per instance of the design
+  (pushed into as in the RTL view; a large top module's own logic in one block per signal); the
+  cells named after the signals they drive. A LUT's properties show its function, from its INIT, as an
+  equation and a truth table (#119).
 
 ## 15.10.4
 

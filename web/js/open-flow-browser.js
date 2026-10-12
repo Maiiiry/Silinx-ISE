@@ -41,12 +41,14 @@ const ALIASES = { implement: 'par', impl: 'par', synthesize: 'synth', xst: 'synt
 export function browserSteps(steps) {
   const set = new Set((Array.isArray(steps) ? steps : [steps]).filter(Boolean).map(s => ALIASES[String(s).toLowerCase()] || String(s).toLowerCase()));
   if (!set.size) CHAIN.forEach(s => set.add(s));
-  const bad = [...set].filter(s => !CHAIN.includes(s) && s !== 'fpgaview');
+  const bad = [...set].filter(s => !CHAIN.includes(s) && s !== 'fpgaview' && s !== 'pin2ucf');
   if (bad.length) throw new Error(`not available in the Silinx toolchain (they need Xilinx ISE, in the full application): ${bad.join(', ')}`);
   if (set.has('par')) set.add('trce');
   if (set.has('bitgen')) set.add('prombit');
   const last = Math.max(-1, ...[...set].map(s => CHAIN.indexOf(s)));
   const out = CHAIN.slice(0, last + 1);
+  // the pins of the placement (Back-annotate Pin Locations): after Place & Route, before the bitstream
+  if (set.has('pin2ucf')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.splice(out.indexOf('trce') + 1, 0, 'pin2ucf'); }
   if (set.has('fpgaview')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.push('fpgaview'); }
   return out;
 }

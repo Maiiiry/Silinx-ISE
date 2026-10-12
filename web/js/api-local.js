@@ -129,7 +129,7 @@ const buildOf = name => { if (!builds.has(name)) builds.set(name, { files: {}, r
 function reportsOf(pj, r) {
   const out = { top: pj.top, device: pj.device || null, source: 'open', synthesis: r.synthesis, map: r.map, par: r.par, timing: r.timing,
     bit: r.bit ? { ...r.bit, header: { design: `${pj.top}.ncd`, part: `${String(pj.device.part).replace(/^xc/i, '')}${pj.device.package}` } } : undefined,
-    prom: r.prom, simModels: {}, files: r.files || {} };
+    prom: r.prom, pinsUcf: r.pinsUcf, simModels: {}, files: r.files || {} };
   out.summary = { synthesized: !!out.synthesis, mapped: !!out.map, routed: out.par ? out.par.routed : null, timingMet: out.timing ? out.timing.met : null,
     maxFreqMHz: out.timing?.maxFreqMHz ?? null, utilization: out.map?.summary || null, bitstream: !!out.bit };
   return out;
@@ -256,12 +256,12 @@ export const api = {
     const b = buildOf(name);
     const push = l => { job.lines.push(l); job.next = job.lines.length; };
     // the outputs of a previous run no longer match the design (a failure must not leave a bitstream)
-    for (const k of Object.keys(b.files)) if (/^build\/[^/]+\.bit$/.test(k) || /^build\/open\/(placed|routed)\.xdl$|^build\/open\/timing\.txt$/.test(k)) delete b.files[k];
+    for (const k of Object.keys(b.files)) if (/^build\/[^/]+(\.bit|_pins\.ucf)$|^build\/open\/(placed|routed)\.xdl$|^build\/open\/timing\.txt$/.test(k)) delete b.files[k];
     b.view = null;
     // a workspace folder: the build's files also go into the project's build/ folder
     const folder = store.kind === 'folder' ? store : null;
     const writes = [];
-    if (folder && p.json.top) await folder.removePath(name, `build/${p.json.top}.bit`).catch(() => {});
+    if (folder && p.json.top) for (const f of [`build/${p.json.top}.bit`, `build/${p.json.top}_pins.ucf`]) await folder.removePath(name, f).catch(() => {});
     const json = p.json, files = { ...p.files };
     runBrowserFlow({
       project: json, files: { ...files, ...b.files }, steps,

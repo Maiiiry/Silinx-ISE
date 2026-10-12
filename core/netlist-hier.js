@@ -73,6 +73,14 @@ const dirTable = (ents) => portTable(ents, 'dir');
 const prims = () => (PRIMS ??= entitiesOf(`${UNISIM_VHDL}\n${SIMPRIM_VHDL}`));
 const primDirs = () => (PRIM_DIRS ??= dirTable(prims()));
 const primTypes = () => (PRIM_TYPES ??= portTable(prims(), 'type'));
+let PRIM_ITF = null;
+/** The interface of a primitive Silinx models (UNISIM / SIMPRIM): { generics: [{ name, type }],
+ *  ports: [{ name, dir, type }] }, or null for a type it has no model of. */
+export function primitiveInterface(type) {
+  PRIM_ITF ??= new Map(prims().filter((e) => e.ports).map((e) => [e.name.toUpperCase(), e]));
+  const e = PRIM_ITF.get(String(type).toUpperCase());
+  return e ? { generics: interfaceList(e.generics || '').map(({ name, type: t }) => ({ name, type: t })), ports: e.ports } : null;
+}
 
 /**
  * Parse the parts of a netgen VHDL netlist this module needs: the entity `top` (by default the
@@ -95,13 +103,16 @@ export function parseNetgenVhdl(text, top = null) {
     const pins = [...m[4].matchAll(/(\w+(?:\s*\(\s*\d+\s*\))?)\s*=>\s*([^,\n]+?)\s*(?:,|$)/gm)].map((x) => ({ pin: x[1].replace(/\s+/g, ''), net: x[2].trim() }));
     instances.push({ name: m[1], type: m[2], generics: m[3] ? m[3].trim() : '', pins });
   }
+  // concurrent signal assignments (a bus port assigned from its bits): kept on the top level
+  const assigns = [...arch[3].replace(re, '').matchAll(/(?:^|\n)\s*(\w+(?:\s*\(\s*\d+\s*\))?)\s*<=\s*([^;]+);/g)].map((x) => ({ target: x[1].replace(/\s+/g, ''), value: x[2].trim() }));
   const multi = ents.length > 1;
   const cut = [[ent.start, ent.end], [arch.index, arch.index + arch[0].length]].sort((a, b) => a[0] - b[0]);
   const others = multi ? (text.slice(0, cut[0][0]) + text.slice(cut[0][1], cut[1][0]) + text.slice(cut[1][1])).trim() : '';
-  return { entity: ent.name, generics: ent.generics.trim(), ports: ent.ports, archName: arch[1], signals, instances,
+  return { entity: ent.name, generics: ent.generics.trim(), ports: ent.ports, archName: arch[1], signals, instances, assigns,
     header: text.slice(0, ent.start), others, dirs: dirTable(ents.filter((e) => e !== ent)) };
 }
 
+const CONST = /^'[01]'$/;
 const key = (net) => net.toLowerCase().replace(/\s+/g, '');
 const flatName = (net) => net.replace(/\s+/g, '').replace(/\((\d+)\)/g, '_$1').replace(/[^A-Za-z0-9_]/g, '_');
 
@@ -109,12 +120,14 @@ const flatName = (net) => net.replace(/\s+/g, '').replace(/\((\d+)\)/g, '_$1').r
  * Hierarchical VHDL for the flat netlist `text`: `groups` are the instance labels of the top of
  * the original design (e.g. ['control', 'data', 'access_module', 'disp_basys2SL']); a primitive
  * goes to the group whose label prefixes its name. `top`: the top entity (default: the last one;
- * the other entities of the file are kept). Returns { text, groups: { label: count } }.
+ * the other entities of the file are kept). groupOf(instance name) -> label | null: the group of each
+ * primitive, instead of the label that prefixes its name. Returns { text, groups: { label: count } }.
  */
-export function regroupNetlist(text, groups, top = null) {
+export function regroupNetlist(text, groups, top = null, { groupOf: memberOf = null } = {}) {
   const n = parseNetgenVhdl(text, top);
   const labels = [...groups].filter(Boolean).sort((a, b) => b.length - a.length);
-  const groupOf = (inst) => labels.find((l) => inst.name.toLowerCase().startsWith(`${l.toLowerCase()}_`)) || null;
+  const byName = memberOf ? new Map(n.instances.map((i) => [i.name, memberOf(i.name)])) : null;
+  const groupOf = (inst) => (byName ? byName.get(inst.name) || null : labels.find((l) => inst.name.toLowerCase().startsWith(`${l.toLowerCase()}_`)) || null);
   const members = new Map(labels.map((l) => [l, []]));
   const topInsts = [];
   for (const i of n.instances) { const g = groupOf(i); if (g) members.get(g).push(i); else topInsts.push(i); }
@@ -135,6 +148,10 @@ export function regroupNetlist(text, groups, top = null) {
     if (dir === 'inout') note(bidir, net, who);
   };
   for (const p of n.ports) connect(p.name, '', p.dir === 'in' ? 'out' : p.dir === 'inout' ? 'inout' : 'in');
+  for (const a of n.assigns) {
+    connect(a.target, '', 'out');
+    for (const x of a.value.matchAll(/\b([A-Za-z]\w*)(\s*\(\s*\d+\s*\))?/g)) connect(x[0], '', 'in');
+  }
   for (const i of n.instances) {
     const who = groupOf(i) || '';
     for (const pn of i.pins) connect(pn.net, who, dirOf(i.type, pn.pin));
@@ -156,7 +173,8 @@ export function regroupNetlist(text, groups, top = null) {
     if (!insts.length) continue;
     counts[label] = insts.length;
     const nets = new Map();   // key -> original net text
-    for (const i of insts) for (const pn of i.pins) nets.set(key(pn.net), pn.net);
+    // (constants, '0' / '1', stay constants inside the group)
+    for (const i of insts) for (const pn of i.pins) if (!CONST.test(pn.net)) nets.set(key(pn.net), pn.net);
     const ports = [], internals = [];
     const names = new Set();
     const uniq = (nm) => { let s = nm, k = 1; while (names.has(s.toLowerCase())) s = `${nm}_${k++}`; names.add(s.toLowerCase()); return s; };
@@ -169,7 +187,7 @@ export function regroupNetlist(text, groups, top = null) {
       else internals.push(nm);
     }
     groupPorts.set(label, ports);
-    const body = insts.map((i) => `  ${i.name} : ${i.type}\n${i.generics ? `    generic map (\n      ${i.generics.replace(/\n\s*/g, '\n      ')}\n    )\n` : ''}    port map (\n${i.pins.map((pn) => `      ${pn.pin} => ${local.get(key(pn.net))}`).join(',\n')}\n    );`).join('\n');
+    const body = insts.map((i) => `  ${i.name} : ${i.type}\n${i.generics ? `    generic map (\n      ${i.generics.replace(/\n\s*/g, '\n      ')}\n    )\n` : ''}    port map (\n${i.pins.map((pn) => `      ${pn.pin} => ${local.get(key(pn.net)) ?? pn.net}`).join(',\n')}\n    );`).join('\n');
     const e = entName.get(label);
     entities.push(`${lib}
 entity ${e} is
@@ -197,6 +215,7 @@ architecture STRUCTURE of ${n.entity} is
 ${n.signals.map((s) => `  signal ${s.name} : ${s.type};`).join('\n')}
 begin
 ${topInsts.map((i) => `  ${i.name} : ${i.type}\n${i.generics ? `    generic map (\n      ${i.generics.replace(/\n\s*/g, '\n      ')}\n    )\n` : ''}    port map (\n${i.pins.map((pn) => `      ${pn.pin} => ${pn.net}`).join(',\n')}\n    );`).join('\n')}
+${n.assigns.map((a) => `  ${a.target} <= ${a.value};`).join('\n')}
 ${[...groupPorts].filter(([l]) => counts[l]).map(([label, ports]) => `  ${label} : entity work.${entName.get(label)}\n    port map (\n${ports.map((p) => `      ${p.name} => ${p.net}`).join(',\n')}\n    );`).join('\n')}
 end STRUCTURE;
 `;

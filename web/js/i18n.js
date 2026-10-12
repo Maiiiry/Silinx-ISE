@@ -95,6 +95,7 @@ const PT = {
   'Emulate Post-Synthesis Model': 'Emular Modelo Pós-Síntese', 'Emulate Post-Translate Model': 'Emular Modelo Pós-Translate',
   'Emulate Post-Map Model': 'Emular Modelo Pós-Map', 'Emulate Post-Place & Route Model': 'Emular Modelo Pós-Place & Route',
   'View Technology Schematic': 'Ver Esquemático Tecnológico',
+  'Technology Schematic (read-only): the post-synthesis netlist': 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'LUT function (INIT)': 'Função do LUT (INIT)',
   'Generate Post-Synthesis Simulation Model': 'Gerar Modelo de Simulação Pós-Síntese', 'Generate Post-Translate Simulation Model': 'Gerar Modelo de Simulação Pós-Translate',
   'Generate Post-Map Simulation Model': 'Gerar Modelo de Simulação Pós-Map', 'Generate Post-Place & Route Simulation Model': 'Gerar Modelo de Simulação Pós-Place & Route',
   'Generate Post-Place & Route Static Timing': 'Gerar Análise Temporal Estática Pós-Place & Route', 'Generate Text Power Report': 'Gerar Relatório de Consumo (Texto)',
@@ -286,6 +287,7 @@ const PT_PATTERNS = [
   [/^(Logic|Tri-State|Arithmetic|Flip-Flops|Mux|Decoders\/Encoders|Bus|I\/O|Project modules) \((\d+)\)$/, (m, c, n) => `${t(c)} (${n})`],
   [/^Silinx - (.*) - \[(.*)\]$/, (m, a, b) => `Silinx - ${a} - [${t(b)}]`],
   [/^(.*) \(RTL\)$/, '$1 (RTL)'],
+  [/^(.*) \(Technology\)$/, '$1 (Tecnológico)'],
   [/^Processes: (.*)$/, 'Processos: $1'],
   [/^HDL kept with the schematic \((VHDL|VERILOG)\)$/, 'HDL guardado com o esquemático ($1)'],
   [/^Language: (.*)$/, 'Idioma: $1'],
@@ -490,6 +492,8 @@ PT_PATTERNS.push(
   [/^The project starts with (\S+) \(the top module 'top'\), synchronized with its HDL module\.$/, "O projeto começa com $1 (o módulo de topo 'top'), sincronizado com o seu módulo HDL."],
   [/^(\S+) already exists\.\n\nReplace it\? Its current contents will be lost\.$/, '$1 já existe.\n\nSubstituir? O conteúdo atual perde-se.'],
   [/^(\S+) already exists: choose another name\.$/, '$1 já existe: escolha outro nome.'],
+  // Back-annotate Pin Locations: the pins to add to the UCF
+  [/^Add the (\d+) pin location\(s\) chosen by the tools to (.+?)\?\n\n([\s\S]*)$/, 'Adicionar a $2 as $1 localizações de pinos escolhidas pelas ferramentas?\n\n$3'],
 );
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards

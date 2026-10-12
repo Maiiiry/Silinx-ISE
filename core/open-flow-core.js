@@ -19,8 +19,8 @@
 import { compile, elaborate } from './compile.js';
 import { primitiveSources } from './unisim.js';
 import { synthesizeOpen } from './synth-open.js';
-import { parseXdl, writeXdl } from './xdl.js';
-import { parseUcf } from './ucf.js';
+import { parseXdl, writeXdl, placedPins } from './xdl.js';
+import { parseUcf, pinsUcf } from './ucf.js';
 import { readYosysJson } from './fpga/netlist.js';
 import { pack } from './fpga/pack.js';
 import { placeRouteBest } from './fpga/place-route.js';
@@ -195,6 +195,20 @@ export async function runOpenFlow(spec, io) {
     }
     return { path: io.write(name, bytes), size: bytes.length };
   }
+  // Back-annotate Pin Locations: the pads of the ports in the placed design, as Xilinx pin2ucf
+  // writes them (build/<top>_pins.ucf); the application adds them to the project's UCF
+  function runPins() {
+    const text = routedText ?? io.read('open/routed.xdl') ?? io.read('open/placed.xdl');
+    if (text == null) throw new StepError('no placed design: run Place & Route first', [], '');
+    const pins = placedPins(parseXdl(text));
+    let locs = {};
+    try { if (ucfText) locs = parseUcf(ucfText).assignments; } catch { /* checked by translate */ }
+    const given = new Set(Object.keys(locs).filter(k => locs[k].loc).map(k => k.toLowerCase()));
+    const chosen = pins.filter(p => !given.has(p.net.toLowerCase())).length;
+    io.write(`${top}_pins.ucf`, pinsUcf(pins, { header: `Pin locations of '${top}' on ${spec.part}: the pads of the placed design (Silinx toolchain), as Xilinx pin2ucf writes them` }));
+    report.pinsUcf = { path: `build/${top}_pins.ucf` };
+    log(`Pin locations of ${pins.length} port bit(s), ${chosen} of them chosen by the placer (no LOC in the constraints): build/${top}_pins.ucf`);
+  }
   // (Place & Route of an earlier run: the routed design it wrote)
   const routedOrEarlier = () => { if (routedText == null) routedText = io.read('open/routed.xdl'); if (routedText == null) throw new StepError('no routed design: run Place & Route first', [], ''); };
 
@@ -205,6 +219,7 @@ export async function runOpenFlow(spec, io) {
     if (steps.includes('map')) { step('map'); runMap(); save(); }
     if (steps.includes('par')) { step('par'); runPar(); save(); }
     if (steps.includes('trce')) { step('trce'); routedOrEarlier(); runTiming(); save(); }
+    if (steps.includes('pin2ucf')) { step('pin2ucf'); runPins(); save(); }
     if (steps.includes('bitgen')) {
       step('bitgen');
       routedOrEarlier();

@@ -724,3 +724,56 @@ endmodule` };
   sim.run(1e6);
   assert.deepEqual(sim.log.map((l) => l.text), ['o=1 q=0', 'q=1 q2=1', 'simulation finished ($finish) at 32 ns']);
 });
+
+test('regroupNetlist: groups given per instance (groupOf), constants kept inside a group, the top\'s assignments kept (#119)', () => {
+  const text = `library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+library UNISIM;
+use UNISIM.VCOMPONENTS.ALL;
+entity t is
+  port (
+    a : in STD_LOGIC;
+    y : out STD_LOGIC_VECTOR ( 1 downto 0 )
+  );
+end t;
+architecture STRUCTURE of t is
+  signal n1 : STD_LOGIC;
+  signal y_0 : STD_LOGIC;
+  signal y_1 : STD_LOGIC;
+begin
+  LUT1_1 : LUT1
+    generic map (
+      INIT => X"1"
+    )
+    port map (
+      I0 => a,
+      O => n1
+    );
+  MUXCY_1 : MUXCY
+    port map (
+      CI => '0',
+      DI => a,
+      S => n1,
+      O => y_1
+    );
+  y_0 <= n1;
+  y <= y_1 & y_0;
+end STRUCTURE;
+`;
+  assert.deepEqual(parseNetgenVhdl(text).assigns, [{ target: 'y_0', value: 'n1' }, { target: 'y', value: 'y_1 & y_0' }]);
+  const r = regroupNetlist(text, ['logic'], 't', { groupOf: (n) => (n === 'MUXCY_1' || n === 'LUT1_1' ? 'logic' : null) });
+  assert.deepEqual(r.groups, { logic: 2 });
+  assert.match(r.text, /entity logic is\n {2}port \(\n {4}a : in STD_LOGIC;\n {4}n1 : out STD_LOGIC;\n {4}y_1 : out STD_LOGIC\n {2}\);/);
+  assert.match(r.text, /CI => '0',/);
+  assert.match(r.text, /\n {2}y_0 <= n1;\n {2}y <= y_1 & y_0;\n {2}logic : entity work\.logic\n/);
+  const lib = compile([...primitiveSources([{ path: 'n.vhd', lang: 'vhdl', text: r.text }]), { path: 'n.vhd', lang: 'vhdl', text: r.text }]);
+  assert.deepEqual(lib.errors.filter((e) => e.severity === 'error'), []);
+  const d = elaborate(lib, 't');
+  assert.deepEqual(d.diags.filter((e) => e.severity === 'error'), []);
+  // the same behaviour: y = (a ? 0 : 1, not a) through the group's ports and the top's assignments
+  const sim = new Simulator(d);
+  const port = (n) => d.top.ports.find((p) => p.name === n).sig;
+  const y = [];
+  for (const a of [V.ZERO, V.ONE]) { sim.force(port('a'), a); sim.run(sim.now + 1000); y.push(Number(port('y').val.v)); }
+  assert.deepEqual(y, [0b01, 0b10]);
+});

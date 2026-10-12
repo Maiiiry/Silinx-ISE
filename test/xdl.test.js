@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseXdl, parseXdlrc, parseCfg, prettyEquation, fpgaModel, evalLut, lutTable, writeXdl } from '../core/xdl.js';
+import { parseXdl, parseXdlrc, parseCfg, prettyEquation, fpgaModel, evalLut, lutTable, writeXdl, placedPins } from '../core/xdl.js';
 import * as ise from '../server/ise.js';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fpga');
@@ -53,6 +53,23 @@ test('parseXdl: design header, placed and unplaced instances with their configur
   assert.equal(d.nets.find(n => n.name === 'a_IBUF').pips[0].dir, '=>');
   assert.equal(d.nets.find(n => n.name === 'GLOBAL_LOGIC1').type, 'vcc');
   assert.equal(d.nets.find(n => n.name === 'unused_net').inpins.length, 0);
+});
+
+test('placedPins: the pads of the ports in a placed design (pin2ucf); unplaced sites, sites without a PAD and unused buffers left out (#118)', () => {
+  assert.deepEqual(placedPins(parseXdl(XDL)), [{ net: 'a', loc: 'P1', dir: 'in' }, { net: 'y', loc: 'P2', dir: 'out' }, { net: 'clk', loc: 'P4', dir: 'in' }]);
+  // the Silinx toolchain's: an input-only pad (IBUF), a bidirectional one, an unplaced one
+  const d = parseXdl(`design "top" xc3s250ecp132-4 v3.2 , cfg "";
+inst "sw<3>" "IBUF",placed RIOIS_PCI_X27Y16 j14  ,
+  cfg " IDELMUX::1 IMUX::1 IOATTRBOX::LVCMOS33 INBUF:sw<3>_IBUF: PAD:sw<3>: "
+  ;
+inst "io" "IOB",placed BIOIS_X13Y0 M5  ,
+  cfg " INBUF:io_IBUF: OUTBUF:io_OBUFT: PAD:io: "
+  ;
+inst "led<7>" "IOB",unplaced  ,
+  cfg " OUTBUF:led<7>_OBUF: PAD:led<7>: "
+  ;
+`);
+  assert.deepEqual(placedPins(d), [{ net: 'sw<3>', loc: 'J14', dir: 'in' }, { net: 'io', loc: 'M5', dir: 'inout' }]);
 });
 
 test('prettyEquation: LUT inputs replaced by signal names, logic operators readable', () => {
