@@ -148,57 +148,61 @@ running anything:
 
     node test/designs-corpus/run.mjs --record-times designs-results/designs-corpus/results.json --machine ci
 
-## Results (2026-10-11, Yosys 0.68 / YoWASP, XC3S250E-4CP132)
+## Results (Yosys 0.68 / YoWASP)
 
-`(w)`: through the I/O wrapper; `(r)`: synthesized again without RAM / SRL / multiplier cells for
-the packer. Slices and period: the flow's (the period by Silinx's STA, against 20 ns). Times: all
-stages, seconds, on an Apple-silicon Mac, 6 jobs.
+Generated from `expected.json` (`node test/designs-corpus/run.mjs --table`; `--update` rewrites it
+too; `test/designs-corpus.test.js` checks that it is the one the committed expectations give, #89).
+`-`: not run (no self-checking testbench, or an earlier stage failed); `(r)`: synthesized again
+without RAM / SRL / multiplier cells for the packer. Device: the smallest the flow fits (the
+XC3S250E, else the XC3S500E or XC3S1200E); slices, LUTs, FFs: the packed circuit's; critical path:
+by Silinx's STA (the worst clock; none for a combinational design), against 20 ns. Warnings: per
+stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys are in the run's
+`results.json`.
 
-| design | lang | licence | LUT4 / FF (Yosys) | frontend | tb | synth | diff | flow (XC3S250E) | slices | period (ns) | warnings | time (s) |
-| --- | --- | --- | ---: | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: |
-| serv | Verilog | ISC | 351 / 182 | pass | - | pass | pass | complete (w) (r) | 1492 | 18.136 | 17 (frontend 12, synth 4, flow 1) | 235 |
-| picorv32 | Verilog | ISC | 1292 / 463 | pass | - | pass | pass | too large (w) (r) | 3090 |  | 47 (frontend 28, synth 18, flow 1) | 32 |
-| femtorv32-quark | Verilog | BSD-3-Clause | 815 / 127 | pass | - | pass | pass | complete (w) (r) | 1486 | 20.949 | 15 (synth 13, flow 2) | 296 |
-| neorv32 | VHDL | BSD-3-Clause |  | pass | - | unsupported | - | - |  |  | 40 (frontend 40) | 0.3 |
-| light8080 | VHDL | LGPL-2.1 |  | unsupported | unsupported | - | - | - |  |  | 0 | 0.0 |
-| t80 | VHDL | BSD-3-Clause-style | 2860 / 361 | pass | - | pass | pass | too large | 2616 |  | 6 (frontend 5, synth 1) | 16 |
-| verilog-uart | Verilog | MIT | 131 / 79 | pass | - | pass | pass | complete | 131 | 6.053 | 1 (synth 1) | 7 |
-| verilog-i2c-master | Verilog | MIT | 203 / 72 | pass | - | pass | pass | complete | 204 | 13.767 | 5 (frontend 4, synth 1) | 8 |
-| verilog-lfsr-crc | Verilog | MIT | 103 / 64 | pass | - | pass | pass | complete | 55 | 4.732 | 161 (synth 161) | 121 |
-| verilog-lfsr-prbs | Verilog | MIT | 16 / 31 | pass | - | pass | pass | complete | 16 | 3.031 | 158 (frontend 1, synth 157) | 96 |
-| verilog-axis-fifo | Verilog | MIT | 16 / 32 | pass | - | pass | pass | complete (r) | 814 | 10.763 | 14 (frontend 5, synth 8, flow 1) | 33 |
-| uart-for-fpga | VHDL | MIT | 55 / 58 | pass | pass | pass | pass | complete | 45 | 4.992 | 2 (frontend 1, synth 1) | 56 |
-| spi-fpga-master | VHDL | MIT | 27 / 23 | pass | pass | pass | pass | complete | 19 | 4.921 | 2 (frontend 1, synth 1) | 4 |
-| spi-fpga-slave | VHDL | MIT | 89 / 21 | pass | pass | pass | pass | complete | 87 | 5.067 | 1 (synth 1) | 6 |
-| nandland-spi-verilog | Verilog | MIT | 45 / 37 | pass | - | pass | pass | complete | 54 | 6.178 | 2 (frontend 1, synth 1) | 3 |
-| nandland-spi-vhdl | VHDL | MIT | 73 / 37 | pass | - | pass | pass | complete | 131 | 12.542 | 3 (frontend 2, synth 1) | 4 |
-| secworks-sha1 | Verilog | BSD-2-Clause | 2660 / 850 | pass | unsupported | pass | pass | too large (w) | 3437 |  | 3 (frontend 1, synth 2) | 24 |
-| secworks-sha256 | Verilog | BSD-2-Clause | 3537 / 1034 | pass | pass | pass | pass | too large (w) | 3437 |  | 3 (frontend 1, synth 2) | 35 |
-| secworks-siphash | Verilog | BSD-2-Clause | 1231 / 462 | pass | pass | pass | pass | complete (w) | 1263 | 17.885 | 1 (synth 1) | 145 |
-| secworks-aes | Verilog | BSD-2-Clause | 11251 / 2476 | pass | unsupported | pass | pass | too large (w) | 13078 |  | 4 (synth 4) | 418 |
-| fpu-adder | Verilog | MIT | 471 / 285 | pass | - | pass | pass | fail (w) | 367 | 12.713 | 1 (synth 1) | 19 |
-| fpu-multiplier | Verilog | MIT | 549 / 300 | pass | - | pass | pass | too large (w) (r) | 2568 |  | 2 (synth 1, flow 1) | 24 |
-| vtr-sha | Verilog | BSD-style | 2211 / 893 | pass | - | pass | pass | complete | 1145 | 17.546 | 1 (synth 1) | 82 |
-| vtr-diffeq1 | Verilog | VTR (open) | 587 / 193 | pass | - | pass | pass | too large (w) (r) | 5869 |  | 2 (synth 1, flow 1) | 74 |
-| vtr-diffeq2 | Verilog | VTR (open) | 488 / 96 | pass | - | pass | pass | too large (w) (r) | 5825 |  | 2 (synth 1, flow 1) | 87 |
-| vtr-ch-intrinsics | Verilog | VTR (open) | 104 / 219 | pass | - | pass | mismatch | complete (w) (r) | 525 | 9.25 | 23 (frontend 13, synth 9, flow 1) | 24 |
-| vtr-stereovision3 | Verilog | VTR (open) | 111 / 120 | pass | - | pass | pass | fail | 153 |  | 4 (frontend 2, synth 2) | 7 |
-| vtr-mkPktMerge | Verilog | VTR (open) | 242 / 495 | pass | - | pass | pass | too large (w) (r) | 5982 |  | 35 (frontend 33, synth 1, flow 1) | 68 |
-| epfl-ctrl | Verilog | MIT | 40 / 0 | pass | - | pass | pass | complete | 34 |  | 1 (synth 1) | 4 |
-| epfl-int2float | Verilog | MIT | 99 / 0 | pass | - | pass | pass | complete | 63 |  | 1 (synth 1) | 5 |
-| epfl-cavlc | Verilog | MIT | 191 / 0 | pass | - | pass | pass | complete | 119 |  | 1 (synth 1) | 8 |
-| epfl-router | Verilog | MIT | 58 / 0 | pass | - | pass | pass | complete (w) | 95 | 11.669 | 1 (synth 1) | 8 |
-| epfl-priority | Verilog | MIT | 280 / 0 | pass | - | pass | pass | complete (w) | 303 | 45.573 | 2 (synth 1, flow 1) | 23 |
-| epfl-dec | Verilog | MIT | 256 / 0 | pass | - | pass | pass | complete (w) | 433 | 10.251 | 1 (synth 1) | 25 |
-| epfl-i2c | Verilog | MIT | 452 / 0 | pass | - | pass | pass | complete (w) | 381 | 9.648 | 1 (synth 1) | 22 |
-| epfl-adder | Verilog | MIT | 709 / 0 | pass | - | pass | pass | complete (w) | 515 | 97.621 | 2 (synth 1, flow 1) | 22 |
-| epfl-bar | Verilog | MIT | 2820 / 0 | pass | - | pass | pass | too large (w) | 2456 |  | 1 (synth 1) | 19 |
-| epfl-max | Verilog | MIT | 1746 / 0 | pass | - | pass | pass | complete (w) | 881 | 81.233 | 2 (synth 1, flow 1) | 45 |
+<!-- the results table: generated from expected.json by `node test/designs-corpus/run.mjs --table`; do not edit by hand -->
+| design | lang | licence | frontend | tb | synth | diff | flow | device | slices | LUTs | FFs | critical path (ns) | warnings |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
+| serv | Verilog | ISC | pass | - | pass | pass | complete | XC3S250E | 212 | 357 | 346 | 13.199 | 20 (frontend 20) |
+| picorv32 | Verilog | ISC | pass | - | pass | pass | complete | XC3S250E | 810 | 1618 | 767 | 12.633 | 33 (frontend 28, synth 5) |
+| femtorv32-quark | Verilog | BSD-3-Clause | pass | - | pass | pass | complete | XC3S250E | 476 | 948 | 224 | 18.054 | 0 |
+| neorv32 | VHDL | BSD-3-Clause | pass | - | pass | pass | complete | XC3S250E | 2283 | 4556 | 1319 | 16.001 | 72 (frontend 47, synth 25) |
+| light8080 | VHDL | LGPL-2.1 | pass | pass | pass | pass | complete | XC3S250E | 238 | 472 | 206 | 12.733 | 17 (frontend 17) |
+| t80 | VHDL | BSD-3-Clause-style | pass | - | pass | pass | complete | XC3S250E | 1537 | 3065 | 361 | 22.308 | 6 (frontend 5, flow 1) |
+| verilog-uart | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 131 | 259 | 79 | 10.263 | 0 |
+| verilog-i2c-master | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 128 | 254 | 72 | 10.407 | 4 (frontend 4) |
+| verilog-lfsr-crc | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 52 | 103 | 64 | 3.934 | 0 |
+| verilog-lfsr-prbs | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 16 | 16 | 31 | 2.097 | 1 (frontend 1) |
+| verilog-axis-fifo | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 19 | 33 | 32 | 5.492 | 11 (frontend 10, synth 1) |
+| uart-for-fpga | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 42 | 81 | 53 | 4.713 | 1 (frontend 1) |
+| spi-fpga-master | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 18 | 34 | 21 | 4.711 | 1 (frontend 1) |
+| spi-fpga-slave | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 16 | 26 | 21 | 5.300 | 0 |
+| nandland-spi-verilog | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 52 | 101 | 37 | 5.513 | 1 (frontend 1) |
+| nandland-spi-vhdl | VHDL | MIT | pass | - | pass | pass | complete | XC3S250E | 52 | 101 | 37 | 5.349 | 2 (frontend 2) |
+| secworks-sha1 | Verilog | BSD-2-Clause | pass | pass | pass | pass | complete | XC3S250E | 1883 | 3763 | 1528 | 17.610 | 2 (frontend 1, synth 1) |
+| secworks-sha256 | Verilog | BSD-2-Clause | pass | pass | pass | pass | complete | XC3S250E | 2400 | 4798 | 1809 | 25.926 | 3 (frontend 1, synth 1, flow 1) |
+| secworks-siphash | Verilog | BSD-2-Clause | pass | pass | pass | pass | complete | XC3S250E | 1055 | 2108 | 798 | 15.715 | 0 |
+| secworks-aes | Verilog | BSD-2-Clause | pass | pass | pass | pass | complete | XC3S1200E | 7662 | 15324 | 2996 | 29.589 | 4 (synth 3, flow 1) |
+| fpu-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 371 | 736 | 389 | 11.929 | 0 |
+| fpu-multiplier | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 255 | 498 | 404 | 15.207 | 0 |
+| vtr-sha | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S250E | 837 | 1671 | 893 | 15.672 | 0 |
+| vtr-diffeq1 | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S500E | 263 | 414 | 451 | 39.569 | 1 (flow 1) |
+| vtr-diffeq2 | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S500E | 287 | 567 | 96 | 31.658 | 1 (flow 1) |
+| vtr-ch-intrinsics | Verilog | VTR benchmarks | pass | - | pass | mismatch | complete | XC3S250E | 281 | 190 | 509 | 6.327 | 21 (frontend 13, synth 8) |
+| vtr-stereovision3 | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S250E | 113 | 224 | 120 | 7.897 | 3 (frontend 2, synth 1) |
+| vtr-mkPktMerge | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S250E | 732 | 800 | 962 | 7.916 | 33 (frontend 33) |
+| epfl-ctrl | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 25 | 50 | 0 |  | 0 |
+| epfl-int2float | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 55 | 109 | 0 |  | 0 |
+| epfl-cavlc | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 160 | 320 | 0 |  | 0 |
+| epfl-router | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 38 | 74 | 64 | 9.392 | 0 |
+| epfl-priority | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 144 | 288 | 137 | 16.816 | 0 |
+| epfl-dec | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 187 | 373 | 265 | 6.506 | 0 |
+| epfl-i2c | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 254 | 507 | 276 | 7.752 | 0 |
+| epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 268 | 535 | 386 | 76.621 | 1 (flow 1) |
+| epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 854 | 1707 | 264 | 10.786 | 0 |
+| epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 645 | 1289 | 643 | 37.881 | 1 (flow 1) |
 
-Summary: 38 designs; front end 37 / 38; own testbenches 5 / 8 pass; synthesis 36; netlist =
-RTL 35 (1 mismatch, open below); fully open bitstream complete on the XC3S250E for 24 designs
-(10 of them through the I/O wrapper), 10 too large for it, 2 fail (a bit-database gap, a
-second clock).
+Summary: 38 designs; front end 38 / 38; own testbenches 8 / 8 pass; synthesis 38; netlist = RTL 37; fully open bitstream complete for 38 designs (35 on the XC3S250E, 2 on the XC3S500E, 1 on the XC3S1200E).
+<!-- end of the results table -->
 
 The epfl-priority / adder / max periods are those of the I/O wrapper around a combinational
 design (the whole logic between two registers): the PERIOD warning is expected there.

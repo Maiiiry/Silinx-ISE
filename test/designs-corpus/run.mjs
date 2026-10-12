@@ -21,13 +21,15 @@
 //        [--stages frontend,tb,…] [--projects dir] [--bits dir] [--sizes dir] [--json file]
 //        [--size-tolerance 5] [--period-tolerance 15] [--seed n] [--machine name]
 //   node test/designs-corpus/run.mjs --record-times results.json --machine ci
+//   node test/designs-corpus/run.mjs --table      (the README's results table, from expected.json)
 //   (npm run test:designs)
 //
 // test/designs-corpus/expected.json holds the expected status and warnings of every stage of every
 // design, and the size and speed of each circuit whose flow completes (slices, LUTs, FFs, the
 // critical path by the STA). The run fails on a regression (a stage expected 'pass' / 'complete'
 // that is not), on a warning that appeared or vanished, and on a circuit larger or slower beyond
-// the tolerance (%); improvements are listed; --update records the results. The run times are
+// the tolerance (%); improvements are listed; --update records the results (and the README's
+// results table, as --table writes it). The run times are
 // compared with test/designs-corpus/times.json's for this machine class (warnings only; README).
 // --projects dir writes a Silinx project folder per design whose flow completed (for
 // scripts/check-open-flow.mjs, the check against ISE); --bits dir keeps the bitstreams; --sizes dir
@@ -39,13 +41,14 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf, flaggedSynth,
-  qualityOf, compareQuality, QUALITY_TOLERANCE, machineClass, timesOf, compareTimes, slowestTable } from './lib.mjs';
+  qualityOf, compareQuality, QUALITY_TOLERANCE, machineClass, timesOf, compareTimes, slowestTable, resultsTable, withResultsTable } from './lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
 const EXPECTED = path.join(HERE, 'expected.json');
 // the stage times of a full run per machine class ('ci', 'local', …): the run-time baselines
 const TIMES = path.join(HERE, 'times.json');
+const README = path.join(HERE, 'README.md');
 // per design: the largest (AES on the XC3S1200E) take about 6 min on an Apple-silicon Mac, more on CI;
 // generous, for a loaded machine (#55)
 const TIMEOUT = 120 * 60000;
@@ -390,6 +393,14 @@ if (!isMainThread) {
   // --record-times results.json: the times of a run (CI's designs-results artifact) as the baseline of
   // this machine class (--machine ci), without running anything
   if (opt('--record-times', null)) { writeTimes(readJson(TIMES, {}), readJson(path.resolve(opt('--record-times')), {})); process.exit(0); }
+  // --table: the README's results table from the expectations (expected.json), without running
+  // anything (after --update; test/designs-corpus.test.js checks that the README's is this one, #89)
+  if (args.includes('--table')) {
+    const manifest = readJson(path.join(HERE, 'manifest.json'), {});
+    fs.writeFileSync(README, withResultsTable(fs.readFileSync(README, 'utf8'), resultsTable(manifest, readJson(EXPECTED, {}))));
+    console.log(`wrote the results table of ${path.relative(process.cwd(), README)}`);
+    process.exit(0);
+  }
   if (update && opts.seed !== 1) { console.error('--update records seed 1 (the expectations\' seed): not with --seed'); process.exit(2); }
   const pctOpt = (k, def) => { const v = opt(k, null); return v === null ? def : +v / 100; };
   const tolerance = { slices: pctOpt('--size-tolerance', QUALITY_TOLERANCE.slices), luts: pctOpt('--size-tolerance', QUALITY_TOLERANCE.luts),
@@ -487,8 +498,11 @@ if (!isMainThread) {
   show(`slower than the '${machine}' baseline (warning only)`, tc.warnings, x => `  ${x.message}`);
   if (tc.unknown.length) console.log(`\nno '${machine}' time baseline for ${tc.unknown.length} design(s) (--update records it)`);
   if (update) {
-    fs.writeFileSync(EXPECTED, `${JSON.stringify(updatedExpectations(expected, ran), null, 1)}\n`);
-    console.log(`\nwrote ${path.relative(process.cwd(), EXPECTED)}`);
+    const updated = updatedExpectations(expected, ran);
+    fs.writeFileSync(EXPECTED, `${JSON.stringify(updated, null, 1)}\n`);
+    // the README's results table follows the expectations (#89)
+    fs.writeFileSync(README, withResultsTable(fs.readFileSync(README, 'utf8'), resultsTable(manifest, updated)));
+    console.log(`\nwrote ${path.relative(process.cwd(), EXPECTED)} and the results table of ${path.relative(process.cwd(), README)}`);
     if (fullRun) writeTimes(allTimes, ran);
   } else if (cmp.failed || qc.failed) process.exitCode = 1;
 }

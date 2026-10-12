@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateManifest, compareExpectations, updatedExpectations, normalizeWarning, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, isGood, kindOf, FLOW_PARTS, chipOf, deviceOf, flaggedSynth,
-  qualityOf, describeQuality, compareQuality, timesOf, compareTimes, slowestTable, machineClass } from './designs-corpus/lib.mjs';
+  qualityOf, describeQuality, compareQuality, timesOf, compareTimes, slowestTable, machineClass, resultsTable, withResultsTable, readmeResultsTable, TABLE_BEGIN, TABLE_END } from './designs-corpus/lib.mjs';
 import { remoteFiles } from '../scripts/fetch-design-corpus.mjs';
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
@@ -343,4 +343,50 @@ test('the corpus\'s quality expectations and time baselines are well formed', ()
   const file = path.join(HERE, 'designs-corpus', 'times.json');
   const times = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
   for (const [m, t] of Object.entries(times)) for (const [d, x] of Object.entries(t)) assert.ok(x.total >= 0 && expected[d], `${m} ${d}`);
+});
+
+test('resultsTable: a row per design of the manifest (its statuses, device, size, critical path, warnings per stage), and the summary (#89)', () => {
+  const manifest = {
+    sources: { a: { licence: 'MIT' }, b: { licence: 'BSD-3-Clause-style (in the sources)' }, c: { licence: 'VTR benchmarks: open source, each …' } },
+    designs: [{ name: 'small', source: 'a', language: 'verilog' }, { name: 'big', source: 'b', language: 'vhdl' }, { name: 'comb', source: 'c', language: 'verilog' },
+      { name: 'broken', source: 'a', language: 'verilog' }, { name: 'huge', source: 'a', language: 'verilog' }],
+  };
+  const expected = {
+    small: { frontend: 'pass', tb: 'pass', synth: 'pass', diff: 'pass', flow: 'complete', quality: { part: 'xc3s250ecp132-4', slices: 10, luts: 20, ffs: 5, period: 4.5 },
+      warnings: { frontend: ['WARNING:Silinx - a.v:1: x (x3)'], synth: ['Warning: y'] } },
+    big: { frontend: 'pass', tb: 'skip: no self-checking testbench', synth: 'pass', diff: 'mismatch: cycle 3: q', flow: 'complete: on the XC3S500E',
+      quality: { part: 'xc3s500efg320-4', slices: 3000, luts: 5000, ffs: 900, period: 21.25 },
+      warnings: { flow: ['WARNING:Silinx (pack) - RAMB16 is not supported yet: synthesized again with -nobram -nolutram -nosrl -nodsp', 'WARNING:Silinx (timing) - PERIOD 20 ns on clk not met'] } },
+    comb: { frontend: 'pass', synth: 'pass', diff: 'pass', flow: 'complete', quality: { part: 'xc3s250ecp132-4', slices: 7, luts: 14, ffs: 0, period: null } },
+    broken: { frontend: 'unsupported: parse: a.v:3: x', tb: 'skip: front end', synth: 'skip: front end', diff: 'skip: front end', flow: 'skip: front end' },
+    huge: { frontend: 'pass', synth: 'pass', diff: 'pass', flow: 'too large: 20000 slices, the XC3S1200E has 8672' },
+  };
+  assert.deepEqual(resultsTable(manifest, expected), [
+    '| design | lang | licence | frontend | tb | synth | diff | flow | device | slices | LUTs | FFs | critical path (ns) | warnings |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |',
+    '| small | Verilog | MIT | pass | pass | pass | pass | complete | XC3S250E | 10 | 20 | 5 | 4.500 | 4 (frontend 3, synth 1) |',
+    '| big | VHDL | BSD-3-Clause-style | pass | - | pass | mismatch | complete (r) | XC3S500E | 3000 | 5000 | 900 | 21.250 | 2 (flow 2) |',
+    '| comb | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S250E | 7 | 14 | 0 |  | 0 |',
+    '| broken | Verilog | MIT | unsupported | - | - | - | - |  |  |  |  |  | 0 |',
+    '| huge | Verilog | MIT | pass | - | pass | pass | too large |  |  |  |  |  | 0 |',
+    '',
+    'Summary: 5 designs; front end 4 / 5; own testbenches 1 / 1 pass; synthesis 4; netlist = RTL 3; fully open bitstream complete for 3 designs (2 on the XC3S250E, 1 on the XC3S500E), 1 too large.',
+  ]);
+  // in a README, between the markers; the rest kept
+  const readme = `# x\n\nbefore\n\n${TABLE_BEGIN}\nold\n${TABLE_END}\n\nafter\n`;
+  const lines = resultsTable(manifest, expected);
+  const updated = withResultsTable(readme, lines);
+  assert.equal(updated, `# x\n\nbefore\n\n${TABLE_BEGIN}\n${lines.join('\n')}\n${TABLE_END}\n\nafter\n`);
+  assert.deepEqual(readmeResultsTable(updated), lines);
+  assert.equal(withResultsTable(updated, lines), updated);
+  assert.equal(readmeResultsTable('# no table'), null);
+  assert.throws(() => withResultsTable('# no table', lines), /no results table markers/);
+});
+
+test('the README\'s results table is the one the committed expected.json gives (run.mjs --table; #89)', () => {
+  const expected = JSON.parse(fs.readFileSync(path.join(HERE, 'designs-corpus', 'expected.json'), 'utf8'));
+  const readme = fs.readFileSync(path.join(HERE, 'designs-corpus', 'README.md'), 'utf8');
+  assert.deepEqual(readmeResultsTable(readme), resultsTable(MANIFEST, expected), 'run: node test/designs-corpus/run.mjs --table');
+  // every design of the corpus has its row
+  assert.equal(readmeResultsTable(readme).filter(l => /^\| (?!design |---)/.test(l)).length, MANIFEST.designs.length);
 });

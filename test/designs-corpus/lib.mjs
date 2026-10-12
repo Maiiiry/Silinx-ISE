@@ -342,3 +342,60 @@ export function slowestTable(results, baseline = {}, n = 10) {
   return [`${'design'.padEnd(24)} ${cols.map(s => s.padStart(8)).join(' ')}`,
     ...rows.map(d => `${d.padEnd(24)} ${[...STAGES.map(s => results[d].times[s]), times[d].total, baseline?.[d]?.total].map(x => sec(x).padStart(8)).join(' ')}`)];
 }
+
+// ---- the README's results table (#89): generated from the expectations, so it cannot drift
+export const TABLE_BEGIN = '<!-- the results table: generated from expected.json by `node test/designs-corpus/run.mjs --table`; do not edit by hand -->';
+export const TABLE_END = '<!-- end of the results table -->';
+const LANG = { verilog: 'Verilog', vhdl: 'VHDL' };
+// the licence's name, without its explanation ('BSD-3-Clause-style (OpenCores …)', 'VTR benchmarks: …')
+const licenceOf = l => String(l || '').split(/[:(]/)[0].trim();
+/** The number of warnings of a countWarnings list ('… (x3)' counts 3). */
+const nWarnings = list => (list || []).reduce((s, w) => s + (+(/ \(x(\d+)\)$/.exec(w)?.[1] ?? 1)), 0);
+
+/**
+ * The results table of the README (Markdown lines) from the manifest (the designs, in its order,
+ * their language and licence) and the expectations (expected.json: each stage's status, the
+ * warnings, the circuit's quality), with a summary line: [lines]. '(r)': synthesized again without
+ * RAM / SRL / multiplier cells for the packer.
+ */
+export function resultsTable(manifest, expected) {
+  const cell = s => (s === undefined || /^skip/.test(s) ? '-' : kindOf(s));
+  const rows = ['| design | lang | licence | frontend | tb | synth | diff | flow | device | slices | LUTs | FFs | critical path (ns) | warnings |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |'];
+  const n = { designs: 0, frontend: 0, tbRan: 0, tb: 0, synth: 0, diff: 0, complete: 0, tooLarge: 0, other: 0, onChip: {} };
+  for (const d of manifest.designs) {
+    const e = expected[d.name] || {};
+    const q = e.quality;
+    const w = e.warnings || {};
+    const total = Object.values(w).reduce((s, l) => s + nWarnings(l), 0);
+    const per = STAGES.filter(s => w[s]?.length).map(s => `${s} ${nWarnings(w[s])}`);
+    const retry = (w.flow || []).some(x => /synthesized again with -nobram/.test(x));
+    const flow = cell(e.flow);
+    const chip = q ? chipOf(q.part) : '';
+    rows.push(`| ${d.name} | ${LANG[d.language] || d.language} | ${licenceOf(manifest.sources[d.source]?.licence)} | ${cell(e.frontend)} | ${cell(e.tb)} | ${cell(e.synth)} | ${cell(e.diff)} | ${flow}${retry ? ' (r)' : ''} | ${chip} | ${q ? q.slices : ''} | ${q ? q.luts : ''} | ${q ? q.ffs : ''} | ${typeof q?.period === 'number' ? q.period.toFixed(3) : ''} | ${total}${per.length ? ` (${per.join(', ')})` : ''} |`);
+    n.designs++;
+    if (e.frontend === 'pass') n.frontend++;
+    if (e.tb !== undefined && !/^skip/.test(e.tb)) { n.tbRan++; if (e.tb === 'pass') n.tb++; }
+    if (e.synth === 'pass') n.synth++;
+    if (e.diff === 'pass') n.diff++;
+    if (isGood(String(e.flow).split(':')[0])) { n.complete++; if (chip) n.onChip[chip] = (n.onChip[chip] || 0) + 1; }
+    else if (flow === 'too large') n.tooLarge++;
+    else if (e.flow !== undefined && !/^skip/.test(e.flow)) n.other++;
+  }
+  const chips = FLOW_PARTS.map(chipOf).filter(c => n.onChip[c]).map(c => `${n.onChip[c]} on the ${c}`).join(', ');
+  return [...rows, '',
+    `Summary: ${n.designs} designs; front end ${n.frontend} / ${n.designs}; own testbenches ${n.tb} / ${n.tbRan} pass; synthesis ${n.synth}; netlist = RTL ${n.diff}; fully open bitstream complete for ${n.complete} designs${chips ? ` (${chips})` : ''}${n.tooLarge ? `, ${n.tooLarge} too large` : ''}${n.other ? `, ${n.other} failing` : ''}.`];
+}
+
+/** The README with its results table replaced by `lines` (between TABLE_BEGIN and TABLE_END). */
+export function withResultsTable(readme, lines) {
+  const a = readme.indexOf(TABLE_BEGIN), b = readme.indexOf(TABLE_END);
+  if (a < 0 || b < a) throw new Error('the README has no results table markers');
+  return `${readme.slice(0, a + TABLE_BEGIN.length)}\n${lines.join('\n')}\n${readme.slice(b)}`;
+}
+
+/** The results table of a README (the lines between the markers), or null. */
+export function readmeResultsTable(readme) {
+  const a = readme.indexOf(TABLE_BEGIN), b = readme.indexOf(TABLE_END);
+  return a < 0 || b < a ? null : readme.slice(a + TABLE_BEGIN.length, b).replace(/^\n|\n$/g, '').split('\n');
+}
