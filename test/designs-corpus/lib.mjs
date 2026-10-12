@@ -129,7 +129,8 @@ export function compareExpectations(expected, results, { ran = null } = {}) {
 }
 
 /** The expectations after a run: the results of the designs that ran, the others kept. Times and
- *  details are not expectations. */
+ *  details are not expectations; the quality of the circuit is (when the flow ran: the run's, none
+ *  when it did not complete). */
 export function updatedExpectations(expected, results) {
   const out = { ...expected };
   for (const [d, r] of Object.entries(results)) {
@@ -142,6 +143,8 @@ export function updatedExpectations(expected, results) {
       if (ws?.length) w[st] = ws;
     }
     if (Object.keys(w).length) e.warnings = w;
+    const q = r.flow !== undefined ? r.quality : old.quality;
+    if (q) e.quality = q;
     out[d] = e;
   }
   return Object.fromEntries(Object.keys(out).sort().map(k => [k, out[k]]));
@@ -229,4 +232,113 @@ export function flaggedSynth(top, text, flags, family = 'spartan3e') {
   const srl = !/(^|\s)-nosrl(\s|$)/.test(flags);
   const script = yosysScript(top, family, { srl }).replaceAll('synth_xilinx ', `synth_xilinx ${flags} `);
   return { args: ['-q', '-p', script], files: yosysFiles(top, text) };
+}
+
+// ---- the quality guard: the size and speed of the generated circuit
+
+/** The default tolerances of the quality guard (fractions). Size (slices, LUTs, flip-flops after
+ *  packing) does not depend on the placer's seed; the critical path does, by up to 12.5 % over
+ *  seeds 1-3 (README): a change within these is placement noise, not reported. */
+export const QUALITY_TOLERANCE = { slices: 0.05, luts: 0.05, ffs: 0.05, period: 0.15 };
+const METRICS = [['slices', 'slices', ''], ['luts', 'LUTs', ''], ['ffs', 'flip-flops', ''], ['period', 'critical path', ' ns']];
+const pct = x => `${x > 0 ? '+' : ''}${(100 * x).toFixed(1)}%`;
+
+/** The quality of a design's circuit for the expectations: { part, slices, luts, ffs, period }
+ *  (period: the critical path by Silinx's STA, ns, the worst of the clocks; null without a clock). */
+export function qualityOf(part, packStats, staClocks) {
+  const period = staClocks.length ? Math.max(...staClocks.map(c => c.period)) : null;
+  return { part, slices: packStats.slices, luts: packStats.luts, ffs: packStats.ffs, period: period === null ? null : +period.toFixed(3) };
+}
+
+/** '131 slices, 259 LUTs, 79 FFs, 5.625 ns on the xc3s250ecp132-4' */
+export function describeQuality(q) {
+  return `${q.slices} slices, ${q.luts} LUTs, ${q.ffs} FFs${typeof q.period === 'number' ? `, ${q.period.toFixed(3)} ns` : ''} on the ${q.part}`;
+}
+
+/**
+ * The quality of each design whose flow completed (results: { design: { quality } }, qualityOf's
+ * shape) against the expectations' (the same shape). Returns { worse, better, moved, fresh, failed }:
+ * worse / better [{ design, metric, expected, got, change, message }] beyond the tolerance (a fraction
+ * per metric, QUALITY_TOLERANCE by default), moved [{ design, message }] built on another device than
+ * recorded (not compared), fresh [{ design, message }] without a recorded quality; failed: a design
+ * got larger or slower.
+ */
+export function compareQuality(expected, results, tolerance = {}) {
+  const tol = { ...QUALITY_TOLERANCE, ...tolerance };
+  const worse = [], better = [], moved = [], fresh = [];
+  for (const [d, r] of Object.entries(results)) {
+    const q = r.quality;
+    if (!q) continue;
+    const e = expected[d]?.quality;
+    if (!e) { fresh.push({ design: d, message: `${d}: no recorded quality (${describeQuality(q)}): --update records it` }); continue; }
+    if (e.part !== q.part) { moved.push({ design: d, message: `${d}: built on the ${q.part}, recorded on the ${e.part}: not compared` }); continue; }
+    for (const [k, label, unit] of METRICS) {
+      const a = e[k], b = q[k];
+      if (typeof a !== 'number' || typeof b !== 'number' || a === b) continue;
+      const change = a ? (b - a) / a : Infinity;
+      if (Math.abs(change) <= tol[k] + 1e-9) continue;
+      const fmt = x => (k === 'period' ? x.toFixed(3) : String(x));
+      const item = { design: d, metric: k, expected: a, got: b, change };
+      if (change > 0) worse.push({ ...item, message: `${d}: ${label} ${fmt(a)} -> ${fmt(b)}${unit} (${pct(change)}, tolerance ${pct(tol[k]).slice(1)})` });
+      else better.push({ ...item, message: `${d}: ${label} ${fmt(a)} -> ${fmt(b)}${unit} (${pct(change)})` });
+    }
+  }
+  return { worse, better, moved, fresh, failed: worse.length > 0 };
+}
+
+// ---- run times
+
+/** Run-time warnings: a stage this many times slower than its baseline, and longer by more than this (ms). */
+export const TIME_RATIO = 1.5, TIME_MARGIN = 30000;
+const TIMED = ['synth', 'flow'];
+
+/** The machine class of the time baselines (times.json): --machine, else SILINX_CORPUS_MACHINE,
+ *  else 'ci' on a CI runner (CI=true: GitHub Actions), else 'local'. */
+export function machineClass(arg, env = process.env) {
+  return arg || env.SILINX_CORPUS_MACHINE || (env.CI === 'true' ? 'ci' : 'local');
+}
+
+/** The times of a run as a baseline: { design: { synth, flow, total } } in ms (total: all the
+ *  stages), sorted by design. */
+export function timesOf(results) {
+  const out = {};
+  for (const d of Object.keys(results).sort()) {
+    const t = results[d].times || {};
+    if (!Object.keys(t).length) continue;
+    const o = {};
+    for (const s of TIMED) if (t[s] !== undefined) o[s] = t[s];
+    o.total = Object.values(t).reduce((a, b) => a + b, 0);
+    out[d] = o;
+  }
+  return out;
+}
+
+/**
+ * The run's times against a baseline (timesOf's shape): warnings [{ design, stage, baseline, got,
+ * message }] for a synthesis or a flow more than `ratio` times its baseline and longer by more than
+ * `margin` ms; unknown: the designs without a baseline. Never a failure: times depend on the machine
+ * and its load.
+ */
+export function compareTimes(baseline, results, { ratio = TIME_RATIO, margin = TIME_MARGIN } = {}) {
+  const warnings = [], unknown = [];
+  for (const [d, r] of Object.entries(results)) {
+    const b = baseline?.[d];
+    if (!b) { if (r.times && Object.keys(r.times).length) unknown.push(d); continue; }
+    for (const s of TIMED) {
+      const got = r.times?.[s], was = b[s];
+      if (typeof got !== 'number' || typeof was !== 'number') continue;
+      if (got > ratio * was && got - was > margin) warnings.push({ design: d, stage: s, baseline: was, got, message: `${d} ${s}: ${(got / 1000).toFixed(0)} s, baseline ${(was / 1000).toFixed(0)} s (x${(got / was).toFixed(1)})` });
+    }
+  }
+  return { warnings, unknown };
+}
+
+/** The slowest designs of a run as lines of a table: seconds per stage, the total, the baseline's total. */
+export function slowestTable(results, baseline = {}, n = 10) {
+  const sec = ms => (typeof ms === 'number' ? (ms / 1000).toFixed(0) : '-');
+  const times = timesOf(results);
+  const rows = Object.keys(times).sort((a, b) => times[b].total - times[a].total || (a < b ? -1 : 1)).slice(0, n);
+  const cols = [...STAGES, 'total', 'baseline'];
+  return [`${'design'.padEnd(24)} ${cols.map(s => s.padStart(8)).join(' ')}`,
+    ...rows.map(d => `${d.padEnd(24)} ${[...STAGES.map(s => results[d].times[s]), times[d].total, baseline?.[d]?.total].map(x => sec(x).padStart(8)).join(' ')}`)];
 }

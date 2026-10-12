@@ -85,6 +85,69 @@ records the run. `--stages frontend,tb` runs (and compares) only those stages. T
 (times, cell counts, slices, timing per clock, mismatch reports, unreached nets) are written to
 `.cache/designs-corpus/results.json`.
 
+### Quality guard: the size and speed of the circuits
+
+For every design whose flow completes, `expected.json` also holds the **quality of the generated
+circuit**, as the flow itself measures it:
+
+    "quality": { "part": "xc3s250ecp132-4", "slices": 131, "luts": 259, "ffs": 79, "period": 5.625 }
+
+`part`: the device it was built on; `slices`, `luts`, `ffs`: the packer's counts (after packing);
+`period`: the critical path in ns by Silinx's STA (`core/fpga/timing.js`, the worst clock; `null`
+for a design without a clock). The run **fails when a design gets larger or slower** beyond the
+placement noise:
+
+    LARGER OR SLOWER (tolerance: size 5%, critical path 15%) (1):
+      serv: critical path 13.199 -> 15.300 ns (+15.9%, tolerance 15.0%)
+
+and **lists the designs that got smaller or faster** beyond it (`smaller or faster`), which
+`--update` records. A design built on another device than recorded (it no longer fits, or fits a
+smaller one: its flow status changes too) is not compared; a design without a recorded quality is
+listed. The tolerances are options: `--size-tolerance 5` (slices, LUTs and FFs, %) and
+`--period-tolerance 15` (%).
+
+**To accept a change** (a smaller circuit, or a larger one that is the price of a fix): run the
+designs concerned with `--update` (`--filter name --update`) and commit `expected.json`: the diff
+shows the new numbers.
+
+The numbers are reproducible: the placer's seed is fixed (1; `--seed n` runs another only to measure
+the noise, never with `--update`), and the whole flow (Yosys in WebAssembly, pack, place, route,
+STA) is deterministic for a seed: a second run of 17 designs with another `--jobs` gave exactly the
+recorded numbers. A CI run's should equal a local one's (the same code; JavaScript's arithmetic and
+V8's Math are the same on every platform); a first nightly run that differs everywhere would show
+otherwise.
+
+The tolerances come from the noise between placer seeds (2026-10-12, 17 designs, seeds 1-3): a
+change elsewhere in the toolchain that perturbs the placement moves the critical path as a new seed
+does. Size does not depend on the seed (packing comes before placement), with one exception:
+epfl-router's placement on seed 2 fits its ports on the pads, while seeds 1 and 3 need the I/O
+wrapper (64 FFs more), a change of the flow's path, not noise. The critical path moves by up to
+12.5 % from seed 1's (vtr-ch-intrinsics 6.33 / 7.12 / 6.82 ns; serv 9.1 %, epfl-priority 7.2 %,
+epfl-dec and light8080 6.3 %, the others 0.9-5.2 %): its tolerance is 15 %. Size's is 5 %: any
+real change of the netlist or of the packer shows.
+
+### Run times
+
+Each stage's time per design is in the results (`results.json`: `times`, ms). `times.json` holds
+the times of a full run **per machine class** (they depend on the machine): `ci` (a CI runner:
+`CI=true`), `local` (otherwise), or any name given with `--machine name` or
+`SILINX_CORPUS_MACHINE`. A run compares its times with its class's and **warns (never fails)**
+when a design's synthesis or flow takes more than 1.5 times its baseline and more than 30 s
+longer; it prints the slowest designs:
+
+    slowest designs (s; baseline: the 'local' times in test/designs-corpus/times.json):
+      design                   frontend       tb    synth     diff     flow    total baseline
+      secworks-aes                    0        1      103       17      497      618      618
+      secworks-sha256                 0        0       41        4       92      137      137
+
+`--update` on a full run (all the stages) records the times of the designs that ran in its class.
+The `local` baseline: 2026-10-12, an Apple-silicon Mac, 6 jobs, the 38 designs in 673 s. There is
+no `ci` baseline yet (no warning without one).
+CI never commits: its baseline is recorded from a nightly run's `designs-results` artifact, without
+running anything:
+
+    node test/designs-corpus/run.mjs --record-times designs-results/designs-corpus/results.json --machine ci
+
 ## Results (2026-10-11, Yosys 0.68 / YoWASP, XC3S250E-4CP132)
 
 `(w)`: through the I/O wrapper; `(r)`: synthesized again without RAM / SRL / multiplier cells for
@@ -254,10 +317,13 @@ Back end (`core/fpga`, bit database):
 - The packer does not support block RAM, distributed RAM, SRL16 or MULT18X18 yet: every CPU and
   FIFO is retried without them (much larger: SERV's register file in flip-flops, 1492 slices).
 
-## Nightly CI (suggested)
+## Nightly CI (.github/workflows/nightly.yml, job `designs`)
 
     - uses: actions/cache@v4   (path: .cache/designs-corpus, key: hashFiles('test/designs-corpus/manifest.json'))
     - run: npm ci
-    - run: node scripts/fetch-design-corpus.mjs
-    - run: npm run test:designs -- --jobs 2        (about 30 minutes on 2 cores)
-    - upload .cache/designs-corpus/results.json (always) as an artifact
+    - run: npm run fetch:designs
+    - run: npm run test:designs -- --jobs 4      (statuses, warnings, quality; times against 'ci')
+    - run: node test/designs-corpus/boards.mjs .cache/designs-boards .cache/designs-boards/bits
+                                                  (the board designs: testbench, open flow, bitstream;
+                                                   fails when one does not build)
+    - upload .cache/designs-corpus/results.json and the board bitstreams (always) as an artifact

@@ -19,11 +19,16 @@
 //
 //   node test/designs-corpus/run.mjs [--filter name[,name]] [--jobs n] [--cycles n] [--update]
 //        [--stages frontend,tb,…] [--projects dir] [--bits dir] [--sizes dir] [--json file]
+//        [--size-tolerance 5] [--period-tolerance 15] [--seed n] [--machine name]
+//   node test/designs-corpus/run.mjs --record-times results.json --machine ci
 //   (npm run test:designs)
 //
 // test/designs-corpus/expected.json holds the expected status and warnings of every stage of every
-// design. The run fails on a regression (a stage expected 'pass' / 'complete' that is not) and on a
-// warning that appeared or vanished; improvements are listed; --update records the results.
+// design, and the size and speed of each circuit whose flow completes (slices, LUTs, FFs, the
+// critical path by the STA). The run fails on a regression (a stage expected 'pass' / 'complete'
+// that is not), on a warning that appeared or vanished, and on a circuit larger or slower beyond
+// the tolerance (%); improvements are listed; --update records the results. The run times are
+// compared with test/designs-corpus/times.json's for this machine class (warnings only; README).
 // --projects dir writes a Silinx project folder per design whose flow completed (for
 // scripts/check-open-flow.mjs, the check against ISE); --bits dir keeps the bitstreams; --sizes dir
 // writes a project per design once packed (on the XC3S1200E-FG320, the largest supported chip) with
@@ -33,12 +38,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf, flaggedSynth } from './lib.mjs';
+import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf, flaggedSynth,
+  qualityOf, compareQuality, QUALITY_TOLERANCE, machineClass, timesOf, compareTimes, slowestTable } from './lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
 const EXPECTED = path.join(HERE, 'expected.json');
-// per design: the largest (AES on the XC3S1200E) take about 40 min on an Apple-silicon Mac, more on CI (#55)
+// the stage times of a full run per machine class ('ci', 'local', …): the run-time baselines
+const TIMES = path.join(HERE, 'times.json');
+// per design: the largest (AES on the XC3S1200E) take about 6 min on an Apple-silicon Mac, more on CI;
+// generous, for a loaded machine (#55)
 const TIMEOUT = 120 * 60000;
 
 const clean = s => String(s).replace(/\s+/g, ' ').replace(/(?:\/[^\s:'"]+)*\/\.cache\/designs-corpus\/[^/\s]+\/[0-9a-f]{40}\//g, '').slice(0, 200);
@@ -263,7 +272,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
     const db = loadDb(part);
     const known = knownRouting(db);
     let pl;
-    try { pl = place(packed, sites, { seed: 1, clockSites: site => clockReach(device, site, known.allowPip) }); }
+    try { pl = place(packed, sites, { seed: opts.seed, clockSites: site => clockReach(device, site, known.allowPip) }); }
     catch (e) {
       // fewer pads than ports once the clock pad and the input-only pads are counted: the I/O wrapper
       if (/not enough pads/.test(e.message) && !wrapper) { again = true; await backEnd(d, design, syn, srcs, res, opts, m, true); return; }
@@ -296,12 +305,14 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
       }
     }
     step('sta', t, { clocks: sta.clocks.map(c => ({ clock: String(c.clock).replace(/[^\w]/g, '_').slice(0, 40), period: +c.period.toFixed(3) })) });
+    const quality = qualityOf(part, packed.stats, sta.clocks);
     // bitgen
     t = Date.now();
     const { bytes, unknown } = bitgen(routedText, db, { name: `${d.name}.ncd`, crc: true, startupClk: 'JtagClk', part: part.replace(/^xc/, '').replace(/-\d$/, '') });
     step('bitgen', t, { bytes: bytes.length, unknown: unknown.length });
     if (unknown.length) { res.flow = `fail: bitgen: ${unknown.length} features not in the bit database (${clean([...new Set(unknown.map(u => u.feature))].slice(0, 4).join(', '))})`; res.details.unknownFeatures = unknown.slice(0, 20).map(u => `${u.tile} ${u.feature}`); return; }
     res.flow = 'complete';
+    res.quality = quality;
     if (opts.bits) { fs.mkdirSync(opts.bits, { recursive: true }); fs.writeFileSync(path.join(opts.bits, `${d.name}.bit`), bytes); }
     if (opts.projects) writeProject(path.join(opts.projects, d.name), d, flowSrcs, wrapper, ports, ucf, steps.retry ? flowSyn.files[`${flowSyn.top}.json`] : null, deviceOf(part));
   } catch (e) {
@@ -364,7 +375,25 @@ if (!isMainThread) {
     projects: opt('--projects', null) && path.resolve(opt('--projects')),
     sizes: opt('--sizes', null) && path.resolve(opt('--sizes')),
     bits: opt('--bits', null) && path.resolve(opt('--bits')),
+    // the placer's seed: fixed (1), so that the circuit's size and speed are reproducible; another
+    // seed only to measure the placement noise (the expectations are seed 1's)
+    seed: +opt('--seed', 1),
   };
+  const machine = machineClass(opt('--machine', null));
+  const readJson = (f, def) => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : def);
+  const writeTimes = (all, results) => {
+    all[machine] = { ...(all[machine] || {}), ...timesOf(results) };
+    all[machine] = Object.fromEntries(Object.keys(all[machine]).sort().map(k => [k, all[machine][k]]));
+    fs.writeFileSync(TIMES, `${JSON.stringify(all, null, 1)}\n`);
+    console.log(`wrote the '${machine}' run times of ${Object.keys(timesOf(results)).length} designs to ${path.relative(process.cwd(), TIMES)}`);
+  };
+  // --record-times results.json: the times of a run (CI's designs-results artifact) as the baseline of
+  // this machine class (--machine ci), without running anything
+  if (opt('--record-times', null)) { writeTimes(readJson(TIMES, {}), readJson(path.resolve(opt('--record-times')), {})); process.exit(0); }
+  if (update && opts.seed !== 1) { console.error('--update records seed 1 (the expectations\' seed): not with --seed'); process.exit(2); }
+  const pctOpt = (k, def) => { const v = opt(k, null); return v === null ? def : +v / 100; };
+  const tolerance = { slices: pctOpt('--size-tolerance', QUALITY_TOLERANCE.slices), luts: pctOpt('--size-tolerance', QUALITY_TOLERANCE.luts),
+    ffs: pctOpt('--size-tolerance', QUALITY_TOLERANCE.ffs), period: pctOpt('--period-tolerance', QUALITY_TOLERANCE.period) };
   const manifest = JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8'));
   const problems = validateManifest(manifest);
   if (problems.length) { console.error(`manifest.json:\n  ${problems.join('\n  ')}`); process.exit(2); }
@@ -443,8 +472,23 @@ if (!isMainThread) {
   show('VANISHED WARNINGS', cmp.vanishedWarnings, x => `  ${x.design} ${x.stage}: ${x.warning}`);
   show('REGRESSIONS', cmp.regressions, x => `  ${x.design} ${x.stage}: ${x.got} (expected: ${x.expected})`);
   show('MISSING', cmp.missing, x => `  ${x}`);
+  // the size and speed of the circuits (designs whose flow completed) against the recorded ones
+  const ran = Object.fromEntries(names.map(n => [n, results[n]]));
+  const qc = opts.stages.includes('flow') ? compareQuality(expected, ran, tolerance) : { worse: [], better: [], moved: [], fresh: [], failed: false };
+  const tolText = `tolerance: size ${(100 * tolerance.slices).toFixed(0)}%, critical path ${(100 * tolerance.period).toFixed(0)}%`;
+  show(`smaller or faster (${tolText})`, qc.better, x => `  ${x.message}`);
+  show('quality not compared', [...qc.moved, ...qc.fresh], x => `  ${x.message}`);
+  show(`LARGER OR SLOWER (${tolText})`, qc.worse, x => `  ${x.message}`);
+  // run times against this machine class's baseline: warnings only
+  const allTimes = readJson(TIMES, {});
+  const fullRun = opts.stages.length === STAGES.length;
+  const tc = fullRun ? compareTimes(allTimes[machine], ran) : { warnings: [], unknown: [] };
+  console.log(`\nslowest designs (s; baseline: the '${machine}' times in ${path.relative(process.cwd(), TIMES)}):\n${slowestTable(ran, allTimes[machine]).map(l => `  ${l}`).join('\n')}`);
+  show(`slower than the '${machine}' baseline (warning only)`, tc.warnings, x => `  ${x.message}`);
+  if (tc.unknown.length) console.log(`\nno '${machine}' time baseline for ${tc.unknown.length} design(s) (--update records it)`);
   if (update) {
-    fs.writeFileSync(EXPECTED, `${JSON.stringify(updatedExpectations(expected, Object.fromEntries(names.map(n => [n, results[n]]))), null, 1)}\n`);
+    fs.writeFileSync(EXPECTED, `${JSON.stringify(updatedExpectations(expected, ran), null, 1)}\n`);
     console.log(`\nwrote ${path.relative(process.cwd(), EXPECTED)}`);
-  } else if (cmp.failed) process.exitCode = 1;
+    if (fullRun) writeTimes(allTimes, ran);
+  } else if (cmp.failed || qc.failed) process.exitCode = 1;
 }

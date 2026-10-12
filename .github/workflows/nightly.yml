@@ -51,7 +51,10 @@ jobs:
     # open-source designs (CPUs, peripherals, crypto, benchmarks; test/designs-corpus/manifest.json,
     # fetched at pinned commits, never committed) through the whole toolchain: front end, their own
     # testbenches, open synthesis, netlist vs RTL, the fully open flow to a bitstream; every stage's
-    # status and every warning checked against test/designs-corpus/expected.json
+    # status and every warning checked against test/designs-corpus/expected.json, and the circuits'
+    # size and speed (fails when a design gets larger or slower beyond the noise); the run times
+    # against the 'ci' baseline of test/designs-corpus/times.json (CI=true; warnings only; record
+    # it from the results artifact: run.mjs --record-times designs-corpus/results.json --machine ci)
     runs-on: ubuntu-latest
     timeout-minutes: 180
     steps:
@@ -68,9 +71,17 @@ jobs:
       - run: npm run fetch:designs
       - name: Open designs through the whole toolchain
         run: npm run test:designs -- --jobs 4
+      # the corpus's board designs (Basys2-250: corpus-int2float, -prbs, -spi, -serv): their testbench
+      # in Silinx's simulator and the fully open flow (pack, place, route, timing) to a bitstream;
+      # fails when one does not build (run even when the step above failed)
+      - name: Board designs of the corpus
+        if: success() || failure()
+        run: node test/designs-corpus/boards.mjs .cache/designs-boards .cache/designs-boards/bits
       - if: always()
         uses: actions/upload-artifact@v4
         with:
           name: designs-results
-          path: .cache/designs-corpus/results.json
+          path: |
+            .cache/designs-corpus/results.json
+            .cache/designs-boards/bits
           if-no-files-found: ignore

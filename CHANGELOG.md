@@ -50,6 +50,16 @@ the "What's new" text of its GitHub release.
 - **Design corpus:** NEORV32 and light8080 now go through the whole open flow (synthesis, the
   netlist compared with the RTL cycle by cycle, place and route); light8080's, secworks-sha1's and
   secworks-aes's own testbenches pass. Every design of the corpus synthesizes and builds.
+- **Design corpus: a quality guard.** The nightly run records the size and speed of every circuit
+  the flow completes (slices, LUTs and flip-flops after packing, the critical path by Silinx's
+  timing analysis, and the device) and fails when a design gets larger or slower beyond the
+  placement noise (5 % on size; 15 % on the critical path, which moves by up to 12.5 % between
+  placer seeds; `--size-tolerance` / `--period-tolerance`); designs that got smaller or faster are
+  listed, and `--update` records them. Each stage's time is compared with a baseline per machine
+  class (`times.json`: `ci`, `local`): a synthesis or a flow 1.5 times slower (and 30 s longer) is a warning, and the run
+  prints its slowest designs (test/designs-corpus/README.md). The nightly job also builds the
+  corpus's board designs (corpus-int2float, -prbs, -spi, -serv: testbench, open flow, bitstream)
+  and fails when one does not.
 - **Silinx toolchain: register replication**, as XST and ISE's map do. After placing and routing,
   the flip-flops of many loads (8 or more) whose output is slow on the critical path are copied,
   each copy driving the loads of one region of the chip; the design is placed and routed again and
