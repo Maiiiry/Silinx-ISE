@@ -92,6 +92,12 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.waitConsole(/This project synthesizes with XST, which needs Xilinx ISE 14\.7: not available in the browser edition\./, { timeout: 15000 });
   await page.waitFor(() => !window.Silinx.busy);
   await page.eval(async () => { window.Silinx.project.synthTool = 'silinx'; await window.SilinxApp.saveProjectJson(); });
+  // programming: the reason at the end of the failure line, no "install openFPGALoader…" at startup
+  assert.doesNotMatch(await page.consoleText(), /Programmers found/);
+  await page.eval(() => window.SilinxApp.openImpact());
+  await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
+  await page.waitConsole(/Programming FPGA \(SRAM\) failed: the browser edition cannot reach the board's USB programmer: program it with the full Silinx application, or with Digilent Adept \/ iMPACT and the downloaded \.bit/);
+  assert.doesNotMatch(await page.consoleText(), /see log/);
   // edits are kept across a reload (localStorage)
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);

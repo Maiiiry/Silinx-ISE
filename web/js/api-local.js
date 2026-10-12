@@ -78,6 +78,8 @@ const NEED_SERVER = [
   'This is the browser (single HTML file) edition of Silinx.',
   `Programming a board needs ${FULL_APP}.`,
 ];
+// the job's error (the end of "<operation> failed: …")
+const NO_PROGRAMMER = 'the browser edition cannot reach the board\'s USB programmer: program it with the full Silinx application, or with Digilent Adept / iMPACT and the downloaded .bit';
 const NEED_ISE = [
   'This project synthesizes with XST, which needs Xilinx ISE 14.7: not available in the browser edition.',
   'Choose Silinx as the synthesis tool (Project > Design Properties) to implement it here, with no Xilinx tool,',
@@ -197,9 +199,9 @@ export const api = {
   fpgaView: async name => (builds.get(name)?.view || { available: false, reason: 'no-ncd' }),
   buildFile: async (name, path) => builds.get(name)?.files[path],
   bitinfo: async () => ({ available: false, reason: 'standalone edition' }),
-  program: async () => fakeJob('program', NEED_SERVER),
-  scan: async () => fakeJob('scan', NEED_SERVER),
-  prom: async () => fakeJob('prom', NEED_SERVER),
+  program: async () => fakeJob('program', NEED_SERVER, 'error', NO_PROGRAMMER),
+  scan: async () => fakeJob('scan', NEED_SERVER, 'error', NO_PROGRAMMER),
+  prom: async () => fakeJob('prom', NEED_SERVER, 'error', NO_PROGRAMMER),
   job: async (id, since = 0) => {
     const j = jobs.get(id) || fail(`job '${id}' not found`);
     return { ...j, lines: j.lines.slice(+since), next: j.lines.length };

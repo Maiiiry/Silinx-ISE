@@ -3226,13 +3226,15 @@ async function boot() {
 
   updateTitle();
   log(`${PRODUCT} ${VERSION} Project Navigator — HDL design, schematics, behavioural simulation and Xilinx FPGA implementation/programming.`, 'info');
-  if (api.standalone) log('Browser edition: projects are stored in this browser (File > Download Project Bundle to keep a copy). Implement Design and Generate Programming File run the Silinx toolchain here (Spartan-3E); programming a board needs the full Silinx application.', 'info');
+  if (api.standalone) log('Browser edition: projects are stored in this browser (File > Download Project Bundle to keep a copy). Implement Design and Generate Programming File run the Silinx toolchain here (Spartan-3E); programming a board needs the full Silinx application (or Digilent Adept / iMPACT with the downloaded .bit).', 'info');
   try { S.devices = await api.devices(); } catch (e) { log(`ERROR: cannot reach the Silinx server: ${e.message}`, 'err'); }
   api.toolchain().then(tc => {
     S.toolchain = tc;
     if (tc.ise.mode === 'silinx') log(`Toolchain: ${tc.ise.reason}.`, 'ok');
     else log(`Toolchain: ISE ${tc.ise.available ? 'available' : 'not available'} (${tc.ise.mode}: ${tc.ise.reason}).`, tc.ise.available ? 'ok' : 'warn');
     renderProcesses();
+    // (the browser edition reaches no programmer: it says so in its own startup line)
+    if (api.standalone) return;
     const progs = Object.entries(tc.programmers).filter(([, v]) => v.found).map(([k]) => k);
     log(`Programmers found: ${progs.length ? progs.join(', ') : 'none (install openFPGALoader, xc3sprog, Digilent Adept or ISE iMPACT)'}`, progs.length ? 'ok' : 'warn');
   }).catch(() => {});
