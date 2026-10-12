@@ -52,7 +52,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-bram.mjs`, `ana-bram.mjs`, `db/<device>-bram.json` | Stage D: every memory bit of the block RAMs, by binary codes |
 | `gen-sitevar.mjs`, `ana-sitevar.mjs`, `sitevar-features.mjs`, `bram-features.mjs` | Stage D: the settings of block RAMs, multipliers and DCMs, changed one at a time in designs implemented by ISE |
 | `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-F: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
-| `gen-dcmhdl.mjs` | Stage G: designs of several DCMs with settings of their own, implemented by ISE from HDL (settings xdl refuses in an edited design); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
+| `gen-dcmhdl.mjs`, `gen-sidebufg.mjs` | Stage G: designs of several DCMs with settings of their own, and of subsets of the side global buffers, implemented by ISE from HDL (settings xdl refuses in an edited design; inputs in combination); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
 
 ## Results
@@ -543,7 +543,8 @@ bottom right + top left, whose bits cannot mix; `ana-sitevar.mjs` now gives the 
   the side clock tiles' input switches (CLKL_GCLKk -> CLKL_GCLKINkk, CLKL_VCC_WIRE -> CLKL_SELDUBk…)
   set bits that depend on the other inputs used: the database's values, measured in other designs,
   are wrong in this one (5 bits). Not solved: the side clock tiles need a campaign of their own
-  (each buffer's inputs in combination).
+  (each buffer's inputs in combination). (Solved in stage G: those values were measured by removing
+  the switches, which leaves a buffer's pin without its route.)
 
 Not done: the settings of the IOB flip-flops and DDR registers (`gen-sitedrop.mjs` /
 `ana-sitedrop.mjs` remove one setting at a time; the I/O registers' clock inverters, D multiplexers
@@ -567,7 +568,7 @@ flow (blinky, lab11 on every board, the feature fixtures, feat_starter, feat_dcm
 byte-identical, CRC on and off, no DRC error or warning, no warning of the open flow), in about 3
 hours of wall time.
 
-### Stage G: the rest of the DCM (2026-10-12)
+### Stage G: the rest of the DCM, the side global buffers (2026-10-12)
 
 **#46: CLKIN_DIVIDE_BY_2, SOURCE_SYNCHRONOUS deskew and the DCM's frequency ranges.** Measured with
 designs implemented by ISE from HDL (`ise-impl.sh`: the four DCMs of the XC3S250E with every setting
@@ -599,6 +600,52 @@ mixed, xdl refusing these settings in an edited design) and xdl variants of the 
 
 Runtime: 9 designs implemented from HDL, 111 xdl + bitgen runs (84 of them PIP batches), in
 about 25 minutes of wall time.
+
+**#45: the global buffers of the left and right sides.** Designs implemented by ISE from HDL
+(`gen-sidebufg.mjs --random`: 28 designs on the four devices, each a random subset of the 16 side
+buffers, as BUFG or BUFGMUX, driven from the fabric), each compared with the writer's frame data with
+the side clock tiles' features (CLKL / CLKR) left out of the database: the bits of those tiles are
+then exactly ISE's. Solved:
+
+- **The switches into the buffers** (`GCLKk -> GCLKIN0k`, I0; `GCLKk -> GCLKIN1j`, I1 of the pair's
+  other buffer), their select from the constant 1 (`VCC_WIRE -> SELDUBk`) or the fabric (`SELDUB_…
+  _IOIS_Gn_B3 -> SELDUBk`) and out of them (`GCLK_PWOk -> GCLKH_MAINk`) **set no bits**. Stage F's
+  values (`GCLK0 -> GCLKIN00` 6,24 6,29; `VCC_WIRE -> SELDUB7` 6,47 7,45) came from removing these
+  switches (`gen-pipdrop.mjs`): a buffer's input pin left without its route makes bitgen set other
+  bits. That was the "dependency on the other inputs used".
+- **The inputs of the eight lines** (from the I/O tiles: pads or the fabric; from the XC3S1200E's
+  side DCMs) one bit each, as measured before, but for `CLKR_DN_IOIS_F4_B3 -> CLKR_GCLK7` (20,2: it was
+  empty, the bit of the XC3S500E's dcmall) and three side-DCM inputs measured now (`gen-pipdrop.mjs` on
+  #46's XC3S1200E design: `CLKL_OUTB3 -> CLKL_GCLK7`, `CLKL_OUTT1 -> CLKL_GCLK1`, `CLKR_OUTB1 ->
+  CLKR_GCLK5`).
+- **A BUFGMUX that switches**: one bit per buffer, its select not inverted (`BUFGMUX_XxYy:SINV:S`, as
+  on the top and bottom buffers; I1_USED none: xdl variants of SINV and I1_USED on one design), at
+  the same place on the four devices: CLKL 4,-20 5,-62 4,-21 5,-61 4,44 5,2 4,43 5,3 for Y2-Y9, CLKR the
+  same bits two frames earlier. A BUFG's settings (USED, SINV:S_B, I0_USED, DISABLE_ATTR:LOW) none.
+  (ISE's map refuses a BUFGCE on a side buffer.)
+- **The centre tiles** (`GCLKVML` / `GCLKVMR`: `GCLKLRk -> GCLKVMLR_GCLK_UPk / DNk`, a side line into
+  the upper or lower quadrant of its half): the 11 not measured before (`gen-branch.mjs` on the design
+  of the 16 side buffers, `learn-single.mjs` on the random designs); the left and right tiles have the
+  same bits.
+
+`measured/fix-24side-bufg.json`, `measured/learn-11side-bufg-pips.json`. With them all 28 designs and
+the earlier ones with side buffers (bufgside, the DCM designs of the XC3S500E) are byte-identical to
+ISE's bitgen, CRC on and off, but for the XC3S1200E's long-line splitters (`a =- b`, direction unknown).
+
+**What placement needs to use them** (core/fpga/place.js, not changed here): each side has eight
+buffers, `BUFGMUX_X0Y(2+k)` / `BUFGMUX_X3Y(2+k)` on line k (k = 0-7), each reaching only the
+flip-flops of its half of the chip (left / right: `route.js clockReach` gives that from the known
+switches). In each half, the centre tile (`GCLKVML` / `GCLKVMR`) drives line k of the upper and of the
+lower quadrant either from the top / bottom buffers (`GCLKCOREk`) or from the side buffer k
+(`GCLKLRk`), not both: a side buffer k and the top / bottom buffer on line k cannot both clock
+flip-flops in the same quadrant of that half (the open flow with twelve clocks fails in routing for
+that reason: `GCLKVMLR_GCLK_UP1` driven by both). The input of a side buffer comes from the I/O
+tiles beside the clock tile (`CLKL_UP_IOIS_F*_B3`, `…_DN_…`: a pad of the side's clock inputs or the
+fabric) or, on the XC3S1200E, a side DCM. A BUFGMUX that switches (I1, S) is refused by the packer
+on every buffer still; the database has its bits now.
+
+Runtime #45: 30 designs implemented from HDL (two with BUFGCE refused by map), 3 + 8 xdl + bitgen runs,
+about 30 minutes of wall time.
 
 ### Open synthesis on the board (2026-10-10)
 

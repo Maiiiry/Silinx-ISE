@@ -158,6 +158,11 @@ the "What's new" text of its GitHub release.
   and the DCM's frequency ranges follow ISE's rule exactly: the input period in whole nanoseconds
   (20.9 ns counts as 20), doubled by `CLKIN_DIVIDE_BY_2`. A CLKFX near 5 MHz, or an input period of
   200-300 ns, is no longer refused. Byte-identical to ISE's bitgen on all four devices.
+- **Bit database: the global buffers of the left and right sides** (measured with ISE, #45): their
+  switches set no bits (the values measured before were wrong and would have given wrong bitstreams),
+  a switching BUFGMUX one bit per buffer, and the centre tiles' switches from them are all known now.
+  ISE's designs with any of the 16 side buffers are byte-identical on all four devices (the Silinx
+  toolchain's placer does not put clocks on them yet).
 
 ## 15.10.2
 

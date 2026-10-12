@@ -171,6 +171,30 @@ test('gen-sitevar: variants with other values on each instance (perSite, #46); g
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
+test('measured database: the global buffers of the left and right sides (#45)', () => {
+  const t = read('s3e-tiles.json').types;
+  for (const [T, x, sinv] of [['CLKL', 0, ['4,-20', '5,-62', '4,-21', '5,-61', '4,44', '5,2', '4,43', '5,3']], ['CLKR', 3, ['2,-20', '3,-62', '2,-21', '3,-61', '2,44', '3,2', '2,43', '3,3']]]) {
+    const f = t[T].features;
+    for (let k = 0; k < 8; k++) {
+      // into, through and out of the buffers: no bits (the values of stage F were a pin left without its route)
+      for (const p of [`${T}_GCLK${k}->${T}_GCLKIN0${k}`, `${T}_GCLK${k}->${T}_GCLKIN1${k ^ 1}`, `${T}_VCC_WIRE->${T}_SELDUB${k}`, `${T}_GCLK_PWO${k}->${T}_GCLKH_MAIN${k}`]) assert.deepEqual(f[p], [], `${T} ${p}`);
+      // a select not inverted (a BUFGMUX switching): one bit per buffer, a BUFG's settings none
+      const s = `BUFGMUX_X${x}Y${k + 2}`;
+      assert.deepEqual(f[`${s}:SINV:S`], [sinv[k]], s);
+      for (const a of ['USED', 'SINV:S_B', 'I0_USED:0', 'I1_USED:0', 'DISABLE_ATTR:LOW', 'GCLKMUX:', 'GCLK_BUFFER:']) assert.deepEqual(f[`${s}:${a}`], [], `${s}:${a}`);
+    }
+    // the inputs of the lines: one bit each
+    assert.equal(Object.entries(f).filter(([k, v]) => /(IOIS_F\d_B3|OUT[TB]\d)->\w+_GCLK\d$/.test(k) && v.length === 1).length, T === 'CLKL' ? 14 : 13);
+  }
+  assert.deepEqual(t.CLKR.features['CLKR_DN_IOIS_F4_B3->CLKR_GCLK7'], ['20,2']);
+  // the centre tiles: every side line up and down, the same bits left and right
+  for (const T of ['GCLKVML', 'GCLKVMR']) {
+    const f = t[T].features;
+    assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map(k => f[`${T}_GCLKLR${k}->GCLKVMLR_GCLK_UP${k}`]), [['0,21'], ['0,23'], ['0,25'], ['0,27'], ['0,49'], ['0,52'], ['0,54'], ['0,56']]);
+    assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7].map(k => f[`${T}_GCLKLR${k}->GCLKVMLR_GCLK_DN${k}`]), [['0,70'], ['0,73'], ['0,75'], ['0,77'], ['0,99'], ['0,102'], ['0,104'], ['0,106']]);
+  }
+});
+
 test('measured database: SLICEM as RAM / shift register, I/O drive, slew and pull per pad', () => {
   const tiles = read('s3e-tiles.json');
   const f = tiles.types.CENTER_SMALL.features;

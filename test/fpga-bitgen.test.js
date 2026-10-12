@@ -358,6 +358,43 @@ net "c" ,
   assert.deepEqual(['DCM_H_BL_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_TL_CENTER', 'DCM_H_TR_CENTER'].map(t => featureBits(big.types[t], 'DCM:CLKIN:GCLK')), [['!18,100'], ['!0,100'], ['!18,-37'], ['!0,-37']]);
 });
 
+test('a global buffer of the left side: as a BUFG its settings and switches set only its input line\'s bit; a BUFGMUX\'s select one bit (#45)', () => {
+  const db = measured();
+  const xdl = sinv => `design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "b" "BUFGMUX",placed CLKL_X0Y17 BUFGMUX_X0Y2 ,
+  cfg " DISABLE_ATTR::LOW I0_USED::0 I1_USED::#OFF SINV::${sinv} GCLKMUX:b.GCLKMUX: GCLK_BUFFER:b: "
+  ;
+inst "XDL_DUMMY_CLKL_X0Y17_VCC_X0Y19" "VCC",placed CLKL_X0Y17 VCC_X0Y19 ,
+  cfg " _NO_USER_LOGIC:: _VCC_SOURCE::VCCOUT "
+  ;
+net "d" ,
+  inpin "b" I0 ,
+  pip CLKL_X0Y17 CLKL_UP_IOIS_F4_B3 -> CLKL_GCLK0 ,
+  pip CLKL_X0Y17 CLKL_GCLK0 -> CLKL_GCLKIN00 ,
+  ;
+net "g" ,
+  outpin "b" O ,
+  pip CLKL_X0Y17 CLKL_GCLK_PWO0 -> CLKL_GCLKH_MAIN0 ,
+  ;
+net "v" vcc ,
+  outpin "XDL_DUMMY_CLKL_X0Y17_VCC_X0Y19" VCCOUT ,
+  inpin "b" S ,
+  pip CLKL_X0Y17 CLKL_VCC_WIRE -> CLKL_SELDUB0 ,
+  ;
+`;
+  const base = tileBase(tileOf('CLKL_X0Y17', db), db);
+  const empty = readBit(bitgen(parseXdl('design "t" xc3s250ecp132-4 v3.2 , cfg "";\n'), db, { crc: false }).bytes).frames;
+  const bits = sinv => {
+    const r = bitgen(parseXdl(xdl(sinv)), db, { crc: false });
+    assert.deepEqual(r.unknown, [], sinv);
+    return diffFrames(empty, readBit(r.bytes).frames, FW).map(x => `${x.frame - base.frame},${x.bit - base.bit}`).sort();
+  };
+  // a BUFG (select inverted, I1 not used): only the switch from the fabric into line 0
+  assert.deepEqual(bits('S_B'), ['1,-17']);
+  // the select not inverted: one bit of its own
+  assert.deepEqual(bits('S'), ['1,-17', '4,-20']);
+});
+
 test('a DCM with CLKIN_DIVIDE_BY_2: its bit on each of the four DCMs, the input period doubled (#46)', () => {
   const db = measured();
   // the bit of CLKIN_DIVIDE_BY_2 per DCM (measured on the four, the top-left one's mirrored)

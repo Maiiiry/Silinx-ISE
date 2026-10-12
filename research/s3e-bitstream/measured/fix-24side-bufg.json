@@ -1,0 +1,265 @@
+{
+ "source": "#45 (research/s3e-bitstream/README.md, stage G): the global buffers of the left and right sides in 28 designs implemented by ISE from HDL (gen-sidebufg.mjs: random subsets of the 16 side buffers, as BUFG or BUFGMUX, on the four devices; sidebits: the bits of the side clock tiles with their features left out of the database) and 3 xdl variants of SINV / I1_USED: the switches into the buffers (GCLKk -> GCLKINjk), their select from the constant 1 (VCC_WIRE -> SELDUBk) or the fabric, and out of them (GCLK_PWOk -> GCLKH_MAINk) set no bits (the stage F values were measured by removing them: a pin left without its route); a buffer whose select is not inverted (SINV:S, a BUFGMUX) one bit each, every buffer of the four devices at the same place; the inputs into the lines (pads, the fabric, the XC3S1200E's side DCMs) one bit each, as measured before but for CLKR_DN_IOIS_F4_B3 -> CLKR_GCLK7 and three side-DCM inputs (gen-pipdrop.mjs on #46's XC3S1200E design)",
+ "types": {
+  "CLKL": {
+   "features": {
+    "CLKL_GCLK0->CLKL_GCLKIN00": [],
+    "CLKL_GCLK0->CLKL_GCLKIN11": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB0": [],
+    "CLKL_SELDUB_UP_IOIS_G1_B3->CLKL_SELDUB0": [],
+    "CLKL_GCLK_PWO0->CLKL_GCLKH_MAIN0": [],
+    "CLKL_GCLK1->CLKL_GCLKIN01": [],
+    "CLKL_GCLK1->CLKL_GCLKIN10": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB1": [],
+    "CLKL_SELDUB_UP_IOIS_G2_B3->CLKL_SELDUB1": [],
+    "CLKL_GCLK_PWO1->CLKL_GCLKH_MAIN1": [],
+    "CLKL_GCLK2->CLKL_GCLKIN02": [],
+    "CLKL_GCLK2->CLKL_GCLKIN13": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB2": [],
+    "CLKL_SELDUB_UP_IOIS_G3_B3->CLKL_SELDUB2": [],
+    "CLKL_GCLK_PWO2->CLKL_GCLKH_MAIN2": [],
+    "CLKL_GCLK3->CLKL_GCLKIN03": [],
+    "CLKL_GCLK3->CLKL_GCLKIN12": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB3": [],
+    "CLKL_SELDUB_UP_IOIS_G4_B3->CLKL_SELDUB3": [],
+    "CLKL_GCLK_PWO3->CLKL_GCLKH_MAIN3": [],
+    "CLKL_GCLK4->CLKL_GCLKIN04": [],
+    "CLKL_GCLK4->CLKL_GCLKIN15": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB4": [],
+    "CLKL_SELDUB_DN_IOIS_G1_B3->CLKL_SELDUB4": [],
+    "CLKL_GCLK_PWO4->CLKL_GCLKH_MAIN4": [],
+    "CLKL_GCLK5->CLKL_GCLKIN05": [],
+    "CLKL_GCLK5->CLKL_GCLKIN14": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB5": [],
+    "CLKL_SELDUB_DN_IOIS_G2_B3->CLKL_SELDUB5": [],
+    "CLKL_GCLK_PWO5->CLKL_GCLKH_MAIN5": [],
+    "CLKL_GCLK6->CLKL_GCLKIN06": [],
+    "CLKL_GCLK6->CLKL_GCLKIN17": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB6": [],
+    "CLKL_SELDUB_DN_IOIS_G3_B3->CLKL_SELDUB6": [],
+    "CLKL_GCLK_PWO6->CLKL_GCLKH_MAIN6": [],
+    "CLKL_GCLK7->CLKL_GCLKIN07": [],
+    "CLKL_GCLK7->CLKL_GCLKIN16": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB7": [],
+    "CLKL_SELDUB_DN_IOIS_G4_B3->CLKL_SELDUB7": [],
+    "CLKL_GCLK_PWO7->CLKL_GCLKH_MAIN7": [],
+    "BUFGMUX_X0Y2:USED": [],
+    "BUFGMUX_X0Y2:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y2:I0_USED:0": [],
+    "BUFGMUX_X0Y2:I1_USED:0": [],
+    "BUFGMUX_X0Y2:GCLKMUX:": [],
+    "BUFGMUX_X0Y2:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y2:SINV:S_B": [],
+    "BUFGMUX_X0Y2:SINV:S": [
+     "4,-20"
+    ],
+    "BUFGMUX_X0Y3:USED": [],
+    "BUFGMUX_X0Y3:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y3:I0_USED:0": [],
+    "BUFGMUX_X0Y3:I1_USED:0": [],
+    "BUFGMUX_X0Y3:GCLKMUX:": [],
+    "BUFGMUX_X0Y3:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y3:SINV:S_B": [],
+    "BUFGMUX_X0Y3:SINV:S": [
+     "5,-62"
+    ],
+    "BUFGMUX_X0Y4:USED": [],
+    "BUFGMUX_X0Y4:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y4:I0_USED:0": [],
+    "BUFGMUX_X0Y4:I1_USED:0": [],
+    "BUFGMUX_X0Y4:GCLKMUX:": [],
+    "BUFGMUX_X0Y4:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y4:SINV:S_B": [],
+    "BUFGMUX_X0Y4:SINV:S": [
+     "4,-21"
+    ],
+    "BUFGMUX_X0Y5:USED": [],
+    "BUFGMUX_X0Y5:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y5:I0_USED:0": [],
+    "BUFGMUX_X0Y5:I1_USED:0": [],
+    "BUFGMUX_X0Y5:GCLKMUX:": [],
+    "BUFGMUX_X0Y5:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y5:SINV:S_B": [],
+    "BUFGMUX_X0Y5:SINV:S": [
+     "5,-61"
+    ],
+    "BUFGMUX_X0Y6:USED": [],
+    "BUFGMUX_X0Y6:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y6:I0_USED:0": [],
+    "BUFGMUX_X0Y6:I1_USED:0": [],
+    "BUFGMUX_X0Y6:GCLKMUX:": [],
+    "BUFGMUX_X0Y6:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y6:SINV:S_B": [],
+    "BUFGMUX_X0Y6:SINV:S": [
+     "4,44"
+    ],
+    "BUFGMUX_X0Y7:USED": [],
+    "BUFGMUX_X0Y7:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y7:I0_USED:0": [],
+    "BUFGMUX_X0Y7:I1_USED:0": [],
+    "BUFGMUX_X0Y7:GCLKMUX:": [],
+    "BUFGMUX_X0Y7:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y7:SINV:S_B": [],
+    "BUFGMUX_X0Y7:SINV:S": [
+     "5,2"
+    ],
+    "BUFGMUX_X0Y8:USED": [],
+    "BUFGMUX_X0Y8:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y8:I0_USED:0": [],
+    "BUFGMUX_X0Y8:I1_USED:0": [],
+    "BUFGMUX_X0Y8:GCLKMUX:": [],
+    "BUFGMUX_X0Y8:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y8:SINV:S_B": [],
+    "BUFGMUX_X0Y8:SINV:S": [
+     "4,43"
+    ],
+    "BUFGMUX_X0Y9:USED": [],
+    "BUFGMUX_X0Y9:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X0Y9:I0_USED:0": [],
+    "BUFGMUX_X0Y9:I1_USED:0": [],
+    "BUFGMUX_X0Y9:GCLKMUX:": [],
+    "BUFGMUX_X0Y9:GCLK_BUFFER:": [],
+    "BUFGMUX_X0Y9:SINV:S_B": [],
+    "BUFGMUX_X0Y9:SINV:S": [
+     "5,3"
+    ],
+    "CLKL_OUTB3->CLKL_GCLK7": [
+     "1,1"
+    ],
+    "CLKL_OUTT1->CLKL_GCLK1": [
+     "1,-9"
+    ]
+   }
+  },
+  "CLKR": {
+   "features": {
+    "CLKR_GCLK0->CLKR_GCLKIN00": [],
+    "CLKR_GCLK0->CLKR_GCLKIN11": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB0": [],
+    "CLKR_SELDUB_UP_IOIS_G1_B3->CLKR_SELDUB0": [],
+    "CLKR_GCLK_PWO0->CLKR_GCLKH_MAIN0": [],
+    "CLKR_GCLK1->CLKR_GCLKIN01": [],
+    "CLKR_GCLK1->CLKR_GCLKIN10": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB1": [],
+    "CLKR_SELDUB_UP_IOIS_G2_B3->CLKR_SELDUB1": [],
+    "CLKR_GCLK_PWO1->CLKR_GCLKH_MAIN1": [],
+    "CLKR_GCLK2->CLKR_GCLKIN02": [],
+    "CLKR_GCLK2->CLKR_GCLKIN13": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB2": [],
+    "CLKR_SELDUB_UP_IOIS_G3_B3->CLKR_SELDUB2": [],
+    "CLKR_GCLK_PWO2->CLKR_GCLKH_MAIN2": [],
+    "CLKR_GCLK3->CLKR_GCLKIN03": [],
+    "CLKR_GCLK3->CLKR_GCLKIN12": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB3": [],
+    "CLKR_SELDUB_UP_IOIS_G4_B3->CLKR_SELDUB3": [],
+    "CLKR_GCLK_PWO3->CLKR_GCLKH_MAIN3": [],
+    "CLKR_GCLK4->CLKR_GCLKIN04": [],
+    "CLKR_GCLK4->CLKR_GCLKIN15": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB4": [],
+    "CLKR_SELDUB_DN_IOIS_G1_B3->CLKR_SELDUB4": [],
+    "CLKR_GCLK_PWO4->CLKR_GCLKH_MAIN4": [],
+    "CLKR_GCLK5->CLKR_GCLKIN05": [],
+    "CLKR_GCLK5->CLKR_GCLKIN14": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB5": [],
+    "CLKR_SELDUB_DN_IOIS_G2_B3->CLKR_SELDUB5": [],
+    "CLKR_GCLK_PWO5->CLKR_GCLKH_MAIN5": [],
+    "CLKR_GCLK6->CLKR_GCLKIN06": [],
+    "CLKR_GCLK6->CLKR_GCLKIN17": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB6": [],
+    "CLKR_SELDUB_DN_IOIS_G3_B3->CLKR_SELDUB6": [],
+    "CLKR_GCLK_PWO6->CLKR_GCLKH_MAIN6": [],
+    "CLKR_GCLK7->CLKR_GCLKIN07": [],
+    "CLKR_GCLK7->CLKR_GCLKIN16": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB7": [],
+    "CLKR_SELDUB_DN_IOIS_G4_B3->CLKR_SELDUB7": [],
+    "CLKR_GCLK_PWO7->CLKR_GCLKH_MAIN7": [],
+    "BUFGMUX_X3Y2:USED": [],
+    "BUFGMUX_X3Y2:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y2:I0_USED:0": [],
+    "BUFGMUX_X3Y2:I1_USED:0": [],
+    "BUFGMUX_X3Y2:GCLKMUX:": [],
+    "BUFGMUX_X3Y2:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y2:SINV:S_B": [],
+    "BUFGMUX_X3Y2:SINV:S": [
+     "2,-20"
+    ],
+    "BUFGMUX_X3Y3:USED": [],
+    "BUFGMUX_X3Y3:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y3:I0_USED:0": [],
+    "BUFGMUX_X3Y3:I1_USED:0": [],
+    "BUFGMUX_X3Y3:GCLKMUX:": [],
+    "BUFGMUX_X3Y3:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y3:SINV:S_B": [],
+    "BUFGMUX_X3Y3:SINV:S": [
+     "3,-62"
+    ],
+    "BUFGMUX_X3Y4:USED": [],
+    "BUFGMUX_X3Y4:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y4:I0_USED:0": [],
+    "BUFGMUX_X3Y4:I1_USED:0": [],
+    "BUFGMUX_X3Y4:GCLKMUX:": [],
+    "BUFGMUX_X3Y4:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y4:SINV:S_B": [],
+    "BUFGMUX_X3Y4:SINV:S": [
+     "2,-21"
+    ],
+    "BUFGMUX_X3Y5:USED": [],
+    "BUFGMUX_X3Y5:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y5:I0_USED:0": [],
+    "BUFGMUX_X3Y5:I1_USED:0": [],
+    "BUFGMUX_X3Y5:GCLKMUX:": [],
+    "BUFGMUX_X3Y5:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y5:SINV:S_B": [],
+    "BUFGMUX_X3Y5:SINV:S": [
+     "3,-61"
+    ],
+    "BUFGMUX_X3Y6:USED": [],
+    "BUFGMUX_X3Y6:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y6:I0_USED:0": [],
+    "BUFGMUX_X3Y6:I1_USED:0": [],
+    "BUFGMUX_X3Y6:GCLKMUX:": [],
+    "BUFGMUX_X3Y6:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y6:SINV:S_B": [],
+    "BUFGMUX_X3Y6:SINV:S": [
+     "2,44"
+    ],
+    "BUFGMUX_X3Y7:USED": [],
+    "BUFGMUX_X3Y7:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y7:I0_USED:0": [],
+    "BUFGMUX_X3Y7:I1_USED:0": [],
+    "BUFGMUX_X3Y7:GCLKMUX:": [],
+    "BUFGMUX_X3Y7:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y7:SINV:S_B": [],
+    "BUFGMUX_X3Y7:SINV:S": [
+     "3,2"
+    ],
+    "BUFGMUX_X3Y8:USED": [],
+    "BUFGMUX_X3Y8:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y8:I0_USED:0": [],
+    "BUFGMUX_X3Y8:I1_USED:0": [],
+    "BUFGMUX_X3Y8:GCLKMUX:": [],
+    "BUFGMUX_X3Y8:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y8:SINV:S_B": [],
+    "BUFGMUX_X3Y8:SINV:S": [
+     "2,43"
+    ],
+    "BUFGMUX_X3Y9:USED": [],
+    "BUFGMUX_X3Y9:DISABLE_ATTR:LOW": [],
+    "BUFGMUX_X3Y9:I0_USED:0": [],
+    "BUFGMUX_X3Y9:I1_USED:0": [],
+    "BUFGMUX_X3Y9:GCLKMUX:": [],
+    "BUFGMUX_X3Y9:GCLK_BUFFER:": [],
+    "BUFGMUX_X3Y9:SINV:S_B": [],
+    "BUFGMUX_X3Y9:SINV:S": [
+     "3,3"
+    ],
+    "CLKR_DN_IOIS_F4_B3->CLKR_GCLK7": [
+     "20,2"
+    ],
+    "CLKR_OUTB1->CLKR_GCLK5": [
+     "20,14"
+    ]
+   }
+  }
+ }
+}
