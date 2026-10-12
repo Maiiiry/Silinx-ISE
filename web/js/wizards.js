@@ -958,13 +958,33 @@ async function latestRelease() {
   return r.json();
 }
 
+// the start-up check's last answer (GitHub allows 60 unauthenticated requests an hour per address:
+// a page reloaded many times would use them up), kept an hour, a failure ten minutes
+const UPDATE_CACHE = 'silinx.updateCheck';
+const cachedRelease = () => {
+  try {
+    const c = JSON.parse(localStorage.getItem(UPDATE_CACHE) || 'null');
+    if (c && Date.now() - c.at < (c.rel ? 3600e3 : 600e3) && c.at <= Date.now()) return c;
+  } catch { /* no storage */ }
+  return null;
+};
+const cacheRelease = rel => { try { localStorage.setItem(UPDATE_CACHE, JSON.stringify({ at: Date.now(), rel })); } catch { /* no storage */ } };
+
 /**
- * At start-up: check the latest release on GitHub; a newer version opens the update dialog,
- * otherwise one line in the console (no network / GitHub error: nothing shown).
+ * At start-up: check the latest release on GitHub (at most once an hour); a newer version opens the
+ * update dialog, otherwise one line in the console (no network / GitHub error: nothing shown).
  */
 export async function checkUpdatesOnStart() {
   let rel;
-  try { rel = await latestRelease(); } catch { return null; }
+  const cached = cachedRelease();
+  if (cached) {
+    if (!cached.rel) return null;
+    rel = cached.rel;
+  } else {
+    try { rel = await latestRelease(); } catch { cacheRelease(null); return null; }
+    cacheRelease({ tag_name: rel.tag_name, name: rel.name, html_url: rel.html_url, published_at: rel.published_at,
+      assets: (rel.assets || []).map(({ name, browser_download_url, size }) => ({ name, browser_download_url, size })) });
+  }
   const latest = String(rel.tag_name || rel.name || '').replace(/^v/i, '');
   if (!latest) return null;
   if (compareVersions(latest, VERSION) > 0) return checkUpdatesDialog({ rel });

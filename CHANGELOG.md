@@ -12,6 +12,8 @@ the "What's new" text of its GitHub release.
   from the disk. The Platform Flash (PROM) is still programmed by the full application (#112).
 - The browser edition's messages about programming: no "install openFPGALoader…" at startup, and a
   failed attempt says why instead of "see log" (#111).
+- The start-up update check asks GitHub at most once an hour: reloading the page many times no
+  longer runs into GitHub's rate limit (#115).
 
 ## 15.10.3
 

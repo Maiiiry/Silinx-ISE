@@ -377,10 +377,20 @@ uiTest('at start-up the app checks for updates: a newer release opens the update
   // the version running is the latest: no dialog, one line in the console
   await page.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: s1.identifier });
   const version = await page.eval(async () => (await import('/core/version.js')).VERSION);
-  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: stub(`v${version}`) });
+  const s2 = await page.send('Page.addScriptToEvaluateOnNewDocument', { source: stub(`v${version}`) });
+  await page.eval(() => localStorage.removeItem('silinx.updateCheck'));   // (the answer of the first load is kept an hour)
   await page.reload();
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot' });
   await page.waitConsole(/is up to date \(latest release on GitHub/);
+  assert.equal(await page.dialogCount(), 0);
+  // reloaded again within the hour: GitHub is not asked (its rate limit), the kept answer is used
+  await page.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: s2.identifier });
+  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: `${stub('v99.0.0')}
+    (() => { const f = window.fetch; window.__gh = 0; window.fetch = (u, o) => (String(u).includes('api.github.com') && window.__gh++, f(u, o)); })();` });
+  await page.reload();
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot' });
+  await page.waitConsole(/is up to date \(latest release on GitHub/);
+  assert.equal(await page.eval(() => window.__gh), 0);
   assert.equal(await page.dialogCount(), 0);
 }, { skip: chromeOnly });   // (Page.addScriptToEvaluateOnNewDocument and its removal)
 
