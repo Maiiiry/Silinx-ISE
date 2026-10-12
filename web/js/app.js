@@ -1209,19 +1209,25 @@ export function activateDoc(doc) {
 // Editing always saves: a document with changes is written ~0.8 s after the last edit.
 export function setDirty(doc, dirty) {
   doc.dirty = dirty;
-  if (dirty) doc._editedAt = Date.now();   // (Edit ▸ Undo: the last action was an edit or a removal?)
+  if (dirty) { doc._editedAt = Date.now(); doc._edits = (doc._edits || 0) + 1; }   // (Edit ▸ Undo: the last action was an edit or a removal?)
   doc.tab.classList.toggle('dirty', dirty);
   clearTimeout(doc._autosave);
   if (dirty && doc.save) doc._autosave = setTimeout(() => flushDoc(doc, { auto: true }), 800);
 }
 async function flushDoc(doc, opts) {
   clearTimeout(doc._autosave);
+  // one save at a time per document: two at once could reach the server in the wrong order
+  while (doc._saving) await doc._saving.catch(() => {});
   if (!doc.dirty || !doc.save) return true;
   // never write a document into another project (e.g. a retry after the project was switched)
   if (doc.project && S.project?.name !== doc.project) return false;
+  const edits = doc._edits;
   try {
-    await doc.save(opts);
+    doc._saving = doc.save(opts);
+    await doc._saving;
     if (doc._saveFailed) { doc._saveFailed = false; log(`${doc.path || doc.title} saved.`, 'ok'); }
+    // edited while it was being saved (the save marked it clean): those edits are saved next
+    if (doc._edits !== edits) setDirty(doc, true);
   } catch (e) {
     // keep the changes and retry; report once until it works again
     if (!doc._saveFailed) log(`ERROR: cannot save ${doc.path || doc.title}: ${e.message}. Your changes are kept and saved as soon as it is possible again.`, 'err');
@@ -1230,7 +1236,7 @@ async function flushDoc(doc, opts) {
     clearTimeout(doc._autosave);
     doc._autosave = setTimeout(() => flushDoc(doc, opts), 3000);
     return false;
-  }
+  } finally { doc._saving = null; }
   return true;
 }
 
@@ -1287,7 +1293,7 @@ export async function openFile(path, line, col) {
           text, lang, path,
           project: () => ({ modules: S.modules }),
           onChange: () => { setDirty(d, !d.editor.isClean()); if (lang === 'ucf') liveUcf(); else if (lang === 'vhdl' || lang === 'verilog') liveHdl(); },
-          onSave: () => d.save(),
+          onSave: () => flushDoc(d),
           onGotoDefinition: ({ file, line: ln }) => openFile(file, ln),
           onCursor: (l, c) => { if (S.active === d) $('status-pos').textContent = `Ln ${l}  Col ${c}`; },
         });
@@ -1338,11 +1344,13 @@ export async function openFile(path, line, col) {
           lang,
           onActivate: () => setTimeout(() => d.editor?.refresh(), 0),
           save: async ({ auto = false } = {}) => {
-            await api.writeFile(S.project.name, path, d.editor.getValue());
-            d.editor.markClean();
+            const text = d.editor.getValue();
+            await api.writeFile(S.project.name, path, text);
+            // (only the text written is clean: an edit made meanwhile is saved next, see flushDoc)
+            if (d.editor.getValue() === text) d.editor.markClean();
             setDirty(d, false);
             const src = S.sources.find(s => s.path === path);
-            if (src) src.text = d.editor.getValue();
+            if (src) src.text = text;
             else await reloadProject(false);
             compileProject(); renderHierarchy(); markStale();
             status(`Saved ${path}`);

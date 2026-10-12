@@ -45,6 +45,37 @@ const project = (name, extra = {}) => makeProject(env, {
 });
 const editorText = (page, path) => page.eval((p) => window.SilinxApp.findDoc(`file:${p}`).editor.getValue(), path);
 
+uiTest('editor: an edit made while the file is being saved is saved too, and saves of one file never overlap', E, async (page) => {
+  await project('SlowSave');
+  await page.openProject('SlowSave');
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
+  // the server answers each write after 1.5 s; record the writes and how many run at once
+  await page.eval(() => {
+    const orig = window.fetch;
+    window.__writes = []; window.__inFlight = 0; window.__maxInFlight = 0;
+    window.fetch = async (u, o) => {
+      if (o?.method !== 'PUT' || !String(u).includes('/file?path=src%2Ftop.vhd')) return orig(u, o);
+      window.__maxInFlight = Math.max(window.__maxInFlight, ++window.__inFlight);
+      window.__writes.push(o.body.split('\n')[0]);
+      await new Promise((r) => setTimeout(r, 1500));
+      try { return await orig(u, o); } finally { window.__inFlight--; }
+    };
+  });
+  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: cm.getLine(0).length }); });
+  await page.type(' -- one');
+  await page.key('s', { modifiers: 2 });
+  await page.waitFor(() => window.__inFlight === 1, [], { what: 'the first save under way' });
+  // typed during the save, then Ctrl+S again while the first save is still running
+  await page.type(' two');
+  await page.key('s', { modifiers: 2 });
+  await page.waitFor(async () => (await (await fetch('/api/projects/SlowSave/file?path=src/top.vhd')).text()).startsWith('library ieee; -- one two\n'), [], { what: 'the edit made during the save, saved', timeout: 15000 });
+  await page.waitFor(() => !window.Silinx.active.tab.classList.contains('dirty') && window.__inFlight === 0, [], { what: 'clean', timeout: 10000 });
+  assert.equal(await page.eval(() => window.__maxInFlight), 1, 'one save at a time');
+  assert.equal(await page.eval(() => window.__writes.at(-1)), 'library ieee; -- one two');
+  assert.match(await readWs(env, 'SlowSave', 'src/top.vhd'), /^library ieee; -- one two\n/);
+});
+
 uiTest('editor: open from the hierarchy, edit, autosave, Ctrl+S, undo and live error markers', E, async (page) => {
   await project('EdPj');
   await page.openProject('EdPj');
