@@ -464,7 +464,8 @@ export class Simulator {
   start() {
     if (this.started) return;
     this.started = true;
-    for (const rt of this.rts) {
+    // (variable initializers evaluated at time 0 first: integer b = a + 1; IEEE 1800-2017 10.5)
+    for (const rt of [...this.rts.filter(r => r.p.declInit), ...this.rts.filter(r => !r.p.declInit)]) {
       rt.gen = this.makeGen(rt);
       this.active.push({ rt, val: undefined });
     }

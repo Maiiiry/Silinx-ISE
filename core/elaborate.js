@@ -736,10 +736,14 @@ function bindDecl(E, d) {
     case 'signal': {
       const t = elabType(E, d.type);
       let init = defaultValue(t, E.lang, d.net);
+      let lateInit = null;
       if (d.init) {
         const n = bindExpr(E, d.init, t, d.loc);
         if (E.lang === 'verilog') ctxSize(n, t.w);
-        init = fitAny(constOf(E, n, d.loc), t);
+        // a module variable's initializer that is not constant (integer b = a + 1;, IEEE 1800-2017
+        // 10.5): evaluated once at time 0, before the initial and always procedures start
+        if (E.lang === 'verilog' && !E.fb && !isConstNode(n)) lateInit = n;
+        else init = fitAny(constOf(E, n, d.loc), t);
       }
       if (E.fb && (d.net === 'variable' || E.inProcess)) {
         const i = E.fb.alloc(t, init);
@@ -750,7 +754,12 @@ function bindDecl(E, d) {
       // Verilog: a net without drivers is z (tri0 / tri1: pulled to 0 / 1)
       if (E.lang === 'verilog' && d.net === 'wire' && !d.init && t.kind === 'logic') init = d.wired === 'tri0' ? V.zero(t.w) : d.wired === 'tri1' ? V.mk(t.w, V.mask(t.w)) : V.mk(t.w, V.mask(t.w), V.mask(t.w), t.s);
       const sig = newSignal(E, E.prefix + d.name, t, init, d.net === 'variable' ? 'var' : 'signal', d.loc);
-      if (d.init) sig.hasInit = true;
+      if (d.init && !lateInit) sig.hasInit = true;
+      if (lateInit) {
+        const proc = addProc(E, { name: `${E.prefix}${d.name}_init`, kind: 'process', mode: 'initial', body: { k: 'asg', target: { k: 'sig', sig, t, name: d.name }, value: lateInit, nb: false, loc: d.loc },
+          triggers: [], lang: E.lang, loc: d.loc, file: E.file });
+        proc.declInit = true;   // (runs before the procedures: the simulator starts it first)
+      }
       if (d.net === 'reg') sig.net = 'reg';   // (Verilog reg: a variable in VCD files)
       if (d.wired) sig.wired = d.wired;
       if (E.lang === 'verilog' && d.net === 'wire' && !d.init && t.kind === 'logic' && !d.wired) sig.netZ = true;   // (x once it has drivers)

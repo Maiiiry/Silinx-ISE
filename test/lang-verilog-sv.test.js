@@ -312,3 +312,17 @@ test('SystemVerilog: function output arguments in expressions, run-time real mat
 module module_sub #(parameter P = 5) (); endmodule`, [], 'tb');
   assert.deepEqual(r, ['4 6 | 2 4 | 7 4 | a 5 | 2 20 22 23']);
 });
+
+// #6: a module variable initialized by an expression that is not constant (IEEE 1800-2017 10.5):
+// evaluated once at time 0, before the initial and always procedures (in declaration order)
+test('variable initializers that are not constant: evaluated at time 0, before the procedures (#6)', () => {
+  const r = outW(vlog(`
+  initial $display("%0d %0d %0d", b, c, d);
+  reg [3:0] a = 4'd2;
+  integer b = a + 1;
+  integer c = b * 10;
+  integer d = f(c);
+  function automatic integer f(input integer k); return k - 5; endfunction
+  initial begin #1 a = 4'd9; #1 $display("%0d %0d", a, b); end`), [], 'tb');
+  assert.deepEqual(r, ['3 30 25', '9 3'], 'evaluated once (b does not follow a)');
+});

@@ -109,6 +109,8 @@ the "What's new" text of its GitHub release.
   automatic pins, Check Constraints (which reports `NET "Mixed"` as ngdbuild's error, with the
   right name) and the Silinx toolchain's pads (#65). The pads of Verilog escaped names that start
   with a digit (`\1abc `) are XST's `_1abc_` too (they were `__1abc_`).
+- **SystemVerilog: variable initializers that are not constant** (`integer b = a + 1;`) are evaluated
+  once at time 0, before the initial and always procedures (#6).
 
 ## 15.10.2
 
