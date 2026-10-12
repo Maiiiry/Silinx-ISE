@@ -432,15 +432,21 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const gridM = new Uint8Array(GN);
   for (const s of sliceList) { gridSite[s.x * GH + s.y] = s; gridM[s.x * GH + s.y] = s.type === 'SLICEM' ? 1 : 0; }
   const gidx = (x, y) => (x < 0 || y < 0 || x > maxX || y > maxY ? -1 : x * GH + y);
-  // allowedAt on the grid: the slices a clock reaches (one table per clock), the SLICEM sites
-  const reachGrid = new Map();
-  const allowedG = allowedOf.map(r => {
-    if (!r) return null;
-    if (!reachGrid.has(r)) { const a = new Uint8Array(GN); for (let g = 0; g < GN; g++) if (gridSite[g] && r.has(gridSite[g].name)) a[g] = 1; reachGrid.set(r, a); }
-    return reachGrid.get(r);
+  // allowedAt on the grid: a table of the slices an instance may take (null: any), one per clock
+  // reach and SLICEM need (the slices the clock reaches, the SLICEM sites)
+  const allowedTables = new Map();
+  const allowedG = allowedOf.map((r, i) => {
+    const m = packed.insts[i].type === 'SLICEM';
+    if (!r && !m) return null;
+    if (!allowedTables.has(r)) allowedTables.set(r, [null, null]);
+    const t = allowedTables.get(r);
+    if (!t[+m]) {
+      const a = t[+m] = new Uint8Array(GN);
+      for (let g = 0; g < GN; g++) if (gridSite[g] && (!r || r.has(gridSite[g].name)) && (!m || gridM[g] === 1)) a[g] = 1;
+    }
+    return t[+m];
   });
-  const needM = packed.insts.map(inst => inst.type === 'SLICEM');
-  const allowedAtG = (i, g) => (!allowedG[i] || allowedG[i][g] === 1) && (!needM[i] || gridM[g] === 1);
+  const allowedAtG = (i, g) => { const a = allowedG[i]; return a === null || a[g] === 1; };
   const occ = new Int32Array(GN).fill(-1);   // grid index -> inst
   const fitsAt = (o, x, y) => {
     if (x % o.align[0] || y % o.align[1]) return false;
@@ -559,8 +565,16 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const model = tg ? tg.model : SPEED_4;
   const dist = model.dist;
   // the estimated delay of connection j (connDelay, inlined)
-  const cdelay = delays
-    ? j => delays.at(Math.floor(posX[cDst[j]]) - Math.floor(posX[cSrc[j]]), Math.floor(posY[cSrc[j]]) - Math.floor(posY[cDst[j]]))
+  const DT = delays && delays.d && Number.isInteger(delays.w) && Number.isInteger(delays.dc0) ? delays : null;   // timing.js delayTable's table: read directly
+  const dtW = DT ? DT.w : 0, dtH = DT ? DT.h : 0, dtC0 = DT ? DT.dc0 : 0, dtR0 = DT ? DT.dr0 : 0, dtD = DT ? DT.d : null;
+  const cdelay = DT
+    ? j => {
+      // (its at(dc, dr): the offsets of whole tiles, clamped to the table)
+      let x = Math.floor(posX[cDst[j]]) - Math.floor(posX[cSrc[j]]) + dtC0, y = Math.floor(posY[cSrc[j]]) - Math.floor(posY[cDst[j]]) + dtR0;
+      x = x < 0 ? 0 : x > dtW - 1 ? dtW - 1 : x; y = y < 0 ? 0 : y > dtH - 1 ? dtH - 1 : y;
+      return dtD[y * dtW + x];
+    }
+    : delays ? j => delays.at(Math.floor(posX[cDst[j]]) - Math.floor(posX[cSrc[j]]), Math.floor(posY[cSrc[j]]) - Math.floor(posY[cDst[j]]))
     : j => {
       const d = Math.abs(posX[cSrc[j]] - posX[cDst[j]]) + Math.abs(posY[cSrc[j]] - posY[cDst[j]]);
       return dist.base + dist.perTile * Math.min(d, dist.knee) + dist.far * Math.max(0, d - dist.knee);
