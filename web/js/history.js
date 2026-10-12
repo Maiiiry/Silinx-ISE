@@ -23,6 +23,7 @@ export function createHistory(api, hooks) {
   const raw = { writeFile: api.writeFile, deleteFile: api.deleteFile, renameFile: api.renameFile, saveProject: api.saveProject, readFile: api.readFile, project: api.project };
   let cur = null;          // the command being recorded
   let pending = null;      // its end (an Undo clicked meanwhile waits for it)
+  let finishing = null;    // the command ended, its step being made (still shown as the one to undo)
   let quiet = 0;           // writes that are not recorded (the documents' saves, Undo / Redo themselves)
   let applying = 0;        // an Undo / Redo writing the files and reopening their documents
   let project = null;
@@ -66,7 +67,8 @@ export function createHistory(api, hooks) {
       return await fn();
     } finally {
       cur = null;
-      try { await finish(entry); } finally { pending = null; done(); }
+      finishing = entry;
+      try { await finish(entry); } finally { finishing = null; pending = null; done(); }
     }
   }
   async function finish(e) {
@@ -108,7 +110,10 @@ export function createHistory(api, hooks) {
   // one stack to the other before its files are written (a command run while they are written then
   // finds the stacks as they will be), and back if the user keeps the files changed since
   async function step(from, to, side) {
+    // an Undo of a command still running waits for it; if it changed nothing, nothing is undone
+    const waited = side === 'before' ? running() : null;
     if (pending) await pending;
+    if (waited && from.at(-1)?.at !== waited.at) return null;
     if (!live() || !from.length) return null;
     await hooks.flush?.();
     const e = from.pop();
@@ -124,7 +129,7 @@ export function createHistory(api, hooks) {
     return ok ? e : null;
   }
   const live = () => hooks.project() === project;
-  const running = () => (cur && cur.project === hooks.project() ? cur : null);
+  const running = () => { const c = cur || finishing; return c && c.project === hooks.project() ? c : null; };
   return {
     run,
     /** the documents' saves: not part of a command */

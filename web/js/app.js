@@ -1200,6 +1200,8 @@ export function openDoc(spec) {
   let doc = findDoc(spec.id);
   if (doc) { activateDoc(doc); return doc; }
   doc = { ...spec, el: h('div', { class: 'doc' }), project: S.project?.name };
+  // the user's own actions in the document (Edit ▸ Undo: was the last change an edit of theirs?)
+  for (const ev of ['keydown', 'pointerdown', 'input', 'paste', 'drop']) doc.el.addEventListener(ev, () => { doc._userAt = Date.now(); }, true);
   $('workspace').append(doc.el);
   doc.tab = docTab(doc);
   $('doc-tabs').append(doc.tab);
@@ -1221,7 +1223,9 @@ export function activateDoc(doc) {
 // Editing always saves: a document with changes is written ~0.8 s after the last edit.
 export function setDirty(doc, dirty) {
   doc.dirty = dirty;
-  if (dirty) { if (!history.busy()) doc._editedAt = Date.now(); doc._edits = (doc._edits || 0) + 1; }   // (Edit ▸ Undo: the last action was an edit or a removal?)
+  // (an edit of the user: a change right after their action in the document, while no command,
+  // Undo or Redo writes; a document opened or updated by a command is not edited by the user)
+  if (dirty) { if (!history.busy() && Date.now() - (doc._userAt || 0) < 2000) doc._editedAt = Date.now(); doc._edits = (doc._edits || 0) + 1; }   // (Edit ▸ Undo: the last action was an edit or a removal?)
   doc.tab.classList.toggle('dirty', dirty);
   clearTimeout(doc._autosave);
   if (dirty && doc.save) doc._autosave = setTimeout(() => flushDoc(doc, { auto: true }), 800);
