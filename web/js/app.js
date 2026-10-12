@@ -1804,11 +1804,12 @@ async function convertAsmToHdl(asmPath) {
 function asmContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openAsm(file) },
+    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to HDL', action: () => convertAsmToHdl(file) },
     { label: 'Convert to State Diagram (FSM)…', action: () => asmToFsmDiagram(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
-  ], e.clientX, e.clientY);
+  ].filter(Boolean), e.clientX, e.clientY);
 }
 
 // ---- truth tables (.tt.json): table <-> HDL module, synchronized like ASM charts
@@ -2032,10 +2033,11 @@ async function convertTtToHdl(ttPath) {
 function ttContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openTt(file) },
+    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to HDL', action: () => convertTtToHdl(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
-  ], e.clientX, e.clientY);
+  ].filter(Boolean), e.clientX, e.clientY);
 }
 
 // ---- state diagrams (.fsm.json): bubble diagram <-> HDL module, synchronized like ASM charts
@@ -2268,11 +2270,12 @@ async function fsmTruthTables(fsmPath) {
 function fsmContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openFsm(file) },
+    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to HDL', action: () => convertFsmToHdl(file) },
     { label: 'Convert to ASM chart', action: () => fsmToAsmChart(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
-  ], e.clientX, e.clientY);
+  ].filter(Boolean), e.clientX, e.clientY);
 }
 
 // ---- schematic editor (.sch.json): schematic <-> HDL
@@ -2502,6 +2505,25 @@ async function setSchBase(schPath, base) {
   if (base === 'hdl' && gen) openFile(gen); else openView(schPath);
 }
 
+// A schematic, ASM chart, state diagram or truth table on its own as the top: its HDL is generated
+// (kept in sync, the drawing staying the base: as ISE makes a top-level schematic's HDL itself),
+// and the module it defines becomes the top
+async function setViewAsTop(path) {
+  if (!S.schOwners?.[path]) {
+    const convert = isAsm(path) ? convertAsmToHdl : isTt(path) ? convertTtToHdl : isFsm(path) ? convertFsmToHdl : convertSchToHdl;
+    await convert(path);
+    if (!S.schOwners?.[path]) return;   // not converted (its errors are shown, or cancelled)
+    if (S.schBase?.[path] === 'hdl') await setSchBase(path, 'view');
+  }
+  const gen = S.schOwners[path];
+  const mod = S.modules.find(m => m.file === gen && m.kind !== 'package')?.name;
+  if (!mod) { alertDlg('Set as Top Module', `${gen} defines no module that can be the top.`, 'error'); return; }
+  await setTop(mod, false);
+  log(`Top module: ${mod} (${path.split('/').pop()}, its HDL ${gen.split('/').pop()} kept in sync).`, 'ok');
+}
+const viewSel = () => (['sch', 'asm', 'tt', 'fsm'].includes(S.sel?.type) ? S.sel.file : null);
+const topOfView = path => { const gen = S.schOwners?.[path]; return gen ? S.modules.find(m => m.file === gen && m.kind !== 'package')?.name : null; };
+
 // A schematic without HDL yet: generate its HDL file and make the HDL the base (schematic kept, in sync).
 async function convertSchToHdl(schPath) {
   if (S.schOwners?.[schPath]) return setSchBase(schPath, 'hdl');
@@ -2564,11 +2586,12 @@ async function detachSchematic(path) {
 function schContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openSch(file) },
+    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to HDL', action: () => convertSchToHdl(file) },
     { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
-  ], e.clientX, e.clientY);
+  ].filter(Boolean), e.clientX, e.clientY);
 }
 
 // ---- rename a source (file and/or the module it defines), updating everything that refers to it
@@ -3100,7 +3123,8 @@ function setupMenus() {
       { label: 'Add Copy of Source…', action: () => wiz.addSourceDialog(), disabled: hasPj },
       '-',
       // the implementation top (the Simulation view has none: Simulate runs the selected module)
-      S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => S.sel?.module && setTop(S.sel.module, false), disabled: () => !S.sel?.module || S.sel.module === S.project?.top },
+      S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => (S.sel?.module ? setTop(S.sel.module, false) : viewSel() && setViewAsTop(viewSel())),
+        disabled: () => (S.sel?.module ? S.sel.module === S.project?.top : !viewSel() || (topOfView(viewSel()) && topOfView(viewSel()) === S.project?.top)) },
       { label: 'Design Properties…', action: () => wiz.projectProperties(), disabled: hasPj },
       api.standalone ? null : { label: 'Sync with .xise', action: () => api.syncXise(S.project.name, 'export').then(() => toast('Exported .xise', 'ok')).catch(e => alertDlg('Sync with .xise', e.message, 'error')), disabled: hasPj },
     ] },

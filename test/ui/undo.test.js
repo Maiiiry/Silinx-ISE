@@ -173,3 +173,38 @@ uiTest('Edit ▸ Undo / Redo reach every editor: text, truth table, pin planner 
   await page.menu('Edit', 'Redo');
   await page.waitFor((p) => document.querySelector(`${p} input`).value === 'P11', [P], { what: 'pin planner redo' });
 });
+
+uiTest('a schematic alone in the project: Set as Top Module generates its HDL (kept in sync, the schematic the base) and makes it the top; Undo', E, async (page) => {
+  const { newDoc, normalizeDoc, symbolPins } = await import('../../core/schdoc.js');
+  const doc = newDoc('gate', 'vhdl');
+  const s = { id: 'S1', type: 'and2', x: 300, y: 100, rot: 0, mirror: false, name: 'U1', params: {} };
+  doc.symbols.push(s);
+  const pins = symbolPins(normalizeDoc({ ...doc }).symbols[0], {});
+  pins.forEach((p, i) => {
+    const dir = p.name === 'O' ? 'out' : 'in', at = { x: p.x + (dir === 'in' ? -60 : 60), y: p.y };
+    doc.ports.push({ id: `P${i + 1}`, name: { I0: 'a', I1: 'b', O: 'y' }[p.name], dir, width: 1, x: at.x, y: at.y });
+    doc.wires.push({ id: `W${i + 1}`, points: [at, { x: p.x, y: p.y }] });
+  });
+  await makeProject(env, { name: 'SchTop', files: { 'src/gate.sch.json': JSON.stringify(doc) }, top: '' });
+  await page.openProject('SchTop');
+  await page.treeRow('#hier', 'gate.sch.json', { right: true });
+  const items = await page.eval(() => [...document.querySelectorAll('body > .menu-popup .mi .lbl')].map((e) => e.textContent));
+  assert.ok(items.includes('Set as Top Module'), items.join(' | '));
+  await page.click('body > .menu-popup .mi', { text: 'Set as Top Module' });
+  await page.waitFor(() => window.Silinx.project.top === 'gate', [], { what: 'gate is the top', timeout: 15000 });
+  const sch = JSON.parse(await readWs(env, 'SchTop', 'src/gate.sch.json'));
+  assert.equal(sch.generatedFile, 'src/gate.vhd');
+  assert.equal(sch.base, undefined, 'the schematic stays the base');
+  assert.match(await readWs(env, 'SchTop', 'src/gate.vhd'), /entity gate is/);
+  await page.waitConsole(/Top module: gate \(gate\.sch\.json, its HDL gate\.vhd kept in sync\)\./);
+  // the hierarchy: the top module, shown by its schematic
+  await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'gate'), [], { what: 'gate in the hierarchy' });
+  // one Undo: no HDL, no top, the schematic alone again
+  await page.menu('Edit', 'Undo Set as Top Module');
+  await page.waitFor(() => !window.Silinx.project.top && !window.Silinx.hdlToSch?.['src/gate.vhd'], [], { what: 'undone' });
+  assert.equal(await exists('SchTop', 'src/gate.vhd'), false);
+  // the Project menu does it too, for the schematic selected in the hierarchy
+  await page.treeRow('#hier', 'gate.sch.json');
+  await page.menu('Project', 'Set as Top Module');
+  await page.waitFor(() => window.Silinx.project.top === 'gate', [], { what: 'top from the Project menu', timeout: 15000 });
+});
