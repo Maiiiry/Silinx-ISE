@@ -14,8 +14,10 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { setupUi, uiTest, waitDownload, ROOT, chromeOnly } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
+import { buildInfo } from '../../scripts/build-info.mjs';
+import { VERSION, versionLabel } from '../../core/version.js';
 
-let env, html, site, server, siteUrl, skip = null;
+let env, html, site, server, siteUrl, build, skip = null;
 before(async () => {
   env = await setupUi({ server: false });
   if (env.skip) return;
@@ -30,7 +32,11 @@ before(async () => {
   } catch { skip = 'esbuild / codemirror / elkjs not installed (npm install): standalone build test skipped'; return; }
   const root = path.join(env.tmp, 'standalone');
   await fs.mkdir(path.join(root, 'scripts'), { recursive: true });
-  await fs.copyFile(path.join(ROOT, 'scripts/build-standalone.mjs'), path.join(root, 'scripts/build-standalone.mjs'));
+  for (const f of ['build-standalone.mjs', 'build-info.mjs']) await fs.copyFile(path.join(ROOT, 'scripts', f), path.join(root, 'scripts', f));
+  // a git checkout of its own, its commit untagged: a development build, labelled with it (#135)
+  const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
+  git('init', '-q'); git('-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'build');
+  build = buildInfo(root, VERSION);
   for (const d of ['web', 'core', 'server', 'examples', 'research']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
   for (const f of ['LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await fs.copyFile(path.join(ROOT, f), path.join(root, f));   // the embedded notices
   await fs.symlink(modules, path.join(root, 'node_modules'), 'dir');
@@ -65,7 +71,10 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   assert.doesNotMatch(text, /<link[^>]+stylesheet/, 'no external stylesheets');
   await page.goto(pathToFileURL(html).href);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'standalone boot' });
-  assert.match(await page.eval(() => document.title), /Silinx ISE .*Project Navigator/);
+  // the version: a development build's, with its commit (#135)
+  assert.match(build?.commit || '', /^[0-9a-f]{7,}$/);
+  assert.equal(await page.eval(() => document.title), `Silinx ISE ${versionLabel(build)} Project Navigator`);
+  assert.equal(await page.eval(() => document.querySelector('.m-ver').textContent), versionLabel(build));
   await page.waitConsole(/Browser edition: projects are stored in this browser/);
   // File menu: the bundle commands of the standalone edition
   const file = (await page.openMenu('File')).map((i) => i.label);

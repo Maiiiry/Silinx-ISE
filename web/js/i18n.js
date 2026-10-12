@@ -495,6 +495,9 @@ PT_PATTERNS.push(
   // Back-annotate Pin Locations: the pins to add to the UCF
   [/^Add the (\d+) pin location\(s\) chosen by the tools to (.+?)\?\n\n([\s\S]*)$/, 'Adicionar a $2 as $1 localizações de pinos escolhidas pelas ferramentas?\n\n$3'],
 );
+// a development build's version (core/version.js VERSION_LABEL, #135): in the title bar, the Design
+// Summary, the start-up message; the last pattern tried (a text no other pattern translates)
+PT_PATTERNS.push([/^(.*)\(development, commit ([0-9a-f]+)\)(.*)$/, '$1(em desenvolvimento, commit $2)$3']);
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards
 Object.assign(PT, LINT_PT);   // design checks (the help texts of the messages are in core/hints.js)

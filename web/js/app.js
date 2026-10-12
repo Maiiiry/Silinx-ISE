@@ -8,7 +8,7 @@ import { primitiveSources } from '/core/unisim.js';
 import { Simulator } from '/core/simulator.js';
 import { buildSchematic } from '/core/schematic.js';
 import * as wiz from './wizards.js';
-import { PRODUCT, VERSION } from '/core/version.js';
+import { PRODUCT, VERSION_LABEL } from '/core/version.js';
 import { startI18n, setLanguage, getLanguage, LOCALES } from './i18n.js';
 import { onLanguageChange } from './i18n.js';
 import { designDiags, hintRow, sevWord, lintEnabled, setLintEnabled } from './diaghelp.js';
@@ -2889,13 +2889,13 @@ export async function closeProject() {
 
 function updateTitle() {
   const pj = S.project;
-  $('title-text').textContent = pj ? `${PRODUCT} ${VERSION} - ${pj.name} - [${S.active?.title || 'Design Summary'}]` : `${PRODUCT} ${VERSION} - Project Navigator`;
+  $('title-text').textContent = pj ? `${PRODUCT} ${VERSION_LABEL} - ${pj.name} - [${S.active?.title || 'Design Summary'}]` : `${PRODUCT} ${VERSION_LABEL} - Project Navigator`;
   // the modern header: product and version (as the classic title bar)
   const brand = $('title-brand');
-  if (!brand.querySelector('.m-ver')) { brand.textContent = `${PRODUCT} `; brand.append(h('span', { class: 'm-ver' }, VERSION)); }
+  if (!brand.querySelector('.m-ver')) { brand.textContent = `${PRODUCT} `; brand.append(h('span', { class: 'm-ver' }, VERSION_LABEL)); }
   $('title-project').textContent = pj ? pj.name : 'No project open';
   $('title-project').classList.toggle('none', !pj);
-  document.title = pj ? `${pj.name} — ${PRODUCT} ${VERSION}` : `${PRODUCT} ${VERSION} Project Navigator`;
+  document.title = pj ? `${pj.name} — ${PRODUCT} ${VERSION_LABEL}` : `${PRODUCT} ${VERSION_LABEL} Project Navigator`;
   $('status-device').textContent = pj ? `${pj.device.part}${pj.device.speed}-${pj.device.package}${pj.board ? ` · ${pj.board}` : ''}` : '';
 }
 
@@ -3367,7 +3367,7 @@ async function boot() {
   addEventListener('beforeunload', e => { if (S.docs.some(d => d.dirty)) { e.preventDefault(); e.returnValue = ''; } });
 
   updateTitle();
-  log(`${PRODUCT} ${VERSION} Project Navigator — HDL design, schematics, behavioural simulation and Xilinx FPGA implementation/programming.`, 'info');
+  log(`${PRODUCT} ${VERSION_LABEL} Project Navigator — HDL design, schematics, behavioural simulation and Xilinx FPGA implementation/programming.`, 'info');
   if (api.standalone) {
     const st = await api.initStorage().catch(() => api.storage());
     const where = st.kind === 'folder' ? `in the folder '${st.folder}' on the disk (File > Use Browser Storage to keep them in this browser)`

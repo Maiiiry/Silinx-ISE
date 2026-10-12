@@ -9,6 +9,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
+import { buildInfo } from './build-info.mjs';
+import { VERSION } from '../core/version.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'dist', 'Silinx-ISE.html');
@@ -43,16 +45,20 @@ const plugin = {
     b.onLoad({ filter: /.*/, namespace: 'virtual' }, () => ({ contents: `export default ${JSON.stringify(examples)};`, loader: 'js' }));
   },
 };
+// the version label: the release's commit, or the development commit built (core/version.js BUILD)
+const BUILD = buildInfo(ROOT, VERSION);
+console.log(`Version: ${VERSION}${BUILD ? ` (development, commit ${BUILD.commit})` : ''}`);
+const define = { __SILINX_BUILD__: JSON.stringify(BUILD) };
 const res = await esbuild.build({
   entryPoints: [path.join(ROOT, 'web/js/app.js')],
-  bundle: true, format: 'esm', minify: true, write: false, target: 'es2022', plugins: [plugin], logLevel: 'warning',
+  bundle: true, format: 'esm', minify: true, write: false, target: 'es2022', plugins: [plugin], logLevel: 'warning', define,
 });
 const appJs = res.outputFiles[0].text;
 // the Silinx toolchain's Web Worker (web/js/open-flow-worker.js), embedded as text: the page starts
 // it from a Blob (a single file has no other file to load it from)
 const workerRes = await esbuild.build({
   entryPoints: [path.join(ROOT, 'web/js/open-flow-worker.js')],
-  bundle: true, format: 'esm', minify: true, write: false, target: 'es2022', plugins: [plugin], logLevel: 'warning', platform: 'browser',
+  bundle: true, format: 'esm', minify: true, write: false, target: 'es2022', plugins: [plugin], logLevel: 'warning', platform: 'browser', define,
 });
 const workerJs = workerRes.outputFiles[0].text;
 

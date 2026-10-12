@@ -12,9 +12,11 @@ In detail:
   Schematic…*, *Rename*, *New Source*, *Delete Folder*, *Design Properties*… (the menu names the
   command; Redo does it again), and reaches every editor (text, schematic, ASM, FSM, truth table,
   pin planner); the truth table and the pin planner have undo now (#136).
-- **A schematic alone in the project can be the top module:** *Set as Top Module* on a schematic,
-  ASM chart, state diagram or truth table without HDL generates its HDL (kept in sync, the drawing
-  staying the base) and makes it the top (#137).
+- The site (GitHub Pages) and any single-file edition built from a commit that is not a release
+  say so: `15.10.5 (development, commit abc1234)` (in Portuguese, *em desenvolvimento*) in the title
+  bar, the Design Summary and the start-up message. The site is published from main after every CI
+  run that passed, before the release is tagged, and showed the next version as if it were
+  released. A release's build shows the version alone (#135).
 
 ## 15.10.5
 
