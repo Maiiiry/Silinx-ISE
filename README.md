@@ -272,8 +272,8 @@ npm run build:standalone    # writes dist/Silinx-ISE.html (~2.5 MB)
 ```
 
 One file, no server: open it in a browser or share it. It includes the editor, schematics, ASM
-editor, simulation/ISim, pin planner and ISE project import/export; the examples (*blinky*, *pong*,
-*stopwatch*, *clock*) are embedded. Projects are stored in the browser (*File ▸ Download / Open Project Bundle* to move
+editor, simulation/ISim, pin planner and ISE project import/export; the examples (*gates*, *blinky*,
+*pong*, *stopwatch*, *clock*) are embedded. Projects are stored in the browser (*File ▸ Download / Open Project Bundle* to move
 them), or, in Chrome / Edge, in a folder on the disk (*File ▸ Open Workspace Folder…*: the File
 System Access API; each project a folder as the full application writes it, so the same folder opens
 there; web/js/project-store.js). `--site <dir>` also writes the GitHub Pages site: the page and its `assets/` (the device
@@ -379,7 +379,9 @@ server/     HTTP server, projects, ISE flow, programmers, boards/devices, .xise
 web/        Project Navigator UI (modern and ISE-like, web/css/modern.css): editor, ISim, schematics, ASM, pin planner, iMPACT
 docker/ise/ builder kit for the private Xilinx ISE 14.7 Docker image
 scripts/    adepttool installer/patch, Platform Flash programmer, standalone build
-examples/   example projects for the Basys2 / Nexys2 (the Silinx toolchain's devices): blinky (VHDL + Verilog, an ASM chart),
+examples/   example projects for the Basys2 / Nexys2 (the Silinx toolchain's devices): gates (the first one: logic
+            gates drawn as a schematic, a 4-bit prime-number detector with NOT / AND / OR and with NAND gates only),
+            blinky (VHDL + Verilog, an ASM chart),
             pong (a game for two, Verilog), stopwatch (VHDL, block RAM and multipliers), clock (Verilog, set
             with the buttons); each with a self-checking testbench
 docs/       IR.md (parser intermediate representation), PROJECT.md (project model and API),

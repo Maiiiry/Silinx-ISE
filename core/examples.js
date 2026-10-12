@@ -1,0 +1,10 @@
+// The example projects (examples/<name>), in the order the interface lists them: from the first
+// steps (gates: combinational logic drawn as a schematic) to the larger designs. Isomorphic.
+
+export const EXAMPLE_ORDER = ['gates', 'blinky', 'pong', 'stopwatch', 'clock'];
+
+/** Example names in the listing order: the known ones first (EXAMPLE_ORDER), then any other, by name. */
+export function orderExamples(names) {
+  const rank = n => { const i = EXAMPLE_ORDER.indexOf(n); return i < 0 ? EXAMPLE_ORDER.length : i; };
+  return [...names].sort((a, b) => rank(a) - rank(b) || (a < b ? -1 : a > b ? 1 : 0));
+}

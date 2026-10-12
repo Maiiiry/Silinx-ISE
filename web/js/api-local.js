@@ -13,6 +13,7 @@
 import { getDeviceDb } from '../../server/devices.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from '../../server/xise.js';
 import EXAMPLES from 'silinx-examples';
+import { orderExamples } from '../../core/examples.js';
 import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
@@ -246,7 +247,7 @@ export const api = {
 
   // ---- projects
   projects: () => ops.list(),
-  templates: async () => Object.keys(EXAMPLES),
+  templates: async () => orderExamples(Object.keys(EXAMPLES)),
   createProject: p => ops.create(p),
   project: name => ops.project(name),
   saveProject: (name, pj) => ops.saveProject(name, pj),

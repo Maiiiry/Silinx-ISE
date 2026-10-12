@@ -1,4 +1,4 @@
-// The example projects (examples/blinky, pong, stopwatch), which also test Silinx's workflows end to
+// The example projects (examples/gates, blinky, pong, stopwatch, clock), which also test Silinx's workflows end to
 // end on every device of the Silinx toolchain (Basys2-100 / 250, Nexys2-500 / 1200): each example's
 // sources read with no error or warning and no design-check message, its self-checking testbench
 // passes in Silinx's simulator with no warning, the UCF it ships is the one Silinx's board pin
@@ -56,7 +56,9 @@ describe('the examples on every board', { concurrency: 2 }, () => {
         assert.match(log, new RegExp(`Device: ${project.device.part}${project.device.package}-4: device description \\(shipped with Silinx\\) and bit database\\.`));
         assert.match(log, /All signals are completely routed\./);
         assert.match(log, new RegExp(`Bitstream: build/${project.top}\\.bit \\(\\d+ bytes, every feature in the bit database\\)`));
-        assert.match(log, /All constraints were met\./);
+        // a combinational example (gates) has no clock, so no PERIOD constraint to meet
+        if (/PERIOD/.test(fs.readFileSync(path.join(dir, project.constraints), 'utf8'))) assert.match(log, /All constraints were met\./);
+        else assert.match(log, /No timing constraints \(PERIOD\) in the UCF\./);
         assert.deepEqual(job.lines.filter(l => /warning/i.test(l)), []);
       });
     }

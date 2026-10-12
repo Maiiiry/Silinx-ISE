@@ -7,9 +7,10 @@ import { fileURLToPath } from 'node:url';
 import { compile, elaborate } from '../core/compile.js';
 import { boardAutoAssign, generateUcf } from '../core/ucf.js';
 import { resolveBoard } from '../server/devices.js';
+import { EXAMPLE_ORDER } from '../core/examples.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const EXAMPLES = ['blinky', 'pong', 'stopwatch', 'clock'];
+export const EXAMPLES = EXAMPLE_ORDER;   // gates, blinky, pong, stopwatch, clock
 // the boards (and variants) of the devices of the Silinx toolchain: the examples run on all of them
 export const TARGETS = [
   { board: 'basys2', variant: '100' }, { board: 'basys2', variant: '250' },
@@ -40,12 +41,13 @@ export function exampleUcf(name, { board, variant }) {
   return { text, device: r.device, unmatched };
 }
 
-/** Runs an example's self-checking testbench in Silinx's simulator: { passed, log, now }. */
-export async function runTestbench(name, { until = 5e9 } = {}) {
+/** Runs an example's self-checking testbench in Silinx's simulator: { passed, log, now }.
+ *  edit: { path: text } replaces sources (a mutated design: the testbench must then fail). */
+export async function runTestbench(name, { until = 5e9, edit = {} } = {}) {
   const { Simulator } = await import('../core/simulator.js');
   const { primitiveSources } = await import('../core/unisim.js');
   const ex = example(name);
-  const all = ex.sources;
+  const all = ex.sources.map(s => (s.path in edit ? { ...s, text: edit[s.path] } : s));
   const lib = compile([...primitiveSources(all), ...all]);
   const errs = lib.errors.filter(e => e.severity === 'error');
   if (errs.length) throw new Error(`${name}: ${errs.map(e => `${e.file}:${e.line} ${e.message}`).join('; ')}`);

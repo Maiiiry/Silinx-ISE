@@ -19,7 +19,7 @@ projetos ficam nesse browser) e passe ao passo 4. Ou descarregue-o, para trabalh
 1. Abra a **[última versão](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Em **Assets**, clique em **`Silinx-ISE.html`** para o descarregar.
 3. Faça duplo clique no ficheiro descarregado. Abre no browser (Chrome, Edge, Firefox ou Safari).
-4. Na página inicial clique em **Open Example (blinky)** (ou *pong*, um jogo para dois, *stopwatch* ou *clock*) ou **New Project…**.
+4. Na página inicial clique em **Open Example (gates)** (portas lógicas desenhadas num esquemático: um bom primeiro exemplo), **Open Example (blinky)** (ou *pong*, um jogo para dois, *stopwatch* ou *clock*) ou **New Project…**.
 
 É tudo. A saber:
 
@@ -104,7 +104,9 @@ Abre-se uma janela preta (o servidor do Silinx) e depois o browser mostra o Sili
 
 ### Passo 4: usar
 
-- Página inicial ▸ **Open Example (blinky)** para explorar um projeto completo, ou **New Project…**.
+- Página inicial ▸ **Open Example (gates)** para começar (portas AND, OR, NOT e NAND num esquemático:
+  um detetor de números primos de 4 bits nos interruptores e em dois LEDs), **Open Example (blinky)**
+  para explorar um projeto completo, ou **New Project…**.
 - Os projetos ficam em pastas normais em **`Silinx-projects`**, na sua pasta de utilizador
   (Windows: `C:\Users\<você>\Silinx-projects`, macOS: `/Users/<você>/Silinx-projects`).
   Pode copiá-los, fazer cópias de segurança, ou comprimi-los para entregar.

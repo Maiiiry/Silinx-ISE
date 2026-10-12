@@ -51,7 +51,7 @@ const PT = {
   'Configure Target Device (iMPACT)': 'Configurar Dispositivo (iMPACT)', 'Toolchain Settings': 'Definições da Toolchain', 'About': 'Acerca de',
   'Design': 'Projeto', 'View:': 'Vista:', 'Hierarchy': 'Hierarquia', 'Processes:': 'Processos:', 'Start': 'Início', 'Files': 'Ficheiros',
   'Libraries': 'Bibliotecas', 'Console': 'Consola', 'Errors': 'Erros', 'Warnings': 'Avisos', 'Ready': 'Pronto', 'Clear': 'Limpar',
-  'Project Commands': 'Comandos do Projeto', 'Open Example (blinky)': 'Abrir Exemplo (blinky)', 'Open Example (pong)': 'Abrir Exemplo (pong)', 'Open Example (stopwatch)': 'Abrir Exemplo (stopwatch)', 'Open Example (clock)': 'Abrir Exemplo (clock)', 'No projects yet.': 'Ainda não há projetos.',
+  'Project Commands': 'Comandos do Projeto', 'Open Example (gates)': 'Abrir Exemplo (gates)', 'Open Example (blinky)': 'Abrir Exemplo (blinky)', 'Open Example (pong)': 'Abrir Exemplo (pong)', 'Open Example (stopwatch)': 'Abrir Exemplo (stopwatch)', 'Open Example (clock)': 'Abrir Exemplo (clock)', 'No projects yet.': 'Ainda não há projetos.',
   'File Name': 'Nome do Ficheiro', 'Association': 'Associação', 'Behavioral': 'Comportamental',
   // processes
   'Design Summary/Reports': 'Resumo do Projeto/Relatórios', 'Design Utilities': 'Utilitários de Projeto',

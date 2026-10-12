@@ -3,6 +3,17 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.7
+
+In detail:
+
+- **A first example, *gates*:** logic gates drawn as a schematic (with its VHDL kept in sync), a
+  4-bit prime-number detector on the switches SW3..SW0: LD0 from NOT, AND and OR gates (the minimal
+  sum of products), LD1 the same function with NAND gates only. Its test bench checks the 16 inputs.
+  Listed first, before blinky, on the Start page, in the New Project wizard and in the browser
+  edition (#140).
+- The Start page could list its commands and examples twice, when drawn twice at once (#141).
+
 ## 15.10.6
 
 In detail:

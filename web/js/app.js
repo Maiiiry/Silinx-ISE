@@ -9,6 +9,7 @@ import { Simulator } from '/core/simulator.js';
 import { buildSchematic } from '/core/schematic.js';
 import * as wiz from './wizards.js';
 import { PRODUCT, VERSION_LABEL } from '/core/version.js';
+import { EXAMPLE_ORDER } from '/core/examples.js';
 import { startI18n, setLanguage, getLanguage, LOCALES } from './i18n.js';
 import { onLanguageChange } from './i18n.js';
 import { designDiags, hintRow, sevWord, lintEnabled, setLintEnabled } from './diaghelp.js';
@@ -2927,12 +2928,11 @@ function showLeftPage(page) {
 
 async function renderStartPage() {
   const host = $('start-page');
-  host.innerHTML = '';
   const projects = await api.projects().catch(() => []);
   const recentHere = recent().filter(r => projects.some(p => p.name === r));
   const page = h('div', { class: 'page' },
     h('div', { class: 'start-box' }, h('h3', {}, 'Project Commands'),
-      ...[['New Project…', 'newProject', () => wiz.newProjectWizard()], ['Open Project…', 'open', () => wiz.openProjectDialog()], ['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ...['blinky', 'pong', 'stopwatch', 'clock'].map(t => [`Open Example (${t})`, 'project', () => wiz.newProjectWizard({ template: t })])]
+      ...[['New Project…', 'newProject', () => wiz.newProjectWizard()], ['Open Project…', 'open', () => wiz.openProjectDialog()], ['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ...EXAMPLE_ORDER.map(t => [`Open Example (${t})`, 'project', () => wiz.newProjectWizard({ template: t })])]
         .map(([l, ic, f]) => h('div', { class: 'entry' }, icon(ic), h('a', { onclick: f }, l)))),
     h('div', { class: 'start-box' }, h('h3', {}, 'Recent Projects'),
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),
@@ -2940,7 +2940,8 @@ async function renderStartPage() {
       recentHere.length ? h('div', { class: 'entry start-clear' }, h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
     api.standalone ? await storageBox() : null,
   );
-  host.append(page);
+  // replaced, not appended: two renders at once (the page shown again while a project closes) list it once
+  host.replaceChildren(page);
 }
 // the browser edition's Start page: where the projects are kept, and the folder commands
 async function storageBox() {

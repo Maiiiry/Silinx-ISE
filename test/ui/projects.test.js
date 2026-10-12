@@ -5,7 +5,7 @@ import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { setupUi, uiTest, makeProject, readWs, waitDownload } from './harness.js';
+import { setupUi, uiTest, makeProject, readWs, waitDownload, ROOT } from './harness.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -126,11 +126,15 @@ uiTest('New Project wizard: the synthesis tool, Silinx by default (no ISE); Desi
   assert.equal((await env.server.api('GET', '/api/projects/SynthTool')).synthTool, 'xst');
 });
 
-uiTest('Start page: the four examples; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
+uiTest('Start page: the five examples, gates first; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.waitForSelector('#start-page .start-box');
-  // (drawn again asynchronously after the project closes: wait for the four)
-  await page.waitFor(() => { const e = [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent); return ['blinky', 'pong', 'stopwatch', 'clock'].every((t) => e.includes(`Open Example (${t})`)); }, [], { what: 'the four examples on the Start page' });
+  // (drawn again asynchronously after the project closes: wait for the five)
+  const FIVE = ['gates', 'blinky', 'pong', 'stopwatch', 'clock'].map((t) => `Open Example (${t})`);
+  await page.waitFor((want) => { const e = [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent); return want.every((t) => e.includes(t)); }, [FIVE], { what: 'the five examples on the Start page' });
+  const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
+  // the examples in their order, gates first
+  assert.deepEqual(entries.filter((e) => e.startsWith('Open Example')), FIVE);
   // (the Start page is drawn again asynchronously after the project closes: a click on the link it
   // replaces is lost, so click until the wizard opens)
   for (let k = 0; ; k++) {
@@ -158,6 +162,54 @@ uiTest('Start page: the four examples; Open Example (pong) for the Nexys2-1200: 
   assert.match(ucf, /NET "btn<0>" +LOC = "B18"/);
   assert.match(ucf, /NET "led<0>" +LOC = "J14"/);
   assert.doesNotMatch(ucf, /"G12"/);
+});
+
+uiTest('Open Example (gates): the schematic of the gates, synchronized with its VHDL; the test bench checks the 16 inputs: Simulation finished OK', E, async (page) => {
+  await page.eval(() => window.SilinxApp.closeProject?.());
+  await page.waitForSelector('#start-page .start-box');
+  for (let k = 0; ; k++) {
+    await page.click('#start-page .entry a', { text: 'Open Example (gates)' });
+    try { await page.waitDialog('New Project Wizard', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
+  }
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main select').value), 'gates');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Gates');
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Settings');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Summary');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Gates' && window.Silinx.hdlToSch?.['src/gates.vhd'] === 'src/gates.sch.json', [], { what: 'project Gates open, its schematic linked to gates.vhd' });
+  const pj = await page.eval(() => window.Silinx.project);
+  assert.deepEqual([pj.top, pj.simTop, pj.board, pj.constraints], ['gates', 'tb_gates', 'basys2', 'constraints/gates.ucf']);
+  const shipped = (f) => fs.readFile(path.join(ROOT, 'examples/gates', f), 'utf8');
+  assert.equal(await readWs(env, 'Gates', 'constraints/gates.ucf'), await shipped('constraints/gates.ucf'));
+  // the schematic: 16 gates (and the bus taps / join), no check message, the HDL left as it is
+  await page.eval(() => window.SilinxApp.openSch('src/gates.sch.json'));
+  const ED = '.doc:not([hidden]) .sch-editor';
+  await page.waitFor((sel) => window.Silinx.active?.id === 'sch:src/gates.sch.json' && document.querySelectorAll(`${sel} g.sym[data-kind=sym]`).length === 21, [ED], { what: 'the schematic drawn' });
+  const drawn = await page.eval(() => {
+    const d = window.Silinx.active.schEditor.getDoc();
+    const n = {};
+    for (const s of d.symbols) n[s.type] = (n[s.type] || 0) + 1;
+    return { n, nc: document.querySelectorAll('.doc:not([hidden]) .sch-editor rect.nc').length, desc: document.querySelector('.doc:not([hidden]) .sch-editor .se-desc')?.textContent || '' };
+  });
+  assert.deepEqual(drawn.n, { slice: 4, inv: 3, and3: 4, or4: 1, nand2: 3, nand3: 4, nand4: 1, busjoin: 1 });
+  assert.equal(drawn.nc, 0, 'no unconnected pin');
+  assert.match(drawn.desc, /4-bit prime-number detector/);
+  // the VHDL: the banner of the synchronized file, the text the example ships
+  await page.eval(() => window.SilinxApp.openFile('src/gates.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/gates.vhd' && window.Silinx.active.editor);
+  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), /^Synchronized with gates\.sch\.json/);
+  assert.equal(await readWs(env, 'Gates', 'src/gates.vhd'), await shipped('src/gates.vhd'));
+  // Simulate Behavioral Model of tb_gates: all 16 inputs checked, both outputs right
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_gates');
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 30000, what: 'Simulation finished OK' });
+  assert.doesNotMatch(out, /ERROR|Warning/i);
+  assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
 
 uiTest('open, switch and close projects (Open Project dialog, Recent Projects, Start page)', E, async (page) => {

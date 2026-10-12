@@ -43,7 +43,7 @@ test('projects: create (empty + template), list, read with file tree, write, del
   for (const d of ['src', 'sim', 'constraints']) assert.ok(fss.statSync(path.join(P.projectDir('Alpha'), d)).isDirectory());
 
   const tpl = await call('GET', '/templates');
-  assert.ok(tpl.body.includes('blinky'));
+  assert.deepEqual(tpl.body, ['gates', 'blinky', 'pong', 'stopwatch', 'clock']);   // the order the interface lists them
   r = await call('POST', '/projects', { name: 'Blink', template: 'blinky', device: { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' }, board: null });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.top, 'top');

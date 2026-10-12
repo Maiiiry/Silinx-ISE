@@ -4,6 +4,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as P from './projects.js';
+import { orderExamples } from '../core/examples.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -63,9 +64,10 @@ export async function createApp({ host = '127.0.0.1' } = {}) {
   }));
   api.delete('/projects/:p/file', wrap(async req => { await P.deleteFile(req.params.p, req.query.path); return { ok: true }; }));
   api.get('/projects/:p/sources', wrap(req => P.readSources(req.params.p)));
-  api.get('/templates', wrap(() => fs.readdirSync(P.EXAMPLES_DIR, { withFileTypes: true })
+  // the examples, in the order the interface lists them (gates first: core/examples.js)
+  api.get('/templates', wrap(() => orderExamples(fs.readdirSync(P.EXAMPLES_DIR, { withFileTypes: true })
     .filter(d => d.isDirectory() && fs.existsSync(path.join(P.EXAMPLES_DIR, d.name, 'silinx.json')))
-    .map(d => d.name)));
+    .map(d => d.name))));
 
   // Implementation (ISE) + programming routes live in impl-routes.js.
   const { registerImplRoutes } = await import('./impl-routes.js');

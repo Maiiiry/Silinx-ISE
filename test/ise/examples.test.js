@@ -1,4 +1,4 @@
-// The example projects (examples/blinky, pong, stopwatch) with Xilinx ISE 14.7, on every device of
+// The example projects (examples/gates, blinky, pong, stopwatch, clock) with Xilinx ISE 14.7, on every device of
 // the Silinx toolchain (opt-in, as test/ise/ise-flow.test.js: it needs ISE's Docker image):
 //   - ISE builds each example (XST, translate, map, place & route, timing, bitgen) with no error, and
 //     the warnings of XST, map and par are the expected ones (below);
@@ -24,6 +24,7 @@ const skip = !enabled ? 'set SILINX_ISE_TESTS=1 to run the ISE tests' : !HOST ? 
 const KNOWN = {};
 // the warnings ISE gives on each example (the same on every device): XST, map, par
 const ISE_WARNINGS = {
+  gates: [],
   blinky: [],
   pong: [],
   stopwatch: [],
