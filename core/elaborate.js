@@ -766,7 +766,8 @@ function bindDecl(E, d) {
       return;
     }
     // a VHDL file object: a name (procedures take it as a file parameter; textio writes are ignored)
-    case 'file': E.sc.def(d.name, { kind: 'const', val: { str: d.name }, t: STR, file: true }); return;
+    // (its value: the external file's name, with its open mode, for textio's readline / writeline)
+    case 'file': E.sc.def(d.name, { kind: 'const', val: { str: d.ext ?? d.name, mode: d.mode || 'read_mode' }, t: STR, file: true }); return;
     case 'subalias': defSubAlias(E, d.name, d.target); return;
     case 'alias': {   // VHDL object alias: reads and writes go to the aliased object (or slice)
       // `alias f is g;` without a signature: an alias of subprogram g when g is one
@@ -1046,7 +1047,7 @@ function constOf(E, n, loc) {
 function isConstNode(n) {
   switch (n.k) {
     case 'c': case 'str': return true;
-    case 'sig': case 'loc': case 'edge': case 'event': case 'sys': case 'now': case 'sigattr': return false;
+    case 'sig': case 'loc': case 'edge': case 'event': case 'sys': case 'now': case 'sigattr': case 'textio_eof': return false;
     case 'chr': return isConstNode(n.base) && isConstNode(n.index);
     case 'strlen': return isConstNode(n.a);
     case 'call': return !n.fn.impure && n.args.every(isConstNode);
@@ -1830,6 +1831,48 @@ to_integer conv_integer resize ext sxt to_stdlogicvector to_bitvector to_stdulog
 shift_left shift_right rotate_left rotate_right and_reduce or_reduce xor_reduce nand_reduce nor_reduce xnor_reduce
 to_string to_bstring to_hstring minimum maximum now std_match finish stop`.split(/\s+/));
 
+// std.textio (and std_logic_textio / VHDL-2008's hwrite, owrite, bwrite, hread…): writing lines to
+// the simulator's console (OUTPUT, and files: their lines are shown with the file's name) and
+// reading lines of the project's data files
+const TEXTIO_PROCS = new Set(['write', 'writeline', 'read', 'readline', 'deallocate', 'flush', 'hwrite', 'owrite', 'bwrite', 'hread', 'oread', 'bread']);
+const TIME_UNITS = { fs: 0.001, ps: 1, ns: 1e3, us: 1e6, ms: 1e9, sec: 1e12, min: 6e13, hr: 3.6e15 };
+function textioFile(E, a, loc) {
+  if (a && a.op === 'ref' && /^(output|input)$/i.test(a.name) && !E.sc.lookup(a.name)) return { k: 'c', val: { str: a.name.toLowerCase(), std: true }, t: STR };
+  return bindExpr(E, a, null, loc);
+}
+function bindTextio(E, name, rawArgs, loc) {
+  const pos = [], named = {};
+  for (const a of rawArgs) { if (a && a.named !== undefined) named[String(a.named).toLowerCase()] = a.value; else pos.push(a); }
+  const need = (a, what) => { if (!a) throw new ElabError(`${name}: missing ${what}`, loc); return a; };
+  switch (name) {
+    case 'flush': return { k: 'null', loc };
+    case 'deallocate': return { k: 'textio', op: name, line: bindLvalue(E, need(pos[0], 'the line'), loc), loc };
+    case 'writeline': case 'readline':
+      return { k: 'textio', op: name, file: textioFile(E, need(named.f ?? named.file ?? pos[0], 'the file'), loc), line: bindLvalue(E, need(named.l ?? pos[1], 'the line'), loc), loc };
+    case 'write': case 'hwrite': case 'owrite': case 'bwrite': {
+      const line = bindLvalue(E, need(named.l ?? pos[0], 'the line'), loc);
+      const value = bindExpr(E, need(named.value ?? pos[1], 'the value'), null, loc);
+      const jArg = named.justified ?? pos[2], fArg = named.field ?? pos[3], xArg = named.unit ?? named.digits ?? pos[4];
+      let justified = 'right';
+      if (jArg) {
+        if (jArg.op !== 'ref' || !/^(left|right)$/i.test(jArg.name)) throw new ElabError(`${name}: justified is right or left`, loc);
+        justified = jArg.name.toLowerCase();
+      }
+      const field = fArg ? bindExpr(E, fArg, INT, loc) : null;
+      // (unit => ns: a time unit's name; digits => n)
+      const extra = !xArg ? null : xArg.op === 'ref' && TIME_UNITS[xArg.name.toLowerCase()] !== undefined && !E.sc.lookup(xArg.name)
+        ? { k: 'c', val: V.fromInt(TIME_UNITS[xArg.name.toLowerCase()] >= 1 ? TIME_UNITS[xArg.name.toLowerCase()] : 0, 64, true), t: TIME }
+        : bindExpr(E, xArg, null, loc);
+      return { k: 'textio', op: name, line, value, justified, field, extra, loc };
+    }
+    case 'read': case 'hread': case 'oread': case 'bread': {
+      const g = named.good ?? pos[2];
+      return { k: 'textio', op: name, line: bindLvalue(E, need(named.l ?? pos[0], 'the line'), loc), target: bindLvalue(E, need(named.value ?? pos[1], 'the variable'), loc), good: g ? bindLvalue(E, g, loc) : null, loc };
+    }
+  }
+  throw new ElabError(`textio procedure '${name}' is not supported`, loc);
+}
+
 function bindBuiltin(E, name, rawArgs, expect, loc) {
   const args = positional(rawArgs);
   const A = i => bindExpr(E, args[i], null, loc);
@@ -1875,6 +1918,7 @@ function bindBuiltin(E, name, rawArgs, expect, loc) {
       return fold({ k: 'un', o, a: A(0), t: BIT });
     }
     case 'to_string': case 'to_bstring': return { k: 'image', a: A(0), t: STR, ts: true };
+    case 'endfile': return { k: 'textio_eof', file: textioFile(E, args[0], loc), t: BOOL };
     case 'to_hstring': return { k: 'image', a: A(0), t: STR, hex: true };
     // ieee.math_real: ceil, floor, round, trunc, sqrt, log2, log10, log (natural, or to a base), exp, sign,
     // realmax, realmin (on reals; folded when constant, as in `constant W : natural := integer(ceil(log2(real(N))));`)
@@ -2491,7 +2535,8 @@ function bindCallStmt(E, s, loc) {
   let entry = E.sc.lookup(name);
   if (entry && entry.kind === 'func') entry = pickOverload(E, entry, s.args, loc);
   if (!entry || entry.kind !== 'func') {
-    if (E.lang === 'vhdl' && ['deallocate', 'write', 'writeline', 'read', 'readline'].includes(name)) {
+    if (E.lang === 'vhdl' && TEXTIO_PROCS.has(name)) return bindTextio(E, name, s.args, loc);
+    if (E.lang === 'vhdl' && ['file_open', 'file_close'].includes(name)) {
       diag(E, `procedure '${name}' (textio) is not supported`, loc, 'warning');
       return { k: 'null', loc };
     }

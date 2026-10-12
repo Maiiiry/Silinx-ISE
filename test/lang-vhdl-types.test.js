@@ -331,8 +331,8 @@ architecture rtl of opt is begin y <= x & a; end;` }));
 });
 
 // File objects (light8080's and neorv32's testbenches): declared, passed to `file` parameters,
-// TEXT / LINE types; the textio calls on them are ignored with their warning (not modelled)
-test('VHDL file declarations and file parameters elaborate; textio writes are ignored with a warning', () => {
+// TEXT / LINE types; a file's lines go to the console with its name
+test('VHDL file declarations and file parameters; a file\'s lines are shown with its name', () => {
   const src = `library ieee; use ieee.std_logic_1164.all; use std.textio.all;
 entity tb is end tb;
 architecture a of tb is
@@ -344,9 +344,8 @@ architecture a of tb is
 begin
   process begin note(log_file, 3); note(b_file, 4); report "done"; wait; end process;
 end a;`;
-  assert.deepEqual(out(src, 'tb'), ['done']);
-  assert.deepEqual(diags(src, 'tb').map(d => `${d.severity} ${d.line} ${d.message}`),
-    ["warning 7 procedure 'write' (textio) is not supported", "warning 7 procedure 'writeline' (textio) is not supported"]);
+  assert.deepEqual(out(src, 'tb'), ['[log.txt] 3', '[ab.txt] 4', 'done']);
+  assert.deepEqual(diags(src, 'tb').map(d => `${d.severity} ${d.line} ${d.message}`), []);
 });
 
 // Regression (#70): a constrained string variable has its n characters (character'left each) from

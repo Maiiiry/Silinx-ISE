@@ -125,12 +125,6 @@
     "WARNING:Silinx:646 (unused-signal) - mcu80.vhdl:155: Signal <cpu_halt> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:646 (unused-signal) - mcu80_uart.vhdl:224: Signal <stop_error> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
     "WARNING:Silinx:647 (unused-input) - mcu80_irq.vhdl:72: Input <data_i<7:4>> is never used."
-   ],
-   "tb": [
-    "WARNING:Silinx - txt_util.vhdl:100: procedure 'write' (textio) is not supported",
-    "WARNING:Silinx - txt_util.vhdl:101: procedure 'writeline' (textio) is not supported",
-    "WARNING:Silinx - txt_util.vhdl:543: procedure 'write' (textio) is not supported",
-    "WARNING:Silinx - txt_util.vhdl:544: procedure 'writeline' (textio) is not supported"
    ]
   }
  },

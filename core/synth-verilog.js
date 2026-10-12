@@ -851,7 +851,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
         const v = e(s.value, ctx), rw = wOf(ctx.fn.retT);
         return `${ind}${ctx.base} = ${fitTarget(v, { t: ctx.fn.retT }, rw)};\n${ind}__ret = 1;\n`;
       }
-      case 'null': case 'report': case 'assert': return '';
+      case 'null': case 'report': case 'assert': case 'textio': return '';   // (messages: not synthesized)
       case 'task': return inlineTask(s, ctx, ind, mode, loop);
       case 'sys':
         if (/^\$(display|write|strobe|monitor|info|warning|error|fatal|finish|stop)/.test(s.name || '')) return '';

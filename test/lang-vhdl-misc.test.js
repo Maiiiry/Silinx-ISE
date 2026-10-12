@@ -2,7 +2,7 @@
 // operators, multiple drivers of vector elements, and other details of the language.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { out, sim, vproc, vhd } from './lang-util.js';
+import { out, sim, vproc, vhd, warningsOf } from './lang-util.js';
 
 const ARITH = 'library ieee; use ieee.std_logic_1164.all; use ieee.std_logic_arith.all; use ieee.std_logic_unsigned.all;';
 
@@ -263,4 +263,50 @@ test('shared variables; procedures declared in a process assign the signals of t
     wait;
   end process;`, 'shared variable cnt : integer := 0; signal s : integer := 0;'));
   assert.deepEqual(r, ['11', '2', '10101100']);
+});
+
+// std.textio: write / writeline to OUTPUT (the console), justified fields, hwrite, time and real
+// formats; readline / read / endfile on a data file of the project; a file's lines shown with its name
+test('textio: write / writeline to the console, fields, hwrite, time and real; readline / read / endfile from a data file', () => {
+  const src = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all; use std.textio.all; use ieee.std_logic_textio.all;
+entity tb is end tb;
+architecture a of tb is
+  file vin : text open read_mode is "vectors.txt";
+  file vout : text open write_mode is "results.txt";
+  signal s : std_logic_vector(7 downto 0) := x"A5";
+begin
+process
+  variable l, lr : line;
+  variable n : integer; variable v : std_logic_vector(7 downto 0); variable c : character; variable ok : boolean;
+  variable st : string(1 to 3); variable b : boolean;
+begin
+  write(l, string'("count = ")); write(l, 42); write(l, string'(" bits = ")); write(l, s); writeline(output, l);
+  write(l, 7, right, 4); write(l, string'("|")); write(l, 7, left, 4); write(l, string'("|")); hwrite(l, s); write(l, ' '); write(l, true); writeline(output, l);
+  wait for 15 ns;
+  write(l, now); write(l, ' '); write(l, now, right, 0, ps); write(l, ' '); write(l, 2.5); write(l, ' '); write(l, 3.14159, right, 0, 2); writeline(output, l);
+  while not endfile(vin) loop
+    readline(vin, lr);
+    read(lr, n); read(lr, v); read(lr, c); read(lr, c); read(lr, st); read(lr, b, ok);
+    write(l, n * 2); write(l, ' '); write(l, v); write(l, ' '); write(l, c); write(l, st); write(l, ' '); write(l, ok); writeline(vout, l);
+  end loop;
+  report "end " & integer'image(l'length);
+  wait;
+end process;
+end a;`;
+  const files = new Map([['data/vectors.txt', '5 00001111 xabc\n-3 10100101 Yzxy true\n']]);
+  const r = sim(src, 'tb', { files });
+  assert.deepEqual(r.out, [
+    'count = 42 bits = 10100101',
+    '   7|7   |A5 TRUE',
+    '15 ns 15000 ps 2.500000e+00 3.14',
+    '[results.txt] 10 00001111 xabc FALSE',
+    '[results.txt] -6 10100101 Yzxy TRUE',
+    'end 0',
+  ]);
+  assert.deepEqual(warningsOf(r), []);
+  // errors: a value that is not there (no good argument), a line past the end of the file
+  const bad = (body, f) => sim(`use std.textio.all; entity tb is end tb; architecture a of tb is file vin : text open read_mode is "v.txt"; begin
+process variable l : line; variable n : integer; begin ${body} wait; end process; end a;`, 'tb', { files: new Map([['v.txt', f]]), allowErrors: true }).lines.filter(x => / error /.test(x));
+  assert.deepEqual(bad('readline(vin, l); read(l, n);', 'abc\n'), ['0 error read: no value of the variable\'s type at the start of the line "abc" (in tb/process_2)']);
+  assert.deepEqual(bad('readline(vin, l); readline(vin, l);', 'one\n'), ["0 error readline: no line left in 'v.txt' (check endfile) (in tb/process_2)"]);
 });

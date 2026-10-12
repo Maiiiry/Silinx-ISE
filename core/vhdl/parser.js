@@ -604,9 +604,16 @@ class Parser {
         const names = this.parseIdList();
         this.expectOp(':');
         const type = this.parseSubtypeIndication();
-        while (!this.atEof() && !this.isOp(';')) this.next();
+        // VHDL-93: [open read_mode | write_mode | append_mode] is "name"; VHDL-87: is [in | out] "name"
+        let mode = 'read_mode', ext = null;
+        while (!this.atEof() && !this.isOp(';')) {
+          const t = this.next();
+          if (t.type === 'id' && /^(read|write|append)_mode$/i.test(t.value)) mode = t.value.toLowerCase();
+          else if (t.type === 'kw' && t.value === 'out') mode = 'write_mode';
+          else if (t.type === 'str' && ext === null) ext = t.value;
+        }
         this.expectOp(';');
-        return names.map((name) => ({ kind: 'file', name, type, loc: this.loc(tok) }));
+        return names.map((name) => ({ kind: 'file', name, type, mode, ext, loc: this.loc(tok) }));
       }
       case 'use': {
         uses.push(...this.parseUseClause());

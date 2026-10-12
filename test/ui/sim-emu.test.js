@@ -329,3 +329,41 @@ endmodule
   const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return /TEST (PASSED|FAILED)/.test(t) ? t : null; }, [], { timeout: 20000, what: 'TEST PASSED / FAILED' });
   assert.match(out, /TEST PASSED/);
 });
+
+uiTest('ISim: VHDL textio, writeline(output) and a vectors file read with readline / read / endfile, shown in the console', E, async (page) => {
+  const TOP = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity add is port (a, b : in unsigned(3 downto 0); s : out unsigned(4 downto 0)); end add;
+architecture rtl of add is begin s <= ('0' & a) + b; end rtl;
+`;
+  const TB = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all; use std.textio.all;
+entity tb_add is end tb_add;
+architecture sim of tb_add is
+  file vectors : text open read_mode is "vectors.txt";
+  signal a, b : unsigned(3 downto 0); signal s : unsigned(4 downto 0);
+begin
+  uut : entity work.add port map (a => a, b => b, s => s);
+  process
+    variable l, lo : line; variable x, y : integer;
+  begin
+    while not endfile(vectors) loop
+      readline(vectors, l); read(l, x); read(l, y);
+      a <= to_unsigned(x, 4); b <= to_unsigned(y, 4);
+      wait for 10 ns;
+      write(lo, x); write(lo, string'(" + ")); write(lo, y); write(lo, string'(" = ")); write(lo, to_integer(s), right, 3);
+      writeline(output, lo);
+    end loop;
+    write(lo, string'("TEST DONE")); writeline(output, lo);
+    wait;
+  end process;
+end sim;
+`;
+  await makeProject(env, { name: 'TextIo', board: 'basys2', top: 'add', files: { 'src/add.vhd': TOP, 'sim/tb_add.vhd': TB, 'vectors.txt': '3 4\n15 15\n9 1\n' }, roles: { 'sim/tb_add.vhd': 'sim' } });
+  await page.openProject('TextIo');
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_add');
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return /TEST DONE/.test(t) ? t : null; }, [], { timeout: 20000, what: 'TEST DONE in the console' });
+  assert.match(out, /3 \+ 4 =   7\n15 \+ 15 =  30\n9 \+ 1 =  10\nTEST DONE/);
+  assert.doesNotMatch(out, /not supported/);
+});

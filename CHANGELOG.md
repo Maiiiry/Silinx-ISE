@@ -69,6 +69,12 @@ the "What's new" text of its GitHub release.
   the design corpus, and the no-UCF test design on some placements): the router's search for a
   sink stopped after 400 000 nodes; a sink it did not reach is now searched again, much further.
   Both now build to a bitstream (#33).
+- **VHDL textio:** `write(l, …); writeline(output, l);` prints in the simulation console (ISim's
+  console in the Simulation view): integers, vectors, characters, strings, booleans, `time` (in a
+  `unit`), reals (`digits`), in a `field`, `left` / `right` `justified`, and `hwrite` / `owrite` /
+  `bwrite`. Testbenches read test vectors from the project's data files with `readline`, `read` (and
+  its `good` flag) and `endfile`; a file's own lines are shown with its name. These procedures
+  were ignored, with a warning (#76).
 
 ## 15.10.2
 
