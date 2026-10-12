@@ -109,6 +109,32 @@ test('routeDesign: a sink the bounded search does not reach is searched again fu
   assert.ok(checkRouting(parseXdl(writeXdl(r2.design)), device).ok);
 });
 
+test('routeDesign: a search stays in the net\'s region first, anywhere when the region has no path (boxMargin, #55)', () => {
+  const nets = net('na', '', [['a0', 'X']], [['b0', 'F1']]) + net('nb', '', [['a1', 'X']], [['b1', 'F1']]);
+  const free = routeDesign(design(nets), device, { boxMargin: null });
+  assert.deepEqual([free.routed, free.failed, free.overused], [2, [], 0]);
+  // a region with nothing in it (a negative margin): every sink is found by the search anywhere,
+  // as without regions
+  const none = routeDesign(design(nets), device, { boxMargin: -100 });
+  for (const n of ['na', 'nb']) assert.deepEqual(pipsOf(none, n), pipsOf(free, n), n);
+  // the default region (3 tiles around the pins) holds these paths: the same routing
+  const boxed = routeDesign(design(nets), device);
+  for (const n of ['na', 'nb']) assert.deepEqual(pipsOf(boxed, n), pipsOf(free, n), n);
+  assert.ok(checkRouting(parseXdl(writeXdl(boxed.design)), device).ok);
+});
+
+test('routeDesign: the search for a sink of a large tree starts near the sink (seedAll, #55)', () => {
+  // seedAll 0: every tree counts as large; the second sink's search starts from the source and the
+  // tree's nodes within reach of it, and still joins the tree: one legal tree reaching both sinks
+  const nets = net('n', '', [['a0', 'X']], [['b0', 'F1'], ['b1', 'F1']]);
+  for (const timing of [false, true]) {
+    const r = routeDesign(design(nets), device, { seedAll: 0, timing });
+    assert.deepEqual([r.routed, r.failed, r.overused], [1, [], 0]);
+    assert.deepEqual(pipsOf(r, 'n'), pipsOf(routeDesign(design(nets), device, { timing }), 'n'));
+    assert.ok(checkRouting(parseXdl(writeXdl(r.design)), device).ok);
+  }
+});
+
 test('routeDesign: VCC without a source is tied to the VCC site of each sink tile (ISE-style dummy source); with one, from it', () => {
   const r = routeDesign(design(net('pwr', 'vcc', [], [['a0', 'F2'], ['b1', 'F2']])), device);
   const out = r.design.nets.filter(n => n.type === 'vcc');

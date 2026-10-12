@@ -329,15 +329,22 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  bottom ones, not yet the side ones (#45)
  */
 export function knownRouting(db) {
+  // each tile's type and whether the layout knows it, once per tile (the router and the placer's
+  // clock reach ask about the PIPs of every tile many times, #55)
+  const tiles = new Map();
+  const tileInfo = name => {
+    let v = tiles.get(name);
+    if (!v) { const t = tileOf(name, db); v = { type: t ? db.types[t.type] : undefined, placed: !!(t && tileBase(t, db)) }; tiles.set(name, v); }
+    return v;
+  };
   const bitsOf = (tileName, feature) => {
-    const t = tileOf(tileName, db);
-    return t && tileBase(t, db) ? featureBits(db.types[t.type], feature) : undefined;
+    const t = tileInfo(tileName);
+    return t.placed ? featureBits(t.type, feature) : undefined;
   };
   const known = (tileName, feature) => !!bitsOf(tileName, feature);
   return {
     allowPip: (tileName, from, to) => {
-      const t = tileOf(tileName, db);
-      if (t && db.types[t.type]?.noRoute) return false;
+      if (tileInfo(tileName).type?.noRoute) return false;
       const bits = bitsOf(tileName, `${from}->${to}`);
       return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to));
     },

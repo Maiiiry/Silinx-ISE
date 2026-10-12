@@ -137,7 +137,11 @@ function globalClockMask(device) {
  * be permuted; the returned design then has the LUT equations and inpins rewritten), searchCap
  * (400 000: the nodes one search from a net's tree to a sink may expand) and searchCapRetry
  * (8 000 000: a second search for a sink the first did not reach; #33: on the XC3S1200E a slice's
- * BY input reached only past 400 000, which failed EPFL priority and adder).
+ * BY input reached only past 400 000, which failed EPFL priority and adder); boxMargin (3: a search
+ * first stays in the net's region, the bounding box of its pins and this many tiles around it, then
+ * looks anywhere; null: anywhere at once), seedAll (200) and seedCrit (0.5): the search for a sink of
+ * criticality at most seedCrit from a tree of more than seedAll nodes starts from the sources and the
+ * tree's nodes near the sink only (VPR's high-fanout routing; #55: much less work on large nets).
  * Returns { design (a copy with the PIPs of every routed net), routed, failed: [names],
  * unreached: [{ net, inst, pin }] (the sinks of the failed nets not reached), iterations,
  * overused (nodes still shared at the end: 0 when successful), errors, pips, timeMs,
@@ -206,26 +210,50 @@ export function routeDesign(design, device, opts = {}) {
   const edgeFrom = new Int32Array(E.edgeTo.length);
   for (let n = 0; n < N; n++) edgeFrom.fill(n, E.edgeStart[n], E.edgeStart[n + 1]);
   const heap = new Heap();
+  const { edgeStart, edgeTo, edgeFlags } = E, { nodeR0, nodeR1, nodeC0, nodeC1 } = device;
   const failed = new Set();
   const unreached = new Map();     // net index -> sinks not reached in its last routing
 
   // A* from the tree to one sink; returns the list of edges of the new branch (sink first) or null.
   // crit (timing): the criticality of the connection; a node costs crit x delay / D0 + (1 - crit) x
   // congestion, and a tree node starts at crit x its delay from the source (tdel) / D0
-  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null, targets = null, start = null, cap = SEARCH_CAP) => {
+  // the region of the net being routed (rows, columns): its pins' bounding box and BOX_MARGIN tiles
+  // around it; a search in the region leaves out nodes entirely outside it (VPR's bounding boxes)
+  const BOX_MARGIN = opts.boxMargin ?? 3;
+  let boxR0 = 0, boxR1 = 0, boxC0 = 0, boxC1 = 0;
+  // a search from a tree of more than SEED_ALL nodes starts near the sink (sources: the net's; not
+  // for the global clocks, on their own network)
+  const SEED_ALL = opts.seedAll ?? 200, SEED_CRIT = opts.seedCrit ?? 0.5, SEED_REACH = Math.max(device.rows, device.cols);
+  let sources = [];
+  const search = (tree, sink, netIdx, pf, restrict, crit = 0, tdel = null, targets = null, start = null, cap = SEARCH_CAP, inBox = false) => {
     curStamp++;
     heap.clear();
     // equivalent pins (a LUT's inputs): any of them not yet in the tree ends the search
     if (targets) for (const t of targets) if (!tree.has(t)) tmark[t] = curStamp;
-    const tr = device.nodeR0[sink], tc = device.nodeC0[sink];
+    const tr = nodeR0[sink], tc = nodeC0[sink];
     const cw = 1 - crit, dw = crit / D0, hf = 0.3 * cw + dw * H_DELAY;
+    // the A* estimate: hf x the rows and columns from the node's span to the sink
     const h = m => {
-      const dr = tr < device.nodeR0[m] ? device.nodeR0[m] - tr : tr > device.nodeR1[m] ? tr - device.nodeR1[m] : 0;
-      const dc = tc < device.nodeC0[m] ? device.nodeC0[m] - tc : tc > device.nodeC1[m] ? tc - device.nodeC1[m] : 0;
+      const dr = tr < nodeR0[m] ? nodeR0[m] - tr : tr > nodeR1[m] ? tr - nodeR1[m] : 0;
+      const dc = tc < nodeC0[m] ? nodeC0[m] - tc : tc > nodeC1[m] ? tc - nodeC1[m] : 0;
       return hf * (dr + dc);
     };
-    for (const n of tree.keys()) { stamp[n] = curStamp; g[n] = start ? start(n, dw) : dw && tdel ? dw * tdel.get(n) : 0; prev[n] = -1; done[n] = 0; heap.push(g[n] + h(n), n); }
+    const seed = n => { stamp[n] = curStamp; g[n] = start ? start(n, dw) : dw && tdel ? dw * tdel.get(n) : 0; prev[n] = -1; done[n] = 0; heap.push(g[n] + h(n), n); };
+    if (tree.size <= SEED_ALL || crit > SEED_CRIT || restrict) for (const n of tree.keys()) seed(n);
+    else {
+      // a large tree (a net of many loads): the search starts from the sources and the tree's
+      // nodes near the sink (within r tiles, r doubling until there are some), not from all of it
+      // (VPR's high-fanout routing); the other tree nodes may still be met on the way
+      for (const s of sources) seed(s);
+      for (let r = 4, found = 0; !found && r < 4 * SEED_REACH; r *= 2) {
+        for (const n of tree.keys()) {
+          if (stamp[n] === curStamp || nodeR1[n] < tr - r || nodeR0[n] > tr + r || nodeC1[n] < tc - r || nodeC0[n] > tc + r) continue;
+          seed(n); found++;
+        }
+      }
+    }
     let expanded = 0;
+    const own = netIdx + 1;
     while (heap.n) {
       const n = heap.pop();
       if (done[n] === curStamp) continue;
@@ -236,22 +264,26 @@ export function routeDesign(design, device, opts = {}) {
         return path;
       }
       if (++expanded > cap) return null;
-      for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
-        const m = E.edgeTo[e];
+      const gn = g[n], fromSource = prev[n] === -1 && isSource[n] === own;
+      for (let e = edgeStart[n], e1 = edgeStart[n + 1]; e < e1; e++) {
+        const m = edgeTo[e];
         // a route-through (a path through a site) only out of the net's own source site, onto an
         // output pin no other net uses: the carry chain's last COUT out through YB, as ISE does;
         // never through a LUT or another site, which would need that site configured for it
-        if (E.edgeFlags[e] & PIP_ROUTETHRU && !(prev[n] === -1 && isSource[n] === netIdx + 1 && owner[m] < 0)) continue;
+        if (edgeFlags[e] & PIP_ROUTETHRU && !(fromSource && owner[m] < 0)) continue;
         if (done[m] === curStamp) continue;
         if (owner[m] >= 0 && owner[m] !== netIdx) continue;
         if (restrict && !restrict[m] && m !== sink) continue;
-        if (!edgeOk(e)) continue;
+        if (inBox && (nodeR1[m] < boxR0 || nodeR0[m] > boxR1 || nodeC1[m] < boxC0 || nodeC0[m] > boxC1)) continue;
+        if (allowed && allowed[e] !== 1 && !edgeOk(e)) continue;
         const over = occ[m];      // other nets on this node (this net is ripped up)
         const c = cw * (1 + hist[m]) * (1 + pf * over) + (dw ? dw * ndel[m] : 0);
-        const gm = g[n] + c;
+        const gm = gn + c;
         if (stamp[m] !== curStamp || gm < g[m]) {
           stamp[m] = curStamp; g[m] = gm; prev[m] = e; done[m] = 0;
-          heap.push(gm + h(m), m);
+          const dr = tr < nodeR0[m] ? nodeR0[m] - tr : tr > nodeR1[m] ? tr - nodeR1[m] : 0;
+          const dc = tc < nodeC0[m] ? nodeC0[m] - tc : tc > nodeC1[m] ? tc - nodeC1[m] : 0;
+          heap.push(gm + hf * (dr + dc), m);
         }
       }
     }
@@ -288,9 +320,20 @@ export function routeDesign(design, device, opts = {}) {
     }
     let ok = true;
     unreached.delete(i);
+    sources = net.sources;
+    const boxed = BOX_MARGIN !== null;
+    if (boxed) {
+      boxR0 = Infinity; boxR1 = -Infinity; boxC0 = Infinity; boxC1 = -Infinity;
+      const add = n => { boxR0 = Math.min(boxR0, nodeR0[n]); boxR1 = Math.max(boxR1, nodeR1[n]); boxC0 = Math.min(boxC0, nodeC0[n]); boxC1 = Math.max(boxC1, nodeC1[n]); };
+      for (const s of net.sources) add(s);
+      for (const s of net.sinks) add(s.node);
+      boxR0 -= BOX_MARGIN; boxR1 += BOX_MARGIN; boxC0 -= BOX_MARGIN; boxC1 += BOX_MARGIN;
+    }
     for (const s of sinks) {
       if (!s.targets && tree.has(s.node)) continue;
       let path = net.clock ? search(tree, s.node, i, pf, gclk) : null;
+      // in the net's region first, then anywhere
+      if (!path && boxed) path = search(tree, s.node, i, pf, null, critOf(s), tdel, s.targets, start, SEARCH_CAP, true);
       if (!path) path = search(tree, s.node, i, pf, null, critOf(s), tdel, s.targets, start);
       // a sink the bounded search did not reach (a long way round on the larger devices): once more
       // with a search that may look much further
