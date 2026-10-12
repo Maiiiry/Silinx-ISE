@@ -6,7 +6,7 @@
 //   node gen-dcmhdl.mjs outdir spec.json
 // spec.json: { name: { sites: ['DCM_X0Y1', …], dcms: [{ P: period ns, M, D: CLKFX_MULTIPLY / _DIVIDE,
 //   DIV2: true, DESKEW: 'SOURCE_SYNCHRONOUS', DV: CLKDV_DIVIDE, PS: CLKOUT_PHASE_SHIFT }, …],
-//   clkPin?, ucf?: [more UCF lines] } }
+//   NOFX: CLKFX unused }, …], clkPin?, clkBufg?: CLKIN from a BUFG, ucf?: [more UCF lines] } }
 import fs from 'node:fs';
 const [out, specFile] = process.argv.slice(2);
 const spec = JSON.parse(fs.readFileSync(specFile, 'utf8'));
@@ -21,12 +21,12 @@ for (const [name, s] of Object.entries(spec)) {
         DFS_FREQUENCY_MODE => "LOW", DLL_FREQUENCY_MODE => "LOW", DUTY_CYCLE_CORRECTION => TRUE, STARTUP_WAIT => FALSE)
       port map (CLKIN => clkin, CLKFB => clk0b(${k}), RST => c_r(0), DSSEN => '0', PSCLK => clkf, PSEN => c_r(2), PSINCDEC => c_r(3),
         CLK0 => clk0(${k}), CLK90 => c90(${k}), CLK180 => open, CLK270 => open, CLK2X => c2x(${k}), CLK2X180 => open,
-        CLKDV => cdv(${k}), CLKFX => clkfx(${k}), CLKFX180 => open, LOCKED => locked(${k}), PSDONE => psdone(${k}), STATUS => open);
+        CLKDV => cdv(${k}), CLKFX => ${x.NOFX ? 'open' : `clkfx(${k})`}, CLKFX180 => open, LOCKED => locked(${k}), PSDONE => psdone(${k}), STATUS => open);
     u_b0_${k} : BUFG port map (I => clk0(${k}), O => clk0b(${k}));
     process (clk0b(${k})) begin
       if rising_edge(clk0b(${k})) then
         n(${k}) <= n(${k}) + 1;
-        smp(${k}) <= (locked(${k}) & psdone(${k}) & c90(${k}) & c2x(${k}) & cdv(${k}) & clkfx(${k}) & "00") xor std_logic_vector(n(${k}));
+        smp(${k}) <= (locked(${k}) & psdone(${k}) & c90(${k}) & c2x(${k}) & cdv(${k}) & ${x.NOFX ? "'0'" : `clkfx(${k})`} & "00") xor std_logic_vector(n(${k}));
       end if;
     end process;`;
   };
@@ -47,14 +47,14 @@ architecture rtl of top is
   type cnt_t is array (0 to ${n - 1}) of unsigned(7 downto 0);
   type st_t is array (0 to ${n - 1}) of std_logic_vector(7 downto 0);
   signal n : cnt_t := (others => (others => '0'));
-  signal clkin, clkf : std_logic;
+  signal clkin, clkf, clkp : std_logic;
   signal clk0, clk0b, clkfx, clkfxb, c90, c2x, cdv, locked, psdone : std_logic_vector(${n - 1} downto 0);
   signal smp : st_t := (others => (others => '0'));
   signal c_r : std_logic_vector(3 downto 0) := (others => '0');
   attribute IOB : string;
   attribute IOB of c_r, smp : signal is "FALSE";
 begin
-  u_ib : IBUF port map (I => clk, O => clkin);
+${s.clkBufg ? '  u_ib : IBUFG port map (I => clk, O => clkp);\n  u_bi : BUFG port map (I => clkp, O => clkin);' : '  u_ib : IBUF port map (I => clk, O => clkin);'}
   clkf <= clkin;
   process (clkf) begin if rising_edge(clkf) then c_r <= ctl; end if; end process;
 ${s.dcms.map((d, k) => g(k, d)).join('\n')}

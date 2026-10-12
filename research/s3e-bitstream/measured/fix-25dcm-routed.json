@@ -1,0 +1,11 @@
+{
+ "source": "#47, confirmed for #46 (research/s3e-bitstream/README.md, stage G): a DCM whose CLKIN comes from a global clock buffer clears one bit of DCM:USED (DCM:CLKIN:GCLK), a DCM whose CLKFX and CLKFX180 drive nothing three more (DCM:DFS:OFF); found by #47 on the top / bottom DCMs (research/s3e-bitstream/db.mjs withDcmClkinGclk), confirmed on every DCM of the four devices, the XC3S1200E's side DCMs included: designs of every DCM implemented by ISE from HDL with CLKIN from a BUFG and CLKFX unused on every other DCM, then on the others (gen-dcmhdl.mjs clkBufg / NOFX), byte-identical to ISE's bitgen (CRC on and off; the XC3S1200E's but for its long-line splitters); the other DCMs' bits the top-left one's mirrored (dcm-mirror.mjs)",
+ "types": {
+  "DCM_TL_CENTER": {
+   "features": {
+    "DCM:CLKIN:GCLK": ["!0,100"],
+    "DCM:DFS:OFF": ["!-39,12", "!-39,43", "!-39,7"]
+   }
+  }
+ }
+}

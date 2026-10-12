@@ -163,6 +163,13 @@ the "What's new" text of its GitHub release.
   a switching BUFGMUX one bit per buffer, and the centre tiles' switches from them are all known now.
   ISE's designs with any of the 16 side buffers are byte-identical on all four devices (the Silinx
   toolchain's placer does not put clocks on them yet).
+- **Bit database: registers in the IOBs** (measured with ISE on every pad of the four devices, #44):
+  input, output and tristate flip-flops and DDR registers with all their settings, with the input delay
+  ISE chooses by itself, as XST places registers in the IOBs by default. Such designs implemented by ISE
+  are written byte-identical to ISE's bitgen; another input delay, or a register setting not measured
+  on that pad, is refused as not in the database. (The Silinx toolchain does not put registers in the
+  IOBs yet.) The DCM settings for a CLKIN from a global buffer and an idle CLKFX are now measured on
+  every DCM of the four devices, and 150 more switches of the DCMs are known.
 
 ## 15.10.2
 

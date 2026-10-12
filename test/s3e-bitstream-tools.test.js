@@ -137,6 +137,10 @@ test('dcm-mirror: the other DCMs\' settings are the top-left one\'s mirrored, bu
   // CLKIN_DIVIDE_BY_2 (#46): one bit, measured on the four DCMs of the XC3S250E, mirrored to the others
   assert.deepEqual(['DCM_TL_CENTER', 'DCM_TR_CENTER', 'DCM_BL_CENTER', 'DCM_BR_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_TR_CENTER', 'DCM_H_TL_CENTER']
     .map(type => t[type].features['DCM:CLKIN_DIVIDE_BY_2:CLKIN_DIVIDE_BY_2']), [['0,112'], ['18,112'], ['0,-49'], ['18,-49'], ['0,112'], ['18,112'], ['0,-49'], ['18,-49']]);
+  // CLKIN from a global buffer, CLKFX / CLKFX180 unused (#47): measured on every DCM of the four devices
+  // (fix-25), in the database itself, the top-left one's mirrored
+  assert.deepEqual(['DCM_TL_CENTER', 'DCM_BR_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_TR_CENTER'].map(type => [t[type].features['DCM:CLKIN:GCLK'], t[type].features['DCM:DFS:OFF']]),
+    [[['!0,100'], ['!-39,12', '!-39,43', '!-39,7']], [['!18,-37'], ['!57,20', '!57,51', '!57,56']], [['!18,100'], ['!57,12', '!57,43', '!57,7']], [['!0,-37'], ['!-39,20', '!-39,51', '!-39,56']]]);
   // the DCMs' own switches of #46's designs (learn-10): the outputs and the phase-shift / reset pins
   assert.deepEqual(t.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3'], read('../measured/learn-10dcm46-pips.json').types.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3']);
   assert.ok(Object.keys(read('../measured/learn-10dcm46-pips.json').types).every(type => /^DCM_(H_)?[TB][LR]_CENTER$/.test(type)));
@@ -184,7 +188,7 @@ test('measured database: the global buffers of the left and right sides (#45)', 
       for (const a of ['USED', 'SINV:S_B', 'I0_USED:0', 'I1_USED:0', 'DISABLE_ATTR:LOW', 'GCLKMUX:', 'GCLK_BUFFER:']) assert.deepEqual(f[`${s}:${a}`], [], `${s}:${a}`);
     }
     // the inputs of the lines: one bit each
-    assert.equal(Object.entries(f).filter(([k, v]) => /(IOIS_F\d_B3|OUT[TB]\d)->\w+_GCLK\d$/.test(k) && v.length === 1).length, T === 'CLKL' ? 14 : 13);
+    assert.equal(Object.entries(f).filter(([k, v]) => /(IOIS_F\d_B3|OUT[TB]\d)->\w+_GCLK\d$/.test(k) && v.length === 1).length, 14);
   }
   assert.deepEqual(t.CLKR.features['CLKR_DN_IOIS_F4_B3->CLKR_GCLK7'], ['20,2']);
   // the centre tiles: every side line up and down, the same bits left and right

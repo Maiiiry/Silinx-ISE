@@ -52,6 +52,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-bram.mjs`, `ana-bram.mjs`, `db/<device>-bram.json` | Stage D: every memory bit of the block RAMs, by binary codes |
 | `gen-sitevar.mjs`, `ana-sitevar.mjs`, `sitevar-features.mjs`, `bram-features.mjs` | Stage D: the settings of block RAMs, multipliers and DCMs, changed one at a time in designs implemented by ISE |
 | `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-F: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
+| `gen-iobreg.mjs`, `gen-iobrand.mjs`, `ana-iobreg.mjs` | Stage G: designs with registers in the IOBs of every pad (implemented by ISE), their settings and input delays at random (xdl variants), the bits of each pad's settings solved |
 | `gen-dcmhdl.mjs`, `gen-sidebufg.mjs` | Stage G: designs of several DCMs with settings of their own, and of subsets of the side global buffers, implemented by ISE from HDL (settings xdl refuses in an edited design; inputs in combination); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
 
@@ -568,7 +569,7 @@ flow (blinky, lab11 on every board, the feature fixtures, feat_starter, feat_dcm
 byte-identical, CRC on and off, no DRC error or warning, no warning of the open flow), in about 3
 hours of wall time.
 
-### Stage G: the rest of the DCM, the side global buffers (2026-10-12)
+### Stage G: the rest of the DCM, the side global buffers, the IOB registers (2026-10-12)
 
 **#46: CLKIN_DIVIDE_BY_2, SOURCE_SYNCHRONOUS deskew and the DCM's frequency ranges.** Measured with
 designs implemented by ISE from HDL (`ise-impl.sh`: the four DCMs of the XC3S250E with every setting
@@ -646,6 +647,74 @@ on every buffer still; the database has its bits now.
 
 Runtime #45: 30 designs implemented from HDL (two with BUFGCE refused by map), 3 + 8 xdl + bitgen runs,
 about 30 minutes of wall time.
+
+**DCM: CLKIN from a global buffer, the frequency synthesizer idle** (#47 found `DCM:CLKIN:GCLK` and
+`DCM:DFS:OFF`, derived at load time by `db.mjs` on the top / bottom DCMs): confirmed on every DCM of
+the four devices, the XC3S1200E's side DCMs included (`gen-dcmhdl.mjs` with `clkBufg` and `NOFX`: the
+DCMs' CLKIN from a BUFG, CLKFX unused on every other DCM, then on the others; 12 designs implemented by
+ISE): byte-identical to ISE's bitgen, CRC on and off (the XC3S1200E's but for its long-line
+splitters), now in the database (`measured/fix-25dcm-routed.json`, mirrored). The same designs gave
+153 more PIPs of the DCM tiles (`gen-pipdrop.mjs`, 168 runs; `measured/learn-13dcm-routed-pips.json`).
+With them a DCM output reaches more global buffers (`bufgReach`: CLK0 of the top-left DCM also
+X1Y11) and the placer's choices change (the DCM fixtures of the open flow and blinky checked again:
+byte-identical). The side buffers stay out of the placer's reach (`knownRouting` `allowBufg`: not the
+CLKL / CLKR tiles) until it keeps a side buffer and the top / bottom one of the same line apart.
+
+**#44: the IOB registers and the input delays.** The I/O registers' settings (input, output and
+tristate flip-flops, DDR registers, their clock / enable / set-reset / data inverters, initial values,
+synchronous or not) and the input delays are **bits of each pad's own**, near the pads like the I/O
+standards' bits: removing one setting at a time from ISE's designs (`gen-sitedrop.mjs`) gave patterns
+that differ from pad to pad of one tile type, and some settings' bits depend on others (a register
+without a clock enable sets a bit of its own, as a slice's). Measured per pad on every bonded pad of
+the four devices:
+
+- **Designs** (`gen-iobreg.mjs`, implemented by ISE from HDL): ri (every pad an input register; the
+  registers' kinds cycle: clear + enable, synchronous reset + enable, synchronous set, falling edge),
+  ro / ro2 / ro3 (every pad that can drive one an output register, a third of them with a registered
+  output enable too, a different third in each), rd / rd2 (IDDR2 on inputs and ODDR2 on outputs,
+  alternately), rb (every pad a direct input): 28 designs.
+- **Variants** (`gen-iobrand.mjs`, xdl + bitgen): every register's settings at random (only the
+  settings of pins the design uses: nothing that changes the routing), the input delays at random or
+  rotated through every value (`setDelay`: written as ISE's map writes each value, with the delay line's
+  elements, else xdl's DRC refuses them; IFD_DELAY_VALUE 0-6 (ISE's map writes 7 and 8 as 0; from 5 on
+  with the PRE_DELAY element) and IBUF_DELAY_VALUE 0-12 (from 8 on with PRE_DELAY), measured with
+  designs of every value implemented by ISE).
+- **Features** (`core/fpga/bitgen.js iobRegFeatures`, the writer's names, all of the pad: `@M11`): the
+  input register's delay (`IFD:DLY3`, with the delay line's multiplexers and elements), a direct
+  input's (`IBUF:DLY5`), a registered output or tristate path (`OMUX:OFF1`, `OMUX:OFFDDR`,
+  `TMUX:TFF1` and their inverters and DDR multiplexers), a direct output inverted (`O1INV:O1_B`), every
+  other register setting (`R:IFF1_SR_ATTR:SRLOW`…) and the parts of a used register group left out
+  (`R:ICEINV:#OFF`, `R:IFF2:#OFF`…).
+- **Solved** (`ana-iobreg.mjs`): each design written with the register settings left out, every bit
+  where ISE differs explained by the settings of the pads near it (the values of one setting that
+  are each there only where the bit is and together exactly where it is: a delay line used is set by
+  DLY1-6; else the fewest settings that are). All of the about 23 600 bits found are explained (training:
+307-382 designs per device).
+  The I/O tiles' clock pins from global line 4 the database lacked (34 PIPs, `gen-pipdrop.mjs` on rd /
+  ro of each device, `measured/learn-12iob-clk-pips.json`) come first, else their bits would be taken
+  for a register's.
+
+**Validation.** The designs the features were solved from are byte-identical to ISE's bitgen (the
+XC3S1200E's but for its long-line splitters). Designs held out (new random variants of the same bases,
+not used to solve): with the registers' settings at random and the default input delay, all 112 (28 per
+device) are byte-identical (the XC3S1200E's but for its long-line splitters; variants with the CRC off);
+with random input delays too, about 60 % byte-identical and the others with wrong bits: the delay of a
+pad interacts with its neighbours' (a bit set for some combinations of two pads' delays), which the
+per-pad model does not hold. So the database keeps only **the delay ISE's map chooses by itself**
+(IFD_DELAY_VALUE AUTO: DLY2 on the XC3S100E, DLY3 on the others; a direct input without delay): a design
+with another input delay is refused (`IFD:DLY5`, `IBUF:DLY4`… not in the database). Coverage: a
+setting measured on a pad only in the combinations the designs gave it (the registers' kinds cycle with
+the pad's index): a register without a clock enable, for instance, is measured on about half the pads;
+on the others it is refused.
+
+**Not done:** the Silinx toolchain does not put registers in the IOBs (the packer has no IOB register,
+no IDDR2 / ODDR2, no tristate output yet): the database serves the writer for designs whose IOB
+registers ISE placed (XST's default `-iob auto` puts registers in the IOBs), checked with
+`check-writer.mjs`. Input delays other than the default, and the register kinds not measured on a pad,
+are refused.
+
+Runtime #44: 30 designs implemented from HDL, about 1 900 xdl + bitgen runs (variants, site drops,
+PIP batches), about 5 hours of wall time with two containers.
 
 ### Open synthesis on the board (2026-10-10)
 

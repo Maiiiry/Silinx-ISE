@@ -195,6 +195,8 @@ export function designFeatures(design, db) {
       if (om === 'O' && drive && drive !== ((db.tiles?.padDriveDefault || {})[std] || '12')) feats.push({ tile: `@${inst.site}`, feature: `${std === 'LVCMOS33' ? 'O' : `O:${std}`}:DRIVE:${drive}` });
       if (om === 'O' && val('SLEW') === 'FAST') feats.push({ tile: `@${inst.site}`, feature: `${std === 'LVCMOS33' ? 'O' : `O:${std}`}:SLEW:FAST` });
       if (val('PULL')) feats.push({ tile: `@${inst.site}`, feature: `${om}:PULL:${val('PULL')}` });
+      // its registers (#44): bits of the pad's own, as its standard's (near the pads, measured per pad)
+      for (const f of iobRegFeatures(inst.cfg)) feats.push({ tile: `@${inst.site}`, feature: f });
     }
     // a LUT not used in a used slice holds the constant 0 (written like any LUT: 16 ones, inverted);
     // a LUT used while the path after it (the X / Y output, or the flip-flop through DXMUX / DYMUX
@@ -220,6 +222,7 @@ export function designFeatures(design, db) {
     }
     // flip-flops without a clock enable: the enable is on (feature SLICEk:CEINV:#OFF)
     if (/^SLICE/.test(kind) && (on('FFX') || on('FFY')) && !on('CEINV')) feats.push({ tile: inst.tile, feature: `${kind}:CEINV:#OFF` });
+    const padAttrs = /^IOB\d/.test(kind) ? new Set([...iobPadRegFeatures(inst.cfg).attrs, ...inst.cfg.filter(c => IOB_REG_ATTRS.test(c.attr) && !IOB_PLAIN.test(c.attr)).map(c => c.attr)]) : new Set();
     for (const c of inst.cfg) {
       // underscore settings are notes of the tools, except the constant sources (_GND_SOURCE::Y)
       if (c.value === '#OFF' || (c.attr.startsWith('_') && !/^_(GND|VCC)_SOURCE$/.test(c.attr))) continue;
@@ -231,8 +234,9 @@ export function designFeatures(design, db) {
         for (let i = 0; v; i++, v >>= 1n) if (v & 1n) feats.push({ tile: inst.tile, feature: `${kind}:${c.attr}@${width}:${i}` });
         continue;
       }
-      // an I/O's drive, slew and pull are the pad's own features (above)
-      if (/^IOB\d/.test(kind) && /^(DRIVEATTRBOX|SLEW|PULL)$/.test(c.attr)) continue;
+      // an I/O's drive, slew and pull are the pad's own features (above), and so are its input
+      // delay and its registered output and tristate paths
+      if (/^IOB\d/.test(kind) && (/^(DRIVEATTRBOX|SLEW|PULL)$/.test(c.attr) || padAttrs.has(c.attr))) continue;
       // a DCM's input period: its frequency ranges (dcmPeriodFeatures)
       if (kind === 'DCM' && c.attr === 'X_CLKIN_PERIOD') continue;
       if ((c.attr === 'F' || c.attr === 'G') && /^#(LUT|ROM|RAM):/.test(c.value)) {
@@ -252,6 +256,86 @@ export function designFeatures(design, db) {
     net.pips.forEach((p, i) => feats.push({ tile: p.tile, feature: names[i] }));
   }
   return { feats, luts, brams };
+}
+
+/** The I/O register settings that are bits of the pad's own (#44, research/s3e-bitstream stage G:
+ *  measured per pad, near the pads like the I/O standards' bits): { feats, attrs } — the pad features
+ *  of an I/O site's cfg and the settings they stand for (left out of the tile's features).
+ *  - an input register's delay: 'IFD:DLYn' (IFD_DELAY_VALUE, DLY0 without the delay line), with the
+ *    delay line's elements and multiplexers;
+ *  - a direct input's delay: 'IBUF:DLYn' (IBUF_DELAY_VALUE 1-12; none for 0);
+ *  - an output path other than the direct one (OMUX OFF1, OFFDDR…): 'OMUX:<v>' and its inverters and
+ *    DDR multiplexers ('O1INV:O1_B', 'O1_DDRMUX:1'…); the direct output inverted: 'O1INV:O1_B';
+ *  - a tristate path: 'TMUX:<v>' and its inverters ('T1INV:T1'…).
+ *  (The database has only the input delay ISE's map chooses by itself, IFD:DLY2 / DLY3: a pad's other
+ *  delays interact with its neighbours', so they are refused.) */
+export function iobPadRegFeatures(cfg) {
+  const val = a => { const c = cfg.find(x => x.attr === a); return c && c.value !== '#OFF' ? (c.name && !c.value ? '' : c.value) : null; };
+  const feats = [], attrs = new Set();
+  const take = (...as) => as.forEach(a => attrs.add(a));
+  const iff = val('IFF1') !== null || val('IFF2') !== null || val('IFFDMUX') !== null;
+  if (iff) {
+    feats.push(`IFD:${val('IFD_DELAY_VALUE') || 'DLY0'}`);
+    take('IFD_DELAY_VALUE', 'IFFDELMUX', 'IFD_DELAY', 'PRE_DELAY_MUX', 'PRE_DELAY');
+  }
+  if (val('IMUX') !== null) {
+    const v = val('IBUF_DELAY_VALUE');
+    if (v && v !== 'DLY0') feats.push(`IBUF:${v}`);
+    take('IBUF_DELAY_VALUE', 'IBUF_DELAY', 'PRE_DELAY_MUX', 'PRE_DELAY');
+    if (v && v !== 'DLY0') take('IDELMUX');
+  }
+  const om = val('OMUX');
+  // the direct output inverted (O1INV O1_B)
+  if (om === 'O1' && val('O1INV') === 'O1_B') { feats.push('O1INV:O1_B'); take('O1INV'); }
+  if (om !== null && om !== 'O1') {
+    feats.push(`OMUX:${om}`);
+    take('OMUX');
+    for (const a of ['O1INV', 'O2INV', 'O1_DDRMUX', 'O2_DDRMUX', 'ODDROUT1_MUX', 'ODDROUT2_MUX']) if (val(a) !== null) { feats.push(`${a}:${val(a)}`); take(a); }
+  }
+  const tm = val('TMUX');
+  if (tm !== null) {
+    feats.push(`TMUX:${tm}`);
+    take('TMUX');
+    for (const a of ['T1INV', 'T2INV', 'TSMUX']) if (val(a) !== null) { feats.push(`${a}:${val(a)}`); take(a); }
+  }
+  return { feats, attrs };
+}
+
+/** The settings of the I/O registers (and the input delays, the registered output and tristate
+ *  paths), and of the plain paths (IOB_PLAIN: no bits of their own, the pad's standard has them). */
+export const IOB_REG_ATTRS = /^(IFF[12]|OFF[12]|TFF[12])(_INIT_ATTR|_SR_ATTR)?$|^(IFF|OFF|TFF)ATTRBOX$|^(ICLK[12]|OTCLK[12]|ICE|OCE|TCE|SR|REV|O1|O2|T1|T2)INV$|^(I|O|T)(SR|REV)_USED$|^(IFFDMUX|IFFDELMUX|IDDRIN_MUX|PRE_DELAY_MUX|IFD_DELAY_VALUE|IBUF_DELAY_VALUE|IFD_DELAY|IBUF_DELAY|PRE_DELAY|IDELMUX|IMUX|OMUX|TMUX|TSMUX|T_USED|O1_DDRMUX|O2_DDRMUX|ODDROUT[12]_MUX|OFFDDRBLACKBOX|IFFDDRBLACKBOX|PCICE_MUX|PCIRDY_MUX)$/;
+export const IOB_PLAIN = /^(IMUX|IDELMUX|O1INV|OMUX)$/;
+
+/** The pad features of an I/O site's registers (#44, research/s3e-bitstream stage G): the delay and
+ *  path features (iobPadRegFeatures), 'R:<setting>:<value>' for every other register setting, and
+ *  'R:<setting>:#OFF' for the parts of a used register group left out (iobRegPseudo). Their bits are
+ *  the pad's own, measured on each pad (they lie near the pads, as the I/O standards' bits). */
+export function iobRegFeatures(cfg) {
+  const { feats, attrs } = iobPadRegFeatures(cfg);
+  const out = [...feats];
+  for (const c of cfg) {
+    if (!IOB_REG_ATTRS.test(c.attr) || IOB_PLAIN.test(c.attr) || attrs.has(c.attr) || c.value === '#OFF') continue;
+    out.push(`R:${c.attr}:${c.name && !c.value ? '' : c.value}`);
+  }
+  for (const f of iobRegPseudo(cfg)) out.push(`R:${f}`);
+  return out;
+}
+
+/** The settings of an I/O site's register groups left out while the group is used (#44): 'IFF2:#OFF'
+ *  for an input register without its DDR partner, 'ICEINV:#OFF' for one without a clock enable…
+ *  (as a slice's flip-flops without a clock enable): a register's unused parts set bits of their own. */
+export const IOB_REG_GROUPS = {
+  I: ['IFF1', 'IFF2', 'IFF1_INIT_ATTR', 'IFF2_INIT_ATTR', 'IFF1_SR_ATTR', 'IFF2_SR_ATTR', 'IFFATTRBOX', 'ICLK1INV', 'ICLK2INV', 'ICEINV', 'ISR_USED', 'IREV_USED', 'IDDRIN_MUX'],
+  O: ['OFF1', 'OFF2', 'OFF1_INIT_ATTR', 'OFF2_INIT_ATTR', 'OFF1_SR_ATTR', 'OFF2_SR_ATTR', 'OFFATTRBOX', 'OTCLK1INV', 'OTCLK2INV', 'OCEINV', 'OSR_USED', 'OREV_USED'],
+  T: ['TFF1', 'TFF2', 'TFF1_INIT_ATTR', 'TFF2_INIT_ATTR', 'TFF1_SR_ATTR', 'TFF2_SR_ATTR', 'TFFATTRBOX', 'OTCLK1INV', 'OTCLK2INV', 'TCEINV', 'TSR_USED', 'TREV_USED'],
+};
+export function iobRegPseudo(cfg) {
+  const on = a => cfg.some(c => c.attr === a && c.value !== '#OFF');
+  const used = g => on(`${g}FF1`) || on(`${g}FF2`);
+  const out = new Set();
+  for (const [g, attrs] of Object.entries(IOB_REG_GROUPS)) if (used(g)) for (const a of attrs) if (!on(a)) out.add(`${a}:#OFF`);
+  if (used('I') || used('O') || used('T')) for (const a of ['SRINV', 'REVINV']) if (!on(a)) out.add(`${a}:#OFF`);
+  return [...out];
 }
 
 /** A DCM's input period (X_CLKIN_PERIOD, ns) as the features of its frequency ranges (measured on
@@ -331,7 +415,10 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *   allowConstSource(kind, site)   a VCC site (no settings of its own) or a slice whose settings as
  *                                  a GND source (USED, _GND_SOURCE:Y) are known
  *   allowBufg(tileName, site)      a global clock buffer whose settings (USED) are known: the top and
- *                                  bottom ones, not yet the side ones (#45)
+ *                                  bottom ones; not yet the side ones (CLKL / CLKR): their bits are in
+ *                                  the database (#45), but the placer does not keep a side buffer and
+ *                                  the top / bottom one of the same line out of each other's quadrants
+ *                                  (research/s3e-bitstream/README.md, stage G)
  */
 export function knownRouting(db) {
   // each tile's type and whether the layout knows it, once per tile (the router and the placer's
@@ -358,7 +445,7 @@ export function knownRouting(db) {
       const kindOf = siteKind({ site: site.name, type: site.type }, db);
       return !!kindOf && known(site.tileName, `${kindOf}:USED`) && known(site.tileName, `${kindOf}:_GND_SOURCE:Y`);
     },
-    allowBufg: (tileName, site) => known(tileName, `${site}:USED`),
+    allowBufg: (tileName, site) => !/^CLK[LR]_/.test(tileName) && known(tileName, `${site}:USED`),
   };
 }
 

@@ -339,8 +339,8 @@ test('bufgReach: each output of the top-left DCM reaches its global buffer throu
   const got = Object.fromEntries(['CLK0', 'CLK2X', 'CLKDV', 'CLKFX', 'CLK90', 'CLKFX180'].map(p => [p, bufgReach(g, 'DCM_X0Y1', p, known.allowPip)]));
   // (the DCM pins' switches measured in stage F of research/s3e-bitstream add CLK0 -> X2Y11 and CLKFX -> X1Y11;
   // the designs of every DCM, CLK90 -> X1Y11 and CLKFX -> X2Y11: CLK90 on a global buffer is byte-identical to ISE;
-  // #46's designs of every DCM, CLK0 -> X1Y10)
-  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X2Y11', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK90: ['BUFGMUX_X1Y11'], CLKFX180: [] });
+  // #46's designs of every DCM, CLK0 -> X1Y10 and X1Y11)
+  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X2Y11', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK90: ['BUFGMUX_X1Y11'], CLKFX180: [] });
   // without the restriction: the four buffers of the top edge
   assert.deepEqual(bufgReach(g, 'DCM_X0Y1', 'CLK90').sort(), ['BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']);
 });
@@ -596,10 +596,10 @@ test('two DCMs on each device: each on a site whose outputs reach global buffers
   // u2's CLKDV reaches a buffer only from the top-left DCM (the XC3S100E: from its bottom one, CLKDV
   // of its top one, DCM_X0Y1 in a DCM_TR_CENTER tile, reaching none)
   const want = {
-    'xc3s100ecp132-4': { u1: 'DCM_X0Y1', u1_b0: 'BUFGMUX_X2Y11', u1_bCLKFX: 'BUFGMUX_X2Y10', u2: 'DCM_X0Y0', u2_b0: 'BUFGMUX_X2Y1', u2_bCLKDV: 'BUFGMUX_X1Y0' },
-    'xc3s250ecp132-4': { u1: 'DCM_X1Y1', u1_b0: 'BUFGMUX_X1Y10', u1_bCLKFX: 'BUFGMUX_X1Y11', clk2: 'B8', u2: 'DCM_X0Y1', u2_b0: 'BUFGMUX_X2Y10', u2_bCLKDV: 'BUFGMUX_X2Y11' },
-    'xc3s500efg320-4': { u1: 'DCM_X1Y1', u1_b0: 'BUFGMUX_X1Y10', u1_bCLKFX: 'BUFGMUX_X1Y11', clk2: 'B8', u2: 'DCM_X0Y1', u2_b0: 'BUFGMUX_X2Y10', u2_bCLKDV: 'BUFGMUX_X2Y11' },
-    'xc3s1200efg320-4': { u1: 'DCM_X2Y3', u1_b0: 'BUFGMUX_X1Y10', u1_bCLKFX: 'BUFGMUX_X1Y11', clk2: 'B8', u2: 'DCM_X1Y3', u2_b0: 'BUFGMUX_X2Y10', u2_bCLKDV: 'BUFGMUX_X2Y11' },
+    'xc3s100ecp132-4': { u1: 'DCM_X0Y1', u1_b0: 'BUFGMUX_X2Y11', u1_bCLKFX: 'BUFGMUX_X2Y10', u2: 'DCM_X0Y0', u2_b0: 'BUFGMUX_X2Y1', u2_bCLKDV: 'BUFGMUX_X2Y0' },
+    'xc3s250ecp132-4': { u1: 'DCM_X1Y1', u1_b0: 'BUFGMUX_X2Y10', u1_bCLKFX: 'BUFGMUX_X1Y11', clk2: 'B8', u2: 'DCM_X0Y1', u2_b0: 'BUFGMUX_X1Y10', u2_bCLKDV: 'BUFGMUX_X2Y11' },
+    'xc3s500efg320-4': { u1: 'DCM_X1Y1', u1_b0: 'BUFGMUX_X2Y10', u1_bCLKFX: 'BUFGMUX_X1Y11', clk2: 'B8', u2: 'DCM_X0Y1', u2_b0: 'BUFGMUX_X1Y10', u2_bCLKDV: 'BUFGMUX_X2Y11' },
+    'xc3s1200efg320-4': { u1: 'DCM_X2Y3', u1_b0: 'BUFGMUX_X2Y10', u1_bCLKFX: 'BUFGMUX_X1Y11', clk2: 'B8', u2: 'DCM_X1Y3', u2_b0: 'BUFGMUX_X1Y10', u2_bCLKDV: 'BUFGMUX_X2Y11' },
   };
   for (const [part] of SHIPPED) {
     const { opts, sites } = await flowOf(part);
@@ -635,7 +635,7 @@ test('DCM outputs CLK2X180 and CLKFX180: on a DCM that reaches a global buffer f
     const p = pack(twoDcms({ u1: ['CLKFX180'], u2: ['CLK90'] }), { part });
     const got = clockSitesOf(p, place(p, sites, { seed: 1, effort: 0.1, ...opts }));
     assert.deepEqual([got.u1, got.u1_bCLKFX180, got.u2, got.u2_bCLK90], {
-      'xc3s100ecp132-4': ['DCM_X0Y1', 'BUFGMUX_X2Y11', 'DCM_X0Y0', 'BUFGMUX_X1Y0'],
+      'xc3s100ecp132-4': ['DCM_X0Y1', 'BUFGMUX_X2Y11', 'DCM_X0Y0', 'BUFGMUX_X2Y0'],
       'xc3s250ecp132-4': ['DCM_X1Y1', 'BUFGMUX_X2Y11', 'DCM_X0Y1', 'BUFGMUX_X1Y11'],
       'xc3s500efg320-4': ['DCM_X1Y1', 'BUFGMUX_X2Y11', 'DCM_X0Y1', 'BUFGMUX_X1Y11'],
       'xc3s1200efg320-4': ['DCM_X2Y3', 'BUFGMUX_X2Y11', 'DCM_X1Y3', 'BUFGMUX_X1Y11'],
@@ -666,7 +666,8 @@ test('a DCM\'s INST LOC: the packer keeps it, the placer puts the DCM there; a L
 test('clockReach: the DCM clock inputs (CLKIN, CLKFB) a global buffer reaches on switches of known bits; a cascade of two DCMs (#47)', { timeout: 300000 }, async () => {
   const { opts, sites, clockSites } = await flowOf('xc3s250ecp132-4');
   const dcmPins = b => [...clockSites(b)].filter(s => s.startsWith('DCM_')).sort();
-  assert.deepEqual(dcmPins('BUFGMUX_X2Y11'), ['DCM_X0Y0.CLKFB', 'DCM_X0Y0.CLKIN', 'DCM_X0Y1.CLKFB', 'DCM_X0Y1.CLKIN', 'DCM_X1Y1.CLKFB']);
+  // (with the DCM pins' switches of the designs of #46 / #47 with CLKIN from a global buffer: X1Y0's and X1Y1's CLKIN too)
+  assert.deepEqual(dcmPins('BUFGMUX_X2Y11'), ['DCM_X0Y0.CLKFB', 'DCM_X0Y0.CLKIN', 'DCM_X0Y1.CLKFB', 'DCM_X0Y1.CLKIN', 'DCM_X1Y0.CLKIN', 'DCM_X1Y1.CLKFB', 'DCM_X1Y1.CLKIN']);
   assert.deepEqual(dcmPins('BUFGMUX_X2Y10'), ['DCM_X0Y1.CLKFB', 'DCM_X1Y0.CLKFB', 'DCM_X1Y1.CLKFB', 'DCM_X1Y1.CLKIN']);
   // u2's CLKIN from u1's CLK0 buffer: u2 on the bottom-left DCM (its CLK2X180), u1's CLK0 on the
   // buffer that reaches both u1's CLKFB and u2's CLKIN
