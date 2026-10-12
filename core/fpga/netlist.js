@@ -72,7 +72,10 @@ export function readYosysJson(json, { top } = {}) {
   // ports: bit names as UCF writes them (bus bits name<i>, i counted as the HDL declares them;
   // escaped names as XST's: \opcode[0]  -> _opcode[0]_)
   const ports = [];
-  for (const [pname, p] of Object.entries(mod.ports || {})) {
+  for (const [yname, p] of Object.entries(mod.ports || {})) {
+    // Yosys leaves the escape of a name whose text starts with '\', '$' or a digit (a VHDL extended
+    // identifier \Mixed\ is \\Mixed\ in its JSON, the Verilog \1abc  is \1abc): the name is the text
+    const pname = /^\\[\\$0-9]/.test(yname) ? yname.slice(1) : yname;
     const dir = p.direction === 'input' ? 'in' : p.direction === 'output' ? 'out' : 'inout';
     const w = p.bits.length, off = p.offset ?? 0, bus = w > 1 || p.offset !== undefined || p.upto !== undefined;
     const bits = p.bits.map((b, i) => {

@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { validateManifest, compareExpectations, updatedExpectations, normalizeWarning, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, isGood, kindOf, FLOW_PARTS, chipOf, deviceOf } from './designs-corpus/lib.mjs';
+import { validateManifest, compareExpectations, updatedExpectations, normalizeWarning, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, isGood, kindOf, FLOW_PARTS, chipOf, deviceOf, flaggedSynth } from './designs-corpus/lib.mjs';
 import { remoteFiles } from '../scripts/fetch-design-corpus.mjs';
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
@@ -188,4 +188,44 @@ test('design corpus: the devices of the flow, smallest first, each with a device
     const pads = JSON.parse(fs.readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'research/s3e-bitstream/db', `${pkg === 'cp132' ? 'xc3s250e' : 'xc3s500e'}-${pkg}-pads.json`), 'utf8'));
     assert.ok(JSON.stringify(pads).includes('"B8"'), `B8 on the ${pkg}`);
   }
+});
+
+test('flaggedSynth: synth_xilinx options on every step, all the files the script reads (#62)', { timeout: 180000 }, async () => {
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  const { toVerilog } = await import('../core/synth-verilog.js');
+  const { cellCounts, SRL_MAP_FILE, SRL_CELLS_FILE } = await import('../core/synth-open.js');
+  // an 8-bit shift register and a 16x4 memory
+  const V = `module shmem(input clk, input d, input we, input [3:0] a, input [3:0] wd, output q, output [3:0] rd);
+  reg [7:0] sh; reg [3:0] mem [0:15];
+  always @(posedge clk) begin sh <= {sh[6:0], d}; if (we) mem[a] <= wd; end
+  assign q = sh[7]; assign rd = mem[a];
+endmodule
+`;
+  const { text, top } = toVerilog(elaborate(compile([{ path: 's.v', lang: 'verilog', text: V }]), 'shmem'));
+  // -nosrl: no shift-register mapping of Silinx's either; the options on each synth_xilinx run
+  const no = flaggedSynth(top, text, '-nobram -nolutram -nosrl');
+  const script = no.args[2];
+  assert.deepEqual(no.args.slice(0, 2), ['-q', '-p']);
+  assert.equal(script.match(/synth_xilinx /g).length, script.match(/synth_xilinx -nobram -nolutram -nosrl -family xc3se /g).length);
+  assert.doesNotMatch(script, /xilinx_srl|silinx_srl/);
+  assert.deepEqual(Object.keys(no.files).sort(), [SRL_CELLS_FILE, SRL_MAP_FILE, 'shmem_syn.v'].sort());
+  // without -nosrl: the script reads the SRL cells, which Yosys did not find before (#62)
+  const keep = flaggedSynth(top, text, '-nobram');
+  assert.match(keep.args[2], new RegExp(`read_verilog -lib ${SRL_CELLS_FILE}`));
+  assert.equal(keep.args[2].match(/synth_xilinx /g).length, keep.args[2].match(/synth_xilinx -nobram -family xc3se /g).length);
+  assert.deepEqual(Object.keys(keep.files).sort(), [SRL_CELLS_FILE, SRL_MAP_FILE, 'shmem_syn.v'].sort());
+  // both run in Yosys; the only warning is the one Yosys prints on every Spartan-3E run
+  const run = async ({ args, files }) => {
+    const lines = [];
+    const out = await yosysNode(args, files, l => lines.push(l));
+    return { cells: cellCounts(out[`${top}.json`], top), warnings: lines.filter(l => /^Warning/.test(l)) };
+  };
+  const a = await run(no), b = await run(keep);
+  assert.deepEqual(a.warnings, ['Warning: Shift register inference not yet supported for family xc3se.']);
+  assert.deepEqual(b.warnings, ['Warning: Shift register inference not yet supported for family xc3se.']);
+  assert.equal(a.cells.SRL16E, undefined);
+  assert.equal(a.cells.RAM16X1S, undefined);
+  assert.equal(a.cells.FDRE, 8 + 64);
+  assert.equal(b.cells.SRL16E, 1);
+  assert.equal(b.cells.RAM16X1S, 4);
 });

@@ -149,7 +149,10 @@ export function lex(src) {
       }
       if (src[j] !== '\\') { err('unterminated extended identifier'); adv(j - i); continue; }
       adv(j - i + 1);
-      push({ type: 'id', value: s.toLowerCase(), raw: s, extended: true, line: l0, col: c0 });
+      // its name is as written, backslashes included: case-sensitive and never the same as a basic
+      // identifier (\Mixed\ is not mixed, IEEE 1076-2008 15.4.3); XST's _Mixed_ in the UCF (#65)
+      const name = `\\${s.replace(/\\/g, '\\\\')}\\`;
+      push({ type: 'id', value: name, raw: name, extended: true, line: l0, col: c0 });
       continue;
     }
     // numbers (decimal, real, based, sized bit-string)

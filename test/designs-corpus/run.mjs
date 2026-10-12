@@ -33,7 +33,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
-import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf } from './lib.mjs';
+import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf, flaggedSynth } from './lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -182,9 +182,9 @@ async function runDesign(manifest, d, opts) {
 /** Yosys with extra synth_xilinx options (the flow's retry without the cells the packer lacks). */
 async function synthWith(design, flags, m) {
   const { text, top, warnings } = m.toVerilog(design);
-  const script = m.yosysScript(top, 'spartan3e').replace('-ise ', `-ise ${flags} `);
+  const { args, files } = flaggedSynth(top, text, flags);
   const lines = [];
-  const out = await m.yosysNode(['-q', '-p', script], { [`${top}_syn.v`]: text }, l => lines.push(l));
+  const out = await m.yosysNode(args, files, l => lines.push(l));
   if (!out[`${top}.json`]) throw new Error('Yosys wrote no netlist');
   const cells = m.cellCounts(out[`${top}.json`], top);
   return { top, files: { [`${top}.json`]: out[`${top}.json`], [`${top}_syn.v`]: text }, cells, util: m.utilization(cells), warnings: [...warnings, ...lines.filter(l => /^Warning:/.test(l))] };

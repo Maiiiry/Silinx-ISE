@@ -291,3 +291,68 @@ uiTest('I/O Pin Planning and Check Constraints: escaped port names (\\opcode[0] 
   const after = await page.eval(() => document.getElementById('console-log').innerText.split('Process "Check Constraints" failed (1 error(s), 1 warning(s))').pop());
   assert.match(after, /Process "Check Constraints" completed successfully\s*$/, after);
 });
+
+// #63: a hand-written NET "opcode[1]" (the HDL name of the escaped port \opcode[1] , not a bus bit)
+// stays as written; the bits of a bus written x[1] / x(1) are the planner's x<1>
+uiTest('I/O Pin Planning keeps a hand-written bracket name that is not a bus bit (opcode[1]) as written; x[1] of a bus is x<1>', E, async (page) => {
+  const V = 'module top(input [1:0] x, input \\opcode[1] , output y);\n  assign y = ^x ^ \\opcode[1] ;\nendmodule\n';
+  await makeProject(env, { name: 'BrPj', top: 'top', board: 'basys2', constraints: 'constraints/top.ucf',
+    files: { 'src/top.v': V, 'constraints/top.ucf': 'NET "opcode[1]" LOC = "L3" ;\nNET "x[1]" LOC = "P11" ;\nNET "x(0)" LOC = "K3" ;\n' } });
+  await page.openProject('BrPj');
+  await page.eval(() => window.SilinxApp.openPinPlanner('top'));
+  await page.waitFor(() => window.Silinx.active?.id === 'pins' && document.querySelectorAll('.pin-planner .pp-table tr').length === 5);
+  const rows = await page.eval(() => [...document.querySelectorAll('.pp-table tr')].slice(1).map((r) => `${r.cells[0].textContent}=${r.cells[3].querySelector('input').value}`));
+  assert.deepEqual([...rows].sort(), ['_opcode[1]_=', 'x<0>=K3', 'x<1>=P11', 'y=']);
+  assert.equal(await page.eval(() => document.querySelector('.pp-bar > span:last-child').textContent), '2/4 I/Os assigned');
+  // an edit saves the UCF: opcode[1] as written (not opcode<1>), the bus bits as x<i>
+  await page.eval(() => { const r = [...document.querySelectorAll('.pp-table tr')].find((x) => x.cells[0]?.textContent === 'y'); const inp = r.cells[3].querySelector('input'); inp.value = 'M5'; inp.dispatchEvent(new Event('change')); });
+  await page.waitFor(() => document.querySelector('.pp-bar > span:last-child').textContent === '3/4 I/Os assigned');
+  await page.waitFor(async () => /NET "y"\s+LOC = "M5"/.test(await (await fetch('/api/projects/BrPj/file?path=constraints/top.ucf')).text()), [], { what: 'pin planning saved' });
+  const ucf = await readWs(env, 'BrPj', 'constraints/top.ucf');
+  assert.match(ucf, /^NET "opcode\[1\]"\s+LOC = "L3" ; {2}# not a port of the top module$/m);
+  assert.match(ucf, /^NET "x<1>"\s+LOC = "P11" ;$/m);
+  assert.match(ucf, /^NET "x<0>"\s+LOC = "K3" ;$/m);
+  assert.doesNotMatch(ucf, /opcode<1>/);
+  // Check Constraints names the port as ngdbuild finds it
+  await page.eval(() => window.SilinxApp.openFile('constraints/top.ucf'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/top.ucf');
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
+  await page.waitConsole(/Process "Check Constraints" failed \(1 error\(s\), 1 warning\(s\)\)/);
+  const log = await page.eval(() => document.getElementById('console-log').innerText);
+  assert.ok(log.includes('ERROR:ConstraintSystem - "constraints/top.ucf" Line 7: NET "opcode[1]" is not found by ISE: XST names the port \'opcode[1]\' _opcode[1]_ in its netlist (use NET "_opcode[1]_")'), log);
+  assert.ok(log.includes('WARNING:ConstraintSystem - "constraints/top.ucf" Line 7: 1 port bit(s) of \'top\' have no LOC: _opcode[1]_'), log);
+});
+
+// #65: VHDL extended identifiers are XST's _Mixed_ in the UCF, their case kept
+uiTest('I/O Pin Planning and Check Constraints: VHDL extended identifiers (\\Mixed\\) are written and checked as XST names them (_Mixed_)', E, async (page) => {
+  const VHD = 'library ieee; use ieee.std_logic_1164.all;\nentity top is port (\\Mixed\\ : in std_logic; \\Bus\\ : in std_logic_vector(1 downto 0); y : out std_logic); end top;\n'
+    + 'architecture rtl of top is begin\n  y <= \\Mixed\\ xor \\Bus\\(0) xor \\Bus\\(1);\nend rtl;\n';
+  await makeProject(env, { name: 'ExtPj', top: 'top', board: 'basys2', constraints: 'constraints/top.ucf',
+    files: { 'src/top.vhd': VHD, 'constraints/top.ucf': '# pins\n', 'constraints/bad.ucf': 'NET "Mixed" LOC = "P11" ;\nNET "_Bus_<0>" LOC = "L3" ;\nNET "_Bus_<1>" LOC = "K3" ;\nNET "y" LOC = "M5" ;\n' } });
+  await page.openProject('ExtPj');
+  await page.eval(() => window.SilinxApp.openPinPlanner('top'));
+  await page.waitFor(() => window.Silinx.active?.id === 'pins' && document.querySelectorAll('.pin-planner .pp-table tr').length === 5);
+  const nets = await page.eval(() => [...document.querySelectorAll('.pp-table tr')].slice(1).map((r) => r.cells[0]?.textContent));
+  assert.deepEqual([...nets].sort(), ['_Bus_<0>', '_Bus_<1>', '_Mixed_', 'y']);
+  for (const [net, pin] of [['_Mixed_', 'P11'], ['_Bus_<0>', 'L3'], ['_Bus_<1>', 'K3'], ['y', 'M5']]) {
+    await page.eval((n, p) => { const r = [...document.querySelectorAll('.pp-table tr')].find((x) => x.cells[0]?.textContent === n); const inp = r.cells[3].querySelector('input'); inp.value = p; inp.dispatchEvent(new Event('change')); }, net, pin);
+  }
+  await page.waitFor(() => document.querySelector('.pp-bar > span:last-child').textContent === '4/4 I/Os assigned');
+  await page.waitFor(async () => /NET "y"\s+LOC = "M5"/.test(await (await fetch('/api/projects/ExtPj/file?path=constraints/top.ucf')).text()), [], { what: 'pin planning saved' });
+  const ucf = await readWs(env, 'ExtPj', 'constraints/top.ucf');
+  assert.match(ucf, /^NET "_Mixed_"\s+LOC = "P11" ;$/m);
+  assert.match(ucf, /^NET "_Bus_<1>"\s+LOC = "K3" ;$/m);
+  assert.doesNotMatch(ucf, /NET "(mixed|Mixed|_mixed_)"/);
+  // Check Constraints: the saved file is clean; the HDL name written by hand is ngdbuild's error
+  await page.eval(() => window.SilinxApp.openFile('constraints/top.ucf'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/top.ucf');
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
+  await page.waitConsole(/Process "Check Constraints" completed successfully/);
+  await page.eval(() => window.SilinxApp.openFile('constraints/bad.ucf'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/bad.ucf');
+  await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
+  await page.waitConsole(/Process "Check Constraints" failed \(1 error\(s\), 1 warning\(s\)\)/);
+  const log = await page.eval(() => document.getElementById('console-log').innerText);
+  assert.ok(log.includes('ERROR:ConstraintSystem - "constraints/bad.ucf" Line 1: NET "Mixed" is not found by ISE: XST names the port \'\\Mixed\\\' _Mixed_ in its netlist (use NET "_Mixed_")'), log);
+  assert.ok(log.includes('WARNING:ConstraintSystem - "constraints/bad.ucf" Line 4: 1 port bit(s) of \'top\' have no LOC: _Mixed_'), log);
+});

@@ -21,6 +21,11 @@
  */
 export function ucfPortName(port) {
   const s = String(port);
+  // a VHDL extended identifier (its name keeps the backslashes, core/vhdl/lexer.js) is always put
+  // between underscores, its case kept, even when its text is a plain name: \Mixed\ -> _Mixed_,
+  // \a.b\ -> _a_b_, \Bus\(1) -> _Bus_<1> (measured with ISE 14.7, #65)
+  const ext = /^\\(.*)\\$/s.exec(s);
+  if (ext) return `_${ext[1].replace(/\\\\/g, '\\').replace(/[+./\\~^*=%&$]/g, '_')}_`;
   return /^[A-Za-z_][\w$]*$/.test(s) ? s.replace(/\$/g, '_') : `_${s.replace(/[+./\\~^*=%&$]/g, '_')}_`;
 }
 
@@ -199,8 +204,17 @@ function statements(text) {
 }
 
 const unq = s => s.trim().replace(/^"(.*)"$/, '$1');
-// ISE accepts bus bits as a<0>, a(0) or a[0]: keep the canonical a<0>
-const busBit = s => s.replace(/^([A-Za-z_][\w$]*)\s*[([]\s*(-?\d+)\s*[)\]]$/, '$1<$2>');
+// ngdbuild finds a bit of a bus port written a<0>, a(0) or a[0] (measured with ISE 14.7): the
+// canonical a<0>. But a name such as opcode[1] may also be a port's HDL name (Verilog \opcode[1] ,
+// netlist name _opcode[1]_, #34), not a bit: given the ports, only the bits of their buses are
+// rewritten; anything else is kept as written (#63).
+const BUS_BIT = /^([A-Za-z_][\w$]*)\s*[([]\s*(-?\d+)\s*[)\]]$/;
+function busBitOf(ports) {
+  if (!ports) return s => s.replace(BUS_BIT, '$1<$2>');
+  const buses = new Set();
+  for (const p of ports) { const n = normalizePort(p); if (n.bus) buses.add(ucfPortName(n.name).toLowerCase()); }
+  return s => { const m = BUS_BIT.exec(s); return m && buses.has(m[1].toLowerCase()) ? `${m[1]}<${m[2]}>` : s; };
+}
 
 /**
  * Parse the remainder of a simple PERIOD spec: '20 ns HIGH 50%', '50 MHz', '20'. Anchored: derived
@@ -226,10 +240,13 @@ function periodSpecOk(s) {
 }
 
 /**
- * Parse UCF text.
+ * Parse UCF text. Net names are kept as written, but for bus bits written a(0) or a[0], which
+ * become a<0>: with `ports` (the top's, as normalizePort takes them), only the bits of its buses;
+ * without, every name of that shape (#63).
  * @returns {{ assignments: Object<string, object>, clocks: Array, other: string[] }}
  */
-export function parseUcf(text) {
+export function parseUcf(text, { ports } = {}) {
+  const busBit = busBitOf(ports);
   const assignments = {};
   const clocks = [];
   const other = [];          // [{ i, text }] sorted by statement position at the end
@@ -420,7 +437,11 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
   const renamed = new Map(), renamedRaw = new Map();
   for (const p of portMap.values()) {
     const u = ucfPortName(p.name);
-    if (u !== p.name) { renamed.set(u.toLowerCase(), p); renamedRaw.set(p.name.toLowerCase(), p); }
+    if (u !== p.name) {
+      renamed.set(u.toLowerCase(), p);
+      // a VHDL extended identifier (\Mixed\) also by its text (Mixed)
+      renamedRaw.set(p.name.replace(/^\\(.*)\\$/s, '$1').toLowerCase(), p);
+    }
   }
   const boardPins = board ? new Map() : null;
   if (board) for (const r of board.resources || []) r.pins.forEach((pin, i) => boardPins.set(String(pin).toUpperCase(), r.pins.length > 1 ? `${r.name}<${i}>` : r.name));
@@ -497,7 +518,8 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
     let m = renamed.has(net.toLowerCase()) ? [net, net] : mEsc && renamed.has(mEsc[1].toLowerCase()) ? [net, mEsc[1], '<', mEsc[2]] : null;
     if (!m) {
       // ... or by its HDL name, which ngdbuild does not find (ConstraintSystem:59)
-      const rawNet = net.replace(/^\\/, '').trim().toLowerCase();   // also as written in Verilog: \opcode[0]
+      // also as written in Verilog (\opcode[0]) or VHDL (\Mixed\, \Bus\(1))
+      const rawNet = net.trim().replace(/^\\([^\\]*)\\/, '$1').replace(/^\\/, '').trim().toLowerCase();
       const mRaw = /^(.*?)\s*[<([]\s*(-?\d+)\s*[>)\]]$/.exec(rawNet);
       const raw = renamedRaw.has(rawNet) ? [renamedRaw.get(rawNet)] : mRaw && renamedRaw.has(mRaw[1]) ? [renamedRaw.get(mRaw[1]), mRaw[2]] : null;
       if (raw) {

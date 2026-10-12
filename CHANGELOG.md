@@ -88,6 +88,27 @@ the "What's new" text of its GitHub release.
   `bwrite`. Testbenches read test vectors from the project's data files with `readline`, `read` (and
   its `good` flag) and `endfile`; a file's own lines are shown with its name. These procedures
   were ignored, with a warning (#76).
+- **Design corpus: the board designs synthesized with synth_xilinx options** (SERV on the Basys2:
+  `-nobram -nolutram -nosrl`) build again: Yosys was given only the design, not Silinx's
+  shift-register map and cells its script reads (`File silinx_srl_cells.v not found`). The options
+  now go to every synth_xilinx step, and `-nosrl` also leaves out Silinx's own shift-register
+  mapping; the same for the corpus runner's retry without RAMs (#62).
+- **UI tests without the npm dependencies** (a fresh clone or worktree) stop at once with
+  `npm dependencies missing from node_modules (…): run npm ci`, instead of failing every test with
+  the page's `Cannot read properties of undefined (reading 'fold')` (no CodeMirror served). One UI
+  test runs alone with `node --test --test-name-pattern=…` (tested; README) (#64).
+- **I/O Pin Planning keeps a hand-written `NET "opcode[1]"` as written** (the HDL name of the
+  escaped port `\opcode[1] `, whose UCF name is `_opcode[1]_`), so Check Constraints still says
+  which name ngdbuild finds; it was rewritten as `opcode<1>`, a net of no port. Only the bits of
+  the top's buses written `x[1]` or `x(1)` become `x<1>`: ngdbuild finds all three spellings
+  (measured with ISE 14.7) (#63).
+- **VHDL extended identifiers keep their case** and are names of their own, as in VHDL
+  (`\Mixed\`, `\mixed\` and `mixed` are three names; they were all `mixed`). In the UCF they are
+  XST's names, between underscores even when their text is a plain name: `\Mixed\` is `_Mixed_`,
+  `\a.b\` is `_a_b_`, `\Bus\(1)` is `_Bus_<1>` (measured with ISE 14.7), in I/O Pin Planning, the
+  automatic pins, Check Constraints (which reports `NET "Mixed"` as ngdbuild's error, with the
+  right name) and the Silinx toolchain's pads (#65). The pads of Verilog escaped names that start
+  with a digit (`\1abc `) are XST's `_1abc_` too (they were `__1abc_`).
 
 ## 15.10.2
 
