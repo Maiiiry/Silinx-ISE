@@ -64,6 +64,8 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   const tooltip = async () => {
     await page.waitForSelector('.doc:not([hidden]) .CodeMirror-lint-marker-warning', { timeout: 8000 });
     await page.eval(() => document.querySelectorAll('.CodeMirror-lint-tooltip').forEach((t) => t.remove()));
+    // (off the marker first: a marker redrawn under a mouse that does not move gets no mouseover)
+    await page.hover('#menubar');
     await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-warning');
     return page.waitFor(() => document.querySelector('.CodeMirror-lint-tooltip')?.textContent, [], { what: 'lint tooltip' });
   };
@@ -82,7 +84,10 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   assert.match(await page.eval(() => document.querySelector('#console-warnings .diag .diag-more').textContent), /^▾ Explicação e correção$/);
   // the ISE-style message itself is not translated
   assert.match(await page.eval(() => document.querySelector('#console-warnings .diag').textContent), /Found 1-bit latch for signal <q>/);
+  // the lint redraws the marker: the tooltip of the new one (the old one may still be there a moment)
+  await page.eval(() => document.querySelector('.doc:not([hidden]) .CodeMirror-lint-marker-warning')?.setAttribute('data-old', ''));
   await page.eval(() => window.Silinx.active.editor.cm.performLint());
+  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .CodeMirror-lint-marker-warning:not([data-old])'), [], { what: 'the marker redrawn' });
   tip = await tooltip();
   assert.match(tip, /Found 1-bit latch for signal <q>/);
   assert.match(tip, /Explicação: É inferido um latch \(trinco\) para 'q'/);
