@@ -622,8 +622,8 @@ function tieConstants(nets, kind, { device, usedSites, errors, allowPip, allowSo
 /**
  * The slices whose clock pin a global clock buffer reaches through the dedicated clock network
  * (GCLK nodes) and, with allowPip(tileName, from, to), only through allowed PIPs: a Set of slice site
- * names, and the clock pins of the block RAMs and multipliers it reaches as `site.pin` (RAMB16_X0Y1.CLKA,
- * RAMB16_X0Y1.CLKB, MULT18X18_X0Y1.CLK). For the placer (place()'s clockSites option): with the
+ * names, and the clock pins of the block RAMs, multipliers and DCMs it reaches as `site.pin` (RAMB16_X0Y1.CLKA,
+ * RAMB16_X0Y1.CLKB, MULT18X18_X0Y1.CLK, DCM_X0Y0.CLKIN, DCM_X0Y0.CLKFB). For the placer (place()'s clockSites option): with the
  * switches of known bits, a clock line reaches the CLK pins of only some slices of a CLB
  * (research/s3e-route/README.md), and a bottom buffer's lines not every block RAM's (#56).
  */
@@ -656,7 +656,8 @@ export function clockReach(device, bufgSite, allowPip = null) {
       beyond.add(E.edgeTo[e]);
     }
   }
-  for (const [type, pins] of [['RAMB16', ['CLKA', 'CLKB']], ['MULT18X18SIO', ['CLK']]]) {
+  // (and a DCM's clock inputs, CLKIN / CLKFB: a cascade, the feedback, #47)
+  for (const [type, pins] of [['RAMB16', ['CLKA', 'CLKB']], ['MULT18X18SIO', ['CLK']], ['DCM', ['CLKIN', 'CLKFB']]]) {
     for (const s of device.sites(type)) for (const p of pins) {
       const n = device.sitePinNode(s.name, p);
       if (reached.has(n) || beyond.has(n)) out.add(`${s.name}.${p}`);

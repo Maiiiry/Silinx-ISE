@@ -291,8 +291,9 @@ Summary* (utilization, timing) as with ISE; *Configure Target Device* programs t
 and *View Implemented Design (FPGA)* shows the routed design. The processes that need ISE
 (simulation models of the implementation, power, back-annotated pins, technology schematic) are
 disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
-RAMs, multipliers, distributed RAMs, shift registers (SRL16) and the top-left DCM (CLK0, CLK2X,
-CLKDV, CLKFX). A design the Silinx toolchain cannot implement yet (a feature not in the bit
+RAMs, multipliers, distributed RAMs, shift registers (SRL16) and DCMs (any DCM site, more than one
+per design, each clock output on a global buffer its dedicated path reaches; `INST "u" LOC =
+"DCM_X1Y0"` picks the site). A design the Silinx toolchain cannot implement yet (a feature not in the bit
 database, a net it cannot route) fails with the list of what is missing: implement it in an ISE
 mode. The supported devices' descriptions and bit databases ship with Silinx: the Silinx toolchain
 needs no ISE at all (the Spartan-3E Starter Kit's XC3S500E-FG320 is the Nexys2-500's chip and

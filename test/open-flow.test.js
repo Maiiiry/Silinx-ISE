@@ -168,6 +168,10 @@ const FEATURES = {
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
   feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],
+  // two DCMs, cascaded: the second on the bottom-left DCM, the one whose CLK2X180 reaches a global
+  // buffer on switches of known bits; its CLKIN from the first one's CLK0 buffer (#47)
+  feat_dcm2: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcma" "DCM",placed DCM_TL_CENTER_X13Y34 DCM_X0Y1 /m, /^inst "u_dcmb" "DCM",placed DCM_BL_CENTER_X13Y1 DCM_X0Y0 /m,
+    /^inst "u_ba0" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^inst "u_bb2x" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX_X1Y1 /m]],
   hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
@@ -201,12 +205,13 @@ test('the open flow: inputs that drive nothing (the clock, the buttons) get no p
 });
 
 test('the open flow fails clearly for what the bit database does not have: a DCM output with no known path to a global buffer', { timeout: 300000 }, () => {
-  // (CLK2X180 of the top-left DCM: no measured path; CLK90 has one since stage F's designs of every DCM)
+  // (CLK2X180 of either DCM of the XC3S100E: no measured path; on the XC3S250E the bottom-left DCM's
+  // reaches one, #47: feat_dcm2)
   const dir = path.join(tmp, 'dcm2x180');
   fs.mkdirSync(dir, { recursive: true });
   const src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm/top.vhd'), 'utf8').replace('CLK2X180 => open', 'CLK2X180 => clk2x_u').replace('CLK2X => clk2x_u', 'CLK2X => open');
   fs.writeFileSync(path.join(dir, 'top.vhd'), src);
-  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm2x180', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'top',
+  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm2x180', version: 1, device: { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' }, top: 'top',
     // the constraints by an absolute path (on Windows a relative one across drives is absolute too: it was
     // joined onto the project folder, CI b898d8e)
     files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }], constraints: path.join(ROOT, 'test/fixtures/open-flow/basys2.ucf') }));
@@ -280,12 +285,18 @@ const CLOCK_CASES = [
   ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y11' },
     ['Warning: place: clk: the global buffer BUFGMUX_X2Y1 that its pad M4 reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing']],
   ['#57', 'feat_dcm', 'xc3s500e', 'fg320', null, { clk: 'B8', dcm: 'DCM_X0Y1' }, []],
+  // the XC3S1200E's top-left DCM is DCM_X1Y3 (its DCM_X0Y1 is a side DCM); on the XC3S100E the
+  // bottom DCM (CLKDV of the top one reaches no global buffer on known switches), its CLKIN through
+  // general routing (no pad reaches a DCM's CLKIN on known switches), said (#47)
+  ['#47', 'feat_dcm', 'xc3s1200e', 'fg320', null, { clk: 'B8', dcm: 'DCM_X1Y3' }, []],
+  ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { dcm: 'DCM_X0Y0' },
+    clk => [`Warning: place: u_dcm: its CLKIN comes from the pad ${clk} through general routing: no pad reaches the CLKIN of DCM_X0Y0 on a dedicated path of known bits`]],
   ['#58', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X2Y11' },
     ['Warning: place: clk: its pad K3 reaches on a dedicated path only global buffers whose settings are not in the bit database yet (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): BUFGMUX_X2Y11 instead, through general routing']],
 ];
 for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
   test(`the open flow: ${fixture} on the ${part.toUpperCase()}-${pkg.toUpperCase()}, the clock ${loc ? `LOC'd on ${loc}` : 'with no LOC'}: complete bitstream, the exact warnings (${issue})`, { timeout: 300000 }, () => {
-    const dir = path.join(tmp, `clock-${issue.slice(1)}`);
+    const dir = path.join(tmp, `clock-${issue.slice(1)}-${part}`);
     fs.mkdirSync(dir, { recursive: true });
     fs.copyFileSync(path.join(ROOT, 'test/fixtures/open-flow', fixture, 'top.vhd'), path.join(dir, 'top.vhd'));
     if (loc) fs.writeFileSync(path.join(dir, 'top.ucf'), `NET "clk" LOC = "${loc}";\n`);
@@ -294,11 +305,42 @@ for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
     const r = openFlow(dir, path.join(dir, 'out'));
     assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
     assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
-    assert.deepEqual(r.warnings, warnings);
     const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
     const placedOf = type => [...routed.matchAll(new RegExp(`^inst "([^"]+)" "${type}",placed \\S+ (\\S+) `, 'gm'))].map(m => [m[1], m[2]]);
-    assert.equal(placedOf('IBUF').find(([n]) => n === 'clk')?.[1], want.clk);
+    const clk = placedOf('IBUF').find(([n]) => n === 'clk')?.[1];
+    assert.deepEqual(r.warnings, typeof warnings === 'function' ? warnings(clk) : warnings);
+    if (want.clk) assert.equal(clk, want.clk);
     if (want.bufg) assert.deepEqual(placedOf('BUFGMUX').map(([, s]) => s), [want.bufg]);
     if (want.dcm) assert.deepEqual(placedOf('DCM').map(([, s]) => s), [want.dcm]);
+  });
+}
+
+// Two DCMs on the other devices (#47; checked against ISE: npm run check:open-flow gives DRC 0 errors /
+// 0 warnings and a byte-identical .bit): feat_dcm2 with no constraints. The XC3S500E and XC3S1200E:
+// the clock on B8, the first DCM on the top-left site, the second on the bottom-left one (CLK2X180);
+// the XC3S100E (whose DCMs reach no global buffer from CLK2X180: CLK2X in its place): the first DCM
+// on the top one, the second on the bottom one, the clock's CLKIN through general routing, said.
+const DCM2 = [
+  ['xc3s100e', 'cp132', ['DCM_X0Y1', 'DCM_X0Y0'], clk => [`Warning: place: u_dcma: its CLKIN comes from the pad ${clk} through general routing: no pad reaches the CLKIN of DCM_X0Y1 on a dedicated path of known bits`]],
+  ['xc3s500e', 'fg320', ['DCM_X0Y1', 'DCM_X0Y0'], () => []],
+  ['xc3s1200e', 'fg320', ['DCM_X1Y3', 'DCM_X1Y0'], () => []],
+];
+for (const [part, pkg, dcms, warnings] of DCM2) {
+  test(`the open flow: two DCMs (feat_dcm2) on the ${part.toUpperCase()}-${pkg.toUpperCase()}: complete bitstream, the exact warnings (#47)`, { timeout: 300000 }, () => {
+    const dir = path.join(tmp, `dcm2-${part}`);
+    fs.mkdirSync(dir, { recursive: true });
+    let src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm2/top.vhd'), 'utf8');
+    if (part === 'xc3s100e') src = src.replace('CLK2X => open, CLK2X180 => b2x_u', 'CLK2X => b2x_u, CLK2X180 => open');
+    fs.writeFileSync(path.join(dir, 'top.vhd'), src);
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: `dcm2-${part}`, version: 1, device: { family: 'spartan3e', part, package: pkg, speed: '-4' }, top: 'top',
+      files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }] }));
+    const r = openFlow(dir, path.join(dir, 'out'));
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
+    const placedOf = type => Object.fromEntries([...routed.matchAll(new RegExp(`^inst "([^"]+)" "${type}",placed \\S+ (\\S+) `, 'gm'))].map(m => [m[1], m[2]]));
+    assert.deepEqual(r.warnings, warnings(placedOf('IBUF').clk));
+    assert.deepEqual([placedOf('DCM').u_dcma, placedOf('DCM').u_dcmb], dcms);
+    if (part !== 'xc3s100e') assert.equal(placedOf('IBUF').clk, 'B8');
   });
 }

@@ -11,10 +11,11 @@
 // Clock nets (from a BUFGMUX) run on the global clock lines and are left out. Moves that make the cost worse are accepted with a probability
 // that falls as the temperature falls; the move window shrinks to keep about 44% of the moves
 // accepted. Everything follows one seeded random generator: the same seed gives the same placement.
-// Instances of type SLICEM (RAMs, shift registers) stay on SLICEM sites; a DCM takes its site (the
-// packer's loc) and the global buffers its outputs reach (option bufgSites); a clock input with no
-// LOC takes a free pad whose dedicated path of known bits reaches a global buffer (a GCLK pin), or
-// the DCM's CLKIN it drives; a clock pad, with a LOC or not, takes a buffer its dedicated path
+// Instances of type SLICEM (RAMs, shift registers) stay on SLICEM sites; each DCM takes a DCM site
+// (its INST LOC, or the one chosen) from which its outputs reach global buffers of their own through
+// dedicated paths of known bits (option bufgSites; more than one DCM: the buffers matched to all
+// their outputs); a clock input with no LOC takes a free pad whose dedicated path of known bits
+// reaches the DCM's CLKIN it drives, or a global buffer (a GCLK pin); a clock pad, with a LOC or not, takes a buffer its dedicated path
 // reaches, unless that buffer's lines do not reach the clock's loads (block RAM / multiplier clock
 // pins: clockSites) or its settings are not known (the side ones): then one that does, through
 // general routing, with a warning (r.warnings). Block RAMs and multipliers stay on the sites whose
@@ -333,25 +334,120 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   for (const n of packed.nets) {
     const d = n.outpins[0];
     if (!d || packed.insts[d.inst].kind !== 'bufg') continue;
-    const L = loads.get(d.inst) || { slices: new Set(), bram: { insts: new Set(), pins: new Set() }, mult: { insts: new Set(), pins: new Set() } };
+    const L = loads.get(d.inst) || { slices: new Set(), bram: { insts: new Set(), pins: new Set() }, mult: { insts: new Set(), pins: new Set() }, dcm: [] };
     for (const p of n.inpins) {
       const k = packed.insts[p.inst].kind;
       if (k === 'slice' && p.pin === 'CLK') L.slices.add(p.inst);
+      else if (k === 'dcm' && /^CLK(IN|FB)$/.test(p.pin)) L.dcm.push(p);
       else if ((k === 'bram' && /^CLK[AB]$/.test(p.pin)) || (k === 'mult' && p.pin === 'CLK')) { L[k].insts.add(p.inst); L[k].pins.add(p.pin); }
     }
     loads.set(d.inst, L);
   }
   const reachCache = new Map();
   const clockReachOf = name => { if (!reachCache.has(name)) reachCache.set(name, clockSites ? clockSites(name) : null); return reachCache.get(name); };
+  // (a DCM's CLKIN / CLKFB too, #47: on the DCM's site, or the one tried, dcmTried)
+  const dcmTried = new Map();
   const serves = (bi, name) => {
     const cs = clockReachOf(name), L = loads.get(bi);
     if (!cs || !L) return true;
+    if (L.dcm.some(p => { const s = dcmTried.get(p.inst) || sites[p.inst]; return s && !cs.has(`${s.name}.${p.pin}`); })) return false;
     if ([...L.slices].length > [...cs].filter(s => !s.includes('.')).length) return false;
     return ['bram', 'mult'].every(k => L[k].insts.size <= ((k === 'bram' ? dev.brams : dev.mults) || []).filter(s => [...L[k].pins].every(p => cs.has(`${s.name}.${p}`))).length);
   };
   const padReach = new Map();   // pad name -> the buffers its dedicated paths of known bits reach
   const padReachOf = name => { if (!padReach.has(name)) padReach.set(name, bufgSites(name, 'I') || []); return padReach.get(name); };
   const bufClaimed = new Set();
+  // DCMs (#47): each on a DCM site (its INST LOC, or any) from which every clock output that drives
+  // a global buffer reaches a buffer of its own through dedicated paths of known bits (bufgSites),
+  // the buffers matched to the outputs. Of the placements, the one with the most outputs on such a
+  // buffer, then the most buffers whose lines reach their clock's loads (#56), then the most DCMs
+  // whose CLKIN a pad reaches on a dedicated path of known bits (its LOC'd pad, or a free one: #57),
+  // then by site (dcmRank: the top-left DCM first, the side ones of the XC3S1200E last).
+  const dcmObjs = objs.filter(o => o.kind === 'dcm');
+  const preBuf = new Map();   // bufg inst -> the buffer matched to its DCM output
+  const dcmPads = new Map();   // pad name -> the DCM sites whose CLKIN its dedicated paths reach
+  const dcmPadsOf = name => { if (!dcmPads.has(name)) dcmPads.set(name, bufgSites ? bufgSites(name, 'I', ['DCM', 'CLKIN']) || [] : []); return dcmPads.get(name); };
+  const clkinPad = o => { const n = packed.nets.find(n => n.inpins.some(p => p.inst === o.inst && p.pin === 'CLKIN')); const d = n?.outpins[0]; return d && packed.insts[d.inst].kind === 'iob' ? d.inst : undefined; };
+  if (dcmObjs.length) {
+    const dcmSites = dev.dcms || [];
+    if (dcmObjs.length > dcmSites.length) throw new PlaceError(`place: ${dcmObjs.length} DCMs needed, the device has ${dcmSites.length}`);
+    for (const o of dcmObjs) {
+      const inst = packed.insts[o.inst];
+      if (inst.loc && !dcmSites.some(d => d.name === inst.loc)) throw new PlaceError(`place: ${inst.name}: no DCM site ${inst.loc} on ${dev.part}`);
+      if (inst.loc && dcmObjs.some(x => x !== o && packed.insts[x.inst].loc === inst.loc)) throw new PlaceError(`place: ${inst.name}: DCM site ${inst.loc} used twice`);
+    }
+    const dcmRank = d => (/^DCM_H_/.test(d.tile) ? 2000 : 0) + (d.py > dev.rows / 2 ? 0 : 1000) + d.px;
+    const order = [...dcmSites].sort((a, b) => dcmRank(a) - dcmRank(b));
+    // the global buffers each DCM's outputs drive
+    const outs = dcmObjs.map(o => packed.nets.flatMap(n => (n.outpins[0]?.inst === o.inst ? n.inpins.filter(p => p.pin === 'I0' && packed.insts[p.inst].kind === 'bufg').map(p => ({ bi: p.inst, pin: n.outpins[0].pin })) : [])));
+    const canUse = new Set(dev.bufgmux.map(b => b.name));
+    const reachMemo = new Map();
+    const reachB = (site, pin) => { const k = `${site}:${pin}`; if (!reachMemo.has(k)) reachMemo.set(k, bufgSites ? (bufgSites(site, pin) || []).filter(b => canUse.has(b)) : []); return reachMemo.get(k); };
+    const pads = dcmObjs.map(clkinPad);
+    const better = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
+    let best = null, budget = 200000;
+    const assign = [];
+    const evaluate = () => {
+      dcmObjs.forEach((o, k) => dcmTried.set(o.inst, assign[k]));
+      // the buffers: the matching of the most outputs, then the most buffers that serve their loads
+      const items = dcmObjs.flatMap((o, k) => outs[k].map(x => ({ bi: x.bi, reach: reachB(assign[k].name, x.pin) })));
+      let bm = null;
+      const taken = new Set(), pick = [];
+      const rec = (i, matched, serving) => {
+        if (budget-- < 0) return;
+        if (bm && (matched + items.length - i < bm.matched || (matched + items.length - i === bm.matched && serving + items.length - i <= bm.serving))) return;
+        if (i === items.length) { bm = { matched, serving, pick: [...pick] }; return; }
+        for (const b of items[i].reach) if (!taken.has(b)) {
+          taken.add(b); pick.push(b);
+          rec(i + 1, matched + 1, serving + (serves(items[i].bi, b) ? 1 : 0));
+          pick.pop(); taken.delete(b);
+        }
+        pick.push(null); rec(i + 1, matched, serving); pick.pop();
+      };
+      rec(0, 0, 0);
+      bm ||= { matched: 0, serving: 0, pick: items.map(() => null) };
+      // CLKIN on a dedicated path: from its LOC'd pad, or from a free pad (one per DCM)
+      let ded = 0;
+      const padTaken = new Set();
+      pads.forEach((pi, k) => {
+        if (pi === undefined) return;
+        if (sites[pi]) { if (dcmPadsOf(sites[pi].name).includes(assign[k].name)) ded++; return; }
+        const p = freePads('in', vccoOf(pi)).find(p => !padTaken.has(p.name) && dcmPadsOf(p.name).includes(assign[k].name));
+        if (p) { padTaken.add(p.name); ded++; }
+      });
+      const score = [bm.matched, bm.serving, ded, -assign.reduce((a, d) => a + dcmRank(d), 0)];
+      if (!best || better(score, best.score)) best = { score, sites: [...assign], items, pick: bm.pick };
+    };
+    const used = new Set();
+    const search = k => {
+      if (budget < 0 && best) return;
+      if (k === dcmObjs.length) { evaluate(); return; }
+      const loc = packed.insts[dcmObjs[k].inst].loc;
+      for (const d of order) {
+        if (used.has(d.name) || (loc && d.name !== loc) || (!loc && dcmObjs.some(x => packed.insts[x.inst].loc === d.name))) continue;
+        used.add(d.name); assign.push(d);
+        search(k + 1);
+        assign.pop(); used.delete(d.name);
+      }
+    };
+    search(0);
+    dcmTried.clear();
+    dcmObjs.forEach((o, k) => { sites[o.inst] = best.sites[k]; });
+    best.items.forEach((it, i) => { if (best.pick[i]) { preBuf.set(it.bi, best.pick[i]); bufClaimed.add(best.pick[i]); } });
+  }
+  // a clock input with no LOC that drives a DCM's CLKIN: on a free pad whose dedicated path of
+  // known bits reaches that DCM's CLKIN (B8 -> DCM_X0Y1 on the XC3S250E / 500E), kept there (#57); before the
+  // clock inputs of global buffers, which have more GCLK pins to choose from
+  const dcmOfPad = o => packed.nets.find(n => n.outpins[0]?.inst === o.inst)?.inpins.find(p => p.pin === 'CLKIN' && packed.insts[p.inst].kind === 'dcm')?.inst;
+  if (bufgSites) for (const o of objs) if (o.kind === 'iob' && !o.fixed && o.dir === 'in' && dcmOfPad(o) !== undefined) {
+    const loc = sites[dcmOfPad(o)].name;
+    const p = freePads('in', vccoOf(o.inst)).find(p => dcmPadsOf(p.name).includes(loc));
+    if (!p) continue;   // none: a pad like any other (general routing to the DCM)
+    bankAdd(p, vccoOf(o.inst), 1);
+    padUsed.set(p.name, o);
+    sites[o.inst] = p;
+    o.fixed = true;
+  }
   if (bufgSites) for (const o of objs) if (o.kind === 'iob' && !o.fixed && o.dir === 'in' && bufgOfPad(o) !== undefined) {
     let best = null;
     for (const p of freePads('in', vccoOf(o.inst))) {
@@ -369,18 +465,6 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     sites[o.inst] = best.p;
     o.fixed = o.gclk = true;
   }
-  // a clock input with no LOC that drives a DCM's CLKIN: on a free pad whose dedicated path of
-  // known bits reaches that DCM's CLKIN (B8 -> DCM_X0Y1 on the XC3S250E / 500E), kept there (#57)
-  const dcmOfPad = o => packed.nets.find(n => n.outpins[0]?.inst === o.inst)?.inpins.find(p => p.pin === 'CLKIN' && packed.insts[p.inst].kind === 'dcm')?.inst;
-  if (bufgSites) for (const o of objs) if (o.kind === 'iob' && !o.fixed && o.dir === 'in' && dcmOfPad(o) !== undefined) {
-    const loc = packed.insts[dcmOfPad(o)].loc;
-    const p = freePads('in', vccoOf(o.inst)).find(p => (bufgSites(p.name, 'I', ['DCM', 'CLKIN']) || []).includes(loc));
-    if (!p) continue;   // none: a pad like any other (general routing to the DCM)
-    bankAdd(p, vccoOf(o.inst), 1);
-    padUsed.set(p.name, o);
-    sites[o.inst] = p;
-    o.fixed = true;
-  }
   for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
     const fp = freePads(o.dir, vccoOf(o.inst));
     if (!fp.length) throw new PlaceError('place: not enough pads');
@@ -389,15 +473,14 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     padUsed.set(p.name, o);
     sites[o.inst] = p;
   }
-  // DCMs: on their site (the packer gives the top-left one, the only one whose settings are in the
-  // bit database), before the clock buffers they drive
-  for (const o of objs) if (o.kind === 'dcm') {
-    const inst = packed.insts[o.inst];
-    const site = (dev.dcms || []).find(d => d.name === inst.loc);
-    if (!site) throw new PlaceError(`place: ${inst.name}: no DCM site ${inst.loc} on ${dev.part}`);
-    if (objs.some(x => x !== o && x.kind === 'dcm' && sites[x.inst] === site)) throw new PlaceError(`place: ${inst.name}: DCM site ${inst.loc} used twice (the other DCMs' settings are not in the bit database yet)`);
-    sites[o.inst] = site;
-  }
+  // a DCM's CLKIN from a pad that reaches it only through general routing: said (#47; once the pads
+  // have their final sites)
+  const dcmClkinWarnings = () => (bufgSites ? dcmObjs : []).flatMap(o => {
+    const pi = clkinPad(o), site = sites[o.inst].name;
+    if (pi === undefined || dcmPadsOf(sites[pi].name).includes(site)) return [];
+    const from = [...dev.pads.keys()].filter(n => dcmPadsOf(n).includes(site));
+    return [`${packed.insts[o.inst].name}: its CLKIN comes from the pad ${sites[pi].name} through general routing: ${from.length ? `only ${from.join(', ')} ${from.length > 1 ? 'reach' : 'reaches'}` : 'no pad reaches'} the CLKIN of ${site} on a dedicated path of known bits`];
+  });
   // clock buffers: by the pad (or DCM) that drives them
   const bufUsed = new Set();
   const byName = new Map(dev.bufgmux.map(b => [b.name, b]));
@@ -413,8 +496,10 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   };
   // (the most constrained first: a DCM output that reaches fewer buffers chooses before the others)
   const reachSize = o => reachOf(o)?.size || Infinity;
-  const bufgObjs = objs.filter(o => o.kind === 'bufg').sort((a, b) => reachSize(a) - reachSize(b));
+  // (the buffers matched to the DCMs' outputs above first)
+  const bufgObjs = objs.filter(o => o.kind === 'bufg').sort((a, b) => (preBuf.has(b.inst) - preBuf.has(a.inst)) || reachSize(a) - reachSize(b));
   for (const o of bufgObjs) {
+    if (preBuf.has(o.inst)) { bufUsed.add(preBuf.get(o.inst)); sites[o.inst] = byName.get(preBuf.get(o.inst)); continue; }
     const d = driverOfPin.get(`${o.inst}:I0`);
     const pad = d && sites[d.inst];
     const top = pad && pad.py > dev.rows / 2;
@@ -875,7 +960,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   function finish() {
     return {
       sites: sites.map(s => ({ tile: s.tile, site: s.name })),
-      cost: bb, delay: dmax, warnings, stats: { initialCost, initialDelay, moves, temps, seconds: (Date.now() - t0) / 1000, objects: objs.length },
+      cost: bb, delay: dmax, warnings: [...warnings, ...dcmClkinWarnings()], stats: { initialCost, initialDelay, moves, temps, seconds: (Date.now() - t0) / 1000, objects: objs.length },
     };
   }
 }

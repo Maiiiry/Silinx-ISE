@@ -150,6 +150,7 @@ export function designFeatures(design, db) {
   // the output pins of each instance that drive a net (a DCM's clock outputs: DCM:OUT:<pin>)
   const outPins = new Map();
   for (const n of design.nets) for (const o of n.outpins) (outPins.get(o.inst) || outPins.set(o.inst, new Set()).get(o.inst)).add(o.pin);
+  const typeOf = new Map(design.insts.map(i => [i.name, i.type]));
   for (const inst of design.insts) {
     if (!inst.placed) continue;
     const kind = siteKind(inst, db);
@@ -209,6 +210,13 @@ export function designFeatures(design, db) {
       for (const feature of dcmPeriodFeatures(val('X_CLKIN_PERIOD'), val('CLKFX_DIVIDE'), val('CLKFX_MULTIPLY'))) feats.push({ tile: inst.tile, feature });
       // each clock output used has its own enable bit (CLKFX, CLKFX180 and the status pins none)
       for (const pin of outPins.get(inst.name) || []) feats.push({ tile: inst.tile, feature: `DCM:OUT:${pin}` });
+      // its CLKIN from a global clock buffer (a BUFGMUX before the DCM, two DCMs in cascade; on the
+      // global lines or through general routing): ISE's bitgen clears one bit of DCM:USED
+      // (DCM:CLKIN:GCLK, #47)
+      if (design.nets.some(n => n.inpins.some(p => p.inst === inst.name && p.pin === 'CLKIN') && n.outpins.some(o => typeOf.get(o.inst) === 'BUFGMUX'))) feats.push({ tile: inst.tile, feature: 'DCM:CLKIN:GCLK' });
+      // neither CLKFX nor CLKFX180 used (the frequency synthesizer idle): ISE's bitgen clears three
+      // bits of DCM:USED (DCM:DFS:OFF, #47)
+      if (!['CLKFX', 'CLKFX180'].some(p => outPins.get(inst.name)?.has(p))) feats.push({ tile: inst.tile, feature: 'DCM:DFS:OFF' });
     }
     // flip-flops without a clock enable: the enable is on (feature SLICEk:CEINV:#OFF)
     if (/^SLICE/.test(kind) && (on('FFX') || on('FFY')) && !on('CEINV')) feats.push({ tile: inst.tile, feature: `${kind}:CEINV:#OFF` });
