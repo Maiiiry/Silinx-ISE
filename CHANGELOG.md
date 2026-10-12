@@ -76,6 +76,11 @@ the "What's new" text of its GitHub release.
   every temperature; the router's search and the check of the switches of known bits do less work
   per node. The placements and routings are the same as before, bit for bit: 4-10x faster placement
   (T80 97 -> 13 s, SHA-256 on the XC3S250E ~570 -> 49 s of CPU), 1.3x faster routing (#55).
+- **Silinx toolchain: the router works less on large nets.** A search for a sink first stays in the
+  net's region (its pins' bounding box and 3 tiles around it; anywhere when that has no path), and a
+  non-critical sink of a net whose tree has more than 200 nodes is searched from the tree's nodes
+  near it, not from the whole tree (as VPR does). Routing is ~25 % faster (SHA-1: 55 -> 35 s over
+  three placements) with the same critical paths: -0.04 % over 21 routings of 7 designs (#55).
 
 ## 15.10.2
 
