@@ -47,6 +47,19 @@ the "What's new" text of its GitHub release.
   reaches. On a side GCLK pin (K3 on the FG320, G3 on the CP132) those are the side buffers, whose
   settings are not in the bit database yet (#45): a top or bottom buffer, through general routing as
   before, now with a warning that says why (#58).
+- **Silinx toolchain: every DCM site, more than one DCM per design.** Each DCM goes on a site from
+  which its clock outputs reach global buffers of their own on switches of known bits (the buffers
+  matched to all the DCMs' outputs together; then the buffers whose lines reach the clock's loads,
+  the DCMs' CLKIN / CLKFB too; then a CLKIN its clock pad reaches on a dedicated path; then the
+  top-left DCM first), or on the site its UCF gives (`INST "u_dcm" LOC = "DCM_X1Y0";`). The
+  XC3S1200E's top-left DCM is DCM_X1Y3 (its DCM_X0Y1, where the one DCM went, is a side DCM whose
+  outputs reach only the side buffers, #45); CLK2X180 now works on the bottom-left DCM of the
+  XC3S250E, XC3S500E and XC3S1200E, CLKFX180 on every device (the XC3S100E has no CLK2X180 path
+  yet: the design fails with the reason). A DCM's CLKIN from a pad through general routing (no pad
+  reaches the XC3S100E's DCMs, nor the other DCMs than the top-left one, on known switches) is
+  said in a warning. Fixed on the way, two settings ISE's bitgen derives from the design: a DCM
+  whose CLKIN comes from a global buffer (a BUFG before the DCM, two DCMs in cascade) had one bit
+  wrong in the .bit, and a DCM whose CLKFX and CLKFX180 drive nothing three (#47).
 - **Design corpus:** NEORV32 and light8080 now go through the whole open flow (synthesis, the
   netlist compared with the RTL cycle by cycle, place and route); light8080's, secworks-sha1's and
   secworks-aes's own testbenches pass. Every design of the corpus synthesizes and builds.

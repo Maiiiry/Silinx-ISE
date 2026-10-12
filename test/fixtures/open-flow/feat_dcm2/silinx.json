@@ -1,0 +1,24 @@
+{
+  "name": "feat_dcm2",
+  "description": "Board test: two cascaded DCMs (the second on the bottom-left site, for CLK2X180) blink five LEDs at their rates",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "../basys2.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeDb, padsFromDevice } from '../../core/fpga/bitgen.js';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
+import { MIRRORS, mirrorFeatures } from './dcm-mirror.mjs';
 
 /** The part of the experiments (environment PART, default the Basys2-250's XC3S250E-CP132). */
 export const PART = process.env.PART || 'xc3s250ecp132-4';
@@ -69,6 +70,28 @@ export function readDbFiles(device, { pkg = null, dir = DB_DIR } = {}) {
   };
 }
 
+/** A DCM whose CLKIN comes from a global clock buffer (a BUFGMUX before the DCM, or two DCMs in
+ *  cascade; whether the net reaches CLKIN on a global line or through general routing): ISE's bitgen
+ *  clears one bit of DCM:USED, (0, 100) of the top-left DCM (#47: designs of two DCMs in cascade on
+ *  the XC3S100E, XC3S250E, XC3S500E and XC3S1200E and of a global buffer before each top / bottom DCM,
+ *  converted by ISE: that one bit differed, the same bit of each DCM's mirror image, dcm-mirror.mjs;
+ *  from a pad, dedicated or through general routing, it is set). Added to every DCM tile type as
+ *  DCM:CLKIN:GCLK, for core/fpga/bitgen.js. */
+//  A DCM whose clock outputs CLKFX and CLKFX180 drive nothing (its frequency synthesizer idle): ISE's
+//  bitgen clears three more bits of DCM:USED, (-39, 7), (-39, 12), (-39, 43) of the top-left DCM
+//  (#47: designs of a DCM with only CLK0 and LOCKED used on each top / bottom DCM of the four devices;
+//  the stage-D design that gave DCM:USED had CLKFX used): DCM:DFS:OFF.
+export const DCM_ROUTED = { 'DCM:CLKIN:GCLK': ['!0,100'], 'DCM:DFS:OFF': ['!-39,7', '!-39,12', '!-39,43'] };
+export function withDcmClkinGclk(tiles) {
+  const types = { ...tiles.types };
+  for (const type of ['DCM_TL_CENTER', ...Object.keys(MIRRORS)]) {
+    if (!types[type]) continue;
+    const add = Object.fromEntries(Object.entries(type === 'DCM_TL_CENTER' ? DCM_ROUTED : mirrorFeatures(DCM_ROUTED, type)).filter(([k]) => !types[type].features?.[k]));
+    types[type] = { ...types[type], features: { ...(types[type].features || {}), ...add } };
+  }
+  return { ...tiles, types };
+}
+
 /** The bit database of a part ('xc3s500efg320-4'; default PART), ready for
  *  bitgen(). opts: graph (the device description: a Device, or the file / part to load; default the
  *  part's), dir. Throws when the device has no database. */
@@ -77,7 +100,7 @@ export function loadDb(part = PART, { graph = null, dir = DB_DIR } = {}) {
   if (!hasBitDb(device, { dir })) throw new Error(`no bit database for ${device}`);
   const files = readDbFiles(device, { pkg, dir });
   const dev = graph && typeof graph === 'object' ? graph : pkg || graph ? loadDeviceCache(graph || part) : null;
-  const db = makeDb({ ...files, pads: dev ? padsFromDevice(dev) : {} });
+  const db = makeDb({ ...files, tiles: withDcmClkinGclk(files.tiles), pads: dev ? padsFromDevice(dev) : {} });
   if (pkg) db.format.part = `${device.slice(2)}${pkg}`;
   return db;
 }

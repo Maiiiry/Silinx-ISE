@@ -14,7 +14,7 @@
 //   name, part, cfg (the design's cfg string: the ports' bus information, raw XDL text),
 //   insts:  [{ name, type: 'SLICEL' | 'SLICEM' | 'IBUF' | 'IOB' | 'BUFGMUX' | 'RAMB16' | 'MULT18X18SIO' | 'DCM',
 //              kind: 'slice' | 'iob' | 'bufg' | 'bram' | 'mult' | 'dcm', cfg: [{ attr, name, value }],
-//              loc: pad | site | null, wide (bram: a 36-bit port) }],
+//              loc: pad | site (a DCM: INST LOC) | null, wide (bram: a 36-bit port) }],
 //   nets:   [{ name, type: 'wire' | 'gnd' | 'vcc', outpins: [{ inst, pin }], inpins: [{ inst, pin }] }]   (inst = index)
 //   cellSites: [{ inst, bel } | null]   where each netlist cell went (FFX / FFY, F / G, CYMUXF…; inst -1: left out)
 //   macros: [{ kind: 'carry' | 'F6' | 'F7' | 'F8', members: [{ inst, dx, dy }] }]   slices that must keep these
@@ -87,7 +87,14 @@ const escCfg = clean;
  *  switches and settings Silinx's bitstream writer does not know yet). */
 export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' } = {}) {
   const warnings = [];
-  const cons = typeof ucf === 'string' ? parseUcf(ucf).assignments : ucf?.assignments || ucf || {};
+  const parsedUcf = typeof ucf === 'string' ? parseUcf(ucf) : ucf;
+  const cons = typeof ucf === 'string' ? parsedUcf.assignments : ucf?.assignments || ucf || {};
+  // INST "name" LOC = "DCM_X1Y0": the site of a DCM (#47; the placer chooses one otherwise)
+  const instLocs = new Map();
+  for (const st of parsedUcf?.other || []) {
+    const m = /^INST\s+"?([^"\s]+)"?\s+LOC\s*=\s*"?([^"\s;]+)"?\s*$/i.exec(String(st).trim());
+    if (m) instLocs.set(m[1], m[2].toUpperCase());
+  }
   // own copies: the packer renames pins (INV -> LUT1, MUXF -> LUT3) and must not change its input
   const nets = nl.nets.map(n => ({ ...n, loads: n.loads.map(l => ({ ...l })) }));
   const cells = nl.cells.map((c, idx) => ({ ...c, pins: { ...c.pins }, idx }));
@@ -839,8 +846,9 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     }
     if (data) { putWords('INIT', data); putWords('INITP', par); }
   }
-  // DCM (DCM_SP): its pins by name (STATUS<i> -> STATUSi); only the settings measured on the
-  // top-left DCM (research/s3e-bitstream/README.md, stage D) are accepted
+  // DCM (DCM_SP): its pins by name (STATUS<i> -> STATUSi); only the settings in the bit database
+  // (research/s3e-bitstream/README.md, stages D and F: every DCM of the four devices) are accepted.
+  // Its site: an INST LOC of the UCF, else the placer's choice (#47)
   function packDcm(c) {
     const p = c.params;
     const str = k => String(p[k] ?? '').trim().toUpperCase();
@@ -865,7 +873,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       PHASE_SHIFT: String(p.PHASE_SHIFT === undefined ? 0 : BigInt.asIntN(32, BigInt(paramInt(p.PHASE_SHIFT, 0)))),
       period: real('CLKIN_PERIOD'), startupWait: str('STARTUP_WAIT') === 'TRUE',
     };
-    s.loc = 'DCM_X0Y1';
+    s.loc = instLocs.get(c.name) || null;
   }
   // Multiplier: MULT18X18 (no registers), MULT18X18S (registered product: C, CE, R) or MULT18X18SIO
   function packMult(c) {

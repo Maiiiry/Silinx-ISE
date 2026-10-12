@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import { parseXdl } from '../core/xdl.js';
 import { makeDb, tileOf, tileBase, designFeatures, pipFeatures, frameData, bitgen, dcmPeriodFeatures, siteKind, padsFromDevice, shiftBit, featureBits, knownRouting, lutBits, bramBits } from '../core/fpga/bitgen.js';
 import { XC3S250E, readBit, getBit, diffFrames } from '../core/fpga/bitstream.js';
+import { withDcmClkinGclk } from '../research/s3e-bitstream/db.mjs';
 
 const FW = XC3S250E.frameWords;
 // a database for two tiles: CLB_X1Y1 (frames 10-28, bits 100-163) and BIOIS_X1Y0
@@ -232,7 +233,8 @@ test('bitgen: a complete .bit file whose frame data is the design', () => {
 const dbDir = new URL('../research/s3e-bitstream/db/', import.meta.url);
 const measured = () => {
   const read = f => JSON.parse(fs.readFileSync(new URL(f, dbDir), 'utf8'));
-  return makeDb({ layout: read('xc3s250e-layout.json'), lut: read('xc3s250e-lut.json').lutF, tiles: read('s3e-tiles.json') });
+  // (with the DCM settings that follow from the routing: DCM:CLKIN:GCLK, DCM:DFS:OFF, as loadDb adds them)
+  return makeDb({ layout: read('xc3s250e-layout.json'), lut: read('xc3s250e-lut.json').lutF, tiles: withDcmClkinGclk(read('s3e-tiles.json')) });
 };
 
 test('a DCM\'s input period: its frequency ranges as measured (stage F)', () => {
@@ -289,6 +291,54 @@ ${outs.map(p => `net "n_${p}" ,
   const x2 = bitgen(dcm('STARTUP_WAIT::STARTUP_WAIT', ['CLK0']).replace('DCM_X0Y0', 'DCM_X2Y0'), db, { crc: false });
   assert.equal(readBit(x2.bytes).cor, 0x200031e5);
   assert.equal(getBit(readBit(x2.bytes).frames, FW, base.frame, base.bit - 26), 1, 'the DCM\'s own STARTUP_WAIT bit');
+});
+
+test('a DCM whose CLKIN comes from a global clock buffer, a DCM whose CLKFX / CLKFX180 drive nothing: bits of DCM:USED cleared, as ISE\'s bitgen does, on every DCM (#47)', async () => {
+  const { loadDb } = await import('../research/s3e-bitstream/db.mjs');
+  const db = loadDb('xc3s250ecp132-4');
+  const dcm = (tile, site, from, drv = from.startsWith('GCLK') ? 'BUFGMUX' : 'IBUF') => `design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "u" "DCM",placed ${tile} ${site} ,
+  cfg " CLKFX_DIVIDE::1 CLKFX_MULTIPLY::4 "
+  ;
+inst "d" "${drv}",unplaced ,
+  cfg " "
+  ;
+net "c" ,
+  outpin "d" ${drv === 'BUFGMUX' ? 'O' : 'I'} ,
+  inpin "u" CLKIN ,
+  pip ${tile} ${from} -> DCM_CLKIN ,
+  pip ${tile} DCM_CLKIN -> DCM_CLKIN_PINWIRE ,
+  ;
+`;
+  // the bit: (0, 100) of the top-left DCM, its mirror image on the others (DCM:USED sets it)
+  for (const [tile, site, from, gen, df, dbit] of [['DCM_TL_CENTER_X13Y34', 'DCM_X0Y1', 'GCLK4', 'S6A4', 0, 100], ['DCM_TR_CENTER_X14Y34', 'DCM_X1Y1', 'GCLK5', 'S6A4', 18, 100],
+    ['DCM_BL_CENTER_X13Y1', 'DCM_X0Y0', 'GCLK4', 'S6A4', 0, -37], ['DCM_BR_CENTER_X14Y1', 'DCM_X1Y0', 'GCLK6', 'S6D4', 18, -37]]) {
+    const g = parseXdl(dcm(tile, site, from));
+    assert.ok(designFeatures(g, db).feats.some(f => f.tile === tile && f.feature === 'DCM:CLKIN:GCLK'), tile);
+    const base = tileBase(tileOf(tile, db), db);
+    const bitOf = d => { const r = frameData(d, db); assert.deepEqual(r.unknown, [], tile); return getBit(r.frames, FW, base.frame + df, base.bit + dbit); };
+    assert.equal(bitOf(g), 0, `${tile}: CLKIN from ${from}`);
+    // from a buffer through general routing: cleared too; from a pad (or the fabric): set
+    assert.equal(bitOf(parseXdl(dcm(tile, site, gen, 'BUFGMUX'))), 0, `${tile}: CLKIN from a BUFGMUX through ${gen}`);
+    const h = parseXdl(dcm(tile, site, gen));
+    assert.ok(!designFeatures(h, db).feats.some(f => f.feature === 'DCM:CLKIN:GCLK'), tile);
+    assert.equal(bitOf(h), 1, `${tile}: CLKIN from ${gen}`);
+  }
+  // CLKFX and CLKFX180 unused (the frequency synthesizer idle): three bits of DCM:USED cleared
+  // (DCM:DFS:OFF, (-39, 7), (-39, 12), (-39, 43) of the top-left DCM); either used: set
+  const tl = 'DCM_TL_CENTER_X13Y34', base = tileBase(tileOf(tl, db), db);
+  const dfs = outs => {
+    const x = `${dcm(tl, 'DCM_X0Y1', 'S6A4')}${outs.map(p => `net "n_${p}" ,\n  outpin "u" ${p} ,\n  ;\n`).join('')}`;
+    const r = frameData(parseXdl(x), db);
+    assert.deepEqual(r.unknown, []);
+    return [[-39, 7], [-39, 12], [-39, 43]].map(([df, b]) => getBit(r.frames, FW, base.frame + df, base.bit + b));
+  };
+  assert.deepEqual(dfs(['CLK0', 'LOCKED']), [0, 0, 0]);
+  assert.deepEqual(dfs(['CLK0', 'CLKFX']), [1, 1, 1]);
+  assert.deepEqual(dfs(['CLKFX180']), [1, 1, 1]);
+  // the XC3S1200E's side DCMs too (their mirror images)
+  const big = loadDb('xc3s1200efg320-4');
+  assert.deepEqual(['DCM_H_BL_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_TL_CENTER', 'DCM_H_TR_CENTER'].map(t => featureBits(big.types[t], 'DCM:CLKIN:GCLK')), [['!18,100'], ['!0,100'], ['!18,-37'], ['!0,-37']]);
 });
 
 test('measured database: a LUT and a slice setting where stage A and B found them', () => {
