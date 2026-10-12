@@ -5,6 +5,18 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.3
 
+- **Silinx toolchain: register replication**, as XST and ISE's map do. After placing and routing,
+  the flip-flops of many loads (8 or more) whose output is slow on the critical path are copied,
+  each copy driving the loads of one region of the chip; the design is placed and routed again and
+  the faster of the two kept (Place & Route's log says what it did; the Design Summary counts the
+  copies when they are kept). Every copy has the flip-flop's inputs and initial value: the circuit
+  computes the same. EPFL bar (a register of 256 loads) 11.1 -> 10.3 ns by ISE's trce, T80 23.0
+  -> 22.4 ns. `open-flow.mjs --no-replicate` turns it off (#4).
+- **Against ISE** (trce on both, the designs of docs/QUALITY.md furthest from ISE): EPFL max 69.9
+  -> 37.1 ns (ISE 25.7), EPFL priority now builds, 16.8 ns (ISE 20.8, faster than ISE's),
+  vtr-stereovision3 8.6 -> 7.6 ns, verilog-uart 11.9 -> 10.2 ns, verilog-i2c-master 11.2 -> 10.9 ns;
+  every one byte-identical to ISE's bitgen with no DRC error or warning
+  (research/s3e-route/README.md, "The design corpus against ISE").
 - **Silinx toolchain: logic depth.** The open synthesis maps a design a second time for depth (ABC's
   SOP balancing, `if -g`, then the usual area recovery) and keeps that netlist when its estimated
   critical path is shorter without more LUTs in proportion (or it is as fast and smaller). Logic

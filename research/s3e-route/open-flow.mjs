@@ -2,10 +2,13 @@
 // to WebAssembly (core/synth-open.js) -> pack -> place -> route on the PIPs whose bits are known ->
 // Silinx's bitgen. Needs the device cache (~/.silinx/devices, built from the user's own
 // device report: research/s3e-route/build-device.mjs).
-//   node research/s3e-route/open-flow.mjs <project folder> <out folder> [--json netlist.json] [--seed N] [--effort E] [--timing T] [--timing-route 0|1] [--tries N] [--no-crc]
+//   node research/s3e-route/open-flow.mjs <project folder> <out folder> [--json netlist.json] [--seed N] [--effort E] [--timing T] [--timing-route 0|1] [--tries N] [--no-replicate] [--replicate-opts JSON] [--no-crc]
 // (seed, effort, timing: the placer's options, core/fpga/place.js; --timing-route 0: route for
 // wirelength only, without the timing-driven router (default 1); --tries N: N placements from
-// seed on, each routed, the fastest kept (default 1)). After routing, the static timing
+// seed on, each routed, the fastest kept (default 1); --no-replicate: no register replication
+// (core/fpga/replicate.js: by default the flip-flops of many loads on the critical path are copied,
+// the design placed and routed again, the faster kept; --replicate-opts '{"perCopy":8}' overrides
+// its REPLICATION settings)). After routing, the static timing
 // analysis of core/fpga/timing.js prints the critical path of each clock (also in timing.txt). Writes into the out folder: <top>.json (Yosys), placed.xdl, routed.xdl, <top>.bit. Fails (exit 1)
 // listing the nets that cannot be routed on known PIPs, or the features of the design the bit
 // database does not know: the .bit is written only when it is complete.
@@ -18,6 +21,7 @@ import { yosysNode } from '../../core/synth-open-node.js';
 import { parseXdl, writeXdl } from '../../core/xdl.js';
 import { readYosysJson } from '../../core/fpga/netlist.js';
 import { pack } from '../../core/fpga/pack.js';
+import { replicationPlan, replicateFlipFlops, REPLICATE_MAX_SLICES } from '../../core/fpga/replicate.js';
 import { deviceSites, place, placedXdl } from '../../core/fpga/place.js';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 import { routeDesign, checkRouting, clockReach, bufgReach } from '../../core/fpga/route.js';
@@ -29,9 +33,9 @@ import { loadDb } from '../s3e-bitstream/db.mjs';
 const args = process.argv.slice(2);
 const opt = (name, def) => { const i = args.indexOf(name); if (i < 0) return def; const v = args[i + 1]; args.splice(i, 2); return v; };
 const flag = name => { const i = args.indexOf(name); if (i >= 0) args.splice(i, 1); return i >= 0; };
-const json = opt('--json', null), seed = +opt('--seed', '1'), effort = +opt('--effort', '1'), timing = opt('--timing', null), timingRoute = opt('--timing-route', '1') !== '0', noCrc = flag('--no-crc'), tries = Math.max(1, +opt('--tries', '1'));
+const json = opt('--json', null), seed = +opt('--seed', '1'), effort = +opt('--effort', '1'), timing = opt('--timing', null), timingRoute = opt('--timing-route', '1') !== '0', noCrc = flag('--no-crc'), tries = Math.max(1, +opt('--tries', '1')), replicate = !flag('--no-replicate'), replicateOpts = JSON.parse(opt('--replicate-opts', '{}'));
 const [projDir, outDir] = args;
-if (!projDir || !outDir) { console.error('usage: open-flow.mjs <project folder> <out folder> [--json netlist.json] [--seed N] [--effort E] [--timing T] [--timing-route 0|1] [--tries N] [--no-crc]'); process.exit(2); }
+if (!projDir || !outDir) { console.error('usage: open-flow.mjs <project folder> <out folder> [--json netlist.json] [--seed N] [--effort E] [--timing T] [--timing-route 0|1] [--tries N] [--no-replicate] [--replicate-opts JSON] [--no-crc]'); process.exit(2); }
 const proj = JSON.parse(fs.readFileSync(path.join(projDir, 'silinx.json'), 'utf8'));
 const top = proj.top;
 const part = `${proj.device.part}${proj.device.package}${proj.device.speed}`;
@@ -59,7 +63,8 @@ if (!netFile) {
 // pack: a carry out read by logic leaves through an XOR stage, not XB / YB (not in the database)
 t = Date.now();
 const ucf = proj.constraints ? fs.readFileSync(path.resolve(projDir, proj.constraints), 'utf8') : null;
-const packed = pack(readYosysJson(fs.readFileSync(netFile, 'utf8')), { ucf, part, carryOut: 'xor' });
+const netlist = readYosysJson(fs.readFileSync(netFile, 'utf8'));
+const packed = pack(netlist, { ucf, part, carryOut: 'xor' });
 for (const w of packed.warnings) console.log(`  Warning: pack: ${w}`);
 step(`pack (${packed.stats.slices} slices)`, t);
 // place, on the sites of the device cache
@@ -72,22 +77,38 @@ const delays = delayTable(device, { allowPip: known.allowPip });
 step('delay table', t);
 // --tries N: N placements (seeds seed .. seed + N - 1), each routed; the one with the shortest
 // critical path (by the static timing analysis) is kept
-let best = null;
-for (let k = 0; k < tries; k++) {
+const placeRoute = (pk, s, what = '') => {
   t = Date.now();
   // each clock's flip-flops on the slices its global line reaches through switches of known bits
   // (a DCM's outputs on the global buffers their dedicated paths of known bits reach)
-  const r = place(packed, deviceSites(device), { seed: seed + k, effort, ...(timing !== null && { timing: +timing }), delays, clockSites: site => clockReach(device, site, known.allowPip), bufgSites: (site, pin) => bufgReach(device, site, pin, known.allowPip) });
-  console.log(`place${tries > 1 ? ` (seed ${seed + k})` : ''}: estimated critical path ${r.delay.toFixed(1)} ns`);
-  const placedText = writeXdl(placedXdl(packed, r));
+  const r = place(pk, deviceSites(device), { seed: s, effort, ...(timing !== null && { timing: +timing }), delays, clockSites: site => clockReach(device, site, known.allowPip), bufgSites: (site, pin) => bufgReach(device, site, pin, known.allowPip) });
+  console.log(`place${what}${tries > 1 ? ` (seed ${s})` : ''}: estimated critical path ${r.delay.toFixed(1)} ns`);
+  const placedText = writeXdl(placedXdl(pk, r));
   step('place', t);
   // route on the PIPs the bit database knows
   t = Date.now();
   const routed = routeDesign(parseXdl(placedText), device, { ...known, timing: timingRoute });
   step(`route (${routed.routed} nets, ${routed.pips} PIPs, ${routed.iterations} passes)`, t);
-  const period = routed.failed.length || routed.errors.length ? Infinity : analyzeTiming(parseXdl(writeXdl(routed.design)), device).period;
-  if (tries > 1) console.log(`  seed ${seed + k}: ${period.toFixed(3)} ns`);
-  if (!best || period < best.period) best = { placedText, routed, period };
+  const sta = routed.failed.length || routed.errors.length ? null : analyzeTiming(parseXdl(writeXdl(routed.design)), device);
+  return { packed: pk, placement: r, placedText, routed, sta, period: sta ? sta.period : Infinity };
+};
+let best = null;
+for (let k = 0; k < tries; k++) {
+  const pr = placeRoute(packed, seed + k);
+  if (tries > 1) console.log(`  seed ${seed + k}: ${pr.period.toFixed(3)} ns`);
+  if (!best || pr.period < best.period) best = { ...pr, seed: seed + k };
+}
+// register replication (#4): the flip-flops of many loads on the critical path copied, each copy
+// near a group of the loads; the design placed and routed again, the faster kept
+if (replicate && best.sta && packed.stats.slices <= REPLICATE_MAX_SLICES) {
+  const plan = replicationPlan(netlist, best.packed, best.placement, best.sta, replicateOpts);
+  if (plan.length) {
+    const copies = plan.reduce((a, p) => a + p.groups.length - 1, 0);
+    const packed2 = pack(replicateFlipFlops(netlist, plan), { ucf, part, carryOut: 'xor' });
+    const pr = placeRoute(packed2, best.seed, ` (${plan.length} flip-flops replicated, ${copies} copies)`);
+    console.log(`replication: ${plan.length} flip-flop(s), ${copies} copies: ${pr.period.toFixed(3)} ns against ${best.period.toFixed(3)} ns: ${pr.period < best.period ? 'kept' : 'not kept'}`);
+    if (pr.period < best.period) best = { ...pr, seed: best.seed };
+  }
 }
 const { routed } = best;
 fs.writeFileSync(path.join(outDir, 'placed.xdl'), best.placedText);

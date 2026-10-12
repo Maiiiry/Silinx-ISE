@@ -397,14 +397,74 @@ What is left of the gap: lab11's critical path is now state register -> decoding
 three LUTs -> ALU carry (2 stages) -> LUT -> F5 -> register, 9 levels, 8.2 ns of logic and 4.26 ns
 of routing; the routing is at ISE's level. The largest single connection is the state register's
 (fanout 54): 1.03 ns to a slice next to it, of which about 0.5 ns is the load of its branches. XST
-replicates such flip-flops; the open flow does not yet (a netlist change: the packer's side, or a
-replication step between the packer and the placer). blinky: 5.3 ns of logic (a 3-stage comparator
+replicates such flip-flops; the open flow does since 15.10.3 (after a first place and route, below:
+"The design corpus against ISE"). blinky: 5.3 ns of logic (a 3-stage comparator
 chain, two LUTs) and 2.0 ns of routing on its critical path, where the fastest routes of that
 placement would give 1.4 ns; its loads are 9 LUT inputs of one CLB driven by one output, which
 must branch at the driver. Both run on the board's 50 MHz with a wide margin.
 
 The bitstreams: `~/Silinx-projects/open-flow/lab11-open-v3.bit` (11.60 ns) and
 `blinky-open-v3.bit` (7.37 ns), the files checked above (to test on the board).
+
+## The design corpus against ISE (15.10.3)
+
+docs/QUALITY.md (15.10.1) had the Silinx toolchain's critical paths 15 % longer than ISE's
+(geometric mean, 20 designs, both by trce). What was found on the designs furthest from ISE, and
+changed (each measured by Silinx's analysis of the routed design, mean of placer seeds 1-3, on 32
+designs: the corpus on the XC3S1200E, the examples on the XC3S250E):
+
+1. **The timing analysis missed paths** (`timing.js`): BX as the F stage's carry data input
+   (`CY0F = BX`, how the packer builds comparators) into the G XOR had no arc (trce's Tbxy,
+   1.574 ns), and every input of a LUT counted as a path through it, also the carry's data input
+   wired to a LUT pin the LUT does not read; that made false loops, and the analysis drops every
+   pin after a loop. verilog-uart: 6.65 ns by Silinx, 11.89 by trce on the same routed design; now
+   12.12. The placer and router now see those paths: verilog-uart 10.17 ns by trce (ISE's own flow
+   9.24). Also from trce: the carry data input on F1 / F2 to COUT 1.162 ns (was 0.953), BY into
+   the Y flip-flop 0.361 / 0.382 ns. On 14 designs checked the analysis is then within 0-5 % of
+   trce (mostly above it). Geometric mean of the 32: -0.7 % (the noise of a placement is ±4 %).
+2. **The router gave up** on a sink after 400 000 expanded nodes: on the XC3S1200E a slice's BY
+   input took more (EPFL priority and adder "cannot be routed on known switches", #33). Such a sink
+   is now searched again up to 8 000 000 nodes; both route.
+3. **Logic depth** (the synthesis, research/synth-quality/README.md "Logic depth"): a second LUT
+   mapping with ABC's SOP balancing, kept when faster. EPFL max 71 -> 37 ns, priority 43 -> 17,
+   geometric mean -6.0 %.
+4. **Register replication** (`core/fpga/replicate.js`, #4): after placing and routing, the
+   flip-flops with at least 8 loads whose output has a connection of criticality >= 0.98 and
+   >= 1.0 ns (at most 8 of them) are copied, one copy per group of up to 16 loads (k-means on the
+   tiles the loads were placed on; the group nearest the flip-flop keeps it); the netlist is packed,
+   placed (same seed) and routed again, and the faster kept (so never slower by the analysis; one
+   more place and route when there is something to copy; designs of up to 3000 slices). The copies
+   have the flip-flop's D, clock, enable, set / reset and INIT. epfl-bar (a register of 256 loads)
+   -4 %, vtr-mkPktMerge -4.5 %, T80 -1.2 %, nothing for the others (not kept, or nothing to copy).
+   Tried and not kept: copies of every flip-flop of criticality >= 0.95 (diffeq2 +14 %, its
+   multiplier inputs), 8 loads per copy (more copies, more congestion).
+
+Silinx STA, base (15.10.2) -> all four, mean of 3 seeds: -7.0 % over the 31 designs that built
+before (the examples: blinky +0.6 %, pong +4 %, stopwatch -4 %: placement noise).
+
+Checked with ISE (`scripts/check-open-flow.mjs`, seed 1, default options): DRC 0 errors and 0
+warnings, xdl2ncd 0 warnings, `.bit` byte-identical to ISE's bitgen (CRC on and off) for every one:
+
+| design | trce 15.10.1 (QUALITY.md) | trce now | ISE's flow |
+|---|---|---|---|
+| epfl-max | 69.86 | **37.10** | 25.68 |
+| epfl-priority | not routed | **16.79** | 20.83 |
+| epfl-adder | not routed | 81.32 (after 1-2) | 12.25 |
+| epfl-bar (replicated) | 11.13 | **10.32** | 9.08 |
+| t80 (replicated) | 22.97 | **22.39** | 18.13 |
+| vtr-stereovision3 | 8.60 | **7.64** | 4.92 |
+| verilog-uart | 11.89 | **10.17** | 9.24 |
+| verilog-i2c-master | 11.22 | **10.91** | 9.88 |
+| examples/blinky | 7.37 | 7.24 | 6.7 |
+| examples/pong | 12.60 | 12.71 | |
+| examples/stopwatch | 13.21 | 12.17 | |
+| fan64 (test design, replicated) | | 2.88 (3.72 by STA without) | |
+
+Left: EPFL adder (XST's netlist is 6.6 times faster: a 128-bit adder of gates, which neither
+mapping restructures into a fast adder), max (1.4 times ISE's), stereovision3 (a state register of
+31 loads into four levels of LUTs, F5 and F6, where ISE has fewer); vtr-ch-intrinsics' gated clocks
+(the clock inverters of `-ise` extractinv on LUTs, 21 DRC warnings "Gated clock": its period is
+not comparable).
 
 ## Open problems
 

@@ -202,7 +202,8 @@ times ISE's.
   (timing-driven placement with the device's delay table, LUT input swapping, branch loads in the
   router: lab11 11.6 ns by ISE's trce, blinky 7.4 ns; research/s3e-route/README.md, "Closing the
   routing gap"). Left: XST replicates the state register's flip-flops to cut their fanout (54 on
-  lab11's critical path, about 0.5 ns of branch load); the open flow does not.
+  lab11's critical path, about 0.5 ns of branch load); the open flow does since 15.10.3
+  (research/s3e-route/README.md, "The design corpus against ISE").
 - **Shift registers in SRL16**: done in 15.10.2 for fixed-length chains (above); variable taps
   and the cascade left. What the prototype (before it) found:
   - fixed-length chains: `xilinx_srl -fixed -minlen 3` must run on the bit-level flip-flops
