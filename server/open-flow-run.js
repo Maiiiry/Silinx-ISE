@@ -16,6 +16,7 @@ import { parseXdl, writeXdl } from '../core/xdl.js';
 import { parseUcf } from '../core/ucf.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
+import { replicationPlan, replicateFlipFlops, REPLICATE_MAX_SLICES } from '../core/fpga/replicate.js';
 import { deviceSites, place, placedXdl } from '../core/fpga/place.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { routeDesign, checkRouting, clockReach, bufgReach } from '../core/fpga/route.js';
@@ -100,6 +101,14 @@ function runMap() {
     packed = pack(netlist, { ucf: ucfText, part: spec.part, carryOut: 'xor' });
   } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
   for (const w of packed.warnings || []) console.log(`WARNING:Pack - ${w}`);
+  const items = mapReport();
+  console.log('Design summary (pack):');
+  for (const i of items) console.log(`  ${i.name}: ${i.used} out of ${i.total} ${i.percent}%`);
+  console.log(`Packed in ${ms(t)}.`);
+}
+
+// the Design Summary's map section, from the packed design (again after a register replication)
+function mapReport() {
   const s = packed.stats;
   const sites = deviceSites(device());
   const nSlices = sites.slices.size, nPads = sites.pads.size, nBufg = sites.bufgmux.length;
@@ -107,26 +116,48 @@ function runMap() {
     util('Number of occupied Slices', s.slices, nSlices), util('Number of bonded IOBs', s.iobs, nPads), util('Number of BUFGMUXs', s.bufgs, nBufg)];
   if (s.slices > nSlices) throw new StepError(`the design needs ${s.slices} slices, the device has ${nSlices}`, [], 'Choose a larger device.');
   report.map = { utilization: items, summary: { slices: items[2], ffs: items[0], luts: items[1], iobs: items[3], bufg: items[4] }, carry: s.carry, muxes: s.muxes, warnings: (packed.warnings || []).length, errors: 0 };
-  console.log('Design summary (pack):');
-  for (const i of items) console.log(`  ${i.name}: ${i.used} out of ${i.total} ${i.percent}%`);
-  console.log(`Packed in ${ms(t)}.`);
+  return items;
 }
 
 function runPar() {
-  let t = Date.now();
   const d = device();
   const k = knownPips();
-  let r;
-  try {
+  const delays = delayTable(d, { allowPip: k.allowPip });
+  const placeRoute = pk => {
+    const t0 = Date.now();
     // each clock's flip-flops on the slices its global line reaches through switches of known bits
-    r = place(packed, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, delays: delayTable(d, { allowPip: k.allowPip }), clockSites: site => clockReach(d, site, k.allowPip), bufgSites: (site, pin) => bufgReach(d, site, pin, k.allowPip) });
-  } catch (e) { throw new StepError(`placement failed: ${e.message}`); }
-  const placedText = writeXdl(placedXdl(packed, r));
+    const r = place(pk, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, delays, clockSites: site => clockReach(d, site, k.allowPip), bufgSites: (site, pin) => bufgReach(d, site, pin, k.allowPip) });
+    const placedText = writeXdl(placedXdl(pk, r));
+    const tp = ms(t0), t1 = Date.now();
+    const routed = routeDesign(parseXdl(placedText), d, { ...k, timing: true });
+    const ok = !routed.errors.length && !routed.failed.length;
+    return { packed: pk, placement: r, placedText, routed, placeTime: tp, routeTime: ms(t1), sta: ok ? analyzeTiming(parseXdl(writeXdl(routed.design)), d) : null };
+  };
+  let pr;
+  try { pr = placeRoute(packed); } catch (e) { throw new StepError(`placement failed: ${e.message}`); }
+  // register replication (#4): the flip-flops of many loads on the critical path copied (each copy
+  // near a group of the loads, core/fpga/replicate.js), the design placed and routed again; the
+  // faster of the two kept
+  if (pr.sta && spec.replicate !== false && packed.stats.slices <= REPLICATE_MAX_SLICES) {
+    const plan = replicationPlan(netlist, packed, pr.placement, pr.sta);
+    if (plan.length) {
+      const copies = plan.reduce((a, p) => a + p.groups.length - 1, 0);
+      let pr2 = null;
+      try { pr2 = placeRoute(pack(replicateFlipFlops(netlist, plan), { ucf: ucfText, part: spec.part, carryOut: 'xor' })); } catch { pr2 = null; }
+      const better = pr2?.sta && pr2.sta.period < pr.sta.period;
+      console.log(`Register replication: ${plan.length} flip-flop(s) on the critical path copied (${copies} copies): ${better ? `kept, ${pr2.sta.period.toFixed(3)} ns instead of ${pr.sta.period.toFixed(3)} ns` : 'not kept, no faster'}.`);
+      if (better) {
+        pr = pr2;
+        packed = pr.packed;
+        const items = mapReport();
+        console.log(`Design summary (pack, after the replication): ${items[0].name} ${items[0].used}, ${items[2].name} ${items[2].used}.`);
+      }
+    }
+  }
+  const { placement: r, placedText, routed } = pr;
   fs.writeFileSync(path.join(outDir, 'placed.xdl'), placedText);
   report.files.placed = rel(path.join(outDir, 'placed.xdl'));
-  console.log(`Placed ${r.sites.length} sites in ${ms(t)} (estimated critical path ${r.delay.toFixed(1)} ns): ${report.files.placed}`);
-  t = Date.now();
-  const routed = routeDesign(parseXdl(placedText), d, { ...k, timing: true });
+  console.log(`Placed ${r.sites.length} sites in ${pr.placeTime} (estimated critical path ${r.delay.toFixed(1)} ns): ${report.files.placed}`);
   report.par = { routed: false, unroutedSignals: routed.failed.length, nets: routed.routed, pips: routed.pips, iterations: routed.iterations };
   if (routed.errors.length) throw new StepError('routing errors', routed.errors.slice(0, 50));
   if (routed.failed.length) {
@@ -139,7 +170,7 @@ function runPar() {
   const check = checkRouting(parseXdl(routedText), d);
   if (!check.ok) throw new StepError('the routing check failed', check.problems.slice(0, 50));
   report.par = { ...report.par, routed: true, unroutedSignals: 0, done: true };
-  console.log(`Routed ${routed.routed} nets (${routed.pips} PIPs, ${routed.iterations} passes) in ${ms(t)}: ${report.files.routed}`);
+  console.log(`Routed ${routed.routed} nets (${routed.pips} PIPs, ${routed.iterations} passes) in ${pr.routeTime}: ${report.files.routed}`);
   console.log('All signals are completely routed.');
 }
 

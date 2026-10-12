@@ -104,6 +104,10 @@ test('slice arcs: LUT, F5 / FX multiplexers, carry chain (its data input), flip-
   const b = sl('SLICE_X1Y0', [['FXMUX', 'F'], ['FFX', '#FF'], ['DXMUX', '0']]);
   assert.deepEqual(b.setup.filter(x => /^F/.test(x[0])), []);
   assert.deepEqual(b.setup.find(x => x[0] === 'BX'), ['BX', S.Tdick[0]]);
+  // DYMUX = 0: BY into the Y flip-flop (Tdyck, slower than BX's; SLICEM slower still)
+  const by = sl('SLICE_X1Y0', [['GYMUX', 'G'], ['FFY', '#FF'], ['DYMUX', '0']]);
+  assert.deepEqual(by.setup.find(x => x[0] === 'BY'), ['BY', S.Tdyck[0]]);
+  assert.deepEqual(sl('SLICE_X2Y0', [['GYMUX', 'G'], ['FFY', '#FF'], ['DYMUX', '0']]).setup.find(x => x[0] === 'BY'), ['BY', S.Tdyck[1]]);
   // F5 into X, FX into Y; F5 / FX outputs
   const w = sl('SLICE_X1Y0', [['FXMUX', 'F5'], ['GYMUX', 'FX']]);
   assert.deepEqual(find(w, 'G2', 'X'), [S.Tif5x[0]]);
@@ -122,6 +126,16 @@ test('slice arcs: LUT, F5 / FX multiplexers, carry chain (its data input), flip-
   assert.deepEqual(find(c, 'G2', 'COUT'), [S.Topcyg[0]]);
   assert.deepEqual(find(c, 'BX', 'COUT'), [S.Tbxcy[0]]);
   assert.deepEqual(find(c, 'F2', 'Y'), [S.Topy[0]]);
+  // BX as CY0F reaches Y through the F stage's carry and the G XOR (trce's Tbxy: verilog-uart's
+  // critical path went through it, unseen by the analysis before 15.10.3)
+  assert.deepEqual(find(c, 'BX', 'Y'), [S.Tbxy[0]]);
+  assert.deepEqual(find(c, 'BX', 'X'), []);
+  // F1 as CY0F: slower to COUT than another F pin (trce: 1.162 against 0.953)
+  const cf = sl('SLICE_X1Y0', [['FXMUX', 'FXOR'], ['GYMUX', 'GXOR'], ['CYINIT', 'CIN'], ['CY0F', 'F1'], ['CY0G', 'G1']]);
+  assert.deepEqual(find(cf, 'F1', 'COUT'), [S.TopcyfDI[0]]);
+  assert.deepEqual(find(cf, 'F2', 'COUT'), [S.Topcyf[0]]);
+  assert.ok(S.TopcyfDI[0] > S.Topcyf[0]);
+  assert.deepEqual(find(cf, 'BX', 'Y'), []);
   // CYINIT = BX: the chain starts from BX
   const c0 = sl('SLICE_X1Y0', [['GYMUX', 'GXOR'], ['CYINIT', 'BX']]);
   assert.deepEqual(find(c0, 'BX', 'COUT'), [S.Tbxcy[0]]);

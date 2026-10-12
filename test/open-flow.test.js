@@ -96,7 +96,7 @@ test('the open flow on the shipped graph: blinky from VHDL to a complete bitstre
 test('the open flow with --tries 2: two placements routed, the one with the shorter critical path kept', { timeout: 300000 }, () => {
   const out = path.join(tmp, 'blinky-tries');
   const json = path.join(tmp, 'blinky', 'top.json');   // the netlist of the test above
-  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'examples/blinky'), out, ...(fs.existsSync(json) ? ['--json', json] : []), '--tries', '2', '--seed', '3'],
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'examples/blinky'), out, ...(fs.existsSync(json) ? ['--json', json] : []), '--tries', '2', '--seed', '3', '--no-replicate'],
     { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
   assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
   assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
@@ -105,6 +105,52 @@ test('the open flow with --tries 2: two placements routed, the one with the shor
   const kept = +/clock \S+clk: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(out, 'timing.txt'), 'utf8'))[1];
   assert.equal(kept, Math.min(...periods.map(p => p[1])));
   assert.match(r.stdout, /top\.bit: complete/);
+});
+
+// Register replication (#4): a flip-flop (s) that selects 64 registers spread over the chip is on
+// the critical path (every path is one LUT; its net is the slowest): copied, each copy near a group
+// of its loads, the design placed and routed again; the faster kept. No warning.
+const FAN64 = `module fan(input clk, input sel, input din, output reg y);
+  reg s;
+  reg [63:0] a, q;
+  reg [15:0] r1;
+  reg [3:0] r2;
+  integer i;
+  always @(posedge clk) begin
+    s <= sel;
+    a <= {a[62:0], din};
+    for (i = 0; i < 64; i = i + 1) q[i] <= s ? a[i] : a[63 - i];
+    for (i = 0; i < 16; i = i + 1) r1[i] <= ^q[4*i +: 4];
+    for (i = 0; i < 4; i = i + 1) r2[i] <= ^r1[4*i +: 4];
+    y <= ^r2;
+  end
+endmodule
+`;
+test('the open flow replicates a flip-flop of many loads on the critical path, and keeps the faster routing (#4)', { timeout: 300000 }, () => {
+  const dir = path.join(tmp, 'fan64');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'fan.v'), FAN64);
+  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'fan64', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'fan',
+    files: [{ path: 'fan.v', lang: 'verilog', role: 'design' }] }));
+  const r = openFlow(dir, path.join(dir, 'out'));
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.deepEqual(r.warnings, []);
+  const m = /^replication: 1 flip-flop\(s\), (\d+) copies: ([\d.]+) ns against ([\d.]+) ns: (kept|not kept)$/m.exec(r.stdout);
+  assert.ok(m, r.stdout);
+  assert.ok(+m[1] >= 2, 'its 64 loads in groups of up to 16');
+  const kept = +/clock \S+clk: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(dir, 'out', 'timing.txt'), 'utf8'))[1];
+  assert.equal(kept, Math.min(+m[2], +m[3]));
+  assert.equal(m[4], +m[2] < +m[3] ? 'kept' : 'not kept');
+  assert.match(r.stdout, /fan\.bit: complete/);
+  // the routed design has the copies when kept
+  const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
+  assert.equal((routed.match(/_rep\d+"/g) || []).length > 0, m[4] === 'kept');
+  // --no-replicate: none tried
+  const r0 = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, path.join(dir, 'out0'), '--no-replicate', '--json', path.join(dir, 'out', 'fan.json')],
+    { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
+  assert.equal(r0.status, 0, r0.stderr);
+  assert.doesNotMatch(r0.stdout, /replication|place \(/);
+  assert.match(r0.stdout, new RegExp(`minimum period ${m[3].replace('.', '\\.')} ns`), 'the same first placement and routing');
 });
 
 // The rest of the Spartan-3E in the open flow (test/fixtures/open-flow: the board tests and the ISE

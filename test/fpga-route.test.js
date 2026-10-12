@@ -98,6 +98,17 @@ test('routeDesign: a net that fails in the first pass stays reported when later 
   assert.equal(r.routed, 2);
 });
 
+test('routeDesign: a sink the bounded search does not reach is searched again further (searchCapRetry, #33)', () => {
+  const nets = net('n', '', [['a0', 'X']], [['b0', 'F1'], ['b1', 'F1']]);
+  // a search may expand 1 node: no sink reached, unless the second search may look further
+  const r = routeDesign(design(nets), device, { searchCap: 1, searchCapRetry: 1 });
+  assert.deepEqual([r.routed, r.failed], [0, ['n']]);
+  const r2 = routeDesign(design(nets), device, { searchCap: 1 });
+  assert.deepEqual([r2.routed, r2.failed, r2.overused], [1, [], 0]);
+  assert.deepEqual(pipsOf(r2, 'n'), pipsOf(routeDesign(design(nets), device), 'n'));
+  assert.ok(checkRouting(parseXdl(writeXdl(r2.design)), device).ok);
+});
+
 test('routeDesign: VCC without a source is tied to the VCC site of each sink tile (ISE-style dummy source); with one, from it', () => {
   const r = routeDesign(design(net('pwr', 'vcc', [], [['a0', 'F2'], ['b1', 'F2']])), device);
   const out = r.design.nets.filter(n => n.type === 'vcc');

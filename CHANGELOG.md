@@ -37,6 +37,38 @@ the "What's new" text of its GitHub release.
 - **Design corpus:** NEORV32 and light8080 now go through the whole open flow (synthesis, the
   netlist compared with the RTL cycle by cycle, place and route); light8080's, secworks-sha1's and
   secworks-aes's own testbenches pass. Every design of the corpus synthesizes and builds.
+- **Silinx toolchain: register replication**, as XST and ISE's map do. After placing and routing,
+  the flip-flops of many loads (8 or more) whose output is slow on the critical path are copied,
+  each copy driving the loads of one region of the chip; the design is placed and routed again and
+  the faster of the two kept (Place & Route's log says what it did; the Design Summary counts the
+  copies when they are kept). Every copy has the flip-flop's inputs and initial value: the circuit
+  computes the same. EPFL bar (a register of 256 loads) 11.1 -> 10.3 ns by ISE's trce, T80 23.0
+  -> 22.4 ns. `open-flow.mjs --no-replicate` turns it off (#4).
+- **Against ISE** (trce on both, the designs of docs/QUALITY.md furthest from ISE): EPFL max 69.9
+  -> 37.1 ns (ISE 25.7), EPFL priority now builds, 16.8 ns (ISE 20.8, faster than ISE's),
+  vtr-stereovision3 8.6 -> 7.6 ns, verilog-uart 11.9 -> 10.2 ns, verilog-i2c-master 11.2 -> 10.9 ns;
+  every one byte-identical to ISE's bitgen with no DRC error or warning
+  (research/s3e-route/README.md, "The design corpus against ISE").
+- **Silinx toolchain: logic depth.** The open synthesis maps a design a second time for depth (ABC's
+  SOP balancing, `if -g`, then the usual area recovery) and keeps that netlist when its estimated
+  critical path is shorter without more LUTs in proportion (or it is as fast and smaller). Logic
+  written as long chains of gates gets much faster: the EPFL max benchmark 71 -> 37 ns (ISE: 25.7),
+  EPFL priority 43 -> 17 ns (ISE: 21), vtr-stereovision3 -9 %, verilog-i2c-master -6 %, T80 -4 %;
+  -6 % over 32 designs of the corpus and the examples (geometric mean), with 1 % fewer slices. The
+  examples keep their netlists. Synthesis runs Yosys's LUT mapping twice on designs of up to 5000
+  LUTs (research/synth-quality/README.md, "Logic depth") (#52).
+- **Silinx toolchain: timing analysis.** A path through a carry chain's data input taken from BX
+  (`CY0F = BX`, as comparators are packed) into the XOR of the slice's G stage was not timed, and a
+  LUT input the LUT does not read (the carry's data input on a LUT pin) counted as a path through
+  the LUT; the false loops this made left everything after them out of the analysis. verilog-uart
+  of the design corpus: 6.7 ns by Silinx's analysis, 11.9 ns by ISE's trce on the same routed
+  design; now 12.1 ns, and the placer and router see that path (10.2-10.4 ns routed). The carry's
+  data input on F1 / F2 (1.16 ns to COUT) and BY into the Y flip-flop (0.36 / 0.38 ns) are trce's.
+  On 14 designs of the corpus the analysis is within 0-5 % of trce (part of #26).
+- **Silinx toolchain: nets that could not be routed on the XC3S1200E** (EPFL priority and adder of
+  the design corpus, and the no-UCF test design on some placements): the router's search for a
+  sink stopped after 400 000 nodes; a sink it did not reach is now searched again, much further.
+  Both now build to a bitstream (#33).
 
 ## 15.10.2
 

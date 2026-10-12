@@ -57,7 +57,7 @@ export const SPEED_4 = {
     Tbyy: [0.850, 0.850],      // BY (select) -> Y
     Topcyf: [0.953, 0.953],    // F1-4 -> COUT
     Topcyg: [0.888, 0.888],    // G1-4 -> COUT
-    TopcyfDI: [0.953, 0.953],  // F1 / F2 -> COUT when it is also the carry's data input (CY0F)
+    TopcyfDI: [1.162, 1.162],  // F1 / F2 -> COUT when it is also the carry's data input (CY0F) (trce: 1.162 the worst)
     TopcygDI: [1.131, 1.131],  // G1 / G2 -> COUT when it is also the carry's data input (CY0G)
     Tbycy: [0.945, 0.945],     // BY (CY0G) -> COUT
     Tbxcy: [1.095, 1.106],     // BX (CYINIT) -> COUT
@@ -68,10 +68,12 @@ export const SPEED_4 = {
     Topy: [1.641, 1.641],      // F1-4 -> Y (carry of the F stage, G XOR)
     Togy: [0.9, 0.95],         // G1-4 -> Y (XOR) (est.)
     Tbxxor: [1.0, 1.0],        // BX (CYINIT) -> X / Y through the XOR (est.)
+    Tbxy: [1.574, 1.574],      // BX (CY0F, the F stage's carry data input) -> Y (the G XOR)
     TckoX: [0.591, 0.592],     // CLK -> XQ
     TckoY: [0.587, 0.652],     // CLK -> YQ
     Tdxck: [0.133, 0.133],     // setup of the flip-flop from the X / Y path (added to the path to X / Y)
-    Tdick: [0.308, 0.308],     // BX -> flip-flop X (DXMUX = 0), BY -> flip-flop Y
+    Tdick: [0.308, 0.308],     // BX -> flip-flop X (DXMUX = 0)
+    Tdyck: [0.361, 0.382],     // BY -> flip-flop Y (DYMUX = 0)
     Tceck: [0.555, 0.555],     // CE (est.)
     Tsrck: [0.910, 0.910],     // SR
   },
@@ -330,28 +332,40 @@ export function instArcs(inst, model = SPEED_4) {
   const T = name => model.slice[name][k];
   const arc = (ins, o, d) => { for (const i of ins) comb.push([i, o, d]); };
   const cin = m.get('CYINIT') === 'BX' ? 'BX' : 'CIN';
+  // the pins each LUT reads: an input its equation does not use is not on a path through it (the
+  // packer wires the carry's data input CY0F / CY0G to a LUT pin the LUT itself may not read; an
+  // arc through the LUT from it would make false loops, and the analysis leaves the pins after a
+  // loop out)
+  const reads = (l, pins) => {
+    const e = /^#LUT:D=(.*)$/.exec(m.get(l) || '');
+    return e ? pins.filter((p, j) => new RegExp(`A${j + 1}(?!\\d)`).test(e[1])) : pins;
+  };
+  const fIn = reads('F', F_PINS), gIn = reads('G', G_PINS);
   // into X / Y (kept to add the flip-flop's setup)
   const toX = [], toY = [];
   const fx = m.get('FXMUX'), gy = m.get('GYMUX');
-  if (fx === 'F' || fx === undefined) for (const p of F_PINS) toX.push([p, T('Tilo')]);
-  if (fx === 'F5') { for (const p of [...F_PINS, ...G_PINS]) toX.push([p, T('Tif5x')]); toX.push(['BX', T('Tbxx')]); }
-  if (fx === 'FXOR') { for (const p of F_PINS) toX.push([p, T('Topx')]); toX.push([cin, cin === 'BX' ? T('Tbxxor') : T('Tcinx')]); }
-  if (gy === 'G' || gy === undefined) for (const p of G_PINS) toY.push([p, T('Tilo')]);
+  if (fx === 'F' || fx === undefined) for (const p of fIn) toX.push([p, T('Tilo')]);
+  if (fx === 'F5') { for (const p of [...fIn, ...gIn]) toX.push([p, T('Tif5x')]); toX.push(['BX', T('Tbxx')]); }
+  if (fx === 'FXOR') { for (const p of fIn) toX.push([p, T('Topx')]); toX.push([cin, cin === 'BX' ? T('Tbxxor') : T('Tcinx')]); }
+  if (gy === 'G' || gy === undefined) for (const p of gIn) toY.push([p, T('Tilo')]);
   if (gy === 'FX') toY.push(['FXINA', T('Tif6y')], ['FXINB', T('Tif6y')], ['BY', T('Tbyy')]);
   if (gy === 'GXOR') {
-    for (const p of G_PINS) toY.push([p, T('Togy')]);
-    for (const p of F_PINS) toY.push([p, T('Topy')]);
+    for (const p of gIn) toY.push([p, T('Togy')]);
+    // the F stage's carry (its LUT, or its data input) into the G XOR
+    for (const p of F_PINS) if (fIn.includes(p) || m.get('CY0F') === p) toY.push([p, T('Topy')]);
     toY.push([cin, cin === 'BX' ? T('Tbxxor') : T('Tciny')]);
+    // BX as the F stage's carry data input reaches the G XOR through the F stage's carry
+    if (m.get('CY0F') === 'BX' && cin !== 'BX') toY.push(['BX', T('Tbxy')]);
   }
   for (const [p, d] of toX) comb.push([p, 'X', d]);
   for (const [p, d] of toY) comb.push([p, 'Y', d]);
-  arc([...F_PINS, ...G_PINS], 'F5', T('Tif5')); comb.push(['BX', 'F5', T('Tbxf5')]);
+  arc([...fIn, ...gIn], 'F5', T('Tif5')); comb.push(['BX', 'F5', T('Tbxf5')]);
   arc(['FXINA', 'FXINB'], 'FX', T('Tinafx')); comb.push(['BY', 'FX', T('Tbyfx')]);
   // the carry chain: the LUT selects (S), CY0F / CY0G the data input (DI: a LUT pin, BX / BY or a constant)
   const cy = cin === 'BX' ? T('Tbxcy') : T('Tbyp');
-  const cyF = F_PINS.map(p => [p, m.get('CY0F') === p ? T('TopcyfDI') : T('Topcyf')]);
+  const cyF = F_PINS.filter(p => fIn.includes(p) || m.get('CY0F') === p).map(p => [p, m.get('CY0F') === p ? T('TopcyfDI') : T('Topcyf')]);
   if (m.get('CY0F') === 'BX') cyF.push(['BX', T('Tbxcy')]);
-  const cyG = G_PINS.map(p => [p, m.get('CY0G') === p ? T('TopcygDI') : T('Topcyg')]);
+  const cyG = G_PINS.filter(p => gIn.includes(p) || m.get('CY0G') === p).map(p => [p, m.get('CY0G') === p ? T('TopcygDI') : T('Topcyg')]);
   if (m.get('CY0G') === 'BY') cyG.push(['BY', T('Tbycy')]);
   for (const [p, d] of [...cyF, ...cyG]) comb.push([p, 'COUT', d], [p, 'YB', d]);
   for (const [p, d] of cyF) comb.push([p, 'XB', d]);
@@ -360,7 +374,7 @@ export function instArcs(inst, model = SPEED_4) {
   const ff = (name, D, toD, byp, q, tco) => {
     if (!m.has(name)) return;
     out.clock = true;
-    if (m.get(D) === '0') setup.push([byp, T('Tdick')]);
+    if (m.get(D) === '0') setup.push([byp, T(byp === 'BY' ? 'Tdyck' : 'Tdick')]);
     else for (const [p, d] of toD) setup.push([p, d + T('Tdxck')]);
     clkToOut.push([q, T(tco)]);
   };

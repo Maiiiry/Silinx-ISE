@@ -16,6 +16,7 @@
 //              kind: 'slice' | 'iob' | 'bufg' | 'bram' | 'mult' | 'dcm', cfg: [{ attr, name, value }],
 //              loc: pad | site | null, wide (bram: a 36-bit port) }],
 //   nets:   [{ name, type: 'wire' | 'gnd' | 'vcc', outpins: [{ inst, pin }], inpins: [{ inst, pin }] }]   (inst = index)
+//   cellSites: [{ inst, bel } | null]   where each netlist cell went (FFX / FFY, F / G, CYMUXF…; inst -1: left out)
 //   macros: [{ kind: 'carry' | 'F6' | 'F7' | 'F8', members: [{ inst, dx, dy }] }]   slices that must keep these
 //           relative positions (slice coordinates: SLICE_X(x+dx)Y(y+dy))
 //   stats:  { slices, luts, ffs, carry, muxes, iobs, bufgs, copies, passthru, unusedInputs, slicem, brams, mults, dcms },
@@ -1137,6 +1138,8 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     insts: insts.map(s => ({ name: s.name, type: s.type, cfg: s.cfg, loc: s.loc || null, kind: s.kind, dir: s.dir, ...(s.kind === 'bram' ? { wide: Object.values(s.ports).includes(36) } : {}) })),
     nets: outNets.filter(n => n.inpins.length),
     macros,
+    // where each cell of the netlist went: { inst, bel } (FFX / FFY, F / G, CYMUXF…; inst -1: left out)
+    cellSites: nl.cells.map((c, i) => (where.has(i) ? { inst: where.get(i).inst, bel: where.get(i).bel } : null)),
     stats: {
       slices: slices.length, luts: slices.reduce((a, s) => a + !!s.lut.F + !!s.lut.G, 0), ffs: slices.reduce((a, s) => a + !!s.ff.X + !!s.ff.Y, 0),
       carry: stats.carry, muxes: stats.muxes, iobs: insts.filter(s => s.kind === 'iob').length, bufgs: insts.filter(s => s.kind === 'bufg').length,

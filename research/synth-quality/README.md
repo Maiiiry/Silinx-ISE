@@ -135,6 +135,65 @@ complete bitstream) against ISE's place and route:
 | project 2 | 468 slices, 15.1 ns | 174 slices, 13.1 ns | 201 slices, 10.7 ns |
 | examples/blinky | 104 slices, 11.8 ns | 86 slices, 7.7 ns | 99 slices, 6.7 ns |
 
+## Logic depth (15.10.3)
+
+The EPFL max benchmark (#52, four 128-bit numbers, gate-level Verilog) took 69.9 ns with the
+Silinx toolchain against ISE's 25.7: its critical path was 45 levels of 6-input functions (LUT,
+F5 and F6 multiplexers), a comparator's chain of gates mapped as written. ABC's default script for
+LUTs (`strash; …; dc2; dretime; strash; dch -f; if; mfs2`) maps for depth, but only over the
+structure it is given; nothing in it restructures a long chain.
+
+Tried (each mapping packed and estimated with all connections at 0.45 ns, on the designs of the corpus and
+the examples; LUTs / slices / estimated ns as geometric means against the default script):
+
+| ABC script (with `-luts 1,1,1,1,2,4`) | EPFL max | all designs |
+|---|---|---|
+| default | 1090 LUTs, 66.2 ns | 1 / 1 / 1 |
+| `strash; dc2; if -g; strash; dch -f; if; mfs2` | 1324 LUTs, 31.4 ns | |
+| `…; &syn2; &if -g -K 6; &synch2; …` | 1723 LUTs, 24.4 ns | |
+| `…; dch -f; if; speedup; if; mfs2` | 2300 LUTs, 22.8 ns | |
+| **`strash; dc2; balance; dch -f; if -g; strash; dc2; dch -f; if; mfs2`** | **1168 LUTs, 31.5 ns** | **0.992 / 0.985 / 0.935** |
+| the same with `&fraig -x; scorr` first | 1168 LUTs, 31.5 ns | 0.993 / 0.988 / 0.942 |
+| `if -g` twice | 1494 LUTs, 23.3 ns | 0.997 / 0.995 / 0.929 |
+| the bold one, then `strash; dch -f; if; mfs2` again | 1150 LUTs, 31.5 ns | 0.970 / 0.976 / 0.940 |
+
+`if -g` (ABC's delay-oriented SOP balancing) then an area-oriented mapping of the balanced logic
+halves max's depth for 7 % more LUTs, and on most designs it is as good or better; but not on all
+(secworks-sha1 +4 %, verilog-uart +6 % by the estimate), and on AES (10 000 LUTs) it takes minutes
+and 4 GB. ABC's `read_lut` (LUT delays by size) crashes in YoWASP, so ABC cannot be told that a
+6-input function (LUT, F5, F6) is slower than a LUT4.
+
+So the open synthesis (`core/synth-open.js`, `synthesizeOpen`) maps the 4-input-LUT families as
+before, writes the design as it was before the LUT mapping (`write_rtlil`), maps that again with the
+bold script (`DEPTH_ABC`, a second Yosys run from the LUT mapping on) and keeps the second netlist
+when its estimated critical path (`criticalDelay`: the netlist's cells with the -4 logic delays of
+`core/fpga/timing.js`, 0.45 ns per connection between slices, none inside one) is 3 % shorter
+without more LUTs in proportion than it gains (10 % more at least), or when it is no slower and
+smaller (`keepDepth`). Designs above 5000 LUTs keep the usual mapping. `r.depth` says what happened;
+`depth: false` turns it off.
+
+The open flow (pack, place, route; Silinx's timing analysis of the routed design, mean of placer seeds
+1-3, the designs on the XC3S1200E, the examples on the XC3S250E), before -> after:
+
+| design | ns | slices |
+|---|---|---|
+| epfl-max | 71.4 -> **37.0** (ISE: 25.7) | 610 -> 645 |
+| epfl-priority | 43.2 -> **16.7** (ISE: 20.8) | 162 -> 144 |
+| epfl-adder | 82.7 -> 75.5 (ISE: 12.3) | 264 -> 268 |
+| vtr-stereovision3 | 8.51 -> 7.75 (ISE: 4.9) | 118 -> 113 |
+| epfl-router | 9.81 -> 9.18 | 39 -> 38 |
+| verilog-i2c-master | 11.30 -> 10.64 | 135 -> 128 |
+| nandland-spi-vhdl | 10.95 -> 10.32 | 88 -> 85 |
+| t80 | 24.04 -> 23.07 | 1539 -> 1528 |
+| fpu-multiplier, serv | -4 % | -0 to -1 % |
+| verilog-lfsr-crc, epfl-i2c, fpu-adder | +2 to +5 % (smaller netlists, placement noise) | -1 to -5 % |
+| examples/blinky | 7.43 -> 7.48 (one LUT fewer) | 86 -> 86 |
+| examples/pong, examples/stopwatch, verilog-uart and 14 others | unchanged (the usual netlist kept) | |
+| **32 designs** | **-6.0 %** (geometric mean) | **-0.9 %** |
+
+Left: EPFL adder (a 128-bit adder as gates: XST's netlist has 12.3 ns, ours 75); max is still 1.4
+times ISE's.
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding
@@ -143,7 +202,8 @@ complete bitstream) against ISE's place and route:
   (timing-driven placement with the device's delay table, LUT input swapping, branch loads in the
   router: lab11 11.6 ns by ISE's trce, blinky 7.4 ns; research/s3e-route/README.md, "Closing the
   routing gap"). Left: XST replicates the state register's flip-flops to cut their fanout (54 on
-  lab11's critical path, about 0.5 ns of branch load); the open flow does not.
+  lab11's critical path, about 0.5 ns of branch load); the open flow does since 15.10.3
+  (research/s3e-route/README.md, "The design corpus against ISE").
 - **Shift registers in SRL16**: done in 15.10.2 for fixed-length chains (above); variable taps
   and the cascade left. What the prototype (before it) found:
   - fixed-length chains: `xilinx_srl -fixed -minlen 3` must run on the bit-level flip-flops

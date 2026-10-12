@@ -70,12 +70,7 @@
   "tb": "skip: no self-checking testbench",
   "synth": "pass",
   "diff": "pass",
-  "flow": "complete",
-  "warnings": {
-   "flow": [
-    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
-   ]
-  }
+  "flow": "complete"
  },
  "epfl-router": {
   "frontend": "pass",
