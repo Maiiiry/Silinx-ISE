@@ -531,12 +531,17 @@ uiTest('browser edition: View Technology Schematic of blinky and pong: the netli
     v = await view();
     assert.ok(v.syms.some((x) => x.module === 'fdre'), `${name}/${inside}: flip-flops`);
     const lut = v.syms.find((x) => /^lut[1-4]$/.test(x.module));
-    // (the view may still be fitting itself to the window: a click that missed the LUT is repeated)
+    // (the view may still be fitting itself to the window, and the properties drawn again once more: a
+    // click that missed the LUT, or a section replaced under the click, is repeated)
     for (let k = 0; ; k++) {
-      await page.click(`.doc:not([hidden]) .se-svg [data-kind=sym][data-id="${lut.id}"]`);
-      try { await page.waitFor(() => document.querySelector('.doc:not([hidden]) .se-lutfn > summary')?.getClientRects().length, [], { what: 'the LUT function', timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
+      try {
+        await page.click(`.doc:not([hidden]) .se-svg [data-kind=sym][data-id="${lut.id}"]`);
+        await page.waitFor(() => document.querySelector('.doc:not([hidden]) .se-lutfn > summary')?.getClientRects().length, [], { what: 'the LUT function', timeout: 3000 });
+        await page.click('.doc:not([hidden]) .se-lutfn > summary');
+        await page.waitFor(() => document.querySelector('.doc:not([hidden]) .se-lutfn[open] .se-lut-eq')?.getClientRects().length, [], { what: 'the LUT equation', timeout: 3000 });
+        break;
+      } catch (e) { if (k >= 4) throw e; }
     }
-    await page.click('.doc:not([hidden]) .se-lutfn > summary');
     assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-lut-eq').textContent), /^O = (0|1|!?I\d)/);
   }
 }, { url: () => 'about:blank', timeout: 400000 });
