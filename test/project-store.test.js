@@ -21,6 +21,8 @@ const P = await import('../server/projects.js');
 function readTree(dir, base = '') {
   const out = {};
   for (const e of fs.readdirSync(path.join(dir, base), { withFileTypes: true })) {
+    // hidden files (a Mac's .DS_Store) are not part of a project: the server skips them too
+    if (e.name.startsWith('.')) continue;
     const rel = base ? `${base}/${e.name}` : e.name;
     if (e.isDirectory()) Object.assign(out, readTree(dir, rel));
     else if (rel !== 'silinx.json') out[rel] = fs.readFileSync(path.join(dir, rel), 'utf8');
@@ -203,4 +205,17 @@ test('the fake folder: kept in a Storage and read back (a page reload), its perm
   assert.equal(await b.requestPermission({ mode: 'readwrite' }), 'granted');
   await projectOps(() => folderStore(b)).create({ name: 'Yes' });
   assert.deepEqual(Object.keys(await dump(fakeDirectory('x', { storage: ls, key: 'k' }))).filter((k) => k.endsWith('silinx.json')), ['Kept/silinx.json', 'Yes/silinx.json']);
+});
+
+// a hidden file in an example's folder (a Mac's .DS_Store, left by the Finder) is not copied into a
+// project, neither by the server nor by the single-file edition's build (scripts/build-standalone.mjs)
+test('hidden files of an example (.DS_Store) are not part of the projects made from it', async () => {
+  const hidden = path.join(EXDIR, 'pong', '.silinx-hidden-test');
+  fs.writeFileSync(hidden, 'not a project file\n');
+  try {
+    await P.createProject({ name: 'HiddenPong', template: 'pong' });
+    assert.deepEqual(Object.keys(diskTree(P.projectDir('HiddenPong'))).filter((k) => k.split('/').some((s) => s.startsWith('.'))), []);
+    const build = fs.readFileSync(path.join(HERE, '..', 'scripts', 'build-standalone.mjs'), 'utf8');
+    assert.match(build, /if \(e\.name\.startsWith\('\.'\)\) continue;/, 'the single-file edition skips hidden files too');
+  } finally { fs.rmSync(hidden, { force: true }); }
 });

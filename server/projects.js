@@ -137,6 +137,7 @@ const DEFAULT_DEVICE = { family: 'spartan3e', part: 'xc3s250e', package: 'cp132'
 async function copyDir(src, dst) {
   await fs.mkdir(dst, { recursive: true });
   for (const ent of await fs.readdir(src, { withFileTypes: true })) {
+    if (ent.name.startsWith('.')) continue;   // hidden files (a Mac's .DS_Store): not part of a project
     const s = path.join(src, ent.name), d = path.join(dst, ent.name);
     if (ent.isDirectory()) await copyDir(s, d); else await fs.copyFile(s, d);
   }

@@ -18,7 +18,9 @@ const rd = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
 function readTree(dir, base = '') {
   const out = {};
   for (const e of fs.readdirSync(path.join(dir, base), { withFileTypes: true })) {
-    const rel = base ? `${base}/${e.name}` : e.name;
+    // hidden files (a Mac's .DS_Store) are not part of a project: the server skips them too
+  if (e.name.startsWith('.')) continue;
+  const rel = base ? `${base}/${e.name}` : e.name;
     if (e.isDirectory()) Object.assign(out, readTree(dir, rel));
     else if (rel !== 'silinx.json') out[rel] = fs.readFileSync(path.join(dir, rel), 'utf8');
   }
