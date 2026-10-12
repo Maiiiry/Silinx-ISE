@@ -1,0 +1,60 @@
+name: Quality
+# The quality of what the Silinx toolchain generates against Xilinx ISE (XST + map + par), on the
+# design corpus (test/designs-corpus: 38 open-source designs, EPFL and VTR benchmarks among them):
+# size and speed of each design with both flows on the XC3S1200E (test/designs-corpus/compare-ise.mjs).
+# Weekly, and by hand (Actions ▸ Quality ▸ Run workflow), on the self-hosted runner with the ISE
+# Docker image (label "ise", as .github/workflows/ise.yml); the new results
+# (test/designs-corpus/ise-comparison.json and the page docs/QUALITY.md) are committed to main.
+#
+# The repository is public: only code already on main runs there, never a pull request's.
+on:
+  schedule:
+    - cron: '0 5 * * 0'       # Sundays 05:00 UTC (after the nightly ISE tests)
+  workflow_dispatch:
+permissions:
+  contents: write             # the results' commit
+concurrency:
+  group: ise                  # one ISE job at a time on the runner
+  cancel-in-progress: false
+jobs:
+  compare:
+    if: github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, ise]
+    timeout-minutes: 600
+    env:
+      SILINX_ISE_HOST: local    # ISE from the Docker image on the runner itself
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      # the corpus's sources kept on the runner between runs (the checkout cleans the work folder)
+      - name: The corpus's sources
+        run: |
+          mkdir -p "$HOME/silinx-cache/designs-corpus" .cache
+          ln -sfn "$HOME/silinx-cache/designs-corpus" .cache/designs-corpus
+          npm run fetch:designs
+      - name: A Silinx project per design
+        run: |
+          rm -rf "$RUNNER_TEMP/quality"
+          # (the nightly checks the corpus's expectations: here only the projects are needed)
+          node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes "$RUNNER_TEMP/quality" --jobs 3 || true
+          ls "$RUNNER_TEMP/quality" | wc -l
+      - name: Silinx toolchain vs ISE
+        run: node test/designs-corpus/compare-ise.mjs "$RUNNER_TEMP/quality" --jobs 3 --ise-jobs 2
+      - name: Commit the results
+        run: |
+          git add test/designs-corpus/ise-comparison.json docs/QUALITY.md
+          if git diff --cached --quiet; then echo "no change"; exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit -m "Quality: the weekly Silinx toolchain vs ISE comparison (docs/QUALITY.md)"
+          for k in 1 2 3; do git pull --rebase -q origin main && git push -q origin HEAD:main && exit 0; sleep 10; done
+          exit 1
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-results
+          path: |
+            test/designs-corpus/ise-comparison.json
+            docs/QUALITY.md

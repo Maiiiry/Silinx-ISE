@@ -15,6 +15,8 @@
 //   node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes <dir>     (the projects)
 //   node test/designs-corpus/compare-ise.mjs <dir> [--filter a,b] [--jobs n] [--ise-jobs n] [--period ns]
 //   node test/designs-corpus/compare-ise.mjs --report        (docs/QUALITY.md from the results only)
+//   SILINX_ISE_HOST=local …: ISE from the Docker image on this machine, no ssh (the self-hosted runner
+//   of .github/workflows/quality.yml, weekly)
 //
 // Results (numbers only, never ISE's own files): test/designs-corpus/ise-comparison.json, and the
 // page for users, docs/QUALITY.md.
@@ -51,13 +53,18 @@ if (!dir || !fs.existsSync(dir)) { console.error('usage: compare-ise.mjs <dir of
 const filter = opt('--filter', null)?.split(',');
 const names = fs.readdirSync(dir).filter(n => fs.existsSync(path.join(dir, n, 'silinx.json')) && (!filter || filter.includes(n))).sort();
 
-// the user's ISE settings, in SSH mode, in a configuration of this run's own
-const userCfg = JSON.parse(fs.readFileSync(path.join(os.homedir(), '.silinx', 'config.json'), 'utf8'));
-if (!userCfg.ssh?.host) { console.error('~/.silinx/config.json: no ssh host (the ISE machine)'); process.exit(2); }
+// ISE: the image on this machine (SILINX_ISE_HOST=local), else the user's ISE settings in SSH mode, in
+// a configuration of this run's own
+const LOCAL = process.env.SILINX_ISE_HOST === 'local';
+const IMAGE = process.env.SILINX_ISE_IMAGE || 'xilinx/ise:14.7';
+const SETTINGS = '/opt/Xilinx/14.7/ISE_DS/settings64.sh';
+const userCfg = LOCAL ? { mode: 'docker', docker: { image: IMAGE, platform: 'linux/amd64', settings: SETTINGS } }
+  : JSON.parse(fs.readFileSync(path.join(os.homedir(), '.silinx', 'config.json'), 'utf8'));
+if (!LOCAL && !userCfg.ssh?.host) { console.error('~/.silinx/config.json: no ssh host (the ISE machine); or SILINX_ISE_HOST=local'); process.exit(2); }
 const work = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-compare-'));
 process.env.SILINX_CONFIG_DIR = path.join(work, 'config');
 fs.mkdirSync(process.env.SILINX_CONFIG_DIR, { recursive: true });
-fs.writeFileSync(path.join(process.env.SILINX_CONFIG_DIR, 'config.json'), JSON.stringify({ ...userCfg, mode: 'ssh' }));
+fs.writeFileSync(path.join(process.env.SILINX_CONFIG_DIR, 'config.json'), JSON.stringify({ ...userCfg, mode: LOCAL ? 'docker' : 'ssh' }));
 const { createJob } = await import('../../server/jobs.js');
 const { runImplementation } = await import('../../server/ise.js');
 const { runOpenImplementation } = await import('../../server/open-flow.js');
@@ -135,21 +142,25 @@ const [sil, ise] = await Promise.all([
 ]);
 
 // ISE's trce on Silinx's routed designs (ise-open-check.sh: xdl -xdl2ncd, drc, bitgen, trce)
-const host = `${userCfg.ssh.user ? `${userCfg.ssh.user}@` : ''}${userCfg.ssh.host}`;
-const image = userCfg.ssh.image || 'xilinx/ise:14.7';
+const host = LOCAL ? null : `${userCfg.ssh.user ? `${userCfg.ssh.user}@` : ''}${userCfg.ssh.host}`;
+const image = LOCAL ? IMAGE : userCfg.ssh.image || 'xilinx/ise:14.7';
 const tdir = path.join(work, 'trce');
 const timedNames = names.filter((n, k) => !sil[k].error && fs.existsSync(sil[k].routed));
 for (const n of timedNames) { fs.mkdirSync(path.join(tdir, n), { recursive: true }); fs.copyFileSync(sil[names.indexOf(n)].routed, path.join(tdir, n, 'routed.xdl')); }
 fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(tdir, 'ise-open-check.sh'));
-const sshArgs = ['-o', 'BatchMode=yes', ...(userCfg.ssh.port && userCfg.ssh.port !== 22 ? ['-p', String(userCfg.ssh.port)] : [])];
+const sshArgs = LOCAL ? [] : ['-o', 'BatchMode=yes', ...(userCfg.ssh.port && userCfg.ssh.port !== 22 ? ['-p', String(userCfg.ssh.port)] : [])];
 const ssh = cmd => execFileSync('ssh', [...sshArgs, '--', host, `export PATH="$PATH:/usr/local/bin"; ${cmd}`], { encoding: 'utf8', maxBuffer: 64 << 20 });
 const remote = `silinx-compare/${path.basename(work)}`;
 const trce = {};
 if (timedNames.length) {
   try {
-    ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
-    execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, `${tdir}/`, `${host}:${remote}/`]);
-    const out = ssh(`docker run --rm --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
+    let out;
+    if (LOCAL) out = execFileSync('docker', ['run', '--rm', '--platform', 'linux/amd64', '-v', `${tdir}:/w`, image, 'bash', '/w/ise-open-check.sh', '/w', ...timedNames], { encoding: 'utf8', maxBuffer: 64 << 20 });
+    else {
+      ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
+      execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, `${tdir}/`, `${host}:${remote}/`]);
+      out = ssh(`docker run --rm --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
+    }
     process.stdout.write(out.split('\n').map(l => (l ? `  ISE ${l}\n` : '')).join(''));
     for (const l of out.split('\n')) {
       const m = /^(\S+): timing: .*?Minimum period:\s+([\d.]+)ns/.exec(l);
@@ -157,7 +168,7 @@ if (timedNames.length) {
       const p = /^(\S+): timing: .*?Maximum path delay from\/to any node:\s+([\d.]+)ns/.exec(l);
       if (p && !trce[p[1]]) trce[p[1]] = +p[2];
     }
-    ssh(`rm -rf ${remote}`);
+    if (!LOCAL) ssh(`rm -rf ${remote}`);
   } catch (e) { console.error(`trce of Silinx's routing on the ISE host failed: ${e.message.split('\n')[0]}`); }
 }
 

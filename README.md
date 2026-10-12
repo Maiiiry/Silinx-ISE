@@ -237,7 +237,9 @@ Projects live in `~/Silinx-projects` (override with `SILINX_WORKSPACE`). Pushing
 runs the tests and publishes a release with the files above (`.github/workflows/release.yml`).
 The tests against ISE (`test/ise/`) run nightly, and on demand (Actions ▸ ISE ▸ Run workflow), on
 a self-hosted runner with the ISE Docker image (label `ise`, `.github/workflows/ise.yml`); only code
-already on main runs there, never a pull request's.
+already on main runs there, never a pull request's. The same runner compares the Silinx toolchain
+with ISE on the design corpus every week (`.github/workflows/quality.yml`) and commits the results to
+[docs/QUALITY.md](docs/QUALITY.md).
 
 ### Command line
 

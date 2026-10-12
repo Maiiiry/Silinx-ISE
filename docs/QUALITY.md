@@ -137,6 +137,7 @@ timing analysis (what its Design Summary shows).
 
 `node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes <dir>` writes a Silinx
 project per design; `node test/designs-corpus/compare-ise.mjs <dir>` builds each with both flows (ISE
-through Silinx's SSH mode, on a machine with ISE) and writes `test/designs-corpus/ise-comparison.json`
-and this page. The corpus's nightly run checks the Silinx toolchain on every design without ISE; this
-comparison is run by hand, as it needs ISE.
+from its Docker image, both flows on the same machine) and writes `test/designs-corpus/ise-comparison.json`
+and this page. It runs every week on a self-hosted runner with ISE (`.github/workflows/quality.yml`),
+which commits the new results, and by hand (Actions ▸ Quality ▸ Run workflow). The corpus's nightly
+run checks the Silinx toolchain on every design without ISE.
