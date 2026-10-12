@@ -69,18 +69,22 @@ the "What's new" text of its GitHub release.
   the design corpus, and the no-UCF test design on some placements): the router's search for a
   sink stopped after 400 000 nodes; a sink it did not reach is now searched again, much further.
   Both now build to a bitstream (#33).
-- **Silinx toolchain: faster placement and routing of large designs, the same results.** The
-  placer's annealing keeps its state in flat arrays (the slice grid, positions, the nets' pins and
-  connections), keeps the bounding box of each larger net up to date instead of scanning its pins
-  at every move, and compiles its timing graph once instead of looking every pin up by name at
-  every temperature; the router's search and the check of the switches of known bits do less work
-  per node. The placements and routings are the same as before, bit for bit: 4-10x faster placement
-  (T80 97 -> 13 s, SHA-256 on the XC3S250E ~570 -> 49 s of CPU), 1.3x faster routing (#55).
-- **Silinx toolchain: the router works less on large nets.** A search for a sink first stays in the
-  net's region (its pins' bounding box and 3 tiles around it; anywhere when that has no path), and a
-  non-critical sink of a net whose tree has more than 200 nodes is searched from the tree's nodes
-  near it, not from the whole tree (as VPR does). Routing is ~25 % faster (SHA-1: 55 -> 35 s over
-  three placements) with the same critical paths: -0.04 % over 21 routings of 7 designs (#55).
+- **Silinx toolchain: large designs build several times faster** (secworks AES on the XC3S1200E,
+  7662 slices: about 40 min -> about 6 min, synthesis included; place and route of SHA-256 on the
+  XC3S250E 600 -> 32 s, of T80 99 -> 16 s, of NEORV32 305 -> 27 s), with the same circuits.
+  - The placer's annealing keeps its state in flat arrays (the slice grid, positions, the nets'
+    pins and connections), keeps the bounding box of each net of more than 6 pins up to date as its
+    pins move (VPR's incremental bounding boxes) instead of scanning its pins at every move, and
+    compiles its timing graph once instead of looking every pin up by name at every temperature.
+    The placements are the same as before, bit for bit: 6-45x faster (SHA-1 714 -> 16 s of CPU
+    with its register replication).
+  - The router's search does less work per node, and on large nets less searching: a search for a
+    sink first stays in the net's region (its pins' bounding box and 3 tiles around it; anywhere
+    when that has no path), and a non-critical sink of a net whose tree has more than 200 nodes is
+    searched from the tree's nodes near it, not from the whole tree (as VPR does): 1.5-2x faster.
+  - The same critical paths and slices: +0.02 % (geometric mean of the routed critical paths of the
+    examples and 4 corpus designs, seeds 1-3, register replication on), the examples' bitstreams
+    byte-identical to ISE's bitgen with no DRC error or warning (#55).
 
 ## 15.10.2
 
