@@ -296,7 +296,7 @@ const CLOCK_CASES = [
   ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { dcm: 'DCM_X0Y0' },
     clk => [`Warning: place: u_dcm: its CLKIN comes from the pad ${clk} through general routing: no pad reaches the CLKIN of DCM_X0Y0 on a dedicated path of known bits`]],
   ['#58', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X2Y11' },
-    ['Warning: place: clk: its pad K3 reaches on a dedicated path only global buffers whose settings are not in the bit database yet (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): BUFGMUX_X2Y11 instead, through general routing']],
+    ['Warning: place: clk: its pad K3 reaches on a dedicated path only side global buffers, which the placer does not use yet (#95) (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): BUFGMUX_X2Y11 instead, through general routing']],
 ];
 for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
   test(`the open flow: ${fixture} on the ${part.toUpperCase()}-${pkg.toUpperCase()}, the clock ${loc ? `LOC'd on ${loc}` : 'with no LOC'}: complete bitstream, the exact warnings (${issue})`, { timeout: 300000 }, () => {

@@ -558,12 +558,12 @@ test('a clock with no LOC that drives a DCM\'s CLKIN goes on a pad whose dedicat
   assert.deepEqual([siteOf(p, other, 'clk'), siteOf(p, other, 'u'), other.warnings], ['P11', 'DCM_X1Y1', []]);
 });
 
-test('a clock LOC\'d on a side GCLK pin (K3 / G3): its buffers\' settings are not in the bit database yet (#45), so a top / bottom buffer through general routing, with a warning (#58)', { timeout: 300000 }, async () => {
+test('a clock LOC\'d on a side GCLK pin (K3 / G3): the placer does not use side buffers yet (#95), so a top / bottom buffer through general routing, with a warning (#58)', { timeout: 300000 }, async () => {
   for (const [part, , side] of SHIPPED) {
     const { opts, sites } = await flowOf(part);
     assert.deepEqual(sites.bufgmux.map(b => b.name).sort(), ['BUFGMUX_X1Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y0', 'BUFGMUX_X2Y1', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11'], part);
     const ucf = `NET "clk" LOC = "${side}";`;
-    const warn = b => [`clk: its pad ${side} reaches on a dedicated path only global buffers whose settings are not in the bit database yet (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): ${b} instead, through general routing`];
+    const warn = b => [`clk: its pad ${side} reaches on a dedicated path only side global buffers, which the placer does not use yet (#95) (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): ${b} instead, through general routing`];
     const p = pack(clockedHard(), { ucf, part });
     const r = place(p, sites, { seed: 1, effort: 0.1, ...opts });
     assert.deepEqual([siteOf(p, r, 'clk'), siteOf(p, r, 'bufg'), r.warnings], [side, 'BUFGMUX_X2Y11', warn('BUFGMUX_X2Y11')], part);

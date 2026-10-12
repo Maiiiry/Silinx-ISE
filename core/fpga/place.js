@@ -519,7 +519,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       b = free.find(ok);
       // (a GCLK pin whose buffers the flow cannot use: the side ones, whose settings are not in the
       // bit database yet, #45 and #58)
-      if (b && reach?.size && ![...reach].some(n => byName.has(n))) warnings.push(`${packed.insts[d.inst].name}: its pad ${pad.name} reaches on a dedicated path only global buffers whose settings are not in the bit database yet (${[...reach].join(', ')}): ${b.name} instead, through general routing`);
+      if (b && reach?.size && ![...reach].some(n => byName.has(n))) warnings.push(`${packed.insts[d.inst].name}: its pad ${pad.name} reaches on a dedicated path only side global buffers, which the placer does not use yet (#95) (${[...reach].join(', ')}): ${b.name} instead, through general routing`);
       else if (b && ded.length) warnings.push(`${packed.insts[d.inst].name}: the global buffer${ded.length > 1 ? 's' : ''} ${ded.map(b => b.name).join(', ')} that its pad ${pad.name} reaches on a dedicated path ${ded.length > 1 ? 'do' : 'does'} not reach every clock pin of its loads on switches of known bits: ${b.name} instead, through general routing`);
       b ||= ded[0] || free[0];
     }
