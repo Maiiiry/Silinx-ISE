@@ -10,6 +10,14 @@ the "What's new" text of its GitHub release.
   to zero to synchronise it with another clock, and a minutes-and-seconds view), with a self-checking
   testbench; it runs on the Basys2-100 / 250 and Nexys2-500 / 1200 and is on the Start page.
 - The packer, the ISE flow's automatic pins, the Board Emulator and Back-annotate Pin Locations read the UCF with the top's ports, as Check Constraints does: `x[1]` is a bit of `x` only when `x` is a bus, any other name is kept as written.
+- **Design corpus: the flow users get.** The corpus placed without the delay table, on every
+  global buffer, and without register replication; it now places and routes as the app's flow
+  and `open-flow.mjs` do, through one shared helper (`core/fpga/place-route.js`: the placer with
+  the delay table and the clock / global buffer sites of known bits, tries, timing-driven routing,
+  STA, register replication), so its quality numbers are users' (#79, #88). The app's flow and
+  `open-flow.mjs` place and route exactly as before. New quality baselines: replication kept on
+  epfl-bar, epfl-i2c and vtr-diffeq2; critical paths within -7 % / +10 % (one design +23 %:
+  vtr-ch-intrinsics), the same on a second run.
 - **Design corpus: the README's results table is generated** from `expected.json`
   (`run.mjs --table`, and `--update` rewrites it), with each design's device, slices, LUTs, FFs and
   critical path; a test checks that it is the one the committed expectations give (#89).

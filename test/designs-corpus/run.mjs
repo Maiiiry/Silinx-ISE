@@ -9,8 +9,9 @@
 //   synth     the open synthesis: Silinx's synthesis front end + Yosys (YoWASP)
 //   diff      the netlist simulated against the RTL, cycle by cycle (test/diff-synth.js)
 //   flow      the open back end on the XC3S250E (Basys2-250), or the larger XC3S500E / XC3S1200E
-//             (Nexys2) for a design too large for it: pack, place, route on the PIPs of
-//             known bits, static timing, bitgen ('complete' when the bitstream is complete). The
+//             (Nexys2) for a design too large for it: pack, then place and route as the app's flow
+//             does (core/fpga/place-route.js: the delay table, routing on the PIPs of known bits,
+//             static timing, register replication), bitgen ('complete' when the bitstream is complete). The
 //             clock is put on the board's oscillator pin (B8, PERIOD 20 ns). A design with more port
 //             bits than the package has pins goes through an I/O wrapper (lib.mjs ioWrapper); cells
 //             the packer does not support yet (block / distributed RAM, shift registers,
@@ -205,9 +206,10 @@ async function synthWith(design, flags, m) {
 async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, part = PARTS[0]) {
   const { readYosysJson } = await import('../../core/fpga/netlist.js');
   const { pack, PackError } = await import('../../core/fpga/pack.js');
-  const { deviceSites, place, placedXdl } = await import('../../core/fpga/place.js');
+  const { deviceSites } = await import('../../core/fpga/place.js');
+  const { placeRouteBest } = await import('../../core/fpga/place-route.js');
   const { loadDeviceCache } = await import('../../core/fpga/device-node.js');
-  const { routeDesign, checkRouting, clockReach } = await import('../../core/fpga/route.js');
+  const { checkRouting } = await import('../../core/fpga/route.js');
   const { bitgen, knownRouting } = await import('../../core/fpga/bitgen.js');
   const { analyzeTiming, checkPeriods } = await import('../../core/fpga/timing.js');
   const { parseUcf } = await import('../../core/ucf.js');
@@ -246,14 +248,15 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
     const ucf = clkPort ? boardClockUcf(clkPort) : null;
     // pack (the cells it does not support yet: synthesized again without them)
     let t = Date.now();
-    let packed;
-    try { packed = pack(readYosysJson(flowSyn.files[`${flowSyn.top}.json`]), { ucf, part, carryOut: 'xor' }); }
+    let packed, netlist = readYosysJson(flowSyn.files[`${flowSyn.top}.json`]);
+    try { packed = pack(netlist, { ucf, part, carryOut: 'xor' }); }
     catch (e) {
       if (!(e instanceof PackError) || !/not supported yet/.test(e.message)) throw e;
       w.push(`WARNING:Silinx (pack) - ${e.message.replace(/^pack: /, '')}: synthesized again with -nobram -nolutram -nosrl -nodsp`);
       flowSyn = await synthWith(flowDesign, '-nobram -nolutram -nosrl -nodsp', m);
       steps.retry = { cells: flowSyn.util };
-      packed = pack(readYosysJson(flowSyn.files[`${flowSyn.top}.json`]), { ucf, part, carryOut: 'xor' });
+      netlist = readYosysJson(flowSyn.files[`${flowSyn.top}.json`]);
+      packed = pack(netlist, { ucf, part, carryOut: 'xor' });
     }
     w.push(...(packed.warnings || []).map(x => `WARNING:Silinx (pack) - ${x}`));
     step('pack', t, { slices: packed.stats.slices, luts: packed.stats.luts, ffs: packed.stats.ffs });
@@ -270,13 +273,28 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
       if (larger) { await tryLarger(); return; }
       res.flow = `too large: ${packed.stats.slices} slices, the ${chipOf(part)} has ${sites.slices.size}`; return;
     }
-    // place
+    // place and route as the app's flow does (core/fpga/place-route.js: the delay table, the clock
+    // and global buffer sites of known bits, the timing-driven router), with its register
+    // replication (#79, #88)
     t = Date.now();
-    const db = loadDb(part);
+    const db = loadDb(part, { graph: device });
     const known = knownRouting(db);
-    let pl;
-    try { pl = place(packed, sites, { seed: opts.seed, clockSites: site => clockReach(device, site, known.allowPip) }); }
-    catch (e) {
+    let pr;
+    try {
+      pr = placeRouteBest(netlist, packed, device, known, {
+        seed: opts.seed, pack: { ucf, part, carryOut: 'xor' },
+        onPlaced: (r, info) => {
+          if (info.replication) return;
+          w.push(...(r.warnings || []).map(x => `WARNING:Silinx (place) - ${x}`));
+          step('place', t, { estimate: +r.delay.toFixed(2) });
+        },
+        onRouted: (x, info) => { if (!info.replication) step('route', t + x.placeMs, { nets: x.routed.routed, pips: x.routed.pips, passes: x.routed.iterations }); },
+        onReplication: x => {
+          steps.replication = { flipFlops: x.flipFlops, copies: x.copies, kept: x.kept, before: +x.before.toFixed(3),
+            ...(x.result?.sta && { period: +x.result.period.toFixed(3) }), ...(x.error && { error: clean(x.error.message) }) };
+        },
+      });
+    } catch (e) {
       // fewer pads than ports once the clock pad and the input-only pads are counted: the I/O wrapper
       if (/not enough pads/.test(e.message) && !wrapper) { again = true; await backEnd(d, design, syn, srcs, res, opts, m, true); return; }
       if (/slices needed|block RAMs needed|multipliers needed|not enough pads|no room/.test(e.message)) {
@@ -285,12 +303,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
       }
       throw e;
     }
-    step('place', t, { estimate: +pl.delay.toFixed(2) });
-    // route on the PIPs of known bits
-    t = Date.now();
-    const placedText = writeXdl(placedXdl(packed, pl));
-    const routed = routeDesign(parseXdl(placedText), device, { ...known, timing: true });
-    step('route', t, { nets: routed.routed, pips: routed.pips, passes: routed.iterations });
+    const routed = pr.routed;
     if (routed.errors.length) { res.flow = `fail: route: ${clean(routed.errors[0])}`; return; }
     if (routed.failed.length) { res.flow = `fail: route: ${routed.failed.length} nets cannot be routed on PIPs of known bits`; res.details.unreached = routed.unreached.slice(0, 10).map(u => `${u.net} -> ${u.inst}.${u.pin}`); return; }
     const routedText = writeXdl(routed.design);
@@ -308,7 +321,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
       }
     }
     step('sta', t, { clocks: sta.clocks.map(c => ({ clock: String(c.clock).replace(/[^\w]/g, '_').slice(0, 40), period: +c.period.toFixed(3) })) });
-    const quality = qualityOf(part, packed.stats, sta.clocks);
+    const quality = qualityOf(part, pr.packed.stats, sta.clocks);
     // bitgen
     t = Date.now();
     const { bytes, unknown } = bitgen(routedText, db, { name: `${d.name}.ncd`, crc: true, startupClk: 'JtagClk', part: part.replace(/^xc/, '').replace(/-\d$/, '') });

@@ -1,194 +1,194 @@
 {
  "local": {
   "epfl-adder": {
-   "synth": 6244,
-   "flow": 9475,
-   "total": 16544
+   "synth": 5897,
+   "flow": 10504,
+   "total": 17084
   },
   "epfl-bar": {
-   "synth": 14351,
-   "flow": 19953,
-   "total": 36115
+   "synth": 15518,
+   "flow": 28831,
+   "total": 46312
   },
   "epfl-cavlc": {
-   "synth": 5888,
-   "flow": 1744,
-   "total": 7985
+   "synth": 5274,
+   "flow": 2031,
+   "total": 7632
   },
   "epfl-ctrl": {
-   "synth": 4455,
-   "flow": 1340,
-   "total": 5978
+   "synth": 3890,
+   "flow": 1600,
+   "total": 5612
   },
   "epfl-dec": {
-   "synth": 4072,
-   "flow": 6884,
-   "total": 11116
+   "synth": 4049,
+   "flow": 7061,
+   "total": 11293
   },
   "epfl-i2c": {
-   "synth": 5838,
-   "flow": 10021,
-   "total": 16451
+   "synth": 5919,
+   "flow": 13139,
+   "total": 19573
   },
   "epfl-int2float": {
-   "synth": 5073,
-   "flow": 1633,
-   "total": 7038
+   "synth": 4167,
+   "flow": 1057,
+   "total": 5380
   },
   "epfl-max": {
-   "synth": 10752,
-   "flow": 16874,
-   "total": 29739
+   "synth": 11415,
+   "flow": 30222,
+   "total": 44168
   },
   "epfl-priority": {
-   "synth": 5299,
-   "flow": 7994,
-   "total": 13821
+   "synth": 5989,
+   "flow": 8209,
+   "total": 14753
   },
   "epfl-router": {
-   "synth": 3974,
-   "flow": 4741,
-   "total": 8864
+   "synth": 4209,
+   "flow": 5244,
+   "total": 9569
   },
   "femtorv32-quark": {
-   "synth": 6314,
-   "flow": 10423,
-   "total": 17524
+   "synth": 10861,
+   "flow": 26874,
+   "total": 38804
   },
   "fpu-adder": {
-   "synth": 7811,
-   "flow": 21957,
-   "total": 30358
+   "synth": 8991,
+   "flow": 20298,
+   "total": 29988
   },
   "fpu-multiplier": {
-   "synth": 6234,
-   "flow": 22910,
-   "total": 29693
+   "synth": 7344,
+   "flow": 17434,
+   "total": 25368
   },
   "light8080": {
-   "synth": 7558,
-   "flow": 3555,
-   "total": 12514
+   "synth": 9724,
+   "flow": 3931,
+   "total": 15531
   },
   "nandland-spi-verilog": {
-   "synth": 4279,
-   "flow": 1280,
-   "total": 5697
+   "synth": 4195,
+   "flow": 1729,
+   "total": 6056
   },
   "nandland-spi-vhdl": {
-   "synth": 4505,
-   "flow": 1127,
-   "total": 5750
+   "synth": 4182,
+   "flow": 1148,
+   "total": 5434
   },
   "neorv32": {
-   "synth": 52546,
-   "flow": 28265,
-   "total": 85747
+   "synth": 59616,
+   "flow": 34601,
+   "total": 99029
   },
   "picorv32": {
-   "synth": 13199,
-   "flow": 25728,
-   "total": 41531
+   "synth": 19499,
+   "flow": 39031,
+   "total": 61256
   },
   "secworks-aes": {
-   "synth": 102880,
-   "flow": 497068,
-   "total": 617735
+   "synth": 104669,
+   "flow": 534664,
+   "total": 657539
   },
   "secworks-sha1": {
-   "synth": 30530,
-   "flow": 80287,
-   "total": 113504
+   "synth": 28832,
+   "flow": 98915,
+   "total": 131529
   },
   "secworks-sha256": {
-   "synth": 41059,
-   "flow": 91976,
-   "total": 137099
+   "synth": 43186,
+   "flow": 98174,
+   "total": 146352
   },
   "secworks-siphash": {
-   "synth": 11545,
-   "flow": 27423,
-   "total": 40484
+   "synth": 14751,
+   "flow": 45359,
+   "total": 61654
   },
   "serv": {
-   "synth": 5817,
-   "flow": 10010,
-   "total": 16648
+   "synth": 7965,
+   "flow": 13611,
+   "total": 22743
   },
   "spi-fpga-master": {
-   "synth": 3569,
-   "flow": 1056,
-   "total": 7553
+   "synth": 4099,
+   "flow": 1354,
+   "total": 7962
   },
   "spi-fpga-slave": {
-   "synth": 3456,
-   "flow": 943,
-   "total": 7912
+   "synth": 4533,
+   "flow": 2187,
+   "total": 10507
   },
   "t80": {
-   "synth": 34388,
-   "flow": 18541,
-   "total": 55599
+   "synth": 37746,
+   "flow": 37991,
+   "total": 78606
   },
   "uart-for-fpga": {
-   "synth": 3681,
-   "flow": 2383,
-   "total": 62515
+   "synth": 5942,
+   "flow": 1724,
+   "total": 62915
   },
   "verilog-axis-fifo": {
-   "synth": 3762,
-   "flow": 1389,
-   "total": 5341
+   "synth": 4616,
+   "flow": 2136,
+   "total": 6999
   },
   "verilog-i2c-master": {
-   "synth": 5234,
-   "flow": 2069,
-   "total": 7724
+   "synth": 5732,
+   "flow": 2358,
+   "total": 8449
   },
   "verilog-lfsr-crc": {
-   "synth": 4369,
-   "flow": 2003,
-   "total": 6800
+   "synth": 5322,
+   "flow": 4334,
+   "total": 10328
   },
   "verilog-lfsr-prbs": {
-   "synth": 3314,
-   "flow": 781,
-   "total": 4255
+   "synth": 5053,
+   "flow": 959,
+   "total": 6170
   },
   "verilog-uart": {
-   "synth": 4638,
-   "flow": 2751,
-   "total": 7777
+   "synth": 6528,
+   "flow": 4056,
+   "total": 11228
   },
   "vtr-ch-intrinsics": {
-   "synth": 7106,
-   "flow": 9884,
-   "total": 17538
+   "synth": 4922,
+   "flow": 9922,
+   "total": 15131
   },
   "vtr-diffeq1": {
-   "synth": 8717,
-   "flow": 26227,
-   "total": 36227
+   "synth": 9012,
+   "flow": 34898,
+   "total": 45291
   },
   "vtr-diffeq2": {
-   "synth": 7604,
-   "flow": 19073,
-   "total": 27664
+   "synth": 15540,
+   "flow": 28268,
+   "total": 45651
   },
   "vtr-mkPktMerge": {
-   "synth": 6445,
-   "flow": 13486,
-   "total": 21687
+   "synth": 5892,
+   "flow": 21606,
+   "total": 28875
   },
   "vtr-sha": {
-   "synth": 22877,
-   "flow": 14697,
-   "total": 39761
+   "synth": 21851,
+   "flow": 13777,
+   "total": 37814
   },
   "vtr-stereovision3": {
-   "synth": 5172,
-   "flow": 3305,
-   "total": 8921
+   "synth": 5420,
+   "flow": 3229,
+   "total": 9113
   }
  },
  "ci": {

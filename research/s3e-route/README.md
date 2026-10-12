@@ -438,6 +438,11 @@ designs: the corpus on the XC3S1200E, the examples on the XC3S250E):
    -4 %, vtr-mkPktMerge -4.5 %, T80 -1.2 %, nothing for the others (not kept, or nothing to copy).
    Tried and not kept: copies of every flip-flop of criticality >= 0.95 (diffeq2 +14 %, its
    multiplier inputs), 8 loads per copy (more copies, more congestion).
+   The flows place and route through one helper, `core/fpga/place-route.js` (`placeRouteBest`:
+   the placer with the delay table, tries, routing, STA, replication): the app's
+   (`server/open-flow-run.js`), `open-flow.mjs` and the design corpus's
+   (`test/designs-corpus/run.mjs`, which placed without the delay table and did not replicate
+   before, #79, #88).
 
 Silinx STA, base (15.10.2) -> all four, mean of 3 seeds: -7.0 % over the 31 designs that built
 before (the examples: blinky +0.6 %, pong +4 %, stopwatch -4 %: placement noise).

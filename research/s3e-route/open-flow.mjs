@@ -21,10 +21,9 @@ import { yosysNode } from '../../core/synth-open-node.js';
 import { parseXdl, writeXdl } from '../../core/xdl.js';
 import { readYosysJson } from '../../core/fpga/netlist.js';
 import { pack } from '../../core/fpga/pack.js';
-import { replicationPlan, replicateFlipFlops, REPLICATE_MAX_SLICES } from '../../core/fpga/replicate.js';
-import { deviceSites, place, placedXdl } from '../../core/fpga/place.js';
+import { placeRouteBest } from '../../core/fpga/place-route.js';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
-import { routeDesign, checkRouting, clockReach, bufgReach } from '../../core/fpga/route.js';
+import { checkRouting } from '../../core/fpga/route.js';
 import { bitgen, knownRouting } from '../../core/fpga/bitgen.js';
 import { analyzeTiming, timingReport, checkPeriods, delayTable } from '../../core/fpga/timing.js';
 import { parseUcf } from '../../core/ucf.js';
@@ -75,42 +74,29 @@ const known = knownRouting(db);
 // the delays of the fastest routes on known switches, for the placer's timing estimate
 const delays = delayTable(device, { allowPip: known.allowPip });
 step('delay table', t);
-// --tries N: N placements (seeds seed .. seed + N - 1), each routed; the one with the shortest
-// critical path (by the static timing analysis) is kept
-const placeRoute = (pk, s, what = '') => {
-  t = Date.now();
-  // each clock's flip-flops on the slices its global line reaches through switches of known bits
-  // (a DCM's outputs on the global buffers their dedicated paths of known bits reach)
-  const r = place(pk, deviceSites(device, known), { seed: s, effort, ...(timing !== null && { timing: +timing }), delays, clockSites: site => clockReach(device, site, known.allowPip), bufgSites: (site, pin, to) => bufgReach(device, site, pin, known.allowPip, to) });
-  if (!what && s === seed) for (const w of r.warnings || []) console.log(`  Warning: place: ${w}`);
-  console.log(`place${what}${tries > 1 ? ` (seed ${s})` : ''}: estimated critical path ${r.delay.toFixed(1)} ns`);
-  const placedText = writeXdl(placedXdl(pk, r));
-  step('place', t);
-  // route on the PIPs the bit database knows
-  t = Date.now();
-  const routed = routeDesign(parseXdl(placedText), device, { ...known, timing: timingRoute });
-  step(`route (${routed.routed} nets, ${routed.pips} PIPs, ${routed.iterations} passes)`, t);
-  const sta = routed.failed.length || routed.errors.length ? null : analyzeTiming(parseXdl(writeXdl(routed.design)), device);
-  return { packed: pk, placement: r, placedText, routed, sta, period: sta ? sta.period : Infinity };
-};
-let best = null;
-for (let k = 0; k < tries; k++) {
-  const pr = placeRoute(packed, seed + k);
-  if (tries > 1) console.log(`  seed ${seed + k}: ${pr.period.toFixed(3)} ns`);
-  if (!best || pr.period < best.period) best = { ...pr, seed: seed + k };
-}
-// register replication (#4): the flip-flops of many loads on the critical path copied, each copy
-// near a group of the loads; the design placed and routed again, the faster kept
-if (replicate && best.sta && packed.stats.slices <= REPLICATE_MAX_SLICES) {
-  const plan = replicationPlan(netlist, best.packed, best.placement, best.sta, replicateOpts);
-  if (plan.length) {
-    const copies = plan.reduce((a, p) => a + p.groups.length - 1, 0);
-    const packed2 = pack(replicateFlipFlops(netlist, plan), { ucf, part, carryOut: 'xor' });
-    const pr = placeRoute(packed2, best.seed, ` (${plan.length} flip-flops replicated, ${copies} copies)`);
-    console.log(`replication: ${plan.length} flip-flop(s), ${copies} copies: ${pr.period.toFixed(3)} ns against ${best.period.toFixed(3)} ns: ${pr.period < best.period ? 'kept' : 'not kept'}`);
-    if (pr.period < best.period) best = { ...pr, seed: best.seed };
-  }
-}
+// place and route (core/fpga/place-route.js, the flows' one place and route): each clock's
+// flip-flops on the slices its global line reaches through switches of known bits (a DCM's outputs
+// on the global buffers their dedicated paths of known bits reach); --tries N: N placements (seeds
+// seed .. seed + N - 1), each routed, the one with the shortest critical path (by the static timing
+// analysis) kept; register replication (#4): the flip-flops of many loads on the critical path
+// copied, each copy near a group of the loads; the design placed and routed again, the faster kept
+const label = r => (r ? ` (${r.flipFlops} flip-flops replicated, ${r.copies} copies)` : '');
+t = Date.now();
+const best = placeRouteBest(netlist, packed, device, known, {
+  seed, tries, effort, ...(timing !== null && { timing: +timing }), timingRoute, delays, replicate, replicateOpts, pack: { ucf, part, carryOut: 'xor' },
+  onPlaced: (r, info) => {
+    if (!info.replication && info.try === 0) for (const w of r.warnings || []) console.log(`  Warning: place: ${w}`);
+    console.log(`place${label(info.replication)}${tries > 1 ? ` (seed ${info.seed})` : ''}: estimated critical path ${r.delay.toFixed(1)} ns`);
+    step('place', t);
+    t = Date.now();
+  },
+  onRouted: (pr, info) => {
+    step(`route (${pr.routed.routed} nets, ${pr.routed.pips} PIPs, ${pr.routed.iterations} passes)`, t);
+    if (tries > 1 && !info.replication) console.log(`  seed ${info.seed}: ${pr.period.toFixed(3)} ns`);
+    t = Date.now();
+  },
+  onReplication: x => console.log(`replication: ${x.flipFlops} flip-flop(s), ${x.copies} copies: ${x.result ? `${x.result.period.toFixed(3)} ns` : `failed (${x.error.message})`} against ${x.before.toFixed(3)} ns: ${x.kept ? 'kept' : 'not kept'}`),
+});
 const { routed } = best;
 fs.writeFileSync(path.join(outDir, 'placed.xdl'), best.placedText);
 const routedText = writeXdl(routed.design);
