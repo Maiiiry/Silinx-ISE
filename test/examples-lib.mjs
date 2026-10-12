@@ -9,7 +9,7 @@ import { boardAutoAssign, generateUcf } from '../core/ucf.js';
 import { resolveBoard } from '../server/devices.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const EXAMPLES = ['blinky', 'pong', 'stopwatch'];
+export const EXAMPLES = ['blinky', 'pong', 'stopwatch', 'clock'];
 // the boards (and variants) of the devices of the Silinx toolchain: the examples run on all of them
 export const TARGETS = [
   { board: 'basys2', variant: '100' }, { board: 'basys2', variant: '250' },

@@ -2845,7 +2845,7 @@ async function renderStartPage() {
   const recentHere = recent().filter(r => projects.some(p => p.name === r));
   const page = h('div', { class: 'page' },
     h('div', { class: 'start-box' }, h('h3', {}, 'Project Commands'),
-      ...[['New Project…', 'newProject', () => wiz.newProjectWizard()], ['Open Project…', 'open', () => wiz.openProjectDialog()], ['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ...['blinky', 'pong', 'stopwatch'].map(t => [`Open Example (${t})`, 'project', () => wiz.newProjectWizard({ template: t })])]
+      ...[['New Project…', 'newProject', () => wiz.newProjectWizard()], ['Open Project…', 'open', () => wiz.openProjectDialog()], ['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ...['blinky', 'pong', 'stopwatch', 'clock'].map(t => [`Open Example (${t})`, 'project', () => wiz.newProjectWizard({ template: t })])]
         .map(([l, ic, f]) => h('div', { class: 'entry' }, icon(ic), h('a', { onclick: f }, l)))),
     h('div', { class: 'start-box' }, h('h3', {}, 'Recent Projects'),
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),

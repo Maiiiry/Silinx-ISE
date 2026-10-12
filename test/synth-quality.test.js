@@ -65,6 +65,7 @@ const BUDGETS = {
   // the other examples (the game: state machine, display; the stopwatch: block RAM, multipliers)
   'examples/pong': { design: () => example('pong'), luts: 310, muxes: 68, slices: 300 },
   'examples/stopwatch': { design: () => example('stopwatch'), luts: 255, muxes: 62, slices: 243 },
+  'examples/clock': { design: () => example('clock'), luts: 230, muxes: 87, slices: 256 },
   fsm: { design: () => fixture('fsm'), luts: 14, muxes: 4, slices: 10 },
   adder: { design: () => fixture('adder'), luts: 72, muxes: 2, slices: 63 },
   // shift registers: the fixed chains in SRL16E (15.10.2: 63 slices; in flip-flops 79; XST about 9

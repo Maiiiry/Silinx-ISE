@@ -27,6 +27,7 @@ const ISE_WARNINGS = {
   blinky: [],
   pong: [],
   stopwatch: [],
+  clock: [],
 };
 
 let tmp;

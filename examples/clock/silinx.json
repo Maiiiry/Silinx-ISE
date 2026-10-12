@@ -1,0 +1,44 @@
+{
+  "name": "clock",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "digital_clock",
+  "simTop": "tb_clock",
+  "files": [
+    {
+      "path": "src/debounce.v",
+      "lang": "verilog",
+      "role": "design"
+    },
+    {
+      "path": "src/sevenseg.v",
+      "lang": "verilog",
+      "role": "design"
+    },
+    {
+      "path": "src/digital_clock.v",
+      "lang": "verilog",
+      "role": "design"
+    },
+    {
+      "path": "sim/tb_clock.v",
+      "lang": "verilog",
+      "role": "sim"
+    }
+  ],
+  "constraints": "constraints/top.ucf",
+  "stimuli": {},
+  "impl": {
+    "optMode": "Speed",
+    "optLevel": 1,
+    "startupClk": "JtagClk"
+  },
+  "preferredLanguage": "verilog",
+  "synthTool": "silinx"
+}

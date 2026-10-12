@@ -22,6 +22,7 @@
   ],
   "designs/tristate": [],
   "examples/blinky": [],
+  "examples/clock": [],
   "examples/pong": [],
   "examples/stopwatch": [],
   "fixtures/verilog/counter_top": [],

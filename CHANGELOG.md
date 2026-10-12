@@ -5,6 +5,10 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.3
 
+- **A fourth example, *clock*** (Verilog): a digital clock on the 7-segment display (HH.MM, the
+  decimal point blinking every second; 24- or 12-hour), set with the buttons (hours, minutes, seconds
+  to zero to synchronise it with another clock, and a minutes-and-seconds view), with a self-checking
+  testbench; it runs on the Basys2-100 / 250 and Nexys2-500 / 1200 and is on the Start page.
 - The packer, the ISE flow's automatic pins, the Board Emulator and Back-annotate Pin Locations read the UCF with the top's ports, as Check Constraints does: `x[1]` is a bit of `x` only when `x` is a bus, any other name is kept as written.
 - **Check Constraints, ports that differ only in case:** in a Verilog design, ports such as `a` and
   `A` are kept apart, as ngdbuild does (measured with ISE 14.7): a UCF name is taken as written
