@@ -5,6 +5,18 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.5
 
+In short:
+
+- **The browser edition keeps projects in a folder on your disk** (Chrome, Edge: *File* ▸ *Open
+  Workspace Folder…*), in the full application's format; the browser's storage stays the default.
+- **Back-annotate Pin Locations and View Technology Schematic** work with the Silinx toolchain (no
+  ISE), in the full application and in the browser edition.
+- Fixes, each a GitHub issue.
+
+In detail:
+
+- Hidden files of an example (a Mac's `.DS_Store`) are no longer copied into new projects nor into the
+  single-file edition.
 - Browser edition: the New Project wizard says where the project goes, this browser's storage or the workspace folder by name (it said the full application's workspace folder, ~/Silinx-projects).
 - **The browser edition keeps projects in a folder on the disk** (Chrome, Edge): *File* ▸ *Open
   Workspace Folder…* (also on the Start page) and a folder chosen once, for instance
