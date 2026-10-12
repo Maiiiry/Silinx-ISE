@@ -13,16 +13,6 @@
  "simple/implicit_ports.sv:named_ports": [
   "9: input port 'cin' of 'alu' is not connected"
  ],
- "simple/scopes.v:scopes_test_01": [
-  "31: function assigns signal 'x'",
-  "45: function assigns signal 'y'"
- ],
- "simple/task_func.v:task_func_test01": [
-  "14: function assigns signal 'w'"
- ],
- "simple/task_func.v:task_func_test02": [
-  "49: function assigns signal 'w'"
- ],
  "various/elab_sys_tasks.sv:test": [
   "12: $info: X is 1 in a case statement",
   "21: $info",
@@ -34,36 +24,36 @@
   "8: $warning: X is 1"
  ],
  "various/muxpack.v:mux_case_unbal_8_7": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "89: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_bal_5_1": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "140: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_bal_8_2": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "114: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_4_1": [
   "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_4_1_missing": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "46: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_4_1_nonexcl": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "67: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_5_3": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "10: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_5_3_invert": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "21: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_5_3_nonexcl": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "77: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_5_3_order": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "56: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ],
  "various/muxpack.v:mux_if_unbal_5_3_width_mismatch": [
-  "1: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
+  "35: $clog2 is not supported by XST (ISE 14.7); use a constant function instead"
  ]
 }

@@ -30,6 +30,9 @@ the "What's new" text of its GitHub release.
   called in an expression (they were not assigned); `$floor`, `$ceil`, `$sqrt`… of values known at
   run time; an instance's parameter by its hierarchical name (`u.P`); `rand` / `randc` / `const`
   qualifiers; packed unions; enumeration name ranges (`S[3]`, `T[5:7] = 20`).
+- **Design corpus:** NEORV32 and light8080 now go through the whole open flow (synthesis, the
+  netlist compared with the RTL cycle by cycle, place and route); light8080's, secworks-sha1's and
+  secworks-aes's own testbenches pass. Every design of the corpus synthesizes and builds.
 
 ## 15.10.2
 
