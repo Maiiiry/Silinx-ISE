@@ -69,6 +69,13 @@ the "What's new" text of its GitHub release.
   the design corpus, and the no-UCF test design on some placements): the router's search for a
   sink stopped after 400 000 nodes; a sink it did not reach is now searched again, much further.
   Both now build to a bitstream (#33).
+- **Silinx toolchain: faster placement and routing of large designs, the same results.** The
+  placer's annealing keeps its state in flat arrays (the slice grid, positions, the nets' pins and
+  connections), keeps the bounding box of each larger net up to date instead of scanning its pins
+  at every move, and compiles its timing graph once instead of looking every pin up by name at
+  every temperature; the router's search and the check of the switches of known bits do less work
+  per node. The placements and routings are the same as before, bit for bit: 4-10x faster placement
+  (T80 97 -> 13 s, SHA-256 on the XC3S250E ~570 -> 49 s of CPU), 1.3x faster routing (#55).
 
 ## 15.10.2
 

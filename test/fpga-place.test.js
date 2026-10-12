@@ -226,3 +226,86 @@ test('the random generator is deterministic and uniform enough', () => {
   assert.ok(Math.abs(mean - 0.5) < 0.05);
   assert.ok(xs.every(x => x >= 0 && x < 1));
 });
+
+// #55: the annealing's bookkeeping (flat arrays, nets' bounding boxes kept up to date, the timing
+// graph compiled once) is made faster without changing what it computes: the placements of these
+// fixtures are those of the straightforward version it replaced (fingerprints of sites, cost, delay)
+test('the placer\'s results are pinned: the same placements as before its speed-up (#55)', async () => {
+  const crypto = await import('node:crypto');
+  const table = { at: (dc, dr) => 0.2 + 0.3 * Math.abs(dc) + 0.4 * Math.abs(dr) };
+  const pinned = [
+    ['counter', 'timing', '378845fe4f6266db'], ['counter', 'table', '453f1001a64db383'], ['counter', 'wirelength', '378845fe4f6266db'],
+    ['srmux', 'timing', '589ba1b25aae701d'], ['srmux', 'table', '6715a464492ffd22'], ['srmux', 'wirelength', '1e4c8bf9e4448ee0'],
+    ['mux64', 'timing', '44dc651659491f3c'], ['widemux', 'timing', 'b68a6883bd9ee4f0'], ['sw', 'timing', 'da05e2411ddab670'],
+  ];
+  const opts = { timing: {}, table: { delays: table }, wirelength: { timing: 0 } };
+  for (const [n, what, h] of pinned) {
+    const r = place(pack(load(n)), dev, { seed: 2, effort: 0.5, ...opts[what] });
+    assert.equal(crypto.createHash('sha1').update(JSON.stringify([r.sites, r.cost, r.delay])).digest('hex').slice(0, 16), h, `${n} (${what})`);
+  }
+});
+
+// the timing analysis as it was written first (pins by name, maps; #55 numbers them once): the
+// same critical path and criticalities on any placement
+function analyzeTimingReference(tg, pos, delays = null) {
+  const { conns, model } = tg;
+  const arcs = tg.arcs.map((a, i) => a[pos[i] && pos[i][0] % 1 === 0 ? 1 : 0]);
+  const into = new Map(), outOf = new Map(), key = (i, p) => `${i}:${p}`;
+  for (const c of conns) {
+    c.delay = c.dedicated ? 0 : connDelay(pos[c.src], pos[c.dst], model, delays);
+    const a = key(c.dst, c.dstPin), b = key(c.src, c.srcPin);
+    if (!into.has(a)) into.set(a, []);
+    into.get(a).push(c);
+    if (!outOf.has(b)) outOf.set(b, []);
+    outOf.get(b).push(c);
+  }
+  const arr = new Map(), busy = new Set();
+  const arrIn = (i, p) => { let t = -Infinity; for (const c of into.get(key(i, p)) || []) t = Math.max(t, arrOut(c.src, c.srcPin) + c.delay); return t; };
+  const arrOut = (i, p) => {
+    const k = key(i, p);
+    if (arr.has(k)) return arr.get(k);
+    if (arcs[i].start[p] !== undefined) { arr.set(k, arcs[i].start[p]); return arcs[i].start[p]; }
+    if (busy.has(k)) return -Infinity;
+    busy.add(k);
+    let t = -Infinity;
+    for (const [q, d] of arcs[i].deps[p] || []) t = Math.max(t, arrIn(i, q) + d);
+    busy.delete(k);
+    arr.set(k, t);
+    return t;
+  };
+  let dmax = 0;
+  for (const c of conns) { c.arr = arrOut(c.src, c.srcPin) + c.delay; const s = arcs[c.dst].setup[c.dstPin]; if (s !== undefined && c.arr + s > dmax) dmax = c.arr + s; }
+  const req = new Map();
+  const reqIn = (i, p) => {
+    let r = arcs[i].setup[p] !== undefined ? dmax - arcs[i].setup[p] : Infinity;
+    for (const [o, ds] of Object.entries(arcs[i].deps)) for (const [q, d] of ds) if (q === p && outOf.has(key(i, o))) r = Math.min(r, reqOut(i, o) - d);
+    return r;
+  };
+  const reqOut = (i, p) => {
+    const k = key(i, p);
+    if (req.has(k)) return req.get(k);
+    req.set(k, Infinity);
+    let r = Infinity;
+    for (const c of outOf.get(k) || []) r = Math.min(r, reqIn(c.dst, c.dstPin) - c.delay);
+    req.set(k, r);
+    return r;
+  };
+  return { dmax, crit: conns.map(c => { const slack = reqIn(c.dst, c.dstPin) - c.arr; return dmax > 0 && Number.isFinite(slack) ? Math.max(0, Math.min(1, 1 - slack / dmax)) : 0; }) };
+}
+
+test('placement timing: the compiled analysis gives the reference\'s critical path and criticalities on random placements (#55)', () => {
+  const random = rng(7);
+  for (const n of ['counter', 'srmux', 'latches', 'ffs']) {
+    const p = pack(load(n));
+    const tg = timingGraph(p);
+    for (let k = 0; k < 5; k++) {
+      // random positions, half of them on a whole x (the SLICEM arcs)
+      const pos = p.insts.map(() => [Math.floor(random() * 12) + (random() < 0.5 ? 0 : 0.5), random() * 12]);
+      const ref = analyzeTimingReference(timingGraph(p), pos);
+      const t = analyzeTiming(tg, pos);
+      if (n === 'counter' || n === 'srmux') assert.ok(ref.dmax > 0, n);
+      assert.equal(t.dmax, ref.dmax, n);
+      assert.deepEqual(t.conns.map(c => c.crit), ref.crit, n);
+    }
+  }
+});

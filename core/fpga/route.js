@@ -206,6 +206,7 @@ export function routeDesign(design, device, opts = {}) {
   const edgeFrom = new Int32Array(E.edgeTo.length);
   for (let n = 0; n < N; n++) edgeFrom.fill(n, E.edgeStart[n], E.edgeStart[n + 1]);
   const heap = new Heap();
+  const { edgeStart, edgeTo, edgeFlags } = E, { nodeR0, nodeR1, nodeC0, nodeC1 } = device;
   const failed = new Set();
   const unreached = new Map();     // net index -> sinks not reached in its last routing
 
@@ -217,15 +218,17 @@ export function routeDesign(design, device, opts = {}) {
     heap.clear();
     // equivalent pins (a LUT's inputs): any of them not yet in the tree ends the search
     if (targets) for (const t of targets) if (!tree.has(t)) tmark[t] = curStamp;
-    const tr = device.nodeR0[sink], tc = device.nodeC0[sink];
+    const tr = nodeR0[sink], tc = nodeC0[sink];
     const cw = 1 - crit, dw = crit / D0, hf = 0.3 * cw + dw * H_DELAY;
+    // the A* estimate: hf x the rows and columns from the node's span to the sink
     const h = m => {
-      const dr = tr < device.nodeR0[m] ? device.nodeR0[m] - tr : tr > device.nodeR1[m] ? tr - device.nodeR1[m] : 0;
-      const dc = tc < device.nodeC0[m] ? device.nodeC0[m] - tc : tc > device.nodeC1[m] ? tc - device.nodeC1[m] : 0;
+      const dr = tr < nodeR0[m] ? nodeR0[m] - tr : tr > nodeR1[m] ? tr - nodeR1[m] : 0;
+      const dc = tc < nodeC0[m] ? nodeC0[m] - tc : tc > nodeC1[m] ? tc - nodeC1[m] : 0;
       return hf * (dr + dc);
     };
     for (const n of tree.keys()) { stamp[n] = curStamp; g[n] = start ? start(n, dw) : dw && tdel ? dw * tdel.get(n) : 0; prev[n] = -1; done[n] = 0; heap.push(g[n] + h(n), n); }
     let expanded = 0;
+    const own = netIdx + 1;
     while (heap.n) {
       const n = heap.pop();
       if (done[n] === curStamp) continue;
@@ -236,22 +239,25 @@ export function routeDesign(design, device, opts = {}) {
         return path;
       }
       if (++expanded > cap) return null;
-      for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
-        const m = E.edgeTo[e];
+      const gn = g[n], fromSource = prev[n] === -1 && isSource[n] === own;
+      for (let e = edgeStart[n], e1 = edgeStart[n + 1]; e < e1; e++) {
+        const m = edgeTo[e];
         // a route-through (a path through a site) only out of the net's own source site, onto an
         // output pin no other net uses: the carry chain's last COUT out through YB, as ISE does;
         // never through a LUT or another site, which would need that site configured for it
-        if (E.edgeFlags[e] & PIP_ROUTETHRU && !(prev[n] === -1 && isSource[n] === netIdx + 1 && owner[m] < 0)) continue;
+        if (edgeFlags[e] & PIP_ROUTETHRU && !(fromSource && owner[m] < 0)) continue;
         if (done[m] === curStamp) continue;
         if (owner[m] >= 0 && owner[m] !== netIdx) continue;
         if (restrict && !restrict[m] && m !== sink) continue;
-        if (!edgeOk(e)) continue;
+        if (allowed && allowed[e] !== 1 && !edgeOk(e)) continue;
         const over = occ[m];      // other nets on this node (this net is ripped up)
         const c = cw * (1 + hist[m]) * (1 + pf * over) + (dw ? dw * ndel[m] : 0);
-        const gm = g[n] + c;
+        const gm = gn + c;
         if (stamp[m] !== curStamp || gm < g[m]) {
           stamp[m] = curStamp; g[m] = gm; prev[m] = e; done[m] = 0;
-          heap.push(gm + h(m), m);
+          const dr = tr < nodeR0[m] ? nodeR0[m] - tr : tr > nodeR1[m] ? tr - nodeR1[m] : 0;
+          const dc = tc < nodeC0[m] ? nodeC0[m] - tc : tc > nodeC1[m] ? tc - nodeC1[m] : 0;
+          heap.push(gm + hf * (dr + dc), m);
         }
       }
     }

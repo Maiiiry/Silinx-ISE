@@ -28,7 +28,8 @@ export class PlaceError extends Error {}
 // tile (TIOIS, RIOIS_PCI, BIBUFS, LIOIS_CLK_PCI…). Every I/O of a bank, input or output, shares the
 // bank's output voltage (VCCO), which its I/O standard sets: ISE's DRC refuses a mix
 // (PhysDesignRules:755, "IOB comp … is VCCO incompatible for bank …").
-export const bankOfPad = p => ({ T: 0, R: 1, B: 2, L: 3 })[String(p.tile || '')[0]] ?? -1;
+const BANK_OF_SIDE = { T: 0, R: 1, B: 2, L: 3 };
+export const bankOfPad = p => BANK_OF_SIDE[String(p.tile || '')[0]] ?? -1;
 const VCCO = [[/^(LVTTL|LVCMOS33|PCI33_3|PCI66_3)$/, 3.3], [/^(LVCMOS25|LVDS_25|BLVDS_25|LVPECL_25|RSDS_25|MINI_LVDS_25|SSTL2_I|SSTL2_II|DIFF_SSTL2_I|DIFF_SSTL2_II)$/, 2.5],
   [/^(LVCMOS18|SSTL18_I|DIFF_SSTL18_I|HSTL_I_18|HSTL_III_18|DIFF_HSTL_I_18|DIFF_HSTL_III_18)$/, 1.8], [/^(LVCMOS15|HSTL_I|HSTL_III)$/, 1.5], [/^LVCMOS12$/, 1.2]];
 /** The VCCO an I/O standard needs (null: unknown, no constraint). */
@@ -85,6 +86,8 @@ export function rng(seed) {
 // crossing-count correction)
 const CROSS = [1, 1, 1, 1, 1.0828, 1.1536, 1.2206, 1.2823, 1.3385, 1.3991, 1.4493, 1.4974, 1.5455, 1.5937, 1.6418, 1.6899, 1.7304, 1.7709, 1.8114, 1.8519, 1.8924, 1.9288, 1.9652, 2.0015, 2.0379, 2.0743, 2.1061, 2.1379, 2.1698, 2.2016, 2.2334, 2.2646, 2.2958, 2.3271, 2.3583, 2.3895, 2.4187, 2.4479, 2.4772, 2.5064, 2.5356, 2.5610, 2.5864, 2.6117, 2.6371, 2.6625, 2.6887, 2.7148, 2.7410, 2.7671, 2.7933];
 const crossing = n => (n < CROSS.length ? CROSS[n] : 2.7933 + 0.02616 * (n - 50));
+// nets of at most this many pins: their bounding box scanned at every move (faster than kept up to date)
+const BOX_SCAN = 6;
 
 // Clock buffers next to their pad: a BUFG driven straight from a pad on the top / bottom edge
 // takes a global buffer of that edge (as ISE does: B8 -> BUFGMUX_X2Y11); others the first free one.
@@ -145,67 +148,104 @@ export function connDelay(a, b, model = SPEED_4, delays = null) {
   return base + perTile * Math.min(d, knee) + far * Math.max(0, d - knee);
 }
 
+/** The timing graph compiled once for analyzeTiming: pins (instance, pin name) numbered, the
+ *  connections into / out of each pin, and each instance's arcs on a SLICEL and a SLICEM site
+ *  (v = 0, 1) by pin number. */
+function compileTiming(tg) {
+  const { conns, arcs } = tg;
+  const ids = new Map(), pinInst = [];
+  const pid = (i, p) => { const k = `${i}:${p}`; let n = ids.get(k); if (n === undefined) { n = pinInst.length; ids.set(k, n); pinInst.push(i); } return n; };
+  const cSrc = new Int32Array(conns.length), cDst = new Int32Array(conns.length);
+  conns.forEach((c, j) => { cSrc[j] = pid(c.src, c.srcPin); cDst[j] = pid(c.dst, c.dstPin); });
+  arcs.forEach((a, i) => { for (const x of a) { for (const [o, ds] of Object.entries(x.deps)) { pid(i, o); for (const [q] of ds) pid(i, q); } for (const p of Object.keys(x.start)) pid(i, p); for (const p of Object.keys(x.setup)) pid(i, p); } });
+  const P = pinInst.length;
+  // lists by pin: [start .. start + 1) of a flat array
+  const csr = (lists) => {
+    const start = new Int32Array(P + 1);
+    for (let p = 0; p < P; p++) start[p + 1] = start[p] + (lists[p] ? lists[p].length : 0);
+    return { start, lists };
+  };
+  const into = [], outOf = [];
+  for (let j = 0; j < conns.length; j++) { (into[cDst[j]] ||= []).push(j); (outOf[cSrc[j]] ||= []).push(j); }
+  const hasOut = new Uint8Array(P);
+  for (let p = 0; p < P; p++) if (outOf[p]) hasOut[p] = 1;
+  const variant = v => {
+    const start = new Float64Array(P).fill(NaN), setup = new Float64Array(P).fill(NaN);
+    const deps = [], rev = [];
+    arcs.forEach((a, i) => {
+      const x = a[v];
+      for (const [p, d] of Object.entries(x.start)) start[pid(i, p)] = d;
+      for (const [p, d] of Object.entries(x.setup)) setup[pid(i, p)] = d;
+      for (const [o, ds] of Object.entries(x.deps)) {
+        const op = pid(i, o);
+        for (const [q, d] of ds) {
+          const qp = pid(i, q);
+          (deps[op] ||= []).push(qp, d);
+          if (hasOut[op]) (rev[qp] ||= []).push(op, d);
+        }
+      }
+    });
+    return { start, setup, deps, rev };
+  };
+  return { P, pinInst: Int32Array.from(pinInst), cSrc, cDst, into, outOf, V: [variant(0), variant(1)] };
+}
+
 /** Static timing on a placement (ns, by the model): the critical path delay (flip-flop to
  *  flip-flop) and the criticality (0..1) of every connection. pos[inst] = [x, y] in tiles; delays:
  *  the device's delay table (connDelay). */
 export function analyzeTiming(tg, pos, delays = null) {
   const { conns, model } = tg;
+  const C = (tg._compiled ||= compileTiming(tg));
+  const { P, pinInst, cSrc, cDst, into, outOf, V } = C;
   // the arcs of each instance on its site: a SLICEM (an even column of slices) at a whole x
-  const arcs = tg.arcs.map((a, i) => a[pos[i] && pos[i][0] % 1 === 0 ? 1 : 0]);
-  const delay = c => (c.dedicated ? 0 : connDelay(pos[c.src], pos[c.dst], model, delays));
-  // pins as nodes: `${inst}:${pin}`
-  const into = new Map();    // input pin -> connections arriving
-  const outOf = new Map();   // output pin -> connections leaving
-  const key = (i, p) => `${i}:${p}`;
-  for (const c of conns) {
-    c.delay = delay(c);
-    const a = key(c.dst, c.dstPin), b = key(c.src, c.srcPin);
-    if (!into.has(a)) into.set(a, []);
-    into.get(a).push(c);
-    if (!outOf.has(b)) outOf.set(b, []);
-    outOf.get(b).push(c);
-  }
+  const vOf = i => V[pos[i] && pos[i][0] % 1 === 0 ? 1 : 0];
+  const delay = new Float64Array(conns.length);
+  conns.forEach((c, j) => { c.delay = delay[j] = c.dedicated ? 0 : connDelay(pos[c.src], pos[c.dst], model, delays); });
   // arrival at an input pin / an output pin (memoised depth-first; a loop counts as no path)
-  const arrIn = (i, p) => { let t = -Infinity; for (const c of into.get(key(i, p)) || []) t = Math.max(t, arrOut(c.src, c.srcPin) + c.delay); return t; };
-  const arr = new Map(), busy = new Set();
-  const arrOut = (i, p) => {
-    const k = key(i, p);
-    if (arr.has(k)) return arr.get(k);
-    if (arcs[i].start[p] !== undefined) { arr.set(k, arcs[i].start[p]); return arcs[i].start[p]; }
-    if (busy.has(k)) return -Infinity;
-    busy.add(k);
+  const arr = new Float64Array(P), arrDone = new Uint8Array(P), busy = new Uint8Array(P);
+  const arrIn = p => { let t = -Infinity; const l = into[p]; if (l) for (const j of l) t = Math.max(t, arrOut(cSrc[j]) + delay[j]); return t; };
+  const arrOut = p => {
+    if (arrDone[p]) return arr[p];
+    const v = vOf(pinInst[p]);
+    const s = v.start[p];
+    if (s === s) { arrDone[p] = 1; return (arr[p] = s); }
+    if (busy[p]) return -Infinity;
+    busy[p] = 1;
     let t = -Infinity;
-    for (const [q, d] of arcs[i].deps[p] || []) t = Math.max(t, arrIn(i, q) + d);
-    busy.delete(k);
-    arr.set(k, t);
-    return t;
+    const l = v.deps[p];
+    if (l) for (let k = 0; k < l.length; k += 2) t = Math.max(t, arrIn(l[k]) + l[k + 1]);
+    busy[p] = 0;
+    arrDone[p] = 1;
+    return (arr[p] = t);
   };
   let dmax = 0;
-  for (const c of conns) {
-    c.arr = arrOut(c.src, c.srcPin) + c.delay;
-    const s = arcs[c.dst].setup[c.dstPin];
-    if (s !== undefined && c.arr + s > dmax) dmax = c.arr + s;
-  }
+  const carr = new Float64Array(conns.length);
+  conns.forEach((c, j) => {
+    c.arr = carr[j] = arrOut(cSrc[j]) + delay[j];
+    const s = vOf(c.dst).setup[cDst[j]];
+    if (s === s && carr[j] + s > dmax) dmax = carr[j] + s;
+  });
   // required times: at a setup pin dmax - setup, earlier when the pin passes on to an output
-  const req = new Map();
-  const reqIn = (i, p) => {
-    let r = arcs[i].setup[p] !== undefined ? dmax - arcs[i].setup[p] : Infinity;
-    for (const [o, ds] of Object.entries(arcs[i].deps)) for (const [q, d] of ds) if (q === p && outOf.has(key(i, o))) r = Math.min(r, reqOut(i, o) - d);
+  const req = new Float64Array(P), reqState = new Uint8Array(P);
+  const reqIn = p => {
+    const v = vOf(pinInst[p]), s = v.setup[p];
+    let r = s === s ? dmax - s : Infinity;
+    const l = v.rev[p];
+    if (l) for (let k = 0; k < l.length; k += 2) r = Math.min(r, reqOut(l[k]) - l[k + 1]);
     return r;
   };
-  const reqOut = (i, p) => {
-    const k = key(i, p);
-    if (req.has(k)) return req.get(k);
-    req.set(k, Infinity);   // (loops)
+  const reqOut = p => {
+    if (reqState[p]) return req[p];
+    reqState[p] = 1; req[p] = Infinity;   // (loops)
     let r = Infinity;
-    for (const c of outOf.get(k) || []) r = Math.min(r, reqIn(c.dst, c.dstPin) - c.delay);
-    req.set(k, r);
-    return r;
+    const l = outOf[p];
+    if (l) for (const j of l) r = Math.min(r, reqIn(cDst[j]) - delay[j]);
+    return (req[p] = r);
   };
-  for (const c of conns) {
-    const slack = reqIn(c.dst, c.dstPin) - c.arr;
+  conns.forEach((c, j) => {
+    const slack = reqIn(cDst[j]) - carr[j];
     c.crit = dmax > 0 && Number.isFinite(slack) ? Math.max(0, Math.min(1, 1 - slack / dmax)) : 0;
-  }
+  });
   return { dmax, conns };
 }
 
@@ -230,14 +270,14 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const objs = [];
   const addObj = o => { o.id = objs.length; objs.push(o); return o; };
   for (const m of packed.macros) {
-    const o = { kind: 'macro', members: m.members.map(x => ({ inst: x.inst, dx: x.dx, dy: x.dy })), align: m.align || [1, 1], anchor: null, macro: m.kind };
+    const o = { kind: 'macro', members: m.members.map(x => ({ inst: x.inst, dx: x.dx, dy: x.dy })), align: m.align || [1, 1], macro: m.kind };
     for (const x of o.members) objOf[x.inst] = objs.length;
     addObj(o);
   }
   packed.insts.forEach((inst, i) => {
     if (objOf[i] >= 0) return;
     objOf[i] = objs.length;
-    if (inst.kind === 'slice') addObj({ kind: 'macro', members: [{ inst: i, dx: 0, dy: 0 }], align: [1, 1], anchor: null });
+    if (inst.kind === 'slice') addObj({ kind: 'macro', members: [{ inst: i, dx: 0, dy: 0 }], align: [1, 1] });
     else if (inst.kind === 'iob') addObj({ kind: 'iob', inst: i, fixed: !!inst.loc, dir: inst.dir });
     else if (inst.kind === 'bufg') addObj({ kind: 'bufg', inst: i });
     else if (inst.kind === 'bram' || inst.kind === 'mult') addObj({ kind: inst.kind, inst: i });
@@ -248,7 +288,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   // ---------------------------------------------------------------- pads and clock buffers
   const padUsed = new Map();   // pad name -> obj
   // the VCCO of each bank, from the I/O standards of the IOBs placed in it (bankOfPad, vccoOfStandard)
-  const vccoOf = i => vccoOfStandard((packed.insts[i].cfg || []).find(c => c.attr === 'IOATTRBOX')?.value);
+  const vccoMemo = new Map();
+  const vccoOf = i => { if (!vccoMemo.has(i)) vccoMemo.set(i, vccoOfStandard((packed.insts[i].cfg || []).find(c => c.attr === 'IOATTRBOX')?.value)); return vccoMemo.get(i); };
   const bankV = new Map();     // bank -> { v, n }
   const bankAdd = (p, v, k) => {
     if (v == null) return;
@@ -382,23 +423,41 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const allowedAt = (i, k) => (!allowedOf[i] || allowedOf[i].has(dev.slices.get(k).name)) && (packed.insts[i].type !== 'SLICEM' || dev.slices.get(k).type === 'SLICEM');
 
   // ---------------------------------------------------------------- slices: legal anchors, occupancy
-  const occ = new Map();   // `${x},${y}` -> inst
+  // the slice grid: index gx * GH + gy of slice (gx, gy); its site (null: no slice there), whether it
+  // is a SLICEM, and the occupant (-1: free)
+  const sliceList = [...dev.slices.values()];
+  const maxX = Math.max(...sliceList.map(s => s.x)), maxY = Math.max(...sliceList.map(s => s.y));
+  const GH = maxY + 1, GN = (maxX + 1) * GH;
+  const gridSite = new Array(GN).fill(null);
+  const gridM = new Uint8Array(GN);
+  for (const s of sliceList) { gridSite[s.x * GH + s.y] = s; gridM[s.x * GH + s.y] = s.type === 'SLICEM' ? 1 : 0; }
+  const gidx = (x, y) => (x < 0 || y < 0 || x > maxX || y > maxY ? -1 : x * GH + y);
+  // allowedAt on the grid: the slices a clock reaches (one table per clock), the SLICEM sites
+  const reachGrid = new Map();
+  const allowedG = allowedOf.map(r => {
+    if (!r) return null;
+    if (!reachGrid.has(r)) { const a = new Uint8Array(GN); for (let g = 0; g < GN; g++) if (gridSite[g] && r.has(gridSite[g].name)) a[g] = 1; reachGrid.set(r, a); }
+    return reachGrid.get(r);
+  });
+  const needM = packed.insts.map(inst => inst.type === 'SLICEM');
+  const allowedAtG = (i, g) => (!allowedG[i] || allowedG[i][g] === 1) && (!needM[i] || gridM[g] === 1);
+  const occ = new Int32Array(GN).fill(-1);   // grid index -> inst
   const fitsAt = (o, x, y) => {
     if (x % o.align[0] || y % o.align[1]) return false;
     for (const m of o.members) {
-      const k = `${x + m.dx},${y + m.dy}`;
-      if (!dev.slices.has(k) || !allowedAt(m.inst, k)) return false;
+      const g = gidx(x + m.dx, y + m.dy);
+      if (g < 0 || !gridSite[g] || !allowedAtG(m.inst, g)) return false;
     }
     return true;
   };
-  const sliceList = [...dev.slices.values()];
-  const maxX = Math.max(...sliceList.map(s => s.x)), maxY = Math.max(...sliceList.map(s => s.y));
+  const freeAt = (o, x, y) => o.members.every(m => occ[gidx(x + m.dx, y + m.dy)] < 0);
+  const anchorX = new Int32Array(objs.length), anchorY = new Int32Array(objs.length);   // a group's slice (x, y) by object
   const setAt = (o, x, y) => {
-    o.anchor = [x, y];
+    anchorX[o.id] = x; anchorY[o.id] = y;
     for (const m of o.members) {
-      const k = `${x + m.dx},${y + m.dy}`;
-      occ.set(k, m.inst);
-      sites[m.inst] = dev.slices.get(k);
+      const g = gidx(x + m.dx, y + m.dy);
+      occ[g] = m.inst;
+      sites[m.inst] = gridSite[g];
     }
   };
   // initial placement: the largest groups first, each at a random free legal position near the
@@ -413,14 +472,14 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       const r = Math.min(1, 0.25 + tries / 4000);
       const x = Math.floor(maxX / 2 + (random() - 0.5) * (maxX + 1) * r), y = Math.floor(maxY / 2 + (random() - 0.5) * (maxY + 1) * r);
       if (x < 0 || y < 0 || !fitsAt(o, x, y)) continue;
-      if (o.members.some(m => occ.has(`${x + m.dx},${y + m.dy}`))) continue;
+      if (!freeAt(o, x, y)) continue;
       setAt(o, x, y);
       done = true;
     }
     if (!done) {
       // exhaustive search
       outer: for (let x = 0; x <= maxX; x++) for (let y = 0; y <= maxY; y++) {
-        if (!fitsAt(o, x, y) || o.members.some(m => occ.has(`${x + m.dx},${y + m.dy}`))) continue;
+        if (!fitsAt(o, x, y) || !freeAt(o, x, y)) continue;
         setAt(o, x, y);
         done = true;
         break outer;
@@ -428,29 +487,56 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     }
     if (!done) throw new PlaceError(`place: no room for a group of ${o.members.length} slices (${o.macro || 'slice'})`);
   }
-  for (let i = 0; i < N; i++) { if (!sites[i]) throw new PlaceError(`place: ${packed.insts[i].name} not placed`); pos[i] = [sites[i].px, sites[i].py]; }
+  // positions (tiles, y upward) of every instance
+  const posX = new Float64Array(N), posY = new Float64Array(N);
+  for (let i = 0; i < N; i++) { if (!sites[i]) throw new PlaceError(`place: ${packed.insts[i].name} not placed`); posX[i] = sites[i].px; posY[i] = sites[i].py; }
+  const posPairs = () => Array.from({ length: N }, (_, i) => [posX[i], posY[i]]);
 
   // ---------------------------------------------------------------- nets and cost
-  // nets for the cost: not the clocks (global lines), not the constants, not the carry links
-  const nets = [];
-  const netsOf = Array.from({ length: N }, () => []);
+  // nets for the cost: not the clocks (global lines), not the constants, not the carry links;
+  // kept flat (typed arrays): the pins of net k are netPin[netStart[k] .. netStart[k + 1]), the
+  // nets of instance i netOf[instNetStart[i] .. instNetStart[i + 1])
+  const netPinsList = [];
   for (const n of packed.nets) {
     if (n.type !== 'wire' || !n.outpins.length) continue;
     const d = packed.insts[n.outpins[0].inst];
     if (d.kind === 'bufg') continue;
     const pins = [...new Set([...n.outpins, ...n.inpins].map(p => p.inst))];
     if (pins.length < 2) continue;
-    const k = nets.length;
-    nets.push({ pins, base: crossing(pins.length), w: crossing(pins.length), cost: 0, src: n });
-    for (const i of pins) netsOf[i].push(k);
+    netPinsList.push(pins);
   }
-  const netCost = n => {
-    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
-    for (const i of n.pins) { const [x, y] = pos[i]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
-    return n.w * ((x1 - x0) + (y1 - y0));
+  const NN = netPinsList.length;
+  const netStart = new Int32Array(NN + 1);
+  netPinsList.forEach((p, k) => { netStart[k + 1] = netStart[k] + p.length; });
+  const netPin = new Int32Array(netStart[NN]);
+  const netW = new Float64Array(NN), netCostOf = new Float64Array(NN);
+  const instNetCount = new Int32Array(N + 1);
+  netPinsList.forEach((p, k) => { netPin.set(p, netStart[k]); netW[k] = crossing(p.length); for (const i of p) instNetCount[i + 1]++; });
+  const instNetStart = new Int32Array(N + 1);
+  for (let i = 0; i < N; i++) instNetStart[i + 1] = instNetStart[i] + instNetCount[i + 1];
+  const netOf = new Int32Array(instNetStart[N]);
+  { const fill = instNetStart.slice(0, N); netPinsList.forEach((p, k) => { for (const i of p) netOf[fill[i]++] = k; }); }
+  // the bounding box of each net (box[4k .. 4k + 3]: x0, x1, y0, y1) and how many of its pins lie on
+  // each of the four edges (boxN), kept up to date: a move of one pin of a net updates it in constant
+  // time (VPR's incremental bounding boxes), the pins are scanned again only when the one pin on an
+  // edge moves inwards
+  const box = new Float64Array(4 * NN), boxN = new Int32Array(4 * NN);
+  const scanBox = (k, B, BN, o) => {
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, n0 = 0, n1 = 0, m0 = 0, m1 = 0;
+    for (let j = netStart[k], e = netStart[k + 1]; j < e; j++) {
+      const i = netPin[j], x = posX[i], y = posY[i];
+      if (x < x0) { x0 = x; n0 = 1; } else if (x === x0) n0++;
+      if (x > x1) { x1 = x; n1 = 1; } else if (x === x1) n1++;
+      if (y < y0) { y0 = y; m0 = 1; } else if (y === y0) m0++;
+      if (y > y1) { y1 = y; m1 = 1; } else if (y === y1) m1++;
+    }
+    B[o] = x0; B[o + 1] = x1; B[o + 2] = y0; B[o + 3] = y1;
+    BN[o] = n0; BN[o + 1] = n1; BN[o + 2] = m0; BN[o + 3] = m1;
+    return netW[k] * ((x1 - x0) + (y1 - y0));
   };
+  const netCost = k => scanBox(k, box, boxN, 4 * k);
   let bb = 0;
-  for (const n of nets) { n.cost = netCost(n); bb += n.cost; }
+  for (let k = 0; k < NN; k++) { netCostOf[k] = netCost(k); bb += netCostOf[k]; }
   const initialCost = bb;
   // timing (VPR's timing-driven placer): a second cost, the sum over the connections of
   // criticality^exp x estimated delay (the device's delay table when given), mixed with the
@@ -460,19 +546,34 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const tg = timing > 0 ? timingGraph(packed) : null;
   const lambda = tg ? timing / (2 + timing) : 0;
   const tconns = tg ? tg.conns.filter(c => !c.dedicated && c.src !== c.dst) : [];
-  const connsOf = Array.from({ length: N }, () => []);
-  tconns.forEach((c, j) => { c.w = 0; c.d = 0; connsOf[c.src].push(j); if (c.dst !== c.src) connsOf[c.dst].push(j); });
+  const NC = tconns.length;
+  const cSrc = Int32Array.from(tconns, c => c.src), cDst = Int32Array.from(tconns, c => c.dst);
+  const cW = new Float64Array(NC), cD = new Float64Array(NC);
+  const instConnCount = new Int32Array(N + 1);
+  for (let j = 0; j < NC; j++) { instConnCount[cSrc[j] + 1]++; instConnCount[cDst[j] + 1]++; }
+  const instConnStart = new Int32Array(N + 1);
+  for (let i = 0; i < N; i++) instConnStart[i + 1] = instConnStart[i] + instConnCount[i + 1];
+  const connOf = new Int32Array(instConnStart[N]);
+  { const fill = instConnStart.slice(0, N); for (let j = 0; j < NC; j++) { connOf[fill[cSrc[j]]++] = j; connOf[fill[cDst[j]]++] = j; } }
   let tc = 0, bbNorm = 1, tcNorm = 1, dmax = 0, critExp = 1;
-  const cdelay = c => connDelay(pos[c.src], pos[c.dst], tg.model, delays);
+  const model = tg ? tg.model : SPEED_4;
+  const dist = model.dist;
+  // the estimated delay of connection j (connDelay, inlined)
+  const cdelay = delays
+    ? j => delays.at(Math.floor(posX[cDst[j]]) - Math.floor(posX[cSrc[j]]), Math.floor(posY[cSrc[j]]) - Math.floor(posY[cDst[j]]))
+    : j => {
+      const d = Math.abs(posX[cSrc[j]] - posX[cDst[j]]) + Math.abs(posY[cSrc[j]] - posY[cDst[j]]);
+      return dist.base + dist.perTile * Math.min(d, dist.knee) + dist.far * Math.max(0, d - dist.knee);
+    };
   const reweight = () => {
     bb = 0;
-    for (const n of nets) { n.cost = netCost(n); bb += n.cost; }
+    for (let k = 0; k < NN; k++) { netCostOf[k] = netCost(k); bb += netCostOf[k]; }
     bbNorm = Math.max(bb, 1e-9);
     if (!tg) return;
-    const t = analyzeTiming(tg, pos, delays);
+    const t = analyzeTiming(tg, posPairs(), delays);
     dmax = t.dmax;
     tc = 0;
-    for (const c of tconns) { c.w = c.crit ** critExp; c.d = cdelay(c); tc += c.w * c.d; }
+    for (let j = 0; j < NC; j++) { cW[j] = tconns[j].crit ** critExp; cD[j] = cdelay(j); tc += cW[j] * cD[j]; }
     tcNorm = Math.max(tc, 1e-9);
   };
   const totalCost = () => (1 - lambda) * bb / bbNorm + lambda * tc / tcNorm;
@@ -482,77 +583,137 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   // ---------------------------------------------------------------- moves
   const movable = objs.filter(o => (o.kind === 'macro') || (o.kind === 'iob' && !o.fixed) || ((o.kind === 'bram' || o.kind === 'mult') && !o.fixed && hardSites[o.kind].length > 1));
   if (!movable.length) return finish();
-  // propose: returns the list of [inst, newSite] changes, or null
+  // a proposed move: the instances that change site (chInst[0 .. chN), to chSite), and what commit
+  // needs (mv)
+  const maxMembers = Math.max(1, ...objs.map(o => (o.members ? o.members.length : 1)));
+  const chInst = new Int32Array(2 * maxMembers + 2);
+  const chSite = new Array(2 * maxMembers + 2).fill(null);
+  let chN = 0;
+  const mv = { kind: '', o: null, other: null, p: null, x: 0, y: 0, nDisp: 0 };
+  const newG = new Int32Array(maxMembers), freedG = new Int32Array(maxMembers), dispInst = new Int32Array(maxMembers);
   let rlim = Math.max(maxX, maxY);
   const padsFor = { in: [...dev.pads.values()], out: [...dev.pads.values()].filter(p => !p.inputOnly) };
+  // propose a move into chInst / chSite / mv; false: none
   function propose() {
     const o = movable[ri(movable.length)];
+    chN = 0;
     if (o.kind === 'bram' || o.kind === 'mult') {
       // another site of its kind (swapping with the instance there)
       const cands = hardSites[o.kind];
       const p = cands[ri(cands.length)];
       const other = hardUsed[o.kind].get(p.name);
-      if (other === o || (other && other.fixed)) return null;
+      if (other === o || (other && other.fixed)) return false;
       const cur = sites[o.inst];
-      if (!hardOk(o, p, other) || (other && !hardOk(other, cur, o))) return null;
-      const ch = [[o.inst, p]];
-      if (other) ch.push([other.inst, cur]);
-      return { ch, kind: 'hard', o, other, p };
+      if (!hardOk(o, p, other) || (other && !hardOk(other, cur, o))) return false;
+      chInst[chN] = o.inst; chSite[chN++] = p;
+      if (other) { chInst[chN] = other.inst; chSite[chN++] = cur; }
+      mv.kind = 'hard'; mv.o = o; mv.other = other; mv.p = p;
+      return true;
     }
     if (o.kind === 'iob') {
       const cands = padsFor[o.dir === 'in' ? 'in' : 'out'];
       const p = cands[ri(cands.length)];
       const other = padUsed.get(p.name);
-      if (other === o) return null;
-      if (other && (other.fixed || (other.dir !== 'in' && sites[o.inst].inputOnly))) return null;
+      if (other === o) return false;
+      if (other && (other.fixed || (other.dir !== 'in' && sites[o.inst].inputOnly))) return false;
       // both I/Os must suit the VCCO of the bank they go to
       const old = sites[o.inst], vo = vccoOf(o.inst), vt = other ? vccoOf(other.inst) : null;
       bankAdd(old, vo, -1); if (other) bankAdd(p, vt, -1);
       const ok = bankOk(p, vo) && (!other || bankOk(old, vt)) && (bankOfPad(p) !== bankOfPad(old) || vo == null || vt == null || vo === vt);
       bankAdd(old, vo, 1); if (other) bankAdd(p, vt, 1);
-      if (!ok) return null;
-      const ch = [[o.inst, p]];
-      if (other) ch.push([other.inst, sites[o.inst]]);
-      return { ch, kind: 'iob', o, other, p };
+      if (!ok) return false;
+      chInst[chN] = o.inst; chSite[chN++] = p;
+      if (other) { chInst[chN] = other.inst; chSite[chN++] = old; }
+      mv.kind = 'iob'; mv.o = o; mv.other = other; mv.p = p;
+      return true;
     }
-    const [ax, ay] = o.anchor;
+    const ax = anchorX[o.id], ay = anchorY[o.id];
     const r = Math.max(1, Math.round(rlim));
     const x = ax + ri(2 * r + 1) - r, y = ay + ri(2 * r + 1) - r;
-    if ((x === ax && y === ay) || x < 0 || y < 0 || !fitsAt(o, x, y)) return null;
-    const newKeys = o.members.map(m => `${x + m.dx},${y + m.dy}`);
-    const oldKeys = new Set(o.members.map(m => `${ax + m.dx},${ay + m.dy}`));
-    const displaced = [];
-    for (const k of newKeys) {
-      const i = occ.get(k);
-      if (i === undefined || objOf[i] === o.id) continue;
-      const oo = objs[objOf[i]];
-      if (oo.members.length > 1) return null;   // only single slices step aside
-      displaced.push(i);
+    if ((x === ax && y === ay) || x < 0 || y < 0 || !fitsAt(o, x, y)) return false;
+    const mem = o.members, nm = mem.length;
+    for (let j = 0; j < nm; j++) newG[j] = gidx(x + mem[j].dx, y + mem[j].dy);
+    // the slices it leaves (its old slices not among the new), in member order, and the single
+    // slices on its new slices, which step into them
+    let nFreed = 0, nDisp = 0;
+    for (let j = 0; j < nm; j++) {
+      const g = gidx(ax + mem[j].dx, ay + mem[j].dy);
+      let inNew = false;
+      for (let q = 0; q < nm; q++) if (newG[q] === g) { inNew = true; break; }
+      if (!inNew) freedG[nFreed++] = g;
     }
-    const freed = [...oldKeys].filter(k => !newKeys.includes(k));
-    if (displaced.some((i, j) => !allowedAt(i, freed[j]))) return null;
-    const ch = o.members.map((m, j) => [m.inst, dev.slices.get(newKeys[j])]);
-    displaced.forEach((i, j) => ch.push([i, dev.slices.get(freed[j])]));
-    return { ch, kind: 'slice', o, x, y, displaced, freed };
+    for (let j = 0; j < nm; j++) {
+      const i = occ[newG[j]];
+      if (i < 0 || objOf[i] === o.id) continue;
+      if (objs[objOf[i]].members.length > 1) return false;   // only single slices step aside
+      dispInst[nDisp++] = i;
+    }
+    for (let j = 0; j < nDisp; j++) if (!allowedAtG(dispInst[j], freedG[j])) return false;
+    for (let j = 0; j < nm; j++) { chInst[chN] = mem[j].inst; chSite[chN++] = gridSite[newG[j]]; }
+    for (let j = 0; j < nDisp; j++) { chInst[chN] = dispInst[j]; chSite[chN++] = gridSite[freedG[j]]; }
+    mv.kind = 'slice'; mv.o = o; mv.x = x; mv.y = y; mv.nDisp = nDisp;
+    return true;
   }
-  function delta(ch) {
-    const touched = new Set(), tTouched = new Set();
-    for (const [i] of ch) { for (const k of netsOf[i]) touched.add(k); if (lambda) for (const j of connsOf[i]) tTouched.add(j); }
-    const save = ch.map(([i]) => pos[i]);
+  // the cost change of the proposed move: the nets and connections it touches (each once, in the
+  // order met), their new costs and delays kept for commit
+  const netMark = new Int32Array(NN), connMark = new Int32Array(NC);
+  let mark = 0;
+  const tNets = new Int32Array(NN), tNetCost = new Float64Array(NN), tMoved = new Int32Array(NN), tMovedC = new Int32Array(NN), netQ = new Int32Array(NN);
+  const tBox = new Float64Array(4 * NN), tBoxN = new Int32Array(4 * NN);
+  const tConns = new Int32Array(NC), tConnDelay = new Float64Array(NC);
+  let nT = 0, nTC = 0, dbbL = 0, dtcL = 0;
+  const saveX = new Float64Array(chInst.length), saveY = new Float64Array(chInst.length);
+  // the box of the net at box[b] after one pin moves from (ox, oy) to (nx, ny), into tBox[o]:
+  // its half-perimeter, or -1 when the pins must be scanned again
+  const edge1 = (b, o, ov, nv) => {
+    let lo = box[b], hi = box[b + 1], nlo = boxN[b], nhi = boxN[b + 1];
+    if (nv < ov) {
+      if (ov === hi) { if (nhi === 1) return false; nhi--; }
+      if (nv < lo) { lo = nv; nlo = 1; } else if (nv === lo) nlo++;
+    } else if (nv > ov) {
+      if (ov === lo) { if (nlo === 1) return false; nlo--; }
+      if (nv > hi) { hi = nv; nhi = 1; } else if (nv === hi) nhi++;
+    }
+    tBox[o] = lo; tBox[o + 1] = hi; tBoxN[o] = nlo; tBoxN[o + 1] = nhi;
+    return true;
+  };
+  const boxMove = (b, o, ox, nx, oy, ny) => {
+    if (!edge1(b, o, ox, nx) || !edge1(b + 2, o + 2, oy, ny)) return -1;
+    return (tBox[o + 1] - tBox[o]) + (tBox[o + 3] - tBox[o + 2]);
+  };
+  function delta() {
+    mark++;
+    nT = 0; nTC = 0;
+    for (let c = 0; c < chN; c++) {
+      const i = chInst[c];
+      for (let q = instNetStart[i], e = instNetStart[i + 1]; q < e; q++) {
+        const k = netOf[q];
+        if (netMark[k] !== mark) { netMark[k] = mark; netQ[k] = nT; tMoved[nT] = 1; tMovedC[nT] = c; tNets[nT++] = k; } else tMoved[netQ[k]]++;
+      }
+      if (lambda) for (let q = instConnStart[i], e = instConnStart[i + 1]; q < e; q++) { const j = connOf[q]; if (connMark[j] !== mark) { connMark[j] = mark; tConns[nTC++] = j; } }
+    }
+    for (let c = 0; c < chN; c++) { const i = chInst[c]; saveX[c] = posX[i]; saveY[c] = posY[i]; posX[i] = chSite[c].px; posY[i] = chSite[c].py; }
     let dbb = 0, dtc = 0;
-    for (const [i, s] of ch) pos[i] = [s.px, s.py];
-    const newCosts = [], newDelays = [];
-    for (const k of touched) { const c = netCost(nets[k]); newCosts.push([k, c]); dbb += c - nets[k].cost; }
-    for (const j of tTouched) { const c = tconns[j], d = cdelay(c); newDelays.push([j, d]); dtc += c.w * (d - c.d); }
-    ch.forEach(([i], j) => { pos[i] = save[j]; });
-    return { d: (1 - lambda) * dbb / bbNorm + lambda * dtc / tcNorm, newCosts, newDelays, dbb, dtc };
+    for (let q = 0; q < nT; q++) {
+      const k = tNets[q], o = 4 * q, b = 4 * k, m = tMovedC[q];
+      let c;
+      // one pin of a larger net moves: its box from the old one, unless that pin alone held an edge
+      // it leaves (a small net: scanned, as fast)
+      if (tMoved[q] === 1 && netStart[k + 1] - netStart[k] > BOX_SCAN && (c = boxMove(b, o, saveX[m], posX[chInst[m]], saveY[m], posY[chInst[m]])) >= 0) c *= netW[k];
+      else c = scanBox(k, tBox, tBoxN, o);
+      tNetCost[q] = c; dbb += c - netCostOf[k];
+    }
+    for (let q = 0; q < nTC; q++) { const j = tConns[q], d = cdelay(j); tConnDelay[q] = d; dtc += cW[j] * (d - cD[j]); }
+    for (let c = 0; c < chN; c++) { const i = chInst[c]; posX[i] = saveX[c]; posY[i] = saveY[c]; }
+    dbbL = dbb; dtcL = dtc;
+    return (1 - lambda) * dbb / bbNorm + lambda * dtc / tcNorm;
   }
-  function commit(mv, { newCosts, newDelays, dbb, dtc }) {
+  function commit() {
     if (mv.kind === 'hard') {
       const { o, other, p } = mv;
       const old = sites[o.inst];
-      if (other) { hardUsed[o.kind].delete(p.name); setHard(o, p); setHard(other, old); pos[other.inst] = [old.px, old.py]; } else setHard(o, p);
-      pos[o.inst] = [p.px, p.py];
+      if (other) { hardUsed[o.kind].delete(p.name); setHard(o, p); setHard(other, old); posX[other.inst] = old.px; posY[other.inst] = old.py; } else setHard(o, p);
+      posX[o.inst] = p.px; posY[o.inst] = p.py;
     } else if (mv.kind === 'iob') {
       const { o, other, p } = mv;
       const old = sites[o.inst];
@@ -560,29 +721,33 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       bankAdd(old, vo, -1); bankAdd(p, vo, 1);
       if (other) { bankAdd(p, vt, -1); bankAdd(old, vt, 1); }
       padUsed.delete(old.name);
-      if (other) { padUsed.set(old.name, other); sites[other.inst] = old; pos[other.inst] = [old.px, old.py]; }
-      padUsed.set(p.name, o); sites[o.inst] = p; pos[o.inst] = [p.px, p.py];
+      if (other) { padUsed.set(old.name, other); sites[other.inst] = old; posX[other.inst] = old.px; posY[other.inst] = old.py; }
+      padUsed.set(p.name, o); sites[o.inst] = p; posX[o.inst] = p.px; posY[o.inst] = p.py;
     } else {
-      const { o, x, y, displaced, freed } = mv;
-      const [ax, ay] = o.anchor;
-      for (const m of o.members) occ.delete(`${ax + m.dx},${ay + m.dy}`);
-      displaced.forEach((i, j) => {
-        const s = dev.slices.get(freed[j]);
-        occ.set(freed[j], i); sites[i] = s; pos[i] = [s.px, s.py];
-        objs[objOf[i]].anchor = [s.x, s.y];
-      });
+      const { o, x, y, nDisp } = mv;
+      const ax = anchorX[o.id], ay = anchorY[o.id];
+      for (const m of o.members) occ[gidx(ax + m.dx, ay + m.dy)] = -1;
+      for (let j = 0; j < nDisp; j++) {
+        const i = dispInst[j], g = freedG[j], s = gridSite[g];
+        occ[g] = i; sites[i] = s; posX[i] = s.px; posY[i] = s.py;
+        anchorX[objOf[i]] = s.x; anchorY[objOf[i]] = s.y;
+      }
       setAt(o, x, y);
-      for (const m of o.members) pos[m.inst] = [sites[m.inst].px, sites[m.inst].py];
+      for (const m of o.members) { posX[m.inst] = sites[m.inst].px; posY[m.inst] = sites[m.inst].py; }
     }
-    for (const [k, c] of newCosts) nets[k].cost = c;
-    for (const [j, d] of newDelays) tconns[j].d = d;
-    bb += dbb; tc += dtc;
+    for (let q = 0; q < nT; q++) {
+      const k = tNets[q];
+      netCostOf[k] = tNetCost[q];
+      for (let e = 0; e < 4; e++) { box[4 * k + e] = tBox[4 * q + e]; boxN[4 * k + e] = tBoxN[4 * q + e]; }
+    }
+    for (let q = 0; q < nTC; q++) cD[tConns[q]] = tConnDelay[q];
+    bb += dbbL; tc += dtcL;
   }
 
   // ---------------------------------------------------------------- annealing
   // initial temperature: 20 x the standard deviation of the cost changes of random moves
   const sample = [];
-  for (let k = 0; k < Math.max(50, movable.length); k++) { const mv = propose(); if (mv) sample.push(delta(mv.ch).d); }
+  for (let k = 0; k < Math.max(50, movable.length); k++) if (propose()) sample.push(delta());
   const mean = sample.reduce((a, b) => a + b, 0) / Math.max(1, sample.length);
   const sd = Math.sqrt(sample.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, sample.length));
   let T = 20 * sd || 1;
@@ -591,11 +756,10 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   for (;;) {
     let acc = 0, tried = 0;
     for (let k = 0; k < perT; k++) {
-      const mv = propose();
-      if (!mv) continue;
+      if (!propose()) continue;
       tried++;
-      const dl = delta(mv.ch);
-      if (dl.d <= 0 || random() < Math.exp(-dl.d / T)) { commit(mv, dl); acc++; }
+      const d = delta();
+      if (d <= 0 || random() < Math.exp(-d / T)) { commit(); acc++; }
     }
     moves += perT; temps++;
     critExp = 1 + 7 * Math.max(0, 1 - (rlim - 1) / Math.max(1, rlim0 - 1));
@@ -605,13 +769,13 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     T *= a > 0.96 ? 0.5 : a > 0.8 ? 0.9 : a > 0.15 ? 0.95 : 0.8;
     rlim = Math.min(Math.max(maxX, maxY), Math.max(1, rlim * (1 - 0.44 + a)));
     if (log && temps % 10 === 0) log(`T=${T.toFixed(4)} wirelength=${bb.toFixed(1)} delay=${dmax.toFixed(2)} accept=${a.toFixed(2)} rlim=${rlim.toFixed(1)}`);
-    if (T < 0.005 * totalCost() / Math.max(1, nets.length) || temps > 400) break;
+    if (T < 0.005 * totalCost() / Math.max(1, NN) || temps > 400) break;
   }
   // a last greedy pass (temperature 0)
-  for (let k = 0; k < perT; k++) { const mv = propose(); if (!mv) continue; const dl = delta(mv.ch); if (dl.d < 0) commit(mv, dl); }
+  for (let k = 0; k < perT; k++) { if (!propose()) continue; if (delta() < 0) commit(); }
   // the result: the wirelength (recomputed: no drift), and the estimated critical path
   reweight();
-  if (!tg) dmax = analyzeTiming(timingGraph(packed), pos, delays).dmax;
+  if (!tg) dmax = analyzeTiming(timingGraph(packed), posPairs(), delays).dmax;
   return finish();
 
   function finish() {
