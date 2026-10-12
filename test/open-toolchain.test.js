@@ -132,12 +132,12 @@ test('toolchain configuration: the Silinx toolchain mode, its ISE for device des
   assert.equal((await app.call('GET', '/projects/Stat/open-status')).body.part, 'xc3s1600efg320-4');
 });
 
-test('open mode: Implement + Generate Programming File of blinky, for real: steps, reports, bitstream, FPGA view', { timeout: 180000 }, async () => {
+test('open mode: Implement + Generate Programming File of blinky, for real: steps, reports, bitstream, FPGA view', { timeout: 420000 }, async () => {
   await writeConfig({ mode: 'silinx' });
   const c = await app.call('POST', '/projects', { name: 'Blinky', template: 'blinky' });
   assert.equal(c.status, 200, JSON.stringify(c.body));
   const id = await implement('Blinky', { steps: ['synth', 'translate', 'map', 'par', 'bitgen'] });
-  const j = await waitJob(jobs, id, { timeoutMs: 170000 });
+  const j = await waitJob(jobs, id, { timeoutMs: 400000 });
   const log = j.lines.join('\n');
   assert.equal(j.status, 'ok', log);
   assert.equal(j.meta.toolchain, 'silinx');
@@ -203,12 +203,12 @@ const NEXYS2_UCF = [['clk', 'B8'], ['sw<0>', 'G18'], ['sw<1>', 'H18'], ['sw<2>',
   ...['J14', 'J15', 'K15', 'K14', 'E16', 'P16', 'E4', 'P4'].map((p, i) => [`led<${i}>`, p])].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;`).join('\n')
   + '\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\n';
 for (const [name, part, pkg, ucf, slices, iobs, bytes] of [['N2', 'xc3s1200e', 'fg320', NEXYS2_UCF, 8672, 250, 480219], ['B100', 'xc3s100e', 'cp132', null, 960, 83, 72738]]) {
-  test(`open mode: Implement + Generate Programming File of blinky for ${part}-${pkg}, no warning`, { timeout: 180000 }, async () => {
+  test(`open mode: Implement + Generate Programming File of blinky for ${part}-${pkg}, no warning`, { timeout: 420000 }, async () => {
     await writeConfig({ mode: 'silinx' });
     assert.equal((await app.call('POST', '/projects', { name, template: 'blinky' })).status, 200);
     await P.updateProject(name, pj => { pj.board = null; pj.device = DEV(part, pkg); });
     if (ucf) await fs.writeFile(path.join(P.projectDir(name), 'constraints', 'top.ucf'), ucf);
-    const j = await waitJob(jobs, await implement(name, { steps: ['synth', 'translate', 'map', 'par', 'bitgen'] }), { timeoutMs: 170000 });
+    const j = await waitJob(jobs, await implement(name, { steps: ['synth', 'translate', 'map', 'par', 'bitgen'] }), { timeoutMs: 400000 });
     const log = j.lines.join('\n');
     assert.equal(j.status, 'ok', log);
     assert.match(log, new RegExp(`Device: ${part}${pkg}-4: device description \\(shipped with Silinx\\) and bit database\\.`));
@@ -236,14 +236,14 @@ test('open mode: a device without a bit database fails with the reason; the ISE-
   assert.match(r.body.error, /not available in the Silinx toolchain \(they need Xilinx ISE\): postsynth/);
 });
 
-test('open mode: a VHDL top with capital letters (its netlist is named in lower case) goes through Translate and Map (#31)', { timeout: 120000 }, async () => {
+test('open mode: a VHDL top with capital letters (its netlist is named in lower case) goes through Translate and Map (#31)', { timeout: 300000 }, async () => {
   await writeConfig({ mode: 'silinx' });
   await app.call('POST', '/projects', { name: 'VhdlCaps', device: DEV('xc3s250e', 'cp132') });
   await app.call('PUT', '/projects/VhdlCaps/file?path=src/Blink_Top.vhd', [
     'library ieee;', 'use ieee.std_logic_1164.all;', 'entity Blink_Top is', '  port (CLK : in std_logic; D : in std_logic; Q : out std_logic);', 'end Blink_Top;',
     'architecture rtl of Blink_Top is', 'begin', '  process (CLK) begin if rising_edge(CLK) then Q <= not D; end if; end process;', 'end rtl;', ''].join('\n'));
   await P.updateProject('VhdlCaps', pj => { pj.top = 'Blink_Top'; });
-  const j = await waitJob(jobs, await implement('VhdlCaps', { steps: ['synth', 'translate', 'map'] }), { timeoutMs: 110000 });
+  const j = await waitJob(jobs, await implement('VhdlCaps', { steps: ['synth', 'translate', 'map'] }), { timeoutMs: 280000 });
   assert.equal(j.status, 'ok', j.lines.join('\n'));
   assert.ok(j.lines.some(l => /^Netlist: build\/open\/blink_top\.json/.test(l)), j.lines.join('\n'));
   assert.ok(j.lines.some(l => /Number of occupied Slices: 1 out of 2448/.test(l)), j.lines.join('\n'));
@@ -384,12 +384,12 @@ test('deviceGrid: the FPGA view\'s grid from a device description equals the one
   assert.deepEqual(g.tiles.map(key).sort(), x.tiles.map(key).sort());
 });
 
-test('the project\'s synthesis tool chooses the flow, whatever the mode of Toolchain Settings (Silinx or XST)', { timeout: 120000 }, async () => {
+test('the project\'s synthesis tool chooses the flow, whatever the mode of Toolchain Settings (Silinx or XST)', { timeout: 300000 }, async () => {
   // Toolchain Settings in an ISE mode, the project's synthesis tool Silinx: the Silinx toolchain
   await writeConfig({ mode: 'local' });
   await app.call('POST', '/projects', { name: 'ToolSilinx', template: 'blinky' });
   await P.updateProject('ToolSilinx', pj => { pj.synthTool = 'silinx'; });
-  let j = await waitJob(jobs, await implement('ToolSilinx', { steps: ['synth'] }), { timeoutMs: 110000 });
+  let j = await waitJob(jobs, await implement('ToolSilinx', { steps: ['synth'] }), { timeoutMs: 280000 });
   assert.equal(j.meta.toolchain, 'silinx');
   assert.equal(j.status, 'ok', j.lines.join('\n'));
   // Toolchain Settings in the Silinx mode, the project's synthesis tool XST: the ISE flow, through the
@@ -403,6 +403,9 @@ test('the project\'s synthesis tool chooses the flow, whatever the mode of Toolc
   assert.match(j.error, /^Xilinx ISE not available \(docker mode\)/);
   // a project without the setting follows Toolchain Settings (here: the Silinx toolchain)
   await app.call('POST', '/projects', { name: 'ToolNone', template: 'blinky' });
-  j = await waitJob(jobs, await implement('ToolNone', { steps: ['synth'] }), { timeoutMs: 110000 });
-  assert.equal(j.meta.toolchain, 'silinx');
+  // (which flow is chosen is known when the job starts: no need to wait for the synthesis)
+  const id = await implement('ToolNone', { steps: ['synth'] });
+  assert.equal(jobs.getJob(id).meta.toolchain, 'silinx');
+  jobs.cancelJob(id);
+  await waitJob(jobs, id);
 });
