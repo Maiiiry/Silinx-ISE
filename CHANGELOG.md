@@ -11,6 +11,9 @@ In detail:
   used (a new project, a simulation, a bitstream, a board programmed) with GoatCounter, without
   cookies or personal data; the application and the downloaded file send nothing. *Help* ▸ *Tell Us
   Who You Are…* invites the users to say hello on GitHub Discussions (#150).
+- Browser edition: when Yosys crashes in the browser (out of memory, rather than an error of the
+  design), the synthesis is run once more with Yosys started afresh, and the message says what
+  happened (it said "Yosys failed: undefined") (#153).
 
 ## 15.10.7
 

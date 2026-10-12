@@ -7,7 +7,7 @@
 import { runOpenFlow } from '/core/open-flow-core.js';
 import { loadDevice } from '/core/fpga/device.js';
 import { dbFileNames, dbFilesFrom, makeBitDb } from '/core/fpga/bitdb.js';
-import { lineStream, asText } from '/core/synth-open.js';
+import { lineStream, asText, yosysError } from '/core/synth-open.js';
 import { parseXdl, fpgaModel, deviceGrid, MODEL_VERSION } from '/core/xdl.js';
 
 const fetchOk = async (url, what) => {
@@ -51,7 +51,8 @@ self.onmessage = async ({ data }) => {
         return Object.fromEntries(Object.entries(res).map(([k, v]) => [k, asText(v)]));
       } catch (e) {
         out(null);
-        throw Object.assign(new Error(e.code !== undefined ? `Yosys failed (exit code ${e.code})` : `Yosys failed: ${e.message}`), { code: e.code });
+        const { message, code } = yosysError(e);
+        throw Object.assign(new Error(message), { code });
       }
     };
     const store = { ...(files || {}) };

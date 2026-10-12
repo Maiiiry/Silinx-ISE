@@ -300,6 +300,21 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   return { top, files, cells, util: utilization(cells), warnings: [...warnings, ...log.filter(l => /^Warning:/.test(l))], log, depth: info };
 }
 
+/**
+ * What a failed Yosys run says (#153): { message, code, crash }. Yosys's own error exit has an exit
+ * code; anything else is a crash of its WebAssembly module, e.g. a C++ exception it does not catch
+ * (std::bad_alloc when the browser gives it no more memory), which reaches JavaScript as a
+ * WebAssembly.Exception, or a RangeError, without a usable message.
+ */
+export function yosysError(e) {
+  if (e?.code !== undefined) return { message: `Yosys failed (exit code ${e.code})`, code: e.code, crash: false };
+  const wasmException = typeof WebAssembly !== 'undefined' && WebAssembly.Exception && e instanceof WebAssembly.Exception;
+  const what = wasmException ? 'an exception inside its WebAssembly module that it does not handle (out of memory?)'
+    : typeof e?.message === 'string' && e.message ? e.message
+    : e?.name || (e != null && typeof e !== 'object' ? String(e) : `an error without a message (${Object.prototype.toString.call(e)})`);
+  return { message: `Yosys failed: ${what}`, code: undefined, crash: true };
+}
+
 /** Text of a Yosys output file (YoWASP gives strings, or bytes for binary files). */
 export const asText = v => (typeof v === 'string' ? v : v instanceof Uint8Array ? new TextDecoder().decode(v) : '');
 
