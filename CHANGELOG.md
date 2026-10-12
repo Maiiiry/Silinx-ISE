@@ -5,6 +5,26 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.3
 
+In short:
+
+- **Silinx in the browser at https://pmnmalo.github.io/Silinx-ISE/** (the single-file edition of the
+  latest release): a course page, Moodle for instance, links it as a URL (an uploaded HTML file is
+  filtered by Moodle and does not run).
+- **A fourth example, *clock***, set with the buttons; the Start page offers the four.
+- **The synthesis tool is a project setting:** *Silinx* (no ISE needed) by default for new projects,
+  or *XST*.
+- **Large designs build several times faster** with the Silinx toolchain (AES: about 6 minutes
+  instead of 40), and **circuits are faster** (register replication, a mapping for logic depth: EPFL
+  max 69.9 → 37.1 ns).
+- **More of the Spartan-3E:** every DCM site and more than one DCM per design, more DCM settings, the
+  side global buffers and the IOB registers measured; better clock placement.
+- **More VHDL and SystemVerilog:** packages, records, textio, extended identifiers, initial values as
+  in simulation; light8080 and NEORV32 now go through the whole open flow.
+- **The nightly checks guard the circuits' size and speed** on 38 open-source designs.
+- Many fixes, each a GitHub issue.
+
+In detail:
+
 - **A fourth example, *clock*** (Verilog): a digital clock on the 7-segment display (HH.MM, the
   decimal point blinking every second; 24- or 12-hour), set with the buttons (hours, minutes, seconds
   to zero to synchronise it with another clock, and a minutes-and-seconds view), with a self-checking
