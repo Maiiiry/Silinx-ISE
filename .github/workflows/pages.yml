@@ -2,12 +2,17 @@ name: Pages
 # The single-file edition (Silinx-ISE.html: no install, runs in the browser) published on GitHub
 # Pages, so that a course page (e.g. Moodle, as a URL resource) can link to it:
 #   https://pmnmalo.github.io/Silinx-ISE/
-# Built from the latest release tag, on every release and on demand (Actions ▸ Pages ▸ Run workflow).
+# Built from main after every CI run on main that passed (the commit CI tested; a release is a commit
+# of main too), and on demand (Actions ▸ Pages ▸ Run workflow: main's latest commit). A CI run that
+# failed or was cancelled (a newer push) publishes nothing: the site keeps the last commit that passed.
+# (The github-pages environment deploys from main only.)
 # (Uploading the HTML file to Moodle itself does not work: Moodle's filtering of uploaded HTML files
 # removes its <script> tags and shows the code as text.)
 on:
-  push:
-    tags: ['v*']
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -18,17 +23,17 @@ concurrency:
   cancel-in-progress: true
 jobs:
   build:
+    # after CI: only when it passed on a push to main (not a pull request's run)
+    if: github.event_name != 'workflow_run' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: The latest release
-        run: |
-          tag="${GITHUB_REF_NAME}"
-          case "$tag" in v*) ;; *) tag="$(git describe --tags --abbrev=0 --match 'v*')" ;; esac
-          echo "Publishing $tag"
-          git checkout -q "$tag"
+          # the commit CI tested (workflow_run), else main's latest commit
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+      - name: The commit published
+        run: git log -1 --format='Publishing %h %s (%ci)'
       - uses: actions/setup-node@v4
         with:
           node-version: 22

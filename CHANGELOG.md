@@ -7,8 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
-- **Silinx in the browser at https://pmnmalo.github.io/Silinx-ISE/** (the single-file edition of the
-  latest release): a course page, Moodle for instance, links it as a URL (an uploaded HTML file is
+- **Silinx in the browser at https://pmnmalo.github.io/Silinx-ISE/** (the single-file edition, rebuilt
+  from main after every CI run that passes, so the site always has the latest fixes): a course page, Moodle for instance, links it as a URL (an uploaded HTML file is
   filtered by Moodle and does not run).
 - **A fourth example, *clock***, set with the buttons; the Start page offers the four.
 - **The synthesis tool is a project setting:** *Silinx* (no ISE needed) by default for new projects,
