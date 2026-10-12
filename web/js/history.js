@@ -24,6 +24,7 @@ export function createHistory(api, hooks) {
   let cur = null;          // the command being recorded
   let pending = null;      // its end (an Undo clicked meanwhile waits for it)
   let quiet = 0;           // writes that are not recorded (the documents' saves, Undo / Redo themselves)
+  let applying = 0;        // an Undo / Redo writing the files and reopening their documents
   let project = null;
   const undoStack = [], redoStack = [];
   let chain = Promise.resolve();   // one command / undo / redo at a time
@@ -103,6 +104,25 @@ export function createHistory(api, hooks) {
     return true;
   }
 
+  // one Undo (from: the undo stack, to: the redo stack, side 'before') or Redo: the step moves from
+  // one stack to the other before its files are written (a command run while they are written then
+  // finds the stacks as they will be), and back if the user keeps the files changed since
+  async function step(from, to, side) {
+    if (pending) await pending;
+    if (!live() || !from.length) return null;
+    await hooks.flush?.();
+    const e = from.pop();
+    const moved = { ...e, at: Date.now() };
+    to.push(moved);
+    hooks.changed?.();
+    let ok = false;
+    applying++;
+    try { ok = await apply(e, side); } finally {
+      applying--;
+      if (!ok) { const i = to.indexOf(moved); if (i >= 0) to.splice(i, 1); from.push(e); hooks.changed?.(); }
+    }
+    return ok ? e : null;
+  }
   const live = () => hooks.project() === project;
   const running = () => (cur && cur.project === hooks.project() ? cur : null);
   return {
@@ -110,6 +130,8 @@ export function createHistory(api, hooks) {
     /** the documents' saves: not part of a command */
     unrecorded: async fn => { quiet++; try { return await fn(); } finally { quiet--; } },
     recording: () => !!cur,
+    /** a command, an Undo or a Redo is writing (its changes to the open documents are not the user's edits) */
+    busy: () => !!cur || applying > 0,
     // (a command still finishing counts: its Undo waits for it)
     canUndo: () => !!running() || (live() && undoStack.length > 0),
     canRedo: () => !running() && live() && redoStack.length > 0,
@@ -117,28 +139,8 @@ export function createHistory(api, hooks) {
     redoLabel: () => (live() ? redoStack.at(-1)?.label ?? null : null),
     lastAt: () => running()?.at || (live() ? undoStack.at(-1)?.at ?? 0 : 0),
     redoAt: () => (live() ? redoStack.at(-1)?.at ?? 0 : 0),
-    undo: () => serial(async () => {
-      if (pending) await pending;
-      if (!live() || !undoStack.length) return null;
-      await hooks.flush?.();
-      const e = undoStack.at(-1);
-      if (!await apply(e, 'before')) return null;
-      undoStack.pop();
-      redoStack.push({ ...e, at: Date.now() });
-      hooks.changed?.();
-      return e;
-    }),
-    redo: () => serial(async () => {
-      if (pending) await pending;
-      if (!live() || !redoStack.length) return null;
-      await hooks.flush?.();
-      const e = redoStack.at(-1);
-      if (!await apply(e, 'after')) return null;
-      redoStack.pop();
-      undoStack.push({ ...e, at: Date.now() });
-      hooks.changed?.();
-      return e;
-    }),
+    undo: () => serial(() => step(undoStack, redoStack, 'before')),
+    redo: () => serial(() => step(redoStack, undoStack, 'after')),
     reset,
   };
 }

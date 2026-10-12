@@ -120,3 +120,26 @@ test('another project: the history starts again', async () => {
   name = 'P';
   assert.ok(!h.canUndo(), 'cleared when another project ran a command');
 });
+
+test('a command run while an Undo is still writing: the stacks stay right (the Undo does not take the new command\'s step)', async () => {
+  let release = null;
+  const b = backend();
+  const h = createHistory(b.api, {
+    project: () => 'P', files: () => [...b.files.keys()],
+    restored: async () => { if (release === null) await new Promise(r => { release = r; }); },
+  });
+  assert.equal(h.busy(), false);
+  await h.run('First', () => b.api.writeFile('P', 'src/a.vhd', '1'));
+  const undoing = h.undo();
+  await new Promise(r => setTimeout(r, 10));
+  assert.equal(h.busy(), true, 'the Undo is writing');
+  assert.equal(h.redoLabel(), 'First', 'already on the redo stack');
+  await h.run('Second', () => b.api.writeFile('P', 'src/b.v', '2'));
+  release();
+  assert.equal((await undoing).label, 'First');
+  assert.equal(h.undoLabel(), 'Second');
+  assert.equal(h.redoLabel(), null, 'the new command cleared Redo');
+  await h.undo();
+  assert.equal(b.files.get('src/b.v'), 'B');
+  assert.equal(b.files.get('src/a.vhd'), 'A');
+});

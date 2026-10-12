@@ -1221,7 +1221,7 @@ export function activateDoc(doc) {
 // Editing always saves: a document with changes is written ~0.8 s after the last edit.
 export function setDirty(doc, dirty) {
   doc.dirty = dirty;
-  if (dirty) { doc._editedAt = Date.now(); doc._edits = (doc._edits || 0) + 1; }   // (Edit ▸ Undo: the last action was an edit or a removal?)
+  if (dirty) { if (!history.busy()) doc._editedAt = Date.now(); doc._edits = (doc._edits || 0) + 1; }   // (Edit ▸ Undo: the last action was an edit or a removal?)
   doc.tab.classList.toggle('dirty', dirty);
   clearTimeout(doc._autosave);
   if (dirty && doc.save) doc._autosave = setTimeout(() => flushDoc(doc, { auto: true }), 800);
