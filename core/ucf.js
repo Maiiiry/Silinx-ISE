@@ -328,8 +328,11 @@ const ALIASES = {
   leds: 'led', ld: 'led', switches: 'sw', switch: 'sw', sws: 'sw',
   buttons: 'btn', btns: 'btn', button: 'btn', segments: 'seg', sseg: 'seg', anodes: 'an', anode: 'an',
 };
-export function boardAutoAssign(ports, board) {
-  const assignments = {}, clocks = [], matched = [], unmatched = [];
+// byDirection: the ports no name matches (a, b, y of a student's schematic) take the board's free
+// switches then buttons (inputs) and LEDs (outputs), bit by bit, in the order of the ports;
+// returned in byDirection: [{ port, nets: [[net, resource label]] }]
+export function boardAutoAssign(ports, board, { byDirection = false } = {}) {
+  const assignments = {}, clocks = [], matched = [], unmatched = [], directed = [];
   const res = board?.resources || [];
   const byName = new Map(res.map(r => [r.name.toLowerCase(), r]));
   for (const p of ports) {
@@ -359,7 +362,39 @@ export function boardAutoAssign(ports, board) {
     }
     matched.push(p.name);
   }
-  return { assignments, clocks, matched, unmatched };
+  if (!byDirection) return { assignments, clocks, matched, unmatched, byDirection: directed };
+  // the ports left: by direction, on the pins no port took by name
+  const used = new Set(Object.values(assignments).map(a => String(a.loc).toUpperCase()));
+  const free = groups => res.filter(r => groups.includes(r.group)).sort((x, y) => groups.indexOf(x.group) - groups.indexOf(y.group))
+    .flatMap(r => r.pins.map((pin, i) => ({ r, pin, label: r.pins.length > 1 ? `${r.name}<${i}>` : r.name })));
+  const pools = { in: free(['Switches', 'Buttons']), out: free(['LEDs']) };
+  const left = [];
+  for (const name of unmatched) {
+    const p = ports.find(q => q.name === name);
+    const pool = p && pools[p.dir];
+    if (!pool) { left.push(name); continue; }
+    const width = p.width || 1, bus = !(width === 1 && (p.msb === null || p.msb === undefined));
+    const lo = bus ? Math.min(p.msb, p.lsb) : 0;
+    const nets = [];
+    for (let i = 0; i < width; i++) {
+      let s;
+      while ((s = pool.shift()) && used.has(String(s.pin).toUpperCase()));
+      if (!s) break;
+      used.add(String(s.pin).toUpperCase());
+      const net = bus ? bitName(p.name, lo + i) : bitName(p.name);
+      const a = { loc: s.pin };
+      if (s.r.pull) a.pull = s.r.pull;
+      if (s.r.drive) a.drive = s.r.drive;
+      if (s.r.slew) a.slew = s.r.slew;
+      assignments[net] = a;
+      nets.push([net, s.label]);
+    }
+    if (!nets.length) { left.push(name); continue; }
+    if (nets.length < width) left.push(`${p.name}[${lo + nets.length}..]`);
+    directed.push({ port: p.name, nets });
+    matched.push(p.name);
+  }
+  return { assignments, clocks, matched, unmatched: left, byDirection: directed };
 }
 
 // LOCs of a parsed UCF that are not pins of the given board (or of any of its resources).

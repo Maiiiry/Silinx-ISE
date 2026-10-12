@@ -2,7 +2,7 @@
 import { api } from './api.js';
 import { icons } from './icons.js';
 import { h, toast, confirmDlg } from './ui.js';
-import { generateUcf, parseUcf, bitName } from '/core/ucf.js';
+import { generateUcf, parseUcf, bitName, boardAutoAssign } from '/core/ucf.js';
 import { elaborate } from '/core/compile.js';
 import { S, app, setDirty } from './app.js';
 
@@ -132,30 +132,21 @@ export function mountPinPlanner(el, doc, top) {
     }
   }
 
+  // by name (clk, led, sw, btn, seg, an…), then the ports left by direction: inputs on the free
+  // switches and buttons, outputs on the LEDs (core/ucf.js boardAutoAssign)
   function autoAssign() {
-    const byName = new Map(board.resources.map(r => [r.name.toLowerCase(), r]));
-    const aliases = { clock: 'clk', clk_50mhz: 'clk', mclk: 'clk', clk: 'clk', leds: 'led', ld: 'led', switches: 'sw', switch: 'sw', sws: 'sw', buttons: 'btn', btns: 'btn', button: 'btn', segments: 'seg', sseg: 'seg', anodes: 'an', anode: 'an' };
-    let n = 0;
-    for (const p of ports) {
-      const key = p.name.toLowerCase();
-      let r = byName.get(key) || byName.get(aliases[key]) || (aliases[key] === 'clk' ? board.resources.find(x => x.group === 'Clock') : null);
-      if (!r) continue;
-      if (!p.bus) {
-        asg[bitName(p.name)] = { ...(asg[bitName(p.name)] || {}), loc: r.pins[0], pull: r.pull };   // I/O Std. stays default
-        if (r.group === 'Clock' && r.extra?.period && !clocks.some(c => c.net === bitName(p.name))) clocks.push({ net: bitName(p.name), period: parseFloat(r.extra.period), duty: 50 });
-        n++;
-      } else {
-        const lo = Math.min(p.msb, p.lsb);
-        for (let i = 0; i < Math.min(p.width, r.pins.length); i++) {
-          const net = bitName(p.name, lo + i);
-          asg[net] = { ...(asg[net] || {}), loc: r.pins[i], pull: r.pull, drive: r.drive, slew: r.slew };
-          n++;
-        }
-      }
-    }
+    const r = boardAutoAssign(ports.map(p => ({ name: p.name, dir: p.dir, width: p.width, msb: p.msb, lsb: p.lsb })), board, { byDirection: true });
+    for (const [net, a] of Object.entries(r.assignments)) asg[net] = { ...(asg[net] || {}), ...a };
+    for (const c of r.clocks) if (!clocks.some(x => x.net === c.net)) clocks.push(c);
     changed();
     render();
-    toast(`${n} I/Os assigned from ${board.name}`, 'ok');
+    const n = Object.keys(r.assignments).length;
+    const dirN = r.byDirection.reduce((k, d) => k + d.nets.length, 0);
+    const msg = [`${n} I/Os assigned from ${board.name}`];
+    if (dirN) msg.push(`${dirN} by direction (${r.byDirection.map(d => `${d.port} → ${d.nets.map(([, l]) => l).join(', ')}`).join('; ')})`);
+    if (r.unmatched.length) msg.push(`not assigned: ${r.unmatched.join(', ')}`);
+    toast(msg.join('; '), n ? 'ok' : 'error', 8000);
+    app.log(`I/O Pin Planning: ${msg.join('; ')}.`, r.unmatched.length || !n ? 'warn' : 'ok');
   }
 
   async function save() {

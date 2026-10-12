@@ -17,6 +17,12 @@ In detail:
   bar, the Design Summary and the start-up message. The site is published from main after every CI
   run that passed, before the release is tagged, and showed the next version as if it were
   released. A release's build shows the version alone (#135).
+- **A schematic alone in the project can be the top module:** *Set as Top Module* on a schematic,
+  ASM chart, state diagram or truth table without HDL generates its HDL (kept in sync, the drawing
+  staying the base) and makes it the top (#137).
+- **Auto-assign from Board works for any port names:** the ports no board name matches (a, b, y
+  of a schematic) go by direction onto the free pins: inputs on the switches, then the buttons;
+  outputs on the LEDs; the pin planner says which went where (#138).
 
 ## 15.10.5
 

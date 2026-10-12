@@ -387,3 +387,19 @@ uiTest('I/O Pin Planning and Check Constraints: VHDL extended identifiers (\\Mix
   assert.ok(log.includes('ERROR:ConstraintSystem - "constraints/bad.ucf" Line 1: NET "Mixed" is not found by ISE: XST names the port \'\\Mixed\\\' _Mixed_ in its netlist (use NET "_Mixed_")'), log);
   assert.ok(log.includes('WARNING:ConstraintSystem - "constraints/bad.ucf" Line 4: 1 port bit(s) of \'top\' have no LOC: _Mixed_'), log);
 });
+
+uiTest('I/O Pin Planning: Auto-assign from Board on ports no name matches (a, b, y): inputs on switches, outputs on LEDs', E, async (page) => {
+  const GATE = `library ieee; use ieee.std_logic_1164.all;
+entity gate is port (a, b : in std_logic; y : out std_logic); end gate;
+architecture rtl of gate is begin y <= a and b; end rtl;
+`;
+  await makeProject(env, { name: 'PpGate', files: { 'src/gate.vhd': GATE }, top: 'gate', board: 'basys2' });
+  await page.openProject('PpGate');
+  await page.eval(() => window.SilinxApp.openPinPlanner('gate'));
+  await page.waitFor(() => document.querySelector('.pp-bar > span:last-child')?.textContent === '0/3 I/Os assigned', [], { what: 'nothing assigned yet' });
+  await page.click('.pp-bar .btn', { text: 'Auto-assign from Board' });
+  await page.waitFor(() => document.querySelector('.pp-bar > span:last-child').textContent === '3/3 I/Os assigned', [], { what: 'all assigned' });
+  await page.waitConsole(/I\/O Pin Planning: 3 I\/Os assigned from Digilent Basys2; 3 by direction \(a → sw<0>; b → sw<1>; y → led<0>\)\./);
+  // saved into the UCF
+  await page.waitFor(async () => /NET "y"\s+LOC = "M5"/.test(await (await fetch('/api/projects/PpGate/file?path=constraints/top.ucf')).text()), [], { what: 'UCF written' });
+});

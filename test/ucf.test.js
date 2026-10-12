@@ -98,6 +98,19 @@ test('boardAutoAssign maps blinky ports to the Basys2 and locsNotOnBoard flags f
   const ucf = parseUcf(generateUcf({ ports, assignments: r.assignments, clocks: r.clocks }));
   assert.deepEqual(locsNotOnBoard(ucf.assignments, board), []);
   assert.deepEqual(locsNotOnBoard({ 'led<1>': { loc: 'E12' } }, board), [{ net: 'led<1>', loc: 'E12' }]);
+  // byDirection: the ports no name matches take the free switches / buttons (inputs) and LEDs (outputs)
+  const sw = rb.resources.find(x => x.name === 'sw').pins, btn = rb.resources.find(x => x.name === 'btn').pins, led = rb.resources.find(x => x.name === 'led').pins;
+  const gate = boardAutoAssign([{ name: 'a', dir: 'in', width: 1 }, { name: 'b', dir: 'in', width: 1 }, { name: 'y', dir: 'out', width: 1 }], board, { byDirection: true });
+  assert.deepEqual([gate.assignments.a.loc, gate.assignments.b.loc, gate.assignments.y.loc], [sw[0], sw[1], led[0]]);
+  assert.deepEqual(gate.byDirection, [{ port: 'a', nets: [['a', 'sw<0>']] }, { port: 'b', nets: [['b', 'sw<1>']] }, { port: 'y', nets: [['y', 'led<0>']] }]);
+  assert.deepEqual(gate.unmatched, []);
+  // the pins taken by name are skipped; a bus fills bit by bit, past the switches onto the buttons; too wide: the rest unassigned
+  const mix = boardAutoAssign([{ name: 'sw', dir: 'in', width: 2, msb: 1, lsb: 0 }, { name: 'd', dir: 'in', width: 8, msb: 7, lsb: 0 }, { name: 'led', dir: 'out', width: 8, msb: 7, lsb: 0 },
+    { name: 'q', dir: 'out', width: 1 }, { name: 'io', dir: 'inout', width: 1 }], board, { byDirection: true });
+  assert.deepEqual(Array.from({ length: 8 }, (_, i) => mix.assignments[`d<${i}>`].loc), [...sw.slice(2), ...btn.slice(0, 2)]);
+  assert.deepEqual(mix.unmatched, ['q', 'io'], 'no LED left for q; an inout is never guessed');
+  // without the option: as before
+  assert.deepEqual(boardAutoAssign([{ name: 'a', dir: 'in', width: 1 }], board).unmatched, ['a']);
 });
 
 // ---- checkUcf
