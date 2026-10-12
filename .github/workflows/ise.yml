@@ -1,0 +1,38 @@
+name: ISE
+# The tests against Xilinx ISE 14.7 (test/ise/*.test.js: the examples built by ISE on every device of
+# the Silinx toolchain with the expected warnings, Silinx's bitstreams byte-identical to ISE's and
+# ISE's DRC clean, the whole ISE flow through the REST API), on a self-hosted runner: a machine with
+# the ISE Docker image (xilinx/ise:14.7), registered to this repository with the label "ise".
+#
+# The repository is public: this workflow runs only code already on main (nightly, and by hand:
+# Actions ▸ ISE ▸ Run workflow), never a pull request's, and no other workflow may target the "ise"
+# label. The machine's name and address are not written anywhere: the runner reaches GitHub, not
+# the other way round.
+on:
+  schedule:
+    - cron: '47 3 * * *'      # after the nightly (03:17 UTC)
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ise
+  cancel-in-progress: false
+jobs:
+  ise:
+    # never from a fork, and only main
+    if: github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, ise]
+    timeout-minutes: 600
+    env:
+      SILINX_ISE_TESTS: '1'
+      SILINX_ISE_HOST: local    # the ISE Docker image on the runner itself
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Docker and the ISE image
+        run: docker image inspect --format '{{.Id}} {{.Size}}' "${SILINX_ISE_IMAGE:-xilinx/ise:14.7}"
+      - name: ISE tests
+        run: node --test --test-reporter=spec test/ise/*.test.js

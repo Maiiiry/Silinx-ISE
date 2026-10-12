@@ -6,6 +6,8 @@
 // no error and no warning. The open flow's own warnings are listed.
 //
 //   SILINX_ISE_HOST=user@host node scripts/check-open-flow.mjs [project folder [open-flow options] …]   (default: examples/blinky)
+//   SILINX_ISE_HOST=local …: the ISE Docker image on this machine (the self-hosted runner of
+//   .github/workflows/ise.yml), no ssh
 //   (also: SILINX_ISE_IMAGE, default xilinx/ise:14.7). Needs the device cache (~/.silinx/devices).
 // Options after a project folder go to its open flow (e.g. `examples/pong --seed 2 --timing-route 0`); the
 // same project may be given several times with different options. With SILINX_KEEP=1 the work
@@ -19,8 +21,9 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = process.env.SILINX_ISE_HOST;   // only from the environment, never written in a file
+const LOCAL = HOST === 'local';   // the image on this machine
 const IMAGE = process.env.SILINX_ISE_IMAGE || 'xilinx/ise:14.7';
-if (!HOST) { console.error('set SILINX_ISE_HOST=user@host (a machine with the ISE Docker image, reached by ssh with a key)'); process.exit(2); }
+if (!HOST) { console.error('set SILINX_ISE_HOST=user@host (a machine with the ISE Docker image, reached by ssh with a key), or SILINX_ISE_HOST=local (the image on this machine)'); process.exit(2); }
 // projects, each with the open-flow options that follow it
 const projects = [];
 for (const a of process.argv.slice(2)) {
@@ -48,16 +51,20 @@ for (const { dir, opts } of projects) {
 }
 if (!names.length) process.exit(1);
 
-// 2. ISE, on the remote host: xdl -xdl2ncd, drc, bitgen (CRC on and off)
+// 2. ISE, on the remote host (or here, SILINX_ISE_HOST=local): xdl -xdl2ncd, drc, bitgen (CRC on and off)
 // a folder of its own on the host (other checks may run there at the same time)
 const remote = `silinx-open-check/${path.basename(work)}`;
 fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(work, 'ise-open-check.sh'));
-ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
-run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${work}/`, `${HOST}:${remote}/`]);
-const out = ssh(`docker run --rm -v "$HOME/${remote}":/w ${IMAGE} bash /w/ise-open-check.sh /w ${names.join(' ')}`);
+let out;
+if (LOCAL) out = run('docker', ['run', '--rm', '--platform', 'linux/amd64', '-v', `${work}:/w`, IMAGE, 'bash', '/w/ise-open-check.sh', '/w', ...names]);
+else {
+  ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
+  run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${work}/`, `${HOST}:${remote}/`]);
+  out = ssh(`docker run --rm -v "$HOME/${remote}":/w ${IMAGE} bash /w/ise-open-check.sh /w ${names.join(' ')}`);
+  run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', '--include=*/', '--include=ise*.bit', '--include=drc.log', '--include=xdl2ncd.log', '--include=routed.twr', '--include=routed.dly', '--exclude=*', `${HOST}:${remote}/`, `${work}/`]);
+  ssh(`rm -rf ${remote}`);
+}
 process.stdout.write(out.split('\n').map(l => (l ? `  ISE ${l}` : l)).join('\n'));
-run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', '--include=*/', '--include=ise*.bit', '--include=drc.log', '--include=xdl2ncd.log', '--include=routed.twr', '--include=routed.dly', '--exclude=*', `${HOST}:${remote}/`, `${work}/`]);
-ssh(`rm -rf ${remote}`);
 
 // 3. Silinx's .bit against ISE's, from the same routed.xdl (the header's name, date and time are ISE's)
 for (const name of names) {

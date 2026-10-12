@@ -235,6 +235,9 @@ npm start          # http://127.0.0.1:8642  (node bin/silinx-ise.js serve --open
 
 Projects live in `~/Silinx-projects` (override with `SILINX_WORKSPACE`). Pushing a tag `vX.Y.Z`
 runs the tests and publishes a release with the files above (`.github/workflows/release.yml`).
+The tests against ISE (`test/ise/`) run nightly, and on demand (Actions ▸ ISE ▸ Run workflow), on
+a self-hosted runner with the ISE Docker image (label `ise`, `.github/workflows/ise.yml`); only code
+already on main runs there, never a pull request's.
 
 ### Command line
 
@@ -245,7 +248,7 @@ node bin/silinx-ise.js ucf   <projectDir> --board basys2              # constrai
 node bin/silinx-ise.js toolchain [--docker xilinx/ise:14.7]          # show / set the ISE toolchain
 npm test                                                         # test suite
 SILINX_ISE_TESTS=1 npm run test:ise                              # the real ISE flow (Docker image; SILINX_ISE_HOST=user@host: on another machine)
-SILINX_ISE_HOST=user@host npm run check:open-flow [projects…]   # the open flow vs ISE: DRC, byte-identical bitstreams
+SILINX_ISE_HOST=user@host npm run check:open-flow [projects…]   # the open flow vs ISE: DRC, byte-identical bitstreams (SILINX_ISE_HOST=local: the image here)
 node scripts/check-private-data.mjs [--history]                 # no personal data, secrets or Xilinx files (also run by npm test)
 npm run test:ui                                                  # UI tests (headless Chrome), incl. memory leaks (npm ci first)
 node --test --test-name-pattern='latch warning' test/ui/hints.test.js   # one UI test alone

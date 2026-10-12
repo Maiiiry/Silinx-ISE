@@ -18,7 +18,8 @@ import { spawnSync } from 'node:child_process';
 const IMAGE = process.env.SILINX_ISE_IMAGE || 'xilinx/ise:14.7';
 const enabled = process.env.SILINX_ISE_TESTS === '1';
 // the host only from the environment (never written in a file)
-const HOST = /^(?:([\w.-]+)@)?([\w.:-]+)$/.exec(process.env.SILINX_ISE_HOST || '');
+// (local: the image on this machine, as without SILINX_ISE_HOST)
+const HOST = process.env.SILINX_ISE_HOST === 'local' ? null : /^(?:([\w.-]+)@)?([\w.:-]+)$/.exec(process.env.SILINX_ISE_HOST || '');
 const haveImage = enabled && (HOST
   ? spawnSync('ssh', ['-o', 'BatchMode=yes', '--', process.env.SILINX_ISE_HOST, `export PATH="$PATH:/usr/local/bin"; docker image inspect --format '{{.Id}}' ${IMAGE}`], { encoding: 'utf8' }).status === 0
   : spawnSync('docker', ['image', 'inspect', '--format', '{{.Id}}', IMAGE], { encoding: 'utf8' }).status === 0);

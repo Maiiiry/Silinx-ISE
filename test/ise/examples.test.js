@@ -7,6 +7,7 @@
 //     (scripts/check-open-flow.mjs).
 //
 //   SILINX_ISE_TESTS=1 SILINX_ISE_HOST=user@host node --test test/ise/examples.test.js
+//   SILINX_ISE_HOST=local: the image on this machine (the self-hosted runner, .github/workflows/ise.yml)
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -18,8 +19,9 @@ import { EXAMPLES, TARGETS, ROOT, exampleProject } from '../examples-lib.mjs';
 const IMAGE = process.env.SILINX_ISE_IMAGE || 'xilinx/ise:14.7';
 const enabled = process.env.SILINX_ISE_TESTS === '1';
 // the host only from the environment (never written in a file)
-const HOST = /^(?:([\w.-]+)@)?([\w.:-]+)$/.exec(process.env.SILINX_ISE_HOST || '');
-const skip = !enabled ? 'set SILINX_ISE_TESTS=1 to run the ISE tests' : !HOST ? 'set SILINX_ISE_HOST=user@host (the machine with the ISE Docker image)' : false;
+const LOCAL = process.env.SILINX_ISE_HOST === 'local';
+const HOST = LOCAL ? null : /^(?:([\w.-]+)@)?([\w.:-]+)$/.exec(process.env.SILINX_ISE_HOST || '');
+const skip = !enabled ? 'set SILINX_ISE_TESTS=1 to run the ISE tests' : !HOST && !LOCAL ? 'set SILINX_ISE_HOST=user@host (the machine with the ISE Docker image), or local (the image here)' : false;
 // known failures of the Silinx toolchain, with their issue
 const KNOWN = {};
 // the warnings ISE gives on each example (the same on every device): XST, map, par
@@ -38,7 +40,8 @@ before(() => {
   process.env.SILINX_CONFIG_DIR = path.join(tmp, 'cfg');
   fs.mkdirSync(process.env.SILINX_CONFIG_DIR, { recursive: true });
   fs.writeFileSync(path.join(process.env.SILINX_CONFIG_DIR, 'config.json'), JSON.stringify({
-    mode: 'ssh', ssh: { host: HOST[2], user: HOST[1] || '', remoteDir: 'silinx-ise-examples', image: IMAGE, settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh' } }));
+    ...(LOCAL ? { mode: 'docker', docker: { image: IMAGE, platform: 'linux/amd64', settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh' } }
+      : { mode: 'ssh', ssh: { host: HOST[2], user: HOST[1] || '', remoteDir: 'silinx-ise-examples', image: IMAGE, settings: '/opt/Xilinx/14.7/ISE_DS/settings64.sh' } }) }));
 });
 
 // ISE's warnings, without the parts that change from run to run or device to device
