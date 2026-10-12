@@ -5,6 +5,10 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.3
 
+- **The synthesis tool is a setting of the project** (New Project Wizard and Design Properties:
+  *Silinx*, no ISE needed, or *XST*, Xilinx ISE): new projects use Silinx. A project's processes
+  and its Implement Design follow it, whatever the execution mode of Toolchain Settings (XST runs
+  with the ISE set there); a project from before the setting follows Toolchain Settings.
 - **Open synthesis: constant function calls** of a function that reads no signal (verilog-lfsr's
   `lfsr_mask(n)` in a generate loop) are evaluated by the translator, their values literals: the
   CRC-32 synthesizes in 2.4 s (was 160 s) and the PRBS31 in 1.7 s (was 110 s), with the same cells

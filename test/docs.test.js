@@ -87,7 +87,7 @@ test('docs: the menu paths they give (File ▸ …, Tools ▸ …) are the inter
 });
 
 // ---- the Silinx toolchain
-const MODE_LABEL = /\['silinx', '([^']+)'\]/.exec(read('web/js/wizards.js'))[1];
+const MODE_LABEL = /\['silinx', '(Silinx toolchain[^']+)'\]/.exec(read('web/js/wizards.js'))[1];
 const boardsOf = pred => BOARDS.flatMap(b => (b.variants || [null]).map(v => {
   const short = b.name.replace(/^(Digilent|Xilinx|Numato) /, '').replace(/ \(.*\)$/, '');
   return { board: b.id, name: v ? `${short}-${v.id}` : short, device: v?.device || b.device };

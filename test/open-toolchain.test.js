@@ -354,3 +354,26 @@ test('deviceGrid: the FPGA view\'s grid from a device description equals the one
   const key = t => `${t.r},${t.c},${t.name},${t.type}:${t.sites.map(s => `${s.name}/${s.type}/${s.bonded}`).join(' ')}`;
   assert.deepEqual(g.tiles.map(key).sort(), x.tiles.map(key).sort());
 });
+
+test('the project\'s synthesis tool chooses the flow, whatever the mode of Toolchain Settings (Silinx or XST)', { timeout: 120000 }, async () => {
+  // Toolchain Settings in an ISE mode, the project's synthesis tool Silinx: the Silinx toolchain
+  await writeConfig({ mode: 'local' });
+  await app.call('POST', '/projects', { name: 'ToolSilinx', template: 'blinky' });
+  await P.updateProject('ToolSilinx', pj => { pj.synthTool = 'silinx'; });
+  let j = await waitJob(jobs, await implement('ToolSilinx', { steps: ['synth'] }), { timeoutMs: 110000 });
+  assert.equal(j.meta.toolchain, 'silinx');
+  assert.equal(j.status, 'ok', j.lines.join('\n'));
+  // Toolchain Settings in the Silinx mode, the project's synthesis tool XST: the ISE flow, through the
+  // ISE mode kept for it (open.iseMode: docker, no image here: not available, said so)
+  await writeConfig({ mode: 'silinx', open: { iseMode: 'docker' }, docker: { image: '' } });
+  await app.call('POST', '/projects', { name: 'ToolXst', template: 'blinky' });
+  await P.updateProject('ToolXst', pj => { pj.synthTool = 'xst'; });
+  j = await waitJob(jobs, await implement('ToolXst', { steps: ['synth'] }));
+  assert.equal(j.meta.toolchain, undefined);
+  assert.equal(j.status, 'error');
+  assert.match(j.error, /^Xilinx ISE not available \(docker mode\)/);
+  // a project without the setting follows Toolchain Settings (here: the Silinx toolchain)
+  await app.call('POST', '/projects', { name: 'ToolNone', template: 'blinky' });
+  j = await waitJob(jobs, await implement('ToolNone', { steps: ['synth'] }), { timeoutMs: 110000 });
+  assert.equal(j.meta.toolchain, 'silinx');
+});

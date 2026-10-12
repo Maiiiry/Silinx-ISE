@@ -479,7 +479,9 @@ const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'sum
 // The Silinx toolchain (Toolchain Settings: "Silinx toolchain (experimental, no ISE)"): Synthesize,
 // Implement Design and Generate Programming File run Silinx's own flow on the server; the processes
 // that need Xilinx ISE are disabled (their tooltip says why).
-export const openMode = () => S.toolchain?.config?.mode === 'silinx';
+// the project's synthesis tool (Design Properties: Silinx or XST), else Toolchain Settings' mode; never
+// in the single-file edition (no server: the Silinx toolchain runs on it)
+export const openMode = () => !api.standalone && (S.project?.synthTool ? S.project.synthTool === 'silinx' : S.toolchain?.config?.mode === 'silinx');
 const OPEN_SYNTH = 'Synthesize - Yosys';
 const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr', 'pin2ucf', 'tech']);
 const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';

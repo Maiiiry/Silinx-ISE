@@ -62,7 +62,7 @@ const PT = {
   'Select the device and design flow for the project.': 'Selecione o dispositivo e o fluxo de projeto.',
   'Evaluation Development Board:': 'Placa de Desenvolvimento:', 'Product Category:': 'Categoria de Produto:', 'Family:': 'Família:',
   'Device:': 'Dispositivo:', 'Package:': 'Encapsulamento:', 'Speed:': 'Velocidade:', 'Top-Level Source Type:': 'Tipo de Fonte de Topo:',
-  'Synthesis Tool:': 'Ferramenta de Síntese:', 'Simulator:': 'Simulador:', 'Preferred Language:': 'Linguagem Preferida:',
+  'Synthesis Tool:': 'Ferramenta de Síntese:', 'Silinx (VHDL/Verilog; no ISE needed)': 'Silinx (VHDL/Verilog; sem o ISE)', 'XST (VHDL/Verilog; Xilinx ISE)': 'XST (VHDL/Verilog; Xilinx ISE)', 'Simulator:': 'Simulador:', 'Preferred Language:': 'Linguagem Preferida:',
   'VHDL Source Analysis Standard:': 'Norma de Análise VHDL:', 'None Specified': 'Nenhuma', 'All': 'Todas',
   'Project name must start with a letter and contain only letters, digits and _.': 'O nome do projeto deve começar por uma letra e conter apenas letras, dígitos e _.',
   'No projects found in the workspace.': 'Não foram encontrados projetos na pasta de trabalho.',

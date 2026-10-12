@@ -82,6 +82,45 @@ uiTest('New Project wizard: every device family (no board), the device list foll
   assert.equal(await readWs(env, 'FromExample', 'src/counter.v').then((t) => /module prescaler/.test(t)), true);
 });
 
+uiTest('New Project wizard: the synthesis tool, Silinx by default (no ISE); Design Properties switches it to XST', E, async (page) => {
+  const procs = () => page.eval(() => [...document.querySelectorAll('#procs .row .lbl')].map((e) => e.textContent));
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'SynthTool');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Settings');
+  const tool = await page.eval(() => {
+    const l = [...document.querySelectorAll('.dlg-overlay .wiz-main label')].find((x) => x.textContent === 'Synthesis Tool:');
+    const sel = l.nextElementSibling;
+    return { value: sel.value, options: [...sel.options].map((o) => o.textContent) };
+  });
+  assert.deepEqual(tool, { value: 'silinx', options: ['Silinx (VHDL/Verilog; no ISE needed)', 'XST (VHDL/Verilog; Xilinx ISE)'] });
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Summary');
+  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main pre').textContent), /Synthesis Tool: {5}Silinx \(VHDL\/Verilog; no ISE needed\)/);
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'SynthTool', [], { what: 'project open' });
+  assert.equal(await page.eval(() => window.Silinx.project.synthTool), 'silinx');
+  // (Toolchain Settings here: an ISE mode) the project's processes are the Silinx toolchain's
+  await page.treeRow('#hier', 'top');
+  await page.waitFor(() => [...document.querySelectorAll('#procs .row .lbl')].some((e) => e.textContent === 'Synthesize - Yosys'), [], { what: 'Silinx processes' });
+  assert.ok(!(await procs()).includes('Synthesize - XST'));
+  // Design Properties: XST
+  await page.menu('Project', 'Design Properties…');
+  await page.waitDialog('Design Properties');
+  await page.eval(() => {
+    const l = [...document.querySelectorAll('.dlg-overlay label')].find((x) => x.textContent === 'Synthesis Tool:');
+    l.nextElementSibling.value = 'xst'; l.nextElementSibling.dispatchEvent(new Event('change'));
+  });
+  await page.dialogButton('OK');
+  await page.waitNoDialog();
+  await page.treeRow('#hier', 'top');
+  await page.waitFor(() => [...document.querySelectorAll('#procs .row .lbl')].some((e) => e.textContent === 'Synthesize - XST'), [], { what: 'XST processes' });
+  assert.equal((await env.server.api('GET', '/api/projects/SynthTool')).synthTool, 'xst');
+});
+
 uiTest('Start page: the three examples; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.waitForSelector('#start-page .start-box');

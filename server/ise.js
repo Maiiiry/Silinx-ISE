@@ -21,7 +21,7 @@ import { clocksOf, latchGates } from '../core/schematic.js';
 import { primitiveSources } from '../core/unisim.js';
 import { spawn } from 'node:child_process';
 import { runCommand, JobCancelled } from './jobs.js';
-import { loadConfig, detectIse, iseStatus, which } from './toolchain.js';
+import { loadConfig, detectIse, iseStatus, iseModeOf, which } from './toolchain.js';
 import { validateDevice } from './devices.js';
 import { parseBitHeader } from './programmer.js';
 
@@ -479,7 +479,10 @@ export async function runImplementation(job, { project, projectDir, steps, gener
     return result;
   }
 
-  const cfg = await loadConfig();
+  // the ISE flow also when Toolchain Settings is in the Silinx toolchain mode (a project whose
+  // synthesis tool is XST): its ISE mode (local, docker or ssh)
+  const cfg0 = await loadConfig();
+  const cfg = cfg0.mode === 'silinx' ? { ...cfg0, mode: iseModeOf(cfg0) } : cfg0;
   const det = { ise: detectIse(cfg), helpers: { bash: which('bash'), docker: which(cfg.docker.command || 'docker'), ssh: which('ssh'), rsync: which('rsync'), scp: which('scp'), tar: which('tar') } };
   const status = iseStatus(cfg, det);
   result.mode = cfg.mode;

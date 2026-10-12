@@ -70,8 +70,11 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
     const key = name.toLowerCase();   // case-insensitive file systems: one folder
     const running = implJobs.get(key);
     if (running && getJob(running)?.status === 'running') throw bad(`an implementation of '${name}' is already running (job ${running}); wait for it or cancel it`, 409);
-    // the Silinx toolchain (mode 'silinx'): no ISE, Silinx's own flow (server/open-flow.js)
-    const open = body.toolchain ? ['silinx', 'open'].includes(body.toolchain) : (await loadConfig()).mode === 'silinx';
+    // the Silinx toolchain (mode 'silinx'): no ISE, Silinx's own flow (server/open-flow.js). The
+    // request's toolchain, else the project's synthesis tool (synthTool: 'silinx' | 'xst'), else the
+    // execution mode of Toolchain Settings
+    const choice = body.toolchain || ({ silinx: 'silinx', xst: 'ise' })[project.synthTool];
+    const open = choice ? ['silinx', 'open'].includes(choice) : (await loadConfig()).mode === 'silinx';
     if (open) { try { steps = openSteps(body.steps); } catch (e) { throw bad(e.message); } }
     const job = open
       ? createJob('implement', j => runOpenImplementation(j, { project, projectDir, steps }), { meta: { project: name, steps, toolchain: 'silinx' } })

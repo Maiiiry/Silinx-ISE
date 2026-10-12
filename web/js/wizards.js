@@ -151,6 +151,9 @@ async function removeExistingProject(pname) {
   app.log(`Project '${pname}' replaced${api.standalone ? '' : ' (the old one is in the workspace .trash folder)'}.`, 'info');
 }
 
+// the synthesis tools of a project (Silinx: the Silinx toolchain's whole flow, no ISE; XST: Xilinx ISE)
+const SYNTH_TOOLS = [['silinx', 'Silinx (VHDL/Verilog; no ISE needed)'], ['xst', 'XST (VHDL/Verilog; Xilinx ISE)']];
+
 export async function newProjectWizard({ template = 'empty' } = {}) {
   const db = S.devices || await api.devices();
   const templates = await api.templates().catch(() => []);
@@ -188,6 +191,8 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
     dp.set(st.device);
     dp.disable(!!b);
   });
+  // the synthesis tool: Silinx (its own flow, no ISE) or XST (Xilinx ISE, as set in Toolchain Settings)
+  const synthSel = select(SYNTH_TOOLS, 'silinx');
   const langSel = select([['vhdl', 'VHDL'], ['verilog', 'Verilog']], 'vhdl');
   // the type of the top-level source: HDL, or a diagram / table whose HDL module is kept in sync
   const topType = select(TOP_TYPES.map(t => [t.id, t.label]), 'hdl');
@@ -213,7 +218,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
         ...field('Package:', dp.pkgSel),
         ...field('Speed:', dp.spdSel),
         ...field('Top-Level Source Type:', topType), topNote,
-        ...field('Synthesis Tool:', select(['XST (VHDL/Verilog)'], 'XST (VHDL/Verilog)')),
+        ...field('Synthesis Tool:', synthSel),
         ...field('Simulator:', select(['Silinx ISim-compatible (VHDL/Verilog)'], '')),
         ...field('Preferred Language:', langSel),
         ...field('VHDL Source Analysis Standard:', select(['VHDL-93', 'VHDL-2008'], 'VHDL-93')),
@@ -231,7 +236,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
         `Project Navigator will create a new project with the following specifications.\n\n` +
         `Project:\n  Project Name: ${name.value.trim()}\n  Template:     ${tplSel.value}\n\n` +
         `Device:\n  Board:        ${b ? b.name : 'None Specified'}\n  Family:       ${dp.familyName()}\n  Device:       ${dp.value().part.toUpperCase()}\n  Package:      ${dp.value().package.toUpperCase()}\n  Speed:        ${dp.value().speed}\n\n` +
-        `Flow:\n  Top-Level Source Type: ${TOP_TYPES.find(t => t.id === topType.value).label}\n  Synthesis Tool:     XST (VHDL/Verilog)\n  Simulator:          Silinx behavioural simulator\n  Preferred Language: ${langSel.value.toUpperCase()}`));
+        `Flow:\n  Top-Level Source Type: ${TOP_TYPES.find(t => t.id === topType.value).label}\n  Synthesis Tool:     ${SYNTH_TOOLS.find(t => t[0] === synthSel.value)[1]}\n  Simulator:          Silinx behavioural simulator\n  Preferred Language: ${langSel.value.toUpperCase()}`));
     },
   };
   const ok = await wizard('New Project Wizard', [p1, p2, p3]);
@@ -245,6 +250,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
     });
     pj.preferredLanguage = langSel.value;
     pj.topSourceType = topType.value;
+    pj.synthTool = synthSel.value;
     await api.saveProject(pj.name, pj);
     // a diagram / table top: its document and its synchronized HDL module 'top'
     const top = topType.value !== 'hdl' && tplSel.value === 'empty' ? await createTopSource(pj.name, topType.value, langSel.value) : null;
@@ -738,6 +744,8 @@ export async function projectProperties() {
     dp.disable(!!b);
   });
   const lang = select([['vhdl', 'VHDL'], ['verilog', 'Verilog']], pj.preferredLanguage || 'vhdl');
+  // a project from before the setting follows Toolchain Settings
+  const synth = select(SYNTH_TOOLS, pj.synthTool || (S.toolchain?.config?.mode === 'silinx' ? 'silinx' : 'xst'));
   const r = await dialog({
     title: 'Design Properties', width: 520,
     body: h('div', { class: 'form-grid' },
@@ -747,6 +755,7 @@ export async function projectProperties() {
       ...field('Device:', dp.partSel), ...field('Package:', dp.pkgSel), ...field('Speed:', dp.spdSel),
       ...field('Top Module (implementation):', h('span', {}, pj.top || '(none)')),
       ...field('Top-Level Source Type:', h('span', {}, TOP_TYPES.find(t => t.id === (pj.topSourceType || 'hdl'))?.label || 'HDL')),
+      ...field('Synthesis Tool:', synth),
       ...field('Preferred Language:', lang)),
   });
   if (!r) return;
@@ -754,6 +763,7 @@ export async function projectProperties() {
   pj.board = boardSel.value || null;
   pj.device = dp.value();
   pj.preferredLanguage = lang.value;
+  pj.synthTool = synth.value;
   await app.saveProjectJson();
   await app.reloadProject();
   app.log(`Device set to ${pj.device.part}${pj.device.speed}-${pj.device.package}${pj.board ? ` (board ${pj.board})` : ''}.`, 'info');
