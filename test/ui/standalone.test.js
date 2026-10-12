@@ -362,3 +362,54 @@ uiTest('browser edition without the File System Access API (Firefox, Safari): Op
   await newProject(page, 'NoFolder', 'blinky');
   assert.ok(await page.eval(() => JSON.parse(localStorage.getItem('silinx.standalone.fs')).NoFolder.json.name === 'NoFolder'));
 }, { url: () => 'about:blank', skip: chromeOnly });
+
+// a new project from an example in the browser edition (the site): the New Project wizard
+async function newSiteProject(page, name, example) {
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
+  await page.fill('.dlg-overlay .wiz-main select', example, { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor((n) => window.Silinx.project?.name === n && window.Silinx.project.top, [name]);
+  await page.click('input[name=view][value=impl]');
+}
+
+uiTest('browser edition: Back-annotate Pin Locations runs the Silinx toolchain in the browser and writes the placer\'s pins into the UCF (#118)', E, async (page) => {
+  await newSiteProject(page, 'WebPins', 'blinky');
+  // no board (its pins would be required), the UCF without the LOCs of four LEDs and a switch
+  const ucf = (await fs.readFile(path.join(ROOT, 'examples/blinky/constraints/top.ucf'), 'utf8'))
+    .split('\n').map((l) => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
+  await page.eval(async (text) => {
+    window.Silinx.project.board = null;
+    await window.SilinxApp.saveProjectJson();
+    const d = await window.SilinxApp.openFile('constraints/top.ucf');
+    d.editor.setValue(text);
+    await window.SilinxApp.saveAll();
+  }, ucf);
+  await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
+  await page.waitDialog('Back-annotate Pin Locations', { timeout: 120000 });
+  const pins = ['NET "led<4>" LOC = "H12";', 'NET "led<5>" LOC = "H13";', 'NET "led<6>" LOC = "J13";', 'NET "led<7>" LOC = "G13";', 'NET "sw<3>" LOC = "J14";'];
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .msg-text').textContent),
+    `Add the 5 pin location(s) chosen by the tools to constraints/top.ucf?\n\n${pins.join('\n')}`);
+  const log = await page.consoleText();
+  for (const re of [/=== SILINX STEP par ===/, /=== SILINX STEP pin2ucf ===/, /Pin locations of 15 port bit\(s\), 5 of them chosen by the placer \(no LOC in the constraints\): build\/top_pins\.ucf/])
+    assert.match(log, re);
+  assert.deepEqual(log.split('\n').filter((l) => /warning/i.test(l)),
+    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 22: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
+      'WARNING:Silinx - 5 port bit(s) have no LOC constraint (sw<3>, led<4>, led<5>, led<6>, led<7>): the Silinx toolchain chooses their pins - do NOT program real hardware with this bitstream',
+      'Process "Back-annotate Pin Locations" completed successfully with 1 warning(s)']);
+  await page.dialogButton('Yes');
+  await page.waitConsole(/Back-annotated 5 pin location\(s\) into constraints\/top\.ucf\./);
+  const saved = await page.eval(async () => (await window.SilinxApp.openFile('constraints/top.ucf')).editor.getValue());
+  assert.equal(saved, `${ucf.replace(/\s*$/, '\n')}\n# Back-annotated pin locations (Silinx toolchain, ${new Date().toISOString().slice(0, 10)})\n${pins.join('\n')}\n`);
+  // built again from it: nothing more to add, no warning
+  await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
+  await page.waitConsole(/every port already has a LOC in the UCF \(nothing to add\)\./, { timeout: 120000 });
+  assert.deepEqual((await page.consoleText()).split('Back-annotated 5 pin location(s)').pop().split('\n').filter((l) => /warning/i.test(l)), []);
+}, { url: () => 'about:blank', timeout: 240000 });

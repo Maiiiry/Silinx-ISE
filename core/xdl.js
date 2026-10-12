@@ -127,6 +127,26 @@ export function parseXdl(text) {
   return out;
 }
 
+/**
+ * The pads of the ports in a placed design (parseXdl's structure: the Silinx toolchain's
+ * build/open/placed.xdl / routed.xdl, or ISE's xdl -ncd2xdl): what Xilinx pin2ucf reads from the
+ * .ncd. Each placed I/O site whose configuration names a PAD gives
+ * { net: the port bit as the UCF names it (led<3>), loc: the pad (M5), dir: 'in' | 'out' | 'inout' },
+ * in the order of the design.
+ */
+export function placedPins(design) {
+  const out = [];
+  for (const inst of design.insts || []) {
+    if (!inst.placed || !inst.site) continue;
+    const pad = (inst.cfg || []).find(c => c.attr === 'PAD' && c.name);
+    if (!pad) continue;
+    const has = a => (inst.cfg || []).some(c => c.attr === a && c.name);
+    const inb = has('INBUF') || inst.type === 'IBUF', outb = has('OUTBUF');
+    out.push({ net: pad.name, loc: inst.site.toUpperCase(), dir: inb && outb ? 'inout' : outb ? 'out' : 'in' });
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ writing XDL
 const q = x => `"${String(x).replace(/(["\\])/g, '\\$1')}"`;
 // a configuration string from its items (when the raw text is not known): colons and spaces in

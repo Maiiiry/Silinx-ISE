@@ -68,3 +68,57 @@ test('the browser edition\'s flow (in memory, the database as JSON) writes the b
   assert.equal(store['open/routed.xdl'], fs.readFileSync(path.join(outDir, 'routed.xdl'), 'utf8'));
   assert.ok(reports.at(-1).bit && reports.at(-1).timing?.met !== undefined, 'the report has the bitstream and the timing');
 });
+
+test('Back-annotate Pin Locations (pin2ucf): the placer\'s pads as UCF; built again from the back-annotated UCF, the pads stay where they were (#118)', { timeout: 300000 }, async () => {
+  const { parseXdl, placedPins } = await import('../core/xdl.js');
+  const { backAnnotateUcf } = await import('../core/ucf.js');
+  const device = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(spec.graph)).toString('utf8')));
+  const json = {};
+  for (const [k, f] of Object.entries(dbFileNames(spec.device, spec.pkg))) {
+    const p = path.join(DB_DIR, f);
+    json[k] = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null;
+  }
+  const db = makeBitDb(dbFilesFrom(json, spec.pkg), device, spec.part);
+  const run = async (ucf, steps) => {
+    const store = {}, lines = [], reports = [];
+    const io = {
+      log: l => lines.push(l),
+      sources: () => sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') })),
+      ucf, ucfName: 'top.ucf', device: () => device, bitDb: () => db, yosys: yosysNode,
+      write: (name, data) => { store[name] = data; return `build/${name}`; },
+      read: name => (typeof store[name] === 'string' ? store[name] : null),
+      save: rep => reports.push(rep),
+    };
+    const res = await runOpenFlow({ ...spec, steps }, io);
+    assert.ok(res.ok, `${res.error}\n${lines.join('\n')}`);
+    assert.deepEqual(lines.filter(l => /^=== SILINX/.test(l)), [...steps.map(s => `=== SILINX STEP ${s} ===`), '=== SILINX DONE ===']);
+    assert.deepEqual(lines.filter(l => /warning/i.test(l)), []);
+    return { store, lines, report: reports.at(-1) };
+  };
+  // blinky's UCF without the LOCs of four LEDs and a switch (their I/O standard kept)
+  const full = fs.readFileSync(path.join(PJ, project.constraints), 'utf8');
+  const ucf = full.split('\n').map(l => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
+  assert.equal(ucf.split('\n').filter(l => /LOC =/.test(l)).length, 10);
+  const steps = ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf'];
+  const one = await run(ucf, steps);
+  assert.ok(one.lines.includes('Pin locations of 15 port bit(s), 5 of them chosen by the placer (no LOC in the constraints): build/top_pins.ucf'), one.lines.join('\n'));
+  assert.deepEqual(one.report.pinsUcf, { path: 'build/top_pins.ucf' });
+  const pinsText = one.store['top_pins.ucf'];
+  const placed = placedPins(parseXdl(one.store['open/routed.xdl']));
+  assert.equal(placed.length, 15);
+  assert.ok(pinsText.startsWith('# Pin locations of \'top\' on xc3s250ecp132-4: the pads of the placed design (Silinx toolchain), as Xilinx pin2ucf writes them\n\nNET "btn<0>" LOC = "G12" ;\n'), pinsText);
+  // the user's LOCs are where they asked
+  for (const [net, loc] of [['clk', 'B8'], ['led<0>', 'M5'], ['sw<2>', 'K3']]) assert.equal(placed.find(p => p.net === net).loc, loc, net);
+  // the UCF back-annotated: the five pins the placer chose added, the rest as written
+  const ports = [{ name: 'clk' }, { name: 'sw', width: 4, msb: 3, lsb: 0 }, { name: 'btn', width: 2, msb: 1, lsb: 0 }, { name: 'led', width: 8, msb: 7, lsb: 0 }];
+  const ba = backAnnotateUcf(ucf, pinsText, { ports, tool: 'Silinx toolchain', date: '2026-10-12' });
+  assert.deepEqual(ba.added.map(a => a.net), ['led<4>', 'led<5>', 'led<6>', 'led<7>', 'sw<3>']);
+  assert.deepEqual(ba.added.map(a => a.loc), ['led<4>', 'led<5>', 'led<6>', 'led<7>', 'sw<3>'].map(n => placed.find(p => p.net === n).loc));
+  assert.ok(ba.text.startsWith(ucf.replace(/\s*$/, '\n')));
+  // built again from it: every port on the pad it had, and the same pin file
+  const two = await run(ba.text, steps);
+  assert.ok(two.lines.includes('Pin locations of 15 port bit(s), 0 of them chosen by the placer (no LOC in the constraints): build/top_pins.ucf'), two.lines.join('\n'));
+  const byNet = (a, b) => a.net.localeCompare(b.net);
+  assert.deepEqual(placedPins(parseXdl(two.store['open/routed.xdl'])).sort(byNet), [...placed].sort(byNet));
+  assert.equal(two.store['top_pins.ucf'], pinsText);
+});

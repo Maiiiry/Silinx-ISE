@@ -370,6 +370,41 @@ export function locsNotOnBoard(assignments, board) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Back-annotated pin locations (Back-annotate Pin Locations): the pads the placer chose, written as
+// Xilinx pin2ucf writes them (build/<top>_pins.ucf), then added to the project's UCF for the ports
+// that have no LOC yet (the user's constraints are kept as written).
+
+/**
+ * The pin file of a placement: pins [{ net, loc }] (core/xdl.js placedPins; net as the UCF names it,
+ * buses as x<i>) as UCF text, one NET … LOC per port bit, sorted by name and bit.
+ * header: the comment at the top.
+ */
+export function pinsUcf(pins, { header = 'Pin locations chosen by the placer (Silinx toolchain)' } = {}) {
+  const list = [...pins].sort((a, b) => netCompare(a.net, b.net));
+  const w = Math.max(8, ...list.map(p => p.net.length + 2));
+  const lines = header.split('\n').map(h => `# ${h}`.trimEnd());
+  lines.push('', ...list.map(p => `NET ${q(p.net).padEnd(w)} LOC = ${q(p.loc)} ;`));
+  return lines.join('\n') + '\n';
+}
+
+/**
+ * Add the pins of a pin file (pinsText, pin2ucf's or pinsUcf's) to a UCF (ucfText, '' or null when
+ * there is none) for the nets that have no LOC in it (by name, case-insensitive); the UCF is kept
+ * as written, the new LOCs go to a block of their own at the end. ports: the top's (parseUcf).
+ * Returns { added: [{ net, loc }], lines: ['NET "x" LOC = "P1";' …], text } (text: null when
+ * nothing is added).
+ */
+export function backAnnotateUcf(ucfText, pinsText, { ports, tool = 'pin2ucf', date = new Date().toISOString().slice(0, 10) } = {}) {
+  const pins = parseUcf(pinsText, { ports }).assignments;
+  const cur = ucfText ? parseUcf(ucfText, { ports }).assignments : {};
+  const have = new Set(Object.keys(cur).filter(k => cur[k].loc).map(k => k.toLowerCase()));
+  const added = Object.entries(pins).filter(([net, a]) => a.loc && !have.has(net.toLowerCase())).map(([net, a]) => ({ net, loc: a.loc }));
+  const lines = added.map(({ net, loc }) => `NET "${net}" LOC = "${loc}";`);
+  const text = added.length ? `${ucfText?.trim() ? `${ucfText.replace(/\s*$/, '\n')}\n` : ''}# Back-annotated pin locations (${tool}, ${date})\n${lines.join('\n')}\n` : null;
+  return { added, lines, text };
+}
+
+// ---------------------------------------------------------------------------------------------
 // Constraint check (the UCF part of ISE's NGDBuild "ConstraintSystem" checks, before any build).
 //
 // checkUcf(text, { top, ports, lang, iostandards, board, package })

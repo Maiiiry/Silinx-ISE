@@ -484,7 +484,8 @@ const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'sum
 // (the browser edition: the Silinx toolchain, unless the project chose XST)
 export const openMode = () => (S.project?.synthTool ? S.project.synthTool === 'silinx' : api.standalone || S.toolchain?.config?.mode === 'silinx');
 const OPEN_SYNTH = 'Synthesize - Yosys';
-const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr', 'pin2ucf', 'tech']);
+// (Back-annotate Pin Locations is the Silinx toolchain's own: the pads its placer chose)
+const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr', 'tech']);
 const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';
 function forOpenMode(defs) {
   const conv = p => {
@@ -1124,29 +1125,32 @@ async function textPowerReport(mod) {
   const rel = `build/${S.project.top}.pwr`;
   try { showTextDoc(`${S.project.top}.pwr`, await api.readFile(S.project.name, rel)); } catch (e) { log(`WARNING: cannot read ${rel}: ${e.message}`, 'warn'); }
 }
-// Back-annotate Pin Locations: the pins chosen by the tools (pin2ucf) are added to the project's
-// UCF for the ports that have no LOC yet (existing LOCs are never changed).
+// Back-annotate Pin Locations: the pins chosen by the tools (ISE's pin2ucf; in the Silinx toolchain,
+// the pads its placer chose, written as pin2ucf writes them) are added to the project's UCF for the
+// ports that have no LOC yet (existing LOCs are never changed).
 async function backAnnotatePins(mod) {
   if (!await runImpl(mod, [...FLOW_UP_TO.par, 'pin2ucf'])) return;
   await loadUcfText();
-  const { parseUcf } = await import('/core/ucf.js');
-  let pins;
-  const ports = topUcfPorts();
-  try { pins = parseUcf(await api.readFile(S.project.name, `build/${S.project.top}_pins.ucf`), { ports }).assignments; } catch (e) { log(`WARNING: no pin file: ${e.message}`, 'warn'); return; }
-  const cur = S.ucfText ? parseUcf(S.ucfText, { ports }).assignments : {};
-  const have = new Set(Object.keys(cur).filter(k => cur[k].loc).map(k => k.toLowerCase()));
-  const add = Object.entries(pins).filter(([net, a]) => a.loc && !have.has(net.toLowerCase()));
+  const { backAnnotateUcf } = await import('/core/ucf.js');
+  let r;
+  try { r = backAnnotateUcf(S.ucfText, await readBuildFile(`build/${S.project.top}_pins.ucf`), { ports: topUcfPorts(), tool: openMode() ? 'Silinx toolchain' : 'pin2ucf' }); } catch (e) { log(`WARNING: no pin file: ${e.message}`, 'warn'); return; }
+  const { added: add, lines, text } = r;
   if (!add.length) { log('Back-annotate Pin Locations: every port already has a LOC in the UCF (nothing to add).', 'ok'); return; }
-  const lines = add.map(([net, a]) => `NET "${net}" LOC = "${a.loc}";`);
   if (!await confirmDlg('Back-annotate Pin Locations', `Add the ${add.length} pin location(s) chosen by the tools to ${S.project.constraints || 'the UCF'}?\n\n${lines.slice(0, 12).join('\n')}${add.length > 12 ? '\n…' : ''}`)) return;
   const file = S.project.constraints || `${S.project.top}.ucf`;
-  const text = `${(S.ucfText || '').replace(/\s*$/, '\n')}\n# Back-annotated pin locations (pin2ucf, ${new Date().toISOString().slice(0, 10)})\n${lines.join('\n')}\n`;
   await api.writeFile(S.project.name, file, text);
   S.ucfText = text;
   refreshOpenEditor(file, text);
   if (!S.project.constraints) { S.project.constraints = file; await saveProjectJson(); }
   await reloadProject(false);
   log(`Back-annotated ${add.length} pin location(s) into ${file}.`, 'ok');
+}
+// A file of the build: in the project's build/ folder (the server), or in the browser edition's memory
+// (its builds are not kept with the project)
+async function readBuildFile(rel) {
+  const t = api.buildFile ? await api.buildFile(S.project.name, rel) : await api.readFile(S.project.name, rel);
+  if (t == null) throw new Error(`file '${rel}' not found`);
+  return typeof t === 'string' ? t : new TextDecoder().decode(t);
 }
 function showTextDoc(title, text) {
   const id = `text:${title}`;

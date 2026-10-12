@@ -101,6 +101,10 @@ test('openSteps: the chain up to the last step; the ISE-only steps are refused',
   assert.deepEqual(OF.openSteps(['bitgen']), ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
   assert.deepEqual(OF.openSteps([]), ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
   assert.deepEqual(OF.openSteps(['fpgaview']), ['synth', 'translate', 'map', 'par', 'trce', 'fpgaview']);
+  // Back-annotate Pin Locations: the pins of the placement, after Place & Route, before the bitstream (#118)
+  assert.deepEqual(OF.openSteps(['synth', 'translate', 'map', 'par', 'pin2ucf']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf']);
+  assert.deepEqual(OF.openSteps(['pin2ucf']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf']);
+  assert.deepEqual(OF.openSteps(['bitgen', 'pin2ucf']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'bitgen', 'prombit']);
   assert.throws(() => OF.openSteps(['synth', 'postsynth', 'xpwr']), /not available in the Silinx toolchain \(they need Xilinx ISE\): postsynth, xpwr/);
 });
 

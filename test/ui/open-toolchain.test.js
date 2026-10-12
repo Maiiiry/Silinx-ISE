@@ -85,12 +85,12 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   const procs = await procLabels(page);
   assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
   assert.ok(!procs.some((p) => p.label === 'Synthesize - Yosys (open)' || p.label === 'Synthesize - XST'));
-  for (const l of ['Generate Post-Synthesis Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Text Power Report', 'Back-annotate Pin Locations', 'View Technology Schematic']) {
+  for (const l of ['Generate Post-Synthesis Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Text Power Report', 'View Technology Schematic']) {
     const p = procs.find((x) => x.label === l);
     assert.ok(p?.disabled, l);
     assert.equal(p.title, 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)');
   }
-  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Configure Target Device']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
+  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'Configure Target Device']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
   await setLang('pt');
   const ptProcs = await procLabels(page);
   assert.ok(ptProcs.some((p) => p.label === 'Sintetizar - Yosys'));
@@ -158,3 +158,51 @@ uiTest('open mode: a device without a bit database or without a shipped descript
   assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });
+
+// Back-annotate Pin Locations in the Silinx toolchain (#118): blinky without a board, its UCF without the
+// LOCs of four LEDs and a switch; the pads the placer chose are added to the UCF (after the preview);
+// built again, nothing more to add
+const BA_UCF = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '../../examples/blinky/constraints/top.ucf'), 'utf8')
+  .split('\n').map((l) => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
+const BA_PINS = ['NET "led<4>" LOC = "H12";', 'NET "led<5>" LOC = "H13";', 'NET "led<6>" LOC = "J13";', 'NET "led<7>" LOC = "G13";', 'NET "sw<3>" LOC = "J14";'];
+uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose into the UCF; Portuguese', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenPins', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
+  await page.openProject('OpenPins');
+  await reloadToolchain(page);
+  await page.click('input[name=view][value=impl]');
+  const proc = (await procLabels(page)).find((p) => p.label === 'Back-annotate Pin Locations');
+  assert.deepEqual(proc, { label: 'Back-annotate Pin Locations', disabled: false, title: '' });
+  await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
+  await page.waitDialog('Back-annotate Pin Locations', { timeout: 120000 });
+  const msg = () => page.eval(() => document.querySelector('.dlg-overlay .msg-text').textContent);
+  assert.equal(await msg(), `Add the 5 pin location(s) chosen by the tools to constraints/top.ucf?\n\n${BA_PINS.join('\n')}`);
+  const text = await page.consoleText();
+  assert.match(text, /=== SILINX STEP pin2ucf ===/);
+  assert.match(text, /Pin locations of 15 port bit\(s\), 5 of them chosen by the placer \(no LOC in the constraints\): build\/top_pins\.ucf/);
+  assert.deepEqual(text.split('\n').filter((l) => /warning/i.test(l)),
+    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 22: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
+      'WARNING: 5 port bit(s) have no LOC constraint (sw<3>, led<4>, led<5>, led<6>, led<7>): Silinx assigns free I/O pins automatically - do NOT program real hardware with this bitstream',
+      'Process "Back-annotate Pin Locations" completed successfully with 1 warning(s)']);
+  assert.equal(await page.eval(() => window.SilinxApp.S.status.pin2ucf), 'warn');
+  // Portuguese
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  await page.eval(TEXTS);
+  await setLang('en'); const en = await page.eval(() => window.__uiTexts(document.querySelector('.dlg-overlay')));
+  await setLang('pt'); const pt = await page.eval(() => window.__uiTexts(document.querySelector('.dlg-overlay')));
+  assert.deepEqual(untranslated(en, pt), []);
+  assert.equal(await msg(), `Adicionar a constraints/top.ucf as 5 localizações de pinos escolhidas pelas ferramentas?\n\n${BA_PINS.join('\n')}`);
+  await setLang('en');
+  await page.dialogButton('Yes');
+  await page.waitConsole(/Back-annotated 5 pin location\(s\) into constraints\/top\.ucf\./);
+  const ucf = await env.server.api('GET', '/api/projects/OpenPins/file?path=constraints%2Ftop.ucf');
+  assert.equal(ucf, `${BA_UCF.replace(/\s*$/, '\n')}\n# Back-annotated pin locations (Silinx toolchain, ${new Date().toISOString().slice(0, 10)})\n${BA_PINS.join('\n')}\n`);
+  // again: built from the back-annotated UCF (no warning about pins), nothing more to add
+  await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
+  await page.waitConsole(/every port already has a LOC in the UCF \(nothing to add\)\./, { timeout: 120000 });
+  const again = (await page.consoleText()).split('Back-annotated 5 pin location(s)').pop();
+  assert.match(again, /Process "Back-annotate Pin Locations" completed successfully\n/);
+  assert.deepEqual(again.split('\n').filter((l) => /warning/i.test(l)), []);
+  assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 240000 });

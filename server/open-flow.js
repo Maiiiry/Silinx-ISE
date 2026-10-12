@@ -11,6 +11,7 @@
 //   map        pack (cells into slices and I/O sites)
 //   par        place + route on the PIPs whose bits are known -> build/open/placed.xdl, routed.xdl
 //   trce       static timing analysis, PERIOD constraints of the UCF -> build/open/timing.txt
+//   pin2ucf    the pads the placer chose for the ports, as Xilinx pin2ucf -> build/<top>_pins.ucf
 //   bitgen     build/<top>.bit (prombit: build/<top>_prom.bit, StartUpClk Cclk, for the PROM)
 // The results go to build/reports.json (source 'open') for the Design Summary.
 //
@@ -40,9 +41,9 @@ const BITSTREAM_DEVICES = Object.keys(S3E_DEVICES);
 const supported = (dir = BIT_DB_DIR) => BITSTREAM_DEVICES.map(d => [d, hasBitDatabase(d, null, dir) ? dbPackages(d, dir) : []]).filter(([, p]) => p.length)
   .map(([d, p]) => `${d.toUpperCase()} (${p.join(', ').toUpperCase()})`).join(', ');
 
-/** The steps of the open flow (the ISE flow's names). The others (simulation models, power,
- *  back-annotated pins) need ISE. */
-export const OPEN_STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit', 'fpgaview'];
+/** The steps of the open flow (the ISE flow's names; pin2ucf: the pins the placer chose, as
+ *  build/<top>_pins.ucf). The others (simulation models, power) need ISE. */
+export const OPEN_STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'bitgen', 'prombit', 'fpgaview'];
 const CHAIN = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
 
 /** Does a bit database exist for this device (e.g. 'xc3s250e'), and with pkg for the pads of that
@@ -102,6 +103,11 @@ export function openSteps(steps) {
   if (bad.length) throw Object.assign(new Error(`not available in the Silinx toolchain (they need Xilinx ISE): ${bad.join(', ')}. Choose an ISE mode in Toolchain Settings.`), { status: 400 });
   const last = Math.max(-1, ...st.map(s => CHAIN.indexOf(s)));
   const out = CHAIN.slice(0, last + 1);
+  // the pins of the placement: after Place & Route (and its timing), before the bitstream
+  if (st.includes('pin2ucf')) {
+    if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
+    out.splice(out.indexOf('trce') + 1, 0, 'pin2ucf');
+  }
   if (st.includes('fpgaview')) {
     if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
     out.push('fpgaview');
@@ -133,7 +139,7 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
   await fs.mkdir(outDir, { recursive: true });
   // the outputs of the previous run: they no longer match the design (and a failure must not leave
   // a bitstream behind)
-  for (const f of [`${gen.top}.bit`, `${gen.top}_prom.bit`]) await fs.rm(path.join(gen.buildDir, f), { force: true });
+  for (const f of [`${gen.top}.bit`, `${gen.top}_prom.bit`, `${gen.top}_pins.ucf`]) await fs.rm(path.join(gen.buildDir, f), { force: true });
   for (const f of ['placed.xdl', 'routed.xdl', 'timing.txt', 'report.json', 'fpga-view.json']) await fs.rm(path.join(outDir, f), { force: true });
   const spec = {
     top: gen.top, part: status.part, device: status.device, family: deviceFamily(project.device) || 'spartan3e',
@@ -177,7 +183,8 @@ export async function openReports(buildDir, top, device) {
   try { r = JSON.parse(await fs.readFile(path.join(buildDir, 'open', 'report.json'), 'utf8')); } catch { /* the flow wrote nothing */ }
   const out = { generatedAt: base.generatedAt, top, device: device || null, source: 'open',
     synthesis: r.synthesis || undefined, map: r.map || undefined, par: r.par || undefined, timing: r.timing || undefined,
-    bit: r.bit && base.bit ? base.bit : undefined, prom: r.prom || undefined, simModels: {}, files: r.files || {} };
+    bit: r.bit && base.bit ? base.bit : undefined, prom: r.prom || undefined,
+    pinsUcf: r.pinsUcf && base.pinsUcf ? base.pinsUcf : undefined, simModels: {}, files: r.files || {} };
   out.summary = {
     synthesized: !!out.synthesis,
     mapped: !!out.map,

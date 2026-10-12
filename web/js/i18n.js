@@ -490,6 +490,8 @@ PT_PATTERNS.push(
   [/^The project starts with (\S+) \(the top module 'top'\), synchronized with its HDL module\.$/, "O projeto começa com $1 (o módulo de topo 'top'), sincronizado com o seu módulo HDL."],
   [/^(\S+) already exists\.\n\nReplace it\? Its current contents will be lost\.$/, '$1 já existe.\n\nSubstituir? O conteúdo atual perde-se.'],
   [/^(\S+) already exists: choose another name\.$/, '$1 já existe: escolha outro nome.'],
+  // Back-annotate Pin Locations: the pins to add to the UCF
+  [/^Add the (\d+) pin location\(s\) chosen by the tools to (.+?)\?\n\n([\s\S]*)$/, 'Adicionar a $2 as $1 localizações de pinos escolhidas pelas ferramentas?\n\n$3'],
 );
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards
