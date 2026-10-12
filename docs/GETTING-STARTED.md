@@ -13,8 +13,9 @@ No programming tools or git needed. Pick **one** of the two ways below.
 
 ## Way 1: the single file (simplest)
 
-The quickest: open **https://pmnmalo.github.io/Silinx-ISE/** in your browser (the latest version, rebuilt
-from main whenever its tests pass; your projects are kept in that browser) and go to step 4. Or download it, to work offline:
+The quickest: open **https://pmnmalo.github.io/Silinx-ISE/** in your browser (the latest release; your
+projects are kept in that browser. The development version, with the changes not released yet, is at
+https://pmnmalo.github.io/Silinx-ISE/dev/, its projects kept apart) and go to step 4. Or download it, to work offline:
 
 1. Open the **[latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Under **Assets**, click **`Silinx-ISE.html`** to download it.

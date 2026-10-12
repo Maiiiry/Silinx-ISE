@@ -17,7 +17,7 @@ import { orderExamples } from '../../core/examples.js';
 import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
-import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson, saveBuildResults, readBuildResults, BUILD_VIEW } from './project-store.js';
+import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson, saveBuildResults, readBuildResults, BUILD_VIEW, DEV_SITE } from './project-store.js';
 import { MODEL_VERSION } from '../../core/xdl.js';
 
 const fail = msg => { throw new Error(msg); };
@@ -30,8 +30,8 @@ const projectJson = async name => (await store.load(name)).json;
 
 // the workspace folder's handle, remembered in IndexedDB between visits (a test replaces this with
 // window.SILINX_WORKSPACE_HANDLES = { load, save }: a fake folder cannot be stored in IndexedDB)
-const PREF = 'silinx.standalone.storage';   // 'folder': the folder is the storage in use
-const IDB = { db: 'silinx-standalone', store: 'handles', key: 'workspace' };
+const PREF = DEV_SITE ? 'silinx.dev.standalone.storage' : 'silinx.standalone.storage';   // 'folder': the folder is the storage in use
+const IDB = { db: DEV_SITE ? 'silinx-dev-standalone' : 'silinx-standalone', store: 'handles', key: 'workspace' };
 function idb(mode, fn) {
   return new Promise((resolve, reject) => {
     const open = indexedDB.open(IDB.db, 1);
@@ -199,6 +199,7 @@ function xiseProject(name, xise, files = {}) {
 
 export const api = {
   standalone: true,
+  devSite: DEV_SITE,
   // ---- where the projects are kept
   storage: () => storageInfo(),
   // a deleted / replaced project goes to the workspace .trash folder (in the browser's storage: deleted)

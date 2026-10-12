@@ -13,8 +13,9 @@ Não precisa de ferramentas de programação nem de git. Escolha **uma** das dua
 
 ## Forma 1: um só ficheiro (a mais simples)
 
-O mais rápido: abra **https://pmnmalo.github.io/Silinx-ISE/** no browser (a última versão; os seus
-projetos ficam nesse browser) e passe ao passo 4. Ou descarregue-o, para trabalhar sem Internet:
+O mais rápido: abra **https://pmnmalo.github.io/Silinx-ISE/** no browser (a última versão lançada; os seus
+projetos ficam nesse browser. A versão em desenvolvimento, com as alterações ainda não lançadas, está em
+https://pmnmalo.github.io/Silinx-ISE/dev/, com os projetos à parte) e passe ao passo 4. Ou descarregue-o, para trabalhar sem Internet:
 
 1. Abra a **[última versão](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Em **Assets**, clique em **`Silinx-ISE.html`** para o descarregar.

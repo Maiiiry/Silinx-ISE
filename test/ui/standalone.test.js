@@ -47,7 +47,8 @@ before(async () => {
   // the site over HTTP, as GitHub Pages serves it (no Content-Encoding: the .json.gz are fetched as bytes)
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.gz': 'application/gzip' };
   server = http.createServer(async (req, res) => {
-    const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
+    // (dev/: the same site as the development edition of GitHub Pages, https://pmnmalo.github.io/Silinx-ISE/dev/)
+    const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '').replace(/^dev\//, '').replace(/^$/, 'index.html') || 'index.html';
     // (the simulated Digilent board of the programming test, the fake folder of the workspace folder tests)
     const TEST = { '__test/adept-sim.js': 'adept-sim.js', '__test/fs-access-fake.js': 'fs-access-fake.js' };
     const f = TEST[rel] ? path.join(ROOT, 'test/fixtures', TEST[rel]) : path.join(site, rel);
@@ -539,3 +540,30 @@ uiTest('browser edition: View Technology Schematic of blinky and pong: the netli
     assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-lut-eq').textContent), /^O = (0|1|!?I\d)/);
   }
 }, { url: () => 'about:blank', timeout: 400000 });
+
+uiTest('the site\'s development edition (dev/): says so, and keeps its projects apart from the stable edition\'s', E, async (page) => {
+  // a project in the stable edition's storage
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'stable boot' });
+  await page.eval(() => localStorage.setItem('silinx.standalone.fs', JSON.stringify({ Stable: { json: { name: 'Stable', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, files: [], top: '' }, files: {} } })));
+  // the development edition: its own storage (no Stable), a warning at start-up
+  await page.goto(`${siteUrl}dev/`);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'dev boot' });
+  await page.waitConsole(/Development edition \(built from main, not a release\): its projects are kept apart from the stable edition's, http:\/\/127\.0\.0\.1:\d+\/ /);
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'DevOnly');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'DevOnly');
+  const ls = await page.eval(() => ({ dev: Object.keys(JSON.parse(localStorage.getItem('silinx.dev.standalone.fs') || '{}')), stable: Object.keys(JSON.parse(localStorage.getItem('silinx.standalone.fs') || '{}')) }));
+  assert.deepEqual(ls, { dev: ['DevOnly'], stable: ['Stable'] });
+  // the stable edition: no warning, its own project only
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'stable boot again' });
+  assert.doesNotMatch(await page.consoleText(), /Development edition/);
+  assert.deepEqual(await page.eval(() => Object.keys(JSON.parse(localStorage.getItem('silinx.standalone.fs')))), ['Stable']);
+}, { url: () => 'about:blank' });

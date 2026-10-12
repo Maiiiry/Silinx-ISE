@@ -12,7 +12,11 @@
 export const PROJECT_FILE = 'silinx.json';
 export const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 export const DEFAULT_DEVICE = { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' };
-const BROWSER_KEY = 'silinx.standalone.fs';
+// the site's development edition (https://pmnmalo.github.io/Silinx-ISE/dev/, built from main): its
+// own browser storage, so that a development build never touches the stable edition's projects
+// (a workspace folder on the disk can still be opened by both)
+export const DEV_SITE = typeof location !== 'undefined' && /\/dev\//.test(location.pathname || '');
+const BROWSER_KEY = DEV_SITE ? 'silinx.dev.standalone.fs' : 'silinx.standalone.fs';
 
 const clone = o => JSON.parse(JSON.stringify(o));
 const fail = msg => { throw new Error(msg); };

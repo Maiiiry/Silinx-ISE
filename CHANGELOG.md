@@ -13,6 +13,9 @@ In detail:
   Listed first, before blinky, on the Start page, in the New Project wizard and in the browser
   edition (#140).
 - The Start page could list its commands and examples twice, when drawn twice at once (#141).
+- **https://pmnmalo.github.io/Silinx-ISE/ is always the latest release;** the development version
+  (main, after every CI run that passes) is at https://pmnmalo.github.io/Silinx-ISE/dev/, says so at
+  start-up and keeps its projects apart from the stable edition's (#145).
 
 ## 15.10.6
 

@@ -207,8 +207,8 @@ for Xilinx FPGAs supported by ISE 14.7.
 
 In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest):
 
-- **Just design and simulate:** open **https://pmnmalo.github.io/Silinx-ISE/** (the latest version of main, in the
-  browser), or download **`Silinx-ISE.html`** and double-click it. Nothing to install; projects are kept
+- **Just design and simulate:** open **https://pmnmalo.github.io/Silinx-ISE/** (the latest release, in the
+  browser; the development version of main is at https://pmnmalo.github.io/Silinx-ISE/dev/), or download **`Silinx-ISE.html`** and double-click it. Nothing to install; projects are kept
   in the browser, or (Chrome / Edge) in a folder on the disk with *File ▸ Open Workspace Folder…*, in
   the full application's project format. The site also synthesizes, places, routes and writes the bitstream (the Silinx
   toolchain, for the Spartan-3E boards), downloaded as a `.bit`, and programs it into the board's
