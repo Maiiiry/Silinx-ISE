@@ -29,7 +29,13 @@ That's all. Things to know:
 - On **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** and **Generate Programming
   File** run the Silinx toolchain in the browser (Basys2 and Nexys2 boards; the first run downloads
   its tools, about 100 MB, then the browser keeps them): the bitstream (`top.bit`) is downloaded.
-  Programming the board needs Way 2 (or Digilent Adept / iMPACT with that file).
+- **Program the board from the browser** (Chrome or Edge; Firefox and Safari cannot reach USB
+  devices): connect the board's USB cable, switch it on, then **Configure Target Device ▸ Program
+  FPGA** and choose the board in the list the browser shows (only the first time). On Windows, if
+  Digilent Adept is installed, its driver holds the board: give it the WinUSB driver with
+  [Zadig](https://zadig.akeo.ie) to use it from the browser. On Linux, allow access to the board with a
+  udev rule (`SUBSYSTEM=="usb", ATTR{idVendor}=="1443", MODE="0666"`). Storing the design in the
+  board's flash (PROM) needs Way 2.
 
 ---
 

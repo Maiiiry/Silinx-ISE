@@ -2,13 +2,15 @@
 // browser's localStorage. Used by the single-file build (dist/Silinx-ISE.html, on GitHub Pages).
 // Implement Design / Generate Programming File run the Silinx toolchain in the browser
 // (web/js/open-flow-browser.js: no server, no Xilinx tool); the build's files are kept in memory
-// (they are too large for localStorage) and the bitstream is downloaded. XST (Xilinx ISE) and
-// programming a board need the full application.
+// (they are too large for localStorage) and the bitstream is downloaded. Configure Target Device
+// programs the FPGA of a Digilent board over WebUSB (core/adept.js; Chrome / Edge). XST (Xilinx
+// ISE) and the Platform Flash need the full application.
 import { getDeviceDb } from '../../server/devices.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from '../../server/xise.js';
 import EXAMPLES from 'silinx-examples';
 import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
+import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
 
 const KEY = 'silinx.standalone.fs';
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
@@ -75,11 +77,33 @@ function fakeJob(kind, lines, status = 'error', error) {
 }
 const FULL_APP = 'the full Silinx application (run `npm start` in the Silinx folder and open http://127.0.0.1:8642; File > Download Project Bundle moves a project there)';
 const NEED_SERVER = [
-  'This is the browser (single HTML file) edition of Silinx.',
-  `Programming a board needs ${FULL_APP}.`,
+  'This is the browser (single HTML file) edition of Silinx: it programs the FPGA (Program FPGA), not the Platform Flash.',
+  `Programming the PROM needs ${FULL_APP}.`,
 ];
 // the job's error (the end of "<operation> failed: …")
-const NO_PROGRAMMER = 'the browser edition cannot reach the board\'s USB programmer: program it with the full Silinx application, or with Digilent Adept / iMPACT and the downloaded .bit';
+const NO_PROM = 'the Platform Flash (PROM) is programmed by the full Silinx application (the browser edition programs the FPGA)';
+const NO_WEBUSB = 'programming from the browser needs Chrome or Edge (WebUSB), with the page opened from https:// or http://localhost (not from a file); or program the downloaded .bit with the full Silinx application, Digilent Adept or iMPACT';
+// the board's Digilent USB (the user chooses it once; the browser remembers the permission)
+async function adeptDevice() {
+  const usb = globalThis.navigator?.usb;
+  if (!usb) fail(NO_WEBUSB);
+  const known = (await usb.getDevices()).filter(d => d.vendorId === ADEPT_VENDOR);
+  if (known.length) return known[0];
+  try { return await usb.requestDevice({ filters: ADEPT_FILTERS }); } catch (e) {
+    fail(e.name === 'NotFoundError' ? 'no board chosen: connect the board\'s USB cable, switch it on and choose it in the browser\'s list' : e.message);
+  }
+}
+// a job that talks to the board: its log lines, then ok or the error
+function usbJob(kind, run) {
+  const id = `local-${++jobSeq}`;
+  const job = { id, kind, status: 'running', lines: [], next: 0, error: null, result: null };
+  jobs.set(id, job);
+  const push = l => { job.lines.push(l); job.next = job.lines.length; };
+  run(push).then(result => { job.result = result; job.status = 'ok'; })
+    .catch(e => { const m = e.message.replace(/^Adept USB: /, ''); push(`ERROR: ${m}`); job.status = 'error'; job.error = m; });
+  return { job: id };
+}
+const bitOf = (project, bitfile) => { const b = builds.get(project)?.files[bitfile]; return b instanceof Uint8Array ? b : null; };
 const NEED_ISE = [
   'This project synthesizes with XST, which needs Xilinx ISE 14.7: not available in the browser edition.',
   'Choose Silinx as the synthesis tool (Project > Design Properties) to implement it here, with no Xilinx tool,',
@@ -198,10 +222,18 @@ export const api = {
   reports: async name => (builds.get(name)?.report || { available: false }),
   fpgaView: async name => (builds.get(name)?.view || { available: false, reason: 'no-ncd' }),
   buildFile: async (name, path) => builds.get(name)?.files[path],
-  bitinfo: async () => ({ available: false, reason: 'standalone edition' }),
-  program: async () => fakeJob('program', NEED_SERVER, 'error', NO_PROGRAMMER),
-  scan: async () => fakeJob('scan', NEED_SERVER, 'error', NO_PROGRAMMER),
-  prom: async () => fakeJob('prom', NEED_SERVER, 'error', NO_PROGRAMMER),
+  bitinfo: async name => {
+    const top = load()[name]?.json.top, bit = top && bitOf(name, `build/${top}.bit`), hd = bit && bitHeader(bit);
+    return hd ? { available: true, designName: hd.design, part: `${hd.part}${hd.package}`, date: hd.date, time: hd.time } : { available: false, reason: 'no bitstream in this browser' };
+  },
+  // { project, bitfile, bitData? (a .bit chosen from the disk) }
+  program: async ({ project, bitfile, bitData } = {}) => usbJob('program', async log => {
+    const bit = bitData || bitOf(project, bitfile);
+    if (!bit) fail(`no bitstream ${bitfile || ''} in this browser: run Generate Programming File first, or choose a .bit file`);
+    return programAdept(await adeptDevice(), bit, { part: project ? load()[project]?.json.device?.part : null, log });
+  }),
+  scan: async () => usbJob('scan', async log => scanAdept(await adeptDevice(), { log })),
+  prom: async () => fakeJob('prom', NEED_SERVER, 'error', NO_PROM),
   job: async (id, since = 0) => {
     const j = jobs.get(id) || fail(`job '${id}' not found`);
     return { ...j, lines: j.lines.slice(+since), next: j.lines.length };

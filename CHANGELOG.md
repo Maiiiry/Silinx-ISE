@@ -3,6 +3,16 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.4
+
+- **The browser edition programs the board:** on https://pmnmalo.github.io/Silinx-ISE/, *Configure
+  Target Device* ▸ *Program FPGA* loads the bitstream into the FPGA of a Basys2 or Nexys2 through the
+  board's own USB port, with nothing to install (WebUSB: Chrome or Edge; Firefox and Safari do not
+  offer it). *Initialize Chain* lists the board's JTAG chain, and *Choose .bit…* programs a bitstream
+  from the disk. The Platform Flash (PROM) is still programmed by the full application (#112).
+- The browser edition's messages about programming: no "install openFPGALoader…" at startup, and a
+  failed attempt says why instead of "see log" (#111).
+
 ## 15.10.3
 
 In short:

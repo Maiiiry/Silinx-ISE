@@ -29,7 +29,14 @@ projetos ficam nesse browser) e passe ao passo 4. Ou descarregue-o, para trabalh
 - Em **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** e **Generate Programming
   File** correm a cadeia de ferramentas Silinx no browser (placas Basys2 e Nexys2; a primeira vez
   descarrega as ferramentas, cerca de 100 MB, que o browser guarda): o bitstream (`top.bit`) é
-  descarregado. Programar a placa precisa da Forma 2 (ou do Digilent Adept / iMPACT com esse ficheiro).
+  descarregado.
+- **Programar a placa a partir do browser** (Chrome ou Edge; o Firefox e o Safari não acedem a
+  dispositivos USB): ligue o cabo USB da placa, ligue-a, e depois **Configure Target Device ▸ Program
+  FPGA** e escolha a placa na lista que o browser mostra (só na primeira vez). No Windows, se o
+  Digilent Adept estiver instalado, o controlador dele ocupa a placa: dê-lhe o controlador WinUSB com
+  o [Zadig](https://zadig.akeo.ie) para a usar a partir do browser. No Linux, permita o acesso à placa
+  com uma regra udev (`SUBSYSTEM=="usb", ATTR{idVendor}=="1443", MODE="0666"`). Guardar o desenho na
+  flash da placa (PROM) precisa da Forma 2.
 - A interface pode ser posta em português em **View ▸ Language**.
 
 ---

@@ -127,7 +127,7 @@ const PT = {
   'Match port names with board resources (clk, led, sw, btn, seg, an…)': 'Associar nomes de portos aos recursos da placa (clk, led, sw, btn, seg, an…)',
   'No board selected. Choose one in Project ▸ Design Properties to see the board resources and auto-assign pins.': 'Nenhuma placa selecionada. Escolha uma em Projeto ▸ Propriedades do Projeto para ver os recursos da placa e atribuir pinos automaticamente.',
   // iMPACT
-  'Programming tool:': 'Ferramenta de programação:', 'Configuration file (.bit):': 'Ficheiro de configuração (.bit):',
+  'Programming tool:': 'Ferramenta de programação:', 'Programmer:': 'Programador:', 'Choose .bit…': 'Escolher .bit…', 'Configuration file (.bit):': 'Ficheiro de configuração (.bit):',
   'Initialize Chain (Scan)': 'Inicializar Cadeia (Scan)', 'Program FPGA': 'Programar FPGA', 'Program PROM': 'Programar PROM', 'Verify': 'Verificar',
   'Erase': 'Apagar', 'Back up PROM': 'Copiar PROM', 'Reload FPGA from PROM': 'Recarregar FPGA a partir da PROM',
   'Verify after programming': 'Verificar após programar', 'Reload the FPGA from the PROM afterwards (mode jumper on ROM)': 'Recarregar a FPGA a partir da PROM no fim (jumper de modo em ROM)',

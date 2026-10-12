@@ -1030,7 +1030,7 @@ async function runImplInner(mod, steps, opts, pjName) {
       if (res.download && steps.includes('bitgen')) {
         const a = h('a', { href: res.download.url, download: res.download.filename });
         document.body.append(a); a.click(); a.remove();
-        log(`Bitstream downloaded: ${res.download.filename} (program the board with the full Silinx application, Digilent Adept or iMPACT).`, 'info');
+        log(`Bitstream downloaded: ${res.download.filename} (Configure Target Device programs the board with it).`, 'info');
       }
     } else if (res.status === 'ok') {
       setStatus(procId, 'warn');
@@ -3226,7 +3226,7 @@ async function boot() {
 
   updateTitle();
   log(`${PRODUCT} ${VERSION} Project Navigator — HDL design, schematics, behavioural simulation and Xilinx FPGA implementation/programming.`, 'info');
-  if (api.standalone) log('Browser edition: projects are stored in this browser (File > Download Project Bundle to keep a copy). Implement Design and Generate Programming File run the Silinx toolchain here (Spartan-3E); programming a board needs the full Silinx application (or Digilent Adept / iMPACT with the downloaded .bit).', 'info');
+  if (api.standalone) log('Browser edition: projects are stored in this browser (File > Download Project Bundle to keep a copy). Implement Design and Generate Programming File run the Silinx toolchain here (Spartan-3E); Configure Target Device programs the FPGA of the board over USB (Chrome / Edge).', 'info');
   try { S.devices = await api.devices(); } catch (e) { log(`ERROR: cannot reach the Silinx server: ${e.message}`, 'err'); }
   api.toolchain().then(tc => {
     S.toolchain = tc;

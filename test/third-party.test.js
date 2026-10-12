@@ -17,7 +17,7 @@ test('third-party notices are up to date with the installed production dependenc
   assert.match(out, /up to date \(\d+ components\)/);
 });
 
-test('every component has a known licence and its full text; CodeMirror and elkjs are marked standalone', () => {
+test('every component has a known licence and its full text; CodeMirror, elkjs and the adepttool port are marked standalone', () => {
   const md = fs.readFileSync(path.join(ROOT, 'THIRD-PARTY-NOTICES.md'), 'utf8');
   assert.ok(THIRD_PARTY.length > 10);
   for (const c of THIRD_PARTY) {
@@ -26,7 +26,7 @@ test('every component has a known licence and its full text; CodeMirror and elkj
     assert.ok(sec, `${c.name} has a section`);
     assert.ok(sec[1].length > 200 && !/no licence file/.test(sec[1]), `${c.name}: the licence text`);
   }
-  assert.deepEqual(THIRD_PARTY.filter(c => c.standalone).map(c => `${c.name}:${c.license}`).sort(), ['codemirror:MIT', 'elkjs:EPL-2.0']);
+  assert.deepEqual(THIRD_PARTY.filter(c => c.standalone).map(c => `${c.name}:${c.license}`).sort(), ['adepttool:MIT', 'codemirror:MIT', 'elkjs:EPL-2.0']);
   assert.match(md, /source code of elkjs \(EPL-2\.0\) is available at https:\/\/github\.com\/kieler\/elkjs/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   for (const d of Object.keys(pkg.dependencies)) assert.ok(THIRD_PARTY.some(c => c.name === d), `direct dependency ${d} listed`);

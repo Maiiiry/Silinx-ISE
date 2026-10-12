@@ -1,0 +1,74 @@
+// The Digilent Adept USB programmer over WebUSB (core/adept.js, the browser edition's programmer)
+// against a simulated board (test/fixtures/adept-sim.js: the Adept firmware and a JTAG chain of a
+// Spartan-3E and a Platform Flash): the chain scanned, a bitstream configured, the errors.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { scanAdept, programAdept, byterev, bitHeader } from '../core/adept.js';
+import { SimAdeptBoard } from './fixtures/adept-sim.js';
+
+// a .bit: a header, dummy words, the sync word, then the configuration
+function fakeBit(n = 4000, part = '3s250ecp132') {
+  const field = (k, v) => [k.charCodeAt(0), 0, v.length + 1, ...[...v].map(c => c.charCodeAt(0)), 0];
+  const head = Uint8Array.from([0, 9, 0x0f, 0xf0, 0x0f, 0xf0, 0x0f, 0xf0, 0x0f, 0xf0, 0, 0, 1, ...field('a', 'top.ncd;UserID=0xFFFFFFFF'), ...field('b', part),
+    ...field('c', '2026/10/12'), ...field('d', '14:05:00'), 0x65, 0, 0, 0x0f, 0xb0]);
+  const body = Uint8Array.from({ length: n }, (_, i) => (i * 37 + 11) & 0xff);
+  const bit = new Uint8Array(head.length + 8 + 4 + n);
+  bit.set(head); bit.fill(0xff, head.length, head.length + 8);
+  bit.set([0xaa, 0x99, 0x55, 0x66], head.length + 8);
+  bit.set(body, head.length + 12);
+  return { bit, sync: head.length + 8 };
+}
+
+test('byterev reverses the bits of each byte', () => {
+  assert.deepEqual([...byterev(new Uint8Array([0x01, 0x80, 0xaa, 0x0f]))], [0x80, 0x01, 0x55, 0xf0]);
+});
+
+test('scan: the Basys2\'s JTAG chain (XC3S250E, XCF02S) with the programmer\'s name and serial', async () => {
+  const board = new SimAdeptBoard();
+  const lines = [];
+  const r = await scanAdept(board, { log: l => lines.push(l) });
+  assert.deepEqual(r.devices.map(d => [d.name, d.kind]), [['xc3s250e', 'fpga'], ['xcf02s', 'prom']]);
+  assert.equal(r.product, 'Digilent Basys2');
+  assert.deepEqual(lines, [
+    'Programmer: Digilent Digilent Basys2 (serial 10146A2B3C4D)'.replace('Digilent Digilent', 'Digilent'),
+    'Position 1: XC3S250E (IDCODE 0x11c1a093)',
+    'Position 2: XCF02S (IDCODE 0xd5045093)',
+  ].map(l => l));
+  assert.equal(board.opened, false, 'the device is closed afterwards');
+});
+
+test('program: the FPGA takes the bitstream from its sync word, DONE goes high', async () => {
+  const board = new SimAdeptBoard();
+  const { bit, sync } = fakeBit();
+  const lines = [];
+  const r = await programAdept(board, bit, { part: 'xc3s250e', log: l => lines.push(l) });
+  assert.equal(r.fpga, 'xc3s250e');
+  assert.ok(board.done);
+  assert.deepEqual([...board.config], [...bit.subarray(sync)]);
+  assert.deepEqual(lines.slice(1), ['JTAG chain: XC3S250E → XCF02S', 'JPROGRAM: clearing the configuration', `CFG_IN: ${bit.length} bytes`, 'JSTART', 'DONE: the FPGA is configured']);
+  assert.equal(board.opened, false);
+});
+
+test('program: a Nexys2-500 (XC3S500E), a chain with the FPGA alone', async () => {
+  const board = new SimAdeptBoard({ fpga: 'xc3s500e', prom: null, product: 'Nexys2' });
+  const { bit, sync } = fakeBit(1001, '3s500efg320');
+  await programAdept(board, bit, { part: 'XC3S500E' });
+  assert.deepEqual([...board.config], [...bit.subarray(sync)]);
+});
+
+test('program: the errors (another FPGA, no sync word, the board in use)', async () => {
+  const { bit } = fakeBit();
+  await assert.rejects(programAdept(new SimAdeptBoard({ fpga: 'xc3s100e' }), bit, { part: 'xc3s250e' }),
+    /Adept USB: the board's FPGA is a XC3S100E, the bitstream is for a XC3S250E/);
+  const junk = new Uint8Array(500).fill(0x12);
+  await assert.rejects(programAdept(new SimAdeptBoard(), junk, { maxPolls: 20 }), /DONE did not go high: the bitstream was not accepted/);
+  await assert.rejects(programAdept(new SimAdeptBoard({ inUse: true }), bit), /the board cannot be opened \(Unable to claim interface\.\): another program may be using it/);
+});
+
+test('bitHeader: the design and part of a .bit; the part checked against the board\'s FPGA', async () => {
+  const { bit } = fakeBit();
+  assert.deepEqual(bitHeader(bit), { design: 'top.ncd', part: 'xc3s250e', package: 'cp132', date: '2026/10/12', time: '14:05:00' });
+  assert.equal(bitHeader(new Uint8Array([1, 2, 3])), null);
+  // the header's part wins over the one given
+  await assert.rejects(programAdept(new SimAdeptBoard({ fpga: 'xc3s500e' }), bit, { part: 'xc3s500e' }), /the board's FPGA is a XC3S500E, the bitstream is for a XC3S250E/);
+});

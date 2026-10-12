@@ -1,7 +1,8 @@
 // UI: the standalone single-file edition (scripts/build-standalone.mjs -> Silinx-ISE.html, built
 // here into a temp directory): it loads from file:// without a server, creates a project from an
 // example and simulates it; the site (--site: the page and the assets of the Silinx toolchain, as
-// GitHub Pages publishes it), served over HTTP, implements blinky in the browser down to the bitstream.
+// GitHub Pages publishes it), served over HTTP, implements blinky in the browser down to the bitstream and programs it into a
+// (simulated) Basys2 over WebUSB.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -39,8 +40,9 @@ before(async () => {
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.gz': 'application/gzip' };
   server = http.createServer(async (req, res) => {
     const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-    const f = path.join(site, rel);
-    if (!f.startsWith(site + path.sep)) { res.writeHead(403).end(); return; }
+    // (the simulated Digilent board of the programming test)
+    const f = rel === '__test/adept-sim.js' ? path.join(ROOT, 'test/fixtures/adept-sim.js') : path.join(site, rel);
+    if (!f.startsWith(site + path.sep) && !rel.startsWith('__test/')) { res.writeHead(403).end(); return; }
     try {
       const data = await fs.readFile(f);
       res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream' }).end(data);
@@ -92,11 +94,12 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   await page.waitConsole(/This project synthesizes with XST, which needs Xilinx ISE 14\.7: not available in the browser edition\./, { timeout: 15000 });
   await page.waitFor(() => !window.Silinx.busy);
   await page.eval(async () => { window.Silinx.project.synthTool = 'silinx'; await window.SilinxApp.saveProjectJson(); });
-  // programming: the reason at the end of the failure line, no "install openFPGALoader…" at startup
+  // programming with no bitstream yet: the reason at the end of the failure line; no "install
+  // openFPGALoader…" at startup
   assert.doesNotMatch(await page.consoleText(), /Programmers found/);
   await page.eval(() => window.SilinxApp.openImpact());
   await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
-  await page.waitConsole(/Programming FPGA \(SRAM\) failed: the browser edition cannot reach the board's USB programmer: program it with the full Silinx application, or with Digilent Adept \/ iMPACT and the downloaded \.bit/);
+  await page.waitConsole(/Programming FPGA \(SRAM\) failed: no bitstream build\/top\.bit in this browser: run Generate Programming File first, or choose a \.bit file/);
   assert.doesNotMatch(await page.consoleText(), /see log/);
   // edits are kept across a reload (localStorage)
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
@@ -145,6 +148,44 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
     assert.match(log, re);
   assert.doesNotMatch(log, /SILINX FAILED|Process failed/);
   // the bitstream is downloaded
-  const { size } = await fs.stat(await waitDownload(page, 'top.bit'));
-  assert.ok(size > 100_000, `top.bit downloaded (${size} bytes)`);
+  const bitFile = await waitDownload(page, 'top.bit');
+  const bit = await fs.readFile(bitFile);
+  assert.ok(bit.length > 100_000, `top.bit downloaded (${bit.length} bytes)`);
+
+  // Configure Target Device: Program FPGA over WebUSB. Without WebUSB (Firefox, Safari, a file): why not
+  await page.eval(() => Object.defineProperty(navigator, 'usb', { value: undefined, configurable: true }));
+  await page.eval(() => window.SilinxApp.openImpact());
+  await page.waitFor(() => /WebUSB/.test(document.querySelector('.doc:not([hidden])')?.innerText || ''), [], { what: 'iMPACT, browser edition' });
+  await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
+  await page.waitConsole(/Programming FPGA \(SRAM\) failed: programming from the browser needs Chrome or Edge \(WebUSB\)/);
+  // a Basys2 (simulated: its Adept USB firmware and JTAG chain) plugged in
+  await page.eval(async (url) => {
+    const { SimAdeptBoard, simUsb } = await import(url);
+    window.__board = new SimAdeptBoard({ fpga: 'xc3s250e', prom: 'xcf02s' });
+    Object.defineProperty(navigator, 'usb', { value: simUsb(window.__board), configurable: true });
+  }, `${siteUrl}__test/adept-sim.js`);
+  await page.click('.doc:not([hidden]) .btn', { text: 'Initialize Chain (Scan)' });
+  await page.waitConsole(/Scan finished\./);
+  const log2 = await page.consoleText();
+  assert.match(log2, /Position 1: XC3S250E \(IDCODE 0x11c1a093\)\s+Position 2: XCF02S \(IDCODE 0xd5045093\)/);
+  await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
+  await page.waitConsole(/'1': Programmed successfully\./, { timeout: 60000 });
+  assert.match(await page.consoleText(), /JTAG chain: XC3S250E → XCF02S\s+JPROGRAM: clearing the configuration\s+CFG_IN: \d+ bytes\s+JSTART\s+DONE: the FPGA is configured/);
+  // the FPGA took the downloaded bitstream, from its sync word
+  assert.ok(await page.eval(() => window.__board.done));
+  const sync = bit.indexOf(Buffer.from([0xaa, 0x99, 0x55, 0x66]));
+  assert.ok(sync > 0);
+  assert.equal(await page.eval(() => btoa(String.fromCharCode(...window.__board.config.subarray(0, 4096))) + window.__board.config.length),
+    bit.subarray(sync, sync + 4096).toString('base64') + (bit.length - sync));
+  // a .bit chosen from the disk (Choose .bit…), into another board (a Nexys2-500 would refuse it)
+  await page.eval(async (url) => {
+    const { SimAdeptBoard, simUsb } = await import(url);
+    window.__board = Object.assign(new SimAdeptBoard({ fpga: 'xc3s500e', prom: 'xcf04s', product: 'Nexys2' }), { granted: true });
+    Object.defineProperty(navigator, 'usb', { value: simUsb(window.__board), configurable: true });
+  }, `${siteUrl}__test/adept-sim.js`);
+  await page.setFiles('.doc:not([hidden]) input[type=file][accept=".bit"]', [bitFile]);
+  await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) input[type=text]')].some((i) => i.value === 'top.bit'), [], { what: 'top.bit chosen' });
+  await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
+  await page.waitConsole(/Programming FPGA \(SRAM\) failed: the board's FPGA is a XC3S500E, the bitstream is for a XC3S250E/);
+  assert.equal(await page.eval(() => window.__board.done), false);
 }, { url: () => 'about:blank', timeout: 240000 });

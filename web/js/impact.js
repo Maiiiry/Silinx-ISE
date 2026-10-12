@@ -30,6 +30,19 @@ export function mountImpact(el) {
   const promBox = h('div', { class: 'prom-box' });
   const fpgaBox = h('div', {});
   const help = h('div', { style: { background: '#fffbe6', border: '1px solid #e6d690', padding: '8px', margin: '8px 0', whiteSpace: 'pre-wrap' } });
+  // the browser edition: a .bit from the disk (its bytes go to the board over WebUSB)
+  let bitData = null;
+  const bitPick = h('input', { type: 'file', accept: '.bit', hidden: true });
+  bitPick.addEventListener('change', async () => {
+    const f = bitPick.files[0];
+    if (!f) return;
+    bitData = new Uint8Array(await f.arrayBuffer());
+    bitfile.value = f.name;
+    renderChain(); loadBitInfo();
+  });
+  const bitRow = api.standalone
+    ? h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center' } }, bitfile, h('button', { class: 'btn', onclick: () => bitPick.click() }, 'Choose .bit…'), bitPick)
+    : bitfile;
 
   const renderChain = () => {
     chainHost.innerHTML = '';
@@ -60,10 +73,18 @@ export function mountImpact(el) {
     selectDevice(Math.max(0, chain.findIndex(d => d.role === 'fpga')));
     renderHelp();
   });
-  bitfile.addEventListener('change', () => { renderChain(); loadBitInfo(); });
+  bitfile.addEventListener('change', () => { bitData = null; renderChain(); loadBitInfo(); });
 
   const renderHelp = () => {
     const p = board?.programmer;
+    if (api.standalone) {
+      help.textContent = 'The browser programs the FPGA through the board\'s own USB port (Digilent Basys2 / Nexys2), with WebUSB: Chrome or Edge, not Firefox or Safari. The first time, choose the board in the list the browser shows.\n'
+        + '• Windows: if Digilent Adept is installed, its driver holds the board; to use it from the browser, give it the WinUSB driver with Zadig (zadig.akeo.ie; Adept then no longer sees it until its driver is put back).\n'
+        + '• Linux: allow access to the board (a udev rule: SUBSYSTEM=="usb", ATTR{idVendor}=="1443", MODE="0666").\n'
+        + '• Close Adept, iMPACT or the Silinx application first: one program at a time can use the board.\n'
+        + 'The Platform Flash (PROM) is programmed by the full Silinx application.';
+      return;
+    }
     help.textContent = board
       ? `Board default programmer: ${p?.preferred} (falls back to an installed tool that uses the on-board USB).\n${Object.entries(p?.tools || {}).map(([k, v]) => `• ${k}: ${v.cable ? `cable ${v.cable}` : 'on-board USB'}${v.note ? ` — ${v.note}` : ''}${v.verified === false ? ' (unverified)' : ''}`).join('\n')}`
       : 'No board selected: choose the programming tool and cable explicitly.';
@@ -94,6 +115,7 @@ export function mountImpact(el) {
 
   const programFpga = () => runJob('Programming FPGA (SRAM)', () => api.program({
     project: pj?.name, tool: toolSel.value || undefined, cable: cable.value.trim() || undefined, board: board?.id, position: selPos + 1, bitfile: bitfile.value.trim(),
+    ...(bitData ? { bitData } : {}),
   }), "'1': Programmed successfully.");
 
   const prom = async op => {
@@ -109,7 +131,7 @@ export function mountImpact(el) {
   const loadBitInfo = async () => {
     if (!pj) return;
     const f = bitfile.value.trim();
-    if (f !== fpgaFile) { info.textContent = `Configuration file: ${f}`; return; }
+    if (f !== fpgaFile) { info.textContent = `Configuration file: ${f}${bitData ? ` (${bitData.length} bytes)` : ''}`; return; }
     try {
       const b = await api.bitinfo(pj.name);
       info.textContent = b.available ? `Bitstream: design ${b.designName || ''}, part ${b.part || ''}, built ${b.date || ''} ${b.time || ''}${b.warning ? `  ⚠ ${b.warning}` : ''}` : 'No bitstream yet — run "Generate Programming File" first (or enter the path of an existing .bit file).';
@@ -137,9 +159,9 @@ export function mountImpact(el) {
     h('h2', {}, 'iMPACT — Boundary Scan'),
     h('div', { class: 'form-grid', style: { maxWidth: '760px' } },
       h('label', {}, 'Board:'), boardSel,
-      h('label', {}, 'Programming tool:'), toolSel,
-      h('label', {}, 'Cable:'), cable,
-      h('label', {}, 'Configuration file (.bit):'), bitfile),
+      ...(api.standalone ? [h('label', {}, 'Programmer:'), h('span', {}, 'the board\'s USB (Digilent Adept), from the browser (WebUSB)')]
+        : [h('label', {}, 'Programming tool:'), toolSel, h('label', {}, 'Cable:'), cable]),
+      h('label', {}, 'Configuration file (.bit):'), bitRow),
     info, chainHost,
     h('div', { style: { margin: '6px 0' } }, h('button', { class: 'btn', onclick: scan }, 'Initialize Chain (Scan)')),
     fpgaBox, promBox,

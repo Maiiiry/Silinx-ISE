@@ -52,8 +52,15 @@ function describe(d) {
   return { name: d.name, version: d.version, license, url, text, standalone: STANDALONE.has(d.name), source: SOURCE[d.name] || null };
 }
 
+// code ported into Silinx (not an npm package): its licence, kept in scripts/licences/
+const PORTED = [
+  { name: 'adepttool', version: 'ported', license: 'MIT', url: 'https://github.com/mwkmwkmwk/adepttool', standalone: true,
+    note: 'core/adept.js (the Digilent Adept USB programmer over WebUSB) is a JavaScript port of its USB and JTAG code.' },
+];
+
 export function build() {
-  const comps = productionDeps().map(describe);
+  const ported = PORTED.map(c => ({ ...c, source: null, text: fs.readFileSync(path.join(root, 'scripts', 'licences', `${c.name}.txt`), 'utf8').replace(/\r\n/g, '\n').trim() }));
+  const comps = [...productionDeps().map(describe), ...ported].sort((a, b) => a.name.localeCompare(b.name));
   const own = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const md = [
     '# Third-party notices',
@@ -69,7 +76,7 @@ export function build() {
     '',
     ...comps.filter(c => c.source).map(c => `The source code of ${c.name} (${c.license}) is available at ${c.source}.`),
     '',
-    ...comps.flatMap(c => [`## ${c.name} ${c.version} — ${c.license}`, '', c.url, '', '```text', c.text || `(no licence file in the package; licence: ${c.license})`, '```', '']),
+    ...comps.flatMap(c => [`## ${c.name} ${c.version} — ${c.license}`, '', c.url, '', '```text', c.text || `(no licence file in the package; licence: ${c.license})`, '```', '', ...(c.note ? [c.note, ''] : [])]),
   ].join('\n');
   const js = [
     '// Silinx - open-source components shipped with Silinx ISE (shown in Help ▸ About).',
