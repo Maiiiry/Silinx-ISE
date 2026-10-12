@@ -66,7 +66,7 @@ const PT = {
   'New Project Wizard': 'Assistente de Novo Projeto', 'Create New Project': 'Criar Novo Projeto', 'Project Settings': 'Definições do Projeto',
   'Project Summary': 'Resumo do Projeto', 'Enter a name and location for the project.': 'Indique um nome e uma localização para o projeto.',
   'Name:': 'Nome:', 'Location:': 'Localização:', 'Top-level source type:': 'Tipo de fonte de topo:', 'Start from:': 'Começar a partir de:',
-  'Empty project': 'Projeto vazio', 'Projects are stored in the Silinx workspace folder (default ~/Silinx-projects).': 'Os projetos são guardados na pasta de trabalho do Silinx (por omissão ~/Silinx-projects).',
+  'Empty project': 'Projeto vazio', "Projects are kept in this browser's storage (File ▸ Open Workspace Folder… keeps them in a folder on the disk).": 'Os projetos ficam guardados neste browser (File ▸ Open Workspace Folder… guarda-os numa pasta do disco).', "Projects are kept in this browser's storage (a folder on the disk needs Chrome or Edge).": 'Os projetos ficam guardados neste browser (uma pasta do disco precisa do Chrome ou do Edge).', 'Projects are stored in the Silinx workspace folder (default ~/Silinx-projects).': 'Os projetos são guardados na pasta de trabalho do Silinx (por omissão ~/Silinx-projects).',
   'Select the device and design flow for the project.': 'Selecione o dispositivo e o fluxo de projeto.',
   'Evaluation Development Board:': 'Placa de Desenvolvimento:', 'Product Category:': 'Categoria de Produto:', 'Family:': 'Família:',
   'Device:': 'Dispositivo:', 'Package:': 'Encapsulamento:', 'Speed:': 'Velocidade:', 'Top-Level Source Type:': 'Tipo de Fonte de Topo:',
@@ -266,7 +266,7 @@ const PT_FF = [['synchronous set and reset (S over R)', 'set e reset síncronos 
   ['synchronous reset', 'reset síncrono'], ['synchronous set', 'set síncrono']];
 const PT_PATTERNS = [
   // the browser edition's workspace folder (its name)
-  [/^Reopen (.+)$/, 'Reabrir $1'], [/^In the folder (.+) on the disk\.$/, 'Na pasta $1 no disco.'], [/^Storage: folder (.+)$/, 'Armazenamento: pasta $1'],
+  [/^Reopen (.+)$/, 'Reabrir $1'], [/^In the folder (.+) on the disk\.$/, 'Na pasta $1 no disco.'], [/^Storage: folder (.+)$/, 'Armazenamento: pasta $1'], [/^Projects are kept in the folder (.+) on the disk \(File ▸ Open Workspace Folder… to change it\)\.$/, 'Os projetos ficam guardados na pasta $1 do disco (File ▸ Open Workspace Folder… para a mudar).'],
   // schematic symbols: flip-flops (FD*, FT*, FJK*)
   [/^(D|Toggle \(T\)|J-K) flip-flop(?: with (.*))?$/, (m, k, w) => {
     let r = w || '';

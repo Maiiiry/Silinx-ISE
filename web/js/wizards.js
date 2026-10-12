@@ -163,6 +163,12 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
     name: template !== 'empty' ? template : '', template, board: '',
     device: { ...DEFAULT_DEVICE }, lang: 'vhdl',
   };
+  // where the project goes: the server's workspace folder; in the browser edition, the browser's
+  // storage or the workspace folder picked on the disk (#107, #125)
+  const kept = api.standalone ? api.storage() : null;
+  const where = !kept ? { location: '<workspace>/', hint: 'Projects are stored in the Silinx workspace folder (default ~/Silinx-projects).' }
+    : kept.kind === 'folder' ? { location: `${kept.folder}/`, hint: `Projects are kept in the folder ${kept.folder} on the disk (File ▸ Open Workspace Folder… to change it).` }
+      : { location: 'this browser: ', hint: kept.supported ? "Projects are kept in this browser's storage (File ▸ Open Workspace Folder… keeps them in a folder on the disk)." : "Projects are kept in this browser's storage (a folder on the disk needs Chrome or Edge)." };
   const name = h('input', { type: 'text', value: st.name, placeholder: 'project name' });
   const tplSel = select([['empty', 'Empty project'], ...templates.map(t => [t, `Example: ${t}`])], template);
   const p1 = {
@@ -171,9 +177,9 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
       h('div', { class: 'hint' }, 'Enter a name and location for the project.'),
       h('div', { class: 'form-grid' },
         ...field('Name:', name),
-        ...field('Location:', h('input', { type: 'text', value: '<workspace>/' + (st.name || '…'), disabled: true })),
+        ...field('Location:', h('input', { type: 'text', value: where.location + (st.name || '…'), disabled: true })),
         ...field('Start from:', tplSel)),
-      h('div', { class: 'hint', style: { marginTop: '14px' } }, 'Projects are stored in the Silinx workspace folder (default ~/Silinx-projects).')),
+      h('div', { class: 'hint', style: { marginTop: '14px' } }, where.hint)),
     validate: async () => {
       if (!NAME_RE.test(name.value.trim())) return 'Project name must start with a letter and contain only letters, digits and _.';
       st.replace = false;

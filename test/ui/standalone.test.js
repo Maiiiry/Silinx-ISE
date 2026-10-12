@@ -74,6 +74,8 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   // New Project wizard from the embedded blinky example
   await page.menu('File', 'New Project…');
   await page.waitDialog('New Project Wizard');
+  // where the project goes: this browser's storage, not the full application's workspace folder (#125)
+  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main .hint:last-child').textContent), /^Projects are kept in this browser's storage \(/);
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Solo');
   await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
   await page.dialogButton('Next >');
@@ -256,6 +258,13 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   assert.deepEqual(await page.eval(() => window.__picker), { id: 'silinx-workspace', mode: 'readwrite' });
   assert.equal(await page.eval(() => window.Silinx.project), null, 'the browser storage\'s project is closed');
   assert.equal(await statusStorage(page), 'Storage: folder Silinx-projects');
+  // the New Project wizard names the folder (#125)
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  assert.deepEqual(await page.eval(() => [document.querySelector('.dlg-overlay .wiz-main .form-grid input[disabled]').value, document.querySelector('.dlg-overlay .wiz-main .hint:last-child').textContent]),
+    ['Silinx-projects/…', 'Projects are kept in the folder Silinx-projects on the disk (File ▸ Open Workspace Folder… to change it).']);
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
   assert.deepEqual(await fileMenu(page), [{ label: 'Open Workspace Folder…', disabled: false, title: '' },
     { label: 'Copy Browser Projects to the Folder', disabled: false, title: '' }, { label: 'Use Browser Storage', disabled: false, title: '' }]);
   await page.waitFor(() => /In the folder/.test(document.querySelector('#start-page .start-storage')?.textContent || ''));

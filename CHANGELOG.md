@@ -5,6 +5,7 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.5
 
+- Browser edition: the New Project wizard says where the project goes, this browser's storage or the workspace folder by name (it said the full application's workspace folder, ~/Silinx-projects).
 - **The browser edition keeps projects in a folder on the disk** (Chrome, Edge): *File* ▸ *Open
   Workspace Folder…* (also on the Start page) and a folder chosen once, for instance
   `Silinx-projects`. Each project is a normal project folder in it, as the full application writes
