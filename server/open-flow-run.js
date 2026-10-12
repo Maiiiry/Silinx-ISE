@@ -126,7 +126,7 @@ function runPar() {
   const placeRoute = pk => {
     const t0 = Date.now();
     // each clock's flip-flops on the slices its global line reaches through switches of known bits
-    const r = place(pk, deviceSites(d), { seed: spec.seed || 1, effort: spec.effort || 1, delays, clockSites: site => clockReach(d, site, k.allowPip), bufgSites: (site, pin) => bufgReach(d, site, pin, k.allowPip) });
+    const r = place(pk, deviceSites(d, k), { seed: spec.seed || 1, effort: spec.effort || 1, delays, clockSites: site => clockReach(d, site, k.allowPip), bufgSites: (site, pin, to) => bufgReach(d, site, pin, k.allowPip, to) });
     const placedText = writeXdl(placedXdl(pk, r));
     const tp = ms(t0), t1 = Date.now();
     const routed = routeDesign(parseXdl(placedText), d, { ...k, timing: true });
@@ -135,6 +135,7 @@ function runPar() {
   };
   let pr;
   try { pr = placeRoute(packed); } catch (e) { throw new StepError(`placement failed: ${e.message}`); }
+  for (const w of pr.placement.warnings || []) console.log(`WARNING:Place - ${w}`);
   // register replication (#4): the flip-flops of many loads on the critical path copied (each copy
   // near a group of the loads, core/fpga/replicate.js), the design placed and routed again; the
   // faster of the two kept

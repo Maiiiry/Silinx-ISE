@@ -34,6 +34,19 @@ the "What's new" text of its GitHub release.
   called in an expression (they were not assigned); `$floor`, `$ceil`, `$sqrt`… of values known at
   run time; an instance's parameter by its hierarchical name (`u.P`); `rand` / `randc` / `const`
   qualifiers; packed unions; enumeration name ranges (`S[3]`, `T[5:7] = 20`).
+- **Silinx toolchain: clocks on block RAMs and multipliers.** A clock's block RAMs and
+  multipliers go only on the sites whose clock pins its global buffer's lines reach on switches of
+  known bits, as its flip-flops already did. A clock on the bottom GCLK pin (N9 on the FG320, M4 on
+  the CP132), whose buffer BUFGMUX_X2Y1 reaches none of them yet, takes BUFGMUX_X2Y11 through
+  general routing, with a warning that says so; it kept BUFGMUX_X2Y1 and the block RAM's clock could
+  not be routed (#56).
+- **Silinx toolchain: a clock with no LOC that drives a DCM** goes on a pad whose dedicated path of
+  known bits reaches the DCM's CLKIN (B8 on the XC3S250E and XC3S500E), as one that drives a global
+  buffer does since #49; it took any free pad (#57).
+- **Silinx toolchain: a clock LOC'd on a GCLK pin** takes the global buffer its dedicated path
+  reaches. On a side GCLK pin (K3 on the FG320, G3 on the CP132) those are the side buffers, whose
+  settings are not in the bit database yet (#45): a top or bottom buffer, through general routing as
+  before, now with a warning that says why (#58).
 - **Design corpus:** NEORV32 and light8080 now go through the whole open flow (synthesis, the
   netlist compared with the RTL cycle by cycle, place and route); light8080's, secworks-sha1's and
   secworks-aes's own testbenches pass. Every design of the corpus synthesizes and builds.

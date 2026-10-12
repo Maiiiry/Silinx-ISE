@@ -579,8 +579,10 @@ function tieConstants(nets, kind, { device, usedSites, errors, allowPip, allowSo
 /**
  * The slices whose clock pin a global clock buffer reaches through the dedicated clock network
  * (GCLK nodes) and, with allowPip(tileName, from, to), only through allowed PIPs: a Set of slice site
- * names. For the placer (place()'s clockSites option): with the switches of known bits, a clock line
- * reaches the CLK pins of only some slices of a CLB (research/s3e-route/README.md).
+ * names, and the clock pins of the block RAMs and multipliers it reaches as `site.pin` (RAMB16_X0Y1.CLKA,
+ * RAMB16_X0Y1.CLKB, MULT18X18_X0Y1.CLK). For the placer (place()'s clockSites option): with the
+ * switches of known bits, a clock line reaches the CLK pins of only some slices of a CLB
+ * (research/s3e-route/README.md), and a bottom buffer's lines not every block RAM's (#56).
  */
 export function clockReach(device, bufgSite, allowPip = null) {
   const E = device.routingEdges();
@@ -602,6 +604,21 @@ export function clockReach(device, bufgSite, allowPip = null) {
   }
   const out = new Set();
   for (const s of [...device.sites('SLICEL'), ...device.sites('SLICEM')]) if (reached.has(device.sitePinNode(s.name, 'CLK'))) out.add(s.name);
+  // a block RAM's / multiplier's clock pin: one switch further, in its site tile (BRAM_CLK2_INT1 -> RAMB16_CLKA)
+  const beyond = new Set();
+  for (const n of reached) {
+    for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
+      if (E.edgeFlags[e] & PIP_ROUTETHRU) continue;
+      if (allowPip && !allowPip(device.tileNames[E.edgeTile[e]], ...device.pipWires(E.edgeTile[e], E.edgePip[e]))) continue;
+      beyond.add(E.edgeTo[e]);
+    }
+  }
+  for (const [type, pins] of [['RAMB16', ['CLKA', 'CLKB']], ['MULT18X18SIO', ['CLK']]]) {
+    for (const s of device.sites(type)) for (const p of pins) {
+      const n = device.sitePinNode(s.name, p);
+      if (reached.has(n) || beyond.has(n)) out.add(`${s.name}.${p}`);
+    }
+  }
   return out;
 }
 
@@ -610,11 +627,11 @@ export function clockReach(device, bufgSite, allowPip = null) {
  * CLKFX…) reaches through the device's dedicated paths: PIPs (with allowPip: allowed ones only, no
  * route-throughs) not entering general routing, for the placer (place()'s bufgSites option).
  */
-export function bufgReach(device, siteName, pin, allowPip = null) {
+export function bufgReach(device, siteName, pin, allowPip = null, [toType, toPin] = ['BUFGMUX', 'I0']) {
   const E = device.routingEdges();
   const start = device.sitePinNode(siteName, pin);
   if (start < 0) return [];
-  const targets = new Map(device.sites('BUFGMUX').map(s => [device.sitePinNode(s.name, 'I0'), s.name]));
+  const targets = new Map(device.sites(toType).map(s => [device.sitePinNode(s.name, toPin), s.name]));
   const seen = new Uint8Array(device.nodeCount), out = [];
   const q = [start];
   seen[start] = 1;

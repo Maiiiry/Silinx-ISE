@@ -325,6 +325,8 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  is in another tile, so the direction their bits need is not known)
  *   allowConstSource(kind, site)   a VCC site (no settings of its own) or a slice whose settings as
  *                                  a GND source (USED, _GND_SOURCE:Y) are known
+ *   allowBufg(tileName, site)      a global clock buffer whose settings (USED) are known: the top and
+ *                                  bottom ones, not yet the side ones (#45)
  */
 export function knownRouting(db) {
   const bitsOf = (tileName, feature) => {
@@ -344,6 +346,7 @@ export function knownRouting(db) {
       const kindOf = siteKind({ site: site.name, type: site.type }, db);
       return !!kindOf && known(site.tileName, `${kindOf}:USED`) && known(site.tileName, `${kindOf}:_GND_SOURCE:Y`);
     },
+    allowBufg: (tileName, site) => known(tileName, `${site}:USED`),
   };
 }
 

@@ -81,7 +81,8 @@ const placeRoute = (pk, s, what = '') => {
   t = Date.now();
   // each clock's flip-flops on the slices its global line reaches through switches of known bits
   // (a DCM's outputs on the global buffers their dedicated paths of known bits reach)
-  const r = place(pk, deviceSites(device), { seed: s, effort, ...(timing !== null && { timing: +timing }), delays, clockSites: site => clockReach(device, site, known.allowPip), bufgSites: (site, pin) => bufgReach(device, site, pin, known.allowPip) });
+  const r = place(pk, deviceSites(device, known), { seed: s, effort, ...(timing !== null && { timing: +timing }), delays, clockSites: site => clockReach(device, site, known.allowPip), bufgSites: (site, pin, to) => bufgReach(device, site, pin, known.allowPip, to) });
+  if (!what && s === seed) for (const w of r.warnings || []) console.log(`  Warning: place: ${w}`);
   console.log(`place${what}${tries > 1 ? ` (seed ${s})` : ''}: estimated critical path ${r.delay.toFixed(1)} ns`);
   const placedText = writeXdl(placedXdl(pk, r));
   step('place', t);
