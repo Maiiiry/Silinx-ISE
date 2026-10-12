@@ -140,7 +140,7 @@ export async function runOpenFlow(spec, io) {
         onRouted: (p, info) => { if (!info.replication) for (const w of p.placement.warnings || []) log(`WARNING:Place - ${w}`); },
         onReplication: x => log(`Register replication: ${x.flipFlops} flip-flop(s) on the critical path copied (${x.copies} copies): ${x.kept ? `kept, ${x.result.sta.period.toFixed(3)} ns instead of ${x.before.toFixed(3)} ns` : 'not kept, no faster'}.`),
       });
-    } catch (e) { throw new StepError(`placement failed: ${e.message}`); }
+    } catch (e) { throw new StepError(`placement failed: ${e.message}`, [], e.hint); }   // (e.hint: the placer's, #128)
     if (pr.replication?.kept) {
       packed = pr.packed;
       const items = mapReport();

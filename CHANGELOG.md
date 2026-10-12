@@ -17,6 +17,10 @@ In detail:
 - **Large designs on computers with 8 GB of RAM:** the Silinx toolchain may use three quarters of the
   RAM (it used Node's default, about 2 GB there, and AES, SHA-256 or a Z80 crashed with only "see the
   messages above"); a run out of memory says so (#156).
+- Silinx toolchain, Place & Route: ports with no LOC and no I/O standard (LVCMOS25, the default)
+  when every bank already holds LVCMOS33 pins failed with "not enough pads"; the error now says that
+  the banks' VCCO is the cause, with the ports, each bank's VCCO and I/O standards, and the standard
+  to give them (e.g. `NET "led<4>" IOSTANDARD = LVCMOS33;`) (#128).
 
 ## 15.10.7
 

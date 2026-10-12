@@ -28,7 +28,10 @@
 
 import { instArcs, SPEED_4 } from './timing.js';
 
-export class PlaceError extends Error {}
+// (hint: what to change, printed after the error by the flow; core/open-flow-core.js)
+export class PlaceError extends Error {
+  constructor(message, hint) { super(message); if (hint !== undefined) this.hint = hint; }
+}
 
 // I/O banks of the Spartan-3E: one per side (top 0, right 1, bottom 2, left 3), named by the I/O
 // tile (TIOIS, RIOIS_PCI, BIBUFS, LIOIS_CLK_PCI…). Every I/O of a bank, input or output, shares the
@@ -467,11 +470,35 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   }
   for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
     const fp = freePads(o.dir, vccoOf(o.inst));
-    if (!fp.length) throw new PlaceError('place: not enough pads');
+    if (!fp.length) throw padsError(o);
     const p = fp[ri(fp.length)];
     bankAdd(p, vccoOf(o.inst), 1);
     padUsed.set(p.name, o);
     sites[o.inst] = p;
+  }
+  // no free pad for an I/O: too few pads, or (#128) free pads only in banks whose VCCO the I/O
+  // standards already placed there set to another voltage (LVCMOS25, the default, where every bank
+  // holds LVCMOS33 pins): said, with the ports, the banks and the standard to give them
+  function padsError(o) {
+    if (!freePads(o.dir, null).length) return new PlaceError('place: not enough pads');
+    const v = vccoOf(o.inst), stdOf = i => (packed.insts[i].cfg || []).find(c => c.attr === 'IOATTRBOX')?.value;
+    const ports = objs.filter(x => x.kind === 'iob' && !sites[x.inst] && vccoOf(x.inst) === v && !freePads(x.dir, v).length).map(x => packed.insts[x.inst].name);
+    const shown = ports.length > 8 ? `${ports.slice(0, 8).join(', ')} and ${ports.length - 8} more` : ports.join(', ');
+    // the banks with pads free for it: their VCCO, and the standards of the I/Os placed there
+    const banks = [...new Set(freePads(o.dir, null).map(bankOfPad))].sort((a, b) => a - b);
+    const stds = new Map();   // bank -> standard -> port names
+    for (const x of objs) if (x.kind === 'iob' && sites[x.inst] && banks.includes(bankOfPad(sites[x.inst]))) {
+      const m = stds.get(bankOfPad(sites[x.inst])) || stds.set(bankOfPad(sites[x.inst]), new Map()).get(bankOfPad(sites[x.inst]));
+      const std = stdOf(x.inst);
+      (m.get(std) || m.set(std, []).get(std)).push(packed.insts[x.inst].name);
+    }
+    const said = banks.map(b => `bank ${b} VCCO ${bankV.get(b).v} V (${[...stds.get(b)].map(([std, n]) => `${std}: ${n.length > 3 ? `${n.slice(0, 3).join(', ')} and ${n.length - 3} more` : n.join(', ')}`).join('; ')})`);
+    // the standard of the most I/Os of those banks
+    const count = new Map();
+    for (const m of stds.values()) for (const [std, n] of m) count.set(std, (count.get(std) || 0) + n.length);
+    const best = [...count].sort((a, b) => b[1] - a[1])[0][0];
+    return new PlaceError(`place: no pad for ${ports.length} I/O(s) of ${stdOf(o.inst)} (VCCO ${v} V): ${shown}: the banks with free pads need another VCCO: ${said.join(', ')}`,
+      `Give them the I/O standard of a bank in the constraints (UCF), e.g. NET "${packed.insts[o.inst].name}" IOSTANDARD = ${best}; (or LOC them on pads of a bank of their own).`);
   }
   // a DCM's CLKIN from a pad that reaches it only through general routing: said (#47; once the pads
   // have their final sites)

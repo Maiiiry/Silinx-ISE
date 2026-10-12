@@ -197,6 +197,40 @@ endmodule`)]);
   assert.throws(() => place(bad, sites, { seed: 1, effort: 0.3 }), e => e instanceof PlaceError && /bank 0.*VCCO 3.3 V, not 2.5 V/.test(e.message));
 });
 
+test('placer: no pad for I/Os because of the banks\' VCCO (every bank holds LVCMOS33 pins, the others LVCMOS25) is said, not "not enough pads" (#128)', async () => {
+  const { synthesizeOpen } = await import('../core/synth-open.js');
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  const { readYosysJson } = await import('../core/fpga/netlist.js');
+  const { pack } = await import('../core/fpga/pack.js');
+  const { deviceSites, place, PlaceError } = await import('../core/fpga/place.js');
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  const lib = compile([v(`module m (input clk, input [2:0] a, input [3:0] b, output reg [3:0] q);
+  always @(posedge clk) q <= {a, 1'b0} ^ b;
+endmodule`)]);
+  const syn = await synthesizeOpen(elaborate(lib, 'm'), { run: yosysNode });
+  const nl = readYosysJson(syn.files['m.json']);
+  const sites = deviceSites(loadDeviceCache('xc3s250ecp132-4'));
+  // one LVCMOS33 pin in each of the 4 banks (B8: bank 0, C14: 1, M2: 2, B2: 3); b and q: LVCMOS25
+  const ucf = ['NET "clk" LOC = "B8" | IOSTANDARD = LVCMOS33 ;', 'NET "a<0>" LOC = "C14" | IOSTANDARD = LVCMOS33 ;',
+    'NET "a<1>" LOC = "M2" | IOSTANDARD = LVCMOS33 ;', 'NET "a<2>" LOC = "B2" | IOSTANDARD = LVCMOS33 ;', ''].join('\n');
+  const packed = pack(nl, { ucf, part: 'xc3s250ecp132-4' });
+  let err;
+  try { place(packed, sites, { seed: 1, effort: 0.3 }); } catch (e) { err = e; }
+  assert.ok(err instanceof PlaceError, String(err));
+  assert.equal(err.message, `place: no pad for 8 I/O(s) of LVCMOS25 (VCCO 2.5 V): b<0>, b<1>, b<2>, b<3>, q<0>, q<1>, q<2>, q<3>: the banks with free pads need another VCCO: bank 0 VCCO 3.3 V (LVCMOS33: clk), bank 1 VCCO 3.3 V (LVCMOS33: a<0>), bank 2 VCCO 3.3 V (LVCMOS33: a<1>), bank 3 VCCO 3.3 V (LVCMOS33: a<2>)`);
+  assert.equal(err.hint, `Give them the I/O standard of a bank in the constraints (UCF), e.g. NET "b<0>" IOSTANDARD = LVCMOS33; (or LOC them on pads of a bank of their own).`);
+  // given that standard: placed
+  const fixed = pack(nl, { ucf: ucf + [0, 1, 2, 3].map(k => `NET "b<${k}>" IOSTANDARD = LVCMOS33 ;\nNET "q<${k}>" IOSTANDARD = LVCMOS33 ;\n`).join(''), part: 'xc3s250ecp132-4' });
+  assert.ok(place(fixed, sites, { seed: 1, effort: 0.3 }).sites.length);
+  // too few pads, whatever the standards: still "not enough pads"
+  const wide = compile([v(`module w (input [199:0] a, output [199:0] q);
+  assign q = ~a;
+endmodule`)]);
+  const wsyn = await synthesizeOpen(elaborate(wide, 'w'), { run: yosysNode });
+  assert.throws(() => place(pack(readYosysJson(wsyn.files['w.json']), { part: 'xc3s250ecp132-4' }), sites, { seed: 1, effort: 0.3 }),
+    e => e instanceof PlaceError && e.message === 'place: not enough pads' && e.hint === undefined);
+});
+
 test('open synthesis: a for loop in an instance\'s process (its variable named after the instance: \\u.j) is not lost (verilog-axis FIFO in a wrapper)', async () => {
   // Yosys 0.68 does not unroll `for (\u.j = 3; …)` on an escaped name with a dot: the pipeline vanished
   const r = await diffSynth({ name: 'loop-in-instance', top: 'top', sim: { cycles: 60 }, sources: [v(`module pipe (input clk, input [7:0] d, output [7:0] q);

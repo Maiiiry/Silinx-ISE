@@ -122,3 +122,32 @@ test('Back-annotate Pin Locations (pin2ucf): the placer\'s pads as UCF; built ag
   assert.deepEqual(placedPins(parseXdl(two.store['open/routed.xdl'])).sort(byNet), [...placed].sort(byNet));
   assert.equal(two.store['top_pins.ucf'], pinsText);
 });
+
+test('Implement Design: ports without a LOC nor an I/O standard (LVCMOS25) where every bank holds LVCMOS33 pins: the banks\' VCCO said, with the standard to give them, not "not enough pads" (#128)', { timeout: 300000 }, async () => {
+  const device = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(spec.graph)).toString('utf8')));
+  const json = {};
+  for (const [k, f] of Object.entries(dbFileNames(spec.device, spec.pkg))) {
+    const p = path.join(DB_DIR, f);
+    json[k] = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null;
+  }
+  const db = makeBitDb(dbFilesFrom(json, spec.pkg), device, spec.part);
+  // blinky's UCF without the lines of four LEDs: no LOC, no IOSTANDARD
+  const ucf = fs.readFileSync(path.join(PJ, project.constraints), 'utf8').split('\n').filter(l => !/"led<[4-7]>"/.test(l)).join('\n');
+  const lines = [];
+  const io = {
+    log: l => lines.push(l),
+    sources: () => sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') })),
+    ucf, ucfName: 'top.ucf', device: () => device, bitDb: () => db, yosys: yosysNode,
+    write: name => `build/${name}`, read: () => null, save: () => {},
+  };
+  const res = await runOpenFlow({ ...spec, steps: ['synth', 'translate', 'map', 'par'] }, io);
+  assert.equal(res.ok, false);
+  const at = lines.findIndex(l => l.startsWith('ERROR:'));
+  assert.deepEqual(lines.slice(at), [
+    'ERROR:Silinx - placement failed: place: no pad for 4 I/O(s) of LVCMOS25 (VCCO 2.5 V): led<4>, led<5>, led<6>, led<7>: the banks with free pads need another VCCO: '
+      + 'bank 0 VCCO 3.3 V (LVCMOS33: btn<1>, clk, sw<3>), bank 1 VCCO 3.3 V (LVCMOS33: btn<0>), bank 2 VCCO 3.3 V (LVCMOS33: led<0>, led<1>, led<2> and 2 more), bank 3 VCCO 3.3 V (LVCMOS33: sw<1>, sw<2>)',
+    'Give them the I/O standard of a bank in the constraints (UCF), e.g. NET "led<4>" IOSTANDARD = LVCMOS33; (or LOC them on pads of a bank of their own).',
+    '=== SILINX FAILED par (exit 1) ===',
+  ]);
+  assert.deepEqual(lines.filter(l => /warning/i.test(l)), []);
+});
