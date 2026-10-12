@@ -129,8 +129,8 @@ uiTest('New Project wizard: the synthesis tool, Silinx by default (no ISE); Desi
 uiTest('Start page: the four examples; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.waitForSelector('#start-page .start-box');
-  const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
-  for (const t of ['blinky', 'pong', 'stopwatch', 'clock']) assert.ok(entries.includes(`Open Example (${t})`), entries.join(', '));
+  // (drawn again asynchronously after the project closes: wait for the four)
+  await page.waitFor(() => { const e = [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent); return ['blinky', 'pong', 'stopwatch', 'clock'].every((t) => e.includes(`Open Example (${t})`)); }, [], { what: 'the four examples on the Start page' });
   // (the Start page is drawn again asynchronously after the project closes: a click on the link it
   // replaces is lost, so click until the wizard opens)
   for (let k = 0; ; k++) {
