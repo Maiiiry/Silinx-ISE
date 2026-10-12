@@ -197,12 +197,12 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
 
 // ---- projects in a folder on the disk (File System Access API, Chrome / Edge). The real folder
 // picker cannot be driven headless: the page gets a fake one (test/fixtures/fs-access-fake.js),
-// its folder kept in localStorage across reloads, and the folder's handle "remembered" through
+// its folder kept in IndexedDB across reloads (with a build's files), and the folder's handle "remembered" through
 // window.SILINX_WORKSPACE_HANDLES (a fake handle cannot be stored in IndexedDB).
 const FAKE_FOLDER = (url) => `(() => {
   const fake = () => import(${JSON.stringify(url)});
-  const open = async () => (window.__fakeRoot = (await fake()).fakeDirectory('Silinx-projects',
-    { storage: localStorage, key: '__fakefs', permission: localStorage.getItem('__fakefs.permission') || 'granted' }));
+  const open = async () => (window.__fakeRoot = await (await fake()).fakeDirectoryIdb('Silinx-projects',
+    { db: '__fakefs', permission: localStorage.getItem('__fakefs.permission') || 'granted' }));
   window.showDirectoryPicker = async (opts) => { window.__picker = opts; return open(); };
   window.SILINX_WORKSPACE_HANDLES = {
     load: async () => (localStorage.getItem('__fakefs.remembered') ? open() : null),
@@ -238,6 +238,7 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   const fakeUrl = `${siteUrl}__test/fs-access-fake.js`;
   await page.send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_FOLDER(fakeUrl) });
   const boot = async () => {
+    await page.eval(async (url) => window.__fakeRoot && (await import(url)).flushFake(window.__fakeRoot), fakeUrl).catch(() => {});   // the fake folder written
     await page.goto(siteUrl);
     await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices && document.getElementById('status-storage').textContent
       && document.querySelector('#start-page .start-storage, #hier .lbl'), [], { what: 'site boot' });
@@ -330,6 +331,68 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   tree = await files();
   assert.ok(tree['InBrowser/build/top.bit']?.length > 100_000, Object.keys(tree).filter((k) => k.includes('/build/')).join(' '));
   assert.deepEqual((await page.eval(() => window.Silinx.fileTree)).filter((f) => f.startsWith('build/')), []);
+  // with the Design Summary's reports and the FPGA view's model (build/reports.json, build/open/fpga-view.json, #126)
+  const saved = JSON.parse(tree['InBrowser/build/reports.json']);
+  assert.deepEqual([saved.source, saved.top, saved.summary.routed, saved.summary.bitstream], ['open', 'top', true, true]);
+  assert.equal(JSON.parse(tree['InBrowser/build/open/fpga-view.json']).key, 'browser:2');
+  assert.ok(tree['InBrowser/build/open/routed.xdl'] && tree['InBrowser/build/silinx-status.json']);
+  const SUMMARY = '.doc:not([hidden]) .page';
+  const summary = async () => {
+    await page.eval(() => window.SilinxApp.openSummary());
+    await page.waitFor((s) => /Device Utilization Summary \(Silinx toolchain\)/.test(document.querySelector(s)?.innerText || ''), [SUMMARY], { what: 'Design Summary with the reports' });
+    return page.eval((s) => document.querySelector(s).innerText, SUMMARY);
+  };
+  const built = await summary();
+  for (const re of [/Number of occupied Slices\s+\d+\s+2448\s+\d+%/, /Timing \(post Place & Route, Silinx toolchain estimate\)/, /All constraints met/, /Bitstream\s+build\/top\.bit/, /Routed Design \(XDL\)\s+Current/])
+    assert.match(built, re);
+  const IMPL = ['synth', 'translate', 'map', 'par', 'impl', 'bitgen'];
+  const status = () => page.eval((ids) => ids.map((id) => window.SilinxApp.S.status[id]), IMPL);
+  const builtStatus = await status();
+  assert.ok(builtStatus.every((s) => ['ok', 'warn'].includes(s)), builtStatus.join(' '));
+  // reloaded (the browser still gives the permission): the same Design Summary and process states,
+  // read back from build/ (no new run)
+  await page.eval(() => localStorage.setItem('__fakefs.permission', 'granted'));
+  await boot();
+  await page.waitFor(() => window.Silinx.project?.name === 'InBrowser' && window.Silinx.project.top, [], { what: 'reopened from the folder' });
+  await page.click('input[name=view][value=impl]');
+  await page.waitFor((ids) => ids.every((id) => window.SilinxApp.S.status[id]), [IMPL], { what: 'process states restored' });
+  assert.deepEqual(await status(), builtStatus);
+  assert.equal(await summary(), built);
+  // the Detailed Reports: the routed design opens from build/ (not among the project's files)
+  await page.click(await page.eval((s) => {
+    const a = [...document.querySelectorAll(`${s} tr`)].find((r) => r.cells[0]?.textContent === 'Routed Design (XDL)')?.querySelector('a');
+    a.scrollIntoView({ block: 'nearest' });
+    const r = a.getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, SUMMARY));
+  await page.waitFor(() => window.Silinx.active?.path === 'build/open/routed.xdl' && window.Silinx.active.editor?.getValue().length > 1000, [], { what: 'routed.xdl open' });
+  assert.equal(await page.eval(() => window.Silinx.active.editor.getValue()), tree['InBrowser/build/open/routed.xdl']);
+  // View Implemented Design (FPGA): opens at once, without building again
+  await page.treeRow('#procs', 'View Implemented Design (FPGA)', { dbl: true, exact: true });
+  await page.waitFor(() => window.SilinxApp.findDoc('fpgaview') && document.querySelector('.doc:not([hidden]) .fv-site'), [], { what: 'FPGA view', timeout: 60000 });
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'FPGA (top)');
+  assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false, 'no offer to run Implement Design');
+  // View Technology Schematic: the netlist of the synthesis read back from build/open/top.json (no Synthesize again)
+  await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'tech:top' && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [], { what: 'technology schematic from build/', timeout: 60000 });
+  let log = await page.consoleText();
+  assert.match(log, /Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis \(build\/open\/top\.json\), \d+ cells in \d+ block\(s\): /);
+  assert.doesNotMatch(log, /=== SILINX STEP|Sources changed since the last implementation run|WARNING|ERROR/);
+  // the sources changed since: the processes out of date (as the full application), the reports still shown
+  await page.eval(async () => {
+    const f = await (await (await window.__fakeRoot.getDirectoryHandle('InBrowser')).getDirectoryHandle('src')).getFileHandle('top.vhd');
+    const text = await (await f.getFile()).text();
+    const w = await f.createWritable();
+    await w.write(`-- changed on the disk\n${text}`);
+    await w.close();
+  });
+  await boot();
+  await page.waitFor(() => window.Silinx.project?.name === 'InBrowser' && window.Silinx.project.top, [], { what: 'reopened after the change' });
+  await page.waitConsole(/Sources changed since the last implementation run: processes marked out of date\./);
+  assert.deepEqual(await status(), IMPL.map(() => 'stale'));
+  assert.equal(await summary(), built);
+  log = await page.consoleText();
+  assert.doesNotMatch(log, /=== SILINX STEP|WARNING|ERROR/);
   // back to the browser's storage: its own projects; the next visit stays there (the folder offered again)
   await page.menu('File', 'Use Browser Storage');
   await page.waitConsole(/Projects are now kept in this browser's storage\./);

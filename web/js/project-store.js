@@ -76,6 +76,7 @@ export function browserStore(storage = () => globalThis.localStorage) {
     // the build's outputs stay in memory in this storage (too large for localStorage)
     writeBuild: async () => {},
     readBinary: async () => null,
+    readText: async () => null,
   };
 }
 
@@ -210,8 +211,48 @@ export function folderStore(root) {
       const e = await entryAt(await projectDir(name), path);
       return e && e.handle.kind === 'file' ? new Uint8Array(await (await e.handle.getFile()).arrayBuffer()) : null;
     },
+    // a file of the project as text, also in build/ (not among the project's files): null if none
+    readText: async (name, path) => {
+      const e = await entryAt(await projectDir(name), path);
+      return e && e.handle.kind === 'file' ? (await e.handle.getFile()).text() : null;
+    },
   };
   return store;
+}
+
+// ------------------------------------------------------------------ a build's results in build/
+// The full application keeps them in the project's build/ folder (server/open-flow.js: reports.json,
+// for the Design Summary; server/impl-routes.js: open/fpga-view.json, the FPGA view's model of
+// open/routed.xdl). In a workspace folder the browser edition writes and reads back the same files,
+// so a build is still there after a reload (in the browser's storage: this session only).
+export const BUILD_REPORTS = 'build/reports.json';
+export const BUILD_VIEW = 'build/open/fpga-view.json';
+// the FPGA view's cache: the browser edition's key, or the full application's (open:<version>:…)
+const viewKey = version => `browser:${version}`;
+const viewUsable = (c, version) => !!c?.model?.available && (c.key === viewKey(version) || String(c.key).startsWith(`open:${version}:`));
+
+/** Writes a build's results into the project's build/ folder (a store without one: nothing).
+ *  report: build/reports.json; view: the FPGA view's model (null: the cache of an earlier one removed). */
+export async function saveBuildResults(store, name, { report, view, modelVersion }) {
+  if (store.kind !== 'folder') return;
+  if (report) await store.writeBuild(name, BUILD_REPORTS, JSON.stringify(report, null, 2) + '\n');
+  if (view) await store.writeBuild(name, BUILD_VIEW, JSON.stringify({ key: viewKey(modelVersion), model: view }));
+  else await store.removePath(name, BUILD_VIEW);
+}
+
+/** The build's results read back from the project's build/ folder: { report, view } (null: none).
+ *  The FPGA view only of the Silinx toolchain's routed design (reports.json of an ISE run: none)
+ *  and of this model format (modelVersion: core/xdl.js MODEL_VERSION). */
+export async function readBuildResults(store, name, { modelVersion }) {
+  const json = async path => { try { return JSON.parse(await store.readText(name, path)); } catch { return null; } };
+  const report = await json(BUILD_REPORTS);
+  if (!report || typeof report !== 'object') return { report: null, view: null };
+  let view = null;
+  if (report.source === 'open' && report.summary?.routed) {
+    const c = await json(BUILD_VIEW);
+    if (viewUsable(c, modelVersion)) view = c.model;
+  }
+  return { report, view };
 }
 
 // ------------------------------------------------------------------ the project operations

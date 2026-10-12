@@ -6,7 +6,8 @@
 // Implement Design / Generate Programming File run the Silinx toolchain in the browser
 // (web/js/open-flow-browser.js: no server, no Xilinx tool); the build's files are kept in memory
 // (they are too large for localStorage; in a workspace folder they are also written into the
-// project's build/ folder, as the full application does) and the bitstream is downloaded. Configure
+// project's build/ folder, as the full application does, with build/reports.json and the FPGA
+// view's model: read back from there after a reload) and the bitstream is downloaded. Configure
 // Target Device programs the FPGA of a Digilent board over WebUSB (core/adept.js; Chrome / Edge).
 // XST (Xilinx ISE) and the Platform Flash need the full application.
 import { getDeviceDb } from '../../server/devices.js';
@@ -15,7 +16,8 @@ import EXAMPLES from 'silinx-examples';
 import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
-import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson } from './project-store.js';
+import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson, saveBuildResults, readBuildResults, BUILD_VIEW } from './project-store.js';
+import { MODEL_VERSION } from '../../core/xdl.js';
 
 const fail = msg => { throw new Error(msg); };
 
@@ -124,10 +126,27 @@ const NEED_ISE = [
 ];
 // the build of each project (this session only): { files: { 'build/…': text | bytes }, report, view }
 const builds = new Map();
+// none in this session: in a workspace folder, the one of an earlier visit, read back from the
+// project's build/ folder (build/reports.json, build/open/fpga-view.json; as the full application)
+async function savedBuild(name) {
+  if (builds.get(name)?.report || store.kind !== 'folder') return builds.get(name) || null;
+  const r = await readBuildResults(store, name, { modelVersion: MODEL_VERSION });
+  if (!r.report) return null;
+  const b = buildOf(name);
+  if (!b.report) { b.report = r.report; b.view ||= r.view; }
+  return b;
+}
+// a file of the build (text or bytes; undefined: none): this session's, else (a workspace folder)
+// the one in the project's build/ folder (a reload: the pins file, the netlist, the reports)
+async function buildFileOf(name, path) {
+  const t = builds.get(name)?.files[path];
+  if (t !== undefined || store.kind !== 'folder' || !/^build\//.test(path || '')) return t;
+  return (await store.readBinary(name, path).catch(() => null)) ?? undefined;
+}
 const buildOf = name => { if (!builds.has(name)) builds.set(name, { files: {}, report: null, view: null }); return builds.get(name); };
 // build/reports.json's shape (server/open-flow.js openReports) from the flow's report
 function reportsOf(pj, r) {
-  const out = { top: pj.top, device: pj.device || null, source: 'open', synthesis: r.synthesis, map: r.map, par: r.par, timing: r.timing,
+  const out = { generatedAt: new Date().toISOString(), top: pj.top, device: pj.device || null, source: 'open', synthesis: r.synthesis, map: r.map, par: r.par, timing: r.timing,
     bit: r.bit ? { ...r.bit, header: { design: `${pj.top}.ncd`, part: `${String(pj.device.part).replace(/^xc/i, '')}${pj.device.package}` } } : undefined,
     prom: r.prom, pinsUcf: r.pinsUcf, simModels: {}, files: r.files || {} };
   out.summary = { synthesized: !!out.synthesis, mapped: !!out.map, routed: out.par ? out.par.routed : null, timingMet: out.timing ? out.timing.met : null,
@@ -233,7 +252,16 @@ export const api = {
   saveProject: (name, pj) => ops.saveProject(name, pj),
   renameFile: (name, from, to) => ops.renameFile(name, from, to),
   deleteProject: name => ops.deleteProject(name),
-  readFile: (name, path) => ops.readFile(name, path),
+  // a file of the build (build/…: not among the project's files): this session's, else (a
+  // workspace folder) the one in the project's build/ folder
+  readFile: async (name, path) => {
+    try { return await ops.readFile(name, path); } catch (e) {
+      if (!/^build\//.test(path || '')) throw e;
+      const t = await buildFileOf(name, path);
+      if (t == null) throw e;
+      return typeof t === 'string' ? t : new TextDecoder().decode(t);
+    }
+  },
   writeFile: (name, path, text) => ops.writeFile(name, path, text),
   deleteFile: (name, path) => ops.deleteFile(name, path),
   sources: name => ops.sources(name),
@@ -262,6 +290,8 @@ export const api = {
     const folder = store.kind === 'folder' ? store : null;
     const writes = [];
     if (folder && p.json.top) for (const f of [`build/${p.json.top}.bit`, `build/${p.json.top}_pins.ucf`]) await folder.removePath(name, f).catch(() => {});
+    if (folder) await folder.removePath(name, BUILD_VIEW).catch(() => {});
+    let reported = false;
     const json = p.json, files = { ...p.files };
     runBrowserFlow({
       project: json, files: { ...files, ...b.files }, steps,
@@ -270,11 +300,16 @@ export const api = {
         b.files[path] = data;
         if (folder) writes.push(folder.writeBuild(name, path, data).catch(e => push(`WARNING: ${path} was not written into the workspace folder: ${e.message}`)));
       },
-      onReport: r => { b.report = reportsOf(json, r); },
+      onReport: r => { b.report = reportsOf(json, r); reported = true; },
     }).then(async res => {
       await Promise.all(writes);
-      if (res.report) b.report = reportsOf(json, res.report);
+      if (res.report) { b.report = reportsOf(json, res.report); reported = true; }
       if (res.view) b.view = res.view;
+      // the Design Summary's reports and the FPGA view's model, for the next visit (as the full application)
+      if (folder) {
+        await saveBuildResults(folder, name, { report: reported ? b.report : null, view: b.view, modelVersion: MODEL_VERSION })
+          .catch(e => push(`WARNING: build/reports.json was not written into the workspace folder: ${e.message}`));
+      }
       const bit = b.files[`build/${json.top}.bit`];
       if (res.ok && bit) job.download = { filename: `${json.top}.bit`, url: URL.createObjectURL(new Blob([bit], { type: 'application/octet-stream' })) };
       job.status = res.ok ? 'ok' : 'error';
@@ -282,9 +317,9 @@ export const api = {
     }).catch(e => { push(`ERROR:Silinx - ${e.message}`); job.status = 'error'; job.error = e.message; });
     return { job: id };
   },
-  reports: async name => (builds.get(name)?.report || { available: false }),
-  fpgaView: async name => (builds.get(name)?.view || { available: false, reason: 'no-ncd' }),
-  buildFile: async (name, path) => builds.get(name)?.files[path],
+  reports: async name => ((await savedBuild(name))?.report || { available: false }),
+  fpgaView: async name => ((await savedBuild(name))?.view || { available: false, reason: 'no-ncd' }),
+  buildFile: (name, path) => buildFileOf(name, path),
   bitinfo: async name => {
     let top = null;
     try { top = (await projectJson(name)).top; } catch { /* no project */ }

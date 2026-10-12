@@ -39,6 +39,13 @@ In detail:
   (pushed into as in the RTL view; a large top module's own logic in one block per signal); the
   cells named after the signals they drive. A LUT's properties show its function, from its INIT, as an
   equation and a truth table (#119).
+- In a workspace folder, a build is still there after the page is reloaded: the Design Summary
+  (utilization, timing, the detailed reports), the processes' states, *View Implemented Design
+  (FPGA)* and *View Technology Schematic* come back from the project's `build/` folder
+  (`build/reports.json`, the FPGA view's model in `build/open/fpga-view.json`, as the full
+  application keeps them, and the build's files) without building again; when
+  the sources changed since, the processes are marked out of date, as in the full application. In
+  the browser's storage a build still lasts for the session only (#126).
 
 ## 15.10.4
 

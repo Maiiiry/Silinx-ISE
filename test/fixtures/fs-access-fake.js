@@ -7,6 +7,8 @@
 // state queryPermission reports ('granted' by default, 'prompt' as after a browser restart);
 // requestPermission then gives `grant` ('granted' by default).
 // (a tree too large for the Storage stays in memory only: it is not read back after a reload)
+// fakeDirectoryIdb(name, { db, permission, grant }): the same, kept in the page's IndexedDB (no size
+// limit: a build's files too); flushFake(handle) waits for it to be written.
 // dump(handle): { 'path/to/file': text } of every file under the handle.
 
 const err = (name, msg) => (typeof DOMException === 'function' ? new DOMException(msg, name) : Object.assign(new Error(msg), { name }));
@@ -99,6 +101,42 @@ class FakeDirectoryHandle extends FakeHandle {
   async *values() { for await (const [, v] of this.entries()) yield v; }
   [Symbol.asyncIterator]() { return this.entries(); }
 }
+
+// (in a page) the folder kept in IndexedDB (database `db`) instead: no size limit, so a build's
+// files (megabytes) are there after a reload too. Written in the background: `await
+// flushFake(handle)` before the page is reloaded.
+const idbReq = (r) => new Promise((ok, ko) => { r.onsuccess = () => ok(r.result); r.onerror = () => ko(r.error); });
+async function idbOpen(db) {
+  const open = indexedDB.open(db, 1);
+  open.onupgradeneeded = () => open.result.createObjectStore('tree');
+  return idbReq(open);
+}
+export async function fakeDirectoryIdb(name = 'Silinx-projects', { db = 'fake-folder', permission = 'granted', grant = 'granted' } = {}) {
+  const conn = await idbOpen(db);
+  const saved = await idbReq(conn.transaction('tree').objectStore('tree').get('root'));
+  const root = saved || { kind: 'directory', children: new Map() };
+  let writing = Promise.resolve(), dirty = false, queued = false;
+  const write = () => new Promise((ok, ko) => {
+    dirty = false;
+    const tx = conn.transaction('tree', 'readwrite');
+    tx.objectStore('tree').put(root, 'root');   // (a Map and Uint8Arrays: cloned as they are)
+    tx.oncomplete = ok; tx.onerror = () => ko(tx.error);
+  });
+  const ctx = {
+    permission, grant,
+    check() { if (ctx.permission !== 'granted') throw err('NotAllowedError', 'permission to the folder was not granted'); },
+    save() {
+      dirty = true;
+      if (queued) return;
+      queued = true;
+      writing = writing.then(() => { queued = false; return dirty ? write() : null; }).catch((e) => { console.error(`fake folder not saved: ${e.message}`); });
+    },
+    flush: async () => { await writing; if (dirty) { ctx.save(); await writing; } },
+  };
+  if (!saved) ctx.save();
+  return new FakeDirectoryHandle(name, root, ctx);
+}
+export const flushFake = (handle) => handle?._ctx?.flush?.();
 
 export function fakeDirectory(name = 'Silinx-projects', { storage, key, permission = 'granted', grant = 'granted' } = {}) {
   let root = { kind: 'directory', children: new Map() };

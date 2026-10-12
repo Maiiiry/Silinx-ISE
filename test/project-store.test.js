@@ -10,7 +10,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { scratchEnv, HERE } from './server-helpers.js';
 import { fakeDirectory, dump } from './fixtures/fs-access-fake.js';
-import { browserStore, folderStore, projectOps, copyProjects, projectJsonText } from '../web/js/project-store.js';
+import { browserStore, folderStore, projectOps, copyProjects, projectJsonText, saveBuildResults, readBuildResults, BUILD_REPORTS, BUILD_VIEW } from '../web/js/project-store.js';
 
 let tmp;
 before(async () => { tmp = await scratchEnv('silinx-store-test-'); });
@@ -218,4 +218,76 @@ test('hidden files of an example (.DS_Store) are not part of the projects made f
     const build = fs.readFileSync(path.join(HERE, '..', 'scripts', 'build-standalone.mjs'), 'utf8');
     assert.match(build, /if \(e\.name\.startsWith\('\.'\)\) continue;/, 'the single-file edition skips hidden files too');
   } finally { fs.rmSync(hidden, { force: true }); }
+});
+
+// #126: a build's results in the project's build/ folder (as the full application keeps them), read
+// back after a reload: build/reports.json (the Design Summary) and build/open/fpga-view.json (the
+// FPGA view's model of the Silinx toolchain's routed design)
+const REPORT = { generatedAt: '2026-10-12T10:00:00.000Z', top: 'top', device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, source: 'open',
+  synthesis: { warnings: 0 }, map: { summary: { slices: { used: 12, available: 2448 } } }, par: { routed: true }, timing: { met: true, maxFreqMHz: 123.4 },
+  simModels: {}, files: { routed: 'build/open/routed.xdl' },
+  summary: { synthesized: true, mapped: true, routed: true, timingMet: true, maxFreqMHz: 123.4, utilization: { slices: { used: 12, available: 2448 } }, bitstream: false } };
+const VIEW = { available: true, source: 'open', modelVersion: 2, device: { part: 'xc3s250ecp132-4' }, sites: [{ name: 'SLICE_X0Y0' }] };
+
+test('folder: a build\'s reports and FPGA view written into build/ and read back after a reload (#126)', async () => {
+  const ls = memStorage();
+  const a = fakeDirectory('Silinx-projects', { storage: ls, key: 'k' });
+  const sa = folderStore(a);
+  await projectOps(() => sa, EXAMPLES).create({ name: 'Built', template: 'blinky' });
+  await saveBuildResults(sa, 'Built', { report: REPORT, view: VIEW, modelVersion: 2 });
+  const tree = await dump(a);
+  assert.equal(tree[`Built/${BUILD_REPORTS}`], JSON.stringify(REPORT, null, 2) + '\n', 'build/reports.json as the server writes it');
+  assert.deepEqual(JSON.parse(tree[`Built/${BUILD_VIEW}`]), { key: 'browser:2', model: VIEW });
+  // the page reloaded: the same folder, a new store
+  const b = fakeDirectory('Silinx-projects', { storage: ls, key: 'k' });
+  const sb = folderStore(b);
+  assert.deepEqual(await readBuildResults(sb, 'Built', { modelVersion: 2 }), { report: REPORT, view: VIEW });
+  // build/ is not among the project's files, but its files can be read (build/silinx-status.json)
+  const ob = projectOps(() => sb, EXAMPLES);
+  assert.deepEqual((await ob.project('Built')).fileTree.filter((f) => f.startsWith('build/')), []);
+  assert.equal(await sb.readText('Built', BUILD_REPORTS), tree[`Built/${BUILD_REPORTS}`]);
+  assert.equal(await sb.readText('Built', 'build/none.txt'), null);
+  await assert.rejects(() => sb.readText('Nope', BUILD_REPORTS), { message: "project 'Nope' not found" });
+  // another model format (an older Silinx's cache): no view (the reports still)
+  assert.deepEqual(await readBuildResults(sb, 'Built', { modelVersion: 3 }), { report: REPORT, view: null });
+  // a run without a view (it failed before Place & Route): the view of the earlier run removed
+  await saveBuildResults(sb, 'Built', { report: { ...REPORT, summary: { ...REPORT.summary, routed: null } }, view: null, modelVersion: 2 });
+  assert.equal((await dump(b))[`Built/${BUILD_VIEW}`], undefined);
+  assert.equal((await readBuildResults(sb, 'Built', { modelVersion: 2 })).view, null);
+});
+
+test('folder: the FPGA view read back only of the Silinx toolchain\'s routed design, also as the full application caches it (#126)', async () => {
+  const { store, ops } = folder();
+  await ops.create({ name: 'Mixed', template: 'blinky' });
+  const write = (p, v) => store.writeBuild('Mixed', p, typeof v === 'string' ? v : JSON.stringify(v));
+  // the full application's cache (server/impl-routes.js: open:<model version>:<routed.xdl>:<graph>:…)
+  await write(BUILD_REPORTS, REPORT);
+  await write(BUILD_VIEW, { key: 'open:2:1760000000000:/x/xc3s250ecp132-4.json.gz:1750000000000', model: VIEW });
+  assert.deepEqual(await readBuildResults(store, 'Mixed', { modelVersion: 2 }), { report: REPORT, view: VIEW });
+  assert.equal((await readBuildResults(store, 'Mixed', { modelVersion: 3 })).view, null);
+  // an ISE run's reports (the FPGA view of ISE's design is not in open/): no view
+  await write(BUILD_REPORTS, { ...REPORT, source: 'ise' });
+  assert.deepEqual(await readBuildResults(store, 'Mixed', { modelVersion: 2 }), { report: { ...REPORT, source: 'ise' }, view: null });
+  // not routed: no view
+  await write(BUILD_REPORTS, { ...REPORT, summary: { ...REPORT.summary, routed: false } });
+  assert.equal((await readBuildResults(store, 'Mixed', { modelVersion: 2 })).view, null);
+  // an unreadable cache, unreadable reports, none: nothing
+  await write(BUILD_REPORTS, REPORT);
+  await write(BUILD_VIEW, '{"key":');
+  assert.deepEqual(await readBuildResults(store, 'Mixed', { modelVersion: 2 }), { report: REPORT, view: null });
+  await write(BUILD_REPORTS, 'not json');
+  assert.deepEqual(await readBuildResults(store, 'Mixed', { modelVersion: 2 }), { report: null, view: null });
+  await ops.create({ name: 'Fresh', template: 'blinky' });
+  assert.deepEqual(await readBuildResults(store, 'Fresh', { modelVersion: 2 }), { report: null, view: null });
+});
+
+test('browser storage: a build\'s results are not kept (this session only), nothing read back (#126)', async () => {
+  const ls = memStorage();
+  const store = browserStore(ls);
+  await projectOps(() => store, EXAMPLES).create({ name: 'InMemory', template: 'blinky' });
+  const kept = ls.getItem('silinx.standalone.fs');
+  await saveBuildResults(store, 'InMemory', { report: REPORT, view: VIEW, modelVersion: 2 });
+  assert.equal(ls.getItem('silinx.standalone.fs'), kept);
+  assert.equal(await store.readText('InMemory', BUILD_REPORTS), null);
+  assert.deepEqual(await readBuildResults(store, 'InMemory', { modelVersion: 2 }), { report: null, view: null });
 });
