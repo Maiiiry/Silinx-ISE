@@ -207,7 +207,7 @@ export function designFeatures(design, db) {
       else if (!on(out) && !(on(ff) && val(dmux) === '1')) feats.push({ tile: inst.tile, feature: `${kind}:${mux}:#OFF` });
     }
     if (kind === 'DCM') {
-      for (const feature of dcmPeriodFeatures(val('X_CLKIN_PERIOD'), val('CLKFX_DIVIDE'), val('CLKFX_MULTIPLY'))) feats.push({ tile: inst.tile, feature });
+      for (const feature of dcmPeriodFeatures(val('X_CLKIN_PERIOD'), val('CLKFX_DIVIDE'), val('CLKFX_MULTIPLY'), on('CLKIN_DIVIDE_BY_2'))) feats.push({ tile: inst.tile, feature });
       // each clock output used has its own enable bit (CLKFX, CLKFX180 and the status pins none)
       for (const pin of outPins.get(inst.name) || []) feats.push({ tile: inst.tile, feature: `DCM:OUT:${pin}` });
       // its CLKIN from a global clock buffer (a BUFGMUX before the DCM, two DCMs in cascade; on the
@@ -255,24 +255,21 @@ export function designFeatures(design, db) {
 }
 
 /** A DCM's input period (X_CLKIN_PERIOD, ns) as the features of its frequency ranges (measured on
- *  the XC3S250E's four DCMs, research/s3e-bitstream stage F): DCM:CLKIN:LOW for a period of 25 ns or
- *  more (24.9 sets nothing); DCM:CLKFX_IN:LOW (bits shared by the two DCMs of the top or bottom pair)
- *  when the CLKFX output is under 5 MHz, ISE computing it from CLKIN's period less a margin of
- *  0.4-0.64 ns (CLKFX_MULTIPLY / CLKFX_DIVIDE as given, not in lowest terms), or when CLKIN is
- *  3.33 MHz or less (5 MHz is not). Where the margin or the CLKIN limit leave ISE's choice open, the
- *  feature DCM:CLKFX_IN:? (not in the database) refuses the design. Without a period, the range is
- *  not known either when CLKFX_DIVIDE is 31 or more (slow even at 50 MHz). */
-export function dcmPeriodFeatures(period, divide, multiply) {
+ *  the four DCMs of the XC3S250E, research/s3e-bitstream stages F and #46). ISE works with the period
+ *  in whole nanoseconds, truncated (20.99 is 20), doubled by CLKIN_DIVIDE_BY_2 (12.9 is 24): with T that
+ *  period, DCM:CLKIN:LOW when T >= 25; DCM:CLKFX_IN:LOW (bits shared by the two DCMs of the top or
+ *  bottom pair) when CLKIN is under 5 MHz (T > 200) or the CLKFX output is (T x CLKFX_DIVIDE /
+ *  CLKFX_MULTIPLY > 200 ns, the factors as given, not in lowest terms). Without a period: neither
+ *  (whatever CLKFX_DIVIDE and CLKFX_MULTIPLY). Every one of the 164 cases measured follows this. */
+export function dcmPeriodFeatures(period, divide, multiply, divideBy2 = false) {
   const p = period === undefined || period === null || period === '#OFF' ? null : parseFloat(period);
   const d = parseInt(divide ?? '1', 10) || 1, m = parseInt(multiply ?? '4', 10) || 4;
-  if (p === null || Number.isNaN(p) || p <= 0) return d >= 31 ? ['DCM:CLKFX_IN:?'] : [];
+  if (p === null || Number.isNaN(p) || p <= 0) return [];
+  // whole nanoseconds (the period as XDL writes it, 20.0000000000000000 or 12.4000000000000004)
+  const t = Math.floor(p + 1e-9) * (divideBy2 ? 2 : 1);
   const out = [];
-  const e = 1e-9;
-  if (p >= 25 - e) out.push('DCM:CLKIN:LOW');
-  const fx = margin => (1000 / (p - margin)) * m / d;   // MHz
-  const fin = 1000 / p;
-  if (fin <= 3.334 || fx(0.645) < 5 - e) out.push('DCM:CLKFX_IN:LOW');
-  else if (fin < 5 - e || fx(0.4) < 5 - e) out.push('DCM:CLKFX_IN:?');
+  if (t >= 25) out.push('DCM:CLKIN:LOW');
+  if (t > 200 || t * d > 200 * m) out.push('DCM:CLKFX_IN:LOW');
   return out;
 }
 

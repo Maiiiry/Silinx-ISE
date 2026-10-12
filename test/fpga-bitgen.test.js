@@ -237,32 +237,49 @@ const measured = () => {
   return makeDb({ layout: read('xc3s250e-layout.json'), lut: read('xc3s250e-lut.json').lutF, tiles: withDcmClkinGclk(read('s3e-tiles.json')) });
 };
 
-test('a DCM\'s input period: its frequency ranges as measured (stage F)', () => {
-  // [period, CLKFX_DIVIDE, CLKFX_MULTIPLY] -> features, every case measured with ISE (CLKFX in MHz)
-  const f = (p, d, m = '3') => dcmPeriodFeatures(p, d, m);
+test('a DCM\'s input period: its frequency ranges as measured (stage F, #46)', () => {
+  // [period, CLKFX_DIVIDE, CLKFX_MULTIPLY, CLKIN_DIVIDE_BY_2] -> features, every case measured with ISE
+  // (ISE truncates the period to whole nanoseconds, then doubles it with CLKIN_DIVIDE_BY_2)
+  const f = (p, d, m = '3', d2 = false) => dcmPeriodFeatures(p, d, m, d2);
   assert.deepEqual(f('20.0000000000000000', '2'), []);
   assert.deepEqual(f('24.9', '2'), []);
+  assert.deepEqual(f('24.999', '2'), [], '24 ns');
   assert.deepEqual(f('25.0', '2'), ['DCM:CLKIN:LOW']);
-  assert.deepEqual(f('20.0', '30'), [], 'CLKFX 5.0');
-  assert.deepEqual(f('20.4', '30'), [], 'CLKFX 4.90, 5.0 with the margin');
-  assert.deepEqual(f('20.0', '31'), ['DCM:CLKFX_IN:LOW'], 'CLKFX 4.84');
-  assert.deepEqual(f('20.0', '31', '7'), [], 'CLKFX 11.3');
-  assert.deepEqual(f('20.0', '32', '4'), [], 'CLKFX 6.25');
-  assert.deepEqual(f('38.4', '16'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 4.88');
-  assert.deepEqual(f('37.8', '16'), ['DCM:CLKIN:LOW'], 'CLKFX 4.96');
-  assert.deepEqual(f('152.0', '4'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 4.93');
-  assert.deepEqual(f('150.0', '4'), ['DCM:CLKIN:LOW'], 'CLKFX 5.0');
-  assert.deepEqual(f('150.0', '6'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 3.33 (x 3 / 6, not reduced)');
-  assert.deepEqual(f('300.0', '2'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKIN 3.33 MHz');
+  assert.deepEqual(f('20.0', '30'), [], 'CLKFX 200 ns');
+  assert.deepEqual(f('20.4', '30'), [], '20 ns: CLKFX 200 ns');
+  assert.deepEqual(f('20.99', '30'), [], '20 ns: CLKFX 200 ns');
+  assert.deepEqual(f('21.0', '30'), ['DCM:CLKFX_IN:LOW'], 'CLKFX 210 ns');
+  assert.deepEqual(f('20.0', '31'), ['DCM:CLKFX_IN:LOW'], 'CLKFX 206.7 ns');
+  assert.deepEqual(f('20.0', '31', '7'), [], 'CLKFX 88.6 ns');
+  assert.deepEqual(f('20.0', '32', '4'), [], 'CLKFX 160 ns');
+  assert.deepEqual(f('38.4', '16'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], '38 ns: CLKFX 202.7 ns');
+  assert.deepEqual(f('38.05', '16'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], '38 ns: CLKFX 202.7 ns');
+  assert.deepEqual(f('37.8', '16'), ['DCM:CLKIN:LOW'], '37 ns: CLKFX 197.3 ns');
+  assert.deepEqual(f('14.1', '29', '2'), ['DCM:CLKFX_IN:LOW'], '14 ns: CLKFX 203 ns');
+  assert.deepEqual(f('25.9', '8', '1'), ['DCM:CLKIN:LOW'], '25 ns: CLKFX 200 ns');
+  assert.deepEqual(f('152.0', '4'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 202.7 ns');
+  assert.deepEqual(f('150.9', '4'), ['DCM:CLKIN:LOW'], '150 ns: CLKFX 200 ns');
+  assert.deepEqual(f('150.0', '6'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKFX 300 ns (x 3 / 6, not reduced)');
+  // CLKIN under 5 MHz
   assert.deepEqual(f('200.0', '2'), ['DCM:CLKIN:LOW'], 'CLKIN 5 MHz, CLKFX 7.5');
+  assert.deepEqual(f('200.99', '1', '4'), ['DCM:CLKIN:LOW'], '200 ns');
+  assert.deepEqual(f('201', '1', '4'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW']);
+  assert.deepEqual(f('300.0', '2'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], 'CLKIN 3.33 MHz');
   assert.deepEqual(f('1000.0', undefined), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW']);
-  assert.deepEqual(f('20.2', '30'), [], 'CLKFX 4.95');
-  // where the margin or the CLKIN limit leave ISE's choice open: a feature the database does not have
-  assert.deepEqual(f('20.5', '30'), ['DCM:CLKFX_IN:?'], 'CLKFX 4.88: 4.98 / 5.04 with the margins');
-  assert.deepEqual(f('250.0', '1', '2'), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:?'], 'CLKIN 4 MHz');
-  // no period: a divider of 31 or more is slow even at 50 MHz
+  // CLKIN_DIVIDE_BY_2: the truncated period doubled
+  assert.deepEqual(f('12.9', '1', '2', true), [], '24 ns');
+  assert.deepEqual(f('13.0', '1', '2', true), ['DCM:CLKIN:LOW'], '26 ns');
+  assert.deepEqual(f('15.0', '1', '2', true), ['DCM:CLKIN:LOW'], '30 ns');
+  assert.deepEqual(f('10.9', '10', '1', true), [], '20 ns: CLKFX 200 ns');
+  assert.deepEqual(f('11.0', '10', '1', true), ['DCM:CLKFX_IN:LOW'], '22 ns: CLKFX 220 ns');
+  assert.deepEqual(f('20.0', '16', '3', true), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], '40 ns: CLKFX 213 ns');
+  assert.deepEqual(f('100.9', '1', '4', true), ['DCM:CLKIN:LOW'], '200 ns');
+  assert.deepEqual(f('101', '1', '4', true), ['DCM:CLKIN:LOW', 'DCM:CLKFX_IN:LOW'], '202 ns');
+  // no period: neither range, whatever the factors
   assert.deepEqual(f(undefined, '4'), []);
-  assert.deepEqual(f(undefined, '32'), ['DCM:CLKFX_IN:?']);
+  assert.deepEqual(f(undefined, '32'), []);
+  assert.deepEqual(f(undefined, '31', '2'), []);
+  assert.deepEqual(f('#OFF', '32', '1'), []);
 });
 
 test('a DCM: its period ranges, an enable per clock output used, STARTUP_WAIT in the COR register', () => {
@@ -339,6 +356,32 @@ net "c" ,
   // the XC3S1200E's side DCMs too (their mirror images)
   const big = loadDb('xc3s1200efg320-4');
   assert.deepEqual(['DCM_H_BL_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_TL_CENTER', 'DCM_H_TR_CENTER'].map(t => featureBits(big.types[t], 'DCM:CLKIN:GCLK')), [['!18,100'], ['!0,100'], ['!18,-37'], ['!0,-37']]);
+});
+
+test('a DCM with CLKIN_DIVIDE_BY_2: its bit on each of the four DCMs, the input period doubled (#46)', () => {
+  const db = measured();
+  // the bit of CLKIN_DIVIDE_BY_2 per DCM (measured on the four, the top-left one's mirrored)
+  const want = { DCM_TL_CENTER_X13Y34: [0, 112], DCM_TR_CENTER_X14Y34: [18, 112], DCM_BL_CENTER_X13Y1: [0, -49], DCM_BR_CENTER_X14Y1: [18, -49] };
+  const site = { DCM_TL_CENTER_X13Y34: 'DCM_X0Y1', DCM_TR_CENTER_X14Y34: 'DCM_X1Y1', DCM_BL_CENTER_X13Y1: 'DCM_X0Y0', DCM_BR_CENTER_X14Y1: 'DCM_X1Y0' };
+  for (const [tile, [df, dbit]] of Object.entries(want)) {
+    const xdl = div2 => `design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "u" "DCM",placed ${tile} ${site[tile]} ,
+  cfg " CLKFX_DIVIDE::1 CLKFX_MULTIPLY::2 DESKEW_ADJUST::0 X_CLKIN_PERIOD::12.9000000000000004 ${div2 ? 'CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2' : 'CLKIN_DIVIDE_BY_2::#OFF'} "
+  ;
+net "n" ,
+  outpin "u" CLK0 ,
+  ;
+`;
+    const feats = designFeatures(parseXdl(xdl(true)), db).feats.filter(f => f.tile === tile).map(f => f.feature);
+    assert.ok(feats.includes('DCM:CLKIN_DIVIDE_BY_2:CLKIN_DIVIDE_BY_2'), tile);
+    assert.ok(!feats.includes('DCM:CLKIN:LOW'), `${tile}: 12.9 ns doubled is 24 ns in whole nanoseconds`);
+    const [on, off] = [true, false].map(d => bitgen(parseXdl(xdl(d)), db, { crc: false }));
+    assert.deepEqual([on.unknown, off.unknown], [[], []]);
+    const base = tileBase(tileOf(tile, db), db);
+    const bit = r => getBit(readBit(r.bytes).frames, FW, base.frame + df, base.bit + dbit);
+    assert.deepEqual([bit(on), bit(off)], [1, 0], tile);
+    assert.equal(diffFrames(readBit(on.bytes).frames, readBit(off.bytes).frames, FW).length, 1, `${tile}: one bit`);
+  }
 });
 
 test('measured database: a LUT and a slice setting where stage A and B found them', () => {

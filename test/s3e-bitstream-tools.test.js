@@ -134,6 +134,41 @@ test('dcm-mirror: the other DCMs\' settings are the top-left one\'s mirrored, bu
   for (const type of ['DCM_H_BL_CENTER', 'DCM_H_TL_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_TR_CENTER']) assert.ok(Object.keys(t[type].features).some(k => k.includes('->')), type);
   // the CLKFX input range is its own feature, not CLKFX_DIVIDE 31 / 32's
   assert.deepEqual(d['DCM:CLKFX_DIVIDE:32'], ['-39,27', '-39,28', '-39,29', '-39,30', '-39,31']);
+  // CLKIN_DIVIDE_BY_2 (#46): one bit, measured on the four DCMs of the XC3S250E, mirrored to the others
+  assert.deepEqual(['DCM_TL_CENTER', 'DCM_TR_CENTER', 'DCM_BL_CENTER', 'DCM_BR_CENTER', 'DCM_H_BR_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_TR_CENTER', 'DCM_H_TL_CENTER']
+    .map(type => t[type].features['DCM:CLKIN_DIVIDE_BY_2:CLKIN_DIVIDE_BY_2']), [['0,112'], ['18,112'], ['0,-49'], ['18,-49'], ['0,112'], ['18,112'], ['0,-49'], ['18,-49']]);
+  // the DCMs' own switches of #46's designs (learn-10): the outputs and the phase-shift / reset pins
+  assert.deepEqual(t.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3'], read('../measured/learn-10dcm46-pips.json').types.DCM_TL_CENTER.features['DCM_CLK2X->OMUX3']);
+  assert.ok(Object.keys(read('../measured/learn-10dcm46-pips.json').types).every(type => /^DCM_(H_)?[TB][LR]_CENTER$/.test(type)));
+});
+
+test('gen-sitevar: variants with other values on each instance (perSite, #46); gen-dcmhdl: designs of several DCMs', async () => {
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { spawnSync } = await import('node:child_process');
+  const { fileURLToPath } = await import('node:url');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-sitevar-'));
+  const tool = f => fileURLToPath(new URL(`../research/s3e-bitstream/${f}`, import.meta.url));
+  try {
+    const xdl = ['DCM_X0Y0', 'DCM_X1Y1', 'DCM_X1Y0'].map((s, i) => `inst "u${i}" "DCM",placed T${i} ${s} ,\n  cfg " CLKFX_DIVIDE::2 X_CLKIN_PERIOD::20.0 "\n  ;\n`).join('');
+    fs.writeFileSync(path.join(dir, 'b.xdl'), xdl);
+    fs.writeFileSync(path.join(dir, 'spec.json'), JSON.stringify({ type: 'DCM', bases: { B: {} }, variants: [{ name: 'V00', base: 'B', perSite: { DCM_X0Y0: { X_CLKIN_PERIOD: '20.9', CLKFX_DIVIDE: '30' }, DCM_X1Y1: { X_CLKIN_PERIOD: null } } }] }));
+    const r = spawnSync(process.execPath, [tool('gen-sitevar.mjs'), path.join(dir, 'b.xdl'), path.join(dir, 'out'), path.join(dir, 'spec.json')], { encoding: 'utf8' });
+    assert.equal(r.status, 0, r.stderr);
+    const v = fs.readFileSync(path.join(dir, 'out', 'V00.xdl'), 'utf8').split('inst ').slice(1);
+    assert.match(v[0], /CLKFX_DIVIDE::30 X_CLKIN_PERIOD::20\.9 /);
+    assert.doesNotMatch(v[1], /X_CLKIN_PERIOD/);
+    assert.match(v[2], /CLKFX_DIVIDE::2 X_CLKIN_PERIOD::20\.0 /, 'an instance not named keeps its values');
+    fs.writeFileSync(path.join(dir, 'dcm.json'), JSON.stringify({ d2: { sites: ['DCM_X0Y1', 'DCM_X1Y1'], dcms: [{ P: 12.9, DIV2: true, DESKEW: 'SOURCE_SYNCHRONOUS' }, { M: 3, D: 30, P: 20.9 }] } }));
+    const g = spawnSync(process.execPath, [tool('gen-dcmhdl.mjs'), dir, path.join(dir, 'dcm.json')], { encoding: 'utf8' });
+    assert.equal(g.status, 0, g.stderr);
+    const vhd = fs.readFileSync(path.join(dir, 'd2', 'top.vhd'), 'utf8');
+    assert.match(vhd, /CLKIN_PERIOD => 12\.900,\s+CLK_FEEDBACK => "1X", CLKIN_DIVIDE_BY_2 => TRUE/);
+    assert.match(vhd, /DESKEW_ADJUST => "SOURCE_SYNCHRONOUS"/);
+    assert.match(vhd, /CLKFX_MULTIPLY => 3, CLKFX_DIVIDE => 30, CLKIN_PERIOD => 20\.900/);
+    assert.equal((vhd.match(/: DCM_SP/g) || []).length, 2);
+    assert.match(fs.readFileSync(path.join(dir, 'd2', 'top.ucf'), 'utf8'), /INST "u_dcm1" LOC = "DCM_X1Y1" ;/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
 test('measured database: SLICEM as RAM / shift register, I/O drive, slew and pull per pad', () => {

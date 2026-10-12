@@ -52,6 +52,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-bram.mjs`, `ana-bram.mjs`, `db/<device>-bram.json` | Stage D: every memory bit of the block RAMs, by binary codes |
 | `gen-sitevar.mjs`, `ana-sitevar.mjs`, `sitevar-features.mjs`, `bram-features.mjs` | Stage D: the settings of block RAMs, multipliers and DCMs, changed one at a time in designs implemented by ISE |
 | `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-F: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
+| `gen-dcmhdl.mjs` | Stage G: designs of several DCMs with settings of their own, implemented by ISE from HDL (settings xdl refuses in an edited design); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
 
 ## Results
@@ -512,7 +513,8 @@ bottom right + top left, whose bits cannot mix; `ana-sitevar.mjs` now gives the 
   they had two more bits) when the CLKFX output is under 5 MHz, computed by ISE from CLKIN's period
   less a margin of 0.4-0.64 ns and CLKFX_MULTIPLY / CLKFX_DIVIDE as given, or when CLKIN is 3.33 MHz or
   less (5 MHz is not). All 86 cases measured follow this rule; where the margin or the CLKIN limit
-  leave the choice open, the design is refused (`DCM:CLKFX_IN:?`).
+  leave the choice open, the design is refused (`DCM:CLKFX_IN:?`). (Solved in stage G: the "margin" is
+  the period truncated to whole nanoseconds.)
 - **STARTUP_WAIT**: one bit of the DCM and the COR register: bitgen moves the startup cycles (0x31E5
   -> 0x211D, with Cclk and with JtagClk; `corValue({ startupWait })`), but only for a DCM at one of the
   sites DCM_X0Y0, X1Y0, X0Y1, X1Y1 (measured one DCM at a time on the XC3S250E, XC3S500E and
@@ -548,7 +550,7 @@ Not done: the settings of the IOB flip-flops and DDR registers (`gen-sitedrop.mj
 and set / reset settings are consistent between instances, but the input delay settings are not,
 being bits near the pads like the pads' own: they need a per-pad campaign like `--perpad`, on
 designs whose IOB registers ISE placed); the side clock tiles' input switches (above); CLKIN_DIVIDE_BY_2 and DESKEW_ADJUST = SOURCE_SYNCHRONOUS (xdl refuses the variants: to measure
-with designs implemented by ISE). A design using one of them is refused (`unknown`).
+with designs implemented by ISE). A design using one of them is refused (`unknown`). (Stage G below.)
 
 **Other things learned**: the device reports of the larger chips are too large to read as one string
 (the XC3S1200E's is 595 MB): the experiments use the device description instead (`xdlrc-graph.mjs`
@@ -564,6 +566,39 @@ DCMs and side buffers (about 500 runs), 5 designs implemented from HDL and 17 ch
 flow (blinky, lab11 on every board, the feature fixtures, feat_starter, feat_dcm_wait: all
 byte-identical, CRC on and off, no DRC error or warning, no warning of the open flow), in about 3
 hours of wall time.
+
+### Stage G: the rest of the DCM (2026-10-12)
+
+**#46: CLKIN_DIVIDE_BY_2, SOURCE_SYNCHRONOUS deskew and the DCM's frequency ranges.** Measured with
+designs implemented by ISE from HDL (`ise-impl.sh`: the four DCMs of the XC3S250E with every setting
+mixed, xdl refusing these settings in an edited design) and xdl variants of the input period:
+
+- **DESKEW_ADJUST = SOURCE_SYNCHRONOUS** is `DESKEW_ADJUST::0` in ISE's map (SYSTEM_SYNCHRONOUS is
+  7): the value measured in stage D, no bits of its own. The packer writes it so.
+- **CLKIN_DIVIDE_BY_2**: one bit (`DCM:CLKIN_DIVIDE_BY_2:CLKIN_DIVIDE_BY_2`, 0,112 in the top-left
+  DCM), the other DCMs' the top-left one's mirrored (`dcm-mirror.mjs`; seen on all four;
+  `measured/fix-23dcm-divide.json`).
+- **The frequency ranges** (`DCM:CLKIN:LOW`, `DCM:CLKFX_IN:LOW`): ISE takes the input period in whole
+  nanoseconds, truncated, doubled by CLKIN_DIVIDE_BY_2 (T); CLKIN:LOW when T >= 25; CLKFX_IN:LOW when
+  T > 200 (CLKIN under 5 MHz) or T x CLKFX_DIVIDE / CLKFX_MULTIPLY > 200 (CLKFX under 5 MHz); without a
+  period neither. Stage F's "margin of 0.4-0.64 ns" was the truncation: 20.9 ns x 30 / 3 is "200 ns"
+  and fast, 14.1 x 29 / 2 "203 ns" and slow (a margin would have made it fast), 12.9 ns halved "24 ns"
+  and not LOW, 200.99 ns fast, 201 ns slow. All 164 cases measured (stage F's 86 and 78 new ones,
+  `per*` variants of 2 DCMs of different pairs at a time) follow it (`core/fpga/bitgen.js
+  dcmPeriodFeatures`); nothing is refused any more.
+- **The DCMs' own switches**: the designs of every DCM of each device with these settings (2 / 4 / 4 /
+  8 DCMs, the phase-shift and reset pins from the fabric) and `gen-pipdrop.mjs` on each gave 125 PIPs
+  of the DCM tiles the database did not have (`measured/learn-10dcm46-pips.json`, the same bits on
+  every device). With them these designs are byte-identical to ISE's bitgen (CRC on and off) on the
+  XC3S100E, XC3S250E and XC3S500E; the XC3S1200E's differs only in its side global buffers (#45) and
+  long-line splitters.
+- **The open flow**: `test/fixtures/open-flow/feat_dcm_div2` (Basys2-250: CLKIN_DIVIDE_BY_2,
+  SOURCE_SYNCHRONOUS, CLKFX 25 MHz x 3 / 15 at the edge of its range) and `feat_dcm_fx` (Nexys2-500:
+  a period of 20.9 ns, CLKFX x 3 / 30) are byte-identical to ISE's bitgen, CRC on and off, DRC 0
+  errors and 0 warnings.
+
+Runtime: 9 designs implemented from HDL, 111 xdl + bitgen runs (84 of them PIP batches), in
+about 25 minutes of wall time.
 
 ### Open synthesis on the board (2026-10-10)
 

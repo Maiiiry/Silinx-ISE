@@ -1,0 +1,12 @@
+{
+ "source": "#46 (research/s3e-bitstream/README.md, stage F): CLKIN_DIVIDE_BY_2 measured in designs implemented by ISE from HDL (ise-impl.sh: the four DCMs of the XC3S250E with CLKIN_DIVIDE_BY_2 = TRUE, xdl refusing the setting in an edited design); one bit, the other DCMs' the top-left one's mirrored (dcm-mirror.mjs; seen on all four). DESKEW_ADJUST = SOURCE_SYNCHRONOUS is DESKEW_ADJUST::0 in ISE's map (no bits of its own)",
+ "types": {
+  "DCM_TL_CENTER": {
+   "features": {
+    "DCM:CLKIN_DIVIDE_BY_2:CLKIN_DIVIDE_BY_2": [
+     "0,112"
+    ]
+   }
+  }
+ }
+}

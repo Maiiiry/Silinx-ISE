@@ -1,0 +1,21 @@
+{
+  "name": "feat_dcm_div2",
+  "description": "Board test: a DCM with its input divided by 2 (CLKIN_DIVIDE_BY_2), source-synchronous deskew, a CLKFX of 5 MHz at the edge of its frequency range (#46)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "../basys2.ucf"
+}

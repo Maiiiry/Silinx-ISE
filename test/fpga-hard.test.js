@@ -201,8 +201,14 @@ test('cells the Silinx toolchain cannot implement yet are reported clearly', () 
   const sw = pack(dcm({ STARTUP_WAIT: 'TRUE' })).insts.find(i => i.type === 'DCM');
   assert.equal(val(sw, 'STARTUP_WAIT'), 'STARTUP_WAIT');
   assert.equal(val(pack(dcm({ STARTUP_WAIT: 'FALSE' })).insts.find(i => i.type === 'DCM'), 'STARTUP_WAIT'), undefined);
-  assert.throws(() => pack(dcm({ CLKIN_DIVIDE_BY_2: 'TRUE' })), /DCM_SP u: CLKIN_DIVIDE_BY_2 = TRUE is not in the bit database yet/);
-  assert.throws(() => pack(dcm({ DESKEW_ADJUST: 'SOURCE_SYNCHRONOUS' })), /DESKEW_ADJUST = SOURCE_SYNCHRONOUS is not in the bit database yet/);
+  // CLKIN_DIVIDE_BY_2 and DESKEW_ADJUST = SOURCE_SYNCHRONOUS are written as ISE's map writes them (#46)
+  const d2 = pack(dcm({ CLKIN_DIVIDE_BY_2: 'TRUE', DESKEW_ADJUST: 'SOURCE_SYNCHRONOUS' }));
+  const d2u = d2.insts.find(i => i.type === 'DCM');
+  assert.deepEqual(['CLKIN_DIVIDE_BY_2', 'DESKEW_ADJUST'].map(a => val(d2u, a)), ['CLKIN_DIVIDE_BY_2', '0']);
+  assert.deepEqual(d2.warnings, []);
+  assert.equal(val(pack(dcm({ CLKIN_DIVIDE_BY_2: 'FALSE', DESKEW_ADJUST: '5' })).insts.find(i => i.type === 'DCM'), 'CLKIN_DIVIDE_BY_2'), undefined);
+  assert.equal(val(pack(dcm({ DESKEW_ADJUST: '5' })).insts.find(i => i.type === 'DCM'), 'DESKEW_ADJUST'), '5');
+  assert.throws(() => pack(dcm({ DESKEW_ADJUST: '16' })), /DCM_SP u: DESKEW_ADJUST = 16 is not in the bit database yet/);
   assert.throws(() => pack(one('BUFGMUX', { I0: 'clk_i', I1: 'clk_i', S: 'clk_i', O: 'y' }, ['O'])), /BUFGMUX u: the Silinx toolchain cannot switch clocks with a BUFGMUX yet/);
   const cascade = yjson({ clk: ['input', 1], o: ['output', 2] }, [...clock,
     { name: 'u', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'clk_i', Q: 'y', Q15: 'y15' }, outs: ['Q', 'Q15'] }, obuf('o[0]', 'y'), obuf('o[1]', 'y15')]);
@@ -332,8 +338,9 @@ test('bufgReach: each output of the top-left DCM reaches its global buffer throu
   const g = loadDeviceCache('xc3s250ecp132-4');
   const got = Object.fromEntries(['CLK0', 'CLK2X', 'CLKDV', 'CLKFX', 'CLK90', 'CLKFX180'].map(p => [p, bufgReach(g, 'DCM_X0Y1', p, known.allowPip)]));
   // (the DCM pins' switches measured in stage F of research/s3e-bitstream add CLK0 -> X2Y11 and CLKFX -> X1Y11;
-  // the designs of every DCM, CLK90 -> X1Y11 and CLKFX -> X2Y11: CLK90 on a global buffer is byte-identical to ISE)
-  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X2Y11', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK90: ['BUFGMUX_X1Y11'], CLKFX180: [] });
+  // the designs of every DCM, CLK90 -> X1Y11 and CLKFX -> X2Y11: CLK90 on a global buffer is byte-identical to ISE;
+  // #46's designs of every DCM, CLK0 -> X1Y10)
+  assert.deepEqual(got, { CLK0: ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y10'], CLK2X: ['BUFGMUX_X1Y11'], CLKDV: ['BUFGMUX_X2Y11'], CLKFX: ['BUFGMUX_X2Y11', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'], CLK90: ['BUFGMUX_X1Y11'], CLKFX180: [] });
   // without the restriction: the four buffers of the top edge
   assert.deepEqual(bufgReach(g, 'DCM_X0Y1', 'CLK90').sort(), ['BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']);
 });

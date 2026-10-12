@@ -153,6 +153,11 @@ the "What's new" text of its GitHub release.
   - The same critical paths and slices: +0.02 % (geometric mean of the routed critical paths of the
     examples and 4 corpus designs, seeds 1-3, register replication on), the examples' bitstreams
     byte-identical to ISE's bitgen with no DRC error or warning (#55).
+- **Silinx toolchain: more DCM settings** (measured with ISE, #46): `CLKIN_DIVIDE_BY_2 => TRUE` and
+  `DESKEW_ADJUST => "SOURCE_SYNCHRONOUS"` are accepted (they were refused as not in the bit database),
+  and the DCM's frequency ranges follow ISE's rule exactly: the input period in whole nanoseconds
+  (20.9 ns counts as 20), doubled by `CLKIN_DIVIDE_BY_2`. A CLKFX near 5 MHz, or an input period of
+  200-300 ns, is no longer refused. Byte-identical to ISE's bitgen on all four devices.
 
 ## 15.10.2
 

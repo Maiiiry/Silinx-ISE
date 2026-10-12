@@ -853,9 +853,9 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     const p = c.params;
     const str = k => String(p[k] ?? '').trim().toUpperCase();
     const bad = why => { throw new PackError(`pack: ${c.type} ${c.name}: ${why}`); };
-    if (str('CLKIN_DIVIDE_BY_2') === 'TRUE') bad('CLKIN_DIVIDE_BY_2 = TRUE is not in the bit database yet');
+    // DESKEW_ADJUST: SYSTEM_SYNCHRONOUS is 7 and SOURCE_SYNCHRONOUS 0 in ISE's map (#46)
     const deskew = str('DESKEW_ADJUST') || 'SYSTEM_SYNCHRONOUS';
-    if (deskew !== 'SYSTEM_SYNCHRONOUS' && !/^([0-9]|1[0-5])$/.test(deskew)) bad(`DESKEW_ADJUST = ${deskew} is not in the bit database yet`);
+    if (!/^(SYSTEM_SYNCHRONOUS|SOURCE_SYNCHRONOUS|[0-9]|1[0-5])$/.test(deskew)) bad(`DESKEW_ADJUST = ${deskew} is not in the bit database yet`);
     const s = hardSite(c, 'dcm', 'DCM', pin => {
       const q = /^STATUS<(\d+)>$/.exec(pin);
       if (q) return `STATUS${q[1]}`;
@@ -868,10 +868,10 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     s.dcm = {
       CLKDV_DIVIDE: String(dv).replace('.', '_'), CLKFX_DIVIDE: String(int('CLKFX_DIVIDE', 1)), CLKFX_MULTIPLY: String(int('CLKFX_MULTIPLY', 4)),
       CLKOUT_PHASE_SHIFT: str('CLKOUT_PHASE_SHIFT') || 'NONE', CLK_FEEDBACK: str('CLK_FEEDBACK') || '1X',
-      DESKEW_ADJUST: deskew === 'SYSTEM_SYNCHRONOUS' ? '7' : deskew, DFS_FREQUENCY_MODE: str('DFS_FREQUENCY_MODE') || 'LOW',
+      DESKEW_ADJUST: { SYSTEM_SYNCHRONOUS: '7', SOURCE_SYNCHRONOUS: '0' }[deskew] ?? deskew, DFS_FREQUENCY_MODE: str('DFS_FREQUENCY_MODE') || 'LOW',
       DLL_FREQUENCY_MODE: str('DLL_FREQUENCY_MODE') || 'LOW', DUTY_CYCLE_CORRECTION: str('DUTY_CYCLE_CORRECTION') === 'FALSE' ? 'FALSE' : 'TRUE',
       PHASE_SHIFT: String(p.PHASE_SHIFT === undefined ? 0 : BigInt.asIntN(32, BigInt(paramInt(p.PHASE_SHIFT, 0)))),
-      period: real('CLKIN_PERIOD'), startupWait: str('STARTUP_WAIT') === 'TRUE',
+      period: real('CLKIN_PERIOD'), startupWait: str('STARTUP_WAIT') === 'TRUE', divideBy2: str('CLKIN_DIVIDE_BY_2') === 'TRUE',
     };
     s.loc = instLocs.get(c.name) || null;
   }
@@ -1032,7 +1032,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   // as ISE's map writes a DCM_SP (the FACTORY_JF and LL_HEX settings set no bits)
   function dcmCfg(s) {
     const d = s.dcm;
-    const cfg = [['CLKDV_DIVIDE', '', d.CLKDV_DIVIDE], ['CLKOUT_PHASE_SHIFT', '', d.CLKOUT_PHASE_SHIFT], ['CLK_FEEDBACK', '', d.CLK_FEEDBACK],
+    const cfg = [['CLKDV_DIVIDE', '', d.CLKDV_DIVIDE], ...(d.divideBy2 ? [['CLKIN_DIVIDE_BY_2', '', 'CLKIN_DIVIDE_BY_2']] : []), ['CLKOUT_PHASE_SHIFT', '', d.CLKOUT_PHASE_SHIFT], ['CLK_FEEDBACK', '', d.CLK_FEEDBACK],
       ['DESKEW_ADJUST', '', d.DESKEW_ADJUST], ['DFS_FREQUENCY_MODE', '', d.DFS_FREQUENCY_MODE], ['DLL_FREQUENCY_MODE', '', d.DLL_FREQUENCY_MODE],
       ['DUTY_CYCLE_CORRECTION', '', d.DUTY_CYCLE_CORRECTION], ['FACTORY_JF1', '', '0XC0'], ['FACTORY_JF2', '', '0X80']];
     // the startup sequence waits for the lock (also the COR register: bitgen.js)

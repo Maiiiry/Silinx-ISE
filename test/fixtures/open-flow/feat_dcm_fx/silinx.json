@@ -1,0 +1,21 @@
+{
+  "name": "feat_dcm_fx",
+  "description": "Board test (Nexys2-500): a DCM's CLKFX at the limit of its frequency range as ISE counts it, the input period in whole nanoseconds (#46)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s500e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "board": "nexys2-500",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf"
+}
