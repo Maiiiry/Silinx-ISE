@@ -20,7 +20,9 @@ test('gates: the first example everywhere the examples are listed', () => {
   assert.deepEqual(EXAMPLE_ORDER, ['gates', 'blinky', 'pong', 'stopwatch', 'clock']);
   assert.equal(EXAMPLES[0], 'gates');
   assert.deepEqual(orderExamples(['stopwatch', 'clock', 'zeta', 'blinky', 'alpha', 'pong', 'gates']), ['gates', 'blinky', 'pong', 'stopwatch', 'clock', 'alpha', 'zeta']);
-  assert.deepEqual(orderExamples(fs.readdirSync(path.dirname(ex.dir))), EXAMPLE_ORDER);
+  // (the example folders, as the server's templates: a folder with a silinx.json; not a Finder's .DS_Store)
+  const dirs = fs.readdirSync(path.dirname(ex.dir), { withFileTypes: true }).filter((e) => e.isDirectory() && fs.existsSync(path.join(path.dirname(ex.dir), e.name, 'silinx.json'))).map((e) => e.name);
+  assert.deepEqual(orderExamples(dirs), EXAMPLE_ORDER);
 });
 
 test('gates: the project, the schematic linked to its HDL (top gates, test bench tb_gates)', () => {
