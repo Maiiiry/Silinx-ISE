@@ -207,8 +207,10 @@ for Xilinx FPGAs supported by ISE 14.7.
 
 In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest):
 
-- **Just design and simulate:** download **`Silinx-ISE.html`** and double-click it. Nothing to install;
-  projects are kept in the browser.
+- **Just design and simulate:** open **https://pmnmalo.github.io/Silinx-ISE/** (the latest release, in the
+  browser), or download **`Silinx-ISE.html`** and double-click it. Nothing to install; projects are kept
+  in the browser. For a course page (Moodle…), link that address as a URL: an HTML file uploaded to
+  Moodle does not work (Moodle's filtering of uploaded HTML files removes its scripts).
 - **Also synthesize and program boards:** install [Node.js](https://nodejs.org) (LTS), download
   **`silinx-ise-<version>.zip`**, unzip it and double-click **`Start Silinx-ISE.bat`** (Windows),
   **`Start Silinx-ISE.command`** (macOS) or **`start-silinx-ise.sh`** (Linux). Your browser opens

@@ -13,10 +13,13 @@ No programming tools or git needed. Pick **one** of the two ways below.
 
 ## Way 1: the single file (simplest)
 
+The quickest: open **https://pmnmalo.github.io/Silinx-ISE/** in your browser (the latest release;
+your projects are kept in that browser) and go to step 4. Or download it, to work offline:
+
 1. Open the **[latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Under **Assets**, click **`Silinx-ISE.html`** to download it.
 3. Double-click the downloaded file. It opens in your browser (Chrome, Edge, Firefox or Safari).
-4. On the Start page click **Open Example (blinky)** (or *pong*, a game for two, or *stopwatch*) or **New Project…**.
+4. On the Start page click **Open Example (blinky)** (or *pong*, a game for two, *stopwatch* or *clock*) or **New Project…**.
 
 That's all. Things to know:
 

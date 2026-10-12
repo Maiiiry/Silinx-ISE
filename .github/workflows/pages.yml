@@ -1,0 +1,55 @@
+name: Pages
+# The single-file edition (Silinx-ISE.html: no install, runs in the browser) published on GitHub
+# Pages, so that a course page (e.g. Moodle, as a URL resource) can link to it:
+#   https://pmnmalo.github.io/Silinx-ISE/
+# Built from the latest release tag, on every release and on demand (Actions ▸ Pages ▸ Run workflow).
+# (Uploading the HTML file to Moodle itself does not work: Moodle's filtering of uploaded HTML files
+# removes its <script> tags and shows the code as text.)
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: The latest release
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          case "$tag" in v*) ;; *) tag="$(git describe --tags --abbrev=0 --match 'v*')" ;; esac
+          echo "Publishing $tag"
+          git checkout -q "$tag"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Build the single-file edition
+        run: node scripts/build-standalone.mjs
+      - name: The site
+        run: |
+          mkdir -p site
+          cp dist/Silinx-ISE.html site/index.html
+          cp dist/Silinx-ISE.html site/Silinx-ISE.html
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
