@@ -26,6 +26,15 @@ That's all. Things to know:
 - Your projects are saved **inside this browser** on this computer. To keep a copy or move it to
   another computer use **File ▸ Download Project Bundle** (and **File ▸ Open Project Bundle** to
   load it back). Clearing the browser's data deletes them.
+- **Or keep them in a folder on your disk** (Chrome or Edge): **File ▸ Open Workspace Folder…**
+  (also on the Start page) and choose a folder, for instance a new `Silinx-projects` folder in your
+  Documents. Each project is then an ordinary folder in it (`silinx.json`, `src/`, `sim/`,
+  `constraints/`, and `build/` with the bitstream), the same as the full application's (Way 2): the
+  folder opens there too, and a project's folder can be zipped and handed in. The browser remembers
+  the folder; when it asks for permission again, click **Reopen Silinx-projects** on the Start page.
+  **File ▸ Copy Browser Projects to the Folder** copies the projects you already had in the browser,
+  and **File ▸ Use Browser Storage** goes back to the browser. The status bar shows where the projects
+  are kept. Firefox and Safari cannot open a folder: there the projects stay in the browser.
 - On **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** and **Generate Programming
   File** run the Silinx toolchain in the browser (Basys2 and Nexys2 boards; the first run downloads
   its tools, about 100 MB, then the browser keeps them): the bitstream (`top.bit`) is downloaded.

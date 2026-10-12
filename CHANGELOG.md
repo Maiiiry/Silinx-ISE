@@ -3,6 +3,18 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.5
+
+- **The browser edition keeps projects in a folder on the disk** (Chrome, Edge): *File* ▸ *Open
+  Workspace Folder…* (also on the Start page) and a folder chosen once, for instance
+  `Silinx-projects`. Each project is a normal project folder in it, as the full application writes
+  it (`silinx.json`, `src/`, `sim/`, `constraints/`, and `build/` with the bitstream), so the same
+  folder opens in the full application and a project's folder can be zipped for a submission. The
+  browser remembers the folder (when it asks for the permission again: *Reopen <folder>* on the
+  Start page); *Copy Browser Projects to the Folder* copies the projects kept in the browser, *Use
+  Browser Storage* goes back to the browser, and the status bar shows which is in use. Firefox and
+  Safari cannot open a folder: the item is disabled there, and says why (#107).
+
 ## 15.10.4
 
 - **The browser edition programs the board:** on https://pmnmalo.github.io/Silinx-ISE/, *Configure

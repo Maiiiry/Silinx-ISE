@@ -144,6 +144,7 @@ table.grid tr.sel td { background: #dbe8fb; }
 .start-box { min-width: 260px; }
 .start-box h3 { font-size: 13px; color: #1e395b; border-bottom: 1px solid #c9d7ed; padding-bottom: 3px; }
 .start-box .entry { display: flex; align-items: center; gap: 6px; padding: 3px 0; }
+.start-box .entry .disabled, .start-box .entry.hint { color: #888; cursor: default; }
 .summary-table { border-collapse: collapse; margin-bottom: 16px; min-width: 640px; }
 .summary-table caption { text-align: left; font-weight: bold; background: linear-gradient(#e9eff8, #c9d7ed); color: #15428b; padding: 3px 8px; border: 1px solid #99bbe8; border-bottom: none; }
 .summary-table th, .summary-table td { border: 1px solid #c5d3e8; padding: 3px 8px; text-align: left; }

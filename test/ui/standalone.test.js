@@ -2,7 +2,8 @@
 // here into a temp directory): it loads from file:// without a server, creates a project from an
 // example and simulates it; the site (--site: the page and the assets of the Silinx toolchain, as
 // GitHub Pages publishes it), served over HTTP, implements blinky in the browser down to the bitstream and programs it into a
-// (simulated) Basys2 over WebUSB.
+// (simulated) Basys2 over WebUSB; it keeps the projects in a folder on the disk (File System Access
+// API, through a fake folder) or, without that API, in the browser's storage.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -11,7 +12,8 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { setupUi, uiTest, waitDownload, ROOT } from './harness.js';
+import { setupUi, uiTest, waitDownload, ROOT, chromeOnly } from './harness.js';
+import { TEXTS, untranslated } from './i18n-check.js';
 
 let env, html, site, server, siteUrl, skip = null;
 before(async () => {
@@ -40,8 +42,9 @@ before(async () => {
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.gz': 'application/gzip' };
   server = http.createServer(async (req, res) => {
     const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '') || 'index.html';
-    // (the simulated Digilent board of the programming test)
-    const f = rel === '__test/adept-sim.js' ? path.join(ROOT, 'test/fixtures/adept-sim.js') : path.join(site, rel);
+    // (the simulated Digilent board of the programming test, the fake folder of the workspace folder tests)
+    const TEST = { '__test/adept-sim.js': 'adept-sim.js', '__test/fs-access-fake.js': 'fs-access-fake.js' };
+    const f = TEST[rel] ? path.join(ROOT, 'test/fixtures', TEST[rel]) : path.join(site, rel);
     if (!f.startsWith(site + path.sep) && !rel.startsWith('__test/')) { res.writeHead(403).end(); return; }
     try {
       const data = await fs.readFile(f);
@@ -189,3 +192,173 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
   await page.waitConsole(/Programming FPGA \(SRAM\) failed: the board's FPGA is a XC3S500E, the bitstream is for a XC3S250E/);
   assert.equal(await page.eval(() => window.__board.done), false);
 }, { url: () => 'about:blank', timeout: 240000 });
+
+// ---- projects in a folder on the disk (File System Access API, Chrome / Edge). The real folder
+// picker cannot be driven headless: the page gets a fake one (test/fixtures/fs-access-fake.js),
+// its folder kept in localStorage across reloads, and the folder's handle "remembered" through
+// window.SILINX_WORKSPACE_HANDLES (a fake handle cannot be stored in IndexedDB).
+const FAKE_FOLDER = (url) => `(() => {
+  const fake = () => import(${JSON.stringify(url)});
+  const open = async () => (window.__fakeRoot = (await fake()).fakeDirectory('Silinx-projects',
+    { storage: localStorage, key: '__fakefs', permission: localStorage.getItem('__fakefs.permission') || 'granted' }));
+  window.showDirectoryPicker = async (opts) => { window.__picker = opts; return open(); };
+  window.SILINX_WORKSPACE_HANDLES = {
+    load: async () => (localStorage.getItem('__fakefs.remembered') ? open() : null),
+    save: async (h) => { localStorage.setItem('__fakefs.remembered', h.name); },
+  };
+})();`;
+const NO_FOLDER_API = 'Object.defineProperty(window, "showDirectoryPicker", { value: undefined, configurable: true, writable: true });';
+const startEntries = (page) => page.eval(() => [...document.querySelectorAll('#start-page .start-storage .entry')]
+  .map((e) => ({ text: e.textContent.trim(), link: !!e.querySelector('a'), title: e.title || '' })));
+const statusStorage = (page) => page.eval(() => document.getElementById('status-storage').textContent);
+const fileMenu = async (page) => {
+  await page.openMenu('File');
+  const items = await page.eval(() => [...document.querySelectorAll('body > .menu-popup > .mi')]
+    .map((r) => ({ label: r.querySelector('.lbl').textContent, disabled: r.classList.contains('disabled'), title: r.title || '' })));
+  await page.closeMenus();
+  return items.filter((i) => /Workspace Folder|Reopen|Browser Storage|Browser Projects/.test(i.label));
+};
+const newProject = async (page, name, template) => {
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
+  await page.fill('.dlg-overlay .wiz-main select', template, { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor((n) => window.Silinx.project?.name === n && window.Silinx.project.top, [name]);
+};
+const UNSUPPORTED = 'This browser cannot give a page a folder on the disk (File System Access API: Chrome or Edge); the projects are kept in the browser\'s storage';
+
+uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in a folder on the disk, in the full application\'s format', E, async (page) => {
+  const fakeUrl = `${siteUrl}__test/fs-access-fake.js`;
+  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_FOLDER(fakeUrl) });
+  const boot = async () => {
+    await page.goto(siteUrl);
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices && document.getElementById('status-storage').textContent
+      && document.querySelector('#start-page .start-storage, #hier .lbl'), [], { what: 'site boot' });
+  };
+  const files = () => page.eval(async (url) => (await import(url)).dump(window.__fakeRoot), fakeUrl);
+  await boot();
+  await page.waitConsole(/Browser edition: projects are stored in this browser \(File > Download Project Bundle to keep a copy; File > Open Workspace Folder… keeps them in a folder on the disk\)\. Implement Design/);
+  assert.equal(await statusStorage(page), 'Storage: this browser');
+  assert.deepEqual(await fileMenu(page), [{ label: 'Open Workspace Folder…', disabled: false, title: '' }]);
+  assert.deepEqual(await startEntries(page), [
+    { text: 'In this browser\'s storage.', link: false, title: '' },
+    { text: 'Open Workspace Folder…', link: true, title: '' },
+  ]);
+  // a project in the browser's storage, then the folder
+  await newProject(page, 'InBrowser', 'blinky');
+  await page.menu('File', 'Open Workspace Folder…');
+  await page.waitConsole(/Projects are now kept in the folder 'Silinx-projects' on the disk: each project is a folder in the format of the full Silinx application\./);
+  assert.deepEqual(await page.eval(() => window.__picker), { id: 'silinx-workspace', mode: 'readwrite' });
+  assert.equal(await page.eval(() => window.Silinx.project), null, 'the browser storage\'s project is closed');
+  assert.equal(await statusStorage(page), 'Storage: folder Silinx-projects');
+  assert.deepEqual(await fileMenu(page), [{ label: 'Open Workspace Folder…', disabled: false, title: '' },
+    { label: 'Copy Browser Projects to the Folder', disabled: false, title: '' }, { label: 'Use Browser Storage', disabled: false, title: '' }]);
+  await page.waitFor(() => /In the folder/.test(document.querySelector('#start-page .start-storage')?.textContent || ''));
+  assert.deepEqual((await startEntries(page)).map((e) => e.text), ['In the folder Silinx-projects on the disk.', 'Open Workspace Folder…', 'Copy Browser Projects to the Folder', 'Use Browser Storage']);
+  // a project created and edited in the folder: a project folder as the full application's
+  await newProject(page, 'Disk', 'stopwatch');
+  await page.eval(() => window.SilinxApp.openFile('src/stopwatch.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/stopwatch.vhd' && window.Silinx.active.editor);
+  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: 0 }); cm.replaceSelection('-- kept in the folder\n'); });
+  await page.waitFor(() => !window.Silinx.active.tab.classList.contains('dirty'));
+  let tree = await files();
+  assert.ok(tree['Disk/src/stopwatch.vhd'].startsWith('-- kept in the folder\n'));
+  const example = JSON.parse(await fs.readFile(path.join(ROOT, 'examples/stopwatch/silinx.json'), 'utf8'));
+  const pj = JSON.parse(tree['Disk/silinx.json']);
+  assert.equal(tree['Disk/silinx.json'], `${JSON.stringify(pj, null, 2)}\n`);
+  assert.deepEqual({ name: pj.name, board: pj.board, top: pj.top, files: pj.files, constraints: pj.constraints },
+    { name: 'Disk', board: 'basys2', top: example.top, files: example.files, constraints: example.constraints });
+  for (const f of await fs.readdir(path.join(ROOT, 'examples/stopwatch/src'))) assert.ok(`Disk/src/${f}` in tree, f);
+  assert.equal(Object.keys(tree).some((k) => k.startsWith('InBrowser/')), false);
+  // the browser storage's projects copied into the folder (once: then they are there)
+  await page.menu('File', 'Copy Browser Projects to the Folder');
+  await page.waitConsole(/Copied 1 project\(s\) from the browser's storage into the folder 'Silinx-projects': InBrowser\./);
+  tree = await files();
+  assert.equal(JSON.parse(tree['InBrowser/silinx.json']).name, 'InBrowser');
+  assert.ok(tree['InBrowser/src/top.vhd']);
+  await page.menu('File', 'Copy Browser Projects to the Folder');
+  await page.waitConsole(/No project copied into the folder 'Silinx-projects'\.\s+WARNING: project 'InBrowser' was not copied: the folder 'Silinx-projects' already has a project of that name\./);
+  // reloaded: the folder again (the browser still gives the permission), the project open, the edit kept
+  await boot();
+  await page.waitFor(() => window.Silinx.project?.name === 'Disk', [], { what: 'reopened from the folder' });
+  await page.waitConsole(/Browser edition: projects are stored in the folder 'Silinx-projects' on the disk \(File > Use Browser Storage to keep them in this browser\)\. Implement Design/);
+  assert.equal(await statusStorage(page), 'Storage: folder Silinx-projects');
+  await page.eval(() => window.SilinxApp.openFile('src/stopwatch.vhd'));
+  await page.waitFor(() => window.Silinx.active?.editor && window.Silinx.active.editor.getValue().startsWith('-- kept in the folder\n'));
+  // after a browser restart the permission is asked again (a click: Reopen <folder>)
+  await page.eval(() => localStorage.setItem('__fakefs.permission', 'prompt'));
+  await boot();
+  await page.waitConsole(/The workspace folder 'Silinx-projects' needs the browser's permission again: Start page > Reopen Silinx-projects\./);
+  assert.equal(await page.eval(() => window.Silinx.project), null);
+  assert.equal(await statusStorage(page), 'Storage: this browser');
+  assert.deepEqual(await startEntries(page), [
+    { text: 'In this browser\'s storage.', link: false, title: '' },
+    { text: 'Reopen Silinx-projects', link: true, title: '' },
+    { text: 'Open Workspace Folder…', link: true, title: '' },
+  ]);
+  assert.deepEqual((await fileMenu(page)).map((i) => i.label), ['Open Workspace Folder…', 'Reopen Silinx-projects']);
+  await page.click('#start-page .start-storage a', { text: 'Reopen Silinx-projects' });
+  await page.waitConsole(/Projects are now kept in the folder 'Silinx-projects' on the disk/);
+  assert.equal(await page.eval(() => window.__fakeRoot.queryPermission({ mode: 'readwrite' })), 'granted');
+  await page.menu('File', 'Open Project…');
+  await page.waitDialog('Open Project');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay table.grid tr td:first-child')].map((td) => td.textContent)), ['Disk', 'InBrowser']);
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  // the build's files go into the project's build/ folder, as the full application writes them
+  await page.eval(() => window.SilinxApp.openProject('InBrowser').then(() => window.SilinxApp.showLeftPage('design')));
+  await page.waitFor(() => window.Silinx.project?.name === 'InBrowser' && window.Silinx.project.top);
+  await page.click('input[name=view][value=impl]');
+  await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+  await page.waitConsole(/Bitstream downloaded: top\.bit/, { timeout: 120000 });
+  await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
+  assert.doesNotMatch(await page.consoleText(), /was not written into the workspace folder/);
+  tree = await files();
+  assert.ok(tree['InBrowser/build/top.bit']?.length > 100_000, Object.keys(tree).filter((k) => k.includes('/build/')).join(' '));
+  assert.deepEqual((await page.eval(() => window.Silinx.fileTree)).filter((f) => f.startsWith('build/')), []);
+  // back to the browser's storage: its own projects; the next visit stays there (the folder offered again)
+  await page.menu('File', 'Use Browser Storage');
+  await page.waitConsole(/Projects are now kept in this browser's storage\./);
+  assert.equal(await statusStorage(page), 'Storage: this browser');
+  await boot();
+  await page.waitConsole(/Browser edition: projects are stored in this browser/);
+  assert.doesNotMatch(await page.consoleText(), /needs the browser's permission again/);
+  assert.deepEqual((await startEntries(page)).map((e) => e.text), ['In this browser\'s storage.', 'Reopen Silinx-projects', 'Open Workspace Folder…']);
+  // in Portuguese: the Start page, the status bar and the File menu (texts and tooltips) translated
+  const texts = async () => {
+    await page.eval(TEXTS);
+    await page.openMenu(0); // File (Ficheiro);
+    const t = await page.eval(() => [...window.__uiTexts(document.getElementById('start-page')), ...window.__uiTexts(document.getElementById('statusbar')),
+      ...window.__uiTexts(document.querySelector('body > .menu-popup'))]);
+    await page.closeMenus();
+    return t;
+  };
+  const en = await texts();
+  await page.eval(() => localStorage.setItem('silinx.lang', 'pt'));
+  await boot();
+  const pt = await texts();
+  assert.ok(pt.includes('Reabrir Silinx-projects') && pt.includes('Onde Ficam os Projetos') && pt.includes('Armazenamento: este navegador'), pt.join(' | '));
+  assert.deepEqual(untranslated(en, pt, [/^(InBrowser|Disk|Silinx-projects)$/]), []);
+}, { url: () => 'about:blank', skip: chromeOnly, timeout: 120000 });
+
+uiTest('browser edition without the File System Access API (Firefox, Safari): Open Workspace Folder… disabled, and why', E, async (page) => {
+  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: NO_FOLDER_API });
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && document.querySelector('#start-page .start-storage'), [], { what: 'site boot' });
+  await page.waitConsole(/Browser edition: projects are stored in this browser \(File > Download Project Bundle to keep a copy\)\. Implement Design/);
+  assert.equal(await statusStorage(page), 'Storage: this browser');
+  assert.deepEqual(await fileMenu(page), [{ label: 'Open Workspace Folder…', disabled: true, title: UNSUPPORTED }]);
+  assert.deepEqual(await startEntries(page), [
+    { text: 'In this browser\'s storage.', link: false, title: '' },
+    { text: 'Open Workspace Folder…', link: false, title: UNSUPPORTED },
+    { text: 'A folder on the disk needs Chrome or Edge.', link: false, title: '' },
+  ]);
+  // the browser's storage works as before
+  await newProject(page, 'NoFolder', 'blinky');
+  assert.ok(await page.eval(() => JSON.parse(localStorage.getItem('silinx.standalone.fs')).NoFolder.json.name === 'NoFolder'));
+}, { url: () => 'about:blank', skip: chromeOnly });

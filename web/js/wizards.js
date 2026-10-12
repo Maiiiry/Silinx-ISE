@@ -105,12 +105,14 @@ export function wizard(title, pages, { width = 720, finishLabel = 'Finish' } = {
 
 // ------------------------------------------------------------------ New Project
 // A project with this name already exists: ask whether to replace it. With the server the old
-// project is moved to <workspace>/.trash (recoverable); in the standalone edition it is deleted.
+// project is moved to <workspace>/.trash (recoverable); in the standalone edition it is deleted,
+// unless the projects are kept in a workspace folder on the disk (it has a .trash folder too).
+const deletesProjects = () => api.standalone && !api.keepsTrash;
 async function askReplaceProject(pname) {
   const list = await api.projects();
   if (!list.some(p => p.name === pname)) return true;
   return confirmDlg('Replace Project',
-    `A project named '${pname}' already exists.\n\nReplace it? ${api.standalone ? 'The existing project will be deleted from this browser.' : 'The existing project is moved to the workspace .trash folder.'}`);
+    `A project named '${pname}' already exists.\n\nReplace it? ${deletesProjects() ? 'The existing project will be deleted from this browser.' : 'The existing project is moved to the workspace .trash folder.'}`);
 }
 // Replace an existing project by running `fn` (an import): the old project is removed first; if
 // the import then fails, it comes back from a snapshot taken before (standalone: a bundle; server:
@@ -122,7 +124,7 @@ async function replaceProjectWith(pname, fn) {
   let backup = null;
   if (exists) {
     try {
-      if (api.standalone && api.exportBundle) backup = { bundle: api.exportBundle(pname) };
+      if (api.standalone && api.exportBundle) backup = { bundle: await api.exportBundle(pname) };
       else backup = { zip: (await api.exportZip(pname, 'silinx')).blob };
     } catch { /* no snapshot: the server keeps the old project in .trash */ }
   }
@@ -138,7 +140,7 @@ async function replaceProjectWith(pname, fn) {
     if (restored) {
       app.log(`The previous project '${pname}' was restored.`, 'info');
       if (wasOpen) { try { await app.openProject(pname); app.showLeftPage('design'); } catch { /* it is in the project list */ } }
-    } else if (exists && !api.standalone) app.log(`The previous project '${pname}' is in the workspace .trash folder.`, 'info');
+    } else if (exists && !deletesProjects()) app.log(`The previous project '${pname}' is in the workspace .trash folder.`, 'info');
     throw e;
   }
 }
@@ -148,7 +150,7 @@ async function removeExistingProject(pname) {
   if (!list.some(p => p.name === pname)) return;
   if (S.project?.name === pname) await app.closeProject();
   await api.deleteProject(pname);
-  app.log(`Project '${pname}' replaced${api.standalone ? '' : ' (the old one is in the workspace .trash folder)'}.`, 'info');
+  app.log(`Project '${pname}' replaced${deletesProjects() ? '' : ' (the old one is in the workspace .trash folder)'}.`, 'info');
 }
 
 // the synthesis tools of a project (Silinx: the Silinx toolchain's whole flow, no ISE; XST: Xilinx ISE)

@@ -1,71 +1,78 @@
-// Standalone (server-less) backend: same interface as api.js, with projects kept in the
-// browser's localStorage. Used by the single-file build (dist/Silinx-ISE.html, on GitHub Pages).
+// Standalone (server-less) backend: same interface as api.js. Used by the single-file build
+// (dist/Silinx-ISE.html, on GitHub Pages). The projects are kept in the browser's localStorage, or,
+// in Chrome / Edge, in a folder on the disk that the user picks (File ▸ Open Workspace Folder…: the
+// File System Access API), each project a normal project folder in the full application's format
+// (web/js/project-store.js: one storage layer for both).
 // Implement Design / Generate Programming File run the Silinx toolchain in the browser
 // (web/js/open-flow-browser.js: no server, no Xilinx tool); the build's files are kept in memory
-// (they are too large for localStorage) and the bitstream is downloaded. Configure Target Device
-// programs the FPGA of a Digilent board over WebUSB (core/adept.js; Chrome / Edge). XST (Xilinx
-// ISE) and the Platform Flash need the full application.
+// (they are too large for localStorage; in a workspace folder they are also written into the
+// project's build/ folder, as the full application does) and the bitstream is downloaded. Configure
+// Target Device programs the FPGA of a Digilent board over WebUSB (core/adept.js; Chrome / Edge).
+// XST (Xilinx ISE) and the Platform Flash need the full application.
 import { getDeviceDb } from '../../server/devices.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from '../../server/xise.js';
 import EXAMPLES from 'silinx-examples';
 import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
+import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson } from './project-store.js';
 
-const KEY = 'silinx.standalone.fs';
-const NAME_RE = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
-const DEFAULT_DEVICE = { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' };
-
-let mem = null;
-function load() {
-  if (mem) return mem;
-  try { mem = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { mem = {}; }
-  return mem;
-}
-function persist() {
-  try { localStorage.setItem(KEY, JSON.stringify(mem)); }
-  catch (e) { throw new Error(`browser storage is full or unavailable (${e.message}); download your project bundle to keep it`); }
-}
-const clone = o => JSON.parse(JSON.stringify(o));
 const fail = msg => { throw new Error(msg); };
-function proj(name) { return load()[name] || fail(`project '${name}' not found`); }
-function cleanPath(p) {
-  if (!p || typeof p !== 'string' || p.startsWith('/') || p.split('/').includes('..')) fail('invalid path');
-  return p.replace(/\\/g, '/');
-}
-const langOf = p => (/\.(v|vh|sv)$/i.test(p) ? 'verilog' : /\.(vhd|vhdl)$/i.test(p) ? 'vhdl' : /\.ucf$/i.test(p) ? 'ucf' : 'text');
 
-function writeFileSync(name, path, text) {
-  { const pp = proj(name); if ((pp.json.excluded || []).includes(path)) pp.json.excluded = pp.json.excluded.filter(f => f !== path); }   // written again: back in the project
-  const pj = proj(name);
-  path = cleanPath(path);
-  pj.files[path] = text;
-  const lang = langOf(path);
-  if ((lang === 'vhdl' || lang === 'verilog') && !/^build\//.test(path) && !pj.json.files.some(f => f.path === path)) {   // not the generated files in build/
-    const role = /^(sim|tb|test)\//.test(path) || /(^|\/)tb_|_tb\.|_tb$/.test(path) ? 'sim' : 'design';
-    pj.json.files.push({ path, lang, role });
-  }
-  persist();
-}
+// ---- the project storage in use: the browser's storage, or a folder on the disk (Chrome / Edge)
+const browser = browserStore();
+let store = browser;
+const ops = projectOps(() => store, EXAMPLES);
+const projectJson = async name => (await store.load(name)).json;
 
-function createProjectSync({ name, template = 'empty', device, board }) {
-  if (!NAME_RE.test(name || '')) fail(`invalid project name '${name}'`);
-  if (load()[name]) fail(`project '${name}' already exists`);
-  if (template && template !== 'empty') {
-    const ex = EXAMPLES[template] || fail(`unknown template '${template}'`);
-    const json = { ...clone(ex.json), name };
-    if (device) json.device = device;
-    if (board !== undefined) json.board = board;
-    mem[name] = { json, files: clone(ex.files) };
-  } else {
-    mem[name] = {
-      json: { name, version: 1, device: device || DEFAULT_DEVICE, board: board ?? null, top: '', simTop: '', files: [], constraints: 'constraints/top.ucf', stimuli: {}, impl: { optMode: 'Speed', optLevel: 1, startupClk: 'JtagClk' } },
-      files: {},
+// the workspace folder's handle, remembered in IndexedDB between visits (a test replaces this with
+// window.SILINX_WORKSPACE_HANDLES = { load, save }: a fake folder cannot be stored in IndexedDB)
+const PREF = 'silinx.standalone.storage';   // 'folder': the folder is the storage in use
+const IDB = { db: 'silinx-standalone', store: 'handles', key: 'workspace' };
+function idb(mode, fn) {
+  return new Promise((resolve, reject) => {
+    const open = indexedDB.open(IDB.db, 1);
+    open.onupgradeneeded = () => open.result.createObjectStore(IDB.store);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const tx = open.result.transaction(IDB.store, mode);
+      const r = fn(tx.objectStore(IDB.store));
+      tx.oncomplete = () => { open.result.close(); resolve(r?.result); };
+      tx.onerror = () => { open.result.close(); reject(tx.error); };
     };
-  }
-  persist();
-  return clone(mem[name].json);
+  });
 }
+const handles = () => globalThis.SILINX_WORKSPACE_HANDLES || {
+  load: () => idb('readonly', s => s.get(IDB.key)),
+  save: h => idb('readwrite', s => s.put(h, IDB.key)),
+};
+function pref(v) {
+  try {
+    if (v === undefined) return localStorage.getItem(PREF);
+    if (v) localStorage.setItem(PREF, v); else localStorage.removeItem(PREF);
+  } catch { /* ignore */ }
+  return null;
+}
+const FOLDER_UNSUPPORTED = 'This browser cannot give a page a folder on the disk (File System Access API: Chrome or Edge); the projects are kept in the browser\'s storage';
+let remembered = null;   // the folder's handle remembered from a previous visit / the one in use
+let needsPermission = false;   // the browser asks for the permission again (a click: Reopen <folder>)
+const folderSupported = () => typeof globalThis.showDirectoryPicker === 'function';
+function use(next) {
+  store = next;
+  builds.clear();   // the builds belong to the projects of the storage left
+}
+const storageInfo = () => ({
+  kind: store.kind, folder: store.kind === 'folder' ? store.label : null,
+  remembered: remembered?.name || null, needsPermission, supported: folderSupported(), unsupportedReason: FOLDER_UNSUPPORTED,
+});
+async function useFolder(handle) {
+  use(folderStore(handle));
+  remembered = handle; needsPermission = false;
+  pref('folder');
+  try { await handles().save(handle); } catch { /* not remembered: picked again on the next visit */ }
+  return storageInfo();
+}
+const READWRITE = { mode: 'readwrite' };
 
 // ---- jobs: the Silinx toolchain's runs in the browser, and the operations that need the server
 const jobs = new Map();
@@ -103,7 +110,13 @@ function usbJob(kind, run) {
     .catch(e => { const m = e.message.replace(/^Adept USB: /, ''); push(`ERROR: ${m}`); job.status = 'error'; job.error = m; });
   return { job: id };
 }
-const bitOf = (project, bitfile) => { const b = builds.get(project)?.files[bitfile]; return b instanceof Uint8Array ? b : null; };
+// the bitstream: this session's build, else (a workspace folder) the one in the project's build/
+async function bitOf(project, bitfile) {
+  const b = builds.get(project)?.files[bitfile];
+  if (b instanceof Uint8Array) return b;
+  if (!project || !bitfile) return null;
+  try { return await store.readBinary(project, bitfile); } catch { return null; }
+}
 const NEED_ISE = [
   'This project synthesizes with XST, which needs Xilinx ISE 14.7: not available in the browser edition.',
   'Choose Silinx as the synthesis tool (Project > Design Properties) to implement it here, with no Xilinx tool,',
@@ -122,67 +135,108 @@ function reportsOf(pj, r) {
   return out;
 }
 
+// an ISE project (.xise + its files) as a Silinx project: { json, files, warnings } (not stored)
+function xiseProject(name, xise, files = {}) {
+  const parsed = importXise(xise);
+  const lookup = path => files[path] ?? files[path.split('/').pop()];
+  const json = emptyProjectJson(name);
+  const pfiles = {};
+  const safe = (f, dir) => (f.startsWith('/') || f.includes('..') ? `${dir}/${f.split('/').pop()}` : f);
+  const out = [];
+  const sources = {};
+  for (const f of parsed.files) {
+    const target = safe(f.path, f.role === 'sim' ? 'sim' : 'src');
+    const text = lookup(f.path);
+    if (typeof text === 'string') { pfiles[target] = text; sources[target] = text; }
+    out.push({ path: target, lang: f.lang, role: f.role });
+  }
+  const warnings = [...parsed.warnings];
+  if (parsed.schematics.length) {
+    const schFiles = {}, roles = {};
+    for (const x of parsed.schematics) {
+      const target = safe(x.path, x.role === 'sim' ? 'sim' : 'src');
+      const text = lookup(x.path);
+      if (typeof text === 'string') { schFiles[target] = text; roles[target] = x.role; }
+    }
+    const symbols = {};
+    for (const [k, v] of Object.entries(files)) if (/\.sym$/i.test(k)) symbols[k.split('/').pop()] = v;
+    for (const r of importIseSchematics(schFiles, { sources, symbols, lang: parsed.lang, existing: k => files[k] })) {
+      warnings.push(...r.warnings);
+      if (!r.json) continue;
+      pfiles[r.json] = r.jsonText; pfiles[r.hdl] = r.code;
+      if (!out.some(f => f.path === r.hdl)) out.push({ path: r.hdl, lang: r.lang, role: roles[r.sch] || 'design' });
+    }
+  }
+  let constraints = 'constraints/top.ucf';
+  if (parsed.constraints) {
+    constraints = safe(parsed.constraints, 'constraints');
+    const text = lookup(parsed.constraints);
+    if (typeof text === 'string') pfiles[constraints] = text;
+  }
+  Object.assign(json, { device: parsed.device.part ? parsed.device : json.device, top: parsed.top || '', simTop: parsed.simTop || '', topSourceType: parsed.topSourceType || 'hdl', files: out, constraints, impl: { ...json.impl, ...parsed.impl } });
+  return { json, files: pfiles, warnings };
+}
+
 export const api = {
   standalone: true,
-  projects: async () => Object.values(load()).map(p => ({ name: p.json.name, device: p.json.device, top: p.json.top, board: p.json.board })).sort((a, b) => a.name.localeCompare(b.name)),
-  templates: async () => Object.keys(EXAMPLES),
-  createProject: async p => createProjectSync(p),
-  project: async name => {
-    const p = proj(name);
-    return { ...clone(p.json), fileTree: Object.keys(p.files).sort() };
+  // ---- where the projects are kept
+  storage: () => storageInfo(),
+  // a deleted / replaced project goes to the workspace .trash folder (in the browser's storage: deleted)
+  get keepsTrash() { return store.kind === 'folder'; },
+  // at start-up: the folder of the previous visit, if it was the storage in use and the browser
+  // still gives the permission; otherwise its name for Reopen <folder> (asking needs a click)
+  initStorage: async () => {
+    let h = null;
+    try { h = await handles().load(); } catch { /* none */ }
+    if (!h || !folderSupported()) return storageInfo();
+    remembered = h;
+    if (pref() !== 'folder') return storageInfo();
+    let state = 'prompt';
+    try { state = await h.queryPermission(READWRITE); } catch { /* ask */ }
+    if (state === 'granted') use(folderStore(h));
+    else needsPermission = true;
+    return storageInfo();
   },
-  saveProject: async (name, pj) => {
-    const p = proj(name);
-    const clean = { ...clone(pj), name };
-    delete clean.fileTree;
-    p.json = clean;
-    persist();
-    return clone(clean);
-  },
-  renameFile: async (name, from, to) => {
-    const p = proj(name);
-    const under = Object.keys(p.files).filter(k => k.startsWith(`${from}/`));
-    if (p.files[from] === undefined && under.length) {
-      // a folder: every file under it moves, registrations and the constraints path follow
-      if (to.startsWith(`${from}/`)) fail(`cannot move '${from}' into itself`);
-      if (Object.keys(p.files).some(k => k === to || k.startsWith(`${to}/`))) fail(`'${to}' already exists`);
-      const remap = k => (k.startsWith(`${from}/`) ? to + k.slice(from.length) : k);
-      for (const k of under) { p.files[remap(k)] = p.files[k]; delete p.files[k]; }
-      p.json.files = p.json.files.map(f => ({ ...f, path: remap(f.path) }));
-      if (p.json.constraints) p.json.constraints = remap(p.json.constraints);
-      persist();
-      return clone(p.json);
+  // File ▸ Open Workspace Folder…: null when the user cancels the picker
+  openWorkspaceFolder: async () => {
+    if (!folderSupported()) fail(FOLDER_UNSUPPORTED);
+    let h;
+    try { h = await globalThis.showDirectoryPicker({ id: 'silinx-workspace', mode: 'readwrite' }); } catch (e) {
+      if (e.name === 'AbortError') return null;
+      throw e;
     }
-    if (p.files[from] === undefined) fail(`file '${from}' not found`);
-    if (from !== to && p.files[to] !== undefined) fail(`'${to}' already exists`);
-    const t = p.files[from]; delete p.files[from]; p.files[to] = t;
-    const lang = /\.vhdl?$/i.test(to) ? 'vhdl' : /\.(v|sv)$/i.test(to) ? 'verilog' : null;
-    p.json.files = p.json.files.map(f => (f.path === from ? { ...f, path: to, lang: lang || f.lang } : f));
-    if (p.json.constraints === from) p.json.constraints = to;
-    persist();
-    return clone(p.json);
+    if (await h.queryPermission(READWRITE) !== 'granted' && await h.requestPermission(READWRITE) !== 'granted') fail(`no permission to write in the folder '${h.name}'`);
+    return useFolder(h);
   },
-  deleteProject: async name => { proj(name); delete mem[name]; persist(); return { ok: true }; },
-  readFile: async (name, path) => {
-    const t = proj(name).files[path];
-    if (t === undefined) fail(`file '${path}' not found`);
-    return t;
+  // Reopen <folder> (the Start page): the browser asks for the permission again
+  reopenWorkspaceFolder: async () => {
+    if (!remembered) fail('no workspace folder to reopen: use File > Open Workspace Folder…');
+    let state = 'prompt';
+    try { state = await remembered.queryPermission(READWRITE); } catch { /* ask */ }
+    if (state !== 'granted') state = await remembered.requestPermission(READWRITE);
+    if (state !== 'granted') fail(`no permission to write in the folder '${remembered.name}'`);
+    return useFolder(remembered);
   },
-  writeFile: async (name, path, text) => { writeFileSync(name, path, text); return { ok: true }; },
-  deleteFile: async (name, path) => {
-    const p = proj(name);
-    // a folder: everything under it
-    const gone = k => k === path || k.startsWith(`${path}/`);
-    for (const k of Object.keys(p.files)) if (gone(k)) delete p.files[k];
-    p.json.files = p.json.files.filter(f => !gone(f.path));
-    if (p.json.constraints && gone(p.json.constraints)) p.json.constraints = null;
-    persist();
-    return { ok: true };
+  useBrowserStorage: async () => { use(browser); needsPermission = false; pref(null); return storageInfo(); },
+  // the projects of the browser's storage into the folder in use ({ copied, skipped: already there })
+  copyBrowserProjectsToFolder: async () => {
+    if (store.kind !== 'folder') fail('no workspace folder open');
+    return copyProjects(browser, store);
   },
-  sources: async name => {
-    const p = proj(name);
-    return p.json.files.map(f => ({ ...f, text: p.files[f.path] ?? '', missing: p.files[f.path] === undefined }));
-  },
+  browserProjects: async () => (await browser.list()).map(j => j.name),
+
+  // ---- projects
+  projects: () => ops.list(),
+  templates: async () => Object.keys(EXAMPLES),
+  createProject: p => ops.create(p),
+  project: name => ops.project(name),
+  saveProject: (name, pj) => ops.saveProject(name, pj),
+  renameFile: (name, from, to) => ops.renameFile(name, from, to),
+  deleteProject: name => ops.deleteProject(name),
+  readFile: (name, path) => ops.readFile(name, path),
+  writeFile: (name, path, text) => ops.writeFile(name, path, text),
+  deleteFile: (name, path) => ops.deleteFile(name, path),
+  sources: name => ops.sources(name),
   devices: async () => getDeviceDb(),
   toolchain: async () => ({
     platform: 'browser', configPath: '(browser edition)',
@@ -192,9 +246,9 @@ export const api = {
     programmers: {}, helpers: {},
   }),
   saveToolchain: async () => api.toolchain(),
-  openStatus: async name => browserOpenStatus(proj(name).json.device || {}),
+  openStatus: async name => browserOpenStatus((await projectJson(name)).device || {}),
   implement: async (name, { steps } = {}) => {
-    const p = proj(name);
+    const p = await store.load(name);
     if (p.json.synthTool === 'xst') return fakeJob('implement', NEED_ISE, 'error', 'XST needs Xilinx ISE 14.7 (choose Silinx as the synthesis tool in Design Properties)');
     const id = `local-${++jobSeq}`;
     const job = { id, kind: 'implement', status: 'running', lines: [], next: 0, error: null };
@@ -202,18 +256,27 @@ export const api = {
     const b = buildOf(name);
     const push = l => { job.lines.push(l); job.next = job.lines.length; };
     // the outputs of a previous run no longer match the design (a failure must not leave a bitstream)
-    for (const k of Object.keys(b.files)) if (/^build\/[^/]+\.bit$|^build\/open\/(placed|routed)\.xdl$|^build\/open\/timing\.txt$/.test(k)) delete b.files[k];
+    for (const k of Object.keys(b.files)) if (/^build\/[^/]+\.bit$/.test(k) || /^build\/open\/(placed|routed)\.xdl$|^build\/open\/timing\.txt$/.test(k)) delete b.files[k];
     b.view = null;
+    // a workspace folder: the build's files also go into the project's build/ folder
+    const folder = store.kind === 'folder' ? store : null;
+    const writes = [];
+    if (folder && p.json.top) await folder.removePath(name, `build/${p.json.top}.bit`).catch(() => {});
+    const json = p.json, files = { ...p.files };
     runBrowserFlow({
-      project: p.json, files: { ...p.files, ...b.files }, steps,
+      project: json, files: { ...files, ...b.files }, steps,
       onLine: push,
-      onWrite: (path, data) => { b.files[path] = data; },
-      onReport: r => { b.report = reportsOf(p.json, r); },
-    }).then(res => {
-      if (res.report) b.report = reportsOf(p.json, res.report);
+      onWrite: (path, data) => {
+        b.files[path] = data;
+        if (folder) writes.push(folder.writeBuild(name, path, data).catch(e => push(`WARNING: ${path} was not written into the workspace folder: ${e.message}`)));
+      },
+      onReport: r => { b.report = reportsOf(json, r); },
+    }).then(async res => {
+      await Promise.all(writes);
+      if (res.report) b.report = reportsOf(json, res.report);
       if (res.view) b.view = res.view;
-      const bit = b.files[`build/${p.json.top}.bit`];
-      if (res.ok && bit) job.download = { filename: `${p.json.top}.bit`, url: URL.createObjectURL(new Blob([bit], { type: 'application/octet-stream' })) };
+      const bit = b.files[`build/${json.top}.bit`];
+      if (res.ok && bit) job.download = { filename: `${json.top}.bit`, url: URL.createObjectURL(new Blob([bit], { type: 'application/octet-stream' })) };
       job.status = res.ok ? 'ok' : 'error';
       job.error = res.ok ? null : `Silinx toolchain failed${res.error ? `: ${res.error}` : ''}`;
     }).catch(e => { push(`ERROR:Silinx - ${e.message}`); job.status = 'error'; job.error = e.message; });
@@ -223,14 +286,18 @@ export const api = {
   fpgaView: async name => (builds.get(name)?.view || { available: false, reason: 'no-ncd' }),
   buildFile: async (name, path) => builds.get(name)?.files[path],
   bitinfo: async name => {
-    const top = load()[name]?.json.top, bit = top && bitOf(name, `build/${top}.bit`), hd = bit && bitHeader(bit);
+    let top = null;
+    try { top = (await projectJson(name)).top; } catch { /* no project */ }
+    const bit = top && await bitOf(name, `build/${top}.bit`), hd = bit && bitHeader(bit);
     return hd ? { available: true, designName: hd.design, part: `${hd.part}${hd.package}`, date: hd.date, time: hd.time } : { available: false, reason: 'no bitstream in this browser' };
   },
   // { project, bitfile, bitData? (a .bit chosen from the disk) }
   program: async ({ project, bitfile, bitData } = {}) => usbJob('program', async log => {
-    const bit = bitData || bitOf(project, bitfile);
+    const bit = bitData || await bitOf(project, bitfile);
     if (!bit) fail(`no bitstream ${bitfile || ''} in this browser: run Generate Programming File first, or choose a .bit file`);
-    return programAdept(await adeptDevice(), bit, { part: project ? load()[project]?.json.device?.part : null, log });
+    let part = null;
+    try { part = project ? (await projectJson(project)).device?.part : null; } catch { /* a .bit from the disk */ }
+    return programAdept(await adeptDevice(), bit, { part, log });
   }),
   scan: async () => usbJob('scan', async log => scanAdept(await adeptDevice(), { log })),
   prom: async () => fakeJob('prom', NEED_SERVER, 'error', NO_PROM),
@@ -239,55 +306,13 @@ export const api = {
     return { ...j, lines: j.lines.slice(+since), next: j.lines.length };
   },
   cancelJob: async id => jobs.get(id),
-  exportXiseUrl: name => {
-    const p = proj(name);
-    const xml = exportXise(p.json, { sources: p.files });
-    return URL.createObjectURL(new Blob([xml], { type: 'application/xml' }));
-  },
   importXise: async ({ name, xise, files = {} }) => {
-    const parsed = importXise(xise);
-    const lookup = path => files[path] ?? files[path.split('/').pop()];
-    createProjectSync({ name, template: 'empty' });
-    const p = mem[name];
-    const safe = (f, dir) => (f.startsWith('/') || f.includes('..') ? `${dir}/${f.split('/').pop()}` : f);
-    const out = [];
-    const sources = {};
-    for (const f of parsed.files) {
-      const target = safe(f.path, f.role === 'sim' ? 'sim' : 'src');
-      const text = lookup(f.path);
-      if (typeof text === 'string') { p.files[target] = text; sources[target] = text; }
-      out.push({ path: target, lang: f.lang, role: f.role });
-    }
-    const warnings = [...parsed.warnings];
-    if (parsed.schematics.length) {
-      const schFiles = {}, roles = {};
-      for (const x of parsed.schematics) {
-        const target = safe(x.path, x.role === 'sim' ? 'sim' : 'src');
-        const text = lookup(x.path);
-        if (typeof text === 'string') { schFiles[target] = text; roles[target] = x.role; }
-      }
-      const symbols = {};
-      for (const [k, v] of Object.entries(files)) if (/\.sym$/i.test(k)) symbols[k.split('/').pop()] = v;
-      for (const r of importIseSchematics(schFiles, { sources, symbols, lang: parsed.lang, existing: k => files[k] })) {
-        warnings.push(...r.warnings);
-        if (!r.json) continue;
-        p.files[r.json] = r.jsonText; p.files[r.hdl] = r.code;
-        if (!out.some(f => f.path === r.hdl)) out.push({ path: r.hdl, lang: r.lang, role: roles[r.sch] || 'design' });
-      }
-    }
-    let constraints = 'constraints/top.ucf';
-    if (parsed.constraints) {
-      constraints = safe(parsed.constraints, 'constraints');
-      const text = lookup(parsed.constraints);
-      if (typeof text === 'string') p.files[constraints] = text;
-    }
-    Object.assign(p.json, { device: parsed.device.part ? parsed.device : p.json.device, top: parsed.top || '', simTop: parsed.simTop || '', topSourceType: parsed.topSourceType || 'hdl', files: out, constraints, impl: { ...p.json.impl, ...parsed.impl } });
-    persist();
-    return { project: clone(p.json), warnings };
+    const r = xiseProject(name, xise, files);
+    return { project: await ops.put(name, r.json, r.files), warnings: r.warnings };
   },
   syncXise: async () => fail('not available in the standalone edition (use File > Export Xilinx ISE Project)'),
   exportZip: async (name, kind = 'xilinx') => {
-    const p = proj(name);
+    const p = await store.load(name);
     if (kind === 'silinx') {   // the whole Silinx project as it is
       const entries = [{ path: 'silinx.json', data: JSON.stringify(p.json, null, 2) + '\n' },
         ...Object.entries(p.files).filter(([k]) => !/\.xise$/i.test(k)).map(([path, data]) => ({ path, data }))];
@@ -309,14 +334,12 @@ export const api = {
     const xe = entries.filter(e => /\.xise$/i.test(e.path)).sort((a, b) => a.path.split('/').length - b.path.split('/').length)[0];
     const pe = entries.find(e => /(^|\/)silinx\.json$/.test(e.path));
     if (!xe && !pe) fail('the zip contains no .xise (ISE project) and no silinx.json');
+    if (await store.exists(name)) fail(`project '${name}' already exists`);
     const root = (xe || pe).path.includes('/') ? (xe || pe).path.replace(/\/[^/]*$/, '') : '';
     const rel = p => (!root ? p : p.startsWith(root + '/') ? p.slice(root.length + 1) : null);
     const files = {};
     for (const e of entries) { const r = rel(e.path); if (r !== null && !/^build\//.test(r)) files[r] = textOf(e); }
-    let warnings = [];
-    if (xe) warnings = (await api.importXise({ name, xise: textOf(xe), files })).warnings || [];
-    else createProjectSync({ name, template: 'empty' });
-    const p = mem[name];
+    const p = xe ? xiseProject(name, textOf(xe), files) : { json: emptyProjectJson(name), files: {}, warnings: [] };
     const known = new Set(p.json.files.map(f => f.path).concat(p.json.constraints));
     for (const [k, v] of Object.entries(files)) if (!known.has(k) && !/\.xise$/i.test(k) && k !== 'silinx.json') p.files[k] = v;
     if (pe) {
@@ -325,22 +348,20 @@ export const api = {
         p.json = xe ? { ...p.json, board: saved.board ?? p.json.board, stimuli: saved.stimuli || {}, preferredLanguage: saved.preferredLanguage, impl: { ...p.json.impl, ...saved.impl } } : { ...saved, name };
       } catch { /* ignore */ }
     }
-    persist();
-    return { project: clone(p.json), missing: [], warnings };
+    return { project: await ops.put(name, p.json, p.files), missing: [], warnings: p.warnings };
   },
 
   // standalone-only: project bundles (one JSON file with every project file)
-  exportBundle: name => {
-    const p = proj(name);
+  exportBundle: async name => {
+    const p = await store.load(name);
     return JSON.stringify({ format: 'silinx-bundle', version: 1, project: p.json, files: p.files }, null, 1);
   },
   importBundle: async text => {
     const b = JSON.parse(text);
     if (b.format !== 'silinx-bundle') fail('not a Silinx project bundle');
     let name = b.project.name;
-    while (load()[name]) name = `${b.project.name}_${Math.floor(Math.random() * 1000)}`;
-    mem[name] = { json: { ...b.project, name }, files: b.files };
-    persist();
+    while (await store.exists(name)) name = `${b.project.name}_${Math.floor(Math.random() * 1000)}`;
+    await ops.put(name, b.project, b.files);
     return name;
   },
 };

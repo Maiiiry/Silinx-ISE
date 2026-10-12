@@ -2865,8 +2865,23 @@ async function renderStartPage() {
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),
       projects.length ? null : h('div', { class: 'entry', style: { color: '#888' } }, 'No projects yet.'),
       recentHere.length ? h('div', { class: 'entry start-clear' }, h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
+    api.standalone ? await storageBox() : null,
   );
   host.append(page);
+}
+// the browser edition's Start page: where the projects are kept, and the folder commands
+async function storageBox() {
+  const st = api.storage();
+  const entry = (label, ic, fn, attrs = {}) => h('div', { class: 'entry', ...attrs }, icon(ic), fn ? h('a', { onclick: fn }, label) : h('span', { class: 'disabled' }, label));
+  const inBrowser = st.kind === 'folder' ? (await api.browserProjects().catch(() => [])).length : 0;
+  return h('div', { class: 'start-box start-storage' }, h('h3', {}, 'Where Projects Are Kept'),
+    h('div', { class: 'entry' }, st.kind === 'folder' ? `In the folder ${st.folder} on the disk.` : 'In this browser\'s storage.'),
+    st.kind !== 'folder' && st.remembered && st.supported ? entry(`Reopen ${st.remembered}`, 'open', () => reopenWorkspaceFolder()) : null,
+    st.supported ? entry('Open Workspace Folder…', 'open', () => openWorkspaceFolder())
+      : entry('Open Workspace Folder…', 'open', null, { title: st.unsupportedReason }),
+    st.supported ? null : h('div', { class: 'entry hint' }, 'A folder on the disk needs Chrome or Edge.'),
+    st.kind === 'folder' && inBrowser ? entry('Copy Browser Projects to the Folder', 'project', () => copyBrowserProjects()) : null,
+    st.kind === 'folder' ? entry('Use Browser Storage', 'project', () => useBrowserStorage()) : null);
 }
 
 function renderFilesPage() {
@@ -2983,9 +2998,10 @@ function setupMenus() {
       { label: 'Import Xilinx ISE Project (.zip)…', action: () => wiz.importXiseDialog() },
       { label: 'Export Xilinx ISE Project (.zip)…', action: () => exportProjectZip('xilinx'), disabled: hasPj },
       '-',
-      api.standalone ? { label: 'Download Project Bundle…', action: () => downloadText(`${S.project.name}.silinx.json`, api.exportBundle(S.project.name), 'application/json'), disabled: hasPj } : null,
+      api.standalone ? { label: 'Download Project Bundle…', action: async () => downloadText(`${S.project.name}.silinx.json`, await api.exportBundle(S.project.name), 'application/json'), disabled: hasPj } : null,
       api.standalone ? { label: 'Open Project Bundle…', action: () => openBundle() } : null,
       api.standalone ? '-' : null,
+      ...(api.standalone ? storageMenuItems() : []),
       { label: 'Close Project', action: () => closeProject(), disabled: hasPj },
       '-',
       { label: 'Print…', action: () => printActive(), shortcut: 'Ctrl+P', disabled: () => !(S.active?.asmEditor || S.active?.schEditor || S.active?.fsmEditor) },
@@ -3179,6 +3195,53 @@ function openBundle() {
   inp.click();
 }
 
+// ------------------------------------------------------------------ browser edition: where projects are kept
+// the browser's storage, or a workspace folder on the disk (Chrome / Edge: File System Access API)
+function storageMenuItems() {
+  const st = api.storage();
+  return [
+    { label: 'Open Workspace Folder…', icon: icon('open'), action: () => openWorkspaceFolder(), disabled: !st.supported, title: st.supported ? null : st.unsupportedReason },
+    st.kind !== 'folder' && st.remembered && st.supported ? { label: `Reopen ${st.remembered}`, action: () => reopenWorkspaceFolder() } : null,
+    st.kind === 'folder' ? { label: 'Copy Browser Projects to the Folder', action: () => copyBrowserProjects() } : null,
+    st.kind === 'folder' ? { label: 'Use Browser Storage', action: () => useBrowserStorage() } : null,
+    '-',
+  ].filter(Boolean);
+}
+const storageLine = st => (st.kind === 'folder'
+  ? `Projects are now kept in the folder '${st.folder}' on the disk: each project is a folder in the format of the full Silinx application.`
+  : 'Projects are now kept in this browser\'s storage.');
+function updateStorageStatus() {
+  const el = $('status-storage');
+  if (!el || !api.standalone) return;
+  const st = api.storage();
+  el.textContent = st.kind === 'folder' ? `Storage: folder ${st.folder}` : 'Storage: this browser';
+  el.title = st.kind === 'folder' ? 'Projects are kept in a folder on the disk (File > Use Browser Storage to go back)' : 'Projects are kept in the browser\'s storage (File > Open Workspace Folder… keeps them in a folder on the disk)';
+}
+// the open project belongs to the storage left: closed first
+async function switchStorage(what, fn) {
+  if (blockedByRun(what)) return;
+  if (S.project) { await closeProject(); if (S.project) return; }
+  let st;
+  try { st = await fn(); } catch (e) { alertDlg(what, e.message, 'error'); return; }
+  if (!st) return;   // the folder picker was cancelled
+  log(storageLine(st), 'ok');
+  updateStorageStatus();
+  showLeftPage('start');
+}
+const openWorkspaceFolder = () => switchStorage('Open Workspace Folder', () => api.openWorkspaceFolder());
+const reopenWorkspaceFolder = () => switchStorage('Open Workspace Folder', () => api.reopenWorkspaceFolder());
+const useBrowserStorage = () => switchStorage('Use Browser Storage', () => api.useBrowserStorage());
+async function copyBrowserProjects() {
+  const what = 'Copy Browser Projects to the Folder';
+  let r;
+  try { r = await api.copyBrowserProjectsToFolder(); } catch (e) { alertDlg(what, e.message, 'error'); return; }
+  const folder = api.storage().folder;
+  log(r.copied.length ? `Copied ${r.copied.length} project(s) from the browser's storage into the folder '${folder}': ${r.copied.join(', ')}.`
+    : `No project copied into the folder '${folder}'.`, r.copied.length ? 'ok' : 'info');
+  for (const n of r.skipped) log(`WARNING: project '${n}' was not copied: the folder '${folder}' already has a project of that name.`, 'warn');
+  if (!document.querySelector('.left-page[data-page=start]').hidden) renderStartPage();
+}
+
 // the Simulation view with module `mod` selected (e.g. a test bench just created): Simulate runs it
 export function showInSim(mod) {
   setView('sim');
@@ -3234,7 +3297,14 @@ async function boot() {
 
   updateTitle();
   log(`${PRODUCT} ${VERSION} Project Navigator — HDL design, schematics, behavioural simulation and Xilinx FPGA implementation/programming.`, 'info');
-  if (api.standalone) log('Browser edition: projects are stored in this browser (File > Download Project Bundle to keep a copy). Implement Design and Generate Programming File run the Silinx toolchain here (Spartan-3E); Configure Target Device programs the FPGA of the board over USB (Chrome / Edge).', 'info');
+  if (api.standalone) {
+    const st = await api.initStorage().catch(() => api.storage());
+    const where = st.kind === 'folder' ? `in the folder '${st.folder}' on the disk (File > Use Browser Storage to keep them in this browser)`
+      : `in this browser (File > Download Project Bundle to keep a copy${st.supported ? '; File > Open Workspace Folder… keeps them in a folder on the disk' : ''})`;
+    log(`Browser edition: projects are stored ${where}. Implement Design and Generate Programming File run the Silinx toolchain here (Spartan-3E); Configure Target Device programs the FPGA of the board over USB (Chrome / Edge).`, 'info');
+    if (st.needsPermission) log(`The workspace folder '${st.remembered}' needs the browser's permission again: Start page > Reopen ${st.remembered}.`, 'warn');
+    updateStorageStatus();
+  }
   try { S.devices = await api.devices(); } catch (e) { log(`ERROR: cannot reach the Silinx server: ${e.message}`, 'err'); }
   api.toolchain().then(tc => {
     S.toolchain = tc;
@@ -3251,7 +3321,8 @@ async function boot() {
   let last = null;
   try { last = localStorage.getItem('silinx.lastProject'); } catch { /* ignore */ }
   const projects = await api.projects().catch(() => []);
-  if (last && projects.some(p => p.name === last)) await openProject(last);
+  // (a workspace folder waiting for its permission: its last project is not the browser's one of that name)
+  if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) await openProject(last);
   else showLeftPage('start');
   // always check for updates at start-up (a newer release opens the update dialog); not awaited
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});

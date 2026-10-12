@@ -117,6 +117,7 @@ function buildMenu(items) {
       h('span', { class: 'sc' }, it.submenu ? '▸' : (it.shortcut || '')),
     );
     if (typeof it.icon === 'object' && it.icon instanceof Node) { row.firstChild.textContent = ''; row.firstChild.append(it.icon); }
+    if (it.title) row.title = it.title;   // e.g. why the item is disabled
     if (it.submenu) {
       let sub = null;
       row.addEventListener('mouseenter', () => {

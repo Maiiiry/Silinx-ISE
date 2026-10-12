@@ -24,6 +24,14 @@ const PT = {
   'Import Xilinx ISE Project (.zip)…': 'Importar Projeto Xilinx ISE (.zip)…', 'Export Xilinx ISE Project (.zip)…': 'Exportar Projeto Xilinx ISE (.zip)…',
   'Import Silinx ISE Project (.zip)…': 'Importar Projeto Silinx ISE (.zip)…', 'Export Silinx ISE Project (.zip)…': 'Exportar Projeto Silinx ISE (.zip)…',
   'Download Project Bundle…': 'Descarregar Pacote do Projeto…', 'Open Project Bundle…': 'Abrir Pacote do Projeto…',
+  // the browser edition: where the projects are kept (in the browser storage, or in a folder on the disk)
+  'Open Workspace Folder…': 'Abrir Pasta de Trabalho…', 'Open Workspace Folder': 'Abrir Pasta de Trabalho',
+  'Copy Browser Projects to the Folder': 'Copiar os Projetos do Navegador para a Pasta', 'Use Browser Storage': 'Usar o Armazenamento do Navegador',
+  'Where Projects Are Kept': 'Onde Ficam os Projetos', 'In this browser\'s storage.': 'No armazenamento deste navegador.',
+  'A folder on the disk needs Chrome or Edge.': 'Uma pasta no disco precisa do Chrome ou do Edge.', 'Storage: this browser': 'Armazenamento: este navegador',
+  'Projects are kept in a folder on the disk (File > Use Browser Storage to go back)': 'Os projetos ficam numa pasta no disco (Ficheiro > Usar o Armazenamento do Navegador para voltar)',
+  'Projects are kept in the browser\'s storage (File > Open Workspace Folder… keeps them in a folder on the disk)': 'Os projetos ficam no armazenamento do navegador (Ficheiro > Abrir Pasta de Trabalho… guarda-os numa pasta no disco)',
+  'This browser cannot give a page a folder on the disk (File System Access API: Chrome or Edge); the projects are kept in the browser\'s storage': 'Este navegador não dá a uma página acesso a uma pasta no disco (File System Access API: Chrome ou Edge); os projetos ficam no armazenamento do navegador',
   'New Source…': 'Nova Fonte…', 'Save': 'Guardar', 'Save All': 'Guardar Tudo', 'Recent Projects': 'Projetos Recentes',
   'Undo': 'Anular', 'Redo': 'Refazer', 'Replace…': 'Substituir…', 'Go to Line…': 'Ir para a Linha…',
   'Implementation': 'Implementação', 'Simulation': 'Simulação',
@@ -257,6 +265,8 @@ const PT_FF = [['synchronous set and reset (S over R)', 'set e reset síncronos 
   ['clock enable', 'habilitação do relógio'], ['asynchronous clear', 'clear assíncrono'], ['asynchronous preset', 'preset assíncrono'],
   ['synchronous reset', 'reset síncrono'], ['synchronous set', 'set síncrono']];
 const PT_PATTERNS = [
+  // the browser edition's workspace folder (its name)
+  [/^Reopen (.+)$/, 'Reabrir $1'], [/^In the folder (.+) on the disk\.$/, 'Na pasta $1 no disco.'], [/^Storage: folder (.+)$/, 'Armazenamento: pasta $1'],
   // schematic symbols: flip-flops (FD*, FT*, FJK*)
   [/^(D|Toggle \(T\)|J-K) flip-flop(?: with (.*))?$/, (m, k, w) => {
     let r = w || '';

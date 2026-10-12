@@ -26,6 +26,15 @@ projetos ficam nesse browser) e passe ao passo 4. Ou descarregue-o, para trabalh
 - Os projetos ficam guardados **dentro deste browser**, neste computador. Para guardar uma cópia
   ou passar para outro computador use **File ▸ Download Project Bundle** (e **File ▸ Open Project
   Bundle** para o voltar a abrir). Apagar os dados do browser apaga os projetos.
+- **Ou guarde-os numa pasta do seu disco** (Chrome ou Edge): **File ▸ Open Workspace Folder…**
+  (também na página inicial) e escolha uma pasta, por exemplo uma nova pasta `Silinx-projects` nos
+  Documentos. Cada projeto passa a ser uma pasta normal lá dentro (`silinx.json`, `src/`, `sim/`,
+  `constraints/`, e `build/` com o bitstream), igual às da aplicação completa (Forma 2): a pasta
+  também abre lá, e a pasta de um projeto pode ser comprimida em zip e entregue. O browser lembra-se
+  da pasta; quando voltar a pedir autorização, clique em **Reopen Silinx-projects** na página
+  inicial. **File ▸ Copy Browser Projects to the Folder** copia os projetos que já tinha no browser,
+  e **File ▸ Use Browser Storage** volta ao browser. A barra de estado mostra onde ficam os
+  projetos. O Firefox e o Safari não abrem pastas: aí os projetos ficam no browser.
 - Em **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** e **Generate Programming
   File** correm a cadeia de ferramentas Silinx no browser (placas Basys2 e Nexys2; a primeira vez
   descarrega as ferramentas, cerca de 100 MB, que o browser guarda): o bitstream (`top.bit`) é
