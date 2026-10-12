@@ -398,6 +398,17 @@ test/       node:test suites
 Xilinx, ISE, ISim, iMPACT and Spartan are trademarks of AMD/Xilinx; Silinx is not affiliated
 with them.
 
+## Privacy and usage counts
+
+The site (https://pmnmalo.github.io/Silinx-ISE/ and its dev/ edition) counts its visits and what is
+used in it (a new project, a simulation, Implement Design, a bitstream, a board programmed) with
+[GoatCounter](https://www.goatcounter.com): no cookies, no personal data, never the content of a
+project. The application and the downloaded `Silinx-ISE.html` send nothing. The counter is added by the
+site's build (`scripts/site-analytics.mjs`, when the repository variable `GOATCOUNTER_CODE` is set).
+
+Using Silinx in a course, a school or on your own? Tell us on
+[GitHub Discussions](https://github.com/pmnmalo/Silinx-ISE/discussions/151) (Help ▸ Tell Us Who You Are…).
+
 ## Licence
 
 Silinx ISE is Copyright 2026 Pedro Maló and is free software, licensed under the

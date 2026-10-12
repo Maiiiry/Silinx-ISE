@@ -7,6 +7,7 @@ import * as T from './templates.js';
 import { typeText } from './editor.js';
 import { S, app } from './app.js';
 import { THIRD_PARTY } from '/core/third-party.js';
+import { countEvent } from './analytics.js';
 
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 // Device used when no evaluation board is selected.
@@ -256,6 +257,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
       device: dp.value(),
       board: boardSel.value || (tplSel.value !== 'empty' ? undefined : null),
     });
+    countEvent('new-project');
     pj.preferredLanguage = langSel.value;
     pj.topSourceType = topType.value;
     pj.synthTool = synthSel.value;
@@ -910,8 +912,23 @@ export function aboutDialog() {
               h('div', { style: { color: '#666' } }, 'developed with Claude (Anthropic)')))),
         h('p', {}, `Copyright 2026 Pedro Maló. Free software under the GNU Affero General Public License v3.0 (`, link(`https://github.com/${REPOSITORY}/blob/main/LICENSE`, 'LICENSE'), ', with an additional permission for elkjs: ', link(`https://github.com/${REPOSITORY}/blob/main/NOTICE`, 'NOTICE'), ').'),
         h('p', { class: 'hint' }, 'This program comes with ABSOLUTELY NO WARRANTY. Source code: ', link(`https://github.com/${REPOSITORY}`, `github.com/${REPOSITORY}`), '.'),
+        h('p', { class: 'hint' }, 'Privacy: the site (pmnmalo.github.io/Silinx-ISE) counts its visits and what is used (a new project, a simulation, a bitstream…) with GoatCounter, without cookies or personal data, and never the content of a project. The application and the downloaded Silinx-ISE.html send nothing. Using Silinx in a course? ', link(WHO_URL, 'Tell us who you are'), '.'),
         componentsNode(),
         h('p', { style: { color: '#666' } }, 'Synthesis, place & route and bitstream generation use the Xilinx ISE 14.7 command-line tools. Xilinx, ISE, ISim, iMPACT and Spartan are trademarks of AMD/Xilinx; Silinx ISE is an independent project, not affiliated with or endorsed by AMD/Xilinx.'))),
+    buttons: [{ label: 'OK', primary: true, value: true }],
+  });
+}
+
+// ------------------------------------------------------------------ Tell us who you are
+// the users who want to say so (school, course, role): a GitHub Discussions thread, nothing collected
+export const WHO_URL = `https://github.com/${REPOSITORY}/discussions/151`;   // "Who is using Silinx ISE?"
+export function whoAreYou() {
+  return dialog({
+    title: 'Tell Us Who You Are', width: 480,
+    body: h('div', {},
+      h('p', {}, 'Silinx ISE is free and asks for nothing. If you use it, in a course, a school or on your own, we would like to know: it helps to decide what to improve.'),
+      h('p', {}, 'Say hello on GitHub Discussions (a GitHub account is needed): your school or course, your role (teacher, student…), the boards you use. Only what you write there is seen.'),
+      h('p', {}, link(WHO_URL, 'Who is using Silinx ISE? (GitHub Discussions)'))),
     buttons: [{ label: 'OK', primary: true, value: true }],
   });
 }

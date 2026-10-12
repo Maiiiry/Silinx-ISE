@@ -155,6 +155,8 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
 uiTest('browser edition (the site over HTTP): Generate Programming File runs the Silinx toolchain in the browser', E, async (page) => {
   await page.goto(siteUrl);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  // the site's usage counter (GoatCounter on the published site): a stand-in recording the events
+  await page.eval(() => { window.goatcounter = { count: (e) => (window.__gc ||= []).push(e.path) }; });
   await page.menu('File', 'New Project…');
   await page.waitDialog('New Project Wizard');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Web');
@@ -175,6 +177,7 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
     assert.match(log, re);
   assert.doesNotMatch(log, /SILINX FAILED|Process failed/);
   // the bitstream is downloaded
+  assert.deepEqual(await page.eval(() => window.__gc), ['event/new-project', 'event/bitstream'], 'what was used, counted once');
   const bitFile = await waitDownload(page, 'top.bit');
   const bit = await fs.readFile(bitFile);
   assert.ok(bit.length > 100_000, `top.bit downloaded (${bit.length} bytes)`);

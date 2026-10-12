@@ -1,0 +1,46 @@
+#!/usr/bin/env node
+// The published site's usage counts: GoatCounter (goatcounter.com: no cookies, no personal data) added
+// to the pages of the site built by scripts/build-standalone.mjs --site (the stable root, dev/), by
+// .github/workflows/pages.yml when the repository variable GOATCOUNTER_CODE is set:
+//   node scripts/site-analytics.mjs <site folder> <GoatCounter code>
+// Only index.html (the page opened on the site): Silinx-ISE.html, the file people download and open
+// from their disk, never counts. The counter runs only on the published host (*.github.io).
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const MARK = 'silinx-site-analytics';
+
+/** The page with the counter's loader (once: a page that has it is returned unchanged). */
+export function addAnalytics(html, code) {
+  if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(code || '')) throw new Error(`not a GoatCounter code: '${code}'`);
+  if (html.includes(MARK)) return html;
+  const loader = `<script id="${MARK}">
+/* usage counts of the published site: GoatCounter, no cookies, no personal data (web/js/analytics.js) */
+if (/\\.github\\.io$/.test(location.hostname)) { var s = document.createElement('script'); s.async = true; s.src = 'https://gc.zgo.at/count.js'; s.dataset.goatcounter = 'https://${code}.goatcounter.com/count'; document.head.appendChild(s); }
+</script>
+`;
+  const i = html.lastIndexOf('</body>');
+  if (i < 0) throw new Error('no </body> in the page');
+  return html.slice(0, i) + loader + html.slice(i);
+}
+
+/** Every index.html of the site (the root and dev/): the paths changed. */
+export function addAnalyticsToSite(site, code) {
+  const out = [];
+  const walk = dir => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const f = path.join(dir, e.name);
+      if (e.isDirectory() && e.name !== 'assets') walk(f);
+      else if (e.name === 'index.html') { fs.writeFileSync(f, addAnalytics(fs.readFileSync(f, 'utf8'), code)); out.push(path.relative(site, f)); }
+    }
+  };
+  walk(site);
+  return out;
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  const [site, code] = process.argv.slice(2);
+  if (!site || !code) { console.error('usage: node scripts/site-analytics.mjs <site folder> <GoatCounter code>'); process.exit(2); }
+  for (const f of addAnalyticsToSite(path.resolve(site), code)) console.log(`usage counts (GoatCounter ${code}): ${f}`);
+}

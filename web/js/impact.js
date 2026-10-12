@@ -3,6 +3,7 @@
 import { api, followJob } from './api.js';
 import { h, toast, alertDlg, confirmDlg } from './ui.js';
 import { S, app } from './app.js';
+import { countEvent } from './analytics.js';
 
 const roleOf = name => (/^xcf/i.test(name) ? 'prom' : /^(xc)?(3s|6s|4v|5v|6v|7[akvz])/i.test(name) ? 'fpga' : /^(xc)?(2c|95)/i.test(name) ? 'cpld' : 'other');
 
@@ -116,7 +117,7 @@ export function mountImpact(el) {
   const programFpga = () => runJob('Programming FPGA (SRAM)', () => api.program({
     project: pj?.name, tool: toolSel.value || undefined, cable: cable.value.trim() || undefined, board: board?.id, position: selPos + 1, bitfile: bitfile.value.trim(),
     ...(bitData ? { bitData } : {}),
-  }), "'1': Programmed successfully.");
+  }), "'1': Programmed successfully.").then(r => { if (r?.status === 'ok') countEvent('program'); return r; });
 
   const prom = async op => {
     const name = sel().name.toUpperCase();

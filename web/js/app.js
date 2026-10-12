@@ -16,6 +16,7 @@ import { designDiags, hintRow, sevWord, lintEnabled, setLintEnabled } from './di
 import { applyPrefs, getInterface, setInterface, getTheme, setTheme, toggleTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
 import { createHistory } from './history.js';
+import { countEvent } from './analytics.js';
 import { setActionRunner, runAction } from './ui.js';
 
 // ------------------------------------------------------------------ state
@@ -1042,6 +1043,7 @@ async function runImplInner(mod, steps, opts, pjName) {
         document.body.append(a); a.click(); a.remove();
         log(`Bitstream downloaded: ${res.download.filename} (Configure Target Device programs the board with it).`, 'info');
       }
+      countEvent(steps.includes('bitgen') ? 'bitstream' : 'implement');
     } else if (res.status === 'ok') {
       setStatus(procId, 'warn');
       log(`\nScripts generated in ${S.project.name}/build (ISE not run).`, 'warn');
@@ -1568,6 +1570,7 @@ async function readDataFiles() {
 // model: undefined = behavioural (the HDL sources); postsynth / posttrans / postmap / postpar =
 // the testbench against that netgen netlist (compiled after the sources: its entity replaces the RTL one)
 async function runSimulation(mod, model) {
+  countEvent('simulate');
   try { return await runSimulationInner(mod, model); }
   catch (e) { setStatus(model ? `sim-${model}` : 'sim-run', 'err'); log(`ERROR: simulation: ${e.message}`, 'err'); }
 }
@@ -3162,6 +3165,8 @@ function setupMenus() {
       { label: 'Keyboard Shortcuts', action: () => wiz.shortcutsDialog() },
       '-',
       { label: 'Check for Updates…', action: () => wiz.checkUpdatesDialog() },
+      '-',
+      { label: 'Tell Us Who You Are…', action: () => wiz.whoAreYou() },
     ] },
   ]);
 }

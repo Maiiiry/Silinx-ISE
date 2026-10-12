@@ -3,6 +3,15 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.8
+
+In detail:
+
+- **Usage counts of the site:** https://pmnmalo.github.io/Silinx-ISE/ counts its visits and what is
+  used (a new project, a simulation, a bitstream, a board programmed) with GoatCounter, without
+  cookies or personal data; the application and the downloaded file send nothing. *Help* ▸ *Tell Us
+  Who You Are…* invites the users to say hello on GitHub Discussions (#150).
+
 ## 15.10.7
 
 In detail:

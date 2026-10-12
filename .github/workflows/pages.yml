@@ -64,6 +64,12 @@ jobs:
           git log -1 --format='Development edition: %h %s (%ci)'
           npm ci
           node scripts/build-standalone.mjs --site site/dev
+      # the usage counts of the site (GoatCounter: no cookies, no personal data), when the repository
+      # variable GOATCOUNTER_CODE is set (Settings ▸ Secrets and variables ▸ Actions ▸ Variables);
+      # only the pages opened on the site, never the file people download
+      - name: Usage counts (GoatCounter)
+        if: vars.GOATCOUNTER_CODE != ''
+        run: node scripts/site-analytics.mjs site "${{ vars.GOATCOUNTER_CODE }}"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
