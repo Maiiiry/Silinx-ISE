@@ -10,6 +10,9 @@
 //   const env = await setupUi();            // in before(): server + browser (env.skip when none)
 //   uiTest('name', env, async (page) => { … });
 //
+// The npm dependencies must be installed (npm ci): the server serves the editor and ELK from
+// node_modules. One test alone: node --test --test-name-pattern='<part of its name>' test/ui/<file>.test.js
+//
 // Every test gets a page in its own browser context (separate localStorage, downloads directory);
 // uncaught page exceptions and console.error() calls fail the test; a failing test leaves a
 // screenshot in the temp directory (path printed).
@@ -590,6 +593,17 @@ export async function startRecordingProxy() {
 }
 
 // ------------------------------------------------------------------------------------- setup
+/**
+ * The npm dependencies (package.json "dependencies") missing from <root>/node_modules. The server
+ * serves the editor (CodeMirror), ELK and YoWASP from there: without them every page fails
+ * ("Cannot read properties of undefined (reading 'fold')": no CodeMirror), as in a fresh clone or
+ * worktree, where Node may still find express in a parent folder's node_modules (#64).
+ */
+export function missingDependencies(root = ROOT) {
+  const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  return Object.keys(pkg.dependencies || {}).filter((d) => !fs.existsSync(path.join(root, 'node_modules', d, 'package.json')));
+}
+export const dependenciesMessage = (missing) => `UI tests: npm dependencies missing from node_modules (${missing.join(', ')}): run npm ci`;
 /** The browser of the UI tests: chrome (default, CDP), or firefox / webkit / chromium (Playwright). */
 export const BROWSER = (process.env.SILINX_UI_BROWSER || 'chrome').toLowerCase();
 /** `skip` reason for a test that needs the Chrome DevTools Protocol (undefined in Chrome). */
@@ -607,13 +621,16 @@ function initScripts({ updateCheck }) {
 
 /**
  * Start the server and the browser (Chrome unless SILINX_UI_BROWSER says otherwise). Returns
- * { skip } (a reason string) when the browser is not installed.
+ * { skip } (a reason string) when the browser is not installed; fails with "run npm ci" when the
+ * npm dependencies are missing from <root>/node_modules (root: the checkout; a test's own).
  * `server: false` for tests that do not need the Silinx server (standalone edition, or one started
  * by the test). `offline: true`: the browser's requests to other hosts are refused and recorded in
  * env.external (see startRecordingProxy). env.newPage(url, { updateCheck }) opens a page (the
  * update check against GitHub only with updateCheck: true).
  */
-export async function setupUi({ server = true, offline = false } = {}) {
+export async function setupUi({ server = true, offline = false, root = ROOT } = {}) {
+  const missing = missingDependencies(root);
+  if (missing.length) throw new Error(dependenciesMessage(missing));
   if (BROWSER !== 'chrome') return setupPlaywright({ server, offline });
   const chrome = findChrome();
   if (!chrome) return { skip: 'Google Chrome / Chromium not found (set CHROME_PATH): UI tests skipped' };

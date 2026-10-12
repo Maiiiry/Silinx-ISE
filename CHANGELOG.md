@@ -42,6 +42,10 @@ the "What's new" text of its GitHub release.
   shift-register map and cells its script reads (`File silinx_srl_cells.v not found`). The options
   now go to every synth_xilinx step, and `-nosrl` also leaves out Silinx's own shift-register
   mapping; the same for the corpus runner's retry without RAMs (#62).
+- **UI tests without the npm dependencies** (a fresh clone or worktree) stop at once with
+  `npm dependencies missing from node_modules (…): run npm ci`, instead of failing every test with
+  the page's `Cannot read properties of undefined (reading 'fold')` (no CodeMirror served). One UI
+  test runs alone with `node --test --test-name-pattern=…` (tested; README) (#64).
 
 ## 15.10.2
 

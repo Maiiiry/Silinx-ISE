@@ -242,7 +242,8 @@ npm test                                                         # test suite
 SILINX_ISE_TESTS=1 npm run test:ise                              # the real ISE flow (Docker image; SILINX_ISE_HOST=user@host: on another machine)
 SILINX_ISE_HOST=user@host npm run check:open-flow [projects…]   # the open flow vs ISE: DRC, byte-identical bitstreams
 node scripts/check-private-data.mjs [--history]                 # no personal data, secrets or Xilinx files (also run by npm test)
-npm run test:ui                                                  # UI tests (headless Chrome), incl. memory leaks
+npm run test:ui                                                  # UI tests (headless Chrome), incl. memory leaks (npm ci first)
+node --test --test-name-pattern='latch warning' test/ui/hints.test.js   # one UI test alone
 npx playwright install webkit && npm run test:webkit             # memory in WebKit (Safari's engine)
 npx playwright install firefox webkit && npm run test:browsers   # the main UI flows in Firefox and WebKit
 SILINX_UI_BROWSER=firefox npm run test:ui                        # any UI test in firefox, webkit or chromium
