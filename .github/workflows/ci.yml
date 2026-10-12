@@ -8,7 +8,49 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  test:
+  # the unit tests, in three parts at once (node --test --test-shard), on Linux, macOS and Windows:
+  # one after another they take about 15 minutes on Linux and 20 on the macOS and Windows runners
+  unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        shard: [1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    name: unit (${{ matrix.os }}, ${{ matrix.shard }}/3)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --test --test-shard=${{ matrix.shard }}/3 "test/*.test.js"
+
+  # the UI tests in headless Chrome, with each interface (alongside the unit tests)
+  ui:
+    strategy:
+      fail-fast: false
+      matrix:
+        interface: [modern, classic]
+    runs-on: ubuntu-latest
+    name: ui (${{ matrix.interface }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: UI tests (headless Chrome, ${{ matrix.interface }} interface)
+        run: npm run test:ui -- --test-concurrency=1
+        timeout-minutes: 15
+        env:
+          CHROME_PATH: /usr/bin/google-chrome
+          SILINX_UI_INTERFACE: ${{ matrix.interface == 'classic' && 'classic' || '' }}
+
+  # the memory test in WebKit (Safari's engine), and the single-file edition builds
+  webkit-standalone:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,18 +59,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
-      - name: UI tests (headless Chrome, modern interface)
-        run: npm run test:ui -- --test-concurrency=1
-        timeout-minutes: 15
-        env:
-          CHROME_PATH: /usr/bin/google-chrome
-      - name: UI tests (classic Xilinx ISE interface)
-        run: npm run test:ui -- --test-concurrency=1
-        timeout-minutes: 15
-        env:
-          CHROME_PATH: /usr/bin/google-chrome
-          SILINX_UI_INTERFACE: classic
       - name: Memory in WebKit (Safari's engine)
         run: npx playwright install --with-deps webkit && npm run test:webkit
         timeout-minutes: 15
@@ -64,8 +94,8 @@ jobs:
       - run: npm run test:browsers
         timeout-minutes: 20
 
-  # macOS and Windows: the unit tests, the launchers and a small UI smoke test in the installed Chrome
-  # (and on macOS the release zip, with its .command launcher)
+  # macOS and Windows: a small UI smoke test in the installed Chrome (and on macOS the release zip,
+  # with its .command launcher); their unit tests are in the unit job
   os:
     strategy:
       fail-fast: false
@@ -83,7 +113,6 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm test
       - name: UI smoke test (headless Chrome)
         run: node --test --test-concurrency=1 test/ui/modern.test.js test/ui/focus.test.js test/ui/synth-open.test.js
         timeout-minutes: 10

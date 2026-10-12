@@ -4,7 +4,7 @@
 // passes in Silinx's simulator with no warning, the UCF it ships is the one Silinx's board pin
 // assignment writes, and the Silinx toolchain builds it for every device, with no warning, to a
 // bitstream with every feature in the bit database. (Against ISE: test/ise/examples.test.js.)
-import { test } from 'node:test';
+import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -43,18 +43,22 @@ for (const name of EXAMPLES) {
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-examples-'));
 // the shipped device descriptions, never ones built in the user's ~/.silinx/devices
 process.env.SILINX_CONFIG_DIR = path.join(tmp, 'config');
-for (const name of EXAMPLES) {
-  for (const t of TARGETS) {
-    test(`example ${name} on the ${t.board}-${t.variant}: the Silinx toolchain builds the bitstream, no warning`, { timeout: 600000, todo: KNOWN[name] }, async () => {
-      const { dir, project } = exampleProject(name, t, tmp);
-      const job = await silinxFlow(dir, project);
-      const log = job.lines.join('\n');
-      assert.equal(job.status, 'ok', log.slice(-3000));
-      assert.match(log, new RegExp(`Device: ${project.device.part}${project.device.package}-4: device description \\(shipped with Silinx\\) and bit database\\.`));
-      assert.match(log, /All signals are completely routed\./);
-      assert.match(log, new RegExp(`Bitstream: build/${project.top}\\.bit \\(\\d+ bytes, every feature in the bit database\\)`));
-      assert.match(log, /All constraints were met\./);
-      assert.deepEqual(job.lines.filter(l => /warning/i.test(l)), []);
-    });
+// two builds at a time: each runs in its own process (server/open-flow-run.js), and one after another
+// they took most of the unit tests' time
+describe('the examples on every board', { concurrency: 2 }, () => {
+  for (const name of EXAMPLES) {
+    for (const t of TARGETS) {
+      test(`example ${name} on the ${t.board}-${t.variant}: the Silinx toolchain builds the bitstream, no warning`, { timeout: 600000, todo: KNOWN[name] }, async () => {
+        const { dir, project } = exampleProject(name, t, tmp);
+        const job = await silinxFlow(dir, project);
+        const log = job.lines.join('\n');
+        assert.equal(job.status, 'ok', log.slice(-3000));
+        assert.match(log, new RegExp(`Device: ${project.device.part}${project.device.package}-4: device description \\(shipped with Silinx\\) and bit database\\.`));
+        assert.match(log, /All signals are completely routed\./);
+        assert.match(log, new RegExp(`Bitstream: build/${project.top}\\.bit \\(\\d+ bytes, every feature in the bit database\\)`));
+        assert.match(log, /All constraints were met\./);
+        assert.deepEqual(job.lines.filter(l => /warning/i.test(l)), []);
+      });
+    }
   }
-}
+});
