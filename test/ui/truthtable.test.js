@@ -107,7 +107,8 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.waitFor((t) => /Not in sync with maj3\.vhd/.test(document.querySelector(`${t} .tt-link`).textContent), [T]);
   await page.click(`${T} .tt-cell[data-out=f][data-row="7"]`);       // 1 -> X
   await page.waitFor((t) => /Synchronized with maj3\.vhd/.test(document.querySelector(`${t} .tt-link`).textContent), [T], { what: 'back in sync', timeout: 15000 });
-  vhd = await readWs(env, 'TtPj', 'src/maj3.vhd');
+  // (the link says so as the HDL is written: the file on the disk a moment later)
+  for (let k = 0; /rising_edge/.test(vhd = await readWs(env, 'TtPj', 'src/maj3.vhd')) && k < 100; k++) await new Promise((r) => setTimeout(r, 100));
   const sim = simTable(vhd, 'maj3.vhd', 'maj3').f;
   assert.ok([...'0X10100X'].every((c, i) => c === 'X' || c === sim[i]), sim);
 
