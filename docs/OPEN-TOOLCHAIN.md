@@ -1,4 +1,4 @@
-# How the Silinx Silinx toolchain is developed
+# How the Silinx toolchain is developed
 
 This document records how Silinx develops its Silinx toolchain for the Xilinx Spartan-3E: synthesis,
 place and route, and bitstream generation without Xilinx ISE. It describes the method, the
