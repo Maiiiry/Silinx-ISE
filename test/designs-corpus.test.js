@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateManifest, compareExpectations, updatedExpectations, normalizeWarning, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, isGood, kindOf, FLOW_PARTS, chipOf, deviceOf, flaggedSynth,
-  qualityOf, describeQuality, compareQuality, timesOf, compareTimes, slowestTable, machineClass, resultsTable, withResultsTable, readmeResultsTable, TABLE_BEGIN, TABLE_END } from './designs-corpus/lib.mjs';
+  qualityOf, describeQuality, compareQuality, timesOf, compareTimes, slowestTable, machineClass, resultsTable, withResultsTable, readmeResultsTable, TABLE_BEGIN, TABLE_END, PADS_SHORT } from './designs-corpus/lib.mjs';
 import { remoteFiles } from '../scripts/fetch-design-corpus.mjs';
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
@@ -389,4 +389,10 @@ test('the README\'s results table is the one the committed expected.json gives (
   assert.deepEqual(readmeResultsTable(readme), resultsTable(MANIFEST, expected), 'run: node test/designs-corpus/run.mjs --table');
   // every design of the corpus has its row
   assert.equal(readmeResultsTable(readme).filter(l => /^\| (?!design |---)/.test(l)).length, MANIFEST.designs.length);
+});
+
+test('design corpus: the placer\'s too-few-pads errors, the package\'s or the banks\' VCCO (#128), lead to the I/O wrapper', () => {
+  for (const m of ['place: not enough pads',
+    'place: no pad for 4 I/O(s) of LVCMOS25 (VCCO 2.5 V): led<4>, led<5>, led<6>, led<7>: the banks with free pads need another VCCO: bank 0 VCCO 3.3 V (LVCMOS33: clk)']) assert.match(m, PADS_SHORT, m);
+  for (const m of ['place: 300 slices needed, the device has 240', 'place: no room for the carry chain']) assert.doesNotMatch(m, PADS_SHORT, m);
 });

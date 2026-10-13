@@ -42,7 +42,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf, flaggedSynth,
-  qualityOf, compareQuality, QUALITY_TOLERANCE, machineClass, timesOf, compareTimes, slowestTable, resultsTable, withResultsTable } from './lib.mjs';
+  qualityOf, compareQuality, QUALITY_TOLERANCE, machineClass, timesOf, compareTimes, slowestTable, resultsTable, withResultsTable, PADS_SHORT } from './lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -265,8 +265,10 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
       const size = { slices: packed.stats.slices, luts: packed.stats.luts, ffs: packed.stats.ffs, srl16: u.shiftRegisters, lutRam: u.distributedRam, bram: u.blockRam, mult: u.multipliers,
         retry: !!steps.retry, wrapper: !!wrapper };
       writeProject(path.join(opts.sizes, d.name), d, flowSrcs, wrapper, ports, ucf, null, { family: 'spartan3e', part: 'xc3s1200e', package: 'fg320', speed: '-4' }, size);
-      // --sizes-only: the project is all that is wanted (compare-ise.mjs builds it), not the rest of the flow
-      if (opts.sizesOnly) { res.flow = 'sizes only (--sizes-only)'; return; }
+      // --sizes-only: the project is all that is wanted (compare-ise.mjs builds it), not the rest of the
+      // flow; but a design without the I/O wrapper is placed first, as the placer may find too few pads
+      // for its ports and the project be written again with the wrapper (below)
+      if (opts.sizesOnly && wrapper) { res.flow = 'sizes only (--sizes-only)'; return; }
     }
     // too large: the next, larger device
     const larger = PARTS[PARTS.indexOf(part) + 1];
@@ -297,9 +299,10 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
         },
       });
     } catch (e) {
-      // fewer pads than ports once the clock pad and the input-only pads are counted: the I/O wrapper
-      if (/not enough pads/.test(e.message) && !wrapper) { again = true; await backEnd(d, design, syn, srcs, res, opts, m, true); return; }
-      if (/slices needed|block RAMs needed|multipliers needed|not enough pads|no room/.test(e.message)) {
+      // fewer pads than ports once the clock pad, the input-only pads and the banks' VCCO (#128: 'no pad
+      // for N I/O(s) of …') are counted: the I/O wrapper
+      if (PADS_SHORT.test(e.message) && !wrapper) { again = true; await backEnd(d, design, syn, srcs, res, opts, m, true); return; }
+      if (/slices needed|block RAMs needed|multipliers needed|no room/.test(e.message) || PADS_SHORT.test(e.message)) {
         if (larger) { await tryLarger(); return; }
         res.flow = `too large: ${clean(e.message.replace(/^place: /, ''))}`; return;
       }

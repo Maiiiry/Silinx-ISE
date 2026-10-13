@@ -399,3 +399,7 @@ export function readmeResultsTable(readme) {
   const a = readme.indexOf(TABLE_BEGIN), b = readme.indexOf(TABLE_END);
   return a < 0 || b < a ? null : readme.slice(a + TABLE_BEGIN.length, b).replace(/^\n|\n$/g, '').split('\n');
 }
+
+// the placer's 'too few pads' errors: the package's pads, or those of the banks with a fitting VCCO
+// (#128: 'no pad for N I/O(s) of …'); the design corpus then implements the design in its I/O wrapper
+export const PADS_SHORT = /not enough pads|place: no pad for \d+ I\/O/;
