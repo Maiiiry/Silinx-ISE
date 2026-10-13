@@ -3,6 +3,15 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.13
+
+- **Petri net editor (#186):** a new source type, *Petri Net* (`.pn.json`, also Tools ▸ Petri Net Editor…):
+  places with tokens and capacities, transitions with guards, weighted and inhibitor arcs, Moore outputs on
+  places and pulse outputs on transitions; the token game (click an enabled transition) and the clock step,
+  a random run, undo / redo; PNML import and export (also the PIPE format).
+- **HDL from a Petri net (#187):** a synchronous controller in VHDL or Verilog, simulated like the net; the
+  net is a module of the project by itself (it can be the top), its HDL file optional.
+
 ## 15.10.12
 
 In short:
