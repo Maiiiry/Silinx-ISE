@@ -280,7 +280,29 @@ uiTest('open, switch and close projects (Open Project dialog, Recent Projects, S
   for (const n of ['Alpha', 'Beta']) {
     await makeProject(env, { name: n, files: { [`src/${n.toLowerCase()}.vhd`]: `library ieee; use ieee.std_logic_1164.all;\nentity ${n.toLowerCase()} is port (a : in std_logic; y : out std_logic); end;\narchitecture r of ${n.toLowerCase()} is begin y <= not a; end r;\n` }, top: n.toLowerCase() });
   }
-  // Open Project dialog: select a row, Open
+  // Open Project dialog (#196): the list of the workspace's projects (name, device, top, board), as the server lists them
+  const before0 = await page.eval(() => window.Silinx.project?.name ?? null);
+  await page.menu('File', 'Open Project…');
+  await page.waitDialog('Open Project');
+  const rows = await page.eval(() => [...document.querySelectorAll('.dlg-overlay table.grid tr')].map((r) => [...r.children].map((c) => c.textContent)));
+  assert.deepEqual(rows[0], ['Project', 'Device', 'Top', 'Board']);
+  const listed = await env.server.api('GET', '/api/projects');
+  assert.deepEqual(rows.slice(1), listed.map((p) => [p.name, p.device ? `${p.device.part}${p.device.speed}-${p.device.package}` : '', p.top || '', p.board || '']));
+  assert.deepEqual(rows.slice(1).filter((r) => ['Alpha', 'Beta'].includes(r[0])).map((r) => [r[0], r[2]]), [['Alpha', 'alpha'], ['Beta', 'beta']]);
+  // a click selects one row only; Cancel opens nothing
+  await page.click('.dlg-overlay table.grid tr', { text: 'Beta' });
+  await page.click('.dlg-overlay table.grid tr', { text: 'Alpha' });
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay table.grid tr.sel td:first-child')].map((e) => e.textContent)), ['Alpha']);
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  assert.equal(await page.eval(() => window.Silinx.project?.name ?? null), before0);
+  // Open with no row chosen: nothing opened either
+  await page.menu('File', 'Open Project…');
+  await page.waitDialog('Open Project');
+  await page.dialogButton('Open');
+  await page.waitNoDialog();
+  assert.equal(await page.eval(() => window.Silinx.project?.name ?? null), before0);
+  // select a row, Open
   await page.menu('File', 'Open Project…');
   await page.waitDialog('Open Project');
   await page.click('.dlg-overlay table.grid tr', { text: 'Alpha' });

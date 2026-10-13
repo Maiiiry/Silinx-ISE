@@ -1,5 +1,6 @@
 // UI: schematic editor (place symbols, wire them, I/O markers, save, Generate HDL), ASM chart
-// editor (states, decision, case box, connections, Generate HDL), print preview of a diagram.
+// editor (states, decision, case box, connections, Generate HDL), print preview of a diagram; the
+// schematic editor's Rotate (Ctrl+R, toolbar, properties), zoom buttons, palette Place Symbol.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs, waitDownload, chromeOnly } from './harness.js';
@@ -94,6 +95,68 @@ uiTest('schematic editor: place two inverters, wire them, add I/O markers, save,
   await page.click('.doc:not([hidden]) .se-btn[data-act=view]');
   await page.waitFor(() => /entity chain is/i.test(document.querySelector('.doc:not([hidden]) .se-code')?.textContent || ''));
   await page.click('.doc:not([hidden]) .se-dialog .btn', { text: 'Close' });
+});
+
+uiTest('schematic editor (#196): Rotate by Ctrl+R, the toolbar and the properties (rot saved in the .sch.json), Zoom In / Out / Full View buttons, the palette context menu Place Symbol', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  const doc = newDoc('rot', 'vhdl');
+  doc.symbols.push({ id: 'S1', type: 'and2', x: 300, y: 100, rot: 0, mirror: false, name: 'U1', params: {} });
+  await makeProject(env, { name: 'SchRot', files: { 'src/rot.sch.json': JSON.stringify(doc) }, top: '' });
+  await page.openProject('SchRot');
+  await page.eval(() => window.SilinxApp.openSch('src/rot.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/rot.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  const saved = async () => JSON.parse(await readWs(env, 'SchRot', 'src/rot.sch.json'));
+  const waitRot = (rots) => page.waitFor(async (r) => JSON.stringify(JSON.parse(await (await fetch('/api/projects/SchRot/file?path=src%2Frot.sch.json')).text()).symbols.map((s) => s.rot)) === r, [JSON.stringify(rots)], { what: `saved rotations ${rots}` });
+  // nothing selected: Rotate disabled
+  assert.equal(await page.eval((d) => document.querySelector(`${d} .se-btn[data-act=rotate]`).disabled, D), true);
+  // Ctrl+A selects the AND2; Ctrl+R: 90, the toolbar's Rotate: 180, Ctrl+R: 270, the toolbar: 0
+  await page.click(`${D} .se-svg`);   // focus the editor (an empty spot of the sheet)
+  await page.key('a', { modifiers: 2 });
+  await page.waitFor((d) => !document.querySelector(`${d} .se-btn[data-act=rotate]`).disabled, [D], { what: 'Rotate enabled' });
+  await page.key('r', { modifiers: 2 });
+  await waitRot([90]);
+  await page.click(`${D} .se-btn[data-act=rotate]`);
+  await waitRot([180]);
+  await page.key('r', { modifiers: 2 });
+  await waitRot([270]);
+  await page.click(`${D} .se-btn[data-act=rotate]`);
+  await waitRot([0]);
+  assert.deepEqual((await saved()).symbols.map((s) => [s.type, s.rot, s.mirror]), [['and2', 0, false]]);
+  // zoom: In x1.25, Out x0.8 (back), Full View fits the drawing; the status bar shows the zoom
+  const zoom = () => page.eval((d) => [+/scale\(([\d.]+)\)/.exec(document.querySelector(`${d} .se-vp`).getAttribute('transform'))[1], document.querySelector(`${d} .zoom`).textContent], D);
+  const [s0] = await zoom();
+  await page.click(`${D} .se-btn[data-act=zin]`);
+  const [s1, t1] = await zoom();
+  assert.ok(Math.abs(s1 / s0 - 1.25) < 1e-6, `${s0} -> ${s1}`);
+  assert.equal(t1, `${Math.round(s1 * 100)}%`);
+  await page.click(`${D} .se-btn[data-act=zout]`);
+  await page.click(`${D} .se-btn[data-act=zout]`);
+  const [s2] = await zoom();
+  assert.ok(Math.abs(s2 / s0 - 0.8) < 1e-6, `${s0} -> ${s2}`);
+  await page.click(`${D} .se-btn[data-act=fit]`);
+  const [s3, t3] = await zoom();
+  assert.ok(s3 <= 2 && s3 > s2, `fit: ${s3}`);
+  assert.equal(t3, `${Math.round(s3 * 100)}%`);
+  // the palette's context menu: Symbol Info… and Place Symbol; placing, Ctrl+R turns the symbol before the click
+  await page.fill(`${D} .se-search`, 'inv');
+  await page.rightClick(`${D} .se-symrow`, { text: 'INV' });
+  await page.waitForSelector('body > .menu-popup');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('body > .menu-popup .mi .lbl')].map((e) => e.textContent)), ['Symbol Info…', 'Place Symbol']);
+  await page.click('body > .menu-popup .mi', { text: 'Place Symbol' });
+  await page.waitFor((d) => document.querySelector(`${d} .se-symrow.active`)?.textContent === 'INV', [D], { what: 'INV being placed' });
+  await page.key('r', { modifiers: 2 });
+  const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height - 60 }; }, D);
+  await page.click(c);
+  await page.key('Escape');
+  await waitRot([0, 90]);
+  assert.deepEqual((await saved()).symbols.map((s) => [s.type, s.rot]), [['and2', 0], ['inv', 90]]);
+  // both selected (Ctrl+A): the properties' Rotate turns each
+  await page.key('a', { modifiers: 2 });
+  await page.waitFor((d) => document.querySelector(`${d} .se-ptitle`)?.textContent === '2 objects selected', [D], { what: 'two selected' });
+  await page.click(`${D} .se-pbtns .btn`, { text: 'Rotate' });
+  await waitRot([90, 180]);
+  assert.deepEqual(page.dialogs, []);
 });
 
 uiTest('ASM chart editor: add a state, a decision and a case box, connect them, Generate VHDL', E, async (page) => {

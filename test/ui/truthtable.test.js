@@ -3,7 +3,7 @@
 // module (linked: a cell change rewrites the HDL, which simulates to the new table; a saved edit of
 // the HDL updates the table; a sequential edit shows the out-of-sync banner); Generate Schematic
 // (netlist without errors, simulates to the table); renaming the module keeps the link; Truth Table
-// from Module.
+// from Module; Apply of the input / output names, Generate Verilog module (then VHDL replaces it).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
@@ -295,4 +295,72 @@ uiTest('Truth Table from Module: a vector adder read into a table (exhaustive si
   await page.waitNoDialog();
   await page.waitFor((x) => document.querySelector(`${x} .tt-outputs`).value === 's_2, s_1, s_0', [T]);
   await page.waitFor(async () => (await (await fetch('/api/projects/TtMod/file?path=src%2Fblank.tt.json')).json()).outputs?.length === 3, [], { what: 'saved' });
+});
+
+uiTest('Truth Table (#196): Apply input / output names (columns follow their names, the errors shown), Generate Verilog module (compiles to the table), then VHDL replaces it', E, async (page) => {
+  await makeProject(env, { name: 'TtVlog' });
+  await page.openProject('TtVlog');
+  await page.menu('Tools', 'Truth Table / Karnaugh Map…');
+  await page.waitDialog('New Source Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tv');
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/tv.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor'), [], { what: 'truth table editor' });
+  const T = '.doc:not([hidden]) .tt-editor';
+  const cells = (o) => page.eval((t, x) => [...document.querySelectorAll(`${t} .tt-cell[data-out=${x}]`)].map((c) => c.textContent).join(''), T, o);
+  // the names typed, then the Apply button (no change event)
+  const apply = async (ins, outs) => {
+    await page.eval((t, a, b) => { document.querySelector(`${t} .tt-inputs`).value = a; document.querySelector(`${t} .tt-outputs`).value = b; }, T, ins, outs);
+    await page.click(`${T} .tt-btn`, { text: 'Apply' });
+    return page.eval((t) => document.querySelector(`${t} .tt-err`).textContent, T);
+  };
+  // f = a (rows 4..7)
+  for (const r of [4, 5, 6, 7]) await page.click(`${T} .tt-cell[data-out=f][data-row="${r}"]`);
+  assert.equal(await cells('f'), '00001111');
+  // errors: nothing changes
+  assert.equal(await apply('a b c d e f g', 'f'), '1 to 6 inputs');
+  assert.equal(await apply('a, b, c', ''), 'At least 1 output');
+  assert.equal(await apply('a, b, a', 'f'), "the name 'a' is used twice");
+  assert.equal(await apply('a, b, c', 'end'), "'end' is not a valid name (a letter, then letters, digits and single _; not a VHDL/Verilog keyword)");
+  assert.equal(await apply('a, b, c', 'a'), "the name 'a' is used twice");
+  assert.equal(await cells('f'), '00001111');
+  // inputs reordered: f follows a, now the least significant bit; a new output g of 0s; separators , ; and spaces
+  assert.equal(await apply('c b;a', 'f, g'), '');
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-tab`)].map((e) => e.dataset.out), T), ['f', 'g']);
+  assert.equal(await cells('f'), '01010101');
+  assert.equal(await cells('g'), '00000000');
+  // g = c·b (rows 6, 7)
+  await page.click(`${T} .tt-tab[data-out=g]`);
+  for (const r of [6, 7]) await page.click(`${T} .tt-cell[data-out=g][data-row="${r}"]`);
+  await page.waitFor(async () => (await (await fetch('/api/projects/TtVlog/file?path=src%2Ftv.tt.json')).json()).table.g === '00000011', [], { what: 'saved' });
+  const t0 = await ttFile('TtVlog', 'src/tv.tt.json');
+  assert.deepEqual([t0.inputs, t0.outputs, t0.table], [['c', 'b', 'a'], ['f', 'g'], { f: '01010101', g: '00000011' }]);
+  // Generate Verilog module: src/tv.v, linked, simulates to the table
+  await page.click(`${T} .tt-btn`, { text: 'Generate Verilog module' });
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/tv.v'] === 'src/tv.tt.json', [], { what: 'linked Verilog', timeout: 15000 });
+  await page.waitConsole(/Truth table 'src\/tv\.tt\.json' -> VERILOG module src\/tv\.v \(kept in sync with the table\)/);
+  assert.deepEqual(page.dialogs, []);
+  const v = await readWs(env, 'TtVlog', 'src/tv.v');
+  assert.match(v, /module tv\s*\(/);
+  assert.deepEqual(simTable(v, 'tv.v', 'tv'), { f: '01010101', g: '00000011' });
+  const t1 = await ttFile('TtVlog', 'src/tv.tt.json');
+  assert.deepEqual([t1.generatedFile, t1.lang], ['src/tv.v', 'verilog']);
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/tv.v' && /Synchronized with tv\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'Verilog editor banner' });
+  // a cell change rewrites the Verilog
+  await page.eval(() => window.SilinxApp.openTt('src/tv.tt.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/tv.tt.json');
+  await page.click(`${T} .tt-tab[data-out=g]`);
+  await page.click(`${T} .tt-cell[data-out=g][data-row="0"]`);
+  await page.waitFor(async () => /g = Σm\(0, 6, 7\)/.test(await (await fetch('/api/projects/TtVlog/file?path=src%2Ftv.v')).text()), [], { what: 'Verilog regenerated' });
+  assert.deepEqual(simTable(await readWs(env, 'TtVlog', 'src/tv.v'), 'tv.v', 'tv'), { f: '01010101', g: '10000011' });
+  // Generate VHDL module: asks to replace the Verilog file; Yes: src/tv.vhd, the .v removed
+  await page.click(`${T} .tt-btn`, { text: 'Generate VHDL module' });
+  await page.waitDialog('Generate HDL');
+  assert.match(await page.eval(() => document.querySelector('.dlg-overlay').textContent), /src\/tv\.v is generated from this truth table\. Replace it with src\/tv\.vhd\?/);
+  await page.dialogButton('Yes');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/tv.vhd'] === 'src/tv.tt.json' && !window.Silinx.fileTree.includes('src/tv.v'), [], { what: 'VHDL replaces Verilog', timeout: 15000 });
+  assert.deepEqual(simTable(await readWs(env, 'TtVlog', 'src/tv.vhd'), 'tv.vhd', 'tv'), { f: '01010101', g: '10000011' });
+  assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
