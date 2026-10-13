@@ -380,3 +380,27 @@ for (const lang of ['vhdl', 'verilog']) {
     assert.equal(val(live, P('qjk')), '1010');
   });
 }
+
+test('HDL → schematic: an AND / OR of more than 4 operands becomes a tree of gates of at most 4 inputs (#171), and simulates the same', async () => {
+  const src = `library ieee; use ieee.std_logic_1164.all;
+entity wide is port (a, b, c, d, e, f : in std_logic; y, z : out std_logic); end wide;
+architecture rtl of wide is begin y <= a and b and c and d and e; z <= a or b or c or d or e or f; end rtl;
+`;
+  const sources = [{ path: 'wide.vhd', text: src }];
+  const lib = compile(sources);
+  const modules = modulesFromLibrary(lib, { sources: { 'wide.vhd': src } });
+  const doc = await schematicFromHdl(elaborate(lib, 'wide').top, { sources: { 'wide.vhd': src }, modules, lang: 'vhdl' });
+  const types = doc.symbols.map(s => s.type).sort();
+  assert.ok(!types.some(t => /[5-9]$/.test(t)), types.join(' '));
+  assert.deepEqual(types, ['and2', 'and4', 'or2', 'or2', 'or4']);
+  const live = build(doc, { modules, sources });
+  const P = n => byName(doc, n);
+  for (const n of ['a', 'b', 'c', 'd']) live.set(P(n), 1n);
+  assert.equal(val(live, P('y')), '0', 'e still 0');
+  live.set(P('e'), 1n);
+  assert.equal(val(live, P('y')), '1');
+  for (const n of ['a', 'b', 'c', 'd', 'e']) live.set(P(n), 0n);
+  assert.equal(val(live, P('z')), '0');
+  live.set(P('f'), 1n);
+  assert.equal(val(live, P('z')), '1');
+});

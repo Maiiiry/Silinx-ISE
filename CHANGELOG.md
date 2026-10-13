@@ -3,6 +3,16 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.12
+
+In detail:
+
+- **Schematics drawn as in ISE:** each gate shows its type under it (AND2, OR3, NAND2B1, INV…), and
+  the automatic instance ids (XLXI_n) are no longer written on the sheet (the names you give are) (#172).
+- **Gates of at most 4 inputs:** the 5-input gates are no longer offered (wider through Width / buses;
+  the schematics that have them still open); a converted AND / OR / XOR of more operands becomes a
+  tree of gates (#171).
+
 ## 15.10.11
 
 In detail:

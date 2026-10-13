@@ -188,12 +188,14 @@ function bodySvg(sym, def) {
 }
 
 // readable texts, positioned in sheet coordinates
+const AUTO_NAME = /^(XLXI_\d+|U\d+)$/;
 function textsSvg(sym, def) {
   let s = '';
   const box = symbolBox(sym, null, def);
   const cx = (lx, ly) => xform(sym, def, lx, ly);
   const center = cx(def.body.x + def.body.w / 2, def.body.y + def.body.h / 2);
-  const showName = !['constant', 'vcc', 'gnd', 'slice', 'busjoin'].includes(sym.type);
+  // the instance name: only a name given by the user (not the automatic XLXI_n / Un ones, #172)
+  const showName = !['constant', 'vcc', 'gnd', 'slice', 'busjoin'].includes(sym.type) && !AUTO_NAME.test(sym.name || '');
   const pinLabels = ['module', 'hdl', 'ff', 'arith', 'mux', 'demux', 'lib'].includes(def.shape);
   if (showName) {
     // above the symbol; when pins stick out of the top (turned symbols), beside the top right corner instead
@@ -232,6 +234,10 @@ function textsSvg(sym, def) {
   } else if (def.shape === 'gate' || def.shape === 'inv' || def.shape === 'buf') {
     const w = sym.params?.width > 1 ? `${sym.params.width}` : '';
     if (w) { const t = cx(def.body.x + 8, def.h / 2); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${w}</text>`; }
+    // the type under the symbol (AND2, OR3B1, INV…), as ISE draws it (#172)
+    const t = cx(def.body.x + def.body.w / 2, def.h);
+    const turned = sym.rot === 90 || sym.rot === 270;
+    s += `<text class="stype" x="${turned ? box.x + box.w + 3 : t.x}" y="${turned ? center.y + 3 : (sym.rot === 180 ? box.y - 3 : box.y + box.h + 10)}" text-anchor="${turned ? 'start' : 'middle'}">${esc(SYMBOLS[sym.type]?.title || sym.type.toUpperCase())}</text>`;
   } else if (def.shape === 'tbuf') {
     // bus width inside the triangle (bus pins), as for the gates
     const w = def.rows === 1 && sym.params?.width > 1 ? `${sym.params.width}` : '';
@@ -464,7 +470,7 @@ export function mountSchEditor(container, opts = {}) {
   function paletteItems() {
     const items = [];
     for (const [type, S] of Object.entries(SYMBOLS)) {
-      if (type === 'module') continue;
+      if (type === 'module' || S.hidden) continue;
       // parameterised symbols listed under their Xilinx-style names (D2_4E, DEMUX1_4...), then the generic one
       for (const pr of S.presets || []) items.push({ type, cat: S.category, title: pr.title, desc: pr.description || S.description, params: { ...pr.params }, preset: pr.title });
       items.push({ type, cat: S.category, title: S.title, desc: S.description, params: {} });

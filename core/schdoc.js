@@ -47,10 +47,12 @@ export const SYMBOLS = {};
 // gates, each followed by its inverted-input variants (Xilinx ANDnBk...: inputs I0..I(k-1) inverted)
 for (const [op, ns, inv] of [['and', [2, 3, 4, 5], true], ['or', [2, 3, 4, 5], true], ['nand', [2, 3, 4], true], ['nor', [2, 3, 4], true], ['xor', [2]], ['xnor', [2]]])
   for (const n of ns) {
-    SYMBOLS[`${op}${n}`] = gateSym(op, n, `${op.toUpperCase()}${n}`);
+    // (5 inputs: kept for the schematics that have them and ISE's AND5 / OR5, not offered: at most 4
+    // inputs a gate, more through buses, #171)
+    SYMBOLS[`${op}${n}`] = { ...gateSym(op, n, `${op.toUpperCase()}${n}`), ...(n > 4 ? { hidden: true } : {}) };
     if (inv) for (let k = 1; k <= n; k++) {
       SYMBOLS[`${op}${n}b${k}`] = {
-        ...gateSym(op, n, `${op.toUpperCase()}${n}B${k}`), invIn: k,
+        ...gateSym(op, n, `${op.toUpperCase()}${n}B${k}`), invIn: k, ...(n > 4 ? { hidden: true } : {}),
         description: `${n}-input ${op.toUpperCase()} gate with ${k === 1 ? 'input I0' : k === 2 ? 'inputs I0 and I1' : `inputs I0..I${k - 1}`} inverted (bitwise when Width > 1)`,
       };
     }
@@ -1960,14 +1962,15 @@ export async function schematicFromHdl(inst, opts = {}) {
     if (e.op === 'binary' && ['&', '|', '^', '~^', 'nand', 'nor'].includes(e.o)) {
       // flatten associative chains
       const flat = [];
-      const f = x => { if (x.op === 'binary' && x.o === e.o && ['&', '|', '^'].includes(e.o) && flat.length < 5) { f(x.a); f(x.b); } else flat.push(x); };
+      const f = x => { if (x.op === 'binary' && x.o === e.o && ['&', '|', '^'].includes(e.o) && flat.length < 16) { f(x.a); f(x.b); } else flat.push(x); };
       if (['&', '|', '^'].includes(e.o)) f(e); else flat.push(e.a, e.b);
-      const maxN = inverted ? ({ '&': 4, '|': 4, '^': 2 }[e.o]) : ({ '&': 5, '|': 5, '^': 2 }[e.o] || 2);
+      // (a NAND / NOR / XNOR: one gate, at most 4 / 2 inputs; an AND / OR / XOR of more: a tree of gates, #171)
+      const maxN = inverted ? ({ '&': 4, '|': 4, '^': 2 }[e.o]) : ({ '&': 16, '|': 16, '^': 16 }[e.o] || 2);
       if (flat.length > maxN) return null;
       // operands '~signal' of an AND/OR become the inverted inputs of an ANDnBk/ORnBk (NANDnBk/NORnBk) gate
       const simpleNot = x => x.op === 'unary' && x.o === '~' && ['ref', 'index', 'slice', 'apply'].includes(x.a.op);
       const nInv = ['&', '|'].includes(e.o) ? flat.filter(simpleNot).length : 0;
-      if (nInv && flat.length > 1) {
+      if (nInv && flat.length > 1 && flat.length <= 4) {
         const op0 = inverted ? { '&': 'nand', '|': 'nor' }[e.o] : { '&': 'and', '|': 'or' }[e.o];
         const type = `${op0}${flat.length}b${nInv}`;
         if (SYMBOLS[type]) {
@@ -1987,7 +1990,14 @@ export async function schematicFromHdl(inst, opts = {}) {
       if (args.some(a => a.w !== w || (a.cls !== cls && !(a.lit && ((cls === 'sl' && a.cls === 'sl') || (cls !== 'sl' && a.cls !== 'sl')))))) return null;
       if (args.every(a => a.lit)) return null;
       const op = inverted ? { '&': 'nand', '|': 'nor', '^': 'xnor' }[e.o] : { '&': 'and', '|': 'or', '^': 'xor', '~^': 'xnor', nand: 'nand', nor: 'nor' }[e.o];
-      return gate(`${op}${args.length}`, args.map((a, k) => [a, `I${k}`]), w, cls);
+      if ((args.length <= 4 && SYMBOLS[`${op}${args.length}`] && !SYMBOLS[`${op}${args.length}`].hidden) || !SYMBOLS[`${op}2`]) return SYMBOLS[`${op}${args.length}`] ? gate(`${op}${args.length}`, args.map((a, k) => [a, `I${k}`]), w, cls) : null;
+      // more than 4 operands (#171: gates of at most 4 inputs): AND / OR / XOR as a tree of them, the
+      // inverted ones (NAND, NOR) left to an HDL block
+      if (!['and', 'or', 'xor'].includes(op)) return null;
+      const K = SYMBOLS[`${op}4`] ? 4 : 2;   // (XOR: 2 inputs a gate)
+      const tree = list => (list.length <= K ? gate(`${op}${list.length}`, list.map((a, k) => [a, `I${k}`]), w, cls)
+        : tree(Array.from({ length: Math.ceil(list.length / K) }, (_, i) => list.slice(K * i, K * i + K)).map(g => (g.length === 1 ? g[0] : gate(`${op}${g.length}`, g.map((a, k) => [a, `I${k}`]), w, cls)))));
+      return tree(args);
     }
     if (e.op === 'cond') {
       // Verilog s ? a : b ; VHDL a when s = '1' else b
