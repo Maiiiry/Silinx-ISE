@@ -3,6 +3,7 @@ import { api, followJob } from './api.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, menuBar, splitter, toast, downloadText } from './ui.js';
 import { createEditor, instTemplate, SNIPPETS, defineUcfMode, typeText } from './editor.js';
+import { renameSymbolAtCursor, applyEdits } from './refactor.js';
 import { compile, elaborate, topCandidates } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
 import { Simulator } from '/core/simulator.js';
@@ -1414,6 +1415,7 @@ export async function openFile(path, line, col) {
           onSave: () => flushDoc(d),
           onGotoDefinition: ({ file, line: ln }) => openFile(file, ln),
           onCursor: (l, c) => { if (S.active === d) $('status-pos').textContent = `Ln ${l}  Col ${c}`; },
+          onRename: () => renameSymbolIn(d, lang, path),
         });
         d.editor.setDiagnostics(S.diags.filter(x => x.file === path));
         let ucfTimer = null;
@@ -1436,6 +1438,7 @@ export async function openFile(path, line, col) {
           const hdl = lang === 'vhdl' || lang === 'verilog';
           const hasSel = cm.somethingSelected();
           const sch = S.hdlToSch?.[path];
+          const at = cm.coordsChar({ left: e.clientX, top: e.clientY }, 'window');
           popupMenu([
             { label: 'Undo', action: () => cm.undo(), disabled: !cm.historySize().undo },
             { label: 'Redo', action: () => cm.redo(), disabled: !cm.historySize().redo },
@@ -1447,6 +1450,7 @@ export async function openFile(path, line, col) {
             '-',
             hdl ? { label: 'Toggle Comment', action: () => cm.toggleComment?.() } : null,
             { label: 'Find…', action: () => cm.execCommand('findPersistent') },
+            hdl ? { label: 'Rename Symbol…', shortcut: 'F2', action: () => { if (!hasSel) cm.setCursor(at); renameSymbolIn(d, lang, path); } } : null,
             hdl ? '-' : null,
             hdl ? { label: 'Language Templates', submenu: SNIPPETS[lang].map(sn => ({ label: sn.name, action: () => d.editor.insertText(sn.text) })) } : null,
             hdl ? { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) } : null,
@@ -2711,6 +2715,30 @@ function schContextMenu(e, file) {
     { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
   ].filter(Boolean), e.clientX, e.clientY);
+}
+
+// ---- Rename Symbol (F2) in an HDL editor: the name under the cursor, everywhere it means the same
+// object in the file; a port / generic also in the instances of its module in the other files
+function renameSymbolIn(d, lang, path) {
+  if (!d.editor) return;
+  const findModule = name => S.modules.find(m => m.name.toLowerCase() === String(name).toLowerCase());
+  return renameSymbolAtCursor({
+    cm: d.editor.cm, lang, path,
+    // (not the HDL generated from a drawing without a file of its own: it follows the drawing)
+    sources: () => S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && !s.view).map(s => ({ ...s, text: S.docs.find(o => o.path === s.path && o.editor)?.editor.getValue() ?? s.text })),
+    drawings: () => S.sources.filter(s => s.view),
+    isModule: name => !!findModule(name),
+    renameModule: name => renameDialog(findModule(name)?.file || path, findModule(name)?.name || name),
+    // an open file is edited in its editor (its own Undo); the others are written
+    writeSource: async (p, text, edits, name) => {
+      const od = S.docs.find(o => o.path === p && o.editor);
+      if (od) { applyEdits(od.editor.cm, edits, name); return; }
+      await api.writeFile(S.project.name, p, text);
+      const src = S.sources.find(x => x.path === p);
+      if (src) src.text = text;
+      compileProject();
+    },
+  });
 }
 
 // ---- rename a source (file and/or the module it defines), updating everything that refers to it

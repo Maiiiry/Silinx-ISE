@@ -1,6 +1,7 @@
 // HDL source editor built on CodeMirror 5 (loaded globally as window.CodeMirror):
 // syntax highlighting, context-aware auto-complete, language templates (snippets), live lint
-// from the Silinx parsers, hover info, go-to-definition, folding, comment toggling, search.
+// from the Silinx parsers, hover info, go-to-definition, rename symbol (F2, web/js/refactor.js),
+// folding, comment toggling, search.
 import { parse as parseVerilog } from '/core/verilog/parser.js';
 import { parse as parseVhdl } from '/core/vhdl/parser.js';
 import { hintTooltip } from './diaghelp.js';
@@ -136,7 +137,7 @@ function symbolsOf(parsed, lang) {
 }
 
 // ------------------------------------------------------------------ editor factory
-export function createEditor(container, { text = '', lang = 'verilog', path = '', readOnly = false, project = () => null, onChange, onSave, onGotoDefinition, onCursor } = {}) {
+export function createEditor(container, { text = '', lang = 'verilog', path = '', readOnly = false, project = () => null, onChange, onSave, onGotoDefinition, onCursor, onRename } = {}) {
   const CodeMirror = CM();
   const mode = lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'text/plain';
   let parsed = { units: [], errors: [] }, syms = new Map();
@@ -183,6 +184,7 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
       'Cmd-F': 'findPersistent', 'Ctrl-F': 'findPersistent', 'Cmd-Alt-F': 'replace', 'Ctrl-H': 'replace',
       'Cmd-G': 'findNext', 'Ctrl-G': 'jumpToLine',
       'F12': c => gotoDef(c),
+      'F2': () => onRename?.(),
       Tab: c => (c.somethingSelected() ? c.indentSelection('add') : c.execCommand('insertSoftTab')),
       'Shift-Tab': c => c.indentSelection('subtract'),
     },

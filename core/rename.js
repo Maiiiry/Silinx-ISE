@@ -1,11 +1,13 @@
 // Rename a module/entity in HDL sources: only the places that name the design unit are changed
 // (its declaration and end, `architecture … of X`, components, `entity work.X`, instances), never
-// other identifiers that happen to have the same name.
+// other identifiers that happen to have the same name. Any other name of a source (F2 in the
+// editor): renameSymbol, below.
 //
 // Isomorphic module (browser + Node).
 
 import { lex } from './vhdl/lexer.js';
 import { tokenize } from './verilog/lexer.js';
+import { analyze, VHDL_KW, VLOG_KW } from './scopes.js';
 
 /** Offsets of each line start, to turn token line/col (1-based) into string offsets. */
 function lineStarts(text) {
@@ -95,4 +97,114 @@ export function renameModuleInSchematic(doc, oldName, newName, { linked = false 
   }
   if (linked && eq(doc.name, oldName)) { doc.name = newName; changed = true; }
   return changed;
+}
+
+// ------------------------------------------------------------------ rename a symbol (F2)
+// Every occurrence of the object named at a position (a signal, port, variable, constant, type,
+// label, generic / parameter, instance, function…) is renamed in the file, through the scopes of
+// core/scopes.js: not in comments or strings, not another object with the same name in another
+// scope. VHDL is not case-sensitive (every spelling of the old name is renamed; the new one is
+// written as typed), Verilog is. A rename that would make a name mean another object (the new
+// name already declared there, or hiding / hidden by another declaration) is refused.
+
+const VHDL_NAME = /^[A-Za-z](?:_?[A-Za-z0-9])*$/;
+const VLOG_NAME = /^[A-Za-z_][A-Za-z0-9_$]*$/;
+// SystemVerilog words the Verilog lexer reads as names: not good names either
+const SV_WORDS = new Set('bit byte int shortint longint shortreal string typedef enum struct union packed import package endpackage interface endinterface always_latch unique priority void return break continue'.split(' '));
+
+const KIND_WORD = { entity: 'entity', architecture: 'architecture', package: 'package', configuration: 'configuration', component: 'component',
+  module: 'module', port: 'port', generic: 'generic', parameter: 'parameter', signal: 'signal', variable: 'variable', constant: 'constant',
+  file: 'file', alias: 'alias', type: 'type', subtype: 'subtype', enum: 'literal', field: 'field', attribute: 'attribute',
+  argument: 'argument', function: 'function', procedure: 'procedure', task: 'task', label: 'label', instance: 'instance', loopvar: 'loop variable', genvar: 'genvar' };
+/** A word for the kind of a symbol ('signal', 'port', 'label'…). */
+export const kindWord = sym => KIND_WORD[sym?.kind] || 'name';
+
+/** The symbol named at a 1-based line / column: { sym, occ, a } or { error }. */
+export function symbolAt(text, lang, line, col) {
+  const a = analyze(text, lang);
+  const occ = a.occAtPos(line, col);
+  if (!occ) return { error: 'There is no name to rename here.', a };
+  if (!occ.sym) {
+    if (occ.ext) return { error: `'${occ.name}' is a port of '${occ.ext.unit}', declared in another file: rename it there.`, a, occ };
+    return { error: `'${occ.name}' is not declared in this file: rename it where it is declared.`, a, occ };
+  }
+  return { sym: occ.sym, occ, a };
+}
+
+/** Why `name` cannot be a new name in this language (a message), or null. */
+export function badName(name, lang) {
+  if (lang === 'verilog') {
+    if (!VLOG_NAME.test(name)) return `'${name}' is not a valid Verilog name: a letter or _ first, then letters, digits, _ or $.`;
+    if (VLOG_KW.has(name) || SV_WORDS.has(name)) return `'${name}' is a reserved word of Verilog.`;
+  } else {
+    if (!VHDL_NAME.test(name)) return `'${name}' is not a valid VHDL name: a letter first, then letters, digits and single underscores (not at the end).`;
+    if (VHDL_KW.has(name.toLowerCase())) return `'${name}' is a reserved word of VHDL.`;
+  }
+  return null;
+}
+
+// The meaning of every identifier: the symbol it refers to (an index), in token order.
+function meanings(a) {
+  const idx = new Map(a.symbols.map((s, k) => [s, k]));
+  return a.occs.map(o => (o.sym ? idx.get(o.sym) : o.ext ? `${o.ext.unit}.${o.ext.key}` : -1));
+}
+
+/**
+ * Rename the symbol named at line / col to `newName`.
+ * @returns {{ text, count, sym, edits }|{ error }} edits: [{ line, col, len }] in the old text
+ */
+export function renameSymbol(text, lang, line, col, newName) {
+  const r = symbolAt(text, lang, line, col);
+  if (r.error) return { error: r.error };
+  const { sym, a } = r;
+  newName = String(newName || '').trim();
+  const bad = badName(newName, lang);
+  if (bad) return { error: bad };
+  const norm = lang === 'verilog' ? newName : newName.toLowerCase();
+  // a port / generic of an entity: also the ports of its component declarations in this file
+  const unit = interfaceUnit(sym);
+  const occs = [...sym.occs, ...(unit ? a.occs.filter(o => o.sym && o.sym !== sym && o.sym.key === sym.key && o.sym.scope.kind === 'component' && o.sym.scope.sym?.key === unit.key) : [])];
+  const edits = occs.filter(o => o.name !== newName).map(o => ({ line: o.line, col: o.col, len: o.len }));
+  if (norm === sym.key) return { text: splice(text, edits, newName), count: occs.length, sym, edits };
+  const clash = sym.scope.syms.get(norm);
+  if (clash) return { error: `'${newName}' is already declared here (${kindWord(clash)} '${clash.name}'): choose another name.` };
+  // the same objects must keep the same names: no occurrence may change its meaning
+  const out = splice(text, edits, newName);
+  const b = analyze(out, lang);
+  const ma = meanings(a), mb = meanings(b);
+  const map = new Map();
+  let ok = ma.length === mb.length;
+  for (let k = 0; ok && k < ma.length; k++) {
+    if (map.has(ma[k])) ok = map.get(ma[k]) === mb[k];
+    else map.set(ma[k], mb[k]);
+  }
+  if (ok) ok = new Set(map.values()).size === map.size;
+  if (!ok) return { error: `'${newName}' is already used for another object where '${sym.name}' is visible: choose another name.` };
+  return { text: out, count: occs.length, sym, edits };
+}
+
+/** The design unit (entity / module) a port or generic belongs to, or null. */
+export function interfaceUnit(sym) {
+  if (!sym || !['port', 'generic', 'parameter'].includes(sym.kind)) return null;
+  const owner = sym.scope.sym;
+  return owner && (owner.kind === 'entity' || owner.kind === 'module') ? owner : null;
+}
+
+/**
+ * Rename a port / generic of `unit` in a source that uses the unit: the formals of the port and
+ * generic maps of its instances (`a => x`, `.a(x)`) and, in VHDL, the ports of its component
+ * declarations. Returns { text, count, edits } (the same text when the source does not use it).
+ */
+export function renameInterfaceInSource(text, lang, unit, oldName, newName) {
+  const a = analyze(text, lang);
+  const norm = s => (lang === 'verilog' ? String(s) : String(s).toLowerCase());
+  const u = norm(unit), k = norm(oldName);
+  const hits = new Set();
+  for (const o of a.occs) {
+    if (o.ext && norm(o.ext.unit) === u && o.ext.key === k) hits.add(o);
+    const s = o.sym;
+    if (s && s.key === k && s.scope.kind === 'component' && s.scope.sym?.key === u) hits.add(o);
+  }
+  const edits = [...hits].map(o => ({ line: o.line, col: o.col, len: o.len }));
+  return { text: splice(text, edits, newName), count: edits.length, edits };
 }

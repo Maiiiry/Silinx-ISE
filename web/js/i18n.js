@@ -13,6 +13,7 @@
 import { TT_PT, TT_PT_PATTERNS } from './i18n-truthtable.js';
 import { IO_PT, IO_PT_PATTERNS } from './i18n-inout.js';
 import { LINT_PT } from './i18n-lint.js';
+import { EDITOR_PT, EDITOR_PT_PATTERNS } from './i18n-editor.js';
 import { FSM_PT, FSM_PT_PATTERNS } from './i18n-fsm.js';
 import { FPGA_PT, FPGA_PT_PATTERNS } from './i18n-fpga.js';
 import { SCH_PT, SCH_PT_PATTERNS } from './i18n-schematic.js';
@@ -510,6 +511,7 @@ PT_PATTERNS.push([/^(.*)\(development, commit ([0-9a-f]+)((?:, \d{4}-\d\d-\d\d(?
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards
 Object.assign(PT, LINT_PT);   // design checks (the help texts of the messages are in core/hints.js)
+Object.assign(PT, EDITOR_PT); PT_PATTERNS.unshift(...EDITOR_PT_PATTERNS);   // HDL editor: Rename Symbol, quick fixes
 for (const [k, v] of Object.entries(FSM_PT)) if (!(k in PT)) PT[k] = v;   // FSM state diagram editor (existing translations kept)
 PT_PATTERNS.unshift(...FSM_PT_PATTERNS);
 for (const [k, v] of Object.entries(FPGA_PT)) if (!(k in PT)) PT[k] = v;   // View Implemented Design (FPGA)

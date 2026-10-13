@@ -1,7 +1,7 @@
 // Verilog-2001 lexer with a minimal preprocessor (`define with or without arguments, `undef,
 // `ifdef/`ifndef/`else/`elsif/`endif, `timescale, `include of project files, `default_nettype ignored).
 
-const KEYWORDS = new Set(`module endmodule macromodule input output inout wire reg logic integer genvar parameter localparam
+export const KEYWORDS = new Set(`module endmodule macromodule input output inout wire reg logic integer genvar parameter localparam
 assign always always_ff always_comb always_latch initial begin end if else case casez casex endcase default for while repeat forever
 posedge negedge or and not generate endgenerate function endfunction task endtask signed unsigned
 supply0 supply1 tri wait disable fork join automatic real realtime time defparam

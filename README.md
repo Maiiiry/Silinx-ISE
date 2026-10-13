@@ -18,8 +18,9 @@ for Xilinx FPGAs supported by ISE 14.7.
   import/export (`.zip` with the `.xise` and all files).
 - **HDL editor**: syntax highlighting, context-aware auto-complete (signals, ports, constants,
   project modules, `numeric_std` functions, `$system` tasks), *Language Templates*, live errors,
-  type tooltips, *go to definition* (Ctrl/Cmd+click, F12), folding, comment toggling (Ctrl+/),
-  find/replace.
+  type tooltips, *go to definition* (Ctrl/Cmd+click, F12), *Rename Symbol* (F2: a signal, port,
+  variable, type, label… renamed everywhere it means the same object, a port also in the instances
+  of the other files; one Undo), folding, comment toggling (Ctrl+/), find/replace.
 - **Beginner help for messages and design checks**: the common errors (missing `;` / `end`,
   undeclared signal, std_logic vs std_logic_vector, widths, input assigned / output read in
   VHDL-93, missing `use ieee.numeric_std.all`, unknown module, port map…) keep their ISE-style

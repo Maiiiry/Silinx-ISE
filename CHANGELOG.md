@@ -31,6 +31,12 @@ In detail:
   state diagram or a truth table without an HDL file of its own is a module of the project by itself,
   in the hierarchy, as the top (*Set as Top Module*), simulated, synthesized and implemented: its HDL
   is made in memory when it is needed (the application, the browser edition) (#177).
+- **Rename Symbol in the HDL editor (F2, or the editor's right-click menu):** a signal, port,
+  variable, constant, type, label, generic / parameter or instance is renamed everywhere it means
+  the same object in the file, through the scopes of VHDL and Verilog (not in comments or strings,
+  not another object with the same name; VHDL in any spelling); a port or generic also in the
+  instances of its module in the other files; an invalid name, a reserved word or a clash is
+  refused; one Undo reverts it (#178).
 
 ## 15.10.11
 
