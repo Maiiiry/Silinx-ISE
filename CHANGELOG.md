@@ -16,6 +16,10 @@ In detail:
   wire, as in ISE; a dot shows where they join (#170).
 - **Buses carry their names:** a bus connected to an input (or output) shows its name, A(5:0), on its
   wires, and a bus tap shows the bit it takes with it, A(0) (#173, #174).
+- **The HDL of a schematic keeps its blocks:** a multiplexer, decoder, encoder, adder, comparator,
+  register, counter or flip-flop of the schematic is an entity (module) of its own in the HDL,
+  instanced where the schematic has it, as ISE does with its macros, no longer all of it as discrete
+  logic; the gates stay expressions. Edited as HDL, the blocks come back as the same symbols (#175).
 
 ## 15.10.11
 

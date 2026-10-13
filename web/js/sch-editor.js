@@ -477,7 +477,7 @@ export function mountSchEditor(container, opts = {}) {
       for (const pr of S.presets || []) items.push({ type, cat: S.category, title: pr.title, desc: pr.description || S.description, params: { ...pr.params }, preset: pr.title });
       items.push({ type, cat: S.category, title: S.title, desc: S.description, params: {} });
     }
-    for (const m of Object.values(modules).sort((a, b) => a.name.localeCompare(b.name))) {
+    for (const m of Object.values(modules).filter(x => !x.block).sort((a, b) => a.name.localeCompare(b.name))) {
       if (m.name === doc.name) continue;
       items.push({ type: 'module', cat: 'Project modules', title: m.name, desc: `${m.ports?.length || 0} ports${m.lang ? ` · ${m.lang.toUpperCase()}` : ''}${m.file ? ` · ${m.file}` : ''}`, params: { module: m.name, generics: {} } });
     }

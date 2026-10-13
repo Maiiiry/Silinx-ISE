@@ -95,7 +95,8 @@ export function buildLiveSim(docIn, { modules = {}, sources = [], lang } = {}) {
     else { out.warnings.push(d.message); out.diagnostics.push({ ...d }); }
   }
   if (out.errors.length) return out;
-  const top = /^\s*(?:entity|module)\s+([A-Za-z_][\w$]*)/m.exec(g.code)?.[1] || doc.name;
+  // (the schematic's own entity / module: its blocks' own ones come first in the file, #175)
+  const top = g.filename.replace(/\.(vhd|v)$/, '') || doc.name;
   const genPath = `<schematic>/${g.filename}`;
   const srcs = sources.filter(s => {
     const sl = langOf(s);

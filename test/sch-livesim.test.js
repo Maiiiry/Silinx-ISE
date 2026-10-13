@@ -404,3 +404,37 @@ architecture rtl of wide is begin y <= a and b and c and d and e; z <= a or b or
   live.set(P('f'), 1n);
   assert.equal(val(live, P('z')), '1');
 });
+
+// #175: the HDL of a schematic keeps its blocks (an entity each, instanced), and turns back into them
+for (const lang of ['vhdl', 'verilog']) {
+  test(`${lang}: the HDL keeps the schematic's blocks (MUX, decoder, FDCE as entities of their own) and converts back to them`, async () => {
+    const doc = newDoc('blk', lang);
+    const m = sym(doc, 'mux2', 200, 100, { width: 4 }), dec = sym(doc, 'decoder', 200, 300, { n: 2, en: true }), ff = sym(doc, 'fdce', 200, 500, { width: 4 });
+    io(doc, m, 'D0', 'a', 'in', 4); io(doc, m, 'D1', 'b', 'in', 4); io(doc, m, 'S0', 's', 'in'); io(doc, m, 'O', 'o', 'out', 4);
+    for (const p of symbolPins(normalizeDoc({ ...doc, symbols: [dec] }).symbols[0], {})) io(doc, dec, p.name, `dec_${p.name.toLowerCase()}`, p.dir, p.width || 1);
+    io(doc, ff, 'D', 'd', 'in', 4); io(doc, ff, 'CE', 'ce', 'in'); io(doc, ff, 'C', 'clk', 'in'); io(doc, ff, 'CLR', 'clr', 'in'); io(doc, ff, 'Q', 'q', 'out', 4);
+    const { generateHdl } = await import('../core/schdoc.js');
+    const g = generateHdl(doc, { lang });
+    assert.deepEqual(g.diagnostics.filter(d => d.severity === 'error'), []);
+    // one entity / module per block, the schematic's last, the blocks instanced in it
+    const units = [...g.code.matchAll(lang === 'vhdl' ? /^entity (\w+) is/gm : /^module (\w+)/gm)].map(x => x[1]);
+    assert.deepEqual(units, ['blk_m2_1', 'blk_d2_4e', 'blk_fdce', 'blk']);
+    for (const u of units.slice(0, 3)) assert.match(g.code, lang === 'vhdl' ? new RegExp(`: entity work\\.${u}\\n`) : new RegExp(`^ *${u} \\w+ \\(`, 'm'));
+    // it simulates as before
+    const live = build(doc);
+    const P = n => byName(doc, n);
+    live.set(P('a'), 0b0011n); live.set(P('b'), 0b1100n); live.set(P('s'), 1n);
+    assert.equal(val(live, P('o')), '1100');
+    live.set(P('dec_a1'), 1n); live.set(P('dec_a0'), 0n); live.set(P('dec_e'), 1n);
+    assert.equal(val(live, P('dec_d2')), '1');
+    live.set(P('d'), 0b1010n); live.set(P('ce'), 1n); live.cycle(P('clk'));
+    assert.equal(val(live, P('q')), '1010');
+    // the HDL back into a schematic: the same blocks, not module boxes
+    const file = `blk.${lang === 'vhdl' ? 'vhd' : 'v'}`;
+    const lib = compile([{ path: file, text: g.code }]);
+    const modules = modulesFromLibrary(lib, { sources: { [file]: g.code } });
+    assert.deepEqual(Object.values(modules).filter(x => x.block).map(x => x.block).sort(), ['decoder', 'fdce', 'mux2'], 'the blocks are not offered as project modules');
+    const back = await schematicFromHdl(elaborate(lib, 'blk').top, { sources: { [file]: g.code }, modules, lang });
+    assert.deepEqual(back.symbols.map(x => [x.type, x.params.width ?? x.params.n]).sort(), [['decoder', 2], ['fdce', 4], ['mux2', 4]]);
+  });
+}

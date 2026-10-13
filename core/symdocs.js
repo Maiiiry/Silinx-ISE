@@ -552,7 +552,7 @@ export function symbolHdl(type, params = {}, { modules = {}, hdl } = {}) {
     try {
       const { doc } = oneSymbolDoc(type, params, { lang, modules, hdl });
       const c = lang === 'vhdl' ? '--' : '//';
-      out[lang] = generateHdl(doc, { lang, modules }).code.replace(/^.*\n/, `${c} ${doc.name}: HDL equivalent to the schematic symbol (Silinx Symbol Info)\n`);
+      out[lang] = generateHdl(doc, { lang, modules, structural: false }).code.replace(/^.*\n/, `${c} ${doc.name}: HDL equivalent to the schematic symbol (Silinx Symbol Info)\n`);
     } catch (e) { out[lang] = `${lang === 'vhdl' ? '--' : '//'} ${e.message}`; }
   }
   return out;
