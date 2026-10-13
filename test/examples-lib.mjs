@@ -10,7 +10,7 @@ import { resolveBoard } from '../server/devices.js';
 import { EXAMPLE_ORDER } from '../core/examples.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const EXAMPLES = EXAMPLE_ORDER;   // gates, blinky, pong, stopwatch, clock
+export const EXAMPLES = EXAMPLE_ORDER;   // gates, traffic, blinky, pong, stopwatch, clock
 // the boards (and variants) of the devices of the Silinx toolchain: the examples run on all of them
 export const TARGETS = [
   { board: 'basys2', variant: '100' }, { board: 'basys2', variant: '250' },

@@ -26,6 +26,7 @@
   "examples/gates": [],
   "examples/pong": [],
   "examples/stopwatch": [],
+  "examples/traffic": [],
   "fixtures/verilog/counter_top": [],
   "fixtures/vhdl/counter": [],
   "fixtures/vhdl/seg7": [],

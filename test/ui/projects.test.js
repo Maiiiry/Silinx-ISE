@@ -126,15 +126,15 @@ uiTest('New Project wizard: the synthesis tool, Silinx by default (no ISE); Desi
   assert.equal((await env.server.api('GET', '/api/projects/SynthTool')).synthTool, 'xst');
 });
 
-uiTest('Start page: the five examples, gates first; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
+uiTest('Start page: the six examples, gates first, traffic second; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.waitForSelector('#start-page .start-box');
-  // (drawn again asynchronously after the project closes: wait for the five)
-  const FIVE = ['gates', 'blinky', 'pong', 'stopwatch', 'clock'].map((t) => `Open Example (${t})`);
-  await page.waitFor((want) => { const e = [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent); return want.every((t) => e.includes(t)); }, [FIVE], { what: 'the five examples on the Start page' });
+  // (drawn again asynchronously after the project closes: wait for the six)
+  const SIX = ['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock'].map((t) => `Open Example (${t})`);
+  await page.waitFor((want) => { const e = [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent); return want.every((t) => e.includes(t)); }, [SIX], { what: 'the six examples on the Start page' });
   const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
-  // the examples in their order, gates first
-  assert.deepEqual(entries.filter((e) => e.startsWith('Open Example')), FIVE);
+  // the examples in their order, gates first, traffic second
+  assert.deepEqual(entries.filter((e) => e.startsWith('Open Example')), SIX);
   // (the Start page is drawn again asynchronously after the project closes: a click on the link it
   // replaces is lost, so click until the wizard opens)
   for (let k = 0; ; k++) {
@@ -207,6 +207,70 @@ uiTest('Open Example (gates): the schematic of the gates, synchronized with its 
   await page.click('input[name=view][value=sim]');
   await page.treeRow('#hier', 'tb_gates');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 30000, what: 'Simulation finished OK' });
+  assert.doesNotMatch(out, /ERROR|Warning/i);
+  assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
+});
+
+uiTest('Open Example (traffic), the second example: the state diagram and the truth table, synchronized with their VHDL; the test bench: Simulation finished OK', E, async (page) => {
+  await page.eval(() => window.SilinxApp.closeProject?.());
+  await page.waitForSelector('#start-page .start-box');
+  // the second example on the Start page
+  await page.waitFor(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent).filter((t) => t.startsWith('Open Example'))[1] === 'Open Example (traffic)', [], { what: 'traffic, the second example' });
+  for (let k = 0; ; k++) {
+    await page.click('#start-page .entry a', { text: 'Open Example (traffic)' });
+    try { await page.waitDialog('New Project Wizard', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
+  }
+  // the wizard's list of templates: the empty project, then the examples in their order
+  assert.deepEqual(await page.eval(() => [...document.querySelector('.dlg-overlay .wiz-main select').options].map((o) => o.value)), ['empty', 'gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock']);
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main select').value), 'traffic');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Traffic');
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Settings');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Summary');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Traffic' && window.Silinx.hdlToSch?.['src/traffic.vhd'] === 'src/traffic.fsm.json' && window.Silinx.hdlToSch?.['src/lamps.vhd'] === 'src/lamps.tt.json', [], { what: 'project Traffic open, its state diagram and truth table linked to their VHDL' });
+  const pj = await page.eval(() => window.Silinx.project);
+  assert.deepEqual([pj.top, pj.simTop, pj.board, pj.constraints], ['top', 'tb_traffic', 'basys2', 'constraints/traffic.ucf']);
+  const shipped = (f) => fs.readFile(path.join(ROOT, 'examples/traffic', f), 'utf8');
+  assert.equal(await readWs(env, 'Traffic', 'constraints/traffic.ucf'), await shipped('constraints/traffic.ucf'));
+  // the state diagram: its 7 states drawn, CARS the initial one, no problem, synchronized with traffic.vhd
+  await page.eval(() => window.SilinxApp.openFsm('src/traffic.fsm.json'));
+  const FSM = '.doc:not([hidden]) .fsm-editor';
+  await page.waitFor((ed) => window.Silinx.active?.id === 'fsm:src/traffic.fsm.json' && document.querySelectorAll(`${ed} .fsm-state`).length === 7, [FSM], { what: 'the state diagram drawn' });
+  const states = await page.eval((ed) => [...document.querySelectorAll(`${ed} .fsm-state`)].map((g) => `${g.querySelector('.fsm-name').textContent} ${g.querySelector('.fsm-outs')?.textContent || ''}`.trim()), FSM);
+  assert.deepEqual(states, ['CARS phase=0', 'CARS_YELLOW phase=1', 'ALL_RED phase=2', 'WALK phase=3', 'WALK_END phase=4', 'ALL_RED_2 phase=5', 'NIGHT phase=6']);
+  assert.ok(await page.eval((ed) => !!document.querySelector(`${ed} [data-state=s1].initial .fsm-circle-in`), FSM), 'CARS is the initial state');
+  assert.equal(await page.eval((ed) => document.querySelectorAll(`${ed} [data-trans]`).length, FSM), 8);
+  // no error, no warning (only the notes that each state waits for its condition)
+  assert.match(await page.eval((ed) => document.querySelector(`${ed} .fsm-problems`).textContent, FSM), /^Problems \(0 error\(s\), 0 warning\(s\)\)/);
+  await page.waitFor((ed) => /Synchronized with traffic\.vhd/.test(document.querySelector(`${ed} .fsm-link`)?.textContent || ''), [FSM], { what: 'the diagram synchronized with traffic.vhd' });
+  // the truth table: 4 inputs, its 5 lamp outputs, synchronized with lamps.vhd
+  await page.eval(() => window.SilinxApp.openTt('src/lamps.tt.json'));
+  const TT = '.doc:not([hidden]) .tt-editor';
+  await page.waitFor((t) => window.Silinx.active?.id === 'tt:src/lamps.tt.json' && document.querySelector(t), [TT], { what: 'the truth table editor' });
+  assert.deepEqual(await page.eval((t) => [document.querySelector(`${t} .tt-inputs`).value, document.querySelector(`${t} .tt-outputs`).value], TT), ['phase2, phase1, phase0, blink', 'car_r, car_y, car_g, walk_r, walk_g']);
+  const cols = await page.eval((t) => Object.fromEntries(['car_r', 'car_y', 'car_g', 'walk_r', 'walk_g'].map((o) => [o, [...document.querySelectorAll(`${t} .tt-cell[data-out=${o}]`)].map((c) => c.textContent).join('')])), TT);
+  assert.deepEqual(cols, { car_r: '00001111111100XX', car_y: '00110000000001XX', car_g: '11000000000000XX', walk_r: '11111100001100XX', walk_g: '00000011010000XX' });
+  await page.waitFor((t) => /Synchronized with lamps\.vhd/.test(document.querySelector(`${t} .tt-link`)?.textContent || ''), [TT], { what: 'the table synchronized with lamps.vhd' });
+  // their VHDL: the banner of the synchronized file, the text the example ships (not rewritten)
+  for (const [f, from] of [['src/traffic.vhd', 'traffic.fsm.json'], ['src/lamps.vhd', 'lamps.tt.json']]) {
+    await page.eval((p) => window.SilinxApp.openFile(p), f);
+    await page.waitFor((p) => window.Silinx.active?.id === `file:${p}` && window.Silinx.active.editor, [f]);
+    assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), new RegExp(`^Synchronized with ${from.replace(/\./g, '\\.')}`));
+    assert.equal(await readWs(env, 'Traffic', f), await shipped(f));
+  }
+  // Simulate Behavioral Model of tb_traffic (longer than ISim's first run: run all): the lamps and the
+  // display checked on every clock cycle
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_traffic');
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
+  await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
+  await page.key('Enter');
   const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 30000, what: 'Simulation finished OK' });
   assert.doesNotMatch(out, /ERROR|Warning/i);
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);

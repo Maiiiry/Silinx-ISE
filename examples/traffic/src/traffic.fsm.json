@@ -1,0 +1,171 @@
+{
+  "version": 1,
+  "kind": "fsm",
+  "name": "traffic",
+  "lang": "vhdl",
+  "type": "moore",
+  "clock": "clk",
+  "reset": {
+    "name": "rst",
+    "active": "high",
+    "sync": true
+  },
+  "encoding": "binary",
+  "style": "3process",
+  "inputs": [
+    {
+      "name": "req",
+      "width": 1
+    },
+    {
+      "name": "done",
+      "width": 1
+    },
+    {
+      "name": "night",
+      "width": 1
+    }
+  ],
+  "outputs": [
+    {
+      "name": "phase",
+      "width": 3,
+      "default": "0"
+    }
+  ],
+  "states": [
+    {
+      "id": "s1",
+      "name": "CARS",
+      "x": 300,
+      "y": 120,
+      "outputs": {
+        "phase": "0"
+      },
+      "comment": "cars green, pedestrians red (at least 5 s)"
+    },
+    {
+      "id": "s2",
+      "name": "CARS_YELLOW",
+      "x": 540,
+      "y": 120,
+      "outputs": {
+        "phase": "1"
+      },
+      "comment": "cars yellow (2 s)"
+    },
+    {
+      "id": "s3",
+      "name": "ALL_RED",
+      "x": 780,
+      "y": 120,
+      "outputs": {
+        "phase": "2"
+      },
+      "comment": "all red (1 s): the crossing clears"
+    },
+    {
+      "id": "s4",
+      "name": "WALK",
+      "x": 780,
+      "y": 360,
+      "outputs": {
+        "phase": "3"
+      },
+      "comment": "pedestrians green (5 s)"
+    },
+    {
+      "id": "s5",
+      "name": "WALK_END",
+      "x": 540,
+      "y": 360,
+      "outputs": {
+        "phase": "4"
+      },
+      "comment": "pedestrian green blinking (3 s): hurry up"
+    },
+    {
+      "id": "s6",
+      "name": "ALL_RED_2",
+      "x": 300,
+      "y": 360,
+      "outputs": {
+        "phase": "5"
+      },
+      "comment": "all red (1 s)"
+    },
+    {
+      "id": "s7",
+      "name": "NIGHT",
+      "x": 80,
+      "y": 120,
+      "outputs": {
+        "phase": "6"
+      },
+      "comment": "night: cars flashing yellow, pedestrian lamps off"
+    }
+  ],
+  "transitions": [
+    {
+      "id": "t1",
+      "from": "s1",
+      "to": "s7",
+      "cond": "night",
+      "outputs": {},
+      "bend": 30
+    },
+    {
+      "id": "t2",
+      "from": "s1",
+      "to": "s2",
+      "cond": "!night && req && done",
+      "outputs": {}
+    },
+    {
+      "id": "t3",
+      "from": "s2",
+      "to": "s3",
+      "cond": "done",
+      "outputs": {}
+    },
+    {
+      "id": "t4",
+      "from": "s3",
+      "to": "s4",
+      "cond": "done",
+      "outputs": {}
+    },
+    {
+      "id": "t5",
+      "from": "s4",
+      "to": "s5",
+      "cond": "done",
+      "outputs": {}
+    },
+    {
+      "id": "t6",
+      "from": "s5",
+      "to": "s6",
+      "cond": "done",
+      "outputs": {}
+    },
+    {
+      "id": "t7",
+      "from": "s6",
+      "to": "s1",
+      "cond": "done",
+      "outputs": {}
+    },
+    {
+      "id": "t8",
+      "from": "s7",
+      "to": "s1",
+      "cond": "!night",
+      "outputs": {},
+      "bend": 30
+    }
+  ],
+  "initial": "s1",
+  "description": "Pedestrian crossing: the controller. One state per phase of the lights; the output phase\nis its code (the truth table lamps.tt.json lights the lamps of each phase).\nreq: a pedestrian is waiting (BTN0, remembered); done: the phase has lasted its time\n(timer.vhd); night: night mode (SW1).",
+  "generatedFile": "src/traffic.vhd"
+}

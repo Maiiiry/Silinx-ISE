@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "name": "lamps",
+  "inputs": [
+    "phase2",
+    "phase1",
+    "phase0",
+    "blink"
+  ],
+  "outputs": [
+    "car_r",
+    "car_y",
+    "car_g",
+    "walk_r",
+    "walk_g"
+  ],
+  "table": {
+    "car_r": "00001111111100XX",
+    "car_y": "00110000000001XX",
+    "car_g": "11000000000000XX",
+    "walk_r": "11111100001100XX",
+    "walk_g": "00000011010000XX"
+  },
+  "exprs": {},
+  "notes": "Pedestrian crossing: the lamps of each phase (the code of the state diagram traffic.fsm.json: 0 CARS, 1 CARS_YELLOW, 2 ALL_RED, 3 WALK, 4 WALK_END, 5 ALL_RED_2, 6 NIGHT; 7 is never used: don't care). blink (2 Hz, from the timer) makes the pedestrian green blink in WALK_END and the cars' yellow flash at NIGHT.",
+  "form": "sop",
+  "lang": "vhdl",
+  "generatedFile": "src/lamps.vhd"
+}

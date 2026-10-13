@@ -17,9 +17,9 @@ const hdl = fs.readFileSync(path.join(ex.dir, 'src/gates.vhd'), 'utf8');
 const PRIMES = [2, 3, 5, 7, 11, 13];
 
 test('gates: the first example everywhere the examples are listed', () => {
-  assert.deepEqual(EXAMPLE_ORDER, ['gates', 'blinky', 'pong', 'stopwatch', 'clock']);
+  assert.deepEqual(EXAMPLE_ORDER, ['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock']);
   assert.equal(EXAMPLES[0], 'gates');
-  assert.deepEqual(orderExamples(['stopwatch', 'clock', 'zeta', 'blinky', 'alpha', 'pong', 'gates']), ['gates', 'blinky', 'pong', 'stopwatch', 'clock', 'alpha', 'zeta']);
+  assert.deepEqual(orderExamples(['stopwatch', 'clock', 'zeta', 'blinky', 'traffic', 'alpha', 'pong', 'gates']), ['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock', 'alpha', 'zeta']);
   // (the example folders, as the server's templates: a folder with a silinx.json; not a Finder's .DS_Store)
   const dirs = fs.readdirSync(path.dirname(ex.dir), { withFileTypes: true }).filter((e) => e.isDirectory() && fs.existsSync(path.join(path.dirname(ex.dir), e.name, 'silinx.json'))).map((e) => e.name);
   assert.deepEqual(orderExamples(dirs), EXAMPLE_ORDER);
