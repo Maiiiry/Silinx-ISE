@@ -183,7 +183,13 @@ uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose 
   assert.deepEqual(text.split('\n').filter((l) => /warning/i.test(l)),
     ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 22: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
       'WARNING: 5 port bit(s) have no LOC constraint (sw<3>, led<4>, led<5>, led<6>, led<7>): Silinx assigns free I/O pins automatically - do NOT program real hardware with this bitstream',
-      'Process "Back-annotate Pin Locations" completed successfully with 1 warning(s)']);
+      'Process "Back-annotate Pin Locations" completed successfully with 2 warning(s)']);
+  // the constraints' warning: the process's own (after its Started line), counted with the others,
+  // in the Warnings tab once; the process's icon a warning (#129)
+  const run = text.slice(text.lastIndexOf('Started : "Back-annotate Pin Locations"'));
+  assert.match(run, /^Started : "Back-annotate Pin Locations"\.\n+WARNING:ConstraintSystem - "constraints\/top\.ucf" Line 22: 5 port bit\(s\) of 'top' have no LOC/);
+  assert.equal(await page.eval(() => document.querySelectorAll('#console-warnings .diag').length), 2);
+  assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '(2)');
   assert.equal(await page.eval(() => window.SilinxApp.S.status.pin2ucf), 'warn');
   // Portuguese
   const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
@@ -206,6 +212,30 @@ uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose 
   assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 240000 });
+
+// the constraints' warnings found before a run (Check Constraints): the process's own, counted in its
+// "completed successfully with N warning(s)", its icon a warning; a run without Translate: on
+// Synthesize's icon (#129)
+uiTest('open mode: Synthesize counts the constraints\' warnings printed before it runs (#129)', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenUcfWarn', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
+  await page.openProject('OpenUcfWarn');
+  await reloadToolchain(page);
+  await page.click('input[name=view][value=impl]');
+  await page.treeRow('#procs', 'Synthesize - Yosys', { dbl: true, exact: true });
+  await page.waitConsole(DONE('Synthesize - Yosys'), { timeout: 120000 });
+  const text = await page.consoleText();
+  const run = text.slice(text.lastIndexOf('Started : "Synthesize - Yosys"'));
+  assert.deepEqual(run.split('\n').filter((l) => /warning/i.test(l)),
+    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 22: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
+      'WARNING: 5 port bit(s) have no LOC constraint (sw<3>, led<4>, led<5>, led<6>, led<7>): Silinx assigns free I/O pins automatically - do NOT program real hardware with this bitstream',
+      'Process "Synthesize - Yosys" completed successfully with 2 warning(s)']);
+  assert.equal(text.split('\n').filter((l) => /warning/i.test(l)).length, 3, 'printed once');
+  assert.equal(await page.eval(() => window.SilinxApp.S.status.synth), 'warn');
+  assert.equal(await page.eval(() => document.querySelectorAll('#console-warnings .diag').length), 2);
+  assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '(2)');
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 180000 });
 
 // View Technology Schematic in the Silinx toolchain (#119): the netlist of its synthesis (Synthesize runs
 // first), drawn by Silinx's schematic engine: blocks by instance, primitives inside, a LUT's function

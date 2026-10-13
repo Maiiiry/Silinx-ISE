@@ -75,12 +75,12 @@ function renderDiagnosticsSoon() {
   if (diagTimer) return;
   diagTimer = setTimeout(() => { diagTimer = null; renderDiagnostics(); }, 50);
 }
-function logLine(line) {
+function logLine(line, opts) {
   let cls = '';
   if (/^(ERROR|FATAL)|\bERROR:/i.test(line) || /=== SILINX FAILED/.test(line)) cls = 'err';
   else if (/^WARNING|\bWARNING:/i.test(line)) cls = 'warn';
   else if (/=== SILINX (STEP|DONE)/.test(line) || /completed successfully/i.test(line)) cls = 'ok';
-  log(line, cls);
+  log(line, cls, opts);
 }
 function showConsolePage(page) {
   document.querySelectorAll('#console-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.page === page));
@@ -830,7 +830,9 @@ async function applyReportWarnings(track) {
   renderProcesses();
 }
 
-function stepTracker() {
+// (steps: the run's; a warning of the constraints counts in Translate's icon when the run has it,
+// else in the first step's: #129)
+function stepTracker(steps) {
   const result = {};              // process id -> ok | warn | err (this run)
   let cur = null, warns = 0;
   const early = {};               // warnings printed before the step they concern has started
@@ -848,8 +850,9 @@ function stepTracker() {
     setProc(id, ok ? (warns ? 'warn' : 'ok') : 'err');
     cur = null;
   };
-  t.line = line => {
-    logLine(line);
+  // (opts: log()'s, e.g. { diag: false } for a line already in the Warnings tab)
+  t.line = (line, opts) => {
+    logLine(line, opts);
     let m;
     if ((m = /^=== SILINX STEP (\w+) ===/.exec(line))) {
       finish();
@@ -867,7 +870,7 @@ function stepTracker() {
       // itself reaches the Warnings tab through log()
       t.warnings++;
       if (cur) warns++;
-      else { const step = /constraints file|\.ucf\b|LOC/i.test(line) ? 'translate' : '*'; early[step] = (early[step] || 0) + 1; }
+      else { const step = /constraints file|\.ucf\b|LOC/i.test(line) && (!steps || steps.includes('translate')) ? 'translate' : '*'; early[step] = (early[step] || 0) + 1; }
     }
     refreshGroups();
     renderProcesses();
@@ -900,7 +903,11 @@ async function ucfDiagnostics(text, file) {
     .map(d => ({ ...d, file, tool: 'ConstraintSystem' }));
 }
 
-async function checkUcfFile(path = S.project?.constraints, { quiet = false } = {}) {
+// (warnings: in quiet mode, an array that gets the warning lines instead of the console when there is
+// no error: the process that checks the constraints before it runs prints them as its own, counted
+// in its "completed successfully with N warning(s)" (#129); their entries are added to the Warnings
+// tab's, Check Syntax's kept)
+async function checkUcfFile(path = S.project?.constraints, { quiet = false, warnings = null } = {}) {
   if (!path) return true;
   await saveAll();
   let text;
@@ -908,19 +915,26 @@ async function checkUcfFile(path = S.project?.constraints, { quiet = false } = {
   const diags = await ucfDiagnostics(text, path);
   const ne = diags.filter(d => d.severity === 'error').length, nw = diags.length - ne;
   if (quiet && !diags.length) return true;
+  const line = d => `${d.severity === 'error' ? 'ERROR' : 'WARNING'}:ConstraintSystem - "${d.file}" Line ${d.line}: ${d.message}`;
+  if (quiet && warnings && !ne) {
+    setDiagnostics([...S.diags.filter(d => d.source !== 'console' && d.tool !== 'ConstraintSystem'), ...diags]);
+    warnings.push(...diags.map(line));
+    return true;
+  }
   setDiagnostics(diags);
   if (!quiet) log(`\nStarted : "Check Constraints" of ${path}.\n`, 'hdr');
-  for (const d of diags) log(`${d.severity === 'error' ? 'ERROR' : 'WARNING'}:ConstraintSystem - "${d.file}" Line ${d.line}: ${d.message}`, d.severity === 'error' ? 'err' : 'warn', { diag: false });
+  for (const d of diags) log(line(d), d.severity === 'error' ? 'err' : 'warn', { diag: false });
   if (ne) { log(`\nProcess "Check Constraints" failed (${ne} error(s), ${nw} warning(s))`, 'err', { diag: false }); showConsolePage('errors'); status(`${path.split('/').pop()}: ${ne} error(s)`); return false; }
   if (!quiet) log(`\nProcess "Check Constraints" completed successfully${nw ? ` with ${nw} warning(s)` : ''}`, 'ok');
   status(`Check Constraints: ${path.split('/').pop()} OK${nw ? ` (${nw} warning(s))` : ''}`);
   return true;
 }
 
-async function checkConstraints() {
+// (warnings: gets the constraints' warning lines, for the process to print: checkUcfFile)
+async function checkConstraints(warnings = null) {
   const pj = S.project;
   const board = projectBoard(pj);
-  if (pj.constraints && S.fileTree.includes(pj.constraints) && !await checkUcfFile(pj.constraints, { quiet: true })) {
+  if (pj.constraints && S.fileTree.includes(pj.constraints) && !await checkUcfFile(pj.constraints, { quiet: true, warnings })) {
     log(`ERROR: fix the errors in ${pj.constraints} before implementing (see the Errors tab).`, 'err');
     return false;
   }
@@ -986,7 +1000,10 @@ async function runImplInner(mod, steps, opts, pjName) {
     log(`Process "${procName}" stopped: Check Syntax found errors (see the Errors tab).`, 'err');
     return;
   }
-  if (!await checkConstraints()) {
+  // the constraints' warnings: printed as the process's own once it has started, and counted (#129)
+  const ucfWarnings = [];
+  if (!await checkConstraints(ucfWarnings)) {
+    for (const l of ucfWarnings) log(l, 'warn', { diag: false });
     setStatus(steps.includes('translate') ? 'translate' : 'synth', 'err');
     log(`Process "${procName}" stopped: the constraints have errors.`, 'err');
     return;
@@ -997,6 +1014,7 @@ async function runImplInner(mod, steps, opts, pjName) {
     if (!st.available) {
       setStatus(procId, 'err');
       log(`\nStarted : "${procName}" (Silinx toolchain).\n`, 'hdr');
+      for (const l of ucfWarnings) log(l, 'warn', { diag: false });
       log(`ERROR: the Silinx toolchain cannot implement this design: ${st.reason}.`, 'err');
       log(`\nProcess "${procName}" failed`, 'err');
       return;
@@ -1008,7 +1026,8 @@ async function runImplInner(mod, steps, opts, pjName) {
   setStatus(procId, 'running');
   status(`Running ${procId}…`);
   log(`\nStarted : "${procName}".\n`, 'hdr');
-  const track = stepTracker();
+  const track = stepTracker(steps);
+  for (const l of ucfWarnings) track.line(l, { diag: false });
   try {
     const tc = S.toolchain || await api.toolchain();
     if (!tc.ise.available) {

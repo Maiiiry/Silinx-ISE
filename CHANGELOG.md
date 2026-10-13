@@ -21,6 +21,10 @@ In detail:
   when every bank already holds LVCMOS33 pins failed with "not enough pads"; the error now says that
   the banks' VCCO is the cause, with the ports, each bank's VCCO and I/O standards, and the standard
   to give them (e.g. `NET "led<4>" IOSTANDARD = LVCMOS33;`) (#128).
+- The warnings of the constraints found before a process runs (e.g. "port bit(s) of 'top' have no
+  LOC") are now printed as part of that process, after its "Started" line, and counted in its
+  "completed successfully with N warning(s)" and its icon; they were printed before it and not
+  counted (#129).
 
 ## 15.10.7
 
