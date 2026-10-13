@@ -173,8 +173,11 @@ for (const theme of ['dark', 'light']) {
     await page.waitFor((s) => document.querySelector(`${s} .se-symdoc .sd-truth`), [ED], { what: 'Symbol Info' });
     await page.click(`${ED} .se-symdoc .sd-switch [data-view=full]`);
     await check('Symbol Info');
-    await page.click(`${ED} .se-symdoc [data-act=close]`);
-    await page.waitFor((s) => !document.querySelector(`${s} .se-symdoc`), [ED], { what: 'Symbol Info closed' });
+    // (the panel may still be laid out again after the switch to its full view: a click that missed is repeated)
+    for (let k = 0; ; k++) {
+      await page.click(`${ED} .se-symdoc [data-act=close]`);
+      try { await page.waitFor((s) => !document.querySelector(`${s} .se-symdoc`), [ED], { what: 'Symbol Info closed', timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
+    }
     await page.click(`${ED} .se-btn[data-act=view]`);
     await page.waitForSelector(`${ED} .se-code`);
     await check('View HDL');
