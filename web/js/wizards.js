@@ -241,7 +241,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
     onShow: () => {
       summary.innerHTML = '';
       const b = db.boards.find(x => x.id === boardSel.value);
-      summary.append(h('pre', { style: { background: '#fff', border: '1px solid #ccc', padding: '10px', fontFamily: 'var(--mono)', whiteSpace: 'pre-wrap' } },
+      summary.append(h('pre', { class: 'code-box' },
         `Project Navigator will create a new project with the following specifications.\n\n` +
         `Project:\n  Project Name: ${name.value.trim()}\n  Template:     ${tplSel.value}\n\n` +
         `Device:\n  Board:        ${b ? b.name : 'None Specified'}\n  Family:       ${dp.familyName()}\n  Device:       ${dp.value().part.toUpperCase()}\n  Package:      ${dp.value().package.toUpperCase()}\n  Speed:        ${dp.value().speed}\n\n` +
@@ -323,7 +323,7 @@ export async function openProjectDialog() {
   }
   const r = await dialog({
     title: 'Open Project', width: 560,
-    body: h('div', {}, list.length ? h('div', { style: { maxHeight: '320px', overflow: 'auto', border: '1px solid #ccc' } }, tbl) : h('div', {}, 'No projects found in the workspace.')),
+    body: h('div', {}, list.length ? h('div', { style: { maxHeight: '320px', overflow: 'auto', border: '1px solid var(--frame)' } }, tbl) : h('div', {}, 'No projects found in the workspace.')),
     buttons: [{ label: 'Open', primary: true, value: () => chosen }, { label: 'Cancel', value: null }],
   });
   if (r) { await app.openProject(r); app.showLeftPage('design'); }
@@ -563,7 +563,7 @@ export async function newSourceWizard({ type } = {}) {
       renderPorts();
       return h('div', {},
         h('div', { class: 'form-grid' }, ...field('Language:', p2LangSlot), ...field('Entity / Module name:', entName), archLbl, archName),
-        h('div', { style: { marginTop: '10px', maxHeight: '250px', overflow: 'auto', border: '1px solid #ccc' } }, portTbl));
+        h('div', { style: { marginTop: '10px', maxHeight: '250px', overflow: 'auto', border: '1px solid var(--frame)' } }, portTbl));
     },
     onShow: () => { p2LangSlot.replaceChildren(langSel); if (!entName.value) entName.value = fname.value.trim().replace(/\..*$/, ''); syncArch(); },
     validate: () => {
@@ -595,7 +595,7 @@ export async function newSourceWizard({ type } = {}) {
     onShow: () => { tbLangHost.replaceChildren(...field('Language:', langSel)); },
     validate: () => (S.modules.some(m => m.name === uutName) ? null : 'Select a module.'),
   };
-  const summary = h('pre', { style: { background: '#fff', border: '1px solid #ccc', padding: '10px', fontFamily: 'var(--mono)', whiteSpace: 'pre-wrap' } });
+  const summary = h('pre', { class: 'code-box' });
   const pSum = {
     title: 'Summary',
     render: () => summary,
@@ -798,7 +798,7 @@ export async function implProperties() {
     body: h('div', { class: 'form-grid' },
       ...field('Optimization Goal:', opt), ...field('Optimization Effort:', lvl),
       ...field('FPGA Start-Up Clock:', clk),
-      h('div', { style: { gridColumn: '1 / 3', color: '#555' } }, 'Use JTAG Clock when programming over JTAG (iMPACT, xc3sprog, djtgcfg); CCLK when booting from the PROM/flash.')),
+      h('div', { style: { gridColumn: '1 / 3', color: 'var(--grey-3)' } }, 'Use JTAG Clock when programming over JTAG (iMPACT, xc3sprog, djtgcfg); CCLK when booting from the PROM/flash.')),
   });
   if (!r) return;
   pj.impl = { ...pj.impl, optMode: opt.value, optLevel: +lvl.value, startupClk: clk.value };
@@ -840,7 +840,7 @@ export async function toolchainDialog() {
   const openBox = h('div', { class: `msg open-status ${os?.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, os?.available ? '✓' : '!'),
     h('div', { class: 'msg-text' }, h('b', {}, os ? `Silinx toolchain for ${os.part || S.project?.device?.part || 'this device'}: ${os.available ? 'available' : 'not available'}` : 'Silinx toolchain: open a project to see whether its device is supported'),
       os ? h('div', {}, os.reason) : null,
-      h('div', { style: { color: '#555', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2). Experimental: check the design on the board.')));
+      h('div', { style: { color: 'var(--grey-3)', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2). Experimental: check the design on the board.')));
   const renderMode = () => {
     modeBox.innerHTML = '';
     const open = mode.value === 'silinx';
@@ -856,7 +856,7 @@ export async function toolchainDialog() {
     title: 'Toolchain Settings', width: 640,
     body: h('div', {},
       h('div', { class: `msg ${st.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, st.available ? '✓' : '!'),
-        h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'silinx' ? 'Silinx toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: '#555' } }, st.help),
+        h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'silinx' ? 'Silinx toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: 'var(--grey-3)' } }, st.help),
           st.available ? null : h('div', { style: { marginTop: '8px' } }, h('b', {}, 'Easiest setup on any OS: '), 'build the private Docker image with the Silinx kit (docker/ise/README.md): ',
             h('code', {}, 'docker/ise/build-ise-image.sh --installer <Xilinx_ISE_DS_Lin_14.7_1015_1.tar> --license <Xilinx.lic>'), ' (Windows: build-ise-image.ps1). It configures Silinx automatically.'))),
       h('div', { class: 'form-grid' }, h('label', {}, 'Execution mode:'), mode),
@@ -865,7 +865,7 @@ export async function toolchainDialog() {
       h('div', { style: { fontWeight: 'bold', margin: '8px 0 4px' } }, 'Device programmers'),
       h('table', { class: 'grid' }, h('tr', {}, h('th', {}, 'Tool'), h('th', {}, ''), h('th', {}, 'Location')), ...progRows),
       h('div', { class: 'form-grid', style: { marginTop: '8px' } }, h('label', {}, labels['programmer.tool']), inputs['programmer.tool'], h('label', {}, labels['programmer.cable']), inputs['programmer.cable']),
-      h('div', { style: { color: '#777', marginTop: '8px' } }, `Settings file: ${tc.configPath}`)),
+      h('div', { style: { color: 'var(--grey-5)', marginTop: '8px' } }, `Settings file: ${tc.configPath}`)),
     buttons: [{ label: 'Save', primary: true, value: true }, { label: 'Cancel', value: null }],
   });
   if (!r) return;
@@ -909,7 +909,7 @@ export function aboutDialog() {
             h('td', {}, link(`https://github.com/${REPOSITORY}`, `github.com/${REPOSITORY}`))),
           h('tr', {}, h('td', { style: { paddingRight: '10px', verticalAlign: 'top', fontWeight: 'bold' } }, 'Developers:'),
             h('td', {}, h('div', {}, 'Pedro Maló — ', link('https://github.com/pmnmalo', 'github.com/pmnmalo')),
-              h('div', { style: { color: '#666' } }, 'developed with Claude (Anthropic)'))),
+              h('div', { style: { color: 'var(--grey-4)' } }, 'developed with Claude (Anthropic)'))),
           // whether this copy counts its use (only the published site does, with GoatCounter)
           h('tr', { class: 'about-counts' }, h('td', { style: { paddingRight: '10px', verticalAlign: 'top', fontWeight: 'bold' } }, 'Usage counts:'),
             h('td', {}, ...(siteCounts()
@@ -919,7 +919,7 @@ export function aboutDialog() {
         h('p', { class: 'hint' }, 'This program comes with ABSOLUTELY NO WARRANTY. Source code: ', link(`https://github.com/${REPOSITORY}`, `github.com/${REPOSITORY}`), '.'),
         h('p', { class: 'hint' }, 'Using Silinx in a course? ', link(WHO_URL, 'Tell us who you are'), '.'),
         componentsNode(),
-        h('p', { style: { color: '#666' } }, 'Synthesis, place & route and bitstream generation use the Xilinx ISE 14.7 command-line tools. Xilinx, ISE, ISim, iMPACT and Spartan are trademarks of AMD/Xilinx; Silinx ISE is an independent project, not affiliated with or endorsed by AMD/Xilinx.'))),
+        h('p', { style: { color: 'var(--grey-4)' } }, 'Synthesis, place & route and bitstream generation use the Xilinx ISE 14.7 command-line tools. Xilinx, ISE, ISim, iMPACT and Spartan are trademarks of AMD/Xilinx; Silinx ISE is an independent project, not affiliated with or endorsed by AMD/Xilinx.'))),
     buttons: [{ label: 'OK', primary: true, value: true }],
   });
 }
@@ -973,7 +973,7 @@ function changesNode(sections) {
     if (at < text.length) out.push(text.slice(at));
     return out;
   };
-  const box = h('div', { class: 'whats-new', style: { maxHeight: '260px', overflow: 'auto', border: '1px solid #ddd', padding: '4px 10px', margin: '6px 0' } });
+  const box = h('div', { class: 'whats-new', style: { maxHeight: '260px', overflow: 'auto', border: '1px solid var(--frame-light)', padding: '4px 10px', margin: '6px 0' } });
   for (const s of sections) {
     box.append(h('div', { style: { fontWeight: 'bold', marginTop: '6px' } }, `${PRODUCT} ${s.version}`));
     const items = [];
@@ -1034,7 +1034,7 @@ export async function checkUpdatesDialog({ rel: known = null } = {}) {
     rel ||= await latestRelease();
   } catch (e) {
     body.replaceChildren(h('p', {}, `Running ${PRODUCT} ${VERSION}.`),
-      h('p', { style: { color: '#c00000' } }, `Could not check for updates: ${e.message || e}.`),
+      h('p', { style: { color: 'var(--error-fg-2)' } }, `Could not check for updates: ${e.message || e}.`),
       h('p', {}, 'Releases: ', link(`https://github.com/${REPO}/releases`, `github.com/${REPO}/releases`)));
     return done;
   }

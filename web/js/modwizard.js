@@ -16,7 +16,6 @@ import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewher
 import { S, app } from './app.js';
 
 const LANGS = [['vhdl', 'VHDL'], ['verilog', 'Verilog']];
-const PRE = { background: '#fff', border: '1px solid #ccc', padding: '10px', fontFamily: 'var(--mono)', whiteSpace: 'pre-wrap' };
 const cleanLoc = loc => String(loc || 'src').trim().replace(/\/+$/, '') || 'src';
 const extOf = (lang, sch) => (sch ? '.sch.json' : lang === 'verilog' ? '.v' : '.vhd');
 const portText = p => `${p.name}${+p.width > 1 ? ` [${p.width - 1}:0]` : ''}`;
@@ -114,7 +113,7 @@ function portEditor(ports, { lang, onChange = () => {} }) {
   const node = h('div', {},
     h('div', { class: 'hint' }, 'One row per input, output or bidirectional (inout) port. Width 1 is a single bit (std_logic / wire); a width N makes a bus of N bits, numbered N-1 downto 0.'),
     quick,
-    h('div', { style: { maxHeight: '230px', overflow: 'auto', border: '1px solid #ccc' } }, tbl),
+    h('div', { style: { maxHeight: '230px', overflow: 'auto', border: '1px solid var(--frame)' } }, tbl),
     h('div', { style: { marginTop: '6px' } }, addBtn));
   const check = name => {
     const bad = ports.find(p => p.width === '' || !Number.isInteger(+p.width));
@@ -238,8 +237,8 @@ export async function moduleWizard({ name = '', location = 'src', lang = null } 
   const text = () => generateModule(opts());
 
   // ---- page 4: summary and preview
-  const summary = h('pre', { class: 'mw-summary', style: PRE });
-  const preview = h('pre', { class: 'mw-preview', style: { ...PRE, maxHeight: '240px', overflow: 'auto', whiteSpace: 'pre', marginTop: '6px' } });
+  const summary = h('pre', { class: 'mw-summary code-box' });
+  const preview = h('pre', { class: 'mw-preview code-box', style: { maxHeight: '240px', overflow: 'auto', whiteSpace: 'pre', marginTop: '6px' } });
   const pSum = {
     title: 'Summary',
     render: () => h('div', {}, summary, h('div', { style: { fontWeight: 'bold', marginTop: '8px' } }, 'Preview of the code:'), preview),
@@ -308,7 +307,7 @@ export async function schematicWizard({ name = '', location = 'src', lang = null
       return null;
     },
   };
-  const summary = h('pre', { class: 'mw-summary', style: PRE });
+  const summary = h('pre', { class: 'mw-summary code-box' });
   const pSum = {
     title: 'Summary',
     render: () => summary,

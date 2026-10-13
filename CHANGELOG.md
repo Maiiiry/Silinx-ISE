@@ -18,6 +18,13 @@ In detail:
   front, the left pane and the Design view (Implementation or Simulation), kept for each project in
   the browser; they also come back when the project is opened again (the Design Summary only the
   first time) (#160).
+- **Dark theme, readable everywhere:** iMPACT's note under *Program FPGA* was light text on a light
+  yellow box; the wizards' summaries and code previews white boxes; the schematic editor's fields
+  white with light text; the Test Bench wizard's drive / expected columns, Symbol Info's pin names
+  and its buttons, the live simulation's bus editor, the tree arrows, iMPACT's, the pin planner's,
+  the board emulator's and the dialogs' grey notes too dark. Their colours are now theme colours with
+  a dark value (the light theme unchanged), and every screen is checked for readable text in both
+  themes (#159).
 
 ## 15.10.8
 

@@ -52,7 +52,7 @@
 .sch-editor .se-lang { height: 21px; margin-right: 3px; }
 .sch-editor .se-opts { display: inline-flex; align-items: center; gap: 4px; }
 .sch-editor .se-opts label { color: var(--se-muted); }
-.sch-editor .se-optin { height: 21px; width: 110px; border: 1px solid #7f9db9; padding: 0 3px; background: #fff; }
+.sch-editor .se-optin { height: 21px; width: 110px; border: 1px solid var(--field-border); padding: 0 3px; background: var(--field-bg); }
 .sch-editor select.se-optin { width: auto; }
 .sch-editor .se-placing { color: var(--se-title-fg); font-weight: bold; }
 
@@ -75,7 +75,7 @@
 /* ------------------------------------------------------------------ symbols panel */
 .sch-editor .se-lefttools { display: flex; flex-direction: column; gap: 3px; padding: 4px 5px; border-bottom: 1px solid var(--se-border-light); }
 .sch-editor .se-lefttools label { color: var(--se-muted); font-size: 11px; }
-.sch-editor .se-lefttools select, .sch-editor .se-lefttools input { height: 21px; border: 1px solid #7f9db9; background: #fff; padding: 0 3px; width: 100%; }
+.sch-editor .se-lefttools select, .sch-editor .se-lefttools input { height: 21px; border: 1px solid var(--field-border); background: var(--field-bg); padding: 0 3px; width: 100%; }
 .sch-editor .se-symlist { flex: 1; overflow: auto; min-height: 0; padding-bottom: 6px; }
 .sch-editor .se-cathead {
   padding: 3px 6px 3px 16px; font-weight: bold; color: var(--se-title-fg); background: #f2f5fa; border-bottom: 1px solid #e3e8f0;
@@ -99,7 +99,7 @@
 .sch-editor .se-field { display: flex; flex-direction: column; gap: 2px; margin: 6px 0; }
 .sch-editor .se-field > label { color: var(--se-muted); font-size: 11px; }
 .sch-editor .se-field input[type=text], .sch-editor .se-field input[type=number], .sch-editor .se-field select, .sch-editor .se-field textarea {
-  border: 1px solid #7f9db9; background: #fff; padding: 1px 4px; min-height: 21px; width: 100%;
+  border: 1px solid var(--field-border); background: var(--field-bg); padding: 1px 4px; min-height: 21px; width: 100%;
 }
 .sch-editor .se-field input[type=checkbox] { align-self: flex-start; margin: 2px 0; }
 .sch-editor .se-field textarea { font-family: var(--se-mono); font-size: 11px; line-height: 1.35; resize: vertical; white-space: pre; tab-size: 2; }
@@ -253,7 +253,7 @@
 .sch-editor .se-symdoc .sd-draw svg { position: static; max-width: 230px; height: auto; }
 .sch-editor .se-symdoc .sd-params { display: flex; flex-direction: column; gap: 4px; }
 .sch-editor .se-symdoc .sd-param { display: grid; grid-template-columns: 1fr 96px; align-items: center; gap: 6px; font-size: 11px; color: var(--se-muted); }
-.sch-editor .se-symdoc .sd-param input[type=text], .sch-editor .se-symdoc .sd-param input[type=number], .sch-editor .se-symdoc .sd-param select { border: 1px solid #7f9db9; padding: 1px 4px; min-height: 21px; width: 100%; background: #fff; }
+.sch-editor .se-symdoc .sd-param input[type=text], .sch-editor .se-symdoc .sd-param input[type=number], .sch-editor .se-symdoc .sd-param select { border: 1px solid var(--field-border); padding: 1px 4px; min-height: 21px; width: 100%; background: var(--field-bg); }
 .sch-editor .se-symdoc .sd-param input[type=checkbox] { justify-self: start; }
 .sch-editor .se-symdoc .sd-h4 { font-weight: bold; color: var(--se-title-fg); font-size: 11px; }
 .sch-editor .se-symdoc .sd-xnames { font-family: var(--se-mono); font-size: 11px; }
@@ -270,7 +270,7 @@
 .sch-editor .se-symdoc .sd-table th { background: #eef2f8; color: var(--se-title-fg); font-weight: bold; }
 .sch-editor .se-symdoc .sd-table .mono { font-family: var(--se-mono); white-space: nowrap; }
 .sch-editor .se-symdoc .sd-table .num { text-align: center; }
-.sch-editor .se-symdoc .sd-pins td:first-child { color: var(--se-pin); font-weight: bold; }
+.sch-editor .se-symdoc .sd-pins td:first-child { color: var(--pin-name); font-weight: bold; }
 .sch-editor .se-symdoc .sd-truth td, .sch-editor .se-symdoc .sd-truth th { text-align: center; font-family: var(--se-mono); min-width: 22px; }
 .sch-editor .se-symdoc .sd-truth tr.grp th { font-family: inherit; font-weight: normal; color: var(--se-muted); background: #f7f9fc; }
 .sch-editor .se-symdoc .sd-truth .sep { border-right: 2px solid #8090a8; }
@@ -374,9 +374,9 @@
 .sch-editor .lv-x { border: none; background: none; font-size: 15px; line-height: 1; cursor: pointer; padding: 0 2px; }
 .sch-editor .lv-edit-row { display: flex; gap: 4px; align-items: center; }
 .sch-editor .lv-edit-row .btn { padding: 1px 8px; min-width: 0; }
-.sch-editor .lv-edit-in { flex: 1; min-width: 0; height: 22px; border: 1px solid #7f9db9; padding: 0 4px; font-family: var(--se-mono); background: #fff; color: #000; }
-.sch-editor .lv-edit-in.bad { border-color: var(--se-danger); background: #fff0f0; }
-.sch-editor .lv-note { font-size: 10px; color: #555; }
+.sch-editor .lv-edit-in { flex: 1; min-width: 0; height: 22px; border: 1px solid var(--field-border); padding: 0 4px; font-family: var(--se-mono); background: var(--field-bg); color: var(--field-fg); }
+.sch-editor .lv-edit-in.bad { border-color: var(--se-danger); background: var(--field-bad-bg); }
+.sch-editor .lv-note { font-size: 10px; color: var(--grey-3); }
 .sch-editor .lv-ports { border-collapse: collapse; width: 100%; font: 11px var(--se-mono); margin-top: 4px; }
 .sch-editor .lv-ports td { border-bottom: 1px solid var(--se-border-light); padding: 1px 4px; }
 .sch-editor .lv-ports td.v { text-align: right; font-weight: bold; }

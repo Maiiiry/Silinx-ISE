@@ -25,12 +25,12 @@ export function mountImpact(el) {
   const promFile = pj?.top ? `build/${pj.top}_prom.bit` : '';
   const bitfile = h('input', { type: 'text', style: { width: '360px' }, value: fpgaFile });
   const chainHost = h('div', { class: 'impact-chain' });
-  const info = h('div', { style: { color: '#444', margin: '6px 0' } });
+  const info = h('div', { style: { color: 'var(--grey-2)', margin: '6px 0' } });
   const verify = h('input', { type: 'checkbox', checked: true });
   const reload = h('input', { type: 'checkbox' });
   const promBox = h('div', { class: 'prom-box' });
   const fpgaBox = h('div', {});
-  const help = h('div', { style: { background: '#fffbe6', border: '1px solid #e6d690', padding: '8px', margin: '8px 0', whiteSpace: 'pre-wrap' } });
+  const help = h('div', { class: 'note-box' });
   // the browser edition: a .bit from the disk (its bytes go to the board over WebUSB)
   let bitData = null;
   const bitPick = h('input', { type: 'file', accept: '.bit', hidden: true });
@@ -53,7 +53,7 @@ export function mountImpact(el) {
       const dev = h('div', { class: `impact-dev${i === selPos ? ' sel' : ''}`, title: d.role === 'prom' ? 'Platform Flash PROM: holds the design across power cycles' : d.role === 'fpga' ? 'FPGA (configuration is lost at power-off)' : '' },
         h('div', { class: 'chipbox' }, d.name.toUpperCase()),
         h('div', {}, file && i === selPos ? h('b', {}, bitfile.value.split('/').pop() || '(no file)') : file ? h('span', {}, file.split('/').pop()) : h('span', { class: 'bypass' }, 'bypass')),
-        h('div', { style: { color: '#888', fontSize: '11px' } }, `${d.role === 'prom' ? 'PROM' : d.role === 'fpga' ? 'FPGA' : d.role} · position ${i + 1}`));
+        h('div', { style: { color: 'var(--grey-6)', fontSize: '11px' } }, `${d.role === 'prom' ? 'PROM' : d.role === 'fpga' ? 'FPGA' : d.role} · position ${i + 1}`));
       dev.addEventListener('click', () => selectDevice(i));
       chainHost.append(dev);
     });
@@ -141,7 +141,7 @@ export function mountImpact(el) {
 
   fpgaBox.append(h('div', { style: { display: 'flex', gap: '8px' } },
     h('button', { class: 'btn primary', onclick: programFpga }, 'Program FPGA'),
-    h('span', { style: { color: '#666', alignSelf: 'center' } }, 'Loads the FPGA directly (volatile: lost at power-off). Select the PROM in the chain to store the design in flash.')));
+    h('span', { style: { color: 'var(--grey-4)', alignSelf: 'center' } }, 'Loads the FPGA directly (volatile: lost at power-off). Select the PROM in the chain to store the design in flash.')));
   promBox.append(
     h('div', { style: { display: 'flex', gap: '16px', margin: '4px 0 8px' } },
       h('label', { style: { margin: 0 } }, verify, ' Verify after programming'),
@@ -152,7 +152,7 @@ export function mountImpact(el) {
       h('button', { class: 'btn', onclick: () => prom('erase') }, 'Erase'),
       h('button', { class: 'btn', onclick: () => prom('read') }, 'Back up PROM'),
       h('button', { class: 'btn', onclick: () => prom('reconfigure') }, 'Reload FPGA from PROM')),
-    h('div', { style: { color: '#666', marginTop: '6px' } },
+    h('div', { style: { color: 'var(--grey-4)', marginTop: '6px' } },
       'The PROM image is build/<top>_prom.bit (generated with StartUpClk:CCLK by "Generate Programming File"). ',
       'To boot from flash at power-up, set the mode jumper to ROM (Basys2: JP3). Uses adepttool + scripts/xcf_prog.py over the on-board USB.'));
 

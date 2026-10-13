@@ -152,7 +152,7 @@ export async function testBenchWizard({ module, name = null, location = null, la
       const dis = id === 'exhaustive' && nv > MAX_VECTORS;
       const r = h('input', { type: 'radio', name: 'tbw-mode', value: id, checked: st.mode === id, disabled: dis });
       r.addEventListener('change', () => { st.mode = id; rows = []; syncStim(); });
-      modeBox.append(h('label', { class: 'tbw-mode', style: { display: 'block', margin: '4px 0', color: dis ? '#999' : '' } }, r, ` ${label}`,
+      modeBox.append(h('label', { class: 'tbw-mode', style: { display: 'block', margin: '4px 0', color: dis ? 'var(--grey-7)' : '' } }, r, ` ${label}`,
         id === 'exhaustive' ? h('span', { class: 'hint' }, ` — ${n} input bit(s): ${nv > MAX_VECTORS ? `${nv} vectors, more than ${MAX_VECTORS}` : `${nv} vector(s)`}`) : null));
     }
   };
@@ -188,7 +188,7 @@ export async function testBenchWizard({ module, name = null, location = null, la
   };
 
   // ---------------------------------------------------------------- page 4: vectors and expected values
-  const tblHost = h('div', { class: 'tbw-table', style: { maxHeight: '330px', overflow: 'auto', border: '1px solid #ccc', marginTop: '6px' } });
+  const tblHost = h('div', { class: 'tbw-table', style: { maxHeight: '330px', overflow: 'auto', border: '1px solid var(--frame)', marginTop: '6px' } });
   const vecNote = h('div', { class: 'hint' });
   const busy = h('span', { class: 'hint', style: { marginLeft: '8px' } });
   const isZ = t => !String(t ?? '').trim() || /^z+$/i.test(String(t).trim());
@@ -196,7 +196,7 @@ export async function testBenchWizard({ module, name = null, location = null, la
     row[side] ||= {};
     const inp = h('input', { type: 'text', class: `tbw-cell tbw-${side}`, 'data-port': p.name, value: row[side][p.name] ?? '', placeholder: side === 'exp' ? '–' : side === 'drv' ? 'Z' : '0'.repeat(Math.min(p.width, 8)), style: { width: `${Math.max(3, Math.min(p.width, 16)) + 2}ch`, fontFamily: 'var(--mono, monospace)' } });
     // a released bidirectional port (Z / empty): the design drives the bus in this vector
-    const tint = () => { if (side === 'drv') inp.style.background = isZ(inp.value) ? '#e8f0ff' : '#fff6dd'; };
+    const tint = () => { if (side === 'drv') inp.style.background = isZ(inp.value) ? 'var(--release-bg)' : 'var(--drive-bg)'; };
     tint();
     inp.addEventListener('input', () => { row[side][p.name] = inp.value; inp.classList.remove('bad'); tint(); });
     return inp;
@@ -205,9 +205,9 @@ export async function testBenchWizard({ module, name = null, location = null, la
     tblHost.innerHTML = '';
     const t = h('table', { class: 'grid' });
     t.append(h('tr', {}, h('th', {}, '#'), ...ins.map(p => h('th', { title: 'input' }, p.name)),
-      ...ios.map(p => h('th', { title: 'bidirectional: the value the bench drives on the bus; Z or empty = released (the design drives it)', style: { background: '#fff6dd' } }, `${p.name} (drive)`)),
-      ...outs.map(p => h('th', { title: 'expected output', style: { background: '#eef4ff' } }, `${p.name} (expected)`)),
-      ...ios.map(p => h('th', { title: 'bidirectional: the value expected on the bus', style: { background: '#eef4ff' } }, `${p.name} (expected)`)), h('th', {}, '')));
+      ...ios.map(p => h('th', { title: 'bidirectional: the value the bench drives on the bus; Z or empty = released (the design drives it)', class: 'th-drive' }, `${p.name} (drive)`)),
+      ...outs.map(p => h('th', { title: 'expected output', class: 'th-expected' }, `${p.name} (expected)`)),
+      ...ios.map(p => h('th', { title: 'bidirectional: the value expected on the bus', class: 'th-expected' }, `${p.name} (expected)`)), h('th', {}, '')));
     rows.slice(0, SHOWN_ROWS).forEach((row, k) => {
       const del = h('button', { class: 'tb-btn', title: 'Delete this vector', onclick: () => { rows.splice(k, 1); renderTable(); } }, '×');
       t.append(h('tr', {}, h('td', {}, String(k)), ...ins.map(p => h('td', {}, cell(row, 'in', p))), ...ios.map(p => h('td', {}, cell(row, 'drv', p))),
@@ -287,7 +287,7 @@ export async function testBenchWizard({ module, name = null, location = null, la
   };
 
   // ---------------------------------------------------------------- page 5: summary
-  const summary = h('pre', { style: { background: '#fff', border: '1px solid #ccc', padding: '10px', fontFamily: 'var(--mono)', whiteSpace: 'pre-wrap' } });
+  const summary = h('pre', { class: 'code-box' });
   const path = () => `${loc.value.trim().replace(/\/+$/, '')}/${tbName.value.trim()}.${lang.value === 'vhdl' ? 'vhd' : 'v'}`;
   const pSum = {
     title: 'Summary',

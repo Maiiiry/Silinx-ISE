@@ -65,7 +65,7 @@ export function mountPinPlanner(el, doc, top) {
 
   const tableHost = h('div', { class: 'pp-table' });
   const resHost = h('div', { class: 'pp-res' });
-  const status = h('span', { style: { color: '#555', marginLeft: '10px' } });
+  const status = h('span', { style: { color: 'var(--grey-3)', marginLeft: '10px' } });
   const bar = h('div', { class: 'pp-bar' },
     h('button', { class: 'btn', onclick: () => autoAssign(), disabled: !board, title: board ? 'Match port names with board resources (clk, led, sw, btn, seg, an…)' : 'Select a board in Design Properties' }, 'Auto-assign from Board'),
     h('button', { class: 'btn', onclick: () => { asg = {}; clocks = []; render(); changed(); } }, 'Clear All'),
@@ -120,7 +120,7 @@ export function mountPinPlanner(el, doc, top) {
     status.textContent = `${assigned}/${nets.length} I/Os assigned`;
     // resources panel
     resHost.innerHTML = '';
-    if (!board) { resHost.append(h('div', { style: { color: '#777' } }, 'No board selected. Choose one in Project ▸ Design Properties to see the board resources and auto-assign pins.')); return; }
+    if (!board) { resHost.append(h('div', { style: { color: 'var(--grey-5)' } }, 'No board selected. Choose one in Project ▸ Design Properties to see the board resources and auto-assign pins.')); return; }
     let grp = null;
     for (const r of board.resources) {
       if (r.group !== grp) { grp = r.group; resHost.append(h('div', { class: 'grp' }, grp || 'Other')); }

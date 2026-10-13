@@ -2691,7 +2691,7 @@ async function renameDialog(file, mod = null) {
   const mIn = modName ? h('input', { type: 'text', value: modName, style: { width: '100%' } }) : null;
   const follow = h('input', { type: 'checkbox', checked: !!modName && base.toLowerCase() === modName.toLowerCase() });
   if (mIn) mIn.addEventListener('input', () => { if (follow.checked) fIn.value = dirOf(file) + mIn.value.trim() + extOf(file); });
-  const err = h('div', { class: 'hint', style: { color: '#b00', minHeight: '16px' } });
+  const err = h('div', { class: 'hint', style: { color: 'var(--error-fg)', minHeight: '16px' } });
   const r = await dialog({
     title: 'Rename', width: 520,
     body: h('div', {},
@@ -3019,7 +3019,7 @@ async function renderStartPage() {
         .map(([l, ic, f]) => h('div', { class: 'entry' }, icon(ic), h('a', { onclick: f }, l)))),
     h('div', { class: 'start-box' }, h('h3', {}, 'Recent Projects'),
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),
-      projects.length ? null : h('div', { class: 'entry', style: { color: '#888' } }, 'No projects yet.'),
+      projects.length ? null : h('div', { class: 'entry', style: { color: 'var(--grey-6)' } }, 'No projects yet.'),
       recentHere.length ? h('div', { class: 'entry start-clear' }, h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
     api.standalone ? await storageBox() : null,
   );

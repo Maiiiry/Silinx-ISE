@@ -238,3 +238,9 @@ li.CodeMirror-hint-active .xl-hint-detail { color: #dde; }
 .console-page .diag-hint { margin: 0 6px 4px 26px; padding: 3px 8px; background: #fffbe6; border-left: 3px solid #e0b000; font-family: var(--font); white-space: normal; }
 .console-page .diag-hint b { font-weight: 600; }
 .CodeMirror-lint-message { white-space: pre-wrap; max-width: 600px; }
+
+/* boxes of the wizards and pages (theme.css's colours: dark in the dark theme) */
+.note-box { background: var(--note-bg); border: 1px solid var(--note-border); padding: 8px; margin: 8px 0; white-space: pre-wrap; }   /* a tip, e.g. iMPACT's WebUSB notes */
+.code-box { background: var(--code-bg); border: 1px solid var(--frame); padding: 10px; font-family: var(--mono); white-space: pre-wrap; }   /* the code a wizard writes */
+th.th-drive { background: var(--drive-bg); }         /* the test bench wizard: what the bench drives on a bidirectional port */
+th.th-expected { background: var(--expected-bg); }   /* … and the expected outputs */

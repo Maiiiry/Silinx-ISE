@@ -163,6 +163,41 @@ test('modern.css: the modern look applies only under data-ui="modern"; the class
   assert.match(css, /html:not\(\[data-ui="modern"\]\) #top-actions/);
 });
 
+// #159: the colours of the pages and dialogs are theme.css's variables, each with a dark value
+test('theme.css: the pages\' own colours have a dark value; no colour written in the code of the pages (dark theme, #159)', () => {
+  const theme = fs.readFileSync(path.join(ROOT, 'web/css/theme.css'), 'utf8');
+  const css = fs.readFileSync(path.join(ROOT, 'web/css/modern.css'), 'utf8');
+  const own = theme.slice(theme.indexOf('--note-bg:'), theme.indexOf('}', theme.indexOf('--note-bg:')));
+  const vars = [...own.matchAll(/(--[\w-]+):/g)].map((m) => m[1]);
+  assert.deepEqual(vars, ['--note-bg', '--note-border', '--code-bg', '--frame', '--frame-light', '--frame-lighter', '--field-bg', '--field-fg', '--field-border',
+    '--field-bad-bg', '--pin-name', '--drive-bg', '--release-bg', '--expected-bg', '--grey-1', '--grey-2', '--grey-3', '--grey-4', '--grey-5', '--grey-6', '--grey-7',
+    '--error-fg', '--error-fg-2', '--log-error', '--log-warning']);
+  const start = css.indexOf('html[data-ui="modern"][data-theme="dark"] {');
+  const dark = css.slice(start, css.indexOf('}', start));
+  assert.deepEqual(vars.filter((v) => !dark.includes(`  ${v}: `)), [], 'a dark value for each');
+  // the colours written in the scripts: only these, on purpose (the board emulator's board and LEDs, the FPGA
+  // view's colour of a module on its chip, the logo)
+  const found = [];
+  for (const f of fs.readdirSync(path.join(ROOT, 'web/js')).filter((x) => x.endsWith('.js')).sort()) {
+    const src = fs.readFileSync(path.join(ROOT, 'web/js', f), 'utf8');
+    for (const m of src.matchAll(/\b(background|backgroundColor|color|border\w*|outline)\s*(:|=)\s*['`][^'`]*(#[0-9a-fA-F]{3,8}\b|rgba?\()[^'`]*['`]/g)) found.push(`${f}: ${m[0]}`);
+  }
+  assert.deepEqual(found, [
+    "emulator.js: color: '#cfe8d4'",
+    'emulator.js: background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`',
+    "fpgaview.js: color = '#4e79a7'",
+    "wizards.js: background: '#c4161c'",
+    "wizards.js: color: '#fff'",
+  ]);
+  // the board emulator's own style sheet: the page's parts (not the board) in theme colours
+  const emu = fs.readFileSync(path.join(ROOT, 'web/js/emulator.js'), 'utf8');
+  for (const sel of ['.emu-bar .sep', '.emu-bar .stat', '.emu-box td', '.emu-log', '.emu-log .error', '.emu-log .warning', '.emu-hint', '.emu-board-note']) {
+    const rules = [...emu.matchAll(new RegExp(`(^|\\} )${sel.replace(/[.*]/g, '\\$&')} \\{([^}]*)\\}`, 'gm'))].map((m) => m[2]);
+    assert.ok(rules.length, sel);
+    for (const r of rules) assert.doesNotMatch(r, /#[0-9a-fA-F]{3,8}\b/, `${sel}: ${r}`);
+  }
+});
+
 test('the Keyboard Shortcuts dialog lists the command palette', () => {
   const src = fs.readFileSync(path.join(ROOT, 'web/js/wizards.js'), 'utf8');
   assert.match(src, /\['Ctrl\/Cmd\+K', 'Command palette: search commands and files'\]/);

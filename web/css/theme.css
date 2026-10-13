@@ -48,6 +48,35 @@
   --wave-cursor: #ffff00;
   --wave-marker: #00c0ff;
   --wave-names-bg: #ffffff;
+
+  /* the pages' and dialogs' own colours, light (the dark theme's in modern.css): never a colour
+     written in the code, so that no light patch or dark text is left in the dark theme (#159) */
+  --note-bg: #fffbe6;       /* a tip, e.g. iMPACT's notes */
+  --note-border: #e6d690;
+  --code-bg: #ffffff;       /* the code / summary a wizard shows */
+  --frame: #cccccc;         /* the frame of a code box, of a list or table in a dialog */
+  --frame-light: #dddddd;
+  --frame-lighter: #eeeeee;
+  --field-bg: #ffffff;      /* the fields of the schematic editor */
+  --field-fg: #000000;
+  --field-border: #7f9db9;
+  --field-bad-bg: #fff0f0;  /* … a value refused */
+  --pin-name: #800000;      /* a pin's name in a table (Symbol Info), as on the sheet */
+  --drive-bg: #fff6dd;      /* the test bench wizard: what the bench drives on a bidirectional port */
+  --release-bg: #e8f0ff;    /* … Z: the bus released */
+  --expected-bg: #eef4ff;   /* … the expected outputs */
+  /* secondary text: notes, states, hints (greys, darkest first) */
+  --grey-1: #333333;
+  --grey-2: #444444;
+  --grey-3: #555555;
+  --grey-4: #666666;
+  --grey-5: #777777;
+  --grey-6: #888888;
+  --grey-7: #999999;
+  --error-fg: #bb0000;      /* an error message in a dialog */
+  --error-fg-2: #c00000;
+  --log-error: #cc0000;     /* the board emulator's messages */
+  --log-warning: #aa6600;
 }
 
 html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font: var(--fs) var(--font); }
@@ -86,5 +115,5 @@ button, input, select, textarea { font: inherit; }
 .tree .row { display: flex; align-items: center; gap: 4px; padding: 1px 4px 1px 0; white-space: nowrap; cursor: default; }
 .tree .row:hover { background: var(--hover); }
 .tree .row.sel { background: var(--accent); color: var(--accent-fg); }
-.tree .twisty { width: 12px; text-align: center; color: #555; font-size: 9px; flex: none; }
+.tree .twisty { width: 12px; text-align: center; color: var(--grey-3); font-size: 9px; flex: none; }
 .tree .ico { width: 16px; height: 16px; flex: none; display: inline-flex; }

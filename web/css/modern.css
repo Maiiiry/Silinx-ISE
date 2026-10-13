@@ -96,6 +96,32 @@ html[data-ui="modern"][data-theme="dark"] {
   --m-shadow: 0 1px 2px rgba(0, 0, 0, .4);
   --m-shadow-lg: 0 16px 40px rgba(0, 0, 0, .55), 0 2px 6px rgba(0, 0, 0, .4);
   --m-focus: 0 0 0 3px rgba(91, 141, 239, .45);
+  /* theme.css's own colours of the pages and dialogs, dark (#159) */
+  --note-bg: rgba(227, 179, 65, .12);
+  --note-border: rgba(227, 179, 65, .4);
+  --code-bg: var(--m-surface-2);
+  --frame: var(--m-border);
+  --frame-light: var(--m-border);
+  --frame-lighter: var(--m-border);
+  --field-bg: var(--m-surface);
+  --field-fg: var(--m-fg);
+  --field-border: var(--m-border-strong);
+  --field-bad-bg: rgba(240, 113, 107, .2);
+  --pin-name: #f0948c;
+  --drive-bg: rgba(227, 179, 65, .16);
+  --release-bg: rgba(91, 141, 239, .1);
+  --expected-bg: rgba(91, 141, 239, .16);
+  --grey-1: #d6dae0;
+  --grey-2: #c8cdd4;
+  --grey-3: #b0b6bf;
+  --grey-4: var(--m-muted);
+  --grey-5: var(--m-muted);
+  --grey-6: var(--m-muted);
+  --grey-7: #7d8592;
+  --error-fg: var(--m-danger);
+  --error-fg-2: var(--m-danger);
+  --log-error: var(--m-danger);
+  --log-warning: var(--m-warning);
   color-scheme: dark;
 }
 
@@ -445,6 +471,9 @@ html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc :is(.sd-table t
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc :is(.sd-table th, .sd-table td) { border-color: var(--m-border); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc .sd-truth td.out { background: rgba(255, 255, 255, .04); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc .sd-truth td.v1 { color: var(--m-success); }
+html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc .btn.on { background: var(--m-accent-soft); border-color: var(--m-accent); }
+html[data-ui="modern"][data-theme="dark"] .sch-editor .lv-editor { background: var(--m-surface-2); color: var(--m-fg); border-color: rgba(76, 192, 107, .5); }
+html[data-ui="modern"][data-theme="dark"] .sch-editor .se-simbar .btn.on { background: rgba(76, 192, 107, .25); border-color: rgba(76, 192, 107, .6); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-simbar { background: rgba(76, 192, 107, .12); border-color: rgba(76, 192, 107, .35); color: var(--m-fg); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .lv-badge { color: var(--m-success); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor :is(.lv-lbl, .lv-time) { color: var(--m-muted); }

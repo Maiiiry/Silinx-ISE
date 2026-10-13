@@ -34,8 +34,8 @@ function injectStyle() {
   document.head.append(h('style', {}, `
 .emu { display: flex; flex-direction: column; height: 100%; background: var(--bg, #f0f0f0); font: 12px var(--font, system-ui); overflow: auto; }
 .emu-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border, #aaa); background: var(--panel-alt, #f7f7f7); flex-wrap: wrap; }
-.emu-bar .sep { width: 1px; height: 20px; background: #ccc; margin: 0 4px; }
-.emu-bar .stat { margin-left: auto; color: #555; font-family: var(--mono, monospace); font-variant-numeric: tabular-nums;
+.emu-bar .sep { width: 1px; height: 20px; background: var(--frame); margin: 0 4px; }
+.emu-bar .stat { margin-left: auto; color: var(--grey-3); font-family: var(--mono, monospace); font-variant-numeric: tabular-nums;
   flex: 1 1 0; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .emu-main { display: flex; gap: 12px; padding: 12px; flex-wrap: wrap; align-items: flex-start; }
 .emu-board { background: linear-gradient(#25603d, #1d4f32); border-radius: 10px; padding: 14px 18px 12px; color: #e9f3ea; box-shadow: 0 2px 8px #0005; min-width: 520px; }
@@ -58,12 +58,12 @@ function injectStyle() {
 .emu-box h4 { margin: 0 0 6px; font-size: 12px; }
 .emu-box table { border-collapse: collapse; width: 100%; font-family: var(--mono, monospace); table-layout: fixed; font-variant-numeric: tabular-nums; }
 .emu-box td { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.emu-box td { padding: 2px 4px; border-bottom: 1px solid #eee; }
-.emu-log { font-family: var(--mono, monospace); max-height: 140px; overflow: auto; white-space: pre-wrap; color: #333; }
-.emu-log .error { color: #c00; } .emu-log .warning { color: #a60; }
-.emu-hint { color: #666; }
+.emu-box td { padding: 2px 4px; border-bottom: 1px solid var(--frame-lighter); }
+.emu-log { font-family: var(--mono, monospace); max-height: 140px; overflow: auto; white-space: pre-wrap; color: var(--grey-1); }
+.emu-log .error { color: var(--log-error); } .emu-log .warning { color: var(--log-warning); }
+.emu-hint { color: var(--grey-4); }
 .emu-board-wrap { display: flex; flex-direction: column; gap: 6px; }
-.emu-board-note { color: #555; font-size: 11px; }
+.emu-board-note { color: var(--grey-3); font-size: 11px; }
 .emu-pcb { position: relative; flex: none; }
 .emu-pcb-art { position: absolute; left: 0; top: 0; }
 .emu-at { position: absolute; transform: translateX(-50%); display: flex; justify-content: center; }
