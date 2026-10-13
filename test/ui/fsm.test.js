@@ -293,3 +293,39 @@ uiTest('State diagram (FSM) in Portuguese: every label of the editor, the panels
   assert.equal(await page.eval((ed) => document.querySelector(`${ed} .fsm-gen`).textContent, ED), 'Gerar HDL');
   await setLang('en');
 });
+
+uiTest('State diagram (FSM): Create Truth Tables with more than 4 output bits makes one table of the outputs (#176)', E, async (page) => {
+  // a Moore machine with 6 output bits (busy, sel[1:0], led[2:0]): one _out table, not _out1 / _out2
+  const m = normalizeFsm({
+    name: 'wide', type: 'moore', lang: 'vhdl', reset: { name: 'rst', active: 'high', sync: true },
+    inputs: [{ name: 'go', width: 1 }],
+    outputs: [{ name: 'busy', width: 1, default: '0' }, { name: 'sel', width: 2, default: '00' }, { name: 'led', width: 3, default: '000' }],
+    states: [
+      { id: 'i', name: 'IDLE', x: 80, y: 80 },
+      { id: 'r', name: 'RUN', x: 260, y: 80, outputs: { busy: '1', sel: '01', led: '101' } },
+      { id: 'd', name: 'DONE', x: 170, y: 220, outputs: { sel: '10', led: '111' } },
+    ],
+    transitions: [{ id: 't1', from: 'i', to: 'r', cond: 'go' }, { id: 't2', from: 'r', to: 'd', cond: '' }, { id: 't3', from: 'd', to: 'i', cond: '!go' }],
+    initial: 'i',
+  });
+  await makeProject(env, { name: 'FsmWide', files: { 'src/wide.fsm.json': JSON.stringify(m, null, 2) } });
+  await page.openProject('FsmWide');
+  await page.eval(() => window.SilinxApp.openFsm('src/wide.fsm.json'));
+  const ED = '.doc:not([hidden]) .fsm-editor';
+  await page.waitFor((ed) => document.querySelector(`${ed} .fsm-tab-btn`), [ED], { what: 'FSM editor' });
+  await page.click(`${ED} .fsm-tab-btn`, { text: 'Tables' });
+  await page.waitForSelector(`${ED} .fsm-mktt`);
+  await page.click(`${ED} .fsm-mktt`);
+  await page.waitFor(() => window.Silinx.fileTree?.includes('src/wide_next.tt.json') && window.Silinx.fileTree.includes('src/wide_out.tt.json'), [], { what: 'truth tables', timeout: 15000 });
+  assert.deepEqual(await page.eval(() => window.Silinx.fileTree.filter((f) => /^src\/wide.*\.tt\.json$/.test(f)).sort()), ['src/wide_next.tt.json', 'src/wide_out.tt.json']);
+  const out = await fsmFile('FsmWide', 'src/wide_out.tt.json');
+  assert.deepEqual(out.inputs, ['q1', 'q0', 'go']);
+  assert.deepEqual(out.outputs, ['busy', 'sel_1', 'sel_0', 'led_2', 'led_1', 'led_0']);
+  // the table is the machine's: each state's outputs (unused code 11: don't cares)
+  const et = encodedTable(m);
+  for (const [k, o] of out.outputs.entries()) assert.equal(out.table[o], et.rows.map((r) => r.unused ? 'X' : r.out[k]).join(''), o);
+  // opened: its 6 outputs in the editor
+  await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'tt:src/wide_out.tt.json'), [], { what: 'the output table opened' });
+  await page.eval(() => window.SilinxApp.openTt('src/wide_out.tt.json'));
+  await page.waitFor(() => document.querySelectorAll('.doc:not([hidden]) .tt-editor .tt-cell[data-out=led_0]').length === 8, [], { what: 'led_0 column' });
+});

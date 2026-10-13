@@ -253,7 +253,10 @@ for (const theme of ['dark', 'light']) {
   }, { timeout: 150000 });
 
   uiTest(`${theme} theme: the ASM, FSM and Truth Table editors`, E, async (page) => {
-    await makeProject(env, { name: `Tools_${theme}` });
+    // (and a truth table of 16 outputs: the output tabs that wrap, the table scrolled to its last column, #176)
+    const outs = Array.from({ length: 16 }, (_, k) => `y${k}`);
+    const wide = { version: 1, name: 'wide', inputs: ['a', 'b', 'c'], outputs: outs, table: Object.fromEntries(outs.map((o, k) => [o, (k * 37 % 256).toString(2).padStart(8, '0')])) };
+    await makeProject(env, { name: `Tools_${theme}`, files: { 'src/wide.tt.json': JSON.stringify(wide) } });
     const { check, bad } = await themed(page, theme);
     await page.openProject(`Tools_${theme}`);
     for (const [item, sel] of [['ASM State Machine Editor…', '.asm-editor'], ['FSM State Diagram Editor…', '.fsm-editor'], ['Truth Table / Karnaugh Map…', '.tt-editor']]) {
@@ -266,6 +269,11 @@ for (const theme of ['dark', 'light']) {
       await page.waitFor((s) => document.querySelector(`.doc:not([hidden]) ${s}`), [sel], { what: item });
       await check(item);
     }
+    await page.eval(() => window.SilinxApp.openTt('src/wide.tt.json'));
+    await page.waitFor(() => document.querySelectorAll('.doc:not([hidden]) .tt-editor .tt-cell[data-out=y15]').length === 8, [], { what: 'the 16-output table' });
+    await check('Truth Table, 16 outputs');
+    await page.eval(() => { const c = document.querySelector('.doc:not([hidden]) .tt-editor .tt-cell[data-out=y15]'); c.scrollIntoView({ inline: 'end', block: 'nearest' }); });
+    await check('Truth Table, 16 outputs, scrolled to y15');
     assert.deepEqual(bad, []);
   });
 
