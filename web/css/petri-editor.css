@@ -1,0 +1,40 @@
+/* Petri net editor (web/js/petri-editor.js): the shared look of asm-editor.css, its own drawing. */
+.petri-editor { --pn-place-fill: color-mix(in srgb, var(--asm-panel) 82%, var(--asm-accent) 18%); --pn-hot: #e0752d; }
+.petri-editor .pn-ico-place { display: inline-block; width: 13px; height: 13px; border-radius: 50%; border: 1.6px solid currentColor; background: var(--pn-place-fill); }
+.petri-editor .pn-ico-trans { display: inline-block; width: 4px; height: 14px; background: currentColor; }
+.petri-editor .pn-tool.active, .petri-editor .pn-tab-btn.active { outline: 2px solid var(--asm-accent); outline-offset: -2px; }
+.petri-editor .pn-canvas.pn-adding { cursor: crosshair; }
+.petri-editor .pn-place, .petri-editor .pn-trans { cursor: move; }
+.petri-editor .pn-circle { fill: var(--pn-place-fill); stroke: var(--asm-fg); stroke-width: 1.6; }
+.petri-editor .pn-place:hover .pn-circle, .petri-editor .pn-trans:hover .pn-bar { stroke: var(--asm-accent); }
+.petri-editor .pn-place.sel .pn-circle, .petri-editor .pn-trans.sel .pn-bar { stroke: var(--asm-accent); stroke-width: 2.6; }
+.petri-editor .pn-place.from .pn-circle, .petri-editor .pn-trans.from .pn-bar { stroke: var(--pn-hot); stroke-width: 2.6; }
+.petri-editor .pn-token { fill: var(--asm-fg); pointer-events: none; }
+.petri-editor .pn-count { fill: var(--asm-fg); font: 700 14px var(--asm-mono); pointer-events: none; }
+.petri-editor .pn-bar { fill: var(--asm-fg); stroke: var(--asm-fg); stroke-width: 1; }
+.petri-editor .pn-trans.enabled .pn-bar { fill: var(--asm-warn); stroke: var(--asm-warn); }
+.petri-editor .pn-trans.ready .pn-bar { fill: var(--asm-ok); stroke: var(--asm-ok); cursor: pointer; }
+.petri-editor .pn-trans.fired .pn-bar { stroke: var(--pn-hot); stroke-width: 3; }
+.petri-editor .pn-name { fill: var(--asm-fg); font: 700 12px system-ui, -apple-system, "Segoe UI", sans-serif; pointer-events: none; }
+.petri-editor .pn-guard, .petri-editor .pn-outs { fill: var(--asm-muted); font: 11px var(--asm-mono); pointer-events: none; }
+.petri-editor .pn-cap { fill: var(--asm-muted); font: 10px var(--asm-mono); pointer-events: none; }
+.petri-editor .pn-arc { cursor: pointer; }
+.petri-editor .pn-arc-hit { stroke: transparent; stroke-width: 10; }
+.petri-editor .pn-arc-line { stroke: color-mix(in srgb, var(--asm-fg) 85%, transparent); stroke-width: 1.6; fill: none; }
+.petri-editor .pn-arc.sel .pn-arc-line { stroke: var(--asm-accent); stroke-width: 2.6; }
+.petri-editor .pn-arc-line.pn-ghost { stroke-dasharray: 6 4; pointer-events: none; }
+.petri-editor .pn-arrowhead { fill: color-mix(in srgb, var(--asm-fg) 85%, transparent); }
+.petri-editor .pn-inhib { fill: var(--asm-bg); stroke: color-mix(in srgb, var(--asm-fg) 85%, transparent); stroke-width: 1.6; }
+.petri-editor .pn-weight { fill: var(--asm-fg); font: 700 11px var(--asm-mono); pointer-events: none; }
+.petri-editor .pn-link { display: inline-flex; align-items: center; font-size: 12px; }
+.petri-editor .pn-link .gen-banner { margin-left: 4px; padding: 2px 8px; border: 1px solid var(--asm-border); border-radius: 4px; }
+.petri-editor .pn-link .gen-banner a { color: var(--asm-accent); cursor: pointer; text-decoration: underline; }
+.petri-editor .pn-panel-tools { display: inline-flex; gap: 4px; margin-left: 8px; }
+.petri-editor .pn-panel-body { padding: 6px 10px; overflow: auto; color: var(--asm-fg); }
+.petri-editor .pn-sim-row { margin: 3px 0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.petri-editor .pn-sim-ins { display: inline-flex; gap: 12px; flex-wrap: wrap; }
+.petri-editor .pn-inline { display: inline-flex; gap: 4px; align-items: center; }
+.petri-editor .pn-num { width: 70px; }
+.petri-editor .pn-dead { color: var(--asm-danger); font-weight: 700; }
+.petri-editor .pn-log { margin: 4px 0 0 18px; padding: 0; font: 11px var(--asm-mono); color: var(--asm-muted); }
+.petri-editor .pn-code { margin: 0; }

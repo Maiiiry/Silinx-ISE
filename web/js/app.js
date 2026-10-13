@@ -252,7 +252,7 @@ function renderHierarchy() {
     // "label - module" like ISE; just the name when the instance is labelled with the module name
     const label = instName && instName.toLowerCase() !== String(modName).toLowerCase() ? `${instName} - ${modName}` : modName;
     // a drawn source without an HDL file (#177): the module is the drawing itself
-    const drawn = info && /\.(sch|asm|tt|fsm)\.json$/.test(file) ? file : null;
+    const drawn = info && /\.(sch|asm|tt|fsm|pn)\.json$/.test(file) ? file : null;
     const sch = drawn || (info && S.hdlToSch?.[file]);
     const schBase = sch && (drawn || S.schBase?.[sch] !== 'hdl');
     const viewIco = viewIcon(sch);
@@ -264,12 +264,12 @@ function renderHierarchy() {
       onContext: e => (drawn ? viewContextMenu(e, drawn) : moduleContextMenu(e, modName, file)),
     });
     parentUl.append(it.li);
-    if (sch && schBase) {
+    if (sch && schBase && !drawn) {
       // the synchronized HDL file under its schematic
       const hl = treeItem({ label: file.split('/').pop(), meta: '(synchronized HDL)', ico: info.lang === 'vhdl' ? 'vhdl' : 'verilog', key: `hdl:${path}`,
         onSelect: () => select({ type: 'module', module: modName, file, path, sch }), onOpen: () => openFile(file, info.line), onContext: e => moduleContextMenu(e, modName, file) });
       hl.setLeaf(); it.ul.append(hl.li);
-    } else if (sch) {
+    } else if (sch && !drawn) {
       // the synchronized schematic under its HDL file
       const sl = treeItem({ label: sch.split('/').pop(), meta: `(synchronized ${viewNoun(sch)})`, ico: viewIco, key: `schv:${path}`,
         onSelect: () => select({ type: 'module', module: modName, file, path, sch }), onOpen: () => openView(sch), onContext: e => moduleContextMenu(e, modName, file) });
@@ -277,7 +277,7 @@ function renderHierarchy() {
     }
     if (info && depth < 30) {
       const kids = instancesOf(info.mod);
-      if (!kids.length && !sch) it.setLeaf();
+      if (!kids.length && (!sch || drawn)) it.setLeaf();
       for (const k of kids) addModule(it.ul, k.module, k.name, depth + 1, `${path}/${k.name}`);
     } else it.setLeaf();
   };
@@ -309,6 +309,10 @@ function renderHierarchy() {
   }
   for (const f of (S.fileTree || []).filter(f => /\.fsm\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
     const it = treeItem({ label: f.split('/').pop(), ico: 'fsm', key: `fsm:${f}`, onSelect: () => select({ type: 'fsm', file: f }), onOpen: () => openFsm(f), onContext: e => fsmContextMenu(e, f) });
+    it.setLeaf(); devItem.ul.append(it.li);
+  }
+  for (const f of (S.fileTree || []).filter(f => /\.pn\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
+    const it = treeItem({ label: f.split('/').pop(), ico: 'petri', key: `pn:${f}`, onSelect: () => select({ type: 'pn', file: f }), onOpen: () => openPetri(f), onContext: e => petriContextMenu(e, f) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
   // files that failed to parse into any unit
@@ -502,7 +506,7 @@ setActionRunner((label, fn) => (NOT_RECORDED.test(String(label || '')) ? fn() : 
 
 // Undo / Redo (Edit menu, toolbar, Ctrl+Z / Ctrl+Y outside an editor): the project's last command
 // when it is newer than the last edit of the active document, else the document's own undo
-const docEditor = d => d && (d.editor ? { undo: () => d.editor.exec('undo'), redo: () => d.editor.exec('redo') } : d.schEditor || d.asmEditor || d.fsmEditor || d.ttEditor || d.pinPlanner || null);
+const docEditor = d => d && (d.editor ? { undo: () => d.editor.exec('undo'), redo: () => d.editor.exec('redo') } : d.schEditor || d.asmEditor || d.fsmEditor || d.ttEditor || d.petriEditor || d.pinPlanner || null);
 const undoesProject = () => history.canUndo() && !(S.active?._editedAt > history.lastAt() && docEditor(S.active));
 const redoesProject = () => history.canRedo() && !(S.active?._editedAt > history.redoAt() && docEditor(S.active));
 async function projectUndo() {
@@ -571,6 +575,10 @@ function selectionProcesses() {
   if (sel.type === 'asm') return [
     { id: 'asm-open', label: 'View/Edit State Diagram (ASM)', ico: 'asm', run: () => openAsm(sel.file) },
     { id: 'asm-hdl', label: 'Convert to HDL', ico: 'template', run: () => convertAsmToHdl(sel.file) },
+  ];
+  if (sel.type === 'pn') return [
+    { id: 'pn-open', label: 'View/Edit Petri Net', ico: 'petri', run: () => openPetri(sel.file) },
+    { id: 'pn-hdl', label: 'Generate HDL file', ico: 'template', run: () => generatePetriHdl(sel.file) },
   ];
   if (sel.type === 'fsm') return [
     { id: 'fsm-open', label: 'View/Edit State Diagram (FSM)', ico: 'fsm', run: () => openFsm(sel.file) },
@@ -1318,7 +1326,7 @@ async function flushDoc(doc, opts) {
     if (doc._edits !== edits) setDirty(doc, true);
     // a drawn source without an HDL file: its module follows (#177)
     const vp = docPath(doc);
-    if (vp && /\.(sch|asm|tt|fsm)\.json$/.test(vp) && !S.schOwners?.[vp] && S.project) {
+    if (vp && /\.(sch|asm|tt|fsm|pn)\.json$/.test(vp) && !S.schOwners?.[vp] && S.project) {
       try { S.viewTexts = { ...(S.viewTexts || {}), [vp]: await api.readFile(S.project.name, vp) }; compileProject(); renderHierarchy(); } catch { /* read later */ }
     }
   } catch (e) {
@@ -1356,7 +1364,7 @@ const inProject = p => S.fileTree?.includes(p);
 const REOPEN = [
   [/^file:(.+)$/, p => inProject(p) && openFile(p)], [/^sch:(.+)$/, p => inProject(p) && openSch(p)],
   [/^asm:(.+)$/, p => inProject(p) && openAsm(p)], [/^tt:(.+)$/, p => inProject(p) && openTt(p)],
-  [/^fsm:(.+)$/, p => inProject(p) && openFsm(p)], [/^rtl:(.+)$/, m => moduleInfo(m) && openSchematic(m)],
+  [/^fsm:(.+)$/, p => inProject(p) && openFsm(p)], [/^pn:(.+)$/, p => inProject(p) && openPetri(p)], [/^rtl:(.+)$/, m => moduleInfo(m) && openSchematic(m)],
   [/^isim:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && runSimulation(mod, model || undefined)],
   [/^emulator:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && openEmulator(mod, { model: model || null })],
   [/^summary$/, () => openSummary()], [/^pins$/, () => S.project.top && openPinPlanner()], [/^impact$/, () => openImpact()],
@@ -1408,6 +1416,7 @@ export async function openFile(path, line, col) {
   if (path.endsWith('.sch.json')) return openSch(path);
   if (path.endsWith('.tt.json')) return openTt(path);
   if (path.endsWith('.fsm.json')) return openFsm(path);
+  if (path.endsWith('.pn.json')) return openPetri(path);
   const id = `file:${path}`;
   let doc = findDoc(id);
   if (!doc) {
@@ -2417,6 +2426,87 @@ async function fsmTruthTables(fsmPath) {
   for (const f of made.reverse()) await openTt(f);
 }
 
+// ---- Petri nets (.pn.json): a module of the project by themselves (core/view-hdl.js), their HDL file
+// optional (Generate HDL file: kept in sync with the net, one way)
+export async function openPetri(path) {
+  const id = `pn:${path}`;
+  if (findDoc(id)) return activateDoc(findDoc(id));
+  let model;
+  try { model = JSON.parse(await api.readFile(S.project.name, path)); }
+  catch (e) { toast(`Cannot open ${path}: ${e.message}`, 'error'); return; }
+  const { mountPetriEditor } = await import('./petri-editor.js');
+  openDoc({
+    id, path, title: path.split('/').pop(), icon: 'petri',
+    create(el, d) {
+      const host = h('div', { class: 'doc-body' });
+      el.append(host);
+      const ed = mountPetriEditor(host, {
+        model,
+        onChange: () => setDirty(d, true),
+        linkInfo: () => { const f = S.schOwners?.[path]; return f ? { file: f } : null; },
+        onOpenFile: f => openFile(f),
+        onGenerate: ({ lang }) => generatePetriHdl(path, lang),
+      });
+      d.petriEditor = ed;
+      return {
+        save: async () => {
+          const m = ed.getModel();
+          await api.writeFile(S.project.name, path, JSON.stringify(m, null, 2)); setDirty(d, false);
+          if (m.generatedFile && S.fileTree.includes(m.generatedFile)) await syncHdlFromPetri(path, m).catch(e => log(`WARNING: HDL not synchronized: ${e.message}`, 'warn'));
+        },
+        destroy: () => ed.destroy?.(),
+        onActivate: () => setTimeout(() => ed.fit?.(), 30),
+      };
+    },
+  });
+}
+async function syncHdlFromPetri(path, m) {
+  const { generatePetri } = await import('/core/petri.js');
+  let g;
+  try { g = generatePetri(m, m.lang, { source: path.split('/').pop() }); } catch { return; }   // (errors: shown in the editor)
+  if (S.sources.find(x => x.path === m.generatedFile)?.text === g.code) return;
+  await api.writeFile(S.project.name, m.generatedFile, g.code);
+  const src = S.sources.find(x => x.path === m.generatedFile); if (src) src.text = g.code;
+  refreshOpenEditor(m.generatedFile, g.code);
+  compileProject(); markStale();
+}
+// "Generate HDL file": the module written next to the net, kept in sync with it
+async function generatePetriHdl(path, lang) {
+  const { generatePetri, petriErrors, normalizePetri } = await import('/core/petri.js');
+  const d = findDoc(`pn:${path}`);
+  if (d) await flushDoc(d);
+  const m = normalizePetri(d?.petriEditor ? d.petriEditor.getModel() : JSON.parse(await api.readFile(S.project.name, path)));
+  const L = lang || m.lang;
+  const errs = petriErrors({ ...m, lang: L });
+  if (errs.length) { alertDlg('Generate HDL file', errs.map(x => x.message).join('\n'), 'error'); return; }
+  const g = generatePetri(m, L, { source: path.split('/').pop() });
+  const dir = path.includes('/') ? path.replace(/\/[^/]*$/, '') : 'src';
+  const target = `${dir}/${g.filename}`;
+  const owned = m.generatedFile && S.fileTree.includes(m.generatedFile) ? m.generatedFile : null;
+  if (S.fileTree.includes(target) && target !== owned && !await confirmDlg('Generate HDL file', `${target} already exists and is not generated from this Petri net. Overwrite it?`)) return;
+  S.syncing = true;
+  try {
+    if (owned && owned !== target) { closeDocByPath(owned); await api.deleteFile(S.project.name, owned); }
+    await api.writeFile(S.project.name, target, g.code);
+    const next = { ...m, lang: L, generatedFile: target };
+    await api.writeFile(S.project.name, path, JSON.stringify(next, null, 2));
+    if (d?.petriEditor) { d.petriEditor.setModel(next); setDirty(d, false); }
+    log(`Petri net '${path}' -> ${L.toUpperCase()} module ${target} (kept in sync with the net)`, 'ok');
+  } finally { S.syncing = false; }
+  await reloadProject(false);
+  markStale();
+  refreshOpenEditor(target, g.code);
+}
+function petriContextMenu(e, file) {
+  popupMenu([
+    { label: 'Open', action: () => openPetri(file) },
+    S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
+    { label: 'Rename…', action: () => renameDialog(file) },
+    { label: 'Generate HDL file', action: () => generatePetriHdl(file) },
+    { label: 'Remove from Project', action: () => removeFile(file) },
+  ].filter(Boolean), e.clientX, e.clientY);
+}
+
 function fsmContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openFsm(file) },
@@ -2483,12 +2573,13 @@ export async function openSch(path) {
 const isAsm = p => /\.asm\.json$/i.test(p || '');
 const isTt = p => /\.tt\.json$/i.test(p || '');
 const isFsm = p => /\.fsm\.json$/i.test(p || '');
-const viewNoun = p => (isAsm(p) ? 'state machine' : isTt(p) ? 'truth table' : isFsm(p) ? 'state diagram' : 'schematic');
-const viewTitle = p => (isAsm(p) ? 'State Machine' : isTt(p) ? 'Truth Table' : isFsm(p) ? 'State Diagram' : 'Schematic');
-const viewIcon = p => (isAsm(p) ? 'asm' : isTt(p) ? 'truthtable' : isFsm(p) ? 'fsm' : 'schematic');
-const viewKind = p => (isAsm(p) ? 'asm' : isTt(p) ? 'tt' : isFsm(p) ? 'fsm' : 'sch');
-const viewContextMenu = (e, f) => (isAsm(f) ? asmContextMenu : isTt(f) ? ttContextMenu : isFsm(f) ? fsmContextMenu : schContextMenu)(e, f);
-function openView(p) { return isAsm(p) ? openAsm(p) : isTt(p) ? openTt(p) : isFsm(p) ? openFsm(p) : openSch(p); }
+const isPn = p => /\.pn\.json$/i.test(p || '');
+const viewNoun = p => (isAsm(p) ? 'state machine' : isTt(p) ? 'truth table' : isFsm(p) ? 'state diagram' : isPn(p) ? 'Petri net' : 'schematic');
+const viewTitle = p => (isAsm(p) ? 'State Machine' : isTt(p) ? 'Truth Table' : isFsm(p) ? 'State Diagram' : isPn(p) ? 'Petri Net' : 'Schematic');
+const viewIcon = p => (isAsm(p) ? 'asm' : isTt(p) ? 'truthtable' : isFsm(p) ? 'fsm' : isPn(p) ? 'petri' : 'schematic');
+const viewKind = p => (isAsm(p) ? 'asm' : isTt(p) ? 'tt' : isFsm(p) ? 'fsm' : isPn(p) ? 'pn' : 'sch');
+const viewContextMenu = (e, f) => (isAsm(f) ? asmContextMenu : isTt(f) ? ttContextMenu : isFsm(f) ? fsmContextMenu : isPn(f) ? petriContextMenu : schContextMenu)(e, f);
+function openView(p) { return isAsm(p) ? openAsm(p) : isTt(p) ? openTt(p) : isFsm(p) ? openFsm(p) : isPn(p) ? openPetri(p) : openSch(p); }
 
 // ---- schematic <-> HDL synchronization
 // Structure of a schematic: symbols (name, type, params), ports and net connectivity. When an HDL
@@ -2676,7 +2767,7 @@ async function setViewAsTop(path) {
   const r = viewHdl(path, S.viewTexts?.[path] ?? await api.readFile(S.project.name, path), {});
   alertDlg('Set as Top Module', r?.errors?.length ? `${path.split('/').pop()} cannot be the top yet:\n${r.errors.slice(0, 8).join('\n')}` : `${path.split('/').pop()} defines no module that can be the top.`, 'error');
 }
-const viewSel = () => (['sch', 'asm', 'tt', 'fsm'].includes(S.sel?.type) ? S.sel.file : null);
+const viewSel = () => (['sch', 'asm', 'tt', 'fsm', 'pn'].includes(S.sel?.type) ? S.sel.file : null);
 const topOfView = path => { const gen = S.schOwners?.[path] || path; return S.modules.find(m => m.file === gen && m.kind !== 'package')?.name || null; };
 
 // A schematic without HDL yet: generate its HDL file and make the HDL the base (schematic kept, in sync).
@@ -2774,7 +2865,7 @@ function renameSymbolIn(d, lang, path) {
 }
 
 // ---- rename a source (file and/or the module it defines), updating everything that refers to it
-const extOf = p => (/\.(sch|asm|tt|fsm)\.json$/i.exec(p) || /\.[^./]+$/.exec(p) || [''])[0];
+const extOf = p => (/\.(sch|asm|tt|fsm|pn)\.json$/i.exec(p) || /\.[^./]+$/.exec(p) || [''])[0];
 const dirOf = p => (p.includes('/') ? p.replace(/\/[^/]*$/, '/') : '');
 
 async function renameDialog(file, mod = null) {
@@ -2821,7 +2912,7 @@ async function renameSource(from, to, oldMod, newMod) {
   const changed = new Map();                      // path -> new text
   const moved = new Map();                        // old path -> new path
   const views = {};                               // .sch.json / .asm.json -> parsed
-  for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm)\.json$/i.test(f))) {
+  for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm|pn)\.json$/i.test(f))) {
     try { views[f] = JSON.parse(await api.readFile(pj.name, f)); } catch { /* skip */ }
   }
   S.syncing = true;
@@ -3045,7 +3136,7 @@ async function reloadProjectNow(render = true) {
   S.schBase = {};
   // schematics (.sch.json) and ASM charts (.asm.json) linked to an HDL file ("views" kept in sync)
   S.viewTexts = {};
-  for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm)\.json$/.test(f))) {
+  for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm|pn)\.json$/.test(f))) {
     try {
       const t = await api.readFile(pj.name, f);
       S.viewTexts[f] = t;
@@ -3188,7 +3279,7 @@ async function renameFolder(dir) {
   if (S.fileTree.some(f => f === to || f.startsWith(`${to}/`))) return alertDlg('Rename Folder', `'${to}' already exists.`);
   await saveAll();
   const remap = p => (p && p.startsWith(`${dir}/`) ? to + p.slice(dir.length) : p);
-  const views = S.fileTree.filter(f => /\.(sch|asm|tt|fsm)\.json$/i.test(f));
+  const views = S.fileTree.filter(f => /\.(sch|asm|tt|fsm|pn)\.json$/i.test(f));
   // the editors of moved files are closed and reopened at their new paths
   const reopen = [];
   for (const d of [...S.docs]) if (d.path && d.path.startsWith(`${dir}/`)) { reopen.push(remap(d.path)); d.dirty = false; clearTimeout(d._autosave); await closeDoc(d); }
@@ -3326,6 +3417,7 @@ function setupMenus() {
       { label: 'ASM State Machine Editor…', icon: icon('asm'), action: () => wiz.newSourceWizard({ type: 'asm' }), disabled: hasPj },
       { label: 'Truth Table / Karnaugh Map…', icon: icon('truthtable'), action: () => wiz.newSourceWizard({ type: 'tt' }), disabled: hasPj },
       { label: 'FSM State Diagram Editor…', icon: icon('fsm'), action: () => wiz.newSourceWizard({ type: 'fsm' }), disabled: hasPj },
+      { label: 'Petri Net Editor…', icon: icon('petri'), action: () => wiz.newSourceWizard({ type: 'petri' }), disabled: hasPj },
       { label: 'I/O Pin Planning', icon: icon('pins'), action: () => openPinPlanner(S.sel?.module), disabled: hasPj },
       { label: 'iMPACT (Configure Target Device)', icon: icon('impact'), action: () => openImpact() },
       { label: 'Board Emulator', icon: icon('board'), action: () => openEmulator(S.project.top), disabled: hasPj },
@@ -3549,7 +3641,7 @@ async function boot() {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (S.active) flushDoc(S.active); }  // nothing to do: edits are saved automatically
     // Ctrl/Cmd+Z outside an editor or text field (the diagram editors handle their own keys): undo the
     // project's last command when it is newer than the active document's last edit
-    const outside = !e.defaultPrevented && !e.target.closest?.('.CodeMirror, input, textarea, select, [contenteditable], .sch-editor, .asm-editor, .fsm-editor, .tt-editor, .pin-planner') && !document.querySelector('.dlg-overlay');
+    const outside = !e.defaultPrevented && !e.target.closest?.('.CodeMirror, input, textarea, select, [contenteditable], .sch-editor, .asm-editor, .fsm-editor, .tt-editor, .petri-editor, .pin-planner') && !document.querySelector('.dlg-overlay');
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && outside && undoesProject()) { e.preventDefault(); projectUndo(); }
     // Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z outside an editor: redo it
     if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) && outside && redoesProject()) { e.preventDefault(); projectRedo(); }
@@ -3590,6 +3682,6 @@ async function boot() {
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});
 }
 
-export const app = { showInSim, saveAll, openTt, openFsm, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, openMode, S };
+export const app = { showInSim, saveAll, openTt, openFsm, openPetri, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, openMode, S };
 window.SilinxApp = app;
 boot();

@@ -1,0 +1,119 @@
+// Petri nets (core/petri.js): the model, its validation, the token game and the clock step, the HDL
+// generated (VHDL and Verilog, simulated against the reference model with random inputs), PNML.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  newPetri, normalizePetri, validatePetri, initialMarking, enabledTransitions, isEnabled, fire, clockStep, isDeadlock,
+  outputsOf, generatePetri, toPnml, fromPnml,
+} from '../core/petri.js';
+import { simulate } from '../core/compile.js';
+
+// a producer / consumer over a buffer of 3, pulses when one is put, the buffer's state as outputs
+const prodCons = () => normalizePetri({
+  name: 'prodcons', inputs: [{ name: 'p', width: 1 }, { name: 'c', width: 1 }], outputs: [{ name: 'some', width: 1 }, { name: 'room', width: 1 }, { name: 'put', width: 1 }],
+  places: [{ id: 'f', name: 'free', tokens: 3, capacity: 3, outputs: { room: '1' } }, { id: 'b', name: 'buf', capacity: 3, outputs: { some: '1' } }],
+  transitions: [{ id: 'tp', name: 'produce', guard: 'p', outputs: { put: '1' } }, { id: 'tc', name: 'consume', guard: 'c' }],
+  arcs: [{ id: 'a1', from: 'f', to: 'tp' }, { id: 'a2', from: 'tp', to: 'b' }, { id: 'a3', from: 'b', to: 'tc' }, { id: 'a4', from: 'tc', to: 'f' }],
+});
+// a conflict decided by priority, a weight of 2, an inhibitor arc, a 2-bit output
+const conflict = () => normalizePetri({
+  name: 'conflict', inputs: [{ name: 'x', width: 1 }, { name: 'y', width: 1 }], outputs: [{ name: 'st', width: 2 }],
+  places: [{ id: 'a', name: 'a', tokens: 2, capacity: 2, outputs: { st: '1' } }, { id: 'b', name: 'b', outputs: { st: '2' } }, { id: 'c', name: 'c', capacity: 2 }],
+  transitions: [{ id: 't1', name: 'both', guard: 'x' }, { id: 't2', name: 'one', guard: 'y' }, { id: 't3', name: 'back', guard: '' }, { id: 't4', name: 'home', guard: '!x & !y' }],
+  arcs: [{ id: 'a1', from: 'a', to: 't1', weight: 2 }, { id: 'a2', from: 't1', to: 'b' }, { id: 'a3', from: 'a', to: 't2' }, { id: 'a4', from: 't2', to: 'c' },
+    { id: 'a5', from: 'c', to: 't3' }, { id: 'a6', from: 'b', to: 't3', inhibitor: true }, { id: 'a7', from: 't3', to: 'a' }, { id: 'a8', from: 'b', to: 't4' }, { id: 'a9', from: 't4', to: 'a', weight: 2 }],
+});
+
+test('the model: a new net is valid; errors and warnings', () => {
+  assert.deepEqual(validatePetri(newPetri('ctl')), []);
+  const bad = normalizePetri({ name: 'bad', inputs: [{ name: 'x' }], outputs: [], places: [{ id: 'p', name: 'p', tokens: 3, capacity: 2, outputs: { z: '1' } }, { id: 'q', name: 'q' }],
+    transitions: [{ id: 't', name: 't', guard: 'x &' }], arcs: [{ id: 'a', from: 'p', to: 'q' }, { id: 'b', from: 't', to: 'p', inhibitor: true }] });
+  const msgs = validatePetri(bad).map(d => `${d.severity}: ${d.message}`);
+  for (const re of [/error: place p: 3 initial tokens, more than its capacity 2/, /error: transition t: guard 'x &'/, /error: p: 'z' is not an output of the net/,
+    /error: an arc joins a place to a transition or a transition to a place/, /error: an inhibitor arc goes from a place to a transition/, /warning: transition t takes no token/])
+    assert.ok(msgs.some(m => re.test(m)), `${re} in ${msgs.join(' | ')}`);
+});
+
+test('the token game: enabled transitions (tokens, weights, inhibitors, capacities, guards), fire, deadlock', () => {
+  const m = conflict();
+  let k = initialMarking(m);
+  assert.deepEqual(k, { a: 2, b: 0, c: 0 });
+  assert.deepEqual(enabledTransitions(m, k), ['t1', 't2'], 'whatever the inputs');
+  assert.deepEqual(enabledTransitions(m, k, { x: 0n, y: 1n }), ['t2']);
+  k = fire(m, k, 't2'); k = fire(m, k, 't2');
+  assert.deepEqual(k, { a: 0, b: 0, c: 2 });
+  assert.equal(isEnabled(m, k, 't2'), false, 'no token left');
+  assert.equal(isEnabled(m, k, 't3'), true, 'b empty: not inhibited');
+  k = fire(m, { a: 0, b: 1, c: 1 }, 't4');
+  assert.deepEqual(k, { a: 2, b: 0, c: 1 }, 'a weight of 2 put');
+  assert.equal(isEnabled(m, k, 't3'), false, 'a is full: t3 would put a third token');
+  assert.equal(isEnabled(m, { a: 0, b: 1, c: 1 }, 't3'), false, 'inhibited while b holds a token');
+  assert.equal(isEnabled(m, { a: 2, b: 0, c: 2 }, 't2'), false, 'c is full (capacity 2)');
+  assert.ok(isDeadlock(normalizePetri({ name: 'd', places: [{ id: 'p', name: 'p' }], transitions: [{ id: 't', name: 't' }], arcs: [{ id: 'a', from: 'p', to: 't' }] }), { p: 0 }));
+  assert.deepEqual(outputsOf(m, { a: 1, b: 1, c: 0 }), { st: 3n }, 'the values of the marked places ORed');
+});
+
+test('the clock step: in priority order, tokens taken only if still there, tokens put at the end', () => {
+  const m = conflict();
+  // x and y: t1 (higher priority) takes both tokens of a, t2 finds none
+  assert.deepEqual(clockStep(m, { a: 2, b: 0, c: 0 }, { x: 1n, y: 1n }), { marking: { a: 0, b: 1, c: 0 }, fired: ['t1'] });
+  // y only: t2 takes one token (one firing a step)
+  assert.deepEqual(clockStep(m, { a: 2, b: 0, c: 0 }, { x: 0n, y: 1n }), { marking: { a: 1, b: 0, c: 1 }, fired: ['t2'] });
+  // a token put this step is not taken in the same step (t3 puts into a, t2 does not see it)
+  assert.deepEqual(clockStep(m, { a: 0, b: 0, c: 1 }, { x: 0n, y: 1n }), { marking: { a: 1, b: 0, c: 0 }, fired: ['t3'] });
+});
+
+function testbench(m, vectors, lower) {
+  const nm = s => (lower ? s.toLowerCase() : s);
+  const vec = w => (w > 1 ? `[${w - 1}:0] ` : '');
+  const L = ['module tb;', '  reg clk = 0; reg rst = 1;'];
+  for (const i of m.inputs) L.push(`  reg ${vec(i.width)}i_${i.name} = 0;`);
+  for (const o of m.outputs) L.push(`  wire ${vec(o.width)}o_${o.name};`);
+  const conns = [`.${nm(m.clock)}(clk)`, `.${nm(m.reset.name)}(rst)`, ...m.inputs.map(i => `.${nm(i.name)}(i_${i.name})`), ...m.outputs.map(o => `.${nm(o.name)}(o_${o.name})`)];
+  L.push(`  ${nm(m.name)} dut(${conns.join(', ')});`, '  always #5 clk = ~clk;', '  initial begin', '    #12 rst = 0;');
+  for (const v of vectors) L.push(`    ${m.inputs.map(i => `i_${i.name} = ${i.width}'d${v[i.name]};`).join(' ')} #2 $display("${m.outputs.map(() => '%b').join('_')}", ${m.outputs.map(o => `o_${o.name}`).join(', ')}); @(posedge clk); #1;`);
+  L.push('    $finish;', '  end', 'endmodule');
+  return L.join('\n');
+}
+const fmt = (m, o) => m.outputs.map(x => o[x.name].toString(2).padStart(x.width, '0')).join('_');
+function model(m, vectors) {
+  let k = initialMarking(m), fired = [];
+  const out = [];
+  for (const v of vectors) {
+    out.push(fmt(m, outputsOf(m, k, fired)));
+    const env = Object.fromEntries(Object.entries(v).map(([n, x]) => [n, BigInt(x)]));
+    ({ marking: k, fired } = clockStep(m, k, env));
+  }
+  return out;
+}
+let seed = 7;
+const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed; };
+
+test('the HDL simulates like the net: VHDL and Verilog, random inputs (counters, pulses, priorities, inhibitors)', () => {
+  for (const m of [normalizePetri(newPetri('ctl')), prodCons(), conflict()]) {
+    const vectors = Array.from({ length: 60 }, () => Object.fromEntries(m.inputs.map(i => [i.name, rnd() % (1 << i.width)])));
+    const want = model(m, vectors);
+    for (const lang of ['vhdl', 'verilog']) {
+      const g = generatePetri(m, lang);
+      const r = simulate([{ path: lang === 'vhdl' ? 'dut.vhd' : 'dut.v', text: g.code }, { path: 'tb.v', text: testbench(m, vectors, lang === 'vhdl') }], 'tb', { until: 1e8 });
+      assert.deepEqual(r.errors, [], `${m.name} ${lang}: ${r.errors.join('; ')}`);
+      const got = r.sim.log.map(e => String(e.text).trim()).filter(s => /^[01xz_]+$/.test(s));
+      assert.deepEqual(got, want, `${m.name} ${lang}`);
+    }
+  }
+});
+
+test('PNML: exported and read back the same; a net from another tool (no Silinx parts) read as a P/T net', () => {
+  for (const m of [prodCons(), conflict()]) assert.deepEqual(fromPnml(toPnml(m)), m);
+  const pipe = `<?xml version="1.0"?><pnml><net id="Net-One" type="P/T net">
+    <place id="P0"><graphics><position x="90" y="60"/></graphics><name><value>P0</value></name><initialMarking><value>Default,2</value><text>2</text></initialMarking></place>
+    <place id="P1"><name><text>P1</text></name></place>
+    <transition id="T0"><name><text>T0</text></name><graphics><position x="210" y="60"/></graphics></transition>
+    <arc id="P0 to T0" source="P0" target="T0"><inscription><text>2</text></inscription></arc>
+    <arc id="T0 to P1" source="T0" target="P1"/></net></pnml>`;
+  const n = fromPnml(pipe);
+  assert.equal(n.name, 'Net_One');
+  assert.deepEqual(n.places.map(p => [p.id, p.name, p.tokens, p.capacity, p.x, p.y]), [['P0', 'P0', 2, 2, 90, 60], ['P1', 'P1', 0, 1, n.places[1].x, n.places[1].y]]);
+  assert.deepEqual(n.arcs.map(a => [a.from, a.to, a.weight]), [['P0', 'T0', 2], ['T0', 'P1', 1]]);
+  assert.deepEqual(clockStep(n, initialMarking(n), {}).marking, { P0: 0, P1: 1 });
+});

@@ -473,6 +473,7 @@ const SOURCE_TYPES = [
   { id: 'schwiz', label: 'Schematic (Wizard)', ico: 'schematic', ext: '.sch.json', dir: 'src' },
   { id: 'fsm', label: 'State Machine (FSM)', ico: 'fsm', ext: '.fsm.json', dir: 'src' },
   { id: 'asm', label: 'State Machine (ASM)', ico: 'asm', ext: '.asm.json', dir: 'src' },
+  { id: 'petri', label: 'Petri Net', ico: 'petri', ext: '.pn.json', dir: 'src' },
   { id: 'tb', label: 'Test Bench (HDL)', ico: 'vhdl', ext: null, dir: 'sim' },
   { id: 'tbwiz', label: 'Test Bench (Wizard)', ico: 'template', ext: null, dir: 'sim' },
   { id: 'ucf', label: 'Implementation Constraints File', ico: 'ucf', ext: '.ucf', dir: 'constraints' },
@@ -663,6 +664,11 @@ export async function newSourceWizard({ type } = {}) {
       text = JSON.stringify(newFsm(n.replace(/[^A-Za-z0-9_]/g, '_'), pj.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl'), null, 2);
       break;
     }
+    case 'petri': {
+      const { newPetri } = await import('/core/petri.js');
+      text = JSON.stringify(newPetri(n.replace(/[^A-Za-z0-9_]/g, '_'), pj.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl'), null, 2);
+      break;
+    }
     case 'tt': {
       const { newTable } = await import('/core/logic.js');
       text = JSON.stringify({ ...newTable(n.replace(/[^A-Za-z0-9_]/g, '_'), ['a', 'b', 'c'], ['f']), lang: pj.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl' }, null, 2);
@@ -678,6 +684,7 @@ export async function newSourceWizard({ type } = {}) {
   if (st.id === 'tb') app.showInSim(n);   // selected in the Simulation view, ready to simulate
   app.log(`Created ${st.label}${st.ext ? '' : ` (${langSel.value === 'verilog' ? 'Verilog' : 'VHDL'})`} '${path}'.`, 'ok');
   if (st.id === 'fsm') { app.openFsm(path); return; }
+  if (st.id === 'petri') { app.openPetri(path); return; }
   if (st.id === 'asm') app.openAsm(path); else if (st.id === 'tt') app.openTt(path); else if (st.id === 'sch') app.openSch(path); else app.openFile(path);
 }
 

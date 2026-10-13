@@ -1,5 +1,5 @@
 // The HDL of a source drawn as a schematic (.sch.json), an ASM chart (.asm.json), a state diagram
-// (.fsm.json) or a truth table (.tt.json) that has no HDL file of its own (#177): made in memory when
+// (.fsm.json), a truth table (.tt.json) or a Petri net (.pn.json) that has no HDL file of its own (#177): made in memory when
 // the project is compiled, simulated or implemented, so that such a source is a module of the
 // project like an HDL one (it can be the top, be instanced, be synthesized) without a file.
 // A source kept in sync with an HDL file (its generatedFile) is that file: nothing here.
@@ -7,8 +7,9 @@ import { generateHdl } from './schdoc.js';
 import { generate as generateAsm, validate as validateAsm } from './asm.js';
 import { generateFsm, fsmErrors, normalizeFsm } from './fsm.js';
 import { generateTableHdl, validateTable, normalizeTable } from './logic.js';
+import { generatePetri, petriErrors, normalizePetri } from './petri.js';
 
-export const VIEW_RE = /\.(sch|asm|fsm|tt)\.json$/i;
+export const VIEW_RE = /\.(sch|asm|fsm|tt|pn)\.json$/i;
 export const isView = path => VIEW_RE.test(String(path || ''));
 
 /**
@@ -43,6 +44,12 @@ export function viewHdl(path, text, { modules = {} } = {}) {
       const errs = fsmErrors(f).map(x => `${path}: ${x.message}`);
       if (errs.length) return { path, lang, text: '', module: f.name || null, errors: errs };
       return out(generateFsm({ ...f, lang }, lang, { source: path.split('/').pop() }).code);
+    }
+    if (kind === 'pn') {
+      const n = normalizePetri(m);
+      const errs = petriErrors(n).map(x => `${path}: ${x.message}`);
+      if (errs.length) return { path, lang, text: '', module: n.name || null, errors: errs };
+      return out(generatePetri(n, lang, { source: path.split('/').pop() }).code);
     }
     const t = normalizeTable(m);
     const errs = (validateTable(t) || []).filter(x => x.severity !== 'warning').map(x => `${path}: ${x.message}`);
