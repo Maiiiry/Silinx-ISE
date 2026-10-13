@@ -28,6 +28,27 @@ export function bitpos(t, i) {
 
 const isStr = v => v && v.str !== undefined;
 
+// The frame of a variable: the running process's or subprogram's own, or (up: a subprogram declared
+// in a process or in another subprogram using their variables, #182) that of the enclosing one
+export const locFrame = (n, ctx) => (n.up == null ? ctx.frame : ctx.outer[n.up]);
+
+// A subprogram's frame: a new one, at its declarations' initial values, for each call; that of a
+// Verilog task or function that is not automatic is static (kept by the simulator from one call to
+// the next), except in a call while it runs (recursion, another process), which gets its own
+function calleeFrame(f, ctx) {
+  const st = f.static && ctx.sim?.statics;
+  if (!st) return { frame: f.frameInit() };
+  let s = st.get(f.static);
+  if (!s) st.set(f.static, s = { frame: f.frameInit(), busy: false });
+  if (s.busy) return { frame: f.frameInit() };
+  s.busy = true;
+  return { frame: s.frame, done: () => { s.busy = false; } };
+}
+
+// A subprogram's context: its frame, and the frames of the process and subprograms it is declared
+// in (outer, by level: those of the caller's chain, the caller being declared inside them)
+const calleeCtx = (f, frame, ctx) => ({ ...ctx, frame, outer: f.level ? [...(ctx.outer || []), ctx.frame].slice(0, f.level) : [] });
+
 export function evalE(n, ctx) {
   switch (n.k) {
     case 'c': return n.val;
@@ -36,7 +57,7 @@ export function evalE(n, ctx) {
       const v = n.sig.val;
       return n.t !== n.sig.t && v && v.s !== undefined && !!v.s !== !!n.t.s && n.t.kind === 'logic' ? V.withSign(v, !!n.t.s) : v;
     }
-    case 'loc': return ctx.frame[n.i];
+    case 'loc': return locFrame(n, ctx)[n.i];
     // a variable of another process's named block (dut.blk.v, #12): its current value in that
     // process's frame (its initial value before the process has run)
     case 'xloc': {
@@ -473,7 +494,7 @@ function evalSys(n, ctx) {
         let x = (cur.x ? 0 : Number(cur.v & 0xFFFFFFFFn)) || 0x2545F491;
         x ^= x << 13; x ^= x >>> 17; x ^= x << 5;
         const nv = V.fromInt(x | 0, L.t.w, L.t.s);
-        for (const w of wr) { if (w.loc != null) ctx.frame[w.loc] = applyWrite(ctx.frame[w.loc], w, nv, true); else sim?.write(w, nv); }
+        for (const w of wr) { if (w.loc != null) w.fr[w.loc] = applyWrite(w.fr[w.loc], w, nv, true); else sim?.write(w, nv); }
         return V.fromInt(x | 0, 32, true);
       }
       const r = sim ? sim.random() : 0;
@@ -500,7 +521,7 @@ export function runSync(gen) {
 
 function callFunction(n, ctx) {
   const f = n.fn; // { frameInit(), params:[{i, t}], body, retSlot, retT }
-  const frame = f.frameInit();
+  const { frame, done } = calleeFrame(f, ctx);
   n.args.forEach((a, k) => {
     const p = f.params[k];
     if (!p) return;
@@ -510,7 +531,7 @@ function callFunction(n, ctx) {
   // (the depth counts in the callee's context too: it was copied before the increment, so a function
   // calling itself without end overflowed the JavaScript stack instead of this error)
   if (++ctx.depth > MAX_CALL_DEPTH) { ctx.depth--; throw new SimError(`recursion too deep in function ${f.name} (more than ${MAX_CALL_DEPTH} nested calls)`); }
-  const sub = { ...ctx, frame, inFn: true };
+  const sub = { ...calleeCtx(f, frame, ctx), inFn: true };
   try {
     const r = runSync(exec(f.body, sub));
     let val;
@@ -524,15 +545,15 @@ function callFunction(n, ctx) {
       if (L && p.i != null) doAssign({ target: L, value: { k: 'c', val: frame[p.i], t: p.t }, nb: false }, ctx);
     });
     return Array.isArray(val) || isStr(val) ? val : fit(val, f.retT.w, f.retT.s);
-  } finally { ctx.depth--; }
+  } finally { ctx.depth--; done?.(); }
 }
 
 // ---------------- assignment targets ----------------
-// Resolve an L-target to a list of writes { sig | loc, elem, lo, w, t }
+// Resolve an L-target to a list of writes { sig | loc (in the frame fr), elem, lo, w, t }
 function resolveTarget(L, ctx, out) {
   switch (L.k) {
     case 'sig': out.push({ sig: L.sig, elem: null, lo: 0, w: L.t.w, whole: true }); return;
-    case 'loc': out.push({ loc: L.i, elem: null, lo: 0, w: L.t.w, whole: true }); return;
+    case 'loc': out.push({ loc: L.i, fr: locFrame(L, ctx), elem: null, lo: 0, w: L.t.w, whole: true }); return;
     case 'cat': for (const p of L.parts) resolveTarget(p, ctx, out); return;
     case 'elem': {
       const base = [];
@@ -668,7 +689,7 @@ function doAssign(s, ctx) {
   }
   writes.forEach((wr, k) => {
     if (wr.invalid) return; // X index: no effect
-    if (wr.loc != null) { ctx.frame[wr.loc] = applyWrite(ctx.frame[wr.loc], wr, parts[k], true); return; }
+    if (wr.loc != null) { wr.fr[wr.loc] = applyWrite(wr.fr[wr.loc], wr, parts[k], true); return; }
     if (!ctx.sim) throw new SimError(`cannot assign signal '${wr.sig.name}' in a constant expression`);
     // a queued array value must not change if the source container is updated in place later
     const v = Array.isArray(parts[k]) ? parts[k].slice() : parts[k];
@@ -685,7 +706,7 @@ function* doAssignIntra(s, ctx) {
   yield { delay };
   writes.forEach((wr, k) => {
     if (wr.invalid) return;
-    if (wr.loc != null) { ctx.frame[wr.loc] = applyWrite(ctx.frame[wr.loc], wr, parts[k], true); return; }
+    if (wr.loc != null) { wr.fr[wr.loc] = applyWrite(wr.fr[wr.loc], wr, parts[k], true); return; }
     if (!ctx.sim) throw new SimError(`cannot assign signal '${wr.sig.name}' in a constant expression`);
     ctx.sim.write(wr, parts[k]);
   });
@@ -828,26 +849,27 @@ export function* exec(s, ctx) {
     }
     case 'task': {
       const f = s.fn;
-      const frame = f.frameInit();
-      s.args.forEach((a, k) => {
-        const p = f.params[k];
-        if (p && !p.alias && p.dir !== 'out' && a) {
-          const v = evalE(a, ctx);
-          frame[p.i] = Array.isArray(v) ? v.slice() : (isStr(v) || p.t.kind === 'str' ? v : fit(v, p.t.w, p.t.s));
-        }
-      });
-      const sub = { ...ctx, frame };
-      const r = yield* exec(f.body, sub);
-      if (r && r.brk === 'disable' && r.label !== f.name) return r;   // (disable of an enclosing block)
-      // copy back outputs
-      s.args.forEach((a, k) => {
-        const p = f.params[k];
-        if (p && !p.alias && p.dir !== 'in' && s.outTargets[k]) {
-          doAssign({ target: s.outTargets[k], value: { k: 'c', val: frame[p.i], t: p.t }, nb: p.sigNb || false }, ctx);
-        }
-      });
-      if (r && r.brk === 'ret') return;
-      return;
+      const { frame, done } = calleeFrame(f, ctx);
+      try {
+        s.args.forEach((a, k) => {
+          const p = f.params[k];
+          if (p && !p.alias && p.dir !== 'out' && a) {
+            const v = evalE(a, ctx);
+            frame[p.i] = Array.isArray(v) ? v.slice() : (isStr(v) || p.t.kind === 'str' ? v : fit(v, p.t.w, p.t.s));
+          }
+        });
+        const sub = calleeCtx(f, frame, ctx);
+        const r = yield* exec(f.body, sub);
+        if (r && r.brk === 'disable' && r.label !== f.name) return r;   // (disable of an enclosing block)
+        // copy back outputs
+        s.args.forEach((a, k) => {
+          const p = f.params[k];
+          if (p && !p.alias && p.dir !== 'in' && s.outTargets[k]) {
+            doAssign({ target: s.outTargets[k], value: { k: 'c', val: frame[p.i], t: p.t }, nb: p.sigNb || false }, ctx);
+          }
+        });
+        return;
+      } finally { done?.(); }
     }
     case 'sys': return yield* execSys(s, ctx);
     case 'textio': textio(s, ctx); return;
@@ -902,7 +924,7 @@ function* execSys(s, ctx) {
       const str = formatDisplay(s.args.slice(1), ctx);
       const v = isStr(evalE(L, ctx)) ? { str } : V.resize(strToVal(str), L.t.w);
       resolveTarget(L, ctx, wr);
-      for (const w of wr) { if (w.loc != null) ctx.frame[w.loc] = applyWrite(ctx.frame[w.loc], w, v, true); else sim?.write(w, v); }
+      for (const w of wr) { if (w.loc != null) w.fr[w.loc] = applyWrite(w.fr[w.loc], w, v, true); else sim?.write(w, v); }
       return;
     }
     case '$finish': case '$stop': case 'finish': case 'stop': sim?.finish(s.name.replace('$', '')); yield { forever: true }; return;
@@ -936,8 +958,8 @@ function setLine(L, str, ctx) {
   const wr = [];
   resolveTarget(L, ctx, wr);
   for (const w of wr) {
-    if (w.loc != null && !w.path && w.elem == null) ctx.frame[w.loc] = { str };
-    else if (w.loc != null) ctx.frame[w.loc] = applyWrite(ctx.frame[w.loc], w, { str }, true);
+    if (w.loc != null && !w.path && w.elem == null) w.fr[w.loc] = { str };
+    else if (w.loc != null) w.fr[w.loc] = applyWrite(w.fr[w.loc], w, { str }, true);
     else ctx.sim?.write(w, { str });
   }
 }

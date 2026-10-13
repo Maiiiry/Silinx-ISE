@@ -68,6 +68,15 @@ In detail:
   fix. A Verilog `begin … end` whose `end` is missing before a module instance now stops there
   ("expected 'end' but found 'sevenseg'", with the quick fix that inserts it) instead of reading
   the instance as a statement ("expected '=' but found '#'") (#184).
+- **Simulator: a procedure declared in a process uses the process's variables:** it read one of its
+  own parameters in their place and its writes were lost, with no error, so a self-checking test
+  bench counting its errors in a process variable from such a procedure said "OK" of a wrong
+  design. Now a procedure or function declared in a process reads and writes the process's
+  variables, one declared in a procedure those of the procedure (a parameter of the same name
+  still hides them), through waits and recursion, also in synthesis (a procedure; a function that
+  uses them is reported). The traffic test bench counts its errors this way. In Verilog the
+  variables of a task or function that is not `automatic` are now static, as the standard says:
+  they keep their values from one call to the next (#182).
 
 ## 15.10.11
 

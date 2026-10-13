@@ -5,7 +5,7 @@
 // step runs), and follow the driver rules: a new assignment deletes the driver's later
 // transactions, and inertial delay also rejects pulses shorter than the reject limit.
 import * as V from './values.js';
-import { exec, evalE, applyWrite, applyElem, formatDisplay, SimError, formatTime, sameDeep } from './interp.js';
+import { exec, evalE, applyWrite, applyElem, formatDisplay, SimError, formatTime, sameDeep, locFrame } from './interp.js';
 
 class Heap {
   constructor() { this.a = []; this.seq = 0; }
@@ -114,6 +114,7 @@ export class Simulator {
     this.writeBuf = '';
     this.started = false;
     this.stats = { deltas: 0, events: 0, procRuns: 0 };
+    this.statics = new Map();   // the variables of the static Verilog tasks and functions (interp.js calleeFrame)
     for (const s of this.design.signals) {
       s.val = Array.isArray(s.init) ? s.init.map(x => x) : s.init;
       s.prev = null;
@@ -186,7 +187,7 @@ export class Simulator {
     let root = L; while (root.base) root = root.base;
     const t = root.t;
     if (t.kind !== 'array') { this.report('error', '$readmem target must be a memory'); return; }
-    let arr = root.k === 'sig' ? root.sig.val.slice() : ctx.frame[root.i].slice();
+    let arr = root.k === 'sig' ? root.sig.val.slice() : locFrame(root, ctx)[root.i].slice();
     let idx = t.left;
     const step = t.left <= t.right ? 1 : -1;
     const clean = text.replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
@@ -204,7 +205,7 @@ export class Simulator {
       idx += step;
     }
     if (root.k === 'sig') this.setSignal(root.sig, arr);
-    else ctx.frame[root.i] = arr;
+    else locFrame(root, ctx)[root.i] = arr;
   }
 
   // ---------------------------------------------------------- signal updates

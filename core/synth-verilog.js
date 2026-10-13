@@ -241,6 +241,16 @@ export function toVerilog(design, { name, tables = true } = {}) {
     if (!ctx.locals.has(i)) ctx.locals.set(i, { name: ctx.fn && !ctx.parent ? `v${i}` : esc(uniq(`${ctx.base}_v${i}`)), t });
     return ctx.locals.get(i).name;
   };
+  // the context of a variable's frame: a procedure declared in a process (or in another procedure)
+  // uses the variables of the enclosing one (#182), the inlined call it is in (level: the depth of
+  // its frame, interp.js); a function is written on its own, so it cannot
+  const frameCtx = (ctx, n) => {
+    if (n.up == null) return ctx;
+    let c = ctx;
+    while (c && (c.level ?? 0) !== n.up) c = c.parent;
+    if (!c) fail(`function ${ctx.fn?.name || ''}: the variables of the enclosing process ('${n.name}') cannot be used in a function by synthesis`, ctx.fn);
+    return c;
+  };
 
   // e(n) -> { x: expression string, w, s } (x is w bits; s = the value's signedness)
   function e(n, ctx) {
@@ -276,8 +286,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
         return { x, w, s: !!s.t.s };
       }
       case 'loc': {
-        if (ctx.subst?.has(n.i)) { const sb = ctx.subst.get(n.i); if (sb.rv) return e(sb.rv, sb.ctx); }
-        const w = wOf(t), x = localName(ctx, n.i, t);
+        const fc = frameCtx(ctx, n);
+        if (fc.subst?.has(n.i)) { const sb = fc.subst.get(n.i); if (sb.rv) return e(sb.rv, sb.ctx); }
+        const w = wOf(t), x = localName(fc, n.i, t);
         if (t.kind === 'int' && w !== t.w) return { x: fit(x, w, signedInt(t), t.w), w: t.w, s: true };
         return { x, w, s: !!t.s };
       }
@@ -494,7 +505,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
           const tt = m.k === 'sig' ? m.sig.t : m.t;
           if (!tt || tt.kind === 'real' || tt.kind === 'array' || tt.kind === 'record' || tt.kind === 'str' || !(tt.w > 0)) return false;
           if (m.k === 'sig' && (Array.isArray(m.sig.val) || m.sig.val?.w !== tt.w || !sigName.has(m.sig))) return false;
-          if (m.k === 'loc' && ctx.subst?.has(m.i)) return false;
+          if (m.k === 'loc' && (m.up != null || ctx.subst?.has(m.i))) return false;
           const key = m.k === 'sig' ? m.sig : `loc${m.i}`;
           if (!leaves.has(key)) { leaves.set(key, { node: m, t: tt, w: wOf(tt) }); bits += wOf(tt); }
           return bits <= TAB_BITS;
@@ -607,7 +618,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     const walk = (x, d = 0) => {
       if (!ok || !x || typeof x !== 'object' || d > 400) return;
       if (Array.isArray(x)) { for (const y of x) walk(y, d + 1); return; }
-      if (x.k === 'sig' || x.k === 'xloc' || ['delay', 'event', 'wait', 'fork', 'waitfork', 'edge', 'now', 'sigattr'].includes(x.k)) { ok = false; return; }
+      if (x.k === 'sig' || x.k === 'xloc' || (x.k === 'loc' && x.up != null) || ['delay', 'event', 'wait', 'fork', 'waitfork', 'edge', 'now', 'sigattr'].includes(x.k)) { ok = false; return; }
       if (x.k === 'sys' && /random|time|fopen|fclose|readmem|fgets|fscanf|feof|fread/.test(x.name || '')) { ok = false; return; }
       if ((x.k === 'call' || x.k === 'task') && x.fn && x.fn.body && !foldable(x.fn)) { ok = false; return; }
       for (const k in x) if (k !== 't' && k !== 'fn' && k !== 'loc' && k !== 'val') walk(x[k], d + 1);
@@ -636,7 +647,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     if (!funcName.has(f)) {
       const fname = esc(uniq(`fn_${(f.name || 'f').replace(/[^\w]/g, '_')}`));
       funcName.set(f, fname);
-      const fctx = { fn: f, locals: new Map(), base: fname, flags: [] };
+      const fctx = { fn: f, locals: new Map(), base: fname, flags: [], level: f.level };
       const rw = wOf(f.retT);
       const params = f.params.map(p => { fctx.locals.set(p.i, { name: `v${p.i}`, t: p.t, param: true }); return `input ${sgn(p.t) ? 'signed ' : ''}[${wOf(p.t) - 1}:0] v${p.i}`; });
       // Verilog functions return through their own name (a slot of the frame)
@@ -668,8 +679,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
       return { base: name, full: wOf(n.sig.t), t: n.sig.t, mem: isMem(n.sig.t), off: 0, offX: null };
     }
     if (n.k === 'loc') {
-      if (ctx.subst?.has(n.i)) { const sb = ctx.subst.get(n.i); const sub = lv ? sb.lv : sb.rv; return sub ? place(sub, sb.ctx, lv) : null; }
-      return { base: localName(ctx, n.i, n.t), full: wOf(n.t), t: n.t, mem: isMem(n.t), off: 0, offX: null };
+      const fc = frameCtx(ctx, n);
+      if (fc.subst?.has(n.i)) { const sb = fc.subst.get(n.i); const sub = lv ? sb.lv : sb.rv; return sub ? place(sub, sb.ctx, lv) : null; }
+      return { base: localName(fc, n.i, n.t), full: wOf(n.t), t: n.t, mem: isMem(n.t), off: 0, offX: null };
     }
     if (n.k !== 'elem') return null;
     // a word of a constant array (a ROM function's result): read only, its fields by shifting
@@ -711,8 +723,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
     switch (L.k) {
       case 'sig': return { x: wiredDrv.get(L.sig)?.get(ctx.proc) ?? sigName.get(L.sig), w: wOf(L.sig.t) };
       case 'loc': {
-        if (ctx.subst?.has(L.i)) { const sb = ctx.subst.get(L.i); if (sb.lv) return lvalue(sb.lv, sb.ctx); }
-        return { x: localName(ctx, L.i, L.t), w: wOf(L.t) };
+        const fc = frameCtx(ctx, L);
+        if (fc.subst?.has(L.i)) { const sb = fc.subst.get(L.i); if (sb.lv) return lvalue(sb.lv, sb.ctx); }
+        return { x: localName(fc, L.i, L.t), w: wOf(L.t) };
       }
       case 'bit': {
         const b = lvalue(L.base, ctx);
@@ -880,7 +893,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     const f = s.fn;
     if (!f?.body) fail(`procedure ${s.name || ''} cannot be synthesized (no body)`, s);
     if (mayLeave(f.body)) fail(`procedure ${f.name}: return inside a procedure is not supported by synthesis`, s);
-    const sub = { proc: ctx.proc, fn: ctx.fn, locals: new Map(), base: `${ctx.base}_${(f.name || 'proc').replace(/[^\w]/g, '_')}${taskN++}`, flags: ctx.flags, subst: new Map(), parent: ctx };
+    const sub = { proc: ctx.proc, fn: ctx.fn, locals: new Map(), base: `${ctx.base}_${(f.name || 'proc').replace(/[^\w]/g, '_')}${taskN++}`, flags: ctx.flags, subst: new Map(), parent: ctx, level: f.level };
     let pre = '';
     f.params.forEach((p, k) => {
       const a = s.args[k], out = s.outTargets?.[k];
@@ -924,8 +937,9 @@ export function toVerilog(design, { name, tables = true } = {}) {
   function memWords(n, ctx, lv) {
     if (n.k === 'sig') return { name: lv ? (wiredDrv.get(n.sig)?.get(ctx.proc) ?? sigName.get(n.sig)) : sigName.get(n.sig), off: 0, len: n.sig.t.len ?? (Array.isArray(n.sig.val) ? n.sig.val.length : 0) };
     if (n.k === 'loc') {
-      if (ctx.subst?.has(n.i)) { const sb = ctx.subst.get(n.i); const sub = lv ? sb.lv : sb.rv; return sub ? memWords(sub, sb.ctx, lv) : null; }
-      return { name: localName(ctx, n.i, n.t), off: 0, len: n.t.len ?? 0 };
+      const fc = frameCtx(ctx, n);
+      if (fc.subst?.has(n.i)) { const sb = fc.subst.get(n.i); const sub = lv ? sb.lv : sb.rv; return sub ? memWords(sub, sb.ctx, lv) : null; }
+      return { name: localName(fc, n.i, n.t), off: 0, len: n.t.len ?? 0 };
     }
     if (n.k === 'aslice') { const b = memWords(n.base, ctx, lv); return b && { name: b.name, off: b.off + n.off, len: n.t.len }; }
     return null;

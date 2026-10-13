@@ -714,6 +714,44 @@ end rtl;
   assert.match(r.text, /p1_addk0_v0 = a;\n {4}p1_addk0_v1 = 4'h3;\n {4}p1_addk0_v1 = 4'\(p1_addk0_v1 \+ p1_addk0_v0\);/);
 });
 
+// (#182) a procedure declared in a process uses the process's variables (its registers), and one
+// declared in that procedure the procedure's; a function declared in a process cannot (it is written
+// as a function of its own)
+test('procedures declared in a process read and write its variables, nested ones those of the procedure around them (#182)', () => {
+  const { text } = equivalent([vhd(`${PRE}entity n is port (clk, rst : in std_logic; x : in unsigned(3 downto 0); q, m : out unsigned(7 downto 0)); end n;
+architecture a of n is begin
+  process (clk)
+    variable total : unsigned(7 downto 0) := (others => '0');
+    variable peak : unsigned(7 downto 0) := (others => '0');
+    procedure add(x : unsigned(3 downto 0)) is
+      variable t : unsigned(7 downto 0);
+      procedure keep is begin if t > peak then peak := t; end if; end procedure;
+    begin
+      t := total + resize(x, 8);
+      keep;
+      total := t;
+    end procedure;
+  begin
+    if rising_edge(clk) then
+      if rst = '1' then total := (others => '0'); peak := (others => '0'); else add(x); end if;
+      q <= total; m <= peak;
+    end if;
+  end process;
+end a;`)], 'n');
+  // (total, peak: p0_v0, p0_v1; the procedure's x, t: p0_add0_v0, p0_add0_v1)
+  assert.match(text, / {6}p0_add0_v1 = 8'\(p0_v0 \+ 8'\(p0_add0_v0\)\);\n {6}if \(\(p0_add0_v1 > p0_v1\)\) begin\n {8}p0_v1 = p0_add0_v1;\n {6}end\n {6}p0_v0 = p0_add0_v1;\n/);
+  const err = src => { try { toVerilog(build([vhd(src)], 'f')); return null; } catch (e) { assert.ok(e instanceof SynthError, e.stack); return e.message; } };
+  assert.equal(err(`${PRE}entity f is port (clk : in std_logic; q : out integer range 0 to 15); end f;
+architecture a of f is begin
+  process (clk)
+    variable n : integer range 0 to 15 := 0;
+    impure function next_n return integer is begin return (n + 1) mod 16; end function;
+  begin
+    if rising_edge(clk) then n := next_n; q <= n; end if;
+  end process;
+end a;`), "function next_n: the variables of the enclosing process ('n') cannot be used in a function by synthesis (line 6)");
+});
+
 // Regression (#9): a VHDL enumeration signal without an initial value starts at its first literal
 // (T'left): written as its initial value, so that Yosys's FSM re-encoding cannot start it elsewhere
 test('VHDL enumeration and boolean signals start at their declared or default (first) value (#9)', () => {

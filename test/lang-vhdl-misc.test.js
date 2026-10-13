@@ -2,7 +2,7 @@
 // operators, multiple drivers of vector elements, and other details of the language.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { out, sim, vproc, vhd, warningsOf } from './lang-util.js';
+import { out, outW, sim, vproc, vhd, warningsOf } from './lang-util.js';
 
 const ARITH = 'library ieee; use ieee.std_logic_1164.all; use ieee.std_logic_arith.all; use ieee.std_logic_unsigned.all;';
 
@@ -263,6 +263,78 @@ test('shared variables; procedures declared in a process assign the signals of t
     wait;
   end process;`, 'shared variable cnt : integer := 0; signal s : integer := 0;'));
   assert.deepEqual(r, ['11', '2', '10101100']);
+});
+
+// Regression (#182): a procedure declared in a process read and wrote the slot of the process's
+// variable in its own frame (one of its parameters): the writes were lost, with no error
+test('subprograms declared in a process read and write its variables; nested ones those of the subprograms around them (#182)', () => {
+  const r = outW(vproc(`
+    inc("a"); inc("b");
+    report "nerr=" & integer'image(nerr);
+    shadow(5);
+    report "nerr=" & integer'image(nerr) & " k=" & integer'image(k);
+    report "total=" & integer'image(total) & " plus=" & integer'image(plus(1));
+    outer(2);
+    report "nerr=" & integer'image(nerr) & " k=" & integer'image(k) & " v=" & to_string(v);
+    rec(3);
+    report "nerr=" & integer'image(nerr);
+    p(z, 1);
+    report "z=" & integer'image(z) & " nerr=" & integer'image(nerr);
+    tick; tick; tick;
+    report "acc=" & integer'image(acc) & " at " & time'image(now);`, `
+    variable nerr : integer := 0;
+    variable k : integer := 100;
+    variable v : std_logic_vector(7 downto 0) := x"00";
+    variable z, acc : integer := 1;
+    -- (the issue's case: a string parameter in the slot of nerr)
+    procedure inc(what : string) is begin nerr := nerr + 1; end procedure;
+    -- a parameter of the name of a variable: the parameter
+    procedure shadow(k : integer) is begin nerr := nerr + k; end procedure;
+    impure function total return integer is begin return nerr + k; end function;
+    -- (called with a constant: not evaluated at elaboration, nerr is not)
+    impure function plus(x : integer) return integer is begin return x + nerr; end function;
+    procedure outer(n : integer) is
+      variable loc : integer := 1000;
+      procedure inner(m : integer) is begin loc := loc + m; nerr := nerr + 1; v(m) := '1'; end procedure;
+    begin
+      inner(n); inner(n + 1);
+      k := loc;
+    end procedure;
+    procedure rec(n : integer) is begin if n > 0 then nerr := nerr + n; rec(n - 1); end if; end procedure;
+    -- an inout parameter used by the subprograms declared in the procedure
+    procedure p(variable r : inout integer; n : integer) is
+      impure function twice return integer is begin return 2 * r + n; end function;
+      procedure q is begin r := twice; nerr := nerr + 1; end procedure;
+    begin
+      q; q;
+    end procedure;
+    -- across a wait
+    procedure tick is begin wait for 5 ns; acc := acc + 1; end procedure;`));
+  assert.deepEqual(r, ['nerr=2', 'nerr=7 k=100', 'total=107 plus=8', 'nerr=9 k=1005 v=00001100', 'nerr=15', 'z=7 nerr=17', 'acc=4 at 15 ns']);
+});
+
+// Regression (#182): a self-checking test bench counting its errors in a process variable from a
+// procedure said "OK" of a wrong design
+test('a self-checking test bench counts its errors in a process variable from a procedure (#182)', () => {
+  const tb = dut => sim(vhd(`
+  y <= ${dut};
+  process
+    variable errors : integer := 0;
+    procedure check(x, expected : integer; what : string) is
+    begin
+      a <= x; wait for 10 ns;
+      if y /= expected then
+        report "ERROR: " & what & ": " & integer'image(y) & ", expected " & integer'image(expected) severity error;
+        errors := errors + 1;
+      end if;
+    end procedure;
+  begin
+    check(1, 2, "1 * 2"); check(2, 4, "2 * 2"); check(3, 6, "3 * 2");
+    if errors = 0 then report "Simulation finished OK"; else report integer'image(errors) & " wrong value(s)" severity error; end if;
+    wait;
+  end process;`, 'signal a, y : integer := 0;'), 'tb', { allowErrors: true }).lines;
+  assert.deepEqual(tb('a * 2'), ['30000 note Simulation finished OK']);
+  assert.deepEqual(tb('a + 1'), ['20000 error ERROR: 2 * 2: 3, expected 4', '30000 error ERROR: 3 * 2: 4, expected 6', '30000 error 2 wrong value(s)']);
 });
 
 // std.textio: write / writeline to OUTPUT (the console), justified fields, hwrite, time and real

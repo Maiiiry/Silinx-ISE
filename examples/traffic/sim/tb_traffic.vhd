@@ -69,10 +69,9 @@ BEGIN
    end process;
 
    stim_proc: process
-      variable errors : integer := 0;
+      variable errors : integer := 0;   -- the wrong values: check counts them
       -- the lamps and the display now (between two clock edges)
-      procedure check(lamps : std_logic_vector(7 downto 0); number : integer; what : string;
-                      variable errors : inout integer) is
+      procedure check(lamps : std_logic_vector(7 downto 0); number : integer; what : string) is
          variable shown : std_logic_vector(6 downto 0);
       begin
          if led /= lamps then
@@ -92,68 +91,67 @@ BEGIN
          end if;
       end procedure;
       -- n clock cycles of the same lamps and display
-      procedure cycles(n : integer; lamps : std_logic_vector(7 downto 0); number : integer; what : string;
-                       variable errors : inout integer) is
+      procedure cycles(n : integer; lamps : std_logic_vector(7 downto 0); number : integer; what : string) is
       begin
          for i in 1 to n loop
-            check(lamps, number, what, errors);
+            check(lamps, number, what);
             wait until falling_edge(clk);
          end loop;
       end procedure;
       -- n clock cycles of a blinking lamp (2 Hz: on for T/4 cycles, off for T/4 cycles)
       procedure blinking(n : integer; on_lamps, off_lamps : std_logic_vector(7 downto 0); number : integer;
-                         what : string; variable errors : inout integer) is
+                         what : string) is
       begin
          for i in 0 to n - 1 loop
             if i mod (T / 2) < T / 4 then
-               check(on_lamps, number, what, errors);
+               check(on_lamps, number, what);
             else
-               check(off_lamps, number, what, errors);
+               check(off_lamps, number, what);
             end if;
             wait until falling_edge(clk);
          end loop;
       end procedure;
       -- the crossing, from its first clock cycle of yellow
-      procedure crossing(what : string; variable errors : inout integer) is
+      procedure crossing(what : string) is
       begin
-         cycles(2 * T, YELLOW, BLANK, what & ", cars yellow", errors);
-         cycles(T, ALL_RED, BLANK, what & ", all red", errors);
+         cycles(2 * T, YELLOW, BLANK, what & ", cars yellow");
+         cycles(T, ALL_RED, BLANK, what & ", all red");
          for s in 0 to 4 loop
-            cycles(T, WALK, 8 - s, what & ", walk, " & integer'image(8 - s) & " s left", errors);
+            cycles(T, WALK, 8 - s, what & ", walk, " & integer'image(8 - s) & " s left");
          end loop;
          for s in 0 to 2 loop
-            blinking(T, WALK, WALK_OFF, 3 - s, what & ", walk end, " & integer'image(3 - s) & " s left", errors);
+            blinking(T, WALK, WALK_OFF, 3 - s, what & ", walk end, " & integer'image(3 - s) & " s left");
          end loop;
-         cycles(T, ALL_RED, BLANK, what & ", all red again", errors);
+         cycles(T, ALL_RED, BLANK, what & ", all red again");
       end procedure;
    begin
       wait for 100 ns;
       wait until falling_edge(clk);
       sw(0) <= '0';                                          -- release the reset
       -- 1. no request: the cars keep their green
-      cycles(20 * T, CARS, BLANK, "no request", errors);
+      cycles(20 * T, CARS, BLANK, "no request");
       -- 2. a press (2 clock cycles) after the 5 s of green: the yellow 4 clock cycles later
       btn(0) <= '1';
-      cycles(2, CARS, BLANK, "a press, before the yellow", errors);
+      cycles(2, CARS, BLANK, "a press, before the yellow");
       btn(0) <= '0';
-      cycles(2, CARS, BLANK, "a press, before the yellow", errors);
-      crossing("first crossing", errors);
+      cycles(2, CARS, BLANK, "a press, before the yellow");
+      crossing("first crossing");
       -- 3. the cars' green again; a press in its first second: green for 5 s, then the crossing
-      cycles(T, CARS, BLANK, "cars green again", errors);
+      cycles(T, CARS, BLANK, "cars green again");
       btn(0) <= '1';
-      cycles(2, CARS, BLANK, "a press in the first second of green", errors);
+      cycles(2, CARS, BLANK, "a press in the first second of green");
       btn(0) <= '0';
-      cycles(4 * T - 2, CARS, BLANK, "the cars' green lasts 5 s", errors);
-      crossing("second crossing", errors);
+      cycles(4 * T - 2, CARS, BLANK, "the cars' green lasts 5 s");
+      crossing("second crossing");
       -- the request was cleared: the cars keep their green
-      cycles(10 * T, CARS, BLANK, "after the crossing (the request cleared)", errors);
+      cycles(10 * T, CARS, BLANK, "after the crossing (the request cleared)");
       -- 4. night mode: from the cars' green (3 clock cycles: 2 synchronising flip-flops, the state)
       sw(1) <= '1';
-      cycles(3, CARS, BLANK, "night switched on", errors);
-      blinking(3 * T, NIGHT, DARK, BLANK, "night", errors);
+      cycles(3, CARS, BLANK, "night switched on");
+      blinking(3 * T, NIGHT, DARK, BLANK, "night");
       sw(1) <= '0';                                          -- back to day
-      blinking(3, NIGHT, DARK, BLANK, "night switched off", errors);
-      cycles(10 * T, CARS, BLANK, "day again", errors);
+      blinking(3, NIGHT, DARK, BLANK, "night switched off");
+      cycles(10 * T, CARS, BLANK, "day again");
       if errors = 0 then
          report "Simulation finished OK" severity note;
       else

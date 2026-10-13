@@ -226,6 +226,49 @@ test('tasks: input / output / inout arguments, timing inside tasks, automatic ta
   assert.deepEqual(r.out, ['3 2 4', '3 00']);
 });
 
+// (#182) tasks and functions use the module's variables; the variables of a task or function that
+// is not automatic are static (IEEE 1364-2005 §10.2.1): they keep their values from one call to the
+// next, their initial values set once; an automatic one's start again on every call
+test('tasks and functions read and write the module\'s variables; static and automatic variables of tasks and functions (#182)', () => {
+  const r = sim(vlog(`
+  integer nerr = 0;
+  reg [7:0] r = 0;
+  task check(input integer got, input integer exp);
+    begin
+      if (got !== exp) begin $display("ERROR: %0d, expected %0d", got, exp); nerr = nerr + 1; end
+      r = r + 1;
+    end
+  endtask
+  task automatic both(input integer a); begin check(a, 1); check(a, 2); end endtask
+  task count;
+    integer calls = 10;
+    begin calls = calls + 1; $display("count %0d", calls); end
+  endtask
+  task automatic fresh;
+    integer calls = 10;
+    begin calls = calls + 1; $display("fresh %0d", calls); end
+  endtask
+  function integer total(input integer x);
+    integer sum;
+    begin
+      if (x == 0) sum = 0;
+      sum = sum + x;
+      total = sum + nerr;
+    end
+  endfunction
+  function automatic integer fact(input integer n);
+    if (n <= 1) fact = 1; else fact = n * fact(n - 1);
+  endfunction
+  initial begin
+    check(1, 1); check(1, 2); both(1);
+    $display("nerr=%0d r=%0d", nerr, r);
+    count; count; fresh; fresh;
+    $display("total %0d %0d %0d fact %0d", total(0), total(5), total(7), fact(5));
+  end`));
+  assert.deepEqual(r.out, ['ERROR: 1, expected 2', 'ERROR: 1, expected 2', 'nerr=2 r=4', 'count 11', 'count 12', 'fresh 11', 'fresh 11', 'total 2 7 14 fact 120']);
+  assert.deepEqual(r.r.design.diags, []);
+});
+
 test('module hierarchy: named and positional port connections, parameters (#(), defparam), localparam, unconnected outputs', () => {
   const r = out(`
 module add #(parameter W = 4, parameter K = 0) (input [W-1:0] a, b, output [W:0] s);

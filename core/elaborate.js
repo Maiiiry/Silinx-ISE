@@ -76,8 +76,12 @@ class ImportScope extends Scope {
   }
 }
 
+// The slots of a process's or a subprogram's variables. A subprogram declared in a process or in
+// another subprogram reads and writes the variables of the enclosing ones in their frames (#182):
+// level is the depth of the frame (a process's, or a subprogram's declared outside processes: 0),
+// parent the enclosing one.
 class FrameBuilder {
-  constructor() { this.inits = []; this.types = []; }
+  constructor(parent = null) { this.inits = []; this.types = []; this.parent = parent; this.level = parent ? parent.level + 1 : 0; }
   alloc(t, init) { this.inits.push(init); this.types.push(t); return this.inits.length - 1; }
   makeInit() {
     const inits = this.inits;
@@ -85,6 +89,18 @@ class FrameBuilder {
   }
   probe() { return this.inits.map(v => (Array.isArray(v) ? v.slice() : v)); }
 }
+
+// A context to evaluate an expression at elaboration: the variables (loop variables, those of the
+// enclosing frames) at their initial values, no run-time checks
+function probeCtx(E) {
+  const outer = [];
+  for (let f = E.fb?.parent; f; f = f.parent) outer.unshift(f.probe());
+  return { frame: E.fb ? E.fb.probe() : [], outer, sim: null, depth: 0, probe: true };
+}
+
+// A variable: a slot of its frame; one of an enclosing process or subprogram (a procedure declared
+// in a process using the process's variables, #182) names that frame's level (up)
+const locNode = (E, entry, name) => ({ k: 'loc', i: entry.i, t: entry.t, name, ...(E.fb && entry.lvl != null && entry.lvl !== E.fb.level ? { up: entry.lvl } : {}) });
 
 // ---------------------------------------------------------------- library
 export function buildLibrary(parsedFiles) {
@@ -747,7 +763,7 @@ function bindDecl(E, d) {
       }
       if (E.fb && (d.net === 'variable' || E.inProcess)) {
         const i = E.fb.alloc(t, init);
-        E.sc.def(d.name, { kind: 'loc', i, t });
+        E.sc.def(d.name, { kind: 'loc', i, t, lvl: E.fb.level });
         return;
       }
       if (E.sc.local(d.name) && E.sc.local(d.name).kind === 'sig') { diag(E, `'${d.name}' redeclared`, d.loc, 'warning'); return; }
@@ -767,7 +783,8 @@ function bindDecl(E, d) {
       return;
     }
     case 'function': case 'task': {
-      const ent = { kind: 'func', decl: d, E: { ...E, fb: null, inProcess: false }, cache: new Map() };
+      // (outerFb: the frame of the process or subprogram it is declared in, whose variables it uses)
+      const ent = { kind: 'func', decl: d, E: { ...E, fb: null, outerFb: E.fb, inProcess: false }, cache: new Map() };
       // VHDL overloading: subprograms of one name in one region (chosen per call: pickOverload)
       const prev = E.lang === 'vhdl' ? E.sc.local(d.name) : null;
       if (prev && prev.kind === 'func') ent.alts = [...(prev.alts || [prev]), ent];
@@ -1161,7 +1178,7 @@ function refNode(E, entry, name) {
   switch (entry.kind) {
     case 'sig': return { k: 'sig', sig: entry.sig, t: entry.t || entry.sig.t, name };
     case 'const': return { k: 'c', val: entry.val, t: entry.t, name };
-    case 'loc': return { k: 'loc', i: entry.i, t: entry.t, name };
+    case 'loc': return locNode(E, entry, name);
     case 'alias': return entry.rv;   // VHDL signal parameter: the actual signal itself
   }
   return null;
@@ -1491,7 +1508,7 @@ function sliceNode(E, base, leftE, rightE, loc, dir) {
   let w;
   try {
     // (probe: loop variables are not at real values yet, so no run-time checks)
-    const ctx = { frame: E.fb ? E.fb.probe() : [], sim: null, depth: 0, probe: true };
+    const ctx = probeCtx(E);
     const l = V.toNum(evalE(left, ctx)), r = V.toNum(evalE(right, ctx));
     w = vdir && (vdir === 'downto' ? l < r : l > r) ? 0 : Math.abs(l - r) + 1;
   } catch {
@@ -1512,7 +1529,7 @@ function arraySliceNode(E, base, left, right, loc, dir) {
   if (left.k !== 'c' || right.k !== 'c') {
     let len = 0, l0 = t.lo, r0 = t.lo - 1;
     try {
-      const ctx = { frame: E.fb ? E.fb.probe() : [], sim: null, depth: 0, probe: true };
+      const ctx = probeCtx(E);
       l0 = V.toNum(evalE(left, ctx)); r0 = V.toNum(evalE(right, ctx));
       len = (E.lang === 'vhdl' && (desc ? l0 < r0 : l0 > r0)) ? 0 : Math.abs(l0 - r0) + 1;
     } catch { /* not probed */ }
@@ -2176,11 +2193,14 @@ function boundFunction(entry, args, loc, sigActuals = null) {
 function bindSubprogram(entry, args, key, sigActuals, consts) {
   const decl = entry.decl;
   const DE = entry.E;
-  const fb = new FrameBuilder();
+  const fb = new FrameBuilder(DE.outerFb);
   const sc = new Scope(DE.sc);
   // inTask: a Verilog task or a VHDL procedure, which may assign the signals it sees (a function should not)
   const FE = { ...DE, sc, fb, inProcess: true, inFunction: true, inTask: decl.kind === 'task' || !decl.returnType };
-  const fn = { name: decl.name, params: [], body: null, retSlot: null, retT: null, impure: false };
+  const fn = { name: decl.name, params: [], body: null, retSlot: null, retT: null, impure: false, level: fb.level, loc: decl.loc };
+  // a Verilog task or function that is not automatic: its variables are static (the simulator keeps
+  // them from one call to the next; one set per declaration, so per instance of its module)
+  if (DE.lang === 'verilog' && !decl.automatic) fn.static = entry.static ??= Symbol(decl.name);
   if (!sigActuals) entry.cache.set(key, fn);
   try {
     decl.params.forEach((p, k) => {
@@ -2197,7 +2217,7 @@ function bindSubprogram(entry, args, key, sigActuals, consts) {
       }
       const i = fb.alloc(t, defaultValue(t, DE.lang));
       if (consts?.has(k)) sc.def(p.name, { kind: 'const', val: fitVal(consts.get(k), t), t });
-      else sc.def(p.name, { kind: 'loc', i, t });
+      else sc.def(p.name, { kind: 'loc', i, t, lvl: fb.level });
       fn.params.push({ i, t, dir: p.dir, name: p.name });
     });
     let retOpen = false;
@@ -2214,7 +2234,7 @@ function bindSubprogram(entry, args, key, sigActuals, consts) {
       if (!retOpen) FE.retT = rt;   // (aggregates in return statements)
       if (decl.retVar) {
         fn.retSlot = fb.alloc(rt, defaultValue(rt, DE.lang));
-        sc.def(decl.retVar, { kind: 'loc', i: fn.retSlot, t: rt });
+        sc.def(decl.retVar, { kind: 'loc', i: fn.retSlot, t: rt, lvl: fb.level });
       }
     }
     for (const d of decl.decls) bindDecl(FE, d);
@@ -2231,7 +2251,12 @@ function bindSubprogram(entry, args, key, sigActuals, consts) {
   }
   fn.frameInit = fb.makeInit();
   const rw = collectRW(fn.body);
-  fn.impure = rw.reads.size > 0 || rw.writes.size > 0 || containsKind(fn.body, ['delay', 'event', 'wait', 'sys', 'fork', 'waitfork']);
+  // outer: the lowest level of an enclosing frame whose variables it (or a subprogram it calls) uses
+  walk(fn.body, x => {
+    const up = x.k === 'loc' ? x.up : (x.k === 'call' || x.k === 'task') && x.fn?.outer < fn.level ? x.fn.outer : null;
+    if (up != null && !(fn.outer <= up)) fn.outer = up;
+  });
+  fn.impure = rw.reads.size > 0 || rw.writes.size > 0 || fn.outer != null || containsKind(fn.body, ['delay', 'event', 'wait', 'sys', 'fork', 'waitfork']);
   return fn;
 }
 
@@ -2260,7 +2285,7 @@ function bindLvalue(E, e, loc) {
         throw notDeclared(e.name, loc);
       }
       if (entry.kind === 'sig') return { k: 'sig', sig: entry.sig, t: entry.t || entry.sig.t, name: e.name };
-      if (entry.kind === 'loc') return { k: 'loc', i: entry.i, t: entry.t, name: e.name };
+      if (entry.kind === 'loc') return locNode(E, entry, e.name);
       if (entry.kind === 'alias' && entry.lv) return entry.lv;
       throw new ElabError(`cannot assign to '${e.name}'`, loc);
     }
@@ -2429,7 +2454,7 @@ function bindStmt0(E, s, loc) {
       if (!E.fb) throw new ElabError('loop outside of a process', loc);
       const init = r.from.k === 'c' ? fitVal(r.from.val, INT) : V.fromInt(0);
       const i = E.fb.alloc(INT, init);
-      sc.def(s.var, { kind: 'loc', i, t: INT });
+      sc.def(s.var, { kind: 'loc', i, t: INT, lvl: E.fb.level });
       const LE = { ...E, sc };
       return { k: 'forrange', var: i, varT: INT, from: r.from, to: r.to, down: r.down, body: bindStmt(LE, s.body, loc), loc, label: s.label };
     }

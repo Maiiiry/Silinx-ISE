@@ -797,7 +797,7 @@ class Parser {
   funcDecl() {
     const loc = this.loc();
     const kind = this.next().v;
-    this.accept('automatic');
+    const automatic = !!this.accept('automatic');
     let returnType = null;
     if (kind === 'function') {
       if (this.isWord('void')) this.next();
@@ -856,7 +856,7 @@ class Parser {
       decls.splice(k, 1);
     }
     for (const d of decls) if (d.kind === 'signal') d.net = 'variable';
-    const fn = { kind, name, params, returnType, decls, body, loc };
+    const fn = { kind, name, params, returnType, decls, body, loc, automatic };
     if (kind === 'function') fn.retVar = name;
     return fn;
   }
