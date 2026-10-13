@@ -6,6 +6,7 @@
 //     silinx-ise-docker-kit-<version>.zip  builder kit of the private Xilinx ISE 14.7 Docker image
 //     Silinx-ISE.html                      the single-file edition (copied from dist/, built before
 //                                          with npm run build:standalone; left out when not built)
+// version dev: the files of the pre-release "Development build" (silinx-ise-dev.zip, …).
 // --app-only: only the app zip. The version defaults to package.json's. Needs `zip` (Linux, macOS)
 // and npm (the production dependencies are installed from package-lock.json: npm ci --omit=dev).
 import fs from 'node:fs';
@@ -18,7 +19,8 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
 const opt = (name, def) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : def; };
 const version = String(argv.find((a, i) => !a.startsWith('--') && argv[i - 1] !== '--out') || JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version).replace(/^v/, '');
-if (!/^\d+\.\d+\.\d+$/.test(version)) { console.error('usage: node scripts/package-release.mjs [version] [--out dir] [--app-only]'); process.exit(2); }
+// (dev: the pre-release "Development build", .github/workflows/dev-release.yml)
+if (!/^(\d+\.\d+\.\d+|dev)$/.test(version)) { console.error('usage: node scripts/package-release.mjs [version] [--out dir] [--app-only]'); process.exit(2); }
 const out = path.resolve(opt('out', path.join(root, 'out')));
 const appOnly = argv.includes('--app-only');
 const run = (cmd, args, cwd) => execFileSync(cmd, args, { cwd, stdio: ['ignore', 'inherit', 'inherit'], shell: process.platform === 'win32' && cmd === 'npm' });
