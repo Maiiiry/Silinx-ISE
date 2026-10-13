@@ -27,11 +27,15 @@
 //     assigns carry `label`; subprogram declarations without a body (package header
 //     whose body is elsewhere) carry `declOnly: true`.
 //   * std_logic characters in literals are accepted case-insensitively ('x' == 'X').
+//   * subprograms written `pure` / `impure` carry `purity` ('pure' | 'impure'); once a file reads
+//     without errors, its pure functions that use what is declared outside them are errors
+//     (core/vhdl/purity.js, #185).
 // Waveforms: a multi-element waveform `a <= '1', '0' after 10 ns;` becomes one
 // nonblocking assignment per element (each with its own delay) — inside a block in
 // sequential code; a concurrent one becomes a process (sens 'all') with that block.
 
 import { lex, tokenText } from './lexer.js';
+import { purityErrors } from './purity.js';
 
 class ParseError extends Error {}
 
@@ -101,6 +105,11 @@ export function parse(source, file = 'input') {
     for (const e of lexErrors) errors.push({ file, ...e });
     const p = new Parser(tokens, file, errors);
     units = p.parseDesignFile();
+    // a pure function that uses what is declared outside it (#185): once the file reads without errors
+    if (!errors.some(e => e.severity === 'error')) {
+      const pkgs = new Map(units.filter(u => u.kind === 'package').map(u => [u.name, u]));
+      errors.push(...purityErrors(units, { file, text: String(source ?? ''), packages: n => pkgs.get(n) }));
+    }
   } catch (e) {
     errors.push({ file, line: 1, col: 1, message: `internal parser error: ${e && e.message}`, severity: 'error' });
   }
@@ -839,7 +848,8 @@ class Parser {
 
   parseSubprogram(uses) {
     const tok = this.peek();
-    this.acceptKw('pure') || this.acceptKw('impure');
+    // (purity: 'pure' / 'impure' when written; a function is pure by default, #185)
+    const purity = this.acceptKw('pure') ? 'pure' : this.acceptKw('impure') ? 'impure' : null;
     const isFunc = this.isKw('function');
     if (!this.acceptKw('function')) this.expectKw('procedure');
     let name;
@@ -854,7 +864,7 @@ class Parser {
     }
     if (this.isOp(';') || this.declEndsLine() && !this.bodyFollows(name)) {
       this.expectOp(';');
-      return { kind: 'function', name, params, returnType, decls: [], body: [], retVar: undefined, loc: this.loc(tok), declOnly: true };
+      return { kind: 'function', name, params, returnType, decls: [], body: [], retVar: undefined, loc: this.loc(tok), declOnly: true, ...(purity ? { purity } : {}) };
     }
     this.expectKw('is');
     if (this.isKw('new')) { this.warn('subprogram instantiation is not supported'); this.sync(); return null; }
@@ -865,7 +875,7 @@ class Parser {
     this.acceptKw('function') || this.acceptKw('procedure');
     if (this.isId() || this.peek().type === 'str') this.next();
     this.expectOp(';');
-    return { kind: 'function', name, params, returnType, decls, body, retVar: undefined, loc: this.loc(tok) };
+    return { kind: 'function', name, params, returnType, decls, body, retVar: undefined, loc: this.loc(tok), ...(purity ? { purity } : {}) };
   }
 
   parseParamList() {
@@ -1903,7 +1913,8 @@ function mergePackageDecls(into, decls) {
       (d.kind !== 'function' || (x.declOnly && sameParams(x, d))));
     if (idx >= 0 && d.kind === 'function') {
       if (d.declOnly) continue;
-      into[idx] = d;
+      // (impure in the package declaration: the body is impure too)
+      into[idx] = into[idx].purity === 'impure' && !d.purity ? { ...d, purity: 'impure' } : d;
     } else if (idx >= 0 && d.kind === 'const' && into[idx].value === null) {
       into[idx] = { ...into[idx], value: d.value, type: into[idx].type || d.type };
     } else {

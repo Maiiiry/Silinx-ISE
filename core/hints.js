@@ -168,6 +168,20 @@ export const HINTS = [
       fix: "Escreva '$1 := …;'. Se precisa do valor fora do process, use um sinal em vez de uma variável." },
   },
   {
+    id: 'pure-function', check: 'pure-function', re: /^Cannot access ([a-z ]+) '([^']+)' (?:\([^)]*\) )?from inside pure function '([^']+)'/,
+    en: { explain: "'$3' is a pure function (a VHDL function is pure unless it is declared impure): its result may depend only on its parameters, like a formula. It must not read or change a signal, a port or a variable declared outside it, but it uses the $1 '$2'.",
+      fix: "Pass '$2' to the function as a parameter (f(x, $2)), or, if it must use it, declare the function impure: 'impure function $3 …' (in the package declaration too, if it has one)." },
+    pt: { explain: "'$3' é uma função pura (em VHDL uma função é pura se não for declarada impure): o resultado só pode depender dos seus parâmetros, como uma fórmula. Não pode ler nem alterar um sinal, um porto ou uma variável declarados fora dela, mas usa o $1 '$2'.",
+      fix: "Passe '$2' à função como parâmetro (f(x, $2)), ou, se tem mesmo de o usar, declare a função impura: 'impure function $3 …' (também na declaração do package, se tiver uma)." },
+  },
+  {
+    id: 'pure-function-call', check: 'pure-function', re: /^Cannot call (impure function|side-effect procedure) '([^']+)' (?:\([^)]*\) )?from within pure function '([^']+)'/,
+    en: { explain: "'$3' is a pure function (a VHDL function is pure unless it is declared impure): its result may depend only on its parameters. It calls the $1 '$2', which uses signals or variables declared outside it, so '$3' would use them too.",
+      fix: "Declare '$3' impure as well: 'impure function $3 …' (in the package declaration too, if it has one), or give '$2' what it uses as parameters." },
+    pt: { explain: "'$3' é uma função pura (em VHDL uma função é pura se não for declarada impure): o resultado só pode depender dos seus parâmetros. Chama '$2' ($1), que usa sinais ou variáveis declarados fora dela, por isso '$3' também os usaria.",
+      fix: "Declare também '$3' impura: 'impure function $3 …' (também na declaração do package, se tiver uma), ou passe a '$2' o que ela usa como parâmetros." },
+  },
+  {
     id: 'cannot-assign', re: /^cannot assign to '([^']+)'/,
     en: { explain: "'$1' cannot be assigned: it is a constant, a generic / parameter, or a name that is not a signal or variable.",
       fix: "Assign a signal (or a variable inside a process). To change a constant, edit its declaration." },

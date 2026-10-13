@@ -170,3 +170,20 @@ test('help for the unused bits of an input bus and for names that differ only in
   assert.match(nc.en.explain, /XST reports this as Xst:863\.\)$/);
   assert.match(nc.pt.fix, /nome claramente diferente/);
 });
+
+test('help for a pure function that uses what is declared outside it, or calls an impure function / a side-effect procedure (#185)', () => {
+  const acc = first(V('y <= f(a);', 'function f(x : std_logic) return std_logic is\nbegin\n  return x and b;\nend function;'), 't');
+  assert.equal(acc.message, "Cannot access port 'b' (line 2) from inside pure function 'f'.");
+  assert.equal(acc.hint, 'pure-function');
+  assert.equal(hintText(acc, 'en').explain, "'f' is a pure function (a VHDL function is pure unless it is declared impure): its result may depend only on its parameters, like a formula. It must not read or change a signal, a port or a variable declared outside it, but it uses the port 'b'.");
+  assert.equal(hintText(acc, 'en').fix, "Pass 'b' to the function as a parameter (f(x, b)), or, if it must use it, declare the function impure: 'impure function f …' (in the package declaration too, if it has one).");
+  assert.match(hintText(acc, 'pt').explain, /^'f' é uma função pura .* mas usa o port 'b'\.$/);
+  assert.match(hintText(acc, 'pt').fix, /declare a função impura: 'impure function f …'/);
+  const call = first(V('y <= f(a);', 'impure function g return std_logic is\nbegin\n  return b;\nend function;\nfunction f(x : std_logic) return std_logic is\nbegin\n  return x and g;\nend function;'), 't');
+  assert.equal(call.message, "Cannot call impure function 'g' (line 4) from within pure function 'f'.");
+  assert.equal(call.hint, 'pure-function-call');
+  assert.match(hintText(call, 'en').explain, /It calls the impure function 'g', which uses signals or variables declared outside it, so 'f' would use them too\.$/);
+  assert.match(hintText(call, 'en').fix, /^Declare 'f' impure as well: 'impure function f …'/);
+  assert.match(hintText(call, 'pt').fix, /^Declare também 'f' impura/);
+  assert.equal(hintFor({ message: "Cannot call side-effect procedure 'p' (line 3) from within pure function 'f'.", check: 'pure-function' }).id, 'pure-function-call');
+});

@@ -309,6 +309,54 @@ uiTest('quick fix of the ";" missing after the attribute specification of a stat
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
 });
 
+uiTest('a pure function that reads a signal: the error in the editor with its explanation, "Fix: Declare the function … impure", Check Syntax clean after it (#185)', E, async (page) => {
+  const PARITY = `library ieee;
+use ieee.std_logic_1164.all;
+
+entity parity is
+  port (clk : in std_logic;
+        d   : in std_logic;
+        q   : out std_logic);
+end parity;
+
+architecture rtl of parity is
+  signal acc : std_logic := '0';
+  -- acc with one more bit
+  function next_acc(x : std_logic) return std_logic is
+  begin
+    return acc xor x;
+  end function;
+begin
+  process (clk)
+  begin
+    if rising_edge(clk) then
+      acc <= next_acc(d);
+    end if;
+  end process;
+  q <= acc;
+end rtl;
+`;
+  await makeProject(env, { name: 'FixPure', top: 'parity', files: { 'src/parity.vhd': PARITY } });
+  await page.openProject('FixPure');
+  await page.eval(() => window.SilinxApp.openFile('src/parity.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/parity.vhd' && window.Silinx.active.editor);
+  await errorMarker(page, 15);
+  const tip = await lintTooltip(page);
+  assert.match(tip, /^Cannot access signal 'acc' \(line 11\) from inside pure function 'next_acc'\.\n\nExplanation: 'next_acc' is a pure function \(a VHDL function is pure unless it is declared impure\)/);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Declare the function 'next_acc' impure"]);
+  // ---- the Errors tab of Check Syntax: the error, its fix
+  await checkSyntax(page, /Process "Check Syntax" failed \(1 error\(s\), 0 warning\(s\)\)/);
+  await page.waitFor(() => document.querySelector('#console-tabs .tab[data-page=errors]').classList.contains('active'));
+  assert.match(await page.eval(() => document.querySelector('#console-errors .diag').textContent), /^ERROR:HDLCompiler:250 - "src\/parity\.vhd" Line 15: Cannot access signal 'acc' \(line 11\) from inside pure function 'next_acc'\.▸ Explanation and fixFix: Declare the function 'next_acc' impure$/);
+  // ---- applied from the tooltip: impure, no error, Check Syntax clean
+  await lintTooltip(page);
+  await page.click('.CodeMirror-lint-tooltip .xl-fix');
+  assert.equal(await ed(page), PARITY.replace('  function next_acc', '  impure function next_acc'));
+  await noMarkers(page);
+  await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
+  assert.equal(await page.eval(() => document.getElementById('err-count').textContent + document.getElementById('warn-count').textContent), '');
+});
+
 // ---------------------------------------------------------------- drawings without an HDL file (#177)
 uiTest('Rename Symbol and quick fixes never write a drawing without an HDL file: the dialog says its instance is not changed; no fix for its errors', E, async (page) => {
   const { COUNTER, schematicOf } = await import('../drawn-lib.mjs');

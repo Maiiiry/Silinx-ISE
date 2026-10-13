@@ -589,6 +589,75 @@ end rtl;
   assert.deepEqual(messages(f[0].text, 'vhdl'), []);
 });
 
+test('VHDL: a pure function that uses what is declared outside it -> declared impure (also in its package declaration), only when no other pure function calls it (#185)', () => {
+  const s = `${HEAD}entity top is port (a : in std_logic; y : out std_logic); end top;
+architecture rtl of top is
+  signal s : std_logic;
+  function f(x : std_logic) return std_logic is
+  begin
+    return x and s;
+  end function;
+begin
+  s <= not a;
+  y <= f(a);
+end rtl;
+`;
+  assert.deepEqual(messages(s, 'vhdl'), ["error:8: Cannot access signal 's' (line 5) from inside pure function 'f'."]);
+  let f = fixes(s, 'vhdl', /pure function/);
+  assert.deepEqual(f, [{ title: "Declare the function 'f' impure", text: s.replace('  function f', '  impure function f') }]);
+  assert.deepEqual(messages(f[0].text, 'vhdl'), []);
+  // `pure` -> `impure`; a process's variable; a call of an impure function
+  const p = `${HEAD}entity top is port (a : in std_logic; y : out std_logic); end top;
+architecture rtl of top is
+  impure function g return std_logic is
+  begin
+    return a;
+  end function;
+begin
+  process (a)
+    variable n : std_logic := '0';
+    pure function f(x : std_logic) return std_logic is
+    begin
+      n := not n;
+      return x xor g;
+    end function;
+  begin
+    y <= f(a);
+  end process;
+end rtl;
+`;
+  assert.deepEqual(messages(p, 'vhdl'), ["error:14: Cannot access variable 'n' (line 11) from inside pure function 'f'.", "error:15: Cannot call impure function 'g' (line 5) from within pure function 'f'."]);
+  for (const re of [/variable 'n'/, /impure function 'g'/]) {
+    f = fixes(p, 'vhdl', re);
+    assert.deepEqual(f, [{ title: "Declare the function 'f' impure", text: p.replace('pure function f', 'impure function f') }]);
+    assert.deepEqual(messages(f[0].text, 'vhdl'), []);
+  }
+  // a package: its declaration and its body; the overloaded function of other parameters is left as it is
+  const k = `${HEAD}package pk is
+  signal ps : std_logic;
+  function f(x : std_logic) return std_logic;
+  function f(x, z : std_logic) return std_logic;
+end pk;
+package body pk is
+  function f(x : std_logic) return std_logic is
+  begin
+    return x and ps;
+  end function;
+  function f(x, z : std_logic) return std_logic is
+  begin
+    return x and z;
+  end function;
+end pk;
+`;
+  f = fixes(k, 'vhdl', /pure function/);
+  assert.deepEqual(f, [{ title: "Declare the function 'f' impure", text: k.replace('  function f(x : std_logic) return std_logic;', '  impure function f(x : std_logic) return std_logic;').replace('  function f(x : std_logic) return std_logic is', '  impure function f(x : std_logic) return std_logic is') }]);
+  assert.deepEqual(messages(f[0].text, 'vhdl'), []);
+  // a pure function calls it: impure, it would make that one wrong -> no fix
+  const c = s.replace('end function;\nbegin', 'end function;\n  function h(x : std_logic) return std_logic is\n  begin\n    return f(x);\n  end function;\nbegin').replace('y <= f(a)', 'y <= h(a)');
+  assert.deepEqual(messages(c, 'vhdl'), ["error:8: Cannot access signal 's' (line 5) from inside pure function 'f'."]);
+  assert.deepEqual(fixes(c, 'vhdl', /pure function/), []);
+});
+
 test('an unknown module or port of an instance -> the nearest of the project (VHDL, Verilog)', () => {
   const v = 'module top(input c, input r, output [3:0] q);\n  countr #(.WIDTH(4)) u1 (.clk(c), .reset(r), .count(q));\nendmodule\n';
   assert.deepEqual(fixes(v, 'verilog', /not found/), [{ title: "Change 'countr' to 'counter'", text: v.replace('countr #', 'counter #') }]);

@@ -11,6 +11,7 @@ import * as V from './values.js';
 import { evalE, runSync, exec, SimError, strToVal, bitpos } from './interp.js';
 import { nativePrimitive } from './native.js';
 import { mapBits } from './vhdl/parser.js';
+import { purityErrors } from './vhdl/purity.js';
 
 export const INT = { kind: 'int', w: 32, s: true, left: 31, right: 0, desc: true };
 export const BOOL = { kind: 'bool', w: 1, s: false, left: 0, right: 0, desc: true, scalar: true };
@@ -116,6 +117,14 @@ export function buildLibrary(parsedFiles) {
       } else if (u.kind === 'package') lib.packages.set(u.name, u);
       else if (u.kind === 'architecture') archs.push(u);
     }
+  }
+  // pure functions (#185) using what another file declares: a package's signals and impure
+  // functions, the ports of an entity (each file's parse reported what it declares itself)
+  const known = new Set(lib.errors.map(e => `${e.file}:${e.line}:${e.message}`));
+  for (const pf of parsedFiles) {
+    if (pf.lang !== 'vhdl' || (pf.errors || []).some(e => e.severity === 'error')) continue;
+    for (const e of purityErrors(pf.units, { file: pf.file, text: pf.text, packages: n => lib.packages.get(n), entityOf: a => findModule(lib, a.entity) }))
+      if (!known.has(`${e.file}:${e.line}:${e.message}`)) lib.errors.push(e);
   }
   for (const a of archs) {
     const ent = findModule(lib, a.entity);

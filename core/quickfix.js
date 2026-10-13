@@ -22,13 +22,16 @@
 //    '<=' to a variable, an output port that is read (VHDL-93: an internal signal);
 //  - Verilog: a procedural assignment to a wire (-> reg), a continuous one to a reg (-> wire), '=' /
 //    '<=' in the wrong kind of always block, an incomplete event list (-> always @(*));
-//  - VHDL: a signal missing from the sensitivity list of a process (-> added).
+//  - VHDL: a signal missing from the sensitivity list of a process (-> added);
+//  - VHDL: a pure function that uses what is declared outside it (-> declared impure, also in its
+//    package declaration), when no other pure function calls it.
 //
 // Isomorphic module (browser + Node).
 
 import { analyze, openScopes, visibleSymbols } from './scopes.js';
 import { parse as parseVhdl } from './vhdl/parser.js';
 import { parse as parseVerilog } from './verilog/parser.js';
+import { PURE_CHECK } from './vhdl/purity.js';
 
 const VHDL_TYPES = ['std_logic', 'std_logic_vector', 'std_ulogic', 'std_ulogic_vector', 'unsigned', 'signed', 'integer', 'natural', 'positive',
   'boolean', 'bit', 'bit_vector', 'time', 'string', 'real', 'character'];
@@ -36,6 +39,11 @@ const VHDL_FUNCS = ['rising_edge', 'falling_edge', 'to_unsigned', 'to_signed', '
   'shift_left', 'shift_right', 'rotate_left', 'rotate_right', 'conv_integer', 'conv_std_logic_vector', 'to_stdlogicvector', 'to_bitvector'];
 const VALUE_KINDS = new Set(['port', 'signal', 'variable', 'constant', 'generic', 'parameter', 'enum', 'loopvar', 'genvar', 'argument', 'alias']);
 const VECTOR = /^(std_logic_vector|std_ulogic_vector|unsigned|signed|bit_vector)\s*\(\s*(\d+)\s+(downto|to)\s+(\d+)\s*\)$/i;
+
+// the syntax errors of a source (not the pure-function errors the VHDL parser adds once it reads
+// without them), and those
+const syntaxErrors = (text, lang) => (lang === 'vhdl' ? parseVhdl : parseVerilog)(text, 'f').errors.filter(e => e.severity !== 'warning' && e.check !== PURE_CHECK);
+const pureErrors = text => parseVhdl(text, 'f').errors.filter(e => e.check === PURE_CHECK);
 
 /** The text with the edits of a fix applied. */
 export function applyFix(text, fix) {
@@ -89,7 +97,7 @@ function context(text, lang) {
     indent: l => /^[ \t]*/.exec(lines[l - 1] || '')[0],
     /** The syntax errors of the file (in order). */
     get errors() {
-      if (!errs) { try { errs = (lang === 'vhdl' ? parseVhdl : parseVerilog)(text, 'f').errors.filter(e => e.severity !== 'warning'); } catch { errs = []; } }
+      if (!errs) { try { errs = syntaxErrors(text, lang); } catch { errs = []; } }
       return errs;
     },
     tok: i => C.a.tokens[i],
@@ -134,7 +142,7 @@ export function quickFixes(text, lang, d, opts = {}) {
 }
 
 const RULES = [notDeclared, unknownType, unknownUnit, missingSemicolon, missingEnd, widthMismatch, missingLibrary, assignOperator, variableAssign,
-  modeOut, regWire, blockingKind, sensitivity];
+  modeOut, regWire, blockingKind, sensitivity, declareImpure];
 
 // ---- a name that is not declared: the nearest declared one, or its declaration
 function notDeclared(C, d, msg) {
@@ -412,7 +420,7 @@ function missingSemicolon(C, d, msg) {
     const fix = at(line);
     if (!fix) continue;
     let after;
-    try { after = (C.lang === 'vhdl' ? parseVhdl : parseVerilog)(applyFix(C.text, fix), 'f').errors.filter(e => e.severity !== 'warning'); } catch { continue; }
+    try { after = syntaxErrors(applyFix(C.text, fix), C.lang); } catch { continue; }
     if (after.length < C.errors.length && !(after[0] && after[0].line <= d.line)) return [fix];
   }
 }
@@ -477,7 +485,7 @@ function missingEnd(C, d, msg) {
   }
   // where the indentation says the construct ends, when it does, else just before that end; and
   // only a fix after which the parser finds fewer errors
-  const fewer = f => { try { return (C.lang === 'vhdl' ? parseVhdl : parseVerilog)(applyFix(C.text, f), 'f').errors.filter(e => e.severity !== 'warning').length < C.errors.length; } catch { return false; } };
+  const fewer = f => { try { return syntaxErrors(applyFix(C.text, f), C.lang).length < C.errors.length; } catch { return false; } };
   const guided = byIndentation(C, at, closer);
   return [guided, fix].filter(f => f && fewer(f)).slice(0, 1);
 }
@@ -710,4 +718,44 @@ function sensitivity(C, d, msg) {
     const s = T[al + 2], e = T[close];
     return [{ title: "Use 'always @(*)': every signal read is in the list", edits: [{ line: s.line, col: s.col, endLine: e.line, endCol: e.col + 1, text: '(*)' }] }];
   }
+}
+
+// ---- VHDL: a pure function that uses what is declared outside it -> `impure function` (its body and
+// its declaration in a package or a declarative part), when the source then has no other error of
+// pure functions (a pure function that calls it)
+function declareImpure(C, d, msg) {
+  const m = /^Cannot (?:access [a-z ]+|call (?:impure function|side-effect procedure)) '[^']+' (?:\([^)]*\) )?from (?:inside|within) pure function '([^']+)'/.exec(msg);
+  if (!m || C.lang !== 'vhdl') return;
+  const { a } = C;
+  const T = a.tokens;
+  const key = C.norm(m[1]);
+  const isFn = s => s.kind === 'subprogram' && s.closer === 'function' && s.sym?.key === key;
+  const body = openScopes(a, a.tokenAtPos(d.line, d.col)).find(s => isFn(s) && !s.specOnly);
+  if (!body) return;
+  // the header as written, from the name to `is` / `;` (an overloaded function: the declaration of this one)
+  const header = (s) => {
+    const out = [];
+    for (let j = s.tok + 1, dd = 0; j < T.length && T[j].k !== 'eof'; j++) {
+      if (isOp(T[j], '(')) dd++;
+      else if (isOp(T[j], ')')) dd--;
+      if (dd === 0 && (isKw(T[j], 'is') || isOp(T[j], ';'))) break;
+      out.push(T[j].key ?? T[j].v);
+    }
+    return out.join(' ');
+  };
+  const decls = a.scopes.filter(s => isFn(s) && s.specOnly && (s.outer === body.outer || body.outer?.parent === s.outer) && header(s) === header(body));
+  // `pure function` -> `impure function`, `function` -> `impure function`
+  const edits = [];
+  for (const s of [body, ...decls]) {
+    const p = T[s.tok - 1];
+    if (isKw(p, 'impure')) continue;
+    edits.push(isKw(p, 'pure') ? C.replace(p, 'impure') : C.insertAt(T[s.tok].line, T[s.tok].col, 'impure '));
+  }
+  if (!edits.length) return;
+  const fix = { title: `Declare the function ${q(m[1])} impure`, edits };
+  // only when that makes it valid: no new error, none left in that function
+  const before = new Set(pureErrors(C.text).map(e => `${e.line}:${e.message}`));
+  const after = pureErrors(applyFix(C.text, fix));
+  if (after.some(e => !before.has(`${e.line}:${e.message}`) || e.message.endsWith(`pure function '${m[1]}'.`))) return;
+  return [fix];
 }
