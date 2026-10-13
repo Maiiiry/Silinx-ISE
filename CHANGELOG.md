@@ -25,6 +25,10 @@ In detail:
   LOC") are now printed as part of that process, after its "Started" line, and counted in its
   "completed successfully with N warning(s)" and its icon; they were printed before it and not
   counted (#129).
+- The RTL and Technology Schematics in Portuguese: the symbol palette (*<--Todos os Símbolos-->*,
+  the symbols' tooltips), the properties (*Propriedades*, *Módulo …*, *Pinos (5)*, a wire, an I/O
+  marker, a net name), the status bar and the Check panel were partly in English; the schematic
+  editor too (#130).
 
 ## 15.10.7
 

@@ -306,3 +306,82 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
     message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1068 cells in 20 block(s): " });
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 400000 });
+
+// The read-only schematic views in Portuguese (#130): the RTL and Technology Schematics' bar, symbol
+// palette (hidden in these views: its category options and symbol tooltips), the properties of one
+// object of each kind (nothing selected, every symbol type, an I/O marker, a wire, a net name), all
+// objects selected, the status bar and the Check panel: no English text left (names apart)
+async function viewerTexts(page) {
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  const both = async () => {
+    await setLang('en'); const en = await page.eval(() => window.__uiTexts(document.querySelector('.doc:not([hidden])')));
+    await setLang('pt'); const pt = await page.eval(() => window.__uiTexts(document.querySelector('.doc:not([hidden])')));
+    await setLang('en');
+    return { en, pt };
+  };
+  // where to click one object of each kind (a wire: the middle of its line)
+  const targets = await page.eval(() => {
+    const d = window.Silinx.active.viewer.getDoc();
+    const out = [], seen = new Set();
+    for (const g of document.querySelectorAll('.doc:not([hidden]) .se-svg [data-kind]')) {
+      const kind = g.dataset.kind === 'sym' ? `sym:${d.symbols.find((s) => s.id === g.dataset.id)?.type}` : g.dataset.kind;
+      if (seen.has(kind)) continue;
+      const pl = g.querySelector('polyline');
+      let x, y;
+      if (pl) { const q = pl.getPointAtLength(pl.getTotalLength() / 2), m = pl.getScreenCTM(); x = q.x * m.a + q.y * m.c + m.e; y = q.x * m.b + q.y * m.d + m.f; } else { const b = g.getBoundingClientRect(); x = b.left + b.width / 2; y = b.top + b.height / 2; }
+      if (document.elementFromPoint(x, y)?.closest('[data-kind]') !== g) continue;
+      seen.add(kind); out.push({ kind, x, y });
+    }
+    return out;
+  });
+  const runs = [await both()];
+  const kinds = [];
+  for (const t of targets) {
+    await page.click({ x: t.x, y: t.y });
+    kinds.push(t.kind);
+    runs.push(await both());
+  }
+  // all objects selected (Ctrl+A)
+  await page.click('.doc:not([hidden]) .se-toolbar [data-act=fit]');
+  await page.key('a', { modifiers: 2 });
+  await page.waitFor(() => / objects selected$/.test(document.querySelector('.doc:not([hidden]) .se-ptitle')?.textContent || ''), [], { what: 'all selected' });
+  runs.push(await both());
+  // the Check panel
+  await page.click('.doc:not([hidden]) .se-toolbar [data-act=check]');
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .se-diags').hidden, [], { what: 'Check panel' });
+  runs.push(await both());
+  return { kinds, untranslated: [...new Set(runs.flatMap((r) => untranslated(r.en, r.pt, [/^\w+ : \w+$/, /^Flip-Flops$/, /^@Buffer$/])))], pt: new Set(runs.flatMap((r) => r.pt)), en: new Set(runs.flatMap((r) => r.en)) };
+}
+
+uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, the properties, the status bar are translated (#130)', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'ViewPt', template: 'blinky' });
+  await page.openProject('ViewPt');
+  await reloadToolchain(page);
+  await page.eval(TEXTS);
+  // RTL Schematic of blinky's top
+  await page.treeRow('#hier', 'top');
+  await page.treeRow('#procs', 'View RTL Schematic', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'rtl:top' && document.querySelectorAll('.doc:not([hidden]) .se-svg [data-kind=sym]').length >= 5, [], { what: 'RTL schematic' });
+  const rtl = await viewerTexts(page);
+  assert.deepEqual(rtl.kinds, ['wire', 'sym:module', 'sym:slice', 'sym:and2b1', 'sym:hdlblock', 'port', 'label']);
+  assert.deepEqual(rtl.untranslated, []);
+  for (const s of ['Propriedades', '<--Todos os Símbolos-->', '@Inversor', '@Porta AND de 2 entradas (bit a bit quando Largura > 1)', 'Abrir top.vhd', 'Fio · rede clk', "Rede 'clk', 1 bit",
+    'Módulo prescaler', 'Parâmetros', 'vazio = valor por omissão do módulo', 'Pinos (3)', 'Índice do MSB', 'Marcador de E/S', 'Bidirecional', 'Nome de Rede',
+    'um por linha: nome[largura] (acrescente "clock" para um pino de relógio)', 'nome[largura]', 'Verificar Esquemático: 0 erro(s), 0 aviso(s)', 'Nenhum erro ou aviso encontrado.'])
+    assert.ok(rtl.pt.has(s), `${s}: ${[...rtl.pt].join(' | ')}`);
+  // texts starting with a number (which the language check takes for numbers) are translated too
+  assert.ok([...rtl.pt].some((s) => /^\d+ objetos selecionados$/.test(s)), [...rtl.pt].join(' | '));
+  assert.ok([...rtl.pt].some((s) => /^\d+ símbolos, \d+ redes · 0 erro\(s\), 0 aviso\(s\)$/.test(s)), [...rtl.pt].join(' | '));
+  // Technology Schematic of the same design (the Silinx toolchain's synthesis)
+  await page.click('input[name=view][value=impl]');
+  await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'tech:top' && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [], { what: 'technology schematic', timeout: 180000 });
+  const tech = await viewerTexts(page);
+  assert.deepEqual(tech.kinds, ['wire', 'sym:module', 'sym:constant', 'sym:slice', 'sym:busjoin', 'port', 'label']);
+  assert.deepEqual(tech.untranslated, []);
+  for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo lut2', 'Pinos (3)', 'Larguras das entradas (MSB primeiro)', 'Função do LUT (INIT)'])
+    assert.ok(tech.pt.has(s), `${s}: ${[...tech.pt].join(' | ')}`);
+  assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 300000 });

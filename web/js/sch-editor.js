@@ -501,7 +501,7 @@ export function mountSchEditor(container, opts = {}) {
         const row = h('div', {
           class: `se-symrow${placing && placing.type === it.type && (placing.preset || null) === (it.preset || null) && (it.type !== 'module' || placing.params.module === it.params.module) ? ' active' : ''}`,
           draggable: 'true', title: it.desc,
-          html: `${previewSvg(it)}<span class="nm">${esc(it.title)}</span>`,
+          html: `${previewSvg(it)}<span class="nm" data-no-i18n>${esc(it.title)}</span>`,
         });
         row.addEventListener('click', () => { infoItem = it; startPlace(it); showSymInfo(it); });
         row.addEventListener('contextmenu', e => {
@@ -773,7 +773,7 @@ export function mountSchEditor(container, opts = {}) {
       ensure().generics = v.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const m = /^([A-Za-z_]\w*)\s*(?::\s*([^:=]+?))?\s*(?::?=\s*(.+))?$/.exec(l); return m ? { name: m[1], type: (m[2] || '').trim(), default: (m[3] || '').trim() } : null; }).filter(Boolean);
     }, 2), 'one per line: NAME : type := default'));
     sec.append(field('Declarations', ta(hd.decls || '', v => { ensure().decls = v; }, 6), 'signals, types, constants, functions emitted verbatim'));
-    if (doc.lang === 'vhdl') sec.append(field('Architecture name', inp(hd.arch || '', v => { ensure().arch = String(v).trim(); }, { placeholder: 'schematic' })));
+    if (doc.lang === 'vhdl') sec.append(field('Architecture name', inp(hd.arch || '', v => { ensure().arch = String(v).trim(); }, { placeholder: 'schematic', 'data-no-i18n': '' })));
     propBody.append(sec);
     propBody.append(h('div', { class: 'se-note', text: 'Tip: drag symbols from the Symbols panel; double-click a module symbol to open its source.' }));
   }
@@ -813,12 +813,14 @@ export function mountSchEditor(container, opts = {}) {
     if (s.type === 'module') {
       const names = Object.keys(modules).sort();
       const modOpts = names.includes(s.params.module) ? names : [s.params.module, ...names];
-      propBody.append(field('Module', selBox(s.params.module, modOpts, x => { s.params.module = x; s.params.generics = {}; delete s.params.ports; })));
+      const modSel = selBox(s.params.module, modOpts, x => { s.params.module = x; s.params.generics = {}; delete s.params.ports; });
+      modSel.setAttribute('data-no-i18n', '');   // module names (a module may be called sync, up...)
+      propBody.append(field('Module', modSel));
       const m = modules[s.params.module];
       const gens = m?.generics || Object.keys(s.params.generics || {}).map(k => ({ name: k, default: '' }));
       if (gens.length) {
         const box = h('div', { class: 'se-gens' });
-        for (const g of gens) box.append(h('div', { class: 'se-row' }, h('span', { class: 'gn', text: g.name }), inp(s.params.generics?.[g.name] ?? '', x => { s.params.generics ||= {}; if (String(x).trim()) s.params.generics[g.name] = String(x).trim(); else delete s.params.generics[g.name]; }, { placeholder: g.default || '' })));
+        for (const g of gens) box.append(h('div', { class: 'se-row' }, h('span', { class: 'gn', 'data-no-i18n': '', text: g.name }), inp(s.params.generics?.[g.name] ?? '', x => { s.params.generics ||= {}; if (String(x).trim()) s.params.generics[g.name] = String(x).trim(); else delete s.params.generics[g.name]; }, { placeholder: g.default || '', 'data-no-i18n': '' })));
         propBody.append(field(m?.lang === 'verilog' || doc.lang === 'verilog' ? 'Parameters' : 'Generics', box, 'empty = module default'));
       }
       // a LUT of a technology schematic: its function from its INIT, on demand
@@ -855,7 +857,7 @@ export function mountSchEditor(container, opts = {}) {
     propBody.append(field('Name', inp(p.name, v => { p.name = String(v).trim() || p.name; })));
     propBody.append(field('Direction', selBox(p.dir, [['in', 'Input'], ['out', 'Output'], ['inout', 'Bidirectional']], v => { p.dir = v; })));
     propBody.append(field('Width', inp(p.width, v => { p.width = Math.max(1, Math.round(+v || 1)); if (p.type && !/\(|\[/.test(p.type) && p.width > 1) delete p.type; }, { type: 'number', min: 1 })));
-    propBody.append(field('HDL type', inp(p.type || '', v => { if (String(v).trim()) p.type = String(v).trim(); else delete p.type; }, { placeholder: doc.lang === 'vhdl' ? (p.width > 1 ? `std_logic_vector(${p.width - 1} downto 0)` : 'std_logic') : (p.width > 1 ? `[${p.width - 1}:0]` : '') }), 'optional, overrides the type derived from the width'));
+    propBody.append(field('HDL type', inp(p.type || '', v => { if (String(v).trim()) p.type = String(v).trim(); else delete p.type; }, { placeholder: doc.lang === 'vhdl' ? (p.width > 1 ? `std_logic_vector(${p.width - 1} downto 0)` : 'std_logic') : (p.width > 1 ? `[${p.width - 1}:0]` : ''), 'data-no-i18n': '' }), 'optional, overrides the type derived from the width'));
   }
   function labelProps(l) {
     propBody.append(h('div', { class: 'se-ptitle', text: 'Net Name' }));
@@ -872,7 +874,7 @@ export function mountSchEditor(container, opts = {}) {
       const mid = { x: snap((p0.x + p1.x) / 2), y: snap((p0.y + p1.y) / 2) };
       const ex = doc.labels.find(l => nl.labelNet.get(l.id) === n);
       if (ex) ex.net = name; else doc.labels.push({ id: nextId('L', doc.labels), x: p0.x === p1.x ? p0.x : mid.x, y: p0.y === p1.y ? p0.y : mid.y, net: name });
-    }, { placeholder: n.name })));
+    }, { placeholder: n.name, 'data-no-i18n': '' })));
     netInfo(n);
   }
   function netInfo(n) {

@@ -101,3 +101,36 @@ test('tri-state buffers: the palette category, parameter labels and the descript
   assert.equal(t(S.presets.find(p => p.title === 'BUFT8').description), 'Buffer de três estados de 8 bits (pinos em barramento), habilitação T ativa a 0: O = I quando T = 0, Z quando T = 1');
   assert.equal(t(S.presets.find(p => p.title === 'BUFE4').description), 'Buffer de três estados de 4 bits (pinos I0..I3, O0..O3), habilitação ativa a 1: O = I quando E = 1, Z quando E = 0');
 });
+
+test('schematic editor and its RTL / Technology views (#130): every symbol description, parameter and option, the texts of web/js/sch-editor.js', async () => {
+  const { SYMBOLS } = await import('../core/schdoc.js');
+  // the same in Portuguese: Buffer, Reset, one-hot, INIT, the comparison operators
+  const SAME = new Set(['Buffer', 'Reset', 'one-hot', 'INIT', 'eq', 'ne', 'lt', 'le', 'gt', 'ge']);
+  const missing = [];
+  const check = (s, what) => { if (/[A-Za-z]{2}/.test(s || '') && !SAME.has(s) && t(s) === s) missing.push(`${what}: ${s}`); };
+  for (const [type, S] of Object.entries(SYMBOLS)) {
+    check(S.description, type);
+    for (const p of S.presets || []) check(p.description, `${type} ${p.title}`);
+    for (const p of S.params || []) { check(p.label, `${type} parameter`); for (const o of p.options || []) check(Array.isArray(o) ? o[1] : o, `${type} option`); }
+  }
+  // text: '…' literals of the editor (captions, panel titles, options), besides the labels checked above
+  const src = fs.readFileSync(path.join(WEB, 'sch-editor.js'), 'utf8');
+  for (const m of src.matchAll(/\btext: '([^'$`]+)'/g)) if (/[a-z]{2}/.test(m[1]) && !['labels', 'Verilog', 'schematic'].includes(m[1])) check(m[1], 'sch-editor.js');
+  assert.deepEqual(missing, []);
+  // exact translations: palette, tooltips, properties, the status bar
+  const T = {
+    '<--All Symbols-->': '<--Todos os Símbolos-->', Properties: 'Propriedades', Symbols: 'Símbolos', Categories: 'Categorias', Parameters: 'Parâmetros',
+    Inverter: 'Inversor', '2-input AND gate (bitwise when Width > 1)': 'Porta AND de 2 entradas (bit a bit quando Largura > 1)',
+    '5-input NOR gate (bitwise when Width > 1)': 'Porta NOR de 5 entradas (bit a bit quando Largura > 1)',
+    'Module lut4': 'Módulo lut4', 'Module Blink_Ctrl': 'Módulo Blink_Ctrl', 'Pins (5)': 'Pinos (5)', 'Wire · net clk': 'Fio · rede clk',
+    "Net 'clk', 1 bit": "Rede 'clk', 1 bit", "Net 'leds', 8 bits": "Rede 'leds', 8 bits", 'VHDL statements (emitted verbatim)': 'Instruções VHDL (copiadas tal e qual)',
+    '2 objects selected': '2 objetos selecionados', '1 symbol, 3 nets': '1 símbolo, 3 redes', '12 symbols, 30 nets · 0 error(s), 2 warning(s)': '12 símbolos, 30 redes · 0 erro(s), 2 aviso(s)',
+    '3 ports · VHDL · src/knight.vhd': '3 portos · VHDL · src/knight.vhd', '1 ports': '1 porto', 'Check Schematic: 1 error(s), 0 warning(s)': 'Verificar Esquemático: 1 erro(s), 0 aviso(s)',
+    'Open top.vhd': 'Abrir top.vhd', 'Open pong.v': 'Abrir pong.v', 'Drawing Technology schematic of top…': 'A desenhar o esquemático tecnológico de top…',
+    'Drawing RTL schematic of knight…': 'A desenhar o esquemático RTL de knight…',
+  };
+  for (const [en, pt] of Object.entries(T)) assert.equal(t(en), pt, en);
+  // not a source file: unchanged
+  assert.equal(t('Open file'), 'Abrir ficheiro');
+  assert.equal(t('Open the project'), 'Open the project');
+});
