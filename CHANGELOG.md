@@ -10,6 +10,14 @@ In detail:
 - *Help* ▸ *About* says whether the copy in use counts its use: the site (pmnmalo.github.io/Silinx-ISE)
   counts its visits and what is used with GoatCounter (no cookies, no personal data, linked); the
   application and the downloaded Silinx-ISE.html send nothing (#158).
+- **The quality page measured again** ([docs/QUALITY.md](docs/QUALITY.md): the Silinx toolchain against
+  ISE on the 38 designs of the corpus, size and speed): every design now builds with the Silinx
+  toolchain, the large ones (AES, SHA-1, SHA-256, T80, neorv32) included; the comparison runs every
+  week on a machine with ISE.
+- **A reload of the page comes back to where you were:** the documents that were open, the one in
+  front, the left pane and the Design view (Implementation or Simulation), kept for each project in
+  the browser; they also come back when the project is opened again (the Design Summary only the
+  first time) (#160).
 
 ## 15.10.8
 

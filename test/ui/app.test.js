@@ -458,3 +458,47 @@ uiTest('Design Summary: once closed it reopens from the Processes panel whatever
   await page.click('#toolbar .tb-btn[data-cmd=summary]');
   await page.waitFor(() => window.Silinx.active?.id === 'summary');
 });
+
+uiTest('a reload comes back to where the user was: the open documents, the one in front, the left pane, the Design view (#160)', E, async (page) => {
+  await makeProject(env, { name: 'ViewPj', template: 'blinky' });
+  await page.openProject('ViewPj');
+  const where = () => page.eval(() => ({ docs: window.Silinx.docs.map((d) => d.id), active: window.Silinx.active?.id, view: window.Silinx.view,
+    page: document.querySelector('#left-tabs .tab.active')?.dataset.page }));
+  const opened = (ids) => page.waitFor((want) => want.every((id) => window.Silinx.docs.some((d) => d.id === id)), [ids], { what: `documents ${ids.join(', ')}`, timeout: 20000 });
+  // the first opening: the Design Summary
+  await opened(['summary']);
+  assert.deepEqual((await where()).docs, ['summary']);
+  // documents, the Simulation view, the Files pane; top.vhd in front
+  await page.eval(() => window.SilinxApp.openFile('src/counter.v'));
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.eval(() => window.SilinxApp.openImpact());
+  await opened(['file:src/counter.v', 'file:src/top.vhd', 'impact']);
+  await page.click('input[name=view][value=sim]');
+  await page.click('#left-tabs .tab[data-page=files]');
+  await page.click('#doc-tabs .tlabel', { text: 'top.vhd' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+  const before = await where();
+  assert.deepEqual(before, { docs: ['summary', 'file:src/counter.v', 'file:src/top.vhd', 'impact'], active: 'file:src/top.vhd', view: 'sim', page: 'files' });
+  await page.reload();
+  await opened(before.docs);
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd', [], { what: 'top.vhd in front again' });
+  assert.deepEqual(await where(), before);
+  assert.equal(await page.eval(() => document.querySelector('input[name=view][value=sim]').checked), true);
+  // a document closed stays closed; one whose file is gone is not reopened (no message)
+  await page.eval(async () => { await window.SilinxApp.closeDoc(window.Silinx.docs.find((d) => d.id === 'impact')); });
+  await page.eval(() => { const k = 'silinx.view.ViewPj'; const v = JSON.parse(localStorage.getItem(k)); v.open.push('file:src/gone.vhd'); localStorage.setItem(k, JSON.stringify(v)); });
+  await page.reload();
+  await opened(['summary', 'file:src/counter.v', 'file:src/top.vhd']);
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+  assert.deepEqual((await where()).docs, ['summary', 'file:src/counter.v', 'file:src/top.vhd']);
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay')), null, 'no message');
+  // another project, opened for the first time: its Design Summary
+  await makeProject(env, { name: 'ViewPj2', template: 'blinky' });
+  await page.openProject('ViewPj2');
+  await opened(['summary']);
+  assert.deepEqual((await where()).docs, ['summary']);
+  // and back: ViewPj as it was left
+  await page.openProject('ViewPj');
+  await opened(['summary', 'file:src/counter.v', 'file:src/top.vhd']);
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+});

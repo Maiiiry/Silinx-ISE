@@ -1231,6 +1231,7 @@ export function openDoc(spec) {
   activateDoc(doc);
   Object.assign(doc, spec.create(doc.el, doc) || {});
   doc.onActivate?.();
+  saveViewState();
   return doc;
 }
 
@@ -1240,6 +1241,7 @@ export function activateDoc(doc) {
   doc.onActivate?.();
   $('status-pos').textContent = '';
   updateTitle();
+  saveViewState();
 }
 
 // Editing always saves: a document with changes is written ~0.8 s after the last edit.
@@ -1286,6 +1288,50 @@ export async function closeDoc(doc) {
   doc.el.remove(); doc.tab.remove();
   S.docs = S.docs.filter(d => d !== doc);
   if (S.active === doc) { const last = S.docs[S.docs.length - 1]; if (last) activateDoc(last); else S.active = null; }
+  saveViewState();
+  return true;
+}
+
+// ---- where the user was (#160): the open documents of a project, the one in front, the left pane
+// and the Design view, kept in this browser (per project) so that a reload of the page, or opening
+// the project again, comes back to them instead of the Design Summary. The documents that open as
+// they were: the sources and their editors, the RTL schematic, the summary, the pin planner, iMPACT
+// (not a simulation, the emulator, a report or a technology schematic: their state is a run's).
+const VIEW_KEY = name => `silinx.view.${name}`;
+const inProject = p => S.fileTree?.includes(p);
+const REOPEN = [
+  [/^file:(.+)$/, p => inProject(p) && openFile(p)], [/^sch:(.+)$/, p => inProject(p) && openSch(p)],
+  [/^asm:(.+)$/, p => inProject(p) && openAsm(p)], [/^tt:(.+)$/, p => inProject(p) && openTt(p)],
+  [/^fsm:(.+)$/, p => inProject(p) && openFsm(p)], [/^rtl:(.+)$/, m => moduleInfo(m) && openSchematic(m)],
+  [/^summary$/, () => openSummary()], [/^pins$/, () => S.project.top && openPinPlanner()], [/^impact$/, () => openImpact()],
+];
+let keepView = false;   // while documents are closed or reopened together (a project closed, restored)
+function saveViewState() {
+  if (keepView || !S.project) return;
+  const open = S.docs.filter(d => d.project === S.project.name && REOPEN.some(([re]) => re.test(d.id))).map(d => d.id);
+  const state = { open, active: open.includes(S.active?.id) ? S.active.id : null, page: S.leftPage || null, view: S.view };
+  try { localStorage.setItem(VIEW_KEY(S.project.name), JSON.stringify(state)); } catch { /* storage unavailable */ }
+}
+function savedViewState(name) {
+  try { const v = JSON.parse(localStorage.getItem(VIEW_KEY(name)) || 'null'); return v && Array.isArray(v.open) ? v : null; } catch { return null; }
+}
+/** Reopens the project's documents as they were; false when nothing was kept (a first opening). */
+async function restoreViewState(name) {
+  const v = savedViewState(name);
+  if (!v) return false;
+  keepView = true;
+  try {
+    if (v.view === 'sim' || v.view === 'impl') { if (v.view !== S.view) setView(v.view); }
+    if (['design', 'files', 'libs'].includes(v.page)) showLeftPage(v.page);
+    for (const id of v.open) {
+      const [re, open] = REOPEN.find(([r]) => r.test(id)) || [];
+      if (!re) continue;
+      try { await open(re.exec(id)[1]); } catch { /* a document that cannot open any more */ }
+    }
+    const active = v.active && findDoc(v.active);
+    if (active) activateDoc(active);
+  } finally { keepView = false; }
+  saveViewState();
   return true;
 }
 function closeDocByPath(path) { for (const d of [...S.docs]) if (d.path === path) { d.dirty = false; closeDoc(d); } }
@@ -2864,7 +2910,8 @@ function blockedByRun(what) {
 
 export async function openProject(name) {
   if (blockedByRun('Open Project')) return;
-  for (const d of [...S.docs]) if (!await closeDoc(d)) return;
+  keepView = true;   // (the documents of the project left are kept as they were)
+  try { for (const d of [...S.docs]) if (!await closeDoc(d)) return; } finally { keepView = false; }
   resetProjectState();
   try {
     S.project = await api.project(name);
@@ -2874,7 +2921,8 @@ export async function openProject(name) {
   await reloadProject();
   restoreImplStatus();
   log(`Project "${name}" opened (${S.project.device.part}${S.project.device.speed}-${S.project.device.package}).`, 'info');
-  openSummary({ background: true });
+  // where the user was in this project; the Design Summary the first time
+  if (!await restoreViewState(name)) openSummary({ background: true });
 }
 
 // Reloads run one after the other, in call order: two reloads close together (e.g. Remove from
@@ -2916,7 +2964,8 @@ async function reloadProjectNow(render = true) {
 
 export async function closeProject() {
   if (blockedByRun('Close Project')) return;
-  for (const d of [...S.docs]) if (!await closeDoc(d)) return;
+  keepView = true;
+  try { for (const d of [...S.docs]) if (!await closeDoc(d)) return; } finally { keepView = false; }
   S.project = null; S.lib = null; S.sources = []; S.modules = [];
   resetProjectState();
   try { localStorage.removeItem('silinx.lastProject'); } catch { /* ignore */ }
@@ -2953,6 +3002,8 @@ function clearRecent() {
 
 // ------------------------------------------------------------------ left pages
 function showLeftPage(page) {
+  S.leftPage = page;
+  saveViewState();
   document.querySelectorAll('#left-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.page === page));
   document.querySelectorAll('.left-page').forEach(p => { p.hidden = p.dataset.page !== page; });
   if (page === 'start') renderStartPage();
@@ -3364,6 +3415,7 @@ function setView(v) {
   S.selKey = null;
   renderHierarchy();
   renderProcesses();
+  saveViewState();
 }
 
 // ------------------------------------------------------------------ boot
