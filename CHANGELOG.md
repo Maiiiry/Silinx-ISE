@@ -47,6 +47,12 @@ In detail:
   a missing `use ieee.numeric_std.all;`; `=` for `<=`, `<=` to a variable, an output read
   (VHDL-93: an internal signal); a Verilog `wire` / `reg` the assignment needs, `=` / `<=` in the
   wrong always block, an incomplete sensitivity list. One Undo reverts a fix (#179).
+- **A new example, traffic: a pedestrian crossing** (the second one, after *gates*): BTN0 asks to
+  cross, SW1 is night mode, the LEDs are the cars' and the pedestrians' lamps and the display counts
+  the seconds left to cross. Its controller is a state diagram (a Moore machine of 7 states), its
+  lamps a truth table, each with its VHDL kept in sync; the timer is VHDL, the display Verilog; its
+  test bench checks the lamps and the display on every clock cycle. It builds with no warning with
+  the Silinx toolchain on the four boards' devices and with ISE (#181).
 
 ## 15.10.11
 
