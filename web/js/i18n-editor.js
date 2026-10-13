@@ -37,6 +37,7 @@ const FIX_PT = [
   [/^Use '(<=|=)' for '(.+)'$/, "Usar '$1' em '$2'"],
   [/^Add '(.+)' to the sensitivity list$/, "Acrescentar '$1' à lista de sensibilidade"],
   [/^Use 'always @\(\*\)': every signal read is in the list$/, "Usar 'always @(*)': todos os sinais lidos ficam na lista"],
+  [/^Rename the label '(.+)' to '(.+)'$/, "Mudar o nome da etiqueta '$1' para '$2'"],
 ];
 const fixPt = s => { for (const [re, r] of FIX_PT) if (re.test(s)) return s.replace(re, r); return s; };
 

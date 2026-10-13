@@ -12,6 +12,7 @@ import { evalE, runSync, exec, SimError, strToVal, bitpos } from './interp.js';
 import { nativePrimitive } from './native.js';
 import { mapBits } from './vhdl/parser.js';
 import { purityErrors } from './vhdl/purity.js';
+import { declaredNames, interfaceNames, labelErrors } from './vhdl/labels.js';
 
 export const INT = { kind: 'int', w: 32, s: true, left: 31, right: 0, desc: true };
 export const BOOL = { kind: 'bool', w: 1, s: false, left: 0, right: 0, desc: true, scalar: true };
@@ -132,6 +133,12 @@ export function buildLibrary(parsedFiles) {
   for (const a of archs) {
     const ent = findModule(lib, a.entity);
     if (!ent) { lib.errors.push({ file: a.file, line: a.loc?.line || 1, col: 1, severity: 'error', message: `architecture '${a.name}' of unknown entity '${a.entity}'` }); continue; }
+    // the labels of an architecture of an entity of another file: not the names of its ports,
+    // generics, declarations (#192; those of the architecture itself were checked by the parser)
+    if (a.labels) {
+      const names = [...interfaceNames(ent), ...(ent.entityOnly ? declaredNames(ent.decls) : [])].map(n => ({ ...n, file: ent.file }));
+      lib.errors.push(...labelErrors(a.labels, names, a.file, { labels: false }));
+    }
     ent.decls = [...(ent.decls || []), ...a.decls];
     ent.items = a.items;
     ent.uses = [...new Set([...(ent.uses || []), ...(a.uses || [])])];

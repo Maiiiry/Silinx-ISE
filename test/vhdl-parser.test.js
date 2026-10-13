@@ -150,7 +150,7 @@ describe('design units', () => {
     assert.equal(m.file, 'test.vhd');
     assert.deepEqual(m.loc, { line: 1, col: 1 });
     assert.deepEqual(m.params.map((p) => p.name), ['n', 'w', 'd', 's', 't']);
-    assert.deepEqual(m.params[0], { name: 'n', type: { kind: 'integer', range: null }, default: I(4), local: false });
+    assert.deepEqual(m.params[0], { name: 'n', type: { kind: 'integer', range: null }, default: I(4), local: false, loc: { line: 2, col: 16 } });
     assert.deepEqual(m.params[1].type.kind, 'integer');
     assert.deepEqual(m.params[3].type, { kind: 'string' });
     assert.deepEqual(m.params[3].default, { op: 'str', value: 'hi' });

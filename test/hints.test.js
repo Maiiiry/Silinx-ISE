@@ -190,3 +190,19 @@ test('help for a function that is not pure: it uses what is declared outside it,
   assert.match(hintText(call, 'pt').fix, /^Declare também 'f' impura/);
   assert.equal(hintFor({ message: "Function f is not pure: it calls side-effect procedure 'p' at line 3.", check: 'pure-function' }).id, 'pure-function-call');
 });
+
+test('help for a statement label with the name of another declaration of its region (#192)', () => {
+  const e = first(V('  y <= s;\n  S : process (a)\n  begin\n    s <= a;\n  end process S;', '  signal s : std_logic;'), 't');
+  assert.equal(e.message, "Redeclaration of symbol S: the label of the process (line 7) is also the name of signal 's' (line 4).");
+  assert.equal(e.line, 10);
+  assert.equal(e.tool, 'HDLParsers:1202');
+  assert.equal(e.hint, 'label-name');
+  assert.equal(hintText(e, 'en').explain, "The label 'S' of the process at line 7 has the name of the signal 's' (line 4). A label is declared where its statement is (in the architecture, or in the block / generate around it), like a signal, and two things declared in the same place cannot have the same name (VHDL does not tell upper from lower case). ISE stops with this error.");
+  assert.equal(hintText(e, 'en').fix, "Rename the label, also where it is repeated after 'end process' / 'end generate' / 'end block': it only names the statement, so any free name will do, e.g. 'u_S' or 'S_proc'. Keep the name of the signal 's' as it is.");
+  assert.match(hintText(e, 'pt').explain, /^A etiqueta \(label\) 'S' do process da linha 7 tem o nome do signal 's' \(linha 4\)\. .* O ISE para com este erro\.$/);
+  assert.match(hintText(e, 'pt').fix, /^Mude o nome da etiqueta, .* p\. ex\. 'u_S' ou 'S_proc'\. Mantenha o nome do signal 's'\.$/);
+  // two statements with one label; a port of the entity of another file
+  assert.equal(hintFor({ message: "Redeclaration of symbol p: the label of the process (line 9) is also the name of label 'p' (line 5).", check: 'label-name' }).id, 'label-name');
+  assert.match(hintText({ message: "Redeclaration of symbol clk: the label of the assignment (line 4) is also the name of port 'clk' (line 2 of e.vhd).", check: 'label-name' }, 'en').explain,
+    /^The label 'clk' of the assignment at line 4 has the name of the port 'clk' \(line 2\)\./);
+});

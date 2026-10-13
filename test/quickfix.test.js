@@ -662,6 +662,51 @@ end pk;
   assert.deepEqual(fixes(c, 'vhdl', /is not pure/), []);
 });
 
+test('VHDL: a statement label with the name of another declaration of its region -> the label renamed to a free name (_proc, _inst, _gen, _blk, _label), also after its end; not when a specification names it (#192)', () => {
+  const s = `${HEAD}entity sub is port (a : in std_logic; y : out std_logic); end sub;
+architecture r of sub is begin y <= a; end r;
+${HEAD}entity top is port (clk : in std_logic; d : in std_logic_vector(1 downto 0); q : out std_logic_vector(1 downto 0)); end top;
+architecture rtl of top is
+  signal P, b1, g, s, bk : std_logic;
+  component sub is port (a : in std_logic; y : out std_logic); end component;
+begin
+  P : process (clk)
+  begin
+    if rising_edge(clk) then P <= d(0); end if;
+  end process p;
+  B1 : sub port map (a => P, y => b1);
+  g : for i in 0 to 1 generate
+    q(i) <= d(i) xor b1;
+  end generate g;
+  s : s <= d(1);
+  bk : block
+  begin
+    bk <= s;
+  end block;
+end rtl;
+`;
+  const R = (label, what, line, at) => `error:${at}: Redeclaration of symbol ${label}: the label of the ${what} (line ${line}) is also the name of signal '${label.toLowerCase()}' (line 9).`;
+  assert.deepEqual(messages(s, 'vhdl'), [R('P', 'process', 12, 15), R('B1', 'instance', 16, 16), R('g', 'generate', 17, 19), R('s', 'assignment', 20, 20), R('bk', 'block', 21, 21)]);
+  const fix = (re, title, from, to) => {
+    const f = fixes(s, 'vhdl', re);
+    assert.deepEqual(f, [{ title, text: to.reduce((t, [a, b]) => t.replace(a, b), s) }]);
+    assert.ok(!messages(f[0].text, 'vhdl').some(m => m.includes(`symbol ${from}:`)), messages(f[0].text, 'vhdl').join('\n'));
+  };
+  // the label at its statement and after `end process` (written in another case)
+  fix(/symbol P:/, "Rename the label 'P' to 'P_proc'", 'P', [['  P : process', '  P_proc : process'], ['end process p;', 'end process P_proc;']]);
+  fix(/symbol B1:/, "Rename the label 'B1' to 'B1_inst'", 'B1', [['  B1 : sub', '  B1_inst : sub']]);
+  fix(/symbol g:/, "Rename the label 'g' to 'g_gen'", 'g', [['  g : for', '  g_gen : for'], ['end generate g;', 'end generate g_gen;']]);
+  fix(/symbol s:/, "Rename the label 's' to 's_label'", 's', [['  s : s <=', '  s_label : s <=']]);
+  fix(/symbol bk:/, "Rename the label 'bk' to 'bk_blk'", 'bk', [['  bk : block', '  bk_blk : block']]);
+  // a free name: p_proc is taken
+  const t = s.replace('signal P, b1', 'signal P_proc, P, b1');
+  assert.deepEqual(fixes(t, 'vhdl', /symbol P:/).map(f => f.title), ["Rename the label 'P' to 'P_proc2'"]);
+  // named by a configuration specification: not renamed here
+  const u = s.replace('begin\n  P : process', '  for B1 : sub use entity work.sub;\nbegin\n  P : process');
+  assert.deepEqual(fixes(u, 'vhdl', /symbol B1:/), []);
+  assert.deepEqual(fixes(u, 'vhdl', /symbol P:/).map(f => f.title), ["Rename the label 'P' to 'P_proc'"]);
+});
+
 test('an unknown module or port of an instance -> the nearest of the project (VHDL, Verilog)', () => {
   const v = 'module top(input c, input r, output [3:0] q);\n  countr #(.WIDTH(4)) u1 (.clk(c), .reset(r), .count(q));\nendmodule\n';
   assert.deepEqual(fixes(v, 'verilog', /not found/), [{ title: "Change 'countr' to 'counter'", text: v.replace('countr #', 'counter #') }]);

@@ -24,7 +24,10 @@
 //    '<=' in the wrong kind of always block, an incomplete event list (-> always @(*));
 //  - VHDL: a signal missing from the sensitivity list of a process (-> added);
 //  - VHDL: a function that is not pure (a warning, an error when written `pure`) -> declared
-//    impure, also in its package declaration, when no other pure function calls it.
+//    impure, also in its package declaration, when no other pure function calls it;
+//  - VHDL: a statement label with the name of another declaration of its region -> the label
+//    renamed to a free name (b1 -> b1_inst, p -> p_proc…), also after its `end process` / `end
+//    generate` / `end block`; not when a configuration or attribute specification names it.
 //
 // Isomorphic module (browser + Node).
 
@@ -32,6 +35,7 @@ import { analyze, openScopes, visibleSymbols } from './scopes.js';
 import { parse as parseVhdl } from './vhdl/parser.js';
 import { parse as parseVerilog } from './verilog/parser.js';
 import { PURE_CHECK } from './vhdl/purity.js';
+import { LABEL_CHECK } from './vhdl/labels.js';
 
 const VHDL_TYPES = ['std_logic', 'std_logic_vector', 'std_ulogic', 'std_ulogic_vector', 'unsigned', 'signed', 'integer', 'natural', 'positive',
   'boolean', 'bit', 'bit_vector', 'time', 'string', 'real', 'character'];
@@ -41,9 +45,10 @@ const VALUE_KINDS = new Set(['port', 'signal', 'variable', 'constant', 'generic'
 const VECTOR = /^(std_logic_vector|std_ulogic_vector|unsigned|signed|bit_vector)\s*\(\s*(\d+)\s+(downto|to)\s+(\d+)\s*\)$/i;
 
 // the syntax errors of a source (not the pure-function errors the VHDL parser adds once it reads
-// without them), and those
-const syntaxErrors = (text, lang) => (lang === 'vhdl' ? parseVhdl : parseVerilog)(text, 'f').errors.filter(e => e.severity !== 'warning' && e.check !== PURE_CHECK);
+// without them, nor its errors of labels), and those
+const syntaxErrors = (text, lang) => (lang === 'vhdl' ? parseVhdl : parseVerilog)(text, 'f').errors.filter(e => e.severity !== 'warning' && e.check !== PURE_CHECK && e.check !== LABEL_CHECK);
 const pureErrors = text => parseVhdl(text, 'f').errors.filter(e => e.check === PURE_CHECK);
+const labelErrors = text => parseVhdl(text, 'f').errors.filter(e => e.check === LABEL_CHECK);
 
 /** The text with the edits of a fix applied. */
 export function applyFix(text, fix) {
@@ -142,7 +147,7 @@ export function quickFixes(text, lang, d, opts = {}) {
 }
 
 const RULES = [notDeclared, unknownType, unknownUnit, missingSemicolon, missingEnd, widthMismatch, missingLibrary, assignOperator, variableAssign,
-  modeOut, regWire, blockingKind, sensitivity, declareImpure];
+  modeOut, regWire, blockingKind, sensitivity, declareImpure, renameLabel];
 
 // ---- a name that is not declared: the nearest declared one, or its declaration
 function notDeclared(C, d, msg) {
@@ -758,5 +763,40 @@ function declareImpure(C, d, msg) {
   const before = new Set(pureErrors(C.text).map(e => `${e.line}:${e.message}`));
   const after = pureErrors(applyFix(C.text, fix));
   if (after.some(e => !before.has(`${e.line}:${e.message}`) || e.message.startsWith(`Function ${m[1]} is not pure`))) return;
+  return [fix];
+}
+
+// ---- VHDL: a statement label with the name of another declaration of its region (#192) -> the label
+// renamed to a free name, at its statement and after its `end process` / `end generate` / `end
+// block`; not when another place names it (a configuration specification `for b1 : FD use …`, an
+// attribute specification `attribute a of b1 : label is …`)
+const LABEL_SUFFIX = { process: 'proc', instance: 'inst', generate: 'gen', block: 'blk' };
+function renameLabel(C, d, msg) {
+  const m = /^Redeclaration of symbol (\S+): the label of the ([a-z ]+) \(line (\d+)\)/.exec(msg);
+  if (!m || C.lang !== 'vhdl') return;
+  const T = C.a.tokens;
+  const key = C.norm(m[1]), line = +m[3];
+  // the label: `name :` at the start of a statement on its line
+  const i = T.findIndex((t, k) => t.line === line && t.k === 'id' && t.key === key && isOp(T[k + 1], ':') && (k === 0 || isOp(T[k - 1], ';') || T[k - 1].k === 'kw'));
+  if (i < 0) return;
+  const toks = [i];
+  // the same name after the `end` of its process / generate / block
+  const s = C.a.scopes.find(x => x.tok > i && x.tok <= i + 3 && x.end != null);
+  if (s && T[s.end + 1]?.k === 'kw' && T[s.end + 2]?.k === 'id' && T[s.end + 2].key === key) toks.push(s.end + 2);
+  // named elsewhere in a specification (`for b1 : …`, `of b1 : label`): not renamed here
+  for (let k = 0; k < T.length; k++) {
+    if (toks.includes(k) || T[k].k !== 'id' || T[k].key !== key) continue;
+    let j = k - 1;
+    while (j >= 0 && (T[j].k === 'id' || isOp(T[j], ','))) j--;
+    if (isKw(T[j], 'for', 'of') && isOp(T[k + 1], ':', ',')) return;
+  }
+  // a free name: not used in the file
+  const used = new Set(T.filter(t => t.k === 'id').map(t => t.key));
+  const base = `${T[i].v}_${LABEL_SUFFIX[m[2]] || 'label'}`;
+  let name = base;
+  for (let n = 2; used.has(C.norm(name)); n++) name = `${base}${n}`;
+  const fix = { title: `Rename the label ${q(T[i].v)} to ${q(name)}`, edits: toks.map(k => C.replace(T[k], name)) };
+  // only when that leaves no error of the label
+  if (labelErrors(applyFix(C.text, fix)).some(e => C.norm(e.message).startsWith(`redeclaration of symbol ${C.norm(name)}:`))) return;
   return [fix];
 }

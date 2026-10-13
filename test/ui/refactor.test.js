@@ -366,6 +366,54 @@ end rtl;
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent + document.getElementById('warn-count').textContent), '');
 });
 
+uiTest('a process labelled with the name of a signal: the error at its end, as XST\'s, with its explanation, "Fix: Rename the label …" (also after end process), the Errors tab, in Portuguese, Check Syntax clean after it (#192)', E, async (page) => {
+  const BLINK = `library ieee;
+use ieee.std_logic_1164.all;
+
+entity blink is
+  port (clk : in std_logic;
+        led : out std_logic);
+end blink;
+
+architecture rtl of blink is
+  signal toggle : std_logic := '0';
+begin
+  toggle : process (clk)
+  begin
+    if rising_edge(clk) then
+      toggle <= not toggle;
+    end if;
+  end process toggle;
+  led <= toggle;
+end rtl;
+`;
+  const fixed = BLINK.replace('  toggle : process', '  toggle_proc : process').replace('end process toggle;', 'end process toggle_proc;');
+  await makeProject(env, { name: 'FixLabel', top: 'blink', files: { 'src/blink.vhd': BLINK } });
+  await page.openProject('FixLabel');
+  await page.eval(() => window.SilinxApp.openFile('src/blink.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/blink.vhd' && window.Silinx.active.editor);
+  // ---- the error at `end process`: the tooltip with its help and the fix
+  await errorMarker(page, 17);
+  const tip = await lintTooltip(page);
+  assert.match(tip, /^Redeclaration of symbol toggle: the label of the process \(line 12\) is also the name of signal 'toggle' \(line 10\)\.\n\nExplanation: The label 'toggle' of the process at line 12 has the name of the signal 'toggle' \(line 10\)\./);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Rename the label 'toggle' to 'toggle_proc'"]);
+  // ---- Check Syntax: failed, in the Errors tab with its fix (in Portuguese too)
+  await checkSyntax(page, /Process "Check Syntax" failed \(1 error\(s\), 0 warning\(s\)\)/);
+  await page.waitFor(() => document.querySelector('#console-tabs .tab[data-page=errors]').classList.contains('active'));
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#console-errors .diag')].map((d) => d.textContent)),
+    ["ERROR:HDLParsers:1202 - \"src/blink.vhd\" Line 17: Redeclaration of symbol toggle: the label of the process (line 12) is also the name of signal 'toggle' (line 10).▸ Explanation and fixFix: Rename the label 'toggle' to 'toggle_proc'"]);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#console-errors .diag .diag-fix')?.textContent === "Corrigir: Mudar o nome da etiqueta 'toggle' para 'toggle_proc'", [], { what: 'the fix in Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // ---- applied from the tooltip: the label renamed at the process and after its end; no error, Check Syntax clean
+  await lintTooltip(page);
+  await page.click('.CodeMirror-lint-tooltip .xl-fix');
+  assert.equal(await ed(page), fixed);
+  await noMarkers(page);
+  await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
+  assert.equal(await page.eval(() => document.getElementById('err-count').textContent + document.getElementById('warn-count').textContent), '');
+});
+
 // ---------------------------------------------------------------- drawings without an HDL file (#177)
 uiTest('Rename Symbol and quick fixes never write a drawing without an HDL file: the dialog says its instance is not changed; no fix for its errors', E, async (page) => {
   const { COUNTER, schematicOf } = await import('../drawn-lib.mjs');

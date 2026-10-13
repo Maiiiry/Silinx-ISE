@@ -144,3 +144,84 @@ test('impure functions may use what is declared outside them; pure ones their pa
   assert.deepEqual(errs(sigParam), []);
   assert.deepEqual(warns(sigParam), []);
 });
+
+test('a statement label with the name of a declaration of its region (the architecture with its entity, a block, a generate) is an error, at the line XST reports it: where the statement ends, a block at its label, a second label at the label (#192)', () => {
+  const all = (src, top = 'tb') => diags(src, top, { lang: 'vhdl' }).map(d => `${d.severity} ${d.line}:${d.col} ${d.message}`);
+  const unit = (decls, body, generic = '') => `${H}entity tb is ${generic}port (clk : in std_logic; d : in std_logic_vector(3 downto 0); q : out std_logic_vector(3 downto 0)); end;\narchitecture r of tb is\n${decls}begin\n${body}end;\n`;
+  const sub = `${H}entity sub is port (a : in std_logic; y : out std_logic); end;\narchitecture r of sub is begin y <= a; end;\n`;
+  const R = (name, what, line, decl, at, label = name) => `Redeclaration of symbol ${label}: the label of the ${what} (line ${line}) is also the name of ${decl} '${name}' (line ${at}).`;
+  const comp = '  component sub is port (a : in std_logic; y : out std_logic); end component;\n';
+  // an instance (on one line: at its label; on more lines: at the first token of its last line), as in the issue
+  assert.deepEqual(all({ 's.vhd': sub, 't.vhd': unit(`  signal b1 : std_logic;\n${comp}`, '  b1 : sub port map (a => d(0), y => b1);\n  q <= "000" & b1;\n') }),
+    [`error 7:3 ${R('b1', 'instance', 7, 'signal', 4)}`]);
+  // (any case: the label as written, as XST)
+  assert.deepEqual(all({ 's.vhd': sub, 't.vhd': unit(`  signal b1 : std_logic;\n${comp}`, '  B1 : sub\n    port map (a => d(0),\n      y => b1);\n  q <= "000" & b1;\n') }),
+    [`error 9:7 ${R('b1', 'instance', 7, 'signal', 4, 'B1')}`]);
+  // a process: at its end (with or without the label after `end process`)
+  assert.deepEqual(all(unit('  signal p : std_logic;\n', '  p : process (clk)\n  begin\n    if rising_edge(clk) then p <= d(0); end if;\n  end process p;\n  q <= "000" & p;\n')),
+    [`error 9:3 ${R('p', 'process', 6, 'signal', 4)}`]);
+  assert.deepEqual(all(unit('  signal p : std_logic;\n', '  p : postponed process (clk)\n  begin\n    if rising_edge(clk) then\n      p <= d(0);\n    end if;\n  end process;\n  q <= "000" & p;\n')),
+    [`error 11:3 ${R('p', 'process', 6, 'signal', 4)}`]);
+  // concurrent assignments, a selected one, an assertion, a procedure call: at the line of their ';'
+  assert.deepEqual(all(unit('  signal s : std_logic;\n', '  s : s <= d(0);\n  q <= "000" & s;\n')), [`error 6:3 ${R('s', 'assignment', 6, 'signal', 4)}`]);
+  assert.deepEqual(all(unit('  signal s : std_logic;\n', "  s : s <= d(0) when d(1) = '1'\n    else d(2);\n  q <= \"000\" & s;\n")), [`error 7:5 ${R('s', 'assignment', 6, 'signal', 4)}`]);
+  assert.deepEqual(all(unit('  signal s : std_logic;\n', "  s : with d(1) select\n    s <= d(0) when '1',\n         d(2) when others;\n  q <= \"000\" & s;\n")), [`error 8:10 ${R('s', 'assignment', 6, 'signal', 4)}`]);
+  assert.deepEqual(all(unit('  signal s : std_logic;\n', "  s <= d(0);\n  s : assert d(0) = '0'\n    report \"x\" severity note;\n  q <= d;\n")), [`error 8:5 ${R('s', 'assertion', 7, 'signal', 4)}`]);
+  assert.deepEqual(all(unit('  signal s : std_logic;\n  procedure p(signal a : in std_logic; signal y : out std_logic) is begin y <= a; end p;\n', '  s <= d(0);\n  s : p(d(0),\n    q(0));\n  q(3 downto 1) <= d(3 downto 1);\n')),
+    [`error 9:5 ${R('s', 'procedure call', 8, 'signal', 4)}`]);
+  // a block: at its label; generates: at their end
+  assert.deepEqual(all(unit('  signal bk : std_logic;\n', '  bk : block\n  begin\n    q <= d;\n  end block bk;\n  bk <= d(0);\n')), [`error 6:3 ${R('bk', 'block', 6, 'signal', 4)}`]);
+  assert.deepEqual(all(unit('  signal g : std_logic;\n', '  g : for i in 0 to 3 generate\n    q(i) <= d(i);\n  end generate g;\n  g <= d(0);\n')), [`error 8:3 ${R('g', 'generate', 6, 'signal', 4)}`]);
+  assert.deepEqual(all(unit('  signal g : std_logic;\n', '  g : if true generate\n    q <= d;\n  end generate;\n  g <= d(0);\n')), [`error 8:3 ${R('g', 'generate', 6, 'signal', 4)}`]);
+  // the name of a constant, a type, an enumeration literal, a function, an alias, a component, a port, a generic
+  const proc = name => `  ${name} : process (d)\n  begin\n    q <= d;\n  end process ${name};\n`;
+  assert.deepEqual(all(unit("  constant k : std_logic := '0';\n", proc('k'))), [`error 9:3 ${R('k', 'process', 6, 'constant', 4)}`]);
+  assert.deepEqual(all(unit('  type st_t is (idle, run);\n  signal st : st_t;\n', `${proc('st_t')}  st <= idle;\n`)), [`error 10:3 ${R('st_t', 'process', 7, 'type', 4)}`]);
+  assert.deepEqual(all(unit('  type st_t is (idle, run);\n  signal st : st_t;\n', `${proc('idle')}  st <= run;\n`)), [`error 10:3 ${R('idle', 'process', 7, 'enumeration literal', 4)}`]);
+  assert.deepEqual(all(unit('  function f(x : std_logic) return std_logic is begin return not x; end f;\n', proc('f'))), [`error 9:3 ${R('f', 'process', 6, 'function', 4)}`]);
+  assert.deepEqual(all(unit('  alias dd : std_logic_vector(3 downto 0) is d;\n', proc('dd'))), [`error 9:3 ${R('dd', 'process', 6, 'alias', 4)}`]);
+  assert.deepEqual(all({ 's.vhd': sub, 't.vhd': unit(comp, '  sub : sub port map (a => d(0), y => q(0));\n  q(3 downto 1) <= d(3 downto 1);\n') }), [`error 6:3 ${R('sub', 'instance', 6, 'component', 4)}`]);
+  assert.deepEqual(all(unit('', proc('clk'))), [`error 8:3 ${R('clk', 'process', 5, 'port', 2)}`]);
+  assert.deepEqual(all(unit('', proc('n'), 'generic (n : integer := 4); ')), [`error 8:3 ${R('n', 'process', 5, 'generic', 2)}`]);
+  // the region of a generate (its declarations, its parameter) and of a block
+  assert.deepEqual(all(unit('', '  g : for i in 0 to 3 generate\n    signal t : std_logic;\n  begin\n    t : process (d)\n    begin\n      q(i) <= d(i);\n    end process t;\n    t <= d(i);\n  end generate g;\n')),
+    [`error 11:5 ${R('t', 'process', 8, 'signal', 6)}`]);
+  assert.deepEqual(all(unit('', '  g : for i in 0 to 3 generate\n    i : q(i) <= d(i);\n  end generate g;\n')), [`error 6:5 ${R('i', 'assignment', 6, 'generate parameter', 5)}`]);
+  assert.deepEqual(all(unit('', "  g : if true generate\n    constant c : std_logic := '0';\n  begin\n    c : q <= d;\n  end generate g;\n")), [`error 8:5 ${R('c', 'assignment', 8, 'constant', 6)}`]);
+  assert.deepEqual(all(unit('', '  bk : block\n    signal t : std_logic;\n  begin\n    t : t <= d(0);\n    q <= d;\n  end block bk;\n')), [`error 8:5 ${R('t', 'assignment', 8, 'signal', 6)}`]);
+  // two statements with one label: at the second label; two errors
+  assert.deepEqual(all(unit('', '  p : process (d)\n  begin\n    q(0) <= d(0);\n  end process p;\n  p : process (d)\n  begin\n    q(1) <= d(1);\n  end process p;\n  q(3 downto 2) <= d(3 downto 2);\n')),
+    [`error 9:3 ${R('p', 'process', 9, 'label', 5)}`]);
+  assert.deepEqual(all(unit('', '  g : for i in 0 to 1 generate\n    q(i) <= d(i);\n  end generate g;\n  g : for i in 2 to 3 generate\n    q(i) <= d(i);\n  end generate g;\n')),
+    [`error 8:3 ${R('g', 'generate', 8, 'label', 5)}`]);
+  assert.deepEqual(all(unit('  signal a1, a2 : std_logic;\n', '  a1 : a1 <= d(0);\n  a2 : process (d)\n  begin\n    a2 <= d(1);\n  end process;\n  q <= "00" & a1 & a2;\n')),
+    [`error 6:3 ${R('a1', 'assignment', 6, 'signal', 4)}`, `error 10:3 ${R('a2', 'process', 7, 'signal', 4)}`]);
+  // an architecture of an entity of another file: its ports and generics
+  assert.deepEqual(all({ 'e.vhd': `${H}entity tb is port (clk : in std_logic; q : out std_logic); end;\n`, 'a.vhd': `${H}architecture r of tb is\nbegin\n  clk : q <= clk;\nend;\n` }),
+    ["error 4:3 Redeclaration of symbol clk: the label of the assignment (line 4) is also the name of port 'clk' (line 2 of e.vhd)."]);
+});
+
+test('a label may have the name of a declaration of an outer region, of a library unit, of the architecture / entity, of an attribute; a sequential label (loop, if, case…) that of a variable, as XST for the Spartan-3E accepts them (#192)', () => {
+  const unit = (decls, body) => `${H}entity tb is port (clk : in std_logic; d : in std_logic_vector(3 downto 0); q : out std_logic_vector(3 downto 0)); end;\narchitecture r of tb is\n${decls}begin\n${body}end;\n`;
+  const none = src => assert.deepEqual(diags(src, 'tb', { lang: 'vhdl' }).filter(d => d.severity === 'error' || /Redeclaration/.test(d.message)), []);
+  // a signal of the architecture labelling a statement of a generate, of a block
+  none(unit('  signal t : std_logic;\n', '  g : for i in 0 to 3 generate\n    t : q(i) <= d(i);\n  end generate g;\n  t <= d(0);\n'));
+  none(unit('  signal t : std_logic;\n', '  bk : block\n  begin\n    t : q <= d;\n  end block bk;\n  t <= d(0);\n'));
+  // a block's / generate's / process's own declarations, parameter, variable
+  none(unit('', '  bk : block\n    signal bk : std_logic;\n  begin\n    bk <= d(0);\n    q <= d;\n  end block bk;\n'));
+  none(unit('', '  i : for i in 0 to 3 generate\n    q(i) <= d(i);\n  end generate i;\n'));
+  none(unit('', '  v : process (d)\n    variable v : std_logic;\n  begin\n    v := d(0);\n    q <= d;\n  end process v;\n'));
+  // the entity, the architecture, a library, a predefined function, an attribute, the entity of an instance
+  none(unit('  attribute keep : string;\n', '  tb : q(0) <= d(0);\n  r : q(1) <= d(1);\n  ieee : q(2) <= d(2);\n  rising_edge : q(3) <= d(3);\n  keep : process (clk) begin end process;\n'));
+  const sub = `${H}entity sub is port (a : in std_logic; y : out std_logic); end;\narchitecture r of sub is begin y <= a; end;\n`;
+  none({ 's.vhd': sub, 't.vhd': unit('', '  sub : entity work.sub port map (a => d(0), y => q(0));\n  q(3 downto 1) <= d(3 downto 1);\n') });
+  // sequential labels: a loop / if / case / while with the name of a variable, of a signal, of a port, of its process, of a parameter
+  none(unit('', '  process (d)\n    variable lp : integer;\n  begin\n    lp := 0;\n    lp : for i in 0 to 3 loop\n      q(i) <= d(i);\n    end loop lp;\n  end process;\n'));
+  none(unit('  signal lp : std_logic;\n', "  process (d)\n  begin\n    lp : for i in 0 to 3 loop\n      q(i) <= d(i);\n      exit lp when d(i) = '1';\n    end loop lp;\n  end process;\n  lp <= d(0);\n"));
+  none(unit('', "  process (d)\n    variable v : std_logic;\n  begin\n    v := d(0);\n    v : if v = '1' then q <= d; else q <= not d; end if v;\n  end process;\n"));
+  none(unit('', "  process (d)\n    variable v : std_logic;\n  begin\n    v : case d(0) is when '1' => q <= d; when others => q <= not d; end case v;\n  end process;\n"));
+  none(unit('', '  process (d)\n    variable w : integer;\n  begin\n    w := 0;\n    w : while w < 4 loop\n      q(w) <= d(w);\n      w := w + 1;\n    end loop w;\n  end process;\n'));
+  none(unit('', '  p : process (d)\n  begin\n    p : for i in 0 to 3 loop\n      q(i) <= d(i);\n    end loop p;\n  end process p;\n'));
+  none(unit('', '  process (d)\n  begin\n    clk : for i in 0 to 3 loop\n      q(i) <= d(i);\n    end loop clk;\n  end process;\n'));
+  none(unit('  function f(x : std_logic_vector(3 downto 0)) return std_logic_vector is\n    variable r : std_logic_vector(3 downto 0);\n  begin\n    x : for i in 0 to 3 loop\n      r(i) := not x(i);\n    end loop x;\n    return r;\n  end f;\n', '  q <= f(d);\n'));
+});

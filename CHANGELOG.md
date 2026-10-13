@@ -46,6 +46,18 @@ the "What's new" text of its GitHub release.
   its RST / PSEN / PSINCDEC / PSCLK tied to 1 no longer fail in Place & Route (#50).
 - **Schematic editor:** a wire dragged with *Keep connections* on no longer comes off the pins, I/O markers and wires its ends touch: those ends stay, joined to the moved wire by a jog (#206).
 - **Diagram corpus (#205):** ten state machines in KISS2 (the FSM benchmarks' format, now read and written by Silinx) through the HDL in every encoding, style and language, the ASM chart and Yosys; twelve Petri nets of the Model Checking Contest, whose analysis gives the contest's results. The invariants of big nets are computed much faster.
+- **VHDL: a statement label with the name of a signal (or of anything else declared in the same place) is an
+  error, as in ISE:** the label of a process, an instance, a block, a generate or a concurrent assignment is
+  declared in the architecture (or in the block / generate around it), so a signal, port, generic, constant,
+  type, enumeration literal, component, subprogram or alias of that name there, or another statement with
+  that label, is a redeclaration. Reported as XST for the Spartan-3E reports it (*ERROR:HDLParsers:1202*), at
+  the line where the statement ends (a block's at its label), saying what clashes (*Redeclaration of symbol
+  b1: the label of the instance (line 11) is also the name of signal 'b1' (line 9).*); with its explanation
+  (English and Portuguese) and the fix *Rename the label 'b1' to 'b1_inst'* (`_proc`, `_gen`, `_blk`…, also
+  after `end process` / `end generate`). As in ISE, a name of an outer region, of a library unit or of an
+  attribute, and the labels of loops and other sequential statements, are accepted. Silinx accepted it
+  silently; the technology schematic's netlist regrouped by instance no longer names a net after one of
+  its primitives either (#192).
 
 ## 15.10.12
 

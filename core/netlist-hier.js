@@ -176,7 +176,8 @@ export function regroupNetlist(text, groups, top = null, { groupOf: memberOf = n
     // (constants, '0' / '1', stay constants inside the group)
     for (const i of insts) for (const pn of i.pins) if (!CONST.test(pn.net)) nets.set(key(pn.net), pn.net);
     const ports = [], internals = [];
-    const names = new Set();
+    // (not the label of one of its primitives either: one name space, #192)
+    const names = new Set(insts.map((i) => i.name.toLowerCase()));
     const uniq = (nm) => { let s = nm, k = 1; while (names.has(s.toLowerCase())) s = `${nm}_${k++}`; names.add(s.toLowerCase()); return s; };
     const local = new Map();
     for (const [k, net] of nets) {

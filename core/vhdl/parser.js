@@ -30,12 +30,17 @@
 //   * subprograms written `pure` / `impure` carry `purity` ('pure' | 'impure'), and their body's
 //     `end` endLoc; once a file reads without errors, its pure functions that use what is declared
 //     outside them are reported (core/vhdl/purity.js, #185).
+//   * a concurrent statement's label with the name of a declaration of its region (the
+//     architecture with its entity, a block, a generate) is an error (core/vhdl/labels.js, #192);
+//     an architecture of an entity of another file keeps its other labels in `labels` (checked
+//     against the entity's names when the library is built).
 // Waveforms: a multi-element waveform `a <= '1', '0' after 10 ns;` becomes one
 // nonblocking assignment per element (each with its own delay) — inside a block in
 // sequential code; a concurrent one becomes a process (sens 'all') with that block.
 
 import { lex, tokenText } from './lexer.js';
 import { purityErrors } from './purity.js';
+import { declaredNames, interfaceNames, labelErrors } from './labels.js';
 
 class ParseError extends Error {}
 
@@ -126,6 +131,8 @@ class Parser {
     this.packageNames = new Set();   // packages known in this file / via use clauses
     this.stdUses = new Set();        // ieee / std packages of the next unit's context clause
     this.strMode = 0;                // >0 while parsing report/assert messages
+    this.region = null;              // the declarative region being read: { names, labels } (#192)
+    this.entities = new Map();       // the entities of this file
   }
 
   // --- token helpers ---------------------------------------------------------
@@ -369,6 +376,7 @@ class Parser {
     }
     this.expectKw('end');
     this.endOf('entity');
+    this.entities.set(name, ent);
     return ent;
   }
 
@@ -382,13 +390,14 @@ class Parser {
           while (!this.atEof() && !this.isOp(';') && !this.isOp(')')) this.next();
           return;
         }
+        const tok = this.peek();
         this.acceptKw('constant');
         const names = this.parseIdList();
         this.expectOp(':');
         this.acceptKw('in');
         const type = this.parseSubtypeIndication();
         const def = this.acceptOp(':=') ? this.parseExpression() : null;
-        for (const nm of names) params.push({ name: nm, type, default: def, local: false });
+        for (const nm of names) params.push({ name: nm, type, default: def, local: false, loc: this.loc(tok) });
       });
       if (this.acceptOp(';')) continue;
       break;
@@ -451,11 +460,19 @@ class Parser {
     const entity = this.expectId('entity name');
     this.expectKw('is');
     const arch = { kind: 'architecture', name, entity, loc: this.loc(tok), uses: [...uses], decls: [], items: [] };
-    arch.decls = this.parseDeclarativePart(arch.uses);
-    this.expectKw('begin');
-    arch.items = this.parseConcurrentItems(arch.decls);
-    this.expectKw('end');
-    this.endOf('architecture');
+    this.inRegion((region) => {
+      arch.decls = this.parseDeclarativePart(arch.uses);
+      const names = declaredNames(arch.decls);   // (before the declarations of its blocks join them)
+      this.expectKw('begin');
+      arch.items = this.parseConcurrentItems(arch.decls);
+      this.expectKw('end');
+      this.endOf('architecture');
+      // its entity's ports, generics and declarations: of this file, else when the library is built
+      const ent = this.entities.get(entity);
+      if (ent) names.push(...interfaceNames(ent), ...declaredNames(ent.decls));
+      const errors = this.checkLabels(region, names);
+      if (!ent) arch.labels = region.labels.filter(l => !errors.some(e => [l, l.at].some(p => e.line === p.line && e.col === p.col)));
+    });
     return arch;
   }
 
@@ -520,7 +537,8 @@ class Parser {
         mergePackageDecls(pk.decls, u.decls);
       } else if (u.kind === 'architecture' && !entityNames.has(u.entity)) {
         out.push({ kind: 'architecture', name: u.name, entity: u.entity, lang: 'vhdl', file: this.file,
-          loc: u.loc, decls: u.decls, items: u.items, uses: dedupe(u.uses), ...(u.slvArith ? { slvArith: u.slvArith } : {}) });
+          loc: u.loc, decls: u.decls, items: u.items, uses: dedupe(u.uses), ...(u.slvArith ? { slvArith: u.slvArith } : {}),
+          ...(u.labels?.length ? { labels: u.labels } : {}) });
       }
     }
     // merge architectures into their entity (last one wins)
@@ -607,7 +625,8 @@ class Parser {
       }
       case 'component': {
         this.next();
-        this.expectId('component name');
+        const name = this.expectId('component name');
+        this.region?.names.push({ name, what: 'component', line: tok.line });
         this.acceptKw('is');
         if (this.acceptKw('generic')) this.guard(() => { this.parseGenericList(); this.expectOp(';'); });
         if (this.acceptKw('port')) this.guard(() => { this.parsePortList(); this.expectOp(';'); });
@@ -868,10 +887,11 @@ class Parser {
     }
     this.expectKw('is');
     if (this.isKw('new')) { this.warn('subprogram instantiation is not supported'); this.sync(); return null; }
-    const decls = this.parseDeclarativePart(uses);
-    this.expectKw('begin');
-    const body = this.parseSeqStmts();
-    const end = this.expectKw('end');
+    const { decls, body, end } = this.inRegion(() => {
+      const decls = this.parseDeclarativePart(uses);
+      this.expectKw('begin');
+      return { decls, body: this.parseSeqStmts(), end: this.expectKw('end') };
+    });
     this.acceptKw('function') || this.acceptKw('procedure');
     if (this.isId() || this.peek().type === 'str') this.next();
     this.expectOp(';');
@@ -933,6 +953,46 @@ class Parser {
     const start = this.peek();
     let label = null;
     if (this.isId() && this.isOp(':', 1)) { label = this.next().value; this.next(); }
+    const first = this.i;
+    const items = this.parseConcurrentStatement(decls, label, start);
+    if (label) this.declareLabel(label, start, first, items);
+    return items;
+  }
+
+  // --- statement labels (#192) ------------------------------------------------
+  /** fn(region) in a declarative region of its own (its components, which are not in the IR, and the labels of its statements). */
+  inRegion(fn) {
+    const outer = this.region;
+    const region = this.region = { names: [], labels: [] };
+    try { return fn(region); } finally { this.region = outer; }
+  }
+
+  /** The labels of a region with the name of one of its declarations (names, and its components): errors, also returned. */
+  checkLabels(region, names) {
+    const errors = labelErrors(region.labels, [...names, ...region.names], this.file);
+    this.errors.push(...errors);
+    return errors;
+  }
+
+  // The label of the concurrent statement just read (from token `first`), in the region around it.
+  // XST reports a redeclaration at the line where the statement ends (a block: at its label).
+  declareLabel(name, start, first, items) {
+    if (!this.region) return;
+    const tok = this.t[first], kw = tok.type === 'kw' ? (tok.value === 'postponed' ? this.t[first + 1].value : tok.value) : null;
+    const what = kw === 'block' ? 'block' : kw === 'process' ? 'process' : kw === 'for' || kw === 'if' || kw === 'case' ? 'generate'
+      : items[0]?.kind === 'instance' ? 'instance' : kw === 'assert' ? 'assertion'
+        : items[0]?.kind === 'process' && items[0].body[0]?.kind === 'call' && kw !== 'with' ? 'procedure call' : 'assignment';
+    let at = this.loc(start);
+    if (what !== 'block') {
+      // the first token of the line of its `;` (one line: the label)
+      let j = this.i - 1;
+      const line = this.t[j].line;
+      if (line !== start.line) { while (j > first && this.t[j - 1].line === line) j--; at = this.loc(this.t[j]); }
+    }
+    this.region.labels.push({ name, written: start.raw ?? name, what, ...this.loc(start), at });
+  }
+
+  parseConcurrentStatement(decls, label, start) {
     const tok = this.peek();
     const loc = this.loc(label ? start : tok);
     if (tok.type === 'kw') {
@@ -980,9 +1040,11 @@ class Parser {
     }
     this.acceptKw('is');
     const uses = [];
-    const decls = this.parseDeclarativePart(uses);
-    this.expectKw('begin');
-    const body = this.parseSeqStmts();
+    const { decls, body } = this.inRegion(() => {
+      const decls = this.parseDeclarativePart(uses);
+      this.expectKw('begin');
+      return { decls, body: this.parseSeqStmts() };
+    });
     this.expectKw('end');
     this.acceptKw('postponed');
     this.expectKw('process');
@@ -996,15 +1058,22 @@ class Parser {
     return { kind: 'process', label, sens: 'all', initial: false, decls: [], body: [a], loc };
   }
 
-  /** Body of a generate: `[decls begin] items end generate [label];` (end not consumed). */
-  parseGenerateBody() {
-    const decls = [];
-    if (this.isDeclStart() || this.isKw('begin')) {
-      decls.push(...this.parseDeclarativePart([]));
-      this.expectKw('begin');
-    }
-    const items = this.parseConcurrentItems(decls);
-    return { decls, items };
+  /**
+   * Body of a generate: `[decls begin] items end generate [label];` (end not consumed), a region
+   * of its own with its parameter `param` (a for-generate's).
+   */
+  parseGenerateBody(param = null) {
+    return this.inRegion((region) => {
+      const decls = [];
+      if (this.isDeclStart() || this.isKw('begin')) {
+        decls.push(...this.parseDeclarativePart([]));
+        this.expectKw('begin');
+      }
+      const names = [...(param ? [param] : []), ...declaredNames(decls)];
+      const items = this.parseConcurrentItems(decls);
+      this.checkLabels(region, names);
+      return { decls, items };
+    });
   }
 
   /** 2008 alternative terminator `end [alt_label];` before elsif / else / when. */
@@ -1018,11 +1087,12 @@ class Parser {
 
   parseForGenerate(label, loc) {
     this.expectKw('for');
+    const vt = this.peek();
     const v = this.expectId('generate parameter');
     this.expectKw('in');
     const range = this.parseRange();
     this.expectKw('generate');
-    const { decls, items } = this.parseGenerateBody();
+    const { decls, items } = this.parseGenerateBody({ name: v, what: 'generate parameter', line: vt.line });
     this.acceptAltEnd();
     this.expectKw('end');
     this.expectKw('generate');
@@ -1129,14 +1199,18 @@ class Parser {
       this.warn('block generics/ports are not supported');
       while (!this.atEof() && !this.isKw('begin') && !this.isDeclStart()) this.next();
     }
-    decls.push(...this.parseDeclarativePart([]));
-    this.expectKw('begin');
-    const items = this.parseConcurrentItems(decls);
-    this.expectKw('end');
-    this.expectKw('block');
-    if (this.isId()) this.next();
-    this.expectOp(';');
-    return items;
+    return this.inRegion((region) => {
+      const own = this.parseDeclarativePart([]);
+      decls.push(...own);
+      this.expectKw('begin');
+      const items = this.parseConcurrentItems(decls);
+      this.expectKw('end');
+      this.expectKw('block');
+      if (this.isId()) this.next();
+      this.expectOp(';');
+      this.checkLabels(region, declaredNames(own));
+      return items;
+    });
   }
 
   parseInstance(label, loc) {

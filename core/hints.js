@@ -203,6 +203,13 @@ export const HINTS = [
       fix: "Mantenha só uma declaração: retire a repetida, ou mude o nome de uma delas. Um porto já é um sinal: não o declare outra vez." },
   },
   {
+    id: 'label-name', check: 'label-name', re: /^Redeclaration of symbol (\S+): the label of the ([a-z ]+) \(line (\d+)\) is also the name of ([a-z ]+) '([^']+)' \(line (\d+)/,
+    en: { explain: "The label '$1' of the $2 at line $3 has the name of the $4 '$5' (line $6). A label is declared where its statement is (in the architecture, or in the block / generate around it), like a signal, and two things declared in the same place cannot have the same name (VHDL does not tell upper from lower case). ISE stops with this error.",
+      fix: "Rename the label, also where it is repeated after 'end process' / 'end generate' / 'end block': it only names the statement, so any free name will do, e.g. 'u_$1' or '$1_proc'. Keep the name of the $4 '$5' as it is." },
+    pt: { explain: "A etiqueta (label) '$1' do $2 da linha $3 tem o nome do $4 '$5' (linha $6). Uma etiqueta é declarada onde está a sua instrução (na arquitetura, ou no block / generate à volta dela), tal como um sinal, e duas coisas declaradas no mesmo sítio não podem ter o mesmo nome (o VHDL não distingue maiúsculas de minúsculas). O ISE para com este erro.",
+      fix: "Mude o nome da etiqueta, também onde está repetida depois de 'end process' / 'end generate' / 'end block': só dá nome à instrução, por isso serve qualquer nome livre, p. ex. 'u_$1' ou '$1_proc'. Mantenha o nome do $4 '$5'." },
+  },
+  {
     id: 'implicit-net', re: /^implicit net '([^']+)'/,
     en: { explain: "'$1' is used without being declared, so Verilog creates a 1-bit wire with that name by itself. That is almost always a typo or a missing declaration (and a bus becomes 1 bit).",
       fix: "Declare it ('wire [7:0] $1;') or correct the spelling. Writing `default_nettype none at the top of the file turns this into an error." },
