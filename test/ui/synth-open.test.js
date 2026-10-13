@@ -19,7 +19,9 @@ uiTest('Synthesize - Yosys (open): the blinky example synthesized in the browser
   const procs = await page.eval(() => [...document.querySelectorAll('#procs .lbl')].map((e) => e.textContent));
   assert.equal(procs[procs.indexOf('Synthesize - XST') + 5], 'Synthesize - Yosys (open)', procs.join(' | '));
   await page.treeRow('#procs', 'Synthesize - Yosys (open)', { dbl: true, exact: true });
-  await page.waitConsole(DONE, { timeout: 60000 });
+  // (Yosys in WebAssembly: in WebKit / Firefox on a slow CI machine it can take minutes; a run that
+  // never ends is reported with the console's last lines, what Yosys was doing)
+  try { await page.waitConsole(DONE, { timeout: 180000 }); } catch (e) { throw new Error(`${e.message}\n--- console:\n${(await page.consoleText()).split('\n').slice(-25).join('\n')}`); }
   const text = await page.consoleText();
   assert.match(text, /Process "Synthesize - Yosys \(open\)" completed successfully/, text.slice(-2000));
   assert.match(text, /Device utilization \(open synthesis, spartan3e\):\n {2}LUTs: \d+\n {2}Flip-flops: \d+/);
@@ -40,7 +42,7 @@ uiTest('Synthesize - Yosys (open): the blinky example synthesized in the browser
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   assert.ok(await page.eval(() => [...document.querySelectorAll('#procs .lbl')].some((e) => e.textContent === 'Sintetizar - Yosys (aberto)')));
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
-});
+}, { timeout: 300000 });
 
 uiTest('Synthesize - Yosys (open): a design with errors stops at Check Syntax', E, async (page) => {
   await makeProject(env, { name: 'OpenErr', files: { 'src/top.vhd': 'entity top is port (a : in bit; y : out bit); end top;\narchitecture rtl of top is begin y <= a and nope; end rtl;\n' }, top: 'top' });
