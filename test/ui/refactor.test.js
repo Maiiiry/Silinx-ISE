@@ -292,3 +292,67 @@ uiTest('quick fix with Ctrl+. (and the right-click menu): a procedural assignmen
   await page.key('z', UNDO);
   assert.equal(await ed(page), LED);
 });
+
+// ---------------------------------------------------------------- drawings without an HDL file (#177)
+uiTest('Rename Symbol and quick fixes never write a drawing without an HDL file: the dialog says its instance is not changed; no fix for its errors', E, async (page) => {
+  const { COUNTER, schematicOf } = await import('../drawn-lib.mjs');
+  const { newTable } = await import('../../core/logic.js');
+  const drawn = JSON.stringify(schematicOf('drawn', 'counter'), null, 1);
+  const bad = JSON.stringify(schematicOf('bad', 'countr'), null, 1);   // instances a module that does not exist
+  const maj3 = JSON.stringify({ ...newTable('maj3', ['a', 'b', 'c'], ['f']), lang: 'vhdl', table: { f: '00010111' } }, null, 2);
+  const TOPV = `library ieee;
+use ieee.std_logic_1164.all;
+
+entity top is
+  port (a, b, c : in std_logic; y : out std_logic);
+end top;
+
+architecture rtl of top is
+begin
+  u_maj : entity work.maj3 port map (a => a, b => b, c => c, f => y);
+end rtl;
+`;
+  const files = { 'src/counter.vhd': COUNTER, 'src/drawn.sch.json': drawn, 'src/bad.sch.json': bad, 'src/maj3.tt.json': maj3, 'src/top.vhd': TOPV };
+  await makeProject(env, { name: 'DrawnPj', top: 'drawn', files });
+  await page.openProject('DrawnPj');
+  // the drawings are modules of the project (their HDL made in memory)
+  await page.waitFor(() => ['drawn', 'bad', 'maj3'].every((m) => window.Silinx.sources.some((s) => s.view && s.text.includes(`entity ${m} is`))), [], { what: 'the drawings as modules' });
+  const unchanged = async () => { for (const f of ['src/drawn.sch.json', 'src/bad.sch.json', 'src/maj3.tt.json']) assert.equal(await readWs(env, 'DrawnPj', f), files[f], `${f} unchanged`); };
+
+  // ---- a port of counter, which the schematic instances: renamed in counter.vhd; the drawing is named, not changed
+  await page.eval(() => window.SilinxApp.openFile('src/counter.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/counter.vhd' && window.Silinx.active.editor);
+  await cursorOn(page, 'q', 0);
+  await page.key('F2');
+  await page.waitDialog('Rename Symbol');
+  assert.equal(await dlgText(page), "New name:\nRenames the port 'q' everywhere it is used in this file: 2 places.\nNot changed: the instances of 'counter' in src/drawn.sch.json (made from the drawing: change them there).");
+  assert.equal(await page.eval(() => document.querySelectorAll('.rename-dlg input[type=checkbox]').length), 0);
+  await page.fill('.rename-dlg input[type=text]', 'count');
+  await page.dialogButton('Rename');
+  await page.waitNoDialog();
+  const renamed = COUNTER.replace('        q   : out', '        count   : out').replace('  q <= std_logic_vector', '  count <= std_logic_vector');
+  assert.equal(await ed(page), renamed);
+  await page.key('s', { modifiers: process.platform === 'darwin' ? 4 : 2 });
+  for (let k = 0; k < 50 && (await readWs(env, 'DrawnPj', 'src/counter.vhd')) !== renamed; k++) await tick(100);
+  assert.equal(await readWs(env, 'DrawnPj', 'src/counter.vhd'), renamed);
+  await unchanged();
+
+  // ---- a port of maj3 (a truth table) from the file that instances it: declared in the drawing, not renamed
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
+  await cursorOn(page, 'a', 1);   // (the formal of the port map)
+  await page.key('F2');
+  await page.waitFor(() => [...document.querySelectorAll('.toast')].some((t) => t.textContent === "'a' is a port of 'maj3', declared in another file: rename it there."), [], { what: 'the message' });
+  assert.equal(await page.dialogCount(), 0);
+  assert.equal(await ed(page), TOPV);
+
+  // ---- an error in the HDL made from the schematic bad: in the Errors tab, without "Fix: …"
+  await page.treeRow('#hier', 'bad');
+  await page.menu('Process', 'Check Syntax');
+  await page.waitConsole(/Process "Check Syntax" failed \(1 error\(s\), 0 warning\(s\)\)/);
+  await page.click('#console-tabs .tab[data-page=errors]');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#console-errors .diag')].map((r) => r.textContent)),
+    ["ERROR:HDLCompiler - \"src/bad.sch.json\" Line 15: module/entity 'countr' not found (instance 'u1')▸ Explanation and fix"]);
+  assert.equal(await page.eval(() => document.querySelectorAll('#console-errors .diag-fix').length), 0);
+  await unchanged();
+});

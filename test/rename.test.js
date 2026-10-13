@@ -247,3 +247,21 @@ test('Rename Symbol on the examples: every name of every source renamed, the des
   }
   assert.ok(renames > 150, `${renames} renames`);
 });
+
+test('Rename Symbol and a drawing without an HDL file (#177): its HDL made in memory instances the module; a port renamed in the module is found there (the dialog says it is not changed), the drawing is not', async () => {
+  const { viewHdl } = await import('../core/view-hdl.js');
+  const { COUNTER, COUNTER_PORTS, schematicOf } = await import('./drawn-lib.mjs');
+  const drawing = JSON.stringify(schematicOf('drawn', 'counter'));
+  const v = viewHdl('src/drawn.sch.json', drawing, { modules: { counter: { name: 'counter', ports: COUNTER_PORTS } } });
+  assert.match(v.text, /u1 : entity work\.counter\n {4}port map \(\n {6}clk => clk,\n {6}q => leds\n {4}\);/);
+  // the formal q of the drawing's instance: what the editor lists as "Not changed" (it never writes a drawn source)
+  const r = renameInterfaceInSource(v.text, 'vhdl', 'counter', 'q', 'count');
+  assert.equal(r.count, 1);
+  assert.deepEqual(r.edits, [{ line: v.text.split('\n').findIndex(l => l.trim() === 'q => leds') + 1, col: 7, len: 1 }]);
+  // in the module's own file: its two places
+  const s = renameSymbol(COUNTER, 'vhdl', ...at(COUNTER, 'q'), 'count');
+  assert.equal(s.text, COUNTER.replace('        q   : out', '        count   : out').replace('  q <= std_logic_vector', '  count <= std_logic_vector'));
+  // from a file that instances a module drawn as a truth table, its port is not renamed: it is declared there
+  const top = 'entity top is port (a, b, c : in bit; y : out bit); end top;\narchitecture s of top is\nbegin\n  u_maj : entity work.maj3 port map (a => a, b => b, c => c, f => y);\nend s;\n';
+  assert.equal(renameSymbol(top, 'vhdl', ...at(top, 'a', 1), 'x').error, "'a' is a port of 'maj3', declared in another file: rename it there.");
+});

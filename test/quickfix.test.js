@@ -408,3 +408,14 @@ architecture rtl of top is begin
 end rtl;
 `, 'vhdl', /Case statement without/), []);
 });
+
+test('an error of the HDL made from a drawing without an HDL file (#177) points at the drawing: the core would change that text, so the editor offers no fix for it', async () => {
+  const { viewHdl } = await import('../core/view-hdl.js');
+  const { COUNTER, COUNTER_PORTS, schematicOf } = await import('./drawn-lib.mjs');
+  const v = viewHdl('src/bad.sch.json', JSON.stringify(schematicOf('bad', 'countr')), { modules: { counter: { name: 'counter', ports: COUNTER_PORTS } } });
+  const lib = compile([{ path: 'src/counter.vhd', text: COUNTER }, { path: v.path, lang: v.lang, text: v.text }]);
+  const d = elaborate(lib, 'bad').diags;
+  assert.deepEqual(d.map(x => `${x.file}:${x.line}: ${x.message}`), ["src/bad.sch.json:15: module/entity 'countr' not found (instance 'u1')"]);
+  // (web/js/app.js diagFixes skips the sources { view: true }: the edit would be lost, the drawing makes the text)
+  assert.deepEqual(quickFixes(v.text, 'vhdl', d[0], { modules: [{ name: 'counter', ports: ['clk', 'q'] }] }).map(f => f.title), ["Change 'countr' to 'counter'"]);
+});
