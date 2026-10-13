@@ -506,7 +506,7 @@ PT_PATTERNS.push(
 );
 // a development build's version (core/version.js VERSION_LABEL, #135): in the title bar, the Design
 // Summary, the start-up message; the last pattern tried (a text no other pattern translates)
-PT_PATTERNS.push([/^(.*)\(development, commit ([0-9a-f]+)\)(.*)$/, '$1(em desenvolvimento, commit $2)$3']);
+PT_PATTERNS.push([/^(.*)\(development, commit ([0-9a-f]+)((?:, \d{4}-\d\d-\d\d(?: \d\d:\d\d)?)?)\)(.*)$/, '$1(em desenvolvimento, commit $2$3)$4']);
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards
 Object.assign(PT, LINT_PT);   // design checks (the help texts of the messages are in core/hints.js)

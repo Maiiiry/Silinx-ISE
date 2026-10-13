@@ -20,12 +20,13 @@ test('build info: a development commit, the release\'s tag, no git', () => {
     const git = (...a) => execFileSync('git', a, { cwd: dir, stdio: 'pipe', encoding: 'utf8' }).trim();
     git('init', '-q'); git('-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'a');
     const head = git('rev-parse', '--short=7', 'HEAD');
-    assert.deepEqual(buildInfo(dir, '1.2.3', {}), { commit: head });
+    const day = git('log', '-1', '--date=format:%Y-%m-%d %H:%M', '--format=%cd', 'HEAD');
+    assert.deepEqual(buildInfo(dir, '1.2.3', {}), { commit: head, date: day });
     // the release workflow: its tag's push
     assert.equal(buildInfo(dir, '1.2.3', { GITHUB_REF: 'refs/tags/v1.2.3' }), null);
-    assert.deepEqual(buildInfo(dir, '1.2.3', { GITHUB_REF: 'refs/heads/main' }), { commit: head });
+    assert.deepEqual(buildInfo(dir, '1.2.3', { GITHUB_REF: 'refs/heads/main' }), { commit: head, date: day });
     git('tag', 'v1.2.2');
-    assert.deepEqual(buildInfo(dir, '1.2.3', {}), { commit: head }, 'another version\'s tag');
+    assert.deepEqual(buildInfo(dir, '1.2.3', {}), { commit: head, date: day }, 'another version\'s tag');
     git('tag', 'v1.2.3');
     assert.equal(buildInfo(dir, '1.2.3', {}), null, 'the release\'s commit');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
@@ -37,6 +38,8 @@ test('version label: the version alone, or the development commit (English and P
   assert.equal(VERSION_LABEL, VERSION);
   assert.equal(versionLabel(null), VERSION);
   assert.equal(versionLabel({ commit: 'abc1234' }), `${VERSION} (development, commit abc1234)`);
+  assert.equal(versionLabel({ commit: 'abc1234', date: '2026-10-13 11:12' }), `${VERSION} (development, commit abc1234, 2026-10-13 11:12)`);
+  assert.equal(t(`Silinx ISE ${VERSION} (development, commit abc1234, 2026-10-13 11:12)`), `Silinx ISE ${VERSION} (em desenvolvimento, commit abc1234, 2026-10-13 11:12)`);
   assert.equal(t(versionLabel({ commit: 'abc1234' })), `${VERSION} (em desenvolvimento, commit abc1234)`);
   assert.equal(t(`Silinx ISE ${VERSION} (development, commit abc1234) Project Navigator`), `Silinx ISE ${VERSION} (em desenvolvimento, commit abc1234) Project Navigator`);
 });
