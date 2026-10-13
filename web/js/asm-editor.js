@@ -754,7 +754,7 @@ export function mountAsmEditor(container, { model, onChange, onGenerate } = {}) 
         a.type === 'case' ? field('Value(s) of this exit', h('input', { class: 'asm-input mono', value: e.port, spellcheck: 'false', 'data-focus': '1',
           oninput: (ev) => { e.port = ev.target.value.trim() || 'others'; commit(`lbl:${e.id}`); } }),
         `e.g. ${'0'.repeat(Math.max(0, caseWidth(a) - 1))}1, 4, 0|1 (several values) or others`) : null,
-        e.points ? btn('Reset route', 'Use automatic routing', () => { delete e.points; commit('route'); }) : null,
+        e.points ? btn('Reset route', 'Use automatic routing', () => { delete e.points; commit('route'); renderInspector(); }) : null,
         btn('Delete connection', 'Delete (Del)', () => deleteSelection(), 'asm-danger'));
       return;
     }

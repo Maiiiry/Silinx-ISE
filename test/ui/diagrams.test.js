@@ -361,6 +361,7 @@ uiTest('ASM chart editor: Zoom / Fit, </> Code and Copy, Reset route / Delete co
   await pick('edge', 'e7');
   await side('Reset route');
   assert.ok(!('points' in (await model()).edges.find((e) => e.id === 'e7')));
+  assert.equal(await page.eval((d) => [...document.querySelectorAll(`${d} .asm-selection .asm-btn`)].some((b) => b.textContent === 'Reset route'), D), false, 'no route: no Reset route button (#202)');
   await tool('↶');
   assert.deepEqual((await model()).edges.find((e) => e.id === 'e7').points, [{ x: 400, y: 540 }, { x: 400, y: 80 }]);
   await tool('↷');
