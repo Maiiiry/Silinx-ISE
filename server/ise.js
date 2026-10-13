@@ -333,6 +333,29 @@ const DEFAULT_SETTINGS_SH = '/opt/Xilinx/14.7/ISE_DS/settings64.sh';
 // (the ports without a pin location: core/auto-pins.js, shared with the browser edition)
 export { unconstrainedPorts } from '../core/auto-pins.js';
 import { unconstrainedPorts } from '../core/auto-pins.js';
+import { isView, viewHdl } from '../core/view-hdl.js';
+import { modulesFromLibrary } from '../core/schdoc.js';
+
+/**
+ * The project's drawn sources without an HDL file (schematics, ASM charts, state diagrams, truth
+ * tables, #177): their HDL made for the build, [{ path, lang, text, module, errors }]. hdl: the
+ * project's HDL sources [{ path, lang, text }] (the schematics' module symbols).
+ */
+export async function viewSources(project, projectDir, hdl = []) {
+  const out = (project.excluded || []);
+  const views = (await walkFiles(projectDir)).filter(f => isView(f) && !out.includes(f) && !/^build\//.test(f));
+  if (!views.length) return [];
+  let modules = {};
+  try { modules = modulesFromLibrary(compile(hdl), { sources: Object.fromEntries(hdl.map(s => [s.path, s.text])) }); } catch { /* none */ }
+  const res = [];
+  const hdlMods = new Set(Object.keys(modules).map(n => n.toLowerCase()));   // (a module an HDL file defines: that file)
+  for (const f of views) {
+    const r = viewHdl(f, await fs.readFile(path.join(projectDir, f), 'utf8'), { modules });
+    if (r && r.text && !hdlMods.has(String(r.module).toLowerCase())) res.push(r);
+    else if (r && !r.text && r.errors.length) res.push(r);
+  }
+  return res;
+}
 
 export async function generateBuild(project, projectDir, { steps } = {}) {
   const warnings = [];
@@ -345,7 +368,12 @@ export async function generateBuild(project, projectDir, { steps } = {}) {
 
   // synthesis: the files of every view and the implementation-only ones (not the simulation-only ones)
   const design = (project.files || []).filter(f => ['design', 'impl'].includes(f.role || 'design') && (f.lang === 'verilog' || f.lang === 'vhdl'));
-  if (!design.length) throw Object.assign(new Error('project has no design (role "design") HDL files'), { status: 400 });
+  // the drawn sources without an HDL file: their HDL made here (#177)
+  const hdlTexts = [];
+  for (const f of design) { try { hdlTexts.push({ path: f.path, lang: f.lang, text: await fs.readFile(path.join(projectDir, f.path), 'utf8') }); } catch { /* missing: reported below */ } }
+  const drawn = await viewSources(project, projectDir, hdlTexts);
+  for (const v of drawn) for (const e of v.errors) warnings.push(e);
+  if (!design.length && !drawn.some(v => v.text)) throw Object.assign(new Error('project has no design (role "design") HDL files'), { status: 400 });
 
   const buildDir = path.join(projectDir, 'build');
   const srcDir = path.join(buildDir, 'src');
@@ -368,6 +396,14 @@ export async function generateBuild(project, projectDir, { steps } = {}) {
     await fs.mkdir(path.dirname(to), { recursive: true });
     await fs.copyFile(from, to);
     sources.push({ ...f, buildPath: `src/${rel}` });
+  }
+  for (const v of drawn) {
+    if (!v.text) continue;
+    const rel = `${v.path.split(/[\\/]/).join('/')}.${v.lang === 'vhdl' ? 'vhd' : 'v'}`;   // e.g. src/top.sch.json.vhd
+    const to = path.join(srcDir, rel);
+    await fs.mkdir(path.dirname(to), { recursive: true });
+    await fs.writeFile(to, v.text);
+    sources.push({ path: v.path, lang: v.lang, role: 'design', buildPath: `src/${rel}`, generated: true });
   }
   if (!sources.length) throw Object.assign(new Error('none of the design source files exist'), { status: 400 });
 

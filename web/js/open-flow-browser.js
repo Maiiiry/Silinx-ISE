@@ -4,6 +4,9 @@
 // the bit database and Yosys (WebAssembly) are fetched from the site's assets/ folder (published
 // with the page: .github/workflows/pages.yml).
 import { unconstrainedPorts } from '/core/auto-pins.js';
+import { isView, viewHdl } from '/core/view-hdl.js';
+import { compile } from '/core/compile.js';
+import { modulesFromLibrary } from '/core/schdoc.js';
 
 // the devices whose device description and bit database are published (core/fpga/devices,
 // research/s3e-bitstream/db): device/package -> the description's file
@@ -74,6 +77,20 @@ export async function runBrowserFlow({ project, files, steps, onLine, onWrite = 
   if (!top) throw new Error('the project has no top module');
   const sources = (project.files || []).filter(f => ['design', 'impl'].includes(f.role || 'design') && (f.lang === 'verilog' || f.lang === 'vhdl') && typeof files[f.path] === 'string')
     .map(f => ({ path: f.path, lang: f.lang, text: files[f.path] }));
+  // the drawn sources without an HDL file (schematics, ASM charts, state diagrams, truth tables): their HDL made here (#177)
+  const excluded = new Set(project.excluded || []);
+  const viewPaths = Object.keys(files).filter(p => isView(p) && !excluded.has(p) && !p.startsWith('build/') && typeof files[p] === 'string');
+  if (viewPaths.length) {
+    let modules = {};
+    try { modules = modulesFromLibrary(compile(sources), { sources: Object.fromEntries(sources.map(s => [s.path, s.text])) }); } catch { /* none */ }
+    const hdlMods = new Set(Object.keys(modules).map(n => n.toLowerCase()));   // (a module an HDL file defines: that file)
+    for (const p of viewPaths) {
+      const r = viewHdl(p, files[p], { modules });
+      if (!r || (r.text && hdlMods.has(String(r.module).toLowerCase()))) continue;
+      for (const e of r.errors) onLine(`WARNING:Silinx - ${e}`);
+      if (r.text) sources.push({ path: `${p}.${r.lang === 'vhdl' ? 'vhd' : 'v'}`, lang: r.lang, text: r.text });
+    }
+  }
   if (!sources.length) throw new Error('the project has no design HDL files');
   const ucf = project.constraints && typeof files[project.constraints] === 'string' ? files[project.constraints] : null;
   // the port bits without a pin: on a board they would go to arbitrary pins (refused, as the server does)

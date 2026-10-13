@@ -516,3 +516,36 @@ test('generateBuild: an implementation-only source is synthesized, a simulation-
   assert.match(prj, /src\/src\/counter\.v/);
   assert.doesNotMatch(prj, /tb_top/);
 });
+
+test('generateBuild: a project of drawn sources only (a schematic, a truth table, no HDL file) builds; their HDL made for it (#177)', async () => {
+  const { newDoc, normalizeDoc, symbolPins } = await import('../core/schdoc.js');
+  const { newTable } = await import('../core/logic.js');
+  const { compile, elaborate } = await import('../core/compile.js');
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'silinx-drawn-'));
+  try {
+    // the truth table maj3 (majority) and a schematic top that instances it next to an inverter
+    const tt = { ...newTable('maj3', ['a', 'b', 'c'], ['f']), lang: 'vhdl' };
+    tt.table = { f: '00010111' };
+    const doc = newDoc('drawn', 'vhdl');
+    const m = { id: 'S1', type: 'module', x: 300, y: 100, rot: 0, mirror: false, name: 'u_maj', params: { module: 'maj3', ports: [{ name: 'a', dir: 'in', width: 1 }, { name: 'b', dir: 'in', width: 1 }, { name: 'c', dir: 'in', width: 1 }, { name: 'f', dir: 'out', width: 1 }] } };
+    doc.symbols.push(m);
+    for (const p of symbolPins(normalizeDoc({ ...doc }).symbols[0], { maj3: { name: 'maj3', ports: m.params.ports } })) {
+      const at = { x: p.x + (p.dir === 'in' ? -60 : 60), y: p.y };
+      doc.ports.push({ id: `P${doc.ports.length + 1}`, name: p.name === 'f' ? 'y' : p.name, dir: p.dir, width: 1, x: at.x, y: at.y });
+      doc.wires.push({ id: `W${doc.wires.length + 1}`, points: [at, { x: p.x, y: p.y }] });
+    }
+    await fs.mkdir(path.join(dir, 'src'), { recursive: true });
+    await fs.writeFile(path.join(dir, 'src/maj3.tt.json'), JSON.stringify(tt));
+    await fs.writeFile(path.join(dir, 'src/drawn.sch.json'), JSON.stringify(doc));
+    const project = { name: 'Drawn', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'drawn', files: [], constraints: '' };
+    const g = await ise.generateBuild(project, dir);
+    assert.deepEqual(g.sources.filter(s => s.generated).map(s => [s.path, s.buildPath]).sort(),
+      [['src/drawn.sch.json', 'src/src/drawn.sch.json.vhd'], ['src/maj3.tt.json', 'src/src/maj3.tt.json.vhd']]);
+    // the build's sources elaborate the top
+    const srcs = g.sources.map(s => ({ path: s.buildPath, lang: s.lang, text: fss.readFileSync(path.join(g.buildDir, s.buildPath), 'utf8') }));
+    const design = elaborate(compile(srcs), 'drawn');
+    assert.ok(design.top, 'drawn elaborates');
+    assert.deepEqual(design.top.children.map(c => c.module.toLowerCase()), ['maj3']);
+    assert.match(fss.readFileSync(path.join(g.buildDir, 'drawn.prj'), 'utf8'), /drawn\.sch\.json\.vhd/);
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
+});

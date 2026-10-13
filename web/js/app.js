@@ -16,6 +16,8 @@ import { designDiags, hintRow, sevWord, lintEnabled, setLintEnabled } from './di
 import { applyPrefs, getInterface, setInterface, getTheme, setTheme, toggleTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
 import { createHistory } from './history.js';
+import { viewHdl } from '/core/view-hdl.js';
+import { modulesFromLibrary } from '/core/schdoc.js';
 import { countEvent } from './analytics.js';
 import { setActionRunner, runAction } from './ui.js';
 
@@ -131,8 +133,21 @@ export function status(text) { $('status-text').textContent = text; }
 const withPrimitives = srcs => [...primitiveSources(srcs), ...srcs];
 export function compileProject() {
   if (!S.project) return;
-  const srcs = S.sources.filter(s => s.lang === 'vhdl' || s.lang === 'verilog');
-  S.lib = compile(srcs);
+  const srcs = S.sources.filter(s => !s.view && (s.lang === 'vhdl' || s.lang === 'verilog'));
+  // the drawn sources without an HDL file (#177): their HDL, made here, compiled with the rest (a module
+  // of the project, which can be the top, be simulated and implemented, with no file)
+  S.viewSources = [];
+  const views = Object.entries(S.viewTexts || {}).filter(([f]) => !S.schOwners?.[f]);
+  if (views.length) {
+    let mods = {};
+    try { mods = modulesFromLibrary(compile(srcs), { sources: Object.fromEntries(srcs.map(s => [s.path, s.text])) }); } catch { /* none */ }
+    // (a drawn source whose module an HDL file of the project already defines: that file, not a second one)
+    const hdlMods = new Set(Object.keys(mods).map(n => n.toLowerCase()));
+    for (const [f, t] of views) { const r = viewHdl(f, t, { modules: mods }); if (r?.text && !hdlMods.has(String(r.module).toLowerCase())) S.viewSources.push({ path: f, lang: r.lang, text: r.text, role: 'design', view: true }); }
+  }
+  // (in S.sources too, so that every compile of the project (simulation, checks, RTL views) has them)
+  S.sources = [...S.sources.filter(s => !s.view), ...S.viewSources];
+  S.lib = compile([...srcs, ...S.viewSources]);
   // open schematics: their palette (Project modules) and module symbols follow the sources
   if (S.docs.some(d => d.schEditor)) schModules().then(mods => { for (const d of S.docs) d.schEditor?.setModules(mods); }).catch(() => {});
   // module info for editor completion / templates
@@ -205,15 +220,17 @@ function renderHierarchy() {
     const file = info?.file || '?';
     // "label - module" like ISE; just the name when the instance is labelled with the module name
     const label = instName && instName.toLowerCase() !== String(modName).toLowerCase() ? `${instName} - ${modName}` : modName;
-    const sch = info && S.hdlToSch?.[file];
-    const schBase = sch && S.schBase?.[sch] !== 'hdl';
+    // a drawn source without an HDL file (#177): the module is the drawing itself
+    const drawn = info && /\.(sch|asm|tt|fsm)\.json$/.test(file) ? file : null;
+    const sch = drawn || (info && S.hdlToSch?.[file]);
+    const schBase = sch && (drawn || S.schBase?.[sch] !== 'hdl');
     const viewIco = viewIcon(sch);
     const it = treeItem({
       label, meta: info ? `(${(schBase ? sch : file).split('/').pop()})` : '(missing)', ico: isTop ? 'moduleTop' : schBase ? viewIco : info ? (info.lang === 'vhdl' ? 'vhdl' : 'verilog') : 'err',
       cls: isTop ? 'top-mod' : '', key: `m:${path}`, open: depth < 2,
-      onSelect: () => select({ type: 'module', module: modName, file, path, instName, sch }),
+      onSelect: () => select(drawn ? { type: viewKind(drawn), file: drawn, module: modName, path, instName } : { type: 'module', module: modName, file, path, instName, sch }),
       onOpen: () => info && (schBase ? openView(sch) : openFile(file, info.line)),
-      onContext: e => moduleContextMenu(e, modName, file),
+      onContext: e => (drawn ? viewContextMenu(e, drawn) : moduleContextMenu(e, modName, file)),
     });
     parentUl.append(it.li);
     if (sch && schBase) {
@@ -246,20 +263,20 @@ function renderHierarchy() {
     const it = treeItem({ label: pj.constraints.split('/').pop(), ico: 'ucf', key: 'ucf', onSelect: () => select({ type: 'ucf', file: pj.constraints }), onOpen: () => openFile(pj.constraints), onContext: e => fileContextMenu(e, pj.constraints) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
-  for (const f of (S.fileTree || []).filter(f => /\.sch\.json$/.test(f) && !S.schOwners?.[f])) {
+  for (const f of (S.fileTree || []).filter(f => /\.sch\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
     const owned = null;
     const it = treeItem({ label: f.split('/').pop(), meta: owned ? `(→ ${owned.split('/').pop()})` : '', ico: 'schematic', key: `sch:${f}`, onSelect: () => select({ type: 'sch', file: f }), onOpen: () => openSch(f), onContext: e => schContextMenu(e, f) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
-  for (const f of (S.fileTree || []).filter(f => /\.asm\.json$/.test(f) && !S.schOwners?.[f])) {
+  for (const f of (S.fileTree || []).filter(f => /\.asm\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
     const it = treeItem({ label: f.split('/').pop(), ico: 'asm', key: `asm:${f}`, onSelect: () => select({ type: 'asm', file: f }), onOpen: () => openAsm(f), onContext: e => asmContextMenu(e, f) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
-  for (const f of (S.fileTree || []).filter(f => /\.tt\.json$/.test(f) && !S.schOwners?.[f])) {
+  for (const f of (S.fileTree || []).filter(f => /\.tt\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
     const it = treeItem({ label: f.split('/').pop(), ico: 'truthtable', key: `tt:${f}`, onSelect: () => select({ type: 'tt', file: f }), onOpen: () => openTt(f), onContext: e => ttContextMenu(e, f) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
-  for (const f of (S.fileTree || []).filter(f => /\.fsm\.json$/.test(f) && !S.schOwners?.[f])) {
+  for (const f of (S.fileTree || []).filter(f => /\.fsm\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
     const it = treeItem({ label: f.split('/').pop(), ico: 'fsm', key: `fsm:${f}`, onSelect: () => select({ type: 'fsm', file: f }), onOpen: () => openFsm(f), onContext: e => fsmContextMenu(e, f) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
@@ -1268,6 +1285,11 @@ async function flushDoc(doc, opts) {
     if (doc._saveFailed) { doc._saveFailed = false; log(`${doc.path || doc.title} saved.`, 'ok'); }
     // edited while it was being saved (the save marked it clean): those edits are saved next
     if (doc._edits !== edits) setDirty(doc, true);
+    // a drawn source without an HDL file: its module follows (#177)
+    const vp = docPath(doc);
+    if (vp && /\.(sch|asm|tt|fsm)\.json$/.test(vp) && !S.schOwners?.[vp] && S.project) {
+      try { S.viewTexts = { ...(S.viewTexts || {}), [vp]: await api.readFile(S.project.name, vp) }; compileProject(); renderHierarchy(); } catch { /* read later */ }
+    }
   } catch (e) {
     // keep the changes and retry; report once until it works again
     if (!doc._saveFailed) log(`ERROR: cannot save ${doc.path || doc.title}: ${e.message}. Your changes are kept and saved as soon as it is possible again.`, 'err');
@@ -1956,7 +1978,7 @@ async function generateTtHdl(ttPath, lang) {
   const dir = ttPath.includes('/') ? ttPath.replace(/\/[^/]*$/, '') : 'src';
   const owned = m.generatedFile && S.fileTree.includes(m.generatedFile) ? m.generatedFile : null;
   const target = owned && extOf(owned) === extOf(g.filename) && owned.split('/').pop().replace(/\.[^.]+$/, '') === m.name ? owned : `${dir}/${g.filename}`;
-  const other = S.modules.find(x => x.name.toLowerCase() === m.name.toLowerCase() && x.file !== target && x.file !== owned);
+  const other = S.modules.find(x => x.name.toLowerCase() === m.name.toLowerCase() && x.file !== target && x.file !== owned && x.file !== ttPath);   // (the drawn source itself, a module of its own until it has its HDL file, #177)
   if (other) { alertDlg('Generate HDL', `A module named '${m.name}' already exists in ${other.file}. Rename the table's module (its file name) first.`, 'error'); return; }
   if (S.fileTree.includes(target) && target !== owned && !await confirmDlg('Generate HDL', `${target} already exists and is not generated from this truth table. Overwrite it?`)) return;
   if (owned && owned !== target && !await confirmDlg('Generate HDL', `${owned} is generated from this truth table. Replace it with ${target}?`)) return;
@@ -2190,7 +2212,7 @@ async function generateFsmHdl(fsmPath, lang) {
   const g = generateFsm({ ...m, lang }, lang, { source: fsmPath.split('/').pop() });
   const owned = m.generatedFile && S.fileTree.includes(m.generatedFile) ? m.generatedFile : null;
   const target = owned && extOf(owned) === extOf(g.filename) && owned.split('/').pop().replace(/\.[^.]+$/, '') === m.name ? owned : `${fsmDir(fsmPath)}/${g.filename}`;
-  const other = S.modules.find(x => x.name.toLowerCase() === m.name.toLowerCase() && x.file !== target && x.file !== owned);
+  const other = S.modules.find(x => x.name.toLowerCase() === m.name.toLowerCase() && x.file !== target && x.file !== owned && x.file !== fsmPath);   // (the drawn source itself, a module of its own until it has its HDL file, #177)
   if (other) { alertDlg('Generate HDL', `A module named '${m.name}' already exists in ${other.file}. Rename the state machine's module first.`, 'error'); return; }
   if (S.fileTree.includes(target) && target !== owned && !await confirmDlg('Generate HDL', `${target} already exists and is not generated from this state diagram. Overwrite it?`)) return;
   if (owned && owned !== target && !await confirmDlg('Generate HDL', `${owned} is generated from this state diagram. Replace it with ${target}?`)) return;
@@ -2428,6 +2450,8 @@ const isFsm = p => /\.fsm\.json$/i.test(p || '');
 const viewNoun = p => (isAsm(p) ? 'state machine' : isTt(p) ? 'truth table' : isFsm(p) ? 'state diagram' : 'schematic');
 const viewTitle = p => (isAsm(p) ? 'State Machine' : isTt(p) ? 'Truth Table' : isFsm(p) ? 'State Diagram' : 'Schematic');
 const viewIcon = p => (isAsm(p) ? 'asm' : isTt(p) ? 'truthtable' : isFsm(p) ? 'fsm' : 'schematic');
+const viewKind = p => (isAsm(p) ? 'asm' : isTt(p) ? 'tt' : isFsm(p) ? 'fsm' : 'sch');
+const viewContextMenu = (e, f) => (isAsm(f) ? asmContextMenu : isTt(f) ? ttContextMenu : isFsm(f) ? fsmContextMenu : schContextMenu)(e, f);
 function openView(p) { return isAsm(p) ? openAsm(p) : isTt(p) ? openTt(p) : isFsm(p) ? openFsm(p) : openSch(p); }
 
 // ---- schematic <-> HDL synchronization
@@ -2604,20 +2628,20 @@ async function setSchBase(schPath, base) {
 // (kept in sync, the drawing staying the base: as ISE makes a top-level schematic's HDL itself),
 // and the module it defines becomes the top
 async function setViewAsTop(path) {
-  if (!S.schOwners?.[path]) {
-    const convert = isAsm(path) ? convertAsmToHdl : isTt(path) ? convertTtToHdl : isFsm(path) ? convertFsmToHdl : convertSchToHdl;
-    await convert(path);
-    if (!S.schOwners?.[path]) return;   // not converted (its errors are shown, or cancelled)
-    if (S.schBase?.[path] === 'hdl') await setSchBase(path, 'view');
+  // a drawn source without an HDL file is a module of the project by itself (its HDL made when it is
+  // compiled or implemented, #177): it becomes the top as it is, no file written
+  const mod = S.modules.find(m => m.file === path && m.kind !== 'package')?.name || topOfView(path);
+  if (mod) {
+    await setTop(mod, false);
+    log(`Top module: ${mod} (${path.split('/').pop()}${S.schOwners?.[path] ? `, its HDL ${S.schOwners[path].split('/').pop()} kept in sync` : ', no HDL file needed'}).`, 'ok');
+    return;
   }
-  const gen = S.schOwners[path];
-  const mod = S.modules.find(m => m.file === gen && m.kind !== 'package')?.name;
-  if (!mod) { alertDlg('Set as Top Module', `${gen} defines no module that can be the top.`, 'error'); return; }
-  await setTop(mod, false);
-  log(`Top module: ${mod} (${path.split('/').pop()}, its HDL ${gen.split('/').pop()} kept in sync).`, 'ok');
+  // it does not make a module (errors in it): say why
+  const r = viewHdl(path, S.viewTexts?.[path] ?? await api.readFile(S.project.name, path), {});
+  alertDlg('Set as Top Module', r?.errors?.length ? `${path.split('/').pop()} cannot be the top yet:\n${r.errors.slice(0, 8).join('\n')}` : `${path.split('/').pop()} defines no module that can be the top.`, 'error');
 }
 const viewSel = () => (['sch', 'asm', 'tt', 'fsm'].includes(S.sel?.type) ? S.sel.file : null);
-const topOfView = path => { const gen = S.schOwners?.[path]; return gen ? S.modules.find(m => m.file === gen && m.kind !== 'package')?.name : null; };
+const topOfView = path => { const gen = S.schOwners?.[path] || path; return S.modules.find(m => m.file === gen && m.kind !== 'package')?.name || null; };
 
 // A schematic without HDL yet: generate its HDL file and make the HDL the base (schematic kept, in sync).
 async function convertSchToHdl(schPath) {
@@ -2960,9 +2984,12 @@ async function reloadProjectNow(render = true) {
   S.hdlToSch = {};
   S.schBase = {};
   // schematics (.sch.json) and ASM charts (.asm.json) linked to an HDL file ("views" kept in sync)
+  S.viewTexts = {};
   for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm)\.json$/.test(f))) {
     try {
-      const d = JSON.parse(await api.readFile(pj.name, f));
+      const t = await api.readFile(pj.name, f);
+      S.viewTexts[f] = t;
+      const d = JSON.parse(t);
       if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !S.hdlToSch[d.generatedFile]) { S.schOwners[f] = d.generatedFile; S.hdlToSch[d.generatedFile] = f; S.schBase[f] = d.base === 'hdl' ? 'hdl' : 'view'; }
     } catch { /* unreadable */ }
   }

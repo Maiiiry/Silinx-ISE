@@ -27,6 +27,10 @@ In detail:
 - **Truth table expressions take `.` as AND and `/` as NOT:** `/a.b + a./b` (A barrado written /A),
   besides `'`, `~`, `·`, `*` and the others; `/` is the bar over one letter (`/ab` is a'·b, `/(ab)`
   the product negated); the fields show the operators (XOR is `^` or `xor`) (#180).
+- **Any source can be the top and be implemented, no HDL file needed:** a schematic, an ASM chart, a
+  state diagram or a truth table without an HDL file of its own is a module of the project by itself,
+  in the hierarchy, as the top (*Set as Top Module*), simulated, synthesized and implemented: its HDL
+  is made in memory when it is needed (the application, the browser edition) (#177).
 
 ## 15.10.11
 
