@@ -3,6 +3,13 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.10
+
+In detail:
+
+- A reload of the page also comes back to the simulation (ISim) and the board emulator you were on,
+  run again for the same module and model (a netlist model only while it exists) (#163).
+
 ## 15.10.9
 
 In short:

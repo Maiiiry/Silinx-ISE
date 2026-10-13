@@ -1292,24 +1292,36 @@ export async function closeDoc(doc) {
   return true;
 }
 
-// ---- where the user was (#160): the open documents of a project, the one in front, the left pane
+// ---- where the user was (#160, #163): the open documents of a project, the one in front, the left pane
 // and the Design view, kept in this browser (per project) so that a reload of the page, or opening
 // the project again, comes back to them instead of the Design Summary. The documents that open as
-// they were: the sources and their editors, the RTL schematic, the summary, the pin planner, iMPACT
-// (not a simulation, the emulator, a report or a technology schematic: their state is a run's).
+// they were: the sources and their editors, the RTL schematic, the summary, the pin planner, iMPACT,
+// and the simulation (ISim) and the board emulator, run again for the same module and model (a
+// netlist model only while it exists); not a report or a technology schematic (a run's output).
 const VIEW_KEY = name => `silinx.view.${name}`;
 const inProject = p => S.fileTree?.includes(p);
 const REOPEN = [
   [/^file:(.+)$/, p => inProject(p) && openFile(p)], [/^sch:(.+)$/, p => inProject(p) && openSch(p)],
   [/^asm:(.+)$/, p => inProject(p) && openAsm(p)], [/^tt:(.+)$/, p => inProject(p) && openTt(p)],
   [/^fsm:(.+)$/, p => inProject(p) && openFsm(p)], [/^rtl:(.+)$/, m => moduleInfo(m) && openSchematic(m)],
+  [/^isim:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && runSimulation(mod, model || undefined)],
+  [/^emulator:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && openEmulator(mod, { model: model || null })],
   [/^summary$/, () => openSummary()], [/^pins$/, () => S.project.top && openPinPlanner()], [/^impact$/, () => openImpact()],
 ];
+// a module of the project, and its netlist model when one is asked for (no message when it is gone)
+async function reopenable(mod, model) {
+  if (!moduleInfo(mod)) return false;
+  if (!model) return true;
+  const rep = await api.reports(S.project.name).catch(() => null);
+  return !!(rep?.simModels?.[model] && rep.top === S.project.top);
+}
+const reopenKey = d => d.reopen || d.id;
 let keepView = false;   // while documents are closed or reopened together (a project closed, restored)
 function saveViewState() {
   if (keepView || !S.project) return;
-  const open = S.docs.filter(d => d.project === S.project.name && REOPEN.some(([re]) => re.test(d.id))).map(d => d.id);
-  const state = { open, active: open.includes(S.active?.id) ? S.active.id : null, page: S.leftPage || null, view: S.view };
+  const open = S.docs.filter(d => d.project === S.project.name && REOPEN.some(([re]) => re.test(reopenKey(d)))).map(reopenKey);
+  const active = S.active && reopenKey(S.active);
+  const state = { open, active: open.includes(active) ? active : null, page: S.leftPage || null, view: S.view };
   try { localStorage.setItem(VIEW_KEY(S.project.name), JSON.stringify(state)); } catch { /* storage unavailable */ }
 }
 function savedViewState(name) {
@@ -1326,9 +1338,9 @@ async function restoreViewState(name) {
     for (const id of v.open) {
       const [re, open] = REOPEN.find(([r]) => r.test(id)) || [];
       if (!re) continue;
-      try { await open(re.exec(id)[1]); } catch { /* a document that cannot open any more */ }
+      try { await open(...re.exec(id).slice(1)); } catch { /* a document that cannot open any more */ }
     }
-    const active = v.active && findDoc(v.active);
+    const active = v.active && S.docs.find(d => reopenKey(d) === v.active);
     if (active) activateDoc(active);
   } finally { keepView = false; }
   saveViewState();
@@ -1670,7 +1682,7 @@ async function runSimulationInner(mod, model) {
   const old = findDoc(id);
   if (old) await closeDoc(old);
   openDoc({
-    id, title: `ISim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave',
+    id, title: `ISim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: `isim:${mod}${model ? `@${model}` : ''}`,
     create(el) {
       // ISim runs 1000 ns at start-up
       const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, onOpenSource: ref => ref?.file && openFile(ref.file, ref.line) });
@@ -1728,7 +1740,7 @@ async function openEmulator(mod, { scale, model = null } = {}) {
   const old = findDoc(id);
   if (old) await closeDoc(old);
   openDoc({
-    id, title: `Board Emulator (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'board',
+    id, title: `Board Emulator (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'board', reopen: `emulator:${mod}${model ? `@${model}` : ''}`,
     create(el) {
       const view = mountEmulator(el, { design, board, assignments, title: `${mod}${model ? ` — ${SIM_MODEL_NAMES[model]} netlist` : ''}`, files,
         timing: { gens, scale, onChange: (k) => setTimeout(() => openEmulator(mod, { scale: k, model }), 0) },
