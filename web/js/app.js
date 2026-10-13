@@ -2496,6 +2496,7 @@ async function generatePetriHdl(path, lang) {
   await reloadProject(false);
   markStale();
   refreshOpenEditor(target, g.code);
+  findDoc(`pn:${path}`)?.petriEditor?.refreshLink();
 }
 function petriContextMenu(e, file) {
   popupMenu([
