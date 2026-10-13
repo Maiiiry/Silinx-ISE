@@ -144,6 +144,141 @@ end rtl;
   assert.deepEqual(fixes(g, 'verilog', /expected ';'/), [{ title: "Add ';' at the end of the line", text: g.replace('~a\n', '~a;\n') }]);
 });
 
+// (a source with a ';' removed at the end of line n, 1-based)
+const cutSemicolon = (text, n) => text.split('\n').map((x, j) => (j === n - 1 ? x.replace(/;\s*$/, '') : x)).join('\n');
+const parseErrors = (text, lang) => (lang === 'verilog' ? parseVerilog : parseVhdl)(text, 'f').errors.filter(e => e.severity === 'error').map(e => `${e.line}:${e.col} ${e.message}`);
+
+test('VHDL: a ";" missing after each kind of declaration is reported at the end of that line, and the fix puts it back (#183)', () => {
+  const v = `${HEAD}entity top is
+  port (clk : in std_logic; y : out std_logic);
+end top;
+architecture rtl of top is
+  use ieee.numeric_std.all;
+  type state_t is (idle, run);
+  subtype nibble is integer range 0 to 15;
+  constant MASK : std_logic_vector(3 downto 0) := x"F";
+  signal state : state_t := idle;
+  signal q : std_logic := '0';
+  alias q_out : std_logic is q;
+  component sub is
+    port (a : in std_logic);
+  end component;
+  function inv(b : std_logic) return std_logic;
+  procedure nop(n : in integer);
+  function inv(b : std_logic) return std_logic is
+  begin
+    return not b;
+  end function;
+  procedure nop(n : in integer) is
+  begin
+  end procedure;
+  attribute fsm_encoding : string;
+  attribute fsm_encoding of state : signal is "user";
+begin
+  process (clk)
+    variable count : nibble := 0;
+    constant LAST : nibble := 9;
+  begin
+    if rising_edge(clk) then
+      if count = LAST then
+        count := 0;
+        state <= run;
+      else
+        count := count + 1;
+      end if;
+      q <= inv(q) and MASK(0);
+    end if;
+  end process;
+  y <= q_out;
+end rtl;
+`;
+  assert.deepEqual(parseErrors(v, 'vhdl'), []);
+  const expected = {
+    7: "7:27 expected ';' after 'all'", 8: "8:30 expected ';' after ')'", 9: "9:42 expected ';' after '15'",
+    10: `10:55 expected ';' after 'x"F"'`, 11: "11:33 expected ';' after 'idle'", 12: "12:30 expected ';' after '0'",
+    13: "13:31 expected ';' after 'q'", 15: "15:28 expected ';' after ')'", 16: "16:16 expected ';' after 'component'",
+    17: "17:47 expected ';' after 'std_logic'", 18: "18:32 expected ';' after ')'", 21: "21:17 expected ';' after 'b'",
+    22: "22:15 expected ';' after 'function'", 25: "25:16 expected ';' after 'procedure'", 26: "26:34 expected ';' after 'string'",
+    // (the FSM generator's attribute specification, the last declaration before begin)
+    27: `27:53 expected ';' after "user"`, 30: "30:33 expected ';' after '0'", 31: "31:32 expected ';' after '9'",
+  };
+  for (const [n, msg] of Object.entries(expected)) {
+    const cut = cutSemicolon(v, +n);
+    assert.deepEqual(parseErrors(cut, 'vhdl'), [msg], `line ${n}`);
+    const e = parseVhdl(cut, 'f').errors[0];
+    const fx = quickFixes(cut, 'vhdl', e, {});
+    assert.deepEqual(fx.map(f => f.title), ["Add ';' at the end of the line"], `line ${n}`);
+    assert.equal(applyFix(cut, fx[0]), v, `line ${n}`);
+  }
+  // the other declarations: in an architecture (before a signal), a process (before a variable)
+  // and a package (before a constant)
+  const decl = (where, d) => where === 'architecture'
+    ? `${HEAD}entity top is port (y : out std_logic); end top;\narchitecture rtl of top is\n  ${d}\n  signal z : std_logic;\nbegin\nend rtl;\n`
+    : where === 'process'
+      ? `${HEAD}entity top is port (y : out std_logic); end top;\narchitecture rtl of top is\nbegin\n  process\n  ${d}\n  variable z : integer;\n  begin\n    wait;\n  end process;\nend rtl;\n`
+      : `${HEAD}package pk is\n  ${d}\n  constant z : integer := 1;\nend pk;\n`;
+  const cases = [
+    ['architecture', 'shared variable v : integer', "5:30 expected ';' after 'integer'"],
+    ['architecture', 'type cell', "5:12 expected ';' after 'cell'"],
+    ['architecture', 'type t is array (0 to 3) of std_logic', "5:40 expected ';' after 'std_logic'"],
+    ['architecture', 'alias al is y', "5:16 expected ';' after 'y'"],
+    ['architecture', 'file f : text open write_mode is "out.txt"', `5:45 expected ';' after "out.txt"`],
+    ['architecture', 'for all : sub use entity work.sub', "5:36 expected ';' after 'sub'"],
+    ['architecture', 'group g : gt (z)', "5:19 expected ';' after ')'"],
+    ['architecture', 'disconnect z : std_logic after 1 ns', "5:38 expected ';' after 'ns'"],
+    ['process', 'constant c : real := 1.5e3', "7:29 expected ';' after '1.5e3'"],
+    ['process', 'type t is range 0 to 7', "7:25 expected ';' after '7'"],
+    ['process', 'attribute keep : string', "7:26 expected ';' after 'string'"],
+    ['process', 'function f(x : integer) return integer', "7:41 expected ';' after 'integer'"],
+    ['package', 'signal s : std_logic_vector(7 downto 0) := 8x"FF"', `4:52 expected ';' after '8x"FF"'`],
+    ['package', 'constant k : integer := 16#FF#', "4:33 expected ';' after '16#FF#'"],
+    ['package', 'constant s : string := "a""b"', `4:32 expected ';' after "a""b"`],
+    ['package', 'procedure p(x : in integer)', "4:30 expected ';' after ')'"],
+    ['package', 'attribute keep of z : constant is "true"', `4:43 expected ';' after "true"`],
+  ];
+  for (const [where, d, msg] of cases) {
+    assert.deepEqual(parseErrors(decl(where, d), 'vhdl'), [msg], d);
+    assert.deepEqual(parseErrors(decl(where, `${d};`), 'vhdl'), [], `${d};`);
+  }
+  // an attribute specification over two lines is one declaration
+  assert.deepEqual(parseErrors(decl('architecture', 'attribute keep of y :\n    signal is "true";'), 'vhdl'), []);
+  // a subprogram body whose is is missing (its end is end function): that is what is reported
+  assert.deepEqual(parseErrors(decl('architecture', 'function f return integer\n  begin\n    return 1;\n  end function;'), 'vhdl')[0],
+    "6:3 expected 'is' but found 'begin'");
+});
+
+test('Verilog: a ";" missing after a number, a string or a task call is reported at the end of that line, and the fix puts it back (#183)', () => {
+  const g = `module top(input clk, output reg [7:0] q);
+  wire [7:0] w = 8'hFF;
+  real r = 1.5e3;
+  parameter S = "ab";
+  task t(input [7:0] x);
+    q = x;
+  endtask
+  task reset;
+    q = 0;
+  endtask
+  always @(posedge clk) begin
+    t(w);
+    reset;
+    q <= 8'd1;
+  end
+endmodule
+`;
+  assert.deepEqual(parseErrors(g, 'verilog'), []);
+  const expected = {
+    2: "2:23 expected ';' after '8'hFF'", 3: "3:17 expected ';' after '1.5e3'", 4: `4:21 expected ';' after "ab"`,
+    12: "12:9 expected ';' after ')'", 13: "13:10 expected ';' after 'reset'", 14: "14:14 expected ';' after '8'd1'",
+  };
+  for (const [n, msg] of Object.entries(expected)) {
+    const cut = cutSemicolon(g, +n);
+    assert.deepEqual(parseErrors(cut, 'verilog'), [msg], `line ${n}`);
+    const fx = quickFixes(cut, 'verilog', parseVerilog(cut, 'f').errors[0], {});
+    assert.deepEqual(fx.map(f => f.title), ["Add ';' at the end of the line"], `line ${n}`);
+    assert.equal(applyFix(cut, fx[0]), g, `line ${n}`);
+  }
+});
+
 const PROC = `${HEAD}entity top is
   port (clk, d : in std_logic; q : out std_logic);
 end top;
@@ -263,8 +398,6 @@ test('the examples: every end, endcase, endmodule… and every ";" at the end of
   assert.deepEqual(none, ["blinky/sim/tb_top.vhd:29: unexpected 'process' in sequential statement", "pong/src/pong.v:122: expected '=' but found '#'",
     "stopwatch/src/stopwatch.vhd:95: unexpected 'entity' in sequential statement",
     "traffic/src/top.vhd:74: unexpected 'entity' in sequential statement",
-    // (the ';' of the attribute specification before the architecture's begin)
-    "traffic/src/traffic.vhd:72: unexpected 'else' in declarative part",
     "traffic/sim/tb_traffic.vhd:69: unexpected 'process' in sequential statement"]);
 });
 

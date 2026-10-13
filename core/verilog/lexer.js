@@ -1,5 +1,7 @@
 // Verilog-2001 lexer with a minimal preprocessor (`define with or without arguments, `undef,
 // `ifdef/`ifndef/`else/`elsif/`endif, `timescale, `include of project files, `default_nettype ignored).
+// Each token: { t, v, line, col, ... }; a token on one line also has `end` (the column just after
+// it) and `text` (its source text).
 
 export const KEYWORDS = new Set(`module endmodule macromodule input output inout wire reg logic integer genvar parameter localparam
 assign always always_ff always_comb always_latch initial begin end if else case casez casex endcase default for while repeat forever
@@ -40,7 +42,15 @@ export function tokenize(src, file, errors, opts = {}) {
     return s;
   }
 
+  // the end column and source text of the token the last step read (when on one line)
+  let seen = 0, start = 0;
+  const mark = () => {
+    if (toks.length === seen + 1 && toks[seen].line === line && toks[seen].end === undefined) Object.assign(toks[seen], { end: col, text: src.slice(start, i) });
+    seen = toks.length;
+  };
+
   while (i < src.length) {
+    mark();
     const c = src[i];
     if (c === '\n' || c === ' ' || c === '\t' || c === '\r' || c === '\f') { adv(); continue; }
     if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') adv(); continue; }
@@ -50,6 +60,7 @@ export function tokenize(src, file, errors, opts = {}) {
       adv(2); continue;
     }
     const l0 = line, c0 = col, b0 = i;
+    start = i;
     // Verilog-2001 attribute instances (* ... *) are ignored (but not @(*)).
     if (c === '(' && src[i + 1] === '*' && src[i + 2] !== ')' && !(toks.length && toks[toks.length - 1].v === '@')) {
       adv(2);
@@ -237,6 +248,7 @@ export function tokenize(src, file, errors, opts = {}) {
     if (op) { adv(op.length); toks.push({ t: 'op', v: op === '^~' ? '~^' : op, line: l0, col: c0 }); continue; }
     err(`unexpected character '${c}'`); adv();
   }
+  mark();
   if (cond.length) err('missing `endif');
   toks.push({ t: 'eof', v: '', line, col });
   return { tokens: toks, timescale, defines };

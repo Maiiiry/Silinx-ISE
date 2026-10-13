@@ -98,7 +98,9 @@ class Parser {
     // goes on as if it were there (no cascade of errors)
     const prev = this.i > 0 ? this.toks[this.i - 1] : null;
     if (v === ';' && prev && this.tok.line > prev.line) {
-      this.error(`expected ';' after '${prev.v ?? prev.t}'`, { line: prev.line, col: prev.col + String(prev.v ?? '').length });
+      // (the token as written: 4'd1, 1.5e3, "text")
+      const text = prev.text === undefined ? `'${prev.v ?? prev.t}'` : prev.t === 'str' ? prev.text : `'${prev.text}'`;
+      this.error(`expected ';' after ${text}`, { line: prev.line, col: prev.end ?? prev.col + String(prev.v ?? '').length });
       return prev;
     }
     this.error(`expected '${v}' but found '${this.tok.v || this.tok.t}'`);
@@ -1097,7 +1099,7 @@ class Parser {
         this.expect(';');
         return { kind: 'call', name: t.v, args };
       }
-      if (t.t === 'id' && (this.peek().v === ';' || (this.peek().v === '(' && this.isTaskCall()) || (this.peek().v === '.' && this.isHierTaskCall()))) {
+      if (t.t === 'id' && (this.endsCall(this.i + 1) || (this.peek().v === '(' && this.isTaskCall()) || (this.peek().v === '.' && this.isHierTaskCall()))) {
         const name = this.hierName(), path = this.hierPath; const args = [];
         if (this.accept('(')) { if (!this.is(')')) do { args.push(this.expr()); } while (this.accept(',')); this.expect(')'); }
         this.expect(';');
@@ -1137,7 +1139,14 @@ class Parser {
       else if (t.v === ')') { depth--; if (depth === 0) break; }
       if (t.t === 'eof') return false;
     }
-    return this.toks[k + 1]?.v === ';';
+    return this.endsCall(k + 1);
+  }
+
+  // after a task call: its ';', or the next statement on a later line (the ';' is missing)
+  endsCall(k) {
+    const t = this.toks[k];
+    if (this.is(';', t)) return true;
+    return (t.t === 'id' || t.t === 'kw' || t.t === 'sys') && t.line > this.toks[k - 1].line;
   }
 
   // a.b.t(…); / blk[1].t; at statement level: a call of a task of another scope
@@ -1149,7 +1158,7 @@ class Parser {
       if (this.is('[', t)) { const e = this.closeBracket(k); if (e < 0) return false; k = e + 1; continue; }
       break;
     }
-    if (this.is(';', this.toks[k])) return true;
+    if (this.endsCall(k)) return true;
     if (!this.is('(', this.toks[k])) return false;
     const save = this.i;
     this.i = k - 1;

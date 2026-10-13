@@ -53,6 +53,14 @@ In detail:
   lamps a truth table, each with its VHDL kept in sync; the timer is VHDL, the display Verilog; its
   test bench checks the lamps and the display on every clock cycle. It builds with no warning with
   the Silinx toolchain on the four boards' devices and with ISE (#181).
+- **A missing `;` after any declaration is reported where it is missing:** at the end of that line,
+  "expected ';' after …", with the quick fix that adds it. A VHDL attribute declaration or
+  specification (the `attribute fsm_encoding of state_reg : signal is "user"` of every state
+  diagram's VHDL), an alias, a file, an incomplete type, a function / procedure declaration, a
+  configuration specification, a group or a disconnection without its `;` gave an error far below
+  ("unexpected 'else' in declarative part"), or none at all while the next declaration was lost; a
+  Verilog task call without its `;` gave "expected '='". The column is right after a number,
+  string or bit-string literal too (`1.5e3`, `8'hFF`, `x"0F"`) (#183).
 
 ## 15.10.11
 

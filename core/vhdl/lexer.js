@@ -1,6 +1,7 @@
 // Silinx - VHDL lexer.
 //
-// Produces a flat token array. Each token: { type, value, line, col, ... }
+// Produces a flat token array. Each token: { type, value, line, col, ... }; a token on one line also
+// has `end` (the column just after it) and `text` (its source text).
 //   type 'id'     identifier (value lower-cased, `raw` keeps the original spelling)
 //   type 'kw'     reserved word (value lower-cased)
 //   type 'int'    integer literal (value: decimal string; covers based literals 16#FF#)
@@ -108,8 +109,15 @@ export function lex(src) {
   };
   const push = (tok) => { tokens.push(tok); return tok; };
   const prev = () => tokens[tokens.length - 1];
+  // the end column and source text of the token the last step read (when on one line)
+  let seen = 0, start = 0;
+  const mark = () => {
+    if (tokens.length === seen + 1 && tokens[seen].line === line) Object.assign(tokens[seen], { end: col, text: src.slice(start, i) });
+    seen = tokens.length;
+  };
 
   while (i < n) {
+    mark();
     const c = src[i];
     // whitespace
     if (c === ' ' || c === '\t' || c === '\r' || c === '\n' || c === '\f' || c === '\v' || c === ' ') { adv(); continue; }
@@ -123,6 +131,7 @@ export function lex(src) {
       continue;
     }
     const l0 = line, c0 = col;
+    start = i;
 
     // identifiers, keywords, prefixed bit-strings
     if (isLetter(c)) {
@@ -254,6 +263,7 @@ export function lex(src) {
     err(`unexpected character '${c}'`);
     adv();
   }
+  mark();
   tokens.push({ type: 'eof', value: '', line, col });
   return { tokens, errors };
 

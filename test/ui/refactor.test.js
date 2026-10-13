@@ -293,6 +293,22 @@ uiTest('quick fix with Ctrl+. (and the right-click menu): a procedural assignmen
   assert.equal(await ed(page), LED);
 });
 
+uiTest('quick fix of the ";" missing after the attribute specification of a state diagram\'s VHDL: the error on that line, the fix adds it (#183)', E, async (page) => {
+  const FSM = GATE.replace("  signal r : std_logic := '0';\n", "  signal r : std_logic := '0';\n  attribute fsm_encoding : string;\n  attribute fsm_encoding of r : signal is \"user\";\n");
+  await makeProject(env, { name: 'FixAttr', top: 'gate', files: { 'src/gate.vhd': FSM.replace('if enabel =', 'if enable =').replace('is "user";', 'is "user"') } });
+  await page.openProject('FixAttr');
+  await page.eval(() => window.SilinxApp.openFile('src/gate.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/gate.vhd' && window.Silinx.active.editor);
+  await errorMarker(page, 12);
+  const tip = await lintTooltip(page);
+  assert.match(tip, /^expected ';' after "user"\n\nExplanation: A statement or declaration is not finished/);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Add ';' at the end of the line"]);
+  await page.click('.CodeMirror-lint-tooltip .xl-fix');
+  assert.equal(await ed(page), FSM.replace('if enabel =', 'if enable ='));
+  await noMarkers(page);
+  await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
+});
+
 // ---------------------------------------------------------------- drawings without an HDL file (#177)
 uiTest('Rename Symbol and quick fixes never write a drawing without an HDL file: the dialog says its instance is not changed; no fix for its errors', E, async (page) => {
   const { COUNTER, schematicOf } = await import('../drawn-lib.mjs');

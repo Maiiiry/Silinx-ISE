@@ -149,13 +149,54 @@ class Parser {
     if (this.isOp(v)) return this.next();
     // a ';' missing at the end of a line: reported after the last token of that line, and parsing
     // goes on as if it were there (no cascade of errors)
-    const prev = this.i > 0 ? this.t[this.i - 1] : null;
-    if (v === ';' && prev && this.peek().line > prev.line) {
+    if (v === ';' && this.atLineEnd()) {
+      const prev = this.t[this.i - 1];
       const len = String(prev.raw ?? prev.value ?? '').length + (prev.type === 'str' || prev.type === 'char' ? 2 : 0);
-      this.diag(`expected ';' after ${this.describe(prev)}`, { line: prev.line, col: prev.col + len });
+      // (the token as written: 1.5e3, x"0F", "a""b")
+      const text = prev.text === undefined ? this.describe(prev) : prev.type === 'str' || prev.type === 'char' ? prev.text : `'${prev.text}'`;
+      this.diag(`expected ';' after ${text}`, { line: prev.line, col: prev.end ?? prev.col + len });
       return prev;
     }
     this.fail(`expected '${v}' but found ${this.describe(this.peek())}`);
+  }
+  /** Is the next token on a later line than the previous one (where a missing ';' is reported)? */
+  atLineEnd() {
+    return this.i > 0 && this.peek().line > this.t[this.i - 1].line;
+  }
+  /** Does a line that starts a declaration, `begin` or `end` come next (the ';' before it is missing)? */
+  declEndsLine() {
+    return this.atLineEnd() && (this.isDeclStart() || this.isKw('begin') || this.isKw('end'));
+  }
+  /**
+   * After a subprogram specification that a line of declarations or `begin` follows: is it a body
+   * whose `is` is missing (the first `end` that closes something is `end function`, `end procedure`
+   * or `end <name>`), rather than a declaration whose ';' is missing? (Not when another subprogram
+   * comes first: that `end` may be its own.)
+   */
+  bodyFollows(name) {
+    const NESTED = new Set(['if', 'case', 'loop', 'generate', 'process', 'block', 'record', 'units', 'component', 'for', 'protected', 'postponed']);
+    for (let k = this.i; k < this.t.length - 1; k++) {
+      const tok = this.t[k], after = this.t[k + 1];
+      if (tok.type === 'kw' && (tok.value === 'function' || tok.value === 'procedure') && !(this.t[k - 1].type === 'kw' && this.t[k - 1].value === 'end')) return false;
+      if (tok.type !== 'kw' || tok.value !== 'end' || after.type === 'kw' && NESTED.has(after.value)) continue;
+      return after.type === 'kw' ? after.value === 'function' || after.value === 'procedure' : after.value === name;
+    }
+    return false;
+  }
+  /**
+   * Skip a declaration that is not analysed, up to its ';' (consumed). A line that
+   * starts a declaration, `begin` or `end` ends it too: its ';' is missing (reported by expectOp).
+   */
+  skipDecl() {
+    this.next();   // its first word
+    let depth = 0;
+    while (!this.atEof() && !(depth === 0 && this.isOp(';'))) {
+      if (depth === 0 && this.declEndsLine()) break;
+      if (this.isOp('(')) depth++;
+      else if (this.isOp(')')) depth--;
+      this.next();
+    }
+    this.expectOp(';');
   }
   expectId(what = 'identifier') {
     if (this.isId()) return this.next().value;
@@ -564,8 +605,26 @@ class Parser {
         const f = this.parseSubprogram(uses);
         return f ? [f] : [];
       }
-      case 'attribute': case 'disconnect': case 'group': {
-        this.sync();
+      case 'attribute': {
+        // attribute declaration `attribute name : type_mark;` or specification
+        // `attribute name of names : entity_class is expression;` - neither is analysed
+        this.next();
+        this.expectId('attribute name');
+        if (this.acceptOp(':')) {
+          this.parseSubtypeIndication();
+        } else {
+          this.expectKw('of');
+          while (!this.atEof() && !this.isOp(':') && !this.isOp(';')) this.next();
+          this.expectOp(':');
+          this.next();   // the entity class: signal, entity, label…
+          this.expectKw('is');
+          this.parseExpression();
+        }
+        this.expectOp(';');
+        return [];
+      }
+      case 'disconnect': case 'group': {
+        this.skipDecl();
         return [];
       }
       case 'alias': {
@@ -588,7 +647,7 @@ class Parser {
             this.next();
           } while (depth > 0 && this.peek().type !== 'eof');
         }
-        if (!this.isOp(';') || (signature && target.op !== 'ref')) {
+        if ((!this.isOp(';') && !this.atLineEnd()) || (signature && target.op !== 'ref')) {
           this.warn('unsupported alias declaration (ignored)', tok);
           this.sync();
           return [];
@@ -606,7 +665,7 @@ class Parser {
         const type = this.parseSubtypeIndication();
         // VHDL-93: [open read_mode | write_mode | append_mode] is "name"; VHDL-87: is [in | out] "name"
         let mode = 'read_mode', ext = null;
-        while (!this.atEof() && !this.isOp(';')) {
+        while (!this.atEof() && !this.isOp(';') && !this.declEndsLine()) {
           const t = this.next();
           if (t.type === 'id' && /^(read|write|append)_mode$/i.test(t.value)) mode = t.value.toLowerCase();
           else if (t.type === 'kw' && t.value === 'out') mode = 'write_mode';
@@ -621,7 +680,7 @@ class Parser {
       }
       case 'for': {
         // configuration specification - ignored
-        this.sync();
+        this.skipDecl();
         if (this.isKw('end') && this.isKw('for', 1)) { this.next(); this.next(); this.expectOp(';'); }
         return [];
       }
@@ -634,7 +693,10 @@ class Parser {
   parseTypeDecl() {
     const tok = this.expectKw('type');
     const name = this.expectId('type name');
-    if (this.acceptOp(';')) return { kind: 'type', name, type: { kind: 'named', name }, loc: this.loc(tok) }; // incomplete
+    if (this.isOp(';') || this.declEndsLine()) { // incomplete
+      this.expectOp(';');
+      return { kind: 'type', name, type: { kind: 'named', name }, loc: this.loc(tok) };
+    }
     this.expectKw('is');
     let type;
     if (this.isOp('(')) {
@@ -785,7 +847,8 @@ class Parser {
       this.expectKw('return');
       returnType = this.parseSubtypeIndication();
     }
-    if (this.acceptOp(';')) {
+    if (this.isOp(';') || this.declEndsLine() && !this.bodyFollows(name)) {
+      this.expectOp(';');
       return { kind: 'function', name, params, returnType, decls: [], body: [], retVar: undefined, loc: this.loc(tok), declOnly: true };
     }
     this.expectKw('is');
