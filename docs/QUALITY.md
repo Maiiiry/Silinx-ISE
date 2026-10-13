@@ -7,7 +7,7 @@ crypto, benchmarks), each built by both flows for the same chip, the XC3S1200E-F
 with the same top (a design with more ports than the package has pins goes through the same I/O
 wrapper in both).
 
-Measured 2026-10-13 (Silinx 15.10.7, ISE 14.7), with
+Measured 2026-10-13 (Silinx 15.10.8, ISE 14.7), with
 `test/designs-corpus/compare-ise.mjs`. ISE is given its best chance: its map packs the slices as
 tightly as it can (`-c 1`, as Silinx's packer always does) and the clock constraint is tightened to
 5 ns, so that its place and route works for speed (ISE stops improving once a constraint
@@ -16,10 +16,10 @@ is met; the Silinx toolchain always places and routes for speed).
 ## Summary
 
 - **Size:** 26 designs built by both. Logic LUTs: Silinx −22% against ISE; flip-flops
-  −7%; slices −14% (geometric means of the ratios; below 0: Silinx is smaller). Silinx
+  −7%; slices −16% (geometric means of the ratios; below 0: Silinx is smaller). Silinx
   needs as few LUTs or fewer on 18 of 26.
-- **Speed:** 22 designs timed by both. Critical path: Silinx +15% against ISE
-  (above 0: Silinx is slower); Silinx is as fast or faster on 7 of 22. Both critical
+- **Speed:** 23 designs timed by both. Critical path: Silinx +14% against ISE
+  (above 0: Silinx is slower); Silinx is as fast or faster on 8 of 23. Both critical
   paths are measured by ISE's timing analyser (trce) on the routed design.
 - **Reading the design:** XST (ISE 14.7's synthesis, from 2013) cannot read 12 of the designs (`$clog2`, VHDL-2008
   and other constructs it predates, listed below); Silinx reads them.
@@ -43,7 +43,7 @@ ratio of logic LUTs (below 1: Silinx is smaller).
 | epfl-int2float | 81 | 64 | 1.27 | 0 | – | 55 | 32 | 0 / 0 | 0 / 0 | 0 / 0 |
 | epfl-max | 1168 | 1386 | 0.84 | 644 | 643 | 645 | 927 | 0 / 0 | 0 / 0 | 0 / 0 |
 | epfl-priority | 255 | 417 | 0.61 | 137 | 137 | 144 | 257 | 0 / 0 | 0 / 0 | 0 / 0 |
-| epfl-router | 56 | 91 | 0.62 | 0 | – | 38 | 46 | 0 / 0 | 0 / 0 | 0 / 0 |
+| epfl-router | 58 | 125 | 0.46 | 64 | 64 | 38 | 87 | 0 / 0 | 0 / 0 | 0 / 0 |
 | femtorv32-quark | 722 | – | – | 224 | – | 476 | – | 0 / – | 2 / – | 0 / – |
 | fpu-adder | 512 | 699 | 0.73 | 389 | 389 | 361 | 446 | 0 / 0 | 0 / 0 | 0 / 0 |
 | fpu-multiplier | 385 | 539 | 0.71 | 404 | 406 | 261 | 397 | 0 / 0 | 0 / 0 | 4 / 4 |
@@ -87,6 +87,7 @@ timing analysis (what its Design Summary shows).
 | epfl-i2c | 7.90 | 6.81 | 1.16 | 8.10 |
 | epfl-max | 36.88 | 25.68 | 1.44 | 37.31 |
 | epfl-priority | 16.27 | 20.83 | 0.78 | 16.48 |
+| epfl-router | 9.14 | 9.36 | 0.98 | 9.43 |
 | femtorv32-quark | 18.72 | – | – | 18.48 |
 | fpu-adder | 11.21 | 12.07 | 0.93 | 11.43 |
 | fpu-multiplier | 14.84 | 14.61 | 1.02 | 15.13 |

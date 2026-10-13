@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-13T03:02:51.138Z",
-  "silinxVersion": "15.10.7",
+  "generatedAt": "2026-10-13T07:00:45.410Z",
+  "silinxVersion": "15.10.8",
   "device": "xc3s1200efg320-4",
   "steps": [
     "synth",
@@ -24,7 +24,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 75.872,
-        "seconds": 43.6,
+        "seconds": 42.1,
         "periodNs": 74.549
       },
       "ise": {
@@ -35,7 +35,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 12.249,
-        "seconds": 157.7
+        "seconds": 162.3
       }
     },
     {
@@ -49,7 +49,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 10.308,
-        "seconds": 89.2,
+        "seconds": 82.8,
         "periodNs": 10.354
       },
       "ise": {
@@ -60,7 +60,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.077,
-        "seconds": 74.6
+        "seconds": 74.1
       }
     },
     {
@@ -73,7 +73,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 34.6,
+        "seconds": 32.1,
         "periodNs": null
       },
       "ise": {
@@ -84,7 +84,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
-        "seconds": 55.6
+        "seconds": 49.1
       }
     },
     {
@@ -97,7 +97,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 26.1,
+        "seconds": 24.1,
         "periodNs": null
       },
       "ise": {
@@ -108,7 +108,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
-        "seconds": 43.6
+        "seconds": 41.1
       }
     },
     {
@@ -122,7 +122,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 6.288,
-        "seconds": 36.6,
+        "seconds": 33.6,
         "periodNs": 6.251
       },
       "ise": {
@@ -133,7 +133,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 6.121,
-        "seconds": 61.1
+        "seconds": 55.1
       }
     },
     {
@@ -147,7 +147,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 8.103,
-        "seconds": 46.1,
+        "seconds": 45.6,
         "periodNs": 7.904
       },
       "ise": {
@@ -158,7 +158,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 6.813,
-        "seconds": 197.8
+        "seconds": 193.3
       }
     },
     {
@@ -171,7 +171,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 27.1,
+        "seconds": 26.6,
         "periodNs": null
       },
       "ise": {
@@ -182,7 +182,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
-        "seconds": 46.6
+        "seconds": 47.6
       }
     },
     {
@@ -196,7 +196,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 37.307,
-        "seconds": 92.8,
+        "seconds": 89.8,
         "periodNs": 36.876
       },
       "ise": {
@@ -207,7 +207,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 25.677,
-        "seconds": 209.3
+        "seconds": 201.2
       }
     },
     {
@@ -221,7 +221,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 16.475,
-        "seconds": 37.1,
+        "seconds": 35.6,
         "periodNs": 16.272
       },
       "ise": {
@@ -232,31 +232,32 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 20.829,
-        "seconds": 67.1
+        "seconds": 64.6
       }
     },
     {
       "name": "epfl-router",
+      "wrapper": true,
       "silinx": {
         "slices": 38,
-        "luts": 56,
-        "ffs": 0,
+        "luts": 58,
+        "ffs": 64,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": null,
+        "estimateNs": 9.43,
         "seconds": 29.6,
-        "periodNs": null
+        "periodNs": 9.145
       },
       "ise": {
-        "slices": 46,
-        "luts": 91,
-        "ffs": null,
+        "slices": 87,
+        "luts": 125,
+        "ffs": 64,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "periodNs": null,
-        "seconds": 50.6
+        "periodNs": 9.357,
+        "seconds": 56.1
       }
     },
     {
@@ -270,7 +271,7 @@
         "bram": 2,
         "mult": 0,
         "estimateNs": 18.48,
-        "seconds": 57.7,
+        "seconds": 59.7,
         "periodNs": 18.723
       },
       "ise": {
@@ -296,7 +297,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 11.428,
-        "seconds": 47.6,
+        "seconds": 47.1,
         "periodNs": 11.205
       },
       "ise": {
@@ -307,7 +308,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 12.07,
-        "seconds": 112.7
+        "seconds": 112.2
       }
     },
     {
@@ -321,7 +322,7 @@
         "bram": 0,
         "mult": 4,
         "estimateNs": 15.132,
-        "seconds": 41.6,
+        "seconds": 42.1,
         "periodNs": 14.836
       },
       "ise": {
@@ -332,7 +333,7 @@
         "bram": 0,
         "mult": 4,
         "periodNs": 14.607,
-        "seconds": 71.6
+        "seconds": 67.1
       }
     },
     {
@@ -345,7 +346,7 @@
         "bram": 2,
         "mult": 0,
         "estimateNs": 12.252,
-        "seconds": 43.6,
+        "seconds": 42.1,
         "periodNs": 11.849
       },
       "ise": {
@@ -356,7 +357,7 @@
         "bram": 1,
         "mult": 0,
         "periodNs": 15.131,
-        "seconds": 332
+        "seconds": 355
       }
     },
     {
@@ -369,7 +370,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 5.512,
-        "seconds": 27.1,
+        "seconds": 26.6,
         "periodNs": 5.693
       },
       "ise": {
@@ -394,7 +395,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 5.229,
-        "seconds": 27.6,
+        "seconds": 26.6,
         "periodNs": 5.283
       },
       "ise": {
@@ -419,7 +420,7 @@
         "bram": 6,
         "mult": 0,
         "estimateNs": 16.169,
-        "seconds": 235.6,
+        "seconds": 236.2,
         "periodNs": 16.744
       },
       "ise": {
@@ -445,7 +446,7 @@
         "bram": 2,
         "mult": 0,
         "estimateNs": 12.408,
-        "seconds": 116.4,
+        "seconds": 126.4,
         "periodNs": 12.29
       },
       "ise": {
@@ -456,7 +457,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 5,
+        "seconds": 4.5,
         "error": "ERROR:HDLCompilers:26 - \"src/src/picorv32.v\" line 549 Macro reference `assert is not defined"
       }
     },
@@ -471,7 +472,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 27.692,
-        "seconds": 888.1,
+        "seconds": 931.3,
         "periodNs": 28.083
       },
       "ise": {
@@ -482,7 +483,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 6,
+        "seconds": 6.5,
         "error": "ERROR:Xst:1468 - \"src/src/aes_key_mem.v\" line 180: Unexpected event in always block sensitivity list."
       }
     },
@@ -497,7 +498,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 16.794,
-        "seconds": 212.2,
+        "seconds": 227.6,
         "periodNs": 16.883
       },
       "ise": {
@@ -508,7 +509,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 5.5,
+        "seconds": 5,
         "error": "ERROR:Xst:902 - \"src/src/sha1_w_mem.v\" line 146: Unexpected w_mem event in always block sensitivity list."
       }
     },
@@ -523,7 +524,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 26.627,
-        "seconds": 224.7,
+        "seconds": 242.8,
         "periodNs": 26.858
       },
       "ise": {
@@ -549,7 +550,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 15.875,
-        "seconds": 83.8,
+        "seconds": 84.3,
         "periodNs": 15.628
       },
       "ise": {
@@ -560,7 +561,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 13.976,
-        "seconds": 119.7
+        "seconds": 141.2
       }
     },
     {
@@ -574,7 +575,7 @@
         "bram": 1,
         "mult": 0,
         "estimateNs": 13.565,
-        "seconds": 37.7,
+        "seconds": 38.1,
         "periodNs": 13.441
       },
       "ise": {
@@ -585,7 +586,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 5,
+        "seconds": 6.1,
         "error": "ERROR:HDLCompilers:26 - \"src/src/serv_rf_ram.v\" line 12 unexpected token: '$clog2'"
       }
     },
@@ -610,7 +611,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.992,
-        "seconds": 43.6
+        "seconds": 56.1
       }
     },
     {
@@ -634,7 +635,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.939,
-        "seconds": 43.1
+        "seconds": 54.6
       }
     },
     {
@@ -647,7 +648,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 23.935,
-        "seconds": 204.7,
+        "seconds": 219.2,
         "periodNs": 23.81
       },
       "ise": {
@@ -658,7 +659,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 18.129,
-        "seconds": 183.8
+        "seconds": 187.8
       }
     },
     {
@@ -682,7 +683,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.689,
-        "seconds": 44.1
+        "seconds": 46.6
       }
     },
     {
@@ -695,7 +696,7 @@
         "bram": 1,
         "mult": 0,
         "estimateNs": 5.537,
-        "seconds": 25.6,
+        "seconds": 26.6,
         "periodNs": 5.777
       },
       "ise": {
@@ -720,7 +721,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 10.882,
-        "seconds": 30.6,
+        "seconds": 31.6,
         "periodNs": 10.943
       },
       "ise": {
@@ -755,7 +756,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 8,
+        "seconds": 8.5,
         "error": "ERROR:Xst:890 - \"src/src/lfsr.v\" line 271: For statement is only supported when the new step evaluation is based on one the following operator: +, -."
       }
     },
@@ -769,7 +770,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 2.29,
-        "seconds": 23.1,
+        "seconds": 23.6,
         "periodNs": 2.266
       },
       "ise": {
@@ -780,7 +781,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 7,
+        "seconds": 7.1,
         "error": "ERROR:Xst:890 - \"src/src/lfsr.v\" line 235: For statement is only supported when the new step evaluation is based on one the following operator: +, -."
       }
     },
@@ -805,7 +806,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.239,
-        "seconds": 51.6
+        "seconds": 49.1
       }
     },
     {
@@ -819,7 +820,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 7.774,
-        "seconds": 32.7,
+        "seconds": 32.1,
         "periodNs": 7.574
       },
       "ise": {
@@ -830,7 +831,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 5.061,
-        "seconds": 62.6
+        "seconds": 59.1
       }
     },
     {
@@ -844,7 +845,7 @@
         "bram": 0,
         "mult": 13,
         "estimateNs": 39.355,
-        "seconds": 43.2,
+        "seconds": 43.7,
         "periodNs": 35.728
       },
       "ise": {
@@ -855,7 +856,7 @@
         "bram": 0,
         "mult": 13,
         "periodNs": 35.797,
-        "seconds": 57.1
+        "seconds": 61.1
       }
     },
     {
@@ -880,7 +881,7 @@
         "bram": 0,
         "mult": 13,
         "periodNs": 26.737,
-        "seconds": 54.6
+        "seconds": 54.1
       }
     },
     {
@@ -905,7 +906,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.273,
-        "seconds": 408.6
+        "seconds": 438.6
       }
     },
     {
@@ -918,7 +919,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 16.019,
-        "seconds": 83.3,
+        "seconds": 87.3,
         "periodNs": 15.971
       },
       "ise": {
@@ -929,7 +930,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 19.919,
-        "seconds": 159.7
+        "seconds": 175.3
       }
     },
     {
@@ -942,7 +943,7 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": 7.792,
-        "seconds": 31.1,
+        "seconds": 31.6,
         "periodNs": 7.68
       },
       "ise": {
@@ -953,7 +954,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.916,
-        "seconds": 46.1
+        "seconds": 46.6
       }
     }
   ]
