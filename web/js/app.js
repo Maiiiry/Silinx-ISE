@@ -3490,7 +3490,7 @@ async function boot() {
     if (api.standalone) return;
     const progs = Object.entries(tc.programmers).filter(([, v]) => v.found).map(([k]) => k);
     log(`Programmers found: ${progs.length ? progs.join(', ') : 'none (install openFPGALoader, xc3sprog, Digilent Adept or ISE iMPACT)'}`, progs.length ? 'ok' : 'warn');
-  }).catch(() => {});
+  }).catch(() => {}).finally(() => { S.startupChecked = true; });   // (the start-up lines all written: the UI tests wait for it)
   renderHierarchy();
   renderProcesses();
   let last = null;

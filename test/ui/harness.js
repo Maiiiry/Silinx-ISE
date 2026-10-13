@@ -354,7 +354,8 @@ class PageBase {
   /** Open a project through the app (fast path for tests that are not about opening projects). */
   async openProject(name) {
     await this.eval(async (n) => { await window.SilinxApp.openProject(n); window.SilinxApp.showLeftPage('design'); }, name);
-    await this.waitFor((n) => window.Silinx.project?.name === n && document.querySelector('#hier .row'), [name], { what: `project ${name} open` });
+    // (and the app's start-up checks done: their lines, e.g. 'ISE not available', written before a test reads the console)
+    await this.waitFor((n) => window.Silinx.project?.name === n && document.querySelector('#hier .row') && window.Silinx.startupChecked, [name], { what: `project ${name} open` });
   }
   /** Click a row of the Design hierarchy / processes by its label. */
   async treeRow(container, label, { dbl = false, exact = false, right = false } = {}) {
@@ -407,7 +408,7 @@ export class Page extends PageBase {
     const loaded = this.waitEvent('Page.loadEventFired', 30000);
     await this.send('Page.reload', {});
     await loaded;
-    await this.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot after reload' });
+    await this.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot after reload', timeout: 30000 });   // (a slow CI machine; the page it replaced may still be busy, e.g. the emulator)
   }
   async goto(url) {
     const loaded = this.waitEvent('Page.loadEventFired', 30000);
@@ -527,7 +528,7 @@ export class PwPage extends PageBase {
   }
   async reload() {
     await this.page.reload({ timeout: 30000 });
-    await this.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot after reload' });
+    await this.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot after reload', timeout: 30000 });   // (a slow CI machine; the page it replaced may still be busy, e.g. the emulator)
   }
   async goto(url) { await this.page.goto(url, { timeout: 30000 }); }
   async mouse(type, x, y, opts = {}) {
@@ -731,7 +732,7 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip } = {}) {
     if (env.skip || skip) { t.skip(env.skip || skip); return; }
     const page = await env.newPage(url ? url(env) : undefined);
     try {
-      if (!url) await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot' });
+      if (!url) await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
       await fn(page, env, t);
       const errs = page.errors.filter((e) => !page.allowErrors.some((re) => re.test(e)));
       if (errs.length) throw new Error(`page errors:\n  ${errs.join('\n  ')}`);
