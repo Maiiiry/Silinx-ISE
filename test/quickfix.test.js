@@ -261,7 +261,11 @@ test('the examples: every end, endcase, endmodule… and every ";" at the end of
   // (where the parser stops far from the cause, no fix: an `end process;` missing before a process,
   // a ';' missing before a delay or an instance)
   assert.deepEqual(none, ["blinky/sim/tb_top.vhd:29: unexpected 'process' in sequential statement", "pong/src/pong.v:122: expected '=' but found '#'",
-    "stopwatch/src/stopwatch.vhd:95: unexpected 'entity' in sequential statement"]);
+    "stopwatch/src/stopwatch.vhd:95: unexpected 'entity' in sequential statement",
+    "traffic/src/top.vhd:74: unexpected 'entity' in sequential statement",
+    // (the ';' of the attribute specification before the architecture's begin)
+    "traffic/src/traffic.vhd:72: unexpected 'else' in declarative part",
+    "traffic/sim/tb_traffic.vhd:69: unexpected 'process' in sequential statement"]);
 });
 
 test('VHDL: a vector of another width -> zeros / resize / the low bits', () => {
