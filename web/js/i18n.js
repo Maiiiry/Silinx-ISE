@@ -278,10 +278,10 @@ const PT_PATTERNS = [
   // the browser edition's workspace folder (its name)
   [/^Reopen (.+)$/, 'Reabrir $1'], [/^In the folder (.+) on the disk\.$/, 'Na pasta $1 no disco.'], [/^Storage: folder (.+)$/, 'Armazenamento: pasta $1'], [/^Projects are kept in the folder (.+) on the disk \(File ▸ Open Workspace Folder… to change it\)\.$/, 'Os projetos ficam guardados na pasta $1 do disco (File ▸ Open Workspace Folder… para a mudar).'],
   // schematic symbols: flip-flops (FD*, FT*, FJK*)
-  [/^(D|Toggle \(T\)|J-K) flip-flop(?: with (.*))?$/, (m, k, w) => {
+  [/^(D|Toggle \(T\)|J-K) flip-flop(?: with (.*?))?( \(bitwise when Width > 1\))?$/, (m, k, w, bw) => {
     let r = w || '';
     for (const [a, b] of PT_FF) r = r.split(a).join(b);
-    return `Flip-flop ${k === 'Toggle (T)' ? 'T (toggle)' : k}${w ? ` com ${r.replace(/ and /g, ' e ')}` : ''}`;
+    return `Flip-flop ${k === 'Toggle (T)' ? 'T (toggle)' : k}${w ? ` com ${r.replace(/ and /g, ' e ')}` : ''}${bw ? ' (bit a bit quando Largura > 1)' : ''}`;
   }],
   // schematic symbols: inverted-input gates (AND2B1...), decoders, encoders, demultiplexers
   [/^(\d)-input (AND|OR|NAND|NOR) gate with (input I0|inputs I0 and I1|inputs I0\.\.I\d) inverted \(bitwise when Width > 1\)$/,

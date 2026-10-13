@@ -351,3 +351,32 @@ test('converted schematic of a mixed-language top (VHDL + Verilog + ASM modules)
   const pre = doc.symbols.find(s => s.type === 'module' && s.params.module === 'prescaler');
   assert.deepEqual(live.instancePorts(pre.id).map(p => p.name), ['clk', 'rst', 'tick']);
 });
+
+// library flip-flops with Width > 1: one flip-flop per bit (D, T, J-K), the controls shared, INIT on every bit
+for (const lang of ['vhdl', 'verilog']) {
+  test(`${lang}: flip-flops 4 bits wide (FDCE, FTC, FJKC): bitwise, CE and CLR shared, INIT on every bit`, () => {
+    const doc = newDoc('ffw', lang);
+    const d = sym(doc, 'fdce', 200, 100, { width: 4 }), t = sym(doc, 'ftc', 200, 300, { width: 4 }), jk = sym(doc, 'fjkc', 200, 500, { width: 4, init: '1' });
+    for (const [s, ins] of [[d, ['D']], [t, ['T']], [jk, ['J', 'K']]]) for (const p of ins) assert.equal(symbolPins(normalizeDoc({ ...doc, symbols: [s] }).symbols[0], {}).find(q => q.name === p).width, 4, `${s.type}.${p}`);
+    io(doc, d, 'D', 'd', 'in', 4); io(doc, d, 'CE', 'ce', 'in'); io(doc, d, 'C', 'clk', 'in'); io(doc, d, 'CLR', 'clr', 'in'); io(doc, d, 'Q', 'qd', 'out', 4);
+    io(doc, t, 'T', 't', 'in', 4); io(doc, t, 'C', 'clk2', 'in'); io(doc, t, 'CLR', 'clr2', 'in'); io(doc, t, 'Q', 'qt', 'out', 4);
+    io(doc, jk, 'J', 'j', 'in', 4); io(doc, jk, 'K', 'k', 'in', 4); io(doc, jk, 'C', 'clk3', 'in'); io(doc, jk, 'CLR', 'clr3', 'in'); io(doc, jk, 'Q', 'qjk', 'out', 4);
+    const live = build(doc);
+    const P = n => byName(doc, n);
+    assert.equal(val(live, P('qd')), '0000');
+    assert.equal(val(live, P('qjk')), '1111', 'INIT 1 on every bit');
+    live.set(P('d'), 0b1010n); live.set(P('ce'), 1n); live.cycle(P('clk'));
+    assert.equal(val(live, P('qd')), '1010');
+    live.set(P('ce'), 0n); live.set(P('d'), 0b0101n); live.cycle(P('clk'));
+    assert.equal(val(live, P('qd')), '1010', 'CE low: kept');
+    live.set(P('clr'), 1n);
+    assert.equal(val(live, P('qd')), '0000', 'CLR clears every bit');
+    live.set(P('t'), 0b0110n); live.cycle(P('clk2'));
+    assert.equal(val(live, P('qt')), '0110');
+    live.cycle(P('clk2'));
+    assert.equal(val(live, P('qt')), '0000', 'each bit toggled');
+    // J-K per bit from 1111: J=0011 K=0101 -> bit3 (J0 K0) holds 1, bit2 (J0 K1) 0, bit1 (J1 K0) 1, bit0 (J1 K1) toggles to 0
+    live.set(P('j'), 0b0011n); live.set(P('k'), 0b0101n); live.cycle(P('clk3'));
+    assert.equal(val(live, P('qjk')), '1010');
+  });
+}

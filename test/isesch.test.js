@@ -796,3 +796,25 @@ test('export/import: flip-flops map to the Xilinx FD*/FT*/FJK* symbols (INIT def
   assert.ok(c.doc.symbols.filter(s => s.type === 'ftce').every(s => s.params.init === '0'));
   assertSameConnectivity(read('Counter_2b.sch'), c);
 });
+
+test('a flip-flop with Width > 1 (FDCE 4 bits): exported as a Silinx symbol with its HDL (xl_fdce_i0_w4), back with its width', () => {
+  const doc = newDoc('ffw', 'vhdl');
+  doc.symbols.push({ id: 'S1', type: 'fdce', x: 300, y: 100, rot: 0, mirror: false, name: 'U1', params: { width: 4, init: '0' } });
+  const pins = symbolPins(normalizeDoc({ ...doc }).symbols[0], {});
+  pins.forEach((p, i) => {
+    const dir = p.dir, at = { x: p.x + (dir === 'in' ? -60 : 60), y: p.y };
+    doc.ports.push({ id: `P${i}`, name: p.name.toLowerCase(), dir, width: p.width || 1, x: at.x, y: at.y });
+    doc.wires.push({ id: `W${i}`, points: [at, { x: p.x, y: p.y }] });
+  });
+  const ex = exportIseSch(doc, {});
+  const hdl = ex.files.filter(f => f.kind === 'hdl');
+  assert.deepEqual(hdl.map(f => f.path), ['xl_fdce_i0_w4.vhd']);
+  compiles(Object.fromEntries(hdl.map(f => [f.path, f.text])), 'xl_fdce_i0_w4');
+  assert.deepEqual(decodeXlSymbol('xl_fdce_i0_w4'), { type: 'fdce', params: { init: '0', width: 4 } });
+  assert.deepEqual(decodeXlSymbol('xl_ftc_i1'), { type: 'ftc', params: { init: '1' } }, 'one bit: as before');
+  const back = importIseSch(ex.xml, { name: 'newlib', symbols: Object.fromEntries(ex.files.filter(f => f.kind === 'sym').map(f => [f.path, f.text])) });
+  assert.deepEqual(back.doc.symbols.map(s => [s.type, s.params.width]), [['fdce', 4]]);
+  // one bit wide: still the library FDCE
+  doc.symbols[0].params.width = 1;
+  assert.deepEqual(exportIseSch(doc, {}).files.filter(f => f.kind === 'hdl'), []);
+});

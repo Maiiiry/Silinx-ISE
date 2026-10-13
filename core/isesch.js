@@ -1625,8 +1625,8 @@ function iseSymbolFor(s, def, netW, modules) {
     // known, else a Silinx symbol carrying the INIT value in its name
     const d0 = S.params[0].default, iv = String(p.init ?? d0) === '1' ? '1' : '0';
     const lp = libPins(t);
-    if (iv === d0 && lp && def.pins.every(q => lp[q.name] && lp[q.name][1] != null)) return { lib: true, name: t, pins: Object.fromEntries(def.pins.map(q => [q.name, q.name])) };
-    return { lib: false, name: `xl_${t}_i${iv}` };
+    if (W === 1 && iv === d0 && lp && def.pins.every(q => lp[q.name] && lp[q.name][1] != null)) return { lib: true, name: t, pins: Object.fromEntries(def.pins.map(q => [q.name, q.name])) };
+    return { lib: false, name: `xl_${t}_i${iv}${W > 1 ? `_w${W}` : ''}` };
   }
   switch (t) {
     case 'mux2': return W === 1 ? { lib: true, name: 'm2_1', pins: { D0: 'D0', D1: 'D1', S0: 'S0', O: 'O' } } : { lib: false, name: `xl_mux2_w${W}` };
@@ -1710,7 +1710,7 @@ export function decodeXlSymbol(name) {
   const s = lc(name);
   let m;
   if ((m = /^xl_(and|or|nand|nor|xor|xnor)(\d(?:b\d)?)_w(\d+)$/.exec(s)) && SYMBOLS[m[1] + m[2]]) return { type: m[1] + m[2], params: { width: +m[3] } };
-  if ((m = /^xl_(f(?:d|t|jk)[a-z]*)_i([01])$/.exec(s)) && SYMBOLS[m[1]]?.ff) return { type: m[1], params: { init: m[2] } };
+  if ((m = /^xl_(f(?:d|t|jk)[a-z]*)_i([01])(?:_w(\d+))?$/.exec(s)) && SYMBOLS[m[1]]?.ff) return { type: m[1], params: { init: m[2], ...(m[3] ? { width: +m[3] } : {}) } };
   if ((m = /^xl_tbuf([et])_w(\d+)(_bits)?$/.exec(s))) return { type: 'tbuf', params: { width: +m[2], enable: m[1].toUpperCase(), bits: !!m[3] } };
   if ((m = /^xl_demux([1-4])_w(\d+)$/.exec(s))) return { type: 'demux', params: { sel: +m[1], width: +m[2] } };
   if ((m = /^xl_dec([1-5])(_e)?(_bus)?$/.exec(s))) return { type: 'decoder', params: { n: +m[1], en: !!m[2], bus: !!m[3] } };

@@ -130,7 +130,8 @@ function ffSym(name, k, f, title) {
   const desc = `${FF_KIND[k][1]} flip-flop${parts.length ? ` with ${parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]}` : ''}`;
   // Xilinx INIT default: 1 for the preset / set types (FDP, FDS, FTP, FJKP, FDSE...), 0 otherwise
   const init = (f.pre && !f.clr) || (f.s && (!f.r || f.sp)) ? '1' : '0';
-  return { category: 'Flip-Flops', title: title || name.toUpperCase(), ff: { k, ...f }, description: desc[0].toUpperCase() + desc.slice(1), params: [{ ...P_INIT, default: init }] };
+  // (INIT first: the Xilinx default; Width: the data inputs and Q, one flip-flop per bit, the controls shared)
+  return { category: 'Flip-Flops', title: title || name.toUpperCase(), ff: { k, ...f }, description: `${desc[0].toUpperCase() + desc.slice(1)} (bitwise when Width > 1)`, params: [{ ...P_INIT, default: init }, P_WIDTH] };
 }
 for (const [k, pfx, list] of [
   ['d', 'fd', ['', 'c', 'ce', 'cp', 'cpe', 'e', 'p', 'pe', 'r', 're', 'rs', 'rse', 's', 'se']],
@@ -293,13 +294,13 @@ export function symbolDef(sym, modules = {}) {
     const f = S.ff;
     if (f) ({ ce, clr, pre, r, s: st } = f);
     else { ce = !!p.en; clr = p.reset === 'async'; r = p.reset === 'sync'; }
-    const bw = f ? 1 : W;
+    const bw = W;   // (a library flip-flop: Width bits of data and Q, the controls 1 bit)
     // ISE order: PRE / S on top, data, CE, C, CLR / R at the bottom; Q level with the (first) data input
     if (pre) west.push({ name: 'PRE', dir: 'in', width: 1 });
     if (st) west.push({ name: 'S', dir: 'in', width: 1 });
     const q0 = west.length;
-    if (f?.k === 't') west.push({ name: 'T', dir: 'in', width: 1 });
-    else if (f?.k === 'jk') west.push({ name: 'J', dir: 'in', width: 1 }, { name: 'K', dir: 'in', width: 1 });
+    if (f?.k === 't') west.push({ name: 'T', dir: 'in', width: bw });
+    else if (f?.k === 'jk') west.push({ name: 'J', dir: 'in', width: bw }, { name: 'K', dir: 'in', width: bw });
     else if (t !== 'counter') west.push({ name: 'D', dir: 'in', width: bw });
     if (ce) west.push({ name: 'CE', dir: 'in', width: 1 });
     west.push({ name: 'C', dir: 'in', width: 1, clock: true });
@@ -1114,13 +1115,14 @@ export function generateHdl(docIn, opts = {}) {
       continue;
     }
     if (S && S.ff) {
-      // single-bit library flip-flops (FD*, FT*, FJK*): async CLR > PRE, then at the clock edge
-      // R / S (in the order of the symbol), then CE, then the D / toggle / J-K update
+      // library flip-flops (FD*, FT*, FJK*; Width bits, bitwise): async CLR > PRE, then at the clock
+      // edge R / S (in the order of the symbol), then CE, then the D / toggle / J-K update
       const f = S.ff;
       const qo = OUTN(s, 'Q');
       if (!qo) { diags.push({ severity: 'warning', message: `${s.name}: output Q not connected, skipped`, ref: { kind: 'symbol', id: s.id } }); continue; }
       const qn = nl.pinNet.get(`${s.id}/Q`);
       const iv = String(p.init ?? S.params[0].default) === '1' ? '1' : '0';
+      const W = def.pins.find(x => x.name === 'Q')?.width || 1;
       const c = INN(s, 'C');
       const has = nm => def.pins.some(x => x.name === nm);
       // an unconnected control input is inactive: CLR / PRE / R / S never act, CE always enables
@@ -1136,8 +1138,8 @@ export function generateHdl(docIn, opts = {}) {
       const clr = pin('CLR'), pre = pin('PRE'), r = pin('R'), st = pin('S'), ce = pin('CE');
       // the toggle and J-K updates read the state: VHDL-93 cannot read an output port, so keep it in a local signal
       let q = qo;
-      if (ci && f.k !== 'd') { q = fresh(`${s.name}_q`); extra.push({ name: q, type: 'std_logic', init: iv }); }
-      const B = v => (ci ? `'${v}'` : `1'b${v}`);
+      if (ci && f.k !== 'd') { q = fresh(`${s.name}_q`); extra.push({ name: q, type: W > 1 ? `std_logic_vector(${W - 1} downto 0)` : 'std_logic', init: iv.repeat(W) }); }
+      const B = v => (W > 1 ? (ci ? `(others => '${v}')` : `{${W}{1'b${v}}}`) : ci ? `'${v}'` : `1'b${v}`);
       const next = f.k === 'd' ? INN(s, 'D')
         : f.k === 't' ? (ci ? `${q} xor ${INN(s, 'T')}` : `${q} ^ ${INN(s, 'T')}`)
           : (ci ? `(${INN(s, 'J')} and (not ${q})) or ((not ${INN(s, 'K')}) and ${q})` : `(${INN(s, 'J')} & ~${q}) | (~${INN(s, 'K')} & ${q})`);
@@ -1164,7 +1166,7 @@ export function generateHdl(docIn, opts = {}) {
         const upd = `${ce ? `if (${ce}) ` : ''}${q} <= ${next};`;
         lines.push(ch.length ? `  else ${upd}` : `  ${upd}`);
       }
-      if (qn) init.set(qn, iv);
+      if (qn) init.set(qn, iv.repeat(qn.width || W));
       body.push(lines.join('\n'));
       continue;
     }

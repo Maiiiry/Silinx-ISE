@@ -3,6 +3,14 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.11
+
+In detail:
+
+- **The schematic flip-flops have a Width:** FD*, FT* and FJK* store several bits (one flip-flop per
+  bit, the clock and the controls shared, INIT on every bit), as the gates, multiplexers and ADD/SUB
+  already did; exported to ISE as a Silinx symbol with its HDL (#166).
+
 ## 15.10.10
 
 In detail:
