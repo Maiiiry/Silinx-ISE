@@ -58,6 +58,45 @@ test('parser: clear errors with positions', () => {
   err('a + * b', /expected a variable, 0, 1 or \( but found '\*'/, 5);
 });
 
+test("parser: '.' is AND and '/' a prefix NOT (/a, A barrado) (#180)", () => {
+  const vars = ['a', 'b', 'c'];
+  const P = s => parseExpr(s, { vars });
+  const col = s => exprColumn(P(s), vars);
+  const A = { t: 'var', name: 'a', pos: 2 };
+  const strip = e => JSON.parse(JSON.stringify(e, (k, v) => (k === 'pos' ? undefined : v)));
+  const a = { t: 'var', name: 'a' }, b = { t: 'var', name: 'b' }, c = { t: 'var', name: 'c' };
+  // '.': AND, with or without spaces, after a parenthesis
+  assert.deepEqual(strip(P('a.b')), { t: 'and', args: [a, b] });
+  assert.deepEqual(strip(P('a . b')), { t: 'and', args: [a, b] });
+  assert.deepEqual(strip(P('(a+b).c')), { t: 'and', args: [{ t: 'or', args: [a, b] }, c] });
+  assert.equal(col('a.b'), '00000011');
+  assert.equal(col('(a+b).c'), '00010101');
+  // '/': NOT of what follows
+  assert.deepEqual(P('/a'), { t: 'not', a: A });
+  assert.deepEqual(strip(P('/(a+b)')), { t: 'not', a: { t: 'or', args: [a, b] } });
+  assert.deepEqual(strip(P('//a')), { t: 'not', a: { t: 'not', a } });
+  assert.deepEqual(strip(P('a./b')), { t: 'and', args: [a, { t: 'not', a: b }] });
+  assert.equal(col('/a'), '11110000');
+  assert.equal(col('/(a+b)'), '11000000');
+  assert.equal(col('//a'), col('a'));
+  assert.equal(col('a./b'), '00001100');
+  assert.equal(col('/a.b + a./b'), '00111100');          // a xor b
+  assert.equal(col('/a.b + a./b'), col('a ^ b'));
+  assert.equal(col('/a/b'), col("a'b'"));                 // juxtaposition: /a·/b
+  assert.equal(col('/ab'), '11111100');                   // a run of letters is one product: /ab = (ab)', like ~ab
+  assert.equal(col('/ab'), col('~ab'));
+  assert.equal(col('/a.b + a./b'), col('a xor b'));
+  // the other NOT forms are unchanged
+  for (const s of ["a'", '~a', '!a', 'not a', '¬a']) assert.equal(col(s), '11110000', s);
+  // errors: where it stops
+  const err = (s, re, pos) => assert.throws(() => P(s), (e) => { assert.ok(e instanceof LogicError, e.message); assert.match(e.message, re); assert.equal(e.pos, pos); return true; });
+  err('a/', /ends too early/, 3);
+  err('a..b', /expected a variable, 0, 1 or \( but found '\.'/, 3);
+  err('a + /', /ends too early/, 6);
+  err('0.5', /'5' is not a constant/, 3);                  // no decimal numbers: '.' is AND
+  err('a/+b', /expected a variable, 0, 1 or \( but found '\+'/, 3);
+});
+
 test('formats: textbook, compact, VHDL, Verilog', () => {
   const e = parseExpr("ab' + c(a+b)' + a^c", { vars: ['a', 'b', 'c'] });
   assert.equal(formatExpr(e, 'textbook'), "a·b' + c·(a + b)' + a ⊕ c");

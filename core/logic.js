@@ -52,7 +52,7 @@ function tokenize(src) {
     }
     if (/[0-9]/.test(c)) throw new LogicError(`'${/^[0-9]+/.exec(s.slice(i))[0]}' is not a constant (only 0 and 1)`, pos);
     if (c === "'" || c === '’' || c === '′') { toks.push({ k: 'post', pos, text: c }); i++; continue; }
-    if (c === '~' || c === '!' || c === '¬') { toks.push({ k: 'not', pos, text: c }); i++; continue; }
+    if (c === '~' || c === '!' || c === '¬' || c === '/') { toks.push({ k: 'not', pos, text: c }); i++; continue; }
     if (c === '·' || c === '*' || c === '&' || c === '∧' || c === '.' || c === '⋅') { toks.push({ k: 'and', pos, text: c }); i += (c === '&' && s[i + 1] === '&') ? 2 : 1; continue; }
     if (c === '+' || c === '|' || c === '∨') { toks.push({ k: 'or', pos, text: c }); i += (c === '|' && s[i + 1] === '|') ? 2 : 1; continue; }
     if (c === '^' || c === '⊕') { toks.push({ k: 'xor', pos, text: c }); i++; continue; }
@@ -67,8 +67,9 @@ function tokenize(src) {
  * Parse a Boolean expression. opts.vars: the variable names allowed (case-insensitive match,
  * the declared spelling is kept); when every variable is a single letter, a run of letters such
  * as ab'c is read as a product (a·b'·c). Without opts.vars any identifier is a variable.
- * Operators: NOT postfix ' or prefix ~ ! not; AND · * & and (or juxtaposition: a b, a(b+c));
- * XOR ^ xor; OR + | or; also nand nor xnor. Precedence: NOT > AND > XOR > OR.
+ * Operators: NOT postfix ' or prefix ~ ! / not (/a: "A barrado"); AND · . * & and (or juxtaposition:
+ * a b, a(b+c)); XOR ^ xor; OR + | or; also nand nor xnor. Precedence: NOT > AND > XOR > OR.
+ * Constants are only 0 and 1 (no decimal point: '.' is always AND).
  * Throws LogicError with a 1-based position.
  */
 export function parseExpr(src, opts = {}) {

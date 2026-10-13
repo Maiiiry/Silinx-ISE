@@ -213,6 +213,30 @@ uiTest('Truth Table with many outputs (#176): 4 -> 16 outputs, cells of output 6
   assert.ok([...'0X011010'].every((c, i) => c === 'X' || c === ss.y5[i]), ss.y5);
 });
 
+uiTest("Truth Table expressions (#180): '/' NOT and '.' AND typed in the Expression field fill the XOR's column; the operators shown", E, async (page) => {
+  await makeProject(env, { name: 'TtOps', files: { 'src/ops.tt.json': JSON.stringify({ version: 1, name: 'ops', inputs: ['a', 'b', 'c'], outputs: ['f'], table: { f: '00000000' }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' }, null, 2) } });
+  await page.openProject('TtOps');
+  await page.eval(() => window.SilinxApp.openTt('src/ops.tt.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/ops.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor'), [], { what: 'truth table editor' });
+  const T = '.doc:not([hidden]) .tt-editor';
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-ops`).textContent, T), "Operators: ' / ~ (NOT), · . * (AND), ^ or xor (XOR), + (OR)");
+  await page.fill(`${T} .tt-expr-in`, '/a.b + a./b');
+  await page.click(`${T} .tt-btn`, { text: 'Fill Table' });
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-expr-err`).textContent, T), '');
+  assert.equal(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-cell[data-out=f]`)].map((c) => c.textContent).join(''), T), '00111100');
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-sop .tt-expr`).textContent, T), "f = a'·b + a·b'");
+  // my answer with the same notation, and as an XOR
+  await page.fill(`${T} .tt-mine-in`, 'a ^ b');
+  await page.waitFor((t) => /Equal to the table/.test(document.querySelector(`${t} .tt-mine-out`)?.textContent || ''), [T]);
+  await page.fill(`${T} .tt-mine-in`, '/a./b');
+  await page.waitFor((t) => /Different from the table in 6 row/.test(document.querySelector(`${t} .tt-mine-out`)?.textContent || ''), [T]);
+  // an invalid expression: where it stops
+  await page.fill(`${T} .tt-expr-in`, 'a..b');
+  await page.click(`${T} .tt-btn`, { text: 'Fill Table' });
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-expr-err`).textContent, T), "expected a variable, 0, 1 or ( but found '.' (at position 3)");
+  await page.waitFor(async () => (await (await fetch('/api/projects/TtOps/file?path=src%2Fops.tt.json')).json()).exprs?.f === '/a.b + a./b', [], { what: 'saved' });
+});
+
 uiTest('Truth Table from Module: a vector adder read into a table (exhaustive simulation); module context menu makes a new table', E, async (page) => {
   await makeProject(env, { name: 'TtMod', files: { 'src/add1.vhd': ADDER } });
   await page.openProject('TtMod');

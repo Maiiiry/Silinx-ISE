@@ -142,9 +142,9 @@ for Xilinx FPGAs supported by ISE 14.7.
   from outside (click: Z → 0 → 1; a bus opens the value editor, *Z* releases it) — the circuit
   drives it through tri-state buffers (BUFE / BUFT) or a module symbol with an inout port.
 - **Truth Table / Karnaugh Map** (*Tools ▸ Truth Table / Karnaugh Map…*, New Source ▸ *Truth Table
-  (.tt.json)*): name 1–6 inputs and any number of outputs, click the cells (0 → 1 → X don't care) or type an
-  expression per output (`ab' + c`, `a·b + c`, `~a & b`, `(a and not b) or c`…). For each output:
-  the Karnaugh map (Gray order; 5–6 inputs as two/four 4×4 maps) with the groups of the minimal SOP
+  (.tt.json)*): name 1–6 inputs and any number of outputs, click the cells (0 → 1 → X don't care)
+  or type an expression per output (`ab' + c`, `a·b + c`, `/a.b + a./b`, `~a & b`,
+  `(a and not b) or c`, `a ^ b`…). For each output: the Karnaugh map (Gray order; 5–6 inputs as two/four 4×4 maps) with the groups of the minimal SOP
   (1s) or POS (0s) drawn as coloured rounded rectangles, wrap-around groups split at the edges;
   Σm / ΠM canonical forms; minimal SOP and POS (Quine–McCluskey + exact cover, don't cares used,
   essential prime implicants marked, "several minimal solutions" noted) with literal and gate

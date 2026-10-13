@@ -32,6 +32,7 @@ export const TT_PT = {
   'Karnaugh map': 'Mapa de Karnaugh', 'SOP groups (1s)': 'Grupos SOP (1s)', 'POS groups (0s)': 'Grupos POS (0s)',
   'Results': 'Resultados', 'Check my answer': 'Verificar a minha resposta', 'My expression:': 'A minha expressão:',
   'type your answer, e.g. a\'c + b': 'escreva a sua resposta, p.ex. a\'c + b', "e.g. a'b + c": "p.ex. a'b + c",
+  "Operators: ' / ~ (NOT), · . * (AND), ^ or xor (XOR), + (OR)": "Operadores: ' / ~ (NOT), · . * (AND), ^ ou xor (XOR), + (OR)",
   'Notation:': 'Notação:', 'Notation of the expressions': 'Notação das expressões', 'Canonical forms': 'Formas canónicas',
   'Essential prime implicants (SOP)': 'Implicantes primos essenciais (SOP)', 'essential': 'essencial',
   'No 1s: no groups (the output is always 0).': 'Sem 1s: sem grupos (a saída é sempre 0).',

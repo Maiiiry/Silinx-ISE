@@ -122,6 +122,8 @@ export function mountTtEditor(container, opts = {}) {
   exprIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyExpr(); } });
   const exprLbl = h('span', { class: 'tt-expr-lbl' });
   const exprRow = h('div', { class: 'tt-row' }, exprLbl, exprIn, btn('Fill Table', 'Fill the column of this output from the expression', applyExpr));
+  const OPS = "Operators: ' / ~ (NOT), · . * (AND), ^ or xor (XOR), + (OR)";
+  exprIn.title = OPS;
   const kmapHost = h('div', { class: 'tt-kmap-host' });
   const grpSel = h('div', { class: 'tt-groups' });
   const results = h('div', { class: 'tt-results' });
@@ -131,11 +133,12 @@ export function mountTtEditor(container, opts = {}) {
   mineIn.addEventListener('input', () => { mine = mineIn.value; clearTimeout(mineT); mineT = setTimeout(() => { renderTable(); renderMine(); }, 250); });
   const right = h('div', { class: 'tt-right' },
     tabs,
-    h('div', { class: 'tt-caption' }, 'Expression'), exprRow, exprErr,
+    h('div', { class: 'tt-caption' }, 'Expression'), exprRow, h('div', { class: 'hint tt-ops' }, OPS), exprErr,
     h('div', { class: 'tt-caption' }, 'Karnaugh map'), grpSel, kmapHost,
     h('div', { class: 'tt-caption' }, 'Results'), results,
     h('div', { class: 'tt-caption' }, 'Check my answer'),
     h('div', { class: 'tt-row' }, h('span', { class: 'tt-expr-lbl' }, 'My expression:'), mineIn), mineOut);
+  mineIn.title = OPS;
   root.append(toolbar, h('div', { class: 'tt-body' }, left, right));
   root.tabIndex = -1;
   root.addEventListener('keydown', e => {

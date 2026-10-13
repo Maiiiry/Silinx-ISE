@@ -24,6 +24,8 @@ In detail:
   outputs' tabs wrap, each output has its Karnaugh map, its HDL and its circuit; a module of more
   than 16 output bits is read into a table, and a state diagram's *Create Truth Tables* makes one
   table of the next-state bits and one of the outputs (#176).
+- **Truth table expressions take `.` as AND and `/` as NOT:** `/a.b + a./b` (A barrado written /A),
+  besides `'`, `~`, `·`, `*` and the others; the fields show the operators (XOR is `^` or `xor`) (#180).
 
 ## 15.10.11
 
