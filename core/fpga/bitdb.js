@@ -2,7 +2,8 @@
 // browser): its files merged into what core/fpga/bitgen.js reads. The files (research/s3e-bitstream/db,
 // read by research/s3e-bitstream/db.mjs in Node, fetched by web/js/open-flow-browser.js in the browser):
 //   s3e-tiles.json             the tile types' features (PIPs, site settings), shared by the devices
-//   <device>-tiles.json        (optional) features of one device that add to or replace the shared ones
+//   <device>-tiles.json        (optional) features of one device that add to or replace the shared ones,
+//                              and the PIPs of the shared types its tiles do not have (#74)
 //   <device>-layout.json       where every tile is in the frame data, the bitstream format (IDCODE, frames)
 //   <device>-lut.json          where every LUT is
 //   <device>-bram.json         where every block-RAM memory bit is
@@ -24,13 +25,15 @@ export const dbFileNames = (device, pkg = null) => ({
 });
 
 /** The shared tile types with a device's own features over them (per type: the device's features
- *  win, its other settings replace the shared ones). */
+ *  win, the PIPs its tiles do not have add to the shared ones (absent, #74), its other settings
+ *  replace the shared ones). */
 export function mergeTiles(shared, own) {
   if (!own) return shared;
   const types = { ...shared.types };
   for (const [type, t] of Object.entries(own.types || {})) {
     const s = types[type] || { features: {} };
     types[type] = { ...s, ...t, features: { ...(s.features || {}), ...(t.features || {}) } };
+    if (s.absent && t.absent) types[type].absent = [...new Set([...s.absent, ...t.absent])];
   }
   return { ...shared, ...own, types, padDriveDefault: { ...(shared.padDriveDefault || {}), ...(own.padDriveDefault || {}) } };
 }

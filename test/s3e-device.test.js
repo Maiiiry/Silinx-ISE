@@ -193,6 +193,18 @@ INFO:XDL:186 - 2 error(s) were found in XDL file. The NCD file cannot be created
 INFO:XDL:185 - XDL file processing stopped after 20 errors were found.  The NCD file cannot be created.`);
   assert.equal(stopped.stoppedAtLine, first + 1);
   assert.deepEqual(sortPips(pips, first, stopped), { yes: [pips[0]], no: [pips[1]], again: [pips[2]] });
+  // a sentinel PIP after the candidates; a fatal error of xdl's own: answered up to its last error,
+  // or all of them when the sentinel's error is there
+  const st = probeXdl('xc3s250ecp132-4', { pips, sites, sentinel: true }).split('\n');
+  assert.equal(st[first + pips.length - 1], '  pip CLB_X1Y1 PROBE_END -> PROBE_END ,');
+  const fatal = 'FATAL_ERROR:XCad:XCad_RMed.c:399:1.101 - UNEXPECTED RUG CREATION PROBLEM FOR NETWORK:probe';
+  const arc = line => `ERROR:XDL:198 - Could not find arc in tile CLB_X3Y5 with connecting wires W2END4 and W2BEG4 around line ${line} of file p.xdl.`;
+  const f1 = parseProbeLog(`${arc(first + 1)}\n${fatal}`, { sentinelLine: first + 3 });
+  assert.equal(f1.fatal, true);
+  assert.deepEqual(sortPips(pips, first, f1), { yes: [pips[0]], no: [pips[1]], again: [pips[2]] });
+  assert.deepEqual(sortPips(pips, first, parseProbeLog(fatal, { sentinelLine: first + 3 })), { yes: [], no: [], again: pips });
+  const f2 = parseProbeLog(`${arc(first + 1)}\n${arc(first + 3).replace('W2END4 and W2BEG4', 'PROBE_END and PROBE_END')}\n${fatal}`, { sentinelLine: first + 3 });
+  assert.deepEqual(sortPips(pips, first, f2), { yes: [pips[0], pips[2]], no: [pips[1]], again: [] });
 });
 
 test('join tests: one net per hypothesis, from a slice output through the tile to the tested wire', () => {

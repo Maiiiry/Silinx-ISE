@@ -71,6 +71,15 @@ export function makeDb({ layout, lut, tiles, pads = {}, padFeatures = null, bram
     // tile's IOIS_X0, IOIS_F1_B0… are the CLB's X0, F1_B0…): `rename: [[regexp, replacement], …]`
     t.rename = (t.rename || []).map(([re, to]) => [new RegExp(re, 'g'), to]);
   }
+  // the PIPs a type's features offer that its tiles do not have (#74, research/s3e-bitstream/
+  // pip-exceptions.mjs): `absent` for every tile of the type, `absentIn: [{ tiles, absent }]` for some;
+  // an entry is a feature "from->to" or a wire (every PIP into or out of it)
+  for (const t of Object.values(types)) {
+    if (!t.absent && !t.absentIn) continue;
+    t.absentAll = new Set(t.absent || []);
+    t.absentAt = new Map();
+    for (const g of t.absentIn || []) for (const tile of g.tiles) t.absentAt.set(tile, new Set([...(t.absentAt.get(tile) || []), ...g.absent]));
+  }
   return { layout, lut, tiles, types, pads, padFeats: padFeatures || tiles.padFeatures || {}, bram, format: layoutFormat(layout) };
 }
 
@@ -86,6 +95,18 @@ export function featureBits(type, feature) {
   let f = feature;
   for (const [re, to] of type.rename) f = f.replace(re, to);
   return f === feature ? undefined : type.shared.get(f);
+}
+
+/** Does tile `tileName` of type `type` (makeDb's) lack the PIP from -> to (wire names of the tile)
+ *  that its type's features offer (#74: `absent`, `absentIn`)? The wires are also asked by their
+ *  names in the type's features (`rename`: the I/O tiles' IOIS_X0 is X0). */
+export function pipAbsent(type, tileName, from, to) {
+  if (!type?.absentAll) return false;
+  const at = type.absentAt.get(tileName);
+  const has = x => type.absentAll.has(x) || !!at?.has(x);
+  const names = [[from, to]];
+  if (type.rename?.length) { const r = w => type.rename.reduce((x, [re, by]) => x.replace(re, by), w); names.push([r(from), r(to)]); }
+  return names.some(([a, b]) => has(a) || has(b) || has(`${a}->${b}`));
 }
 
 /** The type and the X / Y of a tile from its name (CLB_X3Y5 -> CENTER_SMALL… / 3 / 5). */
@@ -401,7 +422,8 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
 
 /**
  * What the database lets a router use, so that its output turns into a complete bitstream
- * (core/fpga/route.js routeDesign options):
+ * (core/fpga/route.js routeDesign options; exceptions: false leaves out the PIPs tiles lack, only to
+ * measure them, research/s3e-bitstream/pip-exceptions.mjs):
  *   allowPip(tileName, from, to)   the PIP "from->to" (direction of the signal) is a feature of the
  *                                  tile's type and the layout knows where the tile is; a feature
  *                                  with no bits counts as known for dedicated wires (carry chain
@@ -411,7 +433,11 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  sets 2 bits; the I/O tiles now share the CLB switch box); never
  *                                  in a tile type marked noRoute (the XC3S1200E's long-line
  *                                  splitters: a routed design names them "a =- b", the line's driver
- *                                  is in another tile, so the direction their bits need is not known)
+ *                                  is in another tile, so the direction their bits need is not known);
+ *                                  never one the tile does not have though its type's features offer
+ *                                  it (pipAbsent, #74: with a device description from ISE the router
+ *                                  meets only PIPs the tile has; one built from the database's
+ *                                  features per type needs them)
  *   allowConstSource(kind, site)   a VCC site (no settings of its own) or a slice whose settings as
  *                                  a GND source (USED, _GND_SOURCE:Y) are known
  *   allowBufg(tileName, site)      a global clock buffer whose settings (USED) are known: the top and
@@ -420,7 +446,7 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  the top / bottom one of the same line out of each other's quadrants
  *                                  (research/s3e-bitstream/README.md, stage G)
  */
-export function knownRouting(db) {
+export function knownRouting(db, { exceptions = true } = {}) {
   // each tile's type and whether the layout knows it, once per tile (the router and the placer's
   // clock reach ask about the PIPs of every tile many times, #55)
   const tiles = new Map();
@@ -436,9 +462,10 @@ export function knownRouting(db) {
   const known = (tileName, feature) => !!bitsOf(tileName, feature);
   return {
     allowPip: (tileName, from, to) => {
-      if (tileInfo(tileName).type?.noRoute) return false;
+      const { type } = tileInfo(tileName);
+      if (type?.noRoute) return false;
       const bits = bitsOf(tileName, `${from}->${to}`);
-      return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to));
+      return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to)) && !(exceptions && pipAbsent(type, tileName, from, to));
     },
     allowConstSource: (kind, site) => {
       if (kind === 'vcc') return site.type === 'VCC';

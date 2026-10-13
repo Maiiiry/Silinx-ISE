@@ -12,8 +12,10 @@
 // The designs are written here from scratch (no ISE output): one slice, one net from its X output
 // to its F1 input that holds the candidate PIPs, one instance per candidate site.
 
-/** The XDL text of a probe design: PIPs [{ tile, from, to, dir? }] and sites [{ site, type }]. */
-export function probeXdl(part, { pips = [], sites = [] }) {
+/** The XDL text of a probe design: PIPs [{ tile, from, to, dir? }] and sites [{ site, type }].
+ *  sentinel: after the PIPs one that does not exist (`PROBE_END -> PROBE_END` in the first PIP's
+ *  tile, at line probeFirstLine + pips.length): its error shows that xdl checked every PIP before. */
+export function probeXdl(part, { pips = [], sites = [], sentinel = false }) {
   const lines = [`design "probe" ${part} v3.2 ;`];
   // a slice uses LUT F (so that the probe net has a sink); other sites are placed with no settings
   const slice = (name, type, site) => {
@@ -23,6 +25,7 @@ export function probeXdl(part, { pips = [], sites = [] }) {
   sites.forEach((s, i) => slice(`p${i}`, s.type, s.site));
   lines.push('net "probe" ,', '  outpin "host" X ,', '  inpin "host" F1 ,');
   for (const p of pips) lines.push(`  pip ${p.tile} ${p.from} ${p.dir || '->'} ${p.to} ,`);
+  if (sentinel && pips.length) lines.push(`  pip ${pips[0].tile} PROBE_END -> PROBE_END ,`);
   lines.push('  ;');
   return lines.join('\n') + '\n';
 }
@@ -35,9 +38,12 @@ export function probeFirstLine({ sites = [] }) {
 /**
  * What xdl -xdl2ncd said about a probe design: { badArcs: Set 'TILE FROM TO', badSites: Set site,
  * stoppedAtLine: the line of the last error when it stopped after 20 errors (null when it read the
- * whole file), lines: Set of the line numbers with an error }.
+ * whole file), lines: Set of the line numbers with an error, fatal }.
+ * xdl may also stop on a fatal error of its own (a probe net of thousands of PIPs: "UNEXPECTED RUG
+ * CREATION PROBLEM FOR NETWORK"): then only what comes before its last error is answered, or, with
+ * the sentinel's line (probeXdl sentinel), everything when the sentinel's error is there.
  */
-export function parseProbeLog(log) {
+export function parseProbeLog(log, { sentinelLine = null } = {}) {
   const badArcs = new Set(), badSites = new Set(), lines = new Set();
   let last = 0;
   for (const m of log.matchAll(/Could not find arc in tile (\S+) with connecting wires (\S+) and (\S+) around line (\d+)/g)) {
@@ -47,7 +53,9 @@ export function parseProbeLog(log) {
     badSites.add(m[1]); lines.add(+m[2]); last = Math.max(last, +m[2]);
   }
   const stopped = /processing stopped after \d+ errors/.test(log);
-  return { badArcs, badSites, lines, stoppedAtLine: stopped ? last : null };
+  const fatal = /FATAL_ERROR/.test(log);
+  const all = sentinelLine !== null && lines.has(sentinelLine);
+  return { badArcs, badSites, lines, stoppedAtLine: stopped || (fatal && !all) ? last : null, fatal };
 }
 
 /**

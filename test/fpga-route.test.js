@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { packDevice, loadDevice } from '../core/fpga/device.js';
 import { routeDesign, checkRouting, netEndpoints, clockReach } from '../core/fpga/route.js';
 import { parseXdl, writeXdl } from '../core/xdl.js';
+import { makeDb, knownRouting } from '../core/fpga/bitgen.js';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fpga');
 const device = loadDevice(packDevice(fs.readFileSync(path.join(FIX, 'route-device.xdlrc'), 'utf8')));
@@ -262,6 +263,31 @@ test('clockReach: the slices whose clock pin a global buffer reaches on the cloc
   const allow = (tile, from, to) => !(tile === 'CLB_X2Y0' && from === 'GCLK0' && to === 'CLK1');
   assert.deepEqual([...clockReach(device, 'BUFGMUX_X1Y1', allow)].sort(), ['SLICE_X0Y0', 'SLICE_X0Y1', 'SLICE_X1Y0']);
   assert.deepEqual([...clockReach(device, 'NO_SUCH_SITE')], []);
+});
+
+test('routeDesign with knownRouting: a PIP the tile lacks though its type\'s features offer it is never taken (#74)', () => {
+  // a database whose CLB type has every PIP of the fixture's CLBs (one bit each), as a device
+  // description built from the database's features per type would offer them
+  const k = device.tile('CLB_X1Y0');
+  const features = {};
+  for (let i = 0; i < device.templates[device.tileTemplate[k]].from.length; i++) { const [a, b] = device.pipWires(k, i); features[`${a}->${b}`] = ['0,0']; }
+  const db = absent => knownRouting(makeDb({ layout: { cols: { 1: 0, 2: 19 }, rows: { 0: 0 } }, lut: null, tiles: { types: { CENTER_SMALL: { features, ...absent } } } }));
+  const route = (absent, nets) => routeDesign(design(nets), device, db(absent));
+  const nb = net('nb', '', [['a1', 'X']], [['b1', 'F1']]);
+  // the shortest way: OMUX1 -> E2BEG0; without it in CLB_X1Y0 (a feature, or the whole wire), E2BEG1 + HOP1
+  assert.deepEqual(pipsOf(route({}, nb), 'nb'), ['CLB_X1Y0 OMUX1 -> E2BEG0', 'CLB_X1Y0 X1 -> OMUX1', 'CLB_X2Y0 E2END0 -> F1_B_PINWIRE1']);
+  const longer = ['CLB_X1Y0 OMUX1 -> E2BEG1', 'CLB_X1Y0 X1 -> OMUX1', 'CLB_X2Y0 E2END1 -> HOP1', 'CLB_X2Y0 HOP1 -> F1_B_PINWIRE1'];
+  for (const absent of [{ absentIn: [{ tiles: ['CLB_X1Y0'], absent: ['OMUX1->E2BEG0'] }] }, { absentIn: [{ tiles: ['CLB_X1Y0'], absent: ['E2BEG0'] }] }, { absent: ['OMUX1->E2BEG0'] }]) {
+    const r = route(absent, nb);
+    assert.deepEqual(pipsOf(r, 'nb'), longer, JSON.stringify(absent));
+    assert.deepEqual(r.failed, []);
+  }
+  // in another tile of the type the PIP is still taken
+  assert.deepEqual(pipsOf(route({ absentIn: [{ tiles: ['CLB_X2Y0'], absent: ['OMUX1->E2BEG0'] }] }, nb), 'nb'), ['CLB_X1Y0 OMUX1 -> E2BEG0', 'CLB_X1Y0 X1 -> OMUX1', 'CLB_X2Y0 E2END0 -> F1_B_PINWIRE1']);
+  // a sink only the missing PIP reaches: the net fails, never routed through it
+  const r = route({ absentIn: [{ tiles: ['CLB_X1Y0'], absent: ['OMUX0->E2BEG0'] }] }, net('na', '', [['a0', 'X']], [['b0', 'F1']]));
+  assert.deepEqual(r.failed, ['na']);
+  assert.ok(!r.design.nets.some(n => n.pips.some(p => p.tile === 'CLB_X1Y0' && p.from === 'OMUX0' && p.to === 'E2BEG0')));
 });
 
 test('checkRouting: unknown PIPs, unreached sinks, antennas and nodes shared by two nets', () => {

@@ -54,6 +54,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-F: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
 | `gen-iobreg.mjs`, `gen-iobrand.mjs`, `ana-iobreg.mjs` | Stage G: designs with registers in the IOBs of every pad (implemented by ISE), their settings and input delays at random (xdl variants), the bits of each pad's settings solved |
 | `gen-dcmhdl.mjs`, `gen-sidebufg.mjs` | Stage G: designs of several DCMs with settings of their own, and of subsets of the side global buffers, implemented by ISE from HDL (settings xdl refuses in an edited design; inputs in combination); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
+| `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
 
 ## Results
@@ -429,7 +430,7 @@ experiments: `loadDb('xc3s500efg320-4')`):
 | File | What | Per |
 |---|---|---|
 | `s3e-tiles.json` | the tile types' features (PIPs, site settings) | shared by the devices |
-| `<device>-tiles.json` | features of one device only (the XC3S1200E's long-line splitters) | device |
+| `<device>-tiles.json` | features of one device only (the XC3S1200E's long-line splitters); the PIPs of the shared types its tiles do not have (#74) | device |
 | `<device>-layout.json` | where every tile is, the bitstream format (IDCODE, frame length, frames), the bits of an empty design | device |
 | `<device>-lut.json`, `<device>-bram.json` | where every LUT, every block-RAM memory bit is | device |
 | `<device>-<package>-pads.json` | the pads' own bits (absolute, per direction, standard, drive, slew, pull) | device and package |
@@ -723,6 +724,54 @@ are refused.
 
 Runtime #44: 30 designs implemented from HDL, about 1 900 xdl + bitgen runs (variants, site drops,
 PIP batches), about 5 hours of wall time with two containers.
+
+### The PIPs a tile does not have (2026-10-13, #74)
+
+The database's PIP features are per tile type, and several types take another's: the I/O, corner,
+block-RAM interconnect and DCM tiles have the CLB's switch box, the clock-row CLBs (CENTER_SMALL_BRK)
+the CLB's features (`sameAs`). Not every tile of a type has every PIP its type's features offer: the
+clock-row CLBs have no `GCLKk` (their clock lines are `GCLKk_BRK`), the CLBs of the top row and a few
+others no `FX_S2` / `COUT_N1`, `COUT_N3` (nothing above them), the I/O tiles only part of the CLB's
+switch box (`OMUX_W14 -> IOIS_STUB_F1_B3` of `LIOIS_PCI_X0Y16`, which ISE refused in the join tests of
+research/s3e-device), and so on. `pip-exceptions.mjs` finds them all on each device's description
+(built from ISE's `xdl -report -pips -all_conns`: the PIPs of every tile) and records them:
+
+- `absent` of a type: the PIP features (`from->to`) and the wires (`GCLK0`: every PIP into or out of
+  it) that none of its tiles has, in the type's wire names (an I/O tile's own `IOIS_F1_B0` is the
+  CLB's `F1_B0`, `rename`); in `s3e-tiles.json` what every device's tiles miss, in
+  `<device>-tiles.json` what one device's tiles all miss besides;
+- `absentIn: [{ tiles, absent }]` of a type, in `<device>-tiles.json`: what only these tiles miss.
+
+| Per type (every device) | Wires | PIPs |
+|---|---|---|
+| CENTER_SMALL_BRK (`GCLK0-7`), the horizontal clock rows' tiles of the block-RAM columns | 8 | 0 |
+| I/O tiles (LIOIS…, RIBUFS…, TIOIS…, BIOIS…) | 96-108 | 422-452 |
+| corners (LL, LR, UL, UR) | 140 | 250 |
+| DCM tiles (and the XC3S100E's DCMAUX, the XC3S1200E's DCM_H) | 140 | 218-219 |
+| block-RAM interconnect (BRAM0-3_SMALL…) | 140-148 | 0 |
+
+Per device, only some tiles (`absentIn`): the CLBs with no `FX_S2` (20 / 34 / 42 / 54 on the XC3S100E /
+250E / 500E / 1200E), no `COUT_N1`, `COUT_N3` (9 / 16 / 16 / 16; on the XC3S1200E 8 more with neither),
+the clock column's tiles without the clock row's OMUX outputs (CLKV, CLKV_LL), the top and bottom I/O
+tiles without `IOIS_IBUF0`; the XC3S100E's CLKT has no `CLKT_DLL_CLKPAD4` and its CLKV tiles no OUTL
+wires. In all, 46 082 / 74 527 / 100 539 / 134 521 (tile, PIP or wire) facts per device, in 44 lists
+of the shared file and a few per device.
+
+**The router never takes them** (`core/fpga/bitgen.js` `knownRouting`: `pipAbsent`). With ISE's own
+descriptions (the shipped ones and those built from the user's ISE) the router only meets PIPs a tile
+has, so no bitstream was wrong; a description built from the database's features per type (the
+measured descriptions of research/s3e-device) offers them all. Shown on such descriptions
+(`pip-exceptions.mjs --graph`: ISE's with the 26 498 / 27 784 / 27 784 / 28 656 missing PIPs between
+two wires of a tile added): the examples blinky, pong and stopwatch on the four boards route, with the
+exceptions, exactly as on ISE's descriptions (the same routed XDL and .bit), and
+`scripts/check-open-flow.mjs` on them gives ISE's DRC 0 errors, 0 warnings and byte-identical .bit
+files; without the exceptions the router takes 51 missing PIPs in 11 of the 12 designs (blinky on the
+Basys2-250: `BIOIS_X13Y0 S2END3 -> IOIS_G3_B1`), which ISE's xdl -xdl2ncd refuses (`Could not find
+arc`) and which would set the bits of another switch. Checked with ISE (the arc probe of
+research/s3e-device, `pip-exceptions.mjs --probe`): ISE refuses every exception asked (each list of
+a type in one tile of the type, on the first device that has the type, and every per-tile one: 12 382 /
+2565 / 838 / 2554 on the XC3S100E / 250E / 500E / 1200E) and accepts every PIP the router may use in one
+tile of each type (47 542 / 56 959 / 56 959 / 59 707).
 
 ### Open synthesis on the board (2026-10-10)
 

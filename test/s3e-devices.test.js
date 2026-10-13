@@ -13,6 +13,7 @@ import { parseXdl } from '../core/xdl.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { DB_DIR, splitPart, mergeTiles, hasBitDb, readDbFiles, dbPackages, loadDb, edges } from '../research/s3e-bitstream/db.mjs';
 import { graphFromDevice } from '../research/s3e-bitstream/xdlrc-graph.mjs';
+import { deviceExceptions, exceptionTables } from '../research/s3e-bitstream/pip-exceptions.mjs';
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-s3e-devices-'));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
@@ -108,6 +109,11 @@ test('db.mjs: parts, the shared tile types with a device\'s own over them, the p
   assert.equal(m.types.B.sameAs, 'A');
   assert.deepEqual(m.types.C.features, { h: [] });
   assert.deepEqual(m.padDriveDefault, { LVCMOS15: '8', LVCMOS12: '6' });
+  // the PIPs a type's tiles do not have (#74): the device's add to the shared ones
+  const ma = mergeTiles({ types: { A: { features: {}, absent: ['X0', 'a->b'] } } }, { types: { A: { absent: ['c->d'], absentIn: [{ tiles: ['A_X1Y1'], absent: ['e'] }] }, B: { absent: ['f'] } } });
+  assert.deepEqual(ma.types.A.absent, ['X0', 'a->b', 'c->d']);
+  assert.deepEqual(ma.types.A.absentIn, [{ tiles: ['A_X1Y1'], absent: ['e'] }]);
+  assert.deepEqual(ma.types.B.absent, ['f']);
   assert.deepEqual(shared.types.A.features.g, [], 'the shared table is not changed');
   assert.equal(mergeTiles(shared, null), shared);
   // a database folder of its own
@@ -263,4 +269,80 @@ test('the XC3S1200E\'s own features: the long-line splitters of the centre row, 
   // the upper horizontal clock rows of the XC3S1200E start one bit further than the others' (bits 1-3 are the splitters')
   assert.deepEqual(db.layout.typeRows.GCLKH, { 6: 125 * 32 - 1, 22: 125 * 32 - 2, 38: 3, 54: 4 });
   assert.deepEqual(readDbFiles('xc3s500e').layout.typeRows.GCLKH, { 7: 97 * 32 - 1, 15: 97 * 32 - 2, 31: 2, 39: 3 });
+});
+
+test('the PIPs a tile type\'s features offer that its tiles do not have (#74): measured on ISE\'s device descriptions, refused to the router', () => {
+  const t = JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types;
+  // every tile of the type, on every device: [wires (every PIP into or out of it), PIPs]
+  const counts = Object.fromEntries(Object.entries(t).filter(([, v]) => v.absent).map(([k, v]) => [k, [v.absent.filter(x => !x.includes('->')).length, v.absent.filter(x => x.includes('->')).length]]));
+  const io = [100, 433], sb = [140, 218], cnr = [140, 250], bram = [140, 0], gclkh = [8, 0];
+  assert.deepEqual(counts, {
+    CENTER_SMALL_BRK: [8, 0], BIOIS: io, BIBUFS: io, LIOIS_PCI: io, LIBUFS_PCI: io, RIOIS: io, RIBUFS_PCI: io, RIOIS_PCI: [100, 436],
+    RIBUFS_CLK_PCI: [96, 446], RIOIS_CLK_PCI: [96, 452], LIOIS_CLK_PCI: [96, 449], LIBUFS_CLK_PCI: [96, 449], RIBUFS: [100, 425], RIBUFS_BRK: [108, 425],
+    TIBUFS: [100, 429], TIOIS: [100, 429], LIOIS: [100, 430], LIOIS_BRK: [108, 430], LIBUFS: [100, 422],
+    BRAM0_SMALL: bram, BRAM1_SMALL: bram, BRAM2_SMALL: bram, BRAM3_SMALL: bram, BRAM3_SMALL_BRK: [148, 0],
+    LL: cnr, LR: cnr, UL: cnr, UR: cnr,
+    DCM_BL_CENTER: sb, DCM_BR_CENTER: sb, DCM_TL_CENTER: sb, DCM_TR_CENTER: sb, DCMAUX_BL_CENTER: [140, 219], DCMAUX_TL_CENTER: [140, 219],
+    DCM_H_BL_CENTER: sb, DCM_H_BR_CENTER: sb, DCM_H_TL_CENTER: sb, DCM_H_TR_CENTER: sb,
+    BRAMSITE2_UP_GCLKH: gclkh, BRAM2_UP_GCLKH_FEEDTHRU: gclkh, BRAM2_UP_GCLKH_FEEDTHRUA: gclkh, BRAMSITE2_DN_GCLKH: gclkh, BRAM2_DN_GCLKH_FEEDTHRU: gclkh, BRAM2_DN_GCLKH_FEEDTHRUA: gclkh,
+  });
+  // the clock-row CLBs share the CLB's features, but their clock lines are GCLKk_BRK
+  assert.deepEqual(t.CENTER_SMALL_BRK.absent, ['GCLK0', 'GCLK1', 'GCLK2', 'GCLK3', 'GCLK4', 'GCLK5', 'GCLK6', 'GCLK7']);
+  assert.equal(t.CENTER_SMALL.absent, undefined);
+  // only some tiles of a type, per device: the CLBs with no FX_S2 / COUT_N (nothing above or below them),
+  // the clock column's tiles without the clock row's OMUX outputs, the I/O tiles without IBUF0
+  const rows = tiles => [...new Set(tiles.map(n => +/Y(\d+)$/.exec(n)[1]))].sort((a, b) => a - b);
+  const own = Object.fromEntries(Object.keys(PARTS).map(p => [p, Object.fromEntries(Object.entries(readDbFiles(splitPart(p).device).tiles.types)
+    .filter(([, v]) => v.absentIn).map(([k, v]) => [k, v.absentIn.map(g => [g.tiles.length, rows(g.tiles), g.absent.join(' ')])]))]));
+  const outs = 'CLKV_OMUX10_OUTL0 CLKV_OMUX10_OUTR0 CLKV_OMUX11_OUTL1 CLKV_OMUX11_OUTR1 CLKV_OMUX12_OUTL2 CLKV_OMUX12_OUTR2 CLKV_OMUX15_OUTL3 CLKV_OMUX15_OUTR3 CLKV_OUTL0 CLKV_OUTL1 CLKV_OUTL2 CLKV_OUTL3 CLKV_OUTR0 CLKV_OUTR1 CLKV_OUTR2 CLKV_OUTR3';
+  const span = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+  const ibuf = (n, y) => [[n, [y], 'IOIS_IBUF0']];
+  assert.deepEqual(own['xc3s100ecp132-4'], {
+    CENTER_SMALL: [[20, [1, 5, 21], 'FX_S2'], [9, [2, 18], 'COUT_N1 COUT_N3']], CLKV: [[20, span(2, 21), outs.split(' ').filter(w => /OUTR|OMUX\d+_OUTR/.test(w)).join(' ')]],
+    TIOIS: ibuf(7, 23), TIBUFS: ibuf(5, 23), BIOIS: ibuf(7, 0), BIBUFS: ibuf(5, 0),
+  });
+  assert.deepEqual(own['xc3s250ecp132-4'], {
+    CENTER_SMALL: [[16, [4, 30], 'COUT_N1 COUT_N3'], [34, [1, 5, 31], 'FX_S2']], CLKV: [[32, span(2, 33), outs]],
+    TIOIS: ibuf(15, 35), TIBUFS: ibuf(7, 35), BIOIS: ibuf(15, 0), BIBUFS: ibuf(7, 0),
+  });
+  assert.deepEqual(own['xc3s500efg320-4'], {
+    CENTER_SMALL: [[16, [2, 42], 'COUT_N1 COUT_N3'], [42, [1, 5, 45], 'FX_S2']], CLKV: [[44, span(2, 45), outs]],
+    TIOIS: ibuf(21, 47), TIBUFS: ibuf(9, 47), BIOIS: ibuf(21, 0), BIBUFS: ibuf(9, 0),
+  });
+  assert.deepEqual(own['xc3s1200efg320-4'], {
+    CENTER_SMALL: [[16, [26, 56], 'COUT_N1 COUT_N3'], [8, [1], 'COUT_N1 COUT_N3 FX_S2'], [54, [1, 5, 35, 60], 'FX_S2']], CLKV_LL: [[58, span(2, 59), outs]],
+    TIOIS: ibuf(31, 61), TIBUFS: ibuf(11, 61), BIOIS: ibuf(31, 0), BIBUFS: ibuf(11, 0),
+  });
+  assert.deepEqual(readDbFiles('xc3s100e').tiles.types.CLKT.absent, ['CLKT_DLL_CLKPAD4']);
+  for (const [part, spec] of Object.entries(PARTS)) {
+    const dev = loadDeviceCache(part);
+    const db = loadDb(part, { graph: dev });
+    // the database's lists are what pip-exceptions.mjs measures on the device description
+    const ex = deviceExceptions(db, dev);
+    const tables = exceptionTables({ [part]: ex });
+    const files = readDbFiles(spec.device).tiles.types;
+    const ownFile = JSON.parse(fs.readFileSync(path.join(DB_DIR, `${spec.device}-tiles.json`), 'utf8')).types;
+    for (const [type, v] of Object.entries(files)) {
+      if (!v.absent && !v.absentIn || !ex.types[type]) continue;   // (a type the device has no tile of)
+      assert.deepEqual([...(tables.shared[type] || []), ...(tables.own[spec.device]?.[type]?.absent || [])].sort(), [...(v.absent || [])].sort(), `${part} ${type}`);
+      assert.deepEqual(tables.own[spec.device]?.[type]?.absentIn, ownFile[type]?.absentIn, `${part} ${type}`);
+    }
+    // the router is refused none of the PIPs the device has (ISE's description), and the ones it lacks
+    const k = knownRouting(db), all = knownRouting(db, { exceptions: false });
+    let refused = 0;
+    for (let tk = 0; tk < dev.tileCount; tk++) {
+      const n = dev.templates[dev.tileTemplate[tk]].from.length;
+      for (let i = 0; i < n; i++) { const [a, b] = dev.pipWires(tk, i); if (all.allowPip(dev.tileNames[tk], a, b) && !k.allowPip(dev.tileNames[tk], a, b)) refused++; }
+    }
+    assert.equal(refused, 0, part);
+  }
+  const k = knownRouting(loadDb('xc3s250ecp132-4'));
+  for (const [tile, from, to, ok] of [
+    ['CLB_X1Y25', 'GCLK0', 'CLK0', false], ['CLB_X1Y24', 'GCLK0', 'CLK0', true],   // the clock row (CENTER_SMALL_BRK)
+    ['CLB_X3Y31', 'FX2', 'FX_S2', false], ['CLB_X3Y30', 'FX2', 'FX_S2', true], ['CLB_X10Y30', 'COUT2', 'COUT_N1', false], ['CLB_X10Y29', 'COUT2', 'COUT_N1', true],
+    // refused by ISE in the first join tests (research/s3e-device)
+    ['LIOIS_PCI_X0Y16', 'OMUX_W14', 'IOIS_STUB_F1_B3', false], ['LIOIS_PCI_X0Y19', 'OMUX_NW10', 'IOIS_STUB_F4_B0', false], ['RIOIS_X27Y12', 'OMUX_NE12', 'IOIS_STUB_F2_B3', false],
+    // an I/O tile's own wire names (IOIS_F1_B0: the CLB's F1_B0)
+    ['LIOIS_PCI_X0Y16', 'OMUX_W14', 'IOIS_F4_B1', true], ['LIOIS_PCI_X0Y16', 'OMUX_W14', 'IOIS_F1_B0', false],
+  ]) assert.equal(k.allowPip(tile, from, to), ok, `${tile} ${from} -> ${to}`);
 });

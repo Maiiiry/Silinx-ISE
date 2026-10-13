@@ -72,3 +72,6 @@ if [ -f "$W2/s1200/clkhll/key.json" ]; then
   rm -f db/xc3s1200e-tiles.json && node merge-db.mjs --device "$W2/s1200/clkh-ll.json"
   node -e "const fs=require('fs'),f='db/xc3s1200e-tiles.json',t=JSON.parse(fs.readFileSync(f,'utf8'));t.types.CLKH_LL.noRoute=true;fs.writeFileSync(f,JSON.stringify(t))"
 fi
+# the PIPs of the shared tile types that some or all of a type's tiles do not have (#74)
+unset PART
+node pip-exceptions.mjs

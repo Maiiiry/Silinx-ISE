@@ -71,6 +71,12 @@ bits are measured too (and measuring their bits needs to know they exist: the sa
   20 errors were found`), so a probe design answers for every candidate up to its 20th error: those
   before it without an error exist; the rest are asked again (`probe-run.mjs`). A probe round of 8
   designs takes about 10 s.
+- **A design whose PIPs all exist may end in a fatal error of xdl's own** when it builds the probe
+  net of thousands of PIPs (`FATAL_ERROR:XCad: … UNEXPECTED RUG CREATION PROBLEM FOR NETWORK:probe`,
+  #74). So every probe design ends with a PIP that does not exist (`PROBE_END`, the sentinel): its
+  error shows that xdl checked every candidate before it (and stops xdl before it builds the net);
+  without it, only what comes before the last error is answered, the rest is asked again in designs
+  half the size (`probe-run.mjs`).
 - **The tile name of `placed TILE SITE` is not checked** (a slice placed in a tile that does not exist
   is converted): sites are probed by name only.
 - **`drc -z` names every net whose PIPs are not one tree**: `The network <n> has island(s)` (PIPs cut
@@ -276,7 +282,9 @@ splitters; ISE time grows with the chip: the XC3S1200E has about 3.5 times the X
   (the break rows' CLB has no `GCLKk -> CLKn`, the top row no `FXk -> FX_Sk` / `COUT -> COUT_N`), and
   the I/O tile types share features they do not all have (3 refused in the first tests): a measured
   description needs the census of every tile. (Harmless for the bitstream writer, which only meets
-  PIPs the device has.)
+  PIPs the device has.) The database now records them (#74: `absent` / `absentIn`,
+  research/s3e-bitstream/pip-exceptions.mjs) and the router refuses them, so a description built
+  from the database's features per type must leave them out too.
 - The database's PIP list was measured, but its candidates came from the device report
   (`gen-pipcover.mjs`); the layout used the report's grid (`gen-layout.mjs`). If what ships must not
   depend on the report at all, the candidates need another source: observations, the name grammar and
