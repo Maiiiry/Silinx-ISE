@@ -17,6 +17,7 @@ the "What's new" text of its GitHub release.
   now compares the page open with the one the site serves, and offers to reload when that is newer;
   the application and a downloaded Silinx-ISE.html still check GitHub's releases. The dialog is in
   Portuguese too (#198).
+- **Simulator:** the Wave window's submenus (*Radix*…) no longer open past the right edge of the window, where their items could not be clicked (#201).
 
 ## 15.10.12
 
