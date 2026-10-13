@@ -44,6 +44,7 @@ the "What's new" text of its GitHub release.
   VCC as ISE ties it, no longer to 0 through the pin's inverter; a MULT18X18S's CE and R drive the three
   enables and resets, and a MULT18X18's are tied as ISE ties them. A DCM's DSSEN tied to 1 is left open, and
   its RST / PSEN / PSINCDEC / PSCLK tied to 1 no longer fail in Place & Route (#50).
+- **Schematic editor:** a wire dragged with *Keep connections* on no longer comes off the pins, I/O markers and wires its ends touch: those ends stay, joined to the moved wire by a jog (#206).
 
 ## 15.10.12
 

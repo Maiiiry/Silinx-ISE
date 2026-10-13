@@ -1151,7 +1151,20 @@ export function mountSchEditor(container, opts = {}) {
     const moved = new Set();
     for (const s of doc.symbols) if (symIds.has(s.id)) for (const p of symbolPins(s, modules)) moved.add(`${p.x},${p.y}`);
     for (const p of doc.ports) if (portIds.has(p.id)) moved.add(`${p.x},${p.y}`);
-    for (const w of doc.wires) if (wireIds.has(w.id)) for (const p of w.points) moved.add(`${p.x},${p.y}`);
+    // Keep connections: an end of a moved wire on a pin, a marker or a wire that stay stays there too
+    // (the wire is joined to it by a jog), so the wire does not come off what it connects
+    const keepEnds = {};
+    if (keepConn) {
+      const stays = q => !moved.has(`${q.x},${q.y}`) && (
+        doc.symbols.some(s => !symIds.has(s.id) && symbolPins(s, modules).some(p => p.x === q.x && p.y === q.y)) ||
+        doc.ports.some(p => !portIds.has(p.id) && p.x === q.x && p.y === q.y) ||
+        doc.wires.some(w => !wireIds.has(w.id) && w.points.some((p, i) => (p.x === q.x && p.y === q.y) || (i + 1 < w.points.length && onSeg(q, p, w.points[i + 1])))));
+      for (const w of doc.wires) if (wireIds.has(w.id)) {
+        const a = stays(w.points[0]), b = stays(w.points[w.points.length - 1]);
+        if (a || b) keepEnds[w.id] = { a, b };
+      }
+    }
+    for (const w of doc.wires) if (wireIds.has(w.id)) w.points.forEach((p, i) => { const k = keepEnds[w.id]; if (!(k?.a && i === 0) && !(k?.b && i === w.points.length - 1)) moved.add(`${p.x},${p.y}`); });
     const attach = [];   // { wire id, ends: [bool start, bool end] }
     for (const w of doc.wires) {
       if (wireIds.has(w.id)) continue;
@@ -1195,7 +1208,7 @@ export function mountSchEditor(container, opts = {}) {
     }
     let conn0 = null;
     try { conn0 = connectivity(doc, modules); } catch { /* checked only when available */ }
-    return { kind: 'move', start, before, orig, symIds, portIds, wireIds, labelIds, attach, anchors, conn0, guard, synth, dx: 0, dy: 0 };
+    return { kind: 'move', start, before, orig, symIds, portIds, wireIds, labelIds, attach, anchors, conn0, guard, synth, keepEnds, dx: 0, dy: 0 };
   }
   function applyMove(m, dx, dy) {
     if (dx === m.dx && dy === m.dy) return;
@@ -1204,7 +1217,7 @@ export function mountSchEditor(container, opts = {}) {
     for (const s of doc.symbols) if (m.symIds.has(s.id)) { const s0 = o.symbols.find(x => x.id === s.id); s.x = s0.x + dx; s.y = s0.y + dy; }
     for (const p of doc.ports) if (m.portIds.has(p.id)) { const p0 = o.ports.find(x => x.id === p.id); p.x = p0.x + dx; p.y = p0.y + dy; }
     for (const l of doc.labels) if (m.labelIds.has(l.id)) { const l0 = o.labels.find(x => x.id === l.id); l.x = l0.x + dx; l.y = l0.y + dy; }
-    for (const w of doc.wires) if (m.wireIds.has(w.id)) { const w0 = o.wires.find(x => x.id === w.id); w.points = w0.points.map(p => ({ x: p.x + dx, y: p.y + dy })); }
+    for (const w of doc.wires) if (m.wireIds.has(w.id)) { const w0 = o.wires.find(x => x.id === w.id); w.points = keptEnds(w0.points, m.keepEnds?.[w.id], dx, dy); }
     for (const at of m.attach) {
       const w = doc.wires.find(x => x.id === at.id), w0 = o.wires.find(x => x.id === at.id);
       if (!w || !w0) continue;
@@ -1213,6 +1226,19 @@ export function mountSchEditor(container, opts = {}) {
     if (!moveFrame) moveFrame = requestAnimationFrame(() => { moveFrame = 0; render(); });
   }
   let moveFrame = 0;
+  // a wire moved by (dx, dy), its kept ends where they were: joined by a jog square to its end segment
+  function keptEnds(pts0, keep, dx, dy) {
+    let pts = pts0.map(p => ({ x: p.x + dx, y: p.y + dy }));
+    if (!keep || (!dx && !dy)) return pts;
+    const join = (P, Q, T) => {   // P: the kept end, Q: the next point (before the move), T: P moved
+      const horiz = P.y === Q.y && P.x !== Q.x;
+      return horiz ? [P, { x: P.x, y: T.y }] : [P, { x: T.x, y: P.y }];
+    };
+    if (keep.a) pts = [...join(pts0[0], pts0[1], pts[0]), ...pts];
+    if (keep.b) { const n = pts0.length; pts = [...pts, ...join(pts0[n - 1], pts0[n - 2], pts[pts.length - 1]).reverse()]; }
+    pts = cleanPts(pts);
+    return pts.length >= 2 ? pts : pts0;
+  }
   function rubber(pts0, a, b, dx, dy, anchors = []) {
     let pts = pts0.map(p => ({ ...p }));
     if (a && b) return pts.map(p => ({ x: p.x + dx, y: p.y + dy }));
