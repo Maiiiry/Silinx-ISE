@@ -28,10 +28,25 @@ test('the model: a new net is valid; errors and warnings', () => {
   assert.deepEqual(validatePetri(newPetri('ctl')), []);
   const bad = normalizePetri({ name: 'bad', inputs: [{ name: 'x' }], outputs: [], places: [{ id: 'p', name: 'p', tokens: 3, capacity: 2, outputs: { z: '1' } }, { id: 'q', name: 'q' }],
     transitions: [{ id: 't', name: 't', guard: 'x &' }], arcs: [{ id: 'a', from: 'p', to: 'q' }, { id: 'b', from: 't', to: 'p', inhibitor: true }] });
-  const msgs = validatePetri(bad).map(d => `${d.severity}: ${d.message}`);
-  for (const re of [/error: place p: 3 initial tokens, more than its capacity 2/, /error: transition t: guard 'x &'/, /error: p: 'z' is not an output of the net/,
-    /error: an arc joins a place to a transition or a transition to a place/, /error: an inhibitor arc goes from a place to a transition/, /warning: transition t takes no token/])
-    assert.ok(msgs.some(m => re.test(m)), `${re} in ${msgs.join(' | ')}`);
+  assert.deepEqual(validatePetri(bad).map(d => `${d.severity}: ${d.message}`), [
+    'error: place p: 3 initial tokens, more than its capacity 2',
+    "error: transition t: guard 'x &': unexpected end of expression",
+    'warning: transition t takes no token: it fires on every clock edge while its guard is true',
+    "error: p: 'z' is not an output of the net",
+    'error: an arc joins a place to a transition or a transition to a place',
+    'error: an inhibitor arc goes from a place to a transition',
+  ]);
+  // names: the module, ports, twice the same (VHDL: whatever the case), a reserved word as a port; an output not a constant; a place not connected
+  const names = normalizePetri({ name: 'entity', inputs: [{ name: 'Go' }, { name: 'go' }, { name: 'signal' }], outputs: [{ name: 'y' }],
+    places: [{ id: 'p', name: 'p', outputs: { y: 'go' } }, { id: 'q', name: 'lonely' }, { id: 'r', name: 'begin' }],
+    transitions: [{ id: 't', name: 'process' }], arcs: [{ id: 'a', from: 'p', to: 't' }, { id: 'b', from: 't', to: 'r' }] });
+  assert.deepEqual(validatePetri(names).map(d => `${d.severity}: ${d.message}`), [
+    "error: 'entity' is not a valid module name",
+    "error: 'go' is used twice (input and input)",
+    "error: input 'signal' is not a valid VHDL name",
+    'error: p: y = go is not a constant',
+    'warning: place lonely is not connected',
+  ], 'places and transitions may be reserved words (begin, process): prefixed in the HDL');
 });
 
 test('the token game: enabled transitions (tokens, weights, inhibitors, capacities, guards), fire, deadlock', () => {
@@ -87,7 +102,7 @@ function model(m, vectors) {
   return out;
 }
 let seed = 7;
-const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed; };
+const rnd = () => { seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; return seed >> 16; };
 
 test('the HDL simulates like the net: VHDL and Verilog, random inputs (counters, pulses, priorities, inhibitors)', () => {
   for (const m of [normalizePetri(newPetri('ctl')), prodCons(), conflict()]) {
@@ -116,4 +131,23 @@ test('PNML: exported and read back the same; a net from another tool (no Silinx 
   assert.deepEqual(n.places.map(p => [p.id, p.name, p.tokens, p.capacity, p.x, p.y]), [['P0', 'P0', 2, 2, 90, 60], ['P1', 'P1', 0, 1, n.places[1].x, n.places[1].y]]);
   assert.deepEqual(n.arcs.map(a => [a.from, a.to, a.weight]), [['P0', 'T0', 2], ['T0', 'P1', 1]]);
   assert.deepEqual(clockStep(n, initialMarking(n), {}).marking, { P0: 0, P1: 1 });
+});
+
+test('the HDL: reserved words as names of places and transitions, multi-bit pulse outputs (VHDL and Verilog)', () => {
+  const m = normalizePetri({ name: 'rw', inputs: [{ name: 'go', width: 1 }], outputs: [{ name: 'code', width: 3 }, { name: 'act', width: 1 }],
+    places: [{ id: 'a', name: 'begin', tokens: 1, outputs: { act: '1' } }, { id: 'b', name: 'always' }],
+    transitions: [{ id: 't1', name: 'process', guard: 'go', outputs: { code: '5' } }, { id: 't2', name: 'module', outputs: { code: '2' } }],
+    arcs: [{ id: 'a1', from: 'a', to: 't1' }, { id: 'a2', from: 't1', to: 'b' }, { id: 'a3', from: 'b', to: 't2' }, { id: 'a4', from: 't2', to: 'a' }] });
+  assert.deepEqual(validatePetri(m), []);
+  const vectors = Array.from({ length: 40 }, () => ({ go: rnd() % 2 }));
+  const want = model(m, vectors);
+  assert.ok(want.includes('101_0') && want.includes('010_1'), 'both pulses seen: ' + want.join(' '));
+  for (const lang of ['vhdl', 'verilog']) {
+    const g = generatePetri({ ...m, lang }, lang);
+    assert.match(g.code, /pl_begin/);
+    assert.match(g.code, /fired_process/);
+    const r = simulate([{ path: lang === 'vhdl' ? 'dut.vhd' : 'dut.v', text: g.code }, { path: 'tb.v', text: testbench(m, vectors, lang === 'vhdl') }], 'tb', { until: 1e8 });
+    assert.deepEqual(r.errors, [], `${lang}: ${r.errors.join('; ')}`);
+    assert.deepEqual(r.sim.log.map(e => String(e.text).trim()).filter(s => /^[01xz_]+$/.test(s)), want, lang);
+  }
 });
