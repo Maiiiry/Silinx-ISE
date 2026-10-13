@@ -260,7 +260,7 @@ html[data-ui="modern"] .console-page .ln.ok { color: var(--m-success); }
 html[data-ui="modern"] .console-page .ln.info { color: var(--m-info); }
 html[data-ui="modern"] .console-page .ln.hdr { color: var(--m-fg); }
 html[data-ui="modern"] .console-page .diag { padding: 3px 4px; border-radius: 6px; }
-html[data-ui="modern"] .console-page .diag .loc, html[data-ui="modern"] .console-page .diag .diag-more { color: var(--m-accent); }
+html[data-ui="modern"] .console-page .diag .loc, html[data-ui="modern"] .console-page .diag .diag-more, html[data-ui="modern"] .console-page .diag .diag-fix { color: var(--m-accent); }
 html[data-ui="modern"] .console-page .diag-hint { background: var(--m-surface-2); border-left-color: var(--m-warning); border-radius: 0 6px 6px 0; }
 
 html[data-ui="modern"] #statusbar { height: 26px; padding: 0 14px; gap: 16px; background: var(--m-surface); border-top: 1px solid var(--m-border); color: var(--m-muted); font-size: 12px; }

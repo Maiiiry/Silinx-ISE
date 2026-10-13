@@ -4,6 +4,7 @@ import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, menuBar, splitter, toast, downloadText } from './ui.js';
 import { createEditor, instTemplate, SNIPPETS, defineUcfMode, typeText } from './editor.js';
 import { renameSymbolAtCursor, applyEdits } from './refactor.js';
+import { quickFixes } from '/core/quickfix.js';
 import { compile, elaborate, topCandidates } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
 import { Simulator } from '/core/simulator.js';
@@ -11,7 +12,7 @@ import { buildSchematic } from '/core/schematic.js';
 import * as wiz from './wizards.js';
 import { PRODUCT, VERSION_LABEL } from '/core/version.js';
 import { EXAMPLE_ORDER } from '/core/examples.js';
-import { startI18n, setLanguage, getLanguage, LOCALES } from './i18n.js';
+import { startI18n, setLanguage, getLanguage, LOCALES, t } from './i18n.js';
 import { onLanguageChange } from './i18n.js';
 import { designDiags, hintRow, sevWord, lintEnabled, setLintEnabled } from './diaghelp.js';
 import { applyPrefs, getInterface, setInterface, getTheme, setTheme, toggleTheme, menuCommands } from './modern.js';
@@ -112,7 +113,8 @@ function renderDiagnostics() {
       const row = h('div', { class: 'diag' }, icon(ico),
         h('span', {}, `${sevWord(d)}:${d.tool || 'HDLCompiler'} - `),
         d.file ? h('span', { class: 'loc' }, `"${d.file}" Line ${d.line}`) : null,
-        h('span', { 'data-no-i18n': true }, d.file ? `: ${d.message}` : d.message), hint?.toggle);
+        h('span', { 'data-no-i18n': true }, d.file ? `: ${d.message}` : d.message), hint?.toggle,
+        ...diagFixes(d).map(f => h('span', { class: 'diag-fix', role: 'button', 'data-no-i18n': true, onclick: e => { e.stopPropagation(); applyDiagFix(d, f); } }, `${t('Fix:')} ${t(f.title)}`)));
       row.addEventListener('click', () => d.file && openFile(d.file, d.line, d.col));
       el.append(row);
       if (hint) el.append(hint.box);
@@ -124,6 +126,34 @@ function renderDiagnostics() {
   $('warn-count').textContent = warns.length ? `(${warns.length})` : '';
 }
 onLanguageChange(() => renderDiagnostics());
+
+// Quick fixes of a message (core/quickfix.js): "Fix: …" in its row of the Errors / Warnings tabs.
+// Applied in the file's editor (one Undo there); the file's messages are then checked again.
+const fixModules = () => S.modules.map(m => ({ name: m.name, ports: (m.portList || []).map(p => p.name), params: m.paramList || [] }));
+function diagFixes(d) {
+  const src = d.file && S.sources.find(s => s.path === d.file);
+  if (!src || src.view || (src.lang !== 'vhdl' && src.lang !== 'verilog')) return [];   // (not a drawing's generated HDL)
+  const text = S.docs.find(o => o.path === d.file && o.editor)?.editor.getValue() ?? src.text;
+  try { return quickFixes(text, src.lang, d, { modules: fixModules() }).slice(0, 3); } catch { return []; }
+}
+async function applyDiagFix(d, f) {
+  const doc = await openFile(d.file, d.line, d.col);
+  const ed = doc?.editor;
+  if (!ed) return;
+  // the same fix on the editor's text now (it may have changed since the row was drawn)
+  const fix = ed.quickFixes(d).find(x => x.title === f.title);
+  if (fix) ed.applyFix(fix); else toast('No quick fix here.', 'info');
+}
+// the messages of one file checked again (after a quick fix), when the tabs list some of them
+function recheckFile(path) {
+  if (!S.project || !S.diags.some(x => x.file === path)) return;
+  const doc = S.docs.find(o => o.path === path && o.editor);
+  let fresh;
+  try { fresh = hdlDiagnostics(path, doc ? doc.editor.getValue() : null).filter(x => x.file === path); } catch { return; }
+  S.diags = [...S.diags.filter(x => x.file !== path), ...fresh];
+  renderDiagnostics();
+  doc?.editor.setDiagnostics(fresh);
+}
 
 export function status(text) { $('status-text').textContent = text; }
 
@@ -1416,6 +1446,7 @@ export async function openFile(path, line, col) {
           onGotoDefinition: ({ file, line: ln }) => openFile(file, ln),
           onCursor: (l, c) => { if (S.active === d) $('status-pos').textContent = `Ln ${l}  Col ${c}`; },
           onRename: () => renameSymbolIn(d, lang, path),
+          onFix: () => recheckFile(path),
         });
         d.editor.setDiagnostics(S.diags.filter(x => x.file === path));
         let ucfTimer = null;
@@ -1451,6 +1482,7 @@ export async function openFile(path, line, col) {
             hdl ? { label: 'Toggle Comment', action: () => cm.toggleComment?.() } : null,
             { label: 'Find…', action: () => cm.execCommand('findPersistent') },
             hdl ? { label: 'Rename Symbol…', shortcut: 'F2', action: () => { if (!hasSel) cm.setCursor(at); renameSymbolIn(d, lang, path); } } : null,
+            hdl ? { label: 'Quick Fix…', shortcut: 'Ctrl+.', action: () => { cm.setCursor(at); d.editor.showFixMenu(at.line); }, disabled: !d.editor.fixesOnLine(at.line).length } : null,
             hdl ? '-' : null,
             hdl ? { label: 'Language Templates', submenu: SNIPPETS[lang].map(sn => ({ label: sn.name, action: () => d.editor.insertText(sn.text) })) } : null,
             hdl ? { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) } : null,

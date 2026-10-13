@@ -1,10 +1,13 @@
 // HDL source editor built on CodeMirror 5 (loaded globally as window.CodeMirror):
 // syntax highlighting, context-aware auto-complete, language templates (snippets), live lint
-// from the Silinx parsers, hover info, go-to-definition, rename symbol (F2, web/js/refactor.js),
-// folding, comment toggling, search.
+// from the Silinx parsers with quick fixes (in the lint tooltip, a click on its marker, Ctrl+.), hover
+// info, go-to-definition, rename symbol (F2, web/js/refactor.js), folding, comment toggling, search.
 import { parse as parseVerilog } from '/core/verilog/parser.js';
 import { parse as parseVhdl } from '/core/vhdl/parser.js';
+import { quickFixes } from '/core/quickfix.js';
 import { hintTooltip } from './diaghelp.js';
+import { t } from './i18n.js';
+import { popupMenu, toast } from './ui.js';
 
 const CM = () => window.CodeMirror;
 
@@ -137,11 +140,12 @@ function symbolsOf(parsed, lang) {
 }
 
 // ------------------------------------------------------------------ editor factory
-export function createEditor(container, { text = '', lang = 'verilog', path = '', readOnly = false, project = () => null, onChange, onSave, onGotoDefinition, onCursor, onRename } = {}) {
+export function createEditor(container, { text = '', lang = 'verilog', path = '', readOnly = false, project = () => null, onChange, onSave, onGotoDefinition, onCursor, onRename, onFix } = {}) {
   const CodeMirror = CM();
   const mode = lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'text/plain';
   let parsed = { units: [], errors: [] }, syms = new Map();
   let externalDiags = [];
+  let anns = [];   // the lint annotations shown (with their diagnostic: d)
 
   const reparse = () => {
     if (lang !== 'vhdl' && lang !== 'verilog') return;
@@ -159,7 +163,7 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
       let end = ch;
       while (end < lineText.length && /[\w$]/.test(lineText[end])) end++;
       if (end === ch) end = Math.min(lineText.length, ch + 1);
-      out.push({ from: CodeMirror.Pos(line, ch), to: CodeMirror.Pos(line, end), message: `${src}${d.message}${hintTooltip(d)}`, severity: d.severity === 'warning' ? 'warning' : 'error' });
+      out.push({ from: CodeMirror.Pos(line, ch), to: CodeMirror.Pos(line, end), message: `${src}${d.message}${hintTooltip(d)}`, severity: d.severity === 'warning' ? 'warning' : 'error', diag: d });
     };
     const seen = new Set();
     for (const d of [...(parsed.errors || []), ...externalDiags]) {
@@ -167,6 +171,7 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
       if (seen.has(k)) continue;
       seen.add(k); mk(d, '');
     }
+    anns = out;
     return out;
   };
 
@@ -175,7 +180,8 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
     matchBrackets: true, autoCloseBrackets: true, styleActiveLine: true, highlightSelectionMatches: { showToken: /\w/, annotateScrollbar: false },
     foldGutter: true, foldOptions: { rangeFinder: CodeMirror.fold.indent, widget: '…' },
     gutters: ['CodeMirror-lint-markers', 'CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
-    lint: lang === 'vhdl' || lang === 'verilog' || lang === 'ucf' ? { getAnnotations: () => lintAnnotations(), delay: 400 } : false,
+    // (the tooltips are the editor's own, below: they stay while the pointer is on them, for their fixes)
+    lint: lang === 'vhdl' || lang === 'verilog' || lang === 'ucf' ? { getAnnotations: () => lintAnnotations(), delay: 400, tooltips: false } : false,
     extraKeys: {
       'Ctrl-Space': c => showHint(c, true),
       'Cmd-S': () => onSave?.(), 'Ctrl-S': () => onSave?.(),
@@ -185,12 +191,95 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
       'Cmd-G': 'findNext', 'Ctrl-G': 'jumpToLine',
       'F12': c => gotoDef(c),
       'F2': () => onRename?.(),
+      'Ctrl-.': () => showFixMenu(), 'Cmd-.': () => showFixMenu(),
       Tab: c => (c.somethingSelected() ? c.indentSelection('add') : c.execCommand('insertSoftTab')),
       'Shift-Tab': c => c.indentSelection('subtract'),
     },
   });
   cm.getWrapperElement().classList.add('xl-editor');
   reparse();
+
+  // ---- quick fixes of the errors (core/quickfix.js): in the lint tooltip, on a click on the
+  // marker of the line, with Ctrl+. (Cmd+.) on the line; one undoable edit, then the lint runs again
+  const modules = () => (project()?.modules || []).map(m => ({ name: m.name, ports: (m.portList || []).map(p => p.name), params: m.paramList || [] }));
+  const fixesOf = d => (d ? quickFixes(cm.getValue(), lang, d, { modules: modules() }) : []);
+  const fixLabel = f => `${t('Fix:')} ${t(f.title)}`;
+  function applyFix(fix) {
+    const Pos = CodeMirror.Pos;
+    const edits = [...fix.edits].sort((a, b) => b.line - a.line || b.col - a.col);
+    cm.operation(() => {
+      for (const e of edits) cm.replaceRange(e.text, Pos(e.line - 1, e.col - 1), Pos((e.endLine ?? e.line) - 1, (e.endCol ?? e.col) - 1), 'quickfix');
+    });
+    hideLintTip();
+    cm.focus();
+    onFix?.(fix);
+  }
+  function fixesOnLine(line) {
+    const out = [], seen = new Set();
+    for (const a of anns.filter(x => x.from.line === line)) {
+      for (const f of fixesOf(a.diag)) if (!seen.has(f.title)) { seen.add(f.title); out.push(f); }
+    }
+    return out;
+  }
+  function showFixMenu(line = cm.getCursor().line, at = null) {
+    const fixes = fixesOnLine(line);
+    if (!fixes.length) { toast('No quick fix here.', 'info'); return; }
+    const c = at || cm.cursorCoords(line === cm.getCursor().line ? cm.getCursor() : CodeMirror.Pos(line, 0), 'window');
+    popupMenu(fixes.map(f => ({ label: `Fix: ${f.title}`, action: () => applyFix(f) })), c.left, c.bottom);
+  }
+  cm.on('gutterClick', (c, line, gutter, ev) => { if (gutter === 'CodeMirror-lint-markers') showFixMenu(line, { left: ev.clientX, bottom: ev.clientY }); });
+
+  // the lint tooltip: the messages with their help and their fixes (buttons)
+  // It opens just above the pointer (its bottom-left corner there, not covering what is pointed
+  // at): the pointer goes from the marker into it without crossing anything else, and it closes
+  // as soon as the pointer is on neither.
+  let lintTip = null, lintTipFor = null;
+  function hideLintTip() {
+    lintTipFor?.removeEventListener('mouseout', leave);
+    lintTip?.remove();
+    lintTip = lintTipFor = null;
+  }
+  function leave(e) { if (!(lintTip?.contains(e.relatedTarget) || lintTipFor?.contains(e.relatedTarget))) hideLintTip(); }
+  function showLintTip(ev, target, list) {
+    if (lintTip && lintTipFor === target && lintTip.isConnected) return;
+    hideLintTip();
+    const tt = document.createElement('div');
+    tt.className = 'CodeMirror-lint-tooltip xl-lint-tip';
+    for (const a of list) {
+      const m = document.createElement('div');
+      m.className = `CodeMirror-lint-message CodeMirror-lint-message-${a.severity}`;
+      m.setAttribute('data-no-i18n', '');
+      m.textContent = a.message;
+      tt.append(m);
+      for (const f of fixesOf(a.diag)) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'xl-fix'; b.setAttribute('data-no-i18n', '');
+        b.textContent = fixLabel(f);
+        b.addEventListener('click', e => { e.preventDefault(); applyFix(f); });
+        tt.append(b);
+      }
+    }
+    document.body.append(tt);
+    tt.style.left = `${Math.max(0, Math.min(ev.clientX - 4, innerWidth - tt.offsetWidth))}px`;
+    tt.style.top = `${Math.max(0, ev.clientY - tt.offsetHeight - 1)}px`;
+    tt.style.opacity = 1;
+    tt.addEventListener('mouseout', leave);
+    target.addEventListener('mouseout', leave);
+    lintTip = tt; lintTipFor = target;
+  }
+  cm.getWrapperElement().addEventListener('mouseover', ev => {
+    const el = ev.target;
+    const marker = el.closest?.('.CodeMirror-lint-marker');
+    if (marker) {
+      const list = anns.filter(a => a.from.line === cm.lineAtHeight(ev.clientY, 'window'));
+      if (list.length) showLintTip(ev, marker, list);
+    } else if (/\bCodeMirror-lint-mark-/.test(el.className)) {
+      const b = el.getBoundingClientRect();
+      const list = cm.findMarksAt(cm.coordsChar({ left: (b.left + b.right) / 2, top: (b.top + b.bottom) / 2 }, 'window')).map(m => m.__annotation).filter(Boolean);
+      if (list.length) showLintTip(ev, el, list);
+    }
+  });
+  cm.on('change', () => hideLintTip());
 
   function toggleComment(c) {
     c.toggleComment({ lineComment: lang === 'vhdl' ? '--' : lang === 'ucf' ? '#' : '//' });
@@ -377,7 +466,10 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
     insertText(t) { insertSnippet(cm, t, cm.getCursor(), cm.getCursor(), ''); cm.focus(); },
     markClean: () => cm.markClean(),
     isClean: () => cm.isClean(),
-    destroy() { tip.remove(); },
+    destroy() { tip.remove(); hideLintTip(); },
+    /** The quick fixes of a diagnostic of this file (on the editor's text), and applying one. */
+    quickFixes: d => fixesOf(d),
+    applyFix, fixesOnLine, showFixMenu,
     exec: cmd => cm.execCommand(cmd),
   };
 }

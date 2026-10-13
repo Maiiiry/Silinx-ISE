@@ -1,5 +1,5 @@
 // Portuguese strings of the HDL editor's refactoring and quick fixes (merged into the dictionary of
-// i18n.js): Rename Symbol (F2).
+// i18n.js): Rename Symbol (F2), the titles of the quick fixes of core/quickfix.js ("Fix: …").
 
 const KIND_PT = {
   'entity': 'entidade', 'architecture': 'arquitetura', 'package': 'pacote', 'configuration': 'configuração', 'component': 'componente', 'module': 'módulo',
@@ -15,9 +15,34 @@ export const EDITOR_PT = {
   'Rename Symbol…': 'Mudar o Nome do Símbolo…', 'Rename Symbol': 'Mudar o Nome do Símbolo', 'New name:': 'Novo nome:',
   'There is no name to rename here.': 'Não há aqui nenhum nome a mudar.',
   'Rename symbol': 'Mudar o nome do símbolo',
+  'Fix:': 'Corrigir:', 'No quick fix here.': 'Não há aqui nenhuma correção rápida.', 'Quick fix of an error': 'Correção rápida de um erro', 'Quick Fix…': 'Correção Rápida…',
 };
 
+// the titles of the quick fixes
+const FIX_PT = [
+  [/^Change '(.+)' to '(.+)'$/, "Mudar '$1' para '$2'"],
+  [/^Declare '(.+)' as (reg|wire)$/, "Declarar '$1' como $2"],
+  [/^Declare '(.+)'$/, "Declarar '$1'"],
+  [/^Add ';' at the end of the line$/, "Acrescentar ';' no fim da linha"],
+  [/^Add (.+) at the end$/, 'Acrescentar $1 no fim'],
+  [/^Insert (.+)$/, 'Inserir $1'],
+  [/^Write '(.+)'$/, "Escrever '$1'"],
+  [/^Extend with zeros: (.+)$/, 'Estender com zeros: $1'],
+  [/^Resize: (.+)$/, 'Redimensionar: $1'],
+  [/^Keep the low bits: (.+)$/, 'Manter os bits de menor peso: $1'],
+  [/^Add '(use .+)'$/, "Acrescentar '$1'"],
+  [/^Use '(.+)' to assign \('=' compares\)$/, "Usar '$1' para atribuir ('=' compara)"],
+  [/^Use ':=' to assign the variable '(.+)'$/, "Usar ':=' para atribuir a variável '$1'"],
+  [/^Use an internal signal '(.+)' \(and (.+)\)$/, "Usar um sinal interno '$1' (e $2)"],
+  [/^Use '(<=|=)' for '(.+)'$/, "Usar '$1' em '$2'"],
+  [/^Add '(.+)' to the sensitivity list$/, "Acrescentar '$1' à lista de sensibilidade"],
+  [/^Use 'always @\(\*\)': every signal read is in the list$/, "Usar 'always @(*)': todos os sinais lidos ficam na lista"],
+];
+const fixPt = s => { for (const [re, r] of FIX_PT) if (re.test(s)) return s.replace(re, r); return s; };
+
 export const EDITOR_PT_PATTERNS = [
+  [/^Fix: (.+)$/, (m, x) => `Corrigir: ${fixPt(x)}`],
+  ...FIX_PT,
   [/^Renames the (.+?) '(.+)' everywhere it is used in this file: (\d+) (places?)\.$/, (m, k, n, c, w) => `Muda o nome de '${n}' (${kindPt(k)}) em todos os sítios onde é usado neste ficheiro: ${places(c, w)}.`],
   [/^Also in the instances of '(.+)' in the other files \((.+)\)$/, "Também nas instâncias de '$1' nos outros ficheiros ($2)"],
   [/^No other file of the project instantiates '(.+)'\.$/, "Nenhum outro ficheiro do projeto instancia '$1'."],

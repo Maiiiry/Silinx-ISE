@@ -5,8 +5,8 @@
 // Used to rename a name everywhere it means the same object (core/rename.js) and by the quick
 // fixes of the editor (core/quickfix.js).
 //
-//   analyze(text, lang) -> { lang, tokens, occs, symbols, file, scopeAt(i) }
-//     tokens: { k: 'id'|'kw'|'op'|'lit'|'eof', v, key, line, col, len, off }
+//   analyze(text, lang) -> { lang, tokens, occs, symbols, scopes, file, scopeAt(i) }
+//     tokens: { k: 'id'|'kw'|'op'|'lit'|'eof', v, key, line, col, len, off, lt (the lexer's type) }
 //     occs:   every identifier as written: { i (token index), line, col, len, name, key, sym, decl,
 //             scope, ext } — sym: the symbol it refers to; null when it is not declared in this
 //             file (a library name, a predefined attribute, a misspelt name…); a formal of a port
@@ -14,8 +14,9 @@
 //     symbols: { key, name, kind, scope, occs, owner (the scope it opens: entity, module,
 //              component, process…), type (VHDL: its type as written), vtype (Verilog: net, range,
 //              signed as written), mode (direction of a port) }
-//     scopes:  { kind, outer (lexical), parent (where names are looked up next), syms, sym (the
-//              label / name of the construct), closer (the word that ends it), tok, end }
+//     scopes:  every construct, in source order: { kind, outer (lexical), parent (where names are
+//              looked up next), syms, sym (the label / name of the construct), closer (the word
+//              that ends it), tok (its first token), end (the token of its end) }
 //
 // Every construct that an `end …` closes is a scope (also `if`, `case`, `begin`): a scope without
 // declarations is transparent, and the open scopes at a token tell what is not closed yet (the
@@ -51,9 +52,9 @@ function makeCtx(text, tokens) {
   for (const t of tokens) t.off = ls[t.line - 1] + t.col - 1;
   const file = new Scope('file', null, null, 0);
   const fields = new Scope('fields', null, null, 0);   // record / struct fields, reached after '.'
-  const occs = [], symbols = [], occAt = new Map(), tokScope = [];
+  const occs = [], symbols = [], occAt = new Map(), tokScope = [], scopes = [];
   const ctx = {
-    text, tokens, file, fields, occs, symbols, occAt, tokScope,
+    text, tokens, file, fields, occs, symbols, occAt, tokScope, scopes,
     declare(scope, i, kind, extra = {}) {
       const t = tokens[i];
       let s = scope.syms.get(t.key);
@@ -94,9 +95,11 @@ function makeCtx(text, tokens) {
       occs.sort((a, b) => a.i - b.i);
       for (const s of symbols) s.occs.sort((a, b) => a.i - b.i);
       return {
-        tokens, occs, symbols, file, fields,
+        tokens, occs, symbols, file, fields, scopes,
         occAt: i => occAt.get(i) || null,
         scopeAt: i => tokScope[Math.min(i, tokScope.length - 1)] || file,
+        /** The symbol a name means at token i (null: not declared there). */
+        lookupAt: (i, key) => ctx.lookup(tokScope[Math.min(i, tokScope.length - 1)] || file, key),
         /** The identifier occurrence at a 1-based line / column (on the name or just after it). */
         occAtPos(line, col) {
           let best = null;
@@ -141,7 +144,7 @@ function vhdlTokens(text) {
   return tokens.map(t => {
     if (t.type === 'id' && !t.extended) { const v = String(t.raw ?? t.value); return { k: 'id', v, key: v.toLowerCase(), line: t.line, col: t.col, len: v.length }; }
     const k = t.type === 'kw' ? 'kw' : t.type === 'op' ? 'op' : t.type === 'eof' ? 'eof' : 'lit';
-    return { k, v: k === 'kw' ? String(t.value).toLowerCase() : t.value, key: null, line: t.line, col: t.col, len: k === 'kw' ? String(t.value).length : 0, num: t.type === 'int' || t.type === 'real' };
+    return { k, v: k === 'kw' ? String(t.value).toLowerCase() : t.value, key: null, line: t.line, col: t.col, len: k === 'kw' ? String(t.value).length : 0, num: t.type === 'int' || t.type === 'real', lt: t.type };
   });
 }
 
@@ -158,6 +161,7 @@ function analyzeVhdl(text) {
   let uses = [];             // packages of this file named by use clauses, for the next design unit
   const open = (kind, tok, opts = {}) => {
     const s = new Scope(kind, cur, opts.parent || cur, tok, opts.closer || kind);
+    C.scopes.push(s);
     Object.assign(s, opts.extra || {});
     if (opts.sym !== undefined) { s.sym = opts.sym; if (opts.sym) opts.sym.owner = s; }
     else if (pendingLabel) { s.sym = pendingLabel; pendingLabel.owner = s; }
@@ -352,7 +356,7 @@ function analyzeVhdl(text) {
           continue;
         case 'loop':
           if (afterEnd) continue;
-          if ((cur.kind === 'for' || cur.kind === 'loop') && cur.started === false) cur.started = true;
+          if ((cur.kind === 'for' || cur.kind === 'loop') && cur.started === false) { cur.started = true; cur.closer = 'loop'; }
           else open('loop', i);
           continue;
         case 'generate':
@@ -486,7 +490,7 @@ function verilogTokens(text) {
         if (at >= 0 && lineText.startsWith(v, at) && !/[\w$]/.test(lineText[at - 1] || '') && !/[\w$]/.test(lineText[at + v.length] || '')) { col = at + 1; break; }
       }
     }
-    out.push({ k: col ? k : 'lit', v, key: k === 'id' && col ? v : null, line: t.line, col: col || t.col, len: k === 'id' || k === 'kw' ? v.length : 0 });
+    out.push({ k: col ? k : 'lit', v, key: k === 'id' && col ? v : null, line: t.line, col: col || t.col, len: k === 'id' || k === 'kw' ? v.length : 0, lt: t.t, size: t.size });
   }
   return out;
 }
@@ -506,6 +510,7 @@ function analyzeVerilog(text) {
   let afterBrace = null;   // an enum / struct without typedef: the names after '}' are declared
   const open = (kind, tok, sym = null) => {
     const s = new Scope(kind, cur, cur, tok, V_OPEN_CLOSER[kind]);
+    C.scopes.push(s);
     if (sym) { s.sym = sym; sym.owner = s; }
     cur = s;
     return s;

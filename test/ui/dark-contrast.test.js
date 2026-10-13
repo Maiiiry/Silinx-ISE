@@ -3,14 +3,14 @@
 // behind it (a light background left in the code, a dark grey on the dark background), fields
 // included. The Start page, the menus, the command palette, the toasts, the dialogs of Help and
 // Tools, the New Project wizard; a project (gates): the Design / Files / Libraries panes, the HDL
-// editor and its lint tooltip, Check Syntax with the help of a warning, the Errors / Warnings tabs,
-// the schematic editor (its fields, Symbol Info, View HDL, the live simulation and its bus editor),
-// the Design Summary, the pin planner, iMPACT, Design Properties, the Language Templates, Find,
-// Rename; New Source with every type and every page of the Module and Test Bench wizards (a
-// bidirectional port: the drive / expected columns); the ASM, FSM and Truth Table editors; blinky's
-// RTL Schematic, ISim and the board emulator; blinky built with the Silinx toolchain: the summary,
-// the reports, the Technology Schematic, the FPGA view, iMPACT. The light theme of the same screens
-// has nothing below the minimum either.
+// editor and its lint tooltip (also with a quick fix), Check Syntax with the help of a warning, the
+// Errors / Warnings tabs (a quick fix), the schematic editor (its fields, Symbol Info, View HDL, the
+// live simulation and its bus editor), the Design Summary, the pin planner, iMPACT, Design
+// Properties, the Language Templates, Find, Rename; New Source with every type and every page of
+// the Module and Test Bench wizards (a bidirectional port: the drive / expected columns); the ASM,
+// FSM and Truth Table editors; blinky's RTL Schematic, ISim and the board emulator; blinky built
+// with the Silinx toolchain: the summary, the reports, the Technology Schematic, the FPGA view,
+// iMPACT. The light theme of the same screens has nothing below the minimum either.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, tick } from './harness.js';
@@ -154,6 +154,22 @@ for (const theme of ['dark', 'light']) {
     await page.waitFor(() => document.querySelector('.CodeMirror-lint-tooltip')?.textContent, [], { what: 'lint tooltip' });
     await check('lint tooltip');
     await page.hover('#menubar');
+    // an error with a quick fix (#179): its button in the tooltip, "Fix: …" in the Errors tab
+    await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.setValue(cm.getValue().replace('q <= d;', 'q <= d')); });
+    await page.waitForSelector('.doc:not([hidden]) .CodeMirror-lint-marker-error', { timeout: 8000 });
+    await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-error');
+    await page.waitFor(() => !!document.querySelector('.CodeMirror-lint-tooltip .xl-fix'), [], { what: 'the quick fix in the tooltip' });
+    await check('lint tooltip with a quick fix');
+    await page.hover('#menubar');
+    await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
+    await page.waitConsole(/Process "Check Syntax" failed/);
+    await tab(page, 'errors');
+    await page.waitForSelector('#console-errors .diag .diag-fix');
+    await check('Errors with a quick fix');
+    await page.click('#console-errors .diag .diag-fix');
+    await page.waitFor(() => document.getElementById('err-count').textContent === '', [], { what: 'the error fixed' });
+    await page.eval(() => window.SilinxApp.saveAll());
+    await tab(page, 'console');
     // the editor's bar: Language Templates, and Edit ▸ Find…
     await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Templates ▾' });
     await page.waitForSelector('.menu-popup');

@@ -37,6 +37,16 @@ In detail:
   not another object with the same name; VHDL in any spelling); a port or generic also in the
   instances of its module in the other files; an invalid name, a reserved word or a clash is
   refused; one Undo reverts it (#178).
+- **Quick fixes of errors in the HDL editor:** an error gets corrections that fix it in one click,
+  in its tooltip (which now stays while the pointer is on it), in its row of the Errors tab
+  ("Fix: …"), with Ctrl+. (Cmd+.) or the editor's right-click menu: a misspelt name → the nearest
+  declared one (signal, function, type, module, port); an undeclared signal that is assigned → its
+  declaration (VHDL `signal`, Verilog `wire` / `reg` with the width of its value); a missing `;`;
+  a missing `end if` / `end process` / `end case` / `endcase` / `end` / `endmodule…` (where the
+  indentation shows it goes); a VHDL vector of another width (zeros / `resize` / the low bits);
+  a missing `use ieee.numeric_std.all;`; `=` for `<=`, `<=` to a variable, an output read
+  (VHDL-93: an internal signal); a Verilog `wire` / `reg` the assignment needs, `=` / `<=` in the
+  wrong always block, an incomplete sensitivity list. One Undo reverts a fix (#179).
 
 ## 15.10.11
 

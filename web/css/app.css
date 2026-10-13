@@ -192,6 +192,9 @@ li.CodeMirror-hint-active .xl-hint-detail { color: #dde; }
 .xl-hover-tip .k { color: #777; font-style: italic; margin-left: 4px; }
 .xl-hover-tip .d { font-family: var(--mono); margin-top: 2px; }
 .CodeMirror-lint-tooltip { z-index: 6000; font-family: var(--font); }
+/* the quick fixes of a message (core/quickfix.js) in the editor's lint tooltip: in its own text colour */
+.CodeMirror-lint-tooltip .xl-fix { display: block; margin: 4px 0 2px; padding: 1px 8px; font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 3px; cursor: pointer; text-align: left; }
+.CodeMirror-lint-tooltip .xl-fix:hover { text-decoration: underline; }
 
 /* pin planner */
 .pin-planner { display: flex; flex-direction: column; height: 100%; }
@@ -235,6 +238,8 @@ li.CodeMirror-hint-active .xl-hint-detail { color: #dde; }
 /* plain-language help of a diagnostic (web/js/diaghelp.js): Errors / Warnings tabs and editor tooltip */
 .console-page .diag .diag-more { flex: none; margin-left: 10px; color: #0645ad; cursor: pointer; white-space: nowrap; }
 .console-page .diag .diag-more:hover { text-decoration: underline; }
+.console-page .diag .diag-fix { flex: none; margin-left: 10px; color: var(--accent); cursor: pointer; white-space: nowrap; font-weight: 600; }
+.console-page .diag .diag-fix:hover { text-decoration: underline; }
 .console-page .diag-hint { margin: 0 6px 4px 26px; padding: 3px 8px; background: #fffbe6; border-left: 3px solid #e0b000; font-family: var(--font); white-space: normal; }
 .console-page .diag-hint b { font-weight: 600; }
 .CodeMirror-lint-message { white-space: pre-wrap; max-width: 600px; }
