@@ -5,6 +5,19 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.12
 
+In short:
+
+- **The HDL editor helps fix the code:** *Rename Symbol* (F2) renames a signal or port everywhere it is
+  used, and an error offers *Fix: …* corrections in one click (a misspelt name, a missing declaration,
+  `;` or `end`, a width mismatch…); a missing `;` is reported where it is missing.
+- **Schematics as in ISE:** the gates' types under them, buses with their names, pins that connect
+  where they are dropped, and any drawing (schematic, ASM chart, state diagram, truth table) can be
+  the top and be implemented without an HDL file.
+- **Truth tables with any number of outputs,** and expressions with `.` (AND) and `/` (NOT).
+- **A new example, traffic:** a pedestrian crossing made of a state diagram, a truth table and VHDL.
+- **Simulator fix:** a procedure declared in a process now updates the process's variables (a
+  self-checking test bench could report OK when it was not).
+
 In detail:
 
 - **Schematics drawn as in ISE:** each gate shows its type under it (AND2, OR3, NAND2B1, INV…), and
