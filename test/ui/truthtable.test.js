@@ -228,6 +228,8 @@ uiTest("Truth Table expressions (#180): '/' NOT and '.' AND typed in the Express
   // my answer with the same notation, and as an XOR
   await page.fill(`${T} .tt-mine-in`, 'a ^ b');
   await page.waitFor((t) => /Equal to the table/.test(document.querySelector(`${t} .tt-mine-out`)?.textContent || ''), [T]);
+  await page.fill(`${T} .tt-mine-in`, '/ab + a/b');      // '/' negates only the next letter
+  await page.waitFor((t) => /Equal to the table/.test(document.querySelector(`${t} .tt-mine-out`)?.textContent || ''), [T]);
   await page.fill(`${T} .tt-mine-in`, '/a./b');
   await page.waitFor((t) => /Different from the table in 6 row/.test(document.querySelector(`${t} .tt-mine-out`)?.textContent || ''), [T]);
   // an invalid expression: where it stops

@@ -67,8 +67,10 @@ function tokenize(src) {
  * Parse a Boolean expression. opts.vars: the variable names allowed (case-insensitive match,
  * the declared spelling is kept); when every variable is a single letter, a run of letters such
  * as ab'c is read as a product (a·b'·c). Without opts.vars any identifier is a variable.
- * Operators: NOT postfix ' or prefix ~ ! / not (/a: "A barrado"); AND · . * & and (or juxtaposition:
- * a b, a(b+c)); XOR ^ xor; OR + | or; also nand nor xnor. Precedence: NOT > AND > XOR > OR.
+ * Operators: NOT postfix ' or prefix ~ ! / not; AND · . * & and (or juxtaposition: a b, a(b+c));
+ * XOR ^ xor; OR + | or; also nand nor xnor. Precedence: NOT > AND > XOR > OR.
+ * '/' is the bar over one letter ("A barrado", /A): it negates only the next variable, also in a run
+ * of letters (/ab = a'·b, //ab = a·b); /(ab) negates the product. ~ab and !ab negate the product.
  * Constants are only 0 and 1 (no decimal point: '.' is always AND).
  * Throws LogicError with a 1-based position.
  */
@@ -98,6 +100,7 @@ export function parseExpr(src, opts = {}) {
     for (const a of args) if (a.t === op) out.push(...a.args); else out.push(a);
     return out.length === 1 ? out[0] : { t: op, args: out };
   };
+  const runs = new WeakSet();   // products read from a run of letters (ab'c)
   function primary() {
     const t = next();
     let e;
@@ -109,6 +112,7 @@ export function parseExpr(src, opts = {}) {
         let l = last;
         while (peek().k === 'post') { next(); l = { t: 'not', a: l }; }
         e.args.push(l);
+        runs.add(e);
         return e;
       }
     }
@@ -117,6 +121,13 @@ export function parseExpr(src, opts = {}) {
       e = orExpr();
       const c = next();
       if (c.k !== ')') throw new LogicError(c.k === 'eof' ? `missing ')' (opened at position ${t.pos})` : `expected ')' but found '${c.text}'`, c.pos);
+    } else if (t.k === 'not' && t.text === '/') {
+      // the bar over one letter: in a run of letters (ab, /ab) only the first one
+      const a = primary();
+      if (!runs.has(a)) return { t: 'not', a };
+      const run = { t: 'and', args: [{ t: 'not', a: a.args[0] }, ...a.args.slice(1)] };
+      runs.add(run);
+      return run;
     } else if (t.k === 'not') return { t: 'not', a: primary() };
     else if (t.k === 'eof') throw new LogicError('the expression ends too early: expected a variable, 0, 1 or (', t.pos);
     else throw new LogicError(`expected a variable, 0, 1 or ( but found '${t.text}'`, t.pos);

@@ -83,8 +83,20 @@ test("parser: '.' is AND and '/' a prefix NOT (/a, A barrado) (#180)", () => {
   assert.equal(col('/a.b + a./b'), '00111100');          // a xor b
   assert.equal(col('/a.b + a./b'), col('a ^ b'));
   assert.equal(col('/a/b'), col("a'b'"));                 // juxtaposition: /a·/b
-  assert.equal(col('/ab'), '11111100');                   // a run of letters is one product: /ab = (ab)', like ~ab
-  assert.equal(col('/ab'), col('~ab'));
+  // '/' is the bar over one letter: in a run of letters it negates only the next one
+  assert.deepEqual(strip(P('/ab')), { t: 'and', args: [{ t: 'not', a }, b] });
+  assert.equal(col('/ab'), '00110000');
+  assert.equal(col('/ab'), col('/a.b'));
+  assert.deepEqual(strip(P('/ab + a/b')), { t: 'or', args: [{ t: 'and', args: [{ t: 'not', a }, b] }, { t: 'and', args: [a, { t: 'not', a: b }] }] });
+  assert.equal(col('/ab + a/b'), '00111100');            // a xor b
+  assert.deepEqual(strip(P('/(ab)')), { t: 'not', a: { t: 'and', args: [a, b] } });
+  assert.equal(col('/(ab)'), '11111100');
+  assert.deepEqual(strip(P('//ab')), { t: 'and', args: [{ t: 'not', a: { t: 'not', a } }, b] });
+  assert.equal(col('//ab'), '00000011');
+  assert.deepEqual(strip(P("/abc'")), { t: 'and', args: [{ t: 'not', a }, b, { t: 'not', a: c }] });
+  // ~ and ! still negate the whole run: ~ab = (ab)'
+  assert.deepEqual(strip(P('~ab')), { t: 'not', a: { t: 'and', args: [a, b] } });
+  assert.equal(col('!ab'), '11111100');
   assert.equal(col('/a.b + a./b'), col('a xor b'));
   // the other NOT forms are unchanged
   for (const s of ["a'", '~a', '!a', 'not a', '¬a']) assert.equal(col(s), '11110000', s);
