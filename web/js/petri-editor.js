@@ -248,7 +248,7 @@ export function mountPetriEditor(container, opts = {}) {
         field('Name', text(p.name, v => { p.name = v.trim() || p.name; commit(); }, 'mono')),
         field('Initial tokens', number(p.tokens, 0, 255, v => { p.tokens = v; p.capacity = Math.max(p.capacity, v); commit(); })),
         field('Capacity', number(p.capacity, 1, 255, v => { p.capacity = v; p.tokens = Math.min(p.tokens, v); commit(); }), '1: a safe place (one flip-flop); more: a counter'),
-        field('Outputs while marked', text(formatOutputs(p.outputs), v => { const o = parseOutputs(v); if (o.error) status(o.error, true); else { p.outputs = o; commit(); } }, 'mono'), 'e.g. busy=1, st=2'));
+        field('Outputs while marked', text(formatOutputs(p.outputs), v => { const o = parseOutputs(v); if (o.error) status(o.error, true); else { p.outputs = o.outputs; commit(); } }, 'mono'), 'e.g. busy=1, st=2'));
     } else if (sel.kind === 'transition') {
       const t = transOf(sel.id);
       const pos = M.transitions.indexOf(t);
@@ -256,7 +256,7 @@ export function mountPetriEditor(container, opts = {}) {
       if (t) selSection.append(h('div', { class: 'asm-section-title' }, `Transition ${t.name}`),
         field('Name', text(t.name, v => { t.name = v.trim() || t.name; commit(); }, 'mono')),
         field('Guard', text(t.guard, v => { t.guard = v.trim(); commit(); }, 'mono'), 'a condition on the inputs, e.g. go & !stop (empty: always)'),
-        field('Pulses when it fires', text(formatOutputs(t.outputs), v => { const o = parseOutputs(v); if (o.error) status(o.error, true); else { t.outputs = o; commit(); } }, 'mono'), '1 during the clock cycle after it fired'),
+        field('Pulses when it fires', text(formatOutputs(t.outputs), v => { const o = parseOutputs(v); if (o.error) status(o.error, true); else { t.outputs = o.outputs; commit(); } }, 'mono'), '1 during the clock cycle after it fired'),
         h('div', { class: 'asm-label' }, `Priority ${pos + 1} of ${M.transitions.length} (in a conflict, the first takes the tokens)`),
         h('div', { class: 'asm-row' }, btn('▲ Higher', 'Fire before the others', () => move(-1), 'asm-small'), btn('▼ Lower', 'Fire after the others', () => move(1), 'asm-small')));
     } else {
