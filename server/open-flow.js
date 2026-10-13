@@ -21,6 +21,7 @@
 
 import fs from 'node:fs/promises';
 import fss from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deviceFamily } from '../core/family.js';
@@ -56,6 +57,19 @@ export function hasBitDatabase(dev, pkg = null, dir = BIT_DB_DIR) {
 export function reportPart(device) {
   const ps = partStrings(device);
   return `xc${ps.bitPart}${ps.speed}`;
+}
+
+// a crash of the flow's process for lack of memory (V8's own messages)
+const OUT_OF_MEMORY = /JavaScript heap out of memory|Reached heap limit|Ineffective mark-compacts near heap limit/;
+
+/**
+ * The JavaScript heap of the flow's process, in MB (#156): Node's default is a fraction of the RAM
+ * (about 2 GB on an 8 GB computer), too little for the large designs (AES, SHA-256, a Z80); three
+ * quarters of the RAM here, from 2 GB to 16 GB. null when NODE_OPTIONS already sets the limit.
+ */
+export function flowHeapMb(totalBytes = os.totalmem(), nodeOptions = process.env.NODE_OPTIONS || '') {
+  if (/--max-old-space-size/.test(nodeOptions)) return null;
+  return Math.max(2048, Math.min(16384, Math.floor(totalBytes / 2 ** 20 * 0.75)));
 }
 
 /**
@@ -156,14 +170,20 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
     if (m) { result.failedStep = m[1]; result.currentStep = null; }
     if (/^=== SILINX DONE ===/.test(line)) { if (result.currentStep) result.completedSteps.push(result.currentStep); result.currentStep = null; }
   };
-  let code;
+  let code, outOfMemory = false;
+  const heap = flowHeapMb();
+  const watch = line => { if (OUT_OF_MEMORY.test(line)) outOfMemory = true; onLine(line); };
   try {
-    code = await runCommand(job, process.execPath, [path.join(HERE, 'open-flow-run.js'), path.join(outDir, 'flow.json')], { cwd: gen.buildDir, onLine, echo: false });
+    code = await runCommand(job, process.execPath, [...(heap ? [`--max-old-space-size=${heap}`] : []), path.join(HERE, 'open-flow-run.js'), path.join(outDir, 'flow.json')], { cwd: gen.buildDir, onLine: watch, echo: false });
   } finally {
     try {
       result.reports = await openReports(gen.buildDir, gen.top, project.device);
       await fs.writeFile(path.join(gen.buildDir, 'reports.json'), JSON.stringify(result.reports, null, 2) + '\n');
     } catch (e) { job.log(`WARNING: report writing failed: ${e.message}`); }
+  }
+  if (code !== 0 && outOfMemory) {
+    const step = result.failedStep || result.currentStep;
+    job.log(`ERROR:Silinx - out of memory${step ? ` in step '${step}'` : ''}: the design needs more than the ${heap ? `${heap} MB` : 'memory'} the Silinx toolchain may use on this computer (${Math.round(os.totalmem() / 2 ** 30)} GB of RAM). Close other programs, or use a computer with more memory; NODE_OPTIONS=--max-old-space-size=<MB> sets the limit.`);
   }
   if (code !== 0) {
     throw Object.assign(new Error(`Silinx toolchain failed${result.failedStep ? ` in step '${result.failedStep}'` : ''}: see the messages above. Designs the Silinx toolchain does not support yet can be implemented in an ISE mode (Toolchain Settings).`), { result });

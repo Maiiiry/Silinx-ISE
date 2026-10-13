@@ -14,6 +14,9 @@ In detail:
 - Browser edition: when Yosys crashes in the browser (out of memory, rather than an error of the
   design), the synthesis is run once more with Yosys started afresh, and the message says what
   happened (it said "Yosys failed: undefined") (#153).
+- **Large designs on computers with 8 GB of RAM:** the Silinx toolchain may use three quarters of the
+  RAM (it used Node's default, about 2 GB there, and AES, SHA-256 or a Z80 crashed with only "see the
+  messages above"); a run out of memory says so (#156).
 
 ## 15.10.7
 
