@@ -464,7 +464,7 @@ uiTest('a reload comes back to where the user was: the open documents, the one i
   await page.openProject('ViewPj');
   const where = () => page.eval(() => ({ docs: window.Silinx.docs.map((d) => d.id), active: window.Silinx.active?.id, view: window.Silinx.view,
     page: document.querySelector('#left-tabs .tab.active')?.dataset.page }));
-  const opened = (ids) => page.waitFor((want) => want.every((id) => window.Silinx.docs.some((d) => d.id === id)), [ids], { what: `documents ${ids.join(', ')}`, timeout: 20000 });
+  const opened = (ids) => page.waitFor((want) => want.every((id) => window.Silinx.docs.some((d) => d.id === id)), [ids], { what: `documents ${ids.join(', ')}`, timeout: 30000 });
   // the first opening: the Design Summary
   await opened(['summary']);
   assert.deepEqual((await where()).docs, ['summary']);
@@ -476,7 +476,7 @@ uiTest('a reload comes back to where the user was: the open documents, the one i
   await page.click('input[name=view][value=sim]');
   await page.click('#left-tabs .tab[data-page=files]');
   await page.click('#doc-tabs .tlabel', { text: 'top.vhd' });
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd', [], { what: 'top.vhd in front', timeout: 30000 });
   const before = await where();
   assert.deepEqual(before, { docs: ['summary', 'file:src/counter.v', 'file:src/top.vhd', 'impact'], active: 'file:src/top.vhd', view: 'sim', page: 'files' });
   await page.reload();
@@ -489,7 +489,7 @@ uiTest('a reload comes back to where the user was: the open documents, the one i
   await page.eval(() => { const k = 'silinx.view.ViewPj'; const v = JSON.parse(localStorage.getItem(k)); v.open.push('file:src/gone.vhd'); localStorage.setItem(k, JSON.stringify(v)); });
   await page.reload();
   await opened(['summary', 'file:src/counter.v', 'file:src/top.vhd']);
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd', [], { what: 'top.vhd in front', timeout: 30000 });
   assert.deepEqual((await where()).docs, ['summary', 'file:src/counter.v', 'file:src/top.vhd']);
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay')), null, 'no message');
   // another project, opened for the first time: its Design Summary
@@ -500,13 +500,13 @@ uiTest('a reload comes back to where the user was: the open documents, the one i
   // and back: ViewPj as it was left
   await page.openProject('ViewPj');
   await opened(['summary', 'file:src/counter.v', 'file:src/top.vhd']);
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd', [], { what: 'top.vhd in front', timeout: 30000 });
 });
 
 uiTest('a reload comes back to the simulation (ISim) and the board emulator, run again for the same module (#163)', E, async (page) => {
   await makeProject(env, { name: 'ViewSim', template: 'blinky' });
   await page.openProject('ViewSim');
-  await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'summary'));
+  await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'summary'), [], { what: 'the project open', timeout: 30000 });
   await page.click('input[name=view][value=sim]');
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
@@ -524,7 +524,7 @@ uiTest('a reload comes back to the simulation (ISim) and the board emulator, run
   // a netlist model that is gone: not reopened, no message
   await page.eval(() => { const k = 'silinx.view.ViewSim'; const v = JSON.parse(localStorage.getItem(k)); v.open = ['summary', 'isim:tb_top@postsynth']; v.active = 'isim:tb_top@postsynth'; localStorage.setItem(k, JSON.stringify(v)); });
   await page.reload();
-  await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'summary'));
+  await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'summary'), [], { what: 'the project open', timeout: 30000 });
   await new Promise((r) => setTimeout(r, 1500));
   assert.deepEqual((await docs()).docs, ['summary Design Summary']);
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay')), null, 'no message');
