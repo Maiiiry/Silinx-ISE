@@ -11,6 +11,10 @@ the "What's new" text of its GitHub release.
   a random run, undo / redo; PNML import and export (also the PIPE format).
 - **HDL from a Petri net (#187):** a synchronous controller in VHDL or Verilog, simulated like the net; the
   net is a module of the project by itself (it can be the top), its HDL file optional.
+- **Analysis of a Petri net (#188):** the *∑ Analysis* panel: the reachable markings (the reachability
+  graph), whether the net is safe or k-bounded (the most tokens of each place), its deadlocks and the shortest
+  firing sequence to each (*Show* simulates from there), live and dead transitions, reversibility, and the
+  P- and T-invariants.
 - **The site no longer says a new version is available while it still serves the previous one:**
   right after a release, for some minutes, *Help* ▸ *Check for Updates* (and the check at start-up)
   offered a version that a reload could not get yet, also on the development edition. On the site it

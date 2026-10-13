@@ -38,3 +38,13 @@
 .petri-editor .pn-dead { color: var(--asm-danger); font-weight: 700; }
 .petri-editor .pn-log { margin: 4px 0 0 18px; padding: 0; font: 11px var(--asm-mono); color: var(--asm-muted); }
 .petri-editor .pn-code { margin: 0; }
+
+/* the analysis panel (#188) */
+.petri-editor .pn-an-props th, .petri-editor .pn-an-table th { text-align: left; font-weight: 600; padding: 1px 12px 1px 0; color: var(--asm-muted); }
+.petri-editor .pn-an-props td, .petri-editor .pn-an-table td { padding: 1px 12px 1px 0; }
+.petri-editor .pn-an-title { margin: 10px 0 2px; font-weight: 700; }
+.petri-editor .pn-an-dead, .petri-editor .pn-an-pinv, .petri-editor .pn-an-tinv { margin: 2px 0 0 18px; padding: 0; }
+.petri-editor .pn-an-graph { margin-top: 10px; }
+.petri-editor .pn-an-graph ol { margin: 4px 0 0 28px; padding: 0; font-size: 11px; }
+.petri-editor .pn-ok { color: var(--asm-ok); }
+.petri-editor .pn-bad { color: var(--asm-danger); font-weight: 600; }

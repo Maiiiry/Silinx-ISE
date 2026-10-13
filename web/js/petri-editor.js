@@ -19,6 +19,7 @@ import {
   outputsOf, toPnml, fromPnml, PLACE_R, TRANS_W, TRANS_H,
 } from '/core/petri.js';
 import { parseOutputs, formatOutputs } from '/core/fsm.js';
+import { analyzePetri } from '/core/petri-analysis.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
@@ -73,6 +74,7 @@ export function mountPetriEditor(container, opts = {}) {
   const tabBtns = {
     sim: btn('▶ Simulate', 'Play the net: fire transitions, clock steps, run', () => togglePanel('sim'), 'pn-tab-btn'),
     code: btn('</> HDL', 'The hardware generated from the net', () => togglePanel('code'), 'pn-tab-btn'),
+    analysis: btn('∑ Analysis', 'Reachable markings, bounds, deadlocks, liveness, invariants', () => togglePanel('analysis'), 'pn-tab-btn'),
   };
   const pnmlIn = h('input', { type: 'file', accept: '.pnml,.xml', hidden: true });
   pnmlIn.addEventListener('change', async () => {
@@ -87,7 +89,7 @@ export function mountPetriEditor(container, opts = {}) {
     h('div', { class: 'asm-group' }, undoBtn, redoBtn), sep(),
     h('div', { class: 'asm-group' }, btn('Fit', 'Fit the net in the window', () => fit()), langSel),
     h('div', { class: 'asm-spacer' }),
-    h('div', { class: 'asm-group' }, tabBtns.sim, tabBtns.code,
+    h('div', { class: 'asm-group' }, tabBtns.sim, tabBtns.code, tabBtns.analysis,
       btn('Generate HDL file', 'Write the HDL module next to the net (kept in sync with it); without it, the net is a module of the project all the same', () => opts.onGenerate?.({ lang: M.lang })),
       btn('PNML ⇩', 'Export the net as PNML (for PIPE, WoPeD, TINA…)', () => downloadText(`${M.name}.pnml`, toPnml(M), 'application/xml')),
       btn('PNML ⇧', 'Import a PNML net (replaces this one: Undo brings it back)', () => pnmlIn.click()), pnmlIn, linkHost));
@@ -332,6 +334,7 @@ export function mountPetriEditor(container, opts = {}) {
       panelBody.append(h('pre', { class: 'asm-code pn-code' }, code));
       return;
     }
+    if (panel === 'analysis') { renderAnalysis(); return; }
     panelTitle.textContent = 'Simulation';
     const runBtn = btn(sim.timer ? '■ Stop' : '▶▶ Run', 'Clock steps every half second', () => {
       if (sim.timer) { clearInterval(sim.timer); sim.timer = null; } else sim.timer = setInterval(() => { if (!destroyed && sim) step(); }, 500);
@@ -359,6 +362,48 @@ export function mountPetriEditor(container, opts = {}) {
       dead ? h('div', { class: 'pn-sim-row pn-dead' }, 'Deadlock: no transition can fire, whatever the inputs') : null,
       h('div', { class: 'asm-label' }, 'Click an enabled transition (green: its guard is true) to fire it.'),
       h('ol', { class: 'pn-log' }, ...sim.log.map(l => h('li', {}, l)))].filter(Boolean));
+  }
+
+  // ---------------------------------------------------------------- analysis (#188)
+  let anCache = null;
+  function analysis() {
+    const key = JSON.stringify([M.places, M.transitions, M.arcs]);
+    if (anCache?.key !== key) anCache = { key, res: analyzePetri(M) };
+    return anCache.res;
+  }
+  const mark = mk => M.places.map(p => `${p.name}=${mk[p.id] || 0}`).join('  ');
+  const sum = (w, list) => Object.entries(w).map(([id, k]) => `${k > 1 ? `${k}·` : ''}${list.find(x => x.id === id)?.name ?? id}`).join(' + ');
+  function renderAnalysis() {
+    panelTitle.textContent = 'Analysis';
+    const a = analysis();
+    const yes = (ok, txt) => h('span', { class: ok ? 'pn-ok' : 'pn-bad' }, txt);
+    const maxB = Math.max(0, ...Object.values(a.bounds));
+    const row = (k, v) => h('tr', {}, h('th', {}, k), h('td', {}, v));
+    const showAt = mk => { if (panel !== 'sim') togglePanel('sim'); sim.marking = { ...mk }; sim.fired = []; sim.log = []; say('analysis: a deadlock'); render(); };
+    const states = a.states.length;
+    panelBody.append(
+      h('div', { class: 'asm-label' }, `The token game, whatever the inputs (the guards are not taken into account): ${states}${a.truncated ? '+' : ''} reachable marking${states === 1 ? '' : 's'}${a.truncated ? ` (stopped at ${a.maxStates}: the results are partial)` : ''}.`),
+      h('table', { class: 'pn-an-props' },
+        row('Bounded', a.safe ? yes(true, 'safe (at most 1 token in each place)') : yes(true, `${maxB}-bounded`)),
+        row('Deadlocks', a.deadlockCount ? yes(false, `${a.deadlockCount} reachable marking${a.deadlockCount === 1 ? '' : 's'} where no transition can fire`) : yes(true, 'none')),
+        row('Live', a.truncated ? 'unknown (partial graph)' : a.live ? yes(true, 'yes: every transition can always fire again') : yes(false, 'no')),
+        row('Reversible', a.reversible == null ? 'unknown (partial graph)' : a.reversible ? yes(true, 'yes: the initial marking can always be reached again') : yes(false, 'no')),
+        row('Conservative', a.conservative ? yes(true, 'yes: every place is in a P-invariant') : 'no')),
+      h('div', { class: 'pn-an-title' }, 'Places'),
+      h('table', { class: 'pn-an-table pn-an-places' }, h('tr', {}, h('th', {}, 'Place'), h('th', {}, 'Most tokens'), h('th', {}, 'Capacity'), h('th', {}, 'Bits needed')),
+        ...M.places.map(p => { const b = a.bounds[p.id]; return h('tr', {}, h('td', {}, p.name), h('td', {}, String(b)), h('td', {}, String(p.capacity) + (b >= p.capacity && p.capacity > 0 ? ' (reached)' : '')), h('td', {}, b > 1 ? `${Math.ceil(Math.log2(b + 1))} bits` : '1 flip-flop')); })),
+      h('div', { class: 'pn-an-title' }, 'Transitions'),
+      h('table', { class: 'pn-an-table pn-an-trans' }, h('tr', {}, h('th', {}, 'Transition'), h('th', {}, '')),
+        ...M.transitions.map(t => { const l = a.liveness[t.id]; return h('tr', {}, h('td', {}, t.name), h('td', {}, l === 'dead' ? yes(false, 'never fires') : l === 'live' ? yes(true, 'live') : 'can fire, but not always again')); })),
+      ...(a.deadlocks.length ? [h('div', { class: 'pn-an-title' }, 'Deadlocks'),
+        h('ul', { class: 'pn-an-dead' }, ...a.deadlocks.map(d => h('li', {}, h('span', { class: 'mono' }, mark(d.marking)), ` after ${d.path.length ? d.path.map(id => transOf(id)?.name).join(', ') : 'nothing (the initial marking)'} `,
+          btn('Show', 'Simulate from this marking', () => showAt(d.marking), 'asm-small'))))] : []),
+      h('div', { class: 'pn-an-title' }, 'P-invariants (weighted token sums that never change)'),
+      h('ul', { class: 'pn-an-pinv mono' }, ...(a.pInvariants == null ? [h('li', {}, 'too many to compute')] : a.pInvariants.length ? a.pInvariants.map(v => h('li', {}, `${sum(v.weights, M.places)} = ${v.tokens}`)) : [h('li', {}, 'none')])),
+      h('div', { class: 'pn-an-title' }, 'T-invariants (firing counts that bring a marking back)'),
+      h('ul', { class: 'pn-an-tinv mono' }, ...(a.tInvariants == null ? [h('li', {}, 'too many to compute')] : a.tInvariants.length ? a.tInvariants.map(v => h('li', {}, sum(v, M.transitions))) : [h('li', {}, 'none')])),
+      h('details', { class: 'pn-an-graph' }, h('summary', {}, `Reachability graph${states > 200 ? ' (the first 200 markings)' : ''}`),
+        h('ol', { start: '0', class: 'mono' }, ...a.states.slice(0, 200).map(st => h('li', {}, mark(st.marking), st.succ.length ? `  →  ${st.succ.map(e => `${transOf(e.transition)?.name}: M${e.to}`).join(', ')}` : '  (deadlock)')))));
   }
 
   // ---------------------------------------------------------------- mouse and keys

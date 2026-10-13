@@ -205,3 +205,38 @@ uiTest('Petri net editor: Random, Run / Stop, Reset; PNML export and import (und
   assert.match(await readWs(env, 'PnSim', 'src/ctl.vhd'), /ready : out std_logic/, 'the HDL file follows the net');
   assert.equal((await saved('PnSim')).generatedFile, 'src/ctl.vhd');
 });
+
+uiTest('Petri net editor: the analysis (#188): properties, places, transitions, invariants, a deadlock shown in the simulation; in Portuguese', E, async (page) => {
+  await newNet(page, 'PnAn');
+  const txt = (sel) => page.eval((ed, s) => [...document.querySelectorAll(`${ed} ${s}`)].map((e) => e.textContent), ED, sel);
+  await page.click(`${ED} .pn-tab-btn`, { text: '∑ Analysis' });
+  await page.waitFor((ed) => document.querySelector(`${ed} .pn-an-props`), [ED], { what: 'the analysis' });
+  assert.deepEqual(await txt('.pn-an-props tr'), ['Boundedsafe (at most 1 token in each place)', 'Deadlocksnone', 'Liveyes: every transition can always fire again',
+    'Reversibleyes: the initial marking can always be reached again', 'Conservativeyes: every place is in a P-invariant']);
+  assert.deepEqual(await txt('.pn-an-places tr'), ['PlaceMost tokensCapacityBits needed', 'idle11 (reached)1 flip-flop', 'work11 (reached)1 flip-flop']);
+  assert.deepEqual(await txt('.pn-an-trans tr td:last-child'), ['live', 'live']);
+  assert.deepEqual(await txt('.pn-an-pinv li'), ['idle + work = 1']);
+  assert.deepEqual(await txt('.pn-an-tinv li'), ['start + done']);
+  assert.deepEqual(await txt('.pn-an-graph li'), ['idle=1  work=0  →  start: M1', 'idle=0  work=1  →  done: M0']);
+  // done no longer puts the token back (its arc to idle deleted): a deadlock after start, done
+  await page.click(`${ED} .pn-tool`, { text: '➚ Select' });
+  const arc = await page.eval((ed) => { const l = document.querySelector(`${ed} .pn-arc[data-id=a4] .pn-arc-hit`).getBoundingClientRect(); return { x: l.left + l.width / 2, y: l.top + l.height / 2 }; }, ED);
+  await page.click(arc);
+  await page.key('Delete');
+  await page.waitFor((ed) => document.querySelector(`${ed} .pn-an-dead`), [ED], { what: 'the deadlock' });
+  assert.deepEqual(await txt('.pn-an-props tr td'), ['safe (at most 1 token in each place)', '1 reachable marking where no transition can fire', 'no', 'no', 'no']);
+  assert.deepEqual(await txt('.pn-an-dead li'), ['idle=0  work=0 after start, done Show']);
+  assert.deepEqual(await txt('.pn-an-trans tr td:last-child'), ['can fire, but not always again', 'can fire, but not always again']);
+  assert.deepEqual(await txt('.pn-an-pinv li'), ['none']);
+  assert.deepEqual(await txt('.pn-an-tinv li'), ['none']);
+  // Show: the simulation from that marking
+  await page.click(`${ED} .pn-an-dead .asm-small`, { text: 'Show' });
+  await page.waitFor((ed) => document.querySelector(`${ed} .pn-marking`)?.textContent === 'idle=0  work=0' && document.querySelector(`${ed} .pn-dead`), [ED], { what: 'the deadlock simulated' });
+  // in Portuguese
+  await page.click(`${ED} .pn-tab-btn`, { text: '∑ Analysis' });
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+  await page.waitFor((ed) => /O jogo das marcas, sejam quais forem as entradas/.test(document.querySelector(`${ed} .asm-bottom, ${ed}`).textContent), [ED], { what: 'the analysis in Portuguese' });
+  assert.deepEqual(await txt('.pn-an-props tr td'), ['segura (no máximo 1 marca em cada lugar)', '1 marcação alcançável onde nenhuma transição pode disparar', 'não', 'não', 'não']);
+  assert.deepEqual(await txt('.pn-an-dead li'), ['idle=0  work=0 depois de start, done Mostrar']);
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+});
