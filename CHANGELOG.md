@@ -3,6 +3,14 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.9
+
+In detail:
+
+- *Help* ▸ *About* says whether the copy in use counts its use: the site (pmnmalo.github.io/Silinx-ISE)
+  counts its visits and what is used with GoatCounter (no cookies, no personal data, linked); the
+  application and the downloaded Silinx-ISE.html send nothing (#158).
+
 ## 15.10.8
 
 In short:

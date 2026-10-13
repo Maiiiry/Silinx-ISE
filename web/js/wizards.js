@@ -7,7 +7,7 @@ import * as T from './templates.js';
 import { typeText } from './editor.js';
 import { S, app } from './app.js';
 import { THIRD_PARTY } from '/core/third-party.js';
-import { countEvent } from './analytics.js';
+import { countEvent, siteCounts } from './analytics.js';
 
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 // Device used when no evaluation board is selected.
@@ -909,15 +909,24 @@ export function aboutDialog() {
             h('td', {}, link(`https://github.com/${REPOSITORY}`, `github.com/${REPOSITORY}`))),
           h('tr', {}, h('td', { style: { paddingRight: '10px', verticalAlign: 'top', fontWeight: 'bold' } }, 'Developers:'),
             h('td', {}, h('div', {}, 'Pedro Maló — ', link('https://github.com/pmnmalo', 'github.com/pmnmalo')),
-              h('div', { style: { color: '#666' } }, 'developed with Claude (Anthropic)')))),
+              h('div', { style: { color: '#666' } }, 'developed with Claude (Anthropic)'))),
+          // whether this copy counts its use (only the published site does, with GoatCounter)
+          h('tr', { class: 'about-counts' }, h('td', { style: { paddingRight: '10px', verticalAlign: 'top', fontWeight: 'bold' } }, 'Usage counts:'),
+            h('td', {}, ...(siteCounts()
+              ? ['This page counts its visits and what is used (a new project, a simulation, a bitstream…) with ', gcLink(), ': no cookies, no personal data, never the content of a project.']
+              : ['None: this copy sends nothing.', ' Only the site (pmnmalo.github.io/Silinx-ISE) counts its visits, with ', gcLink(), ' (no cookies, no personal data).'])))),
         h('p', {}, `Copyright 2026 Pedro Maló. Free software under the GNU Affero General Public License v3.0 (`, link(`https://github.com/${REPOSITORY}/blob/main/LICENSE`, 'LICENSE'), ', with an additional permission for elkjs: ', link(`https://github.com/${REPOSITORY}/blob/main/NOTICE`, 'NOTICE'), ').'),
         h('p', { class: 'hint' }, 'This program comes with ABSOLUTELY NO WARRANTY. Source code: ', link(`https://github.com/${REPOSITORY}`, `github.com/${REPOSITORY}`), '.'),
-        h('p', { class: 'hint' }, 'Privacy: the site (pmnmalo.github.io/Silinx-ISE) counts its visits and what is used (a new project, a simulation, a bitstream…) with GoatCounter, without cookies or personal data, and never the content of a project. The application and the downloaded Silinx-ISE.html send nothing. Using Silinx in a course? ', link(WHO_URL, 'Tell us who you are'), '.'),
+        h('p', { class: 'hint' }, 'Using Silinx in a course? ', link(WHO_URL, 'Tell us who you are'), '.'),
         componentsNode(),
         h('p', { style: { color: '#666' } }, 'Synthesis, place & route and bitstream generation use the Xilinx ISE 14.7 command-line tools. Xilinx, ISE, ISim, iMPACT and Spartan are trademarks of AMD/Xilinx; Silinx ISE is an independent project, not affiliated with or endorsed by AMD/Xilinx.'))),
     buttons: [{ label: 'OK', primary: true, value: true }],
   });
 }
+
+// the usage counter of the published site (About: Usage counts)
+export const GOATCOUNTER_URL = 'https://www.goatcounter.com';
+const gcLink = () => { const a = link(GOATCOUNTER_URL, 'GoatCounter'); a.dataset.noI18n = ''; return a; };   // a name: never translated
 
 // ------------------------------------------------------------------ Tell us who you are
 // the users who want to say so (school, course, role): a GitHub Discussions thread, nothing collected

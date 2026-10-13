@@ -21,3 +21,10 @@ export function countEvent(name) {
   done.add(name);
   try { gc.count({ path: `event/${name}`, title: EVENTS[name], event: true }); } catch { /* never in the way */ }
 }
+
+/** Whether this page counts its use: the published site (its loader, on *.github.io), or a counter
+ *  already there; never the application or the downloaded file (Help ▸ About says which). */
+export function siteCounts() {
+  if (globalThis.goatcounter?.count) return true;
+  return !!globalThis.document?.getElementById('silinx-site-analytics') && /\.github\.io$/.test(globalThis.location?.hostname || '');
+}

@@ -247,6 +247,11 @@ uiTest('About shows the version and the GitHub link', E, async (page) => {
   assert.match(info.text, /Digital design platform for Xilinx FPGAs[\s\S]*made for teaching[\s\S]*FSM and ASM state machine editors[\s\S]*truth tables and Karnaugh maps[\s\S]*board emulator/);
   assert.match(info.text, /Copyright 2026 Pedro Maló\. Free software under the GNU Affero General Public License v3\.0/);
   assert.match(info.text, /ABSOLUTELY NO WARRANTY\. Source code: github\.com\//);
+  // usage counts: none here (only the published site counts, with GoatCounter)
+  assert.match(info.text, /Usage counts:\s+None: this copy sends nothing\. Only the site \(pmnmalo\.github\.io\/Silinx-ISE\) counts its visits, with GoatCounter \(no cookies, no personal data\)\./);
+  assert.ok(info.links.some((l) => l.href === 'https://www.goatcounter.com/' && l.target === '_blank'), 'GoatCounter linked');
+  assert.match(info.text, /Using Silinx in a course\? Tell us who you are\./);
+  assert.doesNotMatch(info.text, /Privacy: the site/);
   assert.ok(info.links.some((l) => l.href.endsWith('/THIRD-PARTY-NOTICES.md')));
   const { THIRD_PARTY } = await import('../../core/third-party.js');
   await page.click('.dlg-overlay .about-oss summary');

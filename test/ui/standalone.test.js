@@ -178,6 +178,13 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
   assert.doesNotMatch(log, /SILINX FAILED|Process failed/);
   // the bitstream is downloaded
   assert.deepEqual(await page.eval(() => window.__gc), ['event/new-project', 'event/bitstream'], 'what was used, counted once');
+  // Help ▸ About says that this page counts (the site's counter there)
+  await page.menu('Help', 'About Silinx ISE');
+  await page.waitDialog('About');
+  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .about-counts').innerText),
+    /^Usage counts:\s+This page counts its visits and what is used \(a new project, a simulation, a bitstream…\) with GoatCounter: no cookies, no personal data, never the content of a project\.$/);
+  await page.key('Enter');
+  await page.waitNoDialog();
   const bitFile = await waitDownload(page, 'top.bit');
   const bit = await fs.readFile(bitFile);
   assert.ok(bit.length > 100_000, `top.bit downloaded (${bit.length} bytes)`);

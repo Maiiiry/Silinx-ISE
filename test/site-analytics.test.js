@@ -48,3 +48,22 @@ test('countEvent: nothing without the counter; a known event once a page load, w
     assert.doesNotThrow(() => countEvent('program'));
   } finally { delete globalThis.goatcounter; }
 });
+
+test('About\'s usage counts in Portuguese (web/js/i18n.js)', async () => {
+  Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (k) => (k === 'silinx.lang' ? 'pt' : null), setItem() {}, removeItem() {} }, configurable: true, writable: true });
+  const { t } = await import('../web/js/i18n.js');
+  for (const [en, pt] of [['Usage counts:', 'Contagem de utilização:'], ['None: this copy sends nothing.', 'Nenhuma: esta cópia não envia nada.'],
+    ['Only the site (pmnmalo.github.io/Silinx-ISE) counts its visits, with', 'Só o site (pmnmalo.github.io/Silinx-ISE) conta as visitas, com o'],
+    ['(no cookies, no personal data).', '(sem cookies nem dados pessoais).'], ['Using Silinx in a course?', 'Usa o Silinx numa disciplina?'],
+    ['This page counts its visits and what is used (a new project, a simulation, a bitstream…) with', 'Esta página conta as visitas e o que é usado (um projeto novo, uma simulação, um bitstream…) com o'],
+    [': no cookies, no personal data, never the content of a project.', ': sem cookies, sem dados pessoais, nunca o conteúdo de um projeto.']]) assert.equal(t(en), pt);
+});
+
+test('siteCounts: only where the site\'s counter is (never the application or the downloaded file)', async () => {
+  const { siteCounts } = await import('../web/js/analytics.js');
+  delete globalThis.goatcounter;
+  assert.equal(siteCounts(), false);
+  globalThis.goatcounter = { count() {} };
+  assert.equal(siteCounts(), true);
+  delete globalThis.goatcounter;
+});
