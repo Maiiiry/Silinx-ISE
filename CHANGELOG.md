@@ -5,6 +5,14 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.9
 
+In short:
+
+- **The dark theme is readable everywhere:** iMPACT's note, the wizards' code, the schematic editor's
+  fields and more were light text on light backgrounds.
+- **A reload of the page comes back to where you were** (the open documents, the one in front).
+- *Help* ▸ *About* says whether the copy in use counts its use (only the site does).
+- The quality page measured again: all 38 designs of the corpus build with the Silinx toolchain.
+
 In detail:
 
 - *Help* ▸ *About* says whether the copy in use counts its use: the site (pmnmalo.github.io/Silinx-ISE)
