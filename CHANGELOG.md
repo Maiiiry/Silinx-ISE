@@ -5,6 +5,16 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.8
 
+In short:
+
+- **Large designs build on computers with 8 GB of RAM** with the Silinx toolchain (AES, SHA-256, a
+  Z80 crashed there), and a lack of memory is said plainly, in the application and in the browser.
+- **Clearer messages:** an I/O voltage conflict between banks is named, with the fix to write in the
+  UCF; the constraints' warnings are counted in the process they belong to.
+- **Schematics:** names as written in the design (VHDL included), and the RTL and Technology
+  Schematics fully in Portuguese.
+- The site counts its visits, without cookies or personal data; *Help* ▸ *Tell Us Who You Are…*
+
 In detail:
 
 - **Usage counts of the site:** https://pmnmalo.github.io/Silinx-ISE/ counts its visits and what is
