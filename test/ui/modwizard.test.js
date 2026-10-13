@@ -23,9 +23,9 @@ async function openWizard(page, type, name, title) {
   assert.deepEqual(types, ['Truth Table', 'Module (HDL)', 'Module (Wizard)', 'Schematic (Diagram)', 'Schematic (Wizard)', 'State Machine (FSM)', 'State Machine (ASM)',
     'Petri Net', 'Test Bench (HDL)', 'Test Bench (Wizard)', 'Implementation Constraints File', 'Memory Initialization File (.mem)']);
   await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === t); r.scrollIntoView(); r.click(); }, type);
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
   await page.dialogButton('Finish');
   await page.waitDialog(title);
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
 }
 const next = async (page, title) => {
   await page.dialogButton(title === null ? 'Finish' : 'Next >');
@@ -133,9 +133,9 @@ uiTest('Portuguese: the New Source list and every page of the Module and Schemat
     await setLang('en');
     await compare('New Source');
     await page.eval((t) => { [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === t).click(); }, type);
-    await page.fill('.dlg-overlay .wiz-main input[type=text]', 'pt_mod');
     await page.dialogButton('Finish');
     await page.waitDialog(title);
+    await page.fill('.dlg-overlay .wiz-main input[type=text]', 'pt_mod');
     for (let k = 0; k < pages; k++) {
       if (k === 1) {
         await compare(`${title} page 2 (empty)`);
@@ -168,4 +168,52 @@ uiTest('Portuguese: the New Source list and every page of the Module and Schemat
     await page.waitNoDialog();
   }
   assert.deepEqual(missing, [], `untranslated:\n${missing.join('\n')}`);
+});
+
+uiTest('New Source: page 1 is only the type; the file name and the location on the next page (or on the wizard\'s own page, with its Location)', E, async (page) => {
+  await makeProject(env, { name: 'NsPages', top: '' });
+  await page.openProject('NsPages');
+  await page.menu('Project', 'New Source…');
+  await page.waitDialog('New Source Wizard');
+  const pick = (t) => page.eval((x) => { [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === x).click(); }, t);
+  const h3 = () => page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent);
+  const labels = () => page.eval(() => [...document.querySelectorAll('.dlg-overlay .wiz-main .form-grid > label')].map((l) => l.textContent));
+  await pick('Memory Initialization File (.mem)');
+  assert.equal(await h3(), 'Select Source Type');
+  assert.equal(await page.eval(() => document.querySelectorAll('.dlg-overlay .wiz-main input[type=text]').length), 0, 'no file name, no location on page 1');
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'File Name and Location');
+  assert.deepEqual(await labels(), ['Source type:', 'File name:', 'Location:']);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .wiz-main input[type=text]')].map((i) => i.value)), ['', 'src']);
+  // an invalid name: refused here, with its message
+  await page.dialogButton('Next >');
+  await page.waitFor(() => /Enter a valid file name/.test(document.querySelector('.dlg-overlay').innerText));
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'rom');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'data', { index: 1 });
+  await page.dialogButton('Next >');
+  await page.waitFor(() => /Source Directory: data[\s\S]*Source Name: rom\.mem/.test(document.querySelector('.dlg-overlay .code-box')?.textContent || ''), [], { what: 'the summary' });
+  // back to page 1, another type: a wizard (Finish), with its own name and location
+  await page.dialogButton('< Back');
+  await page.dialogButton('< Back');
+  await pick('Module (Wizard)');
+  await page.dialogButton('Finish');
+  await page.waitDialog('Module Wizard');
+  assert.deepEqual(await labels(), ['Module name:', 'Language:', 'Architecture name:', 'Location:', 'File:']);
+  await page.fill('.dlg-overlay .mw-name', 'blk');
+  await page.fill('.dlg-overlay .mw-loc', 'rtl');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .mw-file').textContent === 'rtl/blk.vhd', [], { what: 'the file in rtl' });
+  await page.fill('.dlg-overlay .mw-loc', 'a b');
+  await page.dialogButton('Next >');
+  await page.waitFor(() => /Invalid location/.test(document.querySelector('.dlg-overlay').innerText), [], { what: 'location refused' });
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  // in Portuguese
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+  await page.menu('Projeto', 'Nova Fonte…');
+  await page.waitFor(() => /Assistente de Nova Fonte/.test(document.querySelector('.dlg-overlay')?.innerText || ''), [], { what: 'the wizard in Portuguese' });
+  await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')][0].click());
+  await page.click('.dlg-overlay .dlg-buttons .btn.primary');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Nome do Ficheiro e Localização', [], { what: 'page 2 in Portuguese' });
+  assert.deepEqual(await labels(), ['Tipo de fonte:', 'Nome do ficheiro:', 'Localização:']);
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
 });

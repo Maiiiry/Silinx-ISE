@@ -25,6 +25,7 @@ uiTest('New Source on an existing file: asks to replace; No keeps it, Yes replac
     await page.menu('Project', 'New Source…');
     await page.waitDialog('New Source Wizard');
     await pickType(page, 'Test Bench (HDL)');
+    await page.dialogButton('Next >');
     await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tb_inv');
     await page.dialogButton('Next >');
     // the replace question, on top of the wizard
@@ -58,9 +59,9 @@ uiTest('Test Bench Wizard and Module Wizard on an existing file: replace after c
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
   await pickType(page, 'Test Bench (Wizard)');
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tb_inv');
   await page.dialogButton('Finish');
   await page.waitDialog('Test Bench Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tb_inv');
   await page.dialogButton('Next >');
   await page.waitFor(() => document.querySelectorAll('.dlg-overlay').length === 2);
   assert.match(await topText(page), /sim\/tb_inv\.vhd already exists/);
@@ -79,9 +80,9 @@ uiTest('Test Bench Wizard and Module Wizard on an existing file: replace after c
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
   await pickType(page, 'Module (Wizard)');
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'inv');
   await page.dialogButton('Finish');
   await page.waitDialog('Module Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'inv');
   await page.dialogButton('Next >');
   // the same file (src/inv.vhd defines inv): the replace question
   await page.waitFor(() => document.querySelectorAll('.dlg-overlay').length === 2);

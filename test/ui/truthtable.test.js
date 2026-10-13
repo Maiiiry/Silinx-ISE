@@ -34,6 +34,7 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.menu('Tools', 'Truth Table / Karnaugh Map…');
   await page.waitDialog('New Source Wizard');
   assert.match(await page.eval(() => document.querySelector('.dlg-overlay .src-types .st.sel').textContent), /^\s*Truth Table\s*$/);
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'maj3');
   await page.dialogButton('Next >');
   await page.dialogButton('Finish');
@@ -282,6 +283,7 @@ uiTest('Truth Table from Module: a vector adder read into a table (exhaustive si
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
   await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => /Truth Table/.test(e.textContent)); r.scrollIntoView(); r.click(); });
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'blank');
   await page.dialogButton('Next >');
   await page.dialogButton('Finish');
@@ -302,6 +304,7 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
   await page.openProject('TtVlog');
   await page.menu('Tools', 'Truth Table / Karnaugh Map…');
   await page.waitDialog('New Source Wizard');
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tv');
   await page.dialogButton('Next >');
   await page.dialogButton('Finish');

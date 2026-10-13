@@ -514,16 +514,20 @@ export async function newSourceWizard({ type } = {}) {
   renderList();
   const p1 = {
     title: 'Select Source Type',
-    render: () => h('div', { style: { display: 'flex', gap: '12px' } },
-      h('div', { style: { width: '270px' } }, list),
-      h('div', { style: { flex: 1 } }, h('label', {}, 'File name:'), fname, h('label', {}, 'Location:'), loc,
-        h('label', { style: { marginTop: '12px' } }, h('input', { type: 'checkbox', checked: true, disabled: true }), ' Add to project'))),
+    render: () => h('div', {}, h('div', { class: 'hint' }, 'Select the type of the new source; its name and location come next.'), list),
+    validate: () => null,
+  };
+  // the file name and the location (the wizards that write the file themselves ask on their own pages)
+  const pFile = {
+    title: 'File Name and Location',
+    render: () => h('div', {},
+      h('div', { class: 'form-grid' }, ...field('Source type:', h('span', {}, st.label)), ...field('File name:', fname), ...field('Location:', loc)),
+      h('label', { style: { display: 'block', marginTop: '12px' } }, h('input', { type: 'checkbox', checked: true, disabled: true }), ' Add to project')),
+    onShow: () => setTimeout(() => fname.focus(), 0),
     validate: async () => {
-      const n = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
+      const n = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json|fsm\.json|pn\.json)$/i, '');
       if (!FILE_RE.test(n)) return 'Enter a valid file name (letters, digits, _ and -).';
       if (!/^[A-Za-z0-9_/-]+$/.test(loc.value.trim())) return 'Invalid location.';
-      // the wizards that write the file themselves ask on their own pages
-      if (['tbwiz', 'modwiz', 'schwiz'].includes(st.id)) return null;
       return guard(`${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`);
     },
   };
@@ -609,13 +613,13 @@ export async function newSourceWizard({ type } = {}) {
     },
   };
   const pages = () => {
-    if (st.id === 'hdl') return [p1, p2, pSum];
-    if (st.id === 'tb') return [p1, p2tb, pSum];
-    if (WIZARD_TYPES.has(st.id)) return [p1];   // Finish opens the Test Bench / Module / Schematic Wizard
-    return [p1, pSum];
+    if (st.id === 'hdl') return [p1, pFile, p2, pSum];
+    if (st.id === 'tb') return [p1, pFile, p2tb, pSum];
+    if (WIZARD_TYPES.has(st.id)) return [p1];   // Finish opens the Test Bench / Module / Schematic Wizard (name and location there)
+    return [p1, pFile, pSum];
   };
   // The wizard driver takes a fixed page list; rebuild when the type changes on page 1.
-  const dyn = [p1, { title: 'Options', render: () => h('div') }, pSum];
+  const dyn = [p1, pFile, { title: 'Options', render: () => h('div') }, pSum];
   const proxy = new Proxy(dyn, { get: (t, k) => (k === 'length' ? pages().length : (typeof k === 'string' && /^\d+$/.test(k) ? pages()[+k] : t[k])) });
   pSum.validate = () => {   // the language (extension) may have changed after page 1
     const nn = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
@@ -626,7 +630,7 @@ export async function newSourceWizard({ type } = {}) {
   const n = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
   if (st.id === 'tbwiz') {
     const { testBenchWizard } = await import('./tbwizard.js');
-    return testBenchWizard({ module: S.sel?.module, name: n, location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
+    return testBenchWizard({ module: S.sel?.module, name: n || null, location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
   }
   if (st.id === 'modwiz' || st.id === 'schwiz') {
     const mw = await import('./modwizard.js');

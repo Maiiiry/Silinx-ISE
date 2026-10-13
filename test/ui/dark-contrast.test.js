@@ -112,6 +112,7 @@ for (const theme of ['dark', 'light']) {
     }
     await page.menu('File', 'New Project…');
     await page.waitDialog('New Project Wizard');
+    await page.dialogButton('Next >');
     await page.fill('.dlg-overlay .wiz-main input[type=text]', 'DarkNew');
     for (let k = 1; ; k++) {
       await check(`New Project page ${k}`);
@@ -243,13 +244,16 @@ for (const theme of ['dark', 'light']) {
       await page.menu('Project', 'New Source…');
       await page.waitDialog('New Source Wizard');
       await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.textContent.trim() === t); r.scrollIntoView(); r.click(); }, type);
-      await page.fill('.dlg-overlay .wiz-main input[type=text]', `s${k}`);
       await check(`New Source ${type}`);
-      while (await nextPage(page)) await check(`New Source ${type}, next page`);
+      // the name on the next page (the File Name and Location page, or the wizard's own)
+      let named = false;
+      const name = async () => { if (!named && await page.eval(() => !!document.querySelector('.dlg-overlay .wiz-main input[type=text]'))) { await page.fill('.dlg-overlay .wiz-main input[type=text]', `s${k}`); named = true; } };
+      while (await nextPage(page)) { await name(); await check(`New Source ${type}, next page`); }
       // the wizards: Finish opens them; every page, the Test Bench wizard's vectors filled in
       if (/\(Wizard\)/.test(type)) {
         await page.dialogButton('Finish');
         await page.waitFor(() => document.querySelector('.dlg-overlay .dlg-title span')?.textContent.endsWith('Wizard') && !/New Source/.test(document.querySelector('.dlg-overlay .dlg-title span').textContent));
+        await name();
         for (let p = 1; ; p++) {
           const title = await page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent || '');
           // the Module / Schematic wizards: a port from the quick buttons
@@ -278,6 +282,7 @@ for (const theme of ['dark', 'light']) {
     for (const [item, sel] of [['ASM State Machine Editor…', '.asm-editor'], ['FSM State Diagram Editor…', '.fsm-editor'], ['Truth Table / Karnaugh Map…', '.tt-editor']]) {
       await page.menu('Tools', item);
       await page.waitDialog('New Source Wizard');
+      await page.dialogButton('Next >');
       await page.fill('.dlg-overlay .wiz-main input[type=text]', sel.slice(1, 4));
       await page.dialogButton('Next >');
       await page.dialogButton('Finish');

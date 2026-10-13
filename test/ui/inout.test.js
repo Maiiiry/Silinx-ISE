@@ -18,9 +18,9 @@ async function openWizard(page, type, name, title) {
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
   await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === t); r.scrollIntoView(); r.click(); }, type);
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
   await page.dialogButton('Finish');
   await page.waitDialog(title);
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
 }
 const next = async (page, title) => {
   await page.dialogButton(title === null ? 'Finish' : 'Next >');
@@ -139,9 +139,9 @@ const openTbw = async (page, name) => {
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
   await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => /^\s*Test Bench \(Wizard\)\s*$/.test(e.textContent)); r.scrollIntoView(); r.click(); });
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
   await page.dialogButton('Finish');
   await page.waitDialog('Test Bench Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
 };
 const simulateAll = async (page, tb) => {
   await page.click('input[name=view][value=sim]');

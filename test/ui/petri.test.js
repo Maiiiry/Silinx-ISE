@@ -18,6 +18,7 @@ uiTest('Petri net editor: new net, a place added and undone, the token game and 
   await page.openProject('PnPj');
   await page.menu('Tools', 'Petri Net Editor…');
   await page.waitDialog('New Source Wizard');
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'ctl');
   await page.dialogButton('Next >');
   await page.dialogButton('Finish');
@@ -69,6 +70,7 @@ async function newNet(page, pj) {
   await page.openProject(pj);
   await page.menu('Tools', 'Petri Net Editor…');
   await page.waitDialog('New Source Wizard');
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'ctl');
   await page.dialogButton('Next >');
   await page.dialogButton('Finish');

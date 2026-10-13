@@ -1,5 +1,5 @@
 // Beginner wizards of the New Source dialog (types 'Module (Wizard)' and 'Schematic (Wizard)'):
-// the New Source page 1 asks the file name and location, Finish there opens one of these.
+// Finish on the New Source page 1 (the type) opens one of these; they ask the name and the location.
 //
 //   moduleWizard:    name, language and description -> inputs, outputs and bidirectional (inout,
 //                    tri-state) ports (friendly table with quick-add buttons) -> kind of logic
@@ -28,12 +28,14 @@ function namePage({ title, name, lang, loc, sch, withArch, guard }) {
   const archLbl = h('label', {}, 'Architecture name:');
   const desc = h('textarea', { class: 'mw-desc', rows: 3, style: { width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }, placeholder: 'What the module does (it goes into the header comment)' });
   const fileHint = h('span', { class: 'mw-file', 'data-no-i18n': '' });
-  const path = () => `${cleanLoc(loc)}/${nameIn.value.trim()}${extOf(langSel.value, sch)}`;
+  const locIn = h('input', { type: 'text', class: 'mw-loc', value: cleanLoc(loc) });
+  const path = () => `${cleanLoc(locIn.value)}/${nameIn.value.trim()}${extOf(langSel.value, sch)}`;
   const sync = () => {
     fileHint.textContent = path();
     if (withArch) archLbl.style.display = archIn.style.display = langSel.value === 'vhdl' ? '' : 'none';
   };
   nameIn.addEventListener('input', sync);
+  locIn.addEventListener('input', sync);
   langSel.addEventListener('change', sync);
   const page = {
     title,
@@ -44,13 +46,14 @@ function namePage({ title, name, lang, loc, sch, withArch, guard }) {
       h('div', { class: 'form-grid', style: { marginTop: '10px' } },
         ...field(sch ? 'Schematic (module) name:' : 'Module name:', nameIn), ...field('Language:', langSel),
         ...(withArch ? [archLbl, archIn] : []),
-        ...field('File:', fileHint)),
+        ...field('Location:', locIn), ...field('File:', fileHint)),
       h('label', { style: { display: 'block', marginTop: '10px' } }, 'Description (optional):'), desc),
     onShow: sync,
     validate: () => {
       const n = nameIn.value.trim();
       const e = identError(n, langSel.value);
       if (e) return `Name: ${e}.`;
+      if (!/^[A-Za-z0-9_/-]+$/.test(locIn.value.trim())) return 'Invalid location.';
       if (withArch && langSel.value === 'vhdl') { const a = identError(archIn.value.trim(), 'vhdl'); if (a) return `Architecture name: ${a}.`; }
       const other = moduleElsewhere(n, path());
       if (other) return `A module named '${n}' already exists.`;

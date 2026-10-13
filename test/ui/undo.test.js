@@ -142,6 +142,7 @@ uiTest('Edit ▸ Undo / Redo reach every editor: text, truth table, pin planner 
   // truth table: a cell clicked, Edit ▸ Undo / Redo
   await page.menu('Tools', 'Truth Table / Karnaugh Map…');
   await page.waitDialog('New Source Wizard');
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'maj');
   await page.dialogButton('Next >');
   await page.dialogButton('Finish');

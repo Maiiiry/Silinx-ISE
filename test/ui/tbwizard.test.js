@@ -32,9 +32,9 @@ const openTbw = async (page, name) => {
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
   await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => /^\s*Test Bench \(Wizard\)\s*$/.test(e.textContent)); r.scrollIntoView(); r.click(); });
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
   await page.dialogButton('Finish');
   await page.waitDialog('Test Bench Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
 };
 
 // next page of the wizard (the primary button) and wait for page `title`
@@ -115,6 +115,7 @@ uiTest('New Source ▸ Test Bench (HDL) in VHDL and in Verilog, Module (HDL) in 
     await page.menu('Project', 'New Source…');
     await page.waitDialog('New Source Wizard');
     await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.textContent.trim().endsWith(t)); r.scrollIntoView(); r.click(); }, type);
+    await page.dialogButton('Next >');
     await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
     await page.dialogButton('Next >');
     await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main select'));

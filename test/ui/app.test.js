@@ -333,7 +333,8 @@ uiTest('Portuguese: View ▸ Language switches the UI; menus, dialogs and the ma
       await compare(`dialog '${it}'${pages > 1 ? ` page ${k + 1}` : ''}`, () => page.eval(() => window.__uiTexts(document.querySelector('.dlg-overlay'))));
       if (k < pages - 1) {
         await setLang('en');
-        if (k === 0) await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
+        // the name: on the first page that asks it (New Source: the page after the type)
+        if (await page.eval(() => { const i = document.querySelector('.dlg-overlay .wiz-main input[type=text]'); return !!i && !i.value; })) await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
         const h3 = await page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3').textContent);
         await page.dialogButton('Next >');
         await page.waitFor((t) => document.querySelector('.dlg-overlay .wiz-main h3').textContent !== t, [h3]);
