@@ -177,9 +177,15 @@ const FEATURES = {
   feat_dcm_div2: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 /, /DESKEW_ADJUST::0 /, /CLKFX_DIVIDE::15 /]],
   feat_dcm_fx: [/^pack \(\d+ slices\)/m, 'DCM', [/X_CLKIN_PERIOD::20\.8999999999999986 /, /CLKFX_DIVIDE::30 /]],
   hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+  // control pins tied to 1 / 0 as ISE ties them: block RAMs' EN / WE / SSR and multipliers' CE /
+  // RST on VCC / GND, never inverted (MULT18X18S's CE / R on the three enables / resets); a DCM's
+  // RST / PSEN / PSINCDEC tied to 1 the constant 0 inverted (#190), DSSEN left open (#50)
+  feat_const_bram: [/^pack \(\d+ slices\)/m, 'RAMB16', [/ENAINV::ENA /, /SSRBINV::SSRB /, /^net "[^"]+" vcc,[^;]*inpin "b4" ENA ,/m], [/(EN|WE|SSR)[AB]INV::\w+_B /]],
+  feat_const_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO', [/CEAINV::CEA /, /RSTPINV::RSTP /, /^net "[^"]+" vcc,[^;]*inpin "m1" RSTB ,/m, /^net "[^"]+" gnd,[^;]*inpin "m1" CEA ,/m], [/(CE|RST)[ABP]INV::\w+_B /]],
+  feat_const_dcm: [/^pack \(\d+ slices\)/m, 'DCM', [/RSTINV::RST_B /, /PSENINV::PSEN_B /, /PSINCDECINV::PSINCDEC_B /, /PSCLKINV::PSCLK /], [/inpin "u_dcm" DSSEN/]],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
-for (const [name, [packLine, type, settings = []]] of Object.entries(FEATURES)) {
+for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {
   test(`the open flow: ${name} (${type}) to a complete bitstream, no warning`, { timeout: 300000 }, () => {
     const out = path.join(tmp, name);
     const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), path.join(ROOT, 'test/fixtures/open-flow', name), out],
@@ -191,6 +197,7 @@ for (const [name, [packLine, type, settings = []]] of Object.entries(FEATURES)) 
     const routed = fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8');
     assert.match(routed, new RegExp(`^inst "[^"]+" "${type}",placed `, 'm'));
     for (const re of settings) assert.match(routed, re);
+    for (const re of absent) assert.doesNotMatch(routed, re);
   });
 }
 

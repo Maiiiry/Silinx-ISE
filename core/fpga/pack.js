@@ -734,28 +734,35 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     else if (MULT_TYPE.test(c.type)) packMult(c);
     else if (DCM_TYPE.test(c.type)) packDcm(c);
   }
-  // a site of its own whose pins are the cell's: pin map cell pin -> site pin (inputs), outputs by name
+  // a site of its own whose pins are the cell's: pin map cell pin -> site pin (inputs; or several
+  // site pins on one net), outputs by name
   function hardSite(c, kind, type, pinMap) {
-    const s = { kind, type, name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c), params: c.params, inv: new Set() };
+    const s = { kind, type, name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c), params: c.params, inv: new Set(), conn: new Set() };
     insts.push(s);
     const outs = {};
     for (const [p, n] of Object.entries(c.pins)) {
-      const sp = pinMap(p);
+      const [sp, ...more] = [].concat(pinMap(p) ?? []);
       if (c.dirs[p.replace(/<\d+>$/, '')] === 'output') { if (sp) outs[p] = sp; continue; }
       // inputs the site does not have (a cascade input tied to 0…) are left out, and so are a
       // block RAM's data inputs Yosys leaves undriven (ISE's DRC calls the output bit of a data
-      // input tied to a constant a dangling pin); parity inputs stay connected (DRC: all or none)
-      const skip = !sp || (kind === 'bram' && /^DI[AB]?\d+$/.test(sp) && c.undriven?.includes(p)) || (kind === 'dcm' && sp === 'DSSEN' && nets[n].const === 0);
-      // an enable, write enable or reset tied to 1: the constant 0 through the pin's inverter (the
-      // switches from the VCC sites to these pins are not all in the bit database; GND comes from
-      // a slice through general routing)
-      if (!skip && nets[n].const === 1 && /^((EN|WE|SSR)[AB]|CE[ABP]|RST[ABP])$/.test(sp)) {
+      // input tied to a constant a dangling pin); parity inputs stay connected (DRC: all or none).
+      // A DCM's DSSEN tied to a constant is left open, as ISE's map does (DSSENINV #OFF)
+      const skip = !sp || (kind === 'bram' && /^DI[AB]?\d+$/.test(sp) && c.undriven?.includes(p)) || (kind === 'dcm' && sp === 'DSSEN' && nets[n].const !== undefined);
+      if (skip) { setSink(ci(c), p, 'int'); continue; }
+      // the other control pins tied to a constant are connected to it, not inverted, as ISE's map
+      // does (block RAM EN / WE / SSR, multiplier CE / RST / CLK: 1 from the VCC site of the
+      // block-RAM interconnect tile, 0 from a slice; #50). A DCM's RST / PSCLK / PSEN / PSINCDEC
+      // tied to 1: ISE ties them to the DCM tile's VCC site, through switches the bit database
+      // does not have yet (#190): the constant 0 through the pin's inverter instead
+      if (kind === 'dcm' && nets[n].const === 1 && /^(RST|PSCLK|PSEN|PSINCDEC)$/.test(sp)) {
         setSink(ci(c), p, 'int');
         s.inv.add(sp);
         extra.push({ net: 0, inst: s.idx, pin: sp, kind: 'gen' });
         continue;
       }
-      setSink(ci(c), p, skip ? 'int' : { inst: s.idx, pin: sp, kind: 'gen' });
+      setSink(ci(c), p, { inst: s.idx, pin: sp, kind: 'gen' });
+      s.conn.add(sp);
+      for (const x of more) { extra.push({ net: n, inst: s.idx, pin: x, kind: 'gen' }); s.conn.add(x); }
     }
     where.set(ci(c), { inst: s.idx, bel: 'SITE', outs });
     return s;
@@ -884,14 +891,22 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     };
     s.loc = instLocs.get(c.name) || null;
   }
-  // Multiplier: MULT18X18 (no registers), MULT18X18S (registered product: C, CE, R) or MULT18X18SIO
+  // Multiplier: MULT18X18 (no registers), MULT18X18S (registered product: C, CE, R) or MULT18X18SIO.
+  // As ISE builds the first two (#50): MULT18X18S's CE on CEA, CEB and CEP, R on RSTA, RSTB and
+  // RSTP; MULT18X18's enables and clock tied to 0, its resets to 1
   function packMult(c) {
     const s = hardSite(c, 'mult', 'MULT18X18SIO', p => {
       const q = /^(A|B|P|BCIN|BCOUT)<(\d+)>$/.exec(p);
       if (q) return q[1] === 'BCIN' || q[1] === 'BCOUT' ? null : `${q[1]}${q[2]}`;
-      if (c.type === 'MULT18X18S') return { C: 'CLK', CE: 'CEP', R: 'RSTP' }[p] || null;
+      if (c.type === 'MULT18X18S') return { C: 'CLK', CE: ['CEA', 'CEB', 'CEP'], R: ['RSTA', 'RSTB', 'RSTP'] }[p] || null;
       return /^(CLK|CEA|CEB|CEP|RSTA|RSTB|RSTP)$/.test(p) ? p : null;
     });
+    if (c.type === 'MULT18X18') {
+      for (const pin of ['CEA', 'CEB', 'CEP', 'CLK', 'RSTA', 'RSTB', 'RSTP']) {
+        extra.push({ net: /^RST/.test(pin) ? 1 : 0, inst: s.idx, pin, kind: 'gen' });
+        s.conn.add(pin);
+      }
+    }
     s.mult = c.type;
     for (const p of ['BCIN', 'BCOUT']) for (const k of Object.keys(c.pins)) if (k.startsWith(`${p}<`) && p === 'BCIN' && nets[c.pins[k]].const === undefined) throw new PackError(`pack: ${c.type} ${c.name}: the multiplier cascade (BCIN) is not supported yet`);
   }
@@ -1014,15 +1029,13 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     for (let i = Math.min(b.length, bits) - 1; i >= 0; i--) n = (n << 1n) | BigInt(b[i]);
     return n.toString(16).toUpperCase().padStart(Math.ceil(bits / 4), '0');
   }
-  // the pins of a hard site that are connected (inverter settings are written for those)
-  function hasPin(s, pin) { return Object.keys(cells[s.cell].pins).some(p => { const v = sink.get(`${s.cell}:${p}`); return v && v !== 'int' && v.pin === pin; }); }
   function bramCfg(s) {
     const cfg = [];
     const add = (attr, name, value) => cfg.push({ attr, name, value });
     const p = s.params, n = escCfg(s.name);
     const prm = (name, port) => (s.single ? p[name] : p[`${name}_${port}`]);
     for (const port of Object.keys(s.ports)) {
-      for (const pin of ['CLK', 'EN', 'SSR', 'WE']) add(`${pin}${port}INV`, '', s.inv.has(`${pin}${port}`) ? `${pin}${port}_B` : `${pin}${port}`);
+      for (const pin of ['CLK', 'EN', 'SSR', 'WE']) add(`${pin}${port}INV`, '', `${pin}${port}`);
       add(`PORT${port}_ATTR`, '', BRAM_WIDTH[s.ports[port]].attr);
       add(`WRITEMODE${port}`, '', String(prm('WRITE_MODE', port) || 'WRITE_FIRST').trim());
     }
@@ -1057,7 +1070,8 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     const p = s.params;
     const reg = k => (s.mult === 'MULT18X18SIO' ? String(paramInt(p[k], 1)) : s.mult === 'MULT18X18S' && k === 'PREG' ? '1' : '0');
     const cfg = [['AREG', '', reg('AREG')], ['BREG', '', reg('BREG')], ['B_INPUT', '', String(p.B_INPUT || 'DIRECT').trim()]];
-    const inv = pin => (s.inv.has(pin) ? [[`${pin}INV`, '', `${pin}_B`]] : hasPin(s, pin) ? [[`${pin}INV`, '', pin]] : []);
+    // (the inverter settings of the connected pins)
+    const inv = pin => (s.conn.has(pin) ? [[`${pin}INV`, '', pin]] : []);
     for (const pin of ['CEA', 'CEB', 'CEP', 'CLK']) cfg.push(...inv(pin));
     cfg.push(['PREG', '', reg('PREG')], ['PREG_CLKINVERSION', '', '0']);
     for (const pin of ['RSTA', 'RSTB', 'RSTP']) cfg.push(...inv(pin));

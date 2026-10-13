@@ -364,10 +364,18 @@ What ISE's tools want, found on the way:
   MULT18X18SIO_B4`: two switches, both known). The router chose the VCC site by distance, and
   a multiplier's pins of the second to fourth interconnect tile then had no path on known switches
   (#35): it now prefers a site one or two switches from the pin.
-- **Enables tied to 1** (a block RAM's EN / WE / SSR, a multiplier's CE / RST, a DCM's RST /
-  PS…): not all the switches from the VCC sites to these pins are in the database, so the packer
-  ties them to the constant 0 through the pin's inverter (`ENAINV::ENA_B`); GND comes from a slice
-  through general routing.
+- **Control pins tied to a constant** (#50; ISE's map and par on every combination of 1, 0 and a
+  signal on a block RAM's EN / WE / SSR, a multiplier's CE / RST / CLK with and without registers,
+  a DCM's RST / PSCLK / PSEN / PSINCDEC / DSSEN): ISE never uses the pin's inverter. A pin tied to
+  1 is on VCC, from the VCC site of the block-RAM interconnect tile (`BRAM_VCC_WIRE ->
+  BRAM_CE_B2`, `BRAM_CE_B2_INT1 -> RAMB16_ENA`) or of the DCM's tile (`DCM_VCC_WIRE ->
+  DCM_G1_B3`, `DCM_G1_B3 -> DCM_RST_PINWIRE`); a pin tied to 0 on GND, from a slice through general
+  routing; a DCM's DSSEN is left open either way. A MULT18X18S is a MULT18X18SIO with CE on CEA, CEB
+  and CEP and R on RSTA, RSTB and RSTP; a MULT18X18 one with its enables and clock tied to 0 and its
+  resets to 1. The packer does the same; the block-RAM tiles' VCC switches are known since #35. The
+  DCM tiles' are not all in the database yet (they set no bits: Silinx's bitgen of ISE's designs is
+  byte-identical without them), so a DCM's pins tied to 1 still take the constant 0 through the
+  pin's inverter (`RSTINV::RST_B`, #190).
 - **Multipliers without registers:** ISE's bitgen sets the bits of the CEA / CEB / CEP inverters
   ("not inverted") even when the XDL has no CEAINV (3 bits in the third block-RAM interconnect tile
   of the multiplier): `bitgen.js` does the same (as for the enables of a block RAM's unused port).

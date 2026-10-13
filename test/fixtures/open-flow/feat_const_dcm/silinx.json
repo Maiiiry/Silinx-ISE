@@ -1,0 +1,24 @@
+{
+  "name": "feat_const_dcm",
+  "description": "ISE check: a DCM whose RST / PSEN / PSINCDEC / DSSEN are tied to 1, PSCLK to 0 (#50)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "../hard_prim/top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

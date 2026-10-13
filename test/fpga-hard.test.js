@@ -153,12 +153,12 @@ test('block RAMs: RAMB16 sites, address pins by port width, settings as ISE writ
   // a 9-bit port: 11 address bits on ADDRA3 … ADDRA13; a 36-bit port: 9 on ADDRB5 … ADDRB13
   assert.ok(spPins.has('ADDRA3') && spPins.has('ADDRA13') && !spPins.has('ADDRA2'));
   assert.ok(new Map(pins(dp)).has('ADDRB5') && !new Map(pins(dp)).has('ADDRB4'));
-  // an enable tied to 1: the constant 0 through the pin's inverter (ENA_B); undriven data inputs
-  // left out, the undriven parity input kept (tied to 0)
-  assert.deepEqual([val(sp, 'ENAINV'), spPins.get('ENA'), val(sp, 'WEAINV')], ['ENA_B', 'gnd', 'WEA']);
+  // an enable tied to 1 on VCC, a reset tied to 0 on GND, neither inverted, as ISE's map ties them
+  // (#50); undriven data inputs left out, the undriven parity input kept (tied to 0)
+  assert.deepEqual([val(sp, 'ENAINV'), spPins.get('ENA'), val(sp, 'SSRAINV'), spPins.get('SSRA'), val(sp, 'WEAINV')], ['ENA', 'vcc', 'SSRA', 'gnd', 'WEA']);
   assert.ok(!spPins.has('DIA6') && !spPins.has('DIA7') && spPins.has('DIA5'));
   assert.equal(spPins.get('DIPA0'), 'gnd');
-  assert.equal(val(dp, 'ENBINV'), 'ENB_B');
+  assert.deepEqual([val(dp, 'ENBINV'), new Map(pins(dp)).get('ENB')], ['ENB', 'vcc']);
   same(nl, p, 300);
 });
 
@@ -185,11 +185,17 @@ test('multipliers: MULT18X18SIO sites, registers and inverters as ISE writes the
   assert.deepEqual(p.warnings, []);
   assert.equal(p.stats.mults, 3);
   const m = n => p.insts.find(i => i.name === n);
+  const pins = k => new Map(p.nets.flatMap(n => n.inpins.filter(x => x.inst === p.insts.indexOf(m(k))).map(x => [x.pin, n.type === 'wire' ? p.insts[n.outpins[0].inst].name : n.type])));
+  const ctrl = ['CEA', 'CEB', 'CEP', 'CLK', 'RSTA', 'RSTB', 'RSTP'];
+  // as ISE builds them (#50): MULT18X18 with its enables and clock on GND, its resets on VCC;
+  // MULT18X18S with CE on the three enables, R on the three resets; nothing inverted
   assert.deepEqual(['AREG', 'BREG', 'PREG', 'B_INPUT'].map(a => val(m('m0'), a)), ['0', '0', '0', 'DIRECT']);
-  assert.ok(!cfgOf(m('m0')).CLKINV && !cfgOf(m('m0')).CEAINV, 'no register: no clock, no enables');
-  assert.deepEqual(['AREG', 'BREG', 'PREG', 'CLKINV', 'CEPINV', 'RSTPINV'].map(a => val(m('m1'), a)), ['0', '0', '1', 'CLK', 'CEP', 'RSTP']);
-  // CEB / CEP tied to 1: the constant 0 inverted
-  assert.deepEqual(['AREG', 'BREG', 'PREG', 'CEAINV', 'CEBINV', 'CEPINV', 'RSTPINV'].map(a => val(m('m2'), a)), ['1', '0', '1', 'CEA', 'CEB_B', 'CEP_B', 'RSTP']);
+  assert.deepEqual(ctrl.map(x => [val(m('m0'), `${x}INV`), pins('m0').get(x)]), ctrl.map(x => [x, /^RST/.test(x) ? 'vcc' : 'gnd']));
+  assert.deepEqual(['AREG', 'BREG', 'PREG'].map(a => val(m('m1'), a)), ['0', '0', '1']);
+  assert.deepEqual(ctrl.map(x => [val(m('m1'), `${x}INV`), pins('m1').get(x)]), ctrl.map(x => [x, { CEA: 'c<0>', CEB: 'c<0>', CEP: 'c<0>', CLK: 'bufg', RSTA: 'c<1>', RSTB: 'c<1>', RSTP: 'c<1>' }[x]]));
+  // CEB / CEP tied to 1 on VCC, RSTA / RSTB tied to 0 on GND
+  assert.deepEqual(['AREG', 'BREG', 'PREG'].map(a => val(m('m2'), a)), ['1', '0', '1']);
+  assert.deepEqual(ctrl.map(x => [val(m('m2'), `${x}INV`), pins('m2').get(x)]), ctrl.map(x => [x, { CEA: 'c<0>', CEB: 'vcc', CEP: 'vcc', CLK: 'bufg', RSTA: 'gnd', RSTB: 'gnd', RSTP: 'c<1>' }[x]]));
   assert.equal(cfgOf(m('m2')).MULT18X18SIO.name, 'm2');
   same(nl, p, 300);
 });
@@ -425,11 +431,12 @@ test('multipliers with constant inputs (x * 6554) on every multiplier site: ever
   const text = writeXdl(routed.design);
   const check = checkRouting(parseXdl(text), g);
   assert.ok(check.ok, check.problems.slice(0, 5).join('\n'));
-  // 7 inputs tied to 1 per multiplier (6554 has 7 bits set), each from the VCC site of the
-  // interconnect tile of its pin: BRAM_VCC_WIRE -> the pin's wire there, then the site tile's PIP
+  // 10 inputs tied to 1 per multiplier (the 7 bits set in 6554, and a MULT18X18's RSTA, RSTB,
+  // RSTP: #50), each from the VCC site of the interconnect tile of its pin: BRAM_VCC_WIRE -> the
+  // pin's wire there, then the site tile's PIP
   const isMult = x => /^m\d+$/.test(x.inst);
   const vcc = routed.design.nets.filter(n => n.type === 'vcc' && n.inpins.some(isMult));
-  assert.equal(vcc.flatMap(n => n.inpins.filter(isMult)).length, 12 * 7);
+  assert.equal(vcc.flatMap(n => n.inpins.filter(isMult)).length, 12 * 10);
   for (const n of vcc) {
     assert.match(n.outpins[0].inst, /^XDL_DUMMY_BRAM[0-3]_SMALL(_BRK)?_X\d+Y\d+_VCC_X\d+Y\d+$/, n.name);
     assert.equal(n.pips.length, 2 * n.inpins.length, `${n.name}: two switches per pin`);
@@ -437,6 +444,59 @@ test('multipliers with constant inputs (x * 6554) on every multiplier site: ever
   }
   // a complete bitstream: every switch and setting in the bit database
   assert.deepEqual(bitgen(text, db).unknown, []);
+});
+
+// Control pins tied to constants, as ISE ties them (#50, measured with ISE's map and par on the
+// XC3S250E: every combination of 1 / 0 / a signal on a block RAM's EN / WE / SSR, a multiplier's
+// CE / RST with and without registers, a DCM's RST / PS… / DSSEN): to VCC or GND, never inverted;
+// a DCM's DSSEN left open. A DCM's pins tied to 1: the constant 0 inverted until the switches from
+// its tile's VCC site are in the bit database (#190)
+test('control pins tied to 1 / 0: block RAM EN / WE / SSR and multiplier CE / RST on VCC / GND, not inverted, routed on switches of known bits; a DCM\'s pins tied to 1 inverted, DSSEN open (#50)', { timeout: 120000 }, async () => {
+  const { routeDesign, checkRouting } = await import('../core/fpga/route.js');
+  const { knownRouting, bitgen, designFeatures } = await import('../core/fpga/bitgen.js');
+  const { loadDb } = await import('../research/s3e-bitstream/db.mjs');
+  const { placedXdl } = await import('../core/fpga/place.js');
+  const { parseXdl, writeXdl } = await import('../core/xdl.js');
+  const nl = yjson({ clk: ['input', 1], a: ['input', 10], q: ['output', 4] }, [
+    ...clock, ...ibuf('a', 10),
+    { name: 'b', type: 'RAMB16_S9_S9', conns: { ADDRA: bus('a_i', 10, 0).concat('a_i[0]'), DIA: bus('a_i', 8), DIPA: ['0'], DOA: bus('qa', 8), DOPA: ['qap'], CLKA: 'clk_g', ENA: '0', WEA: '1', SSRA: '1',
+      ADDRB: bus('a_i', 10).reverse().concat('a_i[9]'), DIB: bus('a_i', 8, 2), DIPB: ['0'], DOB: bus('qb', 8), DOPB: ['qbp'], CLKB: 'clk_g', ENB: '1', WEB: '0', SSRB: '0' }, outs: ['DOA', 'DOPA', 'DOB', 'DOPB'] },
+    { name: 'm', type: 'MULT18X18SIO', params: { AREG: 1, BREG: 0, PREG: 0, B_INPUT: 'DIRECT' },
+      conns: { A: [...bus('a_i', 10), ...Array(8).fill('0')], B: [...bus('a_i', 10).reverse(), ...Array(8).fill('0')], BCIN: Array(18).fill('0'), CEA: '1', CEB: '0', CEP: '1', CLK: 'clk_g', RSTA: '0', RSTB: '1', RSTP: '0', P: bus('p', 36) }, outs: ['P'] },
+    obuf('q[0]', 'qa[0]'), obuf('q[1]', 'qb[7]'), obuf('q[2]', 'p[3]'), obuf('q[3]', 'p[12]'),
+  ]);
+  const p = pack(nl);
+  assert.deepEqual(p.warnings, []);
+  const pins = name => { const k = p.insts.findIndex(i => i.name === name); return new Map(p.nets.flatMap(n => n.inpins.filter(x => x.inst === k).map(x => [x.pin, n.type]))); };
+  const b = p.insts.find(i => i.name === 'b'), m = p.insts.find(i => i.name === 'm');
+  const bc = ['ENA', 'WEA', 'SSRA', 'ENB', 'WEB', 'SSRB'], mc = ['CEA', 'CEB', 'CEP', 'RSTA', 'RSTB', 'RSTP'];
+  assert.deepEqual(bc.map(x => [val(b, `${x}INV`), pins('b').get(x)]), bc.map((x, i) => [x, ['gnd', 'vcc', 'vcc', 'vcc', 'gnd', 'gnd'][i]]));
+  assert.deepEqual(mc.map(x => [val(m, `${x}INV`), pins('m').get(x)]), mc.map((x, i) => [x, ['vcc', 'gnd', 'vcc', 'gnd', 'vcc', 'gnd'][i]]));
+  // placed, routed: each pin tied to 1 from the VCC site of a block-RAM interconnect tile, on
+  // switches of known bits; the bitstream complete, no inverter set
+  const g = loadDeviceCache('xc3s250ecp132-4');
+  const db = loadDb('xc3s250ecp132-4', { graph: g });
+  const { sites, opts } = await flowOf('xc3s250ecp132-4');
+  const r = place(p, sites, { seed: 1, effort: 0.1, ...opts });
+  const routed = routeDesign(parseXdl(writeXdl(placedXdl(p, r))), g, knownRouting(db));
+  assert.deepEqual([routed.failed, routed.unreached, routed.errors], [[], [], []]);
+  const text = writeXdl(routed.design);
+  assert.ok(checkRouting(parseXdl(text), g).ok);
+  const vcc = routed.design.nets.filter(n => n.type === 'vcc' && n.inpins.some(x => x.inst === 'b' || x.inst === 'm'));
+  assert.deepEqual(vcc.flatMap(n => n.inpins.map(x => `${x.inst}.${x.pin}`)).sort(), ['b.ENB', 'b.SSRA', 'b.WEA', 'm.CEA', 'm.CEP', 'm.RSTB']);
+  for (const n of vcc) assert.match(n.outpins[0].inst, /^XDL_DUMMY_BRAM[0-3]_SMALL(_BRK)?_X\d+Y\d+_VCC_X\d+Y\d+$/, n.name);
+  assert.deepEqual(bitgen(text, db).unknown, []);
+  const feats = designFeatures(parseXdl(text), db).feats.map(x => x.feature);
+  assert.deepEqual(feats.filter(f => /^(RAMB16|MULT18X18SIO):\w+INV:/.test(f)).filter(f => /_B$/.test(f)), []);
+  assert.ok(['RAMB16:ENAINV:ENA', 'RAMB16:ENBINV:ENB', 'MULT18X18SIO:CEAINV:CEA', 'MULT18X18SIO:RSTBINV:RSTB'].every(f => feats.includes(f)), feats.filter(f => /INV/.test(f)).join(' '));
+  // a DCM: RST and PSINCDEC tied to 1 (the constant 0 inverted), PSCLK / PSEN tied to 0 (GND), DSSEN tied to 1 left open
+  const dn = yjson({ clk: ['input', 1], o: ['output', 1] }, [{ name: 'ib', type: 'IBUFG', conns: { I: 'clk', O: 'clk_i' }, outs: ['O'] },
+    { name: 'u', type: 'DCM_SP', params: { CLK_FEEDBACK: 'NONE' }, conns: { CLKIN: 'clk_i', RST: '1', DSSEN: '1', PSCLK: '0', PSEN: '0', PSINCDEC: '1', LOCKED: 'lk' }, outs: ['LOCKED'] }, obuf('o', 'lk')]);
+  const pd = pack(dn);
+  const u = pd.insts.find(i => i.name === 'u'), ku = pd.insts.indexOf(u);
+  const upins = new Map(pd.nets.flatMap(n => n.inpins.filter(x => x.inst === ku).map(x => [x.pin, n.type])));
+  const dc = ['RST', 'PSCLK', 'PSEN', 'PSINCDEC', 'DSSEN'];
+  assert.deepEqual(dc.map(x => [val(u, `${x}INV`), upins.get(x)]), [['RST_B', 'gnd'], ['PSCLK', 'gnd'], ['PSEN', 'gnd'], ['PSINCDEC_B', 'gnd'], [undefined, undefined]]);
 });
 
 // Clocks on the four devices that ship (their own graphs and bit databases), placed as the open

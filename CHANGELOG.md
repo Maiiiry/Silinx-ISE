@@ -36,6 +36,10 @@ the "What's new" text of its GitHub release.
   function 'f' impure* (also in its package declaration), offered when no other pure function calls
   it. Silinx accepted it silently (#185).
 - **Development edition:** its version says only the date and time of the build, e.g. *15.10.13 (development, 2026-10-13 22:59)*, no longer the commit (#204).
+- **Silinx toolchain, block RAMs and multipliers:** an enable, write enable or reset tied to 1 is now tied to
+  VCC as ISE ties it, no longer to 0 through the pin's inverter; a MULT18X18S's CE and R drive the three
+  enables and resets, and a MULT18X18's are tied as ISE ties them. A DCM's DSSEN tied to 1 is left open, and
+  its RST / PSEN / PSINCDEC / PSCLK tied to 1 no longer fail in Place & Route (#50).
 
 ## 15.10.12
 

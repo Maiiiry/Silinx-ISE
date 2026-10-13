@@ -1,0 +1,24 @@
+{
+  "name": "feat_const_bram",
+  "description": "ISE check: block RAMs whose EN / WE / SSR are tied to 1, to 0 or to signals (#50)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "../hard_prim/top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}
