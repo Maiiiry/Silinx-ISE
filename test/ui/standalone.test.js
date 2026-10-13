@@ -72,8 +72,9 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   assert.doesNotMatch(text, /<link[^>]+stylesheet/, 'no external stylesheets');
   await page.goto(pathToFileURL(html).href);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'standalone boot' });
-  // the version: a development build's, with its commit (#135)
+  // the version: a development build's (#135), with its date and time, not its commit (#204)
   assert.match(build?.commit || '', /^[0-9a-f]{7,}$/);
+  assert.match(versionLabel(build), /^\d+\.\d+\.\d+ \(development, \d{4}-\d\d-\d\d \d\d:\d\d\)$/);
   assert.equal(await page.eval(() => document.title), `Silinx ISE ${versionLabel(build)} Project Navigator`);
   assert.equal(await page.eval(() => document.querySelector('.m-ver').textContent), versionLabel(build));
   await page.waitConsole(/Browser edition: projects are stored in this browser/);

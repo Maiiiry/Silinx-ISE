@@ -1,7 +1,7 @@
 // What the single-file edition says of the commit it was built from (#135): a release's build (the
 // commit tagged v<VERSION>) shows the version alone; any other commit (GitHub Pages publishes main
-// after every CI run that passed, before the release is tagged) shows "15.10.5 (development, commit
-// abc1234, 2026-10-13 11:12)", so that the site is not taken for the release. Outside a git checkout (a release's
+// after every CI run that passed, before the release is tagged) shows "15.10.5 (development,
+// 2026-10-13 11:12)", so that the site is not taken for the release. Outside a git checkout (a release's
 // source archive): the version alone.
 import { execFileSync } from 'node:child_process';
 

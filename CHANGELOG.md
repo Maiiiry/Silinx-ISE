@@ -35,6 +35,7 @@ the "What's new" text of its GitHub release.
   is written `pure function`; with its explanation (English and Portuguese) and the fix *Declare the
   function 'f' impure* (also in its package declaration), offered when no other pure function calls
   it. Silinx accepted it silently (#185).
+- **Development edition:** its version says only the date and time of the build, e.g. *15.10.13 (development, 2026-10-13 22:59)*, no longer the commit (#204).
 
 ## 15.10.12
 

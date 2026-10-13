@@ -3,7 +3,7 @@ name: Pages
 # Pages, so that a course page (e.g. Moodle, as a URL resource) can link to it:
 #   https://pmnmalo.github.io/Silinx-ISE/       the stable edition: the latest release
 #   https://pmnmalo.github.io/Silinx-ISE/dev/   the development edition: main, after every CI run
-#                                               that passed (its title says "development, commit …";
+#                                               that passed (its title says "development, <date>";
 #                                               its browser storage is its own)
 # Built after every CI run on main that passed (the dev edition: the commit CI tested), after every
 # release (the stable edition: its tag), and on demand (Actions ▸ Pages ▸ Run workflow). A CI run
