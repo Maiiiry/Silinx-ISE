@@ -1,6 +1,6 @@
 // Wizards and dialogs modelled on ISE (New Project Wizard, New Source Wizard, properties...).
 import { api } from './api.js';
-import { PRODUCT, PRODUCT_FULL, VERSION, REPOSITORY, compareVersions } from '/core/version.js';
+import { PRODUCT, PRODUCT_FULL, VERSION, VERSION_LABEL, BUILD, REPOSITORY, compareVersions, versionLabel } from '/core/version.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, toast } from './ui.js';
 import * as T from './templates.js';
@@ -993,6 +993,23 @@ function changesNode(sections) {
   return box;
 }
 
+// The published site (the stable edition and dev/) serves what its last build made, described by
+// version.json next to the page (scripts/build-standalone.mjs --site). There the question is whether
+// the site serves another page than the one open (a reload gets it), not GitHub's latest release: a
+// release is published minutes before the site is rebuilt from it, and dev/ is built from main (#198).
+// null: not on such a site (the application, a downloaded Silinx-ISE.html): GitHub's releases.
+async function siteVersion() {
+  if (!/^https?:$/.test(globalThis.location?.protocol || '')) return null;
+  try {
+    const r = await fetch(new URL('version.json', location.href), { cache: 'no-store' });
+    if (!r.ok) return null;
+    const v = await r.json();
+    return typeof v?.version === 'string' ? v : null;
+  } catch { return null; }
+}
+const servedLabel = v => versionLabel(v.build, v.version);
+const sameBuild = v => servedLabel(v) === VERSION_LABEL;
+
 async function latestRelease() {
   const r = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, { headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store' });
   if (!r.ok) throw new Error(r.status === 403 ? 'GitHub rate limit reached, try again later' : `GitHub answered ${r.status}`);
@@ -1016,6 +1033,13 @@ const cacheRelease = rel => { try { localStorage.setItem(UPDATE_CACHE, JSON.stri
  * update dialog, otherwise one line in the console (no network / GitHub error: nothing shown).
  */
 export async function checkUpdatesOnStart() {
+  // on the site: the page open against the one it serves now
+  const served = await siteVersion();
+  if (served) {
+    if (!sameBuild(served)) return checkUpdatesDialog({ served });
+    app.log(`${PRODUCT} ${VERSION_LABEL} is the version this site serves.`, 'info');
+    return null;
+  }
   let rel;
   const cached = cachedRelease();
   if (cached) {
@@ -1033,8 +1057,20 @@ export async function checkUpdatesOnStart() {
   return null;
 }
 
-export async function checkUpdatesDialog({ rel: known = null } = {}) {
-  const body = h('div', {}, h('p', {}, `Running ${PRODUCT} ${VERSION}. Checking the latest release on GitHub…`));
+export async function checkUpdatesDialog({ rel: known = null, served = undefined } = {}) {
+  const body = h('div', {}, h('p', {}, `Running ${PRODUCT} ${VERSION_LABEL}. Checking for a newer version…`));
+  // on the site: a newer page served (reload), or this one is the site's
+  if (served === undefined && !known) served = await siteVersion();
+  if (served) {
+    const fresh = sameBuild(served);
+    body.replaceChildren(...[
+      fresh ? h('p', {}, h('b', {}, `${PRODUCT} ${VERSION_LABEL} is up to date.`)) : h('p', {}, h('b', {}, `This site now serves ${PRODUCT} ${servedLabel(served)}.`)),
+      fresh ? h('p', {}, 'It is the version this site serves.') : h('p', {}, `This page is ${VERSION_LABEL}: reload the page to get the new version (your projects are kept).`),
+      BUILD ? h('p', { class: 'hint' }, 'This is the development edition, built from the latest code (main): it is updated after every change, before the releases.') : null,
+      h('p', {}, 'Releases: ', link(`https://github.com/${REPO}/releases`, `github.com/${REPO}/releases`))].filter(Boolean));
+    return dialog({ title: 'Check for Updates', width: 520, body, buttons: [...(fresh ? [] : [{ label: 'Reload', value: 'reload' }]), { label: 'OK', primary: true, value: true }] })
+      .then(v => { if (v === 'reload') location.reload(); return v; });
+  }
   const done = dialog({ title: 'Check for Updates', width: 520, body, buttons: [{ label: 'OK', primary: true, value: true }] });
   let rel = known;
   try {

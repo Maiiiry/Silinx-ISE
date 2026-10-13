@@ -11,6 +11,12 @@ the "What's new" text of its GitHub release.
   a random run, undo / redo; PNML import and export (also the PIPE format).
 - **HDL from a Petri net (#187):** a synchronous controller in VHDL or Verilog, simulated like the net; the
   net is a module of the project by itself (it can be the top), its HDL file optional.
+- **The site no longer says a new version is available while it still serves the previous one:**
+  right after a release, for some minutes, *Help* ▸ *Check for Updates* (and the check at start-up)
+  offered a version that a reload could not get yet, also on the development edition. On the site it
+  now compares the page open with the one the site serves, and offers to reload when that is newer;
+  the application and a downloaded Silinx-ISE.html still check GitHub's releases. The dialog is in
+  Portuguese too (#198).
 
 ## 15.10.12
 

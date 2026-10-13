@@ -112,6 +112,9 @@ if (siteArg > 0) {
   fs.mkdirSync(site, { recursive: true });
   fs.writeFileSync(path.join(site, 'index.html'), html);
   fs.writeFileSync(path.join(site, 'Silinx-ISE.html'), html);
+  // what this site serves (its page's version and build): on the site, Check for Updates compares the
+  // page open with it, not with GitHub's latest release (published minutes before the site is rebuilt)
+  fs.writeFileSync(path.join(site, 'version.json'), `${JSON.stringify({ version: VERSION, build: BUILD })}\n`);
   const parts = [
     ['devices', copyDir(path.join(ROOT, 'core/fpga/devices'), path.join(site, 'assets/devices'), f => f.endsWith('.json.gz'))],
     ['bitdb', copyDir(path.join(ROOT, 'research/s3e-bitstream/db'), path.join(site, 'assets/bitdb'), f => f.endsWith('.json'))],

@@ -589,3 +589,58 @@ uiTest('the site\'s development edition (dev/): says so, and keeps its projects 
   assert.doesNotMatch(await page.consoleText(), /Development edition/);
   assert.deepEqual(await page.eval(() => Object.keys(JSON.parse(localStorage.getItem('silinx.standalone.fs')))), ['Stable']);
 }, { url: () => 'about:blank' });
+
+uiTest('the site\'s Check for Updates (#198): the page open against the one the site serves (version.json), never GitHub\'s latest release; a newer page served: reload', E, async (page) => {
+  // the site's build says what it serves
+  const vfile = path.join(site, 'version.json');
+  const served = JSON.parse(await fs.readFile(vfile, 'utf8'));
+  assert.deepEqual(served, { version: VERSION, build });
+  const label = versionLabel(build);
+  // GitHub stubbed with a newer release: the site must not offer it
+  const stubGitHub = `window.__gh = 0; (() => { const f = window.fetch; window.fetch = (u, o) => (String(u).includes('github') ? (window.__gh++, Promise.resolve(new Response(JSON.stringify({ tag_name: 'v99.9.9', name: 'v99.9.9', html_url: 'https://github.com/x/y', assets: [] }), { status: 200, headers: { 'content-type': 'application/json' } }))) : f(u, o)); })();`;
+  const s1 = await page.send('Page.addScriptToEvaluateOnNewDocument', { source: stubGitHub });
+  try {
+    await page.goto(siteUrl);
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+    // the same build: up to date, the development edition said so, no Reload, GitHub not asked
+    await page.menu('Help', 'Check for Updates…');
+    await page.waitDialog('Check for Updates');
+    await page.waitFor(() => /is up to date/.test(document.querySelector('.dlg-overlay')?.innerText || ''), [], { what: 'up to date' });
+    const text = await page.eval(() => document.querySelector('.dlg-overlay .dlg-body, .dlg-overlay').innerText);
+    assert.match(text, new RegExp(`Silinx ISE ${label.replace(/[.()]/g, '\\$&')} is up to date\\.\\s+It is the version this site serves\\.`));
+    assert.match(text, /This is the development edition, built from the latest code \(main\)/);
+    assert.doesNotMatch(text, /A new version is available|99\.9\.9/);
+    assert.equal(await page.eval(() => [...document.querySelectorAll('.dlg-overlay button')].some((b) => b.textContent === 'Reload')), false);
+    await page.key('Escape');
+    await page.waitNoDialog();
+    assert.equal(await page.eval(() => window.__gh), 0, 'GitHub not asked on the site');
+    // the site rebuilt with a newer version: reload to get it
+    await fs.writeFile(vfile, `${JSON.stringify({ version: '99.0.0', build: null })}\n`);
+    await page.menu('Help', 'Check for Updates…');
+    await page.waitDialog('Check for Updates');
+    await page.waitFor(() => /This site now serves/.test(document.querySelector('.dlg-overlay')?.innerText || ''), [], { what: 'newer page served' });
+    const text2 = await page.eval(() => document.querySelector('.dlg-overlay').innerText);
+    assert.match(text2, /This site now serves Silinx ISE 99\.0\.0\./);
+    assert.match(text2, new RegExp(`This page is ${label.replace(/[.()]/g, '\\$&')}: reload the page to get the new version \\(your projects are kept\\)\\.`));
+    await page.eval(() => { window.__before = true; });
+    await page.dialogButton('Reload');
+    await page.waitFor(() => !window.__before && window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'the page reloaded', timeout: 30000 });
+    // at start-up (the check on): the newer page served opens the same dialog by itself
+    const s2 = await page.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.SILINX_NO_UPDATE_CHECK = false;' });
+    await page.reload();
+    await page.waitDialog('Check for Updates');
+    await page.waitFor(() => /This site now serves Silinx ISE 99\.0\.0\./.test([...document.querySelectorAll('.dlg-overlay')].pop()?.innerText || ''), [], { what: 'the start-up dialog' });
+    await page.dialogButton('OK');
+    await page.waitNoDialog();
+    // the same build served again: at start-up only a line in the console
+    await fs.writeFile(vfile, `${JSON.stringify(served)}\n`);
+    await page.reload();
+    await page.waitConsole(new RegExp(`Silinx ISE ${label.replace(/[.()]/g, '\\$&')} is the version this site serves\\.`));
+    assert.equal(await page.dialogCount(), 0);
+    assert.equal(await page.eval(() => window.__gh), 0, 'GitHub never asked on the site');
+    await page.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: s2.identifier });
+  } finally {
+    await fs.writeFile(vfile, `${JSON.stringify(served)}\n`);
+    await page.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: s1.identifier });
+  }
+}, { url: () => 'about:blank', skip: chromeOnly });   // (Page.addScriptToEvaluateOnNewDocument)

@@ -508,6 +508,28 @@ PT_PATTERNS.push(
 );
 // a development build's version (core/version.js VERSION_LABEL, #135): in the title bar, the Design
 // Summary, the start-up message; the last pattern tried (a text no other pattern translates)
+// Help ▸ Check for Updates (#198): the application's (GitHub's releases) and the site's (the page it serves)
+Object.assign(PT, {
+  'It is the version this site serves.': 'É a versão que este site serve.',
+  'This is the development edition, built from the latest code (main): it is updated after every change, before the releases.': 'Esta é a edição de desenvolvimento, construída a partir do código mais recente (main): é atualizada a cada alteração, antes das versões.',
+  'Releases:': 'Versões:', 'Reload': 'Recarregar', "What's new:": 'Novidades:', 'Release notes and downloads:': 'Notas da versão e transferências:',
+  'release notes': 'notas da versão', 'You are running a development version newer than the latest release.': 'Está a usar uma versão de desenvolvimento mais recente do que a última versão publicada.',
+  'To update: download silinx-ise-<version>.zip and replace your Silinx folder (your projects in the workspace are kept), or download the new Silinx-ISE.html for the standalone edition.':
+    'Para atualizar: descarregue o silinx-ise-<versão>.zip e substitua a pasta do Silinx (os projetos da área de trabalho mantêm-se), ou descarregue o novo Silinx-ISE.html para a edição autónoma.',
+});
+const ptLabel = v => v.replace('(development, commit ', '(em desenvolvimento, commit ');   // a version label in a sentence
+PT_PATTERNS.push(
+  [/^Running Silinx ISE (.+)\. Checking for a newer version…$/, (m, v) => `A executar o Silinx ISE ${ptLabel(v)}. A procurar uma versão mais recente…`],
+  [/^Running Silinx ISE (.+)\.$/, (m, v) => `A executar o Silinx ISE ${ptLabel(v)}.`],
+  [/^Silinx ISE (.+) is up to date\.$/, (m, v) => `O Silinx ISE ${ptLabel(v)} está atualizado.`],
+  [/^This site now serves Silinx ISE (.+)\.$/, (m, v) => `Este site serve agora o Silinx ISE ${ptLabel(v)}.`],
+  [/^This page is (.+): reload the page to get the new version \(your projects are kept\)\.$/, (m, v) => `Esta página é a ${ptLabel(v)}: recarregue a página para obter a nova versão (os projetos mantêm-se).`],
+  [/^A new version is available: Silinx ISE (.+)$/, 'Está disponível uma nova versão: Silinx ISE $1'],
+  [/^\(released (.+)\)$/, '(publicada a $1)'],
+  [/^You are running (.+)\.$/, (m, v) => `Está a usar a ${ptLabel(v)}.`],
+  [/^Latest release on GitHub: (.+) —$/, 'Última versão no GitHub: $1 —'],
+  [/^Could not check for updates: (.+)\.$/, 'Não foi possível procurar atualizações: $1.'],
+);
 PT_PATTERNS.push([/^(.*)\(development, commit ([0-9a-f]+)((?:, \d{4}-\d\d-\d\d(?: \d\d:\d\d)?)?)\)(.*)$/, '$1(em desenvolvimento, commit $2$3)$4']);
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards
