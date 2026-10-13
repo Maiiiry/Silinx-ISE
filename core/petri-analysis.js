@@ -28,22 +28,27 @@ const gcd = (a, b) => { a = Math.abs(a); b = Math.abs(b); while (b) [a, b] = [b,
  * then the solutions of minimal support kept. Gives up (null) past `limit` rows.
  */
 export function semiflows(A, limit = 5000) {
-  const n = A.length, k = n ? A[0].length : 0;
-  let rows = A.map((r, i) => ({ a: r.slice(), y: Array.from({ length: n }, (_, j) => (j === i ? 1 : 0)) }));
+  const n = A.length, k = n ? A[0].length : 0, W = Math.ceil(n / 32) || 1;
+  // the support of a row: a bitset of the places (or transitions) with a weight
+  const supOf = y => { const b = new Uint32Array(W); y.forEach((v, i) => { if (v) b[i >> 5] |= 1 << (i & 31); }); return b; };
+  const within = (a, b) => { for (let w = 0; w < W; w++) if ((a[w] & ~b[w]) !== 0) return false; return true; };   // a ⊆ b
+  let rows = A.map((r, i) => { const y = Array.from({ length: n }, (_, j) => (j === i ? 1 : 0)); return { a: r.slice(), y, s: supOf(y) }; });
   for (let j = 0; j < k; j++) {
     const keep = rows.filter(r => r.a[j] === 0), pos = rows.filter(r => r.a[j] > 0), neg = rows.filter(r => r.a[j] < 0);
+    if (!pos.length && !neg.length) continue;
     const made = [];
     for (const p of pos) for (const q of neg) {
       const fp = -q.a[j], fq = p.a[j];
       const a = p.a.map((v, i) => fp * v + fq * q.a[i]), y = p.y.map((v, i) => fp * v + fq * q.y[i]);
       const g = [...a, ...y].reduce(gcd, 0) || 1;
-      made.push({ a: a.map(v => v / g), y: y.map(v => v / g) });
+      const yy = y.map(v => v / g);
+      made.push({ a: a.map(v => v / g), y: yy, s: supOf(yy) });
       if (keep.length + made.length > limit) return null;
     }
     rows = [...keep, ...made];
-    // the supports that contain another one's are not minimal
-    const sup = rows.map(r => r.y.map(v => v !== 0));
-    rows = rows.filter((r, i) => !rows.some((s, j) => j !== i && sup[j].every((b, x) => !b || sup[i][x]) && (sup[j].some((b, x) => b !== sup[i][x]) || j < i)));
+    if (!made.length) continue;   // the rows kept were minimal already
+    // the supports that contain another one's are not minimal (of two equal ones, the first stays)
+    rows = rows.filter((r, i) => !rows.some((q, x) => x !== i && within(q.s, r.s) && (x < i || !within(r.s, q.s))));
   }
   return rows.map(r => r.y);
 }

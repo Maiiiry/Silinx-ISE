@@ -1,0 +1,47 @@
+# Combination lock, code 3-5-7-1. x: a key pressed this cycle, the key (4 bits). y: open, alarm.
+# Three wrong codes in a row: alarm, until the key F (1111) is pressed.
+.i 5
+.o 2
+.s 12
+.r P0_W0
+0---- P0_W0 P0_W0 00
+10011 P0_W0 P1_W0 00
+1---- P0_W0 P0_W1 00
+0---- P1_W0 P1_W0 00
+10101 P1_W0 P2_W0 00
+1---- P1_W0 P0_W1 00
+0---- P2_W0 P2_W0 00
+10111 P2_W0 P3_W0 00
+1---- P2_W0 P0_W1 00
+0---- P3_W0 P3_W0 00
+10001 P3_W0 OPEN 10
+1---- P3_W0 P0_W1 00
+0---- P0_W1 P0_W1 00
+10011 P0_W1 P1_W1 00
+1---- P0_W1 P0_W2 00
+0---- P1_W1 P1_W1 00
+10101 P1_W1 P2_W1 00
+1---- P1_W1 P0_W2 00
+0---- P2_W1 P2_W1 00
+10111 P2_W1 P3_W1 00
+1---- P2_W1 P0_W2 00
+0---- P3_W1 P3_W1 00
+10001 P3_W1 OPEN 10
+1---- P3_W1 P0_W2 00
+0---- P0_W2 P0_W2 00
+10011 P0_W2 P1_W2 00
+1---- P0_W2 ALARM 01
+0---- P1_W2 P1_W2 00
+10101 P1_W2 P2_W2 00
+1---- P1_W2 ALARM 01
+0---- P2_W2 P2_W2 00
+10111 P2_W2 P3_W2 00
+1---- P2_W2 ALARM 01
+0---- P3_W2 P3_W2 00
+10001 P3_W2 OPEN 10
+1---- P3_W2 ALARM 01
+0---- OPEN OPEN 10
+1---- OPEN P0_W0 00
+11111 ALARM P0_W0 00
+----- ALARM ALARM 01
+.e

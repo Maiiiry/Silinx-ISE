@@ -1,0 +1,20 @@
+# UART receiver control. x: rx, tick (16x oversampling, at mid-bit), last bit.
+# y: sample (shift a bit in), done, framing error, busy.
+.i 3
+.o 4
+.s 5
+.r IDLE
+1-- IDLE IDLE 0000
+0-- IDLE START 0001
+-0- START START 0001
+01- START DATA 0001
+11- START IDLE 0000
+-0- DATA DATA 0001
+-10 DATA DATA 1001
+-11 DATA STOP 1001
+-0- STOP STOP 0001
+11- STOP IDLE 0100
+01- STOP ERR 0010
+0-- ERR ERR 0010
+1-- ERR IDLE 0000
+.e

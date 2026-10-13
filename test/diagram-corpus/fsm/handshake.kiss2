@@ -1,0 +1,14 @@
+# Four-phase handshake, receiver side. x: req, data_valid. y: ack, load.
+.i 2
+.o 2
+.s 4
+.r WAIT
+0- WAIT WAIT 00
+11 WAIT LOAD 01
+10 WAIT WAIT 00
+-- LOAD ACK 10
+1- ACK ACK 10
+0- ACK REL 00
+1- REL REL 00
+0- REL WAIT 00
+.e

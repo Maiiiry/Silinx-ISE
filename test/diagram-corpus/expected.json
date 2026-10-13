@@ -1,0 +1,92 @@
+{
+  "fsm": {
+    "arbiter": {
+      "states": 6,
+      "transitions": 18,
+      "warnings": [
+        "warning: State P1: the transitions to G1 ('x[1]') and to G2 ('x[2] & !x[0]') are both true when x=110; the one listed first (to G1) is taken",
+        "info: State P1: no transition is true when x=101; the machine stays in P1"
+      ],
+      "asm": []
+    },
+    "det1011": {
+      "states": 4,
+      "transitions": 8,
+      "warnings": [],
+      "asm": []
+    },
+    "elevator": {
+      "states": 7,
+      "transitions": 19,
+      "warnings": [
+        "warning: State F1: the transitions to U12 ('x[2]') and to F1 ('1') are both true when x=0100; the one listed first (to U12) is taken",
+        "warning: State F1: the transitions to U12 ('x[3]') and to F1 ('1') are both true when x=1000; the one listed first (to U12) is taken",
+        "warning: State F2: the transitions to D21 ('x[1]') and to F2 ('1') are both true when x=0010; the one listed first (to D21) is taken",
+        "warning: State F2: the transitions to U23 ('x[3]') and to F2 ('1') are both true when x=1000; the one listed first (to U23) is taken",
+        "warning: State F2: the transitions to U23 ('x[3]') and to D21 ('x[1]') are both true when x=1010; the one listed first (to U23) is taken",
+        "warning: State F3: the transitions to D32 ('x[1]') and to F3 ('1') are both true when x=0010; the one listed first (to D32) is taken",
+        "warning: State F3: the transitions to D32 ('x[2]') and to F3 ('1') are both true when x=0100; the one listed first (to D32) is taken"
+      ],
+      "asm": []
+    },
+    "handshake": {
+      "states": 4,
+      "transitions": 8,
+      "warnings": [],
+      "asm": []
+    },
+    "johnson16": {
+      "states": 16,
+      "transitions": 48,
+      "warnings": [],
+      "asm": []
+    },
+    "lock": {
+      "states": 14,
+      "transitions": 40,
+      "warnings": [
+        "warning: State P0_W0: the transitions to P1_W0 ('x[4] & !x[3] & !x[2] & x[1] & x[0]') and to P0_W1 ('x[4]') are both true when x=10011; the one listed first (to P1_W0) is taken",
+        "warning: State P1_W0: the transitions to P2_W0 ('x[4] & !x[3] & x[2] & !x[1] & x[0]') and to P0_W1 ('x[4]') are both true when x=10101; the one listed first (to P2_W0) is taken",
+        "warning: State P0_W1: the transitions to P1_W1 ('x[4] & !x[3] & !x[2] & x[1] & x[0]') and to P0_W2 ('x[4]') are both true when x=10011; the one listed first (to P1_W1) is taken",
+        "warning: State P2_W0: the transitions to P3_W0 ('x[4] & !x[3] & x[2] & x[1] & x[0]') and to P0_W1 ('x[4]') are both true when x=10111; the one listed first (to P3_W0) is taken",
+        "warning: State P3_W0: the transitions to OPEN ('x[4] & !x[3] & !x[2] & !x[1] & x[0]') and to P0_W1 ('x[4]') are both true when x=10001; the one listed first (to OPEN) is taken",
+        "warning: State P1_W1: the transitions to P2_W1 ('x[4] & !x[3] & x[2] & !x[1] & x[0]') and to P0_W2 ('x[4]') are both true when x=10101; the one listed first (to P2_W1) is taken",
+        "warning: State P0_W2: the transitions to P1_W2 ('x[4] & !x[3] & !x[2] & x[1] & x[0]') and to ALARM ('x[4]') are both true when x=10011; the one listed first (to P1_W2) is taken",
+        "warning: State P2_W1: the transitions to P3_W1 ('x[4] & !x[3] & x[2] & x[1] & x[0]') and to P0_W2 ('x[4]') are both true when x=10111; the one listed first (to P3_W1) is taken",
+        "warning: State P3_W1: the transitions to OPEN ('x[4] & !x[3] & !x[2] & !x[1] & x[0]') and to P0_W2 ('x[4]') are both true when x=10001; the one listed first (to OPEN) is taken",
+        "warning: State P1_W2: the transitions to P2_W2 ('x[4] & !x[3] & x[2] & !x[1] & x[0]') and to ALARM ('x[4]') are both true when x=10101; the one listed first (to P2_W2) is taken",
+        "warning: State ALARM: the transitions to P0_W0 ('x[4] & x[3] & x[2] & x[1] & x[0]') and to ALARM ('1') are both true when x=11111; the one listed first (to P0_W0) is taken",
+        "warning: State P2_W2: the transitions to P3_W2 ('x[4] & !x[3] & x[2] & x[1] & x[0]') and to ALARM ('x[4]') are both true when x=10111; the one listed first (to P3_W2) is taken",
+        "warning: State P3_W2: the transitions to OPEN ('x[4] & !x[3] & !x[2] & !x[1] & x[0]') and to ALARM ('x[4]') are both true when x=10001; the one listed first (to OPEN) is taken"
+      ],
+      "asm": []
+    },
+    "rand24": {
+      "states": 24,
+      "transitions": 192,
+      "warnings": [],
+      "asm": []
+    },
+    "traffic": {
+      "states": 6,
+      "transitions": 14,
+      "warnings": [
+        "warning: State SG: the transitions to SG ('x[2] & !x[0]') and to SA ('x[1]') are both true when x=110; the one listed first (to SG) is taken",
+        "info: State SG: no transition is true when x=101; the machine stays in SG"
+      ],
+      "asm": []
+    },
+    "uart_rx": {
+      "states": 5,
+      "transitions": 13,
+      "warnings": [],
+      "asm": []
+    },
+    "vending": {
+      "states": 6,
+      "transitions": 24,
+      "warnings": [],
+      "asm": []
+    }
+  }
+}

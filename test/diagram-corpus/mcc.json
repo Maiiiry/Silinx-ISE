@@ -1,0 +1,209 @@
+{
+  "about": "P/T nets of the Model Checking Contest 2024 (https://mcc.lip6.fr/2024/models.php), fetched for testing only, never committed (the author's decision, 2026-10-14; the MCC's call for models: submitted models 'are expected to become part of the public domain'). Expected values: MCC's consensus ('estimated result') of StateSpace, ReachabilityDeadlock, Liveness and OneSafe in https://mcc.lip6.fr/2024/archives/raw-result-analysis.csv.zip.",
+  "nets": [
+    {
+      "instance": "Philosophers-PT-000005",
+      "url": "https://mcc.lip6.fr/2024/archives/Philosophers-pnml.tar.gz",
+      "sha256": "146cca8c906cacffe3a03d0f8a4e8f384382d06933d23ec65f4ccf2faebdd472",
+      "file": "Philosophers/PT/Philosophers-5.pnml",
+      "places": 25,
+      "transitions": 25,
+      "expected": {
+        "states": 243,
+        "edges": 945,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 10,
+        "deadlock": true,
+        "live": false,
+        "safe": true
+      }
+    },
+    {
+      "instance": "ResAllocation-PT-R003C002",
+      "url": "https://mcc.lip6.fr/2024/archives/ResAllocation-pnml.tar.gz",
+      "sha256": "3ce545d602f128c2c90a0beead94894889cfd2914176b34a5cb018319d58f1b1",
+      "file": "ResAllocation/PT/RAS-R-3.pnml",
+      "places": 12,
+      "transitions": 8,
+      "expected": {
+        "states": 20,
+        "edges": 34,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 6,
+        "deadlock": true,
+        "live": false,
+        "safe": true
+      }
+    },
+    {
+      "instance": "ERK-PT-000001",
+      "url": "https://mcc.lip6.fr/2024/archives/ERK-pnml.tar.gz",
+      "sha256": "884375528e358533e78612375ddd103245acfc377b0b45348714415ac3ba4de5",
+      "file": "ERK/PT/erk-000001.pnml",
+      "places": 11,
+      "transitions": 11,
+      "expected": {
+        "states": 13,
+        "edges": 30,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 5,
+        "deadlock": false,
+        "live": true,
+        "safe": true
+      }
+    },
+    {
+      "instance": "Eratosthenes-PT-010",
+      "url": "https://mcc.lip6.fr/2024/archives/Eratosthenes-pnml.tar.gz",
+      "sha256": "74975748d240fb22c218b0949673207f29957d56b807093f59df1e1f63a2a0a8",
+      "file": "Eratosthenes/PT/eratosthenes-010.pnml",
+      "places": 9,
+      "transitions": 8,
+      "expected": {
+        "states": 32,
+        "edges": 120,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 9,
+        "deadlock": true,
+        "live": false,
+        "safe": true
+      }
+    },
+    {
+      "instance": "DatabaseWithMutex-PT-02",
+      "url": "https://mcc.lip6.fr/2024/archives/DatabaseWithMutex-pnml.tar.gz",
+      "sha256": "2c6da0d6815d51bd44f8cfc419de2814334175c2840216d0a56f8248adbd7899",
+      "file": "DatabaseWithMutex/PT/database2UNFOLD.pnml",
+      "places": 38,
+      "transitions": 32,
+      "expected": {
+        "states": 153,
+        "edges": 312,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 6,
+        "deadlock": false,
+        "live": true,
+        "safe": true
+      }
+    },
+    {
+      "instance": "LamportFastMutEx-PT-2",
+      "url": "https://mcc.lip6.fr/2024/archives/LamportFastMutEx-pnml.tar.gz",
+      "sha256": "3a79a14e80f4138e3055023fbb599b3820247502bf820c5b3e0d2317ac68688d",
+      "file": "LamportFastMutEx/PT/lamport_fmea-2.pnml",
+      "places": 69,
+      "transitions": 96,
+      "expected": {
+        "states": 380,
+        "edges": 716,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 8,
+        "deadlock": false,
+        "live": false,
+        "safe": true
+      }
+    },
+    {
+      "instance": "NeoElection-PT-2",
+      "url": "https://mcc.lip6.fr/2024/archives/NeoElection-pnml.tar.gz",
+      "sha256": "bf8518d941cfd81b38deab0eadff15d0e92b53f690516fe925a632eef292ed26",
+      "file": "NeoElection/PT/neoelection-2.unf.pnml",
+      "places": 438,
+      "transitions": 357,
+      "expected": {
+        "states": 241,
+        "edges": 448,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 14,
+        "deadlock": true,
+        "live": false,
+        "safe": true
+      }
+    },
+    {
+      "instance": "SharedMemory-PT-000005",
+      "url": "https://mcc.lip6.fr/2024/archives/SharedMemory-pnml.tar.gz",
+      "sha256": "a4f5c8cf068769ee954556078c2dd8e71750a40d1dabd00c2837abcb11d1617a",
+      "file": "SharedMemory/PT/shared_memory-pt-5.pnml",
+      "places": 41,
+      "transitions": 55,
+      "expected": {
+        "states": 1863,
+        "edges": 10395,
+        "maxTokensInPlace": 1,
+        "maxTokensInMarking": 11,
+        "deadlock": false,
+        "live": true,
+        "safe": true
+      }
+    },
+    {
+      "instance": "CircularTrains-PT-012",
+      "url": "https://mcc.lip6.fr/2024/archives/CircularTrains-pnml.tar.gz",
+      "sha256": "e94aaea76fe572033c5adbb3c9c729c469179a3333d02556196e3f288a964281",
+      "file": "CircularTrains/PT/CircularTrain-012.pnml",
+      "places": 24,
+      "transitions": 12,
+      "expected": {
+        "states": 195,
+        "edges": 496,
+        "maxTokensInPlace": 2,
+        "maxTokensInMarking": 12,
+        "deadlock": false,
+        "live": true,
+        "safe": false
+      }
+    },
+    {
+      "instance": "RobotManipulation-PT-00001",
+      "url": "https://mcc.lip6.fr/2024/archives/RobotManipulation-pnml.tar.gz",
+      "sha256": "f70ca4b4c838f5e996e2470790dd2d2819c263156a5395492ce0ca64f08b10d7",
+      "file": "RobotManipulation/PT/robot-manipulation-1.pnml",
+      "places": 15,
+      "transitions": 11,
+      "expected": {
+        "states": 110,
+        "edges": 274,
+        "maxTokensInPlace": 3,
+        "maxTokensInMarking": 12,
+        "deadlock": false,
+        "live": true,
+        "safe": false
+      }
+    },
+    {
+      "instance": "FMS-PT-00002",
+      "url": "https://mcc.lip6.fr/2024/archives/FMS-pnml.tar.gz",
+      "sha256": "9f4dedfa0058179930cc70f09e6c531ba5ee52814b8ca7488f56728eb22b2972",
+      "file": "FMS/PT/FMS-2.pnml",
+      "places": 22,
+      "transitions": 20,
+      "expected": {
+        "states": 3444,
+        "edges": 16311,
+        "maxTokensInPlace": 3,
+        "maxTokensInMarking": 12,
+        "deadlock": false,
+        "live": true,
+        "safe": false
+      }
+    },
+    {
+      "instance": "CryptoMiner-PT-D03N010",
+      "url": "https://mcc.lip6.fr/2024/archives/CryptoMiner-pnml.tar.gz",
+      "sha256": "e253e1827609bccc3a9e80d1320e3a4826618884f52234a03f011b84d3057a33",
+      "file": "CryptoMiner/PT/CryptoMinerB-PT-D3N10.pnml",
+      "places": 12,
+      "transitions": 12,
+      "expected": {
+        "states": 10636,
+        "edges": 38126,
+        "maxTokensInPlace": 10,
+        "maxTokensInMarking": 11,
+        "deadlock": true,
+        "live": false,
+        "safe": false
+      }
+    }
+  ]
+}

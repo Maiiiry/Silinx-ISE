@@ -1,0 +1,25 @@
+# Round-robin arbiter for three requesters. x: req2 req1 req0. y: gnt2 gnt1 gnt0.
+# P<k>: idle, requester k next in turn; G<k>: k holds the grant until it drops its request.
+.i 3
+.o 3
+.s 6
+.r P0
+000 P0 P0 000
+--1 P0 G0 001
+-10 P0 G1 010
+100 P0 G2 100
+000 P1 P1 000
+-1- P1 G1 010
+1-0 P1 G2 100
+001 P1 G0 001
+000 P2 P2 000
+1-- P2 G2 100
+0-1 P2 G0 001
+010 P2 G1 010
+--1 G0 G0 001
+--0 G0 P1 000
+-1- G1 G1 010
+-0- G1 P2 000
+1-- G2 G2 100
+0-- G2 P0 000
+.e

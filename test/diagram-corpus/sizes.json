@@ -1,0 +1,106 @@
+{
+  "fsm": {
+    "arbiter": {
+      "BUFG": 1,
+      "FDCE": 3,
+      "IBUF": 5,
+      "LUT2": 8,
+      "LUT3": 2,
+      "LUT4": 7,
+      "MUXF5": 14,
+      "MUXF6": 7,
+      "OBUF": 3
+    },
+    "det1011": {
+      "BUFG": 1,
+      "FDCE": 2,
+      "IBUF": 3,
+      "LUT3": 2,
+      "OBUF": 1
+    },
+    "elevator": {
+      "BUFG": 1,
+      "FDCE": 3,
+      "IBUF": 6,
+      "LUT2": 5,
+      "LUT3": 11,
+      "LUT4": 9,
+      "MUXF5": 15,
+      "MUXF6": 5,
+      "OBUF": 3
+    },
+    "handshake": {
+      "BUFG": 1,
+      "FDCE": 2,
+      "IBUF": 4,
+      "LUT3": 2,
+      "LUT4": 2,
+      "OBUF": 2
+    },
+    "johnson16": {
+      "BUFG": 1,
+      "FDCE": 4,
+      "IBUF": 4,
+      "LUT1": 3,
+      "LUT3": 3,
+      "LUT4": 14,
+      "MUXF5": 8,
+      "MUXF6": 4,
+      "OBUF": 4
+    },
+    "lock": {
+      "BUFG": 1,
+      "FDCE": 4,
+      "IBUF": 7,
+      "LUT1": 3,
+      "LUT2": 3,
+      "LUT3": 19,
+      "LUT4": 31,
+      "MUXF5": 20,
+      "MUXF6": 2,
+      "OBUF": 2
+    },
+    "rand24": {
+      "BUFG": 1,
+      "FDCE": 5,
+      "IBUF": 5,
+      "LUT1": 2,
+      "LUT2": 10,
+      "LUT3": 53,
+      "LUT4": 168,
+      "MUXF5": 79,
+      "MUXF6": 1,
+      "OBUF": 3
+    },
+    "traffic": {
+      "BUFG": 1,
+      "FDCE": 3,
+      "IBUF": 5,
+      "LUT2": 3,
+      "LUT3": 5,
+      "LUT4": 10,
+      "MUXF5": 12,
+      "MUXF6": 3,
+      "OBUF": 5
+    },
+    "uart_rx": {
+      "BUFG": 1,
+      "FDCE": 3,
+      "IBUF": 5,
+      "LUT1": 1,
+      "LUT3": 3,
+      "LUT4": 7,
+      "MUXF5": 7,
+      "MUXF6": 1,
+      "OBUF": 4
+    },
+    "vending": {
+      "BUFG": 1,
+      "FDCE": 3,
+      "IBUF": 4,
+      "LUT4": 10,
+      "MUXF5": 6,
+      "OBUF": 3
+    }
+  }
+}

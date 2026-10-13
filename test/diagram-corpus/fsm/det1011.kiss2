@@ -1,0 +1,14 @@
+# Sequence detector, overlapping 1011 (Mealy): y = 1 on the last 1 of 1011.
+.i 1
+.o 1
+.s 4
+.r S0
+0 S0 S0 0
+1 S0 S1 0
+0 S1 S10 0
+1 S1 S1 0
+0 S10 S0 0
+1 S10 S101 0
+0 S101 S10 0
+1 S101 S1 1
+.e

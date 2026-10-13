@@ -45,6 +45,7 @@ the "What's new" text of its GitHub release.
   enables and resets, and a MULT18X18's are tied as ISE ties them. A DCM's DSSEN tied to 1 is left open, and
   its RST / PSEN / PSINCDEC / PSCLK tied to 1 no longer fail in Place & Route (#50).
 - **Schematic editor:** a wire dragged with *Keep connections* on no longer comes off the pins, I/O markers and wires its ends touch: those ends stay, joined to the moved wire by a jog (#206).
+- **Diagram corpus (#205):** ten state machines in KISS2 (the FSM benchmarks' format, now read and written by Silinx) through the HDL in every encoding, style and language, the ASM chart and Yosys; twelve Petri nets of the Model Checking Contest, whose analysis gives the contest's results. The invariants of big nets are computed much faster.
 
 ## 15.10.12
 

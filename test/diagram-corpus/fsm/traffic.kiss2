@@ -1,0 +1,21 @@
+# Traffic lights at a crossing. x: car on the side road, long timer done, short timer done.
+# y: main road (2 bits: 00 red, 01 amber, 10 green), side road (2 bits), start the timer.
+.i 3
+.o 5
+.s 6
+.r MG
+0-- MG MG 10001
+1-0 MG MG 10000
+1-1 MG MA 01001
+--0 MA MA 01000
+--1 MA AR 00001
+--0 AR AR 00000
+--1 AR SG 00101
+1-0 SG SG 00100
+-1- SG SA 00011
+0-- SG SA 00011
+--0 SA SA 00010
+--1 SA BR 00001
+--0 BR BR 00000
+--1 BR MG 10001
+.e
