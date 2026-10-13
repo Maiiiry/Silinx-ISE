@@ -309,7 +309,7 @@ uiTest('quick fix of the ";" missing after the attribute specification of a stat
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
 });
 
-uiTest('a pure function that reads a signal: the error in the editor with its explanation, "Fix: Declare the function … impure", Check Syntax clean after it (#185)', E, async (page) => {
+uiTest('a function that reads a signal is not pure: the warning in the editor with its explanation, "Fix: Declare the function … impure", the Warnings tab, Check Syntax clean after it (#185)', E, async (page) => {
   const PARITY = `library ieee;
 use ieee.std_logic_1164.all;
 
@@ -340,16 +340,25 @@ end rtl;
   await page.openProject('FixPure');
   await page.eval(() => window.SilinxApp.openFile('src/parity.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/parity.vhd' && window.Silinx.active.editor);
-  await errorMarker(page, 15);
-  const tip = await lintTooltip(page);
-  assert.match(tip, /^Cannot access signal 'acc' \(line 11\) from inside pure function 'next_acc'\.\n\nExplanation: 'next_acc' is a pure function \(a VHDL function is pure unless it is declared impure\)/);
+  // ---- a warning at the function's end, as XST's: the tooltip with its help and the fix
+  await page.waitFor(() => !!window.Silinx.active.editor.cm.lineInfo(15).gutterMarkers?.['CodeMirror-lint-markers']?.matches('.CodeMirror-lint-marker-warning'), [], { what: 'the warning marker of line 16' });
+  const warnTooltip = async () => {
+    await page.eval(() => document.querySelectorAll('.CodeMirror-lint-tooltip').forEach((t) => t.remove()));
+    await page.hover('#statusbar');
+    await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-warning');
+    return page.waitFor(() => document.querySelector('.CodeMirror-lint-tooltip')?.textContent, [], { what: 'lint tooltip' });
+  };
+  const tip = await warnTooltip();
+  assert.match(tip, /^Function next_acc is not pure: it uses signal 'acc' at line 15\. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE\.\n\nExplanation: 'next_acc' is a pure function \(a VHDL function is pure unless it is declared impure\)/);
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Declare the function 'next_acc' impure"]);
-  // ---- the Errors tab of Check Syntax: the error, its fix
-  await checkSyntax(page, /Process "Check Syntax" failed \(1 error\(s\), 0 warning\(s\)\)/);
-  await page.waitFor(() => document.querySelector('#console-tabs .tab[data-page=errors]').classList.contains('active'));
-  assert.match(await page.eval(() => document.querySelector('#console-errors .diag').textContent), /^ERROR:HDLCompiler:250 - "src\/parity\.vhd" Line 15: Cannot access signal 'acc' \(line 11\) from inside pure function 'next_acc'\.▸ Explanation and fixFix: Declare the function 'next_acc' impure$/);
-  // ---- applied from the tooltip: impure, no error, Check Syntax clean
-  await lintTooltip(page);
+  // ---- Check Syntax: completed with the warning, in the Warnings tab with its fix
+  await checkSyntax(page, /Process "Check Syntax" completed successfully with 1 warning\(s\)\s*$/m);
+  assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
+  await page.click('#console-tabs .tab[data-page=warnings]');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#console-warnings .diag')].map((d) => d.textContent)),
+    ["WARNING:HDLParsers:3310 - \"src/parity.vhd\" Line 16: Function next_acc is not pure: it uses signal 'acc' at line 15. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.▸ Explanation and fixFix: Declare the function 'next_acc' impure"]);
+  // ---- applied from the tooltip: impure, no warning, Check Syntax clean
+  await warnTooltip();
   await page.click('.CodeMirror-lint-tooltip .xl-fix');
   assert.equal(await ed(page), PARITY.replace('  function next_acc', '  impure function next_acc'));
   await noMarkers(page);

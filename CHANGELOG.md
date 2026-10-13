@@ -27,6 +27,14 @@ the "What's new" text of its GitHub release.
   (line 10) from inside pure function 'f'.*), with its explanation (English and Portuguese) and the fix
   *Declare the function 'f' impure* (also in its package declaration), offered when no other pure
   function calls it. Silinx accepted it (#185).
+- **VHDL: a function that is not pure is reported, as XST does for the Spartan-3E:** a function is pure
+  unless it is declared `impure`, and one that reads or writes a signal, a port, a process's variable,
+  a shared variable or a file declared outside it, or calls an impure function or a procedure that
+  does, gets a warning at its `end` saying what it uses and where (*Function f is not pure: it uses
+  signal 's' at line 13. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.*), an error when it
+  is written `pure function`; with its explanation (English and Portuguese) and the fix *Declare the
+  function 'f' impure* (also in its package declaration), offered when no other pure function calls
+  it. Silinx accepted it silently (#185).
 
 ## 15.10.12
 

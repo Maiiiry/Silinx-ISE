@@ -23,8 +23,8 @@
 //  - Verilog: a procedural assignment to a wire (-> reg), a continuous one to a reg (-> wire), '=' /
 //    '<=' in the wrong kind of always block, an incomplete event list (-> always @(*));
 //  - VHDL: a signal missing from the sensitivity list of a process (-> added);
-//  - VHDL: a pure function that uses what is declared outside it (-> declared impure, also in its
-//    package declaration), when no other pure function calls it.
+//  - VHDL: a function that is not pure (a warning, an error when written `pure`) -> declared
+//    impure, also in its package declaration, when no other pure function calls it.
 //
 // Isomorphic module (browser + Node).
 
@@ -724,13 +724,14 @@ function sensitivity(C, d, msg) {
 // its declaration in a package or a declarative part), when the source then has no other error of
 // pure functions (a pure function that calls it)
 function declareImpure(C, d, msg) {
-  const m = /^Cannot (?:access [a-z ]+|call (?:impure function|side-effect procedure)) '[^']+' (?:\([^)]*\) )?from (?:inside|within) pure function '([^']+)'/.exec(msg);
+  const m = /^Function (\S+) is not pure: it /.exec(msg);
   if (!m || C.lang !== 'vhdl') return;
   const { a } = C;
   const T = a.tokens;
   const key = C.norm(m[1]);
   const isFn = s => s.kind === 'subprogram' && s.closer === 'function' && s.sym?.key === key;
-  const body = openScopes(a, a.tokenAtPos(d.line, d.col)).find(s => isFn(s) && !s.specOnly);
+  // (the message is at the `end` of its body)
+  const body = a.scopes.find(s => isFn(s) && !s.specOnly && s.end != null && T[s.end].line === d.line);
   if (!body) return;
   // the header as written, from the name to `is` / `;` (an overloaded function: the declaration of this one)
   const header = (s) => {
@@ -756,6 +757,6 @@ function declareImpure(C, d, msg) {
   // only when that makes it valid: no new error, none left in that function
   const before = new Set(pureErrors(C.text).map(e => `${e.line}:${e.message}`));
   const after = pureErrors(applyFix(C.text, fix));
-  if (after.some(e => !before.has(`${e.line}:${e.message}`) || e.message.endsWith(`pure function '${m[1]}'.`))) return;
+  if (after.some(e => !before.has(`${e.line}:${e.message}`) || e.message.startsWith(`Function ${m[1]} is not pure`))) return;
   return [fix];
 }

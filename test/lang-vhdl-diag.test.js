@@ -83,40 +83,49 @@ test('diagnostics carry the file they come from', () => {
   assert.deepEqual(d.map(x => [x.file, x.line]), [['a.vhd', 4]]);
 });
 
-test('a pure function (a function is pure unless declared impure) that uses a signal, a port, a variable or a shared variable declared outside it, or calls an impure function or a side-effect procedure, is an error, as in ISE (#185)', () => {
+test('a function that is not pure (pure unless declared impure: it uses a signal, a port, a variable, a shared variable or a file declared outside it, or calls an impure function or a side-effect procedure) is a warning at its end, an error when written pure, as XST for the Spartan-3E (#185)', () => {
+  const all = (src, top = 'tb') => diags(src, top, { lang: 'vhdl' }).map(d => `${d.severity} ${d.line}:${d.col} ${d.message}`);
+  const W = ' VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.';
   const unit = (decls, body = '  y <= f(a);') => `${H}entity tb is port (a : in std_logic; y : out std_logic); end;\narchitecture r of tb is\n${decls}\nbegin\n${body}\nend;`;
   const fn = (stmts, decls = '', kw = 'function') => `${decls}  ${kw} f(x : std_logic) return std_logic is\n  begin\n${stmts}\n  end function;`;
   // an architecture's signal, read
-  assert.deepEqual(errs(unit(fn('    return x and s;', '  signal s : std_logic;\n'), '  s <= a;\n  y <= f(a);')),
-    ["7:18 Cannot access signal 's' (line 4) from inside pure function 'f'."]);
-  // a port (each line where it is used), an explicit `pure`
-  assert.deepEqual(errs(unit(fn('    if a = x then\n      return a;\n    end if;\n    return x;', '', 'pure function'))),
-    ["6:8 Cannot access port 'a' (line 2) from inside pure function 'f'.", "7:14 Cannot access port 'a' (line 2) from inside pure function 'f'."]);
-  // an alias of a signal; an attribute of a signal
-  assert.deepEqual(errs(unit(fn("    return s0 and x and s(s'left);", '  signal s : std_logic_vector(1 downto 0);\n  alias s0 : std_logic is s(0);\n'), '  s <= a & a;\n  y <= f(a);')),
-    ["8:12 Cannot access signal 's0' (line 5) from inside pure function 'f'.", "8:25 Cannot access signal 's' (line 4) from inside pure function 'f'."]);
+  assert.deepEqual(all(unit(fn('    return x and s;', '  signal s : std_logic;\n'), '  s <= a;\n  y <= f(a);')),
+    [`warning 8:3 Function f is not pure: it uses signal 's' at line 7.${W}`]);
+  // a port; written `pure`: an error (the first line where it is used)
+  assert.deepEqual(all(unit(fn('    if a = x then\n      return a;\n    end if;\n    return x;', '', 'pure function'))),
+    ["error 10:3 Function f is not pure: it uses port 'a' at line 6."]);
+  // an attribute of a signal; an alias of a signal
+  assert.deepEqual(all(unit(fn("    return s(s'left) and x;", '  signal s : std_logic_vector(1 downto 0);\n'), '  s <= a & a;\n  y <= f(a);')),
+    [`warning 8:3 Function f is not pure: it uses signal 's' at line 7.${W}`]);
+  assert.deepEqual(all(unit(fn('    return s0 and x;', '  signal s : std_logic_vector(1 downto 0);\n  alias s0 : std_logic is s(0);\n'), '  s <= a & a;\n  y <= f(a);')),
+    [`warning 9:3 Function f is not pure: it uses signal 's0' at line 8.${W}`]);
   // a process's variable, written and read
   const proc = (kw, stmts) => unit('', `  process (a)\n    variable v : std_logic := '0';\n    ${kw} f(x : std_logic) return std_logic is\n    begin\n${stmts}\n    end function;\n  begin\n    y <= f(a);\n  end process;`);
-  assert.deepEqual(errs(proc('function', '      v := not v;\n      return x xor v;')),
-    ["10:7 Cannot access variable 'v' (line 7) from inside pure function 'f'.", "11:20 Cannot access variable 'v' (line 7) from inside pure function 'f'."]);
+  assert.deepEqual(all(proc('function', '      v := not v;\n      return x xor v;')),
+    [`warning 12:5 Function f is not pure: it uses variable 'v' at line 10.${W}`]);
+  assert.deepEqual(all(proc('pure function', '      v := not v;\n      return x xor v;')),
+    ["error 12:5 Function f is not pure: it uses variable 'v' at line 10."]);
   // an enclosing function's variable, in a function declared in it
-  assert.deepEqual(errs(unit('  function f(x : std_logic) return std_logic is\n    variable t : std_logic;\n    function g return std_logic is\n    begin\n      return t;\n    end function;\n  begin\n    t := x;\n    return g;\n  end function;')),
-    ["8:14 Cannot access variable 't' (line 5) from inside pure function 'g'."]);
+  assert.deepEqual(all(unit('  function f(x : std_logic) return std_logic is\n    variable t : std_logic;\n    function g return std_logic is\n    begin\n      return t;\n    end function;\n  begin\n    t := x;\n    return g;\n  end function;')),
+    [`warning 9:5 Function g is not pure: it uses variable 't' at line 8.${W}`]);
   // a call of an impure function, of a procedure that uses a signal (declared outside or inside the function)
-  assert.deepEqual(errs(unit(fn('    return x and g;', '  signal s : std_logic;\n  impure function g return std_logic is\n  begin\n    return s;\n  end function;\n'), '  s <= a;\n  y <= f(a);')),
-    ["11:18 Cannot call impure function 'g' (line 5) from within pure function 'f'."]);
-  assert.deepEqual(errs(unit('  signal s : std_logic;\n  procedure p(o : out std_logic) is\n  begin\n    o := s;\n  end procedure;\n  function f(x : std_logic) return std_logic is\n    variable t : std_logic;\n  begin\n    p(t);\n    return t and x;\n  end function;', '  s <= a;\n  y <= f(a);')),
-    ["12:5 Cannot call side-effect procedure 'p' (line 5) from within pure function 'f'."]);
-  assert.deepEqual(errs(unit('  signal s : std_logic;\n  function f(x : std_logic) return std_logic is\n    variable t : std_logic;\n    procedure p is\n    begin\n      t := s;\n    end procedure;\n  begin\n    p;\n    return t and x;\n  end function;', '  s <= a;\n  y <= f(a);')),
-    ["12:5 Cannot call side-effect procedure 'p' (line 7) from within pure function 'f'."]);
+  assert.deepEqual(all(unit(fn('    return x and g;', '  signal s : std_logic;\n  impure function g return std_logic is\n  begin\n    return s;\n  end function;\n'), '  s <= a;\n  y <= f(a);')),
+    [`warning 12:3 Function f is not pure: it calls impure function 'g' at line 11.${W}`]);
+  assert.deepEqual(all(unit('  signal s : std_logic;\n  procedure p(o : out std_logic) is\n  begin\n    o := s;\n  end procedure;\n  function f(x : std_logic) return std_logic is\n    variable t : std_logic;\n  begin\n    p(t);\n    return t and x;\n  end function;', '  s <= a;\n  y <= f(a);')),
+    [`warning 14:3 Function f is not pure: it calls side-effect procedure 'p' at line 12.${W}`]);
+  assert.deepEqual(all(unit('  signal s : std_logic;\n  function f(x : std_logic) return std_logic is\n    variable t : std_logic;\n    procedure p is\n    begin\n      t := s;\n    end procedure;\n  begin\n    p;\n    return t and x;\n  end function;', '  s <= a;\n  y <= f(a);')),
+    [`warning 14:3 Function f is not pure: it calls side-effect procedure 'p' at line 12.${W}`]);
+  // a file
+  assert.deepEqual(all(`${H}use std.textio.all;\nentity tb is port (a : in std_logic; y : out std_logic); end;\narchitecture r of tb is\n  file fo : text open write_mode is "out.txt";\n  function f(x : std_logic) return std_logic is\n    variable l : line;\n  begin\n    write(l, string'("x"));\n    writeline(fo, l);\n    return x;\n  end function;\nbegin\n  y <= f(a);\nend;`),
+    [`warning 12:3 Function f is not pure: it uses file 'fo' at line 10.${W}`]);
   // a package's signal and shared variable, in the package (declaration and body) and in a design unit of another file that uses it
   const pkg = `${H}package p is\n  signal ps : std_logic;\n  shared variable sv : integer := 0;\n  function f(x : std_logic) return std_logic;\n  function n return integer;\nend p;\npackage body p is\n  function f(x : std_logic) return std_logic is\n  begin\n    return x and ps;\n  end function;\n  function n return integer is\n  begin\n    return sv;\n  end function;\nend p;\n`;
-  assert.deepEqual(errs({ 'p.vhd': pkg }, null),
-    ["11:18 Cannot access signal 'ps' (line 3) from inside pure function 'f'.", "15:12 Cannot access shared variable 'sv' (line 4) from inside pure function 'n'."]);
+  assert.deepEqual(all({ 'p.vhd': pkg }, null),
+    [`warning 12:3 Function f is not pure: it uses signal 'ps' at line 11.${W}`, `warning 16:3 Function n is not pure: it uses shared variable 'sv' at line 15.${W}`]);
   const ipkg = pkg.replace(/\n {2}function/g, '\n  impure function');
-  assert.deepEqual(errs({ 'p.vhd': ipkg }, null), []);
-  assert.deepEqual(errs({ 'p.vhd': ipkg, 't.vhd': `${H}use work.p.all;\nentity tb is port (a : in std_logic; y : out std_logic); end;\narchitecture r of tb is\n  function g(x : std_logic) return std_logic is\n  begin\n    return x and ps and f(x);\n  end function;\nbegin\n  y <= g(a);\nend;` }),
-    ["7:18 Cannot access signal 'ps' (line 3 of p.vhd) from inside pure function 'g'.", "7:25 Cannot call impure function 'f' (line 9 of p.vhd) from within pure function 'g'."]);
+  assert.deepEqual(all({ 'p.vhd': ipkg }, null), []);
+  assert.deepEqual(all({ 'p.vhd': ipkg, 't.vhd': `${H}use work.p.all;\nentity tb is port (a : in std_logic; y : out std_logic); end;\narchitecture r of tb is\n  function g(x : std_logic) return std_logic is\n  begin\n    return f(x) and x;\n  end function;\nbegin\n  y <= g(a);\nend;` }),
+    [`warning 8:3 Function g is not pure: it calls impure function 'f' at line 7.${W}`]);
 });
 
 test('impure functions may use what is declared outside them; pure ones their parameters, constants, generics, their own variables, other pure functions, procedures that only use their parameters, and now (as ISE) (#185)', () => {

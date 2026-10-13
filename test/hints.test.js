@@ -171,19 +171,22 @@ test('help for the unused bits of an input bus and for names that differ only in
   assert.match(nc.pt.fix, /nome claramente diferente/);
 });
 
-test('help for a pure function that uses what is declared outside it, or calls an impure function / a side-effect procedure (#185)', () => {
-  const acc = first(V('y <= f(a);', 'function f(x : std_logic) return std_logic is\nbegin\n  return x and b;\nend function;'), 't');
-  assert.equal(acc.message, "Cannot access port 'b' (line 2) from inside pure function 'f'.");
+test('help for a function that is not pure: it uses what is declared outside it, or calls an impure function / a side-effect procedure; a warning, an error when written pure (#185)', () => {
+  const acc = first(V('y <= f(a);', 'function f(x : std_logic) return std_logic is\nbegin\n  return x and b;\nend function;'), 't', 'warning');
+  assert.equal(acc.message, "Function f is not pure: it uses port 'b' at line 6. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.");
   assert.equal(acc.hint, 'pure-function');
-  assert.equal(hintText(acc, 'en').explain, "'f' is a pure function (a VHDL function is pure unless it is declared impure): its result may depend only on its parameters, like a formula. It must not read or change a signal, a port or a variable declared outside it, but it uses the port 'b'.");
+  assert.equal(hintText(acc, 'en').explain, "'f' is a pure function (a VHDL function is pure unless it is declared impure): its result may depend only on its parameters, like a formula. It must not read or change a signal, a port, a variable or a file declared outside it, but it uses the port 'b' (line 6). Written 'function' (pure by default) this is a warning: ISE's synthesis for the Spartan-3E still accepts it, as VHDL-87 did, but VHDL-93 and ISim do not; written 'pure function' it is an error.");
   assert.equal(hintText(acc, 'en').fix, "Pass 'b' to the function as a parameter (f(x, b)), or, if it must use it, declare the function impure: 'impure function f …' (in the package declaration too, if it has one).");
-  assert.match(hintText(acc, 'pt').explain, /^'f' é uma função pura .* mas usa o port 'b'\.$/);
+  assert.match(hintText(acc, 'pt').explain, /^'f' é uma função pura .* mas usa o port 'b' \(linha 6\)\. Escrita 'function' \(pura por omissão\) é um aviso: .* escrita 'pure function' é um erro\.$/);
   assert.match(hintText(acc, 'pt').fix, /declare a função impura: 'impure function f …'/);
-  const call = first(V('y <= f(a);', 'impure function g return std_logic is\nbegin\n  return b;\nend function;\nfunction f(x : std_logic) return std_logic is\nbegin\n  return x and g;\nend function;'), 't');
-  assert.equal(call.message, "Cannot call impure function 'g' (line 4) from within pure function 'f'.");
+  const err = first(V('y <= f(a);', 'pure function f(x : std_logic) return std_logic is\nbegin\n  return x and b;\nend function;'), 't');
+  assert.equal(err.message, "Function f is not pure: it uses port 'b' at line 6.");
+  assert.equal(err.hint, 'pure-function');
+  const call = first(V('y <= f(a);', 'impure function g return std_logic is\nbegin\n  return b;\nend function;\nfunction f(x : std_logic) return std_logic is\nbegin\n  return x and g;\nend function;'), 't', 'warning');
+  assert.equal(call.message, "Function f is not pure: it calls impure function 'g' at line 10. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.");
   assert.equal(call.hint, 'pure-function-call');
-  assert.match(hintText(call, 'en').explain, /It calls the impure function 'g', which uses signals or variables declared outside it, so 'f' would use them too\.$/);
+  assert.match(hintText(call, 'en').explain, /It calls the impure function 'g' \(line 10\), which uses signals or variables declared outside it, so 'f' would use them too\. Written 'function' \(pure by default\) this is a warning/);
   assert.match(hintText(call, 'en').fix, /^Declare 'f' impure as well: 'impure function f …'/);
   assert.match(hintText(call, 'pt').fix, /^Declare também 'f' impura/);
-  assert.equal(hintFor({ message: "Cannot call side-effect procedure 'p' (line 3) from within pure function 'f'.", check: 'pure-function' }).id, 'pure-function-call');
+  assert.equal(hintFor({ message: "Function f is not pure: it calls side-effect procedure 'p' at line 3.", check: 'pure-function' }).id, 'pure-function-call');
 });

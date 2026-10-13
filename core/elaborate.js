@@ -119,12 +119,15 @@ export function buildLibrary(parsedFiles) {
     }
   }
   // pure functions (#185) using what another file declares: a package's signals and impure
-  // functions, the ports of an entity (each file's parse reported what it declares itself)
-  const known = new Set(lib.errors.map(e => `${e.file}:${e.line}:${e.message}`));
+  // functions, the ports of an entity (each file's parse reported what it declares itself; this
+  // one, with all the files, replaces it: the first thing a function uses may be of another file)
+  const at = e => `${e.file}:${e.line}:${e.check}`;
   for (const pf of parsedFiles) {
     if (pf.lang !== 'vhdl' || (pf.errors || []).some(e => e.severity === 'error')) continue;
-    for (const e of purityErrors(pf.units, { file: pf.file, text: pf.text, packages: n => lib.packages.get(n), entityOf: a => findModule(lib, a.entity) }))
-      if (!known.has(`${e.file}:${e.line}:${e.message}`)) lib.errors.push(e);
+    for (const e of purityErrors(pf.units, { file: pf.file, text: pf.text, packages: n => lib.packages.get(n), entityOf: a => findModule(lib, a.entity) })) {
+      const k = lib.errors.findIndex(x => at(x) === at(e));
+      if (k >= 0) lib.errors[k] = e; else lib.errors.push(e);
+    }
   }
   for (const a of archs) {
     const ent = findModule(lib, a.entity);

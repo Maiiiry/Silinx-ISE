@@ -27,9 +27,9 @@
 //     assigns carry `label`; subprogram declarations without a body (package header
 //     whose body is elsewhere) carry `declOnly: true`.
 //   * std_logic characters in literals are accepted case-insensitively ('x' == 'X').
-//   * subprograms written `pure` / `impure` carry `purity` ('pure' | 'impure'); once a file reads
-//     without errors, its pure functions that use what is declared outside them are errors
-//     (core/vhdl/purity.js, #185).
+//   * subprograms written `pure` / `impure` carry `purity` ('pure' | 'impure'), and their body's
+//     `end` endLoc; once a file reads without errors, its pure functions that use what is declared
+//     outside them are reported (core/vhdl/purity.js, #185).
 // Waveforms: a multi-element waveform `a <= '1', '0' after 10 ns;` becomes one
 // nonblocking assignment per element (each with its own delay) — inside a block in
 // sequential code; a concurrent one becomes a process (sens 'all') with that block.
@@ -871,11 +871,12 @@ class Parser {
     const decls = this.parseDeclarativePart(uses);
     this.expectKw('begin');
     const body = this.parseSeqStmts();
-    this.expectKw('end');
+    const end = this.expectKw('end');
     this.acceptKw('function') || this.acceptKw('procedure');
     if (this.isId() || this.peek().type === 'str') this.next();
     this.expectOp(';');
-    return { kind: 'function', name, params, returnType, decls, body, retVar: undefined, loc: this.loc(tok), ...(purity ? { purity } : {}) };
+    // (endLoc: its `end`, where ISE reports a function that is not pure)
+    return { kind: 'function', name, params, returnType, decls, body, retVar: undefined, loc: this.loc(tok), endLoc: this.loc(end), ...(purity ? { purity } : {}) };
   }
 
   parseParamList() {

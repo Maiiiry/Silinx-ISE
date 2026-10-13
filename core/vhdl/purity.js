@@ -1,30 +1,30 @@
 // VHDL pure functions (#185). A function is pure unless it is declared `impure`, and a pure function
 // may only use its parameters and what it declares itself: it must not read or write a signal, a
-// port, a variable (of a process or of an enclosing subprogram) or a shared variable declared
+// port, a variable (of a process or of an enclosing subprogram), a shared variable or a file declared
 // outside it, call an impure function, or call a procedure that does (a side-effect procedure).
-// ISE (HDLCompiler: ISim, and XST's new VHDL parser) reports it as an error at each line where it
-// happens (XST's old parser, Spartan-3E's, only warns: Function f is not pure, HDLParsers:3310):
-//     ERROR:HDLCompiler:250 - Cannot access 's' from inside pure function 'f'.
-//     ERROR:HDLCompiler:1381 - Cannot call impure function g from within pure function f
-//     ERROR:HDLCompiler:1382 - Cannot call side-effect procedure p from within pure function f
-// ISE does not report `now`, nor a file (writeline(f, l)), in a pure function: Silinx does not either.
+// Reported as XST does for the Spartan-3E (its VHDL parser, HDLParsers), once per function, at its
+// `end`: a warning when the function is pure by default (VHDL-87 had no `impure`), an error when it
+// is written `pure function`:
+//     WARNING:HDLParsers:3310 - Function f is not pure.  VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.
+//     ERROR:HDLParsers:3241 - Function f is not pure.
+// Silinx's message also says the first thing it uses (and the line where it uses it):
+//     Function f is not pure: it uses signal 's' at line 13. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.
+//     Function f is not pure: it calls impure function 'g' at line 17.
+//     Function f is not pure: it calls side-effect procedure 'p' at line 18.
+// (ISim and XST's new parser make each use an error, HDLCompiler:250 / 1381 / 1382.) XST does not
+// report `now` in a pure function: Silinx does not either.
 //
 //   purityErrors(units, { file, text, packages, entityOf }) -> [{ file, line, col, severity, message, tool, check }]
 //     units: parsed VHDL units (core/vhdl/parser.js); packages(name): the package unit of that name
 //     (its declarations are visible through a use clause); entityOf(arch): the entity of an
-//     architecture unit of another file; text: the source, for the column of the name.
-//
-// The messages say which object (its kind and the line it is declared at) and which function:
-//     Cannot access signal 's' (line 10) from inside pure function 'f'.
-//     Cannot call impure function 'g' (line 12) from within pure function 'f'.
-//     Cannot call side-effect procedure 'p' (line 11) from within pure function 'f'.
+//     architecture unit of another file; text: the source, for the line of a use.
 //
 // Isomorphic module (browser + Node).
 
 export const PURE_CHECK = 'pure-function';
 
-// (ISE reports any use of these, also s'length; not a file: ISE accepts writeline(f, l) in a pure function)
-const OBJECT = new Set(['signal', 'port', 'variable', 'shared variable']);
+// (XST reports any use of these, also s'length, and a file: writeline(f, l))
+const OBJECT = new Set(['signal', 'port', 'variable', 'shared variable', 'file']);
 
 class Scope {
   constructor(parent, file) { this.parent = parent; this.file = file; this.names = new Map(); }
@@ -57,18 +57,12 @@ export function purityErrors(units, { file = null, text = null, packages = () =>
     }
     return { line: at.line, col: at.col };
   };
-  const where = (e, fnFile) => {
-    const line = e.decl?.loc?.line;
-    if (!line) return '';
-    return e.file && fnFile && e.file !== fnFile ? ` (line ${line} of ${e.file})` : ` (line ${line})`;
-  };
-  const report = (fnScope, at, name, message, tool) => {
-    const fnFile = fnScope.file;
-    const { line, col } = colOf(name, at);
-    const key = `${fnFile}:${line}:${message}`;
+  const report = (d, fnScope, message, tool, severity) => {
+    const at = d.endLoc || d.loc || { line: 1, col: 1 };
+    const key = `${fnScope.file}:${at.line}:${message}`;
     if (seen.has(key)) return;
     seen.add(key);
-    out.push({ file: fnFile || file, line, col, severity: 'error', message, tool, check: PURE_CHECK });
+    out.push({ file: fnScope.file || file, line: at.line, col: at.col, severity, message, tool, check: PURE_CHECK });
   };
 
   // ---- declarations of a region
@@ -205,15 +199,19 @@ export function purityErrors(units, { file = null, text = null, packages = () =>
   const checkFunction = (d, outer) => {
     if (!isFunction(d) || d.declOnly || d.purity === 'impure') return;
     const s = subScope(d, outer);
-    const fname = d.name;
+    let first = null;   // the first thing it uses: { kind, entries, name, line }
     const fn = (kind, entries, n, at) => {
-      const e = entries[0];
-      if (kind === 'object') report(s, at, n, `Cannot access ${e.cls} '${n}'${where(e, s.file)} from inside pure function '${fname}'.`, 'HDLCompiler:250');
-      else if (kind === 'impure') report(s, at, n, `Cannot call impure function '${n}'${where(e, s.file)} from within pure function '${fname}'.`, 'HDLCompiler:1381');
-      else report(s, at, n, `Cannot call side-effect procedure '${n}'${where(e, s.file)} from within pure function '${fname}'.`, 'HDLCompiler:1382');
+      const line = colOf(n, at).line;
+      if (!first || line < first.line) first = { kind, entries, name: n, line };
     };
     walkDecls(d.decls, s, s, fn);
     walk(d.body, s, s, d.loc, fn);
+    if (first) {
+      const what = first.kind === 'object' ? `uses ${first.entries[0].cls}` : first.kind === 'impure' ? 'calls impure function' : 'calls side-effect procedure';
+      const msg = `Function ${d.name} is not pure: it ${what} '${first.name}' at line ${first.line}.`;
+      if (d.purity === 'pure') report(d, s, msg, 'HDLParsers:3241', 'error');
+      else report(d, s, `${msg} VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.`, 'HDLParsers:3310', 'warning');
+    }
     region(d.decls, s);
   };
   // the functions declared in a region, and in the regions inside it
