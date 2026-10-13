@@ -1,6 +1,6 @@
 // The version a build shows (#135): the release's build (the commit tagged v<VERSION>) the version
-// alone; any other commit "15.10.5 (development, 2026-10-13 11:12)", in Portuguese "(em
-// desenvolvimento, 2026-10-13 11:12)"; outside a git checkout the version alone.
+// alone; any other commit "dev:abc1234 (2026-10-13 11:12)" (the same in
+// Portuguese); outside a git checkout the version alone.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -37,9 +37,9 @@ test('version label: the version alone, or the development commit (English and P
   assert.equal(BUILD, null);
   assert.equal(VERSION_LABEL, VERSION);
   assert.equal(versionLabel(null), VERSION);
-  assert.equal(versionLabel({ commit: 'abc1234' }), `${VERSION} (development)`);
-  assert.equal(versionLabel({ commit: 'abc1234', date: '2026-10-13 11:12' }), `${VERSION} (development, 2026-10-13 11:12)`);
-  assert.equal(t(`Silinx ISE ${VERSION} (development, 2026-10-13 11:12)`), `Silinx ISE ${VERSION} (em desenvolvimento, 2026-10-13 11:12)`);
-  assert.equal(t(versionLabel({ commit: 'abc1234' })), `${VERSION} (em desenvolvimento)`);
-  assert.equal(t(`Silinx ISE ${VERSION} (development) Project Navigator`), `Silinx ISE ${VERSION} (em desenvolvimento) Project Navigator`);
+  assert.equal(versionLabel({ commit: 'abc1234' }), 'dev:abc1234');
+  assert.equal(versionLabel({ commit: 'abc1234', date: '2026-10-13 11:12' }), 'dev:abc1234 (2026-10-13 11:12)');
+  assert.equal(t('Silinx ISE dev:abc1234 (2026-10-13 11:12)'), 'Silinx ISE dev:abc1234 (2026-10-13 11:12)');
+  assert.equal(t(versionLabel({ commit: 'abc1234' })), 'dev:abc1234');
+  assert.equal(t('Silinx ISE dev:abc1234 (2026-10-13 11:12) Project Navigator'), 'Silinx ISE dev:abc1234 (2026-10-13 11:12) Project Navigator');
 });

@@ -8,7 +8,7 @@ export const MAJOR = VERSION.split('.')[0];
 // commit built is not the release's tag, #135): { commit }, else null (a release, or the server)
 /* global __SILINX_BUILD__ */
 export const BUILD = typeof __SILINX_BUILD__ !== 'undefined' ? __SILINX_BUILD__ : null;
-export const versionLabel = (build = BUILD, version = VERSION) => (build ? `${version} (development${build.date ? `, ${build.date}` : ''})` : version);
+export const versionLabel = (build = BUILD, version = VERSION) => (build ? `dev:${build.commit}${build.date ? ` (${build.date})` : ''}` : version);
 export const VERSION_LABEL = versionLabel();
 export const REPOSITORY = 'pmnmalo/Silinx-ISE';   // GitHub owner/name (About, Check for Updates)
 

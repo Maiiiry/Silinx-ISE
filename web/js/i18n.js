@@ -517,7 +517,7 @@ Object.assign(PT, {
   'To update: download silinx-ise-<version>.zip and replace your Silinx folder (your projects in the workspace are kept), or download the new Silinx-ISE.html for the standalone edition.':
     'Para atualizar: descarregue o silinx-ise-<versão>.zip e substitua a pasta do Silinx (os projetos da área de trabalho mantêm-se), ou descarregue o novo Silinx-ISE.html para a edição autónoma.',
 });
-const ptLabel = v => v.replace(/\(development([,)])/, '(em desenvolvimento$1');   // a version label in a sentence
+const ptLabel = v => v;   // a version label in a sentence (dev:<commit> (<date>): the same in Portuguese)
 PT_PATTERNS.push(
   [/^Running Silinx ISE (.+)\. Checking for a newer version…$/, (m, v) => `A executar o Silinx ISE ${ptLabel(v)}. A procurar uma versão mais recente…`],
   [/^Running Silinx ISE (.+)\.$/, (m, v) => `A executar o Silinx ISE ${ptLabel(v)}.`],
@@ -530,7 +530,6 @@ PT_PATTERNS.push(
   [/^Latest release on GitHub: (.+) —$/, 'Última versão no GitHub: $1 —'],
   [/^Could not check for updates: (.+)\.$/, 'Não foi possível procurar atualizações: $1.'],
 );
-PT_PATTERNS.push([/^(.*)\(development((?:, \d{4}-\d\d-\d\d(?: \d\d:\d\d)?)?)\)(.*)$/, '$1(em desenvolvimento$2)$3']);
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards
 Object.assign(PT, LINT_PT);   // design checks (the help texts of the messages are in core/hints.js)

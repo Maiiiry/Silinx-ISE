@@ -47,7 +47,7 @@ const plugin = {
 };
 // the version label: the release's commit, or the development commit built (core/version.js BUILD)
 const BUILD = buildInfo(ROOT, VERSION);
-console.log(`Version: ${VERSION}${BUILD ? ` (development, commit ${BUILD.commit})` : ''}`);
+console.log(`Version: ${VERSION}${BUILD ? ` (development build dev:${BUILD.commit})` : ''}`);
 const define = { __SILINX_BUILD__: JSON.stringify(BUILD) };
 const res = await esbuild.build({
   entryPoints: [path.join(ROOT, 'web/js/app.js')],
