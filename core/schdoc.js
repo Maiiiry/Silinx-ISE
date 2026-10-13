@@ -519,6 +519,14 @@ export function netlist(docIn, { modules = {} } = {}) {
       for (const s of segsAt(pt)) if (s.id !== `w:${w.id}`) { dsu.union(`w:${w.id}`, s.id); tjunction.push(pt); }
     }
   }
+  // a pin or an I/O marker on a wire (a bus tap dropped onto a bus, a symbol onto a wire): connected
+  // there, as in ISE, wherever on the segment (#170); a dot where it is not the wire's end
+  for (const [id, info] of pinInfo) {
+    for (const s of segsAt(info)) {
+      dsu.union(id, s.id);
+      if (!(s.a.x === info.x && s.a.y === info.y) && !(s.b.x === info.x && s.b.y === info.y)) tjunction.push({ x: info.x, y: info.y });
+    }
+  }
   // labels: attach to the wire under them (or a pin/marker at that point)
   const labelOf = new Map();
   for (const l of doc.labels) {
@@ -647,7 +655,7 @@ function epName(e, symById, doc) {
 }
 
 // Junction dots: points where three or more wire branches meet.
-function junctionsOf(doc) {
+function junctionsOf(doc, pinInfo = new Map()) {
   const arms = new Map();
   const add = (pt, n) => { const k = key(pt.x, pt.y); arms.set(k, (arms.get(k) || 0) + n); };
   const H = new Map(), Vv = new Map();
@@ -666,6 +674,10 @@ function junctionsOf(doc) {
   for (const pt of ends) {
     for (const [lo, hi] of H.get(pt.y) || []) if (pt.x > lo && pt.x < hi) add(pt, 2);
     for (const [lo, hi] of Vv.get(pt.x) || []) if (pt.y > lo && pt.y < hi) add(pt, 2);
+  }
+  // a pin / I/O marker inside a segment (#170): a junction there
+  for (const pt of pinInfo.values()) {
+    if ((H.get(pt.y) || []).some(([lo, hi]) => pt.x > lo && pt.x < hi) || (Vv.get(pt.x) || []).some(([lo, hi]) => pt.y > lo && pt.y < hi)) add(pt, 3);
   }
   const out = [];
   for (const [k, n] of arms) if (n >= 3) { const [x, y] = k.split(',').map(Number); out.push({ x, y }); }

@@ -187,6 +187,7 @@
 .sch-editor svg .ioname { font-size: 11px; font-weight: bold; }
 .sch-editor svg .label text { font-size: 10px; fill: var(--se-wire); }
 .sch-editor svg .label .lpt { fill: var(--se-wire); }
+.sch-editor svg .busname { font-size: 10px; fill: var(--se-wire); pointer-events: none; }
 .sch-editor svg .nc { fill: #fff; stroke: var(--se-danger); stroke-width: 1; }
 .sch-editor svg .sym:hover .gate, .sch-editor svg .sym:hover .box, .sch-editor svg .sym:hover .pin,
 .sch-editor svg .port:hover .iomark { stroke: var(--se-highlight); }

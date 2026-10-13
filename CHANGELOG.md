@@ -12,6 +12,10 @@ In detail:
 - **Gates of at most 4 inputs:** the 5-input gates are no longer offered (wider through Width / buses;
   the schematics that have them still open); a converted AND / OR / XOR of more operands becomes a
   tree of gates (#171).
+- **A pin dropped onto a wire or a bus connects there:** a bus tap placed over a bus, a gate over a
+  wire, as in ISE; a dot shows where they join (#170).
+- **Buses carry their names:** a bus connected to an input (or output) shows its name, A(5:0), on its
+  wires, and a bus tap shows the bit it takes with it, A(0) (#173, #174).
 
 ## 15.10.11
 

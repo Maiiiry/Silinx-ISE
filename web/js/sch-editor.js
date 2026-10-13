@@ -189,7 +189,7 @@ function bodySvg(sym, def) {
 
 // readable texts, positioned in sheet coordinates
 const AUTO_NAME = /^(XLXI_\d+|U\d+)$/;
-function textsSvg(sym, def) {
+function textsSvg(sym, def, ctx = {}) {
   let s = '';
   const box = symbolBox(sym, null, def);
   const cx = (lx, ly) => xform(sym, def, lx, ly);
@@ -223,8 +223,9 @@ function textsSvg(sym, def) {
   } else if (def.shape === 'arith') {
     s += `<text class="sop" x="${center.x}" y="${center.y + 5}" text-anchor="middle">${esc(def.op)}</text>`;
   } else if (def.shape === 'slice') {
+    // the bit(s) it takes, with the bus's name: A(0) of A(5:0) (#174)
     const t = cx(20, 0);
-    s += `<text class="stext" x="${t.x}" y="${t.y - 3}" text-anchor="middle">${esc(def.text)}</text>`;
+    s += `<text class="stext" x="${t.x}" y="${t.y - 3}" text-anchor="middle">${esc(`${ctx.busName || ''}${def.text}`)}</text>`;
   } else if (def.shape === 'const') {
     const t = cx((def.w - 20) / 2, 10);
     s += `<text class="cval" x="${t.x}" y="${t.y + 4}" text-anchor="middle">${esc(def.text)}</text>`;
@@ -281,11 +282,12 @@ function matrixOf(sym, def) {
   return `matrix(${a.x - o.x},${a.y - o.y},${b.x - o.x},${b.y - o.y},${o.x},${o.y})`;
 }
 
-function symbolSvg(sym, def, cls = '') {
+// ctx: { busName } (a bus tap: the name of the bus it taps, #174)
+function symbolSvg(sym, def, cls = '', ctx = {}) {
   const box = symbolBox(sym, null, def);
   return `<g class="sym${cls}" data-kind="sym" data-id="${esc(sym.id)}">`
     + `<rect class="hitbox" x="${box.x}" y="${box.y}" width="${box.w}" height="${box.h}"/>`
-    + `<g transform="${matrixOf(sym, def)}">${bodySvg(sym, def)}</g>${textsSvg(sym, def)}</g>`;
+    + `<g transform="${matrixOf(sym, def)}">${bodySvg(sym, def)}</g>${textsSvg(sym, def, ctx)}</g>`;
 }
 
 /**
@@ -634,11 +636,32 @@ export function mountSchEditor(container, opts = {}) {
       parts.push(`<g class="${cls}" data-kind="wire" data-id="${esc(w.id)}"><polyline class="whit" points="${pts}"/><polyline class="wline" points="${pts}"/></g>`);
     }
     if (nl) for (const j of nl.junctions) parts.push(`<circle class="junction" cx="${j.x}" cy="${j.y}" r="3.2"/>`);
+    // a named bus (connected to an input / output marker or labelled) carries its name on every wire
+    // of it, over its longest horizontal run (#173); the wires with a label of their own keep that
+    if (nl) {
+      const labelled = new Set(doc.labels.map(l => nl.labelNet.get(l.id)?.id));
+      for (const w of doc.wires) {
+        const n = nl.wireNet.get(w.id);
+        if (!n || n.auto || !n.name || !(n.width > 1) || labelled.has(n.id)) continue;
+        let best = null;
+        for (let i = 0; i + 1 < w.points.length; i++) {
+          const a = w.points[i], b = w.points[i + 1];
+          const len = a.y === b.y ? Math.abs(b.x - a.x) : Math.abs(b.y - a.y) * 0.5;   // (horizontal runs first)
+          if (!best || len > best.len) best = { a, b, len };
+        }
+        if (!best || best.len < 30) continue;
+        // (near the start of the run, clear of the taps and pins further on)
+        const hz = best.a.y === best.b.y;
+        const x = hz ? Math.min(best.a.x, best.b.x) + 12 : best.a.x + 4, y = hz ? best.a.y - 4 : Math.min(best.a.y, best.b.y) + 16;
+        parts.push(`<text class="busname" x="${x}" y="${y}" text-anchor="start">${esc(`${n.name}(${n.width - 1}:0)`)}</text>`);
+      }
+    }
     // symbols
     for (const s of doc.symbols) {
       let def;
       try { def = symbolDef(s, modules); } catch { continue; }
-      parts.push(symbolSvg(s, def, sel.has(`sym:${s.id}`) ? ' sel' : ''));
+      const tapped = s.type === 'slice' ? nl?.pinNet.get(`${s.id}/I`) : null;
+      parts.push(symbolSvg(s, def, sel.has(`sym:${s.id}`) ? ' sel' : '', { busName: tapped && !tapped.auto ? tapped.name : '' }));
     }
     for (const p of doc.ports) parts.push(portSvg(p, sel.has(`port:${p.id}`) ? ' sel' : ''));
     for (const l of doc.labels) {

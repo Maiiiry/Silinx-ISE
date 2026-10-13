@@ -724,3 +724,25 @@ test('symbol library covers the documented set', () => {
     assert.ok(def.w % 10 === 0 && def.h % 10 === 0, `${t} size on grid`);
   }
 });
+
+test('a pin dropped onto a wire connects there (#170): a bus tap in the middle of a bus, a gate onto a wire; a dot shows it', () => {
+  const doc = newDoc('tap', 'vhdl');
+  // bus a(5:0) from its input marker, horizontal; a tap (slice bit 0) whose input pin sits in the middle of it
+  doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 6, x: 100, y: 200 });
+  doc.wires.push({ id: 'W1', points: [{ x: 100, y: 200 }, { x: 500, y: 200 }] });
+  const tap = { id: 'S1', type: 'slice', x: 0, y: 0, rot: 0, mirror: false, name: 'XLXI_1', params: { msb: 0, lsb: 0 } };
+  const ip = symbolPins(normalizeDoc({ ...doc, symbols: [tap] }).symbols[0], {}).find(p => p.name === 'I');
+  tap.x = 300 - ip.x; tap.y = 200 - ip.y;   // its input pin at (300, 200): on the bus, not at a vertex
+  doc.symbols.push(tap);
+  // a wire w from an output marker; an inverter's input pin dropped in its middle
+  doc.ports.push({ id: 'P2', name: 'w', dir: 'in', width: 1, x: 100, y: 400 });
+  doc.wires.push({ id: 'W2', points: [{ x: 100, y: 400 }, { x: 400, y: 400 }] });
+  const inv = { id: 'S2', type: 'inv', x: 0, y: 0, rot: 0, mirror: false, name: 'XLXI_2', params: { width: 1 } };
+  const ii = symbolPins(normalizeDoc({ ...doc, symbols: [inv] }).symbols[0], {}).find(p => p.name === 'I');
+  inv.x = 250 - ii.x; inv.y = 400 - ii.y;
+  doc.symbols.push(inv);
+  const nl = netlist(normalizeDoc(doc), {});
+  assert.equal(nl.pinNet.get('S1/I'), nl.portNet.get('P1'), 'the tap on the bus');
+  assert.equal(nl.pinNet.get('S2/I'), nl.portNet.get('P2'), 'the gate on the wire');
+  assert.ok(nl.junctions.some(j => j.x === 300 && j.y === 200) && nl.junctions.some(j => j.x === 250 && j.y === 400), 'dots where they join');
+});
