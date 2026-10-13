@@ -33,6 +33,11 @@ In detail:
   the board emulator's and the dialogs' grey notes too dark. Their colours are now theme colours with
   a dark value (the light theme unchanged), and every screen is checked for readable text in both
   themes (#159).
+- **A pre-release "Development build"** (https://github.com/pmnmalo/Silinx-ISE/releases/tag/dev) with
+  main's files (the app zip, the Docker kit, Silinx-ISE.html), replaced after every change that passes
+  the tests; never "Latest", so Check for Updates keeps to the releases (#161).
+- A development build's version says when its commit was made: `15.10.9 (development, commit abc1234,
+  2026-10-13 11:12)` (#162).
 
 ## 15.10.8
 
