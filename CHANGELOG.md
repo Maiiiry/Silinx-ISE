@@ -20,6 +20,10 @@ In detail:
   register, counter or flip-flop of the schematic is an entity (module) of its own in the HDL,
   instanced where the schematic has it, as ISE does with its macros, no longer all of it as discrete
   logic; the gates stay expressions. Edited as HDL, the blocks come back as the same symbols (#175).
+- **A truth table has any number of outputs** (it had at most 4): the table scrolls sideways, the
+  outputs' tabs wrap, each output has its Karnaugh map, its HDL and its circuit; a module of more
+  than 16 output bits is read into a table, and a state diagram's *Create Truth Tables* makes one
+  table of the next-state bits and one of the outputs (#176).
 
 ## 15.10.11
 

@@ -13,8 +13,8 @@
 .tt-link .gen-banner.out-of-sync { background: #fdecea; border-color: #e0a0a0; color: #900; }
 .tt-link .gen-banner a { color: #0645ad; cursor: pointer; text-decoration: underline; }
 .tt-body { flex: 1; display: flex; min-height: 0; }
-.tt-left { flex: 0 0 auto; max-width: 48%; overflow: auto; padding: 8px; border-right: 1px solid var(--border-light, #ccc); display: flex; flex-direction: column; gap: 4px; }
-.tt-right { flex: 1; overflow: auto; padding: 8px 12px; }
+.tt-left { flex: 0 0 auto; max-width: 48%; min-width: 0; overflow: auto; padding: 8px; border-right: 1px solid var(--border-light, #ccc); display: flex; flex-direction: column; gap: 4px; }
+.tt-right { flex: 1; min-width: 0; overflow: auto; padding: 8px 12px; }
 .tt-caption { font-weight: bold; color: var(--title-fg, #15428b); margin: 8px 0 3px; }
 .tt-caption:first-child { margin-top: 0; }
 .tt-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -35,7 +35,7 @@
 .tt-table td.v0 { color: #555; }
 .tt-table td.v1 { color: #0040c0; }
 .tt-table tr.tt-diff td { background: #fde3e3; }
-.tt-tabs { display: flex; gap: 2px; margin-bottom: 4px; }
+.tt-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 4px; }
 .tt-tab { border: 1px solid var(--border, #aaa); background: var(--tab-inactive, #eee); padding: 2px 14px; font-family: var(--mono, monospace); font-weight: bold; cursor: pointer; border-radius: 3px 3px 0 0; }
 .tt-tab.active { background: var(--tab-active, #fff); border-bottom-color: var(--tab-active, #fff); color: var(--title-fg, #15428b); }
 .tt-groups { display: flex; gap: 14px; margin-bottom: 4px; }

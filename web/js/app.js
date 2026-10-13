@@ -2021,9 +2021,9 @@ async function syncTtFromHdl(hdlPath, { quiet = false } = {}) {
   const mods = S.modules.filter(m => m.file === hdlPath && m.kind !== 'package');
   const mod = mods.find(m => m.name.toLowerCase() === String(old.name || '').toLowerCase()) || mods[0];
   if (!mod) return fail(`${hdlPath.split('/').pop()} has no module`);
-  const { truthTableFromModule, dontCaresInHdl, normalizeTable, MAX_EDIT_INPUTS, MAX_OUTPUTS } = await import('/core/logic.js');
+  const { truthTableFromModule, dontCaresInHdl, normalizeTable, MAX_EDIT_INPUTS } = await import('/core/logic.js');
   let t;
-  try { t = truthTableFromModule(ttDesignSources(), mod.name, { maxInputs: MAX_EDIT_INPUTS, maxOutputs: MAX_OUTPUTS }); }
+  try { t = truthTableFromModule(ttDesignSources(), mod.name, { maxInputs: MAX_EDIT_INPUTS }); }
   catch (e) { return fail(e.message); }
   // don't cares written in the HDL comments ("don't care: f = d(3, 5)")
   const dcs = dontCaresInHdl(S.sources.find(x => x.path === hdlPath)?.text);

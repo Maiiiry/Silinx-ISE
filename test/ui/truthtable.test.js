@@ -137,6 +137,82 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   assert.match(await readWs(env, 'TtPj', 'src/maj4.vhd'), /entity maj4 is/);
 });
 
+uiTest('Truth Table with many outputs (#176): 4 -> 16 outputs, cells of output 6, its K-map and SOP, the table scrolls, linked VHDL and schematic', E, async (page) => {
+  const four = { version: 1, name: 'many', inputs: ['a', 'b', 'c'], outputs: ['y0', 'y1', 'y2', 'y3'], table: { y0: '00000001', y1: '01111111', y2: '01101001', y3: '00010111' }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
+  await makeProject(env, { name: 'TtMany', files: { 'src/many.tt.json': JSON.stringify(four, null, 2) } });
+  await page.openProject('TtMany');
+  await page.eval(() => window.SilinxApp.openTt('src/many.tt.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/many.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor'), [], { what: 'truth table editor' });
+  const T = '.doc:not([hidden]) .tt-editor';
+  // no outputs: refused
+  await page.fill(`${T} .tt-outputs`, ' ');
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-toolbar .tt-err`).textContent, T), 'At least 1 output');
+  // 16 outputs: the 4 columns kept, 12 new ones at 0
+  const outs = Array.from({ length: 16 }, (_, i) => `y${i}`);
+  await page.fill(`${T} .tt-outputs`, outs.join(', '));
+  await page.waitFor((t) => document.querySelectorAll(`${t} .tt-table th.tt-out`).length === 16, [T], { what: '16 output columns' });
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-toolbar .tt-err`).textContent, T), '');
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-tab`)].map((b) => b.dataset.out), T), outs);
+  assert.equal(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-cell[data-out=y3]`)].map((c) => c.textContent).join(''), T), '00010111');
+  // output 6 (y5): rows 0 and 6 at 1, row 1 a don't care
+  for (const r of [0, 6, 1, 1]) await page.click(`${T} .tt-cell[data-out=y5][data-row="${r}"]`);
+  assert.equal(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-cell[data-out=y5]`)].map((c) => c.textContent).join(''), T), '1X000010');
+  // its K-map, canonical forms and minimal SOP
+  await page.click(`${T} .tt-tab[data-out=y5]`);
+  assert.ok(await page.eval((t) => document.querySelector(`${t} .tt-tab.active`).dataset.out === 'y5' && document.querySelector(`${t} .tt-table th.tt-out.sel`).textContent === 'y5', T));
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} svg.tt-kmap .tt-kcell`)].map((g) => `${g.dataset.row}:${g.querySelector('.tt-k-v').textContent}`), T),
+    ['0:1', '1:X', '3:0', '2:0', '4:0', '5:0', '7:0', '6:1']);
+  assert.match(await page.eval((t) => document.querySelector(`${t} .tt-canon`).textContent, T), /y5 = Σm\(0, 6\) \+ d\(1\)/);
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-sop .tt-expr`).textContent, T), "y5 = a'·b' + a·b·c'");
+  assert.equal(await page.eval((t) => document.querySelectorAll(`${t} svg.tt-kmap .tt-group`).length, T), 2);
+  // a K-map cell of output 6: row 7 -> 1
+  await page.click(`${T} svg.tt-kmap .tt-kcell[data-row="7"] rect`);
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-sop .tt-expr`).textContent, T), "y5 = a'·b' + a·b");
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-cell[data-out=y5][data-row="7"]`).textContent, T), '1');
+  // the layout: the table scrolls sideways in its panel, the K-map panel keeps its room, the tabs wrap
+  const lay = await page.eval((t) => {
+    const left = document.querySelector(`${t} .tt-left`), right = document.querySelector(`${t} .tt-right`), tabs = document.querySelector(`${t} .tt-tabs`), tab = tabs.querySelector('.tt-tab');
+    return { scrolls: left.scrollWidth > left.clientWidth, left: left.getBoundingClientRect().width, editor: document.querySelector(t).getBoundingClientRect().width, right: right.getBoundingClientRect().width, kmapIn: right.querySelector('svg.tt-kmap').getBoundingClientRect().right <= right.getBoundingClientRect().right + 1, tabsFit: tabs.scrollWidth <= tabs.clientWidth + 1, tabRows: Math.round(tabs.getBoundingClientRect().height / tab.getBoundingClientRect().height) };
+  }, T);
+  assert.ok(lay.scrolls, `the table scrolls: ${JSON.stringify(lay)}`);
+  assert.ok(lay.left <= lay.editor * 0.48 + 1 && lay.right >= lay.editor * 0.5 - 30, `the panels: ${JSON.stringify(lay)}`);
+  assert.ok(lay.kmapIn && lay.tabsFit, `the K-map and the tabs fit: ${JSON.stringify(lay)}`);
+  // the last column reached by scrolling, clickable
+  await page.eval((t) => { const l = document.querySelector(`${t} .tt-left`); l.scrollLeft = l.scrollWidth; }, T);
+  await page.click(`${T} .tt-cell[data-out=y15][data-row="2"]`);
+  assert.equal(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-cell[data-out=y15]`)].map((c) => c.textContent).join(''), T), '00100000');
+  // saved: 16 outputs
+  await page.waitFor(async () => (await (await fetch('/api/projects/TtMany/file?path=src%2Fmany.tt.json')).json()).table?.y15 === '00100000', [], { what: 'saved' });
+  const saved = await ttFile('TtMany', 'src/many.tt.json');
+  assert.deepEqual(saved.outputs, outs);
+  assert.deepEqual([saved.table.y3, saved.table.y5, saved.table.y15, saved.table.y9], ['00010111', '1X000011', '00100000', '00000000']);
+
+  // ---- linked VHDL module: 16 outputs, simulates to the table; an HDL edit of output 6 comes back
+  await page.click(`${T} .tt-btn`, { text: 'Generate VHDL module' });
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/many.vhd'] === 'src/many.tt.json', [], { what: 'linked HDL' });
+  const vhd = await readWs(env, 'TtMany', 'src/many.vhd');
+  assert.match(vhd, /y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15 : out std_logic/);
+  const st = simTable(vhd, 'many.vhd', 'many');
+  assert.deepEqual(Object.keys(st), outs);
+  assert.deepEqual([st.y3, st.y5, st.y15, st.y9], ['00010111', '11000011', '00100000', '00000000']);
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/many.vhd' && window.Silinx.active.editor, [], { what: 'HDL editor' });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace(/ {4}y5 <= .*;/, '    y5 <= a xor c;')); });
+  await page.waitFor(async () => (await (await fetch('/api/projects/TtMany/file?path=src%2Fmany.tt.json')).json()).table.y5 === '0X011010', [], { what: 'table updated from the HDL', timeout: 15000 });
+  assert.deepEqual((await ttFile('TtMany', 'src/many.tt.json')).outputs, outs);
+
+  // ---- Generate Schematic: 16 output markers, simulates to the table
+  await page.eval(() => window.SilinxApp.openTt('src/many.tt.json'));
+  await page.waitFor((t) => window.Silinx.active?.id === 'tt:src/many.tt.json' && [...document.querySelectorAll(`${t} .tt-cell[data-out=y5]`)].map((c) => c.textContent).join('') === '0X011010', [T], { what: 'editor updated' });
+  await page.click(`${T} .tt-btn`, { text: 'Generate Schematic' });
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/many_sch.sch.json', [], { what: 'schematic opened', timeout: 15000 });
+  const sch = JSON.parse(await readWs(env, 'TtMany', 'src/many_sch.sch.json'));
+  assert.deepEqual(netlist(sch).diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.deepEqual(sch.ports.filter((p) => p.dir === 'out').map((p) => p.name), outs);
+  const ss = simTable(generateHdl(sch).code, 'many_sch.vhd', 'many_sch');
+  assert.deepEqual([ss.y3, ss.y15, ss.y9], ['00010111', '00100000', '00000000']);
+  assert.ok([...'0X011010'].every((c, i) => c === 'X' || c === ss.y5[i]), ss.y5);
+});
+
 uiTest('Truth Table from Module: a vector adder read into a table (exhaustive simulation); module context menu makes a new table', E, async (page) => {
   await makeProject(env, { name: 'TtMod', files: { 'src/add1.vhd': ADDER } });
   await page.openProject('TtMod');

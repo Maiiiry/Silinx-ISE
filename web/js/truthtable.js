@@ -1,5 +1,5 @@
-// Truth Table / Karnaugh Map editor (documents <name>.tt.json). The inputs (1–6) and outputs (1–4)
-// are named in the toolbar; the truth table is edited by clicking its output cells (0 → 1 → X) or by
+// Truth Table / Karnaugh Map editor (documents <name>.tt.json). The inputs (1–6) and outputs (any
+// number: the table scrolls, one output at a time in the tabs) are named in the toolbar; the truth table is edited by clicking its output cells (0 → 1 → X) or by
 // typing an expression per output. For the selected output: Karnaugh map with the groups of the
 // minimal SOP (1s) or POS (0s), canonical forms Σm / ΠM, minimal SOP and POS with their literal and
 // gate counts, and a check of the student's own expression. Tables read from a module may have up
@@ -13,7 +13,7 @@
 import { h } from './ui.js';
 import {
   normalizeTable, validateTable, reshapeTable, analyzeOutput, parseExpr, exprColumn, formatExpr, compareExpr,
-  kmapLayout, kmapRects, MAX_EDIT_INPUTS, MAX_OUTPUTS,
+  kmapLayout, kmapRects, MAX_EDIT_INPUTS,
 } from '/core/logic.js';
 
 const NEXT = { 0: '1', 1: 'X', X: '0' };
@@ -61,13 +61,13 @@ export function mountTtEditor(container, opts = {}) {
 
   // ------------------------------------------------------------------ toolbar
   const inIn = h('input', { type: 'text', class: 'tt-inputs', title: 'Input names (1 to 6), separated by commas or spaces; the first is the most significant bit of a row', spellcheck: 'false' });
-  const outIn = h('input', { type: 'text', class: 'tt-outputs', title: 'Output names (1 to 4), separated by commas or spaces', spellcheck: 'false' });
+  const outIn = h('input', { type: 'text', class: 'tt-outputs', title: 'Output names (1 or more), separated by commas or spaces', spellcheck: 'false' });
   const shapeErr = h('span', { class: 'tt-err' });
   const applyShape = () => {
     const ins = names(inIn.value), outs = names(outIn.value);
     shapeErr.textContent = '';
     if (ins.length < 1 || ins.length > MAX_EDIT_INPUTS) { shapeErr.textContent = `1 to ${MAX_EDIT_INPUTS} inputs`; return; }
-    if (outs.length < 1 || outs.length > MAX_OUTPUTS) { shapeErr.textContent = `1 to ${MAX_OUTPUTS} outputs`; return; }
+    if (outs.length < 1) { shapeErr.textContent = 'At least 1 output'; return; }
     const next = normalizeTable(reshapeTable(M, ins, outs));
     const errs = validateTable(next);
     if (errs.length) { shapeErr.textContent = errs[0].message; return; }

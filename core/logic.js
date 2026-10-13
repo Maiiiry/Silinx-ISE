@@ -21,8 +21,7 @@ import { tbPorts, generateTestbench, expectedFromTrace } from './testbench.js';
 export const TT_VERSION = 1;
 export const MAX_INPUTS = 8;          // truth tables (display, module tables)
 export const MAX_EDIT_INPUTS = 6;     // the editor and Karnaugh maps
-export const MAX_OUTPUTS = 4;         // the editor
-export const MAX_MODULE_OUTPUTS = 16; // a table read from a module
+// Outputs: any number (each is a column of the table and its own Karnaugh map / circuit).
 
 export class LogicError extends Error {
   constructor(message, pos) { super(pos != null ? `${message} (at position ${pos})` : message); this.pos = pos; this.bare = message; }
@@ -513,12 +512,12 @@ export function normalizeTable(d) {
 }
 
 /** Problems of a table document: [{ severity: 'error', message }] (names, sizes). */
-export function validateTable(doc, { maxInputs = MAX_INPUTS, maxOutputs = MAX_MODULE_OUTPUTS } = {}) {
+export function validateTable(doc, { maxInputs = MAX_INPUTS } = {}) {
   const errs = [];
   const e = m => errs.push({ severity: 'error', message: m });
   if (!IDENT.test(doc.name) || RESERVED.has(doc.name.toLowerCase())) e(`'${doc.name}' is not a valid module name`);
   if (doc.inputs.length < 1 || doc.inputs.length > maxInputs) e(`a truth table has 1 to ${maxInputs} inputs`);
-  if (doc.outputs.length < 1 || doc.outputs.length > maxOutputs) e(`a truth table has 1 to ${maxOutputs} outputs`);
+  if (doc.outputs.length < 1) e('a truth table has at least 1 output');
   const seen = new Set([doc.name.toLowerCase()]);
   for (const v of [...doc.inputs, ...doc.outputs]) {
     if (!IDENT.test(v) || /__|_$/.test(v) || RESERVED.has(v.toLowerCase())) e(`'${v}' is not a valid name (a letter, then letters, digits and single _; not a VHDL/Verilog keyword)`);
@@ -617,10 +616,10 @@ export function dontCaresInHdl(text) {
  * Truth table of a combinational module of the project, by exhaustive simulation of the elaborated
  * module. sources: [{ path, text, lang? }]. Vector ports give one input/output per bit (a(1) -> a_1).
  * Throws when the module is sequential (clocked processes or latches), has more than `maxInputs`
- * input bits, or ports of other types.
+ * input bits, or ports of other types. Any number of output bits.
  * Returns { name, inputs, outputs, table, lang, warnings }.
  */
-export function truthTableFromModule(sources, moduleName, { maxInputs = MAX_INPUTS, maxOutputs = MAX_MODULE_OUTPUTS } = {}) {
+export function truthTableFromModule(sources, moduleName, { maxInputs = MAX_INPUTS } = {}) {
   const lib = compile(sources);
   const design = elaborate(lib, moduleName);
   const errors = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
@@ -644,7 +643,6 @@ export function truthTableFromModule(sources, moduleName, { maxInputs = MAX_INPU
   if (!nIn) throw new Error(`'${moduleName}' has no inputs`);
   if (nIn > maxInputs) throw new Error(`'${moduleName}' has ${nIn} input bits: a truth table takes at most ${maxInputs}`);
   if (!nOut) throw new Error(`'${moduleName}' has no outputs`);
-  if (nOut > maxOutputs) throw new Error(`'${moduleName}' has ${nOut} output bits: at most ${maxOutputs}`);
   const bitNames = p => {
     if (!p.bus) return [p.name];
     const idx = p.desc ? Array.from({ length: p.width }, (_, i) => p.left - i) : Array.from({ length: p.width }, (_, i) => p.left + i);

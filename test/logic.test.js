@@ -353,3 +353,108 @@ test('analyzeOutput: everything shown for an output', () => {
   assert.equal(formatExpr(one.sop.ast), 'c');
   assert.deepEqual(one.sop.gates, { and: 0, or: 0, not: 0, literals: 1, inputs: 0 });
 });
+
+// ------------------------------------------------------------------ any number of outputs (#176)
+const SIX = () => ({ ...newTable('six', ['a', 'b', 'c'], ['y0', 'y1', 'y2', 'y3', 'y4', 'y5']),
+  table: { y0: '00000001', y1: '01111111', y2: '01101001', y3: '00010111', y4: '10100000', y5: '1X0X0X1X' } });
+
+test('tables of more than 4 outputs: validated, saved and loaded, reshaped, K-map and SOP of each output (#176)', () => {
+  const doc = normalizeTable(SIX());
+  assert.deepEqual(validateTable(doc), []);
+  // 40 outputs: no limit
+  const wide = newTable('wide', ['a', 'b'], Array.from({ length: 40 }, (_, i) => `o${i}`));
+  assert.deepEqual(validateTable(normalizeTable(wide)), []);
+  assert.deepEqual(validateTable({ ...doc, outputs: [] }).map(e => e.message), ['a truth table has at least 1 output']);
+  // the file (<name>.tt.json): written and read back unchanged
+  const text = JSON.stringify(doc, null, 2);
+  assert.deepEqual(normalizeTable(JSON.parse(text)), doc);
+  assert.deepEqual(JSON.parse(text).outputs, ['y0', 'y1', 'y2', 'y3', 'y4', 'y5']);
+  assert.equal(JSON.parse(text).table.y5, '1X0X0X1X');
+  // adding outputs 7 and 8 keeps the six columns, the new ones are 0
+  const r = reshapeTable(doc, doc.inputs, [...doc.outputs, 'y6', 'y7']);
+  assert.deepEqual(r.outputs, ['y0', 'y1', 'y2', 'y3', 'y4', 'y5', 'y6', 'y7']);
+  assert.deepEqual(Object.values(r.table), ['00000001', '01111111', '01101001', '00010111', '10100000', '1X0X0X1X', '00000000', '00000000']);
+  // output 5 (y4) and output 6 (y5): canonical forms, minimal SOP / POS, K-map groups
+  const a5 = analyzeOutput(doc, 'y4');
+  assert.deepEqual([a5.sigma, a5.pi, formatExpr(a5.sop.ast), formatExpr(a5.pos.ast)], ['Σm(0, 2)', 'ΠM(1, 3, 4, 5, 6, 7)', "a'·c'", "c'·a'"]);
+  assert.deepEqual(a5.sop.gates, { and: 1, or: 0, not: 2, literals: 2, inputs: 2 });
+  const L = kmapLayout(3);
+  assert.deepEqual(a5.sop.terms.map(t => kmapRects(L, t).map(c => [c.r0, c.r1, c.c0, c.c1, c.open.left, c.open.right])), [[[0, 0, 0, 0, true, false], [0, 0, 3, 3, false, true]]]);
+  const a6 = analyzeOutput(doc, 'y5');
+  assert.deepEqual([a6.sigma, a6.pi, formatExpr(a6.sop.ast), formatExpr(a6.pos.ast)], ['Σm(0, 6) + d(1, 3, 5, 7)', 'ΠM(2, 4) · D(1, 3, 5, 7)', "a'·b' + a·b", "(a + b')·(a' + b)"]);
+  assert.deepEqual(a6.sop.terms.map(t => t.minterms), [[0, 1], [6, 7]]);
+});
+
+test('HDL of a 6-output table: the exact VHDL and Verilog, which simulate to the table and read back with 6 outputs (#176)', () => {
+  const doc = SIX();
+  const vhd = generateTableHdl(doc, 'vhdl');
+  assert.equal(vhd.code.slice(vhd.code.indexOf('-- y4 =')), `-- y4 = Σm(0, 2)
+-- y4 = a'·c'   (minimal SOP, 2 literal(s))
+-- y5 = Σm(0, 6) + d(1, 3, 5, 7)
+-- y5 = a'·b' + a·b   (minimal SOP, 4 literal(s))
+-- don't care: y5 = d(1, 3, 5, 7)
+
+library ieee;
+use ieee.std_logic_1164.all;
+
+entity six is
+    port (
+        a, b, c : in  std_logic;
+        y0, y1, y2, y3, y4, y5 : out std_logic
+    );
+end six;
+
+architecture truth_table of six is
+begin
+    y0 <= a and b and c;
+    y1 <= c or b or a;
+    y2 <= (not a and not b and c) or (not a and b and not c) or (a and not b and not c) or (a and b and c);
+    y3 <= (b and c) or (a and c) or (a and b);
+    y4 <= not a and not c;
+    y5 <= (not a and not b) or (a and b);
+end truth_table;
+`);
+  const v = generateTableHdl(doc, 'verilog');
+  assert.equal(v.code.slice(v.code.indexOf('module six')), `module six (
+    input  wire a, b, c,
+    output wire y0, y1, y2, y3, y4, y5
+);
+
+    assign y0 = a & b & c;
+    assign y1 = c | b | a;
+    assign y2 = (~a & ~b & c) | (~a & b & ~c) | (a & ~b & ~c) | (a & b & c);
+    assign y3 = (b & c) | (a & c) | (a & b);
+    assign y4 = ~a & ~c;
+    assign y5 = (~a & ~b) | (a & b);
+
+endmodule
+`);
+  // HDL -> table (the sync of a linked module): the six outputs, don't cares from the comment
+  for (const g of [vhd, v]) {
+    const t = truthTableFromModule([{ path: g.filename, text: g.code }], 'six');
+    assert.deepEqual([t.inputs, t.outputs], [['a', 'b', 'c'], ['y0', 'y1', 'y2', 'y3', 'y4', 'y5']]);
+    assert.deepEqual(Object.values(t.table), ['00000001', '01111111', '01101001', '00010111', '10100000', '11000011']);   // y5 = a'b' + ab: its don't cares 1 and 7 at 1
+    assert.deepEqual(dontCaresInHdl(g.code), { y5: [1, 3, 5, 7] });
+  }
+  // a module of 20 output bits (more than the 16 of before): read whole
+  const dec = 'module dec(input [2:0] a, output [19:0] y); assign y = {17\'b0, a} << a; endmodule';
+  const t = truthTableFromModule([{ path: 'dec.v', text: dec }], 'dec');
+  assert.equal(t.outputs.length, 20);
+  assert.deepEqual([t.outputs[0], t.outputs[19]], ['y_19', 'y_0']);
+  for (let r = 0; r < 8; r++) assert.equal(t.outputs.map(o => t.table[o][r]).join(''), (r << r).toString(2).padStart(20, '0'), `row ${r}`);
+});
+
+test('gate schematic of a 6- and a 9-output table: netlist() without errors, simulates to the table (#176)', () => {
+  const r = rng(176);
+  const nine = newTable('nine', V(4), Array.from({ length: 9 }, (_, i) => `q${i}`));
+  for (const o of nine.outputs) nine.table[o] = randCol(r, 4, 0.1);
+  for (const [doc, opts] of [[SIX(), { form: 'sop', lang: 'vhdl' }], [SIX(), { form: 'pos', nand: true, lang: 'verilog' }], [nine, { form: 'sop', lang: 'verilog' }], [nine, { form: 'pos', lang: 'vhdl' }]]) {
+    const sch = schematicFromTable(doc, opts);
+    assert.deepEqual(schematicErrors(sch).map(e => e.message), []);
+    assert.equal(sch.fallbacks, 0);
+    assert.deepEqual(sch.ports.filter(p => p.dir === 'out').map(p => p.name), doc.outputs);
+    const g = generateHdl(sch, { lang: opts.lang });
+    const t = truthTableFromModule([{ path: `${doc.name}.${opts.lang === 'vhdl' ? 'vhd' : 'v'}`, text: g.code }], doc.name);
+    for (const o of doc.outputs) assert.ok(careEqual(doc.table[o], t.table[o]), `${doc.name} ${JSON.stringify(opts)} ${o}: ${doc.table[o]} vs ${t.table[o]}`);
+  }
+});

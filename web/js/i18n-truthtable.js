@@ -13,7 +13,7 @@ export const TT_PT = {
   // editor toolbar
   'Inputs:': 'Entradas:', 'Outputs:': 'Saídas:', 'Apply': 'Aplicar', 'Apply the input and output names': 'Aplicar os nomes das entradas e das saídas',
   'Input names (1 to 6), separated by commas or spaces; the first is the most significant bit of a row': 'Nomes das entradas (1 a 6), separados por vírgulas ou espaços; a primeira é o bit mais significativo de cada linha',
-  'Output names (1 to 4), separated by commas or spaces': 'Nomes das saídas (1 a 4), separados por vírgulas ou espaços',
+  'Output names (1 or more), separated by commas or spaces': 'Nomes das saídas (1 ou mais), separados por vírgulas ou espaços',
   'HDL logic:': 'Lógica do HDL:', 'Form of the logic in the generated HDL module': 'Forma da lógica no módulo HDL gerado',
   'Minimal SOP': 'SOP mínima', 'Minimal POS': 'POS mínima',
   'Generate VHDL module': 'Gerar módulo VHDL', 'Generate Verilog module': 'Gerar módulo Verilog',
@@ -38,7 +38,7 @@ export const TT_PT = {
   'No 0s: no groups (the output is always 1).': 'Sem 0s: sem grupos (a saída é sempre 1).',
   'The exact search was cut short: this solution may not be minimal.': 'A procura exata foi interrompida: esta solução pode não ser mínima.',
   'No Karnaugh map for more than 6 inputs.': 'Sem mapa de Karnaugh para mais de 6 entradas.',
-  '1 to 6 inputs': '1 a 6 entradas', '1 to 4 outputs': '1 a 4 saídas',
+  '1 to 6 inputs': '1 a 6 entradas', 'At least 1 output': 'Pelo menos 1 saída',
 };
 
 export const TT_PT_PATTERNS = [

@@ -680,12 +680,12 @@ export function encodedTable(model) {
   return { stateBits, nextBits, inputBits: ib.map((b) => b.name), outputBits: ob.map((b) => b.name), rows };
 }
 
-export const TT_MAX_INPUTS = 6, TT_MAX_OUTPUTS = 4;
+export const TT_MAX_INPUTS = 6;
 
 /**
  * Truth tables (core/logic.js documents) of the next-state bits and of the outputs, from the
- * encoded table: inputs = state bits + input bits (at most 6), at most 4 outputs per table
- * (several tables when there are more). Unused state codes are don't cares (X).
+ * encoded table: inputs = state bits + input bits (at most 6); one table of the next-state bits,
+ * one of the output bits (any number of each). Unused state codes are don't cares (X).
  * Returns { tables: [{ suffix, doc }] } or { error }.
  */
 export function truthTablesOf(model) {
@@ -695,10 +695,7 @@ export function truthTablesOf(model) {
   const ins = [...t.stateBits, ...t.inputBits];
   if (ins.length > TT_MAX_INPUTS) return { error: `A truth table has at most ${TT_MAX_INPUTS} inputs; this machine needs ${ins.length} (${t.stateBits.length} state bit(s) + ${t.inputBits.length} input bit(s))` };
   const cols = [...t.nextBits.map((n, i) => ({ name: n, get: (r) => r.d[i] })), ...t.outputBits.map((n, i) => ({ name: n, get: (r) => r.out[i] }))];
-  const groups = [];
-  const nextCols = cols.slice(0, t.nextBits.length), outCols = cols.slice(t.nextBits.length);
-  for (let i = 0; i < nextCols.length; i += TT_MAX_OUTPUTS) groups.push({ suffix: nextCols.length > TT_MAX_OUTPUTS ? `next${i / TT_MAX_OUTPUTS + 1}` : 'next', cols: nextCols.slice(i, i + TT_MAX_OUTPUTS) });
-  for (let i = 0; i < outCols.length; i += TT_MAX_OUTPUTS) groups.push({ suffix: outCols.length > TT_MAX_OUTPUTS ? `out${i / TT_MAX_OUTPUTS + 1}` : 'out', cols: outCols.slice(i, i + TT_MAX_OUTPUTS) });
+  const groups = [{ suffix: 'next', cols: cols.slice(0, t.nextBits.length) }, { suffix: 'out', cols: cols.slice(t.nextBits.length) }].filter((g) => g.cols.length);
   const tables = groups.map((g) => {
     const table = {};
     for (const c of g.cols) table[c.name] = t.rows.map((r) => c.get(r)).join('');

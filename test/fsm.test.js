@@ -455,6 +455,10 @@ test('encoded transition table (binary and gray) and the truth tables of the nex
   assert.equal(tt.tables[0].doc.table.d0, '010101XX');
   assert.equal(tt.tables[1].doc.table.z, '000001XX');     // S10 with x = 1
   assert.deepEqual(truthTablesOf(m).tables.map((x) => x.doc.outputs), [['d1', 'd0'], ['busy', 'sel_1', 'sel_0']]);
+  // more than 4 output bits: still one table of the outputs (a truth table has any number of outputs, #176)
+  const many = truthTablesOf({ ...m, outputs: [...m.outputs, { name: 'led', width: 3, default: '000' }] });
+  assert.deepEqual(many.tables.map((x) => [x.suffix, x.doc.outputs]), [['next', ['d1', 'd0']], ['out', ['busy', 'sel_1', 'sel_0', 'led_2', 'led_1', 'led_0']]]);
+  assert.equal(many.tables[1].doc.table.led_0, '0'.repeat(many.tables[1].doc.table.busy.length));
   const wide = { ...m, inputs: [...m.inputs, { name: 'k', width: 2 }] };
   assert.equal(truthTablesOf(wide).error, 'A truth table has at most 6 inputs; this machine needs 7 (2 state bit(s) + 5 input bit(s))');
   // names of state bits avoid the input names
