@@ -163,6 +163,10 @@ class Parser {
   atLineEnd() {
     return this.i > 0 && this.peek().line > this.t[this.i - 1].line;
   }
+  /** After a procedure call's name / arguments: a later line that does not go on with an assignment (its ';' is missing)? */
+  callEndsLine() {
+    return this.atLineEnd() && !this.isOp('<=') && !this.isOp(':=');
+  }
   /** Does a line that starts a declaration, `begin` or `end` come next (the ';' before it is missing)? */
   declEndsLine() {
     return this.atLineEnd() && (this.isDeclStart() || this.isKw('begin') || this.isKw('end'));
@@ -1188,7 +1192,8 @@ class Parser {
   parseConcurrentAssignOrCall(label, loc) {
     const tok = this.peek();
     const target = this.parseTarget();
-    if (this.acceptOp(';')) {
+    if (this.isOp(';') || this.callEndsLine()) {
+      this.expectOp(';');
       const call = this.makeCall(target, tok);
       return [{ kind: 'process', label, sens: 'all', initial: false, decls: [], body: [call], loc }];
     }
@@ -1356,7 +1361,7 @@ class Parser {
         case 'for': case 'while': case 'loop': return this.parseLoop(label, loc);
         case 'exit': case 'next': {
           this.next();
-          const target = this.isId() ? this.next().value : null;   // loop label
+          const target = this.isId() && !this.atLineEnd() ? this.next().value : null;   // loop label (not the next line's statement)
           const cond = this.acceptKw('when') ? this.parseExpression() : null;
           this.expectOp(';');
           return target ? { kind: tok.value, cond, loc, label: target } : { kind: tok.value, cond, loc };
@@ -1391,7 +1396,7 @@ class Parser {
     }
     // assignment or procedure call
     const target = this.parseTarget();
-    if (this.acceptOp(';')) return this.makeCall(target, tok);
+    if (this.isOp(';') || this.callEndsLine()) { this.expectOp(';'); return this.makeCall(target, tok); }
     if (this.acceptOp('<=')) {
       if (this.isId() && (this.peek().value === 'force' || this.peek().value === 'release')) {
         this.warn('force/release are not supported; treated as a plain assignment');
@@ -1525,7 +1530,8 @@ class Parser {
       do { w.on.push(this.parseName()); } while (this.acceptOp(','));
     }
     if (this.acceptKw('until')) w.until = this.parseExpression();
-    if (this.acceptKw('for')) w.for = this.parseExpression();
+    // (not a for loop on the next line: `for i in …`)
+    if (this.isKw('for') && !(this.isId(1) && this.isKw('in', 2))) { this.next(); w.for = this.parseExpression(); }
     this.expectOp(';');
     return w;
   }

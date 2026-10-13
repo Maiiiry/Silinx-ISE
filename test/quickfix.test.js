@@ -279,6 +279,86 @@ endmodule
   }
 });
 
+test('a ";" missing at the end of a statement, whatever statement starts the next line, is reported at the end of that line, and the fix puts it back (#184)', () => {
+  const V = (a, b) => `module top(input clk, input a, output reg [7:0] q);
+  integer i;
+  event ev;
+  task show(input [7:0] v);
+    $display("%d", v);
+  endtask
+  initial begin
+    ${a};
+    ${b}
+  end
+endmodule
+`;
+  const verilog = [
+    ['show(q)', '#5 q = 1;', "8:12 expected ';' after ')'"], ['show(q)', '@(posedge clk) q <= 2;', "8:12 expected ';' after ')'"],
+    ['show(q)', '-> ev;', "8:12 expected ';' after ')'"], ['show(q)', "{q[0], q[1]} = 2'b00;", "8:12 expected ';' after ')'"],
+    ['q = 1', '#5;', "8:10 expected ';' after '1'"], ['q <= 1', '@(posedge clk);', "8:11 expected ';' after '1'"],
+    ['$display("a")', 'wait (a) q = 3;', "8:18 expected ';' after ')'"], ['q = 1', 'begin q = 0; end', "8:10 expected ';' after '1'"],
+    ['q = 1', 'if (a) q = 0;', "8:10 expected ';' after '1'"], ['q = 1', "case (a) 1'b1: q = 0; endcase", "8:10 expected ';' after '1'"],
+    ['q = 1', 'for (i = 0; i < 2; i = i + 1) q = 0;', "8:10 expected ';' after '1'"], ['q = 1', 'repeat (2) q = 0;', "8:10 expected ';' after '1'"],
+    ["q = 8'hFF", '$display("b");', "8:14 expected ';' after '8'hFF'"],
+  ];
+  const H = (a, b) => `${HEAD}entity top is end top;
+architecture rtl of top is
+  signal s : std_logic;
+  procedure p(x : in integer) is begin null; end procedure;
+begin
+  process
+    variable v : integer := 0;
+  begin
+    loop
+      ${a};
+      ${b}
+    end loop;
+  end process;
+end rtl;
+`;
+  const vhdl = [
+    ['p(v)', 'wait for 5 ns;', "12:11 expected ';' after ')'"], ['p(v)', "if v = 1 then s <= '0'; end if;", "12:11 expected ';' after ')'"],
+    ['p(v)', 'case v is when others => null; end case;', "12:11 expected ';' after ')'"], ['p(v)', 'for i in 0 to 1 loop null; end loop;', "12:11 expected ';' after ')'"],
+    ['p(v)', 'report "y";', "12:11 expected ';' after ')'"], ['p(v)', "s <= '0';", "12:11 expected ';' after ')'"], ['p(v)', 'v := 0;', "12:11 expected ';' after ')'"],
+    ['next', 'p(v);', "12:11 expected ';' after 'next'"], ['exit', "s <= '0';", "12:11 expected ';' after 'exit'"],
+    ["wait until s = '1'", 'for i in 0 to 1 loop null; end loop;', "12:25 expected ';' after '1'"], ["s <= '1'", 'wait;', "12:15 expected ';' after '1'"],
+    ['v := 1', 'loop exit; end loop;', "12:13 expected ';' after '1'"], ['report "x"', 'null;', `12:17 expected ';' after "x"`],
+    ['assert v = 1', 'while v < 2 loop v := v + 1; end loop;', "12:19 expected ';' after '1'"],
+  ];
+  for (const [lang, make, cases] of [['verilog', V, verilog], ['vhdl', H, vhdl]]) {
+    for (const [a, b, msg] of cases) {
+      const ok = make(a, b), cut = ok.replace(`${a};\n`, `${a}\n`);
+      assert.deepEqual(parseErrors(ok, lang), [], `${a}; ${b}`);
+      assert.deepEqual(parseErrors(cut, lang), [msg], `${a} / ${b}`);
+      const fx = quickFixes(cut, lang, (lang === 'verilog' ? parseVerilog : parseVhdl)(cut, 'f').errors[0], {});
+      assert.deepEqual(fx.map(f => f.title), ["Add ';' at the end of the line"], `${a} / ${b}`);
+      assert.equal(applyFix(cut, fx[0]), ok, `${a} / ${b}`);
+    }
+  }
+  // a concurrent procedure call; a wait's timeout on the next line is still its own
+  const conc = `${HEAD}entity top is end top;\narchitecture rtl of top is\n  signal s : std_logic;\n  procedure p(x : in integer) is begin null; end procedure;\nbegin\n  p(1);\n  s <= '0';\nend rtl;\n`;
+  assert.deepEqual(parseErrors(conc.replace('p(1);', 'p(1)'), 'vhdl'), ["8:7 expected ';' after ')'"]);
+  assert.deepEqual(parseErrors(H("wait until s = '1'\n        for 5 ns", 'null;'), 'vhdl'), []);
+});
+
+test('Verilog: an end missing before an instance stops the block there, and the fix inserts it (#184)', () => {
+  const g = `module top(input clk, input a, output reg y, output [6:0] seg);
+  always @(*) begin
+    y = a;
+  end
+
+  sevenseg #(.N(1)) display (.clk(clk), .seg(seg));
+  sevenseg u2 (.clk(clk), .seg());
+endmodule
+`;
+  assert.deepEqual(parseErrors(g, 'verilog'), []);
+  const noEnd = g.replace('    y = a;\n  end\n', '    y = a;\n');
+  assert.deepEqual(parseErrors(noEnd, 'verilog'), ["5:3 expected 'end' but found 'sevenseg'"]);
+  assert.deepEqual(quickFixes(noEnd, 'verilog', parseVerilog(noEnd, 'f').errors[0], {}).map(f => ({ title: f.title, text: applyFix(noEnd, f) })), [{ title: "Insert 'end'", text: g }]);
+  const noEnd2 = g.replace('  sevenseg #(.N(1)) display (.clk(clk), .seg(seg));\n', '').replace('    y = a;\n  end\n', '    y = a;\n');
+  assert.deepEqual(parseErrors(noEnd2, 'verilog'), ["5:3 expected 'end' but found 'sevenseg'"]);
+});
+
 const PROC = `${HEAD}entity top is
   port (clk, d : in std_logic; q : out std_logic);
 end top;
@@ -393,9 +473,8 @@ test('the examples: every end, endcase, endmodule… and every ";" at the end of
     }
   }
   assert.ok(n > 300, `${n} cases`);
-  // (where the parser stops far from the cause, no fix: an `end process;` missing before a process,
-  // a ';' missing before a delay or an instance)
-  assert.deepEqual(none, ["blinky/sim/tb_top.vhd:29: unexpected 'process' in sequential statement", "pong/src/pong.v:122: expected '=' but found '#'",
+  // (where the parser stops far from the cause, no fix: an `end process;` missing before a process)
+  assert.deepEqual(none, ["blinky/sim/tb_top.vhd:29: unexpected 'process' in sequential statement",
     "stopwatch/src/stopwatch.vhd:95: unexpected 'entity' in sequential statement",
     "traffic/src/top.vhd:74: unexpected 'entity' in sequential statement",
     "traffic/sim/tb_traffic.vhd:69: unexpected 'process' in sequential statement"]);

@@ -994,10 +994,10 @@ class Parser {
         let label = null;
         if (this.accept(':')) label = this.ident();
         const decls = this.blockDecls();
-        // a missing 'end' must not loop forever: stop at 'endmodule' or a module item (assign, always…)
-        // and on a statement that consumes nothing
+        // a missing 'end' must not loop forever: stop at 'endmodule' or a module item (assign, always…,
+        // an instance) and on a statement that consumes nothing
         const stmts = [];
-        while (!this.isAny('end', 'endmodule', 'assign', 'always', 'initial', 'module') && this.tok.t !== 'eof') { const i0 = this.i; stmts.push(this.stmt()); if (this.i === i0) break; }
+        while (!this.isAny('end', 'endmodule', 'assign', 'always', 'always_ff', 'always_comb', 'always_latch', 'initial', 'module') && !this.isInstanceStart() && this.tok.t !== 'eof') { const i0 = this.i; stmts.push(this.stmt()); if (this.i === i0) break; }
         this.expect('end');
         if (this.accept(':')) this.ident();
         return { kind: 'block', label, decls, stmts };
@@ -1142,11 +1142,18 @@ class Parser {
     return this.endsCall(k + 1);
   }
 
+  // a module instance here: `name #(…` or `name inst (` (never a statement)
+  isInstanceStart() {
+    if (this.tok.t !== 'id') return false;
+    return this.is('#', this.peek()) || (this.peek().t === 'id' && this.is('(', this.peek(2)));
+  }
+
   // after a task call: its ';', or the next statement on a later line (the ';' is missing)
   endsCall(k) {
     const t = this.toks[k];
     if (this.is(';', t)) return true;
-    return (t.t === 'id' || t.t === 'kw' || t.t === 'sys') && t.line > this.toks[k - 1].line;
+    const starts = t.t === 'id' || t.t === 'kw' || t.t === 'sys' || ['#', '@', '->', '{'].some(v => this.is(v, t));
+    return starts && t.line > this.toks[k - 1].line;
   }
 
   // a.b.t(…); / blk[1].t; at statement level: a call of a task of another scope

@@ -61,6 +61,13 @@ In detail:
   ("unexpected 'else' in declarative part"), or none at all while the next declaration was lost; a
   Verilog task call without its `;` gave "expected '='". The column is right after a number,
   string or bit-string literal too (`1.5e3`, `8'hFF`, `x"0F"`) (#183).
+- **A missing `;` at the end of a statement is reported there too, whatever comes next:** a
+  Verilog task call before a line starting with `#`, `@`, `->` or `{`; a VHDL procedure call before
+  any statement, `next` / `exit` before a statement (it was read as their loop label) and a `wait
+  until …` before a `for` loop (read as its timeout) gave an error on the next line and no quick
+  fix. A Verilog `begin … end` whose `end` is missing before a module instance now stops there
+  ("expected 'end' but found 'sevenseg'", with the quick fix that inserts it) instead of reading
+  the instance as a statement ("expected '=' but found '#'") (#184).
 
 ## 15.10.11
 
