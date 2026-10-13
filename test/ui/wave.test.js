@@ -1,0 +1,218 @@
+// UI: the ISim Wave window — zoom in / out / full view, markers (here, at the cursor, delete one / all),
+// radix of a bus, force constant / clock / remove force (the forced values in the waveform data, the
+// console lines), new / rename divider, add an instance to the wave window (recursive), copy path,
+// go to source code, restart.
+import { before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { setupUi, uiTest, makeProject } from './harness.js';
+
+let env;
+before(async () => { env = await setupUi(); });
+after(async () => { await env?.teardown?.(); });
+const E = () => env;
+
+const CNT = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity cnt is port (clk : in std_logic; q : out std_logic_vector(7 downto 0)); end cnt;
+architecture rtl of cnt is
+  signal r : unsigned(7 downto 0) := (others => '0');
+begin
+  process (clk) begin
+    if rising_edge(clk) then r <= r + 1; end if;
+  end process;
+  q <= std_logic_vector(r);
+end rtl;
+`;
+const TB = `library ieee; use ieee.std_logic_1164.all;
+entity tb is end tb;
+architecture sim of tb is
+  signal clk : std_logic := '0';
+  signal q : std_logic_vector(7 downto 0);
+begin
+  u : entity work.cnt port map (clk => clk, q => q);
+  clk <= not clk after 5 ns;
+end sim;
+`;
+
+const rows = (page) => page.eval(() => window.Silinx.active.view.state.rows.map((r) => (r.kind === 'div' ? `-- ${r.name}` : r.sig.path.replace(/\./g, '/'))));
+const consoleText = (page) => page.eval(() => document.querySelector('.doc:not([hidden]) .isim-console').innerText);
+// client point of time t (ps) on the wave canvas, in row `row` (-1: the ruler)
+const waveAt = (page, t, row) => page.eval((tt, r) => {
+  const s = window.Silinx.active.view.state, c = document.querySelector('.doc:not([hidden]) .isim-waves').getBoundingClientRect();
+  return { x: c.left + (tt - s.t0) / s.scale, y: c.top + (r < 0 ? 15 : 30 + r * 20 + 10 - s.scrollY) };
+}, t, row);
+const menuItem = (page, label) => page.click('.isim-menu-item', { text: label });
+// the texts drawn on the names / values canvas
+const drawnNames = (page) => page.eval(() => {
+  const c = document.querySelector('.doc:not([hidden]) .isim-names'), ctx = c.getContext('2d'), out = [];
+  const f = ctx.fillText;
+  ctx.fillText = function (s, ...a) { out.push(String(s)); return f.call(this, s, ...a); };
+  try { window.Silinx.active.view.redraw(); } finally { ctx.fillText = f; }
+  return out;
+});
+const simTime = (page, ps) => page.waitFor((re) => new RegExp(re).test(document.querySelector('.doc:not([hidden]) .isim-st-time')?.textContent || '') && !window.Silinx.active.view.state.running, [`Sim Time: ${ps} ps`], { what: `sim time ${ps} ps`, timeout: 20000 });
+async function cmd(page, text) {
+  await page.click('.doc:not([hidden]) .isim-cmdline input');
+  await page.type(text);
+  await page.key('Enter');
+}
+const waveOf = (page, path) => page.eval((p) => { const w = window.Silinx.active.view.state.rows.find((r) => r.sig?.path.replace(/\./g, '/') === p).sig.wave; return { t: [...w.t], n: w.t.length }; }, path);
+
+uiTest('ISim Wave window: zoom, markers, radix, force constant / clock / remove, dividers, add to wave (recursive), copy path, restart, go to source', E, async (page) => {
+  await makeProject(env, { name: 'WavePj', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB }, roles: { 'sim/tb.vhd': 'sim' } });
+  await page.openProject('WavePj');
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb');
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await simTime(page, '1,000,000');
+  assert.deepEqual(await rows(page), ['tb/clk', 'tb/q']);
+  const startLog = await consoleText(page);
+  const view = (k) => page.eval((key) => window.Silinx.active.view.state[key], k);
+  const tbBtn = (title) => page.click(`.doc:not([hidden]) .isim-toolbar .tb-btn[title="${title}"]`);
+
+  // ---- zoom: in halves the time scale, out doubles it, full view fits 0 .. 1 us again
+  const fit = await view('scale');
+  assert.equal(await view('fit'), true);
+  await tbBtn('Zoom In');
+  assert.equal(await view('scale'), fit / 2);
+  assert.equal(await view('fit'), false);
+  await tbBtn('Zoom Out');
+  await tbBtn('Zoom Out');
+  assert.equal(await view('scale'), fit * 2);
+  await tbBtn('Zoom to Full View');
+  assert.equal(await view('scale'), fit);
+  assert.equal(await view('fit'), true);
+  assert.equal(await view('t0'), 0);
+  // (and from the wave window's context menu)
+  await page.rightClick(await waveAt(page, 500000, -1));
+  await menuItem(page, 'Zoom In');
+  assert.equal(await view('scale'), fit / 2);
+  await page.rightClick(await waveAt(page, 500000, -1));
+  await menuItem(page, 'Zoom to Full View');
+  assert.equal(await view('scale'), fit);
+
+  // ---- markers: here (snapped to the nearest clk edge, 300 ns), at the cursor (the latest time), delete one, delete all
+  const markers = () => page.eval(() => window.Silinx.active.view.state.markers.map((m) => m.t));
+  await page.rightClick(await waveAt(page, 301000, 0));
+  await page.waitForSelector('.isim-menu-root');
+  assert.equal(await page.eval(() => document.querySelector('.isim-menu-item.dis')?.textContent), 'Delete Marker', 'no marker near: Delete Marker disabled');
+  await menuItem(page, 'Add Marker Here');
+  assert.deepEqual(await markers(), [300000]);
+  await tbBtn('Go to Latest Time');
+  assert.equal(await view('cursor'), 1000000);
+  await page.rightClick(await waveAt(page, 600000, -1));
+  await menuItem(page, 'Add Marker at Cursor');
+  assert.deepEqual(await markers(), [300000, 1000000]);
+  await page.rightClick(await waveAt(page, 300000, -1));
+  await menuItem(page, 'Delete Marker');
+  assert.deepEqual(await markers(), [1000000]);
+  await page.rightClick(await waveAt(page, 600000, -1));
+  await menuItem(page, 'Add Marker Here');
+  assert.equal((await markers()).length, 2);
+  await page.rightClick(await waveAt(page, 600000, -1));
+  await menuItem(page, 'Delete All Markers');
+  assert.deepEqual(await markers(), []);
+
+  // ---- radix of q (100 at 1 us): default hex 64, then binary, signed decimal, octal
+  assert.deepEqual(await drawnNames(page), ['Name', 'Value', 'clk', '0', 'q[7:0]', '64']);
+  for (const [label, key, shown] of [['Binary', 'bin', '01100100'], ['Signed Decimal', 'sdec', '100'], ['Octal', 'oct', '144'], ['Hexadecimal', 'hex', '64']]) {
+    await page.rightClick(await waveAt(page, 50000, 1));
+    await page.hover(await page.point('.isim-menu-item', { text: 'Radix' }));
+    await page.waitForSelector('.isim-menu-root .isim-menu');
+    await page.click('.isim-menu-root .isim-menu .isim-menu-item', { text: label });
+    assert.equal(await page.eval(() => window.Silinx.active.view.state.rows[1].radix), key);
+    assert.equal((await drawnNames(page))[5], shown, `q in ${label}`);
+  }
+
+  // ---- force constant: clk (1 at 1 us) forced to 0, no transition while it runs 100 ns, q stays 0x64
+  const qShown = async () => { await tbBtn('Go to Latest Time'); return (await drawnNames(page)).at(-1); };
+  const edgesIn = async (a, b) => (await waveOf(page, 'tb/clk')).t.filter((t) => t >= a && t <= b);
+  const forceMenu = async (label) => {
+    await page.rightClick(await waveAt(page, 50000, 0));
+    await menuItem(page, label);
+    await page.waitForSelector('.isim-dlg');
+  };
+  await forceMenu('Force Constant...');
+  assert.equal(await page.eval(() => document.querySelector('.isim-dlg-title').firstChild.textContent), 'Force Selected Signal');
+  assert.equal(await page.eval(() => document.querySelector('.isim-dlg [name=sig]').value), '/tb/clk');
+  assert.equal(await page.eval(() => document.querySelector('.isim-dlg [name=value]').value), '0', 'prefilled with the value now');
+  await page.fill('.isim-dlg [name=value]', '0');
+  await page.click('.isim-dlg [data-a=ok]');
+  await page.waitFor(() => !document.querySelector('.isim-dlg'));
+  await cmd(page, 'run 100 ns');
+  await simTime(page, '1,100,000');
+  assert.deepEqual(await edgesIn(990000, 1100000), [990000, 995000, 1000000], 'no clk transition while forced');
+  assert.deepEqual(await drawnNames(page), ['Name', 'Value', 'clk', 'F', '0', 'q[7:0]', '64'], 'clk marked forced (F), q stopped');
+  // ---- remove force
+  await page.rightClick(await waveAt(page, 50000, 0));
+  await menuItem(page, 'Remove Force');
+  await cmd(page, 'run 100 ns');
+  await simTime(page, '1,200,000');
+  const every = (a, b, step) => Array.from({ length: (b - a) / step + 1 }, (_, i) => a + i * step);
+  assert.deepEqual(await edgesIn(1100001, 1200000), every(1105000, 1200000, 5000), 'the test bench drives clk again');
+  assert.equal(await qShown(), '6E');
+  // ---- force clock 20 ns
+  await forceMenu('Force Clock...');
+  assert.equal(await page.eval(() => document.querySelector('.isim-dlg-title').firstChild.textContent), 'Define Clock');
+  await page.fill('.isim-dlg [name=period]', '20 ns');
+  await page.click('.isim-dlg [data-a=ok]');
+  await page.waitFor(() => !document.querySelector('.isim-dlg'));
+  await cmd(page, 'run 200 ns');
+  await simTime(page, '1,400,000');
+  assert.deepEqual(await edgesIn(1200000, 1400000), every(1200000, 1400000, 10000), 'the forced 20 ns clock');
+  assert.equal(await qShown(), '78');
+  assert.equal(await consoleText(page), `${startLog}
+ISim> isim force add /tb/clk 0 -radix bin
+ISim> run 100 ns
+Force removed from /tb/clk
+ISim> run 100 ns
+ISim> isim force add /tb/clk 0 -radix bin -value 1 -time 10 ns -repeat 20 ns
+ISim> run 200 ns`);
+
+  // ---- restart: time 0, the forces kept
+  await tbBtn('Restart');
+  await simTime(page, '0');
+  assert.equal(await view('cursor'), 0);
+  assert.equal(await consoleText(page), `${startLog}
+ISim> isim force add /tb/clk 0 -radix bin
+ISim> run 100 ns
+Force removed from /tb/clk
+ISim> run 100 ns
+ISim> isim force add /tb/clk 0 -radix bin -value 1 -time 10 ns -repeat 20 ns
+ISim> run 200 ns
+ISim> restart
+Simulator is doing circuit initialization process.
+Finished circuit initialization process.
+2 force(s) re-applied.`);
+  assert.equal((await page.eval(() => window.Silinx.active.view.getState().forces)).length, 2);
+
+  // ---- dividers: New Divider above the selected q row (named through the prompt), Rename Divider
+  await page.eval(() => { window.__prompts = ['Counter', 'Counter out']; window.__asked = []; window.prompt = (m, d) => { window.__asked.push([m, d]); return window.__prompts.shift(); }; });
+  await page.rightClick(await waveAt(page, 50000, 1));
+  await menuItem(page, 'New Divider');
+  assert.deepEqual(await rows(page), ['tb/clk', '-- Counter', 'tb/q']);
+  await page.rightClick(await waveAt(page, 50000, 1));
+  await menuItem(page, 'Rename Divider...');
+  assert.deepEqual(await rows(page), ['tb/clk', '-- Counter out', 'tb/q']);
+  assert.deepEqual(await page.eval(() => window.__asked), [['Divider name:', 'New Divider'], ['Divider name:', 'Counter']]);
+
+  // ---- Add to Wave Window (Recursive) from the instance tree: a divider per instance and its signals
+  await page.rightClick('.doc:not([hidden]) .isim-tree .row', { text: '' });
+  await menuItem(page, 'Add to Wave Window (Recursive)');
+  assert.deepEqual(await rows(page), ['tb/clk', '-- Counter out', 'tb/q', '-- /tb', 'tb/clk', 'tb/q', '-- /tb/u', 'tb/clk', 'tb/q', 'tb/u/r']);  // (u's ports are the test bench's signals)
+
+  // ---- Copy Path from the Objects panel
+  await page.eval(() => { window.__copied = []; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { window.__copied.push(t); } } }); });
+  await page.rightClick('.doc:not([hidden]) .isim-objs tbody tr', { index: 1 });
+  await menuItem(page, 'Copy Path');
+  assert.deepEqual(await page.eval(() => window.__copied), ['/tb/q']);
+
+  // ---- Go To Source Code (the q row): the test bench opens at the declaration of q
+  await page.rightClick(await waveAt(page, 50000, 2));
+  await menuItem(page, 'Go To Source Code');
+  await page.waitFor(() => window.Silinx.active?.id !== 'isim', [], { what: 'source opened' });
+  assert.equal(await page.eval(() => window.Silinx.active.id), 'file:sim/tb.vhd');
+  await page.waitFor(() => window.Silinx.active.editor?.cm, [], { what: 'editor ready' });
+  await page.waitFor(() => window.Silinx.active.editor.cm.getCursor().line + 1 === 5, [], { what: 'cursor on line 5 (signal q)' });
+  assert.doesNotMatch(await page.eval(() => document.querySelector('#console')?.innerText || ''), /error/i);
+});
