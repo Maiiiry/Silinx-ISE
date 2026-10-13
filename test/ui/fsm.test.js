@@ -4,10 +4,12 @@
 // and the truth tables of the next-state logic; Generate HDL (linked: an edit of a transition
 // rewrites the HDL, which simulates like the diagram; a saved edit of the HDL updates the diagram;
 // an HDL edit the diagram cannot show gives the out-of-sync banner with the reason); step-by-step
-// simulation; HDL module -> diagram and diagram -> ASM chart; Portuguese texts.
+// simulation; HDL module -> diagram and diagram -> ASM chart; Portuguese texts; the priority of the
+// transitions (▼ Later), Straighten, Export CSV, the simulator's ⟲ Reset and Clock ↑, Delete state /
+// transition, + Input / + Output, Zoom / Fit, ↶ ↷ and Edit ▸ Undo / Redo (#195).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { setupUi, uiTest, makeProject, readWs } from './harness.js';
+import { setupUi, uiTest, makeProject, readWs, waitDownload } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 import { normalizeFsm, simulateFsm, encodedTable, generateFsm } from '../../core/fsm.js';
 import { simulate } from '../../core/compile.js';
@@ -18,6 +20,22 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 const ED = '.doc:not([hidden]) .fsm-editor';
 const fsmFile = async (pj, p) => JSON.parse(await readWs(env, pj, p));
+/** The problems of the machine of the #195 test, with B or C first in A. */
+const WARN_FSM = (first) => [
+  first === 'B' ? "warning: State A: the transitions to B ('x') and to C ('y') are both true when x=1, y=1; the one listed first (to B) is taken"
+    : "warning: State A: the transitions to C ('y') and to B ('x') are both true when x=1, y=1; the one listed first (to C) is taken",
+  'info: State A: no transition is true when x=0, y=0; the machine stays in A',
+];
+const WARN_FSM_NO_T3 = ['warning: State B has no exit: once there, the machine stays in it until a reset', ...WARN_FSM('C')];
+/** Its three tables as CSV, y (to C) tried before x (to B) in A. */
+const CSV_FSM = {
+  transitions: ['Present state,Code,Input condition,Next state,Next code,Outputs', 'A,00,y,C,10,', 'A,00,x,B,01,', 'A,00,otherwise,A,00,', 'B,01,1,A,00,', 'C,10,1,A,00,z=1', ''].join('\n'),
+  states: ['Present state,Code,next (x y=00),next (x y=01),next (x y=10),next (x y=11),outputs (x y=00),outputs (x y=01),outputs (x y=10),outputs (x y=11)',
+    'A,00,A,C,B,C,0,0,0,0', 'B,01,A,A,A,A,0,0,0,0', 'C,10,A,A,A,A,1,1,1,1', ''].join('\n'),
+  encoded: ['q1,q0,x,y,d1,d0,z',
+    '0,0,0,0,0,0,0', '0,0,0,1,1,0,0', '0,0,1,0,0,1,0', '0,0,1,1,1,0,0', '0,1,0,0,0,0,0', '0,1,0,1,0,0,0', '0,1,1,0,0,0,0', '0,1,1,1,0,0,0',
+    '1,0,0,0,0,0,1', '1,0,0,1,0,0,1', '1,0,1,0,0,0,1', '1,0,1,1,0,0,1', '1,1,0,0,X,X,X', '1,1,0,1,X,X,X', '1,1,1,0,X,X,X', '1,1,1,1,X,X,X', ''].join('\n'),
+};
 
 /** Outputs of the HDL per cycle and of the diagram (reference model) for the same inputs. */
 function hdlVsModel(code, model) {
@@ -332,4 +350,144 @@ uiTest('State diagram (FSM): Create Truth Tables with more than 4 output bits ma
   await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'tt:src/wide_out.tt.json'), [], { what: 'the output table opened' });
   await page.eval(() => window.SilinxApp.openTt('src/wide_out.tt.json'));
   await page.waitFor(() => document.querySelectorAll('.doc:not([hidden]) .tt-editor .tt-cell[data-out=led_0]').length === 8, [], { what: 'led_0 column' });
+});
+
+uiTest('State diagram (FSM): priority (▼ Later), Straighten, Export CSV, simulator ⟲ Reset / Clock ↑, Delete state / transition, + Input / + Output, Zoom / Fit, ↶ ↷ and Edit ▸ Undo / Redo (#195)', E, async (page) => {
+  const m0 = normalizeFsm({
+    name: 'pri', type: 'mealy', inputs: [{ name: 'x', width: 1 }, { name: 'y', width: 1 }], outputs: [{ name: 'z', width: 1 }],
+    states: [{ id: 'a', name: 'A', x: 100, y: 100 }, { id: 'b', name: 'B', x: 300, y: 100 }, { id: 'c', name: 'C', x: 300, y: 300 }],
+    transitions: [{ id: 't1', from: 'a', to: 'b', cond: 'x', bend: 40 }, { id: 't2', from: 'a', to: 'c', cond: 'y' },
+      { id: 't3', from: 'b', to: 'a', cond: '' }, { id: 't4', from: 'c', to: 'a', cond: '', outputs: { z: '1' } }], initial: 'a',
+  });
+  await makeProject(env, { name: 'FsmEd', files: { 'src/pri.fsm.json': JSON.stringify(m0, null, 2) } });
+  await page.openProject('FsmEd');
+  await page.eval(() => window.SilinxApp.openFsm('src/pri.fsm.json'));
+  await page.waitFor((ed) => window.Silinx.active?.id === 'fsm:src/pri.fsm.json' && document.querySelector(`${ed} [data-trans=t1] .fsm-label`), [ED], { what: 'FSM editor' });
+  const model = () => page.eval(() => window.Silinx.active.fsmEditor.getModel());
+  const warnings = () => page.eval(() => window.Silinx.active.fsmEditor.validate().map((d) => `${d.severity}: ${d.message}`));
+  const tool = (label) => page.click(`${ED} .asm-toolbar .asm-btn`, { text: label });
+  const side = (label) => page.click(`${ED} .fsm-selection .asm-btn`, { text: label });
+  const zoom = () => page.eval((ed) => document.querySelector(`${ed} .asm-zoom`).textContent, ED);
+  const order = async () => (await model()).transitions.map((t) => t.id).join(',');
+  const savedOrder = () => page.eval(async () => (await (await fetch('/api/projects/FsmEd/file?path=src%2Fpri.fsm.json')).json()).transitions.map((t) => t.id).join(','));
+  // x and y both true in A: a warning
+  assert.deepEqual(await warnings(), WARN_FSM('B'));
+
+  // ---- Zoom / Fit: the zoom label follows; Fit gives the fitted zoom back
+  await new Promise((r) => setTimeout(r, 300));   // (the fit on activation)
+  await tool('Fit');
+  const fitted = await zoom();
+  const k = parseFloat(await page.eval((ed) => /scale\(([\d.]+)\)/.exec(document.querySelector(`${ed} .fsm-vp`).getAttribute('transform'))[1], ED));
+  assert.equal(fitted, `${Math.round(k * 100)}%`);
+  await tool('+');
+  assert.equal(await zoom(), `${Math.round(k * 120)}%`);
+  await tool('−'); await tool('−');
+  assert.equal(await zoom(), `${Math.round(k * 100 / 1.2)}%`);
+  await tool('Fit');
+  assert.equal(await zoom(), fitted);
+
+  // ---- ▼ Later: t1 (x) after t2 (y) in A; the simulator takes the first true condition
+  await selectTrans(page, 't1');
+  assert.match(await page.eval((ed) => document.querySelector(`${ed} .fsm-selection`).textContent, ED), /Priority 1 of 2 in A/);
+  await side('▼ Later');
+  assert.equal(await order(), 't2,t1,t3,t4');
+  await page.waitFor((ed) => /Priority 2 of 2 in A/.test(document.querySelector(`${ed} .fsm-selection`).textContent), [ED]);
+  // ---- Straighten: the bend of t1 is removed
+  assert.equal((await model()).transitions.find((t) => t.id === 't1').bend, 40);
+  await side('Straighten');
+  assert.ok(!('bend' in (await model()).transitions.find((t) => t.id === 't1')));
+  // ↶ / ↷ (toolbar): the bend back, removed again; Edit ▸ Undo twice: the first order back
+  await tool('↶');
+  assert.equal((await model()).transitions.find((t) => t.id === 't1').bend, 40);
+  await tool('↷');
+  assert.ok(!('bend' in (await model()).transitions.find((t) => t.id === 't1')));
+  await page.menu('Edit', 'Undo');
+  await page.menu('Edit', 'Undo');
+  assert.equal(await order(), 't1,t2,t3,t4');
+  await page.menu('Edit', 'Redo');
+  assert.equal(await order(), 't2,t1,t3,t4');
+  assert.equal((await model()).transitions.find((t) => t.id === 't1').bend, 40);
+  // saved with the new priority
+  await page.waitFor(async () => (await (await fetch('/api/projects/FsmEd/file?path=src%2Fpri.fsm.json')).json()).transitions.map((t) => t.id).join(',') === 't2,t1,t3,t4', [], { what: 'priority saved', timeout: 15000 });
+
+  // ---- simulator: x = y = 1 in A: C (y, now first); Clock ↑ three times, ⟲ Reset back to A with no trace
+  await page.click(`${ED} .fsm-tab-btn`, { text: '▶ Simulate' });
+  await page.waitForSelector(`${ED} .fsm-sim`);
+  await page.click(`${ED} .fsm-bit[data-input=x]`);
+  await page.click(`${ED} .fsm-bit[data-input=y]`);
+  assert.ok(await page.eval((ed) => document.querySelector(`${ed} [data-trans=t2]`).classList.contains('hot') && !document.querySelector(`${ed} [data-trans=t1]`).classList.contains('hot'), ED));
+  const simState = (s) => page.waitFor((ed, x) => document.querySelector(`${ed} .fsm-sim-state`)?.textContent === x, [ED, s], { what: `simulated state ${s}` });
+  await page.click(`${ED} .fsm-sim-step`);
+  await simState('C');
+  assert.ok(await page.eval((ed) => document.querySelector(`${ed} [data-state=c]`).classList.contains('current'), ED));
+  assert.equal(await page.eval((ed) => document.querySelector(`${ed} .fsm-led[data-output=z]`).textContent, ED), 'z = 1');
+  await page.click(`${ED} .fsm-sim-step`);
+  await simState('A');
+  await page.click(`${ED} .fsm-sim-step`);
+  await simState('C');
+  const trace = () => page.eval((ed) => [...document.querySelectorAll(`${ed} .fsm-trace tr`)].slice(1).map((r) => [...r.children].map((c) => c.textContent).join('|')), ED);
+  assert.deepEqual(await trace(), ['2|A|x=1 y=1|z=0|C', '1|C|x=1 y=1|z=1|A', '0|A|x=1 y=1|z=0|C']);
+  await page.click(`${ED} .fsm-sim-reset`);
+  await simState('A');
+  assert.ok(await page.eval((ed) => document.querySelector(`${ed} [data-state=a]`).classList.contains('current') && !document.querySelector(`${ed} .fsm-trace`), ED));
+  // the inputs are kept: the next Clock ↑ goes to C again, as cycle 0
+  await page.click(`${ED} .fsm-sim-step`);
+  await simState('C');
+  assert.deepEqual(await trace(), ['0|A|x=1 y=1|z=0|C']);
+
+  // ---- Export CSV of the three tables
+  await page.click(`${ED} .fsm-tab-btn`, { text: 'Tables' });
+  await page.waitForSelector(`${ED} .fsm-ttable`);
+  const fs = await import('node:fs/promises');
+  const csv = {};
+  for (const [i, name] of ['transitions', 'states', 'encoded'].entries()) {
+    await page.click(`${ED} .fsm-tcap .asm-btn`, { text: 'Export CSV', index: i });
+    csv[name] = await fs.readFile(await waitDownload(page, `pri_${name}.csv`), 'utf8');
+  }
+  assert.deepEqual(csv, CSV_FSM);
+
+  // ---- + Input / + Output
+  await page.click(`${ED} .fsm-add-in`);
+  await page.click(`${ED} .fsm-add-out`);
+  let m = await model();
+  assert.deepEqual(m.inputs, [{ name: 'x', width: 1 }, { name: 'y', width: 1 }, { name: 'x2', width: 1 }]);
+  assert.deepEqual(m.outputs, [{ name: 'z', width: 1, default: '0' }, { name: 'z1', width: 1, default: '0' }]);
+  await tool('↶'); await tool('↶');
+  m = await model();
+  assert.deepEqual([m.inputs.map((p) => p.name), m.outputs.map((p) => p.name)], [['x', 'y'], ['z']]);
+
+  // ---- Delete transition, Delete state (and its transitions); ↶ ↷ and Edit ▸ Undo / Redo
+  // (t3 has no label: always, no outputs) clicked on its arrow
+  for (let i = 0; i < 20 && !await page.eval((ed) => document.querySelector(`${ed} [data-trans=t3]`).classList.contains('sel'), ED); i++) {
+    await page.click(await page.eval((ed) => {
+      const p = document.querySelector(`${ed} [data-trans=t3] .fsm-hit`);
+      const q = p.getPointAtLength(p.getTotalLength() / 2), c = p.getScreenCTM();
+      return { x: c.a * q.x + c.c * q.y + c.e, y: c.b * q.x + c.d * q.y + c.f };
+    }, ED));
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  await page.waitFor((ed) => /Delete transition/.test(document.querySelector(`${ed} .fsm-selection`).textContent), [ED], { what: 't3 selected' });
+  await side('Delete transition');
+  assert.equal(await order(), 't2,t1,t4');
+  assert.deepEqual(await warnings(), WARN_FSM_NO_T3);
+  await page.click(`${ED} [data-state=c] .fsm-circle`);
+  await page.waitFor((ed) => /Delete state/.test(document.querySelector(`${ed} .fsm-selection`).textContent), [ED]);
+  await side('Delete state');
+  m = await model();
+  assert.deepEqual([m.states.map((s) => s.id), m.transitions.map((t) => t.id)], [['a', 'b'], ['t1']]);
+  await tool('↶');
+  m = await model();
+  assert.deepEqual([m.states.map((s) => s.id), m.transitions.map((t) => t.id)], [['a', 'b', 'c'], ['t2', 't1', 't4']]);
+  await page.menu('Edit', 'Redo');
+  assert.deepEqual((await model()).states.map((s) => s.id), ['a', 'b']);
+  await page.menu('Edit', 'Undo');
+  await page.menu('Edit', 'Undo');
+  assert.equal(await order(), 't2,t1,t3,t4');
+  assert.deepEqual(await warnings(), WARN_FSM('C'));
+  // the redo history is kept: ↷ deletes t3 again, and that is saved
+  await tool('↷');
+  assert.equal(await order(), 't2,t1,t4');
+  await page.waitFor(async () => (await (await fetch('/api/projects/FsmEd/file?path=src%2Fpri.fsm.json')).json()).transitions.map((t) => t.id).join(',') === 't2,t1,t4', [], { what: 'saved', timeout: 15000 });
+  assert.equal(await savedOrder(), 't2,t1,t4');
+  assert.deepEqual(await fsmFile('FsmEd', 'src/pri.fsm.json'), await model());
 });

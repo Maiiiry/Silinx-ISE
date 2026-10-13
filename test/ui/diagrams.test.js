@@ -1,15 +1,19 @@
 // UI: schematic editor (place symbols, wire them, I/O markers, save, Generate HDL), ASM chart
-// editor (states, decision, case box, connections, Generate HDL), print preview of a diagram; the
-// schematic editor's Rotate (Ctrl+R, toolbar, properties), zoom buttons, palette Place Symbol.
+// editor (states, decision, case box, connections, Generate HDL; # Snap, </> Code and Copy, Reset
+// route / Delete connection, Swap 1 / 0 exits, a case exit's ✕, Delete box, Zoom / Fit, ↶ ↷ and
+// Edit ▸ Undo / Redo: #195), print preview of a diagram; the schematic editor's Rotate (Ctrl+R,
+// toolbar, properties), zoom buttons, palette Place Symbol.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs, waitDownload, chromeOnly } from './harness.js';
 import { compile, elaborate } from '../../core/compile.js';
+import { normalizeModel, generate } from '../../core/asm.js';
 
 let env;
 before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
+const PROBLEMS_ASM_NO_E7 = ["error: State 'DONE' has no exit (next state path)"], PROBLEMS_ASM_NO_E5 = ["warning: State 'DONE' is unreachable from the initial state"];
 
 // New Source wizard: a type of the list, a file name, then Next until Finish
 async function newSource(page, type, name) {
@@ -261,6 +265,169 @@ uiTest('ASM chart editor: add a state, a decision and a case box, connect them, 
   assert.equal(saved.nodes.length, final.nodes.length);
   // the hierarchy shows the chart as the module
   await page.waitFor(() => [...document.querySelectorAll('#hier .row .meta')].some((e) => e.textContent === '(ctrl.asm.json)'));
+});
+
+uiTest('ASM chart editor: Zoom / Fit, </> Code and Copy, Reset route / Delete connection, Swap 1 / 0 exits, a case exit\'s ✕, Delete box, # Snap, ↶ ↷ and Edit ▸ Undo / Redo (#195)', E, async (page) => {
+  const chart = normalizeModel({
+    name: 'ctl', lang: 'vhdl', clock: 'clk', reset: { name: 'rst', active: 'high', sync: false }, encoding: 'binary',
+    inputs: [{ name: 'start', width: 1 }, { name: 'op', width: 2 }], outputs: [{ name: 'busy', width: 1, default: '0' }],
+    nodes: [
+      { id: 's1', type: 'state', name: 'IDLE', x: 200, y: 80, actions: [] },
+      { id: 'd1', type: 'decision', x: 200, y: 190, cond: 'start' },
+      { id: 's2', type: 'state', name: 'RUN', x: 200, y: 300, actions: ['busy = 1'] },
+      { id: 'c1', type: 'case', x: 200, y: 410, expr: 'op' },
+      { id: 's3', type: 'state', name: 'DONE', x: 200, y: 540, actions: [] },
+    ],
+    edges: [
+      { id: 'e1', from: 's1', to: 'd1', port: 'next' }, { id: 'e2', from: 'd1', to: 's2', port: 'true' }, { id: 'e3', from: 'd1', to: 's1', port: 'false' },
+      { id: 'e4', from: 's2', to: 'c1', port: 'next' }, { id: 'e5', from: 'c1', to: 's3', port: '01' }, { id: 'e6', from: 'c1', to: 's1', port: 'others' },
+      { id: 'e7', from: 's3', to: 's1', port: 'next', points: [{ x: 400, y: 540 }, { x: 400, y: 80 }] },
+    ],
+    initial: 's1',
+  });
+  await makeProject(env, { name: 'AsmEd', files: { 'src/ctl.asm.json': JSON.stringify(chart, null, 2) } });
+  await page.openProject('AsmEd');
+  await page.eval(() => window.SilinxApp.openAsm('src/ctl.asm.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'asm:src/ctl.asm.json' && document.querySelector('.doc:not([hidden]) [data-node=s3]'), [], { what: 'ASM editor' });
+  const D = '.doc:not([hidden])';
+  const model = () => page.eval(() => window.Silinx.active.asmEditor.getModel());
+  const problems = () => page.eval(() => window.Silinx.active.asmEditor.validate().map((d) => `${d.severity}: ${d.message}`));
+  const tool = (label) => page.click(`${D} .asm-toolbar .asm-btn`, { text: label });
+  const side = (label) => page.click(`${D} .asm-selection .asm-btn`, { text: label });
+  const edges = async () => (await model()).edges.map((e) => `${e.id}:${e.from}>${e.to}:${e.port}`).join(' ');
+  const E0 = 'e1:s1>d1:next e2:d1>s2:true e3:d1>s1:false e4:s2>c1:next e5:c1>s3:01 e6:c1>s1:others e7:s3>s1:next';
+  const zoom = () => page.eval((d) => document.querySelector(`${d} .asm-zoom`).textContent, D);
+  assert.equal(await edges(), E0);
+  assert.deepEqual(await problems(), []);
+  // a point on top in a node (boxes may touch), or in the middle of a connection
+  const nodeAt = (id) => page.eval((d, i) => {
+    const e = document.querySelector(`${d} [data-node="${i}"]`);
+    const r = e.getBoundingClientRect();
+    for (const [fx, fy] of [[0.5, 0.5], [0.5, 0.3], [0.3, 0.5], [0.7, 0.5], [0.5, 0.7]]) {
+      const x = r.left + r.width * fx, y = r.top + r.height * fy;
+      if (document.elementFromPoint(x, y)?.closest('[data-node]') === e) return { x, y };
+    }
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }, D, id);
+  const edgeAt = (id) => page.eval((d, i) => {
+    const p = document.querySelector(`${d} [data-edge="${i}"] .asm-edge-hit`);
+    const c = p.getScreenCTM(), L = p.getTotalLength();
+    for (const f of [0.5, 0.4, 0.6, 0.3, 0.7]) {
+      const q = p.getPointAtLength(L * f);
+      const x = c.a * q.x + c.c * q.y + c.e, y = c.b * q.x + c.d * q.y + c.f;
+      if (document.elementFromPoint(x, y)?.closest('[data-edge]')?.dataset.edge === i) return { x, y };
+    }
+    return null;
+  }, D, id);
+  const pick = async (what, id) => {
+    for (let k = 0; k < 20; k++) {
+      const ok = await page.eval((d, w, i) => (w === 'edge' ? !!document.querySelector(`${d} [data-edge="${i}"].sel`) : !!document.querySelector(`${d} [data-node="${i}"].sel`)), D, what, id);
+      if (ok) return;
+      const p = what === 'edge' ? await edgeAt(id) : await nodeAt(id);
+      if (p) await page.click(p);
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    throw new Error(`${what} ${id} not selected`);
+  };
+
+  // ---- Zoom / Fit: the zoom label follows the buttons; Fit gives the fitted zoom back
+  await new Promise((r) => setTimeout(r, 300));   // (the fit on activation)
+  await tool('Fit');
+  const fitted = await zoom();
+  const k = parseFloat(await page.eval((d) => /scale\(([\d.]+)\)/.exec(document.querySelector(`${d} .asm-vp`).getAttribute('transform'))[1], D));
+  assert.equal(fitted, `${Math.round(k * 100)}%`);
+  await tool('+');
+  assert.equal(await zoom(), `${Math.round(k * 120)}%`);
+  await tool('−'); await tool('−');
+  assert.equal(await zoom(), `${Math.round(k * 100 / 1.2)}%`);
+  await tool('Fit');
+  assert.equal(await zoom(), fitted);
+
+  // ---- </> Code: the HDL of the chart; Copy puts it on the clipboard; ✕ hides it
+  await page.eval(() => { window.__copied = null; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (t) => { window.__copied = t; } } }); });
+  await tool('</> Code');
+  await page.waitForSelector(`${D} .asm-codepanel .asm-code`);
+  const code = generate(chart).code;
+  assert.equal(await page.eval((d) => document.querySelector(`${d} .asm-code-title`).textContent, D), 'ctl.vhd');
+  assert.equal(await page.eval((d) => document.querySelector(`${d} .asm-code`).textContent, D), code);
+  await page.click(`${D} .asm-codebar .asm-btn`, { text: 'Copy' });
+  await page.waitFor(() => window.__copied != null, [], { what: 'code copied' });
+  assert.equal(await page.eval(() => window.__copied), code);
+  assert.equal(await page.eval((d) => document.querySelector(`${d} .asm-status-msg`).textContent, D), 'Code copied to clipboard');
+  await page.click(`${D} .asm-codebar .asm-btn`, { text: '✕' });
+  assert.ok(await page.eval((d) => document.querySelector(`${d} .asm-codepanel`).hidden, D));
+
+  // ---- a connection with a route: Reset route, ↶ ↷; Delete connection, Edit ▸ Undo / Redo
+  await pick('edge', 'e7');
+  await side('Reset route');
+  assert.ok(!('points' in (await model()).edges.find((e) => e.id === 'e7')));
+  await tool('↶');
+  assert.deepEqual((await model()).edges.find((e) => e.id === 'e7').points, [{ x: 400, y: 540 }, { x: 400, y: 80 }]);
+  await tool('↷');
+  assert.ok(!('points' in (await model()).edges.find((e) => e.id === 'e7')));
+  await tool('↶');
+  await pick('edge', 'e7');
+  await side('Delete connection');
+  assert.equal(await edges(), E0.replace(' e7:s3>s1:next', ''));
+  assert.deepEqual(await problems(), PROBLEMS_ASM_NO_E7);
+  await page.menu('Edit', 'Undo');
+  assert.equal(await edges(), E0);
+  await page.menu('Edit', 'Redo');
+  assert.equal(await edges(), E0.replace(' e7:s3>s1:next', ''));
+  await page.menu('Edit', 'Undo');
+  assert.deepEqual((await model()).edges.find((e) => e.id === 'e7').points, [{ x: 400, y: 540 }, { x: 400, y: 80 }]);
+
+  // ---- Swap 1 / 0 exits of the decision, and back with ↶
+  await pick('node', 'd1');
+  await side('Swap 1 / 0 exits');
+  assert.equal(await edges(), E0.replace('e2:d1>s2:true e3:d1>s1:false', 'e2:d1>s2:false e3:d1>s1:true'));
+  await tool('↶');
+  assert.equal(await edges(), E0);
+
+  // ---- the ✕ of a case exit: 01 -> DONE removed (DONE unreachable); ↶ brings it back
+  await pick('node', 'c1');
+  assert.deepEqual(await page.eval((d) => [...document.querySelectorAll(`${d} .asm-case-list .asm-row`)].map((r) => `${r.querySelector('input').value} ${r.querySelector('.asm-muted').textContent}`), D), ['01 → DONE', 'others → IDLE']);
+  await page.click(`${D} .asm-case-list .asm-row .asm-btn`, { text: '✕' });
+  assert.equal(await edges(), E0.replace(' e5:c1>s3:01', ''));
+  assert.deepEqual(await page.eval((d) => document.querySelectorAll(`${d} .asm-case-list .asm-row`).length, D), 1);
+  assert.deepEqual(await problems(), PROBLEMS_ASM_NO_E5);
+  await tool('↶');
+  assert.equal(await edges(), E0);
+
+  // ---- Delete box: DONE and its connections; ↶ / ↷ with the toolbar
+  await pick('node', 's3');
+  await side('Delete box');
+  let m = await model();
+  assert.deepEqual([m.nodes.map((n) => n.id), m.edges.map((e) => e.id)], [['s1', 'd1', 's2', 'c1'], ['e1', 'e2', 'e3', 'e4', 'e6']]);
+  await tool('↶');
+  m = await model();
+  assert.deepEqual([m.nodes.map((n) => n.id), m.edges.map((e) => e.id)], [chart.nodes.map((n) => n.id), chart.edges.map((e) => e.id)]);
+  await tool('↷');
+  assert.equal((await model()).nodes.length, 4);
+  await page.menu('Edit', 'Undo');
+  assert.deepEqual(await model(), chart);
+
+  // ---- # Snap: a box dragged lands on the 20-unit grid; with snapping off, where it is dropped
+  const drag = async (id, dx, dy) => {
+    const before = (await model()).nodes.find((n) => n.id === id);
+    await pick('node', id);
+    const p = await nodeAt(id);
+    await page.drag(p, { x: p.x + dx, y: p.y + dy });
+    await page.waitFor((i, x, y) => { const n = window.Silinx.active.asmEditor.getModel().nodes.find((q) => q.id === i); return n.x !== x || n.y !== y; }, [id, before.x, before.y], { what: `${id} moved` });
+    return (await model()).nodes.find((n) => n.id === id);
+  };
+  assert.ok(await page.eval((d) => [...document.querySelectorAll(`${d} .asm-toolbar .asm-btn`)].find((b) => b.textContent === '# Snap').classList.contains('on'), D));
+  let n = await drag('s3', 47, 0);
+  assert.deepEqual([n.x % 20, n.y], [0, 540]);
+  await tool('# Snap');
+  assert.ok(!await page.eval((d) => [...document.querySelectorAll(`${d} .asm-toolbar .asm-btn`)].find((b) => b.textContent === '# Snap').classList.contains('on'), D));
+  const x1 = n.x;
+  n = await drag('s3', 7, 0);
+  assert.ok(n.x % 20 !== 0 && n.x > x1 && n.x < x1 + 20, `x = ${n.x}`);
+  assert.equal(n.y, 540);
+  // saved as edited
+  await page.waitFor(async (x) => (await (await fetch('/api/projects/AsmEd/file?path=src%2Fctl.asm.json')).json()).nodes.find((q) => q.id === 's3').x === x, [n.x], { what: 'saved', timeout: 15000 });
+  assert.deepEqual(JSON.parse(await readWs(env, 'AsmEd', 'src/ctl.asm.json')), await model());
 });
 
 uiTest('print preview of a diagram: File ▸ Print… dialog, Save SVG, Print… opens the print page', E, async (page) => {
