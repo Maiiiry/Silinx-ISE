@@ -71,7 +71,7 @@ function buildDoc(name, lang, cases) {
   });
   return { doc, items };
 }
-const rnd = (() => { let x = 12345; return () => { x = (x * 1103515245 + 12345) & 0x7fffffff; return x; }; })();
+const rnd = (() => { let x = 12345; return () => { x = (Math.imul(x, 1103515245) + 12345) & 0x7fffffff; return x; }; })();
 function randBits(w, density = 0.5) { let v = 0n; for (let i = 0; i < w; i++) if (rnd() / 0x7fffffff < density) v |= 1n << BigInt(i); return v; }
 
 // vectors: for symbol k, vector v: exhaustive over its input bits when there are at most 6, random otherwise
@@ -281,7 +281,7 @@ test('simulation: every FD* / FT* / FJK* flip-flop (VHDL and Verilog) follows th
     assert.deepEqual(g.diagnostics.filter(d => d.severity === 'error').map(d => d.message), [], g.code);
     // stimulus: 60 cycles; async inputs rarely active, never released while the other async input stays active
     let seed = 7;
-    const rb = p => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff < p ? 1 : 0; };
+    const rb = p => { seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; return seed / 0x7fffffff < p ? 1 : 0; };
     const vh = lang === 'vhdl';
     const set = (n, v) => (vh ? `    ${n} <= '${v}';` : `    ${n} = 1'b${v};`);
     const chk = (n, v, tag) => (vh ? `    if ${n} /= '${v}' then errs := errs + 1; report "${tag} ${n}" severity warning; end if;` : `    if (${n} !== 1'b${v}) begin errs = errs + 1; $display("${tag} ${n}"); end`);

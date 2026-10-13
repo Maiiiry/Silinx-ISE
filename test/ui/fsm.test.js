@@ -24,7 +24,7 @@ function hdlVsModel(code, model) {
   const m = normalizeFsm(model);
   const vec = [];
   let s = 7;
-  for (let i = 0; i < 60; i++) { s = (s * 1103515245 + 12345) & 0x7fffffff; vec.push(Object.fromEntries(m.inputs.map((x) => [x.name, (s >> 8) % (1 << x.width)]))); }
+  for (let i = 0; i < 60; i++) { s = (Math.imul(s, 1103515245) + 12345) & 0x7fffffff; vec.push(Object.fromEntries(m.inputs.map((x) => [x.name, (s >> 8) % (1 << x.width)]))); }
   const tb = ['module tb;', '  reg clk = 0; reg rst = 1;', ...m.inputs.map((i) => `  reg [${i.width - 1}:0] i_${i.name} = 0;`), ...m.outputs.map((o) => `  wire [${o.width - 1}:0] o_${o.name};`),
     `  ${m.name.toLowerCase()} dut(.clk(clk), .rst(rst)${m.inputs.map((i) => `, .${i.name}(i_${i.name})`).join('')}${m.outputs.map((o) => `, .${o.name}(o_${o.name})`).join('')});`,
     '  always #5 clk = ~clk;', '  initial begin', '    #12 rst = 0;',

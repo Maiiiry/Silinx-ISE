@@ -759,7 +759,7 @@ entity f is end f;`);
     const words = ['entity', 'is', 'end', ';', '(', ')', 'begin', 'process', 'if', 'then', 'a', '<=', "'1'", 'when',
       'else', 'case', '=>', 'architecture', 'of', 'port', 'map', 'generate', 'for', 'in', 'to', 'loop', ',', ':'];
     let seed = 42;
-    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+    const rnd = () => (seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff) / 2147483648;
     for (let k = 0; k < 200; k++) {
       const src = Array.from({ length: 40 }, () => words[Math.floor(rnd() * words.length)]).join(' ');
       const r = parse(src);

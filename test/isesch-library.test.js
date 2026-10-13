@@ -115,7 +115,7 @@ function randomVectors(ins, n, seed = 1) {
   const out = [];
   for (let k = 0; k < n; k++) {
     const v = {};
-    for (const [p, w] of Object.entries(ins)) { seed = (seed * 1103515245 + 12345) >>> 0; v[p] = (seed >>> 8) & ((2 ** w) - 1); }
+    for (const [p, w] of Object.entries(ins)) { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; v[p] = (seed >>> 8) & ((2 ** w) - 1); }
     out.push(v);
   }
   return out;

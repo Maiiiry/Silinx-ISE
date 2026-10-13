@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { out } from './lang-util.js';
 
-function rnd(seed) { return () => { seed = (seed * 1103515245 + 12345) >>> 0; return seed >>> 8; }; }
+function rnd(seed) { return () => { seed = (Math.imul(seed, 1103515245) + 12345) >>> 0; return seed >>> 8; }; }
 const b8 = x => (x & 255).toString(2).padStart(8, '0');
 
 test('8-bit ALU (add, sub, and, or, xor, shifts, signed compare, signed multiply)', () => {
