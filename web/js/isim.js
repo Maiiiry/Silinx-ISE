@@ -1172,6 +1172,10 @@ export function mountISim(container, opts = {}) {
           const rr = r.getBoundingClientRect(), mr = m.getBoundingClientRect();
           subEl = buildMenu(it.sub, rr.right - mr.left - 2, rr.top - mr.top - 3);
           m.appendChild(subEl);
+          // past the window's edge: to the left of the menu instead, and up as far as needed
+          const sr = subEl.getBoundingClientRect();
+          if (sr.right > window.innerWidth - 4) subEl.style.left = (rr.left - mr.left - sr.width + 2) + 'px';
+          if (sr.bottom > window.innerHeight - 4) subEl.style.top = (rr.top - mr.top - 3 - (sr.bottom - window.innerHeight + 4)) + 'px';
         });
       } else {
         r.addEventListener('mouseenter', () => m.querySelectorAll(':scope > .isim-menu').forEach(s => s.remove()));

@@ -115,10 +115,13 @@ uiTest('ISim Wave window: zoom, markers, radix, force constant / clock / remove,
 
   // ---- radix of q (100 at 1 us): default hex 64, then binary, signed decimal, octal
   assert.deepEqual(await drawnNames(page), ['Name', 'Value', 'clk', '0', 'q[7:0]', '64']);
-  for (const [label, key, shown] of [['Binary', 'bin', '01100100'], ['Signed Decimal', 'sdec', '100'], ['Octal', 'oct', '144'], ['Hexadecimal', 'hex', '64']]) {
-    await page.rightClick(await waveAt(page, 50000, 1));
+  // (right-clicked at the left, then near the right edge: the submenu opens to the left, inside the window, #201)
+  for (const [label, key, shown, at] of [['Binary', 'bin', '01100100', 50000], ['Signed Decimal', 'sdec', '100', 980000], ['Octal', 'oct', '144', 500000], ['Hexadecimal', 'hex', '64', 980000]]) {
+    await page.rightClick(await waveAt(page, at, 1));
     await page.hover(await page.point('.isim-menu-item', { text: 'Radix' }));
     await page.waitForSelector('.isim-menu-root .isim-menu');
+    const sub = await page.eval(() => { const r = document.querySelector('.isim-menu-root .isim-menu').getBoundingClientRect(); return { left: r.left, right: r.right, w: window.innerWidth }; });
+    assert.ok(sub.left >= 0 && sub.right <= sub.w, `the Radix submenu inside the window (at ${at}): ${JSON.stringify(sub)}`);
     await page.click('.isim-menu-root .isim-menu .isim-menu-item', { text: label });
     assert.equal(await page.eval(() => window.Silinx.active.view.state.rows[1].radix), key);
     assert.equal((await drawnNames(page))[5], shown, `q in ${label}`);
