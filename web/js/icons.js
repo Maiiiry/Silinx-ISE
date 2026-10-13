@@ -79,6 +79,7 @@ export const icons = {
 export function icon(name) {
   const span = document.createElement('span');
   span.className = 'ico';
+  span.dataset.ico = name;
   span.innerHTML = icons[name] || icons.file;
   return span;
 }

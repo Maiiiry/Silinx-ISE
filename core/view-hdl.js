@@ -2,7 +2,9 @@
 // (.fsm.json), a truth table (.tt.json) or a Petri net (.pn.json) that has no HDL file of its own (#177): made in memory when
 // the project is compiled, simulated or implemented, so that such a source is a module of the
 // project like an HDL one (it can be the top, be instanced, be synthesized) without a file.
-// A source kept in sync with an HDL file (its generatedFile) is that file: nothing here.
+// A source kept in sync with an HDL file (its generatedFile) is that file: nothing here. Every drawn
+// source normally has that file (#207: the app writes it from the HDL made here, drawnHdlPath); this
+// is for one that cannot have it yet (errors, a file of that name in the way) and for implementing.
 import { generateHdl } from './schdoc.js';
 import { generate as generateAsm, validate as validateAsm } from './asm.js';
 import { generateFsm, fsmErrors, normalizeFsm } from './fsm.js';
@@ -58,4 +60,25 @@ export function viewHdl(path, text, { modules = {} } = {}) {
   } catch (e) {
     return { path, lang, text: '', module: m.name || null, errors: [`${path}: ${e.message}`] };
   }
+}
+
+/**
+ * The module a drawn source is synchronized with, among the modules of its HDL file
+ * ([{ name, instances: [module name] }]): the one named as the drawing (its `name`), else the one no
+ * other module of the file instances. The other modules of the file (a schematic's blocks: its MUX,
+ * decoders, registers…, entities of their own, #175) are plain HDL modules, not the drawing (#207).
+ */
+export function drawnModule(mods, name) {
+  const lc = s => String(s ?? '').toLowerCase();
+  const named = mods.find(m => lc(m.name) === lc(name));
+  if (named) return named.name;
+  const used = new Set(mods.flatMap(m => (m.instances || []).map(lc)));
+  const roots = mods.filter(m => !used.has(lc(m.name)));
+  return roots.length === 1 ? roots[0].name : null;
+}
+
+/** The HDL file a drawn source gets (#207): next to it, named after its module. */
+export function drawnHdlPath(path, module, lang) {
+  const dir = String(path).includes('/') ? String(path).replace(/\/[^/]*$/, '') : 'src';
+  return `${dir}/${module}.${lang === 'verilog' ? 'v' : 'vhd'}`;
 }

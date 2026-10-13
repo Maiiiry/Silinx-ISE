@@ -18,7 +18,7 @@ import { designDiags, hintRow, sevWord, lintEnabled, setLintEnabled } from './di
 import { applyPrefs, getInterface, setInterface, getTheme, setTheme, toggleTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
 import { createHistory } from './history.js';
-import { viewHdl } from '/core/view-hdl.js';
+import { viewHdl, drawnModule, drawnHdlPath } from '/core/view-hdl.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
 import { countEvent } from './analytics.js';
 import { setActionRunner, runAction } from './ui.js';
@@ -174,7 +174,7 @@ export function compileProject() {
     try { mods = modulesFromLibrary(compile(srcs), { sources: Object.fromEntries(srcs.map(s => [s.path, s.text])) }); } catch { /* none */ }
     // (a drawn source whose module an HDL file of the project already defines: that file, not a second one)
     const hdlMods = new Set(Object.keys(mods).map(n => n.toLowerCase()));
-    for (const [f, t] of views) { const r = viewHdl(f, t, { modules: mods }); if (r?.text && !hdlMods.has(String(r.module).toLowerCase())) S.viewSources.push({ path: f, lang: r.lang, text: r.text, role: 'design', view: true }); }
+    for (const [f, t] of views) { const r = viewHdl(f, t, { modules: mods }); if (r?.text && !hdlMods.has(String(r.module).toLowerCase())) S.viewSources.push({ path: f, lang: r.lang, text: r.text, role: 'design', view: true, module: r.module, errors: r.errors.length }); }
   }
   // (in S.sources too, so that every compile of the project (simulation, checks, RTL views) has them)
   S.sources = [...S.sources.filter(s => !s.view), ...S.viewSources];
@@ -223,10 +223,11 @@ function instancesOf(mod) {
 // ------------------------------------------------------------------ hierarchy panel
 function renderHierarchy() {
   const host = $('hier');
+  const focused = host.contains(document.activeElement) ? (document.activeElement.closest('.badge') ? 'badge' : 'tree') : null;
   host.innerHTML = '';
   if (!S.project) { host.append(h('div', { class: 'tree empty' }, 'No project open. Use File > New Project or File > Open Project.')); return; }
   const pj = S.project;
-  const tree = h('ul', { class: 'tree' });
+  const tree = h('ul', { class: 'tree', tabindex: '0', 'aria-label': 'Design hierarchy', onkeydown: treeKeys });
   const dev = `${pj.device.part}${pj.device.speed}-${pj.device.package}`;
   const root = treeItem({ label: pj.name, ico: 'project', open: true, onSelect: () => select({ type: 'project' }), key: 'project' });
   tree.append(root.li);
@@ -253,31 +254,24 @@ function renderHierarchy() {
     const label = instName && instName.toLowerCase() !== String(modName).toLowerCase() ? `${instName} - ${modName}` : modName;
     // a drawn source without an HDL file (#177): the module is the drawing itself
     const drawn = info && /\.(sch|asm|tt|fsm|pn)\.json$/.test(file) ? file : null;
-    const sch = drawn || (info && S.hdlToSch?.[file]);
+    const sch = drawn || (info && viewOfModule(info.name, file));
     const schBase = sch && (drawn || S.schBase?.[sch] !== 'hdl');
-    const viewIco = viewIcon(sch);
+    // one row per module: its base's icon, then a badge for each of its views, the base's marked (#207)
+    const badges = !info ? [] : [
+      drawn ? null : { text: 'HDL', base: !schBase, open: () => openFile(file, info.line), context: e => moduleContextMenu(e, modName, file) },
+      sch ? { text: viewBadge(sch), base: !!schBase, open: () => openView(sch), context: e => (drawn ? viewContextMenu(e, drawn) : syncedViewMenu(e, sch)) } : null,
+    ].filter(Boolean);
     const it = treeItem({
-      label, meta: info ? `(${(schBase ? sch : file).split('/').pop()})` : '(missing)', ico: isTop ? 'moduleTop' : schBase ? viewIco : info ? (info.lang === 'vhdl' ? 'vhdl' : 'verilog') : 'err',
-      cls: isTop ? 'top-mod' : '', key: `m:${path}`, open: depth < 2,
+      label, meta: info ? `(${(schBase ? sch : file).split('/').pop()})` : '(missing)', ico: isTop ? 'moduleTop' : schBase ? viewIcon(sch) : info ? (info.lang === 'vhdl' ? 'vhdl' : 'verilog') : 'err',
+      cls: isTop ? 'top-mod' : '', key: `m:${path}`, open: depth < 2, badges,
       onSelect: () => select(drawn ? { type: viewKind(drawn), file: drawn, module: modName, path, instName } : { type: 'module', module: modName, file, path, instName, sch }),
       onOpen: () => info && (schBase ? openView(sch) : openFile(file, info.line)),
       onContext: e => (drawn ? viewContextMenu(e, drawn) : moduleContextMenu(e, modName, file)),
     });
     parentUl.append(it.li);
-    if (sch && schBase && !drawn) {
-      // the synchronized HDL file under its schematic
-      const hl = treeItem({ label: file.split('/').pop(), meta: '(synchronized HDL)', ico: info.lang === 'vhdl' ? 'vhdl' : 'verilog', key: `hdl:${path}`,
-        onSelect: () => select({ type: 'module', module: modName, file, path, sch }), onOpen: () => openFile(file, info.line), onContext: e => moduleContextMenu(e, modName, file) });
-      hl.setLeaf(); it.ul.append(hl.li);
-    } else if (sch && !drawn) {
-      // the synchronized schematic under its HDL file
-      const sl = treeItem({ label: sch.split('/').pop(), meta: `(synchronized ${viewNoun(sch)})`, ico: viewIco, key: `schv:${path}`,
-        onSelect: () => select({ type: 'module', module: modName, file, path, sch }), onOpen: () => openView(sch), onContext: e => moduleContextMenu(e, modName, file) });
-      sl.setLeaf(); it.ul.append(sl.li);
-    }
     if (info && depth < 30) {
       const kids = instancesOf(info.mod);
-      if (!kids.length && (!sch || drawn)) it.setLeaf();
+      if (!kids.length) it.setLeaf();
       for (const k of kids) addModule(it.ul, k.module, k.name, depth + 1, `${path}/${k.name}`);
     } else it.setLeaf();
   };
@@ -325,19 +319,42 @@ function renderHierarchy() {
   // restore selection
   const key = S.selKey;
   const row = key && host.querySelector(`[data-key="${CSS.escape(key)}"]`);
-  if (row) row.classList.add('sel');
+  if (row) markSelRow(row);
   else {
     const first = host.querySelector(`[data-key^="m:"]`);
     if (first) first.dispatchEvent(new MouseEvent('click'));
   }
+  // (redrawn while the user was in it from the keyboard: the focus stays there)
+  if (focused) (focused === 'badge' && host.querySelector('.row.sel .badge') || tree).focus({ preventScroll: true });
 }
 
-function treeItem({ label, meta, ico, open = false, onSelect, onOpen, onContext, cls = '', key }) {
+// the view a module of an HDL file is synchronized with: only the module that drawing makes, not the
+// other modules of its file (a schematic's blocks, #175, are plain HDL modules, #207)
+function viewOfModule(name, file) {
+  const v = S.hdlToSch?.[file];
+  if (!v) return null;
+  const mods = S.modules.filter(m => m.file === file && m.kind !== 'package').map(m => ({ name: m.name, instances: instancesOf(m.mod).map(i => i.module) }));
+  return String(drawnModule(mods, S.viewModule?.[v])).toLowerCase() === String(name).toLowerCase() ? v : null;
+}
+
+// badges: the views of a module ({ text, base, open, context }), after its name: a click opens that
+// view, a right-click shows its commands; the base's is marked. Tab reaches the selected row's badges.
+function treeItem({ label, meta, ico, open = false, onSelect, onOpen, onContext, cls = '', key, badges = [] }) {
   const li = h('li');
   // what the user collapsed / expanded is remembered across redraws
   if (key && S.treeOpen.has(key)) open = S.treeOpen.get(key);
   const tw = h('span', { class: 'twisty' }, open ? '▾' : '▸');
-  const row = h('div', { class: `row ${cls}`, 'data-key': key }, tw, icon(ico), h('span', { class: 'lbl' }, label), meta ? h('span', { class: 'meta' }, meta) : null);
+  const views = badges.map(b => {
+    const el = h('button', { type: 'button', class: `badge${b.base ? ' base' : ''}`, tabindex: '-1',
+      title: badges.length < 2 ? 'Open' : b.base ? 'Base: edits here update the others' : 'Synchronized with the base' }, b.text);
+    el.addEventListener('click', e => { e.stopPropagation(); selectRow(row, key, onSelect); b.open(); });
+    el.addEventListener('dblclick', e => e.stopPropagation());
+    el.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); selectRow(row, key, onSelect); b.context(e); });
+    return el;
+  });
+  // (the badges next to the name, the file in brackets last: in a narrow pane it gives way first)
+  const row = h('div', { class: `row ${cls}`, 'data-key': key }, tw, icon(ico), h('span', { class: 'lbl' }, label),
+    views.length ? h('span', { class: 'badges' }, views) : null, meta ? h('span', { class: 'meta' }, meta) : null);
   const ul = h('ul');
   if (!open) ul.hidden = true;
   li.append(row, ul);
@@ -348,15 +365,46 @@ function treeItem({ label, meta, ico, open = false, onSelect, onOpen, onContext,
     if (key) S.treeOpen.set(key, !ul.hidden);
   });
   tw.addEventListener('dblclick', e => e.stopPropagation());
-  row.addEventListener('click', () => {
-    row.closest('.tree').querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel'));
-    row.classList.add('sel');
-    if (row.closest('#hier')) S.selKey = key;
-    onSelect?.();
-  });
+  row.addEventListener('click', () => selectRow(row, key, onSelect));
   row.addEventListener('dblclick', () => { if (onOpen) onOpen(); else if (ul.childElementCount) tw.click(); });
   row.addEventListener('contextmenu', e => { e.preventDefault(); row.click(); onContext?.(e); });
   return { li, ul, row, setLeaf() { tw.textContent = ''; } };
+}
+function selectRow(row, key, onSelect) {
+  markSelRow(row);
+  if (row.closest('#hier')) S.selKey = key;
+  onSelect?.();
+}
+function markSelRow(row) {
+  const tree = row.closest('.tree');
+  tree?.querySelectorAll('.row.sel').forEach(r => r.classList.remove('sel'));
+  tree?.querySelectorAll('.badge[tabindex="0"]').forEach(b => b.setAttribute('tabindex', '-1'));
+  row.classList.add('sel');
+  row.querySelectorAll('.badge').forEach(b => b.setAttribute('tabindex', '0'));
+}
+
+// The Design tree from the keyboard (it takes the focus): ↑ / ↓ select, → / ← expand / collapse (←
+// on a collapsed or leaf row: its parent), Enter opens (as a double-click), the context-menu key or
+// Shift+F10 shows the row's menu, Tab reaches the selected row's badges (Enter opens that view).
+function treeKeys(e) {
+  if (e.target.closest?.('.badge') || e.altKey || e.ctrlKey || e.metaKey) return;
+  const tree = e.currentTarget;
+  const rows = [...tree.querySelectorAll('.row')].filter(r => r.getClientRects().length);
+  const cur = tree.querySelector('.row.sel');
+  const i = rows.indexOf(cur);
+  const go = r => { if (!r) return; r.click(); r.scrollIntoView({ block: 'nearest' }); };
+  const tw = cur?.querySelector('.twisty');
+  const sub = cur?.nextElementSibling;
+  if (e.key === 'ArrowDown') go(rows[Math.min(i + 1, rows.length - 1)] || rows[0]);
+  else if (e.key === 'ArrowUp') go(rows[Math.max(i - 1, 0)]);
+  else if (e.key === 'ArrowRight' && cur) { if (sub?.childElementCount && sub.hidden) tw.click(); else if (sub?.childElementCount) go(sub.querySelector('.row')); }
+  else if (e.key === 'ArrowLeft' && cur) { if (sub?.childElementCount && !sub.hidden) tw.click(); else go(cur.parentElement.parentElement.closest('li')?.querySelector(':scope > .row')); }
+  else if (e.key === 'Enter' && cur) cur.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+  else if ((e.key === 'ContextMenu' || (e.key === 'F10' && e.shiftKey)) && cur) {
+    const b = cur.getBoundingClientRect();
+    cur.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: b.left + 24, clientY: b.bottom }));
+  } else return;
+  e.preventDefault();
 }
 
 function select(sel) {
@@ -390,7 +438,8 @@ function moduleContextMenu(e, mod, file) {
     { label: 'Create Test Bench (Wizard)…', action: () => testBench(mod) },
     { label: 'Truth Table / Karnaugh Map of this Module…', action: () => ttFromModule(mod) },
     ...(() => {
-      const sch = S.hdlToSch?.[file];
+      const sch = viewOfModule(mod, file);
+      if (!sch && S.hdlToSch?.[file]) return [];   // a block of a drawing's HDL (#175): its file is the drawing's
       if (!sch) return [
         { label: 'Convert to Schematic (editable)…', action: () => convertToSchematic(mod) },
         { label: 'Convert to State Machine (ASM)…', action: () => convertToAsm(mod) },
@@ -1324,10 +1373,14 @@ async function flushDoc(doc, opts) {
     if (doc._saveFailed) { doc._saveFailed = false; log(`${doc.path || doc.title} saved.`, 'ok'); }
     // edited while it was being saved (the save marked it clean): those edits are saved next
     if (doc._edits !== edits) setDirty(doc, true);
-    // a drawn source without an HDL file: its module follows (#177)
+    // a drawn source without an HDL file: its module follows (#177), and it gets its HDL file as soon
+    // as it has no errors (#207)
     const vp = docPath(doc);
     if (vp && /\.(sch|asm|tt|fsm|pn)\.json$/.test(vp) && !S.schOwners?.[vp] && S.project) {
-      try { S.viewTexts = { ...(S.viewTexts || {}), [vp]: await api.readFile(S.project.name, vp) }; compileProject(); renderHierarchy(); } catch { /* read later */ }
+      try {
+        S.viewTexts = { ...(S.viewTexts || {}), [vp]: await api.readFile(S.project.name, vp) }; compileProject();
+        if (await adoptDrawnHdl()) { await reloadProject(false); markStale(); } else renderHierarchy();
+      } catch { /* read later */ }
     }
   } catch (e) {
     // keep the changes and retry; report once until it works again
@@ -1954,7 +2007,7 @@ async function convertAsmToHdl(asmPath) {
   await api.writeFile(S.project.name, asmPath, JSON.stringify(model, null, 2));
   const d = findDoc(`asm:${asmPath}`);
   if (d?.asmEditor) d.asmEditor.setModel(model);
-  log(`${asmPath} converted to ${target}; the chart stays under it, synchronized.`, 'ok');
+  log(`${asmPath} converted to ${target}; the chart stays, synchronized with it.`, 'ok');
   await reloadProject(false);
   markStale();
   openFile(target);
@@ -2177,7 +2230,7 @@ async function schematicFromTt(ttPath, { form = 'sop', nand = false } = {}) {
   if (bad.length) { alertDlg('Generate Schematic', bad.map(x => x.message).join('\n'), 'error'); return; }
   const target = `${dir}/${name}.sch.json`;
   await api.writeFile(S.project.name, target, JSON.stringify(doc, null, 1));
-  log(`Truth table '${ttPath}' -> schematic ${target} (minimal ${form.toUpperCase()}${nand ? ', NAND gates only' : ''}; not linked to the table: use Generate HDL in the schematic editor for its module '${name}').`, 'ok');
+  log(`Truth table '${ttPath}' -> schematic ${target} (minimal ${form.toUpperCase()}${nand ? ', NAND gates only' : ''}; not linked to the table: a module of its own, '${name}').`, 'ok');
   await reloadProject(false);
   openSch(target);
 }
@@ -2426,8 +2479,8 @@ async function fsmTruthTables(fsmPath) {
   for (const f of made.reverse()) await openTt(f);
 }
 
-// ---- Petri nets (.pn.json): a module of the project by themselves (core/view-hdl.js), their HDL file
-// optional (Generate HDL file: kept in sync with the net, one way)
+// ---- Petri nets (.pn.json): their HDL file made with them (#207), kept in sync with the net, one way
+// (Generate HDL file: in the other language); a module by itself while it has errors (core/view-hdl.js)
 export async function openPetri(path) {
   const id = `pn:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
@@ -2581,6 +2634,51 @@ const viewIcon = p => (isAsm(p) ? 'asm' : isTt(p) ? 'truthtable' : isFsm(p) ? 'f
 const viewKind = p => (isAsm(p) ? 'asm' : isTt(p) ? 'tt' : isFsm(p) ? 'fsm' : isPn(p) ? 'pn' : 'sch');
 const viewContextMenu = (e, f) => (isAsm(f) ? asmContextMenu : isTt(f) ? ttContextMenu : isFsm(f) ? fsmContextMenu : isPn(f) ? petriContextMenu : schContextMenu)(e, f);
 function openView(p) { return isAsm(p) ? openAsm(p) : isTt(p) ? openTt(p) : isFsm(p) ? openFsm(p) : isPn(p) ? openPetri(p) : openSch(p); }
+// a view's badge in the Design tree (#207)
+const viewBadge = p => (isAsm(p) ? 'ASM' : isTt(p) ? 'Table' : isFsm(p) ? 'FSM' : isPn(p) ? 'Petri' : 'Schematic');
+
+// the commands of a drawing synchronized with an HDL file (its badge in the Design tree)
+function syncedViewMenu(e, sch) {
+  const T = viewTitle(sch);
+  popupMenu([
+    { label: 'Open', action: () => openView(sch) },
+    isPn(sch) ? null : S.schBase[sch] === 'hdl' ? { label: `Convert to ${T} (${T.toLowerCase()} as base)`, action: () => setSchBase(sch, 'view') }
+                                                : { label: 'Convert to HDL (HDL as base)', action: () => setSchBase(sch, 'hdl') },
+    isAsm(sch) ? { label: 'Convert to State Diagram (FSM)…', action: () => asmToFsmDiagram(sch) } : null,
+    isFsm(sch) ? { label: 'Convert to ASM chart', action: () => fsmToAsmChart(sch) } : null,
+    isAsm(sch) || isTt(sch) || isFsm(sch) || isPn(sch) ? null : { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(sch) },
+    { label: `Remove Synchronized ${T}…`, action: () => detachSchematic(sch) },
+  ].filter(Boolean), e.clientX, e.clientY);
+}
+
+// Every source has its HDL file (#207): a drawn source without one (a module by itself, #177) gets
+// it, the HDL made for it (core/view-hdl.js) written next to it and linked (generatedFile), the
+// drawing staying the base. Not when it has errors (it stays a module by itself until it has none)
+// or a file of that name is there already. Returns how many were linked.
+async function adoptDrawnHdl() {
+  let n = 0;
+  for (const v of S.viewSources || []) {
+    if (v.errors || !v.module || !S.project) continue;
+    const target = drawnHdlPath(v.path, v.module, v.lang);
+    if ((S.diskTree || S.fileTree || []).includes(target)) continue;
+    let m;
+    try { m = JSON.parse(S.viewTexts[v.path]); } catch { continue; }
+    m.generatedFile = target;
+    const text = JSON.stringify(m, null, isAsm(v.path) || isTt(v.path) || isFsm(v.path) || isPn(v.path) ? 2 : 1);
+    await api.writeFile(S.project.name, target, v.text);   // (registers the module in the project)
+    await api.writeFile(S.project.name, v.path, text);
+    S.viewTexts[v.path] = text;
+    // an open editor of the drawing keeps the link (its next save writes it)
+    const d = findDoc(`${viewKind(v.path)}:${v.path}`);
+    const ed = d?.schEditor || d?.asmEditor || d?.ttEditor || d?.fsmEditor || d?.petriEditor;
+    if (ed?.setDoc) { const cur = ed.getDoc(); cur.generatedFile = target; ed.setDoc(cur); }
+    else if (ed?.setModel) { const cur = ed.getModel(); cur.generatedFile = target; ed.setModel(cur); }
+    d?.ttEditor?.refreshLink?.(); d?.petriEditor?.refreshLink?.();
+    log(`${target} generated from ${v.path} (every source has its HDL)`, 'info');
+    n++;
+  }
+  return n;
+}
 
 // ---- schematic <-> HDL synchronization
 // Structure of a schematic: symbols (name, type, params), ports and net connectivity. When an HDL
@@ -2733,8 +2831,8 @@ async function convertToSchematic(mod) {
   } finally { status('Ready'); }
 }
 
-// Which of a synchronized pair is the base (shown as the module in the hierarchy, the other nested
-// under it). Both stay editable and synchronized either way.
+// Which of a synchronized pair is the base (its icon on the module's row of the hierarchy, its badge
+// marked). Both stay editable and synchronized either way.
 async function setSchBase(schPath, base) {
   let doc;
   try { doc = JSON.parse(await api.readFile(S.project.name, schPath)); } catch (e) { toast(e.message, 'error'); return; }
@@ -2746,8 +2844,8 @@ async function setSchBase(schPath, base) {
   if (d?.schEditor) { const cur = d.schEditor.getDoc(); cur.base = doc.base; d.schEditor.setDoc(cur); }
   if (d?.asmEditor) { const cur = d.asmEditor.getModel(); cur.base = doc.base; d.asmEditor.setModel(cur); }
   const gen = doc.generatedFile;
-  log(base === 'hdl' ? `${gen} is now the base of '${doc.name}'; ${schPath} stays under it as its synchronized ${viewNoun(schPath)}.`
-                     : `${schPath} is now the base of '${doc.name}'; ${gen} stays under it as its synchronized HDL.`, 'info');
+  log(base === 'hdl' ? `${gen} is now the base of '${doc.name}'; ${schPath} stays synchronized with it.`
+                     : `${schPath} is now the base of '${doc.name}'; ${gen} stays synchronized with it.`, 'info');
   await reloadProject(false);
   if (base === 'hdl' && gen) openFile(gen); else openView(schPath);
 }
@@ -2788,7 +2886,7 @@ async function convertSchToHdl(schPath) {
   await api.writeFile(S.project.name, schPath, JSON.stringify(doc, null, 1));
   const d = findDoc(`sch:${schPath}`);
   if (d?.schEditor) d.schEditor.setDoc(doc);
-  log(`${schPath} converted to ${target}; the schematic stays under it, synchronized.`, 'ok');
+  log(`${schPath} converted to ${target}; the schematic stays, synchronized with it.`, 'ok');
   await reloadProject(false);
   markStale();
   openFile(target);
@@ -2822,7 +2920,7 @@ async function exportSchAsIse(schPath) {
 async function detachSchematic(path) {
   const gen = S.schOwners?.[path];
   if (!await confirmDlg(`Remove Synchronized ${viewTitle(path)}`, `Remove the ${viewNoun(path)} ${path}?${gen ? `\n\n${gen} stays as a normal HDL source.` : ''}`)) return;
-  const d = findDoc(`sch:${path}`) || findDoc(`asm:${path}`) || findDoc(`tt:${path}`) || findDoc(`fsm:${path}`);
+  const d = findDoc(`${viewKind(path)}:${path}`);
   if (d) { d.dirty = false; await closeDoc(d); }
   await api.deleteFile(S.project.name, path);
   await reloadProject();
@@ -3121,7 +3219,7 @@ export function reloadProject(render = true) {
   return S.reloadChain;
 }
 
-async function reloadProjectNow(render = true) {
+async function reloadProjectNow(render = true, depth = 0) {
   if (!S.project) return null;
   const pj = await api.project(S.project.name);
   // the files on disk; the project ignores the ones removed from it (project.excluded, unregistered HDL)
@@ -3135,6 +3233,7 @@ async function reloadProjectNow(render = true) {
   S.schOwners = {};
   S.hdlToSch = {};
   S.schBase = {};
+  S.viewModule = {};
   // schematics (.sch.json) and ASM charts (.asm.json) linked to an HDL file ("views" kept in sync)
   S.viewTexts = {};
   for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm|pn)\.json$/.test(f))) {
@@ -3142,10 +3241,12 @@ async function reloadProjectNow(render = true) {
       const t = await api.readFile(pj.name, f);
       S.viewTexts[f] = t;
       const d = JSON.parse(t);
-      if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !S.hdlToSch[d.generatedFile]) { S.schOwners[f] = d.generatedFile; S.hdlToSch[d.generatedFile] = f; S.schBase[f] = d.base === 'hdl' ? 'hdl' : 'view'; }
+      if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !S.hdlToSch[d.generatedFile]) { S.schOwners[f] = d.generatedFile; S.hdlToSch[d.generatedFile] = f; S.schBase[f] = d.base === 'hdl' ? 'hdl' : 'view'; S.viewModule[f] = d.name; }
     } catch { /* unreadable */ }
   }
   compileProject();
+  // a drawn source without its HDL file gets it (#207): read the project again with it
+  if (depth < 2 && await adoptDrawnHdl()) return reloadProjectNow(render, depth + 1);
   updateTitle();
   renderHierarchy();
   renderFilesPage();

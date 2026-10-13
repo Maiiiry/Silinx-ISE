@@ -117,3 +117,13 @@ button, input, select, textarea { font: inherit; }
 .tree .row.sel { background: var(--accent); color: var(--accent-fg); }
 .tree .twisty { width: 12px; text-align: center; color: var(--grey-3); font-size: 9px; flex: none; }
 .tree .ico { width: 16px; height: 16px; flex: none; display: inline-flex; }
+/* the views of a module in the Design tree (#207): [HDL] [Schematic] …, the base's solid and bold,
+   the synchronized ones dashed; the row's colours, so that they read on a selected row too */
+.tree .badges { display: inline-flex; gap: 3px; margin-left: 2px; flex: none; }
+.tree .badge { font: inherit; font-size: 10px; line-height: 13px; padding: 0 4px; border: 1px dashed currentColor; border-radius: 3px;
+  background: transparent; color: inherit; cursor: pointer; }
+.tree .badge.base { font-weight: bold; border-style: solid; }
+.tree .badge:hover { background: var(--hover); color: var(--fg); }
+.tree .badge:focus-visible { outline: 1px dotted currentColor; outline-offset: 1px; }
+.tree:focus { outline: none; }
+.tree:focus-visible .row.sel { outline: 1px dotted var(--accent-fg); outline-offset: -1px; }

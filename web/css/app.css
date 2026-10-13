@@ -89,6 +89,10 @@ body.resizing-v, body.resizing-v * { cursor: row-resize !important; user-select:
 #hier .tree, #procs .tree { padding-top: 2px; }
 .tree .row .lbl { overflow: hidden; text-overflow: ellipsis; }
 .tree .row .meta { color: #666; }
+/* a narrow pane: the file in brackets (last) gives way; the name and the badges stay whole (the pane
+   scrolls sideways, #207) */
+.tree .row .meta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+#hier .tree .row .lbl { flex: none; }
 .tree .row.sel .meta { color: #dde; }
 .tree .row.top-mod .lbl { font-weight: bold; }
 .tree .row.disabled { color: #999; }

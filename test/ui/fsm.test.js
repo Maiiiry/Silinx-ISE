@@ -163,8 +163,8 @@ uiTest('State diagram (FSM): New Source, states and transitions drawn and edited
   let r = hdlVsModel(vhd, await fsmFile('FsmPj', 'src/det.fsm.json'));
   assert.deepEqual(r.got, r.want);
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/det.vhd' && /Synchronized with det\.fsm\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'HDL editor banner' });
-  // the hierarchy shows the module with its diagram, the HDL under it
-  await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((x) => /det\s*\(det\.fsm\.json\)/.test(x.textContent)), [], { what: 'det (det.fsm.json)' });
+  // the hierarchy shows the module with its diagram the base, its views as badges (#207)
+  await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((x) => x.querySelector('.lbl').textContent === 'det' && x.querySelector('.meta')?.textContent === '(det.fsm.json)' && [...x.querySelectorAll('.badge')].map((b) => b.textContent).join(' ') === 'HDL FSM'), [], { what: 'det [HDL] [FSM] (det.fsm.json)' });
 
   // ---- diagram -> HDL: an edited condition rewrites the module
   await page.eval(() => window.SilinxApp.openFsm('src/det.fsm.json'));

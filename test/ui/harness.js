@@ -365,9 +365,10 @@ class PageBase {
       const i = rows.findIndex((r) => { const t = r.querySelector('.lbl')?.textContent?.trim() || ''; return ex ? t === l : t === l || t.startsWith(l); });
       return i >= 0 ? i + 1 : 0;
     }, [container, label, exact], { what: `tree row '${label}' in ${container}` });
-    const sel = `${container} .row`;
+    // (on its name: the badges after it open the module's views, #207)
+    const sel = `${container} .row .lbl`;
     // index among visible rows
-    const absolute = await this.eval((s, k) => { const all = [...document.querySelectorAll(s)]; const vis = all.filter((r) => r.getClientRects().length); return all.indexOf(vis[k - 1]); }, sel, idx);
+    const absolute = await this.eval((c, k) => { const all = [...document.querySelectorAll(`${c} .row`)]; const vis = all.filter((r) => r.getClientRects().length); return [...document.querySelectorAll(`${c} .row .lbl`)].indexOf(vis[k - 1].querySelector('.lbl')); }, container, idx);
     if (dbl) return this.dblclick(sel, { index: absolute });
     if (right) return this.rightClick(sel, { index: absolute });
     return this.click(sel, { index: absolute });

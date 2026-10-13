@@ -1,6 +1,6 @@
 // UI: the Petri net editor (web/js/petri-editor.js, #186, #187): a new net from the Tools menu, a place
 // added and undone, the simulation (a transition fired by a click, a clock step, the outputs), the HDL,
-// the net as a module of the project (the top, no HDL file), the Portuguese interface.
+// the net as a module of the project (the top, its HDL file made with it, #207), the Portuguese interface.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -52,12 +52,13 @@ uiTest('Petri net editor: new net, a place added and undone, the token game and 
   // the HDL
   await page.click(`${ED} .pn-tab-btn`, { text: '</> HDL' });
   await page.waitFor((ed) => /entity ctl is/.test(document.querySelector(`${ed} .pn-code`)?.textContent || ''), [ED], { what: 'the VHDL' });
-  // the net is a module of the project by itself (#177): Set as Top Module, no HDL file
+  // the net is a module of the project with its HDL file, made with it (every source has its HDL, #207): Set as Top Module
+  assert.match(await page.consoleText(), /src\/ctl\.vhd generated from src\/ctl\.pn\.json \(every source has its HDL\)/);
   await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'ctl'), [], { what: 'ctl in the hierarchy' });
   await page.treeRow('#hier', 'ctl', { right: true, exact: true });
   await page.click('body > .menu-popup .mi', { text: 'Set as Top Module' });
   await page.waitFor(() => window.Silinx.project.top === 'ctl', [], { what: 'ctl is the top' });
-  assert.equal(JSON.parse(await readWs(env, 'PnPj', 'src/ctl.pn.json')).generatedFile, undefined);
+  assert.equal(JSON.parse(await readWs(env, 'PnPj', 'src/ctl.pn.json')).generatedFile, 'src/ctl.vhd');
   // in Portuguese
   await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
   await page.waitFor((ed) => [...document.querySelectorAll(`${ed} .pn-tool`)].some((b) => b.textContent.trim() === 'Lugar'), [ED], { what: 'the toolbar in Portuguese' });
@@ -193,11 +194,8 @@ uiTest('Petri net editor: Random, Run / Stop, Reset; PNML export and import (und
   assert.equal(await page.eval((ed) => document.querySelector(`${ed} .pn-marking`)?.textContent, ED), 'a=1  b=0');
   await page.menu('Edit', 'Undo');
   await page.waitFor((ed) => /2 places · 2 transitions · 4 arcs/.test(document.querySelector(`${ed} .asm-status`).textContent), [ED], { what: 'the import undone' });
-  // the HDL file: Generate HDL file from the hierarchy's menu, then kept in sync with the net
-  await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((e) => e.textContent === 'ctl'), [], { what: 'ctl in the hierarchy' });
-  await page.treeRow('#hier', 'ctl', { right: true, exact: true });
-  await page.click('body > .menu-popup .mi', { text: 'Generate HDL file' });
-  await page.waitFor(() => window.Silinx.project.files.some((x) => x.path === 'src/ctl.vhd'), [], { what: 'src/ctl.vhd added' });
+  // the HDL file: made with the net (every source has its HDL, #207), kept in sync with it
+  await page.waitFor(() => window.Silinx.project.files.some((x) => x.path === 'src/ctl.vhd'), [], { what: 'src/ctl.vhd in the project' });
   await page.waitFor(() => /kept in sync/.test(document.querySelector('.doc:not([hidden]) .petri-editor .gen-banner')?.textContent || ''), [], { what: 'the link banner' });
   assert.match(await readWs(env, 'PnSim', 'src/ctl.vhd'), /entity ctl is[\s\S]*busy : out std_logic/);
   await setField(page, 'Outputs', 'busy, ready');

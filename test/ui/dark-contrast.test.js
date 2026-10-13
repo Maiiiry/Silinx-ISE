@@ -135,6 +135,10 @@ for (const theme of ['dark', 'light']) {
     const { check, bad } = await themed(page, theme);
     await page.openProject(`Gates_${theme}`);
     await check('Design pane');
+    // the views' badges of the modules (#207): [HDL] [Schematic], also on the selected row
+    assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .badge')].map((b) => b.textContent)), ['HDL', 'Schematic', 'HDL']);
+    await page.treeRow('#hier', 'gates', { exact: true });
+    await check('Design pane, the badges of the selected row');
     for (const p of ['files', 'libs']) { await page.eval((x) => window.SilinxApp.showLeftPage(x), p); await check(`${p} pane`); }
     await page.eval(() => window.SilinxApp.showLeftPage('design'));
     // the HDL editor: Check Syntax of the latch, its warning with the help, the lint tooltip

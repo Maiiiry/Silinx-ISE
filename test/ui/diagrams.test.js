@@ -93,9 +93,11 @@ uiTest('schematic editor: place two inverters, wire them, add I/O markers, save,
   const d = elaborate(lib, 'chain');
   assert.deepEqual([...lib.errors, ...d.diags].filter((x) => x.severity === 'error').map((x) => x.message), []);
   assert.deepEqual(d.top.ports.map((p) => `${p.name}:${p.dir}`).sort(), ['din:in', 'dout:out']);
-  // in the hierarchy the schematic is the module, with its synchronized HDL under it
+  // in the hierarchy the schematic is the module, its views as badges: its synchronized HDL, the schematic the base (#207)
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => r.querySelector('.lbl').textContent === 'chain' && /chain\.sch\.json/.test(r.querySelector('.meta')?.textContent)));
-  assert.ok(await page.eval(() => [...document.querySelectorAll('#hier .row .meta')].some((e) => e.textContent === '(synchronized HDL)')));
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.querySelector('.lbl').textContent === 'chain').map((r) => [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`))), [['HDL', 'Schematic*']]);
+  // (the HDL file there from the start: every source has its HDL)
+  assert.match(await page.consoleText(), /src\/chain\.vhd generated from src\/chain\.sch\.json \(every source has its HDL\)/);
   // View HDL shows the code; Close
   await page.click('.doc:not([hidden]) .se-btn[data-act=view]');
   await page.waitFor(() => /entity chain is/i.test(document.querySelector('.doc:not([hidden]) .se-code')?.textContent || ''));
@@ -289,6 +291,8 @@ uiTest('ASM chart editor: Zoom / Fit, </> Code and Copy, Reset route / Delete co
   });
   await makeProject(env, { name: 'AsmEd', files: { 'src/ctl.asm.json': JSON.stringify(chart, null, 2) } });
   await page.openProject('AsmEd');
+  // (the chart gets its HDL file when the project opens: every source has its HDL, #207)
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.asm.json', [], { what: 'the chart linked to its HDL' });
   await page.eval(() => window.SilinxApp.openAsm('src/ctl.asm.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'asm:src/ctl.asm.json' && document.querySelector('.doc:not([hidden]) [data-node=s3]'), [], { what: 'ASM editor' });
   const D = '.doc:not([hidden])';
@@ -408,7 +412,7 @@ uiTest('ASM chart editor: Zoom / Fit, </> Code and Copy, Reset route / Delete co
   await tool('↷');
   assert.equal((await model()).nodes.length, 4);
   await page.menu('Edit', 'Undo');
-  assert.deepEqual(await model(), chart);
+  assert.deepEqual(await model(), { ...chart, generatedFile: 'src/ctl.vhd' });   // (and the link to its HDL file, #207)
 
   // ---- # Snap: a box dragged lands on the 20-unit grid; with snapping off, where it is dropped
   const drag = async (id, dx, dy) => {

@@ -7,6 +7,8 @@
 // the error gone after it; in Portuguese.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { setupUi, uiTest, makeProject, readWs, tick } from './harness.js';
 
 let env;
@@ -435,6 +437,9 @@ end rtl;
 `;
   const files = { 'src/counter.vhd': COUNTER, 'src/drawn.sch.json': drawn, 'src/bad.sch.json': bad, 'src/maj3.tt.json': maj3, 'src/top.vhd': TOPV };
   await makeProject(env, { name: 'DrawnPj', top: 'drawn', files });
+  // every source gets its HDL file (#207), but not over a file of the folder that is not in the project
+  // (e.g. its HDL file removed from the project): such a drawing stays a module by itself (#177)
+  for (const m of ['drawn', 'bad', 'maj3']) await fs.writeFile(path.join(env.server.workspace, 'DrawnPj', `src/${m}.vhd`), `-- ${m}: not in the project\n`);
   await page.openProject('DrawnPj');
   // the drawings are modules of the project (their HDL made in memory)
   await page.waitFor(() => ['drawn', 'bad', 'maj3'].every((m) => window.Silinx.sources.some((s) => s.view && s.text.includes(`entity ${m} is`))), [], { what: 'the drawings as modules' });

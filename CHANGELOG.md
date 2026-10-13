@@ -6,6 +6,17 @@ the "What's new" text of its GitHub release.
 ## 15.10.14
 
 - **Petri nets:** the VHDL of a net without places (just its ports) compiles (#212).
+- **Design pane:** one row per module or instance, its base's icon on the left and its views as badges after
+  its name: **[HDL]** and, if it has one, **[Schematic]**, **[ASM]**, **[FSM]**, **[Table]** or **[Petri]**
+  (in Portuguese [Esquemático], [Tabela]…). The base's badge is bold and framed ("edits here update the
+  others"); a click on a badge opens that view, its right-click shows that view's commands (Convert to HDL /
+  to the drawing as base, Export as ISE Schematic, Remove Synchronized …). No more child rows for the
+  synchronized views, so a module's children are only its instances; a schematic's blocks (#175) are plain
+  HDL modules, no longer shown with the schematic. The tree from the keyboard: ↑ ↓ ← →, Enter, the menu key,
+  Tab to the selected row's badges. **Every source has its HDL file:** a new schematic, ASM chart, state
+  diagram, truth table or Petri net gets its synchronized HDL file at once, and a project with a drawing
+  that has none (#177) gets it when it is opened ("src/x.vhd generated from src/x.sch.json (every source
+  has its HDL)" in the console); a drawing with errors stays a module by itself until it has none (#207).
 
 ## 15.10.13
 
