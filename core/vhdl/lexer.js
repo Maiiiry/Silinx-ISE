@@ -1,7 +1,8 @@
 // Silinx - VHDL lexer.
 //
 // Produces a flat token array. Each token: { type, value, line, col, ... }; a token on one line also
-// has `end` (the column just after it) and `text` (its source text).
+// has `end` (the column just after it) and `at` (its offset in the source: tokenText gives its text,
+// for a message; only numbers are kept in the tokens, #189).
 //   type 'id'     identifier (value lower-cased, `raw` keeps the original spelling)
 //   type 'kw'     reserved word (value lower-cased)
 //   type 'int'    integer literal (value: decimal string; covers based literals 16#FF#)
@@ -112,7 +113,7 @@ export function lex(src) {
   // the end column and source text of the token the last step read (when on one line)
   let seen = 0, start = 0;
   const mark = () => {
-    if (tokens.length === seen + 1 && tokens[seen].line === line) Object.assign(tokens[seen], { end: col, text: src.slice(start, i) });
+    if (tokens.length === seen + 1 && tokens[seen].line === line) Object.assign(tokens[seen], { end: col, at: start });
     seen = tokens.length;
   };
 
@@ -265,6 +266,7 @@ export function lex(src) {
   }
   mark();
   tokens.push({ type: 'eof', value: '', line, col });
+  Object.defineProperty(tokens, 'src', { value: src });   // (tokenText)
   return { tokens, errors };
 
   // --- helpers that need the closure state ---------------------------------
@@ -289,4 +291,10 @@ export function lex(src) {
     const bits = expandBitString(base, r.value, size, signed, (m) => err(m, l0, c0));
     push({ type: 'bitstr', value: bits, base, size, signed, line: l0, col: c0 });
   }
+}
+
+/** The source text of a token on one line (for a message), from its offset: the tokens keep only
+ *  numbers, the source once on the token array (#189). */
+export function tokenText(toks, tok) {
+  return tok?.at === undefined || toks?.src === undefined ? undefined : toks.src.slice(tok.at, tok.at + tok.end - tok.col);
 }

@@ -1,6 +1,6 @@
 // Verilog-2001 (+ a few SystemVerilog conveniences) recursive-descent parser producing the Silinx IR.
 // See docs/IR.md.
-import { tokenize, basedToBits } from './lexer.js';
+import { tokenize, basedToBits, tokenText } from './lexer.js';
 
 const GATES = new Set(['and', 'or', 'nand', 'nor', 'xor', 'xnor', 'not', 'buf', 'bufif0', 'bufif1', 'notif0', 'notif1']);
 // net types with their own resolution (wired and / or, pull-down / pull-up when undriven)
@@ -99,7 +99,8 @@ class Parser {
     const prev = this.i > 0 ? this.toks[this.i - 1] : null;
     if (v === ';' && prev && this.tok.line > prev.line) {
       // (the token as written: 4'd1, 1.5e3, "text")
-      const text = prev.text === undefined ? `'${prev.v ?? prev.t}'` : prev.t === 'str' ? prev.text : `'${prev.text}'`;
+      const written = tokenText(this.toks, prev);
+      const text = written === undefined ? `'${prev.v ?? prev.t}'` : prev.t === 'str' ? written : `'${written}'`;
       this.error(`expected ';' after ${text}`, { line: prev.line, col: prev.end ?? prev.col + String(prev.v ?? '').length });
       return prev;
     }

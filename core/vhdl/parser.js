@@ -31,7 +31,7 @@
 // nonblocking assignment per element (each with its own delay) — inside a block in
 // sequential code; a concurrent one becomes a process (sens 'all') with that block.
 
-import { lex } from './lexer.js';
+import { lex, tokenText } from './lexer.js';
 
 class ParseError extends Error {}
 
@@ -153,7 +153,8 @@ class Parser {
       const prev = this.t[this.i - 1];
       const len = String(prev.raw ?? prev.value ?? '').length + (prev.type === 'str' || prev.type === 'char' ? 2 : 0);
       // (the token as written: 1.5e3, x"0F", "a""b")
-      const text = prev.text === undefined ? this.describe(prev) : prev.type === 'str' || prev.type === 'char' ? prev.text : `'${prev.text}'`;
+      const written = tokenText(this.t, prev);
+      const text = written === undefined ? this.describe(prev) : prev.type === 'str' || prev.type === 'char' ? written : `'${written}'`;
       this.diag(`expected ';' after ${text}`, { line: prev.line, col: prev.end ?? prev.col + len });
       return prev;
     }

@@ -1,7 +1,8 @@
 // Verilog-2001 lexer with a minimal preprocessor (`define with or without arguments, `undef,
 // `ifdef/`ifndef/`else/`elsif/`endif, `timescale, `include of project files, `default_nettype ignored).
 // Each token: { t, v, line, col, ... }; a token on one line also has `end` (the column just after
-// it) and `text` (its source text).
+// it) and `at` (its offset in the source: tokenText gives its text, for a message; only numbers are
+// kept in the tokens, #189).
 
 export const KEYWORDS = new Set(`module endmodule macromodule input output inout wire reg logic integer genvar parameter localparam
 assign always always_ff always_comb always_latch initial begin end if else case casez casex endcase default for while repeat forever
@@ -45,7 +46,7 @@ export function tokenize(src, file, errors, opts = {}) {
   // the end column and source text of the token the last step read (when on one line)
   let seen = 0, start = 0;
   const mark = () => {
-    if (toks.length === seen + 1 && toks[seen].line === line && toks[seen].end === undefined) Object.assign(toks[seen], { end: col, text: src.slice(start, i) });
+    if (toks.length === seen + 1 && toks[seen].line === line && toks[seen].end === undefined) Object.assign(toks[seen], { end: col, at: start });
     seen = toks.length;
   };
 
@@ -251,8 +252,16 @@ export function tokenize(src, file, errors, opts = {}) {
   mark();
   if (cond.length) err('missing `endif');
   toks.push({ t: 'eof', v: '', line, col });
+  Object.defineProperty(toks, 'src', { value: src });   // (tokenText)
   return { tokens: toks, timescale, defines };
 }
+
+/** The source text of a token on one line (for a message), from its offset: the tokens keep only
+ *  numbers, the source once on the token array (#189). */
+export function tokenText(toks, tok) {
+  return tok?.at === undefined || toks?.src === undefined ? undefined : toks.src.slice(tok.at, tok.at + tok.end - tok.col);
+}
+
 
 // Convert a based literal token into IR bits (MSB first).
 export function basedToBits(tok) {
