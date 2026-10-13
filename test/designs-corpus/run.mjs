@@ -22,7 +22,8 @@
 //        [--stages frontend,tb,…] [--projects dir] [--bits dir] [--sizes dir [--sizes-only]] [--json file]
 //        [--size-tolerance 5] [--period-tolerance 15] [--seed n] [--machine name]
 //   node test/designs-corpus/run.mjs --record-times results.json --machine ci
-//   node test/designs-corpus/run.mjs --table      (the README's results table, from expected.json)
+//   node test/designs-corpus/run.mjs --table      (the README's results table and run times, from
+//                                                  expected.json and times.json)
 //   (npm run test:designs)
 //
 // test/designs-corpus/expected.json holds the expected status and warnings of every stage of every
@@ -32,6 +33,9 @@
 // the tolerance (%); improvements are listed; --update records the results (and the README's
 // results table, as --table writes it). The run times are
 // compared with test/designs-corpus/times.json's for this machine class (warnings only; README).
+// The results (times, sizes, timing) go to the checkout's own .cache/designs-results/results.json
+// (--json file elsewhere); the fetched sources are shared by the checkouts (#105:
+// scripts/fetch-design-corpus.mjs corpusPaths).
 // --projects dir writes a Silinx project folder per design whose flow completed (for
 // scripts/check-open-flow.mjs, the check against ISE); --bits dir keeps the bitstreams; --sizes dir
 // writes a project per design once packed (on the XC3S1200E-FG320, the largest supported chip) with
@@ -42,7 +46,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker, isMainThread, parentPort, workerData } from 'node:worker_threads';
 import { STAGES, kindOf, validateManifest, compareExpectations, updatedExpectations, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, FLOW_PARTS as PARTS, chipOf, deviceOf, flaggedSynth,
-  qualityOf, compareQuality, QUALITY_TOLERANCE, machineClass, timesOf, compareTimes, slowestTable, resultsTable, withResultsTable, PADS_SHORT } from './lib.mjs';
+  qualityOf, compareQuality, QUALITY_TOLERANCE, machineClass, timesOf, compareTimes, slowestTable, resultsTable, withResultsTable, timesTable, withTimesTable, PADS_SHORT } from './lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -219,6 +223,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
   let again = false;
   res.details.flowSteps = steps;
   const step = (k, t, v) => { steps[k] = { ms: Date.now() - t, ...v }; };
+  let routedAt = 0;
   try {
     res.details.part = part;
     const device = loadDeviceCache(part);
@@ -292,9 +297,15 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
           w.push(...(r.warnings || []).map(x => `WARNING:Silinx (place) - ${x}`));
           step('place', t, { estimate: +r.delay.toFixed(2) });
         },
-        onRouted: (x, info) => { if (!info.replication) step('route', t + x.placeMs, { nets: x.routed.routed, pips: x.routed.pips, passes: x.routed.iterations }); },
+        onRouted: (x, info) => {
+          if (info.replication) return;
+          step('route', t + x.placeMs, { nets: x.routed.routed, pips: x.routed.pips, passes: x.routed.iterations });
+          routedAt = Date.now();
+        },
+        // the replication pass: its own time (plan, pack, place and route again), not the route's
         onReplication: x => {
-          steps.replication = { flipFlops: x.flipFlops, copies: x.copies, kept: x.kept, before: +x.before.toFixed(3),
+          steps.replication = { ms: Date.now() - routedAt, ...(x.result && { placeMs: x.result.placeMs, routeMs: x.result.routeMs }),
+            flipFlops: x.flipFlops, copies: x.copies, kept: x.kept, before: +x.before.toFixed(3),
             ...(x.result?.sta && { period: +x.result.period.toFixed(3) }), ...(x.error && { error: clean(x.error.message) }) };
         },
       });
@@ -403,21 +414,26 @@ if (!isMainThread) {
   };
   const machine = machineClass(opt('--machine', null));
   const readJson = (f, def) => (fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : def);
+  // the README's generated parts: the results table (expected.json, #89) and the run times (times.json, #105)
+  const writeReadme = (manifest, expected, times) => {
+    fs.writeFileSync(README, withTimesTable(withResultsTable(fs.readFileSync(README, 'utf8'), resultsTable(manifest, expected)), timesTable(times)));
+  };
   const writeTimes = (all, results) => {
     all[machine] = { ...(all[machine] || {}), ...timesOf(results) };
     all[machine] = Object.fromEntries(Object.keys(all[machine]).sort().map(k => [k, all[machine][k]]));
     fs.writeFileSync(TIMES, `${JSON.stringify(all, null, 1)}\n`);
-    console.log(`wrote the '${machine}' run times of ${Object.keys(timesOf(results)).length} designs to ${path.relative(process.cwd(), TIMES)}`);
+    writeReadme(readJson(path.join(HERE, 'manifest.json'), {}), readJson(EXPECTED, {}), all);
+    console.log(`wrote the '${machine}' run times of ${Object.keys(timesOf(results)).length} designs to ${path.relative(process.cwd(), TIMES)} and the README's`);
   };
   // --record-times results.json: the times of a run (CI's designs-results artifact) as the baseline of
   // this machine class (--machine ci), without running anything
   if (opt('--record-times', null)) { writeTimes(readJson(TIMES, {}), readJson(path.resolve(opt('--record-times')), {})); process.exit(0); }
-  // --table: the README's results table from the expectations (expected.json), without running
-  // anything (after --update; test/designs-corpus.test.js checks that the README's is this one, #89)
+  // --table: the README's results table and run times from the expectations (expected.json) and
+  // the baselines (times.json), without running anything (test/designs-corpus.test.js checks that
+  // the README's are these, #89, #105)
   if (args.includes('--table')) {
-    const manifest = readJson(path.join(HERE, 'manifest.json'), {});
-    fs.writeFileSync(README, withResultsTable(fs.readFileSync(README, 'utf8'), resultsTable(manifest, readJson(EXPECTED, {}))));
-    console.log(`wrote the results table of ${path.relative(process.cwd(), README)}`);
+    writeReadme(readJson(path.join(HERE, 'manifest.json'), {}), readJson(EXPECTED, {}), readJson(TIMES, {}));
+    console.log(`wrote the results table and the run times of ${path.relative(process.cwd(), README)}`);
     process.exit(0);
   }
   if (update && opts.seed !== 1) { console.error('--update records seed 1 (the expectations\' seed): not with --seed'); process.exit(2); }
@@ -428,7 +444,7 @@ if (!isMainThread) {
   const problems = validateManifest(manifest);
   if (problems.length) { console.error(`manifest.json:\n  ${problems.join('\n  ')}`); process.exit(2); }
   const picked = d => !filter || filter.split(',').some(f => d.name === f || d.name.includes(f));
-  const { fetchDesignCorpus } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'fetch-design-corpus.mjs')).href);
+  const { fetchDesignCorpus, corpusPaths } = await import(pathToFileURL(path.join(ROOT, 'scripts', 'fetch-design-corpus.mjs')).href);
   await fetchDesignCorpus({ manifest: { ...manifest, designs: manifest.designs.filter(picked) } });
   const todo = manifest.designs.filter(picked).map(d => d.name);
   const results = {};
@@ -477,7 +493,8 @@ if (!isMainThread) {
     const bad = STAGES.filter(s => r[s] && !/^(pass|complete|skip)/.test(r[s]));
     if (bad.length) console.log(`\n${n}:\n${bad.map(s => `  ${s}: ${r[s]}`).join('\n')}`);
   }
-  const jsonOut = opt('--json', path.join(ROOT, '.cache', 'designs-corpus', 'results.json'));
+  // this checkout's own (a worktree's run never overwrites the main checkout's, #105)
+  const jsonOut = path.resolve(opt('--json', path.join(corpusPaths(ROOT).results, 'results.json')));
   fs.mkdirSync(path.dirname(jsonOut), { recursive: true });
   fs.writeFileSync(jsonOut, `${JSON.stringify(results, null, 1)}\n`);
   console.log(`\nresults (times, sizes, timing): ${path.relative(process.cwd(), jsonOut)}`);
@@ -519,8 +536,8 @@ if (!isMainThread) {
   if (update) {
     const updated = updatedExpectations(expected, ran);
     fs.writeFileSync(EXPECTED, `${JSON.stringify(updated, null, 1)}\n`);
-    // the README's results table follows the expectations (#89)
-    fs.writeFileSync(README, withResultsTable(fs.readFileSync(README, 'utf8'), resultsTable(manifest, updated)));
+    // the README's results table follows the expectations (#89), its run times the baselines (#105)
+    writeReadme(manifest, updated, allTimes);
     console.log(`\nwrote ${path.relative(process.cwd(), EXPECTED)} and the results table of ${path.relative(process.cwd(), README)}`);
     if (fullRun) writeTimes(allTimes, ran);
   } else if (cmp.failed || qc.failed) process.exitCode = 1;

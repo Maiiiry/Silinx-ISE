@@ -1,16 +1,19 @@
 // The logic of the design corpus runner (test/designs-corpus/run.mjs, npm run test:designs), on
 // synthetic data: the manifest's validation, the comparison with the expectations (results and
 // warnings), the warnings' normalization, the I/O and generics wrappers, the board clock's UCF, the
-// quality guard (the circuits' size and speed) and the run-time baselines.
+// quality guard (the circuits' size and speed), the run-time baselines, the README's generated parts
+// and the folders of the checkouts (shared sources, own results: #105).
 // The corpus itself (real designs, fetched) is not run here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { validateManifest, compareExpectations, updatedExpectations, normalizeWarning, countWarnings, parseTime, ioWrapper, paramWrapper, boardClockUcf, isGood, kindOf, FLOW_PARTS, chipOf, deviceOf, flaggedSynth,
-  qualityOf, describeQuality, compareQuality, timesOf, compareTimes, slowestTable, machineClass, resultsTable, withResultsTable, readmeResultsTable, TABLE_BEGIN, TABLE_END, PADS_SHORT } from './designs-corpus/lib.mjs';
-import { remoteFiles } from '../scripts/fetch-design-corpus.mjs';
+  qualityOf, describeQuality, compareQuality, timesOf, compareTimes, slowestTable, machineClass, resultsTable, withResultsTable, readmeResultsTable, TABLE_BEGIN, TABLE_END, PADS_SHORT,
+  timesTable, withTimesTable, readmeTimesTable, TIMES_BEGIN, TIMES_END } from './designs-corpus/lib.mjs';
+import { remoteFiles, mainCheckout, corpusPaths, CACHE } from '../scripts/fetch-design-corpus.mjs';
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
 import { parseUcf } from '../core/ucf.js';
@@ -395,4 +398,91 @@ test('design corpus: the placer\'s too-few-pads errors, the package\'s or the ba
   for (const m of ['place: not enough pads',
     'place: no pad for 4 I/O(s) of LVCMOS25 (VCCO 2.5 V): led<4>, led<5>, led<6>, led<7>: the banks with free pads need another VCCO: bank 0 VCCO 3.3 V (LVCMOS33: clk)']) assert.match(m, PADS_SHORT, m);
   for (const m of ['place: 300 slices needed, the device has 240', 'place: no room for the carry chain']) assert.doesNotMatch(m, PADS_SHORT, m);
+});
+
+test('corpusPaths: a git worktree shares its main checkout\'s sources and keeps its own results (#105)', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-corpus-paths-'));
+  try {
+    // the main checkout, two worktrees of it (one with a relative gitdir), a second clone, a folder outside git
+    const main = path.join(tmp, 'main'), wt1 = path.join(main, '.claude', 'worktrees', 'agent-1'), wt2 = path.join(tmp, 'wt2');
+    const clone = path.join(tmp, 'clone'), plain = path.join(tmp, 'plain');
+    for (const w of ['agent-1', 'wt2']) {
+      fs.mkdirSync(path.join(main, '.git', 'worktrees', w), { recursive: true });
+      fs.writeFileSync(path.join(main, '.git', 'worktrees', w, 'commondir'), '../..\n');
+    }
+    fs.mkdirSync(wt1, { recursive: true });
+    fs.writeFileSync(path.join(wt1, '.git'), `gitdir: ${path.join(main, '.git', 'worktrees', 'agent-1')}\n`);
+    fs.mkdirSync(wt2);
+    fs.writeFileSync(path.join(wt2, '.git'), 'gitdir: ../main/.git/worktrees/wt2\n');
+    fs.mkdirSync(path.join(clone, '.git'), { recursive: true });
+    fs.mkdirSync(plain);
+    assert.equal(mainCheckout(main), main);
+    assert.equal(mainCheckout(wt1), main);
+    assert.equal(mainCheckout(wt2), main);
+    assert.equal(mainCheckout(clone), clone);
+    assert.equal(mainCheckout(plain), plain);
+    const shared = path.join(main, '.cache', 'designs-corpus');
+    assert.deepEqual(corpusPaths(main), { sources: shared, results: path.join(main, '.cache', 'designs-results') });
+    assert.deepEqual(corpusPaths(wt1), { sources: shared, results: path.join(wt1, '.cache', 'designs-results') });
+    assert.deepEqual(corpusPaths(wt2), { sources: shared, results: path.join(wt2, '.cache', 'designs-results') });
+    // a second clone has its own sources and results
+    assert.deepEqual(corpusPaths(clone), { sources: path.join(clone, '.cache', 'designs-corpus'), results: path.join(clone, '.cache', 'designs-results') });
+    // the results are never under the sources (a .cache/designs-corpus linked to a shared folder keeps them apart)
+    for (const r of [main, wt1, wt2, clone]) assert.ok(!corpusPaths(r).results.startsWith(`${corpusPaths(r).sources}${path.sep}`), r);
+    // a worktree of a bare repository, a .git file without a gitdir or without its commondir: the checkout itself
+    fs.mkdirSync(path.join(tmp, 'repo.git', 'worktrees', 'b'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'repo.git', 'worktrees', 'b', 'commondir'), '../..\n');
+    for (const [name, text] of [['bare-wt', `gitdir: ${path.join(tmp, 'repo.git', 'worktrees', 'b')}\n`], ['no-gitdir', 'nothing\n'], ['no-commondir', `gitdir: ${path.join(tmp, 'gone')}\n`]]) {
+      const d = path.join(tmp, name);
+      fs.mkdirSync(d);
+      fs.writeFileSync(path.join(d, '.git'), text);
+      assert.equal(mainCheckout(d), d, name);
+    }
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  // this checkout: the fetch script's cache is its main checkout's; the results its own
+  const root = path.join(HERE, '..');
+  assert.equal(CACHE, path.join(mainCheckout(root), '.cache', 'designs-corpus'));
+  assert.equal(corpusPaths(root).results, path.join(root, '.cache', 'designs-results'));
+});
+
+test('timesTable: per machine class its designs and summed times, then the slowest designs in each class (#105)', () => {
+  const times = {
+    local: { a: { synth: 10000, flow: 50000, total: 61000 }, b: { synth: 2000, flow: 1000, total: 3500 }, c: { synth: 500, flow: 400, total: 1000 } },
+    ci: { a: { synth: 30000, flow: 90000, total: 125000 }, c: { synth: 1500, flow: 1200, total: 9000 } },
+  };
+  assert.deepEqual(timesTable(times, 2), [
+    '| machine class | designs | synthesis (s) | flow (s) | all the stages (s) |',
+    '| --- | ---: | ---: | ---: | ---: |',
+    '| `ci` | 2 | 32 | 91 | 134 |',
+    '| `local` | 3 | 13 | 51 | 66 |',
+    '',
+    'The 2 slowest designs (s: synthesis / flow / all the stages):',
+    '',
+    '| design | `ci` | `local` |',
+    '| --- | ---: | ---: |',
+    '| a | 30 / 90 / 125 | 10 / 50 / 61 |',
+    '| c | 2 / 1 / 9 | 1 / 0 / 1 |',
+  ]);
+  // a design only one class has: '-' in the others
+  assert.equal(timesTable(times, 3).at(-1), '| b | - | 2 / 1 / 4 |');
+  // no baseline at all
+  assert.deepEqual(timesTable({}), ['| machine class | designs | synthesis (s) | flow (s) | all the stages (s) |', '| --- | ---: | ---: | ---: | ---: |']);
+  // in a README, between its markers, beside the results table's; the rest kept
+  const readme = `# x\n\n${TIMES_BEGIN}\nold\n${TIMES_END}\n\n${TABLE_BEGIN}\nresults\n${TABLE_END}\n`;
+  const lines = timesTable(times);
+  const updated = withTimesTable(readme, lines);
+  assert.equal(updated, `# x\n\n${TIMES_BEGIN}\n${lines.join('\n')}\n${TIMES_END}\n\n${TABLE_BEGIN}\nresults\n${TABLE_END}\n`);
+  assert.deepEqual(readmeTimesTable(updated), lines);
+  assert.deepEqual(readmeResultsTable(updated), ['results']);
+  assert.equal(withTimesTable(updated, lines), updated);
+  assert.equal(readmeTimesTable('# none'), null);
+  assert.throws(() => withTimesTable('# none', lines), /no run times markers/);
+});
+
+test('the README\'s run times are the ones the committed times.json gives (run.mjs --table; #105)', () => {
+  const times = JSON.parse(fs.readFileSync(path.join(HERE, 'designs-corpus', 'times.json'), 'utf8'));
+  const readme = fs.readFileSync(path.join(HERE, 'designs-corpus', 'README.md'), 'utf8');
+  assert.deepEqual(readmeTimesTable(readme), timesTable(times), 'run: node test/designs-corpus/run.mjs --table');
+  // every machine class of times.json has its line
+  for (const c of Object.keys(times)) assert.ok(readmeTimesTable(readme).some(l => l.startsWith(`| \`${c}\` | `)), c);
 });

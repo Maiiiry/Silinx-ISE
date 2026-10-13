@@ -9,13 +9,49 @@
 //
 // Every file comes from https://raw.githubusercontent.com/<repo>/<commit>/<path> (a commit, never a
 // branch: the same bytes on every run), into .cache/designs-corpus/<owner>__<repo>/<commit>/<path>.
+//
+// The sources are shared by the checkouts of the repository (#105): a git worktree (.claude/worktrees/…,
+// or any `git worktree add`) reads and fetches them in its main checkout's .cache/designs-corpus, so
+// they are downloaded once; pinned, they never change once fetched. What a run writes (results.json)
+// is each checkout's own: corpusPaths.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const MANIFEST = path.join(ROOT, 'test', 'designs-corpus', 'manifest.json');
-export const CACHE = path.join(ROOT, '.cache', 'designs-corpus');
+
+/**
+ * The main checkout of the checkout at `root`: root itself, or, for a linked git worktree (its .git
+ * is a file 'gitdir: <main>/.git/worktrees/<name>'), the folder of the repository's common .git
+ * (the worktree's commondir). root when it is not a git checkout or its main checkout has no work
+ * tree (a bare repository).
+ */
+export function mainCheckout(root) {
+  const dotGit = path.join(root, '.git');
+  let gitdir;
+  try {
+    if (!fs.statSync(dotGit).isFile()) return root;
+    gitdir = /^gitdir:\s*(.+?)\s*$/m.exec(fs.readFileSync(dotGit, 'utf8'))?.[1];
+  } catch { return root; }
+  if (!gitdir) return root;
+  gitdir = path.resolve(root, gitdir);
+  let common;
+  try { common = path.resolve(gitdir, fs.readFileSync(path.join(gitdir, 'commondir'), 'utf8').trim()); } catch { return root; }
+  return path.basename(common) === '.git' ? path.dirname(common) : root;
+}
+
+/**
+ * The design corpus's folders for the checkout at `root`: sources, the fetched files (shared: the
+ * main checkout's .cache/designs-corpus); results, the folder of a run's results.json (the checkout's
+ * own .cache/designs-results, never under the sources: a worktree whose .cache/designs-corpus is a
+ * link to the main checkout's still keeps its results).
+ */
+export function corpusPaths(root) {
+  return { sources: path.join(mainCheckout(root), '.cache', 'designs-corpus'), results: path.join(root, '.cache', 'designs-results') };
+}
+
+export const CACHE = corpusPaths(ROOT).sources;
 
 /** The folder of a pinned source: .cache/designs-corpus/<owner>__<repo>/<commit>. */
 export const sourceDir = src => path.join(CACHE, src.repo.replace('/', '__'), src.commit);
@@ -44,7 +80,10 @@ export async function fetchDesignCorpus({ force = false, filter = '', log = cons
       const res = await fetch(url);
       if (!res.ok) throw new Error(`${d.name}: ${url}: HTTP ${res.status}`);
       fs.mkdirSync(path.dirname(out), { recursive: true });
-      fs.writeFileSync(out, Buffer.from(await res.arrayBuffer()));
+      // written whole, then renamed: a run of another checkout never reads a half-written file
+      const part = `${out}.${process.pid}.part`;
+      fs.writeFileSync(part, Buffer.from(await res.arrayBuffer()));
+      fs.renameSync(part, out);
       fetched++;
     }
   }

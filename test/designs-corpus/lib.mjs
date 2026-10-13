@@ -387,18 +387,52 @@ export function resultsTable(manifest, expected) {
     `Summary: ${n.designs} designs; front end ${n.frontend} / ${n.designs}; own testbenches ${n.tb} / ${n.tbRan} pass; synthesis ${n.synth}; netlist = RTL ${n.diff}; fully open bitstream complete for ${n.complete} designs${chips ? ` (${chips})` : ''}${n.tooLarge ? `, ${n.tooLarge} too large` : ''}${n.other ? `, ${n.other} failing` : ''}.`];
 }
 
-/** The README with its results table replaced by `lines` (between TABLE_BEGIN and TABLE_END). */
-export function withResultsTable(readme, lines) {
-  const a = readme.indexOf(TABLE_BEGIN), b = readme.indexOf(TABLE_END);
-  if (a < 0 || b < a) throw new Error('the README has no results table markers');
-  return `${readme.slice(0, a + TABLE_BEGIN.length)}\n${lines.join('\n')}\n${readme.slice(b)}`;
+// a generated part of the README: the lines between its two markers
+function withBlock(readme, begin, end, lines, what) {
+  const a = readme.indexOf(begin), b = readme.indexOf(end);
+  if (a < 0 || b < a) throw new Error(`the README has no ${what} markers`);
+  return `${readme.slice(0, a + begin.length)}\n${lines.join('\n')}\n${readme.slice(b)}`;
+}
+function readmeBlock(readme, begin, end) {
+  const a = readme.indexOf(begin), b = readme.indexOf(end);
+  return a < 0 || b < a ? null : readme.slice(a + begin.length, b).replace(/^\n|\n$/g, '').split('\n');
 }
 
+/** The README with its results table replaced by `lines` (between TABLE_BEGIN and TABLE_END). */
+export const withResultsTable = (readme, lines) => withBlock(readme, TABLE_BEGIN, TABLE_END, lines, 'results table');
+
 /** The results table of a README (the lines between the markers), or null. */
-export function readmeResultsTable(readme) {
-  const a = readme.indexOf(TABLE_BEGIN), b = readme.indexOf(TABLE_END);
-  return a < 0 || b < a ? null : readme.slice(a + TABLE_BEGIN.length, b).replace(/^\n|\n$/g, '').split('\n');
+export const readmeResultsTable = readme => readmeBlock(readme, TABLE_BEGIN, TABLE_END);
+
+// ---- the README's run times (#105): generated from the baselines (times.json), so they cannot go stale
+export const TIMES_BEGIN = '<!-- the run times: generated from times.json by `node test/designs-corpus/run.mjs --table`; do not edit by hand -->';
+export const TIMES_END = '<!-- end of the run times -->';
+
+/**
+ * The run times of the README (Markdown lines) from the baselines (times.json: { class: { design:
+ * { synth, flow, total } } }, ms): per machine class, its designs and the sum of their synthesis,
+ * flow and total times; then the `n` slowest designs (by their longest total in any class), their
+ * synthesis / flow / total in each class (s). [lines]
+ */
+export function timesTable(allTimes, n = 8) {
+  const classes = Object.keys(allTimes).sort();
+  const sec = ms => (typeof ms === 'number' ? (ms / 1000).toFixed(0) : '-');
+  const sum = (t, k) => Object.values(t).reduce((s, x) => s + (x[k] || 0), 0);
+  const out = ['| machine class | designs | synthesis (s) | flow (s) | all the stages (s) |', '| --- | ---: | ---: | ---: | ---: |',
+    ...classes.map(c => `| \`${c}\` | ${Object.keys(allTimes[c]).length} | ${sec(sum(allTimes[c], 'synth'))} | ${sec(sum(allTimes[c], 'flow'))} | ${sec(sum(allTimes[c], 'total'))} |`)];
+  const longest = d => Math.max(...classes.map(c => allTimes[c][d]?.total ?? 0));
+  const designs = [...new Set(classes.flatMap(c => Object.keys(allTimes[c])))].sort((a, b) => longest(b) - longest(a) || (a < b ? -1 : 1)).slice(0, n);
+  if (!designs.length) return out;
+  return [...out, '', `The ${designs.length} slowest designs (s: synthesis / flow / all the stages):`, '',
+    `| design | ${classes.map(c => `\`${c}\``).join(' | ')} |`, `| --- |${classes.map(() => ' ---: |').join('')}`,
+    ...designs.map(d => `| ${d} | ${classes.map(c => { const t = allTimes[c][d]; return t ? `${sec(t.synth)} / ${sec(t.flow)} / ${sec(t.total)}` : '-'; }).join(' | ')} |`)];
 }
+
+/** The README with its run times replaced by `lines` (between TIMES_BEGIN and TIMES_END). */
+export const withTimesTable = (readme, lines) => withBlock(readme, TIMES_BEGIN, TIMES_END, lines, 'run times');
+
+/** The run times of a README (the lines between the markers), or null. */
+export const readmeTimesTable = readme => readmeBlock(readme, TIMES_BEGIN, TIMES_END);
 
 // the placer's 'too few pads' errors: the package's pads, or those of the banks with a fitting VCCO
 // (#128: 'no pad for N I/O(s) of …'); the design corpus then implements the design in its I/O wrapper

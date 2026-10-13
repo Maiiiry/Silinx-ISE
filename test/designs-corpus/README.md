@@ -5,7 +5,7 @@ The other tests check Silinx on its own examples and on small test designs. This
 Verilog and VHDL — through every stage of Silinx's toolchain, and records what each stage does
 with them, how long it takes and which warnings it gives.
 
-    npm run test:designs                 # all designs (about 10 minutes with 6 jobs)
+    npm run test:designs                 # all designs (the run times below)
     npm run test:designs -- --filter serv,epfl --jobs 4
     npm run test:designs -- --update     # record the results as the expectations
 
@@ -20,6 +20,21 @@ downloads exactly those files (and each repository's licence) from
 `raw.githubusercontent.com/<repo>/<commit>/…` into `.cache/designs-corpus/` (git-ignored). No
 third-party design file is in the repository; the files under `wrappers/` and `boards/` are
 Silinx's own (AGPL-3.0-only).
+
+**What the checkouts share** (#105): the fetched sources, never what a run writes.
+
+- The sources are shared: a git worktree (`.claude/worktrees/…`, any `git worktree add`) reads
+  and fetches them in its **main checkout's** `.cache/designs-corpus/`, so they are downloaded
+  once. They are pinned (a commit, never a branch), so they never change once fetched; each file is
+  written whole, then renamed, so a run in another checkout never reads half of one. A second clone
+  (not a worktree) has its own.
+- The results are each checkout's own: a run writes `results.json` into its checkout's
+  `.cache/designs-results/` (or `--json file`), never under the sources: two checkouts' runs never
+  overwrite each other's, even where `.cache/designs-corpus` is a link to a shared folder (as on
+  the weekly comparison's runner, `.github/workflows/quality.yml`). `corpusPaths` in
+  `scripts/fetch-design-corpus.mjs` gives both folders.
+- What a run records is committed in its checkout's tree: `expected.json`, `times.json` and this
+  README (`--update`, `--record-times`, `--table`).
 
 Only designs under an open-source licence (permissive or copyleft) are used; `validateManifest`
 refuses a source without one, or not pinned to a commit.
@@ -85,8 +100,9 @@ the simulator's, the flow's `WARNING:Silinx (pack|place|timing) - …`) and Yosy
 **fails** on a regression (a stage expected `pass` / `complete` that is not), on a **new warning**
 and on a **warning that vanished**; newly passing stages and other changes are listed. `--update`
 records the run. `--stages frontend,tb` runs (and compares) only those stages. The full results
-(times, cell counts, slices, timing per clock, mismatch reports, unreached nets) are written to
-`.cache/designs-corpus/results.json`.
+(times, cell counts, slices, timing per clock, mismatch reports, unreached nets, the flow's steps
+with their times: `details.flowSteps`, the register replication pass's own among them) are written
+to the checkout's `.cache/designs-results/results.json`.
 
 ### Quality guard: the size and speed of the circuits
 
@@ -138,20 +154,38 @@ the times of a full run **per machine class** (they depend on the machine): `ci`
 `CI=true`), `local` (otherwise), or any name given with `--machine name` or
 `SILINX_CORPUS_MACHINE`. A run compares its times with its class's and **warns (never fails)**
 when a design's synthesis or flow takes more than 1.5 times its baseline and more than 30 s
-longer; it prints the slowest designs:
-
-    slowest designs (s; baseline: the 'local' times in test/designs-corpus/times.json):
-      design                   frontend       tb    synth     diff     flow    total baseline
-      secworks-aes                    0        1      103       17      497      618      618
-      secworks-sha256                 0        0       41        4       92      137      137
+longer; it prints its slowest designs against the baseline.
 
 `--update` on a full run (all the stages) records the times of the designs that ran in its class.
-The `local` baseline: 2026-10-12, an Apple-silicon Mac, 6 jobs, the 38 designs in 736 s (with the app's place and route, #79, #88). There is
-no `ci` baseline yet (no warning without one).
 CI never commits: its baseline is recorded from a nightly run's `designs-results` artifact, without
 running anything:
 
-    node test/designs-corpus/run.mjs --record-times designs-results/designs-corpus/results.json --machine ci
+    node test/designs-corpus/run.mjs --record-times designs-results/designs-results/results.json --machine ci
+
+The baselines below are generated from `times.json` (`--update`, `--record-times` and `--table`
+rewrite them; `test/designs-corpus.test.js` checks that they are the committed `times.json`'s, #105).
+The times are each design's own, summed: a run with n jobs takes about 1/n of the sum, and at
+least its slowest design's time (the testbench included: uart-for-fpga's is most of its total).
+
+<!-- the run times: generated from times.json by `node test/designs-corpus/run.mjs --table`; do not edit by hand -->
+| machine class | designs | synthesis (s) | flow (s) | all the stages (s) |
+| --- | ---: | ---: | ---: | ---: |
+| `ci` | 38 | 1614 | 2341 | 4423 |
+| `local` | 38 | 532 | 1212 | 1868 |
+
+The 8 slowest designs (s: synthesis / flow / all the stages):
+
+| design | `ci` | `local` |
+| --- | ---: | ---: |
+| secworks-aes | 325 / 852 / 1253 | 105 / 535 / 658 |
+| secworks-sha256 | 149 / 275 / 443 | 43 / 98 / 146 |
+| secworks-sha1 | 102 / 194 / 309 | 29 / 99 / 132 |
+| neorv32 | 158 / 81 / 261 | 60 / 35 / 99 |
+| uart-for-fpga | 10 / 2 / 246 | 6 / 2 / 63 |
+| t80 | 114 / 52 / 174 | 38 / 38 / 79 |
+| picorv32 | 59 / 90 / 159 | 19 / 39 / 61 |
+| secworks-siphash | 49 / 97 / 152 | 15 / 45 / 62 |
+<!-- end of the run times -->
 
 ## Results (Yosys 0.68 / YoWASP)
 
@@ -335,4 +369,4 @@ Back end (`core/fpga`, bit database):
     - run: node test/designs-corpus/boards.mjs .cache/designs-boards .cache/designs-boards/bits
                                                   (the board designs: testbench, open flow, bitstream;
                                                    fails when one does not build)
-    - upload .cache/designs-corpus/results.json and the board bitstreams (always) as an artifact
+    - upload .cache/designs-results/results.json and the board bitstreams (always) as an artifact
