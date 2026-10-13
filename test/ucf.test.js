@@ -127,17 +127,19 @@ test('checkUcf: a correct file has no diagnostics', () => {
 test('checkUcf: unknown nets, bus bits, duplicate pins, values and syntax are reported on their line', () => {
   const t = 'NET "led<9>" LOC = M1;\nNET "foo" LOC = A1;\nNET "sw" LOC = C3;\nNET "clk" LOC = M1 | DRIVE = 7;\nNET "led<1>" IOSTANDARD = LVDS_99;\nTIMESPEC TS = PERIOD "nope" 20 ns;\nLOC x;\nNET "clk<0>" PULLUP;\nNET "led<2>" LOC = M3';
   const d = chk(t);
-  const at = (line, re) => assert.ok(d.some(x => x.line === line && x.severity === 'error' && re.test(x.message)), `line ${line}: ${re}\n${JSON.stringify(d, null, 1)}`);
-  at(1, /out of range/);
-  at(2, /does not exist in the top module/);
-  at(3, /4-bit bus/);
-  at(4, /already assigned to NET "led<9>"/);
-  at(4, /invalid DRIVE/);
-  at(5, /IOSTANDARD 'LVDS_99'/);
-  at(6, /timing group "nope"/);
-  at(7, /not a UCF statement/);
-  at(8, /single bit/);
-  at(9, /missing ';'/);
+  assert.deepEqual(d.map(x => [x.line, x.severity, x.message]), [
+    [1, 'error', "bit 9 is out of range for 'led' (7 downto 0)"],
+    [2, 'error', 'NET "foo" does not exist in the top module \'top\' (no port named \'foo\')'],
+    [3, 'error', "'sw' is a 4-bit bus: constrain each bit (NET \"sw<0>\" …)"],
+    [4, 'error', 'pin M1 is already assigned to NET "led<9>" (line 1)'],
+    [4, 'error', "invalid DRIVE '7' (2, 4, 6, 8, 12, 16 or 24 mA)"],
+    [5, 'error', "IOSTANDARD 'LVDS_99' is not supported by this device family"],
+    [6, 'error', 'TIMESPEC refers to the timing group "nope", which no TNM_NET/TNM/TIMEGRP defines'],
+    [7, 'error', "syntax error: 'LOC' is not a UCF statement (NET, INST, TIMESPEC, TIMEGRP, CONFIG…)"],
+    [8, 'error', '\'clk\' is a single bit, not a bus: use NET "clk"'],
+    [9, 'warning', "11 port bit(s) of 'top' have no LOC: led<0>, led<1>, led<3>, led<4>, led<5>, led<6>, led<7>, sw<0>, sw<1>, sw<2>, …"],
+    [9, 'error', 'missing \';\' at the end of the constraint "NET "led<2>" LOC = M3"'],
+  ]);
 });
 
 // #34: XST's names of escaped Verilog identifiers, measured with ISE 14.7 (the netlist's port names
@@ -180,10 +182,16 @@ test('checkUcf: escaped ports by XST\'s names are accepted; by their HDL names, 
 });
 
 test('checkUcf: timing constraints on internal nets are warnings; QFP pins and board pins are checked', () => {
-  assert.equal(chk('NET "cnt_en" TNM_NET = "x";\nTIMEGRP "x" = FFS;').filter(d => d.severity === 'error').length, 0);
-  assert.ok(chk('NET "clk" LOC = P200;', { package: 'vq100' }).some(d => d.severity === 'error' && /P1…P100/.test(d.message)));
+  const sm = ds => ds.map(d => [d.severity, d.message]);
+  assert.deepEqual(sm(chk('NET "cnt_en" TNM_NET = "x";\nTIMEGRP "x" = FFS;')), [
+    ['warning', 'NET "cnt_en" does not exist in the top module \'top\' as a port (timing constraints on internal nets are resolved after synthesis)'],
+  ]);
+  assert.deepEqual(sm(chk('NET "clk" LOC = P200;', { package: 'vq100' })), [
+    ['warning', "12 port bit(s) of 'top' have no LOC: led<0>, led<1>, led<2>, led<3>, led<4>, led<5>, led<6>, led<7>, sw<0>, sw<1>, …"],
+    ['error', "'P200' is not a pin of the vq100 package (P1…P100)"],
+  ]);
   const board = { name: 'B', resources: [{ name: 'clk', pins: ['B8'] }] };
-  assert.match(checkUcf('NET "clk" LOC = C9;', { top: 'top', ports: [PORTS[0]], board })[0].message, /not connected to any resource/);
+  assert.deepEqual(sm(checkUcf('NET "clk" LOC = C9;', { top: 'top', ports: [PORTS[0]], board })), [['warning', 'pin C9 is not connected to any resource of the B']]);
 });
 
 test('parseUcf: bus bits written as a(0) or a[0] map to a<0>', () => {
@@ -264,7 +272,7 @@ test('parseUcf does not throw on attributes without a value (kept verbatim)', ()
   const u = parseUcf('NET "a" LOC;\nNET "b" SLEW;\nNET "c" IOSTANDARD | LOC = P3;\nNET "d" DRIVE = x;\nNET "e" LOC = "";');
   assert.deepEqual(u.assignments, { c: { loc: 'P3' } });
   assert.deepEqual(u.other, ['NET "a" LOC', 'NET "b" SLEW', 'NET "c" IOSTANDARD', 'NET "d" DRIVE = x', 'NET "e" LOC = ""']);
-  assert.ok(checkUcf('NET "a" LOC;').some(d => /LOC needs a value/.test(d.message)));
+  assert.deepEqual(checkUcf('NET "a" LOC;').map(d => [d.severity, d.message]), [['error', 'LOC needs a value (LOC = …)']]);
 });
 
 // #65, measured with ISE 14.7 (VHDL top: \Mixed\, \lower\, \a.b\ : std_logic; \Bus\ :

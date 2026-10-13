@@ -244,7 +244,10 @@ test('validation: structure of every-cycle blocks', () => {
   // a box reachable from nothing is a warning
   const x = clone(m);
   x.nodes.push({ id: 'o9', type: 'output', actions: ['z = 1'] });
-  assert.ok(validate(x).some((d) => d.severity === 'warning' && /cannot be reached from any state or every-cycle block/.test(d.message)));
+  assert.deepEqual(validate(x).map((d) => [d.severity, d.message]), [
+    ['error', "Conditional output box 'z = 1' has no exit"],
+    ['warning', "Conditional output box 'z = 1' cannot be reached from any state or every-cycle block"],
+  ]);
 });
 
 // ---------------------------------------------------------------------------------------

@@ -86,6 +86,10 @@ uiTest('State diagram (FSM): New Source, states and transitions drawn and edited
   const sid = await page.eval((ed) => [...document.querySelectorAll(`${ed} .fsm-state`)].find((g) => g.querySelector('.fsm-name').textContent === 'S3').dataset.state, ED);
   // a warning: S3 cannot be reached and has no exit
   await page.waitFor((ed) => /State S3 cannot be reached/.test(document.querySelector(`${ed} .fsm-problems`).textContent), [ED]);
+  assert.deepEqual(await page.eval((ed) => [...document.querySelectorAll(`${ed} .fsm-problems .asm-prob`)].map((li) => [li.className, li.textContent]), ED), [
+    ['asm-prob warning link', '▲State S3 cannot be reached from the initial state S0'],
+    ['asm-prob warning link', '▲State S3 has no exit: once there, the machine stays in it until a reset'],
+  ]);
 
   // ---- a transition S3 -> S0: dragged from the rim of S3, condition typed in place (empty = always)
   const a = await statePos(page, sid), b = await statePos(page, 's1');

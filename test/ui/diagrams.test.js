@@ -173,9 +173,15 @@ uiTest('ASM chart editor: add a state, a decision and a case box, connect them, 
     await page.drag(await settled(`[data-node="${s}"] [data-port="next"]`), await settled(`[data-node="${idle}"]`));
     await page.waitFor((a, b) => window.Silinx.active.asmEditor.getModel().edges.some((e) => e.from === a && e.to === b), [s, idle], { what: `${s} -> IDLE` });
   }
-  // the free state S0 is unreachable: a warning, not an error
+  // the free state S0 is unreachable, and so are the states it leads to: warnings, not errors
   await page.click('.doc:not([hidden]) .asm-btn', { text: '✓ Validate' });
   await page.waitFor(() => /· 7 states · 0 errors/.test(document.querySelector('.doc:not([hidden]) .asm-status')?.textContent || ''), [], { what: 'chart valid' });
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .asm-problems .asm-prob')].map((li) => [li.className, li.textContent])), [
+    ['asm-prob warning link', "▲State 'S0' is unreachable from the initial state"],
+    ['asm-prob warning link', "▲State 'S1' is unreachable from the initial state"],
+    ['asm-prob warning link', "▲State 'S2' is unreachable from the initial state"],
+    ['asm-prob warning link', "▲State 'S3' is unreachable from the initial state"],
+  ]);
   const final = await model();
   // Generate HDL: src/ctrl.vhd written, opened, linked to the chart
   await page.click('.doc:not([hidden]) .asm-btn.asm-primary');

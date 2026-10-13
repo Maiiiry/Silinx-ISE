@@ -14,6 +14,12 @@ let env;
 before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
+/** The console lines after the project was opened, and the rows of the Errors and Warnings tabs. */
+const consoleAfterOpen = async (page) => {
+  const lines = (await page.consoleText()).split('\n');
+  return lines.slice(lines.findIndex((l) => /^Project ".*" opened/.test(l)) + 1);
+};
+const problemRows = (page) => page.eval(() => [...document.querySelectorAll('#console-errors .diag, #console-warnings .diag')].map((d) => d.textContent));
 
 const ADDER = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 entity add1 is port (a, b : in std_logic_vector(1 downto 0); s : out std_logic_vector(2 downto 0)); end add1;
@@ -68,6 +74,11 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/maj3.vhd'] === 'src/maj3.tt.json', [], { what: 'linked HDL' });
   assert.equal((await ttFile('TtPj', 'src/maj3.tt.json')).generatedFile, 'src/maj3.vhd');
   let vhd = await readWs(env, 'TtPj', 'src/maj3.vhd');
+  assert.deepEqual(await consoleAfterOpen(page), [
+    "Created Truth Table 'src/maj3.tt.json'.",
+    "Truth table 'src/maj3.tt.json' -> VHDL module src/maj3.vhd (kept in sync with the table)",
+  ]);
+  assert.deepEqual(await problemRows(page), []);
   assert.equal(simTable(vhd, 'maj3.vhd', 'maj3').f, '00010111');
   // the hierarchy shows the module with its table, the HDL nested under it
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => /maj3/.test(r.textContent) && /maj3\.tt\.json/.test(r.textContent)), [], { what: 'maj3 (maj3.tt.json) in the hierarchy' });
@@ -117,7 +128,11 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.click(`${T} .tt-btn`, { text: 'Generate Schematic' });
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/maj3_sch.sch.json', [], { what: 'schematic opened', timeout: 15000 });
   const sch = JSON.parse(await readWs(env, 'TtPj', 'src/maj3_sch.sch.json'));
-  assert.deepEqual(netlist(sch).diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.deepEqual(netlist(sch).diagnostics, []);
+  assert.deepEqual((await consoleAfterOpen(page)).slice(2), [
+    "Truth table 'src/maj3.tt.json' -> schematic src/maj3_sch.sch.json (minimal POS, NAND gates only; not linked to the table: use Generate HDL in the schematic editor for its module 'maj3_sch').",
+  ]);
+  assert.deepEqual(await problemRows(page), []);
   assert.ok(sch.symbols.every((s) => s.type.startsWith('nand')), 'NAND gates only');
   const g = generateHdl(sch);
   const st = simTable(g.code, 'maj3_sch.vhd', 'maj3_sch').f;
@@ -191,6 +206,8 @@ uiTest('Truth Table with many outputs (#176): 4 -> 16 outputs, cells of output 6
   await page.click(`${T} .tt-btn`, { text: 'Generate VHDL module' });
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/many.vhd'] === 'src/many.tt.json', [], { what: 'linked HDL' });
   const vhd = await readWs(env, 'TtMany', 'src/many.vhd');
+  assert.deepEqual(await consoleAfterOpen(page), ["Truth table 'src/many.tt.json' -> VHDL module src/many.vhd (kept in sync with the table)"]);
+  assert.deepEqual(await problemRows(page), []);
   assert.match(vhd, /y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15 : out std_logic/);
   const st = simTable(vhd, 'many.vhd', 'many');
   assert.deepEqual(Object.keys(st), outs);
@@ -206,7 +223,12 @@ uiTest('Truth Table with many outputs (#176): 4 -> 16 outputs, cells of output 6
   await page.click(`${T} .tt-btn`, { text: 'Generate Schematic' });
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/many_sch.sch.json', [], { what: 'schematic opened', timeout: 15000 });
   const sch = JSON.parse(await readWs(env, 'TtMany', 'src/many_sch.sch.json'));
-  assert.deepEqual(netlist(sch).diagnostics.filter((d) => d.severity === 'error'), []);
+  assert.deepEqual(netlist(sch).diagnostics, []);
+  assert.deepEqual(await consoleAfterOpen(page), [
+    "Truth table 'src/many.tt.json' -> VHDL module src/many.vhd (kept in sync with the table)",
+    "Truth table 'src/many.tt.json' -> schematic src/many_sch.sch.json (minimal SOP; not linked to the table: use Generate HDL in the schematic editor for its module 'many_sch').",
+  ]);
+  assert.deepEqual(await problemRows(page), []);
   assert.deepEqual(sch.ports.filter((p) => p.dir === 'out').map((p) => p.name), outs);
   const ss = simTable(generateHdl(sch).code, 'many_sch.vhd', 'many_sch');
   assert.deepEqual([ss.y3, ss.y15, ss.y9], ['00010111', '00100000', '00000000']);

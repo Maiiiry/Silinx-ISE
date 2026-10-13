@@ -237,13 +237,17 @@ test('validation: names and reading combinational outputs', () => {
   m.name = 'entity';
   m.inputs.push({ name: 'red', width: 1 }, { name: 'bad__name', width: 1 }, { name: 'w', width: 0 });
   m.nodes.find((n) => n.id === 'dCar').cond = 'car && green';
-  const msgs = validate(m).map((x) => x.message).join('\n');
-  assert.match(msgs, /'entity' is a reserved word in VHDL/);
-  assert.match(msgs, /Output 'red' clashes with input 'red'/);
-  assert.match(msgs, /'bad__name' is not a valid identifier/);
-  assert.match(msgs, /invalid width 0/);
-  assert.match(msgs, /output 'green' is combinational and cannot be read/);
-  assert.equal(validate({ nodes: [] }).some((d) => /no states/.test(d.message)), true);
+  assert.deepEqual(validate(m).map((x) => [x.severity, x.message]), [
+    ['error', "Module/entity name 'entity' is a reserved word in VHDL"],
+    ['error', "Input 'bad__name' is not a valid identifier (letters, digits, single '_', must start with a letter)"],
+    ['error', "Input 'w' has invalid width 0 (1..256)"],
+    ['error', "Output 'red' clashes with input 'red'"],
+    ['error', "Decision 'car && green': output 'green' is combinational and cannot be read (mark it 'registered' to use its value)"],
+  ]);
+  assert.deepEqual(validate({ nodes: [] }).map((x) => [x.severity, x.message]), [
+    ['error', 'The chart has no states'],
+    ['error', 'No initial (reset) state selected'],
+  ]);
 });
 
 test('vector expressions translate to numeric_std in VHDL', () => {

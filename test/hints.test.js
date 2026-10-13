@@ -138,9 +138,12 @@ test('hintText: the language falls back to English; messages from the console (i
 
 test('Verilog: a missing end / endfunction is reported (the parser used to loop forever on it)', () => {
   const ds = diags(VL('reg r;\nalways @(a) begin\n  r = b;\n'), 't');
-  assert.ok(ds.some(d => d.message === "expected 'end' but found 'endmodule'" && d.hint === 'missing-end'));
+  assert.deepEqual(ds.map(d => [d.severity, d.message, d.hint]), [['error', "expected 'end' but found 'endmodule'", 'missing-end']]);
   const f = diags(VL('function f; input x; begin f = x;\nassign y = a;'), 't');
-  assert.ok(f.some(d => /expected 'end(function)?' but found/.test(d.message)));
+  assert.deepEqual(f.map(d => [d.severity, d.message, d.hint]), [
+    ['error', "expected 'end' but found 'assign'", 'missing-end'],
+    ['error', "expected 'endfunction' but found 'endmodule'", 'missing-end'],
+  ]);
 });
 
 test('Silinx\'s own checks say which XST message they correspond to (Silinx:NNN is Xst:NNN)', () => {
