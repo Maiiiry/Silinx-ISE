@@ -453,7 +453,9 @@ end;`;
 test('round trip VHDL counter (fixture testbench)', async () => {
   const { doc, gen } = await roundTrip({ files: VHDL_FIX, module: 'counter', file: 'vhdl/counter.vhd', tb: 'tb_counter', until: 2e6 });
   assert.ok(doc.symbols.every(s => s.type === 'hdlblock'));
-  assert.match(gen.code, /architecture Behavioral of counter/);
+  // the entity named as its source writes it (entity Counter, #131)
+  assert.equal(doc.name, 'Counter');
+  assert.match(gen.code, /architecture Behavioral of Counter/);
   assert.match(gen.code, /generic \(\s+WIDTH : integer := 8/);
 });
 
@@ -622,6 +624,95 @@ test('schematicFromHdl uses a supplied ELK-style layout function', async () => {
   assert.deepEqual(nl.diagnostics.filter(x => x.severity === 'error').map(x => x.message), []);
   const g = generateHdl(doc);
   assert.deepEqual(g.diagnostics.filter(x => x.severity === 'error'), []);
+});
+
+// VHDL names in mixed case, used in other cases than declared (the elaborator lower-cases them all)
+const MIXED_VHD = `library IEEE; use IEEE.STD_LOGIC_1164.ALL;
+entity Blink_Ctrl is
+  generic ( Max_Count : integer := 3 );
+  port ( Clk : in STD_LOGIC; Rst_N : in STD_LOGIC; LED_Out : out STD_LOGIC );
+end Blink_Ctrl;
+architecture RTL of Blink_Ctrl is
+  signal Toggle_Q : STD_LOGIC := '0';
+begin
+  Flip : process (clk)
+  begin
+    if rising_edge(clk) then
+      if rst_n = '0' then toggle_q <= '0'; else toggle_q <= not Toggle_Q; end if;
+    end if;
+  end process;
+  led_out <= TOGGLE_Q;
+end RTL;
+
+library IEEE; use IEEE.STD_LOGIC_1164.ALL;
+entity Top_Level is
+  port ( CLK_50 : in std_logic; nReset : in std_logic; LEDs : out std_logic_vector(1 downto 0) );
+end Top_Level;
+architecture Structural of Top_Level is
+  signal Blink_A : std_logic;
+begin
+  U_Blink : entity work.blink_ctrl generic map ( max_count => 5 ) port map ( clk => clk_50, rst_n => nreset, led_out => blink_a );
+  leds <= blink_a & not blink_a;
+end Structural;
+`;
+
+test('VHDL names as written (#131): ports, nets, instances, blocks and their pins as declared; the modules as written on request', async () => {
+  const files = { 'src/top.vhd': MIXED_VHD };
+  const lib = compile([{ path: 'src/top.vhd', text: MIXED_VHD }]);
+  const d = elaborate(lib, 'top_level');
+  assert.deepEqual(d.diags.filter(x => x.severity === 'error'), []);
+  // the modules as their entities write them (the read-only RTL / Technology Schematics)
+  const shown = modulesFromLibrary(lib, { sources: files, asWritten: true });
+  assert.deepEqual(Object.keys(shown), ['Blink_Ctrl', 'Top_Level']);
+  assert.deepEqual(shown.Blink_Ctrl.ports.map(p => p.name), ['Clk', 'Rst_N', 'LED_Out']);
+  assert.deepEqual(shown.Blink_Ctrl.generics, [{ name: 'Max_Count', default: '3' }]);
+  assert.deepEqual(shown.Top_Level.ports.map(p => `${p.name}:${p.type}`), ['CLK_50:std_logic', 'nReset:std_logic', 'LEDs:std_logic_vector(1 downto 0)']);
+  const top = await schematicFromHdl(d.top, { sources: files, modules: shown });
+  assert.equal(top.name, 'Top_Level');
+  assert.deepEqual(top.ports.map(p => p.name), ['CLK_50', 'nReset', 'LEDs']);
+  const inst = top.symbols.find(s => s.type === 'module');
+  assert.equal(inst.name, 'U_Blink');
+  assert.equal(inst.params.module, 'Blink_Ctrl');
+  assert.deepEqual(inst.params.ports.map(p => p.name), ['Clk', 'Rst_N', 'LED_Out']);
+  assert.deepEqual(inst.params.generics, { Max_Count: '5' });
+  assert.deepEqual([...new Set(top.labels.map(l => l.net))], ['CLK_50', 'nReset', 'LEDs', 'Blink_A', 'n_1']);
+  const nl = netlist(top, { modules: shown });
+  assert.deepEqual(nl.diagnostics.map(x => x.message), []);
+  assert.deepEqual(nl.nets.map(n => n.name), ['CLK_50', 'nReset', 'Blink_A', 'n_1', 'LEDs']);
+  assert.deepEqual(nl.nets.find(n => n.name === 'Blink_A').endpoints.filter(e => e.kind === 'pin' && e.sym === inst.id).map(e => e.pin), ['LED_Out']);
+  // inside the instance: its process and its signal as written, though the code uses them in other cases
+  const sub = await schematicFromHdl(d.top.children[0], { sources: files, modules: shown });
+  assert.equal(sub.name, 'Blink_Ctrl');
+  assert.deepEqual(sub.ports.map(p => p.name), ['Clk', 'Rst_N', 'LED_Out']);
+  assert.deepEqual(sub.symbols.map(s => [s.name, s.params.title, s.params.inputs.map(x => x.name), s.params.outputs.map(x => x.name)]),
+    [['Flip', 'Flip', [], ['Toggle_Q']], ['LOGIC_1', 'assign', ['Toggle_Q'], []]]);
+  assert.deepEqual([...new Set(sub.labels.map(l => l.net))], ['Toggle_Q']);
+  // the modules of a project's library stay as the elaborator names them (schematic editor, ISE export):
+  // the instance's module, pins and generics are then theirs
+  const plain = modulesFromLibrary(lib, { sources: files });
+  assert.deepEqual(Object.keys(plain), ['blink_ctrl', 'top_level']);
+  const top2 = await schematicFromHdl(d.top, { sources: files, modules: plain });
+  const inst2 = top2.symbols.find(s => s.type === 'module');
+  assert.deepEqual([inst2.name, inst2.params.module, inst2.params.ports.map(p => p.name), inst2.params.generics], ['U_Blink', 'blink_ctrl', ['clk', 'rst_n', 'led_out'], { max_count: '5' }]);
+  assert.deepEqual(netlist(top2, { modules: plain }).diagnostics.map(x => x.message), []);
+  // the schematic generates VHDL that compiles with the names as written
+  const gen = generateHdl(top, { modules: shown });
+  assert.deepEqual(gen.diagnostics.filter(x => x.severity === 'error').map(x => x.message), []);
+  assert.match(gen.code, /entity Top_Level is/);
+  assert.match(gen.code, /U_Blink : entity work\.Blink_Ctrl/);
+  const lib2 = compile([{ path: 'src/top.vhd', text: MIXED_VHD.split('library IEEE; use IEEE.STD_LOGIC_1164.ALL;\nentity Top_Level')[0] }, { path: 'gen/top.vhd', text: gen.code }]);
+  assert.deepEqual(lib2.errors.filter(e => e.severity === 'error').map(e => e.message), [], gen.code);
+  assert.deepEqual(elaborate(lib2, 'top_level').diags.filter(e => e.severity === 'error').map(e => e.message), []);
+});
+
+test('Verilog names stay as written and case-sensitive (#131): Clk and clk are two ports', async () => {
+  const files = { 'mix.v': 'module Mixed(input Clk, input clk, output Y);\n  assign Y = Clk & clk;\nendmodule\n' };
+  const lib = compile([{ path: 'mix.v', text: files['mix.v'] }]);
+  const d = elaborate(lib, 'Mixed');
+  const doc = await schematicFromHdl(d.top, { sources: files, modules: modulesFromLibrary(lib, { sources: files, asWritten: true }) });
+  assert.equal(doc.name, 'Mixed');
+  assert.deepEqual(doc.ports.map(p => p.name), ['Clk', 'clk', 'Y']);
+  assert.deepEqual(netlist(doc).nets.map(n => n.name).filter(n => /^[Cc]lk$/.test(n)).sort(), ['Clk', 'clk']);
 });
 
 test('symbol library covers the documented set', () => {

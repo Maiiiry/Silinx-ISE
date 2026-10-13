@@ -171,5 +171,21 @@ test('the examples blinky and pong, synthesized by Yosys: technology netlists by
     for (const t of ['fdre', 'muxcy', 'xorcy']) assert.ok(types.has(t), `${name}/${inst.name}: ${t} (${[...types].join(' ')})`);
     const lut = sub.symbols.find(s => /^lut[1-4]$/.test(s.params?.module));
     assert.ok(lutFunction(lut.params.generics.init, +lut.params.module.slice(3)), JSON.stringify(lut.params));
+    // as View Technology Schematic draws it: the names as the netlist writes them, like ISE's (#131):
+    // the primitives (IBUF, LUT4), the instances (dbL), the cells (LUT4_119) and the nets (pressL, N566)
+    const shown = modulesFromLibrary(lib, { sources, asWritten: true });
+    const top2 = await schematicFromHdl(d.top, { sources, modules: shown, layout: g => elk.layout(g), lang: 'vhdl' });
+    const mods2 = new Set(top2.symbols.map(s => s.params?.module));
+    for (const t of ['IBUF', 'OBUF', 'BUFG', ...Object.keys(r.groups)]) assert.ok(mods2.has(t), `${name}: ${t} as written (${[...mods2].join(' ')})`);
+    assert.deepEqual(top2.ports.map(p => p.name), d.top.ports.map(p => p.name));   // (lower case in both examples)
+    const names = top2.symbols.map(s => s.name);
+    assert.ok(names.includes(name === 'blinky' ? 'u_pre' : 'dbL'), names.join(' '));
+    assert.ok(names.some(n => /^(IBUF|OBUF|BUFG)_|_(IBUF|OBUF)$/.test(n)), names.join(' '));
+    if (name === 'pong') assert.ok(top2.labels.some(l => l.net === 'pressL'), top2.labels.map(l => l.net).join(' '));
+    assert.ok(!top2.labels.some(l => /^n\d+$/.test(l.net)), 'no lower-case nNNN nets');
+    const sub2 = await schematicFromHdl(inst, { sources, modules: shown, layout: g => elk.layout(g), lang: 'vhdl' });
+    const lut2 = sub2.symbols.find(s => /^LUT[1-4]$/.test(s.params?.module));
+    assert.match(lut2.name, /^LUT[1-4]_\d+$/);
+    assert.ok(lutFunction(lut2.params.generics.INIT, +lut2.params.module.slice(3)), JSON.stringify(lut2.params));
   }
 });

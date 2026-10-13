@@ -1512,7 +1512,8 @@ async function openSchematic(mod, { netlist = null } = {}) {
   await saveAll();
   const sim = S.view === 'sim';
   const srcs = netlist || S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && inView(s.role, sim));
-  const lib = compile(withPrimitives(srcs));
+  const all = withPrimitives(srcs);
+  const lib = compile(all);
   const design = elaborate(lib, mod);
   const diags = diagsFor(lib, design);
   setDiagnostics(diags);
@@ -1523,7 +1524,9 @@ async function openSchematic(mod, { netlist = null } = {}) {
   const { mountSchEditor } = await import('./sch-editor.js');
   const { schematicFromHdl, modulesFromLibrary } = await import('/core/schdoc.js');
   const sources = Object.fromEntries(srcs.map(x => [x.path, x.text]));
-  const modules = modulesFromLibrary(lib, { sources });
+  // the names as written in the sources (VHDL is lower-cased by the elaborator, #131), the primitives' too (LUT4, FDRE)
+  const modules = modulesFromLibrary(lib, { sources: Object.fromEntries(all.map(x => [x.path, x.text])), asWritten: true });
+  const modName = name => Object.values(modules).find(m => m.name.toLowerCase() === String(name).toLowerCase())?.name || name;
   const elk = window.ELK ? new window.ELK() : null;
   const id = `${netlist ? 'tech' : 'rtl'}:${mod}`;
   const existing = findDoc(id);
@@ -1536,10 +1539,14 @@ async function openSchematic(mod, { netlist = null } = {}) {
       el.append(bar, host);
       let ed = null, cur = null;
       const crumbs = inst => { const out = []; for (let i = inst; i; i = i.parent) out.unshift(i); return out; };
+      // an instance or a module by its name in the schematic (as written: VHDL names match in any case)
+      const sameName = (a, b, vhdl) => a === b || (vhdl && String(a).toLowerCase() === String(b).toLowerCase());
+      const shown = new Map();    // instance -> its name as the schematic writes it
+      const label = i => `${shown.get(i) || (i.parent ? i.name : modName(i.name))} : ${modName(i.module)}`;
       // ISE-style hierarchy navigation: up to the parent, push into the selected instance
       const upBtn = h('button', { class: 'btn rtl-nav', title: 'Up to the parent module (Backspace)', onclick: () => cur?.parent && show(cur.parent) }, '⬆ Up');
       const intoBtn = h('button', { class: 'btn rtl-nav', title: 'Push into the selected instance (Enter, or double-click it)', onclick: () => ed?.openSelected() }, '⬇ Push into');
-      const canEnter = s => !!(s && cur?.children.some(c => (c.name === s.name || c.module === s.params.module) && !c.blackbox && !isPrimitive(c)));
+      const canEnter = s => !!(s && cur?.children.some(c => (sameName(c.name, s.name, cur.mod?.lang === 'vhdl') || sameName(c.module, s.params.module, c.mod?.lang === 'vhdl')) && !c.blackbox && !isPrimitive(c)));
       const show = async inst => {
         cur = inst;
         bar.innerHTML = '';
@@ -1547,7 +1554,7 @@ async function openSchematic(mod, { netlist = null } = {}) {
         bar.append(upBtn, intoBtn, h('span', { class: 'rtl-ro' }, netlist ? 'Technology Schematic (read-only): the post-synthesis netlist' : 'RTL Schematic (read-only)'));
         crumbs(inst).forEach((i, k, all) => {
           bar.append(h('span', { class: 'sep' }, k ? ' › ' : ' — '));
-          bar.append(k === all.length - 1 ? h('b', {}, `${i.name} : ${i.module}`) : h('a', { onclick: () => show(i) }, `${i.name} : ${i.module}`));
+          bar.append(k === all.length - 1 ? h('b', {}, label(i)) : h('a', { onclick: () => show(i) }, label(i)));
         });
         const info = moduleInfo(inst.module);
         if (info) bar.append(h('span', { class: 'spacer' }), h('a', { onclick: () => openFile(info.file, info.line) }, `Open ${info.file.split('/').pop()}`));
@@ -1561,8 +1568,8 @@ async function openSchematic(mod, { netlist = null } = {}) {
               onSelect: s => { intoBtn.disabled = !canEnter(s); },
               onUp: () => cur?.parent && show(cur.parent),
               onOpenModule: (name, { instance } = {}) => {
-                const child = cur.children.find(c => c.name === instance) || cur.children.find(c => c.module === name);
-                if (child && !child.blackbox && !isPrimitive(child)) show(child);
+                const child = cur.children.find(c => sameName(c.name, instance, cur.mod?.lang === 'vhdl')) || cur.children.find(c => sameName(c.module, name, c.mod?.lang === 'vhdl'));
+                if (child && !child.blackbox && !isPrimitive(child)) { if (instance) shown.set(child, instance); show(child); }
               },
             });
             docRef.viewer = ed;   // (the read-only editor of the view: tests)
@@ -2374,11 +2381,13 @@ async function schStructure(doc, modules) {
   const nl = netlist(doc, { modules });
   const symName = id => doc.symbols.find(x => x.id === id)?.name;
   const portName = id => doc.ports.find(x => x.id === id)?.name;
-  return JSON.stringify({
+  const key = JSON.stringify({
     syms: doc.symbols.map(x => `${x.name}:${x.type}:${JSON.stringify(x.params || {})}`).sort(),
     ports: doc.ports.map(x => `${x.name}:${x.dir}:${x.width}`).sort(),
     nets: nl.nets.map(n => n.endpoints.map(e => (e.kind === 'pin' ? `${symName(e.sym)}.${e.pin}` : `port:${portName(e.port)}`)).sort().join(',')).sort(),
   });
+  // VHDL names in any case (a schematic made before the names were kept as written, #131)
+  return doc.lang === 'vhdl' ? key.toLowerCase() : key;
 }
 
 // banner of an HDL editor linked to a schematic / chart (shows when it is out of sync and why)
@@ -2466,9 +2475,10 @@ async function syncSchematicFromHdl(hdlPath, { quiet = false } = {}) {
   if (await schStructure(fresh, modules) === await schStructure(old, modules)) {
     // same structure: keep the drawing, take the HDL kept in the blocks and declarations
     next = structuredClone(old);
-    for (const x of fresh.symbols) { const o = next.symbols.find(y => y.name === x.name && y.type === x.type); if (o) { o.hdl = x.hdl; o.params = x.params; } }
+    const same = (a, b) => a === b || (fresh.lang === 'vhdl' && a.toLowerCase() === b.toLowerCase());
+    for (const x of fresh.symbols) { const o = next.symbols.find(y => same(y.name, x.name) && y.type === x.type); if (o) { o.hdl = x.hdl; o.params = x.params; } }
     next.hdl = fresh.hdl;
-    for (const p of fresh.ports) { const o = next.ports.find(y => y.name === p.name); if (o) o.type = p.type; }
+    for (const p of fresh.ports) { const o = next.ports.find(y => same(y.name, p.name)); if (o) o.type = p.type; }
   } else {
     next = { ...fresh, generatedFile: hdlPath };
     relaid = true;

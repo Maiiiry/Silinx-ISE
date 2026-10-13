@@ -517,12 +517,13 @@ uiTest('browser edition: Back-annotate Pin Locations runs the Silinx toolchain i
   assert.deepEqual((await page.consoleText()).split('Back-annotated 5 pin location(s)').pop().split('\n').filter((l) => /warning/i.test(l)), []);
 }, { url: () => 'about:blank', timeout: 240000 });
 
+// (the names as the netlist writes them, like ISE's: IBUF, FDRE, LUT4, dbL; #131)
 uiTest('browser edition: View Technology Schematic of blinky and pong: the netlist of the Silinx toolchain\'s synthesis in the browser, by instance (#119)', E, async (page) => {
   const view = () => page.eval(() => {
     const ed = window.Silinx.active?.viewer;
     return ed ? { id: window.Silinx.active.id, crumb: document.querySelector('.doc:not([hidden]) .rtl-crumbs b')?.textContent, syms: ed.getDoc().symbols.map((x) => ({ id: x.id, module: x.params?.module || null })) } : null;
   });
-  for (const [name, top, blocks, inside] of [['blinky', 'top', ['u_pre', 'u_speed', 'u_knight'], 'u_knight'], ['pong', 'pong', ['display', 'dbl', 'dbr', 'db1', 'db2', 'timer_logic'], 'display']]) {
+  for (const [name, top, blocks, inside] of [['blinky', 'top', ['u_pre', 'u_speed', 'u_knight'], 'u_knight'], ['pong', 'pong', ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], 'display']]) {
     await newSiteProject(page, `WebTech_${name}`, name);
     await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
     await page.waitFor((t) => window.Silinx.active?.id === `tech:${t}` && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [top], { what: `technology schematic of ${name}`, timeout: 180000 });
@@ -533,13 +534,13 @@ uiTest('browser edition: View Technology Schematic of blinky and pong: the netli
     let v = await view();
     assert.equal(v.crumb, `${top} : ${top}`);
     const mods = new Set(v.syms.map((x) => x.module));
-    for (const m of ['ibuf', 'obuf', 'bufg', ...blocks]) assert.ok(mods.has(m), `${name}: ${m} (${[...mods].join(' ')})`);
+    for (const m of ['IBUF', 'OBUF', 'BUFG', ...blocks]) assert.ok(mods.has(m), `${name}: ${m} (${[...mods].join(' ')})`);
     // push into an instance: LUTs and flip-flops; a LUT's function on demand
     await page.dblclick(`.doc:not([hidden]) .se-svg [data-kind=sym][data-id="${v.syms.find((x) => x.module === inside).id}"]`);
     await page.waitFor((b) => document.querySelector('.doc:not([hidden]) .rtl-crumbs b')?.textContent === `${b} : ${b}` && window.Silinx.active.viewer.getDoc().symbols.length > 5, [inside], { what: `inside ${inside}`, timeout: 60000 });
     v = await view();
-    assert.ok(v.syms.some((x) => x.module === 'fdre'), `${name}/${inside}: flip-flops`);
-    const lut = v.syms.find((x) => /^lut[1-4]$/.test(x.module));
+    assert.ok(v.syms.some((x) => x.module === 'FDRE'), `${name}/${inside}: flip-flops`);
+    const lut = v.syms.find((x) => /^LUT[1-4]$/.test(x.module));
     // (the view may still be fitting itself to the window, and the properties drawn again once more: a
     // click that missed the LUT, or a section replaced under the click, is repeated)
     for (let k = 0; ; k++) {

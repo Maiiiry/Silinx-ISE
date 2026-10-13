@@ -238,7 +238,8 @@ uiTest('open mode: Synthesize counts the constraints\' warnings printed before i
 }, { timeout: 180000 });
 
 // View Technology Schematic in the Silinx toolchain (#119): the netlist of its synthesis (Synthesize runs
-// first), drawn by Silinx's schematic engine: blocks by instance, primitives inside, a LUT's function
+// first), drawn by Silinx's schematic engine: blocks by instance, primitives inside, a LUT's function;
+// the names as the netlist writes them, like ISE's (IBUF, LUT4, dbL; #131)
 const TECH = '.doc:not([hidden])';
 const techView = (page) => page.eval(() => {
   const ed = window.Silinx.active?.viewer;
@@ -255,27 +256,31 @@ async function checkTechSchematic(page, { top, blocks, message, inside }) {
   assert.equal(v.title, `${top} (Technology)`);
   assert.ok(v.crumbs.includes(`Technology Schematic (read-only): the post-synthesis netlist — ${top} : ${top}`), v.crumbs);
   assert.equal(await page.eval(() => window.Silinx.status.tech), 'ok');
+  const onTop = v;
   const mods = new Set(v.syms.map((x) => x.module));
-  for (const m of ['ibuf', 'obuf', 'bufg', ...blocks.map((b) => b.toLowerCase())]) assert.ok(mods.has(m), `${m} on the top level: ${[...mods].join(' ')}`);
+  for (const m of ['IBUF', 'OBUF', 'BUFG', ...blocks]) assert.ok(mods.has(m), `${m} on the top level: ${[...mods].join(' ')}`);
+  // the instances by their names (block of an instance: the instance's name and module)
+  for (const b of blocks) assert.ok(v.syms.some((x) => x.name === b && x.module === b), `instance ${b}: ${v.syms.map((x) => x.name).join(' ')}`);
   // push into an instance: its LUTs, flip-flops, carry chain
-  const blk = v.syms.find((x) => x.module === inside.toLowerCase());
+  const blk = v.syms.find((x) => x.module === inside);
   await page.dblclick(`${TECH} .se-svg [data-kind=sym][data-id="${blk.id}"]`);
-  await page.waitFor((b) => document.querySelector('.doc:not([hidden]) .rtl-crumbs b')?.textContent === `${b} : ${b}`, [inside.toLowerCase()], { what: `inside ${inside}`, timeout: 60000 });
-  await page.waitFor((n) => window.Silinx.active.viewer.getDoc().symbols.length > 5 && !window.Silinx.active.viewer.getDoc().symbols.some((x) => x.params?.module === n), [inside.toLowerCase()]);
+  await page.waitFor((b) => document.querySelector('.doc:not([hidden]) .rtl-crumbs b')?.textContent === `${b} : ${b}`, [inside], { what: `inside ${inside}`, timeout: 60000 });
+  await page.waitFor((n) => window.Silinx.active.viewer.getDoc().symbols.length > 5 && !window.Silinx.active.viewer.getDoc().symbols.some((x) => x.params?.module === n), [inside]);
   v = await techView(page);
   const types = new Set(v.syms.map((x) => x.module));
-  for (const t of ['fdre', 'muxcy', 'xorcy']) assert.ok(types.has(t), `${t} in ${inside}: ${[...types].join(' ')}`);
+  for (const t of ['FDRE', 'MUXCY', 'XORCY']) assert.ok(types.has(t), `${t} in ${inside}: ${[...types].join(' ')}`);
   // a LUT: its function from its INIT, on demand (a collapsed section of its properties)
-  const lut = v.syms.find((x) => x.module === 'lut4');
+  const lut = v.syms.find((x) => x.module === 'LUT4');
+  assert.match(lut.name, /^LUT4_\d+$/);
   await page.click(`${TECH} .se-svg [data-kind=sym][data-id="${lut.id}"]`);
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .se-lutfn'), [], { what: 'LUT function' });
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-lutfn').open), false);
   await page.click(`${TECH} .se-lutfn > summary`);
-  const fn = await page.eval(async (init) => (await import('/core/fpga/techview.js')).lutFunction(init, 4), lut.generics.init);
+  const fn = await page.eval(async (init) => (await import('/core/fpga/techview.js')).lutFunction(init, 4), lut.generics.INIT);
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-lut-eq').textContent), fn.equation);
   assert.match(fn.equation, /^O = /);
   assert.equal(await page.eval(() => document.querySelectorAll('.doc:not([hidden]) .se-lut-tt tr').length), 17);
-  return v;
+  return { top: onTop, inside: v };
 }
 
 uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the Silinx toolchain\'s netlist by instance, a LUT\'s function; Portuguese', E, async (page) => {
@@ -302,8 +307,12 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await makeProject(env, { name: 'OpenTechPong', template: 'pong' });
   await page.openProject('OpenTechPong');
   await page.click('input[name=view][value=impl]');
-  await checkTechSchematic(page, { top: 'pong', blocks: ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], inside: 'dbL',
+  const pong = await checkTechSchematic(page, { top: 'pong', blocks: ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], inside: 'dbL',
     message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1068 cells in 20 block(s): " });
+  // the cells and nets as the netlist writes them (#131): pong's pressL (a Verilog name), not pressl
+  assert.ok(pong.top.syms.some((x) => x.name === 'pressL_logic' && x.module === 'pressL_logic'), pong.top.syms.map((x) => x.name).join(' '));
+  assert.ok(pong.top.syms.some((x) => /^dir_FDRE$/.test(x.name)), pong.top.syms.map((x) => x.name).join(' '));
+  assert.deepEqual(pong.top.syms.filter((x) => /^(ibuf|obuf|bufg|fdre|lut\d)$/.test(x.module || '')), [], 'the primitives in upper case');
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 400000 });
 
@@ -380,7 +389,7 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   const tech = await viewerTexts(page);
   assert.deepEqual(tech.kinds, ['wire', 'sym:module', 'sym:constant', 'sym:slice', 'sym:busjoin', 'port', 'label']);
   assert.deepEqual(tech.untranslated, []);
-  for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo lut2', 'Pinos (3)', 'Larguras das entradas (MSB primeiro)', 'Função do LUT (INIT)'])
+  for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo LUT2', 'Pinos (3)', 'Larguras das entradas (MSB primeiro)', 'Função do LUT (INIT)'])
     assert.ok(tech.pt.has(s), `${s}: ${[...tech.pt].join(' | ')}`);
   assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });

@@ -229,6 +229,72 @@ uiTest('processes that need no ISE: templates, RTL schematic, constraints, pin p
   await run('View RTL Schematic', () => window.Silinx.active?.id === 'rtl:tb_top');
 });
 
+// VHDL names in mixed case, used in other cases than declared (#131)
+const MIXED = `library IEEE; use IEEE.STD_LOGIC_1164.ALL;
+entity Blink_Ctrl is
+  generic ( Max_Count : integer := 3 );
+  port ( Clk : in STD_LOGIC; Rst_N : in STD_LOGIC; LED_Out : out STD_LOGIC );
+end Blink_Ctrl;
+architecture RTL of Blink_Ctrl is
+  signal Toggle_Q : STD_LOGIC := '0';
+begin
+  Flip : process (clk)
+  begin
+    if rising_edge(clk) then
+      if rst_n = '0' then toggle_q <= '0'; else toggle_q <= not Toggle_Q; end if;
+    end if;
+  end process;
+  led_out <= TOGGLE_Q;
+end RTL;
+
+library IEEE; use IEEE.STD_LOGIC_1164.ALL;
+entity Top_Level is
+  port ( CLK_50 : in std_logic; nReset : in std_logic; LEDs : out std_logic_vector(1 downto 0) );
+end Top_Level;
+architecture Structural of Top_Level is
+  signal Blink_A : std_logic;
+begin
+  U_Blink : entity work.blink_ctrl generic map ( max_count => 5 ) port map ( clk => clk_50, rst_n => nreset, led_out => blink_a );
+  leds <= blink_a & not blink_a;
+end Structural;
+`;
+
+uiTest('View RTL Schematic of VHDL: the names as written in the design (instances, nets, ports, modules, generics), not lower case (#131)', E, async (page) => {
+  await makeProject(env, { name: 'CasePj', top: 'top_level', board: 'basys2', files: { 'src/top.vhd': MIXED } });
+  await page.openProject('CasePj');
+  await page.eval(() => window.SilinxApp.renderHierarchy());
+  await page.click('#hier .row[data-key="m:top_level"]');
+  await page.treeRow('#procs', 'View RTL Schematic', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'rtl:top_level' && window.Silinx.active.viewer?.getDoc().symbols.length >= 3, [], { what: 'RTL schematic' });
+  const view = () => page.eval(() => {
+    const d = window.Silinx.active.viewer.getDoc();
+    return { crumbs: document.querySelector('.doc:not([hidden]) .rtl-crumbs').innerText.replace(/\s+/g, ' ').trim(), name: d.name, ports: d.ports.map((p) => p.name), nets: [...new Set(d.labels.map((l) => l.net))],
+      syms: d.symbols.map((s) => [s.name, s.type, s.params.module || s.params.title || null]) };
+  });
+  assert.deepEqual(await view(), {
+    crumbs: '⬆ Up ⬇ Push into RTL Schematic (read-only) — Top_Level : Top_Level Open top.vhd', name: 'Top_Level', ports: ['CLK_50', 'nReset', 'LEDs'],
+    nets: ['Blink_A'], syms: [['U_Blink', 'module', 'Blink_Ctrl'], ['XLXI_1', 'busjoin', null], ['XLXI_2', 'inv', null]],
+  });
+  // the instance's properties: its module, pins and generics as the entity writes them
+  const inst = await page.eval(() => window.Silinx.active.viewer.getDoc().symbols.find((s) => s.type === 'module').id);
+  await page.click(`.doc:not([hidden]) .se-svg [data-kind=sym][data-id="${inst}"]`);
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .se-ptitle')?.textContent === 'Module Blink_Ctrl', [], { what: 'instance properties' });
+  assert.deepEqual(await page.eval(() => ({
+    gens: [...document.querySelectorAll('.doc:not([hidden]) .se-gens .se-row')].map((r) => `${r.querySelector('.gn').textContent}=${r.querySelector('input').value}`),
+    pins: document.querySelector('.doc:not([hidden]) .se-pins').textContent,
+  })), { gens: ['Max_Count=5'], pins: 'Clk → CLK_50\nRst_N → nReset\nLED_Out → Blink_A' });
+  // push into it (the instance is found by its name as written) and back up
+  await page.click('.doc:not([hidden]) .rtl-nav', { text: '⬇ Push into' });
+  await page.waitFor(() => window.Silinx.active.viewer.getDoc().name === 'Blink_Ctrl', [], { what: 'inside U_Blink' });
+  assert.deepEqual(await view(), {
+    crumbs: '⬆ Up ⬇ Push into RTL Schematic (read-only) — Top_Level : Top_Level › U_Blink : Blink_Ctrl Open top.vhd', name: 'Blink_Ctrl', ports: ['Clk', 'Rst_N', 'LED_Out'],
+    nets: ['Toggle_Q'], syms: [['Flip', 'hdlblock', 'Flip'], ['LOGIC_1', 'hdlblock', 'assign']],
+  });
+  await page.click('.doc:not([hidden]) .rtl-nav', { text: '⬆ Up' });
+  await page.waitFor(() => window.Silinx.active.viewer.getDoc().name === 'Top_Level', [], { what: 'back to the top' });
+  assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
+});
+
 uiTest('I/O Pin Planning: assign from the board resources, auto-assign, saved UCF keeps the INST / OFFSET / TIMEGRP lines', E, async (page) => {
   const UCF = [
     '# hand-written constraints',

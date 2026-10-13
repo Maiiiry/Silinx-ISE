@@ -1546,8 +1546,11 @@ export function generateHdl(docIn, opts = {}) {
 
 // ===================================================================== HDL -> schematic
 // Module port lists for module symbols, from a compiled library ({ name: { name, lang, ports:[{name,dir,width,type}], generics } }).
-export function modulesFromLibrary(lib, { sources } = {}) {
+// asWritten: the VHDL entities, their ports and generics named as their sources write them (the
+// read-only RTL / Technology Schematics, #131), not lower case as the elaborator names them.
+export function modulesFromLibrary(lib, { sources, asWritten = false } = {}) {
   const out = {};
+  const toksOf = new Map();       // text -> its VHDL tokens (a file of many entities: UNISIM)
   for (const m of lib.modules.values()) {
     let ports = [];
     try {
@@ -1555,24 +1558,45 @@ export function modulesFromLibrary(lib, { sources } = {}) {
       if (d.top) ports = d.top.ports.map(p => ({ name: p.name, dir: p.dir, width: p.t.w }));
     } catch { /* ignore */ }
     if (!ports.length) ports = (m.ports || []).map(p => ({ name: p.name, dir: p.dir, width: 1 }));
+    let name = m.name;
+    const generics = (m.params || []).filter(p => !p.local).map(p => ({ name: p.name, default: p.default ? (m.lang === 'vhdl' ? unparen(prVhdl(p.default)) : unparen(prVlog(p.default))) : '' }));
     if (m.lang === 'vhdl' && sources) {
       const text = sources[m.file];
-      if (text) { const itf = vhdlInterface(text, m); for (const p of ports) { const x = itf.ports.get(p.name.toLowerCase()); if (x) p.type = x.type; } }
+      if (text) {
+        if (!toksOf.has(text)) toksOf.set(text, tokenize(text, 'vhdl'));
+        const itf = vhdlInterface(text, m, toksOf.get(text));
+        for (const p of ports) { const x = itf.ports.get(p.name.toLowerCase()); if (x) { p.type = x.type; if (asWritten) p.name = x.name; } }
+        if (asWritten) {
+          name = itf.name || name;
+          for (const g of generics) g.name = itf.generics.find(x => x.name.toLowerCase() === g.name.toLowerCase())?.name || g.name;
+        }
+      }
     }
-    out[m.name] = { name: m.name, lang: m.lang, file: m.file, ports, generics: (m.params || []).filter(p => !p.local).map(p => ({ name: p.name, default: p.default ? (m.lang === 'vhdl' ? unparen(prVhdl(p.default)) : unparen(prVlog(p.default))) : '' })) };
+    out[name] = { name, lang: m.lang, file: m.file, ports, generics };
   }
   return out;
 }
 
-// VHDL entity interface lists: { generics: [{name,type,default}], ports: Map(name -> {type, mode, default}) }
-function vhdlInterface(text, mod) {
-  const toks = tokenize(text, 'vhdl');
+// the token 'entity' of "entity <name> is" in VHDL tokens (from token `from`), or -1
+function entityTok(toks, name, from = 0) {
+  const n = String(name).toLowerCase();
+  for (let i = from; i < toks.length; i++) if (toks[i].v === 'entity' && toks[i + 1]?.v === n && toks[i + 2]?.v === 'is') return i;
+  return -1;
+}
+// VHDL identifiers as written: lower-case name -> the spelling of its first occurrence in toks[from..to)
+function idSpelling(toks, from, to, map = new Map()) {
+  for (let k = Math.max(0, from); k < (to < 0 ? toks.length : to); k++) if (toks[k].k === 'id' && toks[k].raw && !map.has(toks[k].v)) map.set(toks[k].v, toks[k].raw);
+  return map;
+}
+
+// VHDL entity interface lists: { name (as written), generics: [{name,type,default}], ports: Map(name -> {name (as written), type, mode, default}) }
+function vhdlInterface(text, mod, toks = tokenize(text, 'vhdl')) {
   const ls = lineStarts(text);
-  let i = tokAt(toks, offsetOf(ls, mod.loc));
   // find "entity <name> is"
-  for (; i < toks.length; i++) if (toks[i].v === 'entity' && toks[i + 1]?.v === mod.name.toLowerCase()) break;
-  const res = { generics: [], ports: new Map(), genericMap: new Map() };
-  if (i >= toks.length) return res;
+  const i = entityTok(toks, mod.name, tokAt(toks, offsetOf(ls, mod.loc)));
+  const res = { name: null, generics: [], ports: new Map(), genericMap: new Map() };
+  if (i < 0) return res;
+  res.name = toks[i + 1].raw || toks[i + 1].v;
   const end = (() => { for (let j = i + 2; j < toks.length; j++) if (toks[j].v === 'end' || toks[j].v === 'begin') return j; return toks.length; })();
   const list = kw => {
     for (let j = i; j < end; j++) if (toks[j].v === kw && toks[j + 1]?.v === '(') {
@@ -1602,7 +1626,7 @@ function vhdlInterface(text, mod) {
     return { names, mode, type, default: def };
   };
   for (const el of list('generic')) { const e = parseElem(el); for (const n of e.names) { res.generics.push({ name: n, type: e.type, default: e.default }); } }
-  for (const el of list('port')) { const e = parseElem(el); for (const n of e.names) res.ports.set(n.toLowerCase(), { type: e.type, mode: e.mode, default: e.default }); }
+  for (const el of list('port')) { const e = parseElem(el); for (const n of e.names) res.ports.set(n.toLowerCase(), { name: n, type: e.type, mode: e.mode, default: e.default }); }
   return res;
 }
 
@@ -1655,6 +1679,7 @@ export async function schematicFromHdl(inst, opts = {}) {
   if (archText) { toks = tokenize(archText, lang); ls = lineStarts(archText); }
   const itemSpan = new Map();     // item -> { code, start, end }
   let modStart = 0, modEnd = toks.length;
+  let archTok = -1;               // VHDL: the token 'architecture' of the module's architecture
   if (ci) {
     // context clause
     if (entText) {
@@ -1678,6 +1703,7 @@ export async function schematicFromHdl(inst, opts = {}) {
       // architecture <arch> of <entity> is ... begin
       let a = -1;
       for (let k = 0; k < toks.length; k++) if (toks[k].v === 'architecture' && toks[k + 2]?.v === 'of' && toks[k + 3]?.v === mod.name.toLowerCase()) { a = k; if (!mod.arch || toks[k + 1].v === mod.arch) break; }
+      archTok = a;
       if (a >= 0) {
         doc.hdl.arch = toks[a + 1].raw || toks[a + 1].v;
         const isTok = a + 4;
@@ -1834,6 +1860,25 @@ export async function schematicFromHdl(inst, opts = {}) {
     }
   }
 
+  // ---- VHDL: the names as written in the design (the elaborator lower-cases them, #131): the
+  // spelling of each identifier where the entity or the architecture first writes it (its declaration)
+  const spell = new Map();
+  if (ci) {
+    if (entText) {
+      const et = tokenize(entText, 'vhdl');
+      const e0 = entityTok(et, mod.name);
+      if (e0 >= 0) idSpelling(et, e0, et.findIndex((x, k) => k > e0 && x.v === 'end'), spell);
+    }
+    if (archTok >= 0) {
+      let e = archTok + 1;
+      while (e < toks.length && !(toks[e].v === 'architecture' || toks[e].v === 'package' || (toks[e].v === 'entity' && toks[e + 2]?.v === 'is'))) e++;
+      idSpelling(toks, archTok, e, spell);
+    }
+  }
+  const sp = name => spell.get(String(name).toLowerCase()) ?? name;
+  if (!opts.name) doc.name = sp(doc.name);
+  const modsN = normModules(opts.modules);
+
   // ---- connectivity being built: net name -> { width, drivers: [ep], sinks: [ep] } ; ep = { sym, pin } | { port }
   const nets = new Map();
   const netOf = (name, width) => { let n = nets.get(nk(name)); if (!n) nets.set(nk(name), n = { name, width, eps: [], drivers: [] }); return n; };
@@ -1851,7 +1896,7 @@ export async function schematicFromHdl(inst, opts = {}) {
 
   // ---- ports -> I/O markers
   for (const p of inst.ports) {
-    const port = { id: `P${doc.ports.length + 1}`, name: p.name, dir: p.dir === 'out' ? 'out' : p.dir === 'inout' ? 'inout' : 'in', width: W(p.sig), x: 0, y: 0 };
+    const port = { id: `P${doc.ports.length + 1}`, name: sp(p.name), dir: p.dir === 'out' ? 'out' : p.dir === 'inout' ? 'inout' : 'in', width: W(p.sig), x: 0, y: 0 };
     if (ci) port.type = typeText.get(nk(p.name)) || typeTextVhdl(mod.ports.find(q => nk(q.name) === nk(p.name))?.type);
     else {
       const ip = mod.ports.find(q => q.name === p.name);
@@ -2079,11 +2124,15 @@ export async function schematicFromHdl(inst, opts = {}) {
           if (nm == null) { const nl2 = (c.mod?.params || []).filter(x => !x.local); nm = nl2[k]?.name; }
           if (nm) generics[nm] = unparen(ci ? prVhdl(pp.value) : prVlog(pp.value));
         });
-        const s = addSym('module', { module: c.module, generics, ports: info.map(x => ({ name: x.port, dir: x.dir, width: x.t?.w ?? 1 })) }, c.name);
+        // the module, its pins and generics named as the modules name them (VHDL: case-insensitive)
+        const cm = c.mod?.lang === 'vhdl' ? findMod(modsN, c.module) : null;
+        const asIn = (list, n) => (cm && list?.find(x => x.name.toLowerCase() === String(n).toLowerCase())?.name) || n;
+        for (const g of Object.keys(generics)) { const g2 = asIn(cm?.generics, g); if (g2 !== g) { generics[g2] = generics[g]; delete generics[g]; } }
+        const s = addSym('module', { module: cm?.name || c.module, generics, ports: info.map(x => ({ name: asIn(cm?.ports, x.port), dir: x.dir, width: x.t?.w ?? 1 })) }, sp(c.name));
         const built = [];
         for (const q of pinsOK) {
           if (q.none) continue;
-          const ep = { sym: s.id, pin: q.port };
+          const ep = { sym: s.id, pin: asIn(cm?.ports, q.port) };
           if (q.net) connect(q.net, q.w, ep, q.out);
           else if (q.constBits) {
             const k = addSym('constant', { value: bitsValue(q.constBits), width: q.w });
@@ -2103,23 +2152,23 @@ export async function schematicFromHdl(inst, opts = {}) {
     const ins = [...rw.reads].filter(s => !rw.writes.has(s));
     const clocks = ins.filter(s => rw.clocks.has(s));
     const others = ins.filter(s => !rw.clocks.has(s));
-    const title = it.label || (it.kind === 'instance' ? `${it.name} : ${it.module}` : it.kind === 'process' ? (ci ? 'process' : (it.initial ? 'initial' : 'always')) : it.kind === 'assign' ? 'assign' : it.kind.replace('_', ' '));
-    let nm = it.label || (it.kind === 'instance' ? it.name : null);
+    const title = it.label ? sp(it.label) : (it.kind === 'instance' ? `${sp(it.name)} : ${findMod(modsN, it.module)?.name || it.module}` : it.kind === 'process' ? (ci ? 'process' : (it.initial ? 'initial' : 'always')) : it.kind === 'assign' ? 'assign' : it.kind.replace('_', ' '));
+    let nm = it.label ? sp(it.label) : (it.kind === 'instance' ? sp(it.name) : null);
     if (!nm || usedNames.has(nk(nm)) && it.kind !== 'instance') { nm = `${kindTag === 'reg' ? 'REG' : kindTag === 'tb' ? 'TB' : kindTag === 'comb' ? 'COMB' : kindTag === 'gen' ? 'GEN' : 'LOGIC'}_${++blockK}`; while (usedNames.has(nk(nm))) nm = `BLK_${++blockK}`; }
     usedNames.add(nk(nm));
     const s = addSym('hdlblock', {
       title,
       kind: kindTag,
-      inputs: [...clocks, ...others].map(x => ({ name: x.name, width: W(x), ...(rw.clocks.has(x) ? { clock: true } : {}) })),
-      outputs: outs.map(x => ({ name: x.name, width: W(x), ...(procedural && !rw.children.length ? { reg: true } : {}) })),
+      inputs: [...clocks, ...others].map(x => ({ name: sp(x.name), width: W(x), ...(rw.clocks.has(x) ? { clock: true } : {}) })),
+      outputs: outs.map(x => ({ name: sp(x.name), width: W(x), ...(procedural && !rw.children.length ? { reg: true } : {}) })),
     }, nm, { hdl: span ? span.code : (ci ? `-- source of item at line ${it.loc?.line} not available` : `// source of item at line ${it.loc?.line} not available`) });
     if (!ci && procedural) {
       // outputs written by always/initial blocks are Verilog regs (unless driven by an instance in a generate)
       const drivenByInst = new Set(rw.children.flatMap(c => (c.connInfo || []).flatMap(x => [...(x.writes || [])])));
       s.params.outputs = outs.map(x => ({ name: x.name, width: W(x), ...(!drivenByInst.has(x) && rw.procs.some(p => p.kind === 'process' && p.writes.has(x)) ? { reg: true } : {}) }));
     }
-    for (const x of [...clocks, ...others]) connect(x.name, W(x), { sym: s.id, pin: x.name });
-    for (const x of outs) connect(x.name, W(x), { sym: s.id, pin: x.name }, true);
+    for (const x of [...clocks, ...others]) connect(x.name, W(x), { sym: s.id, pin: sp(x.name) });
+    for (const x of outs) connect(x.name, W(x), { sym: s.id, pin: sp(x.name) }, true);
   }
   // hide hdlblock output pins whose signal nobody else uses (internal state)
   for (const s of symbols) {
@@ -2135,6 +2184,7 @@ export async function schematicFromHdl(inst, opts = {}) {
   doc.symbols = symbols;
 
   // ---- geometry
+  for (const n of nets.values()) n.name = sp(n.name);
   const conns = [...nets.values()].filter(n => n.eps.length > 0);
   await placeAndRoute(doc, conns, { layout: opts.layout, modules: normModules(opts.modules), nk });
   if (diags.length) doc.importDiagnostics = diags;

@@ -29,6 +29,11 @@ In detail:
   the symbols' tooltips), the properties (*Propriedades*, *Módulo …*, *Pinos (5)*, a wire, an I/O
   marker, a net name), the status bar and the Check panel were partly in English; the schematic
   editor too (#130).
+- **The RTL and Technology Schematics keep the names as written in the design:** a VHDL design's
+  instances, nets, ports, entities and generics showed in lower case (VHDL is case-insensitive and
+  Silinx lower-cases its names); they are drawn as declared now (U_Blink, Blink_Ctrl, LED_Out), and
+  the technology view names its primitives and cells like ISE's (IBUF, LUT4_119, dbL_btn), the
+  Silinx toolchain's and ISE's netlists alike. *Convert to Schematic* keeps them too (#131).
 
 ## 15.10.7
 
