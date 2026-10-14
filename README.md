@@ -37,11 +37,10 @@ for Xilinx FPGAs supported by ISE 14.7.
   push into with a double-click.
 - **Schematic editor** (ISE Schematic Editor style): gates, muxes, adders/comparators, counters,
   flip-flops and registers, bus slices/joins, constants, I/O markers and any project module as a
-  symbol; wires, buses and net names; Check Schematic. A schematic and its VHDL/Verilog file stay
-  **synchronized**: edit either one and the other follows (the drawing is kept when the structure
-  does not change). Any HDL module can be converted to a schematic (*Convert to Schematic*), with
-  processes and other behavioural code kept as HDL blocks; *Convert to HDL* makes the HDL the base
-  and keeps the schematic under it.
+  symbol; wires, buses and net names; Check Schematic. A schematic always has its VHDL/Verilog file,
+  generated from it: the schematic is the base, and an edit of the HDL updates the schematic (the
+  drawing is kept when the structure does not change). Any HDL module can be converted to a schematic
+  (*Convert to Schematic*), with processes and other behavioural code kept as HDL blocks.
 - **Tri-state buffers** (palette category *Tri-State*): BUFE (enable E active high, O = E ? I : Z)
   and BUFT (T active low, as in Xilinx), 1 bit or a bus of any width, with the Xilinx presets BUFE,
   BUFE4 (one pin per bit), BUFE8, BUFE16, BUFT, BUFT4, BUFT8, BUFT16. Several tri-state outputs
@@ -76,8 +75,9 @@ for Xilinx FPGAs supported by ISE 14.7.
   signal (e.g. an `opcode`), one exit per value (`00100`, `0|1`, `others`), generated as a
   `case` statement; conditions can test bits and slices (`opcode[4]`, `opcode[4:3]`).
   Charts and schematics print on one page or tiled over several, or save as PNG / SVG.
-  The chart and its HDL file stay **synchronized** (edit either one), and an HDL state machine
-  (1/2/3-process, VHDL or Verilog) can be converted to a chart (*Convert to State Machine*).
+  The chart always has its HDL file, generated from it (an edit of the HDL updates the chart), and
+  an HDL state machine (1/2/3-process, VHDL or Verilog) can be converted to a chart (*Convert to
+  State Machine*).
   A chart can also hold the data path of a small controller: integer generics, internal
   registers, 2-flip-flop input synchronisers, `<<`/`>>`, and *every cycle* blocks (decision and
   output boxes evaluated on every clock cycle, in parallel with the states), e.g. the blinky
@@ -152,13 +152,13 @@ for Xilinx FPGAs supported by ISE 14.7.
   Σm / ΠM canonical forms; minimal SOP and POS (Quine–McCluskey + exact cover, don't cares used,
   essential prime implicants marked, "several minimal solutions" noted) with literal and gate
   counts; and *Check my answer*, which compares the student's own expression with the table and
-  lists the rows that differ. *Generate VHDL / Verilog module* adds a module that stays in sync
-  with the table both ways (like ASM charts: editing the table rewrites it; editing and saving the
-  HDL updates the table by exhaustive simulation, don't cares kept in its comments; a module that
+  lists the rows that differ. The table always has its HDL module, made with it (*Generate VHDL /
+  Verilog module*: in the other language), kept in sync with the table both ways (like ASM charts:
+  editing the table rewrites it; editing and saving the HDL updates the table by exhaustive simulation, don't cares kept in its comments; a module that
   no longer fits — sequential, too many inputs — shows the reason in the editor banners).
   *Generate Schematic* draws the minimal two-level circuit (AND/OR or NAND only) as an editable
-  schematic. *Truth Table from Module…* (or right-click a module) reads the table of any
-  combinational module of up to 8 input bits.
+  schematic. *Truth Table from Module…* fills the table with the table of any combinational module
+  of up to 8 input bits.
 - **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *State Machine (FSM)*,
   `.fsm.json`): the bubble diagram of the 1st-semester courses, Moore or Mealy. Double-click to add
   a state, drag from the rim of a state to another (or to itself) to add a transition, double-click

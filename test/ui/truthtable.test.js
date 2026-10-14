@@ -86,14 +86,14 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   assert.equal(simTable(vhd, 'maj3.vhd', 'maj3').f, '00010111');
   // the hierarchy shows the module with its table, its views as badges: the HDL, the table the base (#207)
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => /maj3/.test(r.textContent) && /maj3\.tt\.json/.test(r.textContent)), [], { what: 'maj3 (maj3.tt.json) in the hierarchy' });
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.querySelector('.lbl').textContent === 'maj3').map((r) => [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`))), [['HDL', 'Table*']]);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.querySelector('.lbl').textContent === 'maj3').map((r) => [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`))), [['Table*', 'VHDL']]);
   // the HDL editor (opened) shows the banner
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/maj3.vhd' && /Synchronized with maj3\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'HDL editor banner' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/maj3.vhd' && /Generated from maj3\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'HDL editor banner' });
 
   // ---- table -> HDL: a cell change rewrites the module
   await page.eval(() => window.SilinxApp.openTt('src/maj3.tt.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'tt:src/maj3.tt.json');
-  await page.waitFor((t) => /Synchronized with maj3\.vhd/.test(document.querySelector(`${t} .tt-link`).textContent), [T]);
+  await page.waitFor((t) => /^HDL: maj3\.vhd — generated from the table$/.test(document.querySelector(`${t} .tt-link`).textContent), [T]);
   await page.click(`${T} .tt-cell[data-out=f][data-row="0"]`);       // f(0,0,0) = 1
   await page.waitFor(async () => /f = Σm\(0, 3, 5, 6, 7\)/.test(await (await fetch('/api/projects/TtPj/file?path=src%2Fmaj3.vhd')).text()), [], { what: 'HDL regenerated' });
   vhd = await readWs(env, 'TtPj', 'src/maj3.vhd');
@@ -121,7 +121,7 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.eval(() => window.SilinxApp.openTt('src/maj3.tt.json'));
   await page.waitFor((t) => /Not in sync with maj3\.vhd/.test(document.querySelector(`${t} .tt-link`).textContent), [T]);
   await page.click(`${T} .tt-cell[data-out=f][data-row="7"]`);       // 1 -> X
-  await page.waitFor((t) => /Synchronized with maj3\.vhd/.test(document.querySelector(`${t} .tt-link`).textContent), [T], { what: 'back in sync', timeout: 15000 });
+  await page.waitFor((t) => /^HDL: maj3\.vhd — generated from the table$/.test(document.querySelector(`${t} .tt-link`).textContent), [T], { what: 'back in sync', timeout: 15000 });
   // (the link says so as the HDL is written: the file on the disk a moment later)
   for (let k = 0; /rising_edge/.test(vhd = await readWs(env, 'TtPj', 'src/maj3.vhd')) && k < 100; k++) await new Promise((r) => setTimeout(r, 100));
   const sim = simTable(vhd, 'maj3.vhd', 'maj3').f;
@@ -268,25 +268,19 @@ uiTest("Truth Table expressions (#180): '/' NOT and '.' AND typed in the Express
   await page.waitFor(async () => (await (await fetch('/api/projects/TtOps/file?path=src%2Fops.tt.json')).json()).exprs?.f === '/a.b + a./b', [], { what: 'saved' });
 });
 
-uiTest('Truth Table from Module: a vector adder read into a table (exhaustive simulation); module context menu makes a new table', E, async (page) => {
+uiTest('Truth Table from Module: a vector adder read into a table (exhaustive simulation); the table has its HDL; no truth table from a module\'s context menu (#220)', E, async (page) => {
   await makeProject(env, { name: 'TtMod', files: { 'src/add1.vhd': ADDER } });
   await page.openProject('TtMod');
-  // module context menu: a new table (not linked to add1: a module of its own, with its HDL file, #207)
+  // a module is made from a truth table, not a truth table from a module: the module's menu has none (#220)
   await page.treeRow('#hier', 'add1', { right: true });
-  await page.waitForSelector('body > .menu-popup');
-  await page.click('body > .menu-popup .mi', { text: 'Truth Table / Karnaugh Map of this Module…' });
-  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/add1_tt.tt.json', [], { what: 'table of add1', timeout: 15000 });
+  assert.deepEqual(await page.waitFor(() => { const m = [...document.querySelectorAll('body > .menu-popup .mi')].map((i) => i.textContent.trim()); return m.length ? m : null; }), [
+    'Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…',
+    'Convert to Schematic (editable)…', 'Convert to State Machine (ASM)…', 'Convert to State Diagram (FSM)…',
+    'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…',
+  ]);
+  await page.closeMenus();
+  // the editor's "Truth Table from Module…" on a new table (with its HDL file, #207)
   const T = '.doc:not([hidden]) .tt-editor';
-  assert.deepEqual(await page.eval((t) => [document.querySelector(`${t} .tt-inputs`).value, document.querySelector(`${t} .tt-outputs`).value], T), ['a_1, a_0, b_1, b_0', 's_2, s_1, s_0']);
-  const t = await ttFile('TtMod', 'src/add1_tt.tt.json');
-  for (let r = 0; r < 16; r++) assert.equal(t.table.s_2[r] + t.table.s_1[r] + t.table.s_0[r], ((r >> 2) + (r & 3)).toString(2).padStart(3, '0'));
-  await page.waitFor(() => window.Silinx.hdlToSch?.['src/add1_tt.vhd'] === 'src/add1_tt.tt.json', [], { what: 'the table linked to its HDL' });
-  assert.equal((await ttFile('TtMod', 'src/add1_tt.tt.json')).generatedFile, 'src/add1_tt.vhd');
-  // 4 inputs: a 4x4 map; s_0 = a_0 xor b_0 (two groups)
-  await page.click(`${T} .tt-tab[data-out=s_0]`);
-  assert.equal(await page.eval((x) => document.querySelectorAll(`${x} svg.tt-kmap .tt-kcell`).length, T), 16);
-  assert.equal(await page.eval((x) => document.querySelector(`${x} .tt-sop .tt-expr`).textContent, T), "s_0 = a_0'·b_0 + a_0·b_0'");
-  // the editor's "Truth Table from Module…" on a new table
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
   await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => /Truth Table/.test(e.textContent)); r.scrollIntoView(); r.click(); });
@@ -296,6 +290,7 @@ uiTest('Truth Table from Module: a vector adder read into a table (exhaustive si
   await page.dialogButton('Finish');
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.active?.id === 'tt:src/blank.tt.json');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/blank.vhd'] === 'src/blank.tt.json', [], { what: 'the table linked to its HDL' });
   await page.click(`${T} .tt-btn`, { text: 'Truth Table from Module…' });
   await page.waitDialog('Truth Table from Module');
   await page.dialogButton('OK');
@@ -303,7 +298,18 @@ uiTest('Truth Table from Module: a vector adder read into a table (exhaustive si
   await page.dialogButton('Yes');
   await page.waitNoDialog();
   await page.waitFor((x) => document.querySelector(`${x} .tt-outputs`).value === 's_2, s_1, s_0', [T]);
+  assert.deepEqual(await page.eval((t) => [document.querySelector(`${t} .tt-inputs`).value, document.querySelector(`${t} .tt-outputs`).value], T), ['a_1, a_0, b_1, b_0', 's_2, s_1, s_0']);
   await page.waitFor(async () => (await (await fetch('/api/projects/TtMod/file?path=src%2Fblank.tt.json')).json()).outputs?.length === 3, [], { what: 'saved' });
+  const t = await ttFile('TtMod', 'src/blank.tt.json');
+  for (let r = 0; r < 16; r++) assert.equal(t.table.s_2[r] + t.table.s_1[r] + t.table.s_0[r], ((r >> 2) + (r & 3)).toString(2).padStart(3, '0'));
+  assert.equal(t.generatedFile, 'src/blank.vhd');
+  // its HDL follows it: the adder's table
+  await page.waitFor(async () => /s_2/.test(await (await fetch('/api/projects/TtMod/file?path=src%2Fblank.vhd')).text()), [], { what: 'the HDL of the table', timeout: 15000 });
+  assert.deepEqual(simTable(await readWs(env, 'TtMod', 'src/blank.vhd'), 'blank.vhd', 'blank'), t.table);
+  // 4 inputs: a 4x4 map; s_0 = a_0 xor b_0 (two groups)
+  await page.click(`${T} .tt-tab[data-out=s_0]`);
+  assert.equal(await page.eval((x) => document.querySelectorAll(`${x} svg.tt-kmap .tt-kcell`).length, T), 16);
+  assert.equal(await page.eval((x) => document.querySelector(`${x} .tt-sop .tt-expr`).textContent, T), "s_0 = a_0'·b_0 + a_0·b_0'");
 });
 
 uiTest('Truth Table (#196): Apply input / output names (columns follow their names, the errors shown), Generate Verilog module (compiles to the table), then VHDL replaces it', E, async (page) => {
@@ -362,7 +368,7 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
   assert.deepEqual(simTable(v, 'tv.v', 'tv'), { f: '01010101', g: '00000011' });
   const t1 = await ttFile('TtVlog', 'src/tv.tt.json');
   assert.deepEqual([t1.generatedFile, t1.lang], ['src/tv.v', 'verilog']);
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/tv.v' && /Synchronized with tv\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'Verilog editor banner' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/tv.v' && /Generated from tv\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'Verilog editor banner' });
   // a cell change rewrites the Verilog
   await page.eval(() => window.SilinxApp.openTt('src/tv.tt.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'tt:src/tv.tt.json');

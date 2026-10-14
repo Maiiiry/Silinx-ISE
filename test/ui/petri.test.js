@@ -194,9 +194,9 @@ uiTest('Petri net editor: Random, Run / Stop, Reset; PNML export and import (und
   assert.equal(await page.eval((ed) => document.querySelector(`${ed} .pn-marking`)?.textContent, ED), 'a=1  b=0');
   await page.menu('Edit', 'Undo');
   await page.waitFor((ed) => /2 places · 2 transitions · 4 arcs/.test(document.querySelector(`${ed} .asm-status`).textContent), [ED], { what: 'the import undone' });
-  // the HDL file: made with the net (every source has its HDL, #207), kept in sync with it
+  // the HDL file: made with the net (every source has its HDL, #207), generated from it
   await page.waitFor(() => window.Silinx.project.files.some((x) => x.path === 'src/ctl.vhd'), [], { what: 'src/ctl.vhd in the project' });
-  await page.waitFor(() => /kept in sync/.test(document.querySelector('.doc:not([hidden]) .petri-editor .gen-banner')?.textContent || ''), [], { what: 'the link banner' });
+  await page.waitFor(() => /^HDL: ctl\.vhd — generated from the net$/.test(document.querySelector('.doc:not([hidden]) .petri-editor .gen-banner')?.textContent || ''), [], { what: 'the link banner' });
   assert.match(await readWs(env, 'PnSim', 'src/ctl.vhd'), /entity ctl is[\s\S]*busy : out std_logic/);
   await setField(page, 'Outputs', 'busy, ready');
   await new Promise((r) => setTimeout(r, 1500));

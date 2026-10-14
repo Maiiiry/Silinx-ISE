@@ -782,7 +782,7 @@ export async function writeWs(env, project, rel, text) {
 }
 
 /** Create a project on the server with the given files (REST), ready to open. */
-export async function makeProject(env, { name, template = 'empty', board, device, files = {}, top, simTop, constraints, roles = {} }) {
+export async function makeProject(env, { name, template = 'empty', board, device, files = {}, top, simTop, constraints, roles = {}, preferredLanguage }) {
   const api = env.server.api;
   await api('POST', '/api/projects', { name, template, ...(board !== undefined ? { board } : {}), ...(device ? { device } : {}) });
   for (const [p, text] of Object.entries(files)) await api('PUT', `/api/projects/${encodeURIComponent(name)}/file?path=${encodeURIComponent(p)}`, text);
@@ -791,6 +791,7 @@ export async function makeProject(env, { name, template = 'empty', board, device
   if (top !== undefined) pj.top = top;
   if (simTop !== undefined) pj.simTop = simTop;
   if (constraints !== undefined) pj.constraints = constraints;
+  if (preferredLanguage) pj.preferredLanguage = preferredLanguage;
   for (const f of pj.files) if (roles[f.path]) f.role = roles[f.path];
   if (board && !device) {
     const db = await api('GET', '/api/devices');

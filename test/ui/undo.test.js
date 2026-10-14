@@ -1,7 +1,7 @@
 // UI: Undo / Redo of everything (web/js/history.js and the editors' own histories): the project's
-// commands (Convert to Schematic, Remove Synchronized Schematic, Rename, Remove from Project, Design
-// Properties, Delete Folder…) through Edit ▸ Undo / Redo, and the edits of every editor (text,
-// schematic, truth table, pin planner) through the same Edit menu.
+// commands (Convert to Schematic, Rename, Remove from Project, Design Properties, Delete Folder…)
+// through Edit ▸ Undo / Redo, and the edits of every editor (text, schematic, truth table, pin
+// planner) through the same Edit menu.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -26,38 +26,31 @@ end rtl;
 const exists = (pj, p) => fs.access(path.join(env.server.workspace, pj, p)).then(() => true, () => false);
 const editMenu = async (page) => { const m = (await page.openMenu('Edit')).map((i) => i.label); await page.closeMenus(); return m; };
 
-uiTest('Undo / Redo: Convert to Schematic and Remove Synchronized Schematic (the schematic file and its link come back)', E, async (page) => {
+uiTest('Undo / Redo: Convert to Schematic (the schematic file and its link go and come back, the HDL as written by hand)', E, async (page) => {
   await makeProject(env, { name: 'UndoSch', files: { 'src/top.vhd': TOP, 'src/inv.vhd': INV }, top: 'top' });
   await page.openProject('UndoSch');
   await page.treeRow('#hier', 'u_inv - inv', { right: true });
   await page.click('body > .menu-popup .mi', { text: 'Convert to Schematic (editable)…' });
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/inv.vhd'] === 'src/inv.sch.json', [], { what: 'converted, linked', timeout: 15000 });
   const linkedHdl = await readWs(env, 'UndoSch', 'src/inv.vhd');
-  // Remove Synchronized Schematic: the schematic file goes, the HDL stays
-  await page.treeRow('#hier', 'u_inv - inv', { right: true });
-  await page.click('body > .menu-popup .mi', { text: 'Remove Synchronized Schematic…' });
-  await page.waitDialog('Remove Synchronized Schematic');
-  await page.dialogButton('Yes');
-  await page.waitFor(() => !window.Silinx.hdlToSch?.['src/inv.vhd'], [], { what: 'link removed' });
-  assert.equal(await exists('UndoSch', 'src/inv.sch.json'), false);
-  // Edit ▸ Undo brings the schematic and the link back
-  assert.ok((await editMenu(page)).includes('Undo Remove Synchronized Schematic'), (await editMenu(page)).join(' | '));
-  await page.menu('Edit', 'Undo Remove Synchronized Schematic');
-  await page.waitFor(() => window.Silinx.hdlToSch?.['src/inv.vhd'] === 'src/inv.sch.json', [], { what: 'undo: linked again' });
-  assert.equal(await exists('UndoSch', 'src/inv.sch.json'), true);
-  await page.waitConsole(/Undo: Remove Synchronized Schematic\./);
-  // Redo removes it again; Undo once more
-  await page.menu('Edit', 'Redo Remove Synchronized Schematic');
-  await page.waitFor(() => !window.Silinx.hdlToSch?.['src/inv.vhd'], [], { what: 'redo: link removed' });
-  assert.equal(await exists('UndoSch', 'src/inv.sch.json'), false);
-  await page.menu('Edit', 'Undo Remove Synchronized Schematic');
-  await page.waitFor(() => window.Silinx.hdlToSch?.['src/inv.vhd'] === 'src/inv.sch.json', [], { what: 'linked again' });
-  assert.equal(await readWs(env, 'UndoSch', 'src/inv.vhd'), linkedHdl);
-  // and the conversion itself: no schematic, the HDL as it was written by hand
+  const schematic = await readWs(env, 'UndoSch', 'src/inv.sch.json');
+  // Edit ▸ Undo: no schematic, the HDL as it was written by hand
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+  assert.ok((await editMenu(page)).includes('Undo Convert to Schematic (editable)'), (await editMenu(page)).join(' | '));
   await page.menu('Edit', 'Undo Convert to Schematic (editable)');
   await page.waitFor(() => !window.Silinx.hdlToSch?.['src/inv.vhd'], [], { what: 'conversion undone' });
+  assert.equal(await exists('UndoSch', 'src/inv.sch.json'), false);
+  assert.equal(await readWs(env, 'UndoSch', 'src/inv.vhd'), INV);
+  await page.waitConsole(/Undo: Convert to Schematic \(editable\)\./);
+  // Redo: the schematic and its link come back
+  await page.menu('Edit', 'Redo Convert to Schematic (editable)');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/inv.vhd'] === 'src/inv.sch.json', [], { what: 'redo: linked again' });
+  assert.equal(await readWs(env, 'UndoSch', 'src/inv.sch.json'), schematic);
+  assert.equal(await readWs(env, 'UndoSch', 'src/inv.vhd'), linkedHdl);
+  // Undo once more
+  await page.menu('Edit', 'Undo Convert to Schematic (editable)');
+  await page.waitFor(() => !window.Silinx.hdlToSch?.['src/inv.vhd'], [], { what: 'undone again' });
   assert.equal(await exists('UndoSch', 'src/inv.sch.json'), false);
   assert.equal(await readWs(env, 'UndoSch', 'src/inv.vhd'), INV);
 });

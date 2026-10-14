@@ -324,7 +324,7 @@ export async function schematicWizard({ name = '', location = 'src', lang = null
       summary.textContent = [
         `The wizard will create the schematic ${p1.path()} and open it in the schematic editor.`,
         '',
-        `Module: ${d.name} (synchronized HDL: ${d.lang === 'vhdl' ? 'VHDL' : 'Verilog'})`,
+        `Module: ${d.name} (its HDL: ${d.lang === 'vhdl' ? 'VHDL' : 'Verilog'})`,
         `Input markers (left edge): ${ins.map(portText).join(', ') || 'none'}`,
         `Output markers (right edge): ${outs.map(portText).join(', ') || 'none'}`,
         ...(ios.length ? [`Bidirectional markers (right edge, below the outputs): ${ios.map(portText).join(', ')}`] : []),

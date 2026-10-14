@@ -135,8 +135,8 @@ for (const theme of ['dark', 'light']) {
     const { check, bad } = await themed(page, theme);
     await page.openProject(`Gates_${theme}`);
     await check('Design pane');
-    // the views' badges of the modules (#207): [HDL] [Schematic], also on the selected row
-    assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .badge')].map((b) => b.textContent)), ['HDL', 'Schematic', 'HDL']);
+    // the views' badges of the modules (#207, #220): [Schematic] [VHDL], also on the selected row
+    assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .badge')].map((b) => b.textContent)), ['Schematic', 'VHDL', 'VHDL']);
     await page.treeRow('#hier', 'gates', { exact: true });
     await check('Design pane, the badges of the selected row');
     for (const p of ['files', 'libs']) { await page.eval((x) => window.SilinxApp.showLeftPage(x), p); await check(`${p} pane`); }

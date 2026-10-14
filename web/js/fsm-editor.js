@@ -885,7 +885,7 @@ export function mountFsmEditor(container, opts = {}) {
     if (!L) return;
     const a = h('a', { onclick: () => opts.onOpenFile?.(L.file) }, L.file.split('/').pop());
     linkHost.append(h('span', { class: `gen-banner${L.why ? ' out-of-sync' : ''}`, title: L.why || '' },
-      L.why ? 'Not in sync with ' : 'Synchronized with ', a, L.why ? ` — ${L.why}` : ' — editing the diagram updates it'));
+      L.why ? 'Not in sync with ' : 'HDL: ', a, L.why ? ` — ${L.why}` : ' — generated from the diagram'));
   }
 
   // ---------------------------------------------------------------------------- init

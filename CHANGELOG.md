@@ -3,6 +3,36 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.15
+
+In detail:
+
+- **Design pane: the drawing first, the HDL by its language (#220):** a module's badges start with its
+  drawing's (**[Schematic]**, **[ASM]**, **[FSM]**, **[Table]**, **[Petri]**: the base, bold and framed)
+  and end with its HDL's, which says its language: **[VHDL]** or **[Verilog]** (the file's own: a
+  drawing's HDL is made in the project's preferred language, and a Verilog file in a VHDL project
+  shows [Verilog]); a module that is only HDL has just that badge. The tips say it plainly: the
+  drawing is the base, its HDL generated from it.
+- **A drawing and its HDL are always one (#220):** every schematic, ASM chart, state diagram, truth
+  table and Petri net has its HDL file, generated from it, the drawing always the base. *Convert to
+  HDL*, *Convert to HDL (HDL as base)* / *Convert to … (… as base)*, *Remove Synchronized …* and the
+  Petri net's *Generate HDL file* are gone from the Design pane's menus, the badges' menus and the
+  processes. The HDL stays editable: an edit of it updates the schematic, chart, diagram or table as
+  before (a Petri net's HDL follows the net only). The HDL editor's banner says "Generated from
+  x.sch.json — editing here updates the schematic"; the editors' links "HDL: x.vhd — generated from
+  the diagram"; the HDL editor's menu has *Open Schematic* (*Open State Diagram*…).
+- **A module's menu (#220):** no more *Truth Table / Karnaugh Map of this Module…* (a module is made
+  from a truth table, not a truth table from a module) nor *Export as ISE Schematic* (on the
+  schematic's own badge and file, as before). A truth table made from a state diagram (*Create Truth
+  Tables*) gets its HDL file at once, as a new one does.
+- **Projects made before (#220):** a drawing whose base was its HDL (`"base": "hdl"`) is made the base
+  when the project is opened, nothing lost: as it is when its HDL is what it makes; an ASM chart, state
+  diagram or truth table is made again from its HDL otherwise (the HDL file kept as it is, the console
+  saying when it is not what the drawing makes: an edit of the drawing rewrites it); when that cannot
+  be (a schematic whose HDL was edited, HDL that is no longer a state machine…), the HDL file stays as
+  it is, a plain HDL module, and the drawing leaves the project (its file kept in the folder; a
+  WARNING in the console says so).
+
 ## 15.10.14
 
 - **Petri Net (Wizard) (#208):** New Source has *Petri Net (Diagram)* (an empty net, as before) and *Petri Net (Wizard)*: the inputs and outputs first (name, direction, width), the clock and the reset, then the net is created with those ports declared, with its HDL file.

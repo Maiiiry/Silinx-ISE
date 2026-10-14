@@ -286,7 +286,7 @@ export function mountPetriEditor(container, opts = {}) {
   }
   function refreshLink() {
     const li = opts.linkInfo?.();
-    linkHost.replaceChildren(...(li?.file ? [h('span', { class: 'gen-banner' }, 'HDL: ', (() => { const a = h('a', {}, li.file.split('/').pop()); a.addEventListener('click', () => opts.onOpenFile?.(li.file)); return a; })(), ' (kept in sync)')] : []));
+    linkHost.replaceChildren(...(li?.file ? [h('span', { class: 'gen-banner' }, 'HDL: ', (() => { const a = h('a', {}, li.file.split('/').pop()); a.addEventListener('click', () => opts.onOpenFile?.(li.file)); return a; })(), ' — generated from the net')] : []));
   }
 
   // ---------------------------------------------------------------- simulation and HDL panel

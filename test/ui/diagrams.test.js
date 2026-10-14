@@ -93,9 +93,9 @@ uiTest('schematic editor: place two inverters, wire them, add I/O markers, save,
   const d = elaborate(lib, 'chain');
   assert.deepEqual([...lib.errors, ...d.diags].filter((x) => x.severity === 'error').map((x) => x.message), []);
   assert.deepEqual(d.top.ports.map((p) => `${p.name}:${p.dir}`).sort(), ['din:in', 'dout:out']);
-  // in the hierarchy the schematic is the module, its views as badges: its synchronized HDL, the schematic the base (#207)
+  // in the hierarchy the schematic is the module, its views as badges: the schematic the base, then its HDL (#207, #220)
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => r.querySelector('.lbl').textContent === 'chain' && /chain\.sch\.json/.test(r.querySelector('.meta')?.textContent)));
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.querySelector('.lbl').textContent === 'chain').map((r) => [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`))), [['HDL', 'Schematic*']]);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.querySelector('.lbl').textContent === 'chain').map((r) => [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`))), [['Schematic*', 'VHDL']]);
   // (the HDL file there from the start: every source has its HDL)
   assert.match(await page.consoleText(), /src\/chain\.vhd generated from src\/chain\.sch\.json \(every source has its HDL\)/);
   // View HDL shows the code; Close

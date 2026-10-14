@@ -2,7 +2,7 @@
 export const PETRI_PT = {
   // New Source, menus, processes, hierarchy
   'Petri Net': 'Rede de Petri', 'Petri Net Editor…': 'Editor de Redes de Petri…', 'View/Edit Petri Net': 'Ver/Editar Rede de Petri',
-  'Generate HDL file': 'Gerar ficheiro HDL',
+  'Generate HDL file': 'Gerar ficheiro HDL', '— generated from the net': '— gerado a partir da rede', 'Open Petri Net': 'Abrir Rede de Petri',
   // toolbar
   '➚ Select': '➚ Selecionar', 'Place': 'Lugar', 'Transition': 'Transição', '→ Arc': '→ Arco', '⊸ Inhibitor': '⊸ Inibidor',
   'Fit': 'Ajustar', '▶ Simulate': '▶ Simular', '</> HDL': '</> HDL', 'PNML ⇩': 'PNML ⇩', 'PNML ⇧': 'PNML ⇧',

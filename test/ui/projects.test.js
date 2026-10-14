@@ -201,7 +201,7 @@ uiTest('Open Example (gates): the schematic of the gates, synchronized with its 
   // the VHDL: the banner of the synchronized file, the text the example ships
   await page.eval(() => window.SilinxApp.openFile('src/gates.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/gates.vhd' && window.Silinx.active.editor);
-  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), /^Synchronized with gates\.sch\.json/);
+  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), /^Generated from gates\.sch\.json/);
   assert.equal(await readWs(env, 'Gates', 'src/gates.vhd'), await shipped('src/gates.vhd'));
   // Simulate Behavioral Model of tb_gates: all 16 inputs checked, both outputs right
   await page.click('input[name=view][value=sim]');
@@ -247,7 +247,7 @@ uiTest('Open Example (traffic), the second example: the state diagram and the tr
   assert.equal(await page.eval((ed) => document.querySelectorAll(`${ed} [data-trans]`).length, FSM), 8);
   // no error, no warning (only the notes that each state waits for its condition)
   assert.match(await page.eval((ed) => document.querySelector(`${ed} .fsm-problems`).textContent, FSM), /^Problems \(0 error\(s\), 0 warning\(s\)\)/);
-  await page.waitFor((ed) => /Synchronized with traffic\.vhd/.test(document.querySelector(`${ed} .fsm-link`)?.textContent || ''), [FSM], { what: 'the diagram synchronized with traffic.vhd' });
+  await page.waitFor((ed) => /^HDL: traffic\.vhd — generated from the diagram$/.test(document.querySelector(`${ed} .fsm-link`)?.textContent || ''), [FSM], { what: 'the diagram synchronized with traffic.vhd' });
   // the truth table: 4 inputs, its 5 lamp outputs, synchronized with lamps.vhd
   await page.eval(() => window.SilinxApp.openTt('src/lamps.tt.json'));
   const TT = '.doc:not([hidden]) .tt-editor';
@@ -255,12 +255,12 @@ uiTest('Open Example (traffic), the second example: the state diagram and the tr
   assert.deepEqual(await page.eval((t) => [document.querySelector(`${t} .tt-inputs`).value, document.querySelector(`${t} .tt-outputs`).value], TT), ['phase2, phase1, phase0, blink', 'car_r, car_y, car_g, walk_r, walk_g']);
   const cols = await page.eval((t) => Object.fromEntries(['car_r', 'car_y', 'car_g', 'walk_r', 'walk_g'].map((o) => [o, [...document.querySelectorAll(`${t} .tt-cell[data-out=${o}]`)].map((c) => c.textContent).join('')])), TT);
   assert.deepEqual(cols, { car_r: '00001111111100XX', car_y: '00110000000001XX', car_g: '11000000000000XX', walk_r: '11111100001100XX', walk_g: '00000011010000XX' });
-  await page.waitFor((t) => /Synchronized with lamps\.vhd/.test(document.querySelector(`${t} .tt-link`)?.textContent || ''), [TT], { what: 'the table synchronized with lamps.vhd' });
+  await page.waitFor((t) => /^HDL: lamps\.vhd — generated from the table$/.test(document.querySelector(`${t} .tt-link`)?.textContent || ''), [TT], { what: 'the table synchronized with lamps.vhd' });
   // their VHDL: the banner of the synchronized file, the text the example ships (not rewritten)
   for (const [f, from] of [['src/traffic.vhd', 'traffic.fsm.json'], ['src/lamps.vhd', 'lamps.tt.json']]) {
     await page.eval((p) => window.SilinxApp.openFile(p), f);
     await page.waitFor((p) => window.Silinx.active?.id === `file:${p}` && window.Silinx.active.editor, [f]);
-    assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), new RegExp(`^Synchronized with ${from.replace(/\./g, '\\.')}`));
+    assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), new RegExp(`^Generated from ${from.replace(/\./g, '\\.')}`));
     assert.equal(await readWs(env, 'Traffic', f), await shipped(f));
   }
   // Simulate Behavioral Model of tb_traffic (longer than ISim's first run: run all): the lamps and the

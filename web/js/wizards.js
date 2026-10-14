@@ -211,7 +211,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
     topType.disabled = ex;
     if (ex) topType.value = 'hdl';
     const t = TOP_TYPES.find(x => x.id === topType.value);
-    topNote.textContent = ex ? 'The example has its own sources.' : t.id === 'hdl' ? '' : `The project starts with ${t.file} (the top module 'top'), synchronized with its HDL module.`;
+    topNote.textContent = ex ? 'The example has its own sources.' : t.id === 'hdl' ? '' : `The project starts with ${t.file} (the top module 'top') and its HDL module, generated from it.`;
     topNote.style.display = topNote.textContent ? '' : 'none';
   };
   topType.addEventListener('change', syncTop);

@@ -162,13 +162,13 @@ uiTest('State diagram (FSM): New Source, states and transitions drawn and edited
   let vhd = await readWs(env, 'FsmPj', 'src/det.vhd');
   let r = hdlVsModel(vhd, await fsmFile('FsmPj', 'src/det.fsm.json'));
   assert.deepEqual(r.got, r.want);
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/det.vhd' && /Synchronized with det\.fsm\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'HDL editor banner' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/det.vhd' && /Generated from det\.fsm\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'HDL editor banner' });
   // the hierarchy shows the module with its diagram the base, its views as badges (#207)
-  await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((x) => x.querySelector('.lbl').textContent === 'det' && x.querySelector('.meta')?.textContent === '(det.fsm.json)' && [...x.querySelectorAll('.badge')].map((b) => b.textContent).join(' ') === 'HDL FSM'), [], { what: 'det [HDL] [FSM] (det.fsm.json)' });
+  await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((x) => x.querySelector('.lbl').textContent === 'det' && x.querySelector('.meta')?.textContent === '(det.fsm.json)' && [...x.querySelectorAll('.badge')].map((b) => b.textContent).join(' ') === 'FSM VHDL'), [], { what: 'det [FSM] [VHDL] (det.fsm.json)' });
 
   // ---- diagram -> HDL: an edited condition rewrites the module
   await page.eval(() => window.SilinxApp.openFsm('src/det.fsm.json'));
-  await page.waitFor((ed) => window.Silinx.active?.id === 'fsm:src/det.fsm.json' && /Synchronized with det\.vhd/.test(document.querySelector(`${ed} .fsm-link`).textContent), [ED]);
+  await page.waitFor((ed) => window.Silinx.active?.id === 'fsm:src/det.fsm.json' && /^HDL: det\.vhd — generated from the diagram$/.test(document.querySelector(`${ed} .fsm-link`).textContent), [ED]);
   await selectTrans(page, 't1');
   await page.fill(`${ED} .fsm-cond`, 'x and x');
   await page.waitFor(async () => /S0 +: x and x -> S1/.test(await (await fetch('/api/projects/FsmPj/file?path=src%2Fdet.vhd')).text()), [], { what: 'HDL regenerated', timeout: 15000 });
@@ -207,7 +207,7 @@ uiTest('State diagram (FSM): New Source, states and transitions drawn and edited
   });
   await selectTrans(page, 't1');
   await page.fill(`${ED} .fsm-cond`, 'x');
-  await page.waitFor((ed) => /Synchronized with det\.vhd/.test(document.querySelector(`${ed} .fsm-link`).textContent), [ED], { what: 'back in sync', timeout: 15000 });
+  await page.waitFor((ed) => /^HDL: det\.vhd — generated from the diagram$/.test(document.querySelector(`${ed} .fsm-link`).textContent), [ED], { what: 'back in sync', timeout: 15000 });
   vhd = await readWs(env, 'FsmPj', 'src/det.vhd');
   await page.eval(() => window.__restoreFetch());
   assert.doesNotMatch(vhd, /cnt/);
@@ -341,6 +341,12 @@ uiTest('State diagram (FSM): Create Truth Tables with more than 4 output bits ma
   await page.click(`${ED} .fsm-mktt`);
   await page.waitFor(() => window.Silinx.fileTree?.includes('src/wide_next.tt.json') && window.Silinx.fileTree.includes('src/wide_out.tt.json'), [], { what: 'truth tables', timeout: 15000 });
   assert.deepEqual(await page.eval(() => window.Silinx.fileTree.filter((f) => /^src\/wide.*\.tt\.json$/.test(f)).sort()), ['src/wide_next.tt.json', 'src/wide_out.tt.json']);
+  // each table has its HDL at once, generated from it (every source has its HDL, #207, #220)
+  for (const t of ['wide_next', 'wide_out']) {
+    await page.waitFor((f, h) => window.Silinx.hdlToSch?.[h] === f, [`src/${t}.tt.json`, `src/${t}.vhd`], { what: `${t}.tt.json linked to its HDL`, timeout: 15000 });
+    assert.equal((await fsmFile('FsmWide', `src/${t}.tt.json`)).generatedFile, `src/${t}.vhd`);
+    await page.waitConsole(new RegExp(`src/${t}\\.vhd generated from src/${t}\\.tt\\.json \\(every source has its HDL\\)`));
+  }
   const out = await fsmFile('FsmWide', 'src/wide_out.tt.json');
   assert.deepEqual(out.inputs, ['q1', 'q0', 'go']);
   assert.deepEqual(out.outputs, ['busy', 'sel_1', 'sel_0', 'led_2', 'led_1', 'led_0']);

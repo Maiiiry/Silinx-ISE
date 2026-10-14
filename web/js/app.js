@@ -255,17 +255,18 @@ function renderHierarchy() {
     // a drawn source without an HDL file (#177): the module is the drawing itself
     const drawn = info && /\.(sch|asm|tt|fsm|pn)\.json$/.test(file) ? file : null;
     const sch = drawn || (info && viewOfModule(info.name, file));
-    const schBase = sch && (drawn || S.schBase?.[sch] !== 'hdl');
-    // one row per module: its base's icon, then a badge for each of its views, the base's marked (#207)
+    // one row per module: its base's icon (the drawing's when it has one: its HDL is generated from it),
+    // then a badge for each of its views: the drawing's first (the base's, marked), its HDL's last, named
+    // by the file's language (#207, #220)
     const badges = !info ? [] : [
-      drawn ? null : { text: 'HDL', base: !schBase, open: () => openFile(file, info.line), context: e => moduleContextMenu(e, modName, file) },
-      sch ? { text: viewBadge(sch), base: !!schBase, open: () => openView(sch), context: e => (drawn ? viewContextMenu(e, drawn) : syncedViewMenu(e, sch)) } : null,
+      sch ? { text: viewBadge(sch), base: true, title: drawn ? 'Open' : 'Base: its HDL is generated from it', open: () => openView(sch), context: e => (drawn ? viewContextMenu(e, drawn) : syncedViewMenu(e, sch)) } : null,
+      drawn ? null : { text: info.lang === 'vhdl' ? 'VHDL' : 'Verilog', base: !sch, title: sch ? `Generated from the ${viewNoun(sch)}` : 'Open', open: () => openFile(file, info.line), context: e => moduleContextMenu(e, modName, file) },
     ].filter(Boolean);
     const it = treeItem({
-      label, meta: info ? `(${(schBase ? sch : file).split('/').pop()})` : '(missing)', ico: isTop ? 'moduleTop' : schBase ? viewIcon(sch) : info ? (info.lang === 'vhdl' ? 'vhdl' : 'verilog') : 'err',
+      label, meta: info ? `(${(sch || file).split('/').pop()})` : '(missing)', ico: isTop ? 'moduleTop' : sch ? viewIcon(sch) : info ? (info.lang === 'vhdl' ? 'vhdl' : 'verilog') : 'err',
       cls: isTop ? 'top-mod' : '', key: `m:${path}`, open: depth < 2, badges,
       onSelect: () => select(drawn ? { type: viewKind(drawn), file: drawn, module: modName, path, instName } : { type: 'module', module: modName, file, path, instName, sch }),
-      onOpen: () => info && (schBase ? openView(sch) : openFile(file, info.line)),
+      onOpen: () => info && (sch ? openView(sch) : openFile(file, info.line)),
       onContext: e => (drawn ? viewContextMenu(e, drawn) : moduleContextMenu(e, modName, file)),
     });
     parentUl.append(it.li);
@@ -337,16 +338,15 @@ function viewOfModule(name, file) {
   return String(drawnModule(mods, S.viewModule?.[v])).toLowerCase() === String(name).toLowerCase() ? v : null;
 }
 
-// badges: the views of a module ({ text, base, open, context }), after its name: a click opens that
-// view, a right-click shows its commands; the base's is marked. Tab reaches the selected row's badges.
+// badges: the views of a module ({ text, base, title, open, context }), after its name: a click opens
+// that view, a right-click shows its commands; the base's is marked. Tab reaches the selected row's badges.
 function treeItem({ label, meta, ico, open = false, onSelect, onOpen, onContext, cls = '', key, badges = [] }) {
   const li = h('li');
   // what the user collapsed / expanded is remembered across redraws
   if (key && S.treeOpen.has(key)) open = S.treeOpen.get(key);
   const tw = h('span', { class: 'twisty' }, open ? '▾' : '▸');
   const views = badges.map(b => {
-    const el = h('button', { type: 'button', class: `badge${b.base ? ' base' : ''}`, tabindex: '-1',
-      title: badges.length < 2 ? 'Open' : b.base ? 'Base: edits here update the others' : 'Synchronized with the base' }, b.text);
+    const el = h('button', { type: 'button', class: `badge${b.base ? ' base' : ''}`, tabindex: '-1', title: b.title }, b.text);
     el.addEventListener('click', e => { e.stopPropagation(); selectRow(row, key, onSelect); b.open(); });
     el.addEventListener('dblclick', e => e.stopPropagation());
     el.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); selectRow(row, key, onSelect); b.context(e); });
@@ -436,23 +436,13 @@ function moduleContextMenu(e, mod, file) {
     { label: 'Check Syntax', action: () => checkSyntax(mod, isSimView) },
     { label: 'View RTL Schematic', action: () => openSchematic(mod) },
     { label: 'Create Test Bench (Wizard)…', action: () => testBench(mod) },
-    { label: 'Truth Table / Karnaugh Map of this Module…', action: () => ttFromModule(mod) },
-    ...(() => {
-      const sch = viewOfModule(mod, file);
-      if (!sch && S.hdlToSch?.[file]) return [];   // a block of a drawing's HDL (#175): its file is the drawing's
-      if (!sch) return [
-        { label: 'Convert to Schematic (editable)…', action: () => convertToSchematic(mod) },
-        { label: 'Convert to State Machine (ASM)…', action: () => convertToAsm(mod) },
-        { label: 'Convert to State Diagram (FSM)…', action: () => convertToFsm(mod) },
-      ];
-      const T = viewTitle(sch);
-      return [
-        S.schBase[sch] === 'hdl' ? { label: `Convert to ${T} (${T.toLowerCase()} as base)`, action: () => setSchBase(sch, 'view') }
-                                 : { label: 'Convert to HDL (HDL as base)', action: () => setSchBase(sch, 'hdl') },
-        isAsm(sch) || isTt(sch) || isFsm(sch) ? null : { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(sch) },
-        { label: `Remove Synchronized ${T}…`, action: () => detachSchematic(sch) },
-      ].filter(Boolean);
-    })(),
+    // a plain HDL module can be drawn (the drawing then its base); a drawing's module, or a block of a
+    // drawing's HDL (#175: its file is the drawing's), has the drawing's commands on the drawing's badge
+    ...(S.hdlToSch?.[file] ? [] : [
+      { label: 'Convert to Schematic (editable)…', action: () => convertToSchematic(mod) },
+      { label: 'Convert to State Machine (ASM)…', action: () => convertToAsm(mod) },
+      { label: 'Convert to State Diagram (FSM)…', action: () => convertToFsm(mod) },
+    ]),
     isSimView ? { label: 'Simulate Behavioral Model', action: () => runSimulation(mod) } : null,
     '-',
     { label: 'New Source…', action: () => wiz.newSourceWizard() },
@@ -621,26 +611,12 @@ function processDefsAll() {
 }
 function selectionProcesses() {
   const sel = S.sel || {};
-  if (sel.type === 'asm') return [
-    { id: 'asm-open', label: 'View/Edit State Diagram (ASM)', ico: 'asm', run: () => openAsm(sel.file) },
-    { id: 'asm-hdl', label: 'Convert to HDL', ico: 'template', run: () => convertAsmToHdl(sel.file) },
-  ];
-  if (sel.type === 'pn') return [
-    { id: 'pn-open', label: 'View/Edit Petri Net', ico: 'petri', run: () => openPetri(sel.file) },
-    { id: 'pn-hdl', label: 'Generate HDL file', ico: 'template', run: () => generatePetriHdl(sel.file) },
-  ];
-  if (sel.type === 'fsm') return [
-    { id: 'fsm-open', label: 'View/Edit State Diagram (FSM)', ico: 'fsm', run: () => openFsm(sel.file) },
-    { id: 'fsm-hdl', label: 'Convert to HDL', ico: 'template', run: () => convertFsmToHdl(sel.file) },
-  ];
-  if (sel.type === 'tt') return [
-    { id: 'tt-open', label: 'View/Edit Truth Table', ico: 'truthtable', run: () => openTt(sel.file) },
-    { id: 'tt-hdl', label: 'Convert to HDL', ico: 'template', run: () => convertTtToHdl(sel.file) },
-  ];
-  if (sel.type === 'sch') return [
-    { id: 'sch-open', label: 'View/Edit Schematic', ico: 'schematic', run: () => openSch(sel.file) },
-    { id: 'sch-hdl', label: 'Convert to HDL', ico: 'template', run: () => convertSchToHdl(sel.file) },
-  ];
+  // a drawing without its HDL file (it has errors, #207): it gets it as soon as it has none (#220)
+  if (sel.type === 'asm') return [{ id: 'asm-open', label: 'View/Edit State Diagram (ASM)', ico: 'asm', run: () => openAsm(sel.file) }];
+  if (sel.type === 'pn') return [{ id: 'pn-open', label: 'View/Edit Petri Net', ico: 'petri', run: () => openPetri(sel.file) }];
+  if (sel.type === 'fsm') return [{ id: 'fsm-open', label: 'View/Edit State Diagram (FSM)', ico: 'fsm', run: () => openFsm(sel.file) }];
+  if (sel.type === 'tt') return [{ id: 'tt-open', label: 'View/Edit Truth Table', ico: 'truthtable', run: () => openTt(sel.file) }];
+  if (sel.type === 'sch') return [{ id: 'sch-open', label: 'View/Edit Schematic', ico: 'schematic', run: () => openSch(sel.file) }];
   if (sel.type === 'ucf') return [
     { id: 'ucf-edit', label: 'Edit Constraints (Text)', ico: 'ucf', run: () => openFile(sel.file) },
     { id: 'ucf-check', label: 'Check Constraints', ico: 'process', run: () => checkUcfFile(sel.file) },
@@ -662,9 +638,8 @@ function selectionProcesses() {
       isAsm(sel.sch) ? { id: 'sch-open', label: 'View/Edit State Diagram (ASM)', ico: 'asm', run: () => openAsm(sel.sch) }
         : isTt(sel.sch) ? { id: 'sch-open', label: 'View/Edit Truth Table', ico: 'truthtable', run: () => openTt(sel.sch) }
         : isFsm(sel.sch) ? { id: 'sch-open', label: 'View/Edit State Diagram (FSM)', ico: 'fsm', run: () => openFsm(sel.sch) }
+        : isPn(sel.sch) ? { id: 'sch-open', label: 'View/Edit Petri Net', ico: 'petri', run: () => openPetri(sel.sch) }
                      : { id: 'sch-open', label: 'View/Edit Schematic', ico: 'schematic', run: () => openSch(sel.sch) },
-      S.schBase?.[sel.sch] === 'hdl' ? { id: 'sch-base', label: `Convert to ${viewTitle(sel.sch)} (${viewNoun(sel.sch)} as base)`, ico: viewIcon(sel.sch), run: () => setSchBase(sel.sch, 'view') }
-                                     : { id: 'sch-base', label: 'Convert to HDL (HDL as base)', ico: 'template', run: () => setSchBase(sel.sch, 'hdl') },
     ] : []),
     SUMMARY_PROC,
     { id: 'utils', label: 'Design Utilities', ico: 'procGroup', children: [
@@ -1553,7 +1528,7 @@ export async function openFile(path, line, col) {
             lang === 'ucf' ? '-' : null,
             lang === 'ucf' ? { label: 'Check Syntax', action: () => checkUcfFile(path) } : null,
             lang === 'ucf' ? { label: 'I/O Pin Planning', action: () => openPinPlanner() } : null,
-            sch ? { label: `Open Synchronized ${viewTitle(sch)}`, action: () => openView(sch) } : null,
+            sch ? { label: `Open ${viewTitle(sch)}`, action: () => openView(sch) } : null,
           ].filter(Boolean), e.clientX, e.clientY);
         });
         return {
@@ -1959,7 +1934,7 @@ async function syncAsmFromHdl(hdlPath, { quiet = false } = {}) {
     if (quiet) status(msg); else log(`WARNING: ${msg}`, 'warn');
     return;
   }
-  const next = { ...r.model, generatedFile: hdlPath, ...(old.base ? { base: old.base } : {}) };
+  const next = { ...r.model, generatedFile: hdlPath };
   if (JSON.stringify(next) === JSON.stringify(old)) return;
   S.syncing = true;
   try {
@@ -1990,35 +1965,11 @@ async function convertToAsm(mod) {
   openAsm(target);
 }
 
-// An ASM chart without HDL yet: generate its HDL file and make the HDL the base (chart kept, in sync).
-async function convertAsmToHdl(asmPath) {
-  if (S.schOwners?.[asmPath]) return setSchBase(asmPath, 'hdl');
-  let model;
-  try { model = JSON.parse(await api.readFile(S.project.name, asmPath)); } catch (e) { toast(e.message, 'error'); return; }
-  const { generate, validate } = await import('/core/asm.js');
-  const errs = (validate(model) || []).filter(x => x.severity === 'error');
-  if (errs.length) { alertDlg('Convert to HDL', `The chart has ${errs.length} error(s):\n${errs.slice(0, 5).map(x => x.message).join('\n')}`, 'error'); return; }
-  const g = generate(model);
-  const dir = asmPath.includes('/') ? asmPath.replace(/\/[^/]*$/, '') : 'src';
-  const target = `${dir}/${g.filename}`;
-  if (S.fileTree.includes(target) && !await confirmDlg('Convert to HDL', `${target} already exists. Overwrite it?`)) return;
-  await api.writeFile(S.project.name, target, g.code);
-  model.generatedFile = target; model.base = 'hdl';
-  await api.writeFile(S.project.name, asmPath, JSON.stringify(model, null, 2));
-  const d = findDoc(`asm:${asmPath}`);
-  if (d?.asmEditor) d.asmEditor.setModel(model);
-  log(`${asmPath} converted to ${target}; the chart stays, synchronized with it.`, 'ok');
-  await reloadProject(false);
-  markStale();
-  openFile(target);
-}
-
 function asmContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openAsm(file) },
     S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
-    { label: 'Convert to HDL', action: () => convertAsmToHdl(file) },
     { label: 'Convert to State Diagram (FSM)…', action: () => asmToFsmDiagram(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
   ].filter(Boolean), e.clientX, e.clientY);
@@ -2138,19 +2089,9 @@ async function syncTtFromHdl(hdlPath, { quiet = false } = {}) {
   if (errs.length) return fail(`${hdlPath.split('/').pop()} has errors`);
   let old;
   try { old = JSON.parse(await api.readFile(S.project.name, ttPath)); } catch { return; }
-  const mods = S.modules.filter(m => m.file === hdlPath && m.kind !== 'package');
-  const mod = mods.find(m => m.name.toLowerCase() === String(old.name || '').toLowerCase()) || mods[0];
-  if (!mod) return fail(`${hdlPath.split('/').pop()} has no module`);
-  const { truthTableFromModule, dontCaresInHdl, normalizeTable, MAX_EDIT_INPUTS } = await import('/core/logic.js');
-  let t;
-  try { t = truthTableFromModule(ttDesignSources(), mod.name, { maxInputs: MAX_EDIT_INPUTS }); }
-  catch (e) { return fail(e.message); }
-  // don't cares written in the HDL comments ("don't care: f = d(3, 5)")
-  const dcs = dontCaresInHdl(S.sources.find(x => x.path === hdlPath)?.text);
-  for (const o of t.outputs) for (const r of dcs[o.toLowerCase()] || []) if (r >= 0 && r < t.table[o].length) t.table[o] = t.table[o].slice(0, r) + 'X' + t.table[o].slice(r + 1);
-  const exprs = {};
-  for (const o of t.outputs) if (old.exprs?.[o] && old.table?.[o] === t.table[o] && JSON.stringify(old.inputs) === JSON.stringify(t.inputs)) exprs[o] = old.exprs[o];
-  const next = normalizeTable({ ...old, name: t.name, inputs: t.inputs, outputs: t.outputs, table: t.table, exprs, lang: /\.v$/i.test(hdlPath) ? 'verilog' : 'vhdl', generatedFile: hdlPath });
+  let next;
+  try { next = await ttFromHdl(hdlPath, old); } catch (e) { return fail(e.message); }
+  const { normalizeTable } = await import('/core/logic.js');
   if (S.outOfSync[hdlPath]) { delete S.outOfSync[hdlPath]; refreshSyncBanner(hdlPath); }
   if (JSON.stringify(next) !== JSON.stringify(normalizeTable(old))) {
     S.syncing = true;
@@ -2162,6 +2103,21 @@ async function syncTtFromHdl(hdlPath, { quiet = false } = {}) {
     } finally { S.syncing = false; }
   }
   refreshTtLink(ttPath);
+}
+// the table `old` made again from its HDL module (by exhaustive simulation of it, the don't cares
+// written in its comments kept); throws why it cannot be
+async function ttFromHdl(hdlPath, old) {
+  const mods = S.modules.filter(m => m.file === hdlPath && m.kind !== 'package');
+  const mod = mods.find(m => m.name.toLowerCase() === String(old.name || '').toLowerCase()) || mods[0];
+  if (!mod) throw new Error(`${hdlPath.split('/').pop()} has no module`);
+  const { truthTableFromModule, dontCaresInHdl, normalizeTable, MAX_EDIT_INPUTS } = await import('/core/logic.js');
+  const t = truthTableFromModule(ttDesignSources(), mod.name, { maxInputs: MAX_EDIT_INPUTS });
+  // don't cares written in the HDL comments ("don't care: f = d(3, 5)")
+  const dcs = dontCaresInHdl(S.sources.find(x => x.path === hdlPath)?.text);
+  for (const o of t.outputs) for (const r of dcs[o.toLowerCase()] || []) if (r >= 0 && r < t.table[o].length) t.table[o] = t.table[o].slice(0, r) + 'X' + t.table[o].slice(r + 1);
+  const exprs = {};
+  for (const o of t.outputs) if (old.exprs?.[o] && old.table?.[o] === t.table[o] && JSON.stringify(old.inputs) === JSON.stringify(t.inputs)) exprs[o] = old.exprs[o];
+  return normalizeTable({ ...old, base: undefined, name: t.name, inputs: t.inputs, outputs: t.outputs, table: t.table, exprs, lang: /\.v$/i.test(hdlPath) ? 'verilog' : 'vhdl', generatedFile: hdlPath });
 }
 
 // pick a combinational module of the project
@@ -2196,25 +2152,6 @@ async function loadTtFromModule(ttPath) {
   log(`${ttPath}: truth table of '${mod}' (${1 << t.inputs.length} rows, exhaustive simulation).`, 'ok');
 }
 
-// module context menu: a new (unlinked) table from a module
-async function ttFromModule(mod) {
-  const T = 'Truth Table / Karnaugh Map';
-  const t = await moduleTable(T, mod);
-  if (!t) return;
-  const { newTable } = await import('/core/logic.js');
-  const info = moduleInfo(mod);
-  const dir = info?.file?.includes('/') ? info.file.replace(/\/[^/]*$/, '') : 'src';
-  let name = `${mod}_tt`, k = 1;
-  while (S.fileTree.includes(`${dir}/${name}.tt.json`) || S.modules.some(x => x.name.toLowerCase() === name.toLowerCase())) name = `${mod}_tt${++k}`;
-  const target = `${dir}/${name}.tt.json`;
-  const doc = { ...newTable(name, t.inputs, t.outputs), table: t.table, lang: t.lang, notes: `Truth table of the module '${mod}' (${info?.file || ''}), by exhaustive simulation.` };
-  await api.writeFile(S.project.name, target, JSON.stringify(doc, null, 2));
-  for (const w of t.warnings) log(`WARNING: ${w}`, 'warn');
-  log(`Truth table of '${mod}' -> ${target}.`, 'ok');
-  await reloadProject(false);
-  openTt(target);
-}
-
 // "Generate Schematic": a one-off gate schematic of the table (not linked)
 async function schematicFromTt(ttPath, { form = 'sop', nand = false } = {}) {
   const { schematicFromTable, validateTable, normalizeTable } = await import('/core/logic.js');
@@ -2235,19 +2172,11 @@ async function schematicFromTt(ttPath, { form = 'sop', nand = false } = {}) {
   openSch(target);
 }
 
-// process "Convert to HDL" of a table without HDL yet
-async function convertTtToHdl(ttPath) {
-  if (S.schOwners?.[ttPath]) return setSchBase(ttPath, 'hdl');
-  const m = await ttModel(ttPath);
-  return generateTtHdl(ttPath, m.lang === 'verilog' ? 'verilog' : (S.project.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl'));
-}
-
 function ttContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openTt(file) },
     S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
-    { label: 'Convert to HDL', action: () => convertTtToHdl(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
@@ -2374,15 +2303,10 @@ async function syncFsmFromHdl(hdlPath, { quiet = false } = {}) {
   if (errs.length) return fail(`${hdlPath.split('/').pop()} has errors`);
   let old;
   try { old = JSON.parse(await api.readFile(S.project.name, fsmPath)); } catch { return; }
-  const mods = S.modules.filter(m => m.file === hdlPath && m.kind !== 'package');
-  const mod = mods.find(m => m.name.toLowerCase() === String(old.name || '').toLowerCase()) || mods[0];
-  if (!mod) return fail(`${hdlPath.split('/').pop()} has no module`);
-  const { fsmFromHdl, normalizeFsm } = await import('/core/fsm.js');
-  const text = S.sources.find(x => x.path === hdlPath)?.text ?? await api.readFile(S.project.name, hdlPath);
   let r;
-  try { r = fsmFromHdl(text, { path: hdlPath, module: mod.name, lang: /\.v$/i.test(hdlPath) ? 'verilog' : 'vhdl', previous: old }); }
-  catch (e) { return fail(`the diagram cannot show it: ${e.message}`); }
-  const next = normalizeFsm({ ...r.model, generatedFile: hdlPath, ...(old.base ? { base: old.base } : {}) });
+  try { r = await fsmFromHdlFile(hdlPath, old); } catch (e) { return fail(e.message); }
+  const { normalizeFsm } = await import('/core/fsm.js');
+  const next = r.model;
   if (S.outOfSync[hdlPath]) { delete S.outOfSync[hdlPath]; refreshSyncBanner(hdlPath); }
   if (JSON.stringify(next) !== JSON.stringify(normalizeFsm(old))) {
     S.syncing = true;
@@ -2395,6 +2319,18 @@ async function syncFsmFromHdl(hdlPath, { quiet = false } = {}) {
     } finally { S.syncing = false; }
   }
   refreshFsmLink(fsmPath);
+}
+// the state diagram `old` made again from its HDL module: { model, warnings }; throws why it cannot be
+async function fsmFromHdlFile(hdlPath, old) {
+  const mods = S.modules.filter(m => m.file === hdlPath && m.kind !== 'package');
+  const mod = mods.find(m => m.name.toLowerCase() === String(old.name || '').toLowerCase()) || mods[0];
+  if (!mod) throw new Error(`${hdlPath.split('/').pop()} has no module`);
+  const { fsmFromHdl, normalizeFsm } = await import('/core/fsm.js');
+  const text = S.sources.find(x => x.path === hdlPath)?.text ?? await api.readFile(S.project.name, hdlPath);
+  let r;
+  try { r = fsmFromHdl(text, { path: hdlPath, module: mod.name, lang: /\.v$/i.test(hdlPath) ? 'verilog' : 'vhdl', previous: old }); }
+  catch (e) { throw new Error(`the diagram cannot show it: ${e.message}`); }
+  return { model: normalizeFsm({ ...r.model, generatedFile: hdlPath }), warnings: r.warnings };
 }
 
 // HDL module -> state diagram, linked to the HDL file (the diagram becomes the base)
@@ -2415,13 +2351,6 @@ async function convertToFsm(mod) {
   for (const w of r.warnings || []) log(`WARNING: ${target}: ${w}`, 'warn');
   await reloadProject(false);
   openFsm(target);
-}
-
-// process "Convert to HDL" of a diagram without HDL yet
-async function convertFsmToHdl(fsmPath) {
-  if (S.schOwners?.[fsmPath]) return setSchBase(fsmPath, 'hdl');
-  const m = await fsmModel(fsmPath);
-  return generateFsmHdl(fsmPath, m.lang === 'verilog' ? 'verilog' : 'vhdl');
 }
 
 // "Convert to ASM chart": a new (unlinked) ASM chart of the machine
@@ -2556,7 +2485,6 @@ function petriContextMenu(e, file) {
     { label: 'Open', action: () => openPetri(file) },
     S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
-    { label: 'Generate HDL file', action: () => generatePetriHdl(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
@@ -2566,7 +2494,6 @@ function fsmContextMenu(e, file) {
     { label: 'Open', action: () => openFsm(file) },
     S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
-    { label: 'Convert to HDL', action: () => convertFsmToHdl(file) },
     { label: 'Convert to ASM chart', action: () => fsmToAsmChart(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
   ].filter(Boolean), e.clientX, e.clientY);
@@ -2637,17 +2564,14 @@ function openView(p) { return isAsm(p) ? openAsm(p) : isTt(p) ? openTt(p) : isFs
 // a view's badge in the Design tree (#207)
 const viewBadge = p => (isAsm(p) ? 'ASM' : isTt(p) ? 'Table' : isFsm(p) ? 'FSM' : isPn(p) ? 'Petri' : 'Schematic');
 
-// the commands of a drawing synchronized with an HDL file (its badge in the Design tree)
+// the commands of a module's drawing (its badge in the Design tree): the drawing is the base, its HDL
+// file generated from it (#220)
 function syncedViewMenu(e, sch) {
-  const T = viewTitle(sch);
   popupMenu([
     { label: 'Open', action: () => openView(sch) },
-    isPn(sch) ? null : S.schBase[sch] === 'hdl' ? { label: `Convert to ${T} (${T.toLowerCase()} as base)`, action: () => setSchBase(sch, 'view') }
-                                                : { label: 'Convert to HDL (HDL as base)', action: () => setSchBase(sch, 'hdl') },
     isAsm(sch) ? { label: 'Convert to State Diagram (FSM)…', action: () => asmToFsmDiagram(sch) } : null,
     isFsm(sch) ? { label: 'Convert to ASM chart', action: () => fsmToAsmChart(sch) } : null,
-    isAsm(sch) || isTt(sch) || isFsm(sch) || isPn(sch) ? null : { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(sch) },
-    { label: `Remove Synchronized ${T}…`, action: () => detachSchematic(sch) },
+    viewKind(sch) === 'sch' ? { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(sch) } : null,
   ].filter(Boolean), e.clientX, e.clientY);
 }
 
@@ -2698,12 +2622,14 @@ async function schStructure(doc, modules) {
   return doc.lang === 'vhdl' ? key.toLowerCase() : key;
 }
 
-// banner of an HDL editor linked to a schematic / chart (shows when it is out of sync and why)
+// banner of an HDL editor of a file generated from a drawing (the drawing is the base, #220; an edit
+// here updates the drawing, but a Petri net's); shows when it is out of sync and why
 function syncBanner(path, sch) {
   const why = S.outOfSync?.[path];
   const el = h('span', { class: `gen-banner${why ? ' out-of-sync' : ''}`, 'data-sync-banner': path },
-    why ? 'Not in sync with ' : 'Synchronized with ', h('a', { onclick: () => openView(sch) }, sch.split('/').pop()),
-    why ? (isTt(sch) || isFsm(sch) ? ` — ${why}` : ` — the ${viewNoun(sch)} has errors: ${why}`) : S.schBase?.[sch] === 'hdl' ? ` (${viewNoun(sch)} view of this file) — editing here updates it` : ` — editing here updates the ${viewNoun(sch)}`);
+    why ? 'Not in sync with ' : 'Generated from ', h('a', { onclick: () => openView(sch) }, sch.split('/').pop()),
+    why ? (isTt(sch) || isFsm(sch) ? ` — ${why}` : ` — the ${viewNoun(sch)} has errors: ${why}`)
+      : isPn(sch) ? ' — edit the Petri net: this file follows it' : ` — editing here updates the ${viewNoun(sch)}`);
   return el;
 }
 function refreshSyncBanner(path) {
@@ -2831,23 +2757,57 @@ async function convertToSchematic(mod) {
   } finally { status('Ready'); }
 }
 
-// Which of a synchronized pair is the base (its icon on the module's row of the hierarchy, its badge
-// marked). Both stay editable and synchronized either way.
-async function setSchBase(schPath, base) {
-  let doc;
-  try { doc = JSON.parse(await api.readFile(S.project.name, schPath)); } catch (e) { toast(e.message, 'error'); return; }
-  if (base === 'view') delete doc.base; else doc.base = base;
-  await api.writeFile(S.project.name, schPath, JSON.stringify(doc, null, isAsm(schPath) || isTt(schPath) || isFsm(schPath) ? 2 : 1));
-  const d = findDoc(`sch:${schPath}`) || findDoc(`asm:${schPath}`) || findDoc(`tt:${schPath}`) || findDoc(`fsm:${schPath}`);
-  if (d?.ttEditor) { const cur = d.ttEditor.getModel(); cur.base = doc.base; d.ttEditor.setModel(cur); }
-  if (d?.fsmEditor) { const cur = d.fsmEditor.getModel(); cur.base = doc.base; d.fsmEditor.setModel(cur); }
-  if (d?.schEditor) { const cur = d.schEditor.getDoc(); cur.base = doc.base; d.schEditor.setDoc(cur); }
-  if (d?.asmEditor) { const cur = d.asmEditor.getModel(); cur.base = doc.base; d.asmEditor.setModel(cur); }
-  const gen = doc.generatedFile;
-  log(base === 'hdl' ? `${gen} is now the base of '${doc.name}'; ${schPath} stays synchronized with it.`
-                     : `${schPath} is now the base of '${doc.name}'; ${gen} stays synchronized with it.`, 'info');
-  await reloadProject(false);
-  if (base === 'hdl' && gen) openFile(gen); else openView(schPath);
+// A drawing is always the base, its HDL file generated from it (#220). A project made before may
+// have a drawing whose base was its HDL (`base: 'hdl'` in the drawing's file: the HDL edited, the
+// drawing following it): the drawing becomes the base without losing the user's work. As it is when
+// its HDL file is what it makes; else an ASM chart, state diagram or truth table is made again from
+// its HDL file, that file kept as it is (what the drawing does not make of it is said: an edit of
+// the drawing rewrites it); else (a schematic or a Petri net, not made again from HDL that is not
+// theirs; HDL the drawing cannot show) the HDL file stays as it is, a plain HDL module, and the
+// drawing leaves the project (its file kept in the project folder, as Remove from Project). Each one
+// is logged. Returns how many it changed.
+async function drawingsAsBase() {
+  let n = 0;
+  for (const [f, hdlPath] of Object.entries(S.schOwners || {})) {
+    let old;
+    try { old = JSON.parse(S.viewTexts[f]); } catch { continue; }
+    if (old?.base !== 'hdl') continue;
+    const kind = viewKind(f), noun = viewNoun(f);
+    const hdl = S.sources.find(s => s.path === hdlPath)?.text;
+    const lang = /\.v$/i.test(hdlPath) ? 'verilog' : 'vhdl';
+    // the HDL a model of the drawing makes (a schematic in its own language, as its HDL is written)
+    const makes = async m => viewHdl(f, JSON.stringify({ ...m, generatedFile: undefined, base: undefined, ...(kind === 'sch' ? {} : { lang }) }), { modules: kind === 'sch' ? await schModules() : {} })?.text;
+    let next = null, warnings = [], why = `${hdlPath.split('/').pop()} is not what the ${noun} makes`;
+    if (await makes(old) === hdl) next = old;
+    else if (kind === 'asm' || kind === 'fsm' || kind === 'tt') {
+      try {
+        if ((S.lib?.errors || []).some(x => x.severity === 'error' && x.file === hdlPath)) throw new Error(`${hdlPath.split('/').pop()} has errors`);
+        const r = kind === 'asm' ? await asmFromHdlFile(hdlPath, { module: old.name, previous: old }) : kind === 'fsm' ? await fsmFromHdlFile(hdlPath, old) : { model: await ttFromHdl(hdlPath, old) };
+        next = { ...r.model, generatedFile: hdlPath };
+        warnings = r.warnings?.length ? r.warnings : await makes(next) === hdl ? [] : [`${hdlPath} is not what the ${noun} makes (edited by hand): it is kept as it is until the ${noun} is edited, which rewrites it`];
+      } catch (e) { why = e.message; }
+    }
+    const d = findDoc(`${kind}:${f}`);
+    const ed = d?.schEditor || d?.asmEditor || d?.ttEditor || d?.fsmEditor || d?.petriEditor;
+    const m = { ...(next || old) };
+    delete m.base;
+    if (!next) delete m.generatedFile;
+    const text = JSON.stringify(m, null, kind === 'sch' ? 1 : 2);
+    await api.writeFile(S.project.name, f, text);
+    S.viewTexts[f] = text;
+    if (ed?.setDoc) ed.setDoc(m); else ed?.setModel?.(m);
+    if (next) {
+      log(next === old ? `${f} is now the base of ${hdlPath} (its base until now): that file is what the ${noun} makes, generated from it from now on.`
+                       : `${f} made again from ${hdlPath} (its base until now) and now its base: that file is generated from the ${noun} from now on.`, 'info');
+      for (const w of warnings) log(`WARNING: ${f}: ${w}`, 'warn');
+    } else {
+      S.project.excluded = [...new Set([...(S.project.excluded || []), f])];
+      await saveProjectJson();
+      log(`WARNING: ${f} had its HDL ${hdlPath} as the base and cannot be made again from it (${why}): ${hdlPath} is kept as it is, a plain HDL module, and ${f} is removed from the project (the file stays in the project folder).`, 'warn');
+    }
+    n++;
+  }
+  return n;
 }
 
 // A schematic, ASM chart, state diagram or truth table on its own as the top: its HDL is generated
@@ -2859,7 +2819,7 @@ async function setViewAsTop(path) {
   const mod = S.modules.find(m => m.file === path && m.kind !== 'package')?.name || topOfView(path);
   if (mod) {
     await setTop(mod, false);
-    log(`Top module: ${mod} (${path.split('/').pop()}${S.schOwners?.[path] ? `, its HDL ${S.schOwners[path].split('/').pop()} kept in sync` : ', no HDL file needed'}).`, 'ok');
+    log(`Top module: ${mod} (${path.split('/').pop()}${S.schOwners?.[path] ? `, its HDL ${S.schOwners[path].split('/').pop()} generated from it` : ', no HDL file needed'}).`, 'ok');
     return;
   }
   // it does not make a module (errors in it): say why
@@ -2868,29 +2828,6 @@ async function setViewAsTop(path) {
 }
 const viewSel = () => (['sch', 'asm', 'tt', 'fsm', 'pn'].includes(S.sel?.type) ? S.sel.file : null);
 const topOfView = path => { const gen = S.schOwners?.[path] || path; return S.modules.find(m => m.file === gen && m.kind !== 'package')?.name || null; };
-
-// A schematic without HDL yet: generate its HDL file and make the HDL the base (schematic kept, in sync).
-async function convertSchToHdl(schPath) {
-  if (S.schOwners?.[schPath]) return setSchBase(schPath, 'hdl');
-  let doc;
-  try { doc = JSON.parse(await api.readFile(S.project.name, schPath)); } catch (e) { toast(e.message, 'error'); return; }
-  const { generateHdl } = await import('/core/schdoc.js');
-  const g = generateHdl(doc, { lang: doc.lang, modules: await schModules() });
-  const errs = (g.diagnostics || []).filter(x => x.severity === 'error');
-  if (errs.length) { alertDlg('Convert to HDL', `The schematic has ${errs.length} error(s):\n${errs.slice(0, 5).map(x => x.message).join('\n')}`, 'error'); return; }
-  const dir = schPath.includes('/') ? schPath.replace(/\/[^/]*$/, '') : 'src';
-  const target = `${dir}/${doc.name}.${doc.lang === 'verilog' ? 'v' : 'vhd'}`;
-  if (S.fileTree.includes(target) && !await confirmDlg('Convert to HDL', `${target} already exists. Overwrite it?`)) return;
-  await api.writeFile(S.project.name, target, g.code);
-  doc.generatedFile = target; doc.base = 'hdl';
-  await api.writeFile(S.project.name, schPath, JSON.stringify(doc, null, 1));
-  const d = findDoc(`sch:${schPath}`);
-  if (d?.schEditor) d.schEditor.setDoc(doc);
-  log(`${schPath} converted to ${target}; the schematic stays, synchronized with it.`, 'ok');
-  await reloadProject(false);
-  markStale();
-  openFile(target);
-}
 
 // Download a schematic as an ISE 14.7 schematic (.sch); custom symbols come along in a zip.
 async function exportSchAsIse(schPath) {
@@ -2916,24 +2853,11 @@ async function exportSchAsIse(schPath) {
   for (const w of r.warnings) log(`WARNING: ${w}`, 'warn');
 }
 
-// Stop synchronizing: the HDL file stays, the schematic file is removed.
-async function detachSchematic(path) {
-  const gen = S.schOwners?.[path];
-  if (!await confirmDlg(`Remove Synchronized ${viewTitle(path)}`, `Remove the ${viewNoun(path)} ${path}?${gen ? `\n\n${gen} stays as a normal HDL source.` : ''}`)) return;
-  const d = findDoc(`${viewKind(path)}:${path}`);
-  if (d) { d.dirty = false; await closeDoc(d); }
-  await api.deleteFile(S.project.name, path);
-  await reloadProject();
-  log(`Schematic ${path} removed${gen ? `; ${gen} is kept` : ''}.`, 'info');
-  if (gen) openFile(gen);
-}
-
 function schContextMenu(e, file) {
   popupMenu([
     { label: 'Open', action: () => openSch(file) },
     S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
-    { label: 'Convert to HDL', action: () => convertSchToHdl(file) },
     { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(file) },
     { label: 'Remove from Project', action: () => removeFile(file) },
   ].filter(Boolean), e.clientX, e.clientY);
@@ -3232,7 +3156,6 @@ async function reloadProjectNow(render = true, depth = 0) {
   S.sources = await api.sources(pj.name);
   S.schOwners = {};
   S.hdlToSch = {};
-  S.schBase = {};
   S.viewModule = {};
   // schematics (.sch.json) and ASM charts (.asm.json) linked to an HDL file ("views" kept in sync)
   S.viewTexts = {};
@@ -3241,12 +3164,13 @@ async function reloadProjectNow(render = true, depth = 0) {
       const t = await api.readFile(pj.name, f);
       S.viewTexts[f] = t;
       const d = JSON.parse(t);
-      if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !S.hdlToSch[d.generatedFile]) { S.schOwners[f] = d.generatedFile; S.hdlToSch[d.generatedFile] = f; S.schBase[f] = d.base === 'hdl' ? 'hdl' : 'view'; S.viewModule[f] = d.name; }
+      if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !S.hdlToSch[d.generatedFile]) { S.schOwners[f] = d.generatedFile; S.hdlToSch[d.generatedFile] = f; S.viewModule[f] = d.name; }
     } catch { /* unreadable */ }
   }
   compileProject();
-  // a drawn source without its HDL file gets it (#207): read the project again with it
-  if (depth < 2 && await adoptDrawnHdl()) return reloadProjectNow(render, depth + 1);
+  // a drawing whose base was its HDL (before #220) is made the base; a drawn source without its HDL
+  // file gets it (#207): read the project again with them
+  if (depth < 2 && (await drawingsAsBase() || await adoptDrawnHdl())) return reloadProjectNow(render, depth + 1);
   updateTitle();
   renderHierarchy();
   renderFilesPage();

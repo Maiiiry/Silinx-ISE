@@ -300,8 +300,8 @@ export function mountTtEditor(container, opts = {}) {
     link.innerHTML = '';
     const info = opts.linkInfo?.();
     if (!info?.file) return;
-    link.append(h('span', { class: `gen-banner${info.why ? ' out-of-sync' : ''}` }, info.why ? 'Not in sync with ' : 'Synchronized with ',
-      h('a', { onclick: () => opts.onOpenFile?.(info.file) }, info.file.split('/').pop()), info.why ? ` — ${info.why}` : ' — editing the table updates it'));
+    link.append(h('span', { class: `gen-banner${info.why ? ' out-of-sync' : ''}` }, info.why ? 'Not in sync with ' : 'HDL: ',
+      h('a', { onclick: () => opts.onOpenFile?.(info.file) }, info.file.split('/').pop()), info.why ? ` — ${info.why}` : ' — generated from the table'));
   }
 
   function render() {

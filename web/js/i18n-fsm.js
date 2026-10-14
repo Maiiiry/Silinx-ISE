@@ -3,13 +3,10 @@ export const FSM_PT = {
   // New Source, menus, processes, hierarchy
   'State Machine (FSM)': 'Máquina de Estados (FSM)', 'FSM State Diagram Editor…': 'Editor de Diagramas de Estados FSM…',
   'View/Edit State Diagram (FSM)': 'Ver/Editar Diagrama de Estados (FSM)', 'Convert to State Diagram (FSM)…': 'Converter para Diagrama de Estados (FSM)…',
-  'Convert to State Diagram (state diagram as base)': 'Converter para Diagrama de Estados (diagrama de estados como base)',
-  'Remove Synchronized State Diagram…': 'Remover Diagrama de Estados Sincronizado…', '(synchronized state diagram)': '(diagrama de estados sincronizado)',
-  'Open Synchronized State Diagram': 'Abrir Diagrama de Estados Sincronizado', 'Convert to ASM chart': 'Converter para fluxograma ASM',
+  'Open State Diagram': 'Abrir Diagrama de Estados', 'Convert to ASM chart': 'Converter para fluxograma ASM',
   'Convert to State Diagram': 'Converter para Diagrama de Estados', 'Create Truth Tables': 'Criar Tabelas de Verdade',
   '— editing here updates the state diagram': '— editar aqui atualiza o diagrama de estados',
-  '(state diagram view of this file) — editing here updates it': '(vista em diagrama de estados deste ficheiro) — editar aqui atualiza-a',
-  '— editing the diagram updates it': '— editar o diagrama atualiza-o',
+  '— generated from the diagram': '— gerado a partir do diagrama',
   // toolbar
   'Moore machine: outputs depend on the state only (written in the circles). Mealy machine: outputs also on the transitions (condition / outputs).':
     'Máquina de Moore: as saídas dependem só do estado (escritas nos círculos). Máquina de Mealy: saídas também nas transições (condição / saídas).',

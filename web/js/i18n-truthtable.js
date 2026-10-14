@@ -2,10 +2,8 @@
 export const TT_PT = {
   // menus, processes, New Source
   'Truth Table / Karnaugh Map…': 'Tabela de Verdade / Mapa de Karnaugh…', 'Truth Table / Karnaugh Map': 'Tabela de Verdade / Mapa de Karnaugh',
-  'Truth Table / Karnaugh Map of this Module…': 'Tabela de Verdade / Mapa de Karnaugh deste Módulo…',
   'Truth Table': 'Tabela de Verdade', 'View/Edit Truth Table': 'Ver/Editar Tabela de Verdade',
-  'Open Synchronized Truth Table': 'Abrir Tabela de Verdade Sincronizada', 'Remove Synchronized Truth Table…': 'Remover Tabela de Verdade Sincronizada…',
-  '(synchronized truth table)': '(tabela de verdade sincronizada)', 'Convert to Truth Table (truth table as base)': 'Converter para Tabela de Verdade (tabela de verdade como base)',
+  'Open Truth Table': 'Abrir Tabela de Verdade',
   'Truth Table from Module': 'Tabela de Verdade de um Módulo', 'Generate HDL': 'Gerar HDL', 'Generate Schematic': 'Gerar Esquemático',
   'Combinational module (at most 8 input bits): its truth table is computed by simulating every input combination.':
     'Módulo combinatório (no máximo 8 bits de entrada): a tabela de verdade é calculada simulando todas as combinações das entradas.',
@@ -23,7 +21,7 @@ export const TT_PT = {
   'Use only NAND gates in the generated schematic': 'Usar só portas NAND no esquemático gerado', 'NAND gates only': 'Só portas NAND',
   'Truth Table from Module…': 'Tabela de Verdade de um Módulo…',
   'Fill the table with the truth table of a combinational module of the project (exhaustive simulation)': 'Preencher a tabela com a tabela de verdade de um módulo combinatório do projeto (simulação exaustiva)',
-  'Synchronized with': 'Sincronizado com', 'Not in sync with': 'Não sincronizado com', '— editing the table updates it': '— editar a tabela atualiza-o',
+  'Not in sync with': 'Não sincronizado com', '— generated from the table': '— gerado a partir da tabela',
   // editor body
   'Truth table': 'Tabela de verdade', 'Notes': 'Notas', 'Notes (saved with the table)': 'Notas (guardadas com a tabela)',
   'Click an output cell to change it: 0 → 1 → X (don\'t care).': 'Clique numa célula de saída para a mudar: 0 → 1 → X (indiferente).',

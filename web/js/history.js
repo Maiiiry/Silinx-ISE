@@ -1,6 +1,6 @@
 // Project history: Undo / Redo of the commands that change the project (Remove from Project,
-// Remove Synchronized Schematic, Rename, Convert to Schematic / ASM / FSM, New Source, Delete,
-// moving files, Design Properties…), as editors undo their own edits.
+// Rename, Convert to Schematic / ASM / FSM, New Source, Delete, moving files, Design Properties…),
+// as editors undo their own edits.
 //
 // A command runs in run(label, fn): while it runs, the project's writes through the api
 // (writeFile, deleteFile, renameFile, saveProject) are recorded: the content of each file touched
