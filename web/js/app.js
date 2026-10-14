@@ -633,6 +633,9 @@ function selectionProcesses() {
     { id: 'rtl-sim', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
     { id: 'tb-wiz', label: 'Create Test Bench (Wizard)…', ico: 'template', run: () => testBench(mod) },
   ];
+  // synthesis, implementation and emulation work on the project's top module (onTop: what they do to
+  // it, said before running when another module is selected, #223)
+  const top = S.project.top || mod;
   return [
     ...(sel.sch ? [
       isAsm(sel.sch) ? { id: 'sch-open', label: 'View/Edit State Diagram (ASM)', ico: 'asm', run: () => openAsm(sel.sch) }
@@ -650,32 +653,32 @@ function selectionProcesses() {
       { id: 'ucf-edit', label: 'Edit Constraints (Text)', ico: 'ucf', run: () => openUcf() },
       { id: 'ucf-check', label: 'Check Constraints', ico: 'process', run: () => checkUcfFile() },
     ] },
-    { id: 'synth', label: 'Synthesize - XST', ico: 'process', run: () => runImpl(mod, ['synth']), children: [
+    { id: 'synth', label: 'Synthesize - XST', ico: 'process', onTop: 'synthesizes', run: () => runImpl(top, ['synth']), children: [
       { id: 'rtl', label: 'View RTL Schematic', ico: 'schematic', run: () => openSchematic(mod) },
-      { id: 'tech', label: 'View Technology Schematic', ico: 'schematic', run: () => openTechSchematic(mod) },
+      { id: 'tech', label: 'View Technology Schematic', ico: 'schematic', onTop: 'synthesizes', run: () => openTechSchematic(top) },
       { id: 'check', label: 'Check Syntax', ico: 'process', run: () => checkSyntax(mod) },
-      { id: 'postsynth', label: EXTRA_STEPS.postsynth, ico: 'process', run: () => generateSimModel(mod, 'postsynth') },
+      { id: 'postsynth', label: EXTRA_STEPS.postsynth, ico: 'process', onTop: 'synthesizes', run: () => generateSimModel(top, 'postsynth') },
     ] },
-    { id: 'synth-open', label: SYNTH_OPEN, ico: 'process', run: () => synthOpen(mod) },
-    { id: 'impl', label: 'Implement Design', ico: 'process', run: () => runImpl(mod, ['synth', 'translate', 'map', 'par']), children: [
-      { id: 'translate', label: 'Translate', ico: 'process', run: () => runImpl(mod, ['synth', 'translate']), children: [
-        { id: 'posttrans', label: EXTRA_STEPS.posttrans, ico: 'process', run: () => generateSimModel(mod, 'posttrans') },
+    { id: 'synth-open', label: SYNTH_OPEN, ico: 'process', onTop: 'synthesizes', run: () => synthOpen(top) },
+    { id: 'impl', label: 'Implement Design', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map', 'par']), children: [
+      { id: 'translate', label: 'Translate', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate']), children: [
+        { id: 'posttrans', label: EXTRA_STEPS.posttrans, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'posttrans') },
       ] },
-      { id: 'map', label: 'Map', ico: 'process', run: () => runImpl(mod, ['synth', 'translate', 'map']), children: [
-        { id: 'postmap', label: EXTRA_STEPS.postmap, ico: 'process', run: () => generateSimModel(mod, 'postmap') },
+      { id: 'map', label: 'Map', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map']), children: [
+        { id: 'postmap', label: EXTRA_STEPS.postmap, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'postmap') },
       ] },
-      { id: 'par', label: 'Place & Route', ico: 'process', run: () => runImpl(mod, ['synth', 'translate', 'map', 'par']), children: [
-        { id: 'trce', label: EXTRA_STEPS.trce, ico: 'process', run: () => postParTiming(mod) },
-        { id: 'xpwr', label: EXTRA_STEPS.xpwr, ico: 'process', run: () => textPowerReport(mod) },
-        { id: 'postpar', label: EXTRA_STEPS.postpar, ico: 'process', run: () => generateSimModel(mod, 'postpar') },
-        { id: 'pin2ucf', label: EXTRA_STEPS.pin2ucf, ico: 'process', run: () => backAnnotatePins(mod) },
-        { id: 'fpgaview', label: EXTRA_STEPS.fpgaview, ico: 'chip', run: () => openFpgaView(mod) },
+      { id: 'par', label: 'Place & Route', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map', 'par']), children: [
+        { id: 'trce', label: EXTRA_STEPS.trce, ico: 'process', onTop: 'implements', run: () => postParTiming(top) },
+        { id: 'xpwr', label: EXTRA_STEPS.xpwr, ico: 'process', onTop: 'implements', run: () => textPowerReport(top) },
+        { id: 'postpar', label: EXTRA_STEPS.postpar, ico: 'process', onTop: 'implements', run: () => generateSimModel(top, 'postpar') },
+        { id: 'pin2ucf', label: EXTRA_STEPS.pin2ucf, ico: 'process', onTop: 'implements', run: () => backAnnotatePins(top) },
+        { id: 'fpgaview', label: EXTRA_STEPS.fpgaview, ico: 'chip', onTop: 'implements', run: () => openFpgaView(top) },
       ] },
     ] },
-    { id: 'bitgen', label: 'Generate Programming File', ico: 'process', run: () => runImpl(mod, ['synth', 'translate', 'map', 'par', 'bitgen']) },
-    { id: 'emulate', label: 'Emulate on Board', ico: 'board', run: () => openEmulator(mod), children: [
-      { id: 'emulate-rtl', label: 'Emulate Behavioral Model (RTL)', ico: 'board', run: () => openEmulator(mod) },
-      ...Object.entries(SIM_MODEL_NAMES).map(([step, name]) => ({ id: `emulate-${step}`, label: `Emulate ${name} Model`, ico: 'board', run: () => openEmulator(mod, { model: step }) })),
+    { id: 'bitgen', label: 'Generate Programming File', ico: 'process', onTop: 'implements', run: () => runImpl(top, ['synth', 'translate', 'map', 'par', 'bitgen']) },
+    { id: 'emulate', label: 'Emulate on Board', ico: 'board', onTop: 'emulates', run: () => openEmulator(top), children: [
+      { id: 'emulate-rtl', label: 'Emulate Behavioral Model (RTL)', ico: 'board', onTop: 'emulates', run: () => openEmulator(top) },
+      ...Object.entries(SIM_MODEL_NAMES).map(([step, name]) => ({ id: `emulate-${step}`, label: `Emulate ${name} Model`, ico: 'board', onTop: 'emulates', run: () => openEmulator(top, { model: step }) })),
     ] },
     { id: 'config', label: 'Configure Target Device', ico: 'impact', run: () => openImpact(), children: [
       { id: 'impact', label: 'Manage Configuration Project (iMPACT)', ico: 'impact', run: () => openImpact() },
@@ -738,8 +741,24 @@ export function renderProcesses() {
 const ISE_PROCS = ['synth', 'impl', 'translate', 'map', 'par', 'bitgen'];
 async function runProcess(p) {
   if (S.busy && ISE_PROCS.includes(p.id)) { toast('An implementation is already running (use Stop to cancel it)', 'error'); return; }
+  if (p.onTop && !await topConfirmed(p.label, p.onTop)) return;
   try { await p.run(); }
   catch (e) { log(`ERROR: ${e.message}`, 'err'); console.error(e); }
+}
+
+// Synthesis, implementation and emulation work on the project's top module (#223): when the module
+// selected in the Design pane is another one, the user is told first (OK runs it on the top, Cancel
+// does nothing). title: the process; verb: what it does to the top ('implements', 'synthesizes', 'emulates').
+async function topConfirmed(title, verb) {
+  const top = S.project?.top, sel = S.sel?.module;
+  if (!top || !sel || sel.toLowerCase() === top.toLowerCase()) return true;
+  return !!await dialog({
+    title, width: 460,
+    body: h('div', { class: 'msg msg-warn' }, h('div', { class: 'msg-icon' }, '!'), h('div', { class: 'msg-text' },
+      h('div', {}, `${title} ${verb} the top module '${top}', not the selected module '${sel}'.`),
+      h('div', { class: 'hint' }, 'Another module becomes the top with Set as Top Module (its right-click menu).'))),
+    buttons: [{ label: 'OK', value: true, primary: true }, { label: 'Cancel', value: null }],
+  });
 }
 
 function setStatus(id, st) { S.status[id] = st; renderProcesses(); }
@@ -3431,8 +3450,8 @@ function setupToolbar() {
   tb.append(h('div', { class: 'm-steps', role: 'group', 'aria-label': 'Design flow' },
     step('mCheck', 'Check', 'Check Syntax of the selected module', () => checkSyntax(mod(), S.view === 'sim'), () => !!S.project && !!mod()),
     step('mWave', 'Simulate', 'Simulate Behavioral Model of the selected module', () => runSimulation(mod()), () => !!S.project && !!mod()),
-    step('mBolt', 'Implement', 'Implement Top Module', () => runImpl(S.project.top, ['synth', 'translate', 'map', 'par', 'bitgen']), () => !!S.project?.top && !S.busy),
-    step('mBoard', 'Emulate', 'Board Emulator', () => openEmulator(S.project.top), () => !!S.project?.top),
+    step('mBolt', 'Implement', 'Implement Top Module', async () => await topConfirmed('Implement', 'implements') && runImpl(S.project.top, ['synth', 'translate', 'map', 'par', 'bitgen']), () => !!S.project?.top && !S.busy),
+    step('mBoard', 'Emulate', 'Board Emulator', async () => await topConfirmed('Emulate', 'emulates') && openEmulator(S.project.top), () => !!S.project?.top),
     step('mUpload', 'Program', 'Configure Target Device (iMPACT)', () => openImpact(), () => true),
   ));
   refreshSteps();

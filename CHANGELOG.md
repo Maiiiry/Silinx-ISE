@@ -43,6 +43,12 @@ In detail:
   schematic toolbar's language is the one of *View HDL*. *Truth Table from Module…* stays. The undo
   / redo buttons of the truth table, state diagram, ASM chart, Petri net and schematic editors are
   now the main toolbar's (the same icons, tips "Undo" / "Redo" and look).
+- **Processes on the top module (#223):** Synthesize, Implement Design (and its steps and reports),
+  Generate Programming File and Emulate on Board (and the modern header's *Implement* and *Emulate*)
+  always work on the project's top module. With another module selected in the Design pane they now
+  say so before running ("Generate Programming File implements the top module 'top', not the
+  selected module 'timer'.", OK / Cancel) instead of asking to make the selected module the top; *Set
+  as Top Module* (a module's right-click menu) makes another one the top.
 
 ## 15.10.14
 
