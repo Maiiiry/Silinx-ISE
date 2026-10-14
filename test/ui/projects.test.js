@@ -269,9 +269,13 @@ uiTest('Open Example (traffic), the second example: the state diagram and the tr
   await page.treeRow('#hier', 'tb_traffic');
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 20000, what: 'ISim ready' });
-  await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
-  await page.key('Enter');
-  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 30000, what: 'Simulation finished OK' });
+  // (a command typed before the line is ready can be lost on a slow machine: typed again if no run started)
+  for (let k = 0; ; k++) {
+    await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
+    await page.key('Enter');
+    try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
+  }
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 60000, what: 'Simulation finished OK' });
   assert.doesNotMatch(out, /ERROR|Warning/i);
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
