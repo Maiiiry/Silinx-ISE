@@ -1,5 +1,6 @@
 // research/s3e-bitstream: helpers of the bit database's experiments (no ISE, no device report), and
 // the stage D rules as they are in the committed database.
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -217,7 +218,7 @@ test('measured database: SLICEM as RAM / shift register, I/O drive, slew and pul
 });
 
 // rebuilding the database (#48): the batches' candidates, the comparison of two databases
-const TOOLS = new URL('../research/s3e-bitstream/', import.meta.url).pathname;
+const TOOLS = fileURLToPath(new URL('../research/s3e-bitstream/', import.meta.url));   // (not .pathname: /D:/… on Windows)
 const tool = (script, args, opts = {}) => spawnSync(process.execPath, [path.join(TOOLS, script), ...args], { encoding: 'utf8', cwd: TOOLS, ...opts });
 
 test('want-pips: the PIPs of the database the batches have not measured yet, one measurement serving the types that share a switch box (#48)', () => {
