@@ -1,39 +1,43 @@
 #!/bin/bash
-# Rebuilds the bit database from the experiments' results in $W (bitstreams made by run-many.sh;
-# nothing of it is in the repository): db/xc3s250e-layout.json, the shared tile types db/s3e-tiles.json
-# and the XC3S250E's pads (db/xc3s250e-cp132-pads.json), then (stage F) the other devices from $W2.
-#   $W/dev-full.xdlrc        xdl -report -pips -all_conns xc3s250ecp132-4
-#   $W/map/                  gen-map.mjs + decode-map.mjs (map.json, EMPTY.bit: the layout, the format)
+# Rebuilds the bit database from the experiments' results in $W (bitstreams made by ISE; nothing of it
+# is in the repository): db/xc3s250e-layout.json, db/xc3s250e-lut.json, the shared tile types
+# db/s3e-tiles.json, the XC3S250E's pads (db/xc3s250e-cp132-pads.json), db/xc3s250e-slice.json and
+# db/xc3s250e-bram.json, then (stage F) the other devices from $W2, and the PIPs the tiles do not have.
+#   research/s3e-bitstream/build-db.sh [W] [W2]
+# measure-db.sh makes $W again from nothing, with ISE on another machine (#48; README "Rebuilding the
+# database"):
+#   $W/map/                  gen-map.mjs (MAP0.bit, EMPTY.bit: the layout, the LUTs, the format)
 #   measured/slice/*.json    slice harness results (analyze-slice.mjs), in the repository
 #   measured/learn-*, fix-*  features found by ana-residual / ana-attrdrop / ana-pads / learn-single /
 #                            explain-diff (see README), in the repository
-#   $W/{p1,c1,c2,k1,iop/*}/  PIP batches (gen-pipdrop.mjs, gen-pipcover.mjs, gen-clock.mjs)
-#   $W/{d1,d2}/              PIP batches on blinky and lab11 placed and routed by Silinx (gen-pipdrop.mjs)
-#   $W/pd-*/                 PIP batches on designs implemented by ISE from HDL (ise-impl.sh, gen-pipdrop.mjs)
-#   $W/{c6…c10,n1,n2,b-*}/   PIP batches of stage D (gen-pipcover.mjs: carry outputs, clock pins, the
-#                            constant 1, long lines, terminal tiles, I/O and block-RAM pins)
-#   $W/io1/                  I/O settings (gen-iob.mjs)
+#   $W/pips/*/               PIP batches (gen-pipdrop.mjs on designs implemented by ISE, gen-clock.mjs,
+#                            gen-pipcover.mjs, gen-branch.mjs), each analysed into pips.json
 #   $W/io4/, $W/io7/         I/O settings per pad (gen-iob.mjs --perpad, --perstd)
 #   $W/br1/                  block-RAM contents (gen-bram.mjs)
-#   $W/ref/                  designs implemented by ISE (routed XDL + .bit) for the residual analysis
 #   $W2/s100, s500, s1200/  stage F, per device (PART): map/, iot/ + ios/ (gen-iob.mjs --third / --sparse),
 #                            iop/ + iostd/ (--perpad / --perstd), br/ (gen-bram.mjs), s1200/clkhll/
 #                            (gen-pipcover.mjs --types CLKH_LL --long 1, ana-pipdrop.mjs)
 set -e
-W=${1:-/tmp/claude-501/bg}; W2=${2:-/tmp/claude-501/bg2}
+W=${1:-${TMPDIR:-/tmp}/silinx-bitdb}; W2=${2:-${TMPDIR:-/tmp}/silinx-bitdb-f}
+W=${W%/}; W2=${W2%/}
 cd "$(dirname "$0")"
+export PART=xc3s250ecp132-4
+node decode-map.mjs "$W/map" > /dev/null && cp "$W/map/lut.json" db/xc3s250e-lut.json
 node gen-layout.mjs "$W/map/map.json" "$W/map/EMPTY.bit" > db/xc3s250e-layout.json
-rm -f db/s3e-tiles.json db/xc3s250e-cp132-pads.json
 node gen-slicedb.mjs measured/slice/*.json > "$W/slice-features.json"
 echo '{"types":{"CENTER_SMALL_BRK":{"sameAs":"CENTER_SMALL"}}}' > "$W/brk.json"
 PIPS=()
-for d in p1 c1 c2 c3 c4 c5 k1 iop/O iop/I d1 d2 c6 c7 c8 c9 c10 n1 n2 n3 b-k1 b-g b-g3 pd-dcm pd-bufgmux pd-brmul pd-bram_sp pd-ramprim pd-dram pd-srl; do
-  [ -f "$W/$d/key.json" ] && [ -f "$W/$d/BASE.bit" ] && [ "$(ls "$W/$d" | grep -c "^V.*bit$")" = "$(node -p "require(\"$W/$d/key.json\").L")" ] || continue
-  [ -f "$W/$d/pips.json" ] || node ana-pipdrop.mjs "$W/$d" "$W/dev-full.xdlrc" > "$W/$d/pips.json"
-  PIPS+=("$W/$d/pips.json")
+for d in "$W"/pips/*/; do
+  d=${d%/}
+  [ -f "$d/key.json" ] && [ -f "$d/BASE.bit" ] && [ "$(ls "$d" | grep -c "^V.*bit$")" = "$(node -p "require(\"$d/key.json\").L")" ] || continue
+  [ -s "$d/pips.json" ] || node ana-pipdrop.mjs "$d" "$PART" > "$d/pips.json"
+  PIPS+=("$d/pips.json")
 done
 node pips-to-db.mjs "${PIPS[@]}" > "$W/pip-features.json" 2> "$W/pip-report.txt"
 tail -1 "$W/pip-report.txt"
+# (the analyses above read the layout of the database there was; the tile types and the pads are
+# made again from here)
+node merge-db.mjs --reset-tiles --reset-pads
 node merge-db.mjs "$W/slice-features.json" "$W/brk.json" "$W/pip-features.json"
 for f in measured/learn-*.json; do [ -f "$f" ] && node merge-db.mjs --keep "$f"; done
 node unify-io.mjs
@@ -42,6 +46,9 @@ node share-sb.mjs
 # I/O standards, drive, slew and pull per pad (gen-iob.mjs --perpad, stage D)
 if [ -f "$W/io4/key.json" ]; then node ana-perpad.mjs "$W/io4" > "$W/perpad.json" && node merge-db.mjs "$W/perpad.json"; fi
 if [ -f "$W/io7/key.json" ] && [ -f "$W/io7/LVCMOS12_BASE.bit" ]; then node ana-perpad.mjs "$W/io7" > "$W/perstd.json" && node merge-db.mjs "$W/perstd.json"; fi
+# the pads' features of #18 (I:NOLOAD) and #44 (IOB registers, input delays), whose experiments are
+# not repeated: kept as numbers (README, "Rebuilding the database")
+node merge-db.mjs measured/pads-xc3s250e-cp132.json
 # corrections found by comparing whole designs with ISE (check-writer.mjs, explain-diff.mjs)
 for f in measured/fix-*.json; do [ -f "$f" ] && node merge-db.mjs "$f"; done
 # the other three DCMs' settings: the top-left one's mirrored (stage F, dcm-mirror.mjs)
@@ -49,7 +56,7 @@ node dcm-mirror.mjs > "$W/dcm-mirror.json" && node merge-db.mjs "$W/dcm-mirror.j
 
 node gen-slicetable.mjs > db/xc3s250e-slice.json
 # block-RAM contents (gen-bram.mjs, stage D)
-if [ -f "$W/br1/V14.bit" ]; then node ana-bram.mjs "$W/br1" > db/xc3s250e-bram.json; fi
+if [ -f "$W/br1/V14.bit" ]; then node ana-bram.mjs "$W/br1" > "$W/bram.json" && cp "$W/bram.json" db/xc3s250e-bram.json; fi
 
 # stage F: the other devices (the shared tile types above serve them; their own layout, LUTs, block
 # RAMs, pads, and the XC3S1200E's long-line splitters)
@@ -59,7 +66,7 @@ for d in s100:xc3s100ecp132-4:xc3s100e s500:xc3s500efg320-4:xc3s500e s1200:xc3s1
   export PART=$p
   node decode-map.mjs "$W2/$s/map" > /dev/null && cp "$W2/$s/map/lut.json" "db/$dev-lut.json"
   node gen-layout.mjs "$W2/$s/map/map.json" "$W2/$s/map/EMPTY.bit" > "$W2/$s/layout.json" && cp "$W2/$s/layout.json" "db/$dev-layout.json"
-  rm -f "db/$dev-"*-pads.json
+  node merge-db.mjs --reset-pads
   node ana-pads.mjs "$W2/$s/iot" "$W2/$s/ios" > "$W2/$s/pads.json" && node merge-db.mjs "$W2/$s/pads.json"
   [ -f "$W2/$s/iop/key.json" ] && node ana-perpad.mjs "$W2/$s/iop" > "$W2/$s/perpad.json" && node merge-db.mjs "$W2/$s/perpad.json"
   [ -f "$W2/$s/iostd/key.json" ] && node ana-perpad.mjs "$W2/$s/iostd" > "$W2/$s/perstd.json" && node merge-db.mjs "$W2/$s/perstd.json"

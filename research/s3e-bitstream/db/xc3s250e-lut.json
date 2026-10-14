@@ -1,6 +1,6 @@
 {
  "device": "xc3s250e-4-cp132",
- "source": "research/s3e-bitstream: gen-map.mjs + decode-map.mjs (one design, all 2448 slices), ISE 14.7 xdl P.20131013 + bitgen, 2026-10-10",
+ "source": "research/s3e-bitstream: gen-map.mjs + decode-map.mjs (one design per 4000 slices, all 2448 slices), ISE 14.7 xdl P.20131013 + bitgen, measured 2026-10-10 (XC3S250E), 2026-10-11 (XC3S100E, XC3S500E, XC3S1200E)",
  "frameWords": 73,
  "frames": 578,
  "note": "LUT F of slice X Y: 16 consecutive bits starting at bit rowBit[Y] of frame colFrame[X], address order (A4A3A2A1), stored inverted. LUT G: the 16 bits before. Bit = word*32 + (31 - bit in word), frame data as written to FDRI.",

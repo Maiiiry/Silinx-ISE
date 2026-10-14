@@ -3,10 +3,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { resolvePatterns, stripLutRuns } from '../research/s3e-bitstream/lib.mjs';
 import { SHIFTS } from '../research/s3e-bitstream/share-sb.mjs';
 import { MIRRORS, mirrorFeatures } from '../research/s3e-bitstream/dcm-mirror.mjs';
 import { makeDb, featureBits } from '../core/fpga/bitgen.js';
+import { measuredPips, UNIFY } from '../research/s3e-bitstream/want-pips.mjs';
 
 test('resolvePatterns: a PIP measured with different bits keeps the pattern without artefacts', () => {
   const p = (pat, n) => [pat, new Array(n).fill('T')];
@@ -210,4 +214,63 @@ test('measured database: SLICEM as RAM / shift register, I/O drive, slew and pul
   const pads = Object.values(read('xc3s250e-cp132-pads.json').padFeatures).filter(p => p['O:LVCMOS33']);
   assert.ok(pads.length > 80);
   for (const p of pads) for (const k of ['O:DRIVE:8', 'O:SLEW:FAST', 'O:PULL:PULLUP', 'O:LVTTL', 'O:LVTTL:DRIVE:8']) assert.ok(Array.isArray(p[k]), k);
+});
+
+// rebuilding the database (#48): the batches' candidates, the comparison of two databases
+const TOOLS = new URL('../research/s3e-bitstream/', import.meta.url).pathname;
+const tool = (script, args, opts = {}) => spawnSync(process.execPath, [path.join(TOOLS, script), ...args], { encoding: 'utf8', cwd: TOOLS, ...opts });
+
+test('want-pips: the PIPs of the database the batches have not measured yet, one measurement serving the types that share a switch box (#48)', () => {
+  const W = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-want-'));
+  try {
+    let r = tool('want-pips.mjs', ['db', W]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stderr.trim(), '16917 PIPs (per tile type) known to the reference database, 0 measured, 16917 left');
+    const all = JSON.parse(r.stdout);
+    // a type sharing another's switch box: only its own features (the CLB's are measured in the CLB)
+    assert.deepEqual([all.CENTER_SMALL.length, all.CENTER_SMALL_BRK.length, all.LIOIS.length, all.LIOIS_PCI.length, all.BRAM0_SMALL.length, all.UR.length], [2836, 959, 193, 129, 1792, 6]);
+    assert.equal(all.LIOIS_PCI.includes('E2BEG4->IOIS_CLK0'), true);
+    fs.mkdirSync(path.join(W, 'pips', 't1'), { recursive: true });
+    const pip = (tile, type, from, to) => ({ tile, type, from, dir: '->', to, bits: [] });
+    fs.writeFileSync(path.join(W, 'pips', 't1', 'pips.json'), JSON.stringify({ pips: [pip('LIOIS_PCI_X0Y16', 'LIOIS_PCI', 'E2BEG4', 'IOIS_CLK0'), pip('CLB_X1Y1', 'CENTER_SMALL', 'BX0', 'BX_PINWIRE0'), pip('BRAM1_SMALL_X5Y1', 'BRAM1_SMALL', 'BRAM_DOA0', 'BRAM_ADDRA_B2')] }));
+    assert.deepEqual([...measuredPips(W)], ['LIOIS E2BEG4->IOIS_CLK0', 'CENTER_SMALL BX0->BX_PINWIRE0', 'BRAM0_SMALL BRAM_DOA0->BRAM_ADDRA_B2']);
+    r = tool('want-pips.mjs', ['db', W]);
+    assert.equal(r.stderr.trim(), '16917 PIPs (per tile type) known to the reference database, 3 measured, 16904 left');
+    const left = JSON.parse(r.stdout);
+    // measured in LIOIS_PCI: no longer wanted on the left side's I/O tiles; in BRAM1_SMALL: in the four block-RAM interconnect tiles
+    for (const t of [...UNIFY[0], ...UNIFY[4], 'CENTER_SMALL']) assert.equal(all[t].length - left[t].length, 1, t);
+    assert.equal(left.RIOIS.length, all.RIOIS.length);
+    r = tool('want-pips.mjs', ['db', W, '--types', 'LIOIS,CLKC']);
+    assert.equal(r.stderr.trim(), '201 PIPs (per tile type) known to the reference database, 3 measured, 200 left');
+    assert.deepEqual(Object.keys(JSON.parse(r.stdout)), ['LIOIS', 'CLKC']);
+  } finally { fs.rmSync(W, { recursive: true, force: true }); }
+});
+
+test('diff-db: what differs between two databases, feature by feature (#48)', () => {
+  const T = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-diffdb-'));
+  try {
+    const w = (d, f, o) => { fs.mkdirSync(path.join(T, d), { recursive: true }); fs.writeFileSync(path.join(T, d, f), JSON.stringify(o)); };
+    w('a', 'same.json', { x: 1 });
+    w('b', 'same.json', { x: 1 });
+    w('a', 's3e-tiles.json', { source: 's', types: { CLB: { features: { 'A->B': ['1,2'], 'C->D': ['3,4'], 'SLICE0:USED': ['5,6'] }, sameAs: 'X' } } });
+    w('b', 's3e-tiles.json', { source: 't', types: { CLB: { features: { 'A->B': ['2,1'], 'E->F': [], 'SLICE0:USED': ['5,6'] } } } });
+    w('a', 'x-pads.json', { padFeatures: { P1: { 'I:LVCMOS33': ['1,1'] } } });
+    w('b', 'x-pads.json', { padFeatures: { P1: { 'I:LVCMOS33': ['1,1'], 'O:LVTTL': ['2,2'] } } });
+    w('b', 'only-b.json', {});
+    const r = tool('diff-db.mjs', [path.join(T, 'a'), path.join(T, 'b')]);
+    assert.equal(r.status, 0, r.stderr);
+    const A = path.join(T, 'a'), B = path.join(T, 'b');
+    assert.equal(r.stdout, [
+      `only-b.json: only in ${B}`,
+      's3e-tiles.json: differs',
+      '  source: "s" -> "t"',
+      `  PIP features only in ${A}: 1`, '    CLB C->D [3,4]',
+      `  PIP features only in ${B}: 1`, '    CLB E->F []',
+      '  PIP features with other bits: 1', '    CLB A->B [1,2] -> [2,1]',
+      '  other keys of the types: 1', '    CLB sameAs: "X" -> undefined',
+      'same.json: identical',
+      'x-pads.json: differs',
+      `  pad features only in ${B}: 1`, '    P1 O:LVTTL [2,2]',
+      '4 files, 3 differ', ''].join('\n'));
+  } finally { fs.rmSync(T, { recursive: true, force: true }); }
 });

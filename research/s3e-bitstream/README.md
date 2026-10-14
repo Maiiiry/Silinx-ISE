@@ -43,6 +43,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-iob.mjs`, `ana-pads.mjs`, `ana-iob.mjs`, `ana-io2.mjs` | Stage C: the I/O pads (direction, I/O standard, drive, slew, pull) |
 | `gen-attrdrop.mjs`, `ana-attrdrop.mjs`, `gen-slicedb.mjs`, `gen-slicetable.mjs` | Stage C: slice settings in every slice position |
 | `ana-residual.mjs`, `explain-diff.mjs` | What the database does not explain in designs implemented by ISE, per tile and feature |
+| `measure-db.sh`, `want-pips.mjs`, `diff-db.mjs` | #48: the XC3S250E's experiments made again with ISE (the PIPs to measure: those of the database), and the rebuilt database compared with the committed one |
 | `gen-layout.mjs`, `merge-db.mjs`, `build-db.sh`, `db.mjs` | Build the database (`db/*.json`) from the experiments' results; `db.mjs` is the one loader (the open flow, the interface, the experiments: `loadDb(part)`); the pads of the package (pin -> I/O tile) are not in it: it takes them from the device description (`padsFromDevice`) |
 | `measured/` | Results of the analyses that `build-db.sh` merges (slice harnesses, learned and corrected features: our own observations, no Xilinx files) |
 | `learn-single.mjs`, `unify-io.mjs` | Features measured in the reference designs; shared switch boxes of the I/O tile types |
@@ -777,6 +778,47 @@ research/s3e-device, `pip-exceptions.mjs --probe`): ISE refuses every exception 
 a type in one tile of the type, on the first device that has the type, and every per-tile one: 12 382 /
 2565 / 838 / 2554 on the XC3S100E / 250E / 500E / 1200E) and accepts every PIP the router may use in one
 tile of each type (47 542 / 56 959 / 56 959 / 59 707).
+
+### Rebuilding the database (2026-10-14, #48)
+
+`build-db.sh` needed the folders of the stage A-E experiments, which were not kept; it also no longer
+ran (it removed `db/s3e-tiles.json` before the analyses that load the database). The experiments are
+now made again from nothing by `measure-db.sh`, with fixed parameters, on a machine with ISE's Docker
+image (only Silinx's scripts' designs, the fixtures' HDL, and ISE's outputs left in the work folder,
+never in the repository):
+
+```
+SILINX_FUZZ_HOST=user@host research/s3e-bitstream/measure-db.sh /path/W    # ISE: about 10-15 hours on one Intel Mac mini shared with other work
+research/s3e-bitstream/build-db.sh /path/W                                   # seconds; rewrites db/ in place
+node research/s3e-bitstream/diff-db.mjs <copy of the db before> research/s3e-bitstream/db
+```
+
+| W | Experiment | ISE runs |
+|---|---|---|
+| `map/` | stage A: every slice numbered in its LUT, the empty design (`gen-map.mjs`) | 2 |
+| `br1/` | block-RAM contents (`gen-bram.mjs`) | 17 |
+| `io4/`, `io7/` | I/O settings per pad, per standard (`gen-iob.mjs --perpad / --perstd`) | 200 + 230 |
+| `impl/`, `pips/pd-*` | the fixtures with block RAMs, multipliers, a DCM, a BUFGMUX, distributed RAM and shift registers implemented by ISE, every PIP removed by codewords (`gen-pipdrop.mjs`, 20 variants) | 7 + 147 |
+| `pips/k1` | the global clock tree (`gen-clock.mjs`) | 9 |
+| `pips/c*` | test designs through the PIPs still to measure (`gen-pipcover.mjs --want`, rounds over the kinds of pins and lines) | 9 per round |
+| `pips/b*` | the rest as dead-end branches of those designs' nets (`gen-branch.mjs --want`) | 13 per batch |
+
+The PIPs measured are those the committed database holds (`want-pips.mjs`: per type its own
+features, one measurement serving the types that share a switch box), so that the rebuild can be
+compared feature by feature. Kept as numbers in `measured/` (as the slice harnesses, learned and
+corrected features already were): `pads-xc3s250e-cp132.json`, the pad features of #18 (I:NOLOAD) and
+#44 (IOB registers, input delays: about 1 900 ISE runs, not repeated). `build-db.sh` now keeps each
+file's description (`merge-db.mjs --reset-tiles / --reset-pads`), takes the graph from the device
+description (no device report), writes the XC3S250E's LUT file too, and ends with
+`pip-exceptions.mjs` (#74).
+
+**Result so far** (the XC3S250E, rebuilt from the new experiments): `xc3s250e-layout.json`,
+`xc3s250e-bram.json` and `xc3s250e-cp132-pads.json` identical to the committed files (the 1671 per-pad
+and 935 per-standard features of io4 / io7 all with the same bits); `xc3s250e-lut.json` identical but
+for its description (the committed file now has the one `decode-map.mjs` writes). The routing
+switches' batches (`pips/`, about 400 ISE runs) were still running when this was written: the
+comparison of `s3e-tiles.json` (and of `xc3s250e-slice.json`, which follows from it) is still to be
+made and recorded here. The other devices' files are rebuilt from `$W2` (stage F) as before.
 
 ### Open synthesis on the board (2026-10-10)
 
