@@ -32,12 +32,12 @@ jobs:
       && (github.event.workflow_run.name == 'Release' || github.event.workflow_run.head_branch == 'main'))
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
           # the commit CI tested; after a release or on demand, main's latest commit
           ref: ${{ github.event.workflow_run.name == 'CI' && github.event.workflow_run.head_sha || 'main' }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -70,7 +70,7 @@ jobs:
       - name: Usage counts (GoatCounter)
         if: vars.GOATCOUNTER_CODE != ''
         run: node scripts/site-analytics.mjs site "${{ vars.GOATCOUNTER_CODE }}"
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: site
   deploy:
@@ -81,4 +81,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

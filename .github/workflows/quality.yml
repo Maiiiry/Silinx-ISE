@@ -27,7 +27,7 @@ jobs:
     outputs:
       run: ${{ steps.changed.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: changed
@@ -42,8 +42,8 @@ jobs:
     env:
       SILINX_ISE_HOST: local    # ISE from the Docker image on the runner itself
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm ci
@@ -72,7 +72,7 @@ jobs:
           for k in 1 2 3; do git pull --rebase -q origin main && git push -q origin HEAD:main && exit 0; sleep 10; done
           exit 1
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: quality-results
           path: |

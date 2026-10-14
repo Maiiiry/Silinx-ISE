@@ -28,7 +28,7 @@ jobs:
     outputs:
       run: ${{ steps.changed.outputs.run }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - id: changed
@@ -45,8 +45,8 @@ jobs:
       SILINX_ISE_TESTS: '1'
       SILINX_ISE_HOST: local    # the ISE Docker image on the runner itself
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - run: npm ci
