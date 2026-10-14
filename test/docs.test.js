@@ -69,7 +69,45 @@ test('docs: the repository paths and npm scripts they name exist', () => {
 // comment would otherwise pair with the next quote and shift every literal after it, #127)
 export function literalsOf(code) {
   const text = transformSync(code, { loader: 'js', legalComments: 'none', charset: 'utf8' }).code;
-  return [...text.matchAll(/'((?:[^'\\]|\\.)*)'|"((?:[^"\\]|\\.)*)"|`([^`$]*)/g)].map(m => (m[1] ?? m[2] ?? m[3]).replace(/\\(['"])/g, '$1'));
+  // a scanner, not a regular expression (#213): quoted strings, template strings (their text outside
+  // ${…}, nested to any depth, templates inside them too) and regular expression literals (skipped:
+  // a quote in one must not open a string)
+  const out = [];
+  let i = 0, prev = '';
+  const unescape = x => x.replace(/\\(['"`$\\])/g, '$1');
+  function template() {   // at the char after the opening backtick; returns after the closing one
+    let part = '';
+    while (i < text.length) {
+      const c = text[i];
+      if (c === '\\') { part += text.slice(i, i + 2); i += 2; continue; }
+      if (c === '`') { i++; out.push(unescape(part)); return; }
+      if (c === '$' && text[i + 1] === '{') { out.push(unescape(part)); part = ''; i += 2; scan("}"); continue; }
+      part += c; i++;
+    }
+  }
+  function scan(close) {   // until the matching close brace (or the end)
+    let depth = 0;
+    while (i < text.length) {
+      const c = text[i];
+      if (c === "'" || c === '"') {
+        let j = i + 1, v = '';
+        while (j < text.length && text[j] !== c) { if (text[j] === '\\') { v += text.slice(j, j + 2); j += 2; } else v += text[j++]; }
+        out.push(unescape(v)); i = j + 1; prev = 'v'; continue;
+      }
+      if (c === '`') { i++; template(); prev = 'v'; continue; }
+      if (c === '/' && !/[\w$)\]]/.test(prev)) {   // a regular expression literal
+        let j = i + 1, cls = false;
+        while (j < text.length && (cls || text[j] !== '/')) { if (text[j] === '\\') j++; else if (text[j] === '[') cls = true; else if (text[j] === ']') cls = false; j++; }
+        i = j + 1; while (/[a-z]/.test(text[i] || '')) i++; prev = 'v'; continue;
+      }
+      if (close && c === '{') depth++;
+      if (close && c === '}') { if (depth === 0) { i++; return; } depth--; }
+      if (!/\s/.test(c)) prev = c;
+      i++;
+    }
+  }
+  scan(null);
+  return out;
 }
 const UI = fs.readdirSync(path.join(ROOT, 'web/js')).filter(f => f.endsWith('.js')).flatMap(f => literalsOf(read(`web/js/${f}`)));
 const MENUS = ['File', 'Edit', 'View', 'Project', 'Source', 'Process', 'Tools', 'Window', 'Help'];
@@ -148,4 +186,6 @@ test('docs test: the interface\'s labels are read past comments with quotes in t
   assert.deepEqual(literalsOf(code).filter(s => /…|XST/.test(s)), ['Open Project…', 'Design Properties…', 'Synthesize - XST']);
   // a label that only app.js has (no translation needed): found
   assert.ok(UI.includes('Open Workspace Folder…'));
+  // a template string with an apostrophe and a ${…}: the strings after it still read (#213)
+  assert.deepEqual(literalsOf("const t = `it's ${n} file(s)`; const u = 'Interface';"), ["it's ", ' file(s)', 'Interface']);
 });
