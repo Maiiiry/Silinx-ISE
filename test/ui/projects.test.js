@@ -275,7 +275,9 @@ uiTest('Open Example (traffic), the second example: the state diagram and the tr
     await page.key('Enter');
     try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
   }
-  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 60000, what: 'Simulation finished OK' });
+  // (a timeout says what ISim was doing: the end of its console, its time, whether it runs)
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK/.test(t) ? t : null; }, [], { timeout: 60000, what: 'Simulation finished OK' })
+    .catch(async (e) => { throw new Error(`${e.message}\n--- ISim: ${JSON.stringify(await page.eval(() => ({ active: window.Silinx.active?.id, running: window.Silinx.active?.view?.state?.running, time: document.querySelector('.isim-st-time')?.textContent, console: (document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || '').split('\n').slice(-15) })))}`); });
   assert.doesNotMatch(out, /ERROR|Warning/i);
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
