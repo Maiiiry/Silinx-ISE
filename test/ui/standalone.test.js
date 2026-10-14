@@ -642,3 +642,26 @@ uiTest('the site\'s Check for Updates (#198): the page open against the one the 
     await page.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: s1.identifier });
   }
 }, { url: () => 'about:blank', skip: chromeOnly });   // (Page.addScriptToEvaluateOnNewDocument)
+
+uiTest('browser edition: Generate Post-Synthesis Simulation Model in the browser, then Simulate Post-Synthesis Model: the test bench passes on the netlist (#120)', E, async (page) => {
+  await newSiteProject(page, 'WebPostSyn', 'blinky');
+  await page.treeRow('#procs', 'Generate Post-Synthesis Simulation Model', { dbl: true, exact: true });
+  await page.waitConsole(/Process "Generate Post-Synthesis Simulation Model" (completed successfully|failed)/, { timeout: 180000 });
+  const log = await page.consoleText();
+  assert.match(log, /Process "Generate Post-Synthesis Simulation Model" completed successfully/, log.slice(-3000));
+  assert.match(log, /=== SILINX STEP postsynth ===/);
+  assert.match(log, /Synthesizing 'top' with the generics the test bench 'tb_top' gives: div = 2, debounce = 2/);
+  assert.match(log, /Post-Synthesis simulation model: build\/netgen\/synthesis\/top_synthesis\.vhd/);
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_top');
+  await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
+  for (let k = 0; ; k++) {
+    await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
+    await page.key('Enter');
+    try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
+  }
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' });
+  assert.match(out, /Simulation finished OK/);
+  assert.doesNotMatch(out, /ERROR/);
+}, { url: () => 'about:blank', timeout: 300000 });

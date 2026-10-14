@@ -105,7 +105,10 @@ test('openSteps: the chain up to the last step; the ISE-only steps are refused',
   assert.deepEqual(OF.openSteps(['synth', 'translate', 'map', 'par', 'pin2ucf']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf']);
   assert.deepEqual(OF.openSteps(['pin2ucf']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf']);
   assert.deepEqual(OF.openSteps(['bitgen', 'pin2ucf']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'bitgen', 'prombit']);
-  assert.throws(() => OF.openSteps(['synth', 'postsynth', 'xpwr']), /not available in the Silinx toolchain \(they need Xilinx ISE\): postsynth, xpwr/);
+  // the Post-Synthesis Simulation Model: the Silinx toolchain's own since #120, after the synthesis
+  assert.deepEqual(OF.openSteps(['synth', 'postsynth']), ['synth', 'postsynth']);
+  assert.deepEqual(OF.openSteps(['postsynth', 'bitgen']), ['synth', 'postsynth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
+  assert.throws(() => OF.openSteps(['synth', 'postmap', 'xpwr']), /not available in the Silinx toolchain \(they need Xilinx ISE\): postmap, xpwr/);
 });
 
 test('toolchain configuration: the Silinx toolchain mode, its ISE for device descriptions, the status', async () => {
@@ -235,9 +238,9 @@ test('open mode: a device without a bit database fails with the reason; the ISE-
   assert.equal(j.status, 'error');
   assert.match(j.error, /^Silinx toolchain not available for xc3s1600efg320-4: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\)/);
   assert.ok(j.lines.some(l => /^ERROR: the Silinx toolchain cannot implement this design: no bit database for xc3s1600e yet/.test(l)));
-  const r = await app.call('POST', '/projects/Big/implement', { steps: ['synth', 'postsynth'] });
+  const r = await app.call('POST', '/projects/Big/implement', { steps: ['synth', 'postmap'] });
   assert.equal(r.status, 400);
-  assert.match(r.body.error, /not available in the Silinx toolchain \(they need Xilinx ISE\): postsynth/);
+  assert.match(r.body.error, /not available in the Silinx toolchain \(they need Xilinx ISE\): postmap/);
 });
 
 test('open mode: a VHDL top with capital letters (its netlist is named in lower case) goes through Translate and Map (#31)', { timeout: 300000 }, async () => {
@@ -412,4 +415,24 @@ test('the project\'s synthesis tool chooses the flow, whatever the mode of Toolc
   assert.equal(jobs.getJob(id).meta.toolchain, 'silinx');
   jobs.cancelJob(id);
   await waitJob(jobs, id);
+});
+
+test('open mode: Generate Post-Synthesis Simulation Model writes the model with the test bench\'s generics, in the reports; a later Implement keeps it there (#120)', { timeout: 300000 }, async () => {
+  await writeConfig({ mode: 'silinx' });
+  await app.call('POST', '/projects', { name: 'PostSyn', template: 'blinky', device: DEV('xc3s250e', 'cp132') });
+  const j = await waitJob(jobs, await implement('PostSyn', { steps: ['synth', 'postsynth'] }), { timeoutMs: 280000 });
+  const log = j.lines.join('\n');
+  assert.equal(j.status, 'ok', log);
+  const pj = (await app.call('GET', '/projects/PostSyn')).body;
+  const top = pj.top;
+  assert.deepEqual(j.result.completedSteps, ['synth', 'postsynth']);
+  assert.match(log, new RegExp(`^Post-Synthesis Simulation Model: build/netgen/synthesis/${top}_synthesis\\.vhd \\(VHDL, UNISIM primitives\\) and build/netgen/synthesis/${top}_synthesis\\.v \\(Verilog\\), \\d+ cells$`, 'm'));
+  const rep = (await app.call('GET', '/projects/PostSyn/reports')).body;
+  assert.equal(rep.simModels.postsynth.path, `build/netgen/synthesis/${top}_synthesis.vhd`);
+  const vhd = (await app.call('GET', `/projects/PostSyn/file?path=build/netgen/synthesis/${top}_synthesis.vhd`)).body;
+  assert.match(String(vhd.text ?? vhd), /^-- Post-Synthesis Simulation Model of /);
+  // a later run without the step: the model, still in build/, still in the reports
+  const j2 = await waitJob(jobs, await implement('PostSyn', { steps: ['synth'] }), { timeoutMs: 280000 });
+  assert.equal(j2.status, 'ok');
+  assert.equal((await app.call('GET', '/projects/PostSyn/reports')).body.simModels.postsynth.path, `build/netgen/synthesis/${top}_synthesis.vhd`);
 });

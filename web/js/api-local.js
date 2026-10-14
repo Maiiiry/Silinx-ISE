@@ -149,7 +149,7 @@ const buildOf = name => { if (!builds.has(name)) builds.set(name, { files: {}, r
 function reportsOf(pj, r) {
   const out = { generatedAt: new Date().toISOString(), top: pj.top, device: pj.device || null, source: 'open', synthesis: r.synthesis, map: r.map, par: r.par, timing: r.timing,
     bit: r.bit ? { ...r.bit, header: { design: `${pj.top}.ncd`, part: `${String(pj.device.part).replace(/^xc/i, '')}${pj.device.package}` } } : undefined,
-    prom: r.prom, pinsUcf: r.pinsUcf, simModels: {}, files: r.files || {} };
+    prom: r.prom, pinsUcf: r.pinsUcf, simModels: r.simModels || {}, files: r.files || {} };
   out.summary = { synthesized: !!out.synthesis, mapped: !!out.map, routed: out.par ? out.par.routed : null, timingMet: out.timing ? out.timing.met : null,
     maxFreqMHz: out.timing?.maxFreqMHz ?? null, utilization: out.map?.summary || null, bitstream: !!out.bit };
   return out;

@@ -2,7 +2,7 @@
 // WebAssembly, pack, place and route, timing, bitstream) in the browser edition, off the page's thread.
 // The device description, the bit database and Yosys are fetched from `assets` (the site's
 // assets/ folder; web/js/open-flow-browser.js chooses it).
-//   in:  { spec, sources: [{ path, lang, text }], ucf, ucfName, files: { name: text }, assets }
+//   in:  { spec, sources: [{ path, lang, text }], simSources (the test benches), ucf, ucfName, files: { name: text }, assets }
 //   out: { line } … { write: name, data } … { report } … then { done: { ok, report, error, view } }
 import { runOpenFlow } from '/core/open-flow-core.js';
 import { loadDevice } from '/core/fpga/device.js';
@@ -21,7 +21,7 @@ async function gunzipJson(res) {
 }
 
 self.onmessage = async ({ data }) => {
-  const { spec, sources, ucf, ucfName, files, assets } = data;
+  const { spec, sources, simSources = [], ucf, ucfName, files, assets } = data;
   const post = m => self.postMessage(m);
   try {
     const base = new URL(assets);
@@ -59,6 +59,7 @@ self.onmessage = async ({ data }) => {
     const io = {
       log: line => post({ line }),
       sources: () => sources,
+      simSources: () => simSources,
       ucf, ucfName,
       device: () => device,
       bitDb: () => db,

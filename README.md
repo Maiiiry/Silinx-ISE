@@ -88,8 +88,9 @@ for Xilinx FPGAs supported by ISE 14.7.
   wired by the UCF: click the slide switches, press the buttons, watch the LEDs and the
   multiplexed 7-segment display (persistence of vision), at a chosen clock rate, with a watch list
   of internal signals. It simulates the HDL, so it works without ISE and in the standalone edition.
-  With ISE it can also run what the tools built: the post-synthesis, post-translate, post-map or
-  post-place & route netlist (netgen), on the board or in ISim, with Silinx's own models of the
+  It can also run what the tools built: the post-synthesis netlist (the Silinx toolchain's own, or
+  ISE's netgen) and, with ISE, the post-translate, post-map or post-place & route netlist, on the
+  board or in ISim, with Silinx's own models of the
   UNISIM / SIMPRIM primitives (functional, no SDF timing): LUTs, flip-flops, latches, carry
   logic, SRLs, distributed and block RAM, multipliers, clock buffers and DCMs (CLK0/90/180/270,
   CLK2X, CLKDV and CLKFX at their real frequencies).
@@ -320,8 +321,11 @@ timing against the UCF's PERIOD constraints), *Generate Programming File* (`buil
 Summary* (utilization, timing) as with ISE; *Configure Target Device* programs the board as usual
 and *View Implemented Design (FPGA)* shows the routed design; *Back-annotate Pin Locations* adds the
 pads the placer chose to the UCF and *View Technology Schematic* draws the netlist of its synthesis
-(Yosys's LUTs, flip-flops, carry chains, block RAMs…, by instance of the design). The processes that
-need ISE (simulation models of the implementation, power) are disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
+(Yosys's LUTs, flip-flops, carry chains, block RAMs…, by instance of the design); *Generate
+Post-Synthesis Simulation Model* writes that netlist as a VHDL model of UNISIM primitives (and in
+Verilog), synthesized with the generics the test bench gives the design, for *Simulate
+Post-Synthesis Model*. The processes that need ISE (the later simulation models, power) are disabled
+in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
 RAMs, multipliers, distributed RAMs, shift registers (SRL16) and DCMs (any DCM site, more than one
 per design, each clock output on a global buffer its dedicated path reaches; `INST "u" LOC =
 "DCM_X1Y0"` picks the site). A design the Silinx toolchain cannot implement yet (a feature not in the bit

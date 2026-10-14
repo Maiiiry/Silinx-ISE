@@ -2,7 +2,7 @@
 // synchronous parts, placing and routing, never hold the server; Stop kills it):
 //   node server/open-flow-run.js build/open/flow.json
 // flow.json: { top, part, device, family, pkg, graph, bitDbDir, sources: [{ path, lang, file }], ucf,
-//   buildDir, outDir, steps, seed, effort, startupClk }.
+//   buildDir, outDir, steps, seed, effort, startupClk, simTop, simSources: [{ path, lang, file }] }.
 // The flow itself is core/open-flow-core.js (the browser edition runs the same, web/js/open-flow-worker.js);
 // this file gives it the files on disk: the log on stdout ("=== SILINX STEP <step> ===", "=== SILINX
 // FAILED <step> (exit 1) ===", "=== SILINX DONE ===": the protocol of ISE's run.sh) and
@@ -24,6 +24,7 @@ let dev = null, db = null;
 const io = {
   log: line => console.log(line),
   sources: () => spec.sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(s.file, 'utf8') })),
+  simSources: () => (spec.simSources || []).filter(s => fs.existsSync(s.file)).map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(s.file, 'utf8') })),
   ucf: spec.ucf ? fs.readFileSync(spec.ucf, 'utf8') : null,
   ucfName: spec.ucf ? path.basename(spec.ucf) : null,
   device: () => (dev ||= loadDeviceCache(spec.graph)),
@@ -31,8 +32,9 @@ const io = {
   yosys: yosysNode,
   write: (name, data) => {
     const f = fileOf(name);
+    fs.mkdirSync(path.dirname(f), { recursive: true });   // (netgen/synthesis/…)
     fs.writeFileSync(f, data);
-    return name.startsWith('open/') ? rel(f) : f;   // (the bitstreams: their path, for the programmer)
+    return name.startsWith('open/') || name.startsWith('netgen/') ? rel(f) : f;   // (the bitstreams: their path, for the programmer)
   },
   read: name => {
     const f = fileOf(name);

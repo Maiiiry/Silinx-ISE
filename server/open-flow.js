@@ -43,8 +43,9 @@ const supported = (dir = BIT_DB_DIR) => BITSTREAM_DEVICES.map(d => [d, hasBitDat
   .map(([d, p]) => `${d.toUpperCase()} (${p.join(', ').toUpperCase()})`).join(', ');
 
 /** The steps of the open flow (the ISE flow's names; pin2ucf: the pins the placer chose, as
- *  build/<top>_pins.ucf). The others (simulation models, power) need ISE. */
-export const OPEN_STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'bitgen', 'prombit', 'fpgaview'];
+ *  build/<top>_pins.ucf; postsynth: the Post-Synthesis Simulation Model, #120). The others (the
+ *  later simulation models, power) need ISE. */
+export const OPEN_STEPS = ['synth', 'postsynth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'bitgen', 'prombit', 'fpgaview'];
 const CHAIN = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
 
 /** Does a bit database exist for this device (e.g. 'xc3s250e'), and with pkg for the pads of that
@@ -117,6 +118,9 @@ export function openSteps(steps) {
   if (bad.length) throw Object.assign(new Error(`not available in the Silinx toolchain (they need Xilinx ISE): ${bad.join(', ')}. Choose an ISE mode in Toolchain Settings.`), { status: 400 });
   const last = Math.max(-1, ...st.map(s => CHAIN.indexOf(s)));
   const out = CHAIN.slice(0, last + 1);
+  // the post-synthesis model: after the synthesis when it runs (the model may be synthesized again with
+  // the test bench's generics)
+  if (st.includes('postsynth')) out.splice(out.includes('synth') ? 1 : 0, 0, 'postsynth');
   // the pins of the placement: after Place & Route (and its timing), before the bitstream
   if (st.includes('pin2ucf')) {
     if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
@@ -161,6 +165,9 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
     sources: gen.sources.map(s => ({ path: s.path, lang: s.lang, file: path.join(gen.buildDir, s.buildPath) })),
     ucf: gen.hasUcf ? path.join(gen.buildDir, `${gen.top}.ucf`) : null,
     buildDir: gen.buildDir, outDir, steps: st, seed, effort, startupClk: project.impl?.startupClk || 'JtagClk',
+    // the test bench, for the post-synthesis model's generics (#120)
+    simTop: project.simTop || null,
+    simSources: (project.files || []).filter(f => f.role === 'sim' && (f.lang === 'vhdl' || f.lang === 'verilog')).map(f => ({ path: f.path, lang: f.lang, file: path.resolve(projectDir, f.path) })),
   };
   await fs.writeFile(path.join(outDir, 'flow.json'), JSON.stringify(spec, null, 2) + '\n');
   const onLine = line => {
@@ -205,6 +212,11 @@ export async function openReports(buildDir, top, device) {
     synthesis: r.synthesis || undefined, map: r.map || undefined, par: r.par || undefined, timing: r.timing || undefined,
     bit: r.bit && base.bit ? base.bit : undefined, prom: r.prom || undefined,
     pinsUcf: r.pinsUcf && base.pinsUcf ? base.pinsUcf : undefined, simModels: {}, files: r.files || {} };
+  // the post-synthesis model (#120): this run's, or an earlier run's still in build/ (as the ISE flow's)
+  const ps = path.join(buildDir, 'netgen', 'synthesis', `${top}_synthesis.vhd`);
+  if (r.simModels?.postsynth || fss.existsSync(ps)) {
+    out.simModels.postsynth = { ...(r.simModels?.postsynth || {}), path: `build/netgen/synthesis/${top}_synthesis.vhd`, mtime: fss.existsSync(ps) ? (await fs.stat(ps)).mtime.toISOString() : null };
+  }
   out.summary = {
     synthesized: !!out.synthesis,
     mapped: !!out.map,

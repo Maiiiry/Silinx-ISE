@@ -600,9 +600,9 @@ const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'sum
 // (the browser edition: the Silinx toolchain, unless the project chose XST)
 export const openMode = () => (S.project?.synthTool ? S.project.synthTool === 'silinx' : api.standalone || S.toolchain?.config?.mode === 'silinx');
 const OPEN_SYNTH = 'Synthesize - Yosys';
-// (Back-annotate Pin Locations and View Technology Schematic are the Silinx toolchain's own: the pads
-// its placer chose, the netlist of its synthesis)
-const ISE_ONLY = new Set(['postsynth', 'posttrans', 'postmap', 'postpar', 'xpwr']);
+// (Back-annotate Pin Locations, View Technology Schematic and the Post-Synthesis Simulation Model are
+// the Silinx toolchain's own: the pads its placer chose, the netlist of its synthesis, #120)
+const ISE_ONLY = new Set(['posttrans', 'postmap', 'postpar', 'xpwr']);
 const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';
 function forOpenMode(defs) {
   const conv = p => {
@@ -1637,7 +1637,7 @@ async function netlistSources(step, { hier = false } = {}) {
   try { rep = await api.reports(S.project.name); } catch { /* none */ }
   const m = rep?.simModels?.[step];
   if (!m || rep.top !== S.project.top) {
-    alertDlg(`${name} Model`, `There is no ${name.toLowerCase()} simulation model of '${S.project.top}' yet.\n\nRun "${EXTRA_STEPS[step]}" in the Implementation view first (it needs the Xilinx ISE toolchain).`);
+    alertDlg(`${name} Model`, `There is no ${name.toLowerCase()} simulation model of '${S.project.top}' yet.\n\nRun "${EXTRA_STEPS[step]}" in the Implementation view first${step === 'postsynth' ? '' : ' (it needs the Xilinx ISE toolchain)'}.`);
     return null;
   }
   const stage = { postsynth: 'synth', posttrans: 'translate', postmap: 'map', postpar: 'par' }[step];

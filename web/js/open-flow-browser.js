@@ -44,12 +44,14 @@ const ALIASES = { implement: 'par', impl: 'par', synthesize: 'synth', xst: 'synt
 export function browserSteps(steps) {
   const set = new Set((Array.isArray(steps) ? steps : [steps]).filter(Boolean).map(s => ALIASES[String(s).toLowerCase()] || String(s).toLowerCase()));
   if (!set.size) CHAIN.forEach(s => set.add(s));
-  const bad = [...set].filter(s => !CHAIN.includes(s) && s !== 'fpgaview' && s !== 'pin2ucf');
+  const bad = [...set].filter(s => !CHAIN.includes(s) && s !== 'fpgaview' && s !== 'pin2ucf' && s !== 'postsynth');
   if (bad.length) throw new Error(`not available in the Silinx toolchain (they need Xilinx ISE, in the full application): ${bad.join(', ')}`);
   if (set.has('par')) set.add('trce');
   if (set.has('bitgen')) set.add('prombit');
   const last = Math.max(-1, ...[...set].map(s => CHAIN.indexOf(s)));
   const out = CHAIN.slice(0, last + 1);
+  // the Post-Synthesis Simulation Model (#120): after the synthesis when it runs
+  if (set.has('postsynth')) out.splice(out.includes('synth') ? 1 : 0, 0, 'postsynth');
   // the pins of the placement (Back-annotate Pin Locations): after Place & Route, before the bitstream
   if (set.has('pin2ucf')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.splice(out.indexOf('trce') + 1, 0, 'pin2ucf'); }
   if (set.has('fpgaview')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.push('fpgaview'); }
@@ -98,7 +100,10 @@ export async function runBrowserFlow({ project, files, steps, onLine, onWrite = 
   if (unplaced.length && project.board) throw new Error(`${unplaced.length} top-level port bit(s) have no pin location (LOC) for the ${project.board} board: ${unplaced.slice(0, 12).map(u => u.net).join(', ')}${unplaced.length > 12 ? ', …' : ''}. Assign them in I/O Pin Planning (or remove the board in Design Properties).`);
   if (unplaced.length) onLine(`WARNING:Silinx - ${unplaced.length} port bit(s) have no LOC constraint (${unplaced.slice(0, 8).map(u => u.net).join(', ')}${unplaced.length > 8 ? ', …' : ''}): the Silinx toolchain chooses their pins - do NOT program real hardware with this bitstream`);
   const dev = String(project.device.part).toLowerCase(), pkg = String(project.device.package).toLowerCase();
-  const spec = { top, part: st.part, device: dev, pkg, family: 'spartan3e', graph: st.graph, steps: browserSteps(steps), seed: 1, effort: 1, startupClk: project.impl?.startupClk || 'JtagClk' };
+  const spec = { top, part: st.part, device: dev, pkg, family: 'spartan3e', graph: st.graph, steps: browserSteps(steps), seed: 1, effort: 1, startupClk: project.impl?.startupClk || 'JtagClk', simTop: project.simTop || null };
+  // the test benches, for the post-synthesis model's generics (#120)
+  const simSources = (project.files || []).filter(f => f.role === 'sim' && (f.lang === 'verilog' || f.lang === 'vhdl') && typeof files[f.path] === 'string')
+    .map(f => ({ path: f.path, lang: f.lang, text: files[f.path] }));
   onLine(`Silinx implementation with the Silinx toolchain, in the browser (no ISE): ${project.name} top=${top} device=${st.part}`);
   const earlier = {};
   for (const [k, v] of Object.entries(files)) if (k.startsWith('build/') && typeof v === 'string') earlier[k.slice(6)] = v;
@@ -111,6 +116,6 @@ export async function runBrowserFlow({ project, files, steps, onLine, onWrite = 
       else if (data.done) resolve(data.done);
     };
     w.onerror = e => { worker = null; reject(new Error(`the Silinx toolchain could not start in this browser: ${e.message || 'the worker failed'}`)); };
-    w.postMessage({ spec, sources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase() });
+    w.postMessage({ spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase() });
   });
 }

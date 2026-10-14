@@ -4,6 +4,7 @@
 // comes through `io`:
 //   io.log(line)                       a line of the log (the console)
 //   io.sources()                       [{ path, lang, text }] of the design
+//   io.simSources()                    those of the simulation (the test benches), for postsynth (optional)
 //   io.ucf                             the constraints' text, or null
 //   io.ucfName                         the constraints file's name (for the log)
 //   io.device()                        the device description (core/fpga/device.js Device), loaded once
@@ -18,6 +19,7 @@
 // Returns { ok, report }.
 import { compile, elaborate } from './compile.js';
 import { primitiveSources } from './unisim.js';
+import { dutGenerics, postSynthesisModels } from './sim-model.js';
 import { synthesizeOpen } from './synth-open.js';
 import { parseXdl, writeXdl, placedPins } from './xdl.js';
 import { parseUcf, pinsUcf } from './ucf.js';
@@ -88,6 +90,40 @@ export async function runOpenFlow(spec, io) {
     report.files.synthesis = paths[`${r.top}_stat.txt`];
     synth = r;
     log(`Netlist: ${report.files.netlist} (${u.cells} cells) in ${ms(t)}`);
+  }
+
+  // Generate Post-Synthesis Simulation Model (#120): build/netgen/synthesis/<top>_synthesis.vhd (and .v),
+  // synthesized with the generics the test bench (spec.simTop) gives its instance of the top
+  async function runPostSynth() {
+    const srcs = io.sources(), sims = io.simSources ? io.simSources() : [];
+    let generics = {}, testbench = null;
+    if (spec.simTop && sims.length) {
+      const all = [...srcs, ...sims];
+      const tb = elaborate(compile([...primitiveSources(all), ...all]), spec.simTop);
+      const g = tb.top ? dutGenerics(tb, top) : null;
+      if (g) {
+        generics = g.generics; testbench = spec.simTop;
+        if (g.skipped.length) log(`WARNING:Silinx - the test bench '${spec.simTop}' gives ${g.skipped.join(', ')} values that are not integers: the model is synthesized with their defaults`);
+      } else log(`INFO:Silinx - the test bench '${spec.simTop}' has no instance of '${top}': the model is synthesized with its own generics`);
+    }
+    let r = synth;
+    if (!r || Object.keys(generics).length) {
+      if (Object.keys(generics).length) log(`Synthesizing '${top}' with the generics the test bench '${testbench}' gives: ${Object.entries(generics).map(([k, v]) => `${k} = ${v}`).join(', ')}`);
+      const lib = compile([...primitiveSources(srcs), ...srcs]);
+      const design = elaborate(lib, top, { generics });
+      const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
+      if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
+      try { r = await synthesizeOpen(design, { family: spec.family, run: io.yosys }); } catch (e) {
+        for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
+        throw new StepError(`synthesis failed: ${e.message}`);
+      }
+    }
+    const m = postSynthesisModels(r, { top, part: spec.part, generics, testbench });
+    if (m.unknown.length) log(`WARNING:Silinx - cells with no simulation model in Silinx (the model cannot be simulated as it is): ${m.unknown.join(', ')}`);
+    const vhd = io.write(`netgen/synthesis/${top}_synthesis.vhd`, m.vhdl);
+    const v = io.write(`netgen/synthesis/${top}_synthesis.v`, m.verilog);
+    report.simModels = { ...(report.simModels || {}), postsynth: { path: vhd, verilog: v, ...(testbench ? { testbench, generics } : {}) } };
+    log(`Post-Synthesis Simulation Model: ${vhd} (VHDL, UNISIM primitives) and ${v} (Verilog), ${m.cells} cells`);
   }
 
   function runTranslate() {
@@ -215,6 +251,7 @@ export async function runOpenFlow(spec, io) {
   const steps = spec.steps;
   try {
     if (steps.includes('synth')) { step('synth'); await runSynth(); save(); }
+    if (steps.includes('postsynth')) { step('postsynth'); await runPostSynth(); save(); }
     if (steps.includes('translate')) { step('translate'); runTranslate(); save(); }
     if (steps.includes('map')) { step('map'); runMap(); save(); }
     if (steps.includes('par')) { step('par'); runPar(); save(); }

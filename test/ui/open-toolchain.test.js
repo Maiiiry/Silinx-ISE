@@ -85,12 +85,13 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   const procs = await procLabels(page);
   assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
   assert.ok(!procs.some((p) => p.label === 'Synthesize - Yosys (open)' || p.label === 'Synthesize - XST'));
-  for (const l of ['Generate Post-Synthesis Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Text Power Report']) {
+  for (const l of ['Generate Post-Map Simulation Model', 'Generate Text Power Report']) {
     const p = procs.find((x) => x.label === l);
     assert.ok(p?.disabled, l);
     assert.equal(p.title, 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)');
   }
-  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
+  // (the Post-Synthesis Simulation Model: the Silinx toolchain's own since #120)
+  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device', 'Generate Post-Synthesis Simulation Model']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
   await setLang('pt');
   const ptProcs = await procLabels(page);
   assert.ok(ptProcs.some((p) => p.label === 'Sintetizar - Yosys'));
@@ -392,5 +393,35 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo LUT2', 'Pinos (3)', 'Larguras das entradas (MSB primeiro)', 'Função do LUT (INIT)'])
     assert.ok(tech.pt.has(s), `${s}: ${[...tech.pt].join(' | ')}`);
   assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 300000 });
+
+uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simulate Post-Synthesis Model: the test bench passes on the netlist (#120)', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenPostSyn', template: 'blinky' });
+  await page.openProject('OpenPostSyn');
+  await reloadToolchain(page);
+  await page.treeRow('#procs', 'Generate Post-Synthesis Simulation Model', { dbl: true, exact: true });
+  await page.waitConsole(DONE('Generate Post-Synthesis Simulation Model'), { timeout: 180000 });
+  const text = await page.consoleText();
+  assert.match(text, /Process "Generate Post-Synthesis Simulation Model" completed successfully/, text.slice(-3000));
+  assert.match(text, /Synthesizing 'top' with the generics the test bench 'tb_top' gives: div = 2, debounce = 2/);
+  assert.match(text, /Post-Synthesis simulation model: build\/netgen\/synthesis\/top_synthesis\.vhd \(simulate it in the Simulation view, or emulate it on the board\)\./);
+  // the Simulation view: Simulate Post-Synthesis Model of the test bench
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_top');
+  await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
+  // (longer than ISim's first run: run all; typed again if no run started, as in Open Example (traffic))
+  for (let k = 0; ; k++) {
+    await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
+    await page.key('Enter');
+    try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
+  }
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' })
+    .catch(async (e) => { throw new Error(`${e.message}\n--- ISim: ${JSON.stringify(await page.eval(() => ({ running: window.Silinx.active?.view?.state?.running, time: document.querySelector('.isim-st-time')?.textContent, console: (document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || '').split('\n').slice(-12) })))}`); });
+  assert.match(out, /Simulation finished OK/);
+  assert.doesNotMatch(out, /ERROR/);
+  assert.match(await page.consoleText(), /with the post-synthesis netlist of 'top'/);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });

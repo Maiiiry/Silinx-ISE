@@ -10,6 +10,8 @@ In short:
 - **The schematic of any HDL module:** *Convert to Schematic (editable)* works for every VHDL and
   Verilog module, behavioural ones too; the schematic shows in the Design pane on the module's row
   (**[Schematic]**), and the HDL generated from it behaves as the module did.
+- **Post-Synthesis Simulation Model without ISE:** the Silinx toolchain writes its netlist as a
+  simulation model, so the test bench can be run on the synthesized design.
 
 In detail:
 
@@ -41,6 +43,18 @@ In detail:
   the drawing's module is replaced by the generated HDL after you say Yes; a file holding something
   else is left alone and the HDL goes to `<module>_<kind>.vhd` (`ctl_pn.vhd`, `maj_tt.vhd`…). The New
   Source wizards refuse a drawing whose HDL file name, or module name, is taken.
+- **Generate Post-Synthesis Simulation Model in the Silinx toolchain (#120):** no longer *Needs Xilinx
+  ISE*: the open synthesis's netlist written as ISE's netgen writes it, a VHDL model of UNISIM primitives
+  (`build/netgen/synthesis/<top>_synthesis.vhd`, its entity with the top's ports), and in Verilog (`.v`);
+  synthesized with the generics the test bench gives the design (a clock divider of 2 instead of
+  50 000 000, so that it simulates quickly; said in the model's header and in the console), which it
+  declares, so the test bench's generic map is taken as it is. *Simulate Post-Synthesis Model* and
+  *Emulate Post-Synthesis Model* run it, in the application and in the browser edition. Every example's
+  test bench passes on it, in VHDL and in Verilog.
+- **Open synthesis: a conversion that changes the sign and the width was synthesized wrong (#229):**
+  `to_unsigned(8389, 14)` of an integer, in a product, was sign-extended: the stopwatch example's
+  decimal display showed wrong thousands and hundreds with the Silinx toolchain (7 as 15 1 0 7). Found
+  by the post-synthesis model's test of the examples.
 
 ## 15.10.15
 
