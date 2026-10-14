@@ -37,7 +37,7 @@ export const SRL_MAP_FILE = 'silinx_srl_map.v';
 export const SRL_CELLS_FILE = 'silinx_srl_cells.v';
 export const SRL_CELLS = `// Silinx: the falling-edge shift register, a black box for Yosys
 (* blackbox *)
-module SRL16E_1 (output Q, input A0, input A1, input A2, input A3, input CE, input CLK, input D);
+module SRL16E_1 (output Q, input A0, input A1, input A2, input A3, input CE, (* clkbuf_sink *) input CLK, input D);   // (clkbuf_sink: its clock gets a BUFG, #219)
   parameter [15:0] INIT = 16'h0000;
 endmodule
 `;

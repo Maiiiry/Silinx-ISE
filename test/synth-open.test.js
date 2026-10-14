@@ -299,3 +299,9 @@ end;`;
   const r = await synthesizeOpen(elaborate(compile([{ path: 'g.vhd', text }]), 'g'), { run: yosysNode });
   assert.equal(r.cells.FDCE, 4);
 });
+
+test('a shift register on the falling edge alone (SRL16E_1) gets its clock through a BUFG (#219)', { timeout: 120000 }, async () => {
+  const design = elaborate(compile([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [7:0] r = 0; always @(negedge clk) r <= {r[6:0], d}; assign q = r[7]; endmodule' }]), 't');
+  const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
+  assert.deepEqual(Object.fromEntries(Object.entries(r.cells).sort()), { BUFG: 1, IBUF: 2, OBUF: 1, SRL16E_1: 1 });
+});
