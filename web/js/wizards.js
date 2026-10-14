@@ -473,7 +473,8 @@ const SOURCE_TYPES = [
   { id: 'schwiz', label: 'Schematic (Wizard)', ico: 'schematic', ext: '.sch.json', dir: 'src' },
   { id: 'fsm', label: 'State Machine (FSM)', ico: 'fsm', ext: '.fsm.json', dir: 'src' },
   { id: 'asm', label: 'State Machine (ASM)', ico: 'asm', ext: '.asm.json', dir: 'src' },
-  { id: 'petri', label: 'Petri Net', ico: 'petri', ext: '.pn.json', dir: 'src' },
+  { id: 'petri', label: 'Petri Net (Diagram)', ico: 'petri', ext: '.pn.json', dir: 'src' },
+  { id: 'pnwiz', label: 'Petri Net (Wizard)', ico: 'petri', ext: '.pn.json', dir: 'src' },
   { id: 'tb', label: 'Test Bench (HDL)', ico: 'vhdl', ext: null, dir: 'sim' },
   { id: 'tbwiz', label: 'Test Bench (Wizard)', ico: 'template', ext: null, dir: 'sim' },
   { id: 'ucf', label: 'Implementation Constraints File', ico: 'ucf', ext: '.ucf', dir: 'constraints' },
@@ -482,7 +483,7 @@ const SOURCE_TYPES = [
   { id: 'vhdl-pkg', label: 'VHDL Package', ico: 'vhdl', ext: '.vhd', dir: 'src', hidden: true },
 ];
 // the wizards opened by Finish on page 1 (New Source asks only the file name and location)
-const WIZARD_TYPES = new Set(['tbwiz', 'modwiz', 'schwiz']);
+const WIZARD_TYPES = new Set(['tbwiz', 'modwiz', 'schwiz', 'pnwiz']);
 
 export async function newSourceWizard({ type } = {}) {
   if (!S.project) return;
@@ -615,7 +616,7 @@ export async function newSourceWizard({ type } = {}) {
   const pages = () => {
     if (st.id === 'hdl') return [p1, pFile, p2, pSum];
     if (st.id === 'tb') return [p1, pFile, p2tb, pSum];
-    if (WIZARD_TYPES.has(st.id)) return [p1];   // Finish opens the Test Bench / Module / Schematic Wizard (name and location there)
+    if (WIZARD_TYPES.has(st.id)) return [p1];   // Finish opens the Test Bench / Module / Schematic / Petri Net Wizard (name and location there)
     return [p1, pFile, pSum];
   };
   // The wizard driver takes a fixed page list; rebuild when the type changes on page 1.
@@ -637,6 +638,10 @@ export async function newSourceWizard({ type } = {}) {
     // a file name that is not an identifier (e.g. with -) becomes the suggested module name
     const ident = n.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '');
     return (st.id === 'modwiz' ? mw.moduleWizard : mw.schematicWizard)({ name: ident, location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
+  }
+  if (st.id === 'pnwiz') {
+    const { petriWizard } = await import('./petri-wizard.js');
+    return petriWizard({ location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
   }
   const path = `${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`;
   let text;

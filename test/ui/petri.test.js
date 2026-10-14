@@ -239,10 +239,15 @@ uiTest('Petri net editor: the analysis (#188): properties, places, transitions, 
   await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
 });
 
-uiTest('Petri Net Wizard (#208): name and location, the inputs and outputs (no bidirectional), the clock and the reset, a clash refused; the net created with its ports, opened', E, async (page) => {
+uiTest('Petri Net Wizard (#208): New Source ▸ Petri Net (Wizard), name and location, the inputs and outputs (no bidirectional), the clock and the reset, a clash refused; the net created with its ports and its HDL file, opened', E, async (page) => {
   await makeProject(env, { name: 'PnWiz', top: '' });
   await page.openProject('PnWiz');
-  await page.eval(() => { import('/js/petri-wizard.js').then((w) => w.petriWizard()); });
+  // New Source: 'Petri Net (Diagram)' and 'Petri Net (Wizard)'; Finish on the type opens the wizard
+  await page.menu('Project', 'New Source…');
+  await page.waitDialog('New Source Wizard');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.textContent.trim()).filter((t) => /Petri/.test(t))), ['Petri Net (Diagram)', 'Petri Net (Wizard)']);
+  await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.textContent.trim() === 'Petri Net (Wizard)').click());
+  await page.dialogButton('Finish');
   await page.waitDialog('Petri Net Wizard');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3').textContent), 'Name and Language');
   await page.fill('.dlg-overlay .mw-name', 'ctl');
@@ -252,6 +257,8 @@ uiTest('Petri Net Wizard (#208): name and location, the inputs and outputs (no b
   await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Inputs and Outputs');
   // inputs and outputs only
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .mw-quick > div > span:first-child')].map((s) => s.textContent)), ['Quick add (inputs):', 'Quick add (outputs):']);
+  // no clk / reset quick buttons: the clock and the reset have fields of their own
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .mw-qa')].map((b) => b.dataset.port).filter((n) => /^(clk|reset)$/.test(n))), []);
   for (let k = 0; k < 4; k++) await page.click('.dlg-overlay .mw-add');
   for (const [k, [n, d, w]] of [['go', 'in', 1], ['sel', 'in', 3], ['busy', 'out', 1], ['st', 'out', 2]].entries()) {
     await page.fill('.dlg-overlay .mw-pname', n, { index: k });
@@ -277,6 +284,10 @@ uiTest('Petri Net Wizard (#208): name and location, the inputs and outputs (no b
   assert.deepEqual([m.name, m.lang, m.clock, m.reset, m.inputs, m.outputs, m.places, m.transitions, m.arcs],
     ['ctl', 'vhdl', 'clk', { name: 'rst', active: 'high', sync: true }, [{ name: 'go', width: 1 }, { name: 'sel', width: 3 }], [{ name: 'busy', width: 1 }, { name: 'st', width: 2 }], [], [], []]);
   assert.deepEqual(await page.eval((ed) => [...document.querySelectorAll(`${ed} .asm-prob`)].map((li) => li.textContent), ED), []);
+  // its HDL file, made with it (#207) and kept in sync
+  await page.waitFor(() => window.Silinx.project.files.some((f) => f.path === 'nets/ctl.vhd'), [], { what: 'nets/ctl.vhd', timeout: 15000 });
+  assert.match(await readWs(env, 'PnWiz', 'nets/ctl.vhd'), /entity ctl is[\s\S]*sel : in std_logic_vector\(2 downto 0\);[\s\S]*st : out std_logic_vector\(1 downto 0\)/);
+  assert.equal(JSON.parse(await readWs(env, 'PnWiz', 'nets/ctl.pn.json')).generatedFile, 'nets/ctl.vhd');
   assert.match(await page.eval(() => document.querySelector('#console, .console-page')?.textContent || ''), /Petri Net Wizard: created nets\/ctl\.pn\.json with 2 input\(s\) and 2 output\(s\)\./);
   // in Portuguese
   await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });

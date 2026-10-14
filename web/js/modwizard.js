@@ -65,8 +65,8 @@ export function namePage({ title, name, lang, loc, sch, withArch, guard, ext = n
 }
 
 // ---------------------------------------------------------------- the friendly port table
-/** The table of the ports (dirs: the directions offered; the Petri Net Wizard: in and out only). */
-export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'out', 'inout'] }) {
+/** The table of the ports (dirs: the directions offered, noQuick: quick-add buttons left out; the Petri Net Wizard: in and out only, no clk / reset, its own fields). */
+export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'out', 'inout'], noQuick = [] }) {
   const tbl = h('table', { class: 'grid mw-ports' });
   const quick = h('div', { class: 'mw-quick', style: { display: 'flex', flexDirection: 'column', gap: '4px', margin: '6px 0' } });
   const has = n => ports.some(p => p.name.toLowerCase() === n.toLowerCase());
@@ -77,7 +77,7 @@ export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'ou
       const row = h('div', { style: { display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' } },
         h('span', { style: { width: '120px' } }, dir === 'in' ? 'Quick add (inputs):' : dir === 'out' ? 'Quick add (outputs):' : 'Quick add (bidirectional):'));
       const btns = h('span', { 'data-no-i18n': '', style: { display: 'flex', gap: '4px', flexWrap: 'wrap' } });
-      for (const q of QUICK_PORTS.filter(x => x.dir === dir)) {
+      for (const q of QUICK_PORTS.filter(x => x.dir === dir && !noQuick.includes(x.name))) {
         btns.append(h('button', { class: 'btn mw-qa', 'data-port': q.name, disabled: has(q.name), onclick: () => { if (!has(q.name)) add(q); } }, portText(q)));
       }
       row.append(btns);

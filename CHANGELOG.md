@@ -5,6 +5,7 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.14
 
+- **Petri Net (Wizard) (#208):** New Source has *Petri Net (Diagram)* (an empty net, as before) and *Petri Net (Wizard)*: the inputs and outputs first (name, direction, width), the clock and the reset, then the net is created with those ports declared, with its HDL file.
 - **Petri nets:** the VHDL of a net without places (just its ports) compiles (#212).
 - **Design pane:** one row per module or instance, its base's icon on the left and its views as badges after
   its name: **[HDL]** and, if it has one, **[Schematic]**, **[ASM]**, **[FSM]**, **[Table]** or **[Petri]**
