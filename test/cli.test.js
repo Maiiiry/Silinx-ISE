@@ -58,6 +58,17 @@ function cliUntil(args, re, { extraEnv = {} } = {}) {
 }
 const stop = p => new Promise(r => { if (p.exitCode !== null) return r(); p.removeAllListeners('close'); p.on('close', r); p.kill('SIGTERM'); });
 
+// `serve` on a free port: the port found free is closed before Silinx opens it, so another program of
+// the machine may take it meanwhile (CI, #217): then another one
+async function serveOnFreePort(args, re, opts = {}) {
+  for (let k = 0; ; k++) {
+    const port = await freePort();
+    try { return { port, ...await cliUntil(args(port), re, opts.env ? { ...opts, extraEnv: opts.env(port) } : opts) }; } catch (e) {
+      if (k >= 2 || !/is used by another program/.test(e.message)) throw e;
+    }
+  }
+}
+
 async function freePort() {
   const s = net.createServer();
   await new Promise(r => s.listen(0, '127.0.0.1', r));
@@ -249,8 +260,8 @@ test('toolchain: report, --docker configuration (available / not available)', { 
 // ------------------------------------------------------------------------------------------------
 
 test('serve: starts on the given port with the scratch workspace and opens the browser with --open', { skip: POSIX_ONLY }, async () => {
-  const port = await freePort();
-  const s = await cliUntil(['serve', '--port', String(port), '--host', '127.0.0.1', '--open'], /Keep this window open/);
+  const s = await serveOnFreePort((p) => ['serve', '--port', String(p), '--host', '127.0.0.1', '--open'], /Keep this window open/);
+  const { port } = s;
   try {
     assert.match(s.out(), new RegExp(`Silinx running at http://127.0.0.1:${port} {2}\\(workspace: ${process.env.SILINX_WORKSPACE.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`));
     const r = await fetch(`http://127.0.0.1:${port}/api/projects`);
@@ -261,8 +272,8 @@ test('serve: starts on the given port with the scratch workspace and opens the b
   } finally { await stop(s.proc); }
   await fs.rm(env.FAKE_OPEN_LOG, { force: true });
   // PORT from the environment, host 0.0.0.0 shown as 127.0.0.1 in the URL
-  const port2 = await freePort();
-  const s2 = await cliUntil(['serve', '--host', '0.0.0.0'], /Keep this window open/, { extraEnv: { PORT: String(port2) } });
+  const s2 = await serveOnFreePort(() => ['serve', '--host', '0.0.0.0'], /Keep this window open/, { env: (p) => ({ PORT: String(p) }) });
+  const port2 = s2.port;
   try {
     assert.match(s2.out(), new RegExp(`Silinx running at http://0.0.0.0:${port2}`));
     assert.equal((await fetch(`http://127.0.0.1:${port2}/api/templates`)).status, 200);
