@@ -2,7 +2,7 @@
 // (a schematic's blocks, #175, are not the drawing, #207), and the HDL file every drawn source gets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { drawnModule, drawnHdlPath, viewHdl } from '../core/view-hdl.js';
+import { drawnModule, drawnHdlPath, viewHdl, definesModule, freeHdlPath, drawnHdlClash } from '../core/view-hdl.js';
 import { newDoc } from '../core/schdoc.js';
 import { newModel } from '../core/asm.js';
 import { newPetri } from '../core/petri.js';
@@ -41,4 +41,39 @@ test('a new drawing of every kind makes its HDL with no errors (its HDL file at 
   ]);
   // linked (generatedFile): its HDL is that file, nothing made here
   assert.equal(viewHdl('src/gate.sch.json', JSON.stringify({ ...docs['src/gate.sch.json'], generatedFile: 'src/gate.vhd' })), null);
+});
+
+// #230: a drawing whose HDL file name is taken
+test('definesModule: an entity / a module of that name, not in a comment; VHDL ignores the letter case', () => {
+  assert.equal(definesModule('library ieee;\nentity Ctl is\n port (a : in bit);\nend;', 'ctl', 'src/ctl.vhd'), true);
+  assert.equal(definesModule('-- entity ctl is\nentity other is end;', 'ctl', 'src/ctl.vhd'), false);
+  assert.equal(definesModule('entity ctl2 is end;', 'ctl', 'src/ctl.vhd'), false);
+  assert.equal(definesModule('module ctl(input a);\nendmodule', 'ctl', 'src/ctl.v'), true);
+  assert.equal(definesModule('module Ctl(input a);\nendmodule', 'ctl', 'src/ctl.v'), false);
+  assert.equal(definesModule('/* module ctl; */ // module ctl\nmodule x; endmodule', 'ctl', 'src/ctl.v'), false);
+  assert.equal(definesModule(null, 'ctl', 'src/ctl.vhd'), false);
+});
+
+test('freeHdlPath: <module>_<kind> next to the drawing, then _2, _3…', () => {
+  const taken = new Set(['src/ctl.vhd', 'src/ctl_pn.vhd']);
+  assert.equal(freeHdlPath('src/ctl.pn.json', 'ctl', 'vhdl', () => false), 'src/ctl_pn.vhd');
+  assert.equal(freeHdlPath('src/ctl.pn.json', 'ctl', 'vhdl', p => taken.has(p)), 'src/ctl_pn_2.vhd');
+  assert.equal(freeHdlPath('src/sub/m.tt.json', 'm', 'verilog', () => false), 'src/sub/m_tt.v');
+  assert.equal(freeHdlPath('src/a.sch.json', 'a', 'vhdl', () => false), 'src/a_sch.vhd');
+  assert.equal(freeHdlPath('src/a.asm.json', 'a', 'vhdl', () => false), 'src/a_asm.vhd');
+  assert.equal(freeHdlPath('src/a.fsm.json', 'a', 'vhdl', () => false), 'src/a_fsm.vhd');
+});
+
+test('drawnHdlClash: none when the name is free; the file defining the module (to be replaced); a file holding something else (a free name)', () => {
+  const files = { 'src/net.vhd': 'entity net is end;', 'src/maj.v': 'module other; endmodule', 'src/maj_tt.v': '// taken' };
+  const exists = p => p in files, read = p => files[p] ?? null;
+  assert.equal(drawnHdlClash({ path: 'src/free.pn.json', module: 'free', lang: 'vhdl', exists, read }), null);
+  assert.equal(drawnHdlClash({ path: 'src/x.pn.json', module: null, lang: 'vhdl', exists, read }), null);
+  assert.deepEqual(drawnHdlClash({ path: 'src/net.pn.json', module: 'net', lang: 'vhdl', exists, read }),
+    { kind: 'same', path: 'src/net.pn.json', module: 'net', target: 'src/net.vhd', file: 'src/net.vhd' });
+  assert.deepEqual(drawnHdlClash({ path: 'src/maj.tt.json', module: 'maj', lang: 'verilog', exists, read }),
+    { kind: 'other', path: 'src/maj.tt.json', module: 'maj', target: 'src/maj.v', file: 'src/maj.v', free: 'src/maj_tt_2.v' });
+  // its module defined by another HDL file of the project (the file of its name free)
+  assert.deepEqual(drawnHdlClash({ path: 'src/g.sch.json', module: 'g', lang: 'vhdl', exists, read, definedIn: 'src/lib.vhd' }),
+    { kind: 'same', path: 'src/g.sch.json', module: 'g', target: 'src/g.vhd', file: 'src/lib.vhd' });
 });

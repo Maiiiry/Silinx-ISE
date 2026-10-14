@@ -62,6 +62,8 @@ const PT = {
   'Generated from the schematic': 'Gerado a partir do esquemático', 'Generated from the state machine': 'Gerado a partir da máquina de estados',
   'Generated from the state diagram': 'Gerado a partir do diagrama de estados', 'Generated from the truth table': 'Gerado a partir da tabela de verdade',
   'Generated from the Petri net': 'Gerado a partir da rede de Petri',
+  // a drawing without its HDL file, a file in the way (#230)
+  'No HDL': 'Sem HDL', 'Generate HDL File…': 'Gerar Ficheiro HDL…', 'Generate HDL File': 'Gerar Ficheiro HDL',
   'Design hierarchy': 'Hierarquia do projeto',
   // toolbar / panels
   'New Project': 'Novo Projeto', 'Open Project': 'Abrir Projeto', 'Save (Ctrl+S)': 'Guardar (Ctrl+S)', 'Cut': 'Cortar', 'Copy': 'Copiar',
@@ -523,6 +525,13 @@ PT_PATTERNS.push(
   [/^The text of '(.+?)' is not found in (\S+)\.$/, "O texto de '$1' não foi encontrado em $2."],
   [/^No module '(.+?)' in the project\.$/, "Não há nenhum módulo '$1' no projeto."],
   [/^'(.+?)' is not an HDL module\.$/, "'$1' não é um módulo HDL."],
+  // a drawing whose HDL file name is taken (#230): the tip of its [No HDL] badge, Generate HDL File…, the New Source wizards
+  [/^No HDL file: (\S+) defines its module (\S+) already\. Generate HDL File… \(right-click\) replaces it with the HDL generated from the drawing\.$/, 'Sem ficheiro HDL: $1 já define o seu módulo $2. Gerar Ficheiro HDL… (botão direito) substitui-o pelo HDL gerado a partir do desenho.'],
+  [/^No HDL file: (\S+) holds something else\. Generate HDL File… \(right-click\) writes its HDL to (\S+)\.$/, 'Sem ficheiro HDL: $1 contém outra coisa. Gerar Ficheiro HDL… (botão direito) escreve o seu HDL em $2.'],
+  [/^No HDL file: its module (\S+) is the module of (\S+)\. Rename one of them\.$/, 'Sem ficheiro HDL: o seu módulo $1 é o módulo de $2. Mude o nome de um deles.'],
+  [/^(\S+) defines the module (\S+) already\.\n\nReplace it with the HDL generated from (\S+)\? Its current contents will be lost\.$/, '$1 já define o módulo $2.\n\nSubstituí-lo pelo HDL gerado a partir de $3? O conteúdo atual perde-se.'],
+  [/^(\S+) has errors: correct them first\.$/, '$1 tem erros: corrija-os primeiro.'],
+  [/^(\S+) already exists: the HDL generated from the new source would be written there\. Choose another name\.$/, '$1 já existe: o HDL gerado a partir da nova fonte seria escrito aí. Escolha outro nome.'],
   // Back-annotate Pin Locations: the pins to add to the UCF
   [/^Add the (\d+) pin location\(s\) chosen by the tools to (.+?)\?\n\n([\s\S]*)$/, 'Adicionar a $2 as $1 localizações de pinos escolhidas pelas ferramentas?\n\n$3'],
 );

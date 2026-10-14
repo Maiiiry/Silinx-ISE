@@ -7,6 +7,7 @@ import * as T from './templates.js';
 import { typeText } from './editor.js';
 import { S, app } from './app.js';
 import { THIRD_PARTY } from '/core/third-party.js';
+import { drawnHdlPath, isView } from '/core/view-hdl.js';
 import { countEvent, siteCounts } from './analytics.js';
 
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
@@ -463,6 +464,15 @@ export async function closeBeforeReplace(path) {
 export const moduleElsewhere = (name, path) => S.modules.find(m => m.name.toLowerCase() === String(name).toLowerCase() && m.file !== path
   && S.hdlToSch?.[m.file] !== path);   // (the synchronized HDL of a schematic / chart being replaced)
 
+// the HDL file a new drawing (`path`, its module `name`) gets (drawnHdlPath, #207) is taken by a file
+// that is not its own (#230): the message that keeps the wizard on its page, or null
+export function drawnHdlTaken(path, name, lang) {
+  if (!isView(path)) return null;
+  const hdl = drawnHdlPath(path, name, lang);
+  if (!(S.diskTree || S.fileTree || []).includes(hdl) || S.hdlToSch?.[hdl] === path) return null;
+  return `${hdl} already exists: the HDL generated from the new source would be written there. Choose another name.`;
+}
+
 // ------------------------------------------------------------------ New Source
 const SOURCE_TYPES = [
   // hdl / tb / tbwiz / modwiz / schwiz: VHDL or Verilog, chosen in the wizard (the extension follows the language)
@@ -529,7 +539,15 @@ export async function newSourceWizard({ type } = {}) {
       const n = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json|fsm\.json|pn\.json)$/i, '');
       if (!FILE_RE.test(n)) return 'Enter a valid file name (letters, digits, _ and -).';
       if (!/^[A-Za-z0-9_/-]+$/.test(loc.value.trim())) return 'Invalid location.';
-      return guard(`${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`);
+      const p = `${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`;
+      // a drawing: its module (named as the file) and its HDL file must be free (#230)
+      if (isView(p)) {
+        const mod = n.split('/').pop().replace(/[^A-Za-z0-9_]/g, '_');
+        if (moduleElsewhere(mod, p)) return `A module named '${mod}' already exists.`;
+        const taken = drawnHdlTaken(p, mod, S.project.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl');
+        if (taken) return taken;
+      }
+      return guard(p);
     },
   };
   // ports page (modules)

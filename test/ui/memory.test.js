@@ -161,7 +161,7 @@ uiTest('memory: ISim and the board emulator, run and closed, leave nothing behin
 uiTest('memory: switching projects and a long console stay bounded', E, async (page) => {
   await makeProject(env, { name: 'MemA', template: 'blinky' });
   await makeProject(env, { name: 'MemB', template: 'blinky' });
-  await noLeak(page, 'switch between two projects', 10, async (i) => { await page.openProject(i % 2 ? 'MemA' : 'MemB'); });
+  await noLeak(page, 'switch between two projects', 10, async (i) => { await page.openProject(i % 2 ? 'MemA' : 'MemB'); }, { warmUp: 10 });   // (the app's code compiled and optimised over the first switches: 39 KB / switch after 3, 5 after 10, #230)
   // the console keeps its last 5000 lines
   await page.eval(() => { for (let i = 0; i < 20000; i++) window.SilinxApp.log(`line ${i}`); });
   assert.equal(await page.eval(() => document.getElementById('console-log').childElementCount), 5000);

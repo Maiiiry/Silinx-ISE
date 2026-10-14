@@ -12,7 +12,7 @@ import { api } from './api.js';
 import { icons } from './icons.js';
 import { h, alertDlg, toast } from './ui.js';
 import { generateModule, schematicFromPorts, checkPorts, identError, guessClockReset, QUICK_PORTS, MAX_WIDTH } from '/core/modgen.js';
-import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere } from './wizards.js';
+import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere, drawnHdlTaken } from './wizards.js';
 import { S, app } from './app.js';
 
 const LANGS = [['vhdl', 'VHDL'], ['verilog', 'Verilog']];
@@ -58,6 +58,8 @@ export function namePage({ title, name, lang, loc, sch, withArch, guard, ext = n
       if (withArch && langSel.value === 'vhdl') { const a = identError(archIn.value.trim(), 'vhdl'); if (a) return `Architecture name: ${a}.`; }
       const other = moduleElsewhere(n, path());
       if (other) return `A module named '${n}' already exists.`;
+      const taken = drawnHdlTaken(path(), n, langSel.value);   // (a drawing: its HDL file free, #230)
+      if (taken) return taken;
       return guard(path());
     },
   };

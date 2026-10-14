@@ -33,6 +33,14 @@ In detail:
   by a testbench's task, a variable read only with its initial value) keeps its name instead of
   becoming an undriven or tied-to-0 net; no "connects only" warning for a signal of the HDL kept in
   the schematic.
+- **A drawing whose HDL file name is taken (#230):** a schematic, ASM chart, state diagram, truth
+  table or Petri net whose HDL file (`<module>.vhd` / `.v` next to it) cannot be written because a
+  file is in the way no longer stays silently without it: the console says so once when the project
+  is opened, its row in the Design pane shows **[No HDL]** (its tip says why), and *Generate HDL
+  File…* in its right-click menu (or a click on the badge) resolves it: a file that already defines
+  the drawing's module is replaced by the generated HDL after you say Yes; a file holding something
+  else is left alone and the HDL goes to `<module>_<kind>.vhd` (`ctl_pn.vhd`, `maj_tt.vhd`…). The New
+  Source wizards refuse a drawing whose HDL file name, or module name, is taken.
 
 ## 15.10.15
 

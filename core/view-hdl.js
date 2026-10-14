@@ -82,3 +82,45 @@ export function drawnHdlPath(path, module, lang) {
   const dir = String(path).includes('/') ? String(path).replace(/\/[^/]*$/, '') : 'src';
   return `${dir}/${module}.${lang === 'verilog' ? 'v' : 'vhd'}`;
 }
+
+const reEsc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Whether the HDL `text` (of the file `file`: VHDL unless .v / .sv) defines the module `module`. */
+export function definesModule(text, module, file) {
+  if (!module) return false;
+  const verilog = /\.s?v$/i.test(String(file));
+  const code = String(text ?? '').replace(verilog ? /\/\*[\s\S]*?\*\/|\/\/[^\n]*/g : /--[^\n]*/g, '');
+  return (verilog ? new RegExp(`^\\s*(?:macro)?module\\s+${reEsc(module)}\\b`, 'm') : new RegExp(`^\\s*entity\\s+${reEsc(module)}\\s+is\\b`, 'im')).test(code);
+}
+
+/**
+ * The free file name for a drawing's HDL when the one it gets (drawnHdlPath) holds something else
+ * (#230): next to it, <module>_<kind>.vhd / .v (kind: sch, asm, fsm, tt or pn, as the drawing's
+ * extension), then <module>_<kind>_2, _3… while that name is taken too. exists(path): on the disk.
+ */
+export function freeHdlPath(path, module, lang, exists) {
+  const kind = (VIEW_RE.exec(String(path))?.[1] || 'sch').toLowerCase();
+  for (let i = 1; ; i++) {
+    const p = drawnHdlPath(path, `${module}_${kind}${i > 1 ? `_${i}` : ''}`, lang);
+    if (!exists(p)) return p;
+  }
+}
+
+/**
+ * Why a drawn source (no errors, its module `module`) has no HDL file of its own (#230), or null when
+ * it can have it (drawnHdlPath free and no HDL file of the project defines its module):
+ * - { kind: 'same', path, module, target, file }: `file` defines its module already (the file of its
+ *   name, or `definedIn`, another HDL file of the project): it may be replaced by the HDL generated
+ *   from the drawing and linked, once the user says so (its contents are lost);
+ * - { kind: 'other', path, module, target, file, free }: the file of its name holds something else:
+ *   the drawing's HDL goes to the free name `free` (freeHdlPath).
+ * exists(path): on the disk; read(path): the text of a file (null if unknown).
+ */
+export function drawnHdlClash({ path, module, lang, exists, read, definedIn = null }) {
+  if (!module) return null;
+  const target = drawnHdlPath(path, module, lang);
+  if (definedIn) return { kind: 'same', path, module, target, file: definedIn };
+  if (!exists(target)) return null;
+  if (definesModule(read(target), module, target)) return { kind: 'same', path, module, target, file: target };
+  return { kind: 'other', path, module, target, file: target, free: freeHdlPath(path, module, lang, exists) };
+}
