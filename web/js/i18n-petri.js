@@ -44,6 +44,14 @@ export const PETRI_PT = {
   'An inhibitor arc goes from a place to a transition': 'Um arco inibidor vai de um lugar para uma transição', 'An arc joins a place and a transition': 'Um arco liga um lugar e uma transição',
   'These two are joined already: change the weight of that arc': 'Estes dois já estão ligados: mude o peso desse arco',
   'Close the panel': 'Fechar o painel',
+  // the Petri Net Wizard (#208, web/js/petri-wizard.js)
+  'Petri Net Wizard': 'Assistente de Rede de Petri', 'Petri Net (Wizard)': 'Rede de Petri (Assistente)', 'Petri Net (Diagram)': 'Rede de Petri (Diagrama)',
+  'Petri net (module) name:': 'Nome da rede de Petri (módulo):',
+  'The wizard creates a Petri net with its inputs and outputs declared, ready for you to draw its places, transitions and arcs; its HDL is generated from it.':
+    'O assistente cria uma rede de Petri com as entradas e saídas declaradas, pronta para desenhar os lugares, as transições e os arcos; o HDL é gerado a partir dela.',
+  'One row per input or output port. Width 1 is a single bit (std_logic / wire); a width N makes a bus of N bits, numbered N-1 downto 0.':
+    'Uma linha por porto de entrada ou de saída. Largura 1 é um só bit (std_logic / wire); uma largura N faz um barramento de N bits, numerados de N-1 a 0.',
+  'Reset (synchronous, to the initial marking):': 'Reset (síncrono, para a marcação inicial):',
   // analysis (#188)
   '∑ Analysis': '∑ Análise', 'Analysis': 'Análise', 'Reachable markings, bounds, deadlocks, liveness, invariants': 'Marcações alcançáveis, limites, bloqueios, vivacidade, invariantes',
   'Bounded': 'Limitada', 'safe (at most 1 token in each place)': 'segura (no máximo 1 marca em cada lugar)', 'Deadlocks': 'Bloqueios',

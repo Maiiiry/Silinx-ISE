@@ -21,7 +21,8 @@ const extOf = (lang, sch) => (sch ? '.sch.json' : lang === 'verilog' ? '.v' : '.
 const portText = p => `${p.name}${+p.width > 1 ? ` [${p.width - 1}:0]` : ''}`;
 
 // ---------------------------------------------------------------- page 1: name, language, description
-function namePage({ title, name, lang, loc, sch, withArch, guard }) {
+/** The first page: the name, the language, the location (the file), a description. Also the Petri Net Wizard's (web/js/petri-wizard.js: ext, hint, nameLabel). */
+export function namePage({ title, name, lang, loc, sch, withArch, guard, ext = null, hint = null, nameLabel = null }) {
   const nameIn = h('input', { type: 'text', class: 'mw-name', value: name || '' });
   const langSel = select(LANGS, lang);
   const archIn = h('input', { type: 'text', class: 'mw-arch', value: 'rtl' });
@@ -29,7 +30,7 @@ function namePage({ title, name, lang, loc, sch, withArch, guard }) {
   const desc = h('textarea', { class: 'mw-desc', rows: 3, style: { width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }, placeholder: 'What the module does (it goes into the header comment)' });
   const fileHint = h('span', { class: 'mw-file', 'data-no-i18n': '' });
   const locIn = h('input', { type: 'text', class: 'mw-loc', value: cleanLoc(loc) });
-  const path = () => `${cleanLoc(locIn.value)}/${nameIn.value.trim()}${extOf(langSel.value, sch)}`;
+  const path = () => `${cleanLoc(locIn.value)}/${nameIn.value.trim()}${ext ?? extOf(langSel.value, sch)}`;
   const sync = () => {
     fileHint.textContent = path();
     if (withArch) archLbl.style.display = archIn.style.display = langSel.value === 'vhdl' ? '' : 'none';
@@ -40,11 +41,11 @@ function namePage({ title, name, lang, loc, sch, withArch, guard }) {
   const page = {
     title,
     render: () => h('div', {},
-      h('div', { class: 'hint' }, sch
+      h('div', { class: 'hint' }, hint || (sch
         ? 'The wizard creates a schematic with an I/O marker for each input and output, ready for you to place the symbols and wire them.'
-        : 'The wizard writes a commented skeleton of the module: its inputs and outputs, and a template of the logic (combinational or sequential).'),
+        : 'The wizard writes a commented skeleton of the module: its inputs and outputs, and a template of the logic (combinational or sequential).')),
       h('div', { class: 'form-grid', style: { marginTop: '10px' } },
-        ...field(sch ? 'Schematic (module) name:' : 'Module name:', nameIn), ...field('Language:', langSel),
+        ...field(nameLabel || (sch ? 'Schematic (module) name:' : 'Module name:'), nameIn), ...field('Language:', langSel),
         ...(withArch ? [archLbl, archIn] : []),
         ...field('Location:', locIn), ...field('File:', fileHint)),
       h('label', { style: { display: 'block', marginTop: '10px' } }, 'Description (optional):'), desc),
@@ -64,14 +65,15 @@ function namePage({ title, name, lang, loc, sch, withArch, guard }) {
 }
 
 // ---------------------------------------------------------------- the friendly port table
-function portEditor(ports, { lang, onChange = () => {} }) {
+/** The table of the ports (dirs: the directions offered; the Petri Net Wizard: in and out only). */
+export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'out', 'inout'] }) {
   const tbl = h('table', { class: 'grid mw-ports' });
   const quick = h('div', { class: 'mw-quick', style: { display: 'flex', flexDirection: 'column', gap: '4px', margin: '6px 0' } });
   const has = n => ports.some(p => p.name.toLowerCase() === n.toLowerCase());
   const add = p => { ports.push({ name: p.name, dir: p.dir, width: p.width, desc: p.desc || '' }); render(); onChange(); };
   const renderQuick = () => {
     quick.innerHTML = '';
-    for (const dir of ['in', 'out', 'inout']) {
+    for (const dir of dirs) {
       const row = h('div', { style: { display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' } },
         h('span', { style: { width: '120px' } }, dir === 'in' ? 'Quick add (inputs):' : dir === 'out' ? 'Quick add (outputs):' : 'Quick add (bidirectional):'));
       const btns = h('span', { 'data-no-i18n': '', style: { display: 'flex', gap: '4px', flexWrap: 'wrap' } });
@@ -87,7 +89,7 @@ function portEditor(ports, { lang, onChange = () => {} }) {
     tbl.append(h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Direction'), h('th', { title: '1 = a single bit; N = a bus of N bits (N-1 downto 0)' }, 'Width (bits)'), h('th', {}, 'Description'), h('th', {}, '')));
     ports.forEach((p, k) => {
       const nm = h('input', { type: 'text', class: 'mw-pname', value: p.name, style: { width: '110px' } });
-      const dir = select([['in', 'input'], ['out', 'output'], ['inout', 'bidirectional']], p.dir);
+      const dir = select([['in', 'input'], ['out', 'output'], ['inout', 'bidirectional']].filter(([d]) => dirs.includes(d)), p.dir);
       dir.classList.add('mw-pdir');
       dir.style.minWidth = '115px';   // room for 'bidirectional' / 'bidirecional'
       dir.title = 'bidirectional = inout: a tri-state port the module can drive or release (Z), and read';
@@ -114,7 +116,9 @@ function portEditor(ports, { lang, onChange = () => {} }) {
   } }, 'Add Port');
   render();
   const node = h('div', {},
-    h('div', { class: 'hint' }, 'One row per input, output or bidirectional (inout) port. Width 1 is a single bit (std_logic / wire); a width N makes a bus of N bits, numbered N-1 downto 0.'),
+    h('div', { class: 'hint' }, dirs.includes('inout')
+      ? 'One row per input, output or bidirectional (inout) port. Width 1 is a single bit (std_logic / wire); a width N makes a bus of N bits, numbered N-1 downto 0.'
+      : 'One row per input or output port. Width 1 is a single bit (std_logic / wire); a width N makes a bus of N bits, numbered N-1 downto 0.'),
     quick,
     h('div', { style: { maxHeight: '230px', overflow: 'auto', border: '1px solid var(--frame)' } }, tbl),
     h('div', { style: { marginTop: '6px' } }, addBtn));
