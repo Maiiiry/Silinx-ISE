@@ -371,13 +371,26 @@ function elabPort(E, p, conn) {
   if (conn?.arr) conn = arrayConn(E, conn, t.w, p.name);
   if (conn?.aggregate && !conn.node) conn.node = bindExpr(conn.E, conn.aggregate, t, conn.loc);
   let init = defaultValue(t, E.lang);
-  if (p.default) init = fitAny(constOf(E, bindExpr(E, p.default, t), p.loc), t);
+  // an output variable's initializer that is not constant (output integer q = off + 1;): evaluated
+  // once at time 0, as a module variable's (IEEE 1800-2017 10.5)
+  let lateInit = null;
+  if (p.default) {
+    const n = bindExpr(E, p.default, t, p.loc);
+    if (E.lang === 'verilog' && p.dir !== 'in' && !isConstNode(n)) { ctxSize(n, t.w); lateInit = n; }
+    else init = fitAny(constOf(E, n, p.loc), t);
+  }
+  const initOnce = sig => {
+    const proc = addProc(E, { name: `${E.prefix}${p.name}_init`, kind: 'process', mode: 'initial', body: { k: 'asg', target: { k: 'sig', sig, t, name: p.name }, value: lateInit, nb: false, loc: p.loc },
+      triggers: [], lang: E.lang, loc: p.loc, file: E.file });
+    proc.declInit = true;
+  };
   if (conn && conn.node && conn.node.k === 'sig' && conn.node.t.w === t.w && (t.kind === 'array') === (conn.node.t.kind === 'array') && p.dir !== undefined) {
     const sig = conn.node.sig;
     // VHDL: the driver of an out port starts at the port's default; with the port aliased to its
     // actual that is the actual's initial value (unless the actual was given one itself); Verilog:
     // the initializer of an output variable (output logic [3:0] q = 1)
-    if (p.default && p.dir !== 'in' && !sig.portInitSet && !sig.hasInit) {
+    if (lateInit) initOnce(sig);
+    else if (p.default && p.dir !== 'in' && !sig.portInitSet && !sig.hasInit) {
       sig.init = init; sig.val = init; sig.portInitSet = true;
       if (E.lang === 'verilog') { sig.hasInit = true; sig.netZ = false; }
     }
@@ -393,7 +406,8 @@ function elabPort(E, p, conn) {
     // (tri0 / tri1: pulled to 0 / 1 while nothing drives it)
     if (!p.default && (p.wired === 'tri0' || p.wired === 'tri1')) sig.init = sig.val = p.wired === 'tri0' ? V.zero(t.w) : V.mk(t.w, V.mask(t.w));
   }
-  if (p.default && E.lang === 'verilog') sig.hasInit = true;   // (input [3:0] d = 10, output logic q = 1)
+  if (p.default && E.lang === 'verilog' && !lateInit) sig.hasInit = true;   // (input [3:0] d = 10, output logic q = 1)
+  if (lateInit) initOnce(sig);
   E.sc.def(p.name, { kind: 'sig', sig, t });
   E.inst.ports.push({ name: p.name, dir: p.dir, sig, t, alias: false, conn: conn?.text ?? null, ...(conn?.fromArr ? { connNode: conn.node, connLnode: conn.lnode } : {}) });
   if (!conn) return;
@@ -778,7 +792,10 @@ function bindDecl(E, d) {
         // a module variable's initializer that is not constant (integer b = a + 1;, IEEE 1800-2017
         // 10.5): evaluated once at time 0, before the initial and always procedures start
         if (E.lang === 'verilog' && !E.fb && !isConstNode(n)) lateInit = n;
-        else init = fitAny(constOf(E, n, d.loc), t);
+        else if (E.lang === 'verilog' && E.fb && !isConstNode(n)) {
+          // (an automatic one's initializer is an assignment at each entry: the parser made it so)
+          throw new ElabError(`'${d.name}': a static variable of a block or a subprogram is initialized once, before time 0: its initializer must be constant; declare it automatic to initialize it at each entry (IEEE 1800-2017 6.21)`, d.loc);
+        } else init = fitAny(constOf(E, n, d.loc), t);
       }
       if (E.fb && (d.net === 'variable' || E.inProcess)) {
         const i = E.fb.alloc(t, init);

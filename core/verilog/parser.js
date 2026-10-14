@@ -18,6 +18,9 @@ const TYPEWORDS = new Set(['bit', ...Object.keys(ATOMS)]);
 const PORT_NETS = ['wire', 'reg', 'logic', 'tri', 'var', 'supply0', 'supply1', ...Object.keys(WIRED)];
 // immediate and concurrent assertions (assert (e); assert property (e);)
 const ASSERTIONS = new Set(['assert', 'assume', 'cover', 'restrict']);
+// system functions and tasks written without parentheses ($time, $finish;): never an identifier
+const SYS_NOARG = new Set(['$time', '$stime', '$realtime', '$random', '$urandom', '$finish', '$stop', '$display', '$write', '$monitor', '$strobe',
+  '$fflush', '$dumpvars', '$dumpon', '$dumpoff', '$dumpall', '$dumpflush', '$monitoron', '$monitoroff', '$info', '$warning', '$error', '$fatal', '$root', '$unit']);
 const lit1 = b => ({ op: 'lit', bits: b, signed: false, sized: true });
 
 class Sync extends Error {}
@@ -58,9 +61,11 @@ class Parser {
   // the declarations at the start of a block: its variables, parameters, types
   blockDecls() {
     const decls = [];
+    decls.inits = [];
     for (;;) {
       this.skipQualifiers();
-      if (this.isAny('reg', 'integer', 'logic', 'real', 'time') || this.isTypeStart()) this.netDecl([], decls, true);
+      const life = this.lifetime();
+      if (this.isAny('reg', 'integer', 'logic', 'real', 'time') || this.isTypeStart()) this.localVars(decls, life);
       else if (this.isAny('parameter', 'localparam')) {
         this.next();
         const { type } = this.paramType();
@@ -110,6 +115,8 @@ class Parser {
   ident() {
     const t = this.tok;
     if (t.t === 'id') { this.next(); return t.v; }
+    // (Yosys: an identifier may start with $, e.g. its cells $__SHREG_DFF_P_ or a wire $tmp)
+    if (t.t === 'sys' && !SYS_NOARG.has(t.v)) { this.next(); return t.v; }
     this.error(`expected identifier but found '${t.v || t.t}'`);
     throw new Sync();
   }
@@ -233,6 +240,9 @@ class Parser {
     if (this.timescale) mod.timescale = this.timescale;
     this.cur = mod;
     this.portNames = new Map();
+    this.portExprSigs = new Map();   // explicit port expressions .p(x): x -> its ports
+    this.portExprDecls = new Map();  // x -> its declaration (from its input / output declaration)
+    this.wildPorts = false;          // module m(...)
     while (this.isWord('import')) this.importDecl(mod.uses);   // module m import p::*; #(…) (…);
     if (this.accept('#')) {
       this.expect('(');
@@ -251,11 +261,15 @@ class Parser {
       this.expect(')');
     }
     if (this.accept('(')) {
-      if (!this.is(')')) {
+      // module m(...): its ports are every input / output / inout the body declares (Yosys)
+      if (this.is('...') || (this.is('.') && this.is('.', this.peek()) && this.is('.', this.toks[this.i + 2] || {}))) {
+        if (this.is('...')) this.next(); else { this.next(); this.next(); this.next(); }
+        this.wildPorts = true;
+      } else if (!this.is(')')) {
         if (this.isAny('input', 'output', 'inout')) this.ansiPorts(mod);
         else {
           do {
-            if (this.is('.')) { this.error('explicit port expressions not supported'); throw new Sync(); }
+            if (this.is('.')) { this.explicitPort(mod); continue; }
             const pn = this.ident();
             const port = { name: pn, dir: 'in', type: { kind: 'logic', range: null, signed: false }, default: null, loc: this.loc(), declared: false };
             mod.ports.push(port); this.portNames.set(pn, port);
@@ -270,6 +284,7 @@ class Parser {
     this.endGenScope(mod.items, mod.decls, mod.ports.map(p => p.name));
     this.expect('endmodule');
     if (this.accept(':')) this.ident();
+    this.finishExplicitPorts(mod);
     for (const p of mod.ports) {
       if (p.declared === false) this.error(`port '${p.name}' has no direction declaration`, { line: p.loc.line, col: p.loc.col });
       delete p.declared;
@@ -587,13 +602,75 @@ class Parser {
         return;
       }
       if (t.t === 'kw' && GATES.has(t.v)) return this.gateInst(items);
-      if (t.t === 'id') return this.instance(items);
+      if (t.t === 'id' || (t.t === 'sys' && !SYS_NOARG.has(t.v) && (this.is('#', this.peek()) || this.peek().t === 'id'))) return this.instance(items);
       this.error(`unexpected '${t.v || t.t}' in module body`);
       throw new Sync();
     } catch (e) {
       if (!(e instanceof Sync)) throw e;
       if (this.i === this.toks.indexOf(t)) this.next();
       this.sync(['endmodule', 'end', 'endgenerate']);
+    }
+  }
+
+  // an explicit port of a non-ANSI header, .name(expression) (the signals of the expression declared
+  // in the body: input x; reg [3:0] y; …); the expression: a signal, a part of it, a concatenation
+  explicitPort(mod) {
+    this.next();
+    const loc = this.loc();
+    const pn = this.ident();
+    this.expect('(');
+    const expr = this.is(')') ? null : this.expr();
+    this.expect(')');
+    if (!expr) { this.error(`port '${pn}': an unconnected explicit port .${pn}() is not supported`, loc); return; }
+    const refs = [];
+    const walk = e => {
+      if (e.op === 'ref') refs.push(e.name);
+      else if (e.op === 'concat') e.parts.forEach(walk);
+      else if ((e.op === 'slice' || e.op === 'index') && e.base?.op === 'ref') refs.push(e.base.name);
+      else { this.error(`port '${pn}': an explicit port is a signal, a part of one or a concatenation of them`, loc); refs.length = 0; return; }
+    };
+    walk(expr);
+    if (!refs.length) return;
+    if (this.portNames.has(pn)) { this.error(`port '${pn}' is declared twice`, loc); return; }
+    const port = { name: pn, dir: 'in', type: { kind: 'logic', range: null, signed: false }, default: null, loc, declared: false, explicit: expr };
+    mod.ports.push(port); this.portNames.set(pn, port);
+    for (const r of refs) { if (!this.portExprSigs.has(r)) this.portExprSigs.set(r, []); this.portExprSigs.get(r).push(port); }
+  }
+
+  // after the body: the direction and the width of each explicit port, and the assignment that joins
+  // it to its expression (input: expression = port; output: port = expression)
+  finishExplicitPorts(mod) {
+    for (const port of mod.ports) {
+      if (!port.explicit) continue;
+      const e = port.explicit;
+      delete port.explicit;
+      const sigs = [...this.portExprSigs].filter(([, ps]) => ps.includes(port)).map(([n]) => n);
+      const dirs = new Set(sigs.map(n => this.portExprDecls.get(n)?.dir).filter(Boolean));
+      if (dirs.size > 1) { this.error(`port '${port.name}': its signals have different directions`, port.loc); port.declared = true; continue; }
+      if (!dirs.size) continue;   // (no direction declared: reported below)
+      port.dir = [...dirs][0];
+      if (port.dir === 'inout') { this.error(`port '${port.name}': an explicit inout port is not supported`, port.loc); port.declared = true; continue; }
+      port.declared = true;
+      const d0 = this.portExprDecls.get(sigs[0]);
+      if (e.op === 'ref') port.type = d0.type;
+      else {
+        // the width: the sum of the parts' (from their declared ranges: constants of the module)
+        const B = (o, x, y) => ({ op: 'binary', o, a: x, b: y }), one = { op: 'int', value: '1' };
+        const span = (l, r) => ({ op: 'cond', cond: B('>=', l, r), then: B('+', B('-', l, r), one), else: B('+', B('-', r, l), one) });
+        const width = x => {
+          if (x.op === 'concat') return x.parts.map(width).reduce((u, v) => B('+', u, v));
+          if (x.op === 'index') return one;
+          if (x.op === 'slice') return span(x.left, x.right);
+          const t = this.portExprDecls.get(x.name)?.type;
+          return t?.range ? span(t.range.left, t.range.right) : one;
+        };
+        port.type = { kind: 'logic', range: { left: B('-', width(e), one), right: { op: 'int', value: '0' }, dir: null }, signed: false };
+      }
+      port.net = 'wire'; port.isNet = true;
+      const pref = { op: 'ref', name: port.name };
+      mod.items.push(port.dir === 'in'
+        ? { kind: 'assign', target: e, value: pref, delay: null, loc: port.loc }
+        : { kind: 'assign', target: pref, value: e, delay: null, loc: port.loc });
     }
   }
 
@@ -604,7 +681,22 @@ class Parser {
     do {
       const loc = this.loc();
       const pn = this.ident();
+      // a signal of an explicit port expression: a signal of the module, its direction noted
+      if (!this.portNames.has(pn) && this.portExprSigs.has(pn)) {
+        let t = type;
+        const dims = this.unpackedDims();
+        for (let k = dims.length - 1; k >= 0; k--) t = { kind: 'array', range: dims[k], elem: t };
+        const decl = { kind: 'signal', name: pn, type: t, init: null, net: isNet ? 'wire' : 'reg', loc };
+        if (this.accept('=')) decl.init = this.expr();
+        this.cur.decls.push(decl);
+        this.portExprDecls.set(pn, { dir, type: t, decl });
+        continue;
+      }
       let port = this.portNames.get(pn);
+      if (!port && this.wildPorts) {   // module m(...): a port, in the order of the declarations
+        port = { name: pn, dir, type, default: null, loc, declared: false };
+        this.cur.ports.push(port); this.portNames.set(pn, port);
+      }
       if (!port) {
         this.error(`'${pn}' is not in the port list`, this.toks[this.i - 1]);
         port = { name: pn, dir, type, default: null, loc };
@@ -642,6 +734,13 @@ class Parser {
       for (let k = dims.length - 1; k >= 0; k--) t = { kind: 'array', range: dims[k], elem: t };
       let init = null;
       if (this.accept('=')) init = this.expr();
+      const pe = local ? null : this.portExprDecls.get(name);
+      if (pe) {
+        if (type.range || type.kind !== 'logic') { pe.decl.type = t; pe.type = t; }
+        pe.decl.net = net;
+        if (init) pe.decl.init = init;
+        continue;
+      }
       const port = local ? null : this.portNames.get(name);
       if (port) {
         // `output q; reg [3:0] q;` -> refine the port declaration
@@ -795,10 +894,37 @@ class Parser {
     return node;
   }
 
+  // automatic / static before a declaration of a block or a subprogram (SystemVerilog)
+  lifetime() {
+    const w = t => t.v === 'automatic' || t.v === 'static';
+    if (w(this.tok) && (this.tok.t === 'kw' || this.tok.t === 'id') && this.peek().t !== 'op') return this.next().v;
+    return null;
+  }
+  // the variables of a block or a subprogram; an automatic one's initializer is an assignment at each
+  // entry (decls.inits), a static one's is its initial value (constant: evaluated once, before time 0)
+  localVars(decls, life) {
+    const n0 = decls.length;
+    this.netDecl([], decls, true);
+    const auto = life === 'automatic' || (life == null && this.autoScope);
+    for (const d of decls.slice(n0)) {
+      if (d.kind !== 'signal') continue;
+      if (life) d.lifetime = life;
+      if (auto && d.init) {
+        (decls.inits || (decls.inits = [])).push({ kind: 'assign', target: { op: 'ref', name: d.name }, value: d.init, nonblocking: false, delay: null, loc: d.loc });
+        d.init = null;
+      }
+    }
+  }
+
   funcDecl() {
     const loc = this.loc();
     const kind = this.next().v;
     const automatic = !!this.accept('automatic');
+    const outerAuto = this.autoScope;
+    this.autoScope = automatic;
+    try { return this.funcBody(loc, kind, automatic); } finally { this.autoScope = outerAuto; }
+  }
+  funcBody(loc, kind, automatic) {
     let returnType = null;
     if (kind === 'function') {
       if (this.isWord('void')) this.next();
@@ -841,11 +967,14 @@ class Parser {
         this.next(); const { type } = this.paramType();
         do { const n = this.ident(); this.expect('='); decls.push({ kind: 'const', name: n, type, value: this.expr(), loc: this.loc() }); } while (this.accept(','));
         this.expect(';');
-      } else if (this.isAny('reg', 'integer', 'logic', 'real', 'time') || this.isTypeStart()) this.netDecl([], decls, true);
-      else if (this.isWord('typedef')) this.typedef(decls);
+      } else if (this.isAny('reg', 'integer', 'logic', 'real', 'time') || this.isTypeStart() || (['automatic', 'static'].includes(this.tok.v) && this.peek().t !== 'op')) {
+        const life = this.lifetime();
+        this.localVars(decls, life || (automatic ? 'automatic' : null));
+      } else if (this.isWord('typedef')) this.typedef(decls);
       else break;
     }
-    const body = [];
+    const body = [...(decls.inits || [])];
+    delete decls.inits;
     while (!this.isAny('endfunction', 'endtask', 'endmodule') && this.tok.t !== 'eof') { const i0 = this.i; body.push(this.stmt()); if (this.i === i0) break; }
     if (this.isAny('endfunction', 'endtask')) this.next(); else this.error(`expected '${kind === 'task' ? 'endtask' : 'endfunction'}' but found '${this.tok.v || this.tok.t}'`);
     // `input [4:0] r; reg [4:0] r;` / `input x; integer x;`: the second declaration gives the
@@ -997,7 +1126,8 @@ class Parser {
         const decls = this.blockDecls();
         // a missing 'end' must not loop forever: stop at 'endmodule' or a module item (assign, always…,
         // an instance) and on a statement that consumes nothing
-        const stmts = [];
+        const stmts = [...decls.inits];
+        delete decls.inits;
         while (!this.isAny('end', 'endmodule', 'assign', 'always', 'always_ff', 'always_comb', 'always_latch', 'initial', 'module') && !this.isInstanceStart() && this.tok.t !== 'eof') { const i0 = this.i; stmts.push(this.stmt()); if (this.i === i0) break; }
         this.expect('end');
         if (this.accept(':')) this.ident();
@@ -1008,7 +1138,8 @@ class Parser {
         this.next();
         let label = null;
         if (this.accept(':')) label = this.ident();
-        const decls = this.blockDecls(), stmts = [];
+        const decls = this.blockDecls(), stmts = [...decls.inits];
+        delete decls.inits;
         const isEnd = () => this.is('join') || (this.tok.t === 'id' && (this.tok.v === 'join_any' || this.tok.v === 'join_none'));
         while (!isEnd() && !this.isAny('end', 'endmodule') && this.tok.t !== 'eof') stmts.push(this.stmt());
         let join = 'all';
@@ -1090,7 +1221,7 @@ class Parser {
         const ref = { op: 'ref', name };
         return { kind: 'assign', target: ref, value: { op: 'unary', o: '~', a: ref }, nonblocking: false, delay: null };
       }
-      if (t.t === 'sys') {
+      if (t.t === 'sys' && (SYS_NOARG.has(t.v) || !['=', '<=', '['].some(v => this.is(v, this.peek())))) {
         this.next();
         const args = [];
         if (this.accept('(')) {
@@ -1260,6 +1391,8 @@ class Parser {
     if (t.t === 'fill') { this.next(); return { op: 'fill', bit: t.v }; }
     if (t.t === 'str') { this.next(); return { op: 'str', value: t.v }; }
     if (t.t === 'sys') {
+      // a $name without arguments that no system function has: an identifier (Yosys)
+      if (!this.is('(', this.peek()) && !SYS_NOARG.has(t.v)) { this.next(); return { op: 'ref', name: t.v }; }
       this.next();
       const args = [];
       if (this.accept('(')) { if (!this.is(')')) do { args.push(this.expr()); } while (this.accept(',')); this.expect(')'); }

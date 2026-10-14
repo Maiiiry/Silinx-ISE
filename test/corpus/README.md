@@ -62,15 +62,21 @@ Coverage (Yosys v0.68, 100 cycles, about 12 minutes with 8 jobs):
 
 | | files | parsed | top modules | elaborated | pass (Yosys front end) | pass (synthesis) |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| simple | 100 | 100 | 188 | 188 | 178 | 176 |
+| simple | 100 | 100 | 188 | 188 | 178 | 177 |
 | asicworld | 80 | 76 | 76 | 76 | 66 | 67 |
 | hana | 21 | 21 | 173 | 171 | 163 | 163 |
-| various | 33 | 28 | 59 | 57 | 45 | 46 |
-| **all** | **234** | **225** | **496** | **492** | **452** | **452** |
+| various | 33 | 31 | 65 | 65 | 46 | 49 |
+| **all** | **234** | **228** | **502** | **500** | **453** | **456** |
 
-(Before 15.10.2: 200 files parsed, 435 top modules, 418 elaborated, 396 / 395 passing.)
+(Before 15.10.2: 200 files parsed, 435 top modules, 418 elaborated, 396 / 395 passing; before 15.10.15
+(#6): 225 parsed, 496 top modules, 492 elaborated, 452 / 452 passing.)
 
-Of the rest: 1 mismatch (`simple/realexpr.v:demo_002`, where Yosys appears wrong, below); the
+Of the rest: 5 mismatches: `simple/realexpr.v:demo_002`, where Yosys appears wrong (below), and
+`various/fib.v`, `fib_tern.v` (gate and gold), where Yosys reads the language differently: an output
+variable's initializer that is not constant (`output integer fib0 = off + 0;`) and an initial block
+that reads an input are a continuous assignment for Yosys, evaluated once at time 0 by the standard
+(IEEE 1800-2017 10.5) and by Silinx; Silinx's synthesis refuses both (the input's value at time 0 is
+not known then). Then the
 modules with nothing to compare (no outputs, inout ports) or that Silinx cannot elaborate; with the
 synthesis path, reals, `$readmemh` and an array expression; errors: Yosys cannot read
 `various/lcov.v` and `various/memory_word_as_index.v` as the harness gives them (no data file),
@@ -78,10 +84,11 @@ synthesis path, reals, `$readmemh` and an array expression; errors: Yosys cannot
 out of memory), a module named by an escaped identifier, two inputs shorted together.
 
 What Silinx does not read yet (from `expected.json`): the `` `outfile`` macro of the asicworld test
-benches (defined elsewhere), explicit port expressions (and Yosys's `(...)`), `rand` / `const`,
-identifiers starting with `$` (Yosys's own cells), a port declared twice (an error), modules of
-another file (`hana/test_simulation_vlib.v`), a module that instantiates itself; a variable's
-initializer that is not constant (`various/fib.v`).
+benches (defined elsewhere), a port declared twice (an error), modules of another file
+(`hana/test_simulation_vlib.v`), a module that instantiates itself. Read since 15.10.15 (#6):
+explicit port expressions and Yosys's `module m(...)`, identifiers starting with `$` (Yosys's own
+cells, `various/shregmap.v`: Yosys itself cannot take them as the top module), a variable's
+initializer that is not constant.
 
 ## VlogHammer-style random modules: `npm run test:vloghammer`
 
