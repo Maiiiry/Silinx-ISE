@@ -5,6 +5,19 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.15
 
+In short:
+
+- **A drawing and its HDL are one:** every schematic, ASM chart, state diagram, truth table and Petri
+  net always has its HDL file, generated from it; the Design pane shows the drawing's badge first and
+  the HDL's language last ([VHDL] / [Verilog]); no more *Generate HDL* or *Convert to HDL* commands.
+  Projects made before are brought to this when opened, nothing lost.
+- **Synthesize, Implement and Generate Programming File always work on the top module,** and say so
+  when another module is selected.
+- **More Verilog / SystemVerilog:** explicit port expressions, `module m(...)`, identifiers starting with
+  `$`, `automatic` / `static` variables of a block.
+- **Smaller designs in the Silinx toolchain:** shift registers read at a variable tap become SRL16
+  shift registers, as with ISE.
+
 In detail:
 
 - **Design pane: the drawing first, the HDL by its language (#220):** a module's badges start with its
