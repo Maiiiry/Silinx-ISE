@@ -7,11 +7,12 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { resolvePatterns, stripLutRuns } from '../research/s3e-bitstream/lib.mjs';
-import { SHIFTS } from '../research/s3e-bitstream/share-sb.mjs';
+import { resolvePatterns, stripLutRuns, separateWindows } from '../research/s3e-bitstream/lib.mjs';
+import { SHIFTS, TERMINAL_TYPES } from '../research/s3e-bitstream/share-sb.mjs';
 import { MIRRORS, mirrorFeatures } from '../research/s3e-bitstream/dcm-mirror.mjs';
 import { makeDb, featureBits } from '../core/fpga/bitgen.js';
 import { measuredPips, UNIFY } from '../research/s3e-bitstream/want-pips.mjs';
+import { windowKeyOf } from '../research/s3e-bitstream/db.mjs';
 
 test('resolvePatterns: a PIP measured with different bits keeps the pattern without artefacts', () => {
   const p = (pat, n) => [pat, new Array(n).fill('T')];
@@ -24,6 +25,28 @@ test('resolvePatterns: a PIP measured with different bits keeps the pattern with
   assert.deepEqual(resolvePatterns([p('', 1), p('14,4 14,5', 1)]).map(x => x[0]), ['14,4 14,5']);
   // nothing to tell apart: both stay
   assert.equal(resolvePatterns([p('1,1', 1), p('2,2', 1)]).length, 2);
+});
+
+test('separateWindows: PIPs in tiles of one frame / bit window get different codewords, the others keep theirs (#48)', () => {
+  const words = [[0, 1], [0, 2], [1, 2]];
+  // the clock tile and the I/O tile of X0Y17 start at the same frame and bit; the CLBs elsewhere, or unplaced
+  const win = { LIOIS_CLK_PCI_X0Y17: '3:1168', CLKL_X0Y17: '3:1168', CLB_X1Y1: '24:2192', CLB_X1Y2: null };
+  const key = {
+    LIOIS_CLK_PCI_X0Y17: [{ code: [0, 1] }, { code: [0, 2] }],
+    CLKL_X0Y17: [{ code: [0, 2] }],
+    CLB_X1Y1: [{ code: [0, 2] }],
+    CLB_X1Y2: [{ code: [0, 2] }],
+  };
+  assert.equal(separateWindows(key, words, t => win[t]), 1);
+  assert.deepEqual(Object.values(key).map(ps => ps.map(p => p.code)), [[[0, 1], [0, 2]], [[1, 2]], [[0, 2]], [[0, 2]]]);
+  // no clash: nothing changed
+  assert.equal(separateWindows(key, words, t => win[t]), 0);
+  // a clash and no codeword left in the window: refused
+  const full = { LIOIS_CLK_PCI_X0Y17: [{ code: [0, 1] }, { code: [0, 2] }], CLKL_X0Y17: [{ code: [0, 2] }, { code: [1, 2] }] };
+  assert.throws(() => separateWindows(full, words, t => win[t]), /more PIPs than codewords/);
+  // the windows of the database's layout (what the generators use)
+  const of = windowKeyOf('xc3s250ecp132-4');
+  assert.deepEqual(['CLKL_X0Y17', 'LIOIS_CLK_PCI_X0Y17', 'CLKR_X27Y17', 'RIBUFS_CLK_PCI_X27Y17', 'CLB_X1Y1', 'NOSUCHTILE'].map(of), ['3:1168', '3:1168', '366:1168', '366:1168', '24:2192', null]);
 });
 
 test('stripLutRuns: a LUT cleared when a PIP was removed is not the PIP\'s', () => {
@@ -226,17 +249,17 @@ test('want-pips: the PIPs of the database the batches have not measured yet, one
   try {
     let r = tool('want-pips.mjs', ['db', W]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stderr.trim(), '16917 PIPs (per tile type) known to the reference database, 0 measured, 16917 left');
+    assert.equal(r.stderr.trim(), '16975 PIPs (per tile type) known to the reference database, 0 measured, 16975 left');
     const all = JSON.parse(r.stdout);
     // a type sharing another's switch box: only its own features (the CLB's are measured in the CLB)
-    assert.deepEqual([all.CENTER_SMALL.length, all.CENTER_SMALL_BRK.length, all.LIOIS.length, all.LIOIS_PCI.length, all.BRAM0_SMALL.length, all.UR.length], [2836, 959, 193, 129, 1792, 6]);
+    assert.deepEqual([all.CENTER_SMALL.length, all.CENTER_SMALL_BRK.length, all.LIOIS.length, all.LIOIS_PCI.length, all.BRAM0_SMALL.length, all.UR.length], [2836, 948, 193, 136, 1793, 6]);
     assert.equal(all.LIOIS_PCI.includes('E2BEG4->IOIS_CLK0'), true);
     fs.mkdirSync(path.join(W, 'pips', 't1'), { recursive: true });
     const pip = (tile, type, from, to) => ({ tile, type, from, dir: '->', to, bits: [] });
     fs.writeFileSync(path.join(W, 'pips', 't1', 'pips.json'), JSON.stringify({ pips: [pip('LIOIS_PCI_X0Y16', 'LIOIS_PCI', 'E2BEG4', 'IOIS_CLK0'), pip('CLB_X1Y1', 'CENTER_SMALL', 'BX0', 'BX_PINWIRE0'), pip('BRAM1_SMALL_X5Y1', 'BRAM1_SMALL', 'BRAM_DOA0', 'BRAM_ADDRA_B2')] }));
     assert.deepEqual([...measuredPips(W)], ['LIOIS E2BEG4->IOIS_CLK0', 'CENTER_SMALL BX0->BX_PINWIRE0', 'BRAM0_SMALL BRAM_DOA0->BRAM_ADDRA_B2']);
     r = tool('want-pips.mjs', ['db', W]);
-    assert.equal(r.stderr.trim(), '16917 PIPs (per tile type) known to the reference database, 3 measured, 16904 left');
+    assert.equal(r.stderr.trim(), '16975 PIPs (per tile type) known to the reference database, 3 measured, 16962 left');
     const left = JSON.parse(r.stdout);
     // measured in LIOIS_PCI: no longer wanted on the left side's I/O tiles; in BRAM1_SMALL: in the four block-RAM interconnect tiles
     for (const t of [...UNIFY[0], ...UNIFY[4], 'CENTER_SMALL']) assert.equal(all[t].length - left[t].length, 1, t);
@@ -273,5 +296,93 @@ test('diff-db: what differs between two databases, feature by feature (#48)', ()
       'x-pads.json: differs',
       `  pad features only in ${B}: 1`, '    P1 O:LVTTL [2,2]',
       '4 files, 3 differ', ''].join('\n'));
+  } finally { fs.rmSync(T, { recursive: true, force: true }); }
+});
+
+test('diff-db --resolved / --missing: two databases as bitgen reads them (shared switch boxes), and the features a rebuild lacks (#48)', () => {
+  const T = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-diffdb2-'));
+  try {
+    const w = (d, o) => { fs.mkdirSync(path.join(T, d), { recursive: true }); fs.writeFileSync(path.join(T, d, 's3e-tiles.json'), JSON.stringify(o)); };
+    // a: the I/O tile's own copy of a CLB feature, a feature b lacks, one with other bits;
+    // b: the same through sameAs, and one more
+    w('a', { types: { CLB: { features: { 'A->B': ['1,1'], 'C->D': ['2,2'], 'E->F': ['3,3'] } }, IO: { sameAs: 'CLB', shift: [2, 0], features: { 'A->B': ['3,1'], 'G->H': [] } } } });
+    w('b', { types: { CLB: { features: { 'A->B': ['1,1'], 'E->F': ['3,4'], 'K->L': ['5,5'] } }, IO: { sameAs: 'CLB', shift: [2, 0], features: {} } } });
+    const A = path.join(T, 'a'), B = path.join(T, 'b'), M = path.join(T, 'missing.json');
+    const r = tool('diff-db.mjs', [A, B, '--resolved', '--missing', M]);
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.slice(r.stdout.indexOf('s3e-tiles.json resolved')), [
+      's3e-tiles.json resolved: 2 features the same',
+      `  features only in ${A}: 3`, '    CLB C->D [2,2]', '    IO C->D [4,2]', '    IO G->H []',
+      `  features only in ${B}: 2`, '    CLB K->L [5,5]', '    IO K->L [7,5]',
+      '  features with other bits: 2', '    CLB E->F [3,3] -> [3,4]', '    IO E->F [5,3] -> [5,4]', ''].join('\n'));
+    // (IO A->B: its own copy is the CLB's shifted, the same as b's shared one: not missing)
+    assert.deepEqual(JSON.parse(fs.readFileSync(M, 'utf8')), { types: { CLB: { features: { 'C->D': ['2,2'] } }, IO: { features: { 'G->H': [] } } } });
+  } finally { fs.rmSync(T, { recursive: true, force: true }); }
+});
+
+test('share-sb: every terminal tile type of the committed database is set without PIP bits by a rebuild, also one with no PIP measured (#48)', () => {
+  const tiles = read('s3e-tiles.json');
+  const term = Object.entries(tiles.types).filter(([, ty]) => ty.pipsWithoutBits).map(([t]) => t).sort();
+  assert.deepEqual(TERMINAL_TYPES.slice().sort(), term);
+  for (const t of TERMINAL_TYPES) assert.match(t, /TERM|^BRAMSITE2(_BRK)?$/, t);
+});
+
+// fuzz-remote.sh / impl-remote.sh with a "remote machine" in a folder: ssh, rsync and docker replaced by
+// scripts that run locally (the remote machine's home: R); docker makes a .bit for every .xdl without
+// one (run-many.sh), or a top.bit and top.xdl in every design folder without a top.bit (ise-impl.sh)
+function fakeRemote(T) {
+  const bin = path.join(T, 'bin'), R = path.join(T, 'remote');
+  fs.mkdirSync(bin, { recursive: true }); fs.mkdirSync(R, { recursive: true });
+  const sh = (n, s) => { fs.writeFileSync(path.join(bin, n), `#!/bin/bash\n${s}\n`); fs.chmodSync(path.join(bin, n), 0o755); };
+  const rsync = spawnSync('bash', ['-c', 'command -v rsync'], { encoding: 'utf8' }).stdout.trim();
+  sh('ssh', `while [[ "$1" == -* ]]; do [ "$1" = -- ] && { shift; break; }; [ "$1" = -o ] && shift; shift; done; shift; cd "${R}" && HOME="${R}" exec bash -c "$*"`);
+  sh('rsync', `A=(); while [ $# -gt 0 ]; do case "$1" in -e) shift;; *:*) A+=("${R}/\${1#*:}");; *) A+=("$1");; esac; shift; done; exec "${rsync}" "\${A[@]}"`);
+  sh('docker', [
+    'while [ "$1" != -v ]; do shift; done; m=${2%:/w}; m=${m//\\"/}; while [ "$1" != bash ]; do shift; done; shift; s=$1; shift',
+    'for d in "$@"; do [[ "$d" == /w/* ]] || continue; d="$m/${d#/w/}"',
+    '  if [[ "$s" == *run-many.sh ]]; then for x in "$d"/*.xdl; do b=${x%.xdl}; [ -s "$b.bit" ] || { echo new > "$b.bit"; echo "ran $b" >> "$m/runs"; }; done',
+    '  else [ -s "$d/top.bit" ] || { echo new > "$d/top.bit"; echo new > "$d/top.xdl"; echo "ran $d" >> "$m/runs"; }; fi',
+    'done; [[ "$s" == *run-many.sh ]] && echo DONE'].join('\n'));
+  return { env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, SILINX_FUZZ_HOST: 'ise', W: path.join(T, 'W'), RW: 'rw' }, R };
+}
+const ranOn = f => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8').trim().split('\n').map(l => path.basename(l.split(' ')[1])).sort() : []);
+const put = (f, s) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); };
+
+test('fuzz-remote: a result an earlier run left on the remote machine is reused only for the same .xdl (#48)', { skip: process.platform === 'win32' && 'bash' }, () => {
+  const T = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-fuzzremote-'));
+  try {
+    const { env, R } = fakeRemote(T);
+    for (const v of ['V0', 'V1', 'V2']) put(path.join(T, 'W', 'b1', `${v}.xdl`), `design ${v}\n`);
+    // the earlier run: V0 the same design, V1 another one, V3 a design no longer made
+    const rb = path.join(R, 'rw', 'b1');
+    put(path.join(rb, 'V0.xdl'), 'design V0\n'); put(path.join(rb, 'V0.bit'), 'old V0');
+    put(path.join(rb, 'V1.xdl'), 'design V1 (another)\n'); put(path.join(rb, 'V1.bit'), 'old V1'); put(path.join(rb, 'V1.xlog'), 'log');
+    put(path.join(rb, 'V3.xdl'), 'design V3\n'); put(path.join(rb, 'V3.bit'), 'old V3');
+    const r = spawnSync('bash', [path.join(TOOLS, 'fuzz-remote.sh'), 'b1'], { encoding: 'utf8', env });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^1 results of an earlier run reused \(same \.xdl\)\n3 designs, \d+ s\n$/);
+    assert.deepEqual(ranOn(path.join(R, 'rw', 'runs')), ['V1', 'V2']);
+    const bit = v => fs.readFileSync(path.join(T, 'W', 'b1', `${v}.bit`), 'utf8').trim();
+    assert.deepEqual([bit('V0'), bit('V1'), bit('V2')], ['old V0', 'new', 'new']);
+    assert.deepEqual(fs.readdirSync(path.join(T, 'W', 'b1')).sort(), ['V0.bit', 'V0.xdl', 'V1.bit', 'V1.xdl', 'V2.bit', 'V2.xdl']);
+    assert.deepEqual(fs.readdirSync(rb).sort(), ['V0.bit', 'V0.xdl', 'V1.bit', 'V1.xdl', 'V2.bit', 'V2.xdl']);
+  } finally { fs.rmSync(T, { recursive: true, force: true }); }
+});
+
+test('impl-remote: a design folder an earlier run left on the remote machine is reused only with the same HDL and constraints (#48)', { skip: process.platform === 'win32' && 'bash' }, () => {
+  const T = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-implremote-'));
+  try {
+    const { env, R } = fakeRemote(T);
+    for (const d of ['a', 'b', 'c']) { put(path.join(T, 'W', 'impl', d, 'top.vhd'), `entity ${d}\n`); put(path.join(T, 'W', 'impl', d, 'top.ucf'), 'NET x;\n'); }
+    for (const [d, vhd] of [['a', 'entity a\n'], ['b', 'entity b (another)\n']]) {
+      const rd = path.join(R, 'rw', 'impl', d);
+      put(path.join(rd, 'top.vhd'), vhd); put(path.join(rd, 'top.ucf'), 'NET x;\n'); put(path.join(rd, 'top.bit'), `old ${d}`); put(path.join(rd, 'top.xdl'), `old ${d}`);
+    }
+    const r = spawnSync('bash', [path.join(TOOLS, 'impl-remote.sh'), '-P', '1', 'impl/a', 'impl/b', 'impl/c'], { encoding: 'utf8', env });
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /^impl\/a: the earlier run's folder reused \(same HDL and constraints\)\n3 designs implemented for xc3s250e-cp132-4, \d+ s\n$/);
+    assert.deepEqual(ranOn(path.join(R, 'rw', 'runs')), ['b', 'c']);
+    const xdl = d => fs.readFileSync(path.join(T, 'W', 'impl', d, 'top.xdl'), 'utf8').trim();
+    assert.deepEqual([xdl('a'), xdl('b'), xdl('c')], ['old a', 'new', 'new']);
   } finally { fs.rmSync(T, { recursive: true, force: true }); }
 });

@@ -14,7 +14,10 @@
 # (gen-pipdrop.mjs), the global clock tree (gen-clock.mjs), test designs routed through the switches
 # (gen-pipcover.mjs --want, rounds with the slice pins, carry, clock, constant, block-RAM pins, long
 # lines, dead ends), and the rest as dead-end branches of those designs' nets (gen-branch.mjs). Each
-# step is skipped when its results are there (a run can be resumed). About 2-4 hours of ISE.
+# step is skipped when its results are there (a run can be resumed). With W lost but the remote work
+# folders (RW, RW-impl) still on the ISE machine: run on a new W; the same designs are written again
+# and fuzz-remote.sh / impl-remote.sh reuse the remote results of the same inputs only. About 6-8
+# hours of ISE.
 set -e
 cd "$(dirname "$0")"
 export W=${1:-${TMPDIR:-/tmp}/silinx-bitdb}; W=${W%/}
@@ -49,7 +52,8 @@ for d in bram_prim bram_sp bufgmux dcm dram mult srl; do
   cp "$FIX/$d"/*.v "$FIX/$d"/*.vhd "$W/impl/$d/" 2>/dev/null || true
   rm -f "$W/impl/$d/harness.vhd"
   if grep -q '"part": "xc3s250e"' "$FIX/$d/design.json"; then cp "$FIX/$d/top.ucf" "$W/impl/$d/"; else grep -v 'LOC' "$FIX/$d/top.ucf" > "$W/impl/$d/top.ucf"; fi
-  [ -s "$W/impl/$d/top.xdl" ] || IMPL+=("impl/$d")
+  # (not again when ISE's map refused it: bram_prim and mult need more pads than the CP132 has)
+  [ -s "$W/impl/$d/top.xdl" ] || grep -qs '^ERROR:Pack' "$W/impl/$d/map.log" || IMPL+=("impl/$d")
 done
 [ ${#IMPL[@]} -eq 0 ] || W="$W" RW="$RW-impl" PART=xc3s250e-cp132-4 bash impl-remote.sh -P 2 "${IMPL[@]}"
 for d in "$W"/impl/*/; do
@@ -67,6 +71,13 @@ OPTS=('--pins lut' '--pins all' '--pins all,carry' '--pins lut,clk' '--pins lut,
 r=0; idle=0
 while [ "$idle" -lt ${#OPTS[@]} ] && [ "$r" -lt "${ROUNDS:-80}" ]; do
   name=$(printf c%02d "$r")
+  # (a run resumed: the rounds an earlier run made count as they did then, an empty one as idle, one
+  # with results by the number of switches it measured first, in new; so the rounds go on as they did)
+  if [ ! -d "$W/pips/$name" ] && grep -qs '^0 nets' "$W/pips/$name.txt"; then idle=$((idle + 1)); r=$((r + 1)); continue; fi
+  if [ -s "$W/pips/$name/pips.json" ] && [ -s "$W/pips/$name/new" ]; then
+    if [ "$(cat "$W/pips/$name/new")" -gt 0 ]; then idle=0; else idle=$((idle + 1)); fi
+    r=$((r + 1)); continue
+  fi
   if [ ! -f "$W/pips/$name/key.json" ]; then
     left=$(want | tail -1); [ "$left" = 0 ] && break
     # (an option that reaches none of the switches left gives a design without nets)
@@ -76,6 +87,7 @@ while [ "$idle" -lt ${#OPTS[@]} ] && [ "$r" -lt "${ROUNDS:-80}" ]; do
   before=$(want | tail -1)
   batch "$name"
   after=$(want | tail -1)
+  echo $((before - after)) > "$W/pips/$name/new"
   if [ "$after" -lt "$before" ]; then idle=0; else idle=$((idle + 1)); fi
   r=$((r + 1))
 done

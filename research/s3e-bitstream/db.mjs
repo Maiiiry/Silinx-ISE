@@ -13,6 +13,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 import { splitPart, mergeTiles, withDcmClkinGclk, DCM_ROUTED, dbFileNames, dbFilesFrom, makeBitDb } from '../../core/fpga/bitdb.js';
+import { tileOf, tileBase } from '../../core/fpga/bitgen.js';
 
 // (the database's logic is core/fpga/bitdb.js, shared with the browser; this module reads the files)
 export { splitPart, mergeTiles, withDcmClkinGclk, DCM_ROUTED };
@@ -57,4 +58,14 @@ export function loadDb(part = PART, { graph = null, dir = DB_DIR } = {}) {
   const files = readDbFiles(device, { pkg, dir });
   const dev = graph && typeof graph === 'object' ? graph : pkg || graph ? loadDeviceCache(graph || part) : null;
   return makeBitDb(files, dev, part);
+}
+
+/** The window of a tile in the frame data by tile name ("frame:bit" where it starts, from the layout;
+ *  null when the layout does not place it, or for a device without a database yet): tiles with the same
+ *  window (CLKL_X0Y17 and LIOIS_CLK_PCI_X0Y17) need different codewords in a PIP batch
+ *  (separateWindows in lib.mjs, #48). */
+export function windowKeyOf(part = PART) {
+  if (!hasBitDb(splitPart(part).device)) return () => null;
+  const db = loadDb(part);
+  return t => { const tt = tileOf(t, db), b = tt && tileBase(tt, db); return b ? `${b.frame}:${b.bit}` : null; };
 }

@@ -43,7 +43,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-iob.mjs`, `ana-pads.mjs`, `ana-iob.mjs`, `ana-io2.mjs` | Stage C: the I/O pads (direction, I/O standard, drive, slew, pull) |
 | `gen-attrdrop.mjs`, `ana-attrdrop.mjs`, `gen-slicedb.mjs`, `gen-slicetable.mjs` | Stage C: slice settings in every slice position |
 | `ana-residual.mjs`, `explain-diff.mjs` | What the database does not explain in designs implemented by ISE, per tile and feature |
-| `measure-db.sh`, `want-pips.mjs`, `diff-db.mjs` | #48: the XC3S250E's experiments made again with ISE (the PIPs to measure: those of the database), and the rebuilt database compared with the committed one |
+| `measure-db.sh`, `want-pips.mjs`, `diff-db.mjs` | #48: the XC3S250E's experiments made again with ISE (the PIPs to measure: those of the database; resumable, also from the remote work folders), and the rebuilt database compared with the committed one (`--resolved`: as bitgen reads it; `--missing`: what the experiments do not reach) |
 | `gen-layout.mjs`, `merge-db.mjs`, `build-db.sh`, `db.mjs` | Build the database (`db/*.json`) from the experiments' results; `db.mjs` is the one loader (the open flow, the interface, the experiments: `loadDb(part)`); the pads of the package (pin -> I/O tile) are not in it: it takes them from the device description (`padsFromDevice`) |
 | `measured/` | Results of the analyses that `build-db.sh` merges (slice harnesses, learned and corrected features: our own observations, no Xilinx files) |
 | `learn-single.mjs`, `unify-io.mjs` | Features measured in the reference designs; shared switch boxes of the I/O tile types |
@@ -788,9 +788,9 @@ image (only Silinx's scripts' designs, the fixtures' HDL, and ISE's outputs left
 never in the repository):
 
 ```
-SILINX_FUZZ_HOST=user@host research/s3e-bitstream/measure-db.sh /path/W    # ISE: about 10-15 hours on one Intel Mac mini shared with other work
+SILINX_FUZZ_HOST=user@host research/s3e-bitstream/measure-db.sh /path/W    # ISE: about 6-8 hours on one Intel Mac mini shared with other work
 research/s3e-bitstream/build-db.sh /path/W                                   # seconds; rewrites db/ in place
-node research/s3e-bitstream/diff-db.mjs <copy of the db before> research/s3e-bitstream/db
+node research/s3e-bitstream/diff-db.mjs <copy of the db before> research/s3e-bitstream/db --resolved
 ```
 
 | W | Experiment | ISE runs |
@@ -798,10 +798,10 @@ node research/s3e-bitstream/diff-db.mjs <copy of the db before> research/s3e-bit
 | `map/` | stage A: every slice numbered in its LUT, the empty design (`gen-map.mjs`) | 2 |
 | `br1/` | block-RAM contents (`gen-bram.mjs`) | 17 |
 | `io4/`, `io7/` | I/O settings per pad, per standard (`gen-iob.mjs --perpad / --perstd`) | 200 + 230 |
-| `impl/`, `pips/pd-*` | the fixtures with block RAMs, multipliers, a DCM, a BUFGMUX, distributed RAM and shift registers implemented by ISE, every PIP removed by codewords (`gen-pipdrop.mjs`, 20 variants) | 7 + 147 |
+| `impl/`, `pips/pd-*` | the fixtures with block RAMs, a DCM, a BUFGMUX, distributed RAM and shift registers implemented by ISE, every PIP removed by codewords (`gen-pipdrop.mjs`, 20 variants; `bram_prim` and `mult` need more pads than the CP132 has: ISE's map refuses them, and they are not tried again) | 7 + 105 |
 | `pips/k1` | the global clock tree (`gen-clock.mjs`) | 9 |
-| `pips/c*` | test designs through the PIPs still to measure (`gen-pipcover.mjs --want`, rounds over the kinds of pins and lines) | 9 per round |
-| `pips/b*` | the rest as dead-end branches of those designs' nets (`gen-branch.mjs --want`) | 13 per batch |
+| `pips/c*` | test designs through the PIPs still to measure (`gen-pipcover.mjs --want`, rounds over the kinds of pins and lines; 22 of the 80 rounds reach some) | 9 per round |
+| `pips/b*` | the rest as dead-end branches of those designs' nets (`gen-branch.mjs --want`; 11 batches) | 13 per batch |
 
 The PIPs measured are those the committed database holds (`want-pips.mjs`: per type its own
 features, one measurement serving the types that share a switch box), so that the rebuild can be
@@ -812,13 +812,65 @@ file's description (`merge-db.mjs --reset-tiles / --reset-pads`), takes the grap
 description (no device report), writes the XC3S250E's LUT file too, and ends with
 `pip-exceptions.mjs` (#74).
 
-**Result so far** (the XC3S250E, rebuilt from the new experiments): `xc3s250e-layout.json`,
-`xc3s250e-bram.json` and `xc3s250e-cp132-pads.json` identical to the committed files (the 1671 per-pad
-and 935 per-standard features of io4 / io7 all with the same bits); `xc3s250e-lut.json` identical but
-for its description (the committed file now has the one `decode-map.mjs` writes). The routing
-switches' batches (`pips/`, about 400 ISE runs) were still running when this was written: the
-comparison of `s3e-tiles.json` (and of `xc3s250e-slice.json`, which follows from it) is still to be
-made and recorded here. The other devices' files are rebuilt from `$W2` (stage F) as before.
+**Resuming.** Every step of `measure-db.sh` is skipped when its results are in `W`, and the rounds of
+test designs count as they did when they ran (`pips/cNN/new`: the switches the round measured first;
+`pips/cNN.txt`: a round without nets), so a run stopped half-way goes on as it would have. When the
+local `W` is lost but the remote work folders are still there (`~/silinx-measure-db`,
+`~/silinx-measure-db-impl` on the ISE machine), run `measure-db.sh` on a new, empty `W`: it writes the
+same designs again (fixed parameters and seeds), and `fuzz-remote.sh` / `impl-remote.sh` reuse and
+copy back the results the remote folder has **only for the same input** (the same `.xdl`, compared by
+checksum; the same HDL and constraints for a design implemented by ISE); a design whose input there
+differs loses its results there first and is run again. The ssh connections give up after 10 minutes
+without an answer (a machine gone from the network stops the run, which can then be resumed).
+
+**Result (2026-10-15).** The work folder of the first run was lost, its 581 remote results were not:
+on a new `W`, 563 were reused (map, block-RAM contents, the I/O settings, the five `pd-*` batches, the
+clock tree) and 18 discarded (rounds `c00`, `c01`: the earlier run's designs were not those the
+committed scripts write); about 360 conversions were run anew (the rounds and branches after them, and
+the three batches below again). Then `build-db.sh` and `diff-db.mjs --resolved` (bitgen's view: every
+type's features with those it shares, `sameAs` / `shift` / `rename`):
+
+- `xc3s250e-layout.json`, `-lut.json`, `-bram.json`, `-cp132-pads.json` and the other devices'
+  layout, LUT, block-RAM and pad files: identical.
+- `s3e-tiles.json`: of the 142 964 features bitgen resolves, every feature of the committed database is
+  in the rebuild, all with the same bits but two (below); 94 more were measured (global line 4 into the
+  I/O clock pins of every I/O tile type of the left and right sides, `GCLK4 -> IOIS_CLKk`, which
+  `learn-12iob-clk-pips.json` had given to a few of them only; `GCLK5 -> BRAM_CLK2` of the block-RAM
+  interconnect, `CLKT_CKI5 -> CLKT_GCLK1`, `I1_PINWIRE -> IOIS_IBUF1` of the top I/O tiles, no bits).
+  The rebuilt file is now the committed one; a rebuild of it is identical (`22 files, 0 differ`).
+- Two bits of the committed database were artefacts of the earlier measurements, now gone:
+  `BIOIS / BIBUFS GCLK2 -> IOIS_CLK4` had `22,79` (the bit of the horizontal clock row, `GCLKH`, at
+  the end of the tile's window: the top I/O tiles' same switch has `4,40 4,41 4,44` only) and
+  `RIOIS… S6D4 -> IOIS_CLK5` had `20,2` (the bottom, left and top I/O tiles' have the one bit of the
+  pattern, `5,25` / `7,25` / `5,41`; the rebuild measured it without that bit in 7 tiles of the four
+  sides).
+- Bugs found and fixed: (1) `gen-pipcover.mjs`, `gen-clock.mjs`, `gen-branch.mjs` and
+  `gen-pipdrop.mjs` gave the same codeword to switches of two tiles that start at the same frame and
+  bit (`CLKL_X0Y17` / `LIOIS_CLK_PCI_X0Y17`, `CLKR` / `RIBUFS_CLK_PCI`, `GCLKVC` / its CLB), so
+  `ana-pipdrop.mjs` gave the bits of the clock tile's switch (`CLKL_UP_IOIS_F2_B3 -> CLKL_GCLK2`,
+  `1,-2`) to the I/O tile's (`N6MID4 -> IOIS_CLK2`): `separateWindows` (lib.mjs) now gives them other
+  codewords, which changed only `k1`, `c07` and `c15` (run again); (2) `share-sb.mjs` set the terminal
+  tiles' "PIPs without bits" only on the types some measurement had touched (`TERMINAL_TYPES`);
+  (3) `xc3s250e-slice.json` (a table made from `s3e-tiles.json`) had not been made again since
+  `REVUSED:0` (stage F) and `C2VDD` (the open flow) were added: now it has them.
+- Three CLB switches the rebuild measured once only, each with a side effect of the removal
+  (`Y2 -> E2BEG7`: slice settings of the LUT whose only route was removed; `W2BEG4 -> BY3`: a cleared
+  bit; `OMUX_N10 -> BX2`: a bit shared with another switch of the design), keep the earlier values,
+  which fit the encoding of the other switches into the same pin: `measured/fix-26rebuild.json`.
+- 258 features the new experiments do not reach (no design of `gen-pipcover.mjs` with any kind of
+  pins, `gen-branch.mjs` or `gen-clock.mjs` routes through them, no fixture uses them): the block-RAM
+  interconnect tiles' VCC switches (210, no bits) and global line 4 into their clock pins (15), the
+  DCM tiles' switches into the DCMs' clock and fabric pins (21), centre clock buffer inputs (9), three
+  BX / BY bounces: kept as the earlier experiments measured them, `measured/kept-xc3s250e.json`
+  (written by `diff-db.mjs --missing`; merged only where nothing else measured them).
+- The I/O tiles' `absent` / `absentIn` lists (#74) follow: `GCLK4_BRK` absent where the new
+  `GCLK4_BRK -> IOIS_CLKk` features have no such wire, `IOIS_IBUF1` where the new top-tile feature does
+  not exist.
+
+With the rebuilt database, the six examples (blinky, clock, gates, pong, stopwatch, traffic) through
+the open flow and `scripts/check-open-flow.mjs`: ISE's DRC 0 errors, 0 warnings, and `.bit` files
+byte-identical to ISE's bitgen (CRC on and off). The other devices' files are rebuilt from `$W2`
+(stage F) as before (not repeated here).
 
 ### Open synthesis on the board (2026-10-10)
 

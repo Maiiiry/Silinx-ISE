@@ -10,6 +10,8 @@
 import fs from 'node:fs';
 import { loadGraph } from './xdlrc-graph.mjs';
 import { parseXdl } from '../../core/xdl.js';
+import { windowKeyOf } from './db.mjs';
+import { separateWindows } from './lib.mjs';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
@@ -68,6 +70,7 @@ const words = [];
 const rec = (start, acc) => { if (acc.length === w) { words.push(acc.slice()); return; } for (let j = start; j < L; j++) { acc.push(j); rec(j + 1, acc); acc.pop(); } };
 rec(0, []);
 for (const ps of Object.values(key)) { if (ps.length > words.length) throw new Error(`${ps.length} branches in a tile, ${words.length} codewords`); const pool = shuffle(words.map((x, i) => i)); ps.forEach((p, k) => { p.code = words[pool[k]]; }); }
+separateWindows(key, words, windowKeyOf(xdlrc));
 const codeOf = new Map(Object.entries(key).flatMap(([tile, ps]) => ps.map(p => [`${tile} ${p.from} ${p.to}`, p.code])));
 // the designs: each net's text gets its branches before the closing ';'
 const netText = [...text.matchAll(/^net "((?:\\.|[^"\\])*)"[^;]*?;/gms)];

@@ -1,11 +1,14 @@
 // Routing switches (PIPs) measured in batches on a design routed by ISE: every variant is the routed
 // XDL with some PIPs removed (the nets keep their pins, so bitgen still programs the rest). Each PIP
 // gets a codeword of `w` ones out of `L` variants (different codewords in the same tile, chosen at
-// random per tile); a PIP's bits change in exactly the variants of its codeword, so L variants
-// measure every PIP of the design at once (ana-pipdrop.mjs).
+// random per tile, and in tiles of the same frame / bit window: separateWindows); a PIP's bits change
+// in exactly the variants of its codeword, so L variants measure every PIP of the design at once
+// (ana-pipdrop.mjs).
 //
-//   node gen-pipdrop.mjs routed.xdl outdir [L=20] [w=3] [seed=1]
+//   [PART=xc3s250ecp132-4] node gen-pipdrop.mjs routed.xdl outdir [L=20] [w=3] [seed=1]
 import fs from 'node:fs';
+import { windowKeyOf } from './db.mjs';
+import { separateWindows } from './lib.mjs';
 
 const [src, out, Ls = '20', ws = '3', seeds = '1'] = process.argv.slice(2);
 const L = +Ls, w = +ws;
@@ -31,8 +34,9 @@ for (const [tile, ps] of byTile) {
   const pool = words.map((x, i) => i);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   key[tile] = ps.map((p, k) => ({ from: p.from, dir: p.dir, to: p.to, code: words[pool[k]] }));
-  ps.forEach((p, k) => { p.code = words[pool[k]]; });
 }
+separateWindows(key, words, windowKeyOf());
+for (const [tile, ps] of byTile) ps.forEach((p, k) => { p.code = key[tile][k].code; });
 fs.writeFileSync(`${out}/BASE.xdl`, text);
 for (let v = 0; v < L; v++) {
   const drop = new Set();

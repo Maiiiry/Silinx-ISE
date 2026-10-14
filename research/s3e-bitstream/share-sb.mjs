@@ -34,6 +34,15 @@ export const ALIASES = { CLKT_LL: 'CLKT', CLKB_LL: 'CLKB', CLKC_LL: 'CLKC', CLKV
 // (IOIS_CLK0-7: other bits than the CLB's CLK0-3)
 export const RENAME = [['IOIS_VCC_WIRE', 'VCC_PINWIRE'], ['IOIS_(?!CLK)', '']];
 export const IO_EMPTY = '^IOB\\d:(USED|PAD:|INBUF:|OUTBUF:|IMUX:|IDELMUX:|O1INV:|OMUX:|IOATTRBOX:|DRIVEATTRBOX:|SLEW:|PULL:)|->IOIS_STUB_';
+// the terminal tiles (…TERM…) and block-RAM sites' tiles whose PIPs set no bits (pipsWithoutBits): the
+// XC3S250E's, also those of which a rebuild (build-db.sh, #48) measured no PIP, and the other devices'
+// (stage F): the same kind of tile
+export const TERMINAL_TYPES = ['BTERM', 'BTERM2', 'BTERM3', 'BTERM4', 'BTERM4CLK', 'BTERMCLK', 'BTERMCLKA', 'BTERMCLKB',
+  'TTERM', 'TTERM2', 'TTERM3', 'TTERM4', 'TTERM4CLK', 'TTERMCLK', 'TTERMCLKA',
+  'LTERM', 'LTERM1', 'LTERM4', 'LTERM4B', 'LTERM4CLK', 'LTERMCLK', 'LTERMCLKA',
+  'RTERM', 'RTERM1', 'RTERM4', 'RTERM4CLK', 'RTERM4CLKB', 'RTERMCLKA',
+  'CNR_BTERM', 'CNR_TTERM', 'CNR_LBTERM', 'CNR_LTTERM', 'CNR_RBTERM', 'CNR_RTTERM', 'COB_TERM_B', 'COB_TERM_T', 'BRAMSITE2', 'BRAMSITE2_BRK',
+  'TTERM1', 'TTERM4_BRAM2', 'BTERM1', 'BTERM4_BRAM2', 'LTERM2', 'LTERM3', 'RTERM2', 'RTERM3', 'DCM_H_TR_TERM', 'DCM_H_BR_TERM'];
 const renamed = f => RENAME.reduce((x, [a, b]) => x.replace(new RegExp(a, 'g'), b), f);
 
 if (process.argv[1] && process.argv[1].endsWith('share-sb.mjs')) {
@@ -70,8 +79,7 @@ if (process.argv[1] && process.argv[1].endsWith('share-sb.mjs')) {
   // (thousands of measurements without bits; the few with bits were bits of the I/O tile measured
   // in the same frames)
   let term = 0;
-  // the terminal tiles of the other devices (stage F): the same kind of tile
-  for (const type of ['TTERM1', 'TTERM4_BRAM2', 'BTERM1', 'BTERM4_BRAM2', 'LTERM2', 'LTERM3', 'RTERM2', 'RTERM3', 'DCM_H_TR_TERM', 'DCM_H_BR_TERM']) db.types[type] ||= { features: {} };
+  for (const type of TERMINAL_TYPES) db.types[type] ||= { features: {} };
   for (const [type, t] of Object.entries(db.types)) {
     if (!/TERM|^BRAMSITE2(_BRK)?$/.test(type)) continue;
     t.pipsWithoutBits = true;

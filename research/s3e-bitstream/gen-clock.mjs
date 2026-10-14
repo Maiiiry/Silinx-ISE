@@ -6,7 +6,8 @@
 import fs from 'node:fs';
 import { loadGraph } from './xdlrc-graph.mjs';
 import { makeRouter } from './router.mjs';
-import { PART } from './db.mjs';
+import { PART, windowKeyOf } from './db.mjs';
+import { separateWindows } from './lib.mjs';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
@@ -94,8 +95,10 @@ for (const ps of Object.values(key)) {
   const pool = words.map((x, i) => i);
   for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
   if (ps.length > words.length) throw new Error('too many PIPs in a tile');
-  ps.forEach((p, k) => { p.code = words[pool[k]]; code.set(p.e, p.code); });
+  ps.forEach((p, k) => { p.code = words[pool[k]]; });
 }
+separateWindows(key, words, windowKeyOf(xdlrc));
+for (const ps of Object.values(key)) for (const p of ps) code.set(p.e, p.code);
 const write = (file, v) => {
   const txt = [`design "clock" ${PART} v3.2 ,\n  cfg "";`];
   for (const b of bufs) txt.push(`inst "b_${b.site}" "BUFGMUX",placed ${b.tile} ${b.site} ,\n  cfg " DISABLE_ATTR::LOW I0_USED::0 SINV::S_B GCLKMUX:b_${b.site}.GCLKMUX: GCLK_BUFFER:b_${b.site}: "\n  ;`);

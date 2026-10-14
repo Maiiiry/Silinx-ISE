@@ -273,13 +273,14 @@ test('the XC3S1200E\'s own features: the long-line splitters of the centre row, 
 
 test('the PIPs a tile type\'s features offer that its tiles do not have (#74): measured on ISE\'s device descriptions, refused to the router', () => {
   const t = JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types;
-  // every tile of the type, on every device: [wires (every PIP into or out of it), PIPs]
+  // every tile of the type, on every device: [wires (every PIP into or out of it), PIPs]; the left and
+  // right I/O tiles also lack GCLK4_BRK (their features have the clock-row tiles' GCLK4_BRK -> IOIS_CLKk, #48)
   const counts = Object.fromEntries(Object.entries(t).filter(([, v]) => v.absent).map(([k, v]) => [k, [v.absent.filter(x => !x.includes('->')).length, v.absent.filter(x => x.includes('->')).length]]));
-  const io = [100, 433], sb = [140, 218], cnr = [140, 250], bram = [140, 0], gclkh = [8, 0];
+  const io = [100, 433], io4 = [101, 433], sb = [140, 218], cnr = [140, 250], bram = [140, 0], gclkh = [8, 0];
   assert.deepEqual(counts, {
-    CENTER_SMALL_BRK: [8, 0], BIOIS: io, BIBUFS: io, LIOIS_PCI: io, LIBUFS_PCI: io, RIOIS: io, RIBUFS_PCI: io, RIOIS_PCI: [100, 436],
-    RIBUFS_CLK_PCI: [96, 446], RIOIS_CLK_PCI: [96, 452], LIOIS_CLK_PCI: [96, 449], LIBUFS_CLK_PCI: [96, 449], RIBUFS: [100, 425], RIBUFS_BRK: [108, 425],
-    TIBUFS: [100, 429], TIOIS: [100, 429], LIOIS: [100, 430], LIOIS_BRK: [108, 430], LIBUFS: [100, 422],
+    CENTER_SMALL_BRK: [8, 0], BIOIS: io, BIBUFS: io, LIOIS_PCI: io4, LIBUFS_PCI: io4, RIOIS: io4, RIBUFS_PCI: io4, RIOIS_PCI: [101, 436],
+    RIBUFS_CLK_PCI: [97, 446], RIOIS_CLK_PCI: [97, 452], LIOIS_CLK_PCI: [97, 449], LIBUFS_CLK_PCI: [97, 449], RIBUFS: [101, 425], RIBUFS_BRK: [108, 425],
+    TIBUFS: [100, 429], TIOIS: [100, 429], LIOIS: [101, 430], LIOIS_BRK: [108, 430], LIBUFS: [101, 422],
     BRAM0_SMALL: bram, BRAM1_SMALL: bram, BRAM2_SMALL: bram, BRAM3_SMALL: bram, BRAM3_SMALL_BRK: [148, 0],
     LL: cnr, LR: cnr, UL: cnr, UR: cnr,
     DCM_BL_CENTER: sb, DCM_BR_CENTER: sb, DCM_TL_CENTER: sb, DCM_TR_CENTER: sb, DCMAUX_BL_CENTER: [140, 219], DCMAUX_TL_CENTER: [140, 219],
@@ -296,7 +297,8 @@ test('the PIPs a tile type\'s features offer that its tiles do not have (#74): m
     .filter(([, v]) => v.absentIn).map(([k, v]) => [k, v.absentIn.map(g => [g.tiles.length, rows(g.tiles), g.absent.join(' ')])]))]));
   const outs = 'CLKV_OMUX10_OUTL0 CLKV_OMUX10_OUTR0 CLKV_OMUX11_OUTL1 CLKV_OMUX11_OUTR1 CLKV_OMUX12_OUTL2 CLKV_OMUX12_OUTR2 CLKV_OMUX15_OUTL3 CLKV_OMUX15_OUTR3 CLKV_OUTL0 CLKV_OUTL1 CLKV_OUTL2 CLKV_OUTL3 CLKV_OUTR0 CLKV_OUTR1 CLKV_OUTR2 CLKV_OUTR3';
   const span = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-  const ibuf = (n, y) => [[n, [y], 'IOIS_IBUF0']];
+  // (and IBUF1 at the top: its pin wire's switch, I1_PINWIRE -> IOIS_IBUF1, measured in the rebuild, #48)
+  const ibuf = (n, y) => [[n, [y], y ? 'IOIS_IBUF0 IOIS_IBUF1' : 'IOIS_IBUF0']];
   assert.deepEqual(own['xc3s100ecp132-4'], {
     CENTER_SMALL: [[20, [1, 5, 21], 'FX_S2'], [9, [2, 18], 'COUT_N1 COUT_N3']], CLKV: [[20, span(2, 21), outs.split(' ').filter(w => /OUTR|OMUX\d+_OUTR/.test(w)).join(' ')]],
     TIOIS: ibuf(7, 23), TIBUFS: ibuf(5, 23), BIOIS: ibuf(7, 0), BIBUFS: ibuf(5, 0),

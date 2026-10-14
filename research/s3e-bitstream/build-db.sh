@@ -49,7 +49,12 @@ if [ -f "$W/io7/key.json" ] && [ -f "$W/io7/LVCMOS12_BASE.bit" ]; then node ana-
 # the pads' features of #18 (I:NOLOAD) and #44 (IOB registers, input delays), whose experiments are
 # not repeated: kept as numbers (README, "Rebuilding the database")
 node merge-db.mjs measured/pads-xc3s250e-cp132.json
-# corrections found by comparing whole designs with ISE (check-writer.mjs, explain-diff.mjs)
+# the tile features of earlier experiments that measure-db.sh does not repeat and its designs do not
+# reach (the block-RAM and CLB tiles' VCC switches, the DCMs' outputs, the clock tiles' buffers…):
+# kept as numbers, only where nothing above measured them (README, "Rebuilding the database")
+[ -f measured/kept-xc3s250e.json ] && node merge-db.mjs --keep measured/kept-xc3s250e.json
+# corrections found by comparing whole designs with ISE (check-writer.mjs, explain-diff.mjs), and
+# of switches the rebuild measured once only with a side effect (fix-26rebuild.json)
 for f in measured/fix-*.json; do [ -f "$f" ] && node merge-db.mjs "$f"; done
 # the other three DCMs' settings: the top-left one's mirrored (stage F, dcm-mirror.mjs)
 node dcm-mirror.mjs > "$W/dcm-mirror.json" && node merge-db.mjs "$W/dcm-mirror.json"

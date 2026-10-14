@@ -110,6 +110,13 @@ In detail:
   paths 3 % shorter on average, sizes as before; the EPFL max benchmark 17 % faster (30.2 ns routed,
   ISE 25.7), EPFL priority 29 %, serv 19 %; the pedestrian crossing example 7.1 ns estimated instead of
   7.9, with 94 LUTs instead of 114.
+- **The XC3S250E's bit database rebuilt from scratch with ISE (#48):** the experiments made again
+  (research/s3e-bitstream/measure-db.sh, resumable, also from the results left on the ISE machine)
+  give every switch and setting of the committed database with the same bits, and 94 more switches
+  (global line 4 into the I/O clock pins of every left and right I/O tile, block-RAM and clock
+  tiles); two extra bits of earlier measurements removed (an I/O tile's clock pin from GCLK2 and from
+  S6D4); the switches the new experiments do not reach are kept as the earlier ones measured them.
+  The rebuilt database is now the committed one.
 
 ## 15.10.15
 

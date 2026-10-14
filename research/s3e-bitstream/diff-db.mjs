@@ -2,13 +2,19 @@
 // committed database (#48). Per file: identical, or what differs: for the tile types (s3e-tiles.json,
 // <device>-tiles.json) the features only in one, those with other bits, and the types' other keys;
 // for the pads (<device>-<package>-pads.json) the same per pad; for the others the top-level keys.
-//   node diff-db.mjs a-dir b-dir [--files f1,f2] [--list N]      (N: examples listed per kind, default 10)
+//   node diff-db.mjs a-dir b-dir [--files f1,f2] [--list N] [--resolved] [--missing out.json]
+// N: examples listed per kind, default 10. --missing: the tile types' features of a-dir's
+// s3e-tiles.json that b-dir's has not (not even through the type it shares), as a file for
+// merge-db.mjs ({ types: { T: { features } } }: the features a rebuild's experiments do not reach,
+// kept as numbers: measured/kept-xc3s250e.json).
 import fs from 'node:fs';
 import path from 'node:path';
+import { makeDb, featureBits } from '../../core/fpga/bitgen.js';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v = args[i + 1]; args.splice(i, 2); return v; };
-const only = opt('--files', null), N = +opt('--list', '10');
+const only = opt('--files', null), N = +opt('--list', '10'), missingFile = opt('--missing', null);
+const resolved = args.includes('--resolved'); if (resolved) args.splice(args.indexOf('--resolved'), 1);
 const [A, B] = args;
 const read = (d, f) => (fs.existsSync(path.join(d, f)) ? JSON.parse(fs.readFileSync(path.join(d, f), 'utf8')) : undefined);
 const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
@@ -61,3 +67,35 @@ for (const f of files) {
   }
 }
 console.log(`${files.length} files, ${differ} differ`);
+// --resolved: s3e-tiles.json as bitgen reads it (makeDb, featureBits): every type's features with the
+// ones it shares (sameAs, shift, rename), so that an own feature equal to the shared one, or a
+// feature given to every type of a switch box, compares as what it sets
+if (resolved) {
+  const a = read(A, 's3e-tiles.json'), b = read(B, 's3e-tiles.json');
+  const da = makeDb({ layout: {}, lut: {}, tiles: a }), dbb = makeDb({ layout: {}, lut: {}, tiles: b });
+  const acc = { onlyA: [], onlyB: [], bits: [] };
+  let same = 0;
+  for (const t of [...new Set([...Object.keys(da.types), ...Object.keys(dbb.types)])].sort()) {
+    const x = da.types[t], y = dbb.types[t];
+    const fs = new Set([...(x?.feats.keys() || []), ...(y?.feats.keys() || [])]);
+    for (const f of [...fs].sort()) {
+      const p = featureBits(x, f), q = featureBits(y, f);
+      if (p === undefined && q === undefined) continue;
+      if (q === undefined) acc.onlyA.push(`${t} ${f} [${p.join(' ')}]`);
+      else if (p === undefined) acc.onlyB.push(`${t} ${f} [${q.join(' ')}]`);
+      else if (bitsKey(p) !== bitsKey(q)) acc.bits.push(`${t} ${f} [${p.join(' ')}] -> [${q.join(' ')}]`);
+      else same++;
+    }
+  }
+  console.log(`s3e-tiles.json resolved: ${same} features the same`);
+  show(`features only in ${A}`, acc.onlyA);
+  show(`features only in ${B}`, acc.onlyB);
+  show('features with other bits', acc.bits);
+}
+if (missingFile) {
+  // (a feature b-dir has through the type it shares, sameAs, is not missing)
+  const a = read(A, 's3e-tiles.json') || { types: {} }, b = makeDb({ layout: {}, lut: {}, tiles: read(B, 's3e-tiles.json') || { types: {} } });
+  const types = {};
+  for (const [t, x] of Object.entries(a.types)) for (const [f, bits] of Object.entries(x.features || {})) if (featureBits(b.types[t], f) === undefined) ((types[t] ||= { features: {} }).features[f] = bits);
+  fs.writeFileSync(missingFile, JSON.stringify({ types }));
+}
