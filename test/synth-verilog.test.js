@@ -815,3 +815,13 @@ end;`)];
   const { text } = equivalent(sources, 'top', { minStates: 3 });
   assert.doesNotMatch(text, /\[-1:0\]|none/);
 });
+
+test('an initializer or an initial block that reads an input of the design is refused (its value at time 0 is not known): not a netlist of zeros (#6)', () => {
+  const syn = (text, top) => { try { toVerilog(elaborate(compile([{ path: 'd.v', lang: 'verilog', text }]), top)); return null; } catch (e) { return e.message; } };
+  assert.equal(syn('module g(off, q); input wire signed [31:0] off; output integer q = off + 3; endmodule', 'g'),
+    'an initializer that reads the input off (evaluated once, at time 0) cannot be synthesized (line 1)');
+  assert.equal(syn('module g(input [3:0] a, output reg [3:0] q); initial q = a; endmodule', 'g'),
+    'an initial block that reads the input a cannot be synthesized (line 1)');
+  // a constant one stays an initial value
+  assert.equal(syn('module g(input [3:0] a, output reg [3:0] q = 5); always @* if (a[0]) q = a; endmodule', 'g'), null);
+});

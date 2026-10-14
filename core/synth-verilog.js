@@ -1081,12 +1081,16 @@ export function toVerilog(design, { name, tables = true } = {}) {
   const initVal = new Map();     // signal -> its value after the initial blocks
   const drivers = new Map();     // signal -> the processes (not initial) that assign it
   for (const p of design.procs) if (p.mode !== 'initial' && p.mode !== 'loop') for (const s of p.writes || []) { if (!drivers.has(s)) drivers.set(s, []); drivers.get(s).push(p); }
+  const inputSigs = new Set(design.top.ports.filter(pt => pt.dir === 'in').map(pt => pt.sig));
   function initialProcess(p) {
     const saved = new Map(), nba = [];
     try {
       // a value read from a signal that another process drives depends on the order the
       // processes start in at time 0: not an initial value
       for (const s of p.reads || []) if (!p.writes?.has(s) && drivers.has(s)) fail(`an initial block that reads ${s.name}, which another process drives`, p);
+      // an input of the design: its value at time 0 is not known when synthesizing (output integer
+      // q = off + 1;, a variable's initializer that is not constant: evaluated once, at time 0)
+      for (const s of p.reads || []) if (inputSigs.has(s)) fail(p.declInit ? `an initializer that reads the input ${s.name} (evaluated once, at time 0) cannot be synthesized` : `an initial block that reads the input ${s.name} cannot be synthesized`, p);
       const no = what => () => fail(`${what} cannot be synthesized`, p);
       const write = (wr, v) => { const sg = wr.sig; if (!saved.has(sg)) saved.set(sg, sg.val); sg.val = applyWrite(sg.val, wr, v); };
       const sim = {
