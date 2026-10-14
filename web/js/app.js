@@ -2668,28 +2668,52 @@ async function syncSchematicFromHdl(hdlPath, { quiet = false } = {}) {
   } finally { S.syncing = false; }
 }
 
-// HDL -> editable schematic. The schematic then owns the module's HDL file (generated from it).
+// HDL -> editable schematic, for any HDL module (#225). The schematic becomes the module's base and
+// its HDL file is generated from it at once (core/hdl-to-sch.js): what can be drawn is drawn, the rest
+// (processes, always blocks, generates…) kept as HDL blocks of the schematic, so that the design does
+// not change (checked: the conversion is refused when the generated HDL would not compile as the
+// module did). A file that holds other design units too keeps them; the module's HDL then goes to a
+// file of its own.
 async function convertToSchematic(mod) {
   const info = moduleInfo(mod);
   if (!info) return;
   await saveAll();
-  const { schematicFromHdl } = await import('/core/schdoc.js');
-  const design = elaborate(S.lib, mod);
-  if (!design.top) { alertDlg('Convert to Schematic', `Cannot elaborate '${mod}'.`, 'error'); return; }
+  const { convertModuleToSchematic } = await import('/core/hdl-to-sch.js');
   status(`Converting ${mod} to a schematic…`);
   try {
-    const sources = Object.fromEntries(S.sources.map(s => [s.path, s.text]));
-    const modules = await schModules();
     const elk = window.ELK ? new window.ELK() : null;
-    const doc = await schematicFromHdl(design.top, { sources, modules, layout: elk ? g => elk.layout(g) : undefined, lang: info.lang });
-    doc.generatedFile = info.file;
-    const dir = info.file.includes('/') ? info.file.replace(/\/[^/]*$/, '') : 'src';
-    let target = `${dir}/${mod}.sch.json`;
+    // (the drawn sources without an HDL file of their own too: modules of the project, #177)
+    const sources = S.sources.filter(s => s.lang === 'vhdl' || s.lang === 'verilog')
+      .map(s => ({ ...s, role: S.project.files.find(f => f.path === s.path)?.role || s.role || 'design' }));
+    const r = await convertModuleToSchematic({ sources, module: info.name, layout: elk ? g => elk.layout(g) : undefined, exists: p => (S.diskTree || S.fileTree || []).includes(p) });
+    const target = r.schPath;
     if (S.fileTree.includes(target) && !await confirmDlg('Convert to Schematic', `${target} already exists. Overwrite it?`)) return;
-    await api.writeFile(S.project.name, target, JSON.stringify(doc, null, 1));
-    log(`'${mod}' converted to the schematic ${target}: from now on ${info.file} is generated from it.`, 'ok');
-    for (const w of doc.importDiagnostics || []) log(`WARNING: ${w.message || w}`, 'warn');
+    const doc = { ...r.doc };
+    delete doc.importDiagnostics;
+    S.syncing = true;
+    try {
+      for (const [p, text] of Object.entries(r.writes)) {
+        if (text == null) { closeDocByPath(p); await api.deleteFile(S.project.name, p); continue; }
+        await api.writeFile(S.project.name, p, text);
+        refreshOpenEditor(p, text);
+      }
+      await api.writeFile(S.project.name, target, JSON.stringify(doc, null, 1));
+    } finally { S.syncing = false; }
+    // a new file (a file of several design units split) keeps the role of the file it comes from
+    const pj = await api.project(S.project.name);
+    let roles = false;
+    for (const [p, role] of Object.entries(r.newFiles)) { const nf = pj.files?.find(f => f.path === p); if (nf && nf.role !== role) { nf.role = role; roles = true; } }
+    if (roles) { delete pj.fileTree; S.project = pj; await saveProjectJson(); }
+    const { blocks, drawn } = r.counts;
+    log(`'${mod}' converted to the schematic ${target} (${drawn} symbol${drawn === 1 ? '' : 's'} drawn, ${blocks} HDL block${blocks === 1 ? '' : 's'} keeping the HDL that is not drawn): it is now the module's base, ${r.hdlPath} generated from it.`, 'ok');
+    for (const p of Object.keys(r.newFiles)) {
+      log(p === r.hdlPath ? `'${mod}' taken out of ${r.kept.join(', ')} into ${p}: the other design units of ${r.kept.length === 1 ? 'that file' : 'those files'} stay there.`
+        : `The other design units of ${r.hdlPath} moved to ${p}.`, 'info');
+    }
+    for (const p of Object.keys(r.writes).filter(p => r.writes[p] == null)) log(`${p} removed: what it held is in ${r.hdlPath}.`, 'info');
+    for (const w of r.warnings) log(`WARNING: ${w}`, 'warn');
     await reloadProject(false);
+    markStale();
     openSch(target);
   } catch (e) {
     alertDlg('Convert to Schematic', e.message, 'error');

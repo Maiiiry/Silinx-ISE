@@ -40,7 +40,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   symbol; wires, buses and net names; Check Schematic. A schematic always has its VHDL/Verilog file,
   generated from it: the schematic is the base, and an edit of the HDL updates the schematic (the
   drawing is kept when the structure does not change). Any HDL module can be converted to a schematic
-  (*Convert to Schematic*), with processes and other behavioural code kept as HDL blocks.
+  (*Convert to Schematic*), with processes and other behavioural code kept as HDL blocks: its HDL is
+  then generated from the schematic and compiles and simulates as the module did.
 - **Tri-state buffers** (palette category *Tri-State*): BUFE (enable E active high, O = E ? I : Z)
   and BUFT (T active low, as in Xilinx), 1 bit or a bus of any width, with the Xilinx presets BUFE,
   BUFE4 (one pin per bit), BUFE8, BUFE16, BUFT, BUFT4, BUFT8, BUFT16. Several tri-state outputs

@@ -3,6 +3,37 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.16
+
+In short:
+
+- **The schematic of any HDL module:** *Convert to Schematic (editable)* works for every VHDL and
+  Verilog module, behavioural ones too; the schematic shows in the Design pane on the module's row
+  (**[Schematic]**), and the HDL generated from it behaves as the module did.
+
+In detail:
+
+- **Convert to Schematic of any HDL module (#225):** what can be drawn becomes gates, multiplexers,
+  slices, constants and module instances; the rest (processes, always blocks, generates, FSMs,
+  memories, functions, records…) stays as HDL blocks of the schematic, with their comments. The
+  module's HDL file is generated from the schematic at once, and checked: a conversion whose HDL
+  would not compile as the module did is refused, the dialog saying why (nothing written). The
+  console says what was drawn, what stays as HDL blocks and which file is generated. Every module of
+  the examples (their testbenches too) and a set of behavioural VHDL and Verilog modules convert with
+  the same simulation as before.
+- **A file with several design units (#226):** converting a module whose file also holds a package
+  or other modules no longer loses them when the schematic rewrites its HDL: the module goes to a file
+  of its own, the other units stay (or, when the file is named after the module, they go to a file
+  named after the first of them). An entity and its architecture in two files become one generated
+  file.
+- **Nothing of the HDL lost (#228):** a VHDL `buffer` port, the ports' default values, a Verilog
+  output's initial value, the `` `include `` of the macros used, an `` `ifdef `` in the module,
+  attributes and the comments of the statements stay in the schematic's HDL.
+- **Schematics from HDL laid out (#227):** a signal with a single pin (an instance's output read only
+  by a testbench's task, a variable read only with its initial value) keeps its name instead of
+  becoming an undriven or tied-to-0 net; no "connects only" warning for a signal of the HDL kept in
+  the schematic.
+
 ## 15.10.15
 
 In short:

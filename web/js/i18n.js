@@ -513,6 +513,16 @@ PT_PATTERNS.push(
   [/^The project starts with (\S+) \(the top module 'top'\) and its HDL module, generated from it\.$/, "O projeto começa com $1 (o módulo de topo 'top') e o seu módulo HDL, gerado a partir dele."],
   [/^(\S+) already exists\.\n\nReplace it\? Its current contents will be lost\.$/, '$1 já existe.\n\nSubstituir? O conteúdo atual perde-se.'],
   [/^(\S+) already exists: choose another name\.$/, '$1 já existe: escolha outro nome.'],
+  // Convert to Schematic (editable) of any HDL module (#225)
+  [/^Convert to Schematic$/, 'Converter para Esquemático'],
+  [/^(\S+) already exists\. Overwrite it\?$/, '$1 já existe. Substituí-lo?'],
+  [/^Converting (\S+) to a schematic…$/, 'A converter $1 para esquemático…'],
+  [/^'(.+)' does not elaborate( \(.*\))?: correct it first\.$/s, "'$1' não é elaborado$2: corrija-o primeiro."],
+  [/^Not converted: the HDL generated from the schematic of '(.+?)' would not compile as the module does \((.*)\)\.$/s, "Não convertido: o HDL gerado a partir do esquemático de '$1' não compilaria como o módulo ($2)."],
+  [/^The schematic of '(.+?)' cannot make its HDL: (.*)$/s, "O esquemático de '$1' não consegue gerar o seu HDL: $2"],
+  [/^The text of '(.+?)' is not found in (\S+)\.$/, "O texto de '$1' não foi encontrado em $2."],
+  [/^No module '(.+?)' in the project\.$/, "Não há nenhum módulo '$1' no projeto."],
+  [/^'(.+?)' is not an HDL module\.$/, "'$1' não é um módulo HDL."],
   // Back-annotate Pin Locations: the pins to add to the UCF
   [/^Add the (\d+) pin location\(s\) chosen by the tools to (.+?)\?\n\n([\s\S]*)$/, 'Adicionar a $2 as $1 localizações de pinos escolhidas pelas ferramentas?\n\n$3'],
 );
