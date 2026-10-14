@@ -97,6 +97,16 @@ before synth_xilinx's `fine` step maps the `$shiftx` to multiplexers. So:
 The srl fixture's 64 flip-flops of `dyn` become 4 SRL16E; a 16 x 8 Verilog array 8 SRL16E (it was 128
 flip-flops and about 250 LUTs and MUXFs).
 
+**Chains of 2 stages stay flip-flops (#51)**, where XST makes them SRL16 too. On the stopwatch
+example XST finds six 2-bit shift registers: the four buttons' synchronisers (`db0`..`db3/sync`) and two
+stages of the decimal conversion (`dec/d0_0`, `dec/d3_3`). With `xilinx_srl -fixed -minlen 2` Silinx
+finds the same six, and the design is larger: 188 flip-flops instead of 200, but 395 LUTs instead of 389
+and 200 occupied slices instead of 197 (an SRL16 takes a SLICEM's LUT, where the two flip-flops fitted
+in slices used already; the critical path within the placement's noise). And a synchroniser should be
+flip-flops: an SRL16 does not resolve metastability as two flip-flops in series do (Xilinx's advice:
+no shift-register extraction on synchronisers). So the minimum stays 3 (the author's decision,
+2026-10-15; `test/synth-quality.test.js` keeps a synchroniser in flip-flops).
+
 **The SRLC16 cascade** (Q15, DIF_MUX = SHIFTIN): a chain longer than 16 uses general routing between
 its SRL16Es instead (and a variable tap past 16 stages a second SRL16E per 16, read at stage 15).
 

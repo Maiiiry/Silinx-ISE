@@ -125,3 +125,19 @@ for (const name of ['srl', 'dram', 'bram_sp', 'bram_dp', 'bram_prim', 'mult']) {
     assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
   });
 }
+
+// #51: chains of 2 stages stay flip-flops (XST makes them SRL16: on the stopwatch, larger in slices;
+// research/synth-quality/README.md); a button's synchroniser among them (it should be flip-flops)
+test('a 2-stage chain (the stopwatch\'s button synchroniser) stays in flip-flops, a 3-stage one is an SRL16E (#51)', { timeout: 120000 }, async () => {
+  const fs = await import('node:fs');
+  const text = fs.readFileSync(new URL('../examples/stopwatch/src/debounce.vhd', import.meta.url), 'utf8').replace('1_000_000', '20');
+  const { compile, elaborate } = await import('../core/compile.js');
+  const { synthesizeOpen } = await import('../core/synth-open.js');
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  const syn = async (src, top) => (await synthesizeOpen(elaborate(compile(src), top), { family: 'spartan3e', run: yosysNode })).cells;
+  const db = await syn([{ path: 'debounce.vhd', lang: 'vhdl', text }], 'debounce');
+  assert.equal(db.SRL16E, undefined, JSON.stringify(db));
+  assert.equal(db.FDRE, 2 + 1 + 1 + 5, 'sync (2), level, press, count (0 to 20: 5 bits)');
+  const three = await syn([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [2:0] r = 0; always @(posedge clk) r <= {r[1:0], d}; assign q = r[2]; endmodule' }], 't');
+  assert.deepEqual([three.SRL16E, three.FDRE], [1, undefined]);
+});
