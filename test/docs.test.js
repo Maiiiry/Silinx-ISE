@@ -95,6 +95,9 @@ export function literalsOf(code) {
         out.push(unescape(v)); i = j + 1; prev = 'v'; continue;
       }
       if (c === '`') { i++; template(); prev = 'v'; continue; }
+      // comments (esbuild keeps some, e.g. inside an array literal): skipped
+      if (c === '/' && text[i + 1] === '/') { while (i < text.length && text[i] !== '\n') i++; continue; }
+      if (c === '/' && text[i + 1] === '*') { const e = text.indexOf('*/', i + 2); i = e < 0 ? text.length : e + 2; continue; }
       if (c === '/' && !/[\w$)\]]/.test(prev)) {   // a regular expression literal
         let j = i + 1, cls = false;
         while (j < text.length && (cls || text[j] !== '/')) { if (text[j] === '\\') j++; else if (text[j] === '[') cls = true; else if (text[j] === ']') cls = false; j++; }
@@ -188,4 +191,6 @@ test('docs test: the interface\'s labels are read past comments with quotes in t
   assert.ok(UI.includes('Open Workspace Folder…'));
   // a template string with an apostrophe and a ${…}: the strings after it still read (#213)
   assert.deepEqual(literalsOf("const t = `it's ${n} file(s)`; const u = 'Interface';"), ["it's ", ' file(s)', 'Interface']);
+  // a comment kept inside an expression, with an apostrophe in it
+  assert.deepEqual(literalsOf("const a = [\n  // the editor's undo\n  'Undo', `x ${f(`y`)} z`, /'/g, 'Interface'];"), ['Undo', 'x ', 'y', ' z', 'Interface']);
 });
