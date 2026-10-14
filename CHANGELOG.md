@@ -49,6 +49,19 @@ In detail:
   say so before running ("Generate Programming File implements the top module 'top', not the
   selected module 'timer'.", OK / Cancel) instead of asking to make the selected module the top; *Set
   as Top Module* (a module's right-click menu) makes another one the top.
+- **Verilog / SystemVerilog (#6):** explicit port expressions in a module's header (`module m(.a(x), .y({p, q}))`),
+  Yosys's `module m(...)` (the ports: the inputs and outputs the body declares), identifiers that start with `$` (as Yosys writes them: `module $__cell`, `wire $tmp`), `automatic` and
+  `static` variables of a block (an automatic one's initializer runs at each entry), and an output variable
+  with an initializer that is not constant (`output integer q = off + 1;`, evaluated once at time 0). The
+  other constructs of the list (packages, unions, enum ranges, structs, `wand` / `wor` ports, `$countbits`…)
+  were read already; they are now tested.
+- **Open synthesis: shift registers read at a variable tap become SRL16E (#5):** `q = r[k]`, or an array
+  shifted word by word (`sr(to_integer(tap))`): an SRL16E per bit (past 16 stages, two per 16), where they
+  were flip-flops and multiplexers (a 16 x 8 array: 8 SRL16E instead of 128 flip-flops and about 250 LUTs).
+  Checked with ISE: the open flow's bitstream of such a design is byte-identical to ISE's, DRC clean.
+- **Open synthesis:** a shift register on the falling edge alone gets its clock through a BUFG (#219).
+- **Open synthesis:** an initial block or an initializer that reads an input of the design is refused with its
+  reason (its value at time 0 is not known), where it gave a netlist of zeros (#221).
 
 ## 15.10.14
 

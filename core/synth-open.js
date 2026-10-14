@@ -56,12 +56,34 @@ module \\$__XILINX_SHREG_ (input C, input D, input [31:0] L, input E, output Q, 
     end
   endfunction
   localparam [DEPTH-1:0] INIT_R = brev(INIT);
+  // a constant L: a fixed length (xilinx_srl -fixed); otherwise the tap is read at L (-variable, #5)
+  parameter _TECHMAP_CONSTMSK_L_ = 0;
+  localparam FIXED = &_TECHMAP_CONSTMSK_L_;
+  localparam N = (DEPTH + 15) / 16;
+  localparam [16*N-1:0] INIT_P = INIT_R;
   wire CE;
   generate
     if (ENPOL == 0) assign CE = ~E;
     else if (ENPOL == 1) assign CE = E;
     else assign CE = 1'b1;
-    if (DEPTH == 1) begin
+    if (!FIXED && DEPTH > 16) begin
+      // a variable tap past 16 stages: per 16 stages, an SRL16E read at the tap and one at stage 15
+      // that feeds the next 16 (no SRLC16E: the open flow does not place its cascade, #24); the tap's
+      // high bits choose among them
+      wire [N:0] ch;
+      wire [N-1:0] qs;
+      assign ch[0] = D;
+      genvar i;
+      for (i = 0; i < N; i = i + 1) begin : seg
+        if (CLKPOL) SRL16E #(.INIT(INIT_P[16*i +: 16])) tap (.A0(L[0]), .A1(L[1]), .A2(L[2]), .A3(L[3]), .CE(CE), .CLK(C), .D(ch[i]), .Q(qs[i]));
+        else SRL16E_1 #(.INIT(INIT_P[16*i +: 16])) tap (.A0(L[0]), .A1(L[1]), .A2(L[2]), .A3(L[3]), .CE(CE), .CLK(C), .D(ch[i]), .Q(qs[i]));
+        if (i < N - 1) begin : casc
+          if (CLKPOL) SRL16E #(.INIT(INIT_P[16*i +: 16])) last (.A0(1'b1), .A1(1'b1), .A2(1'b1), .A3(1'b1), .CE(CE), .CLK(C), .D(ch[i]), .Q(ch[i+1]));
+          else SRL16E_1 #(.INIT(INIT_P[16*i +: 16])) last (.A0(1'b1), .A1(1'b1), .A2(1'b1), .A3(1'b1), .CE(CE), .CLK(C), .D(ch[i]), .Q(ch[i+1]));
+        end
+      end
+      assign Q = qs[L[31:4]];
+    end else if (DEPTH == 1) begin
       if (CLKPOL) FDRE #(.INIT(INIT_R)) _TECHMAP_REPLACE_ (.D(D), .Q(Q), .C(C), .CE(CE), .R(1'b0));
       else FDRE_1 #(.INIT(INIT_R)) _TECHMAP_REPLACE_ (.D(D), .Q(Q), .C(C), .CE(CE), .R(1'b0));
     end else if (DEPTH <= 16) begin
@@ -90,7 +112,11 @@ export function synthCommands(top, family, { srl = true, premap = null } = {}) {
   if (!fam) throw new Error(`open synthesis: no Yosys mapping for the device family '${family}'`);
   const synth = `synth_xilinx -family ${fam} -ise -flatten -top ${top}`;
   if (!LUT4_FAMILIES.has(fam)) return synth;
-  const shreg = srl ? `${synth} -run :map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
+ // (the variable taps, #5: xilinx_srl -variable must see the word-level $shiftx, before synth_xilinx's
+  // fine step maps it to multiplexers: memory_map (a shift-chain array's words as flip-flops), then
+  // xilinx_srl and the map to SRL16E (before map_cells, whose own map writes SRLC32E), then the step;
+  // fine's own opt -full run first made t80 7 % larger)
+  const shreg = srl ? `${synth} -run :fine; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
   return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ` : ''}abc -luts ${LUT4_COSTS}; ${lutsToCells(synth)}`;
 }
 const lutsToCells = synth => 'clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
@@ -268,7 +294,7 @@ export const QUIET = [/^Warning: Shift register inference not yet supported for 
  * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] }.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true } = {}) {
-  const { text, top, warnings } = toVerilog(design);
+  const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const tryDepth = depth && LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const script = yosysScript(top, family, tryDepth ? { premap: PREMAP_FILE } : {});
   const log = [];
@@ -297,7 +323,10 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     }
   }
   const files = { [`${top}_syn.v`]: text, [`${top}.json`]: chosen[`${top}.json`], [`${top}_yosys.v`]: chosen[`${top}_yosys.v`] || '', [`${top}_stat.txt`]: chosen[`${top}_stat.txt`] || '' };
-  return { top, files, cells, util: utilization(cells), warnings: [...warnings, ...log.filter(l => /^Warning:/.test(l))], log, depth: info };
+  // (a shift-chain array read at a variable tap is made flip-flops on purpose, then SRL16Es: Yosys's
+  // "Replacing memory \m with list of registers" says nothing to the user there, #5)
+  const expected = l => shiftArrays.some(n => l.startsWith(`Warning: Replacing memory ${n} with list of registers.`));
+  return { top, files, cells, util: utilization(cells), warnings: [...warnings, ...log.filter(l => /^Warning:/.test(l) && !expected(l))], log, depth: info };
 }
 
 /**

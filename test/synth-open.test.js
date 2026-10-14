@@ -28,10 +28,12 @@ const design = (text, top) => elaborate(compile([{ path: 'd.vhd', lang: 'vhdl', 
 test('the Yosys script and the device families', () => {
   // 4-input-LUT families: synth_xilinx with its LUT mapping replaced (ABC on LUTs of up to 6 inputs
   // at their cost in LUT4s, not LUTs of up to 8 inputs split into LUT4s and MUXF5 … MUXF8)
-  // (shift registers: xilinx_srl on the bit-level flip-flops before map_ffs, mapped to SRL16E /
+  // (shift registers read at a variable tap: xilinx_srl -variable on the word-level $shiftx before the
+  // fine step, #5; fixed ones: xilinx_srl on the bit-level flip-flops before map_ffs, mapped to SRL16E /
   // SRL16E_1 by Silinx's own map file; srl: false keeps them in flip-flops)
   assert.equal(yosysScript('top', 'spartan3e'),
-    'read_verilog -lib silinx_srl_cells.v; read_verilog -sv top_syn.v; synth_xilinx -family xc3se -ise -flatten -top top -run :map_ffs; '
+    'read_verilog -lib silinx_srl_cells.v; read_verilog -sv top_syn.v; synth_xilinx -family xc3se -ise -flatten -top top -run :fine; '
+    + 'memory_map; xilinx_srl -variable -minlen 3; techmap -map silinx_srl_map.v; synth_xilinx -family xc3se -ise -flatten -top top -run fine:map_ffs; '
     + 'xilinx_srl -fixed -minlen 3; techmap -map silinx_srl_map.v; synth_xilinx -family xc3se -ise -flatten -top top -run map_ffs:map_luts; opt_expr -mux_undef -noclkinv; '
     + 'abc -luts 1,1,1,1,2,4; clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
     + 'xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:; '
@@ -298,6 +300,30 @@ architecture a of g is begin
 end;`;
   const r = await synthesizeOpen(elaborate(compile([{ path: 'g.vhd', text }]), 'g'), { run: yosysNode });
   assert.equal(r.cells.FDCE, 4);
+});
+
+test('shift registers read at a variable tap (#5) as SRL16E: a vector, past 16 stages (SRL16E per 16, falling edge), with an enable, a shift-chain array; a RAM stays a RAM; the netlists simulate like the designs', { timeout: 600000 }, async () => {
+  const v = (text, top = 't') => elaborate(compile([{ path: 't.v', lang: 'verilog', text }]), top);
+  const cases = [
+    ['vector', `module t(input clk, input d, input [3:0] k, output q); reg [15:0] r = 0; always @(posedge clk) r <= {r[14:0], d}; assign q = r[k]; endmodule`,
+      { BUFG: 1, IBUF: 6, OBUF: 1, SRL16E: 1 }, []],
+    ['40 stages, falling edge', `module t(input clk, input d, input [5:0] k, output q); reg [39:0] r = 40'h12345; always @(negedge clk) r <= {r[38:0], d}; assign q = r[k]; endmodule`,
+      { BUFG: 1, IBUF: 8, LUT1: 1, LUT3: 1, MUXF5: 1, OBUF: 1, SRL16E_1: 5 }, []],
+    ['enable, 32 stages', `module t(input clk, input ce, input d, input [4:0] k, output q); reg [31:0] r = 0; always @(posedge clk) if (ce) r <= {r[30:0], d}; assign q = r[k]; endmodule`,
+      { BUFG: 1, IBUF: 8, LUT3: 1, OBUF: 1, SRL16E: 3 }, []],
+    ['array', `module t(input clk, input [7:0] d, input [3:0] k, output [7:0] q); reg [7:0] m [0:15]; integer i; always @(posedge clk) begin for (i = 15; i > 0; i = i - 1) m[i] <= m[i-1]; m[0] <= d; end assign q = m[k]; endmodule`,
+      { BUFG: 1, IBUF: 13, OBUF: 8, SRL16E: 8 }, []],   // (Yosys's "Replacing memory \\m with list of registers": on purpose here, left out)
+    ['a RAM (written at an address)', `module t(input clk, input we, input [7:0] d, input [3:0] a, input [3:0] k, output [7:0] q); reg [7:0] m [0:15]; always @(posedge clk) if (we) m[a] <= d; assign q = m[k]; endmodule`,
+      { BUFG: 1, IBUF: 18, OBUF: 8, RAM16X1D: 8 }, []],
+  ];
+  for (const [what, text, cells, warnings] of cases) {
+    const design = v(text);
+    const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
+    assert.deepEqual(Object.fromEntries(Object.entries(r.cells).sort()), cells, what);
+    assert.deepEqual(r.warnings, warnings, what);
+    const d = compareNetlist(design, r, { name: what, sim: { cycles: 400 } });
+    assert.equal(d.status, 'pass', `${what}: ${d.report || d.reason}`);
+  }
 });
 
 test('a shift register on the falling edge alone (SRL16E_1) gets its clock through a BUFG (#219)', { timeout: 120000 }, async () => {

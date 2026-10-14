@@ -98,12 +98,21 @@ test('blinky: (1 << level) - 1 of a 3-bit level is a table, not a 32-bit subtrac
 
 test('shift registers: chains of 3 or more flip-flops without reset become SRL16E (falling edge: SRL16E_1), chains longer than 16 several', { timeout: 120000 }, async () => {
   const r = await synth(fixture('srl'));
-  // fix: 20 stages (SRL16E of 16 + SRL16E of 4); f0 / f1: 8 stages on the falling edge; the 16 x 4
-  // variable-tap register stays in flip-flops (its read is a $pmux, not a $shiftx)
-  assert.deepEqual([r.cells.SRL16E, r.cells.SRL16E_1], [2, 2]);
+  // fix: 20 stages (SRL16E of 16 + SRL16E of 4); f0 / f1: 8 stages on the falling edge; dyn, the 16 x 4
+  // register read at a variable tap: an SRL16E per bit (#5; before: 64 flip-flops and multiplexers);
+  // the 2 flip-flops: dr
+  assert.deepEqual([r.cells.SRL16E, r.cells.SRL16E_1, r.cells.FDRE], [6, 2, 2]);
+  // the fixed ones always enabled, their address constant; the variable-tap ones (dyn) enabled by ce,
+  // addressed by tap: the same net on all four
   const srls = r.nl.cells.filter(c => /^SRL16E/.test(c.type));
-  assert.ok(srls.every(c => c.pins.CE === 1), 'always enabled');
-  assert.equal(r.packed.stats.slicem, 2, 'two shift registers per SLICEM');
+  const konst = n => n === 0 || n === 1;   // (nets 0 and 1: the constants)
+  const fixed = srls.filter(c => konst(c.pins.A0)), dyn = srls.filter(c => !konst(c.pins.A0));
+  assert.deepEqual([fixed.length, dyn.length], [4, 4]);
+  assert.ok(fixed.every(c => c.pins.CE === 1), 'always enabled');
+  assert.equal(new Set(dyn.map(c => c.pins.CE)).size, 1, 'one enable');
+  assert.ok(dyn.every(c => !konst(c.pins.CE)), 'enabled by ce');
+  assert.equal(new Set(dyn.map(c => c.pins.A0)).size, 1, 'one tap');
+  assert.equal(r.packed.stats.slicem, 4, 'two shift registers per SLICEM');
 });
 
 // the open synthesis's netlists of the fixtures with memories and multipliers, packed: the packed

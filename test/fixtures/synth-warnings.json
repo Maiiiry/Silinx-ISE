@@ -17,9 +17,7 @@
     "Warning: Latch inferred for signal `\\top.\\l1' from process `\\top.$proc$top_syn.v:20$1': $auto$proc_dlatch.cc:543:proc_dlatch$1172"
   ],
   "designs/mult": [],
-  "designs/srl": [
-    "Warning: Replacing memory \\dyn with list of registers. See top_syn.v:41, top_syn.v:17"
-  ],
+  "designs/srl": [],
   "designs/tristate": [],
   "examples/blinky": [],
   "examples/clock": [],

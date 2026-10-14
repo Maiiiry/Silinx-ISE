@@ -75,15 +75,30 @@ test/fixtures/open-flow/feat_srl, hard_prim).
 
 | design | shift registers in flip-flops | in SRL16 | XST |
 |---|---|---|---|
-| srl fixture | 102 FFs, 79 slices | 66 FFs, 2 SRL16E + 2 SRL16E_1, 63 slices | 5 FFs + 8 SRL16, about 9 slices |
+| srl fixture | 102 FFs, 79 slices | 66 FFs, 2 SRL16E + 2 SRL16E_1, 63 slices; with variable taps (#5): 2 FFs, 6 SRL16E + 2 SRL16E_1 | 5 FFs + 8 SRL16, about 9 slices |
 | lab11, blinky, cpu8 | | unchanged (no chain of 3 or more flip-flops without reset) | |
 
-Left: **variable taps** (`q <= sr(to_integer(tap))`, the srl fixture's 16 x 4 bits): Yosys infers
-them (`xilinx_srl -variable`) only from a 1-bit `$shiftx` over the chain; Yosys's own memory-to-
-registers conversion of Silinx's array read gives a `$pmux` whose `tap = 0` case is its default
-(pmux2shiftx does not turn it into a `$shiftx`), 4 bits wide. It needs the front end to write the
-read as a shift (or a pass splitting the `$pmux`). **The SRLC16 cascade** (Q15, DIF_MUX = SHIFTIN):
-a chain longer than 16 uses general routing between its SRL16Es instead.
+**Variable taps** (#5, `q <= sr(to_integer(tap))`, the srl fixture's 16 x 4 bits; `q = r[k]`):
+Yosys infers them (`xilinx_srl -variable`) only from a 1-bit `$shiftx` over the chain, and only
+before synth_xilinx's `fine` step maps the `$shiftx` to multiplexers. So:
+- the front end writes a variable bit of a vector that is a shift chain (every write
+  `r <= {r[w-2:0], x}` or `{x, r[w-1:1]}`) as `r[k]` (a `$shiftx`), not `1'(r >> k)` (a `$shr`;
+  other vectors keep it: written `r[k]` everywhere, verilog-i2c-master was 8 % larger); and an array that is a shift chain (every word written is the next one's, `m[i] <= m[i-1]`
+  with `i` a loop's variable, or is written at a constant index, `m[0] <= d`; 64 words at most),
+  read at a variable tap, bit by bit: `wire [15:0] srl_tap0_b = {m[15][b], …, m[0][b]}` read at
+  the tap. A RAM (written at an address) is not touched: it stays a distributed or block RAM;
+- the script runs synth_xilinx up to `fine`, then `memory_map` (a shift-chain array's words as
+  flip-flops), `xilinx_srl -variable -minlen 3` and Silinx's map, then synth_xilinx from `fine`
+  (before its `map_cells`, whose own map writes SRLC32E). (Running fine's own `opt -full` first as
+  well made t80 7 % larger.)
+- the map (`_TECHMAP_CONSTMSK_L_`: a tap that is not constant): up to 16 stages one SRL16E (or
+  SRL16E_1) addressed by the tap; more, per 16 stages one SRL16E read at the tap and one at stage 15
+  that feeds the next 16, the tap's high bits choosing among them (multiplexers).
+The srl fixture's 64 flip-flops of `dyn` become 4 SRL16E; a 16 x 8 Verilog array 8 SRL16E (it was 128
+flip-flops and about 250 LUTs and MUXFs).
+
+**The SRLC16 cascade** (Q15, DIF_MUX = SHIFTIN): a chain longer than 16 uses general routing between
+its SRL16Es instead (and a variable tap past 16 stages a second SRL16E per 16, read at stage 15).
 
 ## Results
 
@@ -204,8 +219,8 @@ times ISE's.
   routing gap"). Left: XST replicates the state register's flip-flops to cut their fanout (54 on
   lab11's critical path, about 0.5 ns of branch load); the open flow does since 15.10.3
   (research/s3e-route/README.md, "The design corpus against ISE").
-- **Shift registers in SRL16**: done in 15.10.2 for fixed-length chains (above); variable taps
-  and the cascade left. What the prototype (before it) found:
+- **Shift registers in SRL16**: done in 15.10.2 for fixed-length chains (above), in 15.10.15 for
+  variable taps (#5, above); the cascade left. What the prototype (before it) found:
   - fixed-length chains: `xilinx_srl -fixed -minlen 3` must run on the bit-level flip-flops
     before `map_ffs` (after it, xc3se's dfflegalize has made them $_SDFFE_ cells with a reset,
     which xilinx_srl skips), with Silinx's own map file for `$__XILINX_SHREG_` (Yosys's

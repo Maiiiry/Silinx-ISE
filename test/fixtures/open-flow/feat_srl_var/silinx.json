@@ -1,0 +1,24 @@
+{
+  "name": "feat_srl_var",
+  "description": "Board test: delay lines read at a tap chosen by the switches, in SRL16 LUTs (#5)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.v",
+      "lang": "verilog",
+      "role": "design"
+    }
+  ],
+  "constraints": "../basys2.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

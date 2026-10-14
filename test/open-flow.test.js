@@ -165,6 +165,8 @@ const FEATURES = {
   // multiplications by a constant (inputs tied to 1) and a 14-bit memory word (#35)
   feat_constmult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
   feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],
+  // shift registers read at a variable tap (#5): SRL16E / SRL16E_1 addressed by the switches
+  feat_srl_var: [/^pack \(\d+ slices\)/m, 'SLICEM', [/^inst "[^"]+" "SLICEM",placed /m]],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
   feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],
