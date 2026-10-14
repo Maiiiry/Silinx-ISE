@@ -38,44 +38,24 @@ architecture schematic of gates is
   signal prime_nand : std_logic;
 begin
   d <= sw(0);
-
   c <= sw(1);
-
   b <= sw(2);
-
   a <= sw(3);
-
   c_n <= not c;
-
   b_n <= not b;
-
   a_n <= not a;
-
   p1 <= a_n and b_n and c;
-
   p2 <= a_n and b and d;
-
   p3 <= b and c_n and d;
-
   p4 <= b_n and c and d;
-
   prime_sop <= p1 or p2 or p3 or p4;
-
   c_nand <= not (c and c);
-
   b_nand <= not (b and b);
-
   a_nand <= not (a and a);
-
   q1 <= not (a_nand and b_nand and c);
-
   q2 <= not (a_nand and b and d);
-
   q3 <= not (b and c_nand and d);
-
   q4 <= not (b_nand and c and d);
-
   prime_nand <= not (q1 and q2 and q3 and q4);
-
   led <= prime_nand & prime_sop;
 end architecture schematic;

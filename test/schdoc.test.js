@@ -746,3 +746,15 @@ test('a pin dropped onto a wire connects there (#170): a bus tap in the middle o
   assert.equal(nl.pinNet.get('S2/I'), nl.portNet.get('P2'), 'the gate on the wire');
   assert.ok(nl.junctions.some(j => j.x === 300 && j.y === 200) && nl.junctions.some(j => j.x === 250 && j.y === 400), 'dots where they join');
 });
+
+test('generated HDL: one-line statements one after the other, a blank line only around a statement of several lines (#224)', () => {
+  const blank = (code) => code.split('\n').map((l, k, a) => (l.trim() === '' ? `${a[k - 1]?.trim()} | ${a[k + 1]?.trim()}` : null)).filter(Boolean);
+  for (const lang of ['vhdl', 'verilog']) {
+    const doc = JSON.parse(fs.readFileSync(new URL('../examples/gates/src/gates.sch.json', import.meta.url), 'utf8'));
+    const { code } = generateHdl(doc, { lang });
+    const body = code.slice(code.indexOf(lang === 'vhdl' ? '\nbegin\n' : ');\n'));
+    // the gates of gates are one-line assignments: no blank line between them
+    const gap = blank(body).filter((g) => /<=|assign/.test(g.split(' | ')[0]) && /<=|assign/.test(g.split(' | ')[1]));
+    assert.deepEqual(gap, [], lang);
+  }
+});

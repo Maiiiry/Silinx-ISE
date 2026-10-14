@@ -89,7 +89,7 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((r) => /maj3/.test(r.textContent) && /maj3\.tt\.json/.test(r.textContent)), [], { what: 'maj3 (maj3.tt.json) in the hierarchy' });
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.querySelector('.lbl').textContent === 'maj3').map((r) => [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`))), [['Table*', 'VHDL']]);
   // the HDL editor (opened) shows the banner
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/maj3.vhd' && /Generated from maj3\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'HDL editor banner' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/maj3.vhd' && (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })(), [], { what: 'HDL editor banner' });
 
   // ---- table -> HDL: a cell change rewrites the module
   await page.eval(() => window.SilinxApp.openTt('src/maj3.tt.json'));
@@ -364,7 +364,7 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
   const t1 = await ttFile('TtVlog', 'src/tv.tt.json');
   assert.deepEqual([t1.generatedFile, t1.lang], ['src/tv.v', 'verilog']);
   await page.eval(() => window.SilinxApp.openFile('src/tv.v'));
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/tv.v' && /Generated from tv\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'Verilog editor banner' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/tv.v' && (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })(), [], { what: 'Verilog editor banner' });
   // a cell change rewrites the Verilog
   await page.eval(() => window.SilinxApp.openTt('src/tv.tt.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'tt:src/tv.tt.json');

@@ -1578,7 +1578,10 @@ export function generateHdl(docIn, opts = {}) {
     else sigDecls.push(`  ${x.reg ? 'reg ' : 'wire'}${(x.width || 1) > 1 ? ` [${x.width - 1}:0]` : ''} ${x.name};`);
   }
   const vdecls = verbatimOK && (hdl.decls || '').trim() ? indent(dedentBlock(hdl.decls), '  ') : '';
-  const stmts = body.map(b => indent(b, '  ')).join('\n\n');
+  // one-line statements one after the other; a blank line around a statement of several lines (an
+  // instance with its port map, a process), #224
+  const blocks = body.map(b => indent(b, '  '));
+  const stmts = blocks.map((b, k) => (k === 0 ? '' : b.includes('\n') || blocks[k - 1].includes('\n') ? '\n\n' : '\n') + b).join('');
   let code;
   const generics = verbatimOK ? (hdl.generics || []) : [];
   if (ci) {

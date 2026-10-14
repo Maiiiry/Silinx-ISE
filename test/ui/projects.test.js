@@ -201,7 +201,7 @@ uiTest('Open Example (gates): the schematic of the gates, synchronized with its 
   // the VHDL: the banner of the synchronized file, the text the example ships
   await page.eval(() => window.SilinxApp.openFile('src/gates.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/gates.vhd' && window.Silinx.active.editor);
-  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), /^Generated from gates\.sch\.json/);
+  assert.equal(await page.eval(() => (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })()), true, 'in sync: no banner (#224)');
   assert.equal(await readWs(env, 'Gates', 'src/gates.vhd'), await shipped('src/gates.vhd'));
   // Simulate Behavioral Model of tb_gates: all 16 inputs checked, both outputs right
   await page.click('input[name=view][value=sim]');
@@ -260,7 +260,7 @@ uiTest('Open Example (traffic), the second example: the state diagram and the tr
   for (const [f, from] of [['src/traffic.vhd', 'traffic.fsm.json'], ['src/lamps.vhd', 'lamps.tt.json']]) {
     await page.eval((p) => window.SilinxApp.openFile(p), f);
     await page.waitFor((p) => window.Silinx.active?.id === `file:${p}` && window.Silinx.active.editor, [f]);
-    assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), new RegExp(`^Generated from ${from.replace(/\./g, '\\.')}`));
+    assert.equal(await page.eval(() => (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })()), true, `${from}: in sync, no banner (#224)`);
     assert.equal(await readWs(env, 'Traffic', f), await shipped(f));
   }
   // Simulate Behavioral Model of tb_traffic (longer than ISim's first run: run all): the lamps and the

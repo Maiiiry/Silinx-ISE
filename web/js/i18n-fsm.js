@@ -5,7 +5,7 @@ export const FSM_PT = {
   'View/Edit State Diagram (FSM)': 'Ver/Editar Diagrama de Estados (FSM)', 'Convert to State Diagram (FSM)…': 'Converter para Diagrama de Estados (FSM)…',
   'Open State Diagram': 'Abrir Diagrama de Estados', 'Convert to ASM chart': 'Converter para fluxograma ASM',
   'Convert to State Diagram': 'Converter para Diagrama de Estados', 'Create Truth Tables': 'Criar Tabelas de Verdade',
-  '— editing here updates the state diagram': '— editar aqui atualiza o diagrama de estados',
+  
   '— generated from the diagram': '— gerado a partir do diagrama',
   // toolbar
   'Moore machine: outputs depend on the state only (written in the circles). Mealy machine: outputs also on the transitions (condition / outputs).':

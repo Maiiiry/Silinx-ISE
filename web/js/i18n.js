@@ -342,10 +342,10 @@ const PT_PATTERNS = [
 // t() looks strings up trimmed: the keys are trimmed the same way
 for (const k of Object.keys(PT)) { const tk = k.trim(); if (tk !== k) { if (!(tk in PT)) PT[tk] = PT[k].trim(); delete PT[k]; } }
 Object.assign(PT, {
-  'Not in sync with': 'Não sincronizado com', 'Generated from': 'Gerado a partir de', '— editing here updates the schematic': '— editar aqui atualiza o esquemático',
-  '— editing here updates the state machine': '— editar aqui atualiza a máquina de estados',
-  '— editing here updates the truth table': '— editar aqui atualiza a tabela de verdade',
-  '— edit the Petri net: this file follows it': '— edite a rede de Petri: este ficheiro segue-a',
+  'Not in sync with': 'Não sincronizado com', 'Generated from': 'Gerado a partir de', 
+  
+  
+  
   // Design Summary, File menu, project / import dialogs, toolchain, About, shortcuts
   'Device Utilization Summary (not yet implemented)': 'Resumo da Utilização do Dispositivo (ainda não implementado)',
   'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis/implementation require Xilinx ISE 14.7 (Tools ▸ Toolchain Settings).':

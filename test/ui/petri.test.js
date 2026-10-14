@@ -206,7 +206,7 @@ uiTest('Petri net editor: Random, Run / Stop, Reset; PNML export and import (und
   const net = await readWs(env, 'PnSim', 'src/ctl.pn.json');
   await page.eval(() => window.SilinxApp.openFile('src/ctl.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/ctl.vhd' && window.Silinx.active.editor);
-  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent), 'Generated from ctl.pn.json — edit the Petri net: this file follows it');
+  assert.equal(await page.eval(() => (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })()), true, 'in sync: no banner (#224)');
   await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(`-- a note\n${ed.getValue()}`); });
   await page.waitFor(async () => (await (await fetch('/api/projects/PnSim/file?path=src%2Fctl.vhd')).text()).startsWith('-- a note\n'), [], { what: 'the HDL saved', timeout: 15000 });
   await new Promise((r) => setTimeout(r, 1000));

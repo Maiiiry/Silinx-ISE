@@ -62,6 +62,10 @@ In detail:
 - **Open synthesis:** a shift register on the falling edge alone gets its clock through a BUFG (#219).
 - **Open synthesis:** an initial block or an initializer that reads an input of the design is refused with its
   reason (its value at time 0 is not known), where it gave a netlist of zeros (#221).
+- **HDL generated from a drawing:** the HDL editor no longer shows "Generated from … — editing here
+  updates …" (the Design pane's badges say where the file comes from); it says something only when the
+  file is out of sync. The VHDL / Verilog of a schematic no longer has a blank line between one-line
+  statements, only around the ones of several lines (#224).
 
 ## 15.10.14
 

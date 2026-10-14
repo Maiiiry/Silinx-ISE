@@ -162,7 +162,7 @@ uiTest('State diagram (FSM): New Source, states and transitions drawn and edited
   let vhd = await readWs(env, 'FsmPj', 'src/det.vhd');
   let r = hdlVsModel(vhd, await fsmFile('FsmPj', 'src/det.fsm.json'));
   assert.deepEqual(r.got, r.want);
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/det.vhd' && /Generated from det\.fsm\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'HDL editor banner' });
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/det.vhd' && (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })(), [], { what: 'HDL editor banner' });
   // the hierarchy shows the module with its diagram the base, its views as badges (#207)
   await page.waitFor(() => [...document.querySelectorAll('#hier .row')].some((x) => x.querySelector('.lbl').textContent === 'det' && x.querySelector('.meta')?.textContent === '(det.fsm.json)' && [...x.querySelectorAll('.badge')].map((b) => b.textContent).join(' ') === 'FSM VHDL'), [], { what: 'det [FSM] [VHDL] (det.fsm.json)' });
 

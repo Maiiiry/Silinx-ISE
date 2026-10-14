@@ -149,7 +149,7 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   await badge(page, 'gates', 'VHDL');
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/gates.vhd', [], { what: 'the HDL opened by its badge' });
   // its banner: generated from the schematic (its edits update the schematic)
-  await page.waitFor(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent === 'Generated from gates.sch.json — editing here updates the schematic', [], { what: 'the HDL editor\'s banner' });
+  await page.waitFor(() => (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })(), [], { what: 'the HDL editor\'s banner' });
   await badge(page, 'gates', 'Schematic');
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/gates.sch.json', [], { what: 'the schematic opened by its badge' });
   // the row stays selected: its processes, the drawing's first (none to convert it or move its base)
@@ -327,7 +327,7 @@ uiTest('Design pane (#207, #220) in Portuguese: the badges [FSM] [Tabela] [VHDL]
     assert.deepEqual(await badgeMenu(page, 'u_fsm - traffic', 'FSM'), ['Abrir', 'Converter para fluxograma ASM']);
     // the HDL editor's banner
     await badge(page, 'u_lamps - lamps', 'VHDL');
-    await page.waitFor(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent === 'Gerado a partir de lamps.tt.json — editar aqui atualiza a tabela de verdade', [], { what: 'the banner in Portuguese' });
+    await page.waitFor(() => (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })(), [], { what: 'the banner in Portuguese' });
   } finally {
     await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
   }

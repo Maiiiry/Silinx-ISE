@@ -2562,10 +2562,12 @@ async function schStructure(doc, modules) {
 // here updates the drawing, but a Petri net's); shows when it is out of sync and why
 function syncBanner(path, sch) {
   const why = S.outOfSync?.[path];
+  // in sync: nothing to say (the Design pane's badges say where the file comes from, #224); the
+  // element stays, empty and hidden, so that it shows when the file gets out of sync
+  if (!why) return h('span', { class: 'gen-banner', hidden: true, 'data-sync-banner': path });
   const el = h('span', { class: `gen-banner${why ? ' out-of-sync' : ''}`, 'data-sync-banner': path },
-    why ? 'Not in sync with ' : 'Generated from ', h('a', { onclick: () => openView(sch) }, sch.split('/').pop()),
-    why ? (isTt(sch) || isFsm(sch) ? ` — ${why}` : ` — the ${viewNoun(sch)} has errors: ${why}`)
-      : isPn(sch) ? ' — edit the Petri net: this file follows it' : ` — editing here updates the ${viewNoun(sch)}`);
+    'Not in sync with ', h('a', { onclick: () => openView(sch) }, sch.split('/').pop()),
+    isTt(sch) || isFsm(sch) ? ` — ${why}` : ` — the ${viewNoun(sch)} has errors: ${why}`);
   return el;
 }
 function refreshSyncBanner(path) {
@@ -2715,13 +2717,15 @@ async function drawingsAsBase() {
     // the HDL a model of the drawing makes (a schematic in its own language, as its HDL is written)
     const makes = async m => viewHdl(f, JSON.stringify({ ...m, generatedFile: undefined, base: undefined, ...(kind === 'sch' ? {} : { lang }) }), { modules: kind === 'sch' ? await schModules() : {} })?.text;
     let next = null, warnings = [], why = `${hdlPath.split('/').pop()} is not what the ${noun} makes`;
-    if (await makes(old) === hdl) next = old;
+    // (blank lines aside: the generators' layout may change, e.g. #224)
+    const same = (a, b) => String(a).replace(/\n[ \t]*(?=\n)/g, '') === String(b).replace(/\n[ \t]*(?=\n)/g, '');
+    if (same(await makes(old), hdl)) next = old;
     else if (kind === 'asm' || kind === 'fsm' || kind === 'tt') {
       try {
         if ((S.lib?.errors || []).some(x => x.severity === 'error' && x.file === hdlPath)) throw new Error(`${hdlPath.split('/').pop()} has errors`);
         const r = kind === 'asm' ? await asmFromHdlFile(hdlPath, { module: old.name, previous: old }) : kind === 'fsm' ? await fsmFromHdlFile(hdlPath, old) : { model: await ttFromHdl(hdlPath, old) };
         next = { ...r.model, generatedFile: hdlPath };
-        warnings = r.warnings?.length ? r.warnings : await makes(next) === hdl ? [] : [`${hdlPath} is not what the ${noun} makes (edited by hand): it is kept as it is until the ${noun} is edited, which rewrites it`];
+        warnings = r.warnings?.length ? r.warnings : same(await makes(next), hdl) ? [] : [`${hdlPath} is not what the ${noun} makes (edited by hand): it is kept as it is until the ${noun} is edited, which rewrites it`];
       } catch (e) { why = e.message; }
     }
     const d = findDoc(`${kind}:${f}`);
