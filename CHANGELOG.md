@@ -32,6 +32,8 @@ In detail:
   be (a schematic whose HDL was edited, HDL that is no longer a state machine…), the HDL file stays as
   it is, a plain HDL module, and the drawing leaves the project (its file kept in the folder; a
   WARNING in the console says so).
+- **Petri nets:** saving an edit of a Petri net's HDL file no longer logs "WARNING: Petri net not
+  synchronized: …" (the net was read as a schematic); the net stays as it is, its HDL follows it (#222).
 
 ## 15.10.14
 

@@ -1547,7 +1547,8 @@ export async function openFile(path, line, col) {
             status(`Saved ${path}`);
             // the other open editors depend on this file (ports, instances): check them again
             for (const od of S.docs) if (od !== d) od.liveCheck?.();
-            if (S.hdlToSch?.[path] && !S.syncing) (isAsm(S.hdlToSch[path]) ? syncAsmFromHdl : isTt(S.hdlToSch[path]) ? syncTtFromHdl : isFsm(S.hdlToSch[path]) ? syncFsmFromHdl : syncSchematicFromHdl)(path, { quiet: auto }).catch(e => log(`WARNING: ${viewNoun(S.hdlToSch[path])} not synchronized: ${e.message}`, 'warn'));
+            // the drawing it is generated from follows the edit (not a Petri net: its HDL follows it only, #222)
+            if (S.hdlToSch?.[path] && !isPn(S.hdlToSch[path]) && !S.syncing) (isAsm(S.hdlToSch[path]) ? syncAsmFromHdl : isTt(S.hdlToSch[path]) ? syncTtFromHdl : isFsm(S.hdlToSch[path]) ? syncFsmFromHdl : syncSchematicFromHdl)(path, { quiet: auto }).catch(e => log(`WARNING: ${viewNoun(S.hdlToSch[path])} not synchronized: ${e.message}`, 'warn'));
           },
           destroy: () => d.editor.destroy(),
         };

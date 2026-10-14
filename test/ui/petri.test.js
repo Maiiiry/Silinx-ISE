@@ -202,6 +202,16 @@ uiTest('Petri net editor: Random, Run / Stop, Reset; PNML export and import (und
   await new Promise((r) => setTimeout(r, 1500));
   assert.match(await readWs(env, 'PnSim', 'src/ctl.vhd'), /ready : out std_logic/, 'the HDL file follows the net');
   assert.equal((await saved('PnSim')).generatedFile, 'src/ctl.vhd');
+  // an edit of the HDL file saved: the net stays as it is, and no warning (it was read as a schematic, #222)
+  const net = await readWs(env, 'PnSim', 'src/ctl.pn.json');
+  await page.eval(() => window.SilinxApp.openFile('src/ctl.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/ctl.vhd' && window.Silinx.active.editor);
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent), 'Generated from ctl.pn.json — edit the Petri net: this file follows it');
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(`-- a note\n${ed.getValue()}`); });
+  await page.waitFor(async () => (await (await fetch('/api/projects/PnSim/file?path=src%2Fctl.vhd')).text()).startsWith('-- a note\n'), [], { what: 'the HDL saved', timeout: 15000 });
+  await new Promise((r) => setTimeout(r, 1000));
+  assert.equal(await readWs(env, 'PnSim', 'src/ctl.pn.json'), net);
+  assert.doesNotMatch(await page.consoleText(), /WARNING|not synchronized/);
 });
 
 uiTest('Petri net editor: the analysis (#188): properties, places, transitions, invariants, a deadlock shown in the simulation; in Portuguese', E, async (page) => {
