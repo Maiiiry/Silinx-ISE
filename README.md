@@ -239,6 +239,9 @@ npm install
 npm start          # http://127.0.0.1:8642  (node bin/silinx-ise.js serve --open also opens the browser)
 ```
 
+To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md): the project's development principles (issues,
+tests, integration) are in [CLAUDE.md](CLAUDE.md), for people and AI agents alike.
+
 Projects live in `~/Silinx-projects` (override with `SILINX_WORKSPACE`). Pushing a tag `vX.Y.Z`
 runs the tests and publishes a release with the files above (`.github/workflows/release.yml`).
 The tests against ISE (`test/ise/`) run nightly, and on demand (Actions ▸ ISE ▸ Run workflow), on
