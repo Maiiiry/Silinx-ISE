@@ -448,3 +448,32 @@ end architecture rtl;
     '    ucf traffic.ucf',
   ]);
 });
+
+// a drawing's HDL language (its editor's HDL language, a schematic's Language): its HDL file made again in it, the other one
+// removed (no Generate HDL any more, #220)
+uiTest('a drawing\'s HDL language changed in its editor (ASM chart, state diagram, Petri net; a schematic\'s Language): its HDL file made again in that language, the other one removed (#220)', E, async (page) => {
+  await makeProject(env, { name: 'H_lang', top: '' });
+  await page.openProject('H_lang');
+  for (const k of KINDS.filter((x) => x.type !== 'tt')) {
+    await page.eval(async (t) => { (await import('/js/wizards.js')).newSourceWizard({ type: t }); }, k.type);
+    await page.waitDialog('New Source Wizard');
+    await page.dialogButton('Next >');
+    await page.fill('.dlg-overlay .wiz-main input[type=text]', k.name);
+    await page.dialogButton('Next >');
+    await page.dialogButton('Finish');
+    await page.waitNoDialog();
+    await page.waitFor((id) => window.Silinx.active?.id === id, [k.id], { what: `the editor of ${k.file}` });
+    await page.waitFor((f, h) => window.Silinx.hdlToSch?.[h] === f, [k.file, `src/${k.name}.vhd`], { what: `${k.file} linked to its VHDL` });
+    for (const [lang, ext, other, L] of [['verilog', 'v', 'vhd', 'Verilog'], ['vhdl', 'vhd', 'v', 'VHDL']]) {
+      await page.eval((l) => { const s = document.querySelector('.doc:not([hidden]) select[title="HDL language"]') || [...document.querySelectorAll('.doc:not([hidden]) .se-field')].find((f) => f.querySelector('label').textContent === 'Language').querySelector('select'); s.value = l; s.dispatchEvent(new Event('change')); }, lang);
+      await page.waitFor((f, h, o) => window.Silinx.hdlToSch?.[h] === f && !window.Silinx.fileTree.includes(o), [k.file, `src/${k.name}.${ext}`, `src/${k.name}.${other}`], { what: `${k.file} in ${L}`, timeout: 15000 });
+      await page.waitConsole(new RegExp(`${k.file.replace(/\./g, '\\.')}: its HDL is now in ${L}, src/${k.name}\\.${ext} \\(src/${k.name}\\.${other} removed\\)`));
+      const d = JSON.parse(await readWs(env, 'H_lang', k.file));
+      assert.deepEqual([d.lang, d.generatedFile], [lang, `src/${k.name}.${ext}`], k.file);
+      assert.equal(await readWs(env, 'H_lang', `src/${k.name}.${ext}`), viewHdl(k.file, JSON.stringify({ ...d, generatedFile: undefined })).text);
+      const row = (await rows(page)).find((r) => r.trim().startsWith(`${k.ico} ${k.name} `));
+      assert.equal(row?.trim(), `${k.ico} ${k.name} [${k.badge}*] [${L}] (${k.file.split('/').pop()})`);
+    }
+  }
+  assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
+});

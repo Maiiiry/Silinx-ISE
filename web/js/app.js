@@ -1861,24 +1861,9 @@ export async function openAsm(path) {
     create(el, d) {
       const host = h('div', { class: 'doc-body' });
       el.append(host);
-      const dir = path.includes('/') ? path.replace(/\/[^/]*$/, '') : 'src';
       const ed = mountAsmEditor(host, {
         model,
         onChange: () => setDirty(d, true),
-        // Generate HDL links the chart to its HDL file: from then on both are kept in sync
-        onGenerate: async ({ lang, filename, code }) => {
-          const owned = ed.getModel().generatedFile;
-          const target = owned && S.fileTree.includes(owned) && owned.split('.').pop() === filename.split('.').pop() ? owned : `${dir}/${filename}`;
-          if (S.fileTree.includes(target) && target !== owned && !await confirmDlg('Generate HDL', `${target} already exists and is not generated from this chart. Overwrite it?`)) return;
-          const m = ed.getModel(); m.generatedFile = target; ed.setModel(m);
-          await api.writeFile(S.project.name, path, JSON.stringify(m, null, 2)); setDirty(d, false);
-          await api.writeFile(S.project.name, target, code);
-          log(`ASM chart '${path}' -> ${lang.toUpperCase()} file ${target} (kept in sync with the chart)`, 'ok');
-          await reloadProject(false);
-          markStale();
-          refreshOpenEditor(target, code);
-          openFile(target);
-        },
       });
       d.asmEditor = ed;
       return {
@@ -1898,6 +1883,7 @@ export async function openAsm(path) {
 async function syncHdlFromAsm(asmPath, model) {
   const target = model.generatedFile;
   if (!target || !S.fileTree.includes(target)) return;
+  if (await drawnHdlLanguage(asmPath, model)) return;
   const { generate, validate } = await import('/core/asm.js');
   const errs = (validate(model) || []).filter(x => x.severity === 'error');
   if (errs.length) { status(`${target.split('/').pop()} not updated: the chart has ${errs.length} error(s)`); return; }
@@ -1999,7 +1985,6 @@ export async function openTt(path) {
         onChange: () => setDirty(d, true),
         linkInfo: () => { const f = S.schOwners?.[path]; return f ? { file: f, why: S.outOfSync?.[f] } : null; },
         onOpenFile: f => openFile(f),
-        onGenerate: ({ lang }) => generateTtHdl(path, lang),
         onSchematic: o => schematicFromTt(path, o),
         onFromModule: () => loadTtFromModule(path),
       });
@@ -2018,41 +2003,10 @@ export async function openTt(path) {
 const ttModel = async path => { const d = findDoc(`tt:${path}`); if (d?.ttEditor) { await flushDoc(d); return d.ttEditor.getModel(); } return JSON.parse(await api.readFile(S.project.name, path)); };
 const refreshTtLink = ttPath => findDoc(`tt:${ttPath}`)?.ttEditor?.refreshLink();
 
-// "Generate VHDL / Verilog module": write the module and link it to the table
-async function generateTtHdl(ttPath, lang) {
-  const { generateTableHdl, validateTable, normalizeTable } = await import('/core/logic.js');
-  const m = normalizeTable(await ttModel(ttPath));
-  const errs = validateTable(m);
-  if (errs.length) { alertDlg('Generate HDL', errs.map(x => x.message).join('\n'), 'error'); return; }
-  const g = generateTableHdl({ ...m, lang }, lang, { source: ttPath.split('/').pop() });
-  const dir = ttPath.includes('/') ? ttPath.replace(/\/[^/]*$/, '') : 'src';
-  const owned = m.generatedFile && S.fileTree.includes(m.generatedFile) ? m.generatedFile : null;
-  const target = owned && extOf(owned) === extOf(g.filename) && owned.split('/').pop().replace(/\.[^.]+$/, '') === m.name ? owned : `${dir}/${g.filename}`;
-  const other = S.modules.find(x => x.name.toLowerCase() === m.name.toLowerCase() && x.file !== target && x.file !== owned && x.file !== ttPath);   // (the drawn source itself, a module of its own until it has its HDL file, #177)
-  if (other) { alertDlg('Generate HDL', `A module named '${m.name}' already exists in ${other.file}. Rename the table's module (its file name) first.`, 'error'); return; }
-  if (S.fileTree.includes(target) && target !== owned && !await confirmDlg('Generate HDL', `${target} already exists and is not generated from this truth table. Overwrite it?`)) return;
-  if (owned && owned !== target && !await confirmDlg('Generate HDL', `${owned} is generated from this truth table. Replace it with ${target}?`)) return;
-  S.syncing = true;
-  try {
-    if (owned && owned !== target) { closeDocByPath(owned); await api.deleteFile(S.project.name, owned); }
-    await api.writeFile(S.project.name, target, g.code);
-    const next = { ...m, lang, generatedFile: target };
-    await api.writeFile(S.project.name, ttPath, JSON.stringify(next, null, 2));
-    const d = findDoc(`tt:${ttPath}`);
-    if (d?.ttEditor) { d.ttEditor.setModel(next); setDirty(d, false); }
-    if (S.outOfSync) delete S.outOfSync[target];
-    log(`Truth table '${ttPath}' -> ${lang.toUpperCase()} module ${target} (kept in sync with the table)`, 'ok');
-  } finally { S.syncing = false; }
-  await reloadProject(false);
-  markStale();
-  refreshOpenEditor(target, g.code);
-  refreshTtLink(ttPath);
-  openFile(target);
-}
-
 async function syncHdlFromTt(ttPath, model) {
   const target = model.generatedFile;
   if (!target || !S.fileTree.includes(target)) return;
+  if (await drawnHdlLanguage(ttPath, model)) return;
   const { generateTableHdl, validateTable, normalizeTable } = await import('/core/logic.js');
   const m = normalizeTable(model);
   S.outOfSync ||= {};
@@ -2204,7 +2158,6 @@ export async function openFsm(path) {
         onChange: () => setDirty(d, true),
         linkInfo: () => { const f = S.schOwners?.[path]; return f ? { file: f, why: S.outOfSync?.[f] } : null; },
         onOpenFile: f => openFile(f),
-        onGenerate: ({ lang }) => generateFsmHdl(path, lang),
         onTruthTables: () => fsmTruthTables(path),
         onToAsm: () => fsmToAsmChart(path),
       });
@@ -2231,40 +2184,10 @@ function freeName(dir, base, ext) {
   return name;
 }
 
-// "Generate HDL": write the module and link it to the diagram
-async function generateFsmHdl(fsmPath, lang) {
-  const { generateFsm, fsmErrors, normalizeFsm } = await import('/core/fsm.js');
-  const m = normalizeFsm(await fsmModel(fsmPath));
-  const errs = fsmErrors(m);
-  if (errs.length) { alertDlg('Generate HDL', errs.map(x => x.message).join('\n'), 'error'); return; }
-  const g = generateFsm({ ...m, lang }, lang, { source: fsmPath.split('/').pop() });
-  const owned = m.generatedFile && S.fileTree.includes(m.generatedFile) ? m.generatedFile : null;
-  const target = owned && extOf(owned) === extOf(g.filename) && owned.split('/').pop().replace(/\.[^.]+$/, '') === m.name ? owned : `${fsmDir(fsmPath)}/${g.filename}`;
-  const other = S.modules.find(x => x.name.toLowerCase() === m.name.toLowerCase() && x.file !== target && x.file !== owned && x.file !== fsmPath);   // (the drawn source itself, a module of its own until it has its HDL file, #177)
-  if (other) { alertDlg('Generate HDL', `A module named '${m.name}' already exists in ${other.file}. Rename the state machine's module first.`, 'error'); return; }
-  if (S.fileTree.includes(target) && target !== owned && !await confirmDlg('Generate HDL', `${target} already exists and is not generated from this state diagram. Overwrite it?`)) return;
-  if (owned && owned !== target && !await confirmDlg('Generate HDL', `${owned} is generated from this state diagram. Replace it with ${target}?`)) return;
-  S.syncing = true;
-  try {
-    if (owned && owned !== target) { closeDocByPath(owned); await api.deleteFile(S.project.name, owned); }
-    await api.writeFile(S.project.name, target, g.code);
-    const next = { ...m, lang, generatedFile: target };
-    await api.writeFile(S.project.name, fsmPath, JSON.stringify(next, null, 2));
-    const d = findDoc(`fsm:${fsmPath}`);
-    if (d?.fsmEditor) { d.fsmEditor.setModel(next); setDirty(d, false); }
-    if (S.outOfSync) delete S.outOfSync[target];
-    log(`State diagram '${fsmPath}' -> ${lang.toUpperCase()} module ${target} (kept in sync with the diagram)`, 'ok');
-  } finally { S.syncing = false; }
-  await reloadProject(false);
-  markStale();
-  refreshOpenEditor(target, g.code);
-  refreshFsmLink(fsmPath);
-  openFile(target);
-}
-
 async function syncHdlFromFsm(fsmPath, model) {
   const target = model.generatedFile;
   if (!target || !S.fileTree.includes(target)) return;
+  if (await drawnHdlLanguage(fsmPath, model)) return;
   const { generateFsm, fsmErrors, normalizeFsm } = await import('/core/fsm.js');
   const m = normalizeFsm(model);
   S.outOfSync ||= {};
@@ -2410,7 +2333,7 @@ async function fsmTruthTables(fsmPath) {
 }
 
 // ---- Petri nets (.pn.json): their HDL file made with them (#207), kept in sync with the net, one way
-// (Generate HDL file: in the other language); a module by itself while it has errors (core/view-hdl.js)
+// (its HDL language: the net's, #220); a module by itself while it has errors (core/view-hdl.js)
 export async function openPetri(path) {
   const id = `pn:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
@@ -2428,7 +2351,6 @@ export async function openPetri(path) {
         onChange: () => setDirty(d, true),
         linkInfo: () => { const f = S.schOwners?.[path]; return f ? { file: f } : null; },
         onOpenFile: f => openFile(f),
-        onGenerate: ({ lang }) => generatePetriHdl(path, lang),
       });
       d.petriEditor = ed;
       return {
@@ -2444,6 +2366,7 @@ export async function openPetri(path) {
   });
 }
 async function syncHdlFromPetri(path, m) {
+  if (await drawnHdlLanguage(path, m)) return;
   const { generatePetri } = await import('/core/petri.js');
   let g;
   try { g = generatePetri(m, m.lang, { source: path.split('/').pop() }); } catch { return; }   // (errors: shown in the editor)
@@ -2452,34 +2375,6 @@ async function syncHdlFromPetri(path, m) {
   const src = S.sources.find(x => x.path === m.generatedFile); if (src) src.text = g.code;
   refreshOpenEditor(m.generatedFile, g.code);
   compileProject(); markStale();
-}
-// "Generate HDL file": the module written next to the net, kept in sync with it
-async function generatePetriHdl(path, lang) {
-  const { generatePetri, petriErrors, normalizePetri } = await import('/core/petri.js');
-  const d = findDoc(`pn:${path}`);
-  if (d) await flushDoc(d);
-  const m = normalizePetri(d?.petriEditor ? d.petriEditor.getModel() : JSON.parse(await api.readFile(S.project.name, path)));
-  const L = lang || m.lang;
-  const errs = petriErrors({ ...m, lang: L });
-  if (errs.length) { alertDlg('Generate HDL file', errs.map(x => x.message).join('\n'), 'error'); return; }
-  const g = generatePetri(m, L, { source: path.split('/').pop() });
-  const dir = path.includes('/') ? path.replace(/\/[^/]*$/, '') : 'src';
-  const target = `${dir}/${g.filename}`;
-  const owned = m.generatedFile && S.fileTree.includes(m.generatedFile) ? m.generatedFile : null;
-  if (S.fileTree.includes(target) && target !== owned && !await confirmDlg('Generate HDL file', `${target} already exists and is not generated from this Petri net. Overwrite it?`)) return;
-  S.syncing = true;
-  try {
-    if (owned && owned !== target) { closeDocByPath(owned); await api.deleteFile(S.project.name, owned); }
-    await api.writeFile(S.project.name, target, g.code);
-    const next = { ...m, lang: L, generatedFile: target };
-    await api.writeFile(S.project.name, path, JSON.stringify(next, null, 2));
-    if (d?.petriEditor) { d.petriEditor.setModel(next); setDirty(d, false); }
-    log(`Petri net '${path}' -> ${L.toUpperCase()} module ${target} (kept in sync with the net)`, 'ok');
-  } finally { S.syncing = false; }
-  await reloadProject(false);
-  markStale();
-  refreshOpenEditor(target, g.code);
-  findDoc(`pn:${path}`)?.petriEditor?.refreshLink();
 }
 function petriContextMenu(e, file) {
   popupMenu([
@@ -2525,18 +2420,6 @@ export async function openSch(path) {
         doc, modules,
         simSources: () => S.sources,   // live simulation: bodies of the module symbols
         onChange: () => setDirty(d, true),
-        onGenerate: async ({ lang, code, target }) => {
-          const exists = S.fileTree.includes(target);
-          const owned = S.schOwners?.[path] === target;
-          if (exists && !owned && !await confirmDlg('Generate HDL', `${target} already exists and is not generated from this schematic. Overwrite it?`)) return;
-          await save(ed.getDoc());
-          await api.writeFile(S.project.name, target, code);
-          log(`Schematic '${path}' -> generated ${lang.toUpperCase()} file ${target}`, 'ok');
-          await reloadProject(false);
-          markStale();
-          const od = findDoc(`file:${target}`);
-          if (od) { od.editor.setValue(code); od.editor.markClean(); setDirty(od, false); }
-        },
         onOpenModule: name => { const i = moduleInfo(name); if (i) openFile(i.file, i.line); },
       });
       d.schEditor = ed;
@@ -2574,6 +2457,39 @@ function syncedViewMenu(e, sch) {
     isFsm(sch) ? { label: 'Convert to ASM chart', action: () => fsmToAsmChart(sch) } : null,
     viewKind(sch) === 'sch' ? { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(sch) } : null,
   ].filter(Boolean), e.clientX, e.clientY);
+}
+
+// A drawing's language changed (its editor's HDL language, a schematic's Language): its HDL file,
+// generated from it, is made again in that language, the file in the other language removed (#220:
+// no Generate HDL any more). Not while it has errors (its file stays until it has none). Returns
+// whether its language had changed (the HDL then written here).
+async function drawnHdlLanguage(path, m) {
+  const owned = m.generatedFile;
+  const L = m.lang === 'verilog' ? 'Verilog' : 'VHDL';
+  if (!owned || !S.fileTree.includes(owned) || /\.v$/i.test(owned) === (L === 'Verilog')) return false;
+  const r = viewHdl(path, JSON.stringify({ ...m, generatedFile: undefined }), { modules: viewKind(path) === 'sch' ? await schModules() : {} });
+  if (!r?.text || r.errors.length) { status(`${owned.split('/').pop()} not made in ${L} yet: ${path.split('/').pop()} has errors`); return true; }
+  const target = owned.replace(/\.[^./]+$/, L === 'Verilog' ? '.v' : '.vhd');
+  if ((S.diskTree || S.fileTree).includes(target)) { log(`WARNING: the HDL of ${path} is not made in ${L}: ${target} exists already`, 'warn'); return true; }
+  S.syncing = true;
+  try {
+    closeDocByPath(owned);
+    await api.deleteFile(S.project.name, owned);
+    await api.writeFile(S.project.name, target, r.text);
+    const next = { ...m, generatedFile: target };
+    await api.writeFile(S.project.name, path, JSON.stringify(next, null, viewKind(path) === 'sch' ? 1 : 2));
+    // an open editor of the drawing keeps the link (its next save writes it)
+    const d = findDoc(`${viewKind(path)}:${path}`);
+    const ed = d?.schEditor || d?.asmEditor || d?.ttEditor || d?.fsmEditor || d?.petriEditor;
+    if (ed?.setDoc) { const cur = ed.getDoc(); cur.generatedFile = target; ed.setDoc(cur); }
+    else if (ed?.setModel) { const cur = ed.getModel(); cur.generatedFile = target; ed.setModel(cur); }
+    log(`${path}: its HDL is now in ${L}, ${target} (${owned} removed)`, 'info');
+  } finally { S.syncing = false; }
+  await reloadProject(false);
+  markStale();
+  const d = findDoc(`${viewKind(path)}:${path}`);
+  (d?.ttEditor || d?.fsmEditor || d?.petriEditor)?.refreshLink?.();
+  return true;
 }
 
 // Every source has its HDL file (#207): a drawn source without one (a module by itself, #177) gets
@@ -2657,7 +2573,8 @@ function refreshOpenEditor(path, text) {
 
 async function syncHdlFromSchematic(schPath, doc) {
   const target = doc.generatedFile || S.schOwners?.[schPath];
-  if (!target) return;                    // a new schematic is linked by its first "Generate HDL"
+  if (!target) return;                    // (a schematic with errors: linked once it has none, #207)
+  if (await drawnHdlLanguage(schPath, { ...doc, generatedFile: target })) return;
   const { generateHdl } = await import('/core/schdoc.js');
   let g;
   try { g = generateHdl(doc, { lang: doc.lang, modules: await schModules() }); }
@@ -2730,7 +2647,7 @@ async function syncSchematicFromHdl(hdlPath, { quiet = false } = {}) {
   } finally { S.syncing = false; }
 }
 
-// HDL -> editable schematic. The schematic then owns the module's HDL file (Generate HDL rewrites it).
+// HDL -> editable schematic. The schematic then owns the module's HDL file (generated from it).
 async function convertToSchematic(mod) {
   const info = moduleInfo(mod);
   if (!info) return;
@@ -2749,7 +2666,7 @@ async function convertToSchematic(mod) {
     let target = `${dir}/${mod}.sch.json`;
     if (S.fileTree.includes(target) && !await confirmDlg('Convert to Schematic', `${target} already exists. Overwrite it?`)) return;
     await api.writeFile(S.project.name, target, JSON.stringify(doc, null, 1));
-    log(`'${mod}' converted to the schematic ${target}: from now on ${info.file} is generated from it (Generate HDL in the schematic editor).`, 'ok');
+    log(`'${mod}' converted to the schematic ${target}: from now on ${info.file} is generated from it.`, 'ok');
     for (const w of doc.importDiagnostics || []) log(`WARNING: ${w.message || w}`, 'warn');
     await reloadProject(false);
     openSch(target);

@@ -1,7 +1,7 @@
 // Silinx - FSM state diagram editor (bubble diagrams, documents <name>.fsm.json; SVG, no framework).
 //
 //   import { mountFsmEditor } from './fsm-editor.js';
-//   const ed = mountFsmEditor(container, { model, onChange(model), onGenerate({ lang }), linkInfo() -> { file, why } | null,
+//   const ed = mountFsmEditor(container, { model, onChange(model), linkInfo() -> { file, why } | null,
 //                                          onOpenFile(path), onTruthTables(), onToAsm() });
 //   ed.getModel(); ed.setModel(m); ed.refreshLink(); ed.fit(); ed.print(); ed.destroy();
 //
@@ -14,7 +14,7 @@
 // simulation of the diagram (current state highlighted, inputs set by hand, clock steps).
 // Model, validation, tables and HDL: core/fsm.js. Styles: asm-editor.css (shared look) + fsm-editor.css.
 
-import { h, downloadText } from './ui.js';
+import { h, downloadText, undoButton } from './ui.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import {
   normalizeFsm, newFsm, validateFsm, generateFsm, parseLabel, parseOutputs, formatOutputs, fsmEncoding,
@@ -91,8 +91,8 @@ export function mountFsmEditor(container, opts = {}) {
     (v) => { M.encoding = v; commit('enc'); });
   const styleSel = select('fsm-style', 'Style of the generated HDL', [['3process', '3 processes'], ['2process', '2 processes']], (v) => { M.style = v; commit('style'); });
   const langSel = select('fsm-lang', 'HDL language', [['vhdl', 'VHDL'], ['verilog', 'Verilog']], (v) => { M.lang = v; commit('lang'); });
-  const undoBtn = btn('↶', 'Undo (Ctrl+Z)', () => undo());
-  const redoBtn = btn('↷', 'Redo (Ctrl+Shift+Z)', () => redo());
+  const undoBtn = undoButton('undo', () => undo());
+  const redoBtn = undoButton('redo', () => redo());
   const zoomLbl = h('span', { class: 'asm-zoom', title: 'Zoom level' }, '100%');
   const delBtn = btn('✕', 'Delete the selected state or transition (Del)', () => deleteSelection(), 'asm-danger');
   const tabBtns = {
@@ -117,8 +117,7 @@ export function mountFsmEditor(container, opts = {}) {
     h('div', { class: 'asm-group' }, typeSel, encSel, styleSel, langSel),
     h('div', { class: 'asm-spacer' }),
     h('div', { class: 'asm-group' }, tabBtns.tables, tabBtns.code, tabBtns.sim,
-      btn('Convert to ASM chart', 'Make an ASM chart (.asm.json) of this state machine', () => opts.onToAsm?.()),
-      btn('Generate HDL', 'Generate the VHDL / Verilog module of the diagram and add it to the project (kept in sync with the diagram)', () => doGenerate(), 'asm-primary fsm-gen')),
+      btn('Convert to ASM chart', 'Make an ASM chart (.asm.json) of this state machine', () => opts.onToAsm?.())),
     linkHost);
 
   // ---------------------------------------------------------------------------- canvas
@@ -868,17 +867,7 @@ export function mountFsmEditor(container, opts = {}) {
       sim.trace.length ? trace : null));
   }
 
-  // ---------------------------------------------------------------------------- generate, link
-  function doGenerate() {
-    runValidate();
-    const errs = diags.filter((d) => d.severity === 'error');
-    if (errs.length) {
-      flash(`The diagram has ${errs.length} error(s): see Problems`, 'err');
-      probSection.open = true;
-      return;
-    }
-    opts.onGenerate?.({ lang: M.lang });
-  }
+  // ---------------------------------------------------------------------------- link
   function refreshLink() {
     linkHost.textContent = '';
     const L = opts.linkInfo?.();

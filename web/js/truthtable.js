@@ -3,14 +3,15 @@
 // typing an expression per output. For the selected output: Karnaugh map with the groups of the
 // minimal SOP (1s) or POS (0s), canonical forms Σm / ΠM, minimal SOP and POS with their literal and
 // gate counts, and a check of the student's own expression. Tables read from a module may have up
-// to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The host (app.js) links the generated
-// HDL module to the table and keeps both in sync.
+// to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The table always has its HDL module, in
+// its language (the project's preferred one), generated from it by the host (app.js), which keeps
+// both in sync.
 //
-//   const ed = mountTtEditor(host, { model, onChange, onGenerate({ lang }), onSchematic({ form, nand }),
+//   const ed = mountTtEditor(host, { model, onChange, onSchematic({ form, nand }),
 //                                    onFromModule(), linkInfo() -> { file, why } | null, onOpenFile(path) });
 //   ed.getModel(), ed.setModel(m), ed.destroy()
 // Styles: web/css/truthtable.css.
-import { h } from './ui.js';
+import { h, undoButton } from './ui.js';
 import {
   normalizeTable, validateTable, reshapeTable, analyzeOutput, parseExpr, exprColumn, formatExpr, compareExpr,
   kmapLayout, kmapRects, MAX_EDIT_INPUTS,
@@ -86,13 +87,11 @@ export function mountTtEditor(container, opts = {}) {
   const btn = (label, title, onclick, cls = '') => h('button', { type: 'button', class: `btn tt-btn ${cls}`, title, onclick }, label);
   const link = h('span', { class: 'tt-link' });
   const toolbar = h('div', { class: 'tt-toolbar' },
-    btn('↶', 'Undo (Ctrl+Z)', () => undo(), 'tt-undo'), btn('↷', 'Redo (Ctrl+Y)', () => redo(), 'tt-redo'),
+    undoButton('undo', () => undo(), { class: 'tb-btn tt-undo' }), undoButton('redo', () => redo(), { class: 'tb-btn tt-redo' }),
     h('span', { class: 'tt-sep' }),
     h('label', {}, 'Inputs:'), inIn, h('label', {}, 'Outputs:'), outIn, btn('Apply', 'Apply the input and output names', applyShape), shapeErr,
     h('span', { class: 'tt-sep' }),
     h('label', { title: 'Form of the logic in the generated HDL module' }, 'HDL logic:'), formSel,
-    btn('Generate VHDL module', 'Generate a VHDL module from the table and add it to the project (kept in sync with the table)', () => opts.onGenerate?.({ lang: 'vhdl' })),
-    btn('Generate Verilog module', 'Generate a Verilog module from the table and add it to the project (kept in sync with the table)', () => opts.onGenerate?.({ lang: 'verilog' })),
     h('span', { class: 'tt-sep' }),
     btn('Generate Schematic', 'Draw the minimal circuit of each output as a schematic (gates, inputs and outputs) and add it to the project', () => opts.onSchematic?.({ form: groups, nand })),
     h('label', { class: 'tt-check', title: 'Use only NAND gates in the generated schematic' }, nandBox, ' NAND gates only'),

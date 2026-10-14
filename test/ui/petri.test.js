@@ -117,9 +117,9 @@ uiTest('Petri net editor: arcs and inhibitor arcs drawn, delete / undo / redo, t
   // the inhibitor arc is selected: ✕ deletes it, ↶ brings it back, ↷ deletes it again
   await page.click(`${ED} .asm-danger`, { text: '✕' });
   await page.waitFor((ed) => /6 arcs/.test(document.querySelector(`${ed} .asm-status`).textContent), [ED], { what: 'deleted' });
-  await page.click(`${ED} button`, { text: '↶' });
+  await page.click(`${ED} .tb-btn[title=Undo]`);
   await page.waitFor((ed) => /7 arcs/.test(document.querySelector(`${ed} .asm-status`).textContent), [ED], { what: 'undone' });
-  await page.click(`${ED} button`, { text: '↷' });
+  await page.click(`${ED} .tb-btn[title=Redo]`);
   await page.waitFor((ed) => /6 arcs/.test(document.querySelector(`${ed} .asm-status`).textContent), [ED], { what: 'redone' });
   // the properties: idle 2 tokens (its capacity follows), t3 a guard, a pulse, the first in priority
   await page.click(`${ED} .pn-tool`, { text: '➚ Select' });

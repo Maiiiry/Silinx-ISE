@@ -2,7 +2,7 @@
 export const PETRI_PT = {
   // New Source, menus, processes, hierarchy
   'Petri Net': 'Rede de Petri', 'Petri Net Editor…': 'Editor de Redes de Petri…', 'View/Edit Petri Net': 'Ver/Editar Rede de Petri',
-  'Generate HDL file': 'Gerar ficheiro HDL', '— generated from the net': '— gerado a partir da rede', 'Open Petri Net': 'Abrir Rede de Petri',
+  '— generated from the net': '— gerado a partir da rede', 'Open Petri Net': 'Abrir Rede de Petri',
   // toolbar
   '➚ Select': '➚ Selecionar', 'Place': 'Lugar', 'Transition': 'Transição', '→ Arc': '→ Arco', '⊸ Inhibitor': '⊸ Inibidor',
   'Fit': 'Ajustar', '▶ Simulate': '▶ Simular', '</> HDL': '</> HDL', 'PNML ⇩': 'PNML ⇩', 'PNML ⇧': 'PNML ⇧',
@@ -11,11 +11,10 @@ export const PETRI_PT = {
   'Click the drawing to add a transition': 'Clique no desenho para acrescentar uma transição',
   'Click a place then a transition (or a transition then a place)': 'Clique num lugar e depois numa transição (ou numa transição e depois num lugar)',
   'Click a place then a transition: the transition fires only while the place holds fewer tokens than the weight': 'Clique num lugar e depois numa transição: a transição só dispara enquanto o lugar tiver menos marcas do que o peso',
-  'Delete the selection (Del)': 'Apagar a seleção (Del)', 'Undo (Ctrl+Z)': 'Anular (Ctrl+Z)', 'Redo (Ctrl+Y)': 'Refazer (Ctrl+Y)',
+  'Delete the selection (Del)': 'Apagar a seleção (Del)',
   'Fit the net in the window': 'Ajustar a rede à janela', 'HDL language': 'Linguagem HDL',
   'Play the net: fire transitions, clock steps, run': 'Jogar a rede: disparar transições, passos de relógio, correr',
   'The hardware generated from the net': 'O hardware gerado a partir da rede',
-  'Write the HDL module next to the net (kept in sync with it); without it, the net is a module of the project all the same': 'Escrever o módulo HDL ao lado da rede (sincronizado com ela); sem ele, a rede é na mesma um módulo do projeto',
   'Export the net as PNML (for PIPE, WoPeD, TINA…)': 'Exportar a rede em PNML (para o PIPE, WoPeD, TINA…)',
   'Import a PNML net (replaces this one: Undo brings it back)': 'Importar uma rede PNML (substitui esta: Anular repõe-na)',
   'Place / Transition: click to add · Arc: click its two ends · drag to move · Del to delete · wheel to zoom': 'Lugar / Transição: clique para acrescentar · Arco: clique nas duas pontas · arraste para mover · Del para apagar · roda para zoom',

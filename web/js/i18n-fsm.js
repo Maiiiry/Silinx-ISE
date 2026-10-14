@@ -12,7 +12,7 @@ export const FSM_PT = {
     'Máquina de Moore: as saídas dependem só do estado (escritas nos círculos). Máquina de Mealy: saídas também nas transições (condição / saídas).',
   'State encoding': 'Codificação de estados', 'Binary': 'Binária', 'Gray': 'Gray', 'One-hot': 'One-hot', 'Enumerated': 'Enumerada',
   'Style of the generated HDL': 'Estilo do HDL gerado', '3 processes': '3 processos', '2 processes': '2 processos', 'HDL language': 'Linguagem HDL',
-  'Undo (Ctrl+Z)': 'Anular (Ctrl+Z)', 'Redo (Ctrl+Shift+Z)': 'Refazer (Ctrl+Shift+Z)', 'Zoom level': 'Nível de zoom',
+  'Zoom level': 'Nível de zoom',
   'Delete the selected state or transition (Del)': 'Apagar o estado ou a transição selecionada (Del)',
   'Tables': 'Tabelas', 'State table, transition table and encoded transition table': 'Tabela de estados, tabela de transições e tabela de transições codificada',
   '</> HDL': '</> HDL', 'Show / hide the generated HDL': 'Mostrar / esconder o HDL gerado',
@@ -21,7 +21,6 @@ export const FSM_PT = {
   'Arrange': 'Organizar', 'Automatic layout of the states': 'Disposição automática dos estados', 'Zoom out': 'Reduzir', 'Zoom in': 'Ampliar',
   'Fit': 'Ajustar', 'Fit the diagram in the window': 'Ajustar o diagrama à janela', 'Print the diagram / save it as PDF or SVG (Ctrl+P)': 'Imprimir o diagrama / guardá-lo em PDF ou SVG (Ctrl+P)',
   'Make an ASM chart (.asm.json) of this state machine': 'Fazer um fluxograma ASM (.asm.json) desta máquina de estados',
-  'Generate HDL': 'Gerar HDL', 'Generate the VHDL / Verilog module of the diagram and add it to the project (kept in sync with the diagram)': 'Gerar o módulo VHDL / Verilog do diagrama e acrescentá-lo ao projeto (mantido sincronizado com o diagrama)',
   'Double-click to add a state · drag from the rim of a state to another state to add a transition · double-click to edit · drag a label to bend its arrow · wheel to zoom':
     'Duplo clique para acrescentar um estado · arraste da borda de um estado para outro estado para acrescentar uma transição · duplo clique para editar · arraste uma etiqueta para curvar a seta · roda para zoom',
   'Close the panel': 'Fechar o painel', 'Machine': 'Máquina', 'Problems': 'Problemas', 'Code copied to the clipboard': 'Código copiado',

@@ -4,7 +4,7 @@ export const TT_PT = {
   'Truth Table / Karnaugh Map…': 'Tabela de Verdade / Mapa de Karnaugh…', 'Truth Table / Karnaugh Map': 'Tabela de Verdade / Mapa de Karnaugh',
   'Truth Table': 'Tabela de Verdade', 'View/Edit Truth Table': 'Ver/Editar Tabela de Verdade',
   'Open Truth Table': 'Abrir Tabela de Verdade',
-  'Truth Table from Module': 'Tabela de Verdade de um Módulo', 'Generate HDL': 'Gerar HDL', 'Generate Schematic': 'Gerar Esquemático',
+  'Truth Table from Module': 'Tabela de Verdade de um Módulo', 'Generate Schematic': 'Gerar Esquemático',
   'Combinational module (at most 8 input bits): its truth table is computed by simulating every input combination.':
     'Módulo combinatório (no máximo 8 bits de entrada): a tabela de verdade é calculada simulando todas as combinações das entradas.',
   'The project has no design modules.': 'O projeto não tem módulos de projeto.',
@@ -14,9 +14,6 @@ export const TT_PT = {
   'Output names (1 or more), separated by commas or spaces': 'Nomes das saídas (1 ou mais), separados por vírgulas ou espaços',
   'HDL logic:': 'Lógica do HDL:', 'Form of the logic in the generated HDL module': 'Forma da lógica no módulo HDL gerado',
   'Minimal SOP': 'SOP mínima', 'Minimal POS': 'POS mínima',
-  'Generate VHDL module': 'Gerar módulo VHDL', 'Generate Verilog module': 'Gerar módulo Verilog',
-  'Generate a VHDL module from the table and add it to the project (kept in sync with the table)': 'Gerar um módulo VHDL a partir da tabela e acrescentá-lo ao projeto (mantido sincronizado com a tabela)',
-  'Generate a Verilog module from the table and add it to the project (kept in sync with the table)': 'Gerar um módulo Verilog a partir da tabela e acrescentá-lo ao projeto (mantido sincronizado com a tabela)',
   'Draw the minimal circuit of each output as a schematic (gates, inputs and outputs) and add it to the project': 'Desenhar o circuito mínimo de cada saída num esquemático (portas, entradas e saídas) e acrescentá-lo ao projeto',
   'Use only NAND gates in the generated schematic': 'Usar só portas NAND no esquemático gerado', 'NAND gates only': 'Só portas NAND',
   'Truth Table from Module…': 'Tabela de Verdade de um Módulo…',

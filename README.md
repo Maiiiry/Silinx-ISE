@@ -152,10 +152,11 @@ for Xilinx FPGAs supported by ISE 14.7.
   Σm / ΠM canonical forms; minimal SOP and POS (Quine–McCluskey + exact cover, don't cares used,
   essential prime implicants marked, "several minimal solutions" noted) with literal and gate
   counts; and *Check my answer*, which compares the student's own expression with the table and
-  lists the rows that differ. The table always has its HDL module, made with it (*Generate VHDL /
-  Verilog module*: in the other language), kept in sync with the table both ways (like ASM charts:
-  editing the table rewrites it; editing and saving the HDL updates the table by exhaustive simulation, don't cares kept in its comments; a module that
-  no longer fits — sequential, too many inputs — shows the reason in the editor banners).
+  lists the rows that differ. The table always has its HDL module, made with it in the project's
+  preferred language, kept in sync with the table both ways (like ASM charts: editing the table
+  rewrites it; editing and saving the HDL updates the table by exhaustive simulation, don't cares
+  kept in its comments; a module that no longer fits — sequential, too many inputs — shows the
+  reason in the editor banners).
   *Generate Schematic* draws the minimal two-level circuit (AND/OR or NAND only) as an editable
   schematic. *Truth Table from Module…* fills the table with the table of any combinational module
   of up to 8 input bits.
@@ -171,9 +172,9 @@ for Xilinx FPGAs supported by ISE 14.7.
   transitions never taken, outputs never set, invalid names and expressions. *Tables*: transition
   table, classic state table and, for binary/gray, the encoded transition table (state bits, next
   state bits, outputs; unused codes as don't cares) — CSV export and *Create Truth Tables* of the
-  next-state bits and outputs for the K-map exercise. *Generate HDL*: readable VHDL or Verilog
-  (2- or 3-process style) kept in sync both ways like ASM charts (an HDL edit that is no longer a
-  plain state machine shows the reason); *Convert to State Diagram (FSM)* reads an HDL module or an
+  next-state bits and outputs for the K-map exercise. Its HDL: readable VHDL or Verilog (2- or
+  3-process style; changing the language in the editor makes it again in that one) kept in sync
+  both ways like ASM charts (an HDL edit that is no longer a plain state machine shows the reason); *Convert to State Diagram (FSM)* reads an HDL module or an
   ASM chart, *Convert to ASM chart* goes the other way; *Simulate* steps through the diagram (set
   the inputs, clock edges, current state and the transition about to be taken highlighted).
 - **Implementation** with **Xilinx ISE 14.7** (XST → NGDBuild → MAP → PAR → TRCE → BitGen), run

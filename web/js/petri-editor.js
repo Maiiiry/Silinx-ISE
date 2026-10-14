@@ -1,7 +1,7 @@
 // Silinx - Petri net editor (documents <name>.pn.json; SVG, no framework).
 //
 //   import { mountPetriEditor } from './petri-editor.js';
-//   const ed = mountPetriEditor(container, { model, onChange(model), onGenerate({ lang }), linkInfo() -> { file } | null, onOpenFile(path) });
+//   const ed = mountPetriEditor(container, { model, onChange(model), linkInfo() -> { file } | null, onOpenFile(path) });
 //   ed.getModel(); ed.setModel(m); ed.undo(); ed.redo(); ed.canUndo(); ed.canRedo(); ed.fit(); ed.refreshLink(); ed.destroy();
 //
 // Places are circles holding their tokens (dots, or a number), transitions bars; an arc goes from a
@@ -13,7 +13,7 @@
 // enabled transition whose guard is true fires, as the generated hardware does), run, reset; and shows
 // the HDL generated from the net. Model, simulation, HDL and PNML: core/petri.js.
 
-import { h, downloadText } from './ui.js';
+import { h, downloadText, undoButton } from './ui.js';
 import {
   normalizePetri, newPetri, validatePetri, generatePetri, initialMarking, enabledTransitions, fire, clockStep, isDeadlock,
   outputsOf, toPnml, fromPnml, PLACE_R, TRANS_W, TRANS_H,
@@ -67,8 +67,8 @@ export function mountPetriEditor(container, opts = {}) {
     inhibitor: btn('⊸ Inhibitor', 'Click a place then a transition: the transition fires only while the place holds fewer tokens than the weight', () => setTool('inhibitor'), 'pn-tool'),
   };
   const delBtn = btn('✕', 'Delete the selection (Del)', () => deleteSelection(), 'asm-danger');
-  const undoBtn = btn('↶', 'Undo (Ctrl+Z)', () => undo());
-  const redoBtn = btn('↷', 'Redo (Ctrl+Y)', () => redo());
+  const undoBtn = undoButton('undo', () => undo());
+  const redoBtn = undoButton('redo', () => redo());
   const langSel = h('select', { class: 'asm-select', title: 'HDL language', onchange: () => { M.lang = langSel.value; commit(); } },
     h('option', { value: 'vhdl' }, 'VHDL'), h('option', { value: 'verilog' }, 'Verilog'));
   const tabBtns = {
@@ -90,7 +90,6 @@ export function mountPetriEditor(container, opts = {}) {
     h('div', { class: 'asm-group' }, btn('Fit', 'Fit the net in the window', () => fit()), langSel),
     h('div', { class: 'asm-spacer' }),
     h('div', { class: 'asm-group' }, tabBtns.sim, tabBtns.code, tabBtns.analysis,
-      btn('Generate HDL file', 'Write the HDL module next to the net (kept in sync with it); without it, the net is a module of the project all the same', () => opts.onGenerate?.({ lang: M.lang })),
       btn('PNML ⇩', 'Export the net as PNML (for PIPE, WoPeD, TINA…)', () => downloadText(`${M.name}.pnml`, toPnml(M), 'application/xml')),
       btn('PNML ⇧', 'Import a PNML net (replaces this one: Undo brings it back)', () => pnmlIn.click()), pnmlIn, linkHost));
 

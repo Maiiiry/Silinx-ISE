@@ -1,7 +1,7 @@
 // Silinx - graphical ASM chart editor (SVG, no framework).
 //
 //   import { mountAsmEditor } from './asm-editor.js';
-//   const ed = mountAsmEditor(container, { model, onChange(model) {}, onGenerate({ lang, filename, code }) {} });
+//   const ed = mountAsmEditor(container, { model, onChange(model) {} });
 //   ed.getModel(); ed.setModel(m); ed.destroy();
 //
 // Styles: web/css/asm-editor.css (scoped under .asm-editor, themed by --bg/--panel/--fg/...).
@@ -12,6 +12,7 @@
 // data path: generics, internal registers and the 2-flip-flop synchroniser of each input.
 
 import { svgSnapshot, printDiagram } from './print.js';
+import { undoButton } from './ui.js';
 import {
   normalizeModel, newModel, validate, generate, stateEncoding, ENCODINGS, nextCaseLabel as nextLabel,
 } from '/core/asm.js';
@@ -156,7 +157,7 @@ function highlight(code) {
 
 // ================================================================================ editor
 
-export function mountAsmEditor(container, { model, onChange, onGenerate } = {}) {
+export function mountAsmEditor(container, { model, onChange } = {}) {
   const uid = `asm${++instanceCounter}`;
   let M = normalizeModel(model || newModel('fsm', 'vhdl'));
   let sel = { nodes: new Set(), edge: null };
@@ -182,8 +183,8 @@ export function mountAsmEditor(container, { model, onChange, onGenerate } = {}) 
     h('option', { value: 'vhdl' }, 'VHDL'), h('option', { value: 'verilog' }, 'Verilog'));
   const encSel = h('select', { class: 'asm-select', title: 'State encoding', onchange: () => { M.encoding = encSel.value; commit('enc'); } },
     ...ENCODINGS.map((e) => h('option', { value: e }, { binary: 'Binary', gray: 'Gray', onehot: 'One-hot', enum: 'Enum / auto' }[e])));
-  const undoBtn = btn('↶', 'Undo (Ctrl+Z)', () => undo());
-  const redoBtn = btn('↷', 'Redo (Ctrl+Shift+Z)', () => redo());
+  const undoBtn = undoButton('undo', () => undo());
+  const redoBtn = undoButton('redo', () => redo());
   const snapBtn = btn('# Snap', 'Toggle snapping to the grid', () => { snap = !snap; snapBtn.classList.toggle('on', snap); });
   snapBtn.classList.add('on');
   const zoomLbl = h('span', { class: 'asm-zoom', title: 'Zoom level' }, '100%');
@@ -212,8 +213,7 @@ export function mountAsmEditor(container, { model, onChange, onGenerate } = {}) 
     h('div', { class: 'asm-spacer' }),
     h('div', { class: 'asm-group' },
       btn('✓ Validate', 'Check the chart for errors', () => { runValidate(); showProblems(true); }),
-      codeBtn,
-      btn('Generate HDL', 'Generate the VHDL/Verilog file', () => doGenerate(), 'asm-primary')));
+      codeBtn));
 
   // canvas
   const svg = document.createElementNS(SVGNS, 'svg');
@@ -723,17 +723,6 @@ export function mountAsmEditor(container, { model, onChange, onGenerate } = {}) 
     codePanel.hidden = !showCode;
     codeBtn.classList.toggle('on', showCode);
     if (showCode) renderCode();
-  }
-  function doGenerate() {
-    runValidate();
-    let g;
-    try { g = generate(M); } catch (e) {
-      showProblems(false);
-      flash('Cannot generate HDL: fix the errors listed in Problems', 'err');
-      return;
-    }
-    flash(`Generated ${g.filename}`, 'ok');
-    onGenerate?.(g);
   }
 
   // ---------------------------------------------------------------------------- inspector

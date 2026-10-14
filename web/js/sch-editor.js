@@ -5,7 +5,6 @@
 //     doc,                       // a .sch.json document (core/schdoc.js format); a new one if omitted
 //     modules,                   // { name: { name, ports: [{ name, dir, width, type? }], generics: [{ name, default }] } }
 //     onChange(doc) {},          // debounced, after every edit
-//     onGenerate({ lang, filename, code }) {},
 //     onOpenModule(moduleName) {},
 //   });
 //   readOnly: true             // view only: pan/zoom/select/inspect, no edits (RTL schematic viewer)
@@ -21,7 +20,7 @@ import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
 import { lutFunction } from '/core/fpga/techview.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
-import { popupMenu } from './ui.js';
+import { popupMenu, undoButton } from './ui.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
@@ -57,13 +56,10 @@ const ICON = {
   rotate: I('<path d="M12.5 8a4.5 4.5 0 1 1-1.3-3.2" fill="none" stroke="#24476f" stroke-width="1.5"/><path d="M13.6 1.8v3.8H9.8z" fill="#24476f"/>'),
   mirror: I('<path d="M8 1v14" stroke="#888" stroke-dasharray="2 1.5"/><path d="M6.5 3.5v9L1.5 12.5z" fill="#9cc3ea" stroke="#24476f"/><path d="M9.5 3.5v9l5 0z" fill="#fff" stroke="#24476f"/>'),
   del: I('<path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="#c00000" stroke-width="2.2" stroke-linecap="round"/>'),
-  undo: I('<path d="M5 4.5H10a3.5 3.5 0 0 1 0 7H6" fill="none" stroke="#24476f" stroke-width="1.6"/><path d="M1.5 4.5L5.5 1.5v6z" fill="#24476f"/>'),
-  redo: I('<path d="M11 4.5H6a3.5 3.5 0 0 0 0 7h4" fill="none" stroke="#24476f" stroke-width="1.6"/><path d="M14.5 4.5L10.5 1.5v6z" fill="#24476f"/>'),
   zin: I('<circle cx="6.5" cy="6.5" r="4.5" fill="#e8f2fc" stroke="#24476f" stroke-width="1.4"/><path d="M10 10l4.5 4.5" stroke="#24476f" stroke-width="2"/><path d="M4 6.5h5M6.5 4v5" stroke="#24476f" stroke-width="1.4"/>'),
   zout: I('<circle cx="6.5" cy="6.5" r="4.5" fill="#e8f2fc" stroke="#24476f" stroke-width="1.4"/><path d="M10 10l4.5 4.5" stroke="#24476f" stroke-width="2"/><path d="M4 6.5h5" stroke="#24476f" stroke-width="1.4"/>'),
   fit: I('<path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" fill="none" stroke="#24476f" stroke-width="1.5"/><rect x="5" y="5" width="6" height="6" fill="#9cc3ea" stroke="#24476f"/>'),
   check: I('<rect x="1.5" y="1.5" width="13" height="13" rx="1" fill="#fff" stroke="#24476f"/><path d="M4 8.2l2.6 2.6L12 5" fill="none" stroke="#008000" stroke-width="2"/>'),
-  gen: I('<path d="M3 1.5h7l3 3v10H3z" fill="#fff" stroke="#24476f"/><path d="M10 1.5v3h3" fill="none" stroke="#24476f"/><path d="M5 8h6M5 10.5h6M5 13h4" stroke="#316ac5"/><path d="M1 6.5l2.5 2-2.5 2" fill="none" stroke="#c08000" stroke-width="1.4"/>'),
   sim: I('<rect x="1" y="4" width="7" height="8" rx="1.5" fill="#1f6b1f" stroke="#0d3d0d"/><rect x="4.5" y="5.5" width="2.5" height="5" rx=".6" fill="#fff"/><path d="M9 8h2.5" stroke="#00b000" stroke-width="1.6"/><circle cx="13" cy="8" r="2.4" fill="#33e033" stroke="#0d6d0d"/>'),
   info: I('<circle cx="8" cy="8" r="6.5" fill="#e8f2fc" stroke="#24476f" stroke-width="1.2"/><circle cx="8" cy="4.6" r="1.1" fill="#24476f"/><path d="M8 7v5" stroke="#24476f" stroke-width="2"/>'),
   view: I('<path d="M3 1.5h7l3 3v10H3z" fill="#fff" stroke="#24476f"/><path d="M10 1.5v3h3" fill="none" stroke="#24476f"/><text x="4.2" y="12" font-size="6.5" font-family="Consolas,monospace" font-weight="bold" fill="#000080">&lt;/&gt;</text>'),
@@ -414,7 +410,7 @@ export function mountSchEditor(container, opts = {}) {
   keepBox.addEventListener('change', () => { keepConn = keepBox.checked; try { localStorage.setItem('xl.sch.keepConn', keepConn ? '1' : '0'); } catch { /* ignore */ } });
   const btn = (act, icon, title) => h('button', { type: 'button', class: 'se-btn', 'data-act': act, title, html: ICON[icon] });
   const sep = () => h('span', { class: 'se-sep' });
-  const langSel = h('select', { class: 'se-lang', title: 'HDL language for Generate / View HDL' },
+  const langSel = h('select', { class: 'se-lang', title: 'HDL language of View HDL' },
     h('option', { value: 'vhdl', text: 'VHDL' }), h('option', { value: 'verilog', text: 'Verilog' }));
   const optBox = h('span', { class: 'se-opts' });
   tb.append(
@@ -422,13 +418,12 @@ export function mountSchEditor(container, opts = {}) {
     sep(), btn('rotate', 'rotate', 'Rotate (Ctrl+R)'), btn('mirror', 'mirror', 'Mirror (Ctrl+M)'), btn('delete', 'del', 'Delete (Del)'),
     sep(), h('label', { class: 'se-keep', title: 'Moving components: keep the wires connected (re-routed around other parts) or detach them' },
       keepBox, h('span', { text: 'Keep connections' })),
-    sep(), btn('undo', 'undo', 'Undo (Ctrl+Z)'), btn('redo', 'redo', 'Redo (Ctrl+Y)'),
+    sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
     sep(), btn('info', 'info', 'Symbol Info (F1)'),
     sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'check', title: 'Check Schematic', html: `${ICON.check}<span>Check</span>` }),
     sep(), langSel,
     h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'view', title: 'View generated HDL', html: `${ICON.view}<span>View HDL</span>` }),
-    h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'generate', title: 'Generate HDL source from the schematic', html: `${ICON.gen}<span>Generate HDL</span>` }),
     sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'sim', title: 'Simulate: click the inputs and watch the circuit work (Esc to stop)', html: `${ICON.sim}<span>Simulate</span>` }),
     sep(), optBox,
   );
@@ -438,7 +433,7 @@ export function mountSchEditor(container, opts = {}) {
     let prevSep = true;                                   // a separator at the start is not needed
     let lastSep = null;
     for (const el of tb.children) {
-      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo', 'generate', 'sim'].includes(el.dataset.act)) continue;   // hidden by .read-only CSS
+      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo', 'sim'].includes(el.dataset.act)) continue;   // hidden by .read-only CSS
       if (el.classList.contains('se-sep')) { if (prevSep) el.style.display = 'none'; else { prevSep = true; lastSep = el; } }
       else { prevSep = false; lastSep = null; }
     }
@@ -458,7 +453,6 @@ export function mountSchEditor(container, opts = {}) {
     else if (a === 'zin') zoomAt(1.25); else if (a === 'zout') zoomAt(0.8); else if (a === 'fit') fit();
     else if (a === 'check') runCheck(true);
     else if (a === 'view') viewHdl();
-    else if (a === 'generate') doGenerate();
     container.focus({ preventScroll: true });
   });
 
@@ -1565,22 +1559,6 @@ export function mountSchEditor(container, opts = {}) {
     if (x != null) centerOn(x, y);
     render(); renderProps();
   }
-  function doGenerate() {
-    const diags = runCheck(false);
-    const g = generateHdl(doc, { lang: genLang, modules });
-    const errs = diags.filter(d => d.severity === 'error');
-    if (errs.length) {
-      showDiags();
-      if (!window.confirm(`The schematic has ${errs.length} error(s). Generate the HDL anyway?`)) return;
-    }
-    // keep writing the HDL file the schematic owns (e.g. the source it was converted from) when its
-    // extension matches the language; otherwise src/<name>.<ext>
-    const ownExt = genLang === 'vhdl' ? /\.vhdl?$/i : /\.v$/i;
-    const target = doc.generatedFile && ownExt.test(doc.generatedFile) ? doc.generatedFile : `src/${g.filename}`;
-    if (doc.generatedFile !== target) edit(() => { doc.generatedFile = target; }, { keepProps: true });
-    opts.onGenerate?.({ lang: genLang, filename: g.filename, code: g.code, target });
-    flash(`Generated ${g.filename}`);
-  }
   // ---------------- Symbol Info (datasheet of the selected / palette symbol): web/js/symbol-info.js
   let infoDlg = null;
   // the symbol the Symbol Info action is about: the selected symbol, else the one being placed / last picked in the palette
@@ -1626,7 +1604,6 @@ export function mountSchEditor(container, opts = {}) {
     box.append(
       h('div', { class: 'se-dhead' }, h('b', { text: 'View HDL' }), dsel, info, h('span', { class: 'sp' }),
         h('button', { class: 'btn', type: 'button', text: 'Copy', onclick: () => { navigator.clipboard?.writeText(cur.code).then(() => flash('Copied'), () => {}); } }),
-        h('button', { class: 'btn primary', type: 'button', text: 'Generate HDL', onclick: () => { close(); doGenerate(); } }),
         h('button', { class: 'btn', type: 'button', text: 'Close', onclick: close })),
       pre);
     dlg.append(box);

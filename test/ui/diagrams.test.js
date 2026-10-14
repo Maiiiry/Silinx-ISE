@@ -1,5 +1,5 @@
-// UI: schematic editor (place symbols, wire them, I/O markers, save, Generate HDL), ASM chart
-// editor (states, decision, case box, connections, Generate HDL; # Snap, </> Code and Copy, Reset
+// UI: schematic editor (place symbols, wire them, I/O markers, save, its HDL), ASM chart
+// editor (states, decision, case box, connections, its HDL; # Snap, </> Code and Copy, Reset
 // route / Delete connection, Swap 1 / 0 exits, a case exit's ✕, Delete box, Zoom / Fit, ↶ ↷ and
 // Edit ▸ Undo / Redo: #195), print preview of a diagram; the schematic editor's Rotate (Ctrl+R,
 // toolbar, properties), zoom buttons, palette Place Symbol.
@@ -43,7 +43,7 @@ const SCH_PIN = `window.__schPin = async (symIndex, dir) => {
   return { x: r.left + +m[1] + p.x * +m[3], y: r.top + +m[2] + p.y * +m[3] };
 };`;
 
-uiTest('schematic editor: place two inverters, wire them, add I/O markers, save, Generate HDL', E, async (page) => {
+uiTest('schematic editor: place two inverters, wire them, add I/O markers, save, its HDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'SchPj' });
   await page.openProject('SchPj');
   await newSource(page, 'Schematic (Diagram)', 'chain');
@@ -83,10 +83,9 @@ uiTest('schematic editor: place two inverters, wire them, add I/O markers, save,
   assert.equal(saved.symbols.length, 2);
   assert.equal(saved.wires.length, 1);
   assert.equal(saved.ports.length, 2);
-  // Generate HDL: src/chain.vhd, linked to the schematic, compiles to two inverters in series
-  await page.click('.doc:not([hidden]) .se-btn[data-act=generate]');
-  await page.waitConsole(/Schematic 'src\/chain\.sch\.json' -> generated VHDL file src\/chain\.vhd/);
-  assert.deepEqual(page.dialogs, [], 'no "generate anyway?" question: the schematic has no errors');
+  // its HDL src/chain.vhd, generated from it (no Generate HDL any more, #220), compiles to two inverters in series
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-btn[data-act=generate]')), null);
+  await page.waitFor(async () => /dout/.test(await (await fetch('/api/projects/SchPj/file?path=src%2Fchain.vhd')).text()), [], { what: 'the HDL follows the schematic', timeout: 15000 });
   const vhd = await readWs(env, 'SchPj', 'src/chain.vhd');
   assert.match(vhd, /entity chain is/i);
   const lib = compile([{ path: 'src/chain.vhd', lang: 'vhdl', text: vhd }]);
@@ -166,7 +165,7 @@ uiTest('schematic editor (#196): Rotate by Ctrl+R, the toolbar and the propertie
   assert.deepEqual(page.dialogs, []);
 });
 
-uiTest('ASM chart editor: add a state, a decision and a case box, connect them, Generate VHDL', E, async (page) => {
+uiTest('ASM chart editor: add a state, a decision and a case box, connect them, its VHDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'AsmPj' });
   await page.openProject('AsmPj');
   // Tools ▸ ASM State Machine Editor… opens the New Source wizard on the ASM type
@@ -181,7 +180,8 @@ uiTest('ASM chart editor: add a state, a decision and a case box, connect them, 
   await page.waitFor(() => window.Silinx.active?.id === 'asm:src/ctrl.asm.json' && document.querySelector('.doc:not([hidden]) [data-node]'));
   const model = () => page.eval(() => window.Silinx.active.asmEditor.getModel());
   const ids0 = new Set((await model()).nodes.map((n) => n.id));
-  const tool = (label) => page.click('.doc:not([hidden]) .asm-toolbar .asm-btn', { text: label });
+  // (Undo / Redo: the main toolbar's buttons, #220)
+  const tool = (label) => (/^[↶↷]$/.test(label) ? page.click(`.doc:not([hidden]) .asm-toolbar .tb-btn[title=${label === '↶' ? 'Undo' : 'Redo'}]`) : page.click('.doc:not([hidden]) .asm-toolbar .asm-btn', { text: label }));
   // a point inside a node / port that is really on top (boxes may touch)
   const at = (sel) => page.eval((s) => {
     const e = document.querySelector(`.doc:not([hidden]) ${s}`);
@@ -254,13 +254,12 @@ uiTest('ASM chart editor: add a state, a decision and a case box, connect them, 
     ['asm-prob warning link', "▲State 'S3' is unreachable from the initial state"],
   ]);
   const final = await model();
-  // Generate HDL: src/ctrl.vhd written, opened, linked to the chart
-  await page.click('.doc:not([hidden]) .asm-btn.asm-primary');
-  await page.waitConsole(/ASM chart 'src\/ctrl\.asm\.json' -> VHDL file src\/ctrl\.vhd/);
-  await page.waitFor(() => window.Silinx.active?.id === 'file:src/ctrl.vhd');
+  // its HDL src/ctrl.vhd, generated from it (no Generate HDL any more, #220): every state in it
+  assert.ok(!(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .asm-btn')].map((b) => b.textContent))).some((t) => /Generate/.test(t)));
+  const states = ['IDLE', 'RUN', 'FINISH', ...final.nodes.filter((n) => added.includes(n.id)).map((n) => n.name)];
+  await page.waitFor(async (sts) => { const t = await (await fetch('/api/projects/AsmPj/file?path=src%2Fctrl.vhd')).text(); return sts.every((x) => new RegExp(`\\b${x}\\b`).test(t)); }, [states], { what: 'the HDL follows the chart', timeout: 15000 });
   const vhd = await readWs(env, 'AsmPj', 'src/ctrl.vhd');
   assert.match(vhd, /entity ctrl is/i);
-  for (const st of ['IDLE', 'RUN', 'FINISH', ...final.nodes.filter((n) => added.includes(n.id)).map((n) => n.name)]) assert.match(vhd, new RegExp(`\\b${st}\\b`), `state ${st} in the VHDL`);
   assert.match(vhd, /case/i);
   const lib = compile([{ path: 'src/ctrl.vhd', lang: 'vhdl', text: vhd }]);
   assert.deepEqual([...lib.errors, ...elaborate(lib, 'ctrl').diags].filter((x) => x.severity === 'error').map((x) => x.message), []);
@@ -298,7 +297,8 @@ uiTest('ASM chart editor: Zoom / Fit, </> Code and Copy, Reset route / Delete co
   const D = '.doc:not([hidden])';
   const model = () => page.eval(() => window.Silinx.active.asmEditor.getModel());
   const problems = () => page.eval(() => window.Silinx.active.asmEditor.validate().map((d) => `${d.severity}: ${d.message}`));
-  const tool = (label) => page.click(`${D} .asm-toolbar .asm-btn`, { text: label });
+  // (Undo / Redo: the main toolbar's buttons, #220)
+  const tool = (label) => (/^[↶↷]$/.test(label) ? page.click(`${D} .asm-toolbar .tb-btn[title=${label === '↶' ? 'Undo' : 'Redo'}]`) : page.click(`${D} .asm-toolbar .asm-btn`, { text: label }));
   const side = (label) => page.click(`${D} .asm-selection .asm-btn`, { text: label });
   const edges = async () => (await model()).edges.map((e) => `${e.id}:${e.from}>${e.to}:${e.port}`).join(' ');
   const E0 = 'e1:s1>d1:next e2:d1>s2:true e3:d1>s1:false e4:s2>c1:next e5:c1>s3:01 e6:c1>s1:others e7:s3>s1:next';

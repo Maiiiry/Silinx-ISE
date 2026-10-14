@@ -1,7 +1,7 @@
 // UI: FSM state diagram editor. A new diagram from New Source (listed just before State Machine (ASM)),
 // a state added by double-click and named in place, a transition drawn from the rim of a state,
 // conditions edited in place and in the properties panel; the tables (transition, state, encoded)
-// and the truth tables of the next-state logic; Generate HDL (linked: an edit of a transition
+// and the truth tables of the next-state logic; its HDL (generated from it: an edit of a transition
 // rewrites the HDL, which simulates like the diagram; a saved edit of the HDL updates the diagram;
 // an HDL edit the diagram cannot show gives the out-of-sync banner with the reason); step-by-step
 // simulation; HDL module -> diagram and diagram -> ASM chart; Portuguese texts; the priority of the
@@ -152,12 +152,12 @@ uiTest('State diagram (FSM): New Source, states and transitions drawn and edited
   assert.equal(ttn.table.d0, et.rows.map((r) => r.d[1]).join(''));
   assert.equal((await fsmFile('FsmPj', 'src/det_out.tt.json')).table.z, '00001111'.replace(/./g, (c, i) => et.rows[i].out));
 
-  // ---- Generate HDL: linked to the diagram, simulates like it
+  // ---- its HDL, generated from it (no Generate HDL any more, #220): linked to the diagram, simulates like it
   await page.eval(() => window.SilinxApp.openFsm('src/det.fsm.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'fsm:src/det.fsm.json');
-  await page.waitFor((ed) => document.querySelector(`${ed} .fsm-gen`)?.getClientRects().length, [ED], { what: 'Generate HDL button' });
-  await page.click(`${ED} .fsm-gen`);
+  assert.equal(await page.eval((ed) => document.querySelector(`${ed} .fsm-gen`), ED), null);
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/det.vhd'] === 'src/det.fsm.json', [], { what: 'linked HDL', timeout: 15000 });
+  await page.eval(() => window.SilinxApp.openFile('src/det.vhd'));
   assert.equal((await fsmFile('FsmPj', 'src/det.fsm.json')).generatedFile, 'src/det.vhd');
   let vhd = await readWs(env, 'FsmPj', 'src/det.vhd');
   let r = hdlVsModel(vhd, await fsmFile('FsmPj', 'src/det.fsm.json'));
@@ -313,7 +313,8 @@ uiTest('State diagram (FSM) in Portuguese: every label of the editor, the panels
   }
   assert.deepEqual(missing, [], `untranslated:\n${missing.join('\n')}`);
   await setLang('pt');
-  assert.equal(await page.eval((ed) => document.querySelector(`${ed} .fsm-gen`).textContent, ED), 'Gerar HDL');
+  // (Undo / Redo: the main toolbar's, #220)
+  assert.deepEqual(await page.eval((ed) => [...document.querySelectorAll(`${ed} .asm-toolbar .tb-btn`)].map((b) => b.title), ED), ['Anular', 'Refazer']);
   await setLang('en');
 });
 
@@ -373,7 +374,8 @@ uiTest('State diagram (FSM): priority (▼ Later), Straighten, Export CSV, simul
   await page.waitFor((ed) => window.Silinx.active?.id === 'fsm:src/pri.fsm.json' && document.querySelector(`${ed} [data-trans=t1] .fsm-label`), [ED], { what: 'FSM editor' });
   const model = () => page.eval(() => window.Silinx.active.fsmEditor.getModel());
   const warnings = () => page.eval(() => window.Silinx.active.fsmEditor.validate().map((d) => `${d.severity}: ${d.message}`));
-  const tool = (label) => page.click(`${ED} .asm-toolbar .asm-btn`, { text: label });
+  // (Undo / Redo: the main toolbar's buttons, #220)
+  const tool = (label) => (/^[↶↷]$/.test(label) ? page.click(`${ED} .asm-toolbar .tb-btn[title=${label === '↶' ? 'Undo' : 'Redo'}]`) : page.click(`${ED} .asm-toolbar .asm-btn`, { text: label }));
   const side = (label) => page.click(`${ED} .fsm-selection .asm-btn`, { text: label });
   const zoom = () => page.eval((ed) => document.querySelector(`${ed} .asm-zoom`).textContent, ED);
   const order = async () => (await model()).transitions.map((t) => t.id).join(',');

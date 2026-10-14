@@ -34,6 +34,15 @@ In detail:
   WARNING in the console says so).
 - **Petri nets:** saving an edit of a Petri net's HDL file no longer logs "WARNING: Petri net not
   synchronized: …" (the net was read as a schematic); the net stays as it is, its HDL follows it (#222).
+- **The drawing editors (#220):** no more *Generate VHDL module* / *Generate Verilog module* in the
+  truth-table editor, nor *Generate HDL* in the state diagram, ASM chart and schematic editors (nor
+  in the schematic's View HDL) or *Generate HDL file* in the Petri net editor: the HDL is always
+  there, generated from the drawing. Changing the *HDL language* in the state diagram, ASM chart or
+  Petri net editor (a schematic's *Language*) makes its HDL file again in that language and removes
+  the other one ("src/x.fsm.json: its HDL is now in Verilog, src/x.v (src/x.vhd removed)"); the
+  schematic toolbar's language is the one of *View HDL*. *Truth Table from Module…* stays. The undo
+  / redo buttons of the truth table, state diagram, ASM chart, Petri net and schematic editors are
+  now the main toolbar's (the same icons, tips "Undo" / "Redo" and look).
 
 ## 15.10.14
 

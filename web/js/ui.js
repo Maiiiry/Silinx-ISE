@@ -1,4 +1,6 @@
 // Generic UI widgets: element builder, dialogs, menus, context menus, splitters.
+import { icons } from './icons.js';
+
 export function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs || {})) {
@@ -16,6 +18,10 @@ export function h(tag, attrs = {}, ...children) {
   }
   return el;
 }
+
+// Undo / Redo of an editor's own toolbar as the main toolbar's (its icon, tip and look, #220): ico 'undo' | 'redo'
+export const undoButton = (ico, onclick, attrs = {}) =>
+  h('button', { type: 'button', class: 'tb-btn', title: ico === 'undo' ? 'Undo' : 'Redo', html: icons[ico], onclick, ...attrs });
 
 // ------------------------------------------------------------------ dialogs
 let dialogZ = 1000;

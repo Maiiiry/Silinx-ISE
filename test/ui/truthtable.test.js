@@ -1,9 +1,10 @@
 // UI: Truth Table / Karnaugh Map tool. A new table (Tools menu ▸ New Source wizard), cells clicked,
-// the K-map groups and the minimal SOP shown, the student's own expression checked; Generate VHDL
-// module (linked: a cell change rewrites the HDL, which simulates to the new table; a saved edit of
-// the HDL updates the table; a sequential edit shows the out-of-sync banner); Generate Schematic
-// (netlist without errors, simulates to the table); renaming the module keeps the link; Truth Table
-// from Module; Apply of the input / output names, Generate Verilog module (then VHDL replaces it).
+// the K-map groups and the minimal SOP shown, the student's own expression checked; its VHDL module
+// (made with it, linked: a cell change rewrites the HDL, which simulates to the new table; a saved
+// edit of the HDL updates the table; a sequential edit shows the out-of-sync banner); Generate
+// Schematic (netlist without errors, simulates to the table); renaming the module keeps the link;
+// Truth Table from Module; Apply of the input / output names; a Verilog project's table: its Verilog
+// module.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
@@ -70,18 +71,18 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.waitFor(() => !window.Silinx.active.dirty, [], { what: 'saved' });
   assert.equal((await ttFile('TtPj', 'src/maj3.tt.json')).table.f, '00010111');
 
-  // ---- Generate VHDL module: linked to the table
-  await page.click(`${T} .tt-btn`, { text: 'Generate VHDL module' });
-  await page.waitConsole(/Truth table 'src\/maj3\.tt\.json' -> VHDL module src\/maj3\.vhd/);
+  // ---- its VHDL module, made with the table (every source has its HDL, #207), linked to it, following
+  // it (no Generate VHDL / Verilog module any more, #220)
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-toolbar button`)].map((b) => b.textContent || b.title), T), ['Undo', 'Redo', 'Apply', 'Generate Schematic', 'Truth Table from Module…']);
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/maj3.vhd'] === 'src/maj3.tt.json', [], { what: 'linked HDL' });
   assert.equal((await ttFile('TtPj', 'src/maj3.tt.json')).generatedFile, 'src/maj3.vhd');
+  await page.waitFor(async () => /f = Σm\(3, 5, 6, 7\)/.test(await (await fetch('/api/projects/TtPj/file?path=src%2Fmaj3.vhd')).text()), [], { what: 'the HDL follows the table', timeout: 15000 });
   let vhd = await readWs(env, 'TtPj', 'src/maj3.vhd');
-  // (its HDL file made with the table: every source has its HDL, #207; Generate rewrites it)
   assert.deepEqual(await consoleAfterOpen(page), [
     'src/maj3.vhd generated from src/maj3.tt.json (every source has its HDL)',
     "Created Truth Table 'src/maj3.tt.json'.",
-    "Truth table 'src/maj3.tt.json' -> VHDL module src/maj3.vhd (kept in sync with the table)",
   ]);
+  await page.eval(() => window.SilinxApp.openFile('src/maj3.vhd'));
   assert.deepEqual(await problemRows(page), []);
   assert.equal(simTable(vhd, 'maj3.vhd', 'maj3').f, '00010111');
   // the hierarchy shows the module with its table, its views as badges: the HDL, the table the base (#207)
@@ -133,7 +134,7 @@ uiTest('Truth Table: new table, cells, K-map and SOP, my expression, linked VHDL
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/maj3_sch.sch.json', [], { what: 'schematic opened', timeout: 15000 });
   const sch = JSON.parse(await readWs(env, 'TtPj', 'src/maj3_sch.sch.json'));
   assert.deepEqual(netlist(sch).diagnostics, []);
-  assert.deepEqual((await consoleAfterOpen(page)).slice(3), [
+  assert.deepEqual((await consoleAfterOpen(page)).slice(2), [
     "Truth table 'src/maj3.tt.json' -> schematic src/maj3_sch.sch.json (minimal POS, NAND gates only; not linked to the table: a module of its own, 'maj3_sch').",
     'src/maj3_sch.vhd generated from src/maj3_sch.sch.json (every source has its HDL)',
   ]);
@@ -207,12 +208,12 @@ uiTest('Truth Table with many outputs (#176): 4 -> 16 outputs, cells of output 6
   assert.deepEqual(saved.outputs, outs);
   assert.deepEqual([saved.table.y3, saved.table.y5, saved.table.y15, saved.table.y9], ['00010111', '1X000011', '00100000', '00000000']);
 
-  // ---- linked VHDL module: 16 outputs, simulates to the table; an HDL edit of output 6 comes back
-  await page.click(`${T} .tt-btn`, { text: 'Generate VHDL module' });
-  await page.waitConsole(/Truth table 'src\/many\.tt\.json' -> VHDL module src\/many\.vhd/);
+  // ---- its VHDL module (linked, following it): 16 outputs, simulates to the table; an HDL edit of output 6 comes back
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/many.vhd'] === 'src/many.tt.json', [], { what: 'linked HDL' });
+  await page.waitFor(async () => /y15 = Σm\(2\)/.test(await (await fetch('/api/projects/TtMany/file?path=src%2Fmany.vhd')).text()), [], { what: 'the HDL follows the table', timeout: 15000 });
   const vhd = await readWs(env, 'TtMany', 'src/many.vhd');
-  assert.deepEqual(await consoleAfterOpen(page), ["Truth table 'src/many.tt.json' -> VHDL module src/many.vhd (kept in sync with the table)"]);
+  assert.deepEqual(await consoleAfterOpen(page), []);
+  await page.eval(() => window.SilinxApp.openFile('src/many.vhd'));
   assert.deepEqual(await problemRows(page), []);
   assert.match(vhd, /y0, y1, y2, y3, y4, y5, y6, y7, y8, y9, y10, y11, y12, y13, y14, y15 : out std_logic/);
   const st = simTable(vhd, 'many.vhd', 'many');
@@ -231,7 +232,6 @@ uiTest('Truth Table with many outputs (#176): 4 -> 16 outputs, cells of output 6
   const sch = JSON.parse(await readWs(env, 'TtMany', 'src/many_sch.sch.json'));
   assert.deepEqual(netlist(sch).diagnostics, []);
   assert.deepEqual(await consoleAfterOpen(page), [
-    "Truth table 'src/many.tt.json' -> VHDL module src/many.vhd (kept in sync with the table)",
     "Truth table 'src/many.tt.json' -> schematic src/many_sch.sch.json (minimal SOP; not linked to the table: a module of its own, 'many_sch').",
     'src/many_sch.vhd generated from src/many_sch.sch.json (every source has its HDL)',
   ]);
@@ -312,8 +312,8 @@ uiTest('Truth Table from Module: a vector adder read into a table (exhaustive si
   assert.equal(await page.eval((x) => document.querySelector(`${x} .tt-sop .tt-expr`).textContent, T), "s_0 = a_0'·b_0 + a_0·b_0'");
 });
 
-uiTest('Truth Table (#196): Apply input / output names (columns follow their names, the errors shown), Generate Verilog module (compiles to the table), then VHDL replaces it', E, async (page) => {
-  await makeProject(env, { name: 'TtVlog' });
+uiTest('Truth Table (#196): Apply input / output names (columns follow their names, the errors shown); in a Verilog project its Verilog module (compiles to the table, follows it)', E, async (page) => {
+  await makeProject(env, { name: 'TtVlog', preferredLanguage: 'verilog' });
   await page.openProject('TtVlog');
   await page.menu('Tools', 'Truth Table / Karnaugh Map…');
   await page.waitDialog('New Source Wizard');
@@ -352,22 +352,18 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
   await page.waitFor(async () => (await (await fetch('/api/projects/TtVlog/file?path=src%2Ftv.tt.json')).json()).table.g === '00000011', [], { what: 'saved' });
   const t0 = await ttFile('TtVlog', 'src/tv.tt.json');
   assert.deepEqual([t0.inputs, t0.outputs, t0.table], [['c', 'b', 'a'], ['f', 'g'], { f: '01010101', g: '00000011' }]);
-  // Generate Verilog module: src/tv.v, linked, simulates to the table; it replaces the VHDL file the
-  // table got when it was made (every source has its HDL, #207)
-  assert.equal((await ttFile('TtVlog', 'src/tv.tt.json')).generatedFile, 'src/tv.vhd');
-  await page.click(`${T} .tt-btn`, { text: 'Generate Verilog module' });
-  await page.waitDialog('Generate HDL');
-  assert.match(await page.eval(() => document.querySelector('.dlg-overlay').textContent), /src\/tv\.vhd is generated from this truth table\. Replace it with src\/tv\.v\?/);
-  await page.dialogButton('Yes');
-  await page.waitNoDialog();
+  // its Verilog module src/tv.v (the project's preferred language), made with it, linked, simulates to
+  // the table (every source has its HDL, #207; no Generate VHDL / Verilog module any more, #220)
+  assert.equal((await ttFile('TtVlog', 'src/tv.tt.json')).generatedFile, 'src/tv.v');
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/tv.v'] === 'src/tv.tt.json' && !window.Silinx.fileTree.includes('src/tv.vhd'), [], { what: 'linked Verilog', timeout: 15000 });
-  await page.waitConsole(/Truth table 'src\/tv\.tt\.json' -> VERILOG module src\/tv\.v \(kept in sync with the table\)/);
+  await page.waitFor(async () => /g = Σm\(6, 7\)/.test(await (await fetch('/api/projects/TtVlog/file?path=src%2Ftv.v')).text()), [], { what: 'the Verilog follows the table', timeout: 15000 });
   assert.deepEqual(page.dialogs, []);
   const v = await readWs(env, 'TtVlog', 'src/tv.v');
   assert.match(v, /module tv\s*\(/);
   assert.deepEqual(simTable(v, 'tv.v', 'tv'), { f: '01010101', g: '00000011' });
   const t1 = await ttFile('TtVlog', 'src/tv.tt.json');
   assert.deepEqual([t1.generatedFile, t1.lang], ['src/tv.v', 'verilog']);
+  await page.eval(() => window.SilinxApp.openFile('src/tv.v'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/tv.v' && /Generated from tv\.tt\.json/.test(document.querySelector('.doc:not([hidden]) [data-sync-banner]')?.textContent || ''), [], { what: 'Verilog editor banner' });
   // a cell change rewrites the Verilog
   await page.eval(() => window.SilinxApp.openTt('src/tv.tt.json'));
@@ -376,13 +372,5 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
   await page.click(`${T} .tt-cell[data-out=g][data-row="0"]`);
   await page.waitFor(async () => /g = Σm\(0, 6, 7\)/.test(await (await fetch('/api/projects/TtVlog/file?path=src%2Ftv.v')).text()), [], { what: 'Verilog regenerated' });
   assert.deepEqual(simTable(await readWs(env, 'TtVlog', 'src/tv.v'), 'tv.v', 'tv'), { f: '01010101', g: '10000011' });
-  // Generate VHDL module: asks to replace the Verilog file; Yes: src/tv.vhd, the .v removed
-  await page.click(`${T} .tt-btn`, { text: 'Generate VHDL module' });
-  await page.waitDialog('Generate HDL');
-  assert.match(await page.eval(() => document.querySelector('.dlg-overlay').textContent), /src\/tv\.v is generated from this truth table\. Replace it with src\/tv\.vhd\?/);
-  await page.dialogButton('Yes');
-  await page.waitNoDialog();
-  await page.waitFor(() => window.Silinx.hdlToSch?.['src/tv.vhd'] === 'src/tv.tt.json' && !window.Silinx.fileTree.includes('src/tv.v'), [], { what: 'VHDL replaces Verilog', timeout: 15000 });
-  assert.deepEqual(simTable(await readWs(env, 'TtVlog', 'src/tv.vhd'), 'tv.vhd', 'tv'), { f: '01010101', g: '10000011' });
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
