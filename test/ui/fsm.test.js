@@ -350,7 +350,8 @@ uiTest('State diagram (FSM): Create Truth Tables with more than 4 output bits ma
   // opened: its 6 outputs in the editor
   await page.waitFor(() => window.Silinx.docs.some((d) => d.id === 'tt:src/wide_out.tt.json'), [], { what: 'the output table opened' });
   await page.eval(() => window.SilinxApp.openTt('src/wide_out.tt.json'));
-  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/wide_out.tt.json' && document.querySelectorAll('.doc:not([hidden]) .tt-editor .tt-cell[data-out=led_0]').length === 8, [], { what: 'led_0 column', timeout: 30000 });
+  // (its own document, whichever is in front: another one, e.g. a generated HDL file, may open after it)
+  await page.waitFor(() => window.Silinx.docs.find((d) => d.id === 'tt:src/wide_out.tt.json')?.el.querySelectorAll('.tt-editor .tt-cell[data-out=led_0]').length === 8, [], { what: 'led_0 column', timeout: 30000 });
 });
 
 uiTest('State diagram (FSM): priority (▼ Later), Straighten, Export CSV, simulator ⟲ Reset / Clock ↑, Delete state / transition, + Input / + Output, Zoom / Fit, ↶ ↷ and Edit ▸ Undo / Redo (#195)', E, async (page) => {
