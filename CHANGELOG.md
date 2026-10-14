@@ -18,6 +18,9 @@ the "What's new" text of its GitHub release.
   diagram, truth table or Petri net gets its synchronized HDL file at once, and a project with a drawing
   that has none (#177) gets it when it is opened ("src/x.vhd generated from src/x.sch.json (every source
   has its HDL)" in the console); a drawing with errors stays a module by itself until it has none (#207).
+- **Silinx toolchain, DCMs:** a DCM's RST, PSCLK, PSEN or PSINCDEC tied to 1 is now tied to VCC from its own
+  tile, as ISE ties it, no longer to 0 through the pin's inverter: the DCM tiles' switches from their VCC site
+  are in the bit database, measured on the four devices (#190).
 
 ## 15.10.13
 

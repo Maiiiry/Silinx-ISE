@@ -1,6 +1,6 @@
 {
   "name": "feat_const_dcm",
-  "description": "ISE check: a DCM whose RST / PSEN / PSINCDEC / DSSEN are tied to 1, PSCLK to 0 (#50)",
+  "description": "ISE check: a DCM whose RST / PSCLK / PSINCDEC / DSSEN are tied to 1, PSEN to 0 (#50, #190)",
   "version": 1,
   "device": {
     "family": "spartan3e",

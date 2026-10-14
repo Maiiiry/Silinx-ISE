@@ -449,9 +449,8 @@ test('multipliers with constant inputs (x * 6554) on every multiplier site: ever
 // Control pins tied to constants, as ISE ties them (#50, measured with ISE's map and par on the
 // XC3S250E: every combination of 1 / 0 / a signal on a block RAM's EN / WE / SSR, a multiplier's
 // CE / RST with and without registers, a DCM's RST / PS… / DSSEN): to VCC or GND, never inverted;
-// a DCM's DSSEN left open. A DCM's pins tied to 1: the constant 0 inverted until the switches from
-// its tile's VCC site are in the bit database (#190)
-test('control pins tied to 1 / 0: block RAM EN / WE / SSR and multiplier CE / RST on VCC / GND, not inverted, routed on switches of known bits; a DCM\'s pins tied to 1 inverted, DSSEN open (#50)', { timeout: 120000 }, async () => {
+// a DCM's DSSEN left open; a DCM's pins tied to 1 from the VCC site of its own tile (#190)
+test('control pins tied to 1 / 0: block RAM EN / WE / SSR, multiplier CE / RST and DCM RST / PS… on VCC / GND, not inverted, routed on switches of known bits; a DCM\'s DSSEN open (#50, #190)', { timeout: 120000 }, async () => {
   const { routeDesign, checkRouting } = await import('../core/fpga/route.js');
   const { knownRouting, bitgen, designFeatures } = await import('../core/fpga/bitgen.js');
   const { loadDb } = await import('../research/s3e-bitstream/db.mjs');
@@ -489,14 +488,25 @@ test('control pins tied to 1 / 0: block RAM EN / WE / SSR and multiplier CE / RS
   const feats = designFeatures(parseXdl(text), db).feats.map(x => x.feature);
   assert.deepEqual(feats.filter(f => /^(RAMB16|MULT18X18SIO):\w+INV:/.test(f)).filter(f => /_B$/.test(f)), []);
   assert.ok(['RAMB16:ENAINV:ENA', 'RAMB16:ENBINV:ENB', 'MULT18X18SIO:CEAINV:CEA', 'MULT18X18SIO:RSTBINV:RSTB'].every(f => feats.includes(f)), feats.filter(f => /INV/.test(f)).join(' '));
-  // a DCM: RST and PSINCDEC tied to 1 (the constant 0 inverted), PSCLK / PSEN tied to 0 (GND), DSSEN tied to 1 left open
+  // a DCM: RST and PSINCDEC tied to 1 (VCC), PSCLK / PSEN tied to 0 (GND), DSSEN tied to 1 left open
   const dn = yjson({ clk: ['input', 1], o: ['output', 1] }, [{ name: 'ib', type: 'IBUFG', conns: { I: 'clk', O: 'clk_i' }, outs: ['O'] },
     { name: 'u', type: 'DCM_SP', params: { CLK_FEEDBACK: 'NONE' }, conns: { CLKIN: 'clk_i', RST: '1', DSSEN: '1', PSCLK: '0', PSEN: '0', PSINCDEC: '1', LOCKED: 'lk' }, outs: ['LOCKED'] }, obuf('o', 'lk')]);
   const pd = pack(dn);
   const u = pd.insts.find(i => i.name === 'u'), ku = pd.insts.indexOf(u);
   const upins = new Map(pd.nets.flatMap(n => n.inpins.filter(x => x.inst === ku).map(x => [x.pin, n.type])));
   const dc = ['RST', 'PSCLK', 'PSEN', 'PSINCDEC', 'DSSEN'];
-  assert.deepEqual(dc.map(x => [val(u, `${x}INV`), upins.get(x)]), [['RST_B', 'gnd'], ['PSCLK', 'gnd'], ['PSEN', 'gnd'], ['PSINCDEC_B', 'gnd'], [undefined, undefined]]);
+  assert.deepEqual(dc.map(x => [val(u, `${x}INV`), upins.get(x)]), [['RST', 'vcc'], ['PSCLK', 'gnd'], ['PSEN', 'gnd'], ['PSINCDEC', 'vcc'], [undefined, undefined]]);
+  // placed, routed: RST and PSINCDEC from the VCC site of the DCM's tile, through its switches (no
+  // bits), as ISE routes them; every switch in the bit database (the DCM's CLK_FEEDBACK NONE is not)
+  const rd = place(pd, sites, { seed: 1, effort: 0.1, ...opts });
+  const routedD = routeDesign(parseXdl(writeXdl(placedXdl(pd, rd))), g, knownRouting(db));
+  assert.deepEqual([routedD.failed, routedD.unreached, routedD.errors], [[], [], []]);
+  const dtext = writeXdl(routedD.design);
+  assert.ok(checkRouting(parseXdl(dtext), g).ok);
+  const dvcc = routedD.design.nets.filter(n => n.type === 'vcc' && n.inpins.some(x => x.inst === 'u'));
+  assert.deepEqual(dvcc.map(n => [n.outpins[0].inst, n.inpins.map(x => x.pin).sort(), n.pips.map(q => `${q.from} -> ${q.to}`).sort()]),
+    [['XDL_DUMMY_DCM_TL_CENTER_X13Y34_VCC_X14Y36', ['PSINCDEC', 'RST'], ['DCM_G1_B2 -> DCM_PSINCDEC_PINWIRE', 'DCM_G1_B3 -> DCM_RST_PINWIRE', 'DCM_VCC_WIRE -> DCM_G1_B2', 'DCM_VCC_WIRE -> DCM_G1_B3']]]);
+  assert.deepEqual(bitgen(dtext, db).unknown, [{ tile: 'DCM_TL_CENTER_X13Y34', feature: 'DCM:CLK_FEEDBACK:NONE' }]);
 });
 
 // Clocks on the four devices that ship (their own graphs and bit databases), placed as the open

@@ -737,7 +737,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   // a site of its own whose pins are the cell's: pin map cell pin -> site pin (inputs; or several
   // site pins on one net), outputs by name
   function hardSite(c, kind, type, pinMap) {
-    const s = { kind, type, name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c), params: c.params, inv: new Set(), conn: new Set() };
+    const s = { kind, type, name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c), params: c.params, conn: new Set() };
     insts.push(s);
     const outs = {};
     for (const [p, n] of Object.entries(c.pins)) {
@@ -751,15 +751,8 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       if (skip) { setSink(ci(c), p, 'int'); continue; }
       // the other control pins tied to a constant are connected to it, not inverted, as ISE's map
       // does (block RAM EN / WE / SSR, multiplier CE / RST / CLK: 1 from the VCC site of the
-      // block-RAM interconnect tile, 0 from a slice; #50). A DCM's RST / PSCLK / PSEN / PSINCDEC
-      // tied to 1: ISE ties them to the DCM tile's VCC site, through switches the bit database
-      // does not have yet (#190): the constant 0 through the pin's inverter instead
-      if (kind === 'dcm' && nets[n].const === 1 && /^(RST|PSCLK|PSEN|PSINCDEC)$/.test(sp)) {
-        setSink(ci(c), p, 'int');
-        s.inv.add(sp);
-        extra.push({ net: 0, inst: s.idx, pin: sp, kind: 'gen' });
-        continue;
-      }
+      // block-RAM interconnect tile, 0 from a slice, #50; a DCM's RST / PSCLK / PSEN / PSINCDEC: 1
+      // from the VCC site of the DCM's tile, #190)
       setSink(ci(c), p, { inst: s.idx, pin: sp, kind: 'gen' });
       s.conn.add(sp);
       for (const x of more) { extra.push({ net: n, inst: s.idx, pin: x, kind: 'gen' }); s.conn.add(x); }
@@ -1059,7 +1052,7 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       ['DUTY_CYCLE_CORRECTION', '', d.DUTY_CYCLE_CORRECTION], ['FACTORY_JF1', '', '0XC0'], ['FACTORY_JF2', '', '0X80']];
     // the startup sequence waits for the lock (also the COR register: bitgen.js)
     if (d.startupWait) cfg.push(['STARTUP_WAIT', '', 'STARTUP_WAIT']);
-    for (const pin of ['PSCLK', 'PSEN', 'PSINCDEC', 'RST']) cfg.push([`${pin}INV`, '', s.inv.has(pin) ? `${pin}_B` : pin]);
+    for (const pin of ['PSCLK', 'PSEN', 'PSINCDEC', 'RST']) cfg.push([`${pin}INV`, '', pin]);
     cfg.push(['DCM', escCfg(s.name), ''], ['CLKFX_DIVIDE', '', d.CLKFX_DIVIDE], ['CLKFX_MULTIPLY', '', d.CLKFX_MULTIPLY]);
     for (const h of ['COM', 'DFS', 'DLLC', 'DLLS', 'MISC']) cfg.push([`LL_HEX_${h}`, '', '']);
     cfg.push(['PHASE_SHIFT', '', d.PHASE_SHIFT]);

@@ -52,6 +52,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-bram.mjs`, `ana-bram.mjs`, `db/<device>-bram.json` | Stage D: every memory bit of the block RAMs, by binary codes |
 | `gen-sitevar.mjs`, `ana-sitevar.mjs`, `sitevar-features.mjs`, `bram-features.mjs` | Stage D: the settings of block RAMs, multipliers and DCMs, changed one at a time in designs implemented by ISE |
 | `db/<device>-layout.json`, `db/s3e-tiles.json`, `db/<device>-<package>-pads.json` | Result of stages C-F: where every tile is in the frame data and the bitstream format, per device; the bits of every measured feature (PIPs, site settings) per tile type, shared by the devices (`db/<device>-tiles.json`, if present, adds or replaces features of one device); the pads' own bits per device and package |
+| `gen-dcmvcc.mjs` | #190: the DCM tiles' switches from their VCC site, one constant-1 net per DCM tile (then `gen-pipdrop.mjs`) |
 | `gen-iobreg.mjs`, `gen-iobrand.mjs`, `ana-iobreg.mjs` | Stage G: designs with registers in the IOBs of every pad (implemented by ISE), their settings and input delays at random (xdl variants), the bits of each pad's settings solved |
 | `gen-dcmhdl.mjs`, `gen-sidebufg.mjs` | Stage G: designs of several DCMs with settings of their own, and of subsets of the side global buffers, implemented by ISE from HDL (settings xdl refuses in an edited design; inputs in combination); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
@@ -373,10 +374,14 @@ What ISE's tools want, found on the way:
   DCM_G1_B3`, `DCM_G1_B3 -> DCM_RST_PINWIRE`); a pin tied to 0 on GND, from a slice through general
   routing; a DCM's DSSEN is left open either way. A MULT18X18S is a MULT18X18SIO with CE on CEA, CEB
   and CEP and R on RSTA, RSTB and RSTP; a MULT18X18 one with its enables and clock tied to 0 and its
-  resets to 1. The packer does the same; the block-RAM tiles' VCC switches are known since #35. The
-  DCM tiles' are not all in the database yet (they set no bits: Silinx's bitgen of ISE's designs is
-  byte-identical without them), so a DCM's pins tied to 1 still take the constant 0 through the
-  pin's inverter (`RSTINV::RST_B`, #190).
+  resets to 1. The packer does the same; the block-RAM tiles' VCC switches are known since #35, the
+  DCM tiles' since #190: `DCM_VCC_WIRE -> DCM_G1_B1 / B2 / B3, DCM_PSCLK, DCM_CLKFB` of every DCM
+  tile type of the four devices (one constant-1 net per DCM tile through all of them,
+  `gen-dcmvcc.mjs`, removed by codewords: none sets a bit; `measured/learn-14dcm-vcc-pips.json`),
+  so a DCM's pins tied to 1 come from the VCC site of its tile, as ISE routes them (feat_const_dcm:
+  RST, PSCLK and PSINCDEC tied to 1, the same pins, sources and switches as ISE's own routed design,
+  byte-identical; PSEN tied to 1 without a variable phase shift is a DRC warning of ISE's own,
+  PhysDesignRules:774).
 - **Multipliers without registers:** ISE's bitgen sets the bits of the CEA / CEB / CEP inverters
   ("not inverted") even when the XDL has no CEAINV (3 bits in the third block-RAM interconnect tile
   of the multiplier): `bitgen.js` does the same (as for the enables of a block RAM's unused port).

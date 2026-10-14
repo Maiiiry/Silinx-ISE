@@ -179,10 +179,13 @@ const FEATURES = {
   hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
   // control pins tied to 1 / 0 as ISE ties them: block RAMs' EN / WE / SSR and multipliers' CE /
   // RST on VCC / GND, never inverted (MULT18X18S's CE / R on the three enables / resets); a DCM's
-  // RST / PSEN / PSINCDEC tied to 1 the constant 0 inverted (#190), DSSEN left open (#50)
+  // RST / PSCLK / PSINCDEC tied to 1 on VCC from its tile's VCC site (#190), DSSEN left open (#50)
   feat_const_bram: [/^pack \(\d+ slices\)/m, 'RAMB16', [/ENAINV::ENA /, /SSRBINV::SSRB /, /^net "[^"]+" vcc,[^;]*inpin "b4" ENA ,/m], [/(EN|WE|SSR)[AB]INV::\w+_B /]],
   feat_const_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO', [/CEAINV::CEA /, /RSTPINV::RSTP /, /^net "[^"]+" vcc,[^;]*inpin "m1" RSTB ,/m, /^net "[^"]+" gnd,[^;]*inpin "m1" CEA ,/m], [/(CE|RST)[ABP]INV::\w+_B /]],
-  feat_const_dcm: [/^pack \(\d+ slices\)/m, 'DCM', [/RSTINV::RST_B /, /PSENINV::PSEN_B /, /PSINCDECINV::PSINCDEC_B /, /PSCLKINV::PSCLK /], [/inpin "u_dcm" DSSEN/]],
+  feat_const_dcm: [/^pack \(\d+ slices\)/m, 'DCM', [/RSTINV::RST /, /PSENINV::PSEN /, /PSINCDECINV::PSINCDEC /, /PSCLKINV::PSCLK /,
+    /^net "[^"]+" vcc, \n {2}outpin "XDL_DUMMY_DCM_TL_CENTER_X13Y34_VCC_X14Y36" VCCOUT ,\n(?: {2}inpin "u_dcm" (?:PSCLK|PSINCDEC|RST) ,\n){3}/m, /^ {2}pip DCM_TL_CENTER_X13Y34 DCM_VCC_WIRE -> DCM_G1_B3 ,$/m,
+    /^ {2}pip DCM_TL_CENTER_X13Y34 DCM_VCC_WIRE -> DCM_PSCLK ,$/m, /^net "[^"]+" gnd, \n {2}outpin "[^"]+" Y ,\n {2}inpin "u_dcm" PSEN ,$/m],
+    [/inpin "u_dcm" DSSEN/, /(RST|PSEN|PSINCDEC|PSCLK)INV::\w+_B /]],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
 for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {
