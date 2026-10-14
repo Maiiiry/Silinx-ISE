@@ -24,13 +24,6 @@ the "What's new" text of its GitHub release.
 - **Simulator:** the Wave window's submenus (*Radix*…) no longer open past the right edge of the window, where their items could not be clicked (#201).
 - **ASM chart editor:** after *Reset route*, the side panel no longer shows a *Reset route* button that does nothing (#202).
 - **New Source wizard:** the first page is only the type of the new source; its file name and location are on the next page (the Module and Schematic wizards ask them on their own first page, now with a *Location* field) (#203).
-- **VHDL: a pure function that uses what is declared outside it is an error, as in ISE:** a function is
-  pure unless it is declared `impure`, and a pure one that reads or writes a signal, a port, a process's
-  variable or a shared variable declared outside it, or calls an impure function or a procedure that
-  does, is reported at that line, naming the object and where it is declared (*Cannot access signal 's'
-  (line 10) from inside pure function 'f'.*), with its explanation (English and Portuguese) and the fix
-  *Declare the function 'f' impure* (also in its package declaration), offered when no other pure
-  function calls it. Silinx accepted it (#185).
 - **VHDL: a function that is not pure is reported, as XST does for the Spartan-3E:** a function is pure
   unless it is declared `impure`, and one that reads or writes a signal, a port, a process's variable,
   a shared variable or a file declared outside it, or calls an impure function or a procedure that
@@ -58,6 +51,9 @@ the "What's new" text of its GitHub release.
   attribute, and the labels of loops and other sequential statements, are accepted. Silinx accepted it
   silently; the technology schematic's netlist regrouped by instance no longer names a net after one of
   its primitives either (#192).
+- **Windows: saving while the project is being read no longer fails** (`EPERM: operation not
+  permitted, rename …`): the file's atomic replacement is retried for a moment when Windows refuses it
+  because another operation has the file open (#211).
 
 ## 15.10.12
 

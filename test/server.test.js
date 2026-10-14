@@ -160,3 +160,33 @@ test('a file removed from the project (excluded) is back in it when it is writte
   assert.deepEqual(pj.excluded, []);
   assert.equal(await P.readFile('Excl1', 'src/ctrl.asm.json'), '{"name":"ctrl2"}');
 });
+
+test('renameOver: Windows refusing to rename over an open file (EPERM / EACCES / EBUSY) is retried; other errors are not', async () => {
+  const fsp = (await import('node:fs/promises')).default;
+  const { renameOver } = await import('../server/projects.js');
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'silinx-rename-'));
+  const real = fsp.rename;
+  try {
+    await fsp.writeFile(path.join(dir, 'a.tmp'), 'new');
+    await fsp.writeFile(path.join(dir, 'a'), 'old');
+    // refused twice (another operation has the file open), then done
+    let refused = 0;
+    fsp.rename = async (from, to) => { if (refused < 2) { refused++; throw Object.assign(new Error('EPERM: operation not permitted'), { code: 'EPERM' }); } return real(from, to); };
+    await renameOver(path.join(dir, 'a.tmp'), path.join(dir, 'a'), { wait: 1 });
+    assert.equal(refused, 2);
+    assert.equal(await fsp.readFile(path.join(dir, 'a'), 'utf8'), 'new');
+    // another error at once, not retried
+    let calls = 0;
+    fsp.rename = async () => { calls++; throw Object.assign(new Error('ENOENT: no such file'), { code: 'ENOENT' }); };
+    await assert.rejects(renameOver('x', 'y', { wait: 1 }), /ENOENT/);
+    assert.equal(calls, 1);
+    // refused every time: the error after the last try
+    calls = 0;
+    fsp.rename = async () => { calls++; throw Object.assign(new Error('EBUSY: resource busy'), { code: 'EBUSY' }); };
+    await assert.rejects(renameOver('x', 'y', { tries: 4, wait: 1 }), /EBUSY/);
+    assert.equal(calls, 4);
+  } finally {
+    fsp.rename = real;
+    await fsp.rm(dir, { recursive: true, force: true });
+  }
+});

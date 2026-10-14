@@ -85,6 +85,17 @@ export function withProjectLock(name, fn) {
   return run;
 }
 
+// Windows refuses to rename over a file that another operation has open at that moment (a concurrent
+// read of it: EPERM / EACCES / EBUSY), where other systems replace it: retried a few times, briefly
+export async function renameOver(from, to, { tries = 10, wait = 15 } = {}) {
+  for (let k = 0; ; k++) {
+    try { return await fs.rename(from, to); } catch (e) {
+      if (k >= tries - 1 || !['EPERM', 'EACCES', 'EBUSY'].includes(e.code)) throw e;
+      await new Promise(r => setTimeout(r, wait * (k + 1)));
+    }
+  }
+}
+
 // Atomic write (temp file + rename): a concurrent reader never sees a half-written silinx.json.
 async function writeProjectUnlocked(name, pj) {
   const dir = projectDir(name);
@@ -94,7 +105,7 @@ async function writeProjectUnlocked(name, pj) {
   const tmp = path.join(dir, `.${PROJECT_FILE}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);
   try {
     await fs.writeFile(tmp, JSON.stringify(clean, null, 2) + '\n');
-    await fs.rename(tmp, file);
+    await renameOver(tmp, file);
   } catch (e) {
     await fs.rm(tmp, { force: true }).catch(() => {});
     throw e;
@@ -214,7 +225,7 @@ export async function writeFile(name, rel, text) {
   const tmp = path.join(path.dirname(full), `.${path.basename(full)}.${process.pid}.${Math.random().toString(36).slice(2)}.tmp`);   // hidden: not listed
   try {
     await fs.writeFile(tmp, text);
-    await fs.rename(tmp, full);
+    await renameOver(tmp, full);
   } catch (e) { await fs.rm(tmp, { force: true }).catch(() => {}); throw e; }
   // Register HDL files automatically (not the generated ones in build/, e.g. the netlists of the open
   // synthesis); a file written again is back in the project (not excluded).
