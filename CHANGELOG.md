@@ -3,6 +3,10 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.14
+
+- **Petri nets:** the VHDL of a net without places (just its ports) compiles (#212).
+
 ## 15.10.13
 
 - **Petri net editor (#186):** a new source type, *Petri Net* (`.pn.json`, also Tools ▸ Petri Net Editor…):

@@ -237,7 +237,7 @@ export function generatePetri(model, lang, { source } = {}) {
     for (const t of m.transitions) if (Object.keys(t.outputs).length) L.push(`  signal ${fr(t)} : std_logic := '0';`);
     L.push('begin', `  process (${m.clock})`);
     // o_: the marking at the edge (inhibitors read it), v_: what is left to take, add_: what is put
-    L.push(`    variable ${m.places.map(p => `o_${p.name}, v_${p.name}, add_${p.name}`).join(', ')} : unsigned(8 downto 0);`);
+    if (m.places.length) L.push(`    variable ${m.places.map(p => `o_${p.name}, v_${p.name}, add_${p.name}`).join(", ")} : unsigned(8 downto 0);`);
     L.push('  begin', `    if rising_edge(${m.clock}) then`, `      if ${rstOn} then`);
     for (const p of m.places) L.push(`        ${reg(p)} <= ${num(p.tokens, W(p))};`);
     for (const t of m.transitions) if (Object.keys(t.outputs).length) L.push(`        ${fr(t)} <= '0';`);

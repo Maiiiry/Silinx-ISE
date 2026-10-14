@@ -151,3 +151,16 @@ test('the HDL: reserved words as names of places and transitions, multi-bit puls
     assert.deepEqual(r.sim.log.map(e => String(e.text).trim()).filter(s => /^[01xz_]+$/.test(s)), want, lang);
   }
 });
+
+test('a net with ports and nothing else (the Petri Net Wizard, #208): valid, its VHDL and Verilog compile', () => {
+  const m = normalizePetri({ name: 'ctl', inputs: [{ name: 'go', width: 1 }, { name: 'sel', width: 3 }], outputs: [{ name: 'busy', width: 1 }, { name: 'st', width: 2 }], places: [], transitions: [], arcs: [] });
+  assert.deepEqual(validatePetri(m), []);
+  for (const lang of ['vhdl', 'verilog']) {
+    const g = generatePetri(m, lang);
+    const tb = 'module tb; reg clk = 0, rst = 1, go = 0; reg [2:0] sel = 0; wire busy; wire [1:0] st;\n' +
+      `  ctl dut(.clk(clk), .rst(rst), .go(go), .sel(sel), .busy(busy), .st(st));\n  always #5 clk = ~clk;\n  initial begin #12 rst = 0; #20 $display("%b_%b", busy, st); $finish; end\nendmodule`;
+    const r = simulate([{ path: lang === 'vhdl' ? 'dut.vhd' : 'dut.v', text: g.code }, { path: 'tb.v', text: tb }], 'tb', { until: 1e6 });
+    assert.deepEqual(r.errors, [], `${lang}: ${r.errors.join('; ')}`);
+    assert.deepEqual(r.sim.log.map(e => String(e.text).trim()).filter(s => /^[01xz_]+$/.test(s)), ['0_00'], lang);
+  }
+});
