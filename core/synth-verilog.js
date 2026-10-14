@@ -388,8 +388,10 @@ export function toVerilog(design, { name, tables = true } = {}) {
           return { x: low ? `{1'(${a.x} >> ${a.w - 1}), ${low}}` : `1'(${a.x} >> ${a.w - 1})`, w: t.w, s: true };
         }
         const x = fit(a.x, a.w, n.ext ?? a.s, t.w, a.s);
-        // the sign of the conversion ({s} of a signed s is unsigned; $signed / $unsigned)
-        return { x: !!t.s === !!a.s || a.w !== t.w ? x : t.s ? `$signed(${x})` : `$unsigned(${x})`, w: t.w, s: !!t.s };
+        // the sign of the conversion ($signed / $unsigned), also when the width changes: a size cast keeps
+        // its operand's sign (14'($signed(i)) is signed: to_unsigned(8389, 14) was sign-extended in a wider
+        // product, the stopwatch's thousands, #229)
+        return { x: !!t.s === !!a.s ? x : t.s ? `$signed(${x})` : `$unsigned(${x})`, w: t.w, s: !!t.s };
       }
       case 'call': return call(n, ctx);
       case 'edge': case 'event': fail('a clock edge outside the clock condition of a process', n); break;

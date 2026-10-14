@@ -330,3 +330,19 @@ end;`;
   assert.ok(r.states > 5, `the outputs change (${r.states} states)`);
   expectWarnings('synth-diff: VHDL integers and port defaults start values', r.warnings);
 });
+
+// #229: a conversion that changes the sign and the width (to_unsigned(8389, 14) of an integer) was written
+// 14'($signed(i)), which a size cast keeps signed: sign-extended in a wider product, the stopwatch's
+// thousands were wrong (7 shown as 15 1 0 7); the stopwatch's to_decimal over all its values
+test('open synthesis: the stopwatch\'s to_decimal (to_unsigned of an integer in a product) over 0 .. 9999, netlist = RTL (#229)', { timeout: 300000 }, async () => {
+  const fs = await import('node:fs');
+  const text = fs.readFileSync(new URL('../examples/stopwatch/src/to_decimal.vhd', import.meta.url), 'utf8');
+  const { compile, elaborate } = await import('../core/compile.js');
+  const { synthesizeOpen } = await import('../core/synth-open.js');
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  const { compareNetlist } = await import('./diff-synth.js');
+  const design = elaborate(compile([{ path: 'to_decimal.vhd', lang: 'vhdl', text }]), 'to_decimal');
+  const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
+  const d = compareNetlist(design, r, { name: 'to_decimal', sim: { cycles: 400, ranges: { value: [0, 9999] } } });
+  assert.equal(d.status, 'pass', d.report || d.reason);
+});
