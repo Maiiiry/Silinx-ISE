@@ -255,6 +255,28 @@ uiTest('State diagram (FSM): step-by-step simulation, Mealy labels, module -> di
   await page.waitFor((ed) => document.querySelector(`${ed} [data-state=a]`).classList.contains('current'), [ED]);
   assert.equal(await page.eval((ed) => document.querySelectorAll(`${ed} .fsm-trace tr`).length, ED), 3);
   await page.click(`${ED} .fsm-sim-reset`);
+  // ---- ▶ Run: a click whose press and release fall on each side of a clock edge is not lost (#240);
+  // the controls were made anew at each edge, and the click went to an element no longer there
+  const cycles = () => page.eval((ed) => document.querySelectorAll(`${ed} .fsm-trace tr`).length, ED);
+  const slowClick = async (sel, text) => {
+    const { x, y } = await page.point(sel, text ? { text } : {});
+    await page.mouse('mouseMoved', x, y);
+    await page.mouse('mousePressed', x, y);
+    const n = await cycles();
+    await page.waitFor((ed, k) => document.querySelectorAll(`${ed} .fsm-trace tr`).length > k, [ED, n], { what: 'a clock edge while the button is pressed', timeout: 5000 });
+    await page.mouse('mouseReleased', x, y);
+  };
+  await page.click(`${ED} .asm-codebar .asm-btn`, { text: '▶ Run' });
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} .fsm-trace tr`).length >= 2, [ED], { what: 'a clock edge while running', timeout: 5000 });
+  await slowClick(`${ED} .fsm-bit[data-input=x]`);
+  await page.waitFor((ed) => document.querySelector(`${ed} .fsm-bit[data-input=x]`)?.textContent === 'x = 1', [ED], { what: 'x on' });
+  await page.waitFor((ed) => document.querySelector(`${ed} [data-state=b]`).classList.contains('current'), [ED], { what: 'B reached while running', timeout: 5000 });
+  await slowClick(`${ED} .asm-codebar .asm-btn`, '■ Stop');
+  await page.waitFor((ed) => [...document.querySelectorAll(`${ed} .asm-codebar .asm-btn`)].some((b) => b.textContent === '▶ Run'), [ED], { what: 'stopped' });
+  const n1 = await cycles();
+  await new Promise((r) => setTimeout(r, 1300));
+  assert.equal(await cycles(), n1, 'no clock edge once stopped');
+  await page.click(`${ED} .fsm-sim-reset`);
   // ---- undo / redo of a deleted transition (Del key)
   await selectTrans(page, 't1');
   await page.eval((ed) => document.querySelector(ed).focus(), ED);

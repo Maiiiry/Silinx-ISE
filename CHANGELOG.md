@@ -85,6 +85,11 @@ In detail:
   step of *Run* made the simulation's buttons and inputs anew, so a click whose press and release fell
   on each side of a step did nothing. They are now kept; a step redraws only the outputs, the marking
   and the log.
+- **State diagram (FSM) editor: a click on ■ Stop or on an input lost while the machine runs (#240):**
+  every clock edge of *Run* made the simulation's buttons (⟲ Reset, Clock ↑, ■ Stop) and inputs anew,
+  so a click whose press and release fell on each side of an edge did nothing. They are now kept; an
+  edge redraws only the state, the outputs and the trace. (The ASM chart and truth table editors have
+  no running simulation, and the schematic's live simulation acts on the press, so neither had it.)
 - **Tests (#233, #241):** the Petri net analysis test waits for each step of deleting an arc (the arc
   selected, the focus in the editor, the arc gone), so that a failure names it; the Petri net tests
   wait for the saved net and its HDL file instead of reading them after a fixed pause.
