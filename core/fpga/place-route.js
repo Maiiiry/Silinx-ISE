@@ -30,9 +30,10 @@ import { parseXdl, writeXdl } from '../xdl.js';
  * completely routed), period (Infinity then), seed, placeMs, routeMs }. Options: seed, effort,
  * timing (the placer's timing weight; its default when null), timingRoute (the timing-driven
  * router, default true), delays (timing.js delayTable; computed, and cached on the device, when
- * not given), onPlaced, onRouted, info (passed to them). Throws the placer's errors (PlaceError).
+ * not given), routeIterations (the router's passes at most; its default when null), onPlaced,
+ * onRouted, info (passed to them). Throws the placer's errors (PlaceError).
  */
-export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing = null, timingRoute = true, delays = null, onPlaced = null, onRouted = null, info = {} } = {}) {
+export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing = null, timingRoute = true, delays = null, routeIterations = null, onPlaced = null, onRouted = null, info = {} } = {}) {
   const t0 = Date.now();
   const allowPip = known.allowPip;
   const placement = place(packed, deviceSites(device, known), {
@@ -44,7 +45,7 @@ export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing
   const nfo = { seed, try: 0, replication: null, ...info };
   onPlaced?.(placement, { ...nfo, placeMs });
   const t1 = Date.now();
-  const routed = routeDesign(parseXdl(placedText), device, { ...known, timing: timingRoute });
+  const routed = routeDesign(parseXdl(placedText), device, { ...known, timing: timingRoute, ...(routeIterations && { maxIterations: routeIterations }) });
   const routeMs = Date.now() - t1;
   // (complete: no error, no net left unrouted, no node still shared when the router stopped, #242)
   const sta = routed.errors.length || routed.failed.length || routed.overused ? null : analyzeTiming(parseXdl(writeXdl(routed.design)), device);
@@ -53,24 +54,39 @@ export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing
   return pr;
 }
 
+// the placements made more when none routes completely for nodes left shared (#249)
+export const RETRY_SEEDS = 3;
+
 /**
- * The flow's place and route: `tries` placements from `seed` on (the fastest kept), then register
+ * The flow's place and route: `tries` placements from `seed` on (the fastest kept; when none routes
+ * completely only because the router left nodes shared, up to `retries` more seeds, #249), then register
  * replication when `replicate` (default true) and the design is completely routed and has at most
  * REPLICATE_MAX_SLICES slices. netlist: the netlist `packed` was packed from (netlist.js
  * readYosysJson); pack: the options to pack the replicated netlist with (pack.js: ucf, part,
  * carryOut). replicateOpts: replicate.js REPLICATION overrides. Returns the kept result (as
  * placeRoute's) with first (the first placement's result) and replication: null when not tried
  * (or nothing to copy), else { flipFlops, copies, plan, result (null when it failed), error, kept,
- * before (the period without it) }.
+ * before (the period without it) }, and retried: the placements made more (#249). placeRouteFn: placeRoute
+ * (for the tests).
  */
-export function placeRouteBest(netlist, packed, device, known, { seed = 1, tries = 1, replicate = true, replicateOpts = {}, pack: packOptions = {}, onReplication = null, ...options } = {}) {
+export function placeRouteBest(netlist, packed, device, known, { seed = 1, tries = 1, retries = RETRY_SEEDS, replicate = true, replicateOpts = {}, pack: packOptions = {}, onReplication = null, placeRouteFn = placeRoute, ...options } = {}) {
   const delays = options.delays || delayTable(device, { allowPip: known.allowPip });
   const opts = { ...options, delays };
   let best = null, first = null;
-  for (let k = 0; k < Math.max(1, tries); k++) {
-    const pr = placeRoute(packed, device, known, { ...opts, seed: seed + k, info: { try: k } });
+  const n = Math.max(1, tries);
+  for (let k = 0; k < n; k++) {
+    const pr = placeRouteFn(packed, device, known, { ...opts, seed: seed + k, info: { try: k } });
     first ||= pr;
     if (!best || pr.period < best.period) best = pr;
+  }
+  // no placement routed completely, only nodes left shared (the router stopped without a legal
+  // routing: a dense design on an unlucky placement, #249): the next seeds, a few more
+  let retried = 0;
+  const stuck = r => !r.sta && r.routed.overused > 0 && !r.routed.errors.length && !r.routed.failed.length;
+  while (stuck(best) && retried < retries) {
+    const pr = placeRouteFn(packed, device, known, { ...opts, seed: seed + n + retried, info: { try: n + retried, retry: true } });
+    retried++;
+    if (pr.period < best.period) best = pr;
   }
   let replication = null;
   if (replicate && best.sta && packed.stats.slices <= REPLICATE_MAX_SLICES) {
@@ -79,7 +95,7 @@ export function placeRouteBest(netlist, packed, device, known, { seed = 1, tries
       const copies = plan.reduce((a, p) => a + p.groups.length - 1, 0);
       let result = null, error = null;
       try {
-        result = placeRoute(pack(replicateFlipFlops(netlist, plan), packOptions), device, known,
+        result = placeRouteFn(pack(replicateFlipFlops(netlist, plan), packOptions), device, known,
           { ...opts, seed: best.seed, info: { try: 0, replication: { flipFlops: plan.length, copies } } });
       } catch (e) { error = e; }
       const kept = !!result?.sta && result.period < best.period;
@@ -88,5 +104,5 @@ export function placeRouteBest(netlist, packed, device, known, { seed = 1, tries
       if (kept) best = result;
     }
   }
-  return { ...best, first, replication };
+  return { ...best, first, replication, retried };
 }
