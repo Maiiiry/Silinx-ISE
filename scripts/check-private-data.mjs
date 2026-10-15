@@ -24,6 +24,7 @@ export const ALLOW = [
   ['test/lang-vhdl-types.test.js', '6.4.2.3', 'a section of the VHDL standard'],
   ['test/server-api.test.js', 'fpga-lab.local', 'a made-up computer name for the Host header test'],
   ['test/impl.test.js', /^(dev@)?10\.0\.0\.2$/, 'a made-up address of an example (in the history only)'],
+  ['test/report-failure.test.js', /^(dev|me)@(192\.0\.2|203\.0\.113)\.\d+$/, 'made-up logins on documentation addresses (RFC 5737): the cleaning of a log line is tested on them (#251)'],
   // ISE's text reports and simulation models of our own test designs (no personal data in them):
   // the fixtures of the report parsers and of the netgen simulation
   [/^test\/fixtures\/(ise|netgen)\//, 'Xilinx file', 'ISE reports / netgen models of test designs, kept as parser fixtures'],
