@@ -18,8 +18,20 @@ In short:
   once more; critical paths 3 % shorter on average, up to 29 %, with no larger designs on average.
 - **Smaller designs in the Silinx toolchain:** multiplexers and shifters take fewer LUTs; designs 6 %
   smaller on average, up to half, as fast on average (a barrel shifter 30 % smaller, AES 25 %).
+- **Remove from Project removes a drawn module whole:** on a schematic's, state machine's, truth
+  table's or Petri net's row in the Design pane it removes the drawing and its HDL file together; one
+  Undo brings both back.
 
 In detail:
+
+- **Remove from Project of a drawn module (#234):** in the Design pane (the module's row, its
+  drawing's badge, which now has the command too, and its HDL's badge) *Remove from Project* of a
+  module drawn as a schematic, ASM chart, state diagram, truth table or Petri net removes the drawing
+  and its HDL file together, after one question naming both: one command, so one Undo (or the toast's
+  Undo) brings both back, linked as before, and Redo removes both again. The files stay in the project
+  folder, unchanged. The Files view still removes the one file chosen: the HDL file alone leaves the
+  drawing a module by itself with **[No HDL]** (#231), the drawing alone leaves its HDL file a plain
+  HDL module. The question of *Remove from Project* is now in Portuguese too.
 
 - **Convert to Schematic of any HDL module (#225):** what can be drawn becomes gates, multiplexers,
   slices, constants and module instances; the rest (processes, always blocks, generates, FSMs,

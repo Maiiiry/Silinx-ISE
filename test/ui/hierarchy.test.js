@@ -158,7 +158,7 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   assert.deepEqual(procs.slice(0, 2), ['View/Edit Schematic', 'Design Summary/Reports']);
   assert.ok(!procs.some((p) => /Convert to HDL|as base|Generate HDL/.test(p)), procs.join(' | '));
   // the schematic's commands (Export as ISE Schematic on the schematic, not on the module)
-  assert.deepEqual(await badgeMenu(page, 'gates', 'Schematic'), ['Open', 'Export as ISE Schematic (.sch)…']);
+  assert.deepEqual(await badgeMenu(page, 'gates', 'Schematic'), ['Open', 'Export as ISE Schematic (.sch)…', 'Remove from Project']);
   // the HDL's: the module's, the same as the row's
   const MODULE = ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…', 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…'];
   assert.deepEqual(await badgeMenu(page, 'gates', 'VHDL'), MODULE);
@@ -178,8 +178,8 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   // the other drawings' badges: theirs only
   await makeProject(env, { name: 'H_badges2', template: 'traffic' });
   await page.openProject('H_badges2');
-  assert.deepEqual(await badgeMenu(page, 'u_fsm - traffic', 'FSM'), ['Open', 'Convert to ASM chart']);
-  assert.deepEqual(await badgeMenu(page, 'u_lamps - lamps', 'Table'), ['Open']);
+  assert.deepEqual(await badgeMenu(page, 'u_fsm - traffic', 'FSM'), ['Open', 'Convert to ASM chart', 'Remove from Project']);
+  assert.deepEqual(await badgeMenu(page, 'u_lamps - lamps', 'Table'), ['Open', 'Remove from Project']);
   const PLAIN = ['Set as Top Module', 'Open', 'Rename…', 'Check Syntax', 'View RTL Schematic', 'Create Test Bench (Wizard)…',
     'Convert to Schematic (editable)…', 'Convert to State Machine (ASM)…', 'Convert to State Diagram (FSM)…', 'New Source…', 'Add Copy of Source…', 'Remove from Project', 'Source Properties…'];
   assert.deepEqual(await badgeMenu(page, 'u_timer - timer', 'VHDL'), PLAIN);
@@ -187,7 +187,7 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   assert.deepEqual(await badgeMenu(page, 'u_lamps - lamps', 'VHDL'), MODULE);
   await makeProject(env, { name: 'H_badges3', template: 'blinky' });
   await page.openProject('H_badges3');
-  assert.deepEqual(await badgeMenu(page, 'u_speed - speed_ctrl', 'ASM'), ['Open', 'Convert to State Diagram (FSM)…']);
+  assert.deepEqual(await badgeMenu(page, 'u_speed - speed_ctrl', 'ASM'), ['Open', 'Convert to State Diagram (FSM)…', 'Remove from Project']);
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
 
@@ -323,8 +323,8 @@ uiTest('Design pane (#207, #220) in Portuguese: the badges [FSM] [Tabela] [VHDL]
       'u_lamps - lamps: Tabela (Base: o seu HDL é gerado a partir daqui) VHDL (Gerado a partir da tabela de verdade)',
       'u_display - sevenseg: Verilog (Abrir)',
     ]);
-    assert.deepEqual(await badgeMenu(page, 'u_lamps - lamps', 'Tabela'), ['Abrir']);
-    assert.deepEqual(await badgeMenu(page, 'u_fsm - traffic', 'FSM'), ['Abrir', 'Converter para fluxograma ASM']);
+    assert.deepEqual(await badgeMenu(page, 'u_lamps - lamps', 'Tabela'), ['Abrir', 'Remover do Projeto']);
+    assert.deepEqual(await badgeMenu(page, 'u_fsm - traffic', 'FSM'), ['Abrir', 'Converter para fluxograma ASM', 'Remover do Projeto']);
     // the HDL editor's banner
     await badge(page, 'u_lamps - lamps', 'VHDL');
     await page.waitFor(() => (() => { const b = document.querySelector('.doc:not([hidden]) [data-sync-banner]'); return !!b && b.hidden && b.textContent === ''; })(), [], { what: 'the banner in Portuguese' });

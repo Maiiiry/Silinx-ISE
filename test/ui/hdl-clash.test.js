@@ -244,12 +244,18 @@ const LINKED_ROWS = (pj) => [`project ${pj}`, '  chip xc3s250e-4-cp132', '    mo
 const W_RM = 'WARNING: src/ctl.pn.json has no HDL file: its HDL file src/ctl.vhd was removed from the project (it is still in the project folder). Generate HDL File… (its right-click menu in the Design pane) makes it again from src/ctl.pn.json; Add to Project (Files) brings it back as it is.';
 const TIP_RM = 'No HDL file: its HDL file src/ctl.vhd was removed from the project. Generate HDL File… (right-click) makes it again from the drawing.';
 const pjFiles = async (name) => (await env.server.api('GET', `/api/projects/${encodeURIComponent(name)}`)).files.map((f) => f.path);
-const removeRow = async (page, label) => {
-  await page.treeRow('#hier', label, { right: true, exact: true });
+// Remove from Project of one file in the Files view: a drawing's HDL file alone (the Design pane's
+// removes the drawing with it, #234)
+const filesRow = (page, file) => page.waitFor((f) => { const i = [...document.querySelectorAll('#files-page tr')].findIndex((tr) => tr.cells[0]?.textContent === f); return i >= 0 ? i + 1 : 0; }, [file], { what: `${file} in the Files view` }).then((i) => i - 1);
+const removeInFiles = async (page, file) => {
+  await page.click('#left-tabs .tab[data-page=files]');
+  await page.rightClick('#files-page tr', { index: await filesRow(page, file) });
+  await page.waitForSelector('body > .menu-popup');
   await page.click('body > .menu-popup .mi', { text: 'Remove from Project' });
   await page.waitDialog('Remove Source');
   await page.dialogButton('Yes');
   await page.waitNoDialog();
+  await page.click('#left-tabs .tab[data-page=design]');
 };
 
 uiTest('#231 regression, a Petri net whose HDL file is deleted from the folder: made again from it and linked at the next load, said in the console, no warning', E, async (page) => {
@@ -298,11 +304,11 @@ uiTest('#231 a truth table whose HDL file is gone when the project is opened: ma
   assert.deepEqual(await warnings(page), [W_TT]);
 });
 
-uiTest('#231 regression, a Petri net whose HDL file is removed from the project: a module by itself, warned once, [No HDL]; Undo links it again; Generate HDL File… asks, Yes makes it again and puts it back in the project', E, async (page) => {
+uiTest('#231 regression, a Petri net whose HDL file is removed from the project (the Files view): a module by itself, warned once, [No HDL]; Undo links it again; Generate HDL File… asks, Yes makes it again and puts it back in the project', E, async (page) => {
   await makeProject(env, { name: 'L_rm', top: 'ctl', files: { 'src/ctl.pn.json': LINKED_PN, 'src/ctl.vhd': CTL_HDL } });
   await page.openProject('L_rm');
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json', [], { what: 'linked' });
-  await removeRow(page, 'ctl');
+  await removeInFiles(page, 'src/ctl.vhd');
   await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
   assert.deepEqual(await warnings(page), [W_RM]);
   assert.equal(await page.dialogCount(), 0);
@@ -318,7 +324,7 @@ uiTest('#231 regression, a Petri net whose HDL file is removed from the project:
   assert.deepEqual(await rows(page), LINKED_ROWS('L_rm'));
   assert.deepEqual(await warnings(page), [W_RM]);
   // removed again: its menu's Generate HDL File…; No: nothing changes
-  await removeRow(page, 'ctl');
+  await removeInFiles(page, 'src/ctl.vhd');
   await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
   await page.treeRow('#hier', 'ctl', { right: true, exact: true });
   assert.deepEqual(await menuLabels(page), ['Open', 'Set as Top Module', 'Rename…', 'Generate HDL File…', 'Remove from Project']);
@@ -343,14 +349,14 @@ uiTest('#231 regression, a Petri net whose HDL file is removed from the project:
   assert.deepEqual(await warnings(page), [W_RM]);
 });
 
-uiTest('#231 a schematic whose HDL file is removed from the project: saving the schematic does not write it back into the project silently', E, async (page) => {
+uiTest('#231 a schematic whose HDL file is removed from the project (the Files view): saving the schematic does not write it back into the project silently', E, async (page) => {
   const SCH = JSON.stringify(newDoc('gate', 'vhdl'), null, 1);
   const hdl = viewHdl('src/gate.sch.json', SCH).text;
   const linked = JSON.stringify({ ...JSON.parse(SCH), generatedFile: 'src/gate.vhd' }, null, 1);
   await makeProject(env, { name: 'L_sch', top: 'gate', files: { 'src/gate.sch.json': linked, 'src/gate.vhd': hdl } });
   await page.openProject('L_sch');
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/gate.vhd'] === 'src/gate.sch.json', [], { what: 'linked' });
-  await removeRow(page, 'gate');
+  await removeInFiles(page, 'src/gate.vhd');
   await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
   const W = 'WARNING: src/gate.sch.json has no HDL file: its HDL file src/gate.vhd was removed from the project (it is still in the project folder). Generate HDL File… (its right-click menu in the Design pane) makes it again from src/gate.sch.json; Add to Project (Files) brings it back as it is.';
   assert.deepEqual(await warnings(page), [W]);
@@ -378,7 +384,7 @@ uiTest('#231 in Portuguese: the tip of [Sem HDL] and the question of a drawing w
   await makeProject(env, { name: 'L_pt', top: 'ctl', files: { 'src/ctl.pn.json': LINKED_PN, 'src/ctl.vhd': CTL_HDL } });
   await page.openProject('L_pt');
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json', [], { what: 'linked' });
-  await removeRow(page, 'ctl');
+  await removeInFiles(page, 'src/ctl.vhd');
   await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
   await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
   try {

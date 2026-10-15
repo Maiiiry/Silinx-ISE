@@ -512,6 +512,10 @@ PT_PATTERNS.push(
   [/^Copyright 2026 Pedro Maló\. Free software under the GNU Affero General Public License v3\.0 \($/, 'Copyright 2026 Pedro Maló. Software livre sob a GNU Affero General Public License v3.0 ('],
 
   [/^Removed (\S+) from the project$/, 'Removido $1 do projeto'],
+  // Remove from Project: one file; a drawing with its HDL file, together (#234)
+  [/^Remove '(\S+)' from the project\?\n\(The file stays in the project folder: Undo or Add to Project in the Files view brings it back\.\)$/, "Remover '$1' do projeto?\n(O ficheiro fica na pasta do projeto: Anular ou Acrescentar ao Projeto na vista Ficheiros repõe-no.)"],
+  [/^Remove '(\S+)' and its HDL file '(\S+)' from the project\?\n\(The files stay in the project folder: Undo or Add to Project in the Files view brings them back\.\)$/, "Remover '$1' e o seu ficheiro HDL '$2' do projeto?\n(Os ficheiros ficam na pasta do projeto: Anular ou Acrescentar ao Projeto na vista Ficheiros repõe-nos.)"],
+  [/^Removed (\S+) and (\S+) from the project$/, 'Removidos $1 e $2 do projeto'],
   [/^The project starts with (\S+) \(the top module 'top'\) and its HDL module, generated from it\.$/, "O projeto começa com $1 (o módulo de topo 'top') e o seu módulo HDL, gerado a partir dele."],
   [/^(\S+) already exists\.\n\nReplace it\? Its current contents will be lost\.$/, '$1 já existe.\n\nSubstituir? O conteúdo atual perde-se.'],
   [/^(\S+) already exists: choose another name\.$/, '$1 já existe: escolha outro nome.'],

@@ -466,7 +466,7 @@ function moduleContextMenu(e, mod, file) {
     '-',
     { label: 'New Source…', action: () => wiz.newSourceWizard() },
     { label: 'Add Copy of Source…', action: () => wiz.addSourceDialog() },
-    { label: 'Remove from Project', action: () => removeFile(file) },
+    { label: 'Remove from Project', action: () => removeModule(file) },
     '-',
     { label: 'Source Properties…', action: () => wiz.sourceProperties(file) },
   ].filter(Boolean), e.clientX, e.clientY);
@@ -526,14 +526,35 @@ async function removeFile(file) {
   for (const d of [...S.docs]) if (d.path === file || String(d.id || '').endsWith(`:${file}`)) await closeDoc(d);
   return serialOp(() => removeNow(file));
 }
-async function removeNow(file) {
+// Remove from Project of a module in the Design pane (its row, its badges): a drawing and its HDL file,
+// generated from it (#207, #220), leave the project together, one command (one Undo brings both back,
+// linked as before, #234). The Files view removes the one file: a drawing's HDL file alone leaves the
+// drawing a module by itself ([No HDL], #231); a drawing alone leaves its HDL file a plain HDL module.
+async function removeModule(file) {
+  const drawing = S.hdlToSch?.[file] || (S.schOwners?.[file] ? file : null);
+  const hdl = drawing ? S.schOwners?.[drawing] : null;
+  if (!hdl) return removeFile(file);
+  if (!await confirmDlg('Remove Source', `Remove '${drawing}' and its HDL file '${hdl}' from the project?\n(The files stay in the project folder: Undo or Add to Project in the Files view brings them back.)`)) return;
+  await saveAll();
+  for (const d of [...S.docs]) if ([drawing, hdl].some(f => d.path === f || String(d.id || '').endsWith(`:${f}`))) await closeDoc(d);
+  return serialOp(() => removeNow(drawing, hdl));
+}
+// (hdl: the drawing's HDL file, removed with it)
+async function removeNow(file, hdl = null) {
   const pj = S.project;
-  const entry = pj.files.find(f => f.path === file) || null;
-  if (entry) pj.files = pj.files.filter(f => f.path !== file);
-  if (pj.constraints === file) pj.constraints = '';
-  if (!entry) pj.excluded = [...new Set([...(pj.excluded || []), file])];
+  for (const f of [file, hdl].filter(Boolean)) {
+    const entry = pj.files.find(x => x.path === f) || null;
+    if (entry) pj.files = pj.files.filter(x => x.path !== f);
+    if (pj.constraints === f) pj.constraints = '';
+    if (!entry) pj.excluded = [...new Set([...(pj.excluded || []), f])];
+  }
   await saveProjectJson();
   await reloadProject();
+  if (hdl) {
+    log(`Removed ${file} and its HDL file ${hdl} from the project (the files are kept in the project folder).`, 'info');
+    toast(`Removed ${file.split('/').pop()} and ${hdl.split('/').pop()} from the project`, 'info', 10000, { label: 'Undo', run: () => projectUndo() });
+    return;
+  }
   log(`Removed ${file} from the project (the file is kept in the project folder).`, 'info');
   toast(`Removed ${file.split('/').pop()} from the project`, 'info', 10000, { label: 'Undo', run: () => projectUndo() });
 }
@@ -1997,7 +2018,7 @@ function asmContextMenu(e, file) {
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to State Diagram (FSM)…', action: () => asmToFsmDiagram(file) },
     clashItem(file),
-    { label: 'Remove from Project', action: () => removeFile(file) },
+    { label: 'Remove from Project', action: () => removeModule(file) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
 
@@ -2172,7 +2193,7 @@ function ttContextMenu(e, file) {
     S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
     clashItem(file),
-    { label: 'Remove from Project', action: () => removeFile(file) },
+    { label: 'Remove from Project', action: () => removeModule(file) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
 
@@ -2422,7 +2443,7 @@ function petriContextMenu(e, file) {
     S.view === 'sim' ? null : { label: 'Set as Top Module', action: () => setViewAsTop(file) },
     { label: 'Rename…', action: () => renameDialog(file) },
     clashItem(file),
-    { label: 'Remove from Project', action: () => removeFile(file) },
+    { label: 'Remove from Project', action: () => removeModule(file) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
 
@@ -2433,7 +2454,7 @@ function fsmContextMenu(e, file) {
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Convert to ASM chart', action: () => fsmToAsmChart(file) },
     clashItem(file),
-    { label: 'Remove from Project', action: () => removeFile(file) },
+    { label: 'Remove from Project', action: () => removeModule(file) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
 
@@ -2498,6 +2519,7 @@ function syncedViewMenu(e, sch) {
     isAsm(sch) ? { label: 'Convert to State Diagram (FSM)…', action: () => asmToFsmDiagram(sch) } : null,
     isFsm(sch) ? { label: 'Convert to ASM chart', action: () => fsmToAsmChart(sch) } : null,
     viewKind(sch) === 'sch' ? { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(sch) } : null,
+    { label: 'Remove from Project', action: () => removeModule(sch) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
 
@@ -2928,7 +2950,7 @@ function schContextMenu(e, file) {
     { label: 'Rename…', action: () => renameDialog(file) },
     { label: 'Export as ISE Schematic (.sch)…', action: () => exportSchAsIse(file) },
     clashItem(file),
-    { label: 'Remove from Project', action: () => removeFile(file) },
+    { label: 'Remove from Project', action: () => removeModule(file) },
   ].filter(Boolean), e.clientX, e.clientY);
 }
 
