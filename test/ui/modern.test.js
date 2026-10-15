@@ -240,11 +240,13 @@ uiTest('Portuguese: the modern header, buttons, empty state and palette are tran
     steps: [...document.querySelectorAll('#toolbar .m-step')].map((b) => b.textContent),
     project: document.getElementById('title-project').textContent,
     empty: document.querySelector('#ws-empty p').textContent,
+    // the start page's one key: the command search (no Save, nothing to save there; Undo goes without saying)
+    keys: [...document.querySelectorAll('#ws-empty .ws-keys > span')].map((k) => k.querySelector('span').textContent),
     theme: document.getElementById('theme-btn').getAttribute('title'),
   }));
   assert.deepEqual(T, {
     search: 'Procurar comandos e ficheiros…', steps: ['Verificar', 'Simular', 'Implementar', 'Emular', 'Programar'], project: 'Nenhum projeto aberto',
-    empty: 'Abra uma fonte no painel Projeto, ou procure qualquer comando ou ficheiro.', theme: 'Alternar entre tema claro e escuro',
+    empty: 'Abra uma fonte no painel Projeto, ou procure qualquer comando ou ficheiro.', keys: ['Procurar comandos e ficheiros'], theme: 'Alternar entre tema claro e escuro',
   });
   const subs = await subMenu(page, 'Ver', 'Interface');
   assert.deepEqual(subs.map((s) => s.label), ['Moderna', 'Xilinx ISE (Clássica)']);

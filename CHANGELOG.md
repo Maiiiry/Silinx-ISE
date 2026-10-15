@@ -9,9 +9,12 @@ In short:
 
 - **Removing the top module from the project:** the module left becomes the top (Undo brings the old
   one back), and I/O Pin Planning no longer opens empty for a top the project no longer has.
+- **The start page shows only the command search (Ctrl+K):** its Save and Undo hints are gone.
 
 In detail:
 
+- **Start page (#255):** of its key hints only the command search is left; Ctrl+S Save (nothing to save
+  there) and Ctrl+Z Undo are gone.
 - **The top module removed from the project (#253):** *Remove from Project* of the top module's
   source left the project's top pointing at it: the Design pane had no top and I/O Pin Planning opened
   for it with no I/O at all (a project imported from ISE whose top schematic had been removed: its
