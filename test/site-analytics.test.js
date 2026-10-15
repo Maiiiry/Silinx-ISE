@@ -20,6 +20,19 @@ test('addAnalytics: GoatCounter\'s loader before the last </body>, once; only on
   assert.throws(() => addAnalytics('<html></html>', 'silinx'), /no <\/body>/);
 });
 
+// Regression (#257): the application's code, bundled into the page, names the loader's id (Help ▸ About's
+// 'Usage counts' row, web/js/analytics.js): the page has no loader yet, so it gets one (it got none,
+// and nothing was counted from 13 October)
+test('addAnalytics: a page whose code names the loader\'s id (the application\'s own) still gets the loader (#257)', () => {
+  const app = fs.readFileSync(new URL('../web/js/analytics.js', import.meta.url), 'utf8');
+  assert.ok(app.includes('silinx-site-analytics'), 'web/js/analytics.js looks the loader up by its id');
+  const page = PAGE.replace('<div id="app"></div>', `<div id="app"></div><script type="module">${app}</script>`);
+  const out = addAnalytics(page, 'silinx');
+  assert.equal(out.split('<script id="silinx-site-analytics">').length, 2, 'the loader, once');
+  assert.match(out, /https:\/\/silinx\.goatcounter\.com\/count/);
+  assert.equal(addAnalytics(out, 'silinx'), out, 'once');
+});
+
 test('addAnalyticsToSite: index.html of the root and of dev/, not the downloaded Silinx-ISE.html nor the assets', () => {
   const site = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-site-'));
   try {

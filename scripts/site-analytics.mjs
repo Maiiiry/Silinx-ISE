@@ -14,7 +14,8 @@ const MARK = 'silinx-site-analytics';
 /** The page with the counter's loader (once: a page that has it is returned unchanged). */
 export function addAnalytics(html, code) {
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(code || '')) throw new Error(`not a GoatCounter code: '${code}'`);
-  if (html.includes(MARK)) return html;
+  // (the loader's tag itself: the application's code, bundled into the page, names its id too, #257)
+  if (html.includes(`<script id="${MARK}">`)) return html;
   const loader = `<script id="${MARK}">
 /* usage counts of the published site: GoatCounter, no cookies, no personal data (web/js/analytics.js) */
 if (/\\.github\\.io$/.test(location.hostname)) { var s = document.createElement('script'); s.async = true; s.src = 'https://gc.zgo.at/count.js'; s.dataset.goatcounter = 'https://${code}.goatcounter.com/count'; document.head.appendChild(s); }
