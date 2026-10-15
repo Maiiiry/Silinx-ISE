@@ -31,7 +31,9 @@ uiTest('Undo / Redo: Convert to Schematic (the schematic file and its link go an
   await page.openProject('UndoSch');
   await page.treeRow('#hier', 'u_inv - inv', { right: true });
   await page.click('body > .menu-popup .mi', { text: 'Convert to Schematic (editable)…' });
-  await page.waitFor(() => window.Silinx.hdlToSch?.['src/inv.vhd'] === 'src/inv.sch.json', [], { what: 'converted, linked', timeout: 15000 });
+  // (the conversion ends with its schematic open, after the link: the next file is opened once it is,
+  // else the schematic opened late takes the editor area from it, #232)
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/inv.vhd'] === 'src/inv.sch.json' && window.Silinx.active?.id === 'sch:src/inv.sch.json', [], { what: 'converted, linked, its schematic open', timeout: 15000 });
   const linkedHdl = await readWs(env, 'UndoSch', 'src/inv.vhd');
   const schematic = await readWs(env, 'UndoSch', 'src/inv.sch.json');
   // Edit ▸ Undo: no schematic, the HDL as it was written by hand

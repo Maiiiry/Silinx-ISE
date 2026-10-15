@@ -52,6 +52,10 @@ In detail:
   Yes (Undo, or *Add to Project* in Files, brings back the file as it was); saving the drawing no
   longer writes that file back into the project silently. Implementation, on the server and in the
   browser, builds such a drawing from the drawing too.
+- **Tests (#232):** the UI test of Undo / Redo of *Convert to Schematic* waited for the schematic's
+  link, not for the end of the conversion (its schematic opened): under load the schematic opened
+  after the next file and took the editor area, and the test timed out. It now waits for the
+  schematic to be open.
 - **Generate Post-Synthesis Simulation Model in the Silinx toolchain (#120):** no longer *Needs Xilinx
   ISE*: the open synthesis's netlist written as ISE's netgen writes it, a VHDL model of UNISIM primitives
   (`build/netgen/synthesis/<top>_synthesis.vhd`, its entity with the top's ports), and in Verilog (`.v`);
