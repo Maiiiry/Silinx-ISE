@@ -11,6 +11,10 @@ In short:
   Nexys2 from the browser edition now takes seconds instead of minutes.
 - **Faster open synthesis:** Synthesize - Yosys (open) takes about a third less time in the browser
   (pong 9.2 s -> 6.3 s in Chrome), and less on the server too; its result the same.
+- **A fast synthesis by default:** with the Silinx toolchain, the synthesis's Optimization Effort
+  (Process Properties) Normal, the default, synthesizes once: about 2.4 s on the examples instead of
+  4 to 9 s. High also tries the mappings for speed, as before: a slower synthesis, a circuit up to
+  about 10 % faster.
 - **No synthesis again when it is up to date:** with the Silinx toolchain, Implement Design and
   Generate Programming File start at Translate when the design has not changed since its last
   synthesis (only the pins, or nothing): "Synthesize - Yosys is up to date", as in ISE.
@@ -35,6 +39,15 @@ In detail:
   on pong), one otherwise, the runs queued over them. The same netlists; in Chrome, pong 9.2 s ->
   6.3 s and clock 8.2 s -> 5.8 s. After a crash (out of memory, #153) the run is made once more in a
   new worker, and from then on one Yosys at a time.
+- **Optimization Effort Normal / High with the Silinx toolchain (#282):** the synthesis's Process
+  Properties already had XST's Optimization Effort (`impl.optLevel`, Normal by default); the Silinx
+  toolchain now follows it. Normal is one Yosys run, the usual mapping onto LUT4s; High is every
+  mapping, the fastest kept (the wide one #54, the depth-oriented ones #78, the carry chains #77), as
+  before. The flow's console says which; the dialog says what each does, in English and in Portuguese;
+  it is an input of the synthesis's fingerprint (#280). Blinky, pong, clock: Normal 2.3 / 2.5 / 2.3 s,
+  High 3.7 / 8.2 / 9.3 s, the logic delay of the netlist 6.7 / 12.3 / 8.5 ns against 6.7 / 11.2 / 7.7.
+  The quality comparisons with ISE (design corpus, `research/s3e-route/open-flow.mjs`) keep the full
+  synthesis. The UI tests that check exact netlists or the placer's pins follow the new default.
 - **The synthesis up to date (#280):** Implement Design, its steps and Generate Programming File
   always ran the synthesis first (the server's and the browser's chain started at it). The application
   now keeps the fingerprint of what the last good synthesis read (the design sources, not the test

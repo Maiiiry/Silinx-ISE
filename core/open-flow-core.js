@@ -39,7 +39,8 @@ export class StepError extends Error {
 
 /**
  * Run the steps of spec ({ top, family, device, pkg, part, steps, seed, effort, replicate,
- * startupClk, synthUpToDate }) with io (above). synthUpToDate ({ report }: the synthesis part of the
+ * startupClk, synthUpToDate, synthEffort }) with io (above). synthEffort: 'normal' | 'high' (the default), the
+ * synthesis's Optimization Effort (#282). synthUpToDate ({ report }: the synthesis part of the
  * report of the run that made it, or null), when the steps start after the synthesis: the netlist of that
  * run is the design's (#280); it is used as it is, or, when it is not there, the synthesis runs.
  */
@@ -68,9 +69,12 @@ export async function runOpenFlow(spec, io) {
     const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
     if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
     log(`Writing <${top}> as one flat module for Yosys; Yosys (WebAssembly) maps it onto the ${spec.family} cells.`);
+    // (the synthesis's Optimization Effort, #282)
+    if (spec.synthEffort) log(spec.synthEffort === 'normal' ? 'Optimization Effort Normal: one mapping (High also tries the mappings for speed, a slower synthesis).'
+      : 'Optimization Effort High: the mappings for speed tried too, the fastest kept.');
     let r;
     try {
-      r = await synthesizeOpen(design, { family: spec.family, run: io.yosys, onLine: l => { if (/^(Warning|ERROR)/.test(l)) log(l.replace(/^Warning:/, 'WARNING:Yosys -').replace(/^ERROR:/, 'ERROR:Yosys -')); } });
+      r = await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high', onLine: l => { if (/^(Warning|ERROR)/.test(l)) log(l.replace(/^Warning:/, 'WARNING:Yosys -').replace(/^ERROR:/, 'ERROR:Yosys -')); } });
     } catch (e) {
       for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
       throw new StepError(`synthesis failed: ${e.message}`);
@@ -115,7 +119,7 @@ export async function runOpenFlow(spec, io) {
       const design = elaborate(lib, top, { generics });
       const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
       if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
-      try { r = await synthesizeOpen(design, { family: spec.family, run: io.yosys }); } catch (e) {
+      try { r = await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high' }); } catch (e) {
         for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
         throw new StepError(`synthesis failed: ${e.message}`);
       }

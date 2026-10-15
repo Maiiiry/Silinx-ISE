@@ -25,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deviceFamily } from '../core/family.js';
+import { synthEffort } from '../core/synth-open.js';
 import { findDeviceGraph, shippedDevicePath, buildDeviceCache, devicesDir, SHIPPED_DEVICES_DIR } from '../core/fpga/device-node.js';
 import { S3E_DEVICES } from '../core/fpga/bitstream.js';
 import { DB_DIR, hasBitDb, dbPackages } from '../research/s3e-bitstream/db.mjs';
@@ -171,7 +172,7 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
     pkg: String(project.device.package).toLowerCase(), graph: status.graph, bitDbDir: BIT_DB_DIR,
     sources: gen.sources.map(s => ({ path: s.path, lang: s.lang, file: path.join(gen.buildDir, s.buildPath) })),
     ucf: gen.hasUcf ? path.join(gen.buildDir, `${gen.top}.ucf`) : null,
-    buildDir: gen.buildDir, outDir, steps: st, seed, effort, startupClk: project.impl?.startupClk || 'JtagClk',
+    buildDir: gen.buildDir, outDir, steps: st, seed, effort, startupClk: project.impl?.startupClk || 'JtagClk', synthEffort: synthEffort(project.impl),
     ...(!st.includes('synth') && { synthUpToDate: { report: earlier } }),
     // the test bench, for the post-synthesis model's generics (#120)
     simTop: project.simTop || null,

@@ -935,12 +935,13 @@ function sourcesFingerprint() {
 }
 
 // the synthesis's own inputs (#280): the design sources (not the test benches, not the constraints), the
-// top, the device, the synthesis tool; the run that synthesized them ok is kept (S.synthDone: { fingerprint,
-// status }), so that Implement Design with the Silinx toolchain starts at Translate while they are the same
+// top, the device, the synthesis tool and its effort (#282); the run that synthesized them ok is kept
+// (S.synthDone: { fingerprint, status }), so that Implement Design with the Silinx toolchain starts at
+// Translate while they are the same
 function synthFingerprint(sources) {
   const ucf = S.project.constraints;
   const parts = sources.filter(f => f.role !== 'sim' && f.path !== ucf && !/\.ucf$/i.test(f.path)).map(f => `${f.path}\n${f.text}`).sort();
-  parts.push(`top\n${S.project.top}`, `dev\n${JSON.stringify(S.project.device)}`, `tool\n${S.project.synthTool || ''}\n${openMode()}`);
+  parts.push(`top\n${S.project.top}`, `dev\n${JSON.stringify(S.project.device)}`, `tool\n${S.project.synthTool || ''}\n${openMode()}`, `effort\n${S.project.impl?.optLevel ?? ''}`);
   let h = 2166136261;
   for (const c of parts.join('\0')) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
   return h.toString(16);
@@ -1307,14 +1308,14 @@ async function synthOpen(mod) {
     const family = S.project.device?.family || 'spartan3e';
     const srcs = S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && inView(s.role, false));
     const design = elaborate(compile([...primitiveSources(srcs), ...srcs]), mod);
-    const { synthesizeOpen } = await import('/core/synth-open.js');
+    const { synthesizeOpen, synthEffort } = await import('/core/synth-open.js');
     const { yosysBrowser } = await import('./yosys-client.js');
     log(`Writing <${mod}> as one flat module for Yosys; Yosys (WebAssembly) maps it onto the ${family} cells.`);
     const t0 = performance.now();
     let shown = -1;
     const run = Object.assign((args, files, onLine) => yosysBrowser(args, files, onLine, p => { if (p - shown >= 0.1 || p === 1) { shown = p; status(`Loading Yosys… ${Math.round(p * 100)}%`); } }),
       { parallel: yosysBrowser.parallel });
-    const res = await synthesizeOpen(design, { family, run, onLine: logLine });
+    const res = await synthesizeOpen(design, { family, run, onLine: logLine, effort: synthEffort(S.project.impl) });
     status(`Saving the netlist of ${mod}…`);
     for (const [name, text] of Object.entries(res.files)) await api.writeFile(S.project.name, `build/open/${name}`, text);
     const u = res.util;

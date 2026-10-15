@@ -832,6 +832,9 @@ export async function implProperties() {
     body: h('div', { class: 'form-grid' },
       ...field('Optimization Goal:', opt), ...field('Optimization Effort:', lvl),
       ...field('FPGA Start-Up Clock:', clk),
+      // the Silinx toolchain's synthesis: what its effort does (#282)
+      app.openMode() ? h('div', { class: 'effort-hint', style: { gridColumn: '1 / 3', color: 'var(--grey-3)' } },
+        'Silinx toolchain: Optimization Effort Normal synthesizes once, fast; High also tries the mappings for speed (a slower synthesis, a circuit about 5-10 % faster).') : null,
       h('div', { style: { gridColumn: '1 / 3', color: 'var(--grey-3)' } }, 'Use JTAG Clock when programming over JTAG (iMPACT, xc3sprog, djtgcfg); CCLK when booting from the PROM/flash.')),
   });
   if (!r) return;

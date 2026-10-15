@@ -331,6 +331,10 @@ export function utilization(counts) {
 export const QUIET = [/^Warning: Shift register inference not yet supported for family \w+\.$/,
   /^Warning: Resizing cell port \S+\.\d+\.\d+\.(DI|DO|DIP|DOP)[AB]? from (64|8) bits to \d+ bits\.$/];
 
+/** The open synthesis's effort from a project's implementation properties (#282): its Optimization Effort,
+ *  as XST's: High (optLevel 2) 'high', else (Normal, the default) 'normal'. */
+export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'normal');
+
 /**
  * Synthesize an elaborated design (core/elaborate.js). run(args, files, onLine) runs Yosys and
  * resolves with its output files ({ name: text }), or rejects with an error whose `lines` holds
@@ -341,9 +345,12 @@ export const QUIET = [/^Warning: Shift register inference not yet supported for 
  * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] (usual: the mapping kept
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
  * the depth-oriented one was kept, and delays: { ns, luts, kept } of the same with the LUT delays (#78) }.
+ * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
+ * usual mapping alone (no other mapping tried, no carry chains recovered: as depth false).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high' } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
+  if (effort === 'normal') depth = false;
   const tryDepth = depth && LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const opts = tryDepth ? { premap: PREMAP_FILE } : {};
   const log = [];
@@ -430,7 +437,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   // a comparator that then combines several bits at once, EPFL max, is slower). A design without such a
   // chain is synthesized as before, in one run.
   let res = null, chains = [];
-  if (LUT4_FAMILIES.has(YOSYS_FAMILY[family]) && gateAssignments(design) >= GATE_MIN) {
+  if (effort !== 'normal' && LUT4_FAMILIES.has(YOSYS_FAMILY[family]) && gateAssignments(design) >= GATE_MIN) {
     const [first, rest] = splitCommands(top, family, opts);
     const lines1 = [];
     const keep = l => { if (!quiet(l)) lines1.push(l); };

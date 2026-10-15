@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -410,4 +410,26 @@ test('a shift register on the falling edge alone (SRL16E_1) gets its clock throu
   const design = elaborate(compile([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [7:0] r = 0; always @(negedge clk) r <= {r[6:0], d}; assign q = r[7]; endmodule' }]), 't');
   const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
   assert.deepEqual(Object.fromEntries(Object.entries(r.cells).sort()), { BUFG: 1, IBUF: 2, OBUF: 1, SRL16E_1: 1 });
+});
+
+// #282: the synthesis's Optimization Effort: Normal (the projects' default) one Yosys run, the usual mapping;
+// High every mapping, the fastest kept (the default of synthesizeOpen, for the quality comparisons)
+test('#282 Optimization Effort: Normal synthesizes once (no other mapping, no carry chains), High as before; the project\'s property', { timeout: 180000 }, async () => {
+  assert.equal(synthEffort(undefined), 'normal');
+  assert.equal(synthEffort({ optLevel: 1 }), 'normal');
+  assert.equal(synthEffort({ optLevel: 2 }), 'high');
+  assert.equal(synthEffort({ optLevel: '2' }), 'high');
+  const chain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain');
+  const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+  const normal = count(), high = count();
+  const n = await synthesizeOpen(chain, { family: 'spartan3e', run: normal, effort: 'normal' });
+  const hi = await synthesizeOpen(chain, { family: 'spartan3e', run: high });
+  assert.equal(normal.n, 1);
+  assert.ok(high.n > 3, String(high.n));
+  assert.deepEqual([n.depth.tried, n.chains.length], [false, 0]);
+  assert.deepEqual(n.warnings, []);
+  // the usual mapping: slower than High's on this comparator chain, the same function
+  assert.ok(criticalDelay(n.files['chain.json'], 'chain') > criticalDelay(hi.files['chain.json'], 'chain'));
+  const d = compareNetlist(chain, n, { name: 'effort-normal-chain', sim: { cycles: 200 } });
+  assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
 });
