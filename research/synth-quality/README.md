@@ -219,6 +219,36 @@ The open flow (pack, place, route; Silinx's timing analysis of the routed design
 Left: EPFL adder (a 128-bit adder as gates: XST's netlist has 12.3 ns, ours 75); max is still 1.4
 times ISE's.
 
+## Carry chains of logic written as gates (#77)
+
+An adder or a comparator written bit by bit (a schematic of full adders, a ripple-carry adder in HDL, the
+EPFL benchmarks, which are AND-inverter graphs) reaches Yosys as gates; ABC maps them onto LUTs bit after
+bit and never onto the carry chain (the EPFL adder: 84 ns estimated, 75 ns by trce, against XST's 12 ns).
+Yosys's `extract_fa` finds almost none of the full adders of such a graph (1 chained full adder of 128 in
+the EPFL adder: it takes half adders where the carry runs through AND gates).
+
+`core/carry-chain.js` finds them on the netlist of Yosys's coarse synthesis (written as JSON at the start
+of synth_xilinx's `fine` step, the rest of the flow then run from the rewritten JSON):
+
+- the 3-cuts of every 1-bit logic cell, with their truth tables (k-cut enumeration, up to 48 cuts per
+  node: the cut {a[i], b[i], c[i]} of a carry is often far down the list);
+- a carry: a majority of three nets, each maybe inverted, the result too (`MAJ(~a, b, c)` is a borrow, a
+  comparison); a net and its inverse are one carry; a 2-input AND / OR may start a chain (bit 0);
+- a chain: carries each of which takes the one before as its third input, 4 at least; a carry with no
+  carry before (a carry in port) heads it, any of its inputs taken as the carry in (MAJ is symmetric);
+- the chain becomes one `$alu` (its A and B the bits' inputs, inverted where they are), the carries and
+  the sums (XOR3 of a bit's inputs and its carry in) driven from its CO and Y; the old gates are left
+  without loads.
+
+Only designs with 24 1-bit gates at least are looked at (the examples have 1 to 16). When a chain is
+found the design is mapped both ways, with the chains and as before (each with its depth-oriented
+remapping), and the faster kept by the rule of the depth-oriented mapping (DEPTH_RULE); without a chain it
+keeps its single run (the JSON round trip alone changes ABC's results a little: the order of the cells).
+EPFL adder: 129 LUT2 + 128 MUXCY + 127 XORCY instead of ~640 LUTs and MUXFs, 17.4 ns estimated instead of
+83.7. EPFL max: chains of 30 bits only (past them its comparators combine several bits at once, a
+lookahead the majority does not match), slower than without them (41.8 ns estimated against 31.9): mapped
+as before (#52 left).
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding

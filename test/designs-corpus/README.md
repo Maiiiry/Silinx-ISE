@@ -171,7 +171,7 @@ least its slowest design's time (the testbench included: uart-for-fpga's is most
 | machine class | designs | synthesis (s) | flow (s) | all the stages (s) |
 | --- | ---: | ---: | ---: | ---: |
 | `ci` | 38 | 1614 | 2341 | 4423 |
-| `local` | 38 | 532 | 1212 | 1868 |
+| `local` | 38 | 536 | 1213 | 1871 |
 
 The 8 slowest designs (s: synthesis / flow / all the stages):
 
@@ -236,7 +236,7 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | epfl-priority | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 144 | 288 | 137 | 16.524 | 0 |
 | epfl-dec | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 187 | 373 | 265 | 6.046 | 0 |
 | epfl-i2c | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 254 | 507 | 277 | 7.658 | 0 |
-| epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 268 | 535 | 386 | 75.137 | 1 (flow 1) |
+| epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 194 | 172 | 386 | 13.207 | 0 |
 | epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 854 | 1707 | 272 | 10.585 | 0 |
 | epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 645 | 1289 | 643 | 36.393 | 1 (flow 1) |
 

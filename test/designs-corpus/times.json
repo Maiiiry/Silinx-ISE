@@ -1,9 +1,9 @@
 {
  "local": {
   "epfl-adder": {
-   "synth": 5897,
-   "flow": 10504,
-   "total": 17084
+   "synth": 9191,
+   "flow": 11357,
+   "total": 20827
   },
   "epfl-bar": {
    "synth": 15518,

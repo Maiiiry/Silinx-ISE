@@ -12,6 +12,8 @@ In short:
   (**[Schematic]**), and the HDL generated from it behaves as the module did.
 - **Post-Synthesis Simulation Model without ISE:** the Silinx toolchain writes its netlist as a
   simulation model, so the test bench can be run on the synthesized design.
+- **Adders and comparators written as gates use the carry chain:** a ripple-carry adder drawn as a
+  schematic of full adders, or written gate by gate, is now as fast as one written `a + b`.
 
 In detail:
 
@@ -71,6 +73,14 @@ In detail:
 - **Tests that failed now and then on CI (#235, #236):** the post-synthesis model's UI test waits for
   the model's line (written once the reports are read, after the process's end); the server's test of a
   second implementation waits up to 20 s for the cancelled job to end.
+- **Open synthesis: carry chains of logic written as gates (#77):** adders and comparators written bit by
+  bit (a schematic of full adders, a ripple-carry adder in HDL, the EPFL benchmarks' AND-inverter graphs)
+  are found in the netlist (each carry a majority of the bit's two inputs and the carry before, a sum their
+  XOR) and mapped onto the Spartan-3E's carry chain (MUXCY / XORCY), as `a + b` is. The EPFL adder (128
+  bits): 129 LUTs and the carry chain instead of about 640 LUTs and MUXFs, its critical path estimated at
+  17 ns instead of 84 (ISE: 12 ns). A design with such chains is mapped with and without them and the
+  faster is kept (the EPFL max comparator, whose chains stop after 30 bits, keeps its LUTs); designs with
+  few gates are synthesized as before.
 
 ## 15.10.15
 

@@ -9,6 +9,7 @@
 //   r: { top, files: { '<top>_syn.v', '<top>.json', '<top>_yosys.v', '<top>_stat.txt' }, cells, util,
 //        warnings, log }
 import { toVerilog } from './synth-verilog.js';
+import { rewriteCarryChains, gateAssignments, GATE_MIN } from './carry-chain.js';
 
 // Silinx's device families -> synth_xilinx -family
 export const YOSYS_FAMILY = {
@@ -154,6 +155,15 @@ export function remapCommands(top, family) {
 // $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing
 const outputs = top => `delete t:$scopeinfo; write_json ${top}.json; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;
 
+// the netlist between the two runs of a design with carry chains written as gates (#77)
+export const CHAIN_FILE = 'silinx_chains.json';
+/** synthCommands in two: up to synth_xilinx's fine step (the coarse netlist), and from it on. */
+export function splitCommands(top, family, opts = {}) {
+  const cmds = synthCommands(top, family, opts);
+  const at = cmds.indexOf(`synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top} -run fine:`);
+  return [cmds.slice(0, at).replace(/;\s*$/, ''), cmds.slice(at)];
+}
+
 /** The Yosys script: read the flat module, map it, write the netlist and its statistics. */
 export function yosysScript(top, family, opts = {}) {
   const cells = LUT4_FAMILIES.has(YOSYS_FAMILY[family]) && opts.srl !== false ? `read_verilog -lib ${SRL_CELLS_FILE}; ` : '';
@@ -296,37 +306,67 @@ export const QUIET = [/^Warning: Shift register inference not yet supported for 
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const tryDepth = depth && LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
-  const script = yosysScript(top, family, tryDepth ? { premap: PREMAP_FILE } : {});
+  const opts = tryDepth ? { premap: PREMAP_FILE } : {};
   const log = [];
-  const line = l => { if (!QUIET.some(re => re.test(l))) { log.push(l); onLine(l); } };
-  const out = await run(['-q', '-p', script], yosysFiles(top, text), line);
-  const json = out[`${top}.json`];
-  if (!json) throw Object.assign(new Error('Yosys wrote no netlist'), { lines: log });
-  let chosen = out, cells = cellCounts(json, top);
-  const info = { tried: false, kept: false, ns: null, luts: null };
-  if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
-    // the design as it was before the LUT mapping, mapped again for depth; its messages are kept
-    // apart (the first run printed them), only a warning of its own joins the log when it is kept
-    const lines2 = [];
-    const out2 = await run(['-q', '-p', `${remapCommands(top, family)}; ${outputs(top)}`],
-      { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: DEPTH_ABC }, l => { if (!QUIET.some(re => re.test(l))) lines2.push(l); });
-    const json2 = out2[`${top}.json`];
-    if (json2) {
-      const cells2 = cellCounts(json2, top);
-      const ns = [criticalDelay(json, top), criticalDelay(json2, top)], luts = [utilization(cells).luts, utilization(cells2).luts];
-      Object.assign(info, { tried: true, kept: keepDepth(ns, luts), ns, luts });
-      if (info.kept) {
-        chosen = out2;
-        cells = cells2;
-        for (const l of lines2) if (/^Warning:/.test(l) && !log.includes(l)) line(l);
+  const quiet = l => QUIET.some(re => re.test(l));
+  const line = l => { if (!quiet(l)) { log.push(l); onLine(l); } };
+  // a mapping (its run's output) and, from the design as it was before its LUT mapping, the depth-oriented
+  // one: the faster kept (DEPTH_RULE); its messages apart, only a warning of its own joins the log
+  async function withDepth(out, say) {
+    const json = out[`${top}.json`];
+    if (!json) throw Object.assign(new Error('Yosys wrote no netlist'), { lines: log });
+    let chosen = out, cells = cellCounts(json, top);
+    const info = { tried: false, kept: false, ns: null, luts: null };
+    if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
+      const lines2 = [];
+      const out2 = await run(['-q', '-p', `${remapCommands(top, family)}; ${outputs(top)}`],
+        { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: DEPTH_ABC }, l => { if (!quiet(l)) lines2.push(l); });
+      const json2 = out2[`${top}.json`];
+      if (json2) {
+        const cells2 = cellCounts(json2, top);
+        const ns = [criticalDelay(json, top), criticalDelay(json2, top)], luts = [utilization(cells).luts, utilization(cells2).luts];
+        Object.assign(info, { tried: true, kept: keepDepth(ns, luts), ns, luts });
+        if (info.kept) {
+          chosen = out2;
+          cells = cells2;
+          for (const l of lines2) if (/^Warning:/.test(l)) say(l);
+        }
       }
     }
+    return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top) };
   }
+  // a design with logic written as gates: its carry chains (adders, comparators: core/carry-chain.js, #77)
+  // made $alu cells between two runs of Yosys (up to synth_xilinx's fine step, the netlist rewritten, then on
+  // from it); mapped both with and without them, the faster kept (as the depth-oriented mapping: a chain of
+  // a comparator that then combines several bits at once, EPFL max, is slower). A design without such a
+  // chain is synthesized as before, in one run.
+  let res = null, chains = [];
+  if (LUT4_FAMILIES.has(YOSYS_FAMILY[family]) && gateAssignments(design) >= GATE_MIN) {
+    const [first, rest] = splitCommands(top, family, opts);
+    const lines1 = [];
+    const keep = l => { if (!quiet(l)) lines1.push(l); };
+    const pre = await run(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${first}; select -module ${top}; write_json -selected ${CHAIN_FILE}`],
+      yosysFiles(top, text), keep);
+    const rw = pre[CHAIN_FILE] ? rewriteCarryChains(asText(pre[CHAIN_FILE]), { top }) : { chains: [] };
+    if (rw.chains.length) {
+      const linesC = [], linesN = [];
+      const outC = await run(['-q', '-p', `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_json ${CHAIN_FILE}; hierarchy -top ${top}; ${rest}; ${outputs(top)}`],
+        { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); });
+      const resC = await withDepth(outC, l => linesC.push(l));
+      const outN = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => { if (!quiet(l)) linesN.push(l); });
+      const resN = await withDepth(outN, l => linesN.push(l));
+      const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts]);
+      if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) line(l); res = resC; }
+      else { for (const l of linesN) line(l); res = resN; }
+    }
+  }
+  if (!res) res = await withDepth(await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), line), line);
+  const { chosen, cells, info } = res;
   const files = { [`${top}_syn.v`]: text, [`${top}.json`]: chosen[`${top}.json`], [`${top}_yosys.v`]: chosen[`${top}_yosys.v`] || '', [`${top}_stat.txt`]: chosen[`${top}_stat.txt`] || '' };
   // (a shift-chain array read at a variable tap is made flip-flops on purpose, then SRL16Es: Yosys's
   // "Replacing memory \m with list of registers" says nothing to the user there, #5)
   const expected = l => shiftArrays.some(n => l.startsWith(`Warning: Replacing memory ${n} with list of registers.`));
-  return { top, files, cells, util: utilization(cells), warnings: [...warnings, ...log.filter(l => /^Warning:/.test(l) && !expected(l))], log, depth: info };
+  return { top, files, cells, util: utilization(cells), warnings: [...warnings, ...log.filter(l => /^Warning:/.test(l) && !expected(l))], log, depth: info, chains };
 }
 
 /**
