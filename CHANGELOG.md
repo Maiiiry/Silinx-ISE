@@ -55,6 +55,9 @@ In detail:
   `to_unsigned(8389, 14)` of an integer, in a product, was sign-extended: the stopwatch example's
   decimal display showed wrong thousands and hundreds with the Silinx toolchain (7 as 15 1 0 7). Found
   by the post-synthesis model's test of the examples.
+- **Tests that failed now and then on CI (#235, #236):** the post-synthesis model's UI test waits for
+  the model's line (written once the reports are read, after the process's end); the server's test of a
+  second implementation waits up to 20 s for the cancelled job to end.
 
 ## 15.10.15
 

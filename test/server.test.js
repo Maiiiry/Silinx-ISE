@@ -145,7 +145,9 @@ test('a second implementation of the same project is refused with 409 while the 
   assert.equal((await call('POST', '/projects/Impl2/implement', { generateOnly: true })).status, 200);
   // after cancelling, a new run is accepted
   jobs.cancelJob(a.body.job);
-  for (let i = 0; i < 200 && jobs.getJob(a.body.job).status === 'running'; i++) await new Promise(r => setTimeout(r, 20));
+  // (the job ends when the killed tool has exited: seconds on a loaded runner)
+  for (let i = 0; i < 1000 && jobs.getJob(a.body.job).status === 'running'; i++) await new Promise(r => setTimeout(r, 20));
+  assert.notEqual(jobs.getJob(a.body.job).status, 'running', 'the cancelled job still running after 20 s');
   assert.equal((await call('POST', '/projects/Impl/implement', { generateOnly: true })).status, 200);
 });
 

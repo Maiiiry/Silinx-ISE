@@ -403,6 +403,8 @@ uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simu
   await reloadToolchain(page);
   await page.treeRow('#procs', 'Generate Post-Synthesis Simulation Model', { dbl: true, exact: true });
   await page.waitConsole(DONE('Generate Post-Synthesis Simulation Model'), { timeout: 180000 });
+  // (the model's line comes after the process's end: once the reports are read)
+  await page.waitConsole(/Post-Synthesis simulation model: /, { timeout: 30000 });
   const text = await page.consoleText();
   assert.match(text, /Process "Generate Post-Synthesis Simulation Model" completed successfully/, text.slice(-3000));
   assert.match(text, /Synthesizing 'top' with the generics the test bench 'tb_top' gives: div = 2, debounce = 2/);
