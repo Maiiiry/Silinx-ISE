@@ -54,3 +54,19 @@ jobs:
         run: docker image inspect --format '{{.Id}} {{.Size}}' "${SILINX_ISE_IMAGE:-xilinx/ise:14.7}"
       - name: ISE tests
         run: node --test --test-reporter=spec test/ise/*.test.js
+
+  # a failed job is an issue (#251): one per job ('<workflow> failed: <job>'), commented on when it is
+  # open already; the lines of its log that say what failed, without home folders, logins or addresses
+  report:
+    needs: [changes, ise]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: node scripts/report-failure.mjs
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
