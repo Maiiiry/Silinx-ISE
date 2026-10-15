@@ -9,7 +9,8 @@ In short:
 
 - **Faster Platform Flash from the browser:** programming and verifying the PROM of the Basys2 /
   Nexys2 from the browser edition now takes seconds instead of minutes.
-- **Faster open synthesis:** Synthesize - Yosys (open) takes less time, its result the same.
+- **Faster open synthesis:** Synthesize - Yosys (open) takes about a third less time in the browser
+  (pong 9.2 s -> 6.3 s in Chrome), and less on the server too; its result the same.
 
 In detail:
 
@@ -25,6 +26,12 @@ In detail:
   design now takes about 540 transfers. The console lines, the errors and the ISC protocol are those
   of before; the simulated PROM now also flags an instruction that cuts a program short (a wait too
   short), and a test counts the transfers. The full application's `scripts/xcf_prog.py` is unchanged.
+- **Yosys in two workers in the browser (#276):** the page ran Yosys in one Web Worker, so the
+  synthesis's mappings from the same netlist (#86) ran one after the other; it now keeps two when the
+  device has 4 cores or more and 8 GB of memory or more (or does not say: each Yosys takes about 2 GB
+  on pong), one otherwise, the runs queued over them. The same netlists; in Chrome, pong 9.2 s ->
+  6.3 s and clock 8.2 s -> 5.8 s. After a crash (out of memory, #153) the run is made once more in a
+  new worker, and from then on one Yosys at a time.
 - **The second balancing at once (#277):** the depth-oriented mapping's second balancing (with and
   without the LUT delays, #78) starts with the first mappings when 4 Yosys or more run at a time,
   only its choice waiting for them: the netlist the same, pong's synthesis 8.1 s -> 7.1 s and
