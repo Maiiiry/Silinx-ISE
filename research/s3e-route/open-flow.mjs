@@ -17,7 +17,7 @@ import path from 'node:path';
 import { compile, elaborate } from '../../core/compile.js';
 import { primitiveSources } from '../../core/unisim.js';
 import { synthesizeOpen } from '../../core/synth-open.js';
-import { yosysNode } from '../../core/synth-open-node.js';
+import { yosysWorkers } from '../../core/synth-open-node.js';
 import { parseXdl, writeXdl } from '../../core/xdl.js';
 import { readYosysJson } from '../../core/fpga/netlist.js';
 import { pack } from '../../core/fpga/pack.js';
@@ -53,7 +53,7 @@ if (!netFile) {
   const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
   if (errs.length) fail('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`));
   for (const w of [...lib.errors, ...design.diags].filter(d => d.severity === 'warning')) console.log(`  Warning: ${w.file}:${w.line} ${w.message}`);
-  const r = await synthesizeOpen(design, { family: proj.device.family || 'spartan3e', run: yosysNode, onLine: l => { if (/^ERROR/.test(l)) console.log(`  ${l}`); } });
+  const r = await synthesizeOpen(design, { family: proj.device.family || 'spartan3e', run: yosysWorkers(), onLine: l => { if (/^ERROR/.test(l)) console.log(`  ${l}`); } });
   for (const w of r.warnings) console.log(`  ${/^Warning:/.test(w) ? w : `Warning: ${w}`}`);
   for (const [name, text] of Object.entries(r.files)) fs.writeFileSync(path.join(outDir, name), text);
   netFile = path.join(outDir, `${top}.json`);

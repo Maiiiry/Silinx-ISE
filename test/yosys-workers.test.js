@@ -1,6 +1,7 @@
 // Yosys in worker threads for Node (core/synth-open-node.js yosysWorkers, #86): runs given at once go in
 // parallel up to n, the others queued; outputs, lines and errors as yosysNode's; the open synthesis
-// gives the same netlist; idle workers do not keep the process alive.
+// gives the same netlist; idle workers do not keep the process alive. With 4 Yosys or more at a time,
+// the second balancing starts with the first mappings (#277), the netlist the same.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -9,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { yosysNode, yosysWorkers } from '../core/synth-open-node.js';
-import { synthesizeOpen } from '../core/synth-open.js';
+import { synthesizeOpen, DEPTH_ABC2 } from '../core/synth-open.js';
 import { compile, elaborate } from '../core/compile.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -69,4 +70,63 @@ console.log(Object.keys(o).includes('m.json') ? 'done' : 'no netlist');`;
   const r = spawnSync(process.execPath, [file], { encoding: 'utf8', timeout: 100000 });
   assert.equal(r.status, 0, r.stderr);
   assert.equal(r.stdout.trim(), 'done');
+});
+
+// the runs of a synthesis, in the order they are called and end: [{ kind, start, end }] (an event counter)
+function recorder(parallel) {
+  let tick = 0;
+  const runs = [];
+  const run = (args, files, onLine) => {
+    const p = args.join(' ');
+    const r = { kind: /^-q -p read_rtlil/.test(p) ? (/silinx_lut\.lib/.test(p) ? 'second-delays' : files['silinx_depth.abc'] === DEPTH_ABC2 ? 'second' : 'first') : 'synth', start: ++tick, end: null };
+    runs.push(r);
+    return yosysNode(args, files, onLine).then(o => { r.end = ++tick; return o; });
+  };
+  return Object.assign(run, parallel ? { parallel } : {}, { runs });
+}
+const CHAIN = `module chain(input clk, input [23:0] a, input [23:0] b, output reg gt);
+  reg [23:0] ra, rb;
+  integer i;
+  reg g;
+  always @* begin
+    g = 1'b0;
+    for (i = 0; i < 24; i = i + 1) g = (ra[i] & ~rb[i]) | (~(ra[i] ^ rb[i]) & g);
+  end
+  always @(posedge clk) begin ra <= a; rb <= b; gt <= g; end
+endmodule
+`;
+const COUNTER = 'module counter(input clk, output reg [7:0] q); always @(posedge clk) q <= q + 1; endmodule\n';
+
+test('#277 with 4 Yosys at a time the second balancing starts with the first mappings, with fewer after them; the same netlist', { timeout: 300000 }, async () => {
+  const chain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain');
+  const few = recorder(2), many = recorder(4);
+  const r1 = await synthesizeOpen(chain, { run: few });
+  const r2 = await synthesizeOpen(chain, { run: many });
+  const kinds = rs => rs.map(r => r.kind);
+  assert.deepEqual(kinds(few.runs), ['synth', 'first', 'first', 'second', 'second-delays']);
+  assert.deepEqual(kinds(many.runs), ['synth', 'first', 'first', 'second', 'second-delays']);
+  const firstEnd = rs => Math.max(...rs.filter(r => r.kind === 'first').map(r => r.end));
+  const secondStart = rs => Math.min(...rs.filter(r => /^second/.test(r.kind)).map(r => r.start));
+  // two: after the first ones ended (the depth-oriented one kept); four: before
+  assert.ok(secondStart(few.runs) > firstEnd(few.runs), JSON.stringify(few.runs));
+  assert.ok(secondStart(many.runs) < firstEnd(many.runs), JSON.stringify(many.runs));
+  assert.equal(r2.files['chain.json'], r1.files['chain.json']);
+  assert.deepEqual(r2.depth, r1.depth);
+  assert.deepEqual(r2.warnings, r1.warnings);
+  assert.equal(r1.depth.kept, true, JSON.stringify(r1.depth));
+  // a counter: the depth-oriented mapping not kept; with four, its second balancing made and left
+  const counter = elaborate(compile([{ path: 'counter.v', lang: 'verilog', text: COUNTER }]), 'counter');
+  const c1 = recorder(), c2 = recorder(4);
+  const n1 = await synthesizeOpen(counter, { run: c1 }), n2 = await synthesizeOpen(counter, { run: c2 });
+  assert.deepEqual(kinds(c1.runs), ['synth', 'first', 'first']);
+  assert.deepEqual(kinds(c2.runs), ['synth', 'first', 'first', 'second', 'second-delays']);
+  assert.equal(n2.files['counter.json'], n1.files['counter.json']);
+  assert.deepEqual(n2.depth, n1.depth);
+  assert.deepEqual([n1.depth.kept, n1.depth.second, n1.depth.delays], [false, undefined, undefined]);
+});
+
+test('#277 yosysWorkers says how many Yosys it runs at a time: n, by default 4 at most and one core left', () => {
+  assert.equal(yosysWorkers(3).parallel, 3);
+  const cores = os.availableParallelism?.() ?? os.cpus().length;
+  assert.equal(yosysWorkers().parallel, Math.min(4, Math.max(1, cores - 1)));
 });

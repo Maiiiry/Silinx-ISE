@@ -21,11 +21,11 @@ export async function yosysNode(args, files, onLine = () => {}) {
 
 /**
  * run() for Node with Yosys in worker threads (#86): the runs the open synthesis makes at once (its
- * mappings from the same netlist) go in parallel, up to n Yosys at a time (2, or 1 on a single core),
+ * mappings from the same netlist) go in parallel, up to n Yosys at a time (4, fewer on fewer cores: one core is left to the rest),
  * the others queued. A worker is kept for the next runs (its WebAssembly module compiled once) and does
  * not keep the process alive while idle. Its errors are yosysNode's.
  */
-export function yosysWorkers(n = Math.min(2, Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1))) {
+export function yosysWorkers(n = Math.min(4, Math.max(1, (os.availableParallelism?.() ?? os.cpus().length) - 1))) {
   const idle = [], queue = [];
   let count = 0, seq = 0;
   const start = () => {
@@ -57,9 +57,12 @@ export function yosysWorkers(n = Math.min(2, Math.max(1, (os.availableParallelis
     w.ref();
     w.postMessage({ id: job.id, args: job.args, files: job.files });
   };
-  return (args, files, onLine = () => {}) => new Promise((resolve, reject) => {
+  const run = (args, files, onLine = () => {}) => new Promise((resolve, reject) => {
     queue.push({ id: ++seq, args, files, onLine, resolve, reject });
     if (idle.length) next(idle.pop());
     else if (count < n) next(start());
   });
+  // (how many at a time: core/synth-open.js starts the runs it may not need when there are enough, #277)
+  run.parallel = n;
+  return run;
 }
