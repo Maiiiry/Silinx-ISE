@@ -42,15 +42,16 @@ anyone changing it, people and AI agents alike. The README and docs/ describe th
 
 ## Integration
 
-- Work is done on branches (agent worktrees under `.claude/worktrees/`), rebased on `origin/main`,
-  then merged into `main` and pushed.
-- **Tests while working**: run the tests related to the change; run the full suites once at the end,
-  on the commit to be merged: `npm test`, `npm run test:ui` and
-  `SILINX_UI_INTERFACE=classic npm run test:ui`.
-- **Merging**: when the merge is a fast-forward to that tested commit, push without running again
-  (CI confirms). Otherwise run the full suites again before pushing. Always check the CI run of the
-  push.
-- **CI** (`.github/workflows/ci.yml`) runs everything on every push to main: unit tests on Linux,
+- Work is done on branches (agent worktrees under `.claude/worktrees/`), rebased on `origin/main`.
+- **Tests while working, locally**: only the tests related to the change (the files it touches and
+  their neighbours), a few at a time; no full suites and no parallel stress runs on the developer's
+  machine. To check a fix against load, use `SILINX_UI_THROTTLE` on one or two processes.
+- **The full suites run on GitHub**: push the branch and open a pull request
+  (`gh pr create`, its description saying `Fixes #N`). CI runs everything on it.
+- **Merging**: when the pull request's CI is green, merge it into `main` (rebased, fast-forward, no
+  merge commit) without running the suites again locally. If `main` moved meanwhile, rebase the
+  branch and push it again (CI runs again). Then check the CI run of `main`.
+- **CI** (`.github/workflows/ci.yml`) runs everything on every pull request and every push to main: unit tests on Linux,
   macOS and Windows, UI in both interfaces, Firefox and WebKit, the standalone build, the release zip.
   A docs-only push runs `docs.yml` only. The ISE tests (nightly) and the quality comparison against
   XST (weekly) run on a self-hosted runner, only when main changed since their last run.
