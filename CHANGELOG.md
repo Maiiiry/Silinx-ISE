@@ -11,6 +11,9 @@ In short:
   Nexys2 from the browser edition now takes seconds instead of minutes.
 - **Faster open synthesis:** Synthesize - Yosys (open) takes about a third less time in the browser
   (pong 9.2 s -> 6.3 s in Chrome), and less on the server too; its result the same.
+- **No synthesis again when it is up to date:** with the Silinx toolchain, Implement Design and
+  Generate Programming File start at Translate when the design has not changed since its last
+  synthesis (only the pins, or nothing): "Synthesize - Yosys is up to date", as in ISE.
 
 In detail:
 
@@ -32,6 +35,16 @@ In detail:
   on pong), one otherwise, the runs queued over them. The same netlists; in Chrome, pong 9.2 s ->
   6.3 s and clock 8.2 s -> 5.8 s. After a crash (out of memory, #153) the run is made once more in a
   new worker, and from then on one Yosys at a time.
+- **The synthesis up to date (#280):** Implement Design, its steps and Generate Programming File
+  always ran the synthesis first (the server's and the browser's chain started at it). The application
+  now keeps the fingerprint of what the last good synthesis read (the design sources, not the test
+  benches nor the constraints; the top, the device, the synthesis tool) in `build/silinx-status.json`;
+  while it is the same, a run with the Silinx toolchain leaves the synthesis out (`synthUpToDate`):
+  it starts at Translate from `build/open/<top>.json`, says `Process "Synthesize - Yosys" is up to
+  date`, and the Design Summary keeps what that synthesis made. Without that netlist (another
+  browser, the build folder emptied) the synthesis runs. Synthesize itself, and a run with the
+  Post-Synthesis Simulation Model, always run it; the ISE modes are as before. On blinky, a change of
+  the pins: Generate Programming File without its 5 s of synthesis.
 - **Implement Design's synthesis in the Yosys workers too (#279):** the browser edition's flow
   (Implement Design, Generate Programming File) ran Yosys in its own worker's thread, one run at a
   time; it now keeps a pool of Yosys workers of its own (as #276's, started from a Blob in the

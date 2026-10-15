@@ -441,3 +441,53 @@ uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simu
   assert.match(await page.consoleText(), /with the post-synthesis netlist of 'top'/);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });
+
+// #280: Implement Design does not synthesize again while the synthesis is up to date (the design sources,
+// the top, the device the same): a change of the pins only starts at Translate, from the saved netlist, the
+// Design Summary still says what the synthesis made; reopened, the same; a change of an HDL file, the
+// synthesis runs; Synthesize itself always runs
+uiTest('#280 open mode: Generate Programming File after a change of the pins only does not synthesize again; after a change of the HDL it does', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenAgain', template: 'blinky' });
+  await page.openProject('OpenAgain');
+  await reloadToolchain(page);
+  // a process run: its part of the console (from where the console was before)
+  const run = async (proc) => {
+    const before = (await page.consoleText()).length;
+    await page.treeRow('#procs', proc, { dbl: true, exact: true });
+    await page.waitFor((b, re) => new RegExp(re).test(document.getElementById('console-log').innerText.slice(b)), [before, DONE(proc).source], { what: proc, timeout: 120000 });
+    return (await page.consoleText()).slice(before);
+  };
+  const file = (p) => env.server.api('GET', `/api/projects/OpenAgain/file?path=${encodeURIComponent(p)}`);
+  const synthRuns = (log) => /=== SILINX STEP synth ===|Writing <top> as one flat module for Yosys/.test(log);
+  const UPTODATE = 'Process "Synthesize - Yosys" is up to date: its netlist build/open/top.json is used.';
+  let log = await run('Generate Programming File');
+  assert.match(log, /Process "Generate Programming File" completed successfully/, log.slice(-3000));
+  assert.ok(synthRuns(log), 'the first run synthesizes');
+  const synth1 = (await env.server.api('GET', '/api/projects/OpenAgain/reports')).synthesis;
+  assert.ok(synth1?.utilization?.length, JSON.stringify(synth1));
+  // the pins of two LEDs swapped: from Translate on
+  const ucf = await file('constraints/top.ucf');
+  assert.match(ucf, /NET "led<7>" LOC = "G1"/);
+  await env.server.api('PUT', `/api/projects/OpenAgain/file?path=${encodeURIComponent('constraints/top.ucf')}`, ucf.replace('"P4"', '"XX"').replace('"G1"', '"P4"').replace('"XX"', '"G1"'));
+  log = await run('Generate Programming File');
+  assert.match(log, /Process "Generate Programming File" completed successfully/, log.slice(-3000));
+  assert.ok(!synthRuns(log), log.slice(0, 3000));
+  assert.ok(log.includes(UPTODATE), log.slice(0, 3000));
+  const st = await page.eval(() => window.SilinxApp.S.status);
+  for (const id of ['synth', 'translate', 'map', 'par', 'impl', 'bitgen']) assert.ok(['ok', 'warn'].includes(st[id]), `${id}: ${st[id]}`);
+  assert.deepEqual((await env.server.api('GET', '/api/projects/OpenAgain/reports')).synthesis, synth1);
+  // reopened: still up to date
+  await page.openProject('OpenAgain');
+  log = await run('Implement Design');
+  assert.ok(!synthRuns(log) && log.includes(UPTODATE), log.slice(0, 3000));
+  // Synthesize itself runs it
+  log = await run('Synthesize - Yosys');
+  assert.ok(synthRuns(log), log.slice(0, 3000));
+  // an HDL file changed (a comment): the synthesis runs
+  const v = await file('src/counter.v');
+  await env.server.api('PUT', `/api/projects/OpenAgain/file?path=${encodeURIComponent('src/counter.v')}`, `${v}// changed\n`);
+  log = await run('Implement Design');
+  assert.ok(synthRuns(log) && !log.includes(UPTODATE), log.slice(0, 3000));
+  assert.match(log, /Process "Implement Design" completed successfully/);
+});

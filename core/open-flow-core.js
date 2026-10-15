@@ -39,7 +39,9 @@ export class StepError extends Error {
 
 /**
  * Run the steps of spec ({ top, family, device, pkg, part, steps, seed, effort, replicate,
- * startupClk }) with io (above).
+ * startupClk, synthUpToDate }) with io (above). synthUpToDate ({ report }: the synthesis part of the
+ * report of the run that made it, or null), when the steps start after the synthesis: the netlist of that
+ * run is the design's (#280); it is used as it is, or, when it is not there, the synthesis runs.
  */
 export async function runOpenFlow(spec, io) {
   const { top } = spec;
@@ -254,8 +256,20 @@ export async function runOpenFlow(spec, io) {
   // (Place & Route of an earlier run: the routed design it wrote)
   const routedOrEarlier = () => { if (routedText == null) routedText = io.read('open/routed.xdl'); if (routedText == null) throw new StepError('no routed design: run Place & Route first', [], ''); };
 
-  const steps = spec.steps;
+  let steps = spec.steps;
   try {
+    // the synthesis up to date (#280): its netlist and what its report said, or it runs again
+    if (spec.synthUpToDate && !steps.includes('synth')) {
+      if (io.read(`open/${top}.json`) == null) {
+        log('The netlist of the synthesis is not in the build folder: the synthesis runs again.');
+        steps = ['synth', ...steps];
+      } else {
+        log(`Process "Synthesize - Yosys" is up to date: its netlist build/open/${top}.json is used.`);
+        const r = spec.synthUpToDate.report;
+        if (r?.synthesis) report.synthesis = r.synthesis;
+        for (const k of ['netlist', 'synthesis']) if (r?.files?.[k]) report.files[k] = r.files[k];
+      }
+    }
     if (steps.includes('synth')) { step('synth'); await runSynth(); save(); }
     if (steps.includes('postsynth')) { step('postsynth'); await runPostSynth(); save(); }
     if (steps.includes('translate')) { step('translate'); runTranslate(); save(); }

@@ -318,6 +318,40 @@ const newProject = async (page, name, template) => {
 };
 const UNSUPPORTED = 'This browser cannot give a page a folder on the disk (File System Access API: Chrome or Edge); the projects are kept in the browser\'s storage';
 
+// #280: a second Generate Programming File with the design unchanged (only the pins may have changed) starts
+// at Translate, from the netlist of the first: the browser's flow worker as the server's
+uiTest('#280 browser edition: Generate Programming File again, the design unchanged: the synthesis up to date, not run again', E, async (page) => {
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Again');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Again' && window.Silinx.project.top);
+  await page.click('input[name=view][value=impl]');
+  const run = async () => {
+    const before = (await page.consoleText()).length;
+    await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+    await page.waitFor((b) => /Process "Generate Programming File" (completed successfully|failed)/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the flow', timeout: 120000 });
+    return (await page.consoleText()).slice(before);
+  };
+  let log = await run();
+  assert.match(log, /=== SILINX STEP synth ===/);
+  assert.match(log, /Process "Generate Programming File" completed successfully/);
+  log = await run();
+  assert.doesNotMatch(log, /=== SILINX STEP synth ===/);
+  assert.match(log, /Process "Synthesize - Yosys" is up to date: its netlist build\/open\/top\.json is used\./);
+  assert.match(log, /=== SILINX STEP translate ===[\s\S]*=== SILINX STEP bitgen ===/);
+  assert.match(log, /Process "Generate Programming File" completed successfully/);
+  const st = await page.eval(() => window.SilinxApp.S.status);
+  for (const id of ['synth', 'translate', 'map', 'par', 'impl', 'bitgen']) assert.ok(['ok', 'warn'].includes(st[id]), `${id}: ${st[id]}`);
+}, { url: () => 'about:blank', timeout: 240000 });
+
 uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in a folder on the disk, in the full application\'s format', E, async (page) => {
   const fakeUrl = `${siteUrl}__test/fs-access-fake.js`;
   await page.send('Page.addScriptToEvaluateOnNewDocument', { source: FAKE_FOLDER(fakeUrl) });

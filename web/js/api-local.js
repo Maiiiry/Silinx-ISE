@@ -272,12 +272,14 @@ export const api = {
   }),
   saveToolchain: async () => api.toolchain(),
   openStatus: async name => browserOpenStatus((await projectJson(name)).device || {}),
-  implement: async (name, { steps } = {}) => {
+  implement: async (name, { steps, synthUpToDate = false } = {}) => {
     const p = await store.load(name);
     if (p.json.synthTool === 'xst') return fakeJob('implement', NEED_ISE, 'error', 'XST needs Xilinx ISE 14.7 (choose Silinx as the synthesis tool in Design Properties)');
     const id = `local-${++jobSeq}`;
     const job = { id, kind: 'implement', status: 'running', lines: [], next: 0, error: null };
     jobs.set(id, job);
+    // (the synthesis up to date, #280: what the last run's report said about it)
+    const before = synthUpToDate ? (await savedBuild(name))?.report : null;
     const b = buildOf(name);
     const push = l => { job.lines.push(l); job.next = job.lines.length; };
     // the outputs of a previous run no longer match the design (a failure must not leave a bitstream)
@@ -292,6 +294,7 @@ export const api = {
     const json = p.json, files = { ...p.files };
     runBrowserFlow({
       project: json, files: { ...files, ...b.files }, steps,
+      synthUpToDate: synthUpToDate ? { report: before ? { synthesis: before.synthesis, files: { netlist: before.files?.netlist, synthesis: before.files?.synthesis } } : null } : null,
       onLine: push,
       onWrite: (path, data) => {
         b.files[path] = data;
