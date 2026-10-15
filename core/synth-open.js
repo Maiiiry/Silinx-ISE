@@ -491,3 +491,27 @@ export function lineStream(onLine) {
     if (!bytes && buf) { onLine(buf); buf = ''; }
   };
 }
+
+/**
+ * The code of a Yosys worker (as web/js/yosys-worker.js) that loads Yosys from bundleUrl (YoWASP's
+ * gen/bundle.js): for a worker started from a Blob, with no file of its own.
+ */
+export function yosysWorkerSource(bundleUrl) {
+  return `import { runYosys } from ${JSON.stringify(String(bundleUrl))};
+const lineStream = ${lineStream};
+const asText = ${asText};
+const yosysError = ${yosysError};
+self.onmessage = async ({ data: { id, args, files } }) => {
+  const out = lineStream(line => self.postMessage({ id, line }));
+  try {
+    const res = await runYosys(args, files, { stdout: out, stderr: out });
+    out(null);
+    self.postMessage({ id, files: Object.fromEntries(Object.entries(res).map(([k, v]) => [k, asText(v)])) });
+  } catch (e) {
+    out(null);
+    const { message, code, crash } = yosysError(e);
+    self.postMessage({ id, error: message, code, crash });
+  }
+};
+`;
+}

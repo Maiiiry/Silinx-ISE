@@ -7,7 +7,8 @@
 import { runOpenFlow } from '/core/open-flow-core.js';
 import { loadDevice } from '/core/fpga/device.js';
 import { dbFileNames, dbFilesFrom, makeBitDb } from '/core/fpga/bitdb.js';
-import { lineStream, asText, yosysError } from '/core/synth-open.js';
+import { lineStream, asText, yosysError, yosysWorkerSource } from '/core/synth-open.js';
+import { yosysPool } from './yosys-client.js';
 import { parseXdl, fpgaModel, deviceGrid, MODEL_VERSION } from '/core/xdl.js';
 
 const fetchOk = async (url, what) => {
@@ -19,6 +20,9 @@ async function gunzipJson(res) {
   const stream = res.body.pipeThrough(new DecompressionStream('gzip'));
   return JSON.parse(await new Response(stream).text());
 }
+
+// the Yosys workers, by the URL of Yosys: kept from one run of the flow to the next
+const pools = new Map();
 
 self.onmessage = async ({ data }) => {
   const { spec, sources, simSources = [], ucf, ucfName, files, assets } = data;
@@ -37,13 +41,13 @@ self.onmessage = async ({ data }) => {
     }));
     if (!json.layout || !json.tiles) throw new Error(`no bit database for ${spec.device} on the site`);
     const db = makeBitDb(dbFilesFrom(json, spec.pkg), device, spec.part);
-    // Yosys, compiled to WebAssembly (YoWASP): fetched once, then cached by the browser
-    let runYosys = null;
-    const yosys = async (args, yfiles, onLine) => {
-      if (!runYosys) {
-        post({ line: 'Loading Yosys (WebAssembly: downloaded once, then kept by the browser)…' });
-        ({ runYosys } = await import(new URL('vendor/yowasp-yosys/gen/bundle.js', base).href));
-      }
+    // Yosys, compiled to WebAssembly (YoWASP): fetched once, then cached by the browser; in workers of
+    // this worker (#279), the synthesis's mappings from the same netlist in parallel (web/js/yosys-client.js),
+    // or in this worker's own thread where it cannot start them
+    const bundle = new URL('vendor/yowasp-yosys/gen/bundle.js', base).href;
+    let runYosys = null, loading = false;
+    const inThread = async (args, yfiles, onLine) => {
+      if (!runYosys) ({ runYosys } = await import(bundle));
       const out = lineStream(onLine);
       try {
         const res = await runYosys(args, yfiles, { stdout: out, stderr: out });
@@ -55,6 +59,25 @@ self.onmessage = async ({ data }) => {
         throw Object.assign(new Error(message), { code });
       }
     };
+    let pool = null;
+    if (!pools.has(bundle) && typeof Worker !== 'undefined') {
+      try {
+        const url = URL.createObjectURL(new Blob([yosysWorkerSource(bundle)], { type: 'text/javascript' }));
+        pools.set(bundle, yosysPool({ spawn: () => new Worker(url, { type: 'module' }) }));
+      } catch { pools.set(bundle, null); }
+    }
+    pool = pools.get(bundle) || null;
+    const yosys = Object.assign(async (args, yfiles, onLine) => {
+      if (!loading) { loading = true; post({ line: 'Loading Yosys (WebAssembly: downloaded once, then kept by the browser)…' }); }
+      if (pool) {
+        try { return await pool(args, yfiles, onLine); } catch (e) {
+          if (!e.workerFailed) throw e;
+          // no worker here (a browser without workers in workers, or a blocked Blob): this thread from now on
+          pools.set(bundle, pool = null);
+        }
+      }
+      return inThread(args, yfiles, onLine);
+    }, { parallel: pool ? pool.parallel : 1 });
     const store = { ...(files || {}) };
     const io = {
       log: line => post({ line }),
