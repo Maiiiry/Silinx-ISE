@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -282,6 +282,21 @@ endmodule
   assert.equal(d2.status, 'pass', d2.report || JSON.stringify(d2));
 });
 
+// #78: the LUT delays, ABC's script inline (YoWASP's ABC crashes on read_lut from a script file)
+test('logic depth with the LUT delays (#78): the library, the inline script, the remap; Yosys reads it and maps 5- and 6-input functions', { timeout: 120000 }, async () => {
+  assert.equal(LUT_LIB, '1 1 1.21\n2 1 1.21\n3 1 1.21\n4 1 1.21\n5 2 1.60\n6 4 1.89\n');
+  assert.equal(abcInline('strash; dch -f; if -g; mfs2'), '+read_lut,silinx_lut.lib;strash;dch,-f;if,-g;mfs2');
+  assert.equal(remapCommands('top', 'spartan3e', { inline: 'strash; if' }).split('; ').slice(0, 2).join('; '),
+    'read_rtlil silinx_premap.il; abc -luts 1,1,1,1,2,4 -script +read_lut,silinx_lut.lib;strash;if');
+  // Yosys (YoWASP) runs it: wide functions where they are faster, as the delays say
+  const v = 'module top(input [5:0] a, input [7:0] b, output y, output z); assign y = ^a; assign z = b[a[2:0]]; endmodule\n';
+  const out = await yosysNode(['-q', '-p', `read_verilog t.v; synth -top top -run :fine; techmap; opt; abc -luts 1,1,1,1,2,4 -script ${abcInline('strash; if')}; write_json o.json`],
+    { 't.v': v, [LUT_LIB_FILE]: LUT_LIB });
+  const widths = Object.values(Object.values(JSON.parse(out['o.json']).modules)[0].cells).filter(c => c.type === '$lut').map(c => parseInt(c.parameters.WIDTH, 2)).sort();
+  assert.ok(widths.length && widths.every(w => w <= 6), JSON.stringify(widths));
+  assert.ok(widths.some(w => w > 4), JSON.stringify(widths));
+});
+
 // the maximum of four numbers (EPFL max's design, 16 bits), its comparisons written as chains of gates
 const MAX4 = `module max4 #(parameter W = 16) (input clk, input [W-1:0] a, b, c, d, output reg [W-1:0] m);
   reg [W-1:0] ra, rb, rc, rd;
@@ -323,9 +338,12 @@ test('logic depth: a comparator written as a chain of gates is mapped again for 
   assert.equal(r.depth.tried, true);
   assert.equal(r.depth.kept, true, JSON.stringify(r.depth));
   assert.ok(r.depth.ns[1] < r.depth.ns[0] * 0.9, JSON.stringify(r.depth));
-  assert.equal(r.util.luts, r.depth.luts[1]);
+  // the netlist kept: the depth-oriented one, or one balanced once more (with or without the LUT delays)
+  const kept = [r.depth.delays, r.depth.second].find(x => x?.kept) || { ns: r.depth.ns[1], luts: r.depth.luts[1] };
+  assert.ok(kept.ns <= r.depth.ns[1], JSON.stringify(r.depth));
+  assert.equal(r.util.luts, kept.luts);
   assert.deepEqual(r.warnings, []);
-  assert.equal(criticalDelay(r.files['chain.json'], 'chain'), r.depth.ns[1]);
+  assert.equal(criticalDelay(r.files['chain.json'], 'chain'), kept.ns);
   const d = compareNetlist(chain, r, { name: 'depth-chain', sim: { cycles: 300 } });
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
   // without it: the usual mapping, one Yosys run
@@ -335,7 +353,7 @@ test('logic depth: a comparator written as a chain of gates is mapped again for 
   assert.equal(criticalDelay(r0.files['chain.json'], 'chain'), r.depth.ns[0]);
   // the counter: tried, not kept (no faster)
   const c = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run: yosysNode });
-  assert.deepEqual([c.depth.tried, c.depth.kept, c.depth.second], [true, false, undefined]);
+  assert.deepEqual([c.depth.tried, c.depth.kept, c.depth.second, c.depth.delays], [true, false, undefined, undefined]);
   assert.deepEqual(c.warnings, []);
 });
 

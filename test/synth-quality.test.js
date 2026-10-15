@@ -63,7 +63,8 @@ const BUDGETS = {
   // the example project (stock: 104 slices; XST: 104 LUTs, 99 slices)
   'examples/blinky': { design: () => example('blinky'), luts: 78, muxes: 19, slices: 95 },
   // the other examples (the game: state machine, display; the stopwatch: block RAM, multipliers)
-  'examples/pong': { design: () => example('pong'), luts: 310, muxes: 68, slices: 300 },
+  // (pong, 15.10.16, balanced with the LUT delays (#78): 311 LUTs instead of 275, 11.2 ns estimated instead of 12.4)
+  'examples/pong': { design: () => example('pong'), luts: 340, muxes: 68, slices: 300 },
   'examples/stopwatch': { design: () => example('stopwatch'), luts: 255, muxes: 62, slices: 243 },
   'examples/clock': { design: () => example('clock'), luts: 230, muxes: 87, slices: 256 },
   // the pedestrian crossing (state diagram, truth table, timer, display; 15.10.12: 114 LUTs, 22 MUXF, 73
