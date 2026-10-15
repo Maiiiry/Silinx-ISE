@@ -46,7 +46,8 @@ export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing
   const t1 = Date.now();
   const routed = routeDesign(parseXdl(placedText), device, { ...known, timing: timingRoute });
   const routeMs = Date.now() - t1;
-  const sta = routed.errors.length || routed.failed.length ? null : analyzeTiming(parseXdl(writeXdl(routed.design)), device);
+  // (complete: no error, no net left unrouted, no node still shared when the router stopped, #242)
+  const sta = routed.errors.length || routed.failed.length || routed.overused ? null : analyzeTiming(parseXdl(writeXdl(routed.design)), device);
   const pr = { packed, placement, placedText, routed, sta, period: sta ? sta.period : Infinity, seed, placeMs, routeMs };
   onRouted?.(pr, nfo);
   return pr;
