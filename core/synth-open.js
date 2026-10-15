@@ -368,8 +368,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         { [PREMAP_FILE]: asText(out[PREMAP_FILE]), ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
         l => { if (!quiet(l)) lines.push(l); });
       let base = json;
-      const linesW = [], lines2 = [];
-      const [outW, out2] = await Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
+      const linesW = [], lines2 = [], lines3 = [], lines4 = [];
+      const first = Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
+      // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
+      // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
+      const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
+      const early = (run.parallel || 1) >= 4 ? second() : null;
+      early?.catch(() => {});
+      const [outW, out2] = await first;
       const jsonW = outW[`${top}.json`];
       if (jsonW) {
         const cellsW = cellCounts(jsonW, top);
@@ -396,8 +402,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           for (const l of lines2) sayNew(l);
           // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), at once; each kept
           // by keepSecond, the one with the delays when both are and it is better by DEPTH_RULE
-          const lines3 = [], lines4 = [];
-          const [out3, out4] = await Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
+          const [out3, out4] = await (early || second());
           const cand = (o, lines) => {
             const j = o[`${top}.json`];
             if (!j) return null;
