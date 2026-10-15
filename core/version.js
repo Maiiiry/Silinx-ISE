@@ -2,7 +2,7 @@
 // VERSION is kept equal to package.json by scripts/sync-version.mjs (run by `npm version`).
 export const PRODUCT = 'Silinx ISE';
 export const PRODUCT_FULL = 'Silinx ISE (Integrated Synthesis Environment)';
-export const VERSION = '15.10.16';
+export const VERSION = '15.10.17';
 export const MAJOR = VERSION.split('.')[0];
 // the commit of a development build (scripts/build-standalone.mjs defines __SILINX_BUILD__ when the
 // commit built is not the release's tag, #135): { commit }, else null (a release, or the server)
