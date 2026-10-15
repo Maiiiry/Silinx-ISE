@@ -13,6 +13,8 @@ In short:
 
 In detail:
 
+- **Start page (#261):** its sentence's lines are balanced, so no word is left alone on the last one ("file."),
+  in English and in Portuguese.
 - **The site's usage counts (#257):** from 13 October the published pages had no GoatCounter loader,
   so nothing was counted: the step that adds it took the page for one that already had it, as the
   application's own code (Help ▸ About's 'Usage counts' row) names the loader's id. It now looks for

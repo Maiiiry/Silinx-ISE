@@ -76,6 +76,31 @@ uiTest('modern interface by default: header with search, activity bar, tabs on t
   assert.equal(await page.eval(() => document.querySelector('.left-page[data-page=design]').hidden), false);
 }, O);
 
+// the start page's sentence on lines of even length: its last word never alone on a line ("file." under
+// "…any command or"), in English and in Portuguese, at the window's width and at a narrow one
+const lastWordAlone = (page) => page.eval(() => {
+  const p = document.querySelector('#ws-empty p');
+  const text = p.firstChild;
+  const words = [...text.textContent.matchAll(/\S+/g)];
+  const top = (m) => { const r = document.createRange(); r.setStart(text, m.index); r.setEnd(text, m.index + m[0].length); return Math.round(r.getBoundingClientRect().top); };
+  const [prev, last] = [words[words.length - 2], words[words.length - 1]];
+  return { lines: new Set(words.map(top)).size, alone: top(last) !== top(prev), wrap: getComputedStyle(p).textWrap };
+});
+uiTest('start page: its sentence\'s lines balanced, the last word never alone on a line; in Portuguese too', E, async (page) => {
+  await page.waitFor(() => document.querySelector('#ws-empty p')?.getClientRects().length, [], { what: 'the start page' });
+  for (const lang of ['en', 'pt']) {
+    await page.eval(async (l) => (await import('/js/i18n.js')).setLanguage(l), lang);
+    for (const width of [null, '300px']) {
+      await page.eval((w) => { document.querySelector('#ws-empty p').style.maxWidth = w || ''; }, width);
+      const r = await lastWordAlone(page);
+      assert.match(r.wrap, /balance/, `${lang} ${width}`);
+      assert.equal(r.alone, false, `${lang} ${width || 'window'}: ${JSON.stringify(r)}`);
+    }
+  }
+  await page.eval(() => { document.querySelector('#ws-empty p').style.maxWidth = ''; });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+}, O);
+
 uiTest('View ▸ Interface: the Xilinx ISE look and back, live and remembered after a reload', E, async (page) => {
   await page.waitForSelector('#start-page .start-box');
   let subs = await subMenu(page, 'View', 'Interface');

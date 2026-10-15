@@ -235,7 +235,7 @@ html[data-ui="modern"] #workspace { border: none; background: var(--m-surface); 
 html[data-ui="modern"] #workspace:not(:has(> .doc)) > #ws-empty { display: flex; }
 #ws-empty { position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--m-muted); text-align: center; padding: 24px; }
 #ws-empty h2 { margin: 6px 0 0; font-size: 20px; font-weight: 650; color: var(--m-fg); letter-spacing: -.01em; }
-#ws-empty p { margin: 0 0 14px; max-width: 420px; }
+#ws-empty p { margin: 0 0 14px; max-width: 420px; text-wrap: balance; }   /* (lines of even length: no word alone on the last one) */
 .ws-logo { width: 56px; height: 56px; border-radius: 14px; background: linear-gradient(135deg, #e0252c, #a5121a); color: #fff; font: 700 30px var(--font); display: flex; align-items: center; justify-content: center; box-shadow: var(--m-shadow-lg); }
 .ws-keys { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .ws-keys > span { display: flex; gap: 10px; align-items: center; }
