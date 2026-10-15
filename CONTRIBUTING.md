@@ -17,7 +17,7 @@ Contributions are welcome: bug reports, ideas and pull requests.
   The file is named for Claude Code, which reads it at the start of every session, but its rules are
   the same for everyone, people and AI agents alike.
 - **Before opening a pull request:**
-  - run `npm test`, `npm run test:ui` and `SILINX_UI_INTERFACE=classic npm run test:ui`;
+  - run the tests related to your change (`node --test test/<file>.test.js`, `test/ui/<file>.test.js`); the full suites run on GitHub when you open the pull request;
   - add an item to [CHANGELOG.md](CHANGELOG.md) under the next version;
   - reference the issue (`Fixes #N`).
 
