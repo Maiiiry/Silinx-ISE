@@ -14,6 +14,8 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
 const project = (name) => env.server.api('GET', `/api/projects/${encodeURIComponent(name)}`);
+// the top as the project's file has it, once saved (the page has it before the save is done: #253's CI)
+const savedTop = (page, name, top) => page.waitFor(async (n, t) => (await (await fetch(`/api/projects/${encodeURIComponent(n)}`)).json()).top === t, [name, top], { what: `${name}'s top saved as '${top}'` });
 const consoleLines = async (page, re) => (await page.consoleText()).split('\n').filter((l) => re.test(l));
 const ppRows = (page) => page.eval(() => [...document.querySelectorAll('.pin-planner .pp-table tr')].slice(1).map((r) => r.cells[0].textContent));
 const answer = async (page, button = 'Yes', title = 'Remove Source') => {
@@ -40,10 +42,10 @@ uiTest('#253 Remove from Project of the top module: the module left becomes the 
   await page.click('body > .menu-popup .mi', { text: 'Remove from Project' });
   await answer(page);
   await page.waitFor(() => window.Silinx.project?.top === 'conv', [], { what: 'conv the top' });
-  assert.equal((await project('TopGone')).top, 'conv');
+  await savedTop(page, 'TopGone', 'conv');
   assert.deepEqual(await consoleLines(page, /^The top-level module/), [NOW('top', 'conv')]);
   // the top's row in the Design pane
-  assert.equal(await page.eval(() => document.querySelector('#hier .row.top-mod .lbl')?.textContent), 'conv');
+  await page.waitFor(() => document.querySelector('#hier .row.top-mod .lbl')?.textContent === 'conv', [], { what: 'conv the top in the Design pane' });
   // I/O Pin Planning: the top's buses, bit by bit
   await page.menu('Tools', 'I/O Pin Planning');
   await page.waitFor(() => window.Silinx.active?.id === 'pins' && document.querySelectorAll('.pin-planner .pp-table tr').length > 1, [], { what: 'the planner' });
@@ -52,7 +54,7 @@ uiTest('#253 Remove from Project of the top module: the module left becomes the 
   // one Undo: top.vhd back, and the top with it
   await page.menu('Edit', 'Undo Remove from Project');
   await page.waitFor(() => window.Silinx.project?.top === 'top', [], { what: 'top the top again' });
-  assert.equal((await project('TopGone')).top, 'top');
+  await savedTop(page, 'TopGone', 'top');
   assert.deepEqual((await project('TopGone')).files.map((f) => f.path).sort(), ['src/conv.vhd', 'src/top.vhd']);
 });
 
@@ -61,13 +63,13 @@ uiTest('#253 a project saved with a top it no longer has: mended when opened (th
   await makeProject(env, { name: 'TopStale', top: 'esq', files: { 'src/conv.vhd': CONV } });
   await page.openProject('TopStale');
   await page.waitFor(() => window.Silinx.project?.top === 'conv', [], { what: 'conv the top' });
-  assert.equal((await project('TopStale')).top, 'conv');
+  await savedTop(page, 'TopStale', 'conv');
   assert.deepEqual(await consoleLines(page, /^The top-level module/), [NOW('esq', 'conv')]);
   // two modules at the root: none is the top, the user sets it
   await makeProject(env, { name: 'TopTwo', top: 'esq', files: { 'src/conv.vhd': CONV, 'src/other.vhd': OTHER } });
   await page.openProject('TopTwo');
   await page.waitConsole(/^The top-level module 'esq' is no longer in the project: set the top module/m);
-  assert.equal((await project('TopTwo')).top, '');
+  await savedTop(page, 'TopTwo', '');
   assert.deepEqual(await consoleLines(page, /^The top-level module/), [NOW('esq', 'conv'), SET('esq')]);
   // a top still declared by a source of the project is left alone (not missing: being edited)
   await makeProject(env, { name: 'TopKept', top: 'top', files: { 'src/top.vhd': TOP.replace('end rtl;', 'end rtl') } });
