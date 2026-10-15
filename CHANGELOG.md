@@ -88,6 +88,12 @@ In detail:
 - **Tests (#233, #241):** the Petri net analysis test waits for each step of deleting an arc (the arc
   selected, the focus in the editor, the arc gone), so that a failure names it; the Petri net tests
   wait for the saved net and its HDL file instead of reading them after a fixed pause.
+- **Tests in WebKit and Firefox (#237):** a page the browser ends by itself (WebKit's web process on
+  CI, crashed or ended for its memory: in the FSM editor's test, and in the browser Yosys test as in
+  #110) is said as such at once, the calls waiting for it failing then (`webkit closed the page …`, with the
+  last action), not as the timeout of what was being waited for; the test is then run once more in a
+  fresh page, the projects of the first run removed, as a crashed Yosys is run again in a new worker
+  (#153). A second time fails it.
 
 ## 15.10.15
 

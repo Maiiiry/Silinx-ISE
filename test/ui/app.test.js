@@ -2,7 +2,7 @@
 // one only), About, Check for Updates, language switch, keyboard shortcuts.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { setupUi, uiTest, makeProject, chromeOnly } from './harness.js';
+import { setupUi, uiTest, makeProject, chromeOnly, BROWSER, PageGoneError } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 
 let env;
@@ -232,6 +232,27 @@ uiTest('the test harness opens the right menu when the menu bar moves under the 
   await page.closeMenus();
   await page.eval(() => { document.getElementById('menubar').style.paddingLeft = ''; });
 });
+
+// Firefox / WebKit: the page ended by the browser itself (WebKit's web process on CI, #237), here its
+// Playwright page closed under the harness
+let goneRuns = 0;
+uiTest('the test harness: a page the browser ends is said at once, not as a timeout, and the test is run once more in a fresh page, the projects of the first run removed (#237)', E, async (page) => {
+  goneRuns++;
+  if (goneRuns === 1) {
+    await makeProject(env, { name: 'GonePj' });
+    // (Chromium: its renderer crashed, as WebKit's in the Yosys test, #110; else the page closed)
+    const crash = BROWSER === 'chromium';
+    if (crash) await page.page.goto('chrome://crash').catch(() => {}); else await page.page.close();
+    const t0 = Date.now();
+    await assert.rejects(page.waitFor(() => false, [], { what: 'nothing', timeout: 20000 }), (e) => e instanceof PageGoneError && new RegExp(`^${BROWSER} ${crash ? 'crashed' : 'closed'} the page`).test(e.message));
+    assert.ok(Date.now() - t0 < 5000, `said after ${Date.now() - t0} ms`);
+    await page.eval(() => 1);   // (fails this run: the test is run once more)
+    assert.fail('the closed page answered');
+  }
+  assert.equal(goneRuns, 2);
+  await makeProject(env, { name: 'GonePj' });   // (409 if the first run's project were left)
+  await page.openProject('GonePj');
+}, { skip: BROWSER === 'chrome' ? 'Firefox / WebKit (Playwright) only' : undefined });
 
 uiTest('About shows the version and the GitHub link', E, async (page) => {
   await page.menu('Help', 'About Silinx ISE');

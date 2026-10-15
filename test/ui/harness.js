@@ -193,10 +193,18 @@ const KEYS = {
   '.': { code: 'Period', keyCode: 190, text: '.' },
 };
 
+/**
+ * The browser ended the page by itself (its web process crashed, or was ended without a crash report,
+ * e.g. for its memory: WebKit on CI, #110, #237): not a failure of the app. Said as such at once,
+ * rather than as the timeout of whatever was being waited for.
+ */
+export class PageGoneError extends Error {}
+
 /** What every backend's page offers: the helpers built on eval / mouse / key. */
 class PageBase {
   constructor(env, downloadDir) {
     Object.assign(this, { env, downloadDir });
+    this.gone = null;             // how the browser ended the page by itself (PageGoneError)
     this.errors = [];             // uncaught exceptions + console.error
     this.console = [];
     this.allowErrors = [];        // regexps of expected errors
@@ -211,7 +219,7 @@ class PageBase {
     const t0 = Date.now();
     let last;
     for (;;) {
-      try { last = await this.evalAs(true, fn, ...args); if (last) return last; } catch (e) { last = e.message; }
+      try { last = await this.evalAs(true, fn, ...args); if (last) return last; } catch (e) { if (e instanceof PageGoneError) throw e; last = e.message; }
       if (Date.now() - t0 > timeout) throw new Error(`timed out after ${timeout} ms waiting for ${what || String(fn).slice(0, 200)}${typeof last === 'string' ? ` (last: ${last})` : ''}`);
       await sleep(interval);
     }
@@ -492,13 +500,21 @@ const PW_TIMEOUT = +process.env.SILINX_UI_PW_TIMEOUT || 30000;
 export function pwLimit(what, promise, page, ms = PW_TIMEOUT) {
   let timer;
   const stuck = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`${what}: no answer from ${BROWSER} within ${ms} ms (the page may be stuck; last action: ${page.lastAction || 'none'})`)), ms); });
-  return Promise.race([promise, stuck]).finally(() => clearTimeout(timer));
+  // (a call that failed because the browser ended the page: said as such, PageGoneError)
+  return Promise.race([promise, stuck, ...(page?.ended ? [page.ended] : [])]).catch((e) => { throw page?.goneFrom?.(e) || e; }).finally(() => clearTimeout(timer));
 }
 
 export class PwPage extends PageBase {
   constructor(env, context, page, downloadDir) {
     super(env, downloadDir);
     Object.assign(this, { context, page, held: [] });
+    // (a call waiting for the page's answer fails at once when the browser ends the page: a crashed
+    // page's calls may otherwise wait until pwLimit's timeout)
+    let ended;
+    this.ended = new Promise((_, reject) => { ended = reject; });
+    this.ended.catch(() => {});
+    page.on('crash', () => { this.gone ??= 'crashed the page (its web process ended)'; ended(this.goneError()); });
+    page.on('close', () => { if (!this.closing) { this.gone ??= 'closed the page (its web process ended with no crash report, e.g. for its memory)'; ended(this.goneError()); } });
     page.on('pageerror', (e) => this.errors.push(`uncaught: ${e.name}: ${e.message}`));
     page.on('console', (m) => {
       const text = m.text();
@@ -526,8 +542,20 @@ export class PwPage extends PageBase {
     const expression = typeof fn === 'function'
       ? `(async () => { const r = await (${fn})(...${JSON.stringify(args)}); try { return r === undefined ? undefined : JSON.parse(JSON.stringify(r)); } catch { return ${JSON.stringify(fallback)}; } })()`
       : fn;
-    try { return await pwLimit(`page eval ${String(fn).replace(/\s+/g, ' ').slice(0, 80)}`, this.page.evaluate(expression), this); } catch (e) { throw new Error(`page eval failed: ${e.message.replace(/^page\.evaluate: /, '')}`); }
+    if (this.gone) throw this.goneError();
+    try { return await pwLimit(`page eval ${String(fn).replace(/\s+/g, ' ').slice(0, 80)}`, this.page.evaluate(expression), this); } catch (e) {
+      if (e instanceof PageGoneError) throw e;
+      throw new Error(`page eval failed: ${e.message.replace(/^page\.evaluate: /, '')}`);
+    }
   }
+  /** The PageGoneError of a call that failed because the browser ended the page (else null). */
+  goneFrom(e) {
+    if (this.closing || e instanceof PageGoneError) return null;
+    // (the page's 'close' / 'crash' event can come a moment after the call it made fail)
+    if (!this.gone && /Target crashed|Target page, context or browser has been closed/.test(e.message)) this.gone = /crashed/.test(e.message) ? 'crashed the page' : 'closed the page';
+    return this.gone ? this.goneError(e.message.replace(/^[\w.]+: /, '')) : null;
+  }
+  goneError(detail) { return new PageGoneError(`${BROWSER} ${this.gone}${detail ? ` (${detail.trim()})` : ''}; last action: ${this.lastAction || 'none'}`); }
   async reload() {
     await this.page.reload({ timeout: 30000 });
     await this.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot after reload', timeout: 30000 });   // (a slow CI machine; the page it replaced may still be busy, e.g. the emulator)
@@ -557,7 +585,7 @@ export class PwPage extends PageBase {
   /** Give an <input type=file> local files (Playwright fires input + change). */
   async setFiles(sel, files, { index = 0 } = {}) { await this.page.locator(sel).nth(index).setInputFiles(files); }
   async screenshot(file) { await this.page.screenshot({ path: file }); return file; }
-  async close() { await this.context.close().catch(() => {}); }
+  async close() { this.closing = true; await this.context.close().catch(() => {}); }
 }
 
 // ------------------------------------------------------------------------------------- offline
@@ -732,25 +760,44 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip } = {}) {
   test(name, { timeout }, async (t) => {
     const env = typeof envRef === 'function' ? envRef() : envRef;
     if (env.skip || skip) { t.skip(env.skip || skip); return; }
-    const page = await env.newPage(url ? url(env) : undefined);
-    try {
-      if (!url) await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
-      await fn(page, env, t);
-      const errs = page.errors.filter((e) => !page.allowErrors.some((re) => re.test(e)));
-      if (errs.length) throw new Error(`page errors:\n  ${errs.join('\n  ')}`);
-    } catch (e) {
-      try {
-        const file = path.join(env.shotDir, `${name.replace(/[^\w.-]+/g, '_').slice(0, 80)}.png`);
-        await page.screenshot(file);
-        env.keep = true;
-        console.error(`# screenshot of the failed test '${name}': ${file}`);
-      } catch { /* page gone */ }
-      if (page.errors.length) console.error(`# page errors: ${page.errors.join(' | ')}`);
-      throw e;
-    } finally {
-      await page.close();
+    // Firefox / WebKit ending the page by itself (an engine failure, not the app's: WebKit on CI, #110,
+    // #237): the test is run once more in a fresh page, as #153 runs a crashed Yosys again in a new
+    // worker, the projects the first run made removed; said in the output. A second time fails it.
+    const ws = env.server?.workspace;
+    const listWs = async () => new Set(ws ? await fsp.readdir(ws).catch(() => []) : []);
+    for (let attempt = 1; ; attempt++) {
+      const before = await listWs();
+      try { await runUiTest(name, env, fn, url, t); return; } catch (e) {
+        if (!(e instanceof PageGoneError) || BROWSER === 'chrome' || attempt > 1) throw e;
+        console.error(`# ${e.message}, in '${name}': run once more in a fresh page (#237)`);
+        t.diagnostic(`${e.message}: run once more in a fresh page`);
+        for (const f of await listWs()) if (!before.has(f)) await fsp.rm(path.join(ws, f), { recursive: true, force: true }).catch(() => {});
+      }
     }
   });
+}
+async function runUiTest(name, env, fn, url, t) {
+  const page = await env.newPage(url ? url(env) : undefined);
+  try {
+    if (!url) await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
+    await fn(page, env, t);
+    const errs = page.errors.filter((e) => !page.allowErrors.some((re) => re.test(e)));
+    if (errs.length) throw new Error(`page errors:\n  ${errs.join('\n  ')}`);
+  } catch (e) {
+    try {
+      const file = path.join(env.shotDir, `${name.replace(/[^\w.-]+/g, '_').slice(0, 80)}.png`);
+      await page.screenshot(file);
+      env.keep = true;
+      console.error(`# screenshot of the failed test '${name}': ${file}`);
+    } catch { /* page gone */ }
+    if (page.errors.length) console.error(`# page errors: ${page.errors.join(' | ')}`);
+    // (a test that failed otherwise once the browser had ended the page, e.g. an assertion on what
+    // a call gave before: that is why)
+    if (page.gone && !(e instanceof PageGoneError)) throw page.goneError(e.message);
+    throw e;
+  } finally {
+    await page.close();
+  }
 }
 
 export const tick = sleep;
