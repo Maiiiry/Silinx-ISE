@@ -165,7 +165,7 @@ uiTest('open mode: a device without a bit database or without a shipped descript
 // built again, nothing more to add
 const BA_UCF = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '../../examples/blinky/constraints/top.ucf'), 'utf8')
   .split('\n').map((l) => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
-const BA_PINS = ['NET "led<4>" LOC = "H12";', 'NET "led<5>" LOC = "H13";', 'NET "led<6>" LOC = "J13";', 'NET "led<7>" LOC = "G13";', 'NET "sw<3>" LOC = "J14";'];
+const BA_PINS = ['NET "led<4>" LOC = "N5";', 'NET "led<5>" LOC = "M4";', 'NET "led<6>" LOC = "N4";', 'NET "led<7>" LOC = "P4";', 'NET "sw<3>" LOC = "N3";'];
 uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose into the UCF; Portuguese', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenPins', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
@@ -306,7 +306,7 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await page.click('input[name=view][value=impl]');
   assert.deepEqual((await procLabels(page)).find((p) => p.label === 'View Technology Schematic'), { label: 'View Technology Schematic', disabled: false, title: '' });
   await checkTechSchematic(page, { top: 'top', blocks: ['u_pre', 'u_speed', 'u_knight'], inside: 'u_pre',
-    message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 367 cells in 3 block(s): u_knight (50), u_speed (215), u_pre (70)." });
+    message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 352 cells in 3 block(s): u_knight (50), u_speed (203), u_pre (67)." });
   assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
   // Portuguese: the view's bar, its tab and the LUT's function have no untranslated text (the netlist's names apart)
   await page.eval(TEXTS);
@@ -323,10 +323,10 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await page.openProject('OpenTechPong');
   await page.click('input[name=view][value=impl]');
   const pong = await checkTechSchematic(page, { top: 'pong', blocks: ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], inside: 'dbL',
-    message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1072 cells in 20 block(s): " });
-  // the cells and nets as the netlist writes them (#131): pong's pressL (a Verilog name), not pressl
-  assert.ok(pong.top.syms.some((x) => x.name === 'pressL_logic' && x.module === 'pressL_logic'), pong.top.syms.map((x) => x.name).join(' '));
-  assert.ok(pong.top.syms.some((x) => /^dir_FDRE$/.test(x.name)), pong.top.syms.map((x) => x.name).join(' '));
+    message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1041 cells in 20 block(s): " });
+  // the cells and nets as the netlist writes them (#131): pong's lockL and pressL (Verilog names), not lockl, pressl
+  assert.ok(pong.top.syms.some((x) => x.name === 'lockL_logic' && x.module === 'lockL_logic'), pong.top.syms.map((x) => x.name).join(' '));
+  assert.ok(pong.top.syms.some((x) => /^pressL_FDRE$/.test(x.name)), pong.top.syms.map((x) => x.name).join(' '));
   assert.deepEqual(pong.top.syms.filter((x) => /^(ibuf|obuf|bufg|fdre|lut\d)$/.test(x.module || '')), [], 'the primitives in upper case');
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 400000 });
@@ -490,4 +490,60 @@ uiTest('#280 open mode: Generate Programming File after a change of the pins onl
   log = await run('Implement Design');
   assert.ok(synthRuns(log) && !log.includes(UPTODATE), log.slice(0, 3000));
   assert.match(log, /Process "Implement Design" completed successfully/);
+}, { timeout: 300000 });
+
+// #282: the synthesis's Optimization Effort with the Silinx toolchain: Normal (the default) synthesizes once,
+// High also tries the mappings for speed; Process Properties says so, in English and in Portuguese
+uiTest('#282 open mode: Optimization Effort Normal (the default) synthesizes once, High tries the mappings for speed; Process Properties says so; Portuguese', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenEffort', template: 'blinky' });
+  await page.openProject('OpenEffort');
+  await reloadToolchain(page);
+  const run = async (proc) => {
+    const before = (await page.consoleText()).length;
+    await page.treeRow('#procs', proc, { dbl: true, exact: true });
+    await page.waitFor((b, re) => new RegExp(re).test(document.getElementById('console-log').innerText.slice(b)), [before, DONE(proc).source], { what: proc, timeout: 120000 });
+    return (await page.consoleText()).slice(before);
+  };
+  const NORMAL = 'Optimization Effort Normal: one mapping (High also tries the mappings for speed, a slower synthesis).';
+  const HIGH = 'Optimization Effort High: the mappings for speed tried too, the fastest kept.';
+  let log = await run('Synthesize - Yosys');
+  assert.match(log, /Process "Synthesize - Yosys" completed successfully/, log.slice(-2000));
+  assert.ok(log.includes(NORMAL) && !log.includes(HIGH), log.slice(0, 2000));
+  // Process Properties: what the effort does
+  const props = async (proc = 'Synthesize - Yosys', item = 'Process Properties…') => {
+    await page.treeRow('#procs', proc, { right: true, exact: true });
+    await page.click('body > .menu-popup .mi', { text: item });
+    await page.waitForSelector('.dlg-overlay .effort-hint');
+    return page.eval(() => document.querySelector('.dlg-overlay .effort-hint').textContent);
+  };
+  assert.equal(await props(), 'Silinx toolchain: Optimization Effort Normal synthesizes once, fast; High also tries the mappings for speed (a slower synthesis, a circuit about 5-10 % faster).');
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  await setLang('pt');
+  try {
+    assert.equal(await props('Sintetizar - Yosys', 'Propriedades do Processo…'), 'Toolchain Silinx: o Esforço de Otimização Normal sintetiza uma vez, depressa; Alto experimenta também os mapeamentos para velocidade (uma síntese mais lenta, um circuito cerca de 5-10 % mais rápido).');
+    await page.dialogButton('Cancelar');
+    await page.waitNoDialog();
+  } finally { await setLang('en'); }
+  // High: the mappings for speed
+  await props();
+  await page.eval(() => { const s = document.querySelectorAll('.dlg-overlay select')[1]; s.value = '2'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+  await page.dialogButton('OK');
+  await page.waitNoDialog();
+  await page.waitFor(async () => (await (await fetch('/api/projects/OpenEffort')).json()).impl.optLevel === 2, [], { what: 'High saved' });
+  log = await run('Synthesize - Yosys');
+  assert.ok(log.includes(HIGH) && !log.includes(NORMAL), log.slice(0, 2000));
+  // the effort is an input of the synthesis (#280): Implement Design with it the same, up to date; back to
+  // Normal, it synthesizes again
+  log = await run('Implement Design');
+  assert.ok(/Process "Synthesize - Yosys" is up to date/.test(log), log.slice(0, 2000));
+  await props();
+  await page.eval(() => { const s = document.querySelectorAll('.dlg-overlay select')[1]; s.value = '1'; s.dispatchEvent(new Event('change', { bubbles: true })); });
+  await page.dialogButton('OK');
+  await page.waitNoDialog();
+  await page.waitFor(async () => (await (await fetch('/api/projects/OpenEffort')).json()).impl.optLevel === 1, [], { what: 'Normal saved' });
+  log = await run('Implement Design');
+  assert.ok(!/is up to date/.test(log) && log.includes(NORMAL), log.slice(0, 2000));
 }, { timeout: 300000 });

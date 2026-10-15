@@ -220,3 +220,27 @@ test('#280 the synthesis up to date: its netlist used, its report kept; no netli
   assert.deepEqual(none.lines.filter(l => /^=== SILINX|up to date|not in the build folder/.test(l)), ['The netlist of the synthesis is not in the build folder: the synthesis runs again.',
     '=== SILINX STEP synth ===', '=== SILINX STEP translate ===', '=== SILINX STEP map ===', '=== SILINX DONE ===']);
 });
+
+// #282: the synthesis's Optimization Effort in the flow: Normal one Yosys run, and the console says which
+test('#282 the flow\'s synthesis with Optimization Effort Normal: one Yosys run, said; High: the mappings tried', { timeout: 300000 }, async () => {
+  const run = async (synthEffort) => {
+    const lines = [];
+    let runs = 0;
+    const io = {
+      log: l => lines.push(l),
+      sources: () => sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') })),
+      ucf: null, device: () => null, bitDb: () => null,
+      yosys: (...a) => { runs++; return yosysNode(...a); },
+      write: (name) => `build/${name}`, read: () => null, save: () => {},
+    };
+    const res = await runOpenFlow({ ...spec, steps: ['synth'], synthEffort }, io);
+    assert.ok(res.ok, `${res.error}\n${lines.join('\n')}`);
+    return { runs, lines: lines.filter(l => /^Optimization Effort/.test(l)), report: res.report };
+  };
+  const n = await run('normal'), h = await run('high');
+  assert.equal(n.runs, 1);
+  assert.deepEqual(n.lines, ['Optimization Effort Normal: one mapping (High also tries the mappings for speed, a slower synthesis).']);
+  assert.ok(h.runs > 1, String(h.runs));
+  assert.deepEqual(h.lines, ['Optimization Effort High: the mappings for speed tried too, the fastest kept.']);
+  assert.ok(n.report.synthesis.summary.luts.used > 0);
+});

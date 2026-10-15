@@ -132,6 +132,7 @@ const PT = {
   'All (Implementation + Simulation)': 'Todas (Implementação + Simulação)', 'Simulation only': 'Só simulação', 'File:': 'Ficheiro:', 'Language:': 'Linguagem:',
   'View Association:': 'Associação de Vista:', 'Design Properties': 'Propriedades do Projeto', 'Top Module (implementation):': 'Módulo de Topo (implementação):',
   'Top Module (simulation):': 'Módulo de Topo (simulação):', 'Optimization Goal:': 'Objetivo de Otimização:', 'Optimization Effort:': 'Esforço de Otimização:',
+  'Silinx toolchain: Optimization Effort Normal synthesizes once, fast; High also tries the mappings for speed (a slower synthesis, a circuit about 5-10 % faster).': 'Toolchain Silinx: o Esforço de Otimização Normal sintetiza uma vez, depressa; Alto experimenta também os mapeamentos para velocidade (uma síntese mais lenta, um circuito cerca de 5-10 % mais rápido).',
   'FPGA Start-Up Clock:': 'Relógio de Arranque da FPGA:', 'Speed': 'Velocidade', 'Area': 'Área', 'High': 'Alto', 'Normal': 'Normal',
   'JTAG Clock': 'Relógio JTAG', 'User Clock': 'Relógio do Utilizador', 'Process Properties - Synthesis / Implementation / Bitstream': 'Propriedades do Processo - Síntese / Implementação / Bitstream',
   'Execution mode:': 'Modo de execução:', 'Local (Xilinx ISE installed locally)': 'Local (Xilinx ISE instalado localmente)',
