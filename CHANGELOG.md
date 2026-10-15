@@ -14,6 +14,8 @@ In short:
   simulation model, so the test bench can be run on the synthesized design.
 - **Adders and comparators written as gates use the carry chain:** a ripple-carry adder drawn as a
   schematic of full adders, or written gate by gate, is now as fast as one written `a + b`.
+- **Faster designs in the Silinx toolchain:** designs limited by their logic depth are mapped for it
+  once more; critical paths 3 % shorter on average, up to 29 %, with no larger designs on average.
 
 In detail:
 
@@ -102,6 +104,12 @@ In detail:
 - **Tests (#238):** the Technology Schematic UI tests, on a timeout, say what the application was
   doing (the process running and its job, the processes' status, an open dialog, the status bar, the
   console's last lines), so that a stall is told from a machine too loaded to finish in time.
+- **Open synthesis, logic depth (#52):** a design whose depth-oriented mapping is kept (its logic
+  depth the limit) is balanced once more (ABC's SOP balancing again, then mapped for area) and that
+  netlist kept when it is faster without being larger in proportion. On the design corpus: critical
+  paths 3 % shorter on average, sizes as before; the EPFL max benchmark 17 % faster (30.2 ns routed,
+  ISE 25.7), EPFL priority 29 %, serv 19 %; the pedestrian crossing example 7.1 ns estimated instead of
+  7.9, with 94 LUTs instead of 114.
 
 ## 15.10.15
 

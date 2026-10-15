@@ -77,10 +77,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 254,
-   "luts": 507,
-   "ffs": 277,
-   "period": 7.658
+   "slices": 236,
+   "luts": 471,
+   "ffs": 276,
+   "period": 7.644
   }
  },
  "epfl-int2float": {
@@ -91,8 +91,8 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 55,
-   "luts": 109,
+   "slices": 43,
+   "luts": 86,
    "ffs": 0,
    "period": null
   }
@@ -110,10 +110,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 645,
-   "luts": 1289,
+   "slices": 898,
+   "luts": 1795,
    "ffs": 643,
-   "period": 36.393
+   "period": 30.244
   }
  },
  "epfl-priority": {
@@ -124,10 +124,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 144,
-   "luts": 288,
+   "slices": 127,
+   "luts": 253,
    "ffs": 137,
-   "period": 16.524
+   "period": 11.72
   }
  },
  "epfl-router": {
@@ -138,10 +138,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 38,
-   "luts": 74,
+   "slices": 40,
+   "luts": 72,
    "ffs": 64,
-   "period": 8.877
+   "period": 7.762
   }
  },
  "femtorv32-quark": {
@@ -152,10 +152,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 476,
-   "luts": 948,
+   "slices": 512,
+   "luts": 1020,
    "ffs": 224,
-   "period": 18.195
+   "period": 16.351
   }
  },
  "fpu-adder": {
@@ -183,7 +183,7 @@
    "slices": 261,
    "luts": 510,
    "ffs": 404,
-   "period": 15.059
+   "period": 15.866
   }
  },
  "light8080": {
@@ -346,10 +346,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 2280,
-   "luts": 4551,
+   "slices": 2289,
+   "luts": 4568,
    "ffs": 1319,
-   "period": 16.891
+   "period": 15.657
   }
  },
  "picorv32": {
@@ -402,7 +402,7 @@
    "slices": 825,
    "luts": 1647,
    "ffs": 767,
-   "period": 12.785
+   "period": 12.992
   }
  },
  "secworks-aes": {
@@ -473,7 +473,7 @@
    "slices": 2400,
    "luts": 4798,
    "ffs": 1809,
-   "period": 26.574
+   "period": 27.033
   }
  },
  "secworks-siphash": {
@@ -487,7 +487,7 @@
    "slices": 1055,
    "luts": 2108,
    "ffs": 798,
-   "period": 15.381
+   "period": 15.383
   }
  },
  "serv": {
@@ -522,9 +522,9 @@
   "quality": {
    "part": "xc3s250ecp132-4",
    "slices": 220,
-   "luts": 369,
-   "ffs": 354,
-   "period": 14.546
+   "luts": 380,
+   "ffs": 342,
+   "period": 11.856
   }
  },
  "spi-fpga-master": {
@@ -602,7 +602,7 @@
    "slices": 42,
    "luts": 81,
    "ffs": 53,
-   "period": 5.17
+   "period": 4.874
   }
  },
  "verilog-axis-fifo": {
@@ -651,10 +651,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 128,
-   "luts": 254,
+   "slices": 138,
+   "luts": 273,
    "ffs": 72,
-   "period": 10.406
+   "period": 9.928
   }
  },
  "verilog-lfsr-crc": {
@@ -761,7 +761,7 @@
    "slices": 263,
    "luts": 414,
    "ffs": 451,
-   "period": 39.886
+   "period": 41.108
   }
  },
  "vtr-diffeq2": {
@@ -780,7 +780,7 @@
    "slices": 287,
    "luts": 567,
    "ffs": 104,
-   "period": 31.623
+   "period": 30.328
   }
  },
  "vtr-mkPktMerge": {
@@ -865,10 +865,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 118,
-   "luts": 234,
-   "ffs": 120,
-   "period": 8.057
+   "slices": 106,
+   "luts": 210,
+   "ffs": 121,
+   "period": 7.542
   }
  }
 }

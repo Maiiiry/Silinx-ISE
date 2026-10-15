@@ -131,6 +131,13 @@ const lutsToCells = synth => 'clean; techmap -map +/xilinx/ff_map.v; techmap -ma
 // keeps whichever netlist is faster by its estimate (criticalDelay), when it is not much larger
 // (DEPTH_RULE); research/synth-quality/README.md, "Logic depth".
 export const DEPTH_ABC = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch -f; if; mfs2';
+// a design whose depth-oriented mapping was kept (its logic depth the limit) is balanced once more and then
+// mapped for area again (the EPFL max: 24.8 ns estimated instead of 32.6, for 37 % more LUTs, its slices
+// still fewer than ISE's; #52), and that netlist kept when better than the first by DEPTH_RULE, or faster
+// than it and, as the first, not larger in proportion than it is faster than the usual mapping (the
+// rule against the usual one: the second's LUTs against the first's alone would refuse max's); only for
+// these designs, as the second balancing takes long on large ones (EPFL bar: four times as long)
+export const DEPTH_ABC2 = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if; mfs2; strash; dch -f; if; mfs2';
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
 export const PREMAP_FILE = 'silinx_premap.il';
 // the depth-oriented netlist is kept when its critical path is at least `gain` shorter and it has
@@ -143,6 +150,13 @@ export function keepDepth(ns, luts, rule = DEPTH_RULE) {
   const faster = ns[1] <= ns[0] * (1 - rule.gain) && luts[1] <= luts[0] * (1 + Math.max(rule.luts, 1 - ns[1] / ns[0]));
   const better = ns[1] <= ns[0] && luts[1] <= luts[0] && (ns[1] < ns[0] || luts[1] < luts[0]);
   return faster || better;
+}
+/** Is the mapping balanced once more (DEPTH_ABC2) kept? ns, luts: [usual, depth-oriented, balanced once
+ *  more], the depth-oriented one kept: better than it (keepDepth), or faster than it (by the rule's gain)
+ *  and kept by the rule against the usual mapping. */
+export function keepSecond(ns, luts, rule = DEPTH_RULE) {
+  return keepDepth([ns[1], ns[2]], [luts[1], luts[2]], rule)
+    || (ns[2] <= ns[1] * (1 - rule.gain) && keepDepth([ns[0], ns[2]], [luts[0], luts[2]], rule));
 }
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again,
@@ -301,7 +315,8 @@ export const QUIET = [/^Warning: Shift register inference not yet supported for 
  * Yosys's messages. onLine receives Yosys's output line by line. depth (true): on the
  * 4-input-LUT families the design is mapped a second time for logic depth (DEPTH_ABC), and that
  * netlist is kept when it is faster (DEPTH_RULE); r.depth says what happened: { tried, kept,
- * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] }.
+ * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented], second: { ns, luts, kept }
+ * of the mapping balanced once more (DEPTH_ABC2), when the depth-oriented one was kept }.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
@@ -330,6 +345,21 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           chosen = out2;
           cells = cells2;
           for (const l of lines2) if (/^Warning:/.test(l)) say(l);
+          // balanced once more (DEPTH_ABC2), kept by keepSecond
+          const lines3 = [];
+          const out3 = await run(['-q', '-p', `${remapCommands(top, family)}; ${outputs(top)}`],
+            { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: DEPTH_ABC2 }, l => { if (!quiet(l)) lines3.push(l); });
+          const json3 = out3[`${top}.json`];
+          if (json3) {
+            const cells3 = cellCounts(json3, top);
+            const ns3 = criticalDelay(json3, top), luts3 = utilization(cells3).luts;
+            info.second = { ns: ns3, luts: luts3, kept: keepSecond([...ns, ns3], [...luts, luts3]) };
+            if (info.second.kept) {
+              chosen = out3;
+              cells = cells3;
+              for (const l of lines3) if (/^Warning:/.test(l)) say(l);
+            }
+          }
         }
       }
     }

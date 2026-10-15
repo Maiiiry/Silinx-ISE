@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, PREMAP_FILE, DEPTH_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -244,6 +244,39 @@ test('logic depth: the depth-oriented netlist is kept when 3 % faster and not la
   assert.ok(!keepDepth([10, 10], [100, 100]) && !keepDepth([10, 10.1], [100, 80]), 'the same, or slower');
 });
 
+test('logic depth: the mapping balanced once more is kept when better than the depth-oriented one, or faster and kept against the usual mapping (#52)', () => {
+  assert.match(DEPTH_ABC2, /if -g; .*if -g; .*if; mfs2; strash; dch -f; if; mfs2$/);
+  assert.ok(keepSecond([68.66, 32.63, 24.78], [1090, 1168, 1598]), 'EPFL max: 24 % faster than the first for 37 % more LUTs; 64 % faster than the usual one for 47 % more');
+  assert.ok(keepSecond([17.27, 15.63, 15.31], [174, 181, 163]), 'a little faster and smaller than the first');
+  assert.ok(!keepSecond([20, 10, 9.9], [100, 110, 112]), 'not 3 % faster than the first, larger');
+  assert.ok(!keepSecond([20, 10, 9], [100, 110, 300]), 'faster, but three times the usual LUTs for twice its speed');
+  assert.ok(!keepSecond([20, 10, 10.5], [100, 110, 100]), 'slower than the first');
+});
+
+// the maximum of four numbers (EPFL max's design, 16 bits), its comparisons written as chains of gates
+const MAX4 = `module max4 #(parameter W = 16) (input clk, input [W-1:0] a, b, c, d, output reg [W-1:0] m);
+  reg [W-1:0] ra, rb, rc, rd;
+  function gt(input [W-1:0] x, input [W-1:0] y);
+    integer i; reg g;
+    begin g = 1'b0; for (i = 0; i < W; i = i + 1) g = (x[i] & ~y[i]) | (~(x[i] ^ y[i]) & g); gt = g; end
+  endfunction
+  wire [W-1:0] ab = gt(ra, rb) ? ra : rb, cd = gt(rc, rd) ? rc : rd;
+  always @(posedge clk) begin ra <= a; rb <= b; rc <= c; rd <= d; m <= gt(ab, cd) ? ab : cd; end
+endmodule
+`;
+test('logic depth: the maximum of four numbers is balanced once more, that netlist kept (faster and smaller than the first depth-oriented one) and equal to the RTL (#52)', { timeout: 300000 }, async () => {
+  const max4 = elaborate(compile([{ path: 'max4.v', lang: 'verilog', text: MAX4 }]), 'max4');
+  const r = await synthesizeOpen(max4, { family: 'spartan3e', run: yosysNode });
+  assert.equal(r.depth.kept, true, JSON.stringify(r.depth));
+  assert.equal(r.depth.second.kept, true, JSON.stringify(r.depth));
+  assert.ok(r.depth.second.ns < r.depth.ns[1] && r.depth.second.luts < r.depth.luts[1], JSON.stringify(r.depth));
+  assert.equal(r.util.luts, r.depth.second.luts);
+  assert.equal(criticalDelay(r.files['max4.json'], 'max4'), r.depth.second.ns);
+  assert.deepEqual(r.warnings, []);
+  const d = compareNetlist(max4, r, { name: 'depth-max4', sim: { cycles: 300 } });
+  assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+});
+
 const CHAIN = `module chain(input clk, input [23:0] a, input [23:0] b, output reg gt);
   reg [23:0] ra, rb;
   integer i;
@@ -273,7 +306,7 @@ test('logic depth: a comparator written as a chain of gates is mapped again for 
   assert.equal(criticalDelay(r0.files['chain.json'], 'chain'), r.depth.ns[0]);
   // the counter: tried, not kept (no faster)
   const c = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run: yosysNode });
-  assert.deepEqual([c.depth.tried, c.depth.kept], [true, false]);
+  assert.deepEqual([c.depth.tried, c.depth.kept, c.depth.second], [true, false, undefined]);
   assert.deepEqual(c.warnings, []);
 });
 

@@ -249,6 +249,33 @@ EPFL adder: 129 LUT2 + 128 MUXCY + 127 XORCY instead of ~640 LUTs and MUXFs, 17.
 lookahead the majority does not match), slower than without them (41.8 ns estimated against 31.9): mapped
 as before (#52 left).
 
+## Logic depth: balanced once more (#52)
+
+The depth-oriented mapping (above) took EPFL max from 66 to 32 ns by the estimate, ISE's 25.7 ns by its
+trce still ahead. Tried on the design corpus (38 designs, the open flow to the routed design, seed 1),
+against 15.10.15:
+
+| ABC script of the depth-oriented mapping | EPFL max (routed) | all designs: period / LUTs / slices | synthesis time |
+|---|---|---|---|
+| `if -g` twice, then `strash; dch -f; if; mfs2` again, for every design | 30.2 ns, 898 slices | 0.961 / 0.995 / 0.997 | about 1.8 times |
+| the same only after the depth-oriented mapping was kept (**kept**) | 30.2 ns, 898 slices | **0.968 / 0.998 / 1.000** | about 1.3 times (a loaded machine) |
+
+The second `if -g` (ABC's delay-oriented SOP balancing) of the balanced logic halves the depth again
+where the first left long paths; the area-oriented mapping after it brings the LUTs back (EPFL max alone:
+22.6 ns estimated and 1410 LUTs, against 22.6 ns and 1658 LUTs without it). It takes long on large
+designs (EPFL bar's synthesis four times as long, and not kept), so only the designs whose first
+depth-oriented mapping was kept, their depth the limit, are balanced once more (`DEPTH_ABC2`). That
+netlist is kept (`keepSecond`) when it is better than the first by the rule of the depth-oriented
+mapping, or faster than it by the rule's 3 % and kept by the rule against the usual mapping: against the
+first alone, max's would be refused (24 % faster for 37 % more LUTs), though its slices stay fewer than
+ISE's (898 against 927).
+
+Changed (period / LUTs): EPFL max -17 % / +39 %, EPFL priority -29 % / -12 %, serv -19 % / +3 %, EPFL
+router -13 % / -3 %, femtorv32-quark -10 % / +8 %, neorv32 -7 %, vtr-stereovision3 -6 % / -10 %,
+verilog-i2c-master -5 % / +8 %, EPFL int2float -21 % LUTs; the examples: the pedestrian crossing 7.1 ns
+estimated instead of 7.9 and 94 LUTs instead of 114 (32 MUXF instead of 22), the others as before.
+Against ISE, EPFL max is still slower (30.2 ns against 25.7, #52 left): its comparators.
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding

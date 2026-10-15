@@ -66,8 +66,10 @@ const BUDGETS = {
   'examples/pong': { design: () => example('pong'), luts: 310, muxes: 68, slices: 300 },
   'examples/stopwatch': { design: () => example('stopwatch'), luts: 255, muxes: 62, slices: 243 },
   'examples/clock': { design: () => example('clock'), luts: 230, muxes: 87, slices: 256 },
-  // the pedestrian crossing (state diagram, truth table, timer, display; 15.10.12: 114 LUTs, 22 MUXF, 73 slices)
-  'examples/traffic': { design: () => example('traffic'), luts: 125, muxes: 25, slices: 80 },
+  // the pedestrian crossing (state diagram, truth table, timer, display; 15.10.12: 114 LUTs, 22 MUXF, 73
+  // slices; 15.10.16, balanced once more for depth (#52): 94 LUTs, 32 MUXF, 68 slices, 7.1 ns estimated
+  // instead of 7.9)
+  'examples/traffic': { design: () => example('traffic'), luts: 105, muxes: 35, slices: 75 },
   fsm: { design: () => fixture('fsm'), luts: 14, muxes: 4, slices: 10 },
   adder: { design: () => fixture('adder'), luts: 72, muxes: 2, slices: 63 },
   // shift registers: the fixed chains in SRL16E (15.10.2: 63 slices; in flip-flops 79; XST about 9
