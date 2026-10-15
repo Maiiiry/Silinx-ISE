@@ -322,6 +322,8 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
     const routed = pr.routed;
     if (routed.errors.length) { res.flow = `fail: route: ${clean(routed.errors[0])}`; return; }
     if (routed.failed.length) { res.flow = `fail: route: ${routed.failed.length} nets cannot be routed on PIPs of known bits`; res.details.unreached = routed.unreached.slice(0, 10).map(u => `${u.net} -> ${u.inst}.${u.pin}`); return; }
+    if (routed.overused) { res.flow = `fail: route: did not converge (${routed.overused} nodes shared after ${routed.iterations} passes, ${1 + pr.retried} placements)`; return; }
+    if (pr.retried) res.details.retried = { seed: pr.seed, placements: pr.retried };   // (#249: placed again, the routing before did not converge)
     const routedText = writeXdl(routed.design);
     const chk = checkRouting(parseXdl(routedText), device);
     if (!chk.ok) { res.flow = `fail: routing check: ${clean(chk.problems[0])}`; return; }

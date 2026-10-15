@@ -151,3 +151,28 @@ test('Implement Design: ports without a LOC nor an I/O standard (LVCMOS25) where
   ]);
   assert.deepEqual(lines.filter(l => /warning/i.test(l)), []);
 });
+
+// #249: a routing that does not converge on any placement tried (the router's passes at most: 1 here,
+// so that blinky's routing still has nodes shared) is said so, not through the routing check
+test('Implement Design: the routing does not converge on the placements tried: said so plainly, no routing check (#249)', { timeout: 300000 }, async () => {
+  const device = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(spec.graph)).toString('utf8')));
+  const json = {};
+  for (const [k, f] of Object.entries(dbFileNames(spec.device, spec.pkg))) {
+    const p = path.join(DB_DIR, f);
+    json[k] = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null;
+  }
+  const db = makeBitDb(dbFilesFrom(json, spec.pkg), device, spec.part);
+  const lines = [];
+  const io = {
+    log: l => lines.push(l),
+    sources: () => sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') })),
+    ucf: fs.readFileSync(path.join(PJ, project.constraints), 'utf8'), ucfName: 'top.ucf', device: () => device, bitDb: () => db, yosys: yosysNode,
+    write: name => `build/${name}`, read: () => null, save: () => {},
+  };
+  const res = await runOpenFlow({ ...spec, steps: ['synth', 'translate', 'map', 'par'], routeIterations: 1 }, io);
+  assert.equal(res.ok, false);
+  const at = lines.findIndex(l => l.startsWith('ERROR:'));
+  assert.match(lines[at], /^ERROR:Silinx - the routing did not converge: \d+ routing node\(s\) still used by more than one net after 1 passes, on 4 placement\(s\) \(seeds 1 to 4\)$/, lines.slice(-6).join('\n'));
+  assert.deepEqual(lines.slice(at + 1), ['The design is too dense for the router on this device: a larger device, or an ISE mode (Toolchain Settings), may implement it.', '=== SILINX FAILED par (exit 1) ===']);
+  assert.deepEqual(lines.filter(l => /warning/i.test(l)), []);
+});

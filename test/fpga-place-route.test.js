@@ -20,7 +20,7 @@ import { knownRouting } from '../core/fpga/bitgen.js';
 import { analyzeTiming, delayTable } from '../core/fpga/timing.js';
 import { parseXdl, writeXdl } from '../core/xdl.js';
 import { loadDb } from '../research/s3e-bitstream/db.mjs';
-import { placeRoute, placeRouteBest } from '../core/fpga/place-route.js';
+import { placeRoute, placeRouteBest, RETRY_SEEDS } from '../core/fpga/place-route.js';
 
 const PART = 'xc3s250ecp132-4';
 // a flip-flop (s) that selects 64 registers spread over the chip, on the critical path: replicated
@@ -138,4 +138,38 @@ test('the three flows (the app\'s, open-flow.mjs, the design corpus\'s) place an
     // no placement, routing or replication of their own
     for (const call of ['place(', 'routeDesign(', 'replicationPlan(', 'replicateFlipFlops(', 'placedXdl(']) assert.ok(!new RegExp(`[^\\w.]${call.replace('(', '\\(')}`).test(src), `${f}: ${call}`);
   }
+});
+
+// Regression (#249): a routing the router leaves with nodes shared (it did not converge: secworks-sha256 on
+// CI's placement) is placed again with the next seeds, a few; a net that cannot be routed is not (another
+// placement does not give the switches the bit database lacks). A fake placeRoute: seed -> its outcome.
+test('placeRouteBest: no placement routed completely for nodes left shared: the next seeds, up to RETRY_SEEDS more (#249)', () => {
+  const fake = (outcome) => {
+    const calls = [];
+    const fn = (packed, device, known, { seed, info }) => {
+      calls.push([seed, info.try, !!info.retry]);
+      const o = outcome(seed);
+      return { seed, packed, placement: {}, sta: o === 'ok' ? {} : null, period: o === 'ok' ? 10 + seed : Infinity,
+        routed: { overused: o === 'shared' ? 2 : 0, errors: [], failed: o === 'unroutable' ? ['n'] : [] } };
+    };
+    return { fn, calls };
+  };
+  const run = (outcome, opts = {}) => { const f = fake(outcome); const r = placeRouteBest(null, {}, null, {}, { delays: {}, replicate: false, placeRouteFn: f.fn, ...opts }); return { r, calls: f.calls }; };
+  assert.equal(RETRY_SEEDS, 3);
+  // seed 1 and 2 do not converge, seed 3 does: kept, two placements more
+  let { r, calls } = run(s => (s >= 3 ? 'ok' : 'shared'));
+  assert.deepEqual(calls, [[1, 0, false], [2, 1, true], [3, 2, true]]);
+  assert.deepEqual([r.seed, r.retried, r.period], [3, 2, 13]);
+  // none converges: RETRY_SEEDS more, then the incomplete routing is returned (the flow says so)
+  ({ r, calls } = run(() => 'shared'));
+  assert.deepEqual(calls.map(c => c[0]), [1, 2, 3, 4]);
+  assert.deepEqual([r.retried, r.sta, r.routed.overused], [3, null, 2]);
+  // with tries: the retries start after them
+  ({ r, calls } = run(s => (s === 5 ? 'ok' : 'shared'), { seed: 2, tries: 2 }));
+  assert.deepEqual(calls, [[2, 0, false], [3, 1, false], [4, 2, true], [5, 3, true]]);
+  assert.deepEqual([r.seed, r.retried], [5, 2]);
+  // the first routes: no retry; a net that cannot be routed: no retry; retries: 0
+  assert.deepEqual(run(() => 'ok').calls.length, 1);
+  assert.deepEqual(run(() => 'unroutable').calls.length, 1);
+  assert.deepEqual(run(() => 'shared', { retries: 0 }).calls.length, 1);
 });

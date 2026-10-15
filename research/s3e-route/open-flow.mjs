@@ -103,6 +103,9 @@ const routedText = writeXdl(routed.design);
 fs.writeFileSync(path.join(outDir, 'routed.xdl'), routedText);
 if (routed.errors.length) fail('routing errors', routed.errors);
 if (routed.failed.length) fail(`${routed.failed.length} nets cannot be routed on PIPs of known bits`, routed.unreached.map(u => `${u.net} -> ${u.inst}.${u.pin}`));
+// (#249: the router left nodes shared on every placement tried)
+if (routed.overused) fail(`the routing did not converge: ${routed.overused} nodes shared after ${routed.iterations} passes, on ${1 + best.retried} placement(s)`, []);
+if (best.retried) console.log(`placed again (seed ${best.seed}): the routing of ${best.retried} placement(s) before did not converge`);
 const check = checkRouting(parseXdl(routedText), device);
 if (!check.ok) fail('routing check', check.problems.slice(0, 50));
 // static timing analysis of the routed design (the delay model of core/fpga/timing.js)

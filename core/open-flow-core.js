@@ -172,7 +172,7 @@ export async function runOpenFlow(spec, io) {
     let pr;
     try {
       pr = placeRouteBest(netlist, packed, d, k, {
-        seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, pack: { ucf: ucfText, part: spec.part, carryOut: 'xor' },
+        seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part, carryOut: 'xor' },
         onRouted: (p, info) => { if (!info.replication) for (const w of p.placement.warnings || []) log(`WARNING:Place - ${w}`); },
         onReplication: x => log(`Register replication: ${x.flipFlops} flip-flop(s) on the critical path copied (${x.copies} copies): ${x.kept ? `kept, ${x.result.sta.period.toFixed(3)} ns instead of ${x.before.toFixed(3)} ns` : 'not kept, no faster'}.`),
       });
@@ -191,6 +191,12 @@ export async function runOpenFlow(spec, io) {
       throw new StepError(`${routed.failed.length} net(s) cannot be routed on the routing switches whose bits are known (the bit database does not know every switch of the device yet)`,
         routed.unreached.slice(0, 50).map(u => `${u.net} -> ${u.inst}.${u.pin}`));
     }
+    // (the router stopped with nodes still shared, on every placement tried, #249)
+    if (routed.overused) {
+      throw new StepError(`the routing did not converge: ${routed.overused} routing node(s) still used by more than one net after ${routed.iterations} passes, on ${1 + pr.retried} placement(s) (seeds ${spec.seed || 1} to ${(spec.seed || 1) + pr.retried})`,
+        [], 'The design is too dense for the router on this device: a larger device, or an ISE mode (Toolchain Settings), may implement it.');
+    }
+    if (pr.retried) log(`Placed and routed again with the seed ${pr.seed}: the routing of ${pr.retried} placement(s) before did not converge.`);
     routedText = writeXdl(routed.design);
     report.files.routed = io.write('open/routed.xdl', routedText);
     const check = checkRouting(parseXdl(routedText), d);
