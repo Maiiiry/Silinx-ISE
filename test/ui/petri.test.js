@@ -82,6 +82,18 @@ const node = (page, id) => page.eval((ed, i) => { const r = document.querySelect
 const statusOf = (page) => page.eval((ed) => document.querySelector(`${ed} .asm-status`).textContent, ED);
 const problems = (page) => page.eval((ed) => [...document.querySelectorAll(`${ed} .asm-prob`)].map((li) => `${li.classList.contains('warning') ? 'warning' : 'error'}: ${li.textContent}`), ED);
 const saved = async (pj) => JSON.parse(await readWs(env, pj, 'src/ctl.pn.json'));
+// a project file once it is what `ok` wants (it is written by the autosave, ~0.8 s after the edit, and
+// later on a loaded machine): returns it; else fails naming `what` (and `ok` is asserted on the last read)
+async function untilWs(pj, file, ok, what, timeout = 15000) {
+  const t0 = Date.now();
+  let text;
+  for (;;) {
+    try { text = await readWs(env, pj, file); if (ok(text)) return text; } catch { /* not yet */ }
+    if (Date.now() - t0 > timeout) throw new Error(`timed out after ${timeout} ms waiting for ${file}: ${what}${text != null ? ` (last:\n${text.slice(0, 2000)})` : ''}`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+const untilSaved = async (pj, ok, what) => JSON.parse(await untilWs(pj, 'src/ctl.pn.json', (t) => { try { return ok(JSON.parse(t)); } catch { return false; } }, what));
 async function setField(page, label, value) {
   const ok = await page.eval((ed, l, v) => {
     const f = [...document.querySelectorAll(`${ed} .asm-side .asm-field`)].find((x) => x.querySelector('.asm-label')?.textContent === l);
@@ -111,8 +123,7 @@ uiTest('Petri net editor: arcs and inhibitor arcs drawn, delete / undo / redo, t
   await page.waitFor((ed) => document.querySelector(`${ed} .asm-status-msg`).textContent === 'An inhibitor arc goes from a place to a transition', [ED]);
   await page.click(await node(page, 'p2')); await page.click(await node(page, 't1'));
   await page.waitFor((ed) => /7 arcs/.test(document.querySelector(`${ed} .asm-status`).textContent) && document.querySelector(`${ed} .pn-arc.inhibitor`), [ED], { what: 'the inhibitor arc' });
-  await new Promise((r) => setTimeout(r, 1500));
-  let m = await saved('PnEd');
+  let m = await untilSaved('PnEd', (x) => x.arcs.length === 7, 'the 7 arcs saved');
   assert.deepEqual(m.arcs.slice(4).map((a) => [a.from, a.to, !!a.inhibitor]), [['p2', 't3', false], ['t3', 'p1', false], ['p2', 't1', true]]);
   // the inhibitor arc is selected: ✕ deletes it, ↶ brings it back, ↷ deletes it again
   await page.click(`${ED} .asm-danger`, { text: '✕' });
@@ -131,8 +142,7 @@ uiTest('Petri net editor: arcs and inhibitor arcs drawn, delete / undo / redo, t
   await page.click(`${ED} .asm-small`, { text: '▲ Higher' });
   await page.click(`${ED} .asm-small`, { text: '▲ Higher' });
   await page.waitFor((ed) => /Priority 1 of 3/.test(document.querySelector(`${ed} .pn-selection`).textContent), [ED], { what: 't3 first' });
-  await new Promise((r) => setTimeout(r, 1500));
-  m = await saved('PnEd');
+  m = await untilSaved('PnEd', (x) => x.transitions[0]?.name === 't1', 't3 (t1) first, saved');
   assert.deepEqual(m.places.map((p) => [p.name, p.tokens, p.capacity]), [['idle', 2, 2], ['work', 0, 1]]);
   assert.deepEqual(m.transitions.map((t) => [t.name, t.guard, t.outputs]), [['t1', 'go', { busy: '1' }], ['start', 'go', {}], ['done', '!go', {}]]);
   assert.deepEqual(await problems(page), []);
@@ -173,7 +183,22 @@ uiTest('Petri net editor: Random, Run / Stop, Reset; PNML export and import (und
   // Run (go still on): start fires at a clock step; Stop
   await page.click(`${ED} .asm-codebar .asm-btn`, { text: '▶▶ Run' });
   await page.waitFor((ed) => document.querySelector(`${ed} .pn-marking`)?.textContent === 'idle=0  work=1', [ED], { what: 'start fired while running', timeout: 5000 });
-  await page.click(`${ED} .asm-codebar .asm-btn`, { text: '■ Stop' });
+  // a click whose press and release fall on each side of a clock step of Run is not lost (#233): go
+  // off (done fires at a step), then ■ Stop; the controls were drawn again at each step, and the
+  // click went to an element no longer there
+  const steps = () => page.eval((ed) => document.querySelectorAll(`${ed} .pn-log li`).length, ED);
+  const slowClick = async (sel, text) => {
+    const { x, y } = await page.point(sel, { text });
+    await page.mouse('mouseMoved', x, y);
+    await page.mouse('mousePressed', x, y);
+    const n = await steps();
+    await page.waitFor((ed, k) => document.querySelectorAll(`${ed} .pn-log li`).length > k, [ED, n], { what: 'a clock step while the button is pressed' });
+    await page.mouse('mouseReleased', x, y);
+  };
+  await slowClick(`${ED} .pn-sim-ins input[type=checkbox]`);
+  await page.waitFor((ed) => document.querySelector(`${ed} .pn-sim-ins input[type=checkbox]`).checked === false, [ED], { what: 'go off' });
+  await page.waitFor((ed) => document.querySelector(`${ed} .pn-marking`)?.textContent === 'idle=1  work=0', [ED], { what: 'done fired while running' });
+  await slowClick(`${ED} .asm-codebar .asm-btn`, '■ Stop');
   await page.waitFor((ed) => [...document.querySelectorAll(`${ed} .asm-codebar .asm-btn`)].some((b) => b.textContent === '▶▶ Run'), [ED], { what: 'stopped' });
   const m1 = await marking();
   await new Promise((r) => setTimeout(r, 1200));
@@ -197,10 +222,10 @@ uiTest('Petri net editor: Random, Run / Stop, Reset; PNML export and import (und
   // the HDL file: made with the net (every source has its HDL, #207), generated from it
   await page.waitFor(() => window.Silinx.project.files.some((x) => x.path === 'src/ctl.vhd'), [], { what: 'src/ctl.vhd in the project' });
   await page.waitFor(() => /^HDL: ctl\.vhd — generated from the net$/.test(document.querySelector('.doc:not([hidden]) .petri-editor .gen-banner')?.textContent || ''), [], { what: 'the link banner' });
-  assert.match(await readWs(env, 'PnSim', 'src/ctl.vhd'), /entity ctl is[\s\S]*busy : out std_logic/);
+  // (the import undone is saved, and its HDL written, a moment after the editor shows it)
+  await untilWs('PnSim', 'src/ctl.vhd', (t) => /entity ctl is[\s\S]*busy : out std_logic/.test(t), 'the HDL of the net (the import undone)');
   await setField(page, 'Outputs', 'busy, ready');
-  await new Promise((r) => setTimeout(r, 1500));
-  assert.match(await readWs(env, 'PnSim', 'src/ctl.vhd'), /ready : out std_logic/, 'the HDL file follows the net');
+  await untilWs('PnSim', 'src/ctl.vhd', (t) => /ready : out std_logic/.test(t), 'the HDL file follows the net');
   assert.equal((await saved('PnSim')).generatedFile, 'src/ctl.vhd');
   // an edit of the HDL file saved: the net stays as it is, and no warning (it was read as a schematic, #222)
   const net = await readWs(env, 'PnSim', 'src/ctl.pn.json');
@@ -229,8 +254,14 @@ uiTest('Petri net editor: the analysis (#188): properties, places, transitions, 
   // done no longer puts the token back (its arc to idle deleted): a deadlock after start, done
   await page.click(`${ED} .pn-tool`, { text: '➚ Select' });
   const arc = await page.eval((ed) => { const l = document.querySelector(`${ed} .pn-arc[data-id=a4] .pn-arc-hit`).getBoundingClientRect(); return { x: l.left + l.width / 2, y: l.top + l.height / 2 }; }, ED);
+  // each step waited for, so that a failure names it (#233): the arc selected by the click (what was
+  // under the pointer said), the keys going to the editor, the arc gone
+  const under = await page.eval((x, y) => { const e = document.elementFromPoint(x, y); return `${e?.tagName}.${e?.getAttribute('class')} of ${e?.closest('[data-kind]')?.dataset.id ?? 'nothing'}`; }, arc.x, arc.y);
   await page.click(arc);
+  await page.waitFor((ed) => document.querySelector(`${ed} .pn-arc[data-id=a4]`)?.classList.contains('sel'), [ED], { what: `arc a4 selected by the click (under the pointer: ${under})` });
+  await page.waitFor((ed) => document.activeElement === document.querySelector(ed), [ED], { what: 'the keyboard focus in the editor' });
   await page.key('Delete');
+  await page.waitFor((ed) => !document.querySelector(`${ed} .pn-arc[data-id=a4]`), [ED], { what: 'arc a4 deleted' });
   await page.waitFor((ed) => document.querySelector(`${ed} .pn-an-dead`), [ED], { what: 'the deadlock' });
   assert.deepEqual(await txt('.pn-an-props tr td'), ['safe (at most 1 token in each place)', '1 reachable marking where no transition can fire', 'no', 'no', 'no']);
   assert.deepEqual(await txt('.pn-an-dead li'), ['idle=0  work=0 after start, done Show']);

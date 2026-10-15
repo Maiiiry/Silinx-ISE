@@ -81,6 +81,13 @@ In detail:
   17 ns instead of 84 (ISE: 12 ns). A design with such chains is mapped with and without them and the
   faster is kept (the EPFL max comparator, whose chains stop after 30 bits, keeps its LUTs); designs with
   few gates are synthesized as before.
+- **Petri net editor: a click on ■ Stop or on an input lost while the net runs (#239):** every clock
+  step of *Run* made the simulation's buttons and inputs anew, so a click whose press and release fell
+  on each side of a step did nothing. They are now kept; a step redraws only the outputs, the marking
+  and the log.
+- **Tests (#233, #241):** the Petri net analysis test waits for each step of deleting an arc (the arc
+  selected, the focus in the editor, the arc gone), so that a failure names it; the Petri net tests
+  wait for the saved net and its HDL file instead of reading them after a fixed pause.
 
 ## 15.10.15
 

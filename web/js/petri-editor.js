@@ -323,9 +323,42 @@ export function mountPetriEditor(container, opts = {}) {
     if (!en.length) { status(isDeadlock(M, sim.marking) ? 'Deadlock: no transition can fire' : 'No transition is enabled with these inputs', true); return; }
     fireOne(en[Math.floor(Math.random() * en.length)]);
   }
+  // the simulation's controls (its buttons, the inputs) are made once and kept: drawn again at every
+  // clock step of Run, a click on ■ Stop or on an input whose press and release fell on each side of
+  // a step went to an element no longer there, and was lost
+  const runBtn = btn('▶▶ Run', 'Clock steps every half second', () => {
+    if (sim.timer) { clearInterval(sim.timer); sim.timer = null; } else sim.timer = setInterval(() => { if (!destroyed && sim) step(); }, 500);
+    render();
+  });
+  const simTools = [btn('⏭ Clock step', 'A clock edge: every enabled transition whose guard is true fires (priority order), as the hardware does', () => step()),
+    btn('🎲 Random', 'Fire one enabled transition at random (the token game)', () => randomFire()), runBtn,
+    btn('⟲ Reset', 'Back to the initial marking', () => { sim.inputs = sim.inputs || {}; resetSim(); })];
+  const simLive = h('div', { class: 'pn-sim-live' });
+  let simIns = null;   // { key: the inputs (names, widths), row, set(): the controls show sim.inputs }
+  function simInputs() {
+    const key = JSON.stringify(M.inputs.map(i => [i.name, i.width]));
+    if (simIns?.key !== key) {
+      const sets = [];
+      const ins = h('div', { class: 'pn-sim-ins' }, ...M.inputs.map(i => {
+        if (i.width === 1) {
+          const c = h('input', { type: 'checkbox' });
+          c.addEventListener('change', () => { sim.inputs[i.name] = c.checked ? 1 : 0; render(); });
+          sets.push(() => { c.checked = !!sim.inputs[i.name]; });
+          return h('label', { class: 'asm-check' }, c, ` ${i.name}`);
+        }
+        const n = h('input', { type: 'number', class: 'asm-input pn-num', min: '0', max: String((1 << i.width) - 1) });
+        n.addEventListener('change', () => { sim.inputs[i.name] = Math.max(0, Math.min((1 << i.width) - 1, +n.value || 0)); render(); });
+        sets.push(() => { if (document.activeElement !== n) n.value = String(sim.inputs[i.name] ?? 0); });
+        return h('label', { class: 'asm-field pn-inline' }, h('span', { class: 'asm-label' }, i.name), n);
+      }));
+      simIns = { key, row: h('div', { class: 'pn-sim-row' }, h('b', {}, 'Inputs: '), M.inputs.length ? ins : h('span', {}, 'none')), set: () => sets.forEach(f => f()) };
+    }
+    simIns.set();
+    return simIns.row;
+  }
   function renderPanel() {
     if (!panel) return;
-    panelTools.replaceChildren(); panelBody.replaceChildren();
+    if (panel !== 'sim') { panelTools.replaceChildren(); panelBody.replaceChildren(); }
     if (panel === 'code') {
       panelTitle.textContent = `${M.lang === 'vhdl' ? 'VHDL' : 'Verilog'} generated from the net`;
       let code;
@@ -335,27 +368,14 @@ export function mountPetriEditor(container, opts = {}) {
     }
     if (panel === 'analysis') { renderAnalysis(); return; }
     panelTitle.textContent = 'Simulation';
-    const runBtn = btn(sim.timer ? '■ Stop' : '▶▶ Run', 'Clock steps every half second', () => {
-      if (sim.timer) { clearInterval(sim.timer); sim.timer = null; } else sim.timer = setInterval(() => { if (!destroyed && sim) step(); }, 500);
-      render();
-    });
-    panelTools.append(btn('⏭ Clock step', 'A clock edge: every enabled transition whose guard is true fires (priority order), as the hardware does', () => step()),
-      btn('🎲 Random', 'Fire one enabled transition at random (the token game)', () => randomFire()), runBtn,
-      btn('⟲ Reset', 'Back to the initial marking', () => { sim.inputs = sim.inputs || {}; resetSim(); }));
-    const ins = h('div', { class: 'pn-sim-ins' }, ...M.inputs.map(i => {
-      if (i.width === 1) {
-        const c = h('input', { type: 'checkbox', checked: !!sim.inputs[i.name] });
-        c.addEventListener('change', () => { sim.inputs[i.name] = c.checked ? 1 : 0; render(); });
-        return h('label', { class: 'asm-check' }, c, ` ${i.name}`);
-      }
-      const n = h('input', { type: 'number', class: 'asm-input pn-num', min: '0', max: String((1 << i.width) - 1), value: String(sim.inputs[i.name] ?? 0) });
-      n.addEventListener('change', () => { sim.inputs[i.name] = Math.max(0, Math.min((1 << i.width) - 1, +n.value || 0)); render(); });
-      return h('label', { class: 'asm-field pn-inline' }, h('span', { class: 'asm-label' }, i.name), n);
-    }));
+    const runLabel = sim.timer ? '■ Stop' : '▶▶ Run';
+    if (runBtn.dataset.label !== runLabel) { runBtn.dataset.label = runLabel; runBtn.textContent = runLabel; }
+    if (panelTools.firstChild !== simTools[0]) panelTools.replaceChildren(...simTools);
+    const insRow = simInputs();
+    if (panelBody.firstChild !== insRow || panelBody.lastChild !== simLive) panelBody.replaceChildren(insRow, simLive);
     const outs = outputsOf(M, sim.marking, sim.fired);
     const dead = isDeadlock(M, sim.marking);
-    panelBody.append(...[
-      h('div', { class: 'pn-sim-row' }, h('b', {}, 'Inputs: '), M.inputs.length ? ins : h('span', {}, 'none')),
+    simLive.replaceChildren(...[
       h('div', { class: 'pn-sim-row' }, h('b', {}, 'Outputs: '), h('span', { class: 'mono pn-outs-now' }, Object.entries(outs).map(([k, v]) => `${k}=${v.toString(2)}`).join('  ') || 'none')),
       h('div', { class: 'pn-sim-row' }, h('b', {}, 'Marking: '), h('span', { class: 'mono pn-marking' }, M.places.map(p => `${p.name}=${sim.marking[p.id] || 0}`).join('  '))),
       dead ? h('div', { class: 'pn-sim-row pn-dead' }, 'Deadlock: no transition can fire, whatever the inputs') : null,
