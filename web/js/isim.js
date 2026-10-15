@@ -309,7 +309,7 @@ export function mountISim(container, opts = {}) {
   };
   const sep = () => tb.appendChild(h('span', 'tb-sep'));
   addBtn('restart', 'Restart', () => api.restart());
-  addBtn('runAll', 'Run All', () => { echo('run all'); api.runAll(); });
+  addBtn('runAll', 'Run All', () => { echo('run all'); enqueue('run all', () => api.runAll()); });
   addBtn('runFor', 'Run for the specified time', () => runForUi());
   const rfVal = h('input', 'isim-rf-val'); rfVal.value = String(opts.defaultRunTime?.value ?? 1); rfVal.title = 'Simulation run time';
   const rfUnit = h('select', 'isim-rf-unit', Object.keys(UNITS).map(u => `<option>${u}</option>`).join(''));
@@ -317,7 +317,7 @@ export function mountISim(container, opts = {}) {
   tb.appendChild(rfVal); tb.appendChild(rfUnit);
   rfVal.addEventListener('keydown', e => { if (e.key === 'Enter') runForUi(); });
   addBtn('step', 'Step (advance to the next scheduled event)', () => api.step());
-  addBtn('brk', 'Break', () => { st.breakReq = true; });
+  addBtn('brk', 'Break', () => { st.breakReq = true; cmdGen++; });
   sep();
   addBtn('zoomIn', 'Zoom In', () => zoomAt(0.5));
   addBtn('zoomOut', 'Zoom Out', () => zoomAt(2));
@@ -340,8 +340,9 @@ export function mountISim(container, opts = {}) {
   function runForUi() {
     const ps = parseTime(rfVal.value, rfUnit.value);
     if (!(ps > 0)) { logLine(`ERROR: invalid run time '${rfVal.value} ${rfUnit.value}'`, 'error'); return; }
-    echo(`run ${rfVal.value} ${rfUnit.value}`);
-    api.runFor(Math.max(1, ps));
+    const s = `run ${rfVal.value} ${rfUnit.value}`;
+    echo(s);
+    enqueue(s, () => api.runFor(Math.max(1, ps)));
   }
 
   // ---------------------------------------------------------------- theme colours
@@ -1574,11 +1575,14 @@ export function mountISim(container, opts = {}) {
     'Paths may use / or . separators and may be relative to the selected instance; times default to ns.',
   ];
   function tokenize(s) { return (s.match(/"[^"]*"|'[^']*'|\S+/g) || []); }
-  async function execCommand(line) {
+  function execCommand(line) {
     const s = line.trim();
-    if (!s) return;
+    if (!s) return Promise.resolve();
     echo(s);
     st.history.push(s); st.histPos = st.history.length;
+    return enqueue(s, () => doCommand(s));
+  }
+  async function doCommand(s) {
     const tk = tokenize(s);
     const c0 = tk[0].toLowerCase();
     try {
@@ -1690,9 +1694,34 @@ export function mountISim(container, opts = {}) {
 
   // ---------------------------------------------------------------- simulation control
   const yieldUI = () => new Promise(r => setTimeout(r, 0));
-  async function runTo(target, label) {
-    if (st.running) return;
+  // Commands run in turn, as in ISim's console: one typed (or a Run button pressed) while a run goes on
+  // or before ISim's first run of 1 us starts waits for that run and for the commands given before it;
+  // it used to be dropped without a word (#215). Break cancels the commands still waiting.
+  // runDone: the end of the run going on; cmdGen counts the Breaks.
+  let runDone = Promise.resolve(), cmdGen = 0, destroyed = false, cmdTail = Promise.resolve(), cmdPending = 0;
+  function enqueue(s, fn) {
+    const gen = cmdGen;
+    const go = async () => {
+      try {
+        while (st.running) await runDone;
+        if (destroyed) return;
+        if (gen !== cmdGen) { logLine(`Command '${s}' cancelled (Break)`, 'warning'); return; }
+        await fn();
+      } catch (e) { console.error(e); } finally { cmdPending--; }
+    };
+    // (nothing before it: started at once, so a command's output follows its echo at once)
+    return (cmdTail = cmdPending++ || st.running ? cmdTail.then(go) : go());
+  }
+  // runs for `dur` ps from the time the run starts: a run asked for during another (the Run for field
+  // while ISim's first run goes on) waits for it
+  async function runTo(dur, label) {
+    const gen = cmdGen;
+    while (st.running) await runDone;
+    if (destroyed || gen !== cmdGen) return;
     if (sim.finished) { logLine(`Simulation has already finished (${sim.finished}); use Restart to run again.`, 'warning'); return; }
+    const target = sim.now + dur;
+    let endRun;
+    runDone = new Promise((r) => { endRun = r; });
     st.running = true; st.breakReq = false; st.runStart = sim.now; st.runTarget = target;
     const follow = st.fit || (sim.now >= st.t0 && sim.now <= tOf(WW) + 1);
     setMsg(label || 'Running...');
@@ -1727,6 +1756,7 @@ export function mountISim(container, opts = {}) {
       console.error(e);
     }
     st.running = false;
+    endRun();   // (whoever waits for it goes on after the rest of this, all synchronous)
     if (st.breakReq) logLine(`Simulation interrupted (Break) at ${fmtTime(sim.now)}`, 'warning');
     else if (stalled) logLine(`Simulation stopped: no more events scheduled (time ${fmtTime(sim.now)})`, 'info');
     else if (!sim.finished && target !== Infinity && sim.now >= st.runStart + (runAllCap) && label === 'Run All') logLine(`Run All stopped at the ${fmtTime(runAllCap)} limit (time ${fmtTime(sim.now)})`, 'warning');
@@ -1746,8 +1776,8 @@ export function mountISim(container, opts = {}) {
   // ---------------------------------------------------------------- public API
   const api = {
     refresh() { readColors(); renderTree(); renderObjects(); rebuildFlat(); layout(); },
-    runFor(ps) { return runTo(sim.now + Math.max(1, Math.round(ps)), 'Run'); },
-    runAll() { return runTo(sim.now + runAllCap, 'Run All'); },
+    runFor(ps) { return runTo(Math.max(1, Math.round(ps)), 'Run'); },
+    runAll() { return runTo(runAllCap, 'Run All'); },
     step() {
       if (st.running) return;
       if (sim.finished) { logLine('Simulation has finished; use Restart.', 'warning'); return; }
@@ -1772,7 +1802,7 @@ export function mountISim(container, opts = {}) {
     },
     addSignals(sigs) { addSignals(sigs); },
     destroy() {
-      st.breakReq = true;
+      st.breakReq = true; destroyed = true;
       if (rafId) cancelAnimationFrame(rafId);
       closeDialog();
       for (const c of cleanups.splice(0)) c();
@@ -1853,8 +1883,10 @@ export function mountISim(container, opts = {}) {
   logLine('Finished circuit initialization process.');
   requestAnimationFrame(() => layout());
   if (opts.initialRun > 0) {
-    // run after first layout so the view can follow
-    setTimeout(() => { echo(`run ${fmtTime(opts.initialRun)}`); api.runFor(opts.initialRun); }, 0);
+    // run after first layout so the view can follow (a command given before it waits for it, #215)
+    const s = `run ${fmtTime(opts.initialRun)}`;
+    echo(s);
+    enqueue(s, () => new Promise((r) => setTimeout(r, 0)).then(() => api.runFor(opts.initialRun)));
   }
   return api;
 }

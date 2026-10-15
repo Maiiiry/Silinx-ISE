@@ -219,3 +219,69 @@ Finished circuit initialization process.
   await page.waitFor(() => window.Silinx.active.editor.cm.getCursor().line + 1 === 5, [], { what: 'cursor on line 5 (signal q)' });
   assert.doesNotMatch(await page.eval(() => document.querySelector('#console')?.innerText || ''), /error/i);
 });
+
+// A test bench whose clock toggles every 10 ps (a run of 1 ms does not end before a Break).
+const TB_FAST = TB.replace('after 5 ns', 'after 10 ps');
+// the console's lines from the first command on
+const commandLines = (page) => page.eval(() => { const l = document.querySelector('.doc:not([hidden]) .isim-console').innerText.split('\n'); return l.slice(l.findIndex((x) => x.startsWith('ISim>'))); });
+// in the page: type `cmds` into ISim's command line (`input`), one after the other, at once
+const TYPE = `(input, cmds) => { for (const c of cmds) { input.value = c; input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); } }`;
+// starts `run` and types `cmds` while it goes on: performance.now() made to jump, the run yields
+// after its first chunk of time (as a long run does), so it still runs when they are typed
+const typeDuringRun = (page, run, cmds) => page.eval((r, cs, type) => {
+  const v = window.Silinx.active.view, now = performance.now;
+  let jump = 0;
+  performance.now = () => now.call(performance) + (jump += 100);
+  try { v.exec(r); } finally { performance.now = now; }
+  const running = v.state.running;
+  (0, eval)(type)(document.querySelector('.doc:not([hidden]) .isim-cmdline input'), cs);
+  return running;
+}, run, cmds, TYPE);
+
+uiTest('ISim command line: commands given before ISim\'s first run starts or during a run wait for it and run in turn, none lost; Break cancels the waiting ones (#215)', E, async (page) => {
+  await makeProject(env, { name: 'RunQueuePj', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB_FAST }, roles: { 'sim/tb.vhd': 'sim' } });
+  await page.openProject('RunQueuePj');
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb');
+  // typed as soon as ISim's command line is there, before its first run (1 us) has started, when ISim
+  // looks ready (not running): they wait for that run (the CI failure of #215: 'run all' lost)
+  await page.eval((type) => {
+    const mo = new MutationObserver(() => {
+      const input = document.querySelector('.isim-cmdline input');
+      if (!input) return;
+      mo.disconnect();
+      window.__early = { running: window.Silinx.active?.view?.state?.running ?? false, time: document.querySelector('.isim-st-time')?.textContent ?? '' };
+      (0, eval)(type)(input, ['run 2 ns', 'show time']);
+    });
+    mo.observe(document.body, { childList: true, subtree: true });
+  }, TYPE);
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await simTime(page, '1,002,000');
+  assert.deepEqual(await page.eval(() => window.__early), { running: false, time: '' }, 'typed before the first run started');
+  assert.deepEqual(await commandLines(page), ['ISim> run 1 us', 'ISim> run 2 ns', 'ISim> show time', 'Simulation time: 1.002 us']);
+
+  // typed during a run: a run, the time, another run; each waits for the one before it
+  await page.eval(() => { document.querySelector('.doc:not([hidden]) .isim-console').innerHTML = ''; });
+  assert.equal(await typeDuringRun(page, 'run 100 ns', ['run 2 ns', 'show time', 'run 3 ns']), true, 'typed while the run goes on');
+  await simTime(page, '1,107,000');
+  assert.deepEqual(await commandLines(page), ['ISim> run 100 ns', 'ISim> run 2 ns', 'ISim> show time', 'ISim> run 3 ns', 'Simulation time: 1.104 us']);
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .isim-st-msg').textContent), 'Ready');
+
+  // Break during a run: that run stops, the command waiting for it is cancelled (said so)
+  await page.eval(() => { document.querySelector('.doc:not([hidden]) .isim-console').innerHTML = ''; });
+  assert.equal(await typeDuringRun(page, 'run 1 ms', ['run 1 us']), true, 'typed while the run goes on');
+  await page.click('.doc:not([hidden]) .isim-toolbar .tb-btn[title="Break"]');
+  await page.waitFor(() => !window.Silinx.active.view.state.running && /cancelled/.test(document.querySelector('.doc:not([hidden]) .isim-console').innerText), [], { what: 'run broken, the waiting one cancelled', timeout: 20000 });
+  const lines = await commandLines(page);
+  assert.equal(lines.length, 4, lines.join('\n'));
+  assert.deepEqual([lines[0], lines[1], lines[3]], ['ISim> run 1 ms', 'ISim> run 1 us', 'Command \'run 1 us\' cancelled (Break)']);
+  assert.match(lines[2], /^Simulation interrupted \(Break\) at [\d.]+ (ns|us)$/);
+  assert.equal(await page.eval(() => window.Silinx.active.view.state.runTarget), 1_107_000 + 1e9, 'the broken run, not the cancelled one, was the last');
+  // the next command runs as usual
+  await page.eval(() => { window.Silinx.active.view.exec('run 1 ns'); });
+  await page.waitFor(() => !window.Silinx.active.view.state.running && window.Silinx.active.view.state.runTarget !== 1_107_000 + 1e9, [], { what: 'a run after the Break' });
+  assert.equal(await page.eval(() => window.Silinx.active.view.state.runTarget - window.Silinx.active.view.state.runStart), 1000);
+  assert.equal((await commandLines(page)).length, 5);
+  assert.doesNotMatch(await page.eval(() => document.querySelector('#console')?.innerText || ''), /error/i);
+});

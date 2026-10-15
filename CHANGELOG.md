@@ -139,6 +139,12 @@ In detail:
   tiles); two extra bits of earlier measurements removed (an I/O tile's clock pin from GCLK2 and from
   S6D4); the switches the new experiments do not reach are kept as the earlier ones measured them.
   The rebuilt database is now the committed one.
+- **ISim: a command given during a run was lost (#215):** a `run` typed into ISim's command line (or
+  the Run for field's Enter) while a run went on, in particular ISim's first run of 1 us just after
+  it opened, was ignored without a word. Commands now run in turn, as in ISim's console: one given
+  during a run, or before the first run has started, waits for it and for the commands given before
+  it; Break stops the run and cancels the commands still waiting (`Command '…' cancelled (Break)`).
+  The UI test of the traffic example, whose 'run all' was lost this way on CI, types it once, without retries.
 
 ## 15.10.15
 
