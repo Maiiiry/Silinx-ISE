@@ -9,7 +9,7 @@
 // build/open/report.json after every step (what the Design Summary shows).
 import fs from 'node:fs';
 import path from 'node:path';
-import { yosysNode } from '../core/synth-open-node.js';
+import { yosysWorkers } from '../core/synth-open-node.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { loadDb } from '../research/s3e-bitstream/db.mjs';
 import { runOpenFlow } from '../core/open-flow-core.js';
@@ -29,7 +29,7 @@ const io = {
   ucfName: spec.ucf ? path.basename(spec.ucf) : null,
   device: () => (dev ||= loadDeviceCache(spec.graph)),
   bitDb: () => (db ||= loadDb(`${spec.device}${spec.pkg}`, { graph: io.device(), dir: spec.bitDbDir })),
-  yosys: yosysNode,
+  yosys: yosysWorkers(),   // (the synthesis's mappings from the same netlist in parallel, #86)
   write: (name, data) => {
     const f = fileOf(name);
     fs.mkdirSync(path.dirname(f), { recursive: true });   // (netgen/synthesis/…)

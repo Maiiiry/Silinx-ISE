@@ -119,6 +119,11 @@ In detail:
   barrel shifter 1201 LUTs instead of 1707 (601 slices, ISE 534), AES 25 % fewer, SHA-256 17 %;
   some designs smaller and slower (serv 13 % smaller and 12 % slower). The rule that keeps a mapping
   also keeps one 5 % smaller and at most 1 % slower.
+- **Open synthesis, its mappings in parallel (#86):** the mappings tried from the same netlist (onto
+  LUT4s alone, with the wider functions, for logic depth; with and without carry chains) run at once,
+  in two Yosys worker threads in the application (the browser edition runs them one after the other, in
+  its one worker): the T80's synthesis 22 s instead of 32, picorv32's 12 instead of 18, as before #52
+  and #54 added mappings.
 - **Place and route: a routing with nodes still shared was kept (#242):** when the router stopped
   without a legal routing, the timing analysis still ran, and the register-replication pass could keep
   that routing (then refused by the routing check). It is now incomplete, its period infinite.

@@ -61,7 +61,8 @@ export function reportPart(device) {
 }
 
 // a crash of the flow's process for lack of memory (V8's own messages)
-const OUT_OF_MEMORY = /JavaScript heap out of memory|Reached heap limit|Ineffective mark-compacts near heap limit/;
+// (and a Yosys worker thread's, #86: "Worker terminated due to reaching memory limit: JS heap out of memory")
+const OUT_OF_MEMORY = /JavaScript heap out of memory|Reached heap limit|Ineffective mark-compacts near heap limit|Worker terminated due to reaching memory limit/;
 
 /**
  * The JavaScript heap of the flow's process, in MB (#156): Node's default is a fraction of the RAM

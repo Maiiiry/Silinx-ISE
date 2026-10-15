@@ -350,10 +350,12 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
       // the mapping with the wider functions too (LUT4_COSTS, ABC's own script), kept when better than
       // the one onto LUT4s alone by DEPTH_RULE; the depth-oriented one is then measured against it
+      // (the two from the same netlist, at once: in parallel when run() has several Yosys, #86)
+      const remap = (script, lines) => run(['-q', '-p', `${remapCommands(top, family, { script: !!script })}; ${outputs(top)}`],
+        { [PREMAP_FILE]: asText(out[PREMAP_FILE]), ...(script && { [DEPTH_ABC_FILE]: script }) }, l => { if (!quiet(l)) lines.push(l); });
       let base = json;
-      const linesW = [];
-      const outW = await run(['-q', '-p', `${remapCommands(top, family, { script: false })}; ${outputs(top)}`],
-        { [PREMAP_FILE]: asText(out[PREMAP_FILE]) }, l => { if (!quiet(l)) linesW.push(l); });
+      const linesW = [], lines2 = [];
+      const [outW, out2] = await Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
       const jsonW = outW[`${top}.json`];
       if (jsonW) {
         const cellsW = cellCounts(jsonW, top);
@@ -366,9 +368,6 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           for (const l of linesW) sayNew(l);
         }
       }
-      const lines2 = [];
-      const out2 = await run(['-q', '-p', `${remapCommands(top, family)}; ${outputs(top)}`],
-        { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: DEPTH_ABC }, l => { if (!quiet(l)) lines2.push(l); });
       const json2 = out2[`${top}.json`];
       if (json2) {
         const cells2 = cellCounts(json2, top);
@@ -383,8 +382,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           for (const l of lines2) sayNew(l);
           // balanced once more (DEPTH_ABC2), kept by keepSecond
           const lines3 = [];
-          const out3 = await run(['-q', '-p', `${remapCommands(top, family)}; ${outputs(top)}`],
-            { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: DEPTH_ABC2 }, l => { if (!quiet(l)) lines3.push(l); });
+          const out3 = await remap(DEPTH_ABC2, lines3);
           const json3 = out3[`${top}.json`];
           if (json3) {
             const cells3 = cellCounts(json3, top);
@@ -416,11 +414,12 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     const rw = pre[CHAIN_FILE] ? rewriteCarryChains(asText(pre[CHAIN_FILE]), { top }) : { chains: [] };
     if (rw.chains.length) {
       const linesC = [], linesN = [];
-      const outC = await run(['-q', '-p', `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_json ${CHAIN_FILE}; hierarchy -top ${top}; ${rest}; ${outputs(top)}`],
-        { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); });
-      const resC = await withDepth(outC, () => {}, linesC);
-      const outN = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => { if (!quiet(l)) linesN.push(l); });
-      const resN = await withDepth(outN, () => {}, linesN);
+      // (both at once, #86)
+      const [resC, resN] = await Promise.all([
+        run(['-q', '-p', `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_json ${CHAIN_FILE}; hierarchy -top ${top}; ${rest}; ${outputs(top)}`],
+          { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); }).then(outC => withDepth(outC, () => {}, linesC)),
+        run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => { if (!quiet(l)) linesN.push(l); }).then(outN => withDepth(outN, () => {}, linesN)),
+      ]);
       const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts]);
       if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) line(l); res = resC; }
       else { for (const l of linesN) line(l); res = resN; }
