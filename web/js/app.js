@@ -1284,7 +1284,8 @@ async function synthOpen(mod) {
     log(`Writing <${mod}> as one flat module for Yosys; Yosys (WebAssembly) maps it onto the ${family} cells.`);
     const t0 = performance.now();
     let shown = -1;
-    const run = (args, files, onLine) => yosysBrowser(args, files, onLine, p => { if (p - shown >= 0.1 || p === 1) { shown = p; status(`Loading Yosys… ${Math.round(p * 100)}%`); } });
+    const run = Object.assign((args, files, onLine) => yosysBrowser(args, files, onLine, p => { if (p - shown >= 0.1 || p === 1) { shown = p; status(`Loading Yosys… ${Math.round(p * 100)}%`); } }),
+      { parallel: yosysBrowser.parallel });
     const res = await synthesizeOpen(design, { family, run, onLine: logLine });
     status(`Saving the netlist of ${mod}…`);
     for (const [name, text] of Object.entries(res.files)) await api.writeFile(S.project.name, `build/open/${name}`, text);
