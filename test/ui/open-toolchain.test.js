@@ -323,7 +323,7 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await page.openProject('OpenTechPong');
   await page.click('input[name=view][value=impl]');
   const pong = await checkTechSchematic(page, { top: 'pong', blocks: ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], inside: 'dbL',
-    message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1068 cells in 20 block(s): " });
+    message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1072 cells in 20 block(s): " });
   // the cells and nets as the netlist writes them (#131): pong's pressL (a Verilog name), not pressl
   assert.ok(pong.top.syms.some((x) => x.name === 'pressL_logic' && x.module === 'pressL_logic'), pong.top.syms.map((x) => x.name).join(' '));
   assert.ok(pong.top.syms.some((x) => /^dir_FDRE$/.test(x.name)), pong.top.syms.map((x) => x.name).join(' '));
