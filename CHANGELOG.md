@@ -94,6 +94,9 @@ In detail:
   last action), not as the timeout of what was being waited for; the test is then run once more in a
   fresh page, the projects of the first run removed, as a crashed Yosys is run again in a new worker
   (#153). A second time fails it.
+- **Tests (#238):** the Technology Schematic UI tests, on a timeout, say what the application was
+  doing (the process running and its job, the processes' status, an open dialog, the status bar, the
+  console's last lines), so that a stall is told from a machine too loaded to finish in time.
 
 ## 15.10.15
 

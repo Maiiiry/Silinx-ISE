@@ -247,9 +247,23 @@ const techView = (page) => page.eval(() => {
   return ed ? { id: window.Silinx.active.id, title: window.Silinx.active.title, crumbs: document.querySelector('.doc:not([hidden]) .rtl-crumbs').innerText.replace(/\s+/g, ' '),
     syms: ed.getDoc().symbols.map((x) => ({ id: x.id, type: x.type, name: x.name, module: x.params?.module || null, generics: x.params?.generics || null })) } : null;
 });
+// the Technology Schematic of `top` open (Synthesize runs first: seconds, minutes on a slow machine);
+// a timeout says what the app was doing (#238): its dialogs, the process running, the console's end
+async function waitTech(page, top) {
+  try {
+    await page.waitFor((t) => window.Silinx.active?.id === `tech:${t}` && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [top], { what: 'technology schematic', timeout: 180000 });
+  } catch (e) {
+    const st = await page.eval(() => {
+      const S = window.SilinxApp.S;
+      return { active: S.active?.id || null, busy: !!S.busy, job: S.currentJob || null, status: S.status, top: S.project?.top, selected: S.sel || null,
+        dialogs: [...document.querySelectorAll('.dlg-overlay')].map((d) => d.innerText.replace(/\s+/g, ' ').slice(0, 300)), statusBar: document.getElementById('status-text')?.textContent || null };
+    }).catch((x) => `(${x.message})`);
+    throw new Error(`${e.message}\n--- the app: ${JSON.stringify(st)}\n--- console:\n${(await page.consoleText().catch(() => '')).split('\n').slice(-25).join('\n')}`);
+  }
+}
 async function checkTechSchematic(page, { top, blocks, message, inside }) {
   await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
-  await page.waitFor((t) => window.Silinx.active?.id === `tech:${t}` && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [top], { what: 'technology schematic', timeout: 180000 });
+  await waitTech(page, top);
   const log = await page.consoleText();
   assert.match(log, /Process "Synthesize - Yosys" completed successfully/);
   assert.ok(log.includes(message), log.slice(-1500));
@@ -386,7 +400,7 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   // Technology Schematic of the same design (the Silinx toolchain's synthesis)
   await page.click('input[name=view][value=impl]');
   await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
-  await page.waitFor(() => window.Silinx.active?.id === 'tech:top' && window.Silinx.active.viewer?.getDoc().symbols.length > 10, [], { what: 'technology schematic', timeout: 180000 });
+  await waitTech(page, 'top');
   const tech = await viewerTexts(page);
   assert.deepEqual(tech.kinds, ['wire', 'sym:module', 'sym:constant', 'sym:slice', 'sym:busjoin', 'port', 'label']);
   assert.deepEqual(tech.untranslated, []);
