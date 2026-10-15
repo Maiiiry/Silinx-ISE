@@ -232,13 +232,13 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | epfl-ctrl | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 25 | 50 | 0 |  | 0 |
 | epfl-int2float | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 43 | 86 | 0 |  | 0 |
 | epfl-cavlc | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 160 | 320 | 0 |  | 0 |
-| epfl-router | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 40 | 72 | 64 | 7.762 | 0 |
+| epfl-router | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 35 | 61 | 64 | 8.138 | 0 |
 | epfl-priority | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 127 | 253 | 137 | 11.720 | 0 |
 | epfl-dec | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 187 | 373 | 265 | 6.046 | 0 |
 | epfl-i2c | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 236 | 471 | 276 | 7.644 | 0 |
 | epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 194 | 172 | 386 | 13.207 | 0 |
 | epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 601 | 1201 | 272 | 10.498 | 0 |
-| epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 898 | 1795 | 643 | 30.244 | 1 (flow 1) |
+| epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 616 | 1232 | 643 | 29.448 | 1 (flow 1) |
 
 Summary: 38 designs; front end 38 / 38; own testbenches 8 / 8 pass; synthesis 38; netlist = RTL 37; fully open bitstream complete for 38 designs (35 on the XC3S250E, 2 on the XC3S500E, 1 on the XC3S1200E).
 <!-- end of the results table -->

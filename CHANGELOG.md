@@ -10,6 +10,9 @@ In short:
 - **Undo keeps working when a drawing gets its HDL file:** a schematic, ASM chart, state diagram,
   truth table or Petri net that gets its HDL file while it is open keeps its Undo history, its
   selection and its zoom.
+- **Faster and smaller designs limited by their logic depth in the Silinx toolchain:** the synthesis
+  now knows that a function of 5 or 6 inputs is slower than a LUT (the EPFL max benchmark 31 % smaller
+  and a little faster; serv 12 % faster by the estimate).
 
 In detail:
 
@@ -23,6 +26,13 @@ In detail:
   open editor took the whole drawing again, about a second after the edit: Undo was emptied, the
   selection cleared and the view fitted again. The editor now takes the link alone; Undo and Redo
   keep it, and the editor's HDL link is shown at once.
+- **Open synthesis, the LUT delays (#78):** ABC is given a LUT library with the delays of a 4-, 5- and
+  6-input function on the Spartan-3E (a LUT4; into the MUXF5; into the MUXF6 too), through its script
+  given inline (YoWASP's ABC crashes on read_lut from a script file: reported upstream,
+  codeberg.org/YoWASP/yosys/issues/41). The second depth-oriented balancing is made with and without
+  the delays, at once, and the better kept: EPFL max 1232 LUTs instead of 1795 (616 slices, ISE 927),
+  29.4 ns routed instead of 30.2; serv 10.6 ns estimated instead of 12.1; the pong example 11.2 ns
+  instead of 12.4, with 311 LUTs instead of 275; the other examples as before.
 
 ## 15.10.16
 

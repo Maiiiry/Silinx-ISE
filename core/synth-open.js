@@ -146,6 +146,17 @@ export const DEPTH_ABC = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch 
 // these designs, as the second balancing takes long on large ones (EPFL bar: four times as long)
 export const DEPTH_ABC2 = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if; mfs2; strash; dch -f; if; mfs2';
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
+// LUT delays (#78): ABC maps for depth with every function as fast as a LUT4 (-luts gives costs, not
+// delays); its LUT library (read_lut) tells it what a 5-input function (a LUT4 into the MUXF5) and a
+// 6-input one (into the MUXF6 too) cost and take: the -4 delays of core/fpga/timing.js (Tilo, Tif5x,
+// Tif5 + Tif6y) and a connection (0.45 ns). YoWASP's ABC crashes on read_lut from a script file
+// (codeberg.org/YoWASP/yosys/issues/41), not from a script given inline (abcInline). The balancing of
+// DEPTH_ABC2 is made both ways, the better kept (EPFL max 21.4 ns and 1055 LUTs with the delays,
+// 22.6 ns and 1410 without; serv 12 % faster; the pedestrian crossing as fast with 16 % more LUTs).
+export const LUT_LIB_FILE = 'silinx_lut.lib';
+export const LUT_LIB = '1 1 1.21\n2 1 1.21\n3 1 1.21\n4 1 1.21\n5 2 1.60\n6 4 1.89\n';
+/** An ABC script for `abc -script` inline (+cmd,arg;cmd…), the LUT library read first. */
+export const abcInline = script => `+${[`read_lut ${LUT_LIB_FILE}`, ...script.split(';')].map(c => c.trim().replace(/\s+/g, ',')).filter(Boolean).join(';')}`;
 export const PREMAP_FILE = 'silinx_premap.il';
 // the depth-oriented netlist is kept when its critical path is at least `gain` shorter and it has
 // no more LUTs in proportion than it gains in speed, `luts` (10 %) more at least, or it is no slower
@@ -171,9 +182,10 @@ export function keepSecond(ns, luts, rule = DEPTH_RULE) {
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again,
  *  with the depth-oriented ABC script (DEPTH_ABC, in the file DEPTH_ABC_FILE given to Yosys). */
-export function remapCommands(top, family, { script = true } = {}) {
+export function remapCommands(top, family, { script = true, inline = null } = {}) {
   const synth = `synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`;
-  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS}${script ? ` -script ${DEPTH_ABC_FILE}` : ''}; ${lutsToCells(synth)}`;
+  const abc = inline ? ` -script ${abcInline(inline)}` : script ? ` -script ${DEPTH_ABC_FILE}` : '';
+  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS}${abc}; ${lutsToCells(synth)}`;
 }
 
 // $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing
@@ -328,7 +340,7 @@ export const QUIET = [/^Warning: Shift register inference not yet supported for 
  * what happened: { tried, kept, wide: { ns, luts, kept } of the mapping with the wider functions,
  * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] (usual: the mapping kept
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
- * the depth-oriented one was kept }.
+ * the depth-oriented one was kept, and delays: { ns, luts, kept } of the same with the LUT delays (#78) }.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
@@ -351,8 +363,10 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       // the mapping with the wider functions too (LUT4_COSTS, ABC's own script), kept when better than
       // the one onto LUT4s alone by DEPTH_RULE; the depth-oriented one is then measured against it
       // (the two from the same netlist, at once: in parallel when run() has several Yosys, #86)
-      const remap = (script, lines) => run(['-q', '-p', `${remapCommands(top, family, { script: !!script })}; ${outputs(top)}`],
-        { [PREMAP_FILE]: asText(out[PREMAP_FILE]), ...(script && { [DEPTH_ABC_FILE]: script }) }, l => { if (!quiet(l)) lines.push(l); });
+      // (delays: the script inline with the LUT library, #78)
+      const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
+        { [PREMAP_FILE]: asText(out[PREMAP_FILE]), ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
+        l => { if (!quiet(l)) lines.push(l); });
       let base = json;
       const linesW = [], lines2 = [];
       const [outW, out2] = await Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
@@ -380,19 +394,25 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           chosen = out2;
           cells = cells2;
           for (const l of lines2) sayNew(l);
-          // balanced once more (DEPTH_ABC2), kept by keepSecond
-          const lines3 = [];
-          const out3 = await remap(DEPTH_ABC2, lines3);
-          const json3 = out3[`${top}.json`];
-          if (json3) {
-            const cells3 = cellCounts(json3, top);
-            const ns3 = criticalDelay(json3, top), luts3 = utilization(cells3).luts;
-            info.second = { ns: ns3, luts: luts3, kept: keepSecond([...ns, ns3], [...luts, luts3]) };
-            if (info.second.kept) {
-              chosen = out3;
-              cells = cells3;
-              for (const l of lines3) sayNew(l);
-            }
+          // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), at once; each kept
+          // by keepSecond, the one with the delays when both are and it is better by DEPTH_RULE
+          const lines3 = [], lines4 = [];
+          const [out3, out4] = await Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
+          const cand = (o, lines) => {
+            const j = o[`${top}.json`];
+            if (!j) return null;
+            const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts;
+            return { out: o, lines, cells: c, ns: n, luts: l, kept: keepSecond([...ns, n], [...luts, l]) };
+          };
+          const a = cand(out3, lines3), b = cand(out4, lines4);
+          const useB = b?.kept && (!a?.kept || keepDepth([a.ns, b.ns], [a.luts, b.luts]));
+          const best = useB ? b : a?.kept ? a : null;
+          if (a) info.second = { ns: a.ns, luts: a.luts, kept: best === a };
+          if (b) info.delays = { ns: b.ns, luts: b.luts, kept: best === b };
+          if (best) {
+            chosen = best.out;
+            cells = best.cells;
+            for (const l of best.lines) sayNew(l);
           }
         }
       }

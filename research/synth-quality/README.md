@@ -306,6 +306,29 @@ fewer, siphash 14 %, light8080 23 %, vtr-diffeq2 half; the T80 as before (the wi
 slower: serv +12 %, neorv32 +11 %, verilog-uart and nandland-spi-vhdl +9 % (smaller by 3 to 13 %). The
 examples as before.
 
+## LUT delays (#78)
+
+ABC maps for depth taking every function as fast as a LUT4: `abc -luts` gives it costs, not delays.
+Its LUT library (`read_lut`, lines of inputs / area / delay) can: here the -4 delays of
+`core/fpga/timing.js` and a connection, 1.21 ns for a LUT4 (Tilo + 0.45), 1.60 for a 5-input function
+(Tif5x + 0.45), 1.89 for a 6-input one (Tif5 + Tif6y + 0.45), at 1, 2 and 4 LUT4s (`LUT_LIB`).
+
+YoWASP's ABC (0.68 and 0.70) crashes on `read_lut` in a script file (`abc -script x.abc`, which ABC
+runs with `source`), whatever the library and wherever it is (reported upstream:
+codeberg.org/YoWASP/yosys/issues/41); the same commands given inline (`abc -script
++read_lut,silinx_lut.lib;strash;if`) work (`abcInline`). (`abc -lut <file>` is no way round: Yosys's
+`-lut` takes a width, and with a file name ABC maps onto gates.)
+
+With the delays, every depth-oriented mapping instead: EPFL max 21.4 ns and 1055 LUTs (22.6 ns and
+1410 without), but the first balancing of others worse (the pedestrian crossing 8.1 ns and 109 LUTs
+instead of 7.1 and 94; pong 311 LUTs instead of 275). On the second balancing (`DEPTH_ABC2`) alone,
+better or worse by design (serv 12 % faster, femtorv32 6 % faster for 9 % more LUTs, EPFL priority and
+the pedestrian crossing as fast and larger). So the second balancing is made both ways, at once (two
+Yosys in the application, #86), each kept by `keepSecond`, the one with the delays when both are and
+it is better by `DEPTH_RULE`. Corpus, the designs concerned (routed): EPFL max 29.4 ns and 1232 LUTs
+(30.2 and 1795), EPFL router 15 % smaller and 5 % slower, the others as before; the examples as before
+but pong (11.2 ns estimated instead of 12.4, 311 LUTs instead of 275).
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding

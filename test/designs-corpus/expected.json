@@ -110,10 +110,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 898,
-   "luts": 1795,
+   "slices": 616,
+   "luts": 1232,
    "ffs": 643,
-   "period": 30.244
+   "period": 29.448
   }
  },
  "epfl-priority": {
@@ -138,10 +138,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 40,
-   "luts": 72,
+   "slices": 35,
+   "luts": 61,
    "ffs": 64,
-   "period": 7.762
+   "period": 8.138
   }
  },
  "femtorv32-quark": {
