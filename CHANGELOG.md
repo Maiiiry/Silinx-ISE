@@ -13,6 +13,10 @@ In short:
 
 In detail:
 
+- **The site's usage counts (#257):** from 13 October the published pages had no GoatCounter loader,
+  so nothing was counted: the step that adds it took the page for one that already had it, as the
+  application's own code (Help ▸ About's 'Usage counts' row) names the loader's id. It now looks for
+  the loader's tag itself.
 - **Start page (#255):** of its key hints only the command search is left; Ctrl+S Save (nothing to save
   there) and Ctrl+Z Undo are gone.
 - **The top module removed from the project (#253):** *Remove from Project* of the top module's
