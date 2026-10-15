@@ -3,6 +3,23 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.18
+
+In short:
+
+- **Removing the top module from the project:** the module left becomes the top (Undo brings the old
+  one back), and I/O Pin Planning no longer opens empty for a top the project no longer has.
+
+In detail:
+
+- **The top module removed from the project (#253):** *Remove from Project* of the top module's
+  source left the project's top pointing at it: the Design pane had no top and I/O Pin Planning opened
+  for it with no I/O at all (a project imported from ISE whose top schematic had been removed: its
+  other schematic's buses seemed missing from the planner). Now the one module left at the root of the
+  hierarchy becomes the top, or none when several are (the log says to set one); one Undo brings the
+  old top back. A project saved with such a top is mended when it is opened. I/O Pin Planning of a top
+  the project does not have says so, and how to set one.
+
 ## 15.10.17
 
 In short:

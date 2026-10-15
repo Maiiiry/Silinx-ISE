@@ -217,6 +217,41 @@ export function projectBoard(pj = S.project) {
 
 function moduleInfo(name) { return S.modules.find(m => m.name === name) || S.modules.find(m => m.name.toLowerCase() === String(name).toLowerCase()); }
 
+// The modules at the root of a view's hierarchy: those of its role no module of it instantiates (in the
+// Implementation view, a module instantiated only from a test bench is a root too)
+function viewRoots(sim) {
+  const lib = S.lib;
+  if (!lib) return [];
+  const visible = name => inView(moduleInfo(name)?.role || 'design', sim);
+  if (sim) return topCandidates(lib).filter(visible);
+  const used = new Set();
+  for (const m of lib.modules.values()) if (visible(m.name)) for (const i of instancesOf(m)) used.add(i.module.toLowerCase());
+  return [...lib.modules.values()].filter(m => visible(m.name) && !used.has(m.name.toLowerCase())).map(m => m.name);
+}
+
+// A top-level module the project no longer has (its source removed from the project, #253): the
+// top becomes the one root of its view left, else none (several: the user chooses, a warning); true
+// when it changed. (Not while a source of the project still declares it: one being edited.)
+async function fixMissingTops() {
+  const pj = S.project;
+  const declared = name => (S.sources || []).some(f => new RegExp(`\\b(entity|module)\\s+${String(name).replace(/[^\w$]/g, '')}\\b`, 'i').test(f.text || ''));
+  let changed = false;
+  for (const sim of [false, true]) {
+    const key = sim ? 'simTop' : 'top';
+    const old = pj[key];
+    if (!old || moduleInfo(old) || declared(old)) continue;
+    const roots = viewRoots(sim);
+    pj[key] = roots.length === 1 ? roots[0] : '';
+    changed = true;
+    const what = `The top-level ${sim ? 'simulation ' : ''}module '${old}' is no longer in the project`;
+    if (pj[key]) log(`${what}: the top is now '${pj[key]}' (another one: Set as Top Module).`, 'info');
+    else if (roots.length) log(`${what}: set the top module (a module's right-click menu: Set as Top Module).`, 'warn');
+    else log(`${what}, nor any other module.`, 'info');
+  }
+  if (changed) { await saveProjectJson(); markStale(); renderHierarchy(); }
+  return changed;
+}
+
 // Static hierarchy (from instances in the source, like ISE's Design view).
 function instancesOf(mod) {
   const out = [];
@@ -246,15 +281,7 @@ function renderHierarchy() {
   root.ul.append(devItem.li);
 
   const lib = S.lib;
-  const role = name => moduleInfo(name)?.role || 'design';
-  const visible = name => inView(role(name), S.view === 'sim');
-  let roots = topCandidates(lib).filter(visible);
-  if (S.view === 'impl') {
-    // modules only instantiated from sim files are roots too
-    const used = new Set();
-    for (const m of lib.modules.values()) if (visible(m.name)) for (const i of instancesOf(m)) used.add(i.module.toLowerCase());
-    roots = [...lib.modules.values()].filter(m => visible(m.name) && !used.has(m.name.toLowerCase())).map(m => m.name);
-  }
+  const roots = viewRoots(S.view === 'sim');
   const topName = S.view === 'impl' ? pj.top : null;   // the Simulation view has no top: Simulate runs the selected module
   roots.sort((a, b) => (a === topName ? -1 : b === topName ? 1 : a.localeCompare(b)));
   const addModule = (parentUl, modName, instName, depth, path) => {
@@ -550,6 +577,7 @@ async function removeNow(file, hdl = null) {
   }
   await saveProjectJson();
   await reloadProject();
+  await fixMissingTops();   // (the top module removed, #253)
   if (hdl) {
     log(`Removed ${file} and its HDL file ${hdl} from the project (the files are kept in the project folder).`, 'info');
     toast(`Removed ${file.split('/').pop()} and ${hdl.split('/').pop()} from the project`, 'info', 10000, { label: 'Undo', run: () => projectUndo() });
@@ -3217,6 +3245,7 @@ export async function openProject(name) {
   try { localStorage.setItem('silinx.lastProject', name); } catch { /* ignore */ }
   rememberRecent(name);
   await reloadProject();
+  await fixMissingTops();   // (a project saved with a top it no longer has, #253)
   restoreImplStatus();
   log(`Project "${name}" opened (${S.project.device.part}${S.project.device.speed}-${S.project.device.package}).`, 'info');
   // where the user was in this project; the Design Summary the first time
