@@ -21,6 +21,10 @@ In detail:
   secworks-sha256 on GitHub's machine), the design is placed again with the next seeds, three at most;
   if none routes, the flow says the routing did not converge (how many nodes, after how many passes,
   on how many placements) instead of failing at the routing check.
+- **The scheduled workflows report their failures (#251):** a job of the nightly corpora, the ISE tests
+  or the weekly comparison with ISE that fails opens an issue ('<workflow> failed: <job>'), or comments
+  on it when it is open already, with the run, the commit and the lines of the log that say what failed
+  (home folders, logins and addresses taken off).
 - **A drawing's HDL file linked while it is open (#245):** when a drawn source gets its HDL file (on
   the save that clears its errors, from *Generate HDL File…*, or when its HDL language changes), its
   open editor took the whole drawing again, about a second after the edit: Undo was emptied, the
