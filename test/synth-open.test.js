@@ -26,8 +26,9 @@ end rtl;
 const design = (text, top) => elaborate(compile([{ path: 'd.vhd', lang: 'vhdl', text }]), top);
 
 test('the Yosys script and the device families', () => {
-  // 4-input-LUT families: synth_xilinx with its LUT mapping replaced (ABC on LUTs of up to 6 inputs
-  // at their cost in LUT4s, not LUTs of up to 8 inputs split into LUT4s and MUXF5 … MUXF8)
+  // 4-input-LUT families: synth_xilinx with its LUT mapping replaced (ABC onto LUT4s alone, #54; the
+  // mapping on LUTs of up to 6 inputs at their cost in LUT4s tried after it, remapCommands; not LUTs of
+  // up to 8 inputs split into LUT4s and MUXF5 … MUXF8)
   // (shift registers read at a variable tap: xilinx_srl -variable on the word-level $shiftx before the
   // fine step, #5; fixed ones: xilinx_srl on the bit-level flip-flops before map_ffs, mapped to SRL16E /
   // SRL16E_1 by Silinx's own map file; srl: false keeps them in flip-flops)
@@ -35,7 +36,7 @@ test('the Yosys script and the device families', () => {
     'read_verilog -lib silinx_srl_cells.v; read_verilog -sv top_syn.v; synth_xilinx -family xc3se -ise -flatten -top top -run :fine; '
     + 'memory_map; xilinx_srl -variable -minlen 3; techmap -map silinx_srl_map.v; synth_xilinx -family xc3se -ise -flatten -top top -run fine:map_ffs; '
     + 'xilinx_srl -fixed -minlen 3; techmap -map silinx_srl_map.v; synth_xilinx -family xc3se -ise -flatten -top top -run map_ffs:map_luts; opt_expr -mux_undef -noclkinv; '
-    + 'abc -luts 1,1,1,1,2,4; clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
+    + 'abc -luts 1,1,1,1; clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
     + 'xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:; '
     + 'delete t:$scopeinfo; write_json top.json; write_verilog -noattr top_yosys.v; tee -q -o top_stat.txt stat');
   assert.equal(synthCommands('m', 'spartan3'), synthCommands('m', 'spartan3e').replaceAll('xc3se', 'xc3s'));
@@ -241,7 +242,13 @@ test('logic depth: the depth-oriented netlist is kept when 3 % faster and not la
   assert.ok(!keepDepth([10, 9], [100, 112]), '10 % faster, 12 % more LUTs');
   assert.ok(keepDepth([10, 9], [100, 110]));
   assert.ok(keepDepth([10, 10], [100, 99]), 'as fast and smaller');
-  assert.ok(!keepDepth([10, 10], [100, 100]) && !keepDepth([10, 10.1], [100, 80]), 'the same, or slower');
+  assert.ok(!keepDepth([10, 10], [100, 100]) && !keepDepth([10, 10.2], [100, 80]), 'the same, or slower');
+  // (#54) 5 % smaller at least and at most 1 % slower: the pong example's 12 % fewer LUTs, 0.6 % slower
+  assert.deepEqual([DEPTH_RULE.area, DEPTH_RULE.slack], [0.05, 0.01]);
+  assert.ok(keepDepth([12.32, 12.39], [311, 275]), 'the pong example');
+  assert.ok(keepDepth([10, 10.1], [100, 95]) && !keepDepth([10, 10.1], [100, 96]), '5 % fewer LUTs');
+  assert.ok(!keepDepth([10, 10.11], [100, 50]), 'more than 1 % slower');
+  assert.ok(!keepDepth([2.82, 2.82], [0, 0]), 'no LUTs either way: nothing smaller');
 });
 
 test('logic depth: the mapping balanced once more is kept when better than the depth-oriented one, or faster and kept against the usual mapping (#52)', () => {
@@ -251,6 +258,28 @@ test('logic depth: the mapping balanced once more is kept when better than the d
   assert.ok(!keepSecond([20, 10, 9.9], [100, 110, 112]), 'not 3 % faster than the first, larger');
   assert.ok(!keepSecond([20, 10, 9], [100, 110, 300]), 'faster, but three times the usual LUTs for twice its speed');
   assert.ok(!keepSecond([20, 10, 10.5], [100, 110, 100]), 'slower than the first');
+});
+
+// Regression (#54): a shifter onto LUT4s alone, its 2:1 multiplexers in LUT3s (with the wider functions,
+// as before: 213 LUTs and 120 MUXF5 / MUXF6), that mapping kept and equal to the RTL; a rotator too
+test('a 32-bit shifter and a rotator are mapped onto LUT4s alone, not 5- and 6-input functions (#54)', { timeout: 300000 }, async () => {
+  const SHL = `module shl(input clk, input [31:0] d, input [4:0] s, output reg [31:0] q);
+  reg [31:0] rd; reg [4:0] rs;
+  always @(posedge clk) begin rd <= d; rs <= s; q <= rd << rs; end
+endmodule
+`;
+  const shl = elaborate(compile([{ path: 'shl.v', lang: 'verilog', text: SHL }]), 'shl');
+  const r = await synthesizeOpen(shl, { family: 'spartan3e', run: yosysNode });
+  assert.deepEqual([r.util.luts, r.util.muxes, r.depth.wide.kept, r.depth.kept], [141, 0, false, false], JSON.stringify(r.depth));
+  assert.ok(r.depth.wide.luts > 200, JSON.stringify(r.depth));
+  assert.deepEqual(r.warnings, []);
+  const d = compareNetlist(shl, r, { name: 'lut4-shl', sim: { cycles: 300 } });
+  assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+  const rot = elaborate(compile([{ path: 'rot.v', lang: 'verilog', text: SHL.replace('rd << rs', '(rd << rs) | (rd >> (32 - rs))').replace(/shl/g, 'rot') }]), 'rot');
+  const r2 = await synthesizeOpen(rot, { family: 'spartan3e', run: yosysNode });
+  assert.deepEqual([r2.util.luts, r2.util.muxes, r2.depth.wide.kept], [313, 0, false], JSON.stringify(r2.depth));
+  const d2 = compareNetlist(rot, r2, { name: 'lut4-rot', sim: { cycles: 300 } });
+  assert.equal(d2.status, 'pass', d2.report || JSON.stringify(d2));
 });
 
 // the maximum of four numbers (EPFL max's design, 16 bits), its comparisons written as chains of gates
@@ -341,7 +370,7 @@ test('shift registers read at a variable tap (#5) as SRL16E: a vector, past 16 s
     ['vector', `module t(input clk, input d, input [3:0] k, output q); reg [15:0] r = 0; always @(posedge clk) r <= {r[14:0], d}; assign q = r[k]; endmodule`,
       { BUFG: 1, IBUF: 6, OBUF: 1, SRL16E: 1 }, []],
     ['40 stages, falling edge', `module t(input clk, input d, input [5:0] k, output q); reg [39:0] r = 40'h12345; always @(negedge clk) r <= {r[38:0], d}; assign q = r[k]; endmodule`,
-      { BUFG: 1, IBUF: 8, LUT1: 1, LUT3: 1, MUXF5: 1, OBUF: 1, SRL16E_1: 5 }, []],
+      { BUFG: 1, IBUF: 8, LUT3: 2, OBUF: 1, SRL16E_1: 5 }, []],
     ['enable, 32 stages', `module t(input clk, input ce, input d, input [4:0] k, output q); reg [31:0] r = 0; always @(posedge clk) if (ce) r <= {r[30:0], d}; assign q = r[k]; endmodule`,
       { BUFG: 1, IBUF: 8, LUT3: 1, OBUF: 1, SRL16E: 3 }, []],
     ['array', `module t(input clk, input [7:0] d, input [3:0] k, output [7:0] q); reg [7:0] m [0:15]; integer i; always @(posedge clk) begin for (i = 15; i > 0; i = i - 1) m[i] <= m[i-1]; m[0] <= d; end assign q = m[k]; endmodule`,

@@ -16,6 +16,8 @@ In short:
   schematic of full adders, or written gate by gate, is now as fast as one written `a + b`.
 - **Faster designs in the Silinx toolchain:** designs limited by their logic depth are mapped for it
   once more; critical paths 3 % shorter on average, up to 29 %, with no larger designs on average.
+- **Smaller designs in the Silinx toolchain:** multiplexers and shifters take fewer LUTs; designs 6 %
+  smaller on average, up to half, as fast on average (a barrel shifter 30 % smaller, AES 25 %).
 
 In detail:
 
@@ -110,6 +112,16 @@ In detail:
   paths 3 % shorter on average, sizes as before; the EPFL max benchmark 17 % faster (30.2 ns routed,
   ISE 25.7), EPFL priority 29 %, serv 19 %; the pedestrian crossing example 7.1 ns estimated instead of
   7.9, with 94 LUTs instead of 114.
+- **Open synthesis onto LUT4s alone (#54):** the LUT mapping is onto LUT4s alone; the one with 5- and
+  6-input functions (LUT4s and MUXF5 / MUXF6, which ABC takes for as fast as a LUT4 and so makes of
+  every multiplexer and shifter) is tried after it and kept when better. A 32-bit shifter 141 LUTs
+  instead of 213 and 120 MUXF; on the design corpus 6.5 % fewer LUTs, the period as before; the EPFL
+  barrel shifter 1201 LUTs instead of 1707 (601 slices, ISE 534), AES 25 % fewer, SHA-256 17 %;
+  some designs smaller and slower (serv 13 % smaller and 12 % slower). The rule that keeps a mapping
+  also keeps one 5 % smaller and at most 1 % slower.
+- **Place and route: a routing with nodes still shared was kept (#242):** when the router stopped
+  without a legal routing, the timing analysis still ran, and the register-replication pass could keep
+  that routing (then refused by the routing check). It is now incomplete, its period infinite.
 - **The XC3S250E's bit database rebuilt from scratch with ISE (#48):** the experiments made again
   (research/s3e-bitstream/measure-db.sh, resumable, also from the results left on the ISE machine)
   give every switch and setting of the committed database with the same bits, and 94 more switches

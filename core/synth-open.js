@@ -24,6 +24,13 @@ const LUT4_FAMILIES = new Set(['xc3s', 'xc3se', 'xc3sa', 'xc3sda', 'xc4v']);
 // mapping there (LUTs of up to 8 inputs, each split by lut_map.v into LUT4s and MUXF5 … MUXF8)
 // makes netlists about 2.5 times larger (research/synth-quality/README.md).
 export const LUT4_COSTS = '1,1,1,1,2,4';
+// The usual mapping, though, is onto LUT4s alone (#54): with the wider functions ABC, which sees them
+// as fast as a LUT4 (#78: it cannot be told otherwise), makes multiplexers and shifters of 5- and
+// 6-input functions where LUT4s do as well (the EPFL barrel shifter 1201 LUTs instead of 1707, AES 25 %
+// fewer; the design corpus 7 % fewer LUTs, as fast). The mapping on LUT4_COSTS is tried from the same
+// netlist (WIDE) and kept when better by DEPTH_RULE (the T80, 7 % smaller with it), as the
+// depth-oriented one after it.
+export const LUT4_ONLY = '1,1,1,1';
 
 // Shift registers of the 4-input-LUT families as SRL16E (synth_xilinx does not infer them there:
 // "Shift register inference not yet supported"). xilinx_srl -fixed turns chains of 3 or more
@@ -118,7 +125,7 @@ export function synthCommands(top, family, { srl = true, premap = null } = {}) {
   // xilinx_srl and the map to SRL16E (before map_cells, whose own map writes SRLC32E), then the step;
   // fine's own opt -full run first made t80 7 % larger)
   const shreg = srl ? `${synth} -run :fine; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
-  return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ` : ''}abc -luts ${LUT4_COSTS}; ${lutsToCells(synth)}`;
+  return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ` : ''}abc -luts ${LUT4_ONLY}; ${lutsToCells(synth)}`;
 }
 const lutsToCells = synth => 'clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
   + `xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; ${synth} -run finalize:`;
@@ -141,15 +148,18 @@ export const DEPTH_ABC2 = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
 export const PREMAP_FILE = 'silinx_premap.il';
 // the depth-oriented netlist is kept when its critical path is at least `gain` shorter and it has
-// no more LUTs in proportion than it gains in speed, `luts` (10 %) more at least (or it is no slower
-// and no larger, and better in one); tried on designs of up to `maxLuts` LUTs (ABC's SOP balancing
-// of the largest, AES's 10 000 LUTs, takes minutes and gigabytes)
-export const DEPTH_RULE = { gain: 0.03, luts: 0.1, maxLuts: 5000 };
+// no more LUTs in proportion than it gains in speed, `luts` (10 %) more at least, or it is no slower
+// and no larger, and better in one, or (#54) it has `area` (5 %) fewer LUTs at least and is at most
+// `slack` (1 %) slower, within the estimate's error (the pong example: 12 % fewer LUTs, 0.6 % slower);
+// tried on designs of up to `maxLuts` LUTs (ABC's SOP balancing of the largest, AES's 10 000 LUTs,
+// takes minutes and gigabytes)
+export const DEPTH_RULE = { gain: 0.03, luts: 0.1, maxLuts: 5000, area: 0.05, slack: 0.01 };
 /** Is the depth-oriented mapping kept? ns, luts: [usual, depth-oriented]. */
 export function keepDepth(ns, luts, rule = DEPTH_RULE) {
   const faster = ns[1] <= ns[0] * (1 - rule.gain) && luts[1] <= luts[0] * (1 + Math.max(rule.luts, 1 - ns[1] / ns[0]));
   const better = ns[1] <= ns[0] && luts[1] <= luts[0] && (ns[1] < ns[0] || luts[1] < luts[0]);
-  return faster || better;
+  const smaller = ns[1] <= ns[0] * (1 + rule.slack) && luts[1] < luts[0] && luts[1] <= luts[0] * (1 - rule.area);
+  return faster || better || smaller;
 }
 /** Is the mapping balanced once more (DEPTH_ABC2) kept? ns, luts: [usual, depth-oriented, balanced once
  *  more], the depth-oriented one kept: better than it (keepDepth), or faster than it (by the rule's gain)
@@ -161,9 +171,9 @@ export function keepSecond(ns, luts, rule = DEPTH_RULE) {
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again,
  *  with the depth-oriented ABC script (DEPTH_ABC, in the file DEPTH_ABC_FILE given to Yosys). */
-export function remapCommands(top, family) {
+export function remapCommands(top, family, { script = true } = {}) {
   const synth = `synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`;
-  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS} -script ${DEPTH_ABC_FILE}; ${lutsToCells(synth)}`;
+  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS}${script ? ` -script ${DEPTH_ABC_FILE}` : ''}; ${lutsToCells(synth)}`;
 }
 
 // $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing
@@ -313,10 +323,12 @@ export const QUIET = [/^Warning: Shift register inference not yet supported for 
  * Synthesize an elaborated design (core/elaborate.js). run(args, files, onLine) runs Yosys and
  * resolves with its output files ({ name: text }), or rejects with an error whose `lines` holds
  * Yosys's messages. onLine receives Yosys's output line by line. depth (true): on the
- * 4-input-LUT families the design is mapped a second time for logic depth (DEPTH_ABC), and that
- * netlist is kept when it is faster (DEPTH_RULE); r.depth says what happened: { tried, kept,
- * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented], second: { ns, luts, kept }
- * of the mapping balanced once more (DEPTH_ABC2), when the depth-oriented one was kept }.
+ * 4-input-LUT families the design (mapped onto LUT4s alone) is mapped again with the wider functions
+ * (LUT4_COSTS) and for logic depth (DEPTH_ABC), each netlist kept when better (DEPTH_RULE); r.depth says
+ * what happened: { tried, kept, wide: { ns, luts, kept } of the mapping with the wider functions,
+ * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] (usual: the mapping kept
+ * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
+ * the depth-oriented one was kept }.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
@@ -327,24 +339,48 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   const line = l => { if (!quiet(l)) { log.push(l); onLine(l); } };
   // a mapping (its run's output) and, from the design as it was before its LUT mapping, the depth-oriented
   // one: the faster kept (DEPTH_RULE); its messages apart, only a warning of its own joins the log
-  async function withDepth(out, say) {
+  async function withDepth(out, say, seen) {
+    // (a kept netlist's warnings: those the run before did not print, the netlist being the same before
+    // the LUT mapping)
+    const sayNew = l => { if (/^Warning:/.test(l) && !seen.includes(l)) { seen.push(l); say(l); } };
     const json = out[`${top}.json`];
     if (!json) throw Object.assign(new Error('Yosys wrote no netlist'), { lines: log });
     let chosen = out, cells = cellCounts(json, top);
     const info = { tried: false, kept: false, ns: null, luts: null };
     if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
+      // the mapping with the wider functions too (LUT4_COSTS, ABC's own script), kept when better than
+      // the one onto LUT4s alone by DEPTH_RULE; the depth-oriented one is then measured against it
+      let base = json;
+      const linesW = [];
+      const outW = await run(['-q', '-p', `${remapCommands(top, family, { script: false })}; ${outputs(top)}`],
+        { [PREMAP_FILE]: asText(out[PREMAP_FILE]) }, l => { if (!quiet(l)) linesW.push(l); });
+      const jsonW = outW[`${top}.json`];
+      if (jsonW) {
+        const cellsW = cellCounts(jsonW, top);
+        const nsW = [criticalDelay(json, top), criticalDelay(jsonW, top)], lutsW = [utilization(cells).luts, utilization(cellsW).luts];
+        info.wide = { ns: nsW[1], luts: lutsW[1], kept: keepDepth(nsW, lutsW) };
+        if (info.wide.kept) {
+          chosen = outW;
+          cells = cellsW;
+          base = jsonW;
+          for (const l of linesW) sayNew(l);
+        }
+      }
       const lines2 = [];
       const out2 = await run(['-q', '-p', `${remapCommands(top, family)}; ${outputs(top)}`],
         { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: DEPTH_ABC }, l => { if (!quiet(l)) lines2.push(l); });
       const json2 = out2[`${top}.json`];
       if (json2) {
         const cells2 = cellCounts(json2, top);
-        const ns = [criticalDelay(json, top), criticalDelay(json2, top)], luts = [utilization(cells).luts, utilization(cells2).luts];
-        Object.assign(info, { tried: true, kept: keepDepth(ns, luts), ns, luts });
+        const ns = [criticalDelay(base, top), criticalDelay(json2, top)], luts = [utilization(cells).luts, utilization(cells2).luts];
+        // (against the mapping onto LUT4s alone; or, faster than it, against the one with the wider
+        // functions, as before #54: the LUT4s alone smaller, a design limited by its depth would keep them)
+        const kept = info.wide && !info.wide.kept ? keepSecond([info.wide.ns, ...ns], [info.wide.luts, ...luts]) : keepDepth(ns, luts);
+        Object.assign(info, { tried: true, kept, ns, luts });
         if (info.kept) {
           chosen = out2;
           cells = cells2;
-          for (const l of lines2) if (/^Warning:/.test(l)) say(l);
+          for (const l of lines2) sayNew(l);
           // balanced once more (DEPTH_ABC2), kept by keepSecond
           const lines3 = [];
           const out3 = await run(['-q', '-p', `${remapCommands(top, family)}; ${outputs(top)}`],
@@ -357,7 +393,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
             if (info.second.kept) {
               chosen = out3;
               cells = cells3;
-              for (const l of lines3) if (/^Warning:/.test(l)) say(l);
+              for (const l of lines3) sayNew(l);
             }
           }
         }
@@ -382,15 +418,15 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       const linesC = [], linesN = [];
       const outC = await run(['-q', '-p', `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_json ${CHAIN_FILE}; hierarchy -top ${top}; ${rest}; ${outputs(top)}`],
         { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); });
-      const resC = await withDepth(outC, l => linesC.push(l));
+      const resC = await withDepth(outC, () => {}, linesC);
       const outN = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => { if (!quiet(l)) linesN.push(l); });
-      const resN = await withDepth(outN, l => linesN.push(l));
+      const resN = await withDepth(outN, () => {}, linesN);
       const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts]);
       if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) line(l); res = resC; }
       else { for (const l of linesN) line(l); res = resN; }
     }
   }
-  if (!res) res = await withDepth(await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), line), line);
+  if (!res) res = await withDepth(await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), line), line, [...log]);
   const { chosen, cells, info } = res;
   const files = { [`${top}_syn.v`]: text, [`${top}.json`]: chosen[`${top}.json`], [`${top}_yosys.v`]: chosen[`${top}_yosys.v`] || '', [`${top}_stat.txt`]: chosen[`${top}_stat.txt`] || '' };
   // (a shift-chain array read at a variable tap is made flip-flops on purpose, then SRL16Es: Yosys's

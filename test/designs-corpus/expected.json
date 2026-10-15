@@ -21,10 +21,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 854,
-   "luts": 1707,
+   "slices": 601,
+   "luts": 1201,
    "ffs": 272,
-   "period": 10.585
+   "period": 10.498
   }
  },
  "epfl-cavlc": {
@@ -166,10 +166,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 361,
-   "luts": 717,
+   "slices": 342,
+   "luts": 678,
    "ffs": 389,
-   "period": 11.579
+   "period": 12.07
   }
  },
  "fpu-multiplier": {
@@ -215,10 +215,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 246,
-   "luts": 489,
+   "slices": 189,
+   "luts": 375,
    "ffs": 206,
-   "period": 12.989
+   "period": 12.226
   }
  },
  "nandland-spi-verilog": {
@@ -234,10 +234,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 52,
-   "luts": 101,
+   "slices": 51,
+   "luts": 98,
    "ffs": 37,
-   "period": 5.385
+   "period": 5.535
   }
  },
  "nandland-spi-vhdl": {
@@ -254,10 +254,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 52,
-   "luts": 101,
+   "slices": 51,
+   "luts": 98,
    "ffs": 37,
-   "period": 5.217
+   "period": 5.701
   }
  },
  "neorv32": {
@@ -346,10 +346,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 2289,
-   "luts": 4568,
+   "slices": 2151,
+   "luts": 4293,
    "ffs": 1319,
-   "period": 15.657
+   "period": 17.442
   }
  },
  "picorv32": {
@@ -399,10 +399,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 825,
-   "luts": 1647,
+   "slices": 774,
+   "luts": 1544,
    "ffs": 767,
-   "period": 12.992
+   "period": 11.426
   }
  },
  "secworks-aes": {
@@ -423,10 +423,10 @@
   },
   "quality": {
    "part": "xc3s1200efg320-4",
-   "slices": 7662,
-   "luts": 15324,
+   "slices": 5717,
+   "luts": 11433,
    "ffs": 2996,
-   "period": 27.882
+   "period": 26.477
   }
  },
  "secworks-sha1": {
@@ -447,8 +447,8 @@
    "part": "xc3s250ecp132-4",
    "slices": 1883,
    "luts": 3763,
-   "ffs": 1528,
-   "period": 17.225
+   "ffs": 1560,
+   "period": 17.515
   }
  },
  "secworks-sha256": {
@@ -470,10 +470,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 2400,
-   "luts": 4798,
+   "slices": 1997,
+   "luts": 3992,
    "ffs": 1809,
-   "period": 27.033
+   "period": 27.987
   }
  },
  "secworks-siphash": {
@@ -484,10 +484,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1055,
-   "luts": 2108,
+   "slices": 913,
+   "luts": 1823,
    "ffs": 798,
-   "period": 15.383
+   "period": 15.511
   }
  },
  "serv": {
@@ -521,10 +521,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 220,
-   "luts": 380,
-   "ffs": 342,
-   "period": 11.856
+   "slices": 191,
+   "luts": 330,
+   "ffs": 354,
+   "period": 13.228
   }
  },
  "spi-fpga-master": {
@@ -541,9 +541,9 @@
   "quality": {
    "part": "xc3s250ecp132-4",
    "slices": 18,
-   "luts": 34,
-   "ffs": 21,
-   "period": 4.447
+   "luts": 33,
+   "ffs": 22,
+   "period": 4.378
   }
  },
  "spi-fpga-slave": {
@@ -698,10 +698,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 131,
-   "luts": 259,
+   "slices": 120,
+   "luts": 237,
    "ffs": 79,
-   "period": 10.019
+   "period": 10.937
   }
  },
  "vtr-ch-intrinsics": {
@@ -739,10 +739,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 281,
-   "luts": 190,
+   "slices": 275,
+   "luts": 180,
    "ffs": 509,
-   "period": 7.779
+   "period": 6.237
   }
  },
  "vtr-diffeq1": {
@@ -758,10 +758,10 @@
   },
   "quality": {
    "part": "xc3s500efg320-4",
-   "slices": 263,
-   "luts": 414,
+   "slices": 262,
+   "luts": 412,
    "ffs": 451,
-   "period": 41.108
+   "period": 41.036
   }
  },
  "vtr-diffeq2": {
@@ -777,10 +777,10 @@
   },
   "quality": {
    "part": "xc3s500efg320-4",
-   "slices": 287,
-   "luts": 567,
-   "ffs": 104,
-   "period": 30.328
+   "slices": 144,
+   "luts": 282,
+   "ffs": 96,
+   "period": 28.622
   }
  },
  "vtr-mkPktMerge": {
@@ -828,10 +828,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 732,
-   "luts": 800,
+   "slices": 730,
+   "luts": 784,
    "ffs": 962,
-   "period": 7.856
+   "period": 7.313
   }
  },
  "vtr-sha": {
@@ -842,10 +842,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 837,
-   "luts": 1671,
+   "slices": 817,
+   "luts": 1630,
    "ffs": 893,
-   "period": 15.502
+   "period": 15.851
   }
  },
  "vtr-stereovision3": {
@@ -867,8 +867,8 @@
    "part": "xc3s250ecp132-4",
    "slices": 106,
    "luts": 210,
-   "ffs": 121,
-   "period": 7.542
+   "ffs": 120,
+   "period": 7.532
   }
  }
 }

@@ -276,6 +276,36 @@ verilog-i2c-master -5 % / +8 %, EPFL int2float -21 % LUTs; the examples: the ped
 estimated instead of 7.9 and 94 LUTs instead of 114 (32 MUXF instead of 22), the others as before.
 Against ISE, EPFL max is still slower (30.2 ns against 25.7, #52 left): its comparators.
 
+## LUT4s alone (#54)
+
+ABC's LUT mapping (`abc -luts 1,1,1,1,2,4`) was given functions of 5 and 6 inputs at their cost in LUT4s
+(two LUT4s and a MUXF5; four, two MUXF5 and a MUXF6), but it takes them for as fast as a LUT4 (its unit
+delay; its LUT library, `read_lut`, crashes in YoWASP, #78), so a depth-optimal mapping makes them
+wherever they save a level: multiplexers and shifters above all. A 32-bit shifter `d << s`: 213 LUTs and
+120 MUXF5 / MUXF6 where a logarithmic shifter of 2:1 multiplexers takes 160 LUT3s; onto LUT4s alone
+(`abc -luts 1,1,1,1`) 141 LUTs, no MUXF, the estimate 13 % longer; a rotator 313 LUTs instead of 485,
+as fast; EPFL bar (128-bit barrel shifter, gates) 1156 instead of 1664, as fast.
+
+On the design corpus (38 designs, routed, seed 1), the mapping onto LUT4s alone instead: LUTs and slices
+7 % fewer (geometric mean), the period 0.6 % shorter; AES 25 % fewer LUTs, SHA-1 22 %, EPFL bar 30 %,
+vtr-diffeq2 50 %; but the T80 8 % larger, and serv, neorv32 and verilog-uart 9 to 12 % slower.
+
+So the usual mapping is onto LUT4s alone (`LUT4_ONLY`), and the one with the wider functions is a
+candidate (`remapCommands(…, { script: false })`, from the same netlist before the LUT mapping, as the
+depth-oriented one), kept when better by `DEPTH_RULE`: faster without being larger in proportion, no
+slower and no larger, or (new) 5 % smaller at least and at most 1 % slower (`area`, `slack`: within the
+estimate's error; the pong example's depth-oriented mapping is 12 % smaller and 0.6 % slower than the
+LUT4s alone). The depth-oriented mapping, whose ABC script keeps the wider functions, is measured against
+the LUT4s alone, or, faster than them, against the wider mapping as before (`keepSecond`: else a design
+limited by its depth, the maximum of four 48-bit numbers, keeps the LUT4s alone at 41 ns instead of
+21). The designs above `maxLuts` (5000) keep the LUT4s alone (AES).
+
+Corpus, against 15.10.16's depth work: LUTs 6.5 % fewer, slices 6.2 %, the period as before (0.998);
+EPFL bar 1201 LUTs (601 slices, ISE 534) instead of 1707, AES 11433 instead of 15324, SHA-256 17 %
+fewer, siphash 14 %, light8080 23 %, vtr-diffeq2 half; the T80 as before (the wider mapping kept);
+slower: serv +12 %, neorv32 +11 %, verilog-uart and nandland-spi-vhdl +9 % (smaller by 3 to 13 %). The
+examples as before.
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding
