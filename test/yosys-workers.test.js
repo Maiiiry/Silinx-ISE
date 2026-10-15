@@ -7,7 +7,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { yosysNode, yosysWorkers } from '../core/synth-open-node.js';
 import { synthesizeOpen } from '../core/synth-open.js';
 import { compile, elaborate } from '../core/compile.js';
@@ -60,7 +60,7 @@ test('yosysWorkers: the open synthesis gives the same netlist as with yosysNode,
 });
 
 test('yosysWorkers: idle workers do not keep the process alive', { timeout: 120000 }, () => {
-  const script = `import { yosysWorkers } from ${JSON.stringify(path.join(ROOT, 'core/synth-open-node.js'))};
+  const script = `import { yosysWorkers } from ${JSON.stringify(pathToFileURL(path.join(ROOT, 'core/synth-open-node.js')).href)};
 const run = yosysWorkers(2);
 const o = await run(['-p', 'read_verilog m.v; write_json m.json'], { 'm.v': 'module m(input a, output y); assign y = a; endmodule' });
 console.log(Object.keys(o).includes('m.json') ? 'done' : 'no netlist');`;
