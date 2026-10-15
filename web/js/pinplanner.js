@@ -15,6 +15,17 @@ export function mountPinPlanner(el, doc, top) {
 
   // ports of the top module (elaborated to get real widths)
   const design = elaborate(S.lib, top);
+  // a top the project does not have (its source removed), or one that does not elaborate: said so,
+  // not an empty table (#253)
+  if (!design.top) {
+    const err = (design.diags || []).find(d => d.severity === 'error');
+    const known = S.modules?.some(m => m.name.toLowerCase() === String(top).toLowerCase());
+    root.append(h('div', { class: 'pp-missing' },
+      h('p', {}, known ? `The ports of the top-level module '${top}' cannot be read: ${err?.message || 'it does not elaborate'}.` : `The top-level module '${top}' is not in the project.`),
+      h('p', {}, known ? 'Correct its errors (Check Syntax), then open I/O Pin Planning again.' : 'Set the top module (a module\'s right-click menu: Set as Top Module), then open I/O Pin Planning again.')));
+    doc.pinPlanner = { undo: () => {}, redo: () => {}, canUndo: () => false, canRedo: () => false };
+    return { save: () => {} };
+  }
   const ports = (design.top?.ports || []).map(p => {
     const t = p.sig.t;
     const bus = t.w > 1 || (t.kind === 'logic' && !t.scalar);   // a 1-bit vector is x<0> in the UCF
