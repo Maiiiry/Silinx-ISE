@@ -1,8 +1,15 @@
 // The page's Yosys client (web/js/yosys-client.js) with several workers (#276): two runs at once in two
 // workers, a third queued until one ends, the workers kept for the next runs; one worker on a device with
-// few cores or little memory; after a crash one Yosys at a time.
+// few cores or little memory; after a crash one Yosys at a time. The flow worker's pool (#279): its
+// workers' code (core/synth-open.js yosysWorkerSource) run against a stand-in for Yosys; a worker that
+// cannot start says so (the flow worker then runs Yosys in its own thread).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { yosysWorkerSource } from '../core/synth-open.js';
 
 // a fake Web Worker: its run ends when the test says so (done(i, reply)), in the order the runs came
 const workers = [], runs = [];
@@ -88,4 +95,45 @@ test('#276 Yosys client: after a crash, the run once more in a new worker and on
   done(2);
   assert.deepEqual(await Promise.all(p), [{ out: 'a' }, { out: 'b' }]);
   assert.equal(workers.filter(w => !w.terminated).length, 1);
+});
+
+test('#279 a worker that cannot start: its run fails as such (workerFailed), the next one starts another', async () => {
+  const { yosysPool } = await load({ hardwareConcurrency: 8, deviceMemory: 8 });
+  const made = [];
+  const run = yosysPool({ spawn: () => { const w = { postMessage() {}, terminate() {} }; made.push(w); return w; }, workers: 2 });
+  assert.equal(run.parallel, 2);
+  const p = run(['a'], {});
+  made[0].onerror({ message: 'blocked' });
+  await assert.rejects(p, e => e.workerFailed === true && e.message === 'the Yosys worker failed: blocked');
+  run(['b'], {});
+  assert.equal(made.length, 2);
+});
+
+test('#279 the code of a Yosys worker from a Blob: Yosys from the URL given, its lines, files and errors as web/js/yosys-worker.js', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-yw-'));
+  const fake = path.join(dir, 'bundle.js');
+  fs.writeFileSync(fake, `export async function runYosys(args, files, { stdout }) {
+  if (args[0] === 'fail') throw Object.assign(new Error('Exited with status 1'), { code: 1 });
+  if (args[0] === 'crash') throw new RangeError('Out of memory');
+  stdout(new TextEncoder().encode('one\\ntw')); stdout(new TextEncoder().encode('o\\n'));
+  return { 'o.json': new TextEncoder().encode(files['i.v'] + '!'), 'n.txt': 'text' };
+}
+`);
+  const src = yosysWorkerSource(pathToFileURL(fake).href);
+  assert.match(src, new RegExp(`^import \\{ runYosys \\} from ${JSON.stringify(pathToFileURL(fake).href).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')};`));
+  const file = path.join(dir, 'worker.mjs');
+  fs.writeFileSync(file, src);
+  const sent = [];
+  globalThis.self = { postMessage: m => sent.push(m) };
+  try {
+    await import(pathToFileURL(file).href);
+    await globalThis.self.onmessage({ data: { id: 7, args: ['ok'], files: { 'i.v': 'x' } } });
+    assert.deepEqual(sent, [{ id: 7, line: 'one' }, { id: 7, line: 'two' }, { id: 7, files: { 'o.json': 'x!', 'n.txt': 'text' } }]);
+    sent.length = 0;
+    await globalThis.self.onmessage({ data: { id: 8, args: ['fail'], files: {} } });
+    assert.deepEqual(sent, [{ id: 8, error: 'Yosys failed (exit code 1)', code: 1, crash: false }]);
+    sent.length = 0;
+    await globalThis.self.onmessage({ data: { id: 9, args: ['crash'], files: {} } });
+    assert.deepEqual(sent, [{ id: 9, error: 'Yosys failed: Out of memory', code: undefined, crash: true }]);
+  } finally { delete globalThis.self; }
 });

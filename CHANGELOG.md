@@ -32,6 +32,11 @@ In detail:
   on pong), one otherwise, the runs queued over them. The same netlists; in Chrome, pong 9.2 s ->
   6.3 s and clock 8.2 s -> 5.8 s. After a crash (out of memory, #153) the run is made once more in a
   new worker, and from then on one Yosys at a time.
+- **Implement Design's synthesis in the Yosys workers too (#279):** the browser edition's flow
+  (Implement Design, Generate Programming File) ran Yosys in its own worker's thread, one run at a
+  time; it now keeps a pool of Yosys workers of its own (as #276's, started from a Blob in the
+  single-file edition), or its thread where a browser cannot start them. Blinky's and pong's flows in
+  the browser: 19.5 s -> 16.3 s.
 - **The second balancing at once (#277):** the depth-oriented mapping's second balancing (with and
   without the LUT delays, #78) starts with the first mappings when 4 Yosys or more run at a time,
   only its choice waiting for them: the netlist the same, pong's synthesis 8.1 s -> 7.1 s and
