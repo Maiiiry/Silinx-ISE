@@ -29,7 +29,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './quality-page.mjs';
-import { lastError, newFailures } from './compare-lib.mjs';
+import { lastError, newFailures, parseClocks, constrainedPeriod } from './compare-lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -164,11 +164,21 @@ if (timedNames.length) {
       out = ssh(`docker run --rm --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
     }
     process.stdout.write(out.split('\n').map(l => (l ? `  ISE ${l}\n` : '')).join(''));
+    const clocks = {};
     for (const l of out.split('\n')) {
+      const c = /^(\S+): clocks: (.*)$/.exec(l);
+      if (c) clocks[c[1]] = parseClocks(c[2]);
       const m = /^(\S+): timing: .*?Minimum period:\s+([\d.]+)ns/.exec(l);
       if (m) trce[m[1]] = +m[2];
       const p = /^(\S+): timing: .*?Maximum path delay from\/to any node:\s+([\d.]+)ns/.exec(l);
       if (p && !trce[p[1]]) trce[p[1]] = +p[2];
+    }
+    // the clocks ISE's flow times, the UCF's (#53): a design's other clocks are not in ISE's period
+    for (const n of Object.keys(clocks)) {
+      if (trce[n] === undefined) continue;
+      const pj = JSON.parse(fs.readFileSync(path.join(dir, n, 'silinx.json'), 'utf8'));
+      const ucf = pj.constraints && fs.existsSync(path.join(dir, n, pj.constraints)) ? fs.readFileSync(path.join(dir, n, pj.constraints), 'utf8') : '';
+      trce[n] = constrainedPeriod(clocks[n], ucf, trce[n]);
     }
     if (!LOCAL) ssh(`rm -rf ${remote}`);
   } catch (e) { console.error(`trce of Silinx's routing on the ISE host failed: ${e.message.split('\n')[0]}`); }

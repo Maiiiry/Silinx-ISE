@@ -124,6 +124,11 @@ In detail:
   in two Yosys worker threads in the application (the browser edition runs them one after the other, in
   its one worker): the T80's synthesis 22 s instead of 32, picorv32's 12 instead of 18, as before #52
   and #54 added mappings.
+- **The comparison with ISE, a design with several clocks (#53):** ISE's flow times only the clocks
+  the UCF constrains, the Silinx toolchain's routing was timed (by ISE's trce) on its worst clock: VTR
+  stereovision3 seemed 1.75 times slower than ISE (7.68 ns against 4.92), but its other clock is not in
+  ISE's number; on the same clock it is 5.00 ns against 4.92. The comparison now takes the constrained
+  clock on both sides.
 - **Place and route: a routing with nodes still shared was kept (#242):** when the router stopped
   without a legal routing, the timing analysis still ran, and the register-replication pass could keep
   that routing (then refused by the routing check). It is now incomplete, its period infinite.

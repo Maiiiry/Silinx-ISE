@@ -26,3 +26,25 @@ export function newFailures(before, now) {
   }
   return out;
 }
+
+/** The clocks' periods of ise-open-check.sh's "clocks:" line ('$iopadmap$clk=7.352 …'): { net: ns }. */
+export function parseClocks(text) {
+  const out = {};
+  for (const m of String(text).matchAll(/(\S+)=([\d.]+)/g)) out[m[1]] = +m[2];
+  return out;
+}
+
+/**
+ * The period of Silinx's routing to set against ISE's (#53): ISE's flow times the clocks the UCF's
+ * PERIOD constrains (only them: an unconstrained clock is not analysed), so the period of such a clock
+ * in trce -a's analysis of Silinx's routing (its net named after the port: '$iopadmap$<port>' or
+ * '<port>'), else `worst` (trce's 'Minimum period': the worst clock). ucf: the project's UCF text.
+ */
+export function constrainedPeriod(clocks, ucf, worst) {
+  const text = String(ucf || '');
+  const periods = new Set([...text.matchAll(/PERIOD\s+"?([^"\s;]+)"?/gi)].map(m => m[1].toLowerCase()));
+  const nets = [...text.matchAll(/^\s*NET\s+"([^"]+)"\s+TNM_NET\s*=\s*"?([^";\s]+)"?\s*;/gim)]
+    .filter(m => periods.has(m[2].toLowerCase())).map(m => m[1].toLowerCase());
+  const found = Object.entries(clocks || {}).filter(([net]) => nets.includes(net.replace(/^\$iopadmap\$/, '').toLowerCase())).map(([, ns]) => ns);
+  return found.length ? Math.max(...found) : worst;
+}
