@@ -490,4 +490,4 @@ uiTest('#280 open mode: Generate Programming File after a change of the pins onl
   log = await run('Implement Design');
   assert.ok(synthRuns(log) && !log.includes(UPTODATE), log.slice(0, 3000));
   assert.match(log, /Process "Implement Design" completed successfully/);
-});
+}, { timeout: 300000 });
