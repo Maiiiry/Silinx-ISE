@@ -934,6 +934,18 @@ function sourcesFingerprint() {
   return h.toString(16);
 }
 
+// the synthesis's own inputs (#280): the design sources (not the test benches, not the constraints), the
+// top, the device, the synthesis tool; the run that synthesized them ok is kept (S.synthDone: { fingerprint,
+// status }), so that Implement Design with the Silinx toolchain starts at Translate while they are the same
+function synthFingerprint(sources) {
+  const ucf = S.project.constraints;
+  const parts = sources.filter(f => f.role !== 'sim' && f.path !== ucf && !/\.ucf$/i.test(f.path)).map(f => `${f.path}\n${f.text}`).sort();
+  parts.push(`top\n${S.project.top}`, `dev\n${JSON.stringify(S.project.device)}`, `tool\n${S.project.synthTool || ''}\n${openMode()}`);
+  let h = 2166136261;
+  for (const c of parts.join('\0')) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; }
+  return h.toString(16);
+}
+
 async function loadUcfText() {
   let text = null;
   if (S.project?.constraints && S.fileTree?.includes(S.project.constraints)) {
@@ -947,17 +959,19 @@ async function saveImplStatus() {
   try {
     await loadUcfText();
     const status = Object.fromEntries(IMPL_IDS.filter(id => S.status[id] && S.status[id] !== 'running').map(id => [id, S.status[id]]));
-    await api.writeFile(S.project.name, STATUS_FILE, JSON.stringify({ top: S.project.top, fingerprint: sourcesFingerprint(), time: new Date().toISOString(), status }, null, 2));
+    await api.writeFile(S.project.name, STATUS_FILE, JSON.stringify({ top: S.project.top, fingerprint: sourcesFingerprint(), time: new Date().toISOString(), status, ...(S.synthDone && { synth: S.synthDone }) }, null, 2));
   } catch { /* best effort */ }
 }
 
 async function restoreImplStatus() {
+  S.synthDone = null;
   await loadUcfText();
   if (!S.project?.top) return;
   let saved = null;
   try { saved = JSON.parse(await api.readFile(S.project.name, STATUS_FILE)); } catch { /* none */ }
   await loadUcfText();
   let status = {};
+  S.synthDone = saved?.top === S.project.top && saved.synth?.fingerprint ? saved.synth : null;
   if (saved && saved.top === S.project.top) status = saved.status || {};
   else {
     // derive from ISE's reports (builds made before status saving, or by run.sh elsewhere)
@@ -1190,6 +1204,16 @@ async function runImplInner(mod, steps, opts, pjName) {
       return;
     }
   }
+  // the Silinx toolchain: the synthesis up to date (its inputs those it synthesized ok) is not run again
+  // (#280); Synthesize itself, and a run with the Post-Synthesis Simulation Model, still run it
+  let synthFp = null, synthUpToDate = false;
+  if (openMode() && steps.includes('synth')) {
+    try { synthFp = synthFingerprint(await api.sources(S.project.name)); } catch { /* run it */ }
+    if (synthFp && steps.includes('translate') && !steps.includes('postsynth') && S.synthDone?.fingerprint === synthFp) {
+      steps = steps.filter(st => st !== 'synth');
+      synthUpToDate = true;
+    }
+  }
   // Clear the icons of the processes this run will redo (they get running/ok/warn/err as it goes).
   const runs = new Set([...(steps.includes('synth') ? ['synth'] : []), ...(steps.includes('translate') ? ['translate', 'impl'] : []), ...(steps.includes('map') ? ['map'] : []), ...(steps.includes('par') ? ['par'] : []), ...(steps.includes('bitgen') ? ['bitgen'] : [])]);
   for (const id of runs) S.status[id] = null;
@@ -1204,7 +1228,8 @@ async function runImplInner(mod, steps, opts, pjName) {
       log(`Xilinx ISE toolchain not available (${tc.ise.mode} mode): ${tc.ise.reason}`, 'warn');
       log('The build directory and run.sh are still generated so they can be run on a machine with ISE 14.7. Configure it in Tools > Toolchain Settings.', 'info');
     }
-    const { job } = await api.implement(S.project.name, { steps, generateOnly: !tc.ise.available });
+    if (synthUpToDate) { S.status.synth = S.synthDone.status; renderProcesses(); }
+    const { job } = await api.implement(S.project.name, { steps, generateOnly: !tc.ise.available, ...(synthUpToDate && { synthUpToDate }) });
     S.currentJob = job;
     S.stopRequested = false;
     renderProcesses();
@@ -1221,6 +1246,9 @@ async function runImplInner(mod, steps, opts, pjName) {
       return;
     }
     if (S.project?.name !== pjName) { log(`Implementation of '${pjName}' finished (another project is open now).`, 'info'); return res.status === 'ok'; }
+    // the synthesis this run made: kept as up to date when it ended ok (#280)
+    if (synthFp && ['ok', 'warn'].includes(track.result.synth)) S.synthDone = { fingerprint: synthFp, status: track.result.synth };
+    else if (track.result.synth === 'err') S.synthDone = null;
     if (tc.ise.available) { await applyReportWarnings(track); await saveImplStatus(); }
     if (res.status === 'ok' && tc.ise.available) {
       log(`\nProcess "${procName}" completed successfully${track.warnings ? ` with ${track.warnings} warning(s)` : ''}`, 'ok');

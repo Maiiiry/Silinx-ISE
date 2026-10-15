@@ -109,6 +109,13 @@ test('openSteps: the chain up to the last step; the ISE-only steps are refused',
   assert.deepEqual(OF.openSteps(['synth', 'postsynth']), ['synth', 'postsynth']);
   assert.deepEqual(OF.openSteps(['postsynth', 'bitgen']), ['synth', 'postsynth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
   assert.throws(() => OF.openSteps(['synth', 'postmap', 'xpwr']), /not available in the Silinx toolchain \(they need Xilinx ISE\): postmap, xpwr/);
+  // the synthesis up to date (#280): from Translate on when it is not asked for; asked for, it runs
+  const up = { synthUpToDate: true };
+  assert.deepEqual(OF.openSteps(['translate', 'map', 'par', 'bitgen'], up), ['translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
+  assert.deepEqual(OF.openSteps(['bitgen'], up), ['translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
+  assert.deepEqual(OF.openSteps(['map'], up), ['translate', 'map']);
+  assert.deepEqual(OF.openSteps(['synth', 'translate'], up), ['synth', 'translate']);
+  assert.deepEqual(OF.openSteps(['synth'], up), ['synth']);
 });
 
 test('toolchain configuration: the Silinx toolchain mode, its ISE for device descriptions, the status', async () => {

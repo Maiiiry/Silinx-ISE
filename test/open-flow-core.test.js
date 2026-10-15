@@ -176,3 +176,47 @@ test('Implement Design: the routing does not converge on the placements tried: s
   assert.deepEqual(lines.slice(at + 1), ['The design is too dense for the router on this device: a larger device, or an ISE mode (Toolchain Settings), may implement it.', '=== SILINX FAILED par (exit 1) ===']);
   assert.deepEqual(lines.filter(l => /warning/i.test(l)), []);
 });
+
+// #280: the synthesis up to date: the steps from Translate on use the netlist of the earlier run, and the
+// report says what that synthesis made; without that netlist the synthesis runs
+test('#280 the synthesis up to date: its netlist used, its report kept; no netlist there: it runs', { timeout: 300000 }, async () => {
+  const device = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(spec.graph)).toString('utf8')));
+  const json = {};
+  for (const [k, f] of Object.entries(dbFileNames(spec.device, spec.pkg))) {
+    const p = path.join(DB_DIR, f);
+    json[k] = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null;
+  }
+  const db = makeBitDb(dbFilesFrom(json, spec.pkg), device, spec.part);
+  let yosysRuns = 0;
+  const run = async (store, steps, synthUpToDate) => {
+    const lines = [], reports = [];
+    const io = {
+      log: l => lines.push(l),
+      sources: () => sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') })),
+      ucf: fs.readFileSync(path.join(PJ, project.constraints), 'utf8'), ucfName: 'top.ucf', device: () => device, bitDb: () => db,
+      yosys: (...a) => { yosysRuns++; return yosysNode(...a); },
+      write: (name, data) => { store[name] = data; return `build/${name}`; },
+      read: name => (typeof store[name] === 'string' ? store[name] : null),
+      save: rep => reports.push(rep),
+    };
+    const res = await runOpenFlow({ ...spec, steps, ...(synthUpToDate && { synthUpToDate }) }, io);
+    assert.ok(res.ok, `${res.error}\n${lines.join('\n')}`);
+    return { lines, report: reports.at(-1) };
+  };
+  const store = {};
+  const first = await run(store, ['synth', 'translate', 'map']);
+  const runs = yosysRuns;
+  assert.ok(runs > 0);
+  const earlier = { synthesis: first.report.synthesis, files: { netlist: first.report.files.netlist, synthesis: first.report.files.synthesis } };
+  const again = await run(store, ['translate', 'map', 'par'], { report: earlier });
+  assert.equal(yosysRuns, runs, 'Yosys not run again');
+  assert.deepEqual(again.lines.filter(l => /^=== SILINX|up to date/.test(l)), ['Process "Synthesize - Yosys" is up to date: its netlist build/open/top.json is used.',
+    '=== SILINX STEP translate ===', '=== SILINX STEP map ===', '=== SILINX STEP par ===', '=== SILINX DONE ===']);
+  assert.deepEqual(again.report.synthesis, first.report.synthesis);
+  assert.equal(again.report.files.netlist, 'build/open/top.json');
+  // no netlist (another browser, the build folder emptied): the synthesis runs, then the rest
+  const none = await run({}, ['translate', 'map'], { report: earlier });
+  assert.ok(yosysRuns > runs);
+  assert.deepEqual(none.lines.filter(l => /^=== SILINX|up to date|not in the build folder/.test(l)), ['The netlist of the synthesis is not in the build folder: the synthesis runs again.',
+    '=== SILINX STEP synth ===', '=== SILINX STEP translate ===', '=== SILINX STEP map ===', '=== SILINX DONE ===']);
+});

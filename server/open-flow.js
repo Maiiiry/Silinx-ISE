@@ -113,12 +113,13 @@ export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
 }
 
 /** Normalise the steps of an open run: the chain from synthesis to the last requested step. */
-export function openSteps(steps) {
+export function openSteps(steps, { synthUpToDate = false } = {}) {
   const st = normalizeSteps(steps);
   const bad = st.filter(s => !OPEN_STEPS.includes(s));
   if (bad.length) throw Object.assign(new Error(`not available in the Silinx toolchain (they need Xilinx ISE): ${bad.join(', ')}. Choose an ISE mode in Toolchain Settings.`), { status: 400 });
   const last = Math.max(-1, ...st.map(s => CHAIN.indexOf(s)));
-  const out = CHAIN.slice(0, last + 1);
+  // (the synthesis up to date and not asked for: from Translate on, #280)
+  const out = CHAIN.slice(synthUpToDate && !st.includes('synth') && last > 0 ? 1 : 0, last + 1);
   // the post-synthesis model: after the synthesis when it runs (the model may be synthesized again with
   // the test bench's generics)
   if (st.includes('postsynth')) out.splice(out.includes('synth') ? 1 : 0, 0, 'postsynth');
@@ -139,8 +140,8 @@ export function openSteps(steps) {
  * @param {object} job
  * @param {object} o { project, projectDir, steps?, seed?, effort? }
  */
-export async function runOpenImplementation(job, { project, projectDir, steps, seed = 1, effort = 1 }) {
-  const st = openSteps(steps);
+export async function runOpenImplementation(job, { project, projectDir, steps, seed = 1, effort = 1, synthUpToDate = false }) {
+  const st = openSteps(steps, { synthUpToDate });
   const status = openStatus(project.device || {});
   job.log(`Silinx implementation with the Silinx toolchain (experimental, no ISE): ${project.name} top=${project.top} device=${status.part || '?'}`);
   const result = { buildDir: path.join(projectDir, 'build'), steps: st, warnings: [], mode: 'silinx', reports: null, completedSteps: [], failedStep: null };
@@ -159,6 +160,11 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
   // the outputs of the previous run: they no longer match the design (and a failure must not leave
   // a bitstream behind)
   for (const f of [`${gen.top}.bit`, `${gen.top}_prom.bit`, `${gen.top}_pins.ucf`]) await fs.rm(path.join(gen.buildDir, f), { force: true });
+  // (the synthesis up to date, #280: what the report of the run that made it said about it, kept)
+  let earlier = null;
+  if (!st.includes('synth')) {
+    try { const r = JSON.parse(await fs.readFile(path.join(outDir, 'report.json'), 'utf8')); earlier = { synthesis: r.synthesis || null, files: { netlist: r.files?.netlist, synthesis: r.files?.synthesis } }; } catch { /* none */ }
+  }
   for (const f of ['placed.xdl', 'routed.xdl', 'timing.txt', 'report.json', 'fpga-view.json']) await fs.rm(path.join(outDir, f), { force: true });
   const spec = {
     top: gen.top, part: status.part, device: status.device, family: deviceFamily(project.device) || 'spartan3e',
@@ -166,6 +172,7 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
     sources: gen.sources.map(s => ({ path: s.path, lang: s.lang, file: path.join(gen.buildDir, s.buildPath) })),
     ucf: gen.hasUcf ? path.join(gen.buildDir, `${gen.top}.ucf`) : null,
     buildDir: gen.buildDir, outDir, steps: st, seed, effort, startupClk: project.impl?.startupClk || 'JtagClk',
+    ...(!st.includes('synth') && { synthUpToDate: { report: earlier } }),
     // the test bench, for the post-synthesis model's generics (#120)
     simTop: project.simTop || null,
     simSources: (project.files || []).filter(f => f.role === 'sim' && (f.lang === 'vhdl' || f.lang === 'verilog')).map(f => ({ path: f.path, lang: f.lang, file: path.resolve(projectDir, f.path) })),
