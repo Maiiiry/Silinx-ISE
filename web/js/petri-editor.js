@@ -46,6 +46,7 @@ export function mountPetriEditor(container, opts = {}) {
   let arcFrom = null;                   // the first end of an arc being drawn
   let view = { tx: 40, ty: 40, k: 1 };
   let drag = null;
+  let fitted = false;                   // the view fitted once, or set by the user
   let destroyed = false;
   let panel = null;                     // 'sim' | 'code' | null
   let sim = null;                       // { marking, fired: [], inputs: {}, log: [], timer }
@@ -429,6 +430,7 @@ export function mountPetriEditor(container, opts = {}) {
   const hit = e => { const g = e.target.closest?.('[data-kind]'); return g ? { kind: g.dataset.kind, id: g.dataset.id } : null; };
   svg.addEventListener('pointerdown', e => {
     root.focus({ preventScroll: true });
+    fitted = true;
     const w = toWorld(e.clientX, e.clientY), t = hit(e);
     if (sim && t?.kind === 'transition' && tool === 'select') { fireOne(t.id); return; }
     if (tool === 'place' || tool === 'transition') { if (!t) addNode(tool, w); return; }
@@ -464,6 +466,7 @@ export function mountPetriEditor(container, opts = {}) {
   });
   svg.addEventListener('wheel', e => {
     e.preventDefault();
+    fitted = true;
     const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
     const k = Math.max(0.25, Math.min(4, view.k * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
     view.tx = mx - (mx - view.tx) * k / view.k; view.ty = my - (my - view.ty) * k / view.k; view.k = k;
@@ -481,6 +484,7 @@ export function mountPetriEditor(container, opts = {}) {
   function fit() {
     const r = svg.getBoundingClientRect();
     const nodes = [...M.places, ...M.transitions];
+    if (r.width >= 10 && r.height >= 10) fitted = true;
     if (!nodes.length || !r.width) { view = { tx: 40, ty: 40, k: 1 }; applyView(); return; }
     const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
     const x0 = Math.min(...xs) - 60, x1 = Math.max(...xs) + 100, y0 = Math.min(...ys) - 50, y1 = Math.max(...ys) + 60;
@@ -489,14 +493,21 @@ export function mountPetriEditor(container, opts = {}) {
     applyView();
   }
 
+  // the view fitted to the net once, when the canvas first has a size (it may open hidden, behind
+  // another document), never again by itself: from then on (or from the user's first press or zoom)
+  // the view is the user's; a fit coming late, after a panel had changed the canvas, moved the drawing
+  // under the pointer between the aim and the click (#233)
+  const initialFit = () => { if (!fitted && !destroyed) fit(); };
+  const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(initialFit) : null;
+  ro?.observe(svg);
   setTool('select');
   render();
-  setTimeout(() => !destroyed && fit(), 0);
+  requestAnimationFrame(initialFit);
   return {
     getModel: () => clone(M),
     setModel(m) { M = normalizePetri(m); hist.length = 0; hist.push(JSON.stringify(M)); hi = 0; sel = null; if (sim) resetSim(false); render(); },
     undo, redo, canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1,
     fit, refreshLink,
-    destroy() { destroyed = true; if (sim?.timer) clearInterval(sim.timer); container.innerHTML = ''; },
+    destroy() { destroyed = true; ro?.disconnect(); if (sim?.timer) clearInterval(sim.timer); container.innerHTML = ''; },
   };
 }

@@ -55,7 +55,7 @@ function hdlVsModel(code, model) {
   return { got, want };
 }
 
-/** Select a transition by clicking its label (again if the view was still moving: fit on activation). */
+/** Select a transition by clicking its label (again if the view was still moving: the fit when it opened). */
 async function selectTrans(page, id) {
   for (let i = 0; i < 20; i++) {
     await new Promise((r) => setTimeout(r, 100));
@@ -406,7 +406,7 @@ uiTest('State diagram (FSM): priority (▼ Later), Straighten, Export CSV, simul
   assert.deepEqual(await warnings(), WARN_FSM('B'));
 
   // ---- Zoom / Fit: the zoom label follows; Fit gives the fitted zoom back
-  await new Promise((r) => setTimeout(r, 300));   // (the fit on activation)
+  await new Promise((r) => setTimeout(r, 300));   // (the fit when it opened)
   await tool('Fit');
   const fitted = await zoom();
   const k = parseFloat(await page.eval((ed) => /scale\(([\d.]+)\)/.exec(document.querySelector(`${ed} .fsm-vp`).getAttribute('transform'))[1], ED));

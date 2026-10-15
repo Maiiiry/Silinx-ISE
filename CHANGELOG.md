@@ -106,6 +106,13 @@ In detail:
   so a click whose press and release fell on each side of an edge did nothing. They are now kept; an
   edge redraws only the state, the outputs and the trace. (The ASM chart and truth table editors have
   no running simulation, and the schematic's live simulation acts on the press, so neither had it.)
+- **Diagram editors: the view kept when their tab comes to the front again (#244, #233):** the
+  schematic, ASM chart, state diagram and Petri net editors and the RTL schematic fitted the view to
+  the drawing every time their document was brought to the front, so the user's zoom and pan were
+  lost; and that fit, 30 ms after a document opened, could come late on a loaded machine, after a
+  panel had changed the canvas, so the drawing moved under the pointer and a click aimed at an arc
+  selected nothing (#233). Each editor now fits its view once, when its canvas first has a size (also
+  for a document opened behind another one), and never again by itself.
 - **Tests (#233, #241):** the Petri net analysis test waits for each step of deleting an arc (the arc
   selected, the focus in the editor, the arc gone), so that a failure names it; the Petri net tests
   wait for the saved net and its HDL file instead of reading them after a fixed pause.

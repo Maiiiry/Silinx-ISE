@@ -1357,6 +1357,8 @@ function docTab(doc) {
 export function findDoc(id) { return S.docs.find(d => d.id === id); }
 
 // doc: { id, title, icon, create(el) -> controller }, controller: { onActivate, save, destroy, editor }
+// (a diagram editor fits its view once, when its canvas first has a size, never on activation: the
+// view is the user's, and a late fit moved the drawing under the pointer, #233, #244)
 export function openDoc(spec) {
   let doc = findDoc(spec.id);
   if (doc) { activateDoc(doc); return doc; }
@@ -1792,7 +1794,7 @@ async function openSchematic(mod, { netlist = null } = {}) {
         finally { status('Ready'); }
       };
       show(design.top);
-      return { destroy: () => ed?.destroy?.(), onActivate: () => setTimeout(() => ed?.fit?.(), 30) };
+      return { destroy: () => ed?.destroy?.() };
     },
   });
 }
@@ -1932,7 +1934,6 @@ export async function openAsm(path) {
           if (!S.syncing) syncHdlFromAsm(path, m).catch(e => log(`WARNING: HDL not synchronized: ${e.message}`, 'warn'));
         },
         destroy: () => ed.destroy?.(),
-        onActivate: () => setTimeout(() => ed.fit?.(), 30),
       };
     },
   });
@@ -2230,7 +2231,6 @@ export async function openFsm(path) {
           if (!S.syncing) syncHdlFromFsm(path, m).catch(e => log(`WARNING: HDL not synchronized: ${e.message}`, 'warn'));
         },
         destroy: () => ed.destroy?.(),
-        onActivate: () => setTimeout(() => ed.fit?.(), 30),
       };
     },
   });
@@ -2421,7 +2421,6 @@ export async function openPetri(path) {
           if (m.generatedFile && S.fileTree.includes(m.generatedFile)) await syncHdlFromPetri(path, m).catch(e => log(`WARNING: HDL not synchronized: ${e.message}`, 'warn'));
         },
         destroy: () => ed.destroy?.(),
-        onActivate: () => setTimeout(() => ed.fit?.(), 30),
       };
     },
   });
@@ -2492,7 +2491,7 @@ export async function openSch(path) {
           await save(m);
           if (!S.syncing) syncHdlFromSchematic(path, m).catch(e => log(`WARNING: HDL not synchronized: ${e.message}`, 'warn'));
         },
-        destroy: () => ed.destroy?.(), onActivate: () => setTimeout(() => ed.fit?.(), 30) };
+        destroy: () => ed.destroy?.() };
     },
   });
 }

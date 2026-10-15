@@ -337,7 +337,7 @@ uiTest('ASM chart editor: Zoom / Fit, </> Code and Copy, Reset route / Delete co
   };
 
   // ---- Zoom / Fit: the zoom label follows the buttons; Fit gives the fitted zoom back
-  await new Promise((r) => setTimeout(r, 300));   // (the fit on activation)
+  await new Promise((r) => setTimeout(r, 300));   // (the fit when it opened)
   await tool('Fit');
   const fitted = await zoom();
   const k = parseFloat(await page.eval((d) => /scale\(([\d.]+)\)/.exec(document.querySelector(`${d} .asm-vp`).getAttribute('transform'))[1], D));
