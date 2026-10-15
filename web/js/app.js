@@ -162,6 +162,8 @@ export function status(text) { $('status-text').textContent = text; }
 // UNISIM`, a Verilog BUFG / FDCE … instance, #17), for elaborating a design. The project's module
 // list (compileProject) is compiled without them: the primitives are not project modules.
 const withPrimitives = srcs => [...primitiveSources(srcs), ...srcs];
+// whether a drawing's HDL file (generatedFile) is there, in the project (#231: else it has none)
+const hdlInProject = f => (S.fileTree || []).includes(f);
 export function compileProject() {
   if (!S.project) return;
   const srcs = S.sources.filter(s => !s.view && (s.lang === 'vhdl' || s.lang === 'verilog'));
@@ -176,12 +178,13 @@ export function compileProject() {
     // (a drawn source whose module an HDL file of the project already defines: that file, not a second
     // one; the drawing then has no HDL file, said, #230)
     const hdlMods = new Set(Object.keys(mods).map(n => n.toLowerCase()));
+    // (a drawing whose HDL file is gone, deleted or removed from the project, is one without it: #231)
     for (const [f, t] of views) {
-      const r = viewHdl(f, t, { modules: mods });
+      const r = viewHdl(f, t, { modules: mods, linked: hdlInProject });
       if (!r?.text) continue;
-      if (!hdlMods.has(String(r.module).toLowerCase())) { S.viewSources.push({ path: f, lang: r.lang, text: r.text, role: 'design', view: true, module: r.module, errors: r.errors.length }); continue; }
+      if (!hdlMods.has(String(r.module).toLowerCase())) { S.viewSources.push({ path: f, lang: r.lang, text: r.text, role: 'design', view: true, module: r.module, errors: r.errors.length, lost: r.lost || null }); continue; }
       const m = !r.errors.length && [...(lib0?.modules.values() || [])].find(x => x.name.toLowerCase() === String(r.module).toLowerCase());
-      if (m) S.viewElsewhere[f] = { module: r.module, lang: r.lang, file: m.archFile || m.file };
+      if (m) S.viewElsewhere[f] = { module: r.module, lang: r.lang, file: m.archFile || m.file, lost: r.lost || null };
     }
   }
   // (in S.sources too, so that every compile of the project (simulation, checks, RTL views) has them)
@@ -2543,7 +2546,8 @@ async function adoptDrawnHdl() {
     const target = drawnHdlPath(v.path, v.module, v.lang);
     if ((S.diskTree || S.fileTree || []).includes(target)) continue;
     if (!await writeDrawnHdl(v.path, target, v.text)) continue;
-    log(`${target} generated from ${v.path} (every source has its HDL)`, 'info');
+    // (#231: its HDL file was deleted, or removed from the project and another name is free)
+    log(`${target} generated from ${v.path} (${!v.lost ? 'every source has its HDL' : `its HDL file ${v.lost} ${(S.diskTree || []).includes(v.lost) ? 'was removed from the project' : 'is no longer in the project folder'}`})`, 'info');
     n++;
   }
   return n;
@@ -2576,6 +2580,8 @@ async function writeDrawnHdl(path, target, hdl) {
 // [No HDL] badge, its tip says why) and resolved from its menu, Generate HDL File… (resolveHdlClash).
 const clashTip = c => (c.kind === 'same'
   ? `No HDL file: ${c.file} defines its module ${c.module} already. Generate HDL File… (right-click) replaces it with the HDL generated from the drawing.`
+  : c.kind === 'removed'
+    ? `No HDL file: its HDL file ${c.file} was removed from the project. Generate HDL File… (right-click) makes it again from the drawing.`
   : c.kind === 'drawn'
     ? `No HDL file: its module ${c.module} is the module of ${c.other}. Rename one of them.`
     : `No HDL file: ${c.target} holds something else. Generate HDL File… (right-click) writes its HDL to ${c.free}.`);
@@ -2585,8 +2591,8 @@ async function drawnHdlClashes() {
   const disk = new Set(S.diskTree || S.fileTree || []);
   const texts = {};
   const cands = [
-    ...(S.viewSources || []).filter(v => !v.errors && v.module).map(v => ({ path: v.path, module: v.module, lang: v.lang, definedIn: null })),
-    ...Object.entries(S.viewElsewhere || {}).map(([path, v]) => ({ path, module: v.module, lang: v.lang, definedIn: v.file })),
+    ...(S.viewSources || []).filter(v => !v.errors && v.module).map(v => ({ path: v.path, module: v.module, lang: v.lang, definedIn: null, lost: v.lost })),
+    ...Object.entries(S.viewElsewhere || {}).map(([path, v]) => ({ path, module: v.module, lang: v.lang, definedIn: v.file, lost: v.lost })),
   ];
   for (const v of cands) {
     const target = drawnHdlPath(v.path, v.module, v.lang);
@@ -2597,12 +2603,16 @@ async function drawnHdlClashes() {
     if (!c) continue;
     // (its module is another drawing's, that file the other drawing's HDL: not replaced, one is renamed)
     if (c.kind === 'same' && S.hdlToSch?.[c.file] && S.hdlToSch[c.file] !== v.path) c = { ...c, kind: 'drawn', other: S.hdlToSch[c.file] };
+    // (#231: that file is its own HDL file, removed from the project: made again from it, once the user says so)
+    else if (c.kind === 'same' && c.file === v.lost && !hdlInProject(c.file)) c = { ...c, kind: 'removed' };
     S.hdlClash[v.path] = c;
     const key = `${S.project.name}|${v.path}|${c.kind}|${c.file}`;
     if (S.hdlClashWarned?.has(key)) continue;
     (S.hdlClashWarned ||= new Set()).add(key);
     log(c.kind === 'same'
       ? `WARNING: ${v.path} has no HDL file: ${c.file} exists already and defines its module ${c.module}. Generate HDL File… (its right-click menu in the Design pane) replaces ${c.file} with the HDL generated from it.`
+      : c.kind === 'removed'
+        ? `WARNING: ${v.path} has no HDL file: its HDL file ${c.file} was removed from the project (it is still in the project folder). Generate HDL File… (its right-click menu in the Design pane) makes it again from ${v.path}; Add to Project (Files) brings it back as it is.`
       : c.kind === 'drawn'
         ? `WARNING: ${v.path} has no HDL file: its module ${c.module} is the module of ${c.other} (${c.file}). Rename one of them.`
         : `WARNING: ${v.path} has no HDL file: ${c.target} exists already and holds something else. Generate HDL File… (its right-click menu in the Design pane) writes its HDL to ${c.free}.`, 'warn');
@@ -2618,12 +2628,15 @@ async function resolveHdlClash(path) {
   if (c.kind === 'drawn') { alertDlg('Generate HDL File', clashTip(c), 'warn'); return false; }
   const name = path.split('/').pop();
   if (c.kind === 'same' && !await confirmDlg('Generate HDL File', `${c.file} defines the module ${c.module} already.\n\nReplace it with the HDL generated from ${name}? Its current contents will be lost.`)) return false;
-  const r = viewHdl(path, S.viewTexts?.[path] ?? '', { modules: viewKind(path) === 'sch' ? await schModules() : {} });
+  if (c.kind === 'removed' && !await confirmDlg('Generate HDL File', `${c.file}, the HDL file of ${name}, was removed from the project.\n\nMake it again from ${name} and put it back in the project? Its current contents will be lost.`)) return false;
+  const r = viewHdl(path, S.viewTexts?.[path] ?? '', { modules: viewKind(path) === 'sch' ? await schModules() : {}, linked: hdlInProject });
   if (!r?.text || r.errors.length) { alertDlg('Generate HDL File', `${name} has errors: correct them first.`, 'error'); return false; }
-  const target = c.kind === 'same' ? c.file : c.free;
+  const target = c.kind === 'same' || c.kind === 'removed' ? c.file : c.free;
   closeDocByPath(target);
   if (!await writeDrawnHdl(path, target, r.text)) return false;
-  log(c.kind === 'same' ? `${target} replaced by the HDL generated from ${path}, linked to it` : `${target} generated from ${path} (${c.target} holds something else)`, 'info');
+  log(c.kind === 'same' ? `${target} replaced by the HDL generated from ${path}, linked to it`
+    : c.kind === 'removed' ? `${target} generated again from ${path}, back in the project`
+      : `${target} generated from ${path} (${c.target} holds something else)`, 'info');
   await reloadProject(false);
   markStale();
   return true;
@@ -2684,6 +2697,7 @@ function refreshOpenEditor(path, text) {
 async function syncHdlFromSchematic(schPath, doc) {
   const target = doc.generatedFile || S.schOwners?.[schPath];
   if (!target) return;                    // (a schematic with errors: linked once it has none, #207)
+  if (!hdlInProject(target)) return;      // (its HDL file gone: not written back silently, #231)
   if (await drawnHdlLanguage(schPath, { ...doc, generatedFile: target })) return;
   const { generateHdl } = await import('/core/schdoc.js');
   let g;
@@ -2877,7 +2891,7 @@ async function setViewAsTop(path) {
     return;
   }
   // it does not make a module (errors in it): say why
-  const r = viewHdl(path, S.viewTexts?.[path] ?? await api.readFile(S.project.name, path), {});
+  const r = viewHdl(path, S.viewTexts?.[path] ?? await api.readFile(S.project.name, path), { linked: hdlInProject });
   alertDlg('Set as Top Module', r?.errors?.length ? `${path.split('/').pop()} cannot be the top yet:\n${r.errors.slice(0, 8).join('\n')}` : `${path.split('/').pop()} defines no module that can be the top.`, 'error');
 }
 const viewSel = () => (['sch', 'asm', 'tt', 'fsm', 'pn'].includes(S.sel?.type) ? S.sel.file : null);

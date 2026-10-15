@@ -2,6 +2,9 @@
 // (a schematic's blocks, #175, are not the drawing, #207), and the HDL file every drawn source gets.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fsp from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { drawnModule, drawnHdlPath, viewHdl, definesModule, freeHdlPath, drawnHdlClash } from '../core/view-hdl.js';
 import { newDoc } from '../core/schdoc.js';
 import { newModel } from '../core/asm.js';
@@ -76,4 +79,52 @@ test('drawnHdlClash: none when the name is free; the file defining the module (t
   // its module defined by another HDL file of the project (the file of its name free)
   assert.deepEqual(drawnHdlClash({ path: 'src/g.sch.json', module: 'g', lang: 'vhdl', exists, read, definedIn: 'src/lib.vhd' }),
     { kind: 'same', path: 'src/g.sch.json', module: 'g', target: 'src/g.vhd', file: 'src/lib.vhd' });
+});
+
+// #231: a drawing whose HDL file (generatedFile) is gone, deleted or removed from the project
+test('viewHdl, linked: a drawing whose HDL file is not in the project is a source without one (its HDL made, `lost` names the file)', () => {
+  const pn = { ...newPetri('ctl', 'vhdl'), generatedFile: 'src/ctl.vhd' };
+  const bare = viewHdl('src/ctl.pn.json', JSON.stringify(newPetri('ctl', 'vhdl')));
+  assert.equal(bare.lost, undefined);
+  // the file there: that file, nothing made here (with linked and without)
+  assert.equal(viewHdl('src/ctl.pn.json', JSON.stringify(pn), { linked: f => f === 'src/ctl.vhd' }), null);
+  assert.equal(viewHdl('src/ctl.pn.json', JSON.stringify(pn)), null);
+  // gone: the same HDL as the drawing without the link
+  const r = viewHdl('src/ctl.pn.json', JSON.stringify(pn), { linked: () => false });
+  assert.deepEqual(r, { ...bare, lost: 'src/ctl.vhd' });
+  assert.deepEqual([r.module, r.errors, drawnHdlPath(r.path, r.module, r.lang)], ['ctl', [], 'src/ctl.vhd']);
+  // every kind; a drawing that does not say its language: its lost file's (a schematic linked to Verilog)
+  const docs = {
+    'src/gate.sch.json': [{ ...newDoc('gate', 'vhdl'), lang: undefined, generatedFile: 'src/gate.v' }, 'verilog', 'src/gate.v'],
+    'src/ctrl.asm.json': [{ ...newModel('ctrl', 'vhdl'), generatedFile: 'src/ctrl.vhd' }, 'vhdl', 'src/ctrl.vhd'],
+    'src/maj.tt.json': [{ ...newTable('maj', ['a', 'b', 'c'], ['f']), lang: 'verilog', generatedFile: 'src/maj_tt.v' }, 'verilog', 'src/maj.v'],
+  };
+  for (const [p, [d, lang, target]] of Object.entries(docs)) {
+    const v = viewHdl(p, JSON.stringify(d), { linked: () => false });
+    assert.deepEqual([v.lang, v.errors, v.lost, drawnHdlPath(p, v.module, v.lang)], [lang, [], d.generatedFile, target], p);
+    assert.match(v.text, lang === 'verilog' ? /^\s*module /m : /^\s*entity /m, p);
+  }
+  // not readable: said, as for a drawing without the link
+  const bad = viewHdl('src/bad.pn.json', '{ not json', { linked: () => false });
+  assert.equal(bad.errors.length, 1);
+});
+
+test('server viewSources (implementation): a drawing whose HDL file is deleted or removed from the project is built from the drawing (#231)', async () => {
+  const { viewSources } = await import('../server/ise.js');
+  const dir = await fsp.mkdtemp(path.join(os.tmpdir(), 'silinx-vh-'));
+  try {
+    await fsp.mkdir(path.join(dir, 'src'));
+    await fsp.writeFile(path.join(dir, 'src/ctl.pn.json'), JSON.stringify({ ...newPetri('ctl', 'vhdl'), generatedFile: 'src/ctl.vhd' }));
+    const hdl = viewHdl('src/ctl.pn.json', JSON.stringify(newPetri('ctl', 'vhdl'))).text;
+    const files = [{ path: 'src/ctl.vhd', lang: 'vhdl', role: 'design' }];
+    // deleted from the folder (still listed in the project)
+    let got = await viewSources({ files }, dir, []);
+    assert.deepEqual(got.map(r => [r.path, r.module, r.lost, r.text === hdl]), [['src/ctl.pn.json', 'ctl', 'src/ctl.vhd', true]]);
+    // in the folder and in the project: that file, nothing made
+    await fsp.writeFile(path.join(dir, 'src/ctl.vhd'), hdl);
+    assert.deepEqual(await viewSources({ files }, dir, [{ path: 'src/ctl.vhd', lang: 'vhdl', text: hdl }]), []);
+    // removed from the project (the file kept in the folder)
+    got = await viewSources({ files: [] }, dir, []);
+    assert.deepEqual(got.map(r => [r.path, r.lost]), [['src/ctl.pn.json', 'src/ctl.vhd']]);
+  } finally { await fsp.rm(dir, { recursive: true, force: true }); }
 });

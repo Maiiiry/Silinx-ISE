@@ -529,6 +529,9 @@ PT_PATTERNS.push(
   [/^No HDL file: (\S+) defines its module (\S+) already\. Generate HDL File… \(right-click\) replaces it with the HDL generated from the drawing\.$/, 'Sem ficheiro HDL: $1 já define o seu módulo $2. Gerar Ficheiro HDL… (botão direito) substitui-o pelo HDL gerado a partir do desenho.'],
   [/^No HDL file: (\S+) holds something else\. Generate HDL File… \(right-click\) writes its HDL to (\S+)\.$/, 'Sem ficheiro HDL: $1 contém outra coisa. Gerar Ficheiro HDL… (botão direito) escreve o seu HDL em $2.'],
   [/^No HDL file: its module (\S+) is the module of (\S+)\. Rename one of them\.$/, 'Sem ficheiro HDL: o seu módulo $1 é o módulo de $2. Mude o nome de um deles.'],
+  // its HDL file removed from the project (#231)
+  [/^No HDL file: its HDL file (\S+) was removed from the project\. Generate HDL File… \(right-click\) makes it again from the drawing\.$/, 'Sem ficheiro HDL: o seu ficheiro HDL $1 foi removido do projeto. Gerar Ficheiro HDL… (botão direito) gera-o de novo a partir do desenho.'],
+  [/^(\S+), the HDL file of (\S+), was removed from the project\.\n\nMake it again from (\S+) and put it back in the project\? Its current contents will be lost\.$/, '$1, o ficheiro HDL de $2, foi removido do projeto.\n\nGerá-lo de novo a partir de $3 e repô-lo no projeto? O conteúdo atual perde-se.'],
   [/^(\S+) defines the module (\S+) already\.\n\nReplace it with the HDL generated from (\S+)\? Its current contents will be lost\.$/, '$1 já define o módulo $2.\n\nSubstituí-lo pelo HDL gerado a partir de $3? O conteúdo atual perde-se.'],
   [/^(\S+) has errors: correct them first\.$/, '$1 tem erros: corrija-os primeiro.'],
   [/^(\S+) already exists: the HDL generated from the new source would be written there\. Choose another name\.$/, '$1 já existe: o HDL gerado a partir da nova fonte seria escrito aí. Escolha outro nome.'],

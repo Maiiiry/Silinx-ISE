@@ -8,10 +8,13 @@
 // the Portuguese interface.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
 import { viewHdl } from '../../core/view-hdl.js';
 import { newPetri } from '../../core/petri.js';
 import { newTable } from '../../core/logic.js';
+import { newDoc } from '../../core/schdoc.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -229,6 +232,164 @@ uiTest('#230 in Portuguese: the [Sem HDL] badge and its tip, Gerar Ficheiro HDL�
     await page.waitFor(() => document.querySelector('.dlg-overlay .wiz').innerText.includes("Já existe um módulo chamado 'maj'."), [], { what: 'the module refusal in Portuguese' });
     await page.dialogButton('Cancelar');
     await page.waitNoDialog();
+  } finally {
+    await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+  }
+});
+
+// ---- #231: a drawing whose HDL file (generatedFile) is gone: deleted from the folder, or removed from the project
+const LINKED_PN = JSON.stringify({ ...JSON.parse(PN), generatedFile: 'src/ctl.vhd' }, null, 2);
+const CTL_HDL = viewHdl('src/ctl.pn.json', PN).text;
+const LINKED_ROWS = (pj) => [`project ${pj}`, '  chip xc3s250e-4-cp132', '    moduleTop ctl [Petri*] [VHDL] (ctl.pn.json)'];
+const W_RM = 'WARNING: src/ctl.pn.json has no HDL file: its HDL file src/ctl.vhd was removed from the project (it is still in the project folder). Generate HDL File… (its right-click menu in the Design pane) makes it again from src/ctl.pn.json; Add to Project (Files) brings it back as it is.';
+const TIP_RM = 'No HDL file: its HDL file src/ctl.vhd was removed from the project. Generate HDL File… (right-click) makes it again from the drawing.';
+const pjFiles = async (name) => (await env.server.api('GET', `/api/projects/${encodeURIComponent(name)}`)).files.map((f) => f.path);
+const removeRow = async (page, label) => {
+  await page.treeRow('#hier', label, { right: true, exact: true });
+  await page.click('body > .menu-popup .mi', { text: 'Remove from Project' });
+  await page.waitDialog('Remove Source');
+  await page.dialogButton('Yes');
+  await page.waitNoDialog();
+};
+
+uiTest('#231 regression, a Petri net whose HDL file is deleted from the folder: made again from it and linked at the next load, said in the console, no warning', E, async (page) => {
+  await makeProject(env, { name: 'L_del', top: 'ctl', files: { 'src/ctl.pn.json': LINKED_PN, 'src/ctl.vhd': CTL_HDL } });
+  await page.openProject('L_del');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json', [], { what: 'linked' });
+  assert.deepEqual(await rows(page), LINKED_ROWS('L_del'));
+  await fsp.rm(path.join(env.server.workspace, 'L_del', 'src/ctl.vhd'));
+  await page.eval(() => window.SilinxApp.reloadProject());
+  await page.waitConsole(/src\/ctl\.vhd generated from src\/ctl\.pn\.json \(its HDL file src\/ctl\.vhd is no longer in the project folder\)/);
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json', [], { what: 'linked again' });
+  assert.equal(await readWs(env, 'L_del', 'src/ctl.vhd'), CTL_HDL);
+  assert.equal(JSON.parse(await readWs(env, 'L_del', 'src/ctl.pn.json')).generatedFile, 'src/ctl.vhd');
+  assert.deepEqual(await rows(page), LINKED_ROWS('L_del'));
+  assert.deepEqual(await warnings(page), []);
+  assert.equal(await page.eval(() => Object.keys(window.Silinx.hdlClash).length), 0);
+});
+
+uiTest('#231 a truth table whose HDL file is gone when the project is opened: made again; its name taken by another module: the #230 warning, [No HDL], Generate HDL File… writes the free name', E, async (page) => {
+  const linked = (f) => JSON.stringify({ ...JSON.parse(TT), generatedFile: f }, null, 2);
+  // gone, its name free: made again at once
+  await makeProject(env, { name: 'L_open', top: '', files: { 'src/maj.tt.json': linked('src/maj.vhd') } });
+  await page.openProject('L_open');
+  await page.waitConsole(/src\/maj\.vhd generated from src\/maj\.tt\.json \(its HDL file src\/maj\.vhd is no longer in the project folder\)/);
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/maj.vhd'] === 'src/maj.tt.json', [], { what: 'linked' });
+  assert.equal(await readWs(env, 'L_open', 'src/maj.vhd'), viewHdl('src/maj.tt.json', TT).text);
+  assert.deepEqual(await rows(page), ['project L_open', '  chip xc3s250e-4-cp132', '    truthtable maj [Table*] [VHDL] (maj.tt.json)']);
+  assert.deepEqual(await warnings(page), []);
+  // gone (it was src/maj_tt.vhd), src/maj.vhd holding another module: as #230
+  await makeProject(env, { name: 'L_taken', top: '', files: { 'src/maj.tt.json': linked('src/maj_tt.vhd'), 'src/maj.vhd': OTHER } });
+  await page.openProject('L_taken');
+  await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
+  assert.deepEqual(await warnings(page), [W_TT]);
+  assert.deepEqual(await rows(page), [
+    'project L_taken',
+    '  chip xc3s250e-4-cp132',
+    '    truthtable maj [Table*] [No HDL!] (maj.tt.json)',
+    '    vhdl parity [VHDL*] (maj.vhd)',
+  ]);
+  assert.equal(await warnTip(page), TIP_TT);
+  await page.click('#hier .badge.warn');
+  await page.waitConsole(/src\/maj_tt\.vhd generated from src\/maj\.tt\.json \(src\/maj\.vhd holds something else\)/);
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/maj_tt.vhd'] === 'src/maj.tt.json', [], { what: 'linked' });
+  assert.equal(await readWs(env, 'L_taken', 'src/maj_tt.vhd'), viewHdl('src/maj.tt.json', TT).text);
+  assert.equal(await readWs(env, 'L_taken', 'src/maj.vhd'), OTHER);
+  assert.deepEqual(await warnings(page), [W_TT]);
+});
+
+uiTest('#231 regression, a Petri net whose HDL file is removed from the project: a module by itself, warned once, [No HDL]; Undo links it again; Generate HDL File… asks, Yes makes it again and puts it back in the project', E, async (page) => {
+  await makeProject(env, { name: 'L_rm', top: 'ctl', files: { 'src/ctl.pn.json': LINKED_PN, 'src/ctl.vhd': CTL_HDL } });
+  await page.openProject('L_rm');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json', [], { what: 'linked' });
+  await removeRow(page, 'ctl');
+  await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
+  assert.deepEqual(await warnings(page), [W_RM]);
+  assert.equal(await page.dialogCount(), 0);
+  assert.deepEqual(await rows(page), ['project L_rm', '  chip xc3s250e-4-cp132', '    moduleTop ctl [Petri*] [No HDL!] (ctl.pn.json)']);
+  assert.equal(await warnTip(page), TIP_RM);
+  // nothing written: the file in the folder, out of the project; the net still names it
+  assert.equal(await readWs(env, 'L_rm', 'src/ctl.vhd'), CTL_HDL);
+  assert.equal(await readWs(env, 'L_rm', 'src/ctl.pn.json'), LINKED_PN);
+  assert.deepEqual(await pjFiles('L_rm'), []);
+  // Undo (the toast's): back in the project, linked, nothing to say
+  await page.click('.toast .toast-action', { text: 'Undo' });
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json' && !document.querySelector('#hier .badge.warn'), [], { what: 'linked again' });
+  assert.deepEqual(await rows(page), LINKED_ROWS('L_rm'));
+  assert.deepEqual(await warnings(page), [W_RM]);
+  // removed again: its menu's Generate HDL File…; No: nothing changes
+  await removeRow(page, 'ctl');
+  await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
+  await page.treeRow('#hier', 'ctl', { right: true, exact: true });
+  assert.deepEqual(await menuLabels(page), ['Open', 'Set as Top Module', 'Rename…', 'Generate HDL File…', 'Remove from Project']);
+  await page.click('body > .menu-popup .mi', { text: 'Generate HDL File…' });
+  await page.waitDialog('Generate HDL File');
+  assert.match(await topText(page), /src\/ctl\.vhd, the HDL file of ctl\.pn\.json, was removed from the project\.\n\nMake it again from ctl\.pn\.json and put it back in the project\? Its current contents will be lost\./);
+  await page.dialogButton('No');
+  await page.waitNoDialog();
+  assert.deepEqual(await pjFiles('L_rm'), []);
+  // the badge; Yes: made again, back in the project, linked
+  await page.click('#hier .badge.warn');
+  await page.waitDialog('Generate HDL File');
+  await page.dialogButton('Yes');
+  await page.waitNoDialog();
+  await page.waitConsole(/src\/ctl\.vhd generated again from src\/ctl\.pn\.json, back in the project/);
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json' && !document.querySelector('#hier .badge.warn'), [], { what: 'linked' });
+  assert.deepEqual(await pjFiles('L_rm'), ['src/ctl.vhd']);
+  assert.equal(await readWs(env, 'L_rm', 'src/ctl.vhd'), CTL_HDL);
+  assert.equal(JSON.parse(await readWs(env, 'L_rm', 'src/ctl.pn.json')).generatedFile, 'src/ctl.vhd');
+  assert.deepEqual(await rows(page), LINKED_ROWS('L_rm'));
+  // (said once per opening of the project)
+  assert.deepEqual(await warnings(page), [W_RM]);
+});
+
+uiTest('#231 a schematic whose HDL file is removed from the project: saving the schematic does not write it back into the project silently', E, async (page) => {
+  const SCH = JSON.stringify(newDoc('gate', 'vhdl'), null, 1);
+  const hdl = viewHdl('src/gate.sch.json', SCH).text;
+  const linked = JSON.stringify({ ...JSON.parse(SCH), generatedFile: 'src/gate.vhd' }, null, 1);
+  await makeProject(env, { name: 'L_sch', top: 'gate', files: { 'src/gate.sch.json': linked, 'src/gate.vhd': hdl } });
+  await page.openProject('L_sch');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/gate.vhd'] === 'src/gate.sch.json', [], { what: 'linked' });
+  await removeRow(page, 'gate');
+  await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
+  const W = 'WARNING: src/gate.sch.json has no HDL file: its HDL file src/gate.vhd was removed from the project (it is still in the project folder). Generate HDL File… (its right-click menu in the Design pane) makes it again from src/gate.sch.json; Add to Project (Files) brings it back as it is.';
+  assert.deepEqual(await warnings(page), [W]);
+  assert.deepEqual(await rows(page), ['project L_sch', '  chip xc3s250e-4-cp132', '    moduleTop gate [Schematic*] [No HDL!] (gate.sch.json)']);
+  // the schematic opened, changed (a port: its HDL different) and saved
+  await page.eval(() => window.SilinxApp.openSch('src/gate.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/gate.sch.json' && window.Silinx.active.schEditor, [], { what: 'the schematic open' });
+  await page.eval(async () => {
+    const d = window.Silinx.active, m = d.schEditor.getDoc();
+    m.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, x: 100, y: 100 });
+    d.schEditor.setDoc(m);
+    window.SilinxApp.setDirty(d, true);
+    await window.SilinxApp.saveAll();
+  });
+  await page.waitFor(() => !window.Silinx.active.dirty, [], { what: 'saved' });
+  await page.eval(() => window.SilinxApp.reloadProject());
+  assert.deepEqual(JSON.parse(await readWs(env, 'L_sch', 'src/gate.sch.json')).ports.map((q) => q.name), ['a']);
+  assert.equal(await readWs(env, 'L_sch', 'src/gate.vhd'), hdl);
+  assert.deepEqual(await pjFiles('L_sch'), []);
+  assert.ok(await page.eval(() => !!document.querySelector('#hier .badge.warn')));
+  assert.deepEqual(await warnings(page), [W]);
+});
+
+uiTest('#231 in Portuguese: the tip of [Sem HDL] and the question of a drawing whose HDL file was removed from the project', E, async (page) => {
+  await makeProject(env, { name: 'L_pt', top: 'ctl', files: { 'src/ctl.pn.json': LINKED_PN, 'src/ctl.vhd': CTL_HDL } });
+  await page.openProject('L_pt');
+  await page.waitFor(() => window.Silinx.hdlToSch?.['src/ctl.vhd'] === 'src/ctl.pn.json', [], { what: 'linked' });
+  await removeRow(page, 'ctl');
+  await page.waitFor(() => !!document.querySelector('#hier .badge.warn'), [], { what: 'the [No HDL] badge' });
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+  try {
+    await page.waitFor(() => document.querySelector('#hier .badge.warn')?.textContent === 'Sem HDL', [], { what: 'the badge in Portuguese' });
+    assert.equal(await warnTip(page), 'Sem ficheiro HDL: o seu ficheiro HDL src/ctl.vhd foi removido do projeto. Gerar Ficheiro HDL… (botão direito) gera-o de novo a partir do desenho.');
+    await page.click('#hier .badge.warn');
+    await page.waitDialog('Gerar Ficheiro HDL');
+    assert.match(await topText(page), /src\/ctl\.vhd, o ficheiro HDL de ctl\.pn\.json, foi removido do projeto\.\n\nGerá-lo de novo a partir de ctl\.pn\.json e repô-lo no projeto\? O conteúdo atual perde-se\./);
+    await page.dialogButton('Não');
+    await page.waitNoDialog();
+    assert.deepEqual(await pjFiles('L_pt'), []);
   } finally {
     await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
   }

@@ -2,8 +2,9 @@
 // (.fsm.json), a truth table (.tt.json) or a Petri net (.pn.json) that has no HDL file of its own (#177): made in memory when
 // the project is compiled, simulated or implemented, so that such a source is a module of the
 // project like an HDL one (it can be the top, be instanced, be synthesized) without a file.
-// A source kept in sync with an HDL file (its generatedFile) is that file: nothing here. Every drawn
-// source normally has that file (#207: the app writes it from the HDL made here, drawnHdlPath); this
+// A source kept in sync with an HDL file (its generatedFile) is that file: nothing here, unless that
+// file is gone (deleted, or removed from the project, #231): then it is a source without one again.
+// Every drawn source normally has that file (#207: the app writes it from the HDL made here, drawnHdlPath); this
 // is for one that cannot have it yet (errors, a file of that name in the way) and for implementing.
 import { generateHdl } from './schdoc.js';
 import { generate as generateAsm, validate as validateAsm } from './asm.js';
@@ -17,13 +18,22 @@ export const isView = path => VIEW_RE.test(String(path || ''));
 /**
  * One source's HDL: { path, lang, text, module, errors: [message] } (path: the source's own, so that the
  * messages point at it), or null when it is kept in sync with an HDL file, or not a drawn source.
- * modules: the project's modules (the schematics' module symbols).
+ * modules: the project's modules (the schematics' module symbols). linked(file): whether its HDL file
+ * (generatedFile) is there, in the project (default: always); when it is not (#231), the HDL is made
+ * here as for a source without one, and `lost` names that file.
  */
-export function viewHdl(path, text, { modules = {} } = {}) {
+export function viewHdl(path, text, { modules = {}, linked = null } = {}) {
   if (!isView(path)) return null;
   let m;
   try { m = JSON.parse(text); } catch (e) { return { path, lang: 'vhdl', text: '', module: null, errors: [`${path}: ${e.message}`] }; }
-  if (m.generatedFile) return null;
+  if (m.generatedFile && (!linked || linked(m.generatedFile))) return null;
+  // (its language that file's when the drawing does not say)
+  const r = drawnHdl(path, m.generatedFile && !m.lang ? { ...m, lang: /\.s?v$/i.test(m.generatedFile) ? 'verilog' : 'vhdl' } : m, modules);
+  if (m.generatedFile) r.lost = m.generatedFile;
+  return r;
+}
+
+function drawnHdl(path, m, modules) {
   const kind = VIEW_RE.exec(path)[1].toLowerCase();
   const lang = m.lang === 'verilog' ? 'verilog' : 'vhdl';
   const out = (code, errors = []) => {

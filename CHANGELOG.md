@@ -43,6 +43,15 @@ In detail:
   the drawing's module is replaced by the generated HDL after you say Yes; a file holding something
   else is left alone and the HDL goes to `<module>_<kind>.vhd` (`ctl_pn.vhd`, `maj_tt.vhd`…). The New
   Source wizards refuse a drawing whose HDL file name, or module name, is taken.
+- **A drawing whose HDL file is gone (#231):** a schematic, ASM chart, state diagram, truth table or
+  Petri net whose HDL file was deleted from the project folder, or removed from the project, no longer
+  stays silently as a bare file in the Design pane that is not a module: it is a module by itself
+  again and gets its HDL file at once (the console says why), or, when that file name is taken, as
+  above. Its HDL file removed from the project: the console says so once, **[No HDL]** on its row, and
+  *Generate HDL File…* makes it again from the drawing and puts it back in the project after you say
+  Yes (Undo, or *Add to Project* in Files, brings back the file as it was); saving the drawing no
+  longer writes that file back into the project silently. Implementation, on the server and in the
+  browser, builds such a drawing from the drawing too.
 - **Generate Post-Synthesis Simulation Model in the Silinx toolchain (#120):** no longer *Needs Xilinx
   ISE*: the open synthesis's netlist written as ISE's netgen writes it, a VHDL model of UNISIM primitives
   (`build/netgen/synthesis/<top>_synthesis.vhd`, its entity with the top's ports), and in Verilog (`.v`);
