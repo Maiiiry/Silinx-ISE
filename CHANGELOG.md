@@ -7,6 +7,9 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Flip-flops, one entry each:** the palette lists FD, FT and FJK; their clock enable, clear, preset, reset
+  and set are options in the symbol's properties (FD with CE and CLR is FDCE); REG is gone (a flip-flop's
+  Width).
 - **MUX / DEMUX, one entry each:** the palette lists M2_1 … M16_1 and DEMUX1_2 … DEMUX1_16 once, the enable E
   their parameter; the symbols show their type and the width of their bus pins.
 - **The schematic editor's Names:** a checkbox shows the name of every instance and every net; View HDL is
@@ -32,6 +35,13 @@ In short:
 
 In detail:
 
+- **Flip-flop inputs as options (#315):** the Flip-Flops palette listed every Xilinx variant (FDC, FDCE,
+  FDCPE, FDR, FDRE, FTCPE, FJKSRE…) and REG. It now lists FD, FT and FJK; the properties of a flip-flop
+  have *Clock enable (CE)*, *Asynchronous clear (CLR)*, *Asynchronous preset (PRE)*, *Synchronous reset
+  (R)* and *Synchronous set (S)*: a choice makes the symbol the Xilinx variant with those inputs (its name
+  drawn: FDCE, FTRSE…), an input the library does not have with the others chosen is unavailable (said).
+  REG is not in the palette (a flip-flop with Width > 1 is a register); the schematics that have it, and
+  the variants as symbol types, as before (ISE import / export, HDL, datasheets unchanged).
 - **MUX / DEMUX symbols (#313):** the M2_1E … M16_1E and DEMUX1_2E … DEMUX1_16E palette entries are gone:
   the enable is the parameter *Enable input E* of M2_1 … M16_1 and DEMUX1_2 … DEMUX1_16 (a symbol with it
   is still named M4_1E…); the generic DEMUX entry is gone too (the same symbol as DEMUX1_n). M8_1 and
