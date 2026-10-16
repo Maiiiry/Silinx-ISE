@@ -1,17 +1,18 @@
 # Começar a usar o Silinx ISE (passo a passo)
 
-Não precisa de ferramentas de programação nem de git. Escolha **uma** das duas formas abaixo.
+Não precisa de ferramentas de programação nem de git. **A Forma 1, no browser, faz tudo**: a Forma 2 é
+outra maneira de correr o mesmo Silinx, no seu computador.
 
 | Quero… | Use |
 |---|---|
-| escrever VHDL/Verilog, desenhar esquemáticos e máquinas de estados, **simular** | **Forma 1**: um só ficheiro, nada a instalar |
-| também **sintetizar** e **programar uma placa real** (Basys2, Nexys, …) | **Forma 2**: a aplicação completa (instala o Node.js uma vez) |
+| escrever VHDL/Verilog, desenhar esquemáticos e máquinas de estados, simular, **sintetizar** e **programar uma placa Basys2 / Nexys2** | **Forma 1**: no browser, nada a instalar |
+| trabalhar sem Internet, guardar os projetos em pastas com qualquer browser, programar com as ferramentas instaladas (Adept, openFPGALoader…), ou usar o **Xilinx ISE 14.7** para outras placas | **Forma 2**: correr o Silinx localmente (instala o Node.js uma vez) |
 
 > English: [GETTING-STARTED.md](GETTING-STARTED.md)
 
 ---
 
-## Forma 1: um só ficheiro (a mais simples)
+## Forma 1: no browser (a mais simples)
 
 O mais rápido: abra **https://pmnmalo.github.io/Silinx-ISE/** no browser (a última versão lançada; os seus
 projetos ficam nesse browser. A versão em desenvolvimento, com as alterações ainda não lançadas, está em
@@ -30,18 +31,19 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, com os projetos à parte) e passe ao 
 - **Ou guarde-os numa pasta do seu disco** (Chrome ou Edge): **File ▸ Open Workspace Folder…**
   (também na página inicial) e escolha uma pasta, por exemplo uma nova pasta `Silinx-projects` nos
   Documentos. Cada projeto passa a ser uma pasta normal lá dentro (`silinx.json`, `src/`, `sim/`,
-  `constraints/`, e `build/` com o bitstream), igual às da aplicação completa (Forma 2): a pasta
+  `constraints/`, e `build/` com o bitstream), igual às do Silinx a correr localmente (Forma 2): a pasta
   também abre lá, e a pasta de um projeto pode ser comprimida em zip e entregue. O browser lembra-se
   da pasta; quando voltar a pedir autorização, clique em **Reopen Silinx-projects** na página
   inicial. **File ▸ Copy Browser Projects to the Folder** copia os projetos que já tinha no browser,
   e **File ▸ Use Browser Storage** volta ao browser. A barra de estado mostra onde ficam os
   projetos. O Firefox e o Safari não abrem pastas: aí os projetos ficam no browser.
-- Em **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** e **Generate Programming
-  File** correm a cadeia de ferramentas Silinx no browser (placas Basys2 e Nexys2; a primeira vez
-  descarrega as ferramentas, cerca de 100 MB, que o browser guarda): o bitstream (`top.bit`) é
+- **Implement Design** e **Generate Programming File** correm a cadeia de ferramentas Silinx no
+  browser (placas Basys2 e Nexys2; a primeira vez descarrega as ferramentas do site, cerca de 100 MB,
+  que o browser guarda; também no `Silinx-ISE.html` descarregado): o bitstream (`top.bit`) é
   descarregado.
-- **Programar a placa a partir do browser** (Chrome ou Edge; o Firefox e o Safari não acedem a
-  dispositivos USB): ligue o cabo USB da placa, ligue-a, e depois **Configure Target Device ▸ Program
+- **Programar a placa a partir do browser** (Chrome ou Edge, ou o Chrome num tablet Android; o
+  Firefox e o Safari não acedem a dispositivos USB; com a página aberta a partir do endereço do site,
+  não a partir do ficheiro descarregado): ligue o cabo USB da placa, ligue-a, e depois **Configure Target Device ▸ Program
   FPGA** e escolha a placa na lista que o browser mostra (só na primeira vez). No Windows, se o
   Digilent Adept estiver instalado, o controlador dele ocupa a placa: dê-lhe o controlador WinUSB com
   o [Zadig](https://zadig.akeo.ie) para a usar a partir do browser. No Linux, permita o acesso à placa
@@ -49,8 +51,9 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, com os projetos à parte) e passe ao 
   na flash da placa (PROM), para que arranque ao ligar, selecione a PROM (XCF02S / XCF04S) na cadeia e
   clique em **Program PROM**, com o jumper de modo em ROM (Basys2: JP3).
 - **Num iPad ou num tablet** (Safari, ou o browser do tablet): editar, desenhar, simular e
-  **Generate Programming File** funcionam; programar a placa não (programe o `.bit` descarregado a
-  partir de um computador). Os projetos ficam no browser, que o iPadOS pode apagar ao fim de algumas
+  **Generate Programming File** funcionam. **O Chrome num tablet Android também programa a placa**,
+  como num computador (verificado num tablet Samsung); o Safari num iPad não acede a dispositivos USB
+  (programe o `.bit` descarregado a partir de um computador ou de um tablet Android). Os projetos ficam no browser, que o iPadOS pode apagar ao fim de algumas
   semanas sem uso: guarde uma cópia com **File ▸ Export Silinx ISE Project (.zip)…**. Um tablet tem
   menos memória, por isso um desenho grande pode falhar na síntese. Os menus do botão direito abrem
   com um **toque longo** (o dedo parado meio segundo). Na vertical o painel Projeto é uma gaveta (o botão à esquerda do
@@ -59,7 +62,12 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, com os projetos à parte) e passe ao 
 
 ---
 
-## Forma 2: a aplicação completa
+## Forma 2: correr o Silinx localmente (Node.js)
+
+O mesmo Silinx, a correr no seu computador em vez do site: os projetos como pastas em
+`Silinx-projects` com qualquer browser, a síntese sem Internet, a placa programada também com as
+ferramentas instaladas (Digilent Adept, openFPGALoader, xc3sprog, adepttool) ou a partir do Firefox e
+do Safari, e o Xilinx ISE 14.7 para as placas que a cadeia de ferramentas Silinx ainda não suporta.
 
 ### Passo 1: instalar o Node.js (uma vez)
 
@@ -76,7 +84,7 @@ O Silinx corre no **Node.js**, um programa gratuito.
 ### Passo 2: descarregar o Silinx
 
 1. Abra a **[última versão](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
-2. Em **Assets**, descarregue **`silinx-ise-<versão>.zip`** (por exemplo `silinx-ise-0.2.0.zip`).
+2. Em **Assets**, descarregue **`silinx-ise-<versão>.zip`** (por exemplo `silinx-ise-15.10.21.zip`).
    - Não use o botão verde **Code ▸ Download ZIP** nem o "Source code": essa versão não traz tudo
      o que o Silinx precisa (funciona na mesma, mas o primeiro arranque precisa de Internet para
      descarregar o que falta).
@@ -130,9 +138,10 @@ antiga). **Os seus projetos não estão dentro dessa pasta**, por isso mantêm-s
 
 ---
 
-## Síntese e programação de uma placa (opcional)
+## Síntese e programação de uma placa com o Silinx a correr localmente (opcional)
 
-Precisam de até mais duas coisas. O seu professor pode já as ter preparadas.
+No browser (Forma 1) não é preciso mais nada para as Basys2 e Nexys2. Com o Silinx a correr
+localmente (Forma 2), precisam de até mais duas coisas. O seu professor pode já as ter preparadas.
 
 1. **Para as placas Basys2 e Nexys2, nada:** a *toolchain Silinx*, o modo por omissão, sintetiza e
    gera o bitstream sem nenhuma ferramenta Xilinx. Para as outras placas (ou os processos que

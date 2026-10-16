@@ -1,9 +1,10 @@
 # Xilinx ISE 14.7 toolchain for Silinx (Docker builder kit)
 
-Silinx simulates, draws schematics and programs boards on its own, but **synthesis, place & route
-and bitstream generation for Spartan-3E need Xilinx ISE 14.7** — there is no open-source
-alternative for this family. ISE runs only on x86-64 Linux/Windows, so Silinx runs it inside a
-Docker container on every platform.
+Silinx simulates, draws schematics, programs boards, and synthesizes, places, routes and writes the
+bitstream on its own for the Spartan-3E boards it supports (Basys2-100 / 250, Nexys2-500 / 1200: the
+Silinx toolchain). **Xilinx ISE 14.7 is needed for the other devices and boards, and for the ISE-only
+processes** (XST, the simulation models of the implementation, the power report…). ISE runs only on
+x86-64 Linux/Windows, so Silinx runs it inside a Docker container on every platform.
 
 > **Why there is no ready-made image:** ISE WebPACK is free, but the AMD/Xilinx license agreement
 > does not allow redistributing the software or license files. Each user downloads the installer

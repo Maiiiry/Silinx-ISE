@@ -67,8 +67,9 @@ documentation: the Spartan-3 Generation Configuration User Guide (UG332) and XAP
 - **No reading of ISE's internal data files** (for example the device databases in ISE's
   installation directory). Only the documented outputs of ISE's command-line tools are used.
 - **No Xilinx code, and no Xilinx data files, in Silinx.** The bit database is Silinx's own record
-  of observations. It does not contain any file produced by Xilinx. The device description shipped
-  for the XC3S250E-CP132 is Silinx's own packed description of the chip's wires and switches
+  of observations. It does not contain any file produced by Xilinx. The device descriptions shipped
+  for the Spartan-3E boards' devices (XC3S100E-CP132, XC3S250E-CP132, XC3S500E-FG320,
+  XC3S1200E-FG320) are Silinx's own packed descriptions of the chips' wires and switches
   (`core/fpga/device.js`), computed from the output of ISE's documented `xdl -report -pips
   -all_conns` command; it is neither that report nor any file of ISE's installation.
 - **No redistribution of ISE.** The Docker image with ISE that Silinx's developers use is private

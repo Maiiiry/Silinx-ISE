@@ -9,8 +9,29 @@ In short:
 
 - **I/O markers rotated and mirrored:** in the schematic editor, Rotate (Ctrl+R) and Mirror (Ctrl+M)
   now turn the I/O markers too, so a marker can sit on a vertical wire or face the other way.
+- **Getting started, as Silinx is now:** the documentation presents the site as the way to design,
+  simulate, synthesize and program the board, and the Node.js application as an alternative way of
+  running Silinx locally; Chrome on an Android tablet programs the board too.
 
 In detail:
+
+- **The documentation's Getting started (#299):** README's Getting started and the step-by-step
+  guides (`docs/GETTING-STARTED.md`, `docs/COMECAR.md`) said the site was for designing and
+  simulating and the Node.js application for synthesizing and programming; since the Silinx toolchain
+  and WebUSB programming (the FPGA and the Platform Flash) run in the browser, the site does it all for
+  the Basys2 / Nexys2, and the application is the same Silinx run locally (projects as folders, offline,
+  the installed programmers, Xilinx ISE for the other boards). The tablet notes: Chrome on Android has
+  WebUSB and programs the board (checked on a Samsung tablet), only Safari on an iPad does not.
+  The rest of the documentation checked against what Silinx does now: README's notice, its
+  Implementation, View Implemented Design, ISE processes, synthesis (the Optimization Effort, the
+  synthesis up to date), programming (WebUSB) and layout sections; the ISE Docker kit's README (ISE is
+  needed for the other boards, not for the Basys2 / Nexys2); `docs/OPEN-TOOLCHAIN.md` (the four
+  devices shipped); `docs/PROJECT.md` (the examples as templates, every family's parts, `synthTool`,
+  `impl.optLevel`); `docs/QUALITY.md` and its generator (the results pushed to `quality-results`);
+  the guides' example version and that programming needs the site's address, not the downloaded
+  file; the release notes (the single-file edition synthesizes and programs; Node.js 18, the
+  launchers); `package.json`'s description; NOTICE and README name Yosys and the adepttool port. The
+  About dialog says the Silinx toolchain synthesizes and the browser programs (English, Portuguese).
 
 - **I/O markers on any side (#296):** Rotate and Mirror acted on symbols only, and a marker's body was
   always to the left of its connection point (an input) or to the right (an output, a bidirectional

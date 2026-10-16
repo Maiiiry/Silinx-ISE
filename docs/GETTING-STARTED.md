@@ -1,17 +1,18 @@
 # Getting started with Silinx ISE (step by step)
 
-No programming tools or git needed. Pick **one** of the two ways below.
+No programming tools or git needed. **Way 1, in the browser, does it all**: Way 2 is another way of
+running the same Silinx, on your own computer.
 
 | I want to… | Use |
 |---|---|
-| write VHDL/Verilog, draw schematics and state machines, **simulate** | **Way 1**: one file, nothing to install |
-| also **synthesize** and **program a real board** (Basys2, Nexys, …) | **Way 2**: the full app (installs Node.js once) |
+| write VHDL/Verilog, draw schematics and state machines, simulate, **synthesize** and **program a Basys2 / Nexys2 board** | **Way 1**: in the browser, nothing to install |
+| work offline, keep the projects as folders with any browser, program with the installed tools (Adept, openFPGALoader…), or use **Xilinx ISE 14.7** for other boards | **Way 2**: run Silinx locally (installs Node.js once) |
 
 > Português: [COMECAR.md](COMECAR.md)
 
 ---
 
-## Way 1: the single file (simplest)
+## Way 1: in the browser (simplest)
 
 The quickest: open **https://pmnmalo.github.io/Silinx-ISE/** in your browser (the latest release; your
 projects are kept in that browser. The development version, with the changes not released yet, is at
@@ -30,17 +31,18 @@ That's all. Things to know:
 - **Or keep them in a folder on your disk** (Chrome or Edge): **File ▸ Open Workspace Folder…**
   (also on the Start page) and choose a folder, for instance a new `Silinx-projects` folder in your
   Documents. Each project is then an ordinary folder in it (`silinx.json`, `src/`, `sim/`,
-  `constraints/`, and `build/` with the bitstream), the same as the full application's (Way 2): the
+  `constraints/`, and `build/` with the bitstream), the same as Silinx running locally (Way 2): the
   folder opens there too, and a project's folder can be zipped and handed in. The browser remembers
   the folder; when it asks for permission again, click **Reopen Silinx-projects** on the Start page.
   **File ▸ Copy Browser Projects to the Folder** copies the projects you already had in the browser,
   and **File ▸ Use Browser Storage** goes back to the browser. The status bar shows where the projects
   are kept. Firefox and Safari cannot open a folder: there the projects stay in the browser.
-- On **https://pmnmalo.github.io/Silinx-ISE/**, **Implement Design** and **Generate Programming
-  File** run the Silinx toolchain in the browser (Basys2 and Nexys2 boards; the first run downloads
-  its tools, about 100 MB, then the browser keeps them): the bitstream (`top.bit`) is downloaded.
-- **Program the board from the browser** (Chrome or Edge; Firefox and Safari cannot reach USB
-  devices): connect the board's USB cable, switch it on, then **Configure Target Device ▸ Program
+- **Implement Design** and **Generate Programming File** run the Silinx toolchain in the browser
+  (Basys2 and Nexys2 boards; the first run downloads its tools from the site, about 100 MB, then the
+  browser keeps them; the downloaded `Silinx-ISE.html` too): the bitstream (`top.bit`) is downloaded.
+- **Program the board from the browser** (Chrome or Edge, or Chrome on an Android tablet; Firefox
+  and Safari cannot reach USB devices; the page opened from the site's address, not from the
+  downloaded file): connect the board's USB cable, switch it on, then **Configure Target Device ▸ Program
   FPGA** and choose the board in the list the browser shows (only the first time). On Windows, if
   Digilent Adept is installed, its driver holds the board: give it the WinUSB driver with
   [Zadig](https://zadig.akeo.ie) to use it from the browser. On Linux, allow access to the board with a
@@ -48,8 +50,9 @@ That's all. Things to know:
   board's flash (PROM), so that it starts at power-up, select the PROM (XCF02S / XCF04S) in the chain
   and click **Program PROM**, with the mode jumper on ROM (Basys2: JP3).
 - **On an iPad or a tablet** (Safari, or the tablet's browser): editing, drawing, simulation and
-  **Generate Programming File** work; programming the board does not (program the downloaded `.bit`
-  from a computer). The projects stay in the browser, which iPadOS may clear after some weeks
+  **Generate Programming File** work. **Chrome on an Android tablet also programs the board**, as
+  on a computer (checked on a Samsung tablet); Safari on an iPad cannot reach USB devices (program
+  the downloaded `.bit` from a computer or an Android tablet). The projects stay in the browser, which iPadOS may clear after some weeks
   without use: keep a copy with **File ▸ Export Silinx ISE Project (.zip)…**. A tablet has less
   memory, so a large design may fail in synthesis. The right-click menus open with a **long press**
   (hold a finger still for half a second). In portrait the Design pane is a drawer (the button at
@@ -57,7 +60,12 @@ That's all. Things to know:
 
 ---
 
-## Way 2: the full app
+## Way 2: run Silinx locally (Node.js)
+
+The same Silinx, running on your computer instead of the site: projects as folders in
+`Silinx-projects` with any browser, synthesis offline, the board programmed with the installed tools
+too (Digilent Adept, openFPGALoader, xc3sprog, adepttool) or from Firefox and Safari, and Xilinx ISE
+14.7 for the boards the Silinx toolchain does not support yet.
 
 ### Step 1: install Node.js (once)
 
@@ -74,7 +82,7 @@ Silinx runs on **Node.js**, a free program.
 ### Step 2: download Silinx
 
 1. Open the **[latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
-2. Under **Assets**, download **`silinx-ise-<version>.zip`** (for example `silinx-ise-0.2.0.zip`).
+2. Under **Assets**, download **`silinx-ise-<version>.zip`** (for example `silinx-ise-15.10.21.zip`).
    - Don't use the green **Code ▸ Download ZIP** button or "Source code": that version does not
      include everything Silinx needs (it still works, but the first start needs Internet to
      download the missing parts).
@@ -125,9 +133,10 @@ one). **Your projects are not inside that folder**, so they are kept.
 
 ---
 
-## Synthesis and programming a board (optional)
+## Synthesis and programming a board with Silinx running locally (optional)
 
-These need up to two more things. Your teacher may provide them already set up.
+In the browser (Way 1) nothing more is needed for the Basys2 and Nexys2. Running Silinx locally
+(Way 2), these need up to two more things. Your teacher may provide them already set up.
 
 1. **For the Basys2 and Nexys2 boards, nothing:** the *Silinx toolchain*, the default mode,
    synthesizes and generates the bitstream with no Xilinx tool. For the other boards (or the

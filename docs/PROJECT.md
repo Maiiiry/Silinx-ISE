@@ -23,6 +23,10 @@ A project is a directory under the workspace (default `~/Silinx-projects`, overr
 ```
 
 * `role: design` files go to synthesis; `role: sim` files are only used for simulation.
+* `synthTool`: `'silinx'` (the Silinx toolchain: Yosys, Silinx's place & route and bitstream) or
+  `'xst'` (Xilinx ISE 14.7); without it, the mode of Toolchain Settings.
+* `impl.optLevel`: the synthesis's Optimization Effort, 1 Normal (the default; with the Silinx
+  toolchain one mapping, fast) or 2 High (every mapping tried, the fastest kept).
 * Generated implementation output lives in `<project>/build/` (ISE work dir), bitstream `build/<top>.bit`.
 
 ## HTTP API (server/)
@@ -32,7 +36,7 @@ All under `/api`. JSON in/out. Errors: `{ error: "message" }` with 4xx/5xx.
 | Method | Path | Description |
 |---|---|---|
 | GET | /projects | list `[{ name, device, top }]` |
-| POST | /projects | `{ name, template?: 'empty'|'blinky', device?, board? }` create |
+| POST | /projects | `{ name, template?: 'empty' or an example (GET /templates: gates, traffic, blinky, pong, stopwatch, clock), device?, board? }` create |
 | GET | /projects/:p | project json + `fileTree` |
 | PUT | /projects/:p | replace project json |
 | DELETE | /projects/:p | move project to `.trash` inside workspace |
@@ -40,7 +44,7 @@ All under `/api`. JSON in/out. Errors: `{ error: "message" }` with 4xx/5xx.
 | PUT | /projects/:p/file?path=... | write raw text body |
 | DELETE | /projects/:p/file?path=... | delete file (and remove from files list) |
 | GET | /projects/:p/sources | `[{ path, lang, role, text }]` all HDL sources (for the in-browser compiler) |
-| GET | /devices | Spartan-3E parts + boards database (server/devices.js) |
+| GET | /devices | the parts of every ISE 14.7 WebPACK family + boards database (server/devices.js) |
 | GET | /toolchain | detected ISE + programmer tools |
 | PUT | /toolchain | save toolchain settings (`~/.silinx/config.json`) |
 | POST | /projects/:p/implement | `{ steps?: ['synth','translate','map','par','bitgen'] }` -> `{ job }` |
