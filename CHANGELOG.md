@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **One MUX, one DEMUX:** the palette's M4_1 … M16_1 and DEMUX1_2 … DEMUX1_16 are gone; their *Select bits*
+  and *Select as a bus* make them.
 - **The schematic palette's Project modules** no longer list the test benches.
 - **Gates, one entry each:** the palette lists AND, OR, NAND, NOR, XOR and XNOR; a gate's *Inputs* (2, 3, 4)
   make AND3, AND4…; XOR and XNOR have 3 and 4 inputs too.
@@ -48,6 +50,11 @@ In detail:
 
 - **XNOR with inverted inputs (#337):** XNOR had no *Inverted inputs* in its properties, as the other gates have;
   XNOR2B1 … XNOR4B4 are Silinx symbols (the Xilinx library has none), exported to ISE as Silinx symbols.
+- **MUX and DEMUX: the select bits as a parameter (#334):** the Mux palette listed M2_1, M4_1, M8_1, M16_1 and
+  DEMUX1_2 … DEMUX1_16; it lists MUX (the M2_1) and DEMUX (the DEMUX1_2), and their properties *Select bits* (1 … 4)
+  make M4_1 … M16_1 / DEMUX1_4 … DEMUX1_16 (the width, the enable and the select bus kept), *Select as a bus (S)*
+  one select pin S. The symbols and their datasheets keep the Xilinx names (M8_1E, DEMUX1_8). Existing schematics
+  unchanged.
 - **Project modules without the test benches (#332):** the schematic editor's palette listed every module of
   the project under *Project modules*, the test benches too; it lists the design modules only (not a
   Simulation-only source, nor a module without ports, which a schematic cannot connect).

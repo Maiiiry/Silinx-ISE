@@ -308,6 +308,8 @@ const PT_PATTERNS = [
     return `Flip-flop ${k === 'Toggle (T)' ? 'T (toggle)' : k}${w ? ` com ${r.replace(/ and /g, ' e ')}` : ''}${bw ? ' (bit a bit quando Largura > 1)' : ''}`;
   }],
   // schematic symbols: inverted-input gates (AND2B1...), decoders, encoders, demultiplexers
+  [/^Multiplexer of 2, 4, 8 or 16 data inputs, its select bits \(1 to 4\), select bus and enable in its properties \(bitwise when Width > 1\)$/,
+    'Multiplexador de 2, 4, 8 ou 16 entradas de dados, os bits de seleção (1 a 4), o barramento de seleção e a habilitação nas suas propriedades (bit a bit quando Largura > 1)'],
   [/^(AND|OR|NAND|NOR|XOR|XNOR) gate of 2, 3 or 4 inputs, its inputs and inverted inputs in its properties \(bitwise when Width > 1\)$/,
     'Porta $1 de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)'],
   [/^(\d)-input (AND|OR|NAND|NOR|XOR|XNOR) gate with (input I0|inputs I0 and I1|inputs I0\.\.I\d) inverted \(bitwise when Width > 1\)$/,

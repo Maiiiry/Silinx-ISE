@@ -199,11 +199,16 @@ test('symbol library: inverted-input gates, decoder, encoder and demultiplexer',
   // (#324: one DECODER, as D2_4E; one ENCODER, as ENC4_2)
   assert.deepEqual([SYMBOLS.decoder.presets, SYMBOLS.encoder.presets], [undefined, undefined]);
   assert.deepEqual([defaultParams('decoder'), defaultParams('encoder')], [{ n: 2, en: true, bus: false }, { n: 2, mode: 'one-hot', bus: false }]);
-  // (#313: one entry per symbol, the enable E a parameter; the demultiplexers by their presets only)
-  assert.deepEqual(SYMBOLS.demux.presets.map(p => p.title), ['DEMUX1_2', 'DEMUX1_4', 'DEMUX1_8', 'DEMUX1_16']);
+  // (#313: one entry per symbol, the enable E a parameter; #334: one MUX (M2_1, its Select bits making M4_1 …
+  // M16_1) and one DEMUX (its Select bits), no DEMUX1_n presets)
+  assert.equal(SYMBOLS.demux.presets, undefined);
+  assert.deepEqual(SYMBOLS.demux.params.map(p => p.name), ['width', 'sel', 'en', 'selBus']);
+  assert.deepEqual([SYMBOLS.mux2, SYMBOLS.mux4, SYMBOLS.mux8, SYMBOLS.mux16, SYMBOLS.demux].map(S => [S.paletteTitle || S.title, !!S.hidden]),
+    [['MUX', false], ['M4_1', true], ['M8_1', true], ['M16_1', true], ['DEMUX', false]]);
+  assert.deepEqual([1, 2, 3, 4].map(sel => symbolDef({ type: 'demux', params: { sel } }).title), ['DEMUX1_2', 'DEMUX1_4', 'DEMUX1_8', 'DEMUX1_16']);
   assert.deepEqual([SYMBOLS.mux2, SYMBOLS.mux4, SYMBOLS.mux8, SYMBOLS.mux16].map(S => [S.title, (S.presets || []).length, S.params.map(p => p.name).join(',')]),
     [['M2_1', 0, 'width,en'], ['M4_1', 0, 'width,en,selBus'], ['M8_1', 0, 'width,en,selBus'], ['M16_1', 0, 'width,en,selBus']]);
-  assert.deepEqual([!!SYMBOLS.decoder.presetsOnly, !!SYMBOLS.encoder.presetsOnly, SYMBOLS.demux.presetsOnly], [false, false, true]);
+  assert.deepEqual([!!SYMBOLS.decoder.presetsOnly, !!SYMBOLS.encoder.presetsOnly, !!SYMBOLS.demux.presetsOnly], [false, false, false]);
   // AND2B1: I0 inverted and at the bottom (as in the Xilinx library), I1 plain at the top
   const g = symbolDef({ type: 'and2b1', params: {} });
   const I0 = g.pins.find(p => p.name === 'I0'), I1 = g.pins.find(p => p.name === 'I1');

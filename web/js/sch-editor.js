@@ -14,7 +14,7 @@
 
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
-  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant,
+  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -871,6 +871,12 @@ export function mountSchEditor(container, opts = {}) {
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
       el.dataset.param = p.name;
       propBody.append(field(p.label, el));
+    }
+    // a multiplexer's select bits (#334): 1 … 4 make it M2_1, M4_1, M8_1, M16_1 (its width, enable and select bus kept)
+    if (MUX_INPUTS[s.type]) {
+      const el = selBox(String(Math.log2(MUX_INPUTS[s.type])), ['1', '2', '3', '4'], x => { s.type = `mux${1 << +x}`; });
+      el.dataset.param = 'muxSel';
+      propBody.append(field('Select bits', el));
     }
     // a gate's inputs (#330): 2, 3 or 4 make it AND2, AND3, AND4 (its inverted ones kept while it has them)
     if (S?.gate && S.inputs > 1) {

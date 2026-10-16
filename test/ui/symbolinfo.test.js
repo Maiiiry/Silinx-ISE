@@ -1,5 +1,5 @@
 // UI: Symbol Info datasheets of the schematic editor — opened from the palette (right-click menu and
-// the More… link of the info box), from a placed symbol (F1, toolbar button, Properties panel),
+// the More… link of the info box), from a placed symbol (an M4_1, an FDCE: F1, toolbar button, Properties panel),
 // parameters changed in the dialog (tables and HDL follow), and in Portuguese.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -20,6 +20,7 @@ const rows = (page, sel = `${DLG} .sd-truth tbody tr`) => page.eval((s) => [...d
 uiTest('Symbol Info: palette menu and More… link, placed symbol (F1, toolbar, Properties), parameters, Portuguese', E, async (page) => {
   const doc = newDoc('info', 'vhdl');
   doc.symbols.push({ id: 'S1', type: 'fdce', x: 300, y: 200, rot: 0, mirror: false, name: 'U1', params: { init: '0' } });
+  doc.symbols.push({ id: 'S2', type: 'mux4', x: 300, y: 420, rot: 0, mirror: false, name: 'U2', params: { width: 1, en: false, selBus: false } });
   await makeProject(env, { name: 'InfoPj', files: { 'src/info.sch.json': JSON.stringify(doc) } });
   await page.openProject('InfoPj');
   await page.eval(() => window.SilinxApp.openSch('src/info.sch.json'));
@@ -27,10 +28,17 @@ uiTest('Symbol Info: palette menu and More… link, placed symbol (F1, toolbar, 
   // nothing chosen yet: the toolbar button is disabled
   assert.equal(await page.eval((sel) => document.querySelector(`${sel} .se-btn[data-act=info]`).disabled, ED), true);
 
-  // ---- palette: right-click M4_1 ▸ Symbol Info…
-  await page.rightClick(`${ED} .se-symrow`, { text: 'M4_1' });
+  // ---- palette: right-click MUX ▸ Symbol Info… (the M2_1, #334)
+  await page.rightClick(`${ED} .se-symrow`, { text: 'MUX' });
   await page.waitFor(() => document.querySelector('.menu-popup'), [], { what: 'palette context menu' });
   await page.click('.menu-popup .mi', { text: 'Symbol Info…' });
+  await page.waitFor((d) => document.querySelector(d)?.dataset.type === 'mux2', [DLG], { what: 'M2_1 datasheet' });
+  assert.match(await page.eval((d) => document.querySelector(`${d} .se-dhead b`).textContent, DLG), /^Symbol Info: M2_1$/);
+  await page.click(`${DLG} [data-act=close]`);
+  await page.waitFor((d) => !document.querySelector(d), [DLG]);
+  // a placed M4_1 (the MUX with 2 select bits): F1
+  await page.click(`${ED} g.sym[data-id="S2"] .hitbox`);
+  await page.key('F1');
   await page.waitFor((d) => document.querySelector(d)?.dataset.type === 'mux4', [DLG], { what: 'M4_1 datasheet' });
   await waitTable(page, 'exhaustive');
   assert.match(await page.eval((d) => document.querySelector(`${d} .se-dhead b`).textContent, DLG), /^Symbol Info: M4_1$/);

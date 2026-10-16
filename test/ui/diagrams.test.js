@@ -223,7 +223,7 @@ uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M
 
 // #301: the palette's multiplexers and demultiplexers, with and without the enable E (M2_1 … M16_1,
 // DEMUX1_2 … DEMUX1_16), the decoders and encoders by their presets only; a M4_1 placed has S1 and S0
-uiTest('#301 #313 schematic palette: M2_1 … M16_1, DEMUX1_2 … DEMUX1_16 (no E entries, no generic DEMUX; one DECODER / ENCODER); M4_1 placed with S1 S0, its type drawn; E and the bus widths', E, async (page) => {
+uiTest('#301 #313 #334 schematic palette: one MUX and one DEMUX (no M4_1 … / DEMUX1_n / E entries; one DECODER / ENCODER); a MUX with Select bits 2 is M4_1 with S1 S0, its type drawn; E and the bus widths; Select as a bus; a DEMUX with 3 select bits', E, async (page) => {
   const { newDoc } = await import('../../core/schdoc.js');
   await makeProject(env, { name: 'SchMux', files: { 'src/mx.sch.json': JSON.stringify(newDoc('mx', 'vhdl')) }, top: '' });
   await page.openProject('SchMux');
@@ -231,22 +231,29 @@ uiTest('#301 #313 schematic palette: M2_1 … M16_1, DEMUX1_2 … DEMUX1_16 (no 
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/mx.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
   const D = '.doc:not([hidden])';
   const rows = () => page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow`)].map((r) => r.textContent.trim()), D);
-  await page.fill(`${D} .se-search`, 'M');
-  const all = await rows();
-  for (const t of ['M2_1', 'M4_1', 'M8_1', 'M16_1', 'DEMUX1_2', 'DEMUX1_4', 'DEMUX1_8', 'DEMUX1_16']) assert.ok(all.includes(t), `${t} in ${all.join(' ')}`);
-  assert.deepEqual(all.filter((t) => /^(M\d+_1E|DEMUX1_\d+E|DEMUX)$/.test(t)), [], 'no E entries, no generic DEMUX');
+  // (#334: one MUX, one DEMUX: their select bits in their properties)
+  await page.fill(`${D} .se-cat`, 'Mux');
+  assert.deepEqual(await rows(), ['MUX', 'DEMUX']);
+  await page.fill(`${D} .se-cat`, '<all>');
   await page.fill(`${D} .se-search`, 'CODER');
   const coders = await rows();
   // (#324: one DECODER and one ENCODER, no D2_4E … / ENC / PENC entries)
   assert.ok(coders.includes('DECODER') && coders.includes('ENCODER'), coders.join(' '));
   assert.deepEqual(coders.filter((t) => /^(D\d+_\d+E?|P?ENC\d+_\d+)$/.test(t)), [], 'no preset entries');
-  // a M4_1 placed: its select pins S1 and S0 (the drawing's pin names), saved with selBus false
-  await page.fill(`${D} .se-search`, 'M4_1');
-  await page.click(`${D} .se-symrow`, { text: 'M4_1' });
+  // a MUX placed (the M2_1), Select bits 2: a M4_1, its select pins S1 and S0 (the drawing's pin names), saved with selBus false
+  await page.fill(`${D} .se-search`, 'MUX');
+  await page.click(`${D} .se-symrow`, { text: 'MUX' });
   const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, D);
   await page.click(c);
   await page.key('Escape');
-  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols.length === 1, [], { what: 'M4_1 saved' });
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols.length === 1, [], { what: 'MUX saved' });
+  const sid = JSON.parse(await readWs(env, 'SchMux', 'src/mx.sch.json')).symbols[0].id;
+  await page.click(`${D} g.sym[data-id="${sid}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=muxSel]`), [D], { what: 'Select bits' });
+  assert.deepEqual(await page.eval((d) => { const e = document.querySelector(`${d} [data-param=muxSel]`); return [e.value, [...e.options].map((o) => o.value), e.closest('.se-field').querySelector('label').textContent, !!document.querySelector(`${d} [data-param=selBus]`)]; }, D), ['1', ['1', '2', '3', '4'], 'Select bits', false]);
+  await page.fill(`${D} [data-param=muxSel]`, '2');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols[0].type === 'mux4', [], { what: 'M4_1 saved' });
+  await page.key('Escape');
   const saved = JSON.parse(await readWs(env, 'SchMux', 'src/mx.sch.json'));
   assert.deepEqual([saved.version, saved.symbols[0].type, saved.symbols[0].params.selBus, saved.symbols[0].params.en], [2, 'mux4', false, false]);
   const texts = (cls) => page.eval((d, c) => [...document.querySelectorAll(`${d} .se-svg g.sym ${c}`)].map((t) => t.textContent), D, cls);
@@ -264,6 +271,34 @@ uiTest('#301 #313 schematic palette: M2_1 … M16_1, DEMUX1_2 … DEMUX1_16 (no 
   assert.deepEqual(await texts('.stype'), ['M4_1E']);
   assert.ok((await texts('text')).includes('E'));
   assert.deepEqual([...new Set(await texts('.pwidth'))], ['8'], 'D0..D3 and O: 8');
+  // Select as a bus: one pin S (2 bits) instead of S1 S0
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=selBus]`), [D], { what: 'Select as a bus' });
+  await page.click(`${D} [data-param=selBus]`);
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols[0].params.selBus === true, [], { what: 'selBus saved' });
+  await page.waitFor((d) => [...document.querySelectorAll(`${d} .se-svg g.sym text`)].some((t) => t.textContent === 'S'), [D], { what: 'the bus S drawn' });
+  assert.ok(!(await texts('text')).includes('S1'));
+  // Select bits 3: M8_1E, the width, the enable and the select bus kept
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=muxSel]`)?.value === '2', [D], { what: 'Select bits 2' });
+  await page.fill(`${D} [data-param=muxSel]`, '3');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols[0].type === 'mux8', [], { what: 'M8_1 saved' });
+  const p8 = JSON.parse(await readWs(env, 'SchMux', 'src/mx.sch.json')).symbols[0].params;
+  assert.deepEqual([p8.width, p8.en, p8.selBus], [8, true, true]);
+  await page.waitFor((d) => [...document.querySelectorAll(`${d} .se-svg g.sym .stype`)].map((t) => t.textContent).join() === 'M8_1E', [D], { what: 'M8_1E drawn' });
+  await page.key('Escape');
+  // a DEMUX placed (the DEMUX1_2), its Select bits 3: DEMUX1_8
+  await page.fill(`${D} .se-search`, 'DEMUX');
+  await page.click(`${D} .se-symrow`, { text: 'DEMUX' });
+  const c2 = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width * 0.8, y: r.top + r.height * 0.3 }; }, D);
+  await page.click(c2);
+  await page.key('Escape');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols.length === 2, [], { what: 'DEMUX saved' });
+  const dm = JSON.parse(await readWs(env, 'SchMux', 'src/mx.sch.json')).symbols[1];
+  assert.deepEqual([dm.type, dm.params.sel], ['demux', 1]);
+  await page.click(`${D} g.sym[data-id="${dm.id}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=sel]`), [D], { what: 'its Select bits' });
+  await page.fill(`${D} [data-param=sel]`, '3');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols[1].params.sel === 3, [], { what: 'sel 3 saved' });
+  await page.waitFor((d) => [...document.querySelectorAll(`${d} .se-svg g.sym .stype`)].map((t) => t.textContent).includes('DEMUX1_8'), [D], { what: 'DEMUX1_8 drawn' });
   assert.deepEqual(page.dialogs, []);
 });
 
