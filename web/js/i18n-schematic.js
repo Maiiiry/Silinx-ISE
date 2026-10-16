@@ -20,9 +20,6 @@ export const SCH_PT = {
   'Box with explicit pins carrying HDL statements emitted verbatim': 'Caixa com pinos explícitos e instruções HDL copiadas tal e qual',
   // parameters of the symbols (as in the Symbol Info datasheets, core/symdocs.js) and their options
   'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)',
-  '1-bit full adder: S = A + B + CI, carry out CO': 'Somador completo de 1 bit: S = A + B + CI, transporte de saída CO',
-  '2-bit adder, a pin per bit: S1 S0 = A1 A0 + B1 B0 + CI, carry out CO': 'Somador de 2 bits, um pino por bit: S1 S0 = A1 A0 + B1 B0 + CI, transporte de saída CO',
-  '4-bit adder, a pin per bit (as the Xilinx ADD4): S3..S0 = A3..A0 + B3..B0 + CI, carry out CO': 'Somador de 4 bits, um pino por bit (como o Xilinx ADD4): S3..S0 = A3..A0 + B3..B0 + CI, transporte de saída CO',
   'Carry in': 'Transporte de entrada (carry in)', 'Carry out': 'Transporte de saída (carry out)', 'Operation': 'Operação', 'Signed': 'Com sinal',
   'Clock enable': 'Habilitação do relógio', 'Reset/INIT value': 'Valor de reset/INIT', 'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB',
   'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',
