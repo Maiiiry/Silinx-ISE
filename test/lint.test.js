@@ -116,7 +116,13 @@ test('sensitivity list: Verilog @(a) missing b (one warning listing them); @* an
 test('multiple drivers: two processes / assignments of one signal; separate bits and tri-state are fine', () => {
   const r = lint({ 't.vhd': VH('', 'y <= a;\nprocess (b) begin\n  y <= b;\nend process;') }, 't');
   assert.deepEqual(ids(r), ['multi-driver@8']);
-  assert.match(r[0].message, /^Signal <y> in unit <t> is connected to multiple drivers \(lines 6 and 8\)\.$/);
+  // (an error, as XST's, #309)
+  assert.equal(r[0].message, 'Multi-source in Unit <t> on signal <y>; this signal is connected to multiple drivers (lines 6 and 8).');
+  assert.deepEqual([r[0].severity, r[0].tool], ['error', 'Xst:528']);
+  // checked with the rules: also with the design checks turned off
+  const lib = compile([{ path: 't.vhd', lang: 'vhdl', text: VH('', 'y <= a;\ny <= b;') }]);
+  assert.deepEqual(designChecks(lib, elaborate(lib, 't'), { lint: false }).map(d => `${d.check}:${d.severity}`), ['multi-driver:error']);
+  assert.deepEqual(designChecks(lib, elaborate(lib, 't'), { rules: false }).map(d => d.check), []);
   assert.deepEqual(ids(lint({ 't.vhd': VH('', 'y(0) <= a;\ny(1) <= b;', 'a, b : in std_logic; y : out std_logic_vector(1 downto 0)') }, 't')), []);
   assert.deepEqual(ids(lint({ 't.vhd': VH('', "y <= a when c = '1' else 'Z';\ny <= b when c = '0' else 'Z';", 'a, b, c : in std_logic; y : out std_logic') }, 't')), []);
   // Verilog: two assigns; initial + always of a testbench clock is not a design

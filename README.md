@@ -27,10 +27,11 @@ for Xilinx FPGAs supported by ISE 14.7.
   mismatch, a missing `use`, `wire` / `reg`…), folding, comment toggling (Ctrl+/), find/replace.
 - **Beginner help for messages and design checks**: the common errors (missing `;` / `end`,
   undeclared signal, std_logic vs std_logic_vector, widths, input assigned / output read in
-  VHDL-93, missing `use ieee.numeric_std.all`, unknown module, port map…) keep their ISE-style
+  VHDL-93, missing `use ieee.numeric_std.all`, unknown module, port map, a signal with several
+  drivers (an error, as XST's *Multi-source*)…) keep their ISE-style
   message and get an *Explanation* and *How to fix* (English / Portuguese), expandable in the
   Errors / Warnings tabs and in the editor tooltip. Check Syntax and the live editor also run
-  design checks: latch inferred, incomplete sensitivity list, multiple drivers, combinational loop,
+  design checks: latch inferred, incomplete sensitivity list, combinational loop,
   output never assigned, input / signal never used, clock used as data / logic used as clock,
   `=` / `<=` in the wrong Verilog always block, case without `others` / `default`, integer without
   range. Turn the warnings off with *Edit ▸ Design Checks*, or one line with a comment
