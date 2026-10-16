@@ -491,3 +491,25 @@ architecture rtl of gate is begin y <= a and b; end rtl;
   // saved into the UCF
   await page.waitFor(async () => /NET "y"\s+LOC = "M5"/.test(await (await fetch('/api/projects/PpGate/file?path=constraints/top.ucf')).text()), [], { what: 'UCF written' });
 });
+
+// #309: a signal with two drivers in hand-written HDL is an error, as XST's Multi-source: Check Syntax fails,
+// the simulation does not run
+uiTest('#309 a signal with two drivers: ERROR:Xst:528 Multi-source in Check Syntax, the simulation stopped', E, async (page) => {
+  const TWO = `library ieee;\nuse ieee.std_logic_1164.all;\nentity top is\n  port (a, b : in std_logic; y : out std_logic);\nend top;\narchitecture rtl of top is\nbegin\n  y <= a;\n  y <= b;\nend rtl;\n`;
+  const TB2 = `library ieee;\nuse ieee.std_logic_1164.all;\nentity tb_top is\nend tb_top;\narchitecture sim of tb_top is\n  signal a, b, y : std_logic := '0';\nbegin\n  uut : entity work.top port map (a => a, b => b, y => y);\n  process begin a <= '1'; wait for 10 ns; wait; end process;\nend sim;\n`;
+  await project('TwoDrv', { 'src/top.vhd': TWO, 'sim/tb_top.vhd': TB2 });
+  await page.openProject('TwoDrv');
+  await page.treeRow('#hier', 'top');
+  await page.treeRow('#procs', 'Check Syntax', { dbl: true, exact: true });
+  await page.waitConsole(/Process "Check Syntax" failed/);
+  const log = await page.consoleText();
+  assert.ok(log.includes('ERROR:Xst:528 - "src/top.vhd" Line 9: Multi-source in Unit <top> on signal <y>; this signal is connected to multiple drivers (lines 8 and 9).'), log.slice(-1500));
+  assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '(1)');
+  // Simulate Behavioral Model: its Check Syntax fails, no ISim
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_top');
+  const before = (await page.consoleText()).length;
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor((b) => /Process "Check Syntax" failed|Launching ISim/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the simulation' });
+  assert.doesNotMatch((await page.consoleText()).slice(before), /Launching ISim/);
+});

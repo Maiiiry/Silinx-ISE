@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **A signal with two drivers is an error, as in XST:** Check Syntax stops on it (Xst:528 Multi-source), and so
+  do the simulation and the implementation.
 - **No simulation of an HDL file its drawing can no longer generate:** a schematic (or a state diagram,
   a truth table, an ASM chart, a Petri net) with errors, for instance a net with two drivers, left its
   HDL file as it was, and Check Syntax, the simulation and the implementation ran on that old file with
@@ -26,6 +28,13 @@ In short:
 
 In detail:
 
+- **Multi-source, an error (#309):** a signal driven from more than one place in the HDL (two processes or
+  always blocks, a process and a concurrent assignment, two instance outputs; tri-state drivers and
+  inout nets apart) was a warning of the design checks (HDLCompiler:1401); it is now an error with
+  XST's message, `ERROR:Xst:528 - Multi-source in Unit <u> on signal <s>; this signal is connected to
+  multiple drivers (lines a and b)`, checked with the other rules (also with Edit ▸ Design Checks off),
+  so Check Syntax fails and the simulation and the implementation do not run. Its explanation and fix
+  as before.
 - **An HDL file its drawing cannot generate (#303):** a drawing with errors is not written into its HDL
   file (the console, the HDL editor's banner and the drawing's Check panel said so), but Check Syntax,
   Simulate Behavioral Model and Implement Design read that file as it was: a schematic whose output net

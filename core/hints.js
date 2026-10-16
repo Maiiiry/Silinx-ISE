@@ -289,11 +289,11 @@ export const HINTS = [
       fix: "Escreva always @* (ou always @(*)) para lógica combinatória: assim o Verilog põe na lista todos os sinais lidos." },
   },
   {
-    id: 'multi-driver', check: 'multi-driver', re: /^Signal <([^>]+)> in unit <([^>]+)> is connected to multiple drivers \((.+)\)/,
-    en: { explain: "'$1' is assigned in more than one place ($3): two processes / always blocks, or a process and a concurrent assignment, or an instance output plus an assignment. In hardware that is two outputs wired together (a short circuit); in simulation the value becomes X. ISE stops with an error.",
-      fix: "Assign '$1' in one process / always block only: put all the assignments of '$1' together (use if / case to choose the value), or use a different signal for each place and combine them (e.g. with a multiplexer)." },
-    pt: { explain: "'$1' é atribuído em mais do que um sítio ($3): dois process / blocos always, ou um process e uma atribuição concorrente, ou a saída de uma instância e uma atribuição. No hardware isso são duas saídas ligadas uma à outra (um curto-circuito); na simulação o valor fica X. O ISE para com um erro.",
-      fix: "Atribua '$1' num único process / bloco always: junte todas as atribuições de '$1' (use if / case para escolher o valor), ou use um sinal diferente em cada sítio e combine-os (p. ex. com um multiplexador)." },
+    id: 'multi-driver', check: 'multi-driver', re: /^Multi-source in Unit <([^>]+)> on signal <([^>]+)>; this signal is connected to multiple drivers \((.+)\)/,
+    en: { explain: "'$2' is assigned in more than one place ($3): two processes / always blocks, or a process and a concurrent assignment, or an instance output plus an assignment. In hardware that is two outputs wired together (a short circuit); in simulation the value becomes X. ISE stops with an error.",
+      fix: "Assign '$2' in one process / always block only: put all the assignments of '$2' together (use if / case to choose the value), or use a different signal for each place and combine them (e.g. with a multiplexer)." },
+    pt: { explain: "'$2' é atribuído em mais do que um sítio ($3): dois process / blocos always, ou um process e uma atribuição concorrente, ou a saída de uma instância e uma atribuição. No hardware isso são duas saídas ligadas uma à outra (um curto-circuito); na simulação o valor fica X. O ISE para com um erro.",
+      fix: "Atribua '$2' num único process / bloco always: junte todas as atribuições de '$2' (use if / case para escolher o valor), ou use um sinal diferente em cada sítio e combine-os (p. ex. com um multiplexador)." },
   },
   {
     id: 'comb-loop', check: 'comb-loop', re: /form a combinatorial loop: (.+)\.$/,

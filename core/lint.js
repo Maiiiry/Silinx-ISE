@@ -25,9 +25,9 @@ import * as V from './values.js';
 import { clocksOf } from './schematic.js';
 import { readsOf } from './elaborate.js';
 
-export const LINT_CHECKS = ['latch', 'sensitivity', 'multi-driver', 'comb-loop', 'unassigned-output', 'unused-input', 'unused-signal',
+export const LINT_CHECKS = ['latch', 'sensitivity', 'comb-loop', 'unassigned-output', 'unused-input', 'unused-signal',
   'unassigned-signal', 'clock-as-data', 'data-as-clock', 'blocking', 'nonblocking', 'case-default', 'name-case', 'integer-range'];
-export const RULE_CHECKS = ['mode-in', 'mode-out', 'type-mismatch', 'missing-library', 'wire-procedural', 'reg-continuous'];
+export const RULE_CHECKS = ['mode-in', 'mode-out', 'type-mismatch', 'missing-library', 'wire-procedural', 'reg-continuous', 'multi-driver'];
 
 // ------------------------------------------------------------------------- tree helpers
 const SKIP = new Set(['sig', 't', 'fn', 'val', 'loc', 'triggers', 'inst']);
@@ -380,6 +380,40 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
       }
     }
   }
+  // ===================================================================== multiple drivers
+  // an error, as XST's (#309: ERROR:Xst:528 Multi-source; checked as the other rules, not turned off with the
+  // design checks); tri-state drivers and inout nets apart
+  if (rules) {
+    const drivers = new Map();   // sig -> [{ proc, bits, line }]
+    const inoutSigs = new Set(insts.flatMap(i => (i.ports || []).filter(pt => pt.dir === 'inout').map(pt => pt.sig)));
+    const tristate = new Set();
+    for (const p of procs) {
+      const inf = pinfo.get(p);
+      if (inf.sim || p.kind === 'native' || p.mode === 'initial' || (p.kind === 'process' && p.mode === 'loop' && !inf.clocked)) continue;
+      const per = new Map();
+      eachStmt(p.body, (s) => {
+        if (s.k !== 'asg') return;
+        if (contains(s.value, x => isC(x) && (x.val.x & x.val.v) !== 0n)) for (const tb of targetBits(s.target)) tristate.add(tb.sig);
+        for (const tb of targetBits(s.target)) {
+          if (!per.has(tb.sig)) per.set(tb.sig, { bits: tb.bits ? new Set(tb.bits) : null, line: s.loc?.line ?? p.loc?.line });
+          else { const cur = per.get(tb.sig); if (cur.bits && tb.bits) for (const b of tb.bits) cur.bits.add(b); else cur.bits = null; }
+        }
+      });
+      for (const [sig, d] of per) push(drivers, sig, { proc: p, ...d });
+    }
+    for (const [sig, ds] of drivers) {
+      // (memories written from two clocked processes are dual-port RAMs)
+      if (ds.length < 2 || tristate.has(sig) || inoutSigs.has(sig) || sig.wired || sig.t?.kind === 'array') continue;
+      let clash = null;
+      for (let a = 0; a < ds.length && !clash; a++) for (let b = a + 1; b < ds.length && !clash; b++) if (overlap(ds[a].bits, ds[b].bits)) clash = [ds[a], ds[b]];
+      if (!clash) continue;
+      const [d1, d2] = clash;
+      const unit = sig.inst?.module || d2.proc.inst.module;
+      const lines = fileOf(d1.proc) === fileOf(d2.proc) ? `lines ${d1.line} and ${d2.line}` : `${fileOf(d1.proc)} line ${d1.line} and ${fileOf(d2.proc)} line ${d2.line}`;
+      add('multi-driver', 'error', fileOf(d2.proc), d2.line, `Multi-source in Unit <${unit}> on signal <${short(sig)}>; this signal is connected to multiple drivers (${lines}).`, 'Xst:528');
+    }
+  }
+
   if (!lint) return out;
 
   const dInsts = insts.filter(i => !isPrim(i) && !isSimInst(i));
@@ -462,38 +496,6 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
     walk(p.body);
     for (const [sig, line] of firstRead) if (!listed.has(sig))
       add('sensitivity', 'warning', fileOf(p), line ?? p.loc?.line, `${short(sig)} should be on the sensitivity list of the process`, 'HDLCompiler:92');
-  }
-
-  // ===================================================================== multiple drivers
-  {
-    const drivers = new Map();   // sig -> [{ proc, bits, line }]
-    const inoutSigs = new Set(insts.flatMap(i => (i.ports || []).filter(pt => pt.dir === 'inout').map(pt => pt.sig)));
-    const tristate = new Set();
-    for (const p of procs) {
-      const inf = pinfo.get(p);
-      if (inf.sim || p.kind === 'native' || p.mode === 'initial' || (p.kind === 'process' && p.mode === 'loop' && !inf.clocked)) continue;
-      const per = new Map();
-      eachStmt(p.body, (s) => {
-        if (s.k !== 'asg') return;
-        if (contains(s.value, x => isC(x) && (x.val.x & x.val.v) !== 0n)) for (const tb of targetBits(s.target)) tristate.add(tb.sig);
-        for (const tb of targetBits(s.target)) {
-          if (!per.has(tb.sig)) per.set(tb.sig, { bits: tb.bits ? new Set(tb.bits) : null, line: s.loc?.line ?? p.loc?.line });
-          else { const cur = per.get(tb.sig); if (cur.bits && tb.bits) for (const b of tb.bits) cur.bits.add(b); else cur.bits = null; }
-        }
-      });
-      for (const [sig, d] of per) push(drivers, sig, { proc: p, ...d });
-    }
-    for (const [sig, ds] of drivers) {
-      // (memories written from two clocked processes are dual-port RAMs)
-      if (ds.length < 2 || tristate.has(sig) || inoutSigs.has(sig) || sig.wired || sig.t?.kind === 'array') continue;
-      let clash = null;
-      for (let a = 0; a < ds.length && !clash; a++) for (let b = a + 1; b < ds.length && !clash; b++) if (overlap(ds[a].bits, ds[b].bits)) clash = [ds[a], ds[b]];
-      if (!clash) continue;
-      const [d1, d2] = clash;
-      const unit = sig.inst?.module || d2.proc.inst.module;
-      const lines = fileOf(d1.proc) === fileOf(d2.proc) ? `lines ${d1.line} and ${d2.line}` : `${fileOf(d1.proc)} line ${d1.line} and ${fileOf(d2.proc)} line ${d2.line}`;
-      add('multi-driver', 'warning', fileOf(d2.proc), d2.line, `Signal <${short(sig)}> in unit <${unit}> is connected to multiple drivers (${lines}).`, 'HDLCompiler:1401');
-    }
   }
 
   // ===================================================================== combinational loops
