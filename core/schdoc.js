@@ -130,14 +130,16 @@ SYMBOLS.sub = { category: 'Arithmetic', title: 'SUB', description: 'Subtractor D
 SYMBOLS.compare = {
   category: 'Arithmetic', title: 'COMP', description: 'Comparator O = A <op> B',
   params: [{ ...P_WIDTH, default: 8 }, { name: 'op', label: 'Operation', kind: 'select', options: ['eq', 'ne', 'lt', 'le', 'gt', 'ge'], default: 'eq' },
-    { name: 'signed', label: 'Signed', kind: 'bool', default: false }],
+    { name: 'signed', label: 'Signed', kind: 'bool', default: false },
+    // (#319: A0.. and B0.., as ADD's)
+    { name: 'bits', label: 'Pins per bit (A0.., B0..)', kind: 'bool', default: false }],
 };
 SYMBOLS.constant = {
-  category: 'I/O', title: 'CONSTANT', description: 'Constant value (decimal, 0x.. hex or 0b.. binary)',
+  category: 'General', title: 'CONSTANT', description: 'Constant value (decimal, 0x.. hex or 0b.. binary)',
   params: [{ name: 'value', label: 'Value', kind: 'text', default: '0' }, { ...P_WIDTH, default: 1 }],
 };
-SYMBOLS.vcc = { category: 'I/O', title: 'VCC', description: 'Logic 1 (all bits)', params: [] };
-SYMBOLS.gnd = { category: 'I/O', title: 'GND', description: 'Logic 0 (all bits)', params: [] };
+SYMBOLS.vcc = { category: 'General', title: 'VCC', description: 'Logic 1 (all bits)', params: [] };
+SYMBOLS.gnd = { category: 'General', title: 'GND', description: 'Logic 0 (all bits)', params: [] };
 // Flip-flops of the Xilinx Unified Libraries (FT* / FJK* plus a plain FT / FJK, which Xilinx does not have).
 // ff: { k: 'd'|'t'|'jk', ce, clr, pre (asynchronous; CLR wins over PRE), r, s (synchronous; R wins over S unless sp) }.
 // Priorities as in the Xilinx Libraries Guide: CLR > PRE > clock; R > S > CE (FDSE/FTSRE/FJKSRE: S > R > CE).
@@ -191,7 +193,9 @@ SYMBOLS.counter = {
   category: 'Arithmetic', title: 'CNT', description: 'N-bit binary counter',
   params: [{ ...P_WIDTH, default: 8 }, { name: 'en', label: 'Clock enable', kind: 'bool', default: true },
     { name: 'reset', label: 'Reset', kind: 'select', options: ['none', 'async', 'sync'], default: 'async' },
-    { name: 'dir', label: 'Direction', kind: 'select', options: ['up', 'down'], default: 'up' }],
+    { name: 'dir', label: 'Direction', kind: 'select', options: ['up', 'down'], default: 'up' },
+    // (#319: Q0.. on pins of their own)
+    { name: 'bits', label: 'Pins per bit (Q0..)', kind: 'bool', default: false }],
 };
 SYMBOLS.slice = {
   category: 'Bus', title: 'BUS TAP', description: 'Select bits I(msb downto lsb) of a bus',
@@ -207,7 +211,7 @@ SYMBOLS.hdlblock = {
   params: [],
 };
 
-export const SYMBOL_CATEGORIES = ['Logic', 'Tri-State', 'Arithmetic', 'Flip-Flops', 'Mux', 'Decoders/Encoders', 'Bus', 'I/O', 'Project modules'];
+export const SYMBOL_CATEGORIES = ['Logic', 'Tri-State', 'Arithmetic', 'Flip-Flops', 'Mux', 'Decoders/Encoders', 'Bus', 'General', 'Project modules'];
 
 export function defaultParams(type) {
   const s = SYMBOLS[type];
@@ -338,6 +342,13 @@ export function symbolDef(sym, modules = {}) {
     const title = `ADD${W}`;
     return { ...boxDef(west, east, title, 80, 40), shape: 'lib', title };
   }
+  if (t === 'compare' && p.bits && W > 1) {
+    // (#319) a box: A0.. B0.. on the left, O on the right, its relation in its name
+    const west = [];
+    for (const g of ['A', 'B']) for (let i = 0; i < W; i++) west.push({ name: `${g}${i}`, dir: 'in', width: 1 });
+    const title = `COMP${W} ${({ eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' })[p.op] || '?'}`;
+    return { ...boxDef(west, [{ name: 'O', dir: 'out', width: 1 }], title, 80, 40), shape: 'lib', title };
+  }
   if (t === 'add' || t === 'sub' || t === 'compare') {
     const h = t === 'compare' ? 40 : 60;
     const pins = [{ name: 'A', dir: 'in', x: 0, y: 10, side: 'W', width: W }, { name: 'B', dir: 'in', x: 0, y: 30, side: 'W', width: W }];
@@ -367,6 +378,12 @@ export function symbolDef(sym, modules = {}) {
     if (r) west.push({ name: 'R', dir: 'in', width: 1 });
     const h = Math.max(40, west.length * 20 + 10);   // bottom margin: the type name sits under the last pin name
     const pins = west.map((q, i) => ({ ...q, x: 0, y: 10 + 20 * i, side: 'W' }));
+    // (a counter with a pin per bit, #319: Q0 .. Q<w-1>)
+    if (t === 'counter' && p.bits && W > 1) {
+      for (let i = 0; i < W; i++) pins.push({ name: `Q${i}`, dir: 'out', x: 90, y: 10 + 20 * i, side: 'E', width: 1 });
+      const hb = Math.max(h, W * 20 + 10);
+      return { w: 90, h: hb, shape: 'ff', body: { x: 20, y: 0, w: 50, h: hb }, pins };
+    }
     pins.push({ name: 'Q', dir: 'out', x: 90, y: 10 + 20 * (t === 'counter' ? 0 : q0), side: 'E', width: bw });
     return { w: 90, h, shape: 'ff', body: { x: 20, y: 0, w: 50, h }, pins };
   }
@@ -1570,7 +1587,11 @@ export function generateHdl(docIn, opts = {}) {
       }
       case 'compare': {
         const o = OUTN(s, 'O'); if (!o) continue;
-        const a = INN(s, 'A'), b = INN(s, 'B');
+        // (a pin per bit, #319: the operands made of their bits, the most significant first)
+        const per = p.bits && Math.max(1, int(p.width, 1)) > 1, bw = Math.max(1, int(p.width, 1));
+        const opnd = g => [...Array(bw).keys()].reverse().map(i => INN(s, `${g}${i}`, true));
+        const a = per ? (ci ? `std_logic_vector'(${opnd('A').join(' & ')})` : `{${opnd('A').join(', ')}}`) : INN(s, 'A');
+        const b = per ? (ci ? `std_logic_vector'(${opnd('B').join(' & ')})` : `{${opnd('B').join(', ')}}`) : INN(s, 'B');
         const op = p.op || 'eq';
         if (ci) {
           const vo = { eq: '=', ne: '/=', lt: '<', le: '<=', gt: '>', ge: '>=' }[op];
@@ -1616,7 +1637,10 @@ export function generateHdl(docIn, opts = {}) {
         break;
       }
       case 'register': case 'counter': {
-        const q = OUTN(s, 'Q');
+        // (a counter with a pin per bit, #319: its count in a signal of its own, Q0 .. its bits)
+        const perQ = s.type === 'counter' && p.bits && Math.max(1, int(p.width, 1)) > 1;
+        const qBits = perQ ? [...Array(Math.max(1, int(p.width, 1))).keys()].map(i => OUTN(s, `Q${i}`)) : null;
+        const q = perQ ? (qBits.some(Boolean) ? fresh(`${s.name}_q`) : null) : OUTN(s, 'Q');
         if (!q) { diags.push({ severity: 'warning', message: `${s.name}: output Q not connected, skipped`, ref: { kind: 'symbol', id: s.id } }); continue; }
         const has = nm => def.pins.some(x => x.name === nm);
         const c = INN(s, 'C');
@@ -1628,8 +1652,13 @@ export function generateHdl(docIn, opts = {}) {
           return INN(s, nm);
         };
         const ce = ctl('CE'), clr = ctl('CLR'), r = ctl('R');
-        const qn = nl.pinNet.get(`${s.id}/Q`);
-        const w = qn.width;
+        const qn = perQ ? null : nl.pinNet.get(`${s.id}/Q`);
+        const w = perQ ? Math.max(1, int(p.width, 1)) : qn.width;
+        if (perQ) {
+          if (ci) extra.push({ name: q, type: `std_logic_vector(${w - 1} downto 0)` });
+          else extra.push({ name: q, width: w, reg: true });
+          qBits.forEach((o, i) => o && (ci ? body.push(`${o} <= ${q}(${i});`) : assign(o, `${q}[${i}]`)));
+        }
         const rv = s.type === 'counter' ? '0'.repeat(w) : (constBits(p.init ?? '0', w) || '0'.repeat(w));
         if (ci) {
           const rval = w > 1 ? (/^0+$/.test(rv) ? '(others => \'0\')' : `"${rv}"`) : `'${rv}'`;
@@ -1649,7 +1678,7 @@ export function generateHdl(docIn, opts = {}) {
           } else {
             lines.push(`process (${c})`, 'begin', `  if rising_edge(${c}) then`, ...upd.map(l => '    ' + l), '  end if;', 'end process;');
           }
-          if (s.type === 'counter') lines.push(`${q} <= ${wrapV(tgt, clsOf(q))};`);
+          if (s.type === 'counter') lines.push(`${q} <= ${perQ ? `std_logic_vector(${tgt})` : wrapV(tgt, clsOf(q))};`);
           body.push(lines.join('\n'));
         } else {
           const nextv = s.type === 'counter' ? `${q} ${p.dir === 'down' ? '-' : '+'} 1'b1` : d;
@@ -1658,7 +1687,7 @@ export function generateHdl(docIn, opts = {}) {
           if (clr) lines.push(`always @(posedge ${c} or posedge ${clr})`, `  if (${clr}) ${q} <= ${rz};`, `  else${ce ? ` if (${ce})` : ''} ${q} <= ${nextv};`);
           else if (r) lines.push(`always @(posedge ${c})`, `  if (${r}) ${q} <= ${rz};`, `  else${ce ? ` if (${ce})` : ''} ${q} <= ${nextv};`);
           else lines.push(`always @(posedge ${c})`, `  ${ce ? `if (${ce}) ` : ''}${q} <= ${nextv};`);
-          if (s.type === 'counter') init.set(qn, rv);
+          if (s.type === 'counter' && qn) init.set(qn, rv);
           body.push(lines.join('\n'));
         }
         break;

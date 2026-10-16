@@ -7,6 +7,7 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **COMP and CNT with a pin per bit,** as ADD; the palette's category I/O is now General.
 - **Flip-flops, one entry each:** the palette lists FD, FT and FJK; their clock enable, clear, preset, reset
   and set are options in the symbol's properties (FD with CE and CLR is FDCE); REG is gone (a flip-flop's
   Width).
@@ -35,6 +36,11 @@ In short:
 
 In detail:
 
+- **COMP and CNT: Pins per bit (#319):** the comparator's option *Pins per bit (A0.., B0..)* (a box named
+  COMP<w> and its relation, COMP4 ≥) and the counter's *Pins per bit (Q0..)*, as ADD's (#304): the same
+  function, their HDL made of the bits (VHDL `std_logic_vector'(A2 & A1 & A0)`, Verilog `{A2, A1, A0}`; the
+  count in a signal of its own, Q0.. its bits); datasheets, ISE export / import (`…_bits`) follow.
+- **The category General (#320):** the palette's category I/O (CONSTANT, VCC, GND) is named General (Geral).
 - **Flip-flop inputs as options (#315):** the Flip-Flops palette listed every Xilinx variant (FDC, FDCE,
   FDCPE, FDR, FDRE, FTCPE, FJKSRE…) and REG. It now lists FD, FT and FJK; the properties of a flip-flop
   have *Clock enable (CE)*, *Asynchronous clear (CLR)*, *Asynchronous preset (PRE)*, *Synchronous reset

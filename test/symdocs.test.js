@@ -80,7 +80,7 @@ test('pin tables are the real pins of the symbol at the shown parameters', () =>
 
 test('parameter tables: every parameter with its label, value, default and meaning', () => {
   const d = symbolDoc('compare', { width: 4, op: 'lt', signed: true }, { lang: 'pt' });
-  assert.deepEqual(d.params.map(p => [p.name, p.label, p.value, p.default]), [['width', 'Largura', 4, 8], ['op', 'Operação', 'lt', 'eq'], ['signed', 'Com sinal', true, false]]);
+  assert.deepEqual(d.params.map(p => [p.name, p.label, p.value, p.default]), [['width', 'Largura', 4, 8], ['op', 'Operação', 'lt', 'eq'], ['signed', 'Com sinal', true, false], ['bits', 'Um pino por bit (A0.., B0..)', false, false]]);
   for (const S of Object.values(SYMBOLS)) for (const p of S.params || []) assert.ok(PARAM_LABELS_PT[p.label], `PT label of '${p.label}'`);
   assert.equal(symbolDoc('fds').params[0].default, '1', 'Xilinx INIT default of FDS is 1');
   assert.match(symbolDoc('fdce').params[0].meaning, /power-up/);
