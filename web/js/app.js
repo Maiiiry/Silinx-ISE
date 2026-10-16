@@ -1926,12 +1926,15 @@ async function runSimulationInner(mod, model) {
   openDoc({
     id, title: `ISim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: `isim:${mod}${model ? `@${model}` : ''}`,
     create(el) {
-      // ISim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project
+      // ISim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project: of the module's
+      // inputs, or (a test bench, no ports) of its unit under test's, forced over what the bench drives them with
+      const inst = (design.top.ports || []).some(p => p.dir === 'in') ? design.top
+        : (design.top.children || []).find(c => (c.ports || []).some(p => p.dir === 'in')) || design.top;
       const stimuli = {
-        model: S.project.stimuli?.[mod] || null,
-        ports: (design.top.ports || []).map(p => ({ name: p.name, dir: p.dir, width: p.sig.t.w || 1 })),
+        model: S.project.stimuli?.[mod] || null, inst,
+        ports: (inst.ports || []).map(p => ({ name: p.name, dir: p.dir, width: p.sig.t.w || 1 })),
         onChange: m => { S.project.stimuli = { ...(S.project.stimuli || {}), [mod]: m }; saveProjectJson().catch(e => toast(`Cannot save the stimuli: ${e.message}`, 'error')); },
-        onSaveTestbench: m => saveStimTestbench(mod, design, m),
+        onSaveTestbench: m => saveStimTestbench(inst === design.top ? mod : inst.module, inst, m),
       };
       const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, stimuli, onOpenSource: ref => ref?.file && openFile(ref.file, ref.line) });
       return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => view.refresh?.(), 0) };
@@ -1941,12 +1944,15 @@ async function runSimulationInner(mod, model) {
 
 // The stimuli drawn in ISim saved as a self-checking test bench (#336, core/stimuli.js -> core/testbench.js): next
 // to the module's file, in the project's language, a simulation source
-async function saveStimTestbench(mod, design, m) {
+async function saveStimTestbench(mod, inst, m) {
   const { tbPorts, generateTestbench } = await import('/core/testbench.js');
   const { testbenchOptions } = await import('/core/stimuli.js');
   const title = 'Save as Test Bench';
   const info = moduleInfo(mod);
-  const name = String(await promptDlg(title, 'Test bench name:', `tb_${mod}`) ?? '').trim();
+  // (tb_<module>, or tb_<module>_2… when the project has that test bench already)
+  let dft = `tb_${mod}`;
+  for (let k = 2; moduleInfo(dft); k++) dft = `tb_${mod}_${k}`;
+  const name = String(await promptDlg(title, 'Test bench name:', dft) ?? '').trim();
   if (!name) return;
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return alertDlg(title, `'${name}' is not a valid name (a letter, then letters, digits or _).`, 'error');
   const lang = (S.project.preferredLanguage || info?.lang) === 'verilog' ? 'verilog' : 'vhdl';
@@ -1958,7 +1964,7 @@ async function saveStimTestbench(mod, design, m) {
   let text;
   try {
     const types = Object.fromEntries((info?.portList || []).map(p => [p.name, p.type]));
-    text = generateTestbench(testbenchOptions(m, { name, lang, uut: { name: mod }, ports: tbPorts(design, types) }));
+    text = generateTestbench(testbenchOptions(m, { name, lang, uut: { name: mod }, ports: tbPorts({ top: inst }, types) }));
   } catch (e) { return alertDlg(title, e.message, 'error'); }
   await wiz.closeBeforeReplace(path);
   await api.writeFile(S.project.name, path, text);

@@ -157,3 +157,49 @@ uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus v
   assert.doesNotMatch(await consoleText(page), /Error|Warning/);
   assert.deepEqual(page.dialogs, []);
 });
+
+// a test bench simulated: Edit Stimuli draws its unit under test's inputs (its signals forced over what the bench
+// drives), the stimuli saved for the test bench; Save as Test Bench writes another one for the module
+const TB = `library ieee; use ieee.std_logic_1164.all;
+entity tb_ctr is end tb_ctr;
+architecture sim of tb_ctr is
+  signal clk, rst, en, load : std_logic := '0';
+  signal d, q : std_logic_vector(3 downto 0);
+  signal tc : std_logic;
+begin
+  uut : entity work.ctr port map (clk => clk, rst => rst, en => en, d => d, load => load, q => q, tc => tc);
+  clk <= not clk after 5 ns;
+  d <= "0000";
+end sim;
+`;
+uiTest('ISim stimuli (#336) of a test bench: the inputs of its unit under test, forced over the bench, saved for the bench', E, async (page) => {
+  await makeProject(env, { name: 'StimTb', top: 'ctr', files: { 'src/ctr.vhd': CTR, 'sim/tb_ctr.vhd': TB }, roles: { 'sim/tb_ctr.vhd': 'sim' } });
+  await page.openProject('StimTb');
+  await page.click('input[name=view][value=sim]');
+  await simulate(page, 'tb_ctr');
+  await simTime(page, '1,000,000');
+  await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Edit Stimuli"]`);
+  await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg [name=cycles]`), [DOC], { what: 'Stimulus Timing' });
+  // the unit under test's inputs (ctr: clk rst en d load), its clock found
+  assert.deepEqual(await page.eval((d) => { const q = (n) => document.querySelector(`${d} .isim-stim-dlg [name=${n}]`); return [q('clock').value, [...q('clock').options].map((o) => o.value)]; }, DOC), ['clk', ['', 'clk', 'rst', 'en', 'load']]);
+  assert.match(await page.eval((d) => document.querySelector(`${d} .isim-stim-dlg .isim-dlg-hint`).textContent, DOC), /^The inputs of ctr \(tb_ctr\.uut\) as a grid of cycles/);
+  await page.fill(`${DOC} .isim-stim-dlg [name=cycles]`, '6');
+  await page.click(`${DOC} .isim-stim-dlg [data-a=ok]`);
+  await simTime(page, '120,000');
+  // en from cycle 1 (the bench leaves it 0): q counts 5; the clock is the stimuli's (period 20 ns), not the bench's 10 ns
+  await clickCycle(page, 'en', 1, 20000);
+  await page.waitFor(() => window.Silinx.active.view.state.stim.m.inputs.en.join('') === '011111', [], { what: 'en painted' });
+  await simTime(page, '120,000');
+  assert.equal(await value(page, 'q'), '0101');
+  await page.waitFor(async () => { const j = await (await fetch('/api/projects/StimTb')).json(); return j.stimuli?.tb_ctr?.inputs?.en?.[1] === '1' && !j.stimuli?.ctr; }, [], { what: 'saved for tb_ctr' });
+  // Save as Test Bench: for ctr, tb_ctr exists: tb_ctr_2
+  await page.click(`${DOC} .isim-stimbar [data-stim=fill]`);
+  await page.click(`${DOC} .isim-stimbar [data-stim=save]`);
+  await page.waitFor(() => [...document.querySelectorAll('.dlg-overlay')].pop()?.querySelector('input'), [], { what: 'test bench name' });
+  assert.equal(await page.eval(() => [...document.querySelectorAll('.dlg-overlay')].pop().querySelector('input').value), 'tb_ctr_2');
+  await page.click('.dlg-overlay .dlg-buttons button', { text: 'OK' });
+  await page.waitFor(async () => (await (await fetch('/api/projects/StimTb')).json()).files.some((f) => f.path === 'src/tb_ctr_2.vhd' && f.role === 'sim'), [], { what: 'tb_ctr_2.vhd', timeout: 20000 });
+  await simulate(page, 'tb_ctr_2');
+  await page.waitFor((d) => /TEST PASSED: 6 vector/.test(document.querySelector(`${d} .isim-console`)?.innerText || ''), [DOC], { what: 'TEST PASSED', timeout: 20000 });
+  assert.deepEqual(page.dialogs, []);
+});
