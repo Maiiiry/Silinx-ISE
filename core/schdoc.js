@@ -101,23 +101,19 @@ SYMBOLS.demux = {
     return { title: `DEMUX1_${1 << k}`, params: { sel: k }, description: `1:${1 << k} demultiplexer (select ${sel}): O<S> = D, the other outputs 0 (bitwise when Width > 1)` };
   }),
 };
-// (listed in the palette by their presets only, #301: the generic DECODER / ENCODER are the same symbols)
+// (one palette entry each, #324: DECODER as D2_4E, ENCODER as ENC4_2; their options make D3_8E, PENC8_3…,
+// the Xilinx-style name drawn)
 SYMBOLS.decoder = {
-  category: 'Decoders/Encoders', title: 'DECODER', presetsOnly: true, description: 'n:2^n binary decoder (one-hot outputs, all 0 when E = 0; like Xilinx D2_4E / D3_8E / D4_16E)',
+  category: 'Decoders/Encoders', title: 'DECODER', description: 'n:2^n binary decoder (one-hot outputs, all 0 when E = 0; like Xilinx D2_4E / D3_8E / D4_16E)',
   params: [{ name: 'n', label: 'Address bits', kind: 'int', default: 2, min: 1, max: 5 },
     { name: 'en', label: 'Enable input E', kind: 'bool', default: true },
     { name: 'bus', label: 'Bus pins (A, D)', kind: 'bool', default: false }],
-  presets: [2, 3, 4].map(k => ({ title: `D${k}_${1 << k}E`, params: { n: k }, description: `${k}:${1 << k} decoder with enable (Xilinx D${k}_${1 << k}E): D<A> = E, the other outputs 0` })),
 };
 SYMBOLS.encoder = {
-  category: 'Decoders/Encoders', title: 'ENCODER', presetsOnly: true, description: '2^n:n binary encoder: priority (highest active input wins) or one-hot (OR of the inputs); V = some input is 1',
+  category: 'Decoders/Encoders', title: 'ENCODER', description: '2^n:n binary encoder: priority (highest active input wins) or one-hot (OR of the inputs); V = some input is 1',
   params: [{ name: 'n', label: 'Output bits', kind: 'int', default: 2, min: 2, max: 5 },
-    { name: 'mode', label: 'Type', kind: 'select', options: ['priority', 'one-hot'], default: 'priority' },
+    { name: 'mode', label: 'Type', kind: 'select', options: ['priority', 'one-hot'], default: 'one-hot' },
     { name: 'bus', label: 'Bus pins (I, A)', kind: 'bool', default: false }],
-  presets: [2, 3, 4].flatMap(k => [
-    { title: `PENC${1 << k}_${k}`, params: { n: k }, description: `${1 << k}:${k} priority encoder: A = index of the highest input at 1 (0 when none), V = some input is 1` },
-    { title: `ENC${1 << k}_${k}`, params: { n: k, mode: 'one-hot' }, description: `${1 << k}:${k} one-hot encoder: A = OR of the indices of the inputs at 1, V = some input is 1` },
-  ]),
 };
 SYMBOLS.add = {
   category: 'Arithmetic', title: 'ADD', description: 'Adder S = A + B (+ CI), optional carry out',

@@ -58,8 +58,9 @@ uiTest('Symbol Info: palette menu and More… link, placed symbol (F1, toolbar, 
   await page.waitFor((d) => !document.querySelector(d), [DLG], { what: 'dialog closed' });
 
   // ---- palette info box: first sentence + More…
-  await page.click(`${ED} .se-symrow`, { text: 'D2_4E' });
-  await page.waitFor((sel) => /^D2_4E: The 2:4 binary decoder \(Xilinx D2_4E\) activates exactly one of its 4 outputs/.test(document.querySelector(`${sel} .se-syminfo`).textContent), [ED], { what: 'info box' });
+  // (the DECODER entry, as D2_4E, #324)
+  await page.click(`${ED} .se-symrow`, { text: 'DECODER' });
+  await page.waitFor((sel) => /^DECODER: The 2:4 binary decoder activates exactly one of its 4 outputs/.test(document.querySelector(`${sel} .se-syminfo`).textContent), [ED], { what: 'info box' });
   assert.match(await page.eval((sel) => document.querySelector(`${sel} .se-syminfo`).textContent, ED), /More…$/);
   await page.key('Escape');      // stop placing
   await page.click(`${ED} .se-syminfo .se-more`);

@@ -93,12 +93,11 @@ test('datasheet UI texts have Portuguese translations', () => {
 });
 
 test('presets: parameters -> Xilinx-style preset names', () => {
-  assert.equal(presetOf('decoder', { n: 3 }), 'D3_8E');
-  assert.equal(presetOf('decoder', { n: 3, bus: true }), 'D3_8E');
-  assert.equal(presetOf('decoder', { n: 3, en: false }), null);
-  assert.equal(presetOf('decoder', { n: 5 }), null);
-  assert.equal(presetOf('encoder', { n: 3, mode: 'one-hot' }), 'ENC8_3');
-  assert.equal(presetOf('encoder', { n: 4 }), 'PENC16_4');
+  // (#324: no decoder / encoder presets; their symbols still named D3_8E, PENC16_4… as drawn)
+  assert.equal(presetOf('decoder', { n: 3 }), null);
+  assert.equal(presetOf('encoder', { n: 3, mode: 'one-hot' }), null);
+  assert.equal(symbolDef({ type: 'encoder', params: { n: 4, mode: 'priority' } }).title, 'PENC16_4');
+  assert.equal(symbolDef({ type: 'encoder', params: { n: 2, mode: 'one-hot' } }).title, 'ENC4_2');
   assert.equal(presetOf('demux', { sel: 2, width: 8 }), 'DEMUX1_4');
   assert.equal(presetOf('mux4', {}), null);
   assert.equal(symbolDoc('decoder', { n: 4 }).title, 'D4_16E');
@@ -254,11 +253,11 @@ test('priority and one-hot encoders: truth tables (exhaustive up to 8 inputs) an
     }, `encoder n=${n} ${mode} bus=${bus}`);
   }
   // PENC4_2: I3 I2 I1 I0 | A1 A0 V — the highest input wins
-  const p = tbl('encoder', { n: 2 });
+  const p = tbl('encoder', { n: 2, mode: 'priority' });
   assert.deepEqual(p.inCols.map(c => c.label), ['I3', 'I2', 'I1', 'I0']);
   assert.deepEqual(p.compact.map(r => `${r.in}:${r.out}`), ['0000:000', '0001:001', '001X:011', '01XX:101', '1XXX:111']);
   // PENC8_3: 8 inputs, simulated exhaustively, shown compact (9 rows)
-  const p8 = tbl('encoder', { n: 3 });
+  const p8 = tbl('encoder', { n: 3, mode: 'priority' });
   assert.equal(p8.full, false);
   assert.equal(p8.compact.length, 9);
   // 16 inputs: representative rows, one per active input
