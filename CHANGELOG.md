@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **The schematic editor's Names:** a checkbox shows the name of every instance and every net; View HDL is
+  gone (the module's HDL file is in the Design pane); new instances are named inst_1, inst_2…
 - **A signal with two drivers is an error, as in XST:** Check Syntax stops on it (Xst:528 Multi-source), and so
   do the simulation and the implementation.
 - **No simulation of an HDL file its drawing can no longer generate:** a schematic (or a state diagram,
@@ -28,6 +30,13 @@ In short:
 
 In detail:
 
+- **Names, no View HDL, inst_n (#311):** the schematic editor's toolbar has a checkbox *Names* (before
+  Check, remembered) that draws the name of every instance, the automatic ones too, and of every net
+  (`net_n` on its longest run, besides the net-name labels); unchecked, the names the user gave and the
+  labels, as before. The View HDL button and its language select are gone (the schematic's language is
+  in its properties; its HDL file opens from the Design pane). New instances, and those of Convert to
+  Schematic, are named `inst_n` instead of Xilinx's `XLXI_n`; the names of existing and imported ones
+  are kept.
 - **Multi-source, an error (#309):** a signal driven from more than one place in the HDL (two processes or
   always blocks, a process and a concurrent assignment, two instance outputs; tri-state drivers and
   inout nets apart) was a warning of the design checks (HDLCompiler:1401); it is now an error with

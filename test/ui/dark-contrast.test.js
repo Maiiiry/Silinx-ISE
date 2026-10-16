@@ -199,10 +199,11 @@ for (const theme of ['dark', 'light']) {
       await page.click(`${ED} .se-symdoc [data-act=close]`);
       try { await page.waitFor((s) => !document.querySelector(`${s} .se-symdoc`), [ED], { what: 'Symbol Info closed', timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
     }
-    await page.click(`${ED} .se-btn[data-act=view]`);
-    await page.waitForSelector(`${ED} .se-code`);
-    await check('View HDL');
-    await page.click(`${ED} .se-dialog .btn`, { text: 'Close' });
+    // Names (#311): every instance's and net's name drawn
+    await page.click(`${ED} .se-names input`);
+    await page.waitFor((s) => document.querySelector(`${s} .se-names input`).checked && document.querySelectorAll(`${s} .se-svg .sym .iname`).length > 0, [ED], { what: 'the names drawn' });
+    await check('Names');
+    await page.click(`${ED} .se-names input`);
     await page.click(`${ED} .se-btn[data-act=sim]`);
     await page.waitFor((s) => document.querySelector(`${s} .se-simlayer .lv-ctl`), [ED], { what: 'live simulation' });
     // the bus input sw: its editor

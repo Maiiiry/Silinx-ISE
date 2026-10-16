@@ -188,6 +188,8 @@
 .sch-editor svg .label text { font-size: 10px; fill: var(--se-wire); }
 .sch-editor svg .label .lpt { fill: var(--se-wire); }
 .sch-editor svg .busname { font-size: 10px; fill: var(--se-wire); pointer-events: none; }
+/* (Names: the 1-bit and the automatic nets' names, lighter than a bus's, #311) */
+.sch-editor svg .busname.netname { opacity: .75; }
 .sch-editor svg .nc { fill: #fff; stroke: var(--se-danger); stroke-width: 1; }
 .sch-editor svg .sym:hover .gate, .sch-editor svg .sym:hover .box, .sch-editor svg .sym:hover .pin,
 .sch-editor svg .port:hover .iomark { stroke: var(--se-highlight); }
@@ -308,7 +310,7 @@
 .sch-editor.read-only .se-toolbar [data-act="rotate"], .sch-editor.read-only .se-toolbar [data-act="mirror"], .sch-editor.read-only .se-toolbar [data-act="delete"],
 .sch-editor.read-only .se-toolbar [data-act="undo"], .sch-editor.read-only .se-toolbar [data-act="redo"] { display: none; }
 
-.sch-editor .se-keep { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; padding: 0 4px; cursor: pointer; }
+.sch-editor .se-keep, .sch-editor .se-names { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; padding: 0 4px; cursor: pointer; }
 .sch-editor.read-only .se-keep { display: none; }
 .sch-editor.read-only [data-act="sim"] { display: none; }
 
