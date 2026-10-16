@@ -295,7 +295,7 @@ uiTest('View RTL Schematic of VHDL: the names as written in the design (instance
   });
   assert.deepEqual(await view(), {
     crumbs: '⬆ Up ⬇ Push into RTL Schematic (read-only) — Top_Level : Top_Level Open top.vhd', name: 'Top_Level', ports: ['CLK_50', 'nReset', 'LEDs'],
-    nets: ['Blink_A'], syms: [['U_Blink', 'module', 'Blink_Ctrl'], ['XLXI_1', 'busjoin', null], ['XLXI_2', 'inv', null]],
+    nets: ['Blink_A'], syms: [['U_Blink', 'module', 'Blink_Ctrl'], ['inst_1', 'busjoin', null], ['inst_2', 'inv', null]],
   });
   // the instance's properties: its module, pins and generics as the entity writes them
   const inst = await page.eval(() => window.Silinx.active.viewer.getDoc().symbols.find((s) => s.type === 'module').id);

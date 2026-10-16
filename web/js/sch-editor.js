@@ -185,14 +185,16 @@ function bodySvg(sym, def) {
 }
 
 // readable texts, positioned in sheet coordinates
-const AUTO_NAME = /^(XLXI_\d+|U\d+)$/;
+const AUTO_NAME = /^(XLXI_\d+|inst_\d+|U\d+)$/;
 function textsSvg(sym, def, ctx = {}) {
   let s = '';
   const box = symbolBox(sym, null, def);
   const cx = (lx, ly) => xform(sym, def, lx, ly);
   const center = cx(def.body.x + def.body.w / 2, def.body.y + def.body.h / 2);
-  // the instance name: only a name given by the user (not the automatic XLXI_n / Un ones, #172)
-  const showName = !['constant', 'vcc', 'gnd', 'slice', 'busjoin'].includes(sym.type) && !AUTO_NAME.test(sym.name || '');
+  // the instance name: only a name given by the user (not the automatic inst_n / XLXI_n / Un ones, #172);
+  // every one with Names (ctx.allNames)
+  const showName = !!sym.name && (ctx.allNames ? !['vcc', 'gnd'].includes(sym.type)
+    : !['constant', 'vcc', 'gnd', 'slice', 'busjoin'].includes(sym.type) && !AUTO_NAME.test(sym.name || ''));
   const pinLabels = ['module', 'hdl', 'ff', 'arith', 'mux', 'demux', 'lib'].includes(def.shape);
   if (showName) {
     // above the symbol; when pins stick out of the top (turned symbols), beside the top right corner instead
@@ -329,6 +331,12 @@ function portSvg(p, cls = '') {
 }
 
 // ------------------------------------------------------------------ geometry helpers
+// a wire's longest run (horizontal runs first): where a net's name is written
+function wireRun(w) {
+  let best = 0;
+  for (let i = 0; i + 1 < w.points.length; i++) { const p = w.points[i], q = w.points[i + 1]; best = Math.max(best, p.y === q.y ? Math.abs(q.x - p.x) : Math.abs(q.y - p.y) * 0.5); }
+  return best;
+}
 function onSeg(p, a, b, tol = 0) {
   if (a.x === b.x) return Math.abs(p.x - a.x) <= tol && p.y >= Math.min(a.y, b.y) - tol && p.y <= Math.max(a.y, b.y) + tol;
   if (a.y === b.y) return Math.abs(p.y - a.y) <= tol && p.x >= Math.min(a.x, b.x) - tol && p.x <= Math.max(a.x, b.x) + tol;
@@ -417,8 +425,11 @@ export function mountSchEditor(container, opts = {}) {
   keepBox.addEventListener('change', () => { keepConn = keepBox.checked; try { localStorage.setItem('xl.sch.keepConn', keepConn ? '1' : '0'); } catch { /* ignore */ } });
   const btn = (act, icon, title) => h('button', { type: 'button', class: 'se-btn', 'data-act': act, title, html: ICON[icon] });
   const sep = () => h('span', { class: 'se-sep' });
-  const langSel = h('select', { class: 'se-lang', title: 'HDL language of View HDL' },
-    h('option', { value: 'vhdl', text: 'VHDL' }), h('option', { value: 'verilog', text: 'Verilog' }));
+  // Names: the name of every instance and every net drawn, the automatic ones too
+  let showNames = false;
+  try { showNames = localStorage.getItem('xl.sch.names') === '1'; } catch { /* default */ }
+  const namesBox = h('input', { type: 'checkbox', checked: showNames });
+  namesBox.addEventListener('change', () => { showNames = namesBox.checked; try { localStorage.setItem('xl.sch.names', showNames ? '1' : '0'); } catch { /* ignore */ } render(); });
   const optBox = h('span', { class: 'se-opts' });
   tb.append(
     btn('select', 'select', 'Select (Esc)'), btn('wire', 'wire', 'Add Wire (W)'), btn('net', 'net', 'Add Net Name (N)'), btn('io', 'io', 'Add I/O Marker (O)'),
@@ -428,9 +439,8 @@ export function mountSchEditor(container, opts = {}) {
     sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
     sep(), btn('info', 'info', 'Symbol Info (F1)'),
-    sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'check', title: 'Check Schematic', html: `${ICON.check}<span>Check</span>` }),
-    sep(), langSel,
-    h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'view', title: 'View generated HDL', html: `${ICON.view}<span>View HDL</span>` }),
+    sep(), h('label', { class: 'se-names', title: 'Show the name of every instance and every net (the automatic ones too)' }, namesBox, h('span', { text: 'Names' })),
+    h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'check', title: 'Check Schematic', html: `${ICON.check}<span>Check</span>` }),
     sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'sim', title: 'Simulate: click the inputs and watch the circuit work (Esc to stop)', html: `${ICON.sim}<span>Simulate</span>` }),
     sep(), optBox,
     // a narrow screen (#266): the symbols and the properties over the canvas, shown by these
@@ -438,7 +448,6 @@ export function mountSchEditor(container, opts = {}) {
       panelToggle(container, h('button', { type: 'button', class: 'se-btn wide', 'data-panel': 'symbols', title: 'Show / hide the symbols panel' }, '☰ Symbols'), { cls: 'pal-open', key: SYMBOLS_KEY }),
       panelToggle(container, h('button', { type: 'button', class: 'se-btn wide', 'data-panel': 'props', title: 'Show / hide the properties panel' }, '☰ Properties'), { key: PROPS_KEY })),
   );
-  langSel.value = genLang;
   // read-only (RTL view): the editing tools are hidden, so drop the separators they leave doubled
   if (readOnly) {
     let prevSep = true;                                   // a separator at the start is not needed
@@ -450,20 +459,18 @@ export function mountSchEditor(container, opts = {}) {
     }
     if (lastSep) lastSep.style.display = 'none';          // nor at the end
   }
-  langSel.addEventListener('change', () => { genLang = langSel.value; });
   tb.addEventListener('click', e => {
     const b = e.target.closest('[data-act]');
     if (!b || b.disabled) return;
     const a = b.dataset.act;
     if (a === 'sim') { if (live) leaveSim(); else enterSim(); container.focus({ preventScroll: true }); return; }
     if (a === 'info') { const t0 = infoTarget(); if (t0) openInfo(t0); return; }
-    if (live && !['zin', 'zout', 'fit', 'view', 'check'].includes(a)) return;
+    if (live && !['zin', 'zout', 'fit', 'check'].includes(a)) return;
     if (a === 'select' || a === 'wire' || a === 'net' || a === 'io') setTool(a);
     else if (a === 'rotate') rotateSel(); else if (a === 'mirror') mirrorSel(); else if (a === 'delete') deleteSel();
     else if (a === 'undo') undo(); else if (a === 'redo') redo();
     else if (a === 'zin') zoomAt(1.25); else if (a === 'zout') zoomAt(0.8); else if (a === 'fit') fit();
     else if (a === 'check') runCheck(true);
-    else if (a === 'view') viewHdl();
     container.focus({ preventScroll: true });
   });
 
@@ -647,9 +654,13 @@ export function mountSchEditor(container, opts = {}) {
     // of it, over its longest horizontal run (#173); the wires with a label of their own keep that
     if (nl) {
       const labelled = new Set(doc.labels.map(l => nl.labelNet.get(l.id)?.id));
-      for (const w of doc.wires) {
+      // (Names: also the 1-bit and the automatic nets, their name once, on their longest run)
+      const once = new Set();
+      for (const w of [...doc.wires].sort((a, b) => wireRun(b) - wireRun(a))) {
         const n = nl.wireNet.get(w.id);
-        if (!n || n.auto || !n.name || !(n.width > 1) || labelled.has(n.id)) continue;
+        if (!n || !n.name || labelled.has(n.id)) continue;
+        const named = !n.auto && n.width > 1;
+        if (!named && (!showNames || once.has(n.id))) continue;
         let best = null;
         for (let i = 0; i + 1 < w.points.length; i++) {
           const a = w.points[i], b = w.points[i + 1];
@@ -660,7 +671,8 @@ export function mountSchEditor(container, opts = {}) {
         // (near the start of the run, clear of the taps and pins further on)
         const hz = best.a.y === best.b.y;
         const x = hz ? Math.min(best.a.x, best.b.x) + 12 : best.a.x + 4, y = hz ? best.a.y - 4 : Math.min(best.a.y, best.b.y) + 16;
-        parts.push(`<text class="busname" x="${x}" y="${y}" text-anchor="start">${esc(`${n.name}(${n.width - 1}:0)`)}</text>`);
+        if (!named) once.add(n.id);
+        parts.push(`<text class="busname${named ? '' : ' netname'}" x="${x}" y="${y}" text-anchor="start">${esc(n.width > 1 ? `${n.name}(${n.width - 1}:0)` : n.name)}</text>`);
       }
     }
     // symbols
@@ -668,7 +680,7 @@ export function mountSchEditor(container, opts = {}) {
       let def;
       try { def = symbolDef(s, modules); } catch { continue; }
       const tapped = s.type === 'slice' ? nl?.pinNet.get(`${s.id}/I`) : null;
-      parts.push(symbolSvg(s, def, sel.has(`sym:${s.id}`) ? ' sel' : '', { busName: tapped && !tapped.auto ? tapped.name : '' }));
+      parts.push(symbolSvg(s, def, sel.has(`sym:${s.id}`) ? ' sel' : '', { busName: tapped && !tapped.auto ? tapped.name : '', allNames: showNames }));
     }
     for (const p of doc.ports) parts.push(portSvg(p, sel.has(`port:${p.id}`) ? ' sel' : ''));
     for (const l of doc.labels) {
@@ -795,7 +807,7 @@ export function mountSchEditor(container, opts = {}) {
   function sheetProps() {
     propBody.append(h('div', { class: 'se-ptitle', text: 'Schematic sheet' }));
     propBody.append(field('Module name', inp(doc.name, v => { doc.name = String(v).trim() || 'schematic'; })));
-    propBody.append(field('Language', selBox(doc.lang, [['vhdl', 'VHDL'], ['verilog', 'Verilog']], v => { doc.lang = v; genLang = v; langSel.value = v; })));
+    propBody.append(field('Language', selBox(doc.lang, [['vhdl', 'VHDL'], ['verilog', 'Verilog']], v => { doc.lang = v; genLang = v; })));
     propBody.append(field('Description', ta(doc.description || '', v => { if (String(v).trim()) doc.description = v; else delete doc.description; }, 2), 'shown on the sheet and as a comment in the HDL'));
     propBody.append(field('Sheet size', h('div', { class: 'se-row' },
       inp(doc.sheet.w, v => { doc.sheet.w = Math.max(400, +v || 1700); }, { type: 'number', step: 100 }),
@@ -954,8 +966,9 @@ export function mountSchEditor(container, opts = {}) {
   function nextId(prefix, arr) { let n = 0; for (const o of arr) { const m = new RegExp(`^${prefix}(\\d+)$`).exec(o.id); if (m) n = Math.max(n, +m[1]); } return `${prefix}${n + 1}`; }
   function nextInstName() {
     const used = new Set(doc.symbols.map(s => s.name));
-    let n = 0; for (const s of doc.symbols) { const m = /^XLXI_(\d+)$/.exec(s.name); if (m) n = Math.max(n, +m[1]); }
-    let nm; do nm = `XLXI_${++n}`; while (used.has(nm)); return nm;
+    // (inst_n, #311; after the inst_n and the XLXI_n of a schematic drawn or imported before)
+    let n = 0; for (const s of doc.symbols) { const m = /^(?:inst|XLXI)_(\d+)$/.exec(s.name); if (m) n = Math.max(n, +m[1]); }
+    let nm; do nm = `inst_${++n}`; while (used.has(nm)); return nm;
   }
 
   // ---------------- tools
@@ -1603,34 +1616,7 @@ export function mountSchEditor(container, opts = {}) {
   }
   const offLang = onLanguageChange(() => { if (infoItem) showSymInfo(infoItem); if (!live) renderProps(); });
 
-  function viewHdl() {
-    const dlg = h('div', { class: 'se-modal' });
-    const box = h('div', { class: 'se-dialog' });
-    const pre = h('pre', { class: 'se-code' });
-    const dsel = h('select', {}, h('option', { value: 'vhdl', text: 'VHDL' }), h('option', { value: 'verilog', text: 'Verilog' }));
-    dsel.value = genLang;
-    const info = h('span', { class: 'se-dinfo' });
-    let cur = null;
-    const upd = () => {
-      cur = generateHdl(doc, { lang: dsel.value, modules });
-      pre.innerHTML = highlight(cur.code, dsel.value);
-      const e = cur.diagnostics.filter(d => d.severity === 'error').length, w = cur.diagnostics.filter(d => d.severity === 'warning').length;
-      info.textContent = `${cur.filename} · ${e} error(s), ${w} warning(s)`;
-    };
-    dsel.addEventListener('change', () => { genLang = dsel.value; langSel.value = genLang; upd(); });
-    const close = () => dlg.remove();
-    box.append(
-      h('div', { class: 'se-dhead' }, h('b', { text: 'View HDL' }), dsel, info, h('span', { class: 'sp' }),
-        h('button', { class: 'btn', type: 'button', text: 'Copy', onclick: () => { navigator.clipboard?.writeText(cur.code).then(() => flash('Copied'), () => {}); } }),
-        h('button', { class: 'btn', type: 'button', text: 'Close', onclick: close })),
-      pre);
-    dlg.append(box);
-    dlg.addEventListener('pointerdown', e => { if (e.target === dlg) close(); });
-    dlg.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
-    container.append(dlg);
-    upd();
-    box.tabIndex = -1; box.focus();
-  }
+
   function highlight(code, lang) {
     const kw = lang === 'vhdl'
       ? /\b(library|use|entity|is|port|generic|map|in|out|inout|end|architecture|of|signal|begin|process|if|then|elsif|else|when|others|case|for|generate|loop|downto|to|and|or|not|xor|nand|nor|xnor|std_logic|std_logic_vector|unsigned|signed|integer|type|constant|component|select|with|rising_edge|wait|variable|function|return|all)\b/gi
@@ -1691,7 +1677,7 @@ export function mountSchEditor(container, opts = {}) {
     getDoc: () => clone(normalizeDoc(doc)),
     undo: () => undo(), redo: () => redo(),
     canUndo: () => undoStack.length > 0 && !live, canRedo: () => redoStack.length > 0 && !live,
-    setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc()); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; langSel.value = genLang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
+    setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc()); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
     // its HDL file linked (generatedFile, #245): nothing else changes, Undo / Redo keep the link
     setLink(file) {
       linkModel(doc, file);

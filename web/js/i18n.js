@@ -410,7 +410,6 @@ Object.assign(PT, {
   'Registered output (holds its value, readable in conditions)': 'Saída registada (mantém o valor, pode ser lida em condições)',
   'Value(s) of this exit': 'Valor(es) desta saída', 'Value tested': 'Valor testado', 'Exits (value → box)': 'Saídas (valor → caixa)', 'Connection': 'Ligação', 'Case': 'Case',
   // schematic editor
-  'HDL language of View HDL': 'Linguagem HDL de Ver HDL',
   'Moving components: keep the wires connected (re-routed around other parts) or detach them': 'Ao mover componentes: manter os fios ligados (reencaminhados à volta das outras peças) ou desligá-los',
   'Check Schematic': 'Verificar Esquemático', 'View generated HDL': 'Ver o HDL gerado',
   'Module name': 'Nome do módulo', 'Sheet size': 'Tamanho da folha', 'Declarations': 'Declarações', 'Architecture name': 'Nome da arquitetura',

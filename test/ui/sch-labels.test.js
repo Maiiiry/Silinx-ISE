@@ -1,5 +1,5 @@
 // UI: the schematic editor's symbols as ISE draws them: the type of a gate under it (AND2, OR3, INV…),
-// no automatic instance id (XLXI_n, Un) on the sheet, a name given by the user shown (#172); the
+// no automatic instance id (inst_n, XLXI_n, Un) on the sheet unless Names is checked (#311), a name given by the user shown (#172); the
 // palette offers gates of at most 4 inputs (#171).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -86,4 +86,45 @@ uiTest('schematic: a wire dragged with Keep connections keeps its ends on the ma
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W1').points[0].x === 140, [], { what: 'moved whole' });
   assert.deepEqual(await wire('W1'), [[140, 100], [290, 100], [290, 200], [440, 200]]);
   await keep(true);
+});
+
+// #311: Names shows every instance's name (the automatic ones too) and every net's name; remembered; no View
+// HDL button; a symbol placed is named inst_n
+uiTest('#311 schematic: Names shows every instance and net name (also the automatic ones), remembered; no View HDL; new instances inst_n', E, async (page) => {
+  const { normalizeDoc, symbolPins } = await import('../../core/schdoc.js');
+  const doc = newDoc('nm', 'vhdl');
+  const g1 = { id: 'S1', type: 'inv', x: 100, y: 100, rot: 0, mirror: false, name: 'XLXI_1', params: { width: 1 } };
+  const g2 = { id: 'S2', type: 'inv', x: 300, y: 100, rot: 0, mirror: false, name: 'my_inv', params: { width: 1 } };
+  doc.symbols.push(g1, g2);
+  const pin = (s, n) => symbolPins(normalizeDoc({ ...doc, symbols: [s] }).symbols[0], {}).find((p) => p.name === n);
+  const o = pin(g1, 'O'), i = pin(g2, 'I');
+  doc.wires.push({ id: 'W1', points: [o, { x: (o.x + i.x) / 2, y: o.y }, { x: (o.x + i.x) / 2, y: i.y }, i] });
+  await makeProject(env, { name: 'NamesPj', files: { 'src/nm.sch.json': JSON.stringify(doc) } });
+  await page.openProject('NamesPj');
+  await page.eval(() => { try { localStorage.removeItem('xl.sch.names'); } catch { /* none */ } });
+  await page.eval(() => window.SilinxApp.openSch('src/nm.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 2, [ED], { what: 'drawn' });
+  const names = () => page.eval((ed) => ({ inst: [...document.querySelectorAll(`${ed} svg .sym .iname`)].map((t) => t.textContent).sort(), nets: [...document.querySelectorAll(`${ed} svg .netname`)].map((t) => t.textContent) }), ED);
+  assert.deepEqual(await names(), { inst: ['my_inv'], nets: [] }, 'unchecked: as before');
+  assert.equal(await page.eval((ed) => document.querySelector(`${ed} .se-btn[data-act=view]`), ED), null, 'no View HDL');
+  // the checkbox before Check
+  assert.deepEqual(await page.eval((ed) => { const n = document.querySelector(`${ed} .se-names`); return [n.textContent, n.nextElementSibling?.dataset.act]; }, ED), ['Names', 'check']);
+  await page.click(`${ED} .se-names input`);
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .netname`).length === 1, [ED], { what: 'the net names' });
+  const shown = await names();
+  assert.deepEqual(shown.inst, ['XLXI_1', 'my_inv']);
+  assert.equal(shown.nets.length, 1);
+  assert.match(shown.nets[0], /^net_\d+$/);
+  assert.equal(await page.eval(() => localStorage.getItem('xl.sch.names')), '1');
+  // a new inverter: inst_n
+  await page.fill(`${ED} .se-search`, 'INV');
+  await page.click(`${ED} .se-symrow`, { text: 'INV' });
+  const c = await page.eval((ed) => { const r = document.querySelector(`${ed} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height - 80 }; }, ED);
+  await page.click(c);
+  await page.key('Escape');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/NamesPj/file?path=src%2Fnm.sch.json')).text()).symbols.length === 3, [], { what: 'saved' });
+  const saved = await page.eval(async () => JSON.parse(await (await fetch('/api/projects/NamesPj/file?path=src%2Fnm.sch.json')).text()));
+  assert.equal(saved.symbols[2].name, 'inst_2', 'after XLXI_1: inst_2');
+  await page.click(`${ED} .se-names input`);
+  await page.eval(() => { try { localStorage.removeItem('xl.sch.names'); } catch { /* none */ } });
 });

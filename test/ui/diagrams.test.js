@@ -97,10 +97,9 @@ uiTest('schematic editor: place two inverters, wire them, add I/O markers, save,
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.querySelector('.lbl').textContent === 'chain').map((r) => [...r.querySelectorAll('.badge')].map((b) => `${b.textContent}${b.classList.contains('base') ? '*' : ''}`))), [['Schematic*', 'VHDL']]);
   // (the HDL file there from the start: every source has its HDL)
   assert.match(await page.consoleText(), /src\/chain\.vhd generated from src\/chain\.sch\.json \(every source has its HDL\)/);
-  // View HDL shows the code; Close
-  await page.click('.doc:not([hidden]) .se-btn[data-act=view]');
-  await page.waitFor(() => /entity chain is/i.test(document.querySelector('.doc:not([hidden]) .se-code')?.textContent || ''));
-  await page.click('.doc:not([hidden]) .se-dialog .btn', { text: 'Close' });
+  // its HDL: the file of the Design pane (no View HDL button, #311)
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-btn[data-act=view]')), null);
+  assert.match(await readWs(env, 'SchPj', 'src/chain.vhd'), /entity chain is/i);
 });
 
 uiTest('schematic editor (#196): Rotate by Ctrl+R, the toolbar and the properties (rot saved in the .sch.json), Zoom In / Out / Full View buttons, the palette context menu Place Symbol', E, async (page) => {

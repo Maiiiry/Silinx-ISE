@@ -2154,7 +2154,7 @@ export async function schematicFromHdl(inst, opts = {}) {
   const symbols = [];
   let gateK = 0;
   const usedNames = new Set([...inst.children.map(c => nk(c.name)), ...[...sigByName.keys()]]);
-  const gateName = () => { let nm; do nm = `XLXI_${++gateK}`; while (usedNames.has(nk(nm))); usedNames.add(nk(nm)); return nm; };
+  const gateName = () => { let nm; do nm = `inst_${++gateK}`; while (usedNames.has(nk(nm))); usedNames.add(nk(nm)); return nm; };
   const addSym = (type, params, name, extra = {}) => {
     const s = { id: `S${symbols.length + 1}`, type, x: 0, y: 0, rot: 0, mirror: false, name: name || gateName(), params: { ...defaultParams(type), ...params }, ...extra };
     symbols.push(s); return s;
