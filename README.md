@@ -111,7 +111,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   module without a test bench, *Edit Stimuli* in ISim lays its inputs out as a grid of cycles (a clock and its
   period, or combinational with a time step). A click on a cycle of an input changes it there and up to its
   next change (0 → 1 → Z → X; a bus gets a value typed in) and the simulation runs again at once. Expected
-  outputs, clicked in or filled in from the simulation, are checked (mismatches in red). The stimuli are saved
+  outputs, clicked in or filled in from the simulation, are checked (mismatches in red). Simulating a test bench,
+  it draws the inputs of its unit under test, over what the bench drives them with. The stimuli are saved
   in the project and run when ISim opens; *Save as Test Bench…* writes them as a self-checking VHDL / Verilog
   test bench.
 - **Test Bench Wizard** (*New Source ▸ Test Bench (Wizard)*, or right-click a module): writes a

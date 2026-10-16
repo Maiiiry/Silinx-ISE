@@ -57,7 +57,8 @@ In detail:
   (0 → 1 → Z → X), a bus gets a value typed in (bits, h… or d…), and the simulation restarts and runs the stimuli
   at once. On an output a click sets the expected value (- → 0 → 1, a bus typed in); *Fill Expected Outputs* takes
   them from the simulation; the mismatches are red on the waveform, counted in the bar and listed in the console.
-  The stimuli are saved in the project (per module) and run when ISim opens; *Save as Test Bench…* writes the
+  Simulating a test bench, *Edit Stimuli* draws the inputs of its unit under test, forced over what the bench drives
+  them with. The stimuli are saved in the project (per module or test bench) and run when ISim opens; *Save as Test Bench…* writes the
   self-checking VHDL / Verilog test bench (`tb_<module>`, a simulation source), which the Test Bench Wizard's
   generator now writes with Z / X on std_logic inputs and, for the stimuli, its first vector at time 0
   (core/stimuli.js, the same timing as the bench: inputs at the falling edge, outputs checked before the next).

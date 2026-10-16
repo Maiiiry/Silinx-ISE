@@ -7,8 +7,9 @@
 //
 // Extra options: initialRun (ps, run once after mounting), runAllCap (ps, default 1 ms),
 //                defaultRunTime { value, unit } (default 1 us),
-//                stimuli { model, ports: [{ name, dir, width }], onChange(model), onSaveTestbench(model) }: the
-//                inputs of the simulated module drawn on its waveforms (#336, core/stimuli.js), run at once.
+//                stimuli { model, ports: [{ name, dir, width }], inst, onChange(model), onSaveTestbench(model) }: the
+//                inputs of the simulated module drawn on its waveforms (#336, core/stimuli.js), run at once; `inst`:
+//                the instance whose ports they are (a test bench's unit under test, its signals forced), else the top.
 // Styles: web/css/isim.css (scoped under .isim, themed by theme.css --wave-* variables).
 // Time is in picoseconds everywhere.
 
@@ -271,7 +272,8 @@ export function mountISim(container, opts = {}) {
     stim: { on: false, m: null, bad: [] },
   };
   const stimOpt = opts.stimuli && design.top && opts.stimuli.ports?.some(p => p.dir === 'in') ? opts.stimuli : null;
-  const topSig = new Map((design.top?.ports || []).map(p => [p.name, p.sig]));
+  const stimInst = stimOpt?.inst || design.top;
+  const topSig = new Map((stimInst?.ports || []).map(p => [p.name, p.sig]));
   const stimPortOf = new Map((stimOpt?.ports || []).filter(p => topSig.has(p.name)).map(p => [topSig.get(p.name), p]));
   if (stimOpt?.model) st.stim.m = normalizeStimuli(stimOpt.model, stimOpt.ports);
   const bitCache = new Map();
@@ -1603,7 +1605,7 @@ export function mountISim(container, opts = {}) {
       <div class="isim-dlg isim-stim-dlg" role="dialog">
         <div class="isim-dlg-title">Stimulus Timing<button class="isim-dlg-x" title="Close">✕</button></div>
         <div class="isim-dlg-body">
-          <div class="isim-dlg-hint">The inputs of ${esc(design.top.name)} as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step.</div>
+          <div class="isim-dlg-hint">The inputs of ${esc(stimInst === design.top ? design.top.name : `${stimInst.module || stimInst.name} (${stimInst.path})`)} as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step.</div>
           <div class="isim-dlg-grid">
             <label>Clock:</label><select name="clock"><option value="">None (combinational)</option>${clocks.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('')}</select>
             <label>Clock Period (ns):</label><input name="period" value="${m?.periodNs ?? 20}">
