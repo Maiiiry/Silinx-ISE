@@ -380,6 +380,19 @@ uiTest('#328 #330 schematic gates: AND, OR, NAND, NOR, XOR, XNOR only in the pal
   await page.waitFor((d) => document.querySelector(`${d} [data-param=inputs]`)?.value === '3', [D], { what: 'Inputs 3' });
   await page.fill(`${D} [data-param=inputs]`, '2');
   await waitType('and2');
+  // #337: the XNOR has its Inverted inputs too (XNOR2B1, a Silinx symbol)
+  await page.key('Escape');
+  await page.fill(`${D} .se-search`, 'XNOR');
+  await page.click(`${D} .se-symrow`, { text: 'XNOR' });
+  const c2 = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width * 0.75, y: r.top + r.height * 0.7 }; }, D);
+  await page.click(c2);
+  await page.key('Escape');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()).symbols.length === 2, [], { what: 'XNOR saved' });
+  const xid = (await file()).symbols[1].id;
+  await page.click(`${D} g.sym[data-id="${xid}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`)?.options.length === 3, [D], { what: 'XNOR Inverted inputs 0..2' });
+  await page.fill(`${D} [data-param=invIn]`, '1');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()).symbols[1].type === 'xnor2b1', [], { what: 'XNOR2B1 saved' });
   assert.deepEqual(page.dialogs, []);
 });
 

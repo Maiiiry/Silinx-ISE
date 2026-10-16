@@ -198,6 +198,11 @@ test('gates and inverted-input gates (ANDnBk …): truth tables computed by simu
   }
   assert.match(symbolDoc('and2b1', {}).text.join(' '), /In this variant \(Xilinx AND2B1\)/);
   assert.equal(XILINX_SYMBOLS.XOR2B1, undefined);
+  // XNOR2B1 (#337, a Silinx symbol): O = (I0' ⊕ I1)', an XOR
+  assert.deepEqual(tbl('xnor2b1', {}).rows.map(r => `${r.in}:${r.out}`), ['00:0', '01:1', '10:1', '11:0']);
+  assert.equal(symbolDoc('xnor3b2', {}).formula, "O = (I0' ⊕ I1' ⊕ I2)'");
+  assert.match(symbolDoc('xnor2b1', {}).text.join(' '), /In this variant \(XNOR2B1\) the input I0 is inverted/);
+  assert.equal(XILINX_SYMBOLS.XNOR2B1, undefined);
   assert.deepEqual(XILINX_SYMBOLS.AND2B1, { type: 'and2b1', params: { width: 1 } });
   assert.deepEqual(tbl('and2', {}).compact.map(r => `${r.in}:${r.out}`), ['X0:0', '0X:0', '11:1']);
   assert.deepEqual(tbl('nor3b2', {}).compact.find(r => r.out === '1').in, '110');

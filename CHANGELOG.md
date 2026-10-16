@@ -46,6 +46,8 @@ In short:
 
 In detail:
 
+- **XNOR with inverted inputs (#337):** XNOR had no *Inverted inputs* in its properties, as the other gates have;
+  XNOR2B1 … XNOR4B4 are Silinx symbols (the Xilinx library has none), exported to ISE as Silinx symbols.
 - **Project modules without the test benches (#332):** the schematic editor's palette listed every module of
   the project under *Project modules*, the test benches too; it lists the design modules only (not a
   Simulation-only source, nor a module without ports, which a schematic cannot connect).

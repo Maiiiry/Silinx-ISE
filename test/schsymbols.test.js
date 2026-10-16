@@ -173,22 +173,25 @@ function check(name, cases, count = 64) {
 // ------------------------------------------------------------------ library
 test('symbol library: inverted-input gates, decoder, encoder and demultiplexer', () => {
   const b = Object.keys(SYMBOLS).filter(t => /b\d$/.test(t));
-  assert.equal(b.length, 2 + 3 + 4 + 5 + 2 + 3 + 4 + 5 + 2 + 3 + 4 + 2 + 3 + 4 + 2 + 3 + 4);
+  assert.equal(b.length, 2 + 3 + 4 + 5 + 2 + 3 + 4 + 5 + 2 + 3 + 4 + 2 + 3 + 4 + 2 + 3 + 4 + 2 + 3 + 4);
   for (const t of ['and2b1', 'and5b5', 'or3b2', 'nand4b4', 'nor2b1', 'xor2b1', 'xor2b2']) { assert.ok(SYMBOLS[t], t); assert.equal(SYMBOLS[t].category, 'Logic'); }
   assert.equal(SYMBOLS.and2b1.title, 'AND2B1');
   // (#328: the variants are not in the palette, the basic gate's Inverted inputs make them; XOR2B1 / XOR2B2 are
   // Silinx symbols, not in the Xilinx library)
   for (const t of b) assert.equal(SYMBOLS[t].hidden, true, t);
-  assert.deepEqual(b.filter(t => SYMBOLS[t].noLib), ['xor2b1', 'xor2b2', 'xor3b1', 'xor3b2', 'xor3b3', 'xor4b1', 'xor4b2', 'xor4b3', 'xor4b4']);
+  // (#337: XNOR too)
+  assert.deepEqual(b.filter(t => SYMBOLS[t].noLib), ['xor2b1', 'xor2b2', 'xor3b1', 'xor3b2', 'xor3b3', 'xor4b1', 'xor4b2', 'xor4b3', 'xor4b4',
+    'xnor2b1', 'xnor2b2', 'xnor3b1', 'xnor3b2', 'xnor3b3', 'xnor4b1', 'xnor4b2', 'xnor4b3', 'xnor4b4']);
+  assert.deepEqual([gateVariant('xnor2', 1), gateVariant('xnor2', 1, 3), gateVariant('xnor4b2', 0)], ['xnor2b1', 'xnor3b1', 'xnor4']);
   // (#330: one palette entry a gate, the 2-input one named AND, OR…; its Inputs make AND3 / AND4, XOR3, XNOR4…)
   const gates = Object.keys(SYMBOLS).filter(t => SYMBOLS[t].gate && SYMBOLS[t].inputs > 1);
   assert.deepEqual(gates.filter(t => !SYMBOLS[t].hidden), ['and2', 'or2', 'nand2', 'nor2', 'xor2', 'xnor2']);
   assert.deepEqual(gates.filter(t => !SYMBOLS[t].hidden).map(t => [SYMBOLS[t].title, SYMBOLS[t].paletteTitle]).flat(), ['AND2', 'AND', 'OR2', 'OR', 'NAND2', 'NAND', 'NOR2', 'NOR', 'XOR2', 'XOR', 'XNOR2', 'XNOR']);
   for (const t of ['xor3', 'xor4', 'xnor3', 'xnor4']) assert.equal(SYMBOLS[t].title, t.toUpperCase());
   assert.deepEqual([gateVariant('and2', 0, 4), gateVariant('and3b2', 2, 4), gateVariant('nor4b3', 0, 2), gateVariant('xnor2', 0, 3), gateVariant('xor2b1', 1, 4)], ['and4', 'and4b2', 'nor2', 'xnor3', 'xor4b1']);
-  assert.deepEqual([gateVariant('and2', 3, 2), gateVariant('nand2', 0, 5), gateVariant('xnor2', 1, 3)], [null, null, null]);
+  assert.deepEqual([gateVariant('and2', 3, 2), gateVariant('nand2', 0, 5), gateVariant('xnor2', 3, 2)], [null, null, null]);
   assert.deepEqual([gateVariant('and3', 2), gateVariant('and3b2', 0), gateVariant('nor4b1', 4), gateVariant('xor2', 1), gateVariant('or2b2', 1)], ['and3b2', 'and3', 'nor4b4', 'xor2b1', 'or2b1']);
-  assert.deepEqual([gateVariant('and2', 3), gateVariant('xnor2', 1), gateVariant('inv', 1), gateVariant('mux2', 1), gateVariant('nope', 0)], [null, null, null, null, null]);
+  assert.deepEqual([gateVariant('and2', 3), gateVariant('xnor2', 3), gateVariant('inv', 1), gateVariant('mux2', 1), gateVariant('nope', 0)], [null, null, null, null, null]);
   assert.ok(SYMBOL_CATEGORIES.includes('Decoders/Encoders'));
   assert.equal(SYMBOLS.decoder.category, 'Decoders/Encoders');
   assert.equal(SYMBOLS.encoder.category, 'Decoders/Encoders');
