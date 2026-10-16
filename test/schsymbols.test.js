@@ -402,7 +402,7 @@ test('1-bit add / sub / compare generate valid VHDL and Verilog with the right f
 // ADD4), against the bus adder's function; their pins and presets
 test('#304 adders with a pin per bit: ADD1 (full adder), ADD2, ADD4, with and without the carries; pins and presets', () => {
   const S = SYMBOLS.add;
-  assert.deepEqual(S.presets.map(p => p.title), ['ADD1', 'ADD2', 'ADD4']);
+  assert.equal(S.presets, undefined, 'ADD only: its options make ADD1 / ADD2 / ADD4 (#317)');
   const pw = c => symbolDef(c).pins.map(p => `${p.name}:${p.dir}${p.width}`);
   assert.deepEqual(pw({ type: 'add', params: { width: 1, cin: true, cout: true } }), ['A:in1', 'B:in1', 'CI:in1', 'S:out1', 'CO:out1']);
   assert.deepEqual(pw({ type: 'add', params: { width: 4, cin: true, cout: true, bits: true } }),

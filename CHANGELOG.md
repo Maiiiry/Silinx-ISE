@@ -20,8 +20,8 @@ In short:
   a truth table, an ASM chart, a Petri net) with errors, for instance a net with two drivers, left its
   HDL file as it was, and Check Syntax, the simulation and the implementation ran on that old file with
   no warning; they now stop on it and say why.
-- **Adders with a pin per bit:** ADD1 (a full adder), ADD2 and ADD4 (as the Xilinx ADD4) in the schematic
-  editor's palette, their bits on pins of their own.
+- **Adders with a pin per bit:** the schematic editor's ADD has the option *Pins per bit*: with Width 1, 2 or 4
+  and the carries it is a full adder, a 2-bit or a 4-bit adder as the Xilinx ADD4.
 - **Clear clears everything:** the console's Clear also empties the Warnings and Errors tabs.
 - **I/O markers rotated and mirrored:** in the schematic editor, Rotate (Ctrl+R) and Mirror (Ctrl+M)
   now turn the I/O markers too, so a marker can sit on a vertical wire or face the other way.
@@ -74,8 +74,9 @@ In detail:
   again, they run. (Two drivers in hand-written HDL: Check Syntax's multiple-drivers warning, as
   before.)
 - **Adders of 1-, 2- and 4-bit numbers (#304):** the adder ADD has the parameter *Pins per bit (A0..,
-  B0.., S0..)* and three presets with the carries: ADD1, the full adder (A, B, CI -> S, CO), ADD2 and
-  ADD4 (A3..A0, B3..B0, CI -> S3..S0, CO, a box as the Xilinx ADD4). Their datasheet (the full adder's
+  B0.., S0..)*: with the carries, Width 1 is the full adder (A, B, CI -> S, CO), Width 2 and 4 an adder
+  of a pin per bit (A3..A0, B3..B0, CI -> S3..S0, CO, a box as the Xilinx ADD4; no ADD1 / ADD2 / ADD4
+  palette entries of their own, #317). Their datasheet (the full adder's
   truth table, the pins' weights), HDL (one sum of the bits, VHDL and Verilog), live simulation and
   ISE export / import (`xl_add<w>…_bits`) follow.
 - **The console's Clear (#302):** it emptied the Console only; it now empties the Warnings and Errors

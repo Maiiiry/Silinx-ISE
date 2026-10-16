@@ -266,8 +266,9 @@ uiTest('#301 #313 schematic palette: M2_1 … M16_1, DEMUX1_2 … DEMUX1_16 (no 
   assert.deepEqual(page.dialogs, []);
 });
 
-// #304: the adders of two 1-, 2- and 4-bit numbers in the palette (ADD1, ADD2, ADD4), ADD4 placed with a pin per bit
-uiTest('#304 schematic palette: ADD1, ADD2, ADD4; ADD4 placed with A0..A3, B0..B3, CI, S0..S3, CO; its HDL', E, async (page) => {
+// #304 / #317: the adder of two 1-, 2-, 4-bit numbers with a pin per bit is the palette's ADD with its options
+// (no ADD1 / ADD2 / ADD4 entries): Width 4, the carries and Pins per bit make it ADD4, its pins drawn
+uiTest('#304 #317 schematic palette: ADD only; Width 4, carries and Pins per bit in its properties: ADD4 with A0..A3, B0..B3, CI, S0..S3, CO', E, async (page) => {
   const { newDoc } = await import('../../core/schdoc.js');
   await makeProject(env, { name: 'SchAdd', files: { 'src/ad.sch.json': JSON.stringify(newDoc('ad', 'vhdl')) }, top: '' });
   await page.openProject('SchAdd');
@@ -276,21 +277,30 @@ uiTest('#304 schematic palette: ADD1, ADD2, ADD4; ADD4 placed with A0..A3, B0..B
   const D = '.doc:not([hidden])';
   await page.fill(`${D} .se-search`, 'ADD');
   const rows = await page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow`)].map((r) => r.textContent.trim()), D);
-  for (const x of ['ADD1', 'ADD2', 'ADD4', 'ADD']) assert.ok(rows.includes(x), rows.join(' '));
-  await page.click(`${D} .se-symrow`, { text: 'ADD4' });
+  assert.ok(rows.includes('ADD'), rows.join(' '));
+  assert.deepEqual(rows.filter((r) => /^ADD\d/.test(r)), [], 'no ADD1 / ADD2 / ADD4');
+  await page.click(`${D} .se-symrow`, { text: 'ADD' });
   const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 3 }; }, D);
   await page.click(c);
   await page.key('Escape');
-  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchAdd/file?path=src%2Fad.sch.json')).text()).symbols.length === 1, [], { what: 'ADD4 saved' });
-  const saved = JSON.parse(await readWs(env, 'SchAdd', 'src/ad.sch.json')).symbols[0];
-  assert.deepEqual([saved.type, saved.params.width, saved.params.bits, saved.params.cin, saved.params.cout], ['add', 4, true, true, true]);
+  const file = async () => JSON.parse(await page.eval(async () => (await fetch('/api/projects/SchAdd/file?path=src%2Fad.sch.json')).text()));
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchAdd/file?path=src%2Fad.sch.json')).text()).symbols.length === 1, [], { what: 'ADD saved' });
+  const id = (await file()).symbols[0].id;
+  await page.click(`${D} g.sym[data-id="${id}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=width]`), [D], { what: 'its properties' });
+  await page.fill(`${D} [data-param=width]`, '4');
+  for (const q of ['cin', 'cout', 'bits']) {
+    await page.waitFor((d, x) => document.querySelector(`${d} [data-param=${x}]`), [D, q], { what: q });
+    await page.click(`${D} [data-param=${q}]`);
+    await page.waitFor(async (x) => JSON.parse(await (await fetch('/api/projects/SchAdd/file?path=src%2Fad.sch.json')).text()).symbols[0].params[x] === true, [q], { what: `${q} saved` });
+  }
+  const p = (await file()).symbols[0].params;
+  assert.deepEqual([p.width, p.cin, p.cout, p.bits], [4, true, true, true]);
   const names = await page.eval((d) => [...document.querySelectorAll(`${d} .se-svg g.sym text`)].map((t) => t.textContent), D);
   for (const n of ['ADD4', 'A0', 'A3', 'B0', 'B3', 'CI', 'S0', 'S3', 'CO']) assert.ok(names.includes(n), names.join(' '));
   assert.deepEqual(page.dialogs, []);
 });
 
-// #315: the flip-flops FD, FT, FJK in the palette (no FDCE…, no REG); an FD's inputs in its properties make it
-// the Xilinx variant (CE + CLR: FDCE, its name drawn); an input the library does not have with the others, unavailable
 uiTest('#315 schematic flip-flops: FD / FT / FJK in the palette; CE and CLR in an FD\'s properties make it FDCE; R then unavailable', E, async (page) => {
   const { newDoc } = await import('../../core/schdoc.js');
   await makeProject(env, { name: 'SchFf', files: { 'src/ff.sch.json': JSON.stringify(newDoc('ff', 'vhdl')) }, top: '' });

@@ -123,12 +123,8 @@ SYMBOLS.add = {
   category: 'Arithmetic', title: 'ADD', description: 'Adder S = A + B (+ CI), optional carry out',
   params: [{ ...P_WIDTH, default: 8 }, { name: 'cin', label: 'Carry in', kind: 'bool', default: false }, { name: 'cout', label: 'Carry out', kind: 'bool', default: false },
     // (#304: the operands' and the sum's bits on pins of their own, A0.., B0.., S0.., as the Xilinx ADD4)
+    // (no presets: Width, the carries and Pins per bit make ADD1 / ADD2 / ADD4…, #317)
     { name: 'bits', label: 'Pins per bit (A0.., B0.., S0..)', kind: 'bool', default: false }],
-  presets: [
-    { title: 'ADD1', params: { width: 1, cin: true, cout: true }, description: '1-bit full adder: S = A + B + CI, carry out CO' },
-    { title: 'ADD2', params: { width: 2, cin: true, cout: true, bits: true }, description: '2-bit adder, a pin per bit: S1 S0 = A1 A0 + B1 B0 + CI, carry out CO' },
-    { title: 'ADD4', params: { width: 4, cin: true, cout: true, bits: true }, description: '4-bit adder, a pin per bit (as the Xilinx ADD4): S3..S0 = A3..A0 + B3..B0 + CI, carry out CO' },
-  ],
 };
 SYMBOLS.sub = { category: 'Arithmetic', title: 'SUB', description: 'Subtractor D = A - B', params: [{ ...P_WIDTH, default: 8 }] };
 SYMBOLS.compare = {
