@@ -3808,7 +3808,9 @@ async function boot() {
   document.querySelectorAll('#left-tabs .tab').forEach(t => t.addEventListener('click', () => { leftTabClicked(t.dataset.page, document.querySelector('#left-tabs .tab.active')?.dataset.page); showLeftPage(t.dataset.page); }));
   document.querySelectorAll('#console-tabs .tab').forEach(t => t.addEventListener('click', () => showConsolePage(t.dataset.page)));
   document.querySelectorAll('input[name=view]').forEach(r => r.addEventListener('change', () => setView(r.value)));
-  $('console-clear').addEventListener('click', () => { $('console-log').innerHTML = ''; });
+  // Clear: the console and the Warnings and Errors tabs, their counts too (#302; the editors' marks stay,
+  // checked again at the next edit)
+  $('console-clear').addEventListener('click', () => { $('console-log').innerHTML = ''; S.diags = []; lastConsoleDiag = null; renderDiagnostics(); });
   // modern interface: header search / theme / project, keyboard access to the activity bar
   const mac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
   for (const k of [$('palette-kbd'), ...document.querySelectorAll('.pal-key')]) k.textContent = mac ? '⌘ K' : 'Ctrl K';
