@@ -23,10 +23,10 @@ uiTest('schematic: gates labelled with their type, no automatic instance ids, th
   const texts = (cls) => page.eval((ed, c) => [...document.querySelectorAll(`${ed} svg .sym .${c}`)].map((t) => t.textContent), ED, cls);
   assert.deepEqual((await texts('stype')).sort(), ['AND2', 'AND2', 'FDCE', 'INV', 'NAND2B1', 'OR3', 'XOR2']);
   assert.deepEqual(await texts('iname'), ['my_gate'], 'only the name the user gave');
-  // the palette: AND4 yes, no AND5 (wider gates through Width / buses)
+  // the palette: one AND (its Inputs 2, 3 or 4, #330), no AND5 (wider gates through Width / buses)
   const palette = await page.eval((ed) => [...document.querySelectorAll(`${ed} .se-symrow`)].map((e) => e.textContent.trim()), ED);
-  assert.ok(palette.some((t) => /^AND4$/.test(t)), palette.slice(0, 20).join(', '));
-  assert.ok(!palette.some((t) => /^(AND|OR|NAND|NOR)5/.test(t)), 'no 5-input gates');
+  assert.ok(palette.includes('AND'), palette.slice(0, 20).join(', '));
+  assert.ok(!palette.some((t) => /^X?N?(AND|OR)\d/.test(t)), 'no AND2 … AND5 entries');
 });
 
 uiTest('schematic: a bus takes the name of its input (A(5:0) on its wires), a bus tap dropped on it connects and reads A(0) (#170, #173, #174)', E, async (page) => {

@@ -49,25 +49,28 @@ function gateSym(op, n, title) {
 export const SYMBOLS = {};
 // gates, each followed by its inverted-input variants (Xilinx ANDnBk...: inputs I0..I(k-1) inverted; XOR2B1 /
 // XOR2B2 Silinx symbols, no such Xilinx one)
-for (const [op, ns, inv] of [['and', [2, 3, 4, 5], true], ['or', [2, 3, 4, 5], true], ['nand', [2, 3, 4], true], ['nor', [2, 3, 4], true], ['xor', [2], true], ['xnor', [2]]])
+for (const [op, ns, inv] of [['and', [2, 3, 4, 5], true], ['or', [2, 3, 4, 5], true], ['nand', [2, 3, 4], true], ['nor', [2, 3, 4], true], ['xor', [2, 3, 4], true], ['xnor', [2, 3, 4]]])
   for (const n of ns) {
     // (5 inputs: kept for the schematics that have them and ISE's AND5 / OR5, not offered: at most 4
     // inputs a gate, more through buses, #171)
-    SYMBOLS[`${op}${n}`] = { ...gateSym(op, n, `${op.toUpperCase()}${n}`), ...(n > 4 ? { hidden: true } : {}) };
+    // (the palette lists one entry a gate, AND…, the 2-input one: its Inputs make AND3 / AND4, #330)
+    const OP = op.toUpperCase();
+    SYMBOLS[`${op}${n}`] = { ...gateSym(op, n, `${OP}${n}`), ...(n > 2 ? { hidden: true } : {}),
+      ...(n === 2 ? { paletteTitle: OP, paletteDescription: `${OP} gate of 2, 3 or 4 inputs, its inputs and inverted inputs in its properties (bitwise when Width > 1)` } : {}) };
     // (the palette lists the basic gate only: its Inverted inputs make the variant, #328)
     if (inv) for (let k = 1; k <= n; k++) {
       SYMBOLS[`${op}${n}b${k}`] = {
-        ...gateSym(op, n, `${op.toUpperCase()}${n}B${k}`), invIn: k, hidden: true, ...(op === 'xor' ? { noLib: true } : {}),
+        ...gateSym(op, n, `${OP}${n}B${k}`), invIn: k, hidden: true, ...(op === 'xor' ? { noLib: true } : {}),
         description: `${n}-input ${op.toUpperCase()} gate with ${k === 1 ? 'input I0' : k === 2 ? 'inputs I0 and I1' : `inputs I0..I${k - 1}`} inverted (bitwise when Width > 1)`,
       };
     }
   }
-/** The gate of `type`'s kind and inputs with its first k inputs inverted (AND3 + 2 = AND3B2, AND3B2 + 0 = AND3), or
- *  null when there is none (#328). */
-export function gateVariant(type, k) {
+/** The gate of `type`'s kind with n inputs (its own by default), the first k inverted (AND3 + 2 = AND3B2, AND3B2 + 0 =
+ *  AND3, AND2 with 4 inputs = AND4), or null when there is none (#328, #330). */
+export function gateVariant(type, k, n) {
   const S = SYMBOLS[type];
   if (!S?.gate || !(S.inputs > 1)) return null;
-  const t = `${S.gate}${S.inputs}${k > 0 ? `b${k}` : ''}`;
+  const t = `${S.gate}${n ?? S.inputs}${k > 0 ? `b${k}` : ''}`;
   return SYMBOLS[t] ? t : null;
 }
 SYMBOLS.inv = { category: 'Logic', title: 'INV', gate: 'not', inputs: 1, description: 'Inverter', params: [P_WIDTH] };
@@ -1316,7 +1319,7 @@ export function generateHdl(docIn, opts = {}) {
       if (ci) {
         if (g === 'buf') rhs = ins[0];
         else if (g === 'not') rhs = `not ${ins[0]}`;
-        else if (g === 'nand' || g === 'nor' || g === 'xnor') rhs = ins.length === 2 && g === 'xnor' ? `${ins[0]} xnor ${ins[1]}` : `not (${ins.join(` ${g.slice(1)} `)})`;
+        else if (g === 'nand' || g === 'nor' || g === 'xnor') rhs = ins.length === 2 && g === 'xnor' ? `${ins[0]} xnor ${ins[1]}` : `not (${ins.join(` ${g === 'xnor' ? 'xor' : g.slice(1)} `)})`;
         else rhs = ins.join(` ${g} `);
       } else {
         const op = { and: '&', or: '|', xor: '^', nand: '&', nor: '|', xnor: '^' }[g];

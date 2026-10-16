@@ -334,8 +334,9 @@ uiTest('#315 schematic flip-flops: FD / FT / FJK in the palette; CE and CLR in a
   assert.deepEqual(page.dialogs, []);
 });
 
-// #328: the gates' inverted-input variants (AND3B2…) are the basic gate's Inverted inputs, not palette entries
-uiTest('#328 schematic gates: no ANDnBk / ORnBk… in the palette; Inverted inputs 2 in an AND3\'s properties make it AND3B2, 0 AND3 again; the label in Portuguese', E, async (page) => {
+// #328: the gates' inverted-input variants (AND3B2…) are the basic gate's Inverted inputs, not palette entries;
+// #330: one entry a gate (AND, OR, NAND, NOR, XOR, XNOR), its Inputs making AND3, AND4…
+uiTest('#328 #330 schematic gates: AND, OR, NAND, NOR, XOR, XNOR only in the palette; an AND\'s Inputs 3 make it AND3, Inverted inputs 2 AND3B2, 0 AND3 again, Inputs 2 AND2; the labels in Portuguese', E, async (page) => {
   const { newDoc } = await import('../../core/schdoc.js');
   await makeProject(env, { name: 'SchGb', files: { 'src/g.sch.json': JSON.stringify(newDoc('g', 'vhdl')) }, top: '' });
   await page.openProject('SchGb');
@@ -344,18 +345,23 @@ uiTest('#328 schematic gates: no ANDnBk / ORnBk… in the palette; Inverted inpu
   const D = '.doc:not([hidden])';
   await page.fill(`${D} .se-cat`, 'Logic');
   const rows = await page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow .nm`)].map((r) => r.textContent.trim()), D);
-  for (const r of ['AND2', 'AND3', 'AND4', 'OR2', 'NAND2', 'NOR4', 'XOR2', 'XNOR2']) assert.ok(rows.includes(r), rows.join(' '));
-  assert.deepEqual(rows.filter((r) => /B\d$/.test(r)), [], 'no inverted-input variants');
-  await page.click(`${D} .se-symrow`, { text: 'AND3' });
+  assert.deepEqual(rows.filter((r) => /^X?N?(AND|OR)/.test(r)), ['AND', 'OR', 'NAND', 'NOR', 'XOR', 'XNOR'], 'one entry a gate, no AND3 / ANDnBk…');
+  await page.click(`${D} .se-symrow`, { text: 'AND' });
+  await page.waitFor((d) => /^AND: /.test(document.querySelector(`${d} .se-syminfo`)?.textContent || ''), [D], { what: 'AND info box' });
   const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 3 }; }, D);
   await page.click(c);
   await page.key('Escape');
   const file = async () => JSON.parse(await page.eval(async () => (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()));
-  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()).symbols.length === 1, [], { what: 'AND3 saved' });
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()).symbols.length === 1, [], { what: 'AND saved' });
   const id = (await file()).symbols[0].id;
+  assert.equal((await file()).symbols[0].type, 'and2');
   const waitType = (t) => page.waitFor(async (x) => JSON.parse(await (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()).symbols[0].type === x, [t], { what: `the type ${t}` });
   await page.click(`${D} g.sym[data-id="${id}"] .hitbox`);
-  await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`), [D], { what: 'Inverted inputs' });
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=inputs]`), [D], { what: 'Inputs' });
+  assert.deepEqual(await page.eval((d) => { const e = document.querySelector(`${d} [data-param=inputs]`); return [e.value, [...e.options].map((o) => o.value), e.closest('.se-field').querySelector('label').textContent]; }, D), ['2', ['2', '3', '4'], 'Inputs']);
+  await page.fill(`${D} [data-param=inputs]`, '3');
+  await waitType('and3');
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`)?.options.length === 4, [D], { what: 'Inverted inputs 0..3' });
   assert.deepEqual(await page.eval((d) => { const e = document.querySelector(`${d} [data-param=invIn]`); return [e.value, [...e.options].map((o) => o.value), e.closest('.se-field').querySelector('label').textContent]; }, D), ['0', ['0', '1', '2', '3'], 'Inverted inputs']);
   await page.fill(`${D} [data-param=invIn]`, '2');
   await waitType('and3b2');
@@ -366,10 +372,14 @@ uiTest('#328 schematic gates: no ANDnBk / ORnBk… in the palette; Inverted inpu
   await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`)?.value === '2', [D], { what: 'the field shows 2' });
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`)?.closest('.se-field').querySelector('label').textContent === 'Entradas invertidas', [D], { what: 'the label in Portuguese' });
+  assert.equal(await page.eval((d) => document.querySelector(`${d} [data-param=inputs]`).closest('.se-field').querySelector('label').textContent, D), 'Entradas');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   await page.fill(`${D} [data-param=invIn]`, '0');
   await waitType('and3');
   assert.deepEqual(await stype(), ['AND3']);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=inputs]`)?.value === '3', [D], { what: 'Inputs 3' });
+  await page.fill(`${D} [data-param=inputs]`, '2');
+  await waitType('and2');
   assert.deepEqual(page.dialogs, []);
 });
 
