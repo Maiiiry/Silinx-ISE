@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **MUX / DEMUX, one entry each:** the palette lists M2_1 … M16_1 and DEMUX1_2 … DEMUX1_16 once, the enable E
+  their parameter; the symbols show their type and the width of their bus pins.
 - **The schematic editor's Names:** a checkbox shows the name of every instance and every net; View HDL is
   gone (the module's HDL file is in the Design pane); new instances are named inst_1, inst_2…
 - **A signal with two drivers is an error, as in XST:** Check Syntax stops on it (Xst:528 Multi-source), and so
@@ -30,6 +32,13 @@ In short:
 
 In detail:
 
+- **MUX / DEMUX symbols (#313):** the M2_1E … M16_1E and DEMUX1_2E … DEMUX1_16E palette entries are gone:
+  the enable is the parameter *Enable input E* of M2_1 … M16_1 and DEMUX1_2 … DEMUX1_16 (a symbol with it
+  is still named M4_1E…); the generic DEMUX entry is gone too (the same symbol as DEMUX1_n). M8_1 and
+  M16_1 have *Select as a bus (S)* as M4_1. The multiplexers and demultiplexers show their type (M4_1,
+  DEMUX1_8…) above them, the instance name above it, and the width by each bus pin (the output's too).
+  ISE export / import: M8_1 / M16_1 with the bus S as `xl_mux8[e]_w`, with the select pins
+  `xl_mux8[e]s_w`.
 - **Names, no View HDL, inst_n (#311):** the schematic editor's toolbar has a checkbox *Names* (before
   Check, remembered) that draws the name of every instance, the automatic ones too, and of every net
   (`net_n` on its longest run, besides the net-name labels); unchecked, the names the user gave and the

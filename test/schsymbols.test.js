@@ -167,10 +167,11 @@ test('symbol library: inverted-input gates, decoder, encoder and demultiplexer',
   assert.equal(SYMBOLS.encoder.category, 'Decoders/Encoders');
   assert.equal(SYMBOLS.demux.category, 'Mux');
   assert.deepEqual(SYMBOLS.decoder.presets.map(p => p.title), ['D2_4E', 'D3_8E', 'D4_16E']);
-  assert.deepEqual(SYMBOLS.demux.presets.map(p => p.title), ['DEMUX1_2', 'DEMUX1_4', 'DEMUX1_8', 'DEMUX1_16', 'DEMUX1_2E', 'DEMUX1_4E', 'DEMUX1_8E', 'DEMUX1_16E']);
-  assert.deepEqual([SYMBOLS.mux2, SYMBOLS.mux4, SYMBOLS.mux8, SYMBOLS.mux16].map(S => [S.title, ...S.presets.map(p => p.title)]), [['M2_1', 'M2_1E'], ['M4_1', 'M4_1E'], ['M8_1', 'M8_1E'], ['M16_1', 'M16_1E']]);
-  // (the decoders and encoders listed by their presets only, #301)
-  assert.deepEqual([SYMBOLS.decoder.presetsOnly, SYMBOLS.encoder.presetsOnly, !!SYMBOLS.demux.presetsOnly], [true, true, false]);
+  // (#313: one entry per symbol, the enable E a parameter; the demultiplexers by their presets only)
+  assert.deepEqual(SYMBOLS.demux.presets.map(p => p.title), ['DEMUX1_2', 'DEMUX1_4', 'DEMUX1_8', 'DEMUX1_16']);
+  assert.deepEqual([SYMBOLS.mux2, SYMBOLS.mux4, SYMBOLS.mux8, SYMBOLS.mux16].map(S => [S.title, (S.presets || []).length, S.params.map(p => p.name).join(',')]),
+    [['M2_1', 0, 'width,en'], ['M4_1', 0, 'width,en,selBus'], ['M8_1', 0, 'width,en,selBus'], ['M16_1', 0, 'width,en,selBus']]);
+  assert.deepEqual([SYMBOLS.decoder.presetsOnly, SYMBOLS.encoder.presetsOnly, SYMBOLS.demux.presetsOnly], [true, true, true]);
   // AND2B1: I0 inverted and at the bottom (as in the Xilinx library), I1 plain at the top
   const g = symbolDef({ type: 'and2b1', params: {} });
   const I0 = g.pins.find(p => p.name === 'I0'), I1 = g.pins.find(p => p.name === 'I1');
@@ -243,7 +244,7 @@ test('simulation: demultiplexers 1:2 .. 1:16 with data widths 1 and 4 (exhaustiv
 test('#301 simulation: M2_1(E), M4_1(E) and DEMUX1_2 .. 1_8(E), the select bits as pins or as the bus S, widths 1 and 4', () => {
   const cases = [];
   for (const type of ['mux2', 'mux4', 'mux8', 'mux16']) for (const en of [false, true]) for (const selBus of [false, true]) for (const width of [1, 4]) {
-    if (type !== 'mux4' && selBus) continue;
+    if (type === 'mux2' && selBus) continue;
     cases.push({ type, params: { width, en, selBus } });
   }
   check('muxes301', cases, 64);

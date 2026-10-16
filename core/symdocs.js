@@ -373,11 +373,11 @@ function pinFunc(type, p, pin, tx) {
       return tx(`Tri-state output${bit}: I while enabled, else Z (may share its net with other tri-state outputs)`, `Saída de três estados${bit}: I enquanto habilitada, senão Z (pode partilhar a rede com outras saídas de três estados)`);
     }
     case 'mux2': case 'mux4': case 'mux8': case 'mux16': {
-      const en = !!p.en, sb = type === 'mux4' && !!p.selBus;
+      const en = !!p.en, sb = type !== 'mux2' && !!p.selBus;
       if (n === 'O') return en ? tx('Output: the selected data input when E = 1, 0 when E = 0', 'Saída: a entrada de dados selecionada quando E = 1, 0 quando E = 0') : tx('Output: the selected data input', 'Saída: a entrada de dados selecionada');
       if (n === 'E') return tx('Enable, active high: 1 = O is the selected data input, 0 = O is 0', 'Habilitação, ativa a 1: 1 = O é a entrada de dados selecionada, 0 = O é 0');
       if (n === 'S0' && type === 'mux2') return tx('Select: 0 = D0, 1 = D1', 'Seleção: 0 = D0, 1 = D1');
-      if (n === 'S') return tx('2-bit select: index of the data input that reaches O (S(1) = MSB)', 'Seleção de 2 bits: índice da entrada de dados que chega a O (S(1) = MSB)');
+      if (n === 'S') { const k = Math.log2(MUX_INPUTS[type]); return tx(`${k}-bit select: index of the data input that reaches O (S(${k - 1}) = MSB)`, `Seleção de ${k} bits: índice da entrada de dados que chega a O (S(${k - 1}) = MSB)`); }
       const k = Math.log2(MUX_INPUTS[type]);
       if (/^S\d$/.test(n)) return +n[1] === k - 1 ? tx(`Select, most significant bit (weight ${2 ** (k - 1)})`, `Seleção, bit mais significativo (peso ${2 ** (k - 1)})`)
         : +n[1] === 0 ? tx('Select, least significant bit (weight 1)', 'Seleção, bit menos significativo (peso 1)') : tx(`Select bit ${n[1]} (weight ${2 ** +n[1]})`, `Bit ${n[1]} da seleção (peso ${2 ** +n[1]})`);

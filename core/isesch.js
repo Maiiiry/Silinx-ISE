@@ -1566,7 +1566,7 @@ function mapSymbol(blk, modules, warn, geo = {}) {
   // the Xilinx M2_1E / M4_1E: the native multiplexers with their enable E (#301)
   if (sym === 'm2_1e') return direct('mux2', { width: 1, en: true });
   if (sym === 'm4_1e') return direct('mux4', { width: 1, en: true, selBus: false });
-  if (sym === 'm8_1e') return direct('mux8', { width: 1, en: true });
+  if (sym === 'm8_1e') return direct('mux8', { width: 1, en: true, selBus: false });
   if ((m = /^d(2|3|4)_(4|8|16)e$/.exec(sym)) && (1 << +m[1]) === +m[2]) return direct('decoder', { n: +m[1], en: true, bus: false });
   if (sym === 'vcc' || sym === 'gnd') return direct(sym, {});
   if ((m = /^cb(8|16)(ce|re)$/.exec(sym)) && !conn('CEO') && !conn('TC')) return direct('counter', { width: +m[1], en: true, reset: m[2] === 'ce' ? 'async' : 'sync', dir: 'up' });
@@ -1650,9 +1650,10 @@ function iseSymbolFor(s, def, netW, modules) {
       : { lib: false, name: `xl_mux2${p.en ? 'e' : ''}_w${W}` };
     case 'mux4': return W === 1 && p.en && !p.selBus ? { lib: true, name: 'm4_1e', pins: { D0: 'D0', D1: 'D1', D2: 'D2', D3: 'D3', S0: 'S0', S1: 'S1', E: 'E', O: 'O' } }
       : { lib: false, name: `xl_mux4${p.en ? 'e' : ''}${p.selBus ? '' : 's'}_w${W}` };
-    case 'mux16': return { lib: false, name: `xl_mux16${p.en ? 'e' : ''}_w${W}` };
+    // (the select bits on pins of their own: 's', as for M4_1; without it the bus S, #313)
+    case 'mux16': return { lib: false, name: `xl_mux16${p.en ? 'e' : ''}${p.selBus ? '' : 's'}_w${W}` };
     case 'mux8': {
-      if (W > 1 || !p.en) return { lib: false, name: `xl_mux8${p.en ? 'e' : ''}_w${W}` };
+      if (W > 1 || !p.en || p.selBus) return { lib: false, name: `xl_mux8${p.en ? 'e' : ''}${p.selBus ? '' : 's'}_w${W}` };
       const pins = { S0: 'S0', S1: 'S1', S2: 'S2', E: 'E', O: 'O' };
       for (let k = 0; k < 8; k++) pins[`D${k}`] = `D${k}`;
       return { lib: true, name: 'm8_1e', pins };
@@ -1742,7 +1743,7 @@ export function decodeXlSymbol(name) {
   if ((m = /^xl_dec([1-5])(_e)?(_bus)?$/.exec(s))) return { type: 'decoder', params: { n: +m[1], en: !!m[2], bus: !!m[3] } };
   if ((m = /^xl_(p?enc)([2-5])(_bus)?$/.exec(s))) return { type: 'encoder', params: { n: +m[2], mode: m[1] === 'enc' ? 'one-hot' : 'priority', bus: !!m[3] } };
   if ((m = /^xl_mux2(e?)_w(\d+)$/.exec(s))) return { type: 'mux2', params: { width: +m[2], en: !!m[1] } };
-  if ((m = /^xl_mux(8|16)(e?)_w(\d+)$/.exec(s))) return { type: `mux${m[1]}`, params: { width: +m[3], en: !!m[2] } };
+  if ((m = /^xl_mux(8|16)(e?)(s?)_w(\d+)$/.exec(s))) return { type: `mux${m[1]}`, params: { width: +m[4], en: !!m[2], selBus: !m[3] } };
   if ((m = /^xl_mux4(e?)(s?)_w(\d+)$/.exec(s))) return { type: 'mux4', params: { width: +m[3], en: !!m[1], selBus: !m[2] } };
   if ((m = /^xl_(inv|buf)_w(\d+)$/.exec(s))) return { type: m[1], params: { width: +m[2] } };
   if ((m = /^xl_reg(\d+)(_ce)?(_ar|_sr)?_h([0-9a-f]+)$/.exec(s))) return { type: 'register', params: { width: +m[1], en: !!m[2], reset: m[3] === '_ar' ? 'async' : m[3] === '_sr' ? 'sync' : 'none', init: m[4] === '0' ? '0' : `0x${m[4]}` } };
