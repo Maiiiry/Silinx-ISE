@@ -368,6 +368,37 @@ uiTest('#319 #320 schematic: COMP and CNT with Pins per bit (A0.. B0.., Q0..); t
   assert.deepEqual(page.dialogs, []);
 });
 
+// #322: the subtractor's borrow in / out and its pins per bit, from its properties
+uiTest('#322 schematic SUB: Borrow in, Borrow out and Pins per bit in its properties (A0.., B0.., BI, D0.., BO)', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  await makeProject(env, { name: 'SchSub', files: { 'src/s.sch.json': JSON.stringify(newDoc('s', 'vhdl')) }, top: '' });
+  await page.openProject('SchSub');
+  await page.eval(() => window.SilinxApp.openSch('src/s.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/s.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  await page.fill(`${D} .se-search`, 'SUB');
+  await page.click(`${D} .se-symrow`, { text: 'SUB' });
+  const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 3 }; }, D);
+  await page.click(c);
+  await page.key('Escape');
+  const params = () => page.eval(async () => JSON.parse(await (await fetch('/api/projects/SchSub/file?path=src%2Fs.sch.json')).text()).symbols[0]?.params);
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchSub/file?path=src%2Fs.sch.json')).text()).symbols.length === 1, [], { what: 'SUB saved' });
+  const id = await page.eval(async () => JSON.parse(await (await fetch('/api/projects/SchSub/file?path=src%2Fs.sch.json')).text()).symbols[0].id);
+  await page.click(`${D} g.sym[data-id="${id}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=width]`), [D], { what: 'its properties' });
+  await page.fill(`${D} [data-param=width]`, '2');
+  for (const q of ['bin', 'bout', 'bits']) {
+    await page.waitFor((d, x) => document.querySelector(`${d} [data-param=${x}]`), [D, q], { what: q });
+    await page.click(`${D} [data-param=${q}]`);
+    await page.waitFor(async (x) => JSON.parse(await (await fetch('/api/projects/SchSub/file?path=src%2Fs.sch.json')).text()).symbols[0].params[x] === true, [q], { what: `${q} saved` });
+  }
+  const p = await params();
+  assert.deepEqual([p.width, p.bin, p.bout, p.bits], [2, true, true, true]);
+  const names = await page.eval((d) => [...document.querySelectorAll(`${d} .se-svg g.sym text`)].map((t) => t.textContent), D);
+  for (const n of ['SUB2', 'A0', 'A1', 'B0', 'B1', 'BI', 'D0', 'D1', 'BO']) assert.ok(names.includes(n), names.join(' '));
+  assert.deepEqual(page.dialogs, []);
+});
+
 uiTest('ASM chart editor: add a state, a decision and a case box, connect them, its VHDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'AsmPj' });
   await page.openProject('AsmPj');

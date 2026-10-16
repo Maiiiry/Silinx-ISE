@@ -1698,7 +1698,7 @@ function iseSymbolFor(s, def, netW, modules) {
       return { lib: false, name: `xl_cnt${W}${p.en ? '_ce' : ''}${rs}${p.dir === 'down' ? '_dn' : ''}${p.bits && W > 1 ? '_bits' : ''}` };
     }
     case 'add': return { lib: false, name: `xl_add${W}${p.cin ? '_ci' : ''}${p.cout ? '_co' : ''}${p.bits && W > 1 ? '_bits' : ''}` };
-    case 'sub': return { lib: false, name: `xl_sub${W}` };
+    case 'sub': return { lib: false, name: `xl_sub${W}${p.bin ? '_bi' : ''}${p.bout ? '_bo' : ''}${p.bits && W > 1 ? '_bits' : ''}` };
     case 'compare':
       if (W === 8 && (p.op || 'eq') === 'eq' && !p.signed) return { lib: true, name: 'comp8', pins: { A: 'A(7:0)', B: 'B(7:0)', O: 'EQ' } };
       return { lib: false, name: `xl_cmp${W}_${p.op || 'eq'}${p.signed ? '_s' : ''}${p.bits && W > 1 ? '_bits' : ''}` };
@@ -1749,7 +1749,7 @@ export function decodeXlSymbol(name) {
   if ((m = /^xl_reg(\d+)(_ce)?(_ar|_sr)?_h([0-9a-f]+)$/.exec(s))) return { type: 'register', params: { width: +m[1], en: !!m[2], reset: m[3] === '_ar' ? 'async' : m[3] === '_sr' ? 'sync' : 'none', init: m[4] === '0' ? '0' : `0x${m[4]}` } };
   if ((m = /^xl_cnt(\d+)(_ce)?(_ar|_sr)?(_dn)?(_bits)?$/.exec(s))) return { type: 'counter', params: { width: +m[1], en: !!m[2], reset: m[3] === '_ar' ? 'async' : m[3] === '_sr' ? 'sync' : 'none', dir: m[4] ? 'down' : 'up', ...(m[5] ? { bits: true } : {}) } };
   if ((m = /^xl_add(\d+)(_ci)?(_co)?(_bits)?$/.exec(s))) return { type: 'add', params: { width: +m[1], cin: !!m[2], cout: !!m[3], ...(m[4] ? { bits: true } : {}) } };
-  if ((m = /^xl_sub(\d+)$/.exec(s))) return { type: 'sub', params: { width: +m[1] } };
+  if ((m = /^xl_sub(\d+)(_bi)?(_bo)?(_bits)?$/.exec(s))) return { type: 'sub', params: { width: +m[1], ...(m[2] ? { bin: true } : {}), ...(m[3] ? { bout: true } : {}), ...(m[4] ? { bits: true } : {}) } };
   if ((m = /^xl_cmp(\d+)_(eq|ne|lt|le|gt|ge)(_s)?(_bits)?$/.exec(s))) return { type: 'compare', params: { width: +m[1], op: m[2], signed: !!m[3], ...(m[4] ? { bits: true } : {}) } };
   if ((m = /^xl_const(\d+)_h([0-9a-f]+)$/.exec(s))) return { type: 'constant', params: { width: +m[1], value: `0x${m[2]}` } };
   if ((m = /^xl_slice(\d+)_(\d+)_(\d+)$/.exec(s))) return { type: 'slice', params: { inWidth: +m[1], msb: +m[2], lsb: +m[3] } };

@@ -126,7 +126,12 @@ SYMBOLS.add = {
     // (no presets: Width, the carries and Pins per bit make ADD1 / ADD2 / ADD4…, #317)
     { name: 'bits', label: 'Pins per bit (A0.., B0.., S0..)', kind: 'bool', default: false }],
 };
-SYMBOLS.sub = { category: 'Arithmetic', title: 'SUB', description: 'Subtractor D = A - B', params: [{ ...P_WIDTH, default: 8 }] };
+// (#322: a borrow in BI and out BO, as ADD's carries, and a pin per bit)
+SYMBOLS.sub = { category: 'Arithmetic', title: 'SUB', description: 'Subtractor D = A - B (- BI), optional borrow out',
+  params: [{ ...P_WIDTH, default: 8 }, { name: 'bin', label: 'Borrow in (BI)', kind: 'bool', default: false }, { name: 'bout', label: 'Borrow out (BO)', kind: 'bool', default: false },
+    { name: 'bits', label: 'Pins per bit (A0.., B0.., D0..)', kind: 'bool', default: false }] };
+// an adder's / subtractor's names: its result, its carry or borrow in and out, and whether they are there
+const arithIo = (t, p) => (t === 'sub' ? { o: 'D', ci: 'BI', co: 'BO', cin: !!p.bin, cout: !!p.bout, op: '-' } : { o: 'S', ci: 'CI', co: 'CO', cin: !!p.cin, cout: !!p.cout, op: '+' });
 SYMBOLS.compare = {
   category: 'Arithmetic', title: 'COMP', description: 'Comparator O = A <op> B',
   params: [{ ...P_WIDTH, default: 8 }, { name: 'op', label: 'Operation', kind: 'select', options: ['eq', 'ne', 'lt', 'le', 'gt', 'ge'], default: 'eq' },
@@ -332,14 +337,14 @@ export function symbolDef(sym, modules = {}) {
     const d = boxDef(west, east, title, 80, 40);
     return { ...d, shape: 'lib', title };
   }
-  if (t === 'add' && p.bits && W > 1) {
-    // (#304) a box as the Xilinx ADD4: A0.. B0.. (CI) on the left, S0.. (CO) on the right
-    const west = [], east = [];
+  if ((t === 'add' || t === 'sub') && p.bits && W > 1) {
+    // (#304, #322) a box as the Xilinx ADD4: A0.. B0.. (CI / BI) on the left, S0.. / D0.. (CO / BO) on the right
+    const io = arithIo(t, p), west = [], east = [];
     for (const g of ['A', 'B']) for (let i = 0; i < W; i++) west.push({ name: `${g}${i}`, dir: 'in', width: 1 });
-    if (p.cin) west.push({ name: 'CI', dir: 'in', width: 1 });
-    for (let i = 0; i < W; i++) east.push({ name: `S${i}`, dir: 'out', width: 1 });
-    if (p.cout) east.push({ name: 'CO', dir: 'out', width: 1 });
-    const title = `ADD${W}`;
+    if (io.cin) west.push({ name: io.ci, dir: 'in', width: 1 });
+    for (let i = 0; i < W; i++) east.push({ name: `${io.o}${i}`, dir: 'out', width: 1 });
+    if (io.cout) east.push({ name: io.co, dir: 'out', width: 1 });
+    const title = `${t === 'sub' ? 'SUB' : 'ADD'}${W}`;
     return { ...boxDef(west, east, title, 80, 40), shape: 'lib', title };
   }
   if (t === 'compare' && p.bits && W > 1) {
@@ -352,10 +357,11 @@ export function symbolDef(sym, modules = {}) {
   if (t === 'add' || t === 'sub' || t === 'compare') {
     const h = t === 'compare' ? 40 : 60;
     const pins = [{ name: 'A', dir: 'in', x: 0, y: 10, side: 'W', width: W }, { name: 'B', dir: 'in', x: 0, y: 30, side: 'W', width: W }];
-    if (t === 'add' && p.cin) pins.push({ name: 'CI', dir: 'in', x: 0, y: 50, side: 'W', width: 1 });
+    const io = t === 'compare' ? null : arithIo(t, p);
+    if (io?.cin) pins.push({ name: io.ci, dir: 'in', x: 0, y: 50, side: 'W', width: 1 });
     if (t === 'compare') pins.push({ name: 'O', dir: 'out', x: 80, y: 20, side: 'E', width: 1 });
-    else pins.push({ name: t === 'add' ? 'S' : 'D', dir: 'out', x: 80, y: 30, side: 'E', width: W });
-    if (t === 'add' && p.cout) pins.push({ name: 'CO', dir: 'out', x: 80, y: 50, side: 'E', width: 1 });
+    else pins.push({ name: io.o, dir: 'out', x: 80, y: 30, side: 'E', width: W });
+    if (io?.cout) pins.push({ name: io.co, dir: 'out', x: 80, y: 50, side: 'E', width: 1 });
     const op = t === 'add' ? '+' : t === 'sub' ? '−' : ({ eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' }[p.op] || '?');
     return { w: 80, h, shape: 'arith', op, body: { x: 20, y: 0, w: 40, h }, pins };
   }
@@ -1536,34 +1542,35 @@ export function generateHdl(docIn, opts = {}) {
         break;
       }
       case 'add': case 'sub': {
-        if (s.type === 'add' && p.bits && Math.max(1, int(p.width, 1)) > 1) {
-          // a pin per bit (#304): the operands A<w-1> … A0, B<w-1> … B0, the sum's bits S0 … through one sum
+        const io = arithIo(s.type, p);
+        if (p.bits && Math.max(1, int(p.width, 1)) > 1) {
+          // a pin per bit (#304, #322): the operands A<w-1> … A0, B<w-1> … B0, the result's bits S0 … / D0 …
+          // through one sum / difference (its bit w the carry / the borrow)
           const w = Math.max(1, int(p.width, 1));
           const ops = g => [...Array(w).keys()].reverse().map(i => INN(s, `${g}${i}`, true));
-          const outs = [...Array(w).keys()].map(i => OUTN(s, `S${i}`)), co = p.cout ? OUTN(s, 'CO') : null;
+          const outs = [...Array(w).keys()].map(i => OUTN(s, `${io.o}${i}`)), co = io.cout ? OUTN(s, io.co) : null;
           if (!outs.some(Boolean) && !co) continue;
-          const cin = p.cin ? INN(s, 'CI', true) : null, t = fresh(`${s.name}_sum`);
+          const cin = io.cin ? INN(s, io.ci, true) : null, t = fresh(`${s.name}_${s.type === 'sub' ? 'diff' : 'sum'}`);
           if (ci) {
             extra.push({ name: t, type: `unsigned(${w} downto 0)` });
-            const base = `resize(unsigned'(${ops('A').join(' & ')}), ${w + 1}) + resize(unsigned'(${ops('B').join(' & ')}), ${w + 1})`;
-            body.push(cin ? `${t} <= ${base} + 1 when ${cin} = '1' else ${base};` : `${t} <= ${base};`);
+            const base = `resize(unsigned'(${ops('A').join(' & ')}), ${w + 1}) ${io.op} resize(unsigned'(${ops('B').join(' & ')}), ${w + 1})`;
+            body.push(cin ? `${t} <= ${base} ${io.op} 1 when ${cin} = '1' else ${base};` : `${t} <= ${base};`);
             outs.forEach((o, i) => o && body.push(`${o} <= ${t}(${i});`));
             if (co) body.push(`${co} <= ${t}(${w});`);
           } else {
             extra.push({ name: t, width: w + 1 });
-            assign(t, `{${ops('A').join(', ')}} + {${ops('B').join(', ')}}${cin ? ` + ${cin}` : ''}`);
+            assign(t, `{${ops('A').join(', ')}} ${io.op} {${ops('B').join(', ')}}${cin ? ` ${io.op} ${cin}` : ''}`);
             outs.forEach((o, i) => o && assign(o, `${t}[${i}]`));
             if (co) assign(co, `${t}[${w}]`);
           }
           break;
         }
-        const oname = s.type === 'add' ? 'S' : 'D';
-        const o = OUTN(s, oname), co = s.type === 'add' && p.cout ? OUTN(s, 'CO') : null;
+        const o = OUTN(s, io.o), co = io.cout ? OUTN(s, io.co) : null;
         if (!o && !co) continue;
         const a = INN(s, 'A'), b = INN(s, 'B');
         const w = Math.max(1, int(p.width, 1));
-        const cin = s.type === 'add' && p.cin ? INN(s, 'CI') : null;
-        const op = s.type === 'add' ? '+' : '-';
+        const cin = io.cin ? INN(s, io.ci) : null;
+        const op = io.op;
         if (ci) {
           // a 1-bit operand is a std_logic: unsigned'(0 => x) makes it a 1-bit vector
           const U = x => (w === 1 ? `unsigned'(0 => ${x})` : `unsigned(${x})`);
@@ -1573,7 +1580,7 @@ export function generateHdl(docIn, opts = {}) {
             const t = fresh(`${s.name}_sum`);
             extra.push({ name: t, type: `unsigned(${w} downto 0)` });
             const base = `resize(${U(a)}, ${w + 1}) ${op} resize(${U(b)}, ${w + 1})`;
-            body.push(cin ? `${t} <= ${base} + 1 when ${cin} = '1' else ${base};` : `${t} <= ${base};`);
+            body.push(cin ? `${t} <= ${base} ${op} 1 when ${cin} = '1' else ${base};` : `${t} <= ${base};`);
             if (o) body.push(w === 1 ? `${o} <= ${t}(0);` : `${o} <= ${wrapV(`${t}(${w - 1} downto 0)`, clsOf(o))};`);
             if (co) body.push(`${co} <= ${t}(${w});`);
           }
