@@ -93,21 +93,19 @@ SYMBOLS.tbuf = {
 // selBus: the select as one bus pin S, as a M4_1 / DEMUX saved before #301 has it (normalizeDoc)
 const P_EN = { name: 'en', label: 'Enable input E', kind: 'bool', default: false };
 const P_SELBUS = { name: 'selBus', label: 'Select as a bus (S)', kind: 'bool', default: false };
-// (one palette entry each, the enable E their parameter, #313)
-SYMBOLS.mux2 = { category: 'Mux', title: 'M2_1', description: '2:1 multiplexer (O = S0 ? D1 : D0)', params: [P_WIDTH, P_EN] };
-SYMBOLS.mux4 = { category: 'Mux', title: 'M4_1', description: '4:1 multiplexer (select S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
-SYMBOLS.mux8 = { category: 'Mux', title: 'M8_1', description: '8:1 multiplexer (select S2 S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
-SYMBOLS.mux16 = { category: 'Mux', title: 'M16_1', description: '16:1 multiplexer (select S3 S2 S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
+// (one palette entry each, the enable E their parameter, #313; one MUX, the M2_1, its Select bits making M4_1 …
+// M16_1, #334)
+SYMBOLS.mux2 = { category: 'Mux', title: 'M2_1', description: '2:1 multiplexer (O = S0 ? D1 : D0)', params: [P_WIDTH, P_EN],
+  paletteTitle: 'MUX', paletteDescription: 'Multiplexer of 2, 4, 8 or 16 data inputs, its select bits (1 to 4), select bus and enable in its properties (bitwise when Width > 1)' };
+SYMBOLS.mux4 = { category: 'Mux', title: 'M4_1', hidden: true, description: '4:1 multiplexer (select S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
+SYMBOLS.mux8 = { category: 'Mux', title: 'M8_1', hidden: true, description: '8:1 multiplexer (select S2 S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
+SYMBOLS.mux16 = { category: 'Mux', title: 'M16_1', hidden: true, description: '16:1 multiplexer (select S3 S2 S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
 // the multiplexers' number of data inputs
 export const MUX_INPUTS = { mux2: 2, mux4: 4, mux8: 8, mux16: 16 };
 SYMBOLS.demux = {
-  // (listed by its presets only, the enable E a parameter, #313)
-  category: 'Mux', title: 'DEMUX', presetsOnly: true, description: '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)',
+  // (one entry, DEMUX, the enable E, the select bits and the select bus its parameters, #313, #334; drawn DEMUX1_4…)
+  category: 'Mux', title: 'DEMUX', description: '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)',
   params: [P_WIDTH, { name: 'sel', label: 'Select bits', kind: 'int', default: 1, min: 1, max: 4 }, P_EN, P_SELBUS],
-  presets: [1, 2, 3, 4].map(k => {
-    const sel = [...Array(k).keys()].reverse().map(j => `S${j}`).join(' ');
-    return { title: `DEMUX1_${1 << k}`, params: { sel: k }, description: `1:${1 << k} demultiplexer (select ${sel}): O<S> = D, the other outputs 0 (bitwise when Width > 1)` };
-  }),
 };
 // (one palette entry each, #324: DECODER as D2_4E, ENCODER as ENC4_2; their options make D3_8E, PENC8_3…,
 // the Xilinx-style name drawn)

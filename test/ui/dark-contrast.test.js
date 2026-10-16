@@ -189,7 +189,7 @@ for (const theme of ['dark', 'light']) {
     await page.eval(() => window.SilinxApp.openSch('src/gates.sch.json'));
     await page.waitFor((s) => document.querySelector(`${s} .se-symrow`), [ED], { what: 'schematic editor' });
     await check('schematic editor');
-    await page.rightClick(`${ED} .se-symrow`, { text: 'M4_1' });
+    await page.rightClick(`${ED} .se-symrow`, { text: 'MUX' });
     await page.click('.menu-popup .mi', { text: 'Symbol Info…' });
     await page.waitFor((s) => document.querySelector(`${s} .se-symdoc .sd-truth`), [ED], { what: 'Symbol Info' });
     await page.click(`${ED} .se-symdoc .sd-switch [data-view=full]`);

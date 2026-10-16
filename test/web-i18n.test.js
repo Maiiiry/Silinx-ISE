@@ -91,6 +91,10 @@ test('gates (#328): the Inverted inputs field and the XOR2B1 / XOR2B2 descriptio
   assert.equal(t('Inverted inputs'), 'Entradas invertidas');
   assert.equal(t(SYMBOLS.xor2b1.description), 'Porta XOR de 2 entradas com a entrada I0 invertida (bit a bit quando Largura > 1)');
   assert.equal(t(SYMBOLS.xnor3b2.description), 'Porta XNOR de 3 entradas com as entradas I0 e I1 invertidas (bit a bit quando Largura > 1)');
+  // #334: the palette's one MUX, its Select bits
+  assert.equal(t(SYMBOLS.mux2.paletteDescription), 'Multiplexador de 2, 4, 8 ou 16 entradas de dados, os bits de seleção (1 a 4), o barramento de seleção e a habilitação nas suas propriedades (bit a bit quando Largura > 1)');
+  assert.notEqual(t('Select bits'), 'Select bits');
+  assert.notEqual(t(SYMBOLS.demux.description), SYMBOLS.demux.description);
   // #330: the palette's one entry a gate
   assert.equal(t(SYMBOLS.and2.paletteDescription), 'Porta AND de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)');
   for (const g of ['or2', 'nand2', 'nor2', 'xor2', 'xnor2']) assert.match(t(SYMBOLS[g].paletteDescription), /^Porta X?N?(AND|OR) de 2, 3 ou 4 entradas/);

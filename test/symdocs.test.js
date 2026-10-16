@@ -98,7 +98,10 @@ test('presets: parameters -> Xilinx-style preset names', () => {
   assert.equal(presetOf('encoder', { n: 3, mode: 'one-hot' }), null);
   assert.equal(symbolDef({ type: 'encoder', params: { n: 4, mode: 'priority' } }).title, 'PENC16_4');
   assert.equal(symbolDef({ type: 'encoder', params: { n: 2, mode: 'one-hot' } }).title, 'ENC4_2');
-  assert.equal(presetOf('demux', { sel: 2, width: 8 }), 'DEMUX1_4');
+  // (#334: no demultiplexer presets; the symbol still named DEMUX1_4 as drawn)
+  assert.equal(presetOf('demux', { sel: 2, width: 8 }), null);
+  assert.equal(symbolDoc('demux', { sel: 2, width: 8 }).title, 'DEMUX1_4');
+  assert.equal(symbolDoc('demux', { sel: 3, en: true }).title, 'DEMUX1_8E');
   assert.equal(presetOf('mux4', {}), null);
   assert.equal(symbolDoc('decoder', { n: 4 }).title, 'D4_16E');
   assert.equal(symbolDoc('decoder', { n: 4, en: false }).title, 'D4_16');
