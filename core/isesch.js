@@ -20,7 +20,7 @@
 // become slice / bus join symbols, and net names are added wherever a net is joined by name only.
 // The result is checked with netlist() against the ISE netlist (warnings list any difference).
 import {
-  SYMBOLS, defaultParams, normalizeDoc, symbolDef, symbolPins, symbolBox, portBox, netlist, normModules,
+  SYMBOLS, defaultParams, normalizeDoc, symbolDef, symbolPins, symbolBox, portBox, portSide, netlist, normModules,
   validIdent, generateHdl, constBits, newDoc, xform, modulesFromLibrary,
 } from './schdoc.js';
 import { compile } from './compile.js';
@@ -253,6 +253,13 @@ export function iseOrienToXai(orien) {
   return { rot: k, mirror: false };
 }
 export function xaiToIseOrien(rot = 0, mirror = false) { return mirror ? `M${(360 - rot) % 360}` : `R${rot % 360}`; }
+// an I/O marker's orien <-> the side of its body (core/schdoc.js portSide, #296): R0 puts it to the right
+// of the connection point (E), R90 below (S), R180 to the left (W), R270 above (N); Mk as iseXform
+export function iomarkerSide(orien) {
+  const [dx, dy] = iseXform(String(orien || 'R0').toUpperCase(), 1, 0);
+  return dx > 0 ? 'E' : dx < 0 ? 'W' : dy > 0 ? 'S' : 'N';
+}
+export const iomarkerOrien = side => ({ E: 'R0', S: 'R90', W: 'R180', N: 'R270' })[side] || 'R0';
 
 // "A(7:0)" -> { base: 'A', msb: 7, lsb: 0, width: 8 }; "A(3)" -> { base, bit: 3, width: 1 }; "A" -> { base, width: 1 }
 export function parseIseName(name) {
@@ -1147,6 +1154,10 @@ export function importIseSch(xmlText, opts = {}) {
       }
       const pol = portPol.get(k) || (/R180|M0/.test(io.orien) ? 'Input' : 'Output');
       const p = { id: `P${++pid}`, name: keyName.get(k), dir: /bidir/i.test(pol) ? 'inout' : /output/i.test(pol) ? 'out' : 'in', width: keyWidth(k), x: MX(si, io.x), y: MY(si, io.y) };
+      // its side: where its orien puts the body (R0 to the right of the connection point, #296); kept
+      // when it is not the default one of its direction
+      const side = iomarkerSide(io.orien);
+      if (side !== portSide(p)) p.side = side;
       ports.push(p); portKey.set(p.id, k);
     }
   });
@@ -1969,7 +1980,7 @@ export function exportIseSch(docIn, opts = {}) {
     const sn = n ? sigOf.get(n) : (p.width > 1 ? `${p.name}(${p.width - 1}:0)` : p.name);
     if (!n) { sigOf.set(p, sn); }
     portDecl.push(`        <port polarity="${p.dir === 'in' ? 'Input' : p.dir === 'out' ? 'Output' : 'BiDirectional'}" name="${xesc(sn)}" />`);
-    iomarkers.push(`        <iomarker fontsize="28" x="${X(p.x)}" y="${X(p.y)}" name="${xesc(sn)}" orien="${p.dir === 'in' ? 'R180' : 'R0'}" />`);
+    iomarkers.push(`        <iomarker fontsize="28" x="${X(p.x)}" y="${X(p.y)}" name="${xesc(sn)}" orien="${iomarkerOrien(portSide(p))}" />`);
   }
 
   // ------------------------------------------------------------- sheet size

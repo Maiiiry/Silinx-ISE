@@ -818,3 +818,26 @@ test('a flip-flop with Width > 1 (FDCE 4 bits): exported as a Silinx symbol with
   doc.symbols[0].params.width = 1;
   assert.deepEqual(exportIseSch(doc, {}).files.filter(f => f.kind === 'hdl'), []);
 });
+
+// #296: an I/O marker's side from its orien and back: R0 the body to the right of the connection point,
+// R90 below, R180 to the left, R270 above (Mk as iseXform); the export writes it, the import reads it
+test('#296 I/O markers turned: orien <-> side, exported and imported again', async () => {
+  const { iomarkerSide, iomarkerOrien } = await import('../core/isesch.js');
+  assert.deepEqual(['R0', 'R90', 'R180', 'R270', 'M0', 'M90', 'M180', 'M270', '', undefined].map(iomarkerSide), ['E', 'S', 'W', 'N', 'W', 'S', 'E', 'N', 'E', 'E']);
+  assert.deepEqual(['E', 'S', 'W', 'N'].map(iomarkerOrien), ['R0', 'R90', 'R180', 'R270']);
+  // list1's markers turned: an input above its wire end, an output below, the others as they were
+  const { doc } = imp('list1.sch');
+  const ins = doc.ports.filter(p => p.dir === 'in'), outs = doc.ports.filter(p => p.dir === 'out');
+  assert.ok(ins.length > 1 && outs.length, JSON.stringify(doc.ports));
+  assert.ok(doc.ports.every(p => p.side === undefined), 'list1 drawn with the default sides');
+  ins[0].side = 'N'; outs[0].side = 'S';
+  const { xml } = exportIseSch(doc, { timestamp: '2024-1-2T3:4:5' });
+  const orien = Object.fromEntries([...xml.matchAll(/<iomarker [^>]*name="([^"]+)" orien="(\w+)"/g)].map(m => [m[1], m[2]]));
+  const sig = p => Object.keys(orien).find(n => n.toLowerCase().startsWith(p.name.toLowerCase()));
+  assert.equal(orien[sig(ins[0])], 'R270');
+  assert.equal(orien[sig(outs[0])], 'R90');
+  assert.equal(orien[sig(ins[1])], 'R180');
+  const back = importIseSch(xml).doc;
+  const side = n => back.ports.find(p => p.name.toLowerCase() === n.toLowerCase()).side;
+  assert.deepEqual([side(ins[0].name), side(outs[0].name), side(ins[1].name)], ['N', 'S', undefined]);
+});

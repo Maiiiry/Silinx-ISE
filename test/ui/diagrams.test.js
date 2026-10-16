@@ -165,6 +165,63 @@ uiTest('schematic editor (#196): Rotate by Ctrl+R, the toolbar and the propertie
   assert.deepEqual(page.dialogs, []);
 });
 
+// #296: the I/O markers turned (Ctrl+R, the toolbar, the properties: a quarter turn clockwise around their
+// connection point) and mirrored (to the opposite side); the side saved in the .sch.json (none when it is
+// the default one), the marker drawn there; with a symbol selected too, both turn; one Undo
+uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M, the toolbar, the properties), drawn and saved on their side', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  const doc = newDoc('io', 'vhdl');
+  doc.symbols.push({ id: 'S1', type: 'inv', x: 300, y: 100, rot: 0, mirror: false, name: 'U1', params: {} });
+  doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, x: 200, y: 300 }, { id: 'P2', name: 'y', dir: 'out', width: 1, x: 500, y: 300 });
+  await makeProject(env, { name: 'SchIo', files: { 'src/io.sch.json': JSON.stringify(doc) }, top: '' });
+  await page.openProject('SchIo');
+  await page.eval(() => window.SilinxApp.openSch('src/io.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/io.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  const waitSides = (sides) => page.waitFor(async (want) => JSON.stringify(JSON.parse(await (await fetch('/api/projects/SchIo/file?path=src%2Fio.sch.json')).text()).ports.map((q) => q.side ?? null)) === want,
+    [JSON.stringify(sides)], { what: `saved sides ${sides}` });
+  // the marker as drawn: where its body is from the connection point, and its name upright or turned
+  const drawn = (id) => page.eval((d, i) => {
+    const g = document.querySelector(`${d} g.port[data-id="${i}"]`), b = g.querySelector('.iomark').getBBox(), t = g.querySelector('.ioname');
+    return { x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.width), h: Math.round(b.height), turned: /rotate\(-90/.test(t.getAttribute('transform') || '') };
+  }, D, id);
+  assert.deepEqual(await drawn('P1'), { x: 170, y: 293, w: 27, h: 14, turned: false });
+  // the input selected: Rotate and Mirror enabled
+  await page.click(`${D} g.port[data-id="P1"] .iomark`);
+  await page.waitFor((d) => !document.querySelector(`${d} .se-btn[data-act=rotate]`).disabled && !document.querySelector(`${d} .se-btn[data-act=mirror]`).disabled, [D], { what: 'Rotate, Mirror enabled' });
+  assert.equal(await page.eval((d) => document.querySelector(`${d} .se-ptitle`)?.textContent, D), 'I/O Marker');
+  // Ctrl+R: above (N), the name turned; the toolbar: E; Ctrl+R: S; the toolbar: W, the default again
+  await page.key('r', { modifiers: 2 });
+  await waitSides(['N', null]);
+  assert.deepEqual(await drawn('P1'), { x: 193, y: 270, w: 14, h: 27, turned: true });
+  await page.click(`${D} .se-btn[data-act=rotate]`);
+  await waitSides(['E', null]);
+  assert.deepEqual(await drawn('P1'), { x: 203, y: 293, w: 27, h: 14, turned: false });
+  await page.key('r', { modifiers: 2 });
+  await waitSides(['S', null]);
+  assert.deepEqual(await drawn('P1'), { x: 193, y: 303, w: 14, h: 27, turned: true });
+  await page.click(`${D} .se-btn[data-act=rotate]`);
+  await waitSides([null, null]);
+  // Ctrl+M: the opposite side (E); the properties' Mirror: back (W); the properties' Rotate: N; Undo: W
+  // (then Ctrl+A on the sheet: the focus there again)
+  await page.key('m', { modifiers: 2 });
+  await waitSides(['E', null]);
+  await page.click(`${D} .se-pbtns .btn`, { text: 'Mirror' });
+  await waitSides([null, null]);
+  await page.click(`${D} .se-pbtns .btn`, { text: 'Rotate' });
+  await waitSides(['N', null]);
+  await page.click(`${D} [data-act=undo]`);
+  await waitSides([null, null]);
+  // everything selected: the inverter and both markers turn (the output's default E -> S)
+  await page.click(`${D} .se-svg`);
+  await page.key('a', { modifiers: 2 });
+  await page.waitFor((d) => document.querySelector(`${d} .se-ptitle`)?.textContent === '3 objects selected', [D], { what: 'three selected' });
+  await page.key('r', { modifiers: 2 });
+  await waitSides(['N', 'S']);
+  assert.deepEqual(JSON.parse(await readWs(env, 'SchIo', 'src/io.sch.json')).symbols.map((x) => x.rot), [90]);
+  assert.deepEqual(page.dialogs, []);
+});
+
 uiTest('ASM chart editor: add a state, a decision and a case box, connect them, its VHDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'AsmPj' });
   await page.openProject('AsmPj');

@@ -14,7 +14,7 @@
 
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
-  xform, rotSize, portBox, netlist, generateHdl, parseNetName,
+  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -310,16 +310,22 @@ export function symbolDrawingSvg(symIn, def, { scale = 1.6 } = {}) {
 function portSvg(p, cls = '') {
   const b = portBox(p);
   const name = p.width > 1 ? `${p.name}(${p.width - 1}:0)` : p.name;
-  const y = p.y, M = 7;
-  let shape;
-  if (p.dir === 'in') { const x0 = p.x - 30; shape = `M${x0},${y - M} H${p.x - 10} L${p.x - 3},${y} L${p.x - 10},${y + M} H${x0} Z`; }
-  else if (p.dir === 'out') { const x0 = p.x + 3; shape = `M${x0},${y - M} H${p.x + 23} L${p.x + 30},${y} L${p.x + 23},${y + M} H${x0} Z`; }
-  else { const x0 = p.x + 3; shape = `M${x0},${y} L${x0 + 7},${y - M} H${p.x + 23} L${p.x + 30},${y} L${p.x + 23},${y + M} H${x0 + 7} Z`; }
-  const tx = p.dir === 'in' ? p.x - 34 : p.x + 34;
+  const M = 7, side = portSide(p);
+  // the marker drawn along its body: u from the connection point outwards, v across (#296)
+  const at = { W: (u, v) => [p.x - u, p.y + v], E: (u, v) => [p.x + u, p.y + v], N: (u, v) => [p.x + v, p.y - u], S: (u, v) => [p.x + v, p.y + u] }[side];
+  const outline = p.dir === 'in' ? [[30, -M], [10, -M], [3, 0], [10, M], [30, M]]
+    : p.dir === 'out' ? [[3, -M], [23, -M], [30, 0], [23, M], [3, M]]
+      : [[3, 0], [10, -M], [23, -M], [30, 0], [23, M], [10, M]];
+  const shape = `M${outline.map(([u, v]) => at(u, v).join(',')).join(' L')} Z`;
+  const [px, py] = at(3, 0);
+  const [tx, ty] = at(34, 0);
+  const text = side === 'W' || side === 'E'
+    ? `<text class="ioname" x="${tx}" y="${ty + 4}" text-anchor="${side === 'W' ? 'end' : 'start'}">${esc(name)}</text>`
+    : `<text class="ioname" x="${tx + 4}" y="${ty}" text-anchor="${side === 'N' ? 'start' : 'end'}" transform="rotate(-90 ${tx + 4} ${ty})">${esc(name)}</text>`;
   return `<g class="port${cls}" data-kind="port" data-id="${esc(p.id)}"><rect class="hitbox" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/>`
     + `<path class="iomark${p.width > 1 ? ' bus' : ''}" d="${shape}"/>`
-    + `<line class="pin${p.width > 1 ? ' bus' : ''}" x1="${p.x}" y1="${y}" x2="${p.dir === 'in' ? p.x - 3 : p.x + 3}" y2="${y}"/>`
-    + `<text class="ioname" x="${tx}" y="${y + 4}" text-anchor="${p.dir === 'in' ? 'end' : 'start'}">${esc(name)}</text></g>`;
+    + `<line class="pin${p.width > 1 ? ' bus' : ''}" x1="${p.x}" y1="${p.y}" x2="${px}" y2="${py}"/>`
+    + text + '</g>';
 }
 
 // ------------------------------------------------------------------ geometry helpers
@@ -711,7 +717,7 @@ export function mountSchEditor(container, opts = {}) {
     tb.querySelector('[data-act="redo"]').disabled = !redoStack.length;
     const any = sel.size > 0;
     tb.querySelector('[data-act="delete"]').disabled = !any;
-    const symSel = [...sel].some(k => k.startsWith('sym:')) || (tool === 'place');
+    const symSel = [...sel].some(k => k.startsWith('sym:') || k.startsWith('port:')) || (tool === 'place');
     tb.querySelector('[data-act="rotate"]').disabled = !symSel;
     tb.querySelector('[data-act="mirror"]').disabled = !symSel;
     tb.querySelector('[data-act="info"]').disabled = !infoTarget();
@@ -887,6 +893,8 @@ export function mountSchEditor(container, opts = {}) {
     propBody.append(field('Direction', selBox(p.dir, [['in', 'Input'], ['out', 'Output'], ['inout', 'Bidirectional']], v => { p.dir = v; })));
     propBody.append(field('Width', inp(p.width, v => { p.width = Math.max(1, Math.round(+v || 1)); if (p.type && !/\(|\[/.test(p.type) && p.width > 1) delete p.type; }, { type: 'number', min: 1 })));
     propBody.append(field('HDL type', inp(p.type || '', v => { if (String(v).trim()) p.type = String(v).trim(); else delete p.type; }, { placeholder: doc.lang === 'vhdl' ? (p.width > 1 ? `std_logic_vector(${p.width - 1} downto 0)` : 'std_logic') : (p.width > 1 ? `[${p.width - 1}:0]` : ''), 'data-no-i18n': '' }), 'optional, overrides the type derived from the width'));
+    // (turned or put on the other side as a symbol is, #296)
+    propBody.append(h('div', { class: 'se-pbtns' }, h('button', { class: 'btn', type: 'button', text: 'Rotate', onclick: rotateSel }), h('button', { class: 'btn', type: 'button', text: 'Mirror', onclick: mirrorSel }), h('button', { class: 'btn', type: 'button', text: 'Delete', onclick: deleteSel })));
   }
   function labelProps(l) {
     propBody.append(h('div', { class: 'se-ptitle', text: 'Net Name' }));
@@ -1087,11 +1095,14 @@ export function mountSchEditor(container, opts = {}) {
 
   // ---------------- selection operations
   function selected(kind) { return [...sel].filter(k => k.startsWith(kind + ':')).map(k => k.slice(kind.length + 1)); }
+  // (the I/O markers selected: turned around their connection point, or to the opposite side, #296)
+  const turnPorts = (ids, f) => { for (const id of ids) { const p = doc.ports.find(x => x.id === id); p.side = f(portSide(p)); if (p.side === portSide({ dir: p.dir })) delete p.side; } };
   function rotateSel() {
     if (tool === 'place' && placing) { placing.rot = (placing.rot + 90) % 360; renderOverlay(); return; }
-    const ids = selected('sym');
-    if (!ids.length) return;
+    const ids = selected('sym'), pids = selected('port');
+    if (!ids.length && !pids.length) return;
     edit(() => {
+      turnPorts(pids, turnSide);
       for (const id of ids) {
         const s = doc.symbols.find(x => x.id === id);
         const def = symbolDef(s, modules);
@@ -1105,9 +1116,9 @@ export function mountSchEditor(container, opts = {}) {
   }
   function mirrorSel() {
     if (tool === 'place' && placing) { placing.mirror = !placing.mirror; renderOverlay(); return; }
-    const ids = selected('sym');
-    if (!ids.length) return;
-    edit(() => { for (const id of ids) { const s = doc.symbols.find(x => x.id === id); s.mirror = !s.mirror; } });
+    const ids = selected('sym'), pids = selected('port');
+    if (!ids.length && !pids.length) return;
+    edit(() => { turnPorts(pids, oppositeSide); for (const id of ids) { const s = doc.symbols.find(x => x.id === id); s.mirror = !s.mirror; } });
   }
   function deleteSel() {
     if (!sel.size) return;
