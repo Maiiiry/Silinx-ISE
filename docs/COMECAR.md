@@ -52,7 +52,7 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, com os projetos à parte) e passe ao 
   clique em **Program PROM**, com o jumper de modo em ROM (Basys2: JP3).
 - **Num iPad ou num tablet** (Safari, ou o browser do tablet): editar, desenhar, simular e
   **Generate Programming File** funcionam. **O Chrome num tablet Android também programa a placa**,
-  como num computador (verificado num tablet Samsung); o Safari num iPad não acede a dispositivos USB
+  como num computador (verificado num tablet Samsung; a placa na porta USB do tablet); o Safari num iPad não acede a dispositivos USB
   (programe o `.bit` descarregado a partir de um computador ou de um tablet Android). Os projetos ficam no browser, que o iPadOS pode apagar ao fim de algumas
   semanas sem uso: guarde uma cópia com **File ▸ Export Silinx ISE Project (.zip)…**. Um tablet tem
   menos memória, por isso um desenho grande pode falhar na síntese. Os menus do botão direito abrem
