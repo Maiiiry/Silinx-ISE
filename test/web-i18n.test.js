@@ -103,6 +103,10 @@ test('gates (#328): the Inverted inputs field and the XOR2B1 / XOR2B2 descriptio
   assert.equal(t(SYMBOLS.xor2b2.description), 'Porta XOR de 2 entradas com as entradas I0 e I1 invertidas (bit a bit quando Largura > 1)');
 });
 
+test('ISim groups (#341): the menu items and the prompt are translated', () => {
+  assert.deepEqual(['New Group', 'Rename Group...', 'Ungroup', 'Group name:'].map(t), ['Novo Grupo', 'Mudar Nome do Grupo...', 'Desagrupar', 'Nome do grupo:']);
+});
+
 test('ISim stimuli (#336): the bar, the dialogs, the status, the errors and Save as Test Bench are translated', () => {
   for (const [en, pt] of [
     ['Fill Expected Outputs', 'Preencher Saídas Esperadas'], ['Save as Test Bench…', 'Guardar como Bancada de Teste…'], ['Stimulus Timing', 'Temporização dos Estímulos'],

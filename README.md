@@ -105,8 +105,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   Locations (pin2ucf, merged into the UCF).
 - **Behavioural simulation** with Silinx's own simulator, written from scratch in JavaScript:
   4-state logic, delta cycles, VHDL/Verilog testbenches (`wait`, `#delay`, `assert`/`report`,
-  `$display`, `$readmemh`…), an **ISim**-style waveform window, force/clock to simulate modules
-  without a testbench, VCD export.
+  `$display`, `$readmemh`…), an **ISim**-style waveform window (dividers, groups of signals), force/clock to
+  simulate modules without a testbench, VCD export.
 - **Stimuli drawn on the waveforms**, as the HDL Bencher (Test Bench Waveform) of the old ISE: simulating a
   module without a test bench, *Edit Stimuli* in ISim lays its inputs out as a grid of cycles (a clock and its
   period, or combinational with a time step). A click on a cycle of an input changes it there and up to its

@@ -7,6 +7,7 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Groups of signals in ISim:** select signals, right-click ▸ *New Group*; a group opens and closes.
 - **Stimuli drawn on the waveforms, as the HDL Bencher of the old ISE:** in ISim, *Edit Stimuli* makes the
   inputs of a module a grid of cycles; a click changes an input (0 → 1 → Z → X), the simulation runs again at once,
   expected outputs are checked, and *Save as Test Bench…* writes it all as a self-checking test bench.
@@ -51,6 +52,10 @@ In short:
 
 In detail:
 
+- **ISim: groups of signals (#341):** in the wave window, *New Group* (right-click) puts the selected signals in a named
+  group, a row that opens and closes (its triangle, a double-click) and shows how many signals it has; *Rename Group…*,
+  *Ungroup*; a signal dragged between the signals of an open group joins it, dragged elsewhere leaves it; *Delete* on a
+  group deletes it with its signals; the window's state keeps the groups.
 - **Stimuli drawn in ISim (#336):** simulating a module without a test bench, *Edit Stimuli* (the toolbar) asks
   for the timing (a clock input and its period, or combinational with a time step, and the number of cycles) and
   lays the inputs out as a grid: a click on a cycle of an input changes it there and up to its next change

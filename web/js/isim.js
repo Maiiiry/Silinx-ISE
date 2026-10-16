@@ -431,12 +431,29 @@ export function mountISim(container, opts = {}) {
 
   // ---------------------------------------------------------------- rows model
   function newRow(sig, extra = {}) { return { id: st.rowSeq++, kind: 'sig', sig, name: sig.name, radix: 'default', expanded: false, ...extra }; }
-  function rebuildFlat() {
-    flat = [];
+  // groups (#341, as ISim's New Group): a row of kind 'group' (name, expanded), its members the rows after it that
+  // have `group` = its id; normalizeGroups keeps them right after it, in their order
+  function normalizeGroups() {
+    const groups = new Map(st.rows.filter(r => r.kind === 'group').map(g => [g.id, g]));
+    for (const r of st.rows) if (r.group != null && (!groups.has(r.group) || r.kind === 'group')) delete r.group;
+    const out = [];
     for (const r of st.rows) {
-      flat.push({ row: r, bit: null, key: String(r.id), depth: 0 });
+      if (r.group != null) continue;
+      out.push(r);
+      if (r.kind === 'group') out.push(...st.rows.filter(m => m.group === r.id));
+    }
+    st.rows = out;
+  }
+  function rebuildFlat() {
+    normalizeGroups();
+    flat = [];
+    const groups = new Map(st.rows.filter(r => r.kind === 'group').map(g => [g.id, g]));
+    for (const r of st.rows) {
+      if (r.group != null && !groups.get(r.group).expanded) continue;
+      const d = r.group != null ? 1 : 0;
+      flat.push({ row: r, bit: null, key: String(r.id), depth: d });
       if (r.kind === 'sig' && r.expanded && r.sig.wave && isBitsType(r.sig.t) && r.sig.t.w > 1) {
-        for (const b of bitIndices(r.sig.t)) flat.push({ row: r, bit: b, key: `${r.id}:${b.index}`, depth: 1 });
+        for (const b of bitIndices(r.sig.t)) flat.push({ row: r, bit: b, key: `${r.id}:${b.index}`, depth: d + 1 });
       }
     }
     for (const k of [...st.sel]) if (!flat.some(f => f.key === k)) st.sel.delete(k);
@@ -609,6 +626,22 @@ export function mountISim(container, opts = {}) {
         ctx.textAlign = 'center'; ctx.fillText(fitText(ctx, it.row.name, NW - 10), NW / 2, cy); ctx.textAlign = 'left';
         continue;
       }
+      if (it.row.kind === 'group') {
+        // its twisty, a folder, its name (bold) and the number of its signals
+        const gx = 4;
+        ctx.fillStyle = sel ? colors.accentFg : '#555';
+        ctx.beginPath();
+        if (it.row.expanded) { ctx.moveTo(gx, cy - 2); ctx.lineTo(gx + 8, cy - 2); ctx.lineTo(gx + 4, cy + 3); }
+        else { ctx.moveTo(gx + 2, cy - 4); ctx.lineTo(gx + 7, cy); ctx.lineTo(gx + 2, cy + 4); }
+        ctx.fill();
+        ctx.fillStyle = sel ? 'rgba(255,255,255,.3)' : '#f2c94c'; ctx.strokeStyle = sel ? '#fff' : '#a07d1c';
+        ctx.beginPath(); ctx.rect(gx + 15.5, cy - 4.5, 13, 9); ctx.fill(); ctx.stroke();
+        setFont(ctx, 12, true); ctx.fillStyle = fg;
+        ctx.fillText(fitText(ctx, it.row.name, st.nameW - gx - 38), gx + 34, cy);
+        setFont(ctx, 12); ctx.fillStyle = sel ? colors.accentFg : '#888';
+        ctx.fillText(`(${st.rows.filter(r => r.group === it.row.id).length})`, st.nameW + 6, cy);
+        continue;
+      }
       const sig = it.row.sig;
       let x = 4 + it.depth * 16;
       const expandable = !it.bit && sig.wave && isBitsType(sig.t) && sig.t.w > 1;
@@ -737,6 +770,7 @@ export function mountISim(container, opts = {}) {
         ctx.strokeStyle = '#3a3a3a'; ctx.beginPath(); ctx.moveTo(0, y + ROW_H / 2 + 0.5); ctx.lineTo(WW, y + ROW_H / 2 + 0.5); ctx.stroke();
         continue;
       }
+      if (it.row.kind === 'group') continue;
       drawItem(ctx, it, y, tA, Math.min(tB, sim.now));
     }
     if (st.stim.m) drawStim(ctx, first, last);
@@ -979,8 +1013,9 @@ export function mountISim(container, opts = {}) {
     if (e.button === 2) { if (i >= 0 && !st.sel.has(flat[i].key)) selectRow(i, null); return; }
     if (i < 0) { selectRow(-1, e); return; }
     const it = flat[i];
-    // twisty
+    // twisty (a group's: open / close it)
     const tx = 4 + it.depth * 16;
+    if (it.row.kind === 'group' && x >= 2 && x <= 14) { it.row.expanded = !it.row.expanded; rebuildFlat(); updateVScroll(); invalidate(); return; }
     if (!it.bit && it.row.kind === 'sig' && x >= tx - 2 && x <= tx + 10 && it.row.sig.wave && isBitsType(it.row.sig.t) && it.row.sig.t.w > 1) {
       it.row.expanded = !it.row.expanded; rebuildFlat(); updateVScroll(); invalidate(); return;
     }
@@ -997,9 +1032,10 @@ export function mountISim(container, opts = {}) {
       if (yy < RULER_H + 5) { vsc.scrollTop -= ROW_H / 2; }
       else if (yy > NH - 5) { vsc.scrollTop += ROW_H / 2; }
       const yr = clamp(yy - RULER_H + st.scrollY, 0, flat.length * ROW_H);
-      // snap to top-level row boundaries
+      // snap to row boundaries: top-level ones, or between the signals of an open group (not inside a bus)
       let idx = Math.round(yr / ROW_H);
-      while (idx < flat.length && flat[idx]?.depth > 0) idx++;
+      while (idx < flat.length && flat[idx]?.bit) idx++;
+      while (idx < flat.length && flat[idx]?.depth > 0 && !(flat[idx].depth === 1 && flat[idx].row.group != null)) idx++;
       dragRow = { y: idx * ROW_H, flatIdx: idx };
       cn.style.cursor = 'grabbing';
       invalidate(false);
@@ -1011,6 +1047,12 @@ export function mountISim(container, opts = {}) {
         const target = flat[dragRow.flatIdx]?.row ?? null;
         const moving = st.rows.filter(r => st.sel.has(String(r.id)) || flat.some(f => f.row === r && st.sel.has(f.key)));
         if (moving.length && !moving.includes(target)) {
+          // dropped before a signal of a group (or right after a group's last one, the group open): into that group;
+          // elsewhere out of any (a group itself is never put in one)
+          const prev = flat[dragRow.flatIdx - 1]?.row;
+          const into = target?.group ?? (prev && prev.kind === 'group' && prev.expanded ? prev.id : null) ?? null;
+          const joins = into != null && !moving.some(r => r.kind === 'group');
+          for (const r of moving) if (r.kind !== 'group') { if (joins) r.group = into; else delete r.group; }
           const rest = st.rows.filter(r => !moving.includes(r));
           const at = target ? rest.indexOf(target) : rest.length;
           rest.splice(at, 0, ...moving);
@@ -1037,6 +1079,7 @@ export function mountISim(container, opts = {}) {
     if (i < 0) return;
     const it = flat[i];
     if (it.row.kind === 'div') { renameDivider(it.row); return; }
+    if (it.row.kind === 'group') { it.row.expanded = !it.row.expanded; rebuildFlat(); updateVScroll(); invalidate(); return; }
     if (!it.bit && it.row.sig.wave && isBitsType(it.row.sig.t) && it.row.sig.t.w > 1) { it.row.expanded = !it.row.expanded; rebuildFlat(); invalidate(); return; }
     openSource(it.row.sig);
   });
@@ -1157,8 +1200,35 @@ export function mountISim(container, opts = {}) {
   function removeSelectedRows() {
     const keys = st.sel;
     if (!keys.size) return;
-    st.rows = st.rows.filter(r => !keys.has(String(r.id)));
+    // (a group deleted with its signals)
+    st.rows = st.rows.filter(r => !keys.has(String(r.id)) && !(r.group != null && keys.has(String(r.group))));
     st.sel.clear(); rebuildFlat(); updateVScroll(); invalidate(); renderObjects();
+  }
+  // New Group: the selected rows (not groups) in a new group, where the first of them was; Ungroup: its rows back
+  function newGroup() {
+    const its = selectedItems().filter(f => !f.bit && f.row.kind !== 'group');
+    if (!its.length) return;
+    const n = prompt('Group name:', 'New Group');
+    if (n == null) return;
+    const g = { id: st.rowSeq++, kind: 'group', name: n.trim() || 'New Group', expanded: true };
+    // (where the first of them is, or its group; normalizeGroups puts the members after it, in the window's order)
+    const first = its[0].row;
+    st.rows.splice(st.rows.indexOf(first.group != null ? st.rows.find(r => r.id === first.group) : first), 0, g);
+    for (const f of its) f.row.group = g.id;
+    st.sel.clear(); st.sel.add(String(g.id));
+    rebuildFlat(); updateVScroll(); invalidate();
+  }
+  function renameGroup(g) {
+    const n = prompt('Group name:', g.name);
+    if (n != null && n.trim()) { g.name = n.trim(); invalidate(false); }
+  }
+  function ungroup(gs) {
+    for (const g of gs) {
+      const at = st.rows.indexOf(g);
+      for (const r of st.rows) if (r.group === g.id) delete r.group;
+      st.rows.splice(at, 1);
+    }
+    st.sel.clear(); rebuildFlat(); updateVScroll(); invalidate();
   }
   function renameDivider(row) {
     const n = prompt('Divider name:', row.name);
@@ -1194,6 +1264,9 @@ export function mountISim(container, opts = {}) {
       { sep: true },
       { label: 'New Divider', action: addDivider },
       { label: 'Rename Divider...', disabled: !(its.length === 1 && its[0].row.kind === 'div'), action: () => renameDivider(its[0].row) },
+      { label: 'New Group', disabled: !its.some(f => !f.bit && f.row.kind !== 'group'), action: newGroup },
+      { label: 'Rename Group...', disabled: !(its.length === 1 && its[0].row.kind === 'group'), action: () => renameGroup(its[0].row) },
+      { label: 'Ungroup', disabled: !its.some(f => f.row.kind === 'group'), action: () => ungroup(its.filter(f => f.row.kind === 'group').map(f => f.row)) },
       { label: 'Go To Source Code', disabled: !one || !onOpenSource, action: () => openSource(one) },
       { sep: true },
       { label: 'Delete', disabled: !its.some(f => !f.bit), action: removeSelectedRows },
@@ -2028,7 +2101,11 @@ export function mountISim(container, opts = {}) {
     },
     getState() {
       return {
-        rows: st.rows.map(r => r.kind === 'div' ? { kind: 'div', name: r.name } : { kind: 'sig', path: r.sig.path, radix: r.radix, expanded: r.expanded }),
+        // (a group by its index among the rows: its members' `group`)
+        rows: st.rows.map(r => ({
+          ...(r.kind === 'div' ? { kind: 'div', name: r.name } : r.kind === 'group' ? { kind: 'group', name: r.name, expanded: r.expanded } : { kind: 'sig', path: r.sig.path, radix: r.radix, expanded: r.expanded }),
+          ...(r.group != null ? { group: st.rows.findIndex(g => g.id === r.group) } : {}),
+        })),
         cursor: st.cursor, markers: st.markers.map(m => m.t), t0: st.t0, scale: st.scale, fit: st.fit,
         nameW: st.nameW, valW: st.valW, leftW, consoleH,
         runTime: { value: rfVal.value, unit: rfUnit.value },
@@ -2040,10 +2117,15 @@ export function mountISim(container, opts = {}) {
       if (!s) return;
       if (Array.isArray(s.rows)) {
         st.rows = [];
-        for (const r of s.rows) {
-          if (r.kind === 'div') st.rows.push({ id: st.rowSeq++, kind: 'div', name: r.name });
-          else { const sig = design.signals.find(x => x.path === r.path); if (sig) st.rows.push(newRow(sig, { radix: r.radix || 'default', expanded: !!r.expanded })); }
-        }
+        const ids = new Map();   // index in s.rows of a group -> its new row id
+        s.rows.forEach((r, i) => {
+          let row = null;
+          if (r.kind === 'div') row = { id: st.rowSeq++, kind: 'div', name: r.name };
+          else if (r.kind === 'group') { row = { id: st.rowSeq++, kind: 'group', name: r.name, expanded: r.expanded !== false }; ids.set(i, row.id); }
+          else { const sig = design.signals.find(x => x.path === r.path); if (sig) row = newRow(sig, { radix: r.radix || 'default', expanded: !!r.expanded }); }
+          if (row && r.group != null && ids.has(r.group)) row.group = ids.get(r.group);
+          if (row) st.rows.push(row);
+        });
         st.sel.clear();
       }
       if (s.cursor != null) st.cursor = s.cursor;
