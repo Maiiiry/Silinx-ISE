@@ -29,6 +29,14 @@ function model(type, p, inp, def) {
     for (let i = 0; i < 1 << k; i++) out[`O${i}`] = en && i === sel ? inp.D : 0n;
     return out;
   }
+  if (type === 'compare') {
+    // (#319) the operands on bus pins or a pin per bit
+    const w = +p.width || 1, per = p.bits && w > 1;
+    const op = g => { if (!per) return inp[g]; let v = 0n; for (let i = 0; i < w; i++) v |= inp[`${g}${i}`] << BigInt(i); return v; };
+    const sv = x => (p.signed && (x >> BigInt(w - 1)) & 1n ? x - (1n << BigInt(w)) : x);
+    const A = sv(op('A')), B = sv(op('B'));
+    return { O: { eq: A === B, ne: A !== B, lt: A < B, le: A <= B, gt: A > B, ge: A >= B }[p.op || 'eq'] ? 1n : 0n };
+  }
   if (type === 'add') {
     // (#304) the operands and the sum on bus pins, or a pin per bit
     const w = +p.width || 1, per = p.bits && w > 1;
@@ -428,4 +436,36 @@ test('#315 flip-flops: FD / FT / FJK in the palette, the variant of a choice of 
     ['fd', 'fde', 'fdce', 'fdcpe', 'fdr', 'fdrse']);
   assert.deepEqual([v('fd', { clr: true, r: true }), v('ft', { r: true }), v('ft', { ce: true, r: true, s: true }), v('fjk', { ce: true, clr: true }), v('fdce', {})], [null, null, 'ftrse', 'fjkce', 'fd']);
   assert.equal(v('and2', {}), null);
+});
+
+// #319: the comparator with a pin per bit (A0.., B0..), every relation, unsigned and signed, against the bus one
+test('#319 comparators with a pin per bit: every relation, unsigned and signed; pins', () => {
+  const pw = c => symbolDef(c).pins.map(p => `${p.name}:${p.dir}${p.width}`);
+  assert.deepEqual(pw({ type: 'compare', params: { width: 3, op: 'lt', bits: true } }), ['A0:in1', 'A1:in1', 'A2:in1', 'B0:in1', 'B1:in1', 'B2:in1', 'O:out1']);
+  assert.equal(symbolDef({ type: 'compare', params: { width: 4, op: 'ge', bits: true } }).title, 'COMP4 ≥');
+  const cases = [];
+  for (const op of ['eq', 'ne', 'lt', 'le', 'gt', 'ge']) for (const signed of [false, true]) cases.push({ type: 'compare', params: { width: 3, op, signed, bits: true } });
+  cases.push({ type: 'compare', params: { width: 3, op: 'lt', signed: true } });
+  check('comps319', cases, 64);
+});
+
+// #319: the counter with a pin per bit (Q0..), counting up and down, its clock enable and reset
+test('#319 counters with a pin per bit: Q0..Q3 count as the bus Q; pins; VHDL and Verilog', () => {
+  const pw = c => symbolDef(c).pins.map(p => p.name);
+  assert.deepEqual(pw({ type: 'counter', params: { width: 4, en: true, reset: 'async', bits: true } }), ['CE', 'C', 'CLR', 'Q0', 'Q1', 'Q2', 'Q3']);
+  for (const lang of ['vhdl', 'verilog']) for (const dir of ['up', 'down']) {
+    const doc = newDoc('cnt', lang);
+    const c = { id: 'S1', type: 'counter', x: 200, y: 100, rot: 0, mirror: false, name: 'U1', params: { width: 4, en: false, reset: 'sync', dir, bits: true } };
+    doc.symbols.push(c);
+    for (const q of symbolPins(normalizeDoc({ ...doc, symbols: [c] }).symbols[0])) doc.ports.push({ id: `P${doc.ports.length + 1}`, name: q.name.toLowerCase(), dir: q.dir === 'out' ? 'out' : 'in', width: 1, x: q.x, y: q.y });
+    const g = generateHdl(doc, { lang });
+    assert.deepEqual(g.diagnostics.filter(d => d.severity === 'error'), [], g.code);
+    const tb = lang === 'vhdl'
+      ? `library ieee; use ieee.std_logic_1164.all;\nentity tb is end;\narchitecture s of tb is\n  signal c, r, q0, q1, q2, q3 : std_logic := '0';\nbegin\n  dut : entity work.cnt port map (c => c, r => r, q0 => q0, q1 => q1, q2 => q2, q3 => q3);\n  process begin\n    r <= '1'; c <= '1'; wait for 5 ns; c <= '0'; wait for 5 ns; r <= '0';\n    for i in 1 to 5 loop c <= '1'; wait for 5 ns; c <= '0'; wait for 5 ns; end loop;\n    report "q=" & std_logic'image(q3) & std_logic'image(q2) & std_logic'image(q1) & std_logic'image(q0);\n    wait;\n  end process;\nend;`
+      : "module tb; reg c = 0, r = 0; wire q0, q1, q2, q3; integer i;\n  cnt dut (.c(c), .r(r), .q0(q0), .q1(q1), .q2(q2), .q3(q3));\n  initial begin r = 1; c = 1; #5 c = 0; #5 r = 0; for (i = 0; i < 5; i = i + 1) begin c = 1; #5 c = 0; #5; end $display(\"q=%b%b%b%b\", q3, q2, q1, q0); end\nendmodule";
+    const r = simulate([{ path: g.filename, text: g.code }, { path: lang === 'vhdl' ? 'tb.vhd' : 'tb.v', text: tb }], 'tb', { until: 1e6 });
+    assert.deepEqual(r.errors.map(e => e.message), [], g.code);
+    const want = dir === 'up' ? '0101' : '1011';
+    assert.ok(r.sim.log.some(l => l.text.replace(/'/g, '').includes(`q=${want}`)), `${lang} ${dir}: ${r.sim.log.map(l => l.text).join(' | ')}\n${g.code}`);
+  }
 });

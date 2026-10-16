@@ -333,6 +333,41 @@ uiTest('#315 schematic flip-flops: FD / FT / FJK in the palette; CE and CLR in a
   assert.deepEqual(page.dialogs, []);
 });
 
+// #319: COMP and CNT with Pins per bit (their properties); #320: the category General (was I/O)
+uiTest('#319 #320 schematic: COMP and CNT with Pins per bit (A0.. B0.., Q0..); the palette category General', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  await makeProject(env, { name: 'SchBits', files: { 'src/b.sch.json': JSON.stringify(newDoc('b', 'vhdl')) }, top: '' });
+  await page.openProject('SchBits');
+  await page.eval(() => window.SilinxApp.openSch('src/b.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/b.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  const cats = await page.eval((d) => [...document.querySelectorAll(`${d} .se-cat option`)].map((o) => o.textContent), D);
+  assert.ok(cats.some((c) => /^General/.test(c)) && !cats.some((c) => /^I\/O/.test(c)), cats.join(' | '));
+  const file = async () => JSON.parse(await page.eval(async () => (await fetch('/api/projects/SchBits/file?path=src%2Fb.sch.json')).text()));
+  const place = async (title, n, dy) => {
+    await page.fill(`${D} .se-search`, title);
+    await page.click(`${D} .se-symrow`, { text: title });
+    const c = await page.eval((d, y) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height * y }; }, D, dy);
+    await page.click(c);
+    await page.key('Escape');
+    await page.waitFor(async (k) => JSON.parse(await (await fetch('/api/projects/SchBits/file?path=src%2Fb.sch.json')).text()).symbols.length === k, [n], { what: `${title} saved` });
+    const id = (await file()).symbols[n - 1].id;
+    await page.click(`${D} g.sym[data-id="${id}"] .hitbox`);
+    await page.waitFor((d) => document.querySelector(`${d} [data-param=bits]`), [D], { what: 'Pins per bit' });
+    await page.fill(`${D} [data-param=width]`, '3');
+    await page.waitFor((d) => document.querySelector(`${d} [data-param=bits]`), [D], { what: 'Pins per bit again' });
+    await page.click(`${D} [data-param=bits]`);
+    await page.waitFor(async (k) => JSON.parse(await (await fetch('/api/projects/SchBits/file?path=src%2Fb.sch.json')).text()).symbols[k - 1].params.bits === true, [n], { what: 'bits saved' });
+    return id;
+  };
+  const comp = await place('COMP', 1, 0.25);
+  const cnt = await place('CNT', 2, 0.65);
+  const pins = (id) => page.eval((d, i) => [...document.querySelectorAll(`${d} .se-svg g.sym[data-id="${i}"] text`)].map((t) => t.textContent), D, id);
+  for (const n of ['A0', 'A2', 'B0', 'B2', 'O']) assert.ok((await pins(comp)).includes(n), (await pins(comp)).join(' '));
+  for (const n of ['Q0', 'Q1', 'Q2']) assert.ok((await pins(cnt)).includes(n), (await pins(cnt)).join(' '));
+  assert.deepEqual(page.dialogs, []);
+});
+
 uiTest('ASM chart editor: add a state, a decision and a case box, connect them, its VHDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'AsmPj' });
   await page.openProject('AsmPj');

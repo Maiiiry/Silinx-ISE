@@ -19,7 +19,7 @@ export const SCH_PT = {
   'Instance of a project module/entity': 'Instância de um módulo/entidade do projeto',
   'Box with explicit pins carrying HDL statements emitted verbatim': 'Caixa com pinos explícitos e instruções HDL copiadas tal e qual',
   // parameters of the symbols (as in the Symbol Info datasheets, core/symdocs.js) and their options
-  'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)',
+  'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)',
   'Carry in': 'Transporte de entrada (carry in)', 'Carry out': 'Transporte de saída (carry out)', 'Operation': 'Operação', 'Signed': 'Com sinal',
   'Clock enable': 'Habilitação do relógio', 'Reset/INIT value': 'Valor de reset/INIT', 'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB',
   'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',
