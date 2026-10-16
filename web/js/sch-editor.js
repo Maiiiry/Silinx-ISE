@@ -14,7 +14,7 @@
 
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
-  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant,
+  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -870,6 +870,13 @@ export function mountSchEditor(container, opts = {}) {
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
       el.dataset.param = p.name;
       propBody.append(field(p.label, el));
+    }
+    // a gate's inverted inputs (#328): I0..I(k-1) inverted make it the variant that has them (AND3 + 2 = AND3B2)
+    if (S?.gate && gateVariant(s.type, 1)) {
+      const ks = Array.from({ length: S.inputs + 1 }, (_, k) => String(k)).filter(k => gateVariant(s.type, +k));
+      const el = selBox(String(S.invIn || 0), ks, x => { const t = gateVariant(s.type, +x); if (t) s.type = t; });
+      el.dataset.param = 'invIn';
+      propBody.append(field('Inverted inputs', el));
     }
     // a flip-flop's inputs (#315): each one makes it the Xilinx variant that has it (FD + CE + CLR = FDCE);
     // one the library does not have with the others chosen, unavailable

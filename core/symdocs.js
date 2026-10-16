@@ -114,7 +114,7 @@ const presetDef = (type, title) => SYMBOLS[type]?.presets?.find(p => p.title ===
 export const XILINX_SYMBOLS = (() => {
   const X = {};
   for (const [type, S] of Object.entries(SYMBOLS)) {
-    if (S.gate && S.inputs > 1) X[S.title] = { type, params: { width: 1 } };
+    if (S.gate && S.inputs > 1 && !S.noLib) X[S.title] = { type, params: { width: 1 } };
     if (S.ff && type !== 'ft' && type !== 'fjk') X[S.title] = { type, params: { init: S.params[0].default } };   // no plain FT / FJK in the Xilinx library
   }
   X.INV = { type: 'inv', params: { width: 1 } };
@@ -241,8 +241,8 @@ function describe(type, p, tx, preset) {
         'A porta XNOR (equivalência) de 2 entradas dá 1 quando as entradas são iguais. É o comparador de igualdade de 1 bit: um comparador de igualdade de n bits é o AND de n portas XNOR.'),
     }[base];
     const text = [lead];
-    if (k) text.push(tx(`In this variant (Xilinx ${S.title}) ${k === 1 ? 'the input I0 is' : `the inputs ${ordinalList(k, tx)} are`} inverted before the ${name[0]} (the bubbles on the symbol), which saves separate inverters: ${gateFormula(S)}.`,
-      `Nesta variante (Xilinx ${S.title}) ${k === 1 ? 'a entrada I0 é invertida' : `as entradas ${ordinalList(k, tx)} são invertidas`} antes da ${name[1]} (as bolinhas no símbolo), o que poupa inversores separados: ${gateFormula(S)}.`));
+    if (k) text.push(tx(`In this variant (${S.noLib ? '' : 'Xilinx '}${S.title}) ${k === 1 ? 'the input I0 is' : `the inputs ${ordinalList(k, tx)} are`} inverted before the ${name[0]} (the bubbles on the symbol), which saves separate inverters: ${gateFormula(S)}.`,
+      `Nesta variante (${S.noLib ? '' : 'Xilinx '}${S.title}) ${k === 1 ? 'a entrada I0 é invertida' : `as entradas ${ordinalList(k, tx)} são invertidas`} antes da ${name[1]} (as bolinhas no símbolo), o que poupa inversores separados: ${gateFormula(S)}.`));
     text.push(widthNote);
     return { text, formula: gateFormula(S) };
   }

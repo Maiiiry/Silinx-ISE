@@ -212,7 +212,7 @@ const PT = {
   'Check the chart for errors': 'Verificar erros no diagrama',
   'Show / hide the generated HDL preview': 'Mostrar / ocultar a pré-visualização do HDL gerado', 'Selection': 'Seleção', 'Machine': 'Máquina',
   'Module / entity name': 'Nome do módulo / entidade', 'HDL language': 'Linguagem HDL', 'State encoding': 'Codificação de estados', 'Clock': 'Relógio',
-  'Reset': 'Reset', 'Reset level': 'Nível do reset', 'Reset type': 'Tipo de reset', 'Initial state': 'Estado inicial', 'Inputs': 'Entradas', 'Outputs': 'Saídas',
+  'Reset': 'Reset', 'Reset level': 'Nível do reset', 'Reset type': 'Tipo de reset', 'Initial state': 'Estado inicial', 'Inputs': 'Entradas', 'Inverted inputs': 'Entradas invertidas', 'Outputs': 'Saídas',
   'Width': 'Largura', 'Registered': 'Registada', 'Condition': 'Condição', 'Problems': 'Problemas', 'No problems found': 'Nenhum problema encontrado',
   'Moore outputs (one per line)': 'Saídas de Moore (uma por linha)', 'Mealy outputs (one per line)': 'Saídas de Mealy (uma por linha)',
   'Make this the initial (reset) state': 'Tornar este o estado inicial (reset)', 'Initial (reset) state': 'Estado inicial (reset)',
@@ -308,7 +308,7 @@ const PT_PATTERNS = [
     return `Flip-flop ${k === 'Toggle (T)' ? 'T (toggle)' : k}${w ? ` com ${r.replace(/ and /g, ' e ')}` : ''}${bw ? ' (bit a bit quando Largura > 1)' : ''}`;
   }],
   // schematic symbols: inverted-input gates (AND2B1...), decoders, encoders, demultiplexers
-  [/^(\d)-input (AND|OR|NAND|NOR) gate with (input I0|inputs I0 and I1|inputs I0\.\.I\d) inverted \(bitwise when Width > 1\)$/,
+  [/^(\d)-input (AND|OR|NAND|NOR|XOR) gate with (input I0|inputs I0 and I1|inputs I0\.\.I\d) inverted \(bitwise when Width > 1\)$/,
     (m, n, g, which) => `Porta ${g} de ${n} entradas com ${PT_GATE_INV[which] || `as entradas ${which.slice(7)}`} invertida${which === 'input I0' ? '' : 's'} (bit a bit quando Largura > 1)`],
   [/^(\d+):(\d+) decoder with enable \(Xilinx (\w+)\): D<A> = E, the other outputs 0$/, 'Descodificador $1:$2 com habilitação (Xilinx $3): D<A> = E, as outras saídas a 0'],
   [/^(\d+):(\d+) priority encoder: A = index of the highest input at 1 \(0 when none\), V = some input is 1$/, 'Codificador com prioridade $1:$2: A = índice da entrada a 1 de maior índice (0 se nenhuma), V = alguma entrada a 1'],

@@ -47,19 +47,29 @@ function gateSym(op, n, title) {
 }
 
 export const SYMBOLS = {};
-// gates, each followed by its inverted-input variants (Xilinx ANDnBk...: inputs I0..I(k-1) inverted)
-for (const [op, ns, inv] of [['and', [2, 3, 4, 5], true], ['or', [2, 3, 4, 5], true], ['nand', [2, 3, 4], true], ['nor', [2, 3, 4], true], ['xor', [2]], ['xnor', [2]]])
+// gates, each followed by its inverted-input variants (Xilinx ANDnBk...: inputs I0..I(k-1) inverted; XOR2B1 /
+// XOR2B2 Silinx symbols, no such Xilinx one)
+for (const [op, ns, inv] of [['and', [2, 3, 4, 5], true], ['or', [2, 3, 4, 5], true], ['nand', [2, 3, 4], true], ['nor', [2, 3, 4], true], ['xor', [2], true], ['xnor', [2]]])
   for (const n of ns) {
     // (5 inputs: kept for the schematics that have them and ISE's AND5 / OR5, not offered: at most 4
     // inputs a gate, more through buses, #171)
     SYMBOLS[`${op}${n}`] = { ...gateSym(op, n, `${op.toUpperCase()}${n}`), ...(n > 4 ? { hidden: true } : {}) };
+    // (the palette lists the basic gate only: its Inverted inputs make the variant, #328)
     if (inv) for (let k = 1; k <= n; k++) {
       SYMBOLS[`${op}${n}b${k}`] = {
-        ...gateSym(op, n, `${op.toUpperCase()}${n}B${k}`), invIn: k, ...(n > 4 ? { hidden: true } : {}),
+        ...gateSym(op, n, `${op.toUpperCase()}${n}B${k}`), invIn: k, hidden: true, ...(op === 'xor' ? { noLib: true } : {}),
         description: `${n}-input ${op.toUpperCase()} gate with ${k === 1 ? 'input I0' : k === 2 ? 'inputs I0 and I1' : `inputs I0..I${k - 1}`} inverted (bitwise when Width > 1)`,
       };
     }
   }
+/** The gate of `type`'s kind and inputs with its first k inputs inverted (AND3 + 2 = AND3B2, AND3B2 + 0 = AND3), or
+ *  null when there is none (#328). */
+export function gateVariant(type, k) {
+  const S = SYMBOLS[type];
+  if (!S?.gate || !(S.inputs > 1)) return null;
+  const t = `${S.gate}${S.inputs}${k > 0 ? `b${k}` : ''}`;
+  return SYMBOLS[t] ? t : null;
+}
 SYMBOLS.inv = { category: 'Logic', title: 'INV', gate: 'not', inputs: 1, description: 'Inverter', params: [P_WIDTH] };
 SYMBOLS.buf = { category: 'Logic', title: 'BUF', gate: 'buf', inputs: 1, description: 'Buffer', params: [P_WIDTH] };
 // tri-state buffers (Xilinx BUFE / BUFT families): O = I while enabled, Z (released) otherwise, so that

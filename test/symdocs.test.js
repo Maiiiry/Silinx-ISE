@@ -186,6 +186,19 @@ test('gates and inverted-input gates (ANDnBk …): truth tables computed by simu
   checkAgainst(tbl('buf', {}), v => ({ O: v.I }), 'buf');
   // Xilinx AND2B1: O = I0' · I1 (the compact table of the Libraries Guide)
   assert.deepEqual(tbl('and2b1', {}).rows.map(r => `${r.in}:${r.out}`), ['00:0', '01:1', '10:0', '11:0']);
+  // XOR2B1 (#328, a Silinx symbol): O = I0' ⊕ I1, an XNOR; XOR2B2 = XOR2
+  assert.deepEqual(tbl('xor2b1', {}).rows.map(r => `${r.in}:${r.out}`), ['00:1', '01:0', '10:0', '11:1']);
+  assert.deepEqual(tbl('xor2b2', {}).rows.map(r => `${r.in}:${r.out}`), ['00:0', '01:1', '10:1', '11:0']);
+  for (const lang of ['en', 'pt']) {
+    const d = symbolDoc('xor2b1', {}, { lang });
+    assert.equal(d.title, 'XOR2B1');
+    assert.equal(d.formula, "O = I0' ⊕ I1");
+    assert.deepEqual(d.xilinx, []);
+    assert.match(d.text.join(' '), lang === 'pt' ? /Nesta variante \(XOR2B1\) a entrada I0 é invertida/ : /In this variant \(XOR2B1\) the input I0 is inverted/);
+  }
+  assert.match(symbolDoc('and2b1', {}).text.join(' '), /In this variant \(Xilinx AND2B1\)/);
+  assert.equal(XILINX_SYMBOLS.XOR2B1, undefined);
+  assert.deepEqual(XILINX_SYMBOLS.AND2B1, { type: 'and2b1', params: { width: 1 } });
   assert.deepEqual(tbl('and2', {}).compact.map(r => `${r.in}:${r.out}`), ['X0:0', '0X:0', '11:1']);
   assert.deepEqual(tbl('nor3b2', {}).compact.find(r => r.out === '1').in, '110');
   // bitwise gates wider than 6 input bits: shown per bit (Width = 1)
