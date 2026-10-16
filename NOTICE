@@ -18,8 +18,9 @@ of such a combination shall include the source code for the parts of elkjs used 
 of the covered work.
 
 It includes open-source components from other projects, each under its own licence:
-CodeMirror (MIT), Express and its dependencies (MIT, ISC, BSD-3-Clause) and elkjs
-(Eclipse Public License 2.0; source code: https://github.com/kieler/elkjs).
+CodeMirror (MIT), Express and its dependencies (MIT, ISC, BSD-3-Clause), Yosys (YoWASP, ISC),
+a port of adepttool (MIT) and elkjs (Eclipse Public License 2.0; source code:
+https://github.com/kieler/elkjs).
 Their licence texts are in THIRD-PARTY-NOTICES.md.
 
 Your designs, and the HDL Silinx generates for them, are not covered by this licence.

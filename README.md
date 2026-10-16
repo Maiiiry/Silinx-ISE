@@ -1,8 +1,10 @@
 # Silinx ISE (Integrated Synthesis Environment)
 
 > Silinx ISE is an independent open-source project. It is not affiliated with, endorsed by or
-> supported by AMD/Xilinx. Xilinx, ISE, ISim, iMPACT, Spartan and Virtex are trademarks of AMD;
-> synthesis and bitstreams use the free Xilinx ISE 14.7 WebPACK tools, which you install yourself.
+> supported by AMD/Xilinx. Xilinx, ISE, ISim, iMPACT, Spartan and Virtex are trademarks of AMD.
+> Silinx has its own toolchain (Yosys synthesis, Silinx's place & route and bitstream writer) for the
+> Basys2 and Nexys2 boards; for the other boards and the ISE-only processes it can use the free
+> Xilinx ISE 14.7 WebPACK tools, which you install yourself.
 
 > **Purpose.** Silinx ISE was developed for educational purposes, specifically to support the teaching of Digital Systems, because AMD/Xilinx discontinued support for Xilinx ISE a long time ago.
 
@@ -37,7 +39,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   push into with a double-click.
 - **Schematic editor** (ISE Schematic Editor style): gates, muxes, adders/comparators, counters,
   flip-flops and registers, bus slices/joins, constants, I/O markers and any project module as a
-  symbol; wires, buses and net names; Check Schematic. A schematic always has its VHDL/Verilog file,
+  symbol (symbols and I/O markers rotated and mirrored: Ctrl+R / Ctrl+M); wires, buses and net
+  names; Check Schematic. A schematic always has its VHDL/Verilog file,
   generated from it: the schematic is the base, and an edit of the HDL updates the schematic (the
   drawing is kept when the structure does not change). Any HDL module can be converted to a schematic
   (*Convert to Schematic*), with processes and other behavioural code kept as HDL blocks: its HDL is
@@ -94,8 +97,9 @@ for Xilinx FPGAs supported by ISE 14.7.
   UNISIM / SIMPRIM primitives (functional, no SDF timing): LUTs, flip-flops, latches, carry
   logic, SRLs, distributed and block RAM, multipliers, clock buffers and DCMs (CLK0/90/180/270,
   CLK2X, CLKDV and CLKFX at their real frequencies).
-- **ISE processes** beyond the main flow: View Technology Schematic (the post-synthesis netlist,
-  regrouped by the design's modules), Generate Post-Synthesis / Translate / Map / Place & Route
+- **ISE processes** beyond the main flow (with the Silinx toolchain too: View Technology Schematic,
+  the Post-Synthesis Simulation Model and Back-annotate Pin Locations; the others with ISE): View
+  Technology Schematic (the post-synthesis netlist, regrouped by the design's modules), Generate Post-Synthesis / Translate / Map / Place & Route
   Simulation Model, Post-Place & Route Static Timing, Text Power Report (xpwr), Back-annotate Pin
   Locations (pin2ucf, merged into the UCF).
 - **Behavioural simulation** with Silinx's own simulator, written from scratch in JavaScript:
@@ -179,7 +183,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   both ways like ASM charts (an HDL edit that is no longer a plain state machine shows the reason); *Convert to State Diagram (FSM)* reads an HDL module or an
   ASM chart, *Convert to ASM chart* goes the other way; *Simulate* steps through the diagram (set
   the inputs, clock edges, current state and the transition about to be taken highlighted).
-- **Implementation** with **Xilinx ISE 14.7** (XST → NGDBuild → MAP → PAR → TRCE → BitGen), run
+- **Implementation** with the **Silinx toolchain** (the Basys2 and Nexys2 boards, the default; in the
+  browser or locally) or with **Xilinx ISE 14.7** (XST → NGDBuild → MAP → PAR → TRCE → BitGen), run
   locally, in Docker or over SSH, with live per-step status (✓ / ⚠ / ✗) in the Processes panel
   (restored when the project is reopened), *Stop*, every warning/error in the Warnings/Errors tabs,
   and utilization/timing reports in the *Design Summary*. Simulation and editing stay available
@@ -192,8 +197,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   Spartan-3E / Spartan-3A / Spartan-3 starter kits; Numato Mimas V2 and Elbert V2; Papilio One.
   Ports are mapped to board resources by name, the UCF is generated, and pins are checked against
   the board before ISE runs.
-- **View Implemented Design (FPGA)**: the placed and routed design inside the chip (from ISE's
-  `xdl`): sites coloured by module, LUT equations and flip-flops of each site, I/O pads, nets
+- **View Implemented Design (FPGA)**: the placed and routed design inside the chip (from the Silinx
+  toolchain's routing, or from ISE's `xdl`): sites coloured by module, LUT equations and flip-flops of each site, I/O pads, nets
   and their routing, the clock network; selecting a module in the Design hierarchy shows it on
   the chip and the other way round.
 - **Two interfaces**: a modern one (default: header with search, activity bar, tabs, labelled
@@ -203,32 +208,42 @@ for Xilinx FPGAs supported by ISE 14.7.
   is used by default). Translations live in `web/js/i18n.js`: adding a language is adding a
   dictionary. Code, tool output and design names are never translated.
 - **Programming** (iMPACT-like): the FPGA (volatile) or the board's Platform Flash PROM (boots at
-  power-up), with openFPGALoader, xc3sprog, Digilent Adept (`djtgcfg`), ISE iMPACT or
-  **adepttool** (Basys2 on macOS).
+  power-up). In the browser over USB (WebUSB: Chrome or Edge on a computer, Chrome on an Android
+  tablet), with no programming tool to install (see the [guide](docs/GETTING-STARTED.md) for the
+  Windows driver and the Linux rule); running Silinx locally also with openFPGALoader,
+  xc3sprog, Digilent Adept (`djtgcfg`), ISE iMPACT or **adepttool** (Basys2 on macOS).
 
 ## Getting started
 
 **Step-by-step guide for beginners (no git or programming tools needed):
 [English](docs/GETTING-STARTED.md) · [Português](docs/COMECAR.md)**
 
-In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest):
+In short:
 
-- **Just design and simulate:** open **https://pmnmalo.github.io/Silinx-ISE/** (the latest release, in the
-  browser; the development version of main is at https://pmnmalo.github.io/Silinx-ISE/dev/, and its
-  files, the app zip included, in the pre-release [Development build](https://github.com/pmnmalo/Silinx-ISE/releases/tag/dev)), or download **`Silinx-ISE.html`** and double-click it. Nothing to install; projects are kept
-  in the browser, or (Chrome / Edge) in a folder on the disk with *File ▸ Open Workspace Folder…*, in
-  the full application's project format. The site also synthesizes, places, routes and writes the bitstream (the Silinx
-  toolchain, for the Spartan-3E boards), downloaded as a `.bit`, and programs it into the board's
-  FPGA over USB from Chrome or Edge (WebUSB). For a course page (Moodle…), link that address as a URL: an HTML file uploaded to
+- **In the browser: design, simulate, synthesize and program the board.** Open
+  **https://pmnmalo.github.io/Silinx-ISE/** (the latest release; the development version of main is at
+  https://pmnmalo.github.io/Silinx-ISE/dev/, and its files, the app zip included, in the pre-release
+  [Development build](https://github.com/pmnmalo/Silinx-ISE/releases/tag/dev)). Nothing to install.
+  The site synthesizes, places, routes and writes the bitstream (below), and programs the board's FPGA,
+  or its Platform Flash PROM so that the design starts at power-up, over USB (WebUSB: Chrome or Edge on
+  a computer, Chrome on an Android tablet). Projects are kept in the browser, or (Chrome / Edge) in a
+  folder on the disk with *File ▸ Open Workspace Folder…*, in the full application's project format.
+  **`Silinx-ISE.html`** from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)
+  is the same page in one file, to keep or open offline (its synthesis tools come from the site the
+  first time; programming the board needs the site's address). For a course page (Moodle…), link the site's address as a URL: an HTML file uploaded to
   Moodle does not work (Moodle's filtering of uploaded HTML files removes its scripts).
-- **Also synthesize and program boards:** install [Node.js](https://nodejs.org) (LTS), download
-  **`silinx-ise-<version>.zip`**, unzip it and double-click **`Start Silinx-ISE.bat`** (Windows),
-  **`Start Silinx-ISE.command`** (macOS) or **`start-silinx-ise.sh`** (Linux). Your browser opens
-  Silinx; projects are folders in `Silinx-projects` in your user folder.
 - **Synthesis and bitstreams need no Xilinx tool** for the **Basys2-100 / 250 and Nexys2-500 / 1200**:
   the *Silinx toolchain (experimental, no ISE)*, the default mode, synthesizes (Yosys), places,
-  routes and writes the bitstream itself. For the other boards (and the ISE-only processes:
-  simulation models of the implementation, power, …) use **Xilinx ISE 14.7** (free WebPACK): build
+  routes and writes the bitstream itself, in the browser or locally.
+- **Or run Silinx locally, with Node.js (an alternative):** install [Node.js](https://nodejs.org)
+  (LTS), download **`silinx-ise-<version>.zip`** from the
+  [latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest), unzip it and double-click
+  **`Start Silinx-ISE.bat`** (Windows), **`Start Silinx-ISE.command`** (macOS) or
+  **`start-silinx-ise.sh`** (Linux). Your browser opens Silinx; projects are folders in
+  `Silinx-projects` in your user folder. The same Silinx, running on your computer: it synthesizes
+  offline, programs boards with the installed tools too (openFPGALoader, xc3sprog, Digilent Adept,
+  ISE iMPACT, adepttool) and from any browser, and runs **Xilinx ISE 14.7** (free WebPACK) for the
+  other boards and the ISE-only processes (simulation models of the implementation, power, …): build
   your own Docker image with **`silinx-ise-docker-kit-<version>.zip`** (see
   [below](#synthesis-and-bitstreams-xilinx-ise-147)) and choose an ISE mode in *Toolchain Settings*.
 
@@ -236,10 +251,11 @@ In short, from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releas
 
 The site (and `Silinx-ISE.html`) runs in Safari on an iPad (WebKit) and in a tablet's browser: the HDL
 editors and the drawings, simulation, and the Silinx toolchain (synthesis, place and route, the
-`.bit`). What is different from a computer:
+`.bit`), and in Chrome on an Android tablet board programming too. What is different from a computer:
 
-- **No board programming**: WebUSB exists only in desktop Chrome / Edge. Generate the `.bit` on the
-  tablet, then program the board from a computer.
+- **Board programming: Chrome on Android, not an iPad.** Chrome on an Android tablet has WebUSB: it
+  programs the board as on a computer (checked on a Samsung tablet). Safari on an iPad has no WebUSB: generate the `.bit` there, then program the board from a
+  computer or an Android tablet.
 - **No workspace folder on the disk**: the projects are kept in the browser's storage, which iPadOS
   may clear after some weeks without use. Keep a copy with *File ▸ Export Silinx ISE Project (.zip)…*.
 - **Less memory per tab**: a large design may fail in synthesis or implementation.
@@ -307,7 +323,7 @@ in Firefox and WebKit.
 ### Standalone edition (a single HTML file)
 
 ```bash
-npm run build:standalone    # writes dist/Silinx-ISE.html (~2.5 MB)
+npm run build:standalone    # writes dist/Silinx-ISE.html (~5 MB)
 ```
 
 One file, no server: open it in a browser or share it. It includes the editor, schematics, ASM
@@ -325,10 +341,16 @@ needs the full application (`npm start`).
 
 ## Synthesis and bitstreams (Xilinx ISE 14.7)
 
-Implementation uses the ISE 14.7 command-line tools (WebPACK edition: free, with a free license).
+Implementation uses the Silinx toolchain by default (below), or the ISE 14.7 command-line tools
+(WebPACK edition: free, with a free license).
 
-**Without ISE (Silinx toolchain, experimental):** *Synthesize - Yosys (open)* synthesizes any
-design in the browser (Yosys compiled to WebAssembly). For the **Basys2-100 and Basys2-250
+**Without ISE (Silinx toolchain, experimental):** the synthesis (*Synthesize - Yosys*, with Silinx as
+the project's synthesis tool; *Synthesize - Yosys (open)* in a project that synthesizes with XST)
+synthesizes any design with Yosys compiled to WebAssembly, in parallel Web Workers. Its *Optimization
+Effort* (Process Properties) Normal, the default, maps the design once (fast); High also tries the
+mappings for speed and keeps the fastest. Implement Design and Generate Programming File do not
+synthesize again while the synthesis is up to date (the design's sources, top, device and effort
+unchanged). For the **Basys2-100 and Basys2-250
 (XC3S100E / XC3S250E-CP132) and the Nexys2-500 and Nexys2-1200 (XC3S500E / XC3S1200E-FG320)**
 Silinx also places, routes and writes the bitstream itself: the device descriptions ship with
 Silinx, and the bitstreams it writes for the tested designs are byte-identical to ISE's. It is the
@@ -391,8 +413,10 @@ mount is needed for command-line builds. Without ISE, the implementation process
 
 ## Programming the board
 
-Programming loads the `.bit` into the FPGA's configuration SRAM (volatile). Supported tools:
-Digilent Adept (`djtgcfg`), ISE iMPACT, xc3sprog, openFPGALoader and **adepttool**.
+Programming loads the `.bit` into the FPGA's configuration SRAM (volatile). In the browser it goes
+over USB (WebUSB: Chrome or Edge on a computer, Chrome on an Android tablet), with no tool; running
+Silinx locally, the supported tools are Digilent Adept (`djtgcfg`), ISE iMPACT, xc3sprog,
+openFPGALoader and **adepttool**.
 
 **Basys2 on macOS**: Digilent Adept is not available for macOS; use *adepttool* (open source,
 the Basys2's on-board USB), which Silinx uses automatically when `djtgcfg` is not installed:
@@ -413,12 +437,14 @@ On the **iMPACT** page, select the PROM in the JTAG chain (Basys2: XCF02S) for *
 *Reload FPGA from PROM*. The image is `build/<top>_prom.bit`, generated with `StartUpClk:CCLK` by
 *Generate Programming File*. To boot from flash at power-up, set the mode jumper to **ROM**
 (Basys2: JP3). Uses `scripts/xcf_prog.py` (adepttool) over the board's USB; the browser edition does
-the same over WebUSB (`core/xcf.js`, Chrome / Edge), its backup downloaded as `prom-<date>.bin`.
+the same over WebUSB (`core/xcf.js`, Chrome / Edge, Chrome on Android), its backup downloaded as `prom-<date>.bin`.
 
 ## Layout
 
 ```
-core/       VHDL/Verilog parsers, elaborator, simulator, schematics, ASM, UCF, zip (browser + Node)
+core/       VHDL/Verilog parsers, elaborator, simulator, schematics, ASM, UCF, zip (browser + Node);
+            core/fpga: the Silinx toolchain (pack, place, route, timing, bitstream); adept.js / xcf.js:
+            the board and its Platform Flash programmed over WebUSB
 server/     HTTP server, projects, ISE flow, programmers, boards/devices, .xise
 web/        Project Navigator UI (modern and ISE-like, web/css/modern.css): editor, ISim, schematics, ASM, pin planner, iMPACT
 docker/ise/ builder kit for the private Xilinx ISE 14.7 Docker image
@@ -429,9 +455,11 @@ examples/   example projects for the Basys2 / Nexys2 (the Silinx toolchain's dev
             blinky (VHDL + Verilog, an ASM chart),
             pong (a game for two, Verilog), stopwatch (VHDL, block RAM and multipliers), clock (Verilog, set
             with the buttons); each with a self-checking testbench
-docs/       IR.md (parser intermediate representation), PROJECT.md (project model and API),
-            OPEN-TOOLCHAIN.md (how the open Spartan-3E toolchain is developed)
-research/   s3e-bitstream: experiments towards an open toolchain for the Spartan-3E (Basys2)
+docs/       GETTING-STARTED.md / COMECAR.md (step-by-step guides), IR.md (parser intermediate
+            representation), PROJECT.md (project model and API), OPEN-TOOLCHAIN.md (how the open
+            Spartan-3E toolchain is developed), QUALITY.md (the Silinx toolchain against ISE)
+research/   the Silinx toolchain's research: s3e-bitstream (the bit database it ships), s3e-route
+            (the command-line flow, device descriptions), s3e-place, s3e-device, synth-quality
 test/       node:test suites
 ```
 
@@ -458,6 +486,7 @@ to users over a network, must make their source code available under the same li
 designs, and the HDL Silinx generates for them, are yours: the licence does not cover them.
 
 Silinx includes open-source components under their own licences: CodeMirror (MIT), Express and
-its dependencies (MIT, ISC, BSD-3-Clause) and elkjs (EPL-2.0). Their licence texts are in
+its dependencies (MIT, ISC, BSD-3-Clause), Yosys (YoWASP, ISC), a port of adepttool (MIT) and elkjs
+(EPL-2.0). Their licence texts are in
 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md), generated with `node scripts/third-party.mjs`
 (run it again after changing the dependencies; the tests check it is up to date).
