@@ -188,6 +188,21 @@ export function compileProject() {
       if (m) S.viewElsewhere[f] = { module: r.module, lang: r.lang, file: m.archFile || m.file, lost: r.lost || null };
     }
   }
+  // the linked drawings that cannot generate their HDL file (errors: a project opened with one, #303), each
+  // text once (an edit in its editor says it as it syncs)
+  let lazyMods = null;
+  for (const [f, t] of Object.entries(S.viewTexts || {})) {
+    if (S.staleSeen?.get(f) === t) continue;
+    let m;
+    try { m = JSON.parse(t); } catch { continue; }
+    if (!m.generatedFile || !hdlInProject(m.generatedFile)) continue;
+    (S.staleSeen ||= new Map()).set(f, t);
+    if (!lazyMods) { try { lazyMods = modulesFromLibrary(compile(srcs), { sources: Object.fromEntries(srcs.map(s => [s.path, s.text])) }); } catch { lazyMods = {}; } }
+    let r = null;
+    try { r = viewHdl(f, t, { modules: lazyMods, linked: () => false }); } catch { /* not a drawing */ }
+    if (r?.errors?.length) staleHdl(m.generatedFile, f, `it has errors: ${r.errors.map(e => e.replace(`${f}: `, '')).join('; ')}`);
+    else if (r) freshHdl(m.generatedFile);
+  }
   // (in S.sources too, so that every compile of the project (simulation, checks, RTL views) has them)
   S.sources = [...S.sources.filter(s => !s.view), ...S.viewSources];
   S.lib = compile([...srcs, ...S.viewSources]);
@@ -863,7 +878,12 @@ async function checkSyntaxInner(mod, sim, id) {
   for (const s of srcs) log(`${s.lang === 'vhdl' ? 'Parsing VHDL' : 'Analyzing Verilog'} file "${s.path}" into library work`);
   const lib = compile(withPrimitives(srcs));
   const design = elaborate(lib, mod);
-  const diags = diagsFor(lib, design, designDiags(lib, design));   // + design checks (core/lint.js)
+  // (an HDL file its drawing could not generate again, #303: an error of the file, the drawing's errors in it)
+  const stale = srcs.filter(s => S.staleHdl?.[s.path]).map(s => {
+    const { from, why } = S.staleHdl[s.path];
+    return { severity: 'error', file: s.path, line: 1, col: 1, tool: 'Silinx', message: `${s.path} is not up to date: ${from} cannot generate it, ${why}. Fix ${from} (its HDL is then generated again).` };
+  });
+  const diags = diagsFor(lib, design, [...designDiags(lib, design), ...stale]);   // + design checks (core/lint.js)
   setDiagnostics(diags);
   const ne = diags.filter(d => d.severity === 'error').length, nw = diags.length - ne;
   for (const d of diags) log(`${sevWord(d)}:${d.tool || 'HDLCompiler'} - "${d.file}" Line ${d.line}: ${d.message}`, d.severity === 'error' ? 'err' : 'warn', { diag: false });
@@ -2005,15 +2025,22 @@ export async function openAsm(path) {
 }
 
 // ---- ASM chart <-> HDL synchronization
+// The HDL files a drawing could not generate again (it has errors, #303): S.staleHdl[file] = { from, why }.
+// Check Syntax (and so the simulation and the implementation) stops on them: they no longer say what the
+// drawing does (a schematic net with two drivers, its HDL as it was before)
+function staleHdl(target, from, why) { (S.staleHdl ||= {})[target] = { from, why }; }
+function freshHdl(target) { if (S.staleHdl) delete S.staleHdl[target]; }
+
 async function syncHdlFromAsm(asmPath, model) {
   const target = model.generatedFile;
   if (!target || !S.fileTree.includes(target)) return;
   if (await drawnHdlLanguage(asmPath, model)) return;
   const { generate, validate } = await import('/core/asm.js');
   const errs = (validate(model) || []).filter(x => x.severity === 'error');
-  if (errs.length) { status(`${target.split('/').pop()} not updated: the chart has ${errs.length} error(s)`); return; }
+  if (errs.length) { staleHdl(target, asmPath, `the ASM chart has errors: ${errs.map(x => x.message).join('; ')}`); status(`${target.split('/').pop()} not updated: the chart has ${errs.length} error(s)`); return; }
   let g;
-  try { g = generate(model, /\.v$/i.test(target) ? 'verilog' : 'vhdl'); } catch (e) { status(`${target} not updated: ${e.message}`); return; }
+  try { g = generate(model, /\.v$/i.test(target) ? 'verilog' : 'vhdl'); } catch (e) { staleHdl(target, asmPath, e.message); status(`${target} not updated: ${e.message}`); return; }
+  freshHdl(target);
   const cur = S.sources.find(x => x.path === target)?.text;
   if (cur === g.code) return;
   S.syncing = true;
@@ -2140,10 +2167,11 @@ async function syncHdlFromTt(ttPath, model) {
   if (errs.length) {
     const why = `the truth table has errors: ${errs.map(x => x.message).join('; ')}`;
     if (S.outOfSync[target] !== why) log(`WARNING: ${target} not updated: ${why}`, 'warn');
-    S.outOfSync[target] = why; refreshSyncBanner(target); refreshTtLink(ttPath);
+    S.outOfSync[target] = why; staleHdl(target, ttPath, why); refreshSyncBanner(target); refreshTtLink(ttPath);
     return;
   }
   const g = generateTableHdl(m, /\.v$/i.test(target) ? 'verilog' : 'vhdl', { source: ttPath.split('/').pop() });
+  freshHdl(target);
   if (S.outOfSync[target]) { delete S.outOfSync[target]; refreshSyncBanner(target); refreshTtLink(ttPath); }
   const cur = S.sources.find(x => x.path === target)?.text;
   if (cur === g.code) return;
@@ -2321,10 +2349,11 @@ async function syncHdlFromFsm(fsmPath, model) {
   if (errs.length) {
     const why = `the state diagram has errors: ${errs.map(x => x.message).join('; ')}`;
     if (S.outOfSync[target] !== why) log(`WARNING: ${target} not updated: ${why}`, 'warn');
-    S.outOfSync[target] = why; refreshSyncBanner(target); refreshFsmLink(fsmPath);
+    S.outOfSync[target] = why; staleHdl(target, fsmPath, why); refreshSyncBanner(target); refreshFsmLink(fsmPath);
     return;
   }
   const g = generateFsm(m, /\.v$/i.test(target) ? 'verilog' : 'vhdl', { source: fsmPath.split('/').pop() });
+  freshHdl(target);
   // back in sync once the HDL is written (not before: the link would say so while the file is old)
   const inSync = () => { if (S.outOfSync[target]) { delete S.outOfSync[target]; refreshSyncBanner(target); refreshFsmLink(fsmPath); } };
   const cur = S.sources.find(x => x.path === target)?.text;
@@ -2494,7 +2523,8 @@ async function syncHdlFromPetri(path, m) {
   if (await drawnHdlLanguage(path, m)) return;
   const { generatePetri } = await import('/core/petri.js');
   let g;
-  try { g = generatePetri(m, m.lang, { source: path.split('/').pop() }); } catch { return; }   // (errors: shown in the editor)
+  try { g = generatePetri(m, m.lang, { source: path.split('/').pop() }); } catch (e) { staleHdl(m.generatedFile, path, `the Petri net has errors: ${e.message}`); return; }   // (errors: shown in the editor)
+  freshHdl(m.generatedFile);
   if (S.sources.find(x => x.path === m.generatedFile)?.text === g.code) return;
   await api.writeFile(S.project.name, m.generatedFile, g.code);
   const src = S.sources.find(x => x.path === m.generatedFile); if (src) src.text = g.code;
@@ -2793,12 +2823,13 @@ async function syncHdlFromSchematic(schPath, doc) {
     // show it where the user works: the schematic's Check panel, the HDL editor's banner, the console
     const why = errs.map(x => x.message).join('; ');
     if (S.outOfSync[target] !== why) log(`WARNING: ${target} not updated: the schematic ${schPath} has ${errs.length} error(s): ${why}`, 'warn');
-    S.outOfSync[target] = why;
+    S.outOfSync[target] = why; staleHdl(target, schPath, `the schematic has errors: ${why}`);
     findDoc(`sch:${schPath}`)?.schEditor?.check();
     refreshSyncBanner(target);
     status(`${target.split('/').pop()} not updated: ${why}`);
     return;
   }
+  freshHdl(target);
   if (S.outOfSync[target]) { delete S.outOfSync[target]; refreshSyncBanner(target); }
   const cur = S.sources.find(x => x.path === target)?.text;
   if (cur === g.code) return;
@@ -3262,7 +3293,7 @@ async function openImpact() {
 // ------------------------------------------------------------------ project lifecycle
 // per-project UI state (cleared when another project is opened or the project is closed)
 function resetProjectState() {
-  S.status = {}; S.sel = null; S.selKey = null; S.selProc = null; S.diags = []; S.outOfSync = {}; S.ucfText = null; S.hdlClash = {}; S.hdlClashWarned = new Set();
+  S.status = {}; S.sel = null; S.selKey = null; S.selProc = null; S.diags = []; S.outOfSync = {}; S.staleHdl = {}; S.staleSeen = new Map(); S.ucfText = null; S.hdlClash = {}; S.hdlClashWarned = new Set();
   renderDiagnostics();
 }
 function blockedByRun(what) {

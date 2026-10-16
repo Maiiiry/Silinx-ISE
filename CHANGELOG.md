@@ -7,6 +7,10 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **No simulation of an HDL file its drawing can no longer generate:** a schematic (or a state diagram,
+  a truth table, an ASM chart, a Petri net) with errors, for instance a net with two drivers, left its
+  HDL file as it was, and Check Syntax, the simulation and the implementation ran on that old file with
+  no warning; they now stop on it and say why.
 - **Clear clears everything:** the console's Clear also empties the Warnings and Errors tabs.
 - **I/O markers rotated and mirrored:** in the schematic editor, Rotate (Ctrl+R) and Mirror (Ctrl+M)
   now turn the I/O markers too, so a marker can sit on a vertical wire or face the other way.
@@ -20,6 +24,16 @@ In short:
 
 In detail:
 
+- **An HDL file its drawing cannot generate (#303):** a drawing with errors is not written into its HDL
+  file (the console, the HDL editor's banner and the drawing's Check panel said so), but Check Syntax,
+  Simulate Behavioral Model and Implement Design read that file as it was: a schematic whose output net
+  had two constants on it simulated with one of them, no warning, no X. The application now keeps the
+  HDL files their drawing could not generate again (in the editors as they sync, and for every linked
+  drawing when the project is compiled, so also after opening it), and Check Syntax reports each as an
+  error of the file (`… is not up to date: <drawing> cannot generate it, <its errors>. Fix <drawing>`),
+  which stops the simulation and the implementation; once the drawing is fixed and its HDL generated
+  again, they run. (Two drivers in hand-written HDL: Check Syntax's multiple-drivers warning, as
+  before.)
 - **The console's Clear (#302):** it emptied the Console only; it now empties the Warnings and Errors
   tabs and their counts too (the editors' marks stay, checked again at the next edit).
 - **Multiplexers, demultiplexers, decoders (#301):** M4_1's select was a 2-bit bus pin S, DEMUX1_4 /
