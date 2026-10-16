@@ -390,7 +390,7 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   const rtl = await viewerTexts(page);
   assert.deepEqual(rtl.kinds, ['wire', 'sym:module', 'sym:slice', 'sym:and2b1', 'sym:hdlblock', 'port', 'label']);
   assert.deepEqual(rtl.untranslated, []);
-  for (const s of ['Propriedades', '<--Todos os Símbolos-->', '@Inversor', '@Porta AND de 2 entradas (bit a bit quando Largura > 1)', 'Abrir top.vhd', 'Fio · rede clk', "Rede 'clk', 1 bit",
+  for (const s of ['Propriedades', '<--Todos os Símbolos-->', '@Inversor', '@Porta AND de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)', 'Abrir top.vhd', 'Fio · rede clk', "Rede 'clk', 1 bit",
     'Módulo prescaler', 'Parâmetros', 'vazio = valor por omissão do módulo', 'Pinos (3)', 'Índice do MSB', 'Marcador de E/S', 'Bidirecional', 'Nome de Rede',
     'um por linha: nome[largura] (acrescente "clock" para um pino de relógio)', 'nome[largura]', 'Verificar Esquemático: 0 erro(s), 0 aviso(s)', 'Nenhum erro ou aviso encontrado.'])
     assert.ok(rtl.pt.has(s), `${s}: ${[...rtl.pt].join(' | ')}`);
