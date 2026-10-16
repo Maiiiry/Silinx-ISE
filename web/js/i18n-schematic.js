@@ -9,7 +9,6 @@ export const SCH_PT = {
   'Inverter': 'Inversor',
   '2:1 multiplexer (O = S0 ? D1 : D0)': 'Multiplexador 2:1 (O = S0 ? D1 : D0)',
   'Adder S = A + B (+ CI), optional carry out': 'Somador S = A + B (+ CI), transporte de saída opcional',
-  'Subtractor D = A - B': 'Subtrator D = A - B',
   'Comparator O = A <op> B': 'Comparador O = A <op> B',
   'Constant value (decimal, 0x.. hex or 0b.. binary)': 'Valor constante (decimal, 0x.. hexadecimal ou 0b.. binário)',
   'Logic 1 (all bits)': '1 lógico (todos os bits)', 'Logic 0 (all bits)': '0 lógico (todos os bits)',
@@ -19,7 +18,8 @@ export const SCH_PT = {
   'Instance of a project module/entity': 'Instância de um módulo/entidade do projeto',
   'Box with explicit pins carrying HDL statements emitted verbatim': 'Caixa com pinos explícitos e instruções HDL copiadas tal e qual',
   // parameters of the symbols (as in the Symbol Info datasheets, core/symdocs.js) and their options
-  'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)',
+  'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)', 'Pins per bit (A0.., B0.., D0..)': 'Um pino por bit (A0.., B0.., D0..)', 'Borrow in (BI)': 'Empréstimo de entrada (BI)', 'Borrow out (BO)': 'Empréstimo de saída (BO)',
+  'Subtractor D = A - B (- BI), optional borrow out': 'Subtrator D = A - B (- BI), empréstimo de saída opcional',
   'Carry in': 'Transporte de entrada (carry in)', 'Carry out': 'Transporte de saída (carry out)', 'Operation': 'Operação', 'Signed': 'Com sinal',
   'Clock enable': 'Habilitação do relógio', 'Reset/INIT value': 'Valor de reset/INIT', 'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB',
   'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',

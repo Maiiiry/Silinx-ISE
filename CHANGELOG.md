@@ -7,6 +7,7 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **SUB with borrows:** the subtractor has a borrow in BI, a borrow out BO and Pins per bit, as ADD.
 - **COMP and CNT with a pin per bit,** as ADD; the palette's category I/O is now General.
 - **Flip-flops, one entry each:** the palette lists FD, FT and FJK; their clock enable, clear, preset, reset
   and set are options in the symbol's properties (FD with CE and CLR is FDCE); REG is gone (a flip-flop's
@@ -36,6 +37,11 @@ In short:
 
 In detail:
 
+- **SUB: borrow in / out, pins per bit (#322):** the subtractor's options *Borrow in (BI)* (D = A − B −
+  BI), *Borrow out (BO)* (1 when the unsigned difference is negative, A < B + BI: the BO of one stage into
+  the BI of the next chains subtractors) and *Pins per bit (A0.., B0.., D0..)* (a box SUB<w>), as ADD's
+  carries and pins (#304). Datasheet (EN / PT), HDL (one difference in w + 1 bits, its top bit the
+  borrow), live simulation and ISE export / import (`xl_sub<w>[_bi][_bo][_bits]`) follow.
 - **COMP and CNT: Pins per bit (#319):** the comparator's option *Pins per bit (A0.., B0..)* (a box named
   COMP<w> and its relation, COMP4 ≥) and the counter's *Pins per bit (Q0..)*, as ADD's (#304): the same
   function, their HDL made of the bits (VHDL `std_logic_vector'(A2 & A1 & A0)`, Verilog `{A2, A1, A0}`; the

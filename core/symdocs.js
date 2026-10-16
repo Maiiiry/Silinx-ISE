@@ -76,7 +76,7 @@ const PARAM_PT = {
   'Width': 'Largura', 'INIT': 'INIT', 'Select bits': 'Bits de seleção', 'Address bits': 'Bits de endereço',
   'Enable input E': 'Entrada de habilitação E', 'Select as a bus (S)': 'Seleção em barramento (S)', 'Bus pins (A, D)': 'Pinos em barramento (A, D)', 'Output bits': 'Bits de saída',
   'Type': 'Tipo', 'Bus pins (I, A)': 'Pinos em barramento (I, A)', 'Carry in': 'Transporte de entrada (carry in)',
-  'Carry out': 'Transporte de saída (carry out)', 'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)', 'Operation': 'Operação', 'Signed': 'Com sinal', 'Value': 'Valor',
+  'Carry out': 'Transporte de saída (carry out)', 'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)', 'Pins per bit (A0.., B0.., D0..)': 'Um pino por bit (A0.., B0.., D0..)', 'Borrow in (BI)': 'Empréstimo de entrada (BI)', 'Borrow out (BO)': 'Empréstimo de saída (BO)', 'Operation': 'Operação', 'Signed': 'Com sinal', 'Value': 'Valor',
   'Clock enable': 'Habilitação do relógio', 'Reset': 'Reset', 'Reset/INIT value': 'Valor de reset/INIT', 'Direction': 'Sentido',
   'Enable input': 'Entrada de habilitação', 'One pin per bit (I0.., O0..)': 'Um pino por bit (I0.., O0..)',
   'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB', 'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',
@@ -311,8 +311,15 @@ function describe(type, p, tx, preset) {
       if (p.bits && W > 1) t.push(tx(`Its bits are pins of their own (as the Xilinx ADD${W === 4 ? '4' : W}): A${W - 1} … A0, B${W - 1} … B0 and S${W - 1} … S0, the index the weight of the bit (2^i).`, `Os bits são pinos próprios (como o Xilinx ADD${W === 4 ? '4' : W}): A${W - 1} … A0, B${W - 1} … B0 e S${W - 1} … S0, o índice o peso do bit (2^i).`));
       return { text: t, formula: `${p.cout ? '{CO, S}' : 'S'} = A + B${p.cin ? ' + CI' : ''}${p.cout ? '' : ` mod 2^${W}`}` };
     }
-    case 'sub': return { text: [tx(`SUB is a ${W}-bit subtractor: D = A − B modulo 2^${W}, computed in two's complement as A + B' + 1. Read as signed (two's complement) numbers the result is the signed difference; read as unsigned, a negative difference wraps around (e.g. 3 − 5 = ${(3 - 5 + 2 ** W) % 2 ** W} in ${W} bits, which is −2 in two's complement).`,
-      `SUB é um subtrator de ${W} bits: D = A − B módulo 2^${W}, calculado em complemento para dois como A + B' + 1. Lido como números com sinal (complemento para dois) o resultado é a diferença com sinal; lido sem sinal, uma diferença negativa dá a volta (p. ex. 3 − 5 = ${(3 - 5 + 2 ** W) % 2 ** W} em ${W} bits, que é −2 em complemento para dois).`)], formula: `D = A − B mod 2^${W}` };
+    case 'sub': {
+      const t = [tx(`SUB is a ${W}-bit subtractor: D = A − B modulo 2^${W}, computed in two's complement as A + B' + 1. Read as signed (two's complement) numbers the result is the signed difference; read as unsigned, a negative difference wraps around (e.g. 3 − 5 = ${(3 - 5 + 2 ** W) % 2 ** W} in ${W} bits, which is −2 in two's complement).`,
+      `SUB é um subtrator de ${W} bits: D = A − B módulo 2^${W}, calculado em complemento para dois como A + B' + 1. Lido como números com sinal (complemento para dois) o resultado é a diferença com sinal; lido sem sinal, uma diferença negativa dá a volta (p. ex. 3 − 5 = ${(3 - 5 + 2 ** W) % 2 ** W} em ${W} bits, que é −2 em complemento para dois).`)];
+      // (#322: the borrows, a pin per bit)
+      if (p.bin) t.push(tx('The borrow in BI subtracts 1 more (D = A − B − BI): it chains subtractors for wider words, the BO of one stage into the BI of the next.', 'O empréstimo de entrada BI subtrai mais 1 (D = A − B − BI): encadeia subtratores para palavras maiores, o BO de um andar no BI do seguinte.'));
+      if (p.bout) t.push(tx(`The borrow out BO is 1 when the unsigned difference is negative, i.e. A < B${p.bin ? ' + BI' : ''} (the subtraction needed a borrow out of bit ${W - 1}).`, `O empréstimo de saída BO é 1 quando a diferença sem sinal é negativa, i.e. A < B${p.bin ? ' + BI' : ''} (a subtração precisou de um empréstimo para fora do bit ${W - 1}).`));
+      if (p.bits && W > 1) t.push(tx(`Its bits are pins of their own: A${W - 1} … A0, B${W - 1} … B0 and D${W - 1} … D0, the index the weight of the bit (2^i).`, `Os bits são pinos próprios: A${W - 1} … A0, B${W - 1} … B0 e D${W - 1} … D0, o índice o peso do bit (2^i).`));
+      return { text: t, formula: `${p.bout ? '{BO, D}' : 'D'} = A − B${p.bin ? ' − BI' : ''}${p.bout ? '' : ` mod 2^${W}`}` };
+    }
     case 'compare': {
       const sym = { eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' }[p.op] || '=';
       return { text: [tx(`COMP compares two ${W}-bit numbers A and B and outputs O = 1 when the relation chosen in Operation holds (here A ${sym} B), else 0. With Signed the numbers are two's complement (e.g. 1111 = −1 < 0001); otherwise they are unsigned (1111 = 15 > 0001). Comparators decide in data paths: end of count, thresholds, sorting, the conditions of a state machine.`,
@@ -418,7 +425,16 @@ function pinFunc(type, p, pin, tx) {
     }
     return { A: tx('First operand', 'Primeiro operando'), B: tx('Second operand', 'Segundo operando'), CI: tx('Carry in: adds 1 to the sum', 'Transporte de entrada: soma 1 ao resultado'),
       S: tx('Sum A + B (+ CI), modulo 2^Width', 'Soma A + B (+ CI), módulo 2^Largura'), CO: tx('Carry out of the most significant bit: 1 when the unsigned sum does not fit in Width bits', 'Transporte de saída do bit mais significativo: 1 quando a soma sem sinal não cabe em Largura bits') }[n];
-    case 'sub': return { A: tx('Minuend', 'Aditivo (minuendo)'), B: tx('Subtrahend', 'Subtrativo (subtraendo)'), D: tx('Difference A − B, modulo 2^Width (two\'s complement)', 'Diferença A − B, módulo 2^Largura (complemento para dois)') }[n];
+    case 'sub': if (/^[ABD]\d+$/.test(n)) {
+      // (#322: a pin per bit)
+      const b = +n.slice(1), wt = 2 ** b;
+      return n[0] === 'A' ? tx(`Bit ${b} of the minuend A (weight ${wt})`, `Bit ${b} do aditivo A (peso ${wt})`)
+        : n[0] === 'B' ? tx(`Bit ${b} of the subtrahend B (weight ${wt})`, `Bit ${b} do subtrativo B (peso ${wt})`)
+          : tx(`Bit ${b} of the difference D = A − B${p.bin ? ' − BI' : ''} (weight ${wt})`, `Bit ${b} da diferença D = A − B${p.bin ? ' − BI' : ''} (peso ${wt})`);
+    }
+    if (n === 'BI') return tx('Borrow in: subtracts 1 more from the difference', 'Empréstimo de entrada: subtrai mais 1 à diferença');
+    if (n === 'BO') return tx('Borrow out: 1 when the unsigned difference is negative (A < B + BI)', 'Empréstimo de saída: 1 quando a diferença sem sinal é negativa (A < B + BI)');
+    return { A: tx('Minuend', 'Aditivo (minuendo)'), B: tx('Subtrahend', 'Subtrativo (subtraendo)'), D: tx('Difference A − B, modulo 2^Width (two\'s complement)', 'Diferença A − B, módulo 2^Largura (complemento para dois)') }[n];
     case 'compare': {
       const sym = { eq: '=', ne: '≠', lt: '<', le: '≤', gt: '>', ge: '≥' }[p.op] || '=';
       // (a pin per bit, #319)
@@ -479,11 +495,14 @@ function paramMeaning(type, d, p, tx) {
     case 'selBus': return tx('Draws the select bits as one bus pin S instead of one pin per bit (S1, S0…; same function), as a symbol drawn before the pins per bit', 'Desenha os bits de seleção como um único pino em barramento S em vez de um pino por bit (S1, S0…; mesma função), como um símbolo desenhado antes dos pinos por bit')
     case 'bus': return tx('Draws the multi-bit pins as one bus pin instead of one pin per bit (same function)', 'Desenha os pinos de vários bits como um único pino em barramento em vez de um pino por bit (mesma função)');
     case 'enable': return tx('E: enable active high (BUFE, O = I when E = 1); T: three-state control active low (BUFT, O = I when T = 0)', 'E: habilitação ativa a 1 (BUFE, O = I quando E = 1); T: controlo de três estados ativo a 0 (BUFT, O = I quando T = 0)');
-    case 'bits': if (type === 'compare') return tx('With Width > 1: one pin per bit (A0.., B0..) instead of the bus pins A and B (same function)', 'Com Largura > 1: um pino por bit (A0.., B0..) em vez dos pinos em barramento A e B (mesma função)');
+    case 'bits': if (type === 'sub') return tx('With Width > 1: one pin per bit (A0.., B0.., D0..) instead of the bus pins A, B and D (same function)', 'Com Largura > 1: um pino por bit (A0.., B0.., D0..) em vez dos pinos em barramento A, B e D (mesma função)');
+      if (type === 'compare') return tx('With Width > 1: one pin per bit (A0.., B0..) instead of the bus pins A and B (same function)', 'Com Largura > 1: um pino por bit (A0.., B0..) em vez dos pinos em barramento A e B (mesma função)');
       if (type === 'counter') return tx('With Width > 1: one pin per bit of the count (Q0..) instead of the bus pin Q (same function)', 'Com Largura > 1: um pino por bit da contagem (Q0..) em vez do pino em barramento Q (mesma função)');
       if (type === 'add') return tx('With Width > 1: one pin per bit (A0.., B0.., S0.., as the Xilinx ADD4) instead of the bus pins A, B and S (same function)', 'Com Largura > 1: um pino por bit (A0.., B0.., S0.., como o Xilinx ADD4) em vez dos pinos em barramento A, B e S (mesma função)');
       return tx('With Width > 1: one pin per bit (I0.., O0.., as BUFE4 / BUFT4) instead of the bus pins I and O (same function)', 'Com Largura > 1: um pino por bit (I0.., O0.., como BUFE4 / BUFT4) em vez dos pinos em barramento I e O (mesma função)');
     case 'mode': return tx('priority: the highest active input wins; one-hot: OR of the indexes (inputs assumed one-hot)', 'prioridade: ganha a entrada ativa de maior índice; one-hot: OR dos índices (assume entradas one-hot)');
+    case 'bin': return tx('Adds the borrow in input BI', 'Acrescenta a entrada de empréstimo BI');
+    case 'bout': return tx('Adds the borrow out output BO', 'Acrescenta a saída de empréstimo BO');
     case 'cin': return tx('Adds the carry in input CI', 'Acrescenta a entrada de transporte CI');
     case 'cout': return tx('Adds the carry out output CO', 'Acrescenta a saída de transporte CO');
     case 'op': return tx('Relation tested: eq (=), ne (≠), lt (<), le (≤), gt (>), ge (≥)', 'Relação testada: eq (=), ne (≠), lt (<), le (≤), gt (>), ge (≥)');

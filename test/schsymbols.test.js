@@ -29,6 +29,15 @@ function model(type, p, inp, def) {
     for (let i = 0; i < 1 << k; i++) out[`O${i}`] = en && i === sel ? inp.D : 0n;
     return out;
   }
+  if (type === 'sub') {
+    // (#322) the borrows, bus pins or a pin per bit
+    const w = +p.width || 1, per = p.bits && w > 1;
+    const op = g => { if (!per) return inp[g]; let v = 0n; for (let i = 0; i < w; i++) v |= inp[`${g}${i}`] << BigInt(i); return v; };
+    const d = op('A') - op('B') - (p.bin ? inp.BI : 0n);
+    const out = { BO: d < 0n ? 1n : 0n }, m = d & mask(w);
+    if (per) for (let i = 0; i < w; i++) out[`D${i}`] = (m >> BigInt(i)) & 1n; else out.D = m;
+    return out;
+  }
   if (type === 'compare') {
     // (#319) the operands on bus pins or a pin per bit
     const w = +p.width || 1, per = p.bits && w > 1;
@@ -468,4 +477,16 @@ test('#319 counters with a pin per bit: Q0..Q3 count as the bus Q; pins; VHDL an
     const want = dir === 'up' ? '0101' : '1011';
     assert.ok(r.sim.log.some(l => l.text.replace(/'/g, '').includes(`q=${want}`)), `${lang} ${dir}: ${r.sim.log.map(l => l.text).join(' | ')}\n${g.code}`);
   }
+});
+
+// #322: the subtractor's borrows (BI, BO) and its pins per bit, against D = A - B - BI, BO = A < B + BI
+test('#322 subtractors: borrow in / out, a pin per bit; pins', () => {
+  const pw = c => symbolDef(c).pins.map(p => p.name);
+  assert.deepEqual(pw({ type: 'sub', params: { width: 4, bin: true, bout: true } }), ['A', 'B', 'BI', 'D', 'BO']);
+  assert.deepEqual(pw({ type: 'sub', params: { width: 2, bin: true, bout: true, bits: true } }), ['A0', 'A1', 'B0', 'B1', 'BI', 'D0', 'D1', 'BO']);
+  assert.equal(symbolDef({ type: 'sub', params: { width: 4, bits: true } }).title, 'SUB4');
+  const cases = [];
+  for (const width of [1, 2, 4]) for (const br of [false, true]) cases.push({ type: 'sub', params: { width, bin: br, bout: br, bits: width > 1 } });
+  cases.push({ type: 'sub', params: { width: 4, bin: true, bout: true } }, { type: 'sub', params: { width: 1, bin: true, bout: true } }, { type: 'sub', params: { width: 4, bout: true } });
+  check('subs322', cases, 64);
 });
