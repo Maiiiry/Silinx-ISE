@@ -881,16 +881,16 @@ test('#304 adders with a pin per bit: exported as xl_add<w>…_bits, imported ba
 
 // #328: XOR2B1 / XOR2B2 are Silinx symbols (no such Xilinx one): exported as xl_ symbols, imported back as them;
 // AND2B1 stays the library symbol
-test('export -> import: XOR2B1 / XOR2B2 as Silinx symbols, AND2B1 the library one (#328)', () => {
+test('export -> import: XOR2B1 / XOR2B2 / XNOR2B1 as Silinx symbols, AND2B1 the library one (#328, #337)', () => {
   const doc = newDoc('xb', 'vhdl');
-  for (const [i, type] of ['xor2b1', 'xor2b2', 'and2b1'].entries()) doc.symbols.push({ id: `S${i + 1}`, type, x: 200, y: 100 + 120 * i, rot: 0, mirror: false, name: `U${i + 1}`, params: { width: 1 } });
+  for (const [i, type] of ['xor2b1', 'xor2b2', 'and2b1', 'xnor2b1'].entries()) doc.symbols.push({ id: `S${i + 1}`, type, x: 200, y: 100 + 120 * i, rot: 0, mirror: false, name: `U${i + 1}`, params: { width: 1 } });
   const ex = exportIseSch(doc, {});
   const nlx = parseXml(ex.xml).children.find(c => c.tag === 'drawing').children.find(c => c.tag === 'netlist');
-  assert.deepEqual(nlx.children.filter(c => c.tag === 'block').map(c => c.attrs.symbolname), ['xl_xor2b1_w1', 'xl_xor2b2_w1', 'and2b1']);
-  assert.deepEqual(ex.files.filter(x => x.kind === 'sym').map(x => x.path).sort(), ['xl_xor2b1_w1.sym', 'xl_xor2b2_w1.sym']);
+  assert.deepEqual(nlx.children.filter(c => c.tag === 'block').map(c => c.attrs.symbolname), ['xl_xor2b1_w1', 'xl_xor2b2_w1', 'and2b1', 'xl_xnor2b1_w1']);
+  assert.deepEqual(ex.files.filter(x => x.kind === 'sym').map(x => x.path).sort(), ['xl_xnor2b1_w1.sym', 'xl_xor2b1_w1.sym', 'xl_xor2b2_w1.sym']);
   assert.deepEqual(decodeXlSymbol('xl_xor2b2_w1'), { type: 'xor2b2', params: { width: 1 } });
   const symbols = Object.fromEntries(ex.files.filter(x => x.kind === 'sym').map(x => [x.path, x.text]));
   const b = importIseSch(ex.xml, { name: 'xb', symbols });
-  assert.deepEqual(b.doc.symbols.map(s => s.type), ['xor2b1', 'xor2b2', 'and2b1']);
+  assert.deepEqual(b.doc.symbols.map(s => s.type), ['xor2b1', 'xor2b2', 'and2b1', 'xnor2b1']);
   assert.deepEqual(b.warnings, []);
 });

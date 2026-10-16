@@ -310,7 +310,7 @@ const PT_PATTERNS = [
   // schematic symbols: inverted-input gates (AND2B1...), decoders, encoders, demultiplexers
   [/^(AND|OR|NAND|NOR|XOR|XNOR) gate of 2, 3 or 4 inputs, its inputs and inverted inputs in its properties \(bitwise when Width > 1\)$/,
     'Porta $1 de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)'],
-  [/^(\d)-input (AND|OR|NAND|NOR|XOR) gate with (input I0|inputs I0 and I1|inputs I0\.\.I\d) inverted \(bitwise when Width > 1\)$/,
+  [/^(\d)-input (AND|OR|NAND|NOR|XOR|XNOR) gate with (input I0|inputs I0 and I1|inputs I0\.\.I\d) inverted \(bitwise when Width > 1\)$/,
     (m, n, g, which) => `Porta ${g} de ${n} entradas com ${PT_GATE_INV[which] || `as entradas ${which.slice(7)}`} invertida${which === 'input I0' ? '' : 's'} (bit a bit quando Largura > 1)`],
   [/^(\d+):(\d+) decoder with enable \(Xilinx (\w+)\): D<A> = E, the other outputs 0$/, 'Descodificador $1:$2 com habilitação (Xilinx $3): D<A> = E, as outras saídas a 0'],
   [/^(\d+):(\d+) priority encoder: A = index of the highest input at 1 \(0 when none\), V = some input is 1$/, 'Codificador com prioridade $1:$2: A = índice da entrada a 1 de maior índice (0 se nenhuma), V = alguma entrada a 1'],

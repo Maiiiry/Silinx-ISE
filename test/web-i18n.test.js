@@ -90,6 +90,7 @@ test('gates (#328): the Inverted inputs field and the XOR2B1 / XOR2B2 descriptio
   const { SYMBOLS } = await import('../core/schdoc.js');
   assert.equal(t('Inverted inputs'), 'Entradas invertidas');
   assert.equal(t(SYMBOLS.xor2b1.description), 'Porta XOR de 2 entradas com a entrada I0 invertida (bit a bit quando Largura > 1)');
+  assert.equal(t(SYMBOLS.xnor3b2.description), 'Porta XNOR de 3 entradas com as entradas I0 e I1 invertidas (bit a bit quando Largura > 1)');
   // #330: the palette's one entry a gate
   assert.equal(t(SYMBOLS.and2.paletteDescription), 'Porta AND de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)');
   for (const g of ['or2', 'nand2', 'nor2', 'xor2', 'xnor2']) assert.match(t(SYMBOLS[g].paletteDescription), /^Porta X?N?(AND|OR) de 2, 3 ou 4 entradas/);
