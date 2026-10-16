@@ -5,7 +5,7 @@
 //            schematicFromHdl, modulesFromLibrary } from '/core/schdoc.js';
 //
 // Document format (version 1, all coordinates in sheet pixels on a GRID = 10 px grid):
-//   { version: 1, name, lang: 'vhdl'|'verilog', sheet: { w, h },
+//   { version: 2, name, lang: 'vhdl'|'verilog', sheet: { w, h },
 //     symbols: [{ id, type, x, y, rot: 0|90|180|270, mirror: bool, name, params: {...}, hdl?: string }],
 //     wires:   [{ id, points: [{x,y},...], bus?: bool }],
 //     labels:  [{ id, x, y, net }],          // net name attached to the wire point (x,y)
@@ -26,7 +26,8 @@ import { clocksOf } from './schematic.js';
 import { elaborate } from './elaborate.js';
 
 export const GRID = 10;
-export const DOC_VERSION = 1;
+// 2 (#301): the M4_1's and DEMUX's select bits on pins of their own (a document of version 1 keeps its bus S)
+export const DOC_VERSION = 2;
 
 const snap = v => Math.round(v / GRID) * GRID;
 const r10 = v => Math.ceil(v / GRID) * GRID;
@@ -79,22 +80,39 @@ SYMBOLS.tbuf = {
     { title: 'BUFT16', params: { width: 16, enable: 'T', bits: false }, description: '16-bit tri-state buffer (bus pins), active-low enable T: O = I when T = 0, Z when T = 1' },
   ],
 };
-SYMBOLS.mux2 = { category: 'Mux', title: 'M2_1', description: '2:1 multiplexer (O = S0 ? D1 : D0)', params: [P_WIDTH] };
-SYMBOLS.mux4 = { category: 'Mux', title: 'M4_1', description: '4:1 multiplexer (2-bit select S)', params: [P_WIDTH] };
+// the multiplexers' and demultiplexers' enable E (#301: as the Xilinx M2_1E / M4_1E, the outputs 0 when
+// E = 0), and their select bits as pins of their own (S1 S0, as the Xilinx M4_1E and the decoders' A1 A0);
+// selBus: the select as one bus pin S, as a M4_1 / DEMUX saved before #301 has it (normalizeDoc)
+const P_EN = { name: 'en', label: 'Enable input E', kind: 'bool', default: false };
+const P_SELBUS = { name: 'selBus', label: 'Select as a bus (S)', kind: 'bool', default: false };
+SYMBOLS.mux2 = { category: 'Mux', title: 'M2_1', description: '2:1 multiplexer (O = S0 ? D1 : D0)', params: [P_WIDTH, P_EN],
+  presets: [{ title: 'M2_1E', params: { en: true }, description: '2:1 multiplexer with enable (Xilinx M2_1E): O = S0 ? D1 : D0 when E = 1, 0 when E = 0' }] };
+SYMBOLS.mux4 = { category: 'Mux', title: 'M4_1', description: '4:1 multiplexer (select S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS],
+  presets: [{ title: 'M4_1E', params: { en: true }, description: '4:1 multiplexer with enable (Xilinx M4_1E): O = D<S1 S0> when E = 1, 0 when E = 0' }] };
+SYMBOLS.mux8 = { category: 'Mux', title: 'M8_1', description: '8:1 multiplexer (select S2 S1 S0)', params: [P_WIDTH, P_EN],
+  presets: [{ title: 'M8_1E', params: { en: true }, description: '8:1 multiplexer with enable (Xilinx M8_1E): O = D<S2 S1 S0> when E = 1, 0 when E = 0' }] };
+SYMBOLS.mux16 = { category: 'Mux', title: 'M16_1', description: '16:1 multiplexer (select S3 S2 S1 S0)', params: [P_WIDTH, P_EN],
+  presets: [{ title: 'M16_1E', params: { en: true }, description: '16:1 multiplexer with enable (Xilinx M16_1E): O = D<S3 S2 S1 S0> when E = 1, 0 when E = 0' }] };
+// the multiplexers' number of data inputs
+export const MUX_INPUTS = { mux2: 2, mux4: 4, mux8: 8, mux16: 16 };
 SYMBOLS.demux = {
   category: 'Mux', title: 'DEMUX', description: '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)',
-  params: [P_WIDTH, { name: 'sel', label: 'Select bits', kind: 'int', default: 1, min: 1, max: 4 }],
-  presets: [1, 2, 3].map(k => ({ title: `DEMUX1_${1 << k}`, params: { sel: k }, description: `1:${1 << k} demultiplexer (${k === 1 ? 'select S0' : `${k}-bit select S`}): O<S> = D, the other outputs 0 (bitwise when Width > 1)` })),
+  params: [P_WIDTH, { name: 'sel', label: 'Select bits', kind: 'int', default: 1, min: 1, max: 4 }, P_EN, P_SELBUS],
+  presets: [false, true].flatMap(en => [1, 2, 3, 4].map(k => {
+    const sel = [...Array(k).keys()].reverse().map(j => `S${j}`).join(' ');
+    return { title: `DEMUX1_${1 << k}${en ? 'E' : ''}`, params: { sel: k, en }, description: `1:${1 << k} demultiplexer${en ? ' with enable' : ''} (select ${sel}): O<S> = D${en ? ' when E = 1' : ''}, the other outputs 0${en ? ' (all 0 when E = 0)' : ''} (bitwise when Width > 1)` };
+  })),
 };
+// (listed in the palette by their presets only, #301: the generic DECODER / ENCODER are the same symbols)
 SYMBOLS.decoder = {
-  category: 'Decoders/Encoders', title: 'DECODER', description: 'n:2^n binary decoder (one-hot outputs, all 0 when E = 0; like Xilinx D2_4E / D3_8E / D4_16E)',
+  category: 'Decoders/Encoders', title: 'DECODER', presetsOnly: true, description: 'n:2^n binary decoder (one-hot outputs, all 0 when E = 0; like Xilinx D2_4E / D3_8E / D4_16E)',
   params: [{ name: 'n', label: 'Address bits', kind: 'int', default: 2, min: 1, max: 5 },
     { name: 'en', label: 'Enable input E', kind: 'bool', default: true },
     { name: 'bus', label: 'Bus pins (A, D)', kind: 'bool', default: false }],
   presets: [2, 3, 4].map(k => ({ title: `D${k}_${1 << k}E`, params: { n: k }, description: `${k}:${1 << k} decoder with enable (Xilinx D${k}_${1 << k}E): D<A> = E, the other outputs 0` })),
 };
 SYMBOLS.encoder = {
-  category: 'Decoders/Encoders', title: 'ENCODER', description: '2^n:n binary encoder: priority (highest active input wins) or one-hot (OR of the inputs); V = some input is 1',
+  category: 'Decoders/Encoders', title: 'ENCODER', presetsOnly: true, description: '2^n:n binary encoder: priority (highest active input wins) or one-hot (OR of the inputs); V = some input is 1',
   params: [{ name: 'n', label: 'Output bits', kind: 'int', default: 2, min: 2, max: 5 },
     { name: 'mode', label: 'Type', kind: 'select', options: ['priority', 'one-hot'], default: 'priority' },
     { name: 'bus', label: 'Bus pins (I, A)', kind: 'bool', default: false }],
@@ -247,21 +265,31 @@ export function symbolDef(sym, modules = {}) {
     const title = `BUF${en}${W > 1 ? W : ''}`;
     return { w: 60, h: 20 + 20 * n, shape: 'tbuf', activeLow: en === 'T', rows: n, title, body: { x: 20, y: 20, w: 26, h: 20 * n }, pins };
   }
-  if (t === 'mux2' || t === 'mux4') {
-    const n = t === 'mux2' ? 2 : 4, bh = n * 20 + 20, h = bh + 10;
+  // the select pins at the bottom, the most significant on the left, 20 apart around cx (#301): one bus pin S
+  // (selBus) or S<k-1> … S0
+  const selPins = (k, cx, h) => (k === 1 ? [{ name: 'S0', dir: 'in', x: cx, y: h, side: 'S', width: 1 }]
+    : p.selBus ? [{ name: 'S', dir: 'in', x: cx, y: h, side: 'S', width: k }]
+      : [...Array(k).keys()].map(i => ({ name: `S${k - 1 - i}`, dir: 'in', x: cx - 10 * (k - 1) + 20 * i, y: h, side: 'S', width: 1 })));
+  if (MUX_INPUTS[t]) {
+    // (the enable E: a data row more, on the left below the data inputs, as the Xilinx M2_1E … M16_1E)
+    // (the body wider with the select bits, 20 apart: 40 for M2_1 / M4_1, 60 for M8_1, 80 for M16_1)
+    const n = MUX_INPUTS[t], k = Math.log2(n), en = !!p.en, bh = n * 20 + 20 + (en ? 20 : 0), h = bh + 10, bw = Math.max(40, 20 * k);
     const pins = [];
     for (let i = 0; i < n; i++) pins.push({ name: `D${i}`, dir: 'in', x: 0, y: 20 + 20 * i, side: 'W', width: W });
-    pins.push(n === 2 ? { name: 'S0', dir: 'in', x: 40, y: h, side: 'S', width: 1 } : { name: 'S', dir: 'in', x: 40, y: h, side: 'S', width: 2 });
-    pins.push({ name: 'O', dir: 'out', x: 80, y: bh / 2, side: 'E', width: W });
-    return { w: 80, h, shape: 'mux', body: { x: 20, y: 0, w: 40, h: bh }, pins };
+    if (en) pins.push({ name: 'E', dir: 'in', x: 0, y: 20 + 20 * n, side: 'W', width: 1 });
+    pins.push(...selPins(k, 20 + bw / 2, h));
+    pins.push({ name: 'O', dir: 'out', x: bw + 40, y: bh / 2, side: 'E', width: W });
+    return { w: bw + 40, h, shape: 'mux', title: `M${n}_1${en ? 'E' : ''}`, body: { x: 20, y: 0, w: bw, h: bh }, pins };
   }
   if (t === 'demux') {
     // trapezoid wide on the output side (mirror of M2_1/M4_1), 70 px wide so that the pin names fit inside
-    const k = Math.max(1, Math.min(4, int(p.sel, 1))), n = 1 << k, bh = n * 20 + 40, h = bh + 10;   // a free row at the bottom for S
+    // (the enable E: on the left, below D, the body a row taller)
+    const k = Math.max(1, Math.min(4, int(p.sel, 1))), n = 1 << k, bh = n * 20 + 40 + (p.en ? 20 : 0), h = bh + 10;   // a free row at the bottom for S
     const pins = [{ name: 'D', dir: 'in', x: 0, y: bh / 2, side: 'W', width: W }];
-    pins.push(k === 1 ? { name: 'S0', dir: 'in', x: 60, y: h, side: 'S', width: 1 } : { name: 'S', dir: 'in', x: 60, y: h, side: 'S', width: k });
+    if (p.en) pins.push({ name: 'E', dir: 'in', x: 0, y: bh - 30, side: 'W', width: 1 });
+    pins.push(...selPins(k, 60, h));
     for (let i = 0; i < n; i++) pins.push({ name: `O${i}`, dir: 'out', x: 110, y: 20 + 20 * i, side: 'E', width: W });
-    return { w: 110, h, shape: 'demux', title: `DEMUX1_${n}`, body: { x: 20, y: 0, w: 70, h: bh }, pins };
+    return { w: 110, h, shape: 'demux', title: `DEMUX1_${n}${p.en ? 'E' : ''}`, body: { x: 20, y: 0, w: 70, h: bh }, pins };
   }
   if (t === 'decoder' || t === 'encoder') {
     const west = [], east = [];
@@ -414,6 +442,7 @@ export function newDoc(name = 'schematic', lang = 'vhdl') {
 
 export function normalizeDoc(d) {
   const doc = d && typeof d === 'object' ? clone(d) : newDoc();
+  const before301 = !(+doc.version >= 2);
   doc.version = DOC_VERSION;
   doc.name = String(doc.name || 'schematic');
   doc.lang = doc.lang === 'verilog' ? 'verilog' : 'vhdl';
@@ -426,6 +455,8 @@ export function normalizeDoc(d) {
   };
   doc.symbols = (Array.isArray(doc.symbols) ? doc.symbols : []).filter(s => s && s.type).map(s => {
     const o = { id: s.id, type: String(s.type), x: snap(+s.x || 0), y: snap(+s.y || 0), rot: ROT_OK.has(+s.rot) ? +s.rot : 0, mirror: !!s.mirror, name: String(s.name ?? ''), params: { ...defaultParams(s.type), ...(s.params || {}) } };
+    // a M4_1 / DEMUX saved before its select bits had pins of their own (#301): its bus pin S kept
+    if (before301 && (o.type === 'mux4' || o.type === 'demux') && !('selBus' in (s.params || {}))) o.params.selBus = true;
     if (s.hdl != null) o.hdl = String(s.hdl);
     uid(o, 'S'); return o;
   });
@@ -1038,7 +1069,7 @@ function declaredIn(decls, lang) {
 // The schematic's blocks that the HDL keeps as blocks (#175): an entity / module of their own per kind,
 // instanced where the schematic has them (as ISE does with its library macros); the gates,
 // constants and bus pieces stay expressions, the project modules and HDL blocks what they are.
-const BLOCK_TYPES = new Set(['mux2', 'mux4', 'demux', 'decoder', 'encoder', 'add', 'sub', 'compare', 'register', 'counter']);   // (tri-state buffers: on shared buses, like the gates)
+const BLOCK_TYPES = new Set(['mux2', 'mux4', 'mux8', 'mux16', 'demux', 'decoder', 'encoder', 'add', 'sub', 'compare', 'register', 'counter']);   // (tri-state buffers: on shared buses, like the gates)
 export const isBlockSymbol = t => BLOCK_TYPES.has(t) || !!SYMBOLS[t]?.ff;
 // the first line of a block's own entity: what it was drawn as, so that the HDL turns back into it
 export const BLOCK_MARK = 'silinx-symbol';
@@ -1046,7 +1077,11 @@ export function blockMarkOf(text, name) {
   const re = new RegExp(`(?:--|//) ${BLOCK_MARK} ([a-z0-9_]+) (\\{[^\\n]*\\})[^\\n]*\\n(?:[^\\n]*\\n){0,8}?\\s*(?:entity|module)\\s+${name}\\b`, 'i');
   const m = re.exec(String(text || ''));
   if (!m || !SYMBOLS[m[1]]) return null;
-  try { return { type: m[1], params: JSON.parse(m[2]) }; } catch { return null; }
+  let params;
+  try { params = JSON.parse(m[2]); } catch { return null; }
+  // (a M4_1 / DEMUX of an HDL file generated before #301: its bus pin S)
+  if ((m[1] === 'mux4' || m[1] === 'demux') && params && !('selBus' in params)) params.selBus = true;
+  return { type: m[1], params };
 }
 
 /**
@@ -1299,36 +1334,73 @@ export function generateHdl(docIn, opts = {}) {
       continue;
     }
     switch (s.type) {
-      case 'mux2': case 'mux4': {
+      case 'mux2': case 'mux4': case 'mux8': case 'mux16': {
         const o = OUTN(s, 'O'); if (!o) continue;
-        if (s.type === 'mux2') {
+        if (s.type === 'mux2' && !p.en) {
           const d0 = INN(s, 'D0'), d1 = INN(s, 'D1'), sel = INN(s, 'S0');
           if (ci) body.push(`${o} <= ${d1} when ${sel} = '1' else ${d0};`); else assign(o, `${sel} ? ${d1} : ${d0}`);
-        } else {
+        } else if (s.type === 'mux4' && !p.en && p.selBus) {
           const d = [0, 1, 2, 3].map(i => INN(s, `D${i}`)), sel = INN(s, 'S', true);
           if (ci) body.push(`with ${sel} select ${o} <=\n  ${d[0]} when "00",\n  ${d[1]} when "01",\n  ${d[2]} when "10",\n  ${d[3]} when others;`);
           else assign(o, `${sel}[1] ? (${sel}[0] ? ${d[3]} : ${d[2]}) : (${sel}[0] ? ${d[1]} : ${d[0]})`);
+        } else {
+          // the select bits (S1 S0, or the bus S's) and the enable E (#301): O = D<S> when E = 1, else 0
+          const n = MUX_INPUTS[s.type], k = Math.log2(n);
+          const d = [...Array(n).keys()].map(i => INN(s, `D${i}`));
+          const bus = k > 1 && p.selBus ? INN(s, 'S', true) : null;
+          const sel = [...Array(k).keys()].map(j => (bus ? (ci ? `${bus}(${j})` : `${bus}[${j}]`) : INN(s, `S${j}`, true)));
+          const e = p.en ? INN(s, 'E', true) : null, z = zero(PW(s, 'O'));
+          if (ci) {
+            const when = i => [...(e ? [`${e} = '1'`] : []), ...sel.map((x, j) => `${x} = '${(i >> j) & 1}'`).reverse()].join(' and ');
+            const arms = d.map((x, i) => (i === n - 1 && !e ? x : `${x} when ${when(i)}`));
+            body.push(`${o} <= ${arms.join(' else\n  ')}${e ? ` else\n  ${z}` : ''};`);
+          } else {
+            const tree = (j, base) => (j < 0 ? d[base] : `${sel[j]} ? ${wrap(tree(j - 1, base | (1 << j)), j)} : ${wrap(tree(j - 1, base), j)}`);
+            const wrap = (x, j) => (j > 0 ? `(${x})` : x);
+            assign(o, e ? `${e} ? (${tree(k - 1, 0)}) : ${z}` : tree(k - 1, 0));
+          }
         }
         break;
       }
       case 'demux': {
         const k = Math.max(1, Math.min(4, int(p.sel, 1))), n = 1 << k;
         const dn = inNet(s, 'D');
-        const sp = k === 1 ? 'S0' : 'S', sn = inNet(s, sp);
         if (!dn) warnOpen(s, 'D');
-        if (!sn) warnOpen(s, sp);
-        const d = dn ? (outRead.get(dn) || netName(dn)) : null, sel = sn ? (outRead.get(sn) || netName(sn)) : null;
+        const d = dn ? (outRead.get(dn) || netName(dn)) : null;
+        const net = pin => { const x = inNet(s, pin); if (!x) warnOpen(s, pin); return x ? (outRead.get(x) || netName(x)) : null; };
+        // the enable E (#301): an unconnected one is 0, the outputs then 0
+        const e = p.en ? net('E') : true;
         const lines = [];
-        for (let i = 0; i < n; i++) {
-          const o = OUTN(s, `O${i}`); if (!o) continue;
-          const w = PW(s, `O${i}`);
-          const z = zero(w);
-          let rhs;
-          if (!d || (!sel && i)) rhs = z;
-          else if (!sel) rhs = d;
-          else if (ci) rhs = `${d} when ${sel} = ${k === 1 ? `'${i}'` : `"${i.toString(2).padStart(k, '0')}"`} else ${z}`;
-          else rhs = `(${sel} == ${k}'d${i}) ? ${d} : ${z}`;
-          lines.push(ci ? `${o} <= ${rhs};` : `assign ${o} = ${rhs};`);
+        if (k === 1 || p.selBus) {
+          const sp = k === 1 ? 'S0' : 'S', sel = net(sp);
+          const on = e === true ? '' : ci ? `${e} = '1' and ` : `${e} && `;
+          for (let i = 0; i < n; i++) {
+            const o = OUTN(s, `O${i}`); if (!o) continue;
+            const w = PW(s, `O${i}`);
+            const z = zero(w);
+            let rhs;
+            if (!d || (!sel && i) || e === null) rhs = z;
+            else if (!sel) rhs = e === true ? d : ci ? `${d} when ${e} = '1' else ${z}` : `${e} ? ${d} : ${z}`;
+            else if (ci) rhs = `${d} when ${on}${sel} = ${k === 1 ? `'${i}'` : `"${i.toString(2).padStart(k, '0')}"`} else ${z}`;
+            else rhs = `(${on}${sel} == ${k}'d${i}) ? ${d} : ${z}`;
+            lines.push(ci ? `${o} <= ${rhs};` : `assign ${o} = ${rhs};`);
+          }
+        } else {
+          // the select bits S<k-1> … S0 on pins of their own (#301); an unconnected one is 0
+          const sel = [...Array(k).keys()].map(j => net(`S${j}`));
+          for (let i = 0; i < n; i++) {
+            const o = OUTN(s, `O${i}`); if (!o) continue;
+            const z = zero(PW(s, `O${i}`));
+            const terms = e === true ? [] : [ci ? `${e} = '1'` : e];
+            let never = !d || e === null;
+            for (let j = k - 1; j >= 0; j--) {
+              const bit = (i >> j) & 1;
+              if (sel[j] === null) { if (bit) never = true; continue; }
+              terms.push(ci ? `${sel[j]} = '${bit}'` : bit ? sel[j] : `!${sel[j]}`);
+            }
+            const rhs = never ? z : !terms.length ? d : ci ? `${d} when ${terms.join(' and ')} else ${z}` : `(${terms.join(' && ')}) ? ${d} : ${z}`;
+            lines.push(ci ? `${o} <= ${rhs};` : `assign ${o} = ${rhs};`);
+          }
         }
         if (lines.length) body.push([cmt, ...lines].join('\n'));
         break;

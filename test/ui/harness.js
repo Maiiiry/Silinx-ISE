@@ -234,7 +234,12 @@ class PageBase {
     if (typeof target === 'object' && target && 'x' in target) return target;
     const r = await this.eval((sel, idx, txt) => {
       let els = [...document.querySelectorAll(sel)];
-      if (txt != null) els = els.filter((e) => e.getClientRects().length && ((e.textContent || '').trim() === txt || (e.textContent || '').trim().startsWith(txt)));
+      // (the elements whose text is txt, else those whose text starts with it: M4_1 is not M4_1E)
+      if (txt != null) {
+        const vis = els.filter((e) => e.getClientRects().length), t = (e) => (e.textContent || '').trim();
+        const exact = vis.filter((e) => t(e) === txt);
+        els = exact.length ? exact : vis.filter((e) => t(e).startsWith(txt));
+      }
       const e = els[idx];
       if (!e || !e.getClientRects().length) return null;
       e.scrollIntoView({ block: 'nearest', inline: 'nearest' });

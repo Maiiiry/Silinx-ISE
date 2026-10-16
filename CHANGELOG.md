@@ -13,11 +13,27 @@ In short:
 - **Getting started, as Silinx is now:** the documentation presents the site as the way to design,
   simulate, synthesize and program the board, and the Node.js application as an alternative way of
   running Silinx locally; Chrome on an Android tablet programs the board too.
+- **Multiplexers and demultiplexers as in the Xilinx library:** the schematic editor's M4_1 has its
+  select bits S1 and S0 as pins of their own (the DEMUX too); every multiplexer and demultiplexer comes
+  with an enable E (M2_1E, M4_1E, DEMUX1_4E…); new M8_1, M16_1 and DEMUX1_16 (with and without E); the
+  palette no longer lists DECODER and ENCODER, the same symbols as D2_4E… and PENC / ENC.
 
 In detail:
 
 - **The console's Clear (#302):** it emptied the Console only; it now empties the Warnings and Errors
   tabs and their counts too (the editors' marks stay, checked again at the next edit).
+- **Multiplexers, demultiplexers, decoders (#301):** M4_1's select was a 2-bit bus pin S, DEMUX1_4 /
+  DEMUX1_8's too; they now have a pin per select bit, the most significant on the left (S1 S0, S2 S1
+  S0), as the Xilinx M4_1E and the decoders' A1 A0. The multiplexers and demultiplexers have an enable
+  input E (parameter *Enable input E*; the outputs 0 when E = 0), listed as presets of their own:
+  M2_1E, M4_1E, M8_1E, M16_1E, DEMUX1_2E … DEMUX1_16E. New M8_1 and M16_1 (their body wider with the
+  select bits) and DEMUX1_16. DECODER and ENCODER are no longer in the palette (their presets D2_4E /
+  D3_8E / D4_16E and PENC / ENC are). A schematic saved before (document version 1), or an HDL file
+  generated before, keeps its M4_1 / DEMUX with the bus pin S (parameter *Select as a bus (S)*), its
+  HDL the same; the schematic documents are now version 2. Their datasheets (Symbol Info), truth
+  tables, HDL, live simulation and the ISE import / export follow: M2_1E, M4_1E and M8_1E are written
+  and read as the Xilinx library symbols, the others as Silinx symbols whose names say their enable and
+  their select pins. The UI tests' clicks on a text now prefer the element with exactly that text.
 
 - **The documentation's Getting started (#299):** README's Getting started and the step-by-step
   guides (`docs/GETTING-STARTED.md`, `docs/COMECAR.md`) said the site was for designing and

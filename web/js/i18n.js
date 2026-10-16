@@ -250,7 +250,7 @@ const PT = {
   'n:2^n binary decoder (one-hot outputs, all 0 when E = 0; like Xilinx D2_4E / D3_8E / D4_16E)': 'Descodificador binário n:2^n (saídas one-hot, todas a 0 quando E = 0; como os Xilinx D2_4E / D3_8E / D4_16E)',
   '2^n:n binary encoder: priority (highest active input wins) or one-hot (OR of the inputs); V = some input is 1': 'Codificador binário 2^n:n: com prioridade (ganha a entrada ativa de maior índice) ou one-hot (OU das entradas); V = alguma entrada a 1',
   '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)': 'Desmultiplexador 1:2^n: saída O<S> = D, as outras saídas a 0 (bit a bit quando Largura > 1)',
-  'Address bits': 'Bits de endereço', 'Enable input E': 'Entrada de habilitação E', 'Bus pins (A, D)': 'Pinos em barramento (A, D)',
+  'Address bits': 'Bits de endereço', 'Enable input E': 'Entrada de habilitação E', 'Select as a bus (S)': 'Seleção em barramento (S)', 'Bus pins (A, D)': 'Pinos em barramento (A, D)',
   'Output bits': 'Bits de saída', 'Bus pins (I, A)': 'Pinos em barramento (I, A)', 'Select bits': 'Bits de seleção', 'Type': 'Tipo',
   'priority': 'prioridade',
   // tri-state buffers (BUFE / BUFT)

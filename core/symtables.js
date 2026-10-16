@@ -18,7 +18,7 @@ export const MAX_EXHAUSTIVE = 8;    // input bits simulated exhaustively (larger
 export const MAX_COMPACT = 16;      // rows of a compact table of more than MAX_FULL input bits
 const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const isSeq = type => !!SYMBOLS[type]?.ff || type === 'register' || type === 'counter';
-const bitwise = type => !!SYMBOLS[type]?.gate || ['mux2', 'mux4', 'demux', 'tbuf'].includes(type);
+const bitwise = type => !!SYMBOLS[type]?.gate || ['mux2', 'mux4', 'mux8', 'mux16', 'demux', 'tbuf'].includes(type);
 const big = n => BigInt(n);
 
 /**
@@ -51,7 +51,7 @@ export function symbolSim(type, params = {}, { modules = {}, lang = 'vhdl', hdl,
 // first for multiplexers, indexed pins of decoders / encoders / demultiplexers from the highest)
 function orderPins(type, list) {
   const out = [...list];
-  if (type === 'mux2' || type === 'mux4') out.sort((a, b) => (/^S/.test(b.pin) ? 1 : 0) - (/^S/.test(a.pin) ? 1 : 0));
+  if (/^mux\d+$/.test(type)) out.sort((a, b) => (/^S/.test(b.pin) ? 1 : 0) - (/^S/.test(a.pin) ? 1 : 0));
   if (['decoder', 'encoder', 'demux'].includes(type)) {
     // reverse each run of indexed single pins (A0 A1 A2 -> A2 A1 A0), keep the runs in place
     const res = [];
