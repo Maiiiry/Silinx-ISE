@@ -29,7 +29,7 @@ export const SCH_PT = {
   'none': 'nenhum', 'async': 'assíncrono', 'sync': 'síncrono', 'up': 'crescente', 'down': 'decrescente',
   // properties panel
   'Properties': 'Propriedades', 'Parameters': 'Parâmetros', 'empty = module default': 'vazio = valor por omissão do módulo',
-  'Names': 'Nomes', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
+  'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
   'Rotate': 'Rodar', 'Mirror': 'Espelhar', 'Wire': 'Fio', 'I/O Marker': 'Marcador de E/S', 'Net Name': 'Nome de Rede',
   'Bidirectional': 'Bidirecional', 'Auto direction': 'Direção automática',
   'optional, overrides the type derived from the width': 'opcional, substitui o tipo derivado da largura',

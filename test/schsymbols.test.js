@@ -415,3 +415,17 @@ test('#304 adders with a pin per bit: ADD1 (full adder), ADD2, ADD4, with and wi
   cases.push({ type: 'add', params: { width: 4, cin: true, cout: true } });   // the bus adder, the reference
   check('adders304', cases, 64);
 });
+
+// #315: the palette's flip-flops are FD, FT and FJK; a variant is one of them with its inputs, as the Xilinx
+// library has them; REG no longer in the palette
+test('#315 flip-flops: FD / FT / FJK in the palette, the variant of a choice of inputs (or none), REG hidden', async () => {
+  const { ffVariant, FF_INPUTS } = await import('../core/schdoc.js');
+  assert.deepEqual(Object.entries(SYMBOLS).filter(([, S]) => S.category === 'Flip-Flops' && !S.hidden).map(([t]) => t), ['fd', 'ft', 'fjk']);
+  assert.equal(SYMBOLS.register.hidden, true);
+  assert.deepEqual(FF_INPUTS.map(([q]) => q), ['ce', 'clr', 'pre', 'r', 's']);
+  const v = (t, f) => ffVariant(t, f);
+  assert.deepEqual([v('fd', {}), v('fd', { ce: true }), v('fd', { ce: true, clr: true }), v('fd', { clr: true, pre: true, ce: true }), v('fd', { r: true }), v('fd', { r: true, s: true, ce: true })],
+    ['fd', 'fde', 'fdce', 'fdcpe', 'fdr', 'fdrse']);
+  assert.deepEqual([v('fd', { clr: true, r: true }), v('ft', { r: true }), v('ft', { ce: true, r: true, s: true }), v('fjk', { ce: true, clr: true }), v('fdce', {})], [null, null, 'ftrse', 'fjkce', 'fd']);
+  assert.equal(v('and2', {}), null);
+});

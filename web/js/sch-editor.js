@@ -14,7 +14,7 @@
 
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
-  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName,
+  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -870,6 +870,17 @@ export function mountSchEditor(container, opts = {}) {
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
       el.dataset.param = p.name;
       propBody.append(field(p.label, el));
+    }
+    // a flip-flop's inputs (#315): each one makes it the Xilinx variant that has it (FD + CE + CLR = FDCE);
+    // one the library does not have with the others chosen, unavailable
+    if (S?.ff) {
+      for (const [q, label] of FF_INPUTS) {
+        const t = ffVariant(s.type, { ...S.ff, [q]: !S.ff[q] });
+        const el = chk(!!S.ff[q], () => { if (t) s.type = t; });
+        el.dataset.ff = q;
+        if (!t) el.disabled = true;
+        propBody.append(field(label, el, t ? null : 'not with the other inputs chosen (no such Xilinx flip-flop)'));
+      }
     }
     if (s.type === 'module') {
       const names = Object.keys(modules).sort();

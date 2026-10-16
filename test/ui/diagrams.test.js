@@ -289,6 +289,40 @@ uiTest('#304 schematic palette: ADD1, ADD2, ADD4; ADD4 placed with A0..A3, B0..B
   assert.deepEqual(page.dialogs, []);
 });
 
+// #315: the flip-flops FD, FT, FJK in the palette (no FDCE…, no REG); an FD's inputs in its properties make it
+// the Xilinx variant (CE + CLR: FDCE, its name drawn); an input the library does not have with the others, unavailable
+uiTest('#315 schematic flip-flops: FD / FT / FJK in the palette; CE and CLR in an FD\'s properties make it FDCE; R then unavailable', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  await makeProject(env, { name: 'SchFf', files: { 'src/ff.sch.json': JSON.stringify(newDoc('ff', 'vhdl')) }, top: '' });
+  await page.openProject('SchFf');
+  await page.eval(() => window.SilinxApp.openSch('src/ff.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/ff.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  await page.fill(`${D} .se-cat`, 'Flip-Flops');
+  const rows = await page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow`)].map((r) => r.textContent.trim()), D);
+  assert.deepEqual(rows, ['FD', 'FT', 'FJK']);
+  await page.click(`${D} .se-symrow`, { text: 'FD' });
+  const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 3 }; }, D);
+  await page.click(c);
+  await page.key('Escape');
+  const saved = async () => JSON.parse(await (await page.eval(async () => (await fetch('/api/projects/SchFf/file?path=src%2Fff.sch.json')).text())));
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchFf/file?path=src%2Fff.sch.json')).text()).symbols.length === 1, [], { what: 'FD saved' });
+  const id = (await saved()).symbols[0].id;
+  await page.click(`${D} g.sym[data-id="${id}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-ff=ce]`), [D], { what: 'its inputs' });
+  const waitType = (t) => page.waitFor(async (x) => JSON.parse(await (await fetch('/api/projects/SchFf/file?path=src%2Fff.sch.json')).text()).symbols[0].type === x, [t], { what: `the type ${t}` });
+  await page.click(`${D} [data-ff=ce]`);
+  await waitType('fde');
+  await page.waitFor((d) => document.querySelector(`${d} [data-ff=clr]`), [D], { what: 'the inputs again' });
+  await page.click(`${D} [data-ff=clr]`);
+  await waitType('fdce');
+  await page.waitFor((d) => document.querySelector(`${d} [data-ff=r]`), [D], { what: 'the inputs again' });
+  assert.deepEqual(await page.eval((d) => ['ce', 'clr', 'pre', 'r', 's'].map((q) => { const e = document.querySelector(`${d} [data-ff=${q}]`); return `${q}:${e.checked ? 1 : 0}${e.disabled ? '-' : ''}`; }), D), ['ce:1', 'clr:1', 'pre:0', 'r:0-', 's:0-']);
+  const names = await page.eval((d) => [...document.querySelectorAll(`${d} .se-svg g.sym .stype`)].map((t) => t.textContent), D);
+  assert.deepEqual(names, ['FDCE']);
+  assert.deepEqual(page.dialogs, []);
+});
+
 uiTest('ASM chart editor: add a state, a decision and a case box, connect them, its VHDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'AsmPj' });
   await page.openProject('AsmPj');

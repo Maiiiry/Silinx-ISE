@@ -168,9 +168,25 @@ for (const [k, pfx, list] of [
   const f = { ce: x.endsWith('e') && x !== '', clr: x[0] === 'c', pre: /^c?p/.test(x), r: /^r|^sr/.test(x), s: /^s|^rs/.test(x), sp: /^sr/.test(x) };
   for (const q of Object.keys(f)) if (!f[q]) delete f[q];
   SYMBOLS[pfx + x] = ffSym(pfx + x, k, f);
+  // (the palette lists FD, FT and FJK only: a variant is the basic one with its inputs chosen in the
+  // properties, #315)
+  if (x) SYMBOLS[pfx + x].hidden = true;
 }
+// the flip-flop inputs a symbol's properties offer (#315), and the variant a choice of them makes
+export const FF_INPUTS = [['ce', 'Clock enable (CE)'], ['clr', 'Asynchronous clear (CLR)'], ['pre', 'Asynchronous preset (PRE)'], ['r', 'Synchronous reset (R)'], ['s', 'Synchronous set (S)']];
+const ffKey = f => FF_INPUTS.map(([q]) => (f[q] ? q : '')).join('|');
+/** The flip-flop type of kind k (the one of `type`) with exactly the inputs `f` ({ ce, clr, pre, r, s }), or
+ *  null when the Xilinx library has none (for R and S both, the one where R wins, else the one where S does). */
+export function ffVariant(type, f) {
+  const k = SYMBOLS[type]?.ff?.k;
+  if (!k) return null;
+  const want = ffKey(f);
+  const all = Object.entries(SYMBOLS).filter(([, S]) => S.ff?.k === k && ffKey(S.ff) === want);
+  return (all.find(([, S]) => !S.ff.sp) || all[0])?.[0] || null;
+}
+// (not in the palette: a flip-flop with Width > 1 is a register, #315; kept for the schematics that have it)
 SYMBOLS.register = {
-  category: 'Flip-Flops', title: 'REG', description: 'N-bit register',
+  category: 'Flip-Flops', title: 'REG', hidden: true, description: 'N-bit register',
   params: [{ ...P_WIDTH, default: 8 }, { name: 'en', label: 'Clock enable', kind: 'bool', default: true },
     { name: 'reset', label: 'Reset', kind: 'select', options: ['none', 'async', 'sync'], default: 'async' },
     { name: 'init', label: 'Reset/INIT value', kind: 'text', default: '0' }],
