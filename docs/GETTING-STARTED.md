@@ -51,7 +51,7 @@ That's all. Things to know:
   and click **Program PROM**, with the mode jumper on ROM (Basys2: JP3).
 - **On an iPad or a tablet** (Safari, or the tablet's browser): editing, drawing, simulation and
   **Generate Programming File** work. **Chrome on an Android tablet also programs the board**, as
-  on a computer (checked on a Samsung tablet); Safari on an iPad cannot reach USB devices (program
+  on a computer (checked on a Samsung tablet; the board on the tablet's USB port); Safari on an iPad cannot reach USB devices (program
   the downloaded `.bit` from a computer or an Android tablet). The projects stay in the browser, which iPadOS may clear after some weeks
   without use: keep a copy with **File ▸ Export Silinx ISE Project (.zip)…**. A tablet has less
   memory, so a large design may fail in synthesis. The right-click menus open with a **long press**

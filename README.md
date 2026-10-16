@@ -254,7 +254,8 @@ editors and the drawings, simulation, and the Silinx toolchain (synthesis, place
 `.bit`), and in Chrome on an Android tablet board programming too. What is different from a computer:
 
 - **Board programming: Chrome on Android, not an iPad.** Chrome on an Android tablet has WebUSB: it
-  programs the board as on a computer (checked on a Samsung tablet). Safari on an iPad has no WebUSB: generate the `.bit` there, then program the board from a
+  programs the board as on a computer (checked on a Samsung tablet), the board on the tablet's USB-C
+  port (a USB-C to USB adapter if needed). Safari on an iPad has no WebUSB: generate the `.bit` there, then program the board from a
   computer or an Android tablet.
 - **No workspace folder on the disk**: the projects are kept in the browser's storage, which iPadOS
   may clear after some weeks without use. Keep a copy with *File ▸ Export Silinx ISE Project (.zip)…*.
