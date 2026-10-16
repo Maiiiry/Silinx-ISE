@@ -7,6 +7,7 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **The schematic palette's Project modules** no longer list the test benches.
 - **Gates, one entry each:** the palette lists AND, OR, NAND, NOR, XOR and XNOR; a gate's *Inputs* (2, 3, 4)
   make AND3, AND4…; XOR and XNOR have 3 and 4 inputs too.
 - **Gates, one entry each:** the palette's AND2B1 … NOR4B4 are gone; a gate's *Inverted inputs* make them, XOR2
@@ -45,6 +46,9 @@ In short:
 
 In detail:
 
+- **Project modules without the test benches (#332):** the schematic editor's palette listed every module of
+  the project under *Project modules*, the test benches too; it lists the design modules only (not a
+  Simulation-only source, nor a module without ports, which a schematic cannot connect).
 - **Gates: the number of inputs as a parameter (#330):** the Logic palette listed AND2, AND3, AND4, OR2 … NOR4;
   it lists AND, OR, NAND, NOR, XOR and XNOR (the 2-input gates), and a gate's property *Inputs* (2, 3 or 4) makes
   it AND3, AND4… (its inverted inputs kept while it has them). New XOR3, XOR4, XNOR3, XNOR4 (as the Xilinx
