@@ -103,6 +103,20 @@ test('gates (#328): the Inverted inputs field and the XOR2B1 / XOR2B2 descriptio
   assert.equal(t(SYMBOLS.xor2b2.description), 'Porta XOR de 2 entradas com as entradas I0 e I1 invertidas (bit a bit quando Largura > 1)');
 });
 
+test('ISim stimuli (#336): the bar, the dialogs, the status, the errors and Save as Test Bench are translated', () => {
+  for (const [en, pt] of [
+    ['Fill Expected Outputs', 'Preencher Saídas Esperadas'], ['Save as Test Bench…', 'Guardar como Bancada de Teste…'], ['Stimulus Timing', 'Temporização dos Estímulos'],
+    ['None (combinational)', 'Nenhum (combinatório)'], ['Test bench name:', 'Nome da bancada de teste:'],
+    ['8 cycles (clock clk, period 20 ns): 2 mismatch(es)', '8 ciclos (relógio clk, período 20 ns): 2 diferença(s)'],
+    ['16 cycles (combinational, step 10 ns): no expected outputs', '16 ciclos (combinatório, passo 10 ns): sem saídas esperadas'],
+    ['4 cycles (clock ck, period 8 ns): expected outputs OK', '4 ciclos (relógio ck, período 8 ns): saídas esperadas certas'],
+    ['Cycles: a whole number of at least 1', 'Ciclos: um número inteiro de pelo menos 1'],
+    ["'2q' is not a value (bits 0 1 Z X, h… hexadecimal or d… decimal)", "'2q' não é um valor (bits 0 1 Z X, h… hexadecimal ou d… decimal)"],
+    ["'h1F' does not fit in 4 bit(s)", "'h1F' não cabe em 4 bit(s)"],
+  ]) assert.equal(t(en), pt);
+  assert.match(t('The inputs of ctr as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step.'), /^As entradas de ctr como uma grelha de ciclos/);
+});
+
 test('tri-state buffers: the palette category, parameter labels and the descriptions of TBUF and every preset are translated', async () => {
   const { SYMBOLS } = await import('../core/schdoc.js');
   const S = SYMBOLS.tbuf;

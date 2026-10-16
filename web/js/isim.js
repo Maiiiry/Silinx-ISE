@@ -6,7 +6,9 @@
 //   const s = isim.getState(); isim.setState(s); isim.refresh(); isim.destroy();
 //
 // Extra options: initialRun (ps, run once after mounting), runAllCap (ps, default 1 ms),
-//                defaultRunTime { value, unit } (default 1 us).
+//                defaultRunTime { value, unit } (default 1 us),
+//                stimuli { model, ports: [{ name, dir, width }], onChange(model), onSaveTestbench(model) }: the
+//                inputs of the simulated module drawn on its waveforms (#336, core/stimuli.js), run at once.
 // Styles: web/css/isim.css (scoped under .isim, themed by theme.css --wave-* variables).
 // Time is in picoseconds everywhere.
 
@@ -14,6 +16,7 @@ import * as V from '/core/values.js';
 import { toVCD } from '/core/simulator.js';
 import { onPrefsChange } from './modern.js';
 import { longPressMenu } from './ui.js';
+import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, checkExpected, fillExpected, applyStimuli, stimulusPlan, parseCellValue } from '/core/stimuli.js';
 
 // ------------------------------------------------------------------------------- constants
 const ROW_H = 20;
@@ -40,6 +43,7 @@ const ICON = {
   prevEdge: S('<path d="M1 12h5V4h9" fill="none" stroke="#108010" stroke-width="1.5"/><path d="M10 8.5L4.5 11.5 10 14.5z" fill="#1d4f91"/>'),
   nextEdge: S('<path d="M1 4h9v8h5" fill="none" stroke="#108010" stroke-width="1.5"/><path d="M6 8.5l5.5 3L6 14.5z" fill="#1d4f91"/>'),
   marker: S('<path d="M8 1v14" stroke="#0090c0" stroke-width="1.6"/><path d="M8 1.5h6l-2 2.2 2 2.3H8z" fill="#00b4f0" stroke="#006a90"/>'),
+  stim: S('<path d="M1 12h3V4h4v8h3V7h4" fill="none" stroke="#2f8f3a" stroke-width="1.6"/><path d="M10.5 1.5l3 3-6.5 6.5H4v-3z" fill="#f2c94c" stroke="#8a6d1d"/>'),
   vcd: S('<rect x="2" y="2" width="12" height="12" rx="1" fill="#4a72b8" stroke="#24467e"/><rect x="4.5" y="2.5" width="7" height="4.5" fill="#fff"/><rect x="4" y="9" width="8" height="5" fill="#d9e4f5"/>'),
   radix: S('<rect x="1" y="3" width="14" height="10" rx="1.5" fill="#fff" stroke="#666"/><text x="8" y="11" font-size="7" text-anchor="middle" font-family="Arial" font-weight="bold" fill="#1d4f91">0x</text>'),
   inst: S('<rect x="3" y="3" width="10" height="10" fill="#e8f0ff" stroke="#000080"/><path d="M1 6h2M1 10h2M13 8h2" stroke="#000080"/>'),
@@ -263,7 +267,13 @@ export function mountISim(container, opts = {}) {
     forces: [], forceSeq: 1,
     running: false, breakReq: false, runTarget: 0, runStart: 0,
     lastLogLen: 0, history: [], histPos: 0,
+    // drawn stimuli (#336): editing on, the model, its mismatches
+    stim: { on: false, m: null, bad: [] },
   };
+  const stimOpt = opts.stimuli && design.top && opts.stimuli.ports?.some(p => p.dir === 'in') ? opts.stimuli : null;
+  const topSig = new Map((design.top?.ports || []).map(p => [p.name, p.sig]));
+  const stimPortOf = new Map((stimOpt?.ports || []).filter(p => topSig.has(p.name)).map(p => [topSig.get(p.name), p]));
+  if (stimOpt?.model) st.stim.m = normalizeStimuli(stimOpt.model, stimOpt.ports);
   const bitCache = new Map();
   let flat = [];
   let colors = {};
@@ -348,6 +358,20 @@ export function mountISim(container, opts = {}) {
   });
   sep();
   addBtn('vcd', 'Export waveform as VCD', () => exportVCD());
+  // the stimuli drawn on the inputs' waveforms (#336), with their bar of commands
+  const stimBar = h('div', 'isim-stimbar');
+  stimBar.hidden = true;
+  if (stimOpt) {
+    sep();
+    addBtn('stim', 'Edit Stimuli: click the waveforms of the inputs (as the HDL Bencher)', () => toggleStim());
+    stimBar.innerHTML = `<span class="isim-stim-h">Stimuli</span><button class="btn" data-stim="timing">Timing…</button><button class="btn" data-stim="fill">Fill Expected Outputs</button>`
+      + `<button class="btn" data-stim="save">Save as Test Bench…</button><button class="btn" data-stim="stop">Stop Editing</button><span class="isim-stim-st"></span>`;
+    tb.after(stimBar);
+    stimBar.querySelector('[data-stim=timing]').onclick = () => timingDialog();
+    stimBar.querySelector('[data-stim=fill]').onclick = () => fillStim();
+    stimBar.querySelector('[data-stim=save]').onclick = () => { if (st.stim.m) stimOpt.onSaveTestbench?.(JSON.parse(JSON.stringify(st.stim.m))); };
+    stimBar.querySelector('[data-stim=stop]').onclick = () => toggleStim(false);
+  }
   btns.brk.disabled = true;
 
   function runForUi() {
@@ -713,6 +737,7 @@ export function mountISim(container, opts = {}) {
       }
       drawItem(ctx, it, y, tA, Math.min(tB, sim.now));
     }
+    if (st.stim.m) drawStim(ctx, first, last);
     ctx.restore();
     // ---- markers, cursor
     for (const m of st.markers) drawVLine(ctx, m.t, colors.marker, m === st.activeMarker ? [] : [4, 3], fmtTime(m.t), false);
@@ -1058,6 +1083,7 @@ export function mountISim(container, opts = {}) {
     cw.focus();
     if (e.button !== 0) return;
     const [x, y] = localXY(e, cw);
+    if (st.stim.on && y >= RULER_H && stimClick(x, y)) return;
     const m = y < RULER_H ? markerNear(x) : null;
     if (y >= RULER_H) { const i = rowAtY(y); if (i >= 0) selectRow(i, e); }
     const move = (ev, final) => {
@@ -1475,6 +1501,175 @@ export function mountISim(container, opts = {}) {
     if (!silent) { logLine(`Force removed from ${pathOf(sig)}`, 'info'); invalidate(false); }
   }
 
+  // ---------------------------------------------------------------- drawn stimuli (#336, core/stimuli.js)
+  // Edit Stimuli on: a click on a cycle of an input changes it there and up to its next change (0 → 1 → Z → X; a
+  // bus: a value typed in), on an output its expected value (- → 0 → 1); the simulation restarts and runs the
+  // stimuli at once, the expected outputs checked (the mismatches red)
+  function toggleStim(on = !st.stim.on) {
+    st.stim.on = on;
+    stimBar.hidden = !on;
+    btns.stim?.classList.toggle('on', on);
+    layout();
+    if (on && !st.stim.m) timingDialog();
+    else invalidate(false);
+  }
+  const stimPort = (it) => (it && !it.bit && it.row.kind === 'sig' ? stimPortOf.get(it.row.sig) || null : null);
+  const portBits = (port, t) => { const sig = topSig.get(port); return sig ? V.toBin(sim.valueAt(sig, t)) : ''; };
+  function stimChanged(rerun) {
+    stimOpt.onChange?.(JSON.parse(JSON.stringify(st.stim.m)));
+    if (rerun) runStim(); else { checkStim(); invalidate(false); }
+  }
+  async function runStim() {
+    const m = st.stim.m;
+    if (!m) return;
+    const end = stimulusPlan(m).endPs;
+    api.restart(true);
+    echo(`run ${fmtTime(end)}`);
+    await enqueue(`run ${fmtTime(end)}`, () => runTo(end, 'Run'));
+    checkStim(true);
+  }
+  function checkStim(log) {
+    const m = st.stim.m;
+    if (!m) return;
+    st.stim.bad = sim.now >= stimulusPlan(m).endPs - 1 ? checkExpected(m, portBits) : [];
+    const nExp = Object.values(m.expected).reduce((n, l) => n + l.filter(b => /[01]/.test(b)).length, 0);
+    const timing = m.clock ? `clock ${m.clock}, period ${m.periodNs} ns` : `combinational, step ${m.stepNs} ns`;
+    const res = !nExp ? 'no expected outputs' : st.stim.bad.length ? `${st.stim.bad.length} mismatch(es)` : 'expected outputs OK';
+    const stEl = stimBar.querySelector('.isim-stim-st');
+    if (stEl) { stEl.textContent = `${m.cycles} cycles (${timing}): ${res}`; stEl.classList.toggle('bad', st.stim.bad.length > 0); }
+    if (log && nExp) {
+      if (!st.stim.bad.length) logLine(`Stimuli: ${m.cycles} cycles, the expected outputs match`, 'info');
+      else {
+        logLine(`Stimuli: ${st.stim.bad.length} mismatch(es) of the expected outputs`, 'warning');
+        for (const b of st.stim.bad.slice(0, 10)) logLine(`  ${b.port} at cycle ${b.k} (${fmtTime(b.k * cyclePs(m))}): expected ${b.expected}, got ${b.got}`, 'warning');
+      }
+    }
+  }
+  function fillStim() {
+    if (!st.stim.m) return;
+    fillExpected(st.stim.m, portBits);
+    logLine('Stimuli: the expected outputs filled in from the simulation', 'info');
+    stimChanged(false);
+  }
+  // a click on the waves in Edit Stimuli: true when it was on a cell of a port (edited)
+  function stimClick(x, y) {
+    const m = st.stim.m;
+    const i = rowAtY(y), p = m ? stimPort(flat[i]) : null;
+    if (!p || p.name === m.clock) return false;
+    const k = Math.floor(tOf(x) / cyclePs(m));
+    if (k < 0 || k >= m.cycles) return false;
+    selectRow(i, {});
+    const isIn = p.dir === 'in';
+    if (p.width === 1) {
+      if (isIn ? editInput(m, p.name, k) : editExpected(m, p.name, k)) stimChanged(isIn);
+    } else cellDialog(p, k, isIn);
+    return true;
+  }
+  function drawStim(ctx, first, last) {
+    const m = st.stim.m, P = cyclePs(m);
+    const k0 = Math.max(0, Math.floor(st.t0 / P)), k1 = Math.min(m.cycles - 1, Math.ceil(tOf(WW) / P));
+    const bad = new Set(st.stim.bad.map(b => `${b.port}:${b.k}`));
+    setFont(ctx, 9); ctx.textBaseline = 'top';
+    for (let i = first; i <= last; i++) {
+      const it = flat[i], p = stimPort(it);
+      if (!p) continue;
+      const y = RULER_H + i * ROW_H - st.scrollY;
+      if (st.stim.on && p.name !== m.clock) {
+        // the cycles of the grid
+        ctx.strokeStyle = colors.grid; ctx.setLineDash([2, 2]); ctx.beginPath();
+        for (let k = k0; k <= k1 + 1; k++) { const x = Math.round(xOf(k * P)) + 0.5; ctx.moveTo(x, y + 1); ctx.lineTo(x, y + ROW_H - 1); }
+        ctx.stroke(); ctx.setLineDash([]);
+      }
+      const exp = m.expected[p.name];
+      if (!exp) continue;
+      for (let k = k0; k <= k1; k++) {
+        if (!/[01]/.test(exp[k])) continue;
+        const xa = xOf(k * P), xb = xOf((k + 1) * P);
+        if (bad.has(`${p.name}:${k}`)) { ctx.fillStyle = 'rgba(230,40,40,0.35)'; ctx.fillRect(xa, y + 1, xb - xa, ROW_H - 2); }
+        ctx.fillStyle = bad.has(`${p.name}:${k}`) ? '#ff6b6b' : '#5fbf6a';
+        ctx.fillRect(xa + 1, y + ROW_H - 3, Math.max(1, xb - xa - 2), 2);
+        if (st.stim.on && xb - xa > 8 + 6 * exp[k].length) ctx.fillText(exp[k], xa + 3, y + 1);
+      }
+    }
+    ctx.textBaseline = 'middle';
+  }
+  function timingDialog() {
+    closeDialog();
+    const m = st.stim.m;
+    const clocks = stimOpt.ports.filter(p => p.dir === 'in' && p.width === 1);
+    const guess = m ? m.clock : (clocks.find(p => /^(clk|clock)/i.test(p.name))?.name || null);
+    const ov = h('div', 'isim-dlg-overlay');
+    ov.innerHTML = `
+      <div class="isim-dlg isim-stim-dlg" role="dialog">
+        <div class="isim-dlg-title">Stimulus Timing<button class="isim-dlg-x" title="Close">✕</button></div>
+        <div class="isim-dlg-body">
+          <div class="isim-dlg-hint">The inputs of ${esc(design.top.name)} as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step.</div>
+          <div class="isim-dlg-grid">
+            <label>Clock:</label><select name="clock"><option value="">None (combinational)</option>${clocks.map(p => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('')}</select>
+            <label>Clock Period (ns):</label><input name="period" value="${m?.periodNs ?? 20}">
+            <label>Time Step (ns):</label><input name="step" value="${m?.stepNs ?? 10}">
+            <label>Cycles:</label><input name="cycles" value="${m?.cycles ?? 16}">
+          </div>
+          <div class="isim-dlg-err"></div>
+        </div>
+        <div class="isim-dlg-btns"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
+      </div>`;
+    root.appendChild(ov); dlgEl = ov;
+    const q = (n) => ov.querySelector(`[name="${n}"]`);
+    q('clock').value = guess || '';
+    const sync = () => { q('period').disabled = !q('clock').value; q('step').disabled = !!q('clock').value; };
+    q('clock').onchange = sync; sync();
+    const ok = () => {
+      const num = (n, lo) => { const v = Number(q(n).value); if (!Number.isInteger(v) || v < lo) throw new Error(`${n === 'cycles' ? 'Cycles' : n === 'period' ? 'Clock Period' : 'Time Step'}: a whole number of at least ${lo}`); return v; };
+      try {
+        const o = { clock: q('clock').value || null, periodNs: num('period', 2), stepNs: num('step', 1), cycles: num('cycles', 1) };
+        st.stim.m = st.stim.m ? normalizeStimuli({ ...st.stim.m, ...o }, stimOpt.ports) : newStimuli(stimOpt.ports, o);
+        closeDialog();
+        stimChanged(true);
+      } catch (e) { ov.querySelector('.isim-dlg-err').textContent = e.message; }
+    };
+    const cancel = () => { closeDialog(); if (!st.stim.m) toggleStim(false); };
+    ov.querySelector('.isim-dlg-x').onclick = cancel;
+    ov.querySelector('[data-a=cancel]').onclick = cancel;
+    ov.querySelector('[data-a=ok]').onclick = ok;
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') cancel(); });
+    q('cycles').focus();
+  }
+  // the value of a bus from cycle k: an input's (bits 0 1 Z X, h… / d…) or an output's expected one (or -)
+  function cellDialog(p, k, isIn) {
+    closeDialog();
+    const m = st.stim.m, list = isIn ? m.inputs[p.name] : m.expected[p.name];
+    const ov = h('div', 'isim-dlg-overlay');
+    ov.innerHTML = `
+      <div class="isim-dlg isim-stim-dlg" role="dialog">
+        <div class="isim-dlg-title">${isIn ? 'Input Value' : 'Expected Value'}<button class="isim-dlg-x" title="Close">✕</button></div>
+        <div class="isim-dlg-body">
+          <div class="isim-dlg-grid">
+            <label>Signal Name:</label><input name="sig" value="${esc(p.name)}" readonly>
+            <label>From Cycle:</label><input name="k" value="${k}" readonly>
+            <label>Value:</label><input name="value" value="${esc(list[k])}">
+          </div>
+          <div class="isim-dlg-note">${isIn ? 'Bits, most significant first (0 1 Z X), h… hexadecimal or d… decimal; it holds up to the next change.' : 'Bits, most significant first (0 1, - not checked), h… hexadecimal or d… decimal; - alone: not checked.'}</div>
+          <div class="isim-dlg-err"></div>
+        </div>
+        <div class="isim-dlg-btns"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>
+      </div>`;
+    root.appendChild(ov); dlgEl = ov;
+    const inp = ov.querySelector('[name=value]');
+    const ok = () => {
+      try {
+        const bits = parseCellValue(inp.value, p.width, { expected: !isIn });
+        closeDialog();
+        if (isIn ? editInput(m, p.name, k, bits) : editExpected(m, p.name, k, bits)) stimChanged(isIn);
+      } catch (e) { ov.querySelector('.isim-dlg-err').textContent = e.message; }
+    };
+    ov.querySelector('.isim-dlg-x').onclick = closeDialog;
+    ov.querySelector('[data-a=cancel]').onclick = closeDialog;
+    ov.querySelector('[data-a=ok]').onclick = ok;
+    ov.addEventListener('keydown', (e) => { if (e.key === 'Enter') ok(); else if (e.key === 'Escape') closeDialog(); });
+    inp.focus(); inp.select();
+  }
+
   // ---------------------------------------------------------------- dialogs
   let dlgEl = null;
   function closeDialog() { if (dlgEl) { dlgEl.remove(); dlgEl = null; } }
@@ -1813,6 +2008,7 @@ export function mountISim(container, opts = {}) {
       sim.reset();
       bitCache.clear();
       for (const f of st.forces) injectForce(f);
+      if (st.stim.m) applyStimuli(sim, n => topSig.get(n) || null, st.stim.m);
       st.cursor = 0; st.t0 = 0;
       if (st.fit) applyFit();
       logLine('Simulator is doing circuit initialization process.');
@@ -1902,7 +2098,9 @@ export function mountISim(container, opts = {}) {
   logLine('Simulator is doing circuit initialization process.');
   logLine('Finished circuit initialization process.');
   requestAnimationFrame(() => layout());
-  if (opts.initialRun > 0) {
+  // (saved stimuli: run at once, after the first layout; runStim queues its run itself)
+  if (st.stim.m) setTimeout(() => { if (!destroyed) runStim(); }, 0);
+  else if (opts.initialRun > 0) {
     // run after first layout so the view can follow (a command given before it waits for it, #215)
     const s = `run ${fmtTime(opts.initialRun)}`;
     echo(s);
