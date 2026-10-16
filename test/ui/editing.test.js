@@ -153,6 +153,28 @@ uiTest('Check Syntax: errors in the Errors tab with file and line, click jumps t
   assert.equal(await page.consoleText(), '');
 });
 
+// #302: Clear empties the Warnings and Errors tabs and their counts too, not only the Console
+uiTest('#302 the console Clear button empties the Console, the Warnings and the Errors tabs and their counts', E, async (page) => {
+  await project('ClearPj', { 'src/top.vhd': TOP.replace('end process;\n', 'end process\n') });
+  await page.openProject('ClearPj');
+  await page.treeRow('#hier', 'top');
+  await page.treeRow('#procs', 'Check Syntax', { dbl: true, exact: true });
+  await page.waitConsole(/Process "Check Syntax" failed/);
+  // a warning too (from the console)
+  await page.eval(() => window.SilinxApp.log('WARNING:Xst:737 - Found 1-bit latch for signal <q>.', 'warn'));
+  await page.waitFor(() => document.getElementById('err-count').textContent !== '' && document.getElementById('warn-count').textContent !== '', [], { what: 'errors and warnings counted' });
+  await page.click('#console-clear');
+  assert.equal(await page.consoleText(), '');
+  assert.deepEqual(await page.eval(() => [document.getElementById('err-count').textContent, document.getElementById('warn-count').textContent]), ['', '']);
+  for (const tab of ['errors', 'warnings']) {
+    await page.click(`#console-tabs .tab[data-page=${tab}]`);
+    assert.equal(await page.eval((t) => document.getElementById(`console-${t}`).innerText.trim(), tab), 'No messages.');
+  }
+  // the next Check Syntax finds the error again
+  await page.treeRow('#procs', 'Check Syntax', { dbl: true, exact: true });
+  await page.waitFor(() => document.getElementById('err-count').textContent !== '', [], { what: 'the error again' });
+});
+
 uiTest('Design hierarchy: modules, instances, files, views; set top by right-click; collapsed nodes stay collapsed', E, async (page) => {
   await project('HierPj', { 'constraints/top.ucf': 'NET "clk" LOC = "B8" ;\n' });
   await page.openProject('HierPj');

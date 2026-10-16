@@ -7,6 +7,7 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Clear clears everything:** the console's Clear also empties the Warnings and Errors tabs.
 - **I/O markers rotated and mirrored:** in the schematic editor, Rotate (Ctrl+R) and Mirror (Ctrl+M)
   now turn the I/O markers too, so a marker can sit on a vertical wire or face the other way.
 - **Getting started, as Silinx is now:** the documentation presents the site as the way to design,
@@ -14,6 +15,9 @@ In short:
   running Silinx locally; Chrome on an Android tablet programs the board too.
 
 In detail:
+
+- **The console's Clear (#302):** it emptied the Console only; it now empties the Warnings and Errors
+  tabs and their counts too (the editors' marks stay, checked again at the next edit).
 
 - **The documentation's Getting started (#299):** README's Getting started and the step-by-step
   guides (`docs/GETTING-STARTED.md`, `docs/COMECAR.md`) said the site was for designing and
