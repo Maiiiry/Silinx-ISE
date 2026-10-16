@@ -223,7 +223,7 @@ uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M
 
 // #301: the palette's multiplexers and demultiplexers, with and without the enable E (M2_1 … M16_1,
 // DEMUX1_2 … DEMUX1_16), the decoders and encoders by their presets only; a M4_1 placed has S1 and S0
-uiTest('#301 #313 schematic palette: M2_1 … M16_1, DEMUX1_2 … DEMUX1_16 (no E entries, no generic DEMUX / DECODER / ENCODER); M4_1 placed with S1 S0, its type drawn; E and the bus widths', E, async (page) => {
+uiTest('#301 #313 schematic palette: M2_1 … M16_1, DEMUX1_2 … DEMUX1_16 (no E entries, no generic DEMUX; one DECODER / ENCODER); M4_1 placed with S1 S0, its type drawn; E and the bus widths', E, async (page) => {
   const { newDoc } = await import('../../core/schdoc.js');
   await makeProject(env, { name: 'SchMux', files: { 'src/mx.sch.json': JSON.stringify(newDoc('mx', 'vhdl')) }, top: '' });
   await page.openProject('SchMux');
@@ -237,8 +237,9 @@ uiTest('#301 #313 schematic palette: M2_1 … M16_1, DEMUX1_2 … DEMUX1_16 (no 
   assert.deepEqual(all.filter((t) => /^(M\d+_1E|DEMUX1_\d+E|DEMUX)$/.test(t)), [], 'no E entries, no generic DEMUX');
   await page.fill(`${D} .se-search`, 'CODER');
   const coders = await rows();
-  assert.ok(coders.includes('D2_4E') && coders.includes('PENC8_3'), coders.join(' '));
-  assert.deepEqual(coders.filter((t) => t === 'DECODER' || t === 'ENCODER'), [], 'no generic DECODER / ENCODER');
+  // (#324: one DECODER and one ENCODER, no D2_4E … / ENC / PENC entries)
+  assert.ok(coders.includes('DECODER') && coders.includes('ENCODER'), coders.join(' '));
+  assert.deepEqual(coders.filter((t) => /^(D\d+_\d+E?|P?ENC\d+_\d+)$/.test(t)), [], 'no preset entries');
   // a M4_1 placed: its select pins S1 and S0 (the drawing's pin names), saved with selBus false
   await page.fill(`${D} .se-search`, 'M4_1');
   await page.click(`${D} .se-symrow`, { text: 'M4_1' });

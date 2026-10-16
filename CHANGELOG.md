@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **DECODER and ENCODER, one entry each:** the palette's D2_4E … D4_16E and ENC / PENC entries are now
+  DECODER and ENCODER, their options making the others.
 - **SUB with borrows:** the subtractor has a borrow in BI, a borrow out BO and Pins per bit, as ADD.
 - **COMP and CNT with a pin per bit,** as ADD; the palette's category I/O is now General.
 - **Flip-flops, one entry each:** the palette lists FD, FT and FJK; their clock enable, clear, preset, reset
@@ -37,6 +39,11 @@ In short:
 
 In detail:
 
+- **DECODER and ENCODER (#324):** the palette listed the decoder's presets D2_4E, D3_8E, D4_16E and the
+  encoder's PENC4_2, ENC4_2, PENC8_3, ENC8_3, PENC16_4, ENC16_4; it lists DECODER (as D2_4E: 2 address bits,
+  the enable) and ENCODER (as ENC4_2: 2 output bits, one-hot, the type's default now) instead, their
+  options (address / output bits, enable, type, bus pins) making the others; the symbols keep the
+  Xilinx-style names drawn (D3_8E, PENC8_3…). Existing schematics unchanged (their parameters saved).
 - **SUB: borrow in / out, pins per bit (#322):** the subtractor's options *Borrow in (BI)* (D = A − B −
   BI), *Borrow out (BO)* (1 when the unsigned difference is negative, A < B + BI: the BO of one stage into
   the BI of the next chains subtractors) and *Pins per bit (A0.., B0.., D0..)* (a box SUB<w>), as ADD's
