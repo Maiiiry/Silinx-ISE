@@ -172,12 +172,17 @@ test('import: FTCE becomes the native flip-flop, library symbols without a Silin
   assert.equal(doc.symbols.filter(s => s.type === 'ftce').length, 2);
   assert.equal(doc.symbols.filter(s => s.type === 'hdlblock').length, 0);
   assert.equal(warnings.filter(w => /no Silinx equivalent/.test(w)).length, 0);
-  // a library symbol without a twin (XOR4): an HDL block with its exact function
+  // XOR4 has a Silinx twin now (#330: the XOR's Inputs)
   const x4 = importIseSch(read('Mux4to1b4.sch').replace(/"or4"/g, '"xor4"'), { name: 'm' });
   assert.deepEqual(x4.warnings.filter(w => /connectivity|no Silinx equivalent/.test(w)), []);
-  const xb = x4.doc.symbols.filter(s => s.type === 'hdlblock');
+  assert.equal(x4.doc.symbols.filter(s => s.type === 'xor4').length, 4);
+  assert.equal(x4.doc.symbols.filter(s => s.type === 'hdlblock').length, 0);
+  // a library symbol without a twin (XNOR5, its I4 unconnected): an HDL block with its exact function
+  const x5 = importIseSch(read('Mux4to1b4.sch').replace(/"or4"/g, '"xnor5"'), { name: 'm' });
+  assert.deepEqual(x5.warnings.filter(w => /connectivity|no Silinx equivalent/.test(w)), []);
+  const xb = x5.doc.symbols.filter(s => s.type === 'hdlblock');
   assert.equal(xb.length, 4);
-  assert.ok(xb.every(b => / xor .* xor .* xor /.test(b.hdl)), xb[0].hdl);
+  assert.ok(xb.every(b => / xor .* xor .* xor .* xor /.test(b.hdl)), xb[0].hdl);
   // an unknown symbol with a project module of that name becomes a module symbol
   const sch = read('MyAND2b4.sch').replace(/symbolname="and2"/g, 'symbolname="myand"');
   const mod = { myand: { name: 'myand', ports: [{ name: 'I0', dir: 'in', width: 1 }, { name: 'I1', dir: 'in', width: 1 }, { name: 'O', dir: 'out', width: 1 }] } };

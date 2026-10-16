@@ -500,7 +500,7 @@ export function mountSchEditor(container, opts = {}) {
       // parameterised symbols listed under their Xilinx-style names (D2_4E, DEMUX1_4...), then the generic one
       for (const pr of S.presets || []) items.push({ type, cat: S.category, title: pr.title, desc: pr.description || S.description, params: { ...pr.params }, preset: pr.title });
       // (the decoders and encoders by their presets only: the generic DECODER / ENCODER are the same symbols, #301)
-      if (!S.presetsOnly) items.push({ type, cat: S.category, title: S.title, desc: S.description, params: {} });
+      if (!S.presetsOnly) items.push({ type, cat: S.category, title: S.paletteTitle || S.title, desc: S.paletteDescription || S.description, params: {} });
     }
     for (const m of Object.values(modules).filter(x => !x.block).sort((a, b) => a.name.localeCompare(b.name))) {
       if (m.name === doc.name) continue;
@@ -870,6 +870,15 @@ export function mountSchEditor(container, opts = {}) {
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
       el.dataset.param = p.name;
       propBody.append(field(p.label, el));
+    }
+    // a gate's inputs (#330): 2, 3 or 4 make it AND2, AND3, AND4 (its inverted ones kept while it has them)
+    if (S?.gate && S.inputs > 1) {
+      const k = S.invIn || 0;
+      const to = n => gateVariant(s.type, k, n) || gateVariant(s.type, Math.min(k, n), n) || gateVariant(s.type, 0, n);
+      const ns = ['2', '3', '4', ...(S.inputs > 4 ? [String(S.inputs)] : [])].filter(n => to(+n));
+      const el = selBox(String(S.inputs), ns, x => { const t = to(+x); if (t) s.type = t; });
+      el.dataset.param = 'inputs';
+      propBody.append(field('Inputs', el));
     }
     // a gate's inverted inputs (#328): I0..I(k-1) inverted make it the variant that has them (AND3 + 2 = AND3B2)
     if (S?.gate && gateVariant(s.type, 1)) {

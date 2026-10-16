@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Gates, one entry each:** the palette lists AND, OR, NAND, NOR, XOR and XNOR; a gate's *Inputs* (2, 3, 4)
+  make AND3, AND4…; XOR and XNOR have 3 and 4 inputs too.
 - **Gates, one entry each:** the palette's AND2B1 … NOR4B4 are gone; a gate's *Inverted inputs* make them, XOR2
   too (XOR2B1, XOR2B2).
 - **BUFE and BUFT, one entry each:** the palette's BUFE4 … BUFT16 are gone; Width and Pins per bit make
@@ -43,6 +45,12 @@ In short:
 
 In detail:
 
+- **Gates: the number of inputs as a parameter (#330):** the Logic palette listed AND2, AND3, AND4, OR2 … NOR4;
+  it lists AND, OR, NAND, NOR, XOR and XNOR (the 2-input gates), and a gate's property *Inputs* (2, 3 or 4) makes
+  it AND3, AND4… (its inverted inputs kept while it has them). New XOR3, XOR4, XNOR3, XNOR4 (as the Xilinx
+  library's, imported from ISE as them, no longer as HDL blocks) and XOR3B1 … XOR4B4 (Silinx symbols); the VHDL of
+  an XNOR of 3 or more inputs is `not (a xor b xor c)`. The symbols keep their Xilinx names (AND3B2). Existing
+  schematics unchanged.
 - **Gates: inverted inputs as a parameter (#328):** the Logic palette listed every inverted-input variant
   (AND2B1, AND2B2, AND3B1 … NOR4B4); it lists AND2 … AND4, OR2 … OR4, NAND2 … NAND4, NOR2 … NOR4, XOR2 and
   XNOR2, and a gate's property *Inverted inputs* (0 … n: I0.. inverted, the bubbles) makes it the variant
