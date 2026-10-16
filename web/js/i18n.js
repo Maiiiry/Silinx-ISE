@@ -198,6 +198,15 @@ const PT = {
   'No more transitions': 'Não há mais transições', 'No more events scheduled': 'Não há mais eventos agendados',
   'Specify the value to force the selected signal to.': 'Indique o valor a forçar no sinal selecionado.',
   'Specify the properties of the clock to be applied to the selected signal.': 'Indique as propriedades do relógio a aplicar ao sinal selecionado.',
+  // the stimuli drawn on the waveforms (#336)
+  'Edit Stimuli: click the waveforms of the inputs (as the HDL Bencher)': 'Editar Estímulos: clique nas formas de onda das entradas (como no HDL Bencher)',
+  'Stimuli': 'Estímulos', 'Timing…': 'Temporização…', 'Fill Expected Outputs': 'Preencher Saídas Esperadas', 'Save as Test Bench…': 'Guardar como Bancada de Teste…',
+  'Stop Editing': 'Terminar a Edição', 'Stimulus Timing': 'Temporização dos Estímulos', 'None (combinational)': 'Nenhum (combinatório)',
+  'Clock Period (ns):': 'Período do Relógio (ns):', 'Time Step (ns):': 'Passo de Tempo (ns):', 'Cycles:': 'Ciclos:', 'Input Value': 'Valor da Entrada',
+  'Expected Value': 'Valor Esperado', 'From Cycle:': 'A partir do Ciclo:', 'Value:': 'Valor:', 'Save as Test Bench': 'Guardar como Bancada de Teste',
+  'Test bench name:': 'Nome da bancada de teste:',
+  'Bits, most significant first (0 1 Z X), h… hexadecimal or d… decimal; it holds up to the next change.': 'Bits, o mais significativo primeiro (0 1 Z X), h… hexadecimal ou d… decimal; mantém-se até à mudança seguinte.',
+  'Bits, most significant first (0 1, - not checked), h… hexadecimal or d… decimal; - alone: not checked.': 'Bits, o mais significativo primeiro (0 1, - não verificado), h… hexadecimal ou d… decimal; - sozinho: não verificado.',
   // schematic viewer
   'Zoom In (+)': 'Ampliar (+)', 'Zoom Out (−)': 'Reduzir (−)', 'Zoom to Full View (F)': 'Ver Tudo (F)', 'Up one level (Backspace)': 'Subir um nível (Backspace)',
   'Empty schematic — this unit has no ports, logic or instances.': 'Esquemático vazio — esta unidade não tem portos, lógica nem instâncias.',
@@ -310,6 +319,15 @@ const PT_PATTERNS = [
   // schematic symbols: inverted-input gates (AND2B1...), decoders, encoders, demultiplexers
   [/^Multiplexer of 2, 4, 8 or 16 data inputs, its select bits \(1 to 4\), select bus and enable in its properties \(bitwise when Width > 1\)$/,
     'Multiplexador de 2, 4, 8 ou 16 entradas de dados, os bits de seleção (1 a 4), o barramento de seleção e a habilitação nas suas propriedades (bit a bit quando Largura > 1)'],
+  // the stimuli drawn on the waveforms (#336): the timing dialog's hint, the bar's status, the errors
+  [/^The inputs of (\S+) as a grid of cycles: with a clock, the inputs change at its falling edge and the outputs are checked before the next one; without one, at every time step\.$/,
+    'As entradas de $1 como uma grelha de ciclos: com relógio, as entradas mudam no seu flanco descendente e as saídas são verificadas antes do seguinte; sem relógio, a cada passo de tempo.'],
+  [/^(\d+) cycles \((?:clock (\S+), period (\d+) ns|combinational, step (\d+) ns)\): (no expected outputs|expected outputs OK|(\d+) mismatch\(es\))$/,
+    (m, n, clk, per, step, res, bad) => `${n} ciclos (${clk ? `relógio ${clk}, período ${per} ns` : `combinatório, passo ${step} ns`}): ${bad ? `${bad} diferença(s)` : res === 'expected outputs OK' ? 'saídas esperadas certas' : 'sem saídas esperadas'}`],
+  [/^(Cycles|Clock Period|Time Step): a whole number of at least (\d+)$/, (m, f, n) => `${{ Cycles: 'Ciclos', 'Clock Period': 'Período do Relógio', 'Time Step': 'Passo de Tempo' }[f]}: um número inteiro de pelo menos ${n}`],
+  [/^'(.*)' is not a value \(bits(, -| 0 1 Z X), h… hexadecimal or d… decimal\)$/, (m, v, b) => `'${v}' não é um valor (bits${b === ', -' ? ', -' : ' 0 1 Z X'}, h… hexadecimal ou d… decimal)`],
+  [/^'(.*)' does not fit in (\d+) bit\(s\)$/, "'$1' não cabe em $2 bit(s)"],
+  [/^'(.*)' is not a valid name \(a letter, then letters, digits or _\)\.$/, "'$1' não é um nome válido (uma letra, depois letras, algarismos ou _)."],
   [/^(AND|OR|NAND|NOR|XOR|XNOR) gate of 2, 3 or 4 inputs, its inputs and inverted inputs in its properties \(bitwise when Width > 1\)$/,
     'Porta $1 de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)'],
   [/^(\d)-input (AND|OR|NAND|NOR|XOR|XNOR) gate with (input I0|inputs I0 and I1|inputs I0\.\.I\d) inverted \(bitwise when Width > 1\)$/,

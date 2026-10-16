@@ -7,6 +7,9 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Stimuli drawn on the waveforms, as the HDL Bencher of the old ISE:** in ISim, *Edit Stimuli* makes the
+  inputs of a module a grid of cycles; a click changes an input (0 → 1 → Z → X), the simulation runs again at once,
+  expected outputs are checked, and *Save as Test Bench…* writes it all as a self-checking test bench.
 - **One MUX, one DEMUX:** the palette's M4_1 … M16_1 and DEMUX1_2 … DEMUX1_16 are gone; their *Select bits*
   and *Select as a bus* make them.
 - **The schematic palette's Project modules** no longer list the test benches.
@@ -48,6 +51,16 @@ In short:
 
 In detail:
 
+- **Stimuli drawn in ISim (#336):** simulating a module without a test bench, *Edit Stimuli* (the toolbar) asks
+  for the timing (a clock input and its period, or combinational with a time step, and the number of cycles) and
+  lays the inputs out as a grid: a click on a cycle of an input changes it there and up to its next change
+  (0 → 1 → Z → X), a bus gets a value typed in (bits, h… or d…), and the simulation restarts and runs the stimuli
+  at once. On an output a click sets the expected value (- → 0 → 1, a bus typed in); *Fill Expected Outputs* takes
+  them from the simulation; the mismatches are red on the waveform, counted in the bar and listed in the console.
+  The stimuli are saved in the project (per module) and run when ISim opens; *Save as Test Bench…* writes the
+  self-checking VHDL / Verilog test bench (`tb_<module>`, a simulation source), which the Test Bench Wizard's
+  generator now writes with Z / X on std_logic inputs and, for the stimuli, its first vector at time 0
+  (core/stimuli.js, the same timing as the bench: inputs at the falling edge, outputs checked before the next).
 - **XNOR with inverted inputs (#337):** XNOR had no *Inverted inputs* in its properties, as the other gates have;
   XNOR2B1 … XNOR4B4 are Silinx symbols (the Xilinx library has none), exported to ISE as Silinx symbols.
 - **MUX and DEMUX: the select bits as a parameter (#334):** the Mux palette listed M2_1, M4_1, M8_1, M16_1 and

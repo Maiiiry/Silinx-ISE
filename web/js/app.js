@@ -1926,11 +1926,48 @@ async function runSimulationInner(mod, model) {
   openDoc({
     id, title: `ISim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: `isim:${mod}${model ? `@${model}` : ''}`,
     create(el) {
-      // ISim runs 1000 ns at start-up
-      const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, onOpenSource: ref => ref?.file && openFile(ref.file, ref.line) });
+      // ISim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project
+      const stimuli = {
+        model: S.project.stimuli?.[mod] || null,
+        ports: (design.top.ports || []).map(p => ({ name: p.name, dir: p.dir, width: p.sig.t.w || 1 })),
+        onChange: m => { S.project.stimuli = { ...(S.project.stimuli || {}), [mod]: m }; saveProjectJson().catch(e => toast(`Cannot save the stimuli: ${e.message}`, 'error')); },
+        onSaveTestbench: m => saveStimTestbench(mod, design, m),
+      };
+      const view = mountISim(el, { design, sim, title: mod, initialRun: 1_000_000, stimuli, onOpenSource: ref => ref?.file && openFile(ref.file, ref.line) });
       return { destroy: () => view.destroy?.(), view, onActivate: () => setTimeout(() => view.refresh?.(), 0) };
     },
   });
+}
+
+// The stimuli drawn in ISim saved as a self-checking test bench (#336, core/stimuli.js -> core/testbench.js): next
+// to the module's file, in the project's language, a simulation source
+async function saveStimTestbench(mod, design, m) {
+  const { tbPorts, generateTestbench } = await import('/core/testbench.js');
+  const { testbenchOptions } = await import('/core/stimuli.js');
+  const title = 'Save as Test Bench';
+  const info = moduleInfo(mod);
+  const name = String(await promptDlg(title, 'Test bench name:', `tb_${mod}`) ?? '').trim();
+  if (!name) return;
+  if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return alertDlg(title, `'${name}' is not a valid name (a letter, then letters, digits or _).`, 'error');
+  const lang = (S.project.preferredLanguage || info?.lang) === 'verilog' ? 'verilog' : 'vhdl';
+  const dir = String(info?.file || 'src/x').replace(/\/[^/]*$/, '');
+  const path = `${dir}/${name}.${lang === 'verilog' ? 'v' : 'vhd'}`;
+  const other = wiz.moduleElsewhere(name, path);
+  if (other) return alertDlg(title, `The project already has a module '${other.name}' (${other.file}).`, 'error');
+  if (S.fileTree?.includes(path) && !await confirmDlg(title, `${path} exists. Replace it?`)) return;
+  let text;
+  try {
+    const types = Object.fromEntries((info?.portList || []).map(p => [p.name, p.type]));
+    text = generateTestbench(testbenchOptions(m, { name, lang, uut: { name: mod }, ports: tbPorts(design, types) }));
+  } catch (e) { return alertDlg(title, e.message, 'error'); }
+  await wiz.closeBeforeReplace(path);
+  await api.writeFile(S.project.name, path, text);
+  await reloadProject();
+  // (a simulation source, whatever its name)
+  const f = S.project.files?.find(x => x.path === path);
+  if (f && f.role !== 'sim') { f.role = 'sim'; await saveProjectJson(); await reloadProject(); }
+  log(`Save as Test Bench: created ${path} from the stimuli of '${mod}' (${m.cycles} cycle(s)); run Simulate Behavioral Model on ${name} to check the design.`, 'ok');
+  toast(`Test bench ${path} created`, 'ok');
 }
 
 // Elaboration errors of a design about to be simulated (e.g. a netlist cell without a model, which
