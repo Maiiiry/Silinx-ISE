@@ -196,11 +196,18 @@ function textsSvg(sym, def, ctx = {}) {
   const showName = !!sym.name && (ctx.allNames ? !['vcc', 'gnd'].includes(sym.type)
     : !['constant', 'vcc', 'gnd', 'slice', 'busjoin'].includes(sym.type) && !AUTO_NAME.test(sym.name || ''));
   const pinLabels = ['module', 'hdl', 'ff', 'arith', 'mux', 'demux', 'lib'].includes(def.shape);
+  // (a multiplexer / demultiplexer: its type above it, the instance name above that, #313)
+  const muxType = def.shape === 'mux' || def.shape === 'demux';
   if (showName) {
     // above the symbol; when pins stick out of the top (turned symbols), beside the top right corner instead
     const topPins = (def.shape === 'lib' || def.shape === 'demux' || def.shape === 'mux' || def.shape === 'ff') && symbolPins(sym, null, def).some(p => p.side === 'N');
-    s += topPins ? `<text class="iname" x="${box.x + box.w + 3}" y="${box.y - 2}" text-anchor="start">${esc(sym.name)}</text>`
-      : `<text class="iname" x="${box.x + box.w / 2}" y="${box.y - 4}" text-anchor="middle">${esc(sym.name)}</text>`;
+    s += topPins ? `<text class="iname" x="${box.x + box.w + 3}" y="${box.y - 2 - (muxType ? 11 : 0)}" text-anchor="start">${esc(sym.name)}</text>`
+      : `<text class="iname" x="${box.x + box.w / 2}" y="${box.y - 4 - (muxType ? 11 : 0)}" text-anchor="middle">${esc(sym.name)}</text>`;
+  }
+  if (muxType && def.title) {
+    const topPins = symbolPins(sym, null, def).some(p => p.side === 'N');
+    s += topPins ? `<text class="stype" x="${box.x + box.w + 3}" y="${box.y + 9}" text-anchor="start">${esc(def.title)}</text>`
+      : `<text class="stype" x="${box.x + box.w / 2}" y="${box.y - 4}" text-anchor="middle">${esc(def.title)}</text>`;
   }
   if (def.shape === 'module' || def.shape === 'hdl') {
     const tt = def.shape === 'hdl' ? (sym.params.title || 'HDL') : def.title;
@@ -259,7 +266,11 @@ function textsSvg(sym, def, ctx = {}) {
     }
   } else if (pinLabels) {
     for (const p of symbolPins(sym, null, def)) {
-      if (def.shape === 'mux' && p.side === 'E') continue;
+      // (the multiplexer's output: no name, its width when a bus, #313)
+      if (def.shape === 'mux' && p.side === 'E') {
+        if ((p.width || 1) > 1) s += `<text class="pwidth" x="${p.x + 10}" y="${p.y - 3}" text-anchor="middle">${p.width}</text>`;
+        continue;
+      }
       if (def.shape === 'arith' && sym.type !== 'add' && p.side === 'E') continue;
       const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
       const inset = def.shape === 'mux' ? 23 : (def.shape === 'hdl' || def.shape === 'module') ? 23 + (p.clock && p.side === 'W' ? 8 : 0) : 22 + (p.clock ? 8 : 0);
@@ -267,7 +278,8 @@ function textsSvg(sym, def, ctx = {}) {
       const anchor = v[0] > 0 ? 'start' : v[0] < 0 ? 'end' : 'middle';
       const label = def.shape === 'mux' ? (p.name.startsWith('D') ? p.name.slice(1) : p.name) : p.name;
       s += `<text class="pname" x="${x}" y="${y + (v[1] ? 0 : 3)}" text-anchor="${anchor}">${esc(label)}</text>`;
-      if ((p.width || 1) > 1 && (def.shape === 'module' || def.shape === 'hdl')) {
+      // (the width of a bus pin by it: modules, HDL blocks, multiplexers and demultiplexers, #313)
+      if ((p.width || 1) > 1 && (def.shape === 'module' || def.shape === 'hdl' || def.shape === 'mux' || def.shape === 'demux')) {
         const o = { W: [-10, -3], E: [10, -3], N: [4, -8], S: [4, 8] }[p.side];
         s += `<text class="pwidth" x="${p.x + o[0]}" y="${p.y + o[1]}" text-anchor="middle">${p.width}</text>`;
       }
@@ -856,6 +868,7 @@ export function mountSchEditor(container, opts = {}) {
       else if (p.kind === 'select') el = selBox(String(v), p.options, x => { s.params[p.name] = x; });
       else if (p.kind === 'int') el = inp(v, x => { s.params[p.name] = Math.max(p.min ?? 0, Math.min(p.max ?? 1e6, Math.round(+x || p.default))); }, { type: 'number', min: p.min, max: p.max });
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
+      el.dataset.param = p.name;
       propBody.append(field(p.label, el));
     }
     if (s.type === 'module') {

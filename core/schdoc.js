@@ -85,23 +85,21 @@ SYMBOLS.tbuf = {
 // selBus: the select as one bus pin S, as a M4_1 / DEMUX saved before #301 has it (normalizeDoc)
 const P_EN = { name: 'en', label: 'Enable input E', kind: 'bool', default: false };
 const P_SELBUS = { name: 'selBus', label: 'Select as a bus (S)', kind: 'bool', default: false };
-SYMBOLS.mux2 = { category: 'Mux', title: 'M2_1', description: '2:1 multiplexer (O = S0 ? D1 : D0)', params: [P_WIDTH, P_EN],
-  presets: [{ title: 'M2_1E', params: { en: true }, description: '2:1 multiplexer with enable (Xilinx M2_1E): O = S0 ? D1 : D0 when E = 1, 0 when E = 0' }] };
-SYMBOLS.mux4 = { category: 'Mux', title: 'M4_1', description: '4:1 multiplexer (select S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS],
-  presets: [{ title: 'M4_1E', params: { en: true }, description: '4:1 multiplexer with enable (Xilinx M4_1E): O = D<S1 S0> when E = 1, 0 when E = 0' }] };
-SYMBOLS.mux8 = { category: 'Mux', title: 'M8_1', description: '8:1 multiplexer (select S2 S1 S0)', params: [P_WIDTH, P_EN],
-  presets: [{ title: 'M8_1E', params: { en: true }, description: '8:1 multiplexer with enable (Xilinx M8_1E): O = D<S2 S1 S0> when E = 1, 0 when E = 0' }] };
-SYMBOLS.mux16 = { category: 'Mux', title: 'M16_1', description: '16:1 multiplexer (select S3 S2 S1 S0)', params: [P_WIDTH, P_EN],
-  presets: [{ title: 'M16_1E', params: { en: true }, description: '16:1 multiplexer with enable (Xilinx M16_1E): O = D<S3 S2 S1 S0> when E = 1, 0 when E = 0' }] };
+// (one palette entry each, the enable E their parameter, #313)
+SYMBOLS.mux2 = { category: 'Mux', title: 'M2_1', description: '2:1 multiplexer (O = S0 ? D1 : D0)', params: [P_WIDTH, P_EN] };
+SYMBOLS.mux4 = { category: 'Mux', title: 'M4_1', description: '4:1 multiplexer (select S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
+SYMBOLS.mux8 = { category: 'Mux', title: 'M8_1', description: '8:1 multiplexer (select S2 S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
+SYMBOLS.mux16 = { category: 'Mux', title: 'M16_1', description: '16:1 multiplexer (select S3 S2 S1 S0)', params: [P_WIDTH, P_EN, P_SELBUS] };
 // the multiplexers' number of data inputs
 export const MUX_INPUTS = { mux2: 2, mux4: 4, mux8: 8, mux16: 16 };
 SYMBOLS.demux = {
-  category: 'Mux', title: 'DEMUX', description: '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)',
+  // (listed by its presets only, the enable E a parameter, #313)
+  category: 'Mux', title: 'DEMUX', presetsOnly: true, description: '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)',
   params: [P_WIDTH, { name: 'sel', label: 'Select bits', kind: 'int', default: 1, min: 1, max: 4 }, P_EN, P_SELBUS],
-  presets: [false, true].flatMap(en => [1, 2, 3, 4].map(k => {
+  presets: [1, 2, 3, 4].map(k => {
     const sel = [...Array(k).keys()].reverse().map(j => `S${j}`).join(' ');
-    return { title: `DEMUX1_${1 << k}${en ? 'E' : ''}`, params: { sel: k, en }, description: `1:${1 << k} demultiplexer${en ? ' with enable' : ''} (select ${sel}): O<S> = D${en ? ' when E = 1' : ''}, the other outputs 0${en ? ' (all 0 when E = 0)' : ''} (bitwise when Width > 1)` };
-  })),
+    return { title: `DEMUX1_${1 << k}`, params: { sel: k }, description: `1:${1 << k} demultiplexer (select ${sel}): O<S> = D, the other outputs 0 (bitwise when Width > 1)` };
+  }),
 };
 // (listed in the palette by their presets only, #301: the generic DECODER / ENCODER are the same symbols)
 SYMBOLS.decoder = {
