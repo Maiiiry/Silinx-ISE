@@ -861,3 +861,15 @@ test('#301 M2_1E / M4_1E: exported as the library symbols, imported as the nativ
   assert.deepEqual(['U1', 'U2', 'U3', 'U4', 'U5'].map(p), [['mux2', 1, true, undefined, undefined], ['mux4', 1, true, false, undefined], ['mux4', 4, false, false, undefined], ['mux4', 4, true, true, undefined], ['demux', 1, true, false, 3]]);
   assert.deepEqual(decodeXlSymbol('xl_mux4_w8'), { type: 'mux4', params: { width: 8, en: false, selBus: true } }, 'a M4_1 exported before #301: its bus S');
 });
+
+// #304: an adder with a pin per bit exported as a Silinx symbol whose name says so, and back
+test('#304 adders with a pin per bit: exported as xl_add<w>…_bits, imported back as the native adder with bits', () => {
+  assert.deepEqual(decodeXlSymbol('xl_add4_ci_co_bits'), { type: 'add', params: { width: 4, cin: true, cout: true, bits: true } });
+  assert.deepEqual(decodeXlSymbol('xl_add8_ci'), { type: 'add', params: { width: 8, cin: true, cout: false } });
+  const doc = newDoc('ad', 'vhdl');
+  doc.symbols.push({ id: 'S1', type: 'add', x: 200, y: 100, rot: 0, mirror: false, name: 'U1', params: { width: 4, cin: true, cout: true, bits: true } });
+  const ex = exportIseSch(normalizeDoc(doc), { timestamp: '2024-1-2T3:4:5' });
+  assert.equal(parseIseSch(ex.xml).blocks[0].symbol, 'xl_add4_ci_co_bits');
+  const back = importIseSch(ex.xml, { name: 'ad', symbols: Object.fromEntries(ex.files.filter(f => f.kind === 'sym').map(f => [f.path, f.text])) }).doc;
+  assert.deepEqual([back.symbols[0].type, back.symbols[0].params.width, back.symbols[0].params.bits], ['add', 4, true]);
+});

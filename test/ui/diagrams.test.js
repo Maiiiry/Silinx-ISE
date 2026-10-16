@@ -253,6 +253,29 @@ uiTest('#301 schematic palette: M2_1(E) … M16_1(E), DEMUX1_2(E) … DEMUX1_16(
   assert.deepEqual(page.dialogs, []);
 });
 
+// #304: the adders of two 1-, 2- and 4-bit numbers in the palette (ADD1, ADD2, ADD4), ADD4 placed with a pin per bit
+uiTest('#304 schematic palette: ADD1, ADD2, ADD4; ADD4 placed with A0..A3, B0..B3, CI, S0..S3, CO; its HDL', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  await makeProject(env, { name: 'SchAdd', files: { 'src/ad.sch.json': JSON.stringify(newDoc('ad', 'vhdl')) }, top: '' });
+  await page.openProject('SchAdd');
+  await page.eval(() => window.SilinxApp.openSch('src/ad.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/ad.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  await page.fill(`${D} .se-search`, 'ADD');
+  const rows = await page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow`)].map((r) => r.textContent.trim()), D);
+  for (const x of ['ADD1', 'ADD2', 'ADD4', 'ADD']) assert.ok(rows.includes(x), rows.join(' '));
+  await page.click(`${D} .se-symrow`, { text: 'ADD4' });
+  const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 3 }; }, D);
+  await page.click(c);
+  await page.key('Escape');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchAdd/file?path=src%2Fad.sch.json')).text()).symbols.length === 1, [], { what: 'ADD4 saved' });
+  const saved = JSON.parse(await readWs(env, 'SchAdd', 'src/ad.sch.json')).symbols[0];
+  assert.deepEqual([saved.type, saved.params.width, saved.params.bits, saved.params.cin, saved.params.cout], ['add', 4, true, true, true]);
+  const names = await page.eval((d) => [...document.querySelectorAll(`${d} .se-svg g.sym text`)].map((t) => t.textContent), D);
+  for (const n of ['ADD4', 'A0', 'A3', 'B0', 'B3', 'CI', 'S0', 'S3', 'CO']) assert.ok(names.includes(n), names.join(' '));
+  assert.deepEqual(page.dialogs, []);
+});
+
 uiTest('ASM chart editor: add a state, a decision and a case box, connect them, its VHDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'AsmPj' });
   await page.openProject('AsmPj');
