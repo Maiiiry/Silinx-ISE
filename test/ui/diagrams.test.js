@@ -799,3 +799,26 @@ uiTest('#303 a schematic with two drivers on a net: its old HDL file is not simu
   assert.match(log, /Process "Check Syntax" completed successfully/, log);
   assert.ok(!log.includes('is not up to date'), log);
 });
+
+// #332: the palette's Project modules are the design modules, not the test benches (a Simulation-only source, a
+// module without ports)
+uiTest('#332 schematic palette: Project modules lists the design modules, no test bench (Simulation-only, or without ports)', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  const vhd = (n) => `library ieee;\nuse ieee.std_logic_1164.all;\n\nentity ${n} is\n  port (a : in std_logic; y : out std_logic);\nend ${n};\n\narchitecture rtl of ${n} is\nbegin\n  y <= not a;\nend rtl;\n`;
+  const tbv = (n) => `library ieee;\nuse ieee.std_logic_1164.all;\n\nentity ${n} is\nend ${n};\n\narchitecture sim of ${n} is\n  signal a, y : std_logic := '0';\nbegin\n  uut : entity work.inv1 port map (a => a, y => y);\n  a <= '1' after 10 ns;\nend sim;\n`;
+  await makeProject(env, {
+    name: 'SchTb', top: '',
+    files: { 'src/inv1.vhd': vhd('inv1'), 'src/buf_sim.vhd': vhd('buf_sim'), 'src/inv1_tb.vhd': tbv('inv1_tb'), 'src/all_tb.vhd': tbv('all_tb'), 'src/p.sch.json': JSON.stringify(newDoc('p', 'vhdl')) },
+    roles: { 'src/inv1_tb.vhd': 'sim', 'src/buf_sim.vhd': 'sim' },
+  });
+  await page.openProject('SchTb');
+  await page.eval(() => window.SilinxApp.openSch('src/p.sch.json'));
+  const D = '.doc:not([hidden])';
+  await page.waitFor((d) => window.Silinx.active?.id === 'sch:src/p.sch.json' && document.querySelector(`${d} .se-symrow`), [D], { what: 'schematic editor' });
+  await page.fill(`${D} .se-cat`, 'Project modules');
+  await page.waitFor((d) => [...document.querySelectorAll(`${d} .se-symrow .nm`)].some((e) => e.textContent === 'inv1'), [D], { what: 'the project modules' });
+  // inv1_tb (Simulation), all_tb (All, no ports) and buf_sim (a Simulation-only module) are not offered
+  assert.deepEqual(await page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow .nm`)].map((e) => e.textContent), D), ['inv1']);
+  assert.equal(await page.eval((d) => document.querySelector(`${d} .se-cathead`).textContent, D), 'Project modules (1)');
+  assert.deepEqual(page.dialogs, []);
+});

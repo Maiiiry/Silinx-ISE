@@ -2556,7 +2556,11 @@ function fsmContextMenu(e, file) {
 async function schModules() {
   const { modulesFromLibrary } = await import('/core/schdoc.js');
   const sources = Object.fromEntries(S.sources.map(s => [s.path, s.text]));
-  return modulesFromLibrary(S.lib, { sources });
+  const mods = modulesFromLibrary(S.lib, { sources });
+  // the test benches (Simulation-only sources, #332): not offered in the palette's Project modules
+  const sim = new Set(S.sources.filter(s => s.role === 'sim').map(s => s.path));
+  for (const m of Object.values(mods)) if (sim.has(m.file)) m.testbench = true;
+  return mods;
 }
 
 export async function openSch(path) {

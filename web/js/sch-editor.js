@@ -502,7 +502,8 @@ export function mountSchEditor(container, opts = {}) {
       // (the decoders and encoders by their presets only: the generic DECODER / ENCODER are the same symbols, #301)
       if (!S.presetsOnly) items.push({ type, cat: S.category, title: S.paletteTitle || S.title, desc: S.paletteDescription || S.description, params: {} });
     }
-    for (const m of Object.values(modules).filter(x => !x.block).sort((a, b) => a.name.localeCompare(b.name))) {
+    // (not a test bench, #332: a Simulation-only source, or a module without ports, which a schematic cannot connect)
+    for (const m of Object.values(modules).filter(x => !x.block && !x.testbench && x.ports?.length).sort((a, b) => a.name.localeCompare(b.name))) {
       if (m.name === doc.name) continue;
       items.push({ type: 'module', cat: 'Project modules', title: m.name, desc: `${m.ports?.length || 0} ports${m.lang ? ` · ${m.lang.toUpperCase()}` : ''}${m.file ? ` · ${m.file}` : ''}`, params: { module: m.name, generics: {} } });
     }
