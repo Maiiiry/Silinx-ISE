@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Gates, one entry each:** the palette's AND2B1 … NOR4B4 are gone; a gate's *Inverted inputs* make them, XOR2
+  too (XOR2B1, XOR2B2).
 - **BUFE and BUFT, one entry each:** the palette's BUFE4 … BUFT16 are gone; Width and Pins per bit make
   them.
 - **DECODER and ENCODER, one entry each:** the palette's D2_4E … D4_16E and ENC / PENC entries are now
@@ -41,6 +43,11 @@ In short:
 
 In detail:
 
+- **Gates: inverted inputs as a parameter (#328):** the Logic palette listed every inverted-input variant
+  (AND2B1, AND2B2, AND3B1 … NOR4B4); it lists AND2 … AND4, OR2 … OR4, NAND2 … NAND4, NOR2 … NOR4, XOR2 and
+  XNOR2, and a gate's property *Inverted inputs* (0 … n: I0.. inverted, the bubbles) makes it the variant
+  (AND3 + 2 = AND3B2). XOR2 has it too: XOR2B1 (O = I0' ⊕ I1) and XOR2B2, Silinx symbols (the Xilinx library
+  has none), exported to ISE as Silinx symbols. Existing schematics unchanged.
 - **BUFE and BUFT (#326):** the Tri-State palette listed BUFE, BUFE4, BUFE8, BUFE16, BUFT, BUFT4, BUFT8,
   BUFT16 and TBUF; it lists BUFE and BUFT, their Width and *Pins per bit (I0.., O0..)* (renamed from *One
   pin per bit*) making the others; the symbol and its datasheet keep the Xilinx name (BUFE4, BUFT8…), the

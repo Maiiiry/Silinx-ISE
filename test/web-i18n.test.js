@@ -86,6 +86,13 @@ test('design checks: the Edit menu item, its messages and the labels of the help
   assert.deepEqual(HINT_LABELS.pt, { explain: 'Explicação', fix: 'Como corrigir', more: 'Explicação e correção' });
 });
 
+test('gates (#328): the Inverted inputs field and the XOR2B1 / XOR2B2 descriptions are translated', async () => {
+  const { SYMBOLS } = await import('../core/schdoc.js');
+  assert.equal(t('Inverted inputs'), 'Entradas invertidas');
+  assert.equal(t(SYMBOLS.xor2b1.description), 'Porta XOR de 2 entradas com a entrada I0 invertida (bit a bit quando Largura > 1)');
+  assert.equal(t(SYMBOLS.xor2b2.description), 'Porta XOR de 2 entradas com as entradas I0 e I1 invertidas (bit a bit quando Largura > 1)');
+});
+
 test('tri-state buffers: the palette category, parameter labels and the descriptions of TBUF and every preset are translated', async () => {
   const { SYMBOLS } = await import('../core/schdoc.js');
   const S = SYMBOLS.tbuf;

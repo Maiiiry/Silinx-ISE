@@ -334,6 +334,45 @@ uiTest('#315 schematic flip-flops: FD / FT / FJK in the palette; CE and CLR in a
   assert.deepEqual(page.dialogs, []);
 });
 
+// #328: the gates' inverted-input variants (AND3B2…) are the basic gate's Inverted inputs, not palette entries
+uiTest('#328 schematic gates: no ANDnBk / ORnBk… in the palette; Inverted inputs 2 in an AND3\'s properties make it AND3B2, 0 AND3 again; the label in Portuguese', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  await makeProject(env, { name: 'SchGb', files: { 'src/g.sch.json': JSON.stringify(newDoc('g', 'vhdl')) }, top: '' });
+  await page.openProject('SchGb');
+  await page.eval(() => window.SilinxApp.openSch('src/g.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/g.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  await page.fill(`${D} .se-cat`, 'Logic');
+  const rows = await page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow .nm`)].map((r) => r.textContent.trim()), D);
+  for (const r of ['AND2', 'AND3', 'AND4', 'OR2', 'NAND2', 'NOR4', 'XOR2', 'XNOR2']) assert.ok(rows.includes(r), rows.join(' '));
+  assert.deepEqual(rows.filter((r) => /B\d$/.test(r)), [], 'no inverted-input variants');
+  await page.click(`${D} .se-symrow`, { text: 'AND3' });
+  const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 3 }; }, D);
+  await page.click(c);
+  await page.key('Escape');
+  const file = async () => JSON.parse(await page.eval(async () => (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()));
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()).symbols.length === 1, [], { what: 'AND3 saved' });
+  const id = (await file()).symbols[0].id;
+  const waitType = (t) => page.waitFor(async (x) => JSON.parse(await (await fetch('/api/projects/SchGb/file?path=src%2Fg.sch.json')).text()).symbols[0].type === x, [t], { what: `the type ${t}` });
+  await page.click(`${D} g.sym[data-id="${id}"] .hitbox`);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`), [D], { what: 'Inverted inputs' });
+  assert.deepEqual(await page.eval((d) => { const e = document.querySelector(`${d} [data-param=invIn]`); return [e.value, [...e.options].map((o) => o.value), e.closest('.se-field').querySelector('label').textContent]; }, D), ['0', ['0', '1', '2', '3'], 'Inverted inputs']);
+  await page.fill(`${D} [data-param=invIn]`, '2');
+  await waitType('and3b2');
+  const stype = () => page.eval((d) => [...document.querySelectorAll(`${d} .se-svg g.sym .stype`)].map((t) => t.textContent), D);
+  await page.waitFor(async (d) => [...document.querySelectorAll(`${d} .se-svg g.sym .stype`)].map((t) => t.textContent).join() === 'AND3B2', [D], { what: 'AND3B2 drawn' });
+  // two bubbles (I0, I1) on the drawing
+  assert.equal(await page.eval((d, x) => document.querySelectorAll(`${d} g.sym[data-id="${x}"] circle`).length, D, id), 2);
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`)?.value === '2', [D], { what: 'the field shows 2' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor((d) => document.querySelector(`${d} [data-param=invIn]`)?.closest('.se-field').querySelector('label').textContent === 'Entradas invertidas', [D], { what: 'the label in Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  await page.fill(`${D} [data-param=invIn]`, '0');
+  await waitType('and3');
+  assert.deepEqual(await stype(), ['AND3']);
+  assert.deepEqual(page.dialogs, []);
+});
+
 // #319: COMP and CNT with Pins per bit (their properties); #320: the category General (was I/O)
 uiTest('#319 #320 schematic: COMP and CNT with Pins per bit (A0.. B0.., Q0..); the palette category General', E, async (page) => {
   const { newDoc } = await import('../../core/schdoc.js');

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { simulate } from '../core/compile.js';
-import { newDoc, normalizeDoc, defaultParams, netlist, generateHdl, symbolDef, symbolPins, SYMBOLS, SYMBOL_CATEGORIES } from '../core/schdoc.js';
+import { newDoc, normalizeDoc, defaultParams, netlist, generateHdl, symbolDef, symbolPins, SYMBOLS, SYMBOL_CATEGORIES, gateVariant } from '../core/schdoc.js';
 
 // ------------------------------------------------------------------ JS models: (params, inputs { pin: BigInt }) -> { pin: BigInt }
 const bit = (v, i) => (v >> BigInt(i)) & 1n;
@@ -12,13 +12,13 @@ function model(type, p, inp, def) {
   const S = SYMBOLS[type];
   const W = Math.max(1, +p.width || 1);
   if (S.gate) {
-    const k = S.invIn || 0, n = S.inputs, base = S.gate.replace(/^n/, '');
+    const k = S.invIn || 0, n = S.inputs, base = S.gate.replace(/^n(?=and|or)/, '').replace(/^xn/, 'x');
     let acc = base === 'and' ? mask(W) : 0n;
     for (let i = 0; i < n; i++) {
       const x = i < k ? ~inp[`I${i}`] & mask(W) : inp[`I${i}`];
-      acc = base === 'and' ? acc & x : acc | x;
+      acc = base === 'and' ? acc & x : base === 'xor' ? acc ^ x : acc | x;
     }
-    return { O: S.gate.startsWith('n') ? ~acc & mask(W) : acc };
+    return { O: S.gate !== base ? ~acc & mask(W) : acc };
   }
   // the select bits S0, the bus S, or S<k-1> … S0 (#301); the enable E, the outputs 0 when it is 0
   const selOf = k => { if (k === 1) return Number(inp.S0); if (p.selBus) return Number(inp.S); let v = 0; for (let j = 0; j < k; j++) v |= Number(inp[`S${j}`]) << j; return v; };
@@ -173,12 +173,15 @@ function check(name, cases, count = 64) {
 // ------------------------------------------------------------------ library
 test('symbol library: inverted-input gates, decoder, encoder and demultiplexer', () => {
   const b = Object.keys(SYMBOLS).filter(t => /b\d$/.test(t));
-  assert.equal(b.length, 2 + 3 + 4 + 5 + 2 + 3 + 4 + 5 + 2 + 3 + 4 + 2 + 3 + 4);
-  for (const t of ['and2b1', 'and5b5', 'or3b2', 'nand4b4', 'nor2b1']) { assert.ok(SYMBOLS[t], t); assert.equal(SYMBOLS[t].category, 'Logic'); }
+  assert.equal(b.length, 2 + 3 + 4 + 5 + 2 + 3 + 4 + 5 + 2 + 3 + 4 + 2 + 3 + 4 + 2);
+  for (const t of ['and2b1', 'and5b5', 'or3b2', 'nand4b4', 'nor2b1', 'xor2b1', 'xor2b2']) { assert.ok(SYMBOLS[t], t); assert.equal(SYMBOLS[t].category, 'Logic'); }
   assert.equal(SYMBOLS.and2b1.title, 'AND2B1');
-  // ordering: each gate is followed by its B variants in the palette
-  const keys = Object.keys(SYMBOLS);
-  assert.deepEqual(keys.slice(keys.indexOf('and2'), keys.indexOf('and2') + 4), ['and2', 'and2b1', 'and2b2', 'and3']);
+  // (#328: the variants are not in the palette, the basic gate's Inverted inputs make them; XOR2B1 / XOR2B2 are
+  // Silinx symbols, not in the Xilinx library)
+  for (const t of b) assert.equal(SYMBOLS[t].hidden, true, t);
+  assert.deepEqual(b.filter(t => SYMBOLS[t].noLib), ['xor2b1', 'xor2b2']);
+  assert.deepEqual([gateVariant('and3', 2), gateVariant('and3b2', 0), gateVariant('nor4b1', 4), gateVariant('xor2', 1), gateVariant('or2b2', 1)], ['and3b2', 'and3', 'nor4b4', 'xor2b1', 'or2b1']);
+  assert.deepEqual([gateVariant('and2', 3), gateVariant('xnor2', 1), gateVariant('inv', 1), gateVariant('mux2', 1), gateVariant('nope', 0)], [null, null, null, null, null]);
   assert.ok(SYMBOL_CATEGORIES.includes('Decoders/Encoders'));
   assert.equal(SYMBOLS.decoder.category, 'Decoders/Encoders');
   assert.equal(SYMBOLS.encoder.category, 'Decoders/Encoders');

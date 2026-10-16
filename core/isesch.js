@@ -1619,13 +1619,13 @@ function iseSymbolFor(s, def, netW, modules) {
     return { lib: false, module: true, name: p.module || m?.name || 'module' };
   }
   if (S?.gate) {
-    if (S.invIn && W === 1) {
+    if (S.invIn && W === 1 && !S.noLib) {
       // ANDnBk...: same pin names and positions as the Xilinx library symbol
       const pins = { O: 'O' };
       for (let k = 0; k < S.inputs; k++) pins[`I${k}`] = `I${k}`;
       return { lib: true, name: t, pins };
     }
-    if (W === 1) {
+    if (W === 1 && !S.noLib) {
       if (t === 'inv' || t === 'buf') return { lib: true, name: t, pins: { I: 'I', O: 'O' } };
       const n = S.inputs;
       const pins = { O: 'O' };
