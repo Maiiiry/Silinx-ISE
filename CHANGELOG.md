@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **BUFE and BUFT, one entry each:** the palette's BUFE4 … BUFT16 are gone; Width and Pins per bit make
+  them.
 - **DECODER and ENCODER, one entry each:** the palette's D2_4E … D4_16E and ENC / PENC entries are now
   DECODER and ENCODER, their options making the others.
 - **SUB with borrows:** the subtractor has a borrow in BI, a borrow out BO and Pins per bit, as ADD.
@@ -39,6 +41,10 @@ In short:
 
 In detail:
 
+- **BUFE and BUFT (#326):** the Tri-State palette listed BUFE, BUFE4, BUFE8, BUFE16, BUFT, BUFT4, BUFT8,
+  BUFT16 and TBUF; it lists BUFE and BUFT, their Width and *Pins per bit (I0.., O0..)* (renamed from *One
+  pin per bit*) making the others; the symbol and its datasheet keep the Xilinx name (BUFE4, BUFT8…), the
+  ISE import of BUFE4 … BUFT16 is unchanged. Existing schematics unchanged.
 - **DECODER and ENCODER (#324):** the palette listed the decoder's presets D2_4E, D3_8E, D4_16E and the
   encoder's PENC4_2, ENC4_2, PENC8_3, ENC8_3, PENC16_4, ENC16_4; it lists DECODER (as D2_4E: 2 address bits,
   the enable) and ENCODER (as ENC4_2: 2 output bits, one-hot, the type's default now) instead, their

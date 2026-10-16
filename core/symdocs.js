@@ -78,7 +78,7 @@ const PARAM_PT = {
   'Type': 'Tipo', 'Bus pins (I, A)': 'Pinos em barramento (I, A)', 'Carry in': 'Transporte de entrada (carry in)',
   'Carry out': 'Transporte de saída (carry out)', 'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Pins per bit (A0.., B0..)': 'Um pino por bit (A0.., B0..)', 'Pins per bit (Q0..)': 'Um pino por bit (Q0..)', 'Pins per bit (A0.., B0.., D0..)': 'Um pino por bit (A0.., B0.., D0..)', 'Borrow in (BI)': 'Empréstimo de entrada (BI)', 'Borrow out (BO)': 'Empréstimo de saída (BO)', 'Operation': 'Operação', 'Signed': 'Com sinal', 'Value': 'Valor',
   'Clock enable': 'Habilitação do relógio', 'Reset': 'Reset', 'Reset/INIT value': 'Valor de reset/INIT', 'Direction': 'Sentido',
-  'Enable input': 'Entrada de habilitação', 'One pin per bit (I0.., O0..)': 'Um pino por bit (I0.., O0..)',
+  'Enable input': 'Entrada de habilitação', 'Pins per bit (I0.., O0..)': 'Um pino por bit (I0.., O0..)',
   'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB', 'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',
 };
 export const PARAM_LABELS_PT = PARAM_PT;
@@ -644,7 +644,7 @@ export function symbolDoc(type, params = {}, { lang = 'en', modules = {}, preset
   if (hdl != null) sym.hdl = hdl;
   const def = symbolDef(sym, modules);
   const d = describe(type, p, tx, pr);
-  const title = type === 'module' ? (p.module || 'MODULE') : (pr || (def.shape === 'lib' || def.shape === 'demux' ? def.title : S?.title) || type);
+  const title = type === 'module' ? (p.module || 'MODULE') : (pr || (def.shape === 'lib' || def.shape === 'demux' || type === 'tbuf' ? def.title : S?.title) || type);
   const pins = def.pins.map(q => ({
     name: q.name, dir: q.dir, width: q.width ?? null,
     widthText: q.width == null ? (type === 'slice' ? `≥ ${Math.max(int(p.msb, 0), int(p.lsb, 0)) + 1}` : T('net', lang)) : String(q.width),

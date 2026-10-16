@@ -47,8 +47,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   (*Convert to Schematic*), with processes and other behavioural code kept as HDL blocks: its HDL is
   then generated from the schematic and compiles and simulates as the module did.
 - **Tri-state buffers** (palette category *Tri-State*): BUFE (enable E active high, O = E ? I : Z)
-  and BUFT (T active low, as in Xilinx), 1 bit or a bus of any width, with the Xilinx presets BUFE,
-  BUFE4 (one pin per bit), BUFE8, BUFE16, BUFT, BUFT4, BUFT8, BUFT16. Several tri-state outputs
+  and BUFT (T active low, as in Xilinx), 1 bit or a bus of any width, a pin per bit as an option (BUFE4,
+  BUFT8… as in Xilinx). Several tri-state outputs
   (and inout markers / inout pins of modules) may drive the same net, a bus; an ordinary output
   together with a tri-state output is still an error. The HDL is
   `O <= I when E = '1' else (others => 'Z');` / `assign O = E ? I : {N{1'bz}};` on resolved

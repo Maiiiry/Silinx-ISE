@@ -65,19 +65,14 @@ SYMBOLS.buf = { category: 'Logic', title: 'BUF', gate: 'buf', inputs: 1, descrip
 // tri-state buffers (Xilinx BUFE / BUFT families): O = I while enabled, Z (released) otherwise, so that
 // several of them (and bidirectional pins / I/O markers) may drive one net, a bus
 SYMBOLS.tbuf = {
-  category: 'Tri-State', title: 'TBUF',
+  // (BUFE and BUFT only in the palette, their Width and Pins per bit making BUFE4, BUFT8…, #326)
+  category: 'Tri-State', title: 'TBUF', presetsOnly: true,
   description: 'Tri-state buffer: O = I while enabled, Z (high impedance, released) otherwise; E active high (BUFE) or T active low (BUFT)',
   params: [P_WIDTH, { name: 'enable', label: 'Enable input', kind: 'select', options: ['E', 'T'], default: 'E' },
-    { name: 'bits', label: 'One pin per bit (I0.., O0..)', kind: 'bool', default: false }],
+    { name: 'bits', label: 'Pins per bit (I0.., O0..)', kind: 'bool', default: false }],
   presets: [
     { title: 'BUFE', params: { width: 1, enable: 'E' }, description: 'Tri-state buffer, active-high enable: O = I when E = 1, Z when E = 0' },
-    { title: 'BUFE4', params: { width: 4, enable: 'E', bits: true }, description: '4-bit tri-state buffer (pins I0..I3, O0..O3), active-high enable: O = I when E = 1, Z when E = 0' },
-    { title: 'BUFE8', params: { width: 8, enable: 'E', bits: false }, description: '8-bit tri-state buffer (bus pins), active-high enable: O = I when E = 1, Z when E = 0' },
-    { title: 'BUFE16', params: { width: 16, enable: 'E', bits: false }, description: '16-bit tri-state buffer (bus pins), active-high enable: O = I when E = 1, Z when E = 0' },
     { title: 'BUFT', params: { width: 1, enable: 'T' }, description: 'Tri-state buffer, active-low enable T: O = I when T = 0, Z when T = 1' },
-    { title: 'BUFT4', params: { width: 4, enable: 'T', bits: true }, description: '4-bit tri-state buffer (pins I0..I3, O0..O3), active-low enable T: O = I when T = 0, Z when T = 1' },
-    { title: 'BUFT8', params: { width: 8, enable: 'T', bits: false }, description: '8-bit tri-state buffer (bus pins), active-low enable T: O = I when T = 0, Z when T = 1' },
-    { title: 'BUFT16', params: { width: 16, enable: 'T', bits: false }, description: '16-bit tri-state buffer (bus pins), active-low enable T: O = I when T = 0, Z when T = 1' },
   ],
 };
 // the multiplexers' and demultiplexers' enable E (#301: as the Xilinx M2_1E / M4_1E, the outputs 0 when

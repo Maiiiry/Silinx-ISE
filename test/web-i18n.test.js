@@ -90,7 +90,7 @@ test('tri-state buffers: the palette category, parameter labels and the descript
   const { SYMBOLS } = await import('../core/schdoc.js');
   const S = SYMBOLS.tbuf;
   assert.equal(t('Tri-State'), 'Três estados');
-  assert.equal(t('Tri-State (9)'), 'Três estados (9)');
+  assert.equal(t('Tri-State (2)'), 'Três estados (2)');
   for (const p of S.params) assert.notEqual(t(p.label), p.label, p.label);
   assert.equal(t('Enable input'), 'Entrada de habilitação');
   for (const d of [S.description, ...S.presets.map(p => p.description)]) {
@@ -98,8 +98,10 @@ test('tri-state buffers: the palette category, parameter labels and the descript
     assert.notEqual(v, d, d);
     assert.match(v, /três estados/);
   }
-  assert.equal(t(S.presets.find(p => p.title === 'BUFT8').description), 'Buffer de três estados de 8 bits (pinos em barramento), habilitação T ativa a 0: O = I quando T = 0, Z quando T = 1');
-  assert.equal(t(S.presets.find(p => p.title === 'BUFE4').description), 'Buffer de três estados de 4 bits (pinos I0..I3, O0..O3), habilitação ativa a 1: O = I quando E = 1, Z quando E = 0');
+  // (#326: BUFE and BUFT only, their Width and Pins per bit making BUFT8, BUFE4…)
+  assert.deepEqual(S.presets.map(p => p.title), ['BUFE', 'BUFT']);
+  assert.equal(t(S.presets.find(p => p.title === 'BUFT').description), 'Buffer de três estados, habilitação T ativa a 0: O = I quando T = 0, Z quando T = 1');
+  assert.equal(t('Pins per bit (I0.., O0..)'), 'Um pino por bit (I0.., O0..)');
 });
 
 test('schematic editor and its RTL / Technology views (#130): every symbol description, parameter and option, the texts of web/js/sch-editor.js', async () => {

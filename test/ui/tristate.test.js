@@ -1,5 +1,5 @@
 // UI: tri-state buffers in the schematic editor — the Tri-State palette category (BUFE / BUFT presets,
-// placing a BUFE8), the live simulation of two BUFE on a bus to an inout marker (enables toggled: the
+// placing a BUFE made BUFE4 by its properties), the live simulation of two BUFE on a bus to an inout marker (enables toggled: the
 // bus wire is Z / 1 / 0 / X, the marker drives it from outside), and the Symbol Info of BUFT in
 // Portuguese (function table with Z, HDL).
 import { before, after } from 'node:test';
@@ -36,7 +36,7 @@ function sheet() {
 const wireLevel = (page, id) => page.eval((sel, w) => [...document.querySelector(`${sel} g.wire[data-id="${w}"]`).classList].find((c) => /^lv-/.test(c)) || null, ED, id);
 const waitWire = (page, id, lv) => page.waitFor((sel, w, l) => document.querySelector(`${sel} g.wire[data-id="${w}"]`)?.classList.contains(l), [ED, id, lv], { what: `wire ${id} ${lv}` });
 
-uiTest('tri-state buffers: palette (BUFE8 placed), live simulation of two BUFE on a bus to an inout marker, Symbol Info of BUFT in Portuguese', E, async (page) => {
+uiTest('tri-state buffers: palette (BUFE / BUFT only, a BUFE made BUFE4), live simulation of two BUFE on a bus to an inout marker, Symbol Info of BUFT in Portuguese', E, async (page) => {
   const doc = sheet();
   await makeProject(env, { name: 'TriPj', files: { 'src/tri.sch.json': JSON.stringify(doc) } });
   await page.openProject('TriPj');
@@ -45,20 +45,34 @@ uiTest('tri-state buffers: palette (BUFE8 placed), live simulation of two BUFE o
   // the symbols are drawn as triangles with the enable line; the check finds no problem
   assert.equal(await page.eval((sel) => document.querySelectorAll(`${sel} g.sym .gate`).length >= 4, ED), true);
 
-  // ---- palette: the Tri-State category, BUFE / BUFT presets; place a BUFE8, undo
+  // ---- palette: the Tri-State category, BUFE / BUFT only (#326); place a BUFE, Width 4 + Pins per bit make it BUFE4, delete it
   assert.ok(await page.eval((sel) => [...document.querySelectorAll(`${sel} .se-cat option`)].some((o) => o.value === 'Tri-State'), ED));
   await page.fill(`${ED} .se-cat`, 'Tri-State');
   const names = await page.eval((sel) => [...document.querySelectorAll(`${sel} .se-symrow .nm`)].map((e) => e.textContent), ED);
-  assert.deepEqual(names, ['BUFE', 'BUFE4', 'BUFE8', 'BUFE16', 'BUFT', 'BUFT4', 'BUFT8', 'BUFT16', 'TBUF']);
-  await page.click(`${ED} .se-symrow`, { text: 'BUFE8' });
-  await page.waitFor((sel) => /^BUFE8: /.test(document.querySelector(`${sel} .se-syminfo`)?.textContent || ''), [ED], { what: 'BUFE8 info box' });
+  assert.deepEqual(names, ['BUFE', 'BUFT']);
+  await page.click(`${ED} .se-symrow`, { text: 'BUFE' });
+  await page.waitFor((sel) => /^BUFE: /.test(document.querySelector(`${sel} .se-syminfo`)?.textContent || ''), [ED], { what: 'BUFE info box' });
   const r = await page.eval((sel) => { const b = document.querySelector(`${sel} .se-canvas`).getBoundingClientRect(); return { x: b.left + b.width * 0.8, y: b.top + b.height * 0.8 }; }, ED);
   await page.click(r);
-  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols.length === 3, [], { what: 'BUFE8 placed' });
-  assert.deepEqual(await page.eval(() => { const s = window.Silinx.active.schEditor.getDoc().symbols[2]; return [s.type, s.params.width, s.params.enable, !!s.params.bits]; }), ['tbuf', 8, 'E', false]);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols.length === 3, [], { what: 'BUFE placed' });
+  const placed = () => page.eval(() => { const s = window.Silinx.active.schEditor.getDoc().symbols[2]; return [s.type, s.params.width, s.params.enable, !!s.params.bits]; });
+  assert.deepEqual(await placed(), ['tbuf', 1, 'E', false]);
   await page.key('Escape');
-  await page.key('z', { modifiers: 2 });
-  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols.length === 2, [], { what: 'undo' });
+  const sid = await page.eval(() => window.Silinx.active.schEditor.getDoc().symbols[2].id);
+  await page.click(`${ED} g.sym[data-id="${sid}"] .hitbox`);
+  await page.waitFor((sel) => document.querySelector(`${sel} [data-param=width]`), [ED], { what: 'its properties' });
+  await page.fill(`${ED} [data-param=width]`, '4');
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols[2].params.width === 4, [], { what: 'Width 4' });
+  await page.waitFor((sel) => document.querySelector(`${sel} [data-param=bits]`), [ED], { what: 'Pins per bit' });
+  await page.click(`${ED} [data-param=bits]`);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols[2].params.bits === true, [], { what: 'Pins per bit on' });
+  assert.deepEqual(await placed(), ['tbuf', 4, 'E', true]);
+  // drawn with a pin per bit: I0..I3, O0..O3 and E, no bus pin
+  const pins = await page.eval((sel, id) => [...document.querySelectorAll(`${sel} g.sym[data-id="${id}"] line.pin`)].map((l) => l.classList.contains('bus')), ED, sid);
+  assert.deepEqual(pins, Array(9).fill(false));
+  await page.click(`${ED} g.sym[data-id="${sid}"] .hitbox`);
+  await page.key('Delete');
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().symbols.length === 2, [], { what: 'deleted' });
   await page.fill(`${ED} .se-cat`, '<all>');
 
   // ---- live simulation
