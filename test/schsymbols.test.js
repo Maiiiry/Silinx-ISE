@@ -29,6 +29,15 @@ function model(type, p, inp, def) {
     for (let i = 0; i < 1 << k; i++) out[`O${i}`] = en && i === sel ? inp.D : 0n;
     return out;
   }
+  if (type === 'add') {
+    // (#304) the operands and the sum on bus pins, or a pin per bit
+    const w = +p.width || 1, per = p.bits && w > 1;
+    const op = g => { if (!per) return inp[g]; let v = 0n; for (let i = 0; i < w; i++) v |= inp[`${g}${i}`] << BigInt(i); return v; };
+    const sum = op('A') + op('B') + (p.cin ? inp.CI : 0n);
+    const out = { CO: (sum >> BigInt(w)) & 1n };
+    if (per) for (let i = 0; i < w; i++) out[`S${i}`] = (sum >> BigInt(i)) & 1n; else out.S = sum & mask(w);
+    return out;
+  }
   if (/^mux\d+$/.test(type)) return { O: en ? inp[`D${selOf(Math.log2(+type.slice(3)))}`] : 0n };
   if (type === 'decoder') {
     const n = +p.n;
@@ -386,4 +395,22 @@ test('1-bit add / sub / compare generate valid VHDL and Verilog with the right f
       assert.equal(lines.length, 1 << n);
     }
   }
+});
+
+// #304: adders of two 1-, 2- and 4-bit numbers, a pin per bit (ADD1 the full adder, ADD2, ADD4 as the Xilinx
+// ADD4), against the bus adder's function; their pins and presets
+test('#304 adders with a pin per bit: ADD1 (full adder), ADD2, ADD4, with and without the carries; pins and presets', () => {
+  const S = SYMBOLS.add;
+  assert.deepEqual(S.presets.map(p => p.title), ['ADD1', 'ADD2', 'ADD4']);
+  const pw = c => symbolDef(c).pins.map(p => `${p.name}:${p.dir}${p.width}`);
+  assert.deepEqual(pw({ type: 'add', params: { width: 1, cin: true, cout: true } }), ['A:in1', 'B:in1', 'CI:in1', 'S:out1', 'CO:out1']);
+  assert.deepEqual(pw({ type: 'add', params: { width: 4, cin: true, cout: true, bits: true } }),
+    ['A0:in1', 'A1:in1', 'A2:in1', 'A3:in1', 'B0:in1', 'B1:in1', 'B2:in1', 'B3:in1', 'CI:in1', 'S0:out1', 'S1:out1', 'S2:out1', 'S3:out1', 'CO:out1']);
+  assert.deepEqual([symbolDef({ type: 'add', params: { width: 4, bits: true } }).title, symbolDef({ type: 'add', params: { width: 2, bits: true } }).title], ['ADD4', 'ADD2']);
+  const d4 = symbolDef({ type: 'add', params: { width: 4, cin: true, cout: true, bits: true } });
+  assert.equal(new Set(d4.pins.map(q => `${q.x},${q.y}`)).size, d4.pins.length, 'distinct pin positions');
+  const cases = [];
+  for (const width of [1, 2, 4]) for (const carries of [true, false]) cases.push({ type: 'add', params: { width, cin: carries, cout: carries, bits: width > 1 } });
+  cases.push({ type: 'add', params: { width: 4, cin: true, cout: true } });   // the bus adder, the reference
+  check('adders304', cases, 64);
 });

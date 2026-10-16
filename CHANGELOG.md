@@ -11,6 +11,8 @@ In short:
   a truth table, an ASM chart, a Petri net) with errors, for instance a net with two drivers, left its
   HDL file as it was, and Check Syntax, the simulation and the implementation ran on that old file with
   no warning; they now stop on it and say why.
+- **Adders with a pin per bit:** ADD1 (a full adder), ADD2 and ADD4 (as the Xilinx ADD4) in the schematic
+  editor's palette, their bits on pins of their own.
 - **Clear clears everything:** the console's Clear also empties the Warnings and Errors tabs.
 - **I/O markers rotated and mirrored:** in the schematic editor, Rotate (Ctrl+R) and Mirror (Ctrl+M)
   now turn the I/O markers too, so a marker can sit on a vertical wire or face the other way.
@@ -34,6 +36,11 @@ In detail:
   which stops the simulation and the implementation; once the drawing is fixed and its HDL generated
   again, they run. (Two drivers in hand-written HDL: Check Syntax's multiple-drivers warning, as
   before.)
+- **Adders of 1-, 2- and 4-bit numbers (#304):** the adder ADD has the parameter *Pins per bit (A0..,
+  B0.., S0..)* and three presets with the carries: ADD1, the full adder (A, B, CI -> S, CO), ADD2 and
+  ADD4 (A3..A0, B3..B0, CI -> S3..S0, CO, a box as the Xilinx ADD4). Their datasheet (the full adder's
+  truth table, the pins' weights), HDL (one sum of the bits, VHDL and Verilog), live simulation and
+  ISE export / import (`xl_add<w>…_bits`) follow.
 - **The console's Clear (#302):** it emptied the Console only; it now empties the Warnings and Errors
   tabs and their counts too (the editors' marks stay, checked again at the next edit).
 - **Multiplexers, demultiplexers, decoders (#301):** M4_1's select was a 2-bit bus pin S, DEMUX1_4 /

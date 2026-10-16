@@ -1696,7 +1696,7 @@ function iseSymbolFor(s, def, netW, modules) {
       if (p.en && p.dir !== 'down' && p.reset === 'async' && (W === 8 || W === 16)) return { lib: true, name: `cb${W}ce`, pins: { C: 'C', CE: 'CE', CLR: 'CLR', Q: `Q(${W - 1}:0)` } };
       return { lib: false, name: `xl_cnt${W}${p.en ? '_ce' : ''}${rs}${p.dir === 'down' ? '_dn' : ''}` };
     }
-    case 'add': return { lib: false, name: `xl_add${W}${p.cin ? '_ci' : ''}${p.cout ? '_co' : ''}` };
+    case 'add': return { lib: false, name: `xl_add${W}${p.cin ? '_ci' : ''}${p.cout ? '_co' : ''}${p.bits && W > 1 ? '_bits' : ''}` };
     case 'sub': return { lib: false, name: `xl_sub${W}` };
     case 'compare':
       if (W === 8 && (p.op || 'eq') === 'eq' && !p.signed) return { lib: true, name: 'comp8', pins: { A: 'A(7:0)', B: 'B(7:0)', O: 'EQ' } };
@@ -1747,7 +1747,7 @@ export function decodeXlSymbol(name) {
   if ((m = /^xl_(inv|buf)_w(\d+)$/.exec(s))) return { type: m[1], params: { width: +m[2] } };
   if ((m = /^xl_reg(\d+)(_ce)?(_ar|_sr)?_h([0-9a-f]+)$/.exec(s))) return { type: 'register', params: { width: +m[1], en: !!m[2], reset: m[3] === '_ar' ? 'async' : m[3] === '_sr' ? 'sync' : 'none', init: m[4] === '0' ? '0' : `0x${m[4]}` } };
   if ((m = /^xl_cnt(\d+)(_ce)?(_ar|_sr)?(_dn)?$/.exec(s))) return { type: 'counter', params: { width: +m[1], en: !!m[2], reset: m[3] === '_ar' ? 'async' : m[3] === '_sr' ? 'sync' : 'none', dir: m[4] ? 'down' : 'up' } };
-  if ((m = /^xl_add(\d+)(_ci)?(_co)?$/.exec(s))) return { type: 'add', params: { width: +m[1], cin: !!m[2], cout: !!m[3] } };
+  if ((m = /^xl_add(\d+)(_ci)?(_co)?(_bits)?$/.exec(s))) return { type: 'add', params: { width: +m[1], cin: !!m[2], cout: !!m[3], ...(m[4] ? { bits: true } : {}) } };
   if ((m = /^xl_sub(\d+)$/.exec(s))) return { type: 'sub', params: { width: +m[1] } };
   if ((m = /^xl_cmp(\d+)_(eq|ne|lt|le|gt|ge)(_s)?$/.exec(s))) return { type: 'compare', params: { width: +m[1], op: m[2], signed: !!m[3] } };
   if ((m = /^xl_const(\d+)_h([0-9a-f]+)$/.exec(s))) return { type: 'constant', params: { width: +m[1], value: `0x${m[2]}` } };

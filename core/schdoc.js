@@ -123,7 +123,14 @@ SYMBOLS.encoder = {
 };
 SYMBOLS.add = {
   category: 'Arithmetic', title: 'ADD', description: 'Adder S = A + B (+ CI), optional carry out',
-  params: [{ ...P_WIDTH, default: 8 }, { name: 'cin', label: 'Carry in', kind: 'bool', default: false }, { name: 'cout', label: 'Carry out', kind: 'bool', default: false }],
+  params: [{ ...P_WIDTH, default: 8 }, { name: 'cin', label: 'Carry in', kind: 'bool', default: false }, { name: 'cout', label: 'Carry out', kind: 'bool', default: false },
+    // (#304: the operands' and the sum's bits on pins of their own, A0.., B0.., S0.., as the Xilinx ADD4)
+    { name: 'bits', label: 'Pins per bit (A0.., B0.., S0..)', kind: 'bool', default: false }],
+  presets: [
+    { title: 'ADD1', params: { width: 1, cin: true, cout: true }, description: '1-bit full adder: S = A + B + CI, carry out CO' },
+    { title: 'ADD2', params: { width: 2, cin: true, cout: true, bits: true }, description: '2-bit adder, a pin per bit: S1 S0 = A1 A0 + B1 B0 + CI, carry out CO' },
+    { title: 'ADD4', params: { width: 4, cin: true, cout: true, bits: true }, description: '4-bit adder, a pin per bit (as the Xilinx ADD4): S3..S0 = A3..A0 + B3..B0 + CI, carry out CO' },
+  ],
 };
 SYMBOLS.sub = { category: 'Arithmetic', title: 'SUB', description: 'Subtractor D = A - B', params: [{ ...P_WIDTH, default: 8 }] };
 SYMBOLS.compare = {
@@ -310,6 +317,16 @@ export function symbolDef(sym, modules = {}) {
     // a free row on top for the symbol name (drawn like the title of module symbols), pins below it
     const d = boxDef(west, east, title, 80, 40);
     return { ...d, shape: 'lib', title };
+  }
+  if (t === 'add' && p.bits && W > 1) {
+    // (#304) a box as the Xilinx ADD4: A0.. B0.. (CI) on the left, S0.. (CO) on the right
+    const west = [], east = [];
+    for (const g of ['A', 'B']) for (let i = 0; i < W; i++) west.push({ name: `${g}${i}`, dir: 'in', width: 1 });
+    if (p.cin) west.push({ name: 'CI', dir: 'in', width: 1 });
+    for (let i = 0; i < W; i++) east.push({ name: `S${i}`, dir: 'out', width: 1 });
+    if (p.cout) east.push({ name: 'CO', dir: 'out', width: 1 });
+    const title = `ADD${W}`;
+    return { ...boxDef(west, east, title, 80, 40), shape: 'lib', title };
   }
   if (t === 'add' || t === 'sub' || t === 'compare') {
     const h = t === 'compare' ? 40 : 60;
@@ -1492,6 +1509,27 @@ export function generateHdl(docIn, opts = {}) {
         break;
       }
       case 'add': case 'sub': {
+        if (s.type === 'add' && p.bits && Math.max(1, int(p.width, 1)) > 1) {
+          // a pin per bit (#304): the operands A<w-1> … A0, B<w-1> … B0, the sum's bits S0 … through one sum
+          const w = Math.max(1, int(p.width, 1));
+          const ops = g => [...Array(w).keys()].reverse().map(i => INN(s, `${g}${i}`, true));
+          const outs = [...Array(w).keys()].map(i => OUTN(s, `S${i}`)), co = p.cout ? OUTN(s, 'CO') : null;
+          if (!outs.some(Boolean) && !co) continue;
+          const cin = p.cin ? INN(s, 'CI', true) : null, t = fresh(`${s.name}_sum`);
+          if (ci) {
+            extra.push({ name: t, type: `unsigned(${w} downto 0)` });
+            const base = `resize(unsigned'(${ops('A').join(' & ')}), ${w + 1}) + resize(unsigned'(${ops('B').join(' & ')}), ${w + 1})`;
+            body.push(cin ? `${t} <= ${base} + 1 when ${cin} = '1' else ${base};` : `${t} <= ${base};`);
+            outs.forEach((o, i) => o && body.push(`${o} <= ${t}(${i});`));
+            if (co) body.push(`${co} <= ${t}(${w});`);
+          } else {
+            extra.push({ name: t, width: w + 1 });
+            assign(t, `{${ops('A').join(', ')}} + {${ops('B').join(', ')}}${cin ? ` + ${cin}` : ''}`);
+            outs.forEach((o, i) => o && assign(o, `${t}[${i}]`));
+            if (co) assign(co, `${t}[${w}]`);
+          }
+          break;
+        }
         const oname = s.type === 'add' ? 'S' : 'D';
         const o = OUTN(s, oname), co = s.type === 'add' && p.cout ? OUTN(s, 'CO') : null;
         if (!o && !co) continue;

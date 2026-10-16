@@ -76,7 +76,7 @@ const PARAM_PT = {
   'Width': 'Largura', 'INIT': 'INIT', 'Select bits': 'Bits de seleção', 'Address bits': 'Bits de endereço',
   'Enable input E': 'Entrada de habilitação E', 'Select as a bus (S)': 'Seleção em barramento (S)', 'Bus pins (A, D)': 'Pinos em barramento (A, D)', 'Output bits': 'Bits de saída',
   'Type': 'Tipo', 'Bus pins (I, A)': 'Pinos em barramento (I, A)', 'Carry in': 'Transporte de entrada (carry in)',
-  'Carry out': 'Transporte de saída (carry out)', 'Operation': 'Operação', 'Signed': 'Com sinal', 'Value': 'Valor',
+  'Carry out': 'Transporte de saída (carry out)', 'Pins per bit (A0.., B0.., S0..)': 'Um pino por bit (A0.., B0.., S0..)', 'Operation': 'Operação', 'Signed': 'Com sinal', 'Value': 'Valor',
   'Clock enable': 'Habilitação do relógio', 'Reset': 'Reset', 'Reset/INIT value': 'Valor de reset/INIT', 'Direction': 'Sentido',
   'Enable input': 'Entrada de habilitação', 'One pin per bit (I0.., O0..)': 'Um pino por bit (I0.., O0..)',
   'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB', 'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',
@@ -307,6 +307,8 @@ function describe(type, p, tx, preset) {
         `ADD é um somador binário de ${W} bits: S = A + B${p.cin ? ' + CI' : ''}. O mesmo circuito soma números sem sinal e em complemento para dois (os bits do resultado são os mesmos). A soma é feita módulo 2^${W}: um resultado que não cabe dá a volta${p.cout ? `, e o transporte de saída CO (o transporte do bit mais significativo) é 1 quando a soma sem sinal é ${2 ** W} ou mais` : ''}.`),
       tx('In textbooks it is a chain of full adders (ripple carry: each stage adds Ai, Bi and the carry of the previous stage); synthesis uses the dedicated carry logic of the FPGA. Uses: arithmetic units, counters, address computation.', 'Nos livros é uma cadeia de somadores completos (transporte em cadeia: cada andar soma Ai, Bi e o transporte do andar anterior); a síntese usa a lógica de transporte dedicada da FPGA. Usos: unidades aritméticas, contadores, cálculo de endereços.')];
       if (p.cin) t.push(tx('The carry in CI adds 1: it chains adders for wider words, and with B inverted and CI = 1 the adder subtracts (A + B\' + 1 = A − B).', 'O transporte de entrada CI soma 1: encadeia somadores para palavras maiores e, com B invertido e CI = 1, o somador subtrai (A + B\' + 1 = A − B).'));
+      if (W === 1 && p.cin && p.cout) t.unshift(tx('With Width 1, a carry in and a carry out it is a full adder: it adds the three bits A, B and CI; S is their sum bit (A ⊕ B ⊕ CI) and CO the carry (1 when two or three of them are 1), the stage of which wider adders are chains.', 'Com Largura 1, transporte de entrada e de saída é um somador completo: soma os três bits A, B e CI; S é o bit da soma (A ⊕ B ⊕ CI) e CO o transporte (1 quando dois ou três deles são 1), o andar de que os somadores maiores são cadeias.'));
+      if (p.bits && W > 1) t.push(tx(`Its bits are pins of their own (as the Xilinx ADD${W === 4 ? '4' : W}): A${W - 1} … A0, B${W - 1} … B0 and S${W - 1} … S0, the index the weight of the bit (2^i).`, `Os bits são pinos próprios (como o Xilinx ADD${W === 4 ? '4' : W}): A${W - 1} … A0, B${W - 1} … B0 e S${W - 1} … S0, o índice o peso do bit (2^i).`));
       return { text: t, formula: `${p.cout ? '{CO, S}' : 'S'} = A + B${p.cin ? ' + CI' : ''}${p.cout ? '' : ` mod 2^${W}`}` };
     }
     case 'sub': return { text: [tx(`SUB is a ${W}-bit subtractor: D = A − B modulo 2^${W}, computed in two's complement as A + B' + 1. Read as signed (two's complement) numbers the result is the signed difference; read as unsigned, a negative difference wraps around (e.g. 3 − 5 = ${(3 - 5 + 2 ** W) % 2 ** W} in ${W} bits, which is −2 in two's complement).`,
@@ -407,7 +409,14 @@ function pinFunc(type, p, pin, tx) {
       if (n[0] === 'I') return pri ? tx(`Input ${i} (request ${i}); has priority over the inputs with a lower index`, `Entrada ${i} (pedido ${i}); tem prioridade sobre as entradas de índice menor`) : tx(`Input ${i} (one-hot code)`, `Entrada ${i} (código one-hot)`);
       return tx(`Bit ${i} of the index of the ${pri ? 'highest active' : 'active'} input`, `Bit ${i} do índice da entrada ${pri ? 'ativa de maior índice' : 'ativa'}`);
     }
-    case 'add': return { A: tx('First operand', 'Primeiro operando'), B: tx('Second operand', 'Segundo operando'), CI: tx('Carry in: adds 1 to the sum', 'Transporte de entrada: soma 1 ao resultado'),
+    case 'add': if (/^[ABS]\d+$/.test(n)) {
+      // (#304: a pin per bit)
+      const b = +n.slice(1), wt = 2 ** b;
+      return n[0] === 'A' ? tx(`Bit ${b} of the first operand A (weight ${wt})`, `Bit ${b} do primeiro operando A (peso ${wt})`)
+        : n[0] === 'B' ? tx(`Bit ${b} of the second operand B (weight ${wt})`, `Bit ${b} do segundo operando B (peso ${wt})`)
+          : tx(`Bit ${b} of the sum S = A + B${p.cin ? ' + CI' : ''} (weight ${wt})`, `Bit ${b} da soma S = A + B${p.cin ? ' + CI' : ''} (peso ${wt})`);
+    }
+    return { A: tx('First operand', 'Primeiro operando'), B: tx('Second operand', 'Segundo operando'), CI: tx('Carry in: adds 1 to the sum', 'Transporte de entrada: soma 1 ao resultado'),
       S: tx('Sum A + B (+ CI), modulo 2^Width', 'Soma A + B (+ CI), módulo 2^Largura'), CO: tx('Carry out of the most significant bit: 1 when the unsigned sum does not fit in Width bits', 'Transporte de saída do bit mais significativo: 1 quando a soma sem sinal não cabe em Largura bits') }[n];
     case 'sub': return { A: tx('Minuend', 'Aditivo (minuendo)'), B: tx('Subtrahend', 'Subtrativo (subtraendo)'), D: tx('Difference A − B, modulo 2^Width (two\'s complement)', 'Diferença A − B, módulo 2^Largura (complemento para dois)') }[n];
     case 'compare': {
@@ -465,7 +474,8 @@ function paramMeaning(type, d, p, tx) {
     case 'selBus': return tx('Draws the select bits as one bus pin S instead of one pin per bit (S1, S0…; same function), as a symbol drawn before the pins per bit', 'Desenha os bits de seleção como um único pino em barramento S em vez de um pino por bit (S1, S0…; mesma função), como um símbolo desenhado antes dos pinos por bit')
     case 'bus': return tx('Draws the multi-bit pins as one bus pin instead of one pin per bit (same function)', 'Desenha os pinos de vários bits como um único pino em barramento em vez de um pino por bit (mesma função)');
     case 'enable': return tx('E: enable active high (BUFE, O = I when E = 1); T: three-state control active low (BUFT, O = I when T = 0)', 'E: habilitação ativa a 1 (BUFE, O = I quando E = 1); T: controlo de três estados ativo a 0 (BUFT, O = I quando T = 0)');
-    case 'bits': return tx('With Width > 1: one pin per bit (I0.., O0.., as BUFE4 / BUFT4) instead of the bus pins I and O (same function)', 'Com Largura > 1: um pino por bit (I0.., O0.., como BUFE4 / BUFT4) em vez dos pinos em barramento I e O (mesma função)');
+    case 'bits': if (type === 'add') return tx('With Width > 1: one pin per bit (A0.., B0.., S0.., as the Xilinx ADD4) instead of the bus pins A, B and S (same function)', 'Com Largura > 1: um pino por bit (A0.., B0.., S0.., como o Xilinx ADD4) em vez dos pinos em barramento A, B e S (mesma função)');
+      return tx('With Width > 1: one pin per bit (I0.., O0.., as BUFE4 / BUFT4) instead of the bus pins I and O (same function)', 'Com Largura > 1: um pino por bit (I0.., O0.., como BUFE4 / BUFT4) em vez dos pinos em barramento I e O (mesma função)');
     case 'mode': return tx('priority: the highest active input wins; one-hot: OR of the indexes (inputs assumed one-hot)', 'prioridade: ganha a entrada ativa de maior índice; one-hot: OR dos índices (assume entradas one-hot)');
     case 'cin': return tx('Adds the carry in input CI', 'Acrescenta a entrada de transporte CI');
     case 'cout': return tx('Adds the carry out output CO', 'Acrescenta a saída de transporte CO');

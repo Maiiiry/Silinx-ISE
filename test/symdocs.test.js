@@ -215,6 +215,10 @@ test('multiplexers, demultiplexers and decoders with enable: truth tables match 
   // M2_1E / M4_1E (#301, the Xilinx Libraries Guide): O = 0 when E = 0
   checkAgainst(tbl('mux2', { en: true }), v => ({ O: v.E ? (v.S0 ? v.D1 : v.D0) : 0 }), 'M2_1E');
   checkAgainst(tbl('mux4', { en: true }), v => ({ O: v.E ? v[`D${2 * v.S1 + v.S0}`] : 0 }), 'M4_1E');
+  // ADD1 (#304): the full adder of the textbooks, S = A ⊕ B ⊕ CI, CO = majority
+  checkAgainst(tbl('add', { width: 1, cin: true, cout: true }), v => ({ S: (v.A + v.B + v.CI) & 1, CO: (v.A + v.B + v.CI) >> 1 }), 'ADD1');
+  assert.deepEqual(symbolDoc('add', { width: 2, cin: true, cout: true, bits: true }).pins.map(p => p.name), ['A0', 'A1', 'B0', 'B1', 'CI', 'S0', 'S1', 'CO']);
+  assert.match(symbolDoc('add', { width: 1, cin: true, cout: true }).text[0], /full adder/);
   // M8_1E / M16_1: too many inputs for every row (sampled; their function: test/schsymbols.test.js), the select first
   assert.deepEqual(truthTable('mux8', { en: true }).inCols.map(c => c.label), ['S2…S0', 'D0…D7', 'E']);
   assert.deepEqual(truthTable('mux16', {}).inCols.map(c => c.label), ['S3…S0', 'D0…D15']);
