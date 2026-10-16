@@ -672,7 +672,7 @@ test('export: ANDnBk / D2_4E / D3_8E become Xilinx library symbols, the others x
   const m = parseIseSch(ex.xml);
   const sym = n => m.blocks.find(b => b.name === n).symbol;
   assert.deepEqual(['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7', 'U8', 'U9', 'U10'].map(sym),
-    ['and3b2', 'nor2b1', 'xl_or2b1_w4', 'd2_4e', 'd3_8e', 'xl_dec4_e', 'xl_dec3_bus', 'xl_penc3_bus', 'xl_enc2', 'xl_demux2_w4']);
+    ['and3b2', 'nor2b1', 'xl_or2b1_w4', 'd2_4e', 'd3_8e', 'xl_dec4_e', 'xl_dec3_bus', 'xl_penc3_bus', 'xl_enc2', 'xl_demux2s_w4']);
   // library pin names
   assert.deepEqual(m.blocks.find(b => b.name === 'U1').pins.map(p => `${p.name}=${p.signal}`).sort(), ['I0=U1_I0', 'I1=U1_I1', 'I2=U1_I2', 'O=U1_O']);
   assert.deepEqual(m.blocks.find(b => b.name === 'U5').pins.map(p => p.name).sort(), ['A0', 'A1', 'A2', 'D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7', 'E']);
@@ -680,10 +680,10 @@ test('export: ANDnBk / D2_4E / D3_8E become Xilinx library symbols, the others x
   // the library ANDnBk is drawn with its bubbles; the custom symbols come with HDL modules that compile
   assert.equal(m.blockdefs.get('and3b2').shapes.filter(s => s.kind === 'circle').length, 2);
   const hdl = ex.files.filter(f => f.kind === 'hdl');
-  assert.deepEqual(hdl.map(f => f.path).sort(), ['xl_dec3_bus.vhd', 'xl_dec4_e.vhd', 'xl_demux2_w4.vhd', 'xl_enc2.vhd', 'xl_or2b1_w4.vhd', 'xl_penc3_bus.vhd']);
+  assert.deepEqual(hdl.map(f => f.path).sort(), ['xl_dec3_bus.vhd', 'xl_dec4_e.vhd', 'xl_demux2s_w4.vhd', 'xl_enc2.vhd', 'xl_or2b1_w4.vhd', 'xl_penc3_bus.vhd']);
   compiles(Object.fromEntries(hdl.map(f => [f.path, f.text])), 'xl_penc3_bus');
   for (const [n, t] of [['xl_dec4_e', { type: 'decoder', params: { n: 4, en: true, bus: false } }], ['xl_penc3_bus', { type: 'encoder', params: { n: 3, mode: 'priority', bus: true } }],
-    ['xl_enc2', { type: 'encoder', params: { n: 2, mode: 'one-hot', bus: false } }], ['xl_demux2_w4', { type: 'demux', params: { sel: 2, width: 4 } }], ['xl_or2b1_w4', { type: 'or2b1', params: { width: 4 } }]])
+    ['xl_enc2', { type: 'encoder', params: { n: 2, mode: 'one-hot', bus: false } }], ['xl_demux2s_w4', { type: 'demux', params: { sel: 2, width: 4, en: false, selBus: false } }], ['xl_demux2_w4', { type: 'demux', params: { sel: 2, width: 4, en: false, selBus: true } }], ['xl_or2b1_w4', { type: 'or2b1', params: { width: 4 } }]])
     assert.deepEqual(decodeXlSymbol(n), t, n);
   // back into Silinx: same symbols, same parameters, same nets
   const symbols = Object.fromEntries(ex.files.filter(f => f.kind === 'sym').map(f => [f.path, f.text]));
@@ -840,4 +840,24 @@ test('#296 I/O markers turned: orien <-> side, exported and imported again', asy
   const back = importIseSch(xml).doc;
   const side = n => back.ports.find(p => p.name.toLowerCase() === n.toLowerCase()).side;
   assert.deepEqual([side(ins[0].name), side(outs[0].name), side(ins[1].name)], ['N', 'S', undefined]);
+});
+
+// #301: the multiplexers with an enable are the Xilinx M2_1E / M4_1E (library symbols, their pins), the
+// other Silinx symbols named with their enable and their select pins; and back
+test('#301 M2_1E / M4_1E: exported as the library symbols, imported as the native multiplexers with E; xl_ names of the others', () => {
+  const doc = newDoc('mx', 'vhdl');
+  const add = (id, type, params, y) => doc.symbols.push({ id, type, x: 200, y, rot: 0, mirror: false, name: id.replace('S', 'U'), params });
+  add('S1', 'mux2', { width: 1, en: true }, 100);
+  add('S2', 'mux4', { width: 1, en: true }, 300);
+  add('S3', 'mux4', { width: 4, en: false }, 500);
+  add('S4', 'mux4', { width: 4, en: true, selBus: true }, 700);
+  add('S5', 'demux', { width: 1, sel: 3, en: true }, 900);
+  const d = normalizeDoc(doc);
+  const ex = exportIseSch(d, { timestamp: '2024-1-2T3:4:5' });
+  const m = parseIseSch(ex.xml);
+  assert.deepEqual(['U1', 'U2', 'U3', 'U4', 'U5'].map(n => m.blocks.find(b => b.name === n).symbol), ['m2_1e', 'm4_1e', 'xl_mux4s_w4', 'xl_mux4e_w4', 'xl_demux3es_w1']);
+  const back = importIseSch(ex.xml, { name: 'mx', symbols: Object.fromEntries(ex.files.filter(f => f.kind === 'sym').map(f => [f.path, f.text])) }).doc;
+  const p = n => { const x = back.symbols.find(q => q.name === n); return [x.type, x.params.width, x.params.en, x.params.selBus, x.params.sel]; };
+  assert.deepEqual(['U1', 'U2', 'U3', 'U4', 'U5'].map(p), [['mux2', 1, true, undefined, undefined], ['mux4', 1, true, false, undefined], ['mux4', 4, false, false, undefined], ['mux4', 4, true, true, undefined], ['demux', 1, true, false, 3]]);
+  assert.deepEqual(decodeXlSymbol('xl_mux4_w8'), { type: 'mux4', params: { width: 8, en: false, selBus: true } }, 'a M4_1 exported before #301: its bus S');
 });

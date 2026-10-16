@@ -20,12 +20,16 @@ function model(type, p, inp, def) {
     }
     return { O: S.gate.startsWith('n') ? ~acc & mask(W) : acc };
   }
+  // the select bits S0, the bus S, or S<k-1> … S0 (#301); the enable E, the outputs 0 when it is 0
+  const selOf = k => { if (k === 1) return Number(inp.S0); if (p.selBus) return Number(inp.S); let v = 0; for (let j = 0; j < k; j++) v |= Number(inp[`S${j}`]) << j; return v; };
+  const en = p.en ? inp.E : 1n;
   if (type === 'demux') {
-    const k = +p.sel || 1, sel = Number(k === 1 ? inp.S0 : inp.S);
+    const k = +p.sel || 1, sel = selOf(k);
     const out = {};
-    for (let i = 0; i < 1 << k; i++) out[`O${i}`] = i === sel ? inp.D : 0n;
+    for (let i = 0; i < 1 << k; i++) out[`O${i}`] = en && i === sel ? inp.D : 0n;
     return out;
   }
+  if (/^mux\d+$/.test(type)) return { O: en ? inp[`D${selOf(Math.log2(+type.slice(3)))}`] : 0n };
   if (type === 'decoder') {
     const n = +p.n;
     let a = 0n;
@@ -154,7 +158,10 @@ test('symbol library: inverted-input gates, decoder, encoder and demultiplexer',
   assert.equal(SYMBOLS.encoder.category, 'Decoders/Encoders');
   assert.equal(SYMBOLS.demux.category, 'Mux');
   assert.deepEqual(SYMBOLS.decoder.presets.map(p => p.title), ['D2_4E', 'D3_8E', 'D4_16E']);
-  assert.deepEqual(SYMBOLS.demux.presets.map(p => p.title), ['DEMUX1_2', 'DEMUX1_4', 'DEMUX1_8']);
+  assert.deepEqual(SYMBOLS.demux.presets.map(p => p.title), ['DEMUX1_2', 'DEMUX1_4', 'DEMUX1_8', 'DEMUX1_16', 'DEMUX1_2E', 'DEMUX1_4E', 'DEMUX1_8E', 'DEMUX1_16E']);
+  assert.deepEqual([SYMBOLS.mux2, SYMBOLS.mux4, SYMBOLS.mux8, SYMBOLS.mux16].map(S => [S.title, ...S.presets.map(p => p.title)]), [['M2_1', 'M2_1E'], ['M4_1', 'M4_1E'], ['M8_1', 'M8_1E'], ['M16_1', 'M16_1E']]);
+  // (the decoders and encoders listed by their presets only, #301)
+  assert.deepEqual([SYMBOLS.decoder.presetsOnly, SYMBOLS.encoder.presetsOnly, !!SYMBOLS.demux.presetsOnly], [true, true, false]);
   // AND2B1: I0 inverted and at the bottom (as in the Xilinx library), I1 plain at the top
   const g = symbolDef({ type: 'and2b1', params: {} });
   const I0 = g.pins.find(p => p.name === 'I0'), I1 = g.pins.find(p => p.name === 'I1');
@@ -178,7 +185,16 @@ test('symbol library: inverted-input gates, decoder, encoder and demultiplexer',
   assert.deepEqual(pw({ type: 'encoder', params: { n: 3, bus: true } }), { I: 'in8', A: 'out3', V: 'out1' });
   assert.deepEqual(pw({ type: 'encoder', params: { n: 2 } }), { I0: 'in1', I1: 'in1', I2: 'in1', I3: 'in1', A0: 'out1', A1: 'out1', V: 'out1' });
   assert.deepEqual(pw({ type: 'demux', params: { sel: 1, width: 4 } }), { D: 'in4', S0: 'in1', O0: 'out4', O1: 'out4' });
-  assert.deepEqual(pw({ type: 'demux', params: { sel: 2, width: 1 } }), { D: 'in1', S: 'in2', O0: 'out1', O1: 'out1', O2: 'out1', O3: 'out1' });
+  assert.deepEqual(pw({ type: 'demux', params: { sel: 2, width: 1 } }), { D: 'in1', S1: 'in1', S0: 'in1', O0: 'out1', O1: 'out1', O2: 'out1', O3: 'out1' });
+  // (#301: the bus S of before, the enable E; M4_1(E))
+  assert.deepEqual(pw({ type: 'demux', params: { sel: 2, width: 1, selBus: true } }), { D: 'in1', S: 'in2', O0: 'out1', O1: 'out1', O2: 'out1', O3: 'out1' });
+  assert.deepEqual(pw({ type: 'demux', params: { sel: 2, width: 4, en: true } }), { D: 'in4', E: 'in1', S1: 'in1', S0: 'in1', O0: 'out4', O1: 'out4', O2: 'out4', O3: 'out4' });
+  assert.deepEqual(pw({ type: 'mux4', params: { width: 1 } }), { D0: 'in1', D1: 'in1', D2: 'in1', D3: 'in1', S1: 'in1', S0: 'in1', O: 'out1' });
+  assert.deepEqual(pw({ type: 'mux4', params: { width: 8, en: true } }), { D0: 'in8', D1: 'in8', D2: 'in8', D3: 'in8', E: 'in1', S1: 'in1', S0: 'in1', O: 'out8' });
+  assert.deepEqual(pw({ type: 'mux2', params: { width: 1, en: true } }), { D0: 'in1', D1: 'in1', E: 'in1', S0: 'in1', O: 'out1' });
+  assert.deepEqual(Object.keys(pw({ type: 'mux16', params: { en: true } })), [...Array(16).keys()].map(i => `D${i}`).concat(['E', 'S3', 'S2', 'S1', 'S0', 'O']));
+  for (const t of ['mux8', 'mux16']) for (const en of [false, true]) { const d = symbolDef({ type: t, params: { en } }); assert.equal(new Set(d.pins.map(q => `${q.x},${q.y}`)).size, d.pins.length, `${t} distinct pin positions`); }
+  assert.deepEqual(['M2_1', 'M2_1E', 'M4_1', 'M4_1E', 'DEMUX1_4E'], [{ type: 'mux2', params: {} }, { type: 'mux2', params: { en: true } }, { type: 'mux4', params: {} }, { type: 'mux4', params: { en: true } }, { type: 'demux', params: { sel: 2, en: true } }].map(c => symbolDef(c).title));
   assert.equal(symbolDef({ type: 'decoder', params: { n: 4 } }).title, 'D4_16E');
   assert.equal(symbolDef({ type: 'encoder', params: { n: 3, mode: 'one-hot' } }).title, 'ENC8_3');
 });
@@ -212,6 +228,22 @@ test('simulation: demultiplexers 1:2 .. 1:16 with data widths 1 and 4 (exhaustiv
   const cases = [];
   for (const sel of [1, 2, 3, 4]) for (const width of [1, 4]) cases.push({ type: 'demux', params: { sel, width } });
   check('demuxes', cases, 64);
+});
+
+// #301: the select bits on pins of their own (or the bus S of before), the enable E
+test('#301 simulation: M2_1(E), M4_1(E) and DEMUX1_2 .. 1_8(E), the select bits as pins or as the bus S, widths 1 and 4', () => {
+  const cases = [];
+  for (const type of ['mux2', 'mux4', 'mux8', 'mux16']) for (const en of [false, true]) for (const selBus of [false, true]) for (const width of [1, 4]) {
+    if (type !== 'mux4' && selBus) continue;
+    cases.push({ type, params: { width, en, selBus } });
+  }
+  check('muxes301', cases, 64);
+  const dm = [];
+  for (const sel of [1, 2, 3, 4]) for (const en of [false, true]) for (const selBus of [false, true]) for (const width of [1, 4]) {
+    if (sel === 1 && selBus) continue;
+    dm.push({ type: 'demux', params: { sel, width, en, selBus } });
+  }
+  check('demuxes301', dm, 64);
 });
 
 test('generateHdl: unwired decoder / encoder / demux still give valid HDL', () => {

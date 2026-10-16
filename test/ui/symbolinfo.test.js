@@ -36,8 +36,8 @@ uiTest('Symbol Info: palette menu and More… link, placed symbol (F1, toolbar, 
   assert.match(await page.eval((d) => document.querySelector(`${d} .se-dhead b`).textContent, DLG), /^Symbol Info: M4_1$/);
   assert.match(await page.eval((d) => document.querySelector(`${d} .sd-main p`).textContent, DLG), /^The 4:1 multiplexer \(M4_1\) copies to its output the data input/);
   assert.deepEqual(await rows(page, `${DLG} .sd-pins tbody tr`), [
-    'D0 input 1 Data input selected when S = 00 (0)', 'D1 input 1 Data input selected when S = 01 (1)', 'D2 input 1 Data input selected when S = 10 (2)',
-    'D3 input 1 Data input selected when S = 11 (3)', 'S input 2 2-bit select: index of the data input that reaches O (S(1) = MSB)', 'O output 1 Output: the selected data input']);
+    'D0 input 1 Data input selected when S1 S0 = 00 (0)', 'D1 input 1 Data input selected when S1 S0 = 01 (1)', 'D2 input 1 Data input selected when S1 S0 = 10 (2)',
+    'D3 input 1 Data input selected when S1 S0 = 11 (3)', 'S1 input 1 Select, most significant bit (weight 2)', 'S0 input 1 Select, least significant bit (weight 1)', 'O output 1 Output: the selected data input']);
   // compact truth table as in the Libraries Guide, the full one on request
   assert.equal((await rows(page)).length, 8);
   assert.equal((await rows(page))[1], '0 0 1 X X X 1');
@@ -45,7 +45,7 @@ uiTest('Symbol Info: palette menu and More… link, placed symbol (F1, toolbar, 
   await page.waitFor((d) => document.querySelectorAll(`${d} .sd-truth tbody tr`).length === 64, [DLG], { what: 'full table' });
   // the symbol drawing and the equivalent HDL (project language first)
   assert.ok(await page.eval((d) => document.querySelectorAll(`${d} .sd-draw svg .gate`).length > 0, DLG));
-  assert.match(await page.eval((d) => document.querySelector(`${d} .sd-code`).textContent, DLG), /entity M4_1 is[\s\S]*with S select O <=/);
+  assert.match(await page.eval((d) => document.querySelector(`${d} .sd-code`).textContent, DLG), /entity M4_1 is[\s\S]*O <= D0 when S1 = '0' and S0 = '0' else/);
   await page.click(`${DLG} .sd-tabs [data-lang=verilog]`);
   assert.match(await page.eval((d) => document.querySelector(`${d} .sd-code`).textContent, DLG), /module M4_1/);
   // change the width: pins become buses, the table is shown per bit, the HDL follows

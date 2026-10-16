@@ -20,7 +20,7 @@
 // become slice / bus join symbols, and net names are added wherever a net is joined by name only.
 // The result is checked with netlist() against the ISE netlist (warnings list any difference).
 import {
-  SYMBOLS, defaultParams, normalizeDoc, symbolDef, symbolPins, symbolBox, portBox, portSide, netlist, normModules,
+  SYMBOLS, DOC_VERSION, defaultParams, normalizeDoc, symbolDef, symbolPins, symbolBox, portBox, portSide, netlist, normModules,
   validIdent, generateHdl, constBits, newDoc, xform, modulesFromLibrary,
 } from './schdoc.js';
 import { compile } from './compile.js';
@@ -1396,7 +1396,7 @@ export function importIseSch(xmlText, opts = {}) {
   const labelText = k => (mainInfo.has(k) || keyWidth(k) > 1 ? `${keyName.get(k)}(${keyWidth(k) - 1}:0)` : keyName.get(k));
   const build = () => {
     for (const l of labels) l.net = labelText(labelKey.get(l.id));
-    return normalizeDoc({ version: 1, name: docName, lang, sheet: { w: 1700, h: 1100 }, symbols: syms, wires, labels, ports });
+    return normalizeDoc({ version: DOC_VERSION, name: docName, lang, sheet: { w: 1700, h: 1100 }, symbols: syms, wires, labels, ports });
   };
   const elemKeys = net => {
     const ks = new Set();
@@ -1563,6 +1563,10 @@ function mapSymbol(blk, modules, warn, geo = {}) {
   if (SYMBOLS[sym]?.ff) return direct(sym, { init: blk.attrs.INIT != null ? init : SYMBOLS[sym].params[0].default });
   if ((m = /^fd(8|16|32)(ce|re)$/.exec(sym))) return direct('register', { width: +m[1], en: true, reset: m[2] === 'ce' ? 'async' : 'sync', init: '0' });
   if (sym === 'm2_1') return direct('mux2', { width: 1 });
+  // the Xilinx M2_1E / M4_1E: the native multiplexers with their enable E (#301)
+  if (sym === 'm2_1e') return direct('mux2', { width: 1, en: true });
+  if (sym === 'm4_1e') return direct('mux4', { width: 1, en: true, selBus: false });
+  if (sym === 'm8_1e') return direct('mux8', { width: 1, en: true });
   if ((m = /^d(2|3|4)_(4|8|16)e$/.exec(sym)) && (1 << +m[1]) === +m[2]) return direct('decoder', { n: +m[1], en: true, bus: false });
   if (sym === 'vcc' || sym === 'gnd') return direct(sym, {});
   if ((m = /^cb(8|16)(ce|re)$/.exec(sym)) && !conn('CEO') && !conn('TC')) return direct('counter', { width: +m[1], en: true, reset: m[2] === 'ce' ? 'async' : 'sync', dir: 'up' });
@@ -1640,8 +1644,19 @@ function iseSymbolFor(s, def, netW, modules) {
     return { lib: false, name: `xl_${t}_i${iv}${W > 1 ? `_w${W}` : ''}` };
   }
   switch (t) {
-    case 'mux2': return W === 1 ? { lib: true, name: 'm2_1', pins: { D0: 'D0', D1: 'D1', S0: 'S0', O: 'O' } } : { lib: false, name: `xl_mux2_w${W}` };
-    case 'mux4': return { lib: false, name: `xl_mux4_w${W}` };
+    // (with an enable E: the Xilinx M2_1E / M4_1E; the select bits on pins of their own, #301: 's' in the
+    // name of a Silinx symbol, without it the bus pin S of before)
+    case 'mux2': return W === 1 ? (p.en ? { lib: true, name: 'm2_1e', pins: { D0: 'D0', D1: 'D1', S0: 'S0', E: 'E', O: 'O' } } : { lib: true, name: 'm2_1', pins: { D0: 'D0', D1: 'D1', S0: 'S0', O: 'O' } })
+      : { lib: false, name: `xl_mux2${p.en ? 'e' : ''}_w${W}` };
+    case 'mux4': return W === 1 && p.en && !p.selBus ? { lib: true, name: 'm4_1e', pins: { D0: 'D0', D1: 'D1', D2: 'D2', D3: 'D3', S0: 'S0', S1: 'S1', E: 'E', O: 'O' } }
+      : { lib: false, name: `xl_mux4${p.en ? 'e' : ''}${p.selBus ? '' : 's'}_w${W}` };
+    case 'mux16': return { lib: false, name: `xl_mux16${p.en ? 'e' : ''}_w${W}` };
+    case 'mux8': {
+      if (W > 1 || !p.en) return { lib: false, name: `xl_mux8${p.en ? 'e' : ''}_w${W}` };
+      const pins = { S0: 'S0', S1: 'S1', S2: 'S2', E: 'E', O: 'O' };
+      for (let k = 0; k < 8; k++) pins[`D${k}`] = `D${k}`;
+      return { lib: true, name: 'm8_1e', pins };
+    }
     case 'tbuf': {
       // always a Silinx symbol (with its .sym and HDL file): ISE 14.7's FPGA symbol libraries
       // (Spartan-3/3E/6 ...) have no BUFE / BUFT (only CPLD ones do), so a library block would not
@@ -1649,7 +1664,7 @@ function iseSymbolFor(s, def, netW, modules) {
       const en = p.enable === 'T' ? 'T' : 'E', bits = W > 1 && !!p.bits;
       return { lib: false, name: `xl_tbuf${lc(en)}_w${W}${bits ? '_bits' : ''}` };
     }
-    case 'demux': return { lib: false, name: `xl_demux${Math.max(1, Math.min(4, parseInt(p.sel, 10) || 1))}_w${W}` };
+    case 'demux': { const k = Math.max(1, Math.min(4, parseInt(p.sel, 10) || 1)); return { lib: false, name: `xl_demux${k}${p.en ? 'e' : ''}${k > 1 && !p.selBus ? 's' : ''}_w${W}` }; }
     case 'decoder': {
       const n = Math.max(1, Math.min(5, parseInt(p.n, 10) || 2));
       // D2_4E / D3_8E (pin positions known); D4_16E is written as a Silinx symbol with the same pins
@@ -1723,10 +1738,13 @@ export function decodeXlSymbol(name) {
   if ((m = /^xl_(and|or|nand|nor|xor|xnor)(\d(?:b\d)?)_w(\d+)$/.exec(s)) && SYMBOLS[m[1] + m[2]]) return { type: m[1] + m[2], params: { width: +m[3] } };
   if ((m = /^xl_(f(?:d|t|jk)[a-z]*)_i([01])(?:_w(\d+))?$/.exec(s)) && SYMBOLS[m[1]]?.ff) return { type: m[1], params: { init: m[2], ...(m[3] ? { width: +m[3] } : {}) } };
   if ((m = /^xl_tbuf([et])_w(\d+)(_bits)?$/.exec(s))) return { type: 'tbuf', params: { width: +m[2], enable: m[1].toUpperCase(), bits: !!m[3] } };
-  if ((m = /^xl_demux([1-4])_w(\d+)$/.exec(s))) return { type: 'demux', params: { sel: +m[1], width: +m[2] } };
+  if ((m = /^xl_demux([1-4])(e?)(s?)_w(\d+)$/.exec(s))) return { type: 'demux', params: { sel: +m[1], width: +m[4], en: !!m[2], selBus: +m[1] > 1 && !m[3] } };
   if ((m = /^xl_dec([1-5])(_e)?(_bus)?$/.exec(s))) return { type: 'decoder', params: { n: +m[1], en: !!m[2], bus: !!m[3] } };
   if ((m = /^xl_(p?enc)([2-5])(_bus)?$/.exec(s))) return { type: 'encoder', params: { n: +m[2], mode: m[1] === 'enc' ? 'one-hot' : 'priority', bus: !!m[3] } };
-  if ((m = /^xl_(inv|buf|mux2|mux4)_w(\d+)$/.exec(s))) return { type: m[1], params: { width: +m[2] } };
+  if ((m = /^xl_mux2(e?)_w(\d+)$/.exec(s))) return { type: 'mux2', params: { width: +m[2], en: !!m[1] } };
+  if ((m = /^xl_mux(8|16)(e?)_w(\d+)$/.exec(s))) return { type: `mux${m[1]}`, params: { width: +m[3], en: !!m[2] } };
+  if ((m = /^xl_mux4(e?)(s?)_w(\d+)$/.exec(s))) return { type: 'mux4', params: { width: +m[3], en: !!m[1], selBus: !m[2] } };
+  if ((m = /^xl_(inv|buf)_w(\d+)$/.exec(s))) return { type: m[1], params: { width: +m[2] } };
   if ((m = /^xl_reg(\d+)(_ce)?(_ar|_sr)?_h([0-9a-f]+)$/.exec(s))) return { type: 'register', params: { width: +m[1], en: !!m[2], reset: m[3] === '_ar' ? 'async' : m[3] === '_sr' ? 'sync' : 'none', init: m[4] === '0' ? '0' : `0x${m[4]}` } };
   if ((m = /^xl_cnt(\d+)(_ce)?(_ar|_sr)?(_dn)?$/.exec(s))) return { type: 'counter', params: { width: +m[1], en: !!m[2], reset: m[3] === '_ar' ? 'async' : m[3] === '_sr' ? 'sync' : 'none', dir: m[4] ? 'down' : 'up' } };
   if ((m = /^xl_add(\d+)(_ci)?(_co)?$/.exec(s))) return { type: 'add', params: { width: +m[1], cin: !!m[2], cout: !!m[3] } };

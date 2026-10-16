@@ -119,12 +119,12 @@ function bodySvg(sym, def) {
       break;
     }
     case 'mux': {
-      const bh = def.body.h;
-      s += `<path class="gate" d="M20,0 L60,10 L60,${bh - 10} L20,${bh} Z"/>`;
+      const bh = def.body.h, bw = def.body.w, x1 = 20 + bw;
+      s += `<path class="gate" d="M20,0 L${x1},10 L${x1},${bh - 10} L20,${bh} Z"/>`;
       for (const p of pins) {
         if (p.side === 'W') s += lead(0, p.y, 20, p.y, bus(p));
-        else if (p.side === 'S') s += lead(p.x, bh - 5, p.x, p.y, bus(p));
-        else s += lead(60, p.y, p.x, p.y, bus(p));
+        else if (p.side === 'S') s += lead(p.x, r1(bh - 10 * (p.x - 20) / bw), p.x, p.y, bus(p));   // (from the slanted bottom edge)
+        else s += lead(x1, p.y, p.x, p.y, bus(p));
       }
       break;
     }
@@ -480,7 +480,8 @@ export function mountSchEditor(container, opts = {}) {
       if (type === 'module' || S.hidden) continue;
       // parameterised symbols listed under their Xilinx-style names (D2_4E, DEMUX1_4...), then the generic one
       for (const pr of S.presets || []) items.push({ type, cat: S.category, title: pr.title, desc: pr.description || S.description, params: { ...pr.params }, preset: pr.title });
-      items.push({ type, cat: S.category, title: S.title, desc: S.description, params: {} });
+      // (the decoders and encoders by their presets only: the generic DECODER / ENCODER are the same symbols, #301)
+      if (!S.presetsOnly) items.push({ type, cat: S.category, title: S.title, desc: S.description, params: {} });
     }
     for (const m of Object.values(modules).filter(x => !x.block).sort((a, b) => a.name.localeCompare(b.name))) {
       if (m.name === doc.name) continue;

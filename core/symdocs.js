@@ -12,7 +12,7 @@
 // Every SYMBOLS type and every preset has a description, a function per pin and a meaning per
 // parameter in both languages (test/symdocs.test.js). Flip-flop texts and mode tables are derived
 // from the ff flags of the symbol ({ k, ce, clr, pre, r, s, sp }), so FD*, FT* and FJK* agree.
-import { SYMBOLS, defaultParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
+import { SYMBOLS, MUX_INPUTS, defaultParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
 
 export const DOC_LANGS = ['en', 'pt'];
 const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
@@ -74,7 +74,7 @@ export const UI_TEXTS = UI;
 // parameter labels (as in SYMBOLS) in Portuguese
 const PARAM_PT = {
   'Width': 'Largura', 'INIT': 'INIT', 'Select bits': 'Bits de seleção', 'Address bits': 'Bits de endereço',
-  'Enable input E': 'Entrada de habilitação E', 'Bus pins (A, D)': 'Pinos em barramento (A, D)', 'Output bits': 'Bits de saída',
+  'Enable input E': 'Entrada de habilitação E', 'Select as a bus (S)': 'Seleção em barramento (S)', 'Bus pins (A, D)': 'Pinos em barramento (A, D)', 'Output bits': 'Bits de saída',
   'Type': 'Tipo', 'Bus pins (I, A)': 'Pinos em barramento (I, A)', 'Carry in': 'Transporte de entrada (carry in)',
   'Carry out': 'Transporte de saída (carry out)', 'Operation': 'Operação', 'Signed': 'Com sinal', 'Value': 'Valor',
   'Clock enable': 'Habilitação do relógio', 'Reset': 'Reset', 'Reset/INIT value': 'Valor de reset/INIT', 'Direction': 'Sentido',
@@ -93,7 +93,7 @@ export function docKeys() {
   }
   return out;
 }
-const COSMETIC = new Set(['width', 'bus']);
+const COSMETIC = new Set(['width', 'bus', 'selBus']);
 /** Title of the preset that the parameters correspond to (D3_8E, DEMUX1_4, PENC8_3 …), or null. */
 export function presetOf(type, params = {}) {
   const S = SYMBOLS[type];
@@ -217,6 +217,9 @@ function describe(type, p, tx, preset) {
   const S = SYMBOLS[type];
   if (!S) return { text: [tx('Unknown symbol.', 'Símbolo desconhecido.')] };
   const W = Math.max(1, int(p.width, 1));
+  // (a multiplexer with its enable E, #301)
+  const muxEn = p.en && MUX_INPUTS[type] ? [tx('With the enable E at 0 the output O is 0, whatever the select and data inputs (as the Xilinx M2_1E … M16_1E); with E at 1 it is the multiplexer.',
+    'Com a habilitação E a 0 a saída O é 0, sejam quais forem as entradas de seleção e de dados (como os Xilinx M2_1E … M16_1E); com E a 1 é o multiplexador.')] : [];
   const widthNote = tx('With Width > 1 all data pins are buses of that width and the symbol works bitwise (bit i of the output depends only on bit i of the data inputs).',
     'Com Largura > 1 todos os pinos de dados são barramentos dessa largura e o símbolo opera bit a bit (o bit i da saída só depende do bit i das entradas de dados).');
   if (S.gate && S.inputs > 1) {
@@ -265,13 +268,20 @@ function describe(type, p, tx, preset) {
       return { text: t, formula: low ? 'O = T ? Z : I' : 'O = E ? I : Z' };
     }
     case 'mux2': return { text: [tx('The 2:1 multiplexer (M2_1) selects one of its two data inputs and copies it to the output: O = D0 when S0 = 0 and O = D1 when S0 = 1. A multiplexer is a switch controlled by a digital signal: it chooses between two data sources (e.g. load a new value or keep the old one in a register), builds wider multiplexers as trees, and with constants on the data inputs implements any function of one variable.',
-      'O multiplexador 2:1 (M2_1) seleciona uma das duas entradas de dados e copia-a para a saída: O = D0 quando S0 = 0 e O = D1 quando S0 = 1. Um multiplexador é um comutador controlado por um sinal digital: escolhe entre duas fontes de dados (p. ex. carregar um valor novo ou manter o antigo num registo), constrói multiplexadores maiores em árvore e, com constantes nas entradas de dados, implementa qualquer função de uma variável.'), widthNote], formula: "O = S0'·D0 + S0·D1" };
-    case 'mux4': return { text: [tx('The 4:1 multiplexer (M4_1) copies to its output the data input whose index is the 2-bit select value S: O = D0, D1, D2 or D3 for S = 00, 01, 10, 11 (S(1) is the most significant bit). It selects one of four data sources (e.g. the operation result of a small ALU); with the select bits as variables and constants 0 / 1 on the data inputs it implements any function of two variables.',
-      'O multiplexador 4:1 (M4_1) copia para a saída a entrada de dados cujo índice é o valor de seleção S de 2 bits: O = D0, D1, D2 ou D3 para S = 00, 01, 10, 11 (S(1) é o bit mais significativo). Seleciona uma de quatro fontes de dados (p. ex. o resultado da operação de uma pequena ALU); com os bits de seleção como variáveis e constantes 0 / 1 nas entradas de dados implementa qualquer função de duas variáveis.'), widthNote], formula: "O = S1'·S0'·D0 + S1'·S0·D1 + S1·S0'·D2 + S1·S0·D3" };
+      'O multiplexador 2:1 (M2_1) seleciona uma das duas entradas de dados e copia-a para a saída: O = D0 quando S0 = 0 e O = D1 quando S0 = 1. Um multiplexador é um comutador controlado por um sinal digital: escolhe entre duas fontes de dados (p. ex. carregar um valor novo ou manter o antigo num registo), constrói multiplexadores maiores em árvore e, com constantes nas entradas de dados, implementa qualquer função de uma variável.'), widthNote, ...muxEn], formula: "O = S0'·D0 + S0·D1" };
+    case 'mux4': return { text: [tx('The 4:1 multiplexer (M4_1) copies to its output the data input whose index is the 2-bit select value S1 S0: O = D0, D1, D2 or D3 for S1 S0 = 00, 01, 10, 11 (S1 is the most significant bit). It selects one of four data sources (e.g. the operation result of a small ALU); with the select bits as variables and constants 0 / 1 on the data inputs it implements any function of two variables.',
+      'O multiplexador 4:1 (M4_1) copia para a saída a entrada de dados cujo índice é o valor de seleção S1 S0 de 2 bits: O = D0, D1, D2 ou D3 para S1 S0 = 00, 01, 10, 11 (S1 é o bit mais significativo). Seleciona uma de quatro fontes de dados (p. ex. o resultado da operação de uma pequena ALU); com os bits de seleção como variáveis e constantes 0 / 1 nas entradas de dados implementa qualquer função de duas variáveis.'), widthNote, ...muxEn], formula: "O = S1'·S0'·D0 + S1'·S0·D1 + S1·S0'·D2 + S1·S0·D3" };
+    case 'mux8': case 'mux16': {
+      const n = MUX_INPUTS[type], k = Math.log2(n), sel = [...Array(k).keys()].reverse().map(j => `S${j}`).join(' ');
+      return { text: [tx(`The ${n}:1 multiplexer (${preset || SYMBOLS[type].title}) copies to its output the data input whose index is the ${k}-bit select value ${sel}: O = D0 … D${n - 1} for ${sel} = 0 … ${n - 1} (S${k - 1} is the most significant bit). It selects one of ${n} data sources; with the select bits as variables and constants 0 / 1 on the data inputs it implements any function of ${k} variables.`,
+        `O multiplexador ${n}:1 (${preset || SYMBOLS[type].title}) copia para a saída a entrada de dados cujo índice é o valor de seleção ${sel} de ${k} bits: O = D0 … D${n - 1} para ${sel} = 0 … ${n - 1} (S${k - 1} é o bit mais significativo). Seleciona uma de ${n} fontes de dados; com os bits de seleção como variáveis e constantes 0 / 1 nas entradas de dados implementa qualquer função de ${k} variáveis.`), widthNote, ...muxEn], formula: `O = D<${sel}>` };
+    }
     case 'demux': {
       const k = Math.max(1, Math.min(4, int(p.sel, 1))), n = 1 << k;
-      return { text: [tx(`The 1:${n} demultiplexer${preset ? ` (${preset})` : ''} routes its data input D to the output selected by ${k === 1 ? 'S0' : `the ${k}-bit value S`}: O<S> = D and all the other outputs are 0. It is the opposite of a multiplexer: it distributes one signal (e.g. a write enable or a clock enable) to one of ${n} destinations. A demultiplexer whose D is held at 1 is a decoder, and D works as its enable.`,
-        `O desmultiplexador 1:${n}${preset ? ` (${preset})` : ''} encaminha a entrada de dados D para a saída selecionada por ${k === 1 ? 'S0' : `o valor S de ${k} bits`}: O<S> = D e todas as outras saídas ficam a 0. É o contrário de um multiplexador: distribui um sinal (p. ex. uma habilitação de escrita) por um de ${n} destinos. Um desmultiplexador com D fixo a 1 é um descodificador, e D funciona como a sua habilitação.`), widthNote], formula: `Oi = D · (S = i)` };
+      const selName = p.selBus ? 'S' : [...Array(k).keys()].reverse().map(j => `S${j}`).join(' ');
+      const demuxEn = p.en ? [tx('With the enable E at 0 all the outputs are 0; with E at 1 it is the demultiplexer.', 'Com a habilitação E a 0 todas as saídas ficam a 0; com E a 1 é o desmultiplexador.')] : [];
+      return { text: [tx(`The 1:${n} demultiplexer${preset ? ` (${preset})` : ''} routes its data input D to the output selected by ${k === 1 ? 'S0' : `the ${k}-bit value ${selName}`}: O<S> = D and all the other outputs are 0. It is the opposite of a multiplexer: it distributes one signal (e.g. a write enable or a clock enable) to one of ${n} destinations. A demultiplexer whose D is held at 1 is a decoder, and D works as its enable.`,
+        `O desmultiplexador 1:${n}${preset ? ` (${preset})` : ''} encaminha a entrada de dados D para a saída selecionada por ${k === 1 ? 'S0' : `o valor ${selName} de ${k} bits`}: O<S> = D e todas as outras saídas ficam a 0. É o contrário de um multiplexador: distribui um sinal (p. ex. uma habilitação de escrita) por um de ${n} destinos. Um desmultiplexador com D fixo a 1 é um descodificador, e D funciona como a sua habilitação.`), widthNote, ...demuxEn], formula: `Oi = D · (S = i)` };
     }
     case 'decoder': {
       const n = Math.max(1, Math.min(5, int(p.n, 2))), o = 1 << n;
@@ -360,16 +370,26 @@ function pinFunc(type, p, pin, tx) {
       if (/^I/.test(n)) return tx(`Data input${bit}`, `Entrada de dados${bit}`);
       return tx(`Tri-state output${bit}: I while enabled, else Z (may share its net with other tri-state outputs)`, `Saída de três estados${bit}: I enquanto habilitada, senão Z (pode partilhar a rede com outras saídas de três estados)`);
     }
-    case 'mux2': case 'mux4':
-      if (n === 'O') return tx('Output: the selected data input', 'Saída: a entrada de dados selecionada');
-      if (n === 'S0') return tx('Select: 0 = D0, 1 = D1', 'Seleção: 0 = D0, 1 = D1');
+    case 'mux2': case 'mux4': case 'mux8': case 'mux16': {
+      const en = !!p.en, sb = type === 'mux4' && !!p.selBus;
+      if (n === 'O') return en ? tx('Output: the selected data input when E = 1, 0 when E = 0', 'Saída: a entrada de dados selecionada quando E = 1, 0 quando E = 0') : tx('Output: the selected data input', 'Saída: a entrada de dados selecionada');
+      if (n === 'E') return tx('Enable, active high: 1 = O is the selected data input, 0 = O is 0', 'Habilitação, ativa a 1: 1 = O é a entrada de dados selecionada, 0 = O é 0');
+      if (n === 'S0' && type === 'mux2') return tx('Select: 0 = D0, 1 = D1', 'Seleção: 0 = D0, 1 = D1');
       if (n === 'S') return tx('2-bit select: index of the data input that reaches O (S(1) = MSB)', 'Seleção de 2 bits: índice da entrada de dados que chega a O (S(1) = MSB)');
-      return type === 'mux2' ? tx(`Data input selected when S0 = ${i}`, `Entrada de dados selecionada quando S0 = ${i}`)
-        : tx(`Data input selected when S = ${i.toString(2).padStart(2, '0')} (${i})`, `Entrada de dados selecionada quando S = ${i.toString(2).padStart(2, '0')} (${i})`);
+      const k = Math.log2(MUX_INPUTS[type]);
+      if (/^S\d$/.test(n)) return +n[1] === k - 1 ? tx(`Select, most significant bit (weight ${2 ** (k - 1)})`, `Seleção, bit mais significativo (peso ${2 ** (k - 1)})`)
+        : +n[1] === 0 ? tx('Select, least significant bit (weight 1)', 'Seleção, bit menos significativo (peso 1)') : tx(`Select bit ${n[1]} (weight ${2 ** +n[1]})`, `Bit ${n[1]} da seleção (peso ${2 ** +n[1]})`);
+      const sel = sb ? 'S' : [...Array(k).keys()].reverse().map(j => `S${j}`).join(' '), also = en ? tx(' and E = 1', ' e E = 1') : '';
+      return type === 'mux2' ? tx(`Data input selected when S0 = ${i}${also}`, `Entrada de dados selecionada quando S0 = ${i}${also}`)
+        : tx(`Data input selected when ${sel} = ${i.toString(2).padStart(k, '0')} (${i})${also}`, `Entrada de dados selecionada quando ${sel} = ${i.toString(2).padStart(k, '0')} (${i})${also}`);
+    }
     case 'demux': {
+      const en = !!p.en;
       if (n === 'D') return tx('Data input, copied to the selected output', 'Entrada de dados, copiada para a saída selecionada');
-      if (n === 'S' || n === 'S0') return tx('Select: index of the output that receives D', 'Seleção: índice da saída que recebe D');
-      return tx(`Output ${i}: D when the select value is ${i}, else 0`, `Saída ${i}: D quando o valor de seleção é ${i}, senão 0`);
+      if (n === 'E') return tx('Enable, active high: 1 = the selected output is D, 0 = all outputs are 0', 'Habilitação, ativa a 1: 1 = a saída selecionada é D, 0 = todas as saídas a 0');
+      if (n === 'S' || (n === 'S0' && (+p.sel || 1) === 1)) return tx('Select: index of the output that receives D', 'Seleção: índice da saída que recebe D');
+      if (/^S\d+$/.test(n)) return tx(`Select bit ${i} (weight ${2 ** i})`, `Bit ${i} da seleção (peso ${2 ** i})`);
+      return tx(`Output ${i}: D when the select value is ${i}${en ? ' and E = 1' : ''}, else 0`, `Saída ${i}: D quando o valor de seleção é ${i}${en ? ' e E = 1' : ''}, senão 0`);
     }
     case 'decoder': {
       const en = !!p.en;
@@ -439,7 +459,10 @@ function paramMeaning(type, d, p, tx) {
     case 'n': return type === 'decoder' ? tx('Number of address bits n: 2^n outputs (2 → D2_4E, 3 → D3_8E, 4 → D4_16E)', 'Número de bits de endereço n: 2^n saídas (2 → D2_4E, 3 → D3_8E, 4 → D4_16E)')
       : tx('Number of output bits n: 2^n inputs (2 → 4:2, 3 → 8:3, 4 → 16:4)', 'Número de bits de saída n: 2^n entradas (2 → 4:2, 3 → 8:3, 4 → 16:4)');
     case 'en': return type === 'decoder' ? tx('Adds the enable input E (without it the decoder is always enabled)', 'Acrescenta a entrada de habilitação E (sem ela o descodificador está sempre habilitado)')
+      : MUX_INPUTS[type] ? tx('Adds the enable input E: O is 0 when E = 0 (M2_1E … M16_1E)', 'Acrescenta a entrada de habilitação E: O é 0 quando E = 0 (M2_1E … M16_1E)')
+      : type === 'demux' ? tx('Adds the enable input E: all outputs are 0 when E = 0', 'Acrescenta a entrada de habilitação E: todas as saídas a 0 quando E = 0')
       : tx('Adds the clock enable input CE (without it every rising edge acts)', 'Acrescenta a entrada de habilitação do relógio CE (sem ela todos os flancos ascendentes atuam)');
+    case 'selBus': return tx('Draws the select bits as one bus pin S instead of one pin per bit (S1, S0…; same function), as a symbol drawn before the pins per bit', 'Desenha os bits de seleção como um único pino em barramento S em vez de um pino por bit (S1, S0…; mesma função), como um símbolo desenhado antes dos pinos por bit')
     case 'bus': return tx('Draws the multi-bit pins as one bus pin instead of one pin per bit (same function)', 'Desenha os pinos de vários bits como um único pino em barramento em vez de um pino por bit (mesma função)');
     case 'enable': return tx('E: enable active high (BUFE, O = I when E = 1); T: three-state control active low (BUFT, O = I when T = 0)', 'E: habilitação ativa a 1 (BUFE, O = I quando E = 1); T: controlo de três estados ativo a 0 (BUFT, O = I quando T = 0)');
     case 'bits': return tx('With Width > 1: one pin per bit (I0.., O0.., as BUFE4 / BUFT4) instead of the bus pins I and O (same function)', 'Com Largura > 1: um pino por bit (I0.., O0.., como BUFE4 / BUFT4) em vez dos pinos em barramento I e O (mesma função)');

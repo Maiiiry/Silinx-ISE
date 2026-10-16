@@ -222,6 +222,37 @@ uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M
   assert.deepEqual(page.dialogs, []);
 });
 
+// #301: the palette's multiplexers and demultiplexers, with and without the enable E (M2_1 … M16_1,
+// DEMUX1_2 … DEMUX1_16), the decoders and encoders by their presets only; a M4_1 placed has S1 and S0
+uiTest('#301 schematic palette: M2_1(E) … M16_1(E), DEMUX1_2(E) … DEMUX1_16(E), no generic DECODER / ENCODER; M4_1 placed with S1 S0', E, async (page) => {
+  const { newDoc } = await import('../../core/schdoc.js');
+  await makeProject(env, { name: 'SchMux', files: { 'src/mx.sch.json': JSON.stringify(newDoc('mx', 'vhdl')) }, top: '' });
+  await page.openProject('SchMux');
+  await page.eval(() => window.SilinxApp.openSch('src/mx.sch.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/mx.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'), [], { what: 'schematic editor' });
+  const D = '.doc:not([hidden])';
+  const rows = () => page.eval((d) => [...document.querySelectorAll(`${d} .se-symrow`)].map((r) => r.textContent.trim()), D);
+  await page.fill(`${D} .se-search`, 'M');
+  const all = await rows();
+  for (const t of ['M2_1', 'M2_1E', 'M4_1', 'M4_1E', 'M8_1', 'M8_1E', 'M16_1', 'M16_1E', 'DEMUX1_2', 'DEMUX1_2E', 'DEMUX1_8E', 'DEMUX1_16', 'DEMUX1_16E']) assert.ok(all.includes(t), `${t} in ${all.join(' ')}`);
+  await page.fill(`${D} .se-search`, 'CODER');
+  const coders = await rows();
+  assert.ok(coders.includes('D2_4E') && coders.includes('PENC8_3'), coders.join(' '));
+  assert.deepEqual(coders.filter((t) => t === 'DECODER' || t === 'ENCODER'), [], 'no generic DECODER / ENCODER');
+  // a M4_1 placed: its select pins S1 and S0 (the drawing's pin names), saved with selBus false
+  await page.fill(`${D} .se-search`, 'M4_1');
+  await page.click(`${D} .se-symrow`, { text: 'M4_1' });
+  const c = await page.eval((d) => { const r = document.querySelector(`${d} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, D);
+  await page.click(c);
+  await page.key('Escape');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols.length === 1, [], { what: 'M4_1 saved' });
+  const saved = JSON.parse(await readWs(env, 'SchMux', 'src/mx.sch.json'));
+  assert.deepEqual([saved.version, saved.symbols[0].type, saved.symbols[0].params.selBus, saved.symbols[0].params.en], [2, 'mux4', false, false]);
+  const names = await page.eval((d) => [...document.querySelectorAll(`${d} .se-svg g.sym text`)].map((t) => t.textContent), D);
+  for (const n of ['S1', 'S0']) assert.ok(names.includes(n), names.join(' '));
+  assert.deepEqual(page.dialogs, []);
+});
+
 uiTest('ASM chart editor: add a state, a decision and a case box, connect them, its VHDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'AsmPj' });
   await page.openProject('AsmPj');

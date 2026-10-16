@@ -69,7 +69,9 @@ test('pin tables are the real pins of the symbol at the shown parameters', () =>
   }
   // the pin table follows the parameters
   assert.deepEqual(symbolDoc('decoder', { n: 3 }).pins.map(p => p.name), ['A0', 'A1', 'A2', 'E', 'D0', 'D1', 'D2', 'D3', 'D4', 'D5', 'D6', 'D7']);
-  assert.deepEqual(symbolDoc('mux4', { width: 8 }).pins.map(p => `${p.name}:${p.width}`), ['D0:8', 'D1:8', 'D2:8', 'D3:8', 'S:2', 'O:8']);
+  assert.deepEqual(symbolDoc('mux4', { width: 8 }).pins.map(p => `${p.name}:${p.width}`), ['D0:8', 'D1:8', 'D2:8', 'D3:8', 'S1:1', 'S0:1', 'O:8']);
+  assert.deepEqual(symbolDoc('mux4', { width: 8, selBus: true }).pins.map(p => `${p.name}:${p.width}`), ['D0:8', 'D1:8', 'D2:8', 'D3:8', 'S:2', 'O:8']);
+  assert.deepEqual(symbolDoc('mux4', { en: true }).pins.map(p => p.name), ['D0', 'D1', 'D2', 'D3', 'E', 'S1', 'S0', 'O']);
   assert.deepEqual(symbolDoc('fdcpe').pins.map(p => p.name), ['PRE', 'D', 'CE', 'C', 'CLR', 'Q']);
   assert.equal(symbolDoc('vcc').pins[0].widthText, 'net');
   assert.equal(symbolDoc('vcc', {}, { lang: 'pt' }).pins[0].widthText, 'da rede');
@@ -196,8 +198,8 @@ test('gates and inverted-input gates (ANDnBk …): truth tables computed by simu
 test('multiplexers, demultiplexers and decoders with enable: truth tables match the Xilinx definitions', () => {
   checkAgainst(tbl('mux2', {}), v => ({ O: v.S0 ? v.D1 : v.D0 }), 'M2_1');
   const m4 = tbl('mux4', {});
-  assert.deepEqual(m4.inCols.map(c => c.label), ['S(1)', 'S(0)', 'D0', 'D1', 'D2', 'D3']);
-  checkAgainst(m4, v => ({ O: v[`D${v.S}`] }), 'M4_1');
+  assert.deepEqual(m4.inCols.map(c => c.label), ['S1', 'S0', 'D0', 'D1', 'D2', 'D3']);
+  checkAgainst(m4, v => ({ O: v[`D${2 * v.S1 + v.S0}`] }), 'M4_1');
   // the M4_1 table of the Libraries Guide: S1 S0 D0 D1 D2 D3 | O
   assert.deepEqual(m4.compact.map(r => `${r.in}:${r.out}`), ['000XXX:0', '001XXX:1', '01X0XX:0', '01X1XX:1', '10XX0X:0', '10XX1X:1', '11XXX0:0', '11XXX1:1']);
   const m4w = truthTable('mux4', { width: 4 });
@@ -205,8 +207,17 @@ test('multiplexers, demultiplexers and decoders with enable: truth tables match 
   for (const k of [1, 2, 3]) {
     const n = 1 << k;
     const t = tbl('demux', { sel: k });
-    checkAgainst(t, v => Object.fromEntries(Array.from({ length: n }, (_, i) => [`O${i}`, (k === 1 ? v.S0 : v.S) === i ? v.D : 0])), `DEMUX1_${n}`);
+    const sel = v => Array.from({ length: k }, (_, j) => v[`S${j}`] << j).reduce((x, y) => x | y, 0);
+    checkAgainst(t, v => Object.fromEntries(Array.from({ length: n }, (_, i) => [`O${i}`, sel(v) === i ? v.D : 0])), `DEMUX1_${n}`);
+    // (#301) with the enable E: all 0 when E = 0
+    checkAgainst(tbl('demux', { sel: k, en: true }), v => Object.fromEntries(Array.from({ length: n }, (_, i) => [`O${i}`, v.E && sel(v) === i ? v.D : 0])), `DEMUX1_${n}E`);
   }
+  // M2_1E / M4_1E (#301, the Xilinx Libraries Guide): O = 0 when E = 0
+  checkAgainst(tbl('mux2', { en: true }), v => ({ O: v.E ? (v.S0 ? v.D1 : v.D0) : 0 }), 'M2_1E');
+  checkAgainst(tbl('mux4', { en: true }), v => ({ O: v.E ? v[`D${2 * v.S1 + v.S0}`] : 0 }), 'M4_1E');
+  // M8_1E / M16_1: too many inputs for every row (sampled; their function: test/schsymbols.test.js), the select first
+  assert.deepEqual(truthTable('mux8', { en: true }).inCols.map(c => c.label), ['S2…S0', 'D0…D7', 'E']);
+  assert.deepEqual(truthTable('mux16', {}).inCols.map(c => c.label), ['S3…S0', 'D0…D15']);
   for (const n of [1, 2, 3, 4]) for (const en of [true, false]) for (const bus of [false, true]) {
     const t = tbl('decoder', { n, en, bus });
     checkAgainst(t, v => {
