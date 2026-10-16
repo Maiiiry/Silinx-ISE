@@ -9,7 +9,9 @@
 //     symbols: [{ id, type, x, y, rot: 0|90|180|270, mirror: bool, name, params: {...}, hdl?: string }],
 //     wires:   [{ id, points: [{x,y},...], bus?: bool }],
 //     labels:  [{ id, x, y, net }],          // net name attached to the wire point (x,y)
-//     ports:   [{ id, name, dir: 'in'|'out'|'inout', width, x, y, type? }],   // I/O markers
+//     ports:   [{ id, name, dir: 'in'|'out'|'inout', width, x, y, type?, side? }],   // I/O markers
+//              (side: where the marker's body is from its connection point, W N E S; by default W for
+//              an input, E for an output or a bidirectional port, #296)
 //     hdl?:    { lang, context, generics: [{ name, type, default }], decls, arch },  // verbatim HDL
 //     generatedFile?: 'src/name.vhd',
 //     description?: 'text' }                // shown on the sheet, a comment in the generated HDL
@@ -387,12 +389,22 @@ export function symbolBox(sym, modules = {}, def = symbolDef(sym, modules)) {
   return { x: sym.x, y: sym.y, w, h };
 }
 
-// I/O marker geometry: the connection point is (x, y); the body extends to the left (inputs)
-// or to the right (outputs/bidirectional).
+// I/O marker geometry: the connection point is (x, y); the body extends to its side (portSide): to the
+// left by default for an input, to the right for an output or a bidirectional port, or up or down (#296)
+export const PORT_SIDES = ['W', 'N', 'E', 'S'];   // clockwise
+export const portSide = port => (PORT_SIDES.includes(port.side) ? port.side : port.dir === 'in' ? 'W' : 'E');
+// a quarter turn clockwise; the opposite side (Mirror)
+export const turnSide = side => PORT_SIDES[(PORT_SIDES.indexOf(side) + 1) % 4];
+export const oppositeSide = side => PORT_SIDES[(PORT_SIDES.indexOf(side) + 2) % 4];
 export function portBox(port) {
   const tw = Math.max(20, String(port.name || '').length * 7.5);
   const w = r10(tw + 34);
-  return port.dir === 'in' ? { x: port.x - w, y: port.y - 10, w, h: 20 } : { x: port.x, y: port.y - 10, w, h: 20 };
+  switch (portSide(port)) {
+    case 'W': return { x: port.x - w, y: port.y - 10, w, h: 20 };
+    case 'N': return { x: port.x - 10, y: port.y - w, w: 20, h: w };
+    case 'S': return { x: port.x - 10, y: port.y, w: 20, h: w };
+    default: return { x: port.x, y: port.y - 10, w, h: 20 };
+  }
 }
 
 // ===================================================================== documents
@@ -428,6 +440,8 @@ export function normalizeDoc(d) {
   doc.ports = (Array.isArray(doc.ports) ? doc.ports : []).filter(p => p && p.name).map(p => {
     const o = { id: p.id, name: String(p.name).trim(), dir: ['in', 'out', 'inout'].includes(p.dir) ? p.dir : 'in', width: Math.max(1, int(p.width, 1)), x: snap(+p.x || 0), y: snap(+p.y || 0) };
     if (p.type) o.type = String(p.type);
+    // (its side when it is not the default one, #296)
+    if (PORT_SIDES.includes(p.side) && p.side !== portSide({ dir: o.dir })) o.side = p.side;
     // (VHDL, #225: a buffer port, a port's default value, as the module had them)
     if (p.mode === 'buffer') o.mode = 'buffer';
     if (p.default != null && String(p.default).trim()) o.default = String(p.default).trim();

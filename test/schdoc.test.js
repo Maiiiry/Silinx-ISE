@@ -758,3 +758,28 @@ test('generated HDL: one-line statements one after the other, a blank line only 
     assert.deepEqual(gap, [], lang);
   }
 });
+
+// #296: an I/O marker's side: by default W for an input, E for an output or a bidirectional port; turned
+// clockwise, put on the opposite side; its box on that side of the connection point; kept by normalizeDoc
+// only when it is not the default one
+test('#296 I/O marker sides: defaults, turns, the opposite side, the box, normalizeDoc', async () => {
+  const { portSide, turnSide, oppositeSide, portBox } = await import('../core/schdoc.js');
+  assert.deepEqual(['in', 'out', 'inout'].map(dir => portSide({ dir })), ['W', 'E', 'E']);
+  assert.equal(portSide({ dir: 'in', side: 'S' }), 'S');
+  assert.equal(portSide({ dir: 'in', side: 'X' }), 'W');
+  assert.deepEqual(['W', 'N', 'E', 'S'].map(turnSide), ['N', 'E', 'S', 'W']);
+  assert.deepEqual(['W', 'N', 'E', 'S'].map(oppositeSide), ['E', 'S', 'W', 'N']);
+  const p = { name: 'abc', dir: 'in', x: 100, y: 200 };   // the box 60 long (3 letters: 22.5 -> 20, + 34, to the grid)
+  assert.deepEqual(portBox(p), { x: 40, y: 190, w: 60, h: 20 });
+  assert.deepEqual(portBox({ ...p, side: 'E' }), { x: 100, y: 190, w: 60, h: 20 });
+  assert.deepEqual(portBox({ ...p, side: 'N' }), { x: 90, y: 140, w: 20, h: 60 });
+  assert.deepEqual(portBox({ ...p, side: 'S' }), { x: 90, y: 200, w: 20, h: 60 });
+  const d = normalizeDoc({ ...newDoc(), ports: [{ id: 'P1', name: 'a', dir: 'in', side: 'N', x: 0, y: 0 }, { id: 'P2', name: 'b', dir: 'out', side: 'E', x: 0, y: 20 },
+    { id: 'P3', name: 'c', dir: 'in', side: 'up', x: 0, y: 40 }, { id: 'P4', name: 'd', dir: 'inout', side: 'W', x: 0, y: 60 }] });
+  assert.deepEqual(d.ports.map(q => q.side), ['N', undefined, undefined, 'W']);
+  // the netlist and the HDL do not depend on it
+  const base = normalizeDoc({ ...d, ports: d.ports.map(({ side, ...q }) => q) });
+  const g = generateHdl(d, { lang: 'vhdl' });
+  assert.match(g.code, /entity/);
+  assert.equal(g.code, generateHdl(base, { lang: 'vhdl' }).code);
+});

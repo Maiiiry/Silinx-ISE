@@ -3,6 +3,25 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.10.22
+
+In short:
+
+- **I/O markers rotated and mirrored:** in the schematic editor, Rotate (Ctrl+R) and Mirror (Ctrl+M)
+  now turn the I/O markers too, so a marker can sit on a vertical wire or face the other way.
+
+In detail:
+
+- **I/O markers on any side (#296):** Rotate and Mirror acted on symbols only, and a marker's body was
+  always to the left of its connection point (an input) or to the right (an output, a bidirectional
+  port). A marker now has a side (`ports[].side` in the `.sch.json`: W, N, E or S, saved when it is
+  not its direction's default); Rotate turns it a quarter turn clockwise around its connection point,
+  Mirror puts it on the opposite side, from the toolbar, the keys or its properties (which now have
+  Rotate / Mirror / Delete, as a symbol's), with symbols selected too; its name reads upwards on a
+  vertical marker. The connection point, the netlist and the HDL are unchanged. The ISE schematic
+  import reads an iomarker's orien (R0 E, R90 S, R180 W, R270 N, and the mirrored ones), the export
+  writes it.
+
 ## 15.10.21
 
 In short:
