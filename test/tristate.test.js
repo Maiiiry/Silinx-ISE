@@ -81,8 +81,9 @@ test('tri-state buffer symbol: parameters, presets with the Xilinx names, pins a
   // the names drawn, as the Xilinx library's (BUFT8, BUFE4 with a pin per bit)
   const title = params => symbolDef({ type: 'tbuf', params }).title;
   assert.deepEqual([title({ width: 8, enable: 'T' }), title({ width: 4, enable: 'E', bits: true }), title({ width: 16, enable: 'E' })], ['BUFT8', 'BUFE4', 'BUFE16']);
-  // older presets keep treating width as cosmetic
-  assert.equal(presetOf('demux', { sel: 2, width: 8 }), 'DEMUX1_4');
+  // (#334: the demultiplexer has no presets any more; a preset that sets the width is not matched by another one)
+  assert.equal(presetOf('demux', { sel: 2, width: 8 }), null);
+  assert.equal(presetOf('tbuf', { width: 2, enable: 'E' }), null);
   for (const n of ['BUFE', 'BUFT', 'BUFE4', 'BUFT4', 'BUFE8', 'BUFT8', 'BUFE16', 'BUFT16']) {
     assert.equal(XILINX_SYMBOLS[n]?.type, 'tbuf', n);
     assert.ok(xilinxEquivalents('tbuf', XILINX_SYMBOLS[n].params).includes(n), n);
