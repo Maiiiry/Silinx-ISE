@@ -63,7 +63,9 @@ test('tri-state buffer symbol: parameters, presets with the Xilinx names, pins a
   assert.equal(S.category, 'Tri-State');
   assert.ok(SYMBOL_CATEGORIES.includes('Tri-State'));
   assert.deepEqual(S.params.map(p => p.name), ['width', 'enable', 'bits']);
-  assert.deepEqual(S.presets.map(p => p.title), ['BUFE', 'BUFE4', 'BUFE8', 'BUFE16', 'BUFT', 'BUFT4', 'BUFT8', 'BUFT16']);
+  // (#326: BUFE and BUFT only; their Width and Pins per bit make BUFE4, BUFT8…)
+  assert.deepEqual(S.presets.map(p => p.title), ['BUFE', 'BUFT']);
+  assert.equal(S.presetsOnly, true);
   const pins = params => symbolDef({ type: 'tbuf', params }).pins.map(p => `${p.name}:${p.dir}:${p.width}${p.tri ? ':tri' : ''}`);
   assert.deepEqual(pins({ width: 1, enable: 'E' }), ['E:in:1', 'I:in:1', 'O:out:1:tri']);
   assert.deepEqual(pins({ width: 8, enable: 'T' }), ['T:in:1', 'I:in:8', 'O:out:8:tri']);
@@ -76,9 +78,9 @@ test('tri-state buffer symbol: parameters, presets with the Xilinx names, pins a
   assert.deepEqual(d.pins.filter(p => p.side === 'W').map(p => p.y), [10, 30, 50, 70, 90]);
   // presets: width only names the preset when the preset sets it
   for (const pr of S.presets) assert.equal(presetOf('tbuf', pr.params), pr.title);
-  assert.equal(presetOf('tbuf', { width: 8, enable: 'T' }), 'BUFT8');
-  assert.equal(presetOf('tbuf', { width: 2, enable: 'E' }), null);
-  assert.equal(presetOf('tbuf', { width: 4, enable: 'E' }), null, 'a 4-bit bus is not BUFE4 (one pin per bit)');
+  // the names drawn, as the Xilinx library's (BUFT8, BUFE4 with a pin per bit)
+  const title = params => symbolDef({ type: 'tbuf', params }).title;
+  assert.deepEqual([title({ width: 8, enable: 'T' }), title({ width: 4, enable: 'E', bits: true }), title({ width: 16, enable: 'E' })], ['BUFT8', 'BUFE4', 'BUFE16']);
   // older presets keep treating width as cosmetic
   assert.equal(presetOf('demux', { sel: 2, width: 8 }), 'DEMUX1_4');
   for (const n of ['BUFE', 'BUFT', 'BUFE4', 'BUFT4', 'BUFE8', 'BUFT8', 'BUFE16', 'BUFT16']) {
@@ -277,7 +279,7 @@ test('Symbol Info: truth tables with Z (BUFE, BUFT, BUFT4, BUFE8 per bit) and da
     assert.deepEqual(d.xilinx, ['BUFT']);
     assert.match(d.text.join(' '), lang === 'pt' ? /três estados.*alta impedância/ : /tri-state.*high impedance/);
     assert.match(d.pins[0].func, lang === 'pt' ? /ativo a 0/ : /active low/);
-    assert.deepEqual(d.params.map(p => p.label), lang === 'pt' ? ['Largura', 'Entrada de habilitação', 'Um pino por bit (I0.., O0..)'] : ['Width', 'Enable input', 'One pin per bit (I0.., O0..)']);
+    assert.deepEqual(d.params.map(p => p.label), lang === 'pt' ? ['Largura', 'Entrada de habilitação', 'Um pino por bit (I0.., O0..)'] : ['Width', 'Enable input', 'Pins per bit (I0.., O0..)']);
     assert.match(d.hdl.vhdl, /O <= I when T = '0' else 'Z';/);
   }
   assert.equal(symbolDoc('tbuf', { width: 8, enable: 'E', bits: false }).title, 'BUFE8');
@@ -402,7 +404,7 @@ test('ISE .sch import: BUFE, BUFT, BUFE4 (one pin per bit), BUFE8, BUFT16 become
       const s = doc.symbols.find(x => x.type === 'tbuf');
       assert.ok(s, `${sym} -> tbuf (${doc.symbols.map(x => x.type)})`);
       assert.deepEqual({ width: s.params.width, enable: s.params.enable, bits: s.params.bits }, params, sym);
-      assert.equal(presetOf('tbuf', s.params), sym);
+      assert.equal(symbolDef(s).title, sym);
       const g = generateHdl(doc, { lang });
       assert.deepEqual(errorsOf(g), [], g.code);
       // drive I with a pattern, toggle the enable: O = I or all Z
