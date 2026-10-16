@@ -285,3 +285,79 @@ uiTest('ISim command line: commands given before ISim\'s first run starts or dur
   assert.equal((await commandLines(page)).length, 5);
   assert.doesNotMatch(await page.eval(() => document.querySelector('#console')?.innerText || ''), /error/i);
 });
+
+// #341: groups of signals, as ISim's New Group: the selected rows in a named group that opens and closes (its
+// twisty, a double-click), renamed, a signal dragged into it and out of it, kept by getState / setState, Ungroup,
+// deleted with its signals; the menu in Portuguese
+uiTest('ISim Wave window (#341): New Group, open / close, Rename Group, drag into and out of it, state, Ungroup, Delete, Portuguese', E, async (page) => {
+  await makeProject(env, { name: 'GroupPj', top: 'cnt', files: { 'src/cnt.vhd': CNT, 'sim/tb.vhd': TB }, roles: { 'sim/tb.vhd': 'sim' } });
+  await page.openProject('GroupPj');
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb');
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
+  await simTime(page, '1,000,000');
+  // the instance u's signals too: clk q (tb), u/r
+  await page.rightClick('.doc:not([hidden]) .isim-tree .row', { text: '' });
+  await menuItem(page, 'Add to Wave Window (Recursive)');
+  const st = () => page.eval(() => window.Silinx.active.view.state.rows.map((r) => (r.kind === 'group' ? `[${r.name}${r.expanded ? '' : ' +'}]` : `${r.group != null ? '  ' : ''}${r.kind === 'div' ? `-- ${r.name}` : r.sig.path.replace(/\./g, '/')}`)));
+  await page.eval(() => { window.__prompts = ['Counter', 'Counter out', 'Bad']; window.__asked = []; window.prompt = (m, d) => { window.__asked.push([m, d]); return window.__prompts.shift(); }; });
+  const nameAt = (row) => page.eval((r) => { const c = document.querySelector('.doc:not([hidden]) .isim-names').getBoundingClientRect(); return { x: c.left + 60, y: c.top + 30 + r * 20 + 10 }; }, row);
+  const twisty = (row) => page.eval((r) => { const c = document.querySelector('.doc:not([hidden]) .isim-names').getBoundingClientRect(); return { x: c.left + 8, y: c.top + 30 + r * 20 + 10 }; }, row);
+  assert.deepEqual(await st(), ['tb/clk', 'tb/q', '-- /tb', 'tb/clk', 'tb/q', '-- /tb/u', 'tb/clk', 'tb/q', 'tb/u/r']);
+  // ---- New Group of rows 0 and 1 (clk, q): selected with Ctrl+click
+  await page.click(await nameAt(0));
+  await page.click(await nameAt(1), { modifiers: 2 });
+  await page.rightClick(await nameAt(1));
+  await menuItem(page, 'New Group');
+  assert.deepEqual((await st()).slice(0, 4), ['[Counter]', '  tb/clk', '  tb/q', '-- /tb']);
+  const drawn = await drawnNames(page);
+  assert.ok(drawn.includes('Counter') && drawn.includes('(2)'), drawn.join(' '));
+  // ---- closed by its twisty (its signals hidden), opened by a double-click
+  await page.click(await twisty(0));
+  assert.deepEqual((await st()).slice(0, 4), ['[Counter +]', '  tb/clk', '  tb/q', '-- /tb']);
+  // (its two signals not drawn: clk twice, not three times)
+  const count = async (n) => (await drawnNames(page)).filter((t) => t === n).length;
+  assert.equal(await count('clk'), 2);
+  await page.dblclick(await nameAt(0));
+  assert.equal((await st())[0], '[Counter]');
+  assert.equal(await count('clk'), 3);
+  // ---- Rename Group...
+  await page.rightClick(await nameAt(0));
+  await menuItem(page, 'Rename Group...');
+  assert.equal((await st())[0], '[Counter out]');
+  // ---- u/r (the last row, 9) dragged between clk and q: in the group; then q (row 3 now) dragged to the top: out of it
+  await page.click(await nameAt(9));
+  await page.drag(await nameAt(9), { ...(await nameAt(2)), y: (await nameAt(2)).y - 10 });
+  assert.deepEqual((await st()).slice(0, 5), ['[Counter out]', '  tb/clk', '  tb/u/r', '  tb/q', '-- /tb']);
+  await page.click(await nameAt(3));
+  await page.drag(await nameAt(3), { ...(await nameAt(0)), y: (await nameAt(0)).y - 10 });
+  assert.deepEqual((await st()).slice(0, 5), ['tb/q', '[Counter out]', '  tb/clk', '  tb/u/r', '-- /tb']);
+  // ---- the state keeps the group
+  const s = await page.eval(() => window.Silinx.active.view.getState().rows.slice(0, 4));
+  assert.deepEqual(s.map((r) => [r.kind, r.name ?? r.path, r.group ?? null]), [['sig', 'tb.q', null], ['group', 'Counter out', null], ['sig', 'tb.clk', 1], ['sig', 'tb.u.r', 1]]);
+  await page.eval(() => { const v = window.Silinx.active.view; v.setState(v.getState()); v.refresh(); });
+  assert.deepEqual((await st()).slice(0, 4), ['tb/q', '[Counter out]', '  tb/clk', '  tb/u/r']);
+  // ---- the menu in Portuguese
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+  await page.rightClick(await nameAt(1));
+  const items = await page.eval(() => [...document.querySelectorAll('.isim-menu-item .lbl')].map((e) => e.textContent));
+  for (const t of ['Novo Grupo', 'Mudar Nome do Grupo...', 'Desagrupar']) assert.ok(items.includes(t), items.join(' | '));
+  await page.key('Escape');
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+  // ---- Ungroup: its signals stay where they are
+  await page.rightClick(await nameAt(1));
+  await menuItem(page, 'Ungroup');
+  assert.deepEqual((await st()).slice(0, 4), ['tb/q', 'tb/clk', 'tb/u/r', '-- /tb']);
+  // ---- a group deleted (Delete) goes with its signals
+  await page.click(await nameAt(1));
+  await page.click(await nameAt(2), { modifiers: 2 });
+  await page.rightClick(await nameAt(2));
+  await menuItem(page, 'New Group');
+  assert.deepEqual((await st()).slice(0, 4), ['tb/q', '[Bad]', '  tb/clk', '  tb/u/r']);
+  await page.click(await nameAt(1));
+  await page.key('Delete');
+  assert.deepEqual((await st()).slice(0, 2), ['tb/q', '-- /tb']);
+  assert.deepEqual(await page.eval(() => window.__asked), [['Group name:', 'New Group'], ['Group name:', 'Counter'], ['Group name:', 'New Group']]);
+  assert.deepEqual(page.dialogs, []);
+});
