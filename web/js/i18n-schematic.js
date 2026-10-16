@@ -8,7 +8,6 @@ export const SCH_PT = {
   // the descriptions of the symbols (palette tooltips); gates in SCH_PT_PATTERNS
   'Inverter': 'Inversor',
   '2:1 multiplexer (O = S0 ? D1 : D0)': 'Multiplexador 2:1 (O = S0 ? D1 : D0)',
-  '4:1 multiplexer (2-bit select S)': 'Multiplexador 4:1 (seleção S de 2 bits)',
   'Adder S = A + B (+ CI), optional carry out': 'Somador S = A + B (+ CI), transporte de saída opcional',
   'Subtractor D = A - B': 'Subtrator D = A - B',
   'Comparator O = A <op> B': 'Comparador O = A <op> B',
@@ -36,6 +35,11 @@ export const SCH_PT = {
 };
 
 export const SCH_PT_PATTERNS = [
+  // the multiplexers and demultiplexers, with and without the enable E (#301)
+  [/^(\d+):1 multiplexer \(select ([S\d ]+)\)$/, 'Multiplexador $1:1 (seleção $2)'],
+  [/^(\d+):1 multiplexer with enable \(Xilinx (\w+)\): O = (.+) when E = 1, 0 when E = 0$/, 'Multiplexador $1:1 com habilitação (Xilinx $2): O = $3 quando E = 1, 0 quando E = 0'],
+  [/^1:(\d+) demultiplexer( with enable)? \(select ([S\d ]+)\): O<S> = D( when E = 1)?, the other outputs 0( \(all 0 when E = 0\))? \(bitwise when Width > 1\)$/,
+    (m, n, en, sel, w, all) => `Desmultiplexador 1:${n}${en ? ' com habilitação' : ''} (seleção ${sel}): O<S> = D${w ? ' quando E = 1' : ''}, as outras saídas a 0${all ? ' (todas a 0 quando E = 0)' : ''} (bit a bit quando Largura > 1)`],
   [/^(\d)-input (AND|OR|NAND|NOR|XOR|XNOR) gate \(bitwise when Width > 1\)$/, 'Porta $2 de $1 entradas (bit a bit quando Largura > 1)'],
   [/^(\d+) ports( · .*)?$/, (m, n, rest) => `${n} porto${n === '1' ? '' : 's'}${rest || ''}`],
   [/^(\d+) objects selected$/, '$1 objetos selecionados'],
