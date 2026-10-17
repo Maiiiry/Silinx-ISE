@@ -1259,8 +1259,12 @@ function bindExpr0(E, e, expect, loc) {
       if (E.lang === 'verilog' && expect && expect.kind === 'logic') return { k: 'c', val: strToVal(e.value), t: vecT(Math.max(8, e.value.length * 8)) };
       if (E.lang === 'vhdl' && e.char && expect && expect.char) return charConst(e.value);
       if (E.lang === 'vhdl' && e.char && expect && expect.kind === 'enum') { const c = enumChar(expect, e.value); if (c) return c; }
-      // a string of std_logic characters where a vector is expected (in a report message, say)
-      if (E.lang === 'vhdl' && expect && expect.kind === 'logic' && !e.char) return strAsLogic({ k: 'str', value: e.value, t: STR }, { t: expect });
+      // a string where a vector is expected: std_logic characters only (XST rejects "1020X01Q")
+      if (E.lang === 'vhdl' && expect && expect.kind === 'logic' && !e.char) {
+        const wrong = [...e.value].find(c => !/^[01uxzwlh-]$/i.test(c));
+        if (wrong !== undefined) throw new ElabError(`'${wrong}' is not a std_logic value (in the string "${e.value}")`, loc);
+        return strAsLogic({ k: 'str', value: e.value, t: STR }, { t: expect });
+      }
       return { k: 'str', value: e.value, t: STR };
     }
     case 'fill': {
