@@ -395,6 +395,24 @@ abc9-4 would be kept on 7 of the 18 designs: blinky, light8080, verilog-i2c-mast
 EPFL dec and vtr-ch-intrinsics, where its period is 1 to 19 % shorter. On EPFL priority it would be refused
 (52 ns against 11: without the depth-oriented mapping).
 
+**ISE's trce** on the routed designs of the four designs where abc9-4 gains or loses most, with EPFL max added
+(`abc9.mjs --routed dir`, then `research/s3e-route/ise-open-check.sh` on the ISE host; seed 1). The period is ISE's,
+with Silinx's STA in parentheses:
+
+| design | now | lut4 | abc9-4 | abc9-4 / now |
+|---|---:|---:|---:|---:|
+| vtr-ch-intrinsics | 7.771 (7.59) | 7.771 (7.59) | 6.105 (6.16) | **−21.4 %** |
+| nandland-spi-vhdl | 5.493 (5.49) | 5.493 (5.49) | 5.447 (5.35) | −0.8 % |
+| EPFL priority | 11.066 (11.24) | 44.314 (45.34) | 51.154 (52.14) | +362 % |
+| EPFL max | 28.505 (28.88) | 64.405 (67.06) | 64.660 (65.19) | +127 % |
+
+Silinx's STA is within 3 % of trce on all twelve, and ISE's DRC finds no error in any of them. The 21 warnings of
+vtr-ch-intrinsics are its gated clocks (#80), the same in all three mappings. trce confirms the measurement:
+- abc9-4 is clearly faster on vtr-ch-intrinsics;
+- abc9-4 is as fast as the other mappings on nandland-spi-vhdl;
+- on the two EPFL designs, abc9-4 is as slow as lut4, both without the depth-oriented mapping that only *now*
+  tries.
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding

@@ -25,7 +25,8 @@ In detail:
   steps, simulates each netlist against the RTL and takes it through the open back end. With LUTs up to 8 inputs
   ABC9 is 28 % larger in slices and slower than the open synthesis; onto LUT4s alone it has 6 % more LUTs, 2.6 %
   fewer slices and a 2.7 % shorter period than the usual mapping (geometric means): a candidate for the mappings
-  the open synthesis tries (#377), not wired in. research/synth-quality/README.md, "ABC9".
+  the open synthesis tries (#377), not wired in; ISE's trce on four designs agrees with Silinx's STA within 3 %.
+  research/synth-quality/README.md, "ABC9".
 - **ONBOARDING.md:** a guide for a new developer or Claude Code session: the setup, how several
   sessions work on the repository together, a map of the code, the product's rules and the lessons
   learnt; CLAUDE.md points to it, and the documentation test checks its paths and links (and CLAUDE.md's).
