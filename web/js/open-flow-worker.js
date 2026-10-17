@@ -7,7 +7,7 @@
 import { runOpenFlow } from '/core/open-flow-core.js';
 import { loadDevice } from '/core/fpga/device.js';
 import { dbFileNames, dbFilesFrom, makeBitDb } from '/core/fpga/bitdb.js';
-import { lineStream, asText, yosysError, yosysWorkerSource } from '/core/synth-open.js';
+import { runYosysOnce, yosysWorkerSource } from '/core/synth-open.js';
 import { yosysPool } from './yosys-client.js';
 import { parseXdl, fpgaModel, deviceGrid, MODEL_VERSION } from '/core/xdl.js';
 
@@ -57,16 +57,7 @@ self.onmessage = async ({ data }) => {
     let runYosys = null, loading = false;
     const inThread = async (args, yfiles, onLine) => {
       if (!runYosys) ({ runYosys } = await import(bundle));
-      const out = lineStream(onLine);
-      try {
-        const res = await runYosys(args, yfiles, { stdout: out, stderr: out });
-        out.end();
-        return Object.fromEntries(Object.entries(res).map(([k, v]) => [k, asText(v)]));
-      } catch (e) {
-        out.end();
-        const { message, code } = yosysError(e);
-        throw Object.assign(new Error(message), { code });
-      }
+      return runYosysOnce(runYosys, args, yfiles, onLine);
     };
     let pool = null;
     if (!pools.has(bundle) && typeof Worker !== 'undefined') {
