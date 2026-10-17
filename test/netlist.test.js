@@ -655,8 +655,10 @@ entity t is end t;
 architecture s of t is
   signal clk : std_logic := '0';
   signal c0, c90, c180, c270, c2x, cdv, cfx, lk : std_logic;
+  signal n180 : natural := 0;
 begin
   clk <= not clk after 10 ns;
+  process (c180) begin if rising_edge(c180) then n180 <= n180 + 1; end if; end process;
   u : ${prim} generic map (${gens})
     port map (CLKIN => clk, CLKFB => c0, RST => '0', CLK0 => c0, CLK90 => c90, CLK180 => c180, CLK270 => c270, CLK2X => c2x, CLKDV => cdv, CLKFX => cfx, LOCKED => lk);
 end s;` }];
@@ -674,13 +676,15 @@ end s;` }];
     }
     const period = (n) => { const r = rise[n].slice(-4); return Math.round(((r[3] - r[0]) / 3) * 10) / 10; };
     const phase = (n) => { const r = rise[n].at(-1); const c = rise.c0.filter((x) => x <= r).at(-1); return Math.round((r - c) * 10) / 10; };
-    return { period, phase, rise };
+    return { period, phase, rise, n180: Number(d.signals.find((x) => x.name.endsWith('.n180') || x.name === 'n180').val.v) };
   };
   let r = run('DCM_SP', 'CLKFX_MULTIPLY => 5, CLKFX_DIVIDE => 2, CLKDV_DIVIDE => 2.5');
   assert.equal(r.rise.lk.length, 1);
   assert.ok(r.rise.lk[0] > 20 && r.rise.lk[0] < 100, 'LOCKED after a few CLKIN cycles');
   assert.deepEqual(['c0', 'c90', 'c180', 'c270', 'c2x', 'cdv', 'cfx'].map(r.period), [20, 20, 20, 20, 10, 50, 8]);
   assert.deepEqual(['c90', 'c180', 'c270'].map(r.phase), [5, 10, 15]);
+  // (CLK180's edges are those seen at 250 ps: no zero-width pulse when it locks, #429)
+  assert.equal(r.n180, r.rise.c180.length);
   r = run('X_DCM_SP', 'CLKFX_MULTIPLY => 2, CLKFX_DIVIDE => 1, CLKDV_DIVIDE => 4.0');
   assert.deepEqual(['c0', 'c2x', 'cdv', 'cfx'].map(r.period), [20, 10, 80, 10]);
   r = run('DCM_SP', 'CLKIN_DIVIDE_BY_2 => TRUE, CLKFX_MULTIPLY => 3, CLKFX_DIVIDE => 1');

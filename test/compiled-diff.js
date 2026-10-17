@@ -6,8 +6,10 @@
 //
 // The event-driven simulator drives the clock (period P, rising at P/2 + kP) and starts every register
 // with no initial value at 0, as the Board Emulator does (and the FPGA); the inputs of cycle k are applied
-// at kP + 1 (those of cycle 0 from the start), before its rising edge, and the outputs compared at
-// (k + 1)P + 1, after its falling edge. An
+// at kP + P/2 - 40 (those of cycle 0 from the start), just before its rising edge, and the outputs compared
+// at (k + 1)P + P/2 - 41, at the end of the cycle (after its falling edge and the edges of a DCM's clocks
+// within it; those the DCM model rounds down to a whole ps, up to M ps early, still after: the times
+// are 40 ps away from the rising edge). An
 // output bit the event-driven simulator has as X or Z is not compared (the compiled simulator has none).
 import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
@@ -16,7 +18,7 @@ import * as V from '../core/values.js';
 import { compileDesign, compileNetlist, CompiledSim } from '../core/compiled-sim.js';
 import { yosysNode } from '../core/synth-open-node.js';
 
-const P = 20000;
+const P = 20000, EARLY = 40;
 
 const allX = v => v && !Array.isArray(v) && v.w > 0 && v.x === (1n << BigInt(v.w)) - 1n;
 const zeroOf = v => V.withSign(V.fromInt(0, v.w, false), v.s);
@@ -112,8 +114,8 @@ export async function diffCycles(sources, top, { cycles = 200, inputs = () => ({
   sim.reset();
   ev.run(0);
   for (let k = 0; k < cycles && mismatches.length < stopAt; k++) {
-    if (k) apply(inputs(k));
-    ev.run((k + 1) * P + 1);
+    if (k) { ev.run(k * P + P / 2 - EARLY); apply(inputs(k)); }
+    ev.run((k + 1) * P + P / 2 - EARLY - 1);
     sim.cycle(1);
     compare(k);
   }

@@ -21,7 +21,8 @@
 // What cannot be synthesized (waits with a time, file I/O, reals…) is reported, not guessed.
 //
 //   const { text, top, warnings, primitives } = toVerilog(design)   // design = elaborate(lib, top)
-//   (primitives: the names of the Xilinx primitives the text instantiates; to simulate the text,
+//   (primitives: the names of the Xilinx primitives the text instantiates, instances: each instance's
+//   cell, name and given generics as Verilog literals ({ cell, name, params }); to simulate the text,
 //   compile it with core/unisim.js's UNISIM_SOURCE; option tables: false writes every operator as
 //   an operator, see tabulate)
 import * as V from './values.js';
@@ -1151,8 +1152,10 @@ export function toVerilog(design, { name, tables = true } = {}) {
   }
   // (the names of the primitives, their generics and ports are upper case in Yosys's library;
   // VHDL gives them in whatever case the design wrote)
+  const instances = [];   // { cell, name, params: { NAME: literal } }
   function instance({ inst, driven }) {
-    const params = inst.params.filter(prm => prm.given).map(prm => `    .${prm.name.toUpperCase()}(${paramLit(prm, inst)})`);
+    const given = inst.params.filter(prm => prm.given).map(prm => [prm.name.toUpperCase(), paramLit(prm, inst)]);
+    const params = given.map(([n, x]) => `    .${n}(${x})`);
     const cell = yosysCell(inst.module.toUpperCase(), inst.ports.map(pt => pt.name.toUpperCase()));
     const conns = Object.entries(cell.tie).map(([pin, v]) => `    .${pin}(${v})`);
     for (const pt of inst.ports) {
@@ -1166,6 +1169,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     }
     const rel = inst.path.startsWith(prefix) ? inst.path.slice(prefix.length) : inst.name;
     const iname = esc(uniq(rel.replace(/\./g, '_')));
+    instances.push({ cell: cell.name, name: iname.trim().replace(/^\\/, ''), params: Object.fromEntries(given) });
     const src = inst.parent?.file ? ` (${inst.parent.file})` : '';
     blocks.push(`  // ${inst.path}: ${inst.module}${src}\n  ${cell.name}${params.length ? ` #(\n${params.join(',\n')}\n  )` : ''} ${iname} (\n${conns.join(',\n')}\n  );`);
   }
@@ -1229,7 +1233,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     + `module ${mod} (\n${portDecl.join(',\n')}\n);\n${decls.join('\n')}\n${funcs.join('\n')}${funcs.length ? '\n' : ''}${blocks.join('\n')}\nendmodule\n`;
   // the shift-chain arrays read at a variable tap (#5): their names as Yosys writes them (\name)
   const shiftArrays = [...tapWires.keys()].map(sg => { const n = sigName.get(sg); return n.startsWith('\\') ? n.trim() : `\\${n}`; });
-  return { text, top: mod.trim(), warnings, shiftArrays, primitives: [...new Set(prims.map(pr => yosysCell(pr.inst.module.toUpperCase(), pr.inst.ports.map(pt => pt.name.toUpperCase())).name))] };
+  return { text, top: mod.trim(), warnings, shiftArrays, instances, primitives: [...new Set(prims.map(pr => yosysCell(pr.inst.module.toUpperCase(), pr.inst.ports.map(pt => pt.name.toUpperCase())).name))] };
 }
 
 // The arrays that are shift chains (#5): every word written is either a word of the same array next to

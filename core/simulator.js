@@ -99,6 +99,7 @@ export class Simulator {
   reset() {
     this.now = 0;
     this.stamp = 0;
+    this.settled = -1;   // the stamp of the last delta when it settled (force)
     this.heap = new Heap();
     this.active = [];
     this.nbaQ = [];
@@ -320,6 +321,9 @@ export class Simulator {
 
   // Force a signal from the UI / stimulus (overrides drivers until released).
   force(sig, val) {
+    // (the first force after a settled delta starts a new one: a process it wakes must not take the last
+    // edge of a clock, in that delta, for a new one; the forces before the next run share that delta, #431)
+    if (this.settled === this.stamp) this.stamp++;
     sig.forced = null;
     this.setSignal(sig, Array.isArray(val) ? val : V.withSign(V.resize(val, sig.t.w), sig.t.s));
     sig.forced = sig.val;
@@ -484,7 +488,7 @@ export class Simulator {
           if (this.finished) return;     // $finish / error / failure: nothing else runs
         }
       }
-      if (!this.nbaQ.length && !this.nextDelta.length) break;
+      if (!this.nbaQ.length && !this.nextDelta.length) { this.settled = this.stamp; break; }
       const q = this.nbaQ;
       this.nbaQ = [];
       this.stamp++;

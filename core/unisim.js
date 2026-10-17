@@ -566,7 +566,8 @@ begin
   pin <= p * 2 when CLKIN_DIVIDE_BY_2 else p;
   c0 <= c0d when CLKIN_DIVIDE_BY_2 else CLKIN when lk else '0';
   CLK0 <= c0;
-  c180 <= not c0 when lk else '0';
+  -- (from c0's own sources, in the same delta as c0: no zero-width pulse when the DCM locks, #429)
+  c180 <= '0' when not lk else not c0d when CLKIN_DIVIDE_BY_2 else not CLKIN;
   CLK180 <= c180;
   CLK90 <= transport c0 after pin / 4;
   CLK270 <= transport c180 after pin / 4;
