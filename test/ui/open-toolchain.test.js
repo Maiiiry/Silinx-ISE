@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { setupUi, uiTest, makeProject } from './harness.js';
+import { setupUi, uiTest, makeProject, readWs } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 import { DB_DIR } from '../../research/s3e-bitstream/db.mjs';
 
@@ -85,13 +85,13 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   const procs = await procLabels(page);
   assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
   assert.ok(!procs.some((p) => p.label === 'Synthesize - Yosys (open)' || p.label === 'Synthesize - XST'));
-  for (const l of ['Generate Post-Map Simulation Model', 'Generate Text Power Report']) {
+  for (const l of ['Generate Post-Map Simulation Model', 'Generate Post-Place & Route Simulation Model']) {
     const p = procs.find((x) => x.label === l);
     assert.ok(p?.disabled, l);
     assert.equal(p.title, 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)');
   }
   // (the Post-Synthesis Simulation Model: the Silinx toolchain's own since #120)
-  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device', 'Generate Post-Synthesis Simulation Model']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
+  for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device', 'Generate Post-Synthesis Simulation Model', 'Generate Text Power Report']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
   await setLang('pt');
   const ptProcs = await procLabels(page);
   assert.ok(ptProcs.some((p) => p.label === 'Sintetizar - Yosys'));
@@ -157,6 +157,35 @@ uiTest('open mode: a device without a bit database or without a shipped descript
   await page.waitConsole(DONE('Implement Design'));
   assert.match(await page.consoleText(), /ERROR: the Silinx toolchain cannot implement this design: no device description of xc3s250etq144-4 ships with Silinx \(the Silinx toolchain supports the XC3S100E \(CP132\), XC3S250E \(CP132, TQ144\), XC3S500E \(FG320\), XC3S1200E \(FG320\)\): use an ISE mode for this device\./);
   assert.equal(await page.eval(() => !!document.querySelector('.dlg-overlay')), false);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+});
+
+// Generate Text Power Report in the Silinx toolchain (#123): its estimate, as XPower's text report
+uiTest('open mode: Generate Text Power Report of blinky without ISE: the estimate in build/top.pwr, opened; its line in the console; Portuguese label', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenPower', template: 'blinky' });
+  await page.openProject('OpenPower');
+  await reloadToolchain(page);
+  await page.click('input[name=view][value=impl]');
+  assert.deepEqual((await procLabels(page)).find((p) => p.label === 'Generate Text Power Report'), { label: 'Generate Text Power Report', disabled: false, title: '' });
+  await page.treeRow('#procs', 'Generate Text Power Report', { dbl: true, exact: true });
+  await page.waitConsole(DONE('Generate Text Power Report'), { timeout: 120000 });
+  const text = await page.consoleText();
+  const run = text.slice(text.lastIndexOf('Started : "Generate Text Power Report"'));
+  assert.match(run, /Process "Generate Text Power Report" completed successfully$/, run.slice(-2000));
+  assert.match(run, /=== SILINX STEP xpwr ===\nEstimated power: [\d.]+ mW \(dynamic [\d.]+ mW, static [\d.]+ mW\), junction [\d.]+ C: build\/top\.pwr \(an estimate, not Xilinx XPower\)\n/);
+  // no warning of the estimate (the UCF gives the clock's PERIOD)
+  assert.deepEqual(run.split('\n').filter((l) => /^WARNING:Power/.test(l)), []);
+  // the report opened, as ISE's XPower report is
+  await page.waitFor(() => window.SilinxApp.findDoc('text:top.pwr'), [], { what: 'the power report', timeout: 30000 });
+  const pwr = await page.eval(() => document.querySelector('.doc:not([hidden]) .report-text').textContent);
+  assert.match(pwr, /^Silinx toolchain - estimated power \(not Xilinx XPower\)\n/);
+  assert.match(pwr, /\| Supply Power \(mW\) \|/);
+  assert.equal(await readWs(env, 'OpenPower', 'build/top.pwr'), pwr);
+  // its process in Portuguese
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+  assert.ok((await procLabels(page)).some((p) => p.label === 'Gerar Relatório de Consumo (Texto)' && !p.disabled));
+  await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });
 

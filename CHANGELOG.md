@@ -26,9 +26,26 @@ In short:
   installer installs one checked version.
 - **Stop works in the browser edition:** Stop during Generate Programming File stops the Silinx toolchain at once,
   and nothing of the stopped run is kept.
+- **The power of a design without ISE:** *Generate Text Power Report* works with the Silinx toolchain: an estimate
+  of the design's power (static and dynamic, by clocks, logic, signals and I/Os), said to be one, within 10 % of
+  Xilinx XPower's total on the examples.
 
 In detail:
 
+- **An estimated power report in the Silinx toolchain (#123):** the `xpwr` step of the flow (core/open-flow-core.js,
+  after Place & Route and its timing) writes `build/<top>.pwr` from core/power.js: the device's static power (the
+  supplies' quiescent currents XPower 14.7 gives each device, Vccint's with the junction temperature) and the routed
+  design's dynamic power, its clocks (the global buffers and nets, by the slices they reach), LUTs, flip-flops,
+  nets (by fanout) and I/Os (by Vcco) at the switching rates of XPower's vectorless estimate: the flip-flops at
+  12.5 % of their clock, then as their inputs and enables make them change (an enable folded into a LUT too), the
+  LUTs by their function (transition density), the inputs at 12.5 % of the fastest clock, the clocks from the
+  UCF's PERIOD (50 MHz, with a warning, without one). The report is laid out as XPower's and says it is an
+  estimate; its summary reads as XPower's (server/ise.js parsePwr). The coefficients are fitted to XPower's reports of the six
+  examples on the four devices (`scripts/measure-power.mjs`, which runs ISE and keeps only the numbers:
+  test/fixtures/power/xpower-examples.json); there the estimate's total is within 10 % of XPower's (its static
+  power within 0.1 %, its dynamic power 0.35 to 2.2 times XPower's: the netlists of Yosys and XST differ),
+  `scripts/measure-power.mjs --compare` and test/power.test.js. The process is no longer disabled in the Silinx
+  toolchain.
 - **ABC9 on the Spartan-3E, measured (#369):** `research/synth-quality/abc9.mjs` maps the examples and the design
   corpus's representative subset with Yosys's `synth_xilinx -abc9` (and `-nowidelut`) after the open synthesis's own
   steps, simulates each netlist against the RTL and takes it through the open back end. With LUTs up to 8 inputs
