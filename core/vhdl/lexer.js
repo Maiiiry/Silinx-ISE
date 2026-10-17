@@ -44,8 +44,9 @@ const BITSTR_PREFIX = new Set(['b', 'o', 'x', 'd', 'ub', 'uo', 'ux', 'sb', 'so',
 
 /**
  * Expand the body of a bit-string literal into a bit string (MSB first).
- * Characters that are not digits of the base (e.g. X, Z, -) are replicated
- * to the digit width, as VHDL-2008 specifies.
+ * Characters that are not digits of the base but std_logic values (X, Z, -,
+ * U, W, L, H) are replicated to the digit width, as VHDL-2008 specifies; any
+ * other character is an error (x"G1").
  */
 function expandBitString(base, body, size, signed, err) {
   const digits = body.replace(/_/g, '');
@@ -56,6 +57,8 @@ function expandBitString(base, body, size, signed, err) {
   } else {
     const w = base === 'b' ? 1 : base === 'o' ? 3 : 4;
     const radix = base === 'b' ? 2 : base === 'o' ? 8 : 16;
+    const wrong = digits.split('').find(ch => Number.isNaN(parseInt(ch, radix)) && !/^[uxzwlh-]$/i.test(ch));
+    if (wrong) { err(`'${wrong}' is not ${base === 'o' ? 'an octal' : base === 'b' ? 'a binary' : 'a hexadecimal'} digit nor a std_logic value`); return '0'.repeat(size ?? w); }
     for (const ch of digits) {
       const v = parseInt(ch, radix);
       if (!Number.isNaN(v) && /[0-9a-fA-F]/.test(ch)) bits += v.toString(2).padStart(w, '0');

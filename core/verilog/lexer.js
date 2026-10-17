@@ -217,7 +217,7 @@ export function tokenize(src, file, errors, opts = {}) {
       adv();
       let signed = false;
       if (src[i] === 's' || src[i] === 'S') { signed = true; adv(); }
-      const base = (src[i] || '').toLowerCase();
+      const baseChar = src[i] || '', base = baseChar.toLowerCase();
       if (!'bodh'.includes(base) || !base) {
         // unbased unsized '0 '1 'x 'z (SystemVerilog)
         if (/[01xzXZ]/.test(src[i] || '')) { const d = src[i].toLowerCase(); adv(); toks.push({ t: 'fill', v: d, line: l0, col: c0 }); continue; }
@@ -227,7 +227,18 @@ export function tokenize(src, file, errors, opts = {}) {
       while (src[i] === ' ' || src[i] === '\t') adv();
       let digits = '';
       while (i < src.length && /[0-9a-fA-FxXzZ?_]/.test(src[i])) { digits += src[i]; adv(); }
+      const written = digits;
       digits = digits.replace(/_/g, '').toLowerCase();
+      // the digits of the base only (XST rejects the others); a decimal x / z / ? stands alone
+      let bad = null;
+      if (!digits) bad = 'no digits';
+      else if (base === 'd') {
+        if (!/^[0-9]+$|^[xz?]$/.test(digits)) bad = /[xz?]/.test(digits) ? 'x, z or ? in a decimal number must be its only digit' : `'${/[^0-9]/.exec(digits)[0]}' is not a decimal digit`;
+      } else {
+        const wrong = { b: /[^01xz?]/, o: /[^0-7xz?]/, h: /[^0-9a-fxz?]/ }[base].exec(digits);
+        if (wrong) bad = `'${wrong[0]}' is not ${base === 'o' ? 'an octal' : base === 'b' ? 'a binary' : 'a hexadecimal'} digit`;
+      }
+      if (bad) { err(`bad number literal ${size || ''}'${signed ? 's' : ''}${baseChar}${written}: ${bad}`, l0, c0); digits = '0'; }
       toks.push({ t: 'based', size: size ? parseInt(size.replace(/_/g, ''), 10) : null, signed, base, digits, line: l0, col: c0 });
       continue;
     }

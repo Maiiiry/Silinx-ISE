@@ -225,3 +225,17 @@ test('a label may have the name of a declaration of an outer region, of a librar
   none(unit('', '  process (d)\n  begin\n    clk : for i in 0 to 3 loop\n      q(i) <= d(i);\n    end loop clk;\n  end process;\n'));
   none(unit('  function f(x : std_logic_vector(3 downto 0)) return std_logic_vector is\n    variable r : std_logic_vector(3 downto 0);\n  begin\n    x : for i in 0 to 3 loop\n      r(i) := not x(i);\n    end loop x;\n    return r;\n  end f;\n', '  q <= f(d);\n'));
 });
+
+test('bit-string and string literals: characters that are not digits of the base nor std_logic values are errors (#396)', () => {
+  const at = rhs => errs(H + `entity tb is end;\narchitecture a of tb is\n  signal y : std_logic_vector(7 downto 0);\nbegin\n  y <= ${rhs};\nend;`);
+  // (before: x"G1" simulated as XXXX0001 and "1020X01Q" as 1020X01Q, with no diagnostic; XST rejects both)
+  assert.deepEqual(at('x"G1"'), ["6:8 'G' is not a hexadecimal digit nor a std_logic value"]);
+  assert.deepEqual(at('b"0120_0101"'), ["6:8 '2' is not a binary digit nor a std_logic value"]);
+  assert.deepEqual(at('o"38"'), ["6:8 '8' is not an octal digit nor a std_logic value"]);
+  assert.deepEqual(at('"1020X01Q"'), ["6:3 '2' is not a std_logic value (in the string \"1020X01Q\")"]);
+  // the valid ones: digits of the base, and the std_logic values VHDL-2008 replicates
+  for (const rhs of ['x"F1"', 'x"Z1"', 'x"1-"', 'b"0101_0101"', 'o"377"', '"0101XZ-1"', '"UXWLH01-"', '8x"F"']) assert.deepEqual(at(rhs), [], rhs);
+  const r = sim(H + 'entity tb is end;\narchitecture a of tb is\n  signal y : std_logic_vector(7 downto 0) := x"Z1";\n  signal z : std_logic_vector(7 downto 0) := "LH0-WU1X";\nbegin\n  process begin wait for 1 ns; report to_string(y) & " " & to_string(z); wait; end process;\nend;', 'tb', { lang: 'vhdl' });
+  // (the simulator has four values: L / H are 0 / 1, the other std_logic values X)
+  assert.deepEqual(r.out.map(l => l.replace(/^.*Note: /, '')), ['ZZZZ0001 010XXX1X']);
+});

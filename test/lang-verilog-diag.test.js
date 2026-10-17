@@ -62,3 +62,18 @@ test('$fatal / $error / $warning / $info severities', () => {
   assert.deepEqual(r.lines.filter(l => !/simulation/.test(l)), ['0 note i 1', '0 warning w', '0 error EXP e', '0 failure EXP f']);
   assert.equal(r.r.status.finished, 'fatal');
 });
+
+test('based literals: a digit outside the base is an error at the literal, never a crash or a wrong value (#395)', () => {
+  const at = lit => errs(`module tb;\n  wire [7:0] y = ${lit};\nendmodule\n`);
+  // (before: 8'dA threw "Cannot convert a to a BigInt" out of compile(); 4'b12, 8'o9, 8'd1x, 4'b gave wrong values)
+  assert.deepEqual(at("8'dA"), ["2:18 bad number literal 8'dA: 'a' is not a decimal digit"]);
+  assert.deepEqual(at("4'b12"), ["2:18 bad number literal 4'b12: '2' is not a binary digit"]);
+  assert.deepEqual(at("8'o9"), ["2:18 bad number literal 8'o9: '9' is not an octal digit"]);
+  assert.deepEqual(at("8'd1x"), ["2:18 bad number literal 8'd1x: x, z or ? in a decimal number must be its only digit"]);
+  assert.deepEqual(at("4'b"), ["2:18 bad number literal 4'b: no digits"]);
+  assert.deepEqual(at("'b2"), ["2:18 bad number literal 'b2: '2' is not a binary digit"]);
+  // the valid ones: no error, and their value
+  for (const lit of ["8'hFF", "8'dx", "8'd?", "8'd255", "4'b10?z", "'h1F", "8'sd5", "16'hx_ff", "8'o377", "8'b1010_1010", "8 'h A5"]) assert.deepEqual(at(lit), [], lit);
+  const r = sim("module tb;\n  wire [7:0] a = 8'd200, b = 8'b1010_0101, c = 8'o17;\n  wire [11:0] d = 12'hxF;\n  initial #1 $display(\"%d %b %d %b\", a, b, c, d);\nendmodule\n", 'tb', { lang: 'verilog' });
+  assert.deepEqual(r.out, ['200 10100101  15 xxxxxxxx1111']);
+});

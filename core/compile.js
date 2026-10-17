@@ -10,6 +10,14 @@ export function langOfPath(p) {
 }
 
 // sources: [{ path, text, lang?, role? }]
+// A parser that throws (a bug of Silinx's, not of the design) is the file's error: the project still
+// opens, and the message names the file instead of failing the whole compile (#395).
+function parseOne(lang, s, parse) {
+  try { return parse(); } catch (e) {
+    return { lang, file: s.path, units: [], errors: [{ file: s.path, line: 1, col: 1, message: `internal error reading this file: ${e.message}`, severity: 'error' }] };
+  }
+}
+
 export function compile(sources) {
   // ieee.math_real: its VHDL part (constants, UNIFORM) compiled with the design that uses it
   if (sources.some(s => (s.lang || langOfPath(s.path)) === 'vhdl' && s !== MATH_REAL_SOURCE && usesMathReal(s.text)) && !sources.includes(MATH_REAL_SOURCE)) sources = [MATH_REAL_SOURCE, ...sources];
@@ -23,7 +31,7 @@ export function compile(sources) {
   for (const s of sources) {
     const lang = s.lang || langOfPath(s.path);
     if (lang !== 'vhdl' && lang !== 'verilog') continue;
-    const r = lang === 'vhdl' ? parseVhdl(s.text, s.path) : parseVerilog(s.text, s.path, { include });
+    const r = parseOne(lang, s, () => (lang === 'vhdl' ? parseVhdl(s.text, s.path) : parseVerilog(s.text, s.path, { include })));
     r.role = s.role || 'design';
     r.text = s.text;   // (design checks: suppression comments, use clauses)
     r.src = s;
@@ -41,7 +49,7 @@ export function compile(sources) {
     for (let k = 0; k < parsed.length; k++) {
       const r = parsed[k];
       if (r.lang !== 'verilog' || !r.errors.some(e => e.severity === 'error')) continue;
-      const again = parseVerilog(r.src.text, r.src.path, { include, typeNames });
+      const again = parseOne('verilog', r.src, () => parseVerilog(r.src.text, r.src.path, { include, typeNames }));
       Object.assign(again, { role: r.role, text: r.text, src: r.src });
       parsed[k] = again;
     }

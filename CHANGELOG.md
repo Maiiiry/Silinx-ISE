@@ -184,6 +184,12 @@ In detail:
   boxes, all agreeing with the shipped graph; 3388 stay, driven only from a pad or a block RAM (the next step).
   The shipped graphs are unchanged.
 
+- **Number literals checked as XST does (#395, #396):** a Verilog based literal with a digit outside its base
+  (`8'dA`, `4'b12`, `8'o9`), a decimal with `x` / `z` among other digits (`8'd1x`) or no digits (`4'b`) is an error
+  at the literal: `8'dA` made `compile()` throw (the project then failed to open, at every start) and the others
+  gave wrong values. A VHDL bit-string with a character that is neither a digit of its base nor a std_logic value
+  (`x"G1"`), and a string with one where a vector is expected (`"1020X01Q"`), are errors too. A parser that throws
+  becomes an error of its file, so a project always opens.
 ## 15.10.22
 
 In short:
