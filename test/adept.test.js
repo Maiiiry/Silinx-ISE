@@ -135,3 +135,22 @@ test('JtagSeq: a long DR shift as PUT_TDI_BITS / GET_TDO_BITS, its last bit a pa
   assert.equal(st.waits, undefined);
   await a.close();
 });
+
+test('open() that fails after claiming the board releases it: the next attempt finds it free (#398)', async () => {
+  // a control request that fails once the interface is claimed (a firmware that does not answer)
+  const board = new SimAdeptBoard();
+  const real = board.controlTransferIn.bind(board);
+  let broken = true;
+  board.controlTransferIn = async (setup, len) => (broken ? { status: 'stall', data: new DataView(new ArrayBuffer(0)) } : real(setup, len));
+  await assert.rejects(new Adept(board).open(), /^Error: Adept USB: control request 0xe1 failed$/);
+  assert.equal(board.claimed, false, 'the interface released');
+  assert.equal(board.opened, false, 'the device closed');
+  broken = false;
+  const a = await new Adept(board).open();
+  assert.equal(a.productName, 'Digilent Basys2');
+  await a.close();
+  // a board in use (the claim fails): the device opened for the attempt is closed again
+  const used = new SimAdeptBoard({ inUse: true });
+  await assert.rejects(new Adept(used).open(), /the board cannot be opened \(Unable to claim interface\.\)/);
+  assert.equal(used.opened, false);
+});

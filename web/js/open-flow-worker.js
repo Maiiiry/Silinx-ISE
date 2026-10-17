@@ -23,24 +23,33 @@ async function gunzipJson(res) {
 
 // the Yosys workers, by the URL of Yosys: kept from one run of the flow to the next
 const pools = new Map();
+// the last device description and bit database loaded (1.6-2.5 MB gzipped): the next run of the same
+// device uses them again (the flow does not change them) instead of fetching and parsing them anew
+let lastDevice = null;   // { key, device, db }
 
 self.onmessage = async ({ data }) => {
   const { spec, sources, simSources = [], ucf, ucfName, files, assets } = data;
-  const post = m => self.postMessage(m);
+  // every message carries the run's id (web/js/open-flow-browser.js: each run hears only its own)
+  const post = m => self.postMessage({ ...m, id: data.id });
   try {
     const base = new URL(assets);
     // what the flow needs, fetched before it starts (it reads them synchronously)
-    post({ line: `Loading the device description of ${spec.part} and its bit database…` });
-    const graph = await gunzipJson(await fetchOk(new URL(`devices/${spec.graph}`, base), 'the device description'));
-    const device = loadDevice(graph);
-    const names = dbFileNames(spec.device, spec.pkg);
-    const json = {};
-    await Promise.all(Object.entries(names).map(async ([k, f]) => {
-      const r = await fetch(new URL(`bitdb/${f}`, base));
-      json[k] = r.ok ? await r.json() : null;
-    }));
-    if (!json.layout || !json.tiles) throw new Error(`no bit database for ${spec.device} on the site`);
-    const db = makeBitDb(dbFilesFrom(json, spec.pkg), device, spec.part);
+    const key = [base.href, spec.graph, spec.device, spec.pkg, spec.part].join('|');
+    if (lastDevice?.key !== key) {
+      lastDevice = null;
+      post({ line: `Loading the device description of ${spec.part} and its bit database…` });
+      const graph = await gunzipJson(await fetchOk(new URL(`devices/${spec.graph}`, base), 'the device description'));
+      const dev = loadDevice(graph);
+      const names = dbFileNames(spec.device, spec.pkg);
+      const json = {};
+      await Promise.all(Object.entries(names).map(async ([k, f]) => {
+        const r = await fetch(new URL(`bitdb/${f}`, base));
+        json[k] = r.ok ? await r.json() : null;
+      }));
+      if (!json.layout || !json.tiles) throw new Error(`no bit database for ${spec.device} on the site`);
+      lastDevice = { key, device: dev, db: makeBitDb(dbFilesFrom(json, spec.pkg), dev, spec.part) };
+    }
+    const { device, db } = lastDevice;
     // Yosys, compiled to WebAssembly (YoWASP): fetched once, then cached by the browser; in workers of
     // this worker (#279), the synthesis's mappings from the same netlist in parallel (web/js/yosys-client.js),
     // or in this worker's own thread where it cannot start them

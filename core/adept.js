@@ -43,8 +43,16 @@ export class Adept {
       if (u.configuration === null || u.configuration === undefined) await u.selectConfiguration(1);
       await u.claimInterface(0);
     } catch (e) {
+      try { await u.close(); } catch { /* not opened */ }
       fail(`the board cannot be opened (${e.message}): another program may be using it (Digilent Adept, iMPACT, the Silinx application), or, on Windows, its driver is Digilent's (WinUSB is needed: see the help)`);
     }
+    // the board is claimed now: a failure from here on releases it (the callers close only the
+    // Adept that open() returned), or every later attempt finds it in use until the page reloads
+    try { return await this.identify(); } catch (e) { await this.close(); throw e; }
+  }
+
+  async identify() {
+    const u = this.usb;
     const ctrl = async ([req, len]) => {
       const r = await u.controlTransferIn({ requestType: 'vendor', recipient: 'device', request: req, value: 0, index: 0 }, len);
       if (r.status !== 'ok' || r.data.byteLength !== len) fail(`control request 0x${req.toString(16)} failed`);
