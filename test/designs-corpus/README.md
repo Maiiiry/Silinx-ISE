@@ -241,7 +241,7 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | vtr-sha | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S250E | 834 | 1665 | 893 | 15.700 | 0 |
 | vtr-diffeq1 | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S500E | 263 | 414 | 451 | 42.614 | 1 (flow 1) |
 | vtr-diffeq2 | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S500E | 144 | 282 | 96 | 29.308 | 1 (flow 1) |
-| vtr-ch-intrinsics | Verilog | VTR benchmarks | pass | - | pass | mismatch | complete | XC3S250E | 275 | 178 | 509 | 7.592 | 21 (frontend 13, synth 8) |
+| vtr-ch-intrinsics | Verilog | VTR benchmarks | pass | - | pass | mismatch | complete | XC3S250E | 265 | 157 | 509 | 6.324 | 21 (frontend 13, synth 8) |
 | vtr-stereovision3 | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S250E | 112 | 223 | 120 | 7.993 | 3 (frontend 2, synth 1) |
 | vtr-mkPktMerge | Verilog | VTR benchmarks | pass | - | pass | pass | complete | XC3S250E | 730 | 785 | 962 | 7.494 | 33 (frontend 33) |
 | epfl-ctrl | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 25 | 49 | 0 |  | 0 |

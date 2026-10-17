@@ -1245,10 +1245,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 275,
-   "luts": 178,
+   "slices": 265,
+   "luts": 157,
    "ffs": 509,
-   "period": 7.592
+   "period": 6.324
   }
  },
  "vtr-diffeq1": {

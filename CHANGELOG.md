@@ -35,6 +35,13 @@ In short:
 
 In detail:
 
+- **Clock inverters in the slices' CLKINV (#80):** the synthesis writes an inverted clock or latch gate
+  (IS_C_INVERTED / IS_G_INVERTED) as one INV per cell, which the packer made a LUT on the clock: ISE's DRC
+  reported a "Gated clock" for each (21 on vtr-ch-intrinsics, whose latches have inverted gates). An inverter that
+  drives only clock pins of flip-flops and latches is now their slices' CLKINV, as XST maps it.
+  vtr-ch-intrinsics has the one gated clock that ISE's own implementation also reports (a latch's gate from logic),
+  157 LUTs instead of 178 and 6.3 ns instead of 7.6. The examples and the open flow's fixtures are byte-identical
+  with ISE's bitgen as before.
 - **An estimated power report in the Silinx toolchain (#123):** the `xpwr` step of the flow (core/open-flow-core.js,
   after Place & Route and its timing) writes `build/<top>.pwr` from core/power.js: the device's static power (the
   supplies' quiescent currents XPower 14.7 gives each device, Vccint's with the junction temperature) and the routed

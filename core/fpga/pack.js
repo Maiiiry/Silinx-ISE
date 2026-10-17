@@ -109,8 +109,29 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   const cells = nl.cells.map((c, idx) => ({ ...c, pins: { ...c.pins }, idx }));
   const loadsOf = n => nets[n].loads;
 
+  // An inverter whose loads are all clock pins of flip-flops and latches (C, G) is their slices' CLKINV, as XST
+  // maps it: the synthesis's extractinv (-ise) writes IS_C_INVERTED / IS_G_INVERTED as one INV per cell, which as a
+  // LUT puts logic on the clock (ISE's DRC: "Gated clock", one per inverter; vtr-ch-intrinsics' latches, #80). The
+  // pins take the inverter's input with their inversion toggled, and the inverter is left out.
+  const clockPin = l => { const k = ffKind(cells[l.cell].type); return !!k && l.pin === (k.latch ? 'G' : 'C'); };
+  for (const c of cells) {
+    if (c.type !== 'INV') continue;
+    const out = c.pins.O, src = c.pins.I;
+    if (!nets[out].loads.length || nets[out].port || !nets[out].loads.every(clockPin)) continue;
+    nets[src].loads = nets[src].loads.filter(l => l.cell !== c.idx);
+    for (const l of nets[out].loads) {
+      const f = cells[l.cell], inv = `IS_${l.pin}_INVERTED`;
+      f.pins[l.pin] = src;
+      f.params = { ...f.params, [inv]: paramInt(f.params?.[inv]) ^ 1 };
+      nets[src].loads.push(l);
+    }
+    nets[out].loads = [];
+    nets[out].driver = null;
+    c.lowered = true;
+  }
   // INV / BUF are 1-input LUTs
   for (const c of cells) {
+    if (c.lowered) continue;
     if (c.type === 'INV') { c.type = 'LUT1'; c.params = { INIT: '01' }; c.pins = { I0: c.pins.I, O: c.pins.O }; relabel(c, { I: 'I0' }); }
     else if (c.type === 'BUF') { c.type = 'LUT1'; c.params = { INIT: '10' }; c.pins = { I0: c.pins.I, O: c.pins.O }; relabel(c, { I: 'I0' }); }
   }

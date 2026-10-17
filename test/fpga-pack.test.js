@@ -193,6 +193,51 @@ test('latches: #LATCH, transparent while CLKINV gives 0 (an active-high gate tak
   const p = pack(load('latches'));
   const lat = p.insts.filter(i => i.kind === 'slice' && ['X', 'Y'].some(X => val(i, `FF${X}`) === '#LATCH'));
   assert.ok(lat.length >= 2);
-  // LDCE (gate g & ge) and LDPE (its gate !g2 through an inverter): both active high on the cell
-  for (const s of lat) { assert.equal(val(s, 'CLKINV'), 'CLK_B'); assert.equal(val(s, 'SYNC_ATTR'), 'ASYNC'); }
+  // the LDCEs (gate g & ge): active high, CLK_B; the LDPE's gate !g2 comes through extractinv's INV, which is its
+  // CLKINV (CLK: active low), not a LUT (#80): 3 LUTs, the AND, the XOR and the flip-flop's
+  assert.deepEqual(lat.map(s => val(s, 'CLKINV')).sort(), ['CLK', 'CLK_B']);
+  for (const s of lat) assert.equal(val(s, 'SYNC_ATTR'), 'ASYNC');
+  assert.equal(p.stats.luts, 3);
+});
+
+// the counter with its flip-flops' clock through an inverter (as extractinv writes IS_C_INVERTED); extra: gives the
+// inverter's output another load besides the clock pins
+function invertedClock(extra = null) {
+  const nl = load('counter');
+  const clk = nl.cells.find(c => /^FD/.test(c.type)).pins.C;
+  const k = nl.nets.length;
+  nl.nets.push({ id: k, name: 'clk_n', driver: { cell: nl.cells.length, pin: 'O' }, port: null, loads: nl.nets[clk].loads });
+  for (const l of nl.nets[k].loads) nl.cells[l.cell].pins.C = k;
+  nl.nets[clk].loads = [{ cell: nl.cells.length, pin: 'I' }];
+  nl.cells.push({ name: 'clk_inv', type: 'INV', params: {}, attrs: {}, pins: { I: clk, O: k }, dirs: { I: 'input', O: 'output' } });
+  if (extra) extra(nl, k);
+  return nl;
+}
+
+test('a clock inverter (extractinv\'s INV on the C pins) is the slices\' CLKINV, not a LUT on the clock (#80)', () => {
+  const plain = pack(load('counter'));
+  const nl = invertedClock();
+  const p = pack(nl);
+  assert.equal(p.stats.luts, plain.stats.luts, 'no LUT for the inverter');
+  const ffs = p.insts.filter(i => i.kind === 'slice' && ['X', 'Y'].some(X => val(i, `FF${X}`) === '#FF'));
+  assert.ok(ffs.length >= 4);
+  for (const s of ffs) assert.equal(val(s, 'CLKINV'), 'CLK_B', s.name);
+  for (const s of plain.insts.filter(i => i.kind === 'slice' && val(i, 'FFX') === '#FF')) assert.equal(val(s, 'CLKINV'), 'CLK');
+  // its input netlist unchanged (the packer works on its own copies)
+  assert.equal(nl.cells.at(-1).type, 'INV');
+  assert.ok(nl.cells.filter(c => /^FD/.test(c.type)).every(c => !c.params.IS_C_INVERTED));
+  const d = compareSims(nl, p, { cycles: 300, seed: 7 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
+});
+
+test('an inverter that also drives logic stays a LUT (the clock pins keep it)', () => {
+  const nl = invertedClock((n, k) => {
+    const lut = n.cells.find(c => c.type === 'LUT4');
+    n.nets[lut.pins.I3].loads = n.nets[lut.pins.I3].loads.filter(l => l.cell !== n.cells.indexOf(lut) || l.pin !== 'I3');
+    lut.pins.I3 = k;
+    n.nets[k].loads.push({ cell: n.cells.indexOf(lut), pin: 'I3' });
+  });
+  const p = pack(nl);
+  assert.equal(p.stats.luts, pack(load('counter')).stats.luts + 1);
+  for (const s of p.insts.filter(i => i.kind === 'slice' && val(i, 'FFX') === '#FF')) assert.equal(val(s, 'CLKINV'), 'CLK');
 });
