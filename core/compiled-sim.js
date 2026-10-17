@@ -14,31 +14,26 @@
 //     one step of the loop; every other clock (a counter bit used as a clock, a clock on a button, a
 //     gated or inverted clock), the asynchronous resets / loads / sets and the latches are settled
 //     after each evaluation: an edge of such a clock fires its flip-flops, the logic is evaluated again
-//     until nothing changes.
+//     until nothing changes;
+//   - the Xilinx primitives are Verilog models flattened into the design (core/compiled-prims.js: block
+//     RAMs, multipliers, SRL16s, distributed RAMs, clock buffers); a DCM's outputs are variables set by a
+//     schedule of their edges in the main clock's cycles (dcmSchedule): the main clock is its input, each
+//     cycle's edges are steps of the loop in time order.
 // What it cannot compile (a combinational loop, a tristate, an inout port, a primitive with no model
-// here) is a CompileError with the reason: the emulator then keeps the event-driven simulator.
+// here, a DCM with its RST driven) is a CompileError with the reason: the emulator then keeps the
+// event-driven simulator.
 //
 //   const sim = await compileDesign(design, { run })   // run: Yosys (core/synth-open-node.js yosysNode, the browser's worker)
 //   sim.set('sw', 5); sim.cycle(1000); sim.get('led') -> 0x2an
 //
 // Isomorphic ES module (browser + Node), no DOM.
 import { toVerilog } from './synth-verilog.js';
+import { PRIMITIVE_MODELS, DCM_CELLS, DCM_OUTPUTS, dcmWaves, dcmSchedule, bramInit } from './compiled-prims.js';
 
 export class CompileError extends Error {}
 
 /** The Yosys commands that read the design at word level (after read_verilog). */
 export const prepCommands = top => `prep -flatten -top ${top}; memory -nomap; opt_clean -purge`;
-
-// The Xilinx primitives the compiled simulator has a model of: the buffers (wires, for a cycle simulator)
-const PRIMITIVE_MODELS = {
-  BUF: 'module BUF(output O, input I); assign O = I; endmodule',
-  BUFG: 'module BUFG(output O, input I); assign O = I; endmodule',
-  BUFGP: 'module BUFGP(output O, input I); assign O = I; endmodule',
-  IBUF: 'module IBUF(output O, input I); assign O = I; endmodule',
-  IBUFG: 'module IBUFG(output O, input I); assign O = I; endmodule',
-  OBUF: 'module OBUF(output O, input I); assign O = I; endmodule',
-  INV: 'module INV(output O, input I); assign O = ~I; endmodule',
-};
 
 /**
  * The design's word-level netlist (Yosys's JSON, parsed): { json, top, warnings: [messages] }.
@@ -49,7 +44,8 @@ export async function netlistOf(design, { run }) {
   try { v = toVerilog(design); } catch (e) { throw new CompileError(e.message); }
   const missing = v.primitives.filter(p => !PRIMITIVE_MODELS[p]);
   if (missing.length) throw new CompileError(`the compiled simulator has no model of ${missing.join(', ')}`);
-  const lib = v.primitives.map(p => PRIMITIVE_MODELS[p]).join('\n');
+  // (the primitives' models: core/compiled-prims.js)
+  const lib = v.primitives.map(p => (typeof PRIMITIVE_MODELS[p] === 'function' ? PRIMITIVE_MODELS[p]() : PRIMITIVE_MODELS[p])).join('\n');
   const files = { [`${v.top}_cs.v`]: v.text, ...(lib && { 'silinx_cs_prims.v': lib }) };
   const lines = [];
   let out;
@@ -59,9 +55,9 @@ export async function netlistOf(design, { run }) {
   const text = out[`${v.top}_cs.json`];
   if (!text) throw new CompileError('Yosys wrote no netlist');
   // the warnings: those of the synthesis Verilog's writer, then Yosys's (but how it holds an array, as
-  // registers or as a memory, which changes nothing here)
-  const quiet = l => /^Warning: Replacing memory \S+ with list of registers\./.test(l);
-  return { json: JSON.parse(text), top: v.top, warnings: [...v.warnings, ...lines.filter(l => /^Warning:/.test(l) && !quiet(l)).map(yosysWarning)] };
+  // registers or as a memory, which changes nothing here; a DCM's real generic kept as a string, as read here)
+  const quiet = l => /^Warning: Replacing memory \S+ with list of registers\./.test(l) || /^(\S+: )?Warning: Replacing floating point parameter /.test(l);
+  return { json: bramInit(JSON.parse(text), v.top, v.instances), top: v.top, warnings: [...v.warnings, ...lines.filter(l => /^Warning:/.test(l) && !quiet(l)).map(yosysWarning)] };
 }
 
 // a Yosys warning as Silinx says it (a latch: the signal's name, without Yosys's process and cell names)
@@ -209,7 +205,7 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   }
 
   // ---- cells: outputs as variables
-  const comb = [], elems = [], mems = [];
+  const comb = [], elems = [], mems = [], dcms = [];
   for (const [cname, c] of Object.entries(mod.cells || {})) {
     const t = c.type, P = c.parameters || {}, C = c.connections || {};
     if (IGNORED.has(t)) continue;
@@ -224,6 +220,15 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
       elems.push({ name: cname, type: t, P, C, q: v, init: bigOf(C.Q.map(b => init.get(b) || 0)) });
     } else if (t === '$mem_v2') {
       mems.push({ name: cname, P, C });
+    } else if (DCM_CELLS.has(t)) {
+      // a DCM: its outputs are variables the clock schedule sets (below)
+      const outs = {};
+      for (const port of DCM_OUTPUTS) {
+        if (!C[port]?.length) continue;
+        outs[port] = newVar(C[port].length);
+        drive(C[port], outs[port]);
+      }
+      dcms.push({ name: cname, P, C, outs });
     } else if (t === '$tribuf' || t === '$_TBUF_') {
       throw new CompileError(`the tristate buffer '${cellName(cname)}' cannot be compiled`);
     } else {
@@ -527,7 +532,23 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   const clocked = elems.filter(e => e.type !== '$dlatch' && e.type !== '$adlatch');
   const clkBit = e => e.C.CLK[0];
   let main = null;
-  if (clock === false) main = null;
+  // (a DCM: the input clocking it is the main clock)
+  const dcmOf = new Map();   // a DCM output's bit -> [dcm, port]
+  for (const d of dcms) for (const [port, v] of Object.entries(d.outs)) d.C[port].forEach(b => dcmOf.set(b, [d, port]));
+  const roots = dcms.filter(d => !dcmOf.has(d.C.CLKIN?.[0]));
+  if (dcms.length && !roots.length) throw new CompileError(`the DCM '${cellName(dcms[0].name)}' is in a loop of DCMs: not compiled`);
+  for (const d of roots) {
+    const b = d.C.CLKIN?.[0];
+    if (typeof b !== 'number' || !inputs.some(i => i.bits.includes(b))) throw new CompileError(`the DCM '${cellName(d.name)}' is not clocked by an input port: not compiled`);
+  }
+  const dcmClock = roots[0]?.C.CLKIN[0];
+  if (roots.some(d => d.C.CLKIN[0] !== dcmClock)) throw new CompileError('DCMs clocked by two input ports: not compiled');
+  const portOfBit = b => inputs.find(i => i.bits.includes(b))?.name;
+  if (dcms.length && (clock === false || (clock && portOfBit(dcmClock) !== clock))) {
+    throw new CompileError(`the DCM '${cellName(roots[0].name)}' is clocked by '${portOfBit(dcmClock)}', ${clock ? `not by the main clock '${clock}'` : 'with no main clock'}: not compiled`);
+  }
+  if (dcms.length) main = dcmClock;
+  else if (clock === false) main = null;
   else if (clock) {
     const p = inputs.find(i => i.name === clock);
     if (!p) throw new CompileError(`the clock '${clock}' is not an input port`);
@@ -556,6 +577,48 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   const usesMain = comb.some(n => inBits(n).includes(main))
     || elems.some(e => Object.entries(e.C).some(([p, bits]) => p !== 'CLK' && bits.includes(main)) || (e.addr || []).includes(main) || (e.data || []).includes(main) || (e.en || []).includes(main));
   const needFall = main != null && (negMain.length > 0 || usesMain);
+
+  // ---- the DCMs' outputs: the edges of each cycle (core/compiled-prims.js dcmSchedule), steps of the loop
+  // after the main clock's edge at the same time; the outputs nothing reads are left out, and the falling edges
+  // of a clock only rising-edge flip-flops read are not steps (its rising edge then is one from 0: rise-only, no
+  // net of its own)
+  let sched = null;
+  const chans = [], unread = new Set();   // (the bits of the outputs left out, or rise-only)
+  if (dcms.length) {
+    const asClock = new Set(clocked.map(clkBit));
+    const other = new Set([...comb.flatMap(inBits), ...elems.flatMap(e => [...Object.entries(e.C).flatMap(([p, b]) => (p === 'CLK' && clocked.includes(e) ? [] : b)), ...(e.addr || []), ...(e.data || []), ...(e.en || [])]),
+      ...ports.filter(p => p.dir !== 'input').flatMap(p => p.bits), ...dcms.map(d => d.C.CLKIN[0]),
+      ...(watch?.levels || []).map(w => w.bit), ...(watch?.pairs || []).flat().map(w => w.bit), ...(watch?.edges || []).flatMap(w => [w.bit, ...w.capture]),
+      ...(watch?.vga ? [watch.vga.hs, watch.vga.vs, ...watch.vga.rgb] : [])]);
+    const read = new Set([...other, ...asClock]);
+    const waves = new Map(), level = new Map();   // dcm -> its outputs' waveforms, its depth in a cascade
+    const resolve = (d, seen = new Set()) => {
+      if (waves.has(d)) return;
+      if (seen.has(d)) throw new CompileError(`the DCM '${cellName(d.name)}' is in a loop of DCMs: not compiled`);
+      seen.add(d);
+      const rst = d.C.RST || [];
+      if (rst.some(b => typeof b === 'number')) throw new CompileError(`the DCM '${cellName(d.name)}' has its RST driven by the design: not compiled yet`);
+      const src = dcmOf.get(d.C.CLKIN[0]);
+      if (src) resolve(src[0], seen);
+      const input = src ? waves.get(src[0])[src[1]] : { pre: [], s: [0, 1], q: [1, 1] };
+      if (!input) throw new CompileError(`the DCM '${cellName(d.name)}' is clocked by ${src[1]} of '${cellName(src[0].name)}': not compiled`);
+      level.set(d, src ? level.get(src[0]) + 1 : 0);
+      // (RST tied high: never locked, its outputs low)
+      try { waves.set(d, rst.includes('1') ? {} : dcmWaves(d.P, input, cellName(d.name))); } catch (e) { throw new CompileError(`${e.message}: not compiled`); }
+    };
+    dcms.forEach(d => resolve(d));
+    for (const d of dcms) {
+      for (const [port, v] of Object.entries(d.outs)) {
+        const w = waves.get(d)[port], b = d.C[port][0];
+        if (!w) continue;
+        if (!read.has(b)) { unread.add(b); continue; }
+        const riseOnly = !other.has(b) && clocked.every(e => clkBit(e) !== b || pol(e, 'CLK_POLARITY') === 1);
+        if (riseOnly) unread.add(b);
+        chans.push({ wave: w, v, bit: b, level: level.get(d), riseOnly });
+      }
+    }
+    try { sched = dcmSchedule(chans); } catch (e) { throw new CompileError(`${e.message}: not compiled`); }
+  }
   const asyncEls = elems.filter(e => async(e));
 
   const fire = els => `${els.map(sample).join('\n')}\n${els.map(commit).join('\n')}`;
@@ -591,6 +654,41 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   const vgaCode = watch?.vga ? VGA_CODE(sig([watch.vga.hs], 'n'), sig([watch.vga.vs], 'n'), sig(watch.vga.rgb, 'n')) : '';
   const edgeCode = edges.map((w, i) => `{ const e = ${sig([w.bit], 'n')}; if (e${i} === 1 && e === 0) EV.push(cy, ${sig(w.capture, 'n')}); e${i} = e; }`).join('\n');
 
+  // ---- the loop's steps: the main clock's rising edge (the cycle's samples before it), its falling edge; with
+  // DCMs, the cycle's steps in time order (DS: tick, number of changes, then variable / value pairs; DO: each
+  // cycle's first step; DC: the cycles since the start, the schedule's S first ones then its steady H ones)
+  const endCount = counted && !needFall ? `if (n) { ${count('0.5')} }` : '';
+  const riseCount = `${counted ? (needFall ? count('0.5') : count('(cy ? 1 : 0.5)')) : ''}\n${edgeCode}\n${vgaCode}`;
+  let dcmStep = '', dcmTables = '';
+  if (sched) {
+    const ds = [], dof = [];
+    for (const steps of sched.cycles) {
+      dof.push(ds.length);
+      for (const st of steps) ds.push(st.tick, st.sets.length, ...st.sets.flat());
+    }
+    dof.push(ds.length);
+    dcmTables = `const DS = Int32Array.from([${ds.join(',')}]), DO = Int32Array.from([${dof.join(',')}]);\nlet DC = 0;`;
+    const cases = chans.map(c => `case ${c.v}: ${c.riseOnly ? `p${dlist.find(d => d.b === c.bit).k} = 0; ` : ''}v${c.v} = ${vars[c.v].kind === 'b' ? 'BigInt(x)' : 'x'}; break;`).join(' ');
+    const { T, S, H } = sched;
+    dcmStep = `    st: for (;;) {
+      if (ph === 0) {
+        if (cy === n) { ${endCount} break run; }
+${riseCount}
+        cy++;
+        ${needFall ? ckSet(1) : ''} fd = ${!needFall};
+${fire(posMain)}
+        { const c = dc < ${S} ? dc : ${S} + (dc - ${S}) % ${H}; si = DO[c]; se = DO[c + 1]; dc++; }
+        ph = 1;
+        ${posMain.length || needFall ? 'break st;' : ''}
+      }
+      if (!fd && (si >= se || DS[si] >= ${T / 2})) { fd = true; ${counted ? count('0.5') : ''} ${ckSet(0)}
+${fire(negMain)}
+        break st; }
+      if (si < se) { let k = DS[si + 1]; si += 2; for (; k > 0; k--, si += 2) { const x = DS[si + 1]; switch (DS[si]) { ${cases} } } break st; }
+      ph = 0;
+    }`;
+  }
+
   // ---- the code
   const V = vars.map((_, i) => i);
   const memInit = mems.map(m => {
@@ -616,6 +714,7 @@ ${dlist.map(d => `let P${d.k} = -1;`).join('\n')}
 const K = new Float64Array(${levels.length + pairs.length}), EV = [];
 ${watch?.vga ? `const VG = new Float64Array(${VGA_STATE.length}).fill(-1), FB = new Uint16Array(${VGA_W * VGA_H}); VG[${VGA_STATE.indexOf('ct')}] = 0; VG[${VGA_STATE.indexOf('frames')}] = 0; VG[${VGA_STATE.indexOf('L')}] = 0;` : ''}
 ${edges.map((_, i) => `let E${i} = -1;`).join(' ')}
+${dcmTables}
 function run(n) {
   ${V.length ? `let ${V.map(i => `v${i} = V${i}`).join(', ')};` : ''}
   ${mems.map(m => `const m${m.k} = M${m.k};`).join(' ')}
@@ -623,18 +722,16 @@ function run(n) {
   ${temps.length ? `let ${temps.join(', ')};` : ''}
   ${edges.length ? `let ${edges.map((_, i) => `e${i} = E${i}`).join(', ')};` : ''}
   ${watch?.vga ? `let ${VGA_STATE.map((k, i) => `g_${k} = VG[${i}]`).join(', ')};` : ''}
-  let ph = 0, cy = 0, it = 0, ch = false;
-  for (;;) {
+  let ph = 0, cy = 0, it = 0, ch = false;${sched ? ' let dc = DC, si = 0, se = 0, fd = true;' : ''}
+  run: for (;;) {
 ${combCode}
     ch = false;
 ${settleCode}
     if (ch) { if (++it > ${SETTLE_LIMIT}) throw new H.Error('the design does not settle (a loop through a latch or a clock?)'); continue; }
     it = 0;
-    if (ph === 0) {
-      if (cy === n) { ${counted && !needFall ? `if (n) { ${count('0.5')} }` : ''} break; }
-${counted ? (needFall ? count('0.5') : count('(cy ? 1 : 0.5)')) : ''}
-${edgeCode}
-${vgaCode}
+${sched ? dcmStep : `    if (ph === 0) {
+      if (cy === n) { ${endCount} break; }
+${riseCount}
       cy++;
       ${needFall ? `${ckSet(1)} ph = 1;` : ''}
 ${fire(posMain)}
@@ -642,10 +739,10 @@ ${fire(posMain)}
 ${counted ? count('0.5') : ''}
       ${ckSet(0)} ph = 0;
 ${fire(negMain)}
-    }
+    }`}
   }
   ${V.map(i => `V${i} = v${i};`).join(' ')}
-  ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}
+  ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}${sched ? ' DC = dc;' : ''}
   ${edges.map((_, i) => `E${i} = e${i};`).join(' ')}
   ${watch?.vga ? VGA_STATE.map((k, i) => `VG[${i}] = g_${k};`).join(' ') : ''}
 }
@@ -656,12 +753,12 @@ function vals() { return [${V.map(i => `V${i}`).join(', ')}]; }
 return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${watch?.vga ? ', vga: { state: VG, fb: FB }' : ''} };
 `;
   const nets = new Map();
-  for (const [name, n] of Object.entries(mod.netnames || {})) if (!n.hide_name) nets.set(name, n.bits);
+  for (const [name, n] of Object.entries(mod.netnames || {})) if (!n.hide_name && !n.bits.some(b => unread.has(b))) nets.set(name, n.bits);
   for (const p of ports) nets.set(p.name, p.bits);
   return {
     code, inputs, ports, nets, src, vars, warnings,
     clock: mainPort ? { port: mainPort.name } : null,
-    stats: { cells: names.length, comb: order.length, flipflops: elems.filter(e => FF.has(e.type)).length, memories: mems.length, clocks: dlist.length + (main != null ? 1 : 0), bothEdges: needFall },
+    stats: { cells: names.length, comb: order.length, flipflops: elems.filter(e => FF.has(e.type)).length, memories: mems.length, clocks: dlist.length + (main != null ? 1 : 0), bothEdges: needFall, dcms: dcms.length },
   };
 }
 

@@ -72,7 +72,7 @@ function equivalent(sources, top, opts = {}) {
   const k = a.findIndex((x, i) => x !== b[i]);
   assert.equal(k, -1, k < 0 ? '' : `cycle ${k}:\n  original  ${a[k]}\n  generated ${b[k]}\n${text}`);
   assert.ok(new Set(a).size > (opts.minStates ?? 3), `the outputs change during the test (${new Set(a).size} states)`);
-  return { text, warnings, primitives };
+  return { text, warnings, primitives, instances: toVerilog(d).instances };
 }
 
 const PRE = 'library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;\n';
@@ -511,9 +511,11 @@ test('Xilinx primitives instantiated from Verilog (no library clause) stay insta
 endmodule`, 'pv.v');
   const prims = primitiveSources([src]);
   assert.deepEqual(prims.map(p => p.path), ['<silinx>/unisim.vhd']);
-  const { text, primitives, warnings } = equivalent([...prims, src], 'pv', { reset: 'none' });
+  const { text, primitives, warnings, instances } = equivalent([...prims, src], 'pv', { reset: 'none' });
   assert.deepEqual(primitives.sort(), ['BUFG', 'FDRE', 'SRL16E']);   // (FDE: the FDRE Yosys knows, R tied low)
   assert.deepEqual(warnings, []);
+  // (each instance: its cell, its name, its given generics as written; core/compiled-prims.js bramInit reads them)
+  assert.deepEqual(instances, [{ cell: 'BUFG', name: 'ub', params: {} }, { cell: 'SRL16E', name: 'us', params: { INIT: "16'ha5c3" } }, { cell: 'FDRE', name: 'uf', params: { INIT: "1'h1" } }]);
   assert.match(text, /SRL16E #\(\n {4}\.INIT\(16'ha5c3\)\n {2}\) us \(/);
   assert.match(text, /BUFG ub \(\n {4}\.I\(clk\),\n {4}\.O\(clkb\)\n {2}\);/);
 });

@@ -19,6 +19,9 @@ In short:
   JavaScript, tens of millions of clock cycles per second: counters, dividers and debouncers at their real values,
   the clock in real time. The event-driven simulation stays, for debugging (X values, the design's messages) and for
   the designs that cannot be compiled (an Engine selector in the emulator's toolbar).
+- **Xilinx primitives on the compiled engine:** designs with block RAMs, multipliers, shift registers, distributed
+  RAMs, clock multiplexers and DCMs (a 25 MHz clock for VGA from the board's 50 MHz) run in the Board Emulator at the
+  board's speed instead of falling back to the event-driven engine.
 - **Against the best-known results:** the quality page compares Silinx's synthesis on the EPFL benchmarks with the
   records of the EPFL logic synthesis competition (LUT-6 count and depth).
 - **A larger design corpus:** 29 more designs through the whole toolchain every night: the rest of the EPFL
@@ -181,6 +184,33 @@ In detail:
   from the site's assets in the browser edition), then runs it on the compiled engine at Real time (a new clock rate) with the timing
   generics' real values, else on the event-driven one with the reason (a combinational loop, an inout port, a
   primitive with no model, more than one board clock); the Engine selector switches between them.
+- **The Xilinx primitives in the compiled simulator (#429):** `core/compiled-prims.js` has synthesizable Verilog models,
+  flattened into the design by Yosys, that compute what Silinx's UNISIM models compute: RAMB16_Sw and RAMB16_Sm_Sn at
+  every width (512 words of 32 data and 4 parity bits that every port reads and writes its part of; INIT, SRVAL,
+  WRITE_MODE; on one edge both ports' reads, then the writes, port B's last; the INIT_xx / INITP_xx contents written
+  into the netlist's memories after Yosys, ten times faster than through Yosys), MULT18X18 / MULT18X18S /
+  MULT18X18SIO (AREG, BREG, PREG, the B cascade), SRL16 / SRL16E / SRLC16 / SRLC16E and their `_1`, RAM16/32/64X1S
+  and X1D (and `_1`), BUFGMUX, BUFGCE (and `_1`), GND / VCC. A DCM_SP or DCM is a schedule of its outputs' edges in
+  the main clock's cycles (`dcmSchedule`): CLK0 / 90 / 180 / 270, CLK2X / 2X180, CLKDV, CLKFX / FX180, LOCKED,
+  CLKIN_DIVIDE_BY_2, as `core/unisim.js` (LOCKED and CLK0 at the 3rd input edge, the synthesized clocks from the
+  4th), a cycle's edges steps of the compiled loop in time order, cascaded DCMs; the falling edges of a clock only
+  rising-edge flip-flops use are not steps (about 26 million cycles a second for a VGA design on CLKFX = 25 MHz). The
+  main clock is the DCM's input; a DCM with its RST driven by the design is not compiled yet. Checked cycle by cycle
+  against the event-driven simulator: the open synthesis's test designs bram_prim, bufgmux and dcm (compiled now),
+  the 14 open-flow board tests with primitives, test designs in VHDL and Verilog (every block RAM write mode at mixed
+  widths, the multipliers, every SRL16 and distributed RAM, a DCM's every output on both edges at six frequencies,
+  two cascaded DCMs with a BUFGMUX); a DCM's edges against their arithmetic; what the emulator counts with a DCM
+  (once a main clock cycle); a UI test. `toVerilog` also returns its primitive instances (`instances`); the
+  comparison applies the inputs and compares the outputs 40 ps before the clock's rising edge (after a DCM's edges
+  within the cycle, which the event-driven model rounds down to the ps).
+- **A DCM's CLK180 at the lock (#429):** `core/unisim.js` gave CLK180 a pulse of no width when the DCM locked (it
+  followed CLK0 one delta late): a flip-flop on CLK180 counted one edge too many. It now comes from CLK0's own
+  sources, in the same delta.
+- **An input forced between runs (#431):** after a clock edge with nothing else changing, a signal forced from
+  outside the run (the Board Emulator's switches, the live schematic) changed in the delta of the clock's edge, so a
+  native SRL16 / distributed RAM on a falling edge (SRLC16E_1, RAM16X1S_1…) woken by its address took it for a new
+  edge: it shifted, or wrote, again. The first force after the simulator settles now starts a new delta
+  (`core/simulator.js`).
 - **ONBOARDING.md:** a guide for a new developer or Claude Code session: the setup, how several
   sessions work on the repository together, a map of the code, the product's rules and the lessons
   learnt; CLAUDE.md points to it, and the documentation test checks its paths and links (and CLAUDE.md's).

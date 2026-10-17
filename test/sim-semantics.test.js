@@ -445,3 +445,52 @@ end;`;
   assert.deepEqual(r.errors, []);
   assert.deepEqual(r.sim.log.map(l => l.text), ['dbl=42 tw=8 int=42', 'say 7', 'cnt=2']);
 });
+
+// ------------------------------------------------------------------ inputs forced between runs (#431)
+test('an input forced between runs does not re-trigger the last clock edge (native SRLC16E_1, RAM16X1S_1; a forced clock)', async () => {
+  const { compile, elaborate } = await import('../core/compile.js');
+  const { Simulator } = await import('../core/simulator.js');
+  const { primitiveSources } = await import('../core/unisim.js');
+  const V = await import('../core/values.js');
+  const srcs = [{ path: 't.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all;
+library unisim; use unisim.vcomponents.all;
+entity t is port (clk, d, we : in std_logic; a : in std_logic_vector(3 downto 0); q, o : out std_logic); end;
+architecture a of t is
+begin
+  s : SRLC16E_1 port map (A0 => a(0), A1 => a(1), A2 => a(2), A3 => a(3), CE => '1', CLK => clk, D => d, Q => q, Q15 => open);
+  r : RAM16X1S_1 port map (A0 => a(0), A1 => a(1), A2 => a(2), A3 => a(3), D => d, WCLK => clk, WE => we, O => o);
+end;` }];
+  const d = elaborate(compile([...primitiveSources(srcs), ...srcs]), 't');
+  const sim = new Simulator(d, {});
+  const port = n => d.top.ports.find(p => p.name === n).sig;
+  const force = (n, v, w = 1) => sim.force(port(n), V.fromInt(v, w, false));
+  force('d', 0); force('we', 0); force('a', 0, 4);
+  sim.addClock(port('clk'), { period: 20000 });
+  // cycle k (its falling edge at (k + 1) * 20 ns): d = 1 in cycle 1 only, the address k. The shift register
+  // has that 1 at bit k - 1 (not k, as when the address change shifted it again); the RAM, written with
+  // d = 1 at address 1 in cycle 1 only, has 0 at address k > 1 (not the 1 written again at the new address)
+  for (let k = 0; k < 8; k++) {
+    sim.run(k * 20000 + 9000);
+    force('d', k === 1 ? 1 : 0); force('we', k === 1 ? 1 : 0); force('a', k, 4);
+    sim.run((k + 1) * 20000 + 9000);
+    assert.equal(Number(port('q').val.v), 0, `SRLC16E_1 Q at address ${k}, cycle ${k}`);
+    if (k === 2) force('a', 1, 4), sim.run((k + 1) * 20000 + 9500), assert.equal(Number(port('o').val.v), 1, 'the RAM at address 1');
+  }
+  for (let k = 2; k < 8; k++) { force('a', k, 4); sim.run(9 * 20000 + k * 100); assert.equal(Number(port('o').val.v), 0, `the RAM at address ${k}`); }
+  // a clock and a data input forced together: one edge
+  const s2 = new Simulator(elaborate(compile([{ path: 'u.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity u is port (clk, x : in std_logic; n : out unsigned(3 downto 0)); end;
+architecture a of u is signal c : unsigned(3 downto 0) := (others => '0');
+begin process (clk) begin if rising_edge(clk) then c <= c + 1; end if; end process; n <= c; end;` }]), 'u'), {});
+  const p2 = n => s2.design.top.ports.find(p => p.name === n).sig;
+  s2.force(p2('clk'), V.fromInt(0, 1, false));
+  s2.run(10);
+  for (let k = 1; k <= 3; k++) {
+    s2.force(p2('clk'), V.fromInt(1, 1, false));
+    s2.force(p2('x'), V.fromInt(k & 1, 1, false));
+    s2.run(k * 20);
+    s2.force(p2('clk'), V.fromInt(0, 1, false));
+    s2.run(k * 20 + 10);
+    assert.equal(Number(p2('n').val.v), k);
+  }
+});

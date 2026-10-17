@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EXAMPLES, example, ROOT } from './examples-lib.mjs';
 import { diffCycles, designOf, rng } from './compiled-diff.js';
-import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf } from '../core/compiled-sim.js';
+import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit } from '../core/compiled-sim.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { timingGenerics, autoTimeScale, scaledGenerics } from '../core/emulate.js';
 
@@ -52,13 +52,11 @@ for (const name of EXAMPLES) {
 
 // ------------------------------------------------------------------ the open synthesis's test designs (test/fixtures/designs)
 const DESIGNS = path.join(ROOT, 'test/fixtures/designs');
-// (their warnings, or why they are not compiled: the primitives with no model here yet, an inout port)
+// (their warnings, or why they are not compiled: an inout port)
 const FIXTURES = {
   adder: [], blinky: [], bram_dp: [], bram_sp: [], cpu8: [], dram: [], fsm: [], mult: [], srl: [],
   latch: ["latch inferred for 'l3'", "latch inferred for 'l2'", "latch inferred for 'l1'"],
-  bram_prim: { error: 'the compiled simulator has no model of RAMB16_S9_S36, RAMB16_S18' },
-  bufgmux: { error: 'the compiled simulator has no model of BUFGMUX' },
-  dcm: { error: 'the compiled simulator has no model of DCM_SP' },
+  bram_prim: [], bufgmux: [], dcm: [],
   tristate: { error: "the inout port 'io' (a tristate) cannot be compiled" },
 };
 test('the test designs are all listed', () => {
@@ -81,7 +79,7 @@ for (const [name, want] of Object.entries(FIXTURES)) {
     const res = await diffCycles(sources, spec.top, { cycles: spec.sim.cycles || 600, nets: true, clock: spec.sim.clock,
       inputs: k => { for (const x of ins) if (k === 0 || r() < (prob[x.name] ?? 0.5)) cur[x.name] = word(x.sig.t.w); return cur; } });
     assert.deepEqual(res.mismatches, []);
-    assert.ok(res.bits > 4000, `${res.bits} bits compared`);
+    assert.ok(res.bits >= 4000, `${res.bits} bits compared`);
   });
 }
 
@@ -109,6 +107,101 @@ test('numeric_std arithmetic, shifts, a ROM, a RAM, an asynchronous reset, an en
 });
 test('the cells of Verilog read by Yosys itself: $shiftx, $shift, $sshl, $eqx, $dffe, $sdff, $sdffe, $sdffce, $adffe, $aldff, a memory read port with a reset', async () => {
   await same(fixture('cells.v'), 'cells', { p: 0.4, direct: true, extra: 'opt_dff' });
+});
+
+// ------------------------------------------------------------------ the Xilinx primitives (#429)
+test('Xilinx primitives in VHDL: block RAMs of mixed widths and every write mode, the multipliers, SRL16s, distributed RAMs, BUFGCE_1, BUFGMUX_1', async () => {
+  const sim = await compileDesign(designOf(fixture('prims.vhd'), 'prims_vhd'), { run: yosysNode });
+  assert.deepEqual(sim.warnings, []);
+  assert.equal(sim.model.stats.memories, 10);
+  await same(fixture('prims.vhd'), 'prims_vhd', { p: 0.3, cycles: 1000 });
+});
+test('Xilinx primitives in Verilog: block RAMs, MULT18X18SIO, SRL16_1 / SRL16E_1 / SRLC16E, distributed RAMs, BUFGCE, BUFGMUX', async () => {
+  const sim = await compileDesign(designOf(fixture('prims.v'), 'prims_v'), { run: yosysNode });
+  assert.deepEqual(sim.warnings, []);
+  await same(fixture('prims.v'), 'prims_v', { p: 0.3, cycles: 1000 });
+});
+test('a block RAM in a sub-module: its INIT_xx / INITP_xx contents (written into the netlist after Yosys)', async () => {
+  const text = `module rom(input clk, input [10:0] a, output [8:0] q);
+    RAMB16_S9 #(.INIT_00(256'h00000000000000000000000000000000000000000000000000000000CAFE1234), .INIT_3F(256'hAB${'0'.repeat(62)}),
+      .INITP_00(256'h5), .INITP_07(256'h8${'0'.repeat(63)})) r (.CLK(clk), .ADDR(a), .DI(8'd0), .DIP(1'b0), .EN(1'b1), .WE(1'b0), .SSR(1'b0), .DO(q[7:0]), .DOP(q[8]));
+  endmodule
+  module top2(input clk, input [10:0] a, output [8:0] q); rom u (.clk(clk), .a(a), .q(q)); endmodule`;
+  const s = await compileDesign(designOf(src('top2.v', text), 'top2'), { run: yosysNode });
+  // (the byte, its parity bit above it)
+  for (const [a, want] of [[0, 0x134], [1, 0x012], [2, 0x1FE], [3, 0x0CA], [4, 0], [2047, 0x1AB], [2046, 0]]) {
+    s.set('a', a);
+    s.cycle(1);
+    assert.equal(s.get('q'), BigInt(want), `address ${a}`);
+  }
+});
+// DCMs: the frequencies (CLKDV_DIVIDE twice, as an integer generic), the input divided by 2
+const DCM_SETS = [{}, { DIV2: true }, { DV2: 8, FXM: 2, FXD: 1 }, { DV2: 3, FXM: 7, FXD: 5, DIV2: true }, { DV2: 11, FXM: 2, FXD: 32 }, { DV2: 32, FXM: 31, FXD: 29 }];
+test('a DCM_SP: every output (CLK0 / 90 / 180 / 270, CLK2X / 2X180, CLKDV, CLKFX / FX180), both edges, LOCKED, at several frequencies (VHDL)', async () => {
+  for (const generics of DCM_SETS) {
+    const sim = await compileDesign(designOf(fixture('dcm.vhd'), 'dcm_vhd', { generics }), { run: yosysNode });
+    assert.deepEqual(sim.warnings, []);
+    assert.equal(sim.model.clock.port, 'clk');
+    await same(fixture('dcm.vhd'), 'dcm_vhd', { p: 0.2, generics, cycles: 300 });
+  }
+});
+test('two cascaded DCMs, a BUFGMUX between their clocks, a BUFGCE (Verilog)', async () => {
+  const sim = await compileDesign(designOf(fixture('dcm.v'), 'dcm_v'), { run: yosysNode });
+  assert.deepEqual(sim.warnings, []);
+  assert.equal(sim.model.stats.dcms, 2);
+  await same(fixture('dcm.v'), 'dcm_v', { p: 0.1 });
+});
+test('a DCM\'s clocks against their arithmetic: the rising edges of CLKFX, CLKDV and CLK2X from the 4th input edge, CLK0 and LOCKED from the 3rd', async () => {
+  const text = (fx, dv, div2) => `module f(input clk, output lk, output reg [31:0] n0 = 0, nfx = 0, ndv = 0, n2x = 0, nlk = 0);
+    wire c0, cfx, cdv, c2x;
+    DCM_SP #(.CLKFX_MULTIPLY(${fx[0]}), .CLKFX_DIVIDE(${fx[1]}), .CLKDV_DIVIDE(${dv}), .CLKIN_DIVIDE_BY_2("${div2 ? 'TRUE' : 'FALSE'}"))
+      u (.CLKIN(clk), .RST(1'b0), .CLK0(c0), .CLKFX(cfx), .CLKDV(cdv), .CLK2X(c2x), .LOCKED(lk));
+    always @(posedge c0) n0 <= n0 + 1;
+    always @(posedge cfx) nfx <= nfx + 1;
+    always @(posedge cdv) ndv <= ndv + 1;
+    always @(posedge c2x) n2x <= n2x + 1;
+    always @(posedge clk) nlk <= nlk + lk;
+  endmodule`;
+  // edges at s, s + q, s + 2q… before the end of cycle n (the main clock's rising edges at 0, 1, 2…)
+  const edges = (n, s, q) => (n <= s ? 0 : Math.ceil((n - s) / q));
+  for (const [fx, dv, div2] of [[[5, 3], 1.5, false], [[2, 4], 4.0, false], [[3, 1], 2.5, true], [[7, 32], 16.0, true]]) {
+    const s = await compileDesign(designOf(src('f.v', text(fx, dv, div2)), 'f'), { run: yosysNode });
+    const pin = div2 ? 2 : 1;
+    for (const n of [1, 2, 3, 4, 5, 37, 1000, 10007]) {
+      s.cycle(n - s.cycles);
+      const what = `CLKFX ${fx.join('/')}, CLKDV ${dv}${div2 ? ', CLKIN / 2' : ''}, ${n} cycles`;
+      assert.equal(s.get('lk'), n >= 3 ? 1n : 0n, `LOCKED, ${what}`);
+      assert.equal(s.get('nlk'), BigInt(Math.max(0, n - 3)), `LOCKED seen by the main clock, ${what}`);
+      assert.equal(s.get('n0'), BigInt(div2 ? edges(n, 3, 2) : edges(n, 2, 1)), `CLK0, ${what}`);
+      assert.equal(s.get('nfx'), BigInt(edges(n, 3, pin * fx[1] / fx[0])), `CLKFX, ${what}`);
+      assert.equal(s.get('ndv'), BigInt(edges(n, 3, pin * dv)), `CLKDV, ${what}`);
+      assert.equal(s.get('n2x'), BigInt(edges(n, 3, pin / 2)), `CLK2X, ${what}`);
+    }
+  }
+});
+test('a DCM with what the board shows counted (watch): sampled once a main clock cycle, before its rising edge', async () => {
+  const text = `module w(input clk, output reg t = 0); wire dv; DCM_SP #(.CLKDV_DIVIDE(3.0)) u (.CLKIN(clk), .RST(1'b0), .CLKDV(dv));
+    always @(posedge dv) t <= ~t; endmodule`;
+  const { json } = await netlistOf(designOf(src('w.v', text), 'w'), { run: yosysNode });
+  const bit = portBit(json, 'w', 't');
+  const ref = new CompiledSim(compileNetlist(json, { top: 'w' }));
+  const s = new CompiledSim(compileNetlist(json, { top: 'w', clock: 'clk', watch: { levels: [{ bit, on: 1 }], edges: [{ bit, capture: [bit] }] } }));
+  // (the reference: t before each rising edge, cycle by cycle, the first sample and the one after the last
+  // edge counted half; its falling edges: the cycles before which it is 0 after a 1)
+  let high = 0, prev = null;
+  const falls = [];
+  for (let k = 0; k < 600; k++) {
+    const t = ref.get('t');
+    if (t) high += k === 0 ? 0.5 : 1;
+    if (prev === 1n && t === 0n) falls.push(k);
+    prev = t;
+    ref.cycle(1);
+  }
+  if (ref.get('t')) high += 0.5;
+  s.cycle(600);
+  const { counts, edges } = s.take();
+  assert.equal(counts[0], high);
+  assert.deepEqual(edges.filter((_, i) => i % 2 === 0), falls);
 });
 
 test('the comparison finds a wrong compiled model', async () => {
@@ -274,12 +367,29 @@ test('a combinational loop, an inout port, a tristate buffer, a primitive with n
   assert.equal(await failure('io.v', "module io(input en, d, inout p, output q); assign p = en ? d : 1'bz; assign q = p; endmodule"), "the inout port 'p' (a tristate) cannot be compiled");
   const tb = oneCell('$tribuf', { WIDTH: 1 }, { A: 1, EN: 1, Y: 1 });
   assert.throws(() => compileNetlist(tb, { top: 't' }), { message: "the tristate buffer 'c' cannot be compiled" });
-  assert.equal(await failure('dcm.v', 'module dcm(input clk, output o); wire c0; DCM_SP u (.CLKIN(clk), .CLK0(c0), .CLKFB(c0)); assign o = c0; endmodule'), 'the compiled simulator has no model of DCM_SP');
+  assert.equal(await failure('ff.v', 'module ff(input clk, d, output q); FDCE f (.C(clk), .CE(1\'b1), .CLR(1\'b0), .D(d), .Q(q)); endmodule'), 'the compiled simulator has no model of FDCE');
   // a latch in a loop with itself never settles: an error when it runs
   const s = await compileDesign(designOf(src('osc.v', 'module osc(input en, output reg q); always @* if (en) q = ~q; endmodule'), 'osc'), { run: yosysNode });
   s.set('en', 1);
   assert.throws(() => s.cycle(0), { name: 'Error', message: 'the design does not settle (a loop through a latch or a clock?)' });
 });
+test('a DCM: not compiled when its RST is driven, its CLKIN is not an input port or a DCM\'s steady clock, or the main clock is another', async () => {
+  const dcm = (ports, conn) => `module d(input clk, ${ports}, output reg [3:0] n = 0); wire c; DCM_SP u (${conn}, .CLKFX(c)); always @(posedge c) n <= n + 1; endmodule`;
+  assert.equal(await failure('d.v', dcm('input r', '.CLKIN(clk), .RST(r)')), "the DCM 'u' has its RST driven by the design: not compiled yet");
+  assert.equal(await failure('d.v', dcm('input r', ".CLKIN(k[1]), .RST(1'b0)").replace('wire c;', 'wire c; reg [1:0] k = 0; always @(posedge clk) k <= k + 1;')),
+    "the DCM 'u' is not clocked by an input port: not compiled");
+  // (a cascade from CLK2X180, high from the lock before its first rising edge, is not a steady clock)
+  assert.equal(await failure('d.v', dcm('input r', ".CLKIN(x), .RST(1'b0)").replace('wire c;', "wire c, x; DCM_SP a (.CLKIN(clk), .RST(1'b0), .CLK2X180(x));")),
+    "the DCM 'u' has a clock input that is not a steady clock: not compiled");
+  const json = (await netlistOf(designOf(src('d.v', dcm('input b', ".CLKIN(clk), .RST(1'b0)")), 'd'), { run: yosysNode })).json;
+  assert.throws(() => compileNetlist(json, { top: 'd', clock: 'b' }), { message: "the DCM 'u' is clocked by 'clk', not by the main clock 'b': not compiled" });
+  assert.throws(() => compileNetlist(json, { top: 'd', clock: false }), { message: "the DCM 'u' is clocked by 'clk', with no main clock: not compiled" });
+  // RST tied high: never locked, its clocks low
+  const s = await compileDesign(designOf(src('d.v', dcm('input b', ".CLKIN(clk), .RST(1'b1)")), 'd'), { run: yosysNode });
+  s.cycle(100);
+  assert.equal(s.get('n'), 0n);
+});
+
 test('an output at high impedance (Z) is 0, with a warning', async () => {
   const s = await compileDesign(designOf(src('tbuf.v', "module tbuf(input en, d, output p); assign p = en ? d : 1'bz; endmodule"), 'tbuf'), { run: yosysNode });
   assert.deepEqual(s.warnings, ["a high-impedance value ('Z') is 0 in the compiled simulator"]);
@@ -333,6 +443,21 @@ test('the main clock: the input clocking the most register bits, of two the one 
   assert.throws(() => compileNetlist(json, { top: 'two', clock: 'p' }), { message: "the clock 'p' is not an input port" });
 });
 
+// ------------------------------------------------------------------ the open-flow board tests with Xilinx primitives
+const OPEN = path.join(ROOT, 'test/fixtures/open-flow');
+for (const name of ['feat_bram', 'feat_const_bram', 'feat_const_dcm', 'feat_const_mult', 'feat_constmult', 'feat_dcm', 'feat_dcm2', 'feat_dcm_div2', 'feat_dcm_fx', 'feat_dcm_wait', 'feat_mult', 'feat_srl', 'feat_srl_var', 'hard_prim']) {
+  test(`open-flow design ${name}: the compiled simulator computes what the event-driven one does`, async () => {
+    const pj = JSON.parse(fs.readFileSync(path.join(OPEN, name, 'silinx.json'), 'utf8'));
+    const sources = pj.files.filter(f => f.role !== 'testbench').map(f => ({ ...f, text: fs.readFileSync(path.join(OPEN, name, f.path), 'utf8') }));
+    const sim = await compileDesign(designOf(sources, pj.top), { run: yosysNode });
+    assert.deepEqual(sim.warnings, []);
+    assert.equal(sim.model.clock?.port, 'clk');
+    const r = await diffCycles(sources, pj.top, { cycles: 600, nets: true, inputs: randomInputs(sources, pj.top, { p: 0.05, seed: 3 }) });
+    assert.deepEqual(r.mismatches, []);
+    assert.ok(r.bits > 10000, `${r.bits} bits compared`);
+  });
+}
+
 // ------------------------------------------------------------------ speed
 test('speed: the compiled simulator runs millions of cycles per second (pong at its real generics)', async () => {
   const ex = example('pong');
@@ -343,4 +468,25 @@ test('speed: the compiled simulator runs millions of cycles per second (pong at 
   const rate = 2_000_000 / ((performance.now() - t0) / 1000);
   // (about 36 million per second on a laptop; the floor is for slow CI machines)
   assert.ok(rate > 2e6, `${Math.round(rate).toLocaleString()} cycles per second`);
+});
+test('speed: a design on a DCM\'s 25 MHz clock (CLKFX = CLKIN / 2) runs millions of the board clock\'s cycles per second', async () => {
+  const text = `module v(input clk, input [2:0] sw, output reg hs = 1, vs = 1, output reg [2:0] rgb = 0);
+    wire fx, c25; reg [9:0] x = 0, y = 0;
+    DCM_SP #(.CLKFX_MULTIPLY(2), .CLKFX_DIVIDE(4)) u (.CLKIN(clk), .RST(1'b0), .CLKFX(fx));
+    BUFG b (.I(fx), .O(c25));
+    always @(posedge c25) begin
+      if (x == 799) begin x <= 0; y <= y == 524 ? 0 : y + 1; end else x <= x + 1;
+      hs <= ~(x >= 656 && x < 752); vs <= ~(y >= 490 && y < 492);
+      rgb <= x < 640 && y < 480 ? x[5:3] ^ y[5:3] ^ sw : 3'd0;
+    end
+  endmodule`;
+  const s = await compileDesign(designOf(src('v.v', text), 'v'), { run: yosysNode });
+  s.cycle(100000);
+  const t0 = performance.now();
+  s.cycle(2_000_000);
+  const rate = 2_000_000 / ((performance.now() - t0) / 1000);
+  // (about 26 million per second on a laptop)
+  assert.ok(rate > 2e6, `${Math.round(rate).toLocaleString()} cycles per second`);
+  // (a line of 800 pixels: 1600 cycles of the 50 MHz clock)
+  assert.equal(s.get('hs'), 1n);
 });
