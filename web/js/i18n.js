@@ -452,6 +452,8 @@ PT_PATTERNS.unshift(
   [/^(.+): not connected in the UCF( — click to toggle| — press and hold \(Shift\+click keeps it pressed\))?$/, (m, r, s) => `${r}: não ligado no UCF${s ? PT_PRESS[s] : ''}`],
   [/^Clock (.+): ([\d.]+) MHz on the board( \(not in the UCF: assumed\))?( · not emulated: (.*))?$/, (m, c, f, a, n, l) => `Relógio ${c}: ${f} MHz na placa${a ? ' (não está no UCF: assumido)' : ''}${n ? ` · não emulado: ${l}` : ''}`],
   [/^No clock input found · not emulated: (.*)$/, 'Nenhuma entrada de relógio encontrada · não emulado: $1'],
+  // a manual clock on a button or a switch (#347)
+  [/^Manual clock (.+): one edge per press( · not emulated: (.*))?$/, (m, c, n, l) => `Relógio manual ${c}: um flanco em cada pressão${n ? ` · não emulado: ${l}` : ''}`],
   [/^Timing ÷(.+) \(emulation only\)$/, 'Temporização ÷$1 (só na emulação)'],
   [/^t = (.+?) · ([\d,.\s]+) cycles(.*)$/, (m, tm, n, rest) => `t = ${tm} · ${n} ciclos${rest.replace('% of real time)', '% do tempo real)').replace(' · stopped by an error', ' · parado por um erro')}`],
   [/^(\d+) port bit\(s\) have no LOC on a (.+) resource \(inputs are held at 0\):$/, '$1 bit(s) de porto sem LOC num recurso da $2 (as entradas ficam a 0):'],

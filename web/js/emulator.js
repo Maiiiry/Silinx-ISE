@@ -4,7 +4,7 @@
 import { Simulator } from '/core/simulator.js';
 import * as V from '/core/values.js';
 import { formatTime } from '/core/interp.js';
-import { boardWiring, boardOutputs, lcdState, lcdFeed, lcdText } from '/core/emulate.js';
+import { boardWiring, boardOutputs, lcdState, lcdFeed, lcdText, emulatorClocks, manualClocks } from '/core/emulate.js';
 
 const SPEEDS = [['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
 const FRAME_BUDGET_MS = 14;
@@ -332,11 +332,10 @@ export function mountEmulator(container, { design, board, assignments, title = '
   const inputPorts = design.top.ports.filter((p) => p.dir === 'in');
   const outputSigs = new Set(wiring.bits.filter((b) => b.dir !== 'in').map((b) => b.sig));
   const clockSigs = new Set(wiring.clocks.map((c) => c.sig));
-  // a clock port that is not on a board clock pin: named clk*, driven at 50 MHz
-  if (!wiring.clocks.length) {
-    const c = inputPorts.find((p) => /^(clk|clock|mclk)/i.test(p.name) && p.sig.t.w === 1);
-    if (c) wiring.clocks.push({ sig: c.sig, port: c.name, period: 20000, guessed: true });
-  }
+  // a clock port that is not on a board clock pin: named clk*, driven at 50 MHz, unless it is on a button or a
+  // switch (a manual clock, #347)
+  wiring.clocks = emulatorClocks(wiring, design.top.ports);
+  const manual = manualClocks(wiring);
   const period = wiring.clocks[0]?.period || 20000;
   const inVal = new Map(inputPorts.map((p) => [p.sig, 0n]));   // value of each input port (unmapped bits 0)
   // inputs with a pull-up on the board (e.g. the rotary encoder's A / B) rest at '1'
@@ -475,7 +474,8 @@ export function mountEmulator(container, { design, board, assignments, title = '
   const notEmulated = board.resources.filter((r) => !['led', 'sw', 'btn', 'seg', 'dp', 'an', 'rot'].includes(wiring.bits.find((b) => b.res === r)?.kind) && r.group !== 'Clock'
     && !(r.group === 'LCD' && BOARD_LAYOUTS[board.id]?.lcd)
     && wiring.bits.some((b) => b.res === r)).map((r) => r.name);
-  const clockNote = (wiring.clocks.length ? `Clock ${wiring.clocks.map((c) => c.port).join(', ')}: ${1e6 / period} MHz on the board${wiring.clocks[0].guessed ? ' (not in the UCF: assumed)' : ''}` : 'No clock input found')
+  const clockNote = (wiring.clocks.length ? `Clock ${wiring.clocks.map((c) => c.port).join(', ')}: ${1e6 / period} MHz on the board${wiring.clocks[0].guessed ? ' (not in the UCF: assumed)' : ''}`
+    : manual.length ? `Manual clock ${manual.map((b) => `${b.port} (${b.res.name.toUpperCase()})`).join(', ')}: one edge per press` : 'No clock input found')
     + (notEmulated.length ? ` · not emulated: ${notEmulated.join(', ')}` : '');
 
   const layout = BOARD_LAYOUTS[board.id];

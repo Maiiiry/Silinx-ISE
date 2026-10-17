@@ -64,6 +64,22 @@ export function boardWiring({ ports, assignments = {}, board }) {
   return { bits, clocks, unmapped };
 }
 
+/**
+ * The clocks the emulator drives: the ports on a board clock pin; with none, a 1-bit input named clk… (clock, mclk)
+ * that the UCF does not wire to the board, driven at 50 MHz (guessed). A clock port on a button or a switch is a
+ * manual clock (one edge per press, #347): the board drives it, the emulator does not.
+ */
+export function emulatorClocks(wiring, ports) {
+  if (wiring.clocks.length) return wiring.clocks;
+  const wired = new Set(wiring.bits.filter(b => b.dir === 'in').map(b => b.sig));
+  const c = (ports || []).find(p => p.dir === 'in' && /^(clk|clock|mclk)/i.test(p.name) && p.sig.t.w === 1 && !wired.has(p.sig));
+  return c ? [{ sig: c.sig, port: c.name, period: 20000, guessed: true }] : [];
+}
+/** The manual clocks: 1-bit inputs named clk… on a button or a switch of the board ([{ port, res }]). */
+export function manualClocks(wiring) {
+  return wiring.bits.filter(b => b.dir === 'in' && /^(clk|clock|mclk)/i.test(b.port) && b.sig.t.w === 1 && (b.kind === 'btn' || b.kind === 'sw'));
+}
+
 // ---------------------------------------------------------------------------------------------
 // Activity of output bits over a time window, from the waveforms the simulator recorded
 // ---------------------------------------------------------------------------------------------

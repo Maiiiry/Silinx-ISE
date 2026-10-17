@@ -1,0 +1,24 @@
+{
+  "name": "feat_manual_clock",
+  "description": "Board test: a manual clock, a D flip-flop clocked by the button BTN0 (not a clock pin, CLOCK_DEDICATED_ROUTE = FALSE): LD0 takes SW0 at each press (#347)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "manual.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

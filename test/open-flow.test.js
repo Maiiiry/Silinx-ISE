@@ -188,6 +188,10 @@ const FEATURES = {
     /^net "[^"]+" vcc, \n {2}outpin "XDL_DUMMY_DCM_TL_CENTER_X13Y34_VCC_X14Y36" VCCOUT ,\n(?: {2}inpin "u_dcm" (?:PSCLK|PSINCDEC|RST) ,\n){3}/m, /^ {2}pip DCM_TL_CENTER_X13Y34 DCM_VCC_WIRE -> DCM_G1_B3 ,$/m,
     /^ {2}pip DCM_TL_CENTER_X13Y34 DCM_VCC_WIRE -> DCM_PSCLK ,$/m, /^net "[^"]+" gnd, \n {2}outpin "[^"]+" Y ,\n {2}inpin "u_dcm" PSEN ,$/m],
     [/inpin "u_dcm" DSSEN/, /(RST|PSEN|PSINCDEC|PSCLK)INV::\w+_B /]],
+  // a manual clock (#347): the button's pad (BTN0, G12) through the general routing into a top BUFGMUX (its
+  // CLKDUB input, as ISE routes it: CLOCK_DEDICATED_ROUTE = FALSE), the flip-flop on the global clock it drives
+  feat_manual_clock: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "clk" "IBUF",placed RIBUFS_PCI_X27Y21 G12 /m, /^inst "[^"]+" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y1[01] /m,
+    /pip CLKT_X13Y35 CLKT_CLKDUB\d -> CLKT_GCLK\d ,/, /^net "[^"]+" , \n {2}outpin "[^"]+" O ,\n {2}inpin "[^"]+" CLK ,$/m]],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
 for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {

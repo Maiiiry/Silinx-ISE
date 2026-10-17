@@ -103,6 +103,11 @@ test('gates (#328): the Inverted inputs field and the XOR2B1 / XOR2B2 descriptio
   assert.equal(t(SYMBOLS.xor2b2.description), 'Porta XOR de 2 entradas com as entradas I0 e I1 invertidas (bit a bit quando Largura > 1)');
 });
 
+test('emulator (#347): the manual clock note is translated', () => {
+  assert.equal(t('Manual clock clk (BTN): one edge per press'), 'Relógio manual clk (BTN): um flanco em cada pressão');
+  assert.equal(t('Manual clock ck (SW): one edge per press · not emulated: x'), 'Relógio manual ck (SW): um flanco em cada pressão · não emulado: x');
+});
+
 test('ISim groups (#341): the menu items and the prompt are translated', () => {
   assert.deepEqual(['New Group', 'Rename Group...', 'Ungroup', 'Group name:'].map(t), ['Novo Grupo', 'Mudar Nome do Grupo...', 'Desagrupar', 'Nome do grupo:']);
 });
