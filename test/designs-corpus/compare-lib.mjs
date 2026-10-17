@@ -20,7 +20,7 @@ export function newFailures(before, now) {
   for (const d of now.designs || []) {
     const o = old.get(d.name);
     if (!o) continue;
-    for (const [side, label] of [['silinx', 'Silinx'], ['ise', 'ISE']]) {
+    for (const [side, label] of [['silinx', 'Silinx'], ['silinxHigh', 'Silinx, effort High'], ['ise', 'ISE']]) {
       if (o[side] && !o[side].error && d[side]?.error) out.push(`${d.name} (${label}): ${d[side].error}`);
     }
   }

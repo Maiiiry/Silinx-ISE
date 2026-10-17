@@ -27,6 +27,12 @@ In detail:
   fewer slices and a 2.7 % shorter period than the usual mapping (geometric means): a candidate for the mappings
   the open synthesis tries (#377), not wired in; ISE's trce on four designs agrees with Silinx's STA within 3 %.
   research/synth-quality/README.md, "ABC9".
+- **The comparison with ISE at both Optimization Efforts (#377):** the weekly comparison
+  (test/designs-corpus/compare-ise.mjs, docs/QUALITY.md) builds Silinx at Normal, the app's default, and at High
+  (the mappings for speed too), ISE at its default, and the page shows both. Since #282 made Normal the default,
+  the comparison had measured Normal only while the corpus's nightly run measures High: most of the speed loss it
+  showed (+14 % → +22 % against ISE: epfl-priority 43.0 ns, epfl-max 61.7 ns) is Normal's, High giving 11.1 and
+  28.5 ns (ISE: 20.8 and 25.7, trce).
 - **ONBOARDING.md:** a guide for a new developer or Claude Code session: the setup, how several
   sessions work on the repository together, a map of the code, the product's rules and the lessons
   learnt; CLAUDE.md points to it, and the documentation test checks its paths and links (and CLAUDE.md's).
