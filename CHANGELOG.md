@@ -20,6 +20,8 @@ In short:
 - **A safer local server:** reached from other computers (`serve --host 0.0.0.0`) it asks for a token it prints at
   start-up; its pages run only their own scripts; a project zip that grows too large is refused; the adepttool
   installer installs one checked version.
+- **Stop works in the browser edition:** Stop during Generate Programming File stops the Silinx toolchain at once,
+  and nothing of the stopped run is kept.
 
 In detail:
 
@@ -224,6 +226,17 @@ In detail:
   gave wrong values. A VHDL bit-string with a character that is neither a digit of its base nor a std_logic value
   (`x"G1"`), and a string with one where a vector is expected (`"1020X01Q"`), are errors too. A parser that throws
   becomes an error of its file, so a project always opens.
+- **Browser edition: Stop, workers, WebUSB, errors (#397, #398, #399, #402, #408):**
+  - Stop terminates the flow's worker: the job ends 'cancelled by user' (as the server's), its files and reports
+    are not kept (before, `cancelJob` did nothing and the run went on to write its bitstream);
+  - the flow's worker tags each run's messages (each run hears only its own); a failing worker is terminated
+    and replaced at the next run;
+  - `Adept.open()` releases the board when it fails after claiming it (before, the board stayed claimed until
+    the page was reloaded);
+  - the device description and bit database stay loaded in the worker for the next run of the same device;
+    finished jobs beyond the last 20 are dropped with their download URLs; Stop asks the job once; the HDL
+    files are compiled once for the drawings;
+  - a promise nobody waits for that fails is shown in the Console and the Errors tab.
 
 ## 15.10.22
 

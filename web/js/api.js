@@ -95,13 +95,14 @@ export const api = {
 
 // Poll a server job until it finishes, streaming log lines.
 export async function followJob(id, onLine, { signal } = {}) {
-  let since = 0;
+  let since = 0, cancelled = false;
   for (;;) {
     const j = await api.job(id, since);
     for (const l of j.lines || []) onLine(l);
     since = j.next ?? since + (j.lines?.length || 0);
     if (j.status !== 'running') return j;
-    if (signal?.aborted) { await api.cancelJob(id).catch(() => {}); }
+    // (once: the job is told to stop, then followed to its end)
+    if (signal?.aborted && !cancelled) { cancelled = true; await api.cancelJob(id).catch(() => {}); }
     await new Promise(r => setTimeout(r, 350));
   }
 }

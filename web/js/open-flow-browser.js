@@ -60,21 +60,38 @@ export function browserSteps(steps, { synthUpToDate = false } = {}) {
   return out;
 }
 
-let worker = null;
+// One worker runs the flows (Yosys and the device descriptions stay loaded in it between runs). Its
+// messages carry the run's id, so each run hears only its own; a run that is stopped, or a worker
+// that fails, ends with the worker terminated (a new one starts with the next run).
+let worker = null, runSeq = 0;
+const runs = new Map();   // id -> { onData, fail }
 function getWorker() {
   if (worker) return worker;
   const src = globalThis.SILINX_FLOW_WORKER_SRC;   // the single-file edition: the worker's code, embedded
-  worker = src ? new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' }) : new Worker('/js/open-flow-worker.js', { type: 'module' });
-  return worker;
+  const w = src ? new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })), { type: 'module' }) : new Worker('/js/open-flow-worker.js', { type: 'module' });
+  w.onmessage = ({ data }) => runs.get(data.id)?.onData(data);
+  w.onerror = e => stopWorker(new Error(`the Silinx toolchain could not start in this browser: ${e.message || 'the worker failed'}`));
+  worker = w;
+  return w;
+}
+/** Terminate the worker: its runs end with `error`. */
+function stopWorker(error) {
+  const w = worker;
+  worker = null;
+  w?.terminate();
+  const failing = [...runs.values()];
+  runs.clear();
+  for (const r of failing) r.fail(error);
 }
 
 /**
  * Run the flow for a project. project: { name, top, device, board, files: [{ path, lang, role }],
  * constraints, impl }; files: { path: text } (the project's files, and build/ of an earlier run);
  * steps as the processes ask; synthUpToDate ({ report }), the synthesis up to date (#280). onLine(line); onWrite(path, data) for each file of the build.
+ * signal (an AbortSignal): Stop; the worker is terminated and the run rejects with { cancelled: true }.
  * Resolves { ok, report, error, view }.
  */
-export async function runBrowserFlow({ project, files, steps, synthUpToDate = null, onLine, onWrite = () => {}, onReport = () => {} }) {
+export async function runBrowserFlow({ project, files, steps, synthUpToDate = null, onLine, onWrite = () => {}, onReport = () => {}, signal = null }) {
   const st = browserOpenStatus(project.device || {});
   if (!st.available) throw new Error(`the Silinx toolchain cannot implement this design: ${st.reason}`);
   const top = project.top;
@@ -111,15 +128,24 @@ export async function runBrowserFlow({ project, files, steps, synthUpToDate = nu
   onLine(`Silinx implementation with the Silinx toolchain, in the browser (no ISE): ${project.name} top=${top} device=${st.part}`);
   const earlier = {};
   for (const [k, v] of Object.entries(files)) if (k.startsWith('build/') && typeof v === 'string') earlier[k.slice(6)] = v;
-  const w = getWorker();
+  if (signal?.aborted) throw cancelled();
+  const w = getWorker(), id = ++runSeq;
   return new Promise((resolve, reject) => {
-    w.onmessage = ({ data }) => {
-      if (data.line !== undefined) onLine(data.line);
-      else if (data.write !== undefined) onWrite(data.write, data.data);
-      else if (data.report !== undefined) onReport(data.report);
-      else if (data.done) resolve(data.done);
-    };
-    w.onerror = e => { worker = null; reject(new Error(`the Silinx toolchain could not start in this browser: ${e.message || 'the worker failed'}`)); };
-    w.postMessage({ spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase() });
+    const end = () => { runs.delete(id); signal?.removeEventListener('abort', abort); };
+    const abort = () => stopWorker(cancelled());
+    runs.set(id, {
+      onData: data => {
+        if (data.line !== undefined) onLine(data.line);
+        else if (data.write !== undefined) onWrite(data.write, data.data);
+        else if (data.report !== undefined) onReport(data.report);
+        else if (data.done) { end(); resolve(data.done); }
+      },
+      fail: e => { end(); reject(e); },
+    });
+    signal?.addEventListener('abort', abort, { once: true });
+    w.postMessage({ id, spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase() });
   });
 }
+
+/** The error of a stopped run (as the server's JobCancelled). */
+const cancelled = () => Object.assign(new Error('cancelled by user'), { cancelled: true });

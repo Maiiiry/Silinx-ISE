@@ -174,9 +174,12 @@ export function compileProject() {
   S.viewSources = [];
   S.viewElsewhere = {};
   const views = Object.entries(S.viewTexts || {}).filter(([f]) => !S.schOwners?.[f]);
+  // the modules of the HDL files, compiled once for the drawings below (#402)
+  let hdlModules = null;
   if (views.length) {
     let mods = {}, lib0 = null;
     try { lib0 = compile(srcs); mods = modulesFromLibrary(lib0, { sources: Object.fromEntries(srcs.map(s => [s.path, s.text])) }); } catch { /* none */ }
+    hdlModules = mods;
     // (a drawn source whose module an HDL file of the project already defines: that file, not a second
     // one; the drawing then has no HDL file, said, #230)
     const hdlMods = new Set(Object.keys(mods).map(n => n.toLowerCase()));
@@ -191,7 +194,7 @@ export function compileProject() {
   }
   // the linked drawings that cannot generate their HDL file (errors: a project opened with one, #303), each
   // text once (an edit in its editor says it as it syncs)
-  let lazyMods = null;
+  let lazyMods = hdlModules;
   for (const [f, t] of Object.entries(S.viewTexts || {})) {
     if (S.staleSeen?.get(f) === t) continue;
     let m;
@@ -3977,4 +3980,7 @@ async function boot() {
 
 export const app = { showInSim, saveAll, openTt, openFsm, openPetri, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, openMode, S };
 window.SilinxApp = app;
+// a promise nobody waits for that fails (a menu's action, the start-up's project): said in the
+// Console and the Errors tab, not lost (#408); the browser's console keeps its stack
+window.addEventListener('unhandledrejection', e => log(`ERROR: ${e.reason?.message || e.reason}`, 'err'));
 boot();

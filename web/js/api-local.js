@@ -81,9 +81,21 @@ const READWRITE = { mode: 'readwrite' };
 // ---- jobs: the Silinx toolchain's runs in the browser, and the operations that need the server
 const jobs = new Map();
 let jobSeq = 0;
+/** The jobs kept: the running ones and the last finished ones (a finished job's download, a blob
+ *  URL, is released with it). */
+export const KEEP_JOBS = 20;
+function addJob(job) {
+  jobs.set(job.id, job);
+  const done = [...jobs.values()].filter(j => j.status !== 'running');
+  for (const j of done.slice(0, Math.max(0, done.length - KEEP_JOBS))) {
+    if (j.download?.url) URL.revokeObjectURL(j.download.url);
+    jobs.delete(j.id);
+  }
+  return job;
+}
 function fakeJob(kind, lines, status = 'error', error) {
   const id = `local-${++jobSeq}`;
-  jobs.set(id, { id, kind, status, lines, next: lines.length, error });
+  addJob({ id, kind, status, lines, next: lines.length, error });
   return { job: id };
 }
 const FULL_APP = 'the full Silinx application (run `npm start` in the Silinx folder and open http://127.0.0.1:8642; File > Download Project Bundle moves a project there)';
@@ -101,8 +113,7 @@ async function adeptDevice() {
 // a job that talks to the board: its log lines, then ok or the error (run(log, job))
 function usbJob(kind, run) {
   const id = `local-${++jobSeq}`;
-  const job = { id, kind, status: 'running', lines: [], next: 0, error: null, result: null };
-  jobs.set(id, job);
+  const job = addJob({ id, kind, status: 'running', lines: [], next: 0, error: null, result: null });
   const push = l => { job.lines.push(l); job.next = job.lines.length; };
   run(push, job).then(result => { job.result = result; job.status = 'ok'; })
     .catch(e => { const m = e.message.replace(/^Adept USB: /, ''); push(`ERROR: ${m}`); job.status = 'error'; job.error = m; });
@@ -276,8 +287,10 @@ export const api = {
     const p = await store.load(name);
     if (p.json.synthTool === 'xst') return fakeJob('implement', NEED_ISE, 'error', 'XST needs Xilinx ISE 14.7 (choose Silinx as the synthesis tool in Design Properties)');
     const id = `local-${++jobSeq}`;
-    const job = { id, kind: 'implement', status: 'running', lines: [], next: 0, error: null };
-    jobs.set(id, job);
+    const job = addJob({ id, kind: 'implement', status: 'running', lines: [], next: 0, error: null });
+    // Stop (cancelJob): the flow's worker is terminated, nothing of the run is written after it
+    const ctl = new AbortController();
+    job.cancel = () => ctl.abort();
     // (the synthesis up to date, #280: what the last run's report said about it)
     const before = synthUpToDate ? (await savedBuild(name))?.report : null;
     const b = buildOf(name);
@@ -295,14 +308,16 @@ export const api = {
     runBrowserFlow({
       project: json, files: { ...files, ...b.files }, steps,
       synthUpToDate: synthUpToDate ? { report: before ? { synthesis: before.synthesis, files: { netlist: before.files?.netlist, synthesis: before.files?.synthesis } } : null } : null,
-      onLine: push,
+      onLine: push, signal: ctl.signal,
       onWrite: (path, data) => {
+        if (job.cancelled) return;
         b.files[path] = data;
         if (folder) writes.push(folder.writeBuild(name, path, data).catch(e => push(`WARNING: ${path} was not written into the workspace folder: ${e.message}`)));
       },
-      onReport: r => { b.report = reportsOf(json, r); reported = true; },
+      onReport: r => { if (!job.cancelled) { b.report = reportsOf(json, r); reported = true; } },
     }).then(async res => {
       await Promise.all(writes);
+      if (job.cancelled) throw Object.assign(new Error('cancelled by user'), { cancelled: true });
       if (res.report) { b.report = reportsOf(json, res.report); reported = true; }
       if (res.view) b.view = res.view;
       // the Design Summary's reports and the FPGA view's model, for the next visit (as the full application)
@@ -314,7 +329,7 @@ export const api = {
       if (res.ok && bit) job.download = { filename: `${json.top}.bit`, url: URL.createObjectURL(new Blob([bit], { type: 'application/octet-stream' })) };
       job.status = res.ok ? 'ok' : 'error';
       job.error = res.ok ? null : `Silinx toolchain failed${res.error ? `: ${res.error}` : ''}`;
-    }).catch(e => { push(`ERROR:Silinx - ${e.message}`); job.status = 'error'; job.error = e.message; });
+    }).catch(e => { if (!e.cancelled) push(`ERROR:Silinx - ${e.message}`); job.status = 'error'; job.error = e.message; });
     return { job: id };
   },
   reports: async name => ((await savedBuild(name))?.report || { available: false }),
@@ -363,7 +378,17 @@ export const api = {
     const j = jobs.get(id) || fail(`job '${id}' not found`);
     return { ...j, lines: j.lines.slice(+since), next: j.lines.length };
   },
-  cancelJob: async id => jobs.get(id),
+  // as the server's: a running job that can stop (an implementation) is told to, and ends with
+  // status 'error' ('cancelled by user'); the USB jobs run to their end (a board half programmed)
+  cancelJob: async id => {
+    const j = jobs.get(id) || fail(`job '${id}' not found`);
+    if (j.status === 'running' && j.cancel && !j.cancelled) {
+      j.cancelled = true;
+      j.lines.push('*** cancel requested ***'); j.next = j.lines.length;
+      j.cancel();
+    }
+    return { ...j, lines: [], next: j.lines.length };
+  },
   importXise: async ({ name, xise, files = {} }) => {
     const r = xiseProject(name, xise, files);
     return { project: await ops.put(name, r.json, r.files), warnings: r.warnings };

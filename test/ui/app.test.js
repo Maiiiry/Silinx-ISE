@@ -57,6 +57,16 @@ async function settle(page) {
   await page.waitFor(() => !window.Silinx.busy, [], { timeout: 30000, what: 'no process running' });
 }
 
+uiTest('a failed promise nobody waits for is said in the Console and the Errors tab (#408)', E, async (page) => {
+  page.allowErrors.push(/boom-408/);   // (the browser's own console keeps it too)
+  await page.waitForSelector('#start-page .start-box');
+  await page.eval(() => { Promise.reject(new Error('boom-408')); });
+  await page.waitFor(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'ERROR: boom-408'));
+  assert.ok(await page.eval(() => document.querySelector('#console-log .ln.err:last-child')?.textContent === 'ERROR: boom-408'));
+  // (the Errors tab's list: the diagnostics the console's lines made)
+  assert.ok(await page.eval(() => window.Silinx.diags.some((d) => d.severity === 'error' && d.message === 'boom-408')));
+});
+
 uiTest('every menu opens and every enabled item acts or opens its dialog', E, async (page) => {
   await makeProject(env, { name: 'MenuPj', template: 'blinky' });
   await page.eval(() => {

@@ -329,6 +329,39 @@ const newProject = async (page, name, template) => {
 };
 const UNSUPPORTED = 'This browser cannot give a page a folder on the disk (File System Access API: Chrome or Edge); the projects are kept in the browser\'s storage';
 
+// #397: Stop during the browser flow stops it: the worker is terminated, no bitstream is written, the
+// process is marked stopped; a run after it works
+uiTest('browser edition: Stop during Generate Programming File stops the flow, and writes nothing of it (#397)', E, async (page) => {
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Stop');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Stop' && window.Silinx.project.top);
+  await page.click('input[name=view][value=impl]');
+  await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+  await page.waitConsole(/=== SILINX STEP synth ===/, { timeout: 60000 });
+  await page.menu('Process', 'Stop');
+  await page.waitConsole(/Process stopped by the user\./, { timeout: 30000 });
+  await page.waitFor(() => !window.Silinx.busy && !window.Silinx.currentJob, [], { what: 'the flow stopped', timeout: 30000 });
+  // (a stopped worker writes nothing more: give a late message the time to come)
+  await new Promise((r) => setTimeout(r, 1500));
+  const log = await page.consoleText();
+  assert.match(log, /\*\*\* cancel requested \*\*\*/);
+  assert.doesNotMatch(log, /=== SILINX STEP par ===|Bitstream: build\/top\.bit|Bitstream downloaded|ERROR:Silinx - cancelled by user/);
+  // the next run is a full one, on a new worker
+  await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+  await page.waitConsole(/=== SILINX DONE ===/, { timeout: 120000 });
+  await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
+  assert.match(await page.consoleText(), /Bitstream: build\/top\.bit/);
+}, { url: () => 'about:blank', timeout: 300000 });
+
 // #280: a second Generate Programming File with the design unchanged (only the pins may have changed) starts
 // at Translate, from the netlist of the first: the browser's flow worker as the server's
 uiTest('#280 browser edition: Generate Programming File again, the design unchanged: the synthesis up to date, not run again', E, async (page) => {
