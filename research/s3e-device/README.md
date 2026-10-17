@@ -22,10 +22,10 @@ showed it.
 | `candidates.mjs` | The probes' candidates: switch-box tiles, slice and VCC sites, the census of the CLBs' PIPs |
 | `observe.mjs` | What a design routed by ISE shows: PIPs, sites, site pin wires, and the joins between tiles inferred net by net |
 | `model.mjs` | Joins as rules in switch-box coordinates, applied to every switch box: the predicted joins |
-| `hypotheses.mjs` | Test designs for joins: one net per hypothesis; ISE's DRC says which are joined |
+| `hypotheses.mjs` | Test designs for joins: one net per hypothesis; ISE's DRC says which are joined. A tile with no slice is driven from a neighbouring CLB across known joins |
 | `gen-observe.mjs` | Random designs over the CLB slices for ISE to route |
 | `build.mjs` | Measurements -> the packed format of the shipped graphs (`core/fpga/device.js`) |
-| `prototype.mjs` | The phase-2 prototype: observe, predict, tests, verdicts, build the measured CLB array, compare it with the shipped graph |
+| `prototype.mjs` | The phase-2 prototype: observe, predict, tests, verdicts, build the measured CLB array, compare it with the shipped graph; `score`: the tests' verdicts against the shipped graph |
 
 What the experiments produce (ISE's routed XDL and logs, the candidates, the verdicts) stays in the
 working folders, out of the repository; only the scripts and this record are here.
@@ -302,3 +302,50 @@ DCM sites and pins; (4) the census of every tile; (5) the full measured graph, c
 open flow routes legally on it, then shipped in place of the report-built one, with the tests'
 expectations updated; (6) `scripts/check-open-flow.mjs` byte-identical. Until then the report-built
 graphs stay, and serve locally to score the measured one.
+
+## 6. Step 1: the I/O and block-RAM switch boxes (2026-10-17)
+
+The first step of the recommendation above. A join whose ends are both outside the CLBs (an I/O or
+block-RAM switch box, an edge) had no slice to drive its test. `joinTestDesigns` now searches back
+from the tested wire over the tile's PIPs **and the joins already known** (observed in ISE's routes,
+or confirmed by an earlier round of tests), up to `maxJoins` of them, to a slice output of any CLB:
+e.g. slice -> OMUX -> W2BEG of a CLB, joined to W2MID of the I/O tile -> the tested wire. The path
+never crosses the tested join's other end (it would join the two ends by itself), and the known
+nodes are reserved whole (two tests never share one). Each round's confirmations make the next
+round's paths: `prototype.mjs tests pred.json obs.json dir tested-dir...` (MAXJOINS, default 2).
+
+Done again from scratch on the XC3S250E (the prototype's working folders were gone), ISE 14.7 in
+Docker on the Intel Mac mini, one container at a time:
+
+```
+impl-remote.sh io bram mult arith                  # 4 HDL designs implemented by ISE: 91 pads, 4 block RAMs, 4 multipliers; 133 s
+node prototype.mjs observe obs0.json */top.xdl
+node candidates.mjs tiles obs0.json t.json && node probe-run.mjs t.json tiles.json        # 7 rounds
+node gen-observe.mjs clb-tiles.txt obs 4 11 0.25 && ise-remote.sh -r obs/                 # 81 s
+node prototype.mjs observe obs.json */top.xdl obs/*.r.xdl
+SEG=1 node prototype.mjs predict obs.json switch-tiles.txt pred.json [t1 t2]               # minus the CLB-CLB joins
+node prototype.mjs tests pred-edge.json obs.json t1 && ise-remote.sh -f t1 && node prototype.mjs verdicts t1
+node prototype.mjs score t1                                                               # local scoring only
+```
+
+**Tile probe**, with I/O and block-RAM tiles in the observed designs: **all 780 switch-box tiles**
+(612 CLBs), none accepted that the shipped graph lacks, none refused that it has (the prototype
+found 778: the 2 missing prefixes are now observed).
+
+**Observations**: 8 designs, 95 052 distinct PIPs, 1921 sites, 17 486 pin wires, 42 393 joins (16 797
+with one candidate). 287 rules (517 with the name grammar) predict 118 832 joins not observed, 24 464
+of them with an end in an I/O or block-RAM switch box.
+
+| Round | Tests (designs, ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 1, across the observed joins | 13 825 (30, 238 s) | 10 721 joins, 3104 islands | **all** |
+| 2, also across round 1's | 6681 (16, 113 s) | 5563 joins, 1118 islands | **all** |
+| 3, also across round 2's | 570 (12, 41 s) | 462 joins, 108 islands | **all** |
+
+By the kinds of the two ends: CLB-I/O 6858, I/O-I/O 4447, CLB-block RAM 6577, block RAM-block RAM 2926,
+block RAM-I/O 268, every one agreeing. **3388 stay untestable**: their driven end is a wire only a site
+of the I/O or block-RAM tile drives (the I/O tiles' and block-RAM tiles' OMUX, the hexes that begin in an
+I/O tile: `BIOIS/N6BEG -> CLB/N6MID`, `LIOIS/E6BEG -> CLB/E6END`, `RIOIS/W6BEG -> CLB/W6END`, …). They need
+a test source in a pad or a block RAM (an IOB's input, a block RAM's output), the next step together
+with the I/O and block-RAM sites and pins (step 3 above).
+

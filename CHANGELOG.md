@@ -150,6 +150,13 @@ In detail:
   them (`test/designs-corpus/expected.json`). Yosys's test design `hana/test_intermout.v` takes 841 to over 900 s
   with 0.70 on GitHub's runners (650 s with 0.68): the corpus's limit per file is 1500 s now (900 s, #343), the
   nightly's jobs 26 to 37 minutes of their 60 (#378).
+- **Device descriptions measured black-box: the I/O and block-RAM switch boxes (#3, step 1):** the join tests
+  of `research/s3e-device` drive a tile with no slice from a neighbouring CLB, across joins already observed or
+  confirmed (`joinTestDesigns`' `joined` / `maxJoins`); `prototype.mjs score` compares ISE's verdicts with the
+  shipped graph locally. On the XC3S250E, from scratch (4 HDL designs and 4 random designs routed by ISE, the tile
+  probe: the 780 switch-box tiles, none wrong), three rounds tested 21 076 joins of the I/O and block-RAM switch
+  boxes, all agreeing with the shipped graph; 3388 stay, driven only from a pad or a block RAM (the next step).
+  The shipped graphs are unchanged.
 
 ## 15.10.22
 

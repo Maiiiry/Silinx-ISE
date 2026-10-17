@@ -10,6 +10,7 @@
 //   node prototype.mjs verdicts dir...                          -> dir/verdicts.json (ISE's DRC)
 //   node prototype.mjs build obs.json clb-tiles.txt out.json.gz dir...   the measured CLB array
 //   node prototype.mjs compare measured.json.gz                 against the shipped graph (local scoring only)
+//   node prototype.mjs score dir...                             the tests' verdicts against the shipped graph (local scoring only)
 //
 // switch-tiles.txt: the tiles that hold a switch box (the tile probe, probe-run.mjs, plus the DCM and
 // corner tiles seen in ISE's designs); clb-tiles.txt: the CLB tiles (the tile probe).
@@ -253,7 +254,24 @@ if (cmd === 'observe') {
   console.log('wires missing:', top(ex.wiresMissing));
   console.log('pins missing:', top(ex.pinsMissing));
   console.log('split examples:\n  ' + splitEx.join('\n  '));
+} else if (cmd === 'score') {
+  // ISE's verdicts against the shipped graph (local scoring only), by the kinds of the two tiles
+  const R = loadDevice(readJson(path.join(HERE, '../../core/fpga/devices', `${PART}.json.gz`)));
+  const kind = k => { const p = tileXY(k.slice(0, k.indexOf('/')))?.prefix || ''; return /^CLB/.test(p) ? 'CLB' : /IOIS|IBUFS/.test(p) ? 'IO' : /^BRAM/.test(p) ? 'BRAM' : p; };
+  const node = k => { const i = k.indexOf('/'); return R.node(k.slice(0, i), k.slice(i + 1)); };
+  const count = new Map(), wrong = [];
+  for (const dir of args) for (const [a, b, v] of readJson(path.join(dir, 'verdicts.json'))) {
+    const c = [kind(a), kind(b)].sort().join('-');
+    if (!count.has(c)) count.set(c, { join: 0, 'no-join': 0, agree: 0, other: 0 });
+    const s = count.get(c);
+    if (v !== 'join' && v !== 'no-join') { s.other++; continue; }
+    s[v]++;
+    const na = node(a);
+    if ((na >= 0 && na === node(b)) === (v === 'join')) s.agree++; else if (wrong.length < 10) wrong.push(`${a} ${b} ${v}`);
+  }
+  for (const [c, s] of [...count].sort()) console.log(`${c}: ${s.join} joins, ${s['no-join']} islands, ${s.agree} of ${s.join + s['no-join']} agree with the shipped graph${s.other ? `, ${s.other} unclear or not run` : ''}`);
+  if (wrong.length) console.log('disagree:\n  ' + wrong.join('\n  '));
 } else {
-  console.error('usage: prototype.mjs observe|predict|tests|verdicts|build|compare …');
+  console.error('usage: prototype.mjs observe|predict|tests|verdicts|build|compare|score …');
   process.exit(1);
 }
