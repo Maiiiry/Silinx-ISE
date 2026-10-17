@@ -3,7 +3,10 @@
 // switches / buttons), the "Run anyway?" question for a netlist with a cell that has no model.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { setupUi, uiTest, makeProject, writeWs } from './harness.js';
+import { ROOT } from '../examples-lib.mjs';
 import { TEXTS, untranslated } from './i18n-check.js';
 
 let env;
@@ -93,6 +96,34 @@ async function widget(page, title, opts = {}) {
 const led = (page, k) => page.eval((i) => window.Silinx.active.view.outputs?.leds[i] ?? 0, k);
 const waitLed = (page, k, on) => page.waitFor((i, o) => { const v = window.Silinx.active.view.outputs?.leds[i] ?? 0; return o ? v > 0.5 : v < 0.5; }, [k, on], { what: `LED ${k} ${on ? 'on' : 'off'}` });
 const digit = (page, k) => page.eval((i) => window.Silinx.active.view.outputs?.digits[i] || null, k);
+
+// #347: a manual clock (test/fixtures/open-flow/feat_manual_clock: a D flip-flop clocked by BTN0, CLOCK_DEDICATED_ROUTE
+// = FALSE): the emulator does not drive the clk port at 50 MHz, LD0 takes SW0 only at a press of BTN0
+uiTest('board emulator: a manual clock on a button (BTN0) — the flip-flop takes the switch only at a press', E, async (page) => {
+  const fx = (f) => fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_manual_clock', f), 'utf8');
+  await makeProject(env, { name: 'EmuManual', board: 'basys2', top: 'top', constraints: 'constraints/manual.ucf', files: { 'src/top.vhd': fx('top.vhd'), 'constraints/manual.ucf': fx('manual.ucf') } });
+  await page.openProject('EmuManual');
+  await page.menu('Tools', 'Board Emulator');
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view && document.querySelector('.doc:not([hidden]) .emu-pcb'), [], { what: 'emulator open' });
+  await page.waitFor(() => window.Silinx.active.view.outputs, [], { what: 'emulator running' });
+  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-board-note').textContent), /Manual clock clk \(BTN\): one edge per press/);
+  // SW0 on: LD0 stays off (no clock edge) while the emulator runs
+  await widget(page, 'SW0 = d');
+  const t0 = await page.eval(() => window.Silinx.active.view.sim.now);
+  await page.waitFor((t) => window.Silinx.active.view.sim.now > t + 2e6, [t0], { what: 'the emulator running on' });
+  assert.ok(await led(page, 0) < 0.5, 'LD0 still off: no edge without a press');
+  // a press of BTN0: LD0 on; SW0 off: LD0 stays on until the next press
+  await widget(page, 'BTN0 = clk', { modifiers: 8 });
+  await waitLed(page, 0, true);
+  await widget(page, 'BTN0 = clk', { modifiers: 8 });
+  await widget(page, 'SW0 = d');
+  const t1 = await page.eval(() => window.Silinx.active.view.sim.now);
+  await page.waitFor((t) => window.Silinx.active.view.sim.now > t + 2e6, [t1], { what: 'the emulator running on' });
+  assert.ok(await led(page, 0) > 0.5, 'LD0 still on');
+  await widget(page, 'BTN0 = clk', { modifiers: 8 });
+  await waitLed(page, 0, false);
+  assert.deepEqual(page.dialogs, []);
+});
 
 for (const [board, name] of [['basys2', 'Basys2'], ['nexys2', 'Nexys2']]) {
   uiTest(`board emulator (RTL) on the ${name}: switches and buttons drive the LEDs and the 7-segment display`, E, async (page) => {

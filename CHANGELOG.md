@@ -5,8 +5,21 @@ the "What's new" text of its GitHub release.
 
 ## 15.10.23
 
+In short:
+
+- **A manual clock in the emulator:** a design clocked by a push button (its clock port on a button in the UCF)
+  works in the board emulator: the flip-flops change only when the button is pressed.
+
 In detail:
 
+- **Emulator: a manual clock on a button (#347):** with no port on a board clock pin, the emulator took a port named
+  clk… for the 50 MHz clock and drove it, even when the UCF puts it on a button (a manual clock, e.g. BTN0 with
+  CLOCK_DEDICATED_ROUTE = FALSE): a flip-flop's Q followed D at once and the button did nothing, in the behavioural
+  and the implemented model alike. The guess is now made only for a clock port the UCF does not wire to the board;
+  on a button or a switch it is the board's (the note: *Manual clock clk (BTN): one edge per press*). The
+  implementation was right (the button's pad through the general routing into a BUFGMUX, as ISE routes it; the
+  bitstream byte-identical to ISE's bitgen, ISE's DRC clean); the design is now a test fixture
+  (`test/fixtures/open-flow/feat_manual_clock`): the open flow in CI, its ISE check every night, the emulator's UI test.
 - **Nightly: Yosys's test designs in two jobs, a timed-out job reported (#343):** the corpus job hit its
   60-minute limit on 15 and 16 October (46 minutes on 12 and 13 October, 52 on 14 October): no design hung,
   every file took 20–25 % longer, Silinx's synthesis of a module being up to 7 Yosys runs since its

@@ -5,7 +5,7 @@ import { compile, elaborate } from '../core/compile.js';
 import { Simulator } from '../core/simulator.js';
 import * as V from '../core/values.js';
 import { parseUcf } from '../core/ucf.js';
-import { boardWiring, boardOutputs, portBits } from '../core/emulate.js';
+import { boardWiring, boardOutputs, portBits, emulatorClocks, manualClocks } from '../core/emulate.js';
 
 const BOARD = { resources: [
   { name: 'mclk', group: 'Clock', pins: ['B8'], dir: 'in', extra: { period: '20 ns' } },
@@ -269,4 +269,38 @@ architecture rtl of top is begin led <= sw; end rtl;`;
     const w = boardWiring({ ports: d.top.ports, assignments: parseUcf(ucf).assignments, board: BOARD });
     assert.deepEqual(w.bits.filter((b) => b.kind !== 'clk').map((b) => `${b.kind}${b.idx}`).sort(), ['led0', 'sw0'], ucf);
   }
+});
+
+// #347: a clock port on a button (a manual clock, as a D flip-flop clocked by BTN0 with CLOCK_DEDICATED_ROUTE = FALSE)
+// is not driven at 50 MHz: the flip-flop takes D only at a press; a clk port on no pin is still the guessed clock
+test('emulator clocks: a board clock pin, a manual clock on a button (not driven), a guessed one when unwired', () => {
+  const B = { resources: [...BOARD.resources, { name: 'btn', group: 'Buttons', pins: ['G12', 'C11'], dir: 'in' }] };
+  const FF = `library ieee; use ieee.std_logic_1164.all;
+entity simple is port (CLK, D : in std_logic; Q : out std_logic := '0'); end simple;
+architecture rtl of simple is begin process (CLK) begin if rising_edge(CLK) then Q <= D; end if; end process; end rtl;`;
+  const design = elaborate(compile([{ path: 's.vhd', lang: 'vhdl', text: FF }]), 'simple');
+  const ports = design.top.ports;
+  const manualUcf = parseUcf('NET "clk" LOC = "G12"; NET "clk" CLOCK_DEDICATED_ROUTE = FALSE; NET "d" LOC = "P11"; NET "q" LOC = "M5";').assignments;
+  const w = boardWiring({ ports, assignments: manualUcf, board: B });
+  assert.deepEqual(emulatorClocks(w, ports), [], 'no clock driven');
+  assert.deepEqual(manualClocks(w).map(b => [b.port, b.res.name, b.kind]), [['clk', 'btn', 'btn']]);
+  // a clk port the UCF does not place: the guessed 50 MHz clock, as before
+  const w2 = boardWiring({ ports, assignments: parseUcf('NET "d" LOC = "P11"; NET "q" LOC = "M5";').assignments, board: B });
+  assert.deepEqual(emulatorClocks(w2, ports).map(c => [c.port, c.period, c.guessed]), [['clk', 20000, true]]);
+  assert.deepEqual(manualClocks(w2), []);
+  // on the board clock pin: that clock
+  const w3 = boardWiring({ ports, assignments: parseUcf('NET "clk" LOC = "B8"; NET "d" LOC = "P11"; NET "q" LOC = "M5";').assignments, board: B });
+  assert.deepEqual(emulatorClocks(w3, ports).map(c => [c.port, c.period, !!c.guessed]), [['clk', 20000, false]]);
+  // the manual clock simulated as the emulator does: D = 1 for a long time, Q stays 0 until the button is pressed
+  const sim = new Simulator(design);
+  const sig = n => ports.find(p => p.name.toLowerCase() === n.toLowerCase()).sig;
+  for (const c of emulatorClocks(w, ports)) sim.addClock(c.sig, { period: c.period });
+  sim.force(sig('D'), V.ONE); sim.force(sig('CLK'), V.ZERO);
+  sim.run(1e6);
+  assert.equal(V.toBin(sig('Q').val), '0', 'no clock edge: Q unchanged');
+  sim.force(sig('CLK'), V.ONE);   // the press
+  sim.run(2e6);
+  assert.equal(V.toBin(sig('Q').val), '1');
+  sim.force(sig('D'), V.ZERO); sim.run(3e6);
+  assert.equal(V.toBin(sig('Q').val), '1', 'D changed, no new edge');
 });

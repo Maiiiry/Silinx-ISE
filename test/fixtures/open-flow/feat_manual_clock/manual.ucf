@@ -1,0 +1,5 @@
+# Basys2: the clock on BTN0 (G12, not a clock pin), the data on SW0, the output on LD0
+NET "clk" LOC = "G12" ;
+NET "clk" CLOCK_DEDICATED_ROUTE = FALSE ;
+NET "d"   LOC = "P11" ;
+NET "q"   LOC = "M5" ;
