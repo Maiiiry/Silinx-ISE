@@ -13,7 +13,9 @@
 // Each netlist is also simulated against the RTL (test/diff-synth.js compareNetlist, the bare design: a mapping
 // that changes the function is no mapping).
 //
-//   node research/synth-quality/abc9.mjs [--filter blinky,serv] [--ways now,abc9] [--seed 1] [--cycles 200] [--out results.json]
+//   node research/synth-quality/abc9.mjs [--filter blinky,serv] [--ways now,abc9] [--seed 1] [--cycles 200] [--out results.json] [--routed dir]
+// (--filter: also a design of the corpus outside the subset, e.g. epfl-max; --routed: each routed design written as
+// <dir>/<design>__<way>/routed.xdl, for ISE's trce: research/s3e-route/ise-open-check.sh on the ISE host)
 //   node research/synth-quality/abc9.mjs --table results.json     the Markdown table of a run (README.md, "ABC9")
 //
 // The corpus's sources: npm run fetch:designs. Research, not a test: nothing fails on a worse result.
@@ -69,7 +71,7 @@ export function table(results, ways = WAYS) {
 }
 
 // ------------------------------------------------------------------------------------------- the measurement
-async function load() {
+async function load(extra = []) {
   const { compile, elaborate } = await import('../../core/compile.js');
   const { primitiveSources } = await import('../../core/unisim.js');
   const lib = await import('../../test/designs-corpus/lib.mjs');
@@ -91,7 +93,7 @@ async function load() {
     const { part, package: pkg, speed } = proj.device;
     designs.push(build(`examples/${e}`, srcs, proj.top, {}, { parts: [`${part}${pkg}${speed}`], ucf: proj.constraints ? fs.readFileSync(path.join(dir, proj.constraints), 'utf8') : null }));
   }
-  for (const n of DESIGN_SUBSET) {
+  for (const n of [...DESIGN_SUBSET, ...extra.filter(x => !DESIGN_SUBSET.includes(x) && manifest.designs.some(d => d.name === x))]) {
     const d = manifest.designs.find(x => x.name === n);
     const dir = sourceDir(manifest.sources[d.source]);
     const read = f => {
@@ -114,6 +116,7 @@ async function measure(argv) {
   const ways = arg('--ways') ? arg('--ways').split(',') : WAYS;
   const seed = +arg('--seed', 1), cycles = +arg('--cycles', 200);
   const outFile = arg('--out', path.join(HERE, 'abc9-results.json'));
+  const routedDir = arg('--routed', null);
   const { toVerilog } = await import('../../core/synth-verilog.js');
   const { synthesizeOpen, cellCounts, utilization } = await import('../../core/synth-open.js');
   const { yosysNode } = await import('../../core/synth-open-node.js');
@@ -127,7 +130,7 @@ async function measure(argv) {
   const { analyzeTiming, delayTable } = await import('../../core/fpga/timing.js');
   const { writeXdl, parseXdl } = await import('../../core/xdl.js');
   const { loadDb } = await import('../s3e-bitstream/db.mjs');
-  const { designs, compile, elaborate, primitiveSources, lib } = await load();
+  const { designs, compile, elaborate, primitiveSources, lib } = await load(only || []);
   const devices = new Map();
   const deviceOf = part => {
     if (!devices.has(part)) {
@@ -195,7 +198,13 @@ async function measure(argv) {
           try { pr = placeRouteBest(netlist, packed, dev.device, dev.known, { seed, delays: dev.delays, pack: { ucf, part, carryOut: 'xor' } }); }
           catch (e) { if (/slices needed|block RAMs needed|multipliers needed|no room|not enough pads|no pad for/.test(e.message)) continue; throw e; }
           if (pr.routed.errors.length || pr.routed.failed.length || pr.routed.overused) throw new Error(`route: ${pr.routed.errors[0] || `${pr.routed.failed.length} nets unrouted, ${pr.routed.overused} nodes shared`}`);
-          const sta = analyzeTiming(parseXdl(writeXdl(pr.routed.design)), dev.device);
+          const routedText = writeXdl(pr.routed.design);
+          if (routedDir) {
+            const dir = path.join(routedDir, `${d.name}__${way}`.replace(/[^\w.-]/g, '_'));
+            fs.mkdirSync(dir, { recursive: true });
+            fs.writeFileSync(path.join(dir, 'routed.xdl'), routedText);
+          }
+          const sta = analyzeTiming(parseXdl(routedText), dev.device);
           const q = lib.qualityOf(part, pr.packed.stats, sta.clocks);
           Object.assign(m, { part, slices: q.slices, period: q.period });
           break;
