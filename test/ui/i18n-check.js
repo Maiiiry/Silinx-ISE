@@ -3,7 +3,7 @@
 /** Installs window.__uiTexts(root): the visible text nodes and title / placeholder attributes
  *  that the i18n module translates (the same parts it leaves alone are skipped). */
 export const TEXTS = `window.__uiTexts = (root = document.body) => {
-  const SKIP = '.CodeMirror, .console-page, pre, code, textarea, [data-no-i18n], #hier .lbl, #libs-page .lbl, svg, .sch-svg, .xl-hover-tip, .CodeMirror-hints, script, style, .toasts';
+  const SKIP = '.cm-editor, .console-page, pre, code, textarea, [data-no-i18n], #hier .lbl, #libs-page .lbl, svg, .sch-svg, .xl-hover-tip, script, style, .toasts';
   const out = [];
   const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT,
     { acceptNode: (n) => (n.nodeType === 1 && n.matches(SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });

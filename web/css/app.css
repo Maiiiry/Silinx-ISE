@@ -179,44 +179,52 @@ table.grid tr.sel td { background: #dbe8fb; }
 
 /* editor */
 .editor-host { flex: 1; min-height: 0; position: relative; }
-.editor-host .CodeMirror { position: absolute; inset: 0; height: auto; font-family: var(--mono); font-size: 13px; }
-.xl-editor .CodeMirror-gutters { background: #f4f4f4; border-right: 1px solid #ddd; }
-.xl-editor .CodeMirror-linenumber { color: #2b91af; }
-.xl-editor .CodeMirror-activeline-background { background: #fffbe0; }
-.xl-editor .cm-keyword { color: #0000ff; }
-.xl-editor .cm-builtin, .xl-editor .cm-variable-3, .xl-editor .cm-type { color: #2b91af; }
-.xl-editor .cm-atom { color: #a31515; }
-.xl-editor .cm-number { color: #a31515; }
-.xl-editor .cm-string { color: #a31515; }
-.xl-editor .cm-comment { color: #008000; font-style: normal; }
-.xl-editor .cm-meta { color: #7f007f; }
-.xl-editor .cm-def { color: #000; font-weight: bold; }
-.xl-editor .cm-variable-2 { color: #800080; }
-.xl-editor .cm-matchhighlight { background: #e2f0ff; }
-.xl-editor .CodeMirror-matchingbracket { background: #d8f0d8; color: inherit !important; outline: 1px solid #9c9; }
+/* (CodeMirror 6 makes its editor position: relative !important; here it fills its host, its own scroller scrolling) */
+.editor-host .cm-editor { position: absolute !important; inset: 0; height: auto; background: #fff; }
+.editor-host .cm-editor.cm-focused { outline: none; }
+.editor-host .xl-editor .cm-scroller { font-family: var(--mono); font-size: 13px; line-height: 1.4; }
+.editor-host .xl-editor .cm-gutters { background: #f4f4f4; border-right: 1px solid #ddd; color: #2b91af; }
+.editor-host .xl-editor .cm-activeLine { background: #fffbe0; }
+.editor-host .xl-editor .cm-activeLineGutter { background: #ececec; }
+.editor-host .xl-editor .tok-keyword { color: #0000ff; }
+.editor-host .xl-editor .tok-builtin, .editor-host .xl-editor .tok-type { color: #2b91af; }
+.editor-host .xl-editor .tok-atom { color: #a31515; }
+.editor-host .xl-editor .tok-number { color: #a31515; }
+.editor-host .xl-editor .tok-string { color: #a31515; }
+.editor-host .xl-editor .tok-comment { color: #008000; font-style: normal; }
+.editor-host .xl-editor .tok-meta { color: #7f007f; }
+.editor-host .xl-editor .tok-def { color: #000; font-weight: bold; }
+.editor-host .xl-editor .tok-variable2 { color: #800080; }
+.editor-host .xl-editor .cm-selectionMatch { background: #e2f0ff; }
+.editor-host .xl-editor .cm-matchingBracket, .editor-host .xl-editor.cm-focused .cm-matchingBracket { background: #d8f0d8; color: inherit; outline: 1px solid #9c9; }
+.editor-host .xl-editor .cm-panels { font-family: var(--font); font-size: 12px; }
+.editor-host .xl-editor .cm-tooltip.cm-tooltip-autocomplete { font-family: var(--font); font-size: 12px; border-radius: 2px; }
 .xl-flash-line { background: #ffe680 !important; transition: background .5s; }
 .editor-bar { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-bottom: 1px solid #ddd; background: #fafafa; flex: none; }
 .editor-bar .path { color: #555; margin-left: 6px; }
 .editor-bar select { height: 20px; }
-.CodeMirror-hints { font-family: var(--font); font-size: 12px; z-index: 6000; border-radius: 2px; max-height: 18em; }
-.CodeMirror-hint { display: flex; gap: 6px; align-items: center; padding: 1px 6px; max-width: 520px; }
-li.CodeMirror-hint-active { background: var(--accent); }
+.editor-host .xl-editor .cm-tooltip-autocomplete > ul { max-height: 18em; }
+.editor-host .xl-editor .cm-tooltip-autocomplete > ul > li { display: flex; gap: 6px; align-items: center; padding: 1px 6px; max-width: 520px; }
+.editor-host .xl-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--accent); color: #fff; }
 .xl-hint-kind { width: 16px; height: 16px; border-radius: 3px; font: bold 10px Arial; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: #888; flex: none; }
 .xl-hint-kind.k-port { background: #b8860b; } .xl-hint-kind.k-signal { background: #2b6fd1; } .xl-hint-kind.k-variable { background: #5a8fd6; }
 .xl-hint-kind.k-constant, .xl-hint-kind.k-generic { background: #7b3fa0; } .xl-hint-kind.k-enum { background: #9b59b6; }
 .xl-hint-kind.k-type { background: #16a085; } .xl-hint-kind.k-function, .xl-hint-kind.k-task { background: #c0392b; }
 .xl-hint-kind.k-module { background: #27ae60; } .xl-hint-kind.k-keyword { background: #34495e; } .xl-hint-kind.k-snippet { background: #e67e22; }
 .xl-hint-kind.k-system { background: #8e44ad; }
-.xl-hint-name { flex: none; }
-.xl-hint-detail { color: #888; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-li.CodeMirror-hint-active .xl-hint-detail { color: #dde; }
+.editor-host .xl-editor .cm-completionLabel { flex: none; }
+.editor-host .xl-editor .cm-completionDetail { color: #888; font-size: 11px; font-style: normal; margin-left: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-host .xl-editor li[aria-selected] .cm-completionDetail { color: #dde; }
 .xl-hover-tip { position: fixed; z-index: 6000; background: #ffffe1; border: 1px solid #767676; padding: 4px 7px; font-size: 12px; max-width: 460px; box-shadow: 1px 1px 3px rgba(0,0,0,.2); pointer-events: none; white-space: pre-wrap; }
 .xl-hover-tip .k { color: #777; font-style: italic; margin-left: 4px; }
 .xl-hover-tip .d { font-family: var(--mono); margin-top: 2px; }
-.CodeMirror-lint-tooltip { z-index: 6000; font-family: var(--font); }
+/* the lint tooltip of the editor (web/js/editor.js): its messages, with their help, and their quick fixes */
+.xl-lint-tip { position: fixed; z-index: 6000; font-family: var(--font); font-size: 12px; max-width: 600px; padding: 2px 5px; background: #ffd; color: #000; border: 1px solid #000; border-radius: 4px; box-shadow: 1px 1px 3px rgba(0,0,0,.2); }
+.xl-lint-msg { white-space: pre-wrap; padding: 2px 0 2px 8px; margin: 2px 0; border-left: 4px solid #d11; }
+.xl-lint-msg-warning { border-left-color: #e8a400; }
 /* the quick fixes of a message (core/quickfix.js) in the editor's lint tooltip: in its own text colour */
-.CodeMirror-lint-tooltip .xl-fix { display: block; margin: 4px 0 2px; padding: 1px 8px; font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 3px; cursor: pointer; text-align: left; }
-.CodeMirror-lint-tooltip .xl-fix:hover { text-decoration: underline; }
+.xl-lint-tip .xl-fix { display: block; margin: 4px 0 2px; padding: 1px 8px; font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 3px; cursor: pointer; text-align: left; }
+.xl-lint-tip .xl-fix:hover { text-decoration: underline; }
 
 /* pin planner */
 .pin-planner { display: flex; flex-direction: column; height: 100%; }
@@ -265,7 +273,6 @@ li.CodeMirror-hint-active .xl-hint-detail { color: #dde; }
 .console-page .diag .diag-fix:hover { text-decoration: underline; }
 .console-page .diag-hint { margin: 0 6px 4px 26px; padding: 3px 8px; background: #fffbe6; border-left: 3px solid #e0b000; font-family: var(--font); white-space: normal; }
 .console-page .diag-hint b { font-weight: 600; }
-.CodeMirror-lint-message { white-space: pre-wrap; max-width: 600px; }
 
 /* boxes of the wizards and pages (theme.css's colours: dark in the dark theme) */
 .note-box { background: var(--note-bg); border: 1px solid var(--note-border); padding: 8px; margin: 8px 0; white-space: pre-wrap; }   /* a tip, e.g. iMPACT's WebUSB notes */

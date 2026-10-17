@@ -64,13 +64,13 @@ const UNDO = { modifiers: process.platform === 'darwin' ? 4 : 2 };
 const ed = (page) => page.eval(() => window.Silinx.active.editor.getValue());
 // put the cursor on the k-th (0-based) whole-word `word` of the active editor
 const cursorOn = (page, word, k = 0) => page.eval((w, n) => {
-  const cm = window.Silinx.active.editor.cm, text = cm.getValue();
+  const ed = window.Silinx.active.editor, text = ed.getValue();
   const re = new RegExp(`(?<![\\w$])${w}(?![\\w$])`, 'g');
   let m;
   for (let i = 0; (m = re.exec(text)); i++) if (i === n) break;
-  cm.setCursor(cm.posFromIndex(m.index + 1));
-  cm.focus();
-  const c = cm.charCoords(cm.posFromIndex(m.index + 1), 'window');
+  ed.view.dispatch({ selection: { anchor: m.index + 1 } });
+  ed.focus();
+  const c = ed.view.coordsAtPos(m.index + 1);
   return { x: c.left + 1, y: (c.top + c.bottom) / 2 };
 }, word, k);
 const dlgText = (page) => page.eval(() => [...document.querySelectorAll('.dlg-overlay')].pop().querySelector('.dlg-body').innerText);
@@ -105,10 +105,10 @@ uiTest('Rename Symbol (F2): every place of the signal in the file, not the comme
   const renamed = COUNTER.replace('signal cnt :', 'signal count :').replace('cnt <= cnt + 1;', 'count <= count + 1;').replace('std_logic_vector(CNT)', 'std_logic_vector(count)');
   assert.equal(await ed(page), renamed);
   // ---- one Undo (Ctrl+Z in the editor) reverts the whole rename; Redo makes it again
-  await page.eval(() => window.Silinx.active.editor.cm.focus());
+  await page.eval(() => window.Silinx.active.editor.focus());
   await page.key('z', UNDO);
   assert.equal(await ed(page), COUNTER);
-  await page.eval(() => window.Silinx.active.editor.cm.redo());
+  await page.eval(() => window.Silinx.active.editor.exec('redo'));
   assert.equal(await ed(page), renamed);
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent + document.getElementById('warn-count').textContent), '');
@@ -177,7 +177,7 @@ uiTest('Rename Symbol from the right-click menu in Verilog: case-sensitive, not 
   const renamed = BLINK.replace('reg [3:0] cnt =', 'reg [3:0] div =').replace('cnt <= cnt + 1', 'div <= div + 1').replace('cnt[3]', 'div[3]');
   assert.equal(await ed(page), renamed);
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
-  await page.eval(() => window.Silinx.active.editor.cm.focus());
+  await page.eval(() => window.Silinx.active.editor.focus());
   await page.key('z', UNDO);
   assert.equal(await ed(page), BLINK);
 });
@@ -213,13 +213,13 @@ const LED = `module blink(input clk, output led);
   end
 endmodule
 `;
-const errorMarker = (page, line) => page.waitFor((l) => !!window.Silinx.active.editor.cm.lineInfo(l).gutterMarkers?.['CodeMirror-lint-markers']?.matches('.CodeMirror-lint-marker-error'), [line - 1], { what: `the error marker of line ${line}` });
-const noMarkers = (page) => page.waitFor(() => !document.querySelector('.doc:not([hidden]) .CodeMirror-lint-marker'), [], { what: 'no lint marker' });
+const errorMarker = (page, line) => page.waitFor((l) => window.Silinx.active.editor.diagnostics().some((d) => d.line === l && d.severity === 'error') && !!document.querySelector('.doc:not([hidden]) .cm-lint-marker-error'), [line], { what: `the error marker of line ${line}` });
+const noMarkers = (page) => page.waitFor(() => !document.querySelector('.doc:not([hidden]) .cm-lint-marker'), [], { what: 'no lint marker' });
 const lintTooltip = async (page) => {
-  await page.eval(() => document.querySelectorAll('.CodeMirror-lint-tooltip').forEach((t) => t.remove()));
+  await page.eval(() => document.querySelectorAll('.xl-lint-tip').forEach((t) => t.remove()));
   await page.hover('#statusbar');   // (off the marker: the tooltip closes)
-  await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-error');
-  return page.waitFor(() => document.querySelector('.CodeMirror-lint-tooltip')?.textContent, [], { what: 'lint tooltip' });
+  await page.hover('.doc:not([hidden]) .cm-lint-marker-error');
+  return page.waitFor(() => document.querySelector('.xl-lint-tip')?.textContent, [], { what: 'lint tooltip' });
 };
 
 uiTest('quick fix of a misspelt name: from the lint tooltip (the error gone, one Undo), from the Errors tab, in Portuguese', E, async (page) => {
@@ -233,12 +233,12 @@ uiTest('quick fix of a misspelt name: from the lint tooltip (the error gone, one
   await errorMarker(page, 15);
   const tip = await lintTooltip(page);
   assert.match(tip, /^'enabel' is not declared\n\nExplanation: The name 'enabel' is used but it is not declared/);
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Change 'enabel' to 'enable'"]);
-  await page.click('.CodeMirror-lint-tooltip .xl-fix');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.xl-lint-tip .xl-fix')].map((b) => b.textContent)), ["Fix: Change 'enabel' to 'enable'"]);
+  await page.click('.xl-lint-tip .xl-fix');
   assert.equal(await ed(page), fixed);
   await noMarkers(page);
   // one Undo reverts it, and the error is back
-  await page.eval(() => window.Silinx.active.editor.cm.focus());
+  await page.eval(() => window.Silinx.active.editor.focus());
   await page.key('z', UNDO);
   assert.equal(await ed(page), GATE);
   await errorMarker(page, 15);
@@ -290,7 +290,7 @@ uiTest('quick fix with Ctrl+. (and the right-click menu): a procedural assignmen
   await noMarkers(page);
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent + document.getElementById('warn-count').textContent), '');
-  await page.eval(() => window.Silinx.active.editor.cm.focus());
+  await page.eval(() => window.Silinx.active.editor.focus());
   await page.key('z', UNDO);
   assert.equal(await ed(page), LED);
 });
@@ -304,8 +304,8 @@ uiTest('quick fix of the ";" missing after the attribute specification of a stat
   await errorMarker(page, 12);
   const tip = await lintTooltip(page);
   assert.match(tip, /^expected ';' after "user"\n\nExplanation: A statement or declaration is not finished/);
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Add ';' at the end of the line"]);
-  await page.click('.CodeMirror-lint-tooltip .xl-fix');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.xl-lint-tip .xl-fix')].map((b) => b.textContent)), ["Fix: Add ';' at the end of the line"]);
+  await page.click('.xl-lint-tip .xl-fix');
   assert.equal(await ed(page), FSM.replace('if enabel =', 'if enable ='));
   await noMarkers(page);
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
@@ -343,16 +343,16 @@ end rtl;
   await page.eval(() => window.SilinxApp.openFile('src/parity.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/parity.vhd' && window.Silinx.active.editor);
   // ---- a warning at the function's end, as XST's: the tooltip with its help and the fix
-  await page.waitFor(() => !!window.Silinx.active.editor.cm.lineInfo(15).gutterMarkers?.['CodeMirror-lint-markers']?.matches('.CodeMirror-lint-marker-warning'), [], { what: 'the warning marker of line 16' });
+  await page.waitFor(() => window.Silinx.active.editor.diagnostics().some((d) => d.line === 16 && d.severity === 'warning') && !!document.querySelector('.doc:not([hidden]) .cm-lint-marker-warning'), [], { what: 'the warning marker of line 16' });
   const warnTooltip = async () => {
-    await page.eval(() => document.querySelectorAll('.CodeMirror-lint-tooltip').forEach((t) => t.remove()));
+    await page.eval(() => document.querySelectorAll('.xl-lint-tip').forEach((t) => t.remove()));
     await page.hover('#statusbar');
-    await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-warning');
-    return page.waitFor(() => document.querySelector('.CodeMirror-lint-tooltip')?.textContent, [], { what: 'lint tooltip' });
+    await page.hover('.doc:not([hidden]) .cm-lint-marker-warning');
+    return page.waitFor(() => document.querySelector('.xl-lint-tip')?.textContent, [], { what: 'lint tooltip' });
   };
   const tip = await warnTooltip();
   assert.match(tip, /^Function next_acc is not pure: it uses signal 'acc' at line 15\. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE\.\n\nExplanation: 'next_acc' is a pure function \(a VHDL function is pure unless it is declared impure\)/);
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Declare the function 'next_acc' impure"]);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.xl-lint-tip .xl-fix')].map((b) => b.textContent)), ["Fix: Declare the function 'next_acc' impure"]);
   // ---- Check Syntax: completed with the warning, in the Warnings tab with its fix
   await checkSyntax(page, /Process "Check Syntax" completed successfully with 1 warning\(s\)\s*$/m);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
@@ -361,7 +361,7 @@ end rtl;
     ["WARNING:HDLParsers:3310 - \"src/parity.vhd\" Line 16: Function next_acc is not pure: it uses signal 'acc' at line 15. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.▸ Explanation and fixFix: Declare the function 'next_acc' impure"]);
   // ---- applied from the tooltip: impure, no warning, Check Syntax clean
   await warnTooltip();
-  await page.click('.CodeMirror-lint-tooltip .xl-fix');
+  await page.click('.xl-lint-tip .xl-fix');
   assert.equal(await ed(page), PARITY.replace('  function next_acc', '  impure function next_acc'));
   await noMarkers(page);
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);
@@ -398,7 +398,7 @@ end rtl;
   await errorMarker(page, 17);
   const tip = await lintTooltip(page);
   assert.match(tip, /^Redeclaration of symbol toggle: the label of the process \(line 12\) is also the name of signal 'toggle' \(line 10\)\.\n\nExplanation: The label 'toggle' of the process at line 12 has the name of the signal 'toggle' \(line 10\)\./);
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.CodeMirror-lint-tooltip .xl-fix')].map((b) => b.textContent)), ["Fix: Rename the label 'toggle' to 'toggle_proc'"]);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.xl-lint-tip .xl-fix')].map((b) => b.textContent)), ["Fix: Rename the label 'toggle' to 'toggle_proc'"]);
   // ---- Check Syntax: failed, in the Errors tab with its fix (in Portuguese too)
   await checkSyntax(page, /Process "Check Syntax" failed \(1 error\(s\), 0 warning\(s\)\)/);
   await page.waitFor(() => document.querySelector('#console-tabs .tab[data-page=errors]').classList.contains('active'));
@@ -409,7 +409,7 @@ end rtl;
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   // ---- applied from the tooltip: the label renamed at the process and after its end; no error, Check Syntax clean
   await lintTooltip(page);
-  await page.click('.CodeMirror-lint-tooltip .xl-fix');
+  await page.click('.xl-lint-tip .xl-fix');
   assert.equal(await ed(page), fixed);
   await noMarkers(page);
   await checkSyntax(page, /Process "Check Syntax" completed successfully\s*$/m);

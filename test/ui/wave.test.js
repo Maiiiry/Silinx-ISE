@@ -215,8 +215,8 @@ Finished circuit initialization process.
   await menuItem(page, 'Go To Source Code');
   await page.waitFor(() => window.Silinx.active?.id !== 'isim', [], { what: 'source opened' });
   assert.equal(await page.eval(() => window.Silinx.active.id), 'file:sim/tb.vhd');
-  await page.waitFor(() => window.Silinx.active.editor?.cm, [], { what: 'editor ready' });
-  await page.waitFor(() => window.Silinx.active.editor.cm.getCursor().line + 1 === 5, [], { what: 'cursor on line 5 (signal q)' });
+  await page.waitFor(() => window.Silinx.active.editor?.view, [], { what: 'editor ready' });
+  await page.waitFor(() => window.Silinx.active.editor.getCursor().line + 1 === 5, [], { what: 'cursor on line 5 (signal q)' });
   assert.doesNotMatch(await page.eval(() => document.querySelector('#console')?.innerText || ''), /error/i);
 });
 

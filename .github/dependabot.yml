@@ -1,6 +1,6 @@
 # Dependabot (#352): newer versions of the open-source software Silinx uses, weekly, in few pull requests.
-#   - npm: the minor and patch updates of codemirror, express, elkjs, esbuild and playwright in one pull
-#     request; @yowasp/yosys (Yosys) never grouped: a pull request of its own, which
+#   - npm: the minor and patch updates of CodeMirror (@codemirror/*, @lezer/*), express, elkjs, esbuild and
+#     playwright in one pull request; @yowasp/yosys (Yosys) never grouped: a pull request of its own, which
 #     .github/workflows/yosys-update.yml labels "yosys update" and measures (the new Yosys against the
 #     base's), and which is never merged on green alone (CLAUDE.md, Integration)
 #   - GitHub Actions: every action of the workflows in one pull request
@@ -20,14 +20,12 @@ updates:
     labels: [dependencies]
     groups:
       npm-minor-patch:
-        patterns: [codemirror, express, elkjs, esbuild, playwright]
+        patterns: ['@codemirror/*', '@lezer/*', express, elkjs, esbuild, playwright]
         update-types: [minor, patch]
-    ignore:
-      # CodeMirror 5 to 6: a rewrite of the editor's integration (#349)
-      - dependency-name: codemirror
-        update-types: [version-update:semver-major]
-      # Express: on 5 since #350, its major updates no longer ignored
-      # elkjs: on 0.12 since #351, no longer ignored
+    # (no update ignored)
+    # CodeMirror: on 6 since #349, its major updates no longer ignored
+    # Express: on 5 since #350, its major updates no longer ignored
+    # elkjs: on 0.12 since #351, no longer ignored
   - package-ecosystem: github-actions
     directory: /
     schedule:

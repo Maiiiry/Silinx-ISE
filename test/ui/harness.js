@@ -642,9 +642,9 @@ export async function startRecordingProxy() {
 // ------------------------------------------------------------------------------------- setup
 /**
  * The npm dependencies (package.json "dependencies") missing from <root>/node_modules. The server
- * serves the editor (CodeMirror), ELK and YoWASP from there: without them every page fails
- * ("Cannot read properties of undefined (reading 'fold')": no CodeMirror), as in a fresh clone or
- * worktree, where Node may still find express in a parent folder's node_modules (#64).
+ * serves the editor (CodeMirror), ELK and YoWASP from there: without them every page fails (the
+ * editor's modules are not found), as in a fresh clone or worktree, where Node may still find
+ * express in a parent folder's node_modules (#64).
  */
 export function missingDependencies(root = ROOT) {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));

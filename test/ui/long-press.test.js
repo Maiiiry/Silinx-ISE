@@ -124,12 +124,12 @@ uiTest('#263 a long press opens the right-click menu of a Design-pane row, its b
   assert.equal(await page.eval(() => document.querySelectorAll('#doc-tabs .tab').length), tabs);
 
   // ---- the HDL editor (its text stays selectable), a Processes row
-  const cmRef = await rightMenu(page, '.doc:not([hidden]) .CodeMirror-lines');
+  const cmRef = await rightMenu(page, '.doc:not([hidden]) .cm-content');
   assert.ok(cmRef.includes('Check Syntax'), cmRef.join(' | '));
-  await press(page, '.doc:not([hidden]) .CodeMirror-lines');
+  await press(page, '.doc:not([hidden]) .cm-content');
   assert.deepEqual(await menuItems(page), cmRef);
   await closeAll(page);
-  assert.notEqual(await page.eval(() => document.querySelector('.doc:not([hidden]) .CodeMirror').style.userSelect), 'none');
+  assert.notEqual(await page.eval(() => document.querySelector('.doc:not([hidden]) .cm-editor').style.userSelect), 'none');
   const procRef = await rightMenu(page, '#procs .row');
   assert.ok(procRef.includes('Run'), procRef.join(' | '));
   await press(page, '#procs .row');

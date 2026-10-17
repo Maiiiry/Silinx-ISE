@@ -33,7 +33,7 @@ uiTest('the app loads without console errors and shows the Start page', E, async
 // state of the UI used to tell whether a menu item did something
 const SIGNATURE = `window.__sig = () => JSON.stringify({
   dlg: document.querySelectorAll('.dlg-overlay').length,
-  cm: document.querySelectorAll('.CodeMirror-dialog').length,
+  cm: document.querySelectorAll('.cm-panel').length,
   docs: window.Silinx.docs.map((d) => d.id).join('|'),
   active: window.Silinx.active?.id || '',
   view: window.Silinx.view,
@@ -47,11 +47,11 @@ const SIGNATURE = `window.__sig = () => JSON.stringify({
 
 async function settle(page) {
   for (let i = 0; i < 8; i++) {
-    const open = await page.eval(() => document.querySelectorAll('.dlg-overlay, .CodeMirror-dialog, .pal-overlay').length);
+    const open = await page.eval(() => document.querySelectorAll('.dlg-overlay, .cm-panel, .pal-overlay').length);
     if (!open) break;
-    await page.eval(() => { const i = document.querySelector('.CodeMirror-dialog input'); if (i && !document.querySelector('.dlg-overlay')) i.focus(); });
+    await page.eval(() => { const i = document.querySelector('.cm-panel input'); if (i && !document.querySelector('.dlg-overlay')) i.focus(); });
     await page.key('Escape');
-    await page.waitFor((n) => document.querySelectorAll('.dlg-overlay, .CodeMirror-dialog, .pal-overlay').length < n, [open], { timeout: 3000 }).catch(() => {});
+    await page.waitFor((n) => document.querySelectorAll('.dlg-overlay, .cm-panel, .pal-overlay').length < n, [open], { timeout: 3000 }).catch(() => {});
   }
   await page.closeMenus();
   await page.waitFor(() => !window.Silinx.busy, [], { timeout: 30000, what: 'no process running' });
@@ -72,7 +72,7 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   await page.waitFor(() => window.SilinxApp.findDoc('summary'));
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.editor);
-  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: 0 }); cm.replaceSelection('-- edited by the menu test\n'); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: 0 }); ed.replaceSelection('-- edited by the menu test\n'); });
   // File ▸ Close Project is tested with the projects; Print needs a diagram (diagram tests)
   const SKIP = new Set(['Close Project']);
   const MENUS = ['Edit', 'File', 'View', 'Project', 'Process', 'Tools', 'Help', 'Window'];
@@ -90,7 +90,7 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
       // Design Summary: from another document
       if (m === 'View' && it.label === 'Design Summary') await page.eval(() => { const d = window.SilinxApp.findDoc('summary'); if (d) window.SilinxApp.closeDoc(d); });
       // (a failure names the item before, whose effect may be in the way)
-      const now = await page.openMenu(m).catch(async (e) => { throw new Error(`menu ${m} for ${name}, after ${log.at(-1) || acted.at(-1) || 'none'}: ${e.message}; overlays: ${await page.eval(() => [...document.querySelectorAll('.dlg-overlay, .pal-overlay, .menu-popup, .CodeMirror-dialog')].map((x) => x.className).join(', '))}`); });
+      const now = await page.openMenu(m).catch(async (e) => { throw new Error(`menu ${m} for ${name}, after ${log.at(-1) || acted.at(-1) || 'none'}: ${e.message}; overlays: ${await page.eval(() => [...document.querySelectorAll('.dlg-overlay, .pal-overlay, .menu-popup, .cm-panel')].map((x) => x.className).join(', '))}`); });
       const cur = now.find((x) => x.label === it.label);
       if (!cur) continue;                         // e.g. the Window list changed
       if (cur.disabled) { disabled.push(name); continue; }
@@ -284,7 +284,7 @@ uiTest('About shows the version and the GitHub link', E, async (page) => {
   assert.equal(rows.length, THIRD_PARTY.length);
   // elkjs 0.12: EPL-2.0 or GPL-3.0-or-later (#351)
   assert.ok(rows.includes(`elkjs|${THIRD_PARTY.find((c) => c.name === 'elkjs').version}|EPL-2.0 OR GPL-3.0-or-later`), rows.join('\n'));
-  assert.ok(rows.some((r) => /^codemirror\|[\d.]+\|MIT$/.test(r)));
+  assert.ok(rows.some((r) => /^@codemirror\/view\|6\.[\d.]+\|MIT$/.test(r)), rows.join('\n'));
   await page.key('Enter');
   await page.waitNoDialog();
   // in Portuguese (#299)

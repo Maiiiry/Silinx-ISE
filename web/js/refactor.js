@@ -6,25 +6,21 @@ import { renameSymbol, symbolAt, badName, kindWord, interfaceUnit, renameInterfa
 import { h, dialog, toast } from './ui.js';
 
 /** Replace [{ line, col, len }] (1-based, of the current text) by `name` in one undoable step. */
-export function applyEdits(cm, edits, name) {
-  const Pos = window.CodeMirror.Pos;
-  const sorted = [...edits].sort((a, b) => b.line - a.line || b.col - a.col);
-  cm.operation(() => {
-    for (const e of sorted) cm.replaceRange(name, Pos(e.line - 1, e.col - 1), Pos(e.line - 1, e.col - 1 + e.len), 'rename');
-  });
+export function applyEdits(editor, edits, name) {
+  editor.replaceRanges(edits.map(e => ({ from: { line: e.line - 1, ch: e.col - 1 }, to: { line: e.line - 1, ch: e.col - 1 + e.len }, text: name })), 'input.rename');
 }
 
 /**
  * Rename the name at the cursor of an editor.
- * ctx: { cm, lang, path, sources: () => [{ path, lang, text }] (the other HDL files of the project),
+ * ctx: { editor (web/js/editor.js), lang, path, sources: () => [{ path, lang, text }] (the other HDL files of the project),
  *        writeSource: async (path, text, edits, name), renameModule: (name) (the project-wide
  *        rename of a module / entity) }
  */
 export async function renameSymbolAtCursor(ctx) {
-  const { cm, lang } = ctx;
+  const { editor, lang } = ctx;
   if (lang !== 'vhdl' && lang !== 'verilog') return;
-  const cur = cm.getCursor();
-  const text = cm.getValue();
+  const cur = editor.getCursor();
+  const text = editor.getValue();
   const at = symbolAt(text, lang, cur.line + 1, cur.ch + 1);
   if (at.error) { toast(at.error, 'info', 4000); return; }
   const { sym } = at;
@@ -43,7 +39,7 @@ export async function renameSymbolAtCursor(ctx) {
   const check = () => {
     const nm = input.value.trim();
     if (nm === sym.name) return null;
-    const r = renameSymbol(cm.getValue(), lang, cur.line + 1, cur.ch + 1, nm);
+    const r = renameSymbol(editor.getValue(), lang, cur.line + 1, cur.ch + 1, nm);
     return r.error || null;
   };
   input.addEventListener('input', () => { err.textContent = input.value.trim() === sym.name ? '' : badName(input.value.trim(), lang) || ''; });
@@ -59,12 +55,12 @@ export async function renameSymbolAtCursor(ctx) {
     buttons: [{ label: 'Rename', primary: true, value: true, validate: () => { const m = check(); err.textContent = m || ''; return !m; } }, { label: 'Cancel', value: null }],
     onOpen: () => setTimeout(() => input.select(), 0),
   });
-  if (!r) { cm.focus(); return; }
+  if (!r) { editor.focus(); return; }
   const name = input.value.trim();
-  if (name === sym.name) { cm.focus(); return; }
-  const res = renameSymbol(cm.getValue(), lang, cur.line + 1, cur.ch + 1, name);
+  if (name === sym.name) { editor.focus(); return; }
+  const res = renameSymbol(editor.getValue(), lang, cur.line + 1, cur.ch + 1, name);
   if (res.error) { toast(res.error, 'error', 5000); return; }
-  applyEdits(cm, res.edits, name);
+  applyEdits(editor, res.edits, name);
   let files = 0;
   if (also?.checked) {
     for (const s of others) {
@@ -72,6 +68,6 @@ export async function renameSymbolAtCursor(ctx) {
       if (o.count) { await ctx.writeSource(s.path, o.text, o.edits, name); files++; }
     }
   }
-  cm.focus();
+  editor.focus();
   toast(files ? `Renamed '${sym.name}' to '${name}': ${res.count} in this file, and in ${files} other ${files === 1 ? 'file' : 'files'}.` : `Renamed '${sym.name}' to '${name}' (${res.count} ${res.count === 1 ? 'place' : 'places'}).`, 'info', 4000);
 }

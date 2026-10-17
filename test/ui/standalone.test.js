@@ -26,10 +26,12 @@ before(async () => {
   const require = createRequire(path.join(ROOT, 'package.json'));
   let modules;
   try {
-    modules = path.dirname(path.dirname(require.resolve('codemirror/package.json')));
+    // (the node_modules folder of the editor's CodeMirror packages)
+    const cm = require.resolve('@codemirror/view');
+    modules = cm.slice(0, cm.lastIndexOf(`${path.sep}node_modules${path.sep}`) + `${path.sep}node_modules`.length);
     require.resolve('esbuild');
     require.resolve('elkjs/package.json');
-  } catch { skip = 'esbuild / codemirror / elkjs not installed (npm install): standalone build test skipped'; return; }
+  } catch { skip = 'esbuild / @codemirror / elkjs not installed (npm install): standalone build test skipped'; return; }
   const root = path.join(env.tmp, 'standalone');
   await fs.mkdir(path.join(root, 'scripts'), { recursive: true });
   for (const f of ['build-standalone.mjs', 'build-info.mjs']) await fs.copyFile(path.join(ROOT, 'scripts', f), path.join(root, 'scripts', f));
@@ -120,7 +122,7 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   // edits are kept across a reload (localStorage)
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
-  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: 0 }); cm.replaceSelection('-- kept in the browser\n'); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: 0 }); ed.replaceSelection('-- kept in the browser\n'); });
   await page.waitFor(() => !window.Silinx.active.tab.classList.contains('dirty'));
   await page.goto(pathToFileURL(html).href);
   await page.waitFor(() => window.Silinx?.project?.name === 'Solo', [], { what: 'reopened after reload' });
@@ -401,7 +403,7 @@ uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in
   await newProject(page, 'Disk', 'stopwatch');
   await page.eval(() => window.SilinxApp.openFile('src/stopwatch.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/stopwatch.vhd' && window.Silinx.active.editor);
-  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: 0 }); cm.replaceSelection('-- kept in the folder\n'); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: 0 }); ed.replaceSelection('-- kept in the folder\n'); });
   await page.waitFor(() => !window.Silinx.active.tab.classList.contains('dirty'));
   let tree = await files();
   assert.ok(tree['Disk/src/stopwatch.vhd'].startsWith('-- kept in the folder\n'));

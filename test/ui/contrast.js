@@ -23,7 +23,7 @@ export const CONTRAST = `window.__lowContrast = (root = document.body, min = 3, 
   };
   const bad = [];
   for (const e of root.querySelectorAll('*')) {
-    if (!e.getClientRects().length || ['SCRIPT', 'STYLE', 'OPTION'].includes(e.tagName) || e.closest('svg,.CodeMirror') || (skip && e.closest(skip))) continue;
+    if (!e.getClientRects().length || ['SCRIPT', 'STYLE', 'OPTION'].includes(e.tagName) || e.closest('svg,.cm-editor') || (skip && e.closest(skip))) continue;
     const field = e.matches('textarea, select, input:not([type]), input[type=text], input[type=number], input[type=search], input[type=email], input[type=password]');
     const own = field ? (e.tagName === 'SELECT' ? e.selectedOptions[0]?.textContent : e.value) || \`(\${e.tagName.toLowerCase()})\`
       : [...e.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim()).map((n) => n.textContent.trim()).join(' ');

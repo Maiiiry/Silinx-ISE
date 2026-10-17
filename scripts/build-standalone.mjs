@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
 import { buildInfo } from './build-info.mjs';
 import { VERSION } from '../core/version.js';
+import { THIRD_PARTY } from '../core/third-party.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'dist', 'Silinx-ISE.html');
@@ -67,14 +68,16 @@ let html = rd('web/index.html');
 const safeJs = js => js.replace(/<\/script/gi, '<\\/script');
 const safeCss = css => css.replace(/<\/style/gi, '<\\/style');
 html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (m, href) => {
-  const file = href.startsWith('/vendor/codemirror/') ? `node_modules/codemirror/${href.slice(19)}` : `web${href}`;
+  const file = `web${href}`;
   return fs.existsSync(path.join(ROOT, file)) ? `<style>${safeCss(rd(file))}</style>` : '';
 });
 html = html.replace(/<script src="([^"]+)"><\/script>/g, (m, src) => {
-  const file = src.startsWith('/vendor/codemirror/') ? `node_modules/codemirror/${src.slice(19)}`
-    : src.startsWith('/vendor/elk/') ? `node_modules/elkjs/lib/${src.slice(12)}` : `web${src}`;
+  const file = src.startsWith('/vendor/elk/') ? `node_modules/elkjs/lib/${src.slice(12)}` : `web${src}`;
   return `<script>${safeJs(rd(file))}</script>`;
 });
+// the editor's modules are in the bundle (esbuild resolves them in node_modules): no import map
+html = html.replace(/<!-- the editor \(CodeMirror 6[\s\S]*?<script type="importmap">[\s\S]*?<\/script>\n/, '');
+if (html.includes('importmap')) throw new Error('web/index.html: the import map was not removed');
 // replacer functions: the inserted code may contain `$'`, `$&`… which a replacement string would expand
 html = html.replace('<script type="module" src="/js/app.js"></script>',
   () => `<script>window.SILINX_STANDALONE = true;\nwindow.SILINX_FLOW_WORKER_SRC = ${safeJs(JSON.stringify(workerJs))};</script>\n<script type="module">${safeJs(appJs)}</script>`);
@@ -84,8 +87,11 @@ if (!html.includes(safeJs(appJs))) throw new Error('the app bundle was not inser
 // from THIRD-PARTY-NOTICES.md), kept in the page as plain text
 {
   const notices = fs.readFileSync(path.join(ROOT, 'THIRD-PARTY-NOTICES.md'), 'utf8');
-  const parts = [...notices.matchAll(/^## (codemirror|elkjs) [^\n]*\n[\s\S]*?\n```\n/gm)].map(m => m[0]);
-  if (parts.length !== 2) throw new Error('THIRD-PARTY-NOTICES.md: the CodeMirror / elkjs sections were not found (run node scripts/third-party.mjs)');
+  // (the npm components marked standalone: the editor's modules and elkjs)
+  const embedded = THIRD_PARTY.filter(c => c.standalone && !c.ported);
+  const sections = new Map([...notices.matchAll(/^## (\S+) (\S+) [^\n]*\n[\s\S]*?\n```\n/gm)].map(m => [`${m[1]} ${m[2]}`, m[0]]));
+  const parts = embedded.map(c => sections.get(`${c.name} ${c.version}`));
+  if (!embedded.length || parts.some(p => !p)) throw new Error('THIRD-PARTY-NOTICES.md: the sections of the embedded components were not found (run node scripts/third-party.mjs)');
   const text = `${fs.readFileSync(path.join(ROOT, 'NOTICE'), 'utf8')}\n${fs.readFileSync(path.join(ROOT, 'LICENSE'), 'utf8')}\n# Embedded components\n\n${parts.join('\n')}`;
   html = html.replace('</head>', () => `<script type="text/plain" id="silinx-notices">\n${safeJs(text)}\n</script>\n</head>`);
 }

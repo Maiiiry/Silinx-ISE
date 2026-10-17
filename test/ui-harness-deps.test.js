@@ -1,6 +1,6 @@
 // The UI harness's check of the npm dependencies (test/ui/harness.js missingDependencies): without
 // node_modules (a fresh clone or worktree) the UI tests fail with "run npm ci", not with the page's
-// "Cannot read properties of undefined (reading 'fold')" (no CodeMirror) (#64).
+// errors (no CodeMirror: "Cannot read properties of undefined (reading 'fold')" with CodeMirror 5, #64).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -32,7 +32,10 @@ test('setupUi fails with "run npm ci" when the dependencies are missing (before 
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-deps-'));
   try {
     fs.copyFileSync(path.join(ROOT, 'package.json'), path.join(root, 'package.json'));
-    await assert.rejects(setupUi({ root }), { message: dependenciesMessage(['@yowasp/yosys', 'codemirror', 'elkjs', 'express']) });
+    // (all of them: the editor's CodeMirror packages, @yowasp/yosys, elkjs, express)
+    const deps = Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).dependencies);
+    assert.ok(['@codemirror/view', '@yowasp/yosys', 'elkjs', 'express'].every(d => deps.includes(d)), deps.join(', '));
+    await assert.rejects(setupUi({ root }), { message: dependenciesMessage(deps) });
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

@@ -205,14 +205,22 @@ test('yosys update: Dependabot weekly, npm grouped but for Yosys, the majors wit
     assert.match(part, /labels: \[dependencies\]/);
   }
   // one group of minor / patch updates, without Yosys (never grouped: a pull request of its own)
-  const patterns = /patterns: \[([^\]]+)\]/.exec(npm)[1].split(',').map(s => s.trim());
+  // (a pattern may end in '*': CodeMirror's packages, @codemirror/* and @lezer/*)
+  const patterns = /patterns: \[([^\]]+)\]/.exec(npm)[1].split(',').map(s => s.trim().replace(/^'(.*)'$/, '$1'));
+  const matches = (p, n) => (p.endsWith('*') ? n.startsWith(p.slice(0, -1)) : n === p);
   const pkg = JSON.parse(read('package.json'));
-  assert.deepEqual(patterns.sort(), Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(n => n !== PACKAGE).sort());
+  const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).filter(n => n !== PACKAGE);
+  for (const n of deps) assert.ok(patterns.some(p => matches(p, n)), `${n} in the group`);
+  for (const p of patterns) assert.ok(deps.some(n => matches(p, n)), `the pattern ${p} names a dependency`);
+  assert.ok(patterns.includes('@codemirror/*') && patterns.includes('@lezer/*'));
   assert.ok(!npm.includes('yowasp'));
   assert.match(npm, /update-types: \[minor, patch\]/);
   assert.match(actions, /patterns: \['\*'\]/);
   // the ignored updates, each with its issue
-  assert.match(npm, /# CodeMirror 5 to 6.*\(#349\)\n\s+- dependency-name: codemirror\n\s+update-types: \[version-update:semver-major\]/);
+  // CodeMirror 6 since #349: its majors are no longer ignored
+  assert.match(npm, /# CodeMirror: on 6 since #349/);
+  assert.ok(!/dependency-name: (codemirror|@codemirror)/.test(npm));
+  assert.ok(!/^\s+ignore:/m.test(npm));
   // Express 5 since #350: its majors are no longer ignored
   assert.match(npm, /# Express: on 5 since #350/);
   assert.ok(!/dependency-name: express/.test(npm));

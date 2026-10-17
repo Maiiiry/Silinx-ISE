@@ -641,7 +641,7 @@ export function t(text) {
 }
 
 // ---------------------------------------------------------------- DOM translation
-const SKIP = '.CodeMirror, .console-page, pre, code, textarea, [data-no-i18n], #hier .lbl, #libs-page .lbl, svg text, .sch-svg, .xl-hover-tip, .CodeMirror-hints';
+const SKIP = '.cm-editor, .console-page, pre, code, textarea, [data-no-i18n], #hier .lbl, #libs-page .lbl, svg text, .sch-svg, .xl-hover-tip';
 const ATTRS = ['title', 'placeholder', 'aria-label'];
 const textState = new WeakMap();   // text node -> { orig, last }
 const attrState = new WeakMap();   // element -> { [attr]: { orig, last } }

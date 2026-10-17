@@ -62,7 +62,7 @@ uiTest('editor: an edit made while the file is being saved is saved too, and sav
       try { return await orig(u, o); } finally { window.__inFlight--; }
     };
   });
-  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: cm.getLine(0).length }); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: ed.getValue().split('\n')[0].length }); });
   await page.type(' -- one');
   await page.key('s', { modifiers: 2 });
   await page.waitFor(() => window.__inFlight === 1, [], { what: 'the first save under way' });
@@ -84,7 +84,7 @@ uiTest('editor: open from the hierarchy, edit, autosave, Ctrl+S, undo and live e
   assert.equal(await editorText(page, 'src/top.vhd'), TOP);
   assert.match(await page.eval(() => document.getElementById('title-text').textContent), /EdPj - \[top\.vhd\]/);
   // type at the end of line 1 (a comment): the tab is marked modified, then saved automatically
-  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: cm.getLine(0).length }); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: ed.getValue().split('\n')[0].length }); });
   await page.type(' -- autosaved');
   assert.equal(await page.eval(() => window.Silinx.active.tab.classList.contains('dirty')), true);
   await page.waitFor(() => !window.Silinx.active.tab.classList.contains('dirty'), [], { what: 'autosave' });
@@ -92,7 +92,7 @@ uiTest('editor: open from the hierarchy, edit, autosave, Ctrl+S, undo and live e
   await page.waitFor(() => document.getElementById('status-text').textContent === 'Saved src/top.vhd', [], { what: 'status Saved' });
   // Ctrl+S saves at once (before the autosave delay)
   // the cursor stays where the user typed (the delayed jump to the entity line must not move it)
-  assert.equal(await page.eval(() => { const c = window.Silinx.active.editor.cm.getCursor(); return `${c.line}:${c.ch}`; }), '0:26');
+  assert.equal(await page.eval(() => { const c = window.Silinx.active.editor.getCursor(); return `${c.line}:${c.ch}`; }), '0:26');
   await page.type(' now');
   await page.key('s', { modifiers: 2 });
   await page.waitFor(() => !window.Silinx.active.tab.classList.contains('dirty'), [], { timeout: 500, what: 'saved by Ctrl+S' });
@@ -103,14 +103,14 @@ uiTest('editor: open from the hierarchy, edit, autosave, Ctrl+S, undo and live e
   await page.waitFor((t) => window.Silinx.active.editor.getValue() === t, [TOP]);
   await page.waitFor(async (t) => (await (await fetch('/api/projects/EdPj/file?path=src/top.vhd')).text()) === t, [TOP], { what: 'undo saved' });
   // live check while typing: an unknown signal is marked in the gutter
-  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 16, ch: 0 }); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 16, ch: 0 }); });
   await page.type('  led <= ;\n');
-  await page.waitForSelector('.doc:not([hidden]) .CodeMirror-lint-marker-error', { timeout: 5000 });
-  // the Find button opens the CodeMirror search field
+  await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-error', { timeout: 5000 });
+  // the Find button opens the editor's search panel
   await page.click('.doc:not([hidden]) .editor-bar .tb-btn[title="Find (Ctrl+F)"]');
-  await page.waitForSelector('.CodeMirror-dialog input');
+  await page.waitForSelector('.cm-panel.cm-search input');
   await page.key('Escape');
-  await page.waitFor(() => !document.querySelector('.CodeMirror-dialog'));
+  await page.waitFor(() => !document.querySelector('.cm-panel.cm-search'));
   // language templates menu of the editor bar inserts at the cursor
   await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Templates ▾' });
   await page.waitForSelector('body > .menu-popup');
@@ -124,7 +124,7 @@ uiTest('Check Syntax: errors in the Errors tab with file and line, click jumps t
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
   // remove the ';' of "end process" (line 16)
-  await page.eval(() => { const ed = window.Silinx.active.editor; ed.cm.setValue(ed.getValue().replace('end process;', 'end process')); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace('end process;', 'end process')); });
   await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
   await page.waitConsole(/Process "Check Syntax" failed \(1 error\(s\)/);
   await page.waitFor(() => document.querySelector('#console-tabs .tab[data-page=errors]').classList.contains('active'));
@@ -132,15 +132,15 @@ uiTest('Check Syntax: errors in the Errors tab with file and line, click jumps t
   const diag = await page.eval(() => document.querySelector('#console-errors .diag').textContent);
   assert.match(diag, /ERROR:HDLCompiler - "src\/top\.vhd" Line 1[67]: /);
   // the editor marks it too, and clicking the message moves the cursor to the line
-  await page.waitForSelector('.doc:not([hidden]) .CodeMirror-lint-marker-error');
-  await page.eval(() => window.Silinx.active.editor.cm.setCursor({ line: 0, ch: 0 }));
+  await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-error');
+  await page.eval(() => window.Silinx.active.editor.setCursor({ line: 0, ch: 0 }));
   await page.click('#console-errors .diag');
   await page.waitFor(() => /^Ln 1[67]/.test(document.getElementById('status-pos').textContent));
   // the Warnings tab and the Console tab
   await page.click('#console-tabs .tab[data-page=warnings]');
   await page.waitFor(() => !document.getElementById('console-warnings').hidden);
   // fix it; the Check Syntax process (Processes panel, double-click) succeeds and clears the errors
-  await page.eval(() => { const ed = window.Silinx.active.editor; ed.cm.setValue(ed.getValue().replace('end process\n', 'end process;\n')); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace('end process\n', 'end process;\n')); });
   await page.treeRow('#hier', 'top');
   await page.treeRow('#procs', 'Check Syntax', { dbl: true, exact: true });
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
@@ -512,4 +512,85 @@ uiTest('#309 a signal with two drivers: ERROR:Xst:528 Multi-source in Check Synt
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
   await page.waitFor((b) => /Process "Check Syntax" failed|Launching ISim/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the simulation' });
   assert.doesNotMatch((await page.consoleText()).slice(before), /Launching ISim/);
+});
+
+// the editor's Find / Go to Line: Ctrl+F, Ctrl+G (Cmd+F on a Mac, where the browser runs the editor's Mac key map)
+const MOD = { modifiers: process.platform === 'darwin' ? 4 : 2 };
+uiTest('the HDL editor (CodeMirror 6, #349): completion and templates, search and go to line in Portuguese, folding, diagnostics shown without an edit', E, async (page) => {
+  await project('CmPj');
+  await page.openProject('CmPj');
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
+  const ed = (fn, ...a) => page.eval(fn, ...a);
+  const options = () => ed(() => [...document.querySelectorAll('.cm-tooltip-autocomplete li')].map((li) => [li.querySelector('.xl-hint-kind')?.textContent, li.querySelector('.cm-completionLabel')?.textContent, li.querySelector('.cm-completionDetail')?.textContent || '']));
+
+  // ---- completion while typing, from the second letter: the port first (P), its type as the detail
+  await ed(() => { const e = window.Silinx.active.editor; e.focus(); e.setCursor({ line: 12, ch: 0 }); e.replaceSelection('\n'); e.setCursor({ line: 12, ch: 0 }); });
+  await page.type('  l');
+  assert.equal(await ed(() => !!document.querySelector('.cm-tooltip-autocomplete')), false, 'no list after one letter');
+  await page.type('e');
+  await page.waitFor(() => !!document.querySelector('.cm-tooltip-autocomplete li'), [], { what: 'the completion list' });
+  assert.deepEqual((await options())[0], ['P', 'led', 'out std_logic_vector(3 downto 0)']);
+  // (CodeMirror takes no Enter in the first 75 ms of a list: as typed by a person)
+  await new Promise((r) => setTimeout(r, 150));
+  await page.key('Enter');
+  assert.equal(await ed(() => window.Silinx.active.editor.getValue().split('\n')[12]), '  led');
+  // ---- a language template: its text indented as the line, the cursor where its $0 was
+  await ed(() => { const e = window.Silinx.active.editor; e.setCursor({ line: 12, ch: 5 }); e.replaceSelection('\n'); });
+  await page.type('  proce');
+  await page.waitFor(() => document.querySelectorAll('.cm-tooltip-autocomplete li').length >= 3, [], { what: 'the templates' });
+  const list = await options();
+  assert.deepEqual(list.map((o) => o[1]), ['procedure', 'process', 'process (clocked, async reset)', 'process (clocked, sync reset)', 'process (combinational)']);
+  assert.deepEqual(list.map((o) => o[0]), ['k', 'k', '❏', '❏', '❏']);
+  await new Promise((r) => setTimeout(r, 150));
+  for (let i = 0; i < 4; i++) await page.key('ArrowDown');
+  await page.key('Enter');
+  assert.deepEqual(await ed(() => window.Silinx.active.editor.getValue().split('\n').slice(13, 17)), ['  process (all)', '  begin', '    ', '  end process;']);
+  assert.deepEqual(await ed(() => window.Silinx.active.editor.getCursor()), { line: 15, ch: 4 });
+  // one Undo removes the template
+  await page.key('z', MOD);
+  assert.equal(await ed(() => window.Silinx.active.editor.getValue().split('\n')[13]), '  proce');
+  await ed((t) => window.Silinx.active.editor.setValue(t), TOP);
+
+  // ---- Find and Go to Line in Portuguese (the editor's own texts follow the language)
+  await ed(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+  await ed(() => window.Silinx.active.editor.focus());
+  await page.key('f', MOD);
+  await page.waitForSelector('.doc:not([hidden]) .cm-panel.cm-search');
+  assert.deepEqual(await ed(() => { const p = document.querySelector('.doc:not([hidden]) .cm-search'); return [p.querySelector('input[name=search]').placeholder, ...[...p.querySelectorAll('button')].map((b) => b.textContent)]; }),
+    ['Procurar', 'seguinte', 'anterior', 'todos', 'substituir', 'substituir todos', '×']);
+  await page.type('rising_edge');
+  await page.key('End');   // (the panel takes its query on a key's release, as typed)
+  await page.key('Enter');
+  assert.deepEqual(await ed(() => window.Silinx.active.editor.getCursor()), { line: 14, ch: 18 });
+  await page.key('Escape');
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .cm-search'), [], { what: 'the search closed' });
+  await ed(() => window.Silinx.active.editor.exec('jumpToLine'));
+  await page.waitForSelector('.doc:not([hidden]) .cm-goto-line input[name=line]');
+  assert.match(await ed(() => document.querySelector('.doc:not([hidden]) .cm-goto-line').textContent), /Ir para a linha/);
+  await ed(() => document.querySelector('.doc:not([hidden]) .cm-goto-line input[name=line]').select());
+  await page.type('17');
+  await page.key('End');
+  await page.key('Enter');
+  assert.equal(await ed(() => window.Silinx.active.editor.getCursor().line), 16);
+  await ed(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+
+  // ---- folding by indentation: the process folds to its 'end process;', unfolds again
+  await page.waitForSelector('.doc:not([hidden]) .cm-foldGutter span[title="Fold line"]');
+  await ed(() => { const e = window.Silinx.active.editor; e.focus(); e.setCursor({ line: 13, ch: 2 }); });
+  await page.key('q', { modifiers: 2 });
+  await page.waitForSelector('.doc:not([hidden]) .cm-foldPlaceholder');
+  assert.equal(await ed(() => [...document.querySelectorAll('.doc:not([hidden]) .cm-line')].some((l) => l.textContent.startsWith('    if rising_edge'))), false, 'the process body folded');
+  await page.click('.doc:not([hidden]) .cm-foldPlaceholder');
+  await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .cm-line')].some((l) => l.textContent.startsWith('    if rising_edge')), [], { what: 'unfolded' });
+  assert.equal(await ed(() => window.Silinx.active.editor.getValue()), TOP);
+
+  // ---- diagnostics given by the app without an edit of the text: shown at once, and cleared
+  await page.waitFor(() => window.Silinx.active.editor.diagnostics().length === 0, [], { what: 'no diagnostic' });
+  await ed(() => window.Silinx.active.editor.setDiagnostics([{ line: 3, col: 8, message: 'a test warning', severity: 'warning' }]));
+  assert.deepEqual(await ed(() => window.Silinx.active.editor.diagnostics()), [{ line: 3, severity: 'warning', message: 'a test warning' }]);
+  await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-warning');
+  await ed(() => window.Silinx.active.editor.setDiagnostics([]));
+  assert.deepEqual(await ed(() => window.Silinx.active.editor.diagnostics()), []);
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .cm-lint-marker'), [], { what: 'the marker gone' });
 });

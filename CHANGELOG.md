@@ -14,12 +14,26 @@ In short:
   six IWLS'05 OpenCores cores.
 - **A manual clock in the emulator:** a design clocked by a push button (its clock port on a button in the UCF)
   works in the board emulator: the flip-flops change only when the button is pressed.
+- **The HDL editor on CodeMirror 6:** the same editor (highlighting, completion and templates, the live errors with
+  their quick fixes, Rename Symbol, folding), on the maintained version of CodeMirror; its Find and Go to Line in
+  Portuguese too.
 
 In detail:
 
 - **ONBOARDING.md:** a guide for a new developer or Claude Code session: the setup, how several
   sessions work on the repository together, a map of the code, the product's rules and the lessons
   learnt; CLAUDE.md points to it, and the documentation test checks its paths and links (and CLAUDE.md's).
+- **CodeMirror 5 to 6 (#349):** web/js/editor.js on CodeMirror 6 (@codemirror/state, view, language, commands,
+  search, autocomplete, lint, and the legacy VHDL / Verilog modes); the editor's own API (`getCursor`, `setCursor`,
+  `replaceRanges`, `diagnostics`, `lintNow`… in positions { line, ch }) for app.js, refactor.js and the UI tests, which
+  no longer reach into CodeMirror. Its modules come from node_modules through an import map in web/index.html: the
+  server serves those packages only (server/import-map.js), the standalone edition bundles them and the
+  third-party notices mark them as embedded there. The lint tooltip, its quick fixes and the hover info are the
+  editor's own as before; diagnostics given by the app are shown at once, also without an edit of the text
+  (CodeMirror 6 lints on edits only), and the lint parses the text it marks (a lint right after a quick fix
+  marked the error just fixed). Find, Replace, Go to Line and folding have their Portuguese texts
+  (web/js/i18n-editor.js) and follow a change of language. Dependabot no longer ignores CodeMirror's major
+  versions; `@codemirror/*` and `@lezer/*` are in the group of minor / patch updates.
 - **i18n: a duplicate key (#362):** `'Test bench name:'` was written twice in web/js/i18n.js (the same translation),
   which esbuild warned of when building the standalone edition; `test/web-i18n.test.js` now rejects a key written
   twice in any of the web/js/i18n*.js dictionaries.
