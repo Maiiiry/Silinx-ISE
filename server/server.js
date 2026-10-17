@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import * as P from './projects.js';
 import { orderExamples } from '../core/examples.js';
+import { importMapPackages } from './import-map.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -35,7 +36,10 @@ export async function createApp({ host = '127.0.0.1' } = {}) {
   app.use('/', express.static(path.join(ROOT, 'web')));
   app.use('/core', express.static(path.join(ROOT, 'core')));
   app.use('/vendor/elk', express.static(path.join(ROOT, 'node_modules/elkjs/lib')));
-  app.use('/vendor/codemirror', express.static(path.join(ROOT, 'node_modules/codemirror')));
+  // the editor's ES modules (CodeMirror 6): the packages the import map of web/index.html names, only
+  for (const pkg of importMapPackages()) {
+    app.use(`/vendor/npm/${pkg}`, express.static(path.join(ROOT, 'node_modules', pkg)));
+  }
   // Yosys compiled to WebAssembly (YoWASP): the open synthesis runs in the browser (web/js/yosys-worker.js)
   app.use('/vendor/yowasp-yosys', express.static(path.join(ROOT, 'node_modules/@yowasp/yosys')));
 

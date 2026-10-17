@@ -342,13 +342,13 @@ html[data-ui="modern"] .editor-bar, html[data-ui="modern"] .doc-toolbar { min-he
 html[data-ui="modern"] .editor-bar .path { color: var(--m-muted); }
 html[data-ui="modern"] .editor-bar .gen-banner { border-radius: 6px; }
 html[data-ui="modern"] .editor-bar .gen-banner a, html[data-ui="modern"] .rtl-crumbs a { color: var(--m-accent); }
-html[data-ui="modern"] .xl-editor .CodeMirror-gutters { background: var(--m-surface); border-right: 1px solid var(--m-border); }
-html[data-ui="modern"] .xl-editor .CodeMirror-linenumber { color: var(--m-muted); opacity: .8; }
-html[data-ui="modern"] .xl-editor .CodeMirror-activeline-background { background: var(--m-hover); }
+html[data-ui="modern"] .xl-editor .cm-gutters { background: var(--m-surface); border-right: 1px solid var(--m-border); color: var(--m-muted); }
+html[data-ui="modern"] .xl-editor .cm-lineNumbers .cm-gutterElement { opacity: .8; }
+html[data-ui="modern"] .xl-editor .cm-activeLine, html[data-ui="modern"] .xl-editor .cm-activeLineGutter { background: var(--m-hover); }
 html[data-ui="modern"] .xl-hover-tip { background: var(--m-surface); color: var(--m-fg); border: 1px solid var(--m-border); border-radius: 8px; box-shadow: var(--m-shadow-lg); padding: 6px 10px; }
-html[data-ui="modern"] .CodeMirror-hints { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: 8px; box-shadow: var(--m-shadow-lg); padding: 4px; }
-html[data-ui="modern"] .CodeMirror-hint { color: var(--m-fg); border-radius: 5px; }
-html[data-ui="modern"] li.CodeMirror-hint-active { background: var(--m-accent-soft); color: var(--m-fg); }
+html[data-ui="modern"] .xl-editor .cm-tooltip.cm-tooltip-autocomplete { background: var(--m-surface); border: 1px solid var(--m-border); border-radius: 8px; box-shadow: var(--m-shadow-lg); padding: 4px; }
+html[data-ui="modern"] .xl-editor .cm-tooltip-autocomplete > ul > li { color: var(--m-fg); border-radius: 5px; }
+html[data-ui="modern"] .xl-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--m-accent-soft); color: var(--m-fg); }
 
 /* ISim: the waveform stays black (as in ISim); the rest follows the interface */
 html[data-ui="modern"] { --wave-names-bg: var(--m-surface); --wave-head-1: var(--m-surface-2); --wave-head-2: var(--m-surface-2); --wave-ruler-fg: var(--m-fg); --wave-ruler-tick: var(--m-muted); }
@@ -420,21 +420,26 @@ html[data-ui="modern"] .sch-view .sch-tip .m { color: var(--m-muted); }
 html[data-ui="modern"] .sch-view .sch-tip hr { border-color: var(--m-border); }
 
 /* ------------------------------------------------------------------ dark theme */
-html[data-ui="modern"][data-theme="dark"] .CodeMirror { background: var(--m-surface); color: #d6dae0; }
-html[data-ui="modern"][data-theme="dark"] .CodeMirror-cursor { border-left-color: #e4e7eb; }
-html[data-ui="modern"][data-theme="dark"] .CodeMirror-selected, html[data-ui="modern"][data-theme="dark"] .CodeMirror-focused .CodeMirror-selected { background: rgba(91, 141, 239, .28); }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-keyword { color: #c792ea; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-builtin, html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-variable-3, html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-type { color: #4fc1c9; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-atom, html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-number { color: #f4a46a; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-string { color: #a5d6a7; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-comment { color: #7d8794; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-meta { color: #f07dc4; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-def { color: #82aaff; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-variable-2 { color: #e5c07b; }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-matchhighlight { background: rgba(255, 255, 255, .08); }
-html[data-ui="modern"][data-theme="dark"] .xl-editor .CodeMirror-matchingbracket { background: rgba(76, 192, 107, .2); outline-color: #4cc06b; }
+html[data-ui="modern"][data-theme="dark"] .editor-host .cm-editor { background: var(--m-surface); color: #d6dae0; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-cursor { border-left-color: #e4e7eb; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-selectionBackground, html[data-ui="modern"][data-theme="dark"] .xl-editor.cm-focused .cm-selectionBackground { background: rgba(91, 141, 239, .28); }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-keyword { color: #c792ea; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-builtin, html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-type { color: #4fc1c9; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-atom, html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-number { color: #f4a46a; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-string { color: #a5d6a7; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-comment { color: #7d8794; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-meta { color: #f07dc4; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-def { color: #82aaff; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .tok-variable2 { color: #e5c07b; }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-selectionMatch { background: rgba(255, 255, 255, .08); }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-matchingBracket { background: rgba(76, 192, 107, .2); outline-color: #4cc06b; }
 html[data-ui="modern"][data-theme="dark"] .xl-flash-line { background: rgba(227, 179, 65, .3) !important; }
-html[data-ui="modern"][data-theme="dark"] .CodeMirror-dialog { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-panels { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-panels input, html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-panels button { background: var(--m-surface); color: var(--m-fg); border-color: var(--m-border); }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-gutters { background: var(--m-surface); }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-foldPlaceholder { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); }
+html[data-ui="modern"][data-theme="dark"] .xl-editor .cm-tooltip { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); }
+html[data-ui="modern"][data-theme="dark"] .xl-lint-tip { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border); }
 html[data-ui="modern"][data-theme="dark"] .editor-bar .gen-banner { background: rgba(227, 179, 65, .14); border-color: rgba(227, 179, 65, .4); color: #f2d58a; }
 html[data-ui="modern"][data-theme="dark"] .gen-banner.out-of-sync { background: rgba(240, 113, 107, .14); border-color: rgba(240, 113, 107, .45); color: #ffb4ae; }
 html[data-ui="modern"][data-theme="dark"] .msg-warn .msg-icon { color: #000; }

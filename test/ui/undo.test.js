@@ -125,7 +125,7 @@ uiTest('Edit ▸ Undo / Redo reach every editor: text, truth table, pin planner 
   await page.waitFor(() => window.Silinx.project.files.some((f) => f.path === 'src/inv_r.vhd'));
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
-  await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.focus(); cm.setCursor({ line: 0, ch: 0 }); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: 0 }); });
   await page.type('-- x\n');
   assert.ok((await editMenu(page)).includes('Undo'), 'the editor\'s Undo first');
   await page.menu('Edit', 'Undo');

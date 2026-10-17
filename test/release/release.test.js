@@ -67,7 +67,7 @@ function packages(dir) {
 test('release zip: the app with its production dependencies only, Yosys\'s WebAssembly, the licence and notices', { skip: SKIP }, async () => {
   for (const f of ['LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md', 'README.md', 'CHANGELOG.md', 'package.json', 'package-lock.json',
     'bin/silinx-ise.js', 'server/server.js', 'web/index.html', 'core/version.js', 'examples/blinky',
-    'node_modules/express', 'node_modules/codemirror', 'node_modules/elkjs', 'node_modules/@yowasp/yosys/gen/bundle.js']) assert.ok(exists(f), `${f} in the zip`);
+    'node_modules/express', 'node_modules/@codemirror/view', 'node_modules/@codemirror/legacy-modes', 'node_modules/elkjs', 'node_modules/@yowasp/yosys/gen/bundle.js']) assert.ok(exists(f), `${f} in the zip`);
   const wasm = fs.readdirSync(path.join(APP, 'node_modules/@yowasp/yosys/gen')).filter((f) => f.endsWith('.wasm'));
   const wasmMB = wasm.reduce((n, f) => n + fs.statSync(path.join(APP, 'node_modules/@yowasp/yosys/gen', f)).size, 0) / 1048576;
   assert.ok(wasm.includes('yosys.core.wasm') && wasmMB > 10, `Yosys's WebAssembly: ${wasm} (${wasmMB.toFixed(1)} MB)`);

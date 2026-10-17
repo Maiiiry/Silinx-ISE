@@ -62,14 +62,14 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
 
   // ---- the editor marks line 10 with a warning; its tooltip has the message and the help
   const tooltip = async () => {
-    await page.waitForSelector('.doc:not([hidden]) .CodeMirror-lint-marker-warning', { timeout: 8000 });
-    await page.eval(() => document.querySelectorAll('.CodeMirror-lint-tooltip').forEach((t) => t.remove()));
+    await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-warning', { timeout: 8000 });
+    await page.eval(() => document.querySelectorAll('.xl-lint-tip').forEach((t) => t.remove()));
     // (off the marker first: a marker redrawn under a mouse that does not move gets no mouseover)
     await page.hover('#menubar');
-    await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-warning');
-    return page.waitFor(() => document.querySelector('.CodeMirror-lint-tooltip')?.textContent, [], { what: 'lint tooltip' });
+    await page.hover('.doc:not([hidden]) .cm-lint-marker-warning');
+    return page.waitFor(() => document.querySelector('.xl-lint-tip')?.textContent, [], { what: 'lint tooltip' });
   };
-  await page.waitFor(() => !!window.Silinx.active.editor.cm.lineInfo(9).gutterMarkers?.['CodeMirror-lint-markers'], [], { what: 'marker on line 10' });
+  await page.waitFor(() => window.Silinx.active.editor.diagnostics().some((d) => d.line === 10), [], { what: 'marker on line 10' });
   let tip = await tooltip();
   assert.match(tip, /Found 1-bit latch for signal <q>/);
   assert.match(tip, /Explanation: A latch is inferred for 'q'/);
@@ -84,10 +84,8 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   assert.match(await page.eval(() => document.querySelector('#console-warnings .diag .diag-more').textContent), /^▾ Explicação e correção$/);
   // the ISE-style message itself is not translated
   assert.match(await page.eval(() => document.querySelector('#console-warnings .diag').textContent), /Found 1-bit latch for signal <q>/);
-  // the lint redraws the marker: the tooltip of the new one (the old one may still be there a moment)
-  await page.eval(() => document.querySelector('.doc:not([hidden]) .CodeMirror-lint-marker-warning')?.setAttribute('data-old', ''));
-  await page.eval(() => window.Silinx.active.editor.cm.performLint());
-  await page.waitFor(() => !!document.querySelector('.doc:not([hidden]) .CodeMirror-lint-marker-warning:not([data-old])'), [], { what: 'the marker redrawn' });
+  // the lint again: the tooltip of its marker
+  await page.eval(() => window.Silinx.active.editor.lintNow());
   tip = await tooltip();
   assert.match(tip, /Found 1-bit latch for signal <q>/);
   assert.match(tip, /Explicação: É inferido um latch \(trinco\) para 'q'/);
@@ -95,12 +93,12 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   await setLang('en');
 
   // ---- a suppression comment on the line of the warning
-  await page.eval(() => { const ed = window.Silinx.active.editor; ed.cm.setValue(ed.getValue().replace("if en = '1' then", "if en = '1' then  -- silinx: ignore latch")); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace("if en = '1' then", "if en = '1' then  -- silinx: ignore latch")); });
   await checkSyntax(/Process "Check Syntax" completed successfully\s*$/m);
   assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '');
 
   // ---- Edit ▸ Design Checks (Lint Warnings) off: no warning; on again: the warning is back
-  await page.eval(() => { const ed = window.Silinx.active.editor; ed.cm.setValue(ed.getValue().replace('  -- silinx: ignore latch', '')); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace('  -- silinx: ignore latch', '')); });
   await page.menu('Edit', 'Design Checks (Lint Warnings)');
   assert.equal(await page.eval(() => localStorage.getItem('silinx.lint')), 'off');
   await checkSyntax(/Process "Check Syntax" completed successfully\s*$/m);
@@ -117,7 +115,7 @@ uiTest('latch warning with its explanation in the Warnings tab and the editor to
   await checkSyntax(/completed successfully with 1 warning\(s\)/);
 
   // ---- a language error the elaborator accepts but ISE rejects: an output read (VHDL-93)
-  await page.eval(() => { const ed = window.Silinx.active.editor; ed.cm.setValue(ed.getValue().replace('      q <= d;\n    end if;', '      q <= d;\n    else\n      q <= not q;\n    end if;')); });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace('      q <= d;\n    end if;', '      q <= d;\n    else\n      q <= not q;\n    end if;')); });
   await checkSyntax(/Process "Check Syntax" failed \(1 error\(s\)/);
   await page.waitFor(() => document.querySelector('#console-tabs .tab[data-page=errors]').classList.contains('active'));
   assert.match(await page.eval(() => document.querySelector('#console-errors .diag').textContent), /^ERROR:HDLCompiler - "src\/top\.vhd" Line 13: Object <q> of mode OUT can not be read\./);

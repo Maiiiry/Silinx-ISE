@@ -41,6 +41,16 @@ const FIX_PT = [
 ];
 const fixPt = s => { for (const [re, r] of FIX_PT) if (re.test(s)) return s.replace(re, r); return s; };
 
+// CodeMirror's own texts (its search and go-to-line panels, the folding), given to the editor as its
+// phrases (web/js/editor.js): not merged into the dictionary, words such as 'all' or 'next' being
+// translated there only
+export const EDITOR_PHRASES_PT = {
+  'Find': 'Procurar', 'Replace': 'Substituir', 'next': 'seguinte', 'previous': 'anterior', 'all': 'todos', 'match case': 'maiúsculas/minúsculas',
+  'regexp': 'expressão regular', 'by word': 'palavra inteira', 'replace': 'substituir', 'replace all': 'substituir todos', 'close': 'fechar',
+  'Go to line': 'Ir para a linha', 'go': 'ir', 'Fold line': 'Recolher a linha', 'Unfold line': 'Expandir a linha', 'folded code': 'código recolhido',
+  'unfold': 'expandir',
+};
+
 export const EDITOR_PT_PATTERNS = [
   [/^Fix: (.+)$/, (m, x) => `Corrigir: ${fixPt(x)}`],
   ...FIX_PT,

@@ -7,10 +7,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { importMapPackages } from '../server/import-map.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-// embedded in the standalone Silinx-ISE.html (scripts/build-standalone.mjs)
-const STANDALONE = new Set(['codemirror', 'elkjs']);
+// embedded in the standalone Silinx-ISE.html (scripts/build-standalone.mjs): elkjs and the editor's
+// modules (CodeMirror 6, the import map of web/index.html)
+const STANDALONE = new Set(['elkjs', ...importMapPackages()]);
 // where to get the source of copyleft components (EPL-2.0 asks for it)
 const SOURCE = { elkjs: 'https://github.com/kieler/elkjs' };
 

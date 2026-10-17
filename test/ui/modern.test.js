@@ -157,13 +157,13 @@ uiTest('theme: follows the system, View ▸ Theme ▸ Dark / Light / System, hea
   // remembered, and set before the first paint (the early script of index.html)
   await page.reload();
   assert.equal((await ui(page)).theme, 'dark');
-  // an editor in the dark theme: dark CodeMirror
+  // an editor in the dark theme: a dark editor
   await makeProject(env, { name: 'DarkPj', template: 'blinky' });
   await page.openProject('DarkPj');
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
-  await page.waitForSelector('.doc:not([hidden]) .CodeMirror');
+  await page.waitForSelector('.doc:not([hidden]) .cm-editor');
   await page.eval(LUM);
-  assert.ok(await page.eval(() => window.__lum('.doc:not([hidden]) .CodeMirror')) < 0.15, 'dark editor');
+  assert.ok(await page.eval(() => window.__lum('.doc:not([hidden]) .cm-editor')) < 0.15, 'dark editor');
   // back to System
   await subMenu(page, 'View', 'Theme', 'System');
   await page.waitFor(() => document.documentElement.dataset.theme === 'light');

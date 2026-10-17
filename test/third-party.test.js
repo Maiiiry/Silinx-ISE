@@ -9,6 +9,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { THIRD_PARTY } from '../core/third-party.js';
+import { importMapPackages } from '../server/import-map.js';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -17,7 +18,7 @@ test('third-party notices are up to date with the installed production dependenc
   assert.match(out, /up to date \(\d+ components\)/);
 });
 
-test('every component has a known licence and its full text; CodeMirror, elkjs and the adepttool port are marked standalone', () => {
+test('every component has a known licence and its full text; the editor\'s modules (CodeMirror 6), elkjs and the adepttool port are marked standalone', () => {
   const md = fs.readFileSync(path.join(ROOT, 'THIRD-PARTY-NOTICES.md'), 'utf8');
   assert.ok(THIRD_PARTY.length > 10);
   for (const c of THIRD_PARTY) {
@@ -26,7 +27,11 @@ test('every component has a known licence and its full text; CodeMirror, elkjs a
     assert.ok(sec, `${c.name} has a section`);
     assert.ok(sec[1].length > 200 && !/no licence file/.test(sec[1]), `${c.name}: the licence text`);
   }
-  assert.deepEqual(THIRD_PARTY.filter(c => c.standalone).map(c => `${c.name}:${c.license}`).sort(), ['adepttool:MIT', 'codemirror:MIT', 'elkjs:EPL-2.0 OR GPL-3.0-or-later']);
+  // (CodeMirror 6: the packages of the import map of web/index.html, all MIT, the editor's own among them)
+  const cm = importMapPackages();
+  assert.ok(['@codemirror/state', '@codemirror/view', '@codemirror/lint', '@codemirror/legacy-modes', 'style-mod'].every(p => cm.includes(p)), cm.join(', '));
+  assert.deepEqual(THIRD_PARTY.filter(c => c.standalone).map(c => `${c.name}:${c.license}`).sort(),
+    ['adepttool:MIT', 'elkjs:EPL-2.0 OR GPL-3.0-or-later', ...cm.map(p => `${p}:MIT`)].sort());
   assert.match(md, /source code of elkjs \(EPL-2\.0 OR GPL-3\.0-or-later\) is available at https:\/\/github\.com\/kieler\/elkjs/);
   const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
   for (const d of Object.keys(pkg.dependencies)) assert.ok(THIRD_PARTY.some(c => c.name === d), `direct dependency ${d} listed`);
@@ -42,7 +47,7 @@ test('licence: GNU AGPL-3.0 (LICENSE, package.json), NOTICE with the copyright a
   assert.match(fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8'), /## Licence[\s\S]*THIRD-PARTY-NOTICES\.md/);
 });
 
-test('the standalone Silinx-ISE.html embeds the copyright, the Apache licence and the CodeMirror / elkjs licences', () => {
+test('the standalone Silinx-ISE.html embeds the copyright, the Apache licence and the licences of the editor\'s modules and elkjs', () => {
   const dist = path.join(ROOT, 'dist', 'Silinx-ISE.html');
   const before = fs.existsSync(dist) ? fs.readFileSync(dist) : null;
   try {
@@ -53,7 +58,8 @@ test('the standalone Silinx-ISE.html embeds the copyright, the Apache licence an
     assert.match(m[1], /Copyright 2026 Pedro Maló/);
     assert.match(m[1], /GNU AFFERO GENERAL PUBLIC LICENSE/);
     assert.match(m[1], /Additional permission under GNU AGPL version 3 section 7/);
-    assert.match(m[1], /## codemirror [\s\S]*MIT/);
+    for (const p of importMapPackages()) assert.ok(m[1].includes(`## ${p} `), `the licence of ${p}`);
+    assert.match(m[1], /## @codemirror\/view [^\n]* — MIT[\s\S]*Permission is hereby granted/);
     assert.match(m[1], /## elkjs [\s\S]*Eclipse Public License - v 2\.0/);
   } finally {
     if (before) fs.writeFileSync(dist, before);

@@ -1,15 +1,25 @@
-// HDL source editor built on CodeMirror 5 (loaded globally as window.CodeMirror):
-// syntax highlighting, context-aware auto-complete, language templates (snippets), live lint
-// from the Silinx parsers with quick fixes (in the lint tooltip, a click on its marker, Ctrl+.), hover
-// info, go-to-definition, rename symbol (F2, web/js/refactor.js), folding, comment toggling, search.
+// HDL source editor built on CodeMirror 6 (its ES modules: the import map of web/index.html, bundled
+// in the standalone edition): syntax highlighting, context-aware auto-complete, language templates
+// (snippets), live lint from the Silinx parsers with quick fixes (in the lint tooltip, a click on its
+// marker, Ctrl+.), hover info, go-to-definition, rename symbol (F2, web/js/refactor.js), folding,
+// comment toggling, search.
+import { EditorState, StateEffect, StateField, Compartment } from '@codemirror/state';
+import { EditorView, Decoration, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from '@codemirror/view';
+import { StreamLanguage, syntaxHighlighting, syntaxTree, bracketMatching, foldGutter, foldService, foldCode, indentUnit } from '@codemirror/language';
+import { history, historyKeymap, defaultKeymap, undo, redo, undoDepth, redoDepth, toggleComment, indentMore, indentLess, selectAll } from '@codemirror/commands';
+import { search, searchKeymap, openSearchPanel, findNext, gotoLine as gotoLinePanel, highlightSelectionMatches } from '@codemirror/search';
+import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { linter, lintGutter, setDiagnostics as showDiagnostics } from '@codemirror/lint';
+import { tags, tagHighlighter } from '@lezer/highlight';
+import { vhdl } from '@codemirror/legacy-modes/mode/vhdl';
+import { verilog } from '@codemirror/legacy-modes/mode/verilog';
 import { parse as parseVerilog } from '/core/verilog/parser.js';
 import { parse as parseVhdl } from '/core/vhdl/parser.js';
 import { quickFixes } from '/core/quickfix.js';
 import { hintTooltip } from './diaghelp.js';
-import { t } from './i18n.js';
+import { t, getLanguage, onLanguageChange } from './i18n.js';
+import { EDITOR_PHRASES_PT } from './i18n-editor.js';
 import { popupMenu, toast } from './ui.js';
-
-const CM = () => window.CodeMirror;
 
 // ------------------------------------------------------------------ vocabulary
 const VHDL_KW = `abs access after alias all and architecture array assert attribute begin block body buffer bus case component
@@ -139,31 +149,112 @@ function symbolsOf(parsed, lang) {
   return syms;
 }
 
+// ------------------------------------------------------------------ languages
+// the legacy modes' token names as classes (tok-*), coloured by web/css/app.css and modern.css
+const highlighter = tagHighlighter([
+  { tag: tags.keyword, class: 'tok-keyword' },
+  { tag: tags.standard(tags.variableName), class: 'tok-builtin' },
+  { tag: tags.typeName, class: 'tok-type' },
+  { tag: tags.atom, class: 'tok-atom' },
+  { tag: tags.number, class: 'tok-number' },
+  { tag: [tags.string, tags.special(tags.string)], class: 'tok-string' },
+  { tag: tags.comment, class: 'tok-comment' },
+  { tag: tags.meta, class: 'tok-meta' },
+  { tag: tags.definition(tags.variableName), class: 'tok-def' },
+  { tag: tags.special(tags.variableName), class: 'tok-variable2' },
+]);
+
+// Simple UCF highlighting mode.
+const ucf = {
+  name: 'ucf',
+  token(stream) {
+    if (stream.match('#')) { stream.skipToEnd(); return 'comment'; }
+    if (stream.match(/^"[^"]*"/)) return 'string';
+    if (stream.match(/^(NET|INST|TIMESPEC|TIMEGRP|PIN|CONFIG)\b/i)) return 'keyword';
+    if (stream.match(/^(LOC|IOSTANDARD|PERIOD|TNM_NET|PULLUP|PULLDOWN|KEEPER|DRIVE|SLEW|CLOCK_DEDICATED_ROUTE|HIGH|LOW|FAST|SLOW)\b/i)) return 'builtin';
+    if (stream.match(/^\d+(\.\d+)?\s*(ns|ps|us|MHz|%)?/i)) return 'number';
+    stream.next();
+    return null;
+  },
+  languageData: { commentTokens: { line: '#' } },
+};
+const LANGUAGES = {};
+const languageOf = lang => {
+  const mode = { vhdl, verilog, ucf }[lang];
+  return mode ? (LANGUAGES[lang] ??= StreamLanguage.define(mode)) : [];
+};
+
+// folding by indentation: a line folds up to the last following line indented deeper than it
+const indentOf = s => s.match(/^\s*/)[0].replace(/\t/g, '  ').length;
+const indentFold = foldService.of((state, from) => {
+  const line = state.doc.lineAt(from);
+  if (!line.text.trim()) return null;
+  const ind = indentOf(line.text);
+  let last = null;
+  for (let n = line.number + 1; n <= state.doc.lines; n++) {
+    const l = state.doc.line(n);
+    if (!l.text.trim()) continue;
+    if (indentOf(l.text) <= ind) break;
+    last = l;
+  }
+  return last ? { from: line.to, to: last.to } : null;
+});
+
+// the line of a jump (gotoLine) flashes for a moment
+const flashLine = StateEffect.define();
+const flashField = StateField.define({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) if (e.is(flashLine)) deco = e.value == null ? Decoration.none : Decoration.set([Decoration.line({ class: 'xl-flash-line' }).range(e.value)]);
+    return deco;
+  },
+  provide: f => EditorView.decorations.from(f),
+});
+
+// the texts of the editor's own panels (search, go to line, folding), in the interface's language
+const phrases = () => (getLanguage() === 'pt' ? EDITOR_PHRASES_PT : {});
+
 // ------------------------------------------------------------------ editor factory
 export function createEditor(container, { text = '', lang = 'verilog', path = '', readOnly = false, project = () => null, onChange, onSave, onGotoDefinition, onCursor, onRename, onFix } = {}) {
-  const CodeMirror = CM();
-  const mode = lang === 'vhdl' ? 'vhdl' : lang === 'verilog' ? 'verilog' : lang === 'ucf' ? 'ucf' : 'text/plain';
-  let parsed = { units: [], errors: [] }, syms = new Map();
+  let parsed = { units: [], errors: [] }, syms = new Map(), parsedDoc = null;   // (parsedDoc: the text parsed)
   let externalDiags = [];
-  let anns = [];   // the lint annotations shown (with their diagnostic: d)
+  let anns = [];   // the lint annotations shown (with their diagnostic: d), their lines 0-based
+  let view = null;
+
+  // positions as { line, ch } (0-based), as the rest of the app counts them
+  const posOf = off => { const l = view.state.doc.lineAt(off); return { line: l.number - 1, ch: off - l.from }; };
+  const offsetOf = ({ line, ch }) => {
+    const doc = view.state.doc, l = doc.line(Math.min(doc.lines, Math.max(1, line + 1)));
+    return l.from + Math.min(l.length, Math.max(0, ch));
+  };
+  const lineText = line => (line >= 0 && line < view.state.doc.lines ? view.state.doc.line(line + 1).text : '');
+  const getCursor = () => posOf(view.state.selection.main.head);
+  const setCursor = pos => view.dispatch({ selection: { anchor: offsetOf(pos) }, scrollIntoView: true });
+  const posAt = (x, y) => { const off = view.posAtCoords({ x, y }, false); return posOf(off); };
+  const lineAtY = y => view.state.doc.lineAt(view.lineBlockAtHeight(y - view.documentTop).from).number - 1;
 
   const reparse = () => {
     if (lang !== 'vhdl' && lang !== 'verilog') return;
-    try { parsed = (lang === 'vhdl' ? parseVhdl : parseVerilog)(cm.getValue(), path); }
+    parsedDoc = view.state.doc;
+    try { parsed = (lang === 'vhdl' ? parseVhdl : parseVerilog)(view.state.doc.toString(), path); }
     catch (e) { parsed = { units: [], errors: [{ line: 1, col: 1, message: 'parser crashed: ' + e.message, severity: 'error' }] }; }
     syms = symbolsOf(parsed, lang);
   };
 
   const lintAnnotations = () => {
+    // (a lint forced by the app right after an edit comes before the reparse of the edit's timer)
+    if (parsedDoc !== view.state.doc) reparse();
     const out = [];
     const mk = (d, src) => {
-      const line = Math.max(0, (d.line || 1) - 1);
-      const lineText = cm.getLine(line) ?? '';
-      const ch = Math.max(0, (d.col || 1) - 1);
+      const line = Math.min(view.state.doc.lines - 1, Math.max(0, (d.line || 1) - 1));
+      const lt = lineText(line);
+      const ch = Math.min(lt.length, Math.max(0, (d.col || 1) - 1));
       let end = ch;
-      while (end < lineText.length && /[\w$]/.test(lineText[end])) end++;
-      if (end === ch) end = Math.min(lineText.length, ch + 1);
-      out.push({ from: CodeMirror.Pos(line, ch), to: CodeMirror.Pos(line, end), message: `${src}${d.message}${hintTooltip(d)}`, severity: d.severity === 'warning' ? 'warning' : 'error', diag: d });
+      while (end < lt.length && /[\w$]/.test(lt[end])) end++;
+      if (end === ch) end = Math.min(lt.length, ch + 1);
+      const from = offsetOf({ line, ch }), to = offsetOf({ line, ch: end });
+      out.push({ from, to, line, message: `${src}${d.message}${hintTooltip(d)}`, severity: d.severity === 'warning' ? 'warning' : 'error', diag: d });
     };
     const seen = new Set();
     for (const d of [...(parsed.errors || []), ...externalDiags]) {
@@ -172,62 +263,40 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
       seen.add(k); mk(d, '');
     }
     anns = out;
-    return out;
+    return out.map(({ from, to, severity, message }) => ({ from, to, severity, message }));
   };
 
-  const cm = CodeMirror(container, {
-    value: text, mode, readOnly, lineNumbers: true, indentUnit: 2, tabSize: 2, indentWithTabs: false,
-    matchBrackets: true, autoCloseBrackets: true, styleActiveLine: true, highlightSelectionMatches: { showToken: /\w/, annotateScrollbar: false },
-    foldGutter: true, foldOptions: { rangeFinder: CodeMirror.fold.indent, widget: '…' },
-    gutters: ['CodeMirror-lint-markers', 'CodeMirror-linenumbers', 'CodeMirror-foldgutter'],
-    // (the tooltips are the editor's own, below: they stay while the pointer is on them, for their fixes)
-    lint: lang === 'vhdl' || lang === 'verilog' || lang === 'ucf' ? { getAnnotations: () => lintAnnotations(), delay: 400, tooltips: false } : false,
-    extraKeys: {
-      'Ctrl-Space': c => showHint(c, true),
-      'Cmd-S': () => onSave?.(), 'Ctrl-S': () => onSave?.(),
-      'Cmd-/': c => toggleComment(c), 'Ctrl-/': c => toggleComment(c),
-      'Ctrl-Q': c => c.foldCode(c.getCursor()),
-      'Cmd-F': 'findPersistent', 'Ctrl-F': 'findPersistent', 'Cmd-Alt-F': 'replace', 'Ctrl-H': 'replace',
-      'Cmd-G': 'findNext', 'Ctrl-G': 'jumpToLine',
-      'F12': c => gotoDef(c),
-      'F2': () => onRename?.(),
-      'Ctrl-.': () => showFixMenu(), 'Cmd-.': () => showFixMenu(),
-      Tab: c => (c.somethingSelected() ? c.indentSelection('add') : c.execCommand('insertSoftTab')),
-      'Shift-Tab': c => c.indentSelection('subtract'),
-    },
-  });
-  cm.getWrapperElement().classList.add('xl-editor');
-  reparse();
+  // (the linter runs on the edits only: new diagnostics of the app are shown at once)
+  const lintNow = () => { if (lints) view.dispatch(showDiagnostics(view.state, lintAnnotations())); };
 
   // ---- quick fixes of the errors (core/quickfix.js): in the lint tooltip, on a click on the
   // marker of the line, with Ctrl+. (Cmd+.) on the line; one undoable edit, then the lint runs again
   const modules = () => (project()?.modules || []).map(m => ({ name: m.name, ports: (m.portList || []).map(p => p.name), params: m.paramList || [] }));
-  const fixesOf = d => (d ? quickFixes(cm.getValue(), lang, d, { modules: modules() }) : []);
+  const fixesOf = d => (d ? quickFixes(view.state.doc.toString(), lang, d, { modules: modules() }) : []);
   const fixLabel = f => `${t('Fix:')} ${t(f.title)}`;
+  /** Replace ranges [{ from: { line, ch }, to, text }] of the current text in one undoable step. */
+  function replaceRanges(edits, userEvent = 'input') {
+    view.dispatch({ changes: edits.map(e => ({ from: offsetOf(e.from), to: offsetOf(e.to), insert: e.text })), userEvent });
+  }
   function applyFix(fix) {
-    const Pos = CodeMirror.Pos;
-    const edits = [...fix.edits].sort((a, b) => b.line - a.line || b.col - a.col);
-    cm.operation(() => {
-      for (const e of edits) cm.replaceRange(e.text, Pos(e.line - 1, e.col - 1), Pos((e.endLine ?? e.line) - 1, (e.endCol ?? e.col) - 1), 'quickfix');
-    });
+    replaceRanges(fix.edits.map(e => ({ from: { line: e.line - 1, ch: e.col - 1 }, to: { line: (e.endLine ?? e.line) - 1, ch: (e.endCol ?? e.col) - 1 }, text: e.text })), 'input.quickfix');
     hideLintTip();
-    cm.focus();
+    view.focus();
     onFix?.(fix);
   }
   function fixesOnLine(line) {
     const out = [], seen = new Set();
-    for (const a of anns.filter(x => x.from.line === line)) {
+    for (const a of anns.filter(x => x.line === line)) {
       for (const f of fixesOf(a.diag)) if (!seen.has(f.title)) { seen.add(f.title); out.push(f); }
     }
     return out;
   }
-  function showFixMenu(line = cm.getCursor().line, at = null) {
+  function showFixMenu(line = getCursor().line, at = null) {
     const fixes = fixesOnLine(line);
     if (!fixes.length) { toast('No quick fix here.', 'info'); return; }
-    const c = at || cm.cursorCoords(line === cm.getCursor().line ? cm.getCursor() : CodeMirror.Pos(line, 0), 'window');
+    const c = at || view.coordsAtPos(line === getCursor().line ? view.state.selection.main.head : offsetOf({ line, ch: 0 }));
     popupMenu(fixes.map(f => ({ label: `Fix: ${f.title}`, action: () => applyFix(f) })), c.left, c.bottom);
   }
-  cm.on('gutterClick', (c, line, gutter, ev) => { if (gutter === 'CodeMirror-lint-markers') showFixMenu(line, { left: ev.clientX, bottom: ev.clientY }); });
 
   // the lint tooltip: the messages with their help and their fixes (buttons)
   // It opens just above the pointer (its bottom-left corner there, not covering what is pointed
@@ -244,10 +313,10 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
     if (lintTip && lintTipFor === target && lintTip.isConnected) return;
     hideLintTip();
     const tt = document.createElement('div');
-    tt.className = 'CodeMirror-lint-tooltip xl-lint-tip';
+    tt.className = 'xl-lint-tip';
     for (const a of list) {
       const m = document.createElement('div');
-      m.className = `CodeMirror-lint-message CodeMirror-lint-message-${a.severity}`;
+      m.className = `xl-lint-msg xl-lint-msg-${a.severity}`;
       m.setAttribute('data-no-i18n', '');
       m.textContent = a.message;
       tt.append(m);
@@ -262,122 +331,156 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
     document.body.append(tt);
     tt.style.left = `${Math.max(0, Math.min(ev.clientX - 4, innerWidth - tt.offsetWidth))}px`;
     tt.style.top = `${Math.max(0, ev.clientY - tt.offsetHeight - 1)}px`;
-    tt.style.opacity = 1;
     tt.addEventListener('mouseout', leave);
     target.addEventListener('mouseout', leave);
     lintTip = tt; lintTipFor = target;
   }
-  cm.getWrapperElement().addEventListener('mouseover', ev => {
-    const el = ev.target;
-    const marker = el.closest?.('.CodeMirror-lint-marker');
-    if (marker) {
-      const list = anns.filter(a => a.from.line === cm.lineAtHeight(ev.clientY, 'window'));
-      if (list.length) showLintTip(ev, marker, list);
-    } else if (/\bCodeMirror-lint-mark-/.test(el.className)) {
-      const b = el.getBoundingClientRect();
-      const list = cm.findMarksAt(cm.coordsChar({ left: (b.left + b.right) / 2, top: (b.top + b.bottom) / 2 }, 'window')).map(m => m.__annotation).filter(Boolean);
-      if (list.length) showLintTip(ev, el, list);
-    }
-  });
-  cm.on('change', () => hideLintTip());
-
-  function toggleComment(c) {
-    c.toggleComment({ lineComment: lang === 'vhdl' ? '--' : lang === 'ucf' ? '#' : '//' });
-  }
 
   // ---- completion
-  function hintList(c) {
-    const cur = c.getCursor();
-    const token = c.getTokenAt(cur);
-    const line = c.getLine(cur.line);
-    let start = cur.ch, end = cur.ch;
-    while (start > 0 && /[\w$.]/.test(line[start - 1])) start--;
-    while (end < line.length && /[\w$]/.test(line[end])) end++;
-    const word = line.slice(start, cur.ch);
+  function completions(ctx) {
+    const line = ctx.state.doc.lineAt(ctx.pos), text = line.text, ch = ctx.pos - line.from;
+    let start = ch, end = ch, word0 = ch;
+    while (start > 0 && /[\w$.]/.test(text[start - 1])) start--;
+    while (end < text.length && /[\w$]/.test(text[end])) end++;
+    while (word0 > 0 && /[\w$]/.test(text[word0 - 1])) word0--;
+    // while typing: from the second letter of a word (or a '$'), not in a comment or a string
+    if (!ctx.explicit) {
+      if (ch - word0 < 2 && text[ch - 1] !== '$') return null;
+      if (/comment|string/.test(syntaxTree(ctx.state).resolveInner(ctx.pos, -1).name)) return null;
+    }
+    const word = text.slice(start, ch);
     const lw = word.toLowerCase();
     const list = [];
     const seen = new Set();
-    const push = (text, kind, detail, extra = {}) => {
-      const key = text.toLowerCase();
+    const push = (label, kind, detail) => {
+      const key = label.toLowerCase();
       if (seen.has(key)) return;
       if (lw && !key.startsWith(lw) && !(lw.length >= 2 && key.includes(lw))) return;
       seen.add(key);
-      list.push({ text, displayText: text, kind, detail, render: renderItem, ...extra });
+      list.push({ label, type: kind, detail });
     };
+    const from = line.from + start, to = line.from + end;
+    const snippet = (label, body, detail) => ({ label, type: 'snippet', detail, apply: v => insertSnippet(body, from, to) });
     // project symbols in this file first
     for (const s of syms.values()) push(s.name, s.kind, s.detail);
     // modules/entities of the project
     const pj = project();
     for (const m of pj?.modules || []) {
       push(m.name, 'module', `${m.lang} ${m.kind || 'module'} (${m.file})`);
-      if (lw && m.name.toLowerCase().startsWith(lw)) {
-        list.push({ text: instTemplate(m, lang), displayText: `${m.name} — instantiate`, kind: 'snippet', detail: 'instantiation template', render: renderItem, snippet: true });
-      }
+      if (lw && m.name.toLowerCase().startsWith(lw)) list.push(snippet(`${m.name} — instantiate`, instTemplate(m, lang), 'instantiation template'));
     }
     if (lang === 'vhdl') {
       for (const k of VHDL_KW) push(k, 'keyword', '');
       for (const k of VHDL_TYPES) push(k, 'type', 'type');
       for (const k of VHDL_FUNCS) push(k, 'function', 'built-in');
-      if (/use\s+[\w.]*$/i.test(line.slice(0, cur.ch))) for (const k of VHDL_LIBS) push(k, 'library', '');
+      if (/use\s+[\w.]*$/i.test(text.slice(0, ch))) for (const k of VHDL_LIBS) push(k, 'library', '');
     } else {
       for (const k of VLOG_KW) push(k, 'keyword', '');
       for (const k of VLOG_SYS) push(k, 'system', 'system task/function');
     }
     for (const s of SNIPPETS[lang] || []) {
-      if (!lw || s.name.toLowerCase().startsWith(lw) || s.name.toLowerCase().split(/[\s(]/)[0].startsWith(lw))
-        list.push({ text: s.text, displayText: s.name, kind: 'snippet', detail: 'template', render: renderItem, snippet: true });
+      if (!lw || s.name.toLowerCase().startsWith(lw) || s.name.toLowerCase().split(/[\s(]/)[0].startsWith(lw)) list.push(snippet(s.name, s.text, 'template'));
     }
     // Ranking: exact prefix, then symbols, keywords, snippets
     const rank = { port: 0, signal: 0, variable: 0, constant: 1, generic: 1, enum: 1, type: 2, function: 2, module: 2, process: 3, instance: 3, genvar: 1, keyword: 4, system: 4, library: 4, snippet: 5, task: 2 };
     list.sort((a, b) => {
-      const pa = a.displayText.toLowerCase().startsWith(lw) ? 0 : 1, pb = b.displayText.toLowerCase().startsWith(lw) ? 0 : 1;
-      return pa - pb || (rank[a.kind] ?? 9) - (rank[b.kind] ?? 9) || a.displayText.localeCompare(b.displayText);
+      const pa = a.label.toLowerCase().startsWith(lw) ? 0 : 1, pb = b.label.toLowerCase().startsWith(lw) ? 0 : 1;
+      return pa - pb || (rank[a.type] ?? 9) - (rank[b.type] ?? 9) || a.label.localeCompare(b.label);
     });
-    const from = CodeMirror.Pos(cur.line, start), to = CodeMirror.Pos(cur.line, end);
-    for (const it of list) if (it.snippet) it.hint = (cmi, data, item) => insertSnippet(cmi, item.text, from, to, word);
-    return { list: list.slice(0, 200), from, to };
+    return { from, to, options: list.slice(0, 200), filter: false };
   }
 
-  function renderItem(el, data, cur) {
-    el.innerHTML = '';
+  const KIND_LETTER = { port: 'P', signal: 'S', variable: 'V', constant: 'C', generic: 'G', enum: 'E', type: 'T', function: 'f', task: 't', module: 'M', process: 'p', instance: 'I', keyword: 'k', system: '$', library: 'L', snippet: '❏', genvar: 'g' };
+  function renderKind(c) {
     const k = document.createElement('span');
-    k.className = `xl-hint-kind k-${cur.kind}`;
-    k.textContent = { port: 'P', signal: 'S', variable: 'V', constant: 'C', generic: 'G', enum: 'E', type: 'T', function: 'f', task: 't', module: 'M', process: 'p', instance: 'I', keyword: 'k', system: '$', library: 'L', snippet: '❏', genvar: 'g' }[cur.kind] || '·';
-    const n = document.createElement('span'); n.className = 'xl-hint-name'; n.textContent = cur.displayText;
-    const d = document.createElement('span'); d.className = 'xl-hint-detail'; d.textContent = cur.detail || '';
-    el.append(k, n, d);
+    k.className = `xl-hint-kind k-${c.type}`;
+    k.textContent = KIND_LETTER[c.type] || '·';
+    return k;
   }
 
-  function insertSnippet(c, text, from, to, word) {
+  function insertSnippet(text, from, to) {
     const name = (path.split('/').pop() || 'top').replace(/\.\w+$/, '');
-    let t = text.replace(/\$\{name\}/g, name);
-    const baseIndent = (c.getLine(from.line).match(/^\s*/) || [''])[0];
-    t = t.split('\n').map((l, i) => (i ? baseIndent + l : l)).join('\n');
-    const idx = t.indexOf('$0');
-    t = t.replace('$0', '');
-    c.replaceRange(t, from, to);
-    if (idx >= 0) {
-      const before = t.slice(0, idx).split('\n');
-      const line = from.line + before.length - 1;
-      const ch = (before.length === 1 ? from.ch : 0) + before[before.length - 1].length;
-      c.setCursor(CodeMirror.Pos(line, ch));
-    }
+    let s = text.replace(/\$\{name\}/g, name);
+    const baseIndent = (view.state.doc.lineAt(from).text.match(/^\s*/) || [''])[0];
+    s = s.split('\n').map((l, i) => (i ? baseIndent + l : l)).join('\n');
+    const idx = s.indexOf('$0');
+    s = s.replace('$0', '');
+    view.dispatch({ changes: { from, to, insert: s }, selection: { anchor: from + (idx >= 0 ? idx : s.length) }, userEvent: 'input.complete', scrollIntoView: true });
   }
 
-  function showHint(c, explicit) {
-    c.showHint({ hint: hintList, completeSingle: false, closeCharacters: /[\s()[\]{};:>,=]/, alignWithWord: true, explicit });
+  // ---- keys
+  function insertSoftTab(v) {
+    const sel = v.state.selection.main;
+    const col = sel.head - v.state.doc.lineAt(sel.head).from;
+    v.dispatch(v.state.replaceSelection(' '.repeat(2 - (col % 2))), { userEvent: 'input' });
+    return true;
   }
+  const keys = [
+    { key: 'Mod-s', run: () => { onSave?.(); return true; } },
+    { key: 'Mod-/', run: toggleComment },
+    { key: 'Ctrl-q', run: foldCode },
+    { key: 'Mod-f', run: openSearchPanel }, { key: 'Mod-Alt-f', run: openSearchPanel }, { key: 'Ctrl-h', run: openSearchPanel },
+    { key: 'Cmd-g', run: findNext }, { key: 'Ctrl-g', run: gotoLinePanel },
+    { key: 'F12', run: v => { gotoDef(getCursor()); return true; } },
+    { key: 'F2', run: () => { onRename?.(); return true; } },
+    { key: 'Mod-.', run: () => { showFixMenu(); return true; } },
+    { key: 'Tab', run: v => (v.state.selection.ranges.some(r => !r.empty) ? indentMore(v) : insertSoftTab(v)), shift: indentLess },
+  ];
 
-  cm.on('inputRead', (c, ch) => {
-    if (c.state.completionActive) return;
-    const t = ch.text.join('');
-    if (/^[\w$]$/.test(t)) {
-      const cur = c.getCursor();
-      const tok = c.getTokenAt(cur);
-      if (tok.type === 'comment' || tok.type === 'string') return;
-      const line = c.getLine(cur.line);
-      let s = cur.ch; while (s > 0 && /[\w$]/.test(line[s - 1])) s--;
-      if (cur.ch - s >= 2 || t === '$') showHint(c, false);
+  const lints = lang === 'vhdl' || lang === 'verilog' || lang === 'ucf';
+  const phrasing = new Compartment();
+  view = new EditorView({
+    parent: container,
+    state: EditorState.create({
+      doc: text,
+      extensions: [
+        // (the tooltips are the editor's own, below: they stay while the pointer is on them, for their fixes)
+        lints ? [linter(() => lintAnnotations(), { delay: 400, tooltipFilter: () => [] }), lintGutter({ tooltipFilter: () => [] })] : [],
+        lineNumbers(), foldGutter(), indentFold, highlightActiveLineGutter(),
+        history(), drawSelection(), highlightActiveLine(), bracketMatching(), closeBrackets(),
+        highlightSelectionMatches({ wholeWords: true }), search({ top: true }), flashField,
+        languageOf(lang), syntaxHighlighting(highlighter), EditorView.editorAttributes.of({ class: 'xl-editor' }),
+        indentUnit.of('  '), EditorState.tabSize.of(2), EditorState.readOnly.of(readOnly), phrasing.of(EditorState.phrases.of(phrases())),
+        lang === 'vhdl' || lang === 'verilog' ? autocompletion({ override: [completions], icons: false, maxRenderedOptions: 200, addToOptions: [{ render: renderKind, position: 20 }] }) : [],
+        keymap.of([...keys, ...closeBracketsKeymap, ...completionKeymap, ...searchKeymap, ...historyKeymap, ...defaultKeymap]),
+        EditorView.updateListener.of(u => {
+          if (u.docChanged) {
+            hideLintTip();
+            clearTimeout(changeTimer);
+            changeTimer = setTimeout(() => { reparse(); }, 250);
+            onChange?.();
+          }
+          if (u.selectionSet) { const p = getCursor(); onCursor?.(p.line + 1, p.ch + 1); }
+        }),
+      ],
+    }),
+  });
+  let changeTimer = null;
+  let cleanDoc = view.state.doc;
+  reparse();
+  // another language: the editor's own texts, and the help of the lint messages
+  const offLang = onLanguageChange(() => { view.dispatch({ effects: phrasing.reconfigure(EditorState.phrases.of(phrases())) }); lintNow(); });
+
+  view.dom.addEventListener('mousedown', ev => {
+    // a click on the marker of a line: its fixes
+    if (ev.button === 0 && ev.target.closest?.('.cm-gutter-lint')) { ev.preventDefault(); showFixMenu(lineAtY(ev.clientY), { left: ev.clientX, bottom: ev.clientY }); return; }
+    // go to definition (Cmd/Ctrl + click)
+    if (!(ev.metaKey || ev.ctrlKey) || !ev.target.closest?.('.cm-content')) return;
+    ev.preventDefault();
+    gotoDef(posAt(ev.clientX, ev.clientY));
+  });
+  view.dom.addEventListener('mouseover', ev => {
+    const el = ev.target;
+    const marker = el.closest?.('.cm-lint-marker');
+    if (marker) {
+      const line = lineAtY(ev.clientY);
+      const list = anns.filter(a => a.line === line);
+      if (list.length) showLintTip(ev, marker, list);
+    } else if (el.closest?.('.cm-lintRange')) {
+      const mark = el.closest('.cm-lintRange'), b = mark.getBoundingClientRect();
+      const off = view.posAtCoords({ x: (b.left + b.right) / 2, y: (b.top + b.bottom) / 2 }, false);
+      const list = anns.filter(a => a.from <= off && off <= a.to);
+      if (list.length) showLintTip(ev, mark, list);
     }
   });
 
@@ -387,29 +490,25 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
   tip.style.display = 'none';
   document.body.appendChild(tip);
   let hoverTimer = null;
-  cm.getWrapperElement().addEventListener('mousemove', ev => {
+  view.dom.addEventListener('mousemove', ev => {
     clearTimeout(hoverTimer);
     tip.style.display = 'none';
+    if (!ev.target.closest?.('.cm-content')) return;
     hoverTimer = setTimeout(() => {
-      const pos = cm.coordsChar({ left: ev.clientX, top: ev.clientY }, 'window');
-      const word = wordAt(pos);
+      const word = wordAt(posAt(ev.clientX, ev.clientY));
       if (!word) return;
-      let info = lookupSym(word);
-      // diagnostics under the cursor take priority
-      const marks = cm.findMarksAt(pos).filter(m => m.__annotation);
-      let html = '';
-      if (info) html += `<b>${esc(info.name)}</b> <span class="k">${info.kind}</span>${info.detail ? `<div class="d">${esc(info.detail)}</div>` : ''}`;
-      if (!html) return;
-      tip.innerHTML = html;
+      const info = lookupSym(word);
+      if (!info) return;
+      tip.innerHTML = `<b>${esc(info.name)}</b> <span class="k">${info.kind}</span>${info.detail ? `<div class="d">${esc(info.detail)}</div>` : ''}`;
       tip.style.left = `${ev.clientX + 12}px`;
       tip.style.top = `${ev.clientY + 14}px`;
       tip.style.display = 'block';
     }, 450);
   });
-  cm.getWrapperElement().addEventListener('mouseleave', () => { clearTimeout(hoverTimer); tip.style.display = 'none'; });
+  view.dom.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); tip.style.display = 'none'; });
 
   function wordAt(pos) {
-    const line = cm.getLine(pos.line) || '';
+    const line = lineText(pos.line);
     let s = pos.ch, e = pos.ch;
     while (s > 0 && /[\w$]/.test(line[s - 1])) s--;
     while (e < line.length && /[\w$]/.test(line[e])) e++;
@@ -425,52 +524,49 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
   }
 
   // ---- go to definition (Cmd/Ctrl + click or F12)
-  function gotoDef(c, pos = c.getCursor()) {
+  function gotoDef(pos) {
     const word = wordAt(pos);
     if (!word) return;
     const info = lookupSym(word);
     if (!info) return;
     if (info.module) onGotoDefinition?.({ file: info.module.file, line: info.module.line || 1 });
-    else if (info.loc) c.setCursor(CodeMirror.Pos(info.loc.line - 1, (info.loc.col || 1) - 1));
+    else if (info.loc) setCursor({ line: info.loc.line - 1, ch: (info.loc.col || 1) - 1 });
   }
-  cm.getWrapperElement().addEventListener('mousedown', ev => {
-    if (!(ev.metaKey || ev.ctrlKey)) return;
-    const pos = cm.coordsChar({ left: ev.clientX, top: ev.clientY }, 'window');
-    ev.preventDefault();
-    gotoDef(cm, pos);
-  });
 
-  let changeTimer = null;
-  cm.on('change', () => {
-    clearTimeout(changeTimer);
-    changeTimer = setTimeout(() => { reparse(); }, 250);
-    onChange?.();
-  });
-  cm.on('cursorActivity', c => { const p = c.getCursor(); onCursor?.(p.line + 1, p.ch + 1); });
+  // the editor's commands, by the names of the menus and buttons
+  const COMMANDS = { undo, redo, selectAll, findPersistent: openSearchPanel, replace: openSearchPanel, jumpToLine: gotoLinePanel, toggleComment };
 
   return {
-    cm,
-    getValue: () => cm.getValue(),
-    setValue: v => cm.setValue(v),
-    focus: () => cm.focus(),
-    refresh: () => cm.refresh(),
+    view,
+    getValue: () => view.state.doc.toString(),
+    setValue: v => view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: v } }),
+    focus: () => view.focus(),
+    refresh: () => view.requestMeasure(),
     gotoLine(line, col = 1) {
-      const pos = CodeMirror.Pos(Math.max(0, line - 1), Math.max(0, col - 1));
-      cm.setCursor(pos);
-      cm.scrollIntoView(pos, 120);
-      cm.addLineClass(pos.line, 'background', 'xl-flash-line');
-      setTimeout(() => cm.removeLineClass(pos.line, 'background', 'xl-flash-line'), 1500);
-      cm.focus();
+      const off = offsetOf({ line: Math.max(0, line - 1), ch: Math.max(0, col - 1) });
+      view.dispatch({ selection: { anchor: off }, effects: [flashLine.of(view.state.doc.lineAt(off).from), EditorView.scrollIntoView(off, { y: 'nearest', yMargin: 120 })] });
+      setTimeout(() => view.dispatch({ effects: flashLine.of(null) }), 1500);
+      view.focus();
     },
-    setDiagnostics(diags) { externalDiags = diags || []; cm.performLint?.(); },
-    insertText(t) { insertSnippet(cm, t, cm.getCursor(), cm.getCursor(), ''); cm.focus(); },
-    markClean: () => cm.markClean(),
-    isClean: () => cm.isClean(),
-    destroy() { tip.remove(); hideLintTip(); },
+    setDiagnostics(diags) { externalDiags = diags || []; lintNow(); },
+    /** Lint the text again now (the parser's errors and the diagnostics of setDiagnostics). */
+    lintNow,
+    insertText(s) { const at = view.state.selection.main.head; insertSnippet(s, at, at); view.focus(); },
+    markClean: () => { cleanDoc = view.state.doc; },
+    isClean: () => view.state.doc.eq(cleanDoc),
+    destroy() { offLang(); tip.remove(); hideLintTip(); view.destroy(); },
     /** The quick fixes of a diagnostic of this file (on the editor's text), and applying one. */
     quickFixes: d => fixesOf(d),
     applyFix, fixesOnLine, showFixMenu,
-    exec: cmd => cm.execCommand(cmd),
+    exec: cmd => COMMANDS[cmd]?.(view),
+    // the cursor, the selection and the history, positions as { line, ch } (0-based)
+    getCursor, setCursor, posAt, replaceRanges,
+    somethingSelected: () => view.state.selection.ranges.some(r => !r.empty),
+    getSelection: () => view.state.selection.ranges.map(r => view.state.sliceDoc(r.from, r.to)).join('\n'),
+    replaceSelection: s => view.dispatch(view.state.replaceSelection(s), { userEvent: 'input', scrollIntoView: true }),
+    historySize: () => ({ undo: undoDepth(view.state), redo: redoDepth(view.state) }),
+    /** The lint annotations shown: [{ line (1-based), severity, message }]. */
+    diagnostics: () => anns.map(a => ({ line: a.line + 1, severity: a.severity, message: a.diag.message })),
   };
 }
 
@@ -490,22 +586,4 @@ export function instTemplate(m, lang) {
   if (params.length) s += ` #(\n${params.map(p => `  .${p}(${p})`).join(',\n')}\n)`;
   s += ` u_${m.name} (\n${ports.map(p => `  .${p.name.padEnd(8)}(${p.name})`).join(',\n')}\n);`;
   return s;
-}
-
-// Simple UCF highlighting mode.
-export function defineUcfMode() {
-  const CodeMirror = CM();
-  if (!CodeMirror || CodeMirror.modes.ucf) return;
-  CodeMirror.defineMode('ucf', () => ({
-    token(stream) {
-      if (stream.match('#')) { stream.skipToEnd(); return 'comment'; }
-      if (stream.match(/^"[^"]*"/)) return 'string';
-      if (stream.match(/^(NET|INST|TIMESPEC|TIMEGRP|PIN|CONFIG)\b/i)) return 'keyword';
-      if (stream.match(/^(LOC|IOSTANDARD|PERIOD|TNM_NET|PULLUP|PULLDOWN|KEEPER|DRIVE|SLEW|CLOCK_DEDICATED_ROUTE|HIGH|LOW|FAST|SLOW)\b/i)) return 'builtin';
-      if (stream.match(/^\d+(\.\d+)?\s*(ns|ps|us|MHz|%)?/i)) return 'number';
-      stream.next();
-      return null;
-    },
-    lineComment: '#',
-  }));
 }

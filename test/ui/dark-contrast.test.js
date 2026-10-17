@@ -153,17 +153,17 @@ for (const theme of ['dark', 'light']) {
     await tab(page, 'errors');
     await check('Errors');
     await tab(page, 'console');
-    await page.waitForSelector('.doc:not([hidden]) .CodeMirror-lint-marker-warning', { timeout: 8000 });
+    await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-warning', { timeout: 8000 });
     await page.hover('#menubar');
-    await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-warning');
-    await page.waitFor(() => document.querySelector('.CodeMirror-lint-tooltip')?.textContent, [], { what: 'lint tooltip' });
+    await page.hover('.doc:not([hidden]) .cm-lint-marker-warning');
+    await page.waitFor(() => document.querySelector('.xl-lint-tip')?.textContent, [], { what: 'lint tooltip' });
     await check('lint tooltip');
     await page.hover('#menubar');
     // an error with a quick fix (#179): its button in the tooltip, "Fix: …" in the Errors tab
-    await page.eval(() => { const cm = window.Silinx.active.editor.cm; cm.setValue(cm.getValue().replace('q <= d;', 'q <= d')); });
-    await page.waitForSelector('.doc:not([hidden]) .CodeMirror-lint-marker-error', { timeout: 8000 });
-    await page.hover('.doc:not([hidden]) .CodeMirror-lint-marker-error');
-    await page.waitFor(() => !!document.querySelector('.CodeMirror-lint-tooltip .xl-fix'), [], { what: 'the quick fix in the tooltip' });
+    await page.eval(() => { const ed = window.Silinx.active.editor; ed.setValue(ed.getValue().replace('q <= d;', 'q <= d')); });
+    await page.waitForSelector('.doc:not([hidden]) .cm-lint-marker-error', { timeout: 8000 });
+    await page.hover('.doc:not([hidden]) .cm-lint-marker-error');
+    await page.waitFor(() => !!document.querySelector('.xl-lint-tip .xl-fix'), [], { what: 'the quick fix in the tooltip' });
     await check('lint tooltip with a quick fix');
     await page.hover('#menubar');
     await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
@@ -181,7 +181,7 @@ for (const theme of ['dark', 'light']) {
     await check('Language Templates');
     await page.closeMenus();
     await page.menu('Edit', 'Find…');
-    await page.waitForSelector('.CodeMirror-dialog');
+    await page.waitForSelector('.cm-panel.cm-search');
     await check('Find');
     await page.key('Escape');
     // the schematic editor: its fields, Symbol Info, View HDL, the live simulation and its bus editor

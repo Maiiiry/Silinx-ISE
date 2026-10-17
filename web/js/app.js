@@ -2,7 +2,7 @@
 import { api, followJob } from './api.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, alertDlg, confirmDlg, promptDlg, popupMenu, menuBar, splitter, toast, downloadText } from './ui.js';
-import { createEditor, instTemplate, SNIPPETS, defineUcfMode, typeText } from './editor.js';
+import { createEditor, instTemplate, SNIPPETS, typeText } from './editor.js';
 import { renameSymbolAtCursor, applyEdits } from './refactor.js';
 import { quickFixes } from '/core/quickfix.js';
 import { compile, elaborate, topCandidates } from '/core/compile.js';
@@ -1646,26 +1646,26 @@ export async function openFile(path, line, col) {
         };
         if (lang === 'vhdl' || lang === 'verilog') liveHdl();
         d.liveCheck = lang === 'ucf' ? liveUcf : (lang === 'vhdl' || lang === 'verilog') ? liveHdl : null;
-        const cm = d.editor.cm;
-        cm.getWrapperElement().addEventListener('contextmenu', e => {
+        const ed = d.editor;
+        ed.view.dom.addEventListener('contextmenu', e => {
           e.preventDefault();
           const hdl = lang === 'vhdl' || lang === 'verilog';
-          const hasSel = cm.somethingSelected();
+          const hasSel = ed.somethingSelected();
           const sch = S.hdlToSch?.[path];
-          const at = cm.coordsChar({ left: e.clientX, top: e.clientY }, 'window');
+          const at = ed.posAt(e.clientX, e.clientY);
           popupMenu([
-            { label: 'Undo', action: () => cm.undo(), disabled: !cm.historySize().undo },
-            { label: 'Redo', action: () => cm.redo(), disabled: !cm.historySize().redo },
+            { label: 'Undo', action: () => ed.exec('undo'), disabled: !ed.historySize().undo },
+            { label: 'Redo', action: () => ed.exec('redo'), disabled: !ed.historySize().redo },
             '-',
-            { label: 'Cut', action: () => { navigator.clipboard?.writeText(cm.getSelection()); cm.replaceSelection(''); }, disabled: !hasSel },
-            { label: 'Copy', action: () => navigator.clipboard?.writeText(cm.getSelection()), disabled: !hasSel },
-            { label: 'Paste', action: async () => { try { cm.replaceSelection(await navigator.clipboard.readText()); cm.focus(); } catch { toast('Use Ctrl+V to paste', 'info'); } } },
-            { label: 'Select All', action: () => cm.execCommand('selectAll') },
+            { label: 'Cut', action: () => { navigator.clipboard?.writeText(ed.getSelection()); ed.replaceSelection(''); }, disabled: !hasSel },
+            { label: 'Copy', action: () => navigator.clipboard?.writeText(ed.getSelection()), disabled: !hasSel },
+            { label: 'Paste', action: async () => { try { ed.replaceSelection(await navigator.clipboard.readText()); ed.focus(); } catch { toast('Use Ctrl+V to paste', 'info'); } } },
+            { label: 'Select All', action: () => ed.exec('selectAll') },
             '-',
-            hdl ? { label: 'Toggle Comment', action: () => cm.toggleComment?.() } : null,
-            { label: 'Find…', action: () => cm.execCommand('findPersistent') },
-            hdl ? { label: 'Rename Symbol…', shortcut: 'F2', action: () => { if (!hasSel) cm.setCursor(at); renameSymbolIn(d, lang, path); } } : null,
-            hdl ? { label: 'Quick Fix…', shortcut: 'Ctrl+.', action: () => { cm.setCursor(at); d.editor.showFixMenu(at.line); }, disabled: !d.editor.fixesOnLine(at.line).length } : null,
+            hdl ? { label: 'Toggle Comment', action: () => ed.exec('toggleComment') } : null,
+            { label: 'Find…', action: () => ed.exec('findPersistent') },
+            hdl ? { label: 'Rename Symbol…', shortcut: 'F2', action: () => { if (!hasSel) ed.setCursor(at); renameSymbolIn(d, lang, path); } } : null,
+            hdl ? { label: 'Quick Fix…', shortcut: 'Ctrl+.', action: () => { ed.setCursor(at); d.editor.showFixMenu(at.line); }, disabled: !d.editor.fixesOnLine(at.line).length } : null,
             hdl ? '-' : null,
             hdl ? { label: 'Language Templates', submenu: SNIPPETS[lang].map(sn => ({ label: sn.name, action: () => d.editor.insertText(sn.text) })) } : null,
             hdl ? { label: 'Instantiate module', submenu: S.modules.filter(m => m.file !== path).map(m => ({ label: m.name, action: () => d.editor.insertText(instTemplate(m, lang) + '$0') })) } : null,
@@ -1677,7 +1677,7 @@ export async function openFile(path, line, col) {
             sch ? { label: `Open ${viewTitle(sch)}`, action: () => openView(sch) } : null,
           ].filter(Boolean), e.clientX, e.clientY);
         });
-        longPressMenu(cm.getWrapperElement(), { select: true });
+        longPressMenu(ed.view.dom, { select: true });
         return {
           lang,
           onActivate: () => setTimeout(() => d.editor?.refresh(), 0),
@@ -1705,8 +1705,8 @@ export async function openFile(path, line, col) {
   if (line) {
     // jump once the editor is laid out, unless the user has already moved the cursor (a delayed
     // timer, e.g. in a background tab, must not pull the cursor away from where they type)
-    const cm = doc.editor?.cm, at = cm && JSON.stringify(cm.getCursor());
-    setTimeout(() => { if (!cm || JSON.stringify(cm.getCursor()) === at) doc.editor?.gotoLine(line, col); }, 30);
+    const ed = doc.editor, at = ed && JSON.stringify(ed.getCursor());
+    setTimeout(() => { if (!ed || JSON.stringify(ed.getCursor()) === at) doc.editor?.gotoLine(line, col); }, 30);
   }
   return doc;
 }
@@ -3108,7 +3108,7 @@ function renameSymbolIn(d, lang, path) {
   if (!d.editor) return;
   const findModule = name => S.modules.find(m => m.name.toLowerCase() === String(name).toLowerCase());
   return renameSymbolAtCursor({
-    cm: d.editor.cm, lang, path,
+    editor: d.editor, lang, path,
     // (not the HDL generated from a drawing without a file of its own: it follows the drawing)
     sources: () => S.sources.filter(s => (s.lang === 'vhdl' || s.lang === 'verilog') && !s.view).map(s => ({ ...s, text: S.docs.find(o => o.path === s.path && o.editor)?.editor.getValue() ?? s.text })),
     drawings: () => S.sources.filter(s => s.view),
@@ -3117,7 +3117,7 @@ function renameSymbolIn(d, lang, path) {
     // an open file is edited in its editor (its own Undo); the others are written
     writeSource: async (p, text, edits, name) => {
       const od = S.docs.find(o => o.path === p && o.editor);
-      if (od) { applyEdits(od.editor.cm, edits, name); return; }
+      if (od) { applyEdits(od.editor, edits, name); return; }
       await api.writeFile(S.project.name, p, text);
       const src = S.sources.find(x => x.path === p);
       if (src) src.text = text;
@@ -3745,7 +3745,7 @@ function setupToolbar() {
     h('div', { class: 'tb-sep' }),
     btn('cut', 'Cut', () => document.execCommand('cut')),
     btn('copy', 'Copy', () => document.execCommand('copy')),
-    btn('paste', 'Paste', () => navigator.clipboard?.readText().then(t => S.active?.editor?.cm.replaceSelection(t))),
+    btn('paste', 'Paste', () => navigator.clipboard?.readText().then(t => S.active?.editor?.replaceSelection(t))),
     btn('find', 'Find', () => S.active?.editor?.exec('findPersistent')),
     h('div', { class: 'tb-sep' }),
     btn('summary', 'Design Summary', () => S.project && openSummary()),
@@ -3899,7 +3899,6 @@ function setView(v) {
 async function boot() {
   applyPrefs();
   startI18n();
-  defineUcfMode();
   document.querySelectorAll('.ico-inline[data-icon]').forEach(e => { e.innerHTML = icons[e.dataset.icon] || ''; });
   setupMenus();
   setupToolbar();
@@ -3930,7 +3929,7 @@ async function boot() {
     if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); if (S.active) flushDoc(S.active); }  // nothing to do: edits are saved automatically
     // Ctrl/Cmd+Z outside an editor or text field (the diagram editors handle their own keys): undo the
     // project's last command when it is newer than the active document's last edit
-    const outside = !e.defaultPrevented && !e.target.closest?.('.CodeMirror, input, textarea, select, [contenteditable], .sch-editor, .asm-editor, .fsm-editor, .tt-editor, .petri-editor, .pin-planner') && !document.querySelector('.dlg-overlay');
+    const outside = !e.defaultPrevented && !e.target.closest?.('.cm-editor, input, textarea, select, [contenteditable], .sch-editor, .asm-editor, .fsm-editor, .tt-editor, .petri-editor, .pin-planner') && !document.querySelector('.dlg-overlay');
     if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z') && outside && undoesProject()) { e.preventDefault(); projectUndo(); }
     // Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z outside an editor: redo it
     if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) && outside && redoesProject()) { e.preventDefault(); projectRedo(); }

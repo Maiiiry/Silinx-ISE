@@ -168,7 +168,7 @@ uiTest('Design pane (#220): a badge opens its view, its right-click shows that v
   // the HDL editor's menu opens the schematic
   await page.eval(() => window.SilinxApp.openFile('src/gates.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/gates.vhd' && window.Silinx.active.editor);
-  const at = await page.eval(() => { const r = document.querySelector('.doc:not([hidden]) .CodeMirror').getBoundingClientRect(); return { x: r.left + 80, y: r.top + 40 }; });
+  const at = await page.eval(() => { const r = document.querySelector('.doc:not([hidden]) .cm-editor').getBoundingClientRect(); return { x: r.left + 80, y: r.top + 40 }; });
   await page.click(at, { button: 'right' });
   const ed = await menuLabels(page);
   await page.closeMenus();
