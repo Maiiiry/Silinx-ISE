@@ -120,6 +120,45 @@ const SHIFTS = new Set(['$shl', '$sshl', '$shr', '$sshr', '$shift', '$shiftx']);
 const CMP = { $eq: '===', $ne: '!==', $eqx: '===', $nex: '!==', $lt: '<', $le: '<=', $gt: '>', $ge: '>=' };
 const SETTLE_LIMIT = 10000;
 
+// ------------------------------------------------------------------ a VGA monitor (watch.vga)
+// The picture as a monitor finds it in the sync signals, each cycle: a line from each leading edge of HSYNC
+// (its active level: the shorter one, low until both are measured), the pixel clock from the line's period
+// (VGA_TOTAL_W pixels a line), the column from the time since that edge (the active picture VGA_BEFORE_X pixels
+// after it: the sync pulse and the back porch), the row from the time since the leading edge of VSYNC in lines
+// (VGA_BEFORE_Y lines of sync and back porch), whether VSYNC changes at the start of a line or with HSYNC. FB:
+// the rgb bits' value of each pixel of the VGA_W x VGA_H picture; VG (VGA_STATE): the monitor's state, its
+// measures in cycles.
+export const VGA_W = 640, VGA_H = 480, VGA_TOTAL_W = 800, VGA_BEFORE_X = 144, VGA_BEFORE_Y = 35;
+/** The monitor's state (core/vga.js reads it): the cycle, the HSYNC / VSYNC levels and edges, the measures. */
+export const VGA_STATE = ['ct', 'hp', 'hr', 'hf', 'hhi', 'hlo', 'lead', 'L', 'kx', 'row', 'vp', 'vr', 'vf', 'vhi', 'vlo', 'vlead', 'frames', 'fp', 'hsw', 'vsw'];
+const VGA_CODE = (hs, vs, rgb) => `{
+  const hs = ${hs}, vs = ${vs};
+  // (the first cycle: the levels, no edge)
+  if (g_vp < 0) { g_vp = vs; g_hp = hs; }
+  if (vs !== g_vp) {
+    if (vs) { if (g_vf >= 0) g_vlo = g_ct - g_vf; g_vr = g_ct; } else { if (g_vr >= 0) g_vhi = g_ct - g_vr; g_vf = g_ct; }
+    const low = !(g_vhi > 0 && g_vlo > 0 && g_vhi < g_vlo);
+    if (vs === (low ? 0 : 1)) { if (g_vlead >= 0) { g_fp = g_ct - g_vlead; g_frames++; } g_vlead = g_ct; }
+    else if (g_vlead >= 0 && g_L > 0) g_vsw = (g_ct - g_vlead) / g_L;
+    g_vp = vs;
+  }
+  if (hs !== g_hp) {
+    if (hs) { if (g_hf >= 0) g_hlo = g_ct - g_hf; g_hr = g_ct; } else { if (g_hr >= 0) g_hhi = g_ct - g_hr; g_hf = g_ct; }
+    const low = !(g_hhi > 0 && g_hlo > 0 && g_hhi < g_hlo);
+    if (hs === (low ? 0 : 1)) {
+      if (g_lead >= 0) { g_L = g_ct - g_lead; g_kx = ${VGA_TOTAL_W} / g_L; }
+      g_lead = g_ct;
+      g_row = g_vlead >= 0 && g_L > 0 ? Math.floor((g_ct - g_vlead) / g_L) + 1 - ${VGA_BEFORE_Y} : -1;
+    } else if (g_lead >= 0) g_hsw = g_ct - g_lead;
+    g_hp = hs;
+  }
+  if (g_row >= 0 && g_row < ${VGA_H} && g_L > 0) {
+    const x = ((g_ct - g_lead) * g_kx | 0) - ${VGA_BEFORE_X};
+    if (x >= 0 && x < ${VGA_W}) FB[g_row * ${VGA_W} + x] = ${rgb};
+  }
+  g_ct++;
+}`;
+
 /** The netlist's bit for bit `pos` (0: the least significant) of the port `name` of module `top`, for watch. */
 export function portBit(json, top, name, pos = 0) {
   const bits = json.modules[top]?.ports?.[name]?.bits;
@@ -136,8 +175,8 @@ export function portBit(json, top, name, pos = 0) {
  *      (to test that code), watch: what each cycle counts (CompiledSim.take) }
  * watch: { levels: [{ bit, on }] (the cycles a bit is at `on`), pairs: [[{ bit, on }, { bit, on }]] (the cycles
  *   both are), edges: [{ bit, capture: [bits] }] (each falling edge of the bit: the cycle and the captured
- *   bits' value, up to 32) }, the bits as in the netlist (portBit), sampled in every cycle before
- *   its clock edge (the values the cycle shows).
+ *   bits' value, up to 32), vga: { hs, vs, rgb: [bits] } (a VGA monitor: VGA_CODE) }, the bits as in the
+ *   netlist (portBit), sampled in every cycle before its clock edge (the values the cycle shows).
  */
 export function compileNetlist(json, { top, clock = null, wide = false, watch = null } = {}) {
   const mod = json.modules[top] || Object.values(json.modules).find(m => m.attributes?.top) || Object.values(json.modules)[0];
@@ -549,6 +588,7 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
     ...pairs.map(([a, b], i) => `if (${at(a)} && ${at(b)}) K[${levels.length + i}] += ${W};`),
   ].join('\n');
   const counted = levels.length + pairs.length > 0;
+  const vgaCode = watch?.vga ? VGA_CODE(sig([watch.vga.hs], 'n'), sig([watch.vga.vs], 'n'), sig(watch.vga.rgb, 'n')) : '';
   const edgeCode = edges.map((w, i) => `{ const e = ${sig([w.bit], 'n')}; if (e${i} === 1 && e === 0) EV.push(cy, ${sig(w.capture, 'n')}); e${i} = e; }`).join('\n');
 
   // ---- the code
@@ -574,6 +614,7 @@ ${V.map(i => `let V${i} = ${initOf(i)};`).join('\n')}
 ${memInit.join('\n')}
 ${dlist.map(d => `let P${d.k} = -1;`).join('\n')}
 const K = new Float64Array(${levels.length + pairs.length}), EV = [];
+${watch?.vga ? `const VG = new Float64Array(${VGA_STATE.length}).fill(-1), FB = new Uint16Array(${VGA_W * VGA_H}); VG[${VGA_STATE.indexOf('ct')}] = 0; VG[${VGA_STATE.indexOf('frames')}] = 0; VG[${VGA_STATE.indexOf('L')}] = 0;` : ''}
 ${edges.map((_, i) => `let E${i} = -1;`).join(' ')}
 function run(n) {
   ${V.length ? `let ${V.map(i => `v${i} = V${i}`).join(', ')};` : ''}
@@ -581,6 +622,7 @@ function run(n) {
   ${dlist.length ? `let ${dlist.map(d => `p${d.k} = P${d.k}, f${d.k} = 0`).join(', ')};` : ''}
   ${temps.length ? `let ${temps.join(', ')};` : ''}
   ${edges.length ? `let ${edges.map((_, i) => `e${i} = E${i}`).join(', ')};` : ''}
+  ${watch?.vga ? `let ${VGA_STATE.map((k, i) => `g_${k} = VG[${i}]`).join(', ')};` : ''}
   let ph = 0, cy = 0, it = 0, ch = false;
   for (;;) {
 ${combCode}
@@ -592,6 +634,7 @@ ${settleCode}
       if (cy === n) { ${counted && !needFall ? `if (n) { ${count('0.5')} }` : ''} break; }
 ${counted ? (needFall ? count('0.5') : count('(cy ? 1 : 0.5)')) : ''}
 ${edgeCode}
+${vgaCode}
       cy++;
       ${needFall ? `${ckSet(1)} ph = 1;` : ''}
 ${fire(posMain)}
@@ -604,12 +647,13 @@ ${fire(negMain)}
   ${V.map(i => `V${i} = v${i};`).join(' ')}
   ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}
   ${edges.map((_, i) => `E${i} = e${i};`).join(' ')}
+  ${watch?.vga ? VGA_STATE.map((k, i) => `VG[${i}] = g_${k};`).join(' ') : ''}
 }
 // the counts and the edges since the last take (the counts back to 0)
 function take() { const counts = Array.from(K); K.fill(0); return { counts, edges: EV.splice(0) }; }
 function set(k, x) { switch (k) { ${inputs.map(p => `case ${p.v}: V${p.v} = x; break;`).join(' ')} } }
 function vals() { return [${V.map(i => `V${i}`).join(', ')}]; }
-return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}] };
+return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${watch?.vga ? ', vga: { state: VG, fb: FB }' : ''} };
 `;
   const nets = new Map();
   for (const [name, n] of Object.entries(mod.netnames || {})) if (!n.hide_name) nets.set(name, n.bits);
@@ -651,6 +695,8 @@ export class CompiledSim {
   /** What the cycles counted since the last take (compileNetlist's watch): { counts: [levels…, pairs…],
    *  edges: [cycle, captured, cycle, captured…] } (the cycles counted from the start of each run). */
   take() { return this.inst.take(); }
+  /** The VGA monitor (compileNetlist's watch.vga): { state: VG (VGA_STATE's values), fb } or null. */
+  get vga() { return this.inst.vga || null; }
   /** The value of a port or a named net (BigInt). */
   get(name) {
     const bits = this.model.nets.get(name);

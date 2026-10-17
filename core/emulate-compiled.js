@@ -12,24 +12,30 @@
 import * as V from './values.js';
 import { compileNetlist, CompiledSim, portBit } from './compiled-sim.js';
 import { outputWatch, boardOutputsFromCounts, lcdFeedEdges } from './emulate.js';
+import { vgaPins, vgaPalette, vgaStatus } from './vga.js';
 
 export class CompiledBoard {
   /**
    * json, top: the netlist (netlistOf); design: the elaborated design (its top's ports and signals);
-   * wiring: boardWiring's; clock: the main clock's port (null: none); period: its period (ps).
+   * wiring: boardWiring's; clock: the main clock's port (null: none); period: its period (ps); board: its
+   * resources (the VGA connector's widths, #420).
    */
-  constructor({ json, top, design, wiring, clock = null, period = 20000 }) {
+  constructor({ json, top, design, wiring, clock = null, period = 20000, board = null }) {
     this.wiring = wiring;
     this.period = period;
     this.clock = clock;
     this.watch = outputWatch(wiring);
     const bit = (b) => (b ? portBit(json, top, b.port, b.pos) : '0');
+    // the VGA monitor, when the UCF wires the board's VGA connector (core/vga.js)
+    this.vgaPins = vgaPins(wiring, board);
+    this.palette = this.vgaPins ? vgaPalette(this.vgaPins.widths) : null;
     const model = compileNetlist(json, {
       top, clock: clock || false,
       watch: {
         levels: this.watch.levels.map((l) => ({ bit: bit(l.b), on: l.on })),
         pairs: this.watch.pairs.map(([a, b]) => [{ bit: bit(a.b), on: a.on }, { bit: bit(b.b), on: b.on }]),
         edges: this.watch.edges.map((e) => ({ bit: bit(e.b), capture: e.capture.map(bit) })),
+        vga: this.vgaPins && { hs: bit(this.vgaPins.hs), vs: bit(this.vgaPins.vs), rgb: [...this.vgaPins.red, ...this.vgaPins.green, ...this.vgaPins.blue].map(bit) },
       },
     });
     this.cs = new CompiledSim(model);
@@ -92,6 +98,11 @@ export class CompiledBoard {
     const fed = lcdFeedEdges(st, this.watch, this.edges);
     this.edges = [];
     return fed;
+  }
+  /** The VGA monitor: { fb (the rgb bits' value of each pixel), palette, status: vgaStatus's } or null (no VGA connector). */
+  vga() {
+    const v = this.cs.vga;
+    return v ? { fb: v.fb, palette: this.palette, status: vgaStatus(v.state, this.period) } : null;
   }
   /** A signal's value now (a simulator value), or null when the netlist has no net of its name. */
   value(sig) {

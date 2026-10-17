@@ -5,6 +5,7 @@
 // chosen, to debug: X values, the design's messages) the event-driven simulator of the behavioural RTL.
 import { Simulator } from '/core/simulator.js';
 import { CompiledBoard } from '/core/emulate-compiled.js';
+import { vgaPins, vgaPixels } from '/core/vga.js';
 import * as V from '/core/values.js';
 import { formatTime } from '/core/interp.js';
 import { boardWiring, boardOutputs, lcdState, lcdFeed, lcdText, emulatorClocks, manualClocks } from '/core/emulate.js';
@@ -99,6 +100,13 @@ function injectStyle() {
 .emu-rot { display: flex; gap: 46px; }
 .emu-rot-btn { width: 24px; height: 24px; border-radius: 50%; border: 1px solid #000; background: #2a2a2a; color: #eee; cursor: pointer; font-size: 14px; line-height: 20px; padding: 0; }
 .emu-rot-btn:active { background: #c22; }
+/* the VGA monitor (#420) */
+.emu-vga { flex: none; }
+.emu-vga-frame { position: relative; width: 480px; max-width: 100%; aspect-ratio: 4 / 3; background: #000; border: 6px solid #2b2b2b; border-radius: 6px; }
+.emu-vga-frame canvas { display: block; width: 100%; height: 100%; }
+.emu-vga-nosig { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; color: #c8c8c8; font-size: 14px; }
+.emu-vga-stat { margin-top: 4px; font-family: var(--mono, monospace); color: var(--grey-3); }
+.emu-vga-warn { color: var(--log-warning); }
 `));
 }
 
@@ -360,7 +368,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
   let compiled = null, engineNote = engine?.reason || null;
   if (engine?.netlist && wiring.clocks.length > 1) engineNote = `more than one clock on the board (${wiring.clocks.map((c) => c.port).join(', ')})`;
   else if (engine?.netlist) {
-    try { compiled = new CompiledBoard({ json: engine.netlist.json, top: engine.netlist.top, design, wiring, clock: wiring.clocks[0]?.port || null, period }); }
+    try { compiled = new CompiledBoard({ json: engine.netlist.json, top: engine.netlist.top, design, wiring, clock: wiring.clocks[0]?.port || null, period, board }); }
     catch (e) { engineNote = e.message; }
   }
   const sim = compiled || new Simulator(design, { files, maxWaveEvents: 1e9 });
@@ -506,8 +514,9 @@ export function mountEmulator(container, { design, board, assignments, title = '
     powerSwitches.push(el);
     return el;
   };
+  const vgaWired = vgaPins(wiring, board);
   const notEmulated = board.resources.filter((r) => !['led', 'sw', 'btn', 'seg', 'dp', 'an', 'rot'].includes(wiring.bits.find((b) => b.res === r)?.kind) && r.group !== 'Clock'
-    && !(r.group === 'LCD' && BOARD_LAYOUTS[board.id]?.lcd)
+    && !(r.group === 'LCD' && BOARD_LAYOUTS[board.id]?.lcd) && !(r.group === 'VGA' && vgaWired && compiled)
     && wiring.bits.some((b) => b.res === r)).map((r) => r.name);
   const clockNote = (wiring.clocks.length ? `Clock ${wiring.clocks.map((c) => c.port).join(', ')}: ${1e6 / period} MHz on the board${wiring.clocks[0].guessed ? ' (not in the UCF: assumed)' : ''}`
     : manual.length ? `Manual clock ${manual.map((b) => `${b.port} (${b.res.name.toUpperCase()})`).join(', ')}: one edge per press` : 'No clock input found')
@@ -541,6 +550,35 @@ export function mountEmulator(container, { design, board, assignments, title = '
     if (others.length) boardEl.append(h('div', { class: 'emu-row' }, ...others.map((r) => h('div', { class: `emu-cell${bitFor(r.name) ? '' : ' nc'}`, title: tip(r.name) },
       mkButton(0, 'emu-btn', r.name), h('span', { class: 'res' }, r.name.replace(/^btn_/, '').toUpperCase()), h('span', { class: 'port' }, portLabel(r.name))))));
     boardEl.append(h('div', { style: { fontSize: '11px', color: '#cfe8d4', marginTop: '6px' } }, clockNote));
+  }
+
+  // the VGA monitor (#420): the picture the design scans out on the board's VGA connector, as a monitor
+  // finds it in the sync pulses (core/vga.js), in the board's time; with the compiled engine only
+  let vgaView = null;
+  if (vgaWired) {
+    const canvas = h('canvas', { width: 640, height: 480 });
+    const nosig = h('div', { class: 'emu-vga-nosig' }, compiled ? 'No signal' : 'The VGA monitor needs the compiled engine (the event-driven one is too slow for a frame)');
+    const statEl = h('div', { class: 'emu-vga-stat' }), warnEl = h('div', { class: 'emu-vga-warn' });
+    main.append(h('div', { class: 'emu-box emu-vga' }, h('h4', {}, 'VGA monitor (640×480)'), h('div', { class: 'emu-vga-frame' }, canvas, nosig), statEl, warnEl));
+    const ctx = canvas.getContext('2d');
+    const img = ctx?.createImageData(640, 480), px = img ? new Uint32Array(img.data.buffer) : null;
+    let drawn = 0, warned = '';
+    const dark = () => { ctx?.clearRect(0, 0, 640, 480); nosig.hidden = false; statEl.textContent = ''; if (warned) { warnEl.textContent = ''; warned = ''; } };
+    vgaView = {
+      draw() {
+        if (!compiled || !powered) { dark(); return; }
+        const v = sim.vga();
+        if (!v.status.signal) { dark(); return; }
+        const now = performance.now();
+        if (now - drawn < 33 && running) return;   // (30 pictures a second at most)
+        drawn = now;
+        nosig.hidden = true;
+        if (px) { vgaPixels(v.fb, v.palette, px); ctx.putImageData(img, 0, 0); }
+        statEl.textContent = `640×480 · ${v.status.summary}`;
+        const w = v.status.warnings.join('\n');
+        if (w !== warned) { warned = w; warnEl.replaceChildren(...v.status.warnings.map((t) => h('div', {}, t))); }
+      },
+    };
   }
 
   // side: watch, unconnected ports, log
@@ -699,6 +737,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     leds.forEach((l, k) => { const v = prev?.leds[k] ?? 0; l.style.background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`; l.style.boxShadow = v > 0.05 ? `0 0 ${Math.round(8 * v)}px #4f4` : 'none'; });
     digits.forEach((d, k) => d && d.set(prev?.digits[k] ?? null));
     if (lcdView && lcdDirty) { lcdView.set(powered ? lcdText(lcd) : null, lcd); lcdDirty = false; }
+    vgaView?.draw();
     for (const w of watched) {
       const v = compiled ? sim.value(w.s) : w.s.val;
       w.val.textContent = v == null || Array.isArray(v) ? '?' : (w.s.t?.w > 1 ? `${V.toBin(v)}${v.x ? '' : ` (${v.v.toString(16).toUpperCase()}h)`}` : (v.x ? 'X' : v.v.toString()));

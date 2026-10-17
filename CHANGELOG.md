@@ -7,6 +7,9 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **A VGA monitor in the Board Emulator:** a design on the board's VGA connector shows its 640×480 picture, as a
+  monitor finds it in the sync pulses, with the measured timing and what is not 640×480 at 60 Hz (e.g. a pixel
+  clock of 50 MHz, a sync pulse of the wrong polarity).
 - **The Board Emulator at the board's speed:** a design that can be compiled runs on a new engine, its netlist as
   JavaScript, tens of millions of clock cycles per second: counters, dividers and debouncers at their real values,
   the clock in real time. The event-driven simulation stays, for debugging (X values, the design's messages) and for
@@ -91,6 +94,17 @@ In detail:
   the comparison had measured Normal only while the corpus's nightly run measures High: most of the speed loss it
   showed (+14 % → +22 % against ISE: epfl-priority 43.0 ns, epfl-max 61.7 ns) is Normal's, High giving 11.1 and
   28.5 ns (ISE: 20.8 and 25.7, trce).
+- **The Board Emulator's VGA monitor (#420, part 3 of #102):** when the UCF wires the board's VGA connector (its
+  colour widths from the board: 3-3-2 bits on the Basys2 and the Nexys2, 1-1-1 on the Starter Kit), the compiled
+  code keeps a monitor (`core/compiled-sim.js` VGA_CODE): a line from each leading edge of HSYNC (its active level
+  the shorter one), the pixel clock from the line's period (800 pixels), the column from the time since the edge,
+  the row from the time since VSYNC's, into a 640×480 picture the emulator draws (30 pictures a second at most) with
+  the palette of the board's resistor ladders (`core/vga.js`). It reports the line period, the frame rate, the
+  lines a frame, the sync pulses' widths and polarities, a warning for each outside the mode, and "No signal"
+  without sync pulses. About 66 million cycles a second with the monitor on a colour-bar design. With the
+  event-driven engine, the monitor says it needs the compiled one. Tests: `test/vga.test.js` (whole frames against
+  the picture the test design defines; the exact warnings of active-high pulses, a 50 MHz pixel clock, 515 lines,
+  a short HSYNC; no signal; the boards' widths and palettes) and a UI test.
 - **The Board Emulator on the compiled simulator (#418, part 2 of #102):** `core/emulate-compiled.js` runs the
   design compiled (#384) behind the part of the event-driven simulator the emulator uses (the board's time, Step,
   Power cycle, the forced inputs, the rotary knob's scheduled steps, the Watch box's values by their names in the
