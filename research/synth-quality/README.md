@@ -449,5 +449,7 @@ vtr-ch-intrinsics are its gated clocks (#80), the same in all three mappings. tr
     (the bit database has the SLICEM shift-register features, measured with ISE's designs).
 - **Tri-state buffers in the packer** (distributed RAM, block RAM, multipliers and the DCM are in
   the open flow since 15.10.2: research/s3e-bitstream/README.md, stage E).
-- **State machines**: Yosys's `fsm` pass finds no state machine in lab11's control unit (its
-  `state_id` output reads the state register); XST kept its binary encoding too.
+- **State machines** (#438): Yosys's `fsm` pass finds no state machine in lab11's control unit (its
+  `state_id` output reads the state register); XST kept its binary encoding too. Nor in any other design:
+  `fsm_detect` refuses every register with an initial value, and the front end gives every register its
+  power-up value. A re-encoding has to keep that value.
