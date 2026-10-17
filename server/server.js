@@ -2,6 +2,7 @@
 import express from 'express';
 import path from 'node:path';
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import * as P from './projects.js';
 import { orderExamples } from '../core/examples.js';
@@ -14,15 +15,61 @@ const wrap = fn => (req, res) => Promise.resolve().then(() => fn(req, res)).then
   err => res.status(err.status || 500).json({ error: err.message }),
 );
 
-export async function createApp({ host = '127.0.0.1' } = {}) {
+const cspCache = new Map();
+/** The Content-Security-Policy of a page of web/ (null if it is not one): its inline scripts by hash. */
+export function pageCsp(file) {
+  if (!file.startsWith(path.join(ROOT, 'web') + path.sep)) return null;
+  let st;
+  try { st = fs.statSync(file); } catch { return null; }
+  const hit = cspCache.get(file);
+  if (hit && hit.mtime === st.mtimeMs) return hit.csp;
+  const html = fs.readFileSync(file, 'utf8');
+  const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map(m => `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`);
+  const csp = [
+    "default-src 'self'",
+    // 'unsafe-eval': the compiled simulator (core/compiled-sim.js, #384) runs the JavaScript it writes
+    // for the design (new Function); a script injected into a page still cannot run
+    `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' ${hashes.join(' ')}`.trim(),
+    "worker-src 'self' blob:",
+    // the update check (GitHub's releases and the CHANGELOG)
+    "connect-src 'self' https://api.github.com https://raw.githubusercontent.com",
+    "img-src 'self' data: blob:",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self' data:",
+    "object-src 'none'",
+    "base-uri 'none'",
+    "frame-ancestors 'none'",
+    "form-action 'self'",
+  ].join('; ');
+  cspCache.set(file, { mtime: st.mtimeMs, csp });
+  return csp;
+}
+
+/** A loopback address (the server only reachable from this machine). */
+export const isLoopback = host => ['127.0.0.1', 'localhost', '::1', '[::1]'].includes(String(host).toLowerCase()) || /^127\./.test(String(host)) || /^::ffff:127\./.test(String(host));
+
+export async function createApp({ host = '127.0.0.1', token = null } = {}) {
   const app = express();
   // The API changes files and runs the ISE flow: only the Silinx page itself may call it.
   // A request from another web origin (a malicious page in the same browser) is refused, and when
-  // bound to localhost the Host header must be local too (DNS rebinding).
+  // bound to localhost the Host header must be local too (DNS rebinding). Bound to another address
+  // (--host 0.0.0.0, a LAN address), the API answers only this machine's own requests (a loopback
+  // client and a local Host) or those carrying the server's token (X-Silinx-Token, or ?token= on a
+  // GET a link opens; printed in the URL at start-up): another machine, or a page rebinding its name to this one, has neither.
   const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]', '::1']);
+  const exposed = !isLoopback(host);
+  if (exposed && !token) throw new Error('a server on a non-loopback address needs a token');
+  const tokenOk = t => typeof t === 'string' && t.length === token.length && crypto.timingSafeEqual(Buffer.from(t), Buffer.from(token));
   app.use('/api', (req, res, next) => {
     const hostName = String(req.headers.host || '').replace(/:\d+$/, '').toLowerCase();
-    if (!['0.0.0.0', '::'].includes(host) && hostName && !LOCAL.has(hostName) && hostName !== String(host).toLowerCase()) return res.status(403).json({ error: 'forbidden host' });
+    if (exposed) {
+      if (!(isLoopback(req.socket.remoteAddress || '') && LOCAL.has(hostName)) && !tokenOk(req.headers['x-silinx-token']) && !(req.method === 'GET' && tokenOk(req.query.token)))
+        return res.status(403).json({ error: 'this Silinx server needs its token: open the URL it printed at start-up' });
+    } else if (hostName && !LOCAL.has(hostName) && hostName !== String(host).toLowerCase()) return res.status(403).json({ error: 'forbidden host' });
+    // a request another site's page made (an <img>, a link, a form: the browser says so in
+    // Sec-Fetch-Site) is refused, a GET too: some GETs write a file or start a process
+    if (req.headers['sec-fetch-site'] === 'cross-site') return res.status(403).json({ error: 'cross-site request refused' });
     if (req.method !== 'GET' && req.method !== 'HEAD' && req.headers.origin) {
       let oh = '';
       try { oh = new URL(req.headers.origin).host.toLowerCase(); } catch { /* invalid origin */ }
@@ -33,6 +80,14 @@ export async function createApp({ host = '127.0.0.1' } = {}) {
   app.use(express.json({ limit: '20mb' }));
   app.use(express.text({ type: 'text/*', limit: '20mb' }));
 
+  // Content-Security-Policy of the pages: scripts only from the server itself (and the pages' own
+  // inline scripts, by their hashes), no plug-ins, no framing; so a script injected into a page
+  // cannot run and reach the API above
+  app.use((req, res, next) => {
+    const file = req.path.endsWith('/') ? `${req.path}index.html` : req.path;
+    if (/\.html$/.test(file)) { const csp = pageCsp(path.join(ROOT, 'web', path.normalize(file))); if (csp) res.set('Content-Security-Policy', csp); }
+    next();
+  });
   app.use('/', express.static(path.join(ROOT, 'web')));
   app.use('/core', express.static(path.join(ROOT, 'core')));
   app.use('/vendor/elk', express.static(path.join(ROOT, 'node_modules/elkjs/lib')));
@@ -82,12 +137,20 @@ export async function createApp({ host = '127.0.0.1' } = {}) {
 }
 
 export async function startServer({ port = 8642, host = '127.0.0.1' } = {}) {
-  const app = await createApp({ host });
+  // another address than loopback: a token for the API, made anew at every start
+  const token = isLoopback(host) ? null : crypto.randomBytes(18).toString('base64url');
+  const app = await createApp({ host, token });
   return new Promise((resolve, reject) => {
     // Express 5 calls the listen callback with the error too (a port in use): not "running"
     const srv = app.listen(port, host, err => {
       if (err) return reject(err);
       console.log(`Silinx running at http://${host}:${port}  (workspace: ${P.workspaceDir()})`);
+      if (token) {
+        console.log(`WARNING: listening on ${host}, not only on this machine. Other computers that can reach this port need the address below (with its token);`);
+        console.log('         anyone who has it can change your projects and run the toolchain. Use the default (127.0.0.1) unless you need this.');
+        console.log(`         http://${['0.0.0.0', '::'].includes(host) ? '<this computer>' : host}:${port}/#token=${token}`);
+      }
+      srv.silinxToken = token;
       resolve(srv);
     });
     srv.on('error', reject);

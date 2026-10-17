@@ -3,7 +3,13 @@
 // browser -> CompressionStream/DecompressionStream('deflate-raw') (see browserCodec()).
 //
 //   await createZip([{ path, data: Uint8Array|string }], codec) -> Uint8Array
-//   await readZip(bytes, codec) -> [{ path, data: Uint8Array }]   (directories skipped)
+//   await readZip(bytes, codec, { maxEntry, maxTotal }) -> [{ path, data: Uint8Array }]   (directories skipped)
+//
+// A zip can declare (or inflate to) far more than it holds: an entry or a whole archive above the
+// limits is refused before it is inflated, and codec.inflate(data, limit) stops at the entry's size.
+
+/** The default limits of readZip: an entry, the whole archive (uncompressed). */
+export const ZIP_LIMITS = Object.freeze({ maxEntry: 64 << 20, maxTotal: 256 << 20 });
 
 const enc = new TextEncoder();
 const dec = new TextDecoder();
@@ -70,7 +76,7 @@ export async function createZip(files, codec) {
   return out;
 }
 
-export async function readZip(bytes, codec) {
+export async function readZip(bytes, codec, { maxEntry = ZIP_LIMITS.maxEntry, maxTotal = ZIP_LIMITS.maxTotal } = {}) {
   const b = toBytes(bytes);
   const dv = new DataView(b.buffer, b.byteOffset, b.byteLength);
   // find the end-of-central-directory record (it may be followed by a comment)
@@ -82,6 +88,7 @@ export async function readZip(bytes, codec) {
   const count = dv.getUint16(eocd + 10, true);
   let p = dv.getUint32(eocd + 16, true);
   const out = [];
+  let total = 0;
   for (let n = 0; n < count; n++) {
     if (dv.getUint32(p, true) !== 0x02014b50) throw new Error('corrupt zip central directory');
     const flags = dv.getUint16(p + 8, true), method = dv.getUint16(p + 10, true);
@@ -95,9 +102,14 @@ export async function readZip(bytes, codec) {
     if (flags & 1) throw new Error(`encrypted zip entries are not supported (${path})`);
     const dataStart = lho + 30 + dv.getUint16(lho + 26, true) + dv.getUint16(lho + 28, true);
     const body = b.subarray(dataStart, dataStart + csize);
+    if (usize > maxEntry) throw new Error(`zip entry too large (${path}: ${usize} bytes, at most ${maxEntry})`);
+    if ((total += usize) > maxTotal) throw new Error(`zip too large once uncompressed (more than ${maxTotal} bytes)`);
     let data;
     if (method === 0) data = body.slice();
-    else if (method === 8) data = toBytes(await codec.inflate(body));
+    else if (method === 8) {
+      try { data = toBytes(await codec.inflate(body, usize)); }
+      catch (e) { throw new Error(`zip entry larger than it declares or corrupt (${path}): ${e.message}`); }
+    }
     else throw new Error(`unsupported zip compression method ${method} (${path})`);
     if (data.length !== usize) throw new Error(`zip entry size mismatch (${path})`);
     out.push({ path, data });
@@ -107,13 +119,16 @@ export async function readZip(bytes, codec) {
 
 // Raw deflate via the browser's CompressionStream (Chrome 103+, Safari 16.4+, Firefox 113+).
 export function browserCodec() {
-  const run = async (data, Stream) => {
-    const s = new Blob([data]).stream().pipeThrough(new Stream('deflate-raw'));
+  const run = async (data, Stream, limit = Infinity) => {
+    let s = new Blob([data]).stream().pipeThrough(new Stream('deflate-raw'));
+    // inflate: stop as soon as the output goes past the size the entry declares
+    let n = 0;
+    if (limit !== Infinity) s = s.pipeThrough(new TransformStream({ transform(chunk, c) { if ((n += chunk.length) > limit) c.error(new Error('output above the declared size')); else c.enqueue(chunk); } }));
     return new Uint8Array(await new Response(s).arrayBuffer());
   };
   return {
     deflate: data => run(data, CompressionStream),
-    inflate: data => run(data, DecompressionStream),
+    inflate: (data, limit) => run(data, DecompressionStream, limit),
   };
 }
 

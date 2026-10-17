@@ -203,6 +203,7 @@ test('program: iMPACT not on PATH is run through settings64.sh in a bash wrapper
 
 test('program: request errors', async () => {
   await P.createProject({ name: 'NoTop', board: 'basys2' });
+  await fs.writeFile(path.join(tmp, 'notabit.bit'), 'ssh-ed25519 AAAA… not a bitstream');
   for (const [body, status, re] of [
     [{}, 400, /give a project or a bitfile/],
     [{ bitfile: 'build/top.bit' }, 400, /must be an absolute path when no project is given/],
@@ -213,6 +214,9 @@ test('program: request errors', async () => {
     [{ project: 'Prog', board: 'nope' }, 400, /unknown board 'nope'/],
     [{ project: 'Ghost' }, 404, /not found/],
     [{ bitfile: path.join(tmp, 'missing.bit') }, 404, /run the implementation first/],
+    // a file outside the project that is not a bitstream: the same answer as a missing one
+    [{ bitfile: path.join(tmp, 'notabit.bit') }, 404, new RegExp(`^bitstream not found: .*notabit\\.bit \\(run the implementation first\\)$`)],
+    [{ project: 'Prog', bitfile: path.join(tmp, 'notabit.bit') }, 404, /run the implementation first/],
   ]) {
     const r = await app.call('POST', '/program', body);
     assert.equal(r.status, status, JSON.stringify(body));

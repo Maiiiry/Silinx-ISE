@@ -38,3 +38,37 @@ test('zip is readable by the system unzip and reads system zip output', async ()
   assert.equal(textOf(back.find(e => e.path === 'src/m.v')), 'module m; endmodule\n'.repeat(20));
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+// the central directory's declared uncompressed size of entry k, rewritten (a zip that lies)
+function declare(zip, k, usize) {
+  const z = new Uint8Array(zip), dv = new DataView(z.buffer);
+  let eocd = z.length - 22;
+  while (dv.getUint32(eocd, true) !== 0x06054b50) eocd--;
+  let p = dv.getUint32(eocd + 16, true);
+  for (let n = 0; n < k; n++) p += 46 + dv.getUint16(p + 28, true) + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+  dv.setUint32(p + 24, usize, true);
+  return z;
+}
+const nodeCodec = { deflate: d => zlib.deflateRawSync(d), inflate: (d, limit) => zlib.inflateRawSync(d, limit === undefined ? {} : { maxOutputLength: Math.max(1, limit) }) };
+
+test('zip limits: an entry or an archive too large is refused before it is inflated', async () => {
+  const big = 'a'.repeat(1 << 20);   // 1 MB of one byte: deflates to about 1 kB
+  const z = await createZip([{ path: 'a.txt', data: big }, { path: 'b.txt', data: big }], nodeCodec);
+  assert.equal((await readZip(z, nodeCodec)).length, 2);
+  await assert.rejects(readZip(z, nodeCodec, { maxEntry: 1 << 19 }), /zip entry too large \(a\.txt: 1048576 bytes, at most 524288\)/);
+  await assert.rejects(readZip(z, nodeCodec, { maxTotal: (1 << 20) + 10 }), /zip too large once uncompressed \(more than 1048586 bytes\)/);
+  // a declared size of 4 GB is refused without inflating anything
+  let inflated = 0;
+  const counting = { ...nodeCodec, inflate: (d, l) => { inflated++; return nodeCodec.inflate(d, l); } };
+  await assert.rejects(readZip(declare(z, 0, 0xffffffff), counting), /zip entry too large \(a\.txt/);
+  assert.equal(inflated, 0);
+});
+
+test('zip limits: an entry that inflates past its declared size is stopped (zip bomb)', async () => {
+  const z = await createZip([{ path: 'bomb.txt', data: 'a'.repeat(1 << 20) }], nodeCodec);
+  await assert.rejects(readZip(declare(z, 0, 1000), nodeCodec), /zip entry larger than it declares or corrupt \(bomb\.txt\)/);
+  // the browser codec stops its stream too (Node 18+ has CompressionStream)
+  const { browserCodec } = await import('../core/zip.js');
+  await assert.rejects(readZip(declare(z, 0, 1000), browserCodec()), /zip entry larger than it declares or corrupt \(bomb\.txt\): output above the declared size/);
+  assert.equal(textOf((await readZip(z, browserCodec()))[0]).length, 1 << 20);
+});

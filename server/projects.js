@@ -134,7 +134,9 @@ async function walk(dir, base = '') {
     if (ent.name.startsWith('.') || (base === '' && ent.name === 'build')) continue;
     const rel = base ? `${base}/${ent.name}` : ent.name;
     if (ent.isDirectory()) out.push(...await walk(dir, rel));
-    else out.push(rel);
+    // a symbolic link is not a project file (it may lead out of the project: an export would take
+    // the file it points to)
+    else if (ent.isFile()) out.push(rel);
   }
   return out;
 }

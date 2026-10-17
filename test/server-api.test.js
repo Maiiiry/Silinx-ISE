@@ -282,13 +282,27 @@ test('devices DB and toolchain configuration', async () => {
     [{ mode: 'cloud' }, /invalid mode 'cloud'/],
     [{ ssh: { host: 'a b' } }, /ssh.host contains invalid characters/],
     [{ ssh: { user: 'me;rm' } }, /ssh.user contains invalid characters/],
-    [{ ssh: { sshArgs: '-v' } }, /ssh.sshArgs must be an array/],
-    [{ docker: { extraArgs: '--privileged' } }, /docker.extraArgs must be an array/],
+    [{ local: { settings: '/tmp/evil.sh' } }, /local.settings must be ISE's settings64.sh/],
+    [{ docker: { settings: '/opt/x/run' } }, /docker.settings must be ISE's settings64.sh/],
   ]) {
     r = await call('PUT', '/toolchain', body);
     assert.equal(r.status, 400, JSON.stringify(body));
     assert.match(r.body.error, re);
   }
+  // the settings that run a program (or give it arguments) are set in config.json only, never
+  // through the API; sent unchanged (Toolchain Settings sends the whole config) they are accepted
+  const cfgFile = path.join(process.env.SILINX_CONFIG_DIR, 'config.json');
+  for (const body of [{ docker: { command: '/bin/sh' } }, { docker: { extraArgs: ['-c', 'id'] } }, { ssh: { sshArgs: ['-oProxyCommand=id'] } },
+    { ssh: { identity: '/tmp/k' } }, { paths: { djtgcfg: '/tmp/x' } }, { ssh: { sshArgs: '-v' } }]) {
+    r = await call('PUT', '/toolchain', body);
+    assert.equal(r.status, 403, JSON.stringify(body));
+    assert.match(r.body.error, new RegExp(`^${Object.keys(body)[0]}\\.?\\w* can only be set in .*config\\.json$`));
+  }
+  r = await call('PUT', '/toolchain', { ...(await call('GET', '/toolchain')).body.config, ssh: { host: 'box.lan', user: 'me', sshArgs: [] } });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.config.docker.command, 'docker');
+  assert.equal(r.body.config.local.settings, '');
+  if (process.platform !== 'win32') assert.equal((await fs.stat(cfgFile)).mode & 0o777, 0o600);
   r = await call('PUT', '/toolchain');   // no body: nothing changes
   assert.equal(r.status, 200);
   assert.equal(r.body.config.mode, 'ssh');
@@ -330,24 +344,93 @@ test('security: foreign Host headers and cross-origin writes are refused', async
   // GET with a foreign Origin is a read: allowed (same-origin policy protects the response)
   r = await app.raw('GET', '/api/projects', { headers: { origin: 'http://evil.example' } });
   assert.equal(r.status, 200);
+  // a request the browser marks as made by another site's page: refused, a GET too (export.xise
+  // writes a file, GET /toolchain starts docker); the app's own requests are same-origin
+  r = await app.raw('GET', '/api/projects/Alpha/export.xise', { headers: { 'sec-fetch-site': 'cross-site' } });
+  assert.deepEqual([r.status, r.body], [403, { error: 'cross-site request refused' }]);
+  for (const site of ['same-origin', 'same-site', 'none'])
+    assert.equal((await app.raw('GET', '/api/templates', { headers: { 'sec-fetch-site': site } })).status, 200, site);
   // same origin write: allowed
   r = await app.raw('POST', '/api/projects', { headers: { ...json, origin: app.origin }, body: JSON.stringify({ name: 'SameOrigin' }) });
   assert.equal(r.status, 200);
 });
 
-test('security: bound to all interfaces any Host is accepted; bound to a name, that name is', async () => {
-  const any = await startApp({ host: '0.0.0.0' });
+test('security: bound to another address than loopback, the API needs the token (or a local client)', async () => {
+  const { createApp } = await import('../server/server.js');
+  await assert.rejects(createApp({ host: '0.0.0.0' }), /needs a token/);
+  const token = 'k'.repeat(24);
+  const any = await startApp({ host: '0.0.0.0', token });
   try {
-    assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642' } })).status, 200);
-    // cross-origin writes are still refused
-    assert.equal((await any.raw('POST', '/api/projects', { headers: { origin: 'http://evil.example', 'content-type': 'application/json' }, body: '{}' })).status, 403);
+    const refused = { error: 'this Silinx server needs its token: open the URL it printed at start-up' };
+    // another name for this machine (another computer, or a page rebinding its name): the token is needed
+    let r = await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642' } });
+    assert.equal(r.status, 403);
+    assert.deepEqual(r.body, refused);
+    assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642', 'x-silinx-token': token } })).status, 200);
+    assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642', 'x-silinx-token': 'j'.repeat(24) } })).status, 403);
+    assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'fpga-lab.local:8642', 'x-silinx-token': 'short' } })).status, 403);
+    // ?token= only on a GET (a link the page opens), never on a write
+    assert.equal((await any.raw('GET', `/api/templates?token=${token}`, { headers: { host: 'fpga-lab.local' } })).status, 200);
+    r = await any.raw('PUT', `/api/toolchain?token=${token}`, { headers: { host: 'fpga-lab.local', 'content-type': 'application/json' }, body: '{"mode":"silinx"}' });
+    assert.deepEqual([r.status, r.body], [403, refused]);
+    // this machine's own browser (a loopback client, a local Host) needs no token
+    assert.equal((await any.raw('GET', '/api/templates', { headers: { host: 'localhost:8642' } })).status, 200);
+    // cross-origin writes are still refused, token or not
+    assert.equal((await any.raw('POST', '/api/projects', { headers: { host: 'fpga-lab.local', 'x-silinx-token': token, origin: 'http://evil.example', 'content-type': 'application/json' }, body: '{}' })).status, 403);
+    // the static UI is not guarded (it holds no data): the token comes in the address
+    assert.equal((await any.raw('GET', '/', { headers: { host: 'fpga-lab.local' } })).status, 200);
   } finally { await any.close(); }
-  const named = await startApp({ host: 'FPGA-Box' });
+  const named = await startApp({ host: 'FPGA-Box', token });
   try {
-    assert.equal((await named.raw('GET', '/api/templates', { headers: { host: 'fpga-box:8642' } })).status, 200);
+    assert.equal((await named.raw('GET', '/api/templates', { headers: { host: 'fpga-box:8642' } })).status, 403);
+    assert.equal((await named.raw('GET', '/api/templates', { headers: { host: 'fpga-box:8642', 'x-silinx-token': token } })).status, 200);
     assert.equal((await named.raw('GET', '/api/templates', { headers: { host: 'localhost' } })).status, 200);
-    assert.equal((await named.raw('GET', '/api/templates', { headers: { host: 'other-box' } })).status, 403);
   } finally { await named.close(); }
+});
+
+test('security: serve on 0.0.0.0 makes a token at every start and prints the address with it', async () => {
+  const { startServer } = await import('../server/server.js');
+  const out = [], log = console.log;
+  console.log = (...a) => out.push(a.join(' '));
+  let srv;
+  try { srv = await startServer({ port: 0, host: '0.0.0.0' }); } finally { console.log = log; }
+  try {
+    assert.match(srv.silinxToken, /^[\w-]{24}$/);
+    assert.match(out.join('\n'), /WARNING: listening on 0\.0\.0\.0, not only on this machine/);
+    assert.ok(out.some(l => l.endsWith(`/#token=${srv.silinxToken}`)));
+  } finally { await new Promise(r => srv.close(r)); }
+  // on loopback: no token, no warning
+  out.length = 0;
+  console.log = (...a) => out.push(a.join(' '));
+  try { srv = await startServer({ port: 0, host: '127.0.0.1' }); } finally { console.log = log; }
+  try { assert.equal(srv.silinxToken, null); assert.ok(!out.some(l => /WARNING|token/.test(l))); } finally { await new Promise(r => srv.close(r)); }
+});
+
+test('pages carry a Content-Security-Policy: scripts only from the server and the page\'s own inline ones', async () => {
+  const crypto = await import('node:crypto');
+  const r = await fetch(app.origin + '/');
+  const csp = r.headers.get('content-security-policy');
+  assert.ok(csp, 'GET / has a CSP');
+  const dir = Object.fromEntries(csp.split(/;\s*/).map(d => { const [k, ...v] = d.split(' '); return [k, v]; }));
+  assert.deepEqual(dir['object-src'], ["'none'"]);
+  assert.deepEqual(dir['frame-ancestors'], ["'none'"]);
+  assert.deepEqual(dir['base-uri'], ["'none'"]);
+  // no inline script but the page's own (by hash); 'unsafe-eval' for the compiled simulator (#384)
+  assert.ok(!dir['script-src'].includes("'unsafe-inline'"));
+  assert.deepEqual(dir['script-src'].filter(x => !x.startsWith("'sha256-")), ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'"]);
+  // every inline script of index.html is allowed by its hash, nothing else inline
+  const html = await r.text();
+  const inline = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map(m => `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`);
+  assert.ok(inline.length >= 2);
+  assert.deepEqual(dir['script-src'].filter(x => x.startsWith("'sha256-")).sort(), inline.sort());
+  assert.ok(fss.readdirSync(path.join(HERE, '..', 'web')).filter(f => f.endsWith('.html')).length > 1);
+  for (const page of ['/index.html', '/asm-demo.html']) assert.match((await fetch(app.origin + page)).headers.get('content-security-policy') || '', /script-src 'self'/, page);
+  // not on the API, the scripts, nor a path outside web/
+  assert.equal((await fetch(app.origin + '/api/templates')).headers.get('content-security-policy'), null);
+  assert.equal((await fetch(app.origin + '/js/app.js')).headers.get('content-security-policy'), null);
+  const { pageCsp } = await import('../server/server.js');
+  assert.equal(pageCsp(path.join(HERE, '..', 'README.md')), null);
+  assert.equal(pageCsp(path.join(HERE, '..', 'web', '..', 'docs', 'x.html')), null);
 });
 
 test('static files: the web UI and the shared core modules are served', async () => {
@@ -525,6 +608,21 @@ test('zip: Xilinx export (.xise + sources, no Silinx-only files) and re-import',
   assert.deepEqual(await P.fileTree('Zx2'), ['constraints/top.ucf', 'mem/rom.hex', 'sim/tb_top.v', 'src/top.vhd']);
 });
 
+test('a symbolic link in a project is not a project file: not listed, not exported', { skip: process.platform === 'win32' }, async () => {
+  await call('POST', '/projects', { name: 'Links', template: 'empty' });
+  const dir = P.projectDir('Links');
+  const outside = path.join(path.dirname(P.workspaceDir()), 'secret.txt');
+  await fs.writeFile(outside, 'private');
+  await fs.symlink(outside, path.join(dir, 'link.txt'));
+  await fs.writeFile(path.join(dir, 'real.txt'), 'mine');
+  const tree = (await call('GET', '/projects/Links')).body.fileTree;
+  assert.ok(tree.includes('real.txt') && !tree.includes('link.txt'), JSON.stringify(tree));
+  const z = await call('GET', '/projects/Links/export.zip?kind=silinx');
+  assert.equal(z.status, 200);
+  const names = (await readZip(new Uint8Array(z.body), { inflate: d => zlib.inflateRawSync(d) })).map(e => e.path);
+  assert.ok(names.includes('real.txt') && !names.includes('link.txt'), JSON.stringify(names));
+});
+
 test('zip: Silinx export keeps silinx.json and every file; import restores board, stimuli and settings', async () => {
   await call('POST', '/projects', { name: 'Zs', board: 'nexys2' });
   await call('PUT', '/projects/Zs/file?path=src/top.v', 'module top(input a, output y); assign y = a; endmodule\n');
@@ -591,7 +689,30 @@ test('zip import: a broken silinx.json is ignored; a Silinx zip with a traversal
   assert.equal((await call('POST', '/projects/import-zip?name=Zb2', new Uint8Array(z2))).status, 200);
   const z3 = await zip([{ path: 'silinx.json', data: JSON.stringify({ files: [{ path: 'src/gone.v' }, null, { path: '../../out.v' }], constraints: '' }) }]);
   const r3 = await call('POST', '/projects/import-zip?name=Zb3', new Uint8Array(z3));
-  assert.deepEqual(r3.body.missing, ['src/gone.v', '../../out.v']);
+  // a file path that leaves the project is dropped from silinx.json, never read by a flow later
+  assert.deepEqual(r3.body.missing, ['src/gone.v']);
+  assert.deepEqual(r3.body.warnings, ['silinx.json: file path outside the project dropped (undefined)', 'silinx.json: file path outside the project dropped (../../out.v)']);
+  assert.deepEqual(r3.body.project.files.map(f => f.path), ['src/gone.v']);
+  const z4 = await zip([{ path: 'silinx.json', data: JSON.stringify({ files: [], constraints: '/etc/x.ucf' }) }]);
+  const r4 = await call('POST', '/projects/import-zip?name=Zb4', new Uint8Array(z4));
+  assert.deepEqual(r4.body.warnings, ['silinx.json: constraints path outside the project dropped (/etc/x.ucf)']);
+  assert.notEqual(r4.body.project.constraints, '/etc/x.ucf');
+});
+
+test('zip import: a zip bomb (an entry larger than it declares) is refused, the server keeps running', async () => {
+  const z = new Uint8Array(await zip([{ path: 'silinx.json', data: '{}' }, { path: 'big.txt', data: 'a'.repeat(1 << 20) }]));
+  // the central directory says big.txt is 100 bytes: inflating stops there
+  const dv = new DataView(z.buffer);
+  let eocd = z.length - 22;
+  while (dv.getUint32(eocd, true) !== 0x06054b50) eocd--;
+  let p = dv.getUint32(eocd + 16, true);
+  p += 46 + dv.getUint16(p + 28, true) + dv.getUint16(p + 30, true) + dv.getUint16(p + 32, true);
+  dv.setUint32(p + 24, 100, true);
+  const r = await call('POST', '/projects/import-zip?name=Bomb', z);
+  assert.equal(r.status, 400);
+  assert.match(r.body.error, /^cannot read zip: zip entry larger than it declares or corrupt \(big\.txt\)/);
+  assert.ok(!fss.existsSync(path.join(P.workspaceDir(), 'Bomb')));
+  assert.equal((await call('GET', '/templates')).status, 200);
 });
 
 test('zip import: error paths', async () => {
