@@ -8,6 +8,11 @@
 // the DRC also says "The network <name> has island(s)". One design holds thousands of such nets,
 // each with its own source, its own wires and its own nodes, so one run of xdl -xdl2ncd -force and
 // drc tests thousands of joins.
+//
+// A tile with no slice (an I/O or block-RAM switch box, a tile at the edge) is driven from a slice of
+// a neighbouring CLB: the path crosses joins already known (observed in ISE's routes or confirmed by
+// earlier tests), e.g. slice -> OMUX -> E2BEG of the CLB, joined to E2END of the I/O tile, -> the
+// tested wire.
 
 const splitKey = k => { const i = k.indexOf('/'); return [k.slice(0, i), k.slice(i + 1)]; };
 
@@ -21,19 +26,32 @@ export const SOURCES = [['X', 'F1'], ['Y', 'G1']];
  *   pinWire(pos, pin) -> the tile wire of a slice pin,
  *   pipsOf(tile) -> [[from, to]] (the PIPs known to exist in the tile, wire names),
  *   nodeOf(key) -> [keys] (the wires predicted to be one node with 'TILE/WIRE': reserved with it),
- *   maxDepth (PIPs from the slice output to the tested wire, default 3).
+ *   joined(key) -> [keys] (the wires of other tiles known to be joined to 'TILE/WIRE': observed or
+ *     confirmed; a path may cross them, to reach a tile with no slice from a neighbouring one),
+ *   maxDepth (PIPs from the slice output to the tested wire, default 3),
+ *   maxJoins (known joins a path may cross, default 0: the source in the tested wire's own tile).
  * Returns { designs: [{ xdl, tests: [{ net, join }] }], untestable: [join] }.
  */
 export function joinTestDesigns(opts) {
-  const { part, joins, slicesOf, pinWire, pipsOf, nodeOf = k => [k], maxDepth = 3 } = opts;
-  const outOf = new Map();   // tile -> Map from -> [to]
-  const adj = tile => {
-    if (!outOf.has(tile)) {
-      const m = new Map();
-      for (const [f, t] of pipsOf(tile)) { if (!m.has(f)) m.set(f, []); m.get(f).push(t); }
-      outOf.set(tile, m);
+  const { part, joins, slicesOf, pinWire, pipsOf, nodeOf = k => [k], joined = () => [], maxDepth = 3, maxJoins = 0 } = opts;
+  const cache = new Map();   // tile -> { out: Map from -> [to], into: Map to -> [from], src: Map wire -> [source] }
+  const tileOf = tile => {
+    if (!cache.has(tile)) {
+      const out = new Map(), into = new Map(), src = new Map();
+      for (const [f, t] of pipsOf(tile)) {
+        if (!out.has(f)) out.set(f, []);
+        out.get(f).push(t);
+        if (!into.has(t)) into.set(t, []);
+        into.get(t).push(f);
+      }
+      for (const s of slicesOf(tile)) for (const [o, i] of SOURCES) {
+        const w = pinWire(s.pos, o);
+        if (!src.has(w)) src.set(w, []);
+        src.get(w).push({ s, o, i });
+      }
+      cache.set(tile, { out, into, src });
     }
-    return outOf.get(tile);
+    return cache.get(tile);
   };
   let left = joins.slice();
   const designs = [], untestable = [];
@@ -42,53 +60,64 @@ export function joinTestDesigns(opts) {
     const tests = [], next = [];
     const reserve = keys => keys.forEach(k => nodeOf(k).forEach(x => used.add(x)));
     const free = k => nodeOf(k).every(x => !used.has(x));
+    // breadth first backwards from the tested wire, over the PIPs into it and the known joins, to a
+    // slice output (only through free wires and unused sources when `onlyFree`); never through
+    // `avoid` (the other end's node: a path through it would join the two ends by itself).
+    // Returns { src, keys (source to tested wire), pips: [[tile, from, to]] } or null.
+    const search = (target, avoid, onlyFree) => {
+      const after = new Map([[target, null]]);   // key -> [the key after it on the path, by a PIP?]
+      let frontier = [{ k: target, pips: 0, joins: 0 }];
+      while (frontier.length) {
+        for (const { k } of frontier) {
+          const [t, w] = splitKey(k);
+          for (const src of tileOf(t).src.get(w) || []) {
+            if (onlyFree && usedSrc.has(`${src.s.site}.${src.o}`)) continue;
+            const keys = [k], pips = [];
+            for (let x = k; after.get(x); x = after.get(x)[0]) {
+              const [y, pip] = after.get(x);
+              if (pip) pips.push([splitKey(x)[0], splitKey(x)[1], splitKey(y)[1]]);
+              keys.push(y);
+            }
+            return { src, keys, pips };
+          }
+        }
+        const nf = [];
+        for (const { k, pips, joins: nj } of frontier) {
+          const [t, w] = splitKey(k);
+          const steps = [];
+          if (pips < maxDepth) for (const f of tileOf(t).into.get(w) || []) steps.push([`${t}/${f}`, true]);
+          if (nj < maxJoins) for (const j of joined(k)) steps.push([j, false]);
+          for (const [p, pip] of steps) {
+            if (after.has(p) || avoid.has(p) || (onlyFree && !free(p))) continue;
+            after.set(p, [k, pip]);
+            nf.push({ k: p, pips: pips + (pip ? 1 : 0), joins: nj + (pip ? 0 : 1) });
+          }
+        }
+        frontier = nf;
+      }
+      return null;
+    };
     for (const join of left) {
       let plan = null, possible = false;
       for (const [d, l] of [[join[0], join[1]], [join[1], join[0]]]) {
-        const [tD, wD] = splitKey(d), [tL, wL] = splitKey(l);
-        const outs = adj(tL).get(wL);
-        if (!outs || !slicesOf(tD).length) continue;
-        // a path in tD from a slice output to wD (breadth first over the tile's own PIPs)
-        const srcs = [];
-        for (const s of slicesOf(tD)) for (const [o, i] of SOURCES) srcs.push({ s, o, i, w: pinWire(s.pos, o) });
-        const target = wD;
-        // breadth first from w over the tile's PIPs (only through free wires when `onlyFree`)
-        const search = (w0, onlyFree) => {
-          const prev = new Map([[w0, null]]);
-          let frontier = [w0];
-          for (let depth = 0; depth < maxDepth && !prev.has(target); depth++) {
-            const nf = [];
-            for (const w of frontier) for (const t of adj(tD).get(w) || []) {
-              if (prev.has(t)) continue;
-              if (onlyFree && t !== target && !free(`${tD}/${t}`)) continue;
-              prev.set(t, w); nf.push(t);
-            }
-            frontier = nf;
-          }
-          if (!prev.has(target)) return null;
-          const wires = [];
-          for (let w = target; w !== null; w = prev.get(w)) wires.unshift(w);
-          return wires;
-        };
-        let path = null;
-        for (const src of srcs) {
-          if (!search(src.w, false)) continue;
-          possible = true;
-          if (usedSrc.has(`${src.s.site}.${src.o}`)) continue;
-          const wires = search(src.w, true);
-          if (wires) { path = { src, wires }; break; }
-        }
+        const [tL, wL] = splitKey(l);
+        const outs = tileOf(tL).out.get(wL);
+        if (!outs) continue;
+        const avoid = new Set(nodeOf(l));
+        if (!search(d, avoid, false)) continue;
+        possible = true;
+        const path = search(d, avoid, true);
         if (!path) continue;
         const wC = outs.find(t => free(`${tL}/${t}`));
         if (!wC) continue;
-        const keys = [...path.wires.map(w => `${tD}/${w}`), `${tL}/${wL}`, `${tL}/${wC}`];
+        const keys = [...path.keys, l, `${tL}/${wC}`];
         if (!keys.every(free)) continue;
-        plan = { tD, tL, wL, wC, path, keys };
+        plan = { src: path.src, pips: [...path.pips, [tL, wL, wC]], keys };
         break;
       }
       if (!plan) { (possible ? next : untestable).push(join); continue; }
       reserve(plan.keys);
-      usedSrc.add(`${plan.path.src.s.site}.${plan.path.src.o}`);
+      usedSrc.add(`${plan.src.s.site}.${plan.src.o}`);
       tests.push({ net: `h${tests.length}`, join, plan });
     }
     if (!tests.length) { untestable.push(...next); break; }
@@ -103,7 +132,7 @@ export function joinTestDesigns(opts) {
 function testXdl(part, tests) {
   const lines = [`design "joins" ${part} v3.2 ;`];
   const sites = new Map();
-  for (const t of tests) { const s = t.plan.path.src; if (!sites.has(s.s.site)) sites.set(s.s.site, new Set()); sites.get(s.s.site).add(s.o); }
+  for (const t of tests) { const s = t.plan.src; if (!sites.has(s.s.site)) sites.set(s.s.site, new Set()); sites.get(s.s.site).add(s.o); }
   for (const [site, outs] of sites) {
     const n = `s_${site}`;
     const f = outs.has('X') ? ` F:${n}_f:#LUT:D=A1 FXMUX::F XUSED::0` : '';
@@ -111,10 +140,10 @@ function testXdl(part, tests) {
     lines.push(`inst "${n}" "SLICEL", placed TILE ${site} ,`, `  cfg "${f}${g} " ;`);
   }
   for (const t of tests) {
-    const { src, wires } = t.plan.path, n = `s_${src.s.site}`;
+    const { src, pips } = t.plan, n = `s_${src.s.site}`;
     lines.push(`net "${t.net}" ,`, `  outpin "${n}" ${src.o} ,`, `  inpin "${n}" ${src.i} ,`);
-    for (let i = 1; i < wires.length; i++) lines.push(`  pip ${t.plan.tD} ${wires[i - 1]} -> ${wires[i]} ,`);
-    lines.push(`  pip ${t.plan.tL} ${t.plan.wL} -> ${t.plan.wC} ,`, '  ;');
+    for (const [tile, from, to] of pips) lines.push(`  pip ${tile} ${from} -> ${to} ,`);
+    lines.push('  ;');
   }
   return lines.join('\n') + '\n';
 }

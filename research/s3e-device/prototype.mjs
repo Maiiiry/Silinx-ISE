@@ -5,7 +5,8 @@
 //   node prototype.mjs predict obs.json switch-tiles.txt pred.json [tested-dir...]
 //                                                               rules -> predicted joins not yet observed or tested
 //                                                               (CLOSE=1: closeRules too; SEG=1: segmentRules too)
-//   node prototype.mjs tests pred.json obs.json dir             join test designs (run: ise-remote.sh dir)
+//   node prototype.mjs tests pred.json obs.json dir [tested-dir...]   join test designs (run: ise-remote.sh dir);
+//                                                               a tile with no slice driven from a CLB across known joins
 //   node prototype.mjs verdicts dir...                          -> dir/verdicts.json (ISE's DRC)
 //   node prototype.mjs build obs.json clb-tiles.txt out.json.gz dir...   the measured CLB array
 //   node prototype.mjs compare measured.json.gz                 against the shipped graph (local scoring only)
@@ -19,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { parseXdl } from '../../core/xdl.js';
 import { loadDevice, PIP_BIDI } from '../../core/fpga/device.js';
 import { observeDesign, resolveAmbiguous, tileXY, wireFamily } from './observe.mjs';
-import { switchGrid, gridRule, applyRules, closeRules, segmentRules } from './model.mjs';
+import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from './model.mjs';
 import { joinTestDesigns, parseJoinTests } from './hypotheses.mjs';
 import { clbSlices } from './gen-observe.mjs';
 import { packMeasured } from './build.mjs';
@@ -99,20 +100,32 @@ if (cmd === 'observe') {
   fs.writeFileSync(out, JSON.stringify(fresh));
   console.log(`${rules.size} rules from ${obs.joins.length} observed joins, ${closed.size} with CLOSE / SEG: ${uniq.length} predicted joins, ${fresh.length} neither observed nor tested`);
 } else if (cmd === 'tests') {
-  const [predFile, obsFile, dir] = args;
+  // tested-dir...: the joins earlier tests confirmed are known, as the observed ones: a test of a
+  // tile with no slice (I/O, block-RAM switch boxes, the edges) is driven from a CLB across them
+  // (MAXJOINS, default 2; MAXJOINS=0: only from the tested wire's own CLB, as the first tests)
+  const [predFile, obsFile, dir, ...tested] = args;
   const obs = readJson(obsFile);
   const pins = pinTable(obs);
   const pipsOf = pipTable(obs);
-  const joins = readJson(predFile).filter(([a, b]) => a.startsWith('CLB_') || b.startsWith('CLB_'));
+  const maxJoins = +(process.env.MAXJOINS ?? 2);
+  const joins = readJson(predFile).filter(([a, b]) => maxJoins > 0 || a.startsWith('CLB_') || b.startsWith('CLB_'));
+  const known = [...obs.joins, ...tested.flatMap(d => readJson(path.join(d, 'verdicts.json')).filter(v => v[2] === 'join').map(v => [v[0], v[1]]))];
+  const joinedTo = new Map();
+  for (const [a, b] of known) for (const [x, y] of [[a, b], [b, a]]) { if (!joinedTo.has(x)) joinedTo.set(x, []); joinedTo.get(x).push(y); }
+  // the known nodes are reserved whole: two tests never share one
+  const root = nodesOf(known), members = new Map();
+  for (const [k, r] of root) { if (!members.has(r)) members.set(r, []); members.get(r).push(k); }
   const slicesOf = t => (t.startsWith('CLB_') ? clbSlices(t).map((site, pos) => ({ site, pos })) : []);
   const r = joinTestDesigns({
     part: PART, joins, slicesOf, pinWire: (pos, pin) => pins.get(`${pos}.${pin}`)?.[0],
     pipsOf: t => pipsOf(dbType(t)).filter(([a, b, f]) => !(f & PIP_BIDI)),
+    joined: k => joinedTo.get(k) || [], nodeOf: k => (root.has(k) ? members.get(root.get(k)) : [k]),
+    maxJoins, maxDepth: +(process.env.MAXDEPTH ?? 3),
   });
   fs.mkdirSync(dir, { recursive: true });
   r.designs.forEach((d, i) => fs.writeFileSync(path.join(dir, `j${i}.xdl`), d.xdl));
   fs.writeFileSync(path.join(dir, 'tests.json'), JSON.stringify({ designs: r.designs.map(d => d.tests), untestable: r.untestable }));
-  console.log(`${joins.length} joins: ${r.designs.length} designs, ${r.designs.reduce((n, d) => n + d.tests.length, 0)} tests, ${r.untestable.length} not testable from a CLB`);
+  console.log(`${joins.length} joins: ${r.designs.length} designs, ${r.designs.reduce((n, d) => n + d.tests.length, 0)} tests, ${r.untestable.length} not testable from a CLB (${known.length} known joins, crossing up to ${maxJoins})`);
 } else if (cmd === 'verdicts') {
   for (const dir of args) {
     const t = readJson(path.join(dir, 'tests.json'));
