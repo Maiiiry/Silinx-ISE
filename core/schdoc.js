@@ -2850,5 +2850,3 @@ function columnLayout(doc, conns, modules) {
   for (const p of outPorts) { p.x = snap(x); p.y = y; y += 60; }
 }
 
-// convenience for UIs: is the symbol a module that can be opened?
-export function symbolTitle(sym) { return sym.type === 'module' ? sym.params?.module : (SYMBOLS[sym.type]?.title || sym.type); }

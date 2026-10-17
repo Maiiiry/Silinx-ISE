@@ -237,6 +237,9 @@ In detail:
     finished jobs beyond the last 20 are dropped with their download URLs; Stop asks the job once; the HDL
     files are compiled once for the drawings;
   - a promise nobody waits for that fails is shown in the Console and the Errors tab.
+- **Unused exports removed (#406):** `moduleRoles` (core/compile.js), `symbolTitle` (core/schdoc.js), `DOC_LANGS`
+  (core/symdocs.js), `hasX` (core/values.js), `MAJOR` (core/version.js), `paletteOpen` (web/js/palette.js): used
+  nowhere. `clonePetri` stays, for the Petri net editor's paste.
 
 ## 15.10.22
 
