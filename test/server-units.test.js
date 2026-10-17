@@ -158,6 +158,9 @@ test('ISE scripts for Spartan-6 / 7-series: no legacy XST options, MAP placement
   assert.match(xst, /-newopt x\n$/m);
   assert.throws(() => ise.generateXst({ top: 'top', device: S6, impl: { xstOptions: { 'bad key': 1 } } }), /invalid XST option/);
   assert.throws(() => ise.generateXst({ top: 'top', device: S6, impl: { xstOptions: { ok: 'a\nb' } } }), /invalid XST option/);
+  // the options naming files, folders, the device or the top stay Silinx's (an imported project's silinx.json)
+  for (const k of ['ofn', 'IFN', 'tmpdir', 'xsthdpdir', 'p', 'top', 'uc', 'sd', 'vlgincdir'])
+    assert.throws(() => ise.generateXst({ top: 'top', device: S6, impl: { xstOptions: { [k]: '/tmp/x' } } }), new RegExp(`XST option '${k}' is set by Silinx and cannot be changed`));
   assert.match(ise.generateXst({ top: 'top', device: { part: 'xc3s250e', package: 'cp132', speed: '-4' } }), /-verilog2001 YES/);
 
   const ut = ise.generateUt({ impl: { startupClk: 'UserClk' }, family: 'spartan6' });

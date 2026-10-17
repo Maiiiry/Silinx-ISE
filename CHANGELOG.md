@@ -17,6 +17,9 @@ In short:
 - **The HDL editor on CodeMirror 6:** the same editor (highlighting, completion and templates, the live errors with
   their quick fixes, Rename Symbol, folding), on the maintained version of CodeMirror; its Find and Go to Line in
   Portuguese too.
+- **A safer local server:** reached from other computers (`serve --host 0.0.0.0`) it asks for a token it prints at
+  start-up; its pages run only their own scripts; a project zip that grows too large is refused; the adepttool
+  installer installs one checked version.
 
 In detail:
 
@@ -196,13 +199,32 @@ In detail:
   probe: the 780 switch-box tiles, none wrong), three rounds tested 21 076 joins of the I/O and block-RAM switch
   boxes, all agreeing with the shipped graph; 3388 stay, driven only from a pad or a block RAM (the next step).
   The shipped graphs are unchanged.
-
+- **Server hardening (#389, #390, #391, #392, #393, #394):**
+  - on another address than loopback the API answers only this computer's own requests or those with the token
+    printed at start-up (a new one at every start, with a warning);
+  - the toolchain settings that run a program (`docker.command`, `docker.extraArgs`, `ssh.sshArgs`, `ssh.identity`,
+    `paths`) are set in `~/.silinx/config.json` only, and the settings scripts must be `settings64.sh` / `settings32.sh`;
+  - a Content-Security-Policy on the pages (scripts from the server and the pages' own inline ones by hash;
+    `unsafe-eval` for the compiled simulator's code);
+  - requests another site's page makes (`Sec-Fetch-Site: cross-site`) are refused, GETs too;
+  - zip import: an entry or a whole zip above 64 / 256 MB uncompressed is refused before it is inflated, and an
+    entry stops inflating at its declared size;
+  - an imported `silinx.json`'s file and constraints paths that leave the project are dropped (with a warning),
+    and the flows read only paths inside the project;
+  - `xstOptions` cannot set the options that name files, folders, the device or the top;
+  - a `.bit` outside the project is programmed only when it is a Xilinx bitstream (the same answer as a missing
+    file otherwise);
+  - symbolic links in a project are not project files (not listed, not exported);
+  - `~/.silinx/config.json` is written for its owner only (0600), and the ssh host is not written in the job log;
+  - `scripts/install-adepttool.sh` installs a pinned adepttool commit (the Silinx patch must apply) and libusb1 by
+    version and hash (`scripts/adepttool-requirements.txt`).
 - **Number literals checked as XST does (#395, #396):** a Verilog based literal with a digit outside its base
   (`8'dA`, `4'b12`, `8'o9`), a decimal with `x` / `z` among other digits (`8'd1x`) or no digits (`4'b`) is an error
   at the literal: `8'dA` made `compile()` throw (the project then failed to open, at every start) and the others
   gave wrong values. A VHDL bit-string with a character that is neither a digit of its base nor a std_logic value
   (`x"G1"`), and a string with one where a vector is expected (`"1020X01Q"`), are errors too. A parser that throws
   becomes an error of its file, so a project always opens.
+
 ## 15.10.22
 
 In short:

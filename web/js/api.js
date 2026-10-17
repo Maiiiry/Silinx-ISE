@@ -1,6 +1,18 @@
 // Thin REST client for the Silinx server.
+
+// A server reached from another computer (serve --host 0.0.0.0) answers only with its token, given
+// in the address it prints (…/#token=…): kept for the tab, sent with every request.
+const TOKEN = (() => {
+  try {
+    const m = /(?:^#|&)token=([\w-]+)/.exec(location.hash);
+    if (m) { sessionStorage.setItem('silinx-token', m[1]); history.replaceState(null, '', location.pathname + location.search); }
+    return sessionStorage.getItem('silinx-token');
+  } catch { return null; }
+})();
+const auth = (headers = {}) => (TOKEN ? { ...headers, 'X-Silinx-Token': TOKEN } : headers);
+
 async function req(method, url, body, { text = false } = {}) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: auth() };
   if (body !== undefined) {
     if (typeof body === 'string') { opts.body = body; opts.headers['Content-Type'] = 'text/plain'; }
     else { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
@@ -62,18 +74,18 @@ export const api = {
   prom: body => req('POST', '/api/prom', body),
   job: (id, since = 0) => req('GET', `/api/jobs/${enc(id)}?since=${since}`),
   cancelJob: id => req('POST', `/api/jobs/${enc(id)}/cancel`),
-  exportXiseUrl: name => `/api/projects/${enc(name)}/export.xise`,
+  exportXiseUrl: name => `/api/projects/${enc(name)}/export.xise${TOKEN ? `?token=${enc(TOKEN)}` : ''}`,
   importXise: body => req('POST', '/api/projects/import-xise', body),
   // whole project as a zip (.xise + silinx.json + all files)
   exportZip: async (name, kind = 'xilinx') => {
-    const r = await fetch(`/api/projects/${enc(name)}/export.zip?kind=${enc(kind)}`);
+    const r = await fetch(`/api/projects/${enc(name)}/export.zip?kind=${enc(kind)}`, { headers: auth() });
     if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
     let warnings = [];
     try { warnings = JSON.parse(decodeURIComponent(r.headers.get('X-Silinx-Warnings') || '[]')); } catch { /* none */ }
     return { blob: await r.blob(), filename: kind === 'silinx' ? `${name}-silinx.zip` : `${name}.zip`, warnings };
   },
   importZip: async (name, file) => {
-    const r = await fetch(`/api/projects/import-zip?name=${enc(name)}`, { method: 'POST', headers: { 'Content-Type': 'application/zip' }, body: file });
+    const r = await fetch(`/api/projects/import-zip?name=${enc(name)}`, { method: 'POST', headers: auth({ 'Content-Type': 'application/zip' }), body: file });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j.error || r.statusText);
     return j;

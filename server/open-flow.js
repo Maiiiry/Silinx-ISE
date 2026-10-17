@@ -30,6 +30,7 @@ import { findDeviceGraph, shippedDevicePath, buildDeviceCache, devicesDir, SHIPP
 import { S3E_DEVICES } from '../core/fpga/bitstream.js';
 import { DB_DIR, hasBitDb, dbPackages } from '../research/s3e-bitstream/db.mjs';
 import { runCommand } from './jobs.js';
+import { safeJoin } from './projects.js';
 import { loadConfig, detectIse, iseStatus, iseModeOf, which } from './toolchain.js';
 import { generateBuild, partStrings, collectReports, runLocal, runDocker, runSsh, normalizeSteps, STEPS } from './ise.js';
 
@@ -176,7 +177,7 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
     ...(!st.includes('synth') && { synthUpToDate: { report: earlier } }),
     // the test bench, for the post-synthesis model's generics (#120)
     simTop: project.simTop || null,
-    simSources: (project.files || []).filter(f => f.role === 'sim' && (f.lang === 'vhdl' || f.lang === 'verilog')).map(f => ({ path: f.path, lang: f.lang, file: path.resolve(projectDir, f.path) })),
+    simSources: (project.files || []).filter(f => f.role === 'sim' && (f.lang === 'vhdl' || f.lang === 'verilog')).map(f => ({ path: f.path, lang: f.lang, file: safeJoin(projectDir, f.path) })),
   };
   await fs.writeFile(path.join(outDir, 'flow.json'), JSON.stringify(spec, null, 2) + '\n');
   const onLine = line => {

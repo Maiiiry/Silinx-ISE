@@ -61,10 +61,32 @@ export async function loadConfig() {
   catch { return merge(DEFAULT_CONFIG, {}); }
 }
 
-/** Validate + persist a (partial) config, merged over the current one. */
-export async function saveConfig(partial) {
+/** The settings that name a program to run or its arguments: set in config.json (or with the
+ *  command line) only, never through the API (Toolchain Settings does not show them). */
+export const FILE_ONLY = ['docker.command', 'docker.extraArgs', 'ssh.sshArgs', 'ssh.identity', 'paths'];
+/** A settings script ISE's way: …/settings64.sh or …/settings32.sh ('' = auto-detect). */
+const SETTINGS = /(^|[\\/])settings(32|64)\.sh$/;
+
+const at = (o, key) => key.split('.').reduce((v, k) => (v && typeof v === 'object' ? v[k] : undefined), o);
+const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
+/** Validate + persist a (partial) config, merged over the current one. fromApi: a change asked
+ *  through the HTTP API (the FILE_ONLY settings may only be sent unchanged). */
+export async function saveConfig(partial, { fromApi = false } = {}) {
   if (!partial || typeof partial !== 'object') throw Object.assign(new Error('config must be an object'), { status: 400 });
-  const cfg = modeAlias(merge(await loadConfig(), partial));
+  const current = await loadConfig();
+  if (fromApi) {
+    for (const key of FILE_ONLY) {
+      const v = at(partial, key);
+      if (v !== undefined && !same(v, at(current, key)))
+        throw Object.assign(new Error(`${key} can only be set in ${configPath()}`), { status: 403 });
+    }
+    for (const key of ['local.settings', 'docker.settings', 'ssh.settings']) {
+      const v = at(partial, key);
+      if (v && !SETTINGS.test(String(v))) throw Object.assign(new Error(`${key} must be ISE's settings64.sh (or settings32.sh)`), { status: 400 });
+    }
+  }
+  const cfg = modeAlias(merge(current, partial));
   if (!MODES.includes(cfg.mode)) throw Object.assign(new Error(`invalid mode '${cfg.mode}' (${MODES.join('|')})`), { status: 400 });
   if (!ISE_MODES.includes(cfg.open.iseMode)) throw Object.assign(new Error(`invalid open.iseMode '${cfg.open.iseMode}' (${ISE_MODES.join('|')})`), { status: 400 });
   for (const k of ['extraArgs']) if (!Array.isArray(cfg.docker[k])) throw Object.assign(new Error(`docker.${k} must be an array of strings`), { status: 400 });
@@ -72,8 +94,10 @@ export async function saveConfig(partial) {
   if (cfg.ssh.host && !/^[A-Za-z0-9._@:\-[\]]+$/.test(cfg.ssh.host)) throw Object.assign(new Error('ssh.host contains invalid characters'), { status: 400 });
   if (cfg.ssh.image && !/^[\w./:@-]+$/.test(cfg.ssh.image)) throw Object.assign(new Error('ssh.image contains invalid characters'), { status: 400 });
   if (cfg.ssh.user && !/^[A-Za-z0-9._-]+$/.test(cfg.ssh.user)) throw Object.assign(new Error('ssh.user contains invalid characters'), { status: 400 });
-  await fs.mkdir(configDir(), { recursive: true });
-  await fs.writeFile(configPath(), JSON.stringify(cfg, null, 2) + '\n');
+  // only the user may read it (the ssh host and user, the identity file's path)
+  await fs.mkdir(configDir(), { recursive: true, mode: 0o700 });
+  await fs.writeFile(configPath(), JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
+  await fs.chmod(configPath(), 0o600).catch(() => {});   // a file written before with another mode
   return cfg;
 }
 

@@ -80,6 +80,9 @@ export function generatePrj(files) {
   return files.map(f => `${f.lang === 'vhdl' ? 'vhdl' : 'verilog'} work "${f.buildPath}"`).join('\n') + '\n';
 }
 
+/** The XST options that name files, folders, the device or the top: Silinx's own (generateXst). */
+const XST_FIXED = new Set(['ifn', 'ofn', 'ifmt', 'ofmt', 'p', 'top', 'uc', 'sd', 'lso', 'iuc', 'vlgincdir', 'tmpdir', 'xsthdpdir', 'xsthdpini']);
+
 /** Contents of the XST script. */
 export function generateXst({ top, device, impl = {}, includeDirs = [] }) {
   const ps = partStrings(device);
@@ -138,9 +141,11 @@ export function generateXst({ top, device, impl = {}, includeDirs = [] }) {
     for (let i = opts.length - 1; i >= 0; i--) if (legacyOnly.has(opts[i][0])) opts.splice(i, 1);
   }
   if (includeDirs.length) opts.push(['vlgincdir', `{ ${includeDirs.map(d => `"${d}"`).join(' ')} }`]);
-  // User extras: impl.xstOptions = { "keep_hierarchy": "Yes", ... }
+  // User extras: impl.xstOptions = { "keep_hierarchy": "Yes", ... }; never the options that name
+  // the files, folders, device or top Silinx sets (silinx.json may come from an imported project)
   for (const [k, v] of Object.entries(impl.xstOptions || {})) {
     if (!/^[a-z_0-9]+$/i.test(k) || /[\r\n]/.test(String(v))) throw Object.assign(new Error(`invalid XST option '${k}'`), { status: 400 });
+    if (XST_FIXED.has(k.toLowerCase())) throw Object.assign(new Error(`XST option '${k}' is set by Silinx and cannot be changed`), { status: 400 });
     const i = opts.findIndex(o => o[0] === k);
     if (i >= 0) opts[i] = [k, v]; else opts.push([k, v]);
   }
@@ -371,9 +376,15 @@ export async function generateBuild(project, projectDir, { steps } = {}) {
 
   // synthesis: the files of every view and the implementation-only ones (not the simulation-only ones)
   const design = (project.files || []).filter(f => ['design', 'impl'].includes(f.role || 'design') && (f.lang === 'verilog' || f.lang === 'vhdl'));
+  // every file path of the project stays inside its folder (silinx.json comes from an imported zip too)
+  const inside = rel => {
+    const full = path.resolve(projectDir, rel);
+    if (!full.startsWith(projectDir + path.sep)) throw Object.assign(new Error(`file path escapes project: ${rel}`), { status: 400 });
+    return full;
+  };
   // the drawn sources without an HDL file: their HDL made here (#177)
   const hdlTexts = [];
-  for (const f of design) { try { hdlTexts.push({ path: f.path, lang: f.lang, text: await fs.readFile(path.join(projectDir, f.path), 'utf8') }); } catch { /* missing: reported below */ } }
+  for (const f of design) { const full = inside(f.path); try { hdlTexts.push({ path: f.path, lang: f.lang, text: await fs.readFile(full, 'utf8') }); } catch { /* missing: reported below */ } }
   const drawn = await viewSources(project, projectDir, hdlTexts);
   for (const v of drawn) for (const e of v.errors) warnings.push(e);
   if (!design.length && !drawn.some(v => v.text)) throw Object.assign(new Error('project has no design (role "design") HDL files'), { status: 400 });
@@ -382,12 +393,6 @@ export async function generateBuild(project, projectDir, { steps } = {}) {
   const srcDir = path.join(buildDir, 'src');
   await fs.rm(srcDir, { recursive: true, force: true });
   await fs.mkdir(srcDir, { recursive: true });
-
-  const inside = rel => {
-    const full = path.resolve(projectDir, rel);
-    if (!full.startsWith(projectDir + path.sep)) throw Object.assign(new Error(`file path escapes project: ${rel}`), { status: 400 });
-    return full;
-  };
 
   // Copy sources, preserving their relative layout under build/src/ (paths stay unique).
   const sources = [];
@@ -581,14 +586,14 @@ export async function runSsh(job, cfg, det, project, gen, steps, onLine, { clean
   const { target, opts } = sshParts(cfg);
   const rdir = remoteDirFor(cfg, project.name);
   const rq = shQuote(rdir);
-  job.log(`Uploading build directory to ${target}:${rdir}`);
+  job.log(`Uploading build directory to the ssh host (${rdir})`);
   // Upload: tar | ssh "rm -rf dir && mkdir -p dir && tar -x"
   let code = await runPipe(job,
     ['tar', ['-C', gen.buildDir, '-cf', '-', '.']],
     ['ssh', [...opts, '--', target, `rm -rf ${rq} && mkdir -p ${rq} && tar -C ${rq} -xf -`]]);
   if (code !== 0) return code;
   const flow = await runCommand(job, 'ssh', [...opts, '--', target, remoteFlowCommand(cfg, rdir, steps)], { onLine });
-  job.log(`Downloading results from ${target}:${rdir}`);
+  job.log(`Downloading results from the ssh host (${rdir})`);
   // Download everything except the sources we uploaded.
   code = await runPipe(job,
     ['ssh', [...opts, '--', target, `tar -C ${rq} --exclude=./src -cf - .`]],

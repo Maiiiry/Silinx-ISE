@@ -11,8 +11,9 @@
 // What is behind becomes one issue, "Pinned sources: newer versions available" (labels enhancement and
 // tests & CI), opened or updated (its text replaced); none when all are current, and the issue is closed
 // when they become so. As scripts/report-failure.mjs (#251), the issue is written by the workflow.
-// Not pinned, so not checked: adepttool (scripts/install-adepttool.sh clones its head), the VlogHammer
-// generator (a port, test/corpus/vloghammer-gen.mjs), the ISE image's Ubuntu 14.04 (what ISE 14.7 needs).
+// Not checked: adepttool (scripts/install-adepttool.sh pins a commit; its upstream has not changed since
+// 2019), the VlogHammer generator (a port, test/corpus/vloghammer-gen.mjs), the ISE image's Ubuntu 14.04
+// (what ISE 14.7 needs).
 //
 //   node scripts/check-pins.mjs [--dry-run]
 //   (in GitHub Actions: GITHUB_TOKEN with issues: write, GITHUB_REPOSITORY; without them, or with --dry-run,

@@ -12,7 +12,7 @@ import { createJob, getJob, cancelJob, listJobs } from './jobs.js';
 import { detectToolchain, saveConfig, loadConfig } from './toolchain.js';
 import { runImplementation, collectReports, normalizeSteps } from './ise.js';
 import { runOpenImplementation, openStatus, openSteps, buildDeviceJob, reportPart } from './open-flow.js';
-import { programJob, scanJob, promJob, readBitInfo, checkBitPart, expectedDevice } from './programmer.js';
+import { programJob, scanJob, promJob, readBitInfo, checkBitPart, expectedDevice, parseBitHeader } from './programmer.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from './xise.js';
 
 // files that only Silinx understands: not part of an exported Xilinx ISE project
@@ -33,7 +33,7 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
   api.get('/toolchain', wrap(async req => withOpen(await detectToolchain(), req.query.project)));
 
   api.put('/toolchain', wrap(async req => {
-    try { await saveConfig(req.body || {}); }
+    try { await saveConfig(req.body || {}, { fromApi: true }); }
     catch (e) { throw bad(e.message, e.status || 400); }
     return withOpen(await detectToolchain(), req.query.project);
   }));
@@ -156,6 +156,13 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
     } else throw bad('give a project or a bitfile');
     if (!/\.bit$/i.test(bitfile)) throw bad('only .bit files can be programmed');
     if (!fss.existsSync(bitfile)) throw bad(`bitstream not found: ${bitfile} (run the implementation first)`, 404);
+    // a file outside the project (iMPACT's file box takes any path): only a real Xilinx bitstream,
+    // and the same answer for any other file as for a missing one (no file-existence check by the API)
+    if (path.isAbsolute(b.bitfile || '')) {
+      let ok = false;
+      try { const fd = await fs.open(bitfile); try { const { buffer, bytesRead } = await fd.read(Buffer.alloc(4096), 0, 4096, 0); parseBitHeader(buffer.subarray(0, bytesRead)); ok = true; } finally { await fd.close(); } } catch { /* not a bitstream */ }
+      if (!ok) throw bad(`bitstream not found: ${bitfile} (run the implementation first)`, 404);
+    }
     const board = b.board || project?.board || null;
     if (board && !resolveBoard(board)) throw bad(`unknown board '${board}'`);
     const expect = b.expectDevice || expectedDevice(project, board);
@@ -307,6 +314,10 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
       let saved = null;
       try { saved = JSON.parse(text(pjEntry)); } catch { /* ignore a broken silinx.json */ }
       if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+        // its file paths stay inside the project (a path that leaves it is dropped, with a warning)
+        const safe = p => { try { P.safeJoin(P.projectDir(name), p); return true; } catch { return false; } };
+        if (Array.isArray(saved.files)) saved.files = saved.files.filter(f => { const ok = typeof f?.path === 'string' && safe(f.path); if (!ok) result.warnings.push(`silinx.json: file path outside the project dropped (${f?.path})`); return ok; });
+        if (typeof saved.constraints === 'string' && saved.constraints && !safe(saved.constraints)) { result.warnings.push(`silinx.json: constraints path outside the project dropped (${saved.constraints})`); delete saved.constraints; }
         const exists = p => { try { return fss.existsSync(P.safeJoin(P.projectDir(name), p)); } catch { return false; } };
         project = await P.updateProject(name, cur => ({ ...cur, ...(xiseEntry ? { board: saved.board ?? cur.board, stimuli: saved.stimuli || {}, preferredLanguage: saved.preferredLanguage, impl: { ...cur.impl, ...saved.impl } } : { ...saved, name }) }));
         if (!xiseEntry) {
@@ -414,7 +425,8 @@ async function importXiseProject(P, name, xiseText, provided) {
 // Files ISE/ISim generate in a project folder: never imported (they are rebuilt by the flow).
 const ISE_OUTPUT = /(^|\/)(build|_ngo|xst|iseconfig|_xmsgs|isim|xlnx_auto_0_xdb|planAhead_run_\d+|\.Xil)\/|\.(ngc|ngd|ncd|ngr|ngm|pcf|bld|map|mrp|par|pad|twr|twx|xpi|unroutes|bgn|drc|bit|bin|mcs|prm|syr|lso|xrpt|xwbt|ptwx|cmd_log|stx|gise|wdb|exe|log|xmsgs|prj|cmd|ini|xreport|html|xml|vhf)$|(^|\/)\./i;
 
-const NODE_CODEC = { deflate: d => zlib.deflateRawSync(d), inflate: d => zlib.inflateRawSync(d) };
+// inflate stops at the entry's declared size (core/zip.js: a zip bomb is refused, not inflated)
+const NODE_CODEC = { deflate: d => zlib.deflateRawSync(d), inflate: (d, limit) => zlib.inflateRawSync(d, limit === undefined ? {} : { maxOutputLength: Math.max(1, limit) }) };
 
 function safeRel(p, dir) {
   const norm = String(p).replace(/\\/g, '/');

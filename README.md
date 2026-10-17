@@ -289,6 +289,12 @@ npm start          # http://127.0.0.1:8642  (node bin/silinx-ise.js serve --open
 To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md): the project's development principles (issues,
 tests, integration) are in [CLAUDE.md](CLAUDE.md), for people and AI agents alike.
 
+The server listens on this computer only (`127.0.0.1`). With `serve --host 0.0.0.0` (or another address)
+other computers can reach it: it then prints a warning and an address with a token (`…/#token=…`), the only
+way they can use it; the token changes at every start. The toolchain settings that run a program
+(`docker.command`, `docker.extraArgs`, `ssh.sshArgs`, `ssh.identity`, `paths`) are set in
+`~/.silinx/config.json` only, never from the page.
+
 Projects live in `~/Silinx-projects` (override with `SILINX_WORKSPACE`). Pushing a tag `vX.Y.Z`
 runs the tests and publishes a release with the files above (`.github/workflows/release.yml`).
 The tests against ISE (`test/ise/`) run nightly, and on demand (Actions ▸ ISE ▸ Run workflow), on
