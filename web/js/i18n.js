@@ -409,6 +409,14 @@ Object.assign(PT, {
   'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the Silinx toolchain (experimental, no ISE): Tools ▸ Toolchain Settings.':
     'Dica: faça duplo clique num processo no painel Processos para o executar. A simulação corre inteiramente no Silinx; a síntese e a implementação usam a toolchain Silinx (experimental, sem ISE): Ferramentas ▸ Definições da Toolchain.',
   // board emulator
+  'Real time': 'Tempo real', 'Engine:': 'Motor:', 'Compiled (real speed)': 'Compilado (velocidade real)', 'Event-driven (debugging)': 'Por eventos (depuração)',
+  'The simulator that runs the design: compiled (its netlist, at the board\'s real speed) or event-driven (the behavioural RTL, with X values and the design\'s messages: for debugging)':
+    'O simulador que corre o projeto: compilado (a sua netlist, à velocidade real da placa) ou por eventos (o RTL comportamental, com valores X e as mensagens do projeto: para depuração)',
+  'The design is compiled (its netlist, by Yosys) and runs at up to the board\'s clock rate; registers without an initial value start at 0, as on the FPGA; the event-driven engine shows X values and the design\'s messages. Each display digit keeps the last pattern it showed between its refreshes, as your eye does on the real board. Buttons: press and hold; Shift+click keeps a button pressed.':
+    'O projeto é compilado (a sua netlist, pelo Yosys) e corre até à frequência do relógio da placa; os registos sem valor inicial começam a 0, como na FPGA; o motor por eventos mostra os valores X e as mensagens do projeto. Cada dígito do mostrador mantém o último padrão entre atualizações, como o olho faz na placa real. Botões: carregue e mantenha; Shift+clique mantém um botão carregado.',
+  'Real values: the compiled engine runs the design at up to the board\'s clock rate.': 'Valores reais: o motor compilado corre o projeto até à frequência do relógio da placa.',
+  'Compiling the design for the Board Emulator (Yosys)…': 'A compilar o projeto para o Emulador de Placa (Yosys)…',
+  'Starting the Board Emulator…': 'A iniciar o Emulador de Placa…',
   'Max speed': 'Velocidade máxima', '▶ Run': '▶ Executar', '⏸ Pause': '⏸ Pausa', '⏭ Step': '⏭ Passo', '⟲ Power cycle': '⟲ Desligar/ligar',
   'Advance one clock cycle': 'Avançar um ciclo de relógio', 'Power-cycle the board: restart the design from time 0': 'Desligar e ligar a placa: reiniciar o projeto a partir do instante 0',
   'Emulated clock rate': 'Frequência do relógio emulado', 'Model:': 'Modelo:', 'Clock:': 'Relógio:', 'Timing:': 'Temporização:',
@@ -454,6 +462,10 @@ PT_PATTERNS.unshift(
   // a manual clock on a button or a switch (#347)
   [/^Manual clock (.+): one edge per press( · not emulated: (.*))?$/, (m, c, n, l) => `Relógio manual ${c}: um flanco em cada pressão${n ? ` · não emulado: ${l}` : ''}`],
   [/^Timing ÷(.+) \(emulation only\)$/, 'Temporização ÷$1 (só na emulação)'],
+  // the engines (#418): why the design is not compiled, what the compiled engine warns of
+  [/^Not compiled: (.+)$/, 'Não compilado: $1'],
+  [/^Not compiled \((.+)\): the event-driven simulator runs the design\.$/, 'Não compilado ($1): o projeto corre no simulador por eventos.'],
+  [/^Compiled engine: (.+)$/, 'Motor compilado: $1'],
   [/^t = (.+?) · ([\d,.\s]+) cycles(.*)$/, (m, tm, n, rest) => `t = ${tm} · ${n} ciclos${rest.replace('% of real time)', '% do tempo real)').replace(' · stopped by an error', ' · parado por um erro')}`],
   [/^(\d+) port bit\(s\) have no LOC on a (.+) resource \(inputs are held at 0\):$/, '$1 bit(s) de porto sem LOC num recurso da $2 (as entradas ficam a 0):'],
   // print dialog

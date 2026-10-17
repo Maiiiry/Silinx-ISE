@@ -1998,7 +1998,7 @@ async function confirmElabErrors(title, lib, design) {
 }
 
 // ---- Board emulator: the design (behavioural RTL) on a virtual board, wired by the UCF
-async function openEmulator(mod, { scale, model = null } = {}) {
+async function openEmulator(mod, { scale, model = null, engine = null } = {}) {
   if (!mod) { toast('Select the top module first'); return; }
   await saveAll();
   const board = projectBoard();
@@ -2018,29 +2018,58 @@ async function openEmulator(mod, { scale, model = null } = {}) {
     lib = compile(withPrimitives(srcs));
     design = elaborate(lib, mod);
     if (!design.top) throw new Error(design.diags.map(d => d.message).join('; ') || `cannot elaborate '${mod}'`);
-    // large timing generics (dividers, debouncers) divided so that the design visibly runs
     gens = model ? [] : timingGenerics(design.top?.params);   // a netlist has its constants built in
-    scale ??= autoTimeScale(gens);
-    if (scale > 1 && gens.length) design = elaborate(lib, mod, { generics: scaledGenerics(gens, scale) });
   } catch (e) { alertDlg('Board Emulator', `Cannot build the design: ${e.message}`, 'error'); return; }
   if (!await confirmElabErrors('Board Emulator', lib, design)) return;
   const { parseUcf } = await import('/core/ucf.js');
   const assignments = S.ucfText ? parseUcf(S.ucfText, { ports: design.top.ports.map(ucfPort) }).assignments : {};
   if (!S.ucfText) log('WARNING: the project has no UCF: the ports are not connected to the board (use I/O Pin Planning).', 'warn');
   const files = await readDataFiles();
-  const { mountEmulator } = await import('./emulator.js');
+  const { mountEmulator, emulatorYosys } = await import('./emulator.js');
+  // the engine (#418): the design compiled (its netlist by Yosys, at the timing generics' real values unless
+  // divided), else (it cannot be, or the event-driven engine is chosen) the event-driven simulator, with the
+  // large timing generics (dividers, debouncers) divided so that the design visibly runs. The document opens
+  // at once, the board once the design is compiled (Yosys may take seconds to load the first time).
+  async function start() {
+    let netlist = null, reason = null, d = design, k = scale;
+    if (engine !== 'event') {
+      const s1 = k ?? 1;
+      const d1 = s1 > 1 && gens.length ? elaborate(lib, mod, { generics: scaledGenerics(gens, s1) }) : design;
+      try {
+        const { netlistOf } = await import('/core/compiled-sim.js');
+        netlist = await netlistOf(d1, { run: await emulatorYosys(api.standalone) });
+        d = d1;
+        k = s1;
+      } catch (e) { reason = e.message; }
+    }
+    k ??= autoTimeScale(gens);
+    if (!netlist && k > 1 && gens.length) d = elaborate(lib, mod, { generics: scaledGenerics(gens, k) });
+    return { netlist, reason, design: d, scale: k };
+  }
   const id = 'emulator';
   const old = findDoc(id);
   if (old) await closeDoc(old);
   openDoc({
     id, title: `Board Emulator (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'board', reopen: `emulator:${mod}${model ? `@${model}` : ''}`,
-    create(el) {
-      const view = mountEmulator(el, { design, board, assignments, title: `${mod}${model ? ` — ${SIM_MODEL_NAMES[model]} netlist` : ''}`, files,
-        timing: { gens, scale, onChange: (k) => setTimeout(() => openEmulator(mod, { scale: k, model }), 0) },
-        model: { current: model, available: models, names: SIM_MODEL_NAMES,
-          onChange: (m) => setTimeout(() => openEmulator(mod, { model: m || null }), 0) } });
-      log(`Board Emulator: '${mod}' (${model ? `${SIM_MODEL_NAMES[model]} netlist` : 'RTL'}) on ${board.name} — ${view.wiring.bits.length} port bit(s) on board resources${view.wiring.unmapped.length ? `, ${view.wiring.unmapped.length} not connected` : ''}.`, 'ok');
-      return { destroy: () => view.destroy(), view };
+    create(el, doc) {
+      let closed = false;
+      const wait = document.createElement('div');
+      wait.className = 'emu-hint';
+      wait.style.padding = '12px';
+      wait.textContent = engine === 'event' ? 'Starting the Board Emulator…' : 'Compiling the design for the Board Emulator (Yosys)…';
+      el.append(wait);
+      start().then((r) => {
+        if (closed) return;
+        wait.remove();
+        const view = mountEmulator(el, { design: r.design, board, assignments, title: `${mod}${model ? ` — ${SIM_MODEL_NAMES[model]} netlist` : ''}`, files,
+          timing: { gens, scale: r.scale, onChange: (k) => setTimeout(() => openEmulator(mod, { scale: k, model, engine }), 0) },
+          model: { current: model, available: models, names: SIM_MODEL_NAMES,
+            onChange: (m) => setTimeout(() => openEmulator(mod, { model: m || null, engine }), 0) },
+          engine: { netlist: r.netlist, reason: r.reason, onChange: (e) => setTimeout(() => openEmulator(mod, { model, engine: e }), 0) } });
+        doc.view = view;
+        log(`Board Emulator: '${mod}' (${model ? `${SIM_MODEL_NAMES[model]} netlist` : 'RTL'}, ${view.engine === 'compiled' ? 'compiled' : 'event-driven'}) on ${board.name} — ${view.wiring.bits.length} port bit(s) on board resources${view.wiring.unmapped.length ? `, ${view.wiring.unmapped.length} not connected` : ''}.`, 'ok');
+      }).catch((e) => { if (!closed) { wait.textContent = `Cannot build the design: ${e.message}`; log(`ERROR: Board Emulator: ${e.message}`, 'err'); } });
+      return { destroy: () => { closed = true; doc.view?.destroy(); } };
     },
   });
 }

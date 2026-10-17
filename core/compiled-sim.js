@@ -120,14 +120,26 @@ const SHIFTS = new Set(['$shl', '$sshl', '$shr', '$sshr', '$shift', '$shiftx']);
 const CMP = { $eq: '===', $ne: '!==', $eqx: '===', $nex: '!==', $lt: '<', $le: '<=', $gt: '>', $ge: '>=' };
 const SETTLE_LIMIT = 10000;
 
+/** The netlist's bit for bit `pos` (0: the least significant) of the port `name` of module `top`, for watch. */
+export function portBit(json, top, name, pos = 0) {
+  const bits = json.modules[top]?.ports?.[name]?.bits;
+  if (!bits || pos >= bits.length) throw new Error(`no port '${name}'${bits ? ` bit ${pos}` : ''}`);
+  return bits[pos];
+}
+
 /**
  * Compile a word-level netlist (Yosys's JSON after prepCommands) into a model for CompiledSim:
  * { code, inputs: [{ name, v, w, kind }], ports, nets: Map(name -> bits), src: Map(bit -> [var, off]),
  *   vars: [{ w, kind }], warnings: [messages], clock: { port } | null, stats }.
- * o: { top, clock: the main clock's port name (else the input that clocks the most flip-flops),
- *      wide: every value a BigInt (to test that code) }
+ * o: { top, clock: the main clock's port name (null: the input that clocks the most flip-flops; false: none,
+ *      every clock then settled as the other clocks are: a clock on a button), wide: every value a BigInt
+ *      (to test that code), watch: what each cycle counts (CompiledSim.take) }
+ * watch: { levels: [{ bit, on }] (the cycles a bit is at `on`), pairs: [[{ bit, on }, { bit, on }]] (the cycles
+ *   both are), edges: [{ bit, capture: [bits] }] (each falling edge of the bit: the cycle and the captured
+ *   bits' value, up to 32) }, the bits as in the netlist (portBit), sampled in every cycle before
+ *   its clock edge (the values the cycle shows).
  */
-export function compileNetlist(json, { top, clock = null, wide = false } = {}) {
+export function compileNetlist(json, { top, clock = null, wide = false, watch = null } = {}) {
   const mod = json.modules[top] || Object.values(json.modules).find(m => m.attributes?.top) || Object.values(json.modules)[0];
   if (!mod) throw new CompileError('the netlist has no module');
   const vars = [];                 // { w, kind }
@@ -476,7 +488,8 @@ export function compileNetlist(json, { top, clock = null, wide = false } = {}) {
   const clocked = elems.filter(e => e.type !== '$dlatch' && e.type !== '$adlatch');
   const clkBit = e => e.C.CLK[0];
   let main = null;
-  if (clock) {
+  if (clock === false) main = null;
+  else if (clock) {
     const p = inputs.find(i => i.name === clock);
     if (!p) throw new CompileError(`the clock '${clock}' is not an input port`);
     main = p.bits[0];
@@ -525,6 +538,19 @@ export function compileNetlist(json, { top, clock = null, wide = false } = {}) {
     ...asyncEls.map(async),
   ].join('\n');
 
+  // ---- what each cycle counts (watch)
+  const levels = watch?.levels || [], pairs = watch?.pairs || [], edges = watch?.edges || [];
+  const at = (w) => `${sig([w.bit], 'n')} === ${w.on}`;
+  // (the time each value lasts, in cycles: half a cycle before the main clock's rising edge, half after it,
+  // as the event-driven simulator's time; without the falling edge, the half after a rising edge is the half
+  // before the next one, sampled once: the window's first half, its middle cycles whole, its last half)
+  const count = W => [
+    ...levels.map((w, i) => `if (${at(w)}) K[${i}] += ${W};`),
+    ...pairs.map(([a, b], i) => `if (${at(a)} && ${at(b)}) K[${levels.length + i}] += ${W};`),
+  ].join('\n');
+  const counted = levels.length + pairs.length > 0;
+  const edgeCode = edges.map((w, i) => `{ const e = ${sig([w.bit], 'n')}; if (e${i} === 1 && e === 0) EV.push(cy, ${sig(w.capture, 'n')}); e${i} = e; }`).join('\n');
+
   // ---- the code
   const V = vars.map((_, i) => i);
   const memInit = mems.map(m => {
@@ -547,11 +573,14 @@ export function compileNetlist(json, { top, clock = null, wide = false } = {}) {
 ${V.map(i => `let V${i} = ${initOf(i)};`).join('\n')}
 ${memInit.join('\n')}
 ${dlist.map(d => `let P${d.k} = -1;`).join('\n')}
+const K = new Float64Array(${levels.length + pairs.length}), EV = [];
+${edges.map((_, i) => `let E${i} = -1;`).join(' ')}
 function run(n) {
   ${V.length ? `let ${V.map(i => `v${i} = V${i}`).join(', ')};` : ''}
   ${mems.map(m => `const m${m.k} = M${m.k};`).join(' ')}
   ${dlist.length ? `let ${dlist.map(d => `p${d.k} = P${d.k}, f${d.k} = 0`).join(', ')};` : ''}
   ${temps.length ? `let ${temps.join(', ')};` : ''}
+  ${edges.length ? `let ${edges.map((_, i) => `e${i} = E${i}`).join(', ')};` : ''}
   let ph = 0, cy = 0, it = 0, ch = false;
   for (;;) {
 ${combCode}
@@ -560,21 +589,27 @@ ${settleCode}
     if (ch) { if (++it > ${SETTLE_LIMIT}) throw new H.Error('the design does not settle (a loop through a latch or a clock?)'); continue; }
     it = 0;
     if (ph === 0) {
-      if (cy === n) break;
+      if (cy === n) { ${counted && !needFall ? `if (n) { ${count('0.5')} }` : ''} break; }
+${counted ? (needFall ? count('0.5') : count('(cy ? 1 : 0.5)')) : ''}
+${edgeCode}
       cy++;
       ${needFall ? `${ckSet(1)} ph = 1;` : ''}
 ${fire(posMain)}
     } else {
+${counted ? count('0.5') : ''}
       ${ckSet(0)} ph = 0;
 ${fire(negMain)}
     }
   }
   ${V.map(i => `V${i} = v${i};`).join(' ')}
   ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}
+  ${edges.map((_, i) => `E${i} = e${i};`).join(' ')}
 }
+// the counts and the edges since the last take (the counts back to 0)
+function take() { const counts = Array.from(K); K.fill(0); return { counts, edges: EV.splice(0) }; }
 function set(k, x) { switch (k) { ${inputs.map(p => `case ${p.v}: V${p.v} = x; break;`).join(' ')} } }
 function vals() { return [${V.map(i => `V${i}`).join(', ')}]; }
-return { run, set, vals, mems: [${mems.map(m => `M${m.k}`).join(', ')}] };
+return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}] };
 `;
   const nets = new Map();
   for (const [name, n] of Object.entries(mod.netnames || {})) if (!n.hide_name) nets.set(name, n.bits);
@@ -613,6 +648,9 @@ export class CompiledSim {
     this.inst.run(n);
     this.cycles += n;
   }
+  /** What the cycles counted since the last take (compileNetlist's watch): { counts: [levels…, pairs…],
+   *  edges: [cycle, captured, cycle, captured…] } (the cycles counted from the start of each run). */
+  take() { return this.inst.take(); }
   /** The value of a port or a named net (BigInt). */
   get(name) {
     const bits = this.model.nets.get(name);

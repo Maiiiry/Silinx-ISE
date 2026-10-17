@@ -7,6 +7,10 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **The Board Emulator at the board's speed:** a design that can be compiled runs on a new engine, its netlist as
+  JavaScript, tens of millions of clock cycles per second: counters, dividers and debouncers at their real values,
+  the clock in real time. The event-driven simulation stays, for debugging (X values, the design's messages) and for
+  the designs that cannot be compiled (an Engine selector in the emulator's toolbar).
 - **Against the best-known results:** the quality page compares Silinx's synthesis on the EPFL benchmarks with the
   records of the EPFL logic synthesis competition (LUT-6 count and depth).
 - **A larger design corpus:** 29 more designs through the whole toolchain every night: the rest of the EPFL
@@ -36,6 +40,17 @@ In detail:
   the comparison had measured Normal only while the corpus's nightly run measures High: most of the speed loss it
   showed (+14 % → +22 % against ISE: epfl-priority 43.0 ns, epfl-max 61.7 ns) is Normal's, High giving 11.1 and
   28.5 ns (ISE: 20.8 and 25.7, trce).
+- **The Board Emulator on the compiled simulator (#418, part 2 of #102):** `core/emulate-compiled.js` runs the
+  design compiled (#384) behind the part of the event-driven simulator the emulator uses (the board's time, Step,
+  Power cycle, the forced inputs, the rotary knob's scheduled steps, the Watch box's values by their names in the
+  netlist). The LEDs, the 7-segment digits and the LCD come from counters the compiled code keeps cycle by cycle
+  (half a cycle on each side of the clock's edge, as the event-driven simulator's time), decided by the same code
+  as with the waveforms (`core/emulate.js` boardOutputs split into measuring and deciding; boardOutputsFromCounts,
+  lcdFeedEdges): window by window the same as the event-driven engine on the examples, the Starter Kit's LCD and
+  knob, a manual clock (#347). The emulator's document opens at once and compiles the design (Yosys in the page, or
+  from the site's assets in the browser edition), then runs it on the compiled engine at Real time (a new clock rate) with the timing
+  generics' real values, else on the event-driven one with the reason (a combinational loop, an inout port, a
+  primitive with no model, more than one board clock); the Engine selector switches between them.
 - **ONBOARDING.md:** a guide for a new developer or Claude Code session: the setup, how several
   sessions work on the repository together, a map of the code, the product's rules and the lessons
   learnt; CLAUDE.md points to it, and the documentation test checks its paths and links (and CLAUDE.md's).

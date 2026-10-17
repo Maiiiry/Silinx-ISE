@@ -91,7 +91,11 @@ for Xilinx FPGAs supported by ISE 14.7.
   (Digilent Basys2 and Nexys2, Spartan-3E Starter Kit; a generic panel for the other boards),
   wired by the UCF: click the slide switches, press the buttons, watch the LEDs and the
   multiplexed 7-segment display (persistence of vision), at a chosen clock rate, with a watch list
-  of internal signals. It simulates the HDL, so it works without ISE and in the standalone edition.
+  of internal signals. It works without ISE and in the standalone edition. Two engines: the design
+  **compiled** (its netlist, read by Yosys, as one JavaScript function per clock cycle: tens of
+  millions of cycles per second, the board's real speed with the real timing generics), or, to
+  debug (X values, the design's messages) or when it cannot be compiled, the **event-driven**
+  simulation of the HDL, its large timing generics divided so that it visibly runs.
   It can also run what the tools built: the post-synthesis netlist (the Silinx toolchain's own, or
   ISE's netgen) and, with ISE, the post-translate, post-map or post-place & route netlist, on the
   board or in ISim, with Silinx's own models of the
