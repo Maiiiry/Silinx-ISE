@@ -225,6 +225,42 @@ test('join tests: one net per hypothesis, from a slice output through the tile t
   assert.equal(r2.designs.length, 2);
 });
 
+test('join tests: a tile with no slice is driven from a neighbouring CLB across a known join', () => {
+  // the I/O tile LIOIS_X0Y10 has no slice: its W2MID1 is reached from the CLB's W2BEG1 (a known join)
+  const pips = {
+    CLB_X1Y10: [['X0', 'OMUX3'], ['OMUX3', 'W2BEG1'], ['Y0', 'OMUX5'], ['OMUX5', 'W2BEG1'], ['E2MID2', 'G2_B0'], ['E2MID3', 'F1_B0'], ['OMUX3', 'N2BEG0']],
+    LIOIS_X0Y10: [['W2MID1', 'E2BEG2'], ['W2MID1', 'E2BEG3']],
+  };
+  const pipsOf = t => pips[t] || [];
+  const slicesOf = t => t === 'CLB_X1Y10' ? [{ site: 'SLICE_X0Y18', pos: 0 }] : [];
+  const pinWire = (pos, pin) => `${pin}${pos}`;
+  const known = new Map([['CLB_X1Y10/W2BEG1', ['LIOIS_X0Y10/W2MID1']], ['LIOIS_X0Y10/W2MID1', ['CLB_X1Y10/W2BEG1']]]);
+  const joined = k => known.get(k) || [];
+  const joins = [['LIOIS_X0Y10/E2BEG2', 'CLB_X1Y10/E2MID2'], ['CLB_X1Y10/E2MID3', 'LIOIS_X0Y10/E2BEG3']];
+  const part = 'xc3s250ecp132-4';
+  // without crossing joins (the default) the I/O tile cannot be driven
+  assert.deepEqual(joinTestDesigns({ part, joins, slicesOf, pinWire, pipsOf, joined }).untestable, joins);
+  const r = joinTestDesigns({ part, joins, slicesOf, pinWire, pipsOf, joined, maxJoins: 1 });
+  assert.deepEqual(r.untestable, []);
+  // both tests need the node CLB_X1Y10/W2BEG1 = LIOIS_X0Y10/W2MID1: one per design
+  assert.deepEqual(r.designs.map(d => d.tests), [[{ net: 'h0', join: joins[0] }], [{ net: 'h0', join: joins[1] }]]);
+  const d = parseXdl(r.designs[0].xdl);
+  assert.deepEqual(d.nets[0].outpins, [{ inst: 's_SLICE_X0Y18', pin: 'X' }]);
+  assert.deepEqual(d.nets[0].pips.map(p => `${p.tile} ${p.from} ${p.to}`),
+    ['CLB_X1Y10 X0 OMUX3', 'CLB_X1Y10 OMUX3 W2BEG1', 'LIOIS_X0Y10 W2MID1 E2BEG2', 'CLB_X1Y10 E2MID2 G2_B0']);
+  // the tested join reversed (the I/O tile's end is the one driven): the same path
+  assert.equal(parseXdl(r.designs[1].xdl).nets[0].pips.map(p => `${p.tile} ${p.from} ${p.to}`).join(', '),
+    'CLB_X1Y10 X0 OMUX3, CLB_X1Y10 OMUX3 W2BEG1, LIOIS_X0Y10 W2MID1 E2BEG3, CLB_X1Y10 E2MID3 F1_B0');
+  // a path never crosses the other end of the tested join (it would join the two ends by itself):
+  // the known join tested again cannot be driven from the I/O tile's side, and the CLB's side has
+  // no PIP out of the I/O tile's wire
+  const self = [['LIOIS_X0Y10/W2MID1', 'CLB_X1Y10/W2BEG1']];
+  const pips2 = { ...pips, LIOIS_X0Y10: [], CLB_X1Y10: [...pips.CLB_X1Y10, ['W2BEG1', 'F2_B0']] };
+  assert.deepEqual(joinTestDesigns({ part, joins: self, slicesOf, pinWire, pipsOf: t => pips2[t] || [], joined, maxJoins: 1 }).untestable, self);
+  // maxDepth limits the PIPs of the path: the I/O tile's E2BEG2 is three PIPs and a join from the slice
+  assert.deepEqual(joinTestDesigns({ part, joins: [joins[0]], slicesOf, pinWire, pipsOf, joined, maxJoins: 1, maxDepth: 2 }).untestable, [joins[0]]);
+});
+
 test('parseJoinTests: an island means no join; antennas and unrouted sinks are expected', () => {
   const log = `ERROR:PhysDesignRules:798 - The network <h0> has an antenna. Routing is
    incomplete.
