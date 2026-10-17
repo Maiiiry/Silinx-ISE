@@ -1,7 +1,7 @@
 // UI: behavioural simulation in the ISim view (waveforms with values), the board emulator on the
 // Basys2, Nexys2 and Spartan-3E Starter Kit (LEDs, 7-segment display, LCD, rotary knob react to
-// switches / buttons), its two engines (compiled, event-driven: #418), the "Run anyway?" question for a
-// netlist with a cell that has no model.
+// switches / buttons), its two engines (compiled, event-driven: #418), its VGA monitor (#420), the "Run
+// anyway?" question for a netlist with a cell that has no model.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -369,6 +369,66 @@ uiTest('board emulator: a design with a combinational loop runs on the event-dri
   const db = await env.server.api('GET', '/api/devices');
   const same = [{ test: (s) => db.boards.some((b2) => b2.name === s) }, /^(lp|led|sw|real \(÷1\))\b/, /^@?[A-Z_0-9]+:? /, /^@?[A-Z_0-9]+ = /];
   assert.deepEqual(untranslated(en, pt, same), []);
+});
+
+// #420: the VGA monitor on the Basys2 (test/fixtures/compiled-sim/vga_bars.vhd: colour bars, a blue square the
+// switches move)
+const VGA_UCF = `NET "clk" LOC = "B8"; NET "hsync" LOC = "J14"; NET "vsync" LOC = "K13";
+NET "red<0>" LOC = "C14"; NET "red<1>" LOC = "D13"; NET "red<2>" LOC = "F13";
+NET "green<0>" LOC = "F14"; NET "green<1>" LOC = "G13"; NET "green<2>" LOC = "G14";
+NET "blue<0>" LOC = "H13"; NET "blue<1>" LOC = "J13";
+NET "sw<0>" LOC = "P11"; NET "sw<1>" LOC = "L3"; NET "sw<2>" LOC = "K3"; NET "sw<3>" LOC = "B4";
+NET "sw<4>" LOC = "G3"; NET "sw<5>" LOC = "F3"; NET "sw<6>" LOC = "E2"; NET "sw<7>" LOC = "N3";
+`;
+// a pixel of the monitor's picture (the canvas): [r, g, b]
+const pixel = (page, x, y) => page.eval((px, py) => [...document.querySelector('.doc:not([hidden]) .emu-vga canvas').getContext('2d').getImageData(px, py, 1, 1).data.slice(0, 3)], x, y);
+uiTest('board emulator: the VGA monitor draws the picture the design scans out, its timing measured; the event-driven engine cannot (and in Portuguese)', E, async (page) => {
+  const bars = fs.readFileSync(path.join(ROOT, 'test/fixtures/compiled-sim/vga_bars.vhd'), 'utf8');
+  await makeProject(env, { name: 'EmuVga', board: 'basys2', top: 'vga_bars', constraints: 'constraints/vga.ucf', files: { 'src/vga_bars.vhd': bars, 'constraints/vga.ucf': VGA_UCF } });
+  await page.openProject('EmuVga');
+  await page.menu('Tools', 'Board Emulator');
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running' });
+  assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+  const stat = () => page.eval(() => document.querySelector('.doc:not([hidden]) .emu-vga-stat').textContent);
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga-stat')?.textContent === '640×480 · 59.52 Hz · line 32.00 µs · 525 lines', [], { what: 'the monitor\'s timing', timeout: 30000 });
+  assert.deepEqual(await page.eval(() => [document.querySelector('.doc:not([hidden]) .emu-vga-nosig').hidden, document.querySelector('.doc:not([hidden]) .emu-vga-warn').textContent]), [true, '']);
+  assert.doesNotMatch(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-board-note').textContent), /not emulated/, 'the VGA connector is emulated');
+  // the bars (red across, green down: 3 bits each) and the square (blue, at column 8 * sw)
+  await page.waitFor(() => window.Silinx.active.view.sim.vga().status.frames >= 2, [], { what: 'two frames', timeout: 30000 });
+  await new Promise((r) => setTimeout(r, 100));   // (the next picture drawn: 30 a second)
+  assert.deepEqual(await pixel(page, 40, 30), [0, 0, 0]);
+  assert.deepEqual(await pixel(page, 600, 450), [255, 255, 0]);
+  assert.deepEqual(await pixel(page, 330, 100), [146, 36, 0]);
+  assert.deepEqual(await pixel(page, 10, 210), [0, 109, 255], 'the square at column 0');
+  await widget(page, 'SW3 = sw<3>');   // sw = 8: column 64
+  await page.waitFor((x) => { const d = document.querySelector('.doc:not([hidden]) .emu-vga canvas').getContext('2d').getImageData(x, 210, 1, 1).data; return d[2] === 255; }, [70], { what: 'the square at column 64' });
+  assert.deepEqual(await pixel(page, 10, 210), [0, 109, 0]);
+  // power off: no signal
+  await page.click('.doc:not([hidden]) .emu-power');
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .emu-vga-nosig').hidden, [], { what: 'no signal without power' });
+  assert.equal(await stat(), '');
+  await page.click('.doc:not([hidden]) .emu-power');
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga-nosig').hidden, [], { what: 'the picture again' });
+  // (a frame measured again before the pause: the first VSYNC comes up to a frame after power-up)
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga-stat')?.textContent === '640×480 · 59.52 Hz · line 32.00 µs · 525 lines', [], { what: 'the timing again', timeout: 30000 });
+  // in Portuguese: no untranslated text
+  await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '⏸ Pause' });
+  await page.eval(TEXTS);
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  await setLang('en');
+  const en = await page.eval(() => window.__uiTexts(document.querySelector('.doc:not([hidden])')));
+  await setLang('pt');
+  const pt = await page.eval(() => window.__uiTexts(document.querySelector('.doc:not([hidden])')));
+  assert.ok(pt.includes('Monitor VGA (640×480)') && pt.includes('640×480 · 59.52 Hz · linha de 32.00 µs · 525 linhas'), pt.filter((t) => /VGA|640/.test(t)).join(' | '));
+  await setLang('en');
+  const db = await env.server.api('GET', '/api/devices');
+  const same = [{ test: (x) => db.boards.some((b) => b.name === x) }, /^(vga_bars|hsync|vsync|red|green|blue|sw|clk|tick|hc|vc|pol|real \(÷1\))\b/, /^@?[A-Z_0-9]+:? /, /^@?[A-Z_0-9]+ = /];
+  assert.deepEqual(untranslated(en, pt, same), []);
+  // the event-driven engine: the monitor says it needs the compiled one
+  await page.eval(() => { const s = [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select')].find((x) => [...x.options].some((o) => o.value === 'compiled')); s.value = 'event'; s.dispatchEvent(new Event('change')); });
+  await page.waitFor(() => window.Silinx.active.view?.engine === 'event' && window.Silinx.active.view.outputs, [], { what: 'the event-driven engine' });
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-vga-nosig').textContent), 'The VGA monitor needs the compiled engine (the event-driven one is too slow for a frame)');
+  assert.deepEqual(page.dialogs, []);
 });
 
 uiTest('emulating a netlist with a cell that has no model asks "Run anyway?" (No: nothing opens; Yes: it runs)', E, async (page) => {

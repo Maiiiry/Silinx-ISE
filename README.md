@@ -95,7 +95,10 @@ for Xilinx FPGAs supported by ISE 14.7.
   **compiled** (its netlist, read by Yosys, as one JavaScript function per clock cycle: tens of
   millions of cycles per second, the board's real speed with the real timing generics), or, to
   debug (X values, the design's messages) or when it cannot be compiled, the **event-driven**
-  simulation of the HDL, its large timing generics divided so that it visibly runs.
+  simulation of the HDL, its large timing generics divided so that it visibly runs. With the
+  compiled engine, a **VGA monitor** shows the 640×480 picture the design scans out on the board's
+  VGA connector, its sync timing measured (line period, frame rate, lines, pulses, polarities) and
+  what is not 640×480 at 60 Hz pointed out.
   It can also run what the tools built: the post-synthesis netlist (the Silinx toolchain's own, or
   ISE's netgen) and, with ISE, the post-translate, post-map or post-place & route netlist, on the
   board or in ISim, with Silinx's own models of the
