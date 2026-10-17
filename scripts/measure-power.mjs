@@ -26,10 +26,10 @@ export function parseXpower(text) {
   const lines = text.split('\n');
   const cells = l => l.split('|').slice(1, -1).map(s => s.trim());
   const num = s => (s === undefined || s === '' || s === 'NA' ? null : parseFloat(String(s).replace('~', '')));
-  // the rows of the table after the line that names it: the section's title (not the table of
-  // contents' line), or the box with the title of a table
+  // the rows of the table after the line that names it: the section's title, after its number (not
+  // the table of contents' line), or the box with the title of a table
   const table = title => {
-    let i = lines.findIndex(l => !l.startsWith('|') && l.trim().startsWith(title));
+    let i = lines.findIndex(l => !l.startsWith('|') && /^\d+(\.\d+)*\.\s+(.*)$/.exec(l.trim())?.[2] === title);
     if (i < 0) i = lines.findIndex(l => l.startsWith('|') && cells(l).length === 1 && cells(l)[0] === title);
     const rows = [];
     if (i < 0) return rows;
@@ -43,20 +43,20 @@ export function parseXpower(text) {
     return rows;
   };
   const out = { release: /\| Release\s*\|\s*([^|]+?)\s*\|/.exec(text)?.[1] || null, summary: {}, supplies: {}, clocks: [], logic: [], signals: [], ios: [] };
-  for (const r of table('2.1.  On-Chip Power Summary')) if (/^(Clocks|Logic|Signals|IOs|BRAMs|MULTs|DCMs|Static Power|Total)$/.test(r[0])) out.summary[r[0]] = num(r[1]);
+  for (const r of table('On-Chip Power Summary')) if (/^(Clocks|Logic|Signals|IOs|BRAMs|MULTs|DCMs|Static Power|Total)$/.test(r[0])) out.summary[r[0]] = num(r[1]);
   for (const r of table('Power Supply Currents')) if (/^Vcc/.test(r[0])) out.supplies[r[0]] = { volts: num(r[1]), totalMa: num(r[2]), dynamicMa: num(r[3]), quiescentMa: num(r[4]) };
-  for (const r of table('2.2.  Thermal Summary')) if (r[0] === 'Junction Temp (C)') out.junctionC = num(r[1]); else if (r[0] === 'Effective TJA (C/W)') out.thetaJa = num(r[1]);
-  for (const r of table('1.2.  Device')) if (r[0] === 'Part') out.part = r[1]; else if (r[0] === 'Package') out.pkg = r[1];
+  for (const r of table('Thermal Summary')) if (r[0] === 'Junction Temp (C)') out.junctionC = num(r[1]); else if (r[0] === 'Effective TJA (C/W)') out.thetaJa = num(r[1]);
+  for (const r of table('Device')) if (r[0] === 'Part') out.part = r[1]; else if (r[0] === 'Package') out.pkg = r[1];
   let kind = null, domain = null;
-  for (const r of table('3.2.  By Clock Domain')) {
+  for (const r of table('By Clock Domain')) {
     if (r.length < 7 || /^By Clock Domain/.test(r[0]) || !r[0] || r[0] === 'Total') continue;
     if (r[0] === 'Logic:' || r[0] === 'Nets:') { kind = r[0] === 'Logic:' ? 'buffer' : 'net'; continue; }
     if (!r[1] && !r[2]) { domain = r[0]; continue; }
     out.clocks.push({ domain, kind, name: r[0], mw: num(r[1]), mhz: num(r[2]), buffer: r[3], fanout: num(r[6]), sliceFanout: num(r[7]) });
   }
-  for (const r of table('3.3.1.1.  Logic')) if (r.length >= 6 && r[0] && r[0] !== 'Logic' && r[0] !== 'Total') out.logic.push({ mw: num(r[1]), type: r[2].split(' ')[0], rate: num(r[5]) });
-  for (const r of table('3.3.1.2.  Signals')) if (r.length >= 8 && r[0] && r[0] !== 'Signals' && r[0] !== 'Total') out.signals.push({ mw: num(r[1]), rate: num(r[2]), fanout: num(r[4]) });
-  for (const r of table('3.3.2.  IO')) if (r.length >= 10 && r[0] && r[0] !== 'IO' && r[0] !== 'Total' && !/^Internal VREFs/.test(r[0])) out.ios.push({ name: r[0], mw: num(r[1]), std: r[2], rate: num(r[3]), out: num(r[8]) > 0 || num(r[9]) > 0 });
+  for (const r of table('Logic')) if (r.length >= 6 && r[0] && r[0] !== 'Logic' && r[0] !== 'Total') out.logic.push({ mw: num(r[1]), type: r[2].split(' ')[0], rate: num(r[5]) });
+  for (const r of table('Signals')) if (r.length >= 8 && r[0] && r[0] !== 'Signals' && r[0] !== 'Total') out.signals.push({ mw: num(r[1]), rate: num(r[2]), fanout: num(r[4]) });
+  for (const r of table('IO')) if (r.length >= 10 && r[0] && r[0] !== 'IO' && r[0] !== 'Total' && !/^Internal VREFs/.test(r[0])) out.ios.push({ name: r[0], mw: num(r[1]), std: r[2], rate: num(r[3]), out: num(r[8]) > 0 || num(r[9]) > 0 });
   return out;
 }
 
