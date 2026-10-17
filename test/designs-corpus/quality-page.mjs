@@ -50,6 +50,14 @@ export function qualityPage(res, { epfl = null } = {}) {
   const xstCannot = rows.filter(r => XST_CANNOT.test(r.ise?.error || '')).length;
   const smaller = both.filter(r => r.silinx.luts <= r.ise.luts).length;
   const faster = timed.filter(r => r.silinx.periodNs <= r.ise.periodNs).length;
+  // Silinx at its Optimization Effort High too (#377), when the comparison measured it: its columns and lines
+  const hasHigh = rows.some(r => r.silinxHigh);
+  const bothH = rows.filter(r => r.silinxHigh?.luts && r.ise?.luts);
+  const timedH = rows.filter(r => r.silinxHigh?.periodNs && r.ise?.periodNs);
+  const gLutsH = geomean(bothH.map(r => r.silinxHigh.luts / r.ise.luts));
+  const gSlicesH = geomean(rows.filter(r => r.silinxHigh?.slices && r.ise?.slices).map(r => r.silinxHigh.slices / r.ise.slices));
+  const gPeriodH = geomean(timedH.map(r => r.silinxHigh.periodNs / r.ise.periodNs));
+  const fasterH = timedH.filter(r => r.silinxHigh.periodNs <= r.ise.periodNs).length;
   const L = [];
   L.push('# Quality of the Silinx toolchain against Xilinx ISE', '');
   L.push('How small and how fast are the circuits the Silinx toolchain generates (Yosys synthesis, Silinx\'s',
@@ -63,6 +71,9 @@ export function qualityPage(res, { epfl = null } = {}) {
     `tightly as it can (\`-c 1\`, as Silinx's packer always does) and the clock constraint is tightened to`,
     `${res.isePeriodNs ?? 5} ns, so that its place and route works for speed (ISE stops improving once a constraint`,
     'is met; the Silinx toolchain always places and routes for speed).', '');
+  if (hasHigh) L.push('Silinx is built at its two Optimization Efforts (Process Properties of *Synthesize*): **Normal**, the',
+    'default (one mapping, the faster synthesis), and **High** (the mappings for speed too, the faster circuit); ISE at',
+    'its default. *Silinx* in the tables is Normal, *High* the other.', '');
   L.push('## Summary', '');
   L.push(`- **Size:** ${both.length} designs built by both. Logic LUTs: Silinx ${pct(gLuts)} against ISE; flip-flops`,
     `  ${pct(gFfs)}; slices ${pct(gSlices)} (geometric means of the ratios; below 0: Silinx is smaller). Silinx`,
@@ -70,6 +81,8 @@ export function qualityPage(res, { epfl = null } = {}) {
   L.push(`- **Speed:** ${timed.length} designs timed by both. Critical path: Silinx ${pct(gPeriod)} against ISE`,
     `  (above 0: Silinx is slower); Silinx is as fast or faster on ${faster} of ${timed.length}. Both critical`,
     '  paths are measured by ISE\'s timing analyser (trce) on the routed design.');
+  if (hasHigh) L.push(`- **At Optimization Effort High:** logic LUTs ${pct(gLutsH)}, slices ${pct(gSlicesH)} against ISE (${bothH.length} designs);`,
+    `  critical path ${pct(gPeriodH)}, as fast or faster on ${fasterH} of ${timedH.length}.`);
   if (xstCannot) L.push(`- **Reading the design:** XST (ISE 14.7's synthesis, from 2013) cannot read ${xstCannot} of the designs (\`$clog2\`, VHDL-2008`,
     '  and other constructs it predates, listed below); Silinx reads them.');
   L.push('- The Silinx toolchain is experimental: these numbers are tracked to improve it (the GitHub',
@@ -78,28 +91,41 @@ export function qualityPage(res, { epfl = null } = {}) {
   L.push('4-input LUTs used as logic (not the LUTs a route passes through), flip-flops and occupied slices',
     'after packing / map; SRL16 shift registers, block RAMs and multipliers. *S / I*: Silinx / ISE, the',
     'ratio of logic LUTs (below 1: Silinx is smaller).', '');
-  L.push('| design | LUTs Silinx | LUTs ISE | S / I | FFs Silinx | FFs ISE | slices Silinx | slices ISE | SRL16 S / I | RAMB16 S / I | MULT S / I |');
-  L.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
+  if (hasHigh) {
+    L.push('| design | LUTs Silinx | LUTs High | LUTs ISE | S / I | H / I | FFs Silinx | FFs ISE | slices Silinx | slices High | slices ISE | SRL16 S / I | RAMB16 S / I | MULT S / I |');
+    L.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
+  } else {
+    L.push('| design | LUTs Silinx | LUTs ISE | S / I | FFs Silinx | FFs ISE | slices Silinx | slices ISE | SRL16 S / I | RAMB16 S / I | MULT S / I |');
+    L.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
+  }
   for (const r of rows) {
-    const s = r.silinx || {}, i = r.ise || {};
-    L.push(`| ${r.name} | ${fmt(s.luts)} | ${fmt(i.luts)} | ${fmt(ratio(s.luts, i.luts), 2)} | ${fmt(s.ffs)} | ${fmt(i.ffs)} | ${fmt(s.slices)} | ${fmt(i.slices)} | ${fmt(s.srl16)} / ${fmt(i.srl16)} | ${fmt(s.bram)} / ${fmt(i.bram)} | ${fmt(s.mult)} / ${fmt(i.mult)} |`);
+    const s = r.silinx || {}, i = r.ise || {}, hi = r.silinxHigh || {};
+    if (hasHigh) L.push(`| ${r.name} | ${fmt(s.luts)} | ${fmt(hi.luts)} | ${fmt(i.luts)} | ${fmt(ratio(s.luts, i.luts), 2)} | ${fmt(ratio(hi.luts, i.luts), 2)} | ${fmt(s.ffs)} | ${fmt(i.ffs)} | ${fmt(s.slices)} | ${fmt(hi.slices)} | ${fmt(i.slices)} | ${fmt(s.srl16)} / ${fmt(i.srl16)} | ${fmt(s.bram)} / ${fmt(i.bram)} | ${fmt(s.mult)} / ${fmt(i.mult)} |`);
+    else L.push(`| ${r.name} | ${fmt(s.luts)} | ${fmt(i.luts)} | ${fmt(ratio(s.luts, i.luts), 2)} | ${fmt(s.ffs)} | ${fmt(i.ffs)} | ${fmt(s.slices)} | ${fmt(i.slices)} | ${fmt(s.srl16)} / ${fmt(i.srl16)} | ${fmt(s.bram)} / ${fmt(i.bram)} | ${fmt(s.mult)} / ${fmt(i.mult)} |`);
   }
   L.push('', '## Speed', '');
   L.push('The critical path of the routed design (the minimum clock period, or the longest path of a',
     'design without a clock; ns, shorter is faster), both by ISE\'s trce. *Silinx estimate*: Silinx\'s own',
     'timing analysis (what its Design Summary shows).', '');
-  L.push('| design | Silinx (trce) | ISE (trce) | S / I | Silinx estimate |');
-  L.push('|---|---:|---:|---:|---:|');
-  for (const r of rows) {
-    const s = r.silinx || {}, i = r.ise || {};
-    if (!s.periodNs && !i.periodNs && !s.estimateNs) continue;
-    L.push(`| ${r.name} | ${fmt(s.periodNs, 2)} | ${fmt(i.periodNs, 2)} | ${fmt(ratio(s.periodNs, i.periodNs), 2)} | ${fmt(s.estimateNs, 2)} |`);
+  if (hasHigh) {
+    L.push('| design | Silinx (trce) | High (trce) | ISE (trce) | S / I | H / I | Silinx estimate | High estimate |');
+    L.push('|---|---:|---:|---:|---:|---:|---:|---:|');
+  } else {
+    L.push('| design | Silinx (trce) | ISE (trce) | S / I | Silinx estimate |');
+    L.push('|---|---:|---:|---:|---:|');
   }
-  const notes = rows.filter(r => r.silinx?.error || r.ise?.error);
+  for (const r of rows) {
+    const s = r.silinx || {}, i = r.ise || {}, hi = r.silinxHigh || {};
+    if (!s.periodNs && !i.periodNs && !s.estimateNs && !hi.periodNs) continue;
+    if (hasHigh) L.push(`| ${r.name} | ${fmt(s.periodNs, 2)} | ${fmt(hi.periodNs, 2)} | ${fmt(i.periodNs, 2)} | ${fmt(ratio(s.periodNs, i.periodNs), 2)} | ${fmt(ratio(hi.periodNs, i.periodNs), 2)} | ${fmt(s.estimateNs, 2)} | ${fmt(hi.estimateNs, 2)} |`);
+    else L.push(`| ${r.name} | ${fmt(s.periodNs, 2)} | ${fmt(i.periodNs, 2)} | ${fmt(ratio(s.periodNs, i.periodNs), 2)} | ${fmt(s.estimateNs, 2)} |`);
+  }
+  const notes = rows.filter(r => r.silinx?.error || r.silinxHigh?.error || r.ise?.error);
   if (notes.length || res.notBuilt?.length) {
     L.push('', '## Not built by one of the flows', '');
     for (const r of notes) {
       if (r.silinx?.error) L.push(`- ${r.name}, Silinx: ${code(r.silinx.error)}`);
+      if (r.silinxHigh?.error && r.silinxHigh.error !== r.silinx?.error) L.push(`- ${r.name}, Silinx at effort High: ${code(r.silinxHigh.error)}`);
       if (r.ise?.error) L.push(XST_CANNOT.test(r.ise.error) ? `- ${r.name}: XST cannot read it (${code(r.ise.error)}); Silinx reads it.` : `- ${r.name}, ISE: ${code(r.ise.error)}`);
     }
     if (res.notBuilt?.length) L.push(`- ${res.notBuilt.join(', ')}: Silinx cannot read or synthesize ${res.notBuilt.length > 1 ? 'them' : 'it'} yet (the design corpus's [results](../test/designs-corpus/README.md)), so neither flow was compared.`);

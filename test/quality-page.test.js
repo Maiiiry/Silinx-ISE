@@ -97,3 +97,24 @@ test('quality page: the designs added after the comparison (pending) have their 
   assert.match(page, /^- x: Silinx cannot read or synthesize it yet/m);
   assert.doesNotMatch(qualityPage({ generatedAt: '2026-10-17', designs: [] }), /Added after this comparison/);
 });
+
+// #377: Silinx at its two Optimization Efforts, Normal (the default) and High, against ISE at its default
+test('quality page: Silinx at efforts Normal and High (the High columns and summary only when measured); the guard on both', () => {
+  const res = { generatedAt: '2026-10-18', silinxVersion: 'x', isePeriodNs: 5, designs: [
+    { name: 'epfl-priority', silinx: { luts: 174, slices: 90, ffs: 0, periodNs: 43.0, estimateNs: 43.5 }, silinxHigh: { luts: 250, slices: 130, ffs: 0, periodNs: 11.07, estimateNs: 11.24 }, ise: { luts: 200, slices: 100, ffs: 0, periodNs: 20.83 } },
+    { name: 'serv', silinx: { luts: 300, slices: 200, ffs: 350, periodNs: 13.4 }, silinxHigh: { error: 'out of memory' }, ise: { luts: 330, slices: 210, ffs: 350, periodNs: 13.0 } },
+  ] };
+  const page = qualityPage(res);
+  assert.match(page, /\*\*Normal\*\*, the\ndefault .* and \*\*High\*\*/);
+  assert.match(page, /^\| design \| LUTs Silinx \| LUTs High \| LUTs ISE \| S \/ I \| H \/ I \|/m);
+  assert.match(page, /^\| epfl-priority \| 174 \| 250 \| 200 \| 0\.87 \| 1\.25 \| 0 \| 0 \| 90 \| 130 \| 100 \|/m);
+  assert.match(page, /^\| epfl-priority \| 43\.00 \| 11\.07 \| 20\.83 \| 2\.06 \| 0\.53 \| 43\.50 \| 11\.24 \|$/m);
+  assert.match(page, /^- \*\*At Optimization Effort High:\*\* logic LUTs \+25%, slices \+30% against ISE \(1 designs\);\n {2}critical path −47%, as fast or faster on 1 of 1\.$/m);
+  assert.match(page, /^- serv, Silinx at effort High: `out of memory`$/m);
+  // without High results: the page as before (no High column)
+  const plain = qualityPage({ ...res, designs: res.designs.map(({ silinxHigh, ...d }) => d) });
+  assert.doesNotMatch(plain, /LUTs High|High \(trce\)|Effort High/);
+  // the guard: a design built at High before that fails at High now
+  const before = { designs: [{ name: 'serv', silinx: {}, silinxHigh: {}, ise: {} }] };
+  assert.deepEqual(newFailures(before, res), ['serv (Silinx, effort High): out of memory']);
+});

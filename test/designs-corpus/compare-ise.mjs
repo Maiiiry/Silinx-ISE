@@ -11,6 +11,8 @@
 // for speed (ISE stops improving once a constraint is met; Silinx always optimises for speed). The
 // speed of Silinx's routing is measured by ISE's own trce (ise-open-check.sh on the same
 // host), so that both critical paths come from the same timing analyser; Silinx's estimate is kept too.
+// Silinx is built at its two Optimization Efforts (#377): Normal, the app's default (`silinx` in the
+// results), and High (impl.optLevel 2, `silinxHigh`); ISE at its default (Normal).
 //
 //   node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes <dir>     (the projects)
 //   node test/designs-corpus/compare-ise.mjs <dir> [--filter a,b] [--jobs n] [--ise-jobs n] [--period ns] [--serial] [--guard]
@@ -100,9 +102,13 @@ const runJob = (fn) => new Promise(resolve => {
 const used = x => (x && typeof x === 'object' ? x.used : x) ?? null;
 const item = (items, re) => used((items || []).find(i => re.test(i.name)));
 
-async function silinxRun(name) {
-  const projectDir = copyProject(name, 'silinx');
+// Silinx at its two Optimization Efforts (#377): Normal (the app's default, one mapping) and High (the
+// mappings for speed too, impl.optLevel 2); ISE at its default (Normal) in both comparisons
+const EFFORTS = { normal: 1, high: 2 };
+async function silinxRun(name, effort = 'normal') {
+  const projectDir = copyProject(name, effort === 'normal' ? 'silinx' : `silinx-${effort}`);
   const project = JSON.parse(fs.readFileSync(path.join(projectDir, 'silinx.json'), 'utf8'));
+  project.impl = { ...(project.impl || {}), optLevel: EFFORTS[effort] };
   const { job, ms } = await runJob(j => runOpenImplementation(j, { project, projectDir, steps: STEPS }));
   let rep = {};
   try { rep = JSON.parse(fs.readFileSync(path.join(projectDir, 'build', 'open', 'report.json'), 'utf8')); } catch { /* nothing written */ }
@@ -148,16 +154,26 @@ async function pool(items, n, fn) {
 }
 
 console.log(`${names.length} designs; work folder ${work}`);
-const silinxAll = () => pool(names, +opt('--jobs', 3), async n => { const r = await silinxRun(n); console.log(`silinx ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.estimateNs} ns (estimate), ${r.seconds} s`}`); return r; });
+const silinxAll = (effort) => pool(names, +opt('--jobs', 3), async n => { const r = await silinxRun(n, effort); console.log(`silinx ${effort.padEnd(6)} ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.estimateNs} ns (estimate), ${r.seconds} s`}`); return r; });
+const silinxBoth = async () => ({ normal: await silinxAll('normal'), high: await silinxAll('high') });
 const iseAll = () => pool(names, +opt('--ise-jobs', 2), async n => { const r = await iseRun(n); console.log(`ise    ${n}: ${r.error ? `FAILED ${r.error}` : `${r.slices} slices, ${r.periodNs} ns, ${r.seconds} s`}`); return r; });
-const [sil, ise] = SERIAL ? [await silinxAll(), await iseAll()] : await Promise.all([silinxAll(), iseAll()]);
+const [both, ise] = SERIAL ? [await silinxBoth(), await iseAll()] : await Promise.all([silinxBoth(), iseAll()]);
+const sil = both.normal, silHigh = both.high;
 
 // ISE's trce on Silinx's routed designs (ise-open-check.sh: xdl -xdl2ncd, drc, bitgen, trce)
 const host = LOCAL ? null : `${userCfg.ssh.user ? `${userCfg.ssh.user}@` : ''}${userCfg.ssh.host}`;
 const image = LOCAL ? IMAGE : userCfg.ssh.image || 'xilinx/ise:14.7';
 const tdir = path.join(work, 'trce');
-const timedNames = names.filter((n, k) => !sil[k].error && fs.existsSync(sil[k].routed));
-for (const n of timedNames) { fs.mkdirSync(path.join(tdir, n), { recursive: true }); fs.copyFileSync(sil[names.indexOf(n)].routed, path.join(tdir, n, 'routed.xdl')); }
+// (each design's routing at both efforts: <name> and <name>__high)
+const HIGH = '__high';
+const timedNames = [
+  ...names.filter((n, k) => !sil[k].error && fs.existsSync(sil[k].routed)),
+  ...names.filter((n, k) => !silHigh[k].error && fs.existsSync(silHigh[k].routed)).map(n => `${n}${HIGH}`),
+];
+for (const t of timedNames) {
+  const n = t.replace(HIGH, ''), r = (t.endsWith(HIGH) ? silHigh : sil)[names.indexOf(n)];
+  fs.mkdirSync(path.join(tdir, t), { recursive: true }); fs.copyFileSync(r.routed, path.join(tdir, t, 'routed.xdl'));
+}
 fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(tdir, 'ise-open-check.sh'));
 const sshArgs = LOCAL ? [] : ['-o', 'BatchMode=yes', ...(userCfg.ssh.port && userCfg.ssh.port !== 22 ? ['-p', String(userCfg.ssh.port)] : [])];
 const ssh = cmd => execFileSync('ssh', [...sshArgs, '--', host, `export PATH="$PATH:/usr/local/bin"; ${cmd}`], { encoding: 'utf8', maxBuffer: 64 << 20 });
@@ -185,8 +201,9 @@ if (timedNames.length) {
     // the clocks ISE's flow times, the UCF's (#53): a design's other clocks are not in ISE's period
     for (const n of Object.keys(clocks)) {
       if (trce[n] === undefined) continue;
-      const pj = JSON.parse(fs.readFileSync(path.join(dir, n, 'silinx.json'), 'utf8'));
-      const ucf = pj.constraints && fs.existsSync(path.join(dir, n, pj.constraints)) ? fs.readFileSync(path.join(dir, n, pj.constraints), 'utf8') : '';
+      const d = n.replace(HIGH, '');
+      const pj = JSON.parse(fs.readFileSync(path.join(dir, d, 'silinx.json'), 'utf8'));
+      const ucf = pj.constraints && fs.existsSync(path.join(dir, d, pj.constraints)) ? fs.readFileSync(path.join(dir, d, pj.constraints), 'utf8') : '';
       trce[n] = constrainedPeriod(clocks[n], ucf, trce[n]);
     }
     if (!LOCAL) ssh(`rm -rf ${remote}`);
@@ -201,8 +218,9 @@ const res = {
   generatedAt: new Date().toISOString(), silinxVersion: pkg.version, device: 'xc3s1200efg320-4', steps: STEPS, isePeriodNs: PERIOD, notBuilt,   // (no `pending`: every design built)
   designs: names.map((name, k) => {
     const { routed, ...s } = sil[k];
+    const { routed: routedHigh, ...h } = silHigh[k];
     const size = JSON.parse(fs.readFileSync(path.join(dir, name, 'size.json'), 'utf8'));
-    return { name, wrapper: size.wrapper || undefined, silinx: { ...s, periodNs: trce[name] ?? null }, ise: ise[k] };
+    return { name, wrapper: size.wrapper || undefined, silinx: { ...s, periodNs: trce[name] ?? null }, silinxHigh: { ...h, periodNs: trce[`${name}${HIGH}`] ?? null }, ise: ise[k] };
   }),
 };
 // merge into the earlier results (a --filter run updates only its designs)
