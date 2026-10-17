@@ -418,7 +418,8 @@ export function packedSim(packed) {
     const clk = val('CLKINV') === 'CLK_B' ? 1 - pin(i, 'CLK') : pin(i, 'CLK');
     if (clk && !r.memClk && pin(i, 'SR')) {
       const BX = pin(i, 'BX'), BY = pin(i, 'BY');
-      const din = { F: { BX, ALTDIF: BY }[val('DIF_MUX')] ?? 0, G: BY };
+      // (SHIFTIN: a cascade, F's data G's last stage before this shift)
+      const din = { F: { BX, ALTDIF: BY, SHIFTIN: r.mem.G?.[15] }[val('DIF_MUX')] ?? 0, G: BY };
       const addrOf = side => { let a = 0; for (let j = 0; j < 4; j++) a |= pin(i, `${side}${j + 1}`) << j; return a; };
       for (const side of ['F', 'G']) {
         if (!r.mem[side]) continue;

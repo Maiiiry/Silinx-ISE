@@ -117,6 +117,15 @@ test('shift registers: chains of 3 or more flip-flops without reset become SRL16
   assert.ok(dyn.every(c => !konst(c.pins.CE)), 'enabled by ce');
   assert.equal(new Set(dyn.map(c => c.pins.A0)).size, 1, 'one tap');
   assert.equal(r.packed.stats.slicem, 4, 'two shift registers per SLICEM');
+  // the 20 stages in one SLICEM, cascaded (#24): F's data G's last stage through SHIFTIN, not BX (no net on BX)
+  const cfg = i => Object.fromEntries(i.cfg.map(c => [c.attr, c.value]));
+  const casc = r.packed.insts.filter(i => i.kind === 'slice' && cfg(i).DIF_MUX === 'SHIFTIN');
+  assert.equal(casc.length, 1);
+  assert.deepEqual([cfg(casc[0]).F_ATTR, cfg(casc[0]).G_ATTR, cfg(casc[0]).DIG_MUX], ['SHIFT_REG', 'SHIFT_REG', 'BY']);
+  const k = r.packed.insts.indexOf(casc[0]);
+  assert.ok(!r.packed.nets.some(n => n.inpins.some(p => p.inst === k && p.pin === 'BX')), 'BX unused');
+  // the other SLICEMs as before: data through BX / BY
+  assert.equal(r.packed.insts.filter(i => i.kind === 'slice' && cfg(i).DIF_MUX === 'BX').length, 3);
 });
 
 // the open synthesis's netlists of the fixtures with memories and multipliers, packed: the packed
