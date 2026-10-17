@@ -957,5 +957,36 @@
         "seconds": 46.6
       }
     }
+  ],
+  "pending": [
+    "epfl-sin",
+    "epfl-voter",
+    "epfl-multiplier",
+    "epfl-log2",
+    "itc99-b01",
+    "itc99-b02",
+    "itc99-b03",
+    "itc99-b04",
+    "itc99-b05",
+    "itc99-b06",
+    "itc99-b07",
+    "itc99-b08",
+    "itc99-b09",
+    "itc99-b10",
+    "itc99-b11",
+    "itc99-b12",
+    "itc99-b13",
+    "itc99-b14",
+    "itc99-b15",
+    "itc99-b17",
+    "itc99-b20",
+    "itc99-b21",
+    "itc99-b22",
+    "iwls05-sasc",
+    "iwls05-simple-spi",
+    "iwls05-spi",
+    "iwls05-i2c",
+    "iwls05-ss-pcm",
+    "iwls05-usb-phy"
   ]
 }

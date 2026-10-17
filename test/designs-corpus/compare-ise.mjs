@@ -37,15 +37,24 @@ const RESULTS = path.join(HERE, 'ise-comparison.json');
 const PAGE = path.join(ROOT, 'docs', 'QUALITY.md');
 const STEPS = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen'];
 
+// the EPFL benchmarks against the best-known LUT-6 results (#367): research/epfl-records, when measured
+function epflResults() {
+  const dir = path.join(ROOT, 'research', 'epfl-records');
+  try { return { records: JSON.parse(fs.readFileSync(path.join(dir, 'records.json'), 'utf8')), results: JSON.parse(fs.readFileSync(path.join(dir, 'results.json'), 'utf8')) }; } catch { return null; }
+}
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : d; };
 
 if (args.includes('--report')) {
   const res = JSON.parse(fs.readFileSync(RESULTS, 'utf8'));
   const names = new Set(res.designs.map(d => d.name));
-  res.notBuilt ??= JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8')).designs.map(d => d.name).filter(n => !names.has(n));
+  const inCorpus = JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8')).designs.map(d => d.name);
+  res.notBuilt ??= inCorpus.filter(n => !names.has(n));
+  // (designs added to the corpus since the comparison ran: compared by the next one, #366)
+  res.pending = inCorpus.filter(n => !names.has(n) && !res.notBuilt.includes(n));
+  if (!res.pending.length) delete res.pending;
   fs.writeFileSync(RESULTS, `${JSON.stringify(res, null, 2)}\n`);
-  fs.writeFileSync(PAGE, qualityPage(res));
+  fs.writeFileSync(PAGE, qualityPage(res, { epfl: epflResults() }));
   console.log(`wrote ${path.relative(ROOT, PAGE)}`);
   process.exit(0);
 }
@@ -189,7 +198,7 @@ const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'))
 const manifest = JSON.parse(fs.readFileSync(path.join(HERE, 'manifest.json'), 'utf8'));
 const notBuilt = filter ? undefined : manifest.designs.map(d => d.name).filter(n => !fs.existsSync(path.join(dir, n, 'silinx.json')));
 const res = {
-  generatedAt: new Date().toISOString(), silinxVersion: pkg.version, device: 'xc3s1200efg320-4', steps: STEPS, isePeriodNs: PERIOD, notBuilt,
+  generatedAt: new Date().toISOString(), silinxVersion: pkg.version, device: 'xc3s1200efg320-4', steps: STEPS, isePeriodNs: PERIOD, notBuilt,   // (no `pending`: every design built)
   designs: names.map((name, k) => {
     const { routed, ...s } = sil[k];
     const size = JSON.parse(fs.readFileSync(path.join(dir, name, 'size.json'), 'utf8'));
@@ -213,7 +222,7 @@ if (GUARD && fs.existsSync(RESULTS)) {
   }
 }
 fs.writeFileSync(RESULTS, `${JSON.stringify(all, null, 2)}\n`);
-fs.writeFileSync(PAGE, qualityPage(all));
+fs.writeFileSync(PAGE, qualityPage(all, { epfl: epflResults() }));
 console.log(`wrote ${path.relative(ROOT, RESULTS)} and ${path.relative(ROOT, PAGE)}`);
 if (!process.env.SILINX_KEEP) fs.rmSync(work, { recursive: true, force: true }); else console.log(`kept: ${work}`);
 process.exit(0);

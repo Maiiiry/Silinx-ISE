@@ -132,6 +132,47 @@ timing analysis (what its Design Summary shows).
 - verilog-lfsr-crc: XST cannot read it (`ERROR:Xst:890 - "src/src/lfsr.v" line 271: For statement is only supported when the new step evaluation is based on one the following operator: +, -.`); Silinx reads it.
 - verilog-lfsr-prbs: XST cannot read it (`ERROR:Xst:890 - "src/src/lfsr.v" line 235: For statement is only supported when the new step evaluation is based on one the following operator: +, -.`); Silinx reads it.
 
+## Added after this comparison
+
+epfl-sin, epfl-voter, epfl-multiplier, epfl-log2, itc99-b01, itc99-b02, itc99-b03, itc99-b04, itc99-b05, itc99-b06, itc99-b07, itc99-b08, itc99-b09, itc99-b10, itc99-b11, itc99-b12, itc99-b13, itc99-b14, itc99-b15, itc99-b17, itc99-b20, itc99-b21, itc99-b22, iwls05-sasc, iwls05-simple-spi, iwls05-spi, iwls05-i2c, iwls05-ss-pcm, iwls05-usb-phy: added to the design corpus after this comparison was run; the next weekly run compares them too.
+
+## Against the best-known results (EPFL benchmarks, LUT-6)
+
+The [EPFL combinational benchmarks](https://github.com/lsils/benchmarks) keep the best results of a logic
+synthesis competition, in 6-input LUTs: the fewest LUTs (size) and the fewest levels of LUTs (depth). The
+Spartan-3E has 4-input LUTs, so the table above does not compare with them; here Silinx's front end and its
+Yosys / ABC mapping (core/synth-open.js) map each benchmark to LUT-6: *area*, ABC's default LUT mapping, against
+the size record; *depth*, the logic balanced first as Silinx's depth-oriented mapping does, against the depth
+record (geometric means: LUTs 1.82× the size records, levels 1.95× the depth records; the
+records come from exact SAT-based resynthesis and long optimization runs, the targets of research, not of a
+synthesis tool in seconds). Records: the best_results/README.md of lsils/benchmarks at 82d8cc6.
+
+| benchmark | LUT-6 (area) | levels | best LUTs | LUTs / best | LUT-6 (depth) | levels | best levels | levels / best |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| adder | 273 | 51 | 129 | 2.12 | 332 | 25 | 5 | 5.00 |
+| bar | 512 | 4 | 512 | 1.00 | 1664 | 4 | 4 | 1.00 |
+| div | not mapped | – | 3082 | – | not mapped | – | 170 | – |
+| hyp | not mapped | – | 36451 | – | not mapped | – | 458 | – |
+| log2 | 8243 | 66 | 5986 | 1.38 | 8610 | 64 | 51 | 1.25 |
+| max | 821 | 33 | 511 | 1.61 | 928 | 18 | 6 | 3.00 |
+| multiplier | 5862 | 53 | 4282 | 1.37 | 6357 | 52 | 25 | 2.08 |
+| sin | 1466 | 35 | 994 | 1.47 | 1659 | 34 | 10 | 3.40 |
+| sqrt | 3869 | 1007 | 2958 | 1.31 | 5032 | 948 | 150 | 6.32 |
+| square | 3975 | 50 | 2894 | 1.37 | 4045 | 49 | 10 | 4.90 |
+| arbiter | 2722 | 18 | 259 | 10.51 | 1729 | 7 | 5 | 1.40 |
+| ctrl | 30 | 2 | 25 | 1.20 | 28 | 2 | 2 | 1.00 |
+| cavlc | 136 | 4 | 46 | 2.96 | 143 | 4 | 3 | 1.33 |
+| dec | 272 | 2 | 264 | 1.03 | 272 | 2 | 2 | 1.00 |
+| i2c | 306 | 3 | 173 | 1.77 | 282 | 4 | 3 | 1.33 |
+| int2float | 51 | 3 | 17 | 3.00 | 50 | 3 | 2 | 1.50 |
+| mem_ctrl | not mapped | – | 1669 | – | not mapped | – | 5 | – |
+| priority | 184 | 26 | 86 | 2.14 | 183 | 12 | 4 | 3.00 |
+| router | 46 | 5 | 18 | 2.56 | 44 | 5 | 3 | 1.67 |
+| voter | 1625 | 12 | 1145 | 1.42 | 1839 | 12 | 11 | 1.09 |
+
+Measured by `node research/epfl-records/measure.mjs` (research/epfl-records/results.json), by hand when the
+synthesis changes.
+
 ## How it is measured
 
 `node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes <dir>` writes a Silinx
