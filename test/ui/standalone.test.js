@@ -57,7 +57,8 @@ before(async () => {
     if (!f.startsWith(site + path.sep) && !rel.startsWith('__test/')) { res.writeHead(403).end(); return; }
     try {
       const data = await fs.readFile(f);
-      res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream' }).end(data);
+      // (as GitHub Pages: readable from any page, the single file's too, #418)
+      res.writeHead(200, { 'Content-Type': TYPES[path.extname(f)] || 'application/octet-stream', 'Access-Control-Allow-Origin': '*' }).end(data);
     } catch { res.writeHead(404).end(); }
   });
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
@@ -364,6 +365,51 @@ uiTest('browser edition: Stop during Generate Programming File stops the flow, a
 
 // #280: a second Generate Programming File with the design unchanged (only the pins may have changed) starts
 // at Translate, from the netlist of the first: the browser's flow worker as the server's
+// #418: the single file (file://) compiles the design with the site's Yosys (here the test's site, as the
+// published one: SILINX_ASSETS)
+uiTest('standalone edition (file://): the Board Emulator runs blinky on the compiled engine, Yosys from the site', E, async (page) => {
+  await page.goto(pathToFileURL(html).href);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'standalone boot' });
+  await page.eval((u) => { window.SILINX_ASSETS = u; }, `${siteUrl}assets/`);
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'SoloEmu');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'SoloEmu' && window.Silinx.project.top);
+  await page.menu('Tools', 'Board Emulator');
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running', timeout: 120000 });
+  assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-side > .emu-hint')].map((e) => e.textContent).slice(1)), []);
+}, { url: () => 'about:blank', timeout: 240000 });
+
+// #418: the Board Emulator in the browser edition compiles the design with the site's Yosys (its assets)
+uiTest('browser edition: the Board Emulator runs blinky on the compiled engine, Yosys from the site\'s assets', E, async (page) => {
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'WebEmu');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'WebEmu' && window.Silinx.project.top);
+  await page.menu('Tools', 'Board Emulator');
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running', timeout: 120000 });
+  assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-side > .emu-hint')].map((e) => e.textContent).slice(1)), [], 'no reason, no warning');
+  // the board's time runs at the clock's rate (real time): blinky's knight rider moves
+  await page.waitFor(() => window.Silinx.active.view.sim.now > 1e11, [], { what: '0.1 s of the board\'s time', timeout: 60000 });
+  assert.ok(await page.eval(() => window.Silinx.active.view.outputs.leds.some((v) => v > 0)), 'an LED lit');
+}, { url: () => 'about:blank', timeout: 240000 });
+
 uiTest('#280 browser edition: Generate Programming File again, the design unchanged: the synthesis up to date, not run again', E, async (page) => {
   await page.goto(siteUrl);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });

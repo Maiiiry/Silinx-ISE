@@ -1,6 +1,7 @@
 // UI: behavioural simulation in the ISim view (waveforms with values), the board emulator on the
 // Basys2, Nexys2 and Spartan-3E Starter Kit (LEDs, 7-segment display, LCD, rotary knob react to
-// switches / buttons), the "Run anyway?" question for a netlist with a cell that has no model.
+// switches / buttons), its two engines (compiled, event-driven: #418), the "Run anyway?" question for a
+// netlist with a cell that has no model.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -128,6 +129,7 @@ uiTest('board emulator: a manual clock on a button (BTN0) — the flip-flop take
 for (const [board, name] of [['basys2', 'Basys2'], ['nexys2', 'Nexys2']]) {
   uiTest(`board emulator (RTL) on the ${name}: switches and buttons drive the LEDs and the 7-segment display`, E, async (page) => {
     await emulatorProject(page, `Emu_${board}`, board, { 'src/emu.vhd': EMU_7SEG }, 'emu');
+    assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled', 'the design compiles: the compiled engine runs it');
     assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-board-note').textContent), new RegExp(`${name}.* — emu · Clock clk: 50 MHz on the board`));
     for (let k = 0; k < 8; k++) assert.ok(await led(page, k) < 0.5, `LD${k} off at start`);
     // the digit shows 0 (segments a..f on, g off)
@@ -278,6 +280,94 @@ uiTest('board emulator (RTL) on the Spartan-3E Starter Kit: LCD text after a swi
   await setLang('en');
   const db = await env.server.api('GET', '/api/devices');
   const same = [{ test: (s) => db.boards.some((b) => b.name === s) }, /^(s3e|led|sw|rot_\w+|btn_\w+|lcd_\w+|clk|cnt|a_prev|step|ph|real \(÷1\))\b/, /^@?[A-Z_0-9]+:? /, /^@?[A-Z_0-9]+ = /];
+  assert.deepEqual(untranslated(en, pt, same), []);
+});
+
+// #418: the engines. A counter at its real timing generic: on the compiled engine (Real time) it counts at the
+// board's speed; the Engine selector reopens it on the event-driven engine (the generic divided, Max speed);
+// a design that cannot be compiled (a combinational loop) runs on the event-driven one, with the reason
+const EMU_COUNT = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity cnt is
+  generic (DIV : integer := 5000000);   -- 10 steps per second at 50 MHz
+  port (clk : in std_logic; sw : in std_logic_vector(7 downto 0); led : out std_logic_vector(7 downto 0));
+end cnt;
+architecture rtl of cnt is
+  signal n : integer range 0 to DIV - 1 := 0;
+  signal q : unsigned(7 downto 0) := (others => '0');
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      if n = DIV - 1 then n <= 0; q <= q + 1; else n <= n + 1; end if;
+    end if;
+  end process;
+  led <= std_logic_vector(q) xor sw;
+end rtl;
+`;
+const bar = (page) => page.eval(() => {
+  const sels = [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select')];
+  const engine = sels.find((x) => [...x.options].some((o) => o.value === 'compiled'));
+  return { engine: engine?.value, compiledDisabled: engine ? [...engine.options].find((o) => o.value === 'compiled').disabled : null,
+    speed: sels.find((x) => [...x.options].some((o) => o.value === 'max'))?.value, view: window.Silinx.active.view.engine,
+    hints: [...document.querySelectorAll('.doc:not([hidden]) .emu-side > .emu-hint')].map((e) => e.textContent) };
+});
+uiTest('board emulator: the compiled engine at the board\'s speed (a real timing generic); the Engine selector to the event-driven engine and back', E, async (page) => {
+  await emulatorProject(page, 'EmuEngine', 'basys2', { 'src/cnt.vhd': EMU_COUNT }, 'cnt');
+  let b = await bar(page);
+  assert.deepEqual([b.view, b.engine, b.compiledDisabled, b.speed], ['compiled', 'compiled', false, 'real']);
+  assert.match(b.hints[0], /^The design is compiled \(its netlist, by Yosys\) and runs at up to the board's clock rate/);
+  assert.equal(b.hints.length, 1);
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-box .emu-hint')?.textContent), 'Real values: the compiled engine runs the design at up to the board\'s clock rate.');
+  // the real generic (5 000 000 cycles a step): LD0 changes within a few seconds of the board's time
+  await page.waitFor(() => window.Silinx.active.view.sim.now > 2.2e11, [], { what: '0.22 s of the board\'s time', timeout: 60000 });
+  await page.waitFor(() => window.Silinx.active.view.outputs.leds.slice(0, 2).some((v) => v > 0), [], { what: 'the counter counts (LD0, LD1)' });
+  // the switches still drive the LEDs (led = q xor sw)
+  await widget(page, 'SW7 = sw<7>');
+  await waitLed(page, 7, true);
+  // the event-driven engine: the emulator opens again on it, the generic divided, at Max speed
+  await page.eval(() => { const s = [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select')].find((x) => [...x.options].some((o) => o.value === 'compiled')); s.value = 'event'; s.dispatchEvent(new Event('change')); });
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.engine === 'event' && window.Silinx.active.view.outputs, [], { what: 'the emulator on the event-driven engine' });
+  b = await bar(page);
+  assert.deepEqual([b.view, b.engine, b.compiledDisabled, b.speed], ['event', 'event', false, 'max']);
+  assert.match(b.hints[0], /^The design is simulated from its HDL \(behavioural RTL\) at a reduced clock rate/);
+  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-box h4')?.textContent || ''), /^Watch$/);
+  assert.match(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-box h4')].map((e) => e.textContent).join('|')), /Timing ÷[\d,]+ \(emulation only\)/);
+  // and back
+  await page.eval(() => { const s = [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select')].find((x) => [...x.options].some((o) => o.value === 'compiled')); s.value = 'compiled'; s.dispatchEvent(new Event('change')); });
+  await page.waitFor(() => window.Silinx.active.view?.engine === 'compiled' && window.Silinx.active.view.outputs, [], { what: 'the emulator on the compiled engine again' });
+  assert.deepEqual(page.dialogs, []);
+});
+
+const EMU_LOOP = `library ieee; use ieee.std_logic_1164.all;
+entity lp is port (sw : in std_logic_vector(1 downto 0); led : out std_logic_vector(1 downto 0)); end lp;
+architecture rtl of lp is
+  signal a, b : std_logic;
+begin
+  a <= b xor sw(0);
+  b <= a and sw(1);
+  led <= a & b;
+end rtl;
+`;
+uiTest('board emulator: a design with a combinational loop runs on the event-driven engine, the reason shown (and in Portuguese)', E, async (page) => {
+  await emulatorProject(page, 'EmuLoop', 'basys2', { 'src/lp.vhd': EMU_LOOP }, 'lp');
+  const b = await bar(page);
+  assert.deepEqual([b.view, b.engine, b.compiledDisabled, b.speed], ['event', 'event', true, 'max']);
+  assert.deepEqual(b.hints.slice(1), ["Not compiled (combinational loop through 'b': not compiled): the event-driven simulator runs the design."]);
+  // SW0 on, SW1 off: a = 1, b = 0
+  await widget(page, 'SW0 = sw<0>');
+  await waitLed(page, 1, true);
+  // in Portuguese: no untranslated text
+  await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '⏸ Pause' });
+  await page.eval(TEXTS);
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  await setLang('en');
+  const en = await page.eval(() => window.__uiTexts(document.querySelector('.doc:not([hidden])')));
+  await setLang('pt');
+  const pt = await page.eval(() => window.__uiTexts(document.querySelector('.doc:not([hidden])')));
+  assert.ok(pt.includes("Não compilado (combinational loop through 'b': not compiled): o projeto corre no simulador por eventos."), 'the reason in Portuguese');
+  assert.ok(pt.includes('Motor:') && pt.includes('Compilado (velocidade real)') && pt.includes('Por eventos (depuração)'));
+  await setLang('en');
+  const db = await env.server.api('GET', '/api/devices');
+  const same = [{ test: (s) => db.boards.some((b2) => b2.name === s) }, /^(lp|led|sw|real \(÷1\))\b/, /^@?[A-Z_0-9]+:? /, /^@?[A-Z_0-9]+ = /];
   assert.deepEqual(untranslated(en, pt, same), []);
 });
 

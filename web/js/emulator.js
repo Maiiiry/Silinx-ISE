@@ -1,12 +1,15 @@
-// Silinx - Board Emulator: the design (behavioural RTL simulation) running on a virtual board.
-// Switches and buttons drive the input ports, LEDs and 7-segment displays show the outputs,
-// following the pin assignments of the UCF and the resources of the project's board.
+// Silinx - Board Emulator: the design running on a virtual board. Switches and buttons drive the input
+// ports, LEDs and 7-segment displays show the outputs, following the pin assignments of the UCF and the
+// resources of the project's board. Two engines (#418): the compiled cycle simulator (core/emulate-compiled.js:
+// the design's netlist as JavaScript, at the board's real speed) when the design compiles, else (or when
+// chosen, to debug: X values, the design's messages) the event-driven simulator of the behavioural RTL.
 import { Simulator } from '/core/simulator.js';
+import { CompiledBoard } from '/core/emulate-compiled.js';
 import * as V from '/core/values.js';
 import { formatTime } from '/core/interp.js';
 import { boardWiring, boardOutputs, lcdState, lcdFeed, lcdText, emulatorClocks, manualClocks } from '/core/emulate.js';
 
-const SPEEDS = [['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
+const SPEEDS = [['real', 'Real time'], ['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
 const FRAME_BUDGET_MS = 14;
 
 function h(tag, attrs = {}, ...kids) {
@@ -320,15 +323,30 @@ function s3eLayout({ board, title, h, mkLed, mkSwitch, mkButton, portLabel, bitF
 const BOARD_LAYOUTS = { basys2: basys2Layout, nexys2: nexys2Layout, 's3e-starter': s3eLayout };
 s3eLayout.lcd = true;   // the layout shows the character LCD
 
+// Yosys for the compiled engine (core/compiled-sim.js netlistOf): the page's workers (the local server), or,
+// in the browser edition, a worker of its own started from the site's assets (as the flow worker starts its)
+let siteYosys = null;
+/** run(args, files, onLine) -> Yosys's output files, for netlistOf. standalone: the browser edition. */
+export async function emulatorYosys(standalone) {
+  if (!standalone) return (await import('./yosys-client.js')).yosysBrowser;
+  if (!siteYosys) {
+    const [{ yosysPool }, { assetsBase }, { yosysWorkerSource }] = await Promise.all([import('./yosys-client.js'), import('./open-flow-browser.js'), import('/core/synth-open.js')]);
+    const bundle = new URL('vendor/yowasp-yosys/gen/bundle.js', assetsBase()).href;
+    const url = URL.createObjectURL(new Blob([yosysWorkerSource(bundle)], { type: 'text/javascript' }));
+    siteYosys = yosysPool({ spawn: () => new Worker(url, { type: 'module' }), workers: 1 });
+  }
+  return siteYosys;
+}
+
 /**
  * Mount the emulator.
  * @param {HTMLElement} container
  * @param {{ design, board, assignments, title?, files?, onOpenSource? }} opts
+ *   engine: { netlist: { json, top } (netlistOf: the compiled engine) | null, reason: why not, onChange(engine) }
  */
-export function mountEmulator(container, { design, board, assignments, title = '', files, timing = null, model = null }) {
+export function mountEmulator(container, { design, board, assignments, title = '', files, timing = null, model = null, engine = null }) {
   injectStyle();
   const wiring = boardWiring({ ports: design.top.ports, assignments, board });
-  const sim = new Simulator(design, { files, maxWaveEvents: 1e9 });
   const inputPorts = design.top.ports.filter((p) => p.dir === 'in');
   const outputSigs = new Set(wiring.bits.filter((b) => b.dir !== 'in').map((b) => b.sig));
   const clockSigs = new Set(wiring.clocks.map((c) => c.sig));
@@ -337,15 +355,26 @@ export function mountEmulator(container, { design, board, assignments, title = '
   wiring.clocks = emulatorClocks(wiring, design.top.ports);
   const manual = manualClocks(wiring);
   const period = wiring.clocks[0]?.period || 20000;
+  // the engine: the compiled cycle simulator when the design was compiled (engine.netlist: core/compiled-sim.js
+  // netlistOf's), else the event-driven one; engineNote: why not compiled
+  let compiled = null, engineNote = engine?.reason || null;
+  if (engine?.netlist && wiring.clocks.length > 1) engineNote = `more than one clock on the board (${wiring.clocks.map((c) => c.port).join(', ')})`;
+  else if (engine?.netlist) {
+    try { compiled = new CompiledBoard({ json: engine.netlist.json, top: engine.netlist.top, design, wiring, clock: wiring.clocks[0]?.port || null, period }); }
+    catch (e) { engineNote = e.message; }
+  }
+  const sim = compiled || new Simulator(design, { files, maxWaveEvents: 1e9 });
   const inVal = new Map(inputPorts.map((p) => [p.sig, 0n]));   // value of each input port (unmapped bits 0)
   // inputs with a pull-up on the board (e.g. the rotary encoder's A / B) rest at '1'
   for (const b of wiring.bits) if (b.dir === 'in' && b.res.pull === 'up' && b.kind !== 'sw' && b.kind !== 'btn') inVal.set(b.sig, (inVal.get(b.sig) ?? 0n) | (1n << BigInt(b.pos)));
   const hasLcd = wiring.bits.some((b) => b.res.name === 'lcd_e');
   let lcd = lcdState(), lcdView = null;
 
-  let running = false, speed = 'max', prev = null, raf = 0, destroyed = false, knobEnd = 0;
+  let running = false, speed = compiled ? 'real' : 'max', prev = null, raf = 0, destroyed = false, knobEnd = 0;
   let powered = true;   // the board's power switch: off = nothing runs, outputs dark
-  let slice = 2000, cyclesAcc = 0, lastT = 0, rateWin = { t: performance.now(), cyc: 0, rate: 0 };
+  // (cycles per run: the compiled engine runs millions of cycles in a frame)
+  const maxSlice = compiled ? 5e6 : 200000;
+  let slice = compiled ? 100000 : 2000, cyclesAcc = 0, lastT = 0, rateWin = { t: performance.now(), cyc: 0, rate: 0 };
   let logN = 0;
   let lcdDirty = true;
 
@@ -355,8 +384,8 @@ export function mountEmulator(container, { design, board, assignments, title = '
   const runBtn = h('button', { class: 'btn', onclick: () => setRunning(!running) }, '▶ Run');
   const stepBtn = h('button', { class: 'btn', title: 'Advance one clock cycle', onclick: () => step() }, '⏭ Step');
   const resetBtn = h('button', { class: 'btn', title: 'Power-cycle the board: restart the design from time 0', onclick: () => powerCycle() }, '⟲ Power cycle');
-  const speedSel = h('select', { title: 'Emulated clock rate', onchange: (e) => { speed = e.target.value === 'max' ? 'max' : Number(e.target.value); } },
-    ...SPEEDS.map(([v, l]) => h('option', { value: v }, l)));
+  const speedSel = h('select', { title: 'Emulated clock rate', onchange: (e) => { speed = e.target.value === 'max' || e.target.value === 'real' ? e.target.value : Number(e.target.value); } },
+    ...SPEEDS.map(([v, l]) => h('option', { value: v, selected: v === speed }, l)));
   const stat = h('span', { class: 'stat' });
   // timing scale: the top's large integer generics divided (see core/emulate.js)
   let timingSel = null;
@@ -372,7 +401,13 @@ export function mountEmulator(container, { design, board, assignments, title = '
     h('option', { value: '', selected: !model.current }, 'Behavioral (RTL)'),
     ...Object.entries(model.names).map(([k, n]) => h('option', { value: k, selected: model.current === k, disabled: !model.available.includes(k) && model.current !== k },
       `${n} netlist${model.available.includes(k) ? '' : ' (not generated)'}`))) : null;
+  // the engine (#418): compiled (the board's speed) or event-driven (debugging)
+  const engineSel = engine ? h('select', { title: 'The simulator that runs the design: compiled (its netlist, at the board\'s real speed) or event-driven (the behavioural RTL, with X values and the design\'s messages: for debugging)',
+    onchange: (e) => engine.onChange?.(e.target.value) },
+    h('option', { value: 'compiled', selected: !!compiled, disabled: !compiled && !!engineNote, title: !compiled && engineNote ? `Not compiled: ${engineNote}` : null }, 'Compiled (real speed)'),
+    h('option', { value: 'event', selected: !compiled }, 'Event-driven (debugging)')) : null;
   root.append(h('div', { class: 'emu-bar' }, modelSel ? 'Model:' : null, modelSel, modelSel ? h('span', { class: 'sep' }) : null,
+    engineSel ? 'Engine:' : null, engineSel, engineSel ? h('span', { class: 'sep' }) : null,
     runBtn, stepBtn, resetBtn, h('span', { class: 'sep' }), 'Clock:', speedSel,
     timingSel ? h('span', { class: 'sep' }) : null, timingSel ? 'Timing:' : null, timingSel, stat));
 
@@ -535,7 +570,8 @@ export function mountEmulator(container, { design, board, assignments, title = '
         h('td', { style: { textAlign: 'right' } }, timing.scale > 1 ? `→ ${(used.get(g.name) ?? 0).toLocaleString()}` : ''))))),
       h('div', { class: 'emu-hint', style: { marginTop: '4px' } }, timing.scale > 1
         ? 'Divided so that counters, dividers and debouncers advance at the emulator\'s speed (about 10^5 clock cycles per second instead of 50 MHz). The design and the bitstream are not changed.'
-        : 'Real values: at the emulator\'s speed, a design that counts millions of cycles moves very slowly.')));
+        : compiled ? 'Real values: the compiled engine runs the design at up to the board\'s clock rate.'
+          : 'Real values: at the emulator\'s speed, a design that counts millions of cycles moves very slowly.')));
   }
   const unm = wiring.unmapped.filter((u) => !clockSigs.has(design.top.ports.find((p) => p.name === u.port)?.sig));
   if (unm.length) {
@@ -545,8 +581,15 @@ export function mountEmulator(container, { design, board, assignments, title = '
   }
   const logEl = h('div', { class: 'emu-log' });
   side.append(h('div', { class: 'emu-box' }, h('h4', {}, 'Messages'), logEl));
-  side.append(h('div', { class: 'emu-hint' }, 'The design is simulated from its HDL (behavioural RTL) at a reduced clock rate; registers without an initial value start at 0, as on the FPGA; '
-    + 'each display digit keeps the last pattern it showed between its refreshes, as your eye does on the real board. Buttons: press and hold; Shift+click keeps a button pressed.'));
+  side.append(h('div', { class: 'emu-hint' }, compiled
+    ? 'The design is compiled (its netlist, by Yosys) and runs at up to the board\'s clock rate; registers without an initial value start at 0, as on the FPGA; '
+      + 'the event-driven engine shows X values and the design\'s messages. Each display digit keeps the last pattern it showed between its refreshes, as your eye does on the real board. '
+      + 'Buttons: press and hold; Shift+click keeps a button pressed.'
+    : 'The design is simulated from its HDL (behavioural RTL) at a reduced clock rate; registers without an initial value start at 0, as on the FPGA; '
+      + 'each display digit keeps the last pattern it showed between its refreshes, as your eye does on the real board. Buttons: press and hold; Shift+click keeps a button pressed.'));
+  // why the event-driven engine runs it (the design could not be compiled), what the compiled one warns of
+  if (engineNote) side.append(h('div', { class: 'emu-hint' }, `Not compiled (${engineNote}): the event-driven simulator runs the design.`));
+  for (const w of compiled?.warnings || []) side.append(h('div', { class: 'emu-hint' }, `Compiled engine: ${w}`));
 
   // ------------------------------------------------------------------------------- simulation
   function applyInput(sig) {
@@ -564,7 +607,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     }
   }
   function setupSim() {
-    powerUpZero();
+    if (!compiled) powerUpZero();   // (the compiled engine's registers start at their initial value or 0)
     for (const s of design.signals) s.wave = null;
     for (const p of inputPorts) applyInput(p.sig);
     for (const c of wiring.clocks) sim.addClock(c.sig, { period: c.period });
@@ -589,6 +632,14 @@ export function mountEmulator(container, { design, board, assignments, title = '
   function runCycles(n) {
     if (!powered) return;
     const t0 = sim.now;
+    if (compiled) {
+      // (what the board shows from what the compiled code counted in the window)
+      sim.run(sim.now + n * period);
+      prev = sim.outputs(t0, Math.max(sim.now, t0 + 1), prev);
+      if (hasLcd && sim.lcd(lcd)) lcdDirty = true;
+      rateWin.cyc += n;
+      return;
+    }
     for (const s of outputSigs) s.wave = { t: [sim.now], v: [s.val] };
     sim.waveEvents = 0; sim.waveTruncated = false;
     sim.run(sim.now + n * period);
@@ -624,9 +675,10 @@ export function mountEmulator(container, { design, board, assignments, title = '
         if (sim.finished) break;
       } while (performance.now() - start < FRAME_BUDGET_MS * 0.85);
       const perCycle = (performance.now() - start) / Math.max(1, done);   // ms per clock cycle
-      slice = Math.max(50, Math.min(200000, Math.round((FRAME_BUDGET_MS * 0.2) / Math.max(1e-6, perCycle))));
+      slice = Math.max(50, Math.min(maxSlice, Math.round((FRAME_BUDGET_MS * 0.2) / Math.max(1e-6, perCycle))));
     } else {
-      cyclesAcc += speed * Math.min(0.25, (now - lastT) / 1000);
+      // (real time: the board's clock rate)
+      cyclesAcc += (speed === 'real' ? 1e12 / period : speed) * Math.min(0.25, (now - lastT) / 1000);
       lastT = now;
       let n = Math.floor(cyclesAcc);
       cyclesAcc -= n;
@@ -648,7 +700,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     digits.forEach((d, k) => d && d.set(prev?.digits[k] ?? null));
     if (lcdView && lcdDirty) { lcdView.set(powered ? lcdText(lcd) : null, lcd); lcdDirty = false; }
     for (const w of watched) {
-      const v = w.s.val;
+      const v = compiled ? sim.value(w.s) : w.s.val;
       w.val.textContent = v == null || Array.isArray(v) ? '?' : (w.s.t?.w > 1 ? `${V.toBin(v)}${v.x ? '' : ` (${v.v.toString(16).toUpperCase()}h)`}` : (v.x ? 'X' : v.v.toString()));
     }
     const nowMs = performance.now();
@@ -679,6 +731,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     get powered() { return powered; },
     wiring,
     sim,
+    engine: compiled ? 'compiled' : 'event',
     get outputs() { return prev; },
   };
 }

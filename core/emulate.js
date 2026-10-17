@@ -134,20 +134,39 @@ export function timeWhere(tracks, t0, t1, pred) {
  * Active levels come from the board resources (extra.activeLow).
  */
 export function boardOutputs(wiring, t0, t1, prev = null) {
-  const span = Math.max(1, t1 - t0);
-  const on = (b) => (b.res.extra?.activeLow ? 0 : 1);
-  const leds = [], digits = [], lit = [];
-  const segBits = [], dpBits = [], anBits = [];
+  // the times measured on the waveforms the simulator recorded
+  const tracks = new Map();
+  const track = (b) => { if (!tracks.has(b)) tracks.set(b, bitTrack(b.sig, b.pos, t0, t1)); return tracks.get(b); };
+  return outputsOf(wiring, t0, t1, prev, {
+    level: (b, v) => timeWhere([track(b)], t0, t1, ([x]) => x === v),
+    both: (a, va, b, vb) => timeWhere([track(a), track(b)], t0, t1, ([x, y]) => x === va && y === vb),
+  });
+}
+
+const onLevel = (b) => (b.res.extra?.activeLow ? 0 : 1);
+// the output bits of the board's LEDs and display: { leds: [b], segs, dps, ans } (by resource index)
+function displayBits(wiring) {
+  const leds = [], segs = [], dps = [], ans = [];
   for (const b of wiring.bits) {
     if (b.dir !== 'out' && b.dir !== 'inout') continue;
-    if (b.kind === 'led') leds[b.idx] = timeWhere([bitTrack(b.sig, b.pos, t0, t1)], t0, t1, ([v]) => v === on(b)) / span;
-    else if (b.kind === 'seg') segBits[b.idx] = b;
-    else if (b.kind === 'dp') dpBits[b.idx] = b;
-    else if (b.kind === 'an') anBits[b.idx] = b;
+    if (b.kind === 'led') leds[b.idx] = b;
+    else if (b.kind === 'seg') segs[b.idx] = b;
+    else if (b.kind === 'dp') dps[b.idx] = b;
+    else if (b.kind === 'an') ans[b.idx] = b;
   }
+  return { leds, segs, dps, ans };
+}
+
+// boardOutputs from the times measure gives: level(b, v), the time bit b is at v in the window; both(a, va, b, vb)
+function outputsOf(wiring, t0, t1, prev, measure) {
+  const span = Math.max(1, t1 - t0);
+  const on = onLevel;
+  const leds = [], digits = [], lit = [];
+  const { leds: ledBits, segs: segBits, dps: dpBits, ans: anBits } = displayBits(wiring);
+  ledBits.forEach((b, k) => { if (b) leds[k] = measure.level(b, on(b)) / span; });
   // refresh episodes: a digit starts one when it is lit in this window and was not in the previous one
   const episodes = [...(prev?.episodes || [])];
-  const times = anBits.map((an) => (an ? timeWhere([bitTrack(an.sig, an.pos, t0, t1)], t0, t1, ([v]) => v === on(an)) : 0));
+  const times = anBits.map((an) => (an ? measure.level(an, on(an)) : 0));
   times.forEach((time, k) => { if (time > 0 && !prev?.lit?.[k]?.on) episodes[k] = (episodes[k] || 0) + 1; });
   const anyLit = times.some((x) => x > 0);
   anBits.forEach((an, k) => {
@@ -161,14 +180,75 @@ export function boardOutputs(wiring, t0, t1, prev = null) {
       lit[k] = p ? { ...p, on: false } : null;   // the history stays: the next refresh measures the real gap
       return;
     }
-    const at = bitTrack(an.sig, an.pos, t0, t1);
-    const frac = (b) => (b ? timeWhere([at, bitTrack(b.sig, b.pos, t0, t1)], t0, t1, ([a, s]) => a === on(an) && s === on(b)) / time : 0);
+    const frac = (b) => (b ? measure.both(an, on(an), b, on(b)) / time : 0);
     digits[k] = { seg: Array.from({ length: 7 }, (_, j) => frac(segBits[j])), dp: frac(dpBits[0]) };
     // dark time in this window (the anode is multiplexed within it) or since the last window
     const gap = Math.max(span - time, p && prev?.digits?.[k] ? t0 - p.last : 0);   // a faded spell is not a refresh gap
     lit[k] = { last: t1, gap: Math.max(gap, p ? p.gap : 0), snap: [...episodes], on: true };
   });
   return { leds, digits, lit, episodes };
+}
+
+// ---------------------------------------------------------------------------------------------
+// The same from what a cycle simulator counts (core/compiled-sim.js watch), cycle by cycle
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * What a cycle simulator has to count for boardOutputsFromCounts and lcdFeedEdges: { levels: [{ b, on }],
+ * pairs: [[{ b, on }, { b, on }]], edges: [{ b, capture: [b] }] } (b: a bit of the wiring), and, to read the
+ * counts back, index(b, v) / pairIndex(a, va, b, vb).
+ */
+export function outputWatch(wiring) {
+  const { leds, segs, dps, ans } = displayBits(wiring);
+  const levels = [], pairs = [], li = new Map(), pi = new Map();
+  const level = (b) => { if (b && !li.has(b)) { li.set(b, levels.length); levels.push({ b, on: onLevel(b) }); } };
+  leds.forEach(level);
+  ans.forEach(level);
+  for (const an of ans) {
+    if (!an) continue;
+    for (const b of [...segs.slice(0, 7), dps[0]]) {
+      if (!b) continue;
+      pi.set(`${wiring.bits.indexOf(an)},${wiring.bits.indexOf(b)}`, pairs.length);
+      pairs.push([{ b: an, on: onLevel(an) }, { b, on: onLevel(b) }]);
+    }
+  }
+  // the LCD's transfers: each falling edge of E, with RS, RW and the data bus (DB0..DB7, or the 4-bit D0..D3)
+  const pin = (res, idx = 0) => wiring.bits.find((x) => x.res.name === res && x.idx === idx && x.dir !== 'in');
+  const edges = [];
+  const e = pin('lcd_e');
+  if (e) {
+    const wide = wiring.bits.some((x) => x.res.name === 'lcd_db');
+    const data = wide ? Array.from({ length: 8 }, (_, i) => pin('lcd_db', i)) : Array.from({ length: 4 }, (_, i) => pin('lcd_d', i));
+    edges.push({ b: e, capture: [pin('lcd_rs'), pin('lcd_rw'), ...data], width: wide ? 8 : 4 });
+  }
+  return {
+    levels, pairs, edges,
+    index: (b) => li.get(b),
+    pairIndex: (a, b) => pi.get(`${wiring.bits.indexOf(a)},${wiring.bits.indexOf(b)}`),
+  };
+}
+
+/**
+ * boardOutputs for the window [t0, t1] from the cycles counted in it (outputWatch's levels then pairs, as
+ * core/compiled-sim.js take() gives them), each cycle `period` long.
+ */
+export function boardOutputsFromCounts(wiring, watch, counts, period, t0, t1, prev = null) {
+  return outputsOf(wiring, t0, t1, prev, {
+    level: (b) => (counts[watch.index(b)] || 0) * period,
+    both: (a, va, b) => (counts[watch.levels.length + watch.pairIndex(a, b)] || 0) * period,
+  });
+}
+
+/** lcdFeed from the LCD's falling edges of E a cycle simulator captured (the values of outputWatch's capture bits). */
+export function lcdFeedEdges(st, watch, captured) {
+  const w = watch.edges[0];
+  if (!w || !captured.length) return false;
+  for (const v of captured) {
+    let bus = 0;
+    for (let k = 0; k < w.width; k++) bus |= ((v >>> (2 + k)) & 1) << k;
+    lcdTransfer(st, v & 1, (v >>> 1) & 1, bus, w.width);
+  }
+  return true;
 }
 
 // ---------------------------------------------------------------------------------------------
