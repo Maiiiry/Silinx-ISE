@@ -53,16 +53,31 @@ refuses a source without one, or not pinned to a commit.
 | [secworks](https://github.com/secworks) aes, sha1, sha256, siphash | crypto cores with self-checking testbenches | BSD-2-Clause | Verilog |
 | [dawsonjon/fpu](https://github.com/dawsonjon/fpu) | IEEE 754 adder, multiplier | MIT | Verilog |
 | [VTR benchmarks](https://github.com/verilog-to-routing/vtr-verilog-to-routing) | sha, diffeq1, diffeq2, ch_intrinsics, stereovision3, mkPktMerge | open source, each under the terms in its own source (VTR's LICENSE.md); sha: OpenCores BSD-style | Verilog |
-| [EPFL combinational suite](https://github.com/lsils/benchmarks) | ctrl, int2float, cavlc, router, priority, dec, i2c, adder, bar, max | MIT | Verilog (gates) |
+| [EPFL combinational suite](https://github.com/lsils/benchmarks) | ctrl, int2float, cavlc, router, priority, dec, i2c, adder, bar, max, sin, voter, multiplier, log2 | MIT | Verilog (gates) |
+| [ITC'99](https://github.com/ispras/hdl-benchmarks/tree/10c3fb51d0810ce862659211862660dcc270a6af/iwls05/itc99) (ISPRAS HDL benchmarks, IWLS'05) | b01–b15, b17, b20, b21, b22 | ITC'99 notice: used and distributed without restriction, the copyright kept (GPL-2.0 file beside them) | VHDL (behavioural) |
+| [IWLS'05 OpenCores](https://github.com/ispras/hdl-benchmarks/tree/10c3fb51d0810ce862659211862660dcc270a6af/iwls05/opencores) (ISPRAS HDL benchmarks) | sasc, simple_spi, spi, i2c, ss_pcm, usb_phy | OpenCores notice in each file: used and distributed without restriction (BSD-style) | Verilog |
 
 The VTR benchmarks (sha, diffeq1, diffeq2, ch_intrinsics, stereovision3, mkPktMerge) carry no licence
 of their own beyond VTR's LICENSE.md; the author decided (2026-10-11) to keep them in the corpus on
 the condition that they are only downloaded for testing (scripts/fetch-design-corpus.mjs) and never
 committed or redistributed with Silinx, as every design of the corpus.
 
-Not included: ISCAS'85 / '89 (no repository with a licence found), the GHDL test suite (optional,
-later), the larger VTR and EPFL designs (too large for the XC3S250E: kept for the XC3S500E /
-1200E when their bit databases exist), Plasma (licence unclear).
+Not included: ISCAS'85 / '89 (their terms only allow copies at no charge: not an open-source licence),
+the GHDL test suite (optional, later), Plasma (licence unclear), the larger VTR designs, and (#366, #372):
+- EPFL div, hyp, mem_ctrl: Yosys in WebAssembly runs out of memory on them (Silinx's front end reads them in a
+  second); EPFL arbiter, sqrt, square and ITC'99 b18, b19: the corpus runner's worker runs out of memory (its
+  JavaScript heap limit) before the flow ends; ITC'99 b16 and b30 (not in the ISPRAS set / a gate-level
+  library);
+- the IWLS'05 stepper motor drive (its only licence: "the terms specified at opencores.org"), the other
+  IWLS'05 cores (larger, or SystemC), the ISPRAS BLIF / PLA / KISS2 sets (no front end for them), its
+  generated multi-megabyte SystemVerilog and its verification test cases;
+- [Coloquinte/LogicBenchmarks](https://github.com/Coloquinte/LogicBenchmarks) (no licence; BLIF / bench
+  repackagings of ISCAS, MCNC and EPFL) and
+  [TrustworthyComputing/hdl-benchmarks](https://github.com/TrustworthyComputing/hdl-benchmarks) (mostly
+  ISCAS as gates, the rest tiny kernels or of unclear origin).
+
+The EPFL benchmarks are also measured against the competition's best-known LUT-6 results:
+`research/epfl-records` (#367), its table in [docs/QUALITY.md](../../docs/QUALITY.md).
 
 `wrappers/` holds Silinx's own glue: `mcu80_hello.vhd` (light8080's SoC with its 'hello' program
 as a top without an array generic) and `vtr_memories.v` (behavioural models of VTR's
@@ -171,20 +186,20 @@ least its slowest design's time (the testbench included: uart-for-fpga's is most
 | machine class | designs | synthesis (s) | flow (s) | all the stages (s) |
 | --- | ---: | ---: | ---: | ---: |
 | `ci` | 38 | 1614 | 2341 | 4423 |
-| `local` | 38 | 536 | 1213 | 1871 |
+| `local` | 67 | 1586 | 2485 | 4569 |
 
 The 8 slowest designs (s: synthesis / flow / all the stages):
 
 | design | `ci` | `local` |
 | --- | ---: | ---: |
 | secworks-aes | 325 / 852 / 1253 | 105 / 535 / 658 |
+| epfl-multiplier | - | 355 / 798 / 1216 |
+| epfl-log2 | - | 405 / 116 / 790 |
 | secworks-sha256 | 149 / 275 / 443 | 43 / 98 / 146 |
 | secworks-sha1 | 102 / 194 / 309 | 29 / 99 / 132 |
 | neorv32 | 158 / 81 / 261 | 60 / 35 / 99 |
 | uart-for-fpga | 10 / 2 / 246 | 6 / 2 / 63 |
 | t80 | 114 / 52 / 174 | 38 / 38 / 79 |
-| picorv32 | 59 / 90 / 159 | 19 / 39 / 61 |
-| secworks-siphash | 49 / 97 / 152 | 15 / 45 / 62 |
 <!-- end of the run times -->
 
 ## Results (Yosys 0.70 / YoWASP)
@@ -239,8 +254,37 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 194 | 172 | 386 | 13.316 | 0 |
 | epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 601 | 1201 | 272 | 10.697 | 0 |
 | epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 722 | 1444 | 644 | 28.878 | 1 (flow 1) |
+| epfl-sin | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 1001 | 2001 | 0 |  | 0 |
+| epfl-voter | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 1177 | 2353 | 1003 | 25.402 | 1 (flow 1) |
+| epfl-multiplier | Verilog | MIT | pass | - | pass | pass | complete | XC3S500E | 3787 | 7574 | 257 | 107.034 | 1 (flow 1) |
+| epfl-log2 | Verilog | MIT | pass | - | pass | pass | complete | XC3S1200E | 5341 | 10682 | 0 |  | 0 |
+| itc99-b01 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 5 | 9 | 5 | 2.564 | 0 |
+| itc99-b02 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 2 | 4 | 4 | 1.959 | 0 |
+| itc99-b03 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 20 | 34 | 30 | 5.051 | 0 |
+| itc99-b04 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 135 | 267 | 66 | 16.004 | 0 |
+| itc99-b05 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 258 | 507 | 34 | 10.904 | 3 (synth 3) |
+| itc99-b06 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 6 | 11 | 8 | 3.127 | 0 |
+| itc99-b07 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 56 | 111 | 43 | 5.824 | 0 |
+| itc99-b08 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 17 | 34 | 21 | 6.601 | 0 |
+| itc99-b09 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 21 | 42 | 28 | 6.685 | 0 |
+| itc99-b10 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 26 | 52 | 17 | 5.123 | 0 |
+| itc99-b11 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 97 | 188 | 31 | 9.438 | 0 |
+| itc99-b12 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 220 | 437 | 119 | 11.635 | 1 (synth 1) |
+| itc99-b13 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 44 | 88 | 53 | 8.372 | 0 |
+| itc99-b14 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 749 | 1479 | 334 | 33.802 | 1 (flow 1) |
+| itc99-b15 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1462 | 2912 | 556 | 20.740 | 4 (frontend 2, synth 1, flow 1) |
+| itc99-b17 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S500E | 4095 | 8153 | 1328 | 23.199 | 6 (frontend 2, synth 3, flow 1) |
+| itc99-b20 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1337 | 2641 | 492 | 37.208 | 1 (flow 1) |
+| itc99-b21 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1362 | 2695 | 492 | 37.250 | 1 (flow 1) |
+| itc99-b22 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 2039 | 4033 | 706 | 41.315 | 2 (frontend 1, flow 1) |
+| iwls05-sasc | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 73 | 136 | 118 | 5.020 | 3 (frontend 3) |
+| iwls05-simple-spi | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 109 | 217 | 131 | 6.308 | 3 (frontend 3) |
+| iwls05-spi | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 465 | 926 | 229 | 19.900 | 1 (frontend 1) |
+| iwls05-i2c | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 215 | 429 | 129 | 8.801 | 0 |
+| iwls05-ss-pcm | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 68 | 91 | 79 | 5.164 | 1 (frontend 1) |
+| iwls05-usb-phy | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 82 | 158 | 105 | 6.256 | 1 (frontend 1) |
 
-Summary: 38 designs; front end 38 / 38; own testbenches 8 / 8 pass; synthesis 38; netlist = RTL 37; fully open bitstream complete for 38 designs (35 on the XC3S250E, 2 on the XC3S500E, 1 on the XC3S1200E).
+Summary: 67 designs; front end 67 / 67; own testbenches 8 / 8 pass; synthesis 67; netlist = RTL 66; fully open bitstream complete for 67 designs (61 on the XC3S250E, 4 on the XC3S500E, 2 on the XC3S1200E).
 <!-- end of the results table -->
 
 The epfl-priority / adder / max periods are those of the I/O wrapper around a combinational

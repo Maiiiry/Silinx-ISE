@@ -97,6 +97,20 @@
    "period": null
   }
  },
+ "epfl-log2": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete: on the XC3S1200E",
+  "quality": {
+   "part": "xc3s1200efg320-4",
+   "slices": 5341,
+   "luts": 10682,
+   "ffs": 0,
+   "period": null
+  }
+ },
  "epfl-max": {
   "frontend": "pass",
   "tb": "skip: no self-checking testbench",
@@ -114,6 +128,25 @@
    "luts": 1444,
    "ffs": 644,
    "period": 28.878
+  }
+ },
+ "epfl-multiplier": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete: on the XC3S500E",
+  "warnings": {
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s500efg320-4",
+   "slices": 3787,
+   "luts": 7574,
+   "ffs": 257,
+   "period": 107.034
   }
  },
  "epfl-priority": {
@@ -142,6 +175,39 @@
    "luts": 61,
    "ffs": 64,
    "period": 7.786
+  }
+ },
+ "epfl-sin": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 1001,
+   "luts": 2001,
+   "ffs": 0,
+   "period": null
+  }
+ },
+ "epfl-voter": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 1177,
+   "luts": 2353,
+   "ffs": 1003,
+   "period": 25.402
   }
  },
  "femtorv32-quark": {
@@ -184,6 +250,446 @@
    "luts": 482,
    "ffs": 404,
    "period": 15.296
+  }
+ },
+ "itc99-b01": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 5,
+   "luts": 9,
+   "ffs": 5,
+   "period": 2.564
+  }
+ },
+ "itc99-b02": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 2,
+   "luts": 4,
+   "ffs": 4,
+   "period": 1.959
+  }
+ },
+ "itc99-b03": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 20,
+   "luts": 34,
+   "ffs": 30,
+   "period": 5.051
+  }
+ },
+ "itc99-b04": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 135,
+   "luts": 267,
+   "ffs": 66,
+   "period": 16.004
+  }
+ },
+ "itc99-b05": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Latch inferred for signal `p1_v0' from process `\\b05.$proc': $auto",
+    "Warning: Latch inferred for signal `p1_v1 [4:0]' from process `\\b05.$proc': $auto",
+    "Warning: Latch inferred for signal `p1_v1 [8:5]' from process `\\b05.$proc': $auto"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 258,
+   "luts": 507,
+   "ffs": 34,
+   "period": 10.904
+  }
+ },
+ "itc99-b06": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 6,
+   "luts": 11,
+   "ffs": 8,
+   "period": 3.127
+  }
+ },
+ "itc99-b07": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 56,
+   "luts": 111,
+   "ffs": 43,
+   "period": 5.824
+  }
+ },
+ "itc99-b08": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 17,
+   "luts": 34,
+   "ffs": 21,
+   "period": 6.601
+  }
+ },
+ "itc99-b09": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 21,
+   "luts": 42,
+   "ffs": 28,
+   "period": 6.685
+  }
+ },
+ "itc99-b10": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 26,
+   "luts": 52,
+   "ffs": 17,
+   "period": 5.123
+  }
+ },
+ "itc99-b11": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 97,
+   "luts": 188,
+   "ffs": 31,
+   "period": 9.438
+  }
+ },
+ "itc99-b12": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "synth": [
+    "Warning: Replacing memory \\p2_v0 with list of registers. See b12_syn.v:247, b12_syn.v:243"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 220,
+   "luts": 437,
+   "ffs": 119,
+   "period": 11.635
+  }
+ },
+ "itc99-b13": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 44,
+   "luts": 88,
+   "ffs": 53,
+   "period": 8.372
+  }
+ },
+ "itc99-b14": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 749,
+   "luts": 1479,
+   "ffs": 334,
+   "period": 33.802
+  }
+ },
+ "itc99-b15": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - b15.vhd:46: Signal <statena> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - b15.vhd:51: Signal <nonaligned> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "synth": [
+    "Warning: Replacing memory \\p1_v0 with list of registers. See b15_syn.v:739, b15_syn.v:641"
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clk not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 1462,
+   "luts": 2912,
+   "ffs": 556,
+   "period": 20.74
+  }
+ },
+ "itc99-b17": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete: on the XC3S500E",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - b17.vhd:46: Signal <statena> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - b17.vhd:51: Signal <nonaligned> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "synth": [
+    "Warning: Replacing memory \\p10_v0 with list of registers. See b17_syn.v:1529, b17_syn.v:1431",
+    "Warning: Replacing memory \\p13_v0 with list of registers. See b17_syn.v:2173, b17_syn.v:2075",
+    "Warning: Replacing memory \\p7_v0 with list of registers. See b17_syn.v:885, b17_syn.v:787"
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clock not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s500efg320-4",
+   "slices": 4095,
+   "luts": 8153,
+   "ffs": 1328,
+   "period": 23.199
+  }
+ },
+ "itc99-b20": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clock not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 1337,
+   "luts": 2641,
+   "ffs": 492,
+   "period": 37.208
+  }
+ },
+ "itc99-b21": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clock not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 1362,
+   "luts": 2695,
+   "ffs": 492,
+   "period": 37.25
+  }
+ },
+ "itc99-b22": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - b22.vhd:1609: Signal <datao_3> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ],
+   "flow": [
+    "WARNING:Silinx (timing) - PERIOD 20 ns on clock not met"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 2039,
+   "luts": 4033,
+   "ffs": 706,
+   "period": 41.315
+  }
+ },
+ "iwls05-i2c": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 215,
+   "luts": 429,
+   "ffs": 129,
+   "period": 8.801
+  }
+ },
+ "iwls05-sasc": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - sasc_fifo4.v:83: Signal <wp_p2> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - sasc_top.v:108: Signal <load_r> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - sasc_top.v:126: Signal <rxd_r2> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 73,
+   "luts": 136,
+   "ffs": 118,
+   "period": 5.02
+  }
+ },
+ "iwls05-simple-spi": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - fifo4.v:84: Signal <wp_p2> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - simple_spi_top.v:164: Signal <dwom> is assigned but never used. This unconnected signal will be trimmed during the optimization process.",
+    "WARNING:Silinx:646 (unused-signal) - simple_spi_top.v:165: Signal <mstr> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 109,
+   "luts": 217,
+   "ffs": 131,
+   "period": 6.308
+  }
+ },
+ "iwls05-spi": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:647 (unused-input) - spi_top.v:47: Input <wb_adr_i<1:0>> is never used."
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 465,
+   "luts": 926,
+   "ffs": 229,
+   "period": 19.9
+  }
+ },
+ "iwls05-ss-pcm": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx:646 (unused-signal) - pcm_slv_top.v:113: Signal <tx_go_r2> is assigned but never used. This unconnected signal will be trimmed during the optimization process."
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 68,
+   "luts": 91,
+   "ffs": 79,
+   "period": 5.164
+  }
+ },
+ "iwls05-usb-phy": {
+  "frontend": "pass",
+  "tb": "skip: no self-checking testbench",
+  "synth": "pass",
+  "diff": "pass",
+  "flow": "complete",
+  "warnings": {
+   "frontend": [
+    "WARNING:Silinx (case-default) - usb_tx_phy.v:427: Case statement without 'default' in a combinational always block"
+   ]
+  },
+  "quality": {
+   "part": "xc3s250ecp132-4",
+   "slices": 82,
+   "luts": 158,
+   "ffs": 105,
+   "period": 6.256
   }
  },
  "light8080": {

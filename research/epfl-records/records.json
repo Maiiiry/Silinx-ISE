@@ -1,0 +1,372 @@
+{
+ "about": "Best-known LUT-6 results of the EPFL combinational benchmarks (the 2026 competition): best_results/README.md of lsils/benchmarks at the commit below (MIT). size: the fewest LUT-6 (and that netlist's levels); depth: the fewest levels (and that netlist's LUTs). Mapped by ABC (if -K 6) as the competition does.",
+ "source": {
+  "repo": "lsils/benchmarks",
+  "commit": "82d8cc6910419298e713a46644ed59fd3df53038",
+  "file": "best_results/README.md",
+  "url": "https://github.com/lsils/benchmarks/tree/82d8cc6910419298e713a46644ed59fd3df53038/best_results",
+  "licence": "MIT"
+ },
+ "benchmarks": {
+  "adder": {
+   "file": "arithmetic/adder.v",
+   "top": "top",
+   "inputs": 256,
+   "outputs": 129,
+   "size": {
+    "luts": 129,
+    "levels": 126,
+    "authors": "T. Besson",
+    "method": "ABC-DE: ABC Design Explorer"
+   },
+   "depth": {
+    "luts": 339,
+    "levels": 5,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "bar": {
+   "file": "arithmetic/bar.v",
+   "top": "top",
+   "inputs": 135,
+   "outputs": 128,
+   "size": {
+    "luts": 512,
+    "levels": 4,
+    "authors": "R. K. Brayton & A. Mishchenko",
+    "method": "ABC Extreme Mapper"
+   },
+   "depth": {
+    "luts": 512,
+    "levels": 4,
+    "authors": "R. K. Brayton & A. Mishchenko",
+    "method": "ABC Extreme Mapper"
+   }
+  },
+  "div": {
+   "file": "arithmetic/div.v",
+   "top": "top",
+   "inputs": 128,
+   "outputs": 128,
+   "size": {
+    "luts": 3082,
+    "levels": 1528,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 30849,
+    "levels": 170,
+    "authors": "C. Flothow",
+    "method": "Optimization and remapping with more cuts"
+   }
+  },
+  "hyp": {
+   "file": "arithmetic/hyp.v",
+   "top": "top",
+   "inputs": 256,
+   "outputs": 128,
+   "size": {
+    "luts": 36451,
+    "levels": 4899,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 176274,
+    "levels": 458,
+    "authors": "C. Flothow",
+    "method": "Optimization and remapping with more cuts"
+   }
+  },
+  "log2": {
+   "file": "arithmetic/log2.v",
+   "top": "top",
+   "inputs": 32,
+   "outputs": 32,
+   "size": {
+    "luts": 5986,
+    "levels": 300,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 9391,
+    "levels": 51,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "max": {
+   "file": "arithmetic/max.v",
+   "top": "top",
+   "inputs": 512,
+   "outputs": 130,
+   "size": {
+    "luts": 511,
+    "levels": 134,
+    "authors": "H. Wang and P. Wang",
+    "method": "EasyLS"
+   },
+   "depth": {
+    "luts": 1006,
+    "levels": 6,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "multiplier": {
+   "file": "arithmetic/multiplier.v",
+   "top": "top",
+   "inputs": 128,
+   "outputs": 128,
+   "size": {
+    "luts": 4282,
+    "levels": 229,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 6381,
+    "levels": 25,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "sin": {
+   "file": "arithmetic/sin.v",
+   "top": "top",
+   "inputs": 24,
+   "outputs": 25,
+   "size": {
+    "luts": 994,
+    "levels": 115,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 666529,
+    "levels": 10,
+    "authors": "A. Tempia Calvino et al.",
+    "method": "Multiple-node Boolean optimization"
+   }
+  },
+  "sqrt": {
+   "file": "arithmetic/sqrt.v",
+   "top": "top",
+   "inputs": 128,
+   "outputs": 64,
+   "size": {
+    "luts": 2958,
+    "levels": 1440,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 45934,
+    "levels": 150,
+    "authors": "C. Flothow",
+    "method": "Optimization and remapping with more cuts"
+   }
+  },
+  "square": {
+   "file": "arithmetic/square.v",
+   "top": "top",
+   "inputs": 64,
+   "outputs": 128,
+   "size": {
+    "luts": 2894,
+    "levels": 192,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 3690,
+    "levels": 10,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "arbiter": {
+   "file": "random_control/arbiter.v",
+   "top": "top",
+   "inputs": 256,
+   "outputs": 129,
+   "size": {
+    "luts": 259,
+    "levels": 93,
+    "authors": "A. Tempia Calvino et al.",
+    "method": "Multiple-node Boolean optimization"
+   },
+   "depth": {
+    "luts": 369,
+    "levels": 5,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "ctrl": {
+   "file": "random_control/ctrl.v",
+   "top": "top",
+   "inputs": 7,
+   "outputs": 26,
+   "size": {
+    "luts": 25,
+    "levels": 2,
+    "authors": "A. Grosnit, C. Feng, X. Li, et al.",
+    "method": "NAILS"
+   },
+   "depth": {
+    "luts": 25,
+    "levels": 2,
+    "authors": "A. Grosnit, C. Feng, X. Li, et al.",
+    "method": "NAILS"
+   }
+  },
+  "cavlc": {
+   "file": "random_control/cavlc.v",
+   "top": "top",
+   "inputs": 10,
+   "outputs": 11,
+   "size": {
+    "luts": 46,
+    "levels": 6,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 54,
+    "levels": 3,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "dec": {
+   "file": "random_control/dec.v",
+   "top": "dec",
+   "inputs": 8,
+   "outputs": 256,
+   "size": {
+    "luts": 264,
+    "levels": 2,
+    "authors": "L. Machado and J. Cortadella",
+    "method": "Support-Reducing Decomp"
+   },
+   "depth": {
+    "luts": 264,
+    "levels": 2,
+    "authors": "L. Machado and J. Cortadella",
+    "method": "Support-Reducing Decomp"
+   }
+  },
+  "i2c": {
+   "file": "random_control/i2c.v",
+   "top": "i2c",
+   "inputs": 147,
+   "outputs": 142,
+   "size": {
+    "luts": 173,
+    "levels": 8,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 192,
+    "levels": 3,
+    "authors": "A. Tempia Calvino et al.",
+    "method": "Multiple-node Boolean optimization"
+   }
+  },
+  "int2float": {
+   "file": "random_control/int2float.v",
+   "top": "top",
+   "inputs": 11,
+   "outputs": 7,
+   "size": {
+    "luts": 17,
+    "levels": 4,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 23,
+    "levels": 2,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "mem_ctrl": {
+   "file": "random_control/mem_ctrl.v",
+   "top": "mem_ctrl",
+   "inputs": 1204,
+   "outputs": 1231,
+   "size": {
+    "luts": 1669,
+    "levels": 27,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 1716,
+    "levels": 5,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  },
+  "priority": {
+   "file": "random_control/priority.v",
+   "top": "top",
+   "inputs": 128,
+   "outputs": 8,
+   "size": {
+    "luts": 86,
+    "levels": 40,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 119,
+    "levels": 4,
+    "authors": "T. Besson",
+    "method": "ABC-DE: ABC Design Explorer"
+   }
+  },
+  "router": {
+   "file": "random_control/router.v",
+   "top": "top",
+   "inputs": 60,
+   "outputs": 30,
+   "size": {
+    "luts": 18,
+    "levels": 8,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 25,
+    "levels": 3,
+    "authors": "T. Besson",
+    "method": "ABC-DE: ABC Design Explorer"
+   }
+  },
+  "voter": {
+   "file": "random_control/voter.v",
+   "top": "top",
+   "inputs": 1001,
+   "outputs": 1,
+   "size": {
+    "luts": 1145,
+    "levels": 33,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   },
+   "depth": {
+    "luts": 1325,
+    "levels": 11,
+    "authors": "F.-X. Reichl and F. Slivovsky",
+    "method": "SAT-based exact synthesis of subcircuits"
+   }
+  }
+ }
+}

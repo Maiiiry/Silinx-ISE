@@ -44,10 +44,12 @@ test('quality page: summary (geometric means, counts), size and speed tables, de
 
 test('quality page: docs/QUALITY.md is the page of test/designs-corpus/ise-comparison.json', () => {
   const res = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/designs-corpus/ise-comparison.json'), 'utf8'));
-  assert.equal(fs.readFileSync(path.join(ROOT, 'docs/QUALITY.md'), 'utf8'), qualityPage(res), 'regenerate it: node test/designs-corpus/compare-ise.mjs --report');
+  // (with the EPFL benchmarks against the best-known LUT-6 results, research/epfl-records, #367)
+  const epfl = { records: JSON.parse(fs.readFileSync(path.join(ROOT, 'research/epfl-records/records.json'), 'utf8')), results: JSON.parse(fs.readFileSync(path.join(ROOT, 'research/epfl-records/results.json'), 'utf8')) };
+  assert.equal(fs.readFileSync(path.join(ROOT, 'docs/QUALITY.md'), 'utf8'), qualityPage(res, { epfl }), 'regenerate it: node test/designs-corpus/compare-ise.mjs --report');
   const manifest = JSON.parse(fs.readFileSync(path.join(ROOT, 'test/designs-corpus/manifest.json'), 'utf8'));
-  // every design of the corpus is either compared or listed as not built
-  assert.deepEqual([...res.designs.map(d => d.name), ...(res.notBuilt || [])].sort(), manifest.designs.map(d => d.name).sort());
+  // every design of the corpus is either compared, listed as not built, or added after the comparison (#366)
+  assert.deepEqual([...res.designs.map(d => d.name), ...(res.notBuilt || []), ...(res.pending || [])].sort(), manifest.designs.map(d => d.name).sort());
 });
 
 test('compare-ise: the error of a failed run says what happened, not only "see the messages above"', () => {
@@ -86,4 +88,12 @@ TIMESPEC "TS_tm3_clk_v0" = PERIOD "tm3_clk_v0" 20 ns HIGH 50% ;
   assert.equal(constrainedPeriod(clocks, 'NET "tm3_clk_v0" TNM_NET = "g";', 7.352), 7.352);
   assert.equal(constrainedPeriod({ '$iopadmap$a': 3 }, ucf, 7.352), 7.352);
   assert.deepEqual(parseClocks(''), {});
+});
+
+// #366: designs added to the corpus after the weekly comparison ran are listed as such, not as not built
+test('quality page: the designs added after the comparison (pending) have their own section', () => {
+  const page = qualityPage({ generatedAt: '2026-10-17', designs: [], notBuilt: ['x'], pending: ['epfl-sin', 'itc99-b01'] });
+  assert.match(page, /^## Added after this comparison\n\nepfl-sin, itc99-b01: added to the design corpus after this comparison was run; the next weekly run compares them too\.$/m);
+  assert.match(page, /^- x: Silinx cannot read or synthesize it yet/m);
+  assert.doesNotMatch(qualityPage({ generatedAt: '2026-10-17', designs: [] }), /Added after this comparison/);
 });

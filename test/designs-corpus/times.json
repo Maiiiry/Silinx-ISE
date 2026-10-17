@@ -35,10 +35,20 @@
    "flow": 1057,
    "total": 5380
   },
+  "epfl-log2": {
+   "synth": 405409,
+   "flow": 116039,
+   "total": 789653
+  },
   "epfl-max": {
    "synth": 11415,
    "flow": 30222,
    "total": 44168
+  },
+  "epfl-multiplier": {
+   "synth": 354867,
+   "flow": 797746,
+   "total": 1216165
   },
   "epfl-priority": {
    "synth": 5989,
@@ -49,6 +59,16 @@
    "synth": 4209,
    "flow": 5244,
    "total": 9569
+  },
+  "epfl-sin": {
+   "synth": 29931,
+   "flow": 9244,
+   "total": 48547
+  },
+  "epfl-voter": {
+   "synth": 67886,
+   "flow": 81458,
+   "total": 158582
   },
   "femtorv32-quark": {
    "synth": 10861,
@@ -64,6 +84,131 @@
    "synth": 7344,
    "flow": 17434,
    "total": 25368
+  },
+  "itc99-b01": {
+   "synth": 3789,
+   "flow": 552,
+   "total": 4377
+  },
+  "itc99-b02": {
+   "synth": 4115,
+   "flow": 511,
+   "total": 4654
+  },
+  "itc99-b03": {
+   "synth": 3740,
+   "flow": 584,
+   "total": 4374
+  },
+  "itc99-b04": {
+   "synth": 4617,
+   "flow": 1109,
+   "total": 5901
+  },
+  "itc99-b05": {
+   "synth": 5529,
+   "flow": 3501,
+   "total": 9290
+  },
+  "itc99-b06": {
+   "synth": 3722,
+   "flow": 532,
+   "total": 4291
+  },
+  "itc99-b07": {
+   "synth": 4552,
+   "flow": 700,
+   "total": 5340
+  },
+  "itc99-b08": {
+   "synth": 5255,
+   "flow": 884,
+   "total": 6191
+  },
+  "itc99-b09": {
+   "synth": 3939,
+   "flow": 630,
+   "total": 4626
+  },
+  "itc99-b10": {
+   "synth": 6788,
+   "flow": 1053,
+   "total": 7908
+  },
+  "itc99-b11": {
+   "synth": 4907,
+   "flow": 915,
+   "total": 5957
+  },
+  "itc99-b12": {
+   "synth": 6519,
+   "flow": 1740,
+   "total": 8590
+  },
+  "itc99-b13": {
+   "synth": 6797,
+   "flow": 749,
+   "total": 7634
+  },
+  "itc99-b14": {
+   "synth": 15774,
+   "flow": 20709,
+   "total": 37549
+  },
+  "itc99-b15": {
+   "synth": 13195,
+   "flow": 50410,
+   "total": 65766
+  },
+  "itc99-b17": {
+   "synth": 17753,
+   "flow": 91412,
+   "total": 115975
+  },
+  "itc99-b20": {
+   "synth": 14494,
+   "flow": 17223,
+   "total": 34167
+  },
+  "itc99-b21": {
+   "synth": 13575,
+   "flow": 37230,
+   "total": 56073
+  },
+  "itc99-b22": {
+   "synth": 19577,
+   "flow": 25466,
+   "total": 48958
+  },
+  "iwls05-i2c": {
+   "synth": 5104,
+   "flow": 1851,
+   "total": 7225
+  },
+  "iwls05-sasc": {
+   "synth": 6193,
+   "flow": 1047,
+   "total": 7374
+  },
+  "iwls05-simple-spi": {
+   "synth": 4815,
+   "flow": 1235,
+   "total": 6235
+  },
+  "iwls05-spi": {
+   "synth": 7153,
+   "flow": 5743,
+   "total": 13563
+  },
+  "iwls05-ss-pcm": {
+   "synth": 3786,
+   "flow": 857,
+   "total": 4715
+  },
+  "iwls05-usb-phy": {
+   "synth": 6842,
+   "flow": 949,
+   "total": 7929
   },
   "light8080": {
    "synth": 9724,

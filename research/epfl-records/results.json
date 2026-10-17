@@ -1,0 +1,230 @@
+{
+ "adder": {
+  "area": {
+   "luts": 273,
+   "levels": 51,
+   "seconds": 0.8
+  },
+  "depth": {
+   "luts": 332,
+   "levels": 25,
+   "seconds": 0.4
+  }
+ },
+ "bar": {
+  "area": {
+   "luts": 512,
+   "levels": 4,
+   "seconds": 1
+  },
+  "depth": {
+   "luts": 1664,
+   "levels": 4,
+   "seconds": 1.3
+  }
+ },
+ "div": {
+  "area": {
+   "error": "Yosys in WebAssembly out of memory"
+  },
+  "depth": {
+   "error": "Yosys in WebAssembly out of memory"
+  }
+ },
+ "hyp": {
+  "area": {
+   "error": "Yosys in WebAssembly out of memory"
+  },
+  "depth": {
+   "error": "Yosys in WebAssembly out of memory"
+  }
+ },
+ "log2": {
+  "area": {
+   "luts": 8243,
+   "levels": 66,
+   "seconds": 123
+  },
+  "depth": {
+   "luts": 8610,
+   "levels": 64,
+   "seconds": 23
+  }
+ },
+ "max": {
+  "area": {
+   "luts": 821,
+   "levels": 33,
+   "seconds": 1.3
+  },
+  "depth": {
+   "luts": 928,
+   "levels": 18,
+   "seconds": 0.9
+  }
+ },
+ "multiplier": {
+  "area": {
+   "luts": 5862,
+   "levels": 53,
+   "seconds": 45.1
+  },
+  "depth": {
+   "luts": 6357,
+   "levels": 52,
+   "seconds": 15.1
+  }
+ },
+ "sin": {
+  "area": {
+   "luts": 1466,
+   "levels": 35,
+   "seconds": 55.6
+  },
+  "depth": {
+   "luts": 1659,
+   "levels": 34,
+   "seconds": 2.8
+  }
+ },
+ "sqrt": {
+  "area": {
+   "luts": 3869,
+   "levels": 1007,
+   "seconds": 47
+  },
+  "depth": {
+   "luts": 5032,
+   "levels": 948,
+   "seconds": 13.7
+  }
+ },
+ "square": {
+  "area": {
+   "luts": 3975,
+   "levels": 50,
+   "seconds": 13.5
+  },
+  "depth": {
+   "luts": 4045,
+   "levels": 49,
+   "seconds": 10
+  }
+ },
+ "arbiter": {
+  "area": {
+   "luts": 2722,
+   "levels": 18,
+   "seconds": 17.4
+  },
+  "depth": {
+   "luts": 1729,
+   "levels": 7,
+   "seconds": 7.2
+  }
+ },
+ "ctrl": {
+  "area": {
+   "luts": 30,
+   "levels": 2,
+   "seconds": 0.1
+  },
+  "depth": {
+   "luts": 28,
+   "levels": 2,
+   "seconds": 0.1
+  }
+ },
+ "cavlc": {
+  "area": {
+   "luts": 136,
+   "levels": 4,
+   "seconds": 0.3
+  },
+  "depth": {
+   "luts": 143,
+   "levels": 4,
+   "seconds": 0.3
+  }
+ },
+ "dec": {
+  "area": {
+   "luts": 272,
+   "levels": 2,
+   "seconds": 0.1
+  },
+  "depth": {
+   "luts": 272,
+   "levels": 2,
+   "seconds": 0.1
+  }
+ },
+ "i2c": {
+  "area": {
+   "luts": 306,
+   "levels": 3,
+   "seconds": 0.4
+  },
+  "depth": {
+   "luts": 282,
+   "levels": 4,
+   "seconds": 0.5
+  }
+ },
+ "int2float": {
+  "area": {
+   "luts": 51,
+   "levels": 3,
+   "seconds": 0.1
+  },
+  "depth": {
+   "luts": 50,
+   "levels": 3,
+   "seconds": 0.1
+  }
+ },
+ "mem_ctrl": {
+  "area": {
+   "error": "Yosys in WebAssembly out of memory"
+  },
+  "depth": {
+   "error": "Yosys in WebAssembly out of memory"
+  }
+ },
+ "priority": {
+  "area": {
+   "luts": 184,
+   "levels": 26,
+   "seconds": 0.4
+  },
+  "depth": {
+   "luts": 183,
+   "levels": 12,
+   "seconds": 0.3
+  }
+ },
+ "router": {
+  "area": {
+   "luts": 46,
+   "levels": 5,
+   "seconds": 0.1
+  },
+  "depth": {
+   "luts": 44,
+   "levels": 5,
+   "seconds": 0.1
+  }
+ },
+ "voter": {
+  "area": {
+   "luts": 1625,
+   "levels": 12,
+   "seconds": 15.8
+  },
+  "depth": {
+   "luts": 1839,
+   "levels": 12,
+   "seconds": 7.9
+  }
+ }
+}

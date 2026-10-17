@@ -7,11 +7,30 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Against the best-known results:** the quality page compares Silinx's synthesis on the EPFL benchmarks with the
+  records of the EPFL logic synthesis competition (LUT-6 count and depth).
+- **A larger design corpus:** 29 more designs through the whole toolchain every night: the rest of the EPFL
+  benchmarks that fit (sin, voter, multiplier, log2), the ITC'99 benchmarks in VHDL (b01–b15, b17, b20–b22) and
+  six IWLS'05 OpenCores cores.
 - **A manual clock in the emulator:** a design clocked by a push button (its clock port on a button in the UCF)
   works in the board emulator: the flip-flops change only when the button is pressed.
 
 In detail:
 
+- **EPFL benchmarks against the best-known LUT-6 results (#367):** `research/epfl-records/measure.mjs` maps each EPFL
+  combinational benchmark with Silinx's front end and Yosys / ABC to 6-input LUTs (ABC's default mapping for area,
+  Silinx's depth-oriented one for depth) and compares the count and the levels with the competition's 2026 records
+  (`records.json`, from lsils/benchmarks at the corpus's pinned commit); docs/QUALITY.md has the table (LUTs 1.82×
+  the size records, levels 1.95× the depth records, geometric means; div, hyp, mem_ctrl not mapped: Yosys in
+  WebAssembly runs out of memory). The arbiter's area mapping, 10× its record and larger than its depth mapping, is
+  #370.
+- **Design corpus: 29 more designs (#366, #372):** EPFL sin, voter (XC3S250E), multiplier (XC3S500E), log2
+  (XC3S1200E); ITC'99 b01–b15, b20–b22 (XC3S250E), b17 (XC3S500E), behavioural VHDL with integer ranges (b04 and b11
+  driven within their ranges in the netlist-vs-RTL test); the IWLS'05 OpenCores sasc, simple_spi, spi, i2c, ss_pcm,
+  usb_phy (ISPRAS HDL benchmarks, licences checked file by file). Left out, with the reason in the corpus's README: EPFL
+  div, hyp, mem_ctrl, arbiter, sqrt, square and ITC'99 b18, b19 (memory), the stepper motor drive (licence),
+  ISCAS, Coloquinte's and TrustworthyComputing's sets. The quality page lists the designs added after the last
+  comparison with ISE as such, not as not built.
 - **Verilog: a delay by a name before a parenthesized expression (#373):** `x <= #Tp (a && b) ? c : d;`, as the
   OpenCores cores write their delays (the IWLS'05 SPI core), was read as a call of `Tp` and failed ("unexpected '?' in
   expression"); a name after `#` is the delay (a number, a name or `#( … )`, IEEE 1364 §9.7), the parenthesis the

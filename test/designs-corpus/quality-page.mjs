@@ -8,7 +8,37 @@ const XST_CANNOT = /^ERROR:(HDL|Xst)/;
 // a Markdown code span, also of a text with backticks in it
 const code = t => (t.includes('`') ? `\`\` ${t} \`\`` : `\`${t}\``);
 
-export function qualityPage(res) {
+// the EPFL benchmarks mapped to 6-input LUTs against the best-known results (#367, research/epfl-records): their
+// section, from that measurement's results and records
+function epflSection(epfl) {
+  const { records, results } = epfl;
+  const rows = Object.entries(records.benchmarks).filter(([n]) => results[n]);
+  if (!rows.length) return [];
+  const num = (m, k) => (m && !m.error && Number.isFinite(m[k]) ? m[k] : null);
+  const gSize = geomean(rows.map(([n, r]) => ratio(num(results[n].area, 'luts'), r.size.luts)).filter(x => x));
+  const gDepth = geomean(rows.map(([n, r]) => ratio(num(results[n].depth, 'levels'), r.depth.levels)).filter(x => x));
+  const L = ['', '## Against the best-known results (EPFL benchmarks, LUT-6)', ''];
+  L.push('The [EPFL combinational benchmarks](https://github.com/lsils/benchmarks) keep the best results of a logic',
+    'synthesis competition, in 6-input LUTs: the fewest LUTs (size) and the fewest levels of LUTs (depth). The',
+    'Spartan-3E has 4-input LUTs, so the table above does not compare with them; here Silinx\'s front end and its',
+    'Yosys / ABC mapping (core/synth-open.js) map each benchmark to LUT-6: *area*, ABC\'s default LUT mapping, against',
+    'the size record; *depth*, the logic balanced first as Silinx\'s depth-oriented mapping does, against the depth',
+    `record (geometric means: LUTs ${fmt(gSize, 2)}× the size records, levels ${fmt(gDepth, 2)}× the depth records; the`,
+    'records come from exact SAT-based resynthesis and long optimization runs, the targets of research, not of a',
+    `synthesis tool in seconds). Records: the ${records.source.file} of lsils/benchmarks at ${records.source.commit.slice(0, 7)}.`, '');
+  L.push('| benchmark | LUT-6 (area) | levels | best LUTs | LUTs / best | LUT-6 (depth) | levels | best levels | levels / best |',
+    '|---|---:|---:|---:|---:|---:|---:|---:|---:|');
+  for (const [n, r] of rows) {
+    const a = results[n].area, d = results[n].depth;
+    const cell = (m, k) => (m?.error ? (k === 'luts' ? 'not mapped' : '–') : fmt(num(m, k)));
+    L.push(`| ${n} | ${cell(a, 'luts')} | ${cell(a, 'levels')} | ${r.size.luts} | ${fmt(ratio(num(a, 'luts'), r.size.luts), 2)} | ${cell(d, 'luts')} | ${cell(d, 'levels')} | ${r.depth.levels} | ${fmt(ratio(num(d, 'levels'), r.depth.levels), 2)} |`);
+  }
+  L.push('', 'Measured by `node research/epfl-records/measure.mjs` (research/epfl-records/results.json), by hand when the',
+    'synthesis changes.');
+  return L;
+}
+
+export function qualityPage(res, { epfl = null } = {}) {
   const rows = res.designs;
   const both = rows.filter(r => r.silinx?.luts && r.ise?.luts);
   const packed = rows.filter(r => r.silinx?.slices && r.ise?.slices);
@@ -74,6 +104,12 @@ export function qualityPage(res) {
     }
     if (res.notBuilt?.length) L.push(`- ${res.notBuilt.join(', ')}: Silinx cannot read or synthesize ${res.notBuilt.length > 1 ? 'them' : 'it'} yet (the design corpus's [results](../test/designs-corpus/README.md)), so neither flow was compared.`);
   }
+  // designs added to the corpus after this comparison (#366, #372): in the next one
+  if (res.pending?.length) {
+    L.push('', '## Added after this comparison', '');
+    L.push(`${res.pending.join(', ')}: added to the design corpus after this comparison was run; the next weekly run compares ${res.pending.length > 1 ? 'them' : 'it'} too.`);
+  }
+  if (epfl) L.push(...epflSection(epfl));
   L.push('', '## How it is measured', '');
   L.push('`node test/designs-corpus/run.mjs --stages frontend,synth,flow --sizes <dir>` writes a Silinx',
     'project per design; `node test/designs-corpus/compare-ise.mjs <dir>` builds each with both flows (ISE',
