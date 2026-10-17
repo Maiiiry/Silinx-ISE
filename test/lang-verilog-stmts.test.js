@@ -53,6 +53,23 @@ test('delays: #d statement delay, intra-assignment delays a = #d b and a <= #d b
   assert.deepEqual(r.out, ['t=5 a=1 b=2', 't=15 c=3']);
 });
 
+// #373: a delay by a name (a parameter) before a parenthesized expression, as OpenCores cores write it (the SPI
+// core's spi_clgen.v): the name is the delay, the parenthesis starts the expression, for <= and =
+test('delays by a name before a parenthesized expression: x <= #Tp (a) ? b : c, y = #Tp (b) || c', () => {
+  const r = sim(vlog(`
+  parameter Tp = 2;
+  reg [3:0] x = 0, y = 0; reg a = 1, b = 0;
+  initial begin
+    x <= #Tp (a && !b) ? 4'd5 : 4'd9;          // 5 at t=2
+    y = #Tp (b) || (a && 1'b1);                 // 1 at t=2, sampled at 0
+    #Tp x = (x) + 1;                            // statement delay Tp, then x = 6 at t=4
+    $display("t=%0t x=%0d y=%0d", $time, x, y);
+    $finish;
+  end`));
+  assert.deepEqual(r.out, ['t=4 x=6 y=1']);
+  assert.deepEqual(r.r.errors ?? [], []);
+});
+
 test('timescale: delays in the module time unit, rounded to the precision; $time in units', () => {
   const r = sim('`timescale 1ns / 100ps\n' + vlog(`
   initial begin #1.25 $display("%0t %0d %0.2f", $time, $time, $realtime); #2 $display("%0d", $time); $finish; end`));

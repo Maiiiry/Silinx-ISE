@@ -12,6 +12,10 @@ In short:
 
 In detail:
 
+- **Verilog: a delay by a name before a parenthesized expression (#373):** `x <= #Tp (a && b) ? c : d;`, as the
+  OpenCores cores write their delays (the IWLS'05 SPI core), was read as a call of `Tp` and failed ("unexpected '?' in
+  expression"); a name after `#` is the delay (a number, a name or `#( … )`, IEEE 1364 §9.7), the parenthesis the
+  start of the expression.
 - **Pinned sources at their latest versions (#358):** what `scripts/check-pins.mjs` (#352) found behind, but
   Yosys's test designs (they move with the Yosys update). The design corpus: neorv32 af90564 → b262045
   (11 commits: v1.13.6.6, the I2C device's ACK/NACK as the I2C-bus specification has it, a store-conditional's bus
