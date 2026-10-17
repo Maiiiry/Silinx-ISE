@@ -5,7 +5,6 @@ import { t } from './i18n.js';
 import { rankEntries } from './modern.js';
 
 let current = null;
-export const paletteOpen = () => !!current;
 
 /** commands: from menuCommands(); files: [{ path, open() }]. Resolves when the palette closes. */
 export function openPalette({ commands = [], files = [], placeholder = 'Search commands and files…' } = {}) {

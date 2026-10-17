@@ -33,7 +33,6 @@ export function fromBits(bits, s = false) {
   return mk(Math.max(bits.length, 1), v, x, s);
 }
 
-export const hasX = a => a.x !== 0n;
 export const msb = a => (a.v >> BigInt(a.w - 1)) & 1n;
 
 // Signed or unsigned integer interpretation (assumes no X).

@@ -14,7 +14,6 @@
 // from the ff flags of the symbol ({ k, ce, clr, pre, r, s, sp }), so FD*, FT* and FJK* agree.
 import { SYMBOLS, MUX_INPUTS, defaultParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
 
-export const DOC_LANGS = ['en', 'pt'];
 const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const pick = lang => (en, pt) => (lang === 'pt' ? pt : en);
 

@@ -3,7 +3,6 @@
 export const PRODUCT = 'Silinx ISE';
 export const PRODUCT_FULL = 'Silinx ISE (Integrated Synthesis Environment)';
 export const VERSION = '15.10.22';
-export const MAJOR = VERSION.split('.')[0];
 // the commit of a development build (scripts/build-standalone.mjs defines __SILINX_BUILD__ when the
 // commit built is not the release's tag, #135): { commit }, else null (a release, or the server)
 /* global __SILINX_BUILD__ */

@@ -60,12 +60,6 @@ export function compile(sources) {
   return lib;
 }
 
-export function moduleRoles(lib) {
-  const roles = new Map();
-  for (const p of lib.parsed || []) for (const u of p.units) if (u.kind === 'module') roles.set(u.name, p.role);
-  return roles;
-}
-
 export { elaborate, topCandidates };
 
 // Convenience: compile + elaborate + simulate (used by tests and the CLI).
