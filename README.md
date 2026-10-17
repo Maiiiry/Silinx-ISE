@@ -99,7 +99,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   logic, SRLs, distributed and block RAM, multipliers, clock buffers and DCMs (CLK0/90/180/270,
   CLK2X, CLKDV and CLKFX at their real frequencies).
 - **ISE processes** beyond the main flow (with the Silinx toolchain too: View Technology Schematic,
-  the Post-Synthesis Simulation Model and Back-annotate Pin Locations; the others with ISE): View
+  the Post-Synthesis Simulation Model, Back-annotate Pin Locations and, as an estimate, the Text
+  Power Report; the others with ISE): View
   Technology Schematic (the post-synthesis netlist, regrouped by the design's modules), Generate Post-Synthesis / Translate / Map / Place & Route
   Simulation Model, Post-Place & Route Static Timing, Text Power Report (xpwr), Back-annotate Pin
   Locations (pin2ucf, merged into the UCF).
@@ -252,7 +253,7 @@ In short:
   `Silinx-projects` in your user folder. The same Silinx, running on your computer: it synthesizes
   offline, programs boards with the installed tools too (openFPGALoader, xc3sprog, Digilent Adept,
   ISE iMPACT, adepttool) and from any browser, and runs **Xilinx ISE 14.7** (free WebPACK) for the
-  other boards and the ISE-only processes (simulation models of the implementation, power, …): build
+  other boards and the ISE-only processes (simulation models of the implementation, XPower, …): build
   your own Docker image with **`silinx-ise-docker-kit-<version>.zip`** (see
   [below](#synthesis-and-bitstreams-xilinx-ise-147)) and choose an ISE mode in *Toolchain Settings*.
 
@@ -383,8 +384,13 @@ pads the placer chose to the UCF and *View Technology Schematic* draws the netli
 (Yosys's LUTs, flip-flops, carry chains, block RAMs…, by instance of the design); *Generate
 Post-Synthesis Simulation Model* writes that netlist as a VHDL model of UNISIM primitives (and in
 Verilog), synthesized with the generics the test bench gives the design, for *Simulate
-Post-Synthesis Model*. The processes that need ISE (the later simulation models, power) are disabled
-in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
+Post-Synthesis Model*; *Generate Text Power Report* writes an estimate of the design's power
+(`build/<top>.pwr`, laid out as XPower's report and said to be an estimate): the device's static
+power and the dynamic power of the routed design's clocks, logic, signals and I/Os at the switching
+rates of XPower's vectorless estimate, with coefficients fitted to XPower 14.7 on the examples
+(there its total is within 10 % of XPower's, its dynamic power alone within 0.35 to 2.2 times;
+`node scripts/measure-power.mjs --compare`). The processes that need ISE (the later simulation
+models) are disabled in that mode. Besides logic, carry chains, wide multiplexers and flip-flops it takes block
 RAMs, multipliers, distributed RAMs, shift registers (SRL16) and DCMs (any DCM site, more than one
 per design, each clock output on a global buffer its dedicated path reaches; `INST "u" LOC =
 "DCM_X1Y0"` picks the site). A design the Silinx toolchain cannot implement yet (a feature not in the bit

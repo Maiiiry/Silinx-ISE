@@ -1,0 +1,1226 @@
+{
+ "tool": "XPower 14.7 - P.20131013 (lin64)",
+ "command": "xpwr -v (default activity rates, no simulation), ISE 14.7 implementation of each example",
+ "runs": [
+  {
+   "example": "gates",
+   "board": "basys2",
+   "variant": "100",
+   "part": "xc3s100e",
+   "pkg": "cp132",
+   "junctionC": 27.1,
+   "thetaJa": 62.1,
+   "power": {
+    "clocks": 0,
+    "logic": 0,
+    "signals": 0,
+    "ios": 0,
+    "static": 33.66,
+    "total": 33.66
+   },
+   "quiescentMa": {
+    "Vccint": 8.26,
+    "Vccaux": 8,
+    "Vcco25": 1.5
+   },
+   "clocks": [],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 2,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 0,
+    "mw": 0
+   },
+   "signals": {
+    "n": 5,
+    "rate": 0,
+    "rateFanout": 0
+   },
+   "logic": {
+    "lutRate": 0,
+    "ffRate": 0
+   }
+  },
+  {
+   "example": "gates",
+   "board": "basys2",
+   "variant": "250",
+   "part": "xc3s250e",
+   "pkg": "cp132",
+   "junctionC": 27.5,
+   "thetaJa": 48.5,
+   "power": {
+    "clocks": 0,
+    "logic": 0,
+    "signals": 0,
+    "ios": 0,
+    "static": 52.46,
+    "total": 52.46
+   },
+   "quiescentMa": {
+    "Vccint": 15.59,
+    "Vccaux": 12,
+    "Vcco25": 1.5
+   },
+   "clocks": [],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 2,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 0,
+    "mw": 0
+   },
+   "signals": {
+    "n": 5,
+    "rate": 0,
+    "rateFanout": 0
+   },
+   "logic": {
+    "lutRate": 0,
+    "ffRate": 0
+   }
+  },
+  {
+   "example": "gates",
+   "board": "nexys2",
+   "variant": "500",
+   "part": "xc3s500e",
+   "pkg": "fg320",
+   "junctionC": 27.1,
+   "thetaJa": 26.1,
+   "power": {
+    "clocks": 0,
+    "logic": 0,
+    "signals": 0,
+    "ios": 0,
+    "static": 80.98,
+    "total": 80.98
+   },
+   "quiescentMa": {
+    "Vccint": 25.82,
+    "Vccaux": 18,
+    "Vcco25": 2
+   },
+   "clocks": [],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 2,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 0,
+    "mw": 0
+   },
+   "signals": {
+    "n": 5,
+    "rate": 0,
+    "rateFanout": 0
+   },
+   "logic": {
+    "lutRate": 0,
+    "ffRate": 0
+   }
+  },
+  {
+   "example": "gates",
+   "board": "nexys2",
+   "variant": "1200",
+   "part": "xc3s1200e",
+   "pkg": "fg320",
+   "junctionC": 28.6,
+   "thetaJa": 23,
+   "power": {
+    "clocks": 0,
+    "logic": 0,
+    "signals": 0,
+    "ios": 0,
+    "static": 158.43,
+    "total": 158.43
+   },
+   "quiescentMa": {
+    "Vccint": 52.86,
+    "Vccaux": 35,
+    "Vcco25": 3
+   },
+   "clocks": [],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 2,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 0,
+    "mw": 0
+   },
+   "signals": {
+    "n": 5,
+    "rate": 0,
+    "rateFanout": 0
+   },
+   "logic": {
+    "lutRate": 0,
+    "ffRate": 0
+   }
+  },
+  {
+   "example": "traffic",
+   "board": "basys2",
+   "variant": "100",
+   "part": "xc3s100e",
+   "pkg": "cp132",
+   "junctionC": 27.5,
+   "thetaJa": 62.1,
+   "power": {
+    "clocks": 1.21,
+    "logic": 0.29,
+    "signals": 0.23,
+    "ios": 4.64,
+    "static": 33.72,
+    "total": 40.09
+   },
+   "quiescentMa": {
+    "Vccint": 8.31,
+    "Vccaux": 8,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.61,
+     "slices": 34
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 54.84,
+     "mw": 4.56
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 113,
+    "mw": 0.11
+   },
+   "signals": {
+    "n": 160,
+    "rate": 848.66,
+    "rateFanout": 3002.79
+   },
+   "logic": {
+    "lutRate": 772.3,
+    "ffRate": 314.1
+   }
+  },
+  {
+   "example": "traffic",
+   "board": "basys2",
+   "variant": "250",
+   "part": "xc3s250e",
+   "pkg": "cp132",
+   "junctionC": 27.9,
+   "thetaJa": 48.5,
+   "power": {
+    "clocks": 1.09,
+    "logic": 0.31,
+    "signals": 0.27,
+    "ios": 4.64,
+    "static": 52.55,
+    "total": 58.86
+   },
+   "quiescentMa": {
+    "Vccint": 15.67,
+    "Vccaux": 12,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.49,
+     "slices": 34
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 54.84,
+     "mw": 4.56
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 113,
+    "mw": 0.11
+   },
+   "signals": {
+    "n": 160,
+    "rate": 887.84,
+    "rateFanout": 3092.87
+   },
+   "logic": {
+    "lutRate": 831.6,
+    "ffRate": 314.1
+   }
+  },
+  {
+   "example": "traffic",
+   "board": "nexys2",
+   "variant": "500",
+   "part": "xc3s500e",
+   "pkg": "fg320",
+   "junctionC": 27.3,
+   "thetaJa": 26.1,
+   "power": {
+    "clocks": 1.27,
+    "logic": 0.3,
+    "signals": 0.3,
+    "ios": 4.64,
+    "static": 81.06,
+    "total": 87.58
+   },
+   "quiescentMa": {
+    "Vccint": 25.89,
+    "Vccaux": 18,
+    "Vcco25": 2
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.67,
+     "slices": 34
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 54.86,
+     "mw": 4.57
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 113,
+    "mw": 0.11
+   },
+   "signals": {
+    "n": 160,
+    "rate": 863.83,
+    "rateFanout": 3210.37
+   },
+   "logic": {
+    "lutRate": 809.1,
+    "ffRate": 314.1
+   }
+  },
+  {
+   "example": "traffic",
+   "board": "nexys2",
+   "variant": "1200",
+   "part": "xc3s1200e",
+   "pkg": "fg320",
+   "junctionC": 28.8,
+   "thetaJa": 23,
+   "power": {
+    "clocks": 1.27,
+    "logic": 0.3,
+    "signals": 0.26,
+    "ios": 4.64,
+    "static": 158.58,
+    "total": 165.05
+   },
+   "quiescentMa": {
+    "Vccint": 52.98,
+    "Vccaux": 35,
+    "Vcco25": 3
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.67,
+     "slices": 34
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 54.84,
+     "mw": 4.56
+    }
+   ],
+   "inputs": {
+    "n": 4,
+    "rate": 113,
+    "mw": 0.11
+   },
+   "signals": {
+    "n": 160,
+    "rate": 883.39,
+    "rateFanout": 3088.18
+   },
+   "logic": {
+    "lutRate": 802.7,
+    "ffRate": 314.1
+   }
+  },
+  {
+   "example": "blinky",
+   "board": "basys2",
+   "variant": "100",
+   "part": "xc3s100e",
+   "pkg": "cp132",
+   "junctionC": 27.6,
+   "thetaJa": 62.1,
+   "power": {
+    "clocks": 1.16,
+    "logic": 0.18,
+    "signals": 0.22,
+    "ios": 6.41,
+    "static": 33.74,
+    "total": 41.71
+   },
+   "quiescentMa": {
+    "Vccint": 8.32,
+    "Vccaux": 8,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.56,
+     "slices": 55
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 8,
+     "rate": 76.02,
+     "mw": 6.29
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 213,
+    "rate": 774.63,
+    "rateFanout": 2045.85
+   },
+   "logic": {
+    "lutRate": 334.9,
+    "ffRate": 303
+   }
+  },
+  {
+   "example": "blinky",
+   "board": "basys2",
+   "variant": "250",
+   "part": "xc3s250e",
+   "pkg": "cp132",
+   "junctionC": 27.9,
+   "thetaJa": 48.5,
+   "power": {
+    "clocks": 1.18,
+    "logic": 0.17,
+    "signals": 0.21,
+    "ios": 6.41,
+    "static": 52.57,
+    "total": 60.55
+   },
+   "quiescentMa": {
+    "Vccint": 15.69,
+    "Vccaux": 12,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.58,
+     "slices": 55
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 8,
+     "rate": 76.02,
+     "mw": 6.29
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 213,
+    "rate": 778.07,
+    "rateFanout": 2041.15
+   },
+   "logic": {
+    "lutRate": 322.1,
+    "ffRate": 303
+   }
+  },
+  {
+   "example": "blinky",
+   "board": "nexys2",
+   "variant": "500",
+   "part": "xc3s500e",
+   "pkg": "fg320",
+   "junctionC": 27.3,
+   "thetaJa": 26.1,
+   "power": {
+    "clocks": 1.43,
+    "logic": 0.17,
+    "signals": 0.22,
+    "ios": 6.41,
+    "static": 81.09,
+    "total": 89.32
+   },
+   "quiescentMa": {
+    "Vccint": 25.9,
+    "Vccaux": 18,
+    "Vcco25": 2
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.83,
+     "slices": 55
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 8,
+     "rate": 76.02,
+     "mw": 6.29
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 213,
+    "rate": 775.8,
+    "rateFanout": 2036.24
+   },
+   "logic": {
+    "lutRate": 317.8,
+    "ffRate": 303
+   }
+  },
+  {
+   "example": "blinky",
+   "board": "nexys2",
+   "variant": "1200",
+   "part": "xc3s1200e",
+   "pkg": "fg320",
+   "junctionC": 28.8,
+   "thetaJa": 23,
+   "power": {
+    "clocks": 1.53,
+    "logic": 0.17,
+    "signals": 0.24,
+    "ios": 6.41,
+    "static": 158.62,
+    "total": 166.97
+   },
+   "quiescentMa": {
+    "Vccint": 53.02,
+    "Vccaux": 35,
+    "Vcco25": 3
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 0.93,
+     "slices": 55
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 8,
+     "rate": 76.02,
+     "mw": 6.29
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 213,
+    "rate": 769.02,
+    "rateFanout": 2029.67
+   },
+   "logic": {
+    "lutRate": 328.8,
+    "ffRate": 303
+   }
+  },
+  {
+   "example": "pong",
+   "board": "basys2",
+   "variant": "100",
+   "part": "xc3s100e",
+   "pkg": "cp132",
+   "junctionC": 27.3,
+   "thetaJa": 62.1,
+   "power": {
+    "clocks": 1.88,
+    "logic": 0.57,
+    "signals": 0.53,
+    "ios": 1.16,
+    "static": 33.7,
+    "total": 37.84
+   },
+   "quiescentMa": {
+    "Vccint": 8.29,
+    "Vccaux": 8,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.28,
+     "slices": 138
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 12.56,
+     "mw": 1.03
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 595,
+    "rate": 2232.88,
+    "rateFanout": 5351.66
+   },
+   "logic": {
+    "lutRate": 1240.8,
+    "ffRate": 723.6
+   }
+  },
+  {
+   "example": "pong",
+   "board": "basys2",
+   "variant": "250",
+   "part": "xc3s250e",
+   "pkg": "cp132",
+   "junctionC": 27.8,
+   "thetaJa": 48.5,
+   "power": {
+    "clocks": 2.03,
+    "logic": 0.56,
+    "signals": 0.53,
+    "ios": 1.16,
+    "static": 52.52,
+    "total": 56.8
+   },
+   "quiescentMa": {
+    "Vccint": 15.64,
+    "Vccaux": 12,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.43,
+     "slices": 138
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 12.56,
+     "mw": 1.03
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 595,
+    "rate": 2244.67,
+    "rateFanout": 5393.14
+   },
+   "logic": {
+    "lutRate": 1229.5,
+    "ffRate": 723.6
+   }
+  },
+  {
+   "example": "pong",
+   "board": "nexys2",
+   "variant": "500",
+   "part": "xc3s500e",
+   "pkg": "fg320",
+   "junctionC": 27.2,
+   "thetaJa": 26.1,
+   "power": {
+    "clocks": 2.31,
+    "logic": 0.56,
+    "signals": 0.54,
+    "ios": 1.16,
+    "static": 81.04,
+    "total": 85.61
+   },
+   "quiescentMa": {
+    "Vccint": 25.87,
+    "Vccaux": 18,
+    "Vcco25": 2
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.71,
+     "slices": 138
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 12.56,
+     "mw": 1.03
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 595,
+    "rate": 2251.48,
+    "rateFanout": 5357.08
+   },
+   "logic": {
+    "lutRate": 1229.6,
+    "ffRate": 723.6
+   }
+  },
+  {
+   "example": "pong",
+   "board": "nexys2",
+   "variant": "1200",
+   "part": "xc3s1200e",
+   "pkg": "fg320",
+   "junctionC": 28.8,
+   "thetaJa": 23,
+   "power": {
+    "clocks": 2.6,
+    "logic": 0.56,
+    "signals": 0.61,
+    "ios": 1.16,
+    "static": 158.54,
+    "total": 163.47
+   },
+   "quiescentMa": {
+    "Vccint": 52.95,
+    "Vccaux": 35,
+    "Vcco25": 3
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 2,
+     "slices": 138
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 12.56,
+     "mw": 1.03
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 595,
+    "rate": 2237.41,
+    "rateFanout": 5373.17
+   },
+   "logic": {
+    "lutRate": 1213.1,
+    "ffRate": 723.6
+   }
+  },
+  {
+   "example": "stopwatch",
+   "board": "basys2",
+   "variant": "100",
+   "part": "xc3s100e",
+   "pkg": "cp132",
+   "junctionC": 27.3,
+   "thetaJa": 62.1,
+   "power": {
+    "clocks": 1.75,
+    "logic": 0.12,
+    "signals": 0.22,
+    "ios": 0.11,
+    "static": 33.69,
+    "total": 36.61
+   },
+   "quiescentMa": {
+    "Vccint": 8.28,
+    "Vccaux": 8,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.15,
+     "slices": 111
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 6,
+    "rate": 125.5,
+    "mw": 0.13
+   },
+   "signals": {
+    "n": 453,
+    "rate": 851.46,
+    "rateFanout": 1522.17
+   },
+   "logic": {
+    "lutRate": 167.9,
+    "ffRate": 271.4
+   }
+  },
+  {
+   "example": "stopwatch",
+   "board": "basys2",
+   "variant": "250",
+   "part": "xc3s250e",
+   "pkg": "cp132",
+   "junctionC": 27.7,
+   "thetaJa": 48.5,
+   "power": {
+    "clocks": 1.71,
+    "logic": 0.12,
+    "signals": 0.22,
+    "ios": 0.11,
+    "static": 52.5,
+    "total": 55.38
+   },
+   "quiescentMa": {
+    "Vccint": 15.63,
+    "Vccaux": 12,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.11,
+     "slices": 111
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 6,
+    "rate": 125.5,
+    "mw": 0.13
+   },
+   "signals": {
+    "n": 453,
+    "rate": 848.44,
+    "rateFanout": 1468.23
+   },
+   "logic": {
+    "lutRate": 167.7,
+    "ffRate": 271.4
+   }
+  },
+  {
+   "example": "stopwatch",
+   "board": "nexys2",
+   "variant": "500",
+   "part": "xc3s500e",
+   "pkg": "fg320",
+   "junctionC": 27.2,
+   "thetaJa": 26.1,
+   "power": {
+    "clocks": 2.12,
+    "logic": 0.12,
+    "signals": 0.26,
+    "ios": 0.11,
+    "static": 81.02,
+    "total": 84.35
+   },
+   "quiescentMa": {
+    "Vccint": 25.85,
+    "Vccaux": 18,
+    "Vcco25": 2
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.52,
+     "slices": 111
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 6,
+    "rate": 125.5,
+    "mw": 0.13
+   },
+   "signals": {
+    "n": 453,
+    "rate": 851.52,
+    "rateFanout": 1507.95
+   },
+   "logic": {
+    "lutRate": 165.2,
+    "ffRate": 271.4
+   }
+  },
+  {
+   "example": "stopwatch",
+   "board": "nexys2",
+   "variant": "1200",
+   "part": "xc3s1200e",
+   "pkg": "fg320",
+   "junctionC": 28.7,
+   "thetaJa": 23,
+   "power": {
+    "clocks": 2.3,
+    "logic": 0.12,
+    "signals": 0.26,
+    "ios": 0.11,
+    "static": 158.51,
+    "total": 162.01
+   },
+   "quiescentMa": {
+    "Vccint": 52.92,
+    "Vccaux": 35,
+    "Vcco25": 3
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.7,
+     "slices": 111
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 0,
+     "mw": 0
+    }
+   ],
+   "inputs": {
+    "n": 6,
+    "rate": 125.5,
+    "mw": 0.13
+   },
+   "signals": {
+    "n": 453,
+    "rate": 850.99,
+    "rateFanout": 1520.26
+   },
+   "logic": {
+    "lutRate": 164.7,
+    "ffRate": 271.4
+   }
+  },
+  {
+   "example": "clock",
+   "board": "basys2",
+   "variant": "100",
+   "part": "xc3s100e",
+   "pkg": "cp132",
+   "junctionC": 27.3,
+   "thetaJa": 62.1,
+   "power": {
+    "clocks": 1.63,
+    "logic": 0.28,
+    "signals": 0.27,
+    "ios": 0.98,
+    "static": 33.69,
+    "total": 36.85
+   },
+   "quiescentMa": {
+    "Vccint": 8.28,
+    "Vccaux": 8,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.03,
+     "slices": 94
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 10.4,
+     "mw": 0.86
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 383,
+    "rate": 859.87,
+    "rateFanout": 3214.63
+   },
+   "logic": {
+    "lutRate": 897.7,
+    "ffRate": 315.8
+   }
+  },
+  {
+   "example": "clock",
+   "board": "basys2",
+   "variant": "250",
+   "part": "xc3s250e",
+   "pkg": "cp132",
+   "junctionC": 27.7,
+   "thetaJa": 48.5,
+   "power": {
+    "clocks": 1.6,
+    "logic": 0.28,
+    "signals": 0.3,
+    "ios": 0.98,
+    "static": 52.51,
+    "total": 55.68
+   },
+   "quiescentMa": {
+    "Vccint": 15.63,
+    "Vccaux": 12,
+    "Vcco25": 1.5
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1,
+     "slices": 94
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 10.4,
+     "mw": 0.86
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 383,
+    "rate": 858.25,
+    "rateFanout": 3211.27
+   },
+   "logic": {
+    "lutRate": 931.3,
+    "ffRate": 315.8
+   }
+  },
+  {
+   "example": "clock",
+   "board": "nexys2",
+   "variant": "500",
+   "part": "xc3s500e",
+   "pkg": "fg320",
+   "junctionC": 27.2,
+   "thetaJa": 26.1,
+   "power": {
+    "clocks": 1.67,
+    "logic": 0.28,
+    "signals": 0.28,
+    "ios": 0.98,
+    "static": 81.02,
+    "total": 84.23
+   },
+   "quiescentMa": {
+    "Vccint": 25.85,
+    "Vccaux": 18,
+    "Vcco25": 2
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.07,
+     "slices": 94
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 10.4,
+     "mw": 0.86
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 383,
+    "rate": 860.45,
+    "rateFanout": 3217.05
+   },
+   "logic": {
+    "lutRate": 895.3,
+    "ffRate": 315.8
+   }
+  },
+  {
+   "example": "clock",
+   "board": "nexys2",
+   "variant": "1200",
+   "part": "xc3s1200e",
+   "pkg": "fg320",
+   "junctionC": 28.7,
+   "thetaJa": 23,
+   "power": {
+    "clocks": 1.94,
+    "logic": 0.28,
+    "signals": 0.32,
+    "ios": 0.98,
+    "static": 158.51,
+    "total": 162.02
+   },
+   "quiescentMa": {
+    "Vccint": 52.92,
+    "Vccaux": 35,
+    "Vcco25": 3
+   },
+   "clocks": [
+    {
+     "mhz": 50,
+     "bufferMw": 0.6,
+     "netMw": 1.34,
+     "slices": 94
+    }
+   ],
+   "outputs": [
+    {
+     "std": "LVCMOS25_12_SLOW",
+     "n": 20,
+     "rate": 10.4,
+     "mw": 0.86
+    }
+   ],
+   "inputs": {
+    "n": 7,
+    "rate": 131.75,
+    "mw": 0.14
+   },
+   "signals": {
+    "n": 383,
+    "rate": 860.41,
+    "rateFanout": 3218.85
+   },
+   "logic": {
+    "lutRate": 891.9,
+    "ffRate": 315.8
+   }
+  }
+ ]
+}

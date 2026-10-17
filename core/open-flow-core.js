@@ -30,6 +30,7 @@ import { deviceSites } from './fpga/place.js';
 import { checkRouting } from './fpga/route.js';
 import { bitgen, knownRouting } from './fpga/bitgen.js';
 import { analyzeTiming, timingReport, checkPeriods, clockPort } from './fpga/timing.js';
+import { estimatePower, powerReport, ESTIMATE_ERROR_PERCENT } from './power.js';
 
 export const ISE_HINT = 'The Silinx toolchain does not support this yet: implement the design in an ISE mode (Toolchain Settings).';
 
@@ -257,6 +258,18 @@ export async function runOpenFlow(spec, io) {
     report.pinsUcf = { path: `build/${top}_pins.ucf` };
     log(`Pin locations of ${pins.length} port bit(s), ${chosen} of them chosen by the placer (no LOC in the constraints): build/${top}_pins.ucf`);
   }
+  // Generate Text Power Report (#123): an estimate (core/power.js), laid out as XPower's text report
+  // (build/<top>.pwr); its summary in the Design Summary as XPower's
+  function runPower() {
+    routedOrEarlier();
+    let periods = [];
+    try { if (ucfText) periods = parseUcf(ucfText).clocks || []; } catch { /* checked by translate */ }
+    const est = estimatePower(parseXdl(routedText), { device: spec.device, periods });
+    io.write(`${top}.pwr`, powerReport(est, { top, part: spec.part, errorPercent: ESTIMATE_ERROR_PERCENT }));
+    report.power = { totalMw: est.totalMw, dynamicMw: est.dynamicMw, staticMw: est.staticMw, junctionC: est.junctionC, estimate: true };
+    for (const w of est.warnings) log(`WARNING:Power - ${w}`);
+    log(`Estimated power: ${est.totalMw.toFixed(2)} mW (dynamic ${est.dynamicMw.toFixed(2)} mW, static ${est.staticMw.toFixed(2)} mW), junction ${est.junctionC.toFixed(1)} C: build/${top}.pwr (an estimate, not Xilinx XPower)`);
+  }
   // (Place & Route of an earlier run: the routed design it wrote)
   const routedOrEarlier = () => { if (routedText == null) routedText = io.read('open/routed.xdl'); if (routedText == null) throw new StepError('no routed design: run Place & Route first', [], ''); };
 
@@ -281,6 +294,7 @@ export async function runOpenFlow(spec, io) {
     if (steps.includes('par')) { step('par'); runPar(); save(); }
     if (steps.includes('trce')) { step('trce'); routedOrEarlier(); runTiming(); save(); }
     if (steps.includes('pin2ucf')) { step('pin2ucf'); runPins(); save(); }
+    if (steps.includes('xpwr')) { step('xpwr'); runPower(); save(); }
     if (steps.includes('bitgen')) {
       step('bitgen');
       routedOrEarlier();

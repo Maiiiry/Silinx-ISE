@@ -675,7 +675,7 @@ export const openMode = () => (S.project?.synthTool ? S.project.synthTool === 's
 const OPEN_SYNTH = 'Synthesize - Yosys';
 // (Back-annotate Pin Locations, View Technology Schematic and the Post-Synthesis Simulation Model are
 // the Silinx toolchain's own: the pads its placer chose, the netlist of its synthesis, #120)
-const ISE_ONLY = new Set(['posttrans', 'postmap', 'postpar', 'xpwr']);
+const ISE_ONLY = new Set(['posttrans', 'postmap', 'postpar']);
 const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';
 function forOpenMode(defs) {
   const conv = p => {

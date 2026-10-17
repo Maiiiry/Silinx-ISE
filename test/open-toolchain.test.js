@@ -108,7 +108,13 @@ test('openSteps: the chain up to the last step; the ISE-only steps are refused',
   // the Post-Synthesis Simulation Model: the Silinx toolchain's own since #120, after the synthesis
   assert.deepEqual(OF.openSteps(['synth', 'postsynth']), ['synth', 'postsynth']);
   assert.deepEqual(OF.openSteps(['postsynth', 'bitgen']), ['synth', 'postsynth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
-  assert.throws(() => OF.openSteps(['synth', 'postmap', 'xpwr']), /not available in the Silinx toolchain \(they need Xilinx ISE\): postmap, xpwr/);
+  // Generate Text Power Report: the Silinx toolchain's estimate since #123, after Place & Route and its
+  // timing (and the pins), before the bitstream
+  assert.deepEqual(OF.openSteps(['xpwr']), ['synth', 'translate', 'map', 'par', 'trce', 'xpwr']);
+  assert.deepEqual(OF.openSteps(['bitgen', 'pin2ucf', 'xpwr']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'xpwr', 'bitgen', 'prombit']);
+  // (as the application asks for it: the steps up to Place & Route, then xpwr)
+  assert.deepEqual(OF.openSteps(['translate', 'map', 'par', 'xpwr'], { synthUpToDate: true }), ['translate', 'map', 'par', 'trce', 'xpwr']);
+  assert.throws(() => OF.openSteps(['synth', 'postmap', 'postpar']), /not available in the Silinx toolchain \(they need Xilinx ISE\): postmap, postpar/);
   // the synthesis up to date (#280): from Translate on when it is not asked for; asked for, it runs
   const up = { synthUpToDate: true };
   assert.deepEqual(OF.openSteps(['translate', 'map', 'par', 'bitgen'], up), ['translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);

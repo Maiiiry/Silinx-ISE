@@ -45,9 +45,9 @@ const supported = (dir = BIT_DB_DIR) => BITSTREAM_DEVICES.map(d => [d, hasBitDat
   .map(([d, p]) => `${d.toUpperCase()} (${p.join(', ').toUpperCase()})`).join(', ');
 
 /** The steps of the open flow (the ISE flow's names; pin2ucf: the pins the placer chose, as
- *  build/<top>_pins.ucf; postsynth: the Post-Synthesis Simulation Model, #120). The others (the
- *  later simulation models, power) need ISE. */
-export const OPEN_STEPS = ['synth', 'postsynth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'bitgen', 'prombit', 'fpgaview'];
+ *  build/<top>_pins.ucf; postsynth: the Post-Synthesis Simulation Model, #120; xpwr: the estimated
+ *  power, build/<top>.pwr, #123). The others (the later simulation models) need ISE. */
+export const OPEN_STEPS = ['synth', 'postsynth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'xpwr', 'bitgen', 'prombit', 'fpgaview'];
 const CHAIN = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
 
 /** Does a bit database exist for this device (e.g. 'xc3s250e'), and with pkg for the pads of that
@@ -129,6 +129,11 @@ export function openSteps(steps, { synthUpToDate = false } = {}) {
   if (st.includes('pin2ucf')) {
     if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
     out.splice(out.indexOf('trce') + 1, 0, 'pin2ucf');
+  }
+  // the estimated power: after Place & Route and its timing (and the pins), before the bitstream
+  if (st.includes('xpwr')) {
+    if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
+    out.splice(out.indexOf(out.includes('pin2ucf') ? 'pin2ucf' : 'trce') + 1, 0, 'xpwr');
   }
   if (st.includes('fpgaview')) {
     if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));

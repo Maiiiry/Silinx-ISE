@@ -45,7 +45,7 @@ const ALIASES = { implement: 'par', impl: 'par', synthesize: 'synth', xst: 'synt
 export function browserSteps(steps, { synthUpToDate = false } = {}) {
   const set = new Set((Array.isArray(steps) ? steps : [steps]).filter(Boolean).map(s => ALIASES[String(s).toLowerCase()] || String(s).toLowerCase()));
   if (!set.size) CHAIN.forEach(s => set.add(s));
-  const bad = [...set].filter(s => !CHAIN.includes(s) && s !== 'fpgaview' && s !== 'pin2ucf' && s !== 'postsynth');
+  const bad = [...set].filter(s => !CHAIN.includes(s) && !['fpgaview', 'pin2ucf', 'xpwr', 'postsynth'].includes(s));
   if (bad.length) throw new Error(`not available in the Silinx toolchain (they need Xilinx ISE, in the full application): ${bad.join(', ')}`);
   if (set.has('par')) set.add('trce');
   if (set.has('bitgen')) set.add('prombit');
@@ -56,6 +56,8 @@ export function browserSteps(steps, { synthUpToDate = false } = {}) {
   if (set.has('postsynth')) out.splice(out.includes('synth') ? 1 : 0, 0, 'postsynth');
   // the pins of the placement (Back-annotate Pin Locations): after Place & Route, before the bitstream
   if (set.has('pin2ucf')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.splice(out.indexOf('trce') + 1, 0, 'pin2ucf'); }
+  // the estimated power (Generate Text Power Report, #123): after Place & Route (and the pins)
+  if (set.has('xpwr')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.splice(out.indexOf(out.includes('pin2ucf') ? 'pin2ucf' : 'trce') + 1, 0, 'xpwr'); }
   if (set.has('fpgaview')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.push('fpgaview'); }
   return out;
 }
