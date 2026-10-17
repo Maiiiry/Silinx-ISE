@@ -1069,6 +1069,8 @@ class Parser {
 
   delayValue() {
     if (this.accept('(')) { const e = this.expr(); if (this.accept(',')) { this.expr(); if (this.accept(',')) this.expr(); } this.expect(')'); return e; }
+    // a name is the delay, never called: in `x <= #Tp (a) ? b : c` the parenthesis starts the expression (#373)
+    if (this.tok.t === 'id' && this.is('(', this.peek())) { const name = this.tok.v; this.next(); return { op: 'ref', name }; }
     return this.primary();
   }
 
