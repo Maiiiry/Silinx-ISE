@@ -35,6 +35,10 @@ In short:
 
 In detail:
 
+- **Shift registers of 17 to 32 stages in one SLICEM (#24):** the two SRL16Es of such a chain are cascaded in one
+  SLICEM: G holds the first 16 stages, and F takes G's last stage through SHIFTIN (`DIF_MUX = SHIFTIN`), instead
+  of a net through general routing and BX. The srl fixture's 20-stage chain converts with ISE to the same .bit.
+  Chains longer than 32 still connect their SLICEMs through general routing (the bits between slices are #2).
 - **Clock inverters in the slices' CLKINV (#80):** the synthesis writes an inverted clock or latch gate
   (IS_C_INVERTED / IS_G_INVERTED) as one INV per cell, which the packer made a LUT on the clock: ISE's DRC
   reported a "Gated clock" for each (21 on vtr-ch-intrinsics, whose latches have inverted gates). An inverter that

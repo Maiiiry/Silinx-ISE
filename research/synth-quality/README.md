@@ -108,8 +108,12 @@ flip-flops: an SRL16 does not resolve metastability as two flip-flops in series 
 no shift-register extraction on synchronisers). So the minimum stays 3 (the author's decision,
 2026-10-15; `test/synth-quality.test.js` keeps a synchroniser in flip-flops).
 
-**The SRLC16 cascade** (Q15, DIF_MUX = SHIFTIN): a chain longer than 16 uses general routing between
-its SRL16Es instead (and a variable tap past 16 stages a second SRL16E per 16, read at stage 15).
+**The SRLC16 cascade** (#24): a chain of 17 to 32 stages is the map's SRL16E of 16 stages, read at address 15,
+followed by the rest. The packer puts the two in one SLICEM, as ISE's map does: G holds the first 16 stages and F
+the rest, F's data being G's last stage through SHIFTIN (`DIF_MUX = SHIFTIN`, a bit of the database). So the chain
+needs no net and no BX between them (the srl fixture's 20 stages; ISE converts it to the same .bit). Between
+slices (`DIG_MUX = SHIFTIN`) the bits are not measured yet (#2), so a chain longer than 32 continues through
+general routing, as does a variable tap past 16 stages (a second SRL16E per 16, read at stage 15).
 
 ## Results
 
@@ -424,7 +428,8 @@ vtr-ch-intrinsics are its gated clocks (#80), the same in all three mappings. tr
   lab11's critical path, about 0.5 ns of branch load); the open flow does since 15.10.3
   (research/s3e-route/README.md, "The design corpus against ISE").
 - **Shift registers in SRL16**: done in 15.10.2 for fixed-length chains (above), in 15.10.15 for
-  variable taps (#5, above); the cascade left. What the prototype (before it) found:
+  variable taps (#5, above), the cascade within a SLICEM in 15.10.23 (#24, above). What the prototype
+  (before it) found:
   - fixed-length chains: `xilinx_srl -fixed -minlen 3` must run on the bit-level flip-flops
     before `map_ffs` (after it, xc3se's dfflegalize has made them $_SDFFE_ cells with a reset,
     which xilinx_srl skips), with Silinx's own map file for `$__XILINX_SHREG_` (Yosys's

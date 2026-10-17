@@ -527,7 +527,8 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   //   RAM32X1S   G = addresses 0-15, F = 16-31, A4 on BX (F5 multiplexer and SLICEWE0), O = F5
   //   SRL16(E)   F or G, F_ATTR / G_ATTR = SHIFT_REG; two in a slice share the clock and CE; the
   //              flip-flop of a side may take the shift register's output (DXMUX = 1) when the
-  //              shift is always enabled (SR = 1) and the flip-flop has no CE, no set / reset
+  //              shift is always enabled (SR = 1) and the flip-flop has no CE, no set / reset;
+  //              a cascade (#24): G's last stage into F's data through SHIFTIN (DIF_MUX = SHIFTIN)
   const memCells = liveCells().filter(c => SLICEM_MEM[c.type]);
   const memInit = (c, n) => { const b = paramBits(c.params.INIT) || []; let v = 0; for (let a = 0; a < n; a++) if (b[a]) v += 2 ** a; return v; };
   const memClk = c => {
@@ -574,9 +575,17 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     s.dmux = s.dmux || {};
     s.dmux[side] = side === 'F' ? 'BX' : 'BY';
   };
+  // a shift register longer than 16 stages (core/synth-open.js SRL_MAP: an SRL16E of 16 stages, read at address 15,
+  // into the rest) is cascaded in one SLICEM, as ISE's map does: G the first 16 stages, F the next, F's data G's last
+  // stage through SHIFTIN (DIF_MUX), inside the slice instead of through general routing (#24). (Between slices,
+  // DIG_MUX = SHIFTIN, the bits are not measured yet, #2: a longer chain goes on through general routing.)
+  const cascadeOf = c => (SLICEM_MEM[c.type] === 'srl' && addrNets(c).every(n => nets[n]?.const === 1)
+    ? memCells.find(x => x !== c && SLICEM_MEM[x.type] === 'srl' && x.pins.D === c.pins.Q && memKey(x) === memKey(c)) || null : null);
   const memUsed = new Set();
   for (const c of memCells) {
     if (memUsed.has(c)) continue;
+    // (the second of a cascade is placed with the first)
+    if (memCells.some(h => h !== c && !memUsed.has(h) && cascadeOf(h) === c)) continue;
     memUsed.add(c);
     const kind = SLICEM_MEM[c.type];
     const s = memSlice(c);
@@ -609,9 +618,10 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     // same address) takes F
     const mode = kind === 'srl' ? 'SHIFT_REG' : null;
     const outPin = kind === 'srl' ? 'Q' : 'O';
-    const put = (side, cc) => {
+    const put = (side, cc, cascade = false) => {
       memLut(s, side, cc, { init: memInit(cc, 16), mode, out: cc.pins[outPin] });
-      memData(s, side, cc);
+      if (cascade) { setSink(ci(cc), 'D', 'int'); s.dmux = s.dmux || {}; s.dmux.F = 'SHIFTIN'; }
+      else memData(s, side, cc);
       if (kind !== 'srl') s[side === 'F' ? 'wf' : 'wg'] = true;
       where.set(ci(cc), { inst: s.idx, bel: side });
       // the shift register's output into the flip-flop of its side (always shifting: SR = 1)
@@ -622,6 +632,8 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
       }
     };
     put('G', c);
+    const next = cascadeOf(c);
+    if (next && !memUsed.has(next)) { memUsed.add(next); put('F', next, true); continue; }
     const sameAddr = x => kind === 'srl' || addrNets(x).every((n, j) => n === addrNets(c)[j]);
     const mate = memCells.find(x => !memUsed.has(x) && SLICEM_MEM[x.type] === kind && memKey(x) === memKey(c) && sameAddr(x));
     if (mate) { memUsed.add(mate); put('F', mate); }
