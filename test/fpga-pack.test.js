@@ -201,14 +201,15 @@ test('latches: #LATCH, transparent while CLKINV gives 0 (an active-high gate tak
 });
 
 // the counter with its flip-flops' clock through an inverter (as extractinv writes IS_C_INVERTED); extra: gives the
-// inverter's output another load besides the clock pins
-function invertedClock(extra = null) {
+// inverter's output another load besides the clock pins; some: which of the clock's loads move to the inverter
+function invertedClock(extra = null, some = () => true) {
   const nl = load('counter');
   const clk = nl.cells.find(c => /^FD/.test(c.type)).pins.C;
   const k = nl.nets.length;
-  nl.nets.push({ id: k, name: 'clk_n', driver: { cell: nl.cells.length, pin: 'O' }, port: null, loads: nl.nets[clk].loads });
-  for (const l of nl.nets[k].loads) nl.cells[l.cell].pins.C = k;
-  nl.nets[clk].loads = [{ cell: nl.cells.length, pin: 'I' }];
+  const moved = nl.nets[clk].loads.filter(some);
+  nl.nets.push({ id: k, name: 'clk_n', driver: { cell: nl.cells.length, pin: 'O' }, port: null, loads: moved });
+  for (const l of moved) nl.cells[l.cell].pins.C = k;
+  nl.nets[clk].loads = [...nl.nets[clk].loads.filter(l => !moved.includes(l)), { cell: nl.cells.length, pin: 'I' }];
   nl.cells.push({ name: 'clk_inv', type: 'INV', params: {}, attrs: {}, pins: { I: clk, O: k }, dirs: { I: 'input', O: 'output' } });
   if (extra) extra(nl, k);
   return nl;
@@ -226,6 +227,21 @@ test('a clock inverter (extractinv\'s INV on the C pins) is the slices\' CLKINV,
   // its input netlist unchanged (the packer works on its own copies)
   assert.equal(nl.cells.at(-1).type, 'INV');
   assert.ok(nl.cells.filter(c => /^FD/.test(c.type)).every(c => !c.params.IS_C_INVERTED));
+  const d = compareSims(nl, p, { cycles: 300, seed: 7 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
+});
+
+test('flip-flops of one clock, half of them through the inverter: never in one slice (CLKINV is the slice\'s, #80)', () => {
+  // every other flip-flop of the counter on the inverted clock, so that pairs of neighbours differ
+  let n = 0;
+  const nl = invertedClock(null, () => n++ % 2 === 1);
+  const p = pack(nl);
+  const ffs = p.insts.filter(i => i.kind === 'slice' && ['X', 'Y'].some(X => val(i, `FF${X}`) === '#FF'));
+  // a slice's flip-flops (one or two) all take its CLKINV: 4 flip-flops on each polarity, and the simulation below
+  // fails if a slice held one of each
+  const count = s => ['X', 'Y'].filter(X => val(s, `FF${X}`) === '#FF').length;
+  assert.deepEqual(['CLK', 'CLK_B'].map(v => ffs.filter(s => val(s, 'CLKINV') === v).reduce((t, s) => t + count(s), 0)), [4, 4]);
+  assert.equal(p.stats.luts, pack(load('counter')).stats.luts);
   const d = compareSims(nl, p, { cycles: 300, seed: 7 });
   assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
 });
