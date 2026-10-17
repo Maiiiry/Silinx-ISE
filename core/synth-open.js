@@ -367,66 +367,79 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     let chosen = out, cells = cellCounts(json, top);
     const info = { tried: false, kept: false, ns: null, luts: null };
     if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
-      // the mapping with the wider functions too (LUT4_COSTS, ABC's own script), kept when better than
-      // the one onto LUT4s alone by DEPTH_RULE; the depth-oriented one is then measured against it
-      // (the two from the same netlist, at once: in parallel when run() has several Yosys, #86)
-      // (delays: the script inline with the LUT library, #78)
-      const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
-        { [PREMAP_FILE]: asText(out[PREMAP_FILE]), ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
-        l => { if (!quiet(l)) lines.push(l); });
-      let base = json;
-      const linesW = [], lines2 = [], lines3 = [], lines4 = [];
-      const first = Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
-      // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
-      // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
-      const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
-      const early = (run.parallel || 1) >= 4 ? second() : null;
-      early?.catch(() => {});
-      const [outW, out2] = await first;
-      const jsonW = outW[`${top}.json`];
-      if (jsonW) {
-        const cellsW = cellCounts(jsonW, top);
-        const nsW = [criticalDelay(json, top), criticalDelay(jsonW, top)], lutsW = [utilization(cells).luts, utilization(cellsW).luts];
-        info.wide = { ns: nsW[1], luts: lutsW[1], kept: keepDepth(nsW, lutsW) };
-        if (info.wide.kept) {
-          chosen = outW;
-          cells = cellsW;
-          base = jsonW;
-          for (const l of linesW) sayNew(l);
-        }
-      }
-      const json2 = out2[`${top}.json`];
-      if (json2) {
-        const cells2 = cellCounts(json2, top);
-        const ns = [criticalDelay(base, top), criticalDelay(json2, top)], luts = [utilization(cells).luts, utilization(cells2).luts];
-        // (against the mapping onto LUT4s alone; or, faster than it, against the one with the wider
-        // functions, as before #54: the LUT4s alone smaller, a design limited by its depth would keep them)
-        const kept = info.wide && !info.wide.kept ? keepSecond([info.wide.ns, ...ns], [info.wide.luts, ...luts]) : keepDepth(ns, luts);
-        Object.assign(info, { tried: true, kept, ns, luts });
-        if (info.kept) {
-          chosen = out2;
-          cells = cells2;
-          for (const l of lines2) sayNew(l);
-          // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), at once; each kept
-          // by keepSecond, the one with the delays when both are and it is better by DEPTH_RULE
-          const [out3, out4] = await (early || second());
-          const cand = (o, lines) => {
-            const j = o[`${top}.json`];
-            if (!j) return null;
-            const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts;
-            return { out: o, lines, cells: c, ns: n, luts: l, kept: keepSecond([...ns, n], [...luts, l]) };
-          };
-          const a = cand(out3, lines3), b = cand(out4, lines4);
-          const useB = b?.kept && (!a?.kept || keepDepth([a.ns, b.ns], [a.luts, b.luts]));
-          const best = useB ? b : a?.kept ? a : null;
-          if (a) info.second = { ns: a.ns, luts: a.luts, kept: best === a };
-          if (b) info.delays = { ns: b.ns, luts: b.luts, kept: best === b };
-          if (best) {
-            chosen = best.out;
-            cells = best.cells;
-            for (const l of best.lines) sayNew(l);
+      // (the kept mappings' warnings: said once the choice is made, none of a mapping a failure drops)
+      const kept = [];
+      try {
+        // the mapping with the wider functions too (LUT4_COSTS, ABC's own script), kept when better than
+        // the one onto LUT4s alone by DEPTH_RULE; the depth-oriented one is then measured against it
+        // (the two from the same netlist, at once: in parallel when run() has several Yosys, #86)
+        // (delays: the script inline with the LUT library, #78)
+        const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
+          { [PREMAP_FILE]: asText(out[PREMAP_FILE]), ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
+          l => { if (!quiet(l)) lines.push(l); });
+        let base = json;
+        const linesW = [], lines2 = [], lines3 = [], lines4 = [];
+        const first = Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
+        // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
+        // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
+        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
+        const early = (run.parallel || 1) >= 4 ? second() : null;
+        early?.catch(() => {});
+        const [outW, out2] = await first;
+        const jsonW = outW[`${top}.json`];
+        if (jsonW) {
+          const cellsW = cellCounts(jsonW, top);
+          const nsW = [criticalDelay(json, top), criticalDelay(jsonW, top)], lutsW = [utilization(cells).luts, utilization(cellsW).luts];
+          info.wide = { ns: nsW[1], luts: lutsW[1], kept: keepDepth(nsW, lutsW) };
+          if (info.wide.kept) {
+            chosen = outW;
+            cells = cellsW;
+            base = jsonW;
+            for (const l of linesW) kept.push(l);
           }
         }
+        const json2 = out2[`${top}.json`];
+        if (json2) {
+          const cells2 = cellCounts(json2, top);
+          const ns = [criticalDelay(base, top), criticalDelay(json2, top)], luts = [utilization(cells).luts, utilization(cells2).luts];
+          // (against the mapping onto LUT4s alone; or, faster than it, against the one with the wider
+          // functions, as before #54: the LUT4s alone smaller, a design limited by its depth would keep them)
+          const kept = info.wide && !info.wide.kept ? keepSecond([info.wide.ns, ...ns], [info.wide.luts, ...luts]) : keepDepth(ns, luts);
+          Object.assign(info, { tried: true, kept, ns, luts });
+          if (info.kept) {
+            chosen = out2;
+            cells = cells2;
+            for (const l of lines2) kept.push(l);
+            // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), at once; each kept
+            // by keepSecond, the one with the delays when both are and it is better by DEPTH_RULE
+            const [out3, out4] = await (early || second());
+            const cand = (o, lines) => {
+              const j = o[`${top}.json`];
+              if (!j) return null;
+              const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts;
+              return { out: o, lines, cells: c, ns: n, luts: l, kept: keepSecond([...ns, n], [...luts, l]) };
+            };
+            const a = cand(out3, lines3), b = cand(out4, lines4);
+            const useB = b?.kept && (!a?.kept || keepDepth([a.ns, b.ns], [a.luts, b.luts]));
+            const best = useB ? b : a?.kept ? a : null;
+            if (a) info.second = { ns: a.ns, luts: a.luts, kept: best === a };
+            if (b) info.delays = { ns: b.ns, luts: b.luts, kept: best === b };
+            if (best) {
+              chosen = best.out;
+              cells = best.cells;
+              for (const l of best.lines) kept.push(l);
+            }
+          }
+        }
+        for (const l of kept) sayNew(l);
+      } catch (e) {
+        // an optional mapping that failed (Yosys crashed; in the browser, out of memory once more): the
+        // first mapping's netlist, valid, is kept and said (#401)
+        chosen = out;
+        cells = cellCounts(json, top);
+        for (const k of ['wide', 'second', 'delays']) delete info[k];
+        Object.assign(info, { tried: false, kept: false, ns: null, luts: null, failed: e.message });
+        sayNew(`Warning: the depth-oriented mapping failed (${e.message}): the usual mapping is kept`);
       }
     }
     return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top) };
@@ -516,17 +529,37 @@ export function yosysWorkerSource(bundleUrl) {
 const lineStream = ${lineStream};
 const asText = ${asText};
 const yosysError = ${yosysError};
+const runYosysOnce = (${yosysRunner})(lineStream, asText, yosysError);
 self.onmessage = async ({ data: { id, args, files } }) => {
-  const out = lineStream(line => self.postMessage({ id, line }));
-  try {
-    const res = await runYosys(args, files, { stdout: out, stderr: out });
-    out.end();
-    self.postMessage({ id, files: Object.fromEntries(Object.entries(res).map(([k, v]) => [k, asText(v)])) });
-  } catch (e) {
-    out.end();
-    const { message, code, crash } = yosysError(e);
-    self.postMessage({ id, error: message, code, crash });
-  }
+  try { self.postMessage({ id, files: await runYosysOnce(runYosys, args, files, line => self.postMessage({ id, line })) }); }
+  catch (e) { self.postMessage({ id, error: e.message, code: e.code, crash: e.crash }); }
 };
 `;
+}
+
+/**
+ * One run of Yosys, for every place that runs it (Node, its worker threads, the page's workers, the
+ * browser edition's flow worker and its Blob workers, #403): runYosys (YoWASP's) with args and files;
+ * Yosys's lines to onLine (lineStream); its output files as text (asText); an error as yosysError
+ * says ({ message, code, crash }: the pools run a crashed one again). opts: more options of runYosys
+ * (fetchProgress).
+ */
+export const runYosysOnce = yosysRunner(lineStream, asText, yosysError);
+
+/** runYosysOnce made from its three helpers, given as arguments: yosysWorkerSource writes this
+ *  function's text into a Blob worker's code, where only what it is given exists (a bundler renames
+ *  the module's own names, #403). */
+function yosysRunner(lineStream, asText, yosysError) {
+  return async (runYosys, args, files, onLine = () => {}, opts = {}) => {
+    const out = lineStream(onLine);
+    try {
+      const res = await runYosys(args, files, { stdout: out, stderr: out, ...opts });
+      out.end();
+      return Object.fromEntries(Object.entries(res).map(([k, v]) => [k, asText(v)]));
+    } catch (e) {
+      out.end();
+      const { message, code, crash } = yosysError(e);
+      throw Object.assign(new Error(message), { code, crash });
+    }
+  };
 }

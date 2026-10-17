@@ -268,6 +268,13 @@ In detail:
   - `~/.silinx/config.json` is written for its owner only (0600), and the ssh host is not written in the job log;
   - `scripts/install-adepttool.sh` installs a pinned adepttool commit (the Silinx patch must apply) and libusb1 by
     version and hash (`scripts/adepttool-requirements.txt`).
+- **Open synthesis: one Yosys runner, a failed optional mapping no longer fails the synthesis (#400, #401, #403):**
+  - `runYosysOnce` (core/synth-open.js) runs Yosys for Node, its worker threads, the page's workers and the
+    browser edition's flow worker and Blob workers (five copies before; the Node ones now report crashes too);
+  - a depth-oriented mapping that fails (Yosys crashed: in the browser, out of memory once more) keeps the
+    usual mapping's netlist, with the warning `the depth-oriented mapping failed (…): the usual mapping is kept`;
+  - a page's Yosys worker that fails at run time is terminated and its run made again in a new one (as after a
+    crash); the parallel workers stay (before, the flow ran one Yosys in its own thread from then on).
 - **Number literals checked as XST does (#395, #396):** a Verilog based literal with a digit outside its base
   (`8'dA`, `4'b12`, `8'o9`), a decimal with `x` / `z` among other digits (`8'd1x`) or no digits (`4'b`) is an error
   at the literal: `8'dA` made `compile()` throw (the project then failed to open, at every start) and the others

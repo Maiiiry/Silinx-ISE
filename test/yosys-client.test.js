@@ -109,8 +109,36 @@ test('#279 a worker that cannot start: its run fails as such (workerFailed), the
   assert.equal(made.length, 2);
 });
 
-test('#279 the code of a Yosys worker from a Blob: Yosys from the URL given, its lines, files and errors as web/js/yosys-worker.js', async () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-yw-'));
+test('#400 a worker that fails at run time (after answering): terminated, its run once more in a new one, the pool kept', async () => {
+  const { yosysPool } = await load({ hardwareConcurrency: 8, deviceMemory: 8 });
+  const made = [], posted = [];
+  const run = yosysPool({ spawn: () => { const w = { postMessage(m) { posted.push({ w, ...m }); }, terminate() { this.terminated = true; } }; made.push(w); return w; }, workers: 2 });
+  const lines = [];
+  const p = run(['a'], {}, l => lines.push(l));
+  // it answers (a line), then fails outside Yosys's own error handling
+  made[0].onmessage({ data: { id: posted[0].id, line: 'Yosys 0.70' } });
+  made[0].onerror({ message: 'out of memory' });
+  assert.equal(made[0].terminated, true);
+  assert.deepEqual(lines, ['Yosys 0.70', 'the Yosys worker failed: out of memory: Yosys is started again (a new worker) and the synthesis run once more']);
+  assert.equal(made.length, 2);
+  assert.equal(run.parallel, 1);
+  made[1].onmessage({ data: { id: posted[1].id, files: { out: 'ok' } } });
+  assert.deepEqual(await p, { out: 'ok' });
+  // a second failure of the same run: it fails, not as a worker that cannot start (the flow keeps its pool)
+  const q = run(['b'], {});
+  const last = posted.at(-1);
+  last.w.onmessage({ data: { id: last.id, line: 'x' } });
+  last.w.onerror({ message: 'again' });
+  const last2 = posted.at(-1);
+  last2.w.onmessage({ data: { id: last2.id, line: 'y' } });
+  last2.w.onerror({ message: 'and again' });
+  await assert.rejects(q, e => e.message === 'the Yosys worker failed: and again' && !e.workerFailed);
+  assert.equal(last.w.terminated, true);
+  assert.equal(last2.w.terminated, true);
+});
+
+// a stand-in for YoWASP's bundle, and the checks of a worker's code against it
+function fakeBundle(dir) {
   const fake = path.join(dir, 'bundle.js');
   fs.writeFileSync(fake, `export async function runYosys(args, files, { stdout }) {
   if (args[0] === 'fail') throw Object.assign(new Error('Exited with status 1'), { code: 1 });
@@ -119,9 +147,10 @@ test('#279 the code of a Yosys worker from a Blob: Yosys from the URL given, its
   return { 'o.json': new TextEncoder().encode(files['i.v'] + '!'), 'n.txt': 'text' };
 }
 `);
-  const src = yosysWorkerSource(pathToFileURL(fake).href);
-  assert.match(src, new RegExp(`^import \\{ runYosys \\} from ${JSON.stringify(pathToFileURL(fake).href).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')};`));
-  const file = path.join(dir, 'worker.mjs');
+  return fake;
+}
+async function checkWorkerCode(src, dir) {
+  const file = path.join(dir, `worker-${++n}.mjs`);
   fs.writeFileSync(file, src);
   const sent = [];
   globalThis.self = { postMessage: m => sent.push(m) };
@@ -136,4 +165,23 @@ test('#279 the code of a Yosys worker from a Blob: Yosys from the URL given, its
     await globalThis.self.onmessage({ data: { id: 9, args: ['crash'], files: {} } });
     assert.deepEqual(sent, [{ id: 9, error: 'Yosys failed: Out of memory', code: undefined, crash: true }]);
   } finally { delete globalThis.self; }
+}
+
+test('#279 the code of a Yosys worker from a Blob: Yosys from the URL given, its lines, files and errors as web/js/yosys-worker.js', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-yw-'));
+  const fake = fakeBundle(dir);
+  const src = yosysWorkerSource(pathToFileURL(fake).href);
+  assert.match(src, new RegExp(`^import \\{ runYosys \\} from ${JSON.stringify(pathToFileURL(fake).href).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')};`));
+  await checkWorkerCode(src, dir);
+});
+
+test('#403 the Blob worker\'s code from the minified single-file edition: the shared runner still has its helpers', async () => {
+  // (esbuild renames the module's names when it minifies: the runner's text must not use them)
+  const esbuild = await import('esbuild');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-yw-'));
+  const out = path.join(dir, 'synth-open.min.mjs');
+  await esbuild.build({ stdin: { contents: "export { yosysWorkerSource } from './core/synth-open.js';", resolveDir: path.join(path.dirname(new URL(import.meta.url).pathname), '..') },
+    bundle: true, format: 'esm', minify: true, target: 'es2022', outfile: out, logLevel: 'silent' });
+  const { yosysWorkerSource: minified } = await import(pathToFileURL(out).href);
+  await checkWorkerCode(minified(pathToFileURL(fakeBundle(dir)).href), dir);
 });

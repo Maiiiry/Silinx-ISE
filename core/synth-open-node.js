@@ -3,20 +3,12 @@
 // from core/synth-open.js so that the page never imports the Node-only loader.
 import { Worker } from 'node:worker_threads';
 import os from 'node:os';
-import { lineStream, asText } from './synth-open.js';
+import { runYosysOnce } from './synth-open.js';
 
 /** run() for Node: Yosys from @yowasp/yosys in this process. */
 export async function yosysNode(args, files, onLine = () => {}) {
   const { runYosys } = await import('@yowasp/yosys');
-  const out = lineStream(onLine);
-  try {
-    const res = await runYosys(args, files, { stdout: out, stderr: out, fetchProgress: () => {} });
-    out.end();
-    return Object.fromEntries(Object.entries(res).map(([k, v]) => [k, asText(v)]));
-  } catch (e) {
-    out.end();
-    throw Object.assign(new Error(`Yosys failed${e.code !== undefined ? ` (exit code ${e.code})` : `: ${e.message}`}`), { code: e.code });
-  }
+  return runYosysOnce(runYosys, args, files, onLine, { fetchProgress: () => {} });
 }
 
 /**
@@ -35,7 +27,7 @@ export function yosysWorkers(n = Math.min(4, Math.max(1, (os.availableParallelis
       if (!job || m.id !== job.id) return;
       if (m.line !== undefined) { job.onLine(m.line); return; }
       w.job = null;
-      if (m.error) job.reject(Object.assign(new Error(m.error), { code: m.code }));
+      if (m.error) job.reject(Object.assign(new Error(m.error), { code: m.code, crash: m.crash }));
       else job.resolve(m.files);
       next(w);
     });

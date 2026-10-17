@@ -24,21 +24,13 @@ export function yosysPool({ spawn = () => new Worker('/js/yosys-worker.js', { ty
     const w = spawn();
     w.job = null;
     w.onmessage = ({ data }) => {
+      w.answered = true;
       const p = w.job;
       if (!p || data.id !== p.id) return;
       if (data.line !== undefined) { p.onLine(data.line); return; }
       if (data.progress !== undefined) { p.onProgress?.(data.progress); return; }
       w.job = null;
-      if (data.error && data.crash && !p.retried) {
-        // a fresh worker for this run (and the next ones), one Yosys at a time; the crashed one ended
-        p.onLine(`${data.error}: Yosys is started again (a new worker) and the synthesis run once more`);
-        max = 1;
-        busy.delete(w);
-        w.terminate();
-        queue.unshift({ ...p, retried: true });
-        next();
-        return;
-      }
+      if (data.error && data.crash && !p.retried) { again(w, p, data.error); return; }
       if (data.error) p.reject(Object.assign(new Error(data.error), { code: data.code }));
       else p.resolve(data.files);
       busy.delete(w);
@@ -46,13 +38,29 @@ export function yosysPool({ spawn = () => new Worker('/js/yosys-worker.js', { ty
       next();
     };
     w.onerror = e => {
-      // the worker could not start (e.g. the module was not found): its run fails, the next ones start afresh
-      busy.delete(w);
-      w.job?.reject(Object.assign(new Error(`the Yosys worker failed: ${e.message || 'could not be loaded'}`), { workerFailed: true }));
+      const p = w.job;
       w.job = null;
+      // a worker that answered before fails at run time (an exception outside Yosys's own error
+      // handling): as a crash, its run once more in a new worker; the pool goes on (#400)
+      if (w.answered && p && !p.retried) { again(w, p, `the Yosys worker failed: ${e.message || 'an error'}`); return; }
+      // one that could not start (e.g. the module was not found): its run fails as such (the flow
+      // worker then runs Yosys in its own thread), the next ones start afresh
+      busy.delete(w);
+      w.terminate();
+      p?.reject(Object.assign(new Error(`the Yosys worker failed: ${e.message || 'could not be loaded'}`), { workerFailed: !w.answered }));
       next();
     };
     return w;
+  }
+
+  // a fresh worker for this run (and the next ones), one Yosys at a time; the failed one ended
+  function again(w, p, why) {
+    p.onLine(`${why}: Yosys is started again (a new worker) and the synthesis run once more`);
+    max = 1;
+    busy.delete(w);
+    w.terminate();
+    queue.unshift({ ...p, retried: true });
+    next();
   }
 
   // the queued runs onto the idle workers, or new ones up to max (fewer kept when max went down)

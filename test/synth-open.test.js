@@ -342,6 +342,23 @@ const CHAIN = `module chain(input clk, input [23:0] a, input [23:0] b, output re
   always @(posedge clk) begin ra <= a; rb <= b; gt <= g; end
 endmodule
 `;
+test('a depth-oriented mapping that fails (Yosys crashed): the usual mapping\'s netlist kept, with a warning, not a failed synthesis (#401)', { timeout: 180000 }, async () => {
+  const chain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain');
+  // the remaps (from the netlist before the LUT mapping) crash, as a second out-of-memory in the browser
+  const crashed = Object.assign(new Error('Yosys failed: RangeError: out of memory'), { crash: true });
+  const run = async (args, files, onLine) => { if (args.join(' ').includes('read_rtlil silinx_premap.il')) throw crashed; return yosysNode(args, files, onLine); };
+  const r = await synthesizeOpen(chain, { family: 'spartan3e', run });
+  assert.deepEqual(r.warnings, ['Warning: the depth-oriented mapping failed (Yosys failed: RangeError: out of memory): the usual mapping is kept']);
+  assert.deepEqual([r.depth.tried, r.depth.kept, r.depth.failed], [false, false, 'Yosys failed: RangeError: out of memory']);
+  // the usual mapping, as without the depth-oriented one
+  const plain = await synthesizeOpen(chain, { family: 'spartan3e', run: yosysNode, depth: false });
+  assert.equal(r.util.luts, plain.util.luts);
+  assert.equal(criticalDelay(r.files['chain.json'], 'chain'), criticalDelay(plain.files['chain.json'], 'chain'));
+  // the first mapping failing is still the synthesis failing
+  const all = async () => { throw crashed; };
+  await assert.rejects(synthesizeOpen(chain, { family: 'spartan3e', run: all }), /out of memory/);
+});
+
 test('logic depth: a comparator written as a chain of gates is mapped again for depth, that netlist kept and equal to the RTL; a counter keeps its usual mapping', { timeout: 180000 }, async () => {
   const chain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain');
   const r = await synthesizeOpen(chain, { family: 'spartan3e', run: yosysNode });
