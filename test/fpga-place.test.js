@@ -78,6 +78,35 @@ test('counter: a legal placement, LOCs kept, wirelength reduced, same seed same 
   checkLegal(p, other);
 });
 
+test('a warm start (#87): each instance from the slice or pad given, the groups in shape; a greedy pass keeps the placement, a taken slice gives the nearest free one', () => {
+  const p = pack(load('mux64'));
+  const r = place(p, dev, { seed: 1, effort: 0.3 });
+  const at = r.sites.map(s => (xy(s.site) ? { x: xy(s.site)[0], y: xy(s.site)[1], exact: true } : { site: s.site }));
+  // from the placement itself, a move window of one slice, cold (t 0: only moves that lower the cost):
+  // legal, on nearly every site it was on (another seed: the start, not the random generator, places it)
+  const w = place(p, dev, { seed: 7, start: { at, t: 0, rlim: 1 } });
+  checkLegal(p, w);
+  const same = w.sites.filter((s, i) => s.site === r.sites[i].site).length;
+  assert.ok(same >= 0.95 * r.sites.length, `${same} of ${r.sites.length} on their sites`);
+  for (const [i, inst] of p.insts.entries()) if (inst.kind === 'iob' && !inst.loc) assert.equal(w.sites[i].site, r.sites[i].site, `${inst.name}: its pad`);
+  // (a design without a clock: the cost is the wirelength alone, which the greedy pass only lowers)
+  assert.ok(w.cost <= r.cost + 1e-9, `${w.cost} against ${r.cost}`);
+  // two single slices given the same slice: the second (not exact) on a free slice next to it
+  const q = pack(load('counter'));
+  const rq = place(q, dev, { seed: 3, effort: 0.3 });
+  const singles = q.insts.map((x, i) => i).filter(i => q.insts[i].kind === 'slice' && !q.macros.some(m => m.members.some(x => x.inst === i)));
+  assert.ok(singles.length >= 2);
+  const [a0, b0] = singles;
+  const atq = rq.sites.map(s => (xy(s.site) ? { x: xy(s.site)[0], y: xy(s.site)[1], exact: true } : { site: s.site }));
+  atq[b0] = { ...atq[a0], exact: false };
+  const n = place(q, dev, { seed: 3, start: { at: atq, t: 0, rlim: 1 }, timing: 0 });
+  checkLegal(q, n);
+  const [ax, ay] = xy(n.sites[a0].site), [bx, by] = xy(n.sites[b0].site);
+  assert.ok(Math.max(Math.abs(ax - bx), Math.abs(ay - by)) <= 2, `${n.sites[a0].site} and ${n.sites[b0].site}`);
+  // no start: the placement as before (the pinned placements below)
+  assert.deepEqual(place(p, dev, { seed: 1, effort: 0.3 }).sites, r.sites);
+});
+
 test('mux64: the two-CLB F8 group and the F7 / F6 groups keep their pattern; chains avoid the hole', () => {
   const p = pack(load('mux64'));
   const r = place(p, dev, { seed: 1, effort: 0.3 });

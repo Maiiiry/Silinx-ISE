@@ -176,14 +176,14 @@ export async function runOpenFlow(spec, io) {
     const k = knownPips();
     // place, route and their timing (core/fpga/place-route.js, the flows' one place and route): each
     // clock's flip-flops on the slices its global line reaches through switches of known bits; then
-    // register replication (#4): the flip-flops of many loads on the critical path copied, the design
-    // placed and routed again; the faster of the two kept
+    // register replication (#4): the flip-flops and LUTs of many loads on the critical path copied
+    // (#522), the design placed again from the first placement (#87) and routed; the faster kept
     let pr;
     try {
       pr = placeRouteBest(netlist, packed, d, k, {
         seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part, carryOut: 'xor' },
         onRouted: (p, info) => { if (!info.replication) for (const w of p.placement.warnings || []) log(`WARNING:Place - ${w}`); },
-        onReplication: x => log(`Register replication: ${x.flipFlops} flip-flop(s) on the critical path copied (${x.copies} copies): ${x.kept ? `kept, ${x.result.sta.period.toFixed(3)} ns instead of ${x.before.toFixed(3)} ns` : 'not kept, no faster'}.`),
+        onReplication: x => log(`Register replication: ${x.flipFlops} flip-flop(s)${x.luts ? ` and ${x.luts} LUT(s)` : ''} on the critical path copied (${x.copies} copies): ${x.kept ? `kept, ${x.result.sta.period.toFixed(3)} ns instead of ${x.before.toFixed(3)} ns` : 'not kept, no faster'}.`),
       });
     } catch (e) { throw new StepError(`placement failed: ${e.message}`, [], e.hint); }   // (e.hint: the placer's, #128)
     if (pr.replication?.kept) {

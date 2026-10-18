@@ -93,8 +93,8 @@ test('placeRouteBest: tries from the seed on, the fastest kept; then register re
   assert.equal(two.period, fastest[2]);
   assert.equal(two.first.seed, 3);
   assert.equal(two.replication, null);
-  // seed 1 with replication (the flows' default): the flip-flop s copied, the design placed and
-  // routed again with the same seed; kept when faster
+  // seed 1 with replication (the flows' default): the flip-flop s copied, the design placed again
+  // from the first placement (#87) and routed; kept when faster
   const placed = [];
   let reported = null;
   const best = placeRouteBest(netlist, packed, device, known, { seed: 1, pack: { part: PART, carryOut: 'xor' }, onPlaced: (pl, info) => placed.push(info.replication), onReplication: x => { reported = x; } });
@@ -109,7 +109,14 @@ test('placeRouteBest: tries from the seed on, the fastest kept; then register re
   assert.equal(r.error, null);
   assert.ok(r.result.sta);
   assert.equal(r.result.seed, 1);
-  assert.deepEqual(placed, [null, { flipFlops: 1, copies: r.copies }]);
+  assert.deepEqual(placed, [null, { flipFlops: 1, luts: 0, copies: r.copies }]);
+  // placed from the first placement (#87): most instances of the first that the replicated design has
+  // (by name) on their sites (the greedy pass moves some once the copies take loads; a placement from
+  // scratch keeps hardly any)
+  const site = new Map(best.first.packed.insts.map((x, k) => [x.name, best.first.placement.sites[k].site]));
+  const both = r.result.packed.insts.map((x, k) => [site.get(x.name), r.result.placement.sites[k].site]).filter(([a]) => a);
+  assert.ok(both.length >= 0.9 * best.first.packed.insts.length, 'the instances of the first in the replicated design');
+  assert.ok(both.filter(([a, b]) => a === b).length >= 0.5 * both.length, `${both.filter(([a, b]) => a === b).length} of ${both.length} on their sites`);
   assert.equal(r.kept, r.result.period < plain.period);
   assert.equal(best.period, Math.min(r.result.period, plain.period));
   // the kept circuit has the copies of the flip-flop
@@ -136,7 +143,7 @@ test('the three flows (the app\'s, open-flow.mjs, the design corpus\'s) place an
     const src = fs.readFileSync(path.join(root, f), 'utf8');
     assert.match(src, /placeRouteBest\(netlist, packed, /, f);
     // no placement, routing or replication of their own
-    for (const call of ['place(', 'routeDesign(', 'replicationPlan(', 'replicateFlipFlops(', 'placedXdl(']) assert.ok(!new RegExp(`[^\\w.]${call.replace('(', '\\(')}`).test(src), `${f}: ${call}`);
+    for (const call of ['place(', 'routeDesign(', 'replicationPlan(', 'replicateCells(', 'placedXdl(']) assert.ok(!new RegExp(`[^\\w.]${call.replace('(', '\\(')}`).test(src), `${f}: ${call}`);
   }
 });
 

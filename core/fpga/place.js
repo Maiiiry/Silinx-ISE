@@ -25,6 +25,7 @@
 //   const r = place(packed, dev, { seed, effort })
 //     r = { sites: [{ tile, site }] by instance, cost, warnings, stats: { moves, temps, seconds, initialCost } }
 //   placedXdl(packed, r) -> a design for writeXdl (core/xdl.js)
+//   place(packed, dev, { seed, start: { at, rlim, t } })   a warm start (#87): from a placement given
 
 import { instArcs, SPEED_4 } from './timing.js';
 
@@ -267,8 +268,12 @@ export function analyzeTiming(tg, pos, delays = null) {
  *  the wirelength; 0: wirelength only), delays (timing.js delayTable(device): the delay of a
  *  connection by its offset; default: from the distance, the model's dist), clockSites (bufgmux site name -> Set of the slice sites its clock reaches and
  *  of the block RAM / multiplier clock pins as `site.pin`, or null for all: the flip-flops, block RAMs and
- *  multipliers of a clock are kept on them; route.js clockReach), log (function for progress lines). */
-export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, bufgSites = null, delays = null, log = null } = {}) {
+ *  multipliers of a clock are kept on them; route.js clockReach), log (function for progress lines),
+ *  start (a warm start, #87: at[inst] = { x, y, exact } the slice (x, y) to start a slice instance
+ *  nearest to, the exact ones placed first, or { site } the pad / block RAM / multiplier site to start
+ *  an instance on when it is free; null: as without a start; then the annealing from rlim (the move
+ *  window, in slices) and t x the usual initial temperature). */
+export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, bufgSites = null, delays = null, log = null, start = null } = {}) {
   const t0 = Date.now();
   if (!dev.slices) throw new PlaceError('place: pass deviceSites(parseXdlrc(…))');
   const random = rng(seed);
@@ -471,7 +476,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
     const fp = freePads(o.dir, vccoOf(o.inst));
     if (!fp.length) throw padsError(o);
-    const p = fp[ri(fp.length)];
+    const want = start?.at[o.inst]?.site;
+    const p = (want && fp.find(q => q.name === want)) || fp[ri(fp.length)];
     bankAdd(p, vccoOf(o.inst), 1);
     padUsed.set(p.name, o);
     sites[o.inst] = p;
@@ -596,7 +602,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     }
     if (!free.length) throw new PlaceError(`place: ${inst.name}: no free ${o.kind === 'bram' ? 'block RAM' : 'multiplier'} site${inst.loc ? ` ${inst.loc}` : ''} (the device has ${hardSites[o.kind].length}${o.kind === 'bram' ? '' : '; a multiplier cannot share its tile with a block RAM of 36-bit ports'})`);
     o.fixed = !!inst.loc;
-    setHard(o, free[ri(free.length)]);
+    const want = start?.at[o.inst]?.site;
+    setHard(o, (want && free.find(s => s.name === want)) || free[ri(free.length)]);
   }
   // the slices a clock may reach (clockSites): the flip-flops of each clock stay on them
   const allowedOf = new Array(N).fill(null);
@@ -658,7 +665,27 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const slicesObjs = objs.filter(o => o.kind === 'macro').sort((a, b) => b.members.length - a.members.length);
   const total = slicesObjs.reduce((a, o) => a + o.members.length, 0);
   if (total > dev.slices.size) throw new PlaceError(`place: ${total} slices needed, the device has ${dev.slices.size}`);
+  // a warm start: each group with a slice to start from on the free legal anchor nearest to it (the
+  // exact ones first, the largest first), ring by ring around it; the others as without one
+  const target = o => { const m = o.members.find(x => start.at[x.inst]?.x !== undefined); return m && { ...start.at[m.inst], x: start.at[m.inst].x - m.dx, y: start.at[m.inst].y - m.dy }; };
+  const warm = start ? slicesObjs.filter(target).sort((a, b) => (target(b).exact - target(a).exact) || b.members.length - a.members.length) : [];
+  for (const o of warm) {
+    const t = target(o), cx = Math.round(t.x), cy = Math.round(t.y);
+    let at = null;
+    for (let r = 0; r <= maxX + maxY && !at; r++) {
+      let bd = Infinity;
+      for (let dx = -r; dx <= r; dx++) for (const dy of Math.abs(dx) === r ? [...Array(2 * r + 1).keys()].map(k => k - r) : [-r, r]) {
+        const x = cx + dx, y = cy + dy;
+        if (x < 0 || y < 0 || x > maxX || y > maxY || !fitsAt(o, x, y) || !freeAt(o, x, y)) continue;
+        const d = (x - t.x) ** 2 + (y - t.y) ** 2;
+        if (d < bd) { bd = d; at = [x, y]; }
+      }
+    }
+    if (at) setAt(o, at[0], at[1]);
+  }
+  const started = new Set(warm.filter(o => sites[o.members[0].inst]));
   for (const o of slicesObjs) {
+    if (started.has(o)) continue;
     let done = false;
     for (let tries = 0; tries < 20000 && !done; tries++) {
       // a window around the centre that grows with the attempts
@@ -958,8 +985,16 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   const sd = Math.sqrt(sample.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, sample.length));
   let T = 20 * sd || 1;
   const rlim0 = rlim;
+  // (a warm start: a cool annealing in a small window, the criticalities' exponent as there; t 0: none)
+  if (start) {
+    T *= start.t ?? 0.05;
+    rlim = Math.min(rlim0, start.rlim ?? 3);
+    critExp = 1 + 7 * Math.max(0, 1 - (rlim - 1) / Math.max(1, rlim0 - 1));
+    reweight();
+  }
   const perT = Math.max(100, Math.round(effort * 10 * Math.pow(movable.length, 4 / 3)));
-  for (;;) {
+  // (a warm start at t 0: the greedy pass alone, no move of the same cost)
+  while (T > 0) {
     let acc = 0, tried = 0;
     for (let k = 0; k < perT; k++) {
       if (!propose()) continue;
