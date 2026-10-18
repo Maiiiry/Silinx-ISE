@@ -71,7 +71,7 @@ export async function runOpenFlow(spec, io) {
     if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
     log(`Writing <${top}> as one flat module for Yosys; Yosys (WebAssembly) maps it onto the ${spec.family} cells.`);
     // (the synthesis's Optimization Effort, #282)
-    if (spec.synthEffort) log(spec.synthEffort === 'normal' ? 'Optimization Effort Normal: one mapping (High also tries the mappings for speed, a slower synthesis).'
+    if (spec.synthEffort) log(spec.synthEffort === 'normal' ? 'Optimization Effort Normal: one mapping, and the mappings for speed for a design limited by its logic depth (High tries them for every design, a slower synthesis).'
       : 'Optimization Effort High: the mappings for speed tried too, the fastest kept.');
     let r;
     try {
@@ -80,6 +80,8 @@ export async function runOpenFlow(spec, io) {
       for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
       throw new StepError(`synthesis failed: ${e.message}`);
     }
+    // (Normal: a design limited by its depth got the mappings for speed too, #468)
+    if (r.depth?.auto) log(`Optimization Effort Normal: ${r.depth.levels} levels of logic: the mappings for speed tried too, the fastest kept.`);
     for (const w of r.warnings.filter(w => !/^Warning:/.test(w))) log(`WARNING:Synthesis - ${w}`);
     const paths = {};
     for (const [name, text] of Object.entries(r.files)) paths[name] = io.write(`open/${name}`, text);

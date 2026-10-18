@@ -299,6 +299,45 @@ export function criticalDelay(json, top) {
   return worst();
 }
 
+// The logic levels of a mapped netlist: the LUTs (and MUXF5s, a LUT of 5 inputs) on its deepest path
+// between sequential cells, inputs and outputs (a carry chain's MUXCY / XORCY count none: its LUTs do)
+const LEVEL_CELL = t => /^(LUT[1-6]|INV|MUXF5)$/.test(t);
+const COMB_CELL = t => /^(LUT[1-6]|INV|BUF|MUXF[5-8]|MUXCY|XORCY)$/.test(t);
+/** The logic levels of the deepest path of a Yosys JSON netlist (its top module). */
+export function logicLevels(json, top) {
+  const nl = typeof json === 'string' ? JSON.parse(json) : json;
+  const mod = nl.modules[top] || Object.values(nl.modules).find(m => m.attributes?.top) || Object.values(nl.modules)[0];
+  const cells = Object.values(mod?.cells || {});
+  const driver = new Map();
+  for (const c of cells) for (const [p, bits] of Object.entries(c.connections || {})) if (c.port_directions?.[p] === 'output') for (const b of bits) if (typeof b === 'number') driver.set(b, c);
+  const memo = new Map(), busy = new Set();
+  const level = (c) => {
+    if (!COMB_CELL(c.type)) return 0;
+    if (memo.has(c)) return memo.get(c);
+    if (busy.has(c)) return 0;   // (a combinational loop)
+    busy.add(c);
+    let m = 0;
+    for (const [p, bits] of Object.entries(c.connections || {})) if (c.port_directions?.[p] === 'input') for (const b of bits) { const d = typeof b === 'number' ? driver.get(b) : null; if (d) m = Math.max(m, level(d)); }
+    busy.delete(c);
+    const v = m + (LEVEL_CELL(c.type) ? 1 : 0);
+    memo.set(c, v);
+    return v;
+  };
+  return cells.reduce((w, c) => Math.max(w, level(c)), 0);
+}
+// Optimization Effort Normal (#468): a design limited by its logic depth, its usual mapping more than
+// `levels` levels of logic deep and of DEPTH_RULE.maxLuts LUTs at most, gets High's mappings too (the
+// depth-oriented ones, the carry chains), each kept by DEPTH_RULE as at High; the others keep the one fast
+// run. On the design corpus (research/synth-quality/README.md, "Effort Normal"): the EPFL adder (85 levels)
+// 98 ns estimated -> 17, max (57) 66 -> 23, priority (44) 51 -> 17, for 6 to 19 s more; the designs of more
+// than 16 levels that High does not make faster (sin, voter, ITC'99 b20-b22) cost 7 to 56 s more; the
+// larger ones (log2, multiplier: 10 000 and 7 500 LUTs, 100 and 87 levels), as fast at High (no depth
+// mapping above maxLuts), would cost 75 to 86 s more and are left out; the shallower ones gain up to 1.5
+// times at High (EPFL router) but are not limited by their depth
+export const DEEP_RULE = { levels: 16 };
+/** Is a netlist of the usual mapping limited by its depth (DEEP_RULE)? */
+export const deepDesign = (json, top, rule = DEEP_RULE) => logicLevels(json, top) > rule.levels && utilization(cellCounts(json, top)).luts <= DEPTH_RULE.maxLuts;
+
 /** The files yosysScript reads: the flat module and Silinx's shift-register map and cells. */
 export const yosysFiles = (top, text) => ({ [`${top}_syn.v`]: text, [SRL_MAP_FILE]: SRL_MAP, [SRL_CELLS_FILE]: SRL_CELLS });
 
@@ -357,16 +396,36 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
  * abc9: false leaves it out) }.
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
- * usual mapping alone (no other mapping tried, no carry chains recovered: as depth false).
+ * usual mapping alone (no other mapping tried, no carry chains recovered: as depth false), but for a
+ * design limited by its depth (#468: deepDesign, its levels in r.depth.levels; r.depth.auto true), which
+ * gets High's mappings too.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
-  if (effort === 'normal') depth = false;
-  const tryDepth = depth && LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
-  const opts = tryDepth ? { premap: PREMAP_FILE } : {};
+  const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
+  const normal = effort === 'normal';
+  let tryDepth = !normal && depth && lut4;
+  // (Normal: the design as it is before the LUT mapping written too, for High's mappings if it is deep)
+  const opts = (tryDepth || (normal && depth && lut4)) ? { premap: PREMAP_FILE } : {};
   const log = [];
   const quiet = l => QUIET.some(re => re.test(l));
   const line = l => { if (!quiet(l)) { log.push(l); onLine(l); } };
+  // the usual mapping's run; at Normal made first, and given (its messages again) to whichever step needs it
+  let usual = null;
+  const usualRun = (say) => {
+    if (usual) { const u = usual; usual = null; for (const l of u.lines) say(l); return Promise.resolve(u.out); }
+    return run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), say);
+  };
+  let deep = null;   // Normal: the usual mapping's levels of logic, and whether that is deep (#468)
+  if (normal && depth && lut4) {
+    const lines = [];
+    const out = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => lines.push(l));
+    usual = { out, lines };
+    const json = out[`${top}.json`];
+    if (json) deep = { levels: logicLevels(json, top), deep: deepDesign(json, top) };
+    if (deep?.deep) tryDepth = true;
+  }
+  const highMappings = !normal || !!deep?.deep;
   // a mapping (its run's output) and, from the design as it was before its LUT mapping, the depth-oriented
   // one: the faster kept (DEPTH_RULE); its messages apart, only a warning of its own joins the log
   async function withDepth(out, say, seen) {
@@ -484,7 +543,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   // a comparator that then combines several bits at once, EPFL max, is slower). A design without such a
   // chain is synthesized as before, in one run.
   let res = null, chains = [];
-  if (effort !== 'normal' && LUT4_FAMILIES.has(YOSYS_FAMILY[family]) && gateAssignments(design) >= GATE_MIN) {
+  if (highMappings && lut4 && gateAssignments(design) >= GATE_MIN) {
     const [first, rest] = splitCommands(top, family, opts);
     const lines1 = [];
     const keep = l => { if (!quiet(l)) lines1.push(l); };
@@ -497,15 +556,16 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       const [resC, resN] = await Promise.all([
         run(['-q', '-p', `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_json ${CHAIN_FILE}; hierarchy -top ${top}; ${rest}; ${outputs(top)}`],
           { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); }).then(outC => withDepth(outC, () => {}, linesC)),
-        run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => { if (!quiet(l)) linesN.push(l); }).then(outN => withDepth(outN, () => {}, linesN)),
+        usualRun(l => { if (!quiet(l)) linesN.push(l); }).then(outN => withDepth(outN, () => {}, linesN)),
       ]);
       const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts]);
       if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) line(l); res = resC; }
       else { for (const l of linesN) line(l); res = resN; }
     }
   }
-  if (!res) res = await withDepth(await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), line), line, [...log]);
+  if (!res) res = await withDepth(await usualRun(line), line, [...log]);
   const { chosen, cells, info } = res;
+  if (deep) Object.assign(info, { levels: deep.levels, auto: deep.deep });
   const files = { [`${top}_syn.v`]: text, [`${top}.json`]: chosen[`${top}.json`], [`${top}_yosys.v`]: chosen[`${top}_yosys.v`] || '', [`${top}_stat.txt`]: chosen[`${top}_stat.txt`] || '' };
   // (a shift-chain array read at a variable tap is made flip-flops on purpose, then SRL16Es: Yosys's
   // "Replacing memory \m with list of registers" says nothing to the user there, #5)

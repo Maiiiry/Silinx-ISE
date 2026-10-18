@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -487,9 +487,73 @@ test('#282 Optimization Effort: Normal synthesizes once (no other mapping, no ca
   assert.equal(normal.n, 1);
   assert.ok(high.n > 3, String(high.n));
   assert.deepEqual([n.depth.tried, n.chains.length], [false, 0]);
+  // (its 9 levels of logic: not limited by its depth, #468)
+  assert.deepEqual([n.depth.levels, n.depth.auto], [9, false]);
   assert.deepEqual(n.warnings, []);
   // the usual mapping: slower than High's on this comparator chain, the same function
   assert.ok(criticalDelay(n.files['chain.json'], 'chain') > criticalDelay(hi.files['chain.json'], 'chain'));
   const d = compareNetlist(chain, n, { name: 'effort-normal-chain', sim: { cycles: 200 } });
+  assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+});
+
+// #468: at Normal, a design limited by its logic depth (DEEP_RULE: more than 16 levels, DEPTH_RULE.maxLuts LUTs at
+// most) gets High's mappings too; the others keep the one run
+test('#468 logicLevels: the LUTs and MUXF5s on the deepest path between sequential cells; deepDesign', () => {
+  // a netlist by hand: FF -> LUT -> LUT -> MUXF5 (with a LUT on I1) -> MUXF6 -> FF; a carry chain of 3
+  // MUXCYs after a LUT; an input -> INV -> output
+  let bit = 2;
+  const cells = {}, b = () => bit++;
+  const cell = (name, type, ins, outs) => { cells[name] = { type, port_directions: { ...Object.fromEntries(Object.keys(ins).map(p => [p, 'input'])), ...Object.fromEntries(Object.keys(outs).map(p => [p, 'output'])) }, connections: { ...ins, ...outs } }; };
+  const q = b(), l1 = b(), l2 = b(), l3 = b(), f5 = b(), f6 = b(), c0 = b(), c1 = b(), c2 = b(), s = b(), i = b(), o = b();
+  cell('ff', 'FDRE', { D: [f6], C: [b()] }, { Q: [q] });
+  cell('a', 'LUT2', { I0: [q], I1: [q] }, { O: [l1] });
+  cell('b2', 'LUT1', { I0: [l1] }, { O: [l2] });
+  cell('c', 'LUT1', { I0: [q] }, { O: [l3] });
+  cell('m5', 'MUXF5', { I0: [l2], I1: [l3], S: [q] }, { O: [f5] });
+  cell('m6', 'MUXF6', { I0: [f5], I1: [f5], S: [q] }, { O: [f6] });
+  cell('sl', 'LUT2', { I0: [q], I1: [q] }, { O: [s] });
+  cell('k0', 'MUXCY', { CI: ['0'], DI: [q], S: [s] }, { O: [c0] });
+  cell('k1', 'MUXCY', { CI: [c0], DI: [q], S: [s] }, { O: [c1] });
+  cell('k2', 'MUXCY', { CI: [c1], DI: [q], S: [s] }, { O: [c2] });
+  cell('ff2', 'FDRE', { D: [c2], C: [b()] }, { Q: [b()] });
+  cell('n', 'INV', { I: [i] }, { O: [o] });
+  const json = { modules: { t: { ports: {}, cells, netnames: {} } } };
+  // (a, b2, m5: the LUTs then the MUXF5, the MUXF6 none; the carry chain: its LUT alone)
+  assert.equal(logicLevels(json, 't'), 3);
+  assert.equal(deepDesign(json, 't'), false);
+  assert.equal(deepDesign(json, 't', { levels: 2 }), true);
+  assert.deepEqual(DEEP_RULE, { levels: 16 });
+  // a chain of 20 LUTs: deep; of 6000 LUTs in parallel besides: too large for the depth mappings
+  const chain = (n, extra) => {
+    const cs = {};
+    let prev = 2;
+    cs.f = { type: 'FDRE', port_directions: { D: 'input', Q: 'output' }, connections: { D: [100 + n], Q: [2] } };
+    for (let k = 0; k < n; k++) cs[`l${k}`] = { type: 'LUT1', port_directions: { I0: 'input', O: 'output' }, connections: { I0: [prev], O: [prev = 101 + k] } };
+    for (let k = 0; k < extra; k++) cs[`x${k}`] = { type: 'LUT1', port_directions: { I0: 'input', O: 'output' }, connections: { I0: [2], O: [100000 + k] } };
+    return { modules: { t: { ports: {}, cells: cs, netnames: {} } } };
+  };
+  assert.equal(logicLevels(chain(20, 0), 't'), 20);
+  assert.equal(deepDesign(chain(16, 0), 't'), false);
+  assert.equal(deepDesign(chain(17, 0), 't'), true);
+  assert.equal(deepDesign(chain(17, DEPTH_RULE.maxLuts - 17), 't'), true);
+  assert.equal(deepDesign(chain(17, DEPTH_RULE.maxLuts - 16), 't'), false);
+});
+test('#468 Optimization Effort Normal: a comparator chain of 17 levels gets the mappings for speed, faster; the same function', { timeout: 180000 }, async () => {
+  const text = CHAIN.replace(/23/g, '47').replace('i < 24', 'i < 48');
+  const deepChain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text }]), 'chain');
+  const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+  const auto = count(), alone = count();
+  const n = await synthesizeOpen(deepChain, { family: 'spartan3e', run: auto, effort: 'normal' });
+  // (depth: false, the usual mapping alone: Normal before #468)
+  const one = await synthesizeOpen(deepChain, { family: 'spartan3e', run: alone, effort: 'normal', depth: false });
+  assert.equal(alone.n, 1);
+  assert.ok(auto.n > 1, String(auto.n));
+  assert.deepEqual([n.depth.levels, n.depth.auto, n.depth.tried, n.depth.kept], [17, true, true, true]);
+  assert.deepEqual(one.depth.levels, undefined);
+  assert.deepEqual(n.warnings, []);
+  assert.deepEqual(one.warnings, []);
+  const [nsAuto, nsOne] = [criticalDelay(n.files['chain.json'], 'chain'), criticalDelay(one.files['chain.json'], 'chain')];
+  assert.ok(nsAuto < nsOne * 0.6, `${nsAuto} ns against ${nsOne}`);
+  const d = compareNetlist(deepChain, n, { name: 'effort-normal-deep-chain', sim: { cycles: 200 } });
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
 });
