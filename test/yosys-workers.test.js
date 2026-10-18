@@ -78,7 +78,8 @@ function recorder(parallel) {
   const runs = [];
   const run = (args, files, onLine) => {
     const p = args.join(' ');
-    const r = { kind: /^-q -p read_rtlil/.test(p) ? (/silinx_lut\.lib/.test(p) ? 'second-delays' : files['silinx_depth.abc'] === DEPTH_ABC2 ? 'second' : 'first') : 'synth', start: ++tick, end: null };
+    // (ABC9's remap, #377: the cells' models read before the RTLIL)
+    const r = { kind: / -abc9 -nowidelut /.test(p) ? 'abc9' : /^-q -p read_rtlil/.test(p) ? (/silinx_lut\.lib/.test(p) ? 'second-delays' : files['silinx_depth.abc'] === DEPTH_ABC2 ? 'second' : 'first') : 'synth', start: ++tick, end: null };
     runs.push(r);
     return yosysNode(args, files, onLine).then(o => { r.end = ++tick; return o; });
   };
@@ -97,19 +98,24 @@ endmodule
 `;
 const COUNTER = 'module counter(input clk, output reg [7:0] q); always @(posedge clk) q <= q + 1; endmodule\n';
 
-test('#277 with 4 Yosys at a time the second balancing starts with the first mappings, with fewer after them; the same netlist', { timeout: 300000 }, async () => {
+test('#277 with 4 Yosys at a time the second balancing (and ABC9\'s remap, #377) starts with the first mappings, with fewer after them; the same netlist', { timeout: 300000 }, async () => {
   const chain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain');
   const few = recorder(2), many = recorder(4);
   const r1 = await synthesizeOpen(chain, { run: few });
   const r2 = await synthesizeOpen(chain, { run: many });
   const kinds = rs => rs.map(r => r.kind);
-  assert.deepEqual(kinds(few.runs), ['synth', 'first', 'first', 'second', 'second-delays']);
-  assert.deepEqual(kinds(many.runs), ['synth', 'first', 'first', 'second', 'second-delays']);
+  // ABC9's remap (#377): with two last, after the others; with four right after the first ones, before the second
+  // balancing (its run the longest)
+  assert.deepEqual(kinds(few.runs), ['synth', 'first', 'first', 'second', 'second-delays', 'abc9']);
+  assert.deepEqual(kinds(many.runs), ['synth', 'first', 'first', 'abc9', 'second', 'second-delays']);
   const firstEnd = rs => Math.max(...rs.filter(r => r.kind === 'first').map(r => r.end));
   const secondStart = rs => Math.min(...rs.filter(r => /^second/.test(r.kind)).map(r => r.start));
   // two: after the first ones ended (the depth-oriented one kept); four: before
   assert.ok(secondStart(few.runs) > firstEnd(few.runs), JSON.stringify(few.runs));
   assert.ok(secondStart(many.runs) < firstEnd(many.runs), JSON.stringify(many.runs));
+  const abc9Start = rs => rs.find(r => r.kind === 'abc9').start;
+  assert.ok(abc9Start(few.runs) > Math.max(...few.runs.filter(r => /^second/.test(r.kind)).map(r => r.end)), JSON.stringify(few.runs));
+  assert.ok(abc9Start(many.runs) < firstEnd(many.runs), JSON.stringify(many.runs));
   assert.equal(r2.files['chain.json'], r1.files['chain.json']);
   assert.deepEqual(r2.depth, r1.depth);
   assert.deepEqual(r2.warnings, r1.warnings);
@@ -118,8 +124,8 @@ test('#277 with 4 Yosys at a time the second balancing starts with the first map
   const counter = elaborate(compile([{ path: 'counter.v', lang: 'verilog', text: COUNTER }]), 'counter');
   const c1 = recorder(), c2 = recorder(4);
   const n1 = await synthesizeOpen(counter, { run: c1 }), n2 = await synthesizeOpen(counter, { run: c2 });
-  assert.deepEqual(kinds(c1.runs), ['synth', 'first', 'first']);
-  assert.deepEqual(kinds(c2.runs), ['synth', 'first', 'first', 'second', 'second-delays']);
+  assert.deepEqual(kinds(c1.runs), ['synth', 'first', 'first', 'abc9']);
+  assert.deepEqual(kinds(c2.runs), ['synth', 'first', 'first', 'abc9', 'second', 'second-delays']);
   assert.equal(n2.files['counter.json'], n1.files['counter.json']);
   assert.deepEqual(n2.depth, n1.depth);
   assert.deepEqual([n1.depth.kept, n1.depth.second, n1.depth.delays], [false, undefined, undefined]);
