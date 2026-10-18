@@ -711,13 +711,13 @@ uiTest('#282 open mode: Optimization Effort Normal (the default) synthesizes onc
     await page.waitForSelector('.dlg-overlay .effort-hint');
     return page.eval(() => document.querySelector('.dlg-overlay .effort-hint').textContent);
   };
-  assert.equal(await props(), 'Silinx toolchain: Optimization Effort Normal synthesizes once, fast, and tries the mappings for speed only on a design limited by its logic depth; High tries them on every design (a slower synthesis, a circuit about 5-10 % faster).');
+  assert.equal(await props(), 'Silinx toolchain: Optimization Effort Normal synthesizes once, fast, and tries the mappings for speed only on a design limited by its logic depth or with wide multiplexers; High tries them on every design (a slower synthesis, a circuit about 5-10 % faster).');
   await page.dialogButton('Cancel');
   await page.waitNoDialog();
   const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
   await setLang('pt');
   try {
-    assert.equal(await props('Sintetizar - Yosys', 'Propriedades do Processo…'), 'Toolchain Silinx: o Esforço de Otimização Normal sintetiza uma vez, depressa, e só experimenta os mapeamentos para velocidade num desenho limitado pela sua profundidade lógica; Alto experimenta-os em todos os desenhos (uma síntese mais lenta, um circuito cerca de 5-10 % mais rápido).');
+    assert.equal(await props('Sintetizar - Yosys', 'Propriedades do Processo…'), 'Toolchain Silinx: o Esforço de Otimização Normal sintetiza uma vez, depressa, e só experimenta os mapeamentos para velocidade num desenho limitado pela sua profundidade lógica ou com multiplexadores largos; Alto experimenta-os em todos os desenhos (uma síntese mais lenta, um circuito cerca de 5-10 % mais rápido).');
     await page.dialogButton('Cancelar');
     await page.waitNoDialog();
   } finally { await setLang('en'); }

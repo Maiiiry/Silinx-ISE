@@ -7,6 +7,10 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Wide multiplexers on the FPGA's F-multiplexers:** a multiplexer of 8 inputs or more (a bit chosen from a
+  register by an index) is built from LUTs into MUXF5, MUXF6 and MUXF7, as ISE's synthesis does, when that is better,
+  at both Optimization Efforts. The design corpus's iwls05-spi is 8 % faster (19.2 ns to 17.6) and 15 % smaller
+  in slices.
 - **Faster shift registers:** a chain of flip-flops kept in SRL16 shift registers now ends in a flip-flop, as ISE's
   synthesis does: what reads it no longer waits for the SRL16's slow output (3.8 ns). The design corpus's
   iwls05-usb-phy is a third faster (8.2 ns to 5.5, ISE 5.0).
@@ -37,6 +41,22 @@ In short:
 
 In detail:
 
+- **Wide multiplexers onto MUXF5 / MUXF6 / MUXF7 (#511):** the usual run of the open synthesis (4-input-LUT
+  families) counts, on a copy of the netlist before the LUT mapping, the trees of 8 and 16 inputs among its 2:1
+  multiplexers (Yosys's `muxcover -mux8 -mux16 -nodecode`); with some, the design is mapped again from that
+  netlist with each tree as 2:1 multiplexers on its first select (left to ABC, with the logic before them) into
+  MUXF5, MUXF6 and MUXF7 (`MUXF_MAP`, `muxfRemapCommands`), the rest onto LUT4s alone, and that netlist is kept
+  when better by DEPTH_RULE (r.depth.muxf), at Normal and High. Onto LUT4s alone a 128:1 multiplexer was 6 or 7
+  LUTs deep; the mapping with the wider functions did no better (ABC sees a 4:1 multiplexer as one 6-input LUT).
+  Not for every design: a tree whose first select comes late is slower (the T80, 15 % by the estimate), and the
+  F-multiplexers' slices hold no other flip-flop (registers straight from the inputs: more slices); 4:1 trees
+  too made serv 29 % slower by the estimate. Found comparing the critical paths with ISE's on the design corpus:
+  iwls05-spi's went through 8 LUTs after the bit index, where XST has a LUT, MUXF5 … MUXF8. Measured with ISE's
+  trce on the routed design (Normal, XC3S1200E): 19.18 ns to 17.57 (ISE 13.04), 886 LUTs to 745 (ISE 717), 465
+  slices to 397 (ISE 430); the rest of its path is two carry chains and a net of fanout 120. Of the examples,
+  traffic and pong have trees, not kept (one Yosys run more at Normal). Tests: `test/synth-open.test.js` (the
+  script and the count; register files of 32 and 128 bits in Verilog and VHDL: kept at both efforts, faster and
+  smaller, equal to the RTL; registers straight from the inputs: not kept; a counter: one run).
 - **A fixed-length shift register's last stage in a flip-flop (#502):** the open synthesis's SRL map
   (`core/synth-open.js` SRL_MAP) makes a chain of n stages (xilinx_srl -fixed) SRL16Es of n - 1 stages and a
   flip-flop (FDRE, FDRE_1 on the falling edge; its INIT the last stage's), as XST does: an SRL16E's clock-to-out
