@@ -5,7 +5,7 @@
 // reconfigure (the FPGA configured from the PROM's bits), the image's bit order, the errors.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { promAdept, promImage, bitFields, xcfSize, Xcf, XCF, NOT_DONE, tckRate } from '../core/xcf.js';
+import { promAdept, promImage, bitFields, xcfSize, Xcf, XCF, NOT_DONE, ERASED, tckRate } from '../core/xcf.js';
 import { Adept, Djtg, Chain } from '../core/adept.js';
 import { SimAdeptBoard } from './fixtures/adept-sim.js';
 
@@ -60,7 +60,11 @@ test('xcfSize: the XCF01S / 02S / 04S by IDCODE; another device refused', () => 
   assert.throws(() => xcfSize(0x05059093), /unsupported Platform Flash IDCODE 05059093/);
 });
 
-test('program: the Basys2\'s XCF02S erased, programmed by blocks, verified; the FPGA then loads from it (DONE)', async () => {
+// #521: the board's FPGA unconfigured (as after a power-up with an empty PROM): the verify's read leaves
+// the PROM's address counter past the image, CONFIG loads nothing, and the FPGA's JPROGRAM loads it
+// (on the old code: NOT_DONE)
+const JPROGRAM_LINE = 'the FPGA did not start after CONFIG: JPROGRAM (the FPGA reset, it loads from the PROM)';
+test('program: the Basys2\'s XCF02S erased, programmed by blocks, verified; the FPGA then loads from it (DONE: after JPROGRAM, #521)', async () => {
   const board = new SimAdeptBoard();
   const { bit, data } = fakeBit();
   const lines = [];
@@ -79,8 +83,9 @@ test('program: the Basys2\'s XCF02S erased, programmed by blocks, verified; the 
     '  block program time (ISCTESTSTATUS, every block): 13.10 to 13.10 ms, mean 13.10 ms of TCK; 80 polls; 241.75 to 241.75 ms, mean 241.75 ms a block in all',
     '  USB: data shifts 40 x 20.5 KB in 8.2 s (3 KB/s); TAP moves 85 x 11.1 KB in 1.5 s (7 KB/s)',
     'programmed 40 blocks in 9.8 s', 'verifying...', '  USB: data shifts 40 x 20.5 KB in 8.2 s (3 KB/s); TAP moves 44 x 1.1 KB in 0.1 s (8 KB/s)', 'verify OK in 8.4 s',
-    'reconfiguring the FPGA from the PROM...', 'STATUS: DONE', 'program done in 18.9 s',
+    'reconfiguring the FPGA from the PROM...', JPROGRAM_LINE, 'STATUS: DONE', 'program done in 18.9 s',
   ]);
+  assert.ok(board.done);
   const prom = board.promDev;
   assert.deepEqual(prom.errors, [], 'the ISC protocol kept');
   assert.deepEqual(prom.ops, ['enable 0x37', 'erase', 'disable', 'enable 0x37', ...Array.from({ length: n }, (_, i) => `program ${i}`), 'disable',
@@ -127,8 +132,30 @@ test('erase: the whole PROM back to 1s; reconfigure alone', async () => {
   await promAdept(board, { op: 'program', bit, verify: false, ...FAST });
   const rc = [];
   await promAdept(board, { op: 'reconfigure', log: l => rc.push(l), ...fast(board) });
-  assert.deepEqual(rc.slice(3), [TCK20, 'reconfiguring the FPGA from the PROM...', 'STATUS: DONE', 'reconfigure done in 0.1 s']);
+  assert.deepEqual(rc.slice(3), [TCK20, 'reconfiguring the FPGA from the PROM...', JPROGRAM_LINE, 'STATUS: DONE', 'reconfigure done in 0.1 s']);
   assert.ok(board.done);
+  assert.deepEqual(board.promDev.errors, []);
+});
+
+// #521: the FPGA configured (DONE high: the PROM's CE holds its address counter reset), CONFIG alone
+// loads it, as before; an erased PROM has nothing to load: its own error, not the jumper's
+test('reconfigure: CONFIG alone when the FPGA was configured; an erased PROM says so', async () => {
+  const board = new SimAdeptBoard();
+  const { bit } = fakeBit(3000);
+  board.fpgaDev.done = true;   // configured (by JTAG, or from the PROM at power-up)
+  const lines = [];
+  await promAdept(board, { op: 'program', bit, reconfigure: true, log: l => lines.push(l), ...fast(board) });
+  assert.deepEqual(lines.slice(-3), ['reconfiguring the FPGA from the PROM...', 'STATUS: DONE', 'program done in 3.6 s']);
+  assert.equal(board.promDev.counter, 0);
+  const rc = [];
+  await promAdept(board, { op: 'reconfigure', log: l => rc.push(l), ...fast(board) });
+  assert.deepEqual(rc.slice(4), ['reconfiguring the FPGA from the PROM...', 'STATUS: DONE', 'reconfigure done in 0.1 s']);
+  // erased: the reload fails at once with the PROM's own message (after CONFIG and JPROGRAM, 2 polls each)
+  await promAdept(board, { op: 'erase', ...FAST });
+  const er = [];
+  await assert.rejects(promAdept(board, { op: 'reconfigure', log: l => er.push(l), ...FAST, configPolls: 2, donePolls: 2 }), new RegExp(`^Error: Adept USB: ${ERASED.replace(/[()?]/g, '\\$&')}$`));
+  assert.deepEqual(er.slice(4), ['reconfiguring the FPGA from the PROM...', JPROGRAM_LINE, 'STATUS: the PROM is erased']);
+  assert.equal(board.done, false);
   assert.deepEqual(board.promDev.errors, []);
 });
 

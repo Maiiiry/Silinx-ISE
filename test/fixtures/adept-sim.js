@@ -25,17 +25,23 @@ const NEXT = {
 };
 
 class Fpga {
-  constructor(name) { Object.assign(this, { name, irLen: 6, idcode: IDS[name], idInstr: 0x09 }); this.reset(); this.done = false; this.init = true; this.config = null; this.stream = []; this.initDelay = 0; this.startClocks = 0; }
+  constructor(name) { Object.assign(this, { name, irLen: 6, idcode: IDS[name], idInstr: 0x09 }); this.reset(); this.done = false; this.init = true; this.config = null; this.stream = []; this.initDelay = 0; this.startClocks = 0; this.prom = null; this.fromProm = false; }
   reset() { this.ir = this.idInstr; }
   captureIr() { return 0x01 | (this.init ? 0x10 : 0) | (this.done ? 0x20 : 0); }
   update() {
-    if (this.ir === 0x0b) { this.done = false; this.init = false; this.initDelay = 40; this.stream = []; this.config = null; }   // JPROGRAM
+    // JPROGRAM: cleared; once INIT_B is back, with the mode jumper on ROM, it loads from the PROM (from
+    // its start: INIT_B low resets the PROM's address counter), unless CFG_IN came meanwhile (#521)
+    if (this.ir === 0x0b) { this.done = false; this.init = false; this.initDelay = 40; this.stream = []; this.config = null; this.fromProm = !!this.prom; }
+    if (this.ir === 0x05) this.fromProm = false;   // CFG_IN
     if (this.ir === 0x0c) this.startClocks = 0;   // JSTART
   }
   captureDr() { return this.ir === this.idInstr ? [this.idcode, 32] : [0, 1]; }
   shiftedIn(bit) { if (this.ir === 0x05 && this.init) this.stream.push(bit); }   // CFG_IN
   clock(state) {
-    if (!this.init && --this.initDelay <= 0) this.init = true;
+    if (!this.init && --this.initDelay <= 0) {
+      this.init = true;
+      if (this.fromProm && this.prom.mode === 'rom') { this.fromProm = false; this.prom.counter = 0; this.configureFrom(this.prom.mem); }
+    }
     if (state === 'RTI' && this.ir === 0x0c && ++this.startClocks >= 8 && !this.done) this.start();
   }
   // the configuration of a Platform Flash (master serial: its bits in order, CCLK)
@@ -62,6 +68,9 @@ class Fpga {
 // (IEEE 1532: an ISC operation starts when the TAP enters Run-Test/Idle with its instruction in
 // the IR; another instruction before that and it never runs, #289), the ISC status, CONFIG (the FPGA configured from the memory, the mode jumper on ROM). What breaks
 // the protocol (a program before an erase, ISC outside ISC mode, a wrong length…) goes to errors.
+// The address counter of the PROM's serial output (#521, as the board behaves): a read (ISC_READ)
+// leaves it past what was read unless the FPGA's DONE (the PROM's CE) holds it reset; CONFIG makes
+// the FPGA load from where the counter is (past the image: nothing); the FPGA's JPROGRAM resets it.
 const ISC = { ENABLE: 0xe8, PROGRAM: 0xea, ADDRESS: 0xeb, ERASE: 0xec, DATA: 0xed, CONFIG: 0xee, READ: 0xef, DISABLE: 0xf0, STATUS: 0xe3 };
 class Prom {
   constructor(name, { writeProtected = false, eraseClocks = 5000, programClocks = 200, failBlock = null } = {}) {
@@ -70,7 +79,7 @@ class Prom {
     this.mem = new Uint8Array(size).fill(1);   // one bit per entry, in the order they are shifted in (and out to the FPGA)
     this.written = new Uint8Array(size / block);   // blocks programmed since the last erase
     this.isc = false; this.addr = 0; this.data = null; this.busy = 0; this.pendingOp = null; this.armed = null;
-    this.errors = []; this.ops = []; this.fpga = null; this.mode = 'rom';
+    this.errors = []; this.ops = []; this.fpga = null; this.mode = 'rom'; this.counter = 0;
     this.reset();
   }
   reset() { this.ir = this.idInstr; }
@@ -110,7 +119,11 @@ class Prom {
     } else if (ir === ISC.CONFIG) {
       if (this.isc) return this.error('CONFIG in ISC mode');
       this.ops.push('config');
-      if (this.fpga && this.mode === 'rom') this.fpga.configureFrom(this.mem);
+      if (this.fpga && this.mode === 'rom') {
+        const from = this.fpga.done ? 0 : this.counter;
+        this.fpga.configureFrom(this.mem.subarray(from));
+        if (this.fpga.done) this.counter = 0;
+      }
     }
   }
   finish() {
@@ -136,6 +149,7 @@ class Prom {
         if (!this.isc) { this.error('ISC_READ outside ISC mode'); return { bits: new Array(this.block).fill(0) }; }
         const b = this.addr / 32;
         this.ops.push(`read ${b}`);
+        if (!this.fpga?.done) this.counter = (b + 1) * this.block;
         return { bits: [...this.mem.subarray(b * this.block, (b + 1) * this.block)] };
       }
       default: return [0, 1];
@@ -171,6 +185,7 @@ export class SimAdeptBoard {
   constructor({ fpga = 'xc3s250e', prom = 'xcf02s', product = 'Basys2', serial = '10146A2B3C4D', inUse = false, promOptions = {}, mode = 'rom', tckHz = 4_000_000 } = {}) {
     this.fpgaDev = new Fpga(fpga);
     this.promDev = prom ? Object.assign(new Prom(prom, promOptions), { fpga: this.fpgaDev, mode }) : null;
+    this.fpgaDev.prom = this.promDev;
     this.chain = [this.fpgaDev, ...(prom ? [this.promDev] : [])];
     Object.assign(this, { product, serial, inUse, tckHz, vendorId: 0x1443, productId: 0x0007, productName: `Digilent ${product}` });
     this.state = 'TLR';

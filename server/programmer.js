@@ -227,6 +227,7 @@ export async function promJob(job, req) {
   const log = job.lines.slice(start).join('\n');
   let fail = code !== 0 ? `xcf_prog exited with code ${code}` : null;
   if (!fail && (op === 'verify' || (op === 'program' && req.verify !== false)) && !/verify OK/.test(log)) fail = 'verification did not complete';
+  if (!fail && /STATUS: the PROM is erased/.test(log)) fail = 'the PROM is erased: nothing to load (Program PROM first)';
   if (!fail && (op === 'reconfigure' || (op === 'program' && req.reconfigure)) && !/STATUS: DONE/.test(log)) fail = 'the FPGA did not load from the PROM (mode jumper on ROM? PROM bitstream with StartUpClk:Cclk?)';
   if (fail) throw Object.assign(new Error(fail), { result: { op, code } });
   job.log(`Platform Flash ${op} finished.`);
