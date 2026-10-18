@@ -391,18 +391,20 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         let base = json;
         const linesW = [], lines2 = [], lines3 = [], lines4 = [];
         const first = Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
-        // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
-        // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
-        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
-        const early = (run.parallel || 1) >= 4 ? second() : null;
-        early?.catch(() => {});
         // ABC9 onto LUT4s alone (#377), from the same netlist, measured against the netlist chosen of the others:
-        // started now with 4 Yosys or more at a time, else after them (each more Yosys costs memory in the browser)
+        // with 4 Yosys or more at a time started now, before the second balancing (its run, about 2.5 times a
+        // remap's, the longest: last in the queue it would make the synthesis longest), else after them (each
+        // more Yosys costs memory in the browser)
         const lines9 = [];
         const abc9 = () => run(['-q', '-p', `${abc9RemapCommands(top, family)}; ${outputs(top)}`], { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [SRL_CELLS_FILE]: SRL_CELLS },
           l => { if (!quiet(l)) lines9.push(l); });
         const early9 = withAbc9 && (run.parallel || 1) >= 4 ? abc9() : null;
         early9?.catch(() => {});
+        // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
+        // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
+        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
+        const early = (run.parallel || 1) >= 4 ? second() : null;
+        early?.catch(() => {});
         const [outW, out2] = await first;
         const jsonW = outW[`${top}.json`];
         if (jsonW) {

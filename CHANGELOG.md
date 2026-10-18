@@ -81,7 +81,8 @@ In detail:
   netlist is kept when better by the depth rule. It is kept on 4 of the 21 designs of the measurement and on 9 of
   the 67 corpus designs: iwls05-i2c 35 % fewer slices and 2 % faster, verilog-uart 4.6 % faster by ISE's trce,
   epfl-voter and itc99-b09 4 and 15 % faster. On average the period is 0.4 % shorter and the slices 2.6 % fewer,
-  for about 3 s more synthesis per design (one Yosys at a time). Effort Normal, the default, is unchanged.
+  for about 1 s more synthesis per design with 4 Yosys at a time
+  (the Node app; 3 s with one at a time). Effort Normal, the default, is unchanged.
   research/synth-quality/README.md, "ABC9 as a candidate".
 - **Static timing: the SLICEM's shift registers and RAMs as trce times them (#443):** their delays were
   estimates. Now they are trce's (`research/s3e-route/timing-fit.mjs --arcs`, a new mode that reads the logic

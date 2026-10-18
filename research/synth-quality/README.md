@@ -425,7 +425,9 @@ models and Silinx's SRL16E_1 first, because the RTLIL holds them as bare black b
 the netlist chosen by the other mappings, by `keepDepth` (DEPTH_RULE unchanged); `r.depth.abc9` says what
 happened, and `abc9: false` leaves it out.
 
-It runs after the others, or with them when `run` has 4 Yosys at a time or more. Like the others, it is inside
+It runs after the others, or, when `run` has 4 Yosys at a time or more, right after the first two mappings and
+before the second balancing. Its run takes about 2.5 times a remap's (blinky: 2.43 s against 0.97), so last in the
+queue it would lengthen the synthesis most. Like the others, it is inside
 the try of #401: if it fails, the usual mapping is kept.
 
 Effort Normal, the app's default, doesn't run it.
@@ -462,6 +464,9 @@ several Yosys, the extra run is mostly in parallel.
 - **Kept on 4 of 21 designs**: gates, verilog-uart, nandland-spi-vhdl and fpu-adder.
 - **Geometric means over the 19 designs with a clock** (now / before): LUTs 1.007, slices 0.974, period 0.996.
   Synthesis time 1.47, about 2.5 to 3.9 s more per design with one Yosys at a time.
+- **With 4 Yosys at a time** (`yosysWorkers(4)`, as the Node app runs them; the 7 examples, the subset and EPFL
+  max, best of two runs): synthesis time 1.25, 0.9 to 1.4 s more per design (blinky 3.4 → 4.4 s, picorv32 7.2 →
+  8.6 s, EPFL max 10.9 → 12.3 s). Started after the second balancing instead, it was 1.58.
 - **ISE's trce on the routed designs, before → now:**
   - verilog-uart: 9.680 → 9.232 ns (−4.6 %);
   - nandland-spi-vhdl: 5.493 → 5.597 ns (+1.9 %), with 37 % fewer slices;
