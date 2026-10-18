@@ -28,7 +28,7 @@ test('ABC9 measurement: the open synthesis up to its LUT mapping, then synth_xil
   assert.throws(() => wayScript('now', 'top'), /no such way: now/);
 });
 
-test('ABC9 with Yosys: an AND of 12 is 4 LUT4s, a 5-stage shift register one SRL16E, each mapping equal to the RTL', { timeout: 300000 }, async () => {
+test('ABC9 with Yosys: an AND of 12 is 4 LUT4s, a 5-stage shift register one SRL16E and a flip-flop, each mapping equal to the RTL', { timeout: 300000 }, async () => {
   const { yosysNode } = await import('../core/synth-open-node.js');
   const src = 'module top(input clk, input [11:0] a, input d, output y, output q); reg [4:0] r = 0;\n'
     + '  always @(posedge clk) r <= {r[3:0], d};\n  assign y = &a; assign q = r[4];\nendmodule\n';
@@ -42,7 +42,7 @@ test('ABC9 with Yosys: an AND of 12 is 4 LUT4s, a 5-stage shift register one SRL
     assert.equal(u.luts, 4, `${way}: 3 LUT4s of 4 inputs and one of 3`);
     assert.equal(u.muxes, 0, way);
     assert.equal(u.shiftRegisters, 1, `${way}: the chain in one SRL16E`);
-    assert.equal(u.flipFlops, 0, way);
+    assert.equal(u.flipFlops, 1, `${way}: its last stage a flip-flop (#502)`);
     // the only warning: Yosys's own shift-register inference, which the open synthesis replaces
     assert.deepEqual(lines.filter(l => /^Warning:/.test(l)), ['Warning: Shift register inference not yet supported for family xc3se.'], way);
     const syn = { top, files: { 'top.json': out['top.json'], 'top_yosys.v': out['top_yosys.v'] }, cells };
