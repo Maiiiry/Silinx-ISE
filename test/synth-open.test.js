@@ -289,6 +289,62 @@ end;
   assert.equal(cx.status, 'pass', cx.report || cx.reason);
 });
 
+// Regression (#523): an element written with its own value on one side (x[i] <= c ? v : x[i]) read the element, a
+// multiplexer of the whole vector (iwls05-spi's 128:1, on its critical path), only to write the same bit back: now
+// the conditional write if (c) x[i] <= v; not after another write to the vector in the process (x[i] keeps that
+// value there), nor through a call
+test('#523 an element written back with its own value (x[i] <= c ? v : x[i], VHDL\'s when / else and if / else): a conditional write without reading the vector, in Verilog and in VHDL; the netlists simulate like the designs', { timeout: 300000 }, async () => {
+  const VLG = `module rb(input clk, c, v, clr, input [2:0] i, j, output reg [7:0] q, r, s, t);
+  function [2:0] f(input [2:0] a); f = a ^ 3'd5; endfunction
+  always @(posedge clk) begin
+    q[i] <= c ? v : q[i];
+    r[i + 3'd1] <= c ? r[i + 3'd1] : v;
+    if (clr) s[j] <= 1'b0;
+    s[i] <= c ? v : s[i];
+    t[f(i)] <= c ? v : t[f(i)];
+  end
+endmodule`;
+  const VHD = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity rb is port (clk, c, v, clr : in std_logic; i, j : in unsigned(2 downto 0); q, r, s, t : out std_logic_vector(7 downto 0)); end;
+architecture rtl of rb is
+  signal qq, rr, ss, tt : std_logic_vector(7 downto 0);
+  function f(a : unsigned(2 downto 0)) return unsigned is begin return a xor "101"; end;
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      qq(to_integer(i)) <= v when c = '1' else qq(to_integer(i));
+      if c = '1' then rr(to_integer(i + 1)) <= rr(to_integer(i + 1)); else rr(to_integer(i + 1)) <= v; end if;
+      if clr = '1' then ss(to_integer(j)) <= '0'; end if;
+      ss(to_integer(i)) <= v when c = '1' else ss(to_integer(i));
+      tt(to_integer(f(i))) <= v when c = '1' else tt(to_integer(f(i)));
+    end if;
+  end process;
+  q <= qq; r <= rr; s <= ss; t <= tt;
+end;`;
+  const syn = async (text, p) => {
+    const d = elaborate(compile([{ path: p, text }]), 'rb');
+    return { d, r: await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort: 'normal' }), text: toVerilog(d).text };
+  };
+  const a = await syn(VLG, 'rb.v'), b = await syn(VHD, 'rb.vhd');
+  assert.match(a.text, /^ {4}if \(c\) begin\n {6}q\[i\] <= v;\n {4}end\n/m);
+  assert.match(a.text, /^ {4}if \(!\(c\)\) begin\n {6}r\[3'\(i \+ 3'h1\)\] <= v;\n {4}end\n/m);
+  assert.match(b.text, /^ {4}if \(\(c == 1'h1\)\) begin\n {6}qq\[i\] <= v;\n {4}end\n/m);
+  assert.match(b.text, /^ {4}if \(\(c == 1'h1\)\) begin\n {4}end else begin\n {6}rr\[3'\(i \+ 3'h1\)\] <= v;\n {4}end\n/m, 'rr(i + 1) <= rr(i + 1): nothing');
+  // after a write to s (s[j] <= 0 when clr, then s[i] keeps it), and an index through a function: as written
+  assert.match(a.text, /^ {4}s\[i\] <= \(c \? 1'\(v\) : 1'\(1'\(s >> i\)\)\);$/m);
+  assert.match(a.text, /^ {4}t\[fn_f\(i\)\] <= \(c \? 1'\(v\) : 1'\(1'\(t >> fn_f\(i\)\)\)\);$/m);
+  assert.match(b.text, /^ {4}ss\[i\] <= \(\(c == 1'h1\) \? 1'\(v\) : 1'\(1'\(ss >> i\)\)\);$/m);
+  assert.match(b.text, /^ {4}tt\[fn_f\(i\)\] <= /m);
+  // (were 82 and 80 LUTs, 12 MUXF5 / MUXF6 each: the 8:1 reads of q and r)
+  for (const x of [a, b]) {
+    assert.deepEqual([x.r.util.luts, x.r.util.muxes], [71, 6]);
+    assert.deepEqual(x.r.warnings, []);
+    assert.deepEqual(x.d.diags, []);
+    const c = compareNetlist(x.d, x.r, { name: 'read-back', seed: 'rb', sim: { cycles: 600 } });
+    assert.equal(c.status, 'pass', c.report || c.reason);
+  }
+});
+
 // ------------------------------------------------------------------ logic depth (#52, 15.10.3)
 const cell = (type, ins, outs) => ({ type, port_directions: { ...Object.fromEntries(Object.keys(ins).map(p => [p, 'input'])), ...Object.fromEntries(Object.keys(outs).map(p => [p, 'output'])) },
   connections: { ...Object.fromEntries(Object.entries(ins).map(([p, b]) => [p, [b]])), ...Object.fromEntries(Object.entries(outs).map(([p, b]) => [p, [b]])) } });
