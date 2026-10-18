@@ -11,6 +11,10 @@ In short:
   register by an index) is built from LUTs into MUXF5, MUXF6 and MUXF7, as ISE's synthesis does, when that is better,
   at both Optimization Efforts. The design corpus's iwls05-spi is 8 % faster (19.2 ns to 17.6) and 15 % smaller
   in slices.
+- **Smaller, faster VHDL indexes by integers:** a vector indexed by an integer of a range (`natural range 0 to 7`,
+  a signal or a variable) is now indexed by that integer's own bits, as ISE's synthesis does, instead of a 32-bit
+  number whose range Yosys checked with a 32-bit carry chain. The design corpus's itc99-b12 has 24 % fewer slices
+  and a shorter critical path.
 - **Faster shift registers:** a chain of flip-flops kept in SRL16 shift registers now ends in a flip-flop, as ISE's
   synthesis does: what reads it no longer waits for the SRL16's slow output (3.8 ns). The design corpus's
   iwls05-usb-phy is a third faster (8.2 ns to 5.5, ISE 5.0).
@@ -60,6 +64,19 @@ In detail:
   traffic and pong have trees, not kept (one Yosys run more at Normal). Tests: `test/synth-open.test.js` (the
   script and the count; register files of 32 and 128 bits in Verilog and VHDL: kept at both efforts, faster and
   smaller, equal to the RTL; registers straight from the inputs: not kept; a counter: one run).
+- **An index of a narrow integer in its own bits (#514):** the synthesis front end (`core/synth-verilog.js`) wrote
+  every integer signal or variable narrower than 32 bits back as 32 signed bits where it is read, and so as a bit
+  index (`nl[$signed(32'(data_out))]`, `data_out` a `natural range 3 downto 0`); for a signed index of a write
+  Yosys builds 32-bit range logic, an `$alu` whose sign decides the write: itc99-b12's critical path, a 32-bit
+  carry chain and 5 LUTs (22 levels; ISE: 3 LUTs and a MUXF5). Now (`posExpr`, `narrowInt`) such an integer
+  whose every value is an index of the vector gives the position in its own bits and the vector's, with sized
+  literals (`ra[(3'd7 - k)]`, `so[(j - 3'd2)]`, `ss[(e + 4'd2)]` for a range below 0; Yosys negates a size
+  cast there at 33 bits), exact as the position is in 0 … w-1; one from 0 up indexing a vector from 0 is the
+  index itself (a value above the vector: a write does nothing, as before); any other index as before. A
+  register of 4 bits written at a `natural range 3 downto 0`: 23 LUTs and 65 carry cells before, 4 and 5 now.
+  Tests: `test/synth-open.test.js` (a signal, a variable, an ascending vector, vectors from 2 and from -2, an
+  integer below 0: the Verilog written, the cells (the same as the Verilog design's), no warnings, the netlists
+  against the RTL).
 - **A fixed-length shift register's last stage in a flip-flop (#502):** the open synthesis's SRL map
   (`core/synth-open.js` SRL_MAP) makes a chain of n stages (xilinx_srl -fixed) SRL16Es of n - 1 stages and a
   flip-flop (FDRE, FDRE_1 on the falling edge; its INIT the last stage's), as XST does: an SRL16E's clock-to-out

@@ -418,8 +418,34 @@ export function toVerilog(design, { name, tables = true } = {}) {
     while (n.k === 'conv' && !n.ext && n.a.t.kind === 'logic' && !n.a.t.s && n.a.t.w > 0 && n.a.t.w < (n.t.w || 32)) n = n.a;
     return n;
   };
+  // an integer signal / variable of a range narrower than 32 bits (VHDL's natural range 3 downto 0): its own
+  // bits (signed when its range goes below 0), its range (as 32 signed bits, a write's index made Yosys build a
+  // 32-bit carry chain for its range check: itc99-b12's critical path, #514)
+  const narrowInt = (n, ctx) => {
+    const t = n.k === 'sig' ? n.sig.t : n.k === 'loc' ? n.t : null;
+    if (t?.kind !== 'int' || t.rlo === undefined || t.rhi === undefined || wOf(t) >= t.w) return null;
+    const r = { w: wOf(t), s: signedInt(t), lo: Number(t.rlo), hi: Number(t.rhi) };
+    if (n.k === 'sig') return constSig.has(n.sig) ? null : { x: sigName.get(n.sig), ...r };
+    const fc = frameCtx(ctx, n);
+    if (fc.subst?.get(n.i)?.rv) return null;
+    return { x: localName(fc, n.i, t), ...r };
+  };
   function posExpr(t, idx, ctx, signedPos = false) {
     idx = narrowIndex(idx);
+    // a narrow integer (#514): every value of its range an index of the vector, the position computed in its bits
+    // and the vector's, unsigned (sized literals: a size cast there, Yosys negates at 33 bits; exact modulo 2^pw,
+    // the position being in 0 … w-1); else, from 0 up and by the low index 0, the integer itself (a value above the
+    // vector: a write does nothing, a read is X, as a signed index's); otherwise as any index
+    const n = narrowInt(idx, ctx);
+    if (n) {
+      const [lo, hi] = t.desc ? [t.right, t.right + t.w - 1] : [t.right - t.w + 1, t.right];
+      const pw = Math.max(n.w, (t.w - 1).toString(2).length);
+      if (n.lo >= lo && n.hi <= hi) {
+        if (!t.desc) return `(${pw}'d${t.right} - ${n.x})`;
+        return t.right > 0 ? `(${n.x} - ${pw}'d${t.right})` : t.right < 0 ? `(${n.x} + ${pw}'d${-t.right})` : n.x;
+      }
+      if (!n.s && t.desc && !t.right) return signedPos ? `$signed({1'b0, ${n.x}})` : n.x;
+    }
     const i = e(idx, ctx);
     // (signedPos: the position as a signed number, it can be below 0; read selects only: Yosys 0.68
     // fails on a signed index in a memory word's part-select write)

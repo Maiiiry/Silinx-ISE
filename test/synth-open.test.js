@@ -210,6 +210,85 @@ endmodule`;
   assert.match(a.text, /^ {6}ck <= 1'h0;$/m, 'the reset value is the constant');
 });
 
+// Regression (#514): an integer signal or variable of a range narrower than 32 bits was a 32-bit signed index,
+// for which Yosys built a 32-bit carry chain to check a write's position (itc99-b12's critical path: 22 levels)
+test('#514 VHDL bit indexes by integers of a range (natural range 3 downto 0, 2 to 5, -2 to 5; a signal, a variable): their own bits, the same cells as the Verilog design; the netlists simulate like the designs', { timeout: 300000 }, async () => {
+  const VHD = `library ieee; use ieee.std_logic_1164.all;
+entity idx is port (clk, rst : in std_logic; d : in natural range 3 downto 0; nl : out bit_vector(3 downto 0)); end idx;
+architecture rtl of idx is
+  signal i : natural range 3 downto 0;
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      i <= d;
+      if rst = '1' then nl <= (others => '0'); else nl(i) <= '1'; end if;
+    end if;
+  end process;
+end rtl;
+`;
+  const VLG = `module idx(input clk, input rst, input [1:0] d, output reg [3:0] nl);
+  reg [1:0] i = 2'd3;
+  always @(posedge clk) begin i <= d; if (rst) nl <= 4'd0; else nl[i] <= 1'b1; end
+endmodule
+`;
+  const syn = async (text, p, top) => {
+    const d = elaborate(compile([{ path: p, text }]), top);
+    return { d, r: await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort: 'normal' }), text: toVerilog(d).text };
+  };
+  const a = await syn(VHD, 'idx.vhd', 'idx'), b = await syn(VLG, 'idx.v', 'idx');
+  assert.match(a.text, /^ {6}nl\[i\] <= 1'h1;$/m, 'the 2-bit signal itself is the index');
+  // (were 23 LUTs and 65 carry cells: a decoder of 4 LUTs; Yosys's own negation of the index, 2 bits, on the carry)
+  assert.deepEqual([a.r.util.luts, a.r.util.carry], [4, 5]);
+  assert.deepEqual(Object.fromEntries(Object.entries(a.r.cells).sort()), Object.fromEntries(Object.entries(b.r.cells).sort()));
+  assert.deepEqual(a.r.warnings, []);
+  const c = compareNetlist(a.d, a.r, { name: 'int-index', seed: 'idx', sim: { cycles: 400, ranges: { d: [0, 3] } } });
+  assert.equal(c.status, 'pass', c.report || c.reason);
+  // a variable, an ascending vector, a vector from 2, one from -2 indexed by an integer that goes below 0: the
+  // position in the bits of the integer and of the vector, with sized literals (a size cast: Yosys's negation at 33 bits)
+  const IX = `library ieee; use ieee.std_logic_1164.all;
+entity ix is port (clk, en, din : in std_logic; d : in natural range 0 to 7; e : in integer range -2 to 5;
+  q : out std_logic_vector(7 downto 0); r : out std_logic_vector(0 to 7); o : out std_logic_vector(5 downto 2); s : out std_logic_vector(5 downto -2); b, c : out std_logic); end;
+architecture rtl of ix is
+  signal i : natural range 0 to 7;
+  signal j : natural range 2 to 5;
+  signal sh : std_logic_vector(7 downto 0);
+  signal ra : std_logic_vector(0 to 7);
+  signal so : std_logic_vector(5 downto 2);
+  signal ss : std_logic_vector(5 downto -2);
+begin
+  process (clk)
+    variable k : natural range 7 downto 0;
+  begin
+    if rising_edge(clk) then
+      i <= d;
+      j <= 2 + d / 2;
+      k := 7 - d;
+      if en = '1' then
+        sh(i) <= din;
+        ra(k) <= din;
+        so(j) <= din;
+        ss(e) <= din;
+      end if;
+      c <= ra(k);
+    end if;
+  end process;
+  q <= sh; r <= ra; o <= so; s <= ss; b <= sh(i);
+end;
+`;
+  const x = await syn(IX, 'ix.vhd', 'ix');
+  assert.match(x.text, /^ {6}sh\[i\] <= din;$/m);
+  assert.match(x.text, /^ {6}ra\[\(3'd7 - p\w+\)\] <= din;$/m);
+  assert.match(x.text, /^ {6}so\[\(j - 3'd2\)\] <= din;$/m);
+  assert.match(x.text, /^ {6}ss\[\(e \+ 4'd2\)\] <= din;$/m);
+  assert.match(x.text, /c <= 1'\(ra >> \(3'd7 - p\w+\)\);/);
+  assert.doesNotMatch(x.text, /\[\(?\$signed/, 'no index as a 32-bit signed number');
+  // (were 127 LUTs and 265 carry cells; its 8:1 reads on MUXF5 / MUXF6, #511: 66 LUTs without them)
+  assert.deepEqual([x.r.util.luts, x.r.util.carry, x.r.depth.muxf?.kept], [60, 35, true]);
+  assert.deepEqual(x.r.warnings, []);
+  const cx = compareNetlist(x.d, x.r, { name: 'int-index-ix', seed: 'ix', sim: { cycles: 600, ranges: { d: [0, 7], e: [-2, 5] } } });
+  assert.equal(cx.status, 'pass', cx.report || cx.reason);
+});
+
 // ------------------------------------------------------------------ logic depth (#52, 15.10.3)
 const cell = (type, ins, outs) => ({ type, port_directions: { ...Object.fromEntries(Object.keys(ins).map(p => [p, 'input'])), ...Object.fromEntries(Object.keys(outs).map(p => [p, 'output'])) },
   connections: { ...Object.fromEntries(Object.entries(ins).map(([p, b]) => [p, [b]])), ...Object.fromEntries(Object.entries(outs).map(([p, b]) => [p, [b]])) } });
