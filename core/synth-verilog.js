@@ -26,7 +26,7 @@
 //   compile it with core/unisim.js's UNISIM_SOURCE; option tables: false writes every operator as
 //   an operator, see tabulate)
 import * as V from './values.js';
-import { bitpos, psliceLo, exec, applyWrite, SimError, evalE } from './interp.js';
+import { bitpos, psliceLo, exec, applyWrite, SimError, evalE, sameDeep } from './interp.js';
 
 export class SynthError extends Error {
   constructor(msg, loc, file) { super(msg); this.loc = loc; this.file = file; }
@@ -159,6 +159,10 @@ export function toVerilog(design, { name, tables = true } = {}) {
     if (Array.isArray(x.cases)) for (const c of x.cases) findLoops(c.body ?? c, depth + 1);
   };
   for (const p of design.procs) if (!skipProc.has(p)) findLoops(p.body);
+  // the nonblocking assignments that no other assignment to their signal can precede in their process
+  // (x[i] <= c ? v : x[i] there written if (c) x[i] <= v: readBack)
+  const firstWrites = new WeakSet();
+  for (const p of design.procs) if (!skipProc.has(p)) markFirstWrites(p.body, new Set(), firstWrites);
   for (const s of design.signals) {
     if (sigName.has(s) || skipSig.has(s)) continue;
     const path = s.path.startsWith(prefix) ? s.path.slice(prefix.length) : s.path;
@@ -841,6 +845,17 @@ export function toVerilog(design, { name, tables = true } = {}) {
         const tgtT = s.target.t;
         if (isMem(tgtT) && (s.target.k === 'sig' || s.target.k === 'loc' || s.target.k === 'aslice')) return arrayCopy(s, ctx, ind);
         if (isMem(tgtT)) fail('assignment of an array to a part of an array', s);
+        // an element written with its own value on one side (x[i] <= c ? v : x[i]): if (c) x[i] <= v, without
+        // reading x[i] (a multiplexer of the whole vector: iwls05-spi's critical path); x[i] <= x[i]: nothing
+        if (s.target.k !== 'cat' && (!s.nb || mode !== 'proc' || s.first || firstWrites.has(s))) {
+          if (sameExpr(s.value, s.target)) return '';
+          const keep = s.value.k === 'cond' && (sameExpr(s.value.b, s.target) ? 'b' : sameExpr(s.value.a, s.target) ? 'a' : null);
+          if (keep) {
+            const c = truth(s.value.c, ctx);
+            const then = stmt({ ...s, value: keep === 'b' ? s.value.a : s.value.b, first: true }, ctx, `${ind}  `, mode, loop);
+            return `${ind}if (${keep === 'b' ? c : `!(${c})`}) begin\n${then}${ind}end\n`;
+          }
+        }
         const v = e(s.value, ctx);
         const val = s.target.k === 'cat' ? fit(v.x, v.w, v.s, L.w) : fitTarget(v, s.target, L.w);
         return `${ind}${L.x} ${s.nb && mode === 'proc' ? '<=' : '='} ${val};\n`;
@@ -1260,6 +1275,54 @@ export function toVerilog(design, { name, tables = true } = {}) {
   // the shift-chain arrays read at a variable tap (#5): their names as Yosys writes them (\name)
   const shiftArrays = [...tapWires.keys()].map(sg => { const n = sigName.get(sg); return n.startsWith('\\') ? n.trim() : `\\${n}`; });
   return { text, top: mod.trim(), warnings, shiftArrays, instances, primitives: [...new Set(prims.map(pr => yosysCell(pr.inst.module.toUpperCase(), pr.inst.ports.map(pt => pt.name.toUpperCase())).name))] };
+}
+
+// The assignments of a statement that no assignment to the same signal or variable can precede (in
+// `firsts`), given the ones already assigned before it (`done`: their signals and variables, ANY for
+// any); returns the ones assigned after it. A loop's body is walked twice (its writes precede its next turn).
+const ANY = Symbol('any');
+const NO_WRITE = new Set(['exit', 'next', 'ret', 'null', 'report', 'assert', 'textio', 'sys']);
+function markFirstWrites(s, done, firsts) {
+  if (!s || typeof s !== 'object') return done;
+  const union = sets => new Set(sets.flatMap(x => [...x]));
+  switch (s.k) {
+    case 'blk': for (const x of s.stmts) done = markFirstWrites(x, done, firsts); return done;
+    case 'asg': {
+      let T = s.target;
+      while (['bit', 'slice', 'dslice', 'pslice', 'elem'].includes(T?.k)) T = T.base;
+      const key = T?.k === 'sig' ? T.sig : T?.k === 'loc' && T.up == null ? `loc${T.i}` : ANY;
+      if (key !== ANY && !done.has(key) && !done.has(ANY)) firsts.add(s);
+      return union([done, [key]]);
+    }
+    case 'if': return union([markFirstWrites(s.then, new Set(done), firsts), markFirstWrites(s.else, new Set(done), firsts)]);
+    case 'case': return union([...s.items.map(it => markFirstWrites(it.body, new Set(done), firsts)), markFirstWrites(s.def, new Set(done), firsts)]);
+    case 'forrange': case 'for': return markFirstWrites(s.body, markFirstWrites(s.body, done, firsts), firsts);
+    default: return NO_WRITE.has(s.k) ? done : union([done, [ANY]]);
+  }
+}
+
+// Two expressions that are the same and read the same bits: the same signals and variables, operators
+// and constants, without calls (a function's side effects) or anything else
+function sameExpr(a, b) {
+  if (!a || !b || a.k !== b.k) return false;
+  if (a.t !== b.t && (a.t?.kind !== b.t?.kind || a.t?.w !== b.t?.w || !!a.t?.s !== !!b.t?.s)) return false;
+  // (an operation's width and sign in its context: an lvalue's index has none, its own type's)
+  if ((a.ew || a.t?.w) !== (b.ew || b.t?.w) || esign(a) !== esign(b)) return false;
+  switch (a.k) {
+    case 'c': return sameDeep(a.val, b.val);
+    case 'sig': return a.sig === b.sig;
+    case 'loc': return a.i === b.i && a.up == null && b.up == null;
+    case 'bit': case 'elem': return sameExpr(a.base, b.base) && sameExpr(a.index, b.index);
+    case 'slice': return a.lo === b.lo && sameExpr(a.base, b.base);
+    case 'dslice': return sameExpr(a.base, b.base) && sameExpr(a.left, b.left) && sameExpr(a.right, b.right);
+    case 'pslice': return a.dir === b.dir && sameExpr(a.base, b.base) && sameExpr(a.start, b.start);
+    case 'un': return a.o === b.o && !a.fp && !b.fp && sameExpr(a.a, b.a);
+    case 'bin': return a.o === b.o && !a.fp && !b.fp && !a.match && !b.match && a.cw === b.cw && sameExpr(a.a, b.a) && sameExpr(a.b, b.b);
+    case 'cond': return sameExpr(a.c, b.c) && sameExpr(a.a, b.a) && sameExpr(a.b, b.b);
+    case 'cat': return a.parts.length === b.parts.length && a.parts.every((p, i) => sameExpr(p, b.parts[i]));
+    case 'conv': return a.ext === b.ext && !a.rtoi && !b.rtoi && sameExpr(a.a, b.a);
+    default: return false;
+  }
 }
 
 // The arrays that are shift chains (#5): every word written is either a word of the same array next to
