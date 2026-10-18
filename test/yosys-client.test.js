@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { yosysWorkerSource } from '../core/synth-open.js';
 
 // a fake Web Worker: its run ends when the test says so (done(i, reply)), in the order the runs came
@@ -180,7 +180,8 @@ test('#403 the Blob worker\'s code from the minified single-file edition: the sh
   const esbuild = await import('esbuild');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-yw-'));
   const out = path.join(dir, 'synth-open.min.mjs');
-  await esbuild.build({ stdin: { contents: "export { yosysWorkerSource } from './core/synth-open.js';", resolveDir: path.join(path.dirname(new URL(import.meta.url).pathname), '..') },
+  // (resolveDir: a file path, on Windows too, #447)
+  await esbuild.build({ stdin: { contents: "export { yosysWorkerSource } from './core/synth-open.js';", resolveDir: path.join(path.dirname(fileURLToPath(import.meta.url)), '..') },
     bundle: true, format: 'esm', minify: true, target: 'es2022', outfile: out, logLevel: 'silent' });
   const { yosysWorkerSource: minified } = await import(pathToFileURL(out).href);
   await checkWorkerCode(minified(pathToFileURL(fakeBundle(dir)).href), dir);
