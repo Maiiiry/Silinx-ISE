@@ -12,6 +12,9 @@ In short:
 - **A VGA monitor in the Board Emulator:** a design on the board's VGA connector shows its 640×480 picture, as a
   monitor finds it in the sync pulses, with the measured timing and what is not 640×480 at 60 Hz (e.g. a pixel
   clock of 50 MHz, a sync pulse of the wrong polarity).
+- **A seventh example, vga:** a picture on a VGA monitor, in VHDL: colour bars in a white frame and a square the
+  four buttons move (SW0: faster), 640×480 at 60 Hz from the 50 MHz clock; the Board Emulator's VGA monitor draws
+  it.
 - **The Board Emulator at the board's speed:** a design that can be compiled runs on a new engine, its netlist as
   JavaScript, tens of millions of clock cycles per second: counters, dividers and debouncers at their real values,
   the clock in real time. The event-driven simulation stays, for debugging (X values, the design's messages) and for
@@ -142,6 +145,20 @@ In detail:
   once); with no worker the same host runs on the page's thread. The worker ends with the emulator's document
   (`test/ui/memory.test.js`). At Max speed: blinky 70 → 76 million cycles a second, pong 27 → 27–29, clock 23 → 24,
   the VGA colour bars 106 → 111; the page's 10 ms timer from 20 ms late to under 1 ms.
+- **A seventh example, vga (#450):** `examples/vga`, in VHDL for the Basys2 / Nexys2: the timing of 640×480 at 60 Hz
+  in its own entity (`vga_sync.vhd`: a 25 MHz pixel enable from the 50 MHz clock, the pixel counters, the sync
+  pulses), and in `vga.vhd` what each pixel shows (eight colour bars inside a white frame, a 32×32 square in the bars'
+  opposite colours, moved once a frame by the buttons held, 1 or 4 pixels with SW0), registered with the pulses. Its
+  test bench looks at the signals as a monitor would: the line of 800 pixels and its 96-pixel HSYNC, the frame of 525
+  lines and its 2-line VSYNC, both active low and where the mode has them around the picture, the colours of the
+  bars, the frame, the square and the blanking, the next frame 525 lines after, the square moved with SW0 on (two
+  frames, about 26 ms simulated: the example tests give its test bench 30 ms). The examples' list (CLAUDE.md,
+  `core/examples.js`, the docs, the Start page) and every test that lists the examples have it. Tests: `test/vga-example.test.js` (on the Board Emulator of the
+  Basys2-250 and the Nexys2-1200: whole frames against the picture computed from the example's description, 640×480
+  at 60 Hz with no warnings, the square moved by the buttons and stopped at the corner), the examples' tests (no
+  warnings, the test bench, the UCF, the Silinx toolchain on the four devices), its synthesis' size budget, the
+  quick fixes' list of where none puts a removed `end process;` back; `test/compiled-emulate.test.js` and
+  `test/emulate-remote.test.js` compare its VGA pins (it lights no LED).
 - **The Board Emulator's VGA monitor (#420, part 3 of #102):** when the UCF wires the board's VGA connector (its
   colour widths from the board: 3-3-2 bits on the Basys2 and the Nexys2, 1-1-1 on the Starter Kit), the compiled
   code keeps a monitor (`core/compiled-sim.js` VGA_CODE): a line from each leading edge of HSYNC (its active level
