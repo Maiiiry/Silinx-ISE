@@ -35,8 +35,8 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 139,
-   "luts": 277,
+   "slices": 143,
+   "luts": 286,
    "ffs": 0,
    "period": null
   }
@@ -686,10 +686,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 82,
-   "luts": 158,
+   "slices": 67,
+   "luts": 127,
    "ffs": 105,
-   "period": 8.212
+   "period": 8.078
   }
  },
  "light8080": {
@@ -951,10 +951,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1879,
-   "luts": 3756,
-   "ffs": 1560,
-   "period": 17.545
+   "slices": 1091,
+   "luts": 2047,
+   "ffs": 1528,
+   "period": 16.656
   }
  },
  "secworks-sha256": {
@@ -990,10 +990,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 913,
-   "luts": 1824,
+   "slices": 707,
+   "luts": 1411,
    "ffs": 798,
-   "period": 14.085
+   "period": 14.984
   }
  },
  "serv": {
@@ -1030,7 +1030,7 @@
    "slices": 208,
    "luts": 347,
    "ffs": 354,
-   "period": 13.155
+   "period": 12.784
   }
  },
  "spi-fpga-master": {
@@ -1157,10 +1157,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 126,
-   "luts": 250,
+   "slices": 115,
+   "luts": 227,
    "ffs": 72,
-   "period": 10.963
+   "period": 10.707
   }
  },
  "verilog-lfsr-crc": {
@@ -1264,10 +1264,10 @@
   },
   "quality": {
    "part": "xc3s500efg320-4",
-   "slices": 263,
-   "luts": 414,
+   "slices": 261,
+   "luts": 413,
    "ffs": 451,
-   "period": 42.614
+   "period": 41.504
   }
  },
  "vtr-diffeq2": {
@@ -1371,10 +1371,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 112,
-   "luts": 223,
+   "slices": 99,
+   "luts": 196,
    "ffs": 120,
-   "period": 7.993
+   "period": 8.033
   }
  }
 }

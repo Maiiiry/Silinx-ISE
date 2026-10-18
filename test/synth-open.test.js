@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -200,7 +200,8 @@ end;`;
 endmodule`;
   const cellsOf = async (text, p) => {
     const d = elaborate(compile([{ path: p, text }]), 'rx');
-    const r = await synthesizeOpen(d, { run: yosysNode });
+    // (without the ABC9 candidate, kept on both for its fewer slices, #377: its mappings of the two differ by 2 LUTs)
+    const r = await synthesizeOpen(d, { run: yosysNode, abc9: false });
     return { cells: Object.fromEntries(Object.entries(r.cells).sort()), text: toVerilog(d).text };
   };
   const a = await cellsOf(VHD, 'rx.vhd'), b = await cellsOf(VLG, 'rx.v');
@@ -267,6 +268,33 @@ test('logic depth: the mapping balanced once more is kept when better than the d
   assert.ok(!keepSecond([20, 10, 9.9], [100, 110, 112]), 'not 3 % faster than the first, larger');
   assert.ok(!keepSecond([20, 10, 9], [100, 110, 300]), 'faster, but three times the usual LUTs for twice its speed');
   assert.ok(!keepSecond([20, 10, 10.5], [100, 110, 100]), 'slower than the first');
+});
+
+// #377: the slices too, when known (sliceCount: core/fpga/pack.js's count): a netlist with 5 % fewer slices is
+// smaller even with more LUTs; fewer LUTs, more slices is not; a faster one is not larger in slices either
+test('#377 logic depth: the rule weighs the slices too, when known; sliceCount packs a netlist as the open flow', () => {
+  assert.ok(keepDepth([10, 10.05], [100, 104], DEPTH_RULE, [80, 76]), '5 % fewer slices, more LUTs, as fast: smaller');
+  assert.ok(!keepDepth([10, 10.05], [100, 104], DEPTH_RULE, [80, 77]), 'not 5 % fewer slices');
+  assert.ok(!keepDepth([3.78, 3.78], [64, 81], DEPTH_RULE, [57, 52]), 'the adder fixture\'s ABC9 netlist: 9 % fewer slices, 27 % more LUTs');
+  assert.ok(keepDepth([10, 10], [100, 110], DEPTH_RULE, [80, 76]) && !keepDepth([10, 10], [100, 111], DEPTH_RULE, [80, 76]), 'fewer slices, at most 10 % more LUTs');
+  assert.ok(!keepDepth([10, 10.05], [100, 104]), 'without the slices: larger');
+  assert.ok(!keepDepth([10, 10.05], [100, 90], DEPTH_RULE, [80, 81]), '10 % fewer LUTs, more slices: not smaller');
+  assert.ok(keepDepth([10, 10.05], [100, 90], DEPTH_RULE, [80, 80]), '10 % fewer LUTs, as many slices');
+  assert.ok(!keepDepth([10, 9], [100, 105], DEPTH_RULE, [80, 90]), '10 % faster, 12 % more slices');
+  assert.ok(keepDepth([10, 9], [100, 105], DEPTH_RULE, [80, 88]), '10 % faster, 10 % more slices');
+  assert.ok(!keepDepth([10, 10], [100, 100], DEPTH_RULE, [80, 80]) && keepDepth([10, 10], [100, 100], DEPTH_RULE, [80, 79]), 'the same; one slice fewer');
+  assert.ok(!keepDepth([10, 10], [100, 99], DEPTH_RULE, [80, 81]), 'one LUT fewer, a slice more');
+  assert.ok(!keepDepth([10, 10.11], [100, 50], DEPTH_RULE, [80, 40]), 'more than 1 % slower');
+  // a slice count unknown (a netlist that does not pack): the LUTs alone
+  assert.ok(keepDepth([10, 10.1], [100, 95], DEPTH_RULE, [null, 99]));
+  assert.ok(keepSecond([20, 10, 9.9], [100, 110, 112], DEPTH_RULE, [80, 90, 85]), 'not 3 % faster than the first, but 5 % fewer slices');
+  assert.ok(!keepSecond([20, 10, 9], [100, 110, 108], DEPTH_RULE, [80, 88, 130]), 'faster than the first, but 62 % more slices than the usual one for 55 % of speed');
+  // sliceCount: two LUT4s into flip-flops of the same clock, in one slice; a netlist that does not pack: null
+  const ff = (d, q) => cell('FDRE', { C: 2, D: d, CE: '1', R: '0' }, { Q: q });
+  const lut = (o, init) => ({ ...cell('LUT4', { I0: 3, I1: 4, I2: 5, I3: 6 }, { O: o }), parameters: { INIT: init } });
+  const two = { a: lut(10, '1000000000000000'), b: lut(11, '0111111111111110'), f: ff(10, 12), g: ff(11, 13) };
+  assert.equal(sliceCount(netlistOf(two), 't'), 1);
+  assert.equal(sliceCount('{"modules":{}}', 't'), null);
 });
 
 // Regression (#54): a shifter onto LUT4s alone, its 2:1 multiplexers in LUT3s (with the wider functions,
@@ -499,8 +527,9 @@ test('ABC9 candidate (#377): a falling-edge shift register (SRL16E_1, a black bo
   assert.equal(r.cells.SRL16E_1, 1);
 });
 
-// #282: the synthesis's Optimization Effort: Normal (the projects' default) one Yosys run, the usual mapping;
-// High every mapping, the fastest kept (the default of synthesizeOpen, for the quality comparisons)
+// #282: the synthesis's Optimization Effort: Normal (the projects' default) one Yosys run, the usual mapping
+// (a design written as gates: its adders' chains too, #377, test/carry-chain.test.js); High every mapping, the
+// fastest kept (the default of synthesizeOpen, for the quality comparisons)
 test('#282 Optimization Effort: Normal synthesizes once (no other mapping, no carry chains), High as before; the project\'s property', { timeout: 180000 }, async () => {
   assert.equal(synthEffort(undefined), 'normal');
   assert.equal(synthEffort({ optLevel: 1 }), 'normal');
