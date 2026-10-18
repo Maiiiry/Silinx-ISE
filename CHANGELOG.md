@@ -50,6 +50,8 @@ In short:
   `.xise` export of a top module with an odd name).
 - **An unreachable ssh host fails at once:** an ISE build on an ssh host that refuses the connection ends with
   ssh's error instead of running forever.
+- **The Post-Synthesis Simulation Model without a false warning:** generating it no longer warns of "cells with no
+  simulation model" (`$SPECIFY2`) on designs such as blinky.
 
 In detail:
 
@@ -264,6 +266,16 @@ In detail:
   then on CI. When the reading side exits, the writer's remaining output is now drained and dropped, so it ends with
   its own exit code and the job fails with ssh's (255). Test: `test/ise-flow.test.js` (an unreachable host with a
   4 MB build directory: the job fails within 5 s, with no warnings).
+- **Post-synthesis model: the top module's cells (#493):** `postSynthesisModels` (core/sim-model.js) looked for cells
+  with no simulation model in the netlist's first module, which is one of the library cells Yosys reads with their
+  timing arcs (Yosys's models of the Xilinx primitives, their `$specify2` cells), so Generate Post-Synthesis
+  Simulation Model warned of `$SPECIFY2` on blinky and others. It reads the top module now. Tests:
+  `test/sim-model.test.js` (a netlist whose first module is a library cell: no cell without a model; a cell of the
+  top's still said; the flow's postsynth step with no warning), the UI tests of #120 and #490
+  (`test/ui/open-toolchain.test.js`, `test/ui/standalone.test.js`): no warning, "completed successfully".
+- **`dist/` no longer ignored by git (#524):** the single-file edition (`Silinx-ISE.html`) is built by the Release,
+  dev-release and Pages workflows; a copy under `dist/` in a checkout is only a local build, and now shows in
+  `git status` instead of lingering beside the sources. The build still writes to `dist/`.
 
 ## 15.11.0
 
