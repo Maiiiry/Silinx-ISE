@@ -7,6 +7,9 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Faster shift registers:** a chain of flip-flops kept in SRL16 shift registers now ends in a flip-flop, as ISE's
+  synthesis does: what reads it no longer waits for the SRL16's slow output (3.8 ns). The design corpus's
+  iwls05-usb-phy is a third faster (8.2 ns to 5.5, ISE 5.0).
 - **Faster circuits at Optimization Effort Normal:** a design limited by its logic depth (a long comparator or
   priority chain, an adder written as gates) now gets the mappings for speed at Normal too, as at High: the EPFL
   adder about 6 times faster, max and priority about 3 times. The other designs keep Normal's single, fast run.
@@ -26,6 +29,17 @@ In short:
 
 In detail:
 
+- **A fixed-length shift register's last stage in a flip-flop (#502):** the open synthesis's SRL map
+  (`core/synth-open.js` SRL_MAP) makes a chain of n stages (xilinx_srl -fixed) SRL16Es of n - 1 stages and a
+  flip-flop (FDRE, FDRE_1 on the falling edge; its INIT the last stage's), as XST does: an SRL16E's clock-to-out
+  (Treg) is 3.76 ns on the -4, a flip-flop's 0.59. One flip-flop more per chain; the variable-tap ones (#5) are
+  as they were. Found comparing the critical paths with ISE's on the design corpus (trce of both routings):
+  iwls05-usb-phy's started at an SRL16 driving a clock enable of fanout 29. Measured with ISE's trce on the
+  routed designs: usb-phy 8.17 ns to 5.47 (ISE 4.99); serv 13.39 to 13.38; iwls05-ss-pcm 4.87 to 5.26, its
+  critical path not through a shift register (a placement that differs: a clock enable's net 1.4 ns long).
+  Tests: `test/synth-open.test.js` (3, 16, 17 and 33 stages, initial values, an enable, the falling edge, two
+  taps: the cells, no warnings, the netlists against the RTL), the cell counts of `test/synth-quality.test.js`,
+  `test/synth-abc9.test.js` and the falling-edge shift register's BUFG (#219).
 - **Optimization Effort Normal maps a deep design for speed (#468):** `synthesizeOpen` at Normal makes the usual
   mapping first, then measures its logic levels (`logicLevels`: the LUTs and MUXF5s of the deepest path); a design
   of more than 16 levels and 5000 LUTs at most (`DEEP_RULE`, `deepDesign`) also gets High's mappings (the wider and

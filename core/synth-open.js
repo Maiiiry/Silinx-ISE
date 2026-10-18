@@ -55,6 +55,8 @@ module \\$__XILINX_SHREG_ (input C, input D, input [31:0] L, input E, output Q, 
   parameter [DEPTH-1:0] INIT = 0;
   parameter CLKPOL = 1;
   parameter ENPOL = 2;
+  // (OUTFF: the last stage of a fixed-length chain in a flip-flop, #502; 0 for the chain before it)
+  parameter OUTFF = 1;
   // xilinx_srl's INIT shifts out its least significant bit first; SRL16E's INIT[a] is stage a
   function [DEPTH-1:0] brev;
     input [DEPTH-1:0] din;
@@ -74,7 +76,15 @@ module \\$__XILINX_SHREG_ (input C, input D, input [31:0] L, input E, output Q, 
     if (ENPOL == 0) assign CE = ~E;
     else if (ENPOL == 1) assign CE = E;
     else assign CE = 1'b1;
-    if (!FIXED && DEPTH > 16) begin
+    if (FIXED && OUTFF && DEPTH > 1) begin
+      // a fixed length: its last stage a flip-flop, the stages before it SRL16Es (#502): an SRL16E's output
+      // is slow (Treg 3.76 ns against a flip-flop's Tcko 0.59 on the -4), the chain's output then a
+      // flip-flop's, as XST does; INIT[0] is the last stage's
+      wire T;
+      \\$__XILINX_SHREG_ #(.DEPTH(DEPTH-1), .INIT(INIT[DEPTH-1:1]), .CLKPOL(CLKPOL), .ENPOL(ENPOL), .OUTFF(0)) fpga_srl_chain (.C(C), .D(D), .L(DEPTH-2), .E(E), .Q(T));
+      if (CLKPOL) FDRE #(.INIT(INIT[0])) fpga_srl_out (.D(T), .Q(Q), .C(C), .CE(CE), .R(1'b0));
+      else FDRE_1 #(.INIT(INIT[0])) fpga_srl_out (.D(T), .Q(Q), .C(C), .CE(CE), .R(1'b0));
+    end else if (!FIXED && DEPTH > 16) begin
       // a variable tap past 16 stages: per 16 stages, an SRL16E read at the tap and one at stage 15
       // that feeds the next 16 (no SRLC16E: the open flow does not place its cascade, #24); the tap's
       // high bits choose among them
@@ -101,7 +111,7 @@ module \\$__XILINX_SHREG_ (input C, input D, input [31:0] L, input E, output Q, 
       wire T;
       if (CLKPOL) SRL16E #(.INIT(INIT_R[15:0])) fpga_srl (.A0(1'b1), .A1(1'b1), .A2(1'b1), .A3(1'b1), .CE(CE), .CLK(C), .D(D), .Q(T));
       else SRL16E_1 #(.INIT(INIT_R[15:0])) fpga_srl (.A0(1'b1), .A1(1'b1), .A2(1'b1), .A3(1'b1), .CE(CE), .CLK(C), .D(D), .Q(T));
-      \\$__XILINX_SHREG_ #(.DEPTH(DEPTH-16), .INIT(INIT[DEPTH-17:0]), .CLKPOL(CLKPOL), .ENPOL(ENPOL)) fpga_srl_rest (.C(C), .D(T), .L(DEPTH-17), .E(E), .Q(Q));
+      \\$__XILINX_SHREG_ #(.DEPTH(DEPTH-16), .INIT(INIT[DEPTH-17:0]), .CLKPOL(CLKPOL), .ENPOL(ENPOL), .OUTFF(0)) fpga_srl_rest (.C(C), .D(T), .L(DEPTH-17), .E(E), .Q(Q));
     end
   endgenerate
 endmodule

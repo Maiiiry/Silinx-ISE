@@ -105,10 +105,10 @@ test('blinky: (1 << level) - 1 of a 3-bit level is a table, not a 32-bit subtrac
 
 test('shift registers: chains of 3 or more flip-flops without reset become SRL16E (falling edge: SRL16E_1), chains longer than 16 several', { timeout: 120000 }, async () => {
   const r = await synth(fixture('srl'));
-  // fix: 20 stages (SRL16E of 16 + SRL16E of 4); f0 / f1: 8 stages on the falling edge; dyn, the 16 x 4
-  // register read at a variable tap: an SRL16E per bit (#5; before: 64 flip-flops and multiplexers);
-  // the 2 flip-flops: dr
-  assert.deepEqual([r.cells.SRL16E, r.cells.SRL16E_1, r.cells.FDRE], [6, 2, 2]);
+  // fix: 20 stages (SRL16E of 16 + SRL16E of 3, its last stage a flip-flop, #502); f0 / f1: 8 stages on the
+  // falling edge (SRL16E_1 of 7 and a flip-flop each); dyn, the 16 x 4 register read at a variable tap: an
+  // SRL16E per bit (#5; before: 64 flip-flops and multiplexers); the other 2 flip-flops: dr
+  assert.deepEqual([r.cells.SRL16E, r.cells.SRL16E_1, r.cells.FDRE, r.cells.FDRE_1], [6, 2, 3, 2]);
   // the fixed ones always enabled, their address constant; the variable-tap ones (dyn) enabled by ce,
   // addressed by tap: the same net on all four
   const srls = r.nl.cells.filter(c => /^SRL16E/.test(c.type));
@@ -144,7 +144,7 @@ for (const name of ['srl', 'dram', 'bram_sp', 'bram_dp', 'bram_prim', 'mult']) {
 
 // #51: chains of 2 stages stay flip-flops (XST makes them SRL16: on the stopwatch, larger in slices;
 // research/synth-quality/README.md); a button's synchroniser among them (it should be flip-flops)
-test('a 2-stage chain (the stopwatch\'s button synchroniser) stays in flip-flops, a 3-stage one is an SRL16E (#51)', { timeout: 120000 }, async () => {
+test('a 2-stage chain (the stopwatch\'s button synchroniser) stays in flip-flops, a 3-stage one is an SRL16E and its last stage a flip-flop (#51, #502)', { timeout: 120000 }, async () => {
   const fs = await import('node:fs');
   const text = fs.readFileSync(new URL('../examples/stopwatch/src/debounce.vhd', import.meta.url), 'utf8').replace('1_000_000', '20');
   const { compile, elaborate } = await import('../core/compile.js');
@@ -155,5 +155,5 @@ test('a 2-stage chain (the stopwatch\'s button synchroniser) stays in flip-flops
   assert.equal(db.SRL16E, undefined, JSON.stringify(db));
   assert.equal(db.FDRE, 2 + 1 + 1 + 5, 'sync (2), level, press, count (0 to 20: 5 bits)');
   const three = await syn([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [2:0] r = 0; always @(posedge clk) r <= {r[1:0], d}; assign q = r[2]; endmodule' }], 't');
-  assert.deepEqual([three.SRL16E, three.FDRE], [1, undefined]);
+  assert.deepEqual([three.SRL16E, three.FDRE], [1, 1]);
 });

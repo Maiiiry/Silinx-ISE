@@ -436,7 +436,34 @@ test('shift registers read at a variable tap (#5) as SRL16E: a vector, past 16 s
 test('a shift register on the falling edge alone (SRL16E_1) gets its clock through a BUFG (#219)', { timeout: 120000 }, async () => {
   const design = elaborate(compile([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [7:0] r = 0; always @(negedge clk) r <= {r[6:0], d}; assign q = r[7]; endmodule' }]), 't');
   const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
-  assert.deepEqual(Object.fromEntries(Object.entries(r.cells).sort()), { BUFG: 1, IBUF: 2, OBUF: 1, SRL16E_1: 1 });
+  // (its last stage a flip-flop on the falling edge, #502)
+  assert.deepEqual(Object.fromEntries(Object.entries(r.cells).sort()), { BUFG: 1, FDRE_1: 1, IBUF: 2, OBUF: 1, SRL16E_1: 1 });
+});
+
+// #502: a fixed-length shift register's last stage is a flip-flop (an SRL16E's clock-to-out, Treg, is 3.76 ns
+// on the -4, a flip-flop's 0.59), the stages before it SRL16Es, their initial values kept
+test('#502 a fixed-length shift register: its last stage a flip-flop, the stages before it SRL16Es (3, 16, 17, 33 stages; initial values, enable, falling edge, two taps); the netlists simulate like the designs', { timeout: 300000 }, async () => {
+  const v = (text) => elaborate(compile([{ path: 't.v', lang: 'verilog', text }]), 't');
+  const cases = [
+    ['three stages', "module t(input clk, input d, output q); reg [2:0] r = 3'b101; always @(posedge clk) r <= {r[1:0], d}; assign q = r[2]; endmodule",
+      { BUFG: 1, FDRE: 1, IBUF: 2, OBUF: 1, SRL16E: 1 }],
+    ['16 stages, enable', "module t(input clk, input ce, input d, output q); reg [15:0] r = 16'hA5C3; always @(posedge clk) if (ce) r <= {r[14:0], d}; assign q = r[15]; endmodule",
+      { BUFG: 1, FDRE: 1, IBUF: 3, OBUF: 1, SRL16E: 1 }],
+    ['17 stages, falling edge', "module t(input clk, input d, output q); reg [16:0] r = 17'h1F0F1; always @(negedge clk) r <= {r[15:0], d}; assign q = r[16]; endmodule",
+      { BUFG: 1, FDRE_1: 1, IBUF: 2, OBUF: 1, SRL16E_1: 1 }],
+    ['33 stages, enable', "module t(input clk, input ce, input d, output q); reg [32:0] r = 33'h1_2345_6789; always @(posedge clk) if (ce) r <= {r[31:0], d}; assign q = r[32]; endmodule",
+      { BUFG: 1, FDRE: 1, IBUF: 3, OBUF: 1, SRL16E: 2 }],
+    ['two taps', 'module t(input clk, input d, output q, p); reg [9:0] r = 0; always @(posedge clk) r <= {r[8:0], d}; assign q = r[9]; assign p = r[4]; endmodule',
+      { BUFG: 1, FDRE: 2, IBUF: 2, OBUF: 2, SRL16E: 2 }],
+  ];
+  for (const [what, text, cells] of cases) {
+    const design = v(text);
+    const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
+    assert.deepEqual(Object.fromEntries(Object.entries(r.cells).sort()), cells, what);
+    assert.deepEqual(r.warnings, [], what);
+    const d = compareNetlist(design, r, { name: what, sim: { cycles: 400 } });
+    assert.equal(d.status, 'pass', `${what}: ${d.report || d.reason}`);
+  }
 });
 
 // #377: ABC9 onto LUT4s alone, one more candidate of effort High (research/synth-quality/README.md, "ABC9")
