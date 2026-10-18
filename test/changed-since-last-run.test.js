@@ -50,19 +50,3 @@ test('changed since the last run: the long scheduled workflows are gated on it, 
     for (const job of gated) assert.match(yml, new RegExp(`\\n  ${job}:\\n(?:    .*\\n)*?    needs: changes\\n(?:    .*\\n)*?    if: .*needs\\.changes\\.outputs\\.run == 'true'`), `${file}: ${job}`);
   }
 });
-
-test('CI: not run for documentation only; the documentation\'s tests run then (#149)', () => {
-  const read = f => fs.readFileSync(new URL(`../.github/workflows/${f}`, import.meta.url), 'utf8');
-  const ci = read('ci.yml'), docs = read('docs.yml');
-  // the same documentation files: ignored by CI, the trigger of Docs, and irrelevant to the scheduled runs
-  for (const ev of ['push', 'pull_request']) {
-    assert.match(ci, new RegExp(`\\n  ${ev}:\\n(?:    .*\\n)*?    paths-ignore: \\['\\*\\*\\.md', 'docs/\\*\\*'\\]`), `ci.yml ${ev}`);
-    assert.match(docs, new RegExp(`\\n  ${ev}:\\n(?:    .*\\n)*?    paths: \\['\\*\\*\\.md', 'docs/\\*\\*'\\]`), `docs.yml ${ev}`);
-  }
-  for (const f of ['README.md', 'docs/QUALITY.md']) assert.ok(irrelevant(f), f);
-  // the tests of the documentation, all of them
-  for (const t of ['docs', 'changelog', 'quality-page']) {
-    assert.ok(fs.existsSync(new URL(`./${t}.test.js`, import.meta.url)), t);
-    assert.match(docs, new RegExp(`test/${t}\\.test\\.js`), t);
-  }
-});

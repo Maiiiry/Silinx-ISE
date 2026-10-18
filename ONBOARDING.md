@@ -30,7 +30,7 @@ npm start          # http://127.0.0.1:8642
 1. **An issue for everything**, even a bug fixed at once. Commits and PRs say `Fixes #N`. Issues are
    public: no personal data, no hosts, no course code.
 2. **A branch and a pull request for every change.** `main` is protected: no force push, and a commit
-   reaches it only with CI's checks green (unit on Linux ×3, UI modern and classic). Merge with
+   reaches it only with CI's required check `ci-ok` green (it needs every CI job). Merge with
    `gh pr merge --rebase` (fast-forward, no merge commits).
 3. **Tests with every change**: unit tests (`test/*.test.js`) and UI tests (`test/ui/*.test.js`), in
    **both interfaces** (`SILINX_UI_INTERFACE=classic`) and in Portuguese when labels change. A bug fix
@@ -114,8 +114,8 @@ docs/          user guides (EN, PT), the project model and API, QUALITY.md (agai
 - **WebUSB is slow per transfer** (about 1 ms). Batch JTAG work into few commands. JTAG ISC operations
   only start in Run-Test/Idle.
 - **Yosys 0.70** colours its log and splits lines; `core/synth-open.js` `lineStream` handles it.
-- **A docs-only PR does not run CI**, so it cannot pass the required checks. Fold docs into a code PR,
-  or ask Pedro to merge it.
+- **A docs-only PR runs the unit tests only** (`scripts/ci-changes.mjs`), and `ci-ok` passes it: no need
+  to fold docs into a code PR. CHANGELOG.md and THIRD-PARTY-NOTICES.md count as code (a build reads them).
 - **The ISE tests and the quality comparison** run on the self-hosted runner (the Mac mini).
   - They run only on code from `main`, never a PR's.
   - The weekly comparison pushes its results to the branch `quality-results`, to be merged by hand.

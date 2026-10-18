@@ -31,6 +31,17 @@ In detail:
   for about 1 s more synthesis per design with 4 Yosys at a time
   (the Node app; 3 s with one at a time). Effort Normal, the default, is unchanged.
   research/synth-quality/README.md, "ABC9 as a candidate".
+- **CI: one required check, `ci-ok`, and documentation changes tested (#409):** CI runs on every push and pull
+  request (no `paths-ignore`): a change of documentation only (`scripts/ci-changes.mjs`, a `changes` job) runs the
+  unit tests alone, the documentation's tests among them (`.github/workflows/docs.yml` folded in), the long jobs only
+  for code; CHANGELOG.md, THIRD-PARTY-NOTICES.md and `.github/release-notes.md`, which a build reads, count as code.
+  A final `ci-ok` job needs every job and is red when one failed or was cancelled: main's ruleset requires it alone,
+  instead of five check names typed by hand. A docs-only pull request can now be merged, and a docs-only push to main
+  refreshes the development build and `dev/`. Tests: `test/ci-changes.test.js`.
+- **main: a linear history, rebase merging only (#410):** main's ruleset requires a linear history and the
+  repository allows only rebase merging (no merge commits, no squash), as CLAUDE.md asked; the required check is
+  not strict (a pull request need not be up to date with main to merge, which several sessions merging each hour
+  would make a queue of rebases).
 
 ## 15.11.0
 

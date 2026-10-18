@@ -1,24 +1,39 @@
 name: CI
-# not for a push or pull request that changes only documentation (#149): .github/workflows/docs.yml
-# checks those (links, the paths and menus they name, the CHANGELOG, the quality page)
+# on every push to main and every pull request, the documentation's too (#409): the one check that main
+# requires, ci-ok, is always reported; a change of documentation only (scripts/ci-changes.mjs) runs the
+# unit tests alone (the documentation's tests among them), not the long jobs
 on:
   push:
     branches: [main]
-    paths-ignore: ['**.md', 'docs/**']
   pull_request:
-    paths-ignore: ['**.md', 'docs/**']
 # a newer push to a pull request cancels its run still going; on main every push's run completes (the
 # development site is deployed from a green run of main: cancelled runs, merges in quick succession,
 # would leave it behind)
 concurrency:
   group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-# A pull request runs the unit tests on Linux, the UI tests in both interfaces and Firefox / WebKit
-# (main requires the unit and UI checks to merge it: a ruleset); a push to main runs everything: the
-# unit tests on macOS and Windows too, the operating systems' smoke tests, WebKit memory and the
-# standalone build, the release zip. A failure there only (an OS-specific bug) becomes an issue,
-# fixed in the next change.
+# A pull request runs the unit tests on Linux, the UI tests in both interfaces and Firefox / WebKit;
+# a push to main runs everything: the unit tests on macOS and Windows too, the operating systems' smoke
+# tests, WebKit memory and the standalone build, the release zip. A failure there only (an OS-specific
+# bug) becomes an issue, fixed in the next change. main requires one check to merge (a ruleset): ci-ok,
+# green when every job passed or was skipped.
 jobs:
+  # whether more than the documentation changed (scripts/ci-changes.mjs): a pull request's merge commit
+  # against its base, a push against the commit main had before it
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.changes.outputs.code }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
+      - id: changes
+        run: node scripts/ci-changes.mjs "$BASE" HEAD
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
+
   # the unit tests, in three parts at once (node --test --test-shard), on Linux, macOS and Windows
   # (Linux only for a pull request): one after another they take about 15 minutes on Linux and 20 on
   # the macOS and Windows runners
@@ -41,6 +56,8 @@ jobs:
 
   # the UI tests in headless Chrome, with each interface (alongside the unit tests)
   ui:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -63,7 +80,8 @@ jobs:
 
   # the memory test in WebKit (Safari's engine), and the single-file edition builds
   webkit-standalone:
-    if: github.event_name != 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -80,7 +98,8 @@ jobs:
   # the release zip as users get it: packaged as the Release workflow does, unzipped, started with its
   # launcher, and the open synthesis run in Chrome from it without the Internet
   release-zip:
-    if: github.event_name != 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -96,6 +115,8 @@ jobs:
 
   # the main UI flows in Firefox and in WebKit (Safari's engine)
   browsers:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -111,7 +132,8 @@ jobs:
   # macOS and Windows: a small UI smoke test in the installed Chrome (and on macOS the release zip,
   # with its .command launcher); their unit tests are in the unit job
   os:
-    if: github.event_name != 'pull_request'
+    needs: changes
+    if: needs.changes.outputs.code == 'true' && github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -135,3 +157,16 @@ jobs:
         if: runner.os == 'macOS'
         run: npm run test:release
         timeout-minutes: 10
+
+  # the one check that main requires (a ruleset, #409): green when every job above passed or was skipped
+  # (documentation only, or a pull request's run), red when one failed or was cancelled
+  ci-ok:
+    if: always()
+    needs: [changes, unit, ui, webkit-standalone, release-zip, browsers, os]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "$RESULTS"
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
