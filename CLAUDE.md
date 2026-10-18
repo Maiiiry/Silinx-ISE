@@ -59,16 +59,18 @@ the code and the lessons learnt.
   the base's, Yosys's test designs against their expectations), and the user decides. After merging, the
   quality comparison against ISE is run by hand (Actions ▸ Quality ▸ Run workflow) and reviewed. The
   sources pinned outside npm are checked monthly (`pins.yml`: one issue lists what is behind).
-- **`main` is protected** (repository rulesets): no deletion and no force push, for anyone; a commit
-  reaches `main` only with CI's unit (Linux) and UI checks green, the repository's admin excepted (for the
-  release commit and documentation-only changes, whose pull requests skip CI). The weekly quality
+- **`main` is protected** (repository rulesets): no deletion and no force push, for anyone; a linear
+  history, rebase merging only (the check is not strict: a pull request need not be up to date to merge); a commit
+  reaches `main` only with CI's one required check, `ci-ok`, green (every CI job passed or was skipped),
+  the repository's admin excepted (for the release commit). The weekly quality
   comparison cannot push to `main`: it pushes its results to the branch `quality-results`, which a
   maintainer merges.
 - **CI** (`.github/workflows/ci.yml`): a pull request runs the unit tests on Linux, the UI tests in
   both interfaces and Firefox / WebKit; a push to main runs everything (the unit tests on macOS and
   Windows too, the operating systems' smoke tests, WebKit memory, the standalone build, the release
   zip). A failure on main only (an OS-specific bug) becomes an issue, fixed in the next change.
-  A docs-only push runs `docs.yml` only. The ISE tests (nightly) and the quality comparison against
+  A docs-only change (`scripts/ci-changes.mjs`) runs the unit tests only, the documentation's among them;
+  the Markdown files a build reads (CHANGELOG, THIRD-PARTY-NOTICES) count as code. The ISE tests (nightly) and the quality comparison against
   XST (weekly) run on a self-hosted runner, only when main changed since their last run.
 - **CHANGELOG.md**: every change gets an item under the next, unreleased version's heading ("In
   short" for what users notice, "In detail" for each change with its issue number).

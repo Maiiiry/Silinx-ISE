@@ -319,8 +319,9 @@ with ISE on the design corpus every week (`.github/workflows/quality.yml`) and p
 ([docs/QUALITY.md](docs/QUALITY.md)) to the branch `quality-results`, merged into main by a maintainer. The scheduled runs (nightly, ISE, weekly comparison) are skipped when
 main has not changed since their last successful run, documentation aside
 (`scripts/changed-since-last-run.mjs`); run by hand, they always run.
-A push that changes only documentation does not run CI either: `.github/workflows/docs.yml` runs the
-documentation's tests instead.
+A push or pull request that changes only documentation runs CI's unit tests only, the documentation's
+tests among them (`scripts/ci-changes.mjs`); main requires one check, `ci-ok`, green when every CI job
+passed or was skipped.
 
 ### Command line
 
