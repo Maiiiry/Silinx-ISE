@@ -8,6 +8,6 @@ fi
 if ! node -e "process.exit(+process.versions.node.split('.')[0] >= 18 ? 0 : 1)"; then
   echo "Your Node.js is too old: install the current LTS version from https://nodejs.org"; exit 1
 fi
-[ -d node_modules/express ] || npm install --omit=dev || exit 1
+[ -d node_modules/express ] || npm ci --omit=dev --ignore-scripts || exit 1
 echo "Starting Silinx at http://127.0.0.1:${PORT:-8642}"
 exec node bin/silinx-ise.js serve --open

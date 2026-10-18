@@ -379,6 +379,13 @@ test('xise: unsupported file kinds, unknown family, work.* sim top, export defau
   const x3 = xise.exportXise({ top: 'e', files: [{ path: 'e.vhd', lang: 'vhdl' }] }, { sources: { 'e.vhd': 'entity e is end;' } });
   assert.match(x3, /"Implementation Top" xil_pn:value="Module\|e"/);
   assert.match(x3, /"PROP_DesignName" xil_pn:value="e"/);
+  // a top module name with regular-expression metacharacters (a VHDL extended identifier, a mistake): no syntax
+  // error, the name taken as text (#479)
+  const x4 = xise.exportXise({ top: 'a(b', files: [{ path: 'e.vhd', lang: 'vhdl' }] }, { sources: { 'e.vhd': 'entity a(b is end; architecture rtl of a(b is begin end;' } });
+  assert.match(x4, /"Implementation Top" xil_pn:value="Architecture\|a\(b\|rtl"/);
+  const x5 = xise.exportXise({ top: 'm.v', files: [{ path: 'm.v', lang: 'verilog' }] }, { sources: { 'm.v': 'module mxv(); endmodule' } });
+  assert.match(x5, /"Implementation Top" xil_pn:value="Module\|m\.v"/);
+  assert.doesNotMatch(x5, /Implementation Top File/);   // "m.v" is not "mxv": the dot is a dot
 });
 
 test('xise: Silinx schematics export: skipped docs, broken docs, duplicated custom symbols', () => {

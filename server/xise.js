@@ -17,10 +17,12 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 const unesc = s => String(s ?? '').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n)).replace(/&amp;/g, '&');
 
 const STARTUP = { JtagClk: 'JTAG Clock', Cclk: 'CCLK', CCLK: 'CCLK', UserClk: 'User Clock' };
+// a name inside a regular expression, as text (a top module name with metacharacters: no syntax error, #479)
+const reEsc = s => String(s ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** Find "architecture <arch> of <entity>" in VHDL text. */
 function vhdlArch(text, entity) {
-  const re = new RegExp(`\\barchitecture\\s+(\\w+)\\s+of\\s+${entity}\\b`, 'i');
+  const re = new RegExp(`\\barchitecture\\s+(\\w+)\\s+of\\s+${reEsc(entity)}\\b`, 'i');
   return (re.exec(text || '') || [])[1] || null;
 }
 
@@ -31,12 +33,12 @@ function topValue(project, name, sources) {
   for (const f of files) {
     if (f.lang !== 'vhdl') continue;
     const txt = sources?.[f.path];
-    if (txt && new RegExp(`\\bentity\\s+${name}\\s+is\\b`, 'i').test(txt)) {
+    if (txt && new RegExp(`\\bentity\\s+${reEsc(name)}\\s+is\\b`, 'i').test(txt)) {
       const arch = vhdlArch(txt, name);
       if (arch) return { value: `Architecture|${name}|${arch}`, file: f.path };
     }
   }
-  const vf = files.find(f => f.lang === 'verilog' && sources?.[f.path] && new RegExp(`\\bmodule\\s+${name}\\b`).test(sources[f.path]));
+  const vf = files.find(f => f.lang === 'verilog' && sources?.[f.path] && new RegExp(`\\bmodule\\s+${reEsc(name)}\\b`).test(sources[f.path]));
   return { value: `Module|${name}`, file: vf?.path || null };
 }
 

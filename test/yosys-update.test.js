@@ -236,3 +236,28 @@ test('yosys update: CLAUDE.md says a "yosys update" pull request is never merged
   assert.match(md, /"yosys update" pull request is never merged on green alone/);
   assert.match(md, /Actions ▸ Quality ▸ Run workflow/);
 });
+
+test('yosys update: a version the pull request\'s files give that is not one is refused, and the workflow never expands it into a script (#479)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-yosys-update-'));
+  const w = (f, x) => { fs.writeFileSync(path.join(dir, f), JSON.stringify(x)); return path.join(dir, f); };
+  const base = [w('bp.json', { dependencies: { [PACKAGE]: '0.68.1207' } }), w('bl.json', { packages: { [`node_modules/${PACKAGE}`]: { version: '0.68.1207' } } })];
+  for (const bad of ['0.70.1258"; touch /tmp/x; "', '$(id)', '0.70 1258', '`id`']) {
+    const head = [w('hp.json', { dependencies: { [PACKAGE]: bad } }), w('hl.json', { packages: { [`node_modules/${PACKAGE}`]: { version: bad } } })];
+    const r = spawnSync(process.execPath, [SCRIPT, 'versions', ...base, ...head], { encoding: 'utf8', env: { ...process.env, GITHUB_OUTPUT: '' } });
+    assert.equal(r.status, 1, bad);
+    assert.match(r.stderr, /not a version/, bad);
+    assert.equal(r.stdout, '', bad);
+  }
+  // a spec is still a version: a range, a tag, a tilde
+  for (const ok of ['^0.70.1258', '~0.70.0', '>=0.70.0 <0.71.0'.replace(' ', ''), '0.70.1258-beta.1']) {
+    const head = [w('hp.json', { dependencies: { [PACKAGE]: ok } }), w('hl.json', {})];
+    const r = spawnSync(process.execPath, [SCRIPT, 'versions', ...base, ...head], { encoding: 'utf8', env: { ...process.env, GITHUB_OUTPUT: '' } });
+    assert.equal(r.status, 0, `${ok}: ${r.stderr}`);
+  }
+  fs.rmSync(dir, { recursive: true, force: true });
+  // the report step takes the versions from the environment, not expanded into the shell script
+  const yml = read('.github/workflows/yosys-update.yml');
+  assert.match(yml, /\n        env:\n          BASE_VERSION: \$\{\{ needs\.check\.outputs\.base \}\}\n          HEAD_VERSION: \$\{\{ needs\.check\.outputs\.head \}\}\n        run: \|\n/);
+  assert.match(yml, /--base-version "\$BASE_VERSION" --head-version "\$HEAD_VERSION"/);
+  for (const m of yml.matchAll(/\n\s+run: \|\n((?:\s{10,}.*\n)+)/g)) assert.ok(!m[1].includes('needs.check.outputs.head'), 'the head version expanded into a script');
+});

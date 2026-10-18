@@ -19,7 +19,7 @@ if ! node -e "process.exit(+process.versions.node.split('.')[0] >= 18 ? 0 : 1)";
 fi
 if [ ! -d node_modules/express ]; then
   echo "Installing what Silinx needs (first time only, needs Internet)..."
-  npm install --omit=dev || { read -r -p "Installation failed. Press Enter to close."; exit 1; }
+  npm ci --omit=dev --ignore-scripts || { read -r -p "Installation failed. Press Enter to close."; exit 1; }
 fi
 echo "Starting Silinx... your browser opens at http://127.0.0.1:${PORT:-8642}"
 node bin/silinx-ise.js serve --open

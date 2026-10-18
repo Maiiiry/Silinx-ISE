@@ -74,7 +74,6 @@ export const api = {
   prom: body => req('POST', '/api/prom', body),
   job: (id, since = 0) => req('GET', `/api/jobs/${enc(id)}?since=${since}`),
   cancelJob: id => req('POST', `/api/jobs/${enc(id)}/cancel`),
-  exportXiseUrl: name => `/api/projects/${enc(name)}/export.xise${TOKEN ? `?token=${enc(TOKEN)}` : ''}`,
   importXise: body => req('POST', '/api/projects/import-xise', body),
   // whole project as a zip (.xise + silinx.json + all files)
   exportZip: async (name, kind = 'xilinx') => {

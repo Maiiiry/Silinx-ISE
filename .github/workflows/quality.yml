@@ -37,6 +37,8 @@ jobs:
       contents: read
     env:
       SILINX_ISE_HOST: local    # ISE from the Docker image on the runner itself
+      # the dependencies' install scripts do not run on this machine (npm ci --ignore-scripts, #479)
+      NPM_CONFIG_IGNORE_SCRIPTS: 'true'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

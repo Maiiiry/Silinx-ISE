@@ -21,7 +21,7 @@ if errorlevel 1 (
 )
 if not exist "node_modules\express" (
   echo Installing what Silinx needs ^(first time only, needs Internet^)...
-  call npm install --omit=dev
+  call npm ci --omit=dev --ignore-scripts
   if errorlevel 1 ( echo Installation failed. & pause & exit /b 1 )
 )
 if "%PORT%"=="" set PORT=8642

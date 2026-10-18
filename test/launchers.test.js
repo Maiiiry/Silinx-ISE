@@ -43,3 +43,11 @@ test('launchers: CRLF for the Windows one, LF for the others, which git keeps ex
   assert.match(modes, /^100755 \S+ 0\tStart Silinx-ISE\.command$/m);
   assert.match(modes, /^100755 \S+ 0\tstart-silinx-ise\.sh$/m);
 });
+
+test('launchers: the first start installs from the lock file, without the dependencies\' install scripts (#479)', () => {
+  for (const f of ['Start Silinx-ISE.command', 'start-silinx-ise.sh', 'Start Silinx-ISE.bat']) {
+    const text = fs.readFileSync(path.join(ROOT, f), 'latin1');
+    assert.match(text, /npm ci --omit=dev --ignore-scripts/, f);
+    assert.doesNotMatch(text, /npm install/, `${f}: npm install may rewrite the lock file`);
+  }
+});
