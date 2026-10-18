@@ -108,6 +108,7 @@ function injectStyle() {
 .emu-vga-frame { position: relative; width: 480px; max-width: 100%; aspect-ratio: 4 / 3; background: #000; border: 6px solid #2b2b2b; border-radius: 6px; }
 .emu-vga-frame canvas { display: block; width: 100%; height: 100%; }
 .emu-vga-nosig { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 12px; color: #c8c8c8; font-size: 14px; }
+.emu-vga-nosig[hidden] { display: none; }   /* (its display: flex would show it hidden too, #453) */
 .emu-vga-stat { margin-top: 4px; font-family: var(--mono, monospace); color: var(--grey-3); }
 .emu-vga-warn { color: var(--log-warning); }
 `));

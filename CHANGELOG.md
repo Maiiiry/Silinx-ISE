@@ -56,6 +56,9 @@ In detail:
   the clock's period to twice its delay, as ISE's trce does, where it gave the delay itself (too short a period).
   The srl fixture's rise→fall path: 3.124 ns (trce 3.042). No example, open-flow fixture or corpus design has its
   critical path between the two edges, so their periods are unchanged.
+- **VGA monitor: "No signal" over the picture (#453):** the label stayed visible, faintly, over a picture: its
+  `display: flex` overrode the `hidden` attribute; hidden now means not shown, and the UI test checks what is laid
+  out, not only the attribute.
 - **Design corpus: a design's own clock period (#440):** iwls05-spi's critical path (19.9 ns on macOS, 20.08 on
   GitHub's Linux runner) sat on the corpus's fixed PERIOD of 20 ns, so its "PERIOD not met" warning came and went
   from one machine to the other and failed the Nightly; a design may now give its own `periodNs` in the manifest
