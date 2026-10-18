@@ -18,9 +18,10 @@ export class CompiledBoard {
   /**
    * json, top: the netlist (netlistOf); design: the elaborated design (its top's ports and signals);
    * wiring: boardWiring's; clock: the main clock's port (null: none); period: its period (ps); board: its
-   * resources (the VGA connector's widths, #420).
+   * resources (the VGA connector's widths, #420); model: compileNetlist's, already compiled (this.model, in
+   * the Board Emulator's worker: core/emulate-remote.js), in place of json and top.
    */
-  constructor({ json, top, design, wiring, clock = null, period = 20000, board = null }) {
+  constructor({ json, top, design, wiring, clock = null, period = 20000, board = null, model = null }) {
     this.wiring = wiring;
     this.period = period;
     this.clock = clock;
@@ -29,7 +30,7 @@ export class CompiledBoard {
     // the VGA monitor, when the UCF wires the board's VGA connector (core/vga.js)
     this.vgaPins = vgaPins(wiring, board);
     this.palette = this.vgaPins ? vgaPalette(this.vgaPins.widths) : null;
-    const model = compileNetlist(json, {
+    model ??= compileNetlist(json, {
       top, clock: clock || false,
       watch: {
         levels: this.watch.levels.map((l) => ({ bit: bit(l.b), on: l.on })),
@@ -38,6 +39,7 @@ export class CompiledBoard {
         vga: this.vgaPins && { hs: bit(this.vgaPins.hs), vs: bit(this.vgaPins.vs), rgb: [...this.vgaPins.red, ...this.vgaPins.green, ...this.vgaPins.blue].map(bit) },
       },
     });
+    this.model = model;
     this.cs = new CompiledSim(model);
     this.warnings = model.warnings;
     this.portOf = new Map(design.top.ports.filter((p) => p.dir === 'in').map((p) => [p.sig, p.name]));

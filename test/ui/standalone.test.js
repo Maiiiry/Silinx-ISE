@@ -385,6 +385,9 @@ uiTest('standalone edition (file://): the Board Emulator runs blinky on the comp
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running', timeout: 120000 });
   assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-side > .emu-hint')].map((e) => e.textContent).slice(1)), []);
+  // #427: in its worker, started from the page's embedded text (a Blob)
+  assert.equal(await page.eval(() => window.Silinx.active.view.worker), true, 'the compiled engine in a worker');
+  await page.waitFor(() => window.Silinx.active.view.sim.now > 1e11, [], { what: '0.1 s of the board\'s time', timeout: 60000 });
 }, { url: () => 'about:blank', timeout: 240000 });
 
 // #418: the Board Emulator in the browser edition compiles the design with the site's Yosys (its assets)
@@ -405,6 +408,7 @@ uiTest('browser edition: the Board Emulator runs blinky on the compiled engine, 
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running', timeout: 120000 });
   assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-side > .emu-hint')].map((e) => e.textContent).slice(1)), [], 'no reason, no warning');
+  assert.equal(await page.eval(() => window.Silinx.active.view.worker), true, 'the compiled engine in a worker (#427)');
   // the board's time runs at the clock's rate (real time): blinky's knight rider moves
   await page.waitFor(() => window.Silinx.active.view.sim.now > 1e11, [], { what: '0.1 s of the board\'s time', timeout: 60000 });
   assert.ok(await page.eval(() => window.Silinx.active.view.outputs.leds.some((v) => v > 0)), 'an LED lit');

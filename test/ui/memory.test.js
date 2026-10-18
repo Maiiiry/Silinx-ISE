@@ -153,7 +153,11 @@ uiTest('memory: ISim and the board emulator, run and closed, leave nothing behin
     await page.menu('Tools', 'Board Emulator');
     await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running' });
     await page.waitFor(() => window.Silinx.active.view.sim.now > 0, [], { what: 'emulator time advancing' });
+    // the compiled engine in a worker of its own (#427), terminated with the document
+    const workers = () => page.eval(async () => (await import('/js/emulator.js')).emulatorWorkers());
+    assert.deepEqual([await page.eval(() => window.Silinx.active.view.worker), await workers()], [true, 1]);
     await closeActive(page);
+    assert.equal(await workers(), 0, 'the emulator\'s worker terminated');
   });
   await withinBudget(page);
 }, { timeout: 240000 });   // many repetitions, each with a garbage collection: slow CI runners took up to 74 s of 90

@@ -62,6 +62,12 @@ const workerRes = await esbuild.build({
   bundle: true, format: 'esm', minify: true, write: false, target: 'es2022', plugins: [plugin], logLevel: 'warning', platform: 'browser', define,
 });
 const workerJs = workerRes.outputFiles[0].text;
+// the Board Emulator's compiled engine's Web Worker (web/js/emulator-worker.js, #427), embedded the same way
+const emuWorkerRes = await esbuild.build({
+  entryPoints: [path.join(ROOT, 'web/js/emulator-worker.js')],
+  bundle: true, format: 'esm', minify: true, write: false, target: 'es2022', plugins: [plugin], logLevel: 'warning', platform: 'browser', define,
+});
+const emuWorkerJs = emuWorkerRes.outputFiles[0].text;
 
 // ---- inline everything into index.html
 let html = rd('web/index.html');
@@ -80,7 +86,7 @@ html = html.replace(/<!-- the editor \(CodeMirror 6[\s\S]*?<script type="importm
 if (html.includes('importmap')) throw new Error('web/index.html: the import map was not removed');
 // replacer functions: the inserted code may contain `$'`, `$&`… which a replacement string would expand
 html = html.replace('<script type="module" src="/js/app.js"></script>',
-  () => `<script>window.SILINX_STANDALONE = true;\nwindow.SILINX_FLOW_WORKER_SRC = ${safeJs(JSON.stringify(workerJs))};</script>\n<script type="module">${safeJs(appJs)}</script>`);
+  () => `<script>window.SILINX_STANDALONE = true;\nwindow.SILINX_FLOW_WORKER_SRC = ${safeJs(JSON.stringify(workerJs))};\nwindow.SILINX_EMU_WORKER_SRC = ${safeJs(JSON.stringify(emuWorkerJs))};</script>\n<script type="module">${safeJs(appJs)}</script>`);
 html = html.replace('<title>Silinx ISE Project Navigator</title>', () => '<title>Silinx ISE Project Navigator (standalone)</title>');
 if (!html.includes(safeJs(appJs))) throw new Error('the app bundle was not inserted verbatim into the page');
 // copyright and the licences of the components embedded in this single file (NOTICE + their texts
