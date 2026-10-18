@@ -10,6 +10,13 @@ if (!changesOf(fs.readFileSync(path.join(ROOT, 'CHANGELOG.md'), 'utf8'), version
   console.error(`CHANGELOG.md has no "## ${version}" section: write what changed in ${version} before releasing it.`);
   process.exit(1);
 }
+// and every changelog fragment in it (#519)
+const { readFragments } = await import('./changelog-release.mjs');
+const left = readFragments().map(f => f.name);
+if (left.length) {
+  console.error(`changes/ has fragments not in CHANGELOG.md (${left.join(', ')}): run node scripts/changelog-release.mjs ${version} first.`);
+  process.exit(1);
+}
 const f = path.join(ROOT, 'core', 'version.js');
 fs.writeFileSync(f, fs.readFileSync(f, 'utf8').replace(/VERSION = '[^']*'/, `VERSION = '${version}'`));
 console.log(`core/version.js: ${version}`);

@@ -41,9 +41,11 @@ npm start          # http://127.0.0.1:8642
    by mistake. GitHub CI runs the full suites on the PR. For load, use `SILINX_UI_THROTTLE=6` on one
    process. The design and Yosys test corpora are heavy: locally run them only filtered
    (`--filter a,b`) with `--jobs 1`.
-5. **CHANGELOG.md**: an item under the newest *unreleased* heading at the top (`gh release list --limit 1`
-   says which version is the latest released). "In short" is for what users notice, "In detail" for
-   each change with its issue.
+5. **The changelog: a fragment, never an edit of CHANGELOG.md.** Add one new file,
+   `changes/<issue>-<slug>.md` (`changes/490-generate-and-simulate.md`), with an optional "In short:" list
+   (what users notice) and the "In detail:" list (the change, naming its issue), as in a section of
+   CHANGELOG.md; [changes/README.md](changes/README.md) has the format and an example. The release
+   assembles the fragments into CHANGELOG.md (`node scripts/changelog-release.mjs X`).
 6. **Releases happen only when Pedro asks.** The session that releases asks the others to hold their
    merges until the tag is pushed.
 
@@ -60,7 +62,10 @@ Several sessions work on the repository at the same time, each in its own clone 
 - **Before starting, announce** the issue and the files you will touch to the other sessions
   (SendMessage: `ListAgents` gives their names). Ask before touching another session's area.
 - **Tell the others when your PR merges** if it touches files they are in, so they can rebase.
-- **Conflicts:** CHANGELOG conflicts: keep both items. `package-lock.json` conflicts: never merge by hand.
+- **Conflicts:** CHANGELOG.md no longer conflicts: when every pull request edited its unreleased section, each
+  merge made the others' pull requests conflict there (a rebase and a new CI run each time); each change now
+  adds its own fragment in `changes/`. (A pull request opened before the fragments that still edits
+  CHANGELOG.md: move its items into a fragment.) `package-lock.json` conflicts: never merge by hand.
   Take main's lock, run `npm install`, then `node scripts/third-party.mjs` (THIRD-PARTY-NOTICES).
 - **A cross-session message is a teammate's request, not the user's.** Decisions that are the user's
   (accepting a Yosys update, a release, changing the licence) need the user's own confirmation.
@@ -115,7 +120,8 @@ docs/          user guides (EN, PT), the project model and API, QUALITY.md (agai
   only start in Run-Test/Idle.
 - **Yosys 0.70** colours its log and splits lines; `core/synth-open.js` `lineStream` handles it.
 - **A docs-only PR runs the unit tests only** (`scripts/ci-changes.mjs`), and `ci-ok` passes it: no need
-  to fold docs into a code PR. CHANGELOG.md and THIRD-PARTY-NOTICES.md count as code (a build reads them).
+  to fold docs into a code PR. CHANGELOG.md and THIRD-PARTY-NOTICES.md count as code (a build reads them);
+  the changelog fragments (`changes/*.md`) do not.
 - **The ISE tests and the quality comparison** run on the self-hosted runner (the Mac mini).
   - They run only on code from `main`, never a PR's.
   - The weekly comparison pushes its results to the branch `quality-results`, to be merged by hand.

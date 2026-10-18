@@ -14,7 +14,8 @@ const read = f => fs.readFileSync(path.join(ROOT, f), 'utf8');
 const SCRIPT = path.join(ROOT, 'scripts/ci-changes.mjs');
 
 test('ci changes: documentation, apart from the Markdown files a build reads', () => {
-  for (const f of ['README.md', 'ONBOARDING.md', 'CLAUDE.md', 'docs/QUALITY.md', 'docs/img/x.png', 'test/corpus/README.md', 'examples/vga/README.MD'])
+  for (const f of ['README.md', 'ONBOARDING.md', 'CLAUDE.md', 'docs/QUALITY.md', 'docs/img/x.png', 'test/corpus/README.md', 'examples/vga/README.MD',
+    'changes/README.md', 'changes/519-changelog-fragments.md'])
     assert.ok(documentation(f), f);
   for (const f of ['CHANGELOG.md', 'THIRD-PARTY-NOTICES.md', '.github/release-notes.md', 'core/ucf.js', 'test/docs.test.js',
     '.github/workflows/ci.yml', 'package.json', 'NOTICE', 'web/js/i18n.js', 'docsx/a.js'])

@@ -1,5 +1,8 @@
 // CHANGELOG.md: one section per release (every git tag and the current version), the parser, the
-// GitHub release text (What's new + the common part) and what an update brings.
+// GitHub release text (What's new + the common part) and what an update brings. The changes not
+// released yet are changelog fragments (changes/*.md, #519: test/changelog-fragments.test.js), which a
+// release assembles into its section, so the newest section is the current version's (or one written by
+// hand for the next version, being prepared).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
