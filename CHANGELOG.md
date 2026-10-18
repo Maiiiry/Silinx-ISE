@@ -35,6 +35,10 @@ In short:
 
 In detail:
 
+- **Design corpus: a design's own clock period (#440):** iwls05-spi's critical path (19.9 ns on macOS, 20.08 on
+  GitHub's Linux runner) sat on the corpus's fixed PERIOD of 20 ns, so its "PERIOD not met" warning came and went
+  from one machine to the other and failed the Nightly; a design may now give its own `periodNs` in the manifest
+  (iwls05-spi: 25 ns).
 - **Shift registers of 17 to 32 stages in one SLICEM (#24):** the two SRL16Es of such a chain are cascaded in one
   SLICEM: G holds the first 16 stages, and F takes G's last stage through SHIFTIN (`DIF_MUX = SHIFTIN`), instead
   of a net through general routing and BX. The srl fixture's 20-stage chain converts with ISE to the same .bit.

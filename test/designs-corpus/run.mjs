@@ -250,7 +250,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
     }
     // the clock on the board's oscillator pin (a global clock pad: B8, 50 MHz on the Basys2)
     const clkPort = wrapper ? 'clk' : ports.find(p => p.dir === 'in' && p.w === 1 && d.clock && p.name.toLowerCase() === d.clock.toLowerCase())?.name;
-    const ucf = clkPort ? boardClockUcf(clkPort) : null;
+    const ucf = clkPort ? boardClockUcf(clkPort, d.periodNs) : null;
     // pack (the cells it does not support yet: synthesized again without them)
     let t = Date.now();
     let packed, netlist = readYosysJson(flowSyn.files[`${flowSyn.top}.json`]);

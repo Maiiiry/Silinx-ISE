@@ -486,3 +486,18 @@ test('the README\'s run times are the ones the committed times.json gives (run.m
   // every machine class of times.json has its line
   for (const c of Object.keys(times)) assert.ok(readmeTimesTable(readme).some(l => l.startsWith(`| \`${c}\` | `)), c);
 });
+
+// #440: a design's own clock period (the manifest's periodNs), 20 ns by default; a bad one refused
+test('boardClockUcf / periodNs: the PERIOD of the clock, 20 ns unless the design gives one; the manifest checks it', () => {
+  assert.match(boardClockUcf('clk'), /^TIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;$/m);
+  assert.match(boardClockUcf('wb_clk_i', 25), /^TIMESPEC "TS_wb_clk_i" = PERIOD "wb_clk_i" 25 ns HIGH 50% ;$/m);
+  const m = goodManifest();
+  m.designs[0].periodNs = 25;
+  assert.deepEqual(validateManifest(m), []);
+  for (const bad of [0, -5, '25', NaN]) {
+    m.designs[0].periodNs = bad;
+    assert.deepEqual(validateManifest(m), [`design ${m.designs[0].name}: periodNs must be a positive number of ns`], String(bad));
+  }
+  // the corpus's own: iwls05-spi clear of the 20 ns edge
+  assert.equal(MANIFEST.designs.find(d => d.name === 'iwls05-spi').periodNs, 25);
+});
