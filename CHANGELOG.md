@@ -327,6 +327,11 @@ In detail:
   nowhere. `clonePetri` stays, for the Petri net editor's paste.
 - **A unit test on Windows (#447):** the #403 test of the minified Blob worker gave esbuild a URL's path as its
   folder (`/D:/…` on Windows): `fileURLToPath` now.
+- **One order of the Silinx toolchain's steps (#404):** `core/open-steps.js` (`OPEN_STEPS`, `orderOpenSteps`) is the
+  rule of the server's `openSteps` and the browser edition's `browserSteps` (each keeps its own step names and
+  errors); a test checks that the two agree on all 2048 sets of steps. It fixes two orders both had: the
+  post-synthesis model with a step that needs the placement (`postsynth` + `fpgaview`) ran no synthesis, and with
+  the synthesis up to date `map` + `pin2ucf` ran Map twice.
 
 ## 15.10.22
 
