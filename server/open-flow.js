@@ -25,6 +25,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deviceFamily } from '../core/family.js';
+import { OPEN_STEPS, orderOpenSteps } from '../core/open-steps.js';
 import { synthEffort } from '../core/synth-open.js';
 import { findDeviceGraph, shippedDevicePath, buildDeviceCache, devicesDir, SHIPPED_DEVICES_DIR } from '../core/fpga/device-node.js';
 import { S3E_DEVICES } from '../core/fpga/bitstream.js';
@@ -47,8 +48,7 @@ const supported = (dir = BIT_DB_DIR) => BITSTREAM_DEVICES.map(d => [d, hasBitDat
 /** The steps of the open flow (the ISE flow's names; pin2ucf: the pins the placer chose, as
  *  build/<top>_pins.ucf; postsynth: the Post-Synthesis Simulation Model, #120; xpwr: the estimated
  *  power, build/<top>.pwr, #123). The others (the later simulation models) need ISE. */
-export const OPEN_STEPS = ['synth', 'postsynth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'xpwr', 'bitgen', 'prombit', 'fpgaview'];
-const CHAIN = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
+export { OPEN_STEPS };
 
 /** Does a bit database exist for this device (e.g. 'xc3s250e'), and with pkg for the pads of that
  *  package (e.g. 'cp132')? */
@@ -119,27 +119,7 @@ export function openSteps(steps, { synthUpToDate = false } = {}) {
   const st = normalizeSteps(steps);
   const bad = st.filter(s => !OPEN_STEPS.includes(s));
   if (bad.length) throw Object.assign(new Error(`not available in the Silinx toolchain (they need Xilinx ISE): ${bad.join(', ')}. Choose an ISE mode in Toolchain Settings.`), { status: 400 });
-  const last = Math.max(-1, ...st.map(s => CHAIN.indexOf(s)));
-  // (the synthesis up to date and not asked for: from Translate on, #280)
-  const out = CHAIN.slice(synthUpToDate && !st.includes('synth') && last > 0 ? 1 : 0, last + 1);
-  // the post-synthesis model: after the synthesis when it runs (the model may be synthesized again with
-  // the test bench's generics)
-  if (st.includes('postsynth')) out.splice(out.includes('synth') ? 1 : 0, 0, 'postsynth');
-  // the pins of the placement: after Place & Route (and its timing), before the bitstream
-  if (st.includes('pin2ucf')) {
-    if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
-    out.splice(out.indexOf('trce') + 1, 0, 'pin2ucf');
-  }
-  // the estimated power: after Place & Route and its timing (and the pins), before the bitstream
-  if (st.includes('xpwr')) {
-    if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
-    out.splice(out.indexOf(out.includes('pin2ucf') ? 'pin2ucf' : 'trce') + 1, 0, 'xpwr');
-  }
-  if (st.includes('fpgaview')) {
-    if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1));
-    out.push('fpgaview');
-  }
-  return out;
+  return orderOpenSteps(st, { synthUpToDate });
 }
 
 /**

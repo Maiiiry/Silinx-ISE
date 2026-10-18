@@ -8,6 +8,7 @@ import { isView, viewHdl } from '/core/view-hdl.js';
 import { compile } from '/core/compile.js';
 import { synthEffort } from '/core/synth-open.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
+import { OPEN_STEPS, orderOpenSteps } from '/core/open-steps.js';
 
 // the devices whose device description and bit database are published (core/fpga/devices,
 // research/s3e-bitstream/db): device/package -> the description's file
@@ -39,27 +40,13 @@ export function browserOpenStatus(device = {}) {
   return { available: true, part, graph: BROWSER_DEVICES[`${dev}/${pkg}`], reason: `${part}: device description and bit database (in the browser)` };
 }
 
-const CHAIN = ['synth', 'translate', 'map', 'par', 'trce', 'bitgen', 'prombit'];
 const ALIASES = { implement: 'par', impl: 'par', synthesize: 'synth', xst: 'synth', ngdbuild: 'translate', place: 'par', route: 'par', timing: 'trce', bit: 'bitgen' };
-/** The steps of a run: the chain from synthesis to the last step asked for (as the server's openSteps). */
+/** The steps of a run: the chain from synthesis to the last step asked for (core/open-steps.js, as the server's openSteps). */
 export function browserSteps(steps, { synthUpToDate = false } = {}) {
   const set = new Set((Array.isArray(steps) ? steps : [steps]).filter(Boolean).map(s => ALIASES[String(s).toLowerCase()] || String(s).toLowerCase()));
-  if (!set.size) CHAIN.forEach(s => set.add(s));
-  const bad = [...set].filter(s => !CHAIN.includes(s) && !['fpgaview', 'pin2ucf', 'xpwr', 'postsynth'].includes(s));
+  const bad = [...set].filter(s => !OPEN_STEPS.includes(s));
   if (bad.length) throw new Error(`not available in the Silinx toolchain (they need Xilinx ISE, in the full application): ${bad.join(', ')}`);
-  if (set.has('par')) set.add('trce');
-  if (set.has('bitgen')) set.add('prombit');
-  const last = Math.max(-1, ...[...set].map(s => CHAIN.indexOf(s)));
-  // (the synthesis up to date and not asked for: from Translate on, #280)
-  const out = CHAIN.slice(synthUpToDate && !set.has('synth') && last > 0 ? 1 : 0, last + 1);
-  // the Post-Synthesis Simulation Model (#120): after the synthesis when it runs
-  if (set.has('postsynth')) out.splice(out.includes('synth') ? 1 : 0, 0, 'postsynth');
-  // the pins of the placement (Back-annotate Pin Locations): after Place & Route, before the bitstream
-  if (set.has('pin2ucf')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.splice(out.indexOf('trce') + 1, 0, 'pin2ucf'); }
-  // the estimated power (Generate Text Power Report, #123): after Place & Route (and the pins)
-  if (set.has('xpwr')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.splice(out.indexOf(out.includes('pin2ucf') ? 'pin2ucf' : 'trce') + 1, 0, 'xpwr'); }
-  if (set.has('fpgaview')) { if (!out.includes('par')) out.push(...CHAIN.slice(out.length, CHAIN.indexOf('trce') + 1)); out.push('fpgaview'); }
-  return out;
+  return orderOpenSteps(set, { synthUpToDate });
 }
 
 // One worker runs the flows (Yosys and the device descriptions stay loaded in it between runs). Its
