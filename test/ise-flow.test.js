@@ -228,6 +228,20 @@ test('ssh mode: build dir is uploaded with tar over ssh, run remotely and the re
   assert.ok(j2.lines.some(l => /Connection refused/.test(l)));
 });
 
+test('ssh mode: an unreachable host with a large build dir fails at once (tar does not block on the closed pipe, #499)', { skip: POSIX_ONLY }, async () => {
+  await writeConfig({ mode: 'ssh', ssh: { host: 'build-box', user: 'me' } });
+  const dir = await makeProject('FlowBig');
+  // much more than the pipe buffers: tar is still writing when ssh has exited
+  await fs.mkdir(path.join(dir, 'build'), { recursive: true });
+  await fs.writeFile(path.join(dir, 'build', 'big.dat'), Buffer.alloc(4 << 20, 1));
+  process.env.FAKE_SSH_FAIL = '1';
+  const j = await waitJob(jobs, await implement('FlowBig', { steps: ['synth'] }), { timeoutMs: 5000 });
+  assert.equal(j.status, 'error');
+  assert.match(j.error, /ISE flow failed \(exit code 255\)/);
+  assert.ok(j.lines.some(l => /Connection refused/.test(l)));
+  assert.deepEqual(j.lines.filter(l => /WARNING/.test(l)), [], 'no warnings');
+});
+
 test('ssh mode with a docker image on the remote host: the flow runs in that image there', { skip: POSIX_ONLY }, async () => {
   await writeConfig({ mode: 'ssh', ssh: { host: 'mini', user: 'dev', image: 'xilinx/ise:14.7' } });
   const tc = await app.call('GET', '/toolchain');

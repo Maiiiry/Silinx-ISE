@@ -41,6 +41,8 @@ In short:
 - **Hardening after a security audit:** the audit found no serious flaw; the quick fixes it recommended are in
   (no install scripts on the ISE machine, the launchers' installation, a server token kept out of addresses, the
   `.xise` export of a top module with an odd name).
+- **An unreachable ssh host fails at once:** an ISE build on an ssh host that refuses the connection ends with
+  ssh's error instead of running forever.
 
 In detail:
 
@@ -221,6 +223,13 @@ In detail:
   compares its VHDL and Verilog netlists without ABC9 (kept on both, 2 LUTs apart); blinky keeps ABC9's netlist
   (its instances 67 / 203 / 51 cells, `test/techview.test.js`), whose clock net loses its name (#496: the open-flow
   tests read the clock line whatever its name). Tests: `test/synth-open.test.js` (the rule with slices, `sliceCount`).
+- **ISE over ssh: the upload no longer hangs when ssh exits (#499):** `runPipe` (`server/ise.js`) piped `tar` into
+  `ssh` in Node; when ssh exited without reading (connection refused, a key BatchMode rejects), the pipe stopped
+  reading tar's output, and tar, its output larger than the pipe buffers, blocked forever, so the job never ended.
+  Whether tar had finished first was a race, which made the ssh-mode test of `test/ise-flow.test.js` fail now and
+  then on CI. When the reading side exits, the writer's remaining output is now drained and dropped, so it ends with
+  its own exit code and the job fails with ssh's (255). Test: `test/ise-flow.test.js` (an unreachable host with a
+  4 MB build directory: the job fails within 5 s, with no warnings).
 
 ## 15.11.0
 

@@ -627,7 +627,11 @@ function runPipe(job, [cmdA, argsA], [cmdB, argsB]) {
     const b = spawn(cmdB, argsB, { stdio: ['pipe', 'pipe', 'pipe'], detached: process.platform !== 'win32' });
     job.procs.add(a); job.procs.add(b);
     a.stdout.pipe(b.stdin);
-    b.stdin.on('error', () => {});
+    // b gone (e.g. ssh refused the connection): drain a's output and drop it, or a blocks forever
+    // on a full pipe nobody reads (#499); a then ends with its own exit code
+    const drainA = () => { a.stdout.unpipe(b.stdin); a.stdout.resume(); };
+    b.stdin.on('error', drainA);
+    b.on('exit', drainA);
     for (const s of [a.stderr, b.stderr, b.stdout]) { s.setEncoding('utf8'); s.on('data', d => job.log(d.replace(/\n$/, ''))); }
     let codes = [], failed = false;
     const done = (p, code) => {
