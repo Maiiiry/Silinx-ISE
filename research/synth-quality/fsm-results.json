@@ -1,0 +1,4333 @@
+{
+ "examples/traffic": {
+  "stock": {
+   "seconds": 4.1,
+   "luts": 110,
+   "muxf": 0,
+   "ffs": 58,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 64,
+   "periods": [
+    9.958,
+    10.027,
+    9.93
+   ],
+   "period": 9.972
+  },
+  "base": {
+   "seconds": 5,
+   "luts": 122,
+   "muxf": 0,
+   "ffs": 58,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 73,
+   "periods": [
+    9.887,
+    9.713,
+    10.984
+   ],
+   "period": 10.195
+  },
+  "binary": {
+   "seconds": 5.1,
+   "luts": 122,
+   "muxf": 0,
+   "ffs": 58,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "u_fsm.state_reg",
+     "states": 7,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'000",
+     "newInit": "3'000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 70,
+   "periods": [
+    12.428,
+    11.865,
+    12.722
+   ],
+   "period": 12.338
+  },
+  "onehot": {
+   "seconds": 5.6,
+   "luts": 116,
+   "muxf": 0,
+   "ffs": 62,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "u_fsm.state_reg",
+     "states": 7,
+     "bitsBefore": 3,
+     "bitsAfter": 7,
+     "recoded": true,
+     "init": "3'000",
+     "newInit": "7'0000001",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 67,
+   "periods": [
+    10.14,
+    10.261,
+    10.235
+   ],
+   "period": 10.212
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "examples/pong": {
+  "stock": {
+   "seconds": 2.8,
+   "luts": 282,
+   "muxf": 0,
+   "ffs": 226,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 247,
+   "periods": [
+    12.568,
+    12.704,
+    12.869
+   ],
+   "period": 12.714
+  },
+  "base": {
+   "seconds": 3.7,
+   "luts": 269,
+   "muxf": 0,
+   "ffs": 226,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 240,
+   "periods": [
+    12.277,
+    13.152,
+    12.143
+   ],
+   "period": 12.524
+  },
+  "binary": {
+   "seconds": 4.3,
+   "luts": 263,
+   "muxf": 0,
+   "ffs": 226,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state",
+     "states": 4,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'00",
+     "newInit": "2'00",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 237,
+   "periods": [
+    12.45,
+    12.943,
+    13.055
+   ],
+   "period": 12.816
+  },
+  "onehot": {
+   "seconds": 3.8,
+   "luts": 270,
+   "muxf": 0,
+   "ffs": 228,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": "2'00",
+     "newInit": "4'0001",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s250ecp132-4",
+   "slices": 241,
+   "periods": [
+    14.07,
+    13.574,
+    13.709
+   ],
+   "period": 13.784
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "picorv32": {
+  "stock": {
+   "seconds": 6.3,
+   "luts": 1184,
+   "muxf": 0,
+   "ffs": 463,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 752,
+   "periods": [
+    12.32,
+    12.02,
+    11.567
+   ],
+   "period": 11.969
+  },
+  "base": {
+   "seconds": 7.1,
+   "luts": 1188,
+   "muxf": 0,
+   "ffs": 463,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 749,
+   "periods": [
+    11.689,
+    11.003,
+    12.2
+   ],
+   "period": 11.631
+  },
+  "binary": {
+   "seconds": 7.6,
+   "luts": 1179,
+   "muxf": 0,
+   "ffs": 458,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "cpu_state",
+     "states": 7,
+     "bitsBefore": 8,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "8'10000000"
+    },
+    {
+     "wire": "mem_wordsize",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": null
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 0: trap",
+   "flowFsms": 2,
+   "part": "xc3s1200efg320-4",
+   "slices": 749,
+   "periods": [
+    12.476,
+    11.941,
+    11.746
+   ],
+   "period": 12.054
+  },
+  "onehot": {
+   "seconds": 8,
+   "luts": 1188,
+   "muxf": 0,
+   "ffs": 463,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "cpu_state",
+     "states": 7,
+     "bitsBefore": 8,
+     "bitsAfter": 7,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "8'10000000"
+    },
+    {
+     "wire": "mem_wordsize",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": null
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 2,
+   "part": "xc3s1200efg320-4",
+   "slices": 749,
+   "periods": [
+    11.689,
+    11.003,
+    12.2
+   ],
+   "period": 11.631
+  },
+  "onehot-port": {
+   "seconds": 7.8,
+   "luts": 1188,
+   "muxf": 0,
+   "ffs": 463,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "cpu_state",
+     "states": 7,
+     "bitsBefore": 8,
+     "bitsAfter": 7,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "8'10000000"
+    },
+    {
+     "wire": "mem_wordsize",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": null
+    },
+    {
+     "wire": "eoi",
+     "states": 1,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "0"
+    },
+    {
+     "wire": "pcpi_insn",
+     "states": 0,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": null
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 2,
+   "part": "xc3s1200efg320-4",
+   "slices": 749,
+   "periods": [
+    11.689,
+    11.003,
+    12.2
+   ],
+   "period": 11.631
+  }
+ },
+ "verilog-i2c-master": {
+  "stock": {
+   "seconds": 3,
+   "luts": 193,
+   "muxf": 0,
+   "ffs": 72,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 115,
+   "periods": [
+    10.266,
+    11.245,
+    10.982
+   ],
+   "period": 10.831
+  },
+  "base": {
+   "seconds": 3.5,
+   "luts": 203,
+   "muxf": 0,
+   "ffs": 73,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 123,
+   "periods": [
+    11.118,
+    10.799,
+    10.869
+   ],
+   "period": 10.929
+  },
+  "binary": {
+   "seconds": 3.5,
+   "luts": 230,
+   "muxf": 0,
+   "ffs": 72,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state_reg",
+     "states": 12,
+     "bitsBefore": 5,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": "5'00000",
+     "newInit": "4'0000",
+     "reset": "5'00000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 135,
+   "periods": [
+    11.097,
+    10.996,
+    11.581
+   ],
+   "period": 11.225
+  },
+  "onehot": {
+   "seconds": 3.5,
+   "luts": 201,
+   "muxf": 0,
+   "ffs": 80,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state_reg",
+     "states": 12,
+     "bitsBefore": 5,
+     "bitsAfter": 12,
+     "recoded": true,
+     "init": "5'00000",
+     "newInit": "12'000000000001",
+     "reset": "5'00000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 119,
+   "periods": [
+    11.067,
+    11.071,
+    10.83
+   ],
+   "period": 10.989
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "nandland-spi-vhdl": {
+  "stock": {
+   "seconds": 2.8,
+   "luts": 46,
+   "muxf": 0,
+   "ffs": 37,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 52,
+   "periods": [
+    5.51,
+    5.292,
+    5.542
+   ],
+   "period": 5.448
+  },
+  "base": {
+   "seconds": 3.1,
+   "luts": 46,
+   "muxf": 0,
+   "ffs": 37,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 52,
+   "periods": [
+    5.582,
+    5.462,
+    5.402
+   ],
+   "period": 5.482
+  },
+  "binary": {
+   "seconds": 3,
+   "luts": 47,
+   "muxf": 0,
+   "ffs": 37,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "r_spi_clk_count",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'00",
+     "newInit": "2'00",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 53,
+   "periods": [
+    5.265,
+    6.003,
+    5.503
+   ],
+   "period": 5.59
+  },
+  "onehot": {
+   "seconds": 3.1,
+   "luts": 49,
+   "muxf": 0,
+   "ffs": 39,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "r_spi_clk_count",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": "2'00",
+     "newInit": "4'0001",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 54,
+   "periods": [
+    5.523,
+    5.658,
+    5.319
+   ],
+   "period": 5.5
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "fpu-adder": {
+  "stock": {
+   "seconds": 3.4,
+   "luts": 480,
+   "muxf": 0,
+   "ffs": 285,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 338,
+   "periods": [
+    11.129,
+    10.991,
+    11.435
+   ],
+   "period": 11.185
+  },
+  "base": {
+   "seconds": 4,
+   "luts": 474,
+   "muxf": 0,
+   "ffs": 285,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 335,
+   "periods": [
+    11.167,
+    11.385,
+    12.117
+   ],
+   "period": 11.556
+  },
+  "binary": {
+   "seconds": 4.3,
+   "luts": 500,
+   "muxf": 0,
+   "ffs": 277,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state",
+     "states": 12,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 362,
+   "periods": [
+    11.451,
+    11.991,
+    12.382
+   ],
+   "period": 11.941
+  },
+  "onehot": {
+   "seconds": 3.7,
+   "luts": 474,
+   "muxf": 0,
+   "ffs": 285,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state",
+     "states": 12,
+     "bitsBefore": 4,
+     "bitsAfter": 12,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 335,
+   "periods": [
+    11.167,
+    11.385,
+    12.117
+   ],
+   "period": 11.556
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "secworks-siphash": {
+  "stock": {
+   "seconds": 4.2,
+   "luts": 1059,
+   "muxf": 0,
+   "ffs": 462,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 913,
+   "periods": [
+    14.9,
+    14.539,
+    14.475
+   ],
+   "period": 14.638
+  },
+  "base": {
+   "seconds": 4.7,
+   "luts": 1050,
+   "muxf": 0,
+   "ffs": 462,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 865,
+   "periods": [
+    15.972,
+    14.913,
+    15.434
+   ],
+   "period": 15.44
+  },
+  "binary": {
+   "seconds": 5.7,
+   "luts": 1123,
+   "muxf": 0,
+   "ffs": 457,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "siphash_ctrl_reg",
+     "states": 8,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 885,
+   "periods": [
+    16.004,
+    15.485,
+    15.834
+   ],
+   "period": 15.774
+  },
+  "onehot": {
+   "seconds": 4.5,
+   "luts": 1050,
+   "muxf": 0,
+   "ffs": 462,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "siphash_ctrl_reg",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 865,
+   "periods": [
+    15.972,
+    14.913,
+    15.434
+   ],
+   "period": 15.44
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "vtr-ch-intrinsics": {
+  "stock": {
+   "seconds": 3.2,
+   "luts": 107,
+   "muxf": 0,
+   "ffs": 219,
+   "srl": 0,
+   "fsms": [],
+   "diff": "mismatch: cycle 199: memory_controller_in",
+   "diffPowerUp": "mismatch: cycle 199: memory_controller_in",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 265,
+   "periods": [
+    6.221,
+    6.14,
+    7.18
+   ],
+   "period": 6.514
+  },
+  "base": {
+   "seconds": 3.1,
+   "luts": 107,
+   "muxf": 0,
+   "ffs": 219,
+   "srl": 0,
+   "fsms": [],
+   "diff": "mismatch: cycle 199: memory_controller_in",
+   "diffPowerUp": "mismatch: cycle 199: memory_controller_in",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 265,
+   "periods": [
+    6.16,
+    6.952,
+    6.411
+   ],
+   "period": 6.508
+  },
+  "binary": {
+   "seconds": 3.7,
+   "luts": 123,
+   "muxf": 0,
+   "ffs": 208,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "cur_state",
+     "states": 15,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "mismatch: cycle 199: memory_controller_in",
+   "diffPowerUp": "mismatch: cycle 199: memory_controller_in",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 261,
+   "periods": [
+    7.488,
+    7.043,
+    7.353
+   ],
+   "period": 7.295
+  },
+  "onehot": {
+   "seconds": 3.1,
+   "luts": 107,
+   "muxf": 0,
+   "ffs": 219,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "cur_state",
+     "states": 15,
+     "bitsBefore": 4,
+     "bitsAfter": 15,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "mismatch: cycle 199: memory_controller_in",
+   "diffPowerUp": "mismatch: cycle 199: memory_controller_in",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 265,
+   "periods": [
+    6.16,
+    6.952,
+    6.411
+   ],
+   "period": 6.508
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "vtr-stereovision3": {
+  "stock": {
+   "seconds": 2.5,
+   "luts": 127,
+   "muxf": 0,
+   "ffs": 120,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 99,
+   "periods": [
+    8.225,
+    7.529,
+    8.197
+   ],
+   "period": 7.984
+  },
+  "base": {
+   "seconds": 3.3,
+   "luts": 140,
+   "muxf": 0,
+   "ffs": 120,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 105,
+   "periods": [
+    8.751,
+    8.489,
+    8.526
+   ],
+   "period": 8.589
+  },
+  "binary": {
+   "seconds": 3.5,
+   "luts": 151,
+   "muxf": 0,
+   "ffs": 99,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "reg_prog_state",
+     "states": 27,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "5'00001"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 111,
+   "periods": [
+    8.619,
+    8.629,
+    8.457
+   ],
+   "period": 8.568
+  },
+  "onehot": {
+   "seconds": 3.2,
+   "luts": 140,
+   "muxf": 0,
+   "ffs": 120,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "reg_prog_state",
+     "states": 27,
+     "bitsBefore": 5,
+     "bitsAfter": 27,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "5'00001"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 105,
+   "periods": [
+    8.751,
+    8.489,
+    8.526
+   ],
+   "period": 8.589
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "neorv32": {
+  "stock": {
+   "seconds": 15,
+   "luts": 2900,
+   "muxf": 0,
+   "ffs": 1319,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2158,
+   "periods": [
+    15.31,
+    15.8,
+    15.224
+   ],
+   "period": 15.445
+  },
+  "base": {
+   "seconds": 17.1,
+   "luts": 2921,
+   "muxf": 0,
+   "ffs": 1319,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2181,
+   "periods": [
+    15.287,
+    15.251,
+    16.311
+   ],
+   "period": 15.616
+  },
+  "binary": {
+   "seconds": 16.3,
+   "luts": 2919,
+   "muxf": 0,
+   "ffs": 1319,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "neorv32_top_inst.core_complex_gen[0].core_complex_inst.bus_switch_inst.state",
+     "states": 2,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'00",
+     "newInit": "2'00",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2181,
+   "periods": [
+    15.04,
+    14.77,
+    14.793
+   ],
+   "period": 14.868
+  },
+  "onehot": {
+   "seconds": 16.7,
+   "luts": 2911,
+   "muxf": 0,
+   "ffs": 1320,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "neorv32_top_inst.core_complex_gen[0].core_complex_inst.bus_switch_inst.state",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": "2'00",
+     "newInit": "3'001",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2177,
+   "periods": [
+    15.259,
+    15.983,
+    16.595
+   ],
+   "period": 15.946
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "t80": {
+  "stock": {
+   "seconds": 7.7,
+   "luts": 2153,
+   "muxf": 0,
+   "ffs": 361,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1296,
+   "periods": [
+    23.07,
+    22.951,
+    22.768
+   ],
+   "period": 22.93
+  },
+  "base": {
+   "seconds": 12.4,
+   "luts": 2177,
+   "muxf": 0,
+   "ffs": 361,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1308,
+   "periods": [
+    24.04,
+    24.64,
+    24.461
+   ],
+   "period": 24.38
+  },
+  "binary": {
+   "seconds": 43.3,
+   "luts": 2156,
+   "muxf": 0,
+   "ffs": 359,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "u0.istatus",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    },
+    {
+     "wire": "u0.iset",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1148,
+   "periods": [
+    23.36,
+    23.709,
+    23.206
+   ],
+   "period": 23.425
+  },
+  "onehot": {
+   "seconds": 18.1,
+   "luts": 2177,
+   "muxf": 0,
+   "ffs": 361,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "u0.istatus",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    },
+    {
+     "wire": "u0.iset",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1308,
+   "periods": [
+    24.04,
+    24.64,
+    24.461
+   ],
+   "period": 24.38
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "uart-for-fpga": {
+  "stock": {
+   "seconds": 2.7,
+   "luts": 60,
+   "muxf": 0,
+   "ffs": 53,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 42,
+   "periods": [
+    5.94,
+    5.143,
+    4.989
+   ],
+   "period": 5.357
+  },
+  "base": {
+   "seconds": 3.5,
+   "luts": 53,
+   "muxf": 0,
+   "ffs": 53,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 39,
+   "periods": [
+    4.989,
+    5.258,
+    5.093
+   ],
+   "period": 5.113
+  },
+  "binary": {
+   "seconds": 3.4,
+   "luts": 73,
+   "muxf": 0,
+   "ffs": 53,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "uart_tx_i.tx_pstate",
+     "states": 6,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'000",
+     "newInit": "3'000",
+     "reset": "3'000"
+    },
+    {
+     "wire": "uart_rx_i.fsm_pstate",
+     "states": 5,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'000",
+     "newInit": "3'000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 49,
+   "periods": [
+    7.052,
+    6.868,
+    7.688
+   ],
+   "period": 7.203
+  },
+  "onehot": {
+   "seconds": 3.5,
+   "luts": 59,
+   "muxf": 0,
+   "ffs": 58,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "uart_tx_i.tx_pstate",
+     "states": 6,
+     "bitsBefore": 3,
+     "bitsAfter": 6,
+     "recoded": true,
+     "init": "3'000",
+     "newInit": "6'000001",
+     "reset": "3'000"
+    },
+    {
+     "wire": "uart_rx_i.fsm_pstate",
+     "states": 5,
+     "bitsBefore": 3,
+     "bitsAfter": 5,
+     "recoded": true,
+     "init": "3'000",
+     "newInit": "5'00001",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 41,
+   "periods": [
+    4.998,
+    4.989,
+    5.093
+   ],
+   "period": 5.027
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "spi-fpga-master": {
+  "stock": {
+   "seconds": 3.4,
+   "luts": 26,
+   "muxf": 0,
+   "ffs": 21,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 18,
+   "periods": [
+    5.025,
+    4.662,
+    5.027
+   ],
+   "period": 4.905
+  },
+  "base": {
+   "seconds": 4.2,
+   "luts": 26,
+   "muxf": 0,
+   "ffs": 21,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 17,
+   "periods": [
+    6.536,
+    5.74,
+    5.43
+   ],
+   "period": 5.902
+  },
+  "binary": {
+   "seconds": 3.8,
+   "luts": 32,
+   "muxf": 0,
+   "ffs": 21,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "present_state",
+     "states": 5,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'000",
+     "newInit": "3'000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 21,
+   "periods": [
+    7.071,
+    7.161,
+    7.177
+   ],
+   "period": 7.136
+  },
+  "onehot": {
+   "seconds": 3.5,
+   "luts": 28,
+   "muxf": 0,
+   "ffs": 23,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "present_state",
+     "states": 5,
+     "bitsBefore": 3,
+     "bitsAfter": 5,
+     "recoded": true,
+     "init": "3'000",
+     "newInit": "5'00001",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 18,
+   "periods": [
+    4.448,
+    5.707,
+    4.427
+   ],
+   "period": 4.861
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "secworks-sha1": {
+  "stock": {
+   "seconds": 9.8,
+   "luts": 2015,
+   "muxf": 0,
+   "ffs": 850,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 1466,
+   "periods": [
+    17.363,
+    17.244,
+    17.49
+   ],
+   "period": 17.366
+  },
+  "base": {
+   "seconds": 9,
+   "luts": 1973,
+   "muxf": 0,
+   "ffs": 850,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 1466,
+   "periods": [
+    15.631,
+    14.868,
+    16.002
+   ],
+   "period": 15.5
+  },
+  "binary": {
+   "seconds": 12.1,
+   "luts": 1961,
+   "muxf": 0,
+   "ffs": 849,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "sha1_ctrl_reg",
+     "states": 2,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 1447,
+   "periods": [
+    17.271,
+    16.929,
+    16.682
+   ],
+   "period": 16.961
+  },
+  "onehot": {
+   "seconds": 11.5,
+   "luts": 1973,
+   "muxf": 0,
+   "ffs": 850,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "sha1_ctrl_reg",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 1466,
+   "periods": [
+    15.631,
+    14.868,
+    16.002
+   ],
+   "period": 15.5
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "secworks-sha256": {
+  "stock": {
+   "seconds": 12,
+   "luts": 2849,
+   "muxf": 0,
+   "ffs": 1034,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 1993,
+   "periods": [
+    27.169,
+    25.284,
+    24.605
+   ],
+   "period": 25.686
+  },
+  "base": {
+   "seconds": 8.8,
+   "luts": 2889,
+   "muxf": 0,
+   "ffs": 1034,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 2015,
+   "periods": [
+    22.945,
+    23.026,
+    26.82
+   ],
+   "period": 24.264
+  },
+  "binary": {
+   "seconds": 10.4,
+   "luts": 2841,
+   "muxf": 0,
+   "ffs": 1033,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "sha256_ctrl_reg",
+     "states": 2,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 2021,
+   "periods": [
+    24.095,
+    24.422,
+    23.744
+   ],
+   "period": 24.087
+  },
+  "onehot": {
+   "seconds": 15.3,
+   "luts": 2889,
+   "muxf": 0,
+   "ffs": 1034,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "sha256_ctrl_reg",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 1,
+   "part": "xc3s1200efg320-4",
+   "slices": 2015,
+   "periods": [
+    22.945,
+    23.026,
+    26.82
+   ],
+   "period": 24.264
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "secworks-aes": {
+  "stock": {
+   "seconds": 24.8,
+   "luts": 8943,
+   "muxf": 0,
+   "ffs": 2476,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 5584,
+   "periods": [
+    28.201,
+    28.813,
+    27.959
+   ],
+   "period": 28.324
+  },
+  "base": {
+   "seconds": 46.6,
+   "luts": 7274,
+   "muxf": 0,
+   "ffs": 2476,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 0,
+   "part": "xc3s1200efg320-4",
+   "slices": 4877,
+   "periods": [
+    26.314,
+    24.797,
+    26.051
+   ],
+   "period": 25.721
+  },
+  "binary": {
+   "seconds": 43.3,
+   "luts": 7080,
+   "muxf": 0,
+   "ffs": 2469,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "keymem.key_mem_ctrl_reg",
+     "states": 4,
+     "bitsBefore": 3,
+     "bitsAfter": 2,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    },
+    {
+     "wire": "dec_block.dec_ctrl_reg",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    },
+    {
+     "wire": "enc_block.enc_ctrl_reg",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    },
+    {
+     "wire": "aes_core_ctrl_reg",
+     "states": 2,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 4,
+   "part": "xc3s1200efg320-4",
+   "slices": 4818,
+   "periods": [
+    26.286,
+    26.884,
+    24.317
+   ],
+   "period": 25.829
+  },
+  "onehot": {
+   "seconds": 44,
+   "luts": 7274,
+   "muxf": 0,
+   "ffs": 2476,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "keymem.key_mem_ctrl_reg",
+     "states": 4,
+     "bitsBefore": 3,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    },
+    {
+     "wire": "dec_block.dec_ctrl_reg",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    },
+    {
+     "wire": "enc_block.enc_ctrl_reg",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    },
+    {
+     "wire": "aes_core_ctrl_reg",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "flowFsms": 4,
+   "part": "xc3s1200efg320-4",
+   "slices": 4877,
+   "periods": [
+    26.314,
+    24.797,
+    26.051
+   ],
+   "period": 25.721
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "fpu-multiplier": {
+  "stock": {
+   "seconds": 3,
+   "luts": 389,
+   "muxf": 0,
+   "ffs": 300,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 233,
+   "periods": [
+    16.064,
+    14.691,
+    15.106
+   ],
+   "period": 15.287
+  },
+  "base": {
+   "seconds": 3.4,
+   "luts": 387,
+   "muxf": 0,
+   "ffs": 300,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 232,
+   "periods": [
+    15.331,
+    15.912,
+    15.323
+   ],
+   "period": 15.522
+  },
+  "binary": {
+   "seconds": 3.8,
+   "luts": 395,
+   "muxf": 0,
+   "ffs": 291,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state",
+     "states": 13,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 251,
+   "periods": [
+    14.695,
+    15.371,
+    14.972
+   ],
+   "period": 15.013
+  },
+  "onehot": {
+   "seconds": 3.7,
+   "luts": 387,
+   "muxf": 0,
+   "ffs": 300,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "state",
+     "states": 13,
+     "bitsBefore": 4,
+     "bitsAfter": 13,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 232,
+   "periods": [
+    15.331,
+    15.912,
+    15.323
+   ],
+   "period": 15.522
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b01": {
+  "stock": {
+   "seconds": 2.2,
+   "luts": 13,
+   "muxf": 0,
+   "ffs": 5,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 7,
+   "periods": [
+    3.17,
+    3.141,
+    3.17
+   ],
+   "period": 3.16
+  },
+  "base": {
+   "seconds": 2.7,
+   "luts": 11,
+   "muxf": 0,
+   "ffs": 5,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 6,
+   "periods": [
+    3.223,
+    3.174,
+    3.224
+   ],
+   "period": 3.207
+  },
+  "binary": {
+   "seconds": 2.7,
+   "luts": 16,
+   "muxf": 0,
+   "ffs": 5,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 7,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'111",
+     "newInit": "3'111",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 8,
+   "periods": [
+    4.413,
+    4.302,
+    4.386
+   ],
+   "period": 4.367
+  },
+  "onehot": {
+   "seconds": 3.2,
+   "luts": 10,
+   "muxf": 0,
+   "ffs": 10,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": "3'111",
+     "newInit": "8'10000000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 5,
+   "periods": [
+    2.852,
+    2.802,
+    2.802
+   ],
+   "period": 2.819
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b02": {
+  "stock": {
+   "seconds": 2.3,
+   "luts": 4,
+   "muxf": 0,
+   "ffs": 4,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2,
+   "periods": [
+    2.163,
+    2.163,
+    1.959
+   ],
+   "period": 2.095
+  },
+  "base": {
+   "seconds": 3.1,
+   "luts": 4,
+   "muxf": 0,
+   "ffs": 4,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2,
+   "periods": [
+    2.228,
+    2.228,
+    1.959
+   ],
+   "period": 2.138
+  },
+  "binary": {
+   "seconds": 2.8,
+   "luts": 4,
+   "muxf": 0,
+   "ffs": 4,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 6,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'110",
+     "newInit": "3'110",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2,
+   "periods": [
+    2.075,
+    2.075,
+    1.959
+   ],
+   "period": 2.036
+  },
+  "onehot": {
+   "seconds": 2.9,
+   "luts": 9,
+   "muxf": 0,
+   "ffs": 8,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 7,
+     "bitsBefore": 3,
+     "bitsAfter": 7,
+     "recoded": true,
+     "init": "3'110",
+     "newInit": "7'0001000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 5,
+   "periods": [
+    4.3,
+    3.676,
+    4.32
+   ],
+   "period": 4.099
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b03": {
+  "stock": {
+   "seconds": 2.3,
+   "luts": 28,
+   "muxf": 0,
+   "ffs": 30,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: grant_o",
+   "part": "xc3s1200efg320-4",
+   "slices": 16,
+   "periods": [
+    5.808,
+    5.906,
+    5.731
+   ],
+   "period": 5.815
+  },
+  "base": {
+   "seconds": 2.9,
+   "luts": 29,
+   "muxf": 0,
+   "ffs": 30,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: grant_o",
+   "part": "xc3s1200efg320-4",
+   "slices": 16,
+   "periods": [
+    5.824,
+    6.069,
+    5.543
+   ],
+   "period": 5.812
+  },
+  "binary": {
+   "seconds": 3,
+   "luts": 26,
+   "muxf": 0,
+   "ffs": 30,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v4",
+     "states": 2,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'10",
+     "newInit": "2'10",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: grant_o",
+   "part": "xc3s1200efg320-4",
+   "slices": 16,
+   "periods": [
+    5.632,
+    5.855,
+    5.915
+   ],
+   "period": 5.801
+  },
+  "onehot": {
+   "seconds": 2.7,
+   "luts": 25,
+   "muxf": 0,
+   "ffs": 31,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v4",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": "2'10",
+     "newInit": "3'010",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: grant_o",
+   "part": "xc3s1200efg320-4",
+   "slices": 16,
+   "periods": [
+    5.277,
+    6.045,
+    5.746
+   ],
+   "period": 5.689
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b04": {
+  "stock": {
+   "seconds": 2.3,
+   "luts": 139,
+   "muxf": 0,
+   "ffs": 66,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 127,
+   "periods": [
+    16.27,
+    16.213,
+    16.329
+   ],
+   "period": 16.271
+  },
+  "base": {
+   "seconds": 2.9,
+   "luts": 139,
+   "muxf": 0,
+   "ffs": 66,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 127,
+   "periods": [
+    15.972,
+    16.553,
+    16.191
+   ],
+   "period": 16.239
+  },
+  "binary": {
+   "seconds": 3.2,
+   "luts": 137,
+   "muxf": 0,
+   "ffs": 66,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 2,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'10",
+     "newInit": "2'10",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 126,
+   "periods": [
+    15.895,
+    16.176,
+    16.763
+   ],
+   "period": 16.278
+  },
+  "onehot": {
+   "seconds": 3.1,
+   "luts": 135,
+   "muxf": 0,
+   "ffs": 67,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 3,
+     "bitsBefore": 2,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": "2'10",
+     "newInit": "3'010",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 125,
+   "periods": [
+    16.775,
+    16.357,
+    16.385
+   ],
+   "period": 16.506
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b05": {
+  "stock": {
+   "seconds": 9.6,
+   "luts": 294,
+   "muxf": 60,
+   "ffs": 34,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 258,
+   "periods": [
+    11.02,
+    11.108,
+    11.386
+   ],
+   "period": 11.171
+  },
+  "base": {
+   "seconds": 10.1,
+   "luts": 296,
+   "muxf": 52,
+   "ffs": 34,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 260,
+   "periods": [
+    11.828,
+    11.15,
+    11.496
+   ],
+   "period": 11.491
+  },
+  "binary": {
+   "seconds": 9.6,
+   "luts": 288,
+   "muxf": 66,
+   "ffs": 34,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p2_v0",
+     "states": 4,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'000",
+     "newInit": "3'000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 259,
+   "periods": [
+    11.358,
+    11.038,
+    11.634
+   ],
+   "period": 11.343
+  },
+  "onehot": {
+   "seconds": 9.8,
+   "luts": 292,
+   "muxf": 63,
+   "ffs": 36,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p2_v0",
+     "states": 5,
+     "bitsBefore": 3,
+     "bitsAfter": 5,
+     "recoded": true,
+     "init": "3'000",
+     "newInit": "5'00001",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 257,
+   "periods": [
+    10.57,
+    10.683,
+    11.42
+   ],
+   "period": 10.891
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b06": {
+  "stock": {
+   "seconds": 2.1,
+   "luts": 10,
+   "muxf": 0,
+   "ffs": 8,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 5,
+   "periods": [
+    3.076,
+    3.196,
+    2.899
+   ],
+   "period": 3.057
+  },
+  "base": {
+   "seconds": 2.7,
+   "luts": 10,
+   "muxf": 0,
+   "ffs": 8,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 5,
+   "periods": [
+    3.072,
+    3.196,
+    2.899
+   ],
+   "period": 3.056
+  },
+  "binary": {
+   "seconds": 2.8,
+   "luts": 10,
+   "muxf": 0,
+   "ffs": 8,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 6,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'110",
+     "newInit": "3'110",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 5,
+   "periods": [
+    3.183,
+    3.076,
+    3.191
+   ],
+   "period": 3.15
+  },
+  "onehot": {
+   "seconds": 2.8,
+   "luts": 15,
+   "muxf": 0,
+   "ffs": 12,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 7,
+     "bitsBefore": 3,
+     "bitsAfter": 7,
+     "recoded": true,
+     "init": "3'110",
+     "newInit": "7'0001000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 8,
+   "periods": [
+    4.082,
+    4.144,
+    4.175
+   ],
+   "period": 4.134
+  },
+  "onehot-port": {
+   "error": "Yosys failed (exit code 1)"
+  }
+ },
+ "itc99-b07": {
+  "stock": {
+   "seconds": 2.7,
+   "luts": 79,
+   "muxf": 0,
+   "ffs": 43,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 51,
+   "periods": [
+    6.093,
+    6.332,
+    7.253
+   ],
+   "period": 6.559
+  },
+  "base": {
+   "seconds": 4.1,
+   "luts": 81,
+   "muxf": 0,
+   "ffs": 43,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 54,
+   "periods": [
+    6.131,
+    5.632,
+    5.982
+   ],
+   "period": 5.915
+  },
+  "binary": {
+   "seconds": 3,
+   "luts": 78,
+   "muxf": 0,
+   "ffs": 43,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 6,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'110",
+     "newInit": "3'110",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 52,
+   "periods": [
+    6.113,
+    6.587,
+    5.909
+   ],
+   "period": 6.203
+  },
+  "onehot": {
+   "seconds": 2.8,
+   "luts": 56,
+   "muxf": 0,
+   "ffs": 47,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 7,
+     "bitsBefore": 3,
+     "bitsAfter": 7,
+     "recoded": true,
+     "init": "3'110",
+     "newInit": "7'0001000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 39,
+   "periods": [
+    5.547,
+    5.629,
+    5.816
+   ],
+   "period": 5.664
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b08": {
+  "stock": {
+   "seconds": 2.3,
+   "luts": 34,
+   "muxf": 0,
+   "ffs": 21,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 17,
+   "periods": [
+    6.639,
+    7.066,
+    6.393
+   ],
+   "period": 6.699
+  },
+  "base": {
+   "seconds": 3,
+   "luts": 31,
+   "muxf": 0,
+   "ffs": 21,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 16,
+   "periods": [
+    6.628,
+    6.546,
+    6.677
+   ],
+   "period": 6.617
+  },
+  "binary": {
+   "seconds": 3,
+   "luts": 35,
+   "muxf": 0,
+   "ffs": 21,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'11",
+     "newInit": "2'11",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 18,
+   "periods": [
+    7.168,
+    6.818,
+    6.937
+   ],
+   "period": 6.974
+  },
+  "onehot": {
+   "seconds": 2.8,
+   "luts": 32,
+   "muxf": 0,
+   "ffs": 23,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": "2'11",
+     "newInit": "4'1000",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 16,
+   "periods": [
+    6.407,
+    6.487,
+    6.589
+   ],
+   "period": 6.494
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b09": {
+  "stock": {
+   "seconds": 2.1,
+   "luts": 42,
+   "muxf": 0,
+   "ffs": 28,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 21,
+   "periods": [
+    6.842,
+    6.532,
+    6.709
+   ],
+   "period": 6.694
+  },
+  "base": {
+   "seconds": 2.8,
+   "luts": 44,
+   "muxf": 0,
+   "ffs": 28,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 22,
+   "periods": [
+    6.4,
+    6.787,
+    6.277
+   ],
+   "period": 6.488
+  },
+  "binary": {
+   "seconds": 3,
+   "luts": 41,
+   "muxf": 0,
+   "ffs": 28,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'11",
+     "newInit": "2'11",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 21,
+   "periods": [
+    5.231,
+    5.523,
+    5.531
+   ],
+   "period": 5.428
+  },
+  "onehot": {
+   "seconds": 2.8,
+   "luts": 48,
+   "muxf": 0,
+   "ffs": 30,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": "2'11",
+     "newInit": "4'1000",
+     "reset": "2'00"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 24,
+   "periods": [
+    6.549,
+    6.859,
+    6.503
+   ],
+   "period": 6.637
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b10": {
+  "stock": {
+   "seconds": 2.2,
+   "luts": 50,
+   "muxf": 0,
+   "ffs": 17,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 25,
+   "periods": [
+    5.969,
+    5.966,
+    6.116
+   ],
+   "period": 6.017
+  },
+  "base": {
+   "seconds": 2.8,
+   "luts": 53,
+   "muxf": 0,
+   "ffs": 17,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 29,
+   "periods": [
+    6.23,
+    5.851,
+    6.285
+   ],
+   "period": 6.122
+  },
+  "binary": {
+   "seconds": 2.9,
+   "luts": 57,
+   "muxf": 0,
+   "ffs": 17,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 10,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "4'1010",
+     "newInit": "4'1010",
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 31,
+   "periods": [
+    6.894,
+    7.062,
+    6.777
+   ],
+   "period": 6.911
+  },
+  "onehot": {
+   "seconds": 2.8,
+   "luts": 40,
+   "muxf": 0,
+   "ffs": 24,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v0",
+     "states": 11,
+     "bitsBefore": 4,
+     "bitsAfter": 11,
+     "recoded": true,
+     "init": "4'1010",
+     "newInit": "11'00000010000",
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 20,
+   "periods": [
+    6.006,
+    5.431,
+    5.195
+   ],
+   "period": 5.544
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b11": {
+  "stock": {
+   "seconds": 2.7,
+   "luts": 123,
+   "muxf": 0,
+   "ffs": 31,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 97,
+   "periods": [
+    9.547,
+    9.578,
+    9.547
+   ],
+   "period": 9.557
+  },
+  "base": {
+   "seconds": 3.5,
+   "luts": 116,
+   "muxf": 0,
+   "ffs": 31,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 100,
+   "periods": [
+    9.124,
+    8.987,
+    9.23
+   ],
+   "period": 9.114
+  },
+  "binary": {
+   "seconds": 3,
+   "luts": 120,
+   "muxf": 0,
+   "ffs": 31,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v1",
+     "states": 8,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "4'1000",
+     "newInit": "4'1000",
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 102,
+   "periods": [
+    9.329,
+    9.858,
+    9.718
+   ],
+   "period": 9.635
+  },
+  "onehot": {
+   "seconds": 3.1,
+   "luts": 117,
+   "muxf": 0,
+   "ffs": 36,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p0_v1",
+     "states": 9,
+     "bitsBefore": 4,
+     "bitsAfter": 9,
+     "recoded": true,
+     "init": "4'1000",
+     "newInit": "9'000000010",
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 94,
+   "periods": [
+    9.755,
+    9.462,
+    9.306
+   ],
+   "period": 9.508
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b12": {
+  "stock": {
+   "seconds": 2.8,
+   "luts": 358,
+   "muxf": 0,
+   "ffs": 119,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 220,
+   "periods": [
+    11.702,
+    11.657,
+    11.26
+   ],
+   "period": 11.54
+  },
+  "base": {
+   "seconds": 4.2,
+   "luts": 321,
+   "muxf": 0,
+   "ffs": 119,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 201,
+   "periods": [
+    11.295,
+    11.346,
+    11.611
+   ],
+   "period": 11.417
+  },
+  "binary": {
+   "seconds": 3.8,
+   "luts": 360,
+   "muxf": 0,
+   "ffs": 124,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p3_v0",
+     "states": 25,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "5'11001",
+     "newInit": "5'11001",
+     "reset": "5'00000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 221,
+   "periods": [
+    11.471,
+    11.631,
+    11.306
+   ],
+   "period": 11.469
+  },
+  "onehot": {
+   "seconds": 4.2,
+   "luts": 395,
+   "muxf": 0,
+   "ffs": 144,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p3_v0",
+     "states": 26,
+     "bitsBefore": 5,
+     "bitsAfter": 26,
+     "recoded": true,
+     "init": "5'11001",
+     "newInit": "26'00000000010000000000000000",
+     "reset": "5'00000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 238,
+   "periods": [
+    11.834,
+    11.445,
+    10.907
+   ],
+   "period": 11.395
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b13": {
+  "stock": {
+   "seconds": 2.4,
+   "luts": 68,
+   "muxf": 0,
+   "ffs": 53,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 41,
+   "periods": [
+    8.35,
+    8.45,
+    9.073
+   ],
+   "period": 8.624
+  },
+  "base": {
+   "seconds": 2.9,
+   "luts": 67,
+   "muxf": 0,
+   "ffs": 53,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 41,
+   "periods": [
+    7.626,
+    7.935,
+    7.548
+   ],
+   "period": 7.703
+  },
+  "binary": {
+   "seconds": 2.8,
+   "luts": 68,
+   "muxf": 0,
+   "ffs": 53,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "itfc_state",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'11",
+     "newInit": "2'11",
+     "reset": "2'00"
+    },
+    {
+     "wire": "next_bit",
+     "states": 9,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "4'1001",
+     "newInit": "4'1001",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "s2",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "2'11",
+     "newInit": "2'11",
+     "reset": "2'00"
+    },
+    {
+     "wire": "s1",
+     "states": 7,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'111",
+     "newInit": "3'111",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 42,
+   "periods": [
+    9,
+    8.383,
+    8.704
+   ],
+   "period": 8.696
+  },
+  "onehot": {
+   "seconds": 2.9,
+   "luts": 69,
+   "muxf": 0,
+   "ffs": 68,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "itfc_state",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": "2'11",
+     "newInit": "4'1000",
+     "reset": "2'00"
+    },
+    {
+     "wire": "next_bit",
+     "states": 10,
+     "bitsBefore": 4,
+     "bitsAfter": 10,
+     "recoded": true,
+     "init": "4'1001",
+     "newInit": "10'0001000000",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "s2",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": "2'11",
+     "newInit": "4'1000",
+     "reset": "2'00"
+    },
+    {
+     "wire": "s1",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": "3'111",
+     "newInit": "8'10000000",
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 42,
+   "periods": [
+    8.351,
+    8.332,
+    8.364
+   ],
+   "period": 8.349
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b14": {
+  "stock": {
+   "seconds": 18.9,
+   "luts": 1083,
+   "muxf": 265,
+   "ffs": 246,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: addr",
+   "part": "xc3s1200efg320-4",
+   "slices": 707,
+   "periods": [
+    34.694,
+    33.561,
+    33.198
+   ],
+   "period": 33.818
+  },
+  "base": {
+   "seconds": 23.2,
+   "luts": 1229,
+   "muxf": 302,
+   "ffs": 246,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: addr",
+   "part": "xc3s1200efg320-4",
+   "slices": 861,
+   "periods": [
+    34.791,
+    35.396,
+    35.019
+   ],
+   "period": 35.069
+  },
+  "binary": {
+   "seconds": 26.5,
+   "luts": 1229,
+   "muxf": 302,
+   "ffs": 246,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: addr",
+   "part": "xc3s1200efg320-4",
+   "slices": 861,
+   "periods": [
+    34.791,
+    35.396,
+    35.019
+   ],
+   "period": 35.069
+  },
+  "onehot": {
+   "seconds": 22.7,
+   "luts": 1229,
+   "muxf": 302,
+   "ffs": 246,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "mismatch: cycle 3: addr",
+   "part": "xc3s1200efg320-4",
+   "slices": 861,
+   "periods": [
+    34.791,
+    35.396,
+    35.019
+   ],
+   "period": 35.069
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b15": {
+  "stock": {
+   "seconds": 6.9,
+   "luts": 2028,
+   "muxf": 0,
+   "ffs": 420,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1318,
+   "periods": [
+    20.748,
+    20.772,
+    20.58
+   ],
+   "period": 20.7
+  },
+  "base": {
+   "seconds": 8.7,
+   "luts": 1931,
+   "muxf": 0,
+   "ffs": 420,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1271,
+   "periods": [
+    20.367,
+    20.35,
+    20.084
+   ],
+   "period": 20.267
+  },
+  "binary": {
+   "seconds": 8.9,
+   "luts": 1925,
+   "muxf": 0,
+   "ffs": 420,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p1_v11",
+     "states": 9,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "4'1001",
+     "newInit": "4'1001",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "state",
+     "states": 7,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'111",
+     "newInit": "3'111",
+     "reset": "3'000"
+    }
+   ],
+   "dropped": [
+    {
+     "wire": "datawidth",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1268,
+   "periods": [
+    19.601,
+    19.979,
+    19.853
+   ],
+   "period": 19.811
+  },
+  "onehot": {
+   "seconds": 9.6,
+   "luts": 1853,
+   "muxf": 0,
+   "ffs": 430,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p1_v11",
+     "states": 10,
+     "bitsBefore": 4,
+     "bitsAfter": 10,
+     "recoded": true,
+     "init": "4'1001",
+     "newInit": "10'0001000000",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "state",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": "3'111",
+     "newInit": "8'10000000",
+     "reset": "3'000"
+    }
+   ],
+   "dropped": [
+    {
+     "wire": "datawidth",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1230,
+   "periods": [
+    19.852,
+    19.6,
+    20.369
+   ],
+   "period": 19.94
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b17": {
+  "stock": {
+   "seconds": 20.1,
+   "luts": 6338,
+   "muxf": 0,
+   "ffs": 1328,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "error: the simulation stopped (error)",
+   "part": "xc3s1200efg320-4",
+   "slices": 4095,
+   "periods": [
+    22.979,
+    23.467,
+    23.686
+   ],
+   "period": 23.377
+  },
+  "base": {
+   "seconds": 22.6,
+   "luts": 5767,
+   "muxf": 0,
+   "ffs": 1328,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "error: the simulation stopped (error)",
+   "part": "xc3s1200efg320-4",
+   "slices": 3818,
+   "periods": [
+    21.287,
+    22.531,
+    22.899
+   ],
+   "period": 22.239
+  },
+  "binary": {
+   "seconds": 25.5,
+   "luts": 5879,
+   "muxf": 0,
+   "ffs": 1328,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p13_v11",
+     "states": 9,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "4'1001",
+     "newInit": "4'1001",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "p10_v11",
+     "states": 9,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "4'1001",
+     "newInit": "4'1001",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "p7_v11",
+     "states": 9,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "4'1001",
+     "newInit": "4'1001",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "p3.state",
+     "states": 7,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'111",
+     "newInit": "3'111",
+     "reset": "3'000"
+    },
+    {
+     "wire": "p2.state",
+     "states": 7,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'111",
+     "newInit": "3'111",
+     "reset": "3'000"
+    },
+    {
+     "wire": "p1.state",
+     "states": 7,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": "3'111",
+     "newInit": "3'111",
+     "reset": "3'000"
+    }
+   ],
+   "dropped": [
+    {
+     "wire": "p3.datawidth",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p2.datawidth",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p1.datawidth",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "error: the simulation stopped (error)",
+   "part": "xc3s1200efg320-4",
+   "slices": 3874,
+   "periods": [
+    21.316,
+    22.571,
+    22.073
+   ],
+   "period": 21.987
+  },
+  "onehot": {
+   "seconds": 27.9,
+   "luts": 5780,
+   "muxf": 0,
+   "ffs": 1356,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "p13_v11",
+     "states": 10,
+     "bitsBefore": 4,
+     "bitsAfter": 10,
+     "recoded": true,
+     "init": "4'1001",
+     "newInit": "10'0001000000",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "p10_v11",
+     "states": 10,
+     "bitsBefore": 4,
+     "bitsAfter": 10,
+     "recoded": true,
+     "init": "4'1001",
+     "newInit": "10'0001000000",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "p7_v11",
+     "states": 10,
+     "bitsBefore": 4,
+     "bitsAfter": 10,
+     "recoded": true,
+     "init": "4'1001",
+     "newInit": "10'0001000000",
+     "reset": "4'0000"
+    },
+    {
+     "wire": "p3.state",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": "3'111",
+     "newInit": "8'10000000",
+     "reset": "3'000"
+    },
+    {
+     "wire": "p2.state",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": "3'111",
+     "newInit": "8'10000000",
+     "reset": "3'000"
+    },
+    {
+     "wire": "p1.state",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": "3'111",
+     "newInit": "8'10000000",
+     "reset": "3'000"
+    }
+   ],
+   "dropped": [
+    {
+     "wire": "p3.datawidth",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p2.datawidth",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p1.datawidth",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "error: the simulation stopped (error)",
+   "part": "xc3s1200efg320-4",
+   "slices": 3816,
+   "periods": [
+    21.925,
+    22.654,
+    20.581
+   ],
+   "period": 21.72
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b20": {
+  "stock": {
+   "seconds": 31.8,
+   "luts": 2234,
+   "muxf": 498,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1452,
+   "periods": [
+    35.333,
+    34.73,
+    35.224
+   ],
+   "period": 35.096
+  },
+  "base": {
+   "seconds": 36.7,
+   "luts": 2547,
+   "muxf": 676,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1713,
+   "periods": [
+    38.045,
+    35.63,
+    36.796
+   ],
+   "period": 36.824
+  },
+  "binary": {
+   "seconds": 41.7,
+   "luts": 2547,
+   "muxf": 676,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p1_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1713,
+   "periods": [
+    38.045,
+    35.63,
+    36.796
+   ],
+   "period": 36.824
+  },
+  "onehot": {
+   "seconds": 41.7,
+   "luts": 2547,
+   "muxf": 676,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p1_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1713,
+   "periods": [
+    38.045,
+    35.63,
+    36.796
+   ],
+   "period": 36.824
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b21": {
+  "stock": {
+   "seconds": 31.4,
+   "luts": 2341,
+   "muxf": 589,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1529,
+   "periods": [
+    34.381,
+    34.721,
+    34.832
+   ],
+   "period": 34.645
+  },
+  "base": {
+   "seconds": 38.2,
+   "luts": 2510,
+   "muxf": 733,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1704,
+   "periods": [
+    37.352,
+    36.886,
+    37.009
+   ],
+   "period": 37.082
+  },
+  "binary": {
+   "seconds": 36.3,
+   "luts": 2510,
+   "muxf": 733,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p1_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1704,
+   "periods": [
+    37.352,
+    36.886,
+    37.009
+   ],
+   "period": 37.082
+  },
+  "onehot": {
+   "seconds": 39.8,
+   "luts": 2510,
+   "muxf": 733,
+   "ffs": 492,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p1_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 1704,
+   "periods": [
+    37.352,
+    36.886,
+    37.009
+   ],
+   "period": 37.082
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "itc99-b22": {
+  "stock": {
+   "seconds": 31.7,
+   "luts": 3265,
+   "muxf": 0,
+   "ffs": 706,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2023,
+   "periods": [
+    38.31,
+    37.129,
+    38.592
+   ],
+   "period": 38.01
+  },
+  "base": {
+   "seconds": 51.3,
+   "luts": 3606,
+   "muxf": 551,
+   "ffs": 706,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2422,
+   "periods": [
+    39.534,
+    38.724,
+    36.16
+   ],
+   "period": 38.139
+  },
+  "binary": {
+   "seconds": 62.3,
+   "luts": 3606,
+   "muxf": 551,
+   "ffs": 706,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p2_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p1_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2422,
+   "periods": [
+    39.534,
+    38.724,
+    36.16
+   ],
+   "period": 38.139
+  },
+  "onehot": {
+   "seconds": 66.1,
+   "luts": 3606,
+   "muxf": 551,
+   "ffs": 706,
+   "srl": 0,
+   "fsms": [],
+   "dropped": [
+    {
+     "wire": "p2_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p1_v17",
+     "init": "32'10000000000000000000000000000000"
+    },
+    {
+     "wire": "p0_v17",
+     "init": "32'10000000000000000000000000000000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 2422,
+   "periods": [
+    39.534,
+    38.724,
+    36.16
+   ],
+   "period": 38.139
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "iwls05-sasc": {
+  "stock": {
+   "seconds": 2.3,
+   "luts": 89,
+   "muxf": 0,
+   "ffs": 118,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 73,
+   "periods": [
+    6.161,
+    6.054,
+    5.959
+   ],
+   "period": 6.058
+  },
+  "base": {
+   "seconds": 2.9,
+   "luts": 89,
+   "muxf": 0,
+   "ffs": 118,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 73,
+   "periods": [
+    5.525,
+    5.687,
+    5.989
+   ],
+   "period": 5.734
+  },
+  "binary": {
+   "seconds": 2.8,
+   "luts": 86,
+   "muxf": 0,
+   "ffs": 116,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "dpll_state",
+     "states": 3,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'01"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 71,
+   "periods": [
+    6.24,
+    6.044,
+    5.89
+   ],
+   "period": 6.058
+  },
+  "onehot": {
+   "seconds": 3,
+   "luts": 89,
+   "muxf": 0,
+   "ffs": 118,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "dpll_state",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'01"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 73,
+   "periods": [
+    5.525,
+    5.687,
+    5.989
+   ],
+   "period": 5.734
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "iwls05-i2c": {
+  "stock": {
+   "seconds": 3.2,
+   "luts": 251,
+   "muxf": 0,
+   "ffs": 129,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 195,
+   "periods": [
+    9.54,
+    9.729,
+    9.935
+   ],
+   "period": 9.735
+  },
+  "base": {
+   "seconds": 4.7,
+   "luts": 236,
+   "muxf": 0,
+   "ffs": 129,
+   "srl": 0,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 187,
+   "periods": [
+    10.456,
+    9.708,
+    9.993
+   ],
+   "period": 10.052
+  },
+  "binary": {
+   "seconds": 4.5,
+   "luts": 255,
+   "muxf": 0,
+   "ffs": 125,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "byte_controller.c_state",
+     "states": 6,
+     "bitsBefore": 5,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "5'00000"
+    },
+    {
+     "wire": "byte_controller.core_cmd",
+     "states": 5,
+     "bitsBefore": 4,
+     "bitsAfter": 3,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 195,
+   "periods": [
+    10.059,
+    9.715,
+    10.334
+   ],
+   "period": 10.036
+  },
+  "onehot": {
+   "seconds": 4.8,
+   "luts": 236,
+   "muxf": 0,
+   "ffs": 129,
+   "srl": 0,
+   "fsms": [
+    {
+     "wire": "byte_controller.c_state",
+     "states": 6,
+     "bitsBefore": 5,
+     "bitsAfter": 6,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "5'00000"
+    },
+    {
+     "wire": "byte_controller.core_cmd",
+     "states": 5,
+     "bitsBefore": 4,
+     "bitsAfter": 5,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "4'0000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 187,
+   "periods": [
+    10.456,
+    9.708,
+    9.993
+   ],
+   "period": 10.052
+  },
+  "onehot-port": {
+   "same": "onehot"
+  }
+ },
+ "iwls05-usb-phy": {
+  "stock": {
+   "seconds": 3.1,
+   "luts": 103,
+   "muxf": 0,
+   "ffs": 106,
+   "srl": 1,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 72,
+   "periods": [
+    5.589,
+    5.344,
+    5.594
+   ],
+   "period": 5.509
+  },
+  "base": {
+   "seconds": 4.7,
+   "luts": 103,
+   "muxf": 0,
+   "ffs": 106,
+   "srl": 1,
+   "fsms": [],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 72,
+   "periods": [
+    5.249,
+    5.885,
+    5.251
+   ],
+   "period": 5.462
+  },
+  "binary": {
+   "seconds": 4.4,
+   "luts": 106,
+   "muxf": 0,
+   "ffs": 96,
+   "srl": 1,
+   "fsms": [
+    {
+     "wire": "i_rx_phy.fs_state",
+     "states": 8,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    },
+    {
+     "wire": "i_rx_phy.dpll_state",
+     "states": 4,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "2'01"
+    },
+    {
+     "wire": "i_tx_phy.state",
+     "states": 6,
+     "bitsBefore": null,
+     "bitsAfter": null,
+     "recoded": false,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 74,
+   "periods": [
+    7.83,
+    8.119,
+    7.57
+   ],
+   "period": 7.84
+  },
+  "onehot": {
+   "seconds": 4.4,
+   "luts": 103,
+   "muxf": 0,
+   "ffs": 106,
+   "srl": 1,
+   "fsms": [
+    {
+     "wire": "i_rx_phy.fs_state",
+     "states": 8,
+     "bitsBefore": 3,
+     "bitsAfter": 8,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    },
+    {
+     "wire": "i_rx_phy.dpll_state",
+     "states": 4,
+     "bitsBefore": 2,
+     "bitsAfter": 4,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "2'01"
+    },
+    {
+     "wire": "i_tx_phy.state",
+     "states": 6,
+     "bitsBefore": 3,
+     "bitsAfter": 6,
+     "recoded": true,
+     "init": null,
+     "newInit": null,
+     "reset": "3'000"
+    }
+   ],
+   "diff": "pass",
+   "diffPowerUp": "pass",
+   "part": "xc3s1200efg320-4",
+   "slices": 72,
+   "periods": [
+    5.249,
+    5.885,
+    5.251
+   ],
+   "period": 5.462
+  }
+ }
+}

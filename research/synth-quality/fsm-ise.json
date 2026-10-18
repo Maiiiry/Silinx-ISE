@@ -1,0 +1,458 @@
+{
+ "examples/traffic": {
+  "part": "xc3s250ecp132-4",
+  "luts": 123,
+  "ffs": 57,
+  "slices": 70,
+  "periodNs": 7.769,
+  "isePeriodNs": 5,
+  "xstFsms": [
+   {
+    "signal": "state_reg",
+    "states": 7,
+    "encoding": "user"
+   }
+  ],
+  "xstEncodings": [
+   "state_reg[1:3]: user"
+  ]
+ },
+ "examples/pong": {
+  "part": "xc3s250ecp132-4",
+  "luts": 371,
+  "ffs": 222,
+  "slices": 267,
+  "periodNs": 10.558,
+  "isePeriodNs": 5,
+  "xstFsms": [
+   {
+    "signal": "state",
+    "states": 4,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "state[1:2]: gray"
+  ]
+ },
+ "picorv32": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "verilog-i2c-master": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "state_reg",
+    "states": 12,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "state_reg[1:12]: one-hot"
+  ]
+ },
+ "nandland-spi-vhdl": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "fpu-adder": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "state",
+    "states": 12,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "state[1:12]: one-hot"
+  ]
+ },
+ "secworks-siphash": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "siphash_ctrl_reg",
+    "states": 8,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "siphash_ctrl_reg[1:8]: one-hot"
+  ]
+ },
+ "vtr-ch-intrinsics": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "cur_state",
+    "states": 15,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "cur_state[1:15]: one-hot"
+  ]
+ },
+ "vtr-stereovision3": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "reg_prog_state",
+    "states": 27,
+    "encoding": "sequential"
+   }
+  ],
+  "xstEncodings": [
+   "reg_prog_state[1:5]: sequential"
+  ]
+ },
+ "neorv32": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "t80": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": []
+ },
+ "uart-for-fpga": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "fsm_pstate",
+    "states": 4,
+    "encoding": "gray"
+   },
+   {
+    "signal": "tx_pstate",
+    "states": 5,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "tx_pstate[1:3]: gray",
+   "fsm_pstate[1:2]: gray"
+  ]
+ },
+ "spi-fpga-master": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "present_state",
+    "states": 5,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "present_state[1:3]: gray"
+  ]
+ },
+ "secworks-sha1": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "secworks-sha256": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "secworks-aes": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "fpu-multiplier": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "state",
+    "states": 13,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "state[1:13]: one-hot"
+  ]
+ },
+ "itc99-b01": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 8,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:8]: one-hot"
+  ]
+ },
+ "itc99-b02": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 7,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:3]: gray"
+  ]
+ },
+ "itc99-b03": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 3,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:3]: one-hot"
+  ]
+ },
+ "itc99-b04": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 3,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:3]: one-hot"
+  ]
+ },
+ "itc99-b05": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "STATO",
+    "states": 5,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "STATO[1:5]: one-hot"
+  ]
+ },
+ "itc99-b06": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "state",
+    "states": 7,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "state[1:3]: gray"
+  ]
+ },
+ "itc99-b07": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 7,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:7]: one-hot"
+  ]
+ },
+ "itc99-b08": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "STATO",
+    "states": 4,
+    "encoding": "sequential"
+   }
+  ],
+  "xstEncodings": [
+   "STATO[1:2]: sequential"
+  ]
+ },
+ "itc99-b09": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 4,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:2]: gray"
+  ]
+ },
+ "itc99-b10": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 11,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:11]: one-hot"
+  ]
+ },
+ "itc99-b11": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "stato",
+    "states": 9,
+    "encoding": "one-hot"
+   }
+  ],
+  "xstEncodings": [
+   "stato[1:9]: one-hot"
+  ]
+ },
+ "itc99-b12": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": []
+ },
+ "itc99-b13": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "next_bit",
+    "states": 10,
+    "encoding": "one-hot"
+   },
+   {
+    "signal": "itfc_state",
+    "states": 4,
+    "encoding": "one-hot"
+   },
+   {
+    "signal": "S1",
+    "states": 8,
+    "encoding": "one-hot"
+   },
+   {
+    "signal": "S2",
+    "states": 4,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "S2[1:2]: gray",
+   "S1[1:8]: one-hot",
+   "itfc_state[1:4]: one-hot",
+   "next_bit[1:10]: one-hot"
+  ]
+ },
+ "itc99-b14": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "itc99-b15": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "itc99-b17": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": [],
+  "error": "ISE flow failed in step 'synth' (exit code 6)"
+ },
+ "itc99-b20": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": []
+ },
+ "itc99-b21": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": []
+ },
+ "itc99-b22": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [],
+  "xstEncodings": []
+ },
+ "iwls05-sasc": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "dpll_state",
+    "states": 4,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "dpll_state[1:2]: gray"
+  ]
+ },
+ "iwls05-i2c": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "c_state",
+    "states": 18,
+    "encoding": "gray"
+   },
+   {
+    "signal": "c_state",
+    "states": 6,
+    "encoding": "gray"
+   }
+  ],
+  "xstEncodings": [
+   "c_state[1:3]: gray",
+   "c_state[1:18]: one-hot"
+  ]
+ },
+ "iwls05-usb-phy": {
+  "part": "xc3s1200efg320-4",
+  "xstFsms": [
+   {
+    "signal": "state",
+    "states": 6,
+    "encoding": "user"
+   },
+   {
+    "signal": "dpll_state",
+    "states": 4,
+    "encoding": "gray"
+   },
+   {
+    "signal": "fs_state",
+    "states": 8,
+    "encoding": "user"
+   }
+  ],
+  "xstEncodings": [
+   "fs_state[1:3]: user",
+   "dpll_state[1:2]: gray",
+   "state[1:3]: gray"
+  ]
+ }
+}

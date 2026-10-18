@@ -571,3 +571,110 @@ from +20 % to about +9 % (the adder, max and priority; the ITC'99 ones ISE canno
   `state_id` output reads the state register); XST kept its binary encoding too. Nor in any other design:
   `fsm_detect` refuses every register with an initial value, and the front end gives every register its
   power-up value. A re-encoding has to keep that value.
+
+## State machines: extraction and re-encoding (#438)
+
+Yosys's `fsm` pass (in synth_xilinx's prepare step) extracts and re-encodes state machines, but `fsm_detect` refuses
+a register that has an initial value ("Register has an initialization value."), and the front end gives every
+register its power-up value. `fsm.mjs` measures what extracting them would give, without changing the open
+synthesis: the open synthesis's own script, its first step split around `fsm`; the machines lose their init value
+and are marked (`fsm_encoding auto`); `fsm -nodetect -encoding … -encfile` extracts and re-encodes them and writes
+each one's old → new codes; each re-encoded register gets the new code of its old init state as its init; the rest
+of the script runs as it is (Optimization Effort Normal, the app's default). Each netlist is simulated against the RTL
+as the tests do (the resets held first) and from power-up with no reset, where a machine started in another state
+shows (checked: without the new init values the one-hot traffic example fails at cycle 2); and taken through the
+open back end (seeds 1-3, the mean of Silinx's timing analysis of the routed designs; the corpus on the XC3S1200E
+as `compare-ise.mjs`). `fsm-ise.mjs` adds XST's side on the ISE host (the state machines of its report, the
+encodings it chose; ISE's flow for the examples; the corpus's sizes and periods from
+test/designs-corpus/ise-comparison.json):
+
+    node research/synth-quality/fsm.mjs --detect               which registers fsm_detect marks (fsm-detect.json)
+    node research/synth-quality/fsm.mjs [--filter a,b]         the measurement (fsm-results.json)
+    node research/synth-quality/fsm.mjs --table                the tables
+    node research/synth-quality/fsm-ise.mjs [--synth-only] [--projects dir] [--routed dir]    XST's side (fsm-ise.json)
+
+The ways: *stock* the open synthesis as it is; *base* the split script with nothing extracted, the reference (the
+same circuit, but the RTLIL round trip orders the cells otherwise and ABC's mapping moves with the order: stock →
+base is the noise, up to 12 % of the slices on a small design); *binary* and *onehot* the marked machines
+re-encoded by Yosys in binary or one-hot (*onehot* is Yosys's own `auto` choice: one-hot for a state register under
+32 bits); *onehot-port* also the registers refused only because a port reads them.
+
+**How many.** Of the 74 designs (the seven examples and the corpus), fsm_detect marks 21 registers today, all in
+Verilog designs whose state registers have no initial value (picorv32, the secworks cores, the FPUs, T80, the IWLS
+cores): Yosys extracts and re-encodes those already, in one-hot. Without the init values it marks 65, in 39 designs:
+**44 kept out by their init value alone, in 24 designs**, the VHDL ones (the ITC'99 benchmarks, uart-for-fpga,
+spi-fpga-master, neorv32) and two examples, traffic (7 states) and pong (4); gates, blinky, stopwatch, clock and vga
+have no register it marks. Refused for other reasons: 18 "users don't benefit" (counters, mostly), 4 "connected to a
+module port" (picorv32, ITC'99 b06).
+
+- Six of the 44 cannot keep their power-up state: VHDL integers (ITC'99 b14, b15, b17, b20-22: `datawidth`,
+  `p0_v17`) that start at integer'left, a value they never take again, so fsm_opt drops it from their states. They
+  are left out (b14 and b20-22 then extract nothing).
+- Marking a register that a port reads crashes Yosys 0.70 on ITC'99 b06 (`Assert … failed in kernel/rtlil.cc`);
+  picorv32's two are extracted and keep their codes.
+- Every netlist is equal to the RTL with the resets first; from power-up as well, except where the RTL itself starts
+  undefined (picorv32 binary: `cpu_state` has no initial value in the Verilog, so its power-up is defined by the
+  reset alone; ITC'99 b03, b14, b17 differ from power-up in every way, base included).
+
+**Size and speed.** Geometric means against base, 2026-10-18 (main d805df1), LUTs / FFs / slices / period:
+
+| designs | onehot | binary |
+|---|---|---|
+| all 36 measured every way | 1.011 / 1.091 / 1.006 / 1.009 | 1.042 / 0.990 / 1.031 / 1.041 |
+| the 21 whose machines the init values keep out | 1.018 / 1.160 / 1.011 / 1.015 | 1.056 / 1.001 / 1.050 / 1.058 |
+| the 12 that Yosys extracts today | 1.000 / 1.000 / 1.000 / 1.000 (the same netlist) | 1.028 / 0.969 / 1.007 / 1.023 |
+| stock (the noise) | 1.008 / 1.000 / 0.994 / 1.002 | |
+
+- **One-hot is not better on average**: 16 % more flip-flops, as many slices (the flip-flops fit in slices whose
+  LUTs are used anyway), the period 1.5 % longer. By design it varies more than the noise: ITC'99 b10 −31 % slices
+  and −9 % period, b07 −28 % / −4 %, b01 −17 % / −12 %, traffic −8 % / +0 %; but b02 +150 % / +92 % (2 slices to 5),
+  b06 +60 % / +35 %, b12 +18 %, pong +0 % / +10 %.
+- **Yosys's binary re-encoding is worse** (5 % more slices, 6 % slower): it renumbers the states and loses what the
+  author's codes gave (traffic's phase output is its state code: +21 %).
+- **Both tried, the better kept** (as the other mappings: DEPTH_RULE given the routed periods, LUTs and slices):
+  one-hot kept on 8 of the 21, 0.957 / 1.069 / 0.956 / 0.974. But the same choice between stock and base (the same
+  circuit twice) gives 0.989 / 0.999 / 0.985 / 0.986 by chance alone: the choice is worth about 3 % of the slices
+  and 1 % of the period on these 21 designs, none on the examples.
+- **Against XST** (21 designs that ISE builds, sizes and periods of ise-comparison.json and of the examples' ISE
+  runs): base 0.979 of XST's slices and 1.166 of its period, onehot 1.007 / 1.179, the better kept 0.952 / 1.138.
+  XST re-encodes almost every machine it finds, by its size: one-hot from 8 states (ITC'99 b01, b10, b11,
+  verilog-i2c-master, the FPUs, siphash) and on some of 3 to 7 (b03-b05, b07), gray or sequential on most of 4 to 7
+  (pong, uart-for-fpga, spi-fpga-master, b02, b06, b08, b09, the IWLS cores), "user" (the author's codes) on
+  traffic and two of usb-phy's; Yosys's one-hot or binary are its only encodings (no gray).
+
+The designs whose machines the init values keep out (base: slices / period in ns; onehot and binary against base;
+XST's encodings and its slices / period):
+
+| design | states | base | onehot | binary | XST | XST slices / ns |
+|---|---|---|---|---|---|---|
+| examples/traffic | 7 | 73 / 10.20 | −8 % / +0 % | −4 % / +21 % | user | 70 / 7.77 |
+| examples/pong | 4 | 240 / 12.52 | +0 % / +10 % | −1 % / +2 % | gray | 267 / 10.56 |
+| verilog-i2c-master | 12 | 123 / 10.93 | −3 % / +1 % | +10 % / +3 % | one-hot | 145 / 9.88 |
+| nandland-spi-vhdl | 4 | 52 / 5.48 | +4 % / +0 % | +2 % / +2 % | (XST fails) | |
+| neorv32 | 3 | 2181 / 15.62 | −0 % / +2 % | +0 % / −5 % | (XST fails) | |
+| uart-for-fpga | 6, 5 | 39 / 5.11 | +5 % / −2 % | +26 % / +41 % | gray, gray | 38 / 4.69 |
+| spi-fpga-master | 5 | 17 / 5.90 | +6 % / −18 % | +24 % / +21 % | gray | 17 / 4.99 |
+| itc99-b01 | 8 | 6 / 3.21 | −17 % / −12 % | +33 % / +36 % | one-hot | 6 / 3.80 |
+| itc99-b02 | 7 | 2 / 2.14 | +150 % / +92 % | +0 % / −5 % | gray | 2 / 3.19 |
+| itc99-b03 | 3 | 16 / 5.81 | +0 % / −2 % | +0 % / −0 % | one-hot | 45 / 5.29 |
+| itc99-b04 | 3 | 127 / 16.24 | −2 % / +2 % | −1 % / +0 % | one-hot | |
+| itc99-b05 | 5 | 260 / 11.49 | −1 % / −5 % | −0 % / −1 % | one-hot | 123 / 9.82 |
+| itc99-b06 | 7 | 5 / 3.06 | +60 % / +35 % | +0 % / +3 % | gray | 5 / 3.19 |
+| itc99-b07 | 7 | 54 / 5.92 | −28 % / −4 % | −4 % / +5 % | one-hot | |
+| itc99-b08 | 4 | 16 / 6.62 | +0 % / −2 % | +12 % / +5 % | sequential | 24 / 5.87 |
+| itc99-b09 | 4 | 22 / 6.49 | +9 % / +2 % | −5 % / −16 % | gray | 24 / 5.90 |
+| itc99-b10 | 11 | 29 / 6.12 | −31 % / −9 % | +7 % / +13 % | one-hot | 29 / 4.90 |
+| itc99-b11 | 9 | 100 / 9.11 | −6 % / +4 % | +2 % / +6 % | one-hot | |
+| itc99-b12 | 26 | 201 / 11.42 | +18 % / −0 % | +10 % / +0 % | (none found) | 214 / 7.79 |
+| itc99-b13 | 4, 10, 4, 8 | 41 / 7.70 | +2 % / +8 % | +2 % / +13 % | gray, one-hot ×3 | |
+| itc99-b15 | 10, 8 | 1271 / 20.27 | −3 % / −2 % | −0 % / −2 % | (XST fails) | |
+| itc99-b17 | 10 ×3, 8 ×3 | 3818 / 22.24 | −0 % / −2 % | +1 % / −1 % | (XST fails) | |
+
+(XST fails: its HDL parser or the corpus's constraints, as in ise-comparison.json; blank: ISE's flow did not complete there.)
+
+**So**: extracting the machines and re-encoding them in one-hot, as XST does for the larger ones, would not make
+the open synthesis smaller or faster on average, and not on the examples; it pays on a few control-heavy designs
+(ITC'99 b01, b07, b10, 17 to 31 % fewer slices) and costs as much on others. Tried as one more candidate kept by
+DEPTH_RULE, it gains about 3 % of the slices and 1 % of the period beyond the noise on the 21 designs concerned, for
+one more Yosys run on each, a script in three runs (the init values written back between them), and Yosys's crash
+on a port's register to avoid. Not wired into `core/synth-open.js` (#438: the author's decision).
