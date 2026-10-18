@@ -9,20 +9,21 @@
 //   route     on the PIPs of known bits, timing-driven
 //   STA       of the routed design (timing.js analyzeTiming), when it is completely routed
 //   tries     N placements (seeds seed .. seed + N - 1), each routed; the fastest kept
-//   replicate register replication (replicate.js, #4): the flip-flops of many loads on the critical
-//             path copied, the design packed, placed and routed again (same seed), the faster kept
+//   replicate register replication (replicate.js, #4): the flip-flops and LUTs of many loads on the
+//             critical path copied (#522), the design packed, placed again from the first placement
+//             (same seed, #87) and routed, the faster kept
 //
 //   const pr = placeRoute(packed, device, known, { seed })                    // one placement
 //   const best = placeRouteBest(netlist, packed, device, known, { seed, tries, replicate, pack })
 // device: the routing graph (device-node.js loadDeviceCache); known: bitgen.js knownRouting(db).
 // Each flow keeps its own messages: onPlaced(placement, info) after each placement, onRouted(pr,
 // info) after each routing, onReplication(r) once replication was tried (info: { seed, try,
-// replication: { flipFlops, copies } or null }).
+// replication: { flipFlops, luts, copies } or null }).
 import { deviceSites, place, placedXdl } from './place.js';
 import { routeDesign, clockReach, bufgReach } from './route.js';
 import { analyzeTiming, delayTable } from './timing.js';
 import { pack } from './pack.js';
-import { replicationPlan, replicateFlipFlops, REPLICATE_MAX_SLICES } from './replicate.js';
+import { replicationPlan, replicateCells, warmStart, REPLICATE_MAX_SLICES, WARM } from './replicate.js';
 import { parseXdl, writeXdl } from '../xdl.js';
 
 /**
@@ -33,11 +34,11 @@ import { parseXdl, writeXdl } from '../xdl.js';
  * not given), routeIterations (the router's passes at most; its default when null), onPlaced,
  * onRouted, info (passed to them). Throws the placer's errors (PlaceError).
  */
-export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing = null, timingRoute = true, delays = null, routeIterations = null, onPlaced = null, onRouted = null, info = {} } = {}) {
+export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing = null, timingRoute = true, delays = null, routeIterations = null, start = null, onPlaced = null, onRouted = null, info = {} } = {}) {
   const t0 = Date.now();
   const allowPip = known.allowPip;
   const placement = place(packed, deviceSites(device, known), {
-    seed, effort, ...(timing !== null && { timing }), delays: delays || delayTable(device, { allowPip }),
+    seed, effort, ...(timing !== null && { timing }), delays: delays || delayTable(device, { allowPip }), start,
     clockSites: site => clockReach(device, site, allowPip), bufgSites: (site, pin, to) => bufgReach(device, site, pin, allowPip, to),
   });
   const placedText = writeXdl(placedXdl(packed, placement));
@@ -65,7 +66,7 @@ export const RETRY_SEEDS = 3;
  * readYosysJson); pack: the options to pack the replicated netlist with (pack.js: ucf, part,
  * carryOut). replicateOpts: replicate.js REPLICATION overrides. Returns the kept result (as
  * placeRoute's) with first (the first placement's result) and replication: null when not tried
- * (or nothing to copy), else { flipFlops, copies, plan, result (null when it failed), error, kept,
+ * (or nothing to copy), else { flipFlops, luts (the cells copied), copies, plan, result (null when it failed), error, kept,
  * before (the period without it) }, and retried: the placements made more (#249). placeRouteFn: placeRoute
  * (for the tests).
  */
@@ -93,13 +94,17 @@ export function placeRouteBest(netlist, packed, device, known, { seed = 1, tries
     const plan = replicationPlan(netlist, best.packed, best.placement, best.sta, replicateOpts);
     if (plan.length) {
       const copies = plan.reduce((a, p) => a + p.groups.length - 1, 0);
+      const flipFlops = plan.filter(p => /^FD/.test(netlist.cells[p.cell].type)).length, luts = plan.length - flipFlops;
       let result = null, error = null;
       try {
-        result = placeRouteFn(pack(replicateFlipFlops(netlist, plan), packOptions), device, known,
-          { ...opts, seed: best.seed, info: { try: 0, replication: { flipFlops: plan.length, copies } } });
+        const nl2 = replicateCells(netlist, plan), packed2 = pack(nl2, packOptions);
+        // (placed from the first placement, #87: the copies near their loads)
+        const start = WARM.on && best.placement ? { ...WARM, at: warmStart(netlist, best.packed, best.placement, nl2, packed2) } : null;
+        result = placeRouteFn(packed2, device, known,
+          { ...opts, seed: best.seed, start, info: { try: 0, replication: { flipFlops, luts, copies } } });
       } catch (e) { error = e; }
       const kept = !!result?.sta && result.period < best.period;
-      replication = { flipFlops: plan.length, copies, plan, result, error, kept, before: best.period };
+      replication = { flipFlops, luts, copies, plan, result, error, kept, before: best.period };
       onReplication?.(replication);
       if (kept) best = result;
     }

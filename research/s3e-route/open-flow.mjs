@@ -84,7 +84,7 @@ step('delay table', t);
 // seed .. seed + N - 1), each routed, the one with the shortest critical path (by the static timing
 // analysis) kept; register replication (#4): the flip-flops of many loads on the critical path
 // copied, each copy near a group of the loads; the design placed and routed again, the faster kept
-const label = r => (r ? ` (${r.flipFlops} flip-flops replicated, ${r.copies} copies)` : '');
+const label = r => (r ? ` (${r.flipFlops} flip-flops${r.luts ? ` and ${r.luts} LUTs` : ''} replicated, ${r.copies} copies)` : '');
 t = Date.now();
 const best = placeRouteBest(netlist, packed, device, known, {
   seed, tries, effort, ...(timing !== null && { timing: +timing }), timingRoute, delays, replicate, replicateOpts, pack: { ucf, part, carryOut: 'xor' },
@@ -99,7 +99,7 @@ const best = placeRouteBest(netlist, packed, device, known, {
     if (tries > 1 && !info.replication) console.log(`  seed ${info.seed}: ${pr.period.toFixed(3)} ns`);
     t = Date.now();
   },
-  onReplication: x => console.log(`replication: ${x.flipFlops} flip-flop(s), ${x.copies} copies: ${x.result ? `${x.result.period.toFixed(3)} ns` : `failed (${x.error.message})`} against ${x.before.toFixed(3)} ns: ${x.kept ? 'kept' : 'not kept'}`),
+  onReplication: x => console.log(`replication: ${x.flipFlops} flip-flop(s), ${x.luts ? `${x.luts} LUT(s), ` : ''}${x.copies} copies: ${x.result ? `${x.result.period.toFixed(3)} ns` : `failed (${x.error.message})`} against ${x.before.toFixed(3)} ns: ${x.kept ? 'kept' : 'not kept'}`),
 });
 const { routed } = best;
 fs.writeFileSync(path.join(outDir, 'placed.xdl'), best.placedText);

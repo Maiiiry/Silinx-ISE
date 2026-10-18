@@ -438,6 +438,20 @@ designs: the corpus on the XC3S1200E, the examples on the XC3S250E):
    -4 %, vtr-mkPktMerge -4.5 %, T80 -1.2 %, nothing for the others (not kept, or nothing to copy).
    Tried and not kept: copies of every flip-flop of criticality >= 0.95 (diffeq2 +14 %, its
    multiplier inputs), 8 loads per copy (more copies, more congestion).
+   Since #87 and #522 the replicated design is placed from the first placement (place.js
+   `start`, replicate.js `warmStart`: each slice on the slice of its cells, a copy on the free slice
+   nearest the centre of its loads, then the placer's greedy pass alone, in a window of 3 slices):
+   placed again from scratch, the noise of a new placement (±0.5 ns on the T80) hid what the copies
+   gained. The pass's placement takes 0.4 s instead of 8 s on the T80 (16.4 s -> 7.6 s for the whole
+   pass), 0.1 s instead of 3 s on epfl-bar (kept as before: 10.98 -> 10.73 ns on the corpus's
+   device). LUTs are copied too: a reset or clock enable computed by logic on the SR / CE pins of
+   many flip-flops. vtr-ch-intrinsics (seed 1, XC3S1200E): its reset LUT (32 FDRE.R loads) copied,
+   trce 6.43 -> 5.99 ns; kept on 1 of the 3 seeds of 8 on which it fires (on the others slower by the
+   analysis: the copy also loads its own input nets, as critical, so the gain on the reset net is
+   lost before the copy). Not done: the logic before that LUT is a chain of three LUT2s of fanout ~33
+   each from 3-4 flip-flops, which ISE's map packs shallower; and sync resets as logic in the D
+   LUTs (Yosys `dffunmap -srst-only` before map_ffs) was -2 % on ch-intrinsics, +4 % on usb-phy
+   (median of 6 seeds), not kept.
    The flows place and route through one helper, `core/fpga/place-route.js` (`placeRouteBest`:
    the placer with the delay table, tries, routing, STA, replication): the app's
    (`server/open-flow-run.js`), `open-flow.mjs` and the design corpus's

@@ -305,7 +305,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
         // the replication pass: its own time (plan, pack, place and route again), not the route's
         onReplication: x => {
           steps.replication = { ms: Date.now() - routedAt, ...(x.result && { placeMs: x.result.placeMs, routeMs: x.result.routeMs }),
-            flipFlops: x.flipFlops, copies: x.copies, kept: x.kept, before: +x.before.toFixed(3),
+            flipFlops: x.flipFlops, luts: x.luts, copies: x.copies, kept: x.kept, before: +x.before.toFixed(3),
             ...(x.result?.sta && { period: +x.result.period.toFixed(3) }), ...(x.error && { error: clean(x.error.message) }) };
         },
       });
