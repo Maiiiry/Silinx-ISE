@@ -303,6 +303,8 @@ npm start          # http://127.0.0.1:8642  (node bin/silinx-ise.js serve --open
 
 To contribute, read [CONTRIBUTING.md](CONTRIBUTING.md): the project's development principles (issues,
 tests, integration) are in [CLAUDE.md](CLAUDE.md), for people and AI agents alike.
+Security: report a vulnerability privately, as [SECURITY.md](SECURITY.md) says (it also lists what is
+in scope and what the project does to protect its users).
 
 The server listens on this computer only (`127.0.0.1`). With `serve --host 0.0.0.0` (or another address)
 other computers can reach it: it then prints a warning and an address with a token (`…/#token=…`), the only

@@ -132,7 +132,13 @@ docs/          user guides (EN, PT), the project model and API, QUALITY.md (agai
   run) and `failure-report.yml` (a scheduled job's failure as an issue), called by the nightly, ISE and
   Quality workflows.
 - **Before pushing,** `node scripts/check-private-data.mjs` checks that no private data goes into the
-  repository.
+  repository; a push to main scans the whole history too (`--history`, in CI), so a harmless match in an
+  old commit goes to the script's `ALLOW` list with its reason.
+- **The security checks** (#498, [SECURITY.md](SECURITY.md)): CodeQL (`.github/workflows/codeql.yml`)
+  analyses the JavaScript on every pull request, push to main and weekly, its findings under Security ▸
+  Code scanning; the dependency review job of CI fails a pull request that adds a dependency with a known
+  vulnerability (licences are tracked by `scripts/third-party.mjs`, not by it). Secret scanning, push
+  protection and Dependabot's alerts are the repository's settings, on.
 
 ## 7. Talking with Pedro
 

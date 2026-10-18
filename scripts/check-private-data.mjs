@@ -25,6 +25,8 @@ export const ALLOW = [
   ['test/server-api.test.js', 'fpga-lab.local', 'a made-up computer name for the Host header test'],
   ['test/impl.test.js', /^(dev@)?10\.0\.0\.2$/, 'a made-up address of an example (in the history only)'],
   ['test/report-failure.test.js', /^(dev|me)@(192\.0\.2|203\.0\.113)\.\d+$/, 'made-up logins on documentation addresses (RFC 5737): the cleaning of a log line is tested on them (#251)'],
+  ['scripts/measure-power.mjs', /^3\.3\.1\.[12]$/, "XPower's section numbers (in the history only)"],
+  [/^\(message of (fda526c|dc20cc0)\)$/, '3.3.1.1', "XPower's section number in two commit messages"],
   // ISE's text reports and simulation models of our own test designs (no personal data in them):
   // the fixtures of the report parsers and of the netgen simulation
   [/^test\/fixtures\/(ise|netgen)\//, 'Xilinx file', 'ISE reports / netgen models of test designs, kept as parser fixtures'],

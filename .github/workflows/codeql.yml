@@ -1,0 +1,39 @@
+name: CodeQL
+# GitHub's static analysis of the JavaScript (#498): injection, path traversal and the like in server/,
+# web/js and core/, on every pull request, every push to main and weekly (a new query set finds old
+# code). A workflow of its own, not a job of ci.yml: ci-ok (the check main requires) is unaffected, and
+# the schedule runs it on main alone. Its findings are in Security ▸ Code scanning. The vendored data
+# (research/'s corpora and records) and node_modules are left out: no code of ours there.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: '41 5 * * 2'      # Tuesdays, 05:41 UTC
+# a newer push to a pull request cancels its run still going; on main every push's run completes
+concurrency:
+  group: codeql-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:
+  contents: read
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write    # the findings, to Security ▸ Code scanning
+      actions: read             # the workflow's own run, for the upload
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          config: |
+            paths-ignore:
+              - node_modules
+              - research
+      - uses: github/codeql-action/analyze@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          category: /language:javascript-typescript
