@@ -188,6 +188,15 @@ export function remapCommands(top, family, { script = true, inline = null } = {}
   return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS}${abc}; ${lutsToCells(synth)}`;
 }
 
+/** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again with ABC9 onto
+ *  LUT4s alone: synth_xilinx's own map_luts step with -abc9 -nowidelut (ABC9's &if, Yosys's LUT delays), then the
+ *  rest of synth_xilinx. A candidate of the 4-input-LUT families (#377): research/synth-quality/README.md, "ABC9"
+ *  (#369: against the mapping onto LUT4s alone, 6 % more LUTs, 2.6 % fewer slices, a 2.7 % shorter period). */
+export function abc9RemapCommands(top, family) {
+  // (the cells' models first, with their parameters, and Silinx's SRL16E_1: the RTLIL has them as bare black boxes)
+  return `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_rtlil -nooverwrite ${PREMAP_FILE}; synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top} -abc9 -nowidelut -run map_luts:`;
+}
+
 // $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing
 const outputs = top => `delete t:$scopeinfo; write_json ${top}.json; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;
 
@@ -344,11 +353,13 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * what happened: { tried, kept, wide: { ns, luts, kept } of the mapping with the wider functions,
  * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] (usual: the mapping kept
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
- * the depth-oriented one was kept, and delays: { ns, luts, kept } of the same with the LUT delays (#78) }.
+ * the depth-oriented one was kept, delays: { ns, luts, kept } of the same with the LUT delays (#78), and
+ * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
+ * abc9: false leaves it out) }.
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
  * usual mapping alone (no other mapping tried, no carry chains recovered: as depth false).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high' } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   if (effort === 'normal') depth = false;
   const tryDepth = depth && LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
@@ -385,6 +396,13 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
         const early = (run.parallel || 1) >= 4 ? second() : null;
         early?.catch(() => {});
+        // ABC9 onto LUT4s alone (#377), from the same netlist, measured against the netlist chosen of the others:
+        // started now with 4 Yosys or more at a time, else after them (each more Yosys costs memory in the browser)
+        const lines9 = [];
+        const abc9 = () => run(['-q', '-p', `${abc9RemapCommands(top, family)}; ${outputs(top)}`], { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [SRL_CELLS_FILE]: SRL_CELLS },
+          l => { if (!quiet(l)) lines9.push(l); });
+        const early9 = withAbc9 && (run.parallel || 1) >= 4 ? abc9() : null;
+        early9?.catch(() => {});
         const [outW, out2] = await first;
         const jsonW = outW[`${top}.json`];
         if (jsonW) {
@@ -431,13 +449,27 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
             }
           }
         }
+        // ABC9's netlist kept when better than the one chosen by DEPTH_RULE (keepDepth)
+        const out9 = withAbc9 ? await (early9 || abc9()) : {};
+        const json9 = out9[`${top}.json`];
+        if (json9) {
+          const cells9 = cellCounts(json9, top);
+          const ns9 = [criticalDelay(chosen[`${top}.json`], top), criticalDelay(json9, top)], luts9 = [utilization(cells).luts, utilization(cells9).luts];
+          info.abc9 = { ns: ns9[1], luts: luts9[1], kept: keepDepth(ns9, luts9) };
+          if (info.abc9.kept) {
+            chosen = out9;
+            cells = cells9;
+            kept.length = 0;
+            for (const l of lines9) kept.push(l);
+          }
+        }
         for (const l of kept) sayNew(l);
       } catch (e) {
         // an optional mapping that failed (Yosys crashed; in the browser, out of memory once more): the
         // first mapping's netlist, valid, is kept and said (#401)
         chosen = out;
         cells = cellCounts(json, top);
-        for (const k of ['wide', 'second', 'delays']) delete info[k];
+        for (const k of ['wide', 'second', 'delays', 'abc9']) delete info[k];
         Object.assign(info, { tried: false, kept: false, ns: null, luts: null, failed: e.message });
         sayNew(`Warning: the depth-oriented mapping failed (${e.message}): the usual mapping is kept`);
       }

@@ -204,10 +204,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1177,
-   "luts": 2353,
+   "slices": 1163,
+   "luts": 2325,
    "ffs": 1003,
-   "period": 25.402
+   "period": 24.324
   }
  },
  "femtorv32-quark": {
@@ -379,10 +379,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 21,
-   "luts": 42,
+   "slices": 20,
+   "luts": 40,
    "ffs": 28,
-   "period": 6.685
+   "period": 5.704
   }
  },
  "itc99-b10": {
@@ -587,10 +587,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 215,
-   "luts": 429,
+   "slices": 140,
+   "luts": 279,
    "ffs": 129,
-   "period": 8.801
+   "period": 8.641
   }
  },
  "iwls05-sasc": {
@@ -740,10 +740,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 52,
-   "luts": 100,
+   "slices": 33,
+   "luts": 63,
    "ffs": 37,
-   "period": 5.211
+   "period": 5.522
   }
  },
  "nandland-spi-vhdl": {
@@ -760,10 +760,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 52,
-   "luts": 100,
+   "slices": 33,
+   "luts": 63,
    "ffs": 37,
-   "period": 5.524
+   "period": 5.644
   }
  },
  "neorv32": {
@@ -1171,10 +1171,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 53,
-   "luts": 105,
+   "slices": 50,
+   "luts": 99,
    "ffs": 64,
-   "period": 3.868
+   "period": 3.869
   }
  },
  "verilog-lfsr-prbs": {
@@ -1204,10 +1204,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 131,
-   "luts": 259,
+   "slices": 125,
+   "luts": 246,
    "ffs": 79,
-   "period": 10.286
+   "period": 9.299
   }
  },
  "vtr-ch-intrinsics": {
