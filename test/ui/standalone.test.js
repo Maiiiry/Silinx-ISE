@@ -264,7 +264,10 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
     'erasing...', 'erased in T s', 'programming...',
     ...Array.from({ length: n }, (_, i) => i).filter((i) => i % 16 === 0 || i === n - 1).map((i) => `  programmed block ${i + 1}/${n}`),
     '  block program time (ISCTESTSTATUS, every block): …', `  USB: data shifts ${n} x…`, `programmed ${n} blocks in T s`,
-    'verifying...', `  USB: data shifts ${n} x…`, 'verify OK in T s', 'reconfiguring the FPGA from the PROM...', 'STATUS: DONE', 'program done in T s',
+    'verifying...', `  USB: data shifts ${n} x…`, 'verify OK in T s', 'reconfiguring the FPGA from the PROM...',
+    // #521: this board's FPGA was never configured (a power-up with an empty PROM): the verify left the
+    // PROM's address counter past the image, so CONFIG loads nothing and the FPGA is reset instead
+    'the FPGA did not start after CONFIG: JPROGRAM (the FPGA reset, it loads from the PROM)', 'STATUS: DONE', 'program done in T s',
     'Platform Flash program finished.',
     "'2': XCF02S programmed and verified; FPGA loaded from the PROM (DONE).",
   ]);

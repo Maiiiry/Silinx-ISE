@@ -225,14 +225,25 @@ def main():
                 x.reconfigure()
                 ok = False
                 if fpga:
-                    for d in chain.devices:
-                        d.cur_cmd = (1 << d.IR_LEN) - 1
-                    t0 = time.time()
-                    while time.time() - t0 < 5:
-                        time.sleep(0.2)
-                        if fpga.get_status() & 0x20:
-                            ok = True
-                            break
+                    def done(seconds):
+                        for d in chain.devices:
+                            d.cur_cmd = (1 << d.IR_LEN) - 1
+                        t0 = time.time()
+                        while time.time() - t0 < seconds:
+                            time.sleep(0.2)
+                            if fpga.get_status() & 0x20:
+                                return True
+                        return False
+                    ok = done(2.5)   # a Basys2 takes ~1.2 s
+                    if not ok:
+                        # #521: CONFIG loaded nothing (the PROM's address counter past the image after a read with
+                        # the FPGA unconfigured, DONE low): the FPGA reset instead, its INIT_B pulse resets the counter
+                        log('the FPGA did not start after CONFIG: JPROGRAM (the FPGA reset, it loads from the PROM)')
+                        fpga.jprogram()
+                        ok = done(5)
+                    if not ok and all(b == 0xFF for b in x.read(x.block)):
+                        log('STATUS: the PROM is erased')
+                        raise SystemExit('the PROM is erased: nothing to load (Program PROM first)')
                 log('STATUS: DONE' if ok else 'STATUS: FPGA did not assert DONE (is the mode jumper set to ROM, and was the bitstream built with StartUpClk:CCLK?)')
                 if not ok:
                     sys.exit(3)

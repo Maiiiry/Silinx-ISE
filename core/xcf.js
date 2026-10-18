@@ -40,7 +40,12 @@ export const CONFIRM_POLLS = 4, CONFIRM_GAP = 128, CONFIRM_GAP_S = 0.002;   // t
 // the XCF0xS by IDCODE bits 19..12: [size in bits, bits per block]
 const SIZES = { 0x44: [1 << 20, 2048], 0x45: [2 << 20, 4096], 0x46: [4 << 20, 4096] };
 const ST_DONE = 0x20;   // the Spartan-3E's DONE in its captured IR
+const S3_JPROGRAM = 0x0b;
 export const NOT_DONE = 'the FPGA did not load from the PROM (mode jumper on ROM? PROM bitstream with StartUpClk:Cclk?)';
+export const ERASED = 'the PROM is erased: nothing to load (Program PROM first)';
+// the FPGA polled for DONE after CONFIG every 0.2 s: CONFIG_POLLS of them (the Basys2 takes ~1.2 s),
+// then, the FPGA reset by JPROGRAM instead (#521), DONE_POLLS more
+export const CONFIG_POLLS = 12, DONE_POLLS = 25;
 
 const fail = msg => { throw new Error(`Adept USB: ${msg}`); };
 const hex8 = n => n.toString(16).padStart(8, '0');
@@ -344,6 +349,19 @@ export class Xcf {
     await this.ir(XCF.BYPASS);
     await this.wait(0, 1);
   }
+  // the FPGA reset by JPROGRAM: the mode jumper on ROM, it loads from the PROM, whose address
+  // counter its INIT_B pulse resets (#521: after a read of the PROM with the FPGA unconfigured,
+  // DONE low, the counter stays past the image and CONFIG loads nothing). The FPGA in BYPASS
+  // from then on: a status read must not shift JPROGRAM in again
+  async jprogram(fpga) {
+    const s = this.seq();
+    s.ir(fpga, S3_JPROGRAM);
+    s.rti(this.clocks(0.001, 64));
+    await s.run();
+    fpga.cur = (1 << fpga.irLen) - 1;
+  }
+  // whether the PROM is erased: its first block all 1s
+  async erased() { return (await this.read(this.block)).every(b => b === 0xff); }
 }
 
 /**
@@ -364,10 +382,11 @@ export const PROM_OPS = ['program', 'verify', 'erase', 'read', 'reconfigure'];
  * A Platform Flash operation over the board's Adept USB (xcf_prog.py's main): op 'program' (erase,
  * program, then verify unless verify is false), 'verify', 'erase', 'read' (the whole PROM: returns
  * { data }, the bytes in the .bit's bit order) or 'reconfigure'; reconfigure with 'program': the FPGA
- * then reloads from the PROM (DONE checked). bit: the .bit (program / verify), checked against the
+ * then reloads from the PROM (DONE checked: after CONFIG, else after the FPGA's JPROGRAM, #521; an
+ * erased PROM is an error of its own). bit: the .bit (program / verify), checked against the
  * chain's FPGA. The console lines are those of the full application.
  */
-export async function promAdept(usb, { op, bit = null, verify = true, reconfigure = false, log = () => {}, tckHz, sleep = sleepMs, donePolls = 25, now = () => performance.now(), mode = 'confirm' } = {}) {
+export async function promAdept(usb, { op, bit = null, verify = true, reconfigure = false, log = () => {}, tckHz, sleep = sleepMs, configPolls = CONFIG_POLLS, donePolls = DONE_POLLS, now = () => performance.now(), mode = 'confirm' } = {}) {
   const start = now();
   // a phase, and the time it took
   const timed = async f => { const t = now(); await f(); return secs(now() - t); };
@@ -433,10 +452,22 @@ export async function promAdept(usb, { op, bit = null, verify = true, reconfigur
         await x.reconfigure();
         let ok = false;
         if (fpga) {
-          for (let i = 0; i < donePolls && !ok; i++) {
-            await sleep(200);
-            ok = !!((await chain.status(fpga)) & ST_DONE);
+          const done = async polls => {
+            for (let i = 0; i < polls; i++) {
+              await sleep(200);
+              if ((await chain.status(fpga)) & ST_DONE) return true;
+            }
+            return false;
+          };
+          ok = await done(configPolls);
+          if (!ok) {
+            // #521: CONFIG loaded nothing (the PROM's address counter past the image after a read with the
+            // FPGA unconfigured): the FPGA reset instead, which also resets the counter
+            log('the FPGA did not start after CONFIG: JPROGRAM (the FPGA reset, it loads from the PROM)');
+            await x.jprogram(fpga);
+            ok = await done(donePolls);
           }
+          if (!ok && await x.erased()) { log('STATUS: the PROM is erased'); fail(ERASED); }
         }
         log(ok ? 'STATUS: DONE' : 'STATUS: FPGA did not assert DONE (is the mode jumper set to ROM, and was the bitstream built with StartUpClk:CCLK?)');
         if (!ok) fail(NOT_DONE);
