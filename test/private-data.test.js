@@ -57,3 +57,13 @@ test('files that must not be in the repository: Xilinx outputs and licences, key
   assert.deepEqual(kinds('test/fixtures/ise/top.par', banner), []);
   assert.deepEqual(kinds('test/fixtures/fpga/d.xdlrc', `# XDL REPORT MODE\n# (a small hand-made device in the format of xdl -report)\n`), []);
 });
+
+test('the allow-list (#498): XPower\'s section numbers in the history, read as addresses, and nowhere else', () => {
+  const sections = `sections ${dot(3, 3, 1, 1)} and ${dot(3, 3, 1, 2)} of the report`;
+  assert.deepEqual(kinds('scripts/measure-power.mjs', sections), []);
+  assert.deepEqual(kinds('(message of fda526c)', sections), [`IP address: ${dot(3, 3, 1, 2)}`]);   // one number, two messages
+  assert.deepEqual(kinds('(message of dc20cc0)', `see ${dot(3, 3, 1, 1)}`), []);
+  assert.deepEqual(kinds('(message of 0000000)', `see ${dot(3, 3, 1, 1)}`), [`IP address: ${dot(3, 3, 1, 1)}`]);
+  assert.deepEqual(kinds('scripts/measure.mjs', sections), [`IP address: ${dot(3, 3, 1, 1)}`, `IP address: ${dot(3, 3, 1, 2)}`]);
+  assert.deepEqual(kinds('scripts/measure-power.mjs', `at ${dot(3, 3, 1, 3)}`), [`IP address: ${dot(3, 3, 1, 3)}`]);
+});

@@ -156,11 +156,44 @@ jobs:
         run: npm run test:release
         timeout-minutes: 10
 
+  # the private-data scan of the whole history (#498): every line ever added and every commit message,
+  # on a push to main (about 3 s; the tracked files are scanned on every run, by test/private-data.test.js
+  # in the unit job). Only node's built-ins: no npm ci.
+  private-data-history:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - run: node scripts/check-private-data.mjs --history
+
+  # the dependencies a pull request adds or updates (#498): red when one has a known vulnerability of
+  # moderate severity or worse. No licence list here: the licences in use are tracked by
+  # scripts/third-party.mjs and THIRD-PARTY-NOTICES.md (CLAUDE.md, Programming). No comment on the pull
+  # request (a Dependabot's or a fork's token is read-only): the findings are in the job's summary.
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: never
+
   # the one check that main requires (a ruleset, #409): green when every job above passed or was skipped
   # (documentation only, or a pull request's run), red when one failed or was cancelled
   ci-ok:
     if: always()
-    needs: [changes, unit, ui, webkit-standalone, release-zip, browsers, os]
+    needs: [changes, unit, ui, webkit-standalone, release-zip, browsers, os, private-data-history, dependency-review]
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

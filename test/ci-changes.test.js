@@ -90,7 +90,7 @@ test('CI: on every push to main and pull request; the long jobs gated on the cha
   assert.match(ci, /^on:\n  push:\n    branches: \[main\]\n  pull_request:\n/m);
   assert.ok(!fs.existsSync(path.join(ROOT, '.github/workflows/docs.yml')), 'docs.yml folded into CI');
   const j = jobs(ci);
-  assert.deepEqual(Object.keys(j), ['changes', 'unit', 'ui', 'webkit-standalone', 'release-zip', 'browsers', 'os', 'ci-ok']);
+  assert.deepEqual(Object.keys(j), ['changes', 'unit', 'ui', 'webkit-standalone', 'release-zip', 'browsers', 'os', 'private-data-history', 'dependency-review', 'ci-ok']);
   assert.match(j.changes.join('\n'), /fetch-depth: 0[\s\S]*node scripts\/ci-changes\.mjs "\$BASE" HEAD[\s\S]*BASE: \$\{\{ github\.event_name == 'pull_request' && 'HEAD\^1' \|\| github\.event\.before \}\}/);
   // the unit tests always (the documentation's tests are among them), the others only for code
   assert.ok(!j.unit.some(l => /needs:|^    if:/.test(l)), 'unit: not gated');
@@ -100,6 +100,18 @@ test('CI: on every push to main and pull request; the long jobs gated on the cha
     assert.ok(j[job].includes('    needs: changes'), job);
     assert.ok(j[job].some(l => l.startsWith("    if: needs.changes.outputs.code == 'true'")), job);
   }
+  // the security checks (#498): the history scan on a push to main, the dependency review on a pull
+  // request; on the event, not on the change (a documentation-only push adds lines to the history too)
+  const hist = j['private-data-history'].join('\n');
+  assert.match(hist, /^    if: github\.event_name == 'push'$/m);
+  assert.match(hist, /fetch-depth: 0[\s\S]*node scripts\/check-private-data\.mjs --history/);
+  assert.doesNotMatch(hist, /npm ci/, 'only node built-ins');
+  const dep = j['dependency-review'].join('\n');
+  assert.match(dep, /^    if: github\.event_name == 'pull_request'$/m);
+  assert.match(dep, /uses: actions\/dependency-review-action@[0-9a-f]{40} # v\d+\.\d+\.\d+\n\s+with:\n\s+fail-on-severity: moderate\n\s+comment-summary-in-pr: never/);
+  assert.doesNotMatch(dep, /allow-licenses|deny-licenses/, 'the licences are tracked by scripts/third-party.mjs');
+  assert.match(dep, /^    permissions:\n      contents: read$/m);
+  for (const job of ['private-data-history', 'dependency-review']) assert.ok(!j[job].some(l => /needs:/.test(l)), `${job}: on the event, not the change`);
   // ci-ok: every other job, run always, red only on a failure or a cancellation
   const ok = j['ci-ok'].join('\n');
   assert.match(ok, /^    if: always\(\)$/m);
@@ -107,4 +119,24 @@ test('CI: on every push to main and pull request; the long jobs gated on the cha
   assert.match(ok, /- if: contains\(needs\.\*\.result, 'failure'\) \|\| contains\(needs\.\*\.result, 'cancelled'\)\n\s+run: exit 1/);
   // the required check's name in the rules (CLAUDE.md, ONBOARDING.md)
   for (const f of ['CLAUDE.md', 'ONBOARDING.md']) assert.match(read(f), /`ci-ok`/, f);
+});
+
+test('CodeQL (#498): a workflow of its own, on pull requests, pushes to main and weekly; its token writes the findings only; its actions pinned', () => {
+  const yml = read('.github/workflows/codeql.yml');
+  assert.match(yml, /^on:\n  push:\n    branches: \[main\]\n  pull_request:\n  schedule:\n    - cron: '[^']+'/m);
+  assert.match(yml, /^concurrency:\n  group: codeql-/m);
+  assert.match(yml, /^permissions:\n  contents: read\n/m, 'a read-only token at the top');
+  const j = jobs(yml);
+  assert.deepEqual(Object.keys(j), ['analyze']);
+  const a = j.analyze.join('\n');
+  assert.match(a, /^    permissions:\n      contents: read\n      security-events: write\s*(#.*)?\n      actions: read\s*(#.*)?\n/m);
+  assert.match(a, /uses: github\/codeql-action\/init@[0-9a-f]{40} # v\d+\.\d+\.\d+\n[\s\S]*languages: javascript-typescript\n\s+build-mode: none\n/);
+  const init = a.match(/codeql-action\/init@(.+)/)[1], analyze = a.match(/codeql-action\/analyze@(.+)/)[1];
+  assert.match(init, /^[0-9a-f]{40} # v\d+\.\d+\.\d+$/, 'pinned by commit, its version in a comment (#414)');
+  assert.equal(init, analyze, 'init and analyze at the same commit');
+  assert.match(a, /paths-ignore:\n\s+- node_modules\n\s+- research\n/, 'the vendored data left out, nothing else');
+  assert.doesNotMatch(a, /npm ci|runs-on: \[self-hosted/, "GitHub's runner, no install");
+  // not a job of ci.yml (ci-ok unaffected), and the documentation says so
+  assert.doesNotMatch(read('.github/workflows/ci.yml'), /codeql/i);
+  for (const f of ['CLAUDE.md', 'ONBOARDING.md', 'SECURITY.md']) assert.match(read(f), /CodeQL/, f);
 });

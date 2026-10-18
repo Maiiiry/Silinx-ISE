@@ -164,15 +164,16 @@ test('workflows: every action pinned by its commit, its version in a comment, al
   const version = {};
   for (const [f, u] of uses) {
     if (u.startsWith('./')) { assert.ok(fs.existsSync(path.join(ROOT, u.split('@')[0])), `${f}: ${u}`); continue; }
-    const m = u.match(/^([\w.-]+\/[\w.-]+)@([0-9a-f]{40}) # (v\d+\.\d+\.\d+)$/);
+    // (github/codeql-action/init and /analyze: two actions of one repository, pinned together)
+    const m = u.match(/^([\w.-]+\/[\w.-]+)(?:\/[\w.-]+)?@([0-9a-f]{40}) # (v\d+\.\d+\.\d+)$/);
     assert.ok(m, `${f}: ${u} (owner/repo@<40-hex sha> # vX.Y.Z)`);
     const [, name, sha, v] = m;
     // the same action at the same commit everywhere (one Dependabot pull request moves them all)
     assert.deepEqual(version[name] ??= [sha, v], [sha, v], `${f}: ${name}`);
   }
   assert.ok(Object.keys(version).length >= 7, Object.keys(version).join(', '));
-  // first-party actions only
-  for (const name of Object.keys(version)) assert.match(name, /^actions\//, name);
+  // first-party actions only: GitHub's (actions/*, and github/codeql-action for CodeQL, #498)
+  for (const name of Object.keys(version)) assert.match(name, /^(actions\/|github\/codeql-action$)/, name);
   // Dependabot looks at the setup action too
   assert.match(fs.readFileSync(path.join(ROOT, '.github/dependabot.yml'), 'utf8'), /github-actions\n\s+directories: \[\/, \/\.github\/actions\/setup\]/);
 });

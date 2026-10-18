@@ -70,7 +70,13 @@ the code and the lessons learnt.
   Windows too, the operating systems' smoke tests, WebKit memory, the standalone build, the release
   zip). A failure on main only (an OS-specific bug) becomes an issue, fixed in the next change.
   A docs-only change (`scripts/ci-changes.mjs`) runs the unit tests only, the documentation's among them;
-  the Markdown files a build reads (CHANGELOG, THIRD-PARTY-NOTICES) count as code, the changelog fragments do not. The ISE tests (nightly) and the quality comparison against
+  the Markdown files a build reads (CHANGELOG, THIRD-PARTY-NOTICES) count as code, the changelog fragments do not.
+  The security checks
+  (#498, `SECURITY.md`): CodeQL analyses the JavaScript (`codeql.yml`, a workflow of its own, on pull
+  requests, pushes to main and weekly), a dependency review fails a pull request that adds a dependency
+  with a known vulnerability, and a push to main scans the whole history for private data
+  (`scripts/check-private-data.mjs --history`; a harmless match goes to its `ALLOW` list with its reason).
+  The ISE tests (nightly) and the quality comparison against
   XST (weekly) run on a self-hosted runner, only when main changed since their last run.
 - **The changelog**: every change adds its own fragment, `changes/<issue>-<slug>.md`, and never edits
   CHANGELOG.md (whose edits made every pull request conflict): an optional "In short:" list (what users
