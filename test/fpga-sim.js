@@ -158,8 +158,8 @@ export function netlistSim(nl) {
       if (changed) continue;
       for (const f of ffs) if (f.latch) {
         const c = f.c, g = v[c.pins.G] ^ (f.neg ? 1 : 0) ^ paramInt(c.params.IS_G_INVERTED);
-        const ge = c.pins.GE === undefined ? 1 : v[c.pins.GE];
-        const clr = c.pins.CLR !== undefined && v[c.pins.CLR], pre = c.pins.PRE !== undefined && v[c.pins.PRE];
+        const ge = c.pins.GE === undefined ? 1 : pinv(c, 'GE');
+        const clr = c.pins.CLR !== undefined && pinv(c, 'CLR'), pre = c.pins.PRE !== undefined && pinv(c, 'PRE');
         const q = clr ? 0 : pre ? 1 : g && ge ? v[c.pins.D] : f.q;
         if (q !== f.q) { f.q = q; changed = true; }
       }
@@ -167,6 +167,8 @@ export function netlistSim(nl) {
     }
     throw new Error('netlistSim: combinational loop');
   };
+  // a flip-flop's or latch's control pin, with its IS_<pin>_INVERTED
+  const pinv = (c, p) => v[c.pins[p]] ^ paramInt(c.params[`IS_${p}_INVERTED`]);
   void setOut;
   return {
     step(inputs) {
@@ -179,13 +181,13 @@ export function netlistSim(nl) {
         for (const f of ffs) if (!f.latch) {
           const c = f.c, t = c.type.replace(/_1$/, '');
           const clk = v[c.pins.C] ^ (f.neg ? 1 : 0) ^ paramInt(c.params.IS_C_INVERTED);
-          const ce = c.pins.CE === undefined ? 1 : v[c.pins.CE];
+          const ce = c.pins.CE === undefined ? 1 : pinv(c, 'CE');
           let q = f.q;
-          if (t === 'FDCE' && v[c.pins.CLR]) q = 0;
-          else if (t === 'FDPE' && v[c.pins.PRE]) q = 1;
+          if (t === 'FDCE' && pinv(c, 'CLR')) q = 0;
+          else if (t === 'FDPE' && pinv(c, 'PRE')) q = 1;
           else if (clk && !f.prevClk) {
-            if (t === 'FDRE' && v[c.pins.R]) q = 0;
-            else if (t === 'FDSE' && v[c.pins.S]) q = 1;
+            if (t === 'FDRE' && pinv(c, 'R')) q = 0;
+            else if (t === 'FDSE' && pinv(c, 'S')) q = 1;
             else if (ce) q = v[c.pins.D];
           }
           f.next = q;

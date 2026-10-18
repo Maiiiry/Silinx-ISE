@@ -239,8 +239,9 @@ test('the placer\'s results are pinned: the same placements as before its speed-
     ['mux64', 'timing', '44dc651659491f3c'], ['widemux', 'timing', 'b68a6883bd9ee4f0'], ['sw', 'timing', 'da05e2411ddab670'],
   ];
   const opts = { timing: {}, table: { delays: table }, wirelength: { timing: 0 } };
+  // (the packing by nets only: the placer's results, whatever the packer's timing, #528)
   for (const [n, what, h] of pinned) {
-    const r = place(pack(load(n)), dev, { seed: 2, effort: 0.5, ...opts[what] });
+    const r = place(pack(load(n), { timing: false }), dev, { seed: 2, effort: 0.5, ...opts[what] });
     assert.equal(crypto.createHash('sha1').update(JSON.stringify([r.sites, r.cost, r.delay])).digest('hex').slice(0, 16), h, `${n} (${what})`);
   }
 });
