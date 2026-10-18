@@ -229,12 +229,12 @@ export function designActivity(design, clocks, rates = DEFAULT_RATES) {
 // checks they are the fit of test/fixtures/power/xpower-examples.json): mW per unit.
 export const COEFFICIENTS = {
   bufgPerMhz: 0.012,           // a global clock buffer (BUFGMUX), per MHz of its clock
-  lutPerRate: 2.073e-4,        // a LUT (or F5 / FX multiplexer), per Mtr/s of its output
-  ffPerRate: 3.932e-4,         // a flip-flop, per Mtr/s of its output
-  netPerRate: 1.545e-4,        // a net, per Mtr/s
-  netFanoutPerRate: 4.348e-5,  // a net, per Mtr/s and per load
-  outputPerRate25: 0.08288,    // an output of 2.5 V (LVCMOS25, 12 mA, 5 pF), per Mtr/s; ∝ Vcco²
-  inputPerRate: 1.043e-3,      // an input, per Mtr/s
+  lutPerRate: 2.449e-4,        // a LUT (or F5 / FX multiplexer), per Mtr/s of its output
+  ffPerRate: 3.313e-4,         // a flip-flop, per Mtr/s of its output
+  netPerRate: 7.400e-6,        // a net, per Mtr/s
+  netFanoutPerRate: 1.037e-4,  // a net, per Mtr/s and per load
+  outputPerRate25: 0.08287,    // an output of 2.5 V (LVCMOS25, 12 mA, 5 pF), per Mtr/s; ∝ Vcco²
+  inputPerRate: 1.047e-3,      // an input, per Mtr/s
   outputVcco: 0.92,            // the share of an output's power on its Vcco (the rest on Vccint)
 };
 // The devices of the Silinx toolchain: a global clock net (mW per MHz, and per MHz and slice it
@@ -242,10 +242,10 @@ export const COEFFICIENTS = {
 // temperature (mA per °C); the package's junction-to-ambient resistance (°C/W, still air): XPower
 // 14.7, Commercial, Typical process.
 export const DEVICES = {
-  xc3s100e: { clockNetPerMhz: 5.636e-3, clockSlicePerMhz: 1.491e-4, vccint: 8.002, vccintPerC: 0.1226, vccaux: 8, vcco: 1.5, thetaJa: 62.1 },
-  xc3s250e: { clockNetPerMhz: 2.572e-3, clockSlicePerMhz: 1.837e-4, vccint: 15.03, vccintPerC: 0.2217, vccaux: 12, vcco: 1.5, thetaJa: 48.5 },
-  xc3s500e: { clockNetPerMhz: 5.426e-3, clockSlicePerMhz: 2.057e-4, vccint: 25.03, vccintPerC: 0.3765, vccaux: 18, vcco: 2, thetaJa: 26.1 },
-  xc3s1200e: { clockNetPerMhz: 4.304e-3, clockSlicePerMhz: 2.576e-4, vccint: 50.63, vccintPerC: 0.62, vccaux: 35, vcco: 3, thetaJa: 23 },
+  xc3s100e: { clockNetPerMhz: 6.116e-3, clockSlicePerMhz: 1.448e-4, vccint: 8.018, vccintPerC: 0.1164, vccaux: 8, vcco: 1.5, thetaJa: 62.1 },
+  xc3s250e: { clockNetPerMhz: 4.470e-3, clockSlicePerMhz: 1.666e-4, vccint: 15.02, vccintPerC: 0.2256, vccaux: 12, vcco: 1.5, thetaJa: 48.5 },
+  xc3s500e: { clockNetPerMhz: 6.075e-3, clockSlicePerMhz: 1.999e-4, vccint: 25.02, vccintPerC: 0.38, vccaux: 18, vcco: 2, thetaJa: 26.1 },
+  xc3s1200e: { clockNetPerMhz: 7.092e-3, clockSlicePerMhz: 2.326e-4, vccint: 50.59, vccintPerC: 0.6292, vccaux: 35, vcco: 3, thetaJa: 23 },
 };
 const VCCINT = 1.2, VCCAUX = 2.5;
 const STD_VOLTS = [[/^(LVCMOS33|LVTTL|PCI33_3)/, 3.3], [/^LVCMOS25/, 2.5], [/^LVCMOS18/, 1.8], [/^LVCMOS15/, 1.5], [/^LVCMOS12/, 1.2], [/^(SSTL2|HSTL_.*_25|LVDS_25|RSDS_25|BLVDS_25|MINI_LVDS_25|LVPECL_25|DIFF_SSTL2)/, 2.5], [/^(SSTL18|HSTL.*18|DIFF_HSTL.*18|DIFF_SSTL18)/, 1.8]];

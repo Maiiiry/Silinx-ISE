@@ -8,6 +8,8 @@
 //   SILINX_ISE_HOST=user@host node scripts/measure-power.mjs        ISE over ssh (the host only from the
 //                                                                    environment, never written in a file)
 //   SILINX_ISE_HOST=local node scripts/measure-power.mjs            the ISE Docker image on this machine
+//   ... node scripts/measure-power.mjs --only vga                    these examples only (comma-separated),
+//                                                                    their runs merged into the JSON's
 //   node scripts/measure-power.mjs --fit                             the coefficients from the JSON (no ISE)
 //   node scripts/measure-power.mjs --compare                         the estimate of each example (the
 //                                                                    Silinx toolchain) against the JSON's XPower
@@ -78,6 +80,20 @@ export function summarize(x) {
     signals: { n: x.signals.length, rate: r4(sum(x.signals, s => s.rate)), rateFanout: r4(sum(x.signals, s => s.rate * s.fanout)) },
     logic: { lutRate: r4(sum(x.logic.filter(l => /^[FG]$/.test(l.type)), l => l.rate)), ffRate: r4(sum(x.logic.filter(l => /^FF/.test(l.type)), l => l.rate)) },
   };
+}
+
+/**
+ * The runs of the JSON with fresh ones in place of theirs (the same example, board and variant) or added: in
+ * the order of the examples (`examples`, e.g. EXAMPLE_ORDER) and of the targets (`targets`, TARGETS).
+ */
+export function mergeRuns(old, fresh, examples, targets) {
+  const key = r => `${r.example} ${r.board}-${r.variant}`;
+  const byKey = new Map([...old, ...fresh].map(r => [key(r), r]));
+  const rank = r => {
+    const e = examples.indexOf(r.example), t = targets.findIndex(x => x.board === r.board && x.variant === r.variant);
+    return (e < 0 ? examples.length : e) * (targets.length + 1) + (t < 0 ? targets.length : t);
+  };
+  return [...byKey.values()].sort((a, b) => rank(a) - rank(b));
 }
 
 // least squares without an intercept: the b of y ≈ X b
@@ -169,12 +185,15 @@ async function measure() {
     ? { mode: 'ssh', ssh: { host: host[2], user: host[1] || '', remoteDir: 'silinx-measure-power', image, settings } }
     : { mode: 'docker', docker: { image, platform: 'linux/amd64', settings } }));
   const { EXAMPLES, TARGETS, exampleProject } = await import('../test/examples-lib.mjs');
+  const only = process.argv.includes('--only') ? process.argv[process.argv.indexOf('--only') + 1].split(',') : null;
+  const unknown = (only || []).filter(e => !EXAMPLES.includes(e));
+  if (unknown.length) { console.error(`not an example: ${unknown.join(', ')}`); process.exit(2); }
   const { createJob } = await import('../server/jobs.js');
   const { runImplementation } = await import('../server/ise.js');
   const runs = [];
   let release = null;
   try {
-    for (const example of EXAMPLES) {
+    for (const example of only || EXAMPLES) {
       for (const t of TARGETS) {
         const { dir, project } = exampleProject(example, t, path.join(tmp, 'p'));
         const job = createJob('power', j => runImplementation(j, { project, projectDir: dir, steps: ['synth', 'translate', 'map', 'par', 'trce', 'xpwr'] }));
@@ -189,8 +208,9 @@ async function measure() {
     }
   } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
   fs.mkdirSync(path.dirname(FIXTURE), { recursive: true });
-  fs.writeFileSync(FIXTURE, `${JSON.stringify({ tool: `XPower ${release}`, command: 'xpwr -v (default activity rates, no simulation), ISE 14.7 implementation of each example', runs }, null, 1)}\n`);
-  console.log(`wrote ${path.relative(ROOT, FIXTURE)} (${runs.length} runs)`);
+  const all = only ? mergeRuns(JSON.parse(fs.readFileSync(FIXTURE, 'utf8')).runs, runs, EXAMPLES, TARGETS) : runs;
+  fs.writeFileSync(FIXTURE, `${JSON.stringify({ tool: `XPower ${release}`, command: 'xpwr -v (default activity rates, no simulation), ISE 14.7 implementation of each example', runs: all }, null, 1)}\n`);
+  console.log(`wrote ${path.relative(ROOT, FIXTURE)} (${all.length} runs, ${runs.length} measured now)`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {

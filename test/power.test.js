@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import { lutActivity, designClocks, designActivity, estimatePower, powerReport, COEFFICIENTS, DEVICES, DEFAULT_CLOCK_MHZ, ESTIMATE_ERROR_PERCENT, DYNAMIC_RANGE } from '../core/power.js';
 import { parseXdl } from '../core/xdl.js';
 import { parsePwr } from '../server/ise.js';
-import { FIXTURE, fit, silinxEstimate } from '../scripts/measure-power.mjs';
+import { FIXTURE, fit, mergeRuns, silinxEstimate } from '../scripts/measure-power.mjs';
+import { EXAMPLE_ORDER } from '../core/examples.js';
 
 // a seeded random generator (the simulation is the same at every run)
 function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 2 ** 32; }; }
@@ -132,18 +133,33 @@ test('powerReport: an estimate said as such, laid out as XPower\'s text report (
 test('the model\'s coefficients are the fit of XPower\'s reports of the examples (test/fixtures/power/xpower-examples.json)', () => {
   const { tool, runs } = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
   assert.match(tool, /^XPower 14\.7/);
-  assert.equal(runs.length, 24);   // the six examples on the four devices
+  assert.equal(runs.length, 28);   // the seven examples on the four devices
+  assert.deepEqual([...new Set(runs.map(r => r.example))], EXAMPLE_ORDER);
   const f = fit(runs);
   const near = (a, b, what) => assert.ok(Math.abs(a - b) <= 0.002 * Math.abs(b) + 1e-9, `${what}: ${a} vs the fit's ${b}`);
   for (const [k, v] of Object.entries(f.coefficients)) near(COEFFICIENTS[k], v, k);
   for (const [dev, c] of Object.entries(f.devices)) for (const [k, v] of Object.entries(c)) near(DEVICES[dev][k], v, `${dev} ${k}`);
 });
 
+// scripts/measure-power.mjs --only: the fresh runs in place of the JSON's, or added, in the examples' and the targets' order
+test('measure-power --only: the runs measured merged into the JSON\'s', () => {
+  const T = [{ board: 'basys2', variant: '100' }, { board: 'nexys2', variant: '500' }];
+  const run = (example, t, mw) => ({ example, board: t.board, variant: t.variant, power: { total: mw } });
+  const old = [run('gates', T[0], 1), run('gates', T[1], 2), run('clock', T[0], 3), run('clock', T[1], 4)];
+  // a new example, its targets given in another order: after the others, in the targets' order
+  assert.deepEqual(mergeRuns(old, [run('vga', T[1], 6), run('vga', T[0], 5)], ['gates', 'clock', 'vga'], T).map(r => `${r.example} ${r.variant} ${r.power.total}`),
+    ['gates 100 1', 'gates 500 2', 'clock 100 3', 'clock 500 4', 'vga 100 5', 'vga 500 6']);
+  // an example measured again: its runs replaced where they were, the others kept
+  assert.deepEqual(mergeRuns(old, [run('gates', T[1], 20)], ['gates', 'clock'], T).map(r => r.power.total), [1, 20, 3, 4]);
+  // nothing measured: the JSON's runs as they were
+  assert.deepEqual(mergeRuns(old, [], ['gates', 'clock'], T), old);
+});
+
 // the estimate of the Silinx toolchain's own routed design (its flow, through xpwr) against XPower's of
-// ISE's implementation: three examples on the Basys2-250 here; all of them: scripts/measure-power.mjs --compare
+// ISE's implementation: four examples on the Basys2-250 here; all of them: scripts/measure-power.mjs --compare
 test('the estimate on the examples: the total within ESTIMATE_ERROR_PERCENT of XPower\'s, the dynamic power within DYNAMIC_RANGE; the flow\'s report and log', { timeout: 300000 }, async () => {
   const { runs } = JSON.parse(fs.readFileSync(FIXTURE, 'utf8'));
-  for (const example of ['traffic', 'blinky', 'pong']) {
+  for (const example of ['traffic', 'blinky', 'pong', 'vga']) {
     const x = runs.find(r => r.example === example && r.board === 'basys2' && r.variant === '250');
     const { estimate: e, report, log, top, text } = await silinxEstimate(example, { board: 'basys2', variant: '250' });
     const err = (100 * (e.totalMw - x.power.total)) / x.power.total;
