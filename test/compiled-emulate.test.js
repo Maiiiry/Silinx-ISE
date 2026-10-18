@@ -83,15 +83,23 @@ for (const name of EXAMPLES) {
     assert.equal(b.cb.clock, name === 'gates' ? null : 'clk');
     const ins = b.design.top.ports.filter((p) => p.dir === 'in' && p.name !== 'clk');
     const r = rng(5);
-    let lit = 0;
+    // (vga lights no LED: its VGA pins' values compared at the end of each window, its picture in test/vga-example.test.js)
+    const vgaPorts = name === 'vga' ? b.design.top.ports.filter((p) => p.name.startsWith('vga_')) : [];
+    const pins = (get) => vgaPorts.map((p) => { const v = get(p); return `${p.name}=${v.v}/${v.x}`; });
+    let lit = 0, changes = 0, last = null;
     for (let k = 0; k < 120; k++) {
       if (k % 7 === 0) for (const p of ins) b.force(p.name, BigInt(Math.floor(r() * 2 ** p.sig.t.w)));
       const st = b.window(1 + Math.floor(r() * 400));
       assert.deepEqual(shown(st.cb), shown(st.ev), `window ${k}`);
       assert.equal(b.cb.now, b.ev.now);
       lit += st.ev.prev.leds.filter((x) => x > 0).length + st.ev.prev.digits.filter(Boolean).length;
+      const ev = pins((p) => p.sig.val), cb = pins((p) => b.cb.value(b.cdesign.top.ports.find((q) => q.name === p.name).sig));
+      assert.deepEqual(cb, ev, `window ${k}: the VGA pins`);
+      if (last && ev.join() !== last) changes++;
+      last = ev.join();
     }
-    assert.ok(lit > 50, `${lit} LEDs / digits lit`);
+    if (name === 'vga') assert.ok(changes > 50, `the VGA pins changed after ${changes} windows`);
+    else assert.ok(lit > 50, `${lit} LEDs / digits lit`);
     assert.deepEqual(b.cb.log, []);
   });
 }

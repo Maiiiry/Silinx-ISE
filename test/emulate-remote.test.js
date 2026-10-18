@@ -73,7 +73,7 @@ for (const name of EXAMPLES) {
     const watched = b.design.signals.filter((s) => !Array.isArray(s.init) && s.t?.kind !== 'str' && s.t?.w > 0).slice(0, 12);
     b.remote.watch(watched);
     const r = rng(7);
-    let lit = 0;
+    let lit = 0, changes = 0, last = null;
     for (let k = 0; k < 80; k++) {
       // (the whole port, or one bit of it: the switches)
       if (k % 7 === 0) for (const p of ins) b.force(p.name, BigInt(Math.floor(r() * 2 ** p.sig.t.w)), k % 14 ? 1n << BigInt(Math.floor(r() * p.sig.t.w)) : -1n);
@@ -84,8 +84,13 @@ for (const name of EXAMPLES) {
       assert.equal(b.remote.now, b.ref.now);
       for (const s of watched) assert.deepEqual(b.remote.value(s), b.ref.value(s), `window ${k}: ${s.path}`);
       lit += b.state.prev.leds.filter((x) => x > 0).length + b.state.prev.digits.filter(Boolean).length;
+      const now = JSON.stringify(watched.map((s) => b.remote.value(s)), (k, v) => (typeof v === 'bigint' ? String(v) : v));
+      if (last !== null && now !== last) changes++;
+      last = now;
     }
-    assert.ok(lit > 30, `${lit} LEDs / digits lit`);
+    // (vga lights no LED: its watched values, its VGA pins among them, change; its picture: the test below and test/vga-example.test.js)
+    if (name === 'vga') assert.ok(changes > 30, `the watched values changed after ${changes} windows`);
+    else assert.ok(lit > 30, `${lit} LEDs / digits lit`);
     assert.deepEqual([b.remote.log, b.remote.finished, b.remote.warnings], [[], false, b.ref.warnings]);
     assert.equal(b.remote.busy, false);
   });

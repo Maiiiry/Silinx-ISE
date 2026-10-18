@@ -21,7 +21,7 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, its projects kept apart) and go to st
 1. Open the **[latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Under **Assets**, click **`Silinx-ISE.html`** to download it.
 3. Double-click the downloaded file. It opens in your browser (Chrome, Edge, Firefox or Safari).
-4. On the Start page click **Open Example (gates)** (logic gates drawn as a schematic: a good first example), **Open Example (traffic)** (a pedestrian crossing: a state diagram and a truth table), **Open Example (blinky)** (or *pong*, a game for two, *stopwatch* or *clock*) or **New Project…**.
+4. On the Start page click **Open Example (gates)** (logic gates drawn as a schematic: a good first example), **Open Example (traffic)** (a pedestrian crossing: a state diagram and a truth table), **Open Example (blinky)** (or *pong*, a game for two, *stopwatch*, *clock* or *vga*, a picture on a VGA monitor) or **New Project…**.
 
 That's all. Things to know:
 

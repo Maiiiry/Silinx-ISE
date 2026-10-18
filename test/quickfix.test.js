@@ -477,7 +477,8 @@ test('the examples: every end, endcase, endmodule… and every ";" at the end of
   assert.deepEqual(none, ["blinky/sim/tb_top.vhd:29: unexpected 'process' in sequential statement",
     "stopwatch/src/stopwatch.vhd:95: unexpected 'entity' in sequential statement",
     "traffic/src/top.vhd:74: unexpected 'entity' in sequential statement",
-    "traffic/sim/tb_traffic.vhd:69: unexpected 'process' in sequential statement"]);
+    "traffic/sim/tb_traffic.vhd:69: unexpected 'process' in sequential statement",
+    "vga/sim/tb_vga.vhd:75: unexpected 'process' in sequential statement"]);
 });
 
 test('VHDL: a vector of another width -> zeros / resize / the low bits', () => {

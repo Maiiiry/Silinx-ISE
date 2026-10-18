@@ -1,0 +1,38 @@
+{
+  "name": "vga",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "vga",
+  "simTop": "tb_vga",
+  "files": [
+    {
+      "path": "src/vga_sync.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "src/vga.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "sim/tb_vga.vhd",
+      "lang": "vhdl",
+      "role": "sim"
+    }
+  ],
+  "constraints": "constraints/top.ucf",
+  "stimuli": {},
+  "impl": {
+    "optMode": "Speed",
+    "optLevel": 1,
+    "startupClk": "JtagClk"
+  },
+  "preferredLanguage": "vhdl"
+}

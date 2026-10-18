@@ -78,7 +78,7 @@ const PT = {
   '☰ Symbols': '☰ Símbolos', 'Show / hide the symbols panel': 'Mostrar / esconder o painel dos símbolos',
   'Design': 'Projeto', 'View:': 'Vista:','Hierarchy': 'Hierarquia', 'Processes:': 'Processos:', 'Start': 'Início', 'Files': 'Ficheiros',
   'Libraries': 'Bibliotecas', 'Console': 'Consola', 'Errors': 'Erros', 'Warnings': 'Avisos', 'Ready': 'Pronto', 'Clear': 'Limpar',
-  'Project Commands': 'Comandos do Projeto', 'Open Example (gates)': 'Abrir Exemplo (gates)', 'Open Example (traffic)': 'Abrir Exemplo (traffic)', 'Open Example (blinky)': 'Abrir Exemplo (blinky)', 'Open Example (pong)': 'Abrir Exemplo (pong)', 'Open Example (stopwatch)': 'Abrir Exemplo (stopwatch)', 'Open Example (clock)': 'Abrir Exemplo (clock)', 'No projects yet.': 'Ainda não há projetos.',
+  'Project Commands': 'Comandos do Projeto', 'Open Example (gates)': 'Abrir Exemplo (gates)', 'Open Example (traffic)': 'Abrir Exemplo (traffic)', 'Open Example (blinky)': 'Abrir Exemplo (blinky)', 'Open Example (pong)': 'Abrir Exemplo (pong)', 'Open Example (stopwatch)': 'Abrir Exemplo (stopwatch)', 'Open Example (clock)': 'Abrir Exemplo (clock)', 'Open Example (vga)': 'Abrir Exemplo (vga)', 'No projects yet.': 'Ainda não há projetos.',
   'File Name': 'Nome do Ficheiro', 'Association': 'Associação', 'Behavioral': 'Comportamental',
   // processes
   'Design Summary/Reports': 'Resumo do Projeto/Relatórios', 'Design Utilities': 'Utilitários de Projeto',

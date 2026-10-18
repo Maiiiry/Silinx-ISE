@@ -10,7 +10,7 @@ import { resolveBoard } from '../server/devices.js';
 import { EXAMPLE_ORDER } from '../core/examples.js';
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const EXAMPLES = EXAMPLE_ORDER;   // gates, traffic, blinky, pong, stopwatch, clock
+export const EXAMPLES = EXAMPLE_ORDER;   // gates, traffic, blinky, pong, stopwatch, clock, vga
 // the boards (and variants) of the devices of the Silinx toolchain: the examples run on all of them
 export const TARGETS = [
   { board: 'basys2', variant: '100' }, { board: 'basys2', variant: '250' },
@@ -41,9 +41,12 @@ export function exampleUcf(name, { board, variant }) {
   return { text, device: r.device, unmatched };
 }
 
+// the simulated time an example's testbench may take (ps; 5 ms if not here): vga's looks at two whole frames
+const SIM_TIME = { vga: 30e9 };
+
 /** Runs an example's self-checking testbench in Silinx's simulator: { passed, log, now }.
  *  edit: { path: text } replaces sources (a mutated design: the testbench must then fail). */
-export async function runTestbench(name, { until = 5e9, edit = {} } = {}) {
+export async function runTestbench(name, { until = SIM_TIME[name] || 5e9, edit = {} } = {}) {
   const { Simulator } = await import('../core/simulator.js');
   const { primitiveSources } = await import('../core/unisim.js');
   const ex = example(name);
