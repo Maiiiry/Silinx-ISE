@@ -70,14 +70,19 @@ the code and the lessons learnt.
   Windows too, the operating systems' smoke tests, WebKit memory, the standalone build, the release
   zip). A failure on main only (an OS-specific bug) becomes an issue, fixed in the next change.
   A docs-only change (`scripts/ci-changes.mjs`) runs the unit tests only, the documentation's among them;
-  the Markdown files a build reads (CHANGELOG, THIRD-PARTY-NOTICES) count as code. The ISE tests (nightly) and the quality comparison against
+  the Markdown files a build reads (CHANGELOG, THIRD-PARTY-NOTICES) count as code, the changelog fragments do not. The ISE tests (nightly) and the quality comparison against
   XST (weekly) run on a self-hosted runner, only when main changed since their last run.
-- **CHANGELOG.md**: every change gets an item under the next, unreleased version's heading ("In
-  short" for what users notice, "In detail" for each change with its issue number).
+- **The changelog**: every change adds its own fragment, `changes/<issue>-<slug>.md`, and never edits
+  CHANGELOG.md (whose edits made every pull request conflict): an optional "In short:" list (what users
+  notice) and the "In detail:" list (the change, with its issue number). The format is in
+  [changes/README.md](changes/README.md); `test/changelog-fragments.test.js` checks it.
 - **Releases**, only when asked:
-  1. `npm version X --no-git-tag-version`, then `node scripts/sync-version.mjs`;
-  2. commit `core/version.js`, `package.json`, `package-lock.json` and the CHANGELOG;
-  3. tag `vX` and push; the Release workflow publishes it once main's CI has passed on that commit (it does
+  1. `node scripts/changelog-release.mjs X`: the fragments assembled into CHANGELOG.md's `## X` section and
+     deleted; edit the section if needed (an introduction, a shorter "In short:");
+  2. `npm version X --no-git-tag-version`, then `node scripts/sync-version.mjs` (it refuses a version with no
+     section or with fragments left);
+  3. commit `core/version.js`, `package.json`, `package-lock.json`, the CHANGELOG and the deleted fragments;
+  4. tag `vX` and push; the Release workflow publishes it once main's CI has passed on that commit (it does
      not run the tests again).
 
   The Pages site serves the latest release at the root and `main` under `dev/`.

@@ -32,7 +32,7 @@ jobs:
         run: node scripts/build-standalone.mjs
       - name: Package (as a release, version dev)
         run: node scripts/package-release.mjs dev --out out && ls -la out
-      # the changes not released yet (CHANGELOG.md's newest section, when it is not a release)
+      # the changes not released yet (the changelog fragments, changes/*.md, and CHANGELOG.md's newest section when it is not a release)
       - name: Notes
         run: node scripts/dev-notes.mjs > out-notes.md && cat out-notes.md
       # the tag dev moved to this commit, the pre-release's files replaced

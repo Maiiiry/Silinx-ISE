@@ -5,7 +5,10 @@
 // the documentation changed. The unit tests always run: they include the documentation's tests
 // (test/docs.test.js, test/changelog.test.js, test/quality-page.test.js) and the tests that read a page
 // of it. The Markdown files that a build reads are code: CHANGELOG.md (the release and development
-// notes), THIRD-PARTY-NOTICES.md (the single-file edition's notices), .github/release-notes.md.
+// notes), THIRD-PARTY-NOTICES.md (the single-file edition's notices), .github/release-notes.md. The
+// changelog fragments (changes/*.md, #519) are documentation: no build or package reads them, the unit
+// tests check them (test/changelog-fragments.test.js), and the development build's notes read them when
+// published, after any green CI on main (.github/workflows/dev-release.yml), whatever it ran.
 //
 //   node scripts/ci-changes.mjs <base> <head>
 //   (in GitHub Actions, a checkout with the history: fetch-depth: 0) → writes code=true|false to

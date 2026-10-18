@@ -18,7 +18,8 @@ Contributions are welcome: bug reports, ideas and pull requests.
   the same for everyone, people and AI agents alike.
 - **Before opening a pull request:**
   - run the tests related to your change (`node --test test/<file>.test.js`, `test/ui/<file>.test.js`); the full suites run on GitHub when you open the pull request;
-  - add an item to [CHANGELOG.md](CHANGELOG.md) under the next version;
+  - add a changelog fragment, a new file `changes/<issue>-<slug>.md` (not an edit of CHANGELOG.md), as
+    [changes/README.md](changes/README.md) says;
   - reference the issue (`Fixes #N`).
 
   The tests against ISE run on the project's own runner after the merge; a pull request's code never
