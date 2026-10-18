@@ -31,6 +31,9 @@ In short:
   also mapped onto the FPGA's carry chain when that is faster. Other designs synthesize as before.
 - **Smaller circuits at Optimization Effort High:** the choice between the synthesis's mappings weighs the slices,
   the FPGA's own measure, and not only the LUTs (SHA-1 core 42 % fewer slices, SipHash 23 %, a USB PHY 18 %).
+- **Program FPGA from the browser in fewer USB round trips:** Configure Target Device ▸ Program FPGA over
+  WebUSB sends its JTAG steps as a few streams (the PROM's way) instead of a command a step; the console says how
+  long the bitstream took, how many times INIT and DONE were polled and where the USB time went.
 
 In detail:
 
@@ -45,6 +48,17 @@ In detail:
   Tests: `test/synth-open.test.js` (3, 16, 17 and 33 stages, initial values, an enable, the falling edge, two
   taps: the cells, no warnings, the netlists against the RTL), the cell counts of `test/synth-quality.test.js`,
   `test/synth-abc9.test.js` and the falling-edge shift register's BUFG (#219).
+- **Program FPGA from the browser in JTAG streams (#508):** `programAdept` (`core/adept.js`) shifted every IR
+  device by device and polled the FPGA's status with four commands each: 88 Adept commands, 240 USB transfers for
+  an XC3S250E bitstream on the simulated board, each transfer ~1 ms or more over WebUSB. Its steps are now
+  composed into `JtagSeq` streams, as the Platform Flash's (#274, #289): JPROGRAM, CFG_IN and the first INIT read
+  one PUT_TMS_TDI_BITS; the bitstream one PUT_TDI_BITS with the TAP moves before it and JSTART, its 12 clocks in
+  Run-Test/Idle and the first DONE read after it; each further poll one stream: 26 commands, 77 transfers (the
+  chain's scan most of them). The console adds `  bitstream: N bits in T s (M MHz TCK over USB); INIT after N
+  polls, DONE after N` and the PROM's `  USB:` line (`usbLine` and `secs` moved to `core/adept.js`), and
+  `DONE: the FPGA is configured in T s`. The tests assert the commands of a program in their order and the
+  transfers; the standalone UI test the console lines. Not measured on a board yet: the bitstream's own clocks
+  (~1.4 Mbit at the port's ~2 MHz, about 0.7 s on a Basys2) are unchanged, the new line shows that rate.
 - **Optimization Effort Normal maps a deep design for speed (#468):** `synthesizeOpen` at Normal makes the usual
   mapping first, then measures its logic levels (`logicLevels`: the LUTs and MUXF5s of the deepest path); a design
   of more than 16 levels and 5000 LUTs at most (`DEEP_RULE`, `deepDesign`) also gets High's mappings (the wider and

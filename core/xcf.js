@@ -13,7 +13,7 @@
 // sends a byte's bit 0 first, the FPGA reads a byte MSB first), padded with 0xFF to whole blocks.
 // The .bit for the PROM is generated with StartUpClk:CCLK (build/<top>_prom.bit).
 
-import { Adept, Djtg, Chain, JtagSeq, STREAM_CLOCKS, RTI_PAIRS, byterev, bitHeader } from './adept.js';
+import { Adept, Djtg, Chain, JtagSeq, STREAM_CLOCKS, RTI_PAIRS, byterev, bitHeader, secs, usbLine } from './adept.js';
 
 // XCF instructions (8-bit IR)
 export const XCF = {
@@ -45,17 +45,6 @@ export const NOT_DONE = 'the FPGA did not load from the PROM (mode jumper on ROM
 const fail = msg => { throw new Error(`Adept USB: ${msg}`); };
 const hex8 = n => n.toString(16).padStart(8, '0');
 const sleepMs = ms => new Promise(r => setTimeout(r, ms));
-const secs = ms => `${(ms / 1000).toFixed(1)} s`;
-// a phase's USB commands (JtagSeq's stats), for the console: where its time goes (#289)
-function usbLine(st) {
-  const kind = (k, name) => {
-    const c = st[k];
-    if (!c) return null;
-    const what = k === 'waits' ? '' : ` ${(c.bytes / 1000).toFixed(1)} KB`, rate = k !== 'waits' && c.ms > 0 ? ` (${Math.round(c.bytes / c.ms)} KB/s)` : '';
-    return `${name} ${c.cmds} x${what} in ${secs(c.ms)}${rate}`;
-  };
-  return `  USB: ${[kind('data', 'data shifts'), kind('pairs', 'TAP moves'), kind('waits', 'waits')].filter(Boolean).join('; ')}`;
-}
 
 /**
  * A .bit's header fields (a: design;UserID=…, b: part, c: date, d: time) and its configuration

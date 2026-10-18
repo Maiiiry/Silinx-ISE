@@ -208,7 +208,7 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
   assert.match(log2, /Position 1: XC3S250E \(IDCODE 0x11c1a093\)\s+Position 2: XCF02S \(IDCODE 0xd5045093\)/);
   await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
   await page.waitConsole(/'1': Programmed successfully\./, { timeout: 60000 });
-  assert.match(await page.consoleText(), /JTAG chain: XC3S250E → XCF02S\s+JPROGRAM: clearing the configuration\s+CFG_IN: \d+ bytes\s+JSTART\s+DONE: the FPGA is configured/);
+  assert.match(await page.consoleText(), /JTAG chain: XC3S250E → XCF02S\s+JPROGRAM: clearing the configuration\s+CFG_IN: \d+ bytes\s+JSTART\s+ {2}bitstream: \d+ bits in \d+\.\d s(?: \(\d+\.\d\d MHz TCK over USB\))?; INIT after \d+ polls?, DONE after \d+\s+ {2}USB: data shifts 1 x \d+\.\d KB in \d+\.\d s(?: \(\d+ KB\/s\))?; TAP moves \d+ x \d+\.\d KB in \d+\.\d s(?: \(\d+ KB\/s\))?\s+DONE: the FPGA is configured in \d+\.\d s/);
   // the FPGA took the downloaded bitstream, from its sync word
   assert.ok(await page.eval(() => window.__board.done));
   const sync = bit.indexOf(Buffer.from([0xaa, 0x99, 0x55, 0x66]));

@@ -393,13 +393,30 @@ export async function scanAdept(usb, { log = () => {} } = {}) {
   } finally { await a.close(); }
 }
 
+// a phase's USB commands (JtagSeq's stats), for the console: where its time goes (#289)
+export const secs = ms => `${(ms / 1000).toFixed(1)} s`;
+export function usbLine(st) {
+  const kind = (k, name) => {
+    const c = st[k];
+    if (!c) return null;
+    const what = k === 'waits' ? '' : ` ${(c.bytes / 1000).toFixed(1)} KB`, rate = k !== 'waits' && c.ms > 0 ? ` (${Math.round(c.bytes / c.ms)} KB/s)` : '';
+    return `${name} ${c.cmds} x${what} in ${secs(c.ms)}${rate}`;
+  };
+  return `  USB: ${[kind('data', 'data shifts'), kind('pairs', 'TAP moves'), kind('waits', 'waits')].filter(Boolean).join('; ')}`;
+}
+
 /**
  * Configure the FPGA (SRAM) with a .bit (the whole file: the FPGA skips the header up to its sync
  * word), as adepttool's basys2_prog.py does: JPROGRAM, wait for INIT, CFG_IN, JSTART, wait for DONE.
  * The part the .bit was built for (its header; else part, e.g. 'xc3s250e') must be the chain's FPGA.
+ * The steps go out as JTAG sequences (JtagSeq, #508): JPROGRAM, CFG_IN and the first INIT read in
+ * one stream, the bitstream (one PUT_TDI_BITS), JSTART, its clocks and the first DONE read in
+ * another, each further poll a stream; the console says how long the bitstream took and the USB
+ * commands by kind, as the PROM's does.
  */
-export async function programAdept(usb, bit, { part = null, log = () => {}, maxPolls = 2000 } = {}) {
+export async function programAdept(usb, bit, { part = null, log = () => {}, maxPolls = 2000, now = () => performance.now() } = {}) {
   part = bitHeader(bit)?.part || part;   // the file says what it was built for
+  const start = now();
   const a = await new Adept(usb).open();
   try {
     log(`Programmer: ${a.productName || 'Digilent Adept USB'}${a.serial ? ` (serial ${a.serial})` : ''}`);
@@ -408,23 +425,36 @@ export async function programAdept(usb, bit, { part = null, log = () => {}, maxP
     const fpga = fpgaOf(chain);
     log(`JTAG chain: ${[...chain.devices].reverse().map(d => d.name.toUpperCase()).join(' → ')}`);
     if (part && fpga.name !== String(part).toLowerCase()) fail(`the board's FPGA is a ${fpga.name.toUpperCase()}, the bitstream is for a ${String(part).toUpperCase()}`);
+    const stats = { now }, seq = () => new JtagSeq(chain, stats);
+    // the FPGA's status (its captured IR) after one more shift of its current instruction, 12
+    // clocks in Run-Test/Idle first when rti (the start-up after JSTART runs there)
+    const status = async (s, rti) => { if (rti) s.rti(12); const st = s.ir(fpga, fpga.cur, true); await s.run(); return st.num; };
     log('JPROGRAM: clearing the configuration');
-    await chain.instr(fpga, S3.JPROGRAM);
-    await chain.instr(fpga, S3.CFG_IN);
-    let polls = 0;
-    while (!((await chain.status(fpga)) & ST_INIT)) if (++polls > maxPolls) fail('the FPGA does not get ready (INIT_B stays low)');
-    log(`CFG_IN: ${bit.length} bytes`);
-    await chain.shiftDr(fpga, () => chain.shiftBytes(byterev(bit), bit.length * 8));
-    log('JSTART');
-    await chain.instr(fpga, S3.JSTART);
-    await chain.clockRti(12);
-    polls = 0;
-    while (!((await chain.status(fpga)) & ST_DONE)) {
-      if (++polls > maxPolls) fail('DONE did not go high: the bitstream was not accepted (wrong device or a corrupt file?)');
-      await chain.clockRti(12);
+    let s = seq();
+    s.ir(fpga, S3.JPROGRAM);
+    s.ir(fpga, S3.CFG_IN);
+    let initPolls = 0, polls = 0;
+    while (!((await status(s, false)) & ST_INIT)) {
+      if (++initPolls > maxPolls) fail('the FPGA does not get ready (INIT_B stays low)');
+      s = seq();
     }
-    await chain.clockRti(12);
-    log('DONE: the FPGA is configured');
+    log(`CFG_IN: ${bit.length} bytes`);
+    const t = now();
+    s = seq();
+    s.dr(fpga, byterev(bit), bit.length * 8);
+    s.ir(fpga, S3.JSTART);
+    log('JSTART');
+    while (!((await status(s, true)) & ST_DONE)) {
+      if (++polls > maxPolls) fail('DONE did not go high: the bitstream was not accepted (wrong device or a corrupt file?)');
+      s = seq();
+    }
+    s = seq();
+    s.rti(12);
+    await s.run();
+    const d = stats.data, bits = bit.length * 8;
+    log(`  bitstream: ${bits} bits in ${secs(now() - t)}${d?.ms > 0 ? ` (${(bits / d.ms / 1000).toFixed(2)} MHz TCK over USB)` : ''}; INIT after ${initPolls} poll${initPolls === 1 ? '' : 's'}, DONE after ${polls}`);
+    log(usbLine(stats));
+    log(`DONE: the FPGA is configured in ${secs(now() - start)}`);
     await chain.close();
     return { fpga: fpga.name };
   } finally { await a.close(); }
