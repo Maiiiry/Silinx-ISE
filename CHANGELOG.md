@@ -9,6 +9,9 @@ In short:
 
 - **The power estimate fitted to the seven examples:** XPower's numbers for the vga example join the six others'
   that the estimated power report is fitted to; the estimate stays within 10 % of XPower's total on all of them.
+- **A faster or smaller synthesis at Optimization Effort High:** Silinx also tries Yosys's ABC9 mapper and keeps
+  its result when it is better (35 % fewer slices on one of the corpus's I2C cores, up to 15 % faster on others),
+  for about a second more of synthesis. The default effort, Normal, is unchanged.
 
 In detail:
 
@@ -20,6 +23,14 @@ In detail:
   most 0.1 point (`--compare`: totals within −9.9 % to +8.9 % of XPower's, vga's within −2.8 % to −0.8 %). Tests:
   `test/power.test.js` (the 28 runs of the seven examples, the merge of `--only`'s runs, vga in the estimate's
   comparison with XPower).
+- **ABC9 as a candidate of the open synthesis (#377):** at Optimization Effort High, the design is also mapped onto
+  LUT4s alone with ABC9 (`synth_xilinx -abc9 -nowidelut`, from the same netlist as the other mappings), and that
+  netlist is kept when better by the depth rule. It is kept on 4 of the 21 designs of the measurement and on 9 of
+  the 67 corpus designs: iwls05-i2c 35 % fewer slices and 2 % faster, verilog-uart 4.6 % faster by ISE's trce,
+  epfl-voter and itc99-b09 4 and 15 % faster. On average the period is 0.4 % shorter and the slices 2.6 % fewer,
+  for about 1 s more synthesis per design with 4 Yosys at a time
+  (the Node app; 3 s with one at a time). Effort Normal, the default, is unchanged.
+  research/synth-quality/README.md, "ABC9 as a candidate".
 
 ## 15.11.0
 
@@ -76,14 +87,6 @@ In short:
 
 In detail:
 
-- **ABC9 as a candidate of the open synthesis (#377):** at Optimization Effort High, the design is also mapped onto
-  LUT4s alone with ABC9 (`synth_xilinx -abc9 -nowidelut`, from the same netlist as the other mappings), and that
-  netlist is kept when better by the depth rule. It is kept on 4 of the 21 designs of the measurement and on 9 of
-  the 67 corpus designs: iwls05-i2c 35 % fewer slices and 2 % faster, verilog-uart 4.6 % faster by ISE's trce,
-  epfl-voter and itc99-b09 4 and 15 % faster. On average the period is 0.4 % shorter and the slices 2.6 % fewer,
-  for about 1 s more synthesis per design with 4 Yosys at a time
-  (the Node app; 3 s with one at a time). Effort Normal, the default, is unchanged.
-  research/synth-quality/README.md, "ABC9 as a candidate".
 - **Static timing: the SLICEM's shift registers and RAMs as trce times them (#443):** their delays were
   estimates. Now they are trce's (`research/s3e-route/timing-fit.mjs --arcs`, a new mode that reads the logic
   delays of trce's paths): a shift register's clock to X / Y is 3.762 ns (was 2.0), the data, address and
