@@ -383,6 +383,8 @@ NET "blue<0>" LOC = "H13"; NET "blue<1>" LOC = "J13";
 NET "sw<0>" LOC = "P11"; NET "sw<1>" LOC = "L3"; NET "sw<2>" LOC = "K3"; NET "sw<3>" LOC = "B4";
 NET "sw<4>" LOC = "G3"; NET "sw<5>" LOC = "F3"; NET "sw<6>" LOC = "E2"; NET "sw<7>" LOC = "N3";
 `;
+// is "No signal" shown over the picture (as laid out, not only its hidden attribute: #453)
+const NOSIG_SHOWN = () => { const e = document.querySelector('.doc:not([hidden]) .emu-vga-nosig'); return getComputedStyle(e).display !== 'none' && e.offsetHeight > 0; };
 // a pixel of the monitor's picture (the canvas): [r, g, b]
 const pixel = (page, x, y) => page.eval((px, py) => [...document.querySelector('.doc:not([hidden]) .emu-vga canvas').getContext('2d').getImageData(px, py, 1, 1).data.slice(0, 3)], x, y);
 uiTest('board emulator: the VGA monitor draws the picture the design scans out, its timing measured; the event-driven engine cannot (and in Portuguese)', E, async (page) => {
@@ -394,7 +396,8 @@ uiTest('board emulator: the VGA monitor draws the picture the design scans out, 
   assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
   const stat = () => page.eval(() => document.querySelector('.doc:not([hidden]) .emu-vga-stat').textContent);
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga-stat')?.textContent === '640×480 · 59.52 Hz · line 32.00 µs · 525 lines', [], { what: 'the monitor\'s timing', timeout: 30000 });
-  assert.deepEqual(await page.eval(() => [document.querySelector('.doc:not([hidden]) .emu-vga-nosig').hidden, document.querySelector('.doc:not([hidden]) .emu-vga-warn').textContent]), [true, '']);
+  assert.equal(await page.eval(NOSIG_SHOWN), false, 'no "No signal" over the picture');
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-vga-warn').textContent), '');
   assert.doesNotMatch(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-board-note').textContent), /not emulated/, 'the VGA connector is emulated');
   // the bars (red across, green down: 3 bits each) and the square (blue, at column 8 * sw)
   await page.waitFor(() => window.Silinx.active.view.sim.vga().status.frames >= 2, [], { what: 'two frames', timeout: 30000 });
@@ -408,10 +411,10 @@ uiTest('board emulator: the VGA monitor draws the picture the design scans out, 
   assert.deepEqual(await pixel(page, 10, 210), [0, 109, 0]);
   // power off: no signal
   await page.click('.doc:not([hidden]) .emu-power');
-  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .emu-vga-nosig').hidden, [], { what: 'no signal without power' });
+  await page.waitFor(NOSIG_SHOWN, [], { what: 'no signal without power' });
   assert.equal(await stat(), '');
   await page.click('.doc:not([hidden]) .emu-power');
-  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga-nosig').hidden, [], { what: 'the picture again' });
+  await page.waitFor(() => { const e = document.querySelector('.doc:not([hidden]) .emu-vga-nosig'); return getComputedStyle(e).display === 'none'; }, [], { what: 'the picture again, no "No signal" over it' });
   // (a frame measured again before the pause: the first VSYNC comes up to a frame after power-up)
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga-stat')?.textContent === '640×480 · 59.52 Hz · line 32.00 µs · 525 lines', [], { what: 'the timing again', timeout: 30000 });
   // in Portuguese: no untranslated text
