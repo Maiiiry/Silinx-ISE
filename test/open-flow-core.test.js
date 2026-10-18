@@ -222,25 +222,34 @@ test('#280 the synthesis up to date: its netlist used, its report kept; no netli
 });
 
 // #282: the synthesis's Optimization Effort in the flow: Normal one Yosys run, and the console says which
-test('#282 the flow\'s synthesis with Optimization Effort Normal: one Yosys run, said; High: the mappings tried', { timeout: 300000 }, async () => {
-  const run = async (synthEffort) => {
+test('#282 the flow\'s synthesis with Optimization Effort Normal: one Yosys run, said; High: the mappings tried; Normal on a deep design (#468): the mappings tried, said', { timeout: 300000 }, async () => {
+  const run = async (synthEffort, deep = null) => {
     const lines = [];
     let runs = 0;
     const io = {
       log: l => lines.push(l),
-      sources: () => sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') })),
+      sources: () => (deep ? [deep] : sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') }))),
       ucf: null, device: () => null, bitDb: () => null,
       yosys: (...a) => { runs++; return yosysNode(...a); },
       write: (name) => `build/${name}`, read: () => null, save: () => {},
     };
-    const res = await runOpenFlow({ ...spec, steps: ['synth'], synthEffort }, io);
+    const res = await runOpenFlow({ ...spec, ...(deep && { top: 'chain' }), steps: ['synth'], synthEffort }, io);
     assert.ok(res.ok, `${res.error}\n${lines.join('\n')}`);
     return { runs, lines: lines.filter(l => /^Optimization Effort/.test(l)), report: res.report };
   };
   const n = await run('normal'), h = await run('high');
   assert.equal(n.runs, 1);
-  assert.deepEqual(n.lines, ['Optimization Effort Normal: one mapping (High also tries the mappings for speed, a slower synthesis).']);
+  assert.deepEqual(n.lines, ['Optimization Effort Normal: one mapping, and the mappings for speed for a design limited by its logic depth (High tries them for every design, a slower synthesis).']);
   assert.ok(h.runs > 1, String(h.runs));
   assert.deepEqual(h.lines, ['Optimization Effort High: the mappings for speed tried too, the fastest kept.']);
   assert.ok(n.report.synthesis.summary.luts.used > 0);
+  // a comparator chain of 48 bits: 17 levels of logic at Normal's first mapping, the mappings for speed too
+  const d = await run('normal', { path: 'chain.v', lang: 'verilog', text: `module chain(input clk, input [47:0] a, input [47:0] b, output reg gt);
+  reg [47:0] ra, rb; integer i; reg g;
+  always @* begin g = 1'b0; for (i = 0; i < 48; i = i + 1) g = (ra[i] & ~rb[i]) | (~(ra[i] ^ rb[i]) & g); end
+  always @(posedge clk) begin ra <= a; rb <= b; gt <= g; end
+endmodule` });
+  assert.ok(d.runs > 1, String(d.runs));
+  assert.deepEqual(d.lines, ['Optimization Effort Normal: one mapping, and the mappings for speed for a design limited by its logic depth (High tries them for every design, a slower synthesis).',
+    'Optimization Effort Normal: 17 levels of logic: the mappings for speed tried too, the fastest kept.']);
 });

@@ -493,6 +493,48 @@ LUTs, inside the I/O wrapper where there is one.
 The netlists are equal to the RTL. The nandland SPI cores are 37 % smaller but 2 to 6 % slower (keepDepth's
 "smaller" rule: 5 % fewer LUTs, at most 1 % slower by the estimate).
 
+## Effort Normal: the deep designs mapped for speed (#468)
+
+At Optimization Effort Normal (#282) the open synthesis made the usual mapping alone: the designs limited by
+their logic depth lost most of their speed against ISE (docs/QUALITY.md, critical paths by trce, Normal and High
+against ISE: EPFL adder 6.81 and 1.15, max 2.40 and 1.11, priority 2.06 and 0.51). `effort-normal.mjs` synthesizes
+each design of the corpus at both efforts (Normal as before: the usual mapping alone), with the estimated critical
+path, the logic levels of the deepest path (`logicLevels`: LUTs and MUXF5s), the LUTs and the time
+(`effort-normal-results.jsonl`, on an Apple-silicon Mac):
+
+    node research/synth-quality/effort-normal.mjs results.jsonl [name,name…]
+
+The designs of more than 12 levels (*auto*: what DEEP_RULE takes, more than 16 levels and 5000 LUTs at most):
+
+| design | levels | LUTs | Normal ns | High ns | gain | Normal s | High s | auto |
+|---|---:|---:|---:|---:|---:|---:|---:|:-:|
+| epfl-log2 | 100 | 10682 | 115.5 | 115.5 | 1.00 | 370.8 | 457.4 | no |
+| epfl-multiplier | 87 | 7527 | 100.5 | 100.5 | 1.00 | 328.7 | 403.4 | no |
+| epfl-adder | 85 | 339 | 98.2 | 17.4 | 5.63 | 2.2 | 14.6 | yes |
+| epfl-max | 57 | 1046 | 66.0 | 23.0 | 2.87 | 3.7 | 22.8 | yes |
+| epfl-sin | 52 | 2001 | 60.2 | 60.2 | 1.00 | 6.4 | 30.8 | yes |
+| epfl-priority | 44 | 171 | 51.0 | 16.5 | 3.09 | 3.9 | 9.9 | yes |
+| itc99-b22 | 24 | 3297 | 34.9 | 34.9 | 1.00 | 10.3 | 22.3 | yes |
+| itc99-b05 | 23 | 293 | 10.3 | 9.5 | 1.09 | 2.7 | 6.2 | yes |
+| itc99-b14 | 23 | 1005 | 34.6 | 29.5 | 1.17 | 5.1 | 14.8 | yes |
+| itc99-b20 | 23 | 2150 | 35.4 | 35.4 | 1.00 | 7.9 | 16.0 | yes |
+| itc99-b21 | 23 | 2173 | 33.9 | 33.9 | 1.00 | 7.7 | 15.0 | yes |
+| epfl-voter | 18 | 2353 | 21.1 | 21.1 | 1.00 | 12.9 | 69.2 | yes |
+| t80 | 15 | 2153 | 20.4 | 20.4 | 1.00 | 5.9 | 16.1 | no |
+| secworks-sha256 | 14 | 2849 | 23.0 | 22.1 | 1.04 | 5.2 | 14.9 | no |
+| itc99-b15 | 13 | 2028 | 19.4 | 18.3 | 1.06 | 7.0 | 14.0 | no |
+| itc99-b17 | 13 | 6338 | 19.7 | 19.7 | 1.00 | 17.3 | 21.2 | no |
+
+The three designs High makes several times faster are the deepest that fit (44 to 85 levels): the carry chain of
+the adder written as gates, the comparators of max, the priority encoder. Beyond 5000 LUTs (log2, multiplier)
+High maps nothing for depth (DEPTH_RULE.maxLuts) and only adds its carry-chain runs: 75 to 86 s more for the
+same netlist. Between 16 and 85 levels the others (sin, voter, ITC'99 b20 to b22) are as fast at High, for 7 to
+56 s more, b14 17 % faster, b05 9 %. The 55 designs of 16 levels or fewer are 6 % faster at High (geometric mean;
+the EPFL router 1.49, ctrl 1.27, uart-for-fpga 1.27, serv 1.22), for 4.7 s more each on average: not limited by
+their depth, they keep Normal's one run (High is there for them). With DEEP_RULE, Normal maps the 10 designs of
+more than 16 levels as High does; by the quality page's High column, Normal's critical path against ISE's goes
+from +20 % to about +9 % (the adder, max and priority; the ITC'99 ones ISE cannot read).
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding

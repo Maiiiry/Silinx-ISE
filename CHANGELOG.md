@@ -7,6 +7,9 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **Faster circuits at Optimization Effort Normal:** a design limited by its logic depth (a long comparator or
+  priority chain, an adder written as gates) now gets the mappings for speed at Normal too, as at High: the EPFL
+  adder about 6 times faster, max and priority about 3 times. The other designs keep Normal's single, fast run.
 - **The power estimate fitted to the seven examples:** XPower's numbers for the vga example join the six others'
   that the estimated power report is fitted to; the estimate stays within 10 % of XPower's total on all of them.
 - **A faster or smaller synthesis at Optimization Effort High:** Silinx also tries Yosys's ABC9 mapper and keeps
@@ -15,6 +18,19 @@ In short:
 
 In detail:
 
+- **Optimization Effort Normal maps a deep design for speed (#468):** `synthesizeOpen` at Normal makes the usual
+  mapping first, then measures its logic levels (`logicLevels`: the LUTs and MUXF5s of the deepest path); a design
+  of more than 16 levels and 5000 LUTs at most (`DEEP_RULE`, `deepDesign`) also gets High's mappings (the wider and
+  the depth-oriented ones, the carry chains of logic written as gates), each kept by DEPTH_RULE as at High, the first
+  run's netlist reused. Chosen on the design corpus at both efforts (`research/synth-quality/effort-normal.mjs`,
+  README "Effort Normal"): the EPFL adder (85 levels) 98 ns estimated to 17, max 66 to 23, priority 51 to 17; ten
+  designs take the mappings, for 6 to 56 s more; the larger deep ones (log2, multiplier), which High makes no
+  faster, and the 55 of 16 levels or fewer keep one run; the seven examples are 1 to 8 levels deep. By the quality
+  page's High column, Normal's critical path against ISE's goes from +20 % to about +9 %. The console says so
+  ("Optimization Effort Normal: 17 levels of logic: the mappings for speed tried too"), and Process Properties'
+  note on the efforts (in Portuguese too). Tests: `test/synth-open.test.js` (logicLevels and deepDesign on netlists
+  by hand; a comparator chain of 48 bits at Normal mapped for speed, faster, the same function; the 24-bit one
+  still one run), `test/open-flow-core.test.js` (the console's lines), the UI test of the efforts.
 - **XPower's numbers for the vga example (#463):** `scripts/measure-power.mjs --only <examples>` measures just those
   examples with ISE and XPower and merges their runs into `test/fixtures/power/xpower-examples.json` (the others
   kept, in the examples' and the devices' order). vga on the four devices (XPower: 36.18, 55.14, 83.62 and 161.42 mW)
