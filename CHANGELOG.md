@@ -3,10 +3,21 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
-## 15.10.23
+## 15.11.0
+
+A new minor version: the Board Emulator at the board's real speed, with a VGA monitor and a seventh example;
+an estimated power report and an MCP server; truth tables with `/` and XOR forms; the editor on CodeMirror 6; a
+safer local server; and every dependency at its latest version.
 
 In short:
 
+- **The Board Emulator at the board's speed:** a design that can be compiled runs on a new engine, its netlist as
+  JavaScript, tens of millions of clock cycles per second: counters, dividers and debouncers at their real values,
+  the clock in real time. The event-driven simulation stays, for debugging (X values, the design's messages) and for
+  the designs that cannot be compiled (an Engine selector in the emulator's toolbar).
+- **Xilinx primitives on the compiled engine:** designs with block RAMs, multipliers, shift registers, distributed
+  RAMs, clock multiplexers and DCMs (a 25 MHz clock for VGA from the board's 50 MHz) run in the Board Emulator at the
+  board's speed instead of falling back to the event-driven engine.
 - **The Board Emulator in a thread of its own:** the compiled engine runs in a Web Worker, so the emulator no longer
   slows the page: buttons, menus and editors answer at once while a design runs at full speed (a little faster too).
 - **A VGA monitor in the Board Emulator:** a design on the board's VGA connector shows its 640×480 picture, as a
@@ -15,37 +26,35 @@ In short:
 - **A seventh example, vga:** a picture on a VGA monitor, in VHDL: colour bars in a white frame and a square the
   four buttons move (SW0: faster), 640×480 at 60 Hz from the 50 MHz clock; the Board Emulator's VGA monitor draws
   it.
-- **The Board Emulator at the board's speed:** a design that can be compiled runs on a new engine, its netlist as
-  JavaScript, tens of millions of clock cycles per second: counters, dividers and debouncers at their real values,
-  the clock in real time. The event-driven simulation stays, for debugging (X values, the design's messages) and for
-  the designs that cannot be compiled (an Engine selector in the emulator's toolbar).
-- **Xilinx primitives on the compiled engine:** designs with block RAMs, multipliers, shift registers, distributed
-  RAMs, clock multiplexers and DCMs (a 25 MHz clock for VGA from the board's 50 MHz) run in the Board Emulator at the
-  board's speed instead of falling back to the event-driven engine.
+- **A manual clock in the emulator:** a design clocked by a push button (its clock port on a button in the UCF)
+  works in the board emulator: the flip-flops change only when the button is pressed.
+- **Truth tables: / as NOT, and XOR forms:** the expressions are written with `/` as NOT by default (`/a·b + c`,
+  `/(a + b)`), the other notations still selectable; beside the minimal SOP and POS, the *XOR form* when it is
+  simpler (`a ⊕ b ⊕ c`, `a·b + c·(a ⊕ b)`, `/(a1 ⊕ b1)·/(a0 ⊕ b0)`), which the table's HDL module can use.
+- **The HDL editor on CodeMirror 6:** the same editor (highlighting, completion and templates, the live errors with
+  their quick fixes, Rename Symbol, folding), on the maintained version of CodeMirror; its Find and Go to Line in
+  Portuguese too.
+- **The power of a design without ISE:** *Generate Text Power Report* works with the Silinx toolchain: an estimate
+  of the design's power (static and dynamic, by clocks, logic, signals and I/Os), said to be one, within 10 % of
+  Xilinx XPower's total on the examples.
+- **Silinx for an AI assistant:** `silinx-ise mcp` is an MCP server: Claude Desktop, Claude Code or another MCP client
+  opens the workspace's projects, edits them, checks their syntax, simulates them, runs the processes and reads the
+  reports, with the same results as the interface.
 - **Against the best-known results:** the quality page compares Silinx's synthesis on the EPFL benchmarks with the
   records of the EPFL logic synthesis competition (LUT-6 count and depth).
 - **A larger design corpus:** 29 more designs through the whole toolchain every night: the rest of the EPFL
   benchmarks that fit (sin, voter, multiplier, log2), the ITC'99 benchmarks in VHDL (b01–b15, b17, b20–b22) and
   six IWLS'05 OpenCores cores.
-- **A manual clock in the emulator:** a design clocked by a push button (its clock port on a button in the UCF)
-  works in the board emulator: the flip-flops change only when the button is pressed.
-- **The HDL editor on CodeMirror 6:** the same editor (highlighting, completion and templates, the live errors with
-  their quick fixes, Rename Symbol, folding), on the maintained version of CodeMirror; its Find and Go to Line in
-  Portuguese too.
 - **A safer local server:** reached from other computers (`serve --host 0.0.0.0`) it asks for a token it prints at
   start-up; its pages run only their own scripts; a project zip that grows too large is refused; the adepttool
   installer installs one checked version.
 - **Stop works in the browser edition:** Stop during Generate Programming File stops the Silinx toolchain at once,
   and nothing of the stopped run is kept.
-- **The power of a design without ISE:** *Generate Text Power Report* works with the Silinx toolchain: an estimate
-  of the design's power (static and dynamic, by clocks, logic, signals and I/Os), said to be one, within 10 % of
-  Xilinx XPower's total on the examples.
-- **Truth tables: / as NOT, and XOR forms:** the expressions are written with `/` as NOT by default (`/a·b + c`,
-  `/(a + b)`), the other notations still selectable; beside the minimal SOP and POS, the *XOR form* when it is
-  simpler (`a ⊕ b ⊕ c`, `a·b + c·(a ⊕ b)`, `/(a1 ⊕ b1)·/(a0 ⊕ b0)`), which the table's HDL module can use.
-- **Silinx for an AI assistant:** `silinx-ise mcp` is an MCP server: Claude Desktop, Claude Code or another MCP client
-  opens the workspace's projects, edits them, checks their syntax, simulates them, runs the processes and reads the
-  reports, with the same results as the interface.
+- **Up to date:** Yosys 0.70, CodeMirror 6, Express 5 and elkjs 0.12; Dependabot proposes new versions every
+  week, and a Yosys update comes with a table comparing the circuits it makes.
+- **Measured against ISE at both efforts:** at *Optimization Effort High* the Silinx toolchain's circuits are 20 %
+  smaller than ISE's in LUTs and 5 % slower (critical path, 40 designs timed by ISE's own analyser); at the default,
+  *Normal*, 16 % smaller and 20 % slower ([docs/QUALITY.md](docs/QUALITY.md)).
 
 In detail:
 
