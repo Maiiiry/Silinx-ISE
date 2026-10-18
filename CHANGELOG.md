@@ -311,6 +311,8 @@ In detail:
 - **Unused exports removed (#406):** `moduleRoles` (core/compile.js), `symbolTitle` (core/schdoc.js), `DOC_LANGS`
   (core/symdocs.js), `hasX` (core/values.js), `MAJOR` (core/version.js), `paletteOpen` (web/js/palette.js): used
   nowhere. `clonePetri` stays, for the Petri net editor's paste.
+- **A unit test on Windows (#447):** the #403 test of the minified Blob worker gave esbuild a URL's path as its
+  folder (`/D:/…` on Windows): `fileURLToPath` now.
 
 ## 15.10.22
 
