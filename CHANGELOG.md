@@ -3,6 +3,24 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.11.1
+
+In short:
+
+- **The power estimate fitted to the seven examples:** XPower's numbers for the vga example join the six others'
+  that the estimated power report is fitted to; the estimate stays within 10 % of XPower's total on all of them.
+
+In detail:
+
+- **XPower's numbers for the vga example (#463):** `scripts/measure-power.mjs --only <examples>` measures just those
+  examples with ISE and XPower and merges their runs into `test/fixtures/power/xpower-examples.json` (the others
+  kept, in the examples' and the devices' order). vga on the four devices (XPower: 36.18, 55.14, 83.62 and 161.42 mW)
+  makes the fixture's 28 runs, and `core/power.js`'s coefficients are their fit again (the nets' power now mostly by
+  their loads: 7.400e-6 mW per Mtr/s and 1.037e-4 per load, from 1.545e-4 and 4.348e-5); the estimates move by at
+  most 0.1 point (`--compare`: totals within −9.9 % to +8.9 % of XPower's, vga's within −2.8 % to −0.8 %). Tests:
+  `test/power.test.js` (the 28 runs of the seven examples, the merge of `--only`'s runs, vga in the estimate's
+  comparison with XPower).
+
 ## 15.11.0
 
 A new minor version: the Board Emulator at the board's real speed, with a VGA monitor and a seventh example;
