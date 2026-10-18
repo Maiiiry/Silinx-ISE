@@ -10,6 +10,8 @@
 //     a BigInt above; the combinational cells are computed in topological order as integer operations;
 //   - the flip-flops are variables, the memories typed arrays; each starts at its initial value, or 0
 //     as on the FPGA after configuration (two-state values: no X, no Z);
+//   - the combinational cells in segments, each evaluated only when a value it reads changed (#464: the
+//     activity, its guards chosen from a short profile of the code), the results the same;
 //   - the main clock's rising edge (and its falling edge, when a flip-flop or the logic uses it) is
 //     one step of the loop; every other clock (a counter bit used as a clock, a clock on a button, a
 //     gated or inverted clock), the asynchronous resets / loads / sets and the latches are settled
@@ -118,6 +120,43 @@ const UNARY = new Set(['$not', '$pos', '$neg', '$reduce_and', '$reduce_or', '$re
 const SHIFTS = new Set(['$shl', '$sshl', '$shr', '$sshr', '$shift', '$shiftx']);
 const CMP = { $eq: '===', $ne: '!==', $eqx: '===', $nex: '!==', $lt: '<', $le: '<=', $gt: '>', $ge: '>=' };
 const SETTLE_LIMIT = 10000;
+const PROFILE = 20000;   // the cycles of the activity's profile (compileNetlist)
+const GUARD = 2;         // a segment's guard, as cells
+const PMAX = 0.3;        // a segment more often evaluated: unguarded
+const WORTH = 0.5;       // the guards, when they leave at most this part of the cells evaluated per step
+
+// The segments of the blocks (compileNetlist's activity): consecutive blocks evaluated together when a value
+// one of them reads changed, chosen to evaluate the fewest cells per cycle, guards counted (dynamic
+// programming): a segment of C cells costs GUARD + p * C, p the chance one of its values changed (the sum of
+// their rates, up to 1), or C unguarded (when it reads a value that changes at every step, or p is high).
+// blocks: [{ cells, keys, always }] in order; rate: Map(key -> changes per evaluation). The segments, with
+// their cost: the cells evaluated per step, guards counted.
+export function segmentsOf(blocks, rate, maxLen = 400) {
+  const m = blocks.length, best = new Float64Array(m + 1), from = new Int32Array(m + 1), guarded = new Uint8Array(m + 1);
+  for (let j = 1; j <= m; j++) {
+    best[j] = Infinity;
+    const keys = new Set();
+    let C = 0, p = 0, always = false;
+    for (let i = j; i >= 1 && j - i < maxLen; i--) {
+      const b = blocks[i - 1];
+      C += b.cells.length;
+      always ||= b.always;
+      for (const k of b.keys) if (!keys.has(k)) { keys.add(k); p += rate.get(k) || 0; }
+      const g = always || p > PMAX ? Infinity : GUARD + p * C;
+      const cost = best[i - 1] + Math.min(C, g);
+      if (cost < best[j]) { best[j] = cost; from[j] = i - 1; guarded[j] = g < C ? 1 : 0; }
+    }
+  }
+  const segs = [];
+  for (let j = m; j > 0; j = from[j]) {
+    const bl = blocks.slice(from[j], j);
+    // (two unguarded segments side by side: one)
+    if (!guarded[j] && segs.length && !segs[0].keys) segs[0].blocks.unshift(...bl);
+    else segs.unshift({ blocks: bl, keys: guarded[j] ? new Set(bl.flatMap(b => b.keys)) : null });
+  }
+  segs.cost = best[m];
+  return segs;
+}
 
 // ------------------------------------------------------------------ a VGA monitor (watch.vga)
 // The picture as a monitor finds it in the sync signals, each cycle: a line from each leading edge of HSYNC
@@ -171,13 +210,15 @@ export function portBit(json, top, name, pos = 0) {
  *   vars: [{ w, kind }], warnings: [messages], clock: { port } | null, stats }.
  * o: { top, clock: the main clock's port name (null: the input that clocks the most flip-flops; false: none,
  *      every clock then settled as the other clocks are: a clock on a button), wide: every value a BigInt
- *      (to test that code), watch: what each cycle counts (CompiledSim.take) }
+ *      (to test that code), watch: what each cycle counts (CompiledSim.take), activity: the combinational
+ *      cells evaluated only when what they read changed (#464; false: all of them every step; 'fine', 'max':
+ *      the most guards, the fewest, to test that code), profile: the cycles run to choose the guards }
  * watch: { levels: [{ bit, on }] (the cycles a bit is at `on`), pairs: [[{ bit, on }, { bit, on }]] (the cycles
  *   both are), edges: [{ bit, capture: [bits] }] (each falling edge of the bit: the cycle and the captured
  *   bits' value, up to 32), vga: { hs, vs, rgb: [bits] } (a VGA monitor: VGA_CODE) }, the bits as in the
  *   netlist (portBit), sampled in every cycle before its clock edge (the values the cycle shows).
  */
-export function compileNetlist(json, { top, clock = null, wide = false, watch = null } = {}) {
+export function compileNetlist(json, { top, clock = null, wide = false, watch = null, activity = true, profile = PROFILE } = {}) {
   const mod = json.modules[top] || Object.values(json.modules).find(m => m.attributes?.top) || Object.values(json.modules)[0];
   if (!mod) throw new CompileError('the netlist has no module');
   const vars = [];                 // { w, kind }
@@ -286,24 +327,27 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
       if (!s) {
         const bit = b === '1' ? 1 : 0;   // '0', 'x', 'z', an undriven bit: 0
         if (last && last.c) { last.c.push(bit); last.len++; } else runs.push({ c: [bit], pos: i, len: 1 });
-      } else if (last && last.v === s[0] && last.off + last.len === s[1]) last.len++;
+      } else if (last && last.v === s[0] && !last.rep && last.off + last.len === s[1]) last.len++;
+      else if (last && last.v === s[0] && last.off === s[1] && (last.rep || last.len === 1)) { last.rep = true; last.len++; }
       else runs.push({ v: s[0], off: s[1], len: 1, pos: i });
     });
     const parts = [];
     let cst = 0n, shifted = false;
     for (const r of runs) {
       if (r.c) { cst |= bigOf(r.c) << BigInt(r.pos); continue; }
-      const vk = vars[r.v].kind, vw = vars[r.v].w, name = `v${r.v}`;
+      const vk = vars[r.v].kind, vw = vars[r.v].w, name = `v${r.v}`, len = r.rep ? 1 : r.len;
       let e;
       if (vk === 'n') {
         e = r.off ? `(${name} >>> ${r.off})` : name;
-        if (r.off + r.len < vw) e = mN(e, r.len);
+        if (r.off + len < vw) e = mN(e, len);
         if (kind === 'b') e = `BigInt(${e})`;
       } else {
         e = r.off ? `(${name} >> ${r.off}n)` : name;
-        if (r.off + r.len < vw) e = `(${e} & ${(1n << BigInt(r.len)) - 1n}n)`;
+        if (r.off + len < vw) e = `(${e} & ${(1n << BigInt(len)) - 1n}n)`;
         if (kind === 'n') e = `Number(${e})`;
       }
+      // (a bit repeated, as a sign extension: 0 or all ones)
+      if (r.rep) e = kind === 'b' ? `(-${e} & ${(1n << BigInt(r.len)) - 1n}n)` : `(-${e} & ${2 ** r.len - 1})`;
       if (r.pos) { e = kind === 'b' ? `(${e} << ${r.pos}n)` : `(${e} << ${r.pos})`; shifted = true; }
       parts.push(e);
     }
@@ -344,15 +388,18 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
     }
   }
 
-  const combCode = order.map(n => `v${n.y} = ${conv(cellExpr(n), n.kind, vars[n.y].kind)};`).join('\n');
-
+  // a memory's word at an address (0 outside it; an address that cannot leave it needs no test)
+  const rdExpr = (m, addr, kind) => {
+    const e = `m${m.k}[${sig(addr, 'n')}${m.offset ? ` - ${m.offset}` : ''}]`;
+    return !m.offset && 2 ** addr.length <= m.size ? e : `(${e} ?? ${lit(0, kind)})`;
+  };
   // a combinational cell's value (n.kind: the kind it is computed in)
   function cellExpr(n) {
     const t = n.type, P = n.P, C = n.C;
     if (t === '$memrd') {
       const m = n.mem;
       n.kind = m.kind;
-      return `(m${m.k}[${sig(n.addr, 'n')}${m.offset ? ` - ${m.offset}` : ''}] ?? ${lit(0, m.kind)})`;
+      return rdExpr(m, n.addr, m.kind);
     }
     const yw = C.Y.length;
     if (t === '$mux' || t === '$pmux' || t === '$bwmux') {
@@ -481,7 +528,7 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
       }
       case '$memrd': {
         const m = e.mem;
-        let rd = `(m${m.k}[${sig(e.addr, 'n')}${m.offset ? ` - ${m.offset}` : ''}] ?? ${lit(0, kind)})`;
+        let rd = rdExpr(m, e.addr, kind);
         // a transparent port reads what a write port of the same edge writes at its address
         e.transparent.forEach((tr, j) => {
           if (!tr) return;
@@ -500,12 +547,13 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
     }
     return `${nn} = ${x};`;
   }
-  function commit(e) {
+  // (flag: a memory write on the main clock, its dirty bit set (@@set m<memory>@@, as generate writes it))
+  function commit(e, flag = false) {
     if (e.type === '$memwr') {
       const m = e.mem, k = `m${m.k}`, a = `a${e.id}`, we = `w${e.id}`;
       const zero = lit(0, m.kind);
       const merged = m.kind === 'b' ? `(${k}[${a}] & ~${we}) | (n${e.id} & ${we})` : `(${k}[${a}] & ~${we}) | (n${e.id} & ${we})`;
-      return `if (${we} !== ${zero} && ${a} >= 0 && ${a} < ${m.size}) ${k}[${a}] = ${merged};`;
+      return `if (${we} !== ${zero} && ${a} >= 0 && ${a} < ${m.size}) ${flag ? `{ ${k}[${a}] = ${merged}; @@set m${m.k}@@ }` : `${k}[${a}] = ${merged};`}`;
     }
     if (e.type === '$dlatch' || e.type === '$adlatch') return '';
     return `v${e.q} = n${e.id};`;
@@ -636,7 +684,51 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   }
   const asyncEls = elems.filter(e => async(e));
 
-  const fire = els => `${els.map(sample).join('\n')}\n${els.map(commit).join('\n')}`;
+  // ---- activity (#464): the combinational cells in blocks by the values they read, each block evaluated only
+  // when one of them changed since the last evaluation. A change is a bit of the dirty words D<j>, set by the main
+  // clock's commits (its flip-flops, its memories' writes) and by the cuts (a 1-bit result of a comparison of
+  // several bits: a counter's end, which changes much less often than the counter), cleared after each
+  // evaluation; bit 0 (all): every block. A block reading a value that changes at every step (the main clock's,
+  // a DCM's output) is always evaluated; the values with no bit (the inputs, the other clocks' flip-flops, the
+  // latches, the asynchronous loads) change between runs or when settling, after which every block is (all).
+  const always = new Set(dcms.flatMap(d => Object.values(d.outs)));
+  if (mainPort && usesMain) always.add(mainPort.v);
+  const flagged = new Set(onMain.filter(e => e.q != null).map(e => e.q));
+  const memFlagged = new Set(mems.filter(m => m.writes.some(w => clkBit(w) === main)).map(m => m.k));
+  const CUTS = new Set(['$eq', '$ne', '$eqx', '$nex', '$lt', '$le', '$gt', '$ge', '$reduce_and', '$reduce_or', '$reduce_bool', '$logic_not', '$logic_and', '$logic_or']);
+  const varsIn = n => [...new Set(inBits(n).map(b => (typeof b === 'number' ? src.get(b)?.[0] : null)).filter(v => v != null))];
+  const reads = new Map();   // comb node -> { keys: Set ('v<var>', 'm<memory>'), always }
+  for (const n of order) {
+    n.cut = CUTS.has(n.type) && vars[n.y].w === 1 && inBits(n).length >= 4;
+    const r = { keys: new Set(), always: false };
+    for (const v of varsIn(n)) {
+      const d = combOf.get(v);
+      if (d) {
+        if (d.cut) r.keys.add(`v${v}`);
+        else { const dr = reads.get(d); dr.keys.forEach(k => r.keys.add(k)); r.always ||= dr.always; }
+      } else if (always.has(v)) r.always = true;
+      else if (flagged.has(v)) r.keys.add(`v${v}`);
+    }
+    if (n.type === '$memrd' && memFlagged.has(n.mem.k)) r.keys.add(`m${n.mem.k}`);
+    r.always ||= !activity;
+    reads.set(n, r);
+  }
+  // the blocks (the cells reading the same values), in an order the cells' dependencies keep
+  const blocks = new Map();   // key -> { cells, keys, always, deps: Set of blocks }
+  for (const n of order) {
+    const r = reads.get(n), key = r.always || !activity ? '*' : [...r.keys].sort().join(' ');
+    if (!blocks.has(key)) blocks.set(key, { cells: [], keys: [...r.keys], always: r.always, deps: new Set() });
+    const b = blocks.get(key);
+    b.cells.push(n);
+    n.block = b;
+  }
+  for (const n of order) for (const v of varsIn(n)) { const d = combOf.get(v); if (d && d.block !== n.block) n.block.deps.add(d.block); }
+  const blockOrder = [], placed = new Set();
+  const place = (b) => { if (placed.has(b)) return; placed.add(b); b.deps.forEach(place); blockOrder.push(b); };
+  blocks.forEach(place);
+  // (the main clock's edges: their commits flag what changed, @@changes <edge>@@ and @@set m<memory>@@, as
+  // generate writes them)
+  const fire = (els, edge) => `${els.map(sample).join('\n')}\n@@changes ${edge}@@\n${els.map(e => commit(e, e.type === '$memwr')).join('\n')}`;
   const ckSet = (on) => {
     if (!mainPort) return '';
     const v = `v${mainPort.v}`, off = mainPort.bits.indexOf(main);
@@ -661,11 +753,17 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   // (the time each value lasts, in cycles: half a cycle before the main clock's rising edge, half after it,
   // as the event-driven simulator's time; without the falling edge, the half after a rising edge is the half
   // before the next one, sampled once: the window's first half, its middle cycles whole, its last half)
-  const count = W => [
-    ...levels.map((w, i) => `if (${at(w)}) K[${i}] += ${W};`),
-    ...pairs.map(([a, b], i) => `if (${at(a)} && ${at(b)}) K[${levels.length + i}] += ${W};`),
-  ].join('\n');
+  // (#464: counted in runs: the cycles the watched values stay the same (in l<var>) add up in R, added to the
+  // counts whose values hold (FL) when one of them changes and at the end of run(), the same sums of halves;
+  // FL has no branch and runs at the start of run(), so that V8 optimizes it with the types of all its sites)
   const counted = levels.length + pairs.length > 0;
+  const watched = [...new Set([...levels, ...pairs.flat()].map(w => src.get(w.bit)?.[0]).filter(v => v != null))];
+  const flushFn = `function FL(R${watched.map(v => `, v${v}`).join('')}) {\n${[
+    ...levels.map((w, i) => `K[${i}] += ${at(w)} ? R : 0;`),
+    ...pairs.map(([a, b], i) => `K[${levels.length + i}] += ${at(a)} && ${at(b)} ? R : 0;`),
+  ].join('\n')}\n}`;
+  const flush = `FL(R${watched.map(v => `, l${v}`).join('')});`;
+  const count = W => `${watched.length ? `if (${watched.map(v => `v${v} !== l${v}`).join(' || ')}) { ${flush} R = 0; ${watched.map(v => `l${v} = v${v};`).join(' ')} }\n` : ''}R += ${W};`;
   const vgaCode = watch?.vga ? VGA_CODE(sig([watch.vga.hs], 'n'), sig([watch.vga.vs], 'n'), sig(watch.vga.rgb, 'n')) : '';
   const edgeCode = edges.map((w, i) => `{ const e = ${sig([w.bit], 'n')}; if (e${i} === 1 && e === 0) EV.push(cy, ${sig(w.capture, 'n')}); e${i} = e; }`).join('\n');
 
@@ -714,11 +812,11 @@ ${riseCount}
         cy++;
         ${needFall ? ckSet(1) : ''} fd = ${!needFall}; tk = 0;
         ${gs.map(g => (g.rst ? `if (!${`(${rst(g)})`}) { z${g.j} = 0; ${start(g)} }` : start(g))).join('\n        ')}
-${fire(posMain)}
+${fire(posMain, 'r')}
         ${posMain.length || needFall ? 'break st;' : 'continue st;'}
       }
       if (!fd && nt === ${T / 2}) { fd = true; ${counted ? count('0.5') : ''} ${ckSet(0)}
-${fire(negMain)}
+${fire(negMain, 'f')}
         break st; }
       ${gs.map(g => `if (si${g.j} < se${g.j} && DS${g.j}[si${g.j}] === nk) { let k = DS${g.j}[si${g.j} + 1]; si${g.j} += 2; for (; k > 0; k--, si${g.j} += 2) { const x = DS${g.j}[si${g.j} + 1]; switch (DS${g.j}[si${g.j}]) { ${cases(g)} } } }`).join('\n      ')}
       break st;
@@ -743,7 +841,7 @@ ${fire(negMain)}
     return lit(e ? e.init : 0n, vars[i].kind);
   };
   const temps = elems.flatMap(e => (e.type === '$memwr' ? [`n${e.id} = ${lit(0, e.mem.kind)}`, `a${e.id} = 0`, `w${e.id} = ${lit(0, e.mem.kind)}`] : e.q != null ? [`n${e.id} = ${lit(0, vk(e))}`] : []));
-  const code = `"use strict";
+  const template = `"use strict";
 ${V.map(i => `let V${i} = ${initOf(i)};`).join('\n')}
 ${memInit.join('\n')}
 ${dlist.map(d => `let P${d.k} = -1;`).join('\n')}
@@ -751,6 +849,7 @@ const K = new Float64Array(${levels.length + pairs.length}), EV = [];
 ${watch?.vga ? `const VG = new Float64Array(${VGA_STATE.length}).fill(-1), FB = new Uint16Array(${VGA_W * VGA_H}); VG[${VGA_STATE.indexOf('ct')}] = 0; VG[${VGA_STATE.indexOf('frames')}] = 0; VG[${VGA_STATE.indexOf('L')}] = 0;` : ''}
 ${edges.map((_, i) => `let E${i} = -1;`).join(' ')}
 ${dcmTables}
+${counted ? flushFn : ''}
 function run(n) {
   ${V.length ? `let ${V.map(i => `v${i} = V${i}`).join(', ')};` : ''}
   ${mems.map(m => `const m${m.k} = M${m.k};`).join(' ')}
@@ -758,25 +857,27 @@ function run(n) {
   ${temps.length ? `let ${temps.join(', ')};` : ''}
   ${edges.length ? `let ${edges.map((_, i) => `e${i} = E${i}`).join(', ')};` : ''}
   ${watch?.vga ? `let ${VGA_STATE.map((k, i) => `g_${k} = VG[${i}]`).join(', ')};` : ''}
-  let ph = 0, cy = 0, it = 0, ch = false;${dcmLocals}
+  let ph = 0, cy = 0, it = 0, ch = false@@decl@@;${dcmLocals}
+  ${counted ? `let R = 0${watched.map(v => `, l${v} = v${v}`).join('')}; ${flush}` : ''}
   run: for (;;) {
-${combCode}
+@@comb@@
     ch = false;
 ${settleCode}
-    if (ch) { if (++it > ${SETTLE_LIMIT}) throw new H.Error('the design does not settle (a loop through a latch or a clock?)'); continue; }
+    if (ch) { if (++it > ${SETTLE_LIMIT}) throw new H.Error('the design does not settle (a loop through a latch or a clock?)'); @@all@@ continue; }
     it = 0;
 ${sched ? dcmStep : `    if (ph === 0) {
       if (cy === n) { ${endCount} break; }
 ${riseCount}
       cy++;
       ${needFall ? `${ckSet(1)} ph = 1;` : ''}
-${fire(posMain)}
+${fire(posMain, 'r')}
     } else {
 ${counted ? count('0.5') : ''}
       ${ckSet(0)} ph = 0;
-${fire(negMain)}
+${fire(negMain, 'f')}
     }`}
   }
+  ${counted ? flush : ''}
   ${V.map(i => `V${i} = v${i};`).join(' ')}
   ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}${dcmSave}
   ${edges.map((_, i) => `E${i} = e${i};`).join(' ')}
@@ -788,6 +889,117 @@ function set(k, x) { switch (k) { ${inputs.map(p => `case ${p.v}: V${p.v} = x; b
 function vals() { return [${V.map(i => `V${i}`).join(', ')}]; }
 return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${watch?.vga ? ', vga: { state: VG, fb: FB }' : ''} };
 `;
+  // ---- the code of the segments (segs: [{ blocks, keys: Set of the values they read, or null: unguarded }]):
+  // the template's @@…@@ filled in; prof: the dirty bits counted (H.P), for the segments' choice (segmentsOf)
+  const generate = (segs, prof = false) => {
+    // the dirty bits: one for the values the same guarded segments read (bit 0: all); one per value in the
+    // profile, in the order they are read
+    const readers = new Map(), bitOf = new Map(), bits = new Map();
+    segs.forEach((sg, i) => sg.keys?.forEach(k => { if (!readers.has(k)) readers.set(k, []); readers.get(k).push(i); }));
+    for (const [k, r] of readers) { const sg = prof ? k : r.join(); if (!bits.has(sg)) bits.set(sg, bits.size + 1); bitOf.set(k, bits.get(sg)); }
+    const words = Math.ceil((bits.size + 1) / 32);
+    const dirty = (k) => { const i = bitOf.get(k); return i == null ? null : { i, d: `D${i >> 5}`, sh: i & 31, bit: (1 << (i & 31)) | 0, set: `D${i >> 5} |= ${(1 << (i & 31)) | 0};` }; };
+    const allDirty = Array.from({ length: words }, (_, j) => `D${j} = -1;`).join(' ');
+    const clean = Array.from({ length: words }, (_, j) => `D${j} = 0;`).join(' ');
+    // (prof: each dirty bit counted in H.P, the evaluations in its last element)
+    const profCode = prof ? `{ const P = H.P; P[${words * 32}]++; ${Array.from({ length: words }, (_, j) => `if (D${j}) for (let b = 0; b < 32; b++) P[${j * 32} + b] += (D${j} >>> b) & 1;`).join(' ')} }` : '';
+    // the quiet flip-flops: their next value only from cells of guarded segments, the inputs and constants (and
+    // their own value, as their kind holds it); with the same values, the next edge gives the value the last one
+    // gave, so that one of them changes only after one of those segments ran since the last edge: each segment
+    // sets its bit in R<edge><j> (r: the rising edge's flip-flops, f: the falling edge's) when it runs
+    const segOf = new Map();   // var -> its segment (guarded) or -1
+    segs.forEach((sg, i) => sg.blocks.forEach(b => b.cells.forEach(n => segOf.set(n.y, sg.keys ? i : -1))));
+    const inputVars = new Set(inputs.filter(p => !always.has(p.v)).map(p => p.v));
+    const quiet = (e) => {
+      if (!FF.has(e.type) || !dirty(`v${e.q}`)) return null;
+      const from = new Set();
+      for (const [port, bits] of Object.entries(e.C)) {
+        if (port === 'CLK' || port === 'Q') continue;
+        for (const b of bits) {
+          const v = typeof b === 'number' ? src.get(b)?.[0] : null;
+          if (v == null || inputVars.has(v)) continue;
+          if (!(segOf.get(v) >= 0)) return null;
+          from.add(segOf.get(v));
+        }
+      }
+      return from;
+    };
+    const quietOf = new Map(), ranBit = new Map(), ranBy = { r: new Set(), f: new Set() };
+    for (const [edge, els] of [['r', posMain], ['f', negMain]]) {
+      for (const e of els) {
+        const q = quiet(e);
+        if (!q) continue;
+        quietOf.set(e, q);
+        for (const i of q) { if (!ranBit.has(i)) ranBit.set(i, ranBit.size); ranBy[edge].add(i); }
+      }
+    }
+    const ranWords = Math.ceil(ranBit.size / 32);
+    const ranSet = i => ['r', 'f'].filter(edge => ranBy[edge].has(i)).map(edge => `R${edge}${ranBit.get(i) >> 5} |= ${(1 << (ranBit.get(i) & 31)) | 0};`).join(' ');
+    const ranDecl = ['r', 'f'].filter(edge => ranBy[edge].size).flatMap(edge => Array.from({ length: ranWords }, (_, j) => `R${edge}${j} = 0`));
+    const combCode = segs.map((sg, i) => {
+      const cells = (ranBit.has(i) ? [ranSet(i)] : []).concat(sg.blocks.flatMap(b => b.cells).map(n => {
+        const e = conv(cellExpr(n), n.kind, vars[n.y].kind), f = dirty(`v${n.y}`);
+        // (a cut's bit with no branch: the cell is 1 bit wide)
+        if (!f) return `v${n.y} = ${e};`;
+        return vars[n.y].kind === 'n' ? `{ const t = ${e}; ${f.d} |= (t ^ v${n.y}) << ${f.sh}; v${n.y} = t; }` : `{ const t = ${e}; if (t !== v${n.y}) ${f.set} v${n.y} = t; }`;
+      })).join('\n');
+      if (!sg.keys) return cells;
+      const mask = new Array(words).fill(0);
+      mask[0] = 1;
+      for (const k of sg.keys) { const i = bitOf.get(k); mask[i >> 5] |= 1 << (i & 31); }
+      return `if (${mask.map((m, j) => (m ? `(D${j} & ${m})` : '')).filter(Boolean).join(' | ')}) {\n${cells}\n}`;
+    }).join('\n') + `\n${profCode}\n${clean}`;
+
+    // the changes an edge of the main clock commits: one test of the flip-flops of a dirty bit, their bits'
+    // differences (the quiet ones when one of their segments ran: R<edge><j>, cleared at the edge)
+    const changes = (els, edge) => {
+      const by = new Map();
+      for (const e of els) {
+        const f = e.q != null && dirty(`v${e.q}`);
+        if (!f) continue;
+        const q = quietOf.get(e), mask = new Array(ranWords).fill(0);
+        q?.forEach(i => { const r = ranBit.get(i); mask[r >> 5] |= 1 << (r & 31); });
+        const key = `${f.i} ${q ? mask.join() : ''}`;
+        if (!by.has(key)) by.set(key, { f, ran: q ? mask.map((m, j) => (m ? `(R${edge}${j} & ${m})` : '')).filter(Boolean).join(' | ') : null, n: [], b: [] });
+        by.get(key)[vk(e)].push(e);
+      }
+      // (numbers: the bit set with no branch, from the sign of d | -d: a change every other cycle is no
+      // mispredicted branch)
+      const byRan = new Map();
+      for (const { f, ran, n, b } of by.values()) {
+        const set = [...(n.length ? [`{ const d = ${n.map(e => `(v${e.q} ^ n${e.id})`).join(' | ')}; ${f.d} |= ((d | -d) >> 31) & ${f.bit}; }`] : []),
+          ...(b.length ? [`if (${b.map(e => `v${e.q} !== n${e.id}`).join(' || ')}) ${f.set}`] : [])].join(' ');
+        if (!byRan.has(ran || '')) byRan.set(ran || '', []);
+        byRan.get(ran || '').push(set);
+      }
+      return [...byRan].map(([ran, sets]) => (ran ? `if (${ran}) {\n${sets.join('\n')}\n}` : sets.join('\n'))).join('\n') + (ranBy[edge].size ? `\n${Array.from({ length: ranWords }, (_, j) => `R${edge}${j} = 0;`).join(' ')}` : '');
+    };
+
+    const fill = { comb: () => combCode, all: () => allDirty, decl: () => `${Array.from({ length: words }, (_, j) => `, D${j} = -1`).join('')}${ranDecl.map(r => `, ${r}`).join('')}`,
+      changes: edge => changes(edge === 'r' ? posMain : negMain, edge), set: k => dirty(k)?.set || '' };
+    return template.replace(/@@(\w+)(?: (\w+))?@@/g, (_, what, arg) => fill[what](arg));
+  };
+
+  // the segments: one, unguarded, without activity; else the profile of the blocks' code (the cycles of a run
+  // from the start, `profile` of them) chooses them (segmentsOf); 'fine': each block guarded, 'max': the fewest
+  // guarded segments (every rate 0), to test the code
+  const fine = blockOrder.map(b => ({ blocks: [b], keys: b.always ? null : new Set(b.keys) }));
+  let segs = [{ blocks: blockOrder, keys: null }];
+  if (activity === 'fine') segs = fine;
+  else if (activity === 'max') segs = segmentsOf(blockOrder, new Map());
+  else if (activity && profile > 0 && blockOrder.some(b => !b.always)) {
+    const keys = [...new Set(fine.flatMap(sg => (sg.keys ? [...sg.keys] : [])))];
+    const P = new Float64Array(Math.ceil((keys.length + 1) / 32) * 32 + 1);
+    try {
+      new Function('H', generate(fine, true))({ ...HELPERS, Error: CompileError, P }).run(profile);
+      const rate = new Map(keys.map((k, i) => [k, P[i + 1] / Math.max(1, P[P.length - 1])]));
+      const g = segmentsOf(blockOrder, rate);
+      // (worth its overhead, the dirty bits and the values kept from step to step, when it evaluates at most
+      // half the cells)
+      if (g.cost <= WORTH * order.length) segs = g;
+    } catch { /* (a design that does not settle: unguarded, the error is CompiledSim's) */ }
+  }
+  const code = generate(segs);
   const nets = new Map();
   for (const [name, n] of Object.entries(mod.netnames || {})) if (!n.hide_name && !n.bits.some(b => unread.has(b))) nets.set(name, n.bits);
   for (const p of ports) nets.set(p.name, p.bits);
