@@ -72,7 +72,7 @@ export function table(results, ways = WAYS) {
 }
 
 // ------------------------------------------------------------------------------------------- the measurement
-async function load(extra = []) {
+export async function load(extra = []) {
   const { compile, elaborate } = await import('../../core/compile.js');
   const { primitiveSources } = await import('../../core/unisim.js');
   const lib = await import('../../test/designs-corpus/lib.mjs');

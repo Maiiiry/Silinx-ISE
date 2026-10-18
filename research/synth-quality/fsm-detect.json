@@ -1,0 +1,1253 @@
+{
+ "examples/gates": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "examples/traffic": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "u_timer.timed",
+    "u_fsm.state_reg"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "u_fsm.state_reg"
+   ],
+   "refused": [
+    {
+     "wire": "u_timer.timed",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "examples/blinky": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "examples/pong": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "state"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "examples/stopwatch": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "examples/clock": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "examples/vga": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "serv": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "picorv32": {
+  "now": {
+   "marked": [
+    "cpu_state",
+    "mem_wordsize"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "cpu_state",
+    "mem_wordsize"
+   ],
+   "refused": [
+    {
+     "wire": "mem_state",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    },
+    {
+     "wire": "eoi",
+     "reasons": [
+      "Register is connected to module port.",
+      "Users of register don't seem to benefit from recoding."
+     ]
+    },
+    {
+     "wire": "pcpi_insn",
+     "reasons": [
+      "Register is connected to module port.",
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "femtorv32-quark": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "light8080": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": [
+    {
+     "wire": "mcu.irq_control.vector",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "verilog-uart": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "verilog-i2c-master": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "phy_state_reg",
+    "state_reg"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "state_reg"
+   ],
+   "refused": [
+    {
+     "wire": "phy_state_reg",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "nandland-spi-vhdl": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "r_spi_clk_count"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "r_spi_clk_count"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "fpu-adder": {
+  "now": {
+   "marked": [
+    "state"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "secworks-siphash": {
+  "now": {
+   "marked": [
+    "siphash_ctrl_reg"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "siphash_ctrl_reg"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-dec": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-priority": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-ctrl": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "vtr-ch-intrinsics": {
+  "now": {
+   "marked": [
+    "cur_state"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "cur_state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "vtr-stereovision3": {
+  "now": {
+   "marked": [
+    "reg_prog_state"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "reg_prog_state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "neorv32": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "neorv32_top_inst.core_complex_gen[0].core_complex_inst.bus_switch_inst.state"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "neorv32_top_inst.core_complex_gen[0].core_complex_inst.bus_switch_inst.state"
+   ],
+   "refused": [
+    {
+     "wire": "neorv32_top_inst.core_complex_gen[0].core_complex_inst.bus_switch_inst.lock",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "t80": {
+  "now": {
+   "marked": [
+    "u0.istatus",
+    "u0.iset"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "u0.istatus",
+    "u0.iset"
+   ],
+   "refused": [
+    {
+     "wire": "u0.mcycles",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    },
+    {
+     "wire": "u0.xy_state",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "verilog-lfsr-crc": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "verilog-lfsr-prbs": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "verilog-axis-fifo": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "uart-for-fpga": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "uart_tx_i.tx_pstate",
+    "uart_rx_i.fsm_pstate"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "uart_tx_i.tx_pstate",
+    "uart_rx_i.fsm_pstate"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "spi-fpga-master": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "present_state"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "present_state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "spi-fpga-slave": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "nandland-spi-verilog": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "secworks-sha1": {
+  "now": {
+   "marked": [
+    "sha1_ctrl_reg"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "sha1_ctrl_reg"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "secworks-sha256": {
+  "now": {
+   "marked": [
+    "sha256_ctrl_reg"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "sha256_ctrl_reg"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "secworks-aes": {
+  "now": {
+   "marked": [
+    "keymem.key_mem_ctrl_reg",
+    "dec_block.dec_ctrl_reg",
+    "enc_block.enc_ctrl_reg",
+    "aes_core_ctrl_reg"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "keymem.key_mem_ctrl_reg",
+    "dec_block.dec_ctrl_reg",
+    "enc_block.enc_ctrl_reg",
+    "aes_core_ctrl_reg"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "fpu-multiplier": {
+  "now": {
+   "marked": [
+    "state"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "vtr-sha": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": [
+    {
+     "wire": "Kt",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "vtr-diffeq1": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "vtr-diffeq2": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "vtr-mkPktMerge": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-int2float": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-cavlc": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-router": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-i2c": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-adder": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-bar": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-max": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-sin": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-voter": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-multiplier": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "epfl-log2": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b01": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b02": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b03": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v4"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v4"
+   ],
+   "refused": [
+    {
+     "wire": "p0_v13",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b04": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b05": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p2_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p2_v0"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b06": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": [
+    {
+     "wire": "uscite",
+     "reasons": [
+      "Register is connected to module port.",
+      "Users of register don't seem to benefit from recoding."
+     ]
+    },
+    {
+     "wire": "cc_mux",
+     "reasons": [
+      "Register is connected to module port.",
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b07": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b08": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b09": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b10": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v0"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v0"
+   ],
+   "refused": [
+    {
+     "wire": "p0_v5",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b11": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v1"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v1"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b12": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p3_v0",
+    "p3_v1",
+    "num"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p3_v0"
+   ],
+   "refused": [
+    {
+     "wire": "p3_v1",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    },
+    {
+     "wire": "num",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b13": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "itfc_state",
+    "next_bit",
+    "s2",
+    "s1"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "itfc_state",
+    "next_bit",
+    "s2",
+    "s1"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b14": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p0_v17"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p0_v17"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b15": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p1_v11",
+    "state",
+    "datawidth"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p1_v11",
+    "state",
+    "datawidth"
+   ],
+   "refused": [
+    {
+     "wire": "byteenable",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b17": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p13_v11",
+    "p10_v11",
+    "p7_v11",
+    "p3.state",
+    "p3.datawidth",
+    "p2.state",
+    "p2.datawidth",
+    "p1.state",
+    "p1.datawidth"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p13_v11",
+    "p10_v11",
+    "p7_v11",
+    "p3.state",
+    "p3.datawidth",
+    "p2.state",
+    "p2.datawidth",
+    "p1.state",
+    "p1.datawidth"
+   ],
+   "refused": [
+    {
+     "wire": "p3.byteenable",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    },
+    {
+     "wire": "p2.byteenable",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    },
+    {
+     "wire": "p1.byteenable",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b20": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p1_v17",
+    "p0_v17"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p1_v17",
+    "p0_v17"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b21": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p1_v17",
+    "p0_v17"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p1_v17",
+    "p0_v17"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "itc99-b22": {
+  "now": {
+   "marked": [],
+   "refusedInit": [
+    "p2_v17",
+    "p1_v17",
+    "p0_v17"
+   ]
+  },
+  "detect": {
+   "marked": [
+    "p2_v17",
+    "p1_v17",
+    "p0_v17"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "iwls05-sasc": {
+  "now": {
+   "marked": [
+    "dpll_state"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "dpll_state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "iwls05-simple-spi": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": [
+    {
+     "wire": "state",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "iwls05-spi": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "iwls05-i2c": {
+  "now": {
+   "marked": [
+    "byte_controller.c_state",
+    "byte_controller.core_cmd"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "byte_controller.c_state",
+    "byte_controller.core_cmd"
+   ],
+   "refused": [
+    {
+     "wire": "byte_controller.bit_controller.c_state",
+     "reasons": [
+      "Users of register don't seem to benefit from recoding."
+     ]
+    }
+   ]
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "iwls05-ss-pcm": {
+  "now": {
+   "marked": [],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ },
+ "iwls05-usb-phy": {
+  "now": {
+   "marked": [
+    "i_rx_phy.fs_state",
+    "i_rx_phy.dpll_state",
+    "i_tx_phy.state"
+   ],
+   "refusedInit": []
+  },
+  "detect": {
+   "marked": [
+    "i_rx_phy.fs_state",
+    "i_rx_phy.dpll_state",
+    "i_tx_phy.state"
+   ],
+   "refused": []
+  },
+  "fsms": [],
+  "notExtracted": []
+ }
+}
