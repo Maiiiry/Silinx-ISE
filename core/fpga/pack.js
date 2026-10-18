@@ -10,7 +10,7 @@
 // fixed choices: X = F, F5 or the XORF sum (FXMUX), Y = G, the FiMUX or the XORG sum (GYMUX); the
 // flip-flops take their D from that multiplexer or from BX / BY (DXMUX / DYMUX).
 //
-// pack(netlist, { ucf, part }) -> {
+// pack(netlist, { ucf, part, carryOut, timing }) -> {
 //   name, part, cfg (the design's cfg string: the ports' bus information, raw XDL text),
 //   insts:  [{ name, type: 'SLICEL' | 'SLICEM' | 'IBUF' | 'IOB' | 'BUFGMUX' | 'RAMB16' | 'MULT18X18SIO' | 'DCM',
 //              kind: 'slice' | 'iob' | 'bufg' | 'bram' | 'mult' | 'dcm', cfg: [{ attr, name, value }],
@@ -19,7 +19,8 @@
 //   cellSites: [{ inst, bel } | null]   where each netlist cell went (FFX / FFY, F / G, CYMUXF…; inst -1: left out)
 //   macros: [{ kind: 'carry' | 'F6' | 'F7' | 'F8', members: [{ inst, dx, dy }] }]   slices that must keep these
 //           relative positions (slice coordinates: SLICE_X(x+dx)Y(y+dy))
-//   stats:  { slices, luts, ffs, carry, muxes, iobs, bufgs, copies, passthru, unusedInputs, slicem, brams, mults, dcms },
+//   stats:  { slices, luts, ffs, carry, muxes, iobs, bufgs, copies, passthru, unusedInputs, slicem, brams, mults, dcms,
+//             timing (the slices filled by timing, #528: kept, not too many) },
 //           warnings: [] }
 // Besides the slices: distributed RAMs and shift registers in SLICEMs, block RAMs, multipliers and the
 // DCM on sites of their own (the sections below say how, as ISE's map writes them).
@@ -88,12 +89,142 @@ export function ucfPortsOf(nl) {
   });
 }
 
+// ------------------------------------------------------------------ criticality before placement
+// The criticality (0..1) of every connection of the netlist, from its cells only, by the model of
+// core/synth-open.js criticalDelay (the same critical path): the Spartan-3E -4's logic delays and a
+// fixed delay for every connection between cells, but those inside a slice (the carry chain, a LUT
+// into its carry stage, the levels of a wide multiplexer, a LUT into its flip-flop). crit = 1 -
+// slack / (the critical path's delay), as the placer's (place.js analyzeTiming). Paths from
+// flip-flop to flip-flop (block RAMs, multipliers, shift registers and distributed RAMs as their
+// sources and ends too); a design without them: from its inputs to its outputs. cells / nets: the
+// netlist's (core/fpga/netlist.js), with their index (idx), cells marked `lowered` left out.
+// Returns { dmax, crit: Map `${cell}:${pin}` (an input pin) -> criticality }.
+const CRIT_NET = 0.45;
+// The packer (#528): a connection this critical (CRIT_PAIR) puts its two units in one slice, first
+// among the slice's candidates (CRIT_BONUS * criticality, over 1 per net the slice shares with each);
+// at most CRIT_SLICES more slices (and one) than packed without timing, or that packing is kept.
+const CRIT_PAIR = 0.8, CRIT_BONUS = 8, CRIT_SLICES = 0.02;
+export function connectionCriticality(cells, nets) {
+  const isLutT = t => LUT_K[t] !== undefined || t === 'INV' || t === 'BUF';
+  const registered = c => MULT_TYPE.test(c.type) && /1$/.test(String(c.params?.PREG ?? ''));
+  const live = cells.filter(c => !c.lowered);
+  const inputs = c => Object.entries(c.pins).filter(([p, n]) => c.dirs?.[p] !== 'output' && !(nets[n]?.driver?.cell === c.idx && nets[n].driver.pin === p));
+  // (a connection always inside a slice: no routing delay)
+  const inside = (c, p, d) => (c.type === 'MUXF5' && /^I[01]$/.test(p) && isLutT(d.type)) || (/^MUXF[678]$/.test(c.type) && /^I[01]$/.test(p) && /^MUXF/.test(d.type))
+    || (/^(MUXCY|XORCY)$/.test(c.type) && p === 'CI' && d.type === 'MUXCY') || (c.type === 'MUXCY' && p === 'S' && isLutT(d.type))
+    || (c.type === 'XORCY' && p === 'LI' && isLutT(d.type)) || (!!ffKind(c.type) && p === 'D' && (isLutT(d.type) || /^(MUXF5|MUXF6|XORCY)$/.test(d.type)));
+  const netDelay = (c, p, n) => { const d = nets[n].driver && cells[nets[n].driver.cell]; return d && inside(c, p, d) ? 0 : CRIT_NET; };
+  // the delay through a combinational cell from input pin p (null: no path)
+  const through = (c, p) => {
+    const t = c.type;
+    if (isLutT(t)) return 0.70;
+    if (t === 'MUXF5') return p === 'S' ? 0.74 : 0.32;
+    if (/^MUXF[678]$/.test(t)) return p === 'S' ? 0.85 : 0.45;
+    if (t === 'MUXCY') return p === 'CI' ? 0.12 : p === 'S' ? 0.25 : 0.95;
+    if (t === 'XORCY') return p === 'CI' ? 0.46 : 0.15;
+    if (MULT_TYPE.test(t)) return registered(c) ? null : /^[AB](<\d+>)?$/.test(p) ? 4.9 : null;
+    if (/^RAM\d+X/.test(t)) return /^(A\d*|DPRA\d*)$/.test(p) ? 0.75 : null;
+    return null;
+  };
+  // the setup of an end pin (null: not an end)
+  let withIO = false;
+  const setup = (c, p) => {
+    const t = c.type;
+    if (ffKind(t)) return p === 'D' ? 0.13 : p === 'CE' ? 0.55 : /^(R|S|CLR|PRE|G|GE)$/.test(p) ? 0.91 : null;
+    if (/^SRL/.test(t)) return /^(D|CE)$/.test(p) ? 0.46 : null;
+    if (/^RAMB16/.test(t)) return /^(CLK|SSR)/.test(p) ? null : 0.4;
+    if (registered(c)) return /^[AB](<\d+>)?$/.test(p) ? 5.2 : null;
+    if (/^RAM\d+X/.test(t)) return /^(D|WE|A\d*)$/.test(p) ? 0.46 : null;
+    if (t === 'OBUF') return withIO ? 0 : null;
+    return null;
+  };
+  const start = c => {
+    const t = c.type;
+    if (ffKind(t)) return 0.59;
+    if (/^SRL/.test(t)) return 2.0;
+    if (/^RAMB16/.test(t)) return 2.39;
+    if (registered(c)) return 1.0;
+    if (/^IBUF/.test(t)) return withIO ? 0 : -Infinity;
+    if (t === 'BUFG' || t === 'DCM' || t === 'DCM_SP') return -Infinity;
+    return null;
+  };
+  // arrival on a net (its driver's output); memoised, a loop counts as no path
+  let arr, busy;
+  const arrNet = n => {
+    if (arr.has(n)) return arr.get(n);
+    const dr = nets[n]?.driver;
+    if (!dr) return -Infinity;
+    const c = cells[dr.cell];
+    let t = start(c);
+    if (t === null) {
+      if (busy.has(n)) return -Infinity;
+      busy.add(n);
+      t = -Infinity;
+      for (const [p, m] of inputs(c)) { const d = through(c, p); if (d !== null) t = Math.max(t, arrNet(m) + netDelay(c, p, m) + d); }
+      busy.delete(n);
+    }
+    arr.set(n, t);
+    return t;
+  };
+  const worst = () => {
+    arr = new Map(); busy = new Set();
+    let w = 0;
+    for (const c of live) for (const [p, n] of inputs(c)) { const s = setup(c, p); if (s !== null) w = Math.max(w, arrNet(n) + netDelay(c, p, n) + s); }
+    return w;
+  };
+  let dmax = worst();
+  if (!(dmax > 0)) { withIO = true; dmax = worst(); }
+  const crit = new Map();
+  if (!(dmax > 0)) return { dmax: 0, crit };
+  // required time on a net: the earliest of its loads' (an end: dmax - setup; a combinational cell:
+  // its output's less the delay through it)
+  const req = new Map();
+  const reqNet = n => {
+    if (req.has(n)) return req.get(n);
+    req.set(n, Infinity);   // (loops)
+    let r = Infinity;
+    for (const l of nets[n].loads) {
+      const c = cells[l.cell];
+      if (c.lowered) continue;
+      r = Math.min(r, reqPin(c, l.pin) - netDelay(c, l.pin, n));
+    }
+    req.set(n, r);
+    return r;
+  };
+  const reqPin = (c, p) => {
+    const s = setup(c, p);
+    if (s !== null) return dmax - s;
+    const d = through(c, p);
+    if (d === null || start(c) !== null) return Infinity;
+    let r = Infinity;
+    for (const [q, m] of Object.entries(c.pins)) if (c.dirs?.[q] === 'output' || nets[m]?.driver?.cell === c.idx && nets[m].driver.pin === q) r = Math.min(r, reqNet(m));
+    return r - d;
+  };
+  for (const c of live) for (const [p, n] of inputs(c)) {
+    const a = arrNet(n);
+    if (!Number.isFinite(a)) continue;
+    const slack = reqPin(c, p) - netDelay(c, p, n) - a;
+    if (Number.isFinite(slack)) crit.set(`${c.idx}:${p}`, Math.max(0, Math.min(1, 1 - slack / dmax)));
+  }
+  return { dmax, crit };
+}
+
 /** Pack a netlist. ucf: UCF text or parseUcf() result (LOC, IOSTANDARD, DRIVE, SLEW, PULL).
  *  carryOut: how the carry out of a chain's last stage leaves the slice when logic reads it:
  *  'pin' (default, as ISE does: the XB / YB pin of the carry multiplexer) or 'xor' (one more
  *  stage, XOR with a LUT giving 0, so it leaves through X / Y like a sum: no XB / YB, whose output
- *  switches and settings Silinx's bitstream writer does not know yet). */
-export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' } = {}) {
+ *  switches and settings Silinx's bitstream writer does not know yet).
+ *  timing (true): the units of critical connections in one slice (#528), unless that costs more
+ *  slices than CRIT_SLICES allows; false: by shared nets only. */
+export function pack(nl, opts = {}) {
+  const p = packWith(nl, opts, opts.timing !== false);
+  if (opts.timing === false) return p;
+  const plain = packWith(nl, opts, false);
+  const kept = p.stats.slices <= plain.stats.slices + Math.max(1, Math.floor(CRIT_SLICES * plain.stats.slices)) ? p : plain;
+  kept.stats.timing = kept === p;
+  return kept;
+}
+function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' } = {}, timing = true) {
   const warnings = [];
   // (given the top's ports, a name such as x[1] is a bus bit only when x is a bus: #63, #84)
   const parsedUcf = typeof ucf === 'string' ? parseUcf(ucf, { ports: ucfPortsOf(nl) }) : ucf;
@@ -113,19 +244,28 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   // maps it: the synthesis's extractinv (-ise) writes IS_C_INVERTED / IS_G_INVERTED as one INV per cell, which as a
   // LUT puts logic on the clock (ISE's DRC: "Gated clock", one per inverter; vtr-ch-intrinsics' latches, #80). The
   // pins take the inverter's input with their inversion toggled, and the inverter is left out.
-  const clockPin = l => { const k = ffKind(cells[l.cell].type); return !!k && l.pin === (k.latch ? 'G' : 'C'); };
+  // So do the clock enable and set / reset pins (#527): the slice's CEINV / SRINV, as XST maps an
+  // active-low reset; extractinv writes one INV per flip-flop, which made a LUT of each. An inverter
+  // that also drives logic keeps those loads.
+  const ctrlPin = l => {
+    const k = ffKind(cells[l.cell].type);
+    return !!k && [k.latch ? 'G' : 'C', k.latch ? 'GE' : 'CE', k.sr].includes(l.pin);
+  };
   for (const c of cells) {
     if (c.type !== 'INV') continue;
     const out = c.pins.O, src = c.pins.I;
-    if (!nets[out].loads.length || nets[out].port || !nets[out].loads.every(clockPin)) continue;
-    nets[src].loads = nets[src].loads.filter(l => l.cell !== c.idx);
-    for (const l of nets[out].loads) {
+    if (nets[out].port || nets[src].const !== undefined) continue;
+    const moved = nets[out].loads.filter(ctrlPin);
+    if (!moved.length) continue;
+    for (const l of moved) {
       const f = cells[l.cell], inv = `IS_${l.pin}_INVERTED`;
       f.pins[l.pin] = src;
       f.params = { ...f.params, [inv]: paramInt(f.params?.[inv]) ^ 1 };
       nets[src].loads.push(l);
     }
-    nets[out].loads = [];
+    nets[out].loads = nets[out].loads.filter(l => !moved.includes(l));
+    if (nets[out].loads.length) continue;
+    nets[src].loads = nets[src].loads.filter(l => l.cell !== c.idx);
     nets[out].driver = null;
     c.lowered = true;
   }
@@ -663,6 +803,19 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
   };
   const netUnits = new Map();
   units.forEach((u, k) => { u.k = k; u.nets = unitNets(u); for (const n of u.nets) { if (!netUnits.has(n)) netUnits.set(n, []); netUnits.get(n).push(k); } });
+  // Timing (#528): the critical connections between units (criticality >= CRIT_PAIR, by
+  // connectionCriticality) put the two units in one slice, as ISE's map puts consecutive LUTs of a
+  // critical path (and a LUT with the flip-flop it feeds) together: u.links = [[unit index, crit]],
+  // u.crit = the unit's most critical connection (to any cell)
+  const { crit } = timing ? connectionCriticality(cells, nets) : { crit: new Map() };
+  for (const u of units) { u.links = []; u.crit = 0; }
+  for (const [key, c] of crit) {
+    if (c < CRIT_PAIR) continue;
+    const [cell, pin] = key.split(':'), load = unitOf.get(+cell), dr = nets[cells[+cell].pins[pin]].driver, src = dr && unitOf.get(dr.cell);
+    if (load) load.crit = Math.max(load.crit, c);
+    if (src) src.crit = Math.max(src.crit, c);
+    if (load && src && load !== src) { load.links.push([src.k, c]); src.links.push([load.k, c]); }
+  }
   const done = new Set();
   // can unit u go into slice s? returns the side(s) it would take, or null
   const fits = (s, u) => {
@@ -703,27 +856,39 @@ export function pack(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin
     const s = sliceOfNets(u).find(x => fits(x, u)) || macroSlices.find(x => fits(x, u));
     if (s) putUnit(s, u, fits(s, u));
   }
-  // seeds in netlist order (keeps related logic together, deterministic); units with a flip-flop first
-  const order = [...units].sort((a, b) => (b.ff >= 0) - (a.ff >= 0) || a.k - b.k);
+  // seeds: the units on critical paths first (most critical first), then the others in netlist order
+  // (keeps related logic together, deterministic); units with a flip-flop first
+  const order = [...units].sort((a, b) => (b.crit >= CRIT_PAIR) - (a.crit >= CRIT_PAIR) || (a.crit >= CRIT_PAIR ? b.crit - a.crit : 0) || (b.ff >= 0) - (a.ff >= 0) || a.k - b.k);
   for (const seed of order) {
     if (done.has(seed.k)) continue;
     const s = newSlice();
     putUnit(s, seed, fits(s, seed));
+    const inSlice = [seed];
     for (;;) {
-      // candidates: units sharing a net with the slice
-      const score = new Map();
+      // candidates: units sharing a net with the slice, and (first) the units of a critical
+      // connection with it. A LUT on a critical path goes only with one of its critical connections:
+      // with unrelated logic, placement would pull it away from its path (a flip-flop alone, whose D
+      // comes through BX / BY, may: flip-flop-bound designs would need more slices).
+      const score = new Map(), link = new Map();
       const sliceNets = new Set();
-      for (const k of [s.lut.F, s.lut.G]) if (k?.cell >= 0) for (const n of unitOf.get(k.cell).nets) sliceNets.add(n);
-      for (const X of ['X', 'Y']) if (s.ff[X]) for (const n of unitOf.get(s.ff[X].cell)?.nets || []) sliceNets.add(n);
+      for (const u of inSlice) for (const n of u.nets) sliceNets.add(n);
       for (const n of sliceNets) for (const k of netUnits.get(n) || []) if (!done.has(k)) score.set(k, (score.get(k) || 0) + 1);
+      for (const u of inSlice) for (const [k, c] of u.links) if (!done.has(k)) link.set(k, Math.max(link.get(k) || 0, c));
+      for (const [k, c] of link) score.set(k, (score.get(k) || 0) + CRIT_BONUS * c);
       let best = null, bestScore = 0;
-      for (const [k, sc] of score) if (sc > bestScore || (sc === bestScore && best !== null && k < best.k)) { const u = units[k]; if (fits(s, u)) { best = u; bestScore = sc; } }
+      for (const [k, sc] of score) {
+        if (!(sc > bestScore || (sc === bestScore && best !== null && k < best.k))) continue;
+        const u = units[k];
+        if (u.lut >= 0 && u.crit >= CRIT_PAIR && !link.has(k)) continue;
+        if (fits(s, u)) { best = u; bestScore = sc; }
+      }
       if (!best) {
-        // nothing related: fill with the next unit in order that fits
-        best = order.find(u => !done.has(u.k) && fits(s, u)) || null;
+        // nothing related: fill with the next unit in order that fits (not one on a critical path)
+        best = order.find(u => !done.has(u.k) && (u.lut < 0 || u.crit < CRIT_PAIR) && fits(s, u)) || null;
         if (!best || (s.lut.F && s.lut.G && s.ff.X && s.ff.Y)) break;
       }
       putUnit(s, best, fits(s, best));
+      inSlice.push(best);
       if (s.lut.F && s.lut.G && s.ff.X && s.ff.Y) break;
     }
   }

@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readYosysJson } from '../core/fpga/netlist.js';
-import { pack, PackError, WIDE_MUX } from '../core/fpga/pack.js';
+import { pack, PackError, WIDE_MUX, connectionCriticality } from '../core/fpga/pack.js';
+import { criticalDelay } from '../core/synth-open.js';
 import { compareSims } from './fpga-sim.js';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fpga');
@@ -246,7 +247,7 @@ test('flip-flops of one clock, half of them through the inverter: never in one s
   assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
 });
 
-test('an inverter that also drives logic stays a LUT (the clock pins keep it)', () => {
+test('an inverter that also drives logic stays a LUT for the logic, the clock pins take CLKINV (#80, #527)', () => {
   const nl = invertedClock((n, k) => {
     const lut = n.cells.find(c => c.type === 'LUT4');
     n.nets[lut.pins.I3].loads = n.nets[lut.pins.I3].loads.filter(l => l.cell !== n.cells.indexOf(lut) || l.pin !== 'I3');
@@ -255,5 +256,183 @@ test('an inverter that also drives logic stays a LUT (the clock pins keep it)', 
   });
   const p = pack(nl);
   assert.equal(p.stats.luts, pack(load('counter')).stats.luts + 1);
-  for (const s of p.insts.filter(i => i.kind === 'slice' && val(i, 'FFX') === '#FF')) assert.equal(val(s, 'CLKINV'), 'CLK');
+  for (const s of p.insts.filter(i => i.kind === 'slice' && val(i, 'FFX') === '#FF')) assert.equal(val(s, 'CLKINV'), 'CLK_B');
+  // (the inverter in a LUT, for the logic only: the clock pins no longer go through it)
+  const inv = p.cellSites[nl.cells.findIndex(c => c.name === 'clk_inv')];
+  assert.ok(inv && ['F', 'G'].includes(inv.bel));
+  const d = compareSims(nl, p, { cycles: 300, seed: 7 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
+});
+
+// ffs (an FDRE, FDPE, FDSE, FDRE_1 and FDCE; set / reset from the input r, clock enable from ce) with an inverter
+// before each flip-flop's set / reset and clock enable, one per pin, as extractinv writes IS_<pin>_INVERTED; extra:
+// gives an inverter's output another load
+function invertedControls(extra = null) {
+  const nl = load('ffs');
+  const invs = [];
+  nl.cells.forEach((c, i) => {
+    if (!/^FD/.test(c.type)) return;
+    for (const pin of ['R', 'S', 'CLR', 'PRE', 'CE']) {
+      const src = c.pins[pin];
+      if (src === undefined || nl.nets[src].const !== undefined) continue;
+      const k = nl.nets.length, inv = nl.cells.length;
+      nl.nets.push({ id: k, name: `${c.name}_${pin}_n`, driver: { cell: inv, pin: 'O' }, port: null, loads: [{ cell: i, pin }] });
+      nl.nets[src].loads = [...nl.nets[src].loads.filter(l => l.cell !== i || l.pin !== pin), { cell: inv, pin: 'I' }];
+      c.pins[pin] = k;
+      nl.cells.push({ name: `${c.name}_${pin}_inv`, type: 'INV', params: {}, attrs: {}, pins: { I: src, O: k }, dirs: { I: 'input', O: 'output' } });
+      invs.push({ ff: i, pin, inv, net: k });
+    }
+  });
+  if (extra) extra(nl, invs);
+  return { nl, invs };
+}
+const ffSlices = p => p.insts.filter(i => i.kind === 'slice' && ['X', 'Y'].some(X => val(i, `FF${X}`) === '#FF'));
+
+test('inverters on set / reset and clock enable pins (one per flip-flop) are the slices\' SRINV / CEINV, not LUTs (#527)', () => {
+  const plain = pack(load('ffs'));
+  const { nl, invs } = invertedControls();
+  assert.equal(invs.length, 6);
+  const p = pack(nl);
+  assert.equal(p.stats.luts, plain.stats.luts, 'no LUT for the inverters');
+  assert.equal(p.stats.slices, plain.stats.slices);
+  for (const x of invs) assert.equal(p.cellSites[x.inv], null, nl.cells[x.inv].name);
+  // every flip-flop with a set / reset takes SR_B, with a clock enable CE_B; the one without (FDRE_1) neither
+  const of = i => p.insts[p.cellSites[i].inst];
+  const kinds = nl.cells.map((c, i) => (/^FD/.test(c.type) ? `${c.type}:${val(of(i), 'SRINV') || '-'}:${val(of(i), 'CEINV') || '-'}` : null)).filter(Boolean).sort();
+  assert.deepEqual(kinds, ['FDCE:SR_B:-', 'FDPE:SR_B:CE_B', 'FDRE:SR_B:CE_B', 'FDRE_1:-:-', 'FDSE:SR_B:-']);
+  for (const s of ffSlices(plain)) assert.notEqual(val(s, 'SRINV'), 'SR_B');
+  // its input netlist unchanged
+  assert.ok(nl.cells.every(c => !c.params.IS_CLR_INVERTED && !c.params.IS_CE_INVERTED));
+  const d = compareSims(nl, p, { cycles: 400, seed: 7 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
+});
+
+test('an inverter on a reset that also drives logic stays a LUT for the logic only (#527)', () => {
+  const plain = pack(load('ffs'));
+  const { nl, invs } = invertedControls((n, xs) => {
+    // the FDCE's CLR inverter also feeds the first LUT's I1
+    const x = xs.find(y => y.pin === 'CLR'), lut = n.cells.findIndex(c => c.type === 'LUT2');
+    n.nets[n.cells[lut].pins.I1].loads = n.nets[n.cells[lut].pins.I1].loads.filter(l => l.cell !== lut || l.pin !== 'I1');
+    n.cells[lut].pins.I1 = x.net;
+    n.nets[x.net].loads.push({ cell: lut, pin: 'I1' });
+  });
+  const p = pack(nl);
+  assert.equal(p.stats.luts, plain.stats.luts + 1);
+  const x = invs.find(y => y.pin === 'CLR');
+  assert.ok(['F', 'G'].includes(p.cellSites[x.inv].bel));
+  assert.equal(val(p.insts[p.cellSites[x.ff].inst], 'SRINV'), 'SR_B');
+  const d = compareSims(nl, p, { cycles: 400, seed: 7 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
+});
+
+test('a flip-flop\'s control pin inverted in the netlist (IS_CLR_INVERTED, IS_CE_INVERTED) is simulated as such', () => {
+  // (the reference the packed designs above are compared with)
+  const nl = load('ffs');
+  for (const c of nl.cells) if (c.type === 'FDCE') c.params = { ...c.params, IS_CLR_INVERTED: 1 };
+  for (const c of nl.cells) if (c.type === 'FDPE') c.params = { ...c.params, IS_CE_INVERTED: 1 };
+  const p = pack(nl);
+  assert.deepEqual(nl.cells.filter(c => /^FD[CP]E$/.test(c.type)).map(c => `${val(p.insts[p.cellSites[nl.cells.indexOf(c)].inst], 'SRINV')}:${val(p.insts[p.cellSites[nl.cells.indexOf(c)].inst], 'CEINV') || '-'}`).sort(), ['SR:CE_B', 'SR_B:-']);
+  assert.equal(compareSims(nl, p, { cycles: 400, seed: 7 }), null);
+  assert.notEqual(compareSims(nl, pack(load('ffs')), { cycles: 400, seed: 7 }), null);
+});
+
+// ------------------------------------------------------------------ timing-driven packing (#528)
+// a Yosys netlist of cells given as { name: [type, { pin: bit }] } (outputs: O, Q), with a clock input and ports
+function tiny(cells, ins = [], outs = []) {
+  const ports = { clk: { direction: 'input', bits: [2] } };
+  const cs = { clkbuf: { type: 'IBUF', port_directions: { I: 'input', O: 'output' }, connections: { I: [2], O: [3] } },
+    clkg: { type: 'BUFG', port_directions: { I: 'input', O: 'output' }, connections: { I: [3], O: [4] } } };
+  let bit = 1000;
+  for (const n of ins) { const p = bit++; ports[n] = { direction: 'input', bits: [p] }; cs[`${n}_ibuf`] = { type: 'IBUF', port_directions: { I: 'input', O: 'output' }, connections: { I: [p], O: [n] } }; }
+  for (const n of outs) { const p = bit++; ports[`${n}_o`] = { direction: 'output', bits: [p] }; cs[`${n}_obuf`] = { type: 'OBUF', port_directions: { I: 'input', O: 'output' }, connections: { I: [n], O: [p] } }; }
+  for (const [name, [type, pins, params = {}]] of Object.entries(cells)) {
+    const dirs = Object.fromEntries(Object.keys(pins).map(p => [p, /^(O|Q)$/.test(p) ? 'output' : 'input']));
+    cs[name] = { type, parameters: params, port_directions: dirs, connections: Object.fromEntries(Object.entries(pins).map(([p, b]) => [p, [b]])) };
+  }
+  // (bits named by strings in the cells above: numbered here)
+  const num = new Map();
+  const id = b => (typeof b === 'number' || b === '0' || b === '1' ? b : (num.has(b) || num.set(b, 2000 + num.size), num.get(b)));
+  for (const c of Object.values(cs)) for (const p of Object.keys(c.connections)) c.connections[p] = c.connections[p].map(id);
+  return readYosysJson({ modules: { t: { attributes: { top: 1 }, ports, cells: cs, netnames: {} } } });
+}
+const ff = (d, q) => ['FDRE', { C: 4, CE: '1', R: '0', D: d, Q: q }];
+const lut2 = (a, b, o) => ['LUT2', { I0: a, I1: b, O: o }, { INIT: '0110' }];
+
+test('criticality before placement: the critical path of synth-open\'s criticalDelay, on the netlists of the tests', () => {
+  for (const name of ['sw', 'counter', 'ffs', 'widemux', 'mux64', 'latches', 'srmux']) {
+    const text = fs.readFileSync(path.join(FIX, `${name}.json`), 'utf8');
+    const nl = readYosysJson(text);
+    const r = connectionCriticality(nl.cells.map((c, idx) => ({ ...c, idx })), nl.nets);
+    assert.ok(Math.abs(r.dmax - criticalDelay(JSON.parse(text))) < 1e-9, `${name}: ${r.dmax} vs ${criticalDelay(JSON.parse(text))}`);
+    for (const c of r.crit.values()) assert.ok(c >= 0 && c <= 1);
+  }
+});
+
+test('criticality before placement: 1 on the critical path, 1 - slack / critical path elsewhere; a loop is no path', () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  // f0 -> A -> B -> f1 (two LUTs) and f0 -> C -> f2 (one): the second has 0.70 + 0.45 of slack
+  const nl = tiny({ f0: ff('a', 'q0'), A: lut2('q0', 'q0', 'na'), B: lut2('na', 'q0', 'nb'), f1: ff('nb', 'q1'), C: lut2('q0', 'q0', 'nc'), f2: ff('nc', 'q2') }, ['a'], ['q1', 'q2']);
+  const cells = nl.cells.map((c, idx) => ({ ...c, idx }));
+  const r = connectionCriticality(cells, nl.nets);
+  const dmax = 0.59 + 0.45 + 0.70 + 0.45 + 0.70 + 0.13;
+  close(r.dmax, dmax);
+  const at = (name, pin) => r.crit.get(`${cells.findIndex(c => c.name === name)}:${pin}`);
+  close(at('A', 'I0'), 1); close(at('B', 'I0'), 1); close(at('f1', 'D'), 1);
+  // B's second input skips A: 0.70 + 0.45 of slack
+  close(at('B', 'I1'), 1 - (0.70 + 0.45) / dmax);
+  close(at('C', 'I0'), 1 - (0.70 + 0.45) / dmax); close(at('f2', 'D'), 1 - (0.70 + 0.45) / dmax);
+  // a combinational loop does not hang it
+  const loop = tiny({ f0: ff('a', 'q0'), A: lut2('q0', 'nb', 'na'), B: lut2('na', 'na', 'nb'), f1: ff('nb', 'q1') }, ['a'], ['q1']);
+  assert.ok(connectionCriticality(loop.cells.map((c, idx) => ({ ...c, idx })), loop.nets).dmax > 0);
+});
+
+// a chain of five LUTs between two flip-flops (L1 … L5, the critical path), each also reading a register r1 … r5
+// that short paths (M1 … M5, a LUT and a flip-flop each) share, so that the nets alone would pack them together
+function chainDesign() {
+  const cells = {};
+  for (let i = 1; i <= 5; i++) { cells[`r${i}`] = ff('b', `r${i}`); cells[`M${i}`] = lut2(`r${i}`, `r${i % 5 + 1}`, `m${i}`); cells[`h${i}`] = ff(`m${i}`, `hq${i}`); }
+  cells.f0 = ff('a', 'l0');
+  for (let i = 1; i <= 5; i++) cells[`L${i}`] = lut2(`l${i - 1}`, `r${i}`, `l${i}`);
+  cells.fz = ff('l5', 'z');
+  return tiny(cells, ['a', 'b'], ['z', 'hq1', 'hq2', 'hq3', 'hq4', 'hq5']);
+}
+
+test('timing-driven packing: consecutive LUTs of the critical path share a slice, not one with the short paths that share their nets (#528)', () => {
+  const nl = chainDesign();
+  const p = pack(nl);
+  const site = name => p.cellSites[nl.cells.findIndex(c => c.name === name)];
+  const lutsOf = inst => nl.cells.filter((c, i) => /^LUT/.test(c.type) && p.cellSites[i]?.inst === inst).map(c => c.name).sort();
+  // L5 with the flip-flop it feeds and with L4, L1 with L2 (and with the flip-flops that start the path, f0 and r1);
+  // L3, whose neighbours are taken, with logic of a short path
+  assert.equal(site('L5').inst, site('fz').inst);
+  assert.deepEqual(lutsOf(site('L5').inst), ['L4', 'L5']);
+  assert.deepEqual(lutsOf(site('L1').inst), ['L1', 'L2']);
+  assert.deepEqual([site('f0').inst, site('r1').inst], [site('L1').inst, site('L1').inst]);
+  assert.deepEqual(lutsOf(site('L3').inst), ['L3', 'M2']);
+  // as few slices as can be: 12 flip-flops
+  assert.equal(p.stats.slices, 6);
+  const d = compareSims(nl, p, { cycles: 200, seed: 7 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle} (clk ${d.clk}): netlist ${JSON.stringify(d.netlist)} packed ${JSON.stringify(d.packed)}`);
+});
+
+test('timing-driven packing: kept only when it costs few slices (CRIT_SLICES), else the packing by nets (#528)', () => {
+  // the chain above: kept, as few slices as without timing
+  const chain = pack(chainDesign());
+  assert.equal(chain.stats.timing, true);
+  assert.equal(chain.stats.slices, pack(chainDesign(), { timing: false }).stats.slices);
+  assert.equal(pack(chainDesign(), { timing: false }).stats.timing, undefined);
+  // ten LUTs of the same two registers into ten flip-flops, every path critical and none between the LUTs: by
+  // timing each LUT would take a slice of its own (10), by nets two share one (6: 12 flip-flops)
+  const cells = { q0: ff('a', 'q0'), q1: ff('b', 'q1') };
+  for (let i = 1; i <= 10; i++) { cells[`L${i}`] = ['LUT2', { I0: 'q0', I1: 'q1', O: `l${i}` }, { INIT: i.toString(2).padStart(4, '0') }]; cells[`z${i}`] = ff(`l${i}`, `z${i}`); }
+  const nl = tiny(cells, ['a', 'b'], Array.from({ length: 10 }, (_, i) => `z${i + 1}`));
+  const p = pack(nl);
+  assert.equal(p.stats.timing, false);
+  assert.equal(p.stats.slices, 6);
+  assert.equal(compareSims(nl, p, { cycles: 100, seed: 7 }), null);
+  // and on the netlists of the tests: never more slices than the bound
+  for (const name of ['sw', 'counter', 'ffs', 'widemux', 'mux64', 'latches', 'srmux']) {
+    const a = pack(load(name)).stats.slices, b = pack(load(name), { timing: false }).stats.slices;
+    assert.ok(a <= b + Math.max(1, Math.floor(0.02 * b)), `${name}: ${a} vs ${b}`);
+  }
 });
