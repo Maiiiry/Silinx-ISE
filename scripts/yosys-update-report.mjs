@@ -39,6 +39,10 @@ export function yosysVersion(pkg, lock) {
   return { spec: pkg?.dependencies?.[PACKAGE] ?? pkg?.devDependencies?.[PACKAGE] ?? null, resolved: lock?.packages?.[`node_modules/${PACKAGE}`]?.version ?? null };
 }
 
+/** A version (or a version spec) as a string the shell may be given: digits, letters, dots, ^~ and the like; a lockfile
+ *  of a pull request is not trusted further (the workflow passes it through the environment, #479). */
+export const VERSION_SHAPE = /^[\w.^~<>=+-]*$/;
+
 /** Whether a pull request changes Yosys: { changed, base, head } (the resolved versions, else the specs). */
 export function yosysChange(base, head) {
   const b = base.resolved ?? base.spec, h = head.resolved ?? head.spec;
@@ -189,6 +193,7 @@ async function main() {
   if (cmd === 'versions') {
     const [bp, bl, hp, hl] = args;
     const c = yosysChange(yosysVersion(readJson(bp), readJson(bl)), yosysVersion(readJson(hp), readJson(hl)));
+    for (const v of [c.base, c.head]) if (v !== null && !VERSION_SHAPE.test(String(v))) { console.error(`${PACKAGE}: not a version: ${JSON.stringify(v)}`); process.exit(1); }
     console.log(`${PACKAGE}: ${c.base} → ${c.head}${c.changed ? '' : ' (unchanged)'}`);
     if (process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `changed=${c.changed}\nbase=${c.base}\nhead=${c.head}\n`);
   } else if (cmd === 'subset') {

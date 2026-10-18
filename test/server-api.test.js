@@ -313,6 +313,14 @@ test('devices DB and toolchain configuration', async () => {
 // security guard
 // ------------------------------------------------------------------------------------------------
 
+test('security: the client sends the token in a header only, never in an address (#479)', async () => {
+  // a token in a URL stays in the browser's history and in proxies' logs: the downloads fetch with the header too
+  const js = await fs.readFile(path.join(HERE, '..', 'web', 'js', 'api.js'), 'utf8');
+  assert.doesNotMatch(js, /[?&]token=/, 'a token in a query string');
+  assert.doesNotMatch(js, /exportXiseUrl/);
+  assert.match(js, /'X-Silinx-Token': TOKEN/);
+});
+
 test('security: foreign Host headers and cross-origin writes are refused', async () => {
   const port = app.port;
   let r = await app.raw('GET', '/api/projects', { headers: { host: `evil.example:${port}` } });

@@ -34,6 +34,9 @@ In short:
 - **Program FPGA from the browser in fewer USB round trips:** Configure Target Device ▸ Program FPGA over
   WebUSB sends its JTAG steps as a few streams (the PROM's way) instead of a command a step; the console says how
   long the bitstream took, how many times INIT and DONE were polled and where the USB time went.
+- **Hardening after a security audit:** the audit found no serious flaw; the quick fixes it recommended are in
+  (no install scripts on the ISE machine, the launchers' installation, a server token kept out of addresses, the
+  `.xise` export of a top module with an odd name).
 
 In detail:
 
@@ -72,6 +75,16 @@ In detail:
   note on the efforts (in Portuguese too). Tests: `test/synth-open.test.js` (logicLevels and deepDesign on netlists
   by hand; a comparator chain of 48 bits at Normal mapped for speed, faster, the same function; the 24-bit one
   still one run), `test/open-flow-core.test.js` (the console's lines), the UI test of the efforts.
+- **Hardening after a security audit (#479):** the self-hosted runner's jobs (`ise.yml`, `quality.yml`) install
+  without the dependencies' install scripts (`NPM_CONFIG_IGNORE_SCRIPTS` in the job's environment: no script of npm
+  runs on that machine); `yosys-update-report.mjs versions` refuses a value from the pull request's files that is not
+  a version (the shell would otherwise be given it); the launchers install with `npm ci --omit=dev --ignore-scripts`
+  (the lock file kept); the web client's unused `exportXiseUrl`, which put the server token in a query string, is
+  gone (the token travels in `X-Silinx-Token` only); `server/xise.js` escapes the top module's name in its regular
+  expressions (a name such as `a(b` made the `.xise` export fail with 500). Tests: `test/workflows-permissions.test.js`
+  (every workflow's permissions, the runner's install), `test/launchers.test.js`, `test/yosys-update.test.js` (the
+  refused versions), `test/server-api.test.js` (no token in an address), `test/server-units.test.js` (the export
+  with `a(b`, `m.v`).
 - **XPower's numbers for the vga example (#463):** `scripts/measure-power.mjs --only <examples>` measures just those
   examples with ISE and XPower and merges their runs into `test/fixtures/power/xpower-examples.json` (the others
   kept, in the examples' and the devices' order). vga on the four devices (XPower: 36.18, 55.14, 83.62 and 161.42 mW)
