@@ -158,7 +158,7 @@ uiTest('memory: ISim and the board emulator, run and closed, leave nothing behin
     assert.deepEqual([await page.eval(() => window.Silinx.active.view.worker), await workers()], [true, 1]);
     await closeActive(page);
     assert.equal(await workers(), 0, 'the emulator\'s worker terminated');
-  });
+  }, { warmUp: 12 });   // the emulator's page code is optimised over its first runs: KB per run 1000, 160, 76, then 17-88 up to the 11th, 0-5 from the 12th on (#517)
   await withinBudget(page);
 }, { timeout: 240000 });   // many repetitions, each with a garbage collection: slow CI runners took up to 74 s of 90
 
