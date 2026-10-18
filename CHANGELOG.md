@@ -7,6 +7,8 @@ the "What's new" text of its GitHub release.
 
 In short:
 
+- **The Board Emulator in a thread of its own:** the compiled engine runs in a Web Worker, so the emulator no longer
+  slows the page: buttons, menus and editors answer at once while a design runs at full speed (a little faster too).
 - **A VGA monitor in the Board Emulator:** a design on the board's VGA connector shows its 640×480 picture, as a
   monitor finds it in the sync pulses, with the measured timing and what is not 640×480 at 60 Hz (e.g. a pixel
   clock of 50 MHz, a sync pulse of the wrong polarity).
@@ -98,6 +100,18 @@ In detail:
   the comparison had measured Normal only while the corpus's nightly run measures High: most of the speed loss it
   showed (+14 % → +22 % against ISE: epfl-priority 43.0 ns, epfl-max 61.7 ns) is Normal's, High giving 11.1 and
   28.5 ns (ISE: 20.8 and 25.7, trce).
+- **The Board Emulator's compiled engine in a Web Worker (#427):** `core/emulate-remote.js` runs the CompiledBoard
+  and what the board shows (its outputs, the LCD's controller) at one end of a message port (`hostBoard`:
+  `web/js/emulator-worker.js`, started from its file on the local server and from its embedded text, a Blob, in
+  the single-file edition and the browser edition), the page's `RemoteBoard` at the other: the same interface, the
+  last state cached (time, outputs, LCD, Watch values, log, the VGA picture copied and transferred 30 times a second
+  at most), the runs asynchronous (n cycles, or as many as fit in a 14 ms budget at Max speed), one at a time, the
+  next asked for before the page draws the last. Input bits go as masks, the rotary knob's detents as data scheduled
+  from the worker's own time (the page's may be a run behind), Power cycle and the power switch forget the run in
+  flight. The page still compiles the design (what cannot be compiled falls back to the event-driven engine at
+  once); with no worker the same host runs on the page's thread. The worker ends with the emulator's document
+  (`test/ui/memory.test.js`). At Max speed: blinky 70 → 76 million cycles a second, pong 27 → 27–29, clock 23 → 24,
+  the VGA colour bars 106 → 111; the page's 10 ms timer from 20 ms late to under 1 ms.
 - **The Board Emulator's VGA monitor (#420, part 3 of #102):** when the UCF wires the board's VGA connector (its
   colour widths from the board: 3-3-2 bits on the Basys2 and the Nexys2, 1-1-1 on the Starter Kit), the compiled
   code keeps a monitor (`core/compiled-sim.js` VGA_CODE): a line from each leading edge of HSYNC (its active level

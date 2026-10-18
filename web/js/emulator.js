@@ -3,8 +3,11 @@
 // resources of the project's board. Two engines (#418): the compiled cycle simulator (core/emulate-compiled.js:
 // the design's netlist as JavaScript, at the board's real speed) when the design compiles, else (or when
 // chosen, to debug: X values, the design's messages) the event-driven simulator of the behavioural RTL.
+// The compiled engine runs in a Web Worker of its own (#427: core/emulate-remote.js), the event-driven one on
+// the page's thread, in frame budgets.
 import { Simulator } from '/core/simulator.js';
 import { CompiledBoard } from '/core/emulate-compiled.js';
+import { RemoteBoard, hostBoard } from '/core/emulate-remote.js';
 import { vgaPins, vgaPixels } from '/core/vga.js';
 import * as V from '/core/values.js';
 import { formatTime } from '/core/interp.js';
@@ -346,6 +349,28 @@ export async function emulatorYosys(standalone) {
   return siteYosys;
 }
 
+// the compiled engine's worker (#427): started from its file (the local server) or, in the single-file
+// edition, from its embedded text (a Blob); on the page's thread (a MessageChannel) when no worker starts,
+// or with SILINX_EMU_IN_PAGE (to compare the two)
+let emuWorkerUrl = null;
+const liveWorkers = new Set();
+/** The emulator's workers running (a closed emulator terminates its own). */
+export const emulatorWorkers = () => liveWorkers.size;
+function compiledHost() {
+  if (!globalThis.SILINX_EMU_IN_PAGE && typeof Worker === 'function') {
+    try {
+      const src = globalThis.SILINX_EMU_WORKER_SRC;
+      if (src) emuWorkerUrl ??= URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      const w = new Worker(src ? emuWorkerUrl : '/js/emulator-worker.js', { type: 'module' });
+      liveWorkers.add(w);
+      return { port: w, worker: true, close: () => { w.terminate(); liveWorkers.delete(w); } };
+    } catch { /* (no worker: on the page's thread) */ }
+  }
+  const { port1, port2 } = new MessageChannel();
+  hostBoard(port2);
+  return { port: port1, worker: false, close: () => { port1.close(); port2.close(); } };
+}
+
 /**
  * Mount the emulator.
  * @param {HTMLElement} container
@@ -365,24 +390,28 @@ export function mountEmulator(container, { design, board, assignments, title = '
   const period = wiring.clocks[0]?.period || 20000;
   // the engine: the compiled cycle simulator when the design was compiled (engine.netlist: core/compiled-sim.js
   // netlistOf's), else the event-driven one; engineNote: why not compiled
-  let compiled = null, engineNote = engine?.reason || null;
+  // (compiled on the page, which reports what cannot be; run by the worker: the RemoteBoard)
+  const hasLcd = wiring.bits.some((b) => b.res.name === 'lcd_e');
+  let compiled = null, host = null, engineNote = engine?.reason || null;
   if (engine?.netlist && wiring.clocks.length > 1) engineNote = `more than one clock on the board (${wiring.clocks.map((c) => c.port).join(', ')})`;
   else if (engine?.netlist) {
-    try { compiled = new CompiledBoard({ json: engine.netlist.json, top: engine.netlist.top, design, wiring, clock: wiring.clocks[0]?.port || null, period, board }); }
-    catch (e) { engineNote = e.message; }
+    try {
+      const local = new CompiledBoard({ json: engine.netlist.json, top: engine.netlist.top, design, wiring, clock: wiring.clocks[0]?.port || null, period, board });
+      host = compiledHost();
+      compiled = new RemoteBoard(host.port, local, { design, wiring, board, hasLcd, close: host.close });
+    } catch (e) { engineNote = e.message; host?.close(); host = null; }
   }
   const sim = compiled || new Simulator(design, { files, maxWaveEvents: 1e9 });
   const inVal = new Map(inputPorts.map((p) => [p.sig, 0n]));   // value of each input port (unmapped bits 0)
   // inputs with a pull-up on the board (e.g. the rotary encoder's A / B) rest at '1'
   for (const b of wiring.bits) if (b.dir === 'in' && b.res.pull === 'up' && b.kind !== 'sw' && b.kind !== 'btn') inVal.set(b.sig, (inVal.get(b.sig) ?? 0n) | (1n << BigInt(b.pos)));
-  const hasLcd = wiring.bits.some((b) => b.res.name === 'lcd_e');
   let lcd = lcdState(), lcdView = null;
 
   let running = false, speed = compiled ? 'real' : 'max', prev = null, raf = 0, destroyed = false, knobEnd = 0;
   let powered = true;   // the board's power switch: off = nothing runs, outputs dark
-  // (cycles per run: the compiled engine runs millions of cycles in a frame)
-  const maxSlice = compiled ? 5e6 : 200000;
-  let slice = compiled ? 100000 : 2000, cyclesAcc = 0, lastT = 0, rateWin = { t: performance.now(), cyc: 0, rate: 0 };
+  // (cycles per run of the event-driven engine: the compiled one slices its runs itself)
+  const maxSlice = 200000;
+  let slice = 2000, cyclesAcc = 0, lastT = 0, rateWin = { t: performance.now(), cyc: 0, rate: 0 }, vgaFetched = 0;
   let logN = 0;
   let lcdDirty = true;
 
@@ -434,7 +463,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     const nv = v ? cur | m : cur & ~m;
     if (nv === cur) return;
     inVal.set(b.sig, nv);
-    applyInput(b.sig);
+    applyInput(b.sig, m);
   };
 
   // ---- interactive parts (placed by the board layout below)
@@ -492,9 +521,15 @@ export function mountEmulator(container, { design, board, assignments, title = '
     // turns queue up: a click while the previous detent is still being played (the emulator is
     // slower than the clicks) must not interleave the two quadrature sequences
     const t0 = Math.max(sim.now, knobEnd);
-    seq.forEach(([va, vb], k) => sim.at(t0 + (k + 1) * QUAD_CYCLES * period, () => { setInputBit(a, va); setInputBit(b, vb); }));
+    if (compiled) {
+      // (the worker sets the bits, from its own time: the page's may be a run behind; data, not a function;
+      // the page's copy of the inputs where the knob rests)
+      const bitSet = (x, v) => ({ sig: x.sig, value: BigInt(v) << BigInt(x.pos), mask: 1n << BigInt(x.pos) });
+      sim.sequence(seq.map(([va, vb], k) => ({ dt: (k + 1) * QUAD_CYCLES * period, sets: [bitSet(a, va), bitSet(b, vb)] })));
+      for (const [x, v] of [[a, seq.at(-1)[0]], [b, seq.at(-1)[1]]]) { const m = 1n << BigInt(x.pos), cur = inVal.get(x.sig) ?? 0n; inVal.set(x.sig, v ? cur | m : cur & ~m); }
+    } else seq.forEach(([va, vb], k) => sim.at(t0 + (k + 1) * QUAD_CYCLES * period, () => { setInputBit(a, va); setInputBit(b, vb); }));
     knobEnd = t0 + seq.length * QUAD_CYCLES * period;
-    if (!running) { runCycles(Math.ceil((knobEnd - sim.now) / period) + QUAD_CYCLES); refresh(); }
+    if (!running) after(runCycles(Math.ceil((knobEnd - sim.now) / period) + QUAD_CYCLES));
   };
   const mkRotary = () => {
     const el = h('div', { class: 'emu-rot', title: bitFor('rot_a') ? 'Turn the knob: ⟲ / ⟳ or the mouse wheel (ROT_A / ROT_B)' : 'Rotary encoder: ROT_A / ROT_B not connected in the UCF' },
@@ -568,7 +603,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
       draw() {
         if (!compiled || !powered) { dark(); return; }
         const v = sim.vga();
-        if (!v.status.signal) { dark(); return; }
+        if (!v?.status.signal || !v.fb) { dark(); return; }
         const now = performance.now();
         if (now - drawn < 33 && running) return;   // (30 pictures a second at most)
         drawn = now;
@@ -595,11 +630,17 @@ export function mountEmulator(container, { design, board, assignments, title = '
     if (!s || watched.some((w) => w.s === s)) return;
     const val = h('td', { style: { textAlign: 'right' } });
     const tr = h('tr', {}, h('td', {}, s.path || s.name), val,
-      h('td', {}, h('a', { href: '#', title: 'Remove', onclick: (e) => { e.preventDefault(); tr.remove(); watched.splice(watched.findIndex((w) => w.s === s), 1); } }, '✕')));
+      h('td', {}, h('a', { href: '#', title: 'Remove', onclick: (e) => { e.preventDefault(); tr.remove(); watched.splice(watched.findIndex((w) => w.s === s), 1); watchChanged(); } }, '✕')));
     watched.push({ s, val });
     watchBody.append(tr);
-    refresh();
+    watchChanged();
   });
+  // (the compiled engine: the worker sends the watched signals' values with each run; paused, a run of no cycle)
+  function watchChanged() {
+    if (!compiled) { refresh(); return; }
+    sim.watch(watched.map((w) => w.s));
+    if (!running) after(sim.advance(0));
+  }
   side.append(h('div', { class: 'emu-box' }, h('h4', {}, 'Watch'), sigSel, h('table', {}, watchBody)));
   if (timing?.gens?.length) {
     const used = new Map((design.top.params || []).map((p) => [p.name, Number(p.value?.v ?? 0)]));
@@ -630,9 +671,11 @@ export function mountEmulator(container, { design, board, assignments, title = '
   for (const w of compiled?.warnings || []) side.append(h('div', { class: 'emu-hint' }, `Compiled engine: ${w}`));
 
   // ------------------------------------------------------------------------------- simulation
-  function applyInput(sig) {
+  // (mask: the bits that changed, to the compiled engine: the rotary knob's may be the worker's to set)
+  function applyInput(sig, mask = -1n) {
     if (clockSigs.has(sig) || wiring.clocks.some((c) => c.sig === sig)) return;
-    sim.force(sig, V.fromInt(inVal.get(sig) ?? 0n, sig.t.w));
+    if (compiled) sim.force(sig, V.fromInt(inVal.get(sig) ?? 0n, sig.t.w), mask);
+    else sim.force(sig, V.fromInt(inVal.get(sig) ?? 0n, sig.t.w));
   }
   // Like the FPGA after configuration: every register / memory without an explicit initial value
   // starts at 0 (in simulation it would stay 'U'/X, e.g. a free-running counter never starts).
@@ -665,19 +708,13 @@ export function mountEmulator(container, { design, board, assignments, title = '
     for (const el of powerSwitches) { el.classList.toggle('on', on); el.setAttribute('aria-checked', String(on)); }
     root.classList.toggle('off', !on);
     if (on) { powerCycle(); setRunning(true); }
-    else { setRunning(false); prev = null; lcd = lcdState(); lcdDirty = true; refresh(); }
+    else { setRunning(false); compiled?.invalidate(); prev = null; lcd = lcdState(); lcdDirty = true; refresh(); }
   }
+  // n cycles; the compiled engine: a promise (the worker's state once they ran), else at once
   function runCycles(n) {
-    if (!powered) return;
+    if (!powered) return null;
+    if (compiled) return advance(n);
     const t0 = sim.now;
-    if (compiled) {
-      // (what the board shows from what the compiled code counted in the window)
-      sim.run(sim.now + n * period);
-      prev = sim.outputs(t0, Math.max(sim.now, t0 + 1), prev);
-      if (hasLcd && sim.lcd(lcd)) lcdDirty = true;
-      rateWin.cyc += n;
-      return;
-    }
     for (const s of outputSigs) s.wave = { t: [sim.now], v: [s.val] };
     sim.waveEvents = 0; sim.waveTruncated = false;
     sim.run(sim.now + n * period);
@@ -685,7 +722,20 @@ export function mountEmulator(container, { design, board, assignments, title = '
     if (hasLcd && lcdFeed(lcd, wiring, t0, sim.now)) lcdDirty = true;
     rateWin.cyc += n;
   }
-  function step() { setRunning(false); runCycles(1); refresh(); }
+  // (what the board shows from what the compiled code counted in the run; the VGA picture 30 times a second)
+  async function advance(n) {
+    const vga = !!vgaView && (!running || performance.now() - vgaFetched >= 30);
+    const st = await sim.advance(n, { budget: FRAME_BUDGET_MS, vga });
+    if (!st || destroyed) return null;
+    if (vga) vgaFetched = performance.now();
+    prev = sim.outputs;
+    if (st.lcd) { lcd = st.lcd; lcdDirty = true; }
+    rateWin.cyc += st.cycles;
+    return st;
+  }
+  /** refresh() once what `p` ran is in (runCycles' promise), at once without one. */
+  function after(p) { if (p) p.then((st) => { if (st) refresh(); }); else refresh(); }
+  function step() { setRunning(false); after(runCycles(1)); }
   function setRunning(on) {
     running = on && powered && !sim.finished;
     runBtn.textContent = running ? '⏸ Pause' : '▶ Run';
@@ -703,6 +753,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     if (destroyed) return;
     schedule();
     if (!running) return;
+    if (compiled) { pump(now); return; }
     const start = performance.now();
     if (speed === 'max') {
       // as many cycles as fit in the frame budget
@@ -732,6 +783,30 @@ export function mountEmulator(container, { design, board, assignments, title = '
     refresh();
   }
 
+  // the compiled engine: one run in the worker at a time, the cycles owed in real time (or, Max speed, as many
+  // as its budget allows); the next one asked for as soon as a run took its whole budget, so that the
+  // worker does not wait
+  function pump(now = performance.now()) {
+    if (speed !== 'max') {
+      cyclesAcc += (speed === 'real' ? 1e12 / period : speed) * Math.min(0.25, (now - lastT) / 1000);
+      lastT = now;
+    }
+    if (sim.busy || !running) return;
+    if (sim.finished) { setRunning(false); refresh(); return; }   // (the worker stopped by an error)
+    const n = speed === 'max' ? Infinity : Math.floor(cyclesAcc);
+    if (n <= 0) return;
+    if (speed !== 'max') cyclesAcc -= n;
+    runCycles(n).then((st) => {
+      if (!st) return;
+      const behind = st.cycles < n;
+      if (behind && speed !== 'max') cyclesAcc = 0;   // could not keep up: drop the backlog
+      if (sim.finished) setRunning(false);
+      // (the worker's next run asked for before the page draws this one)
+      if (behind && host.worker) pump();
+      refresh();
+    });
+  }
+
   function refresh() {
     // no window run yet (start-up, power cycle): LEDs and digits dark
     leds.forEach((l, k) => { const v = prev?.leds[k] ?? 0; l.style.background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`; l.style.boxShadow = v > 0.05 ? `0 0 ${Math.round(8 * v)}px #4f4` : 'none'; });
@@ -758,19 +833,20 @@ export function mountEmulator(container, { design, board, assignments, title = '
   }
 
   setupSim();
-  sim.run(0);
+  if (!compiled) sim.run(0);
   refresh();
   schedule();
   setRunning(true);
 
   return {
-    destroy() { destroyed = true; clearTimeout(raf); root.remove(); },
+    destroy() { destroyed = true; clearTimeout(raf); compiled?.destroy(); root.remove(); },
     pause: () => setRunning(false),
     power: (on) => setPower(!!on),
     get powered() { return powered; },
     wiring,
     sim,
     engine: compiled ? 'compiled' : 'event',
+    worker: !!host?.worker,
     get outputs() { return prev; },
   };
 }

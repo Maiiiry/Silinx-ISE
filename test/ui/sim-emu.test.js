@@ -161,8 +161,11 @@ for (const [board, name] of [['basys2', 'Basys2'], ['nexys2', 'Nexys2']]) {
     await widget(page, 'SW3 = sw<3>');
     await waitLed(page, 3, false);
     await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '⏸ Pause' });
+    // (the compiled engine runs in its worker, #427: the run in flight when paused comes in first; Step's after it)
+    await page.waitFor(() => !window.Silinx.active.view.sim.busy, [], { what: 'the last run in' });
     const t1 = await page.eval(() => window.Silinx.active.view.sim.now);
     await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '⏭ Step' });
+    await page.waitFor(() => !window.Silinx.active.view.sim.busy, [], { what: 'the step run' });
     assert.equal(await page.eval(() => window.Silinx.active.view.sim.now) - t1, 20000, 'one 50 MHz clock cycle');
     await page.click('.doc:not([hidden]) .emu-bar .btn', { text: '⟲ Power cycle' });
     await page.waitFor(() => window.Silinx.active.view.sim.now === 0);
