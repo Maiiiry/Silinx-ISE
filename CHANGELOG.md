@@ -37,6 +37,9 @@ In short:
 - **Truth tables: / as NOT, and XOR forms:** the expressions are written with `/` as NOT by default (`/a·b + c`,
   `/(a + b)`), the other notations still selectable; beside the minimal SOP and POS, the *XOR form* when it is
   simpler (`a ⊕ b ⊕ c`, `a·b + c·(a ⊕ b)`, `/(a1 ⊕ b1)·/(a0 ⊕ b0)`), which the table's HDL module can use.
+- **Silinx for an AI assistant:** `silinx-ise mcp` is an MCP server: Claude Desktop, Claude Code or another MCP client
+  opens the workspace's projects, edits them, checks their syntax, simulates them, runs the processes and reads the
+  reports, with the same results as the interface.
 
 In detail:
 
@@ -49,6 +52,17 @@ In detail:
   GitHub's Linux runner) sat on the corpus's fixed PERIOD of 20 ns, so its "PERIOD not met" warning came and went
   from one machine to the other and failed the Nightly; a design may now give its own `periodNs` in the manifest
   (iwls05-spi: 25 ns).
+- **An MCP server (#134):** `silinx-ise mcp` (server/mcp.js) speaks the Model Context Protocol (JSON-RPC 2.0 over
+  stdin / stdout, versions 2025-06-18, 2025-03-26 and 2024-11-05, no new dependency) with ten tools: list_examples,
+  new_project_from_example (another board's pins too), list_projects, project_info, read_file, write_file (a new
+  HDL file added to the project), check_syntax (the application's: the design checks of core/lint.js and the
+  drawings' HDL included), simulate (the test bench's messages, its signals' last changes, by path through the
+  instances), run_process (synthesize, implement, bitstream, timing, power, pins; the Silinx toolchain or ISE) and
+  get_report (the Design Summary, the reports of build/). Each answers in text and as structured JSON. It calls the
+  server's own functions: the implementation's start and the reports are now startImplementation and
+  projectReports of server/impl-routes.js, which the HTTP routes call too. Every path stays inside its project
+  (symbolic links followed), Silinx's own files (silinx.json, build/) are not written, programming a board is not a
+  tool, and the ISE machine's address is replaced in every result. test/mcp.test.js speaks to it over stdio.
 - **Shift registers of 17 to 32 stages in one SLICEM (#24):** the two SRL16Es of such a chain are cascaded in one
   SLICEM: G holds the first 16 stages, and F takes G's last stage through SHIFTIN (`DIF_MUX = SHIFTIN`), instead
   of a net through general routing and BX. The srl fixture's 20-stage chain converts with ISE to the same .bit.

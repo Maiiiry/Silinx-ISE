@@ -329,6 +329,7 @@ node bin/silinx-ise.js check <projectDir>                           # parse + el
 node bin/silinx-ise.js sim   <projectDir> --time 2000 --vcd out.vcd   # simulate the simulation top
 node bin/silinx-ise.js ucf   <projectDir> --board basys2              # constraints from a board's pin table
 node bin/silinx-ise.js toolchain [--docker xilinx/ise:14.7]          # show / set the ISE toolchain
+node bin/silinx-ise.js mcp                                         # an MCP server for an AI assistant (below)
 npm test                                                         # test suite
 SILINX_ISE_TESTS=1 npm run test:ise                              # the real ISE flow (Docker image; SILINX_ISE_HOST=user@host: on another machine)
 SILINX_ISE_HOST=user@host npm run check:open-flow [projects…]   # the open flow vs ISE: DRC, byte-identical bitstreams (SILINX_ISE_HOST=local: the image here)
@@ -350,6 +351,26 @@ blinky example in headless Chrome, with every request to another host refused an
 app must work offline; the update check at start-up is the only one allowed). CI runs the unit
 tests and a UI smoke test on Linux, macOS and Windows, the release zip test, and the main UI flows
 in Firefox and WebKit.
+
+### Silinx for an AI assistant (MCP)
+
+`node bin/silinx-ise.js mcp` serves the projects of the Silinx workspace to an AI assistant (Claude
+Desktop, Claude Code, any client of the Model Context Protocol) over stdin / stdout. Its tools:
+`list_examples`, `new_project_from_example`, `list_projects`, `project_info`, `read_file`,
+`write_file`, `check_syntax` (the errors and warnings of *Check Syntax*, the design checks included),
+`simulate` (the test bench: its messages and its signals' changes), `run_process` (synthesize,
+implement, bitstream, timing, power, pins: the Silinx toolchain, or ISE when it is configured) and
+`get_report` (the Design Summary and the reports). The projects are those of the Project Navigator
+(the workspace, `SILINX_WORKSPACE`; the browser edition's workspace folder too, its format being
+the same), so what the assistant does is seen in the interface when the project is opened again.
+Every path stays inside its project; programming a board is not one of its tools; the ISE machine's
+address never appears in a result. In Claude Desktop's `claude_desktop_config.json`:
+
+```json
+{ "mcpServers": { "silinx": { "command": "node", "args": ["/path/to/silinx-ise/bin/silinx-ise.js", "mcp"] } } }
+```
+
+and in Claude Code: `claude mcp add silinx -- node /path/to/silinx-ise/bin/silinx-ise.js mcp`.
 
 ### Standalone edition (a single HTML file)
 
