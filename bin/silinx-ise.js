@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Silinx command line: start the web UI, check / simulate projects from the terminal.
+// Silinx command line: start the web UI, check / simulate projects from the terminal, serve the
+// workspace's projects to an AI assistant (MCP).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -12,6 +13,8 @@ const USAGE = `usage:
   silinx-ise sim   <projectDir> [--top tb] [--time ns] [--vcd out.vcd]   run a behavioural simulation
   silinx-ise ucf   <projectDir> --board basys2|nexys2|s3e-starter [--part xc3s100e]   pins from the board
   silinx-ise toolchain [--docker <image>]                show / set the ISE toolchain (docker image)
+  silinx-ise mcp                                        an MCP server on stdin / stdout: the workspace's
+                                                        projects for an AI assistant (Claude Desktop…)
   silinx-ise help                                       this text`;
 
 async function loadProject(dir) {
@@ -108,6 +111,13 @@ async function main() {
       console.log(`${t.ise.mode === 'silinx' ? 'toolchain' : 'ISE'} (${t.ise.mode}): ${t.ise.available ? 'available' : 'NOT available'} - ${t.ise.reason}`);
       console.log(`programmers: ${Object.entries(t.programmers).filter(([, v]) => v.found).map(([k]) => k).join(', ') || 'none'}`);
       if (image && !t.ise.available) process.exit(1);
+      break;
+    }
+    case 'mcp': {
+      // stdout is the protocol's: whatever a module prints goes to stderr
+      console.log = console.info = (...a) => process.stderr.write(`${a.join(' ')}\n`);
+      const { serveMcp } = await import('../server/mcp.js');
+      await serveMcp();
       break;
     }
     default:

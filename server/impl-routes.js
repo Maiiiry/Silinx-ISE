@@ -14,13 +14,57 @@ import { runImplementation, collectReports, normalizeSteps } from './ise.js';
 import { runOpenImplementation, openStatus, openSteps, buildDeviceJob, reportPart } from './open-flow.js';
 import { programJob, scanJob, promJob, readBitInfo, checkBitPart, expectedDevice, parseBitHeader } from './programmer.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from './xise.js';
+import * as Projects from './projects.js';
 
 // files that only Silinx understands: not part of an exported Xilinx ISE project
 const SILINX_ONLY = /(^|\/)(silinx\.json|[^/]+\.(asm|sch|tt|fsm)\.json)$/i;
 
+const implJobs = new Map();   // project name -> id of its latest implementation job
+
+/**
+ * Start an implementation of a project: POST /projects/:p/implement, and the MCP server's run_process
+ * (server/mcp.js). body: { steps, toolchain ('silinx' | 'ise'), synthUpToDate, generateOnly }. Returns the job.
+ */
+export async function startImplementation(name, body = {}) {
+  const P = Projects;
+  const bad = (msg, status = 400) => new P.HttpError(status, msg);
+  const project = await P.readProject(name);
+  const projectDir = P.projectDir(name);
+  let steps;
+  try { steps = normalizeSteps(body.steps); } catch (e) { throw bad(e.message); }
+  if (!project.top) throw bad('set the top module of the project before implementing');
+  // one ISE run per project: two runs would share (and wipe) the same build/ folder
+  const key = name.toLowerCase();   // case-insensitive file systems: one folder
+  const running = implJobs.get(key);
+  if (running && getJob(running)?.status === 'running') throw bad(`an implementation of '${name}' is already running (job ${running}); wait for it or cancel it`, 409);
+  // the Silinx toolchain (mode 'silinx'): no ISE, Silinx's own flow (server/open-flow.js). The
+  // request's toolchain, else the project's synthesis tool (synthTool: 'silinx' | 'xst'), else the
+  // execution mode of Toolchain Settings
+  const choice = body.toolchain || ({ silinx: 'silinx', xst: 'ise' })[project.synthTool];
+  const open = choice ? ['silinx', 'open'].includes(choice) : (await loadConfig()).mode === 'silinx';
+  // (the synthesis up to date, #280: the run starts at Translate from its netlist)
+  const synthUpToDate = !!body.synthUpToDate;
+  if (open) { try { steps = openSteps(body.steps, { synthUpToDate }); } catch (e) { throw bad(e.message); } }
+  const job = open
+    ? createJob('implement', j => runOpenImplementation(j, { project, projectDir, steps, synthUpToDate }), { meta: { project: name, steps, toolchain: 'silinx' } })
+    : createJob('implement', j => runImplementation(j, { project, projectDir, steps, generateOnly: !!body.generateOnly }), { meta: { project: name, steps } });
+  implJobs.set(key, job.id);
+  return job;
+}
+
+/** A project's reports (GET /projects/:p/reports; the MCP server's get_report): { available: false } before any run. */
+export async function projectReports(name) {
+  const P = Projects;
+  const project = await P.readProject(name);
+  const buildDir = path.join(P.projectDir(name), 'build');
+  try { return JSON.parse(await fs.readFile(path.join(buildDir, 'reports.json'), 'utf8')); }
+  catch { /* not saved yet */ }
+  if (!fss.existsSync(buildDir) || !project.top) return { available: false };
+  return collectReports(buildDir, project.top, project.device);
+}
+
 export function registerImplRoutes(api, { wrap, projects: P }) {
   const bad = (msg, status = 400) => new P.HttpError(status, msg);
-  const implJobs = new Map();   // project name -> id of its latest implementation job
 
   // ----- devices / toolchain ------------------------------------------------------------------
   api.get('/devices', wrap(async () => getDeviceDb()));
@@ -58,41 +102,9 @@ export function registerImplRoutes(api, { wrap, projects: P }) {
   }));
 
   // ----- implementation -----------------------------------------------------------------------
-  api.post('/projects/:p/implement', wrap(async req => {
-    const name = req.params.p;
-    const project = await P.readProject(name);
-    const projectDir = P.projectDir(name);
-    const body = req.body || {};
-    let steps;
-    try { steps = normalizeSteps(body.steps); } catch (e) { throw bad(e.message); }
-    if (!project.top) throw bad('set the top module of the project before implementing');
-    // one ISE run per project: two runs would share (and wipe) the same build/ folder
-    const key = name.toLowerCase();   // case-insensitive file systems: one folder
-    const running = implJobs.get(key);
-    if (running && getJob(running)?.status === 'running') throw bad(`an implementation of '${name}' is already running (job ${running}); wait for it or cancel it`, 409);
-    // the Silinx toolchain (mode 'silinx'): no ISE, Silinx's own flow (server/open-flow.js). The
-    // request's toolchain, else the project's synthesis tool (synthTool: 'silinx' | 'xst'), else the
-    // execution mode of Toolchain Settings
-    const choice = body.toolchain || ({ silinx: 'silinx', xst: 'ise' })[project.synthTool];
-    const open = choice ? ['silinx', 'open'].includes(choice) : (await loadConfig()).mode === 'silinx';
-    // (the synthesis up to date, #280: the run starts at Translate from its netlist)
-    const synthUpToDate = !!body.synthUpToDate;
-    if (open) { try { steps = openSteps(body.steps, { synthUpToDate }); } catch (e) { throw bad(e.message); } }
-    const job = open
-      ? createJob('implement', j => runOpenImplementation(j, { project, projectDir, steps, synthUpToDate }), { meta: { project: name, steps, toolchain: 'silinx' } })
-      : createJob('implement', j => runImplementation(j, { project, projectDir, steps, generateOnly: !!body.generateOnly }), { meta: { project: name, steps } });
-    implJobs.set(key, job.id);
-    return { job: job.id };
-  }));
+  api.post('/projects/:p/implement', wrap(async req => ({ job: (await startImplementation(req.params.p, req.body || {})).id })));
 
-  api.get('/projects/:p/reports', wrap(async req => {
-    const project = await P.readProject(req.params.p);
-    const buildDir = path.join(P.projectDir(req.params.p), 'build');
-    try { return JSON.parse(await fs.readFile(path.join(buildDir, 'reports.json'), 'utf8')); }
-    catch { /* not saved yet */ }
-    if (!fss.existsSync(buildDir) || !project.top) return { available: false };
-    return collectReports(buildDir, project.top, project.device);
-  }));
+  api.get('/projects/:p/reports', wrap(req => projectReports(req.params.p)));
 
   // the implemented design inside the FPGA (web/js/fpgaview.js): build/<top>.xdl + build/device.xdlrc,
   // written by the 'fpgaview' step; the model is cached in build/fpga-view.json. The Silinx toolchain's
