@@ -34,6 +34,46 @@ export const LUT4_COSTS = '1,1,1,1,2,4';
 // depth-oriented one after it.
 export const LUT4_ONLY = '1,1,1,1';
 
+// Wide multiplexers (#511): onto LUT4s alone a 128:1 multiplexer (iwls05-spi's data[bit_pos]) is 6 or 7
+// LUTs deep; XST builds it, as a 32:1 one, from LUTs into MUXF5 … MUXF8 (one LUT, then the F-multiplexers
+// of the CLB, no general routing between them). The mapping with the wider functions does not either (ABC
+// sees a 4:1 multiplexer as one 6-input LUT: 4 LUT4s, 2 MUXF5 and a MUXF6 each). Yosys's muxcover finds
+// the trees of 8 and 16 inputs among the 2:1 multiplexers before the LUT mapping; MUXF_MAP makes each one
+// 2:1 multiplexers on its first select, left to ABC (a LUT each, with the logic before it), into MUXF5,
+// MUXF6 (and MUXF7). Not for every design: a tree whose first select comes late is slower (the T80, 15 %
+// by the estimate) than ABC's own mapping, which puts the late select last; and its slices are full
+// (their BX / BY select the F-multiplexers: no flip-flop of another net). So the usual run counts the
+// trees (MUX_COUNT_FILE) and, with some, the design is mapped again with them (muxfRemapCommands), that
+// netlist kept when better by DEPTH_RULE (iwls05-spi: 12.7 ns estimated instead of 14.8, 745 LUTs instead
+// of 886). (4:1 trees too, -mux4: serv 29 % slower by the estimate, none faster.)
+export const MUXCOVER = 'muxcover -mux8 -mux16 -nodecode';
+export const MUXF_MAP_FILE = 'silinx_muxf_map.v';
+export const MUXF_MAP = `// Silinx: muxcover's trees of 2:1 multiplexers onto MUXF5 / MUXF6 / MUXF7 (#511)
+module \\$_MUX4_ (input A, B, C, D, S, T, output Y);
+  wire a, b;
+  \\$_MUX_ l0 (.A(A), .B(B), .S(S), .Y(a));
+  \\$_MUX_ l1 (.A(C), .B(D), .S(S), .Y(b));
+  MUXF5 f5 (.I0(a), .I1(b), .S(T), .O(Y));
+endmodule
+module \\$_MUX8_ (input A, B, C, D, E, F, G, H, S, T, U, output Y);
+  wire a, b;
+  \\$_MUX4_ m0 (.A(A), .B(B), .C(C), .D(D), .S(S), .T(T), .Y(a));
+  \\$_MUX4_ m1 (.A(E), .B(F), .C(G), .D(H), .S(S), .T(T), .Y(b));
+  MUXF6 f6 (.I0(a), .I1(b), .S(U), .O(Y));
+endmodule
+module \\$_MUX16_ (input A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, S, T, U, V, output Y);
+  wire a, b;
+  \\$_MUX8_ m0 (.A(A), .B(B), .C(C), .D(D), .E(E), .F(F), .G(G), .H(H), .S(S), .T(T), .U(U), .Y(a));
+  \\$_MUX8_ m1 (.A(I), .B(J), .C(K), .D(L), .E(M), .F(N), .G(O), .H(P), .S(S), .T(T), .U(U), .Y(b));
+  MUXF7 f7 (.I0(a), .I1(b), .S(V), .O(Y));
+endmodule
+`;
+export const MUX_COUNT_FILE = 'silinx_muxes.txt';
+// (counted on a copy of the design: muxcover changes it)
+const MUX_COUNT = `design -save silinx_premap; ${MUXCOVER}; tee -q -o ${MUX_COUNT_FILE} select -count t:$_MUX8_ t:$_MUX16_; design -load silinx_premap`;
+/** The wide multiplexer trees the usual run counted (MUX_COUNT_FILE), 0 when it did not count them. */
+export const muxTrees = out => +(/^(\d+) objects/m.exec(asText(out?.[MUX_COUNT_FILE]) || '')?.[1] || 0);
+
 // Shift registers of the 4-input-LUT families as SRL16E (synth_xilinx does not infer them there:
 // "Shift register inference not yet supported"). xilinx_srl -fixed turns chains of 3 or more
 // flip-flops without a reset (same clock, same enable) into $__XILINX_SHREG_ cells; it must run on
@@ -137,7 +177,13 @@ export function synthCommands(top, family, { srl = true, premap = null } = {}) {
   // xilinx_srl and the map to SRL16E (before map_cells, whose own map writes SRLC32E), then the step;
   // fine's own opt -full run first made t80 7 % larger)
   const shreg = srl ? `${synth} -run :fine; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
-  return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ` : ''}abc -luts ${LUT4_ONLY}; ${lutsToCells(synth)}`;
+  return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ${MUX_COUNT}; ` : ''}abc -luts ${LUT4_ONLY}; ${lutsToCells(synth)}`;
+}
+/** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again with its
+ *  wide multiplexers onto MUXF5 … MUXF7 (MUXCOVER, MUXF_MAP in the file MUXF_MAP_FILE), the rest onto LUT4s
+ *  alone as the usual mapping (#511). */
+export function muxfRemapCommands(top, family) {
+  return `read_rtlil ${PREMAP_FILE}; ${MUXCOVER}; techmap -map ${MUXF_MAP_FILE}; abc -luts ${LUT4_ONLY}; ${lutsToCells(`synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`)}`;
 }
 const lutsToCells = synth => 'clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
   + `xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; ${synth} -run finalize:`;
@@ -420,10 +466,12 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
  * the depth-oriented one was kept, delays: { ns, luts, kept } of the same with the LUT delays (#78), and
  * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
- * abc9: false leaves it out); each with its slices too, when it packs (sliceCount) }.
+ * abc9: false leaves it out); each with its slices too, when it packs (sliceCount); muxf: { trees, ns, luts, slices,
+ * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511) }.
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
  * usual mapping alone (no other mapping tried: as depth false), but for a design limited by its depth (#468:
- * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too; a design
+ * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too, and for a design
+ * with wide multiplexers (#511: their mapping onto MUXF5 … MUXF7, r.depth.muxf, at both efforts); a design
  * written as gates also has its adders' carry chains recovered (#77, #377), the faster netlist kept.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true } = {}) {
@@ -466,13 +514,37 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     // (a kept netlist's warnings: those the run before did not print, the netlist being the same before
     // the LUT mapping)
     const sayNew = l => { if (/^Warning:/.test(l) && !seen.includes(l)) { seen.push(l); say(l); } };
-    const json = out[`${top}.json`];
-    if (!json) throw Object.assign(new Error('Yosys wrote no netlist'), { lines: log });
-    let chosen = out, cells = cellCounts(json, top);
+    if (!out[`${top}.json`]) throw Object.assign(new Error('Yosys wrote no netlist'), { lines: log });
     // (each netlist's slices, when the rule weighs them: packed once)
     const slicesOf = new Map();
     const slices = j => (slicesOf.has(j) ? slicesOf.get(j) : slicesOf.set(j, sliceCount(j, top)).get(j));
     const info = { tried: false, kept: false, ns: null, luts: null };
+    // the wide multiplexers onto MUXF5 … MUXF7 (#511), when the usual run counted some: kept by DEPTH_RULE, then
+    // the usual mapping for the rest (the other mappings are made from the same netlist and measured against it)
+    const trees = muxTrees(out);
+    if (trees && out[PREMAP_FILE]) {
+      const linesM = [];
+      try {
+        const outM = await run(['-q', '-p', `${muxfRemapCommands(top, family)}; ${outputs(top)}`], { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [MUXF_MAP_FILE]: MUXF_MAP },
+          l => { if (!quiet(l)) linesM.push(l); });
+        const j0 = out[`${top}.json`], jM = outM[`${top}.json`];
+        if (jM) {
+          const ns = [criticalDelay(j0, top), criticalDelay(jM, top)], luts = [utilization(cellCounts(j0, top)).luts, utilization(cellCounts(jM, top)).luts];
+          const sl = [slices(j0), slices(jM)];
+          info.muxf = { trees, ns: ns[1], luts: luts[1], slices: sl[1], kept: keepDepth(ns, luts, DEPTH_RULE, sl) };
+          if (info.muxf.kept) {
+            out = { ...outM, [PREMAP_FILE]: out[PREMAP_FILE] };
+            for (const l of linesM) sayNew(l);
+          }
+        }
+      } catch (e) {
+        // (an optional mapping that failed: the usual one kept, as the depth-oriented ones, #401)
+        info.muxf = { trees, kept: false, failed: e.message };
+        sayNew(`Warning: the mapping of the wide multiplexers failed (${e.message}): the usual mapping is kept`);
+      }
+    }
+    const json = out[`${top}.json`];
+    let chosen = out, cells = cellCounts(json, top);
     if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
       // (the kept mappings' warnings: said once the choice is made, none of a mapping a failure drops)
       const kept = [];

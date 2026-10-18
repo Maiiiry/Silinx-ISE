@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -216,7 +216,9 @@ const cell = (type, ins, outs) => ({ type, port_directions: { ...Object.fromEntr
 const netlistOf = cells => ({ modules: { t: { attributes: { top: 1 }, cells } } });
 
 test('logic depth: the scripts (the design before the LUT mapping written, mapped again by the depth-oriented ABC script)', () => {
-  assert.equal(yosysScript('top', 'spartan3e', { premap: PREMAP_FILE }), yosysScript('top', 'spartan3e').replace('abc -luts', 'write_rtlil silinx_premap.il; abc -luts'));
+  // (and the wide multiplexer trees counted on a copy of it, #511)
+  assert.equal(yosysScript('top', 'spartan3e', { premap: PREMAP_FILE }), yosysScript('top', 'spartan3e').replace('abc -luts', 'write_rtlil silinx_premap.il; '
+    + 'design -save silinx_premap; muxcover -mux8 -mux16 -nodecode; tee -q -o silinx_muxes.txt select -count t:$_MUX8_ t:$_MUX16_; design -load silinx_premap; abc -luts'));
   assert.equal(remapCommands('top', 'spartan3e'), 'read_rtlil silinx_premap.il; abc -luts 1,1,1,1,2,4 -script silinx_depth.abc; clean; techmap -map +/xilinx/ff_map.v; '
     + 'techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
   assert.match(DEPTH_ABC, /if -g; .*if; mfs2$/);
@@ -492,6 +494,100 @@ test('#502 a fixed-length shift register: its last stage a flip-flop, the stages
     const d = compareNetlist(design, r, { name: what, sim: { cycles: 400 } });
     assert.equal(d.status, 'pass', `${what}: ${d.report || d.reason}`);
   }
+});
+
+// #511: the wide multiplexers onto MUXF5 / MUXF6 / MUXF7, from the netlist before the LUT mapping, when the usual run
+// counted some trees of 8 or 16 inputs; kept by DEPTH_RULE
+test('#511 wide multiplexers: the script (muxcover, Silinx\'s map, ABC onto LUT4s alone for the rest), the count of the trees', () => {
+  assert.equal(muxfRemapCommands('top', 'spartan3e'), `read_rtlil ${PREMAP_FILE}; muxcover -mux8 -mux16 -nodecode; techmap -map ${MUXF_MAP_FILE}; abc -luts 1,1,1,1; clean; `
+    + 'techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; '
+    + 'synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
+  assert.equal(muxfRemapCommands('m', 'spartan3'), muxfRemapCommands('m', 'spartan3e').replace('xc3se', 'xc3s'));
+  // (the first select into 2:1 multiplexers, ABC's; the others the F-multiplexers)
+  assert.match(MUXF_MAP, /module \\\$_MUX16_ [^]*MUXF7 f7 \(\.I0\(a\), \.I1\(b\), \.S\(V\)/);
+  assert.match(MUXF_MAP, /module \\\$_MUX4_ [^]*\\\$_MUX_ l0 \(\.A\(A\), \.B\(B\), \.S\(S\)[^]*MUXF5 f5 \(\.I0\(a\), \.I1\(b\), \.S\(T\)/);
+  assert.equal(muxTrees({ [MUX_COUNT_FILE]: '18 objects.\n' }), 18);
+  assert.equal(muxTrees({ [MUX_COUNT_FILE]: new TextEncoder().encode('0 objects.\n') }), 0);
+  assert.equal(muxTrees({}), 0);
+  assert.equal(muxTrees(undefined), 0);
+});
+
+// a register file of 1-bit registers, written at one address and read at another (iwls05-spi's data[bit_pos])
+const regFile = (n, top = `rf${n}`) => { const a = Math.log2(n); return `module ${top}(input clk, input we, input din, input [${a - 1}:0] ws, rs, output reg y);
+  reg [${n - 1}:0] r; reg [${a - 1}:0] a;
+  always @(posedge clk) begin a <= rs; if (we) r[ws] <= din; y <= r[a]; end
+endmodule
+`; };
+const RF_VHDL = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity rfv is port (clk, we, din : in std_logic; ws, rs : in unsigned(4 downto 0); y : out std_logic); end rfv;
+architecture rtl of rfv is
+  signal r : std_logic_vector(31 downto 0);
+  signal a : unsigned(4 downto 0);
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      a <= rs;
+      if we = '1' then r(to_integer(ws)) <= din; end if;
+      y <= r(to_integer(a));
+    end if;
+  end process;
+end rtl;
+`;
+test('#511 wide multiplexers onto MUXF5 / MUXF6 / MUXF7, at Normal and High: faster and smaller, kept; the same function (Verilog and VHDL)', { timeout: 600000 }, async () => {
+  const cases = [
+    ['32:1, Verilog', elaborate(compile([{ path: 'rf32.v', lang: 'verilog', text: regFile(32) }]), 'rf32'), 2, { MUXF5: 8, MUXF6: 4, MUXF7: 2 }],
+    ['128:1, Verilog', elaborate(compile([{ path: 'rf128.v', lang: 'verilog', text: regFile(128) }]), 'rf128'), 9, { MUXF5: 34, MUXF6: 17, MUXF7: 8 }],
+    ['32:1, VHDL', design(RF_VHDL, 'rfv'), 2, { MUXF5: 8, MUXF6: 4, MUXF7: 2 }],
+  ];
+  for (const [what, d, trees, muxes] of cases) {
+    const top = d.top.name;
+    const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+    const normal = count();
+    const r = await synthesizeOpen(d, { family: 'spartan3e', run: normal, effort: 'normal' });
+    // (the usual run and the one with the trees)
+    assert.equal(normal.n, 2, what);
+    const usual = await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort: 'normal', depth: false });
+    assert.deepEqual([r.depth.muxf.trees, r.depth.muxf.kept, r.depth.tried], [trees, true, false], `${what}: ${JSON.stringify(r.depth)}`);
+    assert.deepEqual(Object.fromEntries(Object.entries(r.cells).filter(([k]) => /^MUXF/.test(k)).sort()), muxes, what);
+    assert.equal(usual.util.muxes, 0, what);
+    const ns = [criticalDelay(usual.files[`${top}.json`], top), criticalDelay(r.files[`${top}.json`], top)];
+    assert.ok(ns[1] < ns[0] * 0.85, `${what}: ${ns[1]} ns against ${ns[0]}`);
+    assert.ok(r.util.luts < usual.util.luts, `${what}: ${r.util.luts} LUTs against ${usual.util.luts}`);
+    assert.deepEqual(r.warnings, [], what);
+    assert.deepEqual(usual.warnings, [], what);
+    const c = compareNetlist(d, r, { name: `muxf-${top}`, seed: top, sim: { cycles: 600 } });
+    assert.equal(c.status, 'pass', `${what}: ${c.report || c.reason}`);
+    // High: the same netlist kept before its other mappings
+    const hi = await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode });
+    assert.deepEqual([hi.depth.muxf.kept, hi.util.luts, hi.util.muxes], [true, r.util.luts, r.util.muxes], what);
+    assert.deepEqual(hi.warnings, [], what);
+  }
+});
+test('#511 wide multiplexers: not kept when they take more slices than the rule allows (registers straight from the inputs: the F-multiplexers\' slices have no room for them); a design without them is one run at Normal', { timeout: 300000 }, async () => {
+  const text = `module wide(input clk, input [127:0] d, input [6:0] s, output reg y);
+  reg [127:0] rd; reg [6:0] rs;
+  always @(posedge clk) begin rd <= d; rs <= s; y <= rd[rs]; end
+endmodule
+`;
+  const d = elaborate(compile([{ path: 'wide.v', lang: 'verilog', text }]), 'wide');
+  const r = await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort: 'normal' });
+  const json = r.files['wide.json'];
+  const sl = sliceCount(json, 'wide');
+  assert.equal(r.depth.muxf.kept, false, JSON.stringify(r.depth));
+  assert.equal(r.util.muxes, 0);
+  // (faster and with fewer LUTs, but more slices than it gains in speed)
+  assert.ok(r.depth.muxf.ns < criticalDelay(json, 'wide') && r.depth.muxf.luts < r.util.luts, JSON.stringify(r.depth));
+  assert.ok(r.depth.muxf.slices > sl * (1 + Math.max(DEPTH_RULE.luts, 1 - r.depth.muxf.ns / criticalDelay(json, 'wide'))), `${r.depth.muxf.slices} slices against ${sl}`);
+  assert.equal(keepDepth([criticalDelay(json, 'wide'), r.depth.muxf.ns], [r.util.luts, r.depth.muxf.luts], DEPTH_RULE, [sl, r.depth.muxf.slices]), false);
+  assert.deepEqual(r.warnings, []);
+  const c = compareNetlist(d, r, { name: 'muxf-wide', seed: 'wide', sim: { cycles: 300 } });
+  assert.equal(c.status, 'pass', c.report || c.reason);
+  // the counter: no tree, the usual run alone, no muxf in r.depth
+  const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+  const one = count();
+  const n = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run: one, effort: 'normal' });
+  assert.deepEqual([one.n, n.depth.muxf], [1, undefined]);
+  assert.deepEqual(n.warnings, []);
 });
 
 // #377: ABC9 onto LUT4s alone, one more candidate of effort High (research/synth-quality/README.md, "ABC9")
