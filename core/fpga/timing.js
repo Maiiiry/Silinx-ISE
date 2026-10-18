@@ -438,6 +438,9 @@ function multArcs(inst, model, out) {
 
 // ------------------------------------------------------------------ static timing analysis
 const isConstNet = n => /^(vcc|gnd|power|ground|vdd)$/i.test(n.type || '');
+// an instance clocked on the falling edge: its clock inverted (a slice's CLKINV, a block RAM's CLKAINV / CLKBINV, a
+// multiplier's CLKINV = *_B; a latch with an active-high gate, CLK_B, closes on the falling edge too)
+const fallingEdge = inst => (inst.cfg.some(c => /^CLK[AB]?INV$/.test(c.attr) && /_B$/.test(c.value)) ? 1 : 0);
 
 /**
  * The timing graph of a design (parseXdl's structure, placed; routed or not): the pins of the
@@ -447,7 +450,10 @@ const isConstNet = n => /^(vcc|gnd|power|ground|vdd)$/i.test(n.type || '');
  * analyze(connDelay: delay of each connection, ns) -> { period, clocks: [{ clock, period, path }],
  * slack: Float64Array, crit: Float64Array } covers the paths from a flip-flop to a flip-flop on the
  * same clock net (what trce's "minimum period" of each clock covers); the criticality of a
- * connection is 1 - slack / period, the slack taken against the worst clock's period.
+ * connection is 1 - slack / period, the slack taken against the worst clock's period. A path between
+ * the clock's two edges (a rising-edge flip-flop into a falling-edge one, CLKINV = CLK_B, or back)
+ * has half a period: it limits the period to twice its delay, as trce counts it (#442; the clock's
+ * `half`: its critical path is one).
  */
 export function timingGraph(design, model = SPEED_4) {
   const pinId = new Map(), pinName = [];
@@ -472,14 +478,15 @@ export function timingGraph(design, model = SPEED_4) {
       eFrom.push(pid(src.inst, src.pin)); eTo.push(pid(p.inst, p.pin)); eDelay.push(0); eConn.push(c);
     }
   }
-  const starts = [], ends = [];   // [pin, ns, clock]
+  const starts = [], ends = [];   // [pin, ns, clock, edge (0 rising, 1 falling)]
   for (const inst of design.insts) {
     const a = instArcs(inst, model);
     const clk = clockOf.get(inst.name) || null;
     for (const [i, o, d] of a.comb) { eFrom.push(pid(inst.name, i)); eTo.push(pid(inst.name, o)); eDelay.push(d); eConn.push(-1); }
     if (!clk) continue;
-    for (const [o, d] of a.clkToOut) starts.push([pid(inst.name, o), d, clk]);
-    for (const [i, d] of a.setup) ends.push([pid(inst.name, i), d, clk]);
+    const edge = fallingEdge(inst);
+    for (const [o, d] of a.clkToOut) starts.push([pid(inst.name, o), d, clk, edge]);
+    for (const [i, d] of a.setup) ends.push([pid(inst.name, i), d, clk, edge]);
   }
   const P = pinName.length, E = eFrom.length;
   // edges by from-pin, and a topological order (Kahn; pins on a combinational loop are left out)
@@ -498,33 +505,44 @@ export function timingGraph(design, model = SPEED_4) {
     for (let e = 0; e < E; e++) if (eConn[e] >= 0) delay[e] = connDelay[eConn[e]];
     const req = new Float64Array(P), prevE = new Int32Array(P);
     const crit = new Float64Array(conns.length), slack = new Float64Array(conns.length).fill(Infinity);
-    const perClock = [];
+    const perClock = [], passes = [];
     for (const clk of clocks) {
-      const arr = new Float64Array(P).fill(-Infinity);
-      prevE.fill(-1);
-      for (const [p, d, c] of starts) if (c === clk && d > arr[p]) arr[p] = d;
-      for (const p of order) {
-        if (arr[p] === -Infinity) continue;
-        for (let x = outStart[p]; x < outStart[p + 1]; x++) { const e = outEdge[x], q = eTo[e], t = arr[p] + delay[e]; if (t > arr[q]) { arr[q] = t; prevE[q] = e; } }
+      // one pass per launching edge; a path to the other edge counts twice (half a period)
+      let best = null;
+      for (const launch of [0, 1]) {
+        if (!starts.some(s => s[2] === clk && s[3] === launch)) continue;
+        const arr = new Float64Array(P).fill(-Infinity);
+        prevE.fill(-1);
+        for (const [p, d, c, ed] of starts) if (c === clk && ed === launch && d > arr[p]) arr[p] = d;
+        for (const p of order) {
+          if (arr[p] === -Infinity) continue;
+          for (let x = outStart[p]; x < outStart[p + 1]; x++) { const e = outEdge[x], q = eTo[e], t = arr[p] + delay[e]; if (t > arr[q]) { arr[q] = t; prevE[q] = e; } }
+        }
+        passes.push({ clock: clk, launch, arr });
+        let worst = -Infinity, wEnd = null;
+        for (const end of ends) {
+          if (end[2] !== clk || arr[end[0]] === -Infinity) continue;
+          const t = (arr[end[0]] + end[1]) * (end[3] === launch ? 1 : 2);
+          if (t > worst) { worst = t; wEnd = end; }
+        }
+        if (!wEnd || (best && best.period >= worst)) continue;
+        // the critical path, back from its end
+        const path = [{ ...pinName[wEnd[0]], kind: 'setup', delay: wEnd[1], arrival: arr[wEnd[0]] + wEnd[1] }];
+        for (let p = wEnd[0]; ;) {
+          const e = prevE[p];
+          path.unshift({ ...pinName[p], kind: e < 0 ? 'clock-to-out' : eConn[e] >= 0 ? 'net' : 'logic', delay: e < 0 ? arr[p] : delay[e], arrival: arr[p] });
+          if (e < 0) break;
+          p = eFrom[e];
+        }
+        best = { clock: clk, period: worst, path, half: wEnd[3] !== launch };
       }
-      let worst = -Infinity, wEnd = null;
-      for (const end of ends) if (end[2] === clk && arr[end[0]] > -Infinity && arr[end[0]] + end[1] > worst) { worst = arr[end[0]] + end[1]; wEnd = end; }
-      if (!wEnd) continue;
-      // the critical path, back from its end
-      const path = [{ ...pinName[wEnd[0]], kind: 'setup', delay: wEnd[1], arrival: worst }];
-      for (let p = wEnd[0]; ;) {
-        const e = prevE[p];
-        path.unshift({ ...pinName[p], kind: e < 0 ? 'clock-to-out' : eConn[e] >= 0 ? 'net' : 'logic', delay: e < 0 ? arr[p] : delay[e], arrival: arr[p] });
-        if (e < 0) break;
-        p = eFrom[e];
-      }
-      perClock.push({ clock: clk, period: worst, path, arr });
+      if (best) perClock.push(best);
     }
     const period = perClock.reduce((a, c) => Math.max(a, c.period), 0);
-    // required times against the worst period
-    for (const c of perClock) {
+    // required times against the worst period (half of it at the other edge)
+    for (const c of passes) {
       req.fill(Infinity);
-      for (const [p, d, k] of ends) if (k === c.clock && period - d < req[p]) req[p] = period - d;
+      for (const [p, d, k, ed] of ends) { const r = (ed === c.launch ? period : period / 2) - d; if (k === c.clock && r < req[p]) req[p] = r; }
       for (let j = order.length - 1; j >= 0; j--) {
         const p = order[j];
         for (let x = outStart[p]; x < outStart[p + 1]; x++) { const e = outEdge[x], t = req[eTo[e]] - delay[e]; if (t < req[p]) req[p] = t; }
@@ -537,7 +555,7 @@ export function timingGraph(design, model = SPEED_4) {
       }
     }
     for (let ci = 0; ci < conns.length; ci++) crit[ci] = period > 0 && slack[ci] < Infinity ? Math.max(0, Math.min(1, 1 - slack[ci] / period)) : 0;
-    return { period, clocks: perClock.map(c => ({ clock: c.clock, period: c.period, path: c.path })), crit, slack };
+    return { period, clocks: perClock.map(c => ({ clock: c.clock, period: c.period, path: c.path, half: c.half })), crit, slack };
   }
   return { conns, connIndex, pins: pinName, analyze };
 }

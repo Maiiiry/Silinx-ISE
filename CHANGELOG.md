@@ -40,6 +40,11 @@ In short:
 
 In detail:
 
+- **Static timing: half-cycle paths (#442):** a path between a clock's two edges (a rising-edge flip-flop into a
+  falling-edge SRL16E_1, RAM or `*_1` flip-flop, or back) has half a period. Silinx's timing analysis now limits
+  the clock's period to twice its delay, as ISE's trce does, where it gave the delay itself (too short a period).
+  The srl fixture's rise→fall path: 3.124 ns (trce 3.042). No example, open-flow fixture or corpus design has its
+  critical path between the two edges, so their periods are unchanged.
 - **Design corpus: a design's own clock period (#440):** iwls05-spi's critical path (19.9 ns on macOS, 20.08 on
   GitHub's Linux runner) sat on the corpus's fixed PERIOD of 20 ns, so its "PERIOD not met" warning came and went
   from one machine to the other and failed the Nightly; a design may now give its own `periodNs` in the manifest
