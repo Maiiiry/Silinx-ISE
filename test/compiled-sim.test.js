@@ -179,29 +179,80 @@ test('a DCM\'s clocks against their arithmetic: the rising edges of CLKFX, CLKDV
     }
   }
 });
-test('a DCM with what the board shows counted (watch): sampled once a main clock cycle, before its rising edge', async () => {
-  const text = `module w(input clk, output reg t = 0); wire dv; DCM_SP #(.CLKDV_DIVIDE(3.0)) u (.CLKIN(clk), .RST(1'b0), .CLKDV(dv));
-    always @(posedge dv) t <= ~t; endmodule`;
-  const { json } = await netlistOf(designOf(src('w.v', text), 'w'), { run: yosysNode });
-  const bit = portBit(json, 'w', 't');
-  const ref = new CompiledSim(compileNetlist(json, { top: 'w' }));
-  const s = new CompiledSim(compileNetlist(json, { top: 'w', clock: 'clk', watch: { levels: [{ bit, on: 1 }], edges: [{ bit, capture: [bit] }] } }));
-  // (the reference: t before each rising edge, cycle by cycle, the first sample and the one after the last
-  // edge counted half; its falling edges: the cycles before which it is 0 after a 1)
-  let high = 0, prev = null;
-  const falls = [];
-  for (let k = 0; k < 600; k++) {
-    const t = ref.get('t');
-    if (t) high += k === 0 ? 0.5 : 1;
-    if (prev === 1n && t === 0n) falls.push(k);
-    prev = t;
-    ref.cycle(1);
+// DCMs with their RST driven (#465): reset at random cycles, from an input and from a register
+test('two DCM_SPs reset by the design, from an input and from a register of the main clock: every output but CLK90 / CLK270, at several frequencies (VHDL)', async () => {
+  for (const generics of DCM_SETS) {
+    const sim = await compileDesign(designOf(fixture('dcm_rst.vhd'), 'dcm_rst_vhd', { generics }), { run: yosysNode });
+    assert.deepEqual(sim.warnings, []);
+    assert.equal(sim.model.stats.dcms, 2);
+    await same(fixture('dcm_rst.vhd'), 'dcm_rst_vhd', { p: 0.1, generics, cycles: 300 });
+  }
+});
+test('a DCM reset by an active-low button, another by a register of the first one\'s CLKDV, a BUFGCE of a reset DCM\'s clock (Verilog)', async () => {
+  const sim = await compileDesign(designOf(fixture('dcm_rst.v'), 'dcm_rst_v'), { run: yosysNode });
+  assert.deepEqual(sim.warnings, []);
+  assert.equal(sim.model.stats.dcms, 2);
+  await same(fixture('dcm_rst.v'), 'dcm_rst_v', { p: 0.1 });
+});
+test('a DCM\'s reset against the arithmetic: its clocks stopped and LOCKED low while RST is high, the lock sequence again from the release', async () => {
+  const text = `module f(input clk, r, output lk, output reg [31:0] n0 = 0, nfx = 0, ndv = 0, n2x = 0);
+    wire c0, cfx, cdv, c2x;
+    DCM_SP #(.CLKFX_MULTIPLY(5), .CLKFX_DIVIDE(3), .CLKDV_DIVIDE(2.5)) u (.CLKIN(clk), .RST(r), .CLK0(c0), .CLKFX(cfx), .CLKDV(cdv), .CLK2X(c2x), .LOCKED(lk));
+    always @(posedge c0) n0 <= n0 + 1;
+    always @(posedge cfx) nfx <= nfx + 1;
+    always @(posedge cdv) ndv <= ndv + 1;
+    always @(posedge c2x) n2x <= n2x + 1;
+  endmodule`;
+  const edges = (n, s, q) => (n <= s ? 0 : Math.ceil((n - s) / q));
+  const count = n => ({ n0: edges(n, 2, 1), nfx: edges(n, 3, 3 / 5), ndv: edges(n, 3, 2.5), n2x: edges(n, 3, 0.5) });
+  const s = await compileDesign(designOf(src('f.v', text), 'f'), { run: yosysNode });
+  // (RST high from the start: never locked; then released, reset again after 1, 3, 4 and 37 cycles)
+  s.set('r', 1);
+  s.cycle(5);
+  const at = { n0: 0, nfx: 0, ndv: 0, n2x: 0 };
+  for (const run of [41, 1, 3, 4, 37]) {
+    s.set('r', 0);
+    for (let m = 1; m <= run; m++) {
+      s.cycle(1);
+      assert.equal(s.get('lk'), m >= 3 ? 1n : 0n, `LOCKED, ${m} cycles after the release`);
+      for (const [k, v] of Object.entries(count(m))) assert.equal(s.get(k), BigInt(at[k] + v), `${k}, ${m} cycles after the release`);
+    }
+    for (const [k, v] of Object.entries(count(run))) at[k] += v;
+    s.set('r', 1);
+    s.cycle(1);
+    assert.equal(s.get('lk'), 0n);
+    s.cycle(6);
+    for (const k of Object.keys(at)) assert.equal(s.get(k), BigInt(at[k]), `${k} held in reset`);
+  }
+});
+test('a DCM with what the board shows counted (watch): sampled once a main clock cycle, before its rising edge (RST tied, and reset by the design)', async () => {
+  // (the reset: a register of the main clock, high 4 cycles out of 32)
+  for (const rst of ["1'b0", 'k[4] & k[3]']) {
+    const text = `module w(input clk, output reg t = 0); wire dv; reg [4:0] k = 0; always @(posedge clk) k <= k + 1;
+      DCM_SP #(.CLKDV_DIVIDE(3.0)) u (.CLKIN(clk), .RST(${rst}), .CLKDV(dv));
+      always @(posedge dv) t <= ~t; endmodule`;
+    const { json } = await netlistOf(designOf(src('w.v', text), 'w'), { run: yosysNode });
+    const bit = portBit(json, 'w', 't');
+    const ref = new CompiledSim(compileNetlist(json, { top: 'w' }));
+    const s = new CompiledSim(compileNetlist(json, { top: 'w', clock: 'clk', watch: { levels: [{ bit, on: 1 }], edges: [{ bit, capture: [bit] }] } }));
+    // (the reference: t before each rising edge, cycle by cycle, the first sample and the one after the last
+    // edge counted half; its falling edges: the cycles before which it is 0 after a 1)
+    let high = 0, prev = null;
+    const falls = [];
+    for (let k = 0; k < 600; k++) {
+      const t = ref.get('t');
+      if (t) high += k === 0 ? 0.5 : 1;
+      if (prev === 1n && t === 0n) falls.push(k);
+      prev = t;
+      ref.cycle(1);
   }
   if (ref.get('t')) high += 0.5;
   s.cycle(600);
   const { counts, edges } = s.take();
   assert.equal(counts[0], high);
   assert.deepEqual(edges.filter((_, i) => i % 2 === 0), falls);
+  assert.ok(falls.length > 50, rst);
+  }
 });
 
 test('the comparison finds a wrong compiled model', async () => {
@@ -373,9 +424,16 @@ test('a combinational loop, an inout port, a tristate buffer, a primitive with n
   s.set('en', 1);
   assert.throws(() => s.cycle(0), { name: 'Error', message: 'the design does not settle (a loop through a latch or a clock?)' });
 });
-test('a DCM: not compiled when its RST is driven, its CLKIN is not an input port or a DCM\'s steady clock, or the main clock is another', async () => {
+test('a DCM: not compiled when its RST is driven and it is cascaded or its CLK90 used, its CLKIN is not an input port or a DCM\'s steady clock, or the main clock is another', async () => {
   const dcm = (ports, conn) => `module d(input clk, ${ports}, output reg [3:0] n = 0); wire c; DCM_SP u (${conn}, .CLKFX(c)); always @(posedge c) n <= n + 1; endmodule`;
-  assert.equal(await failure('d.v', dcm('input r', '.CLKIN(clk), .RST(r)')), "the DCM 'u' has its RST driven by the design: not compiled yet");
+  // (RST driven: by a DCM the main clock clocks; a cascaded DCM's, a DCM clocked by a reset one, CLK90 / CLK270 not)
+  assert.ok(await compileDesign(designOf(src('d.v', dcm('input r', '.CLKIN(clk), .RST(r)')), 'd'), { run: yosysNode }));
+  assert.equal(await failure('d.v', dcm('input r', '.CLKIN(x), .RST(r)').replace('wire c;', "wire c, x; DCM_SP a (.CLKIN(clk), .RST(1'b0), .CLKFX(x));")),
+    "the DCM 'u' has its RST driven by the design and is clocked by CLKFX of 'a': not compiled");
+  assert.equal(await failure('d.v', dcm('input r', ".CLKIN(x), .RST(1'b0)").replace('wire c;', 'wire c, x; DCM_SP a (.CLKIN(clk), .RST(r), .CLKFX(x));')),
+    "the DCM 'u' is clocked by CLKFX of 'a', whose RST is driven by the design: not compiled");
+  assert.equal(await failure('d.v', dcm('input r', '.CLKIN(clk), .RST(r), .CLK90(c90)').replace('wire c;', 'wire c, c90;').replace('posedge c)', 'posedge c90)')),
+    "the DCM 'u' has its RST driven by the design and its CLK90 used: not compiled");
   assert.equal(await failure('d.v', dcm('input r', ".CLKIN(k[1]), .RST(1'b0)").replace('wire c;', 'wire c; reg [1:0] k = 0; always @(posedge clk) k <= k + 1;')),
     "the DCM 'u' is not clocked by an input port: not compiled");
   // (a cascade from CLK2X180, high from the lock before its first rising edge, is not a steady clock)

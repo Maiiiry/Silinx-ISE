@@ -15,6 +15,9 @@ In short:
 - **A faster or smaller synthesis at Optimization Effort High:** Silinx also tries Yosys's ABC9 mapper and keeps
   its result when it is better (35 % fewer slices on one of the corpus's I2C cores, up to 15 % faster on others),
   for about a second more of synthesis. The default effort, Normal, is unchanged.
+- **DCMs with a reset on the compiled engine:** a design whose DCM is reset by a button or by the design (a
+  Clocking Wizard wrapper's RST_IN) runs in the Board Emulator at the board's speed instead of falling back to the
+  event-driven engine: while RST is high its clocks stop and LOCKED is low, and they lock again after its release.
 
 In detail:
 
@@ -58,6 +61,16 @@ In detail:
   repository allows only rebase merging (no merge commits, no squash), as CLAUDE.md asked; the required check is
   not strict (a pull request need not be up to date with main to merge, which several sessions merging each hour
   would make a queue of rebases).
+- **Compiled simulator: a DCM whose RST the design drives (#465):** it was a CompileError ("has its RST driven by
+  the design: not compiled yet"). Each DCM clocked by the main clock now has a schedule of its own and its own count
+  of cycles (with the DCMs it clocks), as core/unisim.js's model: RST high clears the count and LOCKED and sets the
+  outputs to 0 at once, dropping their edges still to come; from the first rising edge with RST low the lock
+  sequence starts again (LOCKED and CLK0 at the 3rd edge, CLK2X / CLKDV / CLKFX from the 4th). A reset is seen at
+  the end of its time, after the DCM's edges at that time, as the event-driven simulator orders them. Still not
+  compiled: a cascaded DCM with its RST driven, a DCM clocked by one whose RST is driven, and the CLK90 / CLK270 of a
+  DCM whose RST is driven. Checked cycle by cycle against the event-driven simulator, internal nets included, in
+  VHDL (two DCMs, reset from an input and from a register, at six sets of frequencies) and Verilog (a reset from a
+  register of another DCM's clock), with resets at random cycles.
 
 ## 15.11.0
 
