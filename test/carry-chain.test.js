@@ -8,12 +8,12 @@ import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { synthesizeOpen, criticalDelay } from '../core/synth-open.js';
 import { yosysNode } from '../core/synth-open-node.js';
-import { gateAssignments, rewriteCarryChains, GATE_MIN, MIN_CHAIN } from '../core/carry-chain.js';
+import { gateAssignments, rewriteCarryChains, GATE_MIN, MIN_CHAIN, ADDER_MIN } from '../core/carry-chain.js';
 import { compareNetlist } from './diff-synth.js';
 
-const syn = async (text, top, lang = 'verilog') => {
+const syn = async (text, top, lang = 'verilog', opts = {}) => {
   const design = elaborate(compile([{ path: lang === 'vhdl' ? 'd.vhd' : 'd.v', lang, text }]), top);
-  const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
+  const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode, ...opts });
   const d = compareNetlist(design, r, { name: top, sim: { cycles: 300 } });
   assert.equal(d.status, 'pass', d.report || d.reason);
   return { r, design };
@@ -122,10 +122,84 @@ test('a chain shorter than MIN_CHAIN is left to the LUTs; a design with few gate
   assert.deepEqual(r2.chains, []);
 });
 
+// #377: at effort Normal (the projects' default) an adder's chain too, when the design is not deep (#468 gives a
+// deep one, the EPFL adder's 98 ns on LUTs, High's mappings): its first run beside the usual one; a comparator's
+// chain left to the LUTs
+const counted = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+test('#377 effort Normal: a ripple adder written as gates (16 bits, not deep) on the carry chain, three runs of Yosys; the netlist simulates like it, no warning', { timeout: 300000 }, async () => {
+  const run = counted();
+  const { r } = await syn(rippleV(16), 'add', 'verilog', { effort: 'normal', run });
+  assert.equal(run.n, 3);   // the coarse netlist and the usual run at once, then the netlist with the chain
+  assert.equal(r.depth.auto, false);
+  assert.deepEqual(r.chains, [16]);
+  assert.equal(r.cells.MUXCY, 16);
+  assert.equal(r.depth.tried, false);
+  assert.deepEqual(r.warnings, []);
+  // a deep one (the AND-inverter graph, 32 bits): High's mappings (#468), on the chain too
+  const { r: deep } = await syn(aigAdder(32), 'aig', 'verilog', { effort: 'normal' });
+  assert.equal(deep.depth.auto, true);
+  assert.equal(deep.chains.length, 1);
+  assert.deepEqual(deep.warnings, []);
+});
+
+test('#377 effort Normal: a comparator\'s chain (no sums), an adder shorter than ADDER_MIN and a design without chains keep the usual run\'s netlist, two runs; few gates, one', { timeout: 300000 }, async () => {
+  const n = 16;
+  const lt = `module lt(input [${n - 1}:0] a, b, output y);
+  wire [${n}:0] c;
+  assign c[0] = 1'b0;
+  genvar i;
+  generate for (i = 0; i < ${n}; i = i + 1) begin : g
+    assign c[i + 1] = (~a[i] & b[i]) | (~(a[i] ^ b[i]) & c[i]);
+  end endgenerate
+  assign y = c[${n}];
+endmodule`;
+  let run = counted();
+  const { r } = await syn(lt, 'lt', 'verilog', { effort: 'normal', run });
+  assert.equal(run.n, 2);
+  assert.deepEqual(r.chains, []);
+  assert.equal(r.cells.MUXCY, undefined);
+  assert.deepEqual(r.warnings, []);
+  // an adder shorter than ADDER_MIN: on the LUTs (High: its chain)
+  run = counted();
+  const { r: r6, design: d6 } = await syn(rippleV(ADDER_MIN - 2), 'add', 'verilog', { effort: 'normal', run });
+  assert.ok(gateAssignments(d6) >= GATE_MIN);
+  assert.equal(run.n, 2);
+  assert.deepEqual(r6.chains, []);
+  assert.deepEqual((await syn(rippleV(ADDER_MIN - 2), 'add')).r.chains, [ADDER_MIN - 2]);
+  run = counted();
+  const { r: r2 } = await syn('module cnt(input clk, output reg [7:0] q = 0); always @(posedge clk) q <= q + 1; endmodule', 'cnt', 'verilog', { effort: 'normal', run });
+  assert.equal(run.n, 1);
+  assert.deepEqual(r2.chains, []);
+});
+
+test('#377 rewriteCarryChains: each chain\'s sums; adders: a comparator\'s chain left out, an adder\'s kept', { timeout: 300000 }, async () => {
+  const { splitCommands, yosysFiles, SRL_CELLS_FILE, asText } = await import('../core/synth-open.js');
+  const { toVerilog } = await import('../core/synth-verilog.js');
+  const coarse = async (text, top) => {
+    const { text: v } = toVerilog(elaborate(compile([{ path: 'd.v', lang: 'verilog', text }]), top));
+    const [first] = splitCommands(top, 'spartan3e');
+    const out = await yosysNode(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${first}; select -module ${top}; write_json -selected c.json`], yosysFiles(top, v));
+    return asText(out['c.json']);
+  };
+  const add = await coarse(rippleV(8), 'add');
+  const all = rewriteCarryChains(add, { top: 'add' });
+  assert.deepEqual(all.chains, [8]);
+  assert.ok(all.sums[0] >= 7, JSON.stringify(all.sums));
+  assert.deepEqual(rewriteCarryChains(add, { top: 'add', adders: true }).chains, [8]);
+  const lt = await coarse(`module lt(input [7:0] a, b, output y); wire [8:0] c; assign c[0] = 1'b0;
+  genvar i; generate for (i = 0; i < 8; i = i + 1) begin : g assign c[i + 1] = (~a[i] & b[i]) | (~(a[i] ^ b[i]) & c[i]); end endgenerate
+  assign y = c[8]; endmodule`, 'lt');
+  const cmp = rewriteCarryChains(lt, { top: 'lt' });
+  assert.equal(cmp.chains.length, 1);
+  assert.deepEqual(cmp.sums, [0]);
+  const none = rewriteCarryChains(lt, { top: 'lt', adders: true });
+  assert.deepEqual([none.chains, none.sums], [[], []]);
+});
+
 test('rewriteCarryChains on a netlist with no logic: nothing found, the netlist unchanged', () => {
   const json = { modules: { top: { attributes: { top: 1 }, ports: { a: { direction: 'input', bits: [2] }, y: { direction: 'output', bits: [3] } }, cells: { n: { type: '$not', parameters: {}, port_directions: { A: 'input', Y: 'output' }, connections: { A: [2], Y: [3] } } }, netnames: {} } } };
   const before = JSON.stringify(json);
   const r = rewriteCarryChains(json, { top: 'top' });
-  assert.deepEqual(r.chains, []);
+  assert.deepEqual([r.chains, r.sums], [[], []]);
   assert.equal(JSON.stringify(r.json), before);
 });

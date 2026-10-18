@@ -13,9 +13,14 @@
 // then driven by the $alu (through an inverter where their polarity asks for one); their old logic is
 // left without loads, for opt_clean.
 //
-//   const r = rewriteCarryChains(json, { top })   // json: Yosys's write_json; r = { json, chains: [lengths] }
+//   const r = rewriteCarryChains(json, { top })   // json: Yosys's write_json; r = { json, chains: [lengths],
+//                                                 //   sums: [the sums of each chain made the $alu's] }
+// { adders: true }: only the chains of adders (half of their bits with a sum at least), effort Normal's (#377).
 
 export const MIN_CHAIN = 4;
+// effort Normal's (#377): an adder's chain of ADDER_MIN bits at least (the EPFL adder's 128: 98 ns on LUTs,
+// 17 ns on the carry chain; the short ones of the EPFL sin and voter, 4 to 20 bits, slower than on LUTs)
+export const ADDER_MIN = 8;
 // the designs looked at: those with GATE_MIN 1-bit gates at least (a gate-level adder has several per
 // bit); the others are synthesized as before, in one run of Yosys
 export const GATE_MIN = 24;
@@ -66,11 +71,11 @@ XOR3.set((VAR[0] ^ VAR[1] ^ VAR[2]) & MASK, 0);
 XOR3.set(~(VAR[0] ^ VAR[1] ^ VAR[2]) & MASK, 1);
 
 /** Find the carry chains of a Yosys JSON module and rewrite them as $alu cells (see the head). */
-export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN } = {}) {
+export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN, adders = false } = {}) {
   const j = typeof json === 'string' ? JSON.parse(json) : json;
   const name = top && j.modules[top] ? top : Object.keys(j.modules).find(k => j.modules[k].attributes?.top) || Object.keys(j.modules)[0];
   const mod = j.modules[name];
-  if (!mod) return { json: j, chains: [] };
+  if (!mod) return { json: j, chains: [], sums: [] };
   // the driver of every bit by a 1-bit logic cell
   const drv = new Map();
   let maxBit = 1;
@@ -193,7 +198,7 @@ export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN } = {}) {
   // before is continued by this one only
   const succs = new Map();
   for (const b of carries) { const l = link.get(b); if (l && typeof l.prev === 'number') (succs.get(l.prev) || succs.set(l.prev, []).get(l.prev)).push(b); }
-  const chains = [];
+  let chains = [];
   const used = new Set();
   for (const end of carries) {
     if (!link.has(end) || succs.has(end)) continue;   // not linked, or continued: not an end
@@ -208,7 +213,28 @@ export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN } = {}) {
     }
     if (path.length >= minChain && !path.some(x => used.has(x))) { path.forEach(x => used.add(x)); chains.push(path); }
   }
-  if (!chains.length) return { json: j, chains: [] };
+  // the sums of a chain's bits (bits: [{ b, x, y, prev }]): the bits b that are XOR3(x, y, carry in) of a
+  // bit i of it, or its inverse (k)
+  function sumsOf(bits) {
+    const carryIn = i => (i ? bits[i - 1].b : bits[0].prev);
+    const out = [];
+    for (const [b, cs] of cuts) {
+      if (bits.some(bt => bt.b === b)) continue;
+      for (const c of cs) {
+        if (c.leaves.length !== 3) continue;
+        const k = XOR3.get(c.t);
+        if (k === undefined) continue;
+        const i = bits.findIndex((bt, ii) => c.leaves.includes(bt.x) && c.leaves.includes(bt.y) && c.leaves.includes(carryIn(ii)));
+        if (i < 0) continue;
+        out.push({ b, i, k });
+        break;
+      }
+    }
+    return out;
+  }
+  // (adders: only the chains half of whose bits at least have their sum, comparators left as they are)
+  if (adders) chains = chains.filter(path => 2 * sumsOf(path.map(b => ({ b, ...link.get(b) }))).length >= path.length);
+  if (!chains.length) return { json: j, chains: [], sums: [] };
 
   // the rewrite
   let fresh = maxBit;
@@ -224,7 +250,7 @@ export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN } = {}) {
     if (d) d.c.connections.Y = [newBit()];   // the old logic: no loads any more
     addCell(neg ? '$_NOT_' : '$_BUF_', { A: [src], Y: [b] }, { A: 'input', Y: 'output' });
   };
-  const lengths = [];
+  const lengths = [], sumCounts = [];
   for (const path of chains) {
     // bit i of the $alu: the carry path[i] = MAJ(x, y, path[i-1]); the first one's carry in: its own third leaf
     const bits = path.map(b => ({ b, ...link.get(b) }));
@@ -250,23 +276,15 @@ export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN } = {}) {
       { A_SIGNED: '0', B_SIGNED: '0', A_WIDTH: bin(L), B_WIDTH: bin(L), Y_WIDTH: bin(L) });
     bits.forEach((bt, i) => redrive(bt.b, CO[i], bt.q === 1));
     // the sums of the chain's bits: XOR3(x, y, carry in) = Y[i] ^ (px ^ py ^ q[i] ^ k)
-    const carryIn = i => (i ? bits[i - 1].b : ci0);
-    for (const [b, cs] of cuts) {
-      if (path.includes(b)) continue;
-      for (const c of cs) {
-        if (c.leaves.length !== 3) continue;
-        const k = XOR3.get(c.t);
-        if (k === undefined) continue;
-        const i = bits.findIndex((bt, ii) => c.leaves.includes(bt.x) && c.leaves.includes(bt.y) && c.leaves.includes(carryIn(ii)));
-        if (i < 0) continue;
-        // the polarities of the $alu's A, B and carry in against the leaves
-        const pA = A[i] === bits[i].x ? 0 : 1, pB = B[i] === bits[i].y ? 0 : 1;
-        redrive(b, Y[i], (pA ^ pB ^ qs[i] ^ k) === 1);
-        break;
-      }
+    const sums = sumsOf(bits);
+    for (const { b, i, k } of sums) {
+      // the polarities of the $alu's A, B and carry in against the leaves
+      const pA = A[i] === bits[i].x ? 0 : 1, pB = B[i] === bits[i].y ? 0 : 1;
+      redrive(b, Y[i], (pA ^ pB ^ qs[i] ^ k) === 1);
     }
     lengths.push(L);
+    sumCounts.push(sums.length);
   }
-  return { json: j, chains: lengths };
+  return { json: j, chains: lengths, sums: sumCounts };
 }
 const bin = n => n.toString(2).padStart(32, '0');

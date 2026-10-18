@@ -109,7 +109,7 @@ test('the open flow with --tries 2: two placements routed, the one with the shor
   assert.doesNotMatch(`${r.stdout}\n${r.stderr}`, /warning/i);
   const periods = [...r.stdout.matchAll(/^ {2}seed (\d+): ([\d.]+) ns$/gm)].map(m => [+m[1], +m[2]]);
   assert.deepEqual(periods.map(p => p[0]), [3, 4]);
-  const kept = +/clock \S+clk: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(out, 'timing.txt'), 'utf8'))[1];
+  const kept = +/clock \S+: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(out, 'timing.txt'), 'utf8'))[1];
   assert.equal(kept, Math.min(...periods.map(p => p[1])));
   assert.match(r.stdout, /top\.bit: complete/);
 });
@@ -145,7 +145,7 @@ test('the open flow replicates a flip-flop of many loads on the critical path, a
   const m = /^replication: 1 flip-flop\(s\), (\d+) copies: ([\d.]+) ns against ([\d.]+) ns: (kept|not kept)$/m.exec(r.stdout);
   assert.ok(m, r.stdout);
   assert.ok(+m[1] >= 2, 'its 64 loads in groups of up to 16');
-  const kept = +/clock \S+clk: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(dir, 'out', 'timing.txt'), 'utf8'))[1];
+  const kept = +/clock \S+: minimum period ([\d.]+) ns/.exec(fs.readFileSync(path.join(dir, 'out', 'timing.txt'), 'utf8'))[1];
   assert.equal(kept, Math.min(+m[2], +m[3]));
   assert.equal(m[4], +m[2] < +m[3] ? 'kept' : 'not kept');
   assert.match(r.stdout, /fan\.bit: complete/);

@@ -9,7 +9,9 @@
 //   r: { top, files: { '<top>_syn.v', '<top>.json', '<top>_yosys.v', '<top>_stat.txt' }, cells, util,
 //        warnings, log }
 import { toVerilog } from './synth-verilog.js';
-import { rewriteCarryChains, gateAssignments, GATE_MIN } from './carry-chain.js';
+import { rewriteCarryChains, gateAssignments, GATE_MIN, ADDER_MIN } from './carry-chain.js';
+import { readYosysJson } from './fpga/netlist.js';
+import { pack } from './fpga/pack.js';
 
 // Silinx's device families -> synth_xilinx -family
 export const YOSYS_FAMILY = {
@@ -163,21 +165,35 @@ export const PREMAP_FILE = 'silinx_premap.il';
 // and no larger, and better in one, or (#54) it has `area` (5 %) fewer LUTs at least and is at most
 // `slack` (1 %) slower, within the estimate's error (the pong example: 12 % fewer LUTs, 0.6 % slower);
 // tried on designs of up to `maxLuts` LUTs (ABC's SOP balancing of the largest, AES's 10 000 LUTs,
-// takes minutes and gigabytes)
+// takes minutes and gigabytes). Slices (#377), the device's own measure (a LUT and a flip-flop share a
+// slice half; a MUXF5, a carry stage its LUTs'), when the netlists' are known (sliceCount): the same
+// bounds on them too, and `area` fewer slices as smaller as `area` fewer LUTs (which are smaller only
+// with no more slices), with at most `luts` more LUTs (the adder fixture's ABC9 netlist: 9 % fewer slices
+// for 27 % more LUTs, refused)
 export const DEPTH_RULE = { gain: 0.03, luts: 0.1, maxLuts: 5000, area: 0.05, slack: 0.01 };
-/** Is the depth-oriented mapping kept? ns, luts: [usual, depth-oriented]. */
-export function keepDepth(ns, luts, rule = DEPTH_RULE) {
-  const faster = ns[1] <= ns[0] * (1 - rule.gain) && luts[1] <= luts[0] * (1 + Math.max(rule.luts, 1 - ns[1] / ns[0]));
-  const better = ns[1] <= ns[0] && luts[1] <= luts[0] && (ns[1] < ns[0] || luts[1] < luts[0]);
-  const smaller = ns[1] <= ns[0] * (1 + rule.slack) && luts[1] < luts[0] && luts[1] <= luts[0] * (1 - rule.area);
-  return faster || better || smaller;
+/** Is the depth-oriented mapping kept? ns, luts (and slices, when known): [usual, depth-oriented]. */
+export function keepDepth(ns, luts, rule = DEPTH_RULE, slices = null) {
+  const sl = slices && slices.every(Number.isFinite) ? slices : null;
+  const grow = Math.max(rule.luts, 1 - ns[1] / ns[0]);
+  const faster = ns[1] <= ns[0] * (1 - rule.gain) && luts[1] <= luts[0] * (1 + grow) && (!sl || sl[1] <= sl[0] * (1 + grow));
+  const better = ns[1] <= ns[0] && luts[1] <= luts[0] && (!sl || sl[1] <= sl[0])
+    && (ns[1] < ns[0] || luts[1] < luts[0] || (sl && sl[1] < sl[0]));
+  const fewer = n => n[1] < n[0] && n[1] <= n[0] * (1 - rule.area);
+  const smaller = ns[1] <= ns[0] * (1 + rule.slack) && ((fewer(luts) && (!sl || sl[1] <= sl[0])) || (sl && fewer(sl) && luts[1] <= luts[0] * (1 + rule.luts)));
+  return !!(faster || better || smaller);
 }
-/** Is the mapping balanced once more (DEPTH_ABC2) kept? ns, luts: [usual, depth-oriented, balanced once
- *  more], the depth-oriented one kept: better than it (keepDepth), or faster than it (by the rule's gain)
- *  and kept by the rule against the usual mapping. */
-export function keepSecond(ns, luts, rule = DEPTH_RULE) {
-  return keepDepth([ns[1], ns[2]], [luts[1], luts[2]], rule)
-    || (ns[2] <= ns[1] * (1 - rule.gain) && keepDepth([ns[0], ns[2]], [luts[0], luts[2]], rule));
+/** Is the mapping balanced once more (DEPTH_ABC2) kept? ns, luts (slices): [usual, depth-oriented, balanced
+ *  once more], the depth-oriented one kept: better than it (keepDepth), or faster than it (by the rule's
+ *  gain) and kept by the rule against the usual mapping. */
+export function keepSecond(ns, luts, rule = DEPTH_RULE, slices = null) {
+  return keepDepth([ns[1], ns[2]], [luts[1], luts[2]], rule, slices && [slices[1], slices[2]])
+    || (ns[2] <= ns[1] * (1 - rule.gain) && keepDepth([ns[0], ns[2]], [luts[0], luts[2]], rule, slices && [slices[0], slices[2]]));
+}
+
+/** The slices of a mapped netlist of a 4-input-LUT family (Yosys's JSON), as core/fpga/pack.js packs them for
+ *  the open flow; null when it does not pack (a cell it does not support yet). */
+export function sliceCount(json, top) {
+  try { return pack(readYosysJson(asText(json) || json, { top }), { carryOut: 'xor' }).stats.slices; } catch { return null; }
 }
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again,
@@ -394,11 +410,11 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
  * the depth-oriented one was kept, delays: { ns, luts, kept } of the same with the LUT delays (#78), and
  * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
- * abc9: false leaves it out) }.
+ * abc9: false leaves it out); each with its slices too, when it packs (sliceCount) }.
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
- * usual mapping alone (no other mapping tried, no carry chains recovered: as depth false), but for a
- * design limited by its depth (#468: deepDesign, its levels in r.depth.levels; r.depth.auto true), which
- * gets High's mappings too.
+ * usual mapping alone (no other mapping tried: as depth false), but for a design limited by its depth (#468:
+ * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too; a design
+ * written as gates also has its adders' carry chains recovered (#77, #377), the faster netlist kept.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
@@ -416,6 +432,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     if (usual) { const u = usual; usual = null; for (const l of u.lines) say(l); return Promise.resolve(u.out); }
     return run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), say);
   };
+  // a design written as gates (#77): the first of its two runs, up to synth_xilinx's fine step (the coarse
+  // netlist, its carry chains found there); at Normal started at once beside the usual run (#377)
+  const gates = lut4 && gateAssignments(design) >= GATE_MIN;
+  const lines1 = [];
+  const coarse = () => run(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${splitCommands(top, family, opts)[0]}; select -module ${top}; write_json -selected ${CHAIN_FILE}`],
+    yosysFiles(top, text), l => { if (!quiet(l)) lines1.push(l); });
+  const preRun = normal && gates ? coarse() : null;
+  preRun?.catch(() => {});
   let deep = null;   // Normal: the usual mapping's levels of logic, and whether that is deep (#468)
   if (normal && depth && lut4) {
     const lines = [];
@@ -435,6 +459,9 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     const json = out[`${top}.json`];
     if (!json) throw Object.assign(new Error('Yosys wrote no netlist'), { lines: log });
     let chosen = out, cells = cellCounts(json, top);
+    // (each netlist's slices, when the rule weighs them: packed once)
+    const slicesOf = new Map();
+    const slices = j => (slicesOf.has(j) ? slicesOf.get(j) : slicesOf.set(j, sliceCount(j, top)).get(j));
     const info = { tried: false, kept: false, ns: null, luts: null };
     if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
       // (the kept mappings' warnings: said once the choice is made, none of a mapping a failure drops)
@@ -469,7 +496,8 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         if (jsonW) {
           const cellsW = cellCounts(jsonW, top);
           const nsW = [criticalDelay(json, top), criticalDelay(jsonW, top)], lutsW = [utilization(cells).luts, utilization(cellsW).luts];
-          info.wide = { ns: nsW[1], luts: lutsW[1], kept: keepDepth(nsW, lutsW) };
+          const slW = [slices(json), slices(jsonW)];
+          info.wide = { ns: nsW[1], luts: lutsW[1], slices: slW[1], kept: keepDepth(nsW, lutsW, DEPTH_RULE, slW) };
           if (info.wide.kept) {
             chosen = outW;
             cells = cellsW;
@@ -481,10 +509,12 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         if (json2) {
           const cells2 = cellCounts(json2, top);
           const ns = [criticalDelay(base, top), criticalDelay(json2, top)], luts = [utilization(cells).luts, utilization(cells2).luts];
+          const sl = [slices(base), slices(json2)];
           // (against the mapping onto LUT4s alone; or, faster than it, against the one with the wider
           // functions, as before #54: the LUT4s alone smaller, a design limited by its depth would keep them)
-          const kept = info.wide && !info.wide.kept ? keepSecond([info.wide.ns, ...ns], [info.wide.luts, ...luts]) : keepDepth(ns, luts);
-          Object.assign(info, { tried: true, kept, ns, luts });
+          const kept = info.wide && !info.wide.kept ? keepSecond([info.wide.ns, ...ns], [info.wide.luts, ...luts], DEPTH_RULE, [info.wide.slices, ...sl])
+            : keepDepth(ns, luts, DEPTH_RULE, sl);
+          Object.assign(info, { tried: true, kept, ns, luts, slices: sl });
           if (info.kept) {
             chosen = out2;
             cells = cells2;
@@ -495,14 +525,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
             const cand = (o, lines) => {
               const j = o[`${top}.json`];
               if (!j) return null;
-              const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts;
-              return { out: o, lines, cells: c, ns: n, luts: l, kept: keepSecond([...ns, n], [...luts, l]) };
+              const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts, k = slices(j);
+              return { out: o, lines, cells: c, ns: n, luts: l, slices: k, kept: keepSecond([...ns, n], [...luts, l], DEPTH_RULE, [...sl, k]) };
             };
             const a = cand(out3, lines3), b = cand(out4, lines4);
-            const useB = b?.kept && (!a?.kept || keepDepth([a.ns, b.ns], [a.luts, b.luts]));
+            const useB = b?.kept && (!a?.kept || keepDepth([a.ns, b.ns], [a.luts, b.luts], DEPTH_RULE, [a.slices, b.slices]));
             const best = useB ? b : a?.kept ? a : null;
-            if (a) info.second = { ns: a.ns, luts: a.luts, kept: best === a };
-            if (b) info.delays = { ns: b.ns, luts: b.luts, kept: best === b };
+            if (a) info.second = { ns: a.ns, luts: a.luts, slices: a.slices, kept: best === a };
+            if (b) info.delays = { ns: b.ns, luts: b.luts, slices: b.slices, kept: best === b };
             if (best) {
               chosen = best.out;
               cells = best.cells;
@@ -510,13 +540,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
             }
           }
         }
-        // ABC9's netlist kept when better than the one chosen by DEPTH_RULE (keepDepth)
+        // ABC9's netlist kept when better than the one chosen by DEPTH_RULE (keepDepth, with the slices: #377)
         const out9 = withAbc9 ? await (early9 || abc9()) : {};
         const json9 = out9[`${top}.json`];
         if (json9) {
           const cells9 = cellCounts(json9, top);
           const ns9 = [criticalDelay(chosen[`${top}.json`], top), criticalDelay(json9, top)], luts9 = [utilization(cells).luts, utilization(cells9).luts];
-          info.abc9 = { ns: ns9[1], luts: luts9[1], kept: keepDepth(ns9, luts9) };
+          const sl9 = [slices(chosen[`${top}.json`]), slices(json9)];
+          info.abc9 = { ns: ns9[1], luts: luts9[1], slices: sl9[1], kept: keepDepth(ns9, luts9, DEPTH_RULE, sl9) };
           if (info.abc9.kept) {
             chosen = out9;
             cells = cells9;
@@ -531,25 +562,28 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         chosen = out;
         cells = cellCounts(json, top);
         for (const k of ['wide', 'second', 'delays', 'abc9']) delete info[k];
-        Object.assign(info, { tried: false, kept: false, ns: null, luts: null, failed: e.message });
+        Object.assign(info, { tried: false, kept: false, ns: null, luts: null, slices: null, failed: e.message });
         sayNew(`Warning: the depth-oriented mapping failed (${e.message}): the usual mapping is kept`);
       }
     }
-    return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top) };
+    return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]) };
   }
   // a design with logic written as gates: its carry chains (adders, comparators: core/carry-chain.js, #77)
   // made $alu cells between two runs of Yosys (up to synth_xilinx's fine step, the netlist rewritten, then on
   // from it); mapped both with and without them, the faster kept (as the depth-oriented mapping: a chain of
   // a comparator that then combines several bits at once, EPFL max, is slower). A design without such a
-  // chain is synthesized as before, in one run.
+  // chain is synthesized as before, in one run. At effort Normal only an adder's chains of ADDER_MIN bits at
+  // least (with their sums: the EPFL adder, 98 ns as gates, 17 ns on the carry chain), the usual run at once
+  // beside the first one (#377): a design without them costs no more time (the EPFL multiplier's chains,
+  // slower, kept out by the rule: 13 s more beside its usual run's 300).
   let res = null, chains = [];
-  if (highMappings && lut4 && gateAssignments(design) >= GATE_MIN) {
-    const [first, rest] = splitCommands(top, family, opts);
-    const lines1 = [];
-    const keep = l => { if (!quiet(l)) lines1.push(l); };
-    const pre = await run(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${first}; select -module ${top}; write_json -selected ${CHAIN_FILE}`],
-      yosysFiles(top, text), keep);
-    const rw = pre[CHAIN_FILE] ? rewriteCarryChains(asText(pre[CHAIN_FILE]), { top }) : { chains: [] };
+  if (lut4 && gates) {
+    // (Normal, not deep: an adder's chains only, its first run started beside the usual one, #377)
+    const adders = !highMappings;
+    const [, rest] = splitCommands(top, family, opts);
+    // (at Normal, not deep, the usual run's netlist when the first one fails)
+    const pre = await (preRun || coarse()).catch(e => { if (adders) return {}; throw e; });
+    const rw = pre[CHAIN_FILE] ? rewriteCarryChains(asText(pre[CHAIN_FILE]), { top, ...(adders && { adders: true, minChain: ADDER_MIN }) }) : { chains: [] };
     if (rw.chains.length) {
       const linesC = [], linesN = [];
       // (both at once, #86)
@@ -558,7 +592,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); }).then(outC => withDepth(outC, () => {}, linesC)),
         usualRun(l => { if (!quiet(l)) linesN.push(l); }).then(outN => withDepth(outN, () => {}, linesN)),
       ]);
-      const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts]);
+      const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts], DEPTH_RULE, [resN.slices(), resC.slices()]);
       if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) line(l); res = resC; }
       else { for (const l of linesN) line(l); res = resN; }
     }

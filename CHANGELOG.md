@@ -23,6 +23,11 @@ In short:
   (were 28 and 23), above the boards' 50 MHz; blinky at 128 million (was 73).
 - **Generate and Simulate:** Simulate (or Emulate) a Post-Synthesis Model that is not generated yet offers to
   generate it and goes on with the simulation (or the emulator) once it is; a model that needs Xilinx ISE says so.
+- **Adders written as gates on the carry chain at the default effort:** at Optimization Effort Normal, an adder
+  written gate by gate that is not deep enough for the mappings for speed (a schematic of 8 to 32 full adders) is
+  also mapped onto the FPGA's carry chain when that is faster. Other designs synthesize as before.
+- **Smaller circuits at Optimization Effort High:** the choice between the synthesis's mappings weighs the slices,
+  the FPGA's own measure, and not only the LUTs (SHA-1 core 42 % fewer slices, SipHash 23 %, a USB PHY 18 %).
 
 In detail:
 
@@ -132,6 +137,26 @@ In detail:
   `upload-artifact`, `download-artifact`, `upload-pages-artifact`, `deploy-pages`) is used at its release's full
   commit SHA with the version in a comment, the same everywhere; Dependabot's weekly GitHub Actions pull request
   moves them, the setup action's included (`directories`). Tests: `test/workflows.test.js`, `test/yosys-update.test.js`.
+- **Adders' carry chains at effort Normal (#477, #377):** a design written as gates (#77's GATE_MIN) that is not deep
+  (#468 gives a deep one, the EPFL adder, High's mappings) gets its first Yosys run up to `synth_xilinx`'s fine step
+  beside the usual run, at once; only adders' chains (half of their bits with a sum at least:
+  `rewriteCarryChains(…, { adders: true })`, which now also returns each chain's sums) of `ADDER_MIN` (8) bits at
+  least are rewritten, and the netlist with them is mapped and kept when the depth rule prefers it (a 16-bit ripple
+  adder written as gates: 16 MUXCY). Measured on the EPFL designs with every chain tried: the adder's 98.2 → 17.4 ns,
+  sin's, multiplier's and log2's chains slower, refused by the rule; the voter's (4–8 bits) not tried. A design without
+  such chains keeps the usual run's netlist. Tests: `test/carry-chain.test.js` (a 16-bit ripple adder on the chain at
+  Normal in three runs, the 32-bit AND-inverter graph by #468's mappings; a comparator, an adder shorter than ADDER_MIN
+  and a counter as before; each chain's sums).
+- **Slices in the choice between mappings (#478, #377):** every candidate of effort High (the wider functions, the
+  depth-oriented mappings, the LUT delays, ABC9, the carry chains) is packed as the open flow packs it
+  (`sliceCount`, core/fpga/pack.js), and `keepDepth` / `keepSecond` bound the slices as the LUTs; 5 % fewer slices
+  (at most 1 % slower, at most 10 % more LUTs) is smaller as 5 % fewer LUTs is, and fewer LUTs only with no more
+  slices. On 22 corpus designs: slices −5.3 % and period −0.4 % (geometric means): secworks-sha1 1879 → 1091 slices
+  (17.5 → 16.7 ns), secworks-siphash 913 → 707 (14.1 → 15.0 ns), iwls05-usb-phy 82 → 67, vtr-stereovision3 112 → 99,
+  verilog-i2c-master 126 → 115; epfl-cavlc 139 → 143 (`test/designs-corpus/expected.json` updated). The #14 test
+  compares its VHDL and Verilog netlists without ABC9 (kept on both, 2 LUTs apart); blinky keeps ABC9's netlist
+  (its instances 67 / 203 / 51 cells, `test/techview.test.js`), whose clock net loses its name (#496: the open-flow
+  tests read the clock line whatever its name). Tests: `test/synth-open.test.js` (the rule with slices, `sliceCount`).
 
 ## 15.11.0
 

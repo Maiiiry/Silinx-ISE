@@ -11,9 +11,9 @@
    "total": 46312
   },
   "epfl-cavlc": {
-   "synth": 5274,
-   "flow": 2031,
-   "total": 7632
+   "synth": 10450,
+   "flow": 1827,
+   "total": 12596
   },
   "epfl-ctrl": {
    "synth": 3890,
@@ -206,9 +206,9 @@
    "total": 4715
   },
   "iwls05-usb-phy": {
-   "synth": 6842,
-   "flow": 949,
-   "total": 7929
+   "synth": 8985,
+   "flow": 1116,
+   "total": 10310
   },
   "light8080": {
    "synth": 9724,
@@ -241,9 +241,9 @@
    "total": 657539
   },
   "secworks-sha1": {
-   "synth": 28832,
-   "flow": 98915,
-   "total": 131529
+   "synth": 20045,
+   "flow": 60958,
+   "total": 83095
   },
   "secworks-sha256": {
    "synth": 43186,
@@ -251,14 +251,14 @@
    "total": 146352
   },
   "secworks-siphash": {
-   "synth": 14751,
-   "flow": 45359,
-   "total": 61654
+   "synth": 14497,
+   "flow": 25186,
+   "total": 41073
   },
   "serv": {
-   "synth": 7965,
-   "flow": 13611,
-   "total": 22743
+   "synth": 17489,
+   "flow": 19329,
+   "total": 37466
   },
   "spi-fpga-master": {
    "synth": 4099,
@@ -286,9 +286,9 @@
    "total": 6999
   },
   "verilog-i2c-master": {
-   "synth": 5732,
-   "flow": 2358,
-   "total": 8449
+   "synth": 10366,
+   "flow": 1736,
+   "total": 12380
   },
   "verilog-lfsr-crc": {
    "synth": 5322,
@@ -311,9 +311,9 @@
    "total": 15131
   },
   "vtr-diffeq1": {
-   "synth": 9012,
-   "flow": 34898,
-   "total": 45291
+   "synth": 10682,
+   "flow": 28426,
+   "total": 40144
   },
   "vtr-diffeq2": {
    "synth": 15540,
@@ -331,9 +331,9 @@
    "total": 37814
   },
   "vtr-stereovision3": {
-   "synth": 5420,
-   "flow": 3229,
-   "total": 9113
+   "synth": 9100,
+   "flow": 1477,
+   "total": 10791
   }
  },
  "ci": {
