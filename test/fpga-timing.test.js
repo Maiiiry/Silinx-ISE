@@ -14,7 +14,7 @@ import {
   WIRE, SPEED_4, classOfWires, nodeClasses, nodeDelays, netTree, treePath, pathDelay, distanceDelay,
   instArcs, timingGraph, analyzeTiming, timingReport, clockPort, checkPeriods, delayTable,
 } from '../core/fpga/timing.js';
-import { parseDly } from '../research/s3e-route/timing-fit.mjs';
+import { parseDly, twrArcs, memArcs } from '../research/s3e-route/timing-fit.mjs';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fpga');
 const device = loadDevice(packDevice(fs.readFileSync(path.join(FIX, 'timing-device.xdlrc'), 'utf8')));
@@ -245,6 +245,46 @@ test('timing-driven routing: the critical load gets the fast long line, routed f
   assert.deepEqual(noLong.failed, []);
   assert.ok(pipsOf(noLong, 'd').includes('CLB_X3Y0 E2END1 -> F1_B_PINWIRE0'));
   assert.ok(netEndpoints(noLong.design, device).errors.length === 0);
+});
+
+test('SLICEM memory arcs, as trce times them (#443): a shift register\'s and a RAM\'s clock to X / Y, data, address and enable setups', () => {
+  const M = SPEED_4.mem;
+  const sl = cfg => instArcs({ type: 'SLICEM', site: 'SLICE_X2Y0', cfg: cfg.map(([attr, value]) => ({ attr, name: '', value })) });
+  const setupOf = (a, p) => a.setup.filter(x => x[0] === p).map(x => x[1]);
+  // trce's values (research/s3e-route/timing-fit.mjs --arcs on the srl and dram fixtures, feat_srl, feat_srl_var,
+  // hard_prim), on either clock edge
+  assert.deepEqual([M.Treg, M.Tshcko, M.Tshckof5, M.TdsX, M.TdsY, M.TdsAlt, M.Tbxs, M.Tas, M.Tws], [3.762, 1.956, 2.349, 0.414, 0.442, 0.461, 0.619, 0.522, 0.392]);
+  // two shift registers, data through BX and BY: Treg on X and Y, Tds of each pin, the shift enable on SR
+  const srl = sl([['F', '#RAM:D=0x0000'], ['G', '#RAM:D=0x0000'], ['F_ATTR', 'SHIFT_REG'], ['G_ATTR', 'SHIFT_REG'], ['DIF_MUX', 'BX'], ['DIG_MUX', 'BY'], ['FXMUX', 'F'], ['GYMUX', 'G'], ['CLKINV', 'CLK_B']]);
+  assert.deepEqual(srl.clkToOut, [['X', M.Treg], ['Y', M.Treg]]);
+  assert.deepEqual([setupOf(srl, 'BX'), setupOf(srl, 'BY'), setupOf(srl, 'SR')], [[M.TdsX], [M.TdsY], [M.Tws]]);
+  assert.deepEqual(setupOf(srl, 'F1'), [], 'a shift register\'s address is a read address only');
+  // a dual-port RAM (BY into F too, ALTDIF): its outputs change after a write (Tshcko, not modelled before: the dram
+  // fixture had no timed path), its address pins set up for the write
+  const dp = sl([['F', '#RAM:D=0x0000'], ['G', '#RAM:D=0x0000'], ['F_ATTR', 'DUAL_PORT'], ['G_ATTR', 'DUAL_PORT'], ['DIF_MUX', 'ALTDIF'], ['DIG_MUX', 'BY'], ['FXMUX', 'F'], ['GYMUX', 'G']]);
+  assert.deepEqual(dp.clkToOut, [['X', M.Tshcko], ['Y', M.Tshcko]]);
+  assert.deepEqual([setupOf(dp, 'BY'), setupOf(dp, 'BX'), setupOf(dp, 'G3'), setupOf(dp, 'F1')], [[M.TdsAlt], [], [M.Tas], [M.Tas]]);
+  // a RAM32X1S: X through the F5 multiplexer, BX its write address A4 (SLICEWE0)
+  const r32 = sl([['F', '#RAM:D=0x0000'], ['G', '#RAM:D=0x0000'], ['DIF_MUX', 'ALTDIF'], ['DIG_MUX', 'BY'], ['FXMUX', 'F5'], ['SLICEWE0USED', '0']]);
+  assert.deepEqual(r32.clkToOut.find(x => x[0] === 'X'), ['X', M.Tshckof5]);
+  assert.deepEqual(setupOf(r32, 'BX'), [M.Tbxs]);
+});
+
+test('timing-fit: trce\'s logic delays read from a path\'s table, the data pin of a setup from the net before it (#443)', () => {
+  const twr = ['Data Path: a to b', '    Location             Delay type         Delay(ns)  Physical Resource',
+    '                                                       Logical Resource(s)',
+    '    -------------------------------------------------  -------------------',
+    '    SLICE_X2Y0.X         Treg                  3.762   srl_a', '                                                       srl_a',
+    '    SLICE_X2Y1.BY        net (fanout=1)        0.441   t', '    SLICE_X2Y1.CLK       Tds                   0.442   srl_b',
+    '    -------------------------------------------------  ---------------------------',
+    '    Total                                      4.645ns (4.204ns logic, 0.441ns route)', ''].join('\n');
+  assert.deepEqual(twrArcs(twr), [{ type: 'Treg', site: 'SLICE_X2Y0', pin: 'X', from: null, delay: 3.762 }, { type: 'Tds', site: 'SLICE_X2Y1', pin: 'CLK', from: 'BY', delay: 0.442 }]);
+  // memArcs: only at the SLICEMs with a memory LUT, each with its kind and clock edge
+  const xdl = `design "t" xc3s250ecp132-4 v3.2 ,\n  cfg "";\n`
+    + inst('a', 'SLICEM', 'CLB_X1Y0', 'SLICE_X2Y0', ' G:a:#RAM:D=0x0000 G_ATTR::SHIFT_REG DIG_MUX::BY GYMUX::G ')
+    + inst('b', 'SLICEM', 'CLB_X1Y0', 'SLICE_X2Y1', ' G:b:#RAM:D=0x0000 DIG_MUX::BY GYMUX::G CLKINV::CLK_B ');
+  assert.deepEqual(memArcs(xdl, twr).map(a => [a.type, a.mem, a.clkInv]), [['Treg', 'srl', false], ['Tds', 'ram', true]]);
+  assert.deepEqual(twrArcs('no path here'), []);
 });
 
 test('timing-fit: reportgen -delay\'s report read back (names wrapped at 80 columns, a short load on its delay\'s line)', () => {

@@ -43,6 +43,14 @@ In short:
 
 In detail:
 
+- **Static timing: the SLICEM's shift registers and RAMs as trce times them (#443):** their delays were
+  estimates. Now they are trce's (`research/s3e-route/timing-fit.mjs --arcs`, a new mode that reads the logic
+  delays of trce's paths): a shift register's clock to X / Y is 3.762 ns (was 2.0), the data, address and
+  enable setups per pin are trce's, and a RAM's output now changes after a write (1.956 ns, 2.349 through F5;
+  no path started there before). On the same routed designs, Silinx's period is now within 2 % of trce's:
+  the dram fixture 3.636 ns (trce 3.614; no timed path before), feat_srl 5.246 (5.344; was 4.214), and the
+  corpus's iwls05-usb-phy 8.212 (8.118; was 6.450). The design corpus's five designs with distributed RAMs or
+  shift registers have new expected periods.
 - **Static timing: half-cycle paths (#442):** a path between a clock's two edges (a rising-edge flip-flop into a
   falling-edge SRL16E_1, RAM or `*_1` flip-flop, or back) has half a period. Silinx's timing analysis now limits
   the clock's period to twice its delay, as ISE's trce does, where it gave the delay itself (too short a period).

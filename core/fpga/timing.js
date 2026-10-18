@@ -78,14 +78,20 @@ export const SPEED_4 = {
     Tsrck: [0.910, 0.910],     // SR
   },
   pad: { Tiopi: 1.3, Tioop: 3.25 },
-  // the SLICEM's RAMs and shift registers, block RAMs, multipliers (est.: of the order of the
-  // Spartan-3E data sheet's -4 values, not fitted to trce yet)
+  // the SLICEM's RAMs and shift registers: trce's values (research/s3e-route/timing-fit.mjs --arcs, #443: the srl
+  // and dram fixtures, feat_srl, feat_srl_var, hard_prim; the same on either clock edge)
   mem: {
-    Tshcko: 2.0,    // CLK -> X / Y of a shift register (the stage at the address after the shift)
-    Tds: 0.46,      // BX / BY (data in) setup
-    Tas: 0.46,      // F1-4 / G1-4 (address) setup of a write
-    Tws: 0.87,      // SR (write / shift enable) setup
+    Treg: 3.762,      // CLK -> X / Y of a shift register (the stage at the address after the shift)
+    Tshcko: 1.956,    // CLK -> X / Y of a RAM (the word written, at the read address)
+    Tshckof5: 2.349,  // CLK -> X of a RAM32X1S through the F5 multiplexer
+    TdsX: 0.414,      // BX (data in) setup
+    TdsY: 0.442,      // BY (data in) setup, into G
+    TdsAlt: 0.461,    // BY setup into F too (DIF_MUX = ALTDIF: a dual-port RAM's, a RAM32X1S's)
+    Tbxs: 0.619,      // BX (a RAM32X1S's write address A4, SLICEWE0) setup
+    Tas: 0.522,       // F1-4 / G1-4 (address) setup of a write
+    Tws: 0.392,       // SR (write / shift enable) setup
   },
+  // block RAMs, multipliers (est.: of the order of the Spartan-3E data sheet's -4 values, not fitted to trce yet)
   bram: { Tbcko: 2.39, Tback: 0.38, Tbdck: 0.33, Tbeck: 0.65, Tbwck: 0.74, Tbrck: 0.43 },
   mult: { Tmult: 4.9, Tmsck: 0.36, Tmsckp: 1.0, Tmsdck: 5.2, Tmscka: 4.6 },
 };
@@ -387,12 +393,19 @@ export function instArcs(inst, model = SPEED_4) {
   if (memSides.length) {
     out.clock = true;
     setup.push(['SR', M.Tws]);
-    if (m.has('DIF_MUX') || m.has('DIG_MUX')) setup.push(['BY', M.Tds]);
-    if (m.get('DIF_MUX') === 'BX' || m.has('SLICEWE0USED')) setup.push(['BX', M.Tds]);
+    // the data in: BY into G (DIG_MUX), and into F too with ALTDIF; BX into F; BX as a RAM32X1S's A4
+    if (m.get('DIF_MUX') === 'ALTDIF') setup.push(['BY', M.TdsAlt]);
+    else if (m.has('DIG_MUX')) setup.push(['BY', M.TdsY]);
+    if (m.has('SLICEWE0USED')) setup.push(['BX', M.Tbxs]);
+    else if (m.get('DIF_MUX') === 'BX') setup.push(['BX', M.TdsX]);
     for (const l of memSides) {
       const o = l === 'F' ? 'X' : 'Y', shift = m.get(`${l}_ATTR`) === 'SHIFT_REG';
-      if (shift) clkToOut.push([o, M.Tshcko]);
-      else for (const p of l === 'F' ? F_PINS : G_PINS) setup.push([p, M.Tas]);
+      // (a RAM's output changes after a write too: the word written, when it is the one read)
+      if (shift) clkToOut.push([o, M.Treg]);
+      else {
+        for (const p of l === 'F' ? F_PINS : G_PINS) setup.push([p, M.Tas]);
+        clkToOut.push([o, o === 'X' && m.get('FXMUX') === 'F5' ? M.Tshckof5 : M.Tshcko]);
+      }
     }
   }
   if (out.clock && !memSides.length) setup.push(['CE', T('Tceck')], ['SR', T('Tsrck')]);

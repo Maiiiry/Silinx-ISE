@@ -670,7 +670,7 @@
    "slices": 68,
    "luts": 91,
    "ffs": 79,
-   "period": 5.164
+   "period": 5.245
   }
  },
  "iwls05-usb-phy": {
@@ -689,7 +689,7 @@
    "slices": 82,
    "luts": 158,
    "ffs": 105,
-   "period": 6.256
+   "period": 8.212
   }
  },
  "light8080": {
@@ -724,7 +724,7 @@
    "slices": 192,
    "luts": 380,
    "ffs": 206,
-   "period": 12.753
+   "period": 11.754
   }
  },
  "nandland-spi-verilog": {
@@ -1248,7 +1248,7 @@
    "slices": 265,
    "luts": 157,
    "ffs": 509,
-   "period": 6.324
+   "period": 6.056
   }
  },
  "vtr-diffeq1": {
@@ -1337,7 +1337,7 @@
    "slices": 730,
    "luts": 785,
    "ffs": 962,
-   "period": 7.494
+   "period": 7.426
   }
  },
  "vtr-sha": {

@@ -1,6 +1,8 @@
 // Fits the wire delay model of core/fpga/timing.js to ISE's own delays of designs routed by Silinx.
 //   node research/s3e-route/timing-fit.mjs <folder>...   (each with routed.xdl and routed.dly:
 //   reportgen -delay of ISE on the same design, as scripts/check-open-flow.mjs keeps them with SILINX_KEEP=1)
+//   node research/s3e-route/timing-fit.mjs --arcs <folder>...   (each with routed.xdl and full.twr, a verbose trce
+//   report on it, trce -a -v 1000: the logic delays of the SLICEM's shift registers and RAMs, #443)
 // For every connection (driver pin -> load pin) reportgen gives ISE's delay; Silinx finds the path of
 // that connection in the routed XDL (core/fpga/timing.js netTree / treePath) and counts the nodes of
 // each class on it and the branches the net takes off them. A least-squares fit (non-negative) of
@@ -69,6 +71,44 @@ export function samples(dir, device) {
   return out;
 }
 
+/**
+ * The logic delays of trce's paths (a verbose report, trce -a -v N): [{ type, site, pin, from, delay }], one per
+ * row of a path's table that is not a net: `type` the delay type (Treg, Tds, Tilo…), `site` and `pin` its location
+ * (SLICE_X48Y4 and X, or CLK for a setup), `from` the site pin of the net before it on the path (the data pin of a
+ * setup: BX, BY, F1…), null at a path's start.
+ */
+export function twrArcs(text) {
+  const out = [];
+  for (const block of String(text).split(/Location\s+Delay type\s+Delay\(ns\)/).slice(1)) {
+    let from = null;
+    for (const line of block.split('\n')) {
+      if (/^\s+Total\s/.test(line)) break;
+      const m = /^\s+(\S+?)\.(\S+)\s+(net \(fanout=\d+\)|T\w+)\s+(-?\d+\.\d+)/.exec(line);
+      if (!m) continue;
+      if (m[3].startsWith('net')) { from = m[2]; continue; }
+      out.push({ type: m[3], site: m[1], pin: m[2], from, delay: +m[4] });
+      from = null;
+    }
+  }
+  return out;
+}
+
+/** The SLICEM memory arcs of a routed design and trce's report on it: twrArcs at the slices whose F or G is a
+ *  shift register or a RAM, each with `mem` ('srl' or 'ram') and `clkInv` (CLKINV = CLK_B). */
+export function memArcs(xdlText, twrText) {
+  const bySite = new Map(parseXdl(xdlText).insts.map(i => [i.site, i]));
+  const out = [];
+  for (const a of twrArcs(twrText)) {
+    const inst = bySite.get(a.site);
+    if (!inst) continue;
+    const cfg = new Map(inst.cfg.map(c => [c.attr, c.value]));
+    const modes = ['F', 'G'].filter(l => /^#RAM/.test(cfg.get(l) || '')).map(l => cfg.get(`${l}_ATTR`));
+    if (!modes.length) continue;
+    out.push({ ...a, mem: modes.includes('SHIFT_REG') ? 'srl' : 'ram', clkInv: cfg.get('CLKINV') === 'CLK_B' });
+  }
+  return out;
+}
+
 // least squares with non-negative coefficients (active-set, small problems)
 function nnls(X, y, iters = 200) {
   const m = X[0].length;
@@ -105,7 +145,22 @@ const stats = (errs) => {
   return `n=${errs.length} mean ${(errs.reduce((s, e) => s + e, 0) / errs.length).toFixed(3)} rms ${rms.toFixed(3)} median|e| ${a[a.length >> 1].toFixed(3)} p95|e| ${a[Math.floor(a.length * 0.95)].toFixed(3)} max|e| ${a.at(-1).toFixed(3)} ns`;
 };
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.url === `file://${process.argv[1]}` && process.argv.includes('--arcs')) {
+  // the SLICEM memories' logic delays as trce gives them (each folder: routed.xdl and a verbose trce report,
+  // full.twr): their values by delay type, memory, clock edge and pins
+  const groups = new Map();
+  for (const d of process.argv.slice(2).filter(a => !a.startsWith('--'))) {
+    for (const a of memArcs(fs.readFileSync(path.join(d, 'routed.xdl'), 'utf8'), fs.readFileSync(path.join(d, 'full.twr'), 'utf8'))) {
+      const k = `${a.type} ${a.mem}${a.clkInv ? ' CLK_B' : ''} ${a.from ? `${a.from} -> ` : ''}${a.pin}`;
+      if (!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(a.delay);
+    }
+  }
+  for (const [k, v] of [...groups].sort()) {
+    const u = [...new Set(v)].sort((p, q) => p - q);
+    console.log(`${k.padEnd(34)} n ${String(v.length).padStart(4)}  ${u.length === 1 ? u[0].toFixed(3) : `${u[0].toFixed(3)} .. ${u.at(-1).toFixed(3)} (${u.length} values)`}`);
+  }
+} else if (import.meta.url === `file://${process.argv[1]}`) {
   const dirs = process.argv.slice(2).filter(a => !a.startsWith('--'));
   const device = loadDeviceCache('xc3s250ecp132-4');
   const all = dirs.flatMap(d => samples(d, device));
