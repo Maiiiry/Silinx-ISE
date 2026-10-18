@@ -171,6 +171,32 @@ test('static timing: the clock period of flip-flop to flip-flop paths, the criti
   assert.deepEqual(r3.clocks, []);
 });
 
+test('static timing: a path between the clock\'s two edges limits the period to twice its delay, as trce counts it (#442)', () => {
+  // a and b of INSTS, each on the rising (CLKINV::CLK) or falling (CLKINV::CLK_B) edge
+  const edges = (ea, eb) => parseXdl(`design "t" xc3s50etq144-4 v3.2 ,\n  cfg "";\n`
+    + inst('a', 'SLICEL', 'CLB_X1Y0', 'SLICE_X0Y0', ` FFX:a:#FF DXMUX::1 FXMUX::F CLKINV::${ea} `)
+    + inst('b', 'SLICEL', 'CLB_X3Y0', 'SLICE_X2Y0', ` F:b_f:#LUT:D=A1 G:b_g:#LUT:D=A1 FXMUX::F GYMUX::G FFX:b:#FF DXMUX::1 CLKINV::${eb} `)
+    + inst('ck', 'IOB', 'CLB_X1Y0', 'P1', ' ') + CLK + D_NET);
+  const path = S.TckoX[1] + 1 + S.Tilo[1] + S.Tdxck[1];
+  const run = (ea, eb) => timingGraph(edges(ea, eb)).analyze(Float64Array.from([2, 1]));
+  // same edge, rising or falling: a whole period
+  for (const [ea, eb] of [['CLK', 'CLK'], ['CLK_B', 'CLK_B']]) {
+    const r = run(ea, eb);
+    close(r.period, path, `${ea} -> ${eb}`);
+    assert.equal(r.clocks[0].half, false);
+    close(r.slack[1], 0);
+  }
+  // rising into falling, or falling into rising: half a period, twice the delay; its slack against half the period
+  for (const [ea, eb] of [['CLK', 'CLK_B'], ['CLK_B', 'CLK']]) {
+    const r = run(ea, eb);
+    close(r.period, 2 * path, `${ea} -> ${eb}`);
+    assert.equal(r.clocks[0].half, true);
+    assert.deepEqual(r.clocks[0].path.map(s => `${s.kind} ${s.inst}.${s.pin}`), ['clock-to-out a.XQ', 'net b.F1', 'setup b.F1']);
+    close(r.slack[1], 0);
+    assert.equal(r.crit[1], 1);
+  }
+});
+
 test('static timing: a combinational loop does not hang the analysis; constants and clocks are not connections', () => {
   const loop = inst('l', 'SLICEL', 'CLB_X3Y0', 'SLICE_X2Y0', ' FXMUX::F GYMUX::G ');
   const d = parseXdl(`design "t" xc3s50etq144-4 v3.2 ,\n  cfg "";\n${loop}${net('x', [['l', 'X']], [['l', 'G1']])}${net('y', [['l', 'Y']], [['l', 'F1']])}`
