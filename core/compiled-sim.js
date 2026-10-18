@@ -18,9 +18,10 @@
 //   - the Xilinx primitives are Verilog models flattened into the design (core/compiled-prims.js: block
 //     RAMs, multipliers, SRL16s, distributed RAMs, clock buffers); a DCM's outputs are variables set by a
 //     schedule of their edges in the main clock's cycles (dcmSchedule): the main clock is its input, each
-//     cycle's edges are steps of the loop in time order.
+//     cycle's edges are steps of the loop in time order; a DCM whose RST the design drives starts its
+//     schedule again after a reset (#465).
 // What it cannot compile (a combinational loop, a tristate, an inout port, a primitive with no model
-// here, a DCM with its RST driven) is a CompileError with the reason: the emulator then keeps the
+// here, a cascaded DCM with its RST driven) is a CompileError with the reason: the emulator then keeps the
 // event-driven simulator.
 //
 //   const sim = await compileDesign(design, { run })   // run: Yosys (core/synth-open-node.js yosysNode, the browser's worker)
@@ -106,6 +107,8 @@ const HELPERS = {
   shB(a, s, w) { return s < 0n ? (-s >= BigInt(w) ? 0n : a << -s) : a >> s; },
 };
 
+const gcd = (a, b) => { while (b) [a, b] = [b, a % b]; return a; };
+const lcm = (a, b) => a / gcd(a, b) * b;
 const IGNORED = new Set(['$scopeinfo', '$print', '$check', '$assert', '$assume', '$cover', '$live', '$fair', '$specify2', '$specify3', '$specrule']);
 const FF = new Set(['$dff', '$dffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce', '$aldff', '$aldffe', '$dffsr', '$dffsre', '$dlatch', '$adlatch']);
 const COMB = new Set(['$not', '$pos', '$neg', '$and', '$or', '$xor', '$xnor', '$reduce_and', '$reduce_or', '$reduce_xor', '$reduce_xnor', '$reduce_bool',
@@ -581,43 +584,55 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   // ---- the DCMs' outputs: the edges of each cycle (core/compiled-prims.js dcmSchedule), steps of the loop
   // after the main clock's edge at the same time; the outputs nothing reads are left out, and the falling edges
   // of a clock only rising-edge flip-flops read are not steps (its rising edge then is one from 0: rise-only, no
-  // net of its own)
+  // net of its own). A schedule for each DCM the main clock clocks, with the DCMs it clocks in turn (a group),
+  // and its own count of cycles: a DCM whose RST the design drives starts its schedule again after a reset
   let sched = null;
-  const chans = [], unread = new Set();   // (the bits of the outputs left out, or rise-only)
+  const groups = [], unread = new Set();   // (the bits of the outputs left out, or rise-only)
   if (dcms.length) {
     const asClock = new Set(clocked.map(clkBit));
     const other = new Set([...comb.flatMap(inBits), ...elems.flatMap(e => [...Object.entries(e.C).flatMap(([p, b]) => (p === 'CLK' && clocked.includes(e) ? [] : b)), ...(e.addr || []), ...(e.data || []), ...(e.en || [])]),
-      ...ports.filter(p => p.dir !== 'input').flatMap(p => p.bits), ...dcms.map(d => d.C.CLKIN[0]),
+      ...ports.filter(p => p.dir !== 'input').flatMap(p => p.bits), ...dcms.flatMap(d => [d.C.CLKIN[0], ...(d.C.RST || [])]),
       ...(watch?.levels || []).map(w => w.bit), ...(watch?.pairs || []).flat().map(w => w.bit), ...(watch?.edges || []).flatMap(w => [w.bit, ...w.capture]),
       ...(watch?.vga ? [watch.vga.hs, watch.vga.vs, ...watch.vga.rgb] : [])]);
     const read = new Set([...other, ...asClock]);
-    const waves = new Map(), level = new Map();   // dcm -> its outputs' waveforms, its depth in a cascade
+    const waves = new Map(), level = new Map(), root = new Map();   // dcm -> its outputs' waveforms, its depth in a cascade, its group's DCM
+    const driven = d => (d.C.RST || []).some(b => typeof b === 'number');
     const resolve = (d, seen = new Set()) => {
       if (waves.has(d)) return;
       if (seen.has(d)) throw new CompileError(`the DCM '${cellName(d.name)}' is in a loop of DCMs: not compiled`);
       seen.add(d);
       const rst = d.C.RST || [];
-      if (rst.some(b => typeof b === 'number')) throw new CompileError(`the DCM '${cellName(d.name)}' has its RST driven by the design: not compiled yet`);
       const src = dcmOf.get(d.C.CLKIN[0]);
       if (src) resolve(src[0], seen);
+      if (src && driven(d)) throw new CompileError(`the DCM '${cellName(d.name)}' has its RST driven by the design and is clocked by ${src[1]} of '${cellName(src[0].name)}': not compiled`);
+      if (src && driven(src[0])) throw new CompileError(`the DCM '${cellName(d.name)}' is clocked by ${src[1]} of '${cellName(src[0].name)}', whose RST is driven by the design: not compiled`);
       const input = src ? waves.get(src[0])[src[1]] : { pre: [], s: [0, 1], q: [1, 1] };
       if (!input) throw new CompileError(`the DCM '${cellName(d.name)}' is clocked by ${src[1]} of '${cellName(src[0].name)}': not compiled`);
       level.set(d, src ? level.get(src[0]) + 1 : 0);
+      root.set(d, src ? root.get(src[0]) : d);
       // (RST tied high: never locked, its outputs low)
       try { waves.set(d, rst.includes('1') ? {} : dcmWaves(d.P, input, cellName(d.name))); } catch (e) { throw new CompileError(`${e.message}: not compiled`); }
     };
     dcms.forEach(d => resolve(d));
+    for (const r of roots) groups.push({ dcm: r, rst: driven(r) ? r.C.RST : null, chans: [] });
     for (const d of dcms) {
+      const g = groups.find(x => x.dcm === root.get(d));
       for (const [port, v] of Object.entries(d.outs)) {
         const w = waves.get(d)[port], b = d.C[port][0];
         if (!w) continue;
         if (!read.has(b)) { unread.add(b); continue; }
+        // (CLK90 / CLK270: CLK0 / CLK180 delayed, which a reset does not stop at once: not modelled)
+        if (g.rst && (port === 'CLK90' || port === 'CLK270')) throw new CompileError(`the DCM '${cellName(d.name)}' has its RST driven by the design and its ${port} used: not compiled`);
         const riseOnly = !other.has(b) && clocked.every(e => clkBit(e) !== b || pol(e, 'CLK_POLARITY') === 1);
         if (riseOnly) unread.add(b);
-        chans.push({ wave: w, v, bit: b, level: level.get(d), riseOnly });
+        g.chans.push({ wave: w, v, bit: b, level: level.get(d), riseOnly });
       }
     }
-    try { sched = dcmSchedule(chans); } catch (e) { throw new CompileError(`${e.message}: not compiled`); }
+    for (const g of groups) try { g.sched = dcmSchedule(g.chans); } catch (e) { throw new CompileError(`${e.message}: not compiled`); }
+    // (the groups' steps in the same ticks: the least common multiple of their ticks per cycle)
+    const T = groups.reduce((t, g) => lcm(t, g.sched.T), 2);
+    if (T * 64 > 2 ** 31) throw new CompileError(`the DCMs' clocks have no common time step: not compiled`);
+    sched = { T };
   }
   const asyncEls = elems.filter(e => async(e));
 
@@ -655,37 +670,58 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   const edgeCode = edges.map((w, i) => `{ const e = ${sig([w.bit], 'n')}; if (e${i} === 1 && e === 0) EV.push(cy, ${sig(w.capture, 'n')}); e${i} = e; }`).join('\n');
 
   // ---- the loop's steps: the main clock's rising edge (the cycle's samples before it), its falling edge; with
-  // DCMs, the cycle's steps in time order (DS: tick, number of changes, then variable / value pairs; DO: each
-  // cycle's first step; DC: the cycles since the start, the schedule's S first ones then its steady H ones)
+  // DCMs, the cycle's steps in time order, those of the groups at the same tick and depth together (DSj: tick x 64
+  // + depth, number of changes, then variable / value pairs; DOj: each cycle's first step; DCj: the cycles since
+  // the start or the reset, the schedule's S first ones then its steady H ones; Zj: in reset). A reset is seen
+  // at the end of a time (tk: the tick of the last step), after the edges of the DCM at that time (in the
+  // event-driven simulator they come a few deltas before those of RST); it sets the group's outputs to 0 and
+  // drops its steps left; a cycle's rising edge with RST low starts the group's schedule again
   const endCount = counted && !needFall ? `if (n) { ${count('0.5')} }` : '';
   const riseCount = `${counted ? (needFall ? count('0.5') : count('(cy ? 1 : 0.5)')) : ''}\n${edgeCode}\n${vgaCode}`;
-  let dcmStep = '', dcmTables = '';
+  let dcmStep = '', dcmTables = '', dcmLocals = '', dcmSave = '';
   if (sched) {
-    const ds = [], dof = [];
-    for (const steps of sched.cycles) {
+    const { T } = sched, gs = groups.filter(g => g.chans.length);
+    gs.forEach((g, j) => { g.j = j; });
+    dcmTables = gs.map(g => {
+      const ds = [], dof = [], m = T / g.sched.T;
+      for (const steps of g.sched.cycles) {
+        dof.push(ds.length);
+        for (const st of steps) ds.push(st.tick * m * 64 + st.level, st.sets.length, ...st.sets.flat());
+      }
       dof.push(ds.length);
-      for (const st of steps) ds.push(st.tick, st.sets.length, ...st.sets.flat());
-    }
-    dof.push(ds.length);
-    dcmTables = `const DS = Int32Array.from([${ds.join(',')}]), DO = Int32Array.from([${dof.join(',')}]);\nlet DC = 0;`;
-    const cases = chans.map(c => `case ${c.v}: ${c.riseOnly ? `p${dlist.find(d => d.b === c.bit).k} = 0; ` : ''}v${c.v} = ${vars[c.v].kind === 'b' ? 'BigInt(x)' : 'x'}; break;`).join(' ');
-    const { T, S, H } = sched;
+      return `const DS${g.j} = Int32Array.from([${ds.join(',')}]), DO${g.j} = Int32Array.from([${dof.join(',')}]);\nlet DC${g.j} = 0${g.rst ? `, Z${g.j} = 1` : ''};`;
+    }).join('\n');
+    dcmLocals = ` let fd = true, tk = -1${gs.map(g => `, dc${g.j} = DC${g.j}, si${g.j} = 0, se${g.j} = 0${g.rst ? `, z${g.j} = Z${g.j}` : ''}`).join('')};`;
+    dcmSave = gs.map(g => ` DC${g.j} = dc${g.j};${g.rst ? ` Z${g.j} = z${g.j};` : ''}`).join('');
+    const zero = c => `v${c.v} = ${lit(0, vars[c.v].kind)};`;
+    const cases = g => g.chans.map(c => `case ${c.v}: ${c.riseOnly ? `p${dlist.find(d => d.b === c.bit).k} = 0; ` : ''}v${c.v} = ${vars[c.v].kind === 'b' ? 'BigInt(x)' : 'x'}; break;`).join(' ');
+    const rst = g => `${sig(g.rst, 'n')} === 1`;
+    const start = g => `{ const c = dc${g.j} < ${g.sched.S} ? dc${g.j} : ${g.sched.S} + (dc${g.j} - ${g.sched.S}) % ${g.sched.H}; si${g.j} = DO${g.j}[c]; se${g.j} = DO${g.j}[c + 1]; dc${g.j}++; }`;
+    const resets = gs.filter(g => g.rst);
     dcmStep = `    st: for (;;) {
-      if (ph === 0) {
+      let nk = ${T * 64};
+      ${gs.map(g => `if (si${g.j} < se${g.j} && DS${g.j}[si${g.j}] < nk) nk = DS${g.j}[si${g.j}];`).join(' ')}
+      const nt = ${needFall ? `Math.min(fd ? ${T} : ${T / 2}, nk >> 6)` : 'nk >> 6'};
+      ${resets.length ? `if (nt > tk) {
+        let r = false;
+        ${resets.map(g => `if (!z${g.j} && ${rst(g)}) { z${g.j} = 1; dc${g.j} = 0; si${g.j} = se${g.j}; ${g.chans.map(zero).join(' ')} r = true; }`).join('\n        ')}
+        if (r) break st;
+        tk = nt;
+      }` : ''}
+      if (nt === ${T}) {
         if (cy === n) { ${endCount} break run; }
 ${riseCount}
         cy++;
-        ${needFall ? ckSet(1) : ''} fd = ${!needFall};
+        ${needFall ? ckSet(1) : ''} fd = ${!needFall}; tk = 0;
+        ${gs.map(g => (g.rst ? `if (!${`(${rst(g)})`}) { z${g.j} = 0; ${start(g)} }` : start(g))).join('\n        ')}
 ${fire(posMain)}
-        { const c = dc < ${S} ? dc : ${S} + (dc - ${S}) % ${H}; si = DO[c]; se = DO[c + 1]; dc++; }
-        ph = 1;
-        ${posMain.length || needFall ? 'break st;' : ''}
+        ${posMain.length || needFall ? 'break st;' : 'continue st;'}
       }
-      if (!fd && (si >= se || DS[si] >= ${T / 2})) { fd = true; ${counted ? count('0.5') : ''} ${ckSet(0)}
+      if (!fd && nt === ${T / 2}) { fd = true; ${counted ? count('0.5') : ''} ${ckSet(0)}
 ${fire(negMain)}
         break st; }
-      if (si < se) { let k = DS[si + 1]; si += 2; for (; k > 0; k--, si += 2) { const x = DS[si + 1]; switch (DS[si]) { ${cases} } } break st; }
-      ph = 0;
+      ${gs.map(g => `if (si${g.j} < se${g.j} && DS${g.j}[si${g.j}] === nk) { let k = DS${g.j}[si${g.j} + 1]; si${g.j} += 2; for (; k > 0; k--, si${g.j} += 2) { const x = DS${g.j}[si${g.j} + 1]; switch (DS${g.j}[si${g.j}]) { ${cases(g)} } } }`).join('\n      ')}
+      break st;
     }`;
   }
 
@@ -722,7 +758,7 @@ function run(n) {
   ${temps.length ? `let ${temps.join(', ')};` : ''}
   ${edges.length ? `let ${edges.map((_, i) => `e${i} = E${i}`).join(', ')};` : ''}
   ${watch?.vga ? `let ${VGA_STATE.map((k, i) => `g_${k} = VG[${i}]`).join(', ')};` : ''}
-  let ph = 0, cy = 0, it = 0, ch = false;${sched ? ' let dc = DC, si = 0, se = 0, fd = true;' : ''}
+  let ph = 0, cy = 0, it = 0, ch = false;${dcmLocals}
   run: for (;;) {
 ${combCode}
     ch = false;
@@ -742,7 +778,7 @@ ${fire(negMain)}
     }`}
   }
   ${V.map(i => `V${i} = v${i};`).join(' ')}
-  ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}${sched ? ' DC = dc;' : ''}
+  ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}${dcmSave}
   ${edges.map((_, i) => `E${i} = e${i};`).join(' ')}
   ${watch?.vga ? VGA_STATE.map((k, i) => `VG[${i}] = g_${k};`).join(' ') : ''}
 }
