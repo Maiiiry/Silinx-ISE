@@ -20,6 +20,11 @@ In detail:
   most 0.1 point (`--compare`: totals within −9.9 % to +8.9 % of XPower's, vga's within −2.8 % to −0.8 %). Tests:
   `test/power.test.js` (the 28 runs of the seven examples, the merge of `--only`'s runs, vga in the estimate's
   comparison with XPower).
+- **The self-hosted runner without a writing token (#412):** the weekly comparison with ISE (`quality.yml`) runs on
+  the ISE machine with a read-only token and `persist-credentials: false` (it runs third-party code: the corpus's
+  fetch, `npm ci`), as the ISE tests (`ise.yml`) now do too; its results go out as the artifact `quality-results`,
+  and a `publish` job on GitHub's runner, the only one with `contents: write`, commits them to the branch
+  `quality-results` when the comparison passed. Tests: `test/workflows.test.js`.
 
 ## 15.11.0
 
