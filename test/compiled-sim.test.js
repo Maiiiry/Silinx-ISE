@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EXAMPLES, example, ROOT } from './examples-lib.mjs';
 import { diffCycles, designOf, rng } from './compiled-diff.js';
-import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit } from '../core/compiled-sim.js';
+import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit, segmentsOf } from '../core/compiled-sim.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { timingGenerics, autoTimeScale, scaledGenerics } from '../core/emulate.js';
 
@@ -517,6 +517,77 @@ for (const name of ['feat_bram', 'feat_const_bram', 'feat_const_dcm', 'feat_cons
 }
 
 // ------------------------------------------------------------------ speed
+// ------------------------------------------------------------------ activity (#464)
+// The cells evaluated only when what they read changed: against the code without it (activity: false, checked
+// against the event-driven simulator above), in runs of many cycles (a run evaluates everything at its start),
+// the inputs changed between them: every value, the memories, the counts and edges of a watch on the outputs
+// (their bits' levels, pairs of them, the falling edges of the first one), equal after each run; with the
+// guards the profile chooses, with every block guarded ('fine') and with the fewest guards ('max').
+async function netlistJson(sources, top, { generics, direct = false, extra = '' } = {}) {
+  if (!direct) return netlistOf(designOf(sources, top, { generics }), { run: yosysNode });
+  const files = Object.fromEntries(sources.map(x => [x.path, x.text]));
+  const out = await yosysNode(['-q', '-p', `read_verilog -sv ${sources.map(x => x.path).join(' ')}; prep -flatten -top ${top}; ${extra ? `${extra}; ` : ''}memory -nomap; opt_clean -purge; write_json ${top}_a.json`], files);
+  return { json: JSON.parse(out[`${top}_a.json`]), top };
+}
+async function sameActivity(sources, top, { generics, clock = null, seed = 3, runs = 40, longest = 4000, p = 0.3, direct = false, extra = '' } = {}) {
+  const { json, top: t } = await netlistJson(sources, top, { generics, direct, extra });
+  const outs = Object.entries(json.modules[t].ports).filter(([, x]) => x.direction === 'output')
+    .flatMap(([name, x]) => x.bits.map((_, i) => portBit(json, t, name, i)));
+  const watch = {
+    levels: outs.map((bit, i) => ({ bit, on: i & 1 })),
+    pairs: outs.slice(1).map((bit, i) => [{ bit: outs[i], on: 1 }, { bit, on: 0 }]),
+    edges: outs.length ? [{ bit: outs[0], capture: outs.slice(0, 8) }] : [],
+  };
+  const sims = [false, true, 'fine', 'max'].map(activity => new CompiledSim(compileNetlist(json, { top: t, clock, watch, activity })));
+  const [ref, ...others] = sims;
+  const ins = ref.model.inputs.filter(x => x.name !== ref.model.clock?.port);
+  const r = rng(seed);
+  const word = w => { let v = 0n; for (let i = 0; i < w; i += 16) v |= BigInt(Math.floor(r() * 65536)) << BigInt(i); return BigInt.asUintN(w, v); };
+  const state = s => ({ vals: s.inst.vals().map(String), mems: s.inst.mems.map(m => Array.from(m, String)), taken: s.take() });
+  let guarded = 0;
+  for (const s of others) guarded += (s.model.code.match(/^if \(\(D0 & /gm) || []).length;
+  for (let k = 0; k < runs; k++) {
+    for (const x of ins) if (k === 0 || r() < p) { const v = word(x.w); for (const s of sims) s.set(x.name, v); }
+    const n = 1 + Math.floor(r() ** 2 * longest);
+    for (const s of sims) s.cycle(n);
+    const want = state(ref);
+    others.forEach((s, i) => assert.deepEqual(state(s), want, `${top}: run ${k} (${n} cycles), activity ${['on', "'fine'", "'max'"][i]}`));
+  }
+  return { guarded };
+}
+for (const name of EXAMPLES) {
+  test(`activity: example ${name}, the same values, memories, counts and edges as without it`, async () => {
+    const ex = example(name);
+    const gens = timingGenerics(designOf(ex.design, ex.project.top).top.params);
+    const generics = gens.length ? scaledGenerics(gens, autoTimeScale(gens) * 100) : undefined;
+    const { guarded } = await sameActivity(ex.design, ex.project.top, { generics });
+    // (gates: no flip-flop, its cells guarded by the inputs only, with 'fine' and 'max')
+    if (name !== 'gates') assert.ok(guarded > 2, `${guarded} guarded segments`);
+  });
+}
+for (const [file, top, o] of [['ops.v', 'ops', { longest: 200 }], ['regs.v', 'regs'], ['clocks.v', 'clocks', { clock: 'clk' }], ['mems.v', 'mems'], ['ops.vhd', 'ops_vhd'],
+  ['cells.v', 'cells', { direct: true, extra: 'opt_dff' }], ['prims.vhd', 'prims_vhd'], ['prims.v', 'prims_v'], ['dcm.vhd', 'dcm_vhd'], ['dcm.v', 'dcm_v'], ['dcm_rst.vhd', 'dcm_rst_vhd'], ['dcm_rst.v', 'dcm_rst_v'], ['vga_bars.vhd', 'vga_bars']]) {
+  test(`activity: ${file}, the same values, memories, counts and edges as without it`, async () => {
+    await sameActivity(fixture(file), top, { longest: 1500, ...o });
+  });
+}
+test('activity: the segments, from the rates of the values their blocks read', () => {
+  const blk = (cells, keys, always = false) => ({ cells: Array(cells).fill(0), keys, always });
+  const shape = segs => segs.map(sg => [sg.blocks.reduce((a, b) => a + b.cells.length, 0), sg.keys ? [...sg.keys].sort().join() : null]);
+  // a counter's cells (its value changes at every step), the cells of the slow values behind it: one guard
+  const blocks = [blk(3, ['c']), blk(10, ['s1']), blk(20, ['s1', 's2']), blk(2, ['c', 's1'])];
+  const rate = new Map([['c', 1], ['s1', 0.001], ['s2', 0.0001]]);
+  const segs = segmentsOf(blocks, rate);
+  assert.deepEqual(shape(segs), [[3, null], [30, 's1,s2'], [2, null]]);
+  assert.ok(Math.abs(segs.cost - (3 + 2 + 0.0011 * 30 + 2)) < 1e-9, `${segs.cost} cells a step`);
+  // no rates (all 0): the fewest guards; a block always evaluated (a DCM's output) is never guarded
+  assert.deepEqual(shape(segmentsOf([...blocks, blk(4, [], true), blk(5, ['s2'])], new Map())), [[35, 'c,s1,s2'], [4, null], [5, 's2']]);
+  // a value changing every other step (above PMAX): unguarded; a lone small block: not worth its guard
+  assert.deepEqual(shape(segmentsOf([blk(8, ['x'])], new Map([['x', 0.5]]))), [[8, null]]);
+  assert.deepEqual(shape(segmentsOf([blk(1, ['x']), blk(3, ['c'])], new Map([['x', 0.1], ['c', 1]]))), [[4, null]]);
+  const none = segmentsOf([], new Map());
+  assert.deepEqual([[...none], none.cost], [[], 0]);
+});
 test('speed: the compiled simulator runs millions of cycles per second (pong at its real generics)', async () => {
   const ex = example('pong');
   const s = await compileDesign(designOf(ex.design, ex.project.top), { run: yosysNode });
@@ -524,7 +595,7 @@ test('speed: the compiled simulator runs millions of cycles per second (pong at 
   const t0 = performance.now();
   s.cycle(2_000_000);
   const rate = 2_000_000 / ((performance.now() - t0) / 1000);
-  // (about 36 million per second on a laptop; the floor is for slow CI machines)
+  // (about 45 million per second on a laptop; the floor is for slow CI machines)
   assert.ok(rate > 2e6, `${Math.round(rate).toLocaleString()} cycles per second`);
 });
 test('speed: a design on a DCM\'s 25 MHz clock (CLKFX = CLKIN / 2) runs millions of the board clock\'s cycles per second', async () => {

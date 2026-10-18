@@ -18,6 +18,9 @@ In short:
 - **DCMs with a reset on the compiled engine:** a design whose DCM is reset by a button or by the design (a
   Clocking Wizard wrapper's RST_IN) runs in the Board Emulator at the board's speed instead of falling back to the
   event-driven engine: while RST is high its clocks stop and LOCKED is low, and they lock again after its release.
+- **pong and clock in real time in the Board Emulator:** the compiled engine computes only the logic whose inputs
+  changed in a clock cycle, so at Max speed pong runs at about 66 million cycles per second and clock at 88 million
+  (were 28 and 23), above the boards' 50 MHz; blinky at 128 million (was 73).
 
 In detail:
 
@@ -71,6 +74,23 @@ In detail:
   DCM whose RST is driven. Checked cycle by cycle against the event-driven simulator, internal nets included, in
   VHDL (two DCMs, reset from an input and from a register, at six sets of frequencies) and Verilog (a reset from a
   register of another DCM's clock), with resets at random cycles.
+- **The compiled simulator evaluates what changed (#464):** pong and clock ran at 28 and 23 million cycles per
+  second in the Board Emulator's worker, below the boards' 50 MHz, most of their logic computed again every cycle
+  though it depends on registers that change once a second or less. `core/compiled-sim.js` now writes the
+  combinational cells in segments, each evaluated only when a value it reads changed since its last evaluation (a
+  flip-flop or memory of the main clock, or a *cut*: a 1-bit comparison of several bits, a counter's end, which
+  changes much less often than the counter). The changes are bits of dirty words, set when the main clock's edge
+  commits and by the cuts; a flip-flop whose next value comes only from guarded segments is not even compared until
+  one of them ran. Which segments to guard is chosen at compile time from a 20 000-cycle profile of the code (the
+  rate of each value's changes) by a dynamic programme that minimises the cells evaluated per cycle, guards
+  counted; a design where guards would save less than half the cells (vga_bars: its pixel counters change every
+  other cycle) keeps the unguarded code. The board watch's counts (LED levels, digit segments) are added up in
+  runs, when a watched value changes, instead of in every cycle; a bit repeated by a sign extension is one
+  expression. Every result is the same: Max speed in the worker, 4 s each, headless Chrome, before → after: blinky
+  73 → 128, pong 28 → 66, clock 23.5 → 88, vga_bars 114 → 114 million cycles per second. Tests:
+  `test/compiled-sim.test.js` (the seven examples and thirteen test designs with and without the activity, with its
+  most and its fewest guards: every value, memory, count and edge equal after runs of up to 4000 cycles; the
+  segments' choice).
 
 ## 15.11.0
 
