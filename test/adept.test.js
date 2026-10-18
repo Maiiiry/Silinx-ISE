@@ -45,8 +45,27 @@ test('program: the FPGA takes the bitstream from its sync word, DONE goes high',
   assert.equal(r.fpga, 'xc3s250e');
   assert.ok(board.done);
   assert.deepEqual([...board.config], [...bit.subarray(sync)]);
-  assert.deepEqual(lines.slice(1), ['JTAG chain: XC3S250E → XCF02S', 'JPROGRAM: clearing the configuration', `CFG_IN: ${bit.length} bytes`, 'JSTART', 'DONE: the FPGA is configured']);
+  const T = l => l.replace(/\d+\.\d s/g, 'T s').replace(/ \(\d+(\.\d+)? (KB\/s|MHz TCK over USB)\)/g, '');
+  assert.deepEqual(lines.slice(1).map(T), ['JTAG chain: XC3S250E → XCF02S', 'JPROGRAM: clearing the configuration', `CFG_IN: ${bit.length} bytes`, 'JSTART',
+    `  bitstream: ${bit.length * 8} bits in T s; INIT after 1 poll, DONE after 0`, '  USB: data shifts 1 x 4.1 KB in T s; TAP moves 5 x 0.1 KB in T s', 'DONE: the FPGA is configured in T s']);
   assert.equal(board.opened, false);
+});
+
+// #508: the steps of a program composed into JTAG sequences (JtagSeq), as the PROM's (#274): after the
+// chain's scan, JPROGRAM, CFG_IN and the INIT read one PUT_TMS_TDI_BITS; the bitstream one PUT_TDI_BITS
+// between the pairs before it and JSTART, its 12 clocks and the DONE read after it; the last 12 clocks
+// one more (88 commands, 240 transfers before: every IR shift a command a device, a status 4 commands)
+test('program: the steps in few commands (the IR shifts, polls and clocks composed into streams)', async () => {
+  const board = new SimAdeptBoard();
+  const { bit, sync } = fakeBit(20000);
+  let xfers = 0;
+  for (const m of ['transferOut', 'transferIn', 'controlTransferIn']) { const f = board[m].bind(board); board[m] = (...a) => { xfers++; return f(...a); }; }
+  await programAdept(board, bit, { part: 'xc3s250e' });
+  assert.deepEqual([...board.config], [...bit.subarray(sync)]);
+  const cmds = board.log.map(([, c]) => c), scan = cmds.indexOf(10) + 2 + 2 * 3 + 2;   // the chain's init: TLR / Shift-DR, 3 IDCODE reads, Exit1 / Update
+  assert.deepEqual(cmds.slice(scan), [10, 0x8a, 10, 0x8a, 10, 0x8a, 8, 0x88, 10, 0x8a, 10, 0x8a, 1], 'JPROGRAM + CFG_IN + INIT, one INIT poll; pairs, the bitstream, JSTART + DONE; the last clocks; DISABLE');
+  assert.equal(board.log.length, 26);
+  assert.ok(xfers <= 80, `${xfers} USB transfers`);
 });
 
 test('program: a Nexys2-500 (XC3S500E), a chain with the FPGA alone', async () => {
