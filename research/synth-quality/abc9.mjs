@@ -26,8 +26,9 @@ import { synthCommands, yosysFiles, SRL_CELLS_FILE, YOSYS_FAMILY } from '../../c
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
-const EXAMPLES = ['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock'];
+const EXAMPLES = ['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock', 'vga'];
 export const WAYS = ['now', 'lut4', 'abc9', 'abc9-4'];
+// (#377: `before`, the open synthesis without its ABC9 candidate, synthesizeOpen's abc9: false; `now` has it)
 
 /** The Yosys commands of a mapping with ABC9: the open synthesis's up to the LUT mapping, then synth_xilinx's own
  *  map_luts step with -abc9 (wide: false, also -nowidelut) and the rest of it. */
@@ -143,7 +144,7 @@ async function measure(argv) {
   const synth = async (design, way) => {
     const t0 = Date.now();
     let syn;
-    if (way === 'now') syn = await synthesizeOpen(design, { run: yosysNode });
+    if (way === 'now' || way === 'before') syn = await synthesizeOpen(design, { run: yosysNode, abc9: way === 'now' });
     else {
       const { text, top } = toVerilog(design);
       const out = await yosysNode(['-q', '-p', wayScript(way, top)], yosysFiles(top, text));
@@ -182,6 +183,7 @@ async function measure(argv) {
         Object.assign(m, { seconds: +bare.seconds.toFixed(1) });
         const u = utilization(bare.syn.cells);
         Object.assign(m, { luts: u.luts, muxf: u.muxes, ffs: u.flipFlops });
+        if (bare.syn.depth?.abc9) m.abc9 = bare.syn.depth.abc9.kept ? 'kept' : 'not kept';
         const sim = { cycles, ...(d.corpus?.sim || {}) };
         if (d.corpus?.clock && !sim.clock) sim.clock = d.corpus.clock;
         try {

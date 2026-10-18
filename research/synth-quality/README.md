@@ -417,6 +417,77 @@ vtr-ch-intrinsics are its gated clocks (#80), the same in all three mappings. tr
 - on the two EPFL designs, abc9-4 is as slow as lut4, both without the depth-oriented mapping that only *now*
   tries.
 
+### ABC9 as a candidate (#377)
+
+At effort High, the open synthesis (`synthesizeOpen`) now also maps the design onto LUT4s alone with ABC9
+(`abc9RemapCommands`). It works from the same netlist as the other mappings (`PREMAP_FILE`), reading the cells'
+models and Silinx's SRL16E_1 first, because the RTLIL holds them as bare black boxes. It is kept when better than
+the netlist chosen by the other mappings, by `keepDepth` (DEPTH_RULE unchanged); `r.depth.abc9` says what
+happened, and `abc9: false` leaves it out.
+
+It runs after the others, or with them when `run` has 4 Yosys at a time or more. Like the others, it is inside
+the try of #401: if it fails, the usual mapping is kept.
+
+Effort Normal, the app's default, doesn't run it.
+
+Measured with `abc9.mjs --ways before,now` (`before`: `abc9: false`), seed 1, 2026-10-18. `now` here is the
+synthesis with the candidate. The routed period is Silinx's STA; for wrapped designs (fpu-adder…) it is the
+design inside the corpus's I/O wrapper. Synthesis time is one Yosys at a time (Node), so in the browser, with
+several Yosys, the extra run is mostly in parallel.
+
+| design | abc9-4 | LUTs | slices | period (ns) | synthesis (s) |
+|---|---|---|---|---|---|
+| examples/gates | **kept** | 2 → 1 | 1 → 1 | – → – | 5.6 → 7.7 |
+| examples/traffic | not kept | 108 → 108 | 67 → 67 | 8.05 → 8.05 | 9.7 → 10.1 |
+| examples/blinky | not kept | 69 → 69 | 86 → 86 | 7.53 → 7.53 | 4.1 → 6.8 |
+| examples/pong | not kept | 282 → 282 | 247 → 247 | 12.57 → 12.57 | 4.9 → 7.8 |
+| examples/stopwatch | not kept | 202 → 202 | 194 → 194 | 12.49 → 12.49 | 7.5 → 10.5 |
+| examples/clock | not kept | 207 → 207 | 205 → 205 | 8.82 → 8.82 | 5.0 → 7.9 |
+| serv | not kept | 273 → 273 | 208 → 208 | 13.15 → 13.15 | 8.6 → 11.5 |
+| picorv32 | not kept | 1184 → 1184 | 757 → 757 | 12.55 → 12.55 | 8.7 → 12.6 |
+| femtorv32-quark | not kept | 638 → 638 | 423 → 423 | 17.27 → 17.27 | 7.0 → 10.1 |
+| light8080 | not kept | 313 → 313 | 192 → 192 | 12.75 → 12.75 | 7.2 → 10.3 |
+| verilog-uart | **kept** | 132 → 148 | 131 → 125 | 10.27 → 9.30 | 6.7 → 9.6 |
+| verilog-i2c-master | not kept | 190 → 190 | 126 → 126 | 10.96 → 10.96 | 7.3 → 10.1 |
+| nandland-spi-vhdl | **kept** | 46 → 44 | 52 → 33 | 5.49 → 5.64 | 4.0 → 6.7 |
+| fpu-adder | **kept** | 480 → 514 | 341 → 341 | 12.49 → 12.49 | 5.4 → 8.6 |
+| secworks-siphash | not kept | 1059 → 1059 | 913 → 913 | 14.11 → 14.11 | 7.2 → 11.1 |
+| epfl-dec | not kept | 288 → 288 | 187 → 187 | 6.51 → 6.51 | 5.0 → 7.6 |
+| epfl-priority | not kept | 209 → 209 | 115 → 115 | 11.24 → 11.24 | 9.5 → 12.3 |
+| epfl-ctrl | not kept | 43 → 43 | 25 → 25 | – → – | 6.7 → 9.3 |
+| vtr-ch-intrinsics | not kept | 103 → 103 | 265 → 265 | 6.32 → 6.32 | 4.3 → 7.1 |
+| vtr-stereovision3 | not kept | 135 → 135 | 112 → 112 | 7.99 → 7.99 | 4.5 → 7.3 |
+| epfl-max | not kept | 1099 → 1099 | 722 → 722 | 28.88 → 28.88 | 20.3 → 27.9 |
+
+- **Kept on 4 of 21 designs**: gates, verilog-uart, nandland-spi-vhdl and fpu-adder.
+- **Geometric means over the 19 designs with a clock** (now / before): LUTs 1.007, slices 0.974, period 0.996.
+  Synthesis time 1.47, about 2.5 to 3.9 s more per design with one Yosys at a time.
+- **ISE's trce on the routed designs, before → now:**
+  - verilog-uart: 9.680 → 9.232 ns (−4.6 %);
+  - nandland-spi-vhdl: 5.493 → 5.597 ns (+1.9 %), with 37 % fewer slices;
+  - fpu-adder: 12.385 ns, unchanged (its wrapper's synthesis kept the same netlist).
+- **Correctness:** every netlist is equal to the RTL, and the examples stay byte-identical with ISE's bitgen.
+- **The gain is small** on these designs: most of the gain #369 measured for abc9-4 is already in the other
+  mappings. A slices-aware DEPTH_RULE (#377) may keep it more often.
+
+**The design corpus.** A synthesis of all 67 designs shows abc9-4 kept on 9 of them. The expected size and period
+of those 9 are updated in test/designs-corpus/expected.json, routed, seed 1; the size is the packed slices and
+LUTs, inside the I/O wrapper where there is one.
+
+| design | slices | LUTs | period (ns) |
+|---|---|---|---|
+| iwls05-i2c | 215 → **140** | 429 → **279** | 8.80 → **8.64** |
+| nandland-spi-verilog | 52 → **33** | 100 → **63** | 5.21 → 5.52 |
+| nandland-spi-vhdl | 52 → **33** | 100 → **63** | 5.52 → 5.64 |
+| verilog-uart | 131 → **125** | 259 → **246** | 10.29 → **9.30** |
+| epfl-voter | 1177 → **1163** | 2353 → **2325** | 25.40 → **24.32** |
+| itc99-b09 | 21 → **20** | 42 → **40** | 6.69 → **5.70** |
+| verilog-lfsr-crc | 53 → **50** | 105 → **99** | 3.87 → 3.87 |
+| fpu-adder, epfl-adder | unchanged (the I/O wrapper's synthesis keeps the same netlist) | | |
+
+The netlists are equal to the RTL. The nandland SPI cores are 37 % smaller but 2 to 6 % slower (keepDepth's
+"smaller" rule: 5 % fewer LUTs, at most 1 % slower by the estimate).
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding

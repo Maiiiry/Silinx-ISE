@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, criticalDelay, keepDepth, keepSecond, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -437,6 +437,39 @@ test('a shift register on the falling edge alone (SRL16E_1) gets its clock throu
   const design = elaborate(compile([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [7:0] r = 0; always @(negedge clk) r <= {r[6:0], d}; assign q = r[7]; endmodule' }]), 't');
   const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
   assert.deepEqual(Object.fromEntries(Object.entries(r.cells).sort()), { BUFG: 1, IBUF: 2, OBUF: 1, SRL16E_1: 1 });
+});
+
+// #377: ABC9 onto LUT4s alone, one more candidate of effort High (research/synth-quality/README.md, "ABC9")
+test('ABC9 candidate (#377): its script, from the netlist before the LUT mapping, the cells\' models and Silinx\'s SRL16E_1 read first', () => {
+  assert.equal(abc9RemapCommands('top', 'spartan3e'), 'read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; '
+    + `read_verilog -lib silinx_srl_cells.v; read_rtlil -nooverwrite ${PREMAP_FILE}; synth_xilinx -family xc3se -ise -flatten -top top -abc9 -nowidelut -run map_luts:`);
+});
+
+test('ABC9 candidate (#377): kept when better (the gates example: 1 LUT instead of 2), equal to the RTL; abc9: false leaves it out; with 4 Yosys at once the same', { timeout: 300000 }, async () => {
+  const fs = await import('node:fs');
+  const text = fs.readFileSync(new URL('../examples/gates/src/gates.vhd', import.meta.url), 'utf8');
+  const d = elaborate(compile([{ path: 'gates.vhd', lang: 'vhdl', text }]), 'gates');
+  const r = await synthesizeOpen(d, { run: yosysNode });
+  assert.deepEqual([r.depth.abc9.kept, r.depth.abc9.luts, r.util.luts], [true, 1, 1], JSON.stringify(r.depth));
+  assert.deepEqual(r.warnings, []);
+  const c = compareNetlist(d, r, { name: 'gates', seed: 'gates', sim: { cycles: 64 } });
+  assert.equal(c.status, 'pass', c.report || c.reason);
+  // without the candidate: the usual mapping's 2 LUTs, no abc9 in r.depth
+  const off = await synthesizeOpen(d, { run: yosysNode, abc9: false });
+  assert.deepEqual([off.depth.abc9, off.util.luts], [undefined, 2]);
+  // started with the first mappings when run() has 4 Yosys at a time (#277): the same choice
+  const run4 = Object.assign((...a) => yosysNode(...a), { parallel: 4 });
+  const r4 = await synthesizeOpen(d, { run: run4 });
+  assert.deepEqual([r4.depth.abc9.kept, r4.util.luts], [true, 1]);
+});
+
+test('ABC9 candidate (#377): a falling-edge shift register (SRL16E_1, a black box of Silinx\'s) maps, not a failed optional mapping', { timeout: 120000 }, async () => {
+  const d = elaborate(compile([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [7:0] r = 0; always @(negedge clk) r <= {r[6:0], d}; assign q = r[7]; endmodule' }]), 't');
+  const r = await synthesizeOpen(d, { run: yosysNode });
+  assert.equal(r.depth.failed, undefined, r.depth.failed);
+  assert.ok(r.depth.abc9, JSON.stringify(r.depth));
+  assert.deepEqual(r.warnings, []);
+  assert.equal(r.cells.SRL16E_1, 1);
 });
 
 // #282: the synthesis's Optimization Effort: Normal (the projects' default) one Yosys run, the usual mapping;
