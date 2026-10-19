@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import * as P from './projects.js';
 import { orderExamples } from '../core/examples.js';
 import { importMapPackages } from './import-map.js';
+import { contentSecurityPolicy, inlineScriptHashes } from './csp.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -23,25 +24,7 @@ export function pageCsp(file) {
   try { st = fs.statSync(file); } catch { return null; }
   const hit = cspCache.get(file);
   if (hit && hit.mtime === st.mtimeMs) return hit.csp;
-  const html = fs.readFileSync(file, 'utf8');
-  const hashes = [...html.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)]
-    .map(m => `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`);
-  const csp = [
-    "default-src 'self'",
-    // 'unsafe-eval': the compiled simulator (core/compiled-sim.js, #384) runs the JavaScript it writes
-    // for the design (new Function); a script injected into a page still cannot run
-    `script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval' ${hashes.join(' ')}`.trim(),
-    "worker-src 'self' blob:",
-    // the update check (GitHub's releases and the CHANGELOG)
-    "connect-src 'self' https://api.github.com https://raw.githubusercontent.com",
-    "img-src 'self' data: blob:",
-    "style-src 'self' 'unsafe-inline'",
-    "font-src 'self' data:",
-    "object-src 'none'",
-    "base-uri 'none'",
-    "frame-ancestors 'none'",
-    "form-action 'self'",
-  ].join('; ');
+  const csp = contentSecurityPolicy({ hashes: inlineScriptHashes(fs.readFileSync(file, 'utf8')) });
   cspCache.set(file, { mtime: st.mtimeMs, csp });
   return csp;
 }

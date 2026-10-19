@@ -17,6 +17,7 @@ import { TEXTS, untranslated } from './i18n-check.js';
 import { buildInfo } from '../../scripts/build-info.mjs';
 import { VERSION, versionLabel } from '../../core/version.js';
 import zlib from 'node:zlib';
+import crypto from 'node:crypto';
 import { createZip } from '../../core/zip.js';
 
 let env, plain, html, site, server, siteUrl, build, skip = null;
@@ -47,9 +48,6 @@ before(async () => {
   for (const f of ['LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await fs.copyFile(path.join(ROOT, f), path.join(root, f));   // the embedded notices
   await fs.symlink(modules, path.join(root, 'node_modules'), 'dir');
   site = path.join(root, 'site');
-  const r = spawnSync(process.execPath, [path.join(root, 'scripts/build-standalone.mjs'), '--site', site], { cwd: root, encoding: 'utf8', timeout: 180000 });
-  if (r.status !== 0) throw new Error(`standalone build failed: ${r.stderr || r.stdout}`);
-  html = path.join(root, 'dist', 'Silinx-ISE.html');
   // the site over HTTP, as GitHub Pages serves it (no Content-Encoding: the .json.gz are fetched as bytes)
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.gz': 'application/gzip' };
   server = http.createServer(async (req, res) => {
@@ -67,6 +65,11 @@ before(async () => {
   });
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
   siteUrl = `http://127.0.0.1:${server.address().port}/`;
+  // built once the site's address is known: the single file fetches its assets from this site, which
+  // its Content-Security-Policy names (--assets-url, #487)
+  const r = spawnSync(process.execPath, [path.join(root, 'scripts/build-standalone.mjs'), '--site', site, '--assets-url', siteUrl], { cwd: root, encoding: 'utf8', timeout: 180000 });
+  if (r.status !== 0) throw new Error(`standalone build failed: ${r.stderr || r.stdout}`);
+  html = path.join(root, 'dist', 'Silinx-ISE.html');
 });
 after(async () => { server?.close(); await env?.teardown?.(); await plain?.teardown?.(); });
 const E = () => (skip ? { skip } : env);
@@ -373,12 +376,12 @@ uiTest('browser edition: Stop during Generate Programming File stops the flow, a
 
 // #280: a second Generate Programming File with the design unchanged (only the pins may have changed) starts
 // at Translate, from the netlist of the first: the browser's flow worker as the server's
-// #418: the single file (file://) compiles the design with the site's Yosys (here the test's site, as the
-// published one: SILINX_ASSETS)
+// #418: the single file (file://) compiles the design with the site's Yosys (here the test's site, which
+// the build named: --assets-url)
 uiTest('standalone edition (file://): the Board Emulator runs blinky on the compiled engine, Yosys from the site', E, async (page) => {
   await page.goto(pathToFileURL(html).href);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'standalone boot' });
-  await page.eval((u) => { window.SILINX_ASSETS = u; }, `${siteUrl}assets/`);
+  assert.equal(await page.eval(() => window.SILINX_ASSET_LAYOUT.site), siteUrl, 'the assets from the site the build named');
   await page.menu('File', 'New Project…');
   await page.waitDialog('New Project Wizard');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'SoloEmu');
@@ -405,7 +408,7 @@ uiTest('standalone edition (file://) in a Chrome without --allow-file-access-fro
   await page.goto(pathToFileURL(html).href);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'standalone boot' });
   assert.equal(await page.eval(() => location.protocol), 'file:');
-  await page.eval((u) => { window.SILINX_ASSETS = u; }, `${siteUrl}assets/`);
+  assert.equal(await page.eval(() => window.SILINX_ASSET_LAYOUT.site), siteUrl, 'the assets from the site the build named');
   await page.menu('File', 'New Project…');
   await page.waitDialog('New Project Wizard');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'SoloPlain');
@@ -950,4 +953,62 @@ uiTest('#483 browser edition: a hostile zip (paths leaving the project, a broken
   });
   assert.equal(await page.eval(() => [...document.querySelectorAll('#hier .lbl')].some((e) => /^top\b/.test(e.textContent))), true, 'the top module in the hierarchy');
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '', 'no error');
+}, { url: () => 'about:blank' });
+
+// #487: the static editions carry a Content-Security-Policy (a <meta>: the page's inline scripts by their
+// hashes, scripts and fetches from the page's origin and the assets' site only) and fetch versioned
+// assets (assets/<version or dev-commit>/, Yosys under its own version); a script injected into the page
+// does not run, in the single file and on the site. (Every other test of this file runs under the same
+// policy: a violation is a console error, which fails it: test/ui/harness.js.)
+const directives = (csp) => Object.fromEntries(csp.split(/;\s*/).map((d) => d.trim().split(/\s+/)).map(([k, ...v]) => [k, v]));
+uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\' hashes, versioned assets; an injected script does not run', E, async (page) => {
+  const yosysVersion = JSON.parse(await fs.readFile(path.join(ROOT, 'node_modules/@yowasp/yosys/package.json'), 'utf8')).version;
+  const dir = `dev-${build.commit}/`;
+  const origin = new URL(siteUrl).origin;
+  for (const file of [html, path.join(site, 'index.html'), path.join(site, 'Silinx-ISE.html')]) {
+    const text = await fs.readFile(file, 'utf8');
+    const metas = [...text.matchAll(/<meta http-equiv="Content-Security-Policy" content="([^"]*)">/g)];
+    assert.equal(metas.length, 1, `${file}: one policy`);
+    // first in <head>, before any script (a policy applies to what follows it)
+    assert.ok(text.indexOf(metas[0][0]) < text.indexOf('<script'), 'before the scripts');
+    const d = directives(metas[0][1].replace(/&quot;/g, '"').replace(/&amp;/g, '&'));
+    // every inline script by its hash, computed here independently
+    const hashes = [...text.matchAll(/<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => `'sha256-${crypto.createHash('sha256').update(m[1]).digest('base64')}'`);
+    assert.ok(hashes.length >= 4, `${hashes.length} inline scripts`);
+    assert.deepEqual(d['script-src'], ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'", origin, ...hashes]);
+    assert.deepEqual(d['connect-src'], ["'self'", 'https://api.github.com', 'https://raw.githubusercontent.com', origin]);
+    assert.deepEqual(d['worker-src'], ["'self'", 'blob:']);
+    assert.deepEqual(d['object-src'], ["'none'"]);
+    assert.deepEqual(d['base-uri'], ["'none'"]);
+    assert.equal(d['frame-ancestors'], undefined, 'not in a <meta> (the browser reports it as an error)');
+    assert.match(text, new RegExp(`window\\.SILINX_ASSET_LAYOUT = ${JSON.stringify({ dir, yosys: `../vendor/yowasp-yosys/${yosysVersion}/gen/bundle.js`, site: siteUrl }).replace(/[.?*+^$()[\]{}|\\/]/g, '\\$&')};`));
+  }
+  // the site's assets, versioned; none at the unversioned paths of before
+  const ls = async (p) => (await fs.readdir(path.join(site, p))).sort();
+  assert.deepEqual(await ls('assets'), [dir.slice(0, -1), 'vendor']);
+  assert.deepEqual(await ls(`assets/${dir}`), ['bitdb', 'devices']);
+  assert.deepEqual(await ls(`assets/${dir}devices`), ['xc3s100ecp132-4.json.gz', 'xc3s1200efg320-4.json.gz', 'xc3s250ecp132-4.json.gz', 'xc3s500efg320-4.json.gz']);
+  assert.ok((await ls(`assets/${dir}bitdb`)).length >= 20);
+  assert.deepEqual(await ls('assets/vendor/yowasp-yosys'), [yosysVersion]);
+  assert.ok((await ls(`assets/vendor/yowasp-yosys/${yosysVersion}/gen`)).includes('bundle.js'));
+  assert.ok((await ls(`assets/vendor/yowasp-yosys/${yosysVersion}`)).includes('package.json'), 'its licence and package.json with it');
+  // --assets-only: the same assets alone, into a site's assets folder (the Pages build keeps the last
+  // releases' with it)
+  const only = path.join(env.tmp, 'assets-only');
+  const r = spawnSync(process.execPath, [path.join(path.dirname(html), '..', 'scripts/build-standalone.mjs'), '--assets-only', only], { cwd: path.join(path.dirname(html), '..'), encoding: 'utf8', timeout: 120000 });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual((await fs.readdir(only)).sort(), [dir.slice(0, -1), 'vendor']);
+  assert.deepEqual((await fs.readdir(path.join(only, dir))).sort(), ['bitdb', 'devices']);
+  // in the browser: the page runs, an injected inline script is blocked (and reported)
+  page.allowErrors.push(/Content-Security-Policy violation: script-src(-elem)? blocked (inline|an inline script)/);
+  for (const url of [pathToFileURL(html).href, siteUrl]) {
+    await page.goto(url);
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: `boot of ${url}` });
+    assert.equal(await page.eval(() => window.SILINX_ASSET_LAYOUT.site), siteUrl);
+    const before = page.errors.length;
+    await page.eval(() => { const sc = document.createElement('script'); sc.textContent = 'window.__injected = 1;'; document.body.append(sc); });
+    await new Promise((ok) => setTimeout(ok, 300));
+    assert.equal(await page.eval(() => window.__injected ?? null), null, `${url}: the injected script did not run`);
+    assert.ok(page.errors.slice(before).some((e) => /Content-Security-Policy violation: script-src/.test(e)), `${url}: the violation reported (${page.errors.slice(before).join(' | ')})`);
+  }
 }, { url: () => 'about:blank' });

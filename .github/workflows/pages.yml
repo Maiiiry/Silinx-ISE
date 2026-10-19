@@ -67,6 +67,33 @@ jobs:
           git log -1 --format='Development edition: %h %s (%ci)'
           npm ci
           node scripts/build-standalone.mjs --site site/dev
+      # the older releases' assets (#487): a Silinx-ISE.html downloaded from the site fetches its own
+      # version's assets (assets/<version>/, Yosys in assets/vendor/yowasp-yosys/<its version>/): the
+      # site keeps those of its last releases, each built from its tag (its own script, with
+      # --assets-only); and the unversioned assets/ of the files downloaded before versioned assets
+      # (v15.11.1 and earlier), once the stable edition no longer writes them itself
+      - name: The older releases' assets
+        env:
+          STABLE: ${{ steps.release.outputs.tag }}
+          KEEP: 5
+          LEGACY: v15.11.1
+        run: |
+          versioned() { git show "$1:scripts/build-standalone.mjs" | grep -q -- '--assets-only'; }
+          kept=0
+          for TAG in $(git tag --list 'v[0-9]*' --sort=-v:refname); do
+            [ "$kept" -ge "$KEEP" ] && break
+            [ "$TAG" = "$STABLE" ] && continue
+            versioned "$TAG" || continue
+            git worktree add --detach "../assets-$TAG" "$TAG"
+            (cd "../assets-$TAG" && npm ci && node scripts/build-standalone.mjs --assets-only "$GITHUB_WORKSPACE/site/assets")
+            kept=$((kept + 1))
+          done
+          if versioned "$STABLE"; then
+            git worktree add --detach ../legacy "$LEGACY"
+            (cd ../legacy && npm ci && node scripts/build-standalone.mjs --site "$RUNNER_TEMP/legacy-site")
+            cp -R "$RUNNER_TEMP/legacy-site/assets/." site/assets/
+          fi
+          du -sh site site/assets
       # the usage counts of the site (GoatCounter: no cookies, no personal data), when the repository
       # variable GOATCOUNTER_CODE is set (Settings ▸ Secrets and variables ▸ Actions ▸ Variables);
       # only the pages opened on the site, never the file people download

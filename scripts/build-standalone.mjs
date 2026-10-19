@@ -1,21 +1,73 @@
 // Builds dist/Silinx-ISE.html: the whole Project Navigator in one self-contained HTML file
 // (no server). Projects live in the browser's localStorage; the examples are embedded.
-//   node scripts/build-standalone.mjs [--site <dir>]
+//   node scripts/build-standalone.mjs [--site <dir>] [--assets-url <site URL>]
+//   node scripts/build-standalone.mjs --assets-only <assets dir>
 // --site also writes the GitHub Pages site (.github/workflows/pages.yml): the page as index.html and
 // Silinx-ISE.html, and assets/ with what the Silinx toolchain fetches in the browser
 // (web/js/open-flow-browser.js): the device descriptions (core/fpga/devices), the bit database
 // (research/s3e-bitstream/db) and Yosys in WebAssembly (node_modules/@yowasp/yosys/gen).
+// The assets are versioned (#487): assets/<version>/ (a development build: assets/dev-<commit>/) holds
+// the device descriptions and the bit database, assets/vendor/yowasp-yosys/<its version>/ Yosys (the
+// versions with the same Yosys share it); the page knows its folder, and the single file the site it
+// fetches them from (--assets-url, default the published site; dev/ for a development build), so a
+// downloaded Silinx-ISE.html keeps the assets it was built with. --assets-only writes this version's
+// assets alone into an assets folder (the Pages build keeps the last releases' assets with it).
+// The page carries a Content-Security-Policy (server/csp.js) with the hashes of its inline scripts.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import * as esbuild from 'esbuild';
 import { buildInfo } from './build-info.mjs';
 import { VERSION } from '../core/version.js';
 import { THIRD_PARTY } from '../core/third-party.js';
+import { contentSecurityPolicy, inlineScriptHashes, withMetaCsp } from '../server/csp.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'dist', 'Silinx-ISE.html');
 const rd = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
+const arg = name => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] : undefined; };
+
+// the version label: the release's commit, or the development commit built (core/version.js BUILD)
+const BUILD = buildInfo(ROOT, VERSION);
+// ---- the assets' layout (web/js/open-flow-browser.js LAYOUT)
+const YOSYS_VERSION = JSON.parse(rd('node_modules/@yowasp/yosys/package.json')).version;
+const PUBLISHED = 'https://pmnmalo.github.io/Silinx-ISE/';
+const LAYOUT = {
+  dir: BUILD ? `dev-${BUILD.commit}/` : `${VERSION}/`,
+  yosys: `../vendor/yowasp-yosys/${YOSYS_VERSION}/gen/bundle.js`,
+  site: new URL(arg('--assets-url') || (BUILD ? `${PUBLISHED}dev/` : PUBLISHED)).href,
+};
+const copyDir = (from, to, filter = () => true) => {
+  fs.mkdirSync(to, { recursive: true });
+  let n = 0, bytes = 0;
+  for (const f of fs.readdirSync(from)) {
+    const src = path.join(from, f);
+    if (!fs.statSync(src).isFile() || !filter(f)) continue;
+    fs.copyFileSync(src, path.join(to, f));
+    n++; bytes += fs.statSync(src).size;
+  }
+  return { n, bytes };
+};
+/** This version's assets in the folder `assets` (a site's assets/), as LAYOUT names them. */
+function writeAssets(assets) {
+  const own = path.join(assets, LAYOUT.dir);
+  const yosys = path.join(assets, 'vendor/yowasp-yosys', YOSYS_VERSION);
+  const parts = [
+    [`${LAYOUT.dir}devices`, copyDir(path.join(ROOT, 'core/fpga/devices'), path.join(own, 'devices'), f => f.endsWith('.json.gz'))],
+    [`${LAYOUT.dir}bitdb`, copyDir(path.join(ROOT, 'research/s3e-bitstream/db'), path.join(own, 'bitdb'), f => f.endsWith('.json'))],
+    [`vendor/yowasp-yosys/${YOSYS_VERSION}/gen`, copyDir(path.join(ROOT, 'node_modules/@yowasp/yosys/gen'), path.join(yosys, 'gen'))],
+  ];
+  // the licence of the WebAssembly Yosys published with the site (ISC; THIRD-PARTY-NOTICES.md)
+  for (const f of ['LICENSE.txt', 'LICENSE', 'package.json']) {
+    const src = path.join(ROOT, 'node_modules/@yowasp/yosys', f);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(yosys, f));
+  }
+  for (const [k, { n, bytes }] of parts) console.log(`  assets/${k}: ${n} file(s), ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+}
+if (arg('--assets-only')) {
+  writeAssets(path.resolve(arg('--assets-only')));
+  process.exit(0);
+}
+const esbuild = await import('esbuild');
 
 // ---- embedded examples
 function readTree(dir, base = '') {
@@ -46,8 +98,6 @@ const plugin = {
     b.onLoad({ filter: /.*/, namespace: 'virtual' }, () => ({ contents: `export default ${JSON.stringify(examples)};`, loader: 'js' }));
   },
 };
-// the version label: the release's commit, or the development commit built (core/version.js BUILD)
-const BUILD = buildInfo(ROOT, VERSION);
 console.log(`Version: ${VERSION}${BUILD ? ` (development build dev:${BUILD.commit})` : ''}`);
 const define = { __SILINX_BUILD__: JSON.stringify(BUILD) };
 const res = await esbuild.build({
@@ -87,7 +137,7 @@ html = html.replace(/<!-- the editor \(CodeMirror 6[\s\S]*?<script type="importm
 if (html.includes('importmap')) throw new Error('web/index.html: the import map was not removed');
 // replacer functions: the inserted code may contain `$'`, `$&`… which a replacement string would expand
 html = html.replace('<script type="module" src="/js/app.js"></script>',
-  () => `<script>window.SILINX_STANDALONE = true;\nwindow.SILINX_FLOW_WORKER_SRC = ${safeJs(JSON.stringify(workerJs))};\nwindow.SILINX_EMU_WORKER_SRC = ${safeJs(JSON.stringify(emuWorkerJs))};</script>\n<script type="module">${safeJs(appJs)}</script>`);
+  () => `<script>window.SILINX_STANDALONE = true;\nwindow.SILINX_ASSET_LAYOUT = ${safeJs(JSON.stringify(LAYOUT))};\nwindow.SILINX_FLOW_WORKER_SRC = ${safeJs(JSON.stringify(workerJs))};\nwindow.SILINX_EMU_WORKER_SRC = ${safeJs(JSON.stringify(emuWorkerJs))};</script>\n<script type="module">${safeJs(appJs)}</script>`);
 html = html.replace('<title>Silinx ISE Project Navigator</title>', () => '<title>Silinx ISE Project Navigator (standalone)</title>');
 if (!html.includes(safeJs(appJs))) throw new Error('the app bundle was not inserted verbatim into the page');
 // copyright and the licences of the components embedded in this single file (NOTICE + their texts
@@ -102,6 +152,12 @@ if (!html.includes(safeJs(appJs))) throw new Error('the app bundle was not inser
   const text = `${fs.readFileSync(path.join(ROOT, 'NOTICE'), 'utf8')}\n${fs.readFileSync(path.join(ROOT, 'LICENSE'), 'utf8')}\n# Embedded components\n\n${parts.join('\n')}`;
   html = html.replace('</head>', () => `<script type="text/plain" id="silinx-notices">\n${safeJs(text)}\n</script>\n</head>`);
 }
+// the Content-Security-Policy (#487), last: the hashes of the page's inline scripts as they are; the
+// single file also loads Yosys from the assets' site and fetches the assets from it
+{
+  const origin = new URL(LAYOUT.site).origin;
+  html = withMetaCsp(html, contentSecurityPolicy({ hashes: inlineScriptHashes(html), scripts: [origin], connect: [origin], meta: true }));
+}
 fs.mkdirSync(path.dirname(OUT), { recursive: true });
 fs.writeFileSync(OUT, html);
 console.log(`wrote ${path.relative(ROOT, OUT)} (${(html.length / 1024 / 1024).toFixed(2)} MB)`);
@@ -110,17 +166,6 @@ console.log(`wrote ${path.relative(ROOT, OUT)} (${(html.length / 1024 / 1024).to
 const siteArg = process.argv.indexOf('--site');
 if (siteArg > 0) {
   const site = path.resolve(process.argv[siteArg + 1] || 'site');
-  const copyDir = (from, to, filter = () => true) => {
-    fs.mkdirSync(to, { recursive: true });
-    let n = 0, bytes = 0;
-    for (const f of fs.readdirSync(from)) {
-      const src = path.join(from, f);
-      if (!fs.statSync(src).isFile() || !filter(f)) continue;
-      fs.copyFileSync(src, path.join(to, f));
-      n++; bytes += fs.statSync(src).size;
-    }
-    return { n, bytes };
-  };
   fs.rmSync(site, { recursive: true, force: true });
   fs.mkdirSync(site, { recursive: true });
   fs.writeFileSync(path.join(site, 'index.html'), html);
@@ -128,16 +173,6 @@ if (siteArg > 0) {
   // what this site serves (its page's version and build): on the site, Check for Updates compares the
   // page open with it, not with GitHub's latest release (published minutes before the site is rebuilt)
   fs.writeFileSync(path.join(site, 'version.json'), `${JSON.stringify({ version: VERSION, build: BUILD })}\n`);
-  const parts = [
-    ['devices', copyDir(path.join(ROOT, 'core/fpga/devices'), path.join(site, 'assets/devices'), f => f.endsWith('.json.gz'))],
-    ['bitdb', copyDir(path.join(ROOT, 'research/s3e-bitstream/db'), path.join(site, 'assets/bitdb'), f => f.endsWith('.json'))],
-    ['yosys', copyDir(path.join(ROOT, 'node_modules/@yowasp/yosys/gen'), path.join(site, 'assets/vendor/yowasp-yosys/gen'))],
-  ];
-  // the licence of the WebAssembly Yosys published with the site (ISC; THIRD-PARTY-NOTICES.md)
-  for (const f of ['LICENSE.txt', 'LICENSE', 'package.json']) {
-    const src = path.join(ROOT, 'node_modules/@yowasp/yosys', f);
-    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(site, 'assets/vendor/yowasp-yosys', f));
-  }
-  for (const [k, { n, bytes }] of parts) console.log(`  site/assets/${k}: ${n} file(s), ${(bytes / 1024 / 1024).toFixed(1)} MB`);
+  writeAssets(path.join(site, 'assets'));
   console.log(`wrote the site in ${path.relative(ROOT, site) || site}`);
 }
