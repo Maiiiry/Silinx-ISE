@@ -37,7 +37,11 @@ import { PRIMITIVE_MODELS, DCM_CELLS, DCM_OUTPUTS, dcmWaves, dcmSchedule, bramIn
 export class CompileError extends Error {}
 
 /** The Yosys commands that read the design at word level (after read_verilog). */
-export const prepCommands = top => `prep -flatten -top ${top}; memory -nomap; opt_clean -purge`;
+// (#629: a gate-level model, its LUTs a design's logic bit by bit, with its constants folded after the flatten
+// (opt_expr -full: the carry chain's constant multiplexers): faster; a behavioural design is slower with it)
+export const prepCommands = (top, { gates = false } = {}) => `prep -flatten -top ${top}; ${gates ? 'opt_expr -full; ' : ''}memory -nomap; opt_clean -purge`;
+/** Is a design of these primitives a gate-level model (a synthesized netlist: LUTs, SIMPRIM's X_LUTs)? */
+export const gateLevel = primitives => primitives.some(p => /^(X_)?LUT\d/.test(p));
 
 /**
  * The design's word-level netlist (Yosys's JSON, parsed): { json, top, warnings: [messages] }.
@@ -55,7 +59,7 @@ export async function netlistOf(design, { run }) {
   const lines = [];
   let out;
   try {
-    out = await run(['-q', '-p', `${lib ? 'read_verilog silinx_cs_prims.v; ' : ''}read_verilog -sv ${v.top}_cs.v; ${prepCommands(v.top)}; write_json ${v.top}_cs.json`], files, l => lines.push(l));
+    out = await run(['-q', '-p', `${lib ? 'read_verilog silinx_cs_prims.v; ' : ''}read_verilog -sv ${v.top}_cs.v; ${prepCommands(v.top, { gates: gateLevel(v.primitives) })}; write_json ${v.top}_cs.json`], files, l => lines.push(l));
   } catch (e) { throw new CompileError(lines.find(l => /^ERROR:/.test(l))?.replace(/^ERROR:\s*/, '') || e.message); }
   const text = out[`${v.top}_cs.json`];
   if (!text) throw new CompileError('Yosys wrote no netlist');
@@ -128,6 +132,20 @@ const PROFILE = 20000;   // the cycles of the activity's profile (compileNetlist
 const GUARD = 2;         // a segment's guard, as cells
 const PMAX = 0.3;        // a segment more often evaluated: unguarded
 const WORTH = 0.5;       // the guards, when they leave at most this part of the cells evaluated per step
+const SPLIT = 80000;     // the characters of code above which run() is split (#629: compileNetlist)
+const CHUNK = 40000;     // the characters of a function of its combinational code, at most
+
+// Statements (strings) in consecutive groups of `max` characters at most (a longer one alone), joined by lines.
+export function chunks(list, max) {
+  const out = [];
+  let cur = [], len = 0;
+  for (const x of list) {
+    if (cur.length && len + x.length + 1 > max) { out.push(cur.join('\n')); cur = []; len = 0; }
+    cur.push(x); len += x.length + 1;
+  }
+  if (cur.length) out.push(cur.join('\n'));
+  return out;
+}
 
 // The segments of the blocks (compileNetlist's activity): consecutive blocks evaluated together when a value
 // one of them reads changed, chosen to evaluate the fewest cells per cycle, guards counted (dynamic
@@ -216,13 +234,14 @@ export function portBit(json, top, name, pos = 0) {
  *      every clock then settled as the other clocks are: a clock on a button), wide: every value a BigInt
  *      (to test that code), watch: what each cycle counts (CompiledSim.take), activity: the combinational
  *      cells evaluated only when what they read changed (#464; false: all of them every step; 'fine', 'max':
- *      the most guards, the fewest, to test that code), profile: the cycles run to choose the guards }
+ *      the most guards, the fewest, to test that code), profile: the cycles run to choose the guards, split / chunk:
+ *      the code's characters above which run() is split, and its functions' at most (#629: SPLIT, CHUNK) }
  * watch: { levels: [{ bit, on }] (the cycles a bit is at `on`), pairs: [[{ bit, on }, { bit, on }]] (the cycles
  *   both are), edges: [{ bit, capture: [bits] }] (each falling edge of the bit: the cycle and the captured
  *   bits' value, up to 32), vga: { hs, vs, rgb: [bits] } (a VGA monitor: VGA_CODE) }, the bits as in the
  *   netlist (portBit), sampled in every cycle before its clock edge (the values the cycle shows).
  */
-export function compileNetlist(json, { top, clock = null, wide = false, watch = null, activity = true, profile = PROFILE } = {}) {
+export function compileNetlist(json, { top, clock = null, wide = false, watch = null, activity = true, profile = PROFILE, split: splitAt = SPLIT, chunk = CHUNK } = {}) {
   const mod = json.modules[top] || Object.values(json.modules).find(m => m.attributes?.top) || Object.values(json.modules)[0];
   if (!mod) throw new CompileError('the netlist has no module');
   const vars = [];                 // { w, kind }
@@ -482,6 +501,9 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
         return N ? `(${b} >= ${sw} ? 0 : ${m(`${ext(a, aw, sw, as)} >>> ${b}`, yw)})` : m(`${ext(a, aw, sw, as)} >> ${b}`, yw);
       }
       case '$shift': case '$shiftx': {
+        // (#629: a constant shifted by an unsigned amount of 5 bits at most, a LUT's INIT read at its inputs: no
+        // helper; the bits shifted in are 0, the constant being of aw bits at most)
+        if (N && aw <= 32 && bw <= 5 && !bs && C.A.every(x => x === '0' || x === '1')) return m(`(${a} >>> ${b})`, yw);
         const sw = Math.max(aw, yw);
         const av = ext(a, aw, sw, t === '$shift' && as);
         const s = bs ? sv(b, bw) : b;
@@ -845,8 +867,8 @@ ${fire(negMain, 'f')}
     return lit(e ? e.init : 0n, vars[i].kind);
   };
   const temps = elems.flatMap(e => (e.type === '$memwr' ? [`n${e.id} = ${lit(0, e.mem.kind)}`, `a${e.id} = 0`, `w${e.id} = ${lit(0, e.mem.kind)}`] : e.q != null ? [`n${e.id} = ${lit(0, vk(e))}`] : []));
-  const template = `"use strict";
-${V.map(i => `let V${i} = ${initOf(i)};`).join('\n')}
+  const templateOf = OUT => `"use strict";
+${V.map(i => `let ${OUT ? 'v' : 'V'}${i} = ${initOf(i)};`).join('\n')}
 ${memInit.join('\n')}
 ${dlist.map(d => `let P${d.k} = -1;`).join('\n')}
 const K = new Float64Array(${levels.length + pairs.length}), EV = [];
@@ -855,13 +877,13 @@ ${edges.map((_, i) => `let E${i} = -1;`).join(' ')}
 ${dcmTables}
 ${counted ? flushFn : ''}
 function run(n) {
-  ${V.length ? `let ${V.map(i => `v${i} = V${i}`).join(', ')};` : ''}
+  ${V.length && !OUT ? `let ${V.map(i => `v${i} = V${i}`).join(', ')};` : ''}
   ${mems.map(m => `const m${m.k} = M${m.k};`).join(' ')}
   ${dlist.length ? `let ${dlist.map(d => `p${d.k} = P${d.k}, f${d.k} = 0`).join(', ')};` : ''}
   ${temps.length ? `let ${temps.join(', ')};` : ''}
   ${edges.length ? `let ${edges.map((_, i) => `e${i} = E${i}`).join(', ')};` : ''}
   ${watch?.vga ? `let ${VGA_STATE.map((k, i) => `g_${k} = VG[${i}]`).join(', ')};` : ''}
-  let ph = 0, cy = 0, it = 0, ch = false@@decl@@;${dcmLocals}
+  let ph = 0, cy = 0, it = 0, ch = false@@decl@@;${dcmLocals}@@fns@@
   ${counted ? `let R = 0${watched.map(v => `, l${v} = v${v}`).join('')}; ${flush}` : ''}
   run: for (;;) {
 @@comb@@
@@ -882,20 +904,20 @@ ${fire(negMain, 'f')}
     }`}
   }
   ${counted ? flush : ''}
-  ${V.map(i => `V${i} = v${i};`).join(' ')}
+  ${OUT ? '' : V.map(i => `V${i} = v${i};`).join(' ')}
   ${dlist.map(d => `P${d.k} = p${d.k};`).join(' ')}${dcmSave}
   ${edges.map((_, i) => `E${i} = e${i};`).join(' ')}
   ${watch?.vga ? VGA_STATE.map((k, i) => `VG[${i}] = g_${k};`).join(' ') : ''}
 }
 // the counts and the edges since the last take (the counts back to 0)
 function take() { const counts = Array.from(K); K.fill(0); return { counts, edges: EV.splice(0) }; }
-function set(k, x) { switch (k) { ${inputs.map(p => `case ${p.v}: V${p.v} = x; break;`).join(' ')} } }
-function vals() { return [${V.map(i => `V${i}`).join(', ')}]; }
+function set(k, x) { switch (k) { ${inputs.map(p => `case ${p.v}: ${OUT ? 'v' : 'V'}${p.v} = x; break;`).join(' ')} } }
+function vals() { return [${V.map(i => `${OUT ? 'v' : 'V'}${i}`).join(', ')}]; }
 return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${watch?.vga ? ', vga: { state: VG, fb: FB }' : ''} };
 `;
   // ---- the code of the segments (segs: [{ blocks, keys: Set of the values they read, or null: unguarded }]):
   // the template's @@…@@ filled in; prof: the dirty bits counted (H.P), for the segments' choice (segmentsOf)
-  const generate = (segs, prof = false) => {
+  const generate = (segs, prof = false, OUT = false) => {
     // the dirty bits: one for the values the same guarded segments read (bit 0: all); one per value in the
     // profile, in the order they are read
     const readers = new Map(), bitOf = new Map(), bits = new Map();
@@ -940,19 +962,28 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
     const ranWords = Math.ceil(ranBit.size / 32);
     const ranSet = i => ['r', 'f'].filter(edge => ranBy[edge].has(i)).map(edge => `R${edge}${ranBit.get(i) >> 5} |= ${(1 << (ranBit.get(i) & 31)) | 0};`).join(' ');
     const ranDecl = ['r', 'f'].filter(edge => ranBy[edge].size).flatMap(edge => Array.from({ length: ranWords }, (_, j) => `R${edge}${j} = 0`));
-    const combCode = segs.map((sg, i) => {
+    // (each segment's code in pieces of `chunk` characters at most, each piece of a guarded one under its guard: a
+    // piece the guard runs needlessly gives the same values)
+    const pieces = segs.flatMap((sg, i) => {
       const cells = (ranBit.has(i) ? [ranSet(i)] : []).concat(sg.blocks.flatMap(b => b.cells).map(n => {
         const e = conv(cellExpr(n), n.kind, vars[n.y].kind), f = dirty(`v${n.y}`);
         // (a cut's bit with no branch: the cell is 1 bit wide)
         if (!f) return `v${n.y} = ${e};`;
         return vars[n.y].kind === 'n' ? `{ const t = ${e}; ${f.d} |= (t ^ v${n.y}) << ${f.sh}; v${n.y} = t; }` : `{ const t = ${e}; if (t !== v${n.y}) ${f.set} v${n.y} = t; }`;
-      })).join('\n');
-      if (!sg.keys) return cells;
-      const mask = new Array(words).fill(0);
-      mask[0] = 1;
-      for (const k of sg.keys) { const i = bitOf.get(k); mask[i >> 5] |= 1 << (i & 31); }
-      return `if (${mask.map((m, j) => (m ? `(D${j} & ${m})` : '')).filter(Boolean).join(' | ')}) {\n${cells}\n}`;
-    }).join('\n') + `\n${profCode}\n${clean}`;
+      }));
+      let guard = null;
+      if (sg.keys) {
+        const mask = new Array(words).fill(0);
+        mask[0] = 1;
+        for (const k of sg.keys) { const i = bitOf.get(k); mask[i >> 5] |= 1 << (i & 31); }
+        guard = mask.map((m, j) => (m ? `(D${j} & ${m})` : '')).filter(Boolean).join(' | ');
+      }
+      return chunks(cells, chunk).map(c => (guard ? `if (${guard}) {\n${c}\n}` : c));
+    });
+    // (OUT, a split run(): these pieces in functions inside run(), below)
+    const fns = OUT ? chunks(pieces, chunk) : [];
+    const combCode = (OUT ? fns.map((_, k) => `CF${k}();`).join(' ') : pieces.join('\n')) + `\n${profCode}\n${clean}`;
+    const fnsCode = fns.map((c, k) => `\n  const CF${k} = () => {\n${c}\n  };`).join('');
 
     // the changes an edge of the main clock commits: one test of the flip-flops of a dirty bit, their bits'
     // differences (the quiet ones when one of their segments ran: R<edge><j>, cleared at the edge)
@@ -979,9 +1010,13 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
       return [...byRan].map(([ran, sets]) => (ran ? `if (${ran}) {\n${sets.join('\n')}\n}` : sets.join('\n'))).join('\n') + (ranBy[edge].size ? `\n${Array.from({ length: ranWords }, (_, j) => `R${edge}${j} = 0;`).join(' ')}` : '');
     };
 
-    const fill = { comb: () => combCode, all: () => allDirty, decl: () => `${Array.from({ length: words }, (_, j) => `, D${j} = -1`).join('')}${ranDecl.map(r => `, ${r}`).join('')}`,
+    const fill = { comb: () => combCode, fns: () => fnsCode, all: () => allDirty, decl: () => `${Array.from({ length: words }, (_, j) => `, D${j} = -1`).join('')}${ranDecl.map(r => `, ${r}`).join('')}`,
       changes: edge => changes(edge === 'r' ? posMain : negMain, edge), set: k => dirty(k)?.set || '' };
-    return template.replace(/@@(\w+)(?: (\w+))?@@/g, (_, what, arg) => fill[what](arg));
+    const code = templateOf(OUT).replace(/@@(\w+)(?: (\w+))?@@/g, (_, what, arg) => fill[what](arg));
+    // (#629: a run() of more than splitAt characters, above V8's limit of the bytecode it optimizes (60 KB, about 0.66
+    // byte a character), is not optimized: then the values are the code's own, not run()'s, and its combinational
+    // cells functions of `chunk` characters at most, inside run(); below it, slower)
+    return !OUT && code.length > splitAt ? generate(segs, prof, true) : code;
   };
 
   // the segments: one, unguarded, without activity; else the profile of the blocks' code (the cycles of a run
