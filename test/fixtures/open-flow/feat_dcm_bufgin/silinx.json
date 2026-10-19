@@ -1,0 +1,24 @@
+{
+  "name": "feat_dcm_bufgin",
+  "description": "Board test: the clock pad's global buffer feeds a DCM's CLKIN and a counter; the DCM's CLK0 and CLKFX blink two more LEDs (#94)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "../basys2.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}
