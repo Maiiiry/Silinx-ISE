@@ -1,24 +1,22 @@
 // The Post-Synthesis Simulation Model of the Silinx toolchain (core/sim-model.js, the flow's postsynth step,
 // #120): the generics the test bench gives the top, the model's VHDL (UNISIM primitives, the top's ports,
 // its generics declared) and Verilog, the flow's step and its report, the steps of the server and of the
-// browser; and every example's test bench passes on the model, in VHDL and in Verilog, and the Board Emulator's
-// compiled engine runs the model as the event-driven simulator does.
+// browser; the Verilog model a wire a bit (#575); and every example's test bench passes on the model, in VHDL and
+// in Verilog, and the Board Emulator's compiled engine runs the model as the event-driven simulator does (vga's in
+// test/sim-model-synth-vga.test.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import path from 'node:path';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
 import { synthesizeOpen } from '../core/synth-open.js';
 import { yosysNode } from '../core/synth-open-node.js';
-import { dutGenerics, postSynthesisModels, SIM_PRIMITIVES } from '../core/sim-model.js';
+import { dutGenerics, scalarVerilog, postSynthesisModels, SIM_PRIMITIVES } from '../core/sim-model.js';
 import { runOpenFlow } from '../core/open-flow-core.js';
 import { scalarizeNetlist } from '../core/netlist-hier.js';
 import { Simulator } from '../core/simulator.js';
 import { openSteps } from '../server/open-flow.js';
-import { example, EXAMPLES } from './examples-lib.mjs';
-import { diffCycles, designOf, rng } from './compiled-diff.js';
-import { compileDesign } from '../core/compiled-sim.js';
+import { EXAMPLES } from './examples-lib.mjs';
+import { examplePostSynthTests } from './sim-model-lib.mjs';
 
 const DUT = `library IEEE; use IEEE.STD_LOGIC_1164.ALL; use IEEE.NUMERIC_STD.ALL;
 entity cnt is generic ( N : integer := 1000; W : integer := 4 ); port ( clk : in std_logic; q : out std_logic_vector(W - 1 downto 0) ); end;
@@ -66,6 +64,22 @@ test('postSynthesisModels: VHDL of UNISIM primitives with the top\'s ports and t
   assert.ok(['LUT4', 'FDRE', 'RAMB16_S18_S18', 'MULT18X18', 'SRL16E', 'DCM'].every(p => SIM_PRIMITIVES.has(p)));
 });
 
+// the Verilog netlist a wire a bit (#575): Yosys's has buses, a primitive driving one bit, which woke every primitive
+// reading the bus (vga's model simulated 4 times slower than in VHDL); the same cells, the ports still buses
+test('scalarVerilog: the Verilog netlist a wire a bit, the top\'s ports buses, its cells the netlist\'s (#575)', async () => {
+  const r = await synthesizeOpen(elaborate(compile(src), 'cnt', { generics: { N: 3 } }), { family: 'spartan3e', run: yosysNode });
+  const s = await scalarVerilog(r, yosysNode);
+  const buses = t => [...t.matchAll(/^ {2}wire (\[[^\]]+\]) (\S+);/gm)].map(m => m[2]);
+  const cells = t => [...t.matchAll(/^ {2}([A-Z][A-Z0-9_]*) (?:#\(|\S+ \()/gm)].map(m => m[1]).sort();
+  assert.deepEqual(buses(r.files['cnt_yosys.v']), ['q', '_01_', '_02_', '_03_', 'c', 'v']);
+  assert.deepEqual(buses(s.files['cnt_yosys.v']), ['q']);
+  assert.deepEqual(cells(s.files['cnt_yosys.v']), cells(r.files['cnt_yosys.v']));
+  assert.equal(cells(s.files['cnt_yosys.v']).join(' '), 'BUFG FDRE FDRE FDRE FDRE FDRE FDRE IBUF INV LUT2 LUT2 LUT2 MUXCY MUXCY MUXCY OBUF OBUF OBUF OBUF XORCY XORCY XORCY XORCY');
+  assert.match(s.files['cnt_yosys.v'], /^module cnt\(clk, q\);$/m);
+  // (the rest of the result as it was)
+  assert.deepEqual({ ...s, files: { ...s.files, 'cnt_yosys.v': null } }, { ...r, files: { ...r.files, 'cnt_yosys.v': null } });
+});
+
 // Regression (#493): the netlist's library cells (a primitive's model with its $specify2 timing arcs, first in
 // the JSON) are not the design's: only the top module's cells count, a cell with no model of its own still said
 test('postSynthesisModels: only the top module\'s cells are looked at, not the library cells before it (#493)', () => {
@@ -96,6 +110,8 @@ test('the flow\'s postsynth step: the model synthesized with the test bench\'s g
     `Post-Synthesis Simulation Model: build/netgen/synthesis/cnt_synthesis.vhd (VHDL, UNISIM primitives) and build/netgen/synthesis/cnt_synthesis.v (Verilog), ${lines.join('\n').match(/\(Verilog\), (\d+) cells/)[1]} cells`,
     'Post-Synthesis model for the Board Emulator, with the design\'s own generics: build/netgen/synthesis/cnt_synthesis_board.vhd (VHDL) and build/netgen/synthesis/cnt_synthesis_board.v (Verilog)',
   ]);
+  // the Verilog model a wire a bit (#575): no bus but the top's port
+  assert.deepEqual([...written['netgen/synthesis/cnt_synthesis.v'].matchAll(/^ {2}wire (\[[^\]]+\]) (\S+);/gm)].map(m => m[2]), ['q']);
   // the test bench on the model: q counts every 3 clocks (95 ns: 9 edges, q = 3); the board's model counts every
   // 1000 (25 us: 2500 edges, q = 2), its header without the test bench's generics
   for (const [file, text] of Object.entries(written)) {
@@ -122,46 +138,6 @@ test('the flow\'s postsynth step: the model synthesized with the test bench\'s g
   assert.deepEqual(openSteps(['postpar']), ['synth', 'translate', 'map', 'par', 'trce', 'postpar']);
 });
 
-// every example's test bench, on the model of the example (its generics the test bench's), VHDL and Verilog
-for (const name of EXAMPLES) {
-  test(`example ${name}: its test bench passes on the post-synthesis model, VHDL and Verilog (#120); the compiled engine runs it as the event-driven one (#561)`, { timeout: 600000 }, async () => {
-    const ex = example(name);
-    const read = f => ({ path: f.path, lang: f.lang, text: fs.readFileSync(path.join(ex.dir, f.path), 'utf8') });
-    const design = ex.project.files.filter(f => (f.role || 'design') === 'design').map(read);
-    const sim = ex.project.files.filter(f => f.role === 'sim').map(read);
-    const written = {}, lines = [];
-    const r = await runOpenFlow({ top: ex.project.top, part: 'xc3s250ecp132-4', family: 'spartan3e', steps: ['postsynth'], simTop: ex.project.simTop },
-      { log: l => lines.push(l), sources: () => design, simSources: () => sim, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {} });
-    assert.equal(r.ok, true, lines.join('\n'));
-    // (the board's model beside it when the test bench gives generics, #622: the design's own, which the test bench's
-    // generic map does not fit; the test bench runs on the simulation's)
-    const t = ex.project.top, board = Object.keys(r.report.simModels.postsynth.generics || {}).length > 0;
-    assert.deepEqual(Object.keys(written).filter(f => /^netgen\//.test(f)).sort(), [`netgen/synthesis/${t}_synthesis.v`, `netgen/synthesis/${t}_synthesis.vhd`,
-      ...(board ? [`netgen/synthesis/${t}_synthesis_board.v`, `netgen/synthesis/${t}_synthesis_board.vhd`] : [])], name);
-    if (board) assert.doesNotMatch(written[`netgen/synthesis/${t}_synthesis_board.vhd`], /Synthesized with the generics/, name);
-    for (const file of [`netgen/synthesis/${t}_synthesis.v`, `netgen/synthesis/${t}_synthesis.vhd`]) {
-      const text = written[file];
-      const lang = file.endsWith('.v') ? 'verilog' : 'vhdl';
-      const all = [...design, ...sim, { path: file, lang, text: lang === 'vhdl' ? scalarizeNetlist(text) : text }];
-      const lib = compile([...primitiveSources(all), ...all]);
-      lib.errors = lib.errors.filter(e => !/redefined/.test(e.message));   // (the model's entity replaces the RTL one)
-      const d = elaborate(lib, ex.project.simTop);
-      assert.deepEqual([...lib.errors, ...d.diags].filter(x => x.severity === 'error').map(x => x.message), [], `${name} ${lang}`);
-      const s = new Simulator(d);
-      for (const sig of d.signals) sig.wave = null;   // (no waveforms: vga's would take gigabytes, #566)
-      for (let t = 1e9; t <= 1e11; t += 1e9) { const st = s.run(t); if (st.finished || s.log.some(e => /Simulation finished OK|ERROR/.test(e.text))) break; }
-      const log = s.log.map(e => e.text);
-      assert.ok(log.some(l => /Simulation finished OK/.test(l)) && !log.some(l => /ERROR/.test(l)), `${name} ${lang}: ${log.filter(l => /ERROR|expected/.test(l)).slice(0, 4).join(' | ')}`);
-      // the Board Emulator's compiled engine runs the model (#561: it had no model of the LUTs, flip-flops…),
-      // as the event-driven simulator does, cycle by cycle (the VHDL scalarized, as the emulator reads it)
-      const model = [{ path: file, lang, role: 'design', text: lang === 'vhdl' ? scalarizeNetlist(text) : text }];
-      const top = ex.project.top;
-      const cs = await compileDesign(designOf(model, top), { run: yosysNode });
-      assert.deepEqual(cs.warnings, [], `${name} ${lang}`);
-      const ins = designOf(model, top).top.ports.filter(x => x.dir === 'in'), r = rng(561), cur = {};
-      const res = await diffCycles(model, top, { cycles: 1500, inputs: k => { for (const x of ins) if (k === 0 || r() < 0.02) cur[x.name] = BigInt(Math.floor(r() * 2 ** Math.min(x.sig.t.w, 30))); return cur; } });
-      assert.deepEqual(res.mismatches, [], `${name} ${lang}`);
-      assert.ok(res.bits >= 1500, `${name} ${lang}: ${res.bits} bits compared`);
-    }
-  });
-}
+// every example's test bench on the model of the example (test/sim-model-lib.mjs); vga's two frames in a file of
+// their own, test/sim-model-synth-vga.test.js, so that they run alongside the others (#575)
+examplePostSynthTests(EXAMPLES.filter(name => name !== 'vga'));

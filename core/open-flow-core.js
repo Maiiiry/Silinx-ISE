@@ -19,7 +19,7 @@
 // Returns { ok, report }.
 import { compile, elaborate } from './compile.js';
 import { primitiveSources } from './unisim.js';
-import { dutGenerics, postSynthesisModels, postTranslateModels, postMapModels, postParModels } from './sim-model.js';
+import { dutGenerics, scalarVerilog, postSynthesisModels, postTranslateModels, postMapModels, postParModels } from './sim-model.js';
 import { synthesizeOpen } from './synth-open.js';
 import { parseXdl, writeXdl, placedPins } from './xdl.js';
 import { parseUcf, pinsUcf } from './ucf.js';
@@ -183,18 +183,25 @@ export async function runOpenFlow(spec, io) {
   // Generate Post-Synthesis Simulation Model (#120): build/netgen/synthesis/<top>_synthesis.vhd (and .v)
   async function runPostSynth() {
     const d = await modelDesign(false);
-    const m = postSynthesisModels(d.synth, { top, part: spec.part, generics: d.generics, testbench: d.testbench });
+    // (the Verilog a wire a bit, #575: scalarVerilog)
+    const models = async (r, o) => {
+      let split;
+      try { split = await scalarVerilog(r, io.yosys); } catch (e) { throw new StepError(`the model's Verilog netlist: ${e.message}`); }
+      return postSynthesisModels(split, o);
+    };
+    const m = await models(d.synth, { top, part: spec.part, generics: d.generics, testbench: d.testbench });
     // (the design's synthesis: this run's or the last run's files in build/open; none, the model's step alone:
     // the design synthesized with its own generics too)
-    let own = null;
+    let own = null, ownM = null, ownErr = null;
     if (withTestbench(d)) {
       own = synth || earlierSynth();
       if (!own) {
         log(`Synthesizing '${top}' with its own generics, for the Board Emulator`);
         own = await synthesizeWith({});
       }
+      try { ownM = await models(own, { top, part: spec.part }); } catch (e) { ownErr = e; }
     }
-    const board = boardModel(d, 'post-synthesis', () => own && postSynthesisModels(own, { top, part: spec.part }));
+    const board = boardModel(d, 'post-synthesis', () => { if (ownErr) throw ownErr; return ownM; });
     writeModel('postsynth', 'synthesis', 'synthesis', 'Post-Synthesis', m, 'UNISIM', `${m.cells} cells`, board);
   }
   // Generate Post-Translate / Post-Map Simulation Model (#121): build/netgen/translate/<top>_translate.vhd,
