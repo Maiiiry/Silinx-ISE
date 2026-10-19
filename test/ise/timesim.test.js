@@ -44,7 +44,7 @@ test('ISE\'s post-place & route model of blinky with its SDF: the test bench pas
   const ex = example('blinky');
   const tbLib = compile([...primitiveSources(ex.sources), ...ex.sources]);
   const { generics } = dutGenerics(elaborate(tbLib, ex.project.simTop), ex.project.top);
-  assert.deepEqual(generics, { DIV: 2, DEBOUNCE: 2 });
+  assert.deepEqual(generics, { div: 2, debounce: 2 });
   const { dir, project } = exampleProject('blinky', { board: 'basys2', variant: '250' }, tmp);
   project.impl = { ...project.impl, xstOptions: { generics: `{${Object.entries(generics).map(([k, v]) => `${k}=${v}`).join(' ')}}` } };
   const job = createJob('timesim', j => runImplementation(j, { project, projectDir: dir, steps: ['synth', 'translate', 'map', 'par', 'trce', 'postpar'] }));
