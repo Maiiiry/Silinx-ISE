@@ -6,10 +6,11 @@ import { h, alertDlg, toast } from './ui.js';
 import * as wiz from './wizards.js';
 import { PRODUCT, VERSION_LABEL } from '/core/version.js';
 import { EXAMPLE_ORDER } from '/core/examples.js';
+import { S, closeAllDocs, compileProject, renderHierarchy, renderFilesPage, renderLibsPage, showLeftPage,
+  fixMissingTops, restoreViewState, openSummary } from './app.js';
 import { log, renderDiagnostics } from './console.js';
-import { S, closeAllDocs, compileProject, renderHierarchy, renderProcesses, renderFilesPage, renderLibsPage, showLeftPage, fixMissingTops,
-  restoreImplStatus, restoreViewState, openSummary } from './app.js';
 import { drawingsAsBase, adoptDrawnHdl, drawnHdlClashes } from './drawings.js';
+import { renderProcesses, restoreImplStatus } from './processes.js';
 
 const $ = id => document.getElementById(id);
 
