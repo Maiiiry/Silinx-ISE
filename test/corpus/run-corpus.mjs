@@ -12,7 +12,10 @@
 // --shard k/n runs the k-th of n parts of the files (every n-th file, the nightly's jobs in parallel, #343);
 // --timeout s is the time a file may take (1500 s): a file that takes longer fails the run (its modules have
 // no result, #343), unless expected.json has the file itself failing as a whole ('error: …', hana/hana_vlib.v);
-// the slowest files and their times are printed.
+// the slowest files and their times are printed. A file of more than PART_TOPS top modules is run in parts
+// (#536: every n-th of its modules each, parts the workers share; the limit is then each part's): one worker no
+// longer runs hana/test_intermout.v's 33 modules one after the other, alone at the end of the run. A file expected
+// to fail as a whole stays whole (hana/hana_vlib.v, 98 modules: in parts, each part would run out of time).
 //
 // Every Verilog file is parsed and elaborated by Silinx; each of its top modules (the modules no
 // other module of the file instantiates) is then simulated with seeded random stimulus and compared
@@ -42,6 +45,16 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const EXPECTED = path.join(HERE, 'expected.json');
 const WARNINGS = path.join(HERE, 'warnings.json');
 const TIMEOUT = 1500;   // s, per file (hana/test_intermout.v: 33 modules, two netlists each; 650 s with Yosys 0.68, 841-900+ with 0.70, #378)
+// a file of more top modules than this is run in parts of about as many modules each (#536: hana/test_intermout.v,
+// 985 s on GitHub's runner on 17 October, over its 1500 s and the job's hour on the 18th)
+export const PART_TOPS = 8;
+
+/** The parts of a file of n top modules: null (run whole) up to size of them, else the number of parts. */
+export const partsOf = (n, size = PART_TOPS) => (n > size ? Math.ceil(n / size) : null);
+/** The top modules of part k of n (0 <= k < n): every n-th, from the k-th (the slow ones spread among the parts). */
+export const partTops = (tops, part) => (part ? tops.filter((_, i) => i % part.n === part.k) : tops);
+/** A unit of work's label: the file, or its part ('hana/test_intermout.v [2/5]'). */
+export const unitName = (rel, part) => (part ? `${rel} [${part.k + 1}/${part.n}]` : rel);
 
 /** The files of shard 'k/n' (1 <= k <= n): every n-th, from the k-th; all of them without a shard. */
 export function shardOf(files, spec) {
@@ -91,8 +104,9 @@ export function runSummary({ tag, results, expected, regress, fixed, fresh, time
 /** One line of a reason: no newlines, no absolute paths, bounded. */
 const clean = s => String(s).replace(/\s+/g, ' ').replace(/(src\d+_)/g, '').slice(0, 160);
 
-/** Results of one file: { key: status }. */
-async function runFile(dir, rel, cycles) {
+/** Results of one file, or of part { k, n } of its top modules: { key: status }; { '#parts': n } (nothing run)
+ *  when the whole file has more top modules than PART_TOPS. */
+async function runFile(dir, rel, cycles, part = null, whole = false) {
   const { compile, topCandidates } = await import('../../core/compile.js');
   const { elaborate } = await import('../../core/elaborate.js');
   const { diffSynth } = await import('../diff-synth.js');
@@ -104,11 +118,13 @@ async function runFile(dir, rel, cycles) {
   catch (e) { out[rel] = `unsupported: parse: ${clean(e.message)}`; return out; }
   const perr = lib.errors.filter(d => d.severity === 'error');
   if (perr.length) { out[rel] = `unsupported: parse: line ${perr[0].line}: ${clean(perr[0].message)}`; return out; }
-  const tops = topCandidates(lib);
-  if (!tops.length) { out[rel] = 'unsupported: parse: no module'; return out; }
-  // the warnings: of the parser (the file), of the elaboration (each top module)
+  const allTops = topCandidates(lib);
+  if (!allTops.length) { out[rel] = 'unsupported: parse: no module'; return out; }
+  if (!part && !whole && partsOf(allTops.length)) return { '#parts': partsOf(allTops.length) };
+  const tops = partTops(allTops, part);
+  // the warnings: of the parser (the file; given by its first part), of the elaboration (each top module)
   const warns = list => [...new Set(list.filter(d => d.severity !== 'error').map(d => `${d.line}: ${clean(d.message)}`))].sort();
-  out[`${rel}#warnings`] = warns(lib.errors);
+  if (!part || part.k === 0) out[`${rel}#warnings`] = warns(lib.errors);
   for (const top of tops) {
     try { out[`${rel}:${top}#warnings`] = warns(elaborate(lib, top).diags); } catch (e) { out[`${rel}:${top}#warnings`] = [`elaboration failed: ${clean(e.message)}`]; }
     for (const from of ['source', 'silinx']) {
@@ -127,11 +143,11 @@ async function runFile(dir, rel, cycles) {
 
 if (!isMainThread) {
   const { dir, cycles } = workerData;
-  parentPort.on('message', async rel => {
+  parentPort.on('message', async ({ rel, part, whole }) => {
     let res;
-    try { res = await runFile(dir, rel, cycles); }
+    try { res = await runFile(dir, rel, cycles, part, whole); }
     catch (e) { res = { [rel]: `error: harness: ${clean(e.message)}` }; }
-    parentPort.postMessage({ rel, res });
+    parentPort.postMessage({ rel, part, res });
   });
 } else if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
@@ -156,39 +172,55 @@ if (!isMainThread) {
   const testsDir = path.join(dir, 'tests');
   const results = {}, reports = {}, warnings = {}, times = {};
   const t0 = Date.now();
-  let next = 0, doneN = 0;
+  // the units of work: the files, a file of many top modules replaced by its parts when its worker says so (#536)
+  // (a file expected to fail as a whole, 'error: …': whole, #343)
+  const expected = fs.existsSync(EXPECTED) ? JSON.parse(fs.readFileSync(EXPECTED, 'utf8')) : {};
+  const queue = todo.map(rel => ({ rel, part: null, whole: /^error: /.test(expected[rel] || '') }));
+  let next = 0, doneN = 0, split = 0;   // (split: the files given in parts, their first look no unit of the count)
   await new Promise(resolve => {
     let live = 0;
     const spawn = () => {
-      if (next >= todo.length) { if (!live) resolve(); return; }
+      if (next >= queue.length) { if (!live) resolve(); return; }
       live++;
       const w = new Worker(fileURLToPath(import.meta.url), { workerData: { dir: testsDir, cycles } });
       let cur = null, timer = null, since = 0;
+      // (a unit that fails as a whole: its file's result, the first of its parts to fail)
+      const failed = (u, why) => { results[u.rel] = results[u.rel] || why; };
       const give = () => {
-        if (next >= todo.length) { w.terminate(); return; }
-        cur = todo[next++];
+        if (next >= queue.length) { w.terminate(); return; }
+        cur = queue[next++];
         since = Date.now();
         timer = setTimeout(() => {
-          results[cur] = `error: timeout (over ${timeout} s)`;
-          times[cur] = Date.now() - since;
+          const u = cur, name = unitName(u.rel, u.part);
+          failed(u, `error: timeout (over ${timeout} s)`);
+          times[name] = Date.now() - since;
           doneN++;
-          process.stderr.write(`\r${doneN}/${todo.length} ${cur}: timed out (over ${timeout} s)\n`);
+          process.stderr.write(`\r${doneN}/${queue.length - split} ${name}: timed out (over ${timeout} s)\n`);
           cur = null;
           w.terminate();
         }, timeout * 1000);
         w.postMessage(cur);
       };
-      w.on('message', ({ rel, res }) => {
+      w.on('message', ({ rel, part, res }) => {
         clearTimeout(timer);
-        times[rel] = Date.now() - since;
-        for (const [k, v] of Object.entries(res)) (k.endsWith('#report') ? reports : k.endsWith('#warnings') ? warnings : results)[k.replace(/#(report|warnings)$/, '')] = v;
-        doneN++;
-        process.stderr.write(`\r${doneN}/${todo.length} ${rel.padEnd(60).slice(0, 60)}`);
+        const name = unitName(rel, part);
+        if (res['#parts']) {
+          // the file in parts: queued next, for the free workers too
+          const n = res['#parts'];
+          split++;
+          queue.splice(next, 0, ...Array.from({ length: n }, (_, k) => ({ rel, part: { k, n } })));
+          for (let i = 0; i < Math.min(n - 1, jobs - live); i++) spawn();
+        } else {
+          times[name] = Date.now() - since;
+          for (const [k, v] of Object.entries(res)) (k.endsWith('#report') ? reports : k.endsWith('#warnings') ? warnings : results)[k.replace(/#(report|warnings)$/, '')] = v;
+          doneN++;
+          process.stderr.write(`\r${doneN}/${queue.length - split} ${name.padEnd(60).slice(0, 60)}`);
+        }
         cur = null;
         give();
       });
-      w.on('error', e => { clearTimeout(timer); if (cur) { results[cur] = `error: harness: ${clean(e.message)}`; doneN++; } });
-      w.on('exit', () => { clearTimeout(timer); live--; if (cur) { results[cur] = results[cur] || 'error: worker exited'; doneN++; } spawn(); });
+      w.on('error', e => { clearTimeout(timer); if (cur) { failed(cur, `error: harness: ${clean(e.message)}`); doneN++; } });
+      w.on('exit', () => { clearTimeout(timer); live--; if (cur) { failed(cur, 'error: worker exited'); doneN++; } spawn(); });
       give();
     };
     for (let i = 0; i < Math.min(jobs, todo.length); i++) spawn();
@@ -216,7 +248,6 @@ if (!isMainThread) {
   for (const k of keys) if (kind(results[k]) === 'mismatch' && reports[k]) console.log(`\n${reports[k]}`);
 
   // against the expectations
-  const expected = fs.existsSync(EXPECTED) ? JSON.parse(fs.readFileSync(EXPECTED, 'utf8')) : {};
   const ran = new Set(todo);
   const { regress, fixed, fresh, timedOut } = compareResults(expected, results, ran);
   if (fixed.length) console.log(`\nnewly passing (${fixed.length}; npm run test:corpus -- --update records them):\n${fixed.map(k => `  ${k}  (was: ${expected[k]})`).join('\n')}`);
