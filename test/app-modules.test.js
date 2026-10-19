@@ -43,6 +43,7 @@ const PARTS = {
   'design.js': ['renderHierarchy', 'clashBadge', 'viewOfModule', 'treeItem', 'selectRow', 'markSelRow', 'treeKeys',
     'select', 'testBench', 'inView', 'moduleContextMenu', 'fileContextMenu', 'projectContextMenu', 'setTop',
     'projectSaves', 'saveProjectJson', 'serialOp', 'removeFile', 'removeModule', 'removeNow'],
+  'menus.js': ['setupMenus', 'setupToolbar', 'refreshSteps', 'showPalette', 'printActive', 'downloadUrl', 'exportProjectZip', 'openBundle'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -159,4 +160,11 @@ test('#405 design.js: the Design pane, its context menus, Set as Top Module and 
   const code = read('design.js');
   for (const s of ["$('hier')", 'let projectSaves = Promise.resolve()']) assert.ok(code.includes(s) && !app.includes(s), s);
   for (const name of ['renderHierarchy', 'saveProjectJson', 'setTop']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`), name);
+});
+
+test('#405 menus.js: the menu bar, the toolbar, the command palette, printing and the project zip left app.js', () => {
+  const code = read('menus.js');
+  for (const s of ["menuBar($('menubar')", 'function exportProjectZip(', 'function openBundle(']) assert.ok(code.includes(s) && !app.includes(s), s);
+  // app.js's boot still sets them up
+  for (const name of ['setupMenus', 'setupToolbar']) assert.match(app, new RegExp(`\\b${name}\\(\\)`), name);
 });
