@@ -7,8 +7,8 @@ import { buildLiveSim, level, fmtValue, parseValue } from '/core/schlive.js';
 import { symbolPins, symbolBox, SYMBOLS } from '/core/schdoc.js';
 import { formatTime } from '/core/interp.js';
 import { t } from './i18n.js';
+import { esc } from './dom.js';
 
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const LV = ['lv-1', 'lv-0', 'lv-x', 'lv-z', 'lv-n'];
 const lvClass = v => `lv-${level(v) ?? 'n'}`;
 const RATES = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];

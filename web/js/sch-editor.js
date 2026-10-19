@@ -23,9 +23,9 @@ import { getLanguage, onLanguageChange } from './i18n.js';
 import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu } from './ui.js';
 import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
+import { esc } from './dom.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
 const snap = v => Math.round(v / GRID) * GRID;
 const r1 = v => Math.round(v * 10) / 10;

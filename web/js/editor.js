@@ -20,6 +20,7 @@ import { hintTooltip } from './diaghelp.js';
 import { t, getLanguage, onLanguageChange } from './i18n.js';
 import { EDITOR_PHRASES_PT } from './i18n-editor.js';
 import { popupMenu, toast } from './ui.js';
+import { esc } from './dom.js';
 
 // ------------------------------------------------------------------ vocabulary
 const VHDL_KW = `abs access after alias all and architecture array assert attribute begin block body buffer bus case component
@@ -573,7 +574,6 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
   };
 }
 
-const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
 // Instantiation template for a module (used by completion and "View HDL Instantiation Template").
 export function instTemplate(m, lang) {

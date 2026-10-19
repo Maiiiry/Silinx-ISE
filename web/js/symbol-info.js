@@ -11,6 +11,7 @@ import { SYMBOLS, defaultParams } from '/core/schdoc.js';
 import { symbolDoc, presetOf, modeQText, T } from '/core/symdocs.js';
 import { truthTable } from '/core/symtables.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
+import { esc } from './dom.js';
 
 function h(tag, attrs = {}, ...children) {
   const el = document.createElement(tag);
@@ -27,7 +28,6 @@ function h(tag, attrs = {}, ...children) {
   for (const c of children.flat()) if (c != null) el.append(c);
   return el;
 }
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export function openSymbolInfo(opts) {
   const { container } = opts;

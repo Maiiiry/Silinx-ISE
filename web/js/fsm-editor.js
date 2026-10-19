@@ -21,6 +21,7 @@ import {
   normalizeFsm, newFsm, validateFsm, generateFsm, parseLabel, parseOutputs, formatOutputs, fsmEncoding,
   transitionTable, stateTable, encodedTable, toCsv, stepFsm, autoLayout, FSM_ENCODINGS, STATE_R,
 } from '/core/fsm.js';
+import { esc } from './dom.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
@@ -46,20 +47,19 @@ function radiusOf(s) {
 const KW = new Set(('library use entity is port in out architecture of signal constant type subtype attribute begin process if then ' +
   'elsif else case when others null downto and or not xor module input output wire reg localparam always posedge negedge ' +
   'endcase endmodule default std_logic std_logic_vector unsigned rising_edge end all').split(' '));
-const escH = (s) => String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 function highlight(code) {
   const re = /(--[^\n]*|\/\/[^\n]*)|("[^"\n]*"|'[01]'|\b\d+'[bdhoBDHO][0-9a-fA-F_]+\b)|\b([A-Za-z_]\w*)\b/g;
   let out = '', last = 0, m;
   while ((m = re.exec(code))) {
-    out += escH(code.slice(last, m.index));
+    out += esc(code.slice(last, m.index));
     last = re.lastIndex;
-    if (m[1]) out += `<span class="tk-com">${escH(m[1])}</span>`;
-    else if (m[2]) out += `<span class="tk-lit">${escH(m[2])}</span>`;
-    else if (KW.has(m[3].toLowerCase()) && !/^[A-Z]/.test(m[3])) out += `<span class="tk-kw">${escH(m[3])}</span>`;
-    else if (/^S_/.test(m[3])) out += `<span class="tk-st">${escH(m[3])}</span>`;
-    else out += escH(m[3]);
+    if (m[1]) out += `<span class="tk-com">${esc(m[1])}</span>`;
+    else if (m[2]) out += `<span class="tk-lit">${esc(m[2])}</span>`;
+    else if (KW.has(m[3].toLowerCase()) && !/^[A-Z]/.test(m[3])) out += `<span class="tk-kw">${esc(m[3])}</span>`;
+    else if (/^S_/.test(m[3])) out += `<span class="tk-st">${esc(m[3])}</span>`;
+    else out += esc(m[3]);
   }
-  return out + escH(code.slice(last));
+  return out + esc(code.slice(last));
 }
 
 export function mountFsmEditor(container, opts = {}) {

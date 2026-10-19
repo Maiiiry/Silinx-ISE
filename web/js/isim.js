@@ -18,6 +18,7 @@ import { toVCD } from '/core/simulator.js';
 import { onPrefsChange } from './modern.js';
 import { longPressMenu } from './ui.js';
 import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, checkExpected, fillExpected, applyStimuli, stimulusPlan, parseCellValue } from '/core/stimuli.js';
+import { esc } from './dom.js';
 
 // ------------------------------------------------------------------------------- constants
 const ROW_H = 20;
@@ -58,7 +59,6 @@ const ICON = {
   sigArr: S('<rect x="2" y="2" width="12" height="12" fill="#fff" stroke="#666"/><path d="M2 6h12M2 10h12M6 2v12M10 2v12" stroke="#999"/>'),
 };
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 

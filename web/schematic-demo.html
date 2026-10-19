@@ -44,11 +44,11 @@
     import { buildSchematic } from '/core/schematic.js';
     import { mountSchematic } from './js/schematic-view.js';
     import { LIBRARIES } from './js/schematic-demo-data.js';
+    // every text put into innerHTML, its attributes' too (#484: a Verilog escaped identifier may hold < " &)
+    import { esc } from './js/dom.js';
 
     const $ = id => document.getElementById(id);
     const status = t => { $('status').textContent = t; };
-    // every text put into innerHTML, its attributes' too (#484: a Verilog escaped identifier may hold < " &)
-    const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     let lib = null, sources = [], design = null, byPath = new Map(), parent = new Map(), current = null;
 
     const view = mountSchematic($('sch'), {
