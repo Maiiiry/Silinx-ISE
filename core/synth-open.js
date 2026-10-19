@@ -266,8 +266,19 @@ export function remapCommands(top, family, { script = true, inline = null } = {}
  *  (#369: against the mapping onto LUT4s alone, 6 % more LUTs, 2.6 % fewer slices, a 2.7 % shorter period). */
 export function abc9RemapCommands(top, family) {
   // (the cells' models first, with their parameters, and Silinx's SRL16E_1: the RTLIL has them as bare black boxes)
-  return `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_rtlil -nooverwrite ${PREMAP_FILE}; synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top} -abc9 -nowidelut -run map_luts:`;
+  return `read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_rtlil -nooverwrite ${PREMAP_FILE}; `
+    + `${ABC9_KEEP_CLOCKS}; synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top} -abc9 -nowidelut -run map_luts:; ${ABC9_UNKEEP_CLOCKS}`;
 }
+// The clock nets' names through ABC9 (#496): ABC9 makes every net a non-logic cell reads an output of its
+// AIG, reintegrated as an alias ($abc$…$aiger$o…) of the net, and synth_xilinx's clean then keeps the alias's
+// name and drops the net's ($iopadmap$clk, the usual mapping's: the timing report said "clock
+// $abc$24199$aiger$o11"). The nets on the clock pins of the cells (the flip-flops' and latches' C, the shift
+// registers', block RAMs' and multipliers' CLK / CLKA / CLKB, the distributed RAMs' WCLK, the DCMs' CLKIN) are
+// marked keep before the mapping, which makes clean keep their names, and unmarked after it (no attribute in
+// the netlist). (keep also lists the net among the AIG's outputs: ABC9 maps the same logic, the LUTs of a
+// design may differ by a few.)
+export const ABC9_KEEP_CLOCKS = 'select -set silinx_clocks t:* %ci1:+[C]:+[CLK]:+[CLKA]:+[CLKB]:+[WCLK]:+[CLKIN] w:* %i; setattr -set keep 1 @silinx_clocks';
+export const ABC9_UNKEEP_CLOCKS = 'setattr -unset keep @silinx_clocks';
 
 // $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing
 const outputs = top => `delete t:$scopeinfo; write_json ${top}.json; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;

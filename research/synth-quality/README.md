@@ -421,7 +421,9 @@ vtr-ch-intrinsics are its gated clocks (#80), the same in all three mappings. tr
 
 At effort High, the open synthesis (`synthesizeOpen`) now also maps the design onto LUT4s alone with ABC9
 (`abc9RemapCommands`). It works from the same netlist as the other mappings (`PREMAP_FILE`), reading the cells'
-models and Silinx's SRL16E_1 first, because the RTLIL holds them as bare black boxes. It is kept when better than
+models and Silinx's SRL16E_1 first, because the RTLIL holds them as bare black boxes. The nets on the cells' clock
+pins are marked `keep` during the mapping (#496): otherwise ABC9's alias of a clock net (`$abc$…$aiger$o…`) takes
+its name, and the timing report names the clock by it. It is kept when better than
 the netlist chosen by the other mappings, by `keepDepth` (DEPTH_RULE unchanged); `r.depth.abc9` says what
 happened, and `abc9: false` leaves it out.
 

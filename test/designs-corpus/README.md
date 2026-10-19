@@ -231,7 +231,7 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | spi-fpga-master | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 18 | 33 | 21 | 5.092 | 1 (frontend 1) |
 | spi-fpga-slave | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 16 | 26 | 21 | 4.984 | 0 |
 | nandland-spi-verilog | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 33 | 63 | 37 | 5.522 | 1 (frontend 1) |
-| nandland-spi-vhdl | VHDL | MIT | pass | - | pass | pass | complete | XC3S250E | 33 | 63 | 37 | 5.644 | 2 (frontend 2) |
+| nandland-spi-vhdl | VHDL | MIT | pass | - | pass | pass | complete | XC3S250E | 31 | 59 | 37 | 5.361 | 2 (frontend 2) |
 | secworks-sha1 | Verilog | BSD-2-Clause | pass | pass | pass | pass | complete | XC3S250E | 1091 | 2047 | 1528 | 16.656 | 2 (frontend 1, synth 1) |
 | secworks-sha256 | Verilog | BSD-2-Clause | pass | pass | pass | pass | complete | XC3S250E | 2423 | 4845 | 1809 | 26.632 | 3 (frontend 1, synth 1, flow 1) |
 | secworks-siphash | Verilog | BSD-2-Clause | pass | pass | pass | pass | complete | XC3S250E | 707 | 1411 | 798 | 14.984 | 0 |
