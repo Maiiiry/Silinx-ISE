@@ -375,6 +375,40 @@ uiTest('browser edition: Stop during Generate Programming File stops the flow, a
   assert.match(await page.consoleText(), /Bitstream: build\/top\.bit/);
 }, { url: () => 'about:blank', timeout: 300000 });
 
+// #625: the browser edition kept only the last run's report: a simulation model generated, then Generate Programming
+// File (to program the board), and the model was "not generated yet" again, though its files were in the build
+uiTest('browser edition: a simulation model stays generated after another run of the flow (#625)', E, async (page) => {
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Models');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Models' && window.Silinx.project.top);
+  await page.click('input[name=view][value=impl]');
+  await page.treeRow('#procs', 'Emulate Post-Synthesis Model', { dbl: true, exact: true });
+  await page.waitDialog('Emulate Post-Synthesis Model');
+  await page.dialogButton('Generate and Emulate');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Synthesis)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator' });
+  await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+  await page.waitConsole(/Bitstream downloaded: top\.bit/, { timeout: 180000 });
+  await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
+  // the model is still there, and its board's: no dialog
+  const start = (await page.consoleText()).length;
+  await page.treeRow('#procs', 'Emulate Post-Synthesis Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Synthesis)' && window.Silinx.active.view?.outputs && window.Silinx.active.view.sim.now > 0, [], { timeout: 180000, what: 'the emulator again' });
+  assert.equal(await page.dialogCount(), 0);
+  const lines = (await page.consoleText()).slice(start).split('\n').map((l) => l.trim()).filter(Boolean);
+  assert.ok(lines.includes("The board runs the post-synthesis model with the design's own generics (build/netgen/synthesis/top_synthesis_board.vhd); the simulation's has the test bench 'tb_top''s."), lines.join('\n'));
+  assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
+}, { url: () => 'about:blank', timeout: 400000 });
+
 // #280: a second Generate Programming File with the design unchanged (only the pins may have changed) starts
 // at Translate, from the netlist of the first: the browser's flow worker as the server's
 // #418: the single file (file://) compiles the design with the site's Yosys (here the test's site, which

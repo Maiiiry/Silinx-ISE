@@ -684,6 +684,19 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   assert.deepEqual(leds.flat().filter((v) => v > 0.05 && v < 0.95), [], JSON.stringify(leds));
   // the emulator's model menu knows the model just generated (not "(not generated)")
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select option')].filter((o) => o.value === 'postsynth').map((o) => o.textContent)), ['Post-Synthesis netlist']);
+  // #625: another model generated after it (another run of the flow, its report without this model), the model is
+  // still there, the board's with it: no dialog, the same model on the board
+  await page.treeRow('#procs', 'Emulate Post-Translate Model', { dbl: true, exact: true });
+  await page.waitDialog('Emulate Post-Translate Model');
+  await page.dialogButton('Generate and Emulate');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Translate)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator' });
+  const again = (await page.consoleText()).length;
+  await page.treeRow('#procs', 'Emulate Post-Synthesis Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Synthesis)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator again' });
+  assert.equal(await page.dialogCount(), 0);
+  const lines2 = (await page.consoleText()).slice(again).split('\n').map((l) => l.trim()).filter(Boolean);
+  assert.ok(lines2.includes("The board runs the post-synthesis model with the design's own generics (build/netgen/synthesis/top_synthesis_board.vhd); the simulation's has the test bench's."), lines2.join('\n'));
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });
 
