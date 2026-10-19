@@ -20,3 +20,6 @@ In detail:
 - **blinky's test bench: the invert check a clock period after the switch (#591):** the path sw(3) -> logic -> LED pads
   is combinational, about 8-10 ns on the post-place & route model (pads and routing), and half a clock period was not
   always enough: another placement failed it.
+- **The design corpus's expectations with this packing (#591):** recorded from a Nightly on the branch (run
+  39245068757): itc99-b15 now meets its 20 ns PERIOD (its warning gone), itc99-b04 127 -> 105 slices; over the 62
+  designs with a period the geometric mean is -0.5 % (seed 1, within the placement's noise), no design larger.
