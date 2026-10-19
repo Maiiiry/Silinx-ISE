@@ -254,14 +254,14 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
     // pack (the cells it does not support yet: synthesized again without them)
     let t = Date.now();
     let packed, netlist = readYosysJson(flowSyn.files[`${flowSyn.top}.json`]);
-    try { packed = pack(netlist, { ucf, part, carryOut: 'xor' }); }
+    try { packed = pack(netlist, { ucf, part }); }
     catch (e) {
       if (!(e instanceof PackError) || !/not supported yet/.test(e.message)) throw e;
       w.push(`WARNING:Silinx (pack) - ${e.message.replace(/^pack: /, '')}: synthesized again with -nobram -nolutram -nosrl -nodsp`);
       flowSyn = await synthWith(flowDesign, '-nobram -nolutram -nosrl -nodsp', m);
       steps.retry = { cells: flowSyn.util };
       netlist = readYosysJson(flowSyn.files[`${flowSyn.top}.json`]);
-      packed = pack(netlist, { ucf, part, carryOut: 'xor' });
+      packed = pack(netlist, { ucf, part });
     }
     w.push(...(packed.warnings || []).map(x => `WARNING:Silinx (pack) - ${x}`));
     step('pack', t, { slices: packed.stats.slices, luts: packed.stats.luts, ffs: packed.stats.ffs });
@@ -291,7 +291,7 @@ async function backEnd(d, design, syn, srcs, res, opts, m, forceWrap = false, pa
     let pr;
     try {
       pr = placeRouteBest(netlist, packed, device, known, {
-        seed: opts.seed, pack: { ucf, part, carryOut: 'xor' },
+        seed: opts.seed, pack: { ucf, part },
         onPlaced: (r, info) => {
           if (info.replication) return;
           w.push(...(r.warnings || []).map(x => `WARNING:Silinx (place) - ${x}`));

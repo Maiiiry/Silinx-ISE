@@ -69,7 +69,7 @@ test('postTranslateModels: the netlist as SIMPRIM primitives, the top\'s ports a
 test('postMapModels: the packed slices as their elements (LUTs, carry, flip-flops), only the LUT inputs their equation reads (#121)', async () => {
   const r = await synthesizeOpen(elaborate(compile(src), 'cnt', { generics: { N: 3 } }), { family: 'spartan3e', run: yosysNode });
   const nl = readYosysJson(r.files[`${r.top}.json`]);
-  const m = postMapModels(nl, pack(nl, { carryOut: 'xor' }), { top: 'cnt', part: 'xc3s250ecp132-4' });
+  const m = postMapModels(nl, pack(nl), { top: 'cnt', part: 'xc3s250ecp132-4' });
   assert.deepEqual(m.vhdl.split('\n').slice(0, 3), [
     "-- Post-Map Simulation Model of 'cnt' (xc3s250ecp132-4): the packed design (Silinx toolchain),",
     '-- the SIMPRIM primitives it is made of (functional, no timing); written by Silinx. Simulate it with the test',
@@ -161,7 +161,7 @@ function compareWithNetlist(nl, models, { clock = 'clk', cycles = 120, seed = 7,
   }
   return out;
 }
-const bothModels = nl => ({ translate: postTranslateModels(nl, { top: nl.name }), map: postMapModels(nl, pack(nl, { carryOut: 'xor' }), { top: nl.name }) });
+const bothModels = nl => ({ translate: postTranslateModels(nl, { top: nl.name }), map: postMapModels(nl, pack(nl), { top: nl.name }) });
 
 for (const name of ['sw', 'counter', 'ffs', 'widemux', 'mux64', 'latches', 'srmux']) {
   test(`fixture ${name}: both models behave as the netlist, in VHDL and in Verilog (random stimulus)`, () => {

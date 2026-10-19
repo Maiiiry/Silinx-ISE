@@ -171,7 +171,7 @@ export async function runOpenFlow(spec, io) {
     const d = await modelNetlist();
     let p = d.packed;
     if (!p) {
-      try { p = modelPacked ||= pack(d.nl, { ucf: ucfText, part: spec.part, carryOut: 'xor' }); } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
+      try { p = modelPacked ||= pack(d.nl, { ucf: ucfText, part: spec.part }); } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
     }
     const m = postMapModels(d.nl, p, { top, part: spec.part, generics: d.generics, testbench: d.testbench });
     writeModel('postmap', 'map', 'map', 'Post-Map', m, 'SIMPRIM', `${m.instances} primitives`);
@@ -185,10 +185,10 @@ export async function runOpenFlow(spec, io) {
     if (!d.own) { routedOrEarlier(); text = routedText; }
     else {
       let p;
-      try { p = modelPacked ||= pack(d.nl, { ucf: ucfText, part: spec.part, carryOut: 'xor' }); } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
+      try { p = modelPacked ||= pack(d.nl, { ucf: ucfText, part: spec.part }); } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
       let pr;
       try {
-        pr = placeRouteBest(d.nl, p, io.device(), knownPips(), { seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part, carryOut: 'xor' } });
+        pr = placeRouteBest(d.nl, p, io.device(), knownPips(), { seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part } });
       } catch (e) { throw new StepError(`placement of the model's design failed: ${e.message}`, [], e.hint); }
       const r = pr.routed;
       if (r.errors.length || r.failed.length || r.overused) throw new StepError(`the model's design (synthesized with the test bench's generics) could not be routed: ${r.failed.length} net(s) not routed, ${r.overused || 0} routing node(s) shared`, [...r.errors, ...r.unreached.map(u => `${u.net} -> ${u.inst}.${u.pin}`)].slice(0, 50));
@@ -214,8 +214,7 @@ export async function runOpenFlow(spec, io) {
   function runMap() {
     const t = now();
     try {
-      // a carry out read by logic leaves through an XOR stage, not XB / YB (not in the bit database)
-      packed = pack(netlist, { ucf: ucfText, part: spec.part, carryOut: 'xor' });
+      packed = pack(netlist, { ucf: ucfText, part: spec.part });
     } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
     for (const w of packed.warnings || []) log(`WARNING:Pack - ${w}`);
     const items = mapReport();
@@ -246,7 +245,7 @@ export async function runOpenFlow(spec, io) {
     let pr;
     try {
       pr = placeRouteBest(netlist, packed, d, k, {
-        seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part, carryOut: 'xor' },
+        seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part },
         onRouted: (p, info) => { if (!info.replication) for (const w of p.placement.warnings || []) log(`WARNING:Place - ${w}`); },
         onReplication: x => log(`Register replication: ${x.flipFlops} flip-flop(s)${x.luts ? ` and ${x.luts} LUT(s)` : ''} on the critical path copied (${x.copies} copies): ${x.kept ? `kept, ${x.result.sta.period.toFixed(3)} ns instead of ${x.before.toFixed(3)} ns` : 'not kept, no faster'}.`),
       });
