@@ -1,7 +1,7 @@
 // Test helper (not a test file): two small cycle simulators that check the packer without ISE.
 //
 //   netlistSim(nl)     the Yosys netlist (core/fpga/netlist.js): LUT1..4, INV, MUXF5..8, MUXCY, XORCY,
-//                      FD*/LD* flip-flops and latches, IBUF / OBUF / BUFG, distributed RAMs
+//                      FD*/LD* flip-flops and latches, IBUF / OBUF / OBUFT (z: high impedance) / BUFG, distributed RAMs
 //                      (RAM16X1S / RAM32X1S / RAM64X1S / RAM16X1D), MULT18X18; and the combinational
 //                      gates of Yosys's internal cell library ($_AND_, $_MUX_… after a generic
 //                      `synth`) (CELLS_SIMULATED)
@@ -17,8 +17,10 @@ import { paramBits, paramInt } from '../core/fpga/netlist.js';
 
 const LUT_K = { LUT1: 1, LUT2: 2, LUT3: 3, LUT4: 4 };
 const RAM_A = { RAM16X1S: 4, RAM32X1S: 5, RAM64X1S: 6, RAM16X1D: 4 };
+// an IOB's registers: [register, its group's prefix (ICEINV, OFFATTRBOX…), its clock pin, its data]
+const IOB_FFS = [['IFF1', 'I', 'ICLK1', 'PAD'], ['OFF1', 'O', 'OTCLK1', 'O1'], ['TFF1', 'T', 'OTCLK1', 'T1']];
 /** The cell types netlistSim models. */
-export const CELLS_SIMULATED = /^(LUT[1-4]|INV|MUXF[5-8]|MUXCY|XORCY|(FDRE|FDSE|FDCE|FDPE|LDCE|LDPE)(_1)?|IBUF|IBUFG|OBUF|BUFG|BUF|RAM16X1S|RAM32X1S|RAM64X1S|RAM16X1D|MULT18X18|MULT18X18S|MULT18X18SIO|SRLC?16E?(_1)?|RAMB16_S(1|2|4|9|18|36)(_S(1|2|4|9|18|36))?|\$_(BUF|NOT|AND|NAND|OR|NOR|XOR|XNOR|ANDNOT|ORNOT|MUX|NMUX|AOI3|OAI3|AOI4|OAI4)_)$/;
+export const CELLS_SIMULATED = /^(LUT[1-4]|INV|MUXF[5-8]|MUXCY|XORCY|(FDRE|FDSE|FDCE|FDPE|LDCE|LDPE)(_1)?|IBUF|IBUFG|OBUF|OBUFT|BUFG|BUF|RAM16X1S|RAM32X1S|RAM64X1S|RAM16X1D|MULT18X18|MULT18X18S|MULT18X18SIO|SRLC?16E?(_1)?|RAMB16_S(1|2|4|9|18|36)(_S(1|2|4|9|18|36))?|\$_(BUF|NOT|AND|NAND|OR|NOR|XOR|XNOR|ANDNOT|ORNOT|MUX|NMUX|AOI3|OAI3|AOI4|OAI4)_)$/;
 
 // ------------------------------------------------------------------ block RAM and multiplier (both simulators)
 // a block-RAM port of each width: data bits, parity bits, address bits (as core/unisim.js)
@@ -120,6 +122,7 @@ export function netlistSim(nl) {
         else if (c.type === 'MUXCY') o = p('S') ? p('CI') : p('DI');
         else if (c.type === 'XORCY') o = p('CI') ^ p('LI');
         else if (/^(IBUF|IBUFG|OBUF|BUFG|BUF)$/.test(c.type)) o = p('I');
+        else if (c.type === 'OBUFT') o = p('T') ? 'z' : p('I');
         else if (RAM_A[c.type]) {
           const r = ramOf.get(c);
           if (c.type === 'RAM16X1D') { put(c.pins.SPO, r.mem[addr(c, 'A', 4)]); put(c.pins.DPO, r.mem[addr(c, 'DPRA', 4)]); continue; }
@@ -280,6 +283,8 @@ export function packedSim(packed) {
       });
     }
     if (inst.kind === 'mult') Object.assign(r, { a: new Array(18).fill(0), b: new Array(18).fill(0), p: new Array(36).fill(0) });
+    // an IOB's registers (#96): IFF1, OFF1, TFF1 at their INIT; ICLK1 and OTCLK1 as they were at the last step
+    if (inst.kind === 'iob') Object.assign(r, { iq: Object.fromEntries(IOB_FFS.map(([ff]) => [ff, c.get(`${ff}_INIT_ATTR`)?.value === 'INIT1' ? 1 : 0])), prev: { ICLK1: 0, OTCLK1: 0 } });
     return r;
   });
   const pads = new Map();
@@ -288,7 +293,7 @@ export function packedSim(packed) {
   // the outputs of one instance from its inputs and state
   function evalInst(i) {
     const inst = insts[i], c = C[i], o = {};
-    if (inst.kind === 'iob') { if (inst.dir === 'in') o.I = padIn.get(c.get('PAD').name) || 0; return o; }
+    if (inst.kind === 'iob') { if (inst.dir === 'in') { o.I = padIn.get(c.get('PAD').name) || 0; o.IQ1 = st[i].iq.IFF1; } return o; }
     if (inst.kind === 'bufg') { o.O = pin(i, 'I0'); return o; }
     const val = a => c.get(a)?.value;
     if (inst.kind === 'bram') {
@@ -360,6 +365,24 @@ export function packedSim(packed) {
     throw new Error('packedSim: combinational loop');
   };
   // the next value of a flip-flop / latch: edge = a rising clock edge happened (or, for a latch, the gate is open)
+  // the next values of an IOB's registers (#96): { ff: value }, and its clocks now; D of IFF1 the pad, of OFF1 / TFF1
+  // O1 / T1 (through O1INV / T1INV); one SR (SRINV) for all, each register's SR_ATTR and ATTRBOX
+  function iobNext(i) {
+    const c = C[i], val = a => c.get(a)?.value, r = st[i];
+    const inv = p => (val(`${p}INV`) === `${p}_B` ? 1 - pin(i, p) : pin(i, p));
+    const clk = { ICLK1: inv('ICLK1'), OTCLK1: inv('OTCLK1') };
+    const next = {};
+    for (const [ff, g, ck, d] of IOB_FFS) {
+      if (val(ff) !== '#FF') continue;
+      const q = r.iq[ff], ce = c.has(`${g}CEINV`) ? inv(`${g}CE`) : 1;
+      const sr = c.has(`${ff}_SR_ATTR`) && c.has('SRINV') ? inv('SR') : 0, srv = val(`${ff}_SR_ATTR`) === 'SRHIGH' ? 1 : 0;
+      const data = d === 'PAD' ? padIn.get(c.get('PAD').name) || 0 : inv(d);
+      if (sr && val(`${g}FFATTRBOX`) !== 'SYNC') next[ff] = srv;
+      else if (!(clk[ck] && !r.prev[ck])) next[ff] = q;
+      else next[ff] = sr ? srv : ce ? data : q;
+    }
+    return { next, clk };
+  }
   function ffNext(i, X, latch) {
     const c = C[i], val = a => c.get(a)?.value;
     const clk = val('CLKINV') === 'CLK_B' ? 1 - pin(i, 'CLK') : pin(i, 'CLK');
@@ -452,6 +475,12 @@ export function packedSim(packed) {
           for (const X of ['X', 'Y']) if (c.get(`FF${X}`)?.value === '#FF') r[X] = ffNext(i, X, false);
           return r;
         });
+        const iobs = insts.map((inst, i) => (inst.kind === 'iob' ? iobNext(i) : null));
+        iobs.forEach((r, i) => {
+          if (!r) return;
+          for (const [ff, x] of Object.entries(r.next)) if (x !== st[i].iq[ff]) { st[i].iq[ff] = x; again = true; }
+          st[i].prev = r.clk;
+        });
         next.forEach((r, i) => {
           if (!r) return;
           for (const X of ['X', 'Y']) if (r[X] !== undefined && r[X] !== st[i].q[X]) { st[i].q[X] = r[X]; again = true; }
@@ -464,7 +493,13 @@ export function packedSim(packed) {
     },
     out() {
       const o = {};
-      insts.forEach((inst, i) => { if (inst.kind === 'iob' && inst.dir === 'out') o[C[i].get('PAD').name] = pin(i, 'O1'); });
+      // (the output from its register or O1, high impedance while the output enable, its register or T1, is 1)
+      insts.forEach((inst, i) => {
+        if (inst.kind !== 'iob' || inst.dir !== 'out') return;
+        const c = C[i], val = a => c.get(a)?.value, inv = p => (val(`${p}INV`) === `${p}_B` ? 1 - pin(i, p) : pin(i, p));
+        const t = !c.has('TMUX') ? 0 : val('TMUX') === 'TFF1' ? st[i].iq.TFF1 : inv('T1');
+        o[c.get('PAD').name] = t ? 'z' : val('OMUX') === 'OFF1' ? st[i].iq.OFF1 : inv('O1');
+      });
       return o;
     },
   };
