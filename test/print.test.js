@@ -34,4 +34,8 @@ test('#487 the print page has no script', () => {
   const html = printHtml('t', bounds, 'blob:x', pageLayout(bounds, { paper: 'A4' }));
   assert.doesNotMatch(html, /<script/i);
   assert.match(html, /<img /);
+  // what goes into the page is the known paper and the image's URL as an attribute's text
+  assert.equal(pageLayout(bounds, { paper: 'A4; } body { display:none' }).paper, 'A4');
+  assert.equal(pageLayout(bounds, { paper: 'toString' }).paper, 'A4');
+  assert.match(printHtml('t', bounds, 'x" onerror="y', pageLayout(bounds, {})), /<img src="x&quot; onerror=&quot;y" alt=""/);
 });
