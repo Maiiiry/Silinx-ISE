@@ -440,6 +440,8 @@ export async function importSilinxDialog() {
     app.showLeftPage('design');
     app.log(`Imported Silinx project '${pname}' (${res?.project?.files?.length ?? 0} source file(s)${res?.extra?.length ? `, ${res.extra.length} other file(s)` : ''}).`, 'ok');
     if (res?.missing?.length) app.log(`WARNING: files listed in silinx.json but not in the zip: ${res.missing.join(', ')}`, 'warn');
+    // (what the import dropped: an entry that would leave the project, a broken silinx.json field, #483)
+    for (const w of res?.warnings || []) app.log(`WARNING: ${w}`, 'warn');
   } catch (e) { alertDlg('Import Silinx ISE Project', e.message, 'error'); }
 }
 

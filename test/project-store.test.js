@@ -291,3 +291,104 @@ test('browser storage: a build\'s results are not kept (this session only), noth
   assert.equal(await store.readText('InMemory', BUILD_REPORTS), null);
   assert.deepEqual(await readBuildResults(store, 'InMemory', { modelVersion: 2 }), { report: null, view: null });
 });
+
+// ---- #483: every path inside the project, the imported silinx.json normalised
+import { safePath, cleanPath, normalizeProjectJson, projectFromZip, emptyProjectJson } from '../web/js/project-store.js';
+import { textOf } from '../core/zip.js';
+
+test('#483 safePath / cleanPath: hostile paths refused, odd but harmless ones normalised', () => {
+  const bad = ['', '/etc/passwd', '//host/share/x', '\\\\host\\share\\x', 'C:\\Windows\\x.v', 'c:/x.v', '../out.v', 'src/../../out.v', 'src/..', '..', 'src/a\u0000.v', 'src/a\n.v', null, undefined, 42, ['src/a.v'], { path: 'src/a.v' }, '.', './', 'src/./..'];
+  for (const p of bad) {
+    assert.equal(safePath(p), null, `safePath(${JSON.stringify(p)})`);
+    assert.throws(() => cleanPath(p), { message: 'invalid path' }, `cleanPath(${JSON.stringify(p)})`);
+  }
+  const ok = { 'src/top.vhd': 'src/top.vhd', 'src\\sub\\x.v': 'src/sub/x.v', './src/a.v': 'src/a.v', 'src//a.v': 'src/a.v', 'src/./a.v': 'src/a.v', 'a/b/': 'a/b', 'src/..a.v': 'src/..a.v', 'src/a..v': 'src/a..v', 'C:x.v': 'C:x.v', 'é/ü.vhd': 'é/ü.vhd', 'build/top.bit': 'build/top.bit' };
+  for (const [p, n] of Object.entries(ok)) { assert.equal(safePath(p), n); assert.equal(cleanPath(p), n); }
+});
+
+test('#483 normalizeProjectJson: the examples\' descriptions unchanged; a broken one in shape, what was dropped said', () => {
+  for (const [n, ex] of Object.entries(EXAMPLES)) {
+    const r = normalizeProjectJson(ex.json, n);
+    assert.deepEqual(r, { json: ex.json, warnings: [] }, n);
+  }
+  // not a description at all
+  for (const bad of [null, 'x', 42, ['files'], undefined]) {
+    assert.deepEqual(normalizeProjectJson(bad, 'P'), { json: emptyProjectJson('P'), warnings: ['silinx.json is not a project description: an empty project'] });
+  }
+  // every field of the wrong type, the paths leaving the project
+  const r = normalizeProjectJson({
+    name: 'Other', version: 'x', device: 'xc3s250e', board: 7, top: ['top'], simTop: null,
+    files: [{ path: 'src/top.vhd', lang: 'vhdl', role: 'design' }, { path: '../../etc/passwd', lang: 'vhdl', role: 'design' }, 'junk', { path: 'C:\\win\\x.v' }, { path: 'sim\\tb.v', lang: 'nope', role: 'sim' },
+      { path: 'src/top.vhd', lang: 'vhdl', role: 'design' }, { path: 'silinx.json' }, { path: 'docs/notes.txt' }, 7, null],
+    constraints: ['not', 'a', 'string'], excluded: ['src/old.vhd', '../x.vhd', 3], stimuli: 5, impl: 'fast', preferredLanguage: 'c', synthTool: 1,
+  }, 'P');
+  assert.deepEqual(r.warnings, [
+    'silinx.json: file path outside the project dropped (../../etc/passwd)',
+    'silinx.json: file path outside the project dropped ("junk")',
+    'silinx.json: file path outside the project dropped (C:\\win\\x.v)',
+    'silinx.json: file path outside the project dropped (silinx.json)',
+    'silinx.json: file path outside the project dropped (7)',
+    'silinx.json: file path outside the project dropped (null)',
+    'silinx.json: constraints path outside the project dropped (["not","a","string"])',
+  ]);
+  assert.deepEqual(r.json, {
+    name: 'P', version: 1, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, board: null, top: '', simTop: '',
+    files: [{ path: 'src/top.vhd', lang: 'vhdl', role: 'design' }, { path: 'sim/tb.v', lang: 'verilog', role: 'sim' }, { path: 'docs/notes.txt', lang: 'text', role: 'design' }],
+    constraints: null, excluded: ['src/old.vhd'], stimuli: {}, impl: { optMode: 'Speed', optLevel: 1, startupClk: 'JtagClk' },
+  });
+  // the device's known fields only, the constraints outside the project
+  const d = normalizeProjectJson({ device: { family: 'spartan3e', part: 'xc3s500e', package: 'fg320', speed: '-5', secret: 1 }, constraints: '../../x.ucf', impl: { optLevel: 2 } }, 'Q');
+  assert.deepEqual(d.warnings, ['silinx.json: constraints path outside the project dropped (../../x.ucf)']);
+  assert.deepEqual(d.json.device, { family: 'spartan3e', part: 'xc3s500e', package: 'fg320', speed: '-5' });
+  assert.equal(d.json.constraints, null);
+  assert.deepEqual(d.json.impl, { optMode: 'Speed', optLevel: 2, startupClk: 'JtagClk' });
+});
+
+test('#483 projectFromZip: entries leaving the project skipped with a warning, silinx.json normalised, the files it lists but the zip has not', () => {
+  const enc = new TextEncoder();
+  const E = (path, data) => ({ path, data: enc.encode(data) });
+  const pj = { name: 'Evil', top: 'top', files: [{ path: 'src/top.vhd', lang: 'vhdl', role: 'design' }, { path: '../../etc/passwd', lang: 'vhdl', role: 'design' }, { path: 'src/gone.vhd', lang: 'vhdl', role: 'design' }], constraints: 'constraints/top.ucf', device: 'nope', stimuli: 5 };
+  const entries = [E('silinx.json', JSON.stringify(pj)), E('src/top.vhd', 'entity top is end;'), E('../escape.txt', 'x'), E('/abs.txt', 'x'), E('sub\\win.v', 'module m; endmodule'),
+    E('a/./b.txt', 'b'), E('build/top.bit', 'bits'), E('C:\\x.v', 'x')];
+  const r = projectFromZip('Hostile', entries, { textOf, xiseProject: () => { throw new Error('no .xise here'); } });
+  assert.deepEqual(r.warnings, ['zip entry outside the project skipped (../escape.txt)', 'zip entry outside the project skipped (/abs.txt)', 'zip entry outside the project skipped (C:\\x.v)',
+    'silinx.json: file path outside the project dropped (../../etc/passwd)']);
+  assert.deepEqual(Object.keys(r.files).sort(), ['a/b.txt', 'src/top.vhd', 'sub/win.v']);
+  assert.deepEqual(r.missing, ['src/gone.vhd', 'constraints/top.ucf']);
+  assert.deepEqual(r.json, { ...emptyProjectJson('Hostile'), top: 'top', files: [{ path: 'src/top.vhd', lang: 'vhdl', role: 'design' }, { path: 'src/gone.vhd', lang: 'vhdl', role: 'design' }], constraints: 'constraints/top.ucf' });
+  // the project in a folder of the zip, silinx.json not JSON: an empty project with the files
+  const r2 = projectFromZip('Sub', [E('MyProj/silinx.json', '{ not json'), E('MyProj/src/a.v', 'a'), E('MyProj/../outside.v', 'o'), E('other/x.v', 'x')], { textOf, xiseProject: null });
+  assert.deepEqual(r2.warnings, ['zip entry outside the project skipped (../outside.v)', 'silinx.json is not valid JSON: ignored']);
+  assert.deepEqual(Object.keys(r2.files), ['src/a.v']);
+  assert.deepEqual(r2.json, emptyProjectJson('Sub'));
+  assert.deepEqual(r2.missing, []);
+  assert.throws(() => projectFromZip('X', [E('readme.txt', 'x')], { textOf }), { message: 'the zip contains no .xise (ISE project) and no silinx.json' });
+});
+
+test('#483 the project operations refuse a path that leaves the project, in both stores, and silinx.json as a file', async () => {
+  for (const make of [() => folder(), () => { const s = browserStore(memStorage()); return { ops: projectOps(() => s, EXAMPLES) }; }]) {
+    const { ops } = make();
+    await ops.create({ name: 'Trav', template: 'blinky' });
+    const before = await ops.project('Trav');
+    for (const bad of ['../out.v', '/etc/passwd', 'C:\\x.v', 'src/../../x.v', '']) {
+      await assert.rejects(ops.readFile('Trav', bad), { message: 'invalid path' }, `readFile ${bad}`);
+      await assert.rejects(ops.writeFile('Trav', bad, 'x'), { message: 'invalid path' }, `writeFile ${bad}`);
+      await assert.rejects(ops.renameFile('Trav', 'src/top.vhd', bad), { message: 'invalid path' }, `renameFile to ${bad}`);
+      await assert.rejects(ops.renameFile('Trav', bad, 'src/x.vhd'), { message: 'invalid path' }, `renameFile from ${bad}`);
+      await assert.rejects(ops.deleteFile('Trav', bad), { message: 'invalid path' }, `deleteFile ${bad}`);
+      await assert.rejects(ops.put('Put', emptyProjectJson('Put'), { [bad]: 'x' }), { message: 'invalid path' }, `put ${bad}`);
+    }
+    for (const op of [() => ops.writeFile('Trav', 'silinx.json', '{}'), () => ops.renameFile('Trav', 'src/top.vhd', 'silinx.json'), () => ops.deleteFile('Trav', 'silinx.json')]) {
+      await assert.rejects(op, { message: "silinx.json is the project's description" });
+    }
+    // a backslash path is the same file with forward slashes
+    await ops.writeFile('Trav', 'src\\sub\\new.v', 'module n; endmodule');
+    assert.equal(await ops.readFile('Trav', 'src/sub/new.v'), 'module n; endmodule');
+    await ops.deleteFile('Trav', './src/sub/new.v');
+    assert.deepEqual(await ops.project('Trav'), before, 'nothing else changed');
+    // put: the description normalised, silinx.json among the files ignored
+    const put = await ops.put('Put', { ...emptyProjectJson('Put'), top: 'a', files: 'none', constraints: 7, extra: true }, { 'silinx.json': '{}', 'src\\a.v': 'module a; endmodule' });
+    assert.deepEqual(put, { ...emptyProjectJson('Put'), top: 'a', constraints: null });
+    assert.deepEqual((await ops.project('Put')).fileTree, ['src/a.v']);
+  }
+});

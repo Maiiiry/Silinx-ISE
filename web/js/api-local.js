@@ -18,7 +18,7 @@ import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
 import { promAdept, PROM_OPS } from '../../core/xcf.js';
-import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson, saveBuildResults, readBuildResults, BUILD_VIEW, DEV_SITE } from './project-store.js';
+import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson, normalizeProjectJson, projectFromZip, safePath, NAME_RE, saveBuildResults, readBuildResults, BUILD_VIEW, DEV_SITE } from './project-store.js';
 import { MODEL_VERSION } from '../../core/xdl.js';
 
 const fail = msg => { throw new Error(msg); };
@@ -167,7 +167,8 @@ function xiseProject(name, xise, files = {}) {
   const lookup = path => files[path] ?? files[path.split('/').pop()];
   const json = emptyProjectJson(name);
   const pfiles = {};
-  const safe = (f, dir) => (f.startsWith('/') || f.includes('..') ? `${dir}/${f.split('/').pop()}` : f);
+  // a path of the .xise that would leave the project (absolute, '..', a drive): its name alone, in dir
+  const safe = (f, dir) => safePath(f) ?? `${dir}/${f.split(/[\\/]/).pop()}`;
   const out = [];
   const sources = {};
   for (const f of parsed.files) {
@@ -412,26 +413,13 @@ export const api = {
       ...Object.entries(p.files).filter(([k]) => k !== `${name}.xise` && !added.has(k) && !/(^|\/)[^/]+\.(asm|sch|tt|fsm)\.json$/i.test(k)).map(([path, data]) => ({ path, data }))];
     return { blob: new Blob([await createZip(entries, browserCodec())], { type: 'application/zip' }), filename: `${name}.zip`, warnings: sch.warnings };
   },
+  // the zip's entries as a project (project-store.js projectFromZip: every path inside the project,
+  // silinx.json normalised, what was dropped in the warnings), then stored
   importZip: async (name, file) => {
     const entries = await readZip(new Uint8Array(await file.arrayBuffer()), browserCodec());
-    const xe = entries.filter(e => /\.xise$/i.test(e.path)).sort((a, b) => a.path.split('/').length - b.path.split('/').length)[0];
-    const pe = entries.find(e => /(^|\/)silinx\.json$/.test(e.path));
-    if (!xe && !pe) fail('the zip contains no .xise (ISE project) and no silinx.json');
+    const p = projectFromZip(name, entries, { xiseProject, textOf });
     if (await store.exists(name)) fail(`project '${name}' already exists`);
-    const root = (xe || pe).path.includes('/') ? (xe || pe).path.replace(/\/[^/]*$/, '') : '';
-    const rel = p => (!root ? p : p.startsWith(root + '/') ? p.slice(root.length + 1) : null);
-    const files = {};
-    for (const e of entries) { const r = rel(e.path); if (r !== null && !/^build\//.test(r)) files[r] = textOf(e); }
-    const p = xe ? xiseProject(name, textOf(xe), files) : { json: emptyProjectJson(name), files: {}, warnings: [] };
-    const known = new Set(p.json.files.map(f => f.path).concat(p.json.constraints));
-    for (const [k, v] of Object.entries(files)) if (!known.has(k) && !/\.xise$/i.test(k) && k !== 'silinx.json') p.files[k] = v;
-    if (pe) {
-      try {
-        const saved = JSON.parse(textOf(pe));
-        p.json = xe ? { ...p.json, board: saved.board ?? p.json.board, stimuli: saved.stimuli || {}, preferredLanguage: saved.preferredLanguage, impl: { ...p.json.impl, ...saved.impl } } : { ...saved, name };
-      } catch { /* ignore */ }
-    }
-    return { project: await ops.put(name, p.json, p.files), missing: [], warnings: p.warnings };
+    return { project: await ops.put(name, p.json, p.files), missing: p.missing, warnings: p.warnings };
   },
 
   // standalone-only: project bundles (one JSON file with every project file)
@@ -439,12 +427,24 @@ export const api = {
     const p = await store.load(name);
     return JSON.stringify({ format: 'silinx-bundle', version: 1, project: p.json, files: p.files }, null, 1);
   },
+  // the bundle's project description normalised and its files' paths checked as a zip's (#483);
+  // the name of the project made, and the warnings in api.lastImportWarnings
   importBundle: async text => {
     const b = JSON.parse(text);
-    if (b.format !== 'silinx-bundle') fail('not a Silinx project bundle');
-    let name = b.project.name;
-    while (await store.exists(name)) name = `${b.project.name}_${Math.floor(Math.random() * 1000)}`;
-    await ops.put(name, b.project, b.files);
+    if (!b || b.format !== 'silinx-bundle') fail('not a Silinx project bundle');
+    const base = String(b.project?.name ?? '');
+    if (!NAME_RE.test(base)) fail(`invalid project name '${base}'`);
+    let name = base;
+    while (await store.exists(name)) name = `${base}_${Math.floor(Math.random() * 1000)}`;
+    const n = normalizeProjectJson(b.project, name);
+    const files = {};
+    for (const [k, v] of Object.entries(b.files && typeof b.files === 'object' ? b.files : {})) {
+      const p = safePath(k);
+      if (!p || typeof v !== 'string') { n.warnings.push(`bundle entry outside the project skipped (${k})`); continue; }
+      files[p] = v;
+    }
+    await ops.put(name, n.json, files);
+    api.lastImportWarnings = n.warnings;
     return name;
   },
 };

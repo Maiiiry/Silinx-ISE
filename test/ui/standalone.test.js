@@ -16,6 +16,8 @@ import { setupUi, uiTest, waitDownload, ROOT, chromeOnly, BROWSER } from './harn
 import { TEXTS, untranslated } from './i18n-check.js';
 import { buildInfo } from '../../scripts/build-info.mjs';
 import { VERSION, versionLabel } from '../../core/version.js';
+import zlib from 'node:zlib';
+import { createZip } from '../../core/zip.js';
 
 let env, plain, html, site, server, siteUrl, build, skip = null;
 before(async () => {
@@ -905,3 +907,47 @@ uiTest('browser edition: Simulate Post-Synthesis Model with no model: "Generate 
   assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
   assert.equal(await page.eval(() => window.Silinx.active.title), 'ISim (tb_top, Post-Synthesis)');
 }, { url: () => 'about:blank', timeout: 300000 });
+
+// #483: the browser edition keeps every path inside the project by itself (project-store.js safePath),
+// not by the platform's refusal: a hostile zip (entries and a silinx.json with '..', absolute, Windows
+// paths; fields of the wrong type) imports what is sound, says what was dropped, and the project opens
+uiTest('#483 browser edition: a hostile zip (paths leaving the project, a broken silinx.json) imports what is sound and says what was dropped', E, async (page) => {
+  const pj = { name: 'Evil', top: 'top', files: [{ path: 'src/top.vhd', lang: 'vhdl', role: 'design' }, { path: '../../etc/passwd', lang: 'vhdl', role: 'design' }, 'junk', { path: 'C:\\win\\x.v' }, { path: 'src/gone.vhd', lang: 'vhdl', role: 'design' }],
+    constraints: ['not', 'a', 'string'], device: 'nope', stimuli: 5, impl: 'fast' };
+  const top = 'library ieee;\nuse ieee.std_logic_1164.all;\nentity top is port (a : in std_logic; y : out std_logic); end;\narchitecture rtl of top is begin y <= a; end;\n';
+  const codec = { deflate: (d) => zlib.deflateRawSync(d), inflate: (d) => zlib.inflateRawSync(d) };
+  const zip = await createZip([{ path: 'silinx.json', data: JSON.stringify(pj) }, { path: 'src/top.vhd', data: top }, { path: '../escape.txt', data: 'x' }, { path: '/abs.txt', data: 'x' },
+    { path: 'sub\\win.v', data: 'module m; endmodule\n' }, { path: 'a/./b.txt', data: 'b' }, { path: 'build/top.bit', data: 'bits' }], codec);
+  const zipFile = path.join(env.tmp, 'hostile-silinx.zip');
+  await fs.writeFile(zipFile, zip);
+  await page.goto(siteUrl);
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  await page.menu('File', 'Import Silinx ISE Project (.zip)…');
+  await page.waitDialog('Import Silinx ISE Project');
+  await page.setFiles('.dlg-overlay input[type=file]', [zipFile]);
+  await page.fill('.dlg-overlay input[type=text]', 'Hostile');
+  await page.dialogButton('Import');
+  await page.waitFor(() => window.Silinx.project?.name === 'Hostile' && document.querySelector('#hier .row'), [], { what: 'the imported project open' });
+  await page.waitConsole(/Imported Silinx project 'Hostile' \(2 source file\(s\)\)\./);
+  // what was dropped, in the order found: the zip's entries, then silinx.json's fields; the files it
+  // lists that the zip has not
+  const warnings = (await page.consoleText()).split('\n').filter((l) => /^WARNING/.test(l));
+  assert.deepEqual(warnings, [
+    "WARNING: files listed in silinx.json but not in the zip: src/gone.vhd",
+    'WARNING: zip entry outside the project skipped (../escape.txt)',
+    'WARNING: zip entry outside the project skipped (/abs.txt)',
+    'WARNING: silinx.json: file path outside the project dropped (../../etc/passwd)',
+    'WARNING: silinx.json: file path outside the project dropped ("junk")',
+    'WARNING: silinx.json: file path outside the project dropped (C:\\win\\x.v)',
+    'WARNING: silinx.json: constraints path outside the project dropped (["not","a","string"])',
+  ]);
+  // the project as stored: the sound files with normalised paths, the description in shape
+  const got = await page.eval(() => { const p = window.Silinx.project; return { tree: window.Silinx.diskTree, files: p.files, constraints: p.constraints, device: p.device, top: p.top, stimuli: p.stimuli, impl: p.impl, board: p.board }; });
+  assert.deepEqual(got, {
+    tree: ['a/b.txt', 'src/top.vhd', 'sub/win.v'],
+    files: [{ path: 'src/top.vhd', lang: 'vhdl', role: 'design' }, { path: 'src/gone.vhd', lang: 'vhdl', role: 'design' }],
+    constraints: null, device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, top: 'top', stimuli: {}, impl: { optMode: 'Speed', optLevel: 1, startupClk: 'JtagClk' }, board: null,
+  });
+  assert.equal(await page.eval(() => [...document.querySelectorAll('#hier .lbl')].some((e) => /^top\b/.test(e.textContent))), true, 'the top module in the hierarchy');
+  assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '', 'no error');
+}, { url: () => 'about:blank' });

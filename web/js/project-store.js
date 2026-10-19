@@ -21,10 +21,23 @@ const BROWSER_KEY = DEV_SITE ? 'silinx.dev.standalone.fs' : 'silinx.standalone.f
 const clone = o => JSON.parse(JSON.stringify(o));
 const fail = msg => { throw new Error(msg); };
 export const langOf = p => (/\.(v|vh|sv)$/i.test(p) ? 'verilog' : /\.(vhd|vhdl)$/i.test(p) ? 'vhdl' : /\.ucf$/i.test(p) ? 'ucf' : 'text');
-export function cleanPath(p) {
-  if (!p || typeof p !== 'string' || p.startsWith('/') || p.split('/').includes('..')) fail('invalid path');
-  return p.replace(/\\/g, '/');
+/**
+ * A project-relative path normalised: forward slashes, no empty or '.' segments. null when it would
+ * leave the project (#483): not a string, empty, absolute ('/x', '\\\\host\\x', 'C:\\x'), a '..' segment,
+ * or a control character in it. Every operation of the stores and the imports go through it: the code
+ * does not rely on the platform (the File System Access API's TypeError, the server's safeJoin).
+ */
+export function safePath(p) {
+  if (typeof p !== 'string' || /[\0-\x1f]/.test(p)) return null;
+  const parts = p.replace(/\\/g, '/').split('/');
+  if (parts[0] === '' || /^[A-Za-z]:$/.test(parts[0]) || parts.includes('..')) return null;
+  const out = parts.filter(s => s !== '' && s !== '.');
+  return out.length ? out.join('/') : null;
 }
+/** safePath, or the error 'invalid path'. */
+export function cleanPath(p) { return safePath(p) ?? fail('invalid path'); }
+// (silinx.json is the project's description, not one of its files: never written, renamed or deleted as one)
+const notDescriptor = p => (p === PROJECT_FILE ? fail(`${PROJECT_FILE} is the project's description`) : p);
 /** silinx.json's text, as server/projects.js writes it (2-space JSON, a final newline, no fileTree). */
 export function projectJsonText(name, pj) {
   const clean = { ...pj, name };
@@ -37,6 +50,93 @@ export const emptyProjectJson = (name, { device, board } = {}) => ({
   constraints: 'constraints/top.ucf', stimuli: {}, impl: { optMode: 'Speed', optLevel: 1, startupClk: 'JtagClk' },
 });
 const under = (k, dir) => k === dir || k.startsWith(`${dir}/`);
+const plain = o => !!o && typeof o === 'object' && !Array.isArray(o);
+const str = (v, dflt = '') => (typeof v === 'string' ? v : dflt);
+
+/**
+ * An imported project description (a zip's or a bundle's silinx.json) in the shape the app relies
+ * on, as normalizeDoc / normalizeModel do for the drawings (#483): `files` an array of
+ * { path, lang, role } with paths inside the project, strings for `top` / `simTop` / `constraints`,
+ * the known `device` fields, objects for `stimuli` / `impl`. Anything else is dropped, and what the
+ * user would miss (a file, the constraints) is said in `warnings`. Returns { json, warnings }.
+ */
+export function normalizeProjectJson(saved, name) {
+  const warnings = [];
+  const base = emptyProjectJson(name);
+  if (!plain(saved)) return { json: base, warnings: [`${PROJECT_FILE} is not a project description: an empty project`] };
+  const json = { ...base, name };
+  const dev = plain(saved.device) ? saved.device : {};
+  json.device = { family: str(dev.family, DEFAULT_DEVICE.family), part: str(dev.part, DEFAULT_DEVICE.part), package: str(dev.package, DEFAULT_DEVICE.package), speed: str(dev.speed, DEFAULT_DEVICE.speed) };
+  json.board = typeof saved.board === 'string' ? saved.board : null;
+  json.top = str(saved.top); json.simTop = str(saved.simTop);
+  const seen = new Set();
+  json.files = [];
+  for (const f of Array.isArray(saved.files) ? saved.files : []) {
+    const path = plain(f) ? safePath(f.path) : null;
+    if (!path || path === PROJECT_FILE) { warnings.push(`${PROJECT_FILE}: file path outside the project dropped (${plain(f) ? f.path : JSON.stringify(f)})`); continue; }
+    if (seen.has(path)) continue;
+    seen.add(path);
+    const lang = ['vhdl', 'verilog', 'ucf', 'text'].includes(f.lang) ? f.lang : langOf(path);
+    json.files.push({ path, lang, role: f.role === 'sim' ? 'sim' : 'design' });
+  }
+  if (saved.constraints == null || saved.constraints === '') json.constraints = null;
+  else {
+    json.constraints = safePath(saved.constraints);
+    if (!json.constraints) warnings.push(`${PROJECT_FILE}: constraints path outside the project dropped (${typeof saved.constraints === 'string' ? saved.constraints : JSON.stringify(saved.constraints)})`);
+  }
+  const excluded = (Array.isArray(saved.excluded) ? saved.excluded : []).map(safePath).filter(Boolean);
+  if (excluded.length) json.excluded = excluded;
+  json.stimuli = plain(saved.stimuli) ? saved.stimuli : {};
+  json.impl = { ...base.impl, ...(plain(saved.impl) ? saved.impl : {}) };
+  if (saved.preferredLanguage === 'vhdl' || saved.preferredLanguage === 'verilog') json.preferredLanguage = saved.preferredLanguage;
+  if (typeof saved.synthTool === 'string') json.synthTool = saved.synthTool;
+  return { json: clone(json), warnings };
+}
+
+/**
+ * A zip's entries ({ path, data }, core/zip.js) as a project (#483): a .xise (an ISE project, read
+ * by `xiseProject(name, text, files)`) or a silinx.json (a Silinx export) at its root; every other
+ * file keeps its path, skipped with a warning when it would leave the project (a '..', an absolute
+ * path); build/ is never imported. Returns { json, files, warnings, missing } (missing: the files
+ * silinx.json lists that the zip has not), not stored.
+ */
+export function projectFromZip(name, entries, { xiseProject, textOf }) {
+  const xe = entries.filter(e => /\.xise$/i.test(e.path)).sort((a, b) => a.path.split('/').length - b.path.split('/').length)[0];
+  const pe = entries.find(e => /(^|\/)silinx\.json$/.test(e.path));
+  if (!xe && !pe) fail('the zip contains no .xise (ISE project) and no silinx.json');
+  const root = (xe || pe).path.includes('/') ? (xe || pe).path.replace(/\/[^/]*$/, '') : '';
+  const rel = p => (!root ? p : p.startsWith(root + '/') ? p.slice(root.length + 1) : null);
+  const warnings = [];
+  const files = {};
+  for (const e of entries) {
+    const r = rel(e.path);
+    if (r === null) continue;
+    const k = safePath(r);
+    if (!k) { warnings.push(`zip entry outside the project skipped (${r})`); continue; }
+    if (/^build\//.test(k)) continue;
+    files[k] = textOf(e);
+  }
+  const p = xe ? xiseProject(name, textOf(xe), files) : { json: emptyProjectJson(name), files: {}, warnings: [] };
+  warnings.push(...p.warnings);
+  const known = new Set(p.json.files.map(f => f.path).concat(p.json.constraints));
+  for (const [k, v] of Object.entries(files)) if (!known.has(k) && !/\.xise$/i.test(k) && k !== PROJECT_FILE) p.files[k] = v;
+  const missing = [];
+  if (pe) {
+    let saved = null;
+    try { saved = JSON.parse(textOf(pe)); } catch { warnings.push(`${PROJECT_FILE} is not valid JSON: ignored`); }
+    if (saved !== null) {
+      const n = normalizeProjectJson(saved, name);
+      warnings.push(...n.warnings);
+      // an ISE project exported by Silinx: the settings ISE does not know about come from silinx.json
+      p.json = xe ? { ...p.json, board: n.json.board ?? p.json.board, stimuli: n.json.stimuli, preferredLanguage: n.json.preferredLanguage, impl: { ...p.json.impl, ...n.json.impl } } : n.json;
+      if (!xe) {
+        for (const f of n.json.files) if (p.files[f.path] === undefined) missing.push(f.path);
+        if (n.json.constraints && p.files[n.json.constraints] === undefined && !missing.includes(n.json.constraints)) missing.push(n.json.constraints);
+      }
+    }
+  }
+  return { json: p.json, files: p.files, warnings, missing };
+}
 
 // ------------------------------------------------------------------ the browser's storage
 /** Projects in localStorage (`storage`): { [name]: { json, files: { path: text } } }. */
@@ -60,19 +160,21 @@ export function browserStore(storage = () => globalThis.localStorage) {
     load: async name => get(name),
     create: async (name, json, files = {}) => {
       if (all()[name]) fail(`project '${name}' already exists`);
-      mem[name] = { json: { ...clone(json), name }, files: { ...files } };
+      mem[name] = { json: { ...clone(json), name }, files: Object.fromEntries(Object.entries(files).map(([k, v]) => [cleanPath(k), v])) };
       persist();
     },
     saveJson: async (name, json) => { const p = get(name); p.json = { ...clone(json), name }; delete p.json.fileTree; persist(); },
-    writeFile: async (name, path, text) => { get(name).files[path] = text; persist(); },
+    writeFile: async (name, path, text) => { get(name).files[cleanPath(path)] = text; persist(); },
     // a file, or a folder (everything under it)
     removePath: async (name, path) => {
       const p = get(name);
+      path = cleanPath(path);
       for (const k of Object.keys(p.files)) if (under(k, path)) delete p.files[k];
       persist();
     },
     renamePath: async (name, from, to) => {
       const p = get(name);
+      from = cleanPath(from); to = cleanPath(to);
       for (const k of Object.keys(p.files).filter(x => under(x, from))) { const v = p.files[k]; delete p.files[k]; p.files[to + k.slice(from.length)] = v; }
       persist();
     },
@@ -91,7 +193,7 @@ async function dirAt(root, parts, create = false) {
   for (const p of parts) d = await d.getDirectoryHandle(p, { create });
   return d;
 }
-const split = path => { const parts = path.split('/').filter(Boolean); return { parts, last: parts.pop() }; };
+const split = path => { const parts = cleanPath(path).split('/'); return { parts, last: parts.pop() }; };
 async function writeAt(root, path, data) {
   const { parts, last } = split(path);
   const fh = await (await dirAt(root, parts, true)).getFileHandle(last, { create: true });
@@ -145,7 +247,7 @@ export function folderStore(root) {
     let json;
     try { json = await readJson(dir); } catch { fail(`project '${name}' not found`); }
     json.name = name;
-    json.files ||= [];
+    if (!Array.isArray(json.files)) json.files = [];
     const p = { json, files: await walk(dir) };
     cache.set(name, p);
     return p;
@@ -169,7 +271,7 @@ export function folderStore(root) {
       if (await store.exists(name)) fail(`project '${name}' already exists`);
       const dir = await projectDir(name, true);
       for (const d of dirs) await dirAt(dir, d.split('/'), true);
-      for (const [path, data] of Object.entries(files)) await writeAt(dir, path, data);
+      for (const [path, data] of Object.entries(files)) if (cleanPath(path) !== PROJECT_FILE) await writeAt(dir, path, data);
       await writeAt(dir, PROJECT_FILE, projectJsonText(name, json));
       return read(name);
     }),
@@ -282,8 +384,16 @@ export function projectOps(getStore, examples = {}) {
       await S().create(name, json, {}, { dirs: ['src', 'sim', 'constraints'] });
       return clone(json);
     },
-    /** A whole project at once (imports, bundles, copies): { json, files }. */
-    put: async (name, json, files) => { await S().create(name, { ...json, name }, files); return clone({ ...json, name }); },
+    /** A whole project at once (imports, bundles, copies): its description normalised (what it drops
+     *  is for the caller to say: normalizeProjectJson), every file's path inside the project. */
+    put: async (name, json, files = {}) => {
+      if (!NAME_RE.test(name || '')) fail(`invalid project name '${name}'`);
+      const clean = normalizeProjectJson(json, name).json;
+      const out = {};
+      for (const [k, v] of Object.entries(files)) { const p = cleanPath(k); if (p !== PROJECT_FILE) out[p] = v; }
+      await S().create(name, clean, out);
+      return clone(clean);
+    },
     project: async name => {
       const p = await S().load(name, { fresh: true });
       return { ...clone(p.json), fileTree: Object.keys(p.files).sort() };
@@ -296,7 +406,7 @@ export function projectOps(getStore, examples = {}) {
       return clone(clean);
     },
     readFile: async (name, path) => {
-      const t = (await S().load(name)).files[path];
+      const t = (await S().load(name)).files[cleanPath(path)];
       if (t === undefined) fail(`file '${path}' not found`);
       return t;
     },
@@ -304,8 +414,8 @@ export function projectOps(getStore, examples = {}) {
       const p = await S().load(name);
       let json = null;
       // written again: back in the project
+      path = notDescriptor(cleanPath(path));
       if ((p.json.excluded || []).includes(path)) { json = clone(p.json); json.excluded = json.excluded.filter(f => f !== path); }
-      path = cleanPath(path);
       await S().writeFile(name, path, text);
       const lang = langOf(path);
       if ((lang === 'vhdl' || lang === 'verilog') && !/^build\//.test(path) && !p.json.files.some(f => f.path === path)) {   // not the generated files in build/
@@ -317,6 +427,7 @@ export function projectOps(getStore, examples = {}) {
       return { ok: true };
     },
     renameFile: async (name, from, to) => {
+      from = notDescriptor(cleanPath(from)); to = notDescriptor(cleanPath(to));
       const p = await S().load(name);
       const json = clone(p.json);
       const inside = Object.keys(p.files).filter(k => k.startsWith(`${from}/`));
@@ -341,6 +452,7 @@ export function projectOps(getStore, examples = {}) {
       return clone(json);
     },
     deleteFile: async (name, path) => {
+      path = notDescriptor(cleanPath(path));
       const p = await S().load(name);
       await S().removePath(name, path);
       const json = clone(p.json);
