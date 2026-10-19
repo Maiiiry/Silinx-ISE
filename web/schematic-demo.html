@@ -47,6 +47,8 @@
 
     const $ = id => document.getElementById(id);
     const status = t => { $('status').textContent = t; };
+    // every text put into innerHTML, its attributes' too (#484: a Verilog escaped identifier may hold < " &)
+    const esc = t => String(t).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
     let lib = null, sources = [], design = null, byPath = new Map(), parent = new Map(), current = null;
 
     const view = mountSchematic($('sch'), {
@@ -93,7 +95,7 @@
     }
 
     function renderTree() {
-      const li = i => `<li><div class="row" data-path="${i.path}"><span class="twisty">${i.children?.length ? '▾' : ''}</span>${i.name} <span style="color:var(--muted)">(${i.module})</span></div>${i.children?.length ? `<ul>${i.children.map(li).join('')}</ul>` : ''}</li>`;
+      const li = i => `<li><div class="row" data-path="${esc(i.path)}"><span class="twisty">${i.children?.length ? '▾' : ''}</span>${esc(i.name)} <span style="color:var(--muted)">(${esc(i.module)})</span></div>${i.children?.length ? `<ul>${i.children.map(li).join('')}</ul>` : ''}</li>`;
       $('tree').innerHTML = design.top ? li(design.top) : '';
     }
     $('tree').addEventListener('click', e => { const r = e.target.closest('.row'); if (r) open(r.dataset.path); });
@@ -116,7 +118,6 @@
       const s = sources.find(x => x.path === file);
       $('srcCaption').textContent = `Source — ${file}:${line}`;
       if (!s) { $('srcText').textContent = '(source not available)'; return; }
-      const esc = t => t.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
       $('srcText').innerHTML = s.text.split('\n').map((l, i) => i + 1 === line ? `<span class="hl"><span class="ln">${i + 1}</span>${esc(l)}</span>` : `<span class="ln">${i + 1}</span>${esc(l)}\n`).join('');
       const hl = $('srcText').querySelector('.hl');
       if (hl) hl.scrollIntoView({ block: 'center' });

@@ -257,7 +257,8 @@ endmodule` },
       const lib = compile([sources()[0]]);
       const tops = [...lib.modules.keys()];
       const cand = topCandidates(lib);
-      topSel.innerHTML = tops.map(t => `<option value="${t}">${t}</option>`).join('');
+      // (as elements, not HTML: a Verilog escaped identifier may hold < " &, #484)
+      topSel.replaceChildren(...tops.map(t => new Option(t, t)));
       if (cand.length) topSel.value = cand[cand.length - 1];
     }
     let refreshTimer = null;
