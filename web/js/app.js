@@ -445,8 +445,20 @@ export async function setTop(mod, sim = S.view === 'sim') {
   log(`Top-level ${sim ? 'simulation ' : ''}module set to '${mod}'.`, 'info');
 }
 
-export async function saveProjectJson() {
-  S.project = await api.saveProject(S.project.name, S.project);
+// project.json saved one save at a time, in the order asked (#593): two saves in flight together (the stimuli
+// save at each click) could reach the server in the other order, an older project written last. A save's answer
+// replaces S.project only when no later save waits and S.project is still the one sent: the later save sends
+// S.project as it is then, and the answer of an earlier one would lose the changes made meanwhile.
+let projectSaves = Promise.resolve(), projectSavesWaiting = 0;
+export function saveProjectJson() {
+  projectSavesWaiting++;
+  const run = async () => {
+    projectSavesWaiting--;
+    const pj = S.project;
+    const saved = await api.saveProject(pj.name, pj);
+    if (!projectSavesWaiting && S.project === pj) S.project = saved;
+  };
+  return (projectSaves = projectSaves.then(run, run));
 }
 
 // Remove from Project: the file stays in the project folder (as in ISE); Undo / Add to Project

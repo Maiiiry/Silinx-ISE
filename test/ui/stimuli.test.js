@@ -106,7 +106,17 @@ uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus v
   const m = await stim(page);
   assert.deepEqual([m.inputs.d.join(' '), m.clock, m.cycles], ['0000 0000 0000 0000 1001 1001 1001 1001', 'clk', 8]);
 
-  // ---- expected: tc 1 in cycle 7 (wrong: q is 12) → a mismatch, then Fill Expected Outputs → all right
+  // ---- expected: tc 1 in cycle 7 (wrong: q is 12) → a mismatch, then Fill Expected Outputs → all right.
+  // The saves of the project before Fill held 1 s on their way (a loaded machine, #593): the save of Fill must
+  // still be the one written last (the saves one at a time, in order), not overwritten by an older one
+  await page.eval(() => {
+    const f = window.fetch;
+    window.fetch = async (url, o) => {
+      if (o?.method === 'PUT' && /\/api\/projects\/StimPj$/.test(String(url)) && JSON.parse(o.body).stimuli?.ctr?.expected?.q?.[7] !== '1100') await new Promise((r) => setTimeout(r, 1000));
+      return f(url, o);
+    };
+    window.__fetch = f;
+  });
   await clickCycle(page, 'tc', 7, P);
   await clickCycle(page, 'tc', 7, P);
   await page.waitFor((d) => /1 mismatch\(es\)$/.test(document.querySelector(`${d} .isim-stim-st`).textContent), [DOC], { what: 'the mismatch' });
@@ -119,6 +129,10 @@ uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus v
   // saved in the project
   await page.waitFor(async () => { const r = await fetch('/api/projects/StimPj'); const j = await r.json(); return j.stimuli?.ctr?.expected?.q?.[7] === '1100'; }, [], { what: 'stimuli saved' });
   assert.deepEqual((await saved('StimPj')).inputs.en, ['0', '0', '1', '1', '1', '1', '1', '1']);
+  // (no save left on its way: the one written last is Fill's)
+  await new Promise((r) => setTimeout(r, 1500));
+  assert.deepEqual((await saved('StimPj')).expected.q, ['0000', '0000', '0001', '0010', '1001', '1010', '1011', '1100']);
+  await page.eval(() => { window.fetch = window.__fetch; });
 
   // ---- in Portuguese: the bar and the timing dialog
   await page.eval(TEXTS);
