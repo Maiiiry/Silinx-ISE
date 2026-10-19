@@ -172,6 +172,7 @@ export function designFeatures(design, db) {
   const outPins = new Map();
   for (const n of design.nets) for (const o of n.outpins) (outPins.get(o.inst) || outPins.set(o.inst, new Set()).get(o.inst)).add(o.pin);
   const typeOf = new Map(design.insts.map(i => [i.name, i.type]));
+  const siteByInst = new Map(design.insts.map(i => [i.name, i.placed ? i.site : null])), siteOf = n => siteByInst.get(n) || null;
   for (const inst of design.insts) {
     if (!inst.placed) continue;
     const kind = siteKind(inst, db);
@@ -273,7 +274,7 @@ export function designFeatures(design, db) {
   }
   for (const net of design.nets) {
     if (!net.outpins.length && !net.inpins.length) continue;
-    const names = pipFeatures(net);
+    const names = pipFeatures(net, db.graph, siteOf);
     net.pips.forEach((p, i) => feats.push({ tile: p.tile, feature: names[i] }));
   }
   return { feats, luts, brams };
@@ -380,15 +381,38 @@ export function dcmPeriodFeatures(period, divide, multiply, divideBy2 = false) {
 
 /** The feature names of a net's PIPs: "from->to". A bidirectional PIP (XDL "a =- b") is used in one
  *  direction, the one away from the wire that another PIP of the net drives: "a->b" (or "b->a");
- *  it stays "a=-b" when the net does not tell. */
-export function pipFeatures(net) {
+ *  it stays "a=-b" when the net does not tell. With the device description (graph: a Device), a
+ *  wire is the same as its node's wires in every tile (#23: the XC3S1200E's long-line splitters, a
+ *  long line driven in another tile), and a wire of a net's output pin (siteOf(inst): its site) is
+ *  driven too. */
+export function pipFeatures(net, graph = null, siteOf = null) {
   const driven = new Set(net.pips.filter(p => p.dir !== '=-').map(p => `${p.tile}:${p.to}`));
-  return net.pips.map(p => {
+  const names = net.pips.map(p => {
     if (p.dir !== '=-') return `${p.from}->${p.to}`;
     if (driven.has(`${p.tile}:${p.from}`)) return `${p.from}->${p.to}`;
     if (driven.has(`${p.tile}:${p.to}`)) return `${p.to}->${p.from}`;
-    return `${p.from}=-${p.to}`;
+    return null;
   });
+  if (names.includes(null) && graph && typeof graph.node === 'function') {
+    const node = (tile, wire) => graph.node(tile, wire);
+    const nodes = new Set();
+    net.pips.forEach((p, i) => { if (names[i]) { const n = node(p.tile, names[i].split('->')[1]); if (n >= 0) nodes.add(n); } });
+    for (const o of net.outpins) { const site = siteOf?.(o.inst); if (site) { const n = graph.sitePinNode(site, o.pin); if (n >= 0) nodes.add(n); } }
+    // (a bidirectional PIP after another: until no more is decided)
+    for (let more = true; more;) {
+      more = false;
+      net.pips.forEach((p, i) => {
+        if (names[i]) return;
+        const a = node(p.tile, p.from), b = node(p.tile, p.to);
+        if (a >= 0 && nodes.has(a)) names[i] = `${p.from}->${p.to}`;
+        else if (b >= 0 && nodes.has(b)) names[i] = `${p.to}->${p.from}`;
+        else return;
+        nodes.add(names[i] === `${p.from}->${p.to}` ? b : a);
+        more = true;
+      });
+    }
+  }
+  return names.map((n, i) => n || `${net.pips[i].from}=-${net.pips[i].to}`);
 }
 
 /** The 16 memory bits of a LUT from its XDL equation: an expression of A1-A4, or the initial value
@@ -431,13 +455,18 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  for a switch driving a general routing wire (such an entry was
  *                                  a measurement artefact: W6END4->E2BEG4 of the left I/O tiles
  *                                  sets 2 bits; the I/O tiles now share the CLB switch box); never
- *                                  in a tile type marked noRoute (the XC3S1200E's long-line
- *                                  splitters: a routed design names them "a =- b", the line's driver
- *                                  is in another tile, so the direction their bits need is not known);
+ *                                  in a tile type marked noRoute (none today: the XC3S1200E's
+ *                                  long-line splitters were, until pipFeatures took the direction of
+ *                                  their "a =- b" from the device description, #23);
  *                                  never one the tile does not have though its type's features offer
  *                                  it (pipAbsent, #74: with a device description from ISE the router
  *                                  meets only PIPs the tile has; one built from the database's
  *                                  features per type needs them)
+ *   delayPip(tileName, from, to)   the PIPs the placer's delay table counts (timing.js delayTable):
+ *                                  allowPip's but for a tile type marked splitter (the XC3S1200E's
+ *                                  long-line splitters, #23: the router takes one where it is
+ *                                  faster; counted in the table they make far vertical offsets look
+ *                                  faster than they route, and the placements slower)
  *   allowConstSource(kind, site)   a VCC site (no settings of its own) or a slice whose settings as
  *                                  a GND source (USED, _GND_SOURCE:Y) are known
  *   allowBufg(tileName, site)      a global clock buffer whose settings (USED) are known: the top and
@@ -461,13 +490,15 @@ export function knownRouting(db, { exceptions = true } = {}) {
     return t.placed ? featureBits(t.type, feature) : undefined;
   };
   const known = (tileName, feature) => !!bitsOf(tileName, feature);
+  const allowPip = (tileName, from, to) => {
+    const { type } = tileInfo(tileName);
+    if (type?.noRoute) return false;
+    const bits = bitsOf(tileName, `${from}->${to}`);
+    return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to)) && !(exceptions && pipAbsent(type, tileName, from, to));
+  };
   return {
-    allowPip: (tileName, from, to) => {
-      const { type } = tileInfo(tileName);
-      if (type?.noRoute) return false;
-      const bits = bitsOf(tileName, `${from}->${to}`);
-      return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to)) && !(exceptions && pipAbsent(type, tileName, from, to));
-    },
+    allowPip,
+    delayPip: (tileName, from, to) => !tileInfo(tileName).type?.splitter && allowPip(tileName, from, to),
     allowConstSource: (kind, site) => {
       if (kind === 'vcc') return site.type === 'VCC';
       const kindOf = siteKind({ site: site.name, type: site.type }, db);

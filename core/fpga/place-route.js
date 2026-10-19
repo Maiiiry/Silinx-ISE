@@ -38,7 +38,7 @@ export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing
   const t0 = Date.now();
   const allowPip = known.allowPip;
   const placement = place(packed, deviceSites(device, known), {
-    seed, effort, ...(timing !== null && { timing }), delays: delays || delayTable(device, { allowPip }), start,
+    seed, effort, ...(timing !== null && { timing }), delays: delays || delayTable(device, { allowPip: known.delayPip || allowPip }), start,
     clockSites: site => clockReach(device, site, allowPip), bufgSites: (site, pin, to) => bufgReach(device, site, pin, allowPip, to),
     padOk: known.allowPad || null,
   });
@@ -72,7 +72,7 @@ export const RETRY_SEEDS = 3;
  * (for the tests).
  */
 export function placeRouteBest(netlist, packed, device, known, { seed = 1, tries = 1, retries = RETRY_SEEDS, replicate = true, replicateOpts = {}, pack: packOptions = {}, onReplication = null, placeRouteFn = placeRoute, ...options } = {}) {
-  const delays = options.delays || delayTable(device, { allowPip: known.allowPip });
+  const delays = options.delays || delayTable(device, { allowPip: known.delayPip || known.allowPip });
   const opts = { ...options, delays };
   let best = null, first = null;
   const n = Math.max(1, tries);

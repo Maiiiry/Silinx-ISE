@@ -483,7 +483,16 @@ byte-identical bitstreams on the three other devices for every design above. Wha
   across the centre in either direction, one bit each in the I/O rows; `gen-pipcover.mjs --types
   CLKH_LL --long 1`, 298 PIPs in 38 tiles, all 48 switches the same in every tile, `clkh-ll.mjs`;
   `db/xc3s1200e-tiles.json`). A routed design names them `a =- b` with the line's driver in another
-  tile, so the writer cannot tell the direction: the router does not use them (`noRoute`).
+  tile, so the writer could not tell the direction and the router did not use them (`noRoute`). Since
+  #23 bitgen takes it from the device description (`pipFeatures`: the half of the line the net drives,
+  by a PIP in any tile or its output pin, is the splitter's input), and the router uses them where they
+  are faster; the placer's delay table leaves them out (`splitter`, `knownRouting` `delayPip`: counted
+  there, they made the placements slower). ISE's own XC3S1200E routings (the I/O register designs, 861
+  of 1031 using a splitter) are no longer byte-identical only for CLKH_LL: 0 before, 10 with the
+  CLKV_LL bits below added; the others differ by input delays the database leaves out. The other
+  splitters, not in the database (#709): CLKV_LL (the horizontal long lines across the centre column;
+  19 of its 48 switches pinned down by those designs: frame 3, at the tile's row, two bits per line),
+  CLKT_LL / CLKB_LL, CLKL_IOIS_LL / CLKR_IOIS_LL.
 - **REVUSED** (a flip-flop's REV pin used): one bit per slice position, seen in all four positions in
   ISE's designs of the three devices; the input pads' pin wires of the top I/O tiles (no bits).
 - **Pads** per package (`gen-iob.mjs --third / --sparse`, `ana-pads.mjs`: the LVCMOS33 / 25 inputs

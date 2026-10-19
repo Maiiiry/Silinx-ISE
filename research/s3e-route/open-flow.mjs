@@ -76,7 +76,7 @@ const device = loadDeviceCache(part);
 const db = loadDb(part, { graph: device });
 const known = knownRouting(db);
 // the delays of the fastest routes on known switches, for the placer's timing estimate
-const delays = delayTable(device, { allowPip: known.allowPip });
+const delays = delayTable(device, { allowPip: known.delayPip });
 step('delay table', t);
 // place and route (core/fpga/place-route.js, the flows' one place and route): each clock's
 // flip-flops on the slices its global line reaches through switches of known bits (a DCM's outputs
