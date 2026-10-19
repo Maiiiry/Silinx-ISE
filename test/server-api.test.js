@@ -321,6 +321,13 @@ test('security: the client sends the token in a header only, never in an address
   assert.match(js, /'X-Silinx-Token': TOKEN/);
 });
 
+test('client: a file is renamed by the server\'s rename operation only, no copy-and-delete fallback (#489)', async () => {
+  // client and server ship together: the fallback for an older server without /rename was dead code
+  const js = await fs.readFile(path.join(HERE, '..', 'web', 'js', 'api.js'), 'utf8');
+  assert.match(js, /^  renameFile: \(name, from, to\) => req\('POST', `\/api\/projects\/\$\{enc\(name\)\}\/rename`, \{ from, to \}\),$/m);
+  assert.doesNotMatch(js, /unsupported|older server/);
+});
+
 test('security: foreign Host headers and cross-origin writes are refused', async () => {
   const port = app.port;
   let r = await app.raw('GET', '/api/projects', { headers: { host: `evil.example:${port}` } });
