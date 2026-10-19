@@ -7,9 +7,12 @@
 import { runOpenFlow } from '/core/open-flow-core.js';
 import { loadDevice } from '/core/fpga/device.js';
 import { dbFileNames, dbFilesFrom, makeBitDb } from '/core/fpga/bitdb.js';
-import { runYosysOnce, yosysWorkerSource } from '/core/synth-open.js';
+import { runYosysOnce, yosysWorkerSource, readableBlobs } from '/core/synth-open.js';
 import { yosysPool } from './yosys-client.js';
 import { parseXdl, fpgaModel, deviceGrid, MODEL_VERSION } from '/core/xdl.js';
+
+// (Yosys in this worker's own thread, where it cannot start workers of its own: its Blobs readable, #556)
+readableBlobs();
 
 const fetchOk = async (url, what) => {
   const r = await fetch(url);
@@ -75,7 +78,8 @@ self.onmessage = async ({ data }) => {
       if (pool) {
         try { return await pool(args, yfiles, onLine); } catch (e) {
           if (!e.workerFailed) throw e;
-          // no worker here (a browser without workers in workers, or a blocked Blob): this thread from now on
+          // no worker here (a browser without workers in workers, or a blocked Blob: WebKit's from a file://
+          // page, #556): this thread from now on
           pools.set(bundle, pool = null);
         }
       }

@@ -748,13 +748,60 @@ export function lineStream(onLine) {
 }
 
 /**
+ * Blobs readable in a worker of a page with an opaque origin (#556): in WebKit (Safari), a worker of a page
+ * opened from file:// (the single-file edition) cannot read any Blob, whatever started it: every read fails
+ * (NotReadableError, "Cannot load blob:null/…"), YoWASP's own among them (it reads Yosys's resources with
+ * `new Blob(chunks).arrayBuffer()`), so that Yosys could not start. There (self.origin 'null': in Chrome and
+ * Firefox too, where it changes nothing) Blob is replaced by one that keeps its bytes and reads them in
+ * JavaScript. Self-contained: yosysWorkerSource puts its text into the Yosys workers. Returns whether it did.
+ */
+export function readableBlobs(scope = globalThis) {
+  const Native = scope.Blob;
+  if (!Native || scope.origin !== 'null' || Native.readable) return false;
+  // (the bytes of each Blob made here; null when a part is a Blob made elsewhere, which only the
+  // browser can read: such a Blob is read as before)
+  const kept = new WeakMap();
+  const bytesOf = p => p instanceof ArrayBuffer ? new Uint8Array(p)
+    : ArrayBuffer.isView(p) ? new Uint8Array(p.buffer, p.byteOffset, p.byteLength)
+    : p instanceof Native ? kept.get(p) ?? null
+    : new TextEncoder().encode(String(p));
+  class ReadableBlob extends Native {
+    constructor(parts = [], options) {
+      super(parts, options);
+      const chunks = [...parts].map(bytesOf);
+      if (chunks.includes(null)) { kept.set(this, null); return; }
+      const all = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+      let at = 0;
+      for (const c of chunks) { all.set(c, at); at += c.length; }
+      kept.set(this, all);
+    }
+    async arrayBuffer() { const b = kept.get(this); return b ? b.slice().buffer : super.arrayBuffer(); }
+    async text() { const b = kept.get(this); return b ? new TextDecoder().decode(b) : super.text(); }
+    async bytes() { const b = kept.get(this); return b ? b.slice() : super.bytes(); }
+    stream() {
+      const b = kept.get(this);
+      return b ? new ReadableStream({ start(c) { if (b.length) c.enqueue(b.slice()); c.close(); } }) : super.stream();
+    }
+    slice(start, end, type) {
+      const b = kept.get(this);
+      return b ? new ReadableBlob([b.slice(start, end)], { type: type ?? '' }) : super.slice(start, end, type);
+    }
+  }
+  ReadableBlob.readable = true;
+  scope.Blob = ReadableBlob;
+  return true;
+}
+
+/**
  * The code of a Yosys worker (as web/js/yosys-worker.js) that loads Yosys from bundleUrl (YoWASP's
  * gen/bundle.js): for a worker started from a Blob, with no file of its own. A classic worker's code
  * (Yosys by a dynamic import, which a classic worker may do, a static one not): a page opened from
- * file:// (the single-file edition, an opaque origin) cannot start a module worker from a Blob (#512).
+ * file:// (the single-file edition, an opaque origin) cannot start a module worker from a Blob (#512);
+ * its Blobs made readable first (readableBlobs: WebKit, #556).
  */
 export function yosysWorkerSource(bundleUrl) {
-  return `const yosys = import(${JSON.stringify(String(bundleUrl))});
+  return `(${readableBlobs})(self);
+const yosys = import(${JSON.stringify(String(bundleUrl))});
 const lineStream = ${lineStream};
 const asText = ${asText};
 const yosysError = ${yosysError};

@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { yosysWorkerSource } from '../core/synth-open.js';
+import { yosysWorkerSource, readableBlobs } from '../core/synth-open.js';
 
 // a fake Web Worker: its run ends when the test says so (done(i, reply)), in the order the runs came
 const workers = [], runs = [];
@@ -172,7 +172,9 @@ test('#279 the code of a Yosys worker from a Blob: Yosys from the URL given, its
   const fake = fakeBundle(dir);
   const src = yosysWorkerSource(pathToFileURL(fake).href);
   // (a dynamic import: the code of a classic worker, which a file:// page can start from a Blob, #512)
-  assert.match(src, new RegExp(`^const yosys = import\\(${JSON.stringify(pathToFileURL(fake).href).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\);`));
+  // (its Blobs readable first: WebKit, a file:// page's worker, #556)
+  assert.ok(src.startsWith(`(${readableBlobs})(self);\n`), 'readableBlobs first');
+  assert.match(src, new RegExp(`^const yosys = import\\(${JSON.stringify(pathToFileURL(fake).href).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')}\\);`, 'm'));
   assert.doesNotMatch(src, /^import /m, 'no static import');
   await checkWorkerCode(src, dir);
 });
@@ -187,4 +189,70 @@ test('#403 the Blob worker\'s code from the minified single-file edition: the sh
     bundle: true, format: 'esm', minify: true, target: 'es2022', outfile: out, logLevel: 'silent' });
   const { yosysWorkerSource: minified } = await import(pathToFileURL(out).href);
   await checkWorkerCode(minified(pathToFileURL(fakeBundle(dir)).href), dir);
+});
+
+// #556: WebKit's worker of a file:// page reads no Blob (YoWASP's `new Blob(chunks).arrayBuffer()` among
+// them): readableBlobs replaces Blob there by one that reads its bytes in JavaScript; checked against
+// Node's own Blob, which reads them itself
+test('#556 readableBlobs: in an opaque origin, Blobs read in JavaScript as the browser reads them; elsewhere untouched', async () => {
+  // a Blob whose reads fail, as WebKit's in such a worker
+  class Unreadable extends Blob {
+    async arrayBuffer() { throw new DOMException('The I/O read operation failed.', 'NotReadableError'); }
+    async text() { throw new DOMException('The I/O read operation failed.', 'NotReadableError'); }
+    async bytes() { throw new DOMException('The I/O read operation failed.', 'NotReadableError'); }
+    stream() { throw new DOMException('The I/O read operation failed.', 'NotReadableError'); }
+  }
+  // not in a page's own origin (the server, the site), nor where there is no Blob
+  for (const origin of ['http://127.0.0.1:8080', 'https://pmnmalo.github.io', undefined]) {
+    const scope = { Blob: Unreadable, origin };
+    assert.equal(readableBlobs(scope), false, String(origin));
+    assert.equal(scope.Blob, Unreadable);
+  }
+  assert.equal(readableBlobs({ origin: 'null' }), false, 'no Blob');
+  const scope = { Blob: Unreadable, origin: 'null' };
+  assert.equal(readableBlobs(scope), true);
+  assert.equal(readableBlobs(scope), false, 'once');
+  const B = scope.Blob;
+  const u8 = new Uint8Array([9, 1, 2, 3, 4, 9]);
+  const parts = () => [u8.subarray(1, 5), new Uint8Array([5, 6]).buffer, 'é€x', new DataView(new Uint8Array([7, 8, 9]).buffer, 1, 1)];
+  const ref = new Blob(parts(), { type: 'application/x-tar' });
+  const refBytes = new Uint8Array(await ref.arrayBuffer());
+  assert.deepEqual([...refBytes], [1, 2, 3, 4, 5, 6, 0xc3, 0xa9, 0xe2, 0x82, 0xac, 0x78, 8]);
+  const b = new B(parts(), { type: 'application/x-tar' });
+  assert.ok(b instanceof Blob && b instanceof Unreadable);
+  assert.equal(b.size, ref.size);
+  assert.equal(b.type, ref.type);
+  assert.deepEqual(new Uint8Array(await b.arrayBuffer()), refBytes);
+  assert.deepEqual(await b.bytes(), refBytes);
+  assert.equal(await b.text(), await ref.text());
+  const streamed = [];
+  for await (const c of b.stream()) streamed.push(...c);
+  assert.deepEqual(streamed, [...refBytes]);
+  // a copy each read: the bytes kept are not changed by the reader
+  (await b.bytes()).fill(0);
+  assert.deepEqual(await b.bytes(), refBytes);
+  // and not by the parts changed after (a Blob holds what it was made of)
+  const live = new Uint8Array([1, 2]), snap = new B([live]);
+  live[0] = 99;
+  assert.deepEqual([...await snap.bytes()], [1, 2]);
+  // slices, negative indices and types as Blob's
+  for (const [s, e, t] of [[2], [2, 5], [-3], [-5, -1, 'text/plain'], [4, 2], [0, 100], [undefined, undefined, 'x/y']]) {
+    const [mine, theirs] = [b.slice(s, e, t), ref.slice(s, e, t)];
+    assert.deepEqual(new Uint8Array(await mine.arrayBuffer()), new Uint8Array(await theirs.arrayBuffer()), `slice(${s}, ${e})`);
+    assert.equal(mine.type, theirs.type);
+    assert.equal(mine.size, theirs.size);
+  }
+  // Blobs of these Blobs; empty ones
+  assert.deepEqual(new Uint8Array(await new B([b.slice(0, 2), b, 'z']).arrayBuffer()), new Uint8Array(await new Blob([ref.slice(0, 2), ref, 'z']).arrayBuffer()));
+  assert.equal((await new B().arrayBuffer()).byteLength, 0);
+  assert.deepEqual(await Array.fromAsync(new B([]).stream()), []);
+  // YoWASP's read of its resources: the chunks of a fetch, then the archive's bytes
+  const chunks = Array.from({ length: 5 }, (_, i) => new Uint8Array(1000).fill(i));
+  const tar = new Uint8Array(await new B(chunks).arrayBuffer());
+  assert.equal(tar.length, 5000);
+  assert.deepEqual([tar[0], tar[999], tar[1000], tar[4999]], [0, 0, 1, 4]);
+  // a Blob made elsewhere (before, or sent to the worker) as a part: read by the browser, as before
+  const foreign = new Unreadable(['ab']);
+  await assert.rejects(new B([foreign]).arrayBuffer(), { name: 'NotReadableError' });
+  assert.equal(new B([foreign, 'c']).size, 3);
 });

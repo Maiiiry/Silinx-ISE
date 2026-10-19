@@ -73,7 +73,8 @@ before(async () => {
 });
 after(async () => { server?.close(); await env?.teardown?.(); await plain?.teardown?.(); });
 const E = () => (skip ? { skip } : env);
-const PLAIN = () => (skip ? { skip } : plain || { skip: chromeOnly });
+// (Firefox and WebKit as Playwright starts them: as a user's, a file:// page an opaque origin, #556)
+const PLAIN = () => (skip ? { skip } : plain || (BROWSER === 'firefox' || BROWSER === 'webkit' ? env : { skip: chromeOnly }));
 
 uiTest('standalone edition (dist build): loads from file://, creates a project from an example, simulates it', E, async (page) => {
   const stat = await fs.stat(html);
@@ -399,12 +400,15 @@ uiTest('standalone edition (file://): the Board Emulator runs blinky on the comp
   // #427: in its worker, started from the page's embedded text (a Blob)
   assert.equal(await page.eval(() => window.Silinx.active.view.worker), true, 'the compiled engine in a worker');
   await page.waitFor(() => window.Silinx.active.view.sim.now > 1e11, [], { what: '0.1 s of the board\'s time', timeout: 60000 });
-}, { url: () => 'about:blank', timeout: 240000, skip: BROWSER === 'webkit' ? 'WebKit cannot start a Blob worker from a file:// page (blob:null): #556' : undefined });
+}, { url: () => 'about:blank', timeout: 240000 });
 
 // #512: the single file opened from the disk in a user's Chrome (no --allow-file-access-from-files: the
 // page an opaque origin, from which a module worker cannot start from a Blob): the Silinx toolchain's
 // worker and the compiled engine's, embedded in the page, start as classic workers, and Yosys's too
-uiTest('standalone edition (file://) in a Chrome without --allow-file-access-from-files: Generate Programming File and the Board Emulator run in their workers (#512)', PLAIN, async (page) => {
+// #556: in Firefox and WebKit too; WebKit's workers of such a page read no Blob (Yosys could not start:
+// Generate Programming File failed, the emulator fell back to the event-driven engine), and its workers
+// start none of their own (the flow worker runs Yosys in its own thread)
+uiTest('standalone edition (file://) in a user\'s browser (Chrome without --allow-file-access-from-files, Firefox, WebKit): Generate Programming File and the Board Emulator run in their workers (#512, #556)', PLAIN, async (page) => {
   await page.goto(pathToFileURL(html).href);
   await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'standalone boot' });
   assert.equal(await page.eval(() => location.protocol), 'file:');
