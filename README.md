@@ -317,7 +317,8 @@ publishes a release with the files above (`.github/workflows/release.yml`), once
 the tagged commit (`scripts/wait-for-ci.mjs`).
 The tests against ISE (`test/ise/`) run nightly, and on demand (Actions ▸ ISE ▸ Run workflow), on
 a self-hosted runner with the ISE Docker image (label `ise`, `.github/workflows/ise.yml`); only code
-already on main runs there, never a pull request's. The same runner compares the Silinx toolchain
+already on main runs there, never a pull request's: the runner refuses every other job before its
+first step and is on line only while those workflows need it (`scripts/ise-runner/`). The same runner compares the Silinx toolchain
 with ISE on the design corpus every week (`.github/workflows/quality.yml`) and pushes the results
 ([docs/QUALITY.md](docs/QUALITY.md)) to the branch `quality-results`, merged into main by a maintainer. The scheduled runs (nightly, ISE, weekly comparison) are skipped when
 main has not changed since their last successful run, documentation aside

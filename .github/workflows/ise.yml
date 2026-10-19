@@ -6,8 +6,9 @@ name: ISE
 #
 # The repository is public: this workflow runs only code already on main (nightly, and by hand:
 # Actions ▸ ISE ▸ Run workflow), never a pull request's, and no other workflow may target the "ise"
-# label. The machine's name and address are not written anywhere: the runner reaches GitHub, not
-# the other way round.
+# label (test/ise-runner.test.js); on the machine, scripts/ise-runner/job-started.sh refuses any other
+# job, and the runner is on line only in this and the Quality workflow's window (#482). The machine's
+# name and address are not written anywhere: the runner reaches GitHub, not the other way round.
 on:
   schedule:
     - cron: '47 21 * * *'     # after the nightly (21:17 UTC)
