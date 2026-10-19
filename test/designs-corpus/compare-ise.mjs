@@ -11,6 +11,8 @@
 // for speed (ISE stops improving once a constraint is met; Silinx always optimises for speed). The
 // speed of Silinx's routing is measured by ISE's own trce (ise-open-check.sh on the same
 // host), so that both critical paths come from the same timing analyser; Silinx's estimate is kept too.
+// Of each critical path, trce's breakdown (#646): its levels of logic, its LUT, carry, flip-flop and other
+// logic delays and its routing delay (`path`), to tell a synthesis's loss from a place and route's.
 // Silinx is built at its two Optimization Efforts (#377): Normal, the app's default (`silinx` in the
 // results), and High (impl.optLevel 2, `silinxHigh`); ISE at its default (Normal).
 //
@@ -31,7 +33,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './quality-page.mjs';
-import { lastError, newFailures, parseClocks, constrainedPeriod } from './compare-lib.mjs';
+import { lastError, newFailures, parseClocks, constrainedPeriod, criticalPath } from './compare-lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
@@ -136,10 +138,12 @@ async function iseRun(name) {
   const { job, ms } = await runJob(j => runImplementation(j, { project, projectDir, steps: STEPS }));
   const r = job.result?.reports || {};
   const mu = r.map?.utilization;
+  const periodNs = r.timing?.minPeriodNs ?? r.trce?.minPeriodNs ?? null;
+  const twr = path.join(projectDir, 'build', `${project.top}.twr`);
   return {
     slices: used(r.map?.summary?.slices), luts: mu ? logicLuts(r.map, mu) : null, ffs: used(r.map?.summary?.ffs) ?? (mu ? item(mu, /Flip Flops/i) : null),
     srl16: mu ? item(mu, /used as Shift registers/i) ?? 0 : null, bram: mu ? used(r.map?.summary?.bram) ?? 0 : null, mult: mu ? used(r.map?.summary?.mult) ?? 0 : null,
-    periodNs: r.timing?.minPeriodNs ?? r.trce?.minPeriodNs ?? null, seconds: +(ms / 1000).toFixed(1),
+    periodNs, path: fs.existsSync(twr) ? criticalPath(fs.readFileSync(twr, 'latin1'), periodNs) : null, seconds: +(ms / 1000).toFixed(1),
     error: job.status === 'ok' ? undefined : lastError(job),
   };
 }
@@ -178,7 +182,7 @@ fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.jo
 const sshArgs = LOCAL ? [] : ['-o', 'BatchMode=yes', ...(userCfg.ssh.port && userCfg.ssh.port !== 22 ? ['-p', String(userCfg.ssh.port)] : [])];
 const ssh = cmd => execFileSync('ssh', [...sshArgs, '--', host, `export PATH="$PATH:/usr/local/bin"; ${cmd}`], { encoding: 'utf8', maxBuffer: 64 << 20 });
 const remote = `silinx-compare/${path.basename(work)}`;
-const trce = {};
+const trce = {}, paths = {};
 if (timedNames.length) {
   try {
     let out;
@@ -187,6 +191,8 @@ if (timedNames.length) {
       ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
       execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, `${tdir}/`, `${host}:${remote}/`]);
       out = ssh(`docker run --rm --platform linux/amd64 -v "$HOME/${remote}":/w ${image} bash /w/ise-open-check.sh /w ${timedNames.join(' ')}`);
+      // (trce's reports back, for the critical paths' breakdown)
+      execFileSync('rsync', ['-a', '-e', `ssh ${sshArgs.join(' ')}`, '--include=*/', '--include=routed.twr', '--exclude=*', `${host}:${remote}/`, `${tdir}/`]);
     }
     process.stdout.write(out.split('\n').map(l => (l ? `  ISE ${l}\n` : '')).join(''));
     const clocks = {};
@@ -206,6 +212,10 @@ if (timedNames.length) {
       const ucf = pj.constraints && fs.existsSync(path.join(dir, d, pj.constraints)) ? fs.readFileSync(path.join(dir, d, pj.constraints), 'utf8') : '';
       trce[n] = constrainedPeriod(clocks[n], ucf, trce[n]);
     }
+    for (const n of Object.keys(trce)) {
+      const twr = path.join(tdir, n, 'routed.twr');
+      if (fs.existsSync(twr)) paths[n] = criticalPath(fs.readFileSync(twr, 'latin1'), trce[n]);
+    }
     if (!LOCAL) ssh(`rm -rf ${remote}`);
   } catch (e) { console.error(`trce of Silinx's routing on the ISE host failed: ${e.message.split('\n')[0]}`); }
 }
@@ -220,7 +230,7 @@ const res = {
     const { routed, ...s } = sil[k];
     const { routed: routedHigh, ...h } = silHigh[k];
     const size = JSON.parse(fs.readFileSync(path.join(dir, name, 'size.json'), 'utf8'));
-    return { name, wrapper: size.wrapper || undefined, silinx: { ...s, periodNs: trce[name] ?? null }, silinxHigh: { ...h, periodNs: trce[`${name}${HIGH}`] ?? null }, ise: ise[k] };
+    return { name, wrapper: size.wrapper || undefined, silinx: { ...s, periodNs: trce[name] ?? null, path: paths[name] ?? null }, silinxHigh: { ...h, periodNs: trce[`${name}${HIGH}`] ?? null, path: paths[`${name}${HIGH}`] ?? null }, ise: ise[k] };
   }),
 };
 // merge into the earlier results (a --filter run updates only its designs)
