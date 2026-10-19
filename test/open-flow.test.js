@@ -46,6 +46,18 @@ test('every shipped device description loads and has the datasheet\'s slices and
 });
 
 // the open flow of a project: its exit status, output and warnings (every line that says "warning")
+// the switches into the DCMs' CLKIN / CLKFB of the nets that global buffers drive: from the global
+// clock lines (GCLKn), never through general routing (#93; before: the cascade's second DCM and a
+// feedback through CLKT_TO_OMUX and hex / double lines)
+const dcmClockPips = routed => {
+  const out = [];
+  for (const net of routed.split(/^net /m).slice(1)) {
+    const src = /^ {2}outpin "([^"]+)" (\S+) ,/m.exec(net);
+    if (!src || src[2] !== 'O' || !new RegExp(`^inst "${src[1].replace(/[$[\]]/g, '\\$&')}" "BUFGMUX"`, 'm').test(routed)) continue;
+    for (const m of net.matchAll(/^ {2}pip (DCM_\S+) (\S+) -> DCM_(CLKIN|CLKFB) ,$/gm)) out.push(`${m[1]} ${m[2]} -> ${m[3]}`);
+  }
+  return out;
+};
 const openFlow = (dir, out, args = []) => {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, out, ...args],
     { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
@@ -184,7 +196,9 @@ const FEATURES = {
   // two DCMs, cascaded: the second on the bottom-left DCM, the one whose CLK2X180 reaches a global
   // buffer on switches of known bits; its CLKIN from the first one's CLK0 buffer (#47)
   feat_dcm2: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcma" "DCM",placed DCM_TL_CENTER_X13Y34 DCM_X0Y1 /m, /^inst "u_dcmb" "DCM",placed DCM_BL_CENTER_X13Y1 DCM_X0Y0 /m,
-    /^inst "u_ba0" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^inst "u_bb2x" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX_X1Y1 /m]],
+    /^inst "u_ba0" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^inst "u_bb2x" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX_X1Y1 /m,
+    // (B's CLKIN from A's CLK0 buffer on the global line, not through general routing, #93)
+    /^ {2}pip DCM_BL_CENTER_X13Y1 GCLK\d -> DCM_CLKIN ,$/m], [/_TO_OMUX/]],
   // the clock pad (B8, LOC'd) into a global buffer that feeds the DCM's CLKIN: B8's buffer, whose line
   // reaches the top-left DCM's CLKIN, kept for it, the DCM's outputs on the others (#94)
   feat_dcm_bufgin: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcm" "DCM",placed DCM_TL_CENTER_X13Y34 DCM_X0Y1 /m, /^inst "u_bin" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m]],
@@ -419,6 +433,11 @@ for (const [part, pkg, dcms, warnings] of DCM2) {
     assert.deepEqual(r.warnings, warnings(placedOf('IBUF').clk));
     assert.deepEqual([placedOf('DCM').u_dcma, placedOf('DCM').u_dcmb], dcms);
     if (part !== 'xc3s100e') assert.equal(placedOf('IBUF').clk, 'B8');
+    // B's CLKIN and both feedbacks on the global lines (#93)
+    const pips = dcmClockPips(routed);
+    assert.equal(pips.length, 3, pips.join('; '));
+    for (const p of pips) assert.match(p, / GCLK\d -> CLK(IN|FB)$/);
+    assert.doesNotMatch(routed, /_TO_OMUX/);
   });
 }
 
@@ -478,5 +497,10 @@ for (const [part, pkg, want] of DCM_BUFGIN) {
     const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
     const placedOf = type => Object.fromEntries([...routed.matchAll(new RegExp(`^inst "([^"]+)" "${type}",placed \\S+ (\\S+) `, 'gm'))].map(m => [m[1], m[2]]));
     assert.deepEqual([placedOf('IBUF').clk, placedOf('BUFGMUX').u_bin, placedOf('DCM').u_dcm], [want.clk, want.u_bin, want.dcm]);
+    // the CLKIN and the feedback on the global lines (#93)
+    const pips = dcmClockPips(routed);
+    assert.equal(pips.length, 2, pips.join('; '));
+    for (const p of pips) assert.match(p, / GCLK\d -> CLK(IN|FB)$/);
+    assert.doesNotMatch(routed, /_TO_OMUX/);
   });
 }
