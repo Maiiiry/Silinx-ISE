@@ -38,8 +38,8 @@ jobs:
           BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
 
   # the unit tests, in three parts at once (node --test --test-shard), on Linux, macOS and Windows
-  # (Linux only for a pull request): one after another they take about 15 minutes on Linux and 20 on
-  # the macOS and Windows runners
+  # (Linux only for a pull request). A file's tests run one after another: the end of the output lists
+  # each file's time, and a file over 15 minutes is a warning (scripts/test-file-times.mjs, #566)
   unit:
     strategy:
       fail-fast: false
@@ -52,7 +52,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: ./.github/actions/setup
-      - run: node --test --test-shard="$SHARD/3" "test/*.test.js"
+      - run: node --test --test-shard="$SHARD/3" --test-reporter=tap --test-reporter-destination=stdout --test-reporter=./scripts/test-file-times.mjs --test-reporter-destination=stdout "test/*.test.js"
         shell: bash   # (Windows: PowerShell would not expand $SHARD)
         env:
           SHARD: ${{ matrix.shard }}
