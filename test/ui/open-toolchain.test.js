@@ -691,6 +691,17 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   await page.dialogButton('Generate and Emulate');
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Translate)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator' });
+  // #627: on the compiled engine (it had no SIMPRIM primitives: the event-driven engine, far too slow for the design's
+  // own divider, and blinky stood still), its LEDs on or off and moving (blinky's: a step every 1/80 s or slower)
+  assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+  const seen = new Set();
+  for (let k = 0; k < 40 && seen.size < 2; k++) {
+    const l = await page.eval(() => window.Silinx.active.view.outputs.leds.slice());
+    assert.deepEqual(l.filter((v) => v > 0.05 && v < 0.95), [], JSON.stringify(l));
+    seen.add(l.map((v) => (v > 0.5 ? 1 : 0)).join(''));
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  assert.ok(seen.size >= 2, `the LEDs change: ${[...seen].join(' ')}`);
   const again = (await page.consoleText()).length;
   await page.treeRow('#procs', 'Emulate Post-Synthesis Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Synthesis)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator again' });

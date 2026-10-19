@@ -24,7 +24,8 @@
 //   (primitives: the names of the Xilinx primitives the text instantiates, instances: each instance's
 //   cell, name and given generics as Verilog literals ({ cell, name, params }); to simulate the text,
 //   compile it with core/unisim.js's UNISIM_SOURCE; option tables: false writes every operator as
-//   an operator, see tabulate)
+//   an operator, see tabulate; option simprim: the cell of a SIMPRIM primitive, for the compiled
+//   simulator (core/compiled-prims.js simprimCell, #627), whose instances are then kept too)
 import * as V from './values.js';
 import { bitpos, psliceLo, exec, applyWrite, SimError, evalE, sameDeep } from './interp.js';
 
@@ -102,7 +103,7 @@ export function yosysCell(name, ports) {
   return { name: `${full[0]}${m[3] || ''}`, tie };
 }
 
-export function toVerilog(design, { name, tables = true } = {}) {
+export function toVerilog(design, { name, tables = true, simprim = null } = {}) {
   let shiftMems = Object.assign(new Set(), { srcs: new Set() });   // the arrays that are shift chains (findShiftMems), their tap wires
   const tapWires = new Map();
   const top = design.top;
@@ -130,7 +131,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
   (function walk(inst) {
     for (const c of inst.children || []) {
       if (!String(c.file || '').startsWith('<silinx>/')) { walk(c); continue; }
-      if (c.file !== '<silinx>/unisim.vhd') fail(`${c.module} (${c.path}): the primitives of a post-implementation netlist (${c.file}) cannot be synthesized`, c, c.file);
+      if (c.file !== '<silinx>/unisim.vhd' && !(simprim && c.file === '<silinx>/simprim.vhd')) fail(`${c.module} (${c.path}): the primitives of a post-implementation netlist (${c.file}) cannot be synthesized`, c, c.file);
       const portSigs = new Set(c.ports.map(pt => pt.sig));
       const inside = [];
       (function all(i) { inside.push(i); (i.children || []).forEach(all); })(c);
@@ -1194,10 +1195,15 @@ export function toVerilog(design, { name, tables = true } = {}) {
   // (the names of the primitives, their generics and ports are upper case in Yosys's library;
   // VHDL gives them in whatever case the design wrote)
   const instances = [];   // { cell, name, params: { NAME: literal } }
+  // (a SIMPRIM primitive: the cell it is compiled as, its pins renamed, the generics that place or time it left
+  // out, #627; a primitive with no model keeps its name, for the compiled simulator's message)
+  const simCell = inst => (simprim && inst.file === '<silinx>/simprim.vhd' ? simprim(inst.module.toUpperCase()) : null);
+  const cellOf = inst => simCell(inst) || yosysCell(inst.module.toUpperCase(), inst.ports.map(pt => pt.name.toUpperCase()));
   function instance({ inst, driven }) {
-    const given = inst.params.filter(prm => prm.given).map(prm => [prm.name.toUpperCase(), paramLit(prm, inst)]);
+    const sc = simCell(inst);
+    const given = inst.params.filter(prm => prm.given && (!sc || sc.param(prm.name.toUpperCase()))).map(prm => [prm.name.toUpperCase(), paramLit(prm, inst)]);
     const params = given.map(([n, x]) => `    .${n}(${x})`);
-    const cell = yosysCell(inst.module.toUpperCase(), inst.ports.map(pt => pt.name.toUpperCase()));
+    const cell = sc ? { name: sc.name, tie: {} } : yosysCell(inst.module.toUpperCase(), inst.ports.map(pt => pt.name.toUpperCase()));
     const conns = Object.entries(cell.tie).map(([pin, v]) => `    .${pin}(${v})`);
     for (const pt of inst.ports) {
       let x = sigName.get(pt.sig);
@@ -1206,7 +1212,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
         const v = pt.sig.init;
         x = v && !Array.isArray(v) && v.str === undefined && v.x !== (1n << BigInt(v.w)) - 1n ? lit(v) : '';
       }
-      conns.push(`    .${pt.name.toUpperCase()}(${x})`);
+      conns.push(`    .${sc?.ports[pt.name.toUpperCase()] || pt.name.toUpperCase()}(${x})`);
     }
     const rel = inst.path.startsWith(prefix) ? inst.path.slice(prefix.length) : inst.name;
     const iname = esc(uniq(rel.replace(/\./g, '_')));
@@ -1274,7 +1280,7 @@ export function toVerilog(design, { name, tables = true } = {}) {
     + `module ${mod} (\n${portDecl.join(',\n')}\n);\n${decls.join('\n')}\n${funcs.join('\n')}${funcs.length ? '\n' : ''}${blocks.join('\n')}\nendmodule\n`;
   // the shift-chain arrays read at a variable tap (#5): their names as Yosys writes them (\name)
   const shiftArrays = [...tapWires.keys()].map(sg => { const n = sigName.get(sg); return n.startsWith('\\') ? n.trim() : `\\${n}`; });
-  return { text, top: mod.trim(), warnings, shiftArrays, instances, primitives: [...new Set(prims.map(pr => yosysCell(pr.inst.module.toUpperCase(), pr.inst.ports.map(pt => pt.name.toUpperCase())).name))] };
+  return { text, top: mod.trim(), warnings, shiftArrays, instances, primitives: [...new Set(prims.map(pr => (cellOf(pr.inst)?.name || pr.inst.module.toUpperCase())))] };
 }
 
 // The assignments of a statement that no assignment to the same signal or variable can precede (in

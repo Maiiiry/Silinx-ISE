@@ -172,6 +172,54 @@ test('Xilinx primitives of a synthesized netlist: every LUT, flip-flop, latch, M
     await same(sources, top, { p: 0.3, cycles: 1000, minBits: 100000 });
   }
 });
+// the SIMPRIM primitives of the post-translate / map / place & route models (#627): every logic cell (LUTs with random
+// INITs, flip-flops and latches with both INITs, buffers, gates) and those written as their UNISIM twin (SRL16s,
+// distributed RAMs, random INITs), in VHDL (library SIMPRIM, as the models) and in Verilog, inputs from a random word
+function simprimPrims(lang) {
+  const r = rng(627), cells = [];
+  const bits = n => Array.from({ length: n }, () => (r() < 0.5 ? '1' : '0')).join('');
+  const A = (p, n) => Array.from({ length: n }, (_, i) => `${p}${i}`);
+  for (let n = 1; n <= 6; n++) cells.push([`X_LUT${n}`, { INIT: bits(2 ** n) }, A('ADR', n), ['O']]);
+  for (const b of ['X_BUF', 'X_CKBUF', 'X_IPAD', 'X_OPAD', 'X_BUFGP', 'X_OBUF', 'X_INV']) cells.push([b, {}, ['I'], ['O']]);
+  for (const b of ['X_ZERO', 'X_ONE']) cells.push([b, {}, [], ['O']]);
+  for (const b of ['X_AND2', 'X_OR2', 'X_XOR2']) cells.push([b, {}, ['I0', 'I1'], ['O']]);
+  cells.push(['X_MUX2', {}, ['IA', 'IB', 'SEL'], ['O']], ['X_BUFGMUX', {}, ['I0', 'I1', 'S'], ['O']]);
+  for (const init of [null, '1']) {
+    cells.push(['X_FF', init ? { INIT: init } : {}, ['I', 'CE', 'CLK', 'SET', 'RST'], ['O']], ['X_SFF', init ? { INIT: init } : {}, ['I', 'CE', 'CLK', 'SET', 'RST', 'SSET', 'SRST'], ['O']]);
+    cells.push(['X_LATCH', init ? { INIT: init } : {}, ['I', 'G', 'SET', 'RST'], ['O']], ['X_LATCHE', init ? { INIT: init } : {}, ['I', 'GE', 'G', 'SET', 'RST'], ['O']]);
+  }
+  cells.push(['X_SRL16E', { INIT: bits(16) }, [...A('A', 4), 'CE', 'CLK', 'D'], ['Q']], ['X_SRLC16E', { INIT: bits(16) }, [...A('A', 4), 'CE', 'CLK', 'D'], ['Q', 'Q15']]);
+  for (const n of [4, 5, 6]) {
+    cells.push([`X_RAMS${2 ** n}`, { INIT: bits(2 ** n) }, [...A('ADR', n), 'I', 'CLK', 'WE'], ['O']]);
+    cells.push([`X_RAMD${2 ** n}`, { INIT: bits(2 ** n) }, [...A('WADR', n), ...A('RADR', n), 'I', 'CLK', 'WE'], ['O']]);
+  }
+  let a = 0, y = 0;
+  const W = 24, insts = [];
+  for (const [cell, params, ins, outs] of cells) {
+    // (CLK: the clock, but a latch's gate, here G, a data input as the others)
+    const pin = p => (p === 'G' ? 'CLK' : p);
+    const conn = [...ins.map(p => [pin(p), p === 'CLK' ? 'clk' : lang === 'vhdl' ? `a(${a++ % W})` : `a[${a++ % W}]`]), ...outs.map(p => [p, lang === 'vhdl' ? `y(${y})` : `y[${y}]`, y++])];
+    const gen = params.INIT ? (lang === 'vhdl' ? ` generic map (INIT => ${params.INIT.length > 1 ? `"${params.INIT}"` : `'${params.INIT}'`})` : ` #(.INIT(${params.INIT.length}'b${params.INIT}))`) : '';
+    insts.push(lang === 'vhdl' ? `  u${insts.length}: ${cell}${gen} port map (${conn.map(([p, x]) => `${p} => ${x}`).join(', ')});`
+      : `  ${cell}${gen} u${insts.length} (${conn.map(([p, x]) => `.${p}(${x})`).join(', ')});`);
+  }
+  return lang === 'vhdl'
+    ? src('xprims.vhd', `library IEEE; use IEEE.STD_LOGIC_1164.ALL;\nlibrary SIMPRIM; use SIMPRIM.VCOMPONENTS.ALL; use SIMPRIM.VPACKAGE.ALL;
+entity xprims_vhd is port (clk : in std_logic; a : in std_logic_vector(${W - 1} downto 0); y : out std_logic_vector(${y - 1} downto 0)); end;
+architecture n of xprims_vhd is begin\n${insts.join('\n')}\nend;`)
+    : src('xprims.v', `module xprims_v(input clk, input [${W - 1}:0] a, output [${y - 1}:0] y);\n${insts.join('\n')}\nendmodule`);
+}
+test('the SIMPRIM primitives of the post-implementation models: every logic cell, the SRL16s and distributed RAMs as their UNISIM twins, in VHDL and in Verilog (#627)', async () => {
+  for (const [lang, top] of [['vhdl', 'xprims_vhd'], ['verilog', 'xprims_v']]) {
+    const sources = simprimPrims(lang);
+    const sim = await compileDesign(designOf(sources, top), { run: yosysNode });
+    assert.deepEqual(sim.warnings, [], lang);
+    await same(sources, top, { p: 0.3, cycles: 1000, minBits: 50000 });
+  }
+  // a tristate output buffer: not compiled, with the reason
+  const t = src('xt.vhd', 'library IEEE; use IEEE.STD_LOGIC_1164.ALL;\nlibrary SIMPRIM; use SIMPRIM.VCOMPONENTS.ALL;\nentity xt is port (d, t : in std_logic; q : out std_logic); end;\narchitecture n of xt is begin u: X_OBUFT port map (I => d, CTL => t, O => q); end;');
+  await assert.rejects(compileDesign(designOf(t, 'xt'), { run: yosysNode }), { message: 'the compiled simulator has no model of X_OBUFT' });
+});
 test('a block RAM in a sub-module: its INIT_xx / INITP_xx contents (written into the netlist after Yosys)', async () => {
   const text = `module rom(input clk, input [10:0] a, output [8:0] q);
     RAMB16_S9 #(.INIT_00(256'h00000000000000000000000000000000000000000000000000000000CAFE1234), .INIT_3F(256'hAB${'0'.repeat(62)}),

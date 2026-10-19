@@ -14,6 +14,10 @@
 //   - a synthesized netlist's logic (the Post-Synthesis Simulation Model, #561): LUT1-6 (_L, _D), the flip-flops
 //     FD* and latches LD* (and _1) with their INIT, MUXCY, MUXF5-8, XORCY (_L, _D), MULT_AND. Not the tristate
 //     buffers (OBUFT, IOBUF) and pulls, which the compiled simulator cannot run.
+//   - the SIMPRIM primitives of the post-translate, post-map and post-place & route models (#627): the ones with a
+//     UNISIM twin written as it (simprimCell: block RAMs, MULT18X18SIO, SRL16s, distributed RAMs, DCMs), the
+//     others as the models below (X_LUT1-6, X_FF, X_SFF, X_LATCH, X_LATCHE, buffers and gates), as unisim.js's.
+//     Not X_OBUFT, X_TRI and the pulls.
 //
 // Isomorphic ES module (browser + Node), no DOM.
 
@@ -178,6 +182,66 @@ const latch = (base, pins, inverted) => {
 endmodule`;
 };
 
+// SIMPRIM's logic (#627), as unisim.js's models: X_LUT1-6 reading INIT at ADR0.. (ADR0 its least significant bit);
+// the flip-flops' asynchronous RST before SET, then (X_SFF) the synchronous SRST before SSET, before CE; the latches'
+// RST before SET, then the gate CLK (and GE)
+const xlut = (n) => {
+  const ins = Array.from({ length: n }, (_, i) => `ADR${i}`);
+  return `module X_LUT${n} #(parameter [${2 ** n - 1}:0] INIT = ${2 ** n}'h0) (output O, input ${ins.join(', ')});
+  assign O = INIT[{${[...ins].reverse().join(', ')}}];
+endmodule`;
+};
+const xff = (name, sync) => `module ${name} #(parameter [0:0] INIT = 1'b0) (output O, input I, CE, CLK, SET, RST${sync ? ', SSET, SRST' : ''});
+  reg q = INIT;
+  assign O = q;
+  wire l = RST | SET;
+  always @(posedge CLK or posedge l) if (l) q <= !RST; else ${sync ? "if (SRST) q <= 1'b0; else if (SSET) q <= 1'b1; else " : ''}if (CE) q <= I;
+endmodule`;
+const xlatch = (name, ge) => `module ${name} #(parameter [0:0] INIT = 1'b0) (output O, input I,${ge ? ' GE,' : ''} CLK, SET, RST);
+  reg q = INIT;
+  assign O = q;
+  always @* if (RST) q = 1'b0; else if (SET) q = 1'b1; else if (CLK${ge ? ' && GE' : ''}) q = I;
+endmodule`;
+const SIMPRIM_MODELS = {
+  ...Object.fromEntries(['X_BUF', 'X_CKBUF', 'X_IPAD', 'X_OPAD', 'X_BUFGP', 'X_OBUF'].map((b) => [b, wire(b)])),
+  X_INV: 'module X_INV(output O, input I); assign O = ~I; endmodule',
+  X_ZERO: "module X_ZERO(output O); assign O = 1'b0; endmodule",
+  X_ONE: "module X_ONE(output O); assign O = 1'b1; endmodule",
+  X_ROC: "module X_ROC(output O); assign O = 1'b0; endmodule",
+  X_TOC: "module X_TOC(output O); assign O = 1'b0; endmodule",
+  X_AND2: 'module X_AND2(output O, input I0, I1); assign O = I0 & I1; endmodule',
+  X_OR2: 'module X_OR2(output O, input I0, I1); assign O = I0 | I1; endmodule',
+  X_XOR2: 'module X_XOR2(output O, input I0, I1); assign O = I0 ^ I1; endmodule',
+  X_MUX2: 'module X_MUX2(output O, input IA, IB, SEL); assign O = SEL ? IB : IA; endmodule',
+  X_BUFGMUX: 'module X_BUFGMUX #(parameter CLK_SEL_TYPE = "SYNC") (output O, input I0, I1, S); assign O = S ? I1 : I0; endmodule',
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].map((n) => [`X_LUT${n}`, xlut(n)])),
+  X_FF: xff('X_FF', false), X_SFF: xff('X_SFF', true),
+  X_LATCH: xlatch('X_LATCH', false), X_LATCHE: xlatch('X_LATCHE', true),
+};
+// the generics of every SIMPRIM primitive that place it or time it, which change nothing here
+const SIMPRIM_ONLY = new Set(['LOC', 'PATHPULSE', 'SETUP_ALL', 'SETUP_READ_FIRST', 'INIT_FILE', 'IOSTANDARD', 'CAPACITANCE', 'DRIVE', 'SLEW']);
+/**
+ * The cell a SIMPRIM primitive is compiled as (#627): { name, ports: { SIMPRIM pin: the cell's }, param(NAME): kept }
+ * (upper case names), null when it has no model here. Those with a UNISIM twin are written as it (its model above, a
+ * block RAM's contents, a DCM's schedule): X_RAMB16_S*, X_MULT18X18SIO, X_SRL16E, X_SRLC16E, X_RAMSn / X_RAMDn
+ * (RAMnX1S / RAMnX1D), X_DCM_SP, X_DCM.
+ */
+export function simprimCell(name) {
+  const keep = (p) => !SIMPRIM_ONLY.has(p);
+  let m;
+  if ((m = /^X_(RAMB16_S\d+(_S\d+)?|MULT18X18SIO|SRLC?16E|DCM_SP|DCM)$/.exec(name)) && PRIMITIVE_MODELS[m[1]]) return { name: m[1], ports: {}, param: keep };
+  if ((m = /^X_RAM([SD])(16|32|64)$/.exec(name))) {
+    const n = Math.log2(+m[2]), ports = { I: 'D', CLK: 'WCLK' };
+    for (let i = 0; i < n; i++) {
+      if (m[1] === 'S') ports[`ADR${i}`] = `A${i}`;
+      else { ports[`WADR${i}`] = `A${i}`; ports[`RADR${i}`] = `DPRA${i}`; }
+    }
+    if (m[1] === 'D') ports.O = 'DPO';
+    return { name: `RAM${m[2]}X1${m[1]}`, ports, param: keep };
+  }
+  return SIMPRIM_MODELS[name] ? { name, ports: {}, param: keep } : null;
+}
+
 // the DCM: a black box (compileNetlist schedules its outputs), its generics as unisim.js declares them
 const DCM_PARAMS = 'parameter real CLKDV_DIVIDE = 2.0, parameter integer CLKFX_DIVIDE = 1, parameter integer CLKFX_MULTIPLY = 4, parameter CLKIN_DIVIDE_BY_2 = "FALSE", '
   + 'parameter real CLKIN_PERIOD = 10.0, parameter CLKOUT_PHASE_SHIFT = "NONE", parameter CLK_FEEDBACK = "1X", parameter DESKEW_ADJUST = "SYSTEM_SYNCHRONOUS", '
@@ -216,6 +280,7 @@ export const PRIMITIVE_MODELS = {
   MULT_AND: 'module MULT_AND(output LO, input I0, I1); assign LO = I0 & I1; endmodule',
   ...Object.fromEntries(FFS.flatMap(([b, p]) => [false, true].map((f) => [`${b}${f ? '_1' : ''}`, ff(b, p, f)]))),
   ...Object.fromEntries(LATCHES.flatMap(([b, p]) => [false, true].map((i) => [`${b}${i ? '_1' : ''}`, latch(b, p, i)]))),
+  ...SIMPRIM_MODELS,
 };
 
 // ------------------------------------------------------------------ the DCM's clocks
