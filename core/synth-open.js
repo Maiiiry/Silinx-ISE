@@ -71,6 +71,113 @@ module \\$_MUX16_ (input A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, S, T, U
   MUXF7 f7 (.I0(a), .I1(b), .S(V), .O(Y));
 endmodule
 `;
+// A 6-input function of ABC's mapping with the wider functions (LUT4_COSTS) is split by Yosys's lut_map.v on its
+// last two inputs, whatever the function: four LUT4s, two MUXF5 and a MUXF6. A 4:1 multiplexer is one (its two
+// selects and four data inputs), and on its first select it is two 2:1 multiplexers into a MUXF5: two LUT4s, as
+// XST builds it. LUT6_MAP, before lut_map.v, splits a 6-input function on the input whose two cofactors each
+// depend on 4 of the other inputs at most, when there is one: two LUT4s into a MUXF5 (one slice, faster than
+// through the MUXF6); the others fail it and go on to lut_map.v. The EPFL barrel shifter (128-bit, gates), whose
+// wider mapping is 384 such functions: 896 LUTs instead of 1664 (and 1156 onto LUT4s alone; XST 939).
+// (Yosys's constant functions, per distinct table, on the 6-input $luts alone: about 1 s more per remap of the T80;
+// research/synth-quality/README.md, "4:1 multiplexers in the wider mapping".)
+export const LUT6_MAP_FILE = 'silinx_lut6_map.v';
+export const LUT6_MAP = `// Silinx: a 6-input $lut as two LUT4s and a MUXF5 when one of its inputs leaves two cofactors of 4 inputs at most (#54)
+module \\$lut (A, Y);
+  parameter WIDTH = 0;
+  parameter LUT = 0;
+  (* force_downto *)
+  input [WIDTH-1:0] A;
+  output Y;
+  // the entries of a 64-bit table with input v = 1
+  function [63:0] ones(input integer v);
+    case (v)
+      0: ones = 64'hAAAAAAAAAAAAAAAA;
+      1: ones = 64'hCCCCCCCCCCCCCCCC;
+      2: ones = 64'hF0F0F0F0F0F0F0F0;
+      3: ones = 64'hFF00FF00FF00FF00;
+      4: ones = 64'hFFFF0000FFFF0000;
+      default: ones = 64'hFFFFFFFF00000000;
+    endcase
+  endfunction
+  // which inputs each cofactor depends on: bit 12 * v + 6 * b + k set when the table t with input v = b
+  // depends on input k (on 64-bit words: the entries where t changes with input k, then those of them with v = b)
+  function [71:0] deps(input [63:0] t);
+    reg [63:0] x;
+    integer k, v;
+    begin
+      deps = 0;
+      for (k = 0; k < 6; k = k + 1) begin
+        x = (t ^ (t >> (1 << k))) & ~ones(k);
+        for (v = 0; v < 6; v = v + 1) if (v != k) begin
+          deps[12 * v + k] = |(x & ~ones(v));
+          deps[12 * v + 6 + k] = |(x & ones(v));
+        end
+      end
+    end
+  endfunction
+  // the inputs of the cofactor v = b, but v
+  function integer count(input [71:0] d, input integer v, input integer b);
+    integer k;
+    begin
+      count = 0;
+      for (k = 0; k < 6; k = k + 1) count = count + d[12 * v + 6 * b + k];
+    end
+  endfunction
+  // the input to split on: both cofactors of 4 inputs at most (6: none); the highest such
+  function integer split(input [71:0] d);
+    integer v;
+    begin
+      split = 6;
+      for (v = 0; v < 6; v = v + 1) if (count(d, v, 0) <= 4 && count(d, v, 1) <= 4) split = v;
+    end
+  endfunction
+  // the input other than v the cofactor v = b does not depend on (the highest)
+  function integer drop(input [71:0] d, input integer v, input integer b);
+    integer k;
+    begin
+      drop = 6;
+      for (k = 0; k < 6; k = k + 1) if (k != v && !d[12 * v + 6 * b + k]) drop = k;
+    end
+  endfunction
+  // the 16-bit table of the cofactor v = b on the four inputs other than v and d, in their order
+  function [15:0] tt4(input [63:0] t, input integer v, input integer b, input integer d);
+    integer i, j, k, n;
+    begin
+      for (i = 0; i < 16; i = i + 1) begin
+        j = b << v;
+        n = 0;
+        for (k = 0; k < 6; k = k + 1) if (k != v && k != d) begin j = j | (((i >> n) & 1) << k); n = n + 1; end
+        tt4[i] = t[j];
+      end
+    end
+  endfunction
+  generate
+    if (WIDTH == 6) begin
+      localparam [71:0] DEP = deps(LUT);
+      localparam integer V = split(DEP);
+      if (V < 6) begin
+        localparam integer D0 = drop(DEP, V, 0), D1 = drop(DEP, V, 1);
+        // each LUT4's inputs: the six but V and D0 (D1), in their order
+        wire [3:0] B0, B1;
+        genvar k;
+        for (k = 0; k < 6; k = k + 1) begin : pick
+          localparam integer N0 = k - (k > V) - (k > D0), N1 = k - (k > V) - (k > D1);
+          if (k != V && k != D0) assign B0[N0] = A[k];
+          if (k != V && k != D1) assign B1[N1] = A[k];
+        end
+        wire f0, f1;
+        LUT4 #(.INIT(tt4(LUT, V, 0, D0))) lut0 (.O(f0), .I0(B0[0]), .I1(B0[1]), .I2(B0[2]), .I3(B0[3]));
+        LUT4 #(.INIT(tt4(LUT, V, 1, D1))) lut1 (.O(f1), .I0(B1[0]), .I1(B1[1]), .I2(B1[2]), .I3(B1[3]));
+        MUXF5 mux5 (.I0(f0), .I1(f1), .S(A[V]), .O(Y));
+      end else begin
+        wire _TECHMAP_FAIL_ = 1;
+      end
+    end else begin
+      wire _TECHMAP_FAIL_ = 1;
+    end
+  endgenerate
+endmodule
+`;
 export const MUX_COUNT_FILE = 'silinx_muxes.txt';
 // (counted on a copy of the design: muxcover changes it)
 const MUX_COUNT = `design -save silinx_premap; ${MUXCOVER}; tee -q -o ${MUX_COUNT_FILE} select -count t:$_MUX8_ t:$_MUX16_; design -load silinx_premap`;
@@ -188,7 +295,7 @@ export function synthCommands(top, family, { srl = true, premap = null } = {}) {
 export function muxfRemapCommands(top, family) {
   return `read_rtlil ${PREMAP_FILE}; ${MUXCOVER}; techmap -map ${MUXF_MAP_FILE}; abc -luts ${LUT4_ONLY}; ${lutsToCells(`synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`)}`;
 }
-const lutsToCells = synth => 'clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
+const lutsToCells = (synth, { lut6 = false } = {}) => `clean; techmap -map +/xilinx/ff_map.v; ${lut6 ? `techmap -map ${LUT6_MAP_FILE} t:$lut r:WIDTH=6 %i; ` : ''}techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; `
   + `xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; ${synth} -run finalize:`;
 
 // The depth-oriented LUT mapping (the 4-input-LUT families), tried after the usual one: ABC's
@@ -238,7 +345,10 @@ export const DEPTH_RULE = { gain: 0.03, luts: 0.1, maxLuts: 5000, area: 0.05, sl
 export function keepDepth(ns, luts, rule = DEPTH_RULE, slices = null) {
   const sl = slices && slices.every(Number.isFinite) ? slices : null;
   const grow = Math.max(rule.luts, 1 - ns[1] / ns[0]);
-  const faster = ns[1] <= ns[0] * (1 - rule.gain) && luts[1] <= luts[0] * (1 + grow) && (!sl || sl[1] <= sl[0] * (1 + grow));
+  // (faster with no more slices: `luts` more LUTs again, #54: verilog-uart's ABC9 netlist, 10 % faster, 4 % fewer slices,
+  // 14 % more LUTs than the depth-oriented one with LUT6_MAP)
+  const lutsOk = luts[1] <= luts[0] * (1 + grow + (sl && sl[1] <= sl[0] ? rule.luts : 0));
+  const faster = ns[1] <= ns[0] * (1 - rule.gain) && lutsOk && (!sl || sl[1] <= sl[0] * (1 + grow));
   const better = ns[1] <= ns[0] && luts[1] <= luts[0] && (!sl || sl[1] <= sl[0])
     && (ns[1] < ns[0] || luts[1] < luts[0] || (sl && sl[1] < sl[0]));
   const fewer = n => n[1] < n[0] && n[1] <= n[0] * (1 - rule.area);
@@ -260,11 +370,12 @@ export function sliceCount(json, top) {
 }
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again,
- *  with the depth-oriented ABC script (DEPTH_ABC, in the file DEPTH_ABC_FILE given to Yosys). */
+ *  with the depth-oriented ABC script (DEPTH_ABC, in the file DEPTH_ABC_FILE given to Yosys), onto LUT4_COSTS, the
+ *  6-input functions split by LUT6_MAP (the file LUT6_MAP_FILE) where it can. */
 export function remapCommands(top, family, { script = true, inline = null } = {}) {
   const synth = `synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`;
   const abc = inline ? ` -script ${abcInline(inline)}` : script ? ` -script ${DEPTH_ABC_FILE}` : '';
-  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS}${abc}; ${lutsToCells(synth)}`;
+  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS}${abc}; ${lutsToCells(synth, { lut6: true })}`;
 }
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again with ABC9 onto
@@ -610,7 +721,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         // (the two from the same netlist, at once: in parallel when run() has several Yosys, #86)
         // (delays: the script inline with the LUT library, #78)
         const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
-          { [PREMAP_FILE]: asText(out[PREMAP_FILE]), ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
+          { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [LUT6_MAP_FILE]: LUT6_MAP, ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
           l => { if (!quiet(l)) lines.push(l); });
         let base = json;
         const linesW = [], lines2 = [], lines3 = [], lines4 = [];
