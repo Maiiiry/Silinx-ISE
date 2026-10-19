@@ -281,6 +281,48 @@ verilog-i2c-master -5 % / +8 %, EPFL int2float -21 % LUTs; the examples: the ped
 estimated instead of 7.9 and 94 LUTs instead of 114 (32 MUXF instead of 22), the others as before.
 Against ISE, EPFL max is still slower (30.2 ns against 25.7, #52 left): its comparators.
 
+### Balanced twice more: a third candidate (#52, 15.11)
+
+Since #468 (Effort Normal maps the deep designs for speed) EPFL max is the same at both efforts: 1258 LUTs,
+722 slices, 29.0 ns routed by Silinx's timing (its I/O wrapper, the XC3S1200E; ISE 1386 LUTs, 927 slices,
+25.7 ns). ABC's scripts tried on max alone (LUT4s, its levels by Yosys's `ltp`):
+
+| ABC script | LUT4s | levels |
+|---|---:|---:|
+| ABC's default (`strash; dch -f; if; mfs2`) | 868 | 36 |
+| `DEPTH_ABC` | 997 | 22 |
+| `DEPTH_ABC2` (`if -g` twice) | 1038 | 17 |
+| `if -g` three times | 1142 | 15 |
+| `if -g` four times | 1052 | 16 |
+| `&sopb` / `&dsdb` (SOP / DSD balancing of the GIA) | 1245 / 1062 | 34 / 51 |
+| `DEPTH_ABC2`, then `speedup -l` and `if` (twice) | 1061 to 1110 | 16 to 18 |
+
+Each `if -g` more shortens a priority chain or a comparator tree; but in place of `DEPTH_ABC2` it made serv
+7 % and the EPFL router 8 % slower by the estimate. So it is a third candidate (`DEPTH_ABC3`: `if -g` four
+times, with the LUT delays), made beside the two of `DEPTH_ABC2` and kept as they are (`keepSecond`, a later
+one in place of an earlier one when better by `DEPTH_RULE`). On the 16 designs of the corpus whose
+depth-oriented mapping is kept (synthesis at High, the estimate; the others do not make it):
+
+| design | before: ns / LUTs / slices | with the third candidate |
+|---|---|---|
+| EPFL priority | 16.5 / 209 / 118 | **8.8 / 213 / 117** (routed, I/O wrapper: 11.20 -> 9.08 ns at both efforts) |
+| EPFL max (I/O wrapper) | 24.9 / 1258 / 722 | **22.9 / 1234 / 715** (routed 29.0 -> 28.1 ns at both efforts) |
+| the pedestrian crossing (High) | 7.60 / 108 / 67 | **7.32 / 106 / 66** (routed 8.61 -> 8.16 ns) |
+| the 13 others (serv, the EPFL router, ctrl, i2c, ITC'99 b10, b13, b14…) | | as before (the third refused) |
+
+Unwrapped, max's third (21.1 ns, 1252 LUTs, 716 slices against 23.0, 1099, 589) is refused (22 % more
+slices for 8 % of speed). The other examples are as before at both efforts. Synthesis time: one Yosys run
+more for these designs only, beside the other two (EPFL max 9.4 -> 10.9 s, the others within 0.3 s).
+
+What is left of #52: max's critical path is its two 128-bit comparisons in series, each followed by the
+select of 128 multiplexers (a net of fanout 128, 2.2 ns); max's LUT-6 depth record is 6 levels where this
+mapping has 15 to 17 LUT4 levels. Its logic is written as gates (an AND-inverter graph), so ABC's
+balancing keeps the second comparison after the first one's multiplexers; recognising each comparator
+(as a function of 256 nets, the multiplexers' outputs for the second) and putting it on the carry chain,
+or comparing the four inputs pairwise at once, would restructure it. ISE could not be run for this
+measurement (the ISE host was out of reach); Silinx's timing of the routed max was within 2 % of ISE's
+trce in the last comparison (docs/QUALITY.md: 29.12 against 28.50 ns at High).
+
 ## LUT4s alone (#54)
 
 ABC's LUT mapping (`abc -luts 1,1,1,1,2,4`) was given functions of 5 and 6 inputs at their cost in LUT4s

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -513,6 +513,42 @@ test('logic depth: the maximum of four numbers is balanced once more, that netli
   assert.deepEqual(r.warnings, []);
   const d = compareNetlist(max4, r, { name: 'depth-max4', sim: { cycles: 300 } });
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+});
+
+// a priority encoder of 128 bits (EPFL priority's design): the index of the first bit set, a chain of 128 choices
+const PRIO = `module prio(input clk, input [127:0] x, output reg [6:0] q);
+  reg [127:0] r;
+  integer i;
+  reg [6:0] idx; reg found;
+  always @* begin
+    idx = 7'd0; found = 1'b0;
+    for (i = 0; i < 128; i = i + 1) begin
+      idx = (~found & r[i]) ? i : idx;
+      found = found | r[i];
+    end
+  end
+  always @(posedge clk) begin r <= x; q <= idx; end
+endmodule
+`;
+test('#52 logic depth: balanced twice more (DEPTH_ABC3, with the LUT delays), a third candidate; a priority encoder keeps it at both efforts (17 % faster than the mapping balanced once more, as large), equal to the RTL', { timeout: 300000 }, async () => {
+  assert.equal(DEPTH_ABC3, 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if; mfs2; strash; dch -f; if; mfs2');
+  const prio = elaborate(compile([{ path: 'prio.v', lang: 'verilog', text: PRIO }]), 'prio');
+  for (const effort of ['high', 'normal']) {
+    const r = await synthesizeOpen(prio, { family: 'spartan3e', run: yosysNode, effort });
+    const dp = JSON.stringify(r.depth);
+    if (effort === 'normal') assert.equal(r.depth.auto, true, dp);
+    assert.equal(r.depth.kept, true, dp);
+    // (before #52's third candidate: the one balanced once more with the delays, 11.1 ns estimated)
+    assert.deepEqual([r.depth.second.kept, r.depth.delays.kept, r.depth.third.kept], [false, false, true], dp);
+    const before = Math.min(r.depth.second.ns, r.depth.delays.ns);
+    assert.ok(r.depth.third.ns <= before * 0.9, dp);
+    assert.ok(r.depth.third.luts <= Math.min(r.depth.second.luts, r.depth.delays.luts) && r.depth.third.slices <= Math.min(r.depth.second.slices, r.depth.delays.slices), dp);
+    assert.equal(r.util.luts, r.depth.third.luts);
+    assert.equal(criticalDelay(r.files['prio.json'], 'prio'), r.depth.third.ns);
+    assert.deepEqual(r.warnings, []);
+    const d = compareNetlist(prio, r, { name: `depth-prio-${effort}`, sim: { cycles: 400 } });
+    assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+  }
 });
 
 const CHAIN = `module chain(input clk, input [23:0] a, input [23:0] b, output reg gt);
