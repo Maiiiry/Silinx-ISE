@@ -3785,6 +3785,8 @@ function setupMenus() {
       { label: 'Keyboard Shortcuts', action: () => wiz.shortcutsDialog() },
       '-',
       { label: 'Check for Updates…', action: () => wiz.checkUpdatesDialog() },
+      // the start-up check (#488): off, the app asks GitHub nothing until Check for Updates… is used
+      { label: 'Check for Updates at Start-up', checked: wiz.updateCheckEnabled(), action: () => { wiz.setUpdateCheckEnabled(!wiz.updateCheckEnabled()); toast(wiz.updateCheckEnabled() ? 'Check for updates at start-up on: the latest release is asked of GitHub when the app starts' : 'Check for updates at start-up off: Help > Check for Updates… checks by hand'); } },
       '-',
       { label: 'Tell Us Who You Are…', action: () => wiz.whoAreYou() },
     ] },
@@ -4034,7 +4036,7 @@ async function boot() {
   // (a workspace folder waiting for its permission: its last project is not the browser's one of that name)
   if (last && projects.some(p => p.name === last) && !(api.standalone && api.storage().needsPermission)) await openProject(last);
   else showLeftPage('start');
-  // always check for updates at start-up (a newer release opens the update dialog); not awaited
+  // check for updates at start-up (a newer release opens the update dialog) unless the setting is off; not awaited
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});
 }
 
