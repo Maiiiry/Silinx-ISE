@@ -393,8 +393,13 @@ uiTest('Close Project while the project is still opening: closed after the openi
     await Promise.all([opening, window.SilinxApp.closeProject()]);
   });
   assert.deepEqual(await closedState(), closed);
-  // the Start page's recent project is there to click
-  await page.click('#start-page a', { text: 'Gamma' });
+  // the Start page's recent project is there to click, even when the page is drawn again (a close's drawing
+  // finishing late) between the press and the release: the page was rebuilt and the click lost (#494)
+  const at = await page.point('#start-page a', { text: 'Gamma' });
+  await page.mouse('mouseMoved', at.x, at.y);
+  await page.mouse('mousePressed', at.x, at.y);
+  await page.eval(() => window.SilinxApp.renderStartPage());
+  await page.mouse('mouseReleased', at.x, at.y);
   await page.waitFor(() => window.Silinx.project?.name === 'Gamma' && !document.querySelector('[data-page=design]').hidden);
   assert.doesNotMatch(await page.consoleText(), /ERROR/);
 });
