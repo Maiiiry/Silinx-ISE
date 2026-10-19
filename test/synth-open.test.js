@@ -372,7 +372,7 @@ const netlistOf = cells => ({ modules: { t: { attributes: { top: 1 }, cells } } 
 test('logic depth: the scripts (the design before the LUT mapping written, mapped again by the depth-oriented ABC script)', () => {
   // (and the wide multiplexer trees counted on a copy of it, #511)
   assert.equal(yosysScript('top', 'spartan3e', { premap: PREMAP_FILE }), yosysScript('top', 'spartan3e').replace('abc -luts', 'write_rtlil silinx_premap.il; '
-    + 'design -save silinx_premap; muxcover -mux8 -mux16 -nodecode; tee -q -o silinx_muxes.txt select -count t:$_MUX8_ t:$_MUX16_; design -load silinx_premap; abc -luts'));
+    + 'design -save silinx_premap; muxcover -mux8 -mux16 -nodecode -nopartial; tee -q -o silinx_muxes.txt select -count t:$_MUX8_ t:$_MUX16_; design -load silinx_premap; abc -luts'));
   assert.equal(remapCommands('top', 'spartan3e'), 'read_rtlil silinx_premap.il; abc -luts 1,1,1,1,2,4 -script silinx_depth.abc; clean; techmap -map +/xilinx/ff_map.v; '
     + 'techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
   assert.match(DEPTH_ABC, /if -g; .*if; mfs2$/);
@@ -653,7 +653,7 @@ test('#502 a fixed-length shift register: its last stage a flip-flop, the stages
 // #511: the wide multiplexers onto MUXF5 / MUXF6 / MUXF7, from the netlist before the LUT mapping, when the usual run
 // counted some trees of 8 or 16 inputs; kept by DEPTH_RULE
 test('#511 wide multiplexers: the script (muxcover, Silinx\'s map, ABC onto LUT4s alone for the rest), the count of the trees', () => {
-  assert.equal(muxfRemapCommands('top', 'spartan3e'), `read_rtlil ${PREMAP_FILE}; muxcover -mux8 -mux16 -nodecode; techmap -map ${MUXF_MAP_FILE}; abc -luts 1,1,1,1; clean; `
+  assert.equal(muxfRemapCommands('top', 'spartan3e'), `read_rtlil ${PREMAP_FILE}; muxcover -mux8 -mux16 -nodecode -nopartial; techmap -map ${MUXF_MAP_FILE}; abc -luts 1,1,1,1; clean; `
     + 'techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; '
     + 'synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
   assert.equal(muxfRemapCommands('m', 'spartan3'), muxfRemapCommands('m', 'spartan3e').replace('xc3se', 'xc3s'));

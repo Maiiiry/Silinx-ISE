@@ -45,8 +45,10 @@ export const LUT4_ONLY = '1,1,1,1';
 // (their BX / BY select the F-multiplexers: no flip-flop of another net). So the usual run counts the
 // trees (MUX_COUNT_FILE) and, with some, the design is mapped again with them (muxfRemapCommands), that
 // netlist kept when better by DEPTH_RULE (iwls05-spi: 12.7 ns estimated instead of 14.8, 745 LUTs instead
-// of 886). (4:1 trees too, -mux4: serv 29 % slower by the estimate, none faster.)
-export const MUXCOVER = 'muxcover -mux8 -mux16 -nodecode';
+// of 886). (4:1 trees too, -mux4: serv 29 % slower by the estimate, none faster.) Full trees only (-nopartial,
+// #554): muxcover's partial trees (some leaves missing) made a wrong netlist of secworks-sha256's core with -mux16,
+// with these F-multiplexers or 2:1 multiplexers in their place alike; -mux8 alone, or -nopartial, kept it right.
+export const MUXCOVER = 'muxcover -mux8 -mux16 -nodecode -nopartial';
 export const MUXF_MAP_FILE = 'silinx_muxf_map.v';
 export const MUXF_MAP = `// Silinx: muxcover's trees of 2:1 multiplexers onto MUXF5 / MUXF6 / MUXF7 (#511)
 module \\$_MUX4_ (input A, B, C, D, S, T, output Y);
