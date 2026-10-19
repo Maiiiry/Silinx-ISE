@@ -45,6 +45,8 @@ export function svgSnapshot(svg, world, bounds, drop = []) {
 }
 
 const PAPERS = { A4: [210, 297], A3: [297, 420], Letter: [216, 279] };
+// each paper's name in the page's @page rule (from this table, never from the dialog's text)
+const PAGE_SIZE = { A4: 'A4', A3: 'A3', Letter: 'letter' };
 const MARGIN = 10;   // mm, page margin
 const CAPTION = 7;   // mm, page caption (title, page number)
 const SLACK = 0.5;   // mm, the page box stays this much shorter than the printable area (no blank extra page)
@@ -89,7 +91,7 @@ export function printHtml(title, bounds, imgUrl, L) {
         + `<img src="${esc(imgUrl)}" alt="" style="left:${mm(x)};top:${mm(y)};width:${mm(W)};height:${mm(H)}"></div></section>`);
     }
   }
-  const size = `${L.paper === 'Letter' ? 'letter' : L.paper} ${L.land ? 'landscape' : 'portrait'}`;
+  const size = `${Object.hasOwn(PAGE_SIZE, L.paper) ? PAGE_SIZE[L.paper] : PAGE_SIZE.A4} ${L.land ? 'landscape' : 'portrait'}`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>
 @page { size: ${size}; margin: ${MARGIN}mm; }
 * { box-sizing: border-box; }
