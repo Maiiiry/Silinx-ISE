@@ -571,6 +571,31 @@ flip-flop, no carry: its +1.8 % is the placement's noise (the same slices, packe
 To check with ISE (the Mac mini): `scripts/check-open-flow.mjs` on the examples (DRC, the `.bit`
 byte-identical with XBUSED / YBUSED and the XB / YB switches, trce's CIN -> XB).
 
+## The pads' paths, the hold check and OFFSET (#26, 2026-10-19)
+
+The static timing covered the period only (flip-flop to flip-flop on one clock). `timingGraph().pads()` adds, as
+trce's data sheet report has them: **pad to setup** (an input pad to each clock's flip-flops: the data's arrival plus
+the setup minus the clock's arrival at that flip-flop, what `OFFSET = IN … BEFORE` bounds), **clock to pad** (the
+clock's pad through a flip-flop to an output pad, `OFFSET = OUT … AFTER`), **pad to pad** (through logic only) and a
+**hold check** (the shortest flip-flop to flip-flop path of each clock and edge). The clock's arrival at each clock
+pin (`clockArrivals`): the input pad's delay, the routed nets to the global buffer and from it, the buffer's delay.
+The UCF's OFFSET constraints (on all pads or a NET) are checked in the flows (timing.txt, warnings, the report).
+
+What is not measured, so estimates (`SPEED_4.clock`, the report says so):
+
+- **The clock network.** `timing-fit.mjs` leaves the clock nets out of the wire fit, so the GCLK class's delay and
+  branch load were never fitted: by the model a clock net of blinky spreads 2.07-2.69 ns over its loads (the branch
+  loads of the GCLK nodes), far more than a global clock's skew. So **no clock skew** is counted in the period or the
+  hold check; the clock's arrival is used only for the pads' paths. The global buffer: 0.22 ns.
+- **Hold times**: 0 for every input (trce's not measured), so the hold check reports the shortest path's margin.
+- **The pads**: Tiopi 1.3 and Tioop 3.25 ns are estimates too (no trce report of a Silinx design had a pad path).
+
+To fit them (the Mac mini): designs routed by Silinx with OFFSET IN / OUT constraints, `trce -a -v 100 -fastpaths`
+(the fast paths give the hold analysis and its clock skew), then `timing-fit.mjs` extended to read trce's offset and
+hold paths ("Offset (setup paths)", "Slack (hold path)", "Clock Path Skew") and `reportgen -delay` of the clock nets.
+blinky's pad-to-pad paths (sw<3> -> led<1> 9.81 ns on main's seed-1 placement) are what its test bench's invert check
+waits for: half a clock period was too little for another placement (#591).
+
 ## Open problems
 
 - Timing: no timing constraints (UCF PERIOD) are read yet; the router and the placer minimise the

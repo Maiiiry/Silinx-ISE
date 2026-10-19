@@ -260,3 +260,35 @@ endmodule` });
   assert.deepEqual(d.lines, ['Optimization Effort Normal: one mapping, and the mappings for speed for a design limited by its logic depth (High tries them for every design, a slower synthesis).',
     'Optimization Effort Normal: 17 levels of logic: the mappings for speed tried too, the fastest kept.']);
 });
+
+// OFFSET constraints in the flow's timing (#26): an input's pad to setup and an output's clock to pad against the UCF's
+// OFFSET IN / OUT, in the timing report, the warnings and the report's constraints; a TIMEGRP's not analyzed, an
+// OFFSET on no clock of the design said
+test('Implement Design: the UCF\'s OFFSET constraints checked, in the timing report and the warnings (#26)', { timeout: 300000 }, async () => {
+  const { flow } = await import('./timesim-lib.mjs');
+  const { orderOpenSteps } = await import('../core/open-steps.js');
+  const src = [{ path: 'top.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all;
+entity top is port (clk, a, b : in std_logic; q, y : out std_logic); end;
+architecture rtl of top is signal r : std_logic; begin
+  process (clk) begin if rising_edge(clk) then r <= a xor r; end if; end process;
+  q <= r; y <= a and b;
+end;` }];
+  const ucf = `NET "clk" LOC = "B8" ;\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;
+OFFSET = IN 20 ns BEFORE "clk" ;\nNET "q" OFFSET = OUT 1 ns AFTER "clk" ;\nTIMEGRP "outs" OFFSET = OUT 8 ns AFTER "clk" ;\nOFFSET = IN 5 ns BEFORE "other" ;\n`;
+  const r = await flow({ top: 'top', steps: orderOpenSteps(['trce']) }, src, [], ucf);
+  assert.equal(r.ok, true, r.lines.join('\n'));
+  const timing = r.store['open/timing.txt'];
+  const q = /^constraint NET "q" OFFSET = OUT 1 ns AFTER "clk": NOT MET on q \(clock to pad (\d+\.\d{3}) ns, slack -\d+\.\d{3} ns\)$/m.exec(timing);
+  assert.ok(q, timing);
+  assert.match(timing, /^constraint OFFSET = IN 20 ns BEFORE "clk": met on a \(pad to setup -?\d+\.\d{3} ns, slack \d+\.\d{3} ns\)$/m);
+  assert.match(timing, /^OFFSET IN \(pad to setup\), clock \S+ \(its path from its pad estimated\):\n {2}a +-?\d+\.\d{3} ns$/m);
+  assert.match(timing, /^pad to pad:\n {2}a +-> y +\d+\.\d{3} ns\n {2}b +-> y +\d+\.\d{3} ns$/m);
+  assert.deepEqual(r.lines.filter(l => /^WARNING/.test(l)), [
+    `WARNING:Timing - constraint NET "q" OFFSET = OUT 1 ns AFTER "clk" not met on q: clock to pad ${q[1]} ns`,
+    'WARNING:Timing - constraint OFFSET = IN 5 ns BEFORE "other": no pad of the design is bounded by it',
+    'WARNING:Timing - constraint TIMEGRP "outs" OFFSET = OUT 8 ns AFTER "clk": not analyzed (the Silinx toolchain reads OFFSET on a NET or on all pads)',
+  ]);
+  assert.equal(r.lines.filter(l => /constraint\(s\) not met|All constraints were met/.test(l)).join(), '1 constraint(s) not met.');
+  assert.deepEqual(r.report.timing.constraints.map(c => [c.name, c.timingErrors]), [['PERIOD clk', 0], ['OFFSET IN a', 0], ['OFFSET OUT q', 1]]);
+  assert.equal(r.report.timing.met, false);
+});
