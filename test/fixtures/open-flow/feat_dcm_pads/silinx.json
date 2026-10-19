@@ -1,0 +1,21 @@
+{
+  "name": "feat_dcm_pads",
+  "description": "Board test (Nexys2-1200): two DCMs, each CLKIN on the dedicated path from a clock pad of its own (B8, the clock socket U9) (#92)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s1200e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "board": "nexys2-1200",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf"
+}

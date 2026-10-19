@@ -212,6 +212,10 @@ const FEATURES = {
   // and (on the Nexys2-500) the input period in whole nanoseconds: 20.9 ns is 20 (#46)
   feat_dcm_div2: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 /, /DESKEW_ADJUST::0 /, /CLKFX_DIVIDE::15 /]],
   feat_dcm_fx: [/^pack \(\d+ slices\)/m, 'DCM', [/X_CLKIN_PERIOD::20\.8999999999999986 /, /CLKFX_DIVIDE::30 /]],
+  // two DCMs, each CLKIN on the dedicated path from a clock pad of its own (#92): B8 to the top-left DCM, the clock
+  // socket (U9) through the bottom clock tile to the bottom-left one
+  feat_dcm_pads: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcma" "DCM",placed DCM_TL_CENTER_X23Y60 DCM_X1Y3 /m, /^inst "u_dcmb" "DCM",placed DCM_BL_CENTER_X23Y1 DCM_X1Y0 /m,
+    /^ {2}pip CLKB_LL_X23Y0 CLKB_CKI6 -> CLKB_DLL_CLKPAD5 ,$/m, /^ {2}pip DCM_BL_CENTER_X23Y1 DCM_DLL_CLKPAD1 -> DCM_CLKIN ,$/m]],
   hard_prim: [/^pack \(\d+ slices\)/m, 'RAMB16'],
   // control pins tied to 1 / 0 as ISE ties them: block RAMs' EN / WE / SSR and multipliers' CE /
   // RST on VCC / GND, never inverted (MULT18X18S's CE / R on the three enables / resets); a DCM's
@@ -369,19 +373,18 @@ for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s5
 // check:open-flow on the same projects gives DRC 0 errors / 0 warnings and a byte-identical .bit):
 // feat_constmult's clock LOC'd on the bottom GCLK pin (its buffer's lines reach no block RAM /
 // multiplier clock on known switches: BUFGMUX_X2Y11 through general routing, a warning), feat_dcm
-// with no constraints (the clock on B8, the pad whose dedicated path reaches the DCM's CLKIN), and
+// with no constraints (the clock on the pad ISE gives the DCM's CLKIN, on its dedicated path, #92), and
 // feat_constmult's clock LOC'd on a side GCLK pin (its pad's path into the side buffers is not known
 // yet, #641: a top buffer through general routing, a warning).
 const CLOCK_CASES = [
   ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y11' },
     ['Warning: place: clk: the global buffer BUFGMUX_X2Y1 that its pad M4 reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing']],
-  ['#57', 'feat_dcm', 'xc3s500e', 'fg320', null, { clk: 'B8', dcm: 'DCM_X0Y1' }, []],
+  ['#57', 'feat_dcm', 'xc3s500e', 'fg320', null, { clk: 'B9', dcm: 'DCM_X0Y1' }, []],
   // the XC3S1200E's top-left DCM is DCM_X1Y3 (its DCM_X0Y1 is a side DCM); on the XC3S100E the
-  // bottom DCM (CLKDV of the top one reaches no global buffer on known switches), its CLKIN through
-  // general routing (no pad reaches a DCM's CLKIN on known switches), said (#47)
-  ['#47', 'feat_dcm', 'xc3s1200e', 'fg320', null, { clk: 'B8', dcm: 'DCM_X1Y3' }, []],
-  ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { dcm: 'DCM_X0Y0' },
-    clk => [`Warning: place: u_dcm: its CLKIN comes from the pad ${clk} through general routing: no pad reaches the CLKIN of DCM_X0Y0 on a dedicated path of known bits`]],
+  // bottom DCM (CLKDV of the top one reaches no global buffer on known switches), its CLKIN on its
+  // dedicated path from M6 (#47, #92)
+  ['#47', 'feat_dcm', 'xc3s1200e', 'fg320', null, { clk: 'B9', dcm: 'DCM_X1Y3' }, []],
+  ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { clk: 'M6', dcm: 'DCM_X0Y0' }, []],
   // (#95 / #641: not the side buffers K3 reaches, whose path from the pad has database bits ISE does
   // not set: BUFGMUX_X2Y11 through general routing, a warning)
   ['#58', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X2Y11' },
@@ -410,15 +413,15 @@ for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
 
 // Two DCMs on the other devices (#47; checked against ISE: npm run check:open-flow gives DRC 0 errors /
 // 0 warnings and a byte-identical .bit): feat_dcm2 with no constraints. The XC3S500E and XC3S1200E:
-// the clock on B8, the first DCM on the top-left site, the second on the bottom-left one (CLK2X180);
-// the XC3S100E (whose DCMs reach no global buffer from CLK2X180: CLK2X in its place): the first DCM
-// on the top one, the second on the bottom one, the clock's CLKIN through general routing, said.
+// the first DCM on the top-left site, the second on the bottom-left one (CLK2X180); the XC3S100E (whose
+// DCMs reach no global buffer from CLK2X180: CLK2X in its place): the first DCM on the top one, the
+// second on the bottom one. The clock on the pad ISE gives the first DCM's CLKIN, its dedicated path (#92).
 const DCM2 = [
-  ['xc3s100e', 'cp132', ['DCM_X0Y1', 'DCM_X0Y0'], clk => [`Warning: place: u_dcma: its CLKIN comes from the pad ${clk} through general routing: no pad reaches the CLKIN of DCM_X0Y1 on a dedicated path of known bits`]],
-  ['xc3s500e', 'fg320', ['DCM_X0Y1', 'DCM_X0Y0'], () => []],
-  ['xc3s1200e', 'fg320', ['DCM_X1Y3', 'DCM_X1Y0'], () => []],
+  ['xc3s100e', 'cp132', ['DCM_X0Y1', 'DCM_X0Y0'], 'A9'],
+  ['xc3s500e', 'fg320', ['DCM_X0Y1', 'DCM_X0Y0'], 'B9'],
+  ['xc3s1200e', 'fg320', ['DCM_X1Y3', 'DCM_X1Y0'], 'B9'],
 ];
-for (const [part, pkg, dcms, warnings] of DCM2) {
+for (const [part, pkg, dcms, clk] of DCM2) {
   test(`the open flow: two DCMs (feat_dcm2) on the ${part.toUpperCase()}-${pkg.toUpperCase()}: complete bitstream, the exact warnings (#47)`, { timeout: 300000 }, () => {
     const dir = path.join(tmp, `dcm2-${part}`);
     fs.mkdirSync(dir, { recursive: true });
@@ -432,9 +435,8 @@ for (const [part, pkg, dcms, warnings] of DCM2) {
     assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
     const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
     const placedOf = type => Object.fromEntries([...routed.matchAll(new RegExp(`^inst "([^"]+)" "${type}",placed \\S+ (\\S+) `, 'gm'))].map(m => [m[1], m[2]]));
-    assert.deepEqual(r.warnings, warnings(placedOf('IBUF').clk));
-    assert.deepEqual([placedOf('DCM').u_dcma, placedOf('DCM').u_dcmb], dcms);
-    if (part !== 'xc3s100e') assert.equal(placedOf('IBUF').clk, 'B8');
+    assert.deepEqual(r.warnings, []);
+    assert.deepEqual([placedOf('DCM').u_dcma, placedOf('DCM').u_dcmb, placedOf('IBUF').clk], [...dcms, clk]);
     // B's CLKIN and both feedbacks on the global lines (#93)
     const pips = dcmClockPips(routed);
     assert.equal(pips.length, 3, pips.join('; '));
