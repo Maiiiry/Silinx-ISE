@@ -32,9 +32,9 @@ jobs:
       workflow: ise.yml
       only: core/,server/,scripts/,bin/,docker/,examples/,research/s3e-,test/ise/,test/examples-lib.mjs,test/fixtures/,package.json,package-lock.json,.github/workflows/ise.yml
   ise:
-    # never from a fork, and only main
+    # never from a fork: scheduled or by hand, on main only (#482; test/workflows.test.js)
     needs: changes
-    if: needs.changes.outputs.run == 'true' && github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.run == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, ise]
     timeout-minutes: 600
     env:

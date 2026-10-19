@@ -45,5 +45,9 @@ whoever has the address with its token has the server, as the warning says at st
 - Every release lists its files' SHA-256 checksums (`SHA256SUMS`, also in its notes) and carries GitHub's
   build provenance attestation of each file: how to check a download is in the README and
   [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
+- The self-hosted runner with Xilinx ISE (the maintainer's machine) runs only `ise.yml` and `quality.yml`,
+  scheduled or started by hand, on `main`, with a read-only token and no credentials kept; never a pull
+  request's code. Every workflow's jobs are checked for it in `test/workflows.test.js`; a pull request from
+  a fork waits for the maintainer's approval before any of its workflows runs.
 - On GitHub, secret scanning and push protection refuse a token or key at push time, and private
   vulnerability reporting is on.

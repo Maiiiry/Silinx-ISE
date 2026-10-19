@@ -30,7 +30,7 @@ jobs:
       workflow: quality.yml
   compare:
     needs: changes
-    if: needs.changes.outputs.run == 'true' && github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.run == 'true' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'
     runs-on: [self-hosted, ise]
     timeout-minutes: 900
     permissions:
