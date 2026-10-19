@@ -24,6 +24,7 @@ import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu } from '.
 import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
 import { esc, h } from './dom.js';
+import { highlightHdl } from './highlight.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -1640,7 +1641,7 @@ export function mountSchEditor(container, opts = {}) {
     if (destroyed) return null;
     infoDlg?.close();
     infoDlg = openSymbolInfo({
-      container, ...target, modules, lang: genLang, highlight,
+      container, ...target, modules, lang: genLang, highlight: highlightHdl,
       draw: (sym, def) => symbolDrawingSvg(sym, def),
       onClose: () => { infoDlg = null; if (container.isConnected) container.focus({ preventScroll: true }); },
     });
@@ -1648,17 +1649,6 @@ export function mountSchEditor(container, opts = {}) {
   }
   const offLang = onLanguageChange(() => { if (infoItem) showSymInfo(infoItem); if (!live) renderProps(); });
 
-
-  function highlight(code, lang) {
-    const kw = lang === 'vhdl'
-      ? /\b(library|use|entity|is|port|generic|map|in|out|inout|end|architecture|of|signal|begin|process|if|then|elsif|else|when|others|case|for|generate|loop|downto|to|and|or|not|xor|nand|nor|xnor|std_logic|std_logic_vector|unsigned|signed|integer|type|constant|component|select|with|rising_edge|wait|variable|function|return|all)\b/gi
-      : /\b(module|endmodule|input|output|inout|wire|reg|assign|always|posedge|negedge|or|if|else|begin|end|case|endcase|default|parameter|localparam|generate|endgenerate|for|genvar|initial|integer|signed)\b/g;
-    return esc(code).split('\n').map(line => {
-      const ci = line.indexOf(lang === 'vhdl' ? '--' : '//');
-      const a = ci >= 0 ? line.slice(0, ci) : line, c = ci >= 0 ? line.slice(ci) : '';
-      return a.replace(kw, m => `<span class="kw">${m}</span>`) + (c ? `<span class="cm">${c}</span>` : '');
-    }).join('\n');
-  }
 
   // ---------------- small UI helpers
   let flashTimer = null;

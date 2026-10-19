@@ -18,6 +18,7 @@ import {
   normalizeModel, newModel, validate, generate, stateEncoding, ENCODINGS, nextCaseLabel as nextLabel,
 } from '/core/asm.js';
 import { esc, h } from './dom.js';
+import { highlightHdl } from './highlight.js';
 
 const GRID = 20;
 const CHW = 7.25;          // approx. width of a 12px monospace character
@@ -118,28 +119,6 @@ function pathD(pts, r = 7) {
   }
   const z = pts[pts.length - 1];
   return d + ` L${z.x},${z.y}`;
-}
-
-// Tiny syntax highlighter for the code preview.
-const KW = new Set(('library use entity is port in out inout end architecture of signal constant type subtype ' +
-  'attribute begin process if then elsif else case when others null downto to and or not xor ' +
-  'module input output wire reg localparam always posedge negedge assign endcase endmodule default ' +
-  'std_logic std_logic_vector unsigned rising_edge resize all generic integer parameter ' +
-  'shift_left shift_right to_integer to_unsigned').split(' '));
-function highlight(code) {
-  const re = /(--[^\n]*|\/\/[^\n]*)|("[^"\n]*")|('[01]')|(\b\d+'[bdhoBDHO][0-9a-fA-F_]+\b)|(\(\*[^\n]*?\*\))|\b([A-Za-z_]\w*)\b/g;
-  let out = '', last = 0, m;
-  while ((m = re.exec(code))) {
-    out += esc(code.slice(last, m.index));
-    last = re.lastIndex;
-    if (m[1]) out += `<span class="tk-com">${esc(m[1])}</span>`;
-    else if (m[2] || m[3] || m[4]) out += `<span class="tk-lit">${esc(m[0])}</span>`;
-    else if (m[5]) out += `<span class="tk-attr">${esc(m[5])}</span>`;
-    else if (KW.has(m[6].toLowerCase()) && !/^[A-Z]/.test(m[6])) out += `<span class="tk-kw">${esc(m[6])}</span>`;
-    else if (/^S_/.test(m[6])) out += `<span class="tk-st">${esc(m[6])}</span>`;
-    else out += esc(m[6]);
-  }
-  return out + esc(code.slice(last));
 }
 
 // ================================================================================ editor
@@ -703,7 +682,7 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     codeTitle.textContent = fname;
     try {
       const g = generate(M);
-      codePre.innerHTML = highlight(g.code);
+      codePre.innerHTML = highlightHdl(g.code, M.lang);
       codePre.classList.remove('has-err');
     } catch (e) {
       codePre.textContent = `-- Cannot generate ${fname}:\n\n${e.message}`;

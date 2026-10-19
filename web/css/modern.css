@@ -468,8 +468,8 @@ html[data-ui="modern"][data-theme="dark"] :is(.sch-editor .se-pins, .sch-editor 
 html[data-ui="modern"][data-theme="dark"] :is(.sch-editor .se-hint, .sch-editor .se-prompt, .sch-editor .lv-tip, .sch-editor .se-tip) { background: var(--m-surface-2); color: var(--m-fg); border-color: var(--m-border-strong); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-prompt label, html[data-ui="modern"][data-theme="dark"] .sch-editor .se-status { color: var(--m-muted); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-code { background: var(--m-surface); color: #d6dae0; }
-html[data-ui="modern"][data-theme="dark"] .sch-editor .se-code .kw { color: #c792ea; }
-html[data-ui="modern"][data-theme="dark"] .sch-editor .se-code .cm { color: #7d8794; }
+html[data-ui="modern"][data-theme="dark"] .sch-editor .se-code .tk-kw { color: #c792ea; }
+html[data-ui="modern"][data-theme="dark"] .sch-editor .se-code .tk-com { color: #7d8794; }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc .sd-body { background: var(--m-surface); color: var(--m-fg); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc .sd-main h3 { border-color: var(--m-border); color: var(--m-fg); }
 html[data-ui="modern"][data-theme="dark"] .sch-editor .se-symdoc :is(.sd-table th, .sd-truth tr.grp th) { background: var(--m-surface-2); color: var(--m-fg); }
