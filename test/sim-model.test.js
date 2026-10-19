@@ -133,7 +133,14 @@ for (const name of EXAMPLES) {
     const r = await runOpenFlow({ top: ex.project.top, part: 'xc3s250ecp132-4', family: 'spartan3e', steps: ['postsynth'], simTop: ex.project.simTop },
       { log: l => lines.push(l), sources: () => design, simSources: () => sim, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {} });
     assert.equal(r.ok, true, lines.join('\n'));
-    for (const [file, text] of Object.entries(written)) {
+    // (the board's model beside it when the test bench gives generics, #622: the design's own, which the test bench's
+    // generic map does not fit; the test bench runs on the simulation's)
+    const t = ex.project.top, board = Object.keys(r.report.simModels.postsynth.generics || {}).length > 0;
+    assert.deepEqual(Object.keys(written).filter(f => /^netgen\//.test(f)).sort(), [`netgen/synthesis/${t}_synthesis.v`, `netgen/synthesis/${t}_synthesis.vhd`,
+      ...(board ? [`netgen/synthesis/${t}_synthesis_board.v`, `netgen/synthesis/${t}_synthesis_board.vhd`] : [])], name);
+    if (board) assert.doesNotMatch(written[`netgen/synthesis/${t}_synthesis_board.vhd`], /Synthesized with the generics/, name);
+    for (const file of [`netgen/synthesis/${t}_synthesis.v`, `netgen/synthesis/${t}_synthesis.vhd`]) {
+      const text = written[file];
       const lang = file.endsWith('.v') ? 'verilog' : 'vhdl';
       const all = [...design, ...sim, { path: file, lang, text: lang === 'vhdl' ? scalarizeNetlist(text) : text }];
       const lib = compile([...primitiveSources(all), ...all]);
