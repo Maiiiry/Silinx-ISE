@@ -1474,11 +1474,14 @@ export function activateDoc(doc, { background = false } = {}) {
 }
 
 // Editing always saves: a document with changes is written ~0.8 s after the last edit.
-export function setDirty(doc, dirty) {
+// user (the text editor says it, #534): true, the change is the user's own in the editor; false, written
+// by the application; undefined (the other editors), judged by the timing below.
+export function setDirty(doc, dirty, { user } = {}) {
   doc.dirty = dirty;
   // (an edit of the user: a change right after their action in the document, while no command,
-  // Undo or Redo writes; a document opened or updated by a command is not edited by the user)
-  if (dirty) { if (!history.busy() && Date.now() - (doc._userAt || 0) < 2000) doc._editedAt = Date.now(); doc._edits = (doc._edits || 0) + 1; }   // (Edit ▸ Undo: the last action was an edit or a removal?)
+  // Undo or Redo writes; a document opened or updated by a command is not edited by the user. The text
+  // editor knows: typing while a command's tail still runs after its Rename is the user's edit, #534)
+  if (dirty) { if (user === true || (user === undefined && !history.busy() && Date.now() - (doc._userAt || 0) < 2000)) doc._editedAt = Date.now(); doc._edits = (doc._edits || 0) + 1; }   // (Edit ▸ Undo: the last action was an edit or a removal?)
   doc.tab.classList.toggle('dirty', dirty);
   clearTimeout(doc._autosave);
   if (dirty && doc.save) doc._autosave = setTimeout(() => flushDoc(doc, { auto: true }), 800);
@@ -1627,7 +1630,7 @@ export async function openFile(path, line, col) {
         d.editor = createEditor(host, {
           text, lang, path,
           project: () => ({ modules: S.modules }),
-          onChange: () => { setDirty(d, !d.editor.isClean()); if (lang === 'ucf') liveUcf(); else if (lang === 'vhdl' || lang === 'verilog') liveHdl(); },
+          onChange: (info) => { setDirty(d, !d.editor.isClean(), info); if (lang === 'ucf') liveUcf(); else if (lang === 'vhdl' || lang === 'verilog') liveHdl(); },
           onSave: () => flushDoc(d),
           onGotoDefinition: ({ file, line: ln }) => openFile(file, ln),
           onCursor: (l, c) => { if (S.active === d) $('status-pos').textContent = `Ln ${l}  Col ${c}`; },

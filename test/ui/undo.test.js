@@ -109,6 +109,33 @@ uiTest('Undo / Redo: Rename (module and file, the instances), Design Properties,
   assert.equal(await readWs(env, 'UndoRen', 'extra/notes.txt'), 'keep me\n');
 });
 
+// #534: an edit typed while a project command's tail still runs (a Rename reloads the project after its files
+// are moved) is the user's: Edit ▸ Undo is the editor's, not the command's. The command here changes nothing and
+// takes a while; on the code before, the edit made while it ran was not counted and the menu said "Undo Slow command".
+uiTest('Edit ▸ Undo: an edit typed while a project command still runs is the user\'s (the editor\'s Undo first)', E, async (page) => {
+  await makeProject(env, { name: 'UndoBusy', files: { 'src/top.vhd': TOP, 'src/inv.vhd': INV }, top: 'top', board: 'basys2' });
+  await page.openProject('UndoBusy');
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
+  await page.eval(async () => {
+    window.__slowDone = false;
+    (await import('/js/ui.js')).runAction('Slow command', () => new Promise((r) => setTimeout(r, 5000))).then(() => { window.__slowDone = true; });
+  });
+  await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: 0 }); });
+  await page.type('-- y\n');
+  await page.waitFor(() => window.Silinx.active.editor.getValue().startsWith('-- y\n'), [], { what: 'typed' });
+  assert.equal(await page.eval(() => window.__slowDone), false, 'the command still runs (the machine too slow for this test?)');
+  const menu = await editMenu(page);
+  assert.ok(menu.includes('Undo'), `the editor's Undo while the command runs: ${menu.join(' | ')}`);
+  await page.menu('Edit', 'Undo');
+  await page.waitFor(() => window.Silinx.active.editor.getValue().startsWith('library'), [], { what: 'text undo' });
+  await page.waitFor(() => window.__slowDone === true, [], { what: 'the command over' });
+  // the command changed nothing: there is nothing of the project to undo or redo, the editor's Redo is first
+  assert.ok((await editMenu(page)).includes('Redo'), 'the editor\'s Redo');
+  await page.menu('Edit', 'Redo');
+  await page.waitFor(() => window.Silinx.active.editor.getValue().startsWith('-- y\n'), [], { what: 'text redo' });
+});
+
 uiTest('Edit ▸ Undo / Redo reach every editor: text, truth table, pin planner (and a newer edit comes before a project command)', E, async (page) => {
   await makeProject(env, { name: 'UndoEd', files: { 'src/top.vhd': TOP, 'src/inv.vhd': INV }, top: 'top', board: 'basys2' });
   await page.openProject('UndoEd');
@@ -127,6 +154,7 @@ uiTest('Edit ▸ Undo / Redo reach every editor: text, truth table, pin planner 
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd' && window.Silinx.active.editor);
   await page.eval(() => { const ed = window.Silinx.active.editor; ed.focus(); ed.setCursor({ line: 0, ch: 0 }); });
   await page.type('-- x\n');
+  await page.waitFor(() => window.Silinx.active.editor.getValue().startsWith('-- x\n'), [], { what: 'typed' });
   assert.ok((await editMenu(page)).includes('Undo'), 'the editor\'s Undo first');
   await page.menu('Edit', 'Undo');
   await page.waitFor(() => window.Silinx.active.editor.getValue().startsWith('library'), [], { what: 'text undo' });
