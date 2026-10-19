@@ -74,8 +74,8 @@ the code and the lessons learnt.
   The security checks
   (#498, `SECURITY.md`): CodeQL analyses the JavaScript (`codeql.yml`, a workflow of its own, on pull
   requests, pushes to main and weekly), a dependency review fails a pull request that adds a dependency
-  with a known vulnerability, and a push to main scans the whole history for private data
-  (`scripts/check-private-data.mjs --history`; a harmless match goes to its `ALLOW` list with its reason).
+  with a known vulnerability, and every run scans main's history and the pull request's commits for
+  private data (`scripts/check-private-data.mjs --history`, HEAD's history only, #555; a harmless match goes to its `ALLOW` list with its reason).
   The ISE tests (nightly) and the quality comparison against
   XST (weekly) run on a self-hosted runner, only when main changed since their last run.
 - **The changelog**: every change adds its own fragment, `changes/<issue>-<slug>.md`, and never edits

@@ -156,11 +156,13 @@ jobs:
         run: npm run test:release
         timeout-minutes: 10
 
-  # the private-data scan of the whole history (#498): every line ever added and every commit message,
-  # on a push to main (about 3 s; the tracked files are scanned on every run, by test/private-data.test.js
-  # in the unit job). Only node's built-ins: no npm ci.
+  # the private-data scan of the whole history (#498): every line ever added and every commit message
+  # of HEAD's history (about 3 s; the tracked files are scanned on every run, by test/private-data.test.js
+  # in the unit job). HEAD's history only, not every branch (#555): on a push to main, main's; on a pull
+  # request, its merge commit's (main and the pull request's commits), so that a line added and removed
+  # again on a branch is found before it reaches main, and an open branch never fails main.
+  # Only node's built-ins: no npm ci.
   private-data-history:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

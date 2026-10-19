@@ -38,8 +38,8 @@ whoever has the address with its token has the server, as the warning says at st
   settings that choose which program runs, and with what arguments, are read from the user's
   configuration file only, never from the page.
 - In CI, a scan for private data (e-mail addresses, computer names and network addresses, keys and
-  tokens, Xilinx files) runs on every pull request and release, and on the whole history at every push
-  to `main`; CodeQL analyses the JavaScript on every pull request, every push to `main` and weekly;
+  tokens, Xilinx files) runs on every pull request and release, on every line ever added to `main` at
+  every push, and on a pull request's commits before they reach `main`; CodeQL analyses the JavaScript on every pull request, every push to `main` and weekly;
   a dependency review fails a pull request that adds a dependency with a known vulnerability;
   Dependabot updates the dependencies weekly and opens security updates at once.
 - On GitHub, secret scanning and push protection refuse a token or key at push time, and private

@@ -100,10 +100,11 @@ test('CI: on every push to main and pull request; the long jobs gated on the cha
     assert.ok(j[job].includes('    needs: changes'), job);
     assert.ok(j[job].some(l => l.startsWith("    if: needs.changes.outputs.code == 'true'")), job);
   }
-  // the security checks (#498): the history scan on a push to main, the dependency review on a pull
-  // request; on the event, not on the change (a documentation-only push adds lines to the history too)
+  // the security checks (#498): the history scan on every run (#555: HEAD's history, on a pull request
+  // too, before its lines reach main), the dependency review on a pull request; on the event, not on the
+  // change (a documentation-only push adds lines to the history too)
   const hist = j['private-data-history'].join('\n');
-  assert.match(hist, /^    if: github\.event_name == 'push'$/m);
+  assert.ok(!j['private-data-history'].some(l => /^    if:/.test(l)), 'private-data-history: on every run');
   assert.match(hist, /fetch-depth: 0[\s\S]*node scripts\/check-private-data\.mjs --history/);
   assert.doesNotMatch(hist, /npm ci/, 'only node built-ins');
   const dep = j['dependency-review'].join('\n');
