@@ -48,8 +48,7 @@ export const vccoOfStandard = std => VCCO.find(([re]) => re.test(String(std || '
 // ------------------------------------------------------------------ the device
 /** Sites of the device by kind, with positions: slices by (x, y), pads by name, clock buffers.
  *  dev: parseXdlrc() of the device report, or the routing graph (core/fpga/device.js Device);
- *  allowBufg(tileName, site): the global buffers the flow can use (bitgen.js knownRouting: not yet
- *  the side ones, #45). */
+ *  allowBufg(tileName, site): the global buffers the flow can use (bitgen.js knownRouting). */
 export function deviceSites(dev, { allowBufg = null } = {}) {
   const rows = dev.rows;
   const slices = new Map(), pads = new Map(), bufgmux = [], hard = { RAMB16: [], MULT18X18SIO: [] }, dcms = [];
@@ -104,6 +103,12 @@ const BOX_SCAN = 6;
 // Clock buffers next to their pad: a BUFG driven straight from a pad on the top / bottom edge
 // takes a global buffer of that edge (as ISE does: B8 -> BUFGMUX_X2Y11); others the first free one.
 const BUFG_ORDER = ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10', 'BUFGMUX_X2Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y0'];
+// The lines of the global clock network (#95): the top / bottom buffer of each line k (the centre
+// tiles' GCLKCOREk), and the side buffers BUFGMUX_X0Y(2+k) / X3Y(2+k), line k of the left / right half
+// only (GCLKLRk). In each half the centre tile (GCLKVML / GCLKVMR) drives line k of its quadrants from
+// the top / bottom buffer k or from the side buffer k, never both.
+const LINE_BUFG = ['BUFGMUX_X2Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y0', 'BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'];
+const sideBufg = name => { const m = /^BUFGMUX_X([03])Y(\d+)$/.exec(name); return m ? { half: m[1] === '0' ? 'L' : 'R', line: +m[2] - 2 } : null; };
 
 // ------------------------------------------------------------------ timing
 // The delays of core/fpga/timing.js (fitted to ISE's timing analyzer): the paths through a slice from
@@ -354,7 +359,23 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     loads.set(d.inst, L);
   }
   const reachCache = new Map();
-  const clockReachOf = name => { if (!reachCache.has(name)) reachCache.set(name, clockSites ? clockSites(name) : null); return reachCache.get(name); };
+  // the side buffers (#95): a side buffer's lines reach only its half of the chip; a top / bottom
+  // buffer is kept out of the half whose side buffer of its line is used (excluded), its loads (slices,
+  // block RAMs, multipliers) in the other half. The halves: either side of the clock tiles' column.
+  const centre = dev.bufgmux.find(b => /^CLK[TB]/.test(b.tile))?.px ?? dev.cols / 2;
+  const sitePx = new Map([...dev.slices.values(), ...(dev.brams || []), ...(dev.mults || [])].map(x => [x.name, x.px]));
+  const excluded = new Map();   // top / bottom buffer -> the halves ('L', 'R') it is kept out of
+  const clockReachOf = name => {
+    if (!reachCache.has(name)) reachCache.set(name, clockSites ? clockSites(name) : null);
+    const base = reachCache.get(name), side = sideBufg(name), ex = excluded.get(name);
+    if (!base || (!side && !ex?.size)) return base;
+    const key = `${name}|${side ? side.half : [...ex].sort().join('')}`;
+    if (!reachCache.has(key)) {
+      const keep = e => { const px = sitePx.get(e.split('.')[0]); if (px === undefined) return true; const h = px < centre ? 'L' : 'R'; return side ? h === side.half : !ex.has(h); };
+      reachCache.set(key, new Set([...base].filter(keep)));
+    }
+    return reachCache.get(key);
+  };
   // (a DCM's CLKIN / CLKFB too, #47: on the DCM's site, or the one tried, dcmTried)
   const dcmTried = new Map();
   const serves = (bi, name) => {
@@ -364,8 +385,31 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     if ([...L.slices].length > [...cs].filter(s => !s.includes('.')).length) return false;
     return ['bram', 'mult'].every(k => L[k].insts.size <= ((k === 'bram' ? dev.brams : dev.mults) || []).filter(s => [...L[k].pins].every(p => cs.has(`${s.name}.${p}`))).length);
   };
+  // the buffers taken (by the DCMs' outputs, the clock pads, the buffers' placement): a side buffer
+  // keeps the top / bottom buffer of its line out of its half; lineServes: the buffer serves its loads,
+  // and a side buffer leaves the top / bottom buffer of its line (if taken) serving its own
+  const bufOwner = new Map();   // buffer name -> bufg inst
+  const takeBuf = (bi, b) => {
+    bufOwner.set(b, bi);
+    const s = sideBufg(b);
+    if (s) excluded.set(LINE_BUFG[s.line], new Set([...(excluded.get(LINE_BUFG[s.line]) || []), s.half]));
+  };
+  const lineServes = (bi, b) => {
+    if (!serves(bi, b)) return false;
+    const s = sideBufg(b), t = s ? LINE_BUFG[s.line] : null, u = t ? bufOwner.get(t) : undefined;
+    if (u === undefined || u === bi) return true;
+    const ex = excluded.get(t) || new Set();
+    if (ex.has(s.half)) return true;
+    excluded.set(t, new Set([...ex, s.half]));
+    const ok = serves(u, t);
+    excluded.set(t, ex);
+    return ok;
+  };
   const padReach = new Map();   // pad name -> the buffers its dedicated paths of known bits reach
-  const padReachOf = name => { if (!padReach.has(name)) padReach.set(name, bufgSites(name, 'I') || []); return padReach.get(name); };
+  // (not the side buffers: a side GCLK pin's dedicated path into its clock tile, IOIS_Yk -> IOIS_Fk_B3 of
+  // the CLK_PCI I/O tiles, has database bits ISE does not set, #641; padSideOf: those buffers)
+  const padReachOf = name => { if (!padReach.has(name)) padReach.set(name, bufgSites(name, 'I') || []); return padReach.get(name).filter(b => !sideBufg(b)); };
+  const padSideOf = name => { padReachOf(name); return padReach.get(name).filter(b => sideBufg(b)); };
   const bufClaimed = new Set();
   // DCMs (#47): each on a DCM site (its INST LOC, or any) from which every clock output that drives
   // a global buffer reaches a buffer of its own through dedicated paths of known bits (bufgSites),
@@ -401,7 +445,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     const padBufs = [...loads].filter(([bi, L]) => L.dcm.length && packed.insts[driverOf(bi)?.inst]?.kind === 'iob').map(([bi]) => {
       const pi = driverOf(bi).inst;
       const from = sites[pi] ? [sites[pi]] : freePads('in', vccoOf(pi));
-      return { bi, reach: [...new Set(from.flatMap(p => padReachOf(p.name)))].filter(b => canUse.has(b)) };
+      return { bi, reach: [...new Set(from.flatMap(p => padReachOf(p.name)))].filter(b => canUse.has(b)).sort((a, b) => bufgRank.get(a) - bufgRank.get(b)) };
     });
     const better = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
     let best = null, budget = 200000;
@@ -412,18 +456,24 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       const items = [...dcmObjs.flatMap((o, k) => outs[k].map(x => ({ bi: x.bi, reach: reachB(assign[k].name, x.pin) }))), ...padBufs];
       let bm = null;
       const taken = new Set(), pick = [];
-      const rec = (i, matched, serving) => {
+      // (then the most top / bottom buffers, whose lines reach the whole chip, #95)
+      const W = items.length + 1, value = (m, sv, tb) => (m * W + sv) * W + tb;
+      const rec = (i, matched, serving, tb) => {
         if (budget-- < 0) return;
-        if (bm && (matched + items.length - i < bm.matched || (matched + items.length - i === bm.matched && serving + items.length - i <= bm.serving))) return;
-        if (i === items.length) { bm = { matched, serving, pick: [...pick] }; return; }
+        const rest = items.length - i;
+        if (bm && value(matched + rest, serving + rest, tb + rest) <= bm.value) return;
+        if (i === items.length) { bm = { matched, serving, value: value(matched, serving, tb), pick: [...pick] }; return; }
         for (const b of items[i].reach) if (!taken.has(b)) {
+          // (a side buffer and the top / bottom buffer of its line: not both, #95)
+          const sl = sideBufg(b)?.line ?? LINE_BUFG.indexOf(b);
+          if (sl >= 0 && [...taken].some(x => (sideBufg(x)?.line ?? LINE_BUFG.indexOf(x)) === sl && !!sideBufg(x) !== !!sideBufg(b))) continue;
           taken.add(b); pick.push(b);
-          rec(i + 1, matched + 1, serving + (serves(items[i].bi, b) ? 1 : 0));
+          rec(i + 1, matched + 1, serving + (serves(items[i].bi, b) ? 1 : 0), tb + (sideBufg(b) ? 0 : 1));
           pick.pop(); taken.delete(b);
         }
-        pick.push(null); rec(i + 1, matched, serving); pick.pop();
+        pick.push(null); rec(i + 1, matched, serving, tb); pick.pop();
       };
-      rec(0, 0, 0);
+      rec(0, 0, 0, 0);
       bm ||= { matched: 0, serving: 0, pick: items.map(() => null) };
       // CLKIN on a dedicated path: from its LOC'd pad, or from a free pad (one per DCM)
       let ded = 0;
@@ -452,7 +502,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     search(0);
     dcmTried.clear();
     dcmObjs.forEach((o, k) => { sites[o.inst] = best.sites[k]; });
-    best.items.forEach((it, i) => { if (best.pick[i]) { preBuf.set(it.bi, best.pick[i]); bufClaimed.add(best.pick[i]); } });
+    best.items.forEach((it, i) => { if (best.pick[i]) { preBuf.set(it.bi, best.pick[i]); bufClaimed.add(best.pick[i]); takeBuf(it.bi, best.pick[i]); } });
   }
   // a clock input with no LOC that drives a DCM's CLKIN: on a free pad whose dedicated path of
   // known bits reaches that DCM's CLKIN (B8 -> DCM_X0Y1 on the XC3S250E / 500E), kept there (#57); before the
@@ -475,13 +525,15 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
         // (the buffer matched above with the DCMs, #94: only it)
         if (preBuf.has(bufgOfPad(o))) { if (b === preBuf.get(bufgOfPad(o)) && !best) best = { p, b, k: 0 }; continue; }
         // (a buffer whose lines do not reach the clock's loads after the others, #56)
-        const k = (bufgRank.get(b) ?? Infinity) + (serves(bufgOfPad(o), b) ? 0 : 1000);
+        const k = (bufgRank.get(b) ?? Infinity) + (lineServes(bufgOfPad(o), b) ? 0 : 1000);
         if (!bufClaimed.has(b) && (!best || k < best.k)) best = { p, b, k };
       }
     }
-    if (!best && preBuf.has(bufgOfPad(o))) { bufClaimed.delete(preBuf.get(bufgOfPad(o))); preBuf.delete(bufgOfPad(o)); }
+    if (!best && preBuf.has(bufgOfPad(o))) { bufClaimed.delete(preBuf.get(bufgOfPad(o))); bufOwner.delete(preBuf.get(bufgOfPad(o))); preBuf.delete(bufgOfPad(o)); }
     if (!best) continue;   // no GCLK pin free: a pad like any other (general routing to the buffer)
     bufClaimed.add(best.b);
+    // (a buffer that serves the clock's loads: kept for it, #95: a side GCLK pin reaches several)
+    if (best.k < 1000) { preBuf.set(bufgOfPad(o), best.b); takeBuf(bufgOfPad(o), best.b); }
     bankAdd(best.p, vccoOf(o.inst), 1);
     padUsed.set(best.p.name, o);
     sites[o.inst] = best.p;
@@ -555,26 +607,27 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     const top = pad && pad.py > dev.rows / 2;
     const reach = reachOf(o);
     const order = [...BUFG_ORDER.slice(top ? 0 : 4, top ? 4 : 8), ...BUFG_ORDER.slice(top ? 4 : 0, top ? 8 : 4), ...dev.bufgmux.map(b => b.name)];
-    const free = order.map(n => byName.get(n)).filter((b, k, a) => b && !bufUsed.has(b.name) && a.indexOf(b) === k);
+    // (a clock pad: not on a side buffer its pad reaches, whose path is not known yet, #641)
+    const padSide = pad && bufgSites && packed.insts[d.inst].kind === 'iob' ? padSideOf(pad.name) : [];
+    const free = order.map(n => byName.get(n)).filter((b, k, a) => b && !bufUsed.has(b.name) && !bufOwner.has(b.name) && !padSide.includes(b.name) && a.indexOf(b) === k);
     // a buffer the driver's dedicated path reaches, whose lines reach the clock's loads (#56), else
     // any it reaches; a clock pad that reaches none (not a GCLK pin, or #56): by the pad's edge, from
     // the pad through general routing
     const ded = reach ? free.filter(b => reach.has(b.name)) : [];
-    const ok = b => serves(o.inst, b.name);
+    const ok = b => lineServes(o.inst, b.name);
     let b = ded.find(ok);
     if (reach && packed.insts[d.inst].kind === 'dcm') {
       b ||= ded[0];
       if (!b) throw new PlaceError(`place: ${packed.insts[o.inst].name}: no free global clock buffer reachable from ${packed.insts[d.inst].name}.${d.pin} through switches of known bits${reach.size ? ` (${[...reach].join(', ')})` : ''}`);
     } else if (!b) {
       b = free.find(ok);
-      // (a GCLK pin whose buffers the flow cannot use: the side ones, whose settings are not in the
-      // bit database yet, #45 and #58)
-      if (b && reach?.size && ![...reach].some(n => byName.has(n))) warnings.push(`${packed.insts[d.inst].name}: its pad ${pad.name} reaches on a dedicated path only side global buffers, which the placer does not use yet (#95) (${[...reach].join(', ')}): ${b.name} instead, through general routing`);
+      if (b && !ded.length && padSide.length) warnings.push(`${packed.insts[d.inst].name}: its pad ${pad.name} reaches on a dedicated path only side global buffers (${padSide.join(', ')}), whose path from the pad is not in the bit database yet (#641): ${b.name} instead, through general routing`);
       else if (b && ded.length) warnings.push(`${packed.insts[d.inst].name}: the global buffer${ded.length > 1 ? 's' : ''} ${ded.map(b => b.name).join(', ')} that its pad ${pad.name} reaches on a dedicated path ${ded.length > 1 ? 'do' : 'does'} not reach every clock pin of its loads on switches of known bits: ${b.name} instead, through general routing`);
       b ||= ded[0] || free[0];
     }
     if (!b) throw new PlaceError('place: no free global clock buffer');
     bufUsed.add(b.name);
+    takeBuf(o.inst, b.name);
     sites[o.inst] = b;
   }
   // block RAMs and multipliers: on their sites (RAMB16_XxYy, MULT18X18_XxYy); a block RAM and the
@@ -627,7 +680,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   if (clockSites) for (const n of packed.nets) {
     const d = n.outpins[0] && packed.insts[n.outpins[0].inst];
     if (!d || d.kind !== 'bufg') continue;
-    const reach = clockSites(sites[n.outpins[0].inst].name);
+    const reach = clockReachOf(sites[n.outpins[0].inst].name);
     if (reach) for (const p of n.inpins) if (p.pin === 'CLK' && packed.insts[p.inst].kind === 'slice') allowedOf[p.inst] = reach;
   }
   // RAMs and shift registers (instances of type SLICEM) only on SLICEM sites (the left column of a CLB)
