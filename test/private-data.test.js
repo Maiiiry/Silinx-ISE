@@ -3,7 +3,11 @@
 // The examples below are built at run time, so that this file does not hold what it looks for.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { scanRepo, scanText, SELF } from '../scripts/check-private-data.mjs';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { scanRepo, scanHistory, scanText, SELF } from '../scripts/check-private-data.mjs';
 
 const kinds = (file, text) => scanText(file, text).map((x) => `${x.kind}: ${x.text}`);
 const at = '@', dot = (...p) => p.join('.');
@@ -66,4 +70,41 @@ test('the allow-list (#498): XPower\'s section numbers in the history, read as a
   assert.deepEqual(kinds('(message of 0000000)', `see ${dot(3, 3, 1, 1)}`), [`IP address: ${dot(3, 3, 1, 1)}`]);
   assert.deepEqual(kinds('scripts/measure.mjs', sections), [`IP address: ${dot(3, 3, 1, 1)}`, `IP address: ${dot(3, 3, 1, 2)}`]);
   assert.deepEqual(kinds('scripts/measure-power.mjs', `at ${dot(3, 3, 1, 3)}`), [`IP address: ${dot(3, 3, 1, 3)}`]);
+  // #545's made-up path, in its history (#555); a real user name in that file is still found
+  const home = (u) => `href: 'file://${['', 'Users', u, 'Downloads', 'Silinx-ISE.html'].join('/')}'`;
+  assert.deepEqual(kinds('test/static-editions.test.js', home('x')), []);
+  assert.deepEqual(kinds('test/static-editions.test.js', home('alice')), ['home folder with a user name: /Users/alice']);
+  assert.deepEqual(kinds('test/other.test.js', home('x')), ['home folder with a user name: /Users/x']);
+});
+
+test('the history scan (#555): the history of HEAD (main), not the other branches', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-private-'));
+  const git = (...args) => execFileSync('git', ['-c', 'user.name=T', `-c`, `user.email=t${at}${dot('example', 'com')}`, '-c', 'commit.gpgsign=false', ...args], { cwd: dir, encoding: 'utf8' });
+  const commit = (file, text, msg) => { fs.writeFileSync(path.join(dir, file), text); git('add', file); git('commit', '-q', '-m', msg); return git('rev-parse', 'HEAD').trim().slice(0, 7); };
+  const report = (rev) => scanHistory(dir, ...(rev ? [rev] : [])).map((x) => `${x.commit} ${x.file}${x.line ? `:${x.line}` : ''}: ${x.kind}: ${x.text}`);
+  try {
+    git('init', '-q', '-b', 'main');
+    commit('a.md', 'nothing private\n', 'first');
+    assert.deepEqual(report(), []);   // no warnings
+    git('checkout', '-q', '-b', 'feature');
+    const onBranch = commit('b.js', `const p = '${['', 'Users', 'alice', 'x.v'].join('/')}';\n`, 'on a branch');
+    git('checkout', '-q', 'main');
+    assert.deepEqual(report(), []);   // an open branch's commit is not main's
+    assert.deepEqual(report('feature'), [`${onBranch} b.js:1: home folder with a user name: /Users/alice`]);   // its own scan finds it
+    const onMain = commit('c.md', `ask bob${at}${dot('mail', 'pt')}\n`, `from ${['', 'home', 'carol'].join('/')}`);
+    assert.deepEqual(report(), [
+      `${onMain} (message of ${onMain}):1: home folder with a user name: /home/carol`,
+      `${onMain} c.md:1: e-mail address: bob${at}mail.pt`,
+    ]);
+    // the branch's pull request merged (rebased, fast-forward): now main's history
+    git('checkout', '-q', 'feature'); git('rebase', '-q', 'main'); git('checkout', '-q', 'main'); git('merge', '-q', '--ff-only', 'feature');
+    const merged = git('rev-parse', 'HEAD').trim().slice(0, 7);
+    assert.deepEqual(report(), [
+      `${merged} b.js:1: home folder with a user name: /Users/alice`,
+      `${onMain} (message of ${onMain}):1: home folder with a user name: /home/carol`,
+      `${onMain} c.md:1: e-mail address: bob${at}mail.pt`,
+    ]);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

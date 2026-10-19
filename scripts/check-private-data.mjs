@@ -4,8 +4,9 @@
 // licences, device reports). Run by test/private-data.test.js on every tracked file.
 //
 //   node scripts/check-private-data.mjs              the tracked files
-//   node scripts/check-private-data.mjs --history    also every line added in the git history and
-//                                                    every commit message
+//   node scripts/check-private-data.mjs --history    also every line added in the history of HEAD
+//                                                    (main, in CI) and every commit message; other
+//                                                    branches are checked by their own pull requests
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -26,6 +27,7 @@ export const ALLOW = [
   ['test/impl.test.js', /^(dev@)?10\.0\.0\.2$/, 'a made-up address of an example (in the history only)'],
   ['test/report-failure.test.js', /^(dev|me)@(192\.0\.2|203\.0\.113)\.\d+$/, 'made-up logins on documentation addresses (RFC 5737): the cleaning of a log line is tested on them (#251)'],
   ['scripts/measure-power.mjs', /^3\.3\.1\.[12]$/, "XPower's section numbers (in the history only)"],
+  ['test/static-editions.test.js', '/Users/x', 'a made-up file:// path of a downloaded edition (in the history only, #555)'],
   [/^\(message of (fda526c|dc20cc0)\)$/, '3.3.1.1', "XPower's section number in two commit messages"],
   // ISE's text reports and simulation models of our own test designs (no personal data in them):
   // the fixtures of the report parsers and of the netgen simulation
@@ -115,10 +117,11 @@ export function scanRepo(root = ROOT) {
   return out;
 }
 
-/** Every line added in the history and every commit message (all branches). */
-export function scanHistory(root = ROOT) {
+/** Every line added in the history of `rev` and every commit message: that branch's history only, not
+ *  every branch (#555), so that an open pull request's branch cannot fail main's scan. */
+export function scanHistory(root = ROOT, rev = 'HEAD') {
   const out = [];
-  const log = execFileSync('git', ['log', '--all', '-p', '--no-color', '--no-ext-diff', '--format=@@COMMIT %H%n%B@@END'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 30 });
+  const log = execFileSync('git', ['log', rev, '-p', '--no-color', '--no-ext-diff', '--format=@@COMMIT %H%n%B@@END', '--'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 30 });
   let commit = '', file = '', msg = null;
   for (const line of log.split('\n')) {
     if (line.startsWith('@@COMMIT ')) { commit = line.slice(9, 16); msg = []; continue; }
