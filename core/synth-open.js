@@ -431,10 +431,15 @@ export function logicLevels(json, top) {
 // than 16 levels that High does not make faster (sin, voter, ITC'99 b20-b22) cost 7 to 56 s more; the
 // larger ones (log2, multiplier: 10 000 and 7 500 LUTs, 100 and 87 levels), as fast at High (no depth
 // mapping above maxLuts), would cost 75 to 86 s more and are left out; the shallower ones gain up to 1.5
-// times at High (EPFL router) but are not limited by their depth
-export const DEEP_RULE = { levels: 16 };
+// times at High (EPFL router) but are not limited by their depth. Since #611, of `maxLuts` (1500) LUTs at most and
+// kept at Normal only when `gain` (25 %) faster than Normal's own netlist (synthesized too): the deep designs of 2000
+// to 3300 LUTs (EPFL sin and voter, ITC'99 b20 to b22) gained 0 to 9 % of the estimate for up to 12 % more slices and
+// 2 to 5 times the synthesis's time (voter 22 s -> 68), ITC'99 b14 and b05 (1005 and 293 LUTs) 15 and 9 % for 9 and 5 %
+// more slices: High's trade, not Normal's; the EPFL adder, max and priority (339, 1046 and 171 LUTs) and a priority
+// encoder of 128 bits (20 levels) gain 2.7 to 6 times
+export const DEEP_RULE = { levels: 16, maxLuts: 1500, gain: 0.25 };
 /** Is a netlist of the usual mapping limited by its depth (DEEP_RULE)? */
-export const deepDesign = (json, top, rule = DEEP_RULE) => logicLevels(json, top) > rule.levels && utilization(cellCounts(json, top)).luts <= DEPTH_RULE.maxLuts;
+export const deepDesign = (json, top, rule = DEEP_RULE) => logicLevels(json, top) > rule.levels && utilization(cellCounts(json, top)).luts <= Math.min(rule.maxLuts ?? Infinity, DEPTH_RULE.maxLuts);
 
 /** The files yosysScript reads: the flat module and Silinx's shift-register map and cells. */
 export const yosysFiles = (top, text) => ({ [`${top}_syn.v`]: text, [SRL_MAP_FILE]: SRL_MAP, [SRL_CELLS_FILE]: SRL_CELLS });
@@ -497,11 +502,13 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511) }.
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
  * usual mapping alone (no other mapping tried: as depth false), but for a design limited by its depth (#468:
- * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too, and for a design
+ * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too, kept when deepRule.gain
+ * (DEEP_RULE's) faster than Normal's own netlist (#611: r.depth.normal { ns, luts, kept: Normal's own kept }, r.depth.high { ns, luts }
+ * of High's then), and for a design
  * with wide multiplexers (#511: their mapping onto MUXF5 … MUXF7, r.depth.muxf, at both efforts); a design
  * written as gates also has its adders' carry chains recovered (#77, #377), the faster netlist kept.
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
@@ -531,7 +538,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     const out = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => lines.push(l));
     usual = { out, lines };
     const json = out[`${top}.json`];
-    if (json) deep = { levels: logicLevels(json, top), deep: deepDesign(json, top) };
+    if (json) deep = { levels: logicLevels(json, top), deep: deepDesign(json, top, deepRule) };
     if (deep?.deep) tryDepth = true;
   }
   const highMappings = !normal || !!deep?.deep;
@@ -714,7 +721,16 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   // (a shift-chain array read at a variable tap is made flip-flops on purpose, then SRL16Es: Yosys's
   // "Replacing memory \m with list of registers" says nothing to the user there, #5)
   const expected = l => shiftArrays.some(n => l.startsWith(`Warning: Replacing memory ${n} with list of registers.`));
-  return { top, files, cells, util: utilization(cells), warnings: [...warnings, ...log.filter(l => /^Warning:/.test(l) && !expected(l))], log, depth: info, chains };
+  const result = { top, files, cells, util: utilization(cells), warnings: [...warnings, ...log.filter(l => /^Warning:/.test(l) && !expected(l))], log, depth: info, chains };
+  // (Normal, a deep design: High's mappings kept only when DEEP_RULE.gain faster than Normal's own netlist, #611;
+  // else that one, its levels and the time High's took said)
+  if (deep?.deep) {
+    const plain = await synthesizeOpen(design, { family, run, depth: false, effort, abc9: withAbc9 });
+    const ns = [criticalDelay(plain.files[`${top}.json`], top), criticalDelay(files[`${top}.json`], top)];
+    info.normal = { ns: ns[0], luts: plain.util.luts, kept: !(ns[1] <= ns[0] * (1 - deepRule.gain)) };
+    if (info.normal.kept) return { ...plain, depth: { ...plain.depth, levels: deep.levels, auto: true, high: { ns: ns[1], luts: result.util.luts }, normal: info.normal } };
+  }
+  return result;
 }
 
 /**

@@ -858,8 +858,24 @@ test('#282 Optimization Effort: Normal synthesizes once (no other mapping, no ca
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
 });
 
-// #468: at Normal, a design limited by its logic depth (DEEP_RULE: more than 16 levels, DEPTH_RULE.maxLuts LUTs at
-// most) gets High's mappings too; the others keep the one run
+// #468: at Normal, a design limited by its logic depth (DEEP_RULE: more than 16 levels, 1500 LUTs at most since #611)
+// gets High's mappings too, kept when a quarter faster than Normal's own netlist (#611); the others keep the one run
+test('#611 Optimization Effort Normal: High\'s mappings not a given part faster than Normal\'s own netlist are dropped, that one kept', { timeout: 180000 }, async () => {
+  const text = CHAIN.replace(/23/g, '47').replace('i < 24', 'i < 48');
+  const deepChain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text }]), 'chain');
+  // (a rule asking for 99 % less: refused; the netlist, its cells and warnings Normal's own, as with depth: false)
+  const n = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', deepRule: { ...DEEP_RULE, gain: 0.99 } });
+  const one = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', depth: false });
+  assert.deepEqual([n.depth.levels, n.depth.auto, n.depth.normal.kept], [17, true, true]);
+  assert.ok(n.depth.high.ns < n.depth.normal.ns * 0.6, JSON.stringify(n.depth));
+  assert.equal(n.files['chain.json'], one.files['chain.json']);
+  assert.deepEqual(n.cells, one.cells);
+  assert.deepEqual(n.warnings, []);
+  // a design of more LUTs than DEEP_RULE.maxLuts: not tried
+  const big = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', deepRule: { ...DEEP_RULE, maxLuts: 10 } });
+  assert.deepEqual([big.depth.levels, big.depth.auto, big.depth.tried], [17, false, false]);
+  assert.equal(big.files['chain.json'], one.files['chain.json']);
+});
 test('#468 logicLevels: the LUTs and MUXF5s on the deepest path between sequential cells; deepDesign', () => {
   // a netlist by hand: FF -> LUT -> LUT -> MUXF5 (with a LUT on I1) -> MUXF6 -> FF; a carry chain of 3
   // MUXCYs after a LUT; an input -> INV -> output
@@ -884,7 +900,7 @@ test('#468 logicLevels: the LUTs and MUXF5s on the deepest path between sequenti
   assert.equal(logicLevels(json, 't'), 3);
   assert.equal(deepDesign(json, 't'), false);
   assert.equal(deepDesign(json, 't', { levels: 2 }), true);
-  assert.deepEqual(DEEP_RULE, { levels: 16 });
+  assert.deepEqual(DEEP_RULE, { levels: 16, maxLuts: 1500, gain: 0.25 });
   // a chain of 20 LUTs: deep; of 6000 LUTs in parallel besides: too large for the depth mappings
   const chain = (n, extra) => {
     const cs = {};
@@ -897,8 +913,10 @@ test('#468 logicLevels: the LUTs and MUXF5s on the deepest path between sequenti
   assert.equal(logicLevels(chain(20, 0), 't'), 20);
   assert.equal(deepDesign(chain(16, 0), 't'), false);
   assert.equal(deepDesign(chain(17, 0), 't'), true);
-  assert.equal(deepDesign(chain(17, DEPTH_RULE.maxLuts - 17), 't'), true);
-  assert.equal(deepDesign(chain(17, DEPTH_RULE.maxLuts - 16), 't'), false);
+  // (#611: 1500 LUTs at most, ITC'99 b20 to b22 and the EPFL voter and sin, of 2000 to 3300, as fast with High's mappings)
+  assert.equal(deepDesign(chain(17, DEEP_RULE.maxLuts - 17), 't'), true);
+  assert.equal(deepDesign(chain(17, DEEP_RULE.maxLuts - 16), 't'), false);
+  assert.equal(deepDesign(chain(17, DEEP_RULE.maxLuts - 16), 't', { levels: 16 }), true);
 });
 test('#468 Optimization Effort Normal: a comparator chain of 17 levels gets the mappings for speed, faster; the same function', { timeout: 180000 }, async () => {
   const text = CHAIN.replace(/23/g, '47').replace('i < 24', 'i < 48');
@@ -911,6 +929,10 @@ test('#468 Optimization Effort Normal: a comparator chain of 17 levels gets the 
   assert.equal(alone.n, 1);
   assert.ok(auto.n > 1, String(auto.n));
   assert.deepEqual([n.depth.levels, n.depth.auto, n.depth.tried, n.depth.kept], [17, true, true, true]);
+  // (#611: High's mappings a quarter faster than Normal's own netlist at least, kept)
+  assert.equal(n.depth.normal.kept, false);
+  assert.equal(n.depth.normal.luts, one.util.luts);
+  assert.ok(criticalDelay(n.files['chain.json'], 'chain') <= n.depth.normal.ns * 0.75, JSON.stringify(n.depth.normal));
   assert.deepEqual(one.depth.levels, undefined);
   assert.deepEqual(n.warnings, []);
   assert.deepEqual(one.warnings, []);
