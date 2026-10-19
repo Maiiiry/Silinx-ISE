@@ -1,7 +1,8 @@
 // The Post-Synthesis Simulation Model of the Silinx toolchain (core/sim-model.js, the flow's postsynth step,
 // #120): the generics the test bench gives the top, the model's VHDL (UNISIM primitives, the top's ports,
 // its generics declared) and Verilog, the flow's step and its report, the steps of the server and of the
-// browser; and every example's test bench passes on the model, in VHDL and in Verilog.
+// browser; and every example's test bench passes on the model, in VHDL and in Verilog, and the Board Emulator's
+// compiled engine runs the model as the event-driven simulator does.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -16,6 +17,8 @@ import { scalarizeNetlist } from '../core/netlist-hier.js';
 import { Simulator } from '../core/simulator.js';
 import { openSteps } from '../server/open-flow.js';
 import { example, EXAMPLES } from './examples-lib.mjs';
+import { diffCycles, designOf, rng } from './compiled-diff.js';
+import { compileDesign } from '../core/compiled-sim.js';
 
 const DUT = `library IEEE; use IEEE.STD_LOGIC_1164.ALL; use IEEE.NUMERIC_STD.ALL;
 entity cnt is generic ( N : integer := 1000; W : integer := 4 ); port ( clk : in std_logic; q : out std_logic_vector(W - 1 downto 0) ); end;
@@ -96,7 +99,7 @@ test('the flow\'s postsynth step: the model synthesized with the test bench\'s g
 
 // every example's test bench, on the model of the example (its generics the test bench's), VHDL and Verilog
 for (const name of EXAMPLES) {
-  test(`example ${name}: its test bench passes on the post-synthesis model, VHDL and Verilog (#120)`, { timeout: 600000 }, async () => {
+  test(`example ${name}: its test bench passes on the post-synthesis model, VHDL and Verilog (#120); the compiled engine runs it as the event-driven one (#561)`, { timeout: 600000 }, async () => {
     const ex = example(name);
     const read = f => ({ path: f.path, lang: f.lang, text: fs.readFileSync(path.join(ex.dir, f.path), 'utf8') });
     const design = ex.project.files.filter(f => (f.role || 'design') === 'design').map(read);
@@ -116,6 +119,16 @@ for (const name of EXAMPLES) {
       for (let t = 1e9; t <= 1e11; t += 1e9) { const st = s.run(t); if (st.finished || s.log.some(e => /Simulation finished OK|ERROR/.test(e.text))) break; }
       const log = s.log.map(e => e.text);
       assert.ok(log.some(l => /Simulation finished OK/.test(l)) && !log.some(l => /ERROR/.test(l)), `${name} ${lang}: ${log.filter(l => /ERROR|expected/.test(l)).slice(0, 4).join(' | ')}`);
+      // the Board Emulator's compiled engine runs the model (#561: it had no model of the LUTs, flip-flops…),
+      // as the event-driven simulator does, cycle by cycle (the VHDL scalarized, as the emulator reads it)
+      const model = [{ path: file, lang, role: 'design', text: lang === 'vhdl' ? scalarizeNetlist(text) : text }];
+      const top = ex.project.top;
+      const cs = await compileDesign(designOf(model, top), { run: yosysNode });
+      assert.deepEqual(cs.warnings, [], `${name} ${lang}`);
+      const ins = designOf(model, top).top.ports.filter(x => x.dir === 'in'), r = rng(561), cur = {};
+      const res = await diffCycles(model, top, { cycles: 1500, inputs: k => { for (const x of ins) if (k === 0 || r() < 0.02) cur[x.name] = BigInt(Math.floor(r() * 2 ** Math.min(x.sig.t.w, 30))); return cur; } });
+      assert.deepEqual(res.mismatches, [], `${name} ${lang}`);
+      assert.ok(res.bits >= 1500, `${name} ${lang}: ${res.bits} bits compared`);
     }
   });
 }

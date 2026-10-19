@@ -121,6 +121,57 @@ test('Xilinx primitives in Verilog: block RAMs, MULT18X18SIO, SRL16_1 / SRL16E_1
   assert.deepEqual(sim.warnings, []);
   await same(fixture('prims.v'), 'prims_v', { p: 0.3, cycles: 1000 });
 });
+// the logic of a synthesized netlist (the Post-Synthesis Simulation Model, #561): every LUT (random INITs), flip-flop,
+// latch and carry-chain cell, in VHDL (UNISIM, as the model's netlist) and in Verilog, its inputs from a random word
+const LOGIC_FFS = ['FD', 'FDC', 'FDCE', 'FDE', 'FDP', 'FDPE', 'FDR', 'FDRE', 'FDS', 'FDSE', 'FDRS', 'FDRSE', 'FDCP', 'FDCPE'];
+const LOGIC_LATCHES = ['LD', 'LDC', 'LDCE', 'LDE', 'LDP', 'LDPE'];
+function logicPrims(lang) {
+  const r = rng(561), cells = [];
+  const bits = n => Array.from({ length: n }, () => (r() < 0.5 ? '1' : '0')).join('');
+  for (let n = 1; n <= 6; n++) for (const v of ['', '_L', '_D']) cells.push([`LUT${n}${v}`, { INIT: bits(2 ** n) }, Array.from({ length: n }, (_, i) => `I${i}`), v === '_L' ? ['LO'] : v === '_D' ? ['O', 'LO'] : ['O']]);
+  for (const [b, ins] of [['MUXCY', ['CI', 'DI', 'S']], ['MUXF5', ['I0', 'I1', 'S']], ['MUXF6', ['I0', 'I1', 'S']], ['MUXF7', ['I0', 'I1', 'S']], ['MUXF8', ['I0', 'I1', 'S']], ['XORCY', ['CI', 'LI']]]) {
+    for (const v of ['', '_L', '_D']) cells.push([`${b}${v}`, {}, ins, v === '_L' ? ['LO'] : v === '_D' ? ['O', 'LO'] : ['O']]);
+  }
+  cells.push(['MULT_AND', {}, ['I0', 'I1'], ['LO']]);
+  // (the flip-flops and latches twice: their default INIT and the other one)
+  const pins = n => (/CP/.test(n) ? ['CLR', 'PRE'] : /C/.test(n.slice(2)) ? ['CLR'] : /P/.test(n.slice(2)) ? ['PRE'] : []);
+  for (const f of LOGIC_FFS) for (const e of ['', '_1']) for (const init of [null, '1', '0']) {
+    if (init === (['FDP', 'FDPE', 'FDS', 'FDSE'].includes(f) ? '1' : '0')) continue;
+    const sync = [...(/E$/.test(f) ? ['CE'] : []), ...(/^FDR/.test(f) ? ['R'] : []), ...(/^FD(R?S)/.test(f) ? ['S'] : [])];
+    cells.push([`${f}${e}`, init ? { INIT: init } : {}, ['C', ...pins(f), ...sync, 'D'], ['Q']]);
+  }
+  for (const l of LOGIC_LATCHES) for (const e of ['', '_1']) for (const init of [null, l.startsWith('LDP') ? '0' : '1']) {
+    cells.push([`${l}${e}`, init ? { INIT: init } : {}, ['G', ...pins(l), ...(/E$/.test(l) ? ['GE'] : []), 'D'], ['Q']]);
+  }
+  let a = 0, y = 0;
+  const W = 24, insts = [];
+  for (const [cell, params, ins, outs] of cells) {
+    const conn = [...ins.map(p => [p, p === 'C' ? 'clk' : lang === 'vhdl' ? `a(${a++ % W})` : `a[${a++ % W}]`]), ...outs.map(p => [p, lang === 'vhdl' ? `y(${y})` : `y[${y++}]`])];
+    if (lang === 'vhdl') {
+      outs.forEach(() => y++);
+      let k = y - outs.length;
+      const map = conn.map(([p, s]) => `${p} => ${outs.includes(p) ? `y(${k++})` : s}`).join(', ');
+      const gen = params.INIT ? ` generic map (INIT => ${params.INIT.length > 1 ? `"${params.INIT}"` : `'${params.INIT}'`})` : '';
+      insts.push(`  u${insts.length}: ${cell}${gen} port map (${map});`);
+    } else {
+      const gen = params.INIT ? ` #(.INIT(${params.INIT.length}'b${params.INIT}))` : '';
+      insts.push(`  ${cell}${gen} u${insts.length} (${conn.map(([p, s]) => `.${p}(${s})`).join(', ')});`);
+    }
+  }
+  return lang === 'vhdl'
+    ? src('logic.vhd', `library IEEE; use IEEE.STD_LOGIC_1164.ALL;\nlibrary UNISIM; use UNISIM.VCOMPONENTS.ALL;
+entity logic_vhd is port (clk : in std_logic; a : in std_logic_vector(${W - 1} downto 0); y : out std_logic_vector(${y - 1} downto 0)); end;
+architecture n of logic_vhd is begin\n${insts.join('\n')}\nend;`)
+    : src('logic.v', `module logic_v(input clk, input [${W - 1}:0] a, output [${y - 1}:0] y);\n${insts.join('\n')}\nendmodule`);
+}
+test('Xilinx primitives of a synthesized netlist: every LUT, flip-flop, latch, MUXCY, MUXF, XORCY and MULT_AND, in VHDL and in Verilog (#561)', async () => {
+  for (const [lang, top] of [['vhdl', 'logic_vhd'], ['verilog', 'logic_v']]) {
+    const sources = logicPrims(lang);
+    const sim = await compileDesign(designOf(sources, top), { run: yosysNode });
+    assert.deepEqual(sim.warnings, [], lang);
+    await same(sources, top, { p: 0.3, cycles: 1000, minBits: 100000 });
+  }
+});
 test('a block RAM in a sub-module: its INIT_xx / INITP_xx contents (written into the netlist after Yosys)', async () => {
   const text = `module rom(input clk, input [10:0] a, output [8:0] q);
     RAMB16_S9 #(.INIT_00(256'h00000000000000000000000000000000000000000000000000000000CAFE1234), .INIT_3F(256'hAB${'0'.repeat(62)}),
@@ -413,12 +464,12 @@ const failure = async (name, text) => {
   try { await compileDesign(designOf(src(name, text), name.replace(/\.\w+$/, '')), { run: yosysNode }); } catch (e) { assert.ok(e instanceof CompileError, e.message); return e.message; }
   return null;
 };
-test('a combinational loop, an inout port, a tristate buffer, a primitive with no model: not compiled, with the reason', async () => {
+test('a combinational loop, an inout port, a tristate buffer, a primitive with no model (PULLUP): not compiled, with the reason', async () => {
   assert.equal(await failure('loop.v', 'module loop(input x, y, output a); wire b; assign a = b ^ x; assign b = a & y; endmodule'), "combinational loop through 'b': not compiled");
   assert.equal(await failure('io.v', "module io(input en, d, inout p, output q); assign p = en ? d : 1'bz; assign q = p; endmodule"), "the inout port 'p' (a tristate) cannot be compiled");
   const tb = oneCell('$tribuf', { WIDTH: 1 }, { A: 1, EN: 1, Y: 1 });
   assert.throws(() => compileNetlist(tb, { top: 't' }), { message: "the tristate buffer 'c' cannot be compiled" });
-  assert.equal(await failure('ff.v', 'module ff(input clk, d, output q); FDCE f (.C(clk), .CE(1\'b1), .CLR(1\'b0), .D(d), .Q(q)); endmodule'), 'the compiled simulator has no model of FDCE');
+  assert.equal(await failure('pu.v', 'module pu(input d, output q); wire w; PULLUP p (.O(w)); assign q = d & w; endmodule'), 'the compiled simulator has no model of PULLUP');
   // a latch in a loop with itself never settles: an error when it runs
   const s = await compileDesign(designOf(src('osc.v', 'module osc(input en, output reg q); always @* if (en) q = ~q; endmodule'), 'osc'), { run: yosysNode });
   s.set('en', 1);

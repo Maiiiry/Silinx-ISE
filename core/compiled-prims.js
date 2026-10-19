@@ -11,6 +11,9 @@
 //     reads of both ports, then the writes, port B's last (its always block written first: Yosys numbers the
 //     write ports of different processes from the last one, and the compiled code commits them in that order);
 //   - MULT18X18 / MULT18X18S / MULT18X18SIO (AREG, BREG, PREG, B_INPUT), SRL16* (and _1), RAMnX1S / RAMnX1D.
+//   - a synthesized netlist's logic (the Post-Synthesis Simulation Model, #561): LUT1-6 (_L, _D), the flip-flops
+//     FD* and latches LD* (and _1) with their INIT, MUXCY, MUXF5-8, XORCY (_L, _D), MULT_AND. Not the tristate
+//     buffers (OBUFT, IOBUF) and pulls, which the compiled simulator cannot run.
 //
 // Isomorphic ES module (browser + Node), no DOM.
 
@@ -128,6 +131,53 @@ endmodule`;
 
 const wire = (name) => `module ${name}(output O, input I); assign O = I; endmodule`;
 
+// the logic of a synthesized netlist (the Post-Synthesis Simulation Model, #561), as unisim.js's models:
+// LUT1-6 (_L: LO, _D: O and LO) reading their INIT at the inputs' value (I0 its least significant bit)
+const lut = (n, v) => {
+  const outs = v === '_L' ? ['LO'] : v === '_D' ? ['O', 'LO'] : ['O'];
+  const ins = Array.from({ length: n }, (_, i) => `I${i}`);
+  return `module LUT${n}${v} #(parameter [${2 ** n - 1}:0] INIT = ${2 ** n}'h0) (output ${outs.join(', ')}, input ${ins.join(', ')});
+${outs.map((o) => `  assign ${o} = INIT[{${[...ins].reverse().join(', ')}}];`).join('\n')}
+endmodule`;
+};
+// a 2:1 multiplexer or an XOR of the carry chain (_L: LO, _D: O and LO): MUXCY (S ? CI : DI), MUXF5-8 (S ? I1 : I0), XORCY
+const cell2 = (name, ins, expr) => ['', '_L', '_D'].map((v) => [`${name}${v}`, `module ${name}${v}(${v === '_L' ? 'output LO' : v === '_D' ? 'output O, LO' : 'output O'}, input ${ins});
+${(v === '_L' ? ['LO'] : v === '_D' ? ['O', 'LO'] : ['O']).map((o) => `  assign ${o} = ${expr};`).join('\n')}
+endmodule`]);
+// flip-flops (as unisim.js FFS): CLR before PRE, asynchronous; R before S, synchronous, before CE; _1: the
+// falling edge; INIT the value after configuration (1 for FDP, FDPE, FDS, FDSE)
+const FFS = [
+  ['FD', ''], ['FDC', 'CLR'], ['FDCE', 'CE CLR'], ['FDE', 'CE'], ['FDP', 'PRE'], ['FDPE', 'CE PRE'],
+  ['FDR', 'R'], ['FDRE', 'CE R'], ['FDS', 'S'], ['FDSE', 'CE S'], ['FDRS', 'R S'], ['FDRSE', 'CE R S'],
+  ['FDCP', 'CLR PRE'], ['FDCPE', 'CE CLR PRE'],
+];
+const ff = (base, pins, falling) => {
+  const has = (p) => pins.split(' ').includes(p);
+  const edge = falling ? 'negedge' : 'posedge';
+  // (CLR and PRE: one asynchronous load, of 0 when CLR, which Yosys makes without its "complex async reset" warning)
+  const both = has('CLR') && has('PRE');
+  const sens = [`${edge} C`, ...(both ? ['posedge l'] : has('CLR') ? ['posedge CLR'] : has('PRE') ? ['posedge PRE'] : [])].join(' or ');
+  const steps = [...(both ? ['if (l) q <= !CLR;'] : has('CLR') ? ["if (CLR) q <= 1'b0;"] : has('PRE') ? ["if (PRE) q <= 1'b1;"] : []),
+    ...(has('R') ? ["if (R) q <= 1'b0;"] : []), ...(has('S') ? ["if (S) q <= 1'b1;"] : []), has('CE') ? 'if (CE) q <= D;' : 'q <= D;'];
+  return `module ${base}${falling ? '_1' : ''} #(parameter [0:0] INIT = 1'b${['FDP', 'FDPE', 'FDS', 'FDSE'].includes(base) ? 1 : 0}) (output Q, input C, ${pins.split(' ').filter(Boolean).map((p) => `${p}, `).join('')}D);
+  reg q = INIT;
+  assign Q = q;${both ? '\n  wire l = CLR | PRE;' : ''}
+  always @(${sens}) ${steps.join(' else ')}
+endmodule`;
+};
+// transparent latches (as unisim.js LATCHES): CLR or PRE, then the gate G (_1: active low) and GE; INIT 1 for LDP, LDPE
+const LATCHES = [['LD', ''], ['LDC', 'CLR'], ['LDCE', 'CLR GE'], ['LDE', 'GE'], ['LDP', 'PRE'], ['LDPE', 'PRE GE']];
+const latch = (base, pins, inverted) => {
+  const has = (p) => pins.split(' ').includes(p);
+  const en = `${inverted ? '!G' : 'G'}${has('GE') ? ' && GE' : ''}`;
+  const steps = [...(has('CLR') ? ["if (CLR) q = 1'b0;"] : []), ...(has('PRE') ? ["if (PRE) q = 1'b1;"] : []), `if (${en}) q = D;`];
+  return `module ${base}${inverted ? '_1' : ''} #(parameter [0:0] INIT = 1'b${base.startsWith('LDP') ? 1 : 0}) (output Q, input G, ${pins.split(' ').filter(Boolean).map((p) => `${p}, `).join('')}D);
+  reg q = INIT;
+  assign Q = q;
+  always @* ${steps.join(' else ')}
+endmodule`;
+};
+
 // the DCM: a black box (compileNetlist schedules its outputs), its generics as unisim.js declares them
 const DCM_PARAMS = 'parameter real CLKDV_DIVIDE = 2.0, parameter integer CLKFX_DIVIDE = 1, parameter integer CLKFX_MULTIPLY = 4, parameter CLKIN_DIVIDE_BY_2 = "FALSE", '
   + 'parameter real CLKIN_PERIOD = 10.0, parameter CLKOUT_PHASE_SHIFT = "NONE", parameter CLK_FEEDBACK = "1X", parameter DESKEW_ADJUST = "SYSTEM_SYNCHRONOUS", '
@@ -160,6 +210,12 @@ export const PRIMITIVE_MODELS = {
     [`RAM${2 ** n}X1D`, dram(`RAM${2 ** n}X1D`, n, { dual: true })]])),
   RAM16X1D_1: dram('RAM16X1D_1', 4, { dual: true, falling: true }),
   DCM_SP: dcm('DCM_SP'), DCM: dcm('DCM'),
+  ...Object.fromEntries([1, 2, 3, 4, 5, 6].flatMap((n) => ['', '_L', '_D'].map((v) => [`LUT${n}${v}`, lut(n, v)]))),
+  ...Object.fromEntries([...cell2('MUXCY', 'CI, DI, S', 'S ? CI : DI'), ...[5, 6, 7, 8].flatMap((n) => cell2(`MUXF${n}`, 'I0, I1, S', 'S ? I1 : I0')),
+    ...cell2('XORCY', 'CI, LI', 'CI ^ LI')]),
+  MULT_AND: 'module MULT_AND(output LO, input I0, I1); assign LO = I0 & I1; endmodule',
+  ...Object.fromEntries(FFS.flatMap(([b, p]) => [false, true].map((f) => [`${b}${f ? '_1' : ''}`, ff(b, p, f)]))),
+  ...Object.fromEntries(LATCHES.flatMap(([b, p]) => [false, true].map((i) => [`${b}${i ? '_1' : ''}`, latch(b, p, i)]))),
 };
 
 // ------------------------------------------------------------------ the DCM's clocks
