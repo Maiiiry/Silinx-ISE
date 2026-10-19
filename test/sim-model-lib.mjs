@@ -61,10 +61,12 @@ export function exampleModelTests(names) {
         const { ex, design, sim, r, lines, written } = await exampleFlow(name);
         assert.equal(r.ok, true, lines.join('\n'));
         assert.deepEqual(lines.filter(l => /^(WARNING|INFO|ERROR)/.test(l)), [], name);
-        // (the model's files: the synthesis writes the netlist's too)
-        const files = Object.keys(written).filter(f => f.startsWith(`netgen/${dir}/`)).sort();
-        assert.deepEqual(files, [`netgen/${dir}/${ex.project.top}_${dir}.v`, `netgen/${dir}/${ex.project.top}_${dir}.vhd`]);
-        for (const file of files) {
+        // (the model's files: the synthesis writes the netlist's too; the board's beside them when the test bench
+        // gives generics, #622)
+        const t = ex.project.top, board = Object.keys(r.report.simModels[dir === 'map' ? 'postmap' : 'posttrans'].generics || {}).length > 0;
+        assert.deepEqual(Object.keys(written).filter(f => f.startsWith(`netgen/${dir}/`)).sort(),
+          [`netgen/${dir}/${t}_${dir}.v`, `netgen/${dir}/${t}_${dir}.vhd`, ...(board ? [`netgen/${dir}/${t}_${dir}_board.v`, `netgen/${dir}/${t}_${dir}_board.vhd`] : [])]);
+        for (const file of [`netgen/${dir}/${t}_${dir}.v`, `netgen/${dir}/${t}_${dir}.vhd`]) {
           const s = simulate([...design, ...sim], file, written[file], ex.project.simTop, name === 'vga' ? 3e10 : 1e11);
           assert.deepEqual(s.diags, [], `${name} ${file}`);
           assert.ok(s.log.some(l => /Simulation finished OK/.test(l)), `${name} ${file}: ${s.log.slice(-4).join(' | ')}`);
