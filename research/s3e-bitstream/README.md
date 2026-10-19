@@ -481,7 +481,9 @@ byte-identical bitstreams on the three other devices for every design above. Wha
   across the centre in either direction, one bit each in the I/O rows; `gen-pipcover.mjs --types
   CLKH_LL --long 1`, 298 PIPs in 38 tiles, all 48 switches the same in every tile, `clkh-ll.mjs`;
   `db/xc3s1200e-tiles.json`). A routed design names them `a =- b` with the line's driver in another
-  tile, so the writer cannot tell the direction: the router does not use them (`noRoute`).
+  tile, so the writer could not tell the direction and the router did not use them (`noRoute`). Since
+  #23 bitgen takes it from the device description (`pipFeatures`: the half of the line the net drives,
+  by a PIP in any tile or its output pin, is the splitter's input), and the router uses them.
 - **REVUSED** (a flip-flop's REV pin used): one bit per slice position, seen in all four positions in
   ISE's designs of the three devices; the input pads' pin wires of the top I/O tiles (no bits).
 - **Pads** per package (`gen-iob.mjs --third / --sparse`, `ana-pads.mjs`: the LVCMOS33 / 25 inputs
