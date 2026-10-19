@@ -10,7 +10,6 @@ import { Simulator } from '/core/simulator.js';
 import { buildSchematic } from '/core/schematic.js';
 import * as wiz from './wizards.js';
 import { PRODUCT, VERSION_LABEL } from '/core/version.js';
-import { EXAMPLE_ORDER } from '/core/examples.js';
 import { startI18n, setLanguage, getLanguage, LOCALES, t } from './i18n.js';
 import { designDiags, sevWord, lintEnabled, setLintEnabled } from './diaghelp.js';
 import { applyPrefs, getInterface, setInterface, getTheme, setTheme, toggleTheme, menuCommands } from './modern.js';
@@ -22,6 +21,7 @@ import { modulesFromLibrary } from '/core/schdoc.js';
 import { countEvent } from './analytics.js';
 import { setActionRunner, runAction, longPressMenu } from './ui.js';
 import { log, logLine, showConsolePage, setDiagnostics, renderDiagnostics, clearConsole } from './console.js';
+import { openProject, closeProject, reloadProject, updateTitle, recent, clearRecent, renderStartPage, storageMenuItems, updateStorageStatus } from './project.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -144,7 +144,7 @@ function viewRoots(sim) {
 // A top-level module the project no longer has (its source removed from the project, #253): the
 // top becomes the one root of its view left, else none (several: the user chooses, a warning); true
 // when it changed. (Not while a source of the project still declares it: one being edited.)
-async function fixMissingTops() {
+export async function fixMissingTops() {
   const pj = S.project;
   const declared = name => (S.sources || []).some(f => new RegExp(`\\b(entity|module)\\s+${String(name).replace(/[^\w$]/g, '')}\\b`, 'i').test(f.text || ''));
   let changed = false;
@@ -179,7 +179,7 @@ function instancesOf(mod) {
 }
 
 // ------------------------------------------------------------------ hierarchy panel
-function renderHierarchy() {
+export function renderHierarchy() {
   const host = $('hier');
   const focused = host.contains(document.activeElement) ? (document.activeElement.closest('.badge') ? 'badge' : 'tree') : null;
   host.innerHTML = '';
@@ -881,7 +881,7 @@ async function saveImplStatus() {
   } catch { /* best effort */ }
 }
 
-async function restoreImplStatus() {
+export async function restoreImplStatus() {
   S.synthDone = null;
   await loadUcfText();
   if (!S.project?.top) return;
@@ -1451,6 +1451,12 @@ async function reopenable(mod, model) {
 }
 const reopenKey = d => d.reopen || d.id;
 let keepView = false;   // while documents are closed or reopened together (a project closed, restored)
+// every document closed, the view state kept as it was (a project closed or another opened): false when one stays open
+export async function closeAllDocs() {
+  keepView = true;
+  try { for (const d of [...S.docs]) if (!await closeDoc(d)) return false; } finally { keepView = false; }
+  return true;
+}
 function saveViewState() {
   if (keepView || !S.project) return;
   const open = S.docs.filter(d => d.project === S.project.name && REOPEN.some(([re]) => re.test(reopenKey(d)))).map(reopenKey);
@@ -1462,7 +1468,7 @@ function savedViewState(name) {
   try { const v = JSON.parse(localStorage.getItem(VIEW_KEY(name)) || 'null'); return v && Array.isArray(v.open) ? v : null; } catch { return null; }
 }
 /** Reopens the project's documents as they were; false when nothing was kept (a first opening). */
-async function restoreViewState(name) {
+export async function restoreViewState(name) {
   const v = savedViewState(name);
   if (!v) return false;
   keepView = true;
@@ -2675,7 +2681,7 @@ async function drawnHdlLanguage(path, m) {
 // drawing staying the base. Not when it has errors (it stays a module by itself until it has none)
 // or a file of that name is there already (said, and resolved from its menu: drawnHdlClashes, #230).
 // Returns how many were linked.
-async function adoptDrawnHdl() {
+export async function adoptDrawnHdl() {
   let n = 0;
   for (const v of S.viewSources || []) {
     if (v.errors || !v.module || !S.project) continue;
@@ -2723,7 +2729,7 @@ const clashTip = c => (c.kind === 'same'
   : c.kind === 'drawn'
     ? `No HDL file: its module ${c.module} is the module of ${c.other}. Rename one of them.`
     : `No HDL file: ${c.target} holds something else. Generate HDL File… (right-click) writes its HDL to ${c.free}.`);
-async function drawnHdlClashes() {
+export async function drawnHdlClashes() {
   S.hdlClash = {};
   if (!S.project) return;
   const disk = new Set(S.diskTree || S.fileTree || []);
@@ -2971,7 +2977,7 @@ async function convertToSchematic(mod) {
 // theirs; HDL the drawing cannot show) the HDL file stays as it is, a plain HDL module, and the
 // drawing leaves the project (its file kept in the project folder, as Remove from Project). Each one
 // is logged. Returns how many it changed.
-async function drawingsAsBase() {
+export async function drawingsAsBase() {
   let n = 0;
   for (const [f, hdlPath] of Object.entries(S.schOwners || {})) {
     let old;
@@ -3314,138 +3320,11 @@ async function openImpact() {
   openDoc({ id: 'impact', title: 'iMPACT', icon: 'impact', create: (el, d) => mountImpact(el, d) });
 }
 
-// ------------------------------------------------------------------ project lifecycle
-// per-project UI state (cleared when another project is opened or the project is closed)
-function resetProjectState() {
-  S.diagsCleared++;   // (the start-up checks' lines coming later: not in the tabs, #339)
-  S.status = {}; S.sel = null; S.selKey = null; S.selProc = null; S.diags = []; S.outOfSync = {}; S.staleHdl = {}; S.staleSeen = new Map(); S.ucfText = null; S.hdlClash = {}; S.hdlClashWarned = new Set();
-  renderDiagnostics();
-}
-function blockedByRun(what) {
-  if (!S.busy && !S.currentJob) return false;
-  alertDlg(what, 'An implementation is running: stop it (or wait for it to finish) first.');
-  return true;
-}
-
-// Opening and closing projects run one after the other, in call order (#375): a project closed while it was
-// still opening (its status and documents being restored) was closed, then the rest of the opening showed its
-// Design page over the Start page and reopened its documents with no project open.
-let lifecycle = Promise.resolve();
-function inOrder(fn) {
-  const run = lifecycle.then(fn, fn);
-  lifecycle = run.catch(() => {});
-  return run;
-}
-export function openProject(name) { return inOrder(() => openProjectNow(name)); }
-export function closeProject() { return inOrder(closeProjectNow); }
-
-async function openProjectNow(name) {
-  if (blockedByRun('Open Project')) return;
-  keepView = true;   // (the documents of the project left are kept as they were)
-  try { for (const d of [...S.docs]) if (!await closeDoc(d)) return; } finally { keepView = false; }
-  resetProjectState();
-  try {
-    S.project = await api.project(name);
-  } catch (e) { alertDlg('Open Project', e.message, 'error'); return; }
-  try { localStorage.setItem('silinx.lastProject', name); } catch { /* ignore */ }
-  rememberRecent(name);
-  await reloadProject();
-  await fixMissingTops();   // (a project saved with a top it no longer has, #253)
-  log(`Project "${name}" opened (${S.project.device.part}${S.project.device.speed}-${S.project.device.package}).`, 'info');
-  // the processes' status of the last run, its synthesis up to date or not (#280), restored before the project is
-  // used: not awaited, it drew the Processes panel again under a double-click on a process and Implement Design
-  // then did not start, or synthesized again (#346)
-  await restoreImplStatus();
-  // where the user was in this project; the Design Summary the first time
-  if (!await restoreViewState(name)) openSummary({ background: true });
-}
-
-// Reloads run one after the other, in call order: two reloads close together (e.g. Remove from
-// Project then Undo) could otherwise finish out of order and leave the older state on screen.
-export function reloadProject(render = true) {
-  const run = () => reloadProjectNow(render);
-  S.reloadChain = (S.reloadChain || Promise.resolve()).then(run, run);
-  return S.reloadChain;
-}
-
-async function reloadProjectNow(render = true, depth = 0) {
-  if (!S.project) return null;
-  const pj = await api.project(S.project.name);
-  // the files on disk; the project ignores the ones removed from it (project.excluded, unregistered HDL)
-  S.diskTree = pj.fileTree || [];
-  const out = new Set(pj.excluded || []);
-  const hdlIn = new Set((pj.files || []).map(f => f.path));
-  S.fileTree = S.diskTree.filter(f => !out.has(f) && (!/\.(vhdl?|v|sv)$/i.test(f) || hdlIn.has(f)));
-  delete pj.fileTree;
-  S.project = pj;
-  S.sources = await api.sources(pj.name);
-  S.schOwners = {};
-  S.hdlToSch = {};
-  S.viewModule = {};
-  // schematics (.sch.json) and ASM charts (.asm.json) linked to an HDL file ("views" kept in sync)
-  S.viewTexts = {};
-  for (const f of S.fileTree.filter(f => /\.(sch|asm|tt|fsm|pn)\.json$/.test(f))) {
-    try {
-      const t = await api.readFile(pj.name, f);
-      S.viewTexts[f] = t;
-      const d = JSON.parse(t);
-      if (d.generatedFile && S.fileTree.includes(d.generatedFile) && !S.hdlToSch[d.generatedFile]) { S.schOwners[f] = d.generatedFile; S.hdlToSch[d.generatedFile] = f; S.viewModule[f] = d.name; }
-    } catch { /* unreadable */ }
-  }
-  compileProject();
-  // a drawing whose base was its HDL (before #220) is made the base; a drawn source without its HDL
-  // file gets it (#207): read the project again with them
-  if (depth < 2 && (await drawingsAsBase() || await adoptDrawnHdl())) return reloadProjectNow(render, depth + 1);
-  await drawnHdlClashes();
-  // the open drawings show their links as they are now (one linked meanwhile, #245)
-  for (const d of S.docs) (d.ttEditor || d.fsmEditor || d.petriEditor)?.refreshLink?.();
-  updateTitle();
-  renderHierarchy();
-  renderFilesPage();
-  renderLibsPage();
-  if (!render) return;
-}
-
-async function closeProjectNow() {
-  if (blockedByRun('Close Project')) return;
-  keepView = true;
-  try { for (const d of [...S.docs]) if (!await closeDoc(d)) return; } finally { keepView = false; }
-  S.project = null; S.lib = null; S.sources = []; S.modules = [];
-  resetProjectState();
-  try { localStorage.removeItem('silinx.lastProject'); } catch { /* ignore */ }
-  updateTitle(); renderHierarchy(); renderProcesses(); renderFilesPage(); renderLibsPage();
-  showLeftPage('start');
-}
-
-function updateTitle() {
-  const pj = S.project;
-  $('title-text').textContent = pj ? `${PRODUCT} ${VERSION_LABEL} - ${pj.name} - [${S.active?.title || 'Design Summary'}]` : `${PRODUCT} ${VERSION_LABEL} - Project Navigator`;
-  // the modern header: product and version (as the classic title bar)
-  const brand = $('title-brand');
-  if (!brand.querySelector('.m-ver')) { brand.textContent = `${PRODUCT} `; brand.append(h('span', { class: 'm-ver' }, VERSION_LABEL)); }
-  $('title-project').textContent = pj ? pj.name : 'No project open';
-  $('title-project').classList.toggle('none', !pj);
-  document.title = pj ? `${pj.name} — ${PRODUCT} ${VERSION_LABEL}` : `${PRODUCT} ${VERSION_LABEL} Project Navigator`;
-  $('status-device').textContent = pj ? `${pj.device.part}${pj.device.speed}-${pj.device.package}${pj.board ? ` · ${pj.board}` : ''}` : '';
-}
-
-function rememberRecent(name) {
-  try {
-    const r = JSON.parse(localStorage.getItem('silinx.recent') || '[]').filter(x => x !== name);
-    r.unshift(name);
-    localStorage.setItem('silinx.recent', JSON.stringify(r.slice(0, 8)));
-  } catch { /* ignore */ }
-}
-function recent() { try { return JSON.parse(localStorage.getItem('silinx.recent') || '[]'); } catch { return []; } }
-// File ▸ Recent Projects ▸ Clear Recent Projects, and the Start page link: forget the list (the projects stay)
-function clearRecent() {
-  try { localStorage.removeItem('silinx.recent'); } catch { /* ignore */ }
-  if (!document.querySelector('.left-page[data-page=start]').hidden) renderStartPage();
-  toast('Recent projects cleared (the projects themselves are kept)', 'ok');
-}
+// ------------------------------------------------------------------ project lifecycle (web/js/project.js)
+export { openProject, closeProject, reloadProject };
 
 // ------------------------------------------------------------------ left pages
-function showLeftPage(page) {
+export function showLeftPage(page) {
   S.leftPage = page;
   saveViewState();
   document.querySelectorAll('#left-tabs .tab').forEach(t => t.classList.toggle('active', t.dataset.page === page));
@@ -3453,39 +3332,7 @@ function showLeftPage(page) {
   if (page === 'start') renderStartPage();
 }
 
-async function renderStartPage() {
-  const host = $('start-page');
-  const projects = await api.projects().catch(() => []);
-  const recentHere = recent().filter(r => projects.some(p => p.name === r));
-  const page = h('div', { class: 'page' },
-    h('div', { class: 'start-box' }, h('h3', {}, 'Project Commands'),
-      ...[['New Project…', 'newProject', () => wiz.newProjectWizard()], ['Open Project…', 'open', () => wiz.openProjectDialog()], ['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ...EXAMPLE_ORDER.map(t => [`Open Example (${t})`, 'project', () => wiz.newProjectWizard({ template: t })])]
-        .map(([l, ic, f]) => h('div', { class: 'entry' }, icon(ic), h('a', { onclick: f }, l)))),
-    h('div', { class: 'start-box' }, h('h3', {}, 'Recent Projects'),
-      ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),
-      projects.length ? null : h('div', { class: 'entry', style: { color: 'var(--grey-6)' } }, 'No projects yet.'),
-      recentHere.length ? h('div', { class: 'entry start-clear' }, h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
-    api.standalone ? await storageBox() : null,
-  );
-  // replaced, not appended: two renders at once (the page shown again while a project closes) list it once
-  host.replaceChildren(page);
-}
-// the browser edition's Start page: where the projects are kept, and the folder commands
-async function storageBox() {
-  const st = api.storage();
-  const entry = (label, ic, fn, attrs = {}) => h('div', { class: 'entry', ...attrs }, icon(ic), fn ? h('a', { onclick: fn }, label) : h('span', { class: 'disabled' }, label));
-  const inBrowser = st.kind === 'folder' ? (await api.browserProjects().catch(() => [])).length : 0;
-  return h('div', { class: 'start-box start-storage' }, h('h3', {}, 'Where Projects Are Kept'),
-    h('div', { class: 'entry' }, st.kind === 'folder' ? `In the folder ${st.folder} on the disk.` : 'In this browser\'s storage.'),
-    st.kind !== 'folder' && st.remembered && st.supported ? entry(`Reopen ${st.remembered}`, 'open', () => reopenWorkspaceFolder()) : null,
-    st.supported ? entry('Open Workspace Folder…', 'open', () => openWorkspaceFolder())
-      : entry('Open Workspace Folder…', 'open', null, { title: st.unsupportedReason }),
-    st.supported ? null : h('div', { class: 'entry hint' }, 'A folder on the disk needs Chrome or Edge.'),
-    st.kind === 'folder' && inBrowser ? entry('Copy Browser Projects to the Folder', 'project', () => copyBrowserProjects()) : null,
-    st.kind === 'folder' ? entry('Use Browser Storage', 'project', () => useBrowserStorage()) : null);
-}
-
-function renderFilesPage() {
+export function renderFilesPage() {
   const host = $('files-page');
   host.innerHTML = '';
   if (!S.project) return;
@@ -3568,7 +3415,7 @@ async function deleteFolder(dir) {
   await reloadProject();
 }
 
-function renderLibsPage() {
+export function renderLibsPage() {
   const host = $('libs-page');
   host.innerHTML = '';
   if (!S.lib) return;
@@ -3807,52 +3654,6 @@ function openBundle() {
 }
 
 // ------------------------------------------------------------------ browser edition: where projects are kept
-// the browser's storage, or a workspace folder on the disk (Chrome / Edge: File System Access API)
-function storageMenuItems() {
-  const st = api.storage();
-  return [
-    { label: 'Open Workspace Folder…', icon: icon('open'), action: () => openWorkspaceFolder(), disabled: !st.supported, title: st.supported ? null : st.unsupportedReason },
-    st.kind !== 'folder' && st.remembered && st.supported ? { label: `Reopen ${st.remembered}`, action: () => reopenWorkspaceFolder() } : null,
-    st.kind === 'folder' ? { label: 'Copy Browser Projects to the Folder', action: () => copyBrowserProjects() } : null,
-    st.kind === 'folder' ? { label: 'Use Browser Storage', action: () => useBrowserStorage() } : null,
-    '-',
-  ].filter(Boolean);
-}
-const storageLine = st => (st.kind === 'folder'
-  ? `Projects are now kept in the folder '${st.folder}' on the disk: each project is a folder in the format of the full Silinx application.`
-  : 'Projects are now kept in this browser\'s storage.');
-function updateStorageStatus() {
-  const el = $('status-storage');
-  if (!el || !api.standalone) return;
-  const st = api.storage();
-  el.textContent = st.kind === 'folder' ? `Storage: folder ${st.folder}` : 'Storage: this browser';
-  el.title = st.kind === 'folder' ? 'Projects are kept in a folder on the disk (File > Use Browser Storage to go back)' : 'Projects are kept in the browser\'s storage (File > Open Workspace Folder… keeps them in a folder on the disk)';
-}
-// the open project belongs to the storage left: closed first
-async function switchStorage(what, fn) {
-  if (blockedByRun(what)) return;
-  if (S.project) { await closeProject(); if (S.project) return; }
-  let st;
-  try { st = await fn(); } catch (e) { alertDlg(what, e.message, 'error'); return; }
-  if (!st) return;   // the folder picker was cancelled
-  log(storageLine(st), 'ok');
-  updateStorageStatus();
-  showLeftPage('start');
-}
-const openWorkspaceFolder = () => switchStorage('Open Workspace Folder', () => api.openWorkspaceFolder());
-const reopenWorkspaceFolder = () => switchStorage('Open Workspace Folder', () => api.reopenWorkspaceFolder());
-const useBrowserStorage = () => switchStorage('Use Browser Storage', () => api.useBrowserStorage());
-async function copyBrowserProjects() {
-  const what = 'Copy Browser Projects to the Folder';
-  let r;
-  try { r = await api.copyBrowserProjectsToFolder(); } catch (e) { alertDlg(what, e.message, 'error'); return; }
-  const folder = api.storage().folder;
-  log(r.copied.length ? `Copied ${r.copied.length} project(s) from the browser's storage into the folder '${folder}': ${r.copied.join(', ')}.`
-    : `No project copied into the folder '${folder}'.`, r.copied.length ? 'ok' : 'info');
-  for (const n of r.skipped) log(`WARNING: project '${n}' was not copied: the folder '${folder}' already has a project of that name.`, 'warn');
-  if (!document.querySelector('.left-page[data-page=start]').hidden) renderStartPage();
-}
-
 // the Simulation view with module `mod` selected (e.g. a test bench just created): Simulate runs it
 export function showInSim(mod) {
   setView('sim');
