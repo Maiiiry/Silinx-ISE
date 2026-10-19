@@ -1,0 +1,387 @@
+{
+ "source": "#92: the pads' dedicated paths to every DCM's CLKIN, and the other switches of these designs the database lacked (the DCM tiles' fabric inputs PSCLK / G1_B1-3, the XC3S1200E's side DCMs' CLK0 and CLKFB): gen-dcmpad.mjs designs implemented by ISE 14.7, 4 per device, every PIP removed by codewords (gen-pipdrop.mjs, 20 variants), ana-pipdrop.mjs, pips-to-db.mjs (measure-92.sh); a feature measured on several devices has the same bits on all",
+ "types": {
+  "BIBUFS": {
+   "features": {
+    "I0_PINWIRE->IOIS_IBUF0": [],
+    "I1_PINWIRE->IOIS_IBUF1": []
+   }
+  },
+  "BIOIS": {
+   "features": {
+    "I0_PINWIRE->IOIS_IBUF0": [],
+    "I1_PINWIRE->IOIS_IBUF1": []
+   }
+  },
+  "CLKB": {
+   "features": {
+    "CLKB_CKI0->CLKB_DLL_CLKPAD0": [],
+    "CLKB_CKI1->CLKB_DLL_CLKPAD1": [],
+    "CLKB_CKI2->CLKB_DLL_CLKPAD2": [],
+    "CLKB_CKI3->CLKB_DLL_CLKPAD3": [],
+    "CLKB_CKI4->CLKB_DLL_CLKPAD7": [],
+    "CLKB_CKI5->CLKB_DLL_CLKPAD6": [],
+    "CLKB_CKI6->CLKB_DLL_CLKPAD5": [],
+    "CLKB_CKI7->CLKB_DLL_CLKPAD4": []
+   }
+  },
+  "CLKB_LL": {
+   "features": {
+    "CLKB_CKI0->CLKB_DLL_CLKPAD0": [],
+    "CLKB_CKI1->CLKB_DLL_CLKPAD1": [],
+    "CLKB_CKI2->CLKB_DLL_CLKPAD2": [],
+    "CLKB_CKI3->CLKB_DLL_CLKPAD3": [],
+    "CLKB_CKI4->CLKB_DLL_CLKPAD7": [],
+    "CLKB_CKI5->CLKB_DLL_CLKPAD6": [],
+    "CLKB_CKI6->CLKB_DLL_CLKPAD5": [],
+    "CLKB_CKI7->CLKB_DLL_CLKPAD4": []
+   }
+  },
+  "CLKL": {
+   "features": {
+    "CLKL_OUTT0->CLKL_GCLK0": [
+     "1,-5"
+    ]
+   }
+  },
+  "CLKR": {
+   "features": {
+    "CLKR_OUTB3->CLKR_GCLK7": [
+     "20,1"
+    ]
+   }
+  },
+  "CLKT": {
+   "features": {
+    "CLKT_CKI0->CLKT_DLL_CLKPAD0": [],
+    "CLKT_CKI1->CLKT_DLL_CLKPAD1": [],
+    "CLKT_CKI2->CLKT_DLL_CLKPAD2": [],
+    "CLKT_CKI3->CLKT_DLL_CLKPAD3": [],
+    "CLKT_CKI4->CLKT_DLL_CLKPAD4": [],
+    "CLKT_CKI5->CLKT_DLL_CLKPAD5": [],
+    "CLKT_CKI6->CLKT_DLL_CLKPAD6": [],
+    "CLKT_CKI7->CLKT_DLL_CLKPAD7": []
+   }
+  },
+  "CLKT_LL": {
+   "features": {
+    "CLKT_CKI0->CLKT_DLL_CLKPAD0": [],
+    "CLKT_CKI1->CLKT_DLL_CLKPAD1": [],
+    "CLKT_CKI2->CLKT_DLL_CLKPAD2": [],
+    "CLKT_CKI3->CLKT_DLL_CLKPAD3": [],
+    "CLKT_CKI4->CLKT_DLL_CLKPAD4": [],
+    "CLKT_CKI5->CLKT_DLL_CLKPAD5": [],
+    "CLKT_CKI6->CLKT_DLL_CLKPAD6": [],
+    "CLKT_CKI7->CLKT_DLL_CLKPAD7": []
+   }
+  },
+  "DCM_BL_CENTER": {
+   "features": {
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "E2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,26"
+    ],
+    "W2END7->DCM_G1_B2": [
+     "8,10",
+     "9,7"
+    ]
+   }
+  },
+  "DCM_BR_CENTER": {
+   "features": {
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "N2MID0->DCM_G1_B1": [
+     "10,50",
+     "11,53"
+    ]
+   }
+  },
+  "DCM_H_BL_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "E2MID1->DCM_G1_B1": [
+     "11,54",
+     "11,55",
+     "12,56"
+    ],
+    "E2MID6->DCM_G1_B2": [
+     "8,8",
+     "8,9",
+     "9,12"
+    ],
+    "GCLK4->DCM_CLKFB": [
+     "4,18",
+     "4,19"
+    ],
+    "W2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,24"
+    ]
+   }
+  },
+  "DCM_H_BR_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX15": [
+     "6,4"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "GCLK7->DCM_CLKFB": [
+     "4,18",
+     "4,25"
+    ],
+    "OMUX15->DCM_OMUX15_CLKOUT3": [],
+    "W2END1->DCM_G1_B1": [
+     "11,52",
+     "11,54"
+    ],
+    "W2END4->DCM_PSCLK": [
+     "4,21",
+     "4,24"
+    ],
+    "W2MID7->DCM_G1_B2": [
+     "10,8",
+     "8,9"
+    ]
+   }
+  },
+  "DCM_H_TL_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "GCLK0->DCM_CLKFB": [
+     "4,17",
+     "4,19"
+    ],
+    "N2MID1->DCM_G1_B3": [
+     "10,38"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUT0": []
+   }
+  },
+  "DCM_H_TR_CENTER": {
+   "features": {
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_H_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "N2MID7->DCM_G1_B2": [
+     "10,10",
+     "8,10",
+     "8,8",
+     "8,9"
+    ],
+    "W2END4->DCM_PSCLK": [
+     "4,21",
+     "4,24"
+    ],
+    "W2MID1->DCM_G1_B1": [
+     "11,53",
+     "11,55",
+     "11,57"
+    ]
+   }
+  },
+  "DCM_TL_CENTER": {
+   "features": {
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "N6B4->DCM_PSCLK": [
+     "4,21",
+     "5,24"
+    ],
+    "S2END1->DCM_G1_B3": [
+     "11,39",
+     "11,41",
+     "11,42"
+    ],
+    "W2END4->DCM_PSCLK": [
+     "4,21",
+     "4,24"
+    ]
+   }
+  },
+  "DCM_TR_CENTER": {
+   "features": {
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD1->DCM_CLKIN": [
+     "5,34",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "E2BEG0->DCM_G1_B3": [
+     "11,40",
+     "12,45"
+    ],
+    "E2BEG4->DCM_PSCLK": [
+     "4,21",
+     "4,26"
+    ],
+    "W2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,24"
+    ]
+   }
+  },
+  "LIOIS_CLK_PCI": {
+   "features": {
+    "I0_PINWIRE->LIOIS_IBUF1": [],
+    "I1_PINWIRE->LIOIS_IBUF0": []
+   }
+  },
+  "LIOIS_PCI": {
+   "features": {
+    "I0_PINWIRE->LIOIS_IBUF1": [],
+    "I1_PINWIRE->LIOIS_IBUF0": []
+   }
+  },
+  "RIOIS_CLK_PCI": {
+   "features": {
+    "I0_PINWIRE->RIOIS_IBUF1": [],
+    "I1_PINWIRE->RIOIS_IBUF0": []
+   }
+  },
+  "RIOIS_PCI": {
+   "features": {
+    "I0_PINWIRE->RIOIS_IBUF1": [],
+    "I1_PINWIRE->RIOIS_IBUF0": []
+   }
+  },
+  "TIBUFS": {
+   "features": {
+    "I0_PINWIRE->IOIS_IBUF0": [],
+    "I1_PINWIRE->IOIS_IBUF1": []
+   }
+  },
+  "TIOIS": {
+   "features": {
+    "I0_PINWIRE->IOIS_IBUF0": [],
+    "I1_PINWIRE->IOIS_IBUF1": []
+   }
+  }
+ }
+}

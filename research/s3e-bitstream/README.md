@@ -56,6 +56,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-dcmvcc.mjs` | #190: the DCM tiles' switches from their VCC site, one constant-1 net per DCM tile (then `gen-pipdrop.mjs`) |
 | `gen-iobreg.mjs`, `gen-iobrand.mjs`, `ana-iobreg.mjs` | Stage G: designs with registers in the IOBs of every pad (implemented by ISE), their settings and input delays at random (xdl variants), the bits of each pad's settings solved |
 | `gen-dcmhdl.mjs`, `gen-sidebufg.mjs` | Stage G: designs of several DCMs with settings of their own, and of subsets of the side global buffers, implemented by ISE from HDL (settings xdl refuses in an edited design; inputs in combination); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
+| `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh` | #92: every pad's dedicated path to a DCM's CLKIN and the switches on it the database lacks; designs whose DCMs take CLKIN from each of their clock pads in turn, implemented by ISE and measured by PIP drop |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
 
@@ -734,6 +735,38 @@ measured on a pad, are refused.
 Runtime #44: 30 designs implemented from HDL, about 1 900 xdl + bitgen runs (variants, site drops,
 PIP batches), about 5 hours of wall time with two containers.
 
+### The pads' dedicated paths to every DCM's CLKIN (2026-10-19, #92)
+
+Until now only B8's path to the top-left DCM was known (`CLKT_CKI4 -> CLKT_DLL_CLKPAD4`, `DCM_DLL_CLKPAD0 ->
+DCM_CLKIN`): any other DCM's CLKIN came from its pad through general routing, with a warning. `dcm-pads.mjs`
+lists every pad's dedicated path to a DCM's CLKIN on a device (no general routing, no route-throughs) and the
+switches on it the database lacks: 18 / 34 / 34 / 66 on the XC3S100E / 250E / 500E / 1200E (8 / 16 / 16 / 32
+paths, 1 known). `gen-dcmpad.mjs` writes designs whose DCMs take CLKIN each from one of its pads, round r the
+r-th pad of every DCM (4 rounds per device, every path once); `measure-92.sh` implements them with ISE, removes
+every PIP by codewords (`gen-pipdrop.mjs`, 20 variants), and solves them (`ana-pipdrop.mjs`, `pips-to-db.mjs`):
+
+- **The DCM tile's input multiplexer**: `DCM_DLL_CLKPADk -> DCM_CLKIN` (`DCM_H_DLL_CLKPADk` in the
+  XC3S1200E's side DCMs) sets bit `5,(35 - k)` and the bit shared by the four, `5,36`, relative to its tile, in
+  every DCM tile type of the four devices (B8's, measured before, is k = 0).
+- **The clock tiles' and I/O tiles' switches** (`CLKT_CKIi -> CLKT_DLL_CLKPADj`, `CLKB…`, the `_LL` tiles of the
+  XC3S1200E, `I1_PINWIRE -> IOIS_IBUF1` of the bottom tiles, the side I/O tiles' `IBUF0 / 1`): no bits.
+- The same designs routed a few other switches the database lacked (the DCM tiles' fabric inputs to PSCLK and
+  G1_B1-3, the XC3S1200E's side DCMs' CLK0 and CLKFB), measured with them: `measured/learn-15dcm-pad-pips.json`
+  (117 features, the same bits on every device that has the type).
+
+With them the 16 designs are byte-identical to ISE's bitgen (CRC on and off), the XC3S1200E's but for a bit
+of its long-line splitters, and every pad's path to every DCM is known (`dcm-pads.mjs`: 72 paths, 0 unknown).
+**The placer** (`core/fpga/place.js` `DCM_PAD`) gives a clock with no LOC the pad ISE's placer gives it (designs
+of one DCM on each site, the clock free, implemented by ISE: A9 / M6 on the XC3S100E, C8 / A9 / N5 / M6 on the
+XC3S250E, B9 / A10 / V9 / U10 on the XC3S500E and the top / bottom DCMs of the XC3S1200E, K3 / J4 / K13 / J15 on
+its side DCMs: the second pad of the top DCMs' paths, the first of the bottom ones', but J15), else the first
+free pad of a path; no DCM's CLKIN goes through general routing any more. `test/fixtures/open-flow/feat_dcm_pads`
+(Nexys2-1200: B8 to the top-left DCM, the clock socket U9 to the bottom-left one) and the no-constraint DCM
+projects of `test/open-flow.test.js` pass `scripts/check-open-flow.mjs` (DRC clean, byte-identical).
+
+Runtime: 16 designs implemented from HDL and 336 xdl + bitgen runs (about 25 minutes), 18 more designs
+implemented for ISE's choice of pad (about 7 minutes).
+
 ### The PIPs a tile does not have (2026-10-13, #74)
 
 The database's PIP features are per tile type, and several types take another's: the I/O, corner,
@@ -764,7 +797,9 @@ Per device, only some tiles (`absentIn`): the CLBs with no `FX_S2` (20 / 34 / 42
 the clock column's tiles without the clock row's OMUX outputs (CLKV, CLKV_LL), the top and bottom I/O
 tiles without `IOIS_IBUF0`; the XC3S100E's CLKT has no `CLKT_DLL_CLKPAD4` and its CLKV tiles no OUTL
 wires. In all, 46 082 / 74 527 / 100 539 / 134 521 (tile, PIP or wire) facts per device, in 44 lists
-of the shared file and a few per device.
+of the shared file and a few per device. (With the pads' paths to the DCMs, #92: the top and bottom I/O tiles
+without `IOIS_IBUF0` lack `IOIS_IBUF1` too, two `LIOIS_PCI` / `RIOIS_PCI` tiles of each side their `IBUF0 / 1`,
+the XC3S100E's CLKT `CLKT_DLL_CLKPAD4-7`: 46 165 / 74 643 / 100 695 / 134 729 facts.)
 
 **The router never takes them** (`core/fpga/bitgen.js` `knownRouting`: `pipAbsent`). With ISE's own
 descriptions (the shipped ones and those built from the user's ISE) the router only meets PIPs a tile

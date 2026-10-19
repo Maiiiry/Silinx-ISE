@@ -297,25 +297,29 @@ test('the PIPs a tile type\'s features offer that its tiles do not have (#74): m
     .filter(([, v]) => v.absentIn).map(([k, v]) => [k, v.absentIn.map(g => [g.tiles.length, rows(g.tiles), g.absent.join(' ')])]))]));
   const outs = 'CLKV_OMUX10_OUTL0 CLKV_OMUX10_OUTR0 CLKV_OMUX11_OUTL1 CLKV_OMUX11_OUTR1 CLKV_OMUX12_OUTL2 CLKV_OMUX12_OUTR2 CLKV_OMUX15_OUTL3 CLKV_OMUX15_OUTR3 CLKV_OUTL0 CLKV_OUTL1 CLKV_OUTL2 CLKV_OUTL3 CLKV_OUTR0 CLKV_OUTR1 CLKV_OUTR2 CLKV_OUTR3';
   const span = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
-  // (and IBUF1 at the top: its pin wire's switch, I1_PINWIRE -> IOIS_IBUF1, measured in the rebuild, #48)
-  const ibuf = (n, y) => [[n, [y], y ? 'IOIS_IBUF0 IOIS_IBUF1' : 'IOIS_IBUF0']];
+  // (and IBUF1: its pin wire's switch, I1_PINWIRE -> IOIS_IBUF1, measured at the top in the rebuild, #48, at the
+  // bottom with the pads' paths to the DCMs, #92)
+  const ibuf = (n, y) => [[n, [y], 'IOIS_IBUF0 IOIS_IBUF1']];
+  // the side I/O tiles' pin wires to the clock pads' paths (#92): two PCI tiles of each side without them
+  const side = (r, l) => ({ RIOIS_PCI: [[2, r, 'RIOIS_IBUF0 RIOIS_IBUF1']], LIOIS_PCI: [[2, l, 'LIOIS_IBUF0 LIOIS_IBUF1']] });
   assert.deepEqual(own['xc3s100ecp132-4'], {
     CENTER_SMALL: [[20, [1, 5, 21], 'FX_S2'], [9, [2, 18], 'COUT_N1 COUT_N3']], CLKV: [[20, span(2, 21), outs.split(' ').filter(w => /OUTR|OMUX\d+_OUTR/.test(w)).join(' ')]],
-    TIOIS: ibuf(7, 23), TIBUFS: ibuf(5, 23), BIOIS: ibuf(7, 0), BIBUFS: ibuf(5, 0),
+    TIOIS: ibuf(7, 23), TIBUFS: ibuf(5, 23), BIOIS: ibuf(7, 0), BIBUFS: ibuf(5, 0), ...side([9, 13], [10, 14]),
   });
   assert.deepEqual(own['xc3s250ecp132-4'], {
     CENTER_SMALL: [[16, [4, 30], 'COUT_N1 COUT_N3'], [34, [1, 5, 31], 'FX_S2']], CLKV: [[32, span(2, 33), outs]],
-    TIOIS: ibuf(15, 35), TIBUFS: ibuf(7, 35), BIOIS: ibuf(15, 0), BIBUFS: ibuf(7, 0),
+    TIOIS: ibuf(15, 35), TIBUFS: ibuf(7, 35), BIOIS: ibuf(15, 0), BIBUFS: ibuf(7, 0), ...side([15, 19], [16, 20]),
   });
   assert.deepEqual(own['xc3s500efg320-4'], {
     CENTER_SMALL: [[16, [2, 42], 'COUT_N1 COUT_N3'], [42, [1, 5, 45], 'FX_S2']], CLKV: [[44, span(2, 45), outs]],
-    TIOIS: ibuf(21, 47), TIBUFS: ibuf(9, 47), BIOIS: ibuf(21, 0), BIBUFS: ibuf(9, 0),
+    TIOIS: ibuf(21, 47), TIBUFS: ibuf(9, 47), BIOIS: ibuf(21, 0), BIBUFS: ibuf(9, 0), ...side([21, 25], [22, 26]),
   });
   assert.deepEqual(own['xc3s1200efg320-4'], {
     CENTER_SMALL: [[16, [26, 56], 'COUT_N1 COUT_N3'], [8, [1], 'COUT_N1 COUT_N3 FX_S2'], [54, [1, 5, 35, 60], 'FX_S2']], CLKV_LL: [[58, span(2, 59), outs]],
-    TIOIS: ibuf(31, 61), TIBUFS: ibuf(11, 61), BIOIS: ibuf(31, 0), BIBUFS: ibuf(11, 0),
+    TIOIS: ibuf(31, 61), TIBUFS: ibuf(11, 61), BIOIS: ibuf(31, 0), BIBUFS: ibuf(11, 0), ...side([28, 32], [29, 33]),
   });
-  assert.deepEqual(readDbFiles('xc3s100e').tiles.types.CLKT.absent, ['CLKT_DLL_CLKPAD4']);
+  // (the XC3S100E's top clock tile: four pads' paths to its DCM, not eight)
+  assert.deepEqual(readDbFiles('xc3s100e').tiles.types.CLKT.absent, ['CLKT_DLL_CLKPAD4', 'CLKT_DLL_CLKPAD5', 'CLKT_DLL_CLKPAD6', 'CLKT_DLL_CLKPAD7']);
   for (const [part, spec] of Object.entries(PARTS)) {
     const dev = loadDeviceCache(part);
     const db = loadDb(part, { graph: dev });

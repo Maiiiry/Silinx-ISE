@@ -109,6 +109,14 @@ const BUFG_ORDER = ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_
 // the top / bottom buffer k or from the side buffer k, never both.
 const LINE_BUFG = ['BUFGMUX_X2Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y0', 'BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'];
 const sideBufg = name => { const m = /^BUFGMUX_X([03])Y(\d+)$/.exec(name); return m ? { half: m[1] === '0' ? 'L' : 'R', line: +m[2] - 2 } : null; };
+// The clock pad ISE's placer gives a DCM's CLKIN when the pad has no LOC (#92: a design of one DCM on
+// each site, implemented by ISE): one of the pads whose dedicated path reaches that DCM
+const DCM_PAD = {
+  xc3s100e: { DCM_X0Y1: 'A9', DCM_X0Y0: 'M6' },
+  xc3s250e: { DCM_X0Y1: 'C8', DCM_X1Y1: 'A9', DCM_X0Y0: 'N5', DCM_X1Y0: 'M6' },
+  xc3s500e: { DCM_X0Y1: 'B9', DCM_X1Y1: 'A10', DCM_X0Y0: 'V9', DCM_X1Y0: 'U10' },
+  xc3s1200e: { DCM_X1Y3: 'B9', DCM_X2Y3: 'A10', DCM_X1Y0: 'V9', DCM_X2Y0: 'U10', DCM_X0Y1: 'K3', DCM_X0Y2: 'J4', DCM_X3Y1: 'K13', DCM_X3Y2: 'J15' },
+};
 
 // ------------------------------------------------------------------ timing
 // The delays of core/fpga/timing.js (fitted to ISE's timing analyzer): the paths through a slice from
@@ -505,12 +513,14 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     best.items.forEach((it, i) => { if (best.pick[i]) { preBuf.set(it.bi, best.pick[i]); bufClaimed.add(best.pick[i]); takeBuf(it.bi, best.pick[i]); } });
   }
   // a clock input with no LOC that drives a DCM's CLKIN: on a free pad whose dedicated path of
-  // known bits reaches that DCM's CLKIN (B8 -> DCM_X0Y1 on the XC3S250E / 500E), kept there (#57); before the
+  // known bits reaches that DCM's CLKIN, ISE's choice first (DCM_PAD, #92), kept there (#57); before the
   // clock inputs of global buffers, which have more GCLK pins to choose from
   const dcmOfPad = o => packed.nets.find(n => n.outpins[0]?.inst === o.inst)?.inpins.find(p => p.pin === 'CLKIN' && packed.insts[p.inst].kind === 'dcm')?.inst;
   if (bufgSites) for (const o of objs) if (o.kind === 'iob' && !o.fixed && o.dir === 'in' && dcmOfPad(o) !== undefined) {
     const loc = sites[dcmOfPad(o)].name;
-    const p = freePads('in', vccoOf(o.inst)).find(p => dcmPadsOf(p.name).includes(loc));
+    const ise = DCM_PAD[/^xc3s\d+e/i.exec(dev.part || '')?.[0].toLowerCase()]?.[loc];
+    const reach = freePads('in', vccoOf(o.inst)).filter(p => dcmPadsOf(p.name).includes(loc));
+    const p = reach.find(p => p.name === ise) || reach[0];
     if (!p) continue;   // none: a pad like any other (general routing to the DCM)
     bankAdd(p, vccoOf(o.inst), 1);
     padUsed.set(p.name, o);
