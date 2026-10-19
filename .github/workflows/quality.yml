@@ -70,8 +70,10 @@ jobs:
             test/designs-corpus/ise-comparison.json
             docs/QUALITY.md
 
-  # the results' commit, on GitHub's runner (the only job with a writing token), from the compare job's
-  # artifact, on the commit it compared; only when the comparison passed (--guard)
+  # the results' commit, on GitHub's runner (the only job with a writing token, #412 / #486), from the compare
+  # job's artifact, on the commit it compared; only when the comparison passed (--guard). GITHUB_TOKEN cannot
+  # be scoped to one branch: this job runs no code of the artifact and pushes to quality-results only, which a
+  # maintainer reviews before merging it into main.
   publish:
     needs: compare
     runs-on: ubuntu-latest
@@ -84,6 +86,16 @@ jobs:
         with:
           name: quality-results
           path: ${{ runner.temp }}/quality-results
+      # the artifact comes from the maintainer's machine: only its two files are taken, as data (never run),
+      # regular files of a sane size, the comparison valid JSON (#486)
+      - name: Check the results
+        run: |
+          R="$RUNNER_TEMP/quality-results"
+          for f in test/designs-corpus/ise-comparison.json docs/QUALITY.md; do
+            if [ -L "$R/$f" ] || [ ! -f "$R/$f" ]; then echo "::error::$f: not a regular file"; exit 1; fi
+            if [ "$(wc -c < "$R/$f")" -gt 2000000 ]; then echo "::error::$f: larger than 2 MB"; exit 1; fi
+          done
+          jq -e '.designs | type == "array"' "$R/test/designs-corpus/ise-comparison.json" > /dev/null
       - name: Commit the results
         run: |
           cp "$RUNNER_TEMP/quality-results/test/designs-corpus/ise-comparison.json" test/designs-corpus/

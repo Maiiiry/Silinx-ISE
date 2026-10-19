@@ -10,9 +10,10 @@ import { fileURLToPath } from 'node:url';
 
 const DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.github', 'workflows');
 const read = f => fs.readFileSync(path.join(DIR, f), 'utf8');
-// the workflows that only test: a read-only token for every job; the others (a release, the development
-// site, the quality results' branch) write, and say so at the top
-const READ_ONLY = ['ci.yml', 'nightly.yml', 'ise.yml', 'pins.yml', 'yosys-update.yml'];
+// the workflows with a read-only token at the top: the ones that only test, and quality.yml, whose one writing
+// job (the results' push, on GitHub's runner) says so itself (#486); the others (a release, the development
+// site) write, and say so at the top
+const READ_ONLY = ['ci.yml', 'nightly.yml', 'ise.yml', 'pins.yml', 'yosys-update.yml', 'quality.yml'];
 
 test('every workflow states its permissions at the top; the testing ones read the repository only', () => {
   const files = fs.readdirSync(DIR).filter(f => f.endsWith('.yml'));
@@ -35,4 +36,31 @@ test('the self-hosted runner installs the dependencies without their install scr
     assert.match(job[1], /\n    env:\n(?:      .*\n)*      NPM_CONFIG_IGNORE_SCRIPTS: 'true'(\n|$)/, `${f}: NPM_CONFIG_IGNORE_SCRIPTS in the job's env`);
     assert.doesNotMatch(yml, /npm install\b/, f);
   }
+});
+
+test('quality.yml: one job writes, contents only, on GitHub\'s runner; the self-hosted job reads (#486)', () => {
+  const yml = read('quality.yml');
+  const jobs = {};
+  for (const part of yml.slice(yml.indexOf('\njobs:\n') + 7).split(/\n(?= {2}[\w-]+:\n)/)) {
+    const m = /^ {2}([\w-]+):\n([\s\S]*)$/.exec(part);
+    if (m) jobs[m[1]] = m[2].split('\n').filter(l => /^ {4}/.test(l)).join('\n') + '\n';
+  }
+  assert.deepEqual(Object.keys(jobs), ['changes', 'compare', 'publish', 'report']);
+  const writes = {};
+  for (const [name, body] of Object.entries(jobs)) {
+    const p = /\n    permissions:\n((?: {6}.*\n)+)/.exec('\n' + body);
+    assert.ok(p, `${name}: its own permissions`);
+    for (const m of p[1].matchAll(/^ {6}([\w-]+): write$/gm)) (writes[name] ??= []).push(m[1]);
+  }
+  // (the report job writes an issue: the failure report of a scheduled run, #251)
+  assert.deepEqual(writes, { publish: ['contents'], report: ['issues'] });
+  assert.match(jobs.compare, /\n    runs-on: \[self-hosted, ise\]\n/);
+  assert.match(jobs.publish, /\n    runs-on: ubuntu-latest\n/);
+  assert.match(jobs.report, /\n    uses: \.\/\.github\/workflows\/failure-report\.yml\n/);
+  // the artifact from the self-hosted job checked before it is committed: two regular files, valid JSON
+  const check = jobs.publish.indexOf('- name: Check the results'), commit = jobs.publish.indexOf('- name: Commit the results');
+  assert.ok(check > 0 && check < commit, 'the check before the commit');
+  const script = jobs.publish.slice(check, commit);
+  assert.match(script, /\[ -L "\$R\/\$f" \] \|\| \[ ! -f "\$R\/\$f" \]/);
+  assert.match(script, /jq -e '\.designs \| type == "array"'/);
 });
