@@ -59,7 +59,7 @@ test('the handshake: the protocol version, the server, its tools with their sche
   assert.equal((await srv.send('initialize', { protocolVersion: '1999-01-01' })).result.protocolVersion, '2025-06-18');
   srv.p.stdin.write('{"jsonrpc":"2.0","method":"notifications/initialized"}\n');   // (a notification: no answer)
   const { tools } = (await srv.send('tools/list')).result;
-  assert.deepEqual(tools.map(t => t.name), ['list_examples', 'list_projects', 'new_project_from_example', 'project_info', 'read_file', 'write_file', 'check_syntax', 'simulate', 'run_process', 'get_report']);
+  assert.deepEqual(tools.map(t => t.name), ['list_examples', 'list_projects', 'new_project_from_example', 'new_project', 'set_top', 'project_info', 'read_file', 'write_file', 'check_syntax', 'simulate', 'run_process', 'get_report']);
   for (const t of tools) {
     assert.equal(t.inputSchema.type, 'object', t.name);
     assert.ok(t.description.length > 40 && t.title, t.name);
@@ -190,7 +190,20 @@ test('run_process and get_report: the power estimate of blinky with the Silinx t
   const sum = await srv.call('get_report', { project: 'Blinky' });
   assert.equal(sum.structuredContent.summary.source, 'open');
   assert.equal(sum.structuredContent.summary.par.routed, true);
-  assert.equal((await srv.call('get_report', { project: 'Blinky', report: 'synthesis' })).content[0].text, 'No synthesis report for \'Blinky\' yet (build/top.syr): run_process first.');
+  // the Silinx toolchain's reports (#460: they were looked for as ISE's files): Yosys's statistics for the
+  // synthesis, the pack and route summaries for map and par
+  const syn = await srv.call('get_report', { project: 'Blinky', report: 'synthesis' });
+  assert.deepEqual(syn.structuredContent, { project: 'Blinky', report: 'synthesis', toolchain: 'silinx', path: 'build/open/top_stat.txt', available: true });
+  assert.match(syn.content[0].text, /\n=== top ===\n[\s\S]*\n +\d+ cells\n[\s\S]* FDRE\n/);
+  const map = await srv.call('get_report', { project: 'Blinky', report: 'map' });
+  assert.equal(map.structuredContent.path, 'build/reports.json');
+  assert.match(map.content[0].text, /^Design summary \(pack, Silinx toolchain\) of top:\n {2}Number of Slice Flip Flops: \d+ out of 4896 \d+%\n(?: {2}.*\n)+0 error\(s\), 0 warning\(s\)\.$/);
+  const par = await srv.call('get_report', { project: 'Blinky', report: 'par' });
+  assert.match(par.content[0].text, /^Place and route \(Silinx toolchain\) of top: all signals are completely routed \(\d+ nets, \d+ PIPs, \d+ passes\)\.\nTiming constraints: all met; minimum period [\d.]+ ns \([\d.]+ MHz\)\.$/);
+  assert.equal((await srv.call('get_report', { project: 'Blinky', report: 'timing' })).structuredContent.path, 'build/open/timing.txt');
+  assert.equal((await srv.call('get_report', { project: 'Blinky', report: 'pins' })).content[0].text, 'No pins report for \'Blinky\' from its last run (Silinx toolchain: build/top_pins.ucf): run_process pins first.');
+  assert.equal((await srv.call('get_report', { project: 'TrafficN', report: 'map' })).content[0].text, 'No map report for \'TrafficN\': no process has run yet (run_process implement).');
+  assert.equal((await srv.call('get_report', { project: 'Blinky', report: 'netlist' })).content[0].text, 'get_report: report: summary or one of power, timing, synthesis, map, par, pins');
   assert.equal((await srv.call('run_process', { project: 'Nope', process: 'implement' })).content[0].text, 'run_process: no project \'Nope\' in the workspace');
   assert.equal((await srv.call('run_process', { project: 'Blinky', process: 'erase' })).content[0].text, 'run_process: process: one of synthesize, implement, bitstream, timing, power, pins');
   // a report that names the ISE machine (as an ISE run's log would): its address replaced
@@ -199,4 +212,42 @@ test('run_process and get_report: the power estimate of blinky with the Silinx t
   // nothing on stdout but the protocol's messages; the server's own lines (if any) on stderr
   for (const l of srv.lines) assert.equal(JSON.parse(l).jsonrpc, '2.0');
   assert.ok(!srv.lines.some(l => l.includes('ise-host.example.test')), 'the ISE host never in a result');
+});
+
+test('new_project and set_top: an empty project for a board, its source written, its top and test bench chosen, its constraints from the board\'s pins; implemented (#460)', { timeout: 120000 }, async () => {
+  const made = await srv.call('new_project', { name: 'Counter4', board: 'basys2', variant: '100' });
+  assert.equal(made.content[0].text, 'Empty project \'Counter4\' made: basys2 (xc3s100ecp132-4). Write its sources with write_file, then set_top.');
+  assert.deepEqual(made.structuredContent.device, { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' });
+  assert.equal((await srv.call('new_project', { name: 'Counter4' })).content[0].text, 'new_project: project \'Counter4\' already exists');
+  assert.equal((await srv.call('new_project', { name: 'X', board: 'zedboard' })).content[0].text, 'new_project: unknown board \'zedboard\' (basys2, nexys2)');
+  assert.equal((await srv.call('new_project', { name: 'X', board: 'nexys2', variant: '250' })).content[0].text, 'new_project: the Digilent Nexys2 has no variant \'250\'');
+  const bare = await srv.call('new_project', { name: 'Bare' });
+  assert.equal(bare.content[0].text, 'Empty project \'Bare\' made: no board (xc3s250ecp132-4). Write its sources with write_file, then set_top.');
+  await srv.call('write_file', { project: 'Counter4', path: 'src/counter.vhd', text: 'library ieee;\nuse ieee.std_logic_1164.all;\nuse ieee.numeric_std.all;\nentity counter is\n  port (clk, btn : in std_logic; led : out std_logic_vector(3 downto 0));\nend counter;\narchitecture rtl of counter is\n  signal c : unsigned(3 downto 0) := (others => \'0\');\nbegin\n  process (clk) begin\n    if rising_edge(clk) then\n      if btn = \'1\' then c <= (others => \'0\'); else c <= c + 1; end if;\n    end if;\n  end process;\n  led <= std_logic_vector(c);\nend rtl;\n' });
+  await srv.call('write_file', { project: 'Counter4', path: 'sim/tb_counter.vhd', text: 'library ieee;\nuse ieee.std_logic_1164.all;\nentity tb_counter is end;\narchitecture t of tb_counter is\n  signal clk, btn : std_logic := \'0\';\n  signal led : std_logic_vector(3 downto 0);\nbegin\n  uut: entity work.counter port map (clk, btn, led);\n  clk <= not clk after 10 ns;\n  process begin wait for 105 ns; assert led = "0101" report "led wrong" severity error; report "done"; wait; end process;\nend;\n' });
+  // refused: nothing to set, a module that is not there, a test bench as the top, constraints without a board
+  assert.equal((await srv.call('set_top', { project: 'Counter4' })).content[0].text, 'set_top: give top, sim_top or both');
+  assert.equal((await srv.call('set_top', { project: 'Counter4', top: 'nothere' })).content[0].text, 'set_top: no entity or module \'nothere\' in the project\'s design sources (project_info)');
+  assert.equal((await srv.call('set_top', { project: 'Counter4', top: 'tb_counter' })).content[0].text, 'set_top: no entity or module \'tb_counter\' in the project\'s design sources (project_info)');
+  assert.equal((await srv.call('set_top', { project: 'Nope', top: 'counter' })).content[0].text, 'set_top: no project \'Nope\' in the workspace');
+  await srv.call('write_file', { project: 'Bare', path: 'src/inv.v', text: 'module inv(input a, output y); assign y = ~a; endmodule\n' });
+  assert.equal((await srv.call('set_top', { project: 'Bare', top: 'inv', update_constraints: true })).content[0].text, 'set_top: the project \'Bare\' has no board: its constraints cannot come from a board\'s pins');
+  assert.equal(JSON.parse(fs.readFileSync(path.join(ws, 'Bare', 'silinx.json'), 'utf8')).top, '', 'nothing changed');
+  // the top and the test bench, the constraints from the Basys2's pins
+  const set = await srv.call('set_top', { project: 'Counter4', top: 'counter', sim_top: 'tb_counter', update_constraints: true });
+  assert.equal(set.content[0].text, 'Counter4: top counter, test bench tb_counter; constraints/top.ucf written from the basys2\'s pins.');
+  assert.deepEqual(set.structuredContent, { project: 'Counter4', top: 'counter', simTop: 'tb_counter', constraintsUpdated: true });
+  const ucf = fs.readFileSync(path.join(ws, 'Counter4', 'constraints', 'top.ucf'), 'utf8');
+  assert.match(ucf, /^# UCF for top 'counter' on Digilent Basys2 \(xc3s100e-4-cp132\), generated by Silinx\n/);
+  for (const net of ['clk', 'btn', 'led<0>', 'led<3>']) assert.match(ucf, new RegExp(`^NET "${net.replace(/[<>]/g, '\\$&')}" +LOC = "\\w+" ;$`, 'm'), net);
+  assert.match(ucf, /TIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;/);
+  // its test bench simulated, the counter implemented with no warning
+  const sim = await srv.call('simulate', { project: 'Counter4', time_ns: 200 });
+  assert.deepEqual(sim.structuredContent.log, [{ timeNs: 105, kind: 'note', text: 'done' }]);
+  assert.equal(sim.structuredContent.failed, false);
+  const impl = await srv.call('run_process', { project: 'Counter4', process: 'implement', log_lines: 3 });
+  assert.equal(impl.isError, false, impl.content[0].text);
+  assert.deepEqual([impl.structuredContent.errors, impl.structuredContent.warnings], [[], []]);
+  assert.match(impl.content[0].text, /Process "implement" of <counter> completed successfully \(Silinx toolchain\)\.$/);
+  assert.match((await srv.call('get_report', { project: 'Counter4', report: 'map' })).content[0].text, /^Design summary \(pack, Silinx toolchain\) of counter:\n {2}Number of Slice Flip Flops: 4 out of 1920 0%\n/);
 });
