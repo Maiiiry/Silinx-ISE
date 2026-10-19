@@ -32,11 +32,11 @@ test('server and browser: the same order for every set of the Silinx toolchain\'
       for (const x of ['pin2ucf', 'xpwr', 'fpgaview']) if (s.includes(x)) assert.ok(s.indexOf('trce') >= 0 && s.indexOf('trce') < s.indexOf(x), `${steps} -> ${s}`);
       if (s.includes('postsynth')) assert.ok(!s.includes('synth') || s.indexOf('synth') < s.indexOf('postsynth'), `${steps} -> ${s}`);
       // the post-translate and post-map models (#121): right after Translate and Map
-      for (const [m, after] of [['posttrans', 'translate'], ['postmap', 'map']]) if (s.includes(m)) assert.equal(s[s.indexOf(m) - 1], after, `${steps} -> ${s}`);
+      for (const [m, after] of [['posttrans', 'translate'], ['postmap', 'map'], ['postpar', 'trce']]) if (s.includes(m)) assert.equal(s[s.indexOf(m) - 1], after, `${steps} -> ${s}`);
       n++;
     }
   }
-  assert.equal(n, 2 * 2 ** 13);
+  assert.equal(n, 2 * 2 ** OPEN_STEPS.length);
 });
 
 test('the order of a run: examples', () => {
@@ -51,6 +51,9 @@ test('the order of a run: examples', () => {
   assert.deepEqual(orderOpenSteps(['postmap']), ['synth', 'translate', 'map', 'postmap']);
   assert.deepEqual(orderOpenSteps(['postmap', 'posttrans', 'postsynth', 'bitgen']), ['synth', 'postsynth', 'translate', 'posttrans', 'map', 'postmap', 'par', 'trce', 'bitgen', 'prombit']);
   assert.deepEqual(orderOpenSteps(['postmap'], { synthUpToDate: true }), ['translate', 'map', 'postmap']);
+  // the post-place & route model (#122): after Place & Route's timing, before the pins and the power
+  assert.deepEqual(orderOpenSteps(['postpar']), ['synth', 'translate', 'map', 'par', 'trce', 'postpar']);
+  assert.deepEqual(orderOpenSteps(['xpwr', 'pin2ucf', 'postpar', 'bitgen']), ['synth', 'translate', 'map', 'par', 'trce', 'postpar', 'pin2ucf', 'xpwr', 'bitgen', 'prombit']);
   // the synthesis up to date, not asked for: from Translate on (#280); asked for: from it
   assert.deepEqual(orderOpenSteps(['bitgen'], { synthUpToDate: true }), full.slice(1));
   assert.deepEqual(orderOpenSteps(['synth', 'bitgen'], { synthUpToDate: true }), full);

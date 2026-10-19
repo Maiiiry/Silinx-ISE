@@ -19,6 +19,7 @@ Xilinx ISE 14.7, following the method in [docs/OPEN-TOOLCHAIN.md](../../docs/OPE
 | `gen-controls.mjs` | Control designs: all PIPs removed, one antenna added, bidirectional PIPs flipped, rewritten unchanged |
 | `ise-check.sh` | Inside the ISE container: `xdl -xdl2ncd`, `drc`, `bitgen`, `trce` for each design |
 | `cmpbit.mjs` | Compares the configuration frames of two bitstreams |
+| `sdf-compare.mjs` | Compares the post-place & route model's SDF (#122) with ISE's netgen SDF of the same routed design |
 
 Tools: ISE 14.7 (`xdl` P.20131013, `drc`, `bitgen`, `trce`) in the private Docker image
 `xilinx/ise:14.7` (linux/amd64 under emulation); Node 22+.
@@ -485,6 +486,31 @@ mapping restructures into a fast adder), max (1.4 times ISE's), stereovision3 (a
 31 loads into four levels of LUTs, F5 and F6, where ISE has fewer); vtr-ch-intrinsics' gated clocks
 (the clock inverters of `-ise` extractinv on LUTs, 21 DRC warnings "Gated clock": its period is
 not comparable).
+
+## The post-place & route simulation model's timing (SDF, #122, 2026-10-19)
+
+The Silinx toolchain's *Post-Place & Route Simulation Model* (`core/sim-model.js` postParModels) writes the routed
+design as SIMPRIM primitives and its timing as an SDF file (`core/sdf.js`): every connection's delay (PORT, the
+static timing's, on the elements that read the site pin) and every element's paths (IOPATH; each path through a
+slice of `core/fpga/timing.js` split over the elements it goes through, so that their sum is the timing's) and setup
+checks (SETUPHOLD). Silinx's simulator applies an SDF by building it into the netlist (`annotateSdf`: transport wire
+delays, inertial gate delays, clock to out, setup checks from 100 ns on, as glbl's GSR).
+
+Against ISE, on blinky routed by Silinx (seed 1): `xdl -xdl2ncd routed.xdl`, then `netgen -sim -ofmt vhdl` writes ISE's
+model and SDF of the same placement and routing; `node research/s3e-route/sdf-compare.mjs <folder>`:
+
+| | Silinx | ISE |
+|---|---|---|
+| connections compared (site input pins: LUTs, BX / BY, CE, SR, output pads) | 307 | 307 |
+| their mean delay | 679 ps | 663 ps |
+| Silinx - ISE | mean +16 ps, rms 69 ps, 84 % within 100 ps, 99 % within 200 ps, max 254 ps | |
+| minimum period by the SDF (longest path from a clock's edge to a setup check, over the elements) | 7.451 ns (its static timing: 7.451) | 7.363 ns (trce: 7.365) |
+
+The element-level paths differ (ISE's LUT IOPATH is 559 ps and its slice's output multiplexers carry the rest of the
+LUT-to-pin delay; Silinx puts the whole site path in the LUT), but the paths' sums agree: the longest path over
+ISE's own SDF is trce's period within 2 ps, which checks the comparison's method, and Silinx's SDF is within 1.2 %
+of ISE's on the same routing. The tests (`test/sim-model-par.test.js`) check that the longest path over Silinx's SDF
+is its static timing's minimum period within 10 ps, on every example.
 
 ## Open problems
 

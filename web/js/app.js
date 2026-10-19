@@ -673,10 +673,10 @@ const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'sum
 // (the browser edition: the Silinx toolchain, unless the project chose XST)
 export const openMode = () => (S.project?.synthTool ? S.project.synthTool === 'silinx' : api.standalone || S.toolchain?.config?.mode === 'silinx');
 const OPEN_SYNTH = 'Synthesize - Yosys';
-// (Back-annotate Pin Locations, View Technology Schematic and the Post-Synthesis, Post-Translate and Post-Map
-// Simulation Models are the Silinx toolchain's own: the pads its placer chose, the netlist of its synthesis,
-// its packed design, #120, #121)
-const ISE_ONLY = new Set(['postpar']);
+// (Back-annotate Pin Locations, View Technology Schematic and the simulation models are the Silinx toolchain's
+// own: the pads its placer chose, the netlist of its synthesis, its packed and its routed design, #120-#122;
+// none needs ISE any more, the mechanism stays for the processes to come)
+const ISE_ONLY = new Set([]);
 const ISE_ONLY_TIP = 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)';
 function forOpenMode(defs) {
   const conv = p => {
@@ -1767,7 +1767,17 @@ async function netlistSources(step, { hier = false, action = 'Simulate', title =
   }
   const stage = { postsynth: 'synth', posttrans: 'translate', postmap: 'map', postpar: 'par' }[step];
   if (S.status[stage] === 'stale' || S.status[step] === 'stale') log(`WARNING: the ${name.toLowerCase()} model is older than the sources (run "${EXTRA_STEPS[step]}" again to update it).`, 'warn');
-  const raw = await api.readFile(S.project.name, m.path);
+  let raw = await api.readFile(S.project.name, m.path);
+  // the post-place & route model simulated with its timing (#122): the delays and setup checks of its SDF
+  // built in (core/sdf.js); the emulator runs it without
+  if (m.sdf && action === 'Simulate') {
+    try {
+      const { parseSdf, annotateSdf } = await import('/core/sdf.js');
+      const a = annotateSdf(raw, 'vhdl', parseSdf(await api.readFile(S.project.name, m.sdf)));
+      raw = a.text;
+      log(`Timing: ${m.sdf} (${a.annotated} instances with their delays).`);
+    } catch (e) { log(`WARNING: the model is simulated without its timing (${m.sdf}: ${e.message}).`, 'warn'); }
+  }
   const { scalarizeNetlist, regroupNetlist } = await import('/core/netlist-hier.js');
   // single-bit nets simulate several times faster than netgen's vector signals (same behaviour);
   // the technology schematic regroups the flat netlist by the design's own instances
@@ -1782,8 +1792,7 @@ async function netlistSources(step, { hier = false, action = 'Simulate', title =
   return [...primitiveSources([net]), net];
 }
 // The dialog of a model not generated yet (#490): "Generate and <action>" runs its process when the
-// toolchain can (the Post-Synthesis, Post-Translate and Post-Map models: the Silinx toolchain and ISE; the
-// Post-Place & Route model: ISE), else it
+// toolchain can (the Silinx toolchain, or ISE in an ISE mode), else it
 // says why. true when the process ran and ended without errors.
 const SIM_MODEL_THEN = { Simulate: 'the simulation starts', Emulate: 'the emulator opens', Show: 'the technology schematic opens' };
 async function offerSimModel(step, action, title) {

@@ -90,10 +90,12 @@ BEGIN
             errors := errors + 1;
          end if;
       end procedure;
-      -- n clock cycles of the same lamps and display
+      -- n clock cycles of the same lamps and display: checked just before the next rising edge (the outputs
+      -- of the placed and routed design change some ns after the clock's edge: its post-place & route model)
       procedure cycles(n : integer; lamps : std_logic_vector(7 downto 0); number : integer; what : string) is
       begin
          for i in 1 to n loop
+            wait for clk_period / 2 - 1 ns;
             check(lamps, number, what);
             wait until falling_edge(clk);
          end loop;
@@ -103,6 +105,7 @@ BEGIN
                          what : string) is
       begin
          for i in 0 to n - 1 loop
+            wait for clk_period / 2 - 1 ns;
             if i mod (T / 2) < T / 4 then
                check(on_lamps, number, what);
             else

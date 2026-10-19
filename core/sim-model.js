@@ -14,6 +14,8 @@ import { paramBits, paramInt } from './fpga/netlist.js';
 import { primitiveInterface } from './netlist-hier.js';
 import { validIdent } from './schdoc.js';
 import { lutTable } from './xdl.js';
+import { SPEED_4 } from './fpga/timing.js';
+import { writeSdf } from './sdf.js';
 import { UNISIM_SOURCE, SIMPRIM_SOURCE } from './unisim.js';
 import * as V from './values.js';
 
@@ -137,26 +139,32 @@ class Structure {
   }
   signal(base) { const s = this.uniq(base); this.signals.push(s); return { s }; }
   /** An instance: generics [[name, value]] (value: { bits }, { bit }, { int }, { real }, { str }, { bool }),
-   *  pins [[formal, ref]] or [[formal, [refs, bit 0 first]]] (a vector formal). Returns its name. */
-  inst(type, base, generics, pins) { const name = this.uniq(base); this.insts.push({ name, type, generics, pins }); return name; }
-  // the gates the writers use, folded when an input is a constant
-  inv(r, base) {
+   *  pins [[formal, ref]] or [[formal, [refs, bit 0 first]]] (a vector formal); arcs (the post-place & route
+   *  model's delays, ns): { iopath: [[from, to, ns]], clocked: [[clock, to, ns]], setup: [[pin, clock, ns]] }.
+   *  On a placed site (this.loc), its LOC generic first, as netgen writes it. Returns its name. */
+  inst(type, base, generics, pins, arcs = null) {
+    const name = this.uniq(base);
+    this.insts.push({ name, type, generics: this.loc ? [['LOC', { str: this.loc }], ...generics] : generics, pins, arcs });
+    return name;
+  }
+  // the gates the writers use, folded when an input is a constant; d: the delay of each input to the output (ns)
+  inv(r, base, d = 0) {
     if (r.c !== undefined) return { c: 1 - r.c };
     const o = this.signal(base);
-    this.inst('X_INV', base, [], [['I', r], ['O', o]]);
+    this.inst('X_INV', base, [], [['I', r], ['O', o]], d ? { iopath: [['I', 'O', d]] } : null);
     return o;
   }
-  mux(a, b, s, base) {   // b when s = 1
+  mux(a, b, s, base, d = {}) {   // b when s = 1
     if (s.c !== undefined) return s.c ? b : a;
     const o = this.signal(base);
-    this.inst('X_MUX2', base, [], [['IA', a], ['IB', b], ['SEL', s], ['O', o]]);
+    this.inst('X_MUX2', base, [], [['IA', a], ['IB', b], ['SEL', s], ['O', o]], arcsOf(d));
     return o;
   }
-  xor(a, b, base) {
+  xor(a, b, base, d = {}) {
     if (a.c === 0) return b;
     if (b.c === 0) return a;
     const o = this.signal(base);
-    this.inst('X_XOR2', base, [], [['I0', a], ['I1', b], ['O', o]]);
+    this.inst('X_XOR2', base, [], [['I0', a], ['I1', b], ['O', o]], arcsOf(d));
     return o;
   }
   and(a, b, base) {
@@ -259,6 +267,10 @@ function genericValues(type, get) {
   }
   return out;
 }
+
+// { input: ns } -> the arcs of a gate with output O, those of 0 ns too (a path all the same, as ISE writes them);
+// null when it has none (the models without timing)
+const arcsOf = d => (Object.values(d).some(x => x > 0) ? { iopath: Object.entries(d).map(([i, x]) => [i, 'O', Math.max(0, x)]) } : null);
 
 const modelHead = (c, what, from, { top, part, generics, testbench }, prims = 'SIMPRIM') => [
   `${c} ${what} Simulation Model of '${top}'${part ? ` (${part})` : ''}: ${from} (Silinx toolchain),`,
@@ -366,25 +378,76 @@ const BRAM_W = { 1: [1, 0, 14], 2: [2, 0, 13], 4: [4, 0, 12], 9: [8, 1, 11], 18:
  */
 export function postMapModels(nl, packed, o = {}) {
   const M = new Structure(nl, nl.name);
-  const { insts } = packed;
+  const unknown = packedModel(M, packed);
+  const h = c => modelHead(c, 'Post-Map', 'the packed design', o);
+  return { vhdl: M.write('vhdl', h('--'), o.generics), verilog: M.write('verilog', h('//'), o.generics), instances: M.insts.length, unknown };
+}
+
+/**
+ * The Post-Place & Route Simulation Model (#122): the placed and routed design (core/xdl.js parseXdl of the
+ * routed XDL) as the post-map model, each primitive with the LOC of its site, and its timing as an SDF file
+ * (core/sdf.js): every element's delays (the static timing's delay model, core/fpga/timing.js, the delay of each
+ * path through a slice split over the elements it goes through) and every connection's (PORT, the routing's,
+ * conns: core/fpga/timing.js analyzeTiming's). Returns { vhdl, verilog, sdf, instances, unknown }.
+ * o: { top, part, generics, testbench, conns, model } (model: the delay model, SPEED_4 by default).
+ */
+export function postParModels(nl, design, o = {}) {
+  const M = new Structure(nl, nl.name);
+  const model = o.model || SPEED_4;
+  // the design's sites as the packer's: their kind from their type (the VCC / GND sources: constant nets)
+  const KIND = { SLICEL: 'slice', SLICEM: 'slice', IOB: 'iob', IBUF: 'iob', BUFGMUX: 'bufg', RAMB16: 'bram', MULT18X18SIO: 'mult', DCM: 'dcm' };
+  const idx = new Map(design.insts.map((x, k) => [x.name, k]));
+  const insts = design.insts.map(x => ({ ...x, kind: KIND[x.type] || 'other', dir: x.cfg.some(c => c.attr === 'OUTBUF' && c.name) ? 'out' : 'in', loc: x.site }));
+  const nets = design.nets.map(n => ({ name: n.name, type: /^(vcc|power)$/i.test(n.type) ? 'vcc' : /^(gnd|ground)$/i.test(n.type) ? 'gnd' : n.type,
+    outpins: n.outpins.map(p => ({ inst: idx.get(p.inst), pin: p.pin })), inpins: n.inpins.map(p => ({ inst: idx.get(p.inst), pin: p.pin })) }));
+  const unknown = packedModel(M, { insts: insts.filter(x => x.kind !== 'other' || !/^(VCC|GND|TIEOFF)$/.test(x.type)), nets, all: insts }, model);
+  // the connections' delays: on the element inputs that read each site pin
+  const wire = new Map();
+  for (const c of o.conns || []) wire.set(c.to, c.delay);
+  for (const it of M.insts) {
+    const ports = [];
+    for (const [f, r] of it.pins) {
+      const refs = Array.isArray(r) ? r : [r];
+      refs.forEach((x, k) => { const d = x?.site && wire.get(`${design.insts[x.site[0]].name}.${x.site[1]}`); if (d > 0) ports.push([Array.isArray(r) ? `${f}[${k}]` : f, d]); });
+    }
+    if (ports.length) (it.arcs ||= {}).port = ports;
+  }
+  const h = c => modelHead(c, 'Post-Place & Route', 'the placed and routed design', o).replace('(functional, no timing)', `(its timing: ${o.top}_timesim.sdf)`);
+  const sdf = writeSdf(M, { design: o.top, part: o.part });
+  return { vhdl: M.write('vhdl', h('--'), o.generics), verilog: M.write('verilog', h('//'), o.generics), sdf, instances: M.insts.length, unknown };
+}
+
+// The sites of a packed (or placed) design as their elements: packed { insts, nets } (nets' pins by instance
+// index); model: the delay model (the post-place & route model's timing), or none. Returns the kinds of site
+// with no model.
+function packedModel(M, packed, model = null) {
+  const insts = packed.all || packed.insts;
   const inNet = insts.map(() => new Map());
-  packed.nets.forEach((n, k) => { for (const p of n.inpins) inNet[p.inst].set(p.pin, k); });
+  packed.nets.forEach((n, k) => { for (const p of n.inpins) inNet[p.inst]?.set(p.pin, k); });
   const netRef = k => (packed.nets[k].type === 'vcc' ? { c: 1 } : packed.nets[k].type === 'gnd' ? { c: 0 } : { n: k });
-  const pin = (i, p) => (inNet[i].has(p) ? netRef(inNet[i].get(p)) : { c: 0 });
+  // (an input remembers the site pin it reads: its connection's delay)
+  const pin = (i, p) => (inNet[i].has(p) ? { ...netRef(inNet[i].get(p)), site: [i, p] } : { c: 0 });
   const outs = new Map();   // `${inst}:${pin}` -> the ref of that output (or the function that builds it)
   const unknown = new Set();
+  const skip = new Set(insts.map((x, i) => (packed.insts.includes(x) ? -1 : i)));
   insts.forEach((inst, i) => {
+    if (skip.has(i)) return;
+    M.loc = model ? inst.loc : null;
     const c = new Map(inst.cfg.map(x => [x.attr, x]));
     const val = a => c.get(a)?.value;
     const name = inst.name;
     const out = (p, r) => outs.set(`${i}:${p}`, r);
     // an input through its inverter (the site's <pin>INV = <pin>_B)
     const inv = (p, attr = `${p}INV`) => (val(attr) === `${p}_B` ? M.inv(pin(i, p), `${name}_${attr}`) : pin(i, p));
+    const T = model || null;
     if (inst.kind === 'iob') {
       const pad = M.portBit.get(c.get('PAD')?.name);
       if (!pad) { unknown.add(`pad ${c.get('PAD')?.name}`); return; }
-      if (inst.dir === 'in') { const s = M.signal(`${name}_INBUF`); M.inst('X_BUF', `${name}_IBUF`, [], [['I', pad], ['O', s]]); out('I', s); }
-      else M.inst('X_OBUF', `${name}_OBUF`, [], [['I', inv('O1')], ['O', pad]]);
+      if (inst.dir === 'in') {
+        const s = M.signal(`${name}_INBUF`);
+        M.inst('X_BUF', `${name}_IBUF`, [], [['I', pad], ['O', s]], T && { iopath: [['I', 'O', T.pad.Tiopi]] });
+        out('I', s);
+      } else M.inst('X_OBUF', `${name}_OBUF`, [], [['I', inv('O1')], ['O', pad]], T && { iopath: [['I', 'O', T.pad.Tioop]] });
       return;
     }
     if (inst.kind === 'bufg') {
@@ -397,7 +460,7 @@ export function postMapModels(nl, packed, o = {}) {
       const ports = ['A', 'B'].filter(x => c.has(`PORT${x}_ATTR`));
       const dual = ports.length === 2, ws = ports.map(x => WIDTH_OF_ATTR[val(`PORT${x}_ATTR`)]);
       const X = `X_RAMB16_${ws.map(w => `S${w}`).join('_')}`;
-      const pins = [];
+      const pins = [], arcs = { clocked: [], setup: [] };
       ports.forEach((x, n) => {
         const [d, p, aw] = BRAM_W[ws[n]], P = dual ? x : '';
         const outv = (pfx, w) => Array.from({ length: w }, (_, k) => { const s = M.signal(`${name}_${pfx}${x}${k}`); out(`${pfx}${x}${k}`, s); return s; });
@@ -405,6 +468,11 @@ export function postMapModels(nl, packed, o = {}) {
           [`ADDR${P}`, Array.from({ length: aw }, (_, j) => pin(i, `ADDR${x}${14 - aw + j}`))], [`CLK${P}`, inv(`CLK${x}`)],
           [`DI${P}`, Array.from({ length: d }, (_, k) => pin(i, `DI${x}${k}`))], ...(p ? [[`DIP${P}`, Array.from({ length: p }, (_, k) => pin(i, `DIP${x}${k}`))]] : []),
           [`EN${P}`, inv(`EN${x}`)], [`SSR${P}`, inv(`SSR${x}`)], [`WE${P}`, inv(`WE${x}`)]);
+        if (T) {
+          const B = T.bram;
+          arcs.clocked.push([`CLK${P}`, `DO${P}`, B.Tbcko], ...(p ? [[`CLK${P}`, `DOP${P}`, B.Tbcko]] : []));
+          arcs.setup.push([`ADDR${P}`, `CLK${P}`, B.Tback], [`DI${P}`, `CLK${P}`, B.Tbdck], [`EN${P}`, `CLK${P}`, B.Tbeck], [`WE${P}`, `CLK${P}`, B.Tbwck], [`SSR${P}`, `CLK${P}`, B.Tbrck]);
+        }
       });
       const get = g => {
         let m = /^(INITP?)_([0-9A-F]{2})$/.exec(g);
@@ -416,15 +484,24 @@ export function postMapModels(nl, packed, o = {}) {
         const [d, p] = BRAM_W[ws[ports.indexOf(x)]] || [0, 0];
         return val(`${m[1]}_${x}`) === undefined ? undefined : bitsOfHex(val(`${m[1]}_${x}`), d + p);
       };
-      M.inst(X, name, genericValues(X, get), pins);
+      M.inst(X, name, genericValues(X, get), pins, T && arcs);
       return;
     }
     if (inst.kind === 'mult') {
       const X = 'X_MULT18X18SIO';
       const P = Array.from({ length: 36 }, (_, k) => { const s = M.signal(`${name}_P${k}`); out(`P${k}`, s); return s; });
-      M.inst(X, name, [['AREG', { int: +(val('AREG') ?? 0) }], ['BREG', { int: +(val('BREG') ?? 0) }], ['PREG', { int: +(val('PREG') ?? 0) }], ['B_INPUT', { str: val('B_INPUT') || 'DIRECT' }]],
+      const reg = g => +(val(g) ?? 0);
+      let arcs = null;
+      if (T) {
+        const U = T.mult;
+        arcs = { iopath: [], clocked: [], setup: [] };
+        if (reg('PREG')) arcs.clocked.push(['CLK', 'P', U.Tmsckp]);
+        else { for (const x of ['A', 'B']) if (!reg(`${x}REG`)) arcs.iopath.push([x, 'P', U.Tmult]); if (reg('AREG') || reg('BREG')) arcs.clocked.push(['CLK', 'P', U.Tmscka]); }
+        for (const x of ['A', 'B']) if (reg(`${x}REG`) || reg('PREG')) arcs.setup.push([x, 'CLK', reg(`${x}REG`) ? U.Tmsck : U.Tmsdck]);
+      }
+      M.inst(X, name, [['AREG', { int: reg('AREG') }], ['BREG', { int: reg('BREG') }], ['PREG', { int: reg('PREG') }], ['B_INPUT', { str: val('B_INPUT') || 'DIRECT' }]],
         [['A', Array.from({ length: 18 }, (_, k) => pin(i, `A${k}`))], ['B', Array.from({ length: 18 }, (_, k) => pin(i, `B${k}`))],
-          ...['CEA', 'CEB', 'CEP', 'CLK', 'RSTA', 'RSTB', 'RSTP'].map(x => [x, inv(x)]), ['P', P]]);
+          ...['CEA', 'CEB', 'CEP', 'CLK', 'RSTA', 'RSTB', 'RSTP'].map(x => [x, inv(x)]), ['P', P]], arcs);
       return;
     }
     if (inst.kind === 'dcm') {
@@ -439,8 +516,12 @@ export function postMapModels(nl, packed, o = {}) {
       return;
     }
     if (inst.kind !== 'slice') { unknown.add(inst.type); return; }
-    sliceModel(M, i, name, c, val, pin, inv, out);
+    // the delays of a slice: SLICEM or SLICEL by its site (the left column of a CLB), as the timing's instArcs
+    const sx = /^SLICE_X(\d+)Y/.exec(inst.loc || '');
+    const col = sx ? (+sx[1] % 2 === 0 ? 1 : 0) : inst.type === 'SLICEM' ? 1 : 0;
+    sliceModel(M, i, name, c, val, pin, inv, out, T ? (k => T.slice[k][col]) : null, T?.mem);
   });
+  M.loc = null;
   // every net: the output that drives it
   packed.nets.forEach((n, k) => {
     if (n.type === 'vcc' || n.type === 'gnd') return;
@@ -449,12 +530,16 @@ export function postMapModels(nl, packed, o = {}) {
     if (typeof r === 'function') r = r();
     M.alias.set(k, r || (d ? (unknown.add(`${insts[d.inst].type}.${d.pin}`), { c: 0 }) : { c: 0 }));
   });
-  const h = c => modelHead(c, 'Post-Map', 'the packed design', o);
-  return { vhdl: M.write('vhdl', h('--'), o.generics), verilog: M.write('verilog', h('//'), o.generics), instances: M.insts.length, unknown: [...unknown].sort() };
+  return [...unknown].sort();
 }
 
-// A Spartan-3E slice from its configuration (the elements it uses), as packedSim reads it (test/fpga-sim.js)
-function sliceModel(M, i, name, c, val, pin, inv, out) {
+// A Spartan-3E slice from its configuration (the elements it uses), as packedSim reads it (test/fpga-sim.js).
+// T(name): a delay of the timing's slice model (core/fpga/timing.js SPEED_4.slice), mem: its SLICEM memories'
+// (the post-place & route model); each path through the slice (an input pin to an output pin) is split over
+// the elements it goes through so that their sum is the timing's delay of that path (the carry: CIN -> COUT
+// half in each stage)
+function sliceModel(M, i, name, c, val, pin, inv, out, T = null, mem = null) {
+  const t = T || (() => 0), pos = x => Math.max(0, +x.toFixed(4));
   const BX = inv('BX'), BY = inv('BY');
   const clk = val('CLKINV') === 'CLK_B' ? M.inv(pin(i, 'CLK'), `${name}_CLKINV`) : pin(i, 'CLK');
   const memory = side => /^#RAM/.test(val(side) || '');
@@ -465,12 +550,13 @@ function sliceModel(M, i, name, c, val, pin, inv, out) {
     if (!e) { lut[side] = { c: 0 }; continue; }
     const adr = [1, 2, 3, 4].map(j => pin(i, `${side}${j}`));
     if (memory(side)) { lut[side] = M.signal(`${name}_${side}`); mems[side] = adr; continue; }
-    const t = lutTable(e.value.replace(/^#LUT:/, ''), 4);
+    const tb = lutTable(e.value.replace(/^#LUT:/, ''), 4);
     lut[side] = M.signal(`${name}_${side}`);
     // (only the inputs its equation reads: the packer wires the carry's data input CY0F / CY0G to a pin the LUT
     // may not read, and an unknown value there would make the LUT's output unknown, on a loop through other slices)
-    M.inst('X_LUT4', e.name ? `${e.name}_${side}` : `${name}_${side}`, [['INIT', { bits: t.bits }]],
-      [...adr.map((r, j) => [`ADR${j}`, t.inputs.includes(`A${j + 1}`) ? r : { c: 0 }]), ['O', lut[side]]]);
+    const used = adr.map((r, j) => (tb.inputs.includes(`A${j + 1}`) ? r : { c: 0 }));
+    M.inst('X_LUT4', e.name ? `${e.name}_${side}` : `${name}_${side}`, [['INIT', { bits: tb.bits }]],
+      [...used.map((r, j) => [`ADR${j}`, r]), ['O', lut[side]]], T && arcsOf(Object.fromEntries(used.map((r, j) => [`ADR${j}`, r.c === undefined ? t('Tilo') : 0]))));
   }
   // the SLICEM's shift registers and RAMs: written on CLK while SR (the write / shift enable), data BX / BY
   if (mems.F || mems.G) {
@@ -480,36 +566,54 @@ function sliceModel(M, i, name, c, val, pin, inv, out) {
     for (const side of ['G', 'F']) {
       if (!mems[side]) continue;
       const iname = c.get(side).name || `${name}_${side}`;
+      const read = Object.fromEntries([0, 1, 2, 3].map(j => [j, t('Tilo')]));
       if (val(`${side}_ATTR`) === 'SHIFT_REG') {
         const q15 = M.signal(`${name}_${side}MC15`);
         if (side === 'G') q15G = q15;
         const d = side === 'G' ? rawBY : ({ BX: rawBX, ALTDIF: rawBY, SHIFTIN: q15G || { c: 0 } }[val('DIF_MUX')] ?? { c: 0 });
-        M.inst('X_SRLC16E', iname, [['INIT', init(side)]], [...mems[side].map((r, j) => [`A${j}`, r]), ['D', d], ['CE', sr], ['CLK', clk], ['Q', lut[side]], ['Q15', q15]]);
+        M.inst('X_SRLC16E', iname, [['INIT', init(side)]], [...mems[side].map((r, j) => [`A${j}`, r]), ['D', d], ['CE', sr], ['CLK', clk], ['Q', lut[side]], ['Q15', q15]],
+          mem && { iopath: [0, 1, 2, 3].map(j => [`A${j}`, 'Q', read[j]]), clocked: [['CLK', 'Q', mem.Treg], ['CLK', 'Q15', mem.Treg]], setup: [['D', 'CLK', side === 'G' ? mem.TdsY : mem.TdsX], ['CE', 'CLK', mem.Tws]] });
         continue;
       }
       const d = side === 'G' ? rawBY : ({ BX: rawBX, ALTDIF: rawBY }[val('DIF_MUX')] ?? { c: 0 });
       // a RAM32X1S: BX (its A4) chooses the LUT written (F: BX = 1)
       const we = c.has('SLICEWE0USED') ? M.and(sr, side === 'F' ? rawBX : M.inv(rawBX, `${name}_WE0INV`), `${name}_${side}WE`) : sr;
+      const ramArcs = (a, w) => mem && { iopath: [0, 1, 2, 3].map(j => [`${a}${j}`, 'O', read[j]]), clocked: [['CLK', 'O', mem.Tshcko]],
+        setup: [['I', 'CLK', side === 'G' ? mem.TdsY : mem.TdsX], ['WE', 'CLK', mem.Tws], ...[0, 1, 2, 3].map(j => [`${w}${j}`, 'CLK', mem.Tas])] };
       if (side === 'F' && val('F_ATTR') === 'DUAL_PORT') {
-        M.inst('X_RAMD16', iname, [['INIT', init(side)]], [...mems.F.map((r, j) => [`RADR${j}`, r]), ...mems.G.map((r, j) => [`WADR${j}`, r]), ['I', d], ['CLK', clk], ['WE', we], ['O', lut.F]]);
-      } else M.inst('X_RAMS16', iname, [['INIT', init(side)]], [...mems[side].map((r, j) => [`ADR${j}`, r]), ['I', d], ['CLK', clk], ['WE', we], ['O', lut[side]]]);
+        M.inst('X_RAMD16', iname, [['INIT', init(side)]], [...mems.F.map((r, j) => [`RADR${j}`, r]), ...mems.G.map((r, j) => [`WADR${j}`, r]), ['I', d], ['CLK', clk], ['WE', we], ['O', lut.F]], ramArcs('RADR', 'WADR'));
+      } else M.inst('X_RAMS16', iname, [['INIT', init(side)]], [...mems[side].map((r, j) => [`ADR${j}`, r]), ['I', d], ['CLK', clk], ['WE', we], ['O', lut[side]]], ramArcs('ADR', 'ADR'));
     }
   }
   const F = lut.F, G = lut.G;
-  let f5, fx;
-  const F5 = () => (f5 ||= M.mux(G, F, BX, c.get('F5MUX')?.name || `${name}_F5MUX`));
-  const FX = () => (fx ||= M.mux(pin(i, 'FXINB'), pin(i, 'FXINA'), BY, c.get('F6MUX')?.name || `${name}_FXMUX`));
-  const cin = val('CYINIT') === 'BX' ? BX : pin(i, 'CIN');
+  // The paths of the timing's model are not sums of one delay per element: an input reaches the slice's F5 pin and
+  // X through the F5 multiplexer with other delays (Tif5, Tif5x), the FX pin and Y through FX's (Tinafx, Tif6y), COUT
+  // and the G XOR through the F stage's carry (Tbxcy, Tbxy…). With the timing, each of those outputs has its own
+  // copy of the element (as ISE's netgen writes its CYMUXF2, FASTCARRY…), so that every path is the timing's.
+  const once = f => { let r; return () => (r ||= f()); };
+  const F5pin = once(() => M.mux(G, F, BX, c.get('F5MUX')?.name || `${name}_F5MUX`, { IA: pos(t('Tif5') - t('Tilo')), IB: pos(t('Tif5') - t('Tilo')), SEL: t('Tbxf5') }));
+  const F5x = T ? once(() => M.mux(G, F, BX, `${name}_F5MUX_X`, { IA: pos(t('Tif5x') - t('Tilo')), IB: pos(t('Tif5x') - t('Tilo')), SEL: t('Tbxx') })) : F5pin;
+  const FXpin = once(() => M.mux(pin(i, 'FXINB'), pin(i, 'FXINA'), BY, c.get('F6MUX')?.name || `${name}_FXMUX`, { IA: t('Tinafx'), IB: t('Tinafx'), SEL: t('Tbyfx') }));
+  const FXy = T ? once(() => M.mux(pin(i, 'FXINB'), pin(i, 'FXINA'), BY, `${name}_FXMUX_Y`, { IA: t('Tif6y'), IB: t('Tif6y'), SEL: t('Tbyy') })) : FXpin;
+  const cinBX = val('CYINIT') === 'BX';
+  const cin = cinBX ? BX : pin(i, 'CIN');
+  const half = t('Tbyp') / 2;
   const cy0 = (v, side) => ({ 0: { c: 0 }, 1: { c: 1 }, BX, BY, F1: pin(i, 'F1'), F2: pin(i, 'F2'), G1: pin(i, 'G1'), G2: pin(i, 'G2') }[v]
     ?? (v === 'PROD' ? M.and(pin(i, `${side}1`), pin(i, `${side}2`), `${name}_${side}AND`) : { c: 0 }));
-  let cyF, cyG;
-  const CYF = () => (cyF ||= M.mux(cy0(val('CY0F'), 'F'), cin, val('CYSELF') === '1' ? { c: 1 } : F, c.get('CYMUXF')?.name || `${name}_CYMUXF`));
-  const CYG = () => (cyG ||= M.mux(cy0(val('CY0G'), 'G'), CYF(), val('CYSELG') === '1' ? { c: 1 } : G, c.get('CYMUXG')?.name || `${name}_CYMUXG`));
-  let x, y;
-  const Xo = () => (x ||= { F: () => F, F5, FXOR: () => M.xor(cin, F, c.get('XORF')?.name || `${name}_XORF`) }[val('FXMUX')]?.() ?? { c: 0 });
-  const Yo = () => (y ||= { G: () => G, FX, GXOR: () => M.xor(CYF(), G, c.get('XORG')?.name || `${name}_XORG`) }[val('GYMUX')]?.() ?? { c: 0 });
+  // the carry's data input into COUT: BX / BY, or a LUT pin (CY0F / CY0G = F1…)
+  const di = (v, side) => (v === 'BX' ? t('Tbxcy') - half : v === 'BY' ? t('Tbycy') : /^[FG][12]$/.test(v) ? t(`Topcy${side.toLowerCase()}DI`) - (side === 'F' ? half : 0) : 0);
+  const selF = () => (val('CYSELF') === '1' ? { c: 1 } : F);
+  const CYF = once(() => M.mux(cy0(val('CY0F'), 'F'), cin, selF(), c.get('CYMUXF')?.name || `${name}_CYMUXF`,
+    { IA: pos(di(val('CY0F'), 'F')), IB: pos(cinBX ? t('Tbxcy') - half : half), SEL: pos(t('Topcyf') - t('Tilo') - half) }));
+  const CYG = once(() => M.mux(cy0(val('CY0G'), 'G'), CYF(), val('CYSELG') === '1' ? { c: 1 } : G, c.get('CYMUXG')?.name || `${name}_CYMUXG`,
+    { IA: pos(di(val('CY0G'), 'G')), IB: half, SEL: pos(t('Topcyg') - t('Tilo')) }));
+  // the F stage's carry into the G XOR: BX (CY0F) Tbxy, a LUT pin Topy, CIN Tciny (BX: Tbxxor)
+  const CYF2 = T ? once(() => M.mux(cy0(val('CY0F'), 'F'), cin, selF(), `${name}_CYMUXF2`,
+    { IA: val('CY0F') === 'BX' ? t('Tbxy') : /^F[12]$/.test(val('CY0F')) ? t('Topy') : 0, IB: cinBX ? t('Tbxxor') : t('Tciny'), SEL: pos(t('Topy') - t('Tilo')) })) : CYF;
+  const Xo = once(() => ({ F: () => F, F5: F5x, FXOR: () => M.xor(cin, F, c.get('XORF')?.name || `${name}_XORF`, { I0: cinBX ? t('Tbxxor') : t('Tcinx'), I1: pos(t('Topx') - t('Tilo')) }) }[val('FXMUX')]?.() ?? { c: 0 }));
+  const Yo = once(() => ({ G: () => G, FX: FXy, GXOR: () => M.xor(CYF2(), G, c.get('XORG')?.name || `${name}_XORG`, { I0: 0, I1: pos(t('Togy') - t('Tilo')) }) }[val('GYMUX')]?.() ?? { c: 0 }));
   // (built when a net uses them)
-  for (const [p, f] of Object.entries({ X: Xo, Y: Yo, XB: CYF, YB: CYG, COUT: CYG, F5, FX })) out(p, f);
+  for (const [p, f] of Object.entries({ X: Xo, Y: Yo, XB: CYF, YB: CYG, COUT: CYG, F5: F5pin, FX: FXpin })) out(p, f);
   // the flip-flops (or latches)
   const ce = c.has('CEINV') ? inv('CE') : { c: 1 };
   const sr = c.has('SRINV') && !c.has('WSGEN') ? inv('SR') : { c: 0 };
@@ -517,18 +621,22 @@ function sliceModel(M, i, name, c, val, pin, inv, out) {
   for (const X of ['X', 'Y']) {
     const kind = val(`FF${X}`);
     if (!kind) continue;
-    const d = val(`D${X}MUX`) === '1' ? (X === 'X' ? Xo() : Yo()) : X === 'X' ? BX : BY;
+    const viaMux = val(`D${X}MUX`) === '1';
+    const d = viaMux ? (X === 'X' ? Xo() : Yo()) : X === 'X' ? BX : BY;
     const high = val(`FF${X}_SR_ATTR`) === 'SRHIGH';
     const init = { bit: val(`FF${X}_INIT_ATTR`) === 'INIT1' ? 1 : 0 };
     const q = M.signal(`${name}_${X}Q`);
     const iname = c.get(`FF${X}`).name || `${name}_FF${X}`;
     const none = { c: 0 };
+    // the clock to Q, the setups (into D from X / Y, or from BX / BY), CE and SR
+    const arcs = T && { clocked: [['CLK', 'O', t(`Tcko${X}`)]], setup: [['I', 'CLK', viaMux ? t('Tdxck') : t(X === 'X' ? 'Tdick' : 'Tdyck')], ...(ce.c === undefined ? [['CE', 'CLK', t('Tceck')]] : [])] };
     if (kind === '#LATCH') {
       // (open while the clock, after CLKINV, is low)
-      M.inst('X_LATCHE', iname, [['INIT', init]], [['I', d], ['GE', ce], ['CLK', M.inv(clk, `${name}_${X}GATE`)], ['SET', high ? sr : none], ['RST', high ? none : sr], ['O', q]]);
+      M.inst('X_LATCHE', iname, [['INIT', init]], [['I', d], ['GE', ce], ['CLK', M.inv(clk, `${name}_${X}GATE`)], ['SET', high ? sr : none], ['RST', high ? none : sr], ['O', q]], T && { clocked: [['CLK', 'O', t(`Tcko${X}`)]] });
     } else if (sync && sr.c === undefined) {
-      M.inst('X_SFF', iname, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', clk], ['SET', none], ['RST', none], ['SSET', high ? sr : none], ['SRST', high ? none : sr], ['O', q]]);
-    } else M.inst('X_FF', iname, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', clk], ['SET', high ? sr : none], ['RST', high ? none : sr], ['O', q]]);
+      if (arcs) arcs.setup.push([high ? 'SSET' : 'SRST', 'CLK', t('Tsrck')]);
+      M.inst('X_SFF', iname, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', clk], ['SET', none], ['RST', none], ['SSET', high ? sr : none], ['SRST', high ? none : sr], ['O', q]], arcs);
+    } else M.inst('X_FF', iname, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', clk], ['SET', high ? sr : none], ['RST', high ? none : sr], ['O', q]], arcs);
     out(`${X}Q`, q);
   }
 }

@@ -93,7 +93,7 @@ test('openStatus: available for the Basys2 and Nexys2 parts; why not for the oth
   assert.equal(OF.hasBitDatabase('xc3s1600e'), false);
 });
 
-test('openSteps: the chain up to the last step; the ISE-only steps are refused', () => {
+test('openSteps: the chain up to the last step; an unknown step is refused', async () => {
   assert.deepEqual(OF.openSteps(['synth']), ['synth']);
   assert.deepEqual(OF.openSteps(['synth', 'translate', 'map']), ['synth', 'translate', 'map']);
   assert.deepEqual(OF.openSteps(['map']), ['synth', 'translate', 'map']);
@@ -114,9 +114,12 @@ test('openSteps: the chain up to the last step; the ISE-only steps are refused',
   assert.deepEqual(OF.openSteps(['bitgen', 'pin2ucf', 'xpwr']), ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf', 'xpwr', 'bitgen', 'prombit']);
   // (as the application asks for it: the steps up to Place & Route, then xpwr)
   assert.deepEqual(OF.openSteps(['translate', 'map', 'par', 'xpwr'], { synthUpToDate: true }), ['translate', 'map', 'par', 'trce', 'xpwr']);
-  // the Post-Translate and Post-Map Simulation Models: the Silinx toolchain's own since #121; Post-Place & Route needs ISE
+  // the simulation models: the Silinx toolchain's own (Post-Translate and Post-Map since #121, Post-Place & Route
+  // since #122): every step of ISE's flow is the Silinx toolchain's
   assert.deepEqual(OF.openSteps(['synth', 'translate', 'map', 'postmap', 'posttrans']), ['synth', 'translate', 'posttrans', 'map', 'postmap']);
-  assert.throws(() => OF.openSteps(['synth', 'postmap', 'postpar']), /not available in the Silinx toolchain \(they need Xilinx ISE\): postpar/);
+  assert.deepEqual(OF.openSteps(['postpar']), ['synth', 'translate', 'map', 'par', 'trce', 'postpar']);
+  assert.deepEqual((await import('../server/ise.js')).ALL_STEPS.filter(s => !OF.OPEN_STEPS.includes(s)), []);
+  assert.throws(() => OF.openSteps(['synth', 'ngdanno']), /unknown step 'ngdanno'/);
   // the synthesis up to date (#280): from Translate on when it is not asked for; asked for, it runs
   const up = { synthUpToDate: true };
   assert.deepEqual(OF.openSteps(['translate', 'map', 'par', 'bitgen'], up), ['translate', 'map', 'par', 'trce', 'bitgen', 'prombit']);
@@ -245,7 +248,7 @@ for (const [name, part, pkg, ucf, slices, iobs, bytes] of [['N2', 'xc3s1200e', '
   });
 }
 
-test('open mode: a device without a bit database fails with the reason; the ISE-only steps are refused', async () => {
+test('open mode: a device without a bit database fails with the reason; an unknown step is refused', async () => {
   await writeConfig({ mode: 'silinx' });
   await app.call('POST', '/projects', { name: 'Big', template: 'blinky', device: DEV('xc3s1600e', 'fg320') });
   await P.updateProject('Big', pj => { pj.board = null; pj.device = DEV('xc3s1600e', 'fg320'); });
@@ -253,9 +256,9 @@ test('open mode: a device without a bit database fails with the reason; the ISE-
   assert.equal(j.status, 'error');
   assert.match(j.error, /^Silinx toolchain not available for xc3s1600efg320-4: no bit database for xc3s1600e yet \(only the XC3S100E \(CP132\)/);
   assert.ok(j.lines.some(l => /^ERROR: the Silinx toolchain cannot implement this design: no bit database for xc3s1600e yet/.test(l)));
-  const r = await app.call('POST', '/projects/Big/implement', { steps: ['synth', 'postpar'] });
+  const r = await app.call('POST', '/projects/Big/implement', { steps: ['synth', 'ngdanno'] });
   assert.equal(r.status, 400);
-  assert.match(r.body.error, /not available in the Silinx toolchain \(they need Xilinx ISE\): postpar/);
+  assert.match(r.body.error, /unknown step 'ngdanno'/);
 });
 
 test('open mode: a VHDL top with capital letters (its netlist is named in lower case) goes through Translate and Map (#31)', { timeout: 300000 }, async () => {
