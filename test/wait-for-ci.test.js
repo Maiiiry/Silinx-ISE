@@ -44,18 +44,13 @@ test('wait for CI: the command line without its arguments', () => {
 test('release: CI on the tagged commit instead of npm test, the commit on main; the packages still checked', () => {
   const yml = fs.readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8');
   assert.doesNotMatch(yml, /npm test\b/);
-<<<<<<< HEAD
-  assert.match(yml, /\npermissions:\n {2}actions: read .*\n {2}contents: write\n/);
+  assert.match(yml, /\npermissions:\n {2}actions: read .*\n {2}attestations: write .*\n {2}contents: write\n {2}id-token: write .*\n/);
   assert.match(yml, /- name: CI passed\n\s+run: node scripts\/wait-for-ci\.mjs "\$GITHUB_SHA" --timeout (\d+) --appear \d+\n\s+env:\n\s+GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
   // the tagged commit on main (#607: CI runs on the tag, so a tag elsewhere would pass it too)
   assert.match(yml, /uses: actions\/checkout@.+\n\s+with:\n\s+fetch-depth: 0\n/);
   assert.match(yml, /- name: The commit is on main\n\s+run: git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main\n/);
   // CI starts on the tag, with the release (ci.yml)
   assert.match(fs.readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8'), /^on:\n {2}push:\n {4}tags: \['v\*'\]\n {2}workflow_dispatch:\n/m);
-=======
-  assert.match(yml, /\npermissions:\n {2}actions: read .*\n {2}attestations: write .*\n {2}contents: write\n {2}id-token: write .*\n/);
-  assert.match(yml, /- name: CI passed on main\n\s+run: node scripts\/wait-for-ci\.mjs "\$GITHUB_SHA" --timeout (\d+) --appear \d+\n\s+env:\n\s+GITHUB_TOKEN: \$\{\{ github\.token \}\}/);
->>>>>>> 6f65dc6 (Release: SHA-256 checksums of the files and their build provenance attestation (Fixes #485))
   // the job's limit above the wait's, with time to package and check
   const wait = +/--timeout (\d+)/.exec(yml)[1], job = +/\n {4}timeout-minutes: (\d+)\n/.exec(yml)[1];
   assert.ok(job >= wait + 15, `${job} >= ${wait} + 15`);
