@@ -14,7 +14,8 @@ import {
   WIRE, SPEED_4, classOfWires, nodeClasses, nodeDelays, netTree, treePath, pathDelay, distanceDelay,
   instArcs, timingGraph, analyzeTiming, timingReport, clockPort, checkPeriods, delayTable,
 } from '../core/fpga/timing.js';
-import { parseDly, twrArcs, memArcs } from '../research/s3e-route/timing-fit.mjs';
+import zlib from 'node:zlib';
+import { parseDly, twrArcs, memArcs, hardArcs } from '../research/s3e-route/timing-fit.mjs';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fpga');
 const device = loadDevice(packDevice(fs.readFileSync(path.join(FIX, 'timing-device.xdlrc'), 'utf8')));
@@ -47,6 +48,11 @@ test('wire classes: from the names of a node\'s wires (long line, hex, double, O
   assert.equal(classOfWires(['BX1']), WIRE.IMUX);
   assert.equal(classOfWires(['IOIS_Y2']), WIRE.IO);
   assert.equal(classOfWires(['SOMETHING']), WIRE.OTHER);
+  // the block-RAM interconnect wires into and out of a block RAM or multiplier (#457)
+  for (const w of ['BRAM_DIA_B16', 'BRAM_DIPB_B1', 'BRAM_ADDRA_B3', 'BRAM_MULTINB_B7']) assert.equal(classOfWires([w]), WIRE.HARD_IN, w);
+  for (const w of ['BRAM_DOA0', 'BRAM_DOPB1', 'BRAM_MOUT32']) assert.equal(classOfWires([w]), WIRE.HARD_OUT, w);
+  assert.equal(classOfWires(['BRAM_CE_B0']), WIRE.IMUX, 'a control pin\'s wire is an input multiplexer, as a slice\'s');
+  assert.deepEqual([SPEED_4.wire[WIRE.HARD_IN], SPEED_4.wire[WIRE.HARD_OUT]], [0.24, 0]);
   assert.equal(classOfWires(['F1_B_PINWIRE0'], true), WIRE.PIN);
   assert.equal(classOfWires(['XQ0'], false, true), WIRE.OUT);
   // on the device: every node classified once (cached), site pins by the sites' pin wires
@@ -268,6 +274,68 @@ test('SLICEM memory arcs, as trce times them (#443): a shift register\'s and a R
   const r32 = sl([['F', '#RAM:D=0x0000'], ['G', '#RAM:D=0x0000'], ['DIF_MUX', 'ALTDIF'], ['DIG_MUX', 'BY'], ['FXMUX', 'F5'], ['SLICEWE0USED', '0']]);
   assert.deepEqual(r32.clkToOut.find(x => x[0] === 'X'), ['X', M.Tshckof5]);
   assert.deepEqual(setupOf(r32, 'BX'), [M.Tbxs]);
+});
+
+test('block RAM and multiplier arcs, as trce times them (#457): clock to out, setups, A / B -> P by the product bit', () => {
+  const B = SPEED_4.bram, M = SPEED_4.mult;
+  // trce's values (research/s3e-route/timing-fit.mjs --arcs on hard_prim, feat_bram, feat_const_bram, feat_mult,
+  // feat_const_mult, feat_constmult, stopwatch and the multipliers with input registers): the same at every width
+  assert.deepEqual([B.Tbcko, B.Tback, B.Tbdck, B.Tbeck, B.Tbwck, B.Tbrck], [2.812, 0.377, 0.227, 0.770, 1.253, 0.705]);
+  assert.deepEqual([M.TmsckpP, M.TmsdckP, M.TmsdckA, M.TmsdckB, M.Tmscck, M.Tmsrck], [1.100, 3.980, 0.223, 0.384, 0.735, 0.736]);
+  // through the multiplier: P0..P5 the same, then slower up to P17, the same from there
+  assert.deepEqual([0, 5, 6, 7, 13, 16, 17, 35].map(j => M.Tmult[j]), [3.657, 3.657, 4.086, 4.344, 4.757, 4.860, 4.873, 4.873]);
+  assert.deepEqual([0, 5, 6, 7, 13, 16, 17, 35].map(j => M.Tmsckp[j]), [3.917, 3.917, 4.175, 4.433, 4.846, 4.949, 4.962, 4.962]);
+  assert.equal(M.Tmult.length, 36);
+  assert.equal(M.Tmsckp.length, 36);
+  const cfg = c => Object.entries(c).map(([attr, value]) => ({ attr, name: '', value }));
+  const mult = c => instArcs({ type: 'MULT18X18SIO', site: 'MULT18X18_X0Y0', cfg: cfg(c) });
+  const setupOf = (a, p) => a.setup.filter(x => x[0] === p).map(x => x[1]);
+  // combinational: A / B -> P[j], nothing clocked
+  const comb = mult({ AREG: '0', BREG: '0', PREG: '0' });
+  assert.equal(comb.clock, false);
+  assert.deepEqual(comb.comb.filter(([i, o]) => i === 'A3' && ['P0', 'P13', 'P35'].includes(o)), [['A3', 'P0', 3.657], ['A3', 'P13', 4.757], ['A3', 'P35', 4.873]]);
+  assert.deepEqual([comb.setup, comb.clkToOut], [[], []]);
+  // input registers, no product register: CLK -> P[j] (trce's Tmsckp_AB / Tmsckp_B), A / B into their registers
+  const inReg = mult({ AREG: '1', BREG: '1', PREG: '0' });
+  assert.deepEqual([inReg.comb, inReg.clkToOut.find(x => x[0] === 'P7'), setupOf(inReg, 'A0'), setupOf(inReg, 'B17')], [[], ['P7', 4.433], [0.223], [0.384]]);
+  assert.deepEqual(['CEA', 'CEB', 'CEP', 'RSTA', 'RSTB', 'RSTP'].map(p => setupOf(inReg, p)[0]), [0.735, 0.735, 0.735, 0.736, 0.736, 0.736]);
+  // B registered only: A through the multiplier, B into its register
+  const bReg = mult({ AREG: '0', BREG: '1', PREG: '0' });
+  assert.deepEqual([bReg.comb.find(([i, o]) => i === 'A0' && o === 'P6'), setupOf(bReg, 'A0'), setupOf(bReg, 'B0'), bReg.clkToOut.find(x => x[0] === 'P0')], [['A0', 'P6', 4.086], [], [0.384], ['P0', 3.917]]);
+  // the product register: an input not registered sets up through the multiplier (Tmsdck_P), CLK -> P is Tmsckp_P
+  const pReg = mult({ AREG: '1', BREG: '0', PREG: '1' });
+  assert.deepEqual([setupOf(pReg, 'A5'), setupOf(pReg, 'B5'), pReg.clkToOut.find(x => x[0] === 'P20'), pReg.comb], [[0.223], [3.980], ['P20', 1.100], []]);
+  // a block RAM (port A only): its outputs, address, data, enable, write enable and reset
+  const bram = instArcs({ type: 'RAMB16', site: 'RAMB16_X0Y0', cfg: cfg({ PORTA_ATTR: '1024X18' }) });
+  assert.deepEqual([bram.clkToOut.find(x => x[0] === 'DOA5'), bram.clkToOut.find(x => x[0] === 'DOPA1'), bram.clkToOut.some(x => x[0] === 'DOB0')], [['DOA5', 2.812], ['DOPA1', 2.812], false]);
+  assert.deepEqual(['ADDRA13', 'DIA0', 'DIPA1', 'ENA', 'WEA', 'SSRA'].map(p => setupOf(bram, p)[0]), [0.377, 0.227, 0.227, 0.770, 1.253, 0.705]);
+});
+
+// Designs routed by Silinx, timed by ISE's trce -a on the same routing (test/fixtures/fpga/trce/README.md): Silinx's
+// analysis within 2 % of trce's minimum period. Before #457 (the block RAM and multiplier arcs estimated, their
+// interconnect wires counted as any other): hard_prim 8.390 ns (+17.4 %), mult_reg 9.098 (+4.3 %), stopwatch 12.867.
+test('static timing against trce on routed designs with block RAMs and multipliers (#457)', async () => {
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  const g = loadDeviceCache('xc3s250ecp132-4');
+  for (const [name, trce, period] of [['hard_prim', 7.147, 7.110], ['mult_reg', 8.722, 8.711], ['stopwatch', 12.719, 12.602]]) {
+    const d = parseXdl(zlib.gunzipSync(fs.readFileSync(path.join(FIX, 'trce', `${name}.xdl.gz`))).toString('utf8'));
+    const sta = analyzeTiming(d, g);
+    assert.ok(Math.abs(sta.period - period) < 0.0005, `${name}: ${sta.period}`);
+    assert.ok(Math.abs(sta.period - trce) / trce < 0.02, `${name}: ${sta.period} against trce's ${trce}`);
+  }
+});
+
+test('timing-fit: a block RAM\'s and a multiplier\'s arcs from trce\'s report, with the multiplier\'s registers (#457)', () => {
+  const twr = ['    Location             Delay type         Delay(ns)  Physical Resource',
+    '    RAMB16_X0Y2.DOB10    Tbcko                 2.812   ram', '    SLICE_X18Y24.F3      net (fanout=1)        0.992   d<11>',
+    '    SLICE_X18Y24.X       Tilo                  0.759   lut', '    MULT18X18_X0Y0.A11   net (fanout=3)        1.543   s<11>',
+    '    MULT18X18_X0Y0.P19   Tmult                 4.873   mul', '    SLICE_X16Y20.BX      net (fanout=1)        1.375   p<19>',
+    '    SLICE_X16Y20.CLK     Tdick                 0.360   ff', '    Total                                     12.714ns', ''].join('\n');
+  const xdl = `design "t" xc3s250ecp132-4 v3.2 ,\n  cfg "";\n`
+    + inst('ram', 'RAMB16', 'BRAMSITE2_X4Y10', 'RAMB16_X0Y2', ' PORTB_ATTR::1024X18 ') + inst('mul', 'MULT18X18SIO', 'BRAMSITE2_X4Y2', 'MULT18X18_X0Y0', ' AREG::0 BREG::1 PREG::0 ')
+    + inst('lut', 'SLICEL', 'CLB_X9Y12', 'SLICE_X18Y24', ' ');
+  assert.deepEqual(hardArcs(xdl, twr).map(a => [a.type, a.block, a.regs, a.from, a.pin, a.delay]),
+    [['Tbcko', 'bram', undefined, null, 'DOB10', 2.812], ['Tmult', 'mult', 'A0B1P0', 'A11', 'P19', 4.873]]);
 });
 
 test('timing-fit: trce\'s logic delays read from a path\'s table, the data pin of a setup from the net before it (#443)', () => {

@@ -263,6 +263,34 @@ complete, byte-identical to ISE's bitgen, DRC clean). Pieces:
 
 STA of lab11: 15-50 ms.
 
+**Block RAMs and multipliers (#457).** Their arcs were estimates until trce measured them (`timing-fit.mjs --arcs`
+on the verbose reports, `trce -a -v 1000`, of nine designs routed by Silinx: hard_prim, feat_bram, feat_const_bram,
+feat_mult, feat_const_mult, feat_constmult, stopwatch, and two of multipliers with input registers; the routed
+designs and trce's periods of three of them are test fixtures, `test/fixtures/fpga/trce/`). A block RAM's arcs are
+the same at every width and write mode (clock to out Tbcko 2.812 ns; setups: address 0.377, data 0.227, EN 0.770,
+WE 1.253, SSR 0.705). A multiplier's path through it depends on the product bit only: A / B -> P 3.657 ns for P0..P5,
+then 4.086 .. 4.860, 4.873 from P17; from its input registers (AREG / BREG) to P the same plus 0.260 (P0..P5) or
+0.089; from the product register 1.100; an unregistered input into the product register 3.980; into AREG 0.223, BREG
+0.384, CE 0.735, RST 0.736. The wires next to them (the block-RAM interconnect tile's `BRAM_DIA_B…`, `BRAM_ADDRA_B…`,
+`BRAM_MULTINA_B…` in, `BRAM_DOA…`, `BRAM_MOUT…` out) were counted as "other" wires (0.3 ns); against reportgen
+-delay (1 961 connections of the same designs) the wires in cost 0.240 (rms error 0.167 ns) and those out nothing
+(0.095 ns), their own classes now. The STA against trce on the nine designs:
+
+| Design | trce (ns) | STA before (ns) | STA (ns) |
+|---|---|---|---|
+| hard_prim | 7.147 | 8.390 (+17.4 %) | 7.110 (-0.5 %) |
+| feat_bram | 6.357 | 6.537 (+2.8 %) | 6.474 (+1.8 %) |
+| feat_const_bram | 4.591 | 4.382 (-4.6 %) | 4.319 (-5.9 %) |
+| feat_mult | 11.135 | 11.270 (+1.2 %) | 10.767 (-3.3 %) |
+| feat_const_mult | 7.107 | 8.681 (+22.1 %) | 7.401 (+4.1 %) |
+| feat_constmult | 11.426 | 12.335 (+8.0 %) | 11.909 (+4.2 %) |
+| stopwatch | 12.719 | 12.867 (+1.2 %) | 12.602 (-0.9 %) |
+| multipliers, AREG / BREG | 8.735 | 9.577 (+9.6 %) | 8.937 (+2.3 %) |
+| multipliers, AREG / BREG, every P bit into a flip-flop | 8.722 | 9.098 (+4.3 %) | 8.711 (-0.1 %) |
+
+The logic arcs on the critical paths now match trce's exactly; what is left is the wire model's error on single
+nets (0.02-0.27 ns, either way: feat_const_bram's critical net has 19 loads, 3.350 ns by Silinx, 3.622 by trce).
+
 **Timing-driven routing.** VPR's criticality term in PathFinder: for a connection of criticality c,
 a node costs c x its delay / 0.3 ns + (1 - c) x its congestion cost, and the A* search starts from
 each tree node at c x its delay from the source, so a critical load gets a direct, fast path and the
