@@ -38,4 +38,12 @@ test('#487 the print page has no script', () => {
   assert.equal(pageLayout(bounds, { paper: 'A4; } body { display:none' }).paper, 'A4');
   assert.equal(pageLayout(bounds, { paper: 'toString' }).paper, 'A4');
   assert.match(printHtml('t', bounds, 'x" onerror="y', pageLayout(bounds, {})), /<img src="x&quot; onerror=&quot;y" alt=""/);
+  // the @page size is a name from the module's own table, whatever the layout says (CodeQL js/xss-through-dom)
+  const L = pageLayout(bounds, { paper: 'Letter' });
+  assert.match(printHtml('t', bounds, 'blob:x', L), /@page \{ size: letter /);
+  for (const paper of ['A4; } </style><script>alert(1)</script>', 'toString', undefined]) {
+    const page = printHtml('t', bounds, 'blob:x', { ...L, paper });
+    assert.match(page, /@page \{ size: A4 /, String(paper));
+    assert.doesNotMatch(page, /<script|alert/i, String(paper));
+  }
 });
