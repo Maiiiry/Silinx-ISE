@@ -662,6 +662,9 @@ export const chromeOnly = BROWSER === 'chrome' ? undefined : `needs the Chrome D
 // the scripts every page starts with
 function initScripts({ updateCheck }) {
   return [
+    // a Content-Security-Policy violation (the server's header, the static editions' <meta>, #487) is a
+    // console error, which fails the test, in every browser
+    "document.addEventListener('securitypolicyviolation', (e) => console.error(`Content-Security-Policy violation: ${e.violatedDirective} blocked ${e.blockedURI || 'an inline script'}${e.sourceFile ? ` (${e.sourceFile}:${e.lineNumber})` : ''}`));",
     // no update check against GitHub at start-up (a test can turn it on again with its own fetch stub)
     ...(updateCheck ? [] : ['window.SILINX_NO_UPDATE_CHECK = true;']),
     // SILINX_UI_INTERFACE=classic: run the tests in the Xilinx ISE interface (the default is the modern one)

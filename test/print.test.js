@@ -12,7 +12,7 @@ test('tiled printing: rows of tiles step by exactly the height shown per page (n
   for (const [bounds, opts] of [[{ w: 2000, h: 3000 }, { paper: 'A4', across: 2 }], [{ w: 3000, h: 1200 }, { paper: 'A3', across: 3 }], [{ w: 900, h: 2500 }, { paper: 'Letter', orient: 'landscape', across: 2 }]]) {
     const L = pageLayout(bounds, opts);
     assert.ok(L.rows > 1, 'several rows');
-    const html = printHtml('t', bounds, 'x.svg', L, { autoPrint: false });
+    const html = printHtml('t', bounds, 'x.svg', L);
     const art = /\.art \{[^}]*height: ([\d.]+)mm/.exec(html);
     assert.ok(art, 'drawing window height');
     const shown = +art[1];
@@ -25,4 +25,13 @@ test('tiled printing: rows of tiles step by exactly the height shown per page (n
     const page = +/\.page \{[^}]*height: ([\d.]+)mm/.exec(html)[1];
     assert.ok(page < L.ph - 20, `page box ${page} mm`);
   }
+});
+
+// #487: the page written into the print window keeps the opener's Content-Security-Policy, which runs
+// no inline script: the print page has none (the opener prints it)
+test('#487 the print page has no script', () => {
+  const bounds = { w: 800, h: 600 };
+  const html = printHtml('t', bounds, 'blob:x', pageLayout(bounds, { paper: 'A4' }));
+  assert.doesNotMatch(html, /<script/i);
+  assert.match(html, /<img /);
 });

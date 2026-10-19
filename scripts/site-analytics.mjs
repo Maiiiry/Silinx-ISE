@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { addSources, metaCsp, scriptHash, withMetaCsp } from '../server/csp.js';
 
 const MARK = 'silinx-site-analytics';
 
@@ -23,7 +24,16 @@ if (/\\.github\\.io$/.test(location.hostname)) { var s = document.createElement(
 `;
   const i = html.lastIndexOf('</body>');
   if (i < 0) throw new Error('no </body> in the page');
-  return html.slice(0, i) + loader + html.slice(i);
+  let out = html.slice(0, i) + loader + html.slice(i);
+  // the page's Content-Security-Policy (#487) allows the loader (its hash), the counter's script and its
+  // counts (sent to <code>.goatcounter.com as an image or a beacon)
+  const csp = metaCsp(out);
+  if (csp) {
+    const text = loader.slice(loader.indexOf('>') + 1, loader.lastIndexOf('</script>'));
+    const counts = `https://${code}.goatcounter.com`;
+    out = withMetaCsp(out, addSources(addSources(addSources(csp, 'script-src', [scriptHash(text), 'https://gc.zgo.at']), 'connect-src', [counts]), 'img-src', [counts]));
+  }
+  return out;
 }
 
 /** Every index.html of the site (the root and dev/): the paths changed. */

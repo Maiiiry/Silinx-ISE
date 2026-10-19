@@ -18,14 +18,23 @@ export const BROWSER_DEVICES = {
   'xc3s500e/fg320': 'xc3s500efg320-4.json.gz',
   'xc3s1200e/fg320': 'xc3s1200efg320-4.json.gz',
 };
-const SITE_ASSETS = 'https://pmnmalo.github.io/Silinx-ISE/assets/';
+// The assets' layout, written into the page by its build (scripts/build-standalone.mjs, #487): the
+// folder of this version's device descriptions and bit database under the site's assets/ (a release:
+// its version; a development build: dev-<commit>), Yosys's bundle relative to it (shared by the
+// versions with the same Yosys: ../vendor/yowasp-yosys/<its version>/gen/bundle.js), and the site the
+// page opened from a file fetches them from (the site keeps the older releases' folders, so that a
+// downloaded Silinx-ISE.html keeps the assets it was tested with). Unbuilt (tests): the folder itself.
+const LAYOUT = globalThis.SILINX_ASSET_LAYOUT || { dir: '', yosys: 'vendor/yowasp-yosys/gen/bundle.js', site: 'https://pmnmalo.github.io/Silinx-ISE/' };
 
 /** Where the assets are: next to the page when it is served (the site), else the site's (a page
- *  opened from a file). */
+ *  opened from a file); globalThis.SILINX_ASSETS (a test) replaces both. */
 export function assetsBase(loc = globalThis.location) {
   if (globalThis.SILINX_ASSETS) return globalThis.SILINX_ASSETS;
-  return loc && /^https?:$/.test(loc.protocol) ? new URL('assets/', loc.href).href : SITE_ASSETS;
+  const page = loc && /^https?:$/.test(loc.protocol) ? loc.href : LAYOUT.site;
+  return new URL(`assets/${LAYOUT.dir}`, page).href;
 }
+/** The URL of Yosys's bundle (gen/bundle.js) for the assets at `base`. */
+export const yosysBundleUrl = (base = assetsBase()) => new URL(LAYOUT.yosys, base).href;
 
 /** Can the browser edition implement a design for this device? { available, reason, part }. */
 export function browserOpenStatus(device = {}) {
@@ -135,7 +144,7 @@ export async function runBrowserFlow({ project, files, steps, synthUpToDate = nu
       fail: e => { end(); reject(e); },
     });
     signal?.addEventListener('abort', abort, { once: true });
-    w.postMessage({ id, spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase() });
+    w.postMessage({ id, spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase(), yosys: yosysBundleUrl() });
   });
 }
 

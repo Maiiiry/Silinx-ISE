@@ -15,8 +15,8 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 // what users do most, and what depends most on the browser: the shell (menus, dialogs, keys), the
 // modern / classic interface, dark theme and command palette, the HDL editor (CodeMirror), schematic,
 // ASM and FSM editors, ISim and the board emulator, projects from the examples, and Yosys
-// (WebAssembly in a Web Worker)
-const CROSS_BROWSER = ['app', 'modern', 'editing', 'diagrams', 'fsm', 'focus', 'sim-emu', 'projects', 'synth-open']
+// (WebAssembly in a Web Worker), and the static editions under their Content-Security-Policy (#487)
+const CROSS_BROWSER = ['app', 'modern', 'editing', 'diagrams', 'fsm', 'focus', 'sim-emu', 'projects', 'synth-open', 'standalone']
   .map((n) => `test/ui/${n}.test.js`);
 
 const args = process.argv.slice(2);

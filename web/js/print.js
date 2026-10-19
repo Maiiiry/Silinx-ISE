@@ -74,7 +74,7 @@ const mm = (v) => `${+v.toFixed(3)}mm`;
  * HTML document printing the drawing (an image at `imgUrl`, of size bounds.w x bounds.h) with
  * layout L: one page per tile, the image cropped by each page window (loaded only once).
  */
-export function printHtml(title, bounds, imgUrl, L, { autoPrint = true } = {}) {
+export function printHtml(title, bounds, imgUrl, L) {
   const W = bounds.w * L.scale, H = bounds.h * L.scale;
   const n = L.cols * L.rows;
   const pages = [];
@@ -101,10 +101,14 @@ header { height: ${CAPTION}mm; font: 9pt system-ui, -apple-system, "Segoe UI", s
   body { background: #777; padding: 12px 0; }
   .page { margin: 0 auto 12px; background: #fff; box-shadow: 0 0 0 ${MARGIN}mm #fff, 0 2px 8px ${MARGIN}mm #0005; }
 }
-</style></head><body>${pages.join('\n')}${autoPrint ? `<script>
-Promise.all([...document.images].map(i => i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; })))
-  .then(() => setTimeout(() => print(), 250));
-<\/script>` : ''}</body></html>`;
+</style></head><body>${pages.join('\n')}</body></html>`;
+}
+// The print page has no script of its own: a page written into a new window or a frame keeps the
+// opener's Content-Security-Policy, which runs no inline script (#487). The opener prints it, once
+// its images are loaded.
+function printWhenLoaded(win) {
+  Promise.all([...win.document.images].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))))
+    .then(() => setTimeout(() => win.print(), 250));
 }
 
 /** Raster image (PNG blob) of a snapshot at `k` pixels per drawing unit, within browser canvas limits. */
@@ -176,10 +180,10 @@ function openPrint(title, snapshot, L) {
   setTimeout(() => URL.revokeObjectURL(url), 30 * 60 * 1000);
   const html = printHtml(title, snapshot.bounds, url, L);
   const w = window.open('', '_blank');
-  if (w) { w.document.open(); w.document.write(html); w.document.close(); return; }
+  if (w) { w.document.open(); w.document.write(html); w.document.close(); printWhenLoaded(w); return; }
   // pop-ups blocked: print from a hidden frame
   const f = h('iframe', { style: { position: 'fixed', right: 0, bottom: 0, width: 0, height: 0, border: 0 } });
   document.body.append(f);
-  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+  f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close(); printWhenLoaded(f.contentWindow);
   setTimeout(() => f.remove(), 10 * 60 * 1000);
 }

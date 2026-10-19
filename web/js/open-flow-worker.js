@@ -2,7 +2,7 @@
 // WebAssembly, pack, place and route, timing, bitstream) in the browser edition, off the page's thread.
 // The device description, the bit database and Yosys are fetched from `assets` (the site's
 // assets/ folder; web/js/open-flow-browser.js chooses it).
-//   in:  { spec, sources: [{ path, lang, text }], simSources (the test benches), ucf, ucfName, files: { name: text }, assets }
+//   in:  { spec, sources: [{ path, lang, text }], simSources (the test benches), ucf, ucfName, files: { name: text }, assets, yosys (its bundle's URL) }
 //   out: { line } … { write: name, data } … { report } … then { done: { ok, report, error, view } }
 import { runOpenFlow } from '/core/open-flow-core.js';
 import { loadDevice } from '/core/fpga/device.js';
@@ -13,6 +13,8 @@ import { parseXdl, fpgaModel, deviceGrid, MODEL_VERSION } from '/core/xdl.js';
 
 const fetchOk = async (url, what) => {
   const r = await fetch(url);
+  // (a page downloaded long ago: the site keeps the assets of its last releases only, #487)
+  if (r.status === 404) throw new Error(`${what} could not be loaded (${url}: HTTP 404): the site no longer has this version's files; download the current Silinx-ISE.html`);
   if (!r.ok) throw new Error(`${what} could not be loaded (${url}: HTTP ${r.status})`);
   return r;
 };
@@ -28,7 +30,7 @@ const pools = new Map();
 let lastDevice = null;   // { key, device, db }
 
 self.onmessage = async ({ data }) => {
-  const { spec, sources, simSources = [], ucf, ucfName, files, assets } = data;
+  const { spec, sources, simSources = [], ucf, ucfName, files, assets, yosys: yosysUrl } = data;
   // every message carries the run's id (web/js/open-flow-browser.js: each run hears only its own)
   const post = m => self.postMessage({ ...m, id: data.id });
   try {
@@ -53,7 +55,8 @@ self.onmessage = async ({ data }) => {
     // Yosys, compiled to WebAssembly (YoWASP): fetched once, then cached by the browser; in workers of
     // this worker (#279), the synthesis's mappings from the same netlist in parallel (web/js/yosys-client.js),
     // or in this worker's own thread where it cannot start them
-    const bundle = new URL('vendor/yowasp-yosys/gen/bundle.js', base).href;
+    // (its versioned path: web/js/open-flow-browser.js yosysBundleUrl)
+    const bundle = yosysUrl || new URL('vendor/yowasp-yosys/gen/bundle.js', base).href;
     let runYosys = null, loading = false;
     const inThread = async (args, yfiles, onLine) => {
       if (!runYosys) ({ runYosys } = await import(bundle));
