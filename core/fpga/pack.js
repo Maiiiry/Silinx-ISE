@@ -1024,7 +1024,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
         c.params[k] = bits.slice(i * 256, i * 256 + 256).reverse().join('');
       }
     };
-    let data = null, par = null;
+    let data = null, par = null, stuck = false;
     const taken = new Set();
     for (let k = 0; k < w.par; k++) {
       // a port writes a signal into the parity bit and does not read it back (the DRC's case)
@@ -1032,7 +1032,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
       if (!sides.some(P => signal(pinName(`DIP${P}`, k, w.par)) && unused(pinName(`DOP${P}`, k, w.par)))) continue;
       let j = -1;
       for (let i = 0; i < w.data && j < 0; i++) if (!taken.has(i) && sides.every(P => undriven(pinName(`DI${P}`, i, w.data)) && unused(pinName(`DO${P}`, i, w.data)))) j = i;
-      if (j < 0) continue;
+      if (j < 0) { stuck = true; continue; }
       taken.add(j);
       for (const P of sides) {
         swapPins(pinName(`DI${P}`, j, w.data), pinName(`DIP${P}`, k, w.par));
@@ -1052,6 +1052,56 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
       for (let a = 0; a < 16384 / w.data; a++) [data[a * w.data + j], par[a * w.par + k]] = [par[a * w.par + k], data[a * w.data + j]];
     }
     if (data) { putWords('INIT', data); putWords('INITP', par); }
+    // No free data bit (a 2048 x 9 FIFO writing all 9 bits on port A and reading them on port B:
+    // PhysDesignRules:1063, "configured to use an input parity pins. There is a dangling output
+    // parity pin.", which ISE's own map of the same memory gives too, #550): when the memory uses
+    // half the port's words at most (its address MSB tied to 0 on every port), each port becomes
+    // twice as wide with half the words, the word on data bits only (parity bit k on data bit
+    // data + k), the parity inputs tied to 0 and the parity outputs unused.
+    const W = BRAM_WIDTH[2 * widths[0]];
+    const msb = P => pinName(`ADDR${P}`, w.addr - 1, w.addr);
+    if (!stuck || !W || !sides.every(P => !(msb(P) in c.pins) || nets[c.pins[msb(P)]].const === 0)) return;
+    const rename = (from, to) => {
+      if (!(from in c.pins)) return;
+      const n = c.pins[from];
+      for (const e of [...nets[n].loads, nets[n].driver]) if (e?.cell === ci(c) && e.pin === from) e.pin = to;
+      delete c.pins[from];
+      c.pins[to] = n;
+      if (c.undriven) c.undriven = c.undriven.map(p => (p === from ? to : p));
+    };
+    for (const P of sides) {
+      if (msb(P) in c.pins) {
+        const n = c.pins[msb(P)];
+        nets[n].loads = nets[n].loads.filter(l => !(l.cell === ci(c) && l.pin === msb(P)));
+        delete c.pins[msb(P)];
+      }
+      for (let i = 0; i < w.data; i++) for (const b of ['DI', 'DO']) rename(pinName(`${b}${P}`, i, w.data), pinName(`${b}${P}`, i, W.data));
+      for (let k = 0; k < w.par; k++) for (const b of ['DI', 'DO']) rename(pinName(`${b}P${P}`, k, w.par), pinName(`${b}${P}`, w.data + k, W.data));
+      // the parity inputs tied to 0 (the DRC wants all of a port's or none: PhysDesignRules:1061)
+      for (let k = 0; k < W.par; k++) {
+        c.pins[pinName(`DIP${P}`, k, W.par)] = 0;
+        nets[0].loads.push({ cell: ci(c), pin: pinName(`DIP${P}`, k, W.par) });
+      }
+      for (const v of ['INIT', 'SRVAL']) {
+        const key = single ? v : `${v}_${P}`;
+        if (c.params[key] === undefined) continue;
+        const b = (paramBits(c.params[key]) || []).slice(0, w.data + w.par);
+        while (b.length < W.data + W.par) b.push(0);
+        c.params[key] = b.reverse().join('');
+      }
+    }
+    // the contents: word a of the lower half, its data bits then its parity bits, on word a
+    data = words('INIT', 64);
+    par = words('INITP', 8);
+    const wide = Array(16384).fill(0);
+    for (let a = 0; a < 16384 / W.data; a++) {
+      for (let i = 0; i < w.data; i++) wide[a * W.data + i] = data[a * w.data + i];
+      for (let k = 0; k < w.par; k++) wide[a * W.data + w.data + k] = par[a * w.par + k];
+    }
+    putWords('INIT', wide);
+    putWords('INITP', Array(2048).fill(0));
+    for (const P of Object.keys(ports)) ports[P] = 2 * widths[0];
+    c.type = c.type.replace(/S\d+/g, `S${2 * widths[0]}`);
   }
   // DCM (DCM_SP): its pins by name (STATUS<i> -> STATUSi); only the settings in the bit database
   // (research/s3e-bitstream/README.md, stages D and F: every DCM of the four devices) are accepted.
