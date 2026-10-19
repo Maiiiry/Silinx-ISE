@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { S3E_DEVICES, XC3S250E, bitFormat, writeBit, readBit, setBit, diffFrames } from '../core/fpga/bitstream.js';
-import { makeDb, layoutFormat, bitgen, frameData, padsFromDevice, knownRouting, featureBits, tileOf, tileBase } from '../core/fpga/bitgen.js';
+import { S3E_DEVICES, XC3S250E, bitFormat, writeBit, readBit, setBit, getBit, diffFrames } from '../core/fpga/bitstream.js';
+import { makeDb, layoutFormat, bitgen, frameData, padsFromDevice, knownRouting, featureBits, tileOf, tileBase, pipFeatures, designFeatures } from '../core/fpga/bitgen.js';
 import { parseXdl } from '../core/xdl.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { DB_DIR, splitPart, mergeTiles, hasBitDb, readDbFiles, dbPackages, loadDb, edges } from '../research/s3e-bitstream/db.mjs';
@@ -251,7 +251,7 @@ test('the tile types are shared: the XC3S250E\'s measurements serve the other de
   assert.deepEqual(['SLICE0', 'SLICE1', 'SLICE2', 'SLICE3'].map(s => t.CENTER_SMALL.features[`${s}:REVUSED:0`]), [['1,40'], ['1,8'], ['2,40'], ['2,8']]);
 });
 
-test('the XC3S1200E\'s own features: the long-line splitters of the centre row, not used by the router', () => {
+test('the XC3S1200E\'s own features: the long-line splitters of the centre row, used by the router (#23)', () => {
   const db = loadDb('xc3s1200efg320-4', { graph: { siteIndex: new Map() } });
   const t = tileOf('CLKH_LL_X7Y30', db);
   assert.equal(t.type, 'CLKH_LL');
@@ -262,13 +262,43 @@ test('the XC3S1200E\'s own features: the long-line splitters of the centre row, 
   assert.deepEqual(featureBits(db.types.CLKH_LL, 'CLKH_LLT_LV1->CLKH_LLB_LV1'), [`18,${125 * 32 - 3}`]);
   assert.equal([...db.types.CLKH_LL.feats.keys()].length, 48);
   const k = knownRouting(db);
-  assert.equal(k.allowPip('CLKH_LL_X7Y30', 'CLKH_LLT_LV6', 'CLKH_LLB_LV6'), false, 'noRoute: the direction of "a =- b" is not known');
+  assert.equal(k.allowPip('CLKH_LL_X7Y30', 'CLKH_LLT_LV6', 'CLKH_LLB_LV6'), true, 'the direction of "a =- b" from the device description (#23)');
+  assert.equal(k.allowPip('CLKH_LL_X7Y30', 'CLKH_LLB_LV6', 'CLKH_LLT_LV6'), true);
   assert.equal(k.allowPip('CLB_X7Y30', 'OMUX0', 'E2BEG0'), k.allowPip('CLB_X7Y31', 'OMUX0', 'E2BEG0'));
   // the other devices have no such tiles: the shared file does not hold them
   assert.equal(JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types.CLKH_LL, undefined);
   // the upper horizontal clock rows of the XC3S1200E start one bit further than the others' (bits 1-3 are the splitters')
   assert.deepEqual(db.layout.typeRows.GCLKH, { 6: 125 * 32 - 1, 22: 125 * 32 - 2, 38: 3, 54: 4 });
   assert.deepEqual(readDbFiles('xc3s500e').layout.typeRows.GCLKH, { 7: 97 * 32 - 1, 15: 97 * 32 - 2, 31: 2, 39: 3 });
+});
+
+test('a long-line splitter in a routed design (#23): "a =- b" takes the direction away from the half of the line the net drives, from the device description', () => {
+  const part = 'xc3s1200efg320-4', dev = loadDeviceCache(part), db = loadDb(part, { graph: dev });
+  // the vertical long line LV6 of column 7: its top half driven by OMUX15 in CLB_X7Y54, its bottom
+  // half in CLB_X7Y30; the splitter between them in CLKH_LL_X7Y30
+  assert.equal(dev.node('CLB_X7Y54', 'LV6'), dev.node('CLKH_LL_X7Y30', 'CLKH_LLT_LV6'));
+  assert.equal(dev.node('CLB_X7Y30', 'LV6'), dev.node('CLKH_LL_X7Y30', 'CLKH_LLB_LV6'));
+  const xdl = (tile, sliceSite, sinkTile, sinkSite) => `design "t" xc3s1200efg320-4 v3.2 ,\n  cfg "";\n`
+    + `inst "a" "SLICEL",placed ${tile} ${sliceSite}  ,\n  cfg " F:a_f:#LUT:D=A1 FXMUX::F XUSED::0 "\n  ;\n`
+    + `inst "b" "SLICEL",placed ${sinkTile} ${sinkSite}  ,\n  cfg " F:b_f:#LUT:D=A1 FXMUX::F XUSED::0 "\n  ;\n`
+    + `net "n" , \n  outpin "a" X ,\n  inpin "b" F1 ,\n  pip ${tile} X1 -> OMUX15 ,\n  pip ${tile} OMUX15 -> LV6 ,\n  pip CLKH_LL_X7Y30 CLKH_LLT_LV6 =- CLKH_LLB_LV6 ,\n  ;\n`;
+  const down = parseXdl(xdl('CLB_X7Y54', 'SLICE_X13Y106', 'CLB_X7Y30', 'SLICE_X13Y58'));
+  const up = parseXdl(xdl('CLB_X7Y30', 'SLICE_X13Y58', 'CLB_X7Y54', 'SLICE_X13Y106'));
+  const siteOf = d => n => d.insts.find(i => i.name === n).site;
+  assert.deepEqual(pipFeatures(down.nets[0], dev, siteOf(down)), ['X1->OMUX15', 'OMUX15->LV6', 'CLKH_LLT_LV6->CLKH_LLB_LV6']);
+  assert.deepEqual(pipFeatures(up.nets[0], dev, siteOf(up)), ['X1->OMUX15', 'OMUX15->LV6', 'CLKH_LLB_LV6->CLKH_LLT_LV6']);
+  // without the device description the net does not tell
+  assert.equal(pipFeatures(down.nets[0])[2], 'CLKH_LLT_LV6=-CLKH_LLB_LV6');
+  // bitgen: the splitter's bit of its direction (the top half to the bottom: frame 15 of the column, bit 1)
+  const fd = d => designFeatures(d, db).feats.filter(f => f.tile === 'CLKH_LL_X7Y30').map(f => f.feature);
+  assert.deepEqual(fd(down), ['CLKH_LLT_LV6->CLKH_LLB_LV6']);
+  assert.deepEqual(fd(up), ['CLKH_LLB_LV6->CLKH_LLT_LV6']);
+  const t = tileOf('CLKH_LL_X7Y30', db), base = tileBase(t, db);
+  const fr = frameData(down, db), fu = frameData(up, db);
+  assert.deepEqual(fr.unknown, []);
+  assert.deepEqual(fu.unknown, []);
+  const fw = fr.frames.frameWords;
+  assert.deepEqual([getBit(fr.frames, fw, base.frame + 15, base.bit + 1), getBit(fu.frames, fw, base.frame + 15, base.bit + 1)], [1, 0]);
 });
 
 test('the PIPs a tile type\'s features offer that its tiles do not have (#74): measured on ISE\'s device descriptions, refused to the router', () => {

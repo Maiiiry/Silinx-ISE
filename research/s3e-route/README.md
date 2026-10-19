@@ -831,6 +831,31 @@ loads of the high-fanout nets (the T80 3.66 -> 1.86 ns), which only fewer loads 
 netlist like XST's) remove; and the placement's floor, above ISE's routing on iwls05-i2c (the levels, #652) and
 on vtr-diffeq1 at seed 1 (the multipliers' columns).
 
+## The XC3S1200E's long-line splitters (#23, 2026-10-21)
+
+The XC3S1200E joins each vertical long line's two halves across the centre row (CLKH_LL; the bits:
+research/s3e-bitstream/README.md, stage F). A routed design writes the splitter as `a =- b`. bitgen now
+takes its direction from the device description (`pipFeatures`: the half of the line the net drives is
+the input), so the router may use it. Three ways were compared on 21 designs (the 9 of #651, six more
+of the corpus, the examples on the Nexys2-1200) at 3 seeds, the same netlists:
+
+| | Silinx's analysis, geometric mean |
+|---|---:|
+| without the splitters (before) | 11.417 ns |
+| the router uses them, the placer's delay table without them | 11.414 ns (−0.02 %) |
+| the placer's delay table counts them too (#599's) | 11.509 ns (+0.81 %; vtr-diffeq2 +8.5 %, itc99-b05 +6.2 %) |
+
+Counted in the delay table, the splitters make far vertical offsets look faster than they route, and the
+placements are slower. So the table leaves them out (`knownRouting` `delayPip`), and the placements are
+the same as before. The router takes a splitter in 18 of the 63 runs (31 in all). By ISE's trce on those
+18, against the same placement routed without them: −0.10 % in geometric mean (8 faster, 7 slower,
+within ±4 %; picorv32 +0.6 to +3.5 %, vtr-diffeq2 −1.2 / −1.7 %, blinky −3.8 % at seed 1). The other 45
+route as before. All 41 routings checked: DRC 0 errors (picorv32's one warning, its gated clock, with or
+without the splitters), xdl2ncd no new warning, the `.bit` byte-identical to ISE's bitgen (CRC on and
+off). The splitters change little: a design that reaches across the centre row is rare, and a hex or
+two does nearly as well. The XC3S1200E's other splitters (horizontal, across the centre column; the
+I/O columns') are not in the bit database yet: #709.
+
 ## Open problems
 
 - Timing: no timing constraints (UCF PERIOD) are read yet; the router and the placer minimise the

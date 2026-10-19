@@ -98,5 +98,7 @@ export function makeBitDb(files, dev, part) {
   const { device, pkg } = splitPart(part);
   const db = makeDb({ ...files, tiles: withDcmClkinGclk(files.tiles), pads: dev ? padsFromDevice(dev) : {} });
   if (pkg) db.format.part = `${device.slice(2)}${pkg}`;
+  // (the device description: the direction of a bidirectional PIP from its nodes, bitgen.js pipFeatures)
+  if (dev && typeof dev.node === 'function') db.graph = dev;
   return db;
 }
