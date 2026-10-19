@@ -445,6 +445,8 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  the database (#45), but the placer does not keep a side buffer and
  *                                  the top / bottom one of the same line out of each other's quadrants
  *                                  (research/s3e-bitstream/README.md, stage G)
+ *   allowPad(site, cfg)            an I/O instance (its cfg) on a pad: the settings of its registers and
+ *                                  their paths measured on that pad (#96)
  */
 export function knownRouting(db, { exceptions = true } = {}) {
   // each tile's type and whether the layout knows it, once per tile (the router and the placer's
@@ -473,6 +475,9 @@ export function knownRouting(db, { exceptions = true } = {}) {
       return !!kindOf && known(site.tileName, `${kindOf}:USED`) && known(site.tileName, `${kindOf}:_GND_SOURCE:Y`);
     },
     allowBufg: (tileName, site) => !/^CLK[LR]_/.test(tileName) && known(tileName, `${site}:USED`),
+    // an I/O site's registers and their paths (cfg: the instance's [{ attr, name, value }]) on a pad: their
+    // features measured there (#44: each register kind on part of the pads only; the placer's choice, #96)
+    allowPad: (site, cfg) => iobRegFeatures(cfg).every(f => !!db.padFeats[site]?.[f]),
   };
 }
 
