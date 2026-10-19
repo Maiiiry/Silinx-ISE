@@ -3894,7 +3894,10 @@ function openBundle() {
   inp.addEventListener('change', async () => {
     const f = inp.files[0];
     if (!f) return;
-    try { const name = await api.importBundle(await f.text()); await openProject(name); showLeftPage('design'); }
+    try {
+      const name = await api.importBundle(await f.text()); await openProject(name); showLeftPage('design');
+      for (const w of api.lastImportWarnings || []) log(`WARNING: ${w}`, 'warn');
+    }
     catch (e) { alertDlg('Open Project Bundle', e.message, 'error'); }
   });
   inp.click();
