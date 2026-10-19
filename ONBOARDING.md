@@ -130,6 +130,10 @@ docs/          user guides (EN, PT), the project model and API, QUALITY.md (agai
   the changelog fragments (`changes/*.md`) do not.
 - **The ISE tests and the quality comparison** run on the self-hosted runner (the Mac mini).
   - They run only on code from `main`, never a PR's.
+  - The runner refuses every other job before its first step, and is on line only in the two workflows'
+    window (#482, `scripts/ise-runner/`: a job-started hook and a launchd agent, installed on the Mac mini
+    with `sh scripts/ise-runner/install.sh <the runner's folder>`, again after those scripts change).
+    A run by hand outside the window: `sh window.sh open` there first, or it waits for the evening.
   - The weekly comparison pushes its results to the branch `quality-results`, to be merged by hand.
   - GitHub starts scheduled runs hours late (the nightly's 21:17 UTC has started at 23:37 and at 08:13):
     look for the night's results in the morning, not at the cron's time.
