@@ -1,23 +1,8 @@
-// Generic UI widgets: element builder, dialogs, menus, context menus, splitters.
+// Generic UI widgets: dialogs, menus, context menus, splitters; the element builder h and esc of dom.js re-exported.
 import { icons } from './icons.js';
+import { h, esc } from './dom.js';
 
-export function h(tag, attrs = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs || {})) {
-    if (v === undefined || v === null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k === 'style' && typeof v === 'object') Object.assign(el.style, v);
-    else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
-    else if (k === 'html') el.innerHTML = v;
-    else if (v === true) el.setAttribute(k, '');
-    else el.setAttribute(k, v);
-  }
-  for (const c of children.flat(Infinity)) {
-    if (c === null || c === undefined || c === false) continue;
-    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
-  }
-  return el;
-}
+export { h, esc };
 
 // Undo / Redo of an editor's own toolbar as the main toolbar's (its icon, tip and look, #220): ico 'undo' | 'redo'
 export const undoButton = (ico, onclick, attrs = {}) =>

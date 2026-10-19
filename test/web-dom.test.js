@@ -44,3 +44,16 @@ test('#489 no module or page of web/ defines an HTML escape of its own', () => {
   assert.equal(ownEscape('function escH(s) { return s; }'), true);
   assert.equal(ownEscape("import { esc } from './dom.js';\nel.innerHTML = esc(x);"), false);
 });
+
+// an element builder of its own: a function or constant named h at a module's top level
+const ownBuilder = code => /^(?:export )?(?:function h\(|(?:const|let) h = )/m.test(code);
+
+test('#489 no module or page of web/ defines an element builder h of its own (ui.js re-exports dom.js\'s)', () => {
+  const copies = sources().filter(f => ownBuilder(fs.readFileSync(f, 'utf8'))).map(f => path.relative(WEB, f));
+  assert.deepEqual(copies, []);
+  assert.match(fs.readFileSync(path.join(WEB, 'js', 'ui.js'), 'utf8'), /^import \{ h, esc \} from '\.\/dom\.js';$/m);
+  assert.equal(ownBuilder('function h(tag, attrs = {}, ...kids) {}'), true);
+  assert.equal(ownBuilder("const h = (tag, cls, html) => document.createElement(tag);"), true);
+  // a local h inside a function (an SVG shape's height) is not one
+  assert.equal(ownBuilder('function body(def) {\n  const h = def.h;\n}'), false);
+});

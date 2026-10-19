@@ -23,7 +23,7 @@ import { getLanguage, onLanguageChange } from './i18n.js';
 import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu } from './ui.js';
 import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
-import { esc } from './dom.js';
+import { esc, h } from './dom.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -31,21 +31,6 @@ const snap = v => Math.round(v / GRID) * GRID;
 const r1 = v => Math.round(v * 10) / 10;
 const KEYS = { sym: 'symbols', wire: 'wires', port: 'ports', label: 'labels' };
 
-function h(tag, attrs = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else if (k === 'text') el.textContent = v;
-    else if (k === 'html') el.innerHTML = v;
-    else if (k === 'value') el.value = v;
-    else if (k === 'checked') el.checked = !!v;
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children.flat()) if (c != null) el.append(c);
-  return el;
-}
 
 // ------------------------------------------------------------------ icons (16x16)
 const I = (body) => `<svg viewBox="0 0 16 16">${body}</svg>`;
