@@ -393,10 +393,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 26,
-   "luts": 52,
-   "ffs": 17,
-   "period": 5.328
+   "slices": 21,
+   "luts": 41,
+   "ffs": 24,
+   "period": 5.417
   }
  },
  "itc99-b11": {
@@ -407,10 +407,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 97,
-   "luts": 185,
-   "ffs": 31,
-   "period": 9.431
+   "slices": 94,
+   "luts": 179,
+   "ffs": 36,
+   "period": 9.703
   }
  },
  "itc99-b12": {
@@ -482,10 +482,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1370,
-   "luts": 2731,
-   "ffs": 529,
-   "period": 19.677
+   "slices": 1237,
+   "luts": 2465,
+   "ffs": 538,
+   "period": 18.5
   }
  },
  "itc99-b17": {
@@ -510,10 +510,10 @@
   },
   "quality": {
    "part": "xc3s500efg320-4",
-   "slices": 4080,
-   "luts": 8132,
-   "ffs": 1328,
-   "period": 20.927
+   "slices": 3735,
+   "luts": 7442,
+   "ffs": 1356,
+   "period": 20.735
   }
  },
  "itc99-b20": {

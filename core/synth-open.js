@@ -12,6 +12,7 @@ import { toVerilog } from './synth-verilog.js';
 import { rewriteCarryChains, gateAssignments, GATE_MIN, ADDER_MIN } from './carry-chain.js';
 import { readYosysJson } from './fpga/netlist.js';
 import { pack } from './fpga/pack.js';
+import { fsmProbeCommands, fsmChosen, fsmExtractCommands, fsmInits, fsmRestCommands, markWires, setInits, FSM_PRE_FILE, FSM_MARKED_FILE, FSM_POST_FILE, FSM_ENC_FILE } from './synth-fsm.js';
 
 // Silinx's device families -> synth_xilinx -family
 export const YOSYS_FAMILY = {
@@ -506,9 +507,12 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * (DEEP_RULE's) faster than Normal's own netlist (#611: r.depth.normal { ns, luts, kept: Normal's own kept }, r.depth.high { ns, luts }
  * of High's then), and for a design
  * with wide multiplexers (#511: their mapping onto MUXF5 … MUXF7, r.depth.muxf, at both efforts); a design
- * written as gates also has its adders' carry chains recovered (#77, #377), the faster netlist kept.
+ * written as gates also has its adders' carry chains recovered (#77, #377), the faster netlist kept. At High a
+ * design whose state machines of FSM_RULE.states states or more the init values keep out of Yosys's fsm is
+ * synthesized once more with them one-hot (#539, core/synth-fsm.js), that netlist kept when better by DEPTH_RULE:
+ * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
@@ -519,9 +523,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   const quiet = l => QUIET.some(re => re.test(l));
   const line = l => { if (!quiet(l)) { log.push(l); onLine(l); } };
   // the usual mapping's run; at Normal made first, and given (its messages again) to whichever step needs it
+  // (at High started beside the search for state machines, #539: a promise, its messages said when it is taken)
   let usual = null;
   const usualRun = (say) => {
-    if (usual) { const u = usual; usual = null; for (const l of u.lines) say(l); return Promise.resolve(u.out); }
+    if (usual) {
+      const u = usual;
+      usual = null;
+      return Promise.resolve(u.done).then(out => { for (const l of u.lines) say(l); return out; }, e => { for (const l of u.lines) say(l); throw e; });
+    }
     return run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), say);
   };
   // a design written as gates (#77): the first of its two runs, up to synth_xilinx's fine step (the coarse
@@ -532,11 +541,24 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     yosysFiles(top, text), l => { if (!quiet(l)) lines1.push(l); });
   const preRun = normal && gates ? coarse() : null;
   preRun?.catch(() => {});
+  // High (#539): the state machines the init values keep out, found by a quiet run up to fsm (core/synth-fsm.js),
+  // started at once; its failure leaves the design as it is
+  const synth = `synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`;
+  const linesP = [];
+  const probe = !normal && depth && lut4 && withFsm
+    ? run(['-q', '-p', fsmProbeCommands(`read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; `, synth)], yosysFiles(top, text), l => { if (!quiet(l)) linesP.push(l); })
+      .then(out => ({ out, machines: fsmChosen(asText(out[FSM_PRE_FILE]), asText(out[FSM_ENC_FILE])) }), () => null)
+    : null;
+  if (probe) {
+    const lines = [];
+    usual = { lines, done: run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => lines.push(l)) };
+    usual.done.catch(() => {});
+  }
   let deep = null;   // Normal: the usual mapping's levels of logic, and whether that is deep (#468)
   if (normal && depth && lut4) {
     const lines = [];
     const out = await run(['-q', '-p', yosysScript(top, family, opts)], yosysFiles(top, text), l => lines.push(l));
-    usual = { out, lines };
+    usual = { done: out, lines };
     const json = out[`${top}.json`];
     if (json) deep = { levels: logicLevels(json, top), deep: deepDesign(json, top, deepRule) };
     if (deep?.deep) tryDepth = true;
@@ -693,6 +715,11 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   // least (with their sums: the EPFL adder, 98 ns as gates, 17 ns on the carry chain), the usual run at once
   // beside the first one (#377): a design without them costs no more time (the EPFL multiplier's chains,
   // slower, kept out by the rule: 13 s more beside its usual run's 300).
+  // (with machines to try one-hot, the usual netlist's messages are said once the choice is made)
+  const fsmFound = probe && await probe;
+  const machines = fsmFound?.machines.length ? fsmFound.machines : null;
+  const linesU = [];
+  const emit = machines ? l => { if (!quiet(l)) linesU.push(l); } : line;
   let res = null, chains = [];
   if (lut4 && gates) {
     // (Normal, not deep: an adder's chains only, its first run started beside the usual one, #377)
@@ -710,11 +737,39 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         usualRun(l => { if (!quiet(l)) linesN.push(l); }).then(outN => withDepth(outN, () => {}, linesN)),
       ]);
       const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts], DEPTH_RULE, [resN.slices(), resC.slices()]);
-      if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) line(l); res = resC; }
-      else { for (const l of linesN) line(l); res = resN; }
+      if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) emit(l); res = resC; }
+      else { for (const l of linesN) emit(l); res = resN; }
     }
   }
-  if (!res) res = await withDepth(await usualRun(line), line, [...log]);
+  if (!res) res = machines ? await withDepth(await usualRun(emit), () => {}, linesU) : await withDepth(await usualRun(line), line, [...log]);
+  if (machines) {
+    // the machines one-hot (#539): marked, extracted and re-encoded, their new power-up codes written back, the
+    // rest of the script and High's mappings from that netlist; kept when better than the usual one by DEPTH_RULE
+    const linesF = [...linesP];
+    const say = l => { if (!quiet(l)) linesF.push(l); };
+    let resF = null, failed = null;
+    try {
+      const { il } = markWires(asText(fsmFound.out[FSM_PRE_FILE]), machines.map(m => m.wire), 'one-hot');
+      const out2 = await run(['-q', '-p', fsmExtractCommands()], { [FSM_MARKED_FILE]: il }, say);
+      const inits = fsmInits(machines, asText(out2[FSM_ENC_FILE]));
+      const cmds = synthCommands(top, family, opts), first = `${synth} -run :fine; `;
+      if (inits && cmds.startsWith(first)) {
+        const out3 = await run(['-q', '-p', `${fsmRestCommands(synth, cmds.slice(first.length))}; ${outputs(top)}`],
+          { ...yosysFiles(top, text), [FSM_POST_FILE]: setInits(asText(out2[FSM_POST_FILE]), inits) }, say);
+        resF = await withDepth(out3, () => {}, linesF);
+      }
+    } catch (e) { failed = e.message; }
+    const lutsOf = r => utilization(r.cells).luts;
+    const kept = !!resF && (withFsm === 'always' || keepDepth([res.ns, resF.ns], [lutsOf(res), lutsOf(resF)], DEPTH_RULE, [res.slices(), resF.slices()]));
+    const fsmInfo = { machines: machines.map(({ wire, states }) => ({ wire, states })), ns: resF?.ns ?? null, luts: resF ? lutsOf(resF) : null, slices: resF ? resF.slices() : null, kept };
+    if (kept) { res = resF; chains = []; }
+    for (const l of kept ? linesF : linesU) line(l);
+    if (failed) {
+      fsmInfo.failed = failed;
+      line(`Warning: the one-hot encoding of the state machines failed (${failed}): the usual encoding is kept`);
+    }
+    res.info.fsm = fsmInfo;
+  }
   const { chosen, cells, info } = res;
   if (deep) Object.assign(info, { levels: deep.levels, auto: deep.deep });
   const files = { [`${top}_syn.v`]: text, [`${top}.json`]: chosen[`${top}.json`], [`${top}_yosys.v`]: chosen[`${top}_yosys.v`] || '', [`${top}_stat.txt`]: chosen[`${top}_stat.txt`] || '' };

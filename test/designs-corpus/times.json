@@ -86,9 +86,9 @@
    "total": 25368
   },
   "itc99-b01": {
-   "synth": 3789,
-   "flow": 552,
-   "total": 4377
+   "synth": 4145,
+   "flow": 542,
+   "total": 4712
   },
   "itc99-b02": {
    "synth": 4115,
@@ -131,24 +131,24 @@
    "total": 4626
   },
   "itc99-b10": {
-   "synth": 6788,
-   "flow": 1053,
-   "total": 7908
+   "synth": 5662,
+   "flow": 839,
+   "total": 6557
   },
   "itc99-b11": {
-   "synth": 4907,
-   "flow": 915,
-   "total": 5957
+   "synth": 5205,
+   "flow": 1581,
+   "total": 6907
   },
   "itc99-b12": {
-   "synth": 6519,
-   "flow": 1740,
-   "total": 8590
+   "synth": 7562,
+   "flow": 2432,
+   "total": 10308
   },
   "itc99-b13": {
-   "synth": 6797,
-   "flow": 749,
-   "total": 7634
+   "synth": 4898,
+   "flow": 767,
+   "total": 5745
   },
   "itc99-b14": {
    "synth": 15774,
@@ -156,14 +156,14 @@
    "total": 37549
   },
   "itc99-b15": {
-   "synth": 13195,
-   "flow": 50410,
-   "total": 65766
+   "synth": 32561,
+   "flow": 50241,
+   "total": 84776
   },
   "itc99-b17": {
-   "synth": 17753,
-   "flow": 91412,
-   "total": 115975
+   "synth": 44200,
+   "flow": 102500,
+   "total": 153158
   },
   "itc99-b20": {
    "synth": 14494,
@@ -286,9 +286,9 @@
    "total": 6999
   },
   "verilog-i2c-master": {
-   "synth": 10366,
-   "flow": 1736,
-   "total": 12380
+   "synth": 6905,
+   "flow": 1796,
+   "total": 8905
   },
   "verilog-lfsr-crc": {
    "synth": 5322,
