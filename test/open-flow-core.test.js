@@ -278,6 +278,48 @@ endmodule`;
 // OFFSET constraints in the flow's timing (#26): an input's pad to setup and an output's clock to pad against the UCF's
 // OFFSET IN / OUT, in the timing report, the warnings and the report's constraints; a TIMEGRP's not analyzed, an
 // OFFSET on no clock of the design said
+// #601: a DCM's clocks get the PERIOD constraints trce derives from its input's (they had none: "no clock of the design
+// comes from this port"), and a register from CLK0's flip-flops into CLKFX's is timed against the two clocks' edges
+test('Implement Design: a DCM\'s clocks with their derived PERIOD constraints, the paths from one into the other timed (#601)', { timeout: 300000 }, async () => {
+  const { flow } = await import('./timesim-lib.mjs');
+  const { orderOpenSteps } = await import('../core/open-steps.js');
+  const src = (m, d) => [{ path: 'top.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+library unisim; use unisim.vcomponents.all;
+entity top is port (clk : in std_logic; led : out std_logic_vector(1 downto 0)); end;
+architecture rtl of top is
+  signal ci, c0u, c0, cfu, cf : std_logic; signal n : unsigned(7 downto 0) := (others => '0'); signal x : std_logic := '0';
+begin
+  u_ibufg : IBUFG port map (I => clk, O => ci);
+  u_dcm : DCM_SP generic map (CLKFX_MULTIPLY => ${m}, CLKFX_DIVIDE => ${d}, CLKIN_PERIOD => 20.0, CLK_FEEDBACK => "1X")
+    port map (CLKIN => ci, CLKFB => c0, RST => '0', DSSEN => '0', PSCLK => '0', PSEN => '0', PSINCDEC => '0', CLK0 => c0u, CLKFX => cfu);
+  u_b0 : BUFG port map (I => c0u, O => c0);
+  u_bf : BUFG port map (I => cfu, O => cf);
+  process (c0) begin if rising_edge(c0) then n <= n + 1; end if; end process;
+  process (cf) begin if rising_edge(cf) then x <= n(7) xor n(6); end if; end process;
+  led <= x & n(0);
+end;` }];
+  const ucf = 'NET "clk" LOC = "B8" ;\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\n';
+  // CLKFX x 3 / 2: 13.333 ns, CLK0's edges at 0 and 20 ns, CLKFX's at 13.333 and 26.667: 6.667 ns from CLK0 to CLKFX
+  const r = await flow({ top: 'top', steps: orderOpenSteps(['trce']) }, src(3, 2), [], ucf);
+  assert.equal(r.ok, true, r.lines.join('\n'));
+  const timing = r.store['open/timing.txt'];
+  assert.match(timing, /^constraint PERIOD 20 ns on clk, CLK0 of u_dcm: 20 ns, met \(period \d+\.\d{3} ns, slack \d+\.\d{3} ns\)$/m);
+  // (CLKFX's flip-flop has no path of its own: its clock no line, its one path from CLK0's below)
+  assert.doesNotMatch(timing, /CLKFX of u_dcm/);
+  assert.match(timing, /^paths from clock \S+ \(rising\) to clock \S+ \(rising\): met, requirement 6\.667 ns between the clocks' edges \(delay \d+\.\d{3} ns, slack \d+\.\d{3} ns\)$/m);
+  assert.deepEqual(r.lines.filter(l => /^WARNING/.test(l)), []);
+  assert.equal(r.lines.filter(l => /constraint\(s\) not met|All constraints were met/.test(l)).join(), 'All constraints were met.');
+  assert.deepEqual(r.report.timing.constraints.map(c => [c.name, c.required, c.timingErrors]), [['PERIOD clk CLK0 of u_dcm', 20, 0]]);
+  // CLKFX x 17 / 16: 18.824 ns, its edges 1.176 ns after CLK0's at the closest: the path cannot make it
+  const t = await flow({ top: 'top', steps: orderOpenSteps(['trce']) }, src(17, 16), [], ucf);
+  assert.equal(t.ok, true, t.lines.join('\n'));
+  const m = /^paths from clock (\S+) \(rising\) to clock (\S+) \(rising\): NOT MET, requirement 1\.176 ns between the clocks' edges \(delay (\d+\.\d{3}) ns, slack -\d+\.\d{3} ns\)$/m.exec(t.store['open/timing.txt']);
+  assert.ok(m, t.store['open/timing.txt']);
+  assert.deepEqual(t.lines.filter(l => /^WARNING/.test(l)), [`WARNING:Timing - the paths from clock ${m[1]} to clock ${m[2]} not met: they need ${m[3]} ns, 1.176 ns between the clocks' edges`]);
+  assert.equal(t.lines.filter(l => /constraint\(s\) not met|All constraints were met/.test(l)).join(), '1 constraint(s) not met.');
+  assert.equal(t.report.timing.met, false);
+});
+
 test('Implement Design: the UCF\'s OFFSET constraints checked, in the timing report and the warnings (#26)', { timeout: 300000 }, async () => {
   const { flow } = await import('./timesim-lib.mjs');
   const { orderOpenSteps } = await import('../core/open-steps.js');
