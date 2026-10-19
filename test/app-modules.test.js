@@ -17,6 +17,10 @@ const definedIn = (code, name) => new RegExp(`^(?:export )?(?:async )?function $
 const PARTS = {
   'console.js': ['log', 'logLine', 'showConsolePage', 'setDiagnostics', 'renderDiagnostics', 'clearConsole',
     'consoleMessage', 'renderDiagnosticsSoon', 'diagFixes', 'applyDiagFix', 'lastConsoleDiag'],
+  'project.js': ['resetProjectState', 'blockedByRun', 'lifecycle', 'inOrder', 'openProject', 'closeProject', 'openProjectNow',
+    'closeProjectNow', 'reloadProject', 'reloadProjectNow', 'updateTitle', 'rememberRecent', 'recent', 'clearRecent',
+    'renderStartPage', 'storageBox', 'storageMenuItems', 'storageLine', 'updateStorageStatus', 'switchStorage',
+    'openWorkspaceFolder', 'reopenWorkspaceFolder', 'useBrowserStorage', 'copyBrowserProjects'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -29,18 +33,22 @@ test('#405 app.js split: each moved function is defined in its module only', () 
   }
 });
 
-test('#405 app.js split: what app.js imports from a module is exported by it, and the module reaches app.js through S / app only', () => {
+test('#405 app.js split: what app.js imports from a module is exported by it, and what the module imports from app.js is exported there', () => {
   for (const mod of Object.keys(PARTS)) {
     const code = read(mod), names = importedFrom(app, mod);
     assert.ok(names?.length, `app.js imports from ${mod}`);
     const exported = exportsOf(code);
     for (const name of names) assert.ok(exported.has(name), `${mod} exports ${name}`);
-    assert.deepEqual(importedFrom(code, 'app.js'), ['S', 'app'], `${mod} imports { S, app } from app.js`);
+    const fromApp = importedFrom(code, 'app.js'), appExports = new Set([...exportsOf(app), 'S', 'app']);
+    assert.ok(fromApp?.includes('S'), `${mod} imports S from app.js`);
+    for (const name of fromApp) assert.ok(appExports.has(name), `app.js exports ${name} (for ${mod})`);
   }
   // the names other modules use on the app object are still there
   for (const name of ['log', 'logLine', 'setDiagnostics']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
-  // and app.js still exports log / setDiagnostics by name
+  for (const name of ['openProject', 'closeProject', 'reloadProject']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
+  // and app.js still exports them by name
   assert.match(app, /^export \{ log, setDiagnostics \};/m);
+  assert.match(app, /^export \{ openProject, closeProject, reloadProject \};/m);
 });
 
 test('#405 app.js split: the helpers fail on a part missing from a module', () => {
@@ -48,4 +56,17 @@ test('#405 app.js split: the helpers fail on a part missing from a module', () =
   assert.equal(definedIn('export async function log(x) {}', 'log'), true);
   assert.equal(importedFrom("import { a } from './x.js';", 'console.js'), null);
   assert.deepEqual(importedFrom("import { a, b } from './console.js';", 'console.js'), ['a', 'b']);
+});
+
+// #375: open, close and reload stay in call order. The queue moved with them, unchanged: each call waits for the one
+// before it, a failed one included.
+test('#405 project.js: open / close / reload keep their call order (the queues of #375)', () => {
+  const code = read('project.js');
+  assert.match(code, /^let lifecycle = Promise\.resolve\(\);\nfunction inOrder\(fn\) \{\n  const run = lifecycle\.then\(fn, fn\);\n  lifecycle = run\.catch\(\(\) => \{\}\);\n  return run;\n\}/m);
+  assert.match(code, /^export function openProject\(name\) \{ return inOrder\(\(\) => openProjectNow\(name\)\); \}$/m);
+  assert.match(code, /^export function closeProject\(\) \{ return inOrder\(closeProjectNow\); \}$/m);
+  assert.match(code, /S\.reloadChain = \(S\.reloadChain \|\| Promise\.resolve\(\)\)\.then\(run, run\);/);
+  // every document closed through app.js (its view state kept as it was), never by project.js itself
+  assert.equal((code.match(/if \(!await closeAllDocs\(\)\) return;/g) || []).length, 2);
+  assert.doesNotMatch(code, /keepView|closeDoc\(/);
 });
