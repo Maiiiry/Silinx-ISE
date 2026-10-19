@@ -230,22 +230,28 @@ test('annotateSdf on ISE\'s model: the clock network\'s delays, the clock to out
   const a = annotateSdf(NET, 'vhdl', parseSdf(SDF));
   assert.deepEqual([a.annotated, a.missing], [8, []]);
   const body = a.text.slice(a.text.lastIndexOf('\nbegin\n'));
-  // the clock: the input buffer's, the BUFGMUX's, the inverter's paths, the clock pin's connection
-  assert.match(body, /^ {6}I => clk_BUFGP_IBUFG_I_DLY,$/m);
+  // the delays (X_SDFDLY: a wire's transport delay, then a gate's inertial one) and the setup checks (X_SDFCHECK)
+  const dly = [...body.matchAll(/ : X_SDFDLY\n {4}generic map \(\n {6}WIRE_PS => (\d+),\n {6}GATE_PS => (\d+)\n {4}\)\n {4}port map \(\n {6}I => (\w+),\n {6}O => (\w+)\n/g)].map(m => `${m[3]} -> ${m[4]}: ${m[1]} + ${m[2]}`);
+  assert.deepEqual(dly, [
+    // the clock: the input buffer's, the BUFGMUX's, the inverter's paths, the clock pin's connection
+    'clk -> clk_BUFGP_IBUFG_I_DLY: 0 + 526',
+    'clk_INBUF -> clk_BUFGP_BUFG_I0_DLY: 0 + 1457',
+    'clk_BUFGP -> q_ff_CLKINV_I_DLY: 0 + 92',
+    'd -> d_IBUF_I_DLY: 0 + 526',
+    'r -> r_IBUF_I_DLY: 0 + 526',
+    'r_IBUF_3 -> q_ff_SRINV_I_DLY: 0 + 1191',
+    // the flip-flop: its data's connection, its clock pin's, its clock to out on its output; its reset (RST -> O,
+    // as the clock to out) through the output's delay only
+    'd_IBUF_2 -> q_ff_I_DLY: 484 + 0',
+    'q_ff_CLKINV_1 -> q_ff_CLK_DLY: 125 + 0',
+    'q_ff_O_Q -> q_O: 0 + 586',
+    'q_O -> q_OBUF_I_DLY: 599 + 1804',
+  ]);
   assert.match(body, /^ {6}I0 => clk_BUFGP_BUFG_I0_DLY,\n {6}I1 => '0',\n {6}S => '0',$/m);
-  assert.match(body, /^ {2}clk_BUFGP_IBUFG_I_DLY <= clk after 526 ps;$/m);
-  assert.match(body, /^ {2}clk_BUFGP_BUFG_I0_DLY <= clk_INBUF after 1457 ps;$/m);
-  assert.match(body, /^ {2}q_ff_CLKINV_I_DLY <= clk_BUFGP after 92 ps;$/m);
-  assert.match(body, /^ {2}q_ff_CLK_DLY <= transport q_ff_CLKINV_1 after 125 ps;$/m);
-  // the flip-flop: its data's connection, its clock to out on its output; its reset (RST -> O, as the clock to out)
-  // through the output's delay only
-  assert.match(body, /^ {2}q_ff_I_DLY <= transport d_IBUF_2 after 484 ps;$/m);
-  assert.match(body, /^ {2}q_O <= q_ff_O_Q after 586 ps;$/m);
   assert.match(body, /^ {6}RST => q_ff_SRINV_4,$/m);
-  assert.doesNotMatch(body, /q_ff_RST_/);
   // one setup check of I (both edges' checks are one), none of SRST (a constant), none on the BUFGMUX (S constant)
-  assert.deepEqual([...body.matchAll(/^ {2}(\w+) : process \((\w+)\)$/gm)].map(m => `${m[1]} ${m[2]}`), ['q_ff_I_SETUP q_ff_CLK_DLY']);
-  assert.match(body, /if rising_edge\(q_ff_CLK_DLY\) and now >= 100000 ps and q_ff_I_DLY'last_event < 132 ps then\n {6}report "Timing violation \(setup 132 ps\) on q_ff\.I: changed "/);
+  assert.deepEqual([...body.matchAll(/^ {2}(\w+) : X_SDFCHECK\n {4}generic map \(\n {6}SETUP_PS => (\d+),\n {6}FROM_PS => 100000,\n {6}NEGEDGE => (\w+),\n {6}NAME => "([\w.]+)"\n {4}\)\n {4}port map \(\n {6}D => (\w+),\n {6}CLK => (\w+)\n/gm)].map(m => m.slice(1).join(' ')),
+    ['q_ff_I_SETUP 132 FALSE q_ff.I q_ff_I_DLY q_ff_CLK_DLY']);
 });
 
 // the test bench: a clock of 20 ns (rising at 10, 30, … ns at the pad; 2.2 ns later at the flip-flop's clock pin:
