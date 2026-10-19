@@ -400,6 +400,54 @@ test('block RAMs: a word bit in a parity position that its port writes and does 
   same(read, pr, 200);
 });
 
+// A FIFO's 64 x 9 memory on 2048 x 9 ports, as Yosys maps verilog-axis-fifo's: port A writes the
+// 9 bits (DIPA the 9th), port B reads them; the address MSBs tied to 0 (msb: port A's otherwise)
+function fifo9(params = {}, msb = '0') {
+  return yjson({ clk: ['input', 1], wa: ['input', 6], ra: ['input', 6], h: ['input', 1], d: ['input', 9], we: ['input', 1], q: ['output', 9] }, [
+    ...clock, ...ibuf('wa', 6), ...ibuf('ra', 6), ...ibuf('h', 1), ...ibuf('d', 9), ...ibuf('we', 1),
+    { name: 'm', type: 'RAMB16_S9_S9', params: { WRITE_MODE_A: 'READ_FIRST', WRITE_MODE_B: 'READ_FIRST', ...params },
+      conns: { ADDRA: [...bus('wa_i', 6), '0', '0', '0', '0', msb], DIA: bus('d_i', 8), DIPA: 'd_i[8]', DOA: bus('qa', 8), DOPA: 'qap', CLKA: 'clk_g', ENA: '1', SSRA: '0', WEA: 'we_i',
+        ADDRB: [...bus('ra_i', 6), '0', '0', '0', '0', '0'], DIB: Array(8).fill('x'), DIPB: 'x', DOB: bus('qb', 8), DOPB: 'qbp', CLKB: 'clk_g', ENB: '1', SSRB: '0', WEB: '0' },
+      outs: ['DOA', 'DOPA', 'DOB', 'DOPB'] },
+    ...[...bus('qb', 8), 'qbp'].map((n, i) => obuf(`q[${i}]`, n)),
+  ]);
+}
+
+test('block RAMs: a 9-bit word on 2048 x 9 ports, written on port A and read on port B, goes on 1024 x 18 ports with its parity pins unused when its address MSB is tied to 0 (#550)', () => {
+  // word 1: parity bit set; word 3: data 0xA5; word 1024 (the upper half: never addressed) dropped
+  const nl = fifo9({ INIT_00: bin(0xA5n << 24n, 256), INIT_20: bin(0xFF, 256), INITP_00: bin(0b10, 256), INIT_A: bin(0x1FF, 9), SRVAL_B: bin(0x103, 9) });
+  const p = pack(nl);
+  assert.deepEqual(p.warnings, []);
+  const m = p.insts.find(i => i.name === 'm');
+  const k = p.insts.indexOf(m);
+  const ins = new Map(p.nets.flatMap(n => n.inpins.filter(x => x.inst === k).map(x => [x.pin, n.type === 'wire' ? p.insts[n.outpins[0].inst].name : n.type])));
+  const outs = p.nets.flatMap(n => n.outpins.filter(x => x.inst === k).map(x => x.pin)).sort();
+  assert.deepEqual([val(m, 'PORTA_ATTR'), val(m, 'PORTB_ATTR')], ['1024X18', '1024X18']);
+  // the 9th bit on DIA8 / DOB8; the parity inputs tied to 0 (ISE's DRC: all of a port's or none);
+  // 10 address bits from ADDR4 (the MSB, 0, left out)
+  assert.equal(ins.get('DIA8'), 'd<8>');
+  assert.deepEqual(['DIPA0', 'DIPA1', 'DIPB0', 'DIPB1'].map(x => ins.get(x)), ['gnd', 'gnd', 'gnd', 'gnd']);
+  assert.ok(!ins.has('DIB8'));
+  assert.deepEqual(outs, Array.from({ length: 9 }, (_, i) => `DOB${i}`).sort());
+  assert.deepEqual(['ADDRA4', 'ADDRB4', 'ADDRA9', 'ADDRA10', 'ADDRA13'].map(x => ins.get(x)), ['wa<0>', 'ra<0>', 'wa<5>', 'gnd', 'gnd']);
+  assert.ok(!ins.has('ADDRA3') && !ins.has('ADDRB3'));
+  // the contents: word a's 8 data bits then its parity bit on data bits 0-8 of 18-bit word a
+  assert.equal(val(m, 'INIT_00'), ((0xA5n << 48n) | (1n << 24n)).toString(16).toUpperCase().padStart(64, '0'));
+  assert.ok(!cfgOf(m).INIT_20 || /^0+$/.test(val(m, 'INIT_20')));
+  assert.ok(Object.values(cfgOf(m)).every(c => !/^INITP_/.test(c.attr) || /^0+$/.test(c.value)));
+  assert.deepEqual([val(m, 'INIT_A'), val(m, 'SRVAL_B')], ['001FF', '00103']);
+  // the netlist itself is not changed
+  assert.equal(nl.cells.find(c => c.name === 'm').type, 'RAMB16_S9_S9');
+  same(nl, p, 300);
+  // the MSB used (all 2048 words): the ports stay 2048 x 9, the 9th bit on DIPA0
+  const nh = fifo9({}, 'h_i');
+  const ph = pack(nh);
+  const mh = ph.insts.find(i => i.name === 'm'), kh = ph.insts.indexOf(mh);
+  assert.equal(val(mh, 'PORTA_ATTR'), '2048X9');
+  assert.equal(ph.insts[ph.nets.find(n => n.inpins.some(x => x.inst === kh && x.pin === 'DIPA0')).outpins[0].inst].name, 'd<8>');
+  same(nh, ph, 200);
+});
+
 // x * 6554 (x / 10 = x * 6554 / 65536, as the stopwatch example computes it) on all 12 multipliers:
 // the B inputs tied to 0 and 1 (GLOBAL_LOGIC0 / GLOBAL_LOGIC1)
 function constMults() {
