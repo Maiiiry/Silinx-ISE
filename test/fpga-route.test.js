@@ -47,11 +47,12 @@ test('routeDesign: a two-sink net is routed as one tree of PIPs and passes the c
   assert.ok(checkRouting(r.design, device).ok);
 });
 
-test('routeDesign: two nets wanting the same wire negotiate (PathFinder): one takes the longer way', () => {
-  // a0.X -> b0.F1 can only use E2BEG0; a1.X -> b1.F1 prefers E2BEG0 too (3 nodes) but can go by E2BEG1 + HOP1 (4)
+test('routeDesign: two nets wanting the same wire: the one that can, takes the longer way', () => {
+  // a0.X -> b0.F1 can only use E2BEG0; a1.X -> b1.F1 prefers E2BEG0 too (3 nodes) but can go by E2BEG1 + HOP1 (4).
+  // E2BEG0 is the only way into b0.F1, so it is na's from the start (#82): no conflict to negotiate
   const r = routeDesign(design(net('na', '', [['a0', 'X']], [['b0', 'F1']]) + net('nb', '', [['a1', 'X']], [['b1', 'F1']])), device);
   assert.equal(r.overused, 0);
-  assert.ok(r.iterations >= 2, 'the conflict of the first pass is resolved in a later one');
+  assert.equal(r.iterations, 1);
   assert.ok(pipsOf(r, 'na').includes('CLB_X1Y0 OMUX0 -> E2BEG0'));
   assert.deepEqual(pipsOf(r, 'nb'), ['CLB_X1Y0 OMUX1 -> E2BEG1', 'CLB_X1Y0 X1 -> OMUX1', 'CLB_X2Y0 E2END1 -> HOP1', 'CLB_X2Y0 HOP1 -> F1_B_PINWIRE1']);
   assert.ok(checkRouting(r.design, device).ok);
@@ -92,9 +93,11 @@ test('routeDesign: a route-through only out of the net\'s own source site onto a
   assert.equal(r2.routed, 1);
 });
 
-test('routeDesign: a net that fails in the first pass stays reported when later passes reroute only congested nets', () => {
-  const r = routeDesign(design(net('na', '', [['a0', 'X']], [['b0', 'F1']]) + net('nb', '', [['a1', 'X']], [['b1', 'F1']]) + net('lost', '', [['pad', 'I']], [['b0', 'CIN']])), device);
-  assert.ok(r.iterations >= 2);
+test('routeDesign: a net that fails in the first pass stays reported when later passes reroute only some nets', () => {
+  // na (a0.X -> b1.F1) and nc (a0.Y -> pad.O1) both need OMUX0: a conflict no pass resolves, so every
+  // pass reroutes them, and only them
+  const r = routeDesign(design(net('na', '', [['a0', 'X']], [['b1', 'F1']]) + net('nc', '', [['a0', 'Y']], [['pad', 'O1']]) + net('lost', '', [['pad', 'I']], [['b0', 'CIN']])), device, { maxIterations: 3 });
+  assert.deepEqual([r.iterations, r.overused], [3, 1]);
   assert.deepEqual(r.failed, ['lost']);
   assert.equal(r.routed, 2);
 });
@@ -288,6 +291,36 @@ test('routeDesign with knownRouting: a PIP the tile lacks though its type\'s fea
   const r = route({ absentIn: [{ tiles: ['CLB_X1Y0'], absent: ['OMUX0->E2BEG0'] }] }, net('na', '', [['a0', 'X']], [['b0', 'F1']]));
   assert.deepEqual(r.failed, ['na']);
   assert.ok(!r.design.nets.some(n => n.pips.some(p => p.tile === 'CLB_X1Y0' && p.from === 'OMUX0' && p.to === 'E2BEG0')));
+});
+
+// #82: a slice's BX / BY pin is reached through its BX / BY wire only, which also feeds LUT inputs of
+// the CLB (BY1 -> F1_B3). On the shipped XC3S250E graph, on switches of known bits: net b's best way
+// to SLICE_X19Y23.F1 is through BY1 of CLB_X10Y12, the only way into SLICE_X19Y22.BY (net a). The
+// pin's wire belongs to its net: b goes round it from the first pass, and no node is left shared (on
+// the XC3S1200E a Y -> BY net between neighbouring slices failed this way at some seeds).
+test('routeDesign: a pin\'s only entry wire (a slice\'s BY wire) is its net\'s; no other net passes through it (#82)', async () => {
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  const { loadDb } = await import('../core/fpga/bitdb-node.js');
+  const part = 'xc3s250ecp132-4';
+  const g = loadDeviceCache(part);
+  const known = knownRouting(loadDb(part, { graph: g }));
+  const slice = (name, s) => `inst "${name}" "SLICEL",placed ${g.tileNames[g.site(s).tile]} ${s} ,\n  cfg " A::B "\n  ;\n`;
+  const pair = parseXdl(`design "t" ${part} v3.2 ,\n  cfg "";\n${slice('s', 'SLICE_X16Y24')}${slice('d', 'SLICE_X19Y23')}${slice('u', 'SLICE_X17Y22')}${slice('t', 'SLICE_X19Y22')}`
+    + `${net('b', '', [['s', 'X']], [['d', 'F1']])}${net('a', '', [['u', 'Y']], [['t', 'BY']])}`);
+  const only = parseXdl(writeXdl({ ...pair, nets: pair.nets.filter(n => n.name === 'b') }));
+  assert.equal(g.nodeName(g.sitePinNode('SLICE_X19Y22', 'BY')), 'CLB_X10Y12/BY_PINWIRE1');
+  const by1 = p => p.tile === 'CLB_X10Y12' && (p.from === 'BY1' || p.to === 'BY1');
+  // alone, b takes BY1 (its pin is not used)
+  assert.ok(routeDesign(only, g, { ...known, timing: true }).design.nets[0].pips.some(by1));
+  for (const timing of [false, true]) {
+    // one pass: legal at once, b around BY1, a through it
+    const r = routeDesign(pair, g, { ...known, timing, maxIterations: 1 });
+    assert.deepEqual([r.routed, r.failed, r.overused, r.iterations], [2, [], 0, 1], `timing ${timing}`);
+    const pips = name => r.design.nets.find(n => n.name === name).pips;
+    assert.ok(!pips('b').some(by1), `timing ${timing}: b keeps off BY1`);
+    assert.deepEqual(pips('a').filter(p => p.tile === 'CLB_X10Y12').map(p => `${p.from} -> ${p.to}`).sort(), ['BY1 -> BY_PINWIRE1', 'E2MID4 -> BY1'], `timing ${timing}`);
+    assert.ok(checkRouting(r.design, g).ok);
+  }
 });
 
 test('checkRouting: unknown PIPs, unreached sinks, antennas and nodes shared by two nets', () => {

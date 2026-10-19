@@ -84,7 +84,8 @@ whole tree (cost per node `(1 + history) x (1 + present factor x other nets on i
 nodes cost more (present factor x1.6 per pass, history +0.5 per extra net), and only the nets on
 shared nodes are rerouted, until no node is shared. Clock nets (driven by a BUFGMUX) search only
 GCLK nodes, falling back to general routing for a sink the global network cannot reach. Pins belong
-to their net (no other net routes through them). Route-throughs only out of the net's own source
+to their net (no other net routes through them), and so does a pin's only entry wire (a slice's BX / BY
+wire, which also feeds the CLB's LUT inputs, #82). Route-throughs only out of the net's own source
 site onto a free pin. VCC / GND nets without a source get ISE-style dummy sources.
 
 ```
