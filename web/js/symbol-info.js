@@ -11,23 +11,8 @@ import { SYMBOLS, defaultParams } from '/core/schdoc.js';
 import { symbolDoc, presetOf, modeQText, T } from '/core/symdocs.js';
 import { truthTable } from '/core/symtables.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
-import { esc } from './dom.js';
+import { esc, h } from './dom.js';
 
-function h(tag, attrs = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else if (k === 'text') el.textContent = v;
-    else if (k === 'html') el.innerHTML = v;
-    else if (k === 'value') el.value = v;
-    else if (k === 'checked') el.checked = !!v;
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children.flat()) if (c != null) el.append(c);
-  return el;
-}
 
 export function openSymbolInfo(opts) {
   const { container } = opts;

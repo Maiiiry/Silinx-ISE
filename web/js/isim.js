@@ -18,7 +18,7 @@ import { toVCD } from '/core/simulator.js';
 import { onPrefsChange } from './modern.js';
 import { longPressMenu } from './ui.js';
 import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, checkExpected, fillExpected, applyStimuli, stimulusPlan, parseCellValue } from '/core/stimuli.js';
-import { esc } from './dom.js';
+import { esc, h } from './dom.js';
 
 // ------------------------------------------------------------------------------- constants
 const ROW_H = 20;
@@ -60,7 +60,6 @@ const ICON = {
 };
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
-const h = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
 
 // ------------------------------------------------------------------------------- time helpers
 export function fmtTime(ps, maxDec = 3) {
@@ -281,7 +280,7 @@ export function mountISim(container, opts = {}) {
   let colors = {};
 
   // ---------------------------------------------------------------- DOM skeleton
-  const root = h('div', 'isim');
+  const root = h('div', { class: 'isim' });
   root.tabIndex = -1;
   root.innerHTML = `
     <div class="isim-title"><span class="isim-title-ico">${ICON.runFor}</span><span class="isim-title-text"></span></div>
@@ -328,16 +327,16 @@ export function mountISim(container, opts = {}) {
   const tb = $('.isim-toolbar');
   const btns = {};
   const addBtn = (key, title, fn) => {
-    const b = h('button', 'tb-btn', ICON[key]); b.title = title; b.type = 'button';
+    const b = h('button', { class: 'tb-btn', html: ICON[key] }); b.title = title; b.type = 'button';
     b.addEventListener('click', () => { fn(); });
     tb.appendChild(b); btns[key] = b; return b;
   };
-  const sep = () => tb.appendChild(h('span', 'tb-sep'));
+  const sep = () => tb.appendChild(h('span', { class: 'tb-sep' }));
   addBtn('restart', 'Restart', () => api.restart());
   addBtn('runAll', 'Run All', () => { echo('run all'); enqueue('run all', () => api.runAll()); });
   addBtn('runFor', 'Run for the specified time', () => runForUi());
-  const rfVal = h('input', 'isim-rf-val'); rfVal.value = String(opts.defaultRunTime?.value ?? 1); rfVal.title = 'Simulation run time';
-  const rfUnit = h('select', 'isim-rf-unit', Object.keys(UNITS).map(u => `<option>${u}</option>`).join(''));
+  const rfVal = h('input', { class: 'isim-rf-val' }); rfVal.value = String(opts.defaultRunTime?.value ?? 1); rfVal.title = 'Simulation run time';
+  const rfUnit = h('select', { class: 'isim-rf-unit', html: Object.keys(UNITS).map(u => `<option>${u}</option>`).join('') });
   rfUnit.value = opts.defaultRunTime?.unit ?? 'us'; rfUnit.title = 'Time unit';
   tb.appendChild(rfVal); tb.appendChild(rfUnit);
   rfVal.addEventListener('keydown', e => { if (e.key === 'Enter') runForUi(); });
@@ -361,7 +360,7 @@ export function mountISim(container, opts = {}) {
   sep();
   addBtn('vcd', 'Export waveform as VCD', () => exportVCD());
   // the stimuli drawn on the inputs' waveforms (#336), with their bar of commands
-  const stimBar = h('div', 'isim-stimbar');
+  const stimBar = h('div', { class: 'isim-stimbar' });
   stimBar.hidden = true;
   if (stimOpt) {
     sep();
@@ -1282,10 +1281,10 @@ export function mountISim(container, opts = {}) {
   let menuEl = null;
   function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
   function buildMenu(items, x, y) {
-    const m = h('div', 'isim-menu');
+    const m = h('div', { class: 'isim-menu' });
     for (const it of items) {
-      if (it.sep) { m.appendChild(h('div', 'isim-menu-sep')); continue; }
-      const r = h('div', 'isim-menu-item' + (it.disabled ? ' dis' : ''), `<span class="chk">${it.checked ? '✓' : ''}</span><span class="lbl">${esc(it.label)}</span><span class="arr">${it.sub ? '▸' : ''}</span>`);
+      if (it.sep) { m.appendChild(h('div', { class: 'isim-menu-sep' })); continue; }
+      const r = h('div', { class: 'isim-menu-item' + (it.disabled ? ' dis' : ''), html: `<span class="chk">${it.checked ? '✓' : ''}</span><span class="lbl">${esc(it.label)}</span><span class="arr">${it.sub ? '▸' : ''}</span>` });
       if (it.sub && !it.disabled) {
         let subEl = null;
         r.addEventListener('mouseenter', () => {
@@ -1329,8 +1328,8 @@ export function mountISim(container, opts = {}) {
       const li = h('li');
       const procs = (inst.procs || []).filter(p => p.kind !== 'glue');
       const hasKids = inst.children.length || procs.length;
-      const row = h('div', 'row' + (inst === st.curInst ? ' sel' : ''),
-        `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span><span class="isim-mod">(${esc(inst.module ?? '')})</span>`);
+      const row = h('div', { class: 'row' + (inst === st.curInst ? ' sel' : ''),
+        html: `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span><span class="isim-mod">(${esc(inst.module ?? '')})</span>` });
       row.title = pathOf(inst);
       row.draggable = true;
       row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-isim', JSON.stringify({ inst: inst.path })); e.dataTransfer.effectAllowed = 'copy'; });
@@ -1354,7 +1353,7 @@ export function mountISim(container, opts = {}) {
         for (const c of inst.children) ul.appendChild(mk(c, false));
         for (const p of procs) {
           const pl = h('li');
-          const pr = h('div', 'row', `<span class="twisty"></span><span class="ico">${ICON.proc}</span><span class="lbl">${esc(p.name)}</span>`);
+          const pr = h('div', { class: 'row', html: `<span class="twisty"></span><span class="ico">${ICON.proc}</span><span class="lbl">${esc(p.name)}</span>` });
           pr.title = `${p.kind}${p.loc?.line ? ` (line ${p.loc.line})` : ''}`;
           pr.addEventListener('dblclick', () => openSource(p));
           pr.addEventListener('mousedown', () => { st.curInst = inst; renderTree(); renderObjects(); });
@@ -1673,7 +1672,7 @@ export function mountISim(container, opts = {}) {
     const m = st.stim.m;
     const clocks = stimOpt.ports.filter(p => p.dir === 'in' && p.width === 1);
     const guess = m ? m.clock : (clocks.find(p => /^(clk|clock)/i.test(p.name))?.name || null);
-    const ov = h('div', 'isim-dlg-overlay');
+    const ov = h('div', { class: 'isim-dlg-overlay' });
     ov.innerHTML = `
       <div class="isim-dlg isim-stim-dlg" role="dialog">
         <div class="isim-dlg-title">Stimulus Timing<button class="isim-dlg-x" title="Close">✕</button></div>
@@ -1714,7 +1713,7 @@ export function mountISim(container, opts = {}) {
   function cellDialog(p, k, isIn) {
     closeDialog();
     const m = st.stim.m, list = isIn ? m.inputs[p.name] : m.expected[p.name];
-    const ov = h('div', 'isim-dlg-overlay');
+    const ov = h('div', { class: 'isim-dlg-overlay' });
     ov.innerHTML = `
       <div class="isim-dlg isim-stim-dlg" role="dialog">
         <div class="isim-dlg-title">${isIn ? 'Input Value' : 'Expected Value'}<button class="isim-dlg-x" title="Close">✕</button></div>
@@ -1753,7 +1752,7 @@ export function mountISim(container, opts = {}) {
     const t = sig.t;
     const isEnum = t.kind === 'enum';
     const defRadix = t.kind === 'int' ? 'dec' : 'bin';
-    const ov = h('div', 'isim-dlg-overlay');
+    const ov = h('div', { class: 'isim-dlg-overlay' });
     const clock = kind === 'clock';
     const one = t.kind === 'enum' ? t.names[1] ?? t.names[0] : t.kind === 'bool' ? 'TRUE' : '1';
     const zero = t.kind === 'enum' ? t.names[0] : t.kind === 'bool' ? 'FALSE' : '0';
@@ -1827,7 +1826,7 @@ export function mountISim(container, opts = {}) {
   let consoleLines = 0;
   function appendConsole(text, cls, src) {
     const atBottom = cons.scrollHeight - cons.scrollTop - cons.clientHeight < 30;
-    const d = h('div', 'isim-ln ' + (cls || ''));
+    const d = h('div', { class: 'isim-ln ' + (cls || '') });
     d.textContent = text;
     if (src && src.file && onOpenSource) {
       d.classList.add('link'); d.title = `${src.file}:${src.line ?? ''}`;

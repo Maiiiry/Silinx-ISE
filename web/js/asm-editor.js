@@ -17,7 +17,7 @@ import { panelToggle, PROPS_KEY } from './narrow.js';
 import {
   normalizeModel, newModel, validate, generate, stateEncoding, ENCODINGS, nextCaseLabel as nextLabel,
 } from '/core/asm.js';
-import { esc } from './dom.js';
+import { esc, h } from './dom.js';
 
 const GRID = 20;
 const CHW = 7.25;          // approx. width of a 12px monospace character
@@ -30,20 +30,6 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const ceilTo = (v, g) => Math.ceil(v / g) * g;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
-function h(tag, attrs = {}, ...children) {
-  const el = document.createElement(tag);
-  for (const [k, v] of Object.entries(attrs)) {
-    if (v == null || v === false) continue;
-    if (k === 'class') el.className = v;
-    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else if (k === 'text') el.textContent = v;
-    else if (k === 'value') el.value = v;
-    else if (k === 'checked') el.checked = !!v;
-    else el.setAttribute(k, v === true ? '' : v);
-  }
-  for (const c of children.flat()) if (c != null) el.append(c);
-  return el;
-}
 
 /** Size of a node box in chart units. */
 function nodeSize(n) {
