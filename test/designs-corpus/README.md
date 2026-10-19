@@ -216,7 +216,7 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 <!-- the results table: generated from expected.json by `node test/designs-corpus/run.mjs --table`; do not edit by hand -->
 | design | lang | licence | frontend | tb | synth | diff | flow | device | slices | LUTs | FFs | critical path (ns) | warnings |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- |
-| serv | Verilog | ISC | pass | - | pass | pass | complete | XC3S250E | 212 | 346 | 355 | 12.803 | 20 (frontend 20) |
+| serv | Verilog | ISC | pass | - | pass | pass | complete | XC3S250E | 209 | 342 | 355 | 12.544 | 20 (frontend 20) |
 | picorv32 | Verilog | ISC | pass | - | pass | pass | complete | XC3S250E | 706 | 1410 | 767 | 11.489 | 33 (frontend 28, synth 5) |
 | femtorv32-quark | Verilog | BSD-3-Clause | pass | - | pass | pass | complete | XC3S250E | 410 | 816 | 226 | 16.765 | 0 |
 | neorv32 | VHDL | BSD-3-Clause | pass | - | pass | pass | complete | XC3S250E | 1679 | 3344 | 1319 | 15.704 | 72 (frontend 47, synth 25) |
@@ -227,7 +227,7 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | verilog-lfsr-crc | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 50 | 99 | 64 | 3.869 | 0 |
 | verilog-lfsr-prbs | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 16 | 16 | 31 | 2.302 | 1 (frontend 1) |
 | verilog-axis-fifo | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 19 | 33 | 32 | 6.150 | 11 (frontend 10, synth 1) |
-| uart-for-fpga | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 42 | 80 | 53 | 4.989 | 1 (frontend 1) |
+| uart-for-fpga | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 41 | 78 | 53 | 4.487 | 1 (frontend 1) |
 | spi-fpga-master | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 18 | 33 | 21 | 5.078 | 1 (frontend 1) |
 | spi-fpga-slave | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 14 | 24 | 21 | 5.479 | 0 |
 | nandland-spi-verilog | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 32 | 61 | 37 | 5.697 | 1 (frontend 1) |
@@ -247,12 +247,12 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | epfl-ctrl | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 25 | 49 | 0 |  | 0 |
 | epfl-int2float | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 41 | 82 | 0 |  | 0 |
 | epfl-cavlc | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 143 | 286 | 0 |  | 0 |
-| epfl-router | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 37 | 61 | 64 | 7.562 | 0 |
+| epfl-router | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 34 | 62 | 64 | 7.184 | 0 |
 | epfl-priority | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 117 | 233 | 137 | 8.950 | 0 |
 | epfl-dec | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 187 | 373 | 265 | 6.460 | 0 |
 | epfl-i2c | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 249 | 489 | 276 | 6.773 | 0 |
 | epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 194 | 171 | 386 | 14.917 | 0 |
-| epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 604 | 1208 | 272 | 10.659 | 0 |
+| epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 471 | 941 | 264 | 9.378 | 0 |
 | epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 719 | 1437 | 643 | 27.908 | 1 (flow 1) |
 | epfl-sin | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 1001 | 2001 | 0 |  | 0 |
 | epfl-voter | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 1162 | 2323 | 1003 | 25.689 | 1 (flow 1) |
@@ -262,20 +262,20 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | itc99-b02 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 2 | 4 | 4 | 1.959 | 0 |
 | itc99-b03 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 15 | 29 | 30 | 5.738 | 0 |
 | itc99-b04 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 105 | 203 | 66 | 14.284 | 0 |
-| itc99-b05 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 258 | 476 | 34 | 11.000 | 3 (synth 3) |
+| itc99-b05 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 254 | 468 | 35 | 10.759 | 3 (synth 3) |
 | itc99-b06 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 5 | 10 | 8 | 2.899 | 0 |
 | itc99-b07 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 56 | 111 | 43 | 5.824 | 0 |
 | itc99-b08 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 17 | 34 | 21 | 6.605 | 0 |
 | itc99-b09 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 20 | 40 | 28 | 5.704 | 0 |
 | itc99-b10 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 21 | 41 | 24 | 5.417 | 0 |
-| itc99-b11 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 94 | 179 | 36 | 9.703 | 0 |
+| itc99-b11 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 100 | 191 | 36 | 8.692 | 0 |
 | itc99-b12 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 168 | 334 | 119 | 9.655 | 1 (synth 1) |
-| itc99-b13 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 44 | 87 | 53 | 7.635 | 0 |
-| itc99-b14 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 740 | 1466 | 334 | 32.478 | 1 (flow 1) |
-| itc99-b15 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1237 | 2465 | 538 | 18.500 | 3 (frontend 2, synth 1) |
+| itc99-b13 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 42 | 83 | 64 | 6.834 | 0 |
+| itc99-b14 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 686 | 1358 | 334 | 32.384 | 1 (flow 1) |
+| itc99-b15 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1330 | 2649 | 546 | 18.353 | 3 (frontend 2, synth 1) |
 | itc99-b17 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S500E | 3735 | 7442 | 1356 | 20.735 | 6 (frontend 2, synth 3, flow 1) |
-| itc99-b20 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1430 | 2841 | 492 | 35.156 | 1 (flow 1) |
-| itc99-b21 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1510 | 3000 | 492 | 35.350 | 1 (flow 1) |
+| itc99-b20 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1355 | 2691 | 492 | 34.703 | 1 (flow 1) |
+| itc99-b21 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1412 | 2804 | 492 | 33.963 | 1 (flow 1) |
 | itc99-b22 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1997 | 3962 | 706 | 35.239 | 2 (frontend 1, flow 1) |
 | iwls05-sasc | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 66 | 114 | 119 | 5.107 | 3 (frontend 3) |
 | iwls05-simple-spi | Verilog | OpenCores notice in each file | pass | - | pass | pass | complete | XC3S250E | 90 | 179 | 131 | 6.189 | 3 (frontend 3) |
