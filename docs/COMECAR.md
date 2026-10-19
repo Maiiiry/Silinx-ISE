@@ -93,6 +93,15 @@ O Silinx corre no **Node.js**, um programa gratuito.
    - **macOS:** duplo clique no zip.
    - Fica com uma pasta chamada **`silinx-ise`**.
 
+*Opcional, para confirmar que o ficheiro é o da versão (por exemplo um que veio da página de uma
+cadeira):* a versão lista o checksum SHA-256 de cada ficheiro nas suas notas e no ficheiro
+**`SHA256SUMS`**. Descarregue o `SHA256SUMS` para a mesma pasta e, num terminal aí, corra
+`sha256sum -c SHA256SUMS --ignore-missing` (Linux) ou `shasum -a 256 -c SHA256SUMS --ignore-missing`
+(macOS): o ficheiro tem de dizer `OK`. No Windows, `Get-FileHash silinx-ise-<versão>.zip` no PowerShell
+mostra o checksum, a comparar com o das notas. Cada ficheiro tem também a atestação de proveniência do
+GitHub (foi construído pelo workflow Release do repositório a partir da tag da versão): com o
+[GitHub CLI](https://cli.github.com), `gh attestation verify silinx-ise-<versão>.zip --repo pmnmalo/Silinx-ISE`.
+
 ### Passo 3: arrancar o Silinx
 
 Abra a pasta `silinx-ise` e faça duplo clique no ficheiro do seu sistema:

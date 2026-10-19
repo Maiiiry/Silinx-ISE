@@ -270,6 +270,11 @@ In short:
   other boards and the ISE-only processes (simulation models of the implementation, XPower, …): build
   your own Docker image with **`silinx-ise-docker-kit-<version>.zip`** (see
   [below](#synthesis-and-bitstreams-xilinx-ise-147)) and choose an ISE mode in *Toolchain Settings*.
+- **Checking a download:** each release lists its files' SHA-256 checksums in its notes and in
+  **`SHA256SUMS`**: in the folder of the downloads, `sha256sum -c SHA256SUMS --ignore-missing` (Linux) or
+  `shasum -a 256 -c SHA256SUMS --ignore-missing` (macOS), `Get-FileHash <file>` (Windows PowerShell). Each
+  file also has GitHub's build provenance attestation (built by the Release workflow from the version's
+  tag): `gh attestation verify silinx-ise-<version>.zip --repo pmnmalo/Silinx-ISE`.
 
 ### On an iPad or a tablet
 

@@ -104,6 +104,16 @@ test('release zip: within its size budget', { skip: SKIP }, () => {
   assert.ok(appMB <= BUDGET.appMB, `the unzipped release is ${appMB.toFixed(1)} MB, over its budget of ${BUDGET.appMB} MB: ${why}`);
 });
 
+test('release zip: its SHA-256 checksum in SHA256SUMS, as sha256sum / shasum checks it (#485)', { skip: SKIP }, () => {
+  const out = path.dirname(zip);
+  assert.deepEqual(fs.readdirSync(out).sort(), ['SHA256SUMS', path.basename(zip)]);
+  const sums = fs.readFileSync(path.join(out, 'SHA256SUMS'), 'utf8');
+  assert.match(sums, new RegExp(`^[0-9a-f]{64}  silinx-ise-${VERSION.replace(/\./g, '\\.')}\\.zip\n$`));
+  const gnu = (() => { try { execFileSync('sha256sum', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
+  const [cmd, args] = gnu ? ['sha256sum', ['-c']] : ['shasum', ['-a', '256', '-c']];
+  assert.equal(execFileSync(cmd, [...args, 'SHA256SUMS'], { cwd: out, encoding: 'utf8' }), `silinx-ise-${VERSION}.zip: OK\n`);
+});
+
 for (const launcher of launchersOf()) {
   test(`release zip: ${launcher} starts the unzipped app; the page and the API answer; an example project is created`, { skip: SKIP, timeout: 90000 }, async () => {
     const t = await fsp.mkdtemp(path.join(tmp, 'run-'));
