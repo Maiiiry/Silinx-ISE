@@ -93,8 +93,16 @@ export async function exampleTimesim(name, langs = ['vhdl', 'verilog']) {
   const design = ex.design.map(f => ({ path: f.path, lang: f.lang, text: f.text })), sim = ex.sim.map(f => ({ path: f.path, lang: f.lang, text: f.text }));
   const r = await flow({ top: ex.project.top, steps: orderOpenSteps(['postpar']), simTop: ex.project.simTop }, design, sim, fs.readFileSync(path.join(ex.dir, ex.project.constraints), 'utf8'));
   assert.equal(r.ok, true, r.lines.join('\n'));
-  assert.deepEqual(r.lines.filter(l => /^(WARNING|ERROR)/.test(l)), [], name);
+  assert.deepEqual(r.lines.filter(l => /^(WARNING|ERROR|INFO)/.test(l)), [], name);
   const top = ex.project.top;
+  // the board's model (#622): with a test bench's generics, the implementation's routed design with the design's own
+  // beside it, without the test bench's generics in its header
+  const pm = r.report.simModels.postpar;
+  if (Object.keys(pm.generics || {}).length) {
+    assert.deepEqual(pm.board, { path: `build/netgen/par/${top}_timesim_board.vhd`, verilog: `build/netgen/par/${top}_timesim_board.v` }, name);
+    assert.match(r.store[`netgen/par/${top}_timesim.vhd`], /Synthesized with the generics the test bench/, name);
+    assert.doesNotMatch(r.store[`netgen/par/${top}_timesim_board.vhd`], /Synthesized with the generics/, name);
+  } else assert.equal(pm.board, undefined, name);
   const sdf = parseSdf(r.store[`netgen/par/${top}_timesim.sdf`]);
   // the SDF's longest path, the minimum period of the static timing (gates: no clock)
   const period = /minimum period ([\d.]+) ns$/m.exec(r.lines.join('\n'));
