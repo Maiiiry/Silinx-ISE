@@ -56,8 +56,9 @@ function longestChain(nl) {
 // budgets: about 10 % above what this version makes (in brackets: Yosys's own synth_xilinx LUT
 // mapping before 15.10.2, and XST where known)
 const BUDGETS = {
-  // 42-state control unit + 8-bit data path (stock mapping: 389 LUTs, 369 MUXF, 281 slices)
-  cpu8: { design: () => fixture('cpu8'), luts: 275, muxes: 70, slices: 165 },
+  // 42-state control unit + 8-bit data path (stock mapping: 389 LUTs, 369 MUXF, 281 slices; balanced twice more
+  // for depth (#52): 258 LUTs, 82 MUXF, 154 slices, 11.1 ns estimated instead of 236, 52, 148 and 12.0)
+  cpu8: { design: () => fixture('cpu8'), luts: 275, muxes: 90, slices: 165 },
   // blinky (stock: 376 cells, 89 slices; XST: 145 LUTs)
   blinky: { design: () => fixture('blinky'), luts: 70, muxes: 16, slices: 78 },
   // the example project (stock: 104 slices; XST: 104 LUTs, 99 slices)
