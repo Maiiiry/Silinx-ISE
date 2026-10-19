@@ -360,11 +360,13 @@ in Firefox and WebKit.
 
 `node bin/silinx-ise.js mcp` serves the projects of the Silinx workspace to an AI assistant (Claude
 Desktop, Claude Code, any client of the Model Context Protocol) over stdin / stdout. Its tools:
-`list_examples`, `new_project_from_example`, `list_projects`, `project_info`, `read_file`,
-`write_file`, `check_syntax` (the errors and warnings of *Check Syntax*, the design checks included),
+`list_examples`, `new_project_from_example`, `new_project` (an empty one, for a board), `set_top` (the top
+module and the test bench, as *Set as Top Module*; the constraints from the board's pins, as *Update
+Constraints*), `list_projects`, `project_info`, `read_file`, `write_file`, `check_syntax` (the errors and warnings of *Check Syntax*, the design checks included),
 `simulate` (the test bench: its messages and its signals' changes), `run_process` (synthesize,
 implement, bitstream, timing, power, pins: the Silinx toolchain, or ISE when it is configured) and
-`get_report` (the Design Summary and the reports). The projects are those of the Project Navigator
+`get_report` (the Design Summary and the reports of the last run: with the Silinx toolchain, Yosys's
+statistics for the synthesis and the pack and route summaries for map and par). The projects are those of the Project Navigator
 (the workspace, `SILINX_WORKSPACE`; the browser edition's workspace folder too, its format being
 the same), so what the assistant does is seen in the interface when the project is opened again.
 Every path stays inside its project; programming a board is not one of its tools; the ISE machine's
@@ -374,7 +376,10 @@ address never appears in a result. In Claude Desktop's `claude_desktop_config.js
 { "mcpServers": { "silinx": { "command": "node", "args": ["/path/to/silinx-ise/bin/silinx-ise.js", "mcp"] } } }
 ```
 
-and in Claude Code: `claude mcp add silinx -- node /path/to/silinx-ise/bin/silinx-ise.js mcp`.
+and in Claude Code: `claude mcp add silinx -- node /path/to/silinx-ise/bin/silinx-ise.js mcp`. To keep the
+assistant's projects apart, give it a workspace of its own: `"env": { "SILINX_WORKSPACE": "/path/to/folder" }`
+in Claude Desktop's entry, or `claude mcp add silinx -e SILINX_WORKSPACE=/path/to/folder -- node …` (the
+server's name before `-e`, which takes several values).
 
 ### Standalone edition (a single HTML file)
 

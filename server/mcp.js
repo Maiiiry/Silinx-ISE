@@ -20,7 +20,7 @@ import { EXAMPLE_ORDER, orderExamples } from '../core/examples.js';
 export const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
 const SERVER_INFO = { name: 'silinx-ise', title: 'Silinx ISE', version: VERSION };
 const INSTRUCTIONS = 'Silinx ISE: FPGA design for teaching (Spartan-3E; Basys2, Nexys2). Projects live in the Silinx workspace: '
-  + 'list_projects, or new_project_from_example; then read_file / write_file, check_syntax, simulate (the project\'s test bench), '
+  + 'list_projects, new_project_from_example, or new_project (empty) then write_file and set_top; then read_file / write_file, check_syntax, simulate (the project\'s test bench), '
   + 'run_process (synthesize, implement, bitstream, timing, power, pins) and get_report. The Silinx toolchain needs no Xilinx ISE.';
 
 // ------------------------------------------------------------------ helpers
@@ -108,15 +108,43 @@ const PROCESSES = {
   power: ['synth', 'translate', 'map', 'par', 'xpwr'],
   pins: ['synth', 'translate', 'map', 'par', 'pin2ucf'],
 };
-// a report of the build folder: its file (the Silinx toolchain's, else ISE's)
+// a report of the build folder: its file, by the toolchain of the last run (#460: the Silinx toolchain
+// writes Yosys's statistics, no map or par report: those two are made from its Design Summary)
 const REPORT_FILES = {
-  power: top => [`build/${top}.pwr`],
-  timing: top => ['build/open/timing.txt', `build/${top}.twr`],
-  synthesis: top => [`build/${top}.syr`],
-  map: top => [`build/${top}_map.mrp`],
-  par: top => [`build/${top}.par`],
-  pins: top => [`build/${top}_pins.ucf`],
+  open: {
+    power: top => `build/${top}.pwr`,
+    timing: () => 'build/open/timing.txt',
+    synthesis: top => `build/open/${top}_stat.txt`,
+    map: null,
+    par: null,
+    pins: top => `build/${top}_pins.ucf`,
+  },
+  ise: {
+    power: top => `build/${top}.pwr`,
+    timing: top => `build/${top}.twr`,
+    synthesis: top => `build/${top}.syr`,
+    map: top => `build/${top}_map.mrp`,
+    par: top => `build/${top}.par`,
+    pins: top => `build/${top}_pins.ucf`,
+  },
 };
+// the map and par reports of a Silinx toolchain run, from its Design Summary (build/reports.json)
+const OPEN_REPORTS = {
+  map: r => r.map && [`Design summary (pack, Silinx toolchain) of ${r.top}:`, ...(r.map.utilization || []).map(u => `  ${u.name}: ${u.used}${u.total ? ` out of ${u.total} ${u.percent}%` : ''}`),
+    `${r.map.errors ?? 0} error(s), ${r.map.warnings ?? 0} warning(s).`].join('\n'),
+  par: r => r.par && [`Place and route (Silinx toolchain) of ${r.top}: ${r.par.routed ? 'all signals are completely routed' : `${r.par.unroutedSignals} signal(s) not routed`} (${r.par.nets} nets, ${r.par.pips} PIPs, ${r.par.iterations} passes).`,
+    ...(r.timing ? [`Timing constraints: ${r.timing.met === false ? `not met (${r.timing.timingErrors})` : 'all met'}${r.timing.minPeriodNs ? `; minimum period ${r.timing.minPeriodNs} ns (${r.timing.maxFreqMHz} MHz)` : ''}.`] : [])].join('\n'),
+};
+const deviceName = d => (d ? `${d.part}${d.package}${d.speed}` : 'no device');
+
+// a board (basys2, nexys2) and its variant: { board, device } for a new project
+async function boardDevice(board, variant) {
+  const { resolveBoard } = await import('./devices.js');
+  const r = resolveBoard(board, { variant });
+  if (!r) throw toolError(`unknown board '${board}' (basys2, nexys2)`);
+  if (variant && r.variant?.id !== variant) throw toolError(`the ${r.board.name} has no variant '${variant}'`);
+  return { board: r.board.id, device: { family: 'spartan3e', part: r.device.part, package: r.device.package, speed: r.device.speed } };
+}
 
 export const TOOLS = [
   {
@@ -152,16 +180,48 @@ export const TOOLS = [
       if (!EXAMPLE_ORDER.includes(example) && !fs.existsSync(path.join(P.EXAMPLES_DIR, String(example || ''), 'silinx.json'))) throw toolError(`unknown example '${example}' (list_examples)`);
       let device;
       if (board || variant) {
-        const { resolveBoard } = await import('./devices.js');
         const ex = JSON.parse(fs.readFileSync(path.join(P.EXAMPLES_DIR, example, 'silinx.json'), 'utf8'));
-        const r = resolveBoard(board || ex.board, { variant });
-        if (!r) throw toolError(`unknown board '${board}' (basys2, nexys2)`);
-        if (variant && r.variant?.id !== variant) throw toolError(`the ${r.board.name} has no variant '${variant}'`);
-        board = r.board.id; device = { family: 'spartan3e', part: r.device.part, package: r.device.package, speed: r.device.speed };
+        ({ board, device } = await boardDevice(board || ex.board, variant));
       }
       try { await P.createProject({ name, template: example, device, board }); } catch (e) { throw toolError(e.message); }
       const pj = await P.readProject(name);
       return { text: `Project '${name}' made from the example ${example}: top ${pj.top}, ${pj.board} (${pj.device.part}${pj.device.package}${pj.device.speed}).`, data: { project: name, top: pj.top, simTop: pj.simTop || null, board: pj.board, device: pj.device } };
+    },
+  },
+  {
+    name: 'new_project', title: 'New empty project',
+    description: 'Make a new empty project in the workspace for a board (basys2, nexys2; default: the Basys2-250\'s device, no board). Then write its sources with write_file (a test bench in sim/) and choose its top module and test bench with set_top.',
+    inputSchema: { type: 'object', properties: { name: STR('The new project\'s name (letters, digits, - and _).'), board: STR('The board: basys2 or nexys2.'), variant: STR('The board\'s variant: 100 or 250 for the Basys2, 500 or 1200 for the Nexys2.') }, required: ['name'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: false },
+    async run({ name, board, variant }) {
+      let device;
+      if (board || variant) ({ board, device } = await boardDevice(board, variant));
+      try { await P.createProject({ name, device, board }); } catch (e) { throw toolError(e.message); }
+      const pj = await P.readProject(name);
+      return { text: `Empty project '${name}' made: ${pj.board || 'no board'} (${deviceName(pj.device)}). Write its sources with write_file, then set_top.`, data: { project: name, board: pj.board || null, device: pj.device } };
+    },
+  },
+  {
+    name: 'set_top', title: 'Set the top module and the test bench',
+    description: 'Choose a project\'s top module (what run_process synthesizes and implements) and / or its test bench (what simulate runs), as Set as Top Module does; each must elaborate. With update_constraints, the constraints file is written again from the board\'s pins for the new top\'s ports (clk, led, sw, btn, seg, an…), as Update Constraints does: its pin locations are replaced.',
+    inputSchema: { type: 'object', properties: { project: PROJECT, top: STR('The top module (an entity or module of the project\'s design sources).'), sim_top: STR('The test bench (a simulation source\'s entity or module).'), update_constraints: { type: 'boolean', description: 'Write the constraints file again from the board\'s pins (default false).' } }, required: ['project'], additionalProperties: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
+    async run({ project: name, top, sim_top: simTop, update_constraints: constraints = false }) {
+      const before = await readProject(name);
+      if (!top && !simTop) throw toolError('give top, sim_top or both');
+      // each must elaborate in its view (the test bench with the new top's sources)
+      for (const [mod, sim] of [[top, false], [simTop, true]]) {
+        if (!mod) continue;
+        const { design, diags } = await elaborateView(name, { top: mod, sim });
+        const errors = diags.filter(d => d.severity === 'error');
+        if (errors.length === 1 && /^top module '.*' not found$/.test(errors[0].message)) throw toolError(`no entity or module '${mod}' in the project's ${sim ? 'simulation' : 'design'} sources (project_info)`);
+        if (errors.length || !design?.top) throw toolError(`<${mod}> does not elaborate${sim ? ' as a test bench' : ''}: ${errors.map(diagLine).join('; ') || 'not found'}`);
+      }
+      if (constraints && !before.board) throw toolError(`the project '${name}' has no board: its constraints cannot come from a board's pins`);
+      await P.updateProject(name, pj => ({ ...pj, ...(top ? { top } : {}), ...(simTop ? { simTop } : {}) }));
+      const pj = await P.readProject(name);
+      if (constraints) await P.boardConstraints(P.projectDir(name), pj);
+      return { text: `${name}: top ${pj.top || '(none)'}, test bench ${pj.simTop || '(none)'}${constraints ? `; ${pj.constraints} written from the ${pj.board}'s pins` : ''}.`, data: { project: name, top: pj.top || null, simTop: pj.simTop || null, constraintsUpdated: constraints } };
     },
   },
   {
@@ -304,7 +364,7 @@ export const TOOLS = [
   },
   {
     name: 'get_report', title: 'Read a report',
-    description: 'The Design Summary of the last run (summary: the utilization, the timing, the files, as JSON), or the text of a report of the build: synthesis, map, par, timing, power, pins.',
+    description: 'The Design Summary of the last run (summary: the utilization, the timing, the files, as JSON), or the text of a report of the last run: synthesis, map, par, timing, power, pins (with the Silinx toolchain: Yosys\'s statistics for synthesis, the pack and route summaries for map and par).',
     inputSchema: { type: 'object', properties: { project: PROJECT, report: { type: 'string', enum: ['summary', ...Object.keys(REPORT_FILES)], description: 'The report (default summary).' } }, required: ['project'], additionalProperties: false },
     annotations: { readOnlyHint: true },
     async run({ project: name, report = 'summary' }) {
@@ -316,13 +376,24 @@ export const TOOLS = [
         if (r.available === false) return { text: `No report yet for '${name}': run a process (run_process).`, data: { project: name, report, available: false } };
         return { text: clip(JSON.stringify(r, null, 1)), data: { project: name, report, available: true, summary: r } };
       }
-      const files = REPORT_FILES[report]?.(pj.top || 'top');
-      if (!files) throw toolError(`report: summary or one of ${Object.keys(REPORT_FILES).join(', ')}`);
-      for (const f of files) {
-        const full = await projectPath(name, f);
-        if (fs.existsSync(full)) { const text = redact(await fsp.readFile(full, 'latin1')); return { text: clip(text), data: { project: name, report, path: f, available: true } }; }
+      if (!Object.hasOwn(REPORT_FILES.ise, report)) throw toolError(`report: summary or one of ${Object.keys(REPORT_FILES.ise).join(', ')}`);
+      // the toolchain of the last run (its Design Summary), else the files there are
+      const { projectReports } = await import('./impl-routes.js');
+      const summary = await projectReports(name).catch(() => ({ available: false }));
+      const top = pj.top || 'top';
+      const open = summary.available !== false ? summary.source === 'open' : !fs.existsSync(path.join(P.projectDir(name), 'build', `${top}.syr`));
+      const who = open ? 'Silinx toolchain' : 'Xilinx ISE';
+      const file = REPORT_FILES[open ? 'open' : 'ise'][report]?.(top);
+      if (!file) {
+        const text = summary.available !== false && OPEN_REPORTS[report](summary);
+        if (text) return { text: redact(text), data: { project: name, report, toolchain: 'silinx', path: 'build/reports.json', available: true } };
+      } else {
+        const full = await projectPath(name, file);
+        if (fs.existsSync(full)) { const text = redact(await fsp.readFile(full, 'latin1')); return { text: clip(text), data: { project: name, report, toolchain: open ? 'silinx' : 'ise', path: file, available: true } }; }
       }
-      return { text: `No ${report} report for '${name}' yet (${files.join(' or ')}): run_process first.`, data: { project: name, report, available: false } };
+      const proc = { synthesis: 'synthesize', map: 'implement', par: 'implement', timing: 'timing', power: 'power', pins: 'pins' }[report];
+      return { text: summary.available === false && !fs.existsSync(path.join(P.projectDir(name), 'build')) ? `No ${report} report for '${name}': no process has run yet (run_process ${proc}).`
+        : `No ${report} report for '${name}' from its last run (${who}${file ? `: ${file}` : ''}): run_process ${proc} first.`, data: { project: name, report, toolchain: open ? 'silinx' : 'ise', available: false } };
     },
   },
 ];

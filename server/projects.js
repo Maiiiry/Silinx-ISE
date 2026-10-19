@@ -185,7 +185,7 @@ export async function createProject({ name, template = 'empty', device, board })
 
 /** Writes a project's UCF from its board's pin table (ports matched by name: clk, led, sw, btn,
  *  seg, an…), as Update Constraints does in the interface. */
-async function boardConstraints(dir, pj) {
+export async function boardConstraints(dir, pj) {
   const r = resolveBoard(pj.board, { part: pj.device?.part });
   if (!r || !pj.top) return;
   const sources = [];
