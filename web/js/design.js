@@ -6,8 +6,8 @@ import { icon } from './icons.js';
 import { h, confirmDlg, popupMenu, toast, longPressMenu } from './ui.js';
 import * as wiz from './wizards.js';
 import { drawnModule } from '/core/view-hdl.js';
-import { S, addToProject, closeDoc, fixMissingTops, instancesOf, moduleInfo, openFile, openSchematic, projectUndo,
-  renameDialog, runSimulation, syncFpgaView, viewRoots } from './app.js';
+import { S, addToProject, closeDoc, fixMissingTops, instancesOf, moduleInfo, openFile, projectUndo, renameDialog,
+  syncFpgaView, viewRoots } from './app.js';
 import { log } from './console.js';
 import { reloadProject } from './project.js';
 import { checkUcfFile } from './implement.js';
@@ -15,6 +15,7 @@ import { asmContextMenu, clashTip, convertToAsm, convertToFsm, convertToSchemati
   openPetri, openSch, openTt, openView, petriContextMenu, resolveHdlClash, schContextMenu, syncedViewMenu,
   ttContextMenu, viewBadge, viewContextMenu, viewIcon, viewKind, viewNoun } from './drawings.js';
 import { checkFileSyntax, checkSyntax, markStale, renderProcesses, saveAll } from './processes.js';
+import { openSchematic, runSimulation } from './viewers.js';
 
 const $ = id => document.getElementById(id);
 

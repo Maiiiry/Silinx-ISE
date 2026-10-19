@@ -44,6 +44,9 @@ const PARTS = {
     'select', 'testBench', 'inView', 'moduleContextMenu', 'fileContextMenu', 'projectContextMenu', 'setTop',
     'projectSaves', 'saveProjectJson', 'serialOp', 'removeFile', 'removeModule', 'removeNow'],
   'menus.js': ['setupMenus', 'setupToolbar', 'refreshSteps', 'showPalette', 'printActive', 'downloadUrl', 'exportProjectZip', 'openBundle'],
+  'viewers.js': ['netlistSources', 'SIM_MODEL_THEN', 'offerSimModel', 'isPrimitive', 'openTechSchematic',
+    'openSilinxTechSchematic', 'openSchematic', 'readDataFiles', 'runSimulation', 'runSimulationInner',
+    'saveStimTestbench', 'confirmElabErrors', 'openEmulator'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -167,4 +170,39 @@ test('#405 menus.js: the menu bar, the toolbar, the command palette, printing an
   for (const s of ["menuBar($('menubar')", 'function exportProjectZip(', 'function openBundle(']) assert.ok(code.includes(s) && !app.includes(s), s);
   // app.js's boot still sets them up
   for (const name of ['setupMenus', 'setupToolbar']) assert.match(app, new RegExp(`\\b${name}\\(\\)`), name);
+});
+
+test('#405 viewers.js: the RTL and technology schematics, ISim and the Board Emulator left app.js', () => {
+  const code = read('viewers.js');
+  for (const s of ["import('./isim.js')", "import('./emulator.js')", 'function offerSimModel(']) assert.ok(code.includes(s) && !app.includes(s), s);
+  for (const name of ['runSimulation']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`), name);
+});
+
+// A module uses no name of app.js's world (app.js's and the modules' top-level names, what they import) without
+// importing or defining it: the first runs of the UI tests caught such a name only once its code ran. `t` is a
+// local name of several functions (a truth table, a text), not i18n's t, which none of the modules uses.
+const LOCAL_NAMES = new Set(['t']);
+const imported = code => new Set([...code.matchAll(/^import (?:\{([^}]*)\}|\* as ([\w$]+)|([\w$]+)) from/gm)]
+  .flatMap(m => (m[1] ? m[1].split(',').map(x => x.trim().split(' as ').pop().trim()).filter(Boolean) : [m[2] || m[3]])));
+const topNames = code => new Set([...code.matchAll(/^(?:export )?(?:async )?(?:function\*? |const |let |var |class )([\w$]+)/gm)].map(m => m[1]));
+const codeOnly = code => code.replace(/^import [^;]*;\n/gm, '').replace(/\/\/[^\n]*/g, '')
+  .replace(/'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"/g, "''").replace(/\$\{/g, ' {').replaceAll('...', ' ');
+// ($ only as a call: a regular expression's end of line is not one)
+const usesName = (body, n) => (n === '$' ? /(?<![\w$.])\$\(/.test(body)
+  : new RegExp(`(?<![\\w$.])${n}(?![\\w$])(?!\\s*:(?!:))`).test(body));
+
+test('#405 app.js split: every name of app.js\'s world a module uses is imported or defined there', () => {
+  const mods = ['app.js', ...Object.keys(PARTS)];
+  const known = new Set(mods.flatMap(m => { const c = read(m); return [...topNames(c), ...imported(c)]; }));
+  for (const mod of mods) {
+    const code = read(mod), have = new Set([...topNames(code), ...imported(code)]), body = codeOnly(code);
+    const missing = [...known].filter(n => !have.has(n) && !LOCAL_NAMES.has(n) && usesName(body, n));
+    assert.deepEqual(missing, [], `${mod} uses names it neither imports nor defines`);
+  }
+  // the check finds one, a spread and a namespace's member included
+  assert.equal(usesName(codeOnly('const a = [...primitiveSources(x)];'), 'primitiveSources'), true);
+  assert.equal(usesName(codeOnly('wiz.newSourceWizard();'), 'wiz'), true);
+  assert.equal(usesName(codeOnly("x = { icon: 'wave' }; y = `${a}`; // log(z)"), 'icon'), false);
+  assert.equal(usesName(codeOnly('x = `${a}`; y = /a$/;'), '$'), false);
+  assert.equal(usesName(codeOnly("$('hier').focus();"), '$'), true);
 });

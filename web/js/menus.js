@@ -9,15 +9,15 @@ import { setLanguage, getLanguage, LOCALES } from './i18n.js';
 import { lintEnabled, setLintEnabled } from './diaghelp.js';
 import { getInterface, setInterface, getTheme, setTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
-import { S, activateDoc, app, closeDoc, docEditor, history, openEmulator, openFile, openFpgaView, openImpact,
-  openPinPlanner, openSchematic, openSummary, projectRedo, projectUndo, redoAny, redoesProject, runSimulation, setView,
-  showLeftPage, undoAny, undoesProject } from './app.js';
+import { S, activateDoc, app, closeDoc, docEditor, history, openFile, openFpgaView, openImpact, openPinPlanner,
+  openSummary, projectRedo, projectUndo, redoAny, redoesProject, setView, showLeftPage, undoAny, undoesProject } from './app.js';
 import { log } from './console.js';
 import { openProject, closeProject, recent, clearRecent, storageMenuItems } from './project.js';
 import { runImpl, stopProcesses } from './implement.js';
 import { setViewAsTop, topOfView, viewSel } from './drawings.js';
 import { checkSyntax, runProcess, saveAll, topConfirmed } from './processes.js';
 import { setTop } from './design.js';
+import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 
 const $ = id => document.getElementById(id);
 
