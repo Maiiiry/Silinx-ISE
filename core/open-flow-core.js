@@ -40,8 +40,8 @@ export class StepError extends Error {
 
 /**
  * Run the steps of spec ({ top, family, device, pkg, part, steps, seed, effort, replicate,
- * startupClk, synthUpToDate, synthEffort }) with io (above). synthEffort: 'normal' | 'high' (the default), the
- * synthesis's Optimization Effort (#282). synthUpToDate ({ report }: the synthesis part of the
+ * startupClk, synthUpToDate, synthEffort, deepRule }) with io (above). synthEffort: 'normal' | 'high' (the default), the
+ * synthesis's Optimization Effort (#282); deepRule: Normal's rule of the deep designs (core/synth-open.js DEEP_RULE, for tests). synthUpToDate ({ report }: the synthesis part of the
  * report of the run that made it, or null), when the steps start after the synthesis: the netlist of that
  * run is the design's (#280); it is used as it is, or, when it is not there, the synthesis runs.
  */
@@ -75,13 +75,13 @@ export async function runOpenFlow(spec, io) {
       : 'Optimization Effort High: the mappings for speed tried too, the fastest kept.');
     let r;
     try {
-      r = await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high', onLine: l => { if (/^(Warning|ERROR)/.test(l)) log(l.replace(/^Warning:/, 'WARNING:Yosys -').replace(/^ERROR:/, 'ERROR:Yosys -')); } });
+      r = await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high', ...(spec.deepRule && { deepRule: spec.deepRule }), onLine: l => { if (/^(Warning|ERROR)/.test(l)) log(l.replace(/^Warning:/, 'WARNING:Yosys -').replace(/^ERROR:/, 'ERROR:Yosys -')); } });
     } catch (e) {
       for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
       throw new StepError(`synthesis failed: ${e.message}`);
     }
     // (Normal: a design limited by its depth got the mappings for speed too, #468)
-    if (r.depth?.auto) log(`Optimization Effort Normal: ${r.depth.levels} levels of logic: the mappings for speed tried too, the fastest kept.`);
+    if (r.depth?.auto) log(`Optimization Effort Normal: ${r.depth.levels} levels of logic: the mappings for speed tried too, ${r.depth.normal?.kept ? `not a quarter faster (${r.depth.high.ns.toFixed(1)} ns estimated against ${r.depth.normal.ns.toFixed(1)}): the one mapping kept.` : 'the fastest kept.'}`);
     for (const w of r.warnings.filter(w => !/^Warning:/.test(w))) log(`WARNING:Synthesis - ${w}`);
     const paths = {};
     for (const [name, text] of Object.entries(r.files)) paths[name] = io.write(`open/${name}`, text);

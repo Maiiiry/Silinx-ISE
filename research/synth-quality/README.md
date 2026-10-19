@@ -641,6 +641,42 @@ their depth, they keep Normal's one run (High is there for them). With DEEP_RULE
 more than 16 levels as High does; by the quality page's High column, Normal's critical path against ISE's goes
 from +20 % to about +9 % (the adder, max and priority; the ITC'99 ones ISE cannot read).
 
+### Deep designs of 1500 LUTs at most, kept when a quarter faster (#611)
+
+The weekly comparison of 2026-10-19 (15.11.1 against 15.10.22, at Normal) found ITC'99 b14, b20 and b21 9 to 12 %
+larger in slices and the corpus's synthesis 44 % longer. All three are 23 levels deep, so they took High's mappings
+at Normal, and kept them. Measured on 2026-10-19 (synthesis at Normal, one Yosys at a time, slices after `pack.js`),
+Normal with and without them:
+
+| design | levels | LUTs | slices without → with | estimate (ns) without → with | synthesis (s) without → with |
+|---|---:|---:|---|---|---|
+| itc99-b14 | 23 | 1005 | 648 → 707 | 34.62 → 29.47 | 2.4 → 10.3 |
+| itc99-b20 | 23 | 2153 | 1338 → 1452 | 34.62 → 32.37 | 4.5 → 22.1 |
+| itc99-b21 | 23 | 2180 | 1366 → 1529 | 34.26 → 32.63 | 4.4 → 19.0 |
+| itc99-b05 | 23 | 293 | 245 → 258 | 10.29 → 9.46 | 1.7 → 3.7 |
+| itc99-b22 | 23 | 3265 | 2023 → 2023 | 35.31 → 35.31 | 7.7 → 17.3 |
+| epfl-voter | 18 | 2353 | 1177 → 1164 | 21.15 → 21.15 | 22.0 → 67.8 |
+| a priority encoder of 128 bits (`test/synth-open.test.js`) | 20 | 259 | 130 → 115 | 24.95 → 9.16 | 1.8 → 5.1 |
+
+Depth alone does not tell them apart: the priority encoder, 20 levels, is 2.7 times faster with the mappings, the
+ITC'99 cores, 23 levels, 0 to 15 %. Size does: the deep designs that gain nothing are of 2000 to 3300 LUTs (b20 to
+b22, voter, EPFL sin), those that gain several times of 1100 at most (EPFL adder 339, max 1046, priority 171, the
+encoder 259). So DEEP_RULE is now `{ levels: 16, maxLuts: 1500, gain: 0.25 }`: a deep design of more than 1500 LUTs
+keeps Normal's one run, and High's mappings of a smaller one are kept only when a quarter faster than Normal's own
+netlist, synthesized too (b14 and b05: their netlist as without the rule, for 3 to 4 s more; the console says so).
+Normal with the rule:
+
+| design | slices | estimate (ns) | synthesis (s) | |
+|---|---:|---:|---:|---|
+| itc99-b14 | 648 | 34.62 | 13.6 | tried, not kept |
+| itc99-b05 | 245 | 10.29 | 4.3 | tried, not kept |
+| itc99-b20 / b21 / b22 | 1338 / 1366 / 2023 | 34.62 / 34.26 / 35.31 | 5.2 / 5.2 / 8.0 | not tried |
+| epfl-voter / sin | 1177 / 1001 | 21.15 / 60.25 | 22.0 / 11.4 | not tried |
+| epfl-priority / max | 117 / 589 | 8.83 / 23.03 | 8.2 / 17.9 | kept, as before |
+| epfl-adder | 66 | 17.43 | 9.6 | as before (its carry chain) |
+
+The examples are 1 to 8 levels deep: unchanged.
+
 ## Synthesis time: the netlist's JSON (#86)
 
 #86 found the depth-oriented mapping 2.5 to 3.7 times as long as the first run (secworks-sha256 60 s + 154 s of
