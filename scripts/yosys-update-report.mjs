@@ -95,8 +95,10 @@ export function designQualities(results, names = Object.keys(results || {})) {
   return Object.fromEntries(names.map(n => [n, results?.[n]?.quality ?? null]));
 }
 
+/** The corpus's jobs (--shard k/CORPUS_SHARDS), as the nightly's (#536: three). */
+export const CORPUS_SHARDS = 3;
 /** The corpus's shards together: { tag, shards: [k], missing: [k], regress, fixed, fresh, timedOut, newWarnings, goneWarnings, results, expected }. */
-export function mergeCorpus(shards, count = 2) {
+export function mergeCorpus(shards, count = CORPUS_SHARDS) {
   const out = { tag: null, shards: [], missing: [], regress: [], fixed: [], fresh: [], timedOut: [], newWarnings: [], goneWarnings: [], results: {}, expected: {} };
   for (let k = 1; k <= count; k++) {
     const s = shards[k];
@@ -202,7 +204,7 @@ async function main() {
     const base = readSide(opt('--base')), head = readSide(opt('--head'));
     const dir = opt('--corpus');
     const shards = {};
-    for (const k of [1, 2]) shards[k] = dir ? readJson(path.join(dir, `shard-${k}.json`)) : null;
+    for (let k = 1; k <= CORPUS_SHARDS; k++) shards[k] = dir ? readJson(path.join(dir, `shard-${k}.json`)) : null;
     const md = reportMarkdown({ baseVersion: opt('--base-version'), headVersion: opt('--head-version'),
       examples: qualityRows(base.examples, head.examples), designs: qualityRows(base.designs, head.designs), corpus: dir ? mergeCorpus(shards) : null,
       runUrl: process.env.GITHUB_RUN_ID ? `${process.env.GITHUB_SERVER_URL || 'https://github.com'}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}` : '' });

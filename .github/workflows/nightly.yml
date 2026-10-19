@@ -24,17 +24,18 @@ jobs:
       contents: read
     with:
       workflow: nightly.yml
-  # in two jobs at once (#343): every other file each (--shard), about half an hour each in October 2026, the
-  # open synthesis making several mappings of a module (up to 7 Yosys runs); a file that takes over 15 minutes
-  # fails its job (run-corpus.mjs's --timeout); the slowest files are printed at the end
+  # in three jobs at once (#343, #536): every third file each (--shard), the open synthesis making several mappings
+  # of a module (up to 7 Yosys runs; in two jobs about 40 minutes each on 17 October 2026, over the hour on the
+  # 18th); a file of many top modules is run in parts the workers share; a file (or part) that takes over 25 minutes
+  # fails its job (run-corpus.mjs's --timeout); the slowest are printed at the end
   corpus:
     needs: changes
     if: needs.changes.outputs.run == 'true'
-    name: corpus (${{ matrix.shard }}/2)
+    name: corpus (${{ matrix.shard }}/3)
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2]
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -46,7 +47,7 @@ jobs:
           key: yosys-tests-${{ hashFiles('scripts/fetch-yosys-tests.mjs') }}
       - run: npm run fetch:yosys-tests
       - name: Yosys's test designs (Silinx vs Yosys)
-        run: npm run test:corpus -- --jobs 4 --shard "$SHARD/2"
+        run: npm run test:corpus -- --jobs 4 --shard "$SHARD/3"
         env:
           SHARD: ${{ matrix.shard }}
   vloghammer:

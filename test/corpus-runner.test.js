@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { shardOf, compareResults, runSummary } from './corpus/run-corpus.mjs';
+import { shardOf, compareResults, runSummary, partsOf, partTops, unitName, PART_TOPS } from './corpus/run-corpus.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -25,6 +25,24 @@ test('corpus runner: the shards (--shard k/n) take every n-th file, together all
   }
   assert.deepEqual(shardOf([], '2/2'), []);
   for (const bad of ['0/2', '3/2', '1/0', '2', 'a/b', '1/2/3']) assert.throws(() => shardOf(files, bad), /--shard .*: k\/n with 1 <= k <= n/, bad);
+});
+
+test('corpus runner: a file of many top modules in parts, every n-th module each, together all of them once (#536)', () => {
+  assert.equal(PART_TOPS, 8);
+  assert.equal(partsOf(0), null);
+  assert.equal(partsOf(8), null, 'up to PART_TOPS modules: the file whole');
+  assert.equal(partsOf(9), 2);
+  assert.equal(partsOf(33), 5, 'hana/test_intermout.v');
+  assert.equal(partsOf(98), 13);
+  assert.equal(partsOf(5, 2), 3);
+  const tops = Array.from({ length: 33 }, (_, i) => `f${i + 1}_test`);
+  assert.deepEqual(partTops(tops, null), tops);
+  const parts = Array.from({ length: 5 }, (_, k) => partTops(tops, { k, n: 5 }));
+  assert.deepEqual(parts[0], ['f1_test', 'f6_test', 'f11_test', 'f16_test', 'f21_test', 'f26_test', 'f31_test']);
+  assert.deepEqual(parts.flat().sort(), [...tops].sort(), 'every module once');
+  assert.ok(parts.every((p) => p.length <= PART_TOPS && p.length >= 6), parts.map((p) => p.length).join(' '));
+  assert.equal(unitName('hana/test_intermout.v', null), 'hana/test_intermout.v');
+  assert.equal(unitName('hana/test_intermout.v', { k: 1, n: 5 }), 'hana/test_intermout.v [2/5]');
 });
 
 test('corpus runner: regressions, newly passing and new keys against expected.json', () => {

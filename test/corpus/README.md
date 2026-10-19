@@ -54,14 +54,19 @@ The run fails on a regression (a key expected to pass that does not); newly pass
 listed, and `--update` records the results. Options: `--filter text`, `--jobs n`, `--cycles n`,
 `--shard k/n` (every n-th file from the k-th) and `--timeout s` (1500 s; 900 s before Yosys 0.70, #378):
 a file that takes longer fails the run, unless `expected.json` has the file itself failing as a whole
-(`hana/hana_vlib.v`, out of memory or out of time); the run prints its ten slowest files.
+(`hana/hana_vlib.v`, out of memory or out of time); the run prints its ten slowest files. A file of more than
+8 top modules is run in parts (every n-th of its modules each, #536) that the workers share, the limit then each
+part's: `hana/test_intermout.v` (33 modules) and `hana/test_simulation_techmap_tech.v` (33) in 5 parts,
+`various/muxpack.v` (18) in 3, `hana/test_parser.v` (9) in 2; a file expected to fail as a whole stays whole.
 
-The nightly (`.github/workflows/nightly.yml`) runs it in two jobs at once, `--shard 1/2` and `2/2`, 4 jobs
+The nightly (`.github/workflows/nightly.yml`) runs it in three jobs at once, `--shard 1/3` to `3/3` (two until #536), 4 jobs
 each (#343): Silinx's synthesis of a module is up to 7 Yosys runs (its mappings onto LUT4s alone, with the
 wider functions, for depth, balanced again with and without the LUT delays, and the carry chains of logic
 written as gates: Optimization Effort High, the default of `synthesizeOpen`), and the whole corpus in one
 job grew from 46 minutes (12 October) to 52 (14 October) and past the job's 60 (15 and 16 October); in two,
-36 and 22 minutes (17 October).
+36 and 22 minutes (17 October); on 18 October the second over its hour, `hana/test_intermout.v` alone over its
+1500 s at the end (985 s the day before: the synthesis tries more mappings, and the runner was slower), hence the
+parts and the third job (#536).
 
 `test/corpus/warnings.json` holds the warnings (and notes) Silinx gives: for each file those of the
 parser, for each `file:top` those of the elaboration (`"line: message"`). A new warning fails the

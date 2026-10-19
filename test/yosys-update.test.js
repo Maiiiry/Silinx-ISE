@@ -9,7 +9,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { yosysVersion, yosysChange, yosysTag, qualityRows, designQualities, mergeCorpus, reportMarkdown, readSide, DESIGN_SUBSET, MARK, PACKAGE } from '../scripts/yosys-update-report.mjs';
+import { yosysVersion, yosysChange, yosysTag, qualityRows, designQualities, mergeCorpus, reportMarkdown, readSide, DESIGN_SUBSET, MARK, PACKAGE, CORPUS_SHARDS } from '../scripts/yosys-update-report.mjs';
 import { EXAMPLE_ORDER } from '../core/examples.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -79,18 +79,19 @@ test('yosys update: size and speed with both Yosys versions, a change beyond the
 test('yosys update: the corpus\'s shards together, a shard without a result named', () => {
   const s1 = { tag: 'v0.68', results: { 'a.v:a': 'pass', 'a.v:a (synth)': 'mismatch: x' }, expected: { 'a.v:a (synth)': 'pass' }, regress: ['a.v:a (synth)'], fixed: [], fresh: [], timedOut: [], newWarnings: ['a.v: 1: w'], goneWarnings: [] };
   const s2 = { tag: 'v0.68', results: { 'b.v:b': 'pass' }, expected: { 'b.v:b': 'mismatch: y' }, regress: [], fixed: ['b.v:b'], fresh: ['n.v:n'], timedOut: ['t.v'], newWarnings: [], goneWarnings: ['b.v: 2: v'] };
-  const m = mergeCorpus({ 1: s1, 2: s2 });
+  const m = mergeCorpus({ 1: s1, 2: s2 }, 2);
   assert.deepEqual([m.tag, m.shards, m.missing, m.regress, m.fixed, m.fresh, m.timedOut, m.newWarnings, m.goneWarnings],
     ['v0.68', [1, 2], [], ['a.v:a (synth)'], ['b.v:b'], ['n.v:n'], ['t.v'], ['a.v: 1: w'], ['b.v: 2: v']]);
   assert.deepEqual(Object.keys(m.results), ['a.v:a', 'a.v:a (synth)', 'b.v:b']);
-  assert.deepEqual(mergeCorpus({ 1: s1, 2: null }).missing, [2]);
+  assert.deepEqual(mergeCorpus({ 1: s1, 2: null }, 2).missing, [2]);
+  assert.deepEqual(mergeCorpus({ 1: s1, 2: s2 }).missing, [3], 'three shards by default, as the nightly (#536)');
 });
 
 test('yosys update: the table of the differences', () => {
   const q = (slices, period) => ({ part: 'xc3s250ecp132-4', slices, luts: 2 * slices, ffs: slices, period });
   const examples = qualityRows({ blinky: q(86, 7.3), gates: q(1, null) }, { blinky: q(95, 7.3), gates: q(1, null) });
   const designs = qualityRows({ serv: q(191, 13.2) }, { serv: q(180, 13.2) });
-  const corpus = mergeCorpus({ 1: { tag: 'v0.68', results: { 'a.v:a': 'pass', 'a.v:a (synth)': 'mismatch: x' }, expected: { 'a.v:a (synth)': 'pass' }, regress: ['a.v:a (synth)'], fixed: [], fresh: [], timedOut: [], newWarnings: [], goneWarnings: [] }, 2: null });
+  const corpus = mergeCorpus({ 1: { tag: 'v0.68', results: { 'a.v:a': 'pass', 'a.v:a (synth)': 'mismatch: x' }, expected: { 'a.v:a (synth)': 'pass' }, regress: ['a.v:a (synth)'], fixed: [], fresh: [], timedOut: [], newWarnings: [], goneWarnings: [] }, 2: null }, 2);
   const md = reportMarkdown({ baseVersion: '0.68.1207', headVersion: '0.70.1258', examples, designs, corpus, testsPin: { tag: 'v0.68', commit: 'x' }, runUrl: 'https://github.com/o/r/actions/runs/1' });
   assert.ok(md.startsWith(`${MARK}\n## Yosys update: @yowasp/yosys 0.68.1207 → 0.70.1258\n`));
   assert.match(md, /\*\*Summary\*\*: 1 worse \(blinky\); 1 better \(serv\); Yosys's test designs: 1 regression\(s\), 0 newly passing, 0 new warning\(s\), shard\(s\) 2 without a result\./);
@@ -108,7 +109,7 @@ test('yosys update: the table of the differences', () => {
   assert.match(same, /none worse; none better; Yosys's test designs: no result\./);
   assert.match(same, /### Examples \(Basys2-250\)\n\nNo result \(see the run\)\./);
   // long lists are cut, the artifact has them all
-  const many = mergeCorpus({ 1: { tag: 'v0.68', results: {}, expected: {}, regress: Array.from({ length: 35 }, (_, i) => `f${i}.v:m`), fixed: [], fresh: [], timedOut: [], newWarnings: [], goneWarnings: [] }, 2: null });
+  const many = mergeCorpus({ 1: { tag: 'v0.68', results: {}, expected: {}, regress: Array.from({ length: 35 }, (_, i) => `f${i}.v:m`), fixed: [], fresh: [], timedOut: [], newWarnings: [], goneWarnings: [] }, 2: null }, 2);
   assert.match(reportMarkdown({ baseVersion: 'a', headVersion: 'b', examples: [], designs: [], corpus: many }), /- `f29\.v:m`: no result\n- … and 5 more \(the artifact has them all\)/);
 });
 
@@ -133,7 +134,7 @@ test('yosys update: the report from the jobs\' artifacts (a side, the corpus\'s 
   const md = fs.readFileSync(path.join(dir, 'out.md'), 'utf8');
   assert.match(md, /\| blinky \| 86 → 80 \(-7\.0%\) \*\*better\*\* \|/);
   assert.match(md, /\| gates \| - \| - \| - \| - \| no result with either Yosys \|/);
-  assert.match(md, /shard\(s\) 2: no result/);
+  assert.match(md, /shard\(s\) 2, 3: no result/);
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -184,7 +185,8 @@ test('yosys update: the workflow on pull requests that change @yowasp/yosys, Git
   // the corpus sharded as the nightly's
   const nightly = read('.github/workflows/nightly.yml');
   assert.equal(/shard: (\[[\d, ]+\])/.exec(yml)[1], /shard: (\[[\d, ]+\])/.exec(nightly)[1]);
-  assert.match(yml, /npm run test:corpus -- --jobs 4 --shard "\$SHARD\/2" --json "out\/shard-\$SHARD\.json"/);
+  assert.match(yml, /npm run test:corpus -- --jobs 4 --shard "\$SHARD\/3" --json "out\/shard-\$SHARD\.json"/);
+  assert.equal(JSON.parse(/shard: (\[[\d, ]+\])/.exec(yml)[1]).length, CORPUS_SHARDS, 'the report reads as many shards (#536)');
   // the table: the job summary, the artifact, and the comment (which may fail with a read-only token)
   assert.match(yml, /cat yosys-update\.md >> "\$GITHUB_STEP_SUMMARY"/);
   assert.match(yml, /name: yosys-update-report/);
