@@ -2,7 +2,8 @@
 //   node research/s3e-route/timing-fit.mjs <folder>...   (each with routed.xdl and routed.dly:
 //   reportgen -delay of ISE on the same design, as scripts/check-open-flow.mjs keeps them with SILINX_KEEP=1)
 //   node research/s3e-route/timing-fit.mjs --arcs <folder>...   (each with routed.xdl and full.twr, a verbose trce
-//   report on it, trce -a -v 1000: the logic delays of the SLICEM's shift registers and RAMs, #443)
+//   report on it, trce -a -v 1000: the logic delays of the SLICEM's shift registers and RAMs, #443, and of the block
+//   RAMs and multipliers, #457)
 // For every connection (driver pin -> load pin) reportgen gives ISE's delay; Silinx finds the path of
 // that connection in the routed XDL (core/fpga/timing.js netTree / treePath) and counts the nodes of
 // each class on it and the branches the net takes off them. A least-squares fit (non-negative) of
@@ -109,6 +110,21 @@ export function memArcs(xdlText, twrText) {
   return out;
 }
 
+/** The block RAMs' and multipliers' arcs of a routed design and trce's report on it (#457): twrArcs at the RAMB16 and
+ *  MULT18X18SIO sites, each with `block` ('bram' or 'mult') and, for a multiplier, `regs` (its AREG / BREG / PREG:
+ *  'A1B0P1'). */
+export function hardArcs(xdlText, twrText) {
+  const bySite = new Map(parseXdl(xdlText).insts.map(i => [i.site, i]));
+  const out = [];
+  for (const a of twrArcs(twrText)) {
+    const inst = bySite.get(a.site);
+    if (!inst || !/^(RAMB16|MULT18X18SIO)$/.test(inst.type)) continue;
+    const cfg = new Map(inst.cfg.map(c => [c.attr, c.value]));
+    out.push(inst.type === 'RAMB16' ? { ...a, block: 'bram' } : { ...a, block: 'mult', regs: ['AREG', 'BREG', 'PREG'].map(r => `${r[0]}${cfg.get(r) || '0'}`).join('') });
+  }
+  return out;
+}
+
 // least squares with non-negative coefficients (active-set, small problems)
 function nnls(X, y, iters = 200) {
   const m = X[0].length;
@@ -146,14 +162,17 @@ const stats = (errs) => {
 };
 
 if (import.meta.url === `file://${process.argv[1]}` && process.argv.includes('--arcs')) {
-  // the SLICEM memories' logic delays as trce gives them (each folder: routed.xdl and a verbose trce report,
-  // full.twr): their values by delay type, memory, clock edge and pins
+  // the logic delays of the SLICEM memories, block RAMs and multipliers as trce gives them (each folder: routed.xdl
+  // and a verbose trce report, full.twr): their values by delay type, memory or block, clock edge and pins (a block's
+  // bus pins without their bit: ADDRA, DOB; a multiplier's product bits apart, Tmult and Tmsckp grow with them)
   const groups = new Map();
+  const add = (k, v) => { if (!groups.has(k)) groups.set(k, []); groups.get(k).push(v); };
   for (const d of process.argv.slice(2).filter(a => !a.startsWith('--'))) {
-    for (const a of memArcs(fs.readFileSync(path.join(d, 'routed.xdl'), 'utf8'), fs.readFileSync(path.join(d, 'full.twr'), 'utf8'))) {
-      const k = `${a.type} ${a.mem}${a.clkInv ? ' CLK_B' : ''} ${a.from ? `${a.from} -> ` : ''}${a.pin}`;
-      if (!groups.has(k)) groups.set(k, []);
-      groups.get(k).push(a.delay);
+    const xdl = fs.readFileSync(path.join(d, 'routed.xdl'), 'utf8'), twr = fs.readFileSync(path.join(d, 'full.twr'), 'utf8');
+    for (const a of memArcs(xdl, twr)) add(`${a.type} ${a.mem}${a.clkInv ? ' CLK_B' : ''} ${a.from ? `${a.from} -> ` : ''}${a.pin}`, a.delay);
+    for (const a of hardArcs(xdl, twr)) {
+      const bus = p => (a.block === 'mult' && /^P\d/.test(p) ? p : p.replace(/\d+$/, ''));
+      add(`${a.type} ${a.block}${a.regs ? ` ${a.regs}` : ''} ${a.from ? `${bus(a.from)} -> ` : ''}${bus(a.pin)}`, a.delay);
     }
   }
   for (const [k, v] of [...groups].sort()) {

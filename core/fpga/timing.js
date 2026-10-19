@@ -24,8 +24,12 @@
 
 // ------------------------------------------------------------------ the model (ns, XC3S250E -4)
 /** Classes of routing nodes. */
-export const WIRE = { PIN: 0, OUT: 1, OMUX: 2, DOUBLE: 3, HEX: 4, LONG: 5, IMUX: 6, GCLK: 7, IO: 8, OTHER: 9 };
-export const WIRE_NAMES = ['pin', 'out', 'omux', 'double', 'hex', 'long', 'imux', 'gclk', 'io', 'other'];
+export const WIRE = { PIN: 0, OUT: 1, OMUX: 2, DOUBLE: 3, HEX: 4, LONG: 5, IMUX: 6, GCLK: 7, IO: 8, OTHER: 9, HARD_IN: 10, HARD_OUT: 11 };
+export const WIRE_NAMES = ['pin', 'out', 'omux', 'double', 'hex', 'long', 'imux', 'gclk', 'io', 'other', 'hard_in', 'hard_out'];
+
+// a multiplier's A / B -> P[j], trce's (#457)
+const MULT_P = [3.657, 3.657, 3.657, 3.657, 3.657, 3.657, 4.086, 4.344, 4.447, 4.525, 4.602, 4.654, 4.705, 4.757, 4.808, 4.834, 4.860,
+  ...new Array(19).fill(4.873)];
 
 /**
  * The fitted model (research/s3e-route/timing-fit.mjs on 10 486 connections of seven placements of
@@ -41,8 +45,11 @@ export const WIRE_NAMES = ['pin', 'out', 'omux', 'double', 'hex', 'long', 'imux'
 export const SPEED_4 = {
   base: -0.103,
   source: 0.049,
-  wire: [0, 0, 0.345, 0.269, 0.350, 0.445, 0.208, 0.414, 0.162, 0.3],
-  branch: [0, 0, 0.027, 0.013, 0.018, 0, 0.213, 0.033, 0, 0],
+  // (hard_in / hard_out: the block-RAM interconnect wires into and out of a block RAM or multiplier, BRAM_DIA_B…,
+  // BRAM_DOA…, BRAM_MOUT…: fitted on their own, #457: 1 108 and 853 connections of the designs of the bram /
+  // mult arcs below, rms error 0.167 and 0.095 ns; out of a block, ISE's delay is that of the wires after it)
+  wire: [0, 0, 0.345, 0.269, 0.350, 0.445, 0.208, 0.414, 0.162, 0.3, 0.240, 0],
+  branch: [0, 0, 0.027, 0.013, 0.018, 0, 0.213, 0.033, 0, 0, 0, 0],
   dist: { base: 0.55, perTile: 0.1, knee: 12, far: 0.03 },
   // logic: [SLICEL, SLICEM]
   slice: {
@@ -91,14 +98,34 @@ export const SPEED_4 = {
     Tas: 0.522,       // F1-4 / G1-4 (address) setup of a write
     Tws: 0.392,       // SR (write / shift enable) setup
   },
-  // block RAMs, multipliers (est.: of the order of the Spartan-3E data sheet's -4 values, not fitted to trce yet)
-  bram: { Tbcko: 2.39, Tback: 0.38, Tbdck: 0.33, Tbeck: 0.65, Tbwck: 0.74, Tbrck: 0.43 },
-  mult: { Tmult: 4.9, Tmsck: 0.36, Tmsckp: 1.0, Tmsdck: 5.2, Tmscka: 4.6 },
+  // block RAMs and multipliers: trce's values (research/s3e-route/timing-fit.mjs --arcs, #457: hard_prim, feat_bram,
+  // feat_const_bram, feat_mult, feat_const_mult, feat_constmult, stopwatch and two designs of multipliers with input
+  // registers); a block RAM's are the same at every width and write mode, a multiplier's through it grow with the
+  // product bit (P0..P5 the same, P17..P35 the same)
+  bram: {
+    Tbcko: 2.812,     // CLKA / CLKB -> DO / DOP
+    Tback: 0.377,     // ADDR setup
+    Tbdck: 0.227,     // DI / DIP setup
+    Tbeck: 0.770,     // EN setup
+    Tbwck: 1.253,     // WE setup
+    Tbrck: 0.705,     // SSR setup
+  },
+  mult: {
+    Tmult: MULT_P,                                                     // A / B -> P[j] (no register on the way)
+    Tmsckp: MULT_P.map((d, j) => +(d + (j < 6 ? 0.26 : 0.089)).toFixed(3)),   // CLK -> P[j] from the input registers (AREG / BREG)
+    TmsckpP: 1.100,   // CLK -> P from the product register (PREG)
+    TmsdckP: 3.980,   // A / B setup into the product register (PREG, the input not registered)
+    TmsdckA: 0.223,   // A setup into AREG
+    TmsdckB: 0.384,   // B setup into BREG
+    Tmscck: 0.735,    // CEA / CEB / CEP setup
+    Tmsrck: 0.736,    // RSTA / RSTB / RSTP setup
+  },
 };
 
 // ------------------------------------------------------------------ wire classes
 const RE_LONG = /(^|_)L[HV]\d+$/, RE_HEX = /(^|_)[NSEW]6(BEG|A|B|MID|C|D|END)(_[NSEW])?\d+$/, RE_DOUBLE = /(^|_)[NSEW]2(BEG|MID|END)(_[NSEW])?\d+$/;
 const RE_IMUX = /(^|_)([FG][1-4]_B|B[XY]|CE_B|SR|CLK)\d+$/;
+const RE_HARD_IN = /^BRAM_(DI[AB]_B|DIP[AB]_B|ADDR[AB]_B|MULTIN[AB]_B)\d+$/, RE_HARD_OUT = /^BRAM_(DO[AB]|DOP[AB]|MOUT)\d+$/;
 
 /** The class of a node from the names of its wires and whether it is a site pin (WIRE.*). */
 export function classOfWires(names, isPin = false, isOutPin = false) {
@@ -114,6 +141,8 @@ export function classOfWires(names, isPin = false, isOutPin = false) {
     else if (/GCLK/.test(n) && c === WIRE.OTHER) c = WIRE.GCLK;
     else if (RE_IMUX.test(n) && c === WIRE.OTHER) c = WIRE.IMUX;
     else if (/^IOIS_/.test(n) && c === WIRE.OTHER) c = WIRE.IO;
+    else if (RE_HARD_IN.test(n) && c === WIRE.OTHER) c = WIRE.HARD_IN;
+    else if (RE_HARD_OUT.test(n) && c === WIRE.OTHER) c = WIRE.HARD_OUT;
   }
   return c;
 }
@@ -437,15 +466,17 @@ function multArcs(inst, model, out) {
   out.clock = areg || breg || preg;
   for (let j = 0; j < 36; j++) {
     const p = `P${j}`;
-    if (preg) out.clkToOut.push([p, M.Tmsckp]);
+    if (preg) out.clkToOut.push([p, M.TmsckpP]);
     else {
-      for (const i of ins) out.comb.push([i, p, M.Tmult]);
-      if (areg || breg) out.clkToOut.push([p, M.Tmscka]);
+      for (const i of ins) out.comb.push([i, p, M.Tmult[j]]);
+      if (areg || breg) out.clkToOut.push([p, M.Tmsckp[j]]);
     }
   }
-  for (const [reg, x] of [[areg, 'A'], [breg, 'B']]) for (let k = 0; k < 18; k++) out.setup.push([`${x}${k}`, reg ? M.Tmsck : preg ? M.Tmsdck : 0]);
-  if (!preg) out.setup = out.setup.filter(([, d]) => d > 0);
-  for (const p of ['CEA', 'CEB', 'CEP', 'RSTA', 'RSTB', 'RSTP']) if (out.clock) out.setup.push([p, M.Tmsck]);
+  // the inputs into their registers, or (not registered) through the multiplier into the product register
+  for (const [reg, x, t] of [[areg, 'A', M.TmsdckA], [breg, 'B', M.TmsdckB]]) {
+    if (reg || preg) for (let k = 0; k < 18; k++) out.setup.push([`${x}${k}`, reg ? t : M.TmsdckP]);
+  }
+  if (out.clock) for (const x of ['A', 'B', 'P']) out.setup.push([`CE${x}`, M.Tmscck], [`RST${x}`, M.Tmsrck]);
   return out;
 }
 
