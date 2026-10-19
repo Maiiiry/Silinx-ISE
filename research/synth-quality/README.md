@@ -599,6 +599,42 @@ their depth, they keep Normal's one run (High is there for them). With DEEP_RULE
 more than 16 levels as High does; by the quality page's High column, Normal's critical path against ISE's goes
 from +20 % to about +9 % (the adder, max and priority; the ITC'99 ones ISE cannot read).
 
+## Synthesis time: the netlist's JSON (#86)
+
+#86 found the depth-oriented mapping 2.5 to 3.7 times as long as the first run (secworks-sha256 60 s + 154 s of
+CPU). Measured again on 2026-10-19 (Effort High, each Yosys run timed apart, one at a time, the 63 corpus designs of
+5000 LUTs at most), the runs of the 63 designs summed: ABC9 290 s, the usual run 215 s, the depth-oriented mapping
+137 s, the wider functions 129 s, the coarse run of the carry chains 41 s, the second balancing 29 s and with the
+LUT delays 28 s, the wide multiplexers 17 s, the carry chains 16 s. The depth-oriented mapping (a remap from the
+netlist before the LUT mapping) was already cheaper than the usual run, and even the smallest design's remap took
+about 1 s, its LUT mapping a tenth of that.
+
+The time was in `write_json`: synth_xilinx reads Yosys's Xilinx cell library (`cells_sim.v`, `cells_xtra.v`: about
+430 black boxes of every family), and write_json wrote all of them into every run's netlist: 9 to 14 MB of JSON
+whatever the design (blinky 13.4 MB, its own module 0.27 MB), about 0.9 s of every run (blinky's remap: 0.15 s
+without writing, 1.10 s with the JSON, 0.17 s with the top module's alone). write_verilog and stat already leave the
+black boxes out. So every run writes the top module alone (`outputs`: `select -module <top>; write_json -selected`);
+every reader takes the top module anyway (core/fpga/netlist.js, sim-model.js, compiled-sim.js, compiled-prims.js,
+the estimates of core/synth-open.js).
+
+Before → after (the same machine, best of two; the netlist kept, the choices of r.depth, the statistics and the
+warnings compared: identical on every design):
+
+| designs | Yosys | before (s) | after (s) | after / before |
+|---|---|---:|---:|---:|
+| the 7 examples, High | one at a time | 63.4 | 20.4 | 0.32 |
+| 18 corpus designs, High (the comparison's subset, EPFL max and adder, iwls05-spi, T80) | one at a time | 226.1 | 95.8 | 0.42 |
+| 3 examples and 4 deep designs, Normal | one at a time | 59.6 | 27.4 | 0.46 |
+| pong, stopwatch, picorv32, EPFL max, T80, High | 4 workers (the app) | 53.6 | 28.1 | 0.52 |
+
+Per design between 0.26 (nandland-spi-vhdl, 8.7 → 2.2 s) and 0.63 (T80, 19.2 → 12.0 s with 4 workers): the
+smaller the design, the larger the share the library took. The netlist file of the build (`open/<top>.json`) is 15
+to 100 times smaller.
+
+Left: ABC9's run reads the cell models again (`cells_xtra.v` about 0.35 s; block RAMs and DCMs need it), and the
+netlist before the LUT mapping (`PREMAP_FILE`) still holds the black boxes (4 MB, about 0.2 s to write and read;
+the remaps need them).
+
 ## What is left
 
 - **Speed**: lab11's critical path now has XST's logic depth (state register -> control decoding

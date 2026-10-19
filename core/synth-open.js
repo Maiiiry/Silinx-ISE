@@ -280,8 +280,12 @@ export function abc9RemapCommands(top, family) {
 export const ABC9_KEEP_CLOCKS = 'select -set silinx_clocks t:* %ci1:+[C]:+[CLK]:+[CLKA]:+[CLKB]:+[WCLK]:+[CLKIN] w:* %i; setattr -set keep 1 @silinx_clocks';
 export const ABC9_UNKEEP_CLOCKS = 'setattr -unset keep @silinx_clocks';
 
-// $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing
-const outputs = top => `delete t:$scopeinfo; write_json ${top}.json; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;
+// $scopeinfo cells (kept hierarchy names) are not cells of the device: deleted before writing. The JSON has the
+// top module alone (#86): synth_xilinx reads Yosys's whole Xilinx cell library as black boxes (430 modules of every
+// family), which write_json wrote too: 9 MB for blinky instead of 0.3, and about 0.9 s of every run (its LUT
+// mapping 0.15 s); every reader of the netlist takes its top module (core/fpga/netlist.js, sim-model.js,
+// compiled-sim.js…). (write_verilog leaves the black boxes out by itself.)
+const outputs = top => `delete t:$scopeinfo; select -module ${top}; write_json -selected ${top}.json; select -clear; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;
 
 // the netlist between the two runs of a design with carry chains written as gates (#77)
 export const CHAIN_FILE = 'silinx_chains.json';

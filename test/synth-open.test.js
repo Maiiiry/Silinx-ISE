@@ -38,7 +38,7 @@ test('the Yosys script and the device families', () => {
     + 'xilinx_srl -fixed -minlen 3; techmap -map silinx_srl_map.v; synth_xilinx -family xc3se -ise -flatten -top top -run map_ffs:map_luts; opt_expr -mux_undef -noclkinv; '
     + 'abc -luts 1,1,1,1; clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; '
     + 'xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:; '
-    + 'delete t:$scopeinfo; write_json top.json; write_verilog -noattr top_yosys.v; tee -q -o top_stat.txt stat');
+    + 'delete t:$scopeinfo; select -module top; write_json -selected top.json; select -clear; write_verilog -noattr top_yosys.v; tee -q -o top_stat.txt stat');
   assert.equal(synthCommands('m', 'spartan3'), synthCommands('m', 'spartan3e').replaceAll('xc3se', 'xc3s'));
   assert.match(synthCommands('m', 'spartan3e', { srl: false }), /^synth_xilinx -family xc3se -ise -flatten -top m -run :map_luts; /);
   assert.doesNotMatch(yosysScript('m', 'spartan3e', { srl: false }), /xilinx_srl|silinx_srl/);
@@ -47,6 +47,25 @@ test('the Yosys script and the device families', () => {
   assert.match(yosysScript('m', 'spartan6'), /-family xc6s /);
   assert.throws(() => yosysScript('m', 'cyclone'), /no Yosys mapping for the device family 'cyclone'/);
   for (const f of ['spartan3', 'spartan3e', 'spartan3a', 'spartan3adsp', 'spartan6', 'virtex4', 'virtex5', 'virtex6', 'artix7', 'kintex7', 'zynq']) assert.ok(YOSYS_FAMILY[f], f);
+});
+
+// #86: synth_xilinx reads Yosys's whole Xilinx cell library (430 black boxes); the netlist's JSON has the top module
+// alone (it had them all: 9 MB for blinky, about 0.9 s to write in every Yosys run), its netlist the same
+test('the netlist\'s JSON has the top module alone, not the cell library\'s black boxes (#86), at both efforts', { timeout: 300000 }, async () => {
+  for (const effort of ['normal', 'high']) {
+    const r = await synthesizeOpen(design(COUNTER, 'counter'), { run: yosysNode, effort });
+    const json = r.files['counter.json'];
+    assert.deepEqual(Object.keys(JSON.parse(json).modules), ['counter'], effort);
+    assert.ok(json.length < 100000, `${effort}: ${json.length} bytes`);
+    assert.deepEqual(r.warnings, [], effort);
+    // its readers take the top module: the netlist, its cells (4 flip-flops, the counter's LUTs and carry chain)
+    const nl = readYosysJson(json);
+    assert.equal(nl.cells.filter(c => /^FD/.test(c.type)).length, 4, effort);
+    assert.equal(r.util.flipFlops, 4, effort);
+    // the Verilog netlist and the statistics: the top module alone, as before
+    assert.equal((r.files['counter_yosys.v'].match(/^module /gm) || []).length, 1, effort);
+    assert.match(r.files['counter_stat.txt'], /=== counter ===/, effort);
+  }
 });
 
 test('cell counts and utilization of a netlist', () => {
