@@ -3,7 +3,7 @@
 // UNISIM primitives (core/fpga/techview.js technologyNetlist: LUT1-4 with their INIT, FD* flip-flops,
 // MUXF5-8, MUXCY / XORCY, RAMB16, MULT18X18, SRL16, I/O buffers…), the entity with the top's ports, so
 // that the user's test bench simulates it in place of the RTL; and the same netlist in Verilog (Yosys's
-// write_verilog). Silinx's simulator has the UNISIM models (core/unisim.js).
+// write_verilog, a wire a bit: scalarVerilog). Silinx's simulator has the UNISIM models (core/unisim.js).
 //
 // The generics. A netlist has its constants built in, so a test bench that gives the design other
 // generics (a clock divider of 2 instead of 50 000 000, to simulate quickly) would test another
@@ -16,6 +16,7 @@ import { validIdent } from './schdoc.js';
 import { lutTable } from './xdl.js';
 import { SPEED_4, instArcs } from './fpga/timing.js';
 import { writeSdf } from './sdf.js';
+import { asText } from './synth-open.js';
 import { UNISIM_SOURCE, SIMPRIM_SOURCE } from './unisim.js';
 import * as V from './values.js';
 
@@ -49,6 +50,19 @@ export function dutGenerics(simDesign, top) {
     skipped.push(p.name);
   }
   return { generics, skipped, instance: inst.path || inst.name };
+}
+
+/**
+ * The synthesis's result with its Verilog netlist written a wire a bit (#575): Yosys's write_verilog keeps the
+ * netlist's buses, each primitive driving one bit of one, so that a change of a bit woke every primitive that
+ * reads another bit of the bus (the Verilog model simulated about 4 times slower than the VHDL one, which is
+ * read scalarized). The netlist's JSON split (splitnets: the top's ports stay buses), its aliases cleaned.
+ * run: core/synth-open.js's run(args, files).
+ */
+export async function scalarVerilog(synth, run) {
+  const top = synth.top;
+  const out = await run(['-q', '-p', `read_json ${top}.json; splitnets; opt_clean; write_verilog -noattr ${top}_yosys.v`], { [`${top}.json`]: synth.files[`${top}.json`] });
+  return { ...synth, files: { ...synth.files, [`${top}_yosys.v`]: asText(out[`${top}_yosys.v`]) } };
 }
 
 /**
