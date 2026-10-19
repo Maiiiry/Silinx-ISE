@@ -1666,8 +1666,8 @@ async function netlistSources(step, { hier = false, action = 'Simulate', title =
   const stage = { postsynth: 'synth', posttrans: 'translate', postmap: 'map', postpar: 'par' }[step];
   if (S.status[stage] === 'stale' || S.status[step] === 'stale') log(`WARNING: the ${name.toLowerCase()} model is older than the sources (run "${EXTRA_STEPS[step]}" again to update it).`, 'warn');
   let raw = await api.readFile(S.project.name, m.path);
-  // the post-place & route model simulated with its timing (#122): the delays and setup checks of its SDF
-  // built in (core/sdf.js); the emulator runs it without
+  // the post-place & route model simulated with its timing (#122; ISE's, with netgen's SDF: #558): the delays and
+  // setup checks of its SDF built in (core/sdf.js); the emulator runs it without
   if (m.sdf && action === 'Simulate') {
     try {
       const { parseSdf, annotateSdf } = await import('/core/sdf.js');
