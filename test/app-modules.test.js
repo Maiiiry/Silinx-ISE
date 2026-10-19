@@ -35,6 +35,11 @@ const PARTS = {
     'drawnHdlClashes', 'clashItem', 'resolveHdlClash', 'schStructure', 'syncBanner', 'refreshSyncBanner',
     'topUcfPorts', 'ucfPort', 'refreshOpenEditor', 'syncHdlFromSchematic', 'syncSchematicFromHdl',
     'convertToSchematic', 'drawingsAsBase', 'setViewAsTop', 'viewSel', 'topOfView', 'exportSchAsIse', 'schContextMenu'],
+  'processes.js': ['STATUS_ICON', 'SUMMARY_PROC', 'openMode', 'OPEN_SYNTH', 'ISE_ONLY', 'ISE_ONLY_TIP', 'forOpenMode',
+    'processDefs', 'processDefsAll', 'selectionProcesses', 'renderProcesses', 'ISE_PROCS', 'runProcess',
+    'topConfirmed', 'setStatus', 'markStale', 'diagsFor', 'saveAll', 'checkSyntax', 'checkSyntaxInner',
+    'hdlDiagnostics', 'checkFileSyntax', 'IMPL_IDS', 'EXTRA_STEPS', 'SIM_MODEL_NAMES', 'STATUS_FILE',
+    'sourcesFingerprint', 'synthFingerprint', 'loadUcfText', 'saveImplStatus', 'restoreImplStatus'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -92,7 +97,9 @@ test('#405 app.js split: a module\'s top-level constants use nothing imported fr
     const code = read(mod), fromApp = importedFrom(code, 'app.js');
     for (const m of code.matchAll(/^(?:export )?(?:const|let) (\w+) = ([^\n]*(?:\n {2}[^\n]*)*)/gm)) {
       if (/^(?:async )?(?:\([^)]*\)|\w+) =>/.test(m[2])) continue;   // a function: run later
-      for (const name of fromApp) assert.doesNotMatch(m[2], new RegExp(`\\b${name}\\b`), `${mod}: ${m[1]} reads ${name}`);
+      // the functions inside it (an object's run: () => …) run later too
+      const now = m[2].replace(/'[^']*'|"[^"]*"|`[^`]*`/g, "''").replace(/(?:\([^()]*\)|\w+) => (?:\{[^{}]*\}|[^,}\n]*)/g, '');
+      for (const name of fromApp) assert.doesNotMatch(now, new RegExp(`\\b${name}\\b`), `${mod}: ${m[1]} reads ${name}`);
     }
   }
 });
@@ -101,8 +108,8 @@ test('#405 implement.js: the implementation processes, Check Constraints and Sto
   const code = read('implement.js');
   for (const s of ['=== SILINX STEP', "'Synthesize - Yosys (open)'", 'pin location(s) chosen by the tools', 'api.cancelJob(S.currentJob)'])
     assert.ok(code.includes(s) && !app.includes(s), s);
-  // the processes panel's runners in app.js still reach them
-  for (const name of ['runImpl', 'synthOpen', 'checkUcfFile', 'stopProcesses']) assert.match(app, new RegExp(`\\b${name}\\(`), name);
+  // the processes panel's runners (processes.js since the fifth part) still reach them
+  for (const name of ['runImpl', 'synthOpen', 'checkUcfFile', 'stopProcesses']) assert.match(read('processes.js'), new RegExp(`\\b${name}\\(`), name);
 });
 
 test('#405 drawings.js: the drawings\' editors and their HDL synchronization left app.js', () => {
@@ -113,4 +120,34 @@ test('#405 drawings.js: the drawings\' editors and their HDL synchronization lef
   assert.deepEqual(importedFrom(read('project.js'), 'drawings.js'), ['drawingsAsBase', 'adoptDrawnHdl', 'drawnHdlClashes']);
   assert.deepEqual(importedFrom(read('implement.js'), 'drawings.js'), ['refreshOpenEditor', 'topUcfPorts', 'ucfPort']);
   for (const name of ['openTt', 'openFsm', 'openPetri', 'openSch', 'openAsm']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
+});
+
+// every name a module imports from app.js or a module split out of it is exported there (a name that moved
+// with a later part is imported from its new module)
+test('#405 app.js split: the imports among app.js and its modules name what the other module exports', () => {
+  const mods = ['app.js', ...Object.keys(PARTS)];
+  for (const mod of mods) {
+    const code = read(mod);
+    for (const other of mods) {
+      if (other === mod) continue;
+      const names = importedFrom(code, other) || [];
+      const exported = new Set([...exportsOf(read(other)), ...(other === 'app.js' ? ['S', 'app'] : [])]);
+      for (const name of names) assert.ok(exported.has(name), `${mod} imports ${name} from ${other}, which does not export it`);
+    }
+  }
+});
+
+test('#405 processes.js: the Processes panel, Check Syntax and the processes\' status left app.js', () => {
+  const code = read('processes.js');
+  for (const s of ["'build/silinx-status.json'", "'Design Summary/Reports'", 'Behavioral Check Syntax']) assert.ok(code.includes(s) && !app.includes(s), s);
+  for (const name of ['renderProcesses', 'restoreImplStatus']) assert.ok(importedFrom(read('project.js'), 'processes.js').includes(name), name);
+  assert.match(app, /export const app = \{[^}]*\brenderProcesses\b/);
+});
+
+// app.js's own one-letter helper ($ = getElementById) is not imported: a module that calls it defines its own
+test('#405 app.js split: a module calling $() defines it', () => {
+  for (const mod of Object.keys(PARTS)) {
+    const code = read(mod);
+    if (/(?:^|[^\w.$])\$\(/m.test(code)) assert.match(code, /^const \$ = id => document\.getElementById\(id\);$/m, mod);
+  }
 });

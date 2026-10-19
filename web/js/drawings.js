@@ -6,10 +6,11 @@ import { h, dialog, alertDlg, confirmDlg, popupMenu, toast, downloadText } from 
 import { elaborate } from '/core/compile.js';
 import { viewHdl, drawnHdlPath, drawnHdlClash } from '/core/view-hdl.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
+import { S, activateDoc, closeDocByPath, compileProject, downloadUrl, findDoc, flushDoc, hdlInProject, moduleInfo,
+  openDoc, openFile, removeModule, renameDialog, renderHierarchy, saveProjectJson, setDirty, setTop, status } from './app.js';
 import { log } from './console.js';
 import { reloadProject } from './project.js';
-import { S, activateDoc, closeDocByPath, compileProject, downloadUrl, findDoc, flushDoc, hdlInProject, markStale, moduleInfo, openDoc,
-  openFile, removeModule, renameDialog, renderHierarchy, saveAll, saveProjectJson, setDirty, setTop, status } from './app.js';
+import { markStale, saveAll } from './processes.js';
 
 // ---- ASM
 export async function openAsm(path) {
