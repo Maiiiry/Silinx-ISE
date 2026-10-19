@@ -296,6 +296,24 @@ test('projects: HDL files written are registered as sources, but not the generat
   assert.equal(await fs.readFile(path.join(P.projectDir('Reg'), 'build', 'open', 'top_syn.v'), 'utf8'), 'module top; endmodule\n');
 });
 
+// CodeQL js/path-injection: the project's own paths (its silinx.json's files and constraints) stay inside its
+// folder when the board's constraints are written, as every other path of the API
+test('projects: boardConstraints reads and writes inside the project only (a file or constraints path out of it refused)', async () => {
+  const P = await import('../server/projects.js');
+  await P.createProject({ name: 'Bc' });
+  const dir = P.projectDir('Bc');
+  await P.writeFile('Bc', 'src/top.v', 'module top(input clk, output [3:0] led); assign led = 4\'d0; endmodule\n');
+  const outside = path.join(path.dirname(dir), 'escape.ucf');
+  await fs.rm(outside, { force: true });
+  const pj = { top: 'top', board: 'basys2', device: { part: 'xc3s250e' }, files: [{ path: 'src/top.v', lang: 'verilog', role: 'design' }] };
+  // the constraints file outside the project: refused, nothing written there
+  await assert.rejects(P.boardConstraints(dir, { ...pj, constraints: '../escape.ucf' }), /path escapes project/);
+  await assert.rejects(fs.access(outside));
+  // a source outside the project: skipped (not read), the UCF written inside
+  await P.boardConstraints(dir, { ...pj, files: [{ path: '../../outside.v', lang: 'verilog', role: 'design' }, ...pj.files], constraints: 'constraints/top.ucf' });
+  assert.match(await fs.readFile(path.join(dir, 'constraints', 'top.ucf'), 'utf8'), /NET "clk"/);
+});
+
 test('projects: a failed silinx.json write leaves no temp file and the old file intact', async () => {
   const P = await import('../server/projects.js');
   await P.createProject({ name: 'Wr' });

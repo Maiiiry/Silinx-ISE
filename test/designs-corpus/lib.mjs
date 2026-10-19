@@ -78,7 +78,7 @@ export function parseTime(s) {
 export function normalizeWarning(w) {
   return String(w)
     .replace(/\s+/g, ' ').trim()
-    .replace(/(?:\/[^\s:'"]+)*\/\.cache\/designs-corpus\/[^/\s]+\/[0-9a-f]{40}\//g, '')
+    .replace(/(?:\/[^\s:'"/]+)*\/\.cache\/designs-corpus\/[^/\s]+\/[0-9a-f]{40}\//g, '')
     .replace(/(?:[A-Za-z]:)?(?:[\\/][^\s:'"\\/]+)+[\\/]([^\s:'"\\/]+)/g, '$1')
     .replace(/\$(auto|abc|techmap|flatten|opt|memory|proc)\$[^\s']*?(\$\d+)+/g, '$$$1')
     .replace(/\$(\w+)\$\d+/g, '$$$1')
