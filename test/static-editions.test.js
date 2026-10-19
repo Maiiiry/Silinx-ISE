@@ -64,10 +64,9 @@ test('#487 the usage counter added to a page with a policy: its loader\'s hash, 
   const out = addAnalytics(page, 'silinx');
   const d = directives(metaCsp(out));
   // every inline script of the page is allowed by its hash: the application's and the loader
-  for (const h of inlineScriptHashes(out)) assert.ok(d['script-src'].includes(h), h);
-  assert.ok(d['script-src'].includes('https://gc.zgo.at'));
-  assert.ok(d['connect-src'].includes('https://silinx.goatcounter.com'));
-  assert.ok(d['img-src'].includes('https://silinx.goatcounter.com'));
+  assert.deepEqual(d['script-src'], ["'self'", "'unsafe-eval'", "'wasm-unsafe-eval'", ...inlineScriptHashes(out), 'https://gc.zgo.at']);
+  assert.deepEqual(d['connect-src'], ["'self'", 'https://api.github.com', 'https://raw.githubusercontent.com', 'https://silinx.goatcounter.com']);
+  assert.deepEqual(d['img-src'], ["'self'", 'data:', 'blob:', 'https://silinx.goatcounter.com']);
   assert.equal(addAnalytics(out, 'silinx'), out, 'once');
   // a page without a policy: none added
   assert.equal(metaCsp(addAnalytics('<html><body></body></html>', 'silinx')), null);
@@ -79,7 +78,7 @@ test('#487 the assets\' URLs of a built page: its version\'s folder next to the 
   delete globalThis.SILINX_ASSETS;
   try {
     const { assetsBase, yosysBundleUrl } = await import('../web/js/open-flow-browser.js?layout=1');
-    assert.equal(assetsBase({ protocol: 'file:', href: 'file:///Users/x/Downloads/Silinx-ISE.html' }), 'https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/');
+    assert.equal(assetsBase({ protocol: 'file:', href: 'file:///tmp/Downloads/Silinx-ISE.html' }), 'https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/');
     assert.equal(assetsBase({ protocol: 'https:', href: 'https://pmnmalo.github.io/Silinx-ISE/' }), 'https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/');
     assert.equal(assetsBase({ protocol: 'https:', href: 'https://pmnmalo.github.io/Silinx-ISE/dev/index.html' }), 'https://pmnmalo.github.io/Silinx-ISE/dev/assets/15.12.0/');
     assert.equal(yosysBundleUrl('https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/'), 'https://pmnmalo.github.io/Silinx-ISE/assets/vendor/yowasp-yosys/0.70.1258/gen/bundle.js');

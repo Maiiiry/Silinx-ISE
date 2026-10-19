@@ -54,7 +54,9 @@ const SLACK = 0.5;   // mm, the page box stays this much shorter than the printa
  * paper size in mm, orientation, number of pages across and the resulting scale (mm per unit).
  */
 export function pageLayout(bounds, { paper = 'A4', orient = 'auto', across = 1 } = {}) {
-  let [pw, ph] = PAPERS[paper] || PAPERS.A4;
+  // (a known paper only: its name goes into the print page's CSS)
+  if (!Object.hasOwn(PAPERS, paper)) paper = 'A4';
+  let [pw, ph] = PAPERS[paper];
   const land = orient === 'landscape' || (orient === 'auto' && bounds.w >= bounds.h);
   if (land) [pw, ph] = [ph, pw];
   const n = Math.max(1, Math.min(20, Math.round(across) || 1));
@@ -84,7 +86,7 @@ export function printHtml(title, bounds, imgUrl, L) {
       const x = n === 1 ? (L.aw - W) / 2 : -c * L.aw, y = n === 1 ? 0 : -r * L.ah;
       const cap = n === 1 ? '' : ` — page ${r * L.cols + c + 1} of ${n} (row ${r + 1}, column ${c + 1})`;
       pages.push(`<section class="page"><header>${esc(title)}${cap}</header><div class="art">`
-        + `<img src="${imgUrl}" alt="" style="left:${mm(x)};top:${mm(y)};width:${mm(W)};height:${mm(H)}"></div></section>`);
+        + `<img src="${esc(imgUrl)}" alt="" style="left:${mm(x)};top:${mm(y)};width:${mm(W)};height:${mm(H)}"></div></section>`);
     }
   }
   const size = `${L.paper === 'Letter' ? 'letter' : L.paper} ${L.land ? 'landscape' : 'portrait'}`;

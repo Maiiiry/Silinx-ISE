@@ -399,7 +399,7 @@ uiTest('standalone edition (file://): the Board Emulator runs blinky on the comp
   // #427: in its worker, started from the page's embedded text (a Blob)
   assert.equal(await page.eval(() => window.Silinx.active.view.worker), true, 'the compiled engine in a worker');
   await page.waitFor(() => window.Silinx.active.view.sim.now > 1e11, [], { what: '0.1 s of the board\'s time', timeout: 60000 });
-}, { url: () => 'about:blank', timeout: 240000 });
+}, { url: () => 'about:blank', timeout: 240000, skip: BROWSER === 'webkit' ? 'WebKit cannot start a Blob worker from a file:// page (blob:null): #556' : undefined });
 
 // #512: the single file opened from the disk in a user's Chrome (no --allow-file-access-from-files: the
 // page an opaque origin, from which a module worker cannot start from a Blob): the Silinx toolchain's
@@ -1000,7 +1000,10 @@ uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\
   assert.deepEqual((await fs.readdir(only)).sort(), [dir.slice(0, -1), 'vendor']);
   assert.deepEqual((await fs.readdir(path.join(only, dir))).sort(), ['bitdb', 'devices']);
   // in the browser: the page runs, an injected inline script is blocked (and reported)
-  page.allowErrors.push(/Content-Security-Policy violation: script-src(-elem)? blocked (inline|an inline script)/);
+  // (the violation as the harness reports it, and as each browser logs it itself: Firefox, WebKit)
+  page.allowErrors.push(/Content-Security-Policy violation: script-src(-elem)? blocked (inline|an inline script)/,
+    /Content-Security-Policy: The page’s settings blocked an inline script \(script-src-elem\)/,
+    /Refused to execute a script because its hash, its nonce, or 'unsafe-inline' does not appear in the script-src directive/);
   for (const url of [pathToFileURL(html).href, siteUrl]) {
     await page.goto(url);
     await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: `boot of ${url}` });
