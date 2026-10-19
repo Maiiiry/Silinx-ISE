@@ -143,8 +143,10 @@ export function clearRecent() {
 }
 
 // ------------------------------------------------------------------ the Start page
+let startRenders = 0;
 export async function renderStartPage() {
   const host = $('start-page');
+  const n = ++startRenders;
   const projects = await api.projects().catch(() => []);
   const recentHere = recent().filter(r => projects.some(p => p.name === r));
   const page = h('div', { class: 'page' },
@@ -157,6 +159,11 @@ export async function renderStartPage() {
       recentHere.length ? h('div', { class: 'entry start-clear' }, h('a', { onclick: () => clearRecent() }, 'Clear Recent Projects')) : null),
     api.standalone ? await storageBox() : null,
   );
+  // the last render wins: an earlier one finishing later showed the list as it was (e.g. before a Clear)
+  if (n !== startRenders) return;
+  // kept when it is the same: a page rebuilt between a press and its release (another close's render
+  // finishing late) lost the click on a recent project (#494)
+  if (host.firstElementChild?.outerHTML === page.outerHTML) return;
   // replaced, not appended: two renders at once (the page shown again while a project closes) list it once
   host.replaceChildren(page);
 }
