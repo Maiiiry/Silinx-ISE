@@ -148,7 +148,7 @@ test('slice arcs: LUT, F5 / FX multiplexers, carry chain (its data input), flip-
   assert.deepEqual(find(c0, 'CIN', 'COUT'), []);
   // pads start and end paths; other sites have no arcs
   const p = instArcs({ type: 'IOB', site: 'P1', cfg: [] });
-  assert.deepEqual([p.input, p.output], [[['I', SPEED_4.pad.Tiopi]], [['O', SPEED_4.pad.Tioop]]]);
+  assert.deepEqual([p.input, p.output], [[['I', SPEED_4.pad.Tiopi]], [['O1', SPEED_4.pad.Tioop]]]);
   assert.deepEqual(instArcs({ type: 'BUFGMUX', site: 'B', cfg: [] }).comb, []);
 });
 
@@ -388,6 +388,38 @@ net "slow" , outpin "div" YQ , inpin "div" BY , ;
   const lines = timingReport({ clocks: [{ clock: 'clk_g', period: 17.5, path: [] }] }, checks);
   assert.equal(lines[0], 'constraint PERIOD 20 ns on CLK: met (period 17.500 ns, slack 2.500 ns)');
   assert.equal(lines[1], 'constraint PERIOD 10 ns on other: no clock of the design comes from this port');
+});
+
+test('the pads\' paths (#26), as trce\'s data sheet: setup / hold of an input to its clock, clock to pad, pad to pad, hold between flip-flops; an asynchronous reset left out', () => {
+  // i -> b.F1 (LUT F -> the flip-flop), b.XQ -> o, i -> b.G1 -> b.Y -> o2 (pad to pad), r -> a.SR (asynchronous); a.XQ -> b.F1 (d)
+  const extra = inst('i', 'IOB', 'CLB_X1Y0', 'P2', ' ') + inst('r', 'IOB', 'CLB_X1Y0', 'P3', ' ') + inst('o', 'IOB', 'CLB_X1Y0', 'P4', ' ') + inst('o2', 'IOB', 'CLB_X1Y0', 'P5', ' ');
+  const d = parseXdl(`design "t" xc3s50etq144-4 v3.2 ,\n  cfg "";\n${INSTS.replace(' FFX:a:#FF DXMUX::1 FXMUX::F ', ' FFX:a:#FF DXMUX::1 FXMUX::F SYNC_ATTR::ASYNC ')}${extra}${CLK}${D_NET}`
+    + net('n1', [['i', 'I']], [['b', 'F1'], ['b', 'G1']]) + net('n2', [['b', 'XQ']], [['o', 'O1']]) + net('n3', [['b', 'Y']], [['o2', 'O1']]) + net('n4', [['r', 'I']], [['a', 'SR']]));
+  const tg = timingGraph(d);
+  const p = tg.analyzePads(new Float64Array(tg.conns.length).fill(0.5));
+  const { Tiopi, Tioop } = SPEED_4.pad, { Tgclk, minScale: sc, Tdh } = SPEED_4.clock;
+  const arcs = instArcs(d.insts.find(x => x.name === 'b'));
+  const su = arcs.setup.find(([pin]) => pin === 'F1')[1], tco = arcs.clkToOut.find(([pin]) => pin === 'XQ')[1], tilo = arcs.comb.find(([a, b]) => a === 'G1' && b === 'Y')[2];
+  assert.deepEqual(p.inputs.map(x => [x.port, x.clock, x.edge]), [['i', 'clk', 'rising']], 'r reaches an asynchronous reset only');
+  close(p.inputs[0].setup, Tiopi + 0.5 + su - sc * Tgclk);
+  close(p.inputs[0].hold, Tgclk - sc * (Tiopi + 0.5) + Tdh);
+  // (o2 too: a.XQ -> b.G1 -> b.Y)
+  const ta = instArcs(d.insts.find(x => x.name === 'a')).clkToOut.find(([pin]) => pin === 'XQ')[1];
+  assert.deepEqual(p.outputs.map(x => [x.port, x.clock]), [['o', 'clk'], ['o2', 'clk']]);
+  close(p.outputs[0].clockToPad, Tgclk + tco + 0.5 + Tioop);
+  close(p.outputs[1].clockToPad, Tgclk + ta + 0.5 + tilo + 0.5 + Tioop);
+  assert.deepEqual(p.padToPad.map(x => [x.from, x.to]), [['i', 'o2']]);
+  close(p.padToPad[0].delay, Tiopi + 0.5 + tilo + 0.5 + Tioop);
+  // between the flip-flops: a.XQ -> b.F1 at its earliest, against the hold time
+  assert.equal(p.hold.length, 1);
+  close(p.hold[0].slack, sc * (ta + 0.5) - Tdh);
+  // in the report, after the clocks' paths
+  const r = analyzeTiming(d, device);
+  const lines = timingReport(r);
+  assert.ok(lines.includes('setup / hold to clock clk:') && lines.includes('from clock clk to pad:') && lines.includes('pad to pad:'), lines.join('\n'));
+  assert.match(lines.find(l => /^ {2}i /.test(l)), /^ {2}i +setup +-?\d+\.\d{3} ns {2}hold +-?\d+\.\d{3} ns$/);
+  assert.match(lines.find(l => /^hold between/.test(l)), /^hold between the flip-flops of clk: slack \d+\.\d{3} ns$/);
+  assert.ok(!lines.some(l => /^clock .*(hold|to pad)/.test(l)), 'the lines the flow logs (clock, constraint) are only the periods');
 });
 
 test('delayTable: the fastest routes from a CLB\'s outputs to the inputs at each offset, on the allowed PIPs only; cached', () => {

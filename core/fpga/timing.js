@@ -84,7 +84,13 @@ export const SPEED_4 = {
     Tceck: [0.555, 0.555],     // CE (est.)
     Tsrck: [0.910, 0.910],     // SR
   },
-  pad: { Tiopi: 1.3, Tioop: 3.25 },
+  // the pads and the global clocks (#26): fitted to trce's data sheet (setup / hold of the inputs, clock to
+  // pad, pad to pad) on lab11 placed and routed by Silinx and by ISE (research/s3e-route/README.md, "Pad
+  // paths"): Tiopi pad -> I, Tioop O1 -> pad (LVCMOS25 / 33, the default drive); a global clock reaches its
+  // flip-flops Tgclk after its pad, minScale x that at the earliest; trce's shortest paths are minScale x
+  // the model's; Tdh: a flip-flop's data hold time
+  pad: { Tiopi: 1.253, Tioop: 3.257 },
+  clock: { Tgclk: 3.045, minScale: 0.751, Tdh: -1.018 },
   // the SLICEM's RAMs and shift registers: trce's values (research/s3e-route/timing-fit.mjs --arcs, #443: the srl
   // and dram fixtures, feat_srl, feat_srl_var, hard_prim; the same on either clock edge)
   mem: {
@@ -354,7 +360,7 @@ export function instArcs(inst, model = SPEED_4) {
   const out = { comb, setup, clkToOut, input: [], output: [], clock: false };
   if (/^(IOB|IBUF|DIFF[MS]I?)$/.test(inst.type)) {
     out.input.push(['I', model.pad.Tiopi]);
-    out.output.push(['O', model.pad.Tioop]);
+    out.output.push(['O1', model.pad.Tioop]);
     return out;
   }
   if (inst.type === 'RAMB16') return bramArcs(inst, model, out);
@@ -523,10 +529,13 @@ export function timingGraph(design, model = SPEED_4) {
     }
   }
   const starts = [], ends = [];   // [pin, ns, clock, edge (0 rising, 1 falling)]
+  const padIn = [], padOut = [];   // [pin, ns (the pad's delay), port]
   for (const inst of design.insts) {
     const a = instArcs(inst, model);
     const clk = clockOf.get(inst.name) || null;
     for (const [i, o, d] of a.comb) { eFrom.push(pid(inst.name, i)); eTo.push(pid(inst.name, o)); eDelay.push(d); eConn.push(-1); }
+    for (const [p, d] of a.input) padIn.push([pid(inst.name, p), d, inst.name]);
+    for (const [p, d] of a.output) padOut.push([pid(inst.name, p), d, inst.name]);
     if (!clk) continue;
     const edge = fallingEdge(inst);
     for (const [o, d] of a.clkToOut) starts.push([pid(inst.name, o), d, clk, edge]);
@@ -601,7 +610,81 @@ export function timingGraph(design, model = SPEED_4) {
     for (let ci = 0; ci < conns.length; ci++) crit[ci] = period > 0 && slack[ci] < Infinity ? Math.max(0, Math.min(1, 1 - slack[ci] / period)) : 0;
     return { period, clocks: perClock.map(c => ({ clock: c.clock, period: c.period, path: c.path, half: c.half })), crit, slack };
   }
-  return { conns, connIndex, pins: pinName, analyze };
+
+  // the pads' paths (#26), as trce's data sheet gives them: an input's setup and hold to each clock it
+  // reaches a flip-flop of, a clock's paths to an output pad, and the paths from pad to pad. A global
+  // clock reaches every flip-flop at the same time (trce: a clock path skew of 0.000 ns on the global
+  // lines), model.clock.Tgclk after its pad (a DCM's clock too, for now: #601), minScale x that at the
+  // earliest; the shortest data paths are
+  // minScale x the longest (trce's minimum delays). Returns { inputs: [{ port, clock, edge, setup, hold }],
+  // outputs: [{ port, clock, edge, clockToPad }], padToPad: [{ from, to, delay }], hold: [{ clock, slack }]
+  // (between the flip-flops of each clock) }, each the worst.
+  function analyzePads(connDelay) {
+    const delay = Float64Array.from(eDelay);
+    for (let e = 0; e < E; e++) if (eConn[e] >= 0) delay[e] = connDelay[eConn[e]];
+    const { Tgclk, minScale: sc, Tdh } = model.clock;
+    const inputs = [], outputs = [], padToPad = [];
+    const outPin = new Map(padOut.map(([p, d, port]) => [p, [d, port]]));
+    // (an asynchronous set / reset is not a data input: trce leaves it out of the data sheet)
+    const isAsync = p => pinName[p].pin === 'SR' && instByName.get(pinName[p].inst)?.cfg?.some(c => c.attr === 'SYNC_ATTR' && c.value === 'ASYNC');
+    const dataEnds = ends.filter(([p]) => !isAsync(p));
+    const arrMax = new Float64Array(P), arrMin = new Float64Array(P);
+    for (const [p0, d0, port] of padIn) {
+      arrMax.fill(-Infinity); arrMin.fill(Infinity);
+      arrMax[p0] = d0; arrMin[p0] = sc * d0;
+      for (const p of order) {
+        if (arrMax[p] === -Infinity) continue;
+        for (let x = outStart[p]; x < outStart[p + 1]; x++) {
+          const e = outEdge[x], q = eTo[e];
+          if (arrMax[p] + delay[e] > arrMax[q]) arrMax[q] = arrMax[p] + delay[e];
+          if (arrMin[p] + sc * delay[e] < arrMin[q]) arrMin[q] = arrMin[p] + sc * delay[e];
+        }
+      }
+      const worst = new Map();   // clock\0edge -> { setup, hold }
+      for (const [p, su, clk, edge] of dataEnds) {
+        if (arrMax[p] === -Infinity) continue;
+        const k = `${clk}\u0000${edge}`, w = worst.get(k) || worst.set(k, { clock: clk, edge, setup: -Infinity, hold: -Infinity }).get(k);
+        w.setup = Math.max(w.setup, arrMax[p] + su - sc * Tgclk);
+        w.hold = Math.max(w.hold, Tgclk - arrMin[p] + Tdh);
+      }
+      for (const w of worst.values()) inputs.push({ port, clock: w.clock, edge: w.edge ? 'falling' : 'rising', setup: w.setup, hold: w.hold });
+      for (const [q, [d, to]] of outPin) if (arrMax[q] > -Infinity) padToPad.push({ from: port, to, delay: arrMax[q] + d });
+    }
+    // to each output pad: the longest path from every pin (backwards, in reverse topological order)
+    const toOut = new Float64Array(P);
+    for (const [q, [d, port]] of outPin) {
+      toOut.fill(-Infinity);
+      toOut[q] = d;
+      for (let j = order.length - 1; j >= 0; j--) {
+        const p = order[j];
+        for (let x = outStart[p]; x < outStart[p + 1]; x++) { const e = outEdge[x], t = toOut[eTo[e]] + delay[e]; if (t > toOut[p]) toOut[p] = t; }
+      }
+      const worst = new Map();
+      for (const [p, tco, clk, edge] of starts) {
+        if (toOut[p] === -Infinity) continue;
+        const k = `${clk}\u0000${edge}`, t = Tgclk + tco + toOut[p];
+        if (!worst.has(k) || t > worst.get(k).clockToPad) worst.set(k, { port, clock: clk, edge: edge ? 'falling' : 'rising', clockToPad: t });
+      }
+      outputs.push(...worst.values());
+    }
+    // hold between flip-flops of a clock: the earliest data (minScale x the paths) against the hold time,
+    // the clock at the same time at both
+    const hold = [];
+    for (const clk of clocks) {
+      arrMin.fill(Infinity);
+      for (const [p, tco, c] of starts) if (c === clk && sc * tco < arrMin[p]) arrMin[p] = sc * tco;
+      for (const p of order) {
+        if (arrMin[p] === Infinity) continue;
+        for (let x = outStart[p]; x < outStart[p + 1]; x++) { const e = outEdge[x]; if (arrMin[p] + sc * delay[e] < arrMin[eTo[e]]) arrMin[eTo[e]] = arrMin[p] + sc * delay[e]; }
+      }
+      let slack = Infinity;
+      for (const [p, , c] of dataEnds) if (c === clk && arrMin[p] - Tdh < slack) slack = arrMin[p] - Tdh;
+      if (slack < Infinity) hold.push({ clock: clk, slack });
+    }
+    const byName = (a, b) => (a.port || a.from).localeCompare(b.port || b.from, 'en', { numeric: true }) || String(a.clock || a.to).localeCompare(String(b.clock || b.to), 'en', { numeric: true });
+    return { inputs: inputs.sort(byName), outputs: outputs.sort(byName), padToPad: padToPad.sort(byName), hold };
+  }
+  return { conns, connIndex, pins: pinName, analyze, analyzePads };
 }
 
 /** The delay of every connection of a timing graph from the routing of the design (Float64Array);
@@ -636,6 +719,7 @@ export function analyzeTiming(design, device, opts = {}) {
   const tg = timingGraph(design, model);
   const connDelay = routedDelays(design, device, tg, model);
   const r = tg.analyze(connDelay);
+  r.pads = tg.analyzePads(connDelay);
   r.conns = tg.conns.map((c, i) => ({ net: c.net, from: `${c.fromPin.inst}.${c.fromPin.pin}`, to: `${c.toPin.inst}.${c.toPin.pin}`, delay: connDelay[i], slack: r.slack[i], crit: r.crit[i] }));
   return r;
 }
@@ -690,6 +774,24 @@ export function timingReport(r, checks = []) {
   for (const c of r.clocks) {
     lines.push(`clock ${c.clock}: minimum period ${c.period.toFixed(3)} ns (${(1000 / c.period).toFixed(1)} MHz)`);
     for (const s of c.path) lines.push(`  ${s.kind.padEnd(12)} ${s.delay.toFixed(3).padStart(7)} ${s.arrival.toFixed(3).padStart(8)}  ${s.inst}.${s.pin}`);
+  }
+  // the pads (#26), as trce's data sheet: the worst of each
+  const p = r.pads;
+  if (!p) return lines;
+  const ns = v => `${v.toFixed(3).padStart(7)} ns`, edge = x => (x.edge === 'falling' ? ' (falling edge)' : '');
+  for (const h of p.hold) lines.push(`hold between the flip-flops of ${h.clock}: slack ${h.slack.toFixed(3)} ns`);
+  const w = Math.max(4, ...[...p.inputs, ...p.outputs].map(x => x.port.length), ...p.padToPad.map(x => x.from.length));
+  for (const clk of [...new Set(p.inputs.map(x => x.clock))]) {
+    lines.push(`setup / hold to clock ${clk}:`);
+    for (const x of p.inputs.filter(y => y.clock === clk)) lines.push(`  ${x.port.padEnd(w)}  setup ${ns(x.setup)}  hold ${ns(x.hold)}${edge(x)}`);
+  }
+  for (const clk of [...new Set(p.outputs.map(x => x.clock))]) {
+    lines.push(`from clock ${clk} to pad:`);
+    for (const x of p.outputs.filter(y => y.clock === clk)) lines.push(`  ${x.port.padEnd(w)}  ${ns(x.clockToPad)}${edge(x)}`);
+  }
+  if (p.padToPad.length) {
+    lines.push('pad to pad:');
+    for (const x of p.padToPad) lines.push(`  ${x.from.padEnd(w)}  ${x.to.padEnd(w)}  ${ns(x.delay)}`);
   }
   return lines;
 }

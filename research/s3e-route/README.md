@@ -540,6 +540,46 @@ ISE's own SDF is trce's period within 2 ps, which checks the comparison's method
 of ISE's on the same routing. The tests (`test/sim-model-par.test.js`) check that the longest path over Silinx's SDF
 is its static timing's minimum period within 10 ps, on every example.
 
+## Pad paths, hold and clock skew (#26, 2026-10-19)
+
+`timing.js` `analyzeTiming(...).pads` (`timingGraph().analyzePads`) gives what trce's data sheet gives. For each
+input: its setup and hold to every clock it reaches a flip-flop of. For each output: the clock to pad. Also the
+pad-to-pad paths, and the hold slack between the flip-flops of each clock. The open flow writes them into
+`timing.txt` after the clocks' critical paths.
+
+The model, fitted to trce's data sheet of lab11 placed and routed twice, by Silinx and by ISE (the routed XDL
+and trce's report kept from the 10 October runs: 20 setup / hold, 34 clock-to-pad and 14 pad-to-pad figures):
+
+- **The global clock reaches every flip-flop at once.** trce gives a clock path skew of 0.000 ns (-0.001 at
+  most) between flip-flops on the global lines. The model's routed delays of the clock nets vary by 0.4 ns
+  across the flip-flops, so they are not used. A clock arrives `Tgclk` = 3.045 ns after its pad, and at the
+  earliest `minScale` x that.
+- **trce's minimum delays** are 0.751 (`minScale`) of the model's: the slope of the inputs' hold against the
+  model's shortest data paths.
+- `Tiopi` = 1.253 ns (pad -> I), `Tioop` = 3.257 ns (O1 -> pad). These solve setup (Tiopi - minScale x Tgclk
+  = -1.034), clock to pad (Tgclk + Tioop = 6.302) and pad to pad (Tiopi + Tioop = 4.51) together. With one
+  clock arrival for both setup and clock-to-pad, the pad-to-pad sum did not close (5.27 predicted, 4.51
+  measured): trce takes the clock early for setup and late for clock-to-pad. The old estimates were 1.3 and
+  3.25.
+- `Tdh` = -1.018 ns, a flip-flop's data hold time as trce times an input's hold
+  (hold = Tgclk - minScale x (Tiopi + path) + Tdh).
+- An asynchronous set / reset (`SYNC_ATTR::ASYNC`) is not a data input: trce leaves it out of the data sheet.
+
+Against trce (model - trce, ns):
+
+| | setup | hold | clock to pad | pad to pad |
+|---|---|---|---|---|
+| lab11, Silinx's routing | rms 0.134, max 0.260 | rms 0.194, max 0.339 | rms 0.139, max 0.296 | rms 0.078, max 0.120 |
+| lab11, ISE's routing | rms 0.139, max 0.264 | rms 0.146, max 0.339 | rms 0.181, max 0.575 | rms 0.098, max 0.192 |
+
+That is the connection model's accuracy (rms 0.1 per connection). The hold between flip-flops on one global
+clock is minScale x (clock-to-out + path) - Tdh, at least 1.4 ns: it cannot fail, as trce finds (0 hold errors
+on every design checked).
+
+Not modelled yet: a clock from a DCM. It deskews its output to its input pad, so its insertion is about 0,
+not Tgclk; it is taken as a pad's clock for now. Paths between two clocks are not analysed either (each
+clock's paths are its own). Both are in #601.
+
 ## Open problems
 
 - Timing: no timing constraints (UCF PERIOD) are read yet; the router and the placer minimise the
