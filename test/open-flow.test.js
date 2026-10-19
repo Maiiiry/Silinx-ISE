@@ -185,6 +185,9 @@ const FEATURES = {
   // buffer on switches of known bits; its CLKIN from the first one's CLK0 buffer (#47)
   feat_dcm2: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcma" "DCM",placed DCM_TL_CENTER_X13Y34 DCM_X0Y1 /m, /^inst "u_dcmb" "DCM",placed DCM_BL_CENTER_X13Y1 DCM_X0Y0 /m,
     /^inst "u_ba0" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^inst "u_bb2x" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX_X1Y1 /m]],
+  // the clock pad (B8, LOC'd) into a global buffer that feeds the DCM's CLKIN: B8's buffer, whose line
+  // reaches the top-left DCM's CLKIN, kept for it, the DCM's outputs on the others (#94)
+  feat_dcm_bufgin: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcm" "DCM",placed DCM_TL_CENTER_X13Y34 DCM_X0Y1 /m, /^inst "u_bin" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m]],
   // CLKIN_DIVIDE_BY_2, SOURCE_SYNCHRONOUS deskew (DESKEW_ADJUST 0), a CLKFX at the edge of its range;
   // and (on the Nexys2-500) the input period in whole nanoseconds: 20.9 ns is 20 (#46)
   feat_dcm_div2: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 /, /DESKEW_ADJUST::0 /, /CLKFX_DIVIDE::15 /]],
@@ -410,5 +413,34 @@ for (const [part, pkg, dcms, warnings] of DCM2) {
     assert.deepEqual(r.warnings, warnings(placedOf('IBUF').clk));
     assert.deepEqual([placedOf('DCM').u_dcma, placedOf('DCM').u_dcmb], dcms);
     if (part !== 'xc3s100e') assert.equal(placedOf('IBUF').clk, 'B8');
+  });
+}
+
+// A clock pad driving a global buffer that feeds a DCM's CLKIN (#94; checked against ISE: npm run
+// check:open-flow gives DRC 0 errors / 0 warnings and a byte-identical .bit): feat_dcm_bufgin with no
+// constraints. The DCM's site and the buffer are chosen together: the clock on the GCLK pin whose
+// buffer's line reaches the DCM's CLKIN (B8 -> BUFGMUX_X2Y11; on the XC3S100E C8 -> BUFGMUX_X2Y10),
+// the DCM's outputs on the other buffers, no warning (before: the DCM's outputs took the buffers
+// first, and the pad's buffer, not reaching the CLKIN, was said and reached through general routing).
+const DCM_BUFGIN = [
+  ['xc3s100e', 'cp132', { clk: 'C8', u_bin: 'BUFGMUX_X2Y10', dcm: 'DCM_X0Y1' }],
+  ['xc3s250e', 'cp132', { clk: 'B8', u_bin: 'BUFGMUX_X2Y11', dcm: 'DCM_X0Y1' }],
+  ['xc3s500e', 'fg320', { clk: 'B8', u_bin: 'BUFGMUX_X2Y11', dcm: 'DCM_X0Y1' }],
+  ['xc3s1200e', 'fg320', { clk: 'B8', u_bin: 'BUFGMUX_X2Y11', dcm: 'DCM_X1Y3' }],
+];
+for (const [part, pkg, want] of DCM_BUFGIN) {
+  test(`the open flow: a pad's global buffer into a DCM's CLKIN (feat_dcm_bufgin) on the ${part.toUpperCase()}-${pkg.toUpperCase()}: the DCM and the buffer together, no warning (#94)`, { timeout: 300000 }, () => {
+    const dir = path.join(tmp, `dcm-bufgin-${part}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm_bufgin/top.vhd'), path.join(dir, 'top.vhd'));
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: `dcm-bufgin-${part}`, version: 1, device: { family: 'spartan3e', part, package: pkg, speed: '-4' }, top: 'top',
+      files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }] }));
+    const r = openFlow(dir, path.join(dir, 'out'));
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    assert.deepEqual(r.warnings, []);
+    const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
+    const placedOf = type => Object.fromEntries([...routed.matchAll(new RegExp(`^inst "([^"]+)" "${type}",placed \\S+ (\\S+) `, 'gm'))].map(m => [m[1], m[2]]));
+    assert.deepEqual([placedOf('IBUF').clk, placedOf('BUFGMUX').u_bin, placedOf('DCM').u_dcm], [want.clk, want.u_bin, want.dcm]);
   });
 }

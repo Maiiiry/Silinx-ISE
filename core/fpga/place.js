@@ -374,6 +374,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   // whose CLKIN a pad reaches on a dedicated path of known bits (its LOC'd pad, or a free one: #57),
   // then by site (dcmRank: the top-left DCM first, the side ones of the XC3S1200E last).
   const dcmObjs = objs.filter(o => o.kind === 'dcm');
+  const driverOf = bi => packed.nets.find(n => n.inpins.some(p => p.inst === bi && p.pin === 'I0'))?.outpins[0];
   const preBuf = new Map();   // bufg inst -> the buffer matched to its DCM output
   const dcmPads = new Map();   // pad name -> the DCM sites whose CLKIN its dedicated paths reach
   const dcmPadsOf = name => { if (!dcmPads.has(name)) dcmPads.set(name, bufgSites ? bufgSites(name, 'I', ['DCM', 'CLKIN']) || [] : []); return dcmPads.get(name); };
@@ -394,13 +395,21 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     const reachMemo = new Map();
     const reachB = (site, pin) => { const k = `${site}:${pin}`; if (!reachMemo.has(k)) reachMemo.set(k, bufgSites ? (bufgSites(site, pin) || []).filter(b => canUse.has(b)) : []); return reachMemo.get(k); };
     const pads = dcmObjs.map(clkinPad);
+    // the global buffers a clock pad drives whose net reaches a DCM's CLKIN / CLKFB (#94): matched
+    // with the DCMs' outputs, to a buffer that a GCLK pin (its LOC'd pad, or a free one) reaches on a
+    // dedicated path, the buffer then serving the DCM's pin on the site tried
+    const padBufs = [...loads].filter(([bi, L]) => L.dcm.length && packed.insts[driverOf(bi)?.inst]?.kind === 'iob').map(([bi]) => {
+      const pi = driverOf(bi).inst;
+      const from = sites[pi] ? [sites[pi]] : freePads('in', vccoOf(pi));
+      return { bi, reach: [...new Set(from.flatMap(p => padReachOf(p.name)))].filter(b => canUse.has(b)) };
+    });
     const better = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
     let best = null, budget = 200000;
     const assign = [];
     const evaluate = () => {
       dcmObjs.forEach((o, k) => dcmTried.set(o.inst, assign[k]));
       // the buffers: the matching of the most outputs, then the most buffers that serve their loads
-      const items = dcmObjs.flatMap((o, k) => outs[k].map(x => ({ bi: x.bi, reach: reachB(assign[k].name, x.pin) })));
+      const items = [...dcmObjs.flatMap((o, k) => outs[k].map(x => ({ bi: x.bi, reach: reachB(assign[k].name, x.pin) }))), ...padBufs];
       let bm = null;
       const taken = new Set(), pick = [];
       const rec = (i, matched, serving) => {
@@ -463,11 +472,14 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     for (const p of freePads('in', vccoOf(o.inst))) {
       for (const b of padReachOf(p.name)) {
         if (!dev.bufgmux.some(x => x.name === b)) continue;   // (not a buffer the flow can use: #45)
+        // (the buffer matched above with the DCMs, #94: only it)
+        if (preBuf.has(bufgOfPad(o))) { if (b === preBuf.get(bufgOfPad(o)) && !best) best = { p, b, k: 0 }; continue; }
         // (a buffer whose lines do not reach the clock's loads after the others, #56)
         const k = (bufgRank.get(b) ?? Infinity) + (serves(bufgOfPad(o), b) ? 0 : 1000);
         if (!bufClaimed.has(b) && (!best || k < best.k)) best = { p, b, k };
       }
     }
+    if (!best && preBuf.has(bufgOfPad(o))) { bufClaimed.delete(preBuf.get(bufgOfPad(o))); preBuf.delete(bufgOfPad(o)); }
     if (!best) continue;   // no GCLK pin free: a pad like any other (general routing to the buffer)
     bufClaimed.add(best.b);
     bankAdd(best.p, vccoOf(o.inst), 1);
