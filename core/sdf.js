@@ -14,9 +14,10 @@
 //
 // The annotation, as a VITAL simulator applies an SDF: each input of an instance reads its signal through a
 // transport delay (the connection's, the PORT delay: a wire passes every pulse) and an inertial one (the
-// instance's path from that input, IOPATH: the element filters the pulses shorter than its delay, the glitches);
+// instance's path from that input, IOPATH: the element filters the pulses shorter than its delay, the glitches):
+// an X_SDFDLY of Silinx's SIMPRIM library (`reject GATE inertial … after WIRE + GATE`, evaluated natively);
 // an output driven at a clock edge (a flip-flop, a block RAM, a shift register…) is delayed by its clock-to-out
-// path; each setup check is a process that reports a timing violation when the input changed less than its
+// path; each setup check is an X_SDFCHECK (natively evaluated too) that reports a timing violation when the input changed less than its
 // setup time before the clock's edge (a warning), from 100 ns on: as in ISE's timing simulation, whose global
 // set / reset (glbl's GSR) holds the first 100 ns, while the values of time 0 settle through the delays. A combinational
 // element's paths are applied on its inputs, which is exact for an element of one output (the SIMPRIM gates), or on
@@ -144,33 +145,23 @@ export function annotateSdf(text, lang, sdf) {
   const decls = [], stmts = [];
   const seen = new Set();
   const D = x => (vhdl ? `${Math.round(x)} ps` : `${Math.round(x)}`);
+  // a delay: an X_SDFDLY (Silinx's SIMPRIM library, evaluated natively: core/native.js) from `from` to `to`
+  const delay = (inst, from, to, wire, gate) => {
+    const name = fresh(`${to}_SDF`), w = Math.round(wire), g = Math.round(gate);
+    stmts.push(vhdl ? `  ${name} : X_SDFDLY\n    generic map (\n      WIRE_PS => ${w},\n      GATE_PS => ${g}\n    )\n    port map (\n      I => ${from},\n      O => ${to}\n    );`
+      : `  X_SDFDLY #(\n    .WIRE_PS(${w}),\n    .GATE_PS(${g})\n  ) ${name} (\n    .I(${from}),\n    .O(${to})\n  );`);
+  };
   // an input's actual through its delays (a new signal); an output's actual driven from a new signal, delayed
   const delayIn = (inst, formal, actual, d) => {
     const s = fresh(`${inst}_${formal}_DLY`);
-    if (vhdl) {
-      decls.push(`  signal ${s} : STD_LOGIC;`);
-      if (d.wire > 0 && d.gate > 0) {
-        const w = fresh(`${inst}_${formal}_WIRE`);
-        decls.push(`  signal ${w} : STD_LOGIC;`);
-        stmts.push(`  ${w} <= transport ${actual} after ${D(d.wire)};`, `  ${s} <= ${w} after ${D(d.gate)};`);
-      } else stmts.push(d.wire > 0 ? `  ${s} <= transport ${actual} after ${D(d.wire)};` : `  ${s} <= ${actual} after ${D(d.gate)};`);
-    } else {
-      decls.push(`  wire ${s};`);
-      let src = actual;
-      if (d.wire > 0) {
-        const w = fresh(`${inst}_${formal}_WIRE`);
-        decls.push(`  reg ${w};`);
-        stmts.push(`  initial ${w} <= #(${D(d.wire)}) ${actual};`, `  always @(${actual}) ${w} <= #(${D(d.wire)}) ${actual};`);
-        src = w;
-      }
-      stmts.push(`  assign #(${D(d.gate)}) ${s} = ${src};`);
-    }
+    decls.push(vhdl ? `  signal ${s} : STD_LOGIC;` : `  wire ${s};`);
+    delay(inst, actual, s, d.wire, d.gate);
     return s;
   };
   const delayOut = (inst, formal, actual, d) => {
     const s = fresh(`${inst}_${formal}_Q`);
     decls.push(vhdl ? `  signal ${s} : STD_LOGIC;` : `  wire ${s};`);
-    stmts.push(vhdl ? `  ${actual} <= ${s} after ${D(d)};` : `  assign #(${D(d)}) ${actual} = ${s};`);
+    delay(inst, s, actual, 0, d);
     return s;
   };
   // the setup checks of an instance: its pins' (annotated) actuals
@@ -183,16 +174,9 @@ export function annotateSdf(text, lang, sdf) {
       for (const p of pins) {
         const d = act.get(p);
         if (isConst(d)) continue;
-        const edge = c.edge === 'negedge' ? (vhdl ? 'falling_edge' : 'negedge') : (vhdl ? 'rising_edge' : 'posedge');
-        const msg = `Timing violation (setup ${Math.round(c.setup)} ps) on ${inst}.${p}`;
-        if (vhdl) {
-          stmts.push(`  ${fresh(`${inst}_${p}_SETUP`)} : process (${clk})\n  begin\n    if ${edge}(${clk}) and now >= ${D(CHECKS_FROM)} and ${d}'last_event < ${D(c.setup)} then\n      report "${msg}: changed " & time'image(${d}'last_event) & " before the clock's edge" severity warning;\n    end if;\n  end process;`);
-        } else {
-          const t = fresh(`${inst}_${p}_LAST`);
-          decls.push(`  time ${t};`);
-          stmts.push(`  initial ${t} = 0;`, `  always @(${d}) ${t} = $time;`,
-            `  always @(${edge} ${clk}) if ($time >= ${CHECKS_FROM} && $time - ${t} < ${Math.round(c.setup)}) $warning("${msg}: changed %0t ps before the clock's edge", $time - ${t});`);
-        }
+        const name = fresh(`${inst}_${p}_SETUP`), neg = c.edge === 'negedge';
+        stmts.push(vhdl ? `  ${name} : X_SDFCHECK\n    generic map (\n      SETUP_PS => ${Math.round(c.setup)},\n      FROM_PS => ${CHECKS_FROM},\n      NEGEDGE => ${neg ? 'TRUE' : 'FALSE'},\n      NAME => "${inst}.${p}"\n    )\n    port map (\n      D => ${d},\n      CLK => ${clk}\n    );`
+          : `  X_SDFCHECK #(\n    .SETUP_PS(${Math.round(c.setup)}),\n    .FROM_PS(${CHECKS_FROM}),\n    .NEGEDGE("${neg ? 'TRUE' : 'FALSE'}"),\n    .NAME("${inst}.${p}")\n  ) ${name} (\n    .D(${d}),\n    .CLK(${clk})\n  );`);
       }
     }
   };

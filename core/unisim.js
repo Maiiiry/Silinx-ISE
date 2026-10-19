@@ -686,6 +686,26 @@ begin
   u : entity work.LUT${n} generic map (INIT => INIT) port map (${Array.from({ length: n }, (_, i) => `I${i} => ADR${i}`).join(', ')}, O => O);
 end silinx;`),
   xff('X_FF', false), xff('X_SFF', true),
+  // (not Xilinx's: the delay of an SDF built into a netlist, core/sdf.js: a connection's delay WIRE_PS, transport,
+  // then a gate's GATE_PS, inertial: the pulses shorter than it are filtered)
+  // (not Xilinx's either: an SDF's setup check, core/sdf.js: a warning when D changed less than SETUP_PS before the
+  // clock's edge, from FROM_PS on; NAME: the instance's pin, for the message)
+  `
+library IEEE; use IEEE.STD_LOGIC_1164.ALL;
+entity X_SDFCHECK is
+  generic (LOC : string := "UNPLACED"; SETUP_PS : integer := 0; FROM_PS : integer := 0; NEGEDGE : boolean := FALSE; NAME : string := "");
+  port (D : in std_ulogic; CLK : in std_ulogic);
+end X_SDFCHECK;
+architecture silinx of X_SDFCHECK is
+begin
+  process (CLK)
+  begin
+    if ((not NEGEDGE and rising_edge(CLK)) or (NEGEDGE and falling_edge(CLK))) and now >= FROM_PS * 1 ps and D'last_event < SETUP_PS * 1 ps then
+      report "Timing violation (setup " & integer'image(SETUP_PS) & " ps) on " & NAME & ": changed " & integer'image(D'last_event / 1 ps) & " ps before the clock's edge" severity warning;
+    end if;
+  end process;
+end silinx;`,
+  xs('X_SDFDLY', 'WIRE_PS : integer := 0; GATE_PS : integer := 0', 'I : in std_ulogic; O : out std_ulogic', '  O <= reject GATE_PS * 1 ps inertial I after (WIRE_PS + GATE_PS) * 1 ps;'),
   brams(true), xbram('X_RAMB16', { addr: 15, v4: true }), xbram('X_RAMB16BWE', { addr: 14, v4: false }),
   dcm('X_DCM_SP', true), dcm('X_DCM', true),
   xlatch('X_LATCH', false), xlatch('X_LATCHE', true),

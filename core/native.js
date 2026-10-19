@@ -122,6 +122,30 @@ export function nativePrimitive(name, params, ports) {
       },
     };
   }
+  // the delay of an SDF built into a netlist (core/sdf.js): the input after WIRE_PS + GATE_PS, the pulses shorter
+  // than GATE_PS rejected (VHDL's `reject GATE inertial … after WIRE + GATE`)
+  if (N === 'X_SDFDLY') {
+    const i = P.get('I'), o = P.get('O');
+    if (!i || !o) return null;
+    const ps = (k) => { const v = param(k); return v ? Number(V.toBig(v)) : 0; };
+    const gate = ps('GATE_PS'), delay = ps('WIRE_PS') + gate;
+    const mech = { mech: 'inertial', cont: false, reject: gate };
+    return { inputs: [i], outputs: [o], init: [], fn: (sim) => sim.after({ sig: o, whole: true }, VAL[bit(i.val)], delay, true, mech) };
+  }
+  // an SDF's setup check (core/sdf.js): a warning when D changed less than SETUP_PS before CLK's edge, from FROM_PS on
+  if (N === 'X_SDFCHECK') {
+    const d = P.get('D'), clk = P.get('CLK');
+    if (!d || !clk) return null;
+    const num = (k) => { const v = param(k); return v ? Number(V.toBig(v)) : 0; };
+    const setup = num('SETUP_PS'), from = num('FROM_PS'), edge = num('NEGEDGE') ? falling : rising, name = param('NAME')?.str ?? '';
+    return {
+      inputs: [clk], outputs: [], init: [],
+      fn(sim) {
+        if (!edge(sim, clk) || sim.now < from || d.lastT === undefined || sim.now - d.lastT >= setup) return;
+        sim.report('warning', `Timing violation (setup ${setup} ps) on ${name}: changed ${sim.now - d.lastT} ps before the clock's edge`);
+      },
+    };
+  }
   switch (N) {
     case 'GND': case 'X_ZERO': return { inputs: [], outputs: outs('G', 'O'), init: outs('G', 'O').map((s) => [s, V.ZERO]), fn: (sim) => set(sim, outs('G', 'O'), 0) };
     case 'VCC': case 'X_ONE': return { inputs: [], outputs: outs('P', 'O'), init: outs('P', 'O').map((s) => [s, V.ONE]), fn: (sim) => set(sim, outs('P', 'O'), 1) };
