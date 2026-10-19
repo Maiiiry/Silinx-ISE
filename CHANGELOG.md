@@ -3,6 +3,602 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.11.2
+
+The Silinx toolchain now gives the simulation models of every step of the implementation: Post-Translate,
+Post-Map and Post-Place & Route with its timing (an SDF of the routed design), and in an ISE mode ISE's
+own timing simulation. Its synthesis is two to three times faster, and its circuits smaller and faster
+(registers in the IOBs, register replication, timing-aware packing, faster comparators and counters).
+The emulated models run on the compiled engine at the board's speed. The timing report adds the pads'
+paths and the block RAMs and multipliers. The site and the single file are safer, each release lists
+its files' checksums, and an AI assistant can use Silinx over MCP.
+
+In short:
+
+- **A simulation model stays generated:** in the browser edition, a model generated (Emulate or Simulate a
+  Post-Synthesis Model, Generate and Emulate) was "not generated yet" again after another run of the flow, such as
+  Generate Programming File; it is now kept while its files are in the build. In both editions the board keeps
+  running the model with the design's own generics after a later run.
+- **The emulated simulation models run at the board's speed:** Emulate Post-Synthesis Model (and the post-translate,
+  post-map and post-place & route ones) ran the model made with the test bench's generics, blinky's divider of 2
+  instead of 625 000, so at Real time its LEDs changed millions of times a second and nothing could be seen. The
+  board now runs the design with its own generics.
+- **Stimuli saved reliably:** the stimuli drawn in ISim, clicked quickly on a slow machine, are no longer
+  sometimes saved as an older version of themselves.
+- **Silinx toolchain, faster comparators and counters:** a carry chain's result read by logic now leaves the
+  slice as ISE's map does, through the carry multiplexer's own output, and the chain's stages that only pass
+  the carry on are left out (blinky 7.24-7.61 -> 6.43-7.02 ns on the four devices, 3 slices fewer; ISE's own
+  flow: 6.7 ns).
+- **The Post-Synthesis Model on the Board Emulator's compiled engine:** Emulate Post-Synthesis Model ran the
+  netlist on the slow event-driven engine only, so the VGA monitor of the vga example stayed dark ("needs the
+  compiled engine"); the compiled engine now runs the model's LUTs, flip-flops and carry chain, and the monitor
+  draws its picture.
+- **ISE's timing simulation:** in an ISE mode, Simulate Post-Place & Route Model simulates ISE's model with
+  its timing, the SDF netgen writes beside it (the wire and gate delays, the clock network, the setup checks).
+- **Safari, the single file opened from the disk:** Generate Programming File runs, and the Board Emulator
+  runs designs on its compiled engine (at the board's speed) instead of falling back to the event-driven one.
+- **Silinx toolchain, a wrong circuit fixed:** the open synthesis's wide-multiplexer mapping could build a circuit
+  that does not do what the HDL says (secworks' SHA-256 core); it now maps only complete multiplexer trees.
+- **Edit ▸ Undo after a command:** text typed right after a Rename (or another project command), while the
+  application still reloads the project behind it, is undone by Edit ▸ Undo before the command.
+- **Silinx toolchain, fewer slices and shorter critical paths:** a design with an active-low reset or clock
+  enable no longer spends a LUT per flip-flop on its inverter (iwls05-i2c 195 → 136 slices, t80 1296 → 1146),
+  and the LUTs of a critical path are packed together (t80 about 4 % faster).
+- **Faster writes of one bit chosen by an index:** `x[i] <= c ? v : x[i]` (in VHDL `x(i) <= v when c else x(i)`,
+  or an `if` whose `else` writes `x(i) <= x(i)`) is now synthesized as the write `if (c) x[i] <= v`, without reading
+  the whole vector to write the same bit back. The design corpus's iwls05-spi is 23 % faster (17.6 ns to 13.6, ISE
+  13.0) and 11 % smaller in slices.
+- **Faster circuits from register replication:** when a reset or clock enable computed by logic drives many
+  flip-flops on the critical path, its LUT is now copied too, as register replication already copied
+  flip-flops; the design corpus's vtr-ch-intrinsics is 7 % faster (6.43 ns to 5.99 by ISE's trce). The
+  replication's second placement starts from the first one, so it takes a fraction of the time (0.4 s instead
+  of 8 s on the T80).
+- **Reload FPGA from PROM after Program PROM on a board switched on with an empty PROM:** it failed with the
+  jumper hint though the PROM was right; the FPGA is now reset to load from the PROM when the PROM's CONFIG does
+  not start it, and a Reload on an erased PROM says so.
+- **A security policy and the platform's checks:** `SECURITY.md` says how to report a vulnerability privately,
+  what is supported and in scope; CodeQL, a dependency review and a scan of the whole history for private data
+  run on GitHub, next to secret scanning and push protection.
+- **The timing report names the clock again:** a design whose synthesis keeps ABC9's mapping (effort High; the
+  blinky example) had its clock called `$abc$24199$aiger$o11` in the timing report; it is the clock's net again
+  (`$iopadmap$clk`), as with the other mappings.
+- **Check for updates at start-up, a setting:** Help ▸ Check for Updates at Start-up (on by default) turns the
+  start-up check off; nothing is then asked of GitHub until Help ▸ Check for Updates… is used. About says what
+  the check reaches.
+- **The site and the single file, safer:** they carry a Content-Security-Policy, as the local server's pages
+  do; a downloaded Silinx-ISE.html fetches the files of its own version from the site.
+- **Checking a download:** each release lists its files' SHA-256 checksums (in its notes and in the file
+  `SHA256SUMS`) and GitHub's build provenance attestation of each file, so that a zip or `Silinx-ISE.html`
+  got from elsewhere (a course page) can be checked against the release; the README and Getting Started say how.
+- **Importing a project in the browser edition:** a zip or bundle whose files or silinx.json point outside the
+  project imports what is sound and says, in the console, what was left out.
+- **Silinx for an AI assistant (MCP):** the assistant can now make an empty project for a board, choose its
+  top module and test bench (with the constraints from the board's pins), and read the synthesis, map and
+  place & route reports of a Silinx toolchain run.
+- **Static timing of block RAMs and multipliers:** the Silinx toolchain's timing report now gives a design with
+  block RAMs or multipliers the period ISE's timing analyzer gives the same routing (hard_prim 7.11 ns by Silinx,
+  7.15 by ISE; 8.39 before).
+- **Silinx toolchain, Post-Place & Route Simulation Model with timing:** *Generate Post-Place & Route Simulation
+  Model* no longer needs Xilinx ISE: the routed design as a model (VHDL and Verilog) and its timing as an SDF
+  file; *Simulate Post-Place & Route Model* runs it with the delays, the glitches a gate filters and the setup
+  checks (a too fast clock is reported as timing violations). No process needs ISE in the Silinx toolchain now.
+- **Silinx toolchain, Post-Translate and Post-Map Simulation Models:** *Generate Post-Translate / Post-Map
+  Simulation Model* no longer need Xilinx ISE; *Simulate* and *Emulate Post-Translate / Post-Map Model* run
+  the Silinx toolchain's own netlists, in VHDL or Verilog, as ISE's netgen writes them.
+- **Silinx toolchain: registers in the IOBs and tristate outputs:** a flip-flop goes into the I/O block of its
+  pad when the UCF asks for it (`IOB = TRUE`), and an output that can be high-impedance (`'Z'`) with its
+  enable from a register in the IOB builds to a bitstream.
+- **Synthesis two to three times faster:** the open synthesis no longer writes Yosys's whole Xilinx cell library
+  into every netlist it tries, which took most of its time; the netlists it makes are the same. The examples
+  synthesize in 2 to 4 s instead of 7 to 12 at Optimization Effort High, and the netlist file is 15 to 100 times
+  smaller.
+- **Place & Route on the Nexys2-1200:** a design no longer fails at some placements with a net between
+  neighbouring slices left unrouted.
+- **Silinx toolchain's timing report: the pads' paths fitted to ISE's timing analyzer:** pad to setup, clock to
+  pad and pad to pad now come within about 0.15 ns of trce's, and each input's hold time is given.
+- **Silinx toolchain's timing report: the pads' paths and OFFSET constraints:** the report now lists each input's
+  pad to setup, each output's clock to pad, the paths from pad to pad and a hold check, as trce's data sheet report
+  does, and checks the UCF's `OFFSET = IN … BEFORE` / `OFFSET = OUT … AFTER` constraints (estimates until fitted
+  to ISE's timing analyzer).
+
+In detail:
+
+- **The earlier runs' models kept (#625):** each run of the browser flow replaced the project's report with its own,
+  which lists only the models that run made, though the earlier ones' files were still in the build; the browser
+  edition now keeps the earlier runs' models whose files are there (all of them in a workspace folder). The server
+  lists the models by their files in build/, but without what an earlier run said of them: it now lists an earlier
+  run's board model (#622) when its file was written with the model, not before it, and the console's message says
+  "the test bench's" when the run's name of it is not known. Tests: `test/ui/standalone.test.js` (a model, then
+  Generate Programming File, then the model again: no dialog, the board's model), `test/ui/open-toolchain.test.js`
+  (the same with another model in between, in the full application).
+- **The board's model, with the design's own generics (#622):** a simulation model is synthesized with the generics
+  the test bench gives the top (#120), so that the test bench tests what it simulates; the Board Emulator ran that
+  same file. When a model has a test bench's generics, the flow now also writes the design's own model beside it,
+  `<top>_<suffix>_board.vhd` / `.v`, made of this run's implementation or the last run's (its synthesis in
+  build/open, netlist, packing and routing; the model's step alone and no synthesis yet: the design synthesized
+  with its own generics too), listed in the report as `simModels.<step>.board`; the emulator runs it and says so in
+  the console, the simulation keeps the test bench's. Tests: `test/sim-model.test.js` and
+  `test/sim-model-impl.test.js` (the files, the report, the exact log; the board's models simulated with the test
+  bench without its generics), `test/timesim-lib.mjs` (every example's post-place & route board model),
+  `test/ui/open-toolchain.test.js` (blinky's emulated LEDs on or off, not half lit).
+- **CI at a release only (#607):** `.github/workflows/ci.yml` runs when a version tag `v*` is pushed and by
+  hand, no longer on pull requests nor on pushes to main; everything runs (the change detection,
+  `scripts/ci-changes.mjs`, and the pull requests' dependency review are gone). The Release workflow checks
+  that the tagged commit is on main and waits for that CI run (`scripts/wait-for-ci.mjs`: a run of the tag,
+  or one of main started by hand). The development build (`dev-release.yml`) and the site's `dev/`
+  (`pages.yml`) are published after every push to main; CodeQL runs at a release too (a tag `v*`, no pull
+  requests, no pushes to main, no weekly run). The ruleset of main no longer requires `ci-ok`; a change is merged when its
+  related tests pass locally (CLAUDE.md, ONBOARDING.md, CONTRIBUTING.md, README.md, SECURITY.md). Tests:
+  `test/ci-workflow.test.js`, `test/wait-for-ci.test.js`.
+- **The project's saves one at a time, in order (#593):** the project file (`silinx.json`) is saved one save
+  after the other, as asked: the stimuli save at each click could reach the server in another order, an older
+  project written last (the flaky UI test of ISim's stimuli in the classic interface); and the answer of an
+  earlier save no longer replaces changes made while it was on its way. The UI test holds the saves before
+  Fill Expected Outputs on their way and checks that Fill's is the one written.
+- **Pack: a carry chain's result through XB / YB, the open flows' default (#591):** every XB / YB -> OMUX
+  switch is now in the bit database of the four devices (XBUSED / YBUSED set no bits), so the open flows (the
+  app's, `open-flow.mjs`, the design corpus's, the synthesis's slice count) pack with `carryOut: 'pin'`, as ISE
+  does, instead of one more chain stage whose XOR brings the carry out through X / Y: CIN -> XB is 0.13 ns where
+  that stage's CIN -> Y took 0.88. `carryOut: 'xor'` stays as an option.
+- **Pack: a carry stage whose select is the constant 1 is left out (#591):** it passes its carry in (O = CI); its
+  loads read the carry in instead, unless a sum (XORCY) reads that carry in. blinky's 10-stage comparator against
+  a constant ended in six such stages. `stats.carryPass` counts them.
+- **Static timing: XB as the F stage's carry (#591):** CIN -> XB and the F side's inputs -> XB are half of CIN -> COUT
+  (Tbyp / 2) short of COUT, as the post-place & route model (its SDF) splits the carry chain: the two agree.
+- **blinky's test bench: the invert check a clock period after the switch (#591):** the path sw(3) -> logic -> LED pads
+  is combinational, about 8-10 ns on the post-place & route model (pads and routing), and half a clock period was not
+  always enough: another placement failed it.
+- **The design corpus's expectations with this packing (#591):** recorded from a Nightly on the branch (run
+  39245068757): itc99-b15 now meets its 20 ns PERIOD (its warning gone), itc99-b04 127 -> 105 slices; over the 62
+  designs with a period the geometric mean is -0.5 % (seed 1, within the placement's noise), no design larger.
+- **The test of each test file's time passes on Windows (#587):** it gave node --test the reporter by an
+  absolute path, which Node's module loader on Windows takes for a URL (the scheme `d:`); it now gives it as
+  CI does, relative to the repository.
+- **CodeQL's alerts reviewed (#585):** boardConstraints (server/projects.js) joins the project's own paths with
+  safeJoin, like the rest of the API (test/server-units.test.js: a constraints path out of the project refused, a
+  source out of it skipped); the corpus's cache-path regex can no longer match a text two ways
+  (test/designs-corpus.test.js); test/power.test.js compares its sentence as text (a template literal's '\.' was a
+  plain '.'). The other alerts are false positives, dismissed with their reason.
+- **CI: the unit tests in three parts of about the same time (#573):**
+  `node --test --test-shard` split the files by their order, so one part took twice the others (24 min on
+  Linux against 12 and 10). `scripts/test-shard.mjs` balances the files by their time measured in CI
+  (`test/timings.json`; a file not measured weighs the median), the heaviest first into the lightest part,
+  three parts on Linux, macOS and Windows (four were no faster); each Linux part uploads its files' times
+  (`scripts/test-times-reporter.mjs`), which `scripts/update-test-timings.mjs <run id>` merges into the
+  timings. A CI run's unit tests take about 17 minutes instead of 24. A part takes at least as long as its longest file (sim-model.test.js, about 16 minutes: the vga
+  example's post-synthesis simulation alone takes 11). Tests: `test/test-shard.test.js`, `test/ci-workflow.test.js`.
+- **Contributing rules (#571):** CLAUDE.md and ONBOARDING.md say how a pull request of another session is
+  reviewed (its intent and evidence; line by line only where the risk is), that nothing merges during a release
+  until the tag is pushed, and that a scheduled session watches main's CI (a flaky job rerun once, an issue,
+  the core session told of real breaks). Sparse checkouts in CI were measured and not taken up: a checkout takes
+  about 2 s against 10 to 25 minutes of tests.
+- **The Windows unit tests within their 45 minutes again (#566):** the simulation models' tests ran in one
+  file, one after another: every example's test bench on both models, in VHDL and in Verilog, about 25
+  minutes on Linux and over 45 on Windows, which cancelled the shard. The examples' tests are now in two
+  files of their own (test/sim-model-examples.test.js, test/sim-model-vga.test.js) that run alongside the
+  others, and each example's synthesis and Translate run once for both models. CI's unit tests print each
+  test file's time at the end, the slowest first, and a file over 15 minutes is a warning
+  (scripts/test-file-times.mjs).
+- **The vga example's model tests lighter (#566):** the post-synthesis models' test benches run with no
+  waveforms (vga's took gigabytes, about 13 minutes of a Linux unit shard), and vga's post-place & route test
+  runs its VHDL and Verilog models in two files that run alongside each other (19 minutes in one file).
+- **The compiled engine's models of a synthesized netlist's primitives (#561):** `core/compiled-prims.js` had
+  Verilog models of the buffers, block RAMs, multipliers, SRL16s, distributed RAMs and DCMs, not of the logic a
+  Post-Synthesis Simulation Model is made of, so `netlistOf` refused it ("no model of LUT2, LUT4, LUT3, MUXCY,
+  XORCY, FDRE") and the emulator fell back to the event-driven engine. Now LUT1-6 (_L, _D) with their INIT, the
+  flip-flops FD* and latches LD* (and _1) with their INIT, MUXCY, MUXF5-8, XORCY (_L, _D) and MULT_AND, as
+  `core/unisim.js` computes them (FDCP / FDCPE as one asynchronous load, which Yosys makes without a warning);
+  the Yosys warnings of the models themselves (their latches) are not the design's and are left out. The model
+  runs well below the RTL's speed (vga 8 million cycles a second against 50, pong 1.1 against 24). Tests:
+  `test/compiled-sim.test.js` (every primitive, every INIT, in VHDL and in Verilog, against the event-driven
+  simulator; a primitive with no model is now PULLUP), `test/sim-model.test.js` (every example's model, VHDL
+  and Verilog, on the compiled engine against the event-driven one), `test/vga-example.test.js` (the vga
+  model's frames and buttons), `test/ui/open-toolchain.test.js` (Generate and Emulate on the compiled engine;
+  the vga example's model draws its picture).
+- **ISE's Post-Place & Route Simulation Model with its SDF (#558):** the reports name netgen's
+  `<top>_timesim.sdf` beside the model, and Simulate builds its delays and setup checks into the model as it
+  does the Silinx toolchain's; `parseSdf` takes the max of each min:typ:max triple (the value ISE's trce
+  times), a flip-flop's asynchronous set / reset path is no longer counted with its clock to out twice, and
+  ISE's setup checks of both edges of a pin are one.
+- **WebKit, a file:// page's workers read Blobs (#556):** in WebKit (Safari), the workers of
+  `Silinx-ISE.html` opened from the disk started, but could read no Blob (`NotReadableError`, "Cannot load
+  blob:null/…": the page an opaque origin), YoWASP's read of Yosys's resources among them, so that Yosys
+  could not start: Generate Programming File failed and the Board Emulator fell back to the event-driven
+  engine. In a worker of an opaque origin, `readableBlobs` (core/synth-open.js) replaces Blob by one that
+  keeps its bytes and reads them in JavaScript; the Yosys workers and the flow worker install it. WebKit's
+  workers start no worker of their own from such a page: the flow worker runs Yosys in its own thread there.
+  The compiled engine then runs blinky at the speed it has on the site (about 250 M cycles/s at Max speed).
+  The standalone test of the single file in a user's browser runs in Firefox and WebKit too.
+- **The private-data history scan reads main's history, not every branch (#555):**
+  `scripts/check-private-data.mjs --history` scans the history of HEAD instead of `git log --all`, so an
+  open pull request's branch can no longer fail main's CI; the `private-data-history` job now runs on
+  pull requests too, on the merge commit's history, so a line added and removed again on a branch is
+  found before it reaches main.
+- **#545's made-up path in the allow-list (#555):** a made-up home folder in `test/static-editions.test.js`, added and
+  removed again on #545's branch, reaches main's history when it merges; the `ALLOW` list names it.
+- **Open synthesis: only full multiplexer trees onto MUXF5 / MUXF6 / MUXF7 (#554):** Yosys's muxcover with partial
+  trees (some leaves missing) made a wrong netlist of secworks-sha256's core (the design corpus's netlist against
+  the RTL: a mismatch of the digest at cycle 99), with the F-multiplexers or 2:1 multiplexers in their place alike;
+  `muxcover -nopartial` keeps it right. It showed once the packer's slice count (#528) made the synthesis keep
+  that mapping for the design. iwls05-spi keeps its gain (#511): 13.76 ns, 357 slices.
+- **Silinx toolchain: a 9-bit word on 2048 x 9 block-RAM ports with no free data bit, written on one port and read on
+  the other, goes on 1024 x 18 ports (#550):** the design corpus's verilog-axis-fifo wrote its 9th bit on DIPA and
+  left DOPA unread, and ISE's DRC warned (PhysDesignRules:1063, "a dangling output parity pin"; ISE's own map of the
+  same memory warns too). When the memory uses half the port's words at most (its address MSB tied to 0 on every
+  port), the packer makes each port twice as wide (2048 x 9 -> 1024 x 18, 1024 x 18 -> 512 x 36): the word on data
+  bits only (contents, initial and reset values moved with it), the parity inputs tied to 0, the parity outputs
+  unused. ISE (check-open-flow.mjs, XC3S250E-CP132): verilog-axis-fifo, feat_bram, feat_const_bram, hard_prim,
+  feat_mult, feat_const_mult, feat_constmult and the stopwatch example: DRC 0 errors, 0 warnings, .bit
+  byte-identical to ISE's bitgen (CRC on and off).
+- **Design corpus: the expectations as main makes them (#537):** the Nightly's designs job failed on itc99-b20 and
+  itc99-b21, 8.6 % and 12.3 % more slices. That was not a merge of that night: since #502 (the shift-register map's
+  text, which changes the netlist ABC gets even without shift registers), the synthesis keeps the faster mapping
+  with the wider functions for them (-9 % critical path), and the expectations had not been recorded for every
+  design since. Recorded from a Nightly on main with #554 (run 39199525373): 58 designs' size and speed (most
+  smaller or faster: the packer's #527 / #528, the synthesis's #511 / #514 / #523), secworks-aes on the XC3S500E
+  instead of the XC3S1200E; no stage, no warning changed otherwise.
+- **Nightly: Yosys's test designs in three jobs, a file of many modules in parts (#536):** the second of the two
+  jobs ran past its hour on 18 October, `hana/test_intermout.v` (33 top modules, two netlists each) alone on one
+  worker at the end and over its 1500 s (985 s the night before; the open synthesis tries more mappings since,
+  about 25 % more time on it, and the runner was slower). `test/corpus/run-corpus.mjs` now runs a file of more than
+  8 top modules in parts the workers share (every n-th module each; the limit is each part's), a file expected to
+  fail as a whole (`hana/hana_vlib.v`) still whole; the nightly and the Yosys update's comparison run it in three
+  jobs (`--shard k/3`).
+- **Edit ▸ Undo: an edit typed while a project command still runs is the user's (#534):** the text editor tells
+  the application whether a change was the user's own (CodeMirror's user-event annotation: typed, pasted,
+  undone or redone there, a fix or a snippet) or written by it (a command, an Undo); the application no longer
+  guesses from the timing, which left out an edit made while a command's tail still ran and showed the command's
+  Undo first (the flaky UI test). The test waits for the edit before reading the menu; a new test types during
+  a slow command.
+- **Pack: an inverter on a flip-flop's set / reset or clock enable is the slice's SRINV / CEINV (#527):**
+  Yosys's extractinv writes one INV per flip-flop, which made a LUT of each; those pins take the inverter's
+  input with IS_<pin>_INVERTED toggled, as the clock pins already did (#80), and an inverter that also drives
+  logic keeps only those loads.
+- **Pack: slices filled by timing (#528):** every connection's criticality is estimated before placement (the
+  model of synth-open's criticalDelay); critical units seed first, the units of a critical connection share a
+  slice, and a LUT on a critical path no longer fills a slice of unrelated logic. Kept when it costs at most
+  2 % more slices (and one) than the packing by nets. ISE's trce on Silinx's routing: verilog-uart 11.70 →
+  10.61 ns, t80 22.30 → 21.93 ns.
+- **An element written back with its own value as a conditional write (#523):** the synthesis front end
+  (`core/synth-verilog.js`) wrote `x[i] <= c ? v : x[i]` as it is, and the read of `x[i]` is a multiplexer of the
+  whole vector, only to write the same bit back (iwls05-spi's `data[rx_bit_pos] <= rx_clk ? s_in : data[rx_bit_pos]`,
+  a 128:1 multiplexer on its critical path). Now such an assignment (either side the element itself, `sameExpr`:
+  the same signals, operators and constants, no calls) is written `if (c) x[i] <= v` (`if (!(c))` for the other
+  side), and `x[i] <= x[i]` not at all; VHDL's `when … else` and `if … else` give the same. A nonblocking
+  assignment only when no other assignment to the same signal can precede it in its process (`markFirstWrites`;
+  there `x[i]` keeps that earlier value): otherwise as before. Measured with ISE's trce on the routed design
+  (Normal, XC3S1200E): 17.57 ns to 13.57 (ISE 13.04), 745 LUTs to 672 (ISE 717), 397 slices to 355 (ISE 430).
+  Tests: `test/synth-open.test.js` (in Verilog and in VHDL: the conditional writes written, the ones after a
+  write to the vector and through a function as before, 82 and 80 LUTs to 71, no warnings, the netlists against
+  the RTL).
+- **Register replication: the second placement from the first one (#87):** the replicated design is placed
+  from the first placement (place.js option `start`, replicate.js `warmStart`: each slice on the slice of its
+  cells, a copy on the free slice nearest the centre of its loads, pads, block RAMs and multipliers on their
+  sites), then only the placer's greedy pass runs (a window of 3 slices, `WARM`). Placed from scratch, the noise
+  of a new placement (±0.5 ns on the T80) hid what the copies gained. epfl-bar keeps its replication (10.98 to
+  10.73 ns) with a 0.1 s placement instead of 3 s.
+- **Register replication of LUTs (#522):** replicationPlan also takes the LUT1-4 at F / G whose X / Y output
+  drives many critical loads (a reset or clock enable computed by logic, on SR / CE pins; REPLICATION.luts),
+  its loads in its own slice left on it; replicateFlipFlops is now replicateCells. vtr-ch-intrinsics (Normal,
+  XC3S1200E): its reset LUT on 32 FDRE.R copied, 6.43 to 5.99 ns by ISE's trce (ISE 5.06); t80 and
+  iwls05-usb-phy unchanged. Not closed: the logic before that LUT is a chain of three LUT2s of fanout ~33 each,
+  and a sync reset moved into the D LUTs was 2 % faster on ch-intrinsics but 4 % slower on usb-phy, so it is not
+  done (research/s3e-route/README.md).
+- **Reload FPGA from PROM on an unconfigured FPGA (#521):** on a Basys2 powered up with an erased Platform Flash,
+  Program PROM then Reload failed in the browser edition and the full application alike. With the FPGA
+  unconfigured (DONE low), a read of the PROM (the verify) leaves its address counter past the image; CONFIG then
+  loads nothing, while the FPGA's JPROGRAM (INIT_B resets the counter) loads it in 1.4 s. `core/xcf.js` and
+  `scripts/xcf_prog.py` poll DONE 2.4 s after CONFIG, then say `the FPGA did not start after CONFIG: JPROGRAM (the
+  FPGA reset, it loads from the PROM)`, reset the FPGA and poll 5 s more; with still no DONE and the PROM erased
+  (its first block all 1s): `the PROM is erased: nothing to load (Program PROM first)` instead of the jumper hint
+  (`server/programmer.js` passes it on). The simulated PROM models the address counter (a read moves it unless
+  the FPGA's DONE holds it, CONFIG loads from it, JPROGRAM resets it); tests (`test/xcf.test.js`,
+  `test/ui/standalone.test.js`) cover the recovery, CONFIG alone on a configured FPGA, and the erased PROM.
+  Verified on the board with the full application.
+- **Changelog fragments (#519):** a change no longer edits CHANGELOG.md, whose unreleased section made every
+  pull request conflict with the others merged before it: it adds its own file, `changes/<issue>-<slug>.md`,
+  with its "In short:" item (optional) and its "In detail:" items (changes/README.md); a unit test checks the
+  fragments' names and format. A release assembles them into its section, newest issue first, and deletes them
+  (`scripts/changelog-release.mjs <version>`, the first of the release steps; `scripts/sync-version.mjs` refuses a
+  version while fragments are left). The development build's notes list the fragments not released yet; the
+  release notes and Check for Updates' "What's new" read the tagged CHANGELOG.md, as before.
+- **The memory test's board emulator measured after its warm-up (#517):** `test/ui/memory.test.js` measured the
+  emulator's run and close after 3 warm-up runs, while its page code is still being optimised: measured run by run
+  (after the ISim scenario, as in the test), the heap grows 1000, 160 and 76 KB over the first three runs, 17 to 88
+  KB a run up to the 11th, then 0 to 5 KB from the 12th on, over 25 runs, in both interfaces: no per-run retention.
+  Runs 4 to 8 averaged 42 KB, the 40.5 KB of the CI failure against the 40 KB limit. The scenario now warms up 12
+  runs, as ISim's does; the limit is unchanged.
+- **The security checks (#498):** `SECURITY.md` (private reporting through GitHub's advisories, answered within
+  two weeks and fixed in the next release; the latest release and main supported; the server, browser editions,
+  toolchain, workflows, scripts and launchers in scope, Xilinx ISE and an exposed server out; what the project
+  does), pointed to from README.md and CONTRIBUTING.md. `.github/workflows/codeql.yml`: CodeQL for JavaScript
+  (`build-mode: none`, node_modules and research/ left out) on pull requests, pushes to main and weekly, a
+  workflow of its own with a read-only token, `security-events: write` on its job only. In `ci.yml`, two jobs
+  that `ci-ok` needs: `private-data-history` (a push to main: `scripts/check-private-data.mjs --history`, whose
+  `ALLOW` list now clears XPower's section numbers 3.3.1.x read as addresses in an old `scripts/measure-power.mjs`
+  and two commit messages) and `dependency-review` (a pull request: `actions/dependency-review-action`, red from
+  moderate severity, no licence list, no comment). The repository's settings, secret scanning, push protection,
+  Dependabot alerts and security updates, private vulnerability reporting, were turned on by hand. CLAUDE.md and
+  ONBOARDING.md say so. Tests: `test/ci-changes.test.js` (the job list, the two jobs' events and `ci-ok`'s needs;
+  `codeql.yml`'s triggers, permissions, pinned actions and exclusions; `test/workflows.test.js` admits GitHub's
+  own `github/codeql-action`), `test/private-data.test.js` (the allow-list clears the history's matches and the
+  same text elsewhere is still reported), `test/docs.test.js` (the links).
+- **ABC9 keeps the clock nets' names (#496):** ABC9 reintegrates every net a clock pin reads as an alias of its
+  own, whose name synth_xilinx's clean kept instead of the net's. `abc9RemapCommands` now marks the nets on the
+  cells' clock pins (C, CLK, CLKA, CLKB, WCLK, CLKIN) keep before the mapping and unmarks them after it
+  (`ABC9_KEEP_CLOCKS`, `ABC9_UNKEEP_CLOCKS`). The seven examples keep the same netlists (blinky's differs only in
+  the clock's name); ABC9's candidate netlist of a design may differ by a few LUTs (traffic 115 to 112, pong 299
+  to 301), none of the examples' choices changed. The nine corpus designs that keep ABC9's netlist pass as
+  before; nandland-spi-vhdl is smaller and faster (33 to 31 slices, 63 to 59 LUTs, 5.64 to 5.36 ns,
+  `test/designs-corpus/expected.json`). Test: `test/open-flow-core.test.js` (blinky's clock line and
+  the report's clock, which failed on the old code).
+- **Web client, one element builder (#489):** the six `h()` builders (`ui.js`'s with `html` and style objects;
+  the ASM chart, schematic editor and symbol information's with `text`, `value` and `checked` as properties;
+  the Board Emulator's; ISim's positional `h(tag, class, html)`) are replaced by one, `h` of `web/js/dom.js`,
+  which `ui.js` re-exports. It takes every key the copies took: `value` and `checked` set both the attribute and
+  the property, an event key is a listener only for a function, and children nested in arrays are flattened
+  with null / undefined / false left out. ISim's calls are written with the attributes object.
+  `test/ui/dom.test.js` checks it in the browser, `test/web-dom.test.js` that no module defines one of its own.
+- **Web client, one HTML escape (#489):** the nine local copies of `esc` (three character sets: `&<>` only in
+  the HDL editor's hover and the state diagram's highlighter, no `'` in the print page) are replaced by one,
+  `esc` of the new side-effect-free `web/js/dom.js`, which escapes `& < > " '` and turns null / undefined into
+  nothing; the schematic demo page imports it too. `test/web-dom.test.js` checks it and that no module or
+  page of web/ defines an escape of its own.
+- **Web client, one HDL highlighter (#489):** the three highlighters of the drawing editors' code panels (the
+  ASM chart's and the state diagram's, with one mixed VHDL / Verilog keyword set; the schematic editor's for
+  Symbol Information, with its own sets and classes) are replaced by `highlightHdl(code, lang)` of the new
+  `web/js/highlight.js`: each language's keywords (the union of the three sets), comments of that language,
+  literals, Verilog attributes and state constants, as `tk-*` spans. Symbol Information's HDL now uses the same
+  classes (its keywords and comments look as before) and colours a keyword only in its own language.
+  `test/web-highlight.test.js` checks it, `test/ui/symbolinfo.test.js` the keywords shown in both languages.
+- **Web client, the rename fallback for older servers removed (#489):** `api.renameFile` calls the server's
+  rename operation only; the copy, delete and project-list fix-up it did for a server without that operation
+  (dead code: client and server ship together) and the error's `unsupported` flag are gone.
+  `test/server-api.test.js` checks the client.
+- **A setting to turn off the update check at start-up (#488):** Help ▸ Check for Updates at Start-up, a checked
+  menu item kept in the browser's storage (`silinx.updateCheckOnStart`): off, `checkUpdatesOnStart` asks
+  nothing of api.github.com or raw.githubusercontent.com and writes one line in the console; Help ▸ Check for
+  Updates… stays manual. The About dialog's "Update check:" row says what the start-up check contacts (the
+  version only, the published site asks only itself) and where it is turned off. Portuguese labels; a UI test in
+  both interfaces (off: no request leaves at start-up, the manual check works; on again: the start-up dialog).
+- **Static editions: a Content-Security-Policy and versioned remote assets (#487):** `scripts/build-standalone.mjs`
+  writes a `<meta>` policy into the single file and the site's pages (`server/csp.js`, shared with the server's
+  header: the inline scripts by their hashes, scripts and fetches from the page's origin and the assets' site,
+  workers from Blobs; no `frame-ancestors`, which a `<meta>` cannot carry); `scripts/site-analytics.mjs` adds the
+  usage counter to it. The assets are versioned: `assets/<version>/` (a development build `dev-<commit>/`) for the
+  device descriptions and the bit database, `assets/vendor/yowasp-yosys/<Yosys's version>/` shared; the page
+  knows its folder and the single file the site it fetches them from (`--assets-url`). The Pages build keeps the
+  last five releases' assets (`--assets-only` from each tag) and the unversioned folders of the files
+  downloaded before. The print page no longer has an inline script (the opener prints it): a page written into
+  a new window keeps the opener's policy, which runs no inline script.
+  A Content-Security-Policy violation now fails any UI test; the standalone tests run in Firefox and WebKit too.
+- **Quality workflow, the writing token kept off the self-hosted runner (#486):** `quality.yml` has a read-only
+  token at the top and on the self-hosted comparison job; its one writing job (`contents: write`) runs on
+  GitHub's runner and pushes the results to the branch `quality-results` only. It now checks the artifact it
+  receives from the maintainer's machine before committing it: the two expected files, regular files (no
+  symbolic links) under 2 MB, the comparison valid JSON. `test/workflows-permissions.test.js` lists
+  `quality.yml` among the read-only workflows and asserts which of its jobs write (the push, and the failure
+  report's issue) and the check before the commit.
+- **Release checksums and build provenance (#485):** `scripts/package-release.mjs` writes `SHA256SUMS`
+  (`scripts/checksums.mjs`, the format of `sha256sum`) next to the files it packages; the Release workflow
+  attests the files it lists with `actions/attest-build-provenance` (pinned by commit; the job gains
+  `attestations: write` and `id-token: write`), publishes it among the release's files and puts the sums and
+  how to check them at the end of the notes (`scripts/release-notes.mjs --sums`). The development build's
+  files get their `SHA256SUMS` too. Tests: the checksums against the standard's test vectors and the system's
+  `sha256sum` / `shasum`, the release zip's sum, the notes, and the workflow's steps and permissions.
+- **The developer demo pages escape what they put into HTML (#484):** `web/schematic-demo.html` escapes the
+  instance paths, names and module names of its tree (`esc`, quotes too), and `web/sch-editor-demo.html` builds its
+  list of top modules with `new Option(…)`: a Verilog escaped identifier (`\x"><img…>`) was markup in both. A UI
+  test loads each page with such names (shown as text; injected an `<img>` before), and a unit test refuses a bare
+  `${value}` in the HTML sinks of every page of `web/`.
+- **Browser edition: every project path normalised, the imported silinx.json too (#483):** `safePath` /
+  `cleanPath` (`web/js/project-store.js`) refuse a path that would leave the project (`..`, absolute, `\\host`,
+  `C:\`, a control character) and normalise backslashes and `.` segments; every operation of both stores
+  (browser storage, workspace folder) and of the project operations (`put`, `readFile`, `writeFile`,
+  `renameFile`, `deleteFile`) goes through it, and silinx.json is never written, renamed or deleted as a project
+  file. `normalizeProjectJson` puts an imported description in shape (as `normalizeDoc` does for the drawings):
+  `files` an array of `{ path, lang, role }` with clean paths, strings for `top` / `simTop` / `constraints`, the
+  known `device` fields, objects for `stimuli` / `impl`. `projectFromZip` and the bundle import skip an entry
+  that leaves the project; each dropped item is a warning in the console. Unit tests with hostile inputs; a UI
+  test importing such a zip in the browser edition.
+- **The ISE runner reached only by the ISE and Quality workflows (#482):** the repository is public, so a
+  pull request from a fork could bring a workflow of its own with `runs-on: self-hosted`, one approving
+  click away from the maintainer's machine. `scripts/ise-runner/job-started.sh`, the runner's job-started
+  hook, fails every job before its first step unless it is `ise.yml` or `quality.yml` of main, on schedule
+  or by hand (`GITHUB_WORKFLOW_REF`, `GITHUB_EVENT_NAME`, `GITHUB_REF`, set by the runner). A launchd agent
+  (`window.mjs`, every 15 minutes) keeps the runner on line only in the two workflows' window: from 21:15
+  every evening until the runner is idle, nothing of theirs is queued and the evening's runs have finished
+  (Quality's too on Saturdays), at most 18 hours; `window.sh open` puts it on line for a run by hand. The
+  window alone would not protect, as GitHub keeps a job queued for a runner that is off: the hook does.
+  `install.sh` sets both up on the machine, out of the repository's checkout. Tests:
+  `test/ise-runner.test.js` (the hook's allowed and refused jobs, the window's decisions and its reads of
+  GitHub's API, and that no workflow but those two reaches the runner, `runs-on` checked in every job).
+- **The self-hosted ISE runner, out of reach of a pull request's code (#482):** the jobs on the runner
+  (`ise.yml`, `quality.yml`) check their event as well as their repository and ref: scheduled or by hand,
+  on `main` only. `test/workflows.test.js` fails when any workflow could send a pull request's code there:
+  a job on `[self-hosted, ise]` in a workflow with another event (`pull_request`, `pull_request_target`,
+  `push`, `workflow_call`, `workflow_run`…), without that guard or with a pull request's ref; the runner's
+  labels in another form, in a matrix or from an expression; a reusable workflow from another repository.
+  The test proves its checker on workflows built to break each rule. `SECURITY.md` says so; the repository
+  settings only its administrator can change are a checklist on the issue.
+- **The MCP server on real use (#460):** tried with Claude Code on a scratch workspace (registered with
+  `claude mcp add`, connected; a full flow on pong for the Nexys2-500 and a new counter project). Fixed:
+  `get_report` looked for ISE's files after a Silinx toolchain run and answered "run_process first" for the
+  synthesis, map and par reports; it now follows the last run's toolchain (Yosys's statistics,
+  `build/open/<top>_stat.txt`; the pack and route summaries from the Design Summary) and says which process
+  makes a missing report. New tools: `new_project` (an empty project, for a board and its variant) and
+  `set_top` (the top module and / or the test bench, each elaborated first; `update_constraints` writes the
+  constraints from the board's pins, as Update Constraints), without which a project the assistant writes
+  could not be synthesized. The README says how to give the assistant a workspace of its own.
+- **Static timing: the block RAMs' and multipliers' arcs as trce times them (#457):** measured with trce -a -v 1000
+  on nine routed designs (hard_prim, feat_bram, feat_const_bram, feat_mult, feat_const_mult, feat_constmult,
+  stopwatch and two of multipliers with input registers), they replace the estimates: a block RAM's clock to out
+  2.812 ns (was 2.39), its setups the same at every width and write mode; a multiplier's A / B -> P grows with the
+  product bit (3.657 ns up to P5, 4.873 from P17; was 4.9 for all), clock to P from its input registers likewise,
+  an unregistered input into the product register 3.980 (was 5.2). The block-RAM interconnect wires into and out of
+  a block RAM or multiplier get classes of their own (0.24 and 0 ns, were 0.3 both). Against trce on the nine
+  designs the analysis is within -5.9 .. +4.2 % (mean |error| 2.6 %; it was -4.6 .. +22.1 %).
+  `research/s3e-route/timing-fit.mjs --arcs` lists the block RAMs' and multipliers' arcs too.
+- **The design corpus: verilog-axis-fifo's expected period 5.269 -> 6.195 ns (#457):** its critical path ends at its
+  block RAM's write enable (Tbwck 1.253 ns by trce, 0.74 estimated); trce gives 5.869 ns on the same routing. The
+  other designs with block RAMs or multipliers (fpu-multiplier, neorv32, picorv32, femtorv32-quark, light8080, t80,
+  vtr-mkPktMerge) stay within their tolerance.
+- **State machines extracted and re-encoded: measured, not changed (#438):** Yosys's `fsm` pass never extracts a
+  machine from Silinx's netlists, as `fsm_detect` refuses registers with an initial value. `research/synth-quality/fsm.mjs`
+  extracts them anyway with their power-up state kept (the init value written back in the new encoding) and measures
+  binary and one-hot against today's synthesis on the examples and the design corpus, and `fsm-ise.mjs` adds XST's
+  encodings (README, "State machines"). 44 registers in 24 designs are kept out by their init value alone (traffic
+  and pong among the examples). One-hot is no better on average (16 % more flip-flops, as many slices, 1.5 % slower),
+  Yosys's binary is worse, and keeping the better of one-hot and today's is worth about 3 % of the slices beyond the
+  placement's noise. The open synthesis is unchanged. Tests: `test/synth-fsm.test.js`.
+- **app.js split by concern, first part: the console (#405):** the Console / Errors / Warnings tabs (the log, the
+  warnings and errors collected from it, the quick fixes of a message, the Clear button) move from `web/js/app.js`
+  to `web/js/console.js`, with no change in behaviour; `app.js` imports them and still exports `log` and
+  `setDiagnostics`. A unit test (`test/app-modules.test.js`) checks that each part moved out lives in its module
+  only and that what `app.js` imports from it is exported there; the next parts of the split add to it.
+- **app.js split by concern, sixth part: the Design pane (#405):** the hierarchy of the sources, its selection and keys,
+  the context menus of the project, its modules and files, Set as Top Module, removing a source and the project's
+  settings saved one at a time move from `web/js/app.js` to `web/js/design.js` (about 330 lines), with no change in
+  behaviour; `app.js` drops the imports only the moved code used (and an unused one, `buildSchematic`).
+  `test/app-modules.test.js` checks the new module.
+- **app.js split by concern, fourth part: the drawings and their HDL (#405):** opening ASM charts, truth tables, state
+  diagrams, Petri nets and schematics in their editors, each one's synchronization with the HDL module it is the base
+  of, the views of an HDL file, the conversions between them and a drawing whose HDL file name is taken move from
+  `web/js/app.js` to `web/js/drawings.js` (about 1050 lines), with no change in behaviour; `project.js` and
+  `implement.js` take the names they used from it. `app.js` is down to about 2300 lines.
+  `test/app-modules.test.js` checks the new module.
+- **app.js split by concern, third part: the implementation processes (#405):** ISE's flow run step by step with
+  its live status, Check Constraints and the UCF made from the board, the open synthesis (Yosys in the browser),
+  the optional processes (simulation models, post-place & route timing, power, pin back-annotation) and Stop move
+  from `web/js/app.js` to `web/js/implement.js` (about 400 lines), with no change in behaviour.
+  `test/app-modules.test.js` checks the new module and, for every module split out, that its top level reads
+  nothing from `app.js` (they import each other).
+- **mountISim split, first part: the Console and command line (#405):** ISim's Console (the simulator's messages,
+  the commands' output) and its command line with the commands (run, restart, isim force, wave add, show, zoom,
+  marker, help) move from `mountISim` in `web/js/isim.js` to `mountConsole(ctx)` of `web/js/isim-console.js`, called
+  where the code was, with no change in behaviour. `test/ui/isim-console.test.js` checks each command, its output and
+  errors, the simulator's messages and the history keys, on the console mounted alone.
+- **mountISim split, second part: the paths and the forces (#405):** finding a signal or an instance by its path and
+  the forces (isim force add / remove, the drawn stimuli's) as pseudo-processes of the simulator move from `mountISim`
+  to `mountForces(ctx)` of `web/js/isim-forces.js`, called where the code was, with no change in behaviour.
+  `test/web-isim-forces.test.js` checks the paths and the forces on the simulator itself.
+- **app.js split by concern, seventh part: the menus and the toolbar (#405):** the menu bar's menus and their commands,
+  the toolbar, the command palette, printing the document in front and exporting or importing a project as a zip
+  file move from `web/js/app.js` to `web/js/menus.js` (about 220 lines), with no change in behaviour; `app.js` drops
+  the imports only they used. `test/app-modules.test.js` checks the new module.
+- **app.js split by concern, fifth part: the Processes panel (#405):** the processes of the selected source and what
+  runs them, Check Syntax with the elaboration's diagnostics, and the processes' status kept in the build folder move
+  from `web/js/app.js` to `web/js/processes.js` (about 360 lines), with no change in behaviour; `project.js`,
+  `implement.js` and `drawings.js` import from it what they took from `app.js`. `test/app-modules.test.js` checks the
+  new module and that every name imported among `app.js` and its modules is exported where it is taken from.
+- **app.js split by concern, second part: the project lifecycle (#405):** opening, closing and reloading a project
+  (in call order, the queues of #375 unchanged), the recent projects, the Start page and where the browser edition
+  keeps the projects (a workspace folder or the browser's storage) move from `web/js/app.js` to `web/js/project.js`,
+  with no change in behaviour. The documents of the project left are closed through a new `closeAllDocs()` of
+  `app.js`, which keeps its view state as it was (the flag it sets stays inside `app.js`). `test/app-modules.test.js`
+  checks the new module, the names it imports from `app.js`, and that the queues are kept as they were.
+- **app.js split by concern, ninth part: renaming (#405):** Rename Symbol (F2) in an HDL editor and renaming a source
+  (its file and / or the module it defines, with the instances, the drawings' links and the constraints updated)
+  move from `web/js/app.js` to `web/js/rename.js` (about 150 lines), with no change in behaviour.
+  `test/app-modules.test.js` checks the new module.
+- **app.js split by concern, eighth part: the viewers (#405):** the RTL and technology schematics, the simulation in
+  ISim (the behavioural or a netlist model, its test bench and data files) and the Board Emulator move from
+  `web/js/app.js` to `web/js/viewers.js` (about 375 lines), with no change in behaviour; `app.js` drops the imports
+  only they used. `test/app-modules.test.js` checks the new module and, for `app.js` and every module split out of
+  it, that each name of theirs a module uses is imported or defined there.
+- **Yosys 0.70's speed, measured again (#377):** with the synthesis and back end of 2026-10-19, the 19 timed designs
+  of the Yosys 0.70 update's comparison are as fast with 0.70 as with 0.68 (critical path 0.995, slices 0.974, at
+  effort High; 0.926 at Normal), the 3 % of #368 won back by the changes since (the ABC9 candidate, the slices in
+  the choice of the mapping, the carry chains and the deep designs at Normal). Pong stays 10 % slower at High
+  (11.26 → 12.37 ns): ABC 0.70's own mapping, which none of the open synthesis's mappings brings back
+  (research/synth-quality/README.md, "Yosys 0.70 against 0.68, with today's synthesis"). No code changed.
+- **Post-Place & Route Simulation Model of the Silinx toolchain, its SDF (#122):** `build/netgen/par/<top>_timesim.vhd`
+  (and `.v`) of SIMPRIM primitives with their LOC, and `build/netgen/par/<top>_timesim.sdf`: every connection's
+  delay (the static timing's, PORT) and every element's paths (each path through a slice split over its elements,
+  their sum the timing's) and setup checks. The model's design is synthesized with the test bench's generics, then
+  placed and routed as Place & Route does. Its longest path is the static timing's minimum period; against ISE's
+  netgen SDF of the same routed design (blinky), the connections differ by 16 ps on average (rms 69 ps) and the
+  minimum period by 1.2 % (`research/s3e-route/sdf-compare.mjs`).
+- **SDF annotation in Silinx's simulator (#122):** `core/sdf.js` reads an SDF and builds it into a netlist (VHDL or
+  Verilog): transport wire delays, inertial gate delays, clock to out, setup checks (from 100 ns on, as ISE's GSR),
+  as two elements of Silinx's SIMPRIM library evaluated natively (X_SDFDLY, X_SDFCHECK), the same results in both
+  languages; *Simulate Post-Place & Route Model* applies the model's SDF (the emulator runs
+  it without).
+- **The examples' test benches for a timing simulation (#122):** blinky checks the inverted LEDs half a clock period
+  after the switch (was 1 ns, less than the pads' delays), traffic checks its lamps and display just before each
+  rising edge (was the falling edge, before the routed design's outputs settle), vga allows a quarter of a pixel
+  between its two sync outputs where it times one from the other (their pads' and routes' delays differ); the same
+  results in the RTL.
+- **Post-Translate and Post-Map Simulation Models of the Silinx toolchain (#121):** `build/netgen/translate/<top>_translate.vhd`
+  and `build/netgen/map/<top>_map.vhd` (and `.v`), of SIMPRIM primitives with the top's ports: the netlist of
+  the synthesis as ngdbuild translates it (a MUXCY an X_MUX2, an FDRE an X_SFF…), and the packed design with
+  each slice as the elements its configuration uses (LUTs, F5 / FX multiplexers, the carry chain, flip-flops or
+  latches with their clock, enable and set / reset inverters), the pads, the global clock buffers, block RAMs,
+  multipliers, shift registers, distributed RAMs and DCMs. Synthesized with the generics the test bench gives
+  the design, as the post-synthesis model (once for the three models). A LUT's input its equation does not read
+  is tied to 0 (the packer wires the carry's data input to such a pin; connected, an unknown value there kept
+  vga's model unknown). Every example's test bench passes on both models in both languages, and both models of
+  the packer's fixtures and of small designs with shift registers, RAMs, block RAMs, multipliers and latches
+  match the netlist's cycle simulator. A Verilog netlist of SIMPRIM primitives now gets Silinx's SIMPRIM models.
+- **Placer: the delay table tells a flip-flop's output from a LUT's (#104):** `timing.js delayTable` has a table for
+  the connections from a flip-flop (XQ, YQ) and one for the others (`DELAY_KIND`). A flip-flop's output reaches
+  every input, its own CLB's too, only through an output multiplexer (OMUX), while X / Y have the CLB's fast
+  connects and drive doubles straight from the pin: the one table, the fastest of the four outputs, gave
+  0.16 ns for a flip-flop feeding its own CLB, where the route takes 0.45 ns at best, and up to 0.35 ns too
+  little near it; the first connection of nearly every critical path was underestimated. On 20 designs of the
+  corpus the critical path is 1.1 % shorter (geometric mean, 3 placer seeds each; vtr-ch-intrinsics 6.33 ->
+  6.15 ns over 8 seeds), the examples unchanged on the four devices.
+- **The packer's IOB registers (#96):** the input, output and output-enable registers go into the IOB of
+  their pad on request (the UCF's IOB = TRUE / FALSE on a net or an instance, with wildcards; the HDL's IOB
+  attribute; the pack option iobRegs as map's -pr), none by default as ISE's flow runs map -pr off; their
+  settings as ISE's map writes them (the bit database's features of #44), the input delay ISE's map chooses
+  by itself. OBUFT: the enable on T1 or from its register. The static timing's arcs of the IOB registers
+  (estimates until trce's are measured) and the simulation models' flip-flops and X_OBUFT.
+- **The placer: an I/O with registers on a pad where they are measured (#96):** the bit database measured each
+  register kind on part of the pads (an output-enable register with a reset on about half); a port with IOB
+  registers and no LOC is kept on the pads where its settings are measured (`knownRouting(db).allowPad`).
+  A LOC'd one is not moved: the bitstream writer refuses the settings its pad lacks and names them, as it
+  does a tristate enable from the fabric (TMUX T1, not measured yet). The open-flow board test
+  `test/fixtures/open-flow/feat_iobreg` (Basys2-250) and the same design without LOCs on the four devices.
+- **The netlist's JSON has the top module alone (#86):** synth_xilinx reads Yosys's Xilinx cell library (about 430
+  black boxes of every family), and `write_json` wrote them all into each Yosys run's netlist: 9 to 14 MB whatever
+  the design (blinky 13.4 MB, its own module 0.27 MB), about 0.9 s of every run, whose LUT mapping takes 0.15 s.
+  Each run now writes the top module alone (`select -module <top>; write_json -selected`); every reader of the
+  netlist takes its top module. The depth-oriented mapping, found 2.5 to 3.7 times as long as the first run, now
+  costs less than it: most of what every run spent was this writing. Measured on the examples, 18 designs of the
+  corpus and the deep EPFL / ITC'99 ones: the same netlists, choices, statistics and warnings; the synthesis 0.32
+  times as long on the examples at High, 0.42 on the corpus designs, 0.46 at Normal, 0.52 with the application's 4
+  Yosys workers (research/synth-quality/README.md, "Synthesis time: the netlist's JSON"). Test:
+  `test/synth-open.test.js` (the JSON's one module at both efforts, which failed on the old code).
+- **The router keeps a pin's only entry wire for the pin's net (#82):** a slice's BX / BY input is
+  reached through its BX / BY wire only, which also feeds the LUT inputs of the CLB. Another net passing
+  through it (`BY1 -> F1_B3`) left the pin's net with no way in; on the XC3S1200E its search then gave up
+  (feat_constmult with the clock on N9, seed 3: `…Y<1> -> …BY` not routed). The wire now belongs to the
+  pin's net from the first pass, so the routing has no such conflict to negotiate.
+- **Static timing: the pads' paths and the hold check fitted to trce (#26):** a global clock reaches every
+  flip-flop at once, `SPEED_4.clock.Tgclk` (3.045 ns) after its pad (trce's clock skew is 0.000 ns there; the
+  routed clock nets spread 0.4 ns). Setup takes the clock at its earliest; trce's shortest paths are `minScale`
+  (0.751) of the model's. `Tiopi` / `Tioop` are 1.253 / 3.257 ns, and the data hold time is -1.018 ns. Each input
+  now has its hold, and an asynchronous set / reset is left out of the pads' paths, as trce does. Against trce's
+  data sheet of lab11 routed by Silinx and by ISE: rms 0.08-0.19 ns (the estimates were 1.9 ns low on setup and
+  1.2 ns high on clock to pad); research/s3e-route/README.md.
+- **Static timing: the pads' paths, the hold check and the OFFSET constraints (#26):** `timingGraph().pads()` and
+  `analyzeTiming().pads`: an input pad to the setups of each clock's flip-flops less the clock's arrival there (pad to
+  setup, what OFFSET IN bounds), the clock's pad through a flip-flop to an output pad (clock to pad, OFFSET OUT), input
+  pad to output pad through logic only, and the shortest flip-flop to flip-flop path of each clock (hold, no clock skew
+  counted). `clockArrivals`: the clock's pad, the routed nets on the way and the global buffer to each clock pin.
+  `parseOffsets` / `checkOffsets`: `OFFSET = IN | OUT n ns BEFORE | AFTER "clk"` on all pads or on a NET (a TIMEGRP's
+  is said not analyzed); in timing.txt, the flow's warnings and its report's constraints. The period, the placer and
+  the router are unchanged. Estimates (`SPEED_4.clock`): the global buffer's delay, the hold times (0), and the clock
+  nets' wires, which the wire fit left out; trce's values of these are still to be measured. An output pad's path ends
+  on its O1 pin (was O); an output through its IOB register (#96) has no clock to pad yet, and the IOB registers'
+  clocks (ICLK1, OTCLK1) get their arrivals too.
+- **Router: the carry's data input on either of a LUT's first two inputs (#25):** a carry stage whose data input
+  (CY0F / CY0G) is the LUT's pin 1 or 2 (the packer puts it on pin 1) may now have its net on either of them, as
+  the LUT inputs are swapped (ISE's router does the same): the router takes the one its fastest or least
+  congested path reaches and the setting follows (`CY0F::F2`). When the other of the two pins is held by a net
+  the router does not route, it stays.
+
 ## 15.11.1
 
 In short:
