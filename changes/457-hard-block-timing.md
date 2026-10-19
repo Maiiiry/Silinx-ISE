@@ -15,3 +15,7 @@ In detail:
   a block RAM or multiplier get classes of their own (0.24 and 0 ns, were 0.3 both). Against trce on the nine
   designs the analysis is within -5.9 .. +4.2 % (mean |error| 2.6 %; it was -4.6 .. +22.1 %).
   `research/s3e-route/timing-fit.mjs --arcs` lists the block RAMs' and multipliers' arcs too.
+- **The design corpus: verilog-axis-fifo's expected period 5.269 -> 6.195 ns (#457):** its critical path ends at its
+  block RAM's write enable (Tbwck 1.253 ns by trce, 0.74 estimated); trce gives 5.869 ns on the same routing. The
+  other designs with block RAMs or multipliers (fpu-multiplier, neorv32, picorv32, femtorv32-quark, light8080, t80,
+  vtr-mkPktMerge) stay within their tolerance.

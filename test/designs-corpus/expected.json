@@ -1138,7 +1138,7 @@
    "slices": 19,
    "luts": 33,
    "ffs": 32,
-   "period": 5.269
+   "period": 6.195
   }
  },
  "verilog-i2c-master": {

@@ -226,7 +226,7 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | verilog-i2c-master | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 115 | 227 | 72 | 10.707 | 4 (frontend 4) |
 | verilog-lfsr-crc | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 50 | 99 | 64 | 3.869 | 0 |
 | verilog-lfsr-prbs | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 16 | 16 | 31 | 2.506 | 1 (frontend 1) |
-| verilog-axis-fifo | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 19 | 33 | 32 | 5.269 | 11 (frontend 10, synth 1) |
+| verilog-axis-fifo | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 19 | 33 | 32 | 6.195 | 11 (frontend 10, synth 1) |
 | uart-for-fpga | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 42 | 80 | 53 | 4.811 | 1 (frontend 1) |
 | spi-fpga-master | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 18 | 33 | 21 | 5.092 | 1 (frontend 1) |
 | spi-fpga-slave | VHDL | MIT | pass | pass | pass | pass | complete | XC3S250E | 16 | 26 | 21 | 4.984 | 0 |
