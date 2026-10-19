@@ -47,6 +47,7 @@ const PARTS = {
   'viewers.js': ['netlistSources', 'SIM_MODEL_THEN', 'offerSimModel', 'isPrimitive', 'openTechSchematic',
     'openSilinxTechSchematic', 'openSchematic', 'readDataFiles', 'runSimulation', 'runSimulationInner',
     'saveStimTestbench', 'confirmElabErrors', 'openEmulator'],
+  'rename.js': ['renameSymbolIn', 'extOf', 'dirOf', 'renameDialog', 'renameSource'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -176,6 +177,12 @@ test('#405 viewers.js: the RTL and technology schematics, ISim and the Board Emu
   const code = read('viewers.js');
   for (const s of ["import('./isim.js')", "import('./emulator.js')", 'function offerSimModel(']) assert.ok(code.includes(s) && !app.includes(s), s);
   for (const name of ['runSimulation']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`), name);
+});
+
+test('#405 rename.js: Rename Symbol and renaming a source left app.js', () => {
+  const code = read('rename.js');
+  for (const s of ['renameSymbolAtCursor(', 'renameModuleInSource(']) assert.ok(code.includes(s) && !app.includes(s), s);
+  assert.ok(importedFrom(read('design.js'), 'rename.js').includes('renameDialog'));
 });
 
 // A module uses no name of app.js's world (app.js's and the modules' top-level names, what they import) without
