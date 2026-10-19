@@ -403,8 +403,11 @@ export function instArcs(inst, model = SPEED_4) {
   const cyG = G_PINS.filter(p => gIn.includes(p) || m.get('CY0G') === p).map(p => [p, m.get('CY0G') === p ? T('TopcygDI') : T('Topcyg')]);
   if (m.get('CY0G') === 'BY') cyG.push(['BY', T('Tbycy')]);
   for (const [p, d] of [...cyF, ...cyG]) comb.push([p, 'COUT', d], [p, 'YB', d]);
-  for (const [p, d] of cyF) comb.push([p, 'XB', d]);
-  comb.push([cin, 'COUT', cy], [cin, 'XB', cy], [cin, 'YB', cy]);
+  // XB: the F stage's carry, half of CIN -> COUT short of COUT (as the post-place & route model splits the chain,
+  // core/sim-model.js sliceModel; #591: the open flows' carry out, trce's value of it still to be read)
+  const half = T('Tbyp') / 2;
+  for (const [p, d] of cyF) comb.push([p, 'XB', d - half]);
+  comb.push([cin, 'COUT', cy], [cin, 'XB', cy - half], [cin, 'YB', cy]);
   // the flip-flops (or latches): D from X / Y (DXMUX / DYMUX = 1) or from BX / BY
   const ff = (name, D, toD, byp, q, tco) => {
     if (!m.has(name)) return;

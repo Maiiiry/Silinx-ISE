@@ -15,3 +15,8 @@ In detail:
 - **Pack: a carry stage whose select is the constant 1 is left out (#591):** it passes its carry in (O = CI); its
   loads read the carry in instead, unless a sum (XORCY) reads that carry in. blinky's 10-stage comparator against
   a constant ended in six such stages. `stats.carryPass` counts them.
+- **Static timing: XB as the F stage's carry (#591):** CIN -> XB and the F side's inputs -> XB are half of CIN -> COUT
+  (Tbyp / 2) short of COUT, as the post-place & route model (its SDF) splits the carry chain: the two agree.
+- **blinky's test bench: the invert check a clock period after the switch (#591):** the path sw(3) -> logic -> LED pads
+  is combinational, about 8-10 ns on the post-place & route model (pads and routing), and half a clock period was not
+  always enough: another placement failed it.
