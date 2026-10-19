@@ -19,7 +19,7 @@
 // Returns { ok, report }.
 import { compile, elaborate } from './compile.js';
 import { primitiveSources } from './unisim.js';
-import { dutGenerics, postSynthesisModels, postTranslateModels, postMapModels } from './sim-model.js';
+import { dutGenerics, postSynthesisModels, postTranslateModels, postMapModels, postParModels } from './sim-model.js';
 import { synthesizeOpen } from './synth-open.js';
 import { parseXdl, writeXdl, placedPins } from './xdl.js';
 import { parseUcf, pinsUcf } from './ucf.js';
@@ -138,12 +138,13 @@ export async function runOpenFlow(spec, io) {
   }
   // a model's files, in the report and the log
   function writeModel(step, dir, suffix, title, m, prims, count) {
-    if (m.unknown.length) log(`WARNING:Silinx - ${step === 'postmap' ? 'sites' : 'cells'} with no simulation model in Silinx (the model cannot be simulated as it is): ${m.unknown.join(', ')}`);
+    if (m.unknown.length) log(`WARNING:Silinx - ${/^post(map|par)$/.test(step) ? 'sites' : 'cells'} with no simulation model in Silinx (the model cannot be simulated as it is): ${m.unknown.join(', ')}`);
     const vhd = io.write(`netgen/${dir}/${top}_${suffix}.vhd`, m.vhdl);
     const v = io.write(`netgen/${dir}/${top}_${suffix}.v`, m.verilog);
+    const sdf = m.sdf ? io.write(`netgen/${dir}/${top}_${suffix}.sdf`, m.sdf) : null;
     const { generics, testbench } = modelGen;
-    report.simModels = { ...(report.simModels || {}), [step]: { path: vhd, verilog: v, ...(testbench ? { testbench, generics } : {}) } };
-    log(`${title} Simulation Model: ${vhd} (VHDL, ${prims} primitives) and ${v} (Verilog), ${count}`);
+    report.simModels = { ...(report.simModels || {}), [step]: { path: vhd, verilog: v, ...(sdf ? { sdf } : {}), ...(testbench ? { testbench, generics } : {}) } };
+    log(`${title} Simulation Model: ${vhd} (VHDL, ${prims} primitives)${sdf ? `, ${v} (Verilog) and ${sdf} (SDF, the static timing's delays)` : ` and ${v} (Verilog)`}, ${count}`);
   }
 
   // Generate Post-Synthesis Simulation Model (#120): build/netgen/synthesis/<top>_synthesis.vhd (and .v)
@@ -174,6 +175,29 @@ export async function runOpenFlow(spec, io) {
     }
     const m = postMapModels(d.nl, p, { top, part: spec.part, generics: d.generics, testbench: d.testbench });
     writeModel('postmap', 'map', 'map', 'Post-Map', m, 'SIMPRIM', `${m.instances} primitives`);
+  }
+  // Generate Post-Place & Route Simulation Model (#122): build/netgen/par/<top>_timesim.vhd (and .v), and its
+  // timing build/netgen/par/<top>_timesim.sdf: the routed design (this run's, or the model's design placed and
+  // routed as Place & Route does it), the delays of its static timing
+  async function runPostPar() {
+    const d = await modelNetlist();
+    let text = null;
+    if (!d.own) { routedOrEarlier(); text = routedText; }
+    else {
+      let p;
+      try { p = modelPacked ||= pack(d.nl, { ucf: ucfText, part: spec.part, carryOut: 'xor' }); } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
+      let pr;
+      try {
+        pr = placeRouteBest(d.nl, p, io.device(), knownPips(), { seed: spec.seed || 1, effort: spec.effort || 1, replicate: spec.replicate !== false, routeIterations: spec.routeIterations || null, pack: { ucf: ucfText, part: spec.part, carryOut: 'xor' } });
+      } catch (e) { throw new StepError(`placement of the model's design failed: ${e.message}`, [], e.hint); }
+      const r = pr.routed;
+      if (r.errors.length || r.failed.length || r.overused) throw new StepError(`the model's design (synthesized with the test bench's generics) could not be routed: ${r.failed.length} net(s) not routed, ${r.overused || 0} routing node(s) shared`, [...r.errors, ...r.unreached.map(u => `${u.net} -> ${u.inst}.${u.pin}`)].slice(0, 50));
+      text = writeXdl(r.design);
+    }
+    const design = parseXdl(text);
+    const sta = analyzeTiming(design, io.device());
+    const m = postParModels(d.nl || netlist || readYosysJson(io.read(`open/${top}.json`)), design, { top, part: spec.part, generics: d.generics, testbench: d.testbench, conns: sta.conns });
+    writeModel('postpar', 'par', 'timesim', 'Post-Place & Route', m, 'SIMPRIM', `${m.instances} primitives${sta.period ? `, minimum period ${sta.period.toFixed(3)} ns` : ''}`);
   }
 
   function runTranslate() {
@@ -338,6 +362,7 @@ export async function runOpenFlow(spec, io) {
     if (steps.includes('postmap')) { step('postmap'); await runPostMap(); save(); }
     if (steps.includes('par')) { step('par'); runPar(); save(); }
     if (steps.includes('trce')) { step('trce'); routedOrEarlier(); runTiming(); save(); }
+    if (steps.includes('postpar')) { step('postpar'); await runPostPar(); save(); }
     if (steps.includes('pin2ucf')) { step('pin2ucf'); runPins(); save(); }
     if (steps.includes('xpwr')) { step('xpwr'); runPower(); save(); }
     if (steps.includes('bitgen')) {

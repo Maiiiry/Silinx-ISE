@@ -46,9 +46,8 @@ const supported = (dir = BIT_DB_DIR) => BITSTREAM_DEVICES.map(d => [d, hasBitDat
   .map(([d, p]) => `${d.toUpperCase()} (${p.join(', ').toUpperCase()})`).join(', ');
 
 /** The steps of the open flow (the ISE flow's names; pin2ucf: the pins the placer chose, as
- *  build/<top>_pins.ucf; postsynth, posttrans, postmap: the Post-Synthesis, Post-Translate and Post-Map
- *  Simulation Models, #120, #121; xpwr: the estimated power, build/<top>.pwr, #123). The others (the
- *  Post-Place & Route model) need ISE. */
+ *  build/<top>_pins.ucf; postsynth, posttrans, postmap, postpar: the simulation models, #120, #121, #122;
+ *  xpwr: the estimated power, build/<top>.pwr, #123). */
 export { OPEN_STEPS };
 
 /** Does a bit database exist for this device (e.g. 'xc3s250e'), and with pkg for the pads of that
@@ -208,10 +207,14 @@ export async function openReports(buildDir, top, device) {
     synthesis: r.synthesis || undefined, map: r.map || undefined, par: r.par || undefined, timing: r.timing || undefined,
     bit: r.bit && base.bit ? base.bit : undefined, prom: r.prom || undefined,
     pinsUcf: r.pinsUcf && base.pinsUcf ? base.pinsUcf : undefined, simModels: {}, files: r.files || {} };
-  // the simulation models (#120, #121): this run's, or an earlier run's still in build/ (as the ISE flow's)
-  for (const step of ['postsynth', 'posttrans', 'postmap']) {
+  // the simulation models (#120, #121, #122): this run's, or an earlier run's still in build/ (as the ISE flow's);
+  // the post-place & route model's timing beside it (its SDF)
+  for (const step of ['postsynth', 'posttrans', 'postmap', 'postpar']) {
     const rel = SIM_MODELS[step](top), f = path.join(buildDir, rel);
-    if (r.simModels?.[step] || fss.existsSync(f)) out.simModels[step] = { ...(r.simModels?.[step] || {}), path: `build/${rel}`, mtime: fss.existsSync(f) ? (await fs.stat(f)).mtime.toISOString() : null };
+    if (!r.simModels?.[step] && !fss.existsSync(f)) continue;
+    const sdf = rel.replace(/\.vhd$/, '.sdf');
+    out.simModels[step] = { ...(r.simModels?.[step] || {}), path: `build/${rel}`, ...(step === 'postpar' && fss.existsSync(path.join(buildDir, sdf)) ? { sdf: `build/${sdf}` } : {}),
+      mtime: fss.existsSync(f) ? (await fs.stat(f)).mtime.toISOString() : null };
   }
   out.summary = {
     synthesized: !!out.synthesis,

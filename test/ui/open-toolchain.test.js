@@ -81,22 +81,19 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   const cfg = (await env.server.api('GET', '/api/toolchain')).config;
   assert.equal(cfg.mode, 'silinx');
   assert.equal(cfg.open.iseMode, 'ssh');
-  // the Processes follow at once: Synthesize is the open synthesis, the ISE-only ones are disabled
+  // the Processes follow at once: Synthesize is the open synthesis; no process needs ISE (the simulation models:
+  // the Silinx toolchain's own, Post-Synthesis since #120, Post-Translate and Post-Map since #121, Post-Place &
+  // Route since #122)
   const procs = await procLabels(page);
   assert.ok(procs.some((p) => p.label === 'Synthesize - Yosys' && !p.disabled));
   assert.ok(!procs.some((p) => p.label === 'Synthesize - Yosys (open)' || p.label === 'Synthesize - XST'));
-  for (const l of ['Generate Post-Place & Route Simulation Model']) {
-    const p = procs.find((x) => x.label === l);
-    assert.ok(p?.disabled, l);
-    assert.equal(p.title, 'Needs Xilinx ISE: not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings)');
-  }
-  // (the Post-Synthesis Simulation Model: the Silinx toolchain's own since #120; Post-Translate and Post-Map since #121)
+  assert.deepEqual(procs.filter((p) => p.disabled || /Needs Xilinx ISE/.test(p.title)).map((p) => p.label), []);
   for (const l of ['Implement Design', 'Generate Programming File', 'View Implemented Design (FPGA)', 'Back-annotate Pin Locations', 'View Technology Schematic', 'Configure Target Device', 'Generate Post-Synthesis Simulation Model',
-    'Generate Post-Translate Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Text Power Report']) assert.ok(!procs.find((x) => x.label === l).disabled, l);
+    'Generate Post-Translate Simulation Model', 'Generate Post-Map Simulation Model', 'Generate Post-Place & Route Simulation Model', 'Generate Text Power Report']) assert.ok(procs.find((x) => x.label === l), l);
   await setLang('pt');
   const ptProcs = await procLabels(page);
   assert.ok(ptProcs.some((p) => p.label === 'Sintetizar - Yosys'));
-  assert.ok(ptProcs.some((p) => p.title === 'Requer o Xilinx ISE: não disponível com a toolchain Silinx (escolha um modo ISE nas Definições da Toolchain)'));
+  assert.ok(ptProcs.some((p) => p.label === 'Gerar Modelo de Simulação Pós-Place & Route' && !p.disabled));
   await setLang('en');
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 });
@@ -535,6 +532,47 @@ uiTest('#121 open mode: Generate Post-Translate / Post-Map Simulation Model of b
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 420000 });
 
+// #122: the Post-Place & Route Simulation Model in the Silinx toolchain: the process enabled (in Portuguese too);
+// it writes the model and its SDF; Simulate Post-Place & Route Model runs it with the SDF's delays (the console
+// says so) and the test bench passes, with no timing violation
+uiTest('#122 open mode: Generate Post-Place & Route Simulation Model of blinky, then Simulate Post-Place & Route Model with its SDF', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'OpenPostPar', template: 'blinky' });
+  await page.openProject('OpenPostPar');
+  await reloadToolchain(page);
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  const enabled = async (label) => { const p = (await procLabels(page)).find((x) => x.label === label); assert.ok(p && !p.disabled && !p.title, `${label}: ${JSON.stringify(p)}`); };
+  await enabled('Generate Post-Place & Route Simulation Model');
+  await setLang('pt');
+  await enabled('Gerar Modelo de Simulação Pós-Place & Route');
+  await setLang('en');
+  const before = (await page.consoleText()).length;
+  await page.treeRow('#procs', 'Generate Post-Place & Route Simulation Model', { dbl: true, exact: true });
+  await page.waitConsole(DONE('Generate Post-Place & Route Simulation Model'), { timeout: 240000 });
+  await page.waitConsole(/Post-Place & Route simulation model: /, { timeout: 30000 });
+  const text = (await page.consoleText()).slice(before);
+  assert.match(text, /Process "Generate Post-Place & Route Simulation Model" completed successfully/, text.slice(-3000));
+  assert.match(text, /^Post-Place & Route Simulation Model: build\/netgen\/par\/top_timesim\.vhd \(VHDL, SIMPRIM primitives\), build\/netgen\/par\/top_timesim\.v \(Verilog\) and build\/netgen\/par\/top_timesim\.sdf \(SDF, the static timing's delays\), \d+ primitives, minimum period [\d.]+ ns$/m);
+  assert.deepEqual(text.split('\n').filter((l) => /WARNING|ERROR/.test(l)), []);
+  assert.match(await readWs(env, 'OpenPostPar', 'build/netgen/par/top_timesim.sdf'), /^\(DELAYFILE\n\(SDFVERSION "3\.0"\)\n\(DESIGN "top"\)/);
+  // the Simulation view: Simulate Post-Place & Route Model of the test bench, with the SDF
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_top');
+  await page.treeRow('#procs', 'Simulate Post-Place & Route Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
+  assert.match(await page.consoleText(), /^Timing: build\/netgen\/par\/top_timesim\.sdf \(\d+ instances with their delays\)\.$/m);
+  for (let k = 0; ; k++) {
+    await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
+    await page.key('Enter');
+    try { await page.waitFor(() => window.Silinx.active.view.state.running || /Simulation finished OK/.test(document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''), [], { what: 'run all started', timeout: 5000 }); break; } catch (e) { if (k >= 3) throw e; }
+  }
+  const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK|ERROR|Error/.test(t) ? t : null; }, [], { timeout: 180000, what: 'the simulation of the model' });
+  assert.match(out, /Simulation finished OK/);
+  assert.doesNotMatch(out, /ERROR|Error|Timing violation/);
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'ISim (tb_top, Post-Place & Route)');
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 480000 });
+
 // #490: Simulate Post-Synthesis Model with no model yet: a dialog offers to generate it ("Generate and
 // Simulate"); Cancel (or Escape) runs nothing; in Portuguese; Enter generates it and the simulation starts
 const modelDialog = (page) => page.eval(() => {
@@ -638,11 +676,13 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });
 
-uiTest('#490 a model that needs ISE: the dialog says why, without the button (Silinx toolchain: Post-Place & Route; ISE not available: Post-Synthesis)', E, async (page) => {
-  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+uiTest('#490 a model that needs ISE: the dialog says why, without the button (an ISE mode with no ISE)', E, async (page) => {
+  // (in the Silinx toolchain every model is its own since #122: only an ISE mode with no ISE needs one)
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
   await makeProject(env, { name: 'NeedsIse', template: 'blinky' });
   await page.openProject('NeedsIse');
   await reloadToolchain(page);
+  assert.equal((await env.server.api('GET', '/api/toolchain')).ise.available, false);
   const before = (await page.consoleText()).length;
   const check = async (proc, title, text, button = 'OK') => {
     await page.treeRow('#procs', proc, { dbl: true, exact: true });
@@ -651,21 +691,15 @@ uiTest('#490 a model that needs ISE: the dialog says why, without the button (Si
     await page.key('Enter');
     await page.waitNoDialog();
   };
-  await check('Emulate Post-Place & Route Model', 'Emulate Post-Place & Route Model', ["There is no post-place & route simulation model of 'top' yet.",
-    '"Generate Post-Place & Route Simulation Model" needs the Xilinx ISE toolchain: it is not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings).']);
   const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  await check('Emulate Post-Place & Route Model', 'Emulate Post-Place & Route Model', ["There is no post-place & route simulation model of 'top' yet.",
+    '"Generate Post-Place & Route Simulation Model" needs the Xilinx ISE toolchain, which is not available (configure it in Tools ▸ Toolchain Settings).']);
   await setLang('pt');
   await check('Emular Modelo Pós-Place & Route', 'Emular Modelo Pós-Place & Route', ["Ainda não há modelo de simulação pós-place & route de 'top'.",
-    '"Gerar Modelo de Simulação Pós-Place & Route" requer a toolchain Xilinx ISE: não está disponível com a toolchain Silinx (escolha um modo ISE nas Definições da Toolchain).']);
+    '"Gerar Modelo de Simulação Pós-Place & Route" requer a toolchain Xilinx ISE, que não está disponível (configure-a em Ferramentas ▸ Definições da Toolchain).']);
   await setLang('en');
   await page.click('input[name=view][value=sim]');
   await page.treeRow('#hier', 'tb_top');
-  await check('Simulate Post-Place & Route Model', 'Simulate Post-Place & Route Model', ["There is no post-place & route simulation model of 'top' yet.",
-    '"Generate Post-Place & Route Simulation Model" needs the Xilinx ISE toolchain: it is not available with the Silinx toolchain (choose an ISE mode in Toolchain Settings).']);
-  // an ISE mode with no ISE: even the Post-Synthesis model cannot be generated
-  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
-  await reloadToolchain(page);
-  assert.equal((await env.server.api('GET', '/api/toolchain')).ise.available, false);
   await check('Simulate Post-Synthesis Model', 'Simulate Post-Synthesis Model', ["There is no post-synthesis simulation model of 'top' yet.",
     '"Generate Post-Synthesis Simulation Model" needs the Xilinx ISE toolchain, which is not available (configure it in Tools ▸ Toolchain Settings).']);
   await setLang('pt');

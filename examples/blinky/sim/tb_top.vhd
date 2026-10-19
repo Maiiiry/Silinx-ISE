@@ -63,7 +63,7 @@ BEGIN
       wait for clk_period * 160;
       assert led = snap report "pause did not hold the LEDs" severity error;
       sw(3) <= '1';                                   -- invert
-      wait for 1 ns;
+      wait for clk_period / 2;                        -- (the pads and the logic: some ns, post-place & route)
       assert led = not snap report "invert did not invert the LEDs" severity error;
       sw(3) <= '0'; sw(2) <= '0';
       wait for clk_period * 2;
