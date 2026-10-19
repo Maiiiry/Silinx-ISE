@@ -493,6 +493,83 @@ uiTest('at start-up the app checks for updates: a newer release opens the update
   assert.equal(await page.dialogCount(), 0);
 }, { skip: chromeOnly });   // (Page.addScriptToEvaluateOnNewDocument and its removal)
 
+// #488: Help ▸ Check for Updates at Start-up, on by default: off, nothing is asked of GitHub when the
+// app starts (one line in the console says so), Help ▸ Check for Updates… still checks by hand, About
+// says what the check reaches; the labels in Portuguese too
+uiTest('#488 Help ▸ Check for Updates at Start-up off: no request to GitHub at start-up, the manual check still works, About says so (English, Portuguese)', E, async (page) => {
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  const checkMark = async (label, menu = 'Help') => {
+    await page.openMenu(menu);
+    const c = await page.eval((l) => [...document.querySelectorAll('body > .menu-popup > .mi')].find((r) => r.querySelector('.lbl').textContent === l)?.querySelector('.chk').textContent ?? null, label);
+    await page.closeMenus();
+    return c;
+  };
+  const aboutText = async () => {
+    await page.menu('Help', 'About Silinx ISE');
+    await page.waitDialog();
+    const t = await page.eval(() => document.querySelector('.dlg-overlay .about-updates').innerText);
+    await page.key('Escape');
+    await page.waitNoDialog();
+    return t;
+  };
+  // on by default: About says what is reached
+  assert.equal(await checkMark('Check for Updates at Start-up'), '✓');
+  assert.match(await aboutText(), /^Update check:\s+At start-up, the latest release is asked of GitHub \(api\.github\.com and raw\.githubusercontent\.com, at most once an hour\): the version only, nothing about you or your projects; the published site asks only itself\. Help > Check for Updates at Start-up turns it off\.$/);
+  // off
+  await page.menu('Help', 'Check for Updates at Start-up');
+  await page.waitFor(() => /Check for updates at start-up off: Help > Check for Updates… checks by hand/.test(document.querySelector('.toasts')?.innerText || ''), [], { what: 'toast' });
+  assert.equal(await page.eval(() => localStorage.getItem('silinx.updateCheckOnStart')), 'off');
+  assert.equal(await checkMark('Check for Updates at Start-up'), '');
+  assert.match(await aboutText(), /^Update check:\s+Off: nothing is asked at start-up\. Help > Check for Updates… checks by hand; Help > Check for Updates at Start-up turns it on again\.$/);
+  // the start-up check on again for the page (the harness turns it off), GitHub stubbed and counted:
+  // the setting off, nothing leaves at start-up
+  const stub = `window.SILINX_NO_UPDATE_CHECK = false; window.__gh = 0;
+    (() => { const orig = window.fetch; window.fetch = (u, o) => (String(u).includes('raw.githubusercontent.com') ? (window.__gh++, Promise.resolve(new Response('', { status: 404 }))) : String(u).includes('api.github.com')
+      ? (window.__gh++, Promise.resolve(new Response(JSON.stringify({ tag_name: 'v99.0.0', name: 'v99.0.0', html_url: 'https://github.com/x/y/releases/tag/v99.0.0', assets: [] }), { status: 200, headers: { 'content-type': 'application/json' } })))
+      : orig(u, o)); })();`;
+  const s1 = await page.send('Page.addScriptToEvaluateOnNewDocument', { source: stub });
+  try {
+    await page.eval(() => localStorage.removeItem('silinx.updateCheck'));
+    await page.reload();
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot' });
+    await page.waitConsole(/Check for updates at start-up is off \(Help menu\); Help > Check for Updates… checks now\./);
+    await page.waitFor(() => window.Silinx.startupChecked, [], { what: 'start-up checks done' });
+    assert.equal(await page.eval(() => window.__gh), 0, 'GitHub not asked at start-up');
+    assert.equal(await page.dialogCount(), 0);
+    // by hand: Help ▸ Check for Updates… asks GitHub and reports the newer release
+    await page.menu('Help', 'Check for Updates…');
+    await page.waitDialog('Check for Updates');
+    await page.waitFor(() => /A new version is available: Silinx ISE 99\.0\.0/.test([...document.querySelectorAll('.dlg-overlay')].pop()?.innerText || ''), [], { what: 'update dialog text' });
+    assert.ok(await page.eval(() => window.__gh) >= 1, 'GitHub asked by hand');
+    await page.dialogButton('OK');
+    await page.waitNoDialog();
+    // Portuguese: the menu item, the toast and About
+    await setLang('pt');
+    assert.equal(await checkMark('Procurar Atualizações no Arranque', 'Ajuda'), '');
+    await page.menu('Ajuda', 'Procurar Atualizações no Arranque');
+    await page.waitFor(() => /Procura de atualizações no arranque ligada: a última versão é pedida ao GitHub quando a aplicação arranca/.test(document.querySelector('.toasts')?.innerText || ''), [], { what: 'Portuguese toast' });
+    assert.equal(await checkMark('Procurar Atualizações no Arranque', 'Ajuda'), '✓');
+    await page.menu('Ajuda', 'Acerca do Silinx ISE');
+    await page.waitDialog();
+    assert.match(await page.eval(() => document.querySelector('.dlg-overlay .about-updates').innerText), /^Procura de atualizações:\s+No arranque, a última versão é pedida ao GitHub \(api\.github\.com e raw\.githubusercontent\.com, no máximo uma vez por hora\): só a versão, nada sobre si ou sobre os seus projetos; o site publicado só pergunta a si próprio\. Ajuda > Procurar Atualizações no Arranque desliga-a\.$/);
+    await page.key('Escape');
+    await page.waitNoDialog();
+    await setLang('en');
+    // on again: the start-up check asks GitHub and opens the update dialog
+    assert.equal(await page.eval(() => localStorage.getItem('silinx.updateCheckOnStart')), 'on');
+    await page.eval(() => localStorage.removeItem('silinx.updateCheck'));
+    await page.reload();
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item'), [], { what: 'app boot' });
+    await page.waitDialog('Check for Updates');
+    await page.waitFor(() => /A new version is available: Silinx ISE 99\.0\.0/.test([...document.querySelectorAll('.dlg-overlay')].pop()?.innerText || ''), [], { what: 'start-up update dialog' });
+    assert.ok(await page.eval(() => window.__gh) >= 1, 'GitHub asked at start-up');
+    await page.dialogButton('OK');
+    await page.waitNoDialog();
+  } finally {
+    await page.send('Page.removeScriptToEvaluateOnNewDocument', { identifier: s1.identifier });
+  }
+}, { skip: chromeOnly });   // (Page.addScriptToEvaluateOnNewDocument)
+
 // #339 regression: at start-up the last project is reopened while the toolchain check runs; its two warnings
 // on a machine with neither ISE nor a programmer (CI's) were in the Warnings tab or not by which came first
 // (opening a project clears the tabs). Now, coming after the project opened, they are in the console only.

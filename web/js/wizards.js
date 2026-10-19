@@ -951,7 +951,12 @@ export function aboutDialog() {
           h('tr', { class: 'about-counts' }, h('td', { style: { paddingRight: '10px', verticalAlign: 'top', fontWeight: 'bold' } }, 'Usage counts:'),
             h('td', {}, ...(siteCounts()
               ? ['This page counts its visits and what is used (a new project, a simulation, a bitstream…) with ', gcLink(), ': no cookies, no personal data, never the content of a project.']
-              : ['None: this copy sends nothing.', ' Only the site (pmnmalo.github.io/Silinx-ISE) counts its visits, with ', gcLink(), ' (no cookies, no personal data).'])))),
+              : ['None: this copy sends nothing.', ' Only the site (pmnmalo.github.io/Silinx-ISE) counts its visits, with ', gcLink(), ' (no cookies, no personal data).']))),
+          // what the start-up check for updates reaches (#488), and where it is turned off
+          h('tr', { class: 'about-updates' }, h('td', { style: { paddingRight: '10px', verticalAlign: 'top', fontWeight: 'bold' } }, 'Update check:'),
+            h('td', {}, updateCheckEnabled()
+              ? 'At start-up, the latest release is asked of GitHub (api.github.com and raw.githubusercontent.com, at most once an hour): the version only, nothing about you or your projects; the published site asks only itself. Help > Check for Updates at Start-up turns it off.'
+              : 'Off: nothing is asked at start-up. Help > Check for Updates… checks by hand; Help > Check for Updates at Start-up turns it on again.'))),
         h('p', {}, `Copyright 2026 Pedro Maló. Free software under the GNU Affero General Public License v3.0 (`, link(`https://github.com/${REPOSITORY}/blob/main/LICENSE`, 'LICENSE'), ', with an additional permission for elkjs: ', link(`https://github.com/${REPOSITORY}/blob/main/NOTICE`, 'NOTICE'), ').'),
         h('p', { class: 'hint' }, 'This program comes with ABSOLUTELY NO WARRANTY. Source code: ', link(`https://github.com/${REPOSITORY}`, `github.com/${REPOSITORY}`), '.'),
         h('p', { class: 'hint' }, 'Using Silinx in a course? ', link(WHO_URL, 'Tell us who you are'), '.'),
@@ -1058,11 +1063,24 @@ const cachedRelease = () => {
 };
 const cacheRelease = rel => { try { localStorage.setItem(UPDATE_CACHE, JSON.stringify({ at: Date.now(), rel })); } catch { /* no storage */ } };
 
+// the setting Help ▸ Check for Updates at Start-up (#488): on unless turned off, kept in localStorage;
+// Help ▸ Check for Updates… always works by hand
+const UPDATE_ON_START = 'silinx.updateCheckOnStart';
+/** Whether the start-up check for updates is on (the default). */
+export function updateCheckEnabled() {
+  try { return localStorage.getItem(UPDATE_ON_START) !== 'off'; } catch { return true; }
+}
+export function setUpdateCheckEnabled(on) {
+  try { localStorage.setItem(UPDATE_ON_START, on ? 'on' : 'off'); } catch { /* storage unavailable */ }
+}
+
 /**
  * At start-up: check the latest release on GitHub (at most once an hour); a newer version opens the
- * update dialog, otherwise one line in the console (no network / GitHub error: nothing shown).
+ * update dialog, otherwise one line in the console (no network / GitHub error: nothing shown). With the
+ * setting off, nothing leaves: one line in the console says so.
  */
 export async function checkUpdatesOnStart() {
+  if (!updateCheckEnabled()) { app.log('Check for updates at start-up is off (Help menu); Help > Check for Updates… checks now.', 'info'); return null; }
   // on the site: the page open against the one it serves now
   const served = await siteVersion();
   if (served) {

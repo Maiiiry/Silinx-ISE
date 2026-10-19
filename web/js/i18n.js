@@ -50,6 +50,14 @@ const PT = {
   'This page counts its visits and what is used (a new project, a simulation, a bitstream…) with': 'Esta página conta as visitas e o que é usado (um projeto novo, uma simulação, um bitstream…) com o',
   ': no cookies, no personal data, never the content of a project.': ': sem cookies, sem dados pessoais, nunca o conteúdo de um projeto.',
   'None: this copy sends nothing.': 'Nenhuma: esta cópia não envia nada.',
+  // the start-up check for updates and its setting (#488)
+  'Check for Updates at Start-up': 'Procurar Atualizações no Arranque', 'Update check:': 'Procura de atualizações:',
+  'At start-up, the latest release is asked of GitHub (api.github.com and raw.githubusercontent.com, at most once an hour): the version only, nothing about you or your projects; the published site asks only itself. Help > Check for Updates at Start-up turns it off.':
+    'No arranque, a última versão é pedida ao GitHub (api.github.com e raw.githubusercontent.com, no máximo uma vez por hora): só a versão, nada sobre si ou sobre os seus projetos; o site publicado só pergunta a si próprio. Ajuda > Procurar Atualizações no Arranque desliga-a.',
+  'Off: nothing is asked at start-up. Help > Check for Updates… checks by hand; Help > Check for Updates at Start-up turns it on again.':
+    'Desligada: nada é pedido no arranque. Ajuda > Procurar Atualizações… procura manualmente; Ajuda > Procurar Atualizações no Arranque volta a ligá-la.',
+  'Check for updates at start-up on: the latest release is asked of GitHub when the app starts': 'Procura de atualizações no arranque ligada: a última versão é pedida ao GitHub quando a aplicação arranca',
+  'Check for updates at start-up off: Help > Check for Updates… checks by hand': 'Procura de atualizações no arranque desligada: Ajuda > Procurar Atualizações… procura manualmente',
   'Only the site (pmnmalo.github.io/Silinx-ISE) counts its visits, with': 'Só o site (pmnmalo.github.io/Silinx-ISE) conta as visitas, com o',
   '(no cookies, no personal data).': '(sem cookies nem dados pessoais).',
   'Silinx ISE is free and asks for nothing. If you use it, in a course, a school or on your own, we would like to know: it helps to decide what to improve.': 'O Silinx ISE é gratuito e não pede nada. Se o usa, numa disciplina, numa escola ou por conta própria, gostávamos de saber: ajuda a decidir o que melhorar.',
