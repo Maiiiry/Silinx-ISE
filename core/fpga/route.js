@@ -9,8 +9,9 @@
 // Special nets:
 // - Global clocks (driven by a BUFGMUX): the clock pins of the slices can also be reached from
 //   general routing, but a clock must use the dedicated global network (the GCLK wires of the
-//   clock spine, as ISE does), so their search only uses nodes with a GCLK wire, with general
-//   routing kept as a fallback for a sink the global network cannot reach (e.g. a LUT input).
+//   clock spine, as ISE does), so their search only uses nodes with a GCLK wire (and the one switch
+//   off them into the sink: a DCM's CLKIN / CLKFB through DCM_CLKIN, #93), with general routing
+//   kept as a fallback for a sink the global network cannot reach (e.g. a LUT input).
 // - Carry chains: COUT -> CIN is an ordinary PIP of the CLB (COUT0 -> CIN2, or COUT_N to the
 //   tile above), found like any other.
 // - VCC / GND nets come from ISE with a source the converter makes up ("XDL_DUMMY_<tile>_<site>",
@@ -277,7 +278,9 @@ export function routeDesign(design, device, opts = {}) {
         if (edgeFlags[e] & PIP_ROUTETHRU && !(fromSource && owner[m] < 0)) continue;
         if (done[m] === curStamp) continue;
         if (owner[m] >= 0 && owner[m] !== netIdx) continue;
-        if (restrict && !restrict[m] && m !== sink) continue;
+        // (on the clock network: its nodes, and the one switch off it into the sink, a DCM's CLKIN /
+        // CLKFB through DCM_CLKIN, #93)
+        if (restrict && !restrict[m] && m !== sink && !(dcmClockPin.has(sink) && into(m, sink))) continue;
         if (inBox && (nodeR1[m] < boxR0 || nodeR0[m] > boxR1 || nodeC1[m] < boxC0 || nodeC0[m] > boxC1)) continue;
         if (allowed && allowed[e] !== 1 && !edgeOk(e)) continue;
         const over = occ[m];      // other nets on this node (this net is ripped up)
@@ -293,6 +296,9 @@ export function routeDesign(design, device, opts = {}) {
     }
     return null;
   };
+  // the DCMs' clock inputs, and a node with a switch straight into the sink
+  const dcmClockPin = new Set(device.sites('DCM').flatMap(d => ['CLKIN', 'CLKFB'].map(p => device.sitePinNode(d.name, p))).filter(n => n >= 0));
+  const into = (m, sink) => { for (let e = edgeStart[m], e1 = edgeStart[m + 1]; e < e1; e++) if (edgeTo[e] === sink && !(edgeFlags[e] & PIP_ROUTETHRU) && (!allowed || allowed[e] === 1 || edgeOk(e))) return true; return false; };
   const ripUp = i => { if (trees[i]) for (const n of trees[i].keys()) occ[n]--; trees[i] = null; };
   const routeNet = (i, pf) => {
     const net = work[i];
