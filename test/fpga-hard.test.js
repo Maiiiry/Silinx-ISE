@@ -351,6 +351,29 @@ test('bufgReach: each output of the top-left DCM reaches its global buffer throu
   assert.deepEqual(bufgReach(g, 'DCM_X0Y1', 'CLK90').sort(), ['BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']);
 });
 
+test('clockReach: a side global buffer reaches only the slices of its half of the chip, never through general routing (#95)', async () => {
+  const { clockReach } = await import('../core/fpga/route.js');
+  const { knownRouting } = await import('../core/fpga/bitgen.js');
+  const { loadDb } = await import('../core/fpga/bitdb-node.js');
+  const { deviceSites } = await import('../core/fpga/place.js');
+  const known = knownRouting(loadDb('xc3s250ecp132-4'));
+  const g = loadDeviceCache('xc3s250ecp132-4');
+  const dev = deviceSites(g, known);
+  // the side buffers are the placer's now (#95): 8 top / bottom, 16 side ones
+  assert.equal(dev.bufgmux.length, 24);
+  const slices = [...dev.slices.values()], centre = dev.bufgmux.find(b => b.tile.startsWith('CLKT')).px;
+  const halves = name => { const r = clockReach(g, name, known.allowPip); return [slices.filter(s => r.has(s.name) && s.px < centre).length, slices.filter(s => r.has(s.name) && s.px > centre).length]; };
+  // (before: the even lines' side buffers also reached 1128 slices of the other half, through the
+  // side clock tile's CLKL_GCLKH_MAINk node into a hex line, N6BEG0)
+  for (const k of [2, 3, 4, 6, 8, 9]) {
+    assert.deepEqual(halves(`BUFGMUX_X0Y${k}`), [1224, 0], `BUFGMUX_X0Y${k}`);
+    assert.deepEqual(halves(`BUFGMUX_X3Y${k}`), [0, 1224], `BUFGMUX_X3Y${k}`);
+  }
+  // a top / bottom buffer: the whole chip
+  assert.deepEqual(halves('BUFGMUX_X2Y11'), [1224, 1224]);
+  assert.deepEqual([...clockReach(g, 'BUFGMUX_X0Y4', known.allowPip)].filter(s => s.startsWith('DCM')), ['DCM_X0Y0.CLKFB']);
+});
+
 // A 14-bit memory on 1024 x 18 ports, as Yosys maps it: its 18-bit word is DI0-7, DIP0, DI8-15,
 // DIP1, so bit 8 of the word is written on DIPA0 and read on DOPB0; port A writes, port B reads
 function bram14(params = {}) {
@@ -676,12 +699,13 @@ test('a clock with no LOC that drives a DCM\'s CLKIN goes on a pad whose dedicat
   assert.deepEqual([siteOf(p, other, 'clk'), siteOf(p, other, 'u'), other.warnings], ['P11', 'DCM_X1Y1', []]);
 });
 
-test('a clock LOC\'d on a side GCLK pin (K3 / G3): the placer does not use side buffers yet (#95), so a top / bottom buffer through general routing, with a warning (#58)', { timeout: 300000 }, async () => {
+test('a clock LOC\'d on a side GCLK pin (K3 / G3): not on the side buffers its pad reaches (#641: that path\'s bits are not known), a top / bottom buffer through general routing, with a warning (#58, #95)', { timeout: 300000 }, async () => {
   for (const [part, , side] of SHIPPED) {
     const { opts, sites } = await flowOf(part);
-    assert.deepEqual(sites.bufgmux.map(b => b.name).sort(), ['BUFGMUX_X1Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y0', 'BUFGMUX_X2Y1', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11'], part);
+    // (the eight top / bottom buffers and the sixteen side ones, #95)
+    assert.equal(sites.bufgmux.length, 24, part);
     const ucf = `NET "clk" LOC = "${side}";`;
-    const warn = b => [`clk: its pad ${side} reaches on a dedicated path only side global buffers, which the placer does not use yet (#95) (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): ${b} instead, through general routing`];
+    const warn = b => [`clk: its pad ${side} reaches on a dedicated path only side global buffers (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7), whose path from the pad is not in the bit database yet (#641): ${b} instead, through general routing`];
     const p = pack(clockedHard(), { ucf, part });
     const r = place(p, sites, { seed: 1, effort: 0.1, ...opts });
     assert.deepEqual([siteOf(p, r, 'clk'), siteOf(p, r, 'bufg'), r.warnings], [side, 'BUFGMUX_X2Y11', warn('BUFGMUX_X2Y11')], part);

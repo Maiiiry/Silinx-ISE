@@ -666,6 +666,9 @@ function tieConstants(nets, kind, { device, usedSites, errors, allowPip, allowSo
   }));
 }
 
+// the wires of general routing (doubles, hexes, long lines): the dedicated clock paths do not enter them
+const GENERAL_TO = /^([NSEW](2|6)(BEG|MID|END|[A-D])\d|L[HV]\d)/;
+
 /**
  * The slices whose clock pin a global clock buffer reaches through the dedicated clock network
  * (GCLK nodes) and, with allowPip(tileName, from, to), only through allowed PIPs: a Set of slice site
@@ -687,7 +690,11 @@ export function clockReach(device, bufgSite, allowPip = null) {
     for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) {
       const m = E.edgeTo[e];
       if (seen[m] || E.edgeFlags[e] & PIP_ROUTETHRU) continue;
-      if (allowPip && !allowPip(device.tileNames[E.edgeTile[e]], ...device.pipWires(E.edgeTile[e], E.edgePip[e]))) continue;
+      const [from, to] = device.pipWires(E.edgeTile[e], E.edgePip[e]);
+      // (not into general routing: a node of the clock network may hold a general wire's switch, as
+      // the side clock tiles' CLKL_GCLKH_MAINk -> IOIS_Xk -> N6BEG0 does, #95)
+      if (GENERAL_TO.test(to)) continue;
+      if (allowPip && !allowPip(device.tileNames[E.edgeTile[e]], from, to)) continue;
       seen[m] = 1;
       if (gclk[m]) q.push(m); else reached.add(m);   // off the clock network: an end (a site pin)
     }
@@ -734,7 +741,7 @@ export function bufgReach(device, siteName, pin, allowPip = null, [toType, toPin
       if (seen[m] || E.edgeFlags[e] & PIP_ROUTETHRU) continue;
       const [from, to] = device.pipWires(E.edgeTile[e], E.edgePip[e]);
       // the dedicated clock paths only (DCM outputs, the clock tiles' wires): not into general routing
-      if (/^([NSEW](2|6)(BEG|MID|END|[A-D])\d|L[HV]\d)/.test(to)) continue;
+      if (GENERAL_TO.test(to)) continue;
       if (allowPip && !allowPip(device.tileNames[E.edgeTile[e]], from, to)) continue;
       seen[m] = 1;
       q.push(m);

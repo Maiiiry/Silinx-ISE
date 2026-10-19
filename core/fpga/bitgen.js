@@ -441,10 +441,9 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *   allowConstSource(kind, site)   a VCC site (no settings of its own) or a slice whose settings as
  *                                  a GND source (USED, _GND_SOURCE:Y) are known
  *   allowBufg(tileName, site)      a global clock buffer whose settings (USED) are known: the top and
- *                                  bottom ones; not yet the side ones (CLKL / CLKR): their bits are in
- *                                  the database (#45), but the placer does not keep a side buffer and
- *                                  the top / bottom one of the same line out of each other's quadrants
- *                                  (research/s3e-bitstream/README.md, stage G)
+ *                                  bottom ones, and the side ones (CLKL / CLKR, #45), which the placer
+ *                                  keeps out of the half of the top / bottom buffer of the same line
+ *                                  (#95; research/s3e-bitstream/README.md, stage G)
  *   allowPad(site, cfg)            an I/O instance (its cfg) on a pad: the settings of its registers and
  *                                  their paths measured on that pad (#96)
  */
@@ -474,7 +473,7 @@ export function knownRouting(db, { exceptions = true } = {}) {
       const kindOf = siteKind({ site: site.name, type: site.type }, db);
       return !!kindOf && known(site.tileName, `${kindOf}:USED`) && known(site.tileName, `${kindOf}:_GND_SOURCE:Y`);
     },
-    allowBufg: (tileName, site) => !/^CLK[LR]_/.test(tileName) && known(tileName, `${site}:USED`),
+    allowBufg: (tileName, site) => known(tileName, `${site}:USED`),
     // an I/O site's registers and their paths (cfg: the instance's [{ attr, name, value }]) on a pad: their
     // features measured there (#44: each register kind on part of the pads only; the placer's choice, #96)
     allowPad: (site, cfg) => iobRegFeatures(cfg).every(f => !!db.padFeats[site]?.[f]),

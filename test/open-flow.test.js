@@ -188,6 +188,10 @@ const FEATURES = {
   // the clock pad (B8, LOC'd) into a global buffer that feeds the DCM's CLKIN: B8's buffer, whose line
   // reaches the top-left DCM's CLKIN, kept for it, the DCM's outputs on the others (#94)
   feat_dcm_bufgin: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcm" "DCM",placed DCM_TL_CENTER_X13Y34 DCM_X0Y1 /m, /^inst "u_bin" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m]],
+  // twelve global clocks (#95): five of them on side buffers (left, lines 0-4), the top / bottom buffers
+  // of lines 0-4 kept out of the left half (none of their GCLKCORE switches in the left centre tile)
+  feat_clocks12: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "[^"]+" "BUFGMUX",placed CLKL_X0Y17 BUFGMUX_X0Y6 /m, /pip GCLKVML_\S+ GCLKVML_GCLKLR4 -> GCLKVMLR_GCLK_/],
+    [/pip GCLKVML_\S+ GCLKVML_GCLKCORE[0-4] -> /, /placed CLKR_/]],
   // CLKIN_DIVIDE_BY_2, SOURCE_SYNCHRONOUS deskew (DESKEW_ADJUST 0), a CLKFX at the edge of its range;
   // and (on the Nexys2-500) the input period in whole nanoseconds: 20.9 ns is 20 (#46)
   feat_dcm_div2: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 /, /DESKEW_ADJUST::0 /, /CLKFX_DIVIDE::15 /]],
@@ -350,8 +354,8 @@ for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s5
 // feat_constmult's clock LOC'd on the bottom GCLK pin (its buffer's lines reach no block RAM /
 // multiplier clock on known switches: BUFGMUX_X2Y11 through general routing, a warning), feat_dcm
 // with no constraints (the clock on B8, the pad whose dedicated path reaches the DCM's CLKIN), and
-// feat_constmult's clock LOC'd on a side GCLK pin (its buffers' settings are not known yet, #45: a
-// warning).
+// feat_constmult's clock LOC'd on a side GCLK pin (its pad's path into the side buffers is not known
+// yet, #641: a top buffer through general routing, a warning).
 const CLOCK_CASES = [
   ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y11' },
     ['Warning: place: clk: the global buffer BUFGMUX_X2Y1 that its pad M4 reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing']],
@@ -362,8 +366,10 @@ const CLOCK_CASES = [
   ['#47', 'feat_dcm', 'xc3s1200e', 'fg320', null, { clk: 'B8', dcm: 'DCM_X1Y3' }, []],
   ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { dcm: 'DCM_X0Y0' },
     clk => [`Warning: place: u_dcm: its CLKIN comes from the pad ${clk} through general routing: no pad reaches the CLKIN of DCM_X0Y0 on a dedicated path of known bits`]],
+  // (#95 / #641: not the side buffers K3 reaches, whose path from the pad has database bits ISE does
+  // not set: BUFGMUX_X2Y11 through general routing, a warning)
   ['#58', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X2Y11' },
-    ['Warning: place: clk: its pad K3 reaches on a dedicated path only side global buffers, which the placer does not use yet (#95) (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7): BUFGMUX_X2Y11 instead, through general routing']],
+    ['Warning: place: clk: its pad K3 reaches on a dedicated path only side global buffers (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7), whose path from the pad is not in the bit database yet (#641): BUFGMUX_X2Y11 instead, through general routing']],
 ];
 for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
   test(`the open flow: ${fixture} on the ${part.toUpperCase()}-${pkg.toUpperCase()}, the clock ${loc ? `LOC'd on ${loc}` : 'with no LOC'}: complete bitstream, the exact warnings (${issue})`, { timeout: 300000 }, () => {
@@ -413,6 +419,36 @@ for (const [part, pkg, dcms, warnings] of DCM2) {
     assert.deepEqual(r.warnings, warnings(placedOf('IBUF').clk));
     assert.deepEqual([placedOf('DCM').u_dcma, placedOf('DCM').u_dcmb], dcms);
     if (part !== 'xc3s100e') assert.equal(placedOf('IBUF').clk, 'B8');
+  });
+}
+
+// Twelve global clocks on every device (#95; checked against ISE: npm run check:open-flow gives DRC 0
+// errors / 0 warnings and a byte-identical .bit): feat_clocks12 with no constraints: the eight top /
+// bottom buffers and five side buffers of the left (lines 0-4); in the left centre tile lines 0-4 come
+// from the side buffers only (before: no free global clock buffer past the eighth).
+for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s500e', 'fg320'], ['xc3s1200e', 'fg320']]) {
+  test(`the open flow: twelve global clocks (feat_clocks12) on the ${part.toUpperCase()}-${pkg.toUpperCase()}: the side buffers, each line from one buffer per half, no warning (#95)`, { timeout: 300000 }, () => {
+    const dir = path.join(tmp, `clocks12-${part}`);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_clocks12/top.vhd'), path.join(dir, 'top.vhd'));
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: `clocks12-${part}`, version: 1, device: { family: 'spartan3e', part, package: pkg, speed: '-4' }, top: 'top',
+      files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }] }));
+    const r = openFlow(dir, path.join(dir, 'out'));
+    assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+    assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+    assert.deepEqual(r.warnings, []);
+    const routed = fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8');
+    const bufs = [...routed.matchAll(/^inst "[^"]+" "BUFGMUX",placed \S+ (\S+) /gm)].map(m => m[1]).sort();
+    assert.deepEqual(bufs, ['BUFGMUX_X0Y2', 'BUFGMUX_X0Y3', 'BUFGMUX_X0Y4', 'BUFGMUX_X0Y5', 'BUFGMUX_X0Y6', 'BUFGMUX_X1Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y0', 'BUFGMUX_X2Y1', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']);
+    // each quadrant line of each half driven from one buffer: the side one or the top / bottom one
+    const drivers = new Map();
+    for (const m of routed.matchAll(/pip (GCLKVM[LR])_\S+ GCLKVM[LR]_GCLK(CORE|LR)(\d) -> GCLKVMLR_GCLK_(UP|DN)\d /g)) {
+      const k = `${m[1]} ${m[4]}${m[3]}`;
+      drivers.set(k, new Set([...(drivers.get(k) || []), m[2]]));
+    }
+    for (const [k, d] of drivers) assert.equal(d.size, 1, k);
+    for (const k of [0, 1, 2, 3, 4]) assert.ok(drivers.has(`GCLKVML DN${k}`) || drivers.has(`GCLKVML UP${k}`), `left line ${k}`);
+    assert.ok(![...drivers].some(([k, d]) => /^GCLKVML .[NP][0-4]$/.test(k) && d.has('CORE')));
   });
 }
 
