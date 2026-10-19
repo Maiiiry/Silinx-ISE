@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { qualityPage } from './designs-corpus/quality-page.mjs';
-import { lastError, newFailures, parseClocks, constrainedPeriod } from './designs-corpus/compare-lib.mjs';
+import { lastError, newFailures, parseClocks, constrainedPeriod, trcePaths, criticalPath } from './designs-corpus/compare-lib.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -117,4 +117,54 @@ test('quality page: Silinx at efforts Normal and High (the High columns and summ
   // the guard: a design built at High before that fails at High now
   const before = { designs: [{ name: 'serv', silinx: {}, silinxHigh: {}, ise: {} }] };
   assert.deepEqual(newFailures(before, res), ['serv (Silinx, effort High): out of memory']);
+});
+
+// #646: the critical paths' breakdown, from trce's reports (text extracts of ISE 14.7's trce -v 3 on the
+// blinky example: test/fixtures/trce, ISE's own flow and Silinx's routing)
+const twr = name => fs.readFileSync(path.join(ROOT, 'test/fixtures/trce', `${name}.twr.txt`), 'utf8');
+test('ISE comparison: a critical path\'s levels of logic and its LUT, carry, flip-flop and routing delays, from trce (#646)', () => {
+  // ISE: Tcko 0.587 + Topcyf 1.162 + Tcinxb 0.404 + Tilo 0.759 + Tsrck 0.910; nets 0.964 + 0 + 0.724 + 1.191
+  const ise = { levels: 3, lut: 0.759, carry: 1.566, ff: 1.497, other: 0, logic: 3.822, route: 2.879 };
+  assert.deepEqual(trcePaths(twr('blinky-ise')), [{ name: 'TS_clk = PERIOD TIMEGRP "clk" 20 ns HIGH 50%', ns: 6.701, path: ise }]);
+  assert.deepEqual(criticalPath(twr('blinky-ise'), 6.701), ise);
+  // Silinx's routing: Topcyf 1.162 + 3 × Tbyp 0.118 (the carry chain), Tcko 0.652 + Tsrck 0.910
+  const silinx = { levels: 5, lut: 0.759, carry: 1.516, ff: 1.562, other: 0, logic: 3.837, route: 2.909 };
+  assert.deepEqual(criticalPath(twr('blinky-silinx'), 6.746), silinx);
+  // the logic delays add up to trce's logic
+  for (const p of [ise, silinx]) assert.equal(+(p.lut + p.carry + p.ff + p.other).toFixed(3), p.logic);
+  // trce -a (ise-open-check.sh: no constraint, each clock's analysis), several clocks: the analysis of the
+  // period the comparison reports (#53), else the slowest
+  const a = twr('blinky-silinx').replace(/^Timing constraint: .*$/m, 'Timing constraint: Default period analysis for net "clk_BUFGP"');
+  const b = twr('blinky-ise').replace(/^Timing constraint: .*$/m, 'Timing constraint: Default period analysis for net "u_pre/tick"');
+  assert.deepEqual(trcePaths(a + b).map(x => [x.name, x.ns]), [['Default period analysis for net "clk_BUFGP"', 6.746], ['Default period analysis for net "u_pre/tick"', 6.701]]);
+  assert.deepEqual(criticalPath(a + b, 6.701), ise);
+  assert.deepEqual(criticalPath(b + a, 6.746), silinx);
+  assert.deepEqual(criticalPath(b + a, null), silinx);
+  // a report without a path detailed (trce -v 0, an empty report): no breakdown
+  assert.deepEqual(trcePaths(twr('blinky-ise').replace(/-{20,}\nSlack:[\s\S]*route\)\n/, '')), [{ name: 'TS_clk = PERIOD TIMEGRP "clk" 20 ns HIGH 50%', ns: 6.701, path: null }]);
+  assert.equal(criticalPath('', 5), null);
+  assert.equal(criticalPath(twr('blinky-ise').replace(/Levels of Logic = \d+/g, ''), 6.701), null);
+});
+
+test('quality page: the critical paths\' logic and routing (only when measured) and the gap of the slower designs (#646)', () => {
+  const p = (levels, lut, carry, logic, route) => ({ levels, lut, carry, ff: 1.5, other: 0, logic, route });
+  const res = { generatedAt: '2026-10-20', designs: [
+    { name: 'a', silinx: { periodNs: 12, path: p(6, 4.2, 0, 5.7, 6.3) }, silinxHigh: { periodNs: 10, path: p(5, 3.5, 0, 5, 5) }, ise: { periodNs: 10, path: p(5, 3.5, 0, 5, 5) } },
+    { name: 'b', silinx: { periodNs: 9, path: p(3, 1.5, 2, 5, 4) }, silinxHigh: { periodNs: 9.5, path: p(3, 1.5, 2, 5, 4.5) }, ise: { periodNs: 9.2, path: p(4, 2.25, 0.5, 4.25, 4.95) } },
+    { name: 'c', silinx: { periodNs: 3 }, ise: { periodNs: 3 } },
+  ] };
+  const page = qualityPage(res);
+  assert.match(page, /^### The critical paths: logic and routing$/m);
+  // a: logic +0.70, routing +1.30; b is faster at Normal. High: b, logic +0.75, routing −0.45
+  assert.match(page, /^- Silinx: 1 design slower than ISE; against ISE's critical paths, on average, logic\n {2}\+0\.70 ns, routing \+1\.30 ns\.$/m);
+  assert.match(page, /^- High: 1 design slower than ISE; against ISE's critical paths, on average, logic\n {2}\+0\.75 ns, routing −0\.45 ns\.$/m);
+  assert.match(page, /^\| design \| levels Silinx \| levels High \| levels ISE \| logic Silinx \| logic High \| logic ISE \| LUT Silinx \| LUT High \| LUT ISE \| carry Silinx \| carry High \| carry ISE \| route Silinx \| route High \| route ISE \|$/m);
+  assert.ok(page.includes('| a | 6 | 5 | 5 | 5.70 | 5.00 | 5.00 | 4.20 | 3.50 | 3.50 | 0.00 | 0.00 | 0.00 | 6.30 | 5.00 | 5.00 |'), page);
+  assert.ok(page.includes('| b | 3 | 3 | 4 | 5.00 | 5.00 | 4.25 | 1.50 | 1.50 | 2.25 | 2.00 | 2.00 | 0.50 | 4.00 | 4.50 | 4.95 |'));
+  assert.doesNotMatch(page, /^\| c \| (\d|–) \|.*\| – \| – \|$/m);
+  // without High: two sides; without any breakdown (the results before #646): no section
+  const plain = qualityPage({ ...res, designs: res.designs.map(({ silinxHigh, ...d }) => d) });
+  assert.match(plain, /^\| design \| levels Silinx \| levels ISE \| logic Silinx \| logic ISE \|/m);
+  assert.doesNotMatch(plain, /^- High:/m);
+  assert.doesNotMatch(qualityPage({ ...res, designs: res.designs.map(d => ({ name: d.name, silinx: { periodNs: d.silinx.periodNs }, ise: { periodNs: d.ise.periodNs } })) }), /The critical paths: logic and routing/);
 });

@@ -48,3 +48,52 @@ export function constrainedPeriod(clocks, ucf, worst) {
   const found = Object.entries(clocks || {}).filter(([net]) => nets.includes(net.replace(/^\$iopadmap\$/, '').toLowerCase())).map(([, ns]) => ns);
   return found.length ? Math.max(...found) : worst;
 }
+
+// the delay types of trce's paths on the Spartan-3E (#646): the carry chain (Topcyf, Tbyp, Tcinxb, Tcinck,
+// Tbxcy…), a LUT (Tilo, with its F5 / F6 multiplexers, Tif5x / Tif6y, and into a flip-flop, Tfck / Tgck), a
+// flip-flop's clock to out and its setup (Tcko, Tdick, Tceck, Tsrck…); else other (IOBs, block RAMs,
+// multipliers)
+const delayKind = t => (/cy|cin|byp/i.test(t) ? 'carry' : /^T(ilo|if|f5|f6|fck|gck)/i.test(t) ? 'lut'
+  : /^T(cko|dick|dxck|dyck|ceck|srck|rpo|cklo)/i.test(t) ? 'ff' : 'other');
+const ns3 = x => +x.toFixed(3);
+
+/**
+ * The worst path of each analysis of a trce report (.twr, -v 3 or more): [{ name, ns, path }], the
+ * analysis's name (a constraint, 'Default period analysis for net "clk"'), its minimum period or maximum
+ * delay, and its first path's breakdown { levels, lut, carry, ff, other, logic, route } (ns), null when the
+ * report details no path.
+ */
+export function trcePaths(text) {
+  const out = [];
+  const parts = String(text).replace(/\r/g, '').split(/^Timing constraint:\s*/m).slice(1);
+  for (const part of parts) {
+    const name = part.slice(0, part.indexOf('\n')).trim().replace(/;$/, '');
+    const per = /(?:Minimum period|Maximum delay) is\s+([\d.]+)ns/.exec(part);
+    if (!per) continue;
+    let path = null;
+    const lv = /Levels of Logic = (\d+)/.exec(part);
+    const end = lv && part.indexOf('Total', lv.index);
+    if (lv && end > 0) {
+      const tot = /^Total\s+([\d.]+)ns \(([\d.]+)ns logic, ([\d.]+)ns route\)/.exec(part.slice(end));
+      const sum = { lut: 0, carry: 0, ff: 0, other: 0 };
+      for (const m of part.slice(lv.index, end).matchAll(/^\s+\S+\s+(net \(fanout=\d+\)|T\w+)\s+(?:e\s+)?([\d.]+)\s/gm)) {
+        if (!m[1].startsWith('net')) sum[delayKind(m[1])] += +m[2];
+      }
+      if (tot) path = { levels: +lv[1], lut: ns3(sum.lut), carry: ns3(sum.carry), ff: ns3(sum.ff), other: ns3(sum.other), logic: +tot[2], route: +tot[3] };
+    }
+    out.push({ name, ns: +per[1], path });
+  }
+  return out;
+}
+
+/**
+ * The breakdown of the critical path of a trce report (#646): the worst path of the analysis whose period
+ * (or delay) is the nearest to periodNs, the one the comparison reports (a design's constrained clock, #53);
+ * without periodNs, of the slowest analysis. null when the report details none.
+ */
+export function criticalPath(text, periodNs) {
+  const all = trcePaths(text).filter(a => a.path);
+  if (!all.length) return null;
+  const key = a => (periodNs == null ? -a.ns : Math.abs(a.ns - periodNs));
+  return all.reduce((b, a) => (key(a) < key(b) ? a : b)).path;
+}

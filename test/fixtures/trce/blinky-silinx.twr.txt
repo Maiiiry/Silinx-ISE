@@ -1,0 +1,58 @@
+Release 14.7 Trace  (lin64)
+(…)
+================================================================================
+Timing constraint: TS_clk = PERIOD TIMEGRP "clk" 20 ns HIGH 50%;
+For more information, see Period Analysis in the Timing Closure User Guide (UG612).
+
+ 2459 paths analyzed, 348 endpoints analyzed, 0 failing endpoints
+ 0 timing errors detected. (0 setup errors, 0 hold errors, 0 component switching limit errors)
+ Minimum period is   6.746ns.
+--------------------------------------------------------------------------------
+Slack:                  13.254ns (requirement - (data path - clock path skew + uncertainty))
+  Source:               u_speed/level_1 (FF)
+  Destination:          u_speed/ticks_5 (FF)
+  Requirement:          20.000ns
+  Data Path Delay:      6.746ns (Levels of Logic = 5)
+  Clock Path Skew:      0.000ns
+  Source Clock:         clk_BUFGP rising at 0.000ns
+  Destination Clock:    clk_BUFGP rising at 20.000ns
+  Clock Uncertainty:    0.000ns
+
+  Maximum Data Path: u_speed/level_1 to u_speed/ticks_5
+    Location             Delay type         Delay(ns)  Physical Resource
+                                                       Logical Resource(s)
+    -------------------------------------------------  -------------------
+    SLICE_X30Y34.YQ      Tcko                  0.652   u_speed/level<1>
+                                                       u_speed/level_1
+    SLICE_X27Y30.F4      net (fanout=11)       1.501   u_speed/level<1>
+    SLICE_X27Y30.COUT    Topcyf                1.162   u_speed/Mcompar_step_next_cmp_ge0000_cy<1>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_lut<0>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<0>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<1>
+    SLICE_X27Y31.CIN     net (fanout=1)        0.000   u_speed/Mcompar_step_next_cmp_ge0000_cy<1>
+    SLICE_X27Y31.COUT    Tbyp                  0.118   u_speed/Mcompar_step_next_cmp_ge0000_cy<3>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<2>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<3>
+    SLICE_X27Y32.CIN     net (fanout=1)        0.000   u_speed/Mcompar_step_next_cmp_ge0000_cy<3>
+    SLICE_X27Y32.COUT    Tbyp                  0.118   u_speed/Mcompar_step_next_cmp_ge0000_cy<5>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<4>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<5>
+    SLICE_X27Y33.CIN     net (fanout=1)        0.000   u_speed/Mcompar_step_next_cmp_ge0000_cy<5>
+    SLICE_X27Y33.COUT    Tbyp                  0.118   u_speed/Mcompar_step_next_cmp_ge0000_cy<7>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<6>
+                                                       u_speed/Mcompar_step_next_cmp_ge0000_cy<7>
+    SLICE_X28Y31.F3      net (fanout=2)        0.586   u_speed/Mcompar_step_next_cmp_ge0000_cy<7>
+    SLICE_X28Y31.X       Tilo                  0.759   u_speed/step_reg
+                                                       u_speed/ticks_or00001
+    SLICE_X29Y32.SR      net (fanout=4)        0.822   u_speed/ticks_or0000
+    SLICE_X29Y32.CLK     Tsrck                 0.910   u_speed/ticks<4>
+                                                       u_speed/ticks_5
+    -------------------------------------------------  ---------------------------
+    Total                                      6.746ns (3.837ns logic, 2.909ns route)
+                                                       (56.9% logic, 43.1% route)
+
+(…)
+Constraints cover 2459 paths, 0 nets, and 536 connections
+
+Design statistics:
+   Minimum period:   6.746ns{1}   (Maximum frequency: 148.236MHz)

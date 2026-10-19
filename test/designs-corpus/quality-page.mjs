@@ -38,6 +38,34 @@ function epflSection(epfl) {
   return L;
 }
 
+// the critical paths' breakdown (#646), when the comparison measured it: each flow's levels of logic and its
+// logic (LUTs, carry chains, flip-flops) and routing delays, and what the difference with ISE's is made of
+function pathSection(rows, hasHigh) {
+  const sides = hasHigh ? [['silinx', 'Silinx'], ['silinxHigh', 'High'], ['ise', 'ISE']] : [['silinx', 'Silinx'], ['ise', 'ISE']];
+  const withPath = rows.filter(r => sides.some(([k]) => r[k]?.path));
+  if (!withPath.length) return [];
+  const L = ['', '### The critical paths: logic and routing', ''];
+  L.push('Each critical path above as trce details it: its levels of logic, its logic delay (the LUTs, the carry',
+    'chains, the flip-flops\' clock to out and setup; *LUT*, *carry*: the LUTs\' and the carry chains\' share of it)',
+    'and its routing delay (ns). More levels or LUT delay than ISE\'s: the synthesis; more routing: the placement',
+    'and the routing.', '');
+  // the difference with ISE's of the designs slower than ISE, split in logic and routing
+  for (const [k, label] of sides.slice(0, -1)) {
+    const slow = rows.filter(r => r[k]?.path && r.ise?.path && r[k].periodNs > r.ise.periodNs);
+    if (!slow.length) continue;
+    const dl = slow.reduce((t, r) => t + r[k].path.logic - r.ise.path.logic, 0), dr = slow.reduce((t, r) => t + r[k].path.route - r.ise.path.route, 0);
+    const sgn = x => `${x >= 0 ? '+' : '−'}${Math.abs(x).toFixed(2)} ns`;
+    L.push(`- ${label}: ${slow.length} design${slow.length > 1 ? 's' : ''} slower than ISE; against ISE's critical paths, on average, logic`,
+      `  ${sgn(dl / slow.length)}, routing ${sgn(dr / slow.length)}.`);
+  }
+  if (L.at(-1) !== '') L.push('');
+  const cols = ['levels', 'logic', 'LUT', 'carry', 'route'];
+  L.push(`| design | ${cols.flatMap(c => sides.map(([, l]) => `${c} ${l}`)).join(' | ')} |`, `|---|${cols.flatMap(() => sides.map(() => '---:')).join('|')}|`);
+  const val = (p, c) => (c === 'levels' ? fmt(p?.levels) : fmt(p?.[c.toLowerCase()], 2));
+  for (const r of withPath) L.push(`| ${r.name} | ${cols.flatMap(c => sides.map(([k]) => val(r[k]?.path, c))).join(' | ')} |`);
+  return L;
+}
+
 export function qualityPage(res, { epfl = null } = {}) {
   const rows = res.designs;
   const both = rows.filter(r => r.silinx?.luts && r.ise?.luts);
@@ -121,6 +149,7 @@ export function qualityPage(res, { epfl = null } = {}) {
     if (hasHigh) L.push(`| ${r.name} | ${fmt(s.periodNs, 2)} | ${fmt(hi.periodNs, 2)} | ${fmt(i.periodNs, 2)} | ${fmt(ratio(s.periodNs, i.periodNs), 2)} | ${fmt(ratio(hi.periodNs, i.periodNs), 2)} | ${fmt(s.estimateNs, 2)} | ${fmt(hi.estimateNs, 2)} |`);
     else L.push(`| ${r.name} | ${fmt(s.periodNs, 2)} | ${fmt(i.periodNs, 2)} | ${fmt(ratio(s.periodNs, i.periodNs), 2)} | ${fmt(s.estimateNs, 2)} |`);
   }
+  L.push(...pathSection(rows, hasHigh));
   const notes = rows.filter(r => r.silinx?.error || r.silinxHigh?.error || r.ise?.error);
   if (notes.length || res.notBuilt?.length) {
     L.push('', '## Not built by one of the flows', '');

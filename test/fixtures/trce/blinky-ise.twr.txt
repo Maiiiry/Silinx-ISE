@@ -1,0 +1,49 @@
+Release 14.7 Trace  (lin64)
+(…)
+================================================================================
+Timing constraint: TS_clk = PERIOD TIMEGRP "clk" 20 ns HIGH 50%;
+For more information, see Period Analysis in the Timing Closure User Guide (UG612).
+
+ 2459 paths analyzed, 348 endpoints analyzed, 0 failing endpoints
+ 0 timing errors detected. (0 setup errors, 0 hold errors, 0 component switching limit errors)
+ Minimum period is   6.701ns.
+--------------------------------------------------------------------------------
+Slack:                  13.299ns (requirement - (data path - clock path skew + uncertainty))
+  Source:               u_pre/cnt_1 (FF)
+  Destination:          u_pre/cnt_1 (FF)
+  Requirement:          20.000ns
+  Data Path Delay:      6.701ns (Levels of Logic = 3)
+  Clock Path Skew:      0.000ns
+  Source Clock:         clk_BUFGP rising at 0.000ns
+  Destination Clock:    clk_BUFGP rising at 20.000ns
+  Clock Uncertainty:    0.000ns
+
+  Maximum Data Path: u_pre/cnt_1 to u_pre/cnt_1
+    Location             Delay type         Delay(ns)  Physical Resource
+                                                       Logical Resource(s)
+    -------------------------------------------------  -------------------
+    SLICE_X29Y34.YQ      Tcko                  0.587   u_pre/cnt<0>
+                                                       u_pre/cnt_1
+    SLICE_X31Y38.F4      net (fanout=2)        0.964   u_pre/cnt<1>
+    SLICE_X31Y38.COUT    Topcyf                1.162   u_pre/cnt_cmp_eq0000_wg_cy<3>
+                                                       u_pre/cnt_cmp_eq0000_wg_lut<2>
+                                                       u_pre/cnt_cmp_eq0000_wg_cy<2>
+                                                       u_pre/cnt_cmp_eq0000_wg_cy<3>
+    SLICE_X31Y39.CIN     net (fanout=1)        0.000   u_pre/cnt_cmp_eq0000_wg_cy<3>
+    SLICE_X31Y39.XB      Tcinxb                0.404   u_pre/cnt_cmp_eq0000
+                                                       u_pre/cnt_cmp_eq0000_wg_cy<4>
+    SLICE_X28Y34.F1      net (fanout=2)        0.724   u_pre/cnt_cmp_eq0000
+    SLICE_X28Y34.X       Tilo                  0.759   u_pre/cnt_or0000
+                                                       u_pre/cnt_or00001
+    SLICE_X29Y34.SR      net (fanout=10)       1.191   u_pre/cnt_or0000
+    SLICE_X29Y34.CLK     Tsrck                 0.910   u_pre/cnt<0>
+                                                       u_pre/cnt_1
+    -------------------------------------------------  ---------------------------
+    Total                                      6.701ns (3.822ns logic, 2.879ns route)
+                                                       (57.0% logic, 43.0% route)
+
+(…)
+Constraints cover 2459 paths, 0 nets, and 536 connections
+
+Design statistics:
+   Minimum period:   6.701ns{1}   (Maximum frequency: 149.231MHz)
