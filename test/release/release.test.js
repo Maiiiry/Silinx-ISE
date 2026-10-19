@@ -108,7 +108,10 @@ test('release zip: its SHA-256 checksum in SHA256SUMS, as sha256sum / shasum che
   const out = path.dirname(zip);
   assert.deepEqual(fs.readdirSync(out).sort(), ['SHA256SUMS', path.basename(zip)]);
   const sums = fs.readFileSync(path.join(out, 'SHA256SUMS'), 'utf8');
-  assert.match(sums, new RegExp(`^[0-9a-f]{64}  silinx-ise-${VERSION.replace(/\./g, '\\.')}\\.zip\n$`));
+  const [line] = sums.split('\n');
+  assert.match(line, /^[0-9a-f]{64} {2}\S+$/);
+  assert.equal(line.slice(66), `silinx-ise-${VERSION}.zip`);
+  assert.equal(sums, `${line}\n`);
   const gnu = (() => { try { execFileSync('sha256sum', ['--version'], { stdio: 'ignore' }); return true; } catch { return false; } })();
   const [cmd, args] = gnu ? ['sha256sum', ['-c']] : ['shasum', ['-a', '256', '-c']];
   assert.equal(execFileSync(cmd, [...args, 'SHA256SUMS'], { cwd: out, encoding: 'utf8' }), `silinx-ise-${VERSION}.zip: OK\n`);
