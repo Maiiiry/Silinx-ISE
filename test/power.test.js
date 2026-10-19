@@ -121,7 +121,8 @@ test('powerReport: an estimate said as such, laid out as XPower\'s text report (
   const e = estimatePower(parseXdl(XDL), { device: 'xc3s250e' });
   const text = powerReport(e, { top: 'top', part: 'xc3s250ecp132-4', errorPercent: ESTIMATE_ERROR_PERCENT });
   assert.match(text, /^Silinx toolchain - estimated power \(not Xilinx XPower\)\n/);
-  assert.match(text, new RegExp(`On the examples its total is within ${ESTIMATE_ERROR_PERCENT} % of XPower's, its dynamic power alone within\n${DYNAMIC_RANGE[0]} to ${DYNAMIC_RANGE[1]} times XPower's\.`));
+  // (as text: in a template literal '\.' is a plain '.', which a RegExp takes for any character)
+  assert.ok(text.includes(`On the examples its total is within ${ESTIMATE_ERROR_PERCENT} % of XPower's, its dynamic power alone within\n${DYNAMIC_RANGE[0]} to ${DYNAMIC_RANGE[1]} times XPower's.`), text);
   assert.match(text, /For a figure to rely on, run XPower in an ISE mode \(Toolchain Settings\)\./);
   assert.deepEqual(parsePwr(text), { totalMw: e.totalMw, dynamicMw: e.dynamicMw, staticMw: e.staticMw, junctionC: e.junctionC });
   assert.match(text, /\| Supply Power \(mW\) \|\s+[\d.]+ \|\s+[\d.]+ \|\s+[\d.]+ \|/);

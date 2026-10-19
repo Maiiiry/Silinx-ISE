@@ -112,6 +112,11 @@ test('warnings: one line, no absolute paths or cache folders, no Yosys numbers; 
   assert.equal(normalizeWarning('Warning: /tmp/build/a/b.v:3: x'), 'Warning: b.v:3: x');
   assert.equal(normalizeWarning('Warning: Replacing memory \\m with list of registers. $auto$proc_rom.cc:155:do_switch$1234'), 'Warning: Replacing memory \\m with list of registers. $auto');
   assert.equal(normalizeWarning('driver $techmap$add$22 and $flatten$7'), 'driver $techmap and $flatten');
+  // (CodeQL js/redos: a path's parts never contain '/', so no part of the pattern matches the same text two
+  // ways) many '/'-separated parts are cut at once
+  const t0 = Date.now();
+  assert.equal(normalizeWarning(`Warning: x /${'!/'.repeat(5000)}`), 'Warning: x !/');
+  assert.ok(Date.now() - t0 < 1000, `${Date.now() - t0} ms`);
   assert.deepEqual(countWarnings(['b', 'a', 'b', 'a', 'b']), ['a (x2)', 'b (x3)']);
   assert.deepEqual(countWarnings([]), []);
 });

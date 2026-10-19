@@ -58,7 +58,7 @@ const README = path.join(HERE, 'README.md');
 // generous, for a loaded machine (#55)
 const TIMEOUT = 120 * 60000;
 
-const clean = s => String(s).replace(/\s+/g, ' ').replace(/(?:\/[^\s:'"]+)*\/\.cache\/designs-corpus\/[^/\s]+\/[0-9a-f]{40}\//g, '').slice(0, 200);
+const clean = s => String(s).replace(/\s+/g, ' ').replace(/(?:\/[^\s:'"/]+)*\/\.cache\/designs-corpus\/[^/\s]+\/[0-9a-f]{40}\//g, '').slice(0, 200);
 
 /** The sources of a design: { design: [{ path, lang, text, role }], tb: [...] }. */
 function loadSources(manifest, d, sourceDir) {
