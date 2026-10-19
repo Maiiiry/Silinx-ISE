@@ -666,13 +666,45 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator' });
   assert.equal(await page.eval(() => window.Silinx.active.title), 'Board Emulator (top, Post-Synthesis)');
+  // on the compiled engine (#561: it had no model of the netlist's LUTs and flip-flops)
+  assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
   const lines = (await page.consoleText()).slice(start).split('\n').map((l) => l.trim()).filter(Boolean);
   assert.equal(lines.filter((l) => /^Started : "Generate Post-Synthesis Simulation Model"/.test(l)).length, 1, lines.join('\n'));
   assert.ok(lines.includes('Process "Generate Post-Synthesis Simulation Model" completed successfully'), lines.join('\n'));
-  assert.ok(lines.some((l) => /^Board Emulator: 'top' \(Post-Synthesis netlist, /.test(l)), lines.join('\n'));
+  assert.ok(lines.some((l) => /^Board Emulator: 'top' \(Post-Synthesis netlist, compiled\) /.test(l)), lines.join('\n'));
   assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
   // the emulator's model menu knows the model just generated (not "(not generated)")
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select option')].filter((o) => o.value === 'postsynth').map((o) => o.textContent)), ['Post-Synthesis netlist']);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 300000 });
+
+// #561: the vga example's Post-Synthesis Model on the Board Emulator: the compiled engine runs it (it had no model of
+// the netlist's LUTs, flip-flops, MUXCY / XORCY: the event-driven engine, and the VGA monitor said it needs the
+// compiled one), and the monitor draws the example's picture: the colour bars in a white frame, the square in the middle
+uiTest('#561 open mode: the vga example\'s Post-Synthesis Model runs on the compiled engine and the VGA monitor draws its picture', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'VgaModel', template: 'vga' });
+  await page.openProject('VgaModel');
+  await reloadToolchain(page);
+  await page.treeRow('#hier', 'vga');
+  await page.treeRow('#procs', 'Emulate Post-Synthesis Model', { dbl: true, exact: true });
+  await page.waitDialog('Emulate Post-Synthesis Model');
+  await page.dialogButton('Generate and Emulate');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator' });
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'Board Emulator (vga, Post-Synthesis)');
+  assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-hint')].map((e) => e.textContent).filter((t) => /^(Not compiled|Compiled engine:)/.test(t))), []);
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-vga-stat')?.textContent === '640×480 · 59.52 Hz · line 32.00 µs · 525 lines', [], { what: 'the monitor\'s timing', timeout: 60000 });
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-vga-warn').textContent), '');
+  await page.waitFor(() => window.Silinx.active.view.sim.vga().status.frames >= 2, [], { what: 'two frames', timeout: 60000 });
+  await new Promise((r) => setTimeout(r, 100));   // (the next picture drawn: 30 a second)
+  const pixel = (x, y) => page.eval((px, py) => [...document.querySelector('.doc:not([hidden]) .emu-vga canvas').getContext('2d').getImageData(px, py, 1, 1).data.slice(0, 3)], x, y);
+  assert.deepEqual(await pixel(0, 200), [255, 255, 255], 'the white frame');
+  assert.deepEqual(await pixel(120, 100), [255, 255, 0], 'the yellow bar');
+  assert.deepEqual(await pixel(310, 240), [255, 0, 255], 'the square over the green bar, magenta');
+  assert.equal(await page.eval(() => { const e = document.querySelector('.doc:not([hidden]) .emu-vga-nosig'); return getComputedStyle(e).display !== 'none' && e.offsetHeight > 0; }), false, 'no "No signal" over the picture');
+  assert.deepEqual(page.dialogs, []);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });
 

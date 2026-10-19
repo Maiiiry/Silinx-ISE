@@ -18,7 +18,8 @@
 //     after each evaluation: an edge of such a clock fires its flip-flops, the logic is evaluated again
 //     until nothing changes;
 //   - the Xilinx primitives are Verilog models flattened into the design (core/compiled-prims.js: block
-//     RAMs, multipliers, SRL16s, distributed RAMs, clock buffers); a DCM's outputs are variables set by a
+//     RAMs, multipliers, SRL16s, distributed RAMs, clock buffers, and the LUTs, flip-flops, latches and carry
+//     chain of a synthesized netlist, #561); a DCM's outputs are variables set by a
 //     schedule of their edges in the main clock's cycles (dcmSchedule): the main clock is its input, each
 //     cycle's edges are steps of the loop in time order; a DCM whose RST the design drives starts its
 //     schedule again after a reset (#465).
@@ -58,8 +59,10 @@ export async function netlistOf(design, { run }) {
   const text = out[`${v.top}_cs.json`];
   if (!text) throw new CompileError('Yosys wrote no netlist');
   // the warnings: those of the synthesis Verilog's writer, then Yosys's (but how it holds an array, as
-  // registers or as a memory, which changes nothing here; a DCM's real generic kept as a string, as read here)
-  const quiet = l => /^Warning: Replacing memory \S+ with list of registers\./.test(l) || /^(\S+: )?Warning: Replacing floating point parameter /.test(l);
+  // registers or as a memory, which changes nothing here; a DCM's real generic kept as a string, as read here;
+  // and those of the primitives' own models, their latches and FDCP's asynchronous load, #561)
+  const quiet = l => /^Warning: Replacing memory \S+ with list of registers\./.test(l) || /^(\S+: )?Warning: Replacing floating point parameter /.test(l)
+    || l.includes('silinx_cs_prims.v');
   return { json: bramInit(JSON.parse(text), v.top, v.instances), top: v.top, warnings: [...v.warnings, ...lines.filter(l => /^Warning:/.test(l) && !quiet(l)).map(yosysWarning)] };
 }
 
