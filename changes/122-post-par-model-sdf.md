@@ -16,7 +16,8 @@ In detail:
   minimum period by 1.2 % (`research/s3e-route/sdf-compare.mjs`).
 - **SDF annotation in Silinx's simulator (#122):** `core/sdf.js` reads an SDF and builds it into a netlist (VHDL or
   Verilog): transport wire delays, inertial gate delays, clock to out, setup checks (from 100 ns on, as ISE's GSR),
-  the same results in both languages; *Simulate Post-Place & Route Model* applies the model's SDF (the emulator runs
+  as two elements of Silinx's SIMPRIM library evaluated natively (X_SDFDLY, X_SDFCHECK), the same results in both
+  languages; *Simulate Post-Place & Route Model* applies the model's SDF (the emulator runs
   it without).
 - **The examples' test benches for a timing simulation (#122):** blinky checks the inverted LEDs half a clock period
   after the switch (was 1 ns, less than the pads' delays), traffic checks its lamps and display just before each
