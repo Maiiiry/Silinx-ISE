@@ -1,6 +1,7 @@
 // Silinx - printing of diagrams (ASM charts, schematics): the whole drawing as a standalone SVG,
 // printed on one page or tiled over several pages (the browser's print dialog also saves PDF).
 import { h, dialog, alertDlg, toast, downloadText } from './ui.js';
+import { esc } from './dom.js';
 
 const STYLE_PROPS = ['fill', 'fill-opacity', 'stroke', 'stroke-width', 'stroke-dasharray', 'stroke-opacity',
   'stroke-linecap', 'stroke-linejoin', 'opacity', 'font-family', 'font-size', 'font-weight', 'font-style',
@@ -71,7 +72,6 @@ export function pageLayout(bounds, { paper = 'A4', orient = 'auto', across = 1 }
   return { paper, pw, ph, aw, ah, cols, rows, scale, land };
 }
 
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const mm = (v) => `${+v.toFixed(3)}mm`;
 
 /**

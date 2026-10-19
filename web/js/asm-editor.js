@@ -17,6 +17,7 @@ import { panelToggle, PROPS_KEY } from './narrow.js';
 import {
   normalizeModel, newModel, validate, generate, stateEncoding, ENCODINGS, nextCaseLabel as nextLabel,
 } from '/core/asm.js';
+import { esc } from './dom.js';
 
 const GRID = 20;
 const CHW = 7.25;          // approx. width of a 12px monospace character
@@ -25,7 +26,6 @@ let instanceCounter = 0;
 
 // ------------------------------------------------------------------------------- helpers
 
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const ceilTo = (v, g) => Math.ceil(v / g) * g;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));

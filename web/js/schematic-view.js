@@ -6,6 +6,7 @@
 //
 // Layout: ELK layered (RIGHT, orthogonal routing) — run in a Web Worker when available,
 // otherwise with the bundled (main-thread) build. Layouts are cached by graph id + structure.
+import { esc } from './dom.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const FONT = '11px Arial, Helvetica, sans-serif';
@@ -19,7 +20,6 @@ const BOXES = new Set(['inst', 'blackbox', 'reg', 'comb', 'tb']);
 const MAX_LABEL = 32;
 
 // ------------------------------------------------------------------ helpers
-const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const r1 = v => Math.round(v * 10) / 10;
 const trunc = (s, n = MAX_LABEL) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
 const leaf = p => String(p ?? '').split('.').pop();
