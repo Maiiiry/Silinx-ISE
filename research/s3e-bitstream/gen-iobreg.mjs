@@ -6,8 +6,9 @@
 // the registers' kinds cycle through the pads: clear + enable, synchronous reset + enable, synchronous
 // set with initial value 1, falling edge), outdir/ro, ro2, ro3 (every pad that can drive an output
 // register, one in three with a registered output enable too, a different third in each), outdir/rd,
-// rd2 (IDDR2 on the inputs and ODDR2 on the outputs, alternately, the other way round in rd2) and
-// outdir/rb (every pad a direct input). Each: top.vhd, top.ucf (the pins of the pads).
+// rd2 (IDDR2 on the inputs and ODDR2 on the outputs, alternately, the other way round in rd2), outdir/rt
+// (every pad that can drive one a tristate output, its enable from the fabric: #96) and outdir/rb (every
+// pad a direct input). Each: top.vhd, top.ucf (the pins of the pads).
 import fs from 'node:fs';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 import { deviceSites } from '../../core/fpga/place.js';
@@ -139,6 +140,29 @@ end rtl;
 `;
   write(name, vhd, [['clk', clkPin], ...ctl.map((p, i) => [`ctl<${i}>`, p.name]), ...ins.map((p, i) => [`d<${i}>`, p.name]), ...outs.map((p, i) => [`q<${i}>`, p.name])]);
 }
+// rt (#96): every pad that can drive an output a tristate output, its enable from the fabric (TMUX T1: a
+// flip-flop kept out of the IOB, one in two through an inverter), its data from a shift register
+if (!rot) {
+  const ctl = rest.filter(p => p.inputOnly).slice(0, 1).concat(rest.filter(p => !p.inputOnly)).slice(0, 1);
+  const outs = io.filter(p => !ctl.includes(p));
+  const n = outs.length;
+  const vhd = `-- rt: ${n} tristate outputs, their enables from the fabric (gen-iobreg.mjs)
+${head}
+entity top is
+  port (clk : in std_logic; ctl : in std_logic; q : out std_logic_vector(${n - 1} downto 0));
+end top;
+
+architecture rtl of top is
+  signal s, te : std_logic_vector(${n - 1} downto 0) := (0 => '1', others => '0');
+  attribute IOB : string;
+  attribute IOB of s, te : signal is "FALSE";
+begin
+  process (clk) begin if rising_edge(clk) then s <= s(${n - 2} downto 0) & (s(${n - 1}) xor s(${Math.floor(n / 2)}) xor ctl); te <= s(0) & te(${n - 1} downto 1); end if; end process;
+${outs.map((_, i) => `  q(${i}) <= s(${(i + 1) % n}) when te(${i}) = '${i % 2}' else 'Z';`).join('\n')}
+end rtl;
+`;
+  write('rt', vhd, [['clk', clkPin], ['ctl', ctl[0].name], ...outs.map((p, i) => [`q<${i}>`, p.name])]);
+}
 // rb: every pad a direct input (no register; their input delays: gen-iobrand.mjs --delays), eight
 // outputs (XORs of the inputs)
 if (!rot) {
@@ -158,4 +182,4 @@ end rtl;
 `;
   write('rb', vhd, [...ins.map((p, i) => [`d<${i}>`, p.name]), ...outs.map((p, i) => [`q<${i}>`, p.name])]);
 }
-console.log(`${pads.length} pads (${io.length + 1} that can drive an output): ri, ro, ro2, ro3, rd, rd2, rb`);
+console.log(`${pads.length} pads (${io.length + 1} that can drive an output): ${rot ? `rik${rot}, rok${rot}` : 'ri, ro, ro2, ro3, rd, rd2, rt, rb'}`);
