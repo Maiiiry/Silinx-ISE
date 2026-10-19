@@ -205,6 +205,10 @@ export const DEPTH_ABC = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch 
 // rule against the usual one: the second's LUTs against the first's alone would refuse max's); only for
 // these designs, as the second balancing takes long on large ones (EPFL bar: four times as long)
 export const DEPTH_ABC2 = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if; mfs2; strash; dch -f; if; mfs2';
+// and balanced twice more (#52), with the LUT delays, a third candidate kept as the other two: a priority
+// chain or a comparator tree is balanced further each time (the EPFL priority 8.8 ns estimated instead of 16.5,
+// max 21.1 instead of 23.0); not in place of DEPTH_ABC2, slower on others (serv 7 %, the EPFL router 8 %)
+export const DEPTH_ABC3 = DEPTH_ABC2.replace('if -g; strash; dc2; dch -f; if;', 'if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if;');
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
 // LUT delays (#78): ABC maps for depth with every function as fast as a LUT4 (-luts gives costs, not
 // delays); its LUT library (read_lut) tells it what a 5-input function (a LUT4 into the MUXF5) and a
@@ -486,7 +490,8 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * what happened: { tried, kept, wide: { ns, luts, kept } of the mapping with the wider functions,
  * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] (usual: the mapping kept
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
- * the depth-oriented one was kept, delays: { ns, luts, kept } of the same with the LUT delays (#78), and
+ * the depth-oriented one was kept, delays: { ns, luts, kept } of the same with the LUT delays (#78), third:
+ * { ns, luts, kept } of the one balanced twice more with the LUT delays (DEPTH_ABC3, #52), and
  * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
  * abc9: false leaves it out); each with its slices too, when it packs (sliceCount); muxf: { trees, ns, luts, slices,
  * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511) }.
@@ -585,14 +590,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         // with 4 Yosys or more at a time started now, before the second balancing (its run, about 2.5 times a
         // remap's, the longest: last in the queue it would make the synthesis longest), else after them (each
         // more Yosys costs memory in the browser)
-        const lines9 = [];
+        const lines9 = [], lines5 = [];
         const abc9 = () => run(['-q', '-p', `${abc9RemapCommands(top, family)}; ${outputs(top)}`], { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [SRL_CELLS_FILE]: SRL_CELLS },
           l => { if (!quiet(l)) lines9.push(l); });
         const early9 = withAbc9 && (run.parallel || 1) >= 4 ? abc9() : null;
         early9?.catch(() => {});
         // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
         // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
-        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true)]);
+        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true), remap(DEPTH_ABC3, lines5, true)]);
         const early = (run.parallel || 1) >= 4 ? second() : null;
         early?.catch(() => {});
         const [outW, out2] = await first;
@@ -623,20 +628,21 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
             chosen = out2;
             cells = cells2;
             for (const l of lines2) kept.push(l);
-            // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), at once; each kept
-            // by keepSecond, the one with the delays when both are and it is better by DEPTH_RULE
-            const [out3, out4] = await (early || second());
+            // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), and twice more with them
+            // (DEPTH_ABC3, #52), at once; each kept by keepSecond, a later one in place of an earlier one when
+            // both are and it is better by DEPTH_RULE
+            const [out3, out4, out5] = await (early || second());
             const cand = (o, lines) => {
               const j = o[`${top}.json`];
               if (!j) return null;
               const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts, k = slices(j);
               return { out: o, lines, cells: c, ns: n, luts: l, slices: k, kept: keepSecond([...ns, n], [...luts, l], DEPTH_RULE, [...sl, k]) };
             };
-            const a = cand(out3, lines3), b = cand(out4, lines4);
-            const useB = b?.kept && (!a?.kept || keepDepth([a.ns, b.ns], [a.luts, b.luts], DEPTH_RULE, [a.slices, b.slices]));
-            const best = useB ? b : a?.kept ? a : null;
+            const a = cand(out3, lines3), b = cand(out4, lines4), c = cand(out5, lines5);
+            const best = [a, b, c].reduce((x, y) => (y?.kept && (!x || keepDepth([x.ns, y.ns], [x.luts, y.luts], DEPTH_RULE, [x.slices, y.slices])) ? y : x), null);
             if (a) info.second = { ns: a.ns, luts: a.luts, slices: a.slices, kept: best === a };
             if (b) info.delays = { ns: b.ns, luts: b.luts, slices: b.slices, kept: best === b };
+            if (c) info.third = { ns: c.ns, luts: c.luts, slices: c.slices, kept: best === c };
             if (best) {
               chosen = best.out;
               cells = best.cells;
@@ -665,7 +671,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         // first mapping's netlist, valid, is kept and said (#401)
         chosen = out;
         cells = cellCounts(json, top);
-        for (const k of ['wide', 'second', 'delays', 'abc9']) delete info[k];
+        for (const k of ['wide', 'second', 'delays', 'third', 'abc9']) delete info[k];
         Object.assign(info, { tried: false, kept: false, ns: null, luts: null, slices: null, failed: e.message });
         sayNew(`Warning: the depth-oriented mapping failed (${e.message}): the usual mapping is kept`);
       }

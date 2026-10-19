@@ -124,10 +124,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 722,
-   "luts": 1444,
+   "slices": 719,
+   "luts": 1437,
    "ffs": 643,
-   "period": 29.368
+   "period": 27.908
   }
  },
  "epfl-multiplier": {
@@ -157,10 +157,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 115,
-   "luts": 229,
+   "slices": 117,
+   "luts": 233,
    "ffs": 137,
-   "period": 11.391
+   "period": 8.95
   }
  },
  "epfl-router": {
