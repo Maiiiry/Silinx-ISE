@@ -10,7 +10,7 @@
 //   translate  the netlist and the constraints read
 //   map        pack (cells into slices and I/O sites)
 //   par        place + route on the PIPs whose bits are known -> build/open/placed.xdl, routed.xdl
-//   trce       static timing analysis, PERIOD constraints of the UCF -> build/open/timing.txt
+//   trce       static timing analysis, PERIOD and OFFSET constraints of the UCF -> build/open/timing.txt
 //   pin2ucf    the pads the placer chose for the ports, as Xilinx pin2ucf -> build/<top>_pins.ucf
 //   bitgen     build/<top>.bit (prombit: build/<top>_prom.bit, StartUpClk Cclk, for the PROM)
 // The results go to build/reports.json (source 'open') for the Design Summary.

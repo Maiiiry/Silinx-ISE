@@ -28,7 +28,7 @@ import { placeRouteBest } from '../../core/fpga/place-route.js';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
 import { checkRouting } from '../../core/fpga/route.js';
 import { bitgen, knownRouting } from '../../core/fpga/bitgen.js';
-import { analyzeTiming, timingReport, checkPeriods, delayTable } from '../../core/fpga/timing.js';
+import { analyzeTiming, timingReport, checkPeriods, checkOffsets, parseOffsets, delayTable } from '../../core/fpga/timing.js';
 import { parseUcf } from '../../core/ucf.js';
 import { loadDb } from '../../core/fpga/bitdb-node.js';
 import { qualityOf } from '../../test/designs-corpus/lib.mjs';
@@ -116,7 +116,9 @@ if (!check.ok) fail('routing check', check.problems.slice(0, 50));
 // against the PERIOD constraints of the project's UCF
 const routedDesign = parseXdl(routedText);
 const sta0 = analyzeTiming(routedDesign, device);
-const checks = checkPeriods(sta0, routedDesign, ucf ? parseUcf(ucf).clocks : []);
+const pu = ucf ? parseUcf(ucf) : { clocks: [], other: [] };
+// (the PERIOD constraints, then the OFFSET ones: #26)
+const checks = [...checkPeriods(sta0, routedDesign, pu.clocks), ...checkOffsets(sta0, routedDesign, parseOffsets(pu.other), pu.clocks)];
 const sta = timingReport(sta0, checks);
 fs.writeFileSync(path.join(outDir, 'timing.txt'), `${sta.join('\n')}\n`);
 for (const l of sta) if (/^(clock|constraint)/.test(l)) console.log(`timing: ${l}`);
