@@ -226,7 +226,7 @@ export function pack(nl, opts = {}) {
   kept.stats.timing = kept === p;
   return kept;
 }
-function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' } = {}, timing = true) {
+function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', iobRegs = 'off' } = {}, timing = true) {
   const warnings = [];
   // (given the top's ports, a name such as x[1] is a bus bit only when x is a bus: #63, #84)
   const parsedUcf = typeof ucf === 'string' ? parseUcf(ucf, { ports: ucfPortsOf(nl) }) : ucf;
@@ -332,7 +332,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
   }
   function uniqueNetName(base) { let n = base, k = 1; const names = new Set(nets.map(x => x.name)); while (names.has(n)) n = `${base}_${k++}`; return n; }
   const liveCells = () => cells.filter(c => !c.lowered);
-  const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|BUFG)$/.test(c.type) || SLICEM_MEM[c.type]
+  const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|OBUFT|BUFG)$/.test(c.type) || SLICEM_MEM[c.type]
     || BRAM_TYPE.test(c.type) || MULT_TYPE.test(c.type) || DCM_TYPE.test(c.type);
   for (const c of liveCells()) {
     if (c.type === 'BUFGMUX') throw new PackError(`pack: BUFGMUX ${c.name}: the Silinx toolchain cannot switch clocks with a BUFGMUX yet (its I1 / S inputs are measured on one of the 8 buffers only)`);
@@ -451,6 +451,49 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
   }
   const ffs = new Map();   // cell index -> ffInfo, for the flip-flops not placed yet
   for (const c of cells) if (ffKind(c.type)) ffs.set(ci(c), ffInfo(c));
+
+  // ---------------------------------------------------------------- registers in the IOBs (#96)
+  // A flip-flop goes into the IOB of its pad when asked: the UCF's IOB = TRUE on its instance or on
+  // the port's net (IOB = FALSE keeps it out), the HDL's IOB attribute, or iobRegs (map's -pr: 'i'
+  // the input registers, 'o' the output and output-enable ones, 'b' both; 'off', the default, as
+  // ISE's flow runs map, -pr off). An input register: a flip-flop whose D is the pad's input (the
+  // input may drive other logic too); an output register: one whose Q drives only the output buffer;
+  // an output-enable register: one whose Q drives only a tristate buffer's T, with the output
+  // register's clock and set / reset when the IOB has both (the IOB's OTCLK1 and SR are shared).
+  const iobAsked = [];   // [NET / INST, name pattern (UCF's * and ?), true / false]: the last that matches
+  for (const st of parsedUcf?.other || []) {
+    const m = /^(NET|INST)\s+"?([^"\s]+)"?\s+IOB\s*=\s*"?(TRUE|FALSE|FORCE)"?\s*$/i.exec(String(st).trim());
+    if (m) iobAsked.push([m[1].toUpperCase(), new RegExp(`^${m[2].replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`), !/^FALSE$/i.test(m[3])]);
+  }
+  const asked = (kind, name) => { let v; for (const [k, re, x] of iobAsked) if (k === kind && name !== null && re.test(name)) v = x; return v; };
+  const portName = n => { for (const p of nl.ports) for (const b of p.bits) if (b.net === n) return b.name; return null; };
+  const wantsIob = (f, port, role) => {
+    const a = asked('INST', f.name) ?? asked('NET', port);
+    if (a !== undefined) return a;
+    const h = cells[f.cell].attrs?.IOB ?? cells[f.cell].attrs?.iob;
+    if (h !== undefined) return /^(TRUE|FORCE|1)$/i.test(String(h).replace(/"/g, ''));
+    return iobRegs === 'b' || iobRegs === (role === 'I' ? 'i' : 'o');
+  };
+  const iobFf = new Map();   // pad buffer cell -> { I | O | T: ffInfo }
+  const soleFf = n => { const d = driverCell(n); const f = d && ffs.get(ci(d)); return f && f.q === n && loadsOf(n).length === 1 ? f : null; };
+  const sameOt = (a, b) => !a || !b || (a.ctrl.clk === b.ctrl.clk && a.ctrl.clkInv === b.ctrl.clkInv && a.ctrl.sr === b.ctrl.sr && a.ctrl.srInv === b.ctrl.srInv && a.ctrl.sync === b.ctrl.sync);
+  for (const c of cells) {
+    if (c.lowered) continue;
+    const r = {};
+    if (c.type === 'IBUF') {
+      const port = portName(c.pins.I);
+      const f = loadsOf(c.pins.O).filter(l => l.pin === 'D' && ffs.has(l.cell)).map(l => ffs.get(l.cell)).find(x => !x.kind.latch && wantsIob(x, port, 'I'));
+      if (f) r.I = f;
+    } else if (c.type === 'OBUF' || c.type === 'OBUFT') {
+      const port = portName(c.pins.O);
+      const o = soleFf(c.pins.I), t = c.type === 'OBUFT' ? soleFf(c.pins.T) : null;
+      if (o && !o.kind.latch && wantsIob(o, port, 'O')) r.O = o;
+      if (t && !t.kind.latch && wantsIob(t, port, 'T') && sameOt(r.O, t)) r.T = t;
+    }
+    if (!Object.keys(r).length) continue;
+    iobFf.set(ci(c), r);
+    for (const f of Object.values(r)) ffs.delete(f.cell);
+  }
   // the flip-flops whose D is net n
   const ffsOn = n => loadsOf(n).filter(l => l.pin === 'D' && ffs.has(l.cell) && !where.has(l.cell)).map(l => ffs.get(l.cell));
   // try to put a flip-flop fed by the output multiplexer of side `side` into that side's slot
@@ -923,23 +966,39 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
       // output a dangling pin)
       if (!loadsOf(c.pins.O).length) { where.set(ci(c), { inst: -1, bel: 'UNUSED' }); setSink(ci(c), 'I', 'int'); stats.unusedInputs = (stats.unusedInputs || 0) + 1; continue; }
       const a = cons[port.name] || {};
-      const cfg = [['IDELMUX', '', '1'], ['IMUX', '', '1'], ['IOATTRBOX', '', a.iostandard || 'LVCMOS25'], ['INBUF', `${port.name}_IBUF`, ''], ['PAD', port.name, '']];
+      const reg = iobFf.get(ci(c))?.I;
+      // (the input straight to the fabric too: IMUX; an input register alone does not have it)
+      const direct = !reg || loadsOf(c.pins.O).some(l => l.cell !== reg.cell);
+      const cfg = [...(direct ? [['IDELMUX', '', '1'], ['IMUX', '', '1']] : []), ['IOATTRBOX', '', a.iostandard || 'LVCMOS25']];
+      if (reg) cfg.push(...iobInputReg(reg, port.name));
+      cfg.push(['INBUF', `${port.name}_IBUF`, ''], ['PAD', port.name, '']);
       if (a.pull) cfg.push(['PULL', '', { up: 'PULLUP', down: 'PULLDOWN', keeper: 'KEEPER' }[a.pull]]);
-      const s = { kind: 'iob', type: 'IBUF', name: port.name, loc: a.loc || null, dir: 'in', fixedCfg: cfg, idx: insts.length };
+      const s = { kind: 'iob', type: 'IBUF', name: port.name, loc: a.loc || null, dir: 'in', fixedCfg: cfg, idx: insts.length, regs: reg ? ['I'] : [] };
       insts.push(s);
       where.set(ci(c), { inst: s.idx, bel: 'INBUF' });
       setSink(ci(c), 'I', 'int');
-    } else if (c.type === 'OBUF') {
+      if (reg) iobRegSinks(s, reg, 'I');
+    } else if (c.type === 'OBUF' || c.type === 'OBUFT') {
       const port = portOfNet.get(c.pins.O);
       if (!port) throw new PackError(`pack: ${c.name}: output buffer not on a port`);
       const a = cons[port.name] || {};
-      const cfg = [['DRIVEATTRBOX', '', String(a.drive || 12)], ['IOATTRBOX', '', a.iostandard || 'LVCMOS25'], ['O1INV', '', 'O1'], ['OMUX', '', 'O1'],
-        ['SLEW', '', (a.slew || 'slow').toUpperCase()], ['OUTBUF', `${port.name}_OBUF`, ''], ['PAD', port.name, '']];
+      const r = iobFf.get(ci(c)) || {};
+      // a tristate output: its enable on T1 (TMUX T1) or from the output-enable register (TFF1)
+      const tri = c.type === 'OBUFT' && nets[c.pins.T].const !== 0;
+      const cfg = [['DRIVEATTRBOX', '', String(a.drive || 12)], ['IOATTRBOX', '', a.iostandard || 'LVCMOS25'], ['O1INV', '', 'O1'], ['OMUX', '', r.O ? 'OFF1' : 'O1'],
+        ['SLEW', '', (a.slew || 'slow').toUpperCase()]];
+      if (tri) cfg.push(['T1INV', '', 'T1'], ['TMUX', '', r.T ? 'TFF1' : 'T1']);
+      cfg.push(...iobOutputRegs(r));
+      cfg.push(['OUTBUF', `${port.name}_OBUF`, ''], ['PAD', port.name, '']);
       if (a.pull) cfg.push(['PULL', '', { up: 'PULLUP', down: 'PULLDOWN', keeper: 'KEEPER' }[a.pull]]);
-      const s = { kind: 'iob', type: 'IOB', name: port.name, loc: a.loc || null, dir: 'out', fixedCfg: cfg, idx: insts.length };
+      const s = { kind: 'iob', type: 'IOB', name: port.name, loc: a.loc || null, dir: 'out', fixedCfg: cfg, idx: insts.length, regs: Object.keys(r) };
       insts.push(s);
       where.set(ci(c), { inst: s.idx, bel: 'OUTBUF' });
-      setSink(ci(c), 'I', { inst: s.idx, pin: 'O1', kind: 'gen' });
+      if (r.O) { setSink(ci(c), 'I', 'int'); iobRegSinks(s, r.O, 'O'); } else setSink(ci(c), 'I', { inst: s.idx, pin: 'O1', kind: 'gen' });
+      if (c.type === 'OBUFT') {
+        if (!tri) setSink(ci(c), 'T', 'int');
+        else if (r.T) { setSink(ci(c), 'T', 'int'); iobRegSinks(s, r.T, 'T'); } else setSink(ci(c), 'T', { inst: s.idx, pin: 'T1', kind: 'gen' });
+      }
     } else if (c.type === 'BUFG') {
       const s = { kind: 'bufg', type: 'BUFGMUX', name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c) };
       insts.push(s);
@@ -950,6 +1009,40 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
     } else if (BRAM_TYPE.test(c.type)) packBram(c);
     else if (MULT_TYPE.test(c.type)) packMult(c);
     else if (DCM_TYPE.test(c.type)) packDcm(c);
+  }
+  // The settings of an IOB's registers (#96), as ISE's map writes them (research/s3e-bitstream stage G, #44):
+  // the register, its initial value, its set / reset (SR: SRHIGH sets, SRLOW resets; SYNC or ASYNC) and its
+  // clock, enable and set / reset inverters; the parts not used are left out (the bit database has their
+  // bits: iobRegPseudo). An input register's input delay: the one ISE's map chooses by itself (AUTO:
+  // DLY2 on the XC3S100E, DLY3 on the others; the others are not in the database, #97).
+  function iobRegCfg(f, g, ff, clk) {
+    const t = f.ctrl, cfg = [[ff, escCfg(f.name), '#FF'], [`${ff}_INIT_ATTR`, '', f.init ? 'INIT1' : 'INIT0']];
+    if (t.sr !== null) cfg.push([`${ff}_SR_ATTR`, '', f.kind.high ? 'SRHIGH' : 'SRLOW'], [`${g}FFATTRBOX`, '', t.sync ? 'SYNC' : 'ASYNC'], [`${g}SR_USED`, '', '0'], ['SRINV', '', t.srInv ? 'SR_B' : 'SR']);
+    if (t.ce !== null) cfg.push([`${g}CEINV`, '', t.ceInv ? `${g}CE_B` : `${g}CE`]);
+    if (clk) cfg.push([`${clk}INV`, '', t.clkInv ? `${clk}_B` : clk]);
+    return cfg;
+  }
+  function iobInputReg(f, pad) {
+    const dly = /^xc3s100e/i.test(part) ? 'DLY2' : 'DLY3';
+    return [...iobRegCfg(f, 'I', 'IFF1', 'ICLK1'), ['IDDRIN_MUX', '', '2'], ['IFD_DELAY_VALUE', '', dly], ['IFFDELMUX', '', '0'], ['IFFDMUX', '', '1'],
+      ['PRE_DELAY_MUX', '', '0'], ['IFD_DELAY', `${pad}.IFD_DELAY`, '']];
+  }
+  function iobOutputRegs(r) {
+    const cfg = [];
+    if (r.O) cfg.push(...iobRegCfg(r.O, 'O', 'OFF1', 'OTCLK1'));
+    if (r.T) cfg.push(...iobRegCfg(r.T, 'T', 'TFF1', r.O ? null : 'OTCLK1'));
+    // (SRINV once: the IOB's set / reset is shared)
+    return cfg.filter(([a], k) => a !== 'SRINV' || cfg.findIndex(([b]) => b === 'SRINV') === k);
+  }
+  // the pins of an IOB register: its clock, enable and set / reset on the site's (one clock and one set /
+  // reset for the output and output-enable registers), D on O1 / T1 (an input register's: the pad, inside)
+  function iobRegSinks(s, f, role) {
+    const t = f.ctrl, pin = (p, v) => setSink(f.cell, p, v === null ? 'int' : { inst: s.idx, pin: v, kind: 'gen' });
+    where.set(f.cell, { inst: s.idx, bel: `${role}FF1` });
+    pin(f.clkPin, role === 'I' ? 'ICLK1' : 'OTCLK1');
+    if (f.cePin in cells[f.cell].pins) pin(f.cePin, t.ce !== null ? `${role}CE` : null);
+    if (f.srPin) pin(f.srPin, t.sr !== null ? 'SR' : null);
+    pin('D', role === 'I' ? null : role === 'O' ? 'O1' : 'T1');
   }
   // a site of its own whose pins are the cell's: pin map cell pin -> site pin (inputs; or several
   // site pins on one net), outputs by name
@@ -1215,6 +1308,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
       case 'CYMUXF': s.xb = true; return { inst: w.inst, pin: 'XB' };
       case 'CYMUXG': s.yb = true; return { inst: w.inst, pin: 'YB' };
       case 'INBUF': return { inst: w.inst, pin: 'I' };
+      case 'IFF1': return { inst: w.inst, pin: 'IQ1' };
       case 'BUFG': return { inst: w.inst, pin: 'O' };
       default: throw new PackError(`pack: no output pin for ${w.bel}`);
     }
