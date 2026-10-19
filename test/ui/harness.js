@@ -314,7 +314,16 @@ class PageBase {
       // name shown), and a point taken before that lands on the next menu (Edit opened instead of File)
       const { x, y } = await this.point('#menubar .item', { index: idx });
       if (!await this.eval((i, px, py) => document.querySelectorAll('#menubar .item')[i].contains(document.elementFromPoint(px, py)), idx, x, y)) {
-        if (attempt > 50) throw new Error(`menu '${label}': its title is not under its own position (covered?)`);
+        if (attempt > 50) {
+          // say what is there instead (a dialog, a popup, a toast…): its tag, id and classes, and its ancestors'
+          const over = await this.eval((px, py) => {
+            const name = (e) => `${e.tagName.toLowerCase()}${e.id ? `#${e.id}` : ''}${typeof e.className === 'string' && e.className ? `.${e.className.trim().split(/\s+/).join('.')}` : ''}`;
+            const path = [];
+            for (let e = document.elementFromPoint(px, py); e && e !== document.body && path.length < 4; e = e.parentElement) path.push(name(e));
+            return path.join(' < ') || 'nothing';
+          }, x, y).catch(() => '?');
+          throw new Error(`menu '${label}': its title is not under its own position (covered by ${over})`);
+        }
         await sleep(100);
         continue;
       }
