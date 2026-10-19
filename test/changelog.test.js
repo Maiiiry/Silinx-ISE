@@ -6,6 +6,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { parseChangelog, changesOf, changesSince, releaseNotes } from '../core/changelog.js';
 import { compareVersions, VERSION } from '../core/version.js';
@@ -40,4 +42,30 @@ test('scripts/release-notes.mjs: the release text of a version; --require fails 
   assert.match(out, /^## What's new in \d+\.\d+\.\d+\n/);
   assert.match(out, /## Downloads/);
   assert.throws(() => execFileSync(process.execPath, ['scripts/release-notes.mjs', '0.0.99', '--require'], { stdio: 'pipe' }), /CHANGELOG\.md has no/);
+});
+
+test('release notes: the files\' checksums and how to check a download, at the end (#485)', () => {
+  const md = '# Changelog\n\n## 2.1.0\n\n- c\n';
+  const sums = `${'a'.repeat(64)}  Silinx-ISE.html\n${'b'.repeat(64)}  silinx-ise-2.1.0.zip\n`;
+  const notes = releaseNotes(md, '2.1.0', 'COMMON', sums);
+  assert.ok(notes.startsWith('## What\'s new in 2.1.0\n\n- c\n\nCOMMON\n\n## Checking a download\n\nThe files\' SHA-256 checksums (the file SHA256SUMS):\n\n```\n'
+    + `${'a'.repeat(64)}  Silinx-ISE.html\n${'b'.repeat(64)}  silinx-ise-2.1.0.zip\n\`\`\`\n\n`), notes);
+  for (const cmd of ['sha256sum -c SHA256SUMS --ignore-missing', 'shasum -a 256 -c SHA256SUMS --ignore-missing', 'Get-FileHash <file>', 'gh attestation verify <file> --repo pmnmalo/Silinx-ISE'])
+    assert.ok(notes.includes(`\`${cmd}\``), cmd);
+  assert.ok(notes.endsWith('.\n'));
+  // without the checksums, as before
+  assert.equal(releaseNotes(md, '2.1.0', 'COMMON'), '## What\'s new in 2.1.0\n\n- c\n\nCOMMON\n');
+
+  // the script reads them from the file (--sums), and refuses a malformed or empty one
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-notes-'));
+  try {
+    const version = parseChangelog(MD)[0].version;
+    fs.writeFileSync(path.join(dir, 'SHA256SUMS'), sums);
+    const out = execFileSync(process.execPath, ['scripts/release-notes.mjs', version, '--sums', path.join(dir, 'SHA256SUMS')], { encoding: 'utf8' });
+    assert.match(out, /## Downloads[\s\S]*## Checking a download\n[\s\S]*b{64} {2}silinx-ise-2\.1\.0\.zip\n```\n/);
+    fs.writeFileSync(path.join(dir, 'SHA256SUMS'), 'not a sum\n');
+    assert.throws(() => execFileSync(process.execPath, ['scripts/release-notes.mjs', version, '--sums', path.join(dir, 'SHA256SUMS')], { stdio: 'pipe' }), /line 1: not "<sha-256>  <name>"/);
+    fs.writeFileSync(path.join(dir, 'SHA256SUMS'), '');
+    assert.throws(() => execFileSync(process.execPath, ['scripts/release-notes.mjs', version, '--sums', path.join(dir, 'SHA256SUMS')], { stdio: 'pipe' }), /no checksum/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

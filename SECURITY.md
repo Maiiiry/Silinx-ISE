@@ -42,5 +42,8 @@ whoever has the address with its token has the server, as the warning says at st
   the JavaScript on every push to `main`; Dependabot's alerts report a dependency with a known
   vulnerability, and Dependabot updates the dependencies weekly and opens security updates at once.
   Before every push, `node scripts/check-private-data.mjs` checks the tracked files.
+- Every release lists its files' SHA-256 checksums (`SHA256SUMS`, also in its notes) and carries GitHub's
+  build provenance attestation of each file: how to check a download is in the README and
+  [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md).
 - On GitHub, secret scanning and push protection refuse a token or key at push time, and private
   vulnerability reporting is on.

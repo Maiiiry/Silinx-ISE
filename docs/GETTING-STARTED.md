@@ -91,6 +91,15 @@ Silinx runs on **Node.js**, a free program.
    - **macOS:** double-click the zip.
    - You get a folder called **`silinx-ise`**.
 
+*Optional, to make sure the file is the release's (for example one you got from a course page):* the
+release lists each file's SHA-256 checksum in its notes and in the file **`SHA256SUMS`**. Download
+`SHA256SUMS` into the same folder and, in a terminal there, run `sha256sum -c SHA256SUMS --ignore-missing`
+(Linux) or `shasum -a 256 -c SHA256SUMS --ignore-missing` (macOS): the file must say `OK`. On Windows,
+`Get-FileHash silinx-ise-<version>.zip` in PowerShell prints the checksum to compare with the notes'.
+Each file also has GitHub's build provenance attestation (it was built by the repository's Release
+workflow from the version's tag): with the [GitHub CLI](https://cli.github.com),
+`gh attestation verify silinx-ise-<version>.zip --repo pmnmalo/Silinx-ISE`.
+
 ### Step 3: start Silinx
 
 Open the `silinx-ise` folder and double-click the launcher for your system:

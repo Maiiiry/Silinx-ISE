@@ -6,6 +6,7 @@
 //     silinx-ise-docker-kit-<version>.zip  builder kit of the private Xilinx ISE 14.7 Docker image
 //     Silinx-ISE.html                      the single-file edition (copied from dist/, built before
 //                                          with npm run build:standalone; left out when not built)
+//     SHA256SUMS                           the SHA-256 checksums of the files above (#485)
 // version dev: the files of the pre-release "Development build" (silinx-ise-dev.zip, …).
 // --app-only: only the app zip. The version defaults to package.json's. Needs `zip` (Linux, macOS)
 // and npm (the production dependencies are installed from package-lock.json: npm ci --omit=dev).
@@ -14,6 +15,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { sha256sums, SUMS_FILE } from './checksums.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const argv = process.argv.slice(2);
@@ -69,4 +71,6 @@ if (!appOnly) {
   const html = path.join(root, 'dist', 'Silinx-ISE.html');
   if (fs.existsSync(html)) { fs.copyFileSync(html, path.join(out, 'Silinx-ISE.html')); made.push(path.join(out, 'Silinx-ISE.html')); }
 }
+// (sha256sum -c SHA256SUMS checks a download; the Release workflow attests the files it lists)
+fs.writeFileSync(path.join(out, SUMS_FILE), sha256sums(made));
 for (const f of made) console.log(`${f}  ${(fs.statSync(f).size / 1048576).toFixed(1)} MB`);

@@ -26,11 +26,17 @@ export function changesSince(md, from, to) {
   return parseChangelog(md).filter(s => compareVersions(s.version, from) > 0 && (!to || compareVersions(s.version, to) <= 0));
 }
 
-/** The GitHub release text of a version: "What's new" (its changelog section), then the common part. */
-export function releaseNotes(md, version, common) {
+/** The GitHub release text of a version: "What's new" (its changelog section), the common part, then the
+ *  files' SHA-256 checksums (the SHA256SUMS file's text, #485) and how to check a download, when given. */
+export function releaseNotes(md, version, common, sums) {
   const s = changesOf(md, version);
   const head = s ? `## What's new in ${s.version}\n\n${s.body}\n\n` : '';
-  return `${head}${String(common || '').trim()}\n`;
+  const check = sums ? `\n\n## Checking a download\n\nThe files' SHA-256 checksums (the file SHA256SUMS):\n\n\`\`\`\n${String(sums).trim()}\n\`\`\`\n\n`
+    + 'In the folder of the downloads: `sha256sum -c SHA256SUMS --ignore-missing` (Linux), '
+    + '`shasum -a 256 -c SHA256SUMS --ignore-missing` (macOS), `Get-FileHash <file>` (Windows PowerShell, compared by eye). '
+    + 'Each file also has a build provenance attestation (it was built by this repository\'s Release workflow from this tag): '
+    + '`gh attestation verify <file> --repo pmnmalo/Silinx-ISE`.' : '';
+  return `${head}${String(common || '').trim()}${check}\n`;
 }
 
 // ---- changelog fragments (#519): each change adds a file changes/<issue>-<slug>.md instead of editing
