@@ -6,12 +6,12 @@ import fs from 'node:fs';
 
 const read = f => fs.readFileSync(new URL(`../web/js/${f}`, import.meta.url), 'utf8');
 const app = read('app.js');
-const exportsOf = code => new Set([...code.matchAll(/^export (?:async )?function (\w+)/gm)].map(m => m[1]));
+const exportsOf = code => new Set([...code.matchAll(/^export (?:async )?(?:function|const|let) (\w+)/gm)].map(m => m[1]));
 const importedFrom = (code, mod) => {
   const m = new RegExp(`^import \\{([^}]*)\\} from '\\./${mod.replace('.', '\\.')}';`, 'm').exec(code);
   return m ? m[1].split(',').map(s => s.trim()).filter(Boolean) : null;
 };
-const definedIn = (code, name) => new RegExp(`^(?:export )?(?:async )?function ${name}\\(|^(?:let|const) ${name}\\b`, 'm').test(code);
+const definedIn = (code, name) => new RegExp(`^(?:export )?(?:async )?function ${name}\\(|^(?:export )?(?:let|const) ${name}\\b`, 'm').test(code);
 
 // the modules taken out of app.js and the functions each one owns
 const PARTS = {
@@ -21,6 +21,9 @@ const PARTS = {
     'closeProjectNow', 'reloadProject', 'reloadProjectNow', 'updateTitle', 'rememberRecent', 'recent', 'clearRecent',
     'renderStartPage', 'storageBox', 'storageMenuItems', 'storageLine', 'updateStorageStatus', 'switchStorage',
     'openWorkspaceFolder', 'reopenWorkspaceFolder', 'useBrowserStorage', 'copyBrowserProjects'],
+  'implement.js': ['STEP_PROC', 'STEP_TOOL', 'RANK', 'worst', 'applyReportWarnings', 'stepTracker', 'ucfDiagnostics', 'checkUcfFile',
+    'checkConstraints', 'regenerateUcf', 'runImpl', 'runImplInner', 'SYNTH_OPEN', 'synthOpenRunning', 'synthOpen', 'FLOW_UP_TO',
+    'generateSimModel', 'postParTiming', 'textPowerReport', 'backAnnotatePins', 'readBuildFile', 'showTextDoc', 'stopProcesses'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -45,7 +48,7 @@ test('#405 app.js split: what app.js imports from a module is exported by it, an
   }
   // the names other modules use on the app object are still there
   for (const name of ['log', 'logLine', 'setDiagnostics']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
-  for (const name of ['openProject', 'closeProject', 'reloadProject']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
+  for (const name of ['openProject', 'closeProject', 'reloadProject', 'stepTracker', 'regenerateUcf']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
   // and app.js still exports them by name
   assert.match(app, /^export \{ log, setDiagnostics \};/m);
   assert.match(app, /^export \{ openProject, closeProject, reloadProject \};/m);
@@ -69,4 +72,24 @@ test('#405 project.js: open / close / reload keep their call order (the queues o
   // every document closed through app.js (its view state kept as it was), never by project.js itself
   assert.equal((code.match(/if \(!await closeAllDocs\(\)\) return;/g) || []).length, 2);
   assert.doesNotMatch(code, /keepView|closeDoc\(/);
+});
+
+// The modules import app.js and app.js imports them (a cycle): a module's top level reads nothing app.js
+// defines, or it would read it before app.js has run: its top-level constants are literals or functions.
+test('#405 app.js split: a module\'s top-level constants use nothing imported from app.js', () => {
+  for (const mod of Object.keys(PARTS)) {
+    const code = read(mod), fromApp = importedFrom(code, 'app.js');
+    for (const m of code.matchAll(/^(?:export )?(?:const|let) (\w+) = ([^\n]*(?:\n {2}[^\n]*)*)/gm)) {
+      if (/^(?:async )?(?:\([^)]*\)|\w+) =>/.test(m[2])) continue;   // a function: run later
+      for (const name of fromApp) assert.doesNotMatch(m[2], new RegExp(`\\b${name}\\b`), `${mod}: ${m[1]} reads ${name}`);
+    }
+  }
+});
+
+test('#405 implement.js: the implementation processes, Check Constraints and Stop left app.js', () => {
+  const code = read('implement.js');
+  for (const s of ['=== SILINX STEP', "'Synthesize - Yosys (open)'", 'pin location(s) chosen by the tools', 'api.cancelJob(S.currentJob)'])
+    assert.ok(code.includes(s) && !app.includes(s), s);
+  // the processes panel's runners in app.js still reach them
+  for (const name of ['runImpl', 'synthOpen', 'checkUcfFile', 'stopProcesses']) assert.match(app, new RegExp(`\\b${name}\\(`), name);
 });
