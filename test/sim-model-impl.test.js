@@ -3,7 +3,8 @@
 // generics they were synthesized with); both models simulated against an independent reference (the
 // netlist's cycle simulator of test/fpga-sim.js) on the packer's fixtures and on small designs with shift
 // registers, distributed and block RAMs, multipliers and latches; the flow's steps, their report and their
-// exact log; and every example's test bench passes on both models, in VHDL and in Verilog.
+// exact log. Every example's test bench on both models: test/sim-model-examples.test.js and
+// test/sim-model-vga.test.js (three files, so they run alongside each other, #566).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -18,13 +19,9 @@ import { runOpenFlow } from '../core/open-flow-core.js';
 import { orderOpenSteps } from '../core/open-steps.js';
 import { readYosysJson, paramBits } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
-import { scalarizeNetlist } from '../core/netlist-hier.js';
 import { Simulator } from '../core/simulator.js';
 import { netlistSim } from './fpga-sim.js';
-import zlib from 'node:zlib';
-import { loadDevice } from '../core/fpga/device.js';
-import { shippedDevicePath } from '../core/fpga/device-node.js';
-import { example, EXAMPLES } from './examples-lib.mjs';
+import { simulate, device } from './sim-model-lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FPGA = path.join(HERE, 'fixtures', 'fpga'), DESIGNS = path.join(HERE, 'fixtures', 'designs');
@@ -37,26 +34,7 @@ const TB = `library IEEE; use IEEE.STD_LOGIC_1164.ALL; use IEEE.NUMERIC_STD.ALL;
 entity tb is end; architecture t of tb is signal clk, rst : std_logic := '0'; signal q : std_logic_vector(3 downto 0);
 begin clk <= not clk after 5 ns; u: entity work.cnt generic map (N => 3) port map (clk => clk, rst => rst, q => q);
 process begin wait for 95 ns; report "q = " & integer'image(to_integer(unsigned(q))); wait; end process; end;`;
-// the device description Map's report needs (loaded once)
-let DEVICE = null;
-const device = () => (DEVICE ||= loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(shippedDevicePath('xc3s250ecp132-4'))).toString('utf8'))));
 const src = [{ path: 'cnt.vhd', lang: 'vhdl', text: DUT }], tb = [{ path: 'tb.vhd', lang: 'vhdl', text: TB }];
-
-// a model compiled with the test bench (its entity replaces the RTL one), elaborated, simulated
-function simulate(sources, file, text, top, until, { stop = /Simulation finished OK|ERROR/ } = {}) {
-  const lang = file.endsWith('.v') ? 'verilog' : 'vhdl';
-  const all = [...sources, { path: file, lang, text: lang === 'vhdl' ? scalarizeNetlist(text) : text }];
-  const lib = compile([...primitiveSources(all), ...all]);
-  lib.errors = lib.errors.filter(e => !/redefined/.test(e.message));
-  const d = elaborate(lib, top);
-  const diags = [...lib.errors, ...d.diags].filter(x => x.file === file || x.severity === 'error');
-  if (diags.length) return { diags: diags.map(x => `${x.severity} ${x.file}:${x.line} ${x.message}`), log: [] };
-  const s = new Simulator(d);
-  for (const sig of d.signals) sig.wave = null;
-  const step = until / 100;
-  for (let t = step; t <= until; t += step) { const st = s.run(t); if (st.finished || s.log.some(e => stop.test(e.text))) break; }
-  return { diags: [], log: s.log.map(e => `${e.kind === 'warning' ? 'WARNING: ' : ''}${e.text}`) };
-}
 
 test('postTranslateModels: the netlist as SIMPRIM primitives, the top\'s ports and generics, the header, both languages', async () => {
   const r = await synthesizeOpen(elaborate(compile(src), 'cnt', { generics: { N: 3 } }), { family: 'spartan3e', run: yosysNode });
@@ -238,28 +216,3 @@ test('the flow\'s posttrans and postmap steps: the models synthesized with the t
   assert.deepEqual(r3.report.simModels.postmap, { path: 'build/netgen/map/cnt_map.vhd', verilog: 'build/netgen/map/cnt_map.v' });
   assert.deepEqual(lines3.filter(l => /^(WARNING|INFO|ERROR|Synthesizing)/.test(l)), []);
 });
-
-// every example's test bench, on both models of the example (its generics the test bench's), VHDL and Verilog,
-// with no warnings (the examples' test benches report "Simulation finished OK" when every check passed)
-for (const name of EXAMPLES) {
-  for (const [step, dir] of [['posttrans', 'translate'], ['postmap', 'map']]) {
-    test(`example ${name}: its test bench passes on the ${dir === 'map' ? 'post-map' : 'post-translate'} model, VHDL and Verilog (#121)`, { timeout: 900000 }, async () => {
-      const ex = example(name);
-      const design = ex.design.map(f => ({ path: f.path, lang: f.lang, text: f.text })), sim = ex.sim.map(f => ({ path: f.path, lang: f.lang, text: f.text }));
-      const written = {}, lines = [];
-      const r = await runOpenFlow({ top: ex.project.top, part: 'xc3s250ecp132-4', family: 'spartan3e', steps: orderOpenSteps([step]), simTop: ex.project.simTop },
-        { log: l => lines.push(l), sources: () => design, simSources: () => sim, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {}, device });
-      assert.equal(r.ok, true, lines.join('\n'));
-      assert.deepEqual(lines.filter(l => /^(WARNING|INFO|ERROR)/.test(l)), [], name);
-      // (the model's files: the synthesis writes the netlist's too)
-      for (const f of Object.keys(written)) if (!/^netgen\//.test(f)) delete written[f];
-      assert.deepEqual(Object.keys(written).sort(), [`netgen/${dir}/${ex.project.top}_${dir}.v`, `netgen/${dir}/${ex.project.top}_${dir}.vhd`]);
-      for (const [file, text] of Object.entries(written)) {
-        const s = simulate([...design, ...sim], file, text, ex.project.simTop, name === 'vga' ? 3e10 : 1e11);
-        assert.deepEqual(s.diags, [], `${name} ${file}`);
-        assert.ok(s.log.some(l => /Simulation finished OK/.test(l)), `${name} ${file}: ${s.log.slice(-4).join(' | ')}`);
-        assert.deepEqual(s.log.filter(l => /ERROR|WARNING/.test(l)), [], `${name} ${file}`);
-      }
-    });
-  }
-}
