@@ -286,8 +286,13 @@ export const ABC9_UNKEEP_CLOCKS = 'setattr -unset keep @silinx_clocks';
 // top module alone (#86): synth_xilinx reads Yosys's whole Xilinx cell library as black boxes (430 modules of every
 // family), which write_json wrote too: 9 MB for blinky instead of 0.3, and about 0.9 s of every run (its LUT
 // mapping 0.15 s); every reader of the netlist takes its top module (core/fpga/netlist.js, sim-model.js,
-// compiled-sim.js…). (write_verilog leaves the black boxes out by itself.)
-const outputs = top => `delete t:$scopeinfo; select -module ${top}; write_json -selected ${top}.json; select -clear; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;
+// compiled-sim.js…). (write_verilog leaves the black boxes out by itself.) The top is selected by its attribute,
+// not by its name, and is not a black box (#631): a top that ends empty is one (read_verilog marks a module with no
+// body so: Yosys's ifdef_1, specify.v), which write_json -selected leaves out, and a name such as \1dff (an escaped
+// identifier) is not the one select -module takes. (The library stays in the design: write_json takes the cells'
+// port directions from it.)
+export const TOP_ONLY = 'setattr -mod -unset blackbox =A:top; select =A:top';
+const outputs = top => `delete t:$scopeinfo; ${TOP_ONLY}; write_json -selected ${top}.json; select -clear; write_verilog -noattr ${top}_yosys.v; tee -q -o ${top}_stat.txt stat`;
 
 // the netlist between the two runs of a design with carry chains written as gates (#77)
 export const CHAIN_FILE = 'silinx_chains.json';
@@ -511,7 +516,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   // netlist, its carry chains found there); at Normal started at once beside the usual run (#377)
   const gates = lut4 && gateAssignments(design) >= GATE_MIN;
   const lines1 = [];
-  const coarse = () => run(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${splitCommands(top, family, opts)[0]}; select -module ${top}; write_json -selected ${CHAIN_FILE}`],
+  const coarse = () => run(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv ${top}_syn.v; ${splitCommands(top, family, opts)[0]}; ${TOP_ONLY}; write_json -selected ${CHAIN_FILE}`],
     yosysFiles(top, text), l => { if (!quiet(l)) lines1.push(l); });
   const preRun = normal && gates ? coarse() : null;
   preRun?.catch(() => {});

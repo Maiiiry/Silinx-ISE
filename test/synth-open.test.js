@@ -617,6 +617,23 @@ test('shift registers read at a variable tap (#5) as SRL16E: a vector, past 16 s
   }
 });
 
+// Regression (#631): each run's JSON has the top module alone (#86), selected by its attribute: a top left with
+// nothing in it (read_verilog makes it a black box, which write_json -selected leaves out) and an escaped
+// identifier (select -module does not take \\1dff) are written too, at both efforts
+test('#631 the netlist has its top: an empty one, and an escaped name, at Normal and High', { timeout: 300000 }, async () => {
+  for (const effort of ['normal', 'high']) {
+    const empty = elaborate(compile([{ path: 'e.v', lang: 'verilog', text: 'module empty_top(output o1, output o2);\nendmodule' }]), 'empty_top');
+    const r = await synthesizeOpen(empty, { family: 'spartan3e', run: yosysNode, effort });
+    assert.deepEqual(Object.keys(JSON.parse(r.files['empty_top.json']).modules), ['empty_top'], effort);
+    assert.equal(r.util.cells, 0);
+    const esc = elaborate(compile([{ path: 'x.v', lang: 'verilog', text: 'module \\1dff (input clk, input d, output reg q);\n  always @(posedge clk) q <= d;\nendmodule' }]), '1dff');
+    const s = await synthesizeOpen(esc, { family: 'spartan3e', run: yosysNode, effort });
+    assert.deepEqual(Object.keys(JSON.parse(s.files[`${s.top}.json`]).modules), [s.top], effort);
+    assert.equal(s.cells.FDRE ?? s.cells.FD ?? s.cells.FDE, 1, JSON.stringify(s.cells));
+    assert.deepEqual(s.warnings, [], effort);
+  }
+});
+
 test('a shift register on the falling edge alone (SRL16E_1) gets its clock through a BUFG (#219)', { timeout: 120000 }, async () => {
   const design = elaborate(compile([{ path: 't.v', lang: 'verilog', text: 'module t(input clk, input d, output q); reg [7:0] r = 0; always @(negedge clk) r <= {r[6:0], d}; assign q = r[7]; endmodule' }]), 't');
   const r = await synthesizeOpen(design, { family: 'spartan3e', run: yosysNode });
