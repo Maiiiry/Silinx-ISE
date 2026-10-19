@@ -21,7 +21,7 @@ import {
   normalizeFsm, newFsm, validateFsm, generateFsm, parseLabel, parseOutputs, formatOutputs, fsmEncoding,
   transitionTable, stateTable, encodedTable, toCsv, stepFsm, autoLayout, FSM_ENCODINGS, STATE_R,
 } from '/core/fsm.js';
-import { esc } from './dom.js';
+import { highlightHdl } from './highlight.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
@@ -41,25 +41,6 @@ const textW = (s) => String(s).length * CHW;
 function radiusOf(s) {
   const outs = formatOutputs(s.outputs);
   return Math.max(STATE_R, Math.ceil(textW(s.name) * 1.1 / 2) + 12, Math.ceil(textW(outs) / 2) + 10);
-}
-
-// Tiny syntax highlighter for the code preview
-const KW = new Set(('library use entity is port in out architecture of signal constant type subtype attribute begin process if then ' +
-  'elsif else case when others null downto and or not xor module input output wire reg localparam always posedge negedge ' +
-  'endcase endmodule default std_logic std_logic_vector unsigned rising_edge end all').split(' '));
-function highlight(code) {
-  const re = /(--[^\n]*|\/\/[^\n]*)|("[^"\n]*"|'[01]'|\b\d+'[bdhoBDHO][0-9a-fA-F_]+\b)|\b([A-Za-z_]\w*)\b/g;
-  let out = '', last = 0, m;
-  while ((m = re.exec(code))) {
-    out += esc(code.slice(last, m.index));
-    last = re.lastIndex;
-    if (m[1]) out += `<span class="tk-com">${esc(m[1])}</span>`;
-    else if (m[2]) out += `<span class="tk-lit">${esc(m[2])}</span>`;
-    else if (KW.has(m[3].toLowerCase()) && !/^[A-Z]/.test(m[3])) out += `<span class="tk-kw">${esc(m[3])}</span>`;
-    else if (/^S_/.test(m[3])) out += `<span class="tk-st">${esc(m[3])}</span>`;
-    else out += esc(m[3]);
-  }
-  return out + esc(code.slice(last));
 }
 
 export function mountFsmEditor(container, opts = {}) {
@@ -765,7 +746,7 @@ export function mountFsmEditor(container, opts = {}) {
     const pre = h('pre', { class: 'asm-code fsm-code' });
     try {
       const g = generateFsm(M, M.lang);
-      pre.innerHTML = highlight(g.code);
+      pre.innerHTML = highlightHdl(g.code, M.lang);
       panelTools.append(btn('Copy', 'Copy the code to the clipboard', () => navigator.clipboard?.writeText(g.code).then(() => flash('Code copied to the clipboard'), () => {}), 'asm-small'));
     } catch (e) {
       pre.classList.add('has-err');

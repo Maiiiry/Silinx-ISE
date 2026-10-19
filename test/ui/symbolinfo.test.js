@@ -54,8 +54,16 @@ uiTest('Symbol Info: palette menu and More… link, placed symbol (F1, toolbar, 
   // the symbol drawing and the equivalent HDL (project language first)
   assert.ok(await page.eval((d) => document.querySelectorAll(`${d} .sd-draw svg .gate`).length > 0, DLG));
   assert.match(await page.eval((d) => document.querySelector(`${d} .sd-code`).textContent, DLG), /entity M4_1 is[\s\S]*O <= D0 when S1 = '0' and S0 = '0' else/);
+  // its keywords highlighted by the editors' one highlighter (#489), in bold
+  const keywords = () => page.eval((d) => [...document.querySelectorAll(`${d} .sd-code .tk-kw`)].map((k) => [k.textContent, +getComputedStyle(k).fontWeight >= 600]), DLG);
+  const vhdlKw = await keywords();
+  for (const k of ['entity', 'is', 'port', 'when', 'and', 'else', 'end']) assert.ok(vhdlKw.some(([w, bold]) => w === k && bold), `VHDL keyword ${k}`);
+  assert.ok(!vhdlKw.some(([w]) => w === 'module'));
   await page.click(`${DLG} .sd-tabs [data-lang=verilog]`);
   assert.match(await page.eval((d) => document.querySelector(`${d} .sd-code`).textContent, DLG), /module M4_1/);
+  const verilogKw = await keywords();
+  for (const k of ['module', 'input', 'output', 'assign', 'endmodule']) assert.ok(verilogKw.some(([w, bold]) => w === k && bold), `Verilog keyword ${k}`);
+  assert.ok(!verilogKw.some(([w]) => w === 'entity'));
   // change the width: pins become buses, the table is shown per bit, the HDL follows
   await page.fill(`${DLG} [data-param=width]`, '4');
   await page.waitFor((d) => document.querySelector(`${d} .sd-pins tbody tr td:nth-child(3)`)?.textContent === '4', [DLG], { what: 'width 4 in the pin table' });
