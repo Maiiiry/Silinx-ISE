@@ -495,6 +495,68 @@ LUTs, inside the I/O wrapper where there is one.
 The netlists are equal to the RTL. The nandland SPI cores are 37 % smaller but 2 to 6 % slower (keepDepth's
 "smaller" rule: 5 % fewer LUTs, at most 1 % slower by the estimate).
 
+## Yosys 0.70 against 0.68, with today's synthesis (#377)
+
+Yosys 0.70 (#368) made the open synthesis 1.6 % smaller and 3.2 % slower (geometric mean of the routed critical
+paths of the update's comparison: pong 10.98 → 12.57 ns, vtr-ch-intrinsics 6.24 → 7.59, verilog-i2c-master +10 %,
+epfl-dec +8 %). Measured again on 2026-10-19 with the synthesis and back end of that day: the same code (pack, place,
+route, Silinx's STA, seed 1, the corpus's I/O wrapper where there is one), the same 7 examples and 14 corpus designs
+as the update's comparison, only YoWASP differing (0.68.1207 installed apart, given to `synthesizeOpen` as its run).
+Yosys 0.68 cannot map with ABC9 on the Spartan-3E, which makes High's optional mappings fail and keep the usual one
+(#401), so High is compared without the ABC9 candidate (`abc9: false`), and 0.70 with it as it ships.
+
+| comparison (19 designs with a clock) | period 0.70 / 0.68 | slices | LUTs |
+|---|---:|---:|---:|
+| High, both without ABC9 | 1.008 | 0.977 | 1.007 |
+| **High: 0.70 as it ships (ABC9 candidate) / 0.68** | **0.995** | **0.974** | 1.020 |
+| Normal (the app's default) | 0.926 (0.991 without epfl-priority) | 1.006 | 1.000 |
+
+So the 3 % is won back: what changed since (the ABC9 candidate #459, the slices in the choice #478, the carry
+chains at Normal, #468's deep designs at Normal, the packer) makes 0.70's netlists as fast as 0.68's and 2.6 %
+smaller. vtr-ch-intrinsics is now as fast with either (6.12 / 6.05 ns), epfl-priority faster with 0.70 (11.80 →
+11.44 at High; 41.8 → 11.4 at Normal, #468 keeping the depth-oriented mapping only with 0.70's levels).
+
+High without ABC9, per design (slices, LUTs, period in ns):
+
+| design | 0.68 | 0.70 | period |
+|---|---|---|---:|
+| examples/traffic | 68 / 94 / 8.16 | 67 / 108 / 8.44 | +3.5 % |
+| examples/blinky | 79 / 72 / 7.18 | 80 / 73 / 7.39 | +3.0 % |
+| examples/pong | 265 / 311 / 11.26 | 245 / 282 / 12.37 | +9.9 % |
+| examples/stopwatch | 197 / 208 / 12.76 | 194 / 202 / 12.87 | +0.9 % |
+| examples/clock | 231 / 208 / 7.93 | 204 / 207 / 8.21 | +3.5 % |
+| examples/vga | 158 / 173 / 9.60 | 154 / 166 / 10.09 | +5.1 % |
+| serv | 191 / 261 / 13.95 | 212 / 273 / 11.99 | −14.1 % |
+| picorv32 | 697 / 1181 / 11.62 | 708 / 1184 / 11.07 | −4.7 % |
+| femtorv32-quark | 498 / 677 / 16.33 | 409 / 689 / 16.81 | +2.9 % |
+| light8080 | 189 / 307 / 11.80 | 192 / 313 / 12.33 | +4.5 % |
+| verilog-uart | 120 / 129 / 10.94 | 131 / 132 / 10.27 | −6.1 % |
+| verilog-i2c-master | 119 / 201 / 10.08 | 115 / 193 / 10.65 | +5.7 % |
+| nandland-spi-vhdl | 31 / 42 / 5.33 | 31 / 42 / 5.36 | +0.5 % |
+| fpu-adder | 342 / 471 / 11.19 | 342 / 480 / 11.35 | +1.4 % |
+| secworks-siphash | 686 / 1059 / 15.53 | 686 / 1059 / 15.11 | −2.7 % |
+| epfl-dec | 187 / 288 / 6.05 | 187 / 288 / 6.51 | +7.8 % |
+| epfl-priority | 127 / 211 / 11.80 | 115 / 209 / 11.44 | −3.1 % |
+| vtr-ch-intrinsics | 266 / 107 / 6.12 | 266 / 107 / 6.05 | −1.1 % |
+| vtr-stereovision3 | 84 / 117 / 7.72 | 77 / 127 / 7.87 | +1.9 % |
+
+**Pong** is the one design still clearly slower with 0.70 (+9.9 % at High, 11.26 → 12.37 ns; +1.6 % at Normal,
+12.17 → 12.37). With 0.68 its depth-oriented mapping is kept and then the second balancing with the LUT delays
+(311 LUTs, 11.26 ns). The usual mapping's two halves crossed (the design up to the LUT mapping from one Yosys, the
+LUT mapping from the other) show that the difference is all in ABC: 0.70's netlist up to the LUT mapping mapped by
+0.68's ABC is 0.68's netlist exactly (311 LUTs, 12.22 ns). And 0.70's ABC gives no mapping as fast, routed:
+
+| pong, from the same netlist | 0.68 | 0.70 |
+|---|---|---|
+| usual (LUT4s alone) | 311 LUTs, 12.22 ns | 282 LUTs, 12.37 ns |
+| depth-oriented (`DEPTH_ABC`) | 275, 12.65 | 251, 13.04 |
+| balanced once more (`DEPTH_ABC2`) | 327, 13.09 | 242, 12.39 |
+| the same with the LUT delays | **311, 11.26** | 273, 12.76 |
+| the depth-oriented one with the LUT delays | 395, 12.39 | 253, 12.54 |
+
+So nothing in the choice between mappings brings pong's 11.26 ns back with 0.70: it is ABC's own result (pong
+still runs at 81 MHz, its clock is 50 MHz). Not changed.
+
 ## Effort Normal: the deep designs mapped for speed (#468)
 
 At Optimization Effort Normal (#282) the open synthesis made the usual mapping alone: the designs limited by
