@@ -26,7 +26,7 @@
 //
 //   node research/synth-quality/fsm.mjs --detect [--filter a,b]       which registers fsm_detect marks, every design
 //   node research/synth-quality/fsm.mjs [--filter a,b] [--ways base,onehot] [--seeds 1,2,3] [--effort normal|high]
-//        [--all] [--redo] [--routed dir]   (--redo: the ways an earlier run measured too; default: the designs with a register marked; --routed: the routed designs of the
+//        [--all] [--redo] [--routed dir] [--results file]   (--redo: the ways an earlier run measured too; default: the designs with a register marked; --routed: the routed designs of the
 //        first seed written as <dir>/<design>__<way>__s<seed>/routed.xdl, for ISE's trce: fsm-ise.mjs)
 //   node research/synth-quality/fsm.mjs --table                       the Markdown tables of the results
 //
@@ -43,94 +43,23 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(HERE, '..', '..');
 const DETECT_FILE = path.join(HERE, 'fsm-detect.json');
 const RESULTS_FILE = path.join(HERE, 'fsm-results.json');
-export const WAYS = ['stock', 'base', 'binary', 'onehot', 'onehot-port'];
+export const WAYS = ['stock', 'base', 'binary', 'onehot', 'onehot-port', 'core'];
 const CORPUS_PART = 'xc3s1200efg320-4';
 
-// synth_xilinx's prepare step (Yosys 0.70, `help synth_xilinx`, no -widemux) around its `fsm`
-const PREP_HEAD = 'proc; check; flatten; tribuf -logic; deminout; opt_expr; check; opt_clean; opt -nodffe -nosdff';
-const PREP_TAIL = 'opt; wreduce; peepopt; opt_clean; pmux2shiftx; clean; sort';
-const PRE_IL = 'silinx_fsm_pre.il', MARKED_IL = 'silinx_fsm_marked.il', POST_IL = 'silinx_fsm_post.il', ENC = 'silinx_fsm_enc.txt';
+// the parsers and the RTLIL edits, now the open synthesis's own (#539: core/synth-fsm.js)
+import { PREP_HEAD, PREP_TAIL, FSM_PRE_FILE as PRE_IL, FSM_MARKED_FILE as MARKED_IL, FSM_POST_FILE as POST_IL, FSM_ENC_FILE as ENC,
+  parseDetect, markWires, parseEncfile, newInit, setInits, rtlilName as ESC } from '../../core/synth-fsm.js';
+export { parseDetect, markWires, parseEncfile, newInit, setInits };
 const PORT = 'Register is connected to module port.';
 const BENEFIT = "Users of register don't seem to benefit from recoding.";
 const INIT = 'Register has an initialization value.';
 
-/** fsm_detect's messages (one run of it): { marked: [wire], refused: [{ wire, reasons }] }. */
-export function parseDetect(lines, top) {
-  const strip = n => n.replace(new RegExp(`^${top.replace(/[.$\\]/g, '\\$&')}\\.`), '');
-  const marked = [], refused = [];
-  let cur = null;
-  for (const l of lines) {
-    let m;
-    if ((m = /^Found FSM state register (\S+)\.$/.exec(l))) { marked.push(strip(m[1])); cur = null; }
-    else if ((m = /^Not marking (\S+) as FSM state register:$/.exec(l))) { cur = { wire: strip(m[1]), reasons: [] }; refused.push(cur); }
-    else if (cur && /^ {4}\S/.test(l)) cur.reasons.push(l.trim());
-    else cur = null;
-  }
-  return { marked, refused };
-}
-
 /** The wires extracted by a way, from the detection without init values. */
 export function chosen(way, det) {
-  if (way === 'base' || way === 'stock') return [];
+  if (way === 'base' || way === 'stock' || way === 'core') return [];
   const extra = way === 'onehot-port'
     ? det.refused.filter(r => r.reasons.includes(PORT) && r.reasons.every(x => x === PORT || x === BENEFIT)).map(r => r.wire) : [];
   return [...det.marked, ...extra];
-}
-
-const ESC = n => (n.startsWith('$') ? n : `\\${n}`);
-/** RTLIL text: the wires `names` lose their init attribute (returned, as written: `3'000`) and are marked
- *  fsm_encoding "auto". */
-export function markWires(il, names) {
-  const want = new Set(names.map(ESC)), inits = {};
-  const lines = il.split('\n'), out = [];
-  let attrs = [];
-  for (const l of lines) {
-    if (/^\s*attribute /.test(l)) { attrs.push(l); continue; }
-    const m = /^(\s*)wire\b.* (\S+)$/.exec(l);
-    if (m && want.has(m[2])) {
-      const init = attrs.find(a => /^\s*attribute \\init /.test(a));
-      if (init) inits[m[2]] = init.trim().split(/\s+/)[2];
-      attrs = attrs.filter(a => a !== init && !/^\s*attribute \\fsm_encoding /.test(a));
-      attrs.push(`${m[1]}attribute \\fsm_encoding "auto"`);
-    }
-    out.push(...attrs, l);
-    attrs = [];
-  }
-  out.push(...attrs);
-  return { il: out.join('\n'), inits };
-}
-
-/** fsm_recode's -encfile: { wire: [[old, new], …] } (bit patterns MSB first, '-' a don't-care). */
-export function parseEncfile(text) {
-  const fsms = {};
-  let cur = null;
-  for (const l of (text || '').split('\n')) {
-    const f = /^\.fsm \S+ (\S+)$/.exec(l), m = /^\.map (\S+) (\S+)$/.exec(l);
-    if (f) fsms[f[1]] = cur = [];
-    else if (m && cur) cur.push([m[1], m[2]]);
-  }
-  return fsms;
-}
-
-/** The new init of a re-encoded machine: the new code of its old init state, don't-cares 0; null when the
- *  init state is not one of the machine's states (fsm_opt dropped it) or has unknown bits. */
-export function newInit(oldInit, map) {
-  const m = /^(\d+)'([01xz]+)$/.exec(oldInit || '');
-  if (!m) return null;
-  const bits = m[2].padStart(+m[1], '0');
-  const hit = map.find(([o]) => o === bits);
-  return hit ? `${hit[1].length}'${hit[1].replace(/-/g, '0')}` : null;
-}
-
-/** RTLIL text: the wires of `inits` ({ \name: "7'0000001" }) get that init attribute. */
-export function setInits(il, inits) {
-  return il.split('\n').map(l => {
-    const m = /^(\s*)wire\b(?: width (\d+))?.* (\S+)$/.exec(l);
-    if (!m || !inits[m[3]]) return l;
-    const w = +(m[2] || 1);
-    if (+inits[m[3]].split("'")[0] !== w) throw new Error(`fsm: ${m[3]} has ${w} bits, its new init ${inits[m[3]]}`);
-    return `${m[1]}attribute \\init ${inits[m[3]]}\n${l}`;
-  }).join('\n');
 }
 
 /**
@@ -140,7 +69,7 @@ export function setInits(il, inits) {
  */
 export function fsmRun(base, way, record = []) {
   const encoding = way === 'binary' ? 'binary' : 'one-hot';
-  if (way === 'stock') return base;
+  if (way === 'stock' || way === 'core') return base;
   return async (args, files, say = () => {}) => {
     const p = args.indexOf('-p');
     const script = args[p + 1];
@@ -237,17 +166,20 @@ export function resultsTable(results, ways = WAYS, ise = {}) {
       if (!m) continue;
       if (m.same) { L.push(`| ${name} | ${w} | as ${m.same} | | | | | | | |`); continue; }
       if (m.error) { L.push(`| ${name} | ${w} | (${m.error}) | | | | | | | |`); continue; }
-      const mach = w === 'base' || w === 'stock' ? '' : [...(m.fsms || []).map(x => `${x.states}: ${x.recoded ? `${x.bitsBefore}→${x.bitsAfter}` : 'kept'}`), ...(m.dropped?.length ? [`${m.dropped.length} left out (init not a state)`] : [])].join(', ');
-      L.push(`| ${name} | ${w} | ${mach} | ${f(m.luts)} | ${f(m.ffs)} | ${f(m.slices)} | ${f(m.period, 2)} | ${w === 'base' ? '' : pct(m.slices, r.base?.slices)} | ${w === 'base' ? '' : pct(m.period, r.base?.period)} | ${m.diff ?? '–'} / ${m.diffPowerUp ?? '–'} |`);
+      // (the reference: base, or stock when base was not measured: --ways stock,core)
+      const ref = r.base || r.stock;
+      const mach = w === 'core' ? (m.core ? `${m.core.machines.map(x => x.states).join(', ')}: ${m.core.kept ? 'one-hot kept' : 'tried'}` : '')
+        : w === 'base' || w === 'stock' ? '' : [...(m.fsms || []).map(x => `${x.states}: ${x.recoded ? `${x.bitsBefore}→${x.bitsAfter}` : 'kept'}`), ...(m.dropped?.length ? [`${m.dropped.length} left out (init not a state)`] : [])].join(', ');
+      L.push(`| ${name} | ${w} | ${mach} | ${f(m.luts)} | ${f(m.ffs)} | ${f(m.slices)} | ${f(m.period, 2)} | ${m === ref ? '' : pct(m.slices, ref?.slices)} | ${m === ref ? '' : pct(m.period, ref?.period)} | ${m.diff ?? '–'} / ${m.diffPowerUp ?? '–'} |`);
     }
     const x = ise[name];
     if (x) L.push(`| ${name} | XST | ${x.fsm || ''} | ${f(x.luts)} | ${f(x.ffs)} | ${f(x.slices)} | ${f(x.periodNs, 2)} | | | |`);
   }
   const val = (r, w) => (r[w]?.same ? r[r[w].same] : r[w]);
   const done = Object.entries(results).filter(([, r]) => ways.every(w => Number.isFinite(val(r, w)?.period)));
-  const means = (rows, w, ref = r => r.base) => ['luts', 'ffs', 'slices', 'period'].map(k => f(geo(rows.map(r => w(r)[k] / ref(r)[k]).filter(x => Number.isFinite(x) && x > 0)), 3)).join(' / ');
-  L.push('', `Geometric means against \`base\` (${done.length} designs measured every way): LUTs / FFs / slices / period`, '');
-  for (const w of ways.filter(x => x !== 'base')) L.push(`- ${w}: ${means(done.map(([, r]) => r), r => val(r, w))}`);
+  const means = (rows, w, ref = r => r.base || r.stock) => ['luts', 'ffs', 'slices', 'period'].map(k => f(geo(rows.map(r => w(r)[k] / ref(r)[k]).filter(x => Number.isFinite(x) && x > 0)), 3)).join(' / ');
+  L.push("", `Geometric means against \`${ways.includes("base") ? "base" : "stock"}\` (${done.length} designs measured every way): LUTs / FFs / slices / period`, '');
+  for (const w of ways.filter(x => x !== (ways.includes('base') ? 'base' : 'stock'))) L.push(`- ${w}: ${means(done.map(([, r]) => r), r => val(r, w))}`);
   // the machines today kept out by their init value (re-encoded by onehot), and those Yosys extracts already
   // (onehot: its auto choice, the same netlist as base)
   if (ways.includes('onehot')) {
@@ -280,8 +212,10 @@ async function main(argv) {
   const arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
   if (argv.includes('--table')) {
     const det = fs.existsSync(DETECT_FILE) ? JSON.parse(fs.readFileSync(DETECT_FILE, 'utf8')) : {};
-    const res = fs.existsSync(RESULTS_FILE) ? JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8')) : {};
-    console.log(`${detectTable(det)}\n\n${resultsTable(res, WAYS, iseNumbers())}`);
+    const file = arg('--results') ? path.resolve(arg('--results')) : RESULTS_FILE;
+    const res = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+    const ways = arg('--ways') ? arg('--ways').split(',') : WAYS;
+    console.log(`${detectTable(det)}\n\n${resultsTable(res, ways, iseNumbers())}`);
     return;
   }
   const only = arg('--filter') ? arg('--filter').split(',') : null;
@@ -337,7 +271,8 @@ async function main(argv) {
     return devices.get(part);
   };
   const det = fs.existsSync(DETECT_FILE) ? JSON.parse(fs.readFileSync(DETECT_FILE, 'utf8')) : {};
-  const results = fs.existsSync(RESULTS_FILE) ? JSON.parse(fs.readFileSync(RESULTS_FILE, 'utf8')) : {};
+  const resultsFile = arg('--results') ? path.resolve(arg('--results')) : RESULTS_FILE;
+  const results = fs.existsSync(resultsFile) ? JSON.parse(fs.readFileSync(resultsFile, 'utf8')) : {};
   for (const d of pick) {
     if (d.error) continue;
     const dd = det[d.name];
@@ -373,11 +308,12 @@ async function main(argv) {
       try {
         const rec = [];
         const t0 = Date.now();
-        const bare = await synthesizeOpen(d.design, { run: fsmRun(yosysNode, way, rec), effort });
+        const bare = await synthesizeOpen(d.design, { run: fsmRun(yosysNode, way, rec), effort, fsm: way === 'core' });
         m.seconds = +((Date.now() - t0) / 1000).toFixed(1);
         const u = utilization(bare.cells);
         Object.assign(m, { luts: u.luts, muxf: u.muxes, ffs: u.flipFlops, srl: u.shiftRegisters });
         m.fsms = rec[0]?.fsms || [];
+        if (bare.depth?.fsm) m.core = bare.depth.fsm;
         if (rec[0]?.notExtracted?.length) m.notExtracted = rec[0].notExtracted;
         if (rec[0]?.dropped?.length) m.dropped = rec[0].dropped;
         const sim = { cycles: 200, ...(d.corpus?.sim || {}) };
@@ -393,7 +329,7 @@ async function main(argv) {
         m.diff = cmp(sim);
         m.diffPowerUp = cmp({ ...sim, resetCycles: 0 });
         const frec = [];
-        const flowSyn = flowDesign === d.design ? bare : await synthesizeOpen(flowDesign, { run: fsmRun(yosysNode, way, frec), effort });
+        const flowSyn = flowDesign === d.design ? bare : await synthesizeOpen(flowDesign, { run: fsmRun(yosysNode, way, frec), effort, fsm: way === 'core' });
         if (flowDesign !== d.design) m.flowFsms = (frec[0]?.fsms || []).length;
         let netlist = readYosysJson(flowSyn.files[`${flowSyn.top}.json`]);
         const dev = deviceOf(part);
@@ -406,14 +342,14 @@ async function main(argv) {
             if (!d.corpus || flowDesign !== d.design || !/not enough pads|no pad for/.test(e.message)) throw e;
             ({ flowDesign, ucf } = wrapped());
             const frec2 = [];
-            const syn2 = await synthesizeOpen(flowDesign, { run: fsmRun(yosysNode, way, frec2), effort });
+            const syn2 = await synthesizeOpen(flowDesign, { run: fsmRun(yosysNode, way, frec2), effort, fsm: way === 'core' });
             m.flowFsms = (frec2[0]?.fsms || []).length;
             netlist = readYosysJson(syn2.files[`${syn2.top}.json`]);
             pr = placeRouteBest(netlist, pack(netlist, { ucf, part, carryOut: 'xor' }), dev.device, dev.known, { seed, delays: dev.delays, pack: { ucf, part, carryOut: 'xor' } });
           }
           if (pr.routed.errors.length || pr.routed.failed.length || pr.routed.overused) throw new Error(`route: ${pr.routed.errors[0] || `${pr.routed.failed.length} nets unrouted, ${pr.routed.overused} nodes shared`}`);
           const routedText = writeXdl(pr.routed.design);
-          if (routedDir && way !== 'stock' && seed === seeds[0]) {
+          if (routedDir && seed === seeds[0]) {
             const dir = path.join(routedDir, `${d.name}__${way}__s${seed}`.replace(/[^\w.-]/g, '_'));
             fs.mkdirSync(dir, { recursive: true });
             fs.writeFileSync(path.join(dir, 'routed.xdl'), routedText);
@@ -428,7 +364,7 @@ async function main(argv) {
       } catch (e) { m.error = e.message.replace(/\s+/g, ' ').slice(0, 140); }
       results[d.name][way] = m;
       console.log(JSON.stringify({ ...m, fsms: m.fsms?.length }));
-      fs.writeFileSync(RESULTS_FILE, `${JSON.stringify(results, null, 1)}\n`);
+      fs.writeFileSync(resultsFile, `${JSON.stringify(results, null, 1)}\n`);
     }
   }
   console.log(`\n${resultsTable(results, ways, iseNumbers())}`);

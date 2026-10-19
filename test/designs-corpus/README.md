@@ -186,7 +186,7 @@ least its slowest design's time (the testbench included: uart-for-fpga's is most
 | machine class | designs | synthesis (s) | flow (s) | all the stages (s) |
 | --- | ---: | ---: | ---: | ---: |
 | `ci` | 38 | 1614 | 2341 | 4423 |
-| `local` | 67 | 1604 | 2424 | 4523 |
+| `local` | 67 | 1645 | 2436 | 4575 |
 
 The 8 slowest designs (s: synthesis / flow / all the stages):
 
@@ -267,13 +267,13 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | itc99-b07 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 56 | 111 | 43 | 5.824 | 0 |
 | itc99-b08 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 17 | 34 | 21 | 6.605 | 0 |
 | itc99-b09 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 20 | 40 | 28 | 5.704 | 0 |
-| itc99-b10 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 26 | 52 | 17 | 5.328 | 0 |
-| itc99-b11 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 97 | 185 | 31 | 9.431 | 0 |
+| itc99-b10 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 21 | 41 | 24 | 5.417 | 0 |
+| itc99-b11 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 94 | 179 | 36 | 9.703 | 0 |
 | itc99-b12 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 168 | 334 | 119 | 9.655 | 1 (synth 1) |
 | itc99-b13 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 44 | 87 | 53 | 7.635 | 0 |
 | itc99-b14 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 740 | 1466 | 334 | 32.478 | 1 (flow 1) |
-| itc99-b15 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1370 | 2731 | 529 | 19.677 | 3 (frontend 2, synth 1) |
-| itc99-b17 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S500E | 4080 | 8132 | 1328 | 20.927 | 6 (frontend 2, synth 3, flow 1) |
+| itc99-b15 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1237 | 2465 | 538 | 18.500 | 3 (frontend 2, synth 1) |
+| itc99-b17 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S500E | 3735 | 7442 | 1356 | 20.735 | 6 (frontend 2, synth 3, flow 1) |
 | itc99-b20 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1430 | 2841 | 492 | 35.156 | 1 (flow 1) |
 | itc99-b21 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1510 | 3000 | 492 | 35.350 | 1 (flow 1) |
 | itc99-b22 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 1997 | 3962 | 706 | 35.239 | 2 (frontend 1, flow 1) |

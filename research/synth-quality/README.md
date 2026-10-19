@@ -855,4 +855,45 @@ the open synthesis smaller or faster on average, and not on the examples; it pay
 (ITC'99 b01, b07, b10, 17 to 31 % fewer slices) and costs as much on others. Tried as one more candidate kept by
 DEPTH_RULE, it gains about 3 % of the slices and 1 % of the period beyond the noise on the 21 designs concerned, for
 one more Yosys run on each, a script in three runs (the init values written back between them), and Yosys's crash
-on a port's register to avoid. Not wired into `core/synth-open.js` (#438: the author's decision).
+on a port's register to avoid. Not wired into `core/synth-open.js` (#438: the author's decision); the larger machines
+alone are, at High (#539, below).
+
+### One-hot at Optimization Effort High (#539)
+
+XST re-encodes one-hot from about 8 states, and in the table above one-hot won on the larger machines (b01, b10)
+and lost on the 7-state ones (b02, b06). So at Optimization Effort High, `core/synth-fsm.js` tries the machines of
+**8 states or more** that the init values alone keep out: a quiet run up to `fsm` finds them (the init values off,
+fsm_detect, the machines extracted one-hot: their states and codes), and a design with some is synthesized once more
+with them one-hot (their power-up state kept, as fsm.mjs does), High's mappings made on that netlist too, the better
+of the two kept by DEPTH_RULE (with the slices) on the netlists' estimates. Smaller machines, Normal, and machines
+whose init state fsm_opt drops (VHDL integers starting at integer'left) are left as they are. fsm.mjs measures it
+as the way `core` against `stock` (the open synthesis with it off):
+
+    node research/synth-quality/fsm.mjs --effort high --ways stock,core --results research/synth-quality/fsm-high-results.json --filter …
+
+2026-10-19 (main e9d7794), Optimization Effort High, slices / period (ns, Silinx's timing analysis of the routed
+designs, seeds 1-3):
+
+| design | states | stock | core | |
+|---|---|---|---|---|
+| examples (traffic, pong, stopwatch, clock, vga) | (none of 8) | | the same netlists | |
+| verilog-i2c-master | 12 | 114 / 9.95 | 114 / 9.95 | tried, not kept |
+| itc99-b01 | 8 | 5 / 2.54 | 5 / 2.54 | tried, not kept |
+| itc99-b10 | 11 | 26 / 5.48 | 21 / 4.99 | **−19.2 % / −8.9 %** |
+| itc99-b11 | 9 | 97 / 9.47 | 94 / 9.39 | −3.1 % / −0.9 % |
+| itc99-b12 | 26 | 169 / 9.87 | 169 / 9.87 | tried, not kept |
+| itc99-b13 | 10, 8 | 44 / 8.60 | 44 / 8.60 | tried, not kept |
+| itc99-b15 | 10, 8 | 1318 / 19.95 | 1352 / 19.20 | +2.6 % / −3.8 % |
+| itc99-b17 | 10 ×3, 8 ×3 | 4095 / 21.56 | 3750 / 20.62 | **−8.4 % / −4.4 %** |
+
+- On the 8 designs concerned: 0.962 of the slices and 0.977 of the period (geometric means); one-hot kept on 4.
+  b01's 17 % of #438 (at Normal) is not there at High: High's mappings already make its binary machine 5 slices.
+- Every netlist is equal to the RTL with the resets first and from power-up (b17 from power-up: as stock, the RTL
+  itself starts undefined).
+- The design corpus's own runs (test/designs-corpus/run.mjs, each design on its own part, seed 1 alone; main
+  602932f, after #591's packing): b10 26 → 21 slices and 5.33 → 5.42 ns, b11 97 → 94 and 9.43 → 9.70, b15 1370 → 1237
+  and 19.68 → 18.50, b17 4080 → 3735 and 20.93 → 20.74; i2c-master, b01, b12 and b13 the same netlists. (One seed's
+  period moves by several per cent with the placement: the means of three seeds above are the measure.)
+- The cost: one quiet run up to `fsm` on every design at High, started beside the usual run (the examples'
+  synthesis as long as before, 1.7 to 2.6 s with the Yosys workers); a design with such a machine is synthesized
+  twice (after #86: b10 2.5 → 5.1 s, b17 16 → 43 s, one Yosys at a time).
