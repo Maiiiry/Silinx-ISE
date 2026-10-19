@@ -65,6 +65,78 @@ test('workflows: the self-hosted runner only for main, read-only, without the ch
   assert.deepEqual(selfHosted, ['ise.yml:ise', 'quality.yml:compare']);
 });
 
+// GitHub's own runners: the only labels a job may run on, but the ISE runner's
+const HOSTED = /^(ubuntu|macos|windows)-[\w.]+$/;
+const SELF_HOSTED = '[self-hosted, ise]';
+// the events that run only code already on the repository's branches (a pull request's own workflow files
+// run on pull_request, pull_request_target, and on push / workflow_run / workflow_call from its branch)
+const SELF_HOSTED_EVENTS = ['schedule', 'workflow_dispatch'];
+const SELF_HOSTED_IF = "(github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && github.repository == 'pmnmalo/Silinx-ISE' && github.ref == 'refs/heads/main'";
+
+/** What could send a pull request's code to the self-hosted ISE runner in a workflow: [problem] (#482). */
+export function selfHostedProblems(f, yml) {
+  const problems = [];
+  const head = yml.slice(0, yml.indexOf('\njobs:\n'));
+  const events = [...(/\non:\n((?: {2}.*\n|\s*\n)*)/.exec(head + '\n')?.[1] ?? '').matchAll(/^ {2}([\w-]+):/gm)].map(m => m[1]);
+  for (const [name, lines] of Object.entries(jobs(yml))) {
+    const body = lines.join('\n');
+    const runsOn = lines.map(l => /^ {4}runs-on: (.*)$/.exec(l)?.[1]).filter(Boolean);
+    // a job calling a reusable workflow: one of the repository's (checked on its own: those have no self-hosted job)
+    const uses = lines.map(l => /^ {4}uses: (.*)$/.exec(l)?.[1]).find(Boolean);
+    if (uses && !/^\.\/\.github\/workflows\/[\w-]+\.yml$/.test(uses)) problems.push(`${f}:${name}: a reusable workflow from elsewhere (${uses})`);
+    if (!runsOn.length) continue;
+    const on = runsOn[0].trim();
+    let labels;
+    if (on === '${{ matrix.os }}') {
+      // the matrix's operating systems: GitHub's runners only, whatever the event
+      const os = lines.map(l => /^ {8}os: (.*)$/.exec(l)?.[1]).find(Boolean) ?? '';
+      labels = [...os.matchAll(/[\w.-]+-[\w.]+|self-hosted|\bise\b/g)].map(m => m[0]);
+      if (!labels.length) problems.push(`${f}:${name}: runs-on ${on} without a matrix of runners`);
+    } else if (on.includes('${{')) {
+      problems.push(`${f}:${name}: runs-on from an expression (${on})`);
+      continue;
+    } else labels = on.replace(/^\[|\]$/g, '').split(',').map(s => s.trim());
+    if (labels.every(l => HOSTED.test(l))) continue;
+    if (on !== SELF_HOSTED) { problems.push(`${f}:${name}: runs-on ${on} (GitHub's runners, or ${SELF_HOSTED})`); continue; }
+    // the ISE runner: scheduled or by hand only, on main, from this repository (not a fork)
+    const other = events.filter(e => !SELF_HOSTED_EVENTS.includes(e));
+    if (other.length) problems.push(`${f}:${name}: on the self-hosted runner, the workflow also runs on ${other.join(', ')}`);
+    if (!lines.some(l => l === `    if: needs.changes.outputs.run == 'true' && ${SELF_HOSTED_IF}` || l === `    if: ${SELF_HOSTED_IF}`))
+      problems.push(`${f}:${name}: on the self-hosted runner without the guard of its event and ref (${SELF_HOSTED_IF})`);
+    if (/pull_request|github\.head_ref|\bref: /.test(body)) problems.push(`${f}:${name}: on the self-hosted runner, a pull request's ref`);
+  }
+  return problems;
+}
+
+test('workflows: no pull request\'s code can reach the self-hosted ISE runner (#482)', () => {
+  // the repository's workflows: only ise.yml and quality.yml use it, scheduled or by hand, on main
+  for (const f of FILES) assert.deepEqual(selfHostedProblems(f, read(f)), [], f);
+  const users = FILES.filter(f => /^\s*(runs-on|os):.*(self-hosted|\bise\b)/m.test(read(f)));
+  assert.deepEqual(users, ['ise.yml', 'quality.yml']);
+
+  // the checker itself, on workflows that would send a pull request's code there
+  const job = (runsOn, extra = '') => `    runs-on: ${runsOn}\n    timeout-minutes: 5\n${extra}    steps:\n      - run: make\n`;
+  const wf = (on, ...js) => `name: X\non:\n${on}permissions:\n  contents: read\njobs:\n${js.map((j, i) => `  j${i}:\n${j}`).join('')}`;
+  const SCHED = '  schedule:\n    - cron: \'0 0 * * *\'\n  workflow_dispatch:\n';
+  const GUARD = `    if: ${SELF_HOSTED_IF}\n`;
+  assert.deepEqual(selfHostedProblems('ok.yml', wf(SCHED, job(SELF_HOSTED, GUARD), job('ubuntu-latest'))), []);
+  assert.deepEqual(selfHostedProblems('pr.yml', wf('  pull_request:\n' + SCHED, job(SELF_HOSTED, GUARD))),
+    ['pr.yml:j0: on the self-hosted runner, the workflow also runs on pull_request']);
+  assert.deepEqual(selfHostedProblems('prt.yml', wf('  pull_request_target:\n    branches: [main]\n', job(SELF_HOSTED, GUARD))),
+    ['prt.yml:j0: on the self-hosted runner, the workflow also runs on pull_request_target']);
+  for (const on of ['  push:\n', '  workflow_call:\n', '  workflow_run:\n    workflows: [CI]\n', '  issue_comment:\n'])
+    assert.equal(selfHostedProblems('e.yml', wf(on + SCHED, job(SELF_HOSTED, GUARD))).length, 1, on);
+  assert.deepEqual(selfHostedProblems('noif.yml', wf(SCHED, job(SELF_HOSTED))), [`noif.yml:j0: on the self-hosted runner without the guard of its event and ref (${SELF_HOSTED_IF})`]);
+  assert.deepEqual(selfHostedProblems('ref.yml', wf(SCHED, job(SELF_HOSTED, GUARD + '    env:\n      R: ${{ github.head_ref }}\n'))), ['ref.yml:j0: on the self-hosted runner, a pull request\'s ref']);
+  // other ways to name the runner: its labels in another order or alone, a matrix, an expression
+  for (const runsOn of ['self-hosted', '[ise]', '[ise, self-hosted]', '[self-hosted, linux]'])
+    assert.match(selfHostedProblems('l.yml', wf('  pull_request:\n', job(runsOn)))[0], /runs-on .* \(GitHub's runners, or \[self-hosted, ise\]\)/, runsOn);
+  assert.equal(selfHostedProblems('m.yml', wf('  pull_request:\n', `    strategy:\n      matrix:\n        os: [ubuntu-latest, self-hosted]\n${job('${{ matrix.os }}')}`)).length, 1);
+  assert.deepEqual(selfHostedProblems('m.yml', wf('  pull_request:\n', `    strategy:\n      matrix:\n        os: [ubuntu-latest, windows-latest]\n${job('${{ matrix.os }}')}`)), []);
+  assert.deepEqual(selfHostedProblems('x.yml', wf('  pull_request:\n', job('${{ inputs.runner }}'))), ['x.yml:j0: runs-on from an expression (${{ inputs.runner }})']);
+  assert.deepEqual(selfHostedProblems('u.yml', wf('  pull_request:\n', '    uses: someone/else/.github/workflows/x.yml@main\n')), ['u.yml:j0: a reusable workflow from elsewhere (someone/else/.github/workflows/x.yml@main)']);
+});
+
 test('workflows: the weekly comparison\'s results pushed from GitHub\'s runner, after a passing comparison (#412)', () => {
   const j = jobs(read('quality.yml'));
   const publish = j.publish.join('\n');
