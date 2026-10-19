@@ -51,9 +51,11 @@ test('every shipped device description loads and has the datasheet\'s slices and
 // feedback through CLKT_TO_OMUX and hex / double lines)
 const dcmClockPips = routed => {
   const out = [];
+  // (the global buffers by name, read as a list: no regular expression built from a name)
+  const bufgs = new Set([...routed.matchAll(/^inst "([^"]+)" "BUFGMUX"/gm)].map(m => m[1]));
   for (const net of routed.split(/^net /m).slice(1)) {
     const src = /^ {2}outpin "([^"]+)" (\S+) ,/m.exec(net);
-    if (!src || src[2] !== 'O' || !new RegExp(`^inst "${src[1].replace(/[$[\]]/g, '\\$&')}" "BUFGMUX"`, 'm').test(routed)) continue;
+    if (!src || src[2] !== 'O' || !bufgs.has(src[1])) continue;
     for (const m of net.matchAll(/^ {2}pip (DCM_\S+) (\S+) -> DCM_(CLKIN|CLKFB) ,$/gm)) out.push(`${m[1]} ${m[2]} -> ${m[3]}`);
   }
   return out;
