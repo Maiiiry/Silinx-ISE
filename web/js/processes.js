@@ -6,12 +6,13 @@ import { h, dialog, popupMenu, toast, longPressMenu } from './ui.js';
 import { compile, elaborate } from '/core/compile.js';
 import * as wiz from './wizards.js';
 import { designDiags, sevWord } from './diaghelp.js';
-import { S, flushDoc, inView, openEmulator, openFile, openFpgaView, openImpact, openInstTemplate, openPinPlanner,
-  openSchematic, openSummary, openTechSchematic, openUcf, runSimulation, status, testBench, withPrimitives } from './app.js';
+import { S, flushDoc, openEmulator, openFile, openFpgaView, openImpact, openInstTemplate, openPinPlanner,
+  openSchematic, openSummary, openTechSchematic, openUcf, runSimulation, status, withPrimitives } from './app.js';
 import { log, showConsolePage, setDiagnostics } from './console.js';
 import { SYNTH_OPEN, backAnnotatePins, checkUcfFile, generateSimModel, postParTiming, runImpl, stopProcesses,
   synthOpen, textPowerReport, worst } from './implement.js';
 import { isAsm, isFsm, isPn, isTt, openAsm, openFsm, openPetri, openSch, openTt } from './drawings.js';
+import { inView, testBench } from './design.js';
 
 const $ = id => document.getElementById(id);
 

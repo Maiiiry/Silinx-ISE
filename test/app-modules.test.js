@@ -40,6 +40,9 @@ const PARTS = {
     'topConfirmed', 'setStatus', 'markStale', 'diagsFor', 'saveAll', 'checkSyntax', 'checkSyntaxInner',
     'hdlDiagnostics', 'checkFileSyntax', 'IMPL_IDS', 'EXTRA_STEPS', 'SIM_MODEL_NAMES', 'STATUS_FILE',
     'sourcesFingerprint', 'synthFingerprint', 'loadUcfText', 'saveImplStatus', 'restoreImplStatus'],
+  'design.js': ['renderHierarchy', 'clashBadge', 'viewOfModule', 'treeItem', 'selectRow', 'markSelRow', 'treeKeys',
+    'select', 'testBench', 'inView', 'moduleContextMenu', 'fileContextMenu', 'projectContextMenu', 'setTop',
+    'projectSaves', 'saveProjectJson', 'serialOp', 'removeFile', 'removeModule', 'removeNow'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -150,4 +153,10 @@ test('#405 app.js split: a module calling $() defines it', () => {
     const code = read(mod);
     if (/(?:^|[^\w.$])\$\(/m.test(code)) assert.match(code, /^const \$ = id => document\.getElementById\(id\);$/m, mod);
   }
+});
+
+test('#405 design.js: the Design pane, its context menus, Set as Top Module and the project\'s saves left app.js', () => {
+  const code = read('design.js');
+  for (const s of ["$('hier')", 'let projectSaves = Promise.resolve()']) assert.ok(code.includes(s) && !app.includes(s), s);
+  for (const name of ['renderHierarchy', 'saveProjectJson', 'setTop']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`), name);
 });
