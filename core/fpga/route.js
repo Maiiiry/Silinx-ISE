@@ -200,6 +200,10 @@ export function routeDesign(design, device, opts = {}) {
   // whose equation is rewritten for the inputs taken (as ISE's router swaps them)
   const lutGroups = opts.swapLutPins === false ? [] : lutPinGroups(design, work, device);
   for (const grp of lutGroups) for (const p of grp.free) owner[grp.node[p]] = -1;
+  // a pin reached through one wire only (a slice's BX / BY input, from its BX / BY wire) owns that
+  // wire too: another net may not pass through it (BY1 -> F1_B3), or the pin's net can be left with
+  // no way in (#82: on the XC3S1200E a Y -> BY net between neighbouring slices failed at some seeds)
+  for (const [entry, i] of soleEntries(E, work, owner, N)) owner[entry] = i;
 
   const occ = new Int32Array(N);
   const hist = new Float32Array(N);
@@ -458,6 +462,34 @@ export function routeDesign(design, device, opts = {}) {
     unreached: [...failed].flatMap(i => (unreached.get(i) || []).map(p => ({ net: work[i].name, inst: p.inst, pin: p.pin }))),
     iterations: Math.min(iter, maxIter), overused, errors, pips: pipCount, timeMs: Date.now() - t0, period,
   };
+}
+
+/**
+ * The wires that are the only way into a net's sink pin (the predecessor node of a pin with one, not
+ * through a site): a Map entry node -> net index, for the pins owned by one net (owner) whose entry no
+ * net owns yet; an entry two nets' pins would share is left out.
+ */
+function soleEntries(E, work, owner, N) {
+  const { edgeStart, edgeTo, edgeFlags } = E;
+  const sink = new Uint8Array(N);
+  for (const w of work) for (const s of w.sinks) if (owner[s.node] >= 0) sink[s.node] = 1;
+  const pred = new Map();     // sink node -> its one predecessor, or -1 for more than one
+  for (let n = 0; n < N; n++) {
+    for (let e = edgeStart[n], e1 = edgeStart[n + 1]; e < e1; e++) {
+      const t = edgeTo[e];
+      if (!sink[t] || edgeFlags[e] & PIP_ROUTETHRU) continue;
+      const p = pred.get(t);
+      pred.set(t, p === undefined || p === n ? n : -1);
+    }
+  }
+  const out = new Map(), shared = new Set();
+  for (const [t, p] of pred) {
+    if (p < 0 || owner[p] >= 0) continue;
+    if (out.has(p) && out.get(p) !== owner[t]) shared.add(p);
+    out.set(p, owner[t]);
+  }
+  for (const p of shared) out.delete(p);
+  return out;
 }
 
 // ------------------------------------------------------------------ LUT input swapping
