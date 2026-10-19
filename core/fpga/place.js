@@ -272,8 +272,10 @@ export function analyzeTiming(tg, pos, delays = null) {
  *  start (a warm start, #87: at[inst] = { x, y, exact } the slice (x, y) to start a slice instance
  *  nearest to, the exact ones placed first, or { site } the pad / block RAM / multiplier site to start
  *  an instance on when it is free; null: as without a start; then the annealing from rlim (the move
- *  window, in slices) and t x the usual initial temperature). */
-export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, bufgSites = null, delays = null, log = null, start = null } = {}) {
+ *  window, in slices) and t x the usual initial temperature). padOk(site, cfg) (bitgen.js knownRouting's
+ *  allowPad): whether the registers of an I/O instance (its cfg) are measured on a pad: an I/O with registers
+ *  and no LOC is kept on such pads (#96; a LOC'd one is not moved, the bitstream writer then names what it lacks). */
+export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSites = null, bufgSites = null, delays = null, log = null, start = null, padOk = null } = {}) {
   const t0 = Date.now();
   if (!dev.slices) throw new PlaceError('place: pass deviceSites(parseXdlrc(…))');
   const random = rng(seed);
@@ -473,8 +475,11 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     sites[o.inst] = best.p;
     o.fixed = o.gclk = true;
   }
+  // an I/O with registers (#96): only the pads its registers' settings are measured on, if any is free
+  const padFits = (i, p) => !padOk || !packed.insts[i].regs?.length || padOk(p.name, packed.insts[i].cfg);
   for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
-    const fp = freePads(o.dir, vccoOf(o.inst));
+    const all = freePads(o.dir, vccoOf(o.inst)), fits = all.filter(p => padFits(o.inst, p));
+    const fp = fits.length ? fits : all;
     if (!fp.length) throw padsError(o);
     const want = start?.at[o.inst]?.site;
     const p = (want && fp.find(q => q.name === want)) || fp[ri(fp.length)];
@@ -844,6 +849,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       const other = padUsed.get(p.name);
       if (other === o) return false;
       if (other && (other.fixed || (other.dir !== 'in' && sites[o.inst].inputOnly))) return false;
+      if (!padFits(o.inst, p) && padFits(o.inst, sites[o.inst])) return false;
+      if (other && !padFits(other.inst, sites[o.inst]) && padFits(other.inst, p)) return false;
       // both I/Os must suit the VCCO of the bank they go to
       const old = sites[o.inst], vo = vccoOf(o.inst), vt = other ? vccoOf(other.inst) : null;
       bankAdd(old, vo, -1); if (other) bankAdd(p, vt, -1);

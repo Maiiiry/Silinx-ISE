@@ -14,7 +14,8 @@
 //   name, part, cfg (the design's cfg string: the ports' bus information, raw XDL text),
 //   insts:  [{ name, type: 'SLICEL' | 'SLICEM' | 'IBUF' | 'IOB' | 'BUFGMUX' | 'RAMB16' | 'MULT18X18SIO' | 'DCM',
 //              kind: 'slice' | 'iob' | 'bufg' | 'bram' | 'mult' | 'dcm', cfg: [{ attr, name, value }],
-//              loc: pad | site (a DCM: INST LOC) | null, wide (bram: a 36-bit port) }],
+//              loc: pad | site (a DCM: INST LOC) | null, wide (bram: a 36-bit port), regs (an IOB's registers:
+//              'I' / 'O' / 'T', #96) }],
 //   nets:   [{ name, type: 'wire' | 'gnd' | 'vcc', outpins: [{ inst, pin }], inpins: [{ inst, pin }] }]   (inst = index)
 //   cellSites: [{ inst, bel } | null]   where each netlist cell went (FFX / FFY, F / G, CYMUXF…; inst -1: left out)
 //   macros: [{ kind: 'carry' | 'F6' | 'F7' | 'F8', members: [{ inst, dx, dy }] }]   slices that must keep these
@@ -1520,7 +1521,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   }
   const out = {
     name: nl.name, part, cfg: designCfg.join('\n       '),
-    insts: insts.map(s => ({ name: s.name, type: s.type, cfg: s.cfg, loc: s.loc || null, kind: s.kind, dir: s.dir, ...(s.kind === 'bram' ? { wide: Object.values(s.ports).includes(36) } : {}) })),
+    insts: insts.map(s => ({ name: s.name, type: s.type, cfg: s.cfg, loc: s.loc || null, kind: s.kind, dir: s.dir, ...(s.regs?.length ? { regs: s.regs } : {}), ...(s.kind === 'bram' ? { wide: Object.values(s.ports).includes(36) } : {}) })),
     nets: outNets.filter(n => n.inpins.length),
     macros,
     // where each cell of the netlist went: { inst, bel } (FFX / FFY, F / G, CYMUXF…; inst -1: left out)

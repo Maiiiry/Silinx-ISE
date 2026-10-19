@@ -40,6 +40,7 @@ export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing
   const placement = place(packed, deviceSites(device, known), {
     seed, effort, ...(timing !== null && { timing }), delays: delays || delayTable(device, { allowPip }), start,
     clockSites: site => clockReach(device, site, allowPip), bufgSites: (site, pin, to) => bufgReach(device, site, pin, allowPip, to),
+    padOk: known.allowPad || null,
   });
   const placedText = writeXdl(placedXdl(packed, placement));
   const placeMs = Date.now() - t0;

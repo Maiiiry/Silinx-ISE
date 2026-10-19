@@ -722,11 +722,14 @@ setting measured on a pad only in the combinations the designs gave it (the regi
 the pad's index): a register without a clock enable, for instance, is measured on about half the pads;
 on the others it is refused.
 
-**Not done:** the Silinx toolchain does not put registers in the IOBs (the packer has no IOB register,
-no IDDR2 / ODDR2, no tristate output yet): the database serves the writer for designs whose IOB
-registers ISE placed (XST's default `-iob auto` puts registers in the IOBs), checked with
-`check-writer.mjs`. Input delays other than the default, and the register kinds not measured on a pad,
-are refused.
+**The Silinx toolchain (#96):** the packer puts input, output and output-enable registers in the IOBs on
+request (`IOB = TRUE`; none by default, as ISE's flow runs map -pr off), with tristate outputs (OBUFT); the
+placer keeps a port with IOB registers and no LOC on a pad where its settings are measured
+(`knownRouting(db).allowPad`). Not done: IDDR2 / ODDR2 (`OMUX:OFFDDR` and the second registers are measured
+on most pads, but the exact settings ISE's map writes for them are to be read from the XDL of rd / rd2, and
+`IFFDDRBLACKBOX` is not measured), a tristate enable from the fabric (`TMUX:T1`) and bidirectional pads
+(`IO:<standard>`), never measured. Input delays other than the default, and the register kinds not
+measured on a pad, are refused.
 
 Runtime #44: 30 designs implemented from HDL, about 1 900 xdl + bitgen runs (variants, site drops,
 PIP batches), about 5 hours of wall time with two containers.

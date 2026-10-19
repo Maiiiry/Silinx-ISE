@@ -203,6 +203,10 @@ const FEATURES = {
   // CLKDUB input, as ISE routes it: CLOCK_DEDICATED_ROUTE = FALSE), the flip-flop on the global clock it drives
   feat_manual_clock: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "clk" "IBUF",placed RIBUFS_PCI_X27Y21 G12 /m, /^inst "[^"]+" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y1[01] /m,
     /pip CLKT_X13Y35 CLKT_CLKDUB\d -> CLKT_GCLK\d ,/, /^net "[^"]+" , \n {2}outpin "[^"]+" O ,\n {2}inpin "[^"]+" CLK ,$/m]],
+  // registers in the IOBs on request (#96, IOB = TRUE): an input register with a clock enable and a reset, an output
+  // register, a tristate output's value and enable registers, on pads where the bit database measured those kinds
+  feat_iobreg: [/^pack \(1 slices\)/m, 'IOB', [/^inst "sw<0>" "IBUF",placed \S+ P11 +,\n {2}cfg "[^"]* IFF1:[^"]* ICEINV::ICE [^"]*IFD_DELAY_VALUE::DLY3 /m,
+    /^inst "led<0>" "IOB",placed \S+ M5 +,\n {2}cfg "[^"]* OMUX::OFF1 [^"]* OFF1:/m, /^inst "led<1>" "IOB",placed \S+ P6 +,\n {2}cfg "[^"]* OMUX::OFF1 [^"]* TMUX::TFF1 [^"]* TFF1:/m]],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
 for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {
@@ -218,6 +222,39 @@ for (const [name, [packLine, type, settings = [], absent = []]] of Object.entrie
     assert.match(routed, new RegExp(`^inst "[^"]+" "${type}",placed `, 'm'));
     for (const re of settings) assert.match(routed, re);
     for (const re of absent) assert.doesNotMatch(routed, re);
+  });
+}
+
+// IOB registers on a pad where the bit database has not measured their kind (#96): the bitstream writer refuses them
+// and names the settings (feat_iobreg's tristate on M11, LED1: no output-enable register with a reset measured there)
+test('the open flow: an IOB register of a kind not measured on its pad is refused, its settings named (#96)', { timeout: 300000 }, () => {
+  const dir = path.join(tmp, 'iobreg-m11');
+  fs.cpSync(path.join(ROOT, 'test/fixtures/open-flow/feat_iobreg'), dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'top.ucf'), fs.readFileSync(path.join(dir, 'top.ucf'), 'utf8').replace('LOC = "P6"', 'LOC = "M11"'));
+  const r = openFlow(dir, path.join(dir, 'out'));
+  assert.equal(r.status, 1);
+  assert.equal(r.stderr, ['open-flow: 4 features not in the bit database: no bitstream', '  @M11 R:TFF1_SR_ATTR:SRHIGH', '  @M11 R:TFFATTRBOX:SYNC', '  @M11 R:TSR_USED:0', '  @M11 R:TCEINV:TCE', ''].join('\n'));
+  assert.deepEqual(r.warnings, []);
+});
+
+// IOB registers on ports with no LOC (#96): the placer keeps them on pads where the bit database measured their kinds,
+// on every device (the tristate output's registers are measured on about half the pads)
+for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s500e', 'fg320'], ['xc3s1200e', 'fg320']]) {
+  test(`the open flow: IOB registers with no LOC on the ${part.toUpperCase()}-${pkg.toUpperCase()}: on pads where they are measured, complete bitstream (#96)`, { timeout: 300000 }, () => {
+    const dir = path.join(tmp, `iobreg-${part}`);
+    fs.cpSync(path.join(ROOT, 'test/fixtures/open-flow/feat_iobreg'), dir, { recursive: true });
+    const pj = JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8'));
+    Object.assign(pj.device, { part, package: pkg });
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify(pj));
+    fs.writeFileSync(path.join(dir, 'top.ucf'), 'NET "sw<0>" IOB = TRUE ;\nNET "led<*>" IOB = TRUE ;\n');
+    for (const seed of ['1', '2']) {
+      const r = openFlow(dir, path.join(dir, `out${seed}`), ['--seed', seed]);
+      assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+      assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+      assert.deepEqual(r.warnings, []);
+      const routed = fs.readFileSync(path.join(dir, `out${seed}`, 'routed.xdl'), 'utf8');
+      for (const re of [/^inst "sw<0>" "IBUF",placed [^\n]*\n {2}cfg "[^"]* IFF1:/m, /^inst "led<0>" "IOB",placed [^\n]*\n {2}cfg "[^"]* OFF1:/m, /^inst "led<1>" "IOB",placed [^\n]*\n {2}cfg "[^"]* TFF1:/m]) assert.match(routed, re);
+    }
   });
 }
 
