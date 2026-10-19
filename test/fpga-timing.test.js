@@ -13,6 +13,7 @@ import { parseXdl, writeXdl } from '../core/xdl.js';
 import {
   WIRE, SPEED_4, classOfWires, nodeClasses, nodeDelays, netTree, treePath, pathDelay, distanceDelay,
   instArcs, timingGraph, analyzeTiming, timingReport, clockPort, checkPeriods, delayTable, clockArrivals, parseOffsets, checkOffsets, DELAY_KIND, delayKind,
+  clockSources, clockRequirement, checkCross,
 } from '../core/fpga/timing.js';
 import zlib from 'node:zlib';
 import { parseDly, twrArcs, memArcs, hardArcs } from '../research/s3e-route/timing-fit.mjs';
@@ -388,6 +389,110 @@ net "slow" , outpin "div" YQ , inpin "div" BY , ;
   const lines = timingReport({ clocks: [{ clock: 'clk_g', period: 17.5, path: [] }] }, checks);
   assert.equal(lines[0], 'constraint PERIOD 20 ns on CLK: met (period 17.500 ns, slack 2.500 ns)');
   assert.equal(lines[1], 'constraint PERIOD 10 ns on other: no clock of the design comes from this port');
+});
+
+// #601: the clocks of a DCM, from the pad clk: CLK0 (the feedback), CLK2X, CLKDV (/ 4), CLKFX (x 3 / 2), CLK90 through a
+// second DCM fed by CLKFX; a flip-flop of each, CLK0's into CLKFX's and CLK2X's, a second pad's clock (unrelated)
+const DCMS = parseXdl(`design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "clk" "IBUF",placed BIOIS_X1Y0 P11 , cfg " " ;
+inst "clk2" "IBUF",placed BIOIS_X2Y0 P12 , cfg " " ;
+inst "u_dcm" "DCM",placed DCM_BL_CENTER_X9Y0 DCM_X0Y0 , cfg " CLKDV_DIVIDE::4.0 CLKFX_DIVIDE::2 CLKFX_MULTIPLY::3 CLK_FEEDBACK::1X CLKOUT_PHASE_SHIFT::NONE PHASE_SHIFT::0 " ;
+inst "u_dcm2" "DCM",placed DCM_BR_CENTER_X17Y0 DCM_X1Y0 , cfg " CLKFX_DIVIDE::1 CLKFX_MULTIPLY::4 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLKOUT_PHASE_SHIFT::FIXED PHASE_SHIFT::64 " ;
+inst "b0" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX0 , cfg " " ;
+inst "b2x" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX1 , cfg " " ;
+inst "bdv" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX2 , cfg " " ;
+inst "bfx" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX3 , cfg " " ;
+inst "b90" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX4 , cfg " " ;
+inst "bu" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX5 , cfg " " ;
+net "clk_in" , outpin "clk" I , inpin "u_dcm" CLKIN , ;
+net "clk0_u" , outpin "u_dcm" CLK0 , inpin "b0" I0 , ;
+net "clk0" , outpin "b0" O , inpin "u_dcm" CLKFB , inpin "a" CLK , ;
+net "clk2x_u" , outpin "u_dcm" CLK2X , inpin "b2x" I0 , ;
+net "clk2x" , outpin "b2x" O , inpin "b" CLK , ;
+net "clkdv_u" , outpin "u_dcm" CLKDV , inpin "bdv" I0 , ;
+net "clkdv" , outpin "bdv" O , inpin "c" CLK , ;
+net "clkfx_u" , outpin "u_dcm" CLKFX , inpin "bfx" I0 , ;
+net "clkfx" , outpin "bfx" O , inpin "d" CLK , inpin "u_dcm2" CLKIN , ;
+net "c90_u" , outpin "u_dcm2" CLKFX180 , inpin "b90" I0 , ;
+net "c90" , outpin "b90" O , inpin "e" CLK , ;
+net "c2_in" , outpin "clk2" I , inpin "bu" I0 , ;
+net "c2" , outpin "bu" O , inpin "f" CLK , ;
+`);
+test('#601 clockSources: a clock through the global buffers and DCMs to its pad, its period and first rising edge in the pad\'s periods', () => {
+  const s = clockSources(DCMS);
+  const of = n => { const x = s.get(n); return x && [x.port, +x.f.toFixed(6), +x.o.toFixed(6), x.via.map(v => `${v.pin} of ${v.dcm}`).join(', ')]; };
+  assert.deepEqual(of('clk0'), ['clk', 1, 0, 'CLK0 of u_dcm']);
+  assert.deepEqual(of('clk2x'), ['clk', 0.5, 0, 'CLK2X of u_dcm']);
+  assert.deepEqual(of('clkdv'), ['clk', 4, 0, 'CLKDV of u_dcm']);
+  assert.deepEqual(of('clkfx'), ['clk', +(2 / 3).toFixed(6), 0, 'CLKFX of u_dcm']);
+  // (a cascade: CLKFX into a DCM halving its input, x 4, CLKFX180: half its period later; PHASE_SHIFT 64 / 256 of its
+  // input's period more, fixed)
+  assert.deepEqual(of('c90'), ['clk', +((2 / 3) * 2 / 4).toFixed(6), +((2 / 3) * (1 / 4 + 64 / 256)).toFixed(6), 'CLKFX of u_dcm, CLKFX180 of u_dcm2']);
+  assert.deepEqual(of('c2'), ['clk2', 1, 0, '']);
+  assert.equal(s.has('clk_in'), false);   // (no clock pin on it)
+});
+test('#601 clockRequirement: from each launching edge to the next capturing one, the shortest over the common period', () => {
+  const r = (a, b) => clockRequirement(a, b);
+  assert.equal(r({ period: 20, first: 0 }, { period: 10, first: 0 }), 10);
+  assert.equal(r({ period: 10, first: 0 }, { period: 20, first: 0 }), 10);
+  assert.equal(r({ period: 20, first: 0 }, { period: 20, first: 0 }), 20);
+  // CLK0 to CLKFX x 3 / 2: edges 0, 20 / 0, 13.333, 26.667: 20 -> 26.667
+  assert.equal(r({ period: 20, first: 0 }, { period: 40 / 3, first: 0 }), 6.666667);
+  assert.equal(r({ period: 40 / 3, first: 0 }, { period: 20, first: 0 }), 6.666667);
+  // a phase: 5 ns later, or 15 ns to the next; a falling edge into a rising one
+  assert.equal(r({ period: 20, first: 0 }, { period: 20, first: 5 }), 5);
+  assert.equal(r({ period: 20, first: 5 }, { period: 20, first: 0 }), 15);
+  assert.equal(r({ period: 20, first: 10 }, { period: 20, first: 0 }), 10);
+  // no common period within 100 000 launches: null (unrelated)
+  assert.equal(r({ period: 20, first: 0 }, { period: Math.PI, first: 0 }), null);
+  assert.equal(r({ period: 0, first: 0 }, { period: 10, first: 0 }), null);
+});
+test('#601 PERIOD constraints of a DCM\'s clocks derived from its input\'s; the paths between two clocks timed against their edges', () => {
+  const r = { clocks: [{ clock: 'clk0', period: 4 }, { clock: 'clk2x', period: 11 }, { clock: 'clkdv', period: 4 }, { clock: 'clkfx', period: 5 }, { clock: 'c2', period: 3 }],
+    cross: [{ from: 'clk0', launch: 0, to: 'clkfx', capture: 0, delay: 7, path: [] }, { from: 'clk0', launch: 0, to: 'clk2x', capture: 0, delay: 3, path: [] },
+      { from: 'clk0', launch: 1, to: 'clk2x', capture: 0, delay: 3, path: [] }, { from: 'clk0', launch: 0, to: 'c2', capture: 0, delay: 1, path: [] }] };
+  const pc = checkPeriods(r, DCMS, [{ net: 'clk', period: 20 }, { net: 'clk2', period: 10 }]);
+  assert.deepEqual(pc.map(k => [k.clock, k.via ?? null, k.required, k.met]), [
+    ['clk0', 'CLK0 of u_dcm', 20, true], ['clk2x', 'CLK2X of u_dcm', 10, false], ['clkdv', 'CLKDV of u_dcm', 80, true], ['clkfx', 'CLKFX of u_dcm', 13.333333, true],
+    ['c2', null, 10, true]]);
+  assert.equal(pc[1].slack, -1);
+  const cc = checkCross(r, DCMS, [{ net: 'clk', period: 20 }, { net: 'clk2', period: 10 }]);
+  assert.deepEqual(cc.map(k => [k.from, k.to, k.launch, k.related, k.required ?? null, k.met ?? null]), [
+    ['clk0', 'clkfx', 0, true, 6.666667, false], ['clk0', 'clk2x', 0, true, 10, true], ['clk0', 'clk2x', 1, true, 10, true], ['clk0', 'c2', 0, false, null, null]]);
+  assert.ok(Math.abs(cc[0].slack - (6.666667 - 7)) < 1e-9);
+  // no PERIOD on the port: not related either
+  assert.deepEqual(checkCross(r, DCMS, []).map(k => k.related), [false, false, false, false]);
+  const lines = timingReport({ clocks: [], cross: r.cross }, [...pc, ...cc]);
+  assert.deepEqual(lines, [
+    'constraint PERIOD 20 ns on clk, CLK0 of u_dcm: 20 ns, met (period 4.000 ns, slack 16.000 ns)',
+    'constraint PERIOD 20 ns on clk, CLK2X of u_dcm: 10 ns, NOT MET (period 11.000 ns, slack -1.000 ns)',
+    'constraint PERIOD 20 ns on clk, CLKDV of u_dcm: 80 ns, met (period 4.000 ns, slack 76.000 ns)',
+    'constraint PERIOD 20 ns on clk, CLKFX of u_dcm: 13.333 ns, met (period 5.000 ns, slack 8.333 ns)',
+    'constraint PERIOD 10 ns on clk2: met (period 3.000 ns, slack 7.000 ns)',
+    'paths from clock clk0 (rising) to clock clkfx (rising): NOT MET, requirement 6.667 ns between the clocks\' edges (delay 7.000 ns, slack -0.333 ns)',
+    'paths from clock clk0 (rising) to clock clk2x (rising): met, requirement 10.000 ns between the clocks\' edges (delay 3.000 ns, slack 7.000 ns)',
+    'paths from clock clk0 (falling) to clock clk2x (rising): met, requirement 10.000 ns between the clocks\' edges (delay 3.000 ns, slack 7.000 ns)',
+    'paths from clock clk0 (rising) to clock c2 (rising): not timed (unrelated clocks: not from one port with a PERIOD constraint)',
+  ]);
+});
+test('#601 the timing analysis: the slowest path from a clock\'s flip-flops into another clock\'s, by edge; the same clock\'s as before', () => {
+  const d = parseXdl(`design "t" xc3s50etq144-4 v3.2 , cfg "";
+${inst('ck', 'IOB', 'CLB_X1Y0', 'P1', ' ')}${inst('ck2', 'IOB', 'CLB_X1Y0', 'P2', ' ')}
+${inst('a', 'SLICEL', 'CLB_X1Y0', 'SLICE_X1Y0', ' FFX:a:#FF DXMUX::1 FXMUX::F F:a_f:#LUT:D=A1 ')}${inst('b', 'SLICEL', 'CLB_X1Y0', 'SLICE_X1Y1', ' FFY:b:#FF DYMUX::0 ')}
+${inst('c', 'SLICEL', 'CLB_X3Y0', 'SLICE_X3Y0', ' FFY:c:#FF DYMUX::0 CLKINV::CLK_B ')}
+${net('clk', [['ck', 'I']], [['a', 'CLK']])}${net('clk2', [['ck2', 'I']], [['b', 'CLK'], ['c', 'CLK']])}${net('q', [['a', 'XQ']], [['b', 'BY'], ['c', 'BY'], ['a', 'F1']])}`);
+  const tg = timingGraph(d);
+  const r = tg.analyze(new Float64Array(tg.conns.length).fill(1));
+  assert.deepEqual(r.cross.map(x => [x.from, x.launch, x.to, x.capture]), [['clk', 0, 'clk2', 0], ['clk', 0, 'clk2', 1]]);
+  // (a.XQ, the net's 1 ns, b's setup by BY)
+  for (const x of r.cross) {
+    assert.equal(x.path[0].kind, 'clock-to-out');
+    assert.equal(x.path.at(-1).kind, 'setup');
+    close(x.delay, x.path.at(-1).arrival, 'arrival');
+    assert.ok(x.delay > 1 && x.delay < 5, String(x.delay));
+  }
+  // the clock's own paths: a's flip-flop through its LUT back to itself
+  assert.deepEqual(r.clocks.map(c => c.clock), ['clk']);
 });
 
 // The pads' paths and the hold check (#26): an input pad i into a's flip-flop (through its LUT F) and through c's LUT G to

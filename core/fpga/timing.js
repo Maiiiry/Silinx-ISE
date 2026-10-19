@@ -586,7 +586,18 @@ export function timingGraph(design, model = SPEED_4) {
     for (let e = 0; e < E; e++) if (eConn[e] >= 0) delay[e] = connDelay[eConn[e]];
     const req = new Float64Array(P), prevE = new Int32Array(P);
     const crit = new Float64Array(conns.length), slack = new Float64Array(conns.length).fill(Infinity);
-    const perClock = [], passes = [];
+    const perClock = [], passes = [], cross = [];
+    // the critical path, back from its end (an end: [pin, setup, clock, edge]) in a pass's arrivals
+    const traceBack = (arr, wEnd) => {
+      const path = [{ ...pinName[wEnd[0]], kind: 'setup', delay: wEnd[1], arrival: arr[wEnd[0]] + wEnd[1] }];
+      for (let p = wEnd[0]; ;) {
+        const e = prevE[p];
+        path.unshift({ ...pinName[p], kind: e < 0 ? 'clock-to-out' : eConn[e] >= 0 ? 'net' : 'logic', delay: e < 0 ? arr[p] : delay[e], arrival: arr[p] });
+        if (e < 0) break;
+        p = eFrom[e];
+      }
+      return path;
+    };
     for (const clk of clocks) {
       // one pass per launching edge; a path to the other edge counts twice (half a period)
       let best = null;
@@ -600,6 +611,14 @@ export function timingGraph(design, model = SPEED_4) {
           for (let x = outStart[p]; x < outStart[p + 1]; x++) { const e = outEdge[x], q = eTo[e], t = arr[p] + delay[e]; if (t > arr[q]) { arr[q] = t; prevE[q] = e; } }
         }
         passes.push({ clock: clk, launch, arr });
+        // (#601: the slowest path into each other clock's flip-flops of each edge, timed against the two clocks' edges)
+        const into = new Map();
+        for (const end of ends) {
+          if (end[2] === clk || arr[end[0]] === -Infinity) continue;
+          const k = `${end[2]}\u0000${end[3]}`, t = arr[end[0]] + end[1];
+          if (!into.has(k) || t > into.get(k).t) into.set(k, { t, end });
+        }
+        for (const { t, end } of into.values()) cross.push({ from: clk, launch, to: end[2], capture: end[3], delay: t, path: traceBack(arr, end) });
         let worst = -Infinity, wEnd = null;
         for (const end of ends) {
           if (end[2] !== clk || arr[end[0]] === -Infinity) continue;
@@ -607,15 +626,7 @@ export function timingGraph(design, model = SPEED_4) {
           if (t > worst) { worst = t; wEnd = end; }
         }
         if (!wEnd || (best && best.period >= worst)) continue;
-        // the critical path, back from its end
-        const path = [{ ...pinName[wEnd[0]], kind: 'setup', delay: wEnd[1], arrival: arr[wEnd[0]] + wEnd[1] }];
-        for (let p = wEnd[0]; ;) {
-          const e = prevE[p];
-          path.unshift({ ...pinName[p], kind: e < 0 ? 'clock-to-out' : eConn[e] >= 0 ? 'net' : 'logic', delay: e < 0 ? arr[p] : delay[e], arrival: arr[p] });
-          if (e < 0) break;
-          p = eFrom[e];
-        }
-        best = { clock: clk, period: worst, path, half: wEnd[3] !== launch };
+        best = { clock: clk, period: worst, path: traceBack(arr, wEnd), half: wEnd[3] !== launch };
       }
       if (best) perClock.push(best);
     }
@@ -636,7 +647,7 @@ export function timingGraph(design, model = SPEED_4) {
       }
     }
     for (let ci = 0; ci < conns.length; ci++) crit[ci] = period > 0 && slack[ci] < Infinity ? Math.max(0, Math.min(1, 1 - slack[ci] / period)) : 0;
-    return { period, clocks: perClock.map(c => ({ clock: c.clock, period: c.period, path: c.path, half: c.half })), crit, slack };
+    return { period, clocks: perClock.map(c => ({ clock: c.clock, period: c.period, path: c.path, half: c.half })), cross, crit, slack };
   }
 
   // The paths at the pads and the hold check (#26), apart from the period: clockArr (Map instance -> the arrival of
@@ -828,21 +839,122 @@ export function clockPort(design, netName) {
   return null;
 }
 
+// A DCM's outputs (#601): [period, the first rising edge], in its input clock's periods (CLKIN's, halved first when
+// CLKIN_DIVIDE_BY_2), as trce derives their PERIOD constraints from the input's; CLKDV and CLKFX from the settings
+const DCM_OUT = { CLK0: [1, 0], CLK90: [1, 0.25], CLK180: [1, 0.5], CLK270: [1, 0.75], CLK2X: [0.5, 0], CLK2X180: [0.5, 0.25] };
+function dcmOutput(inst, pin) {
+  const cfg = a => inst.cfg?.find(c => c.attr === a)?.value;
+  const div2 = cfg('CLKIN_DIVIDE_BY_2') ? 2 : 1;
+  let f, o;
+  if (DCM_OUT[pin]) [f, o] = DCM_OUT[pin];
+  else if (pin === 'CLKDV') [f, o] = [parseFloat(cfg('CLKDV_DIVIDE') || '2'), 0];
+  else if (pin === 'CLKFX' || pin === 'CLKFX180') { f = (parseInt(cfg('CLKFX_DIVIDE') || '1', 10) || 1) / (parseInt(cfg('CLKFX_MULTIPLY') || '4', 10) || 4); o = pin === 'CLKFX' ? 0 : f / 2; }
+  else return null;
+  // a fixed phase shift: every output, PHASE_SHIFT / 256 of CLKIN's period later
+  const shift = cfg('CLKOUT_PHASE_SHIFT') === 'FIXED' ? (parseInt(cfg('PHASE_SHIFT') || '0', 10) || 0) / 256 : 0;
+  return { f: f * div2, o: o * div2 + shift };
+}
+
+/**
+ * Where each clock of the design comes from (#601): Map clock net -> { port, f, o, via } or no entry for a clock made by
+ * logic. port: the input pad's (as clockPort); f: its period, o: its first rising edge, in the port's periods; via:
+ * [{ dcm, pin }] the DCM outputs on the way (none: the port's own clock). Through the clock buffers (BUFG, BUFGMUX's I0)
+ * and DCMs (CLKIN), as trce derives a DCM's outputs' PERIOD constraints from its input's.
+ */
+export function clockSources(design) {
+  const inst = new Map(design.insts.map(i => [i.name, i]));
+  const driver = new Map(), inNet = new Map();   // net -> its driver { inst, pin }; 'inst\0pin' -> the net on it
+  for (const n of design.nets) {
+    if (n.outpins?.[0]) driver.set(n.name, n.outpins[0]);
+    for (const p of n.inpins || []) inNet.set(`${p.inst}\u0000${p.pin}`, n.name);
+  }
+  const memo = new Map();
+  const of = (net, depth = 0) => {
+    if (memo.has(net)) return memo.get(net);
+    memo.set(net, null);
+    let r = null;
+    const d = driver.get(net), i = d && inst.get(d.inst);
+    if (i && depth < 8) {
+      if (/^(IOB|IBUF|IBUFG|IOBS|IOBM|DIFFM|DIFFS)$/.test(i.type)) r = { port: i.name, f: 1, o: 0, via: [] };
+      else if (/^BUFG/.test(i.type)) { const n = inNet.get(`${i.name}\u0000I0`) || inNet.get(`${i.name}\u0000I`); r = n ? of(n, depth + 1) : null; }
+      else if (/^DCM/.test(i.type)) {
+        const n = inNet.get(`${i.name}\u0000CLKIN`), src = n ? of(n, depth + 1) : null, out = dcmOutput(i, d.pin);
+        if (src && out) r = { port: src.port, f: src.f * out.f, o: src.o + src.f * out.o, via: [...src.via, { dcm: i.name, pin: d.pin }] };
+      }
+    }
+    memo.set(net, r);
+    return r;
+  };
+  const out = new Map();
+  for (const n of design.nets) if (n.inpins?.some(p => CLOCK_PIN.test(p.pin))) { const r = of(n.name); if (r) out.set(n.name, r); }
+  return out;
+}
+
+/**
+ * The time a path from a clock's edge to another clock's edge has (#601), as trce's requirement between two related
+ * clocks: from each launching edge to the first capturing edge after it, the shortest over the clocks' common
+ * period. a, b: { period, first } (ns: the period, the first edge of the kind the flip-flops use); null when the
+ * edges never line up within 100 000 launches (no common period: as trce, the clocks are then left unrelated).
+ */
+export function clockRequirement(a, b) {
+  const ta = a.period, tb = b.period, eps = 1e-6;
+  if (!(ta > 0) || !(tb > 0)) return null;
+  let req = Infinity;
+  for (let k = 0; k < 1e5; k++) {
+    const l = a.first + k * ta;
+    const c = b.first + (Math.floor((l - b.first + eps) / tb) + 1) * tb;   // the first capture after it
+    req = Math.min(req, c - l);
+    // (the common period: k launches, a whole number of captures)
+    const q = ((k + 1) * ta) / tb;
+    if (Math.abs(q - Math.round(q)) < 1e-7) return Math.round(req * 1e6) / 1e6;
+  }
+  return null;
+}
+
 /**
  * The clocks' periods against the PERIOD constraints of the UCF (core/ucf.js parseUcf().clocks:
  * [{ net, period }], the net being the clock's port): [{ clock, port, required, period, slack, met }]
  * for each constrained clock found, and { port, required, missing: true } for a constraint on a port
- * that clocks nothing analyzed.
+ * that clocks nothing analyzed. A clock from a DCM (#601) has the constraint trce derives from its input's:
+ * { …, via: 'CLKFX of u_dcm' (the DCM outputs on the way), constraint: the port's PERIOD, required: that x its
+ * periods (CLK2X half of it, CLKDV the divider times, CLKFX D / M times) }.
  */
 export function checkPeriods(r, design, constraints = []) {
   const out = [];
-  const byPort = new Map(r.clocks.map(c => [String(clockPort(design, c.clock) || c.clock).toLowerCase(), c]));
+  const src = clockSources(design);
+  const portOf = c => String(src.get(c.clock)?.port || clockPort(design, c.clock) || c.clock).toLowerCase();
   for (const k of constraints) {
-    const c = byPort.get(String(k.net).toLowerCase());
-    if (!c) { out.push({ port: k.net, required: k.period, missing: true }); continue; }
-    out.push({ clock: c.clock, port: k.net, required: k.period, period: c.period, slack: k.period - c.period, met: c.period <= k.period });
+    const hit = r.clocks.filter(c => portOf(c) === String(k.net).toLowerCase());
+    if (!hit.length) { out.push({ port: k.net, required: k.period, missing: true }); continue; }
+    // (the port's own clock first, the slowest of its nets, then the DCMs')
+    const own = hit.filter(c => !src.get(c.clock)?.via.length).sort((a, b) => b.period - a.period).slice(0, 1);
+    for (const c of [...own, ...hit.filter(c => src.get(c.clock)?.via.length)]) {
+      const s = src.get(c.clock), via = s?.via.length ? s.via.map(v => `${v.pin} of ${v.dcm}`).join(', ') : null;
+      const required = via ? Math.round(k.period * s.f * 1e6) / 1e6 : k.period;
+      out.push({ clock: c.clock, port: k.net, ...(via && { via, constraint: k.period }), required, period: c.period, slack: required - c.period, met: c.period <= required });
+    }
   }
   return out;
+}
+
+/**
+ * The paths between two clocks (#601: analyzeTiming's cross) against the time their edges leave, as trce times them:
+ * two clocks of the same port (its own, a DCM's outputs) with a PERIOD constraint on it are related, the requirement
+ * from each launching edge to the first capturing edge after it (clockRequirement); others are unrelated, not timed.
+ * [{ kind: 'cross', from, to, launch, capture (0 rising, 1 falling), delay, path, related, required, slack, met }]
+ * (the clocks' global lines reaching the flip-flops at once: no clock skew counted).
+ */
+export function checkCross(r, design, constraints = []) {
+  const src = clockSources(design);
+  const periodOf = new Map(constraints.map(k => [String(k.net).toLowerCase(), k.period]));
+  return (r.cross || []).map(x => {
+    const a = src.get(x.from), b = src.get(x.to);
+    const T = a && b && a.port === b.port ? periodOf.get(String(a.port).toLowerCase()) : undefined;
+    const edge = (s, e) => ({ period: T * s.f, first: T * (s.o + (e ? s.f / 2 : 0)) });
+    const required = T ? clockRequirement(edge(a, x.launch), edge(b, x.capture)) : null;
+    if (required === null) return { kind: 'cross', ...x, related: false };
+    return { kind: 'cross', ...x, related: true, required, slack: required - x.delay, met: x.delay <= required };
+  });
 }
 
 /**
@@ -891,12 +1003,18 @@ export function checkOffsets(r, design, offsets = [], ucfClocks = []) {
 }
 
 /** A readable report of the critical path of each clock (lines of text), with the PERIOD checks
- *  (checkPeriods) and the OFFSET checks (checkOffsets) when given; then the pads' paths and the hold
- *  check (#26). */
+ *  (checkPeriods) and the OFFSET checks (checkOffsets) when given; the paths between two clocks (checkCross,
+ *  #601); then the pads' paths and the hold check (#26). */
 export function timingReport(r, checks = []) {
   const lines = [];
   const step = s => `  ${s.kind.padEnd(12)} ${s.delay.toFixed(3).padStart(7)} ${s.arrival.toFixed(3).padStart(8)}  ${s.inst}.${s.pin}`;
+  const edgeName = e => (e ? 'falling' : 'rising');
   for (const k of checks) {
+    if (k.kind === 'cross') continue;
+    if (k.via) {
+      lines.push(`constraint PERIOD ${k.constraint} ns on ${k.port}, ${k.via}: ${+k.required.toFixed(3)} ns, ${k.met ? 'met' : 'NOT MET'} (period ${k.period.toFixed(3)} ns, slack ${k.slack.toFixed(3)} ns)`);
+      continue;
+    }
     if (k.kind === 'offset') {
       lines.push(k.unsupported ? `constraint ${k.text}: not analyzed (only OFFSET on a NET or on all pads)`
         : k.missing ? `constraint ${k.text}: no pad of the design is bounded by it`
@@ -909,6 +1027,13 @@ export function timingReport(r, checks = []) {
   for (const c of r.clocks) {
     lines.push(`clock ${c.clock}: minimum period ${c.period.toFixed(3)} ns (${(1000 / c.period).toFixed(1)} MHz)`);
     for (const s of c.path) lines.push(step(s));
+  }
+  // (#601: as trce, against the time between the clocks' edges; unrelated clocks not timed)
+  for (const x of checks.filter(k => k.kind === 'cross')) {
+    const what = `paths from clock ${x.from} (${edgeName(x.launch)}) to clock ${x.to} (${edgeName(x.capture)})`;
+    if (!x.related) { lines.push(`${what}: not timed (unrelated clocks: not from one port with a PERIOD constraint)`); continue; }
+    lines.push(`${what}: ${x.met ? 'met' : 'NOT MET'}, requirement ${x.required.toFixed(3)} ns between the clocks' edges (delay ${x.delay.toFixed(3)} ns, slack ${x.slack.toFixed(3)} ns)`);
+    for (const s of x.path) lines.push(step(s));
   }
   const p = r.pads;
   if (!p) return lines;
