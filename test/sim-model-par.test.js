@@ -271,12 +271,12 @@ function sdfPeriod(vhdl, sdf) {
     const ins = it.pins.filter(p => dirs.get(base(p.pin).toUpperCase()) !== 'out' && !/^'|^"/.test(p.net));
     const outs = it.pins.filter(p => dirs.get(base(p.pin).toUpperCase()) === 'out');
     for (const a of cell.iopath) {
-      for (const o of outs.filter(o => base(o.pin) === a.to)) {
+      for (const o of outs.filter(o => base(o.pin) === a.to || key(o.pin) === a.to)) {
         if (a.edge || /^CLK/.test(a.from)) starts.push([o.net, a.ps]);
-        else for (const i of ins.filter(i => base(i.pin) === a.from)) add(i.net, o.net, port(i.pin) + a.ps);
+        else for (const i of ins.filter(i => base(i.pin) === a.from || key(i.pin) === a.from)) add(i.net, o.net, port(i.pin) + a.ps);
       }
     }
-    for (const c of cell.setup) for (const i of ins.filter(i => base(i.pin) === c.pin)) ends.push([i.net, port(i.pin) + c.setup]);
+    for (const c of cell.setup) for (const i of ins.filter(i => base(i.pin) === c.pin || key(i.pin) === c.pin)) ends.push([i.net, port(i.pin) + c.setup]);
   }
   // longest arrivals (the model's paths have no loops once the LUTs' unread inputs are tied to 0)
   const arr = new Map();
