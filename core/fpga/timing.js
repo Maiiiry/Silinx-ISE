@@ -84,7 +84,8 @@ export const SPEED_4 = {
     Tceck: [0.555, 0.555],     // CE (est.)
     Tsrck: [0.910, 0.910],     // SR
   },
-  pad: { Tiopi: 1.3, Tioop: 3.25 },
+  // (the IOB registers', #96: estimates until trce's reports of designs with them are measured)
+  pad: { Tiopi: 1.3, Tioop: 3.25, Tiockiq: 0.6, Tioock: 0.5, Tiotck: 0.5 },
   // the SLICEM's RAMs and shift registers: trce's values (research/s3e-route/timing-fit.mjs --arcs, #443: the srl
   // and dram fixtures, feat_srl, feat_srl_var, hard_prim; the same on either clock edge)
   mem: {
@@ -355,6 +356,13 @@ export function instArcs(inst, model = SPEED_4) {
   if (/^(IOB|IBUF|DIFF[MS]I?)$/.test(inst.type)) {
     out.input.push(['I', model.pad.Tiopi]);
     out.output.push(['O', model.pad.Tioop]);
+    // its registers (#96): the input register's output IQ1 after the clock, the output and output-enable
+    // registers' data O1 / T1 before it
+    const has = a => inst.cfg.some(c => c.attr === a && c.value === '#FF');
+    if (has('IFF1')) clkToOut.push(['IQ1', model.pad.Tiockiq]);
+    if (has('OFF1')) setup.push(['O1', model.pad.Tioock]);
+    if (has('TFF1')) setup.push(['T1', model.pad.Tiotck]);
+    out.clock = has('IFF1') || has('OFF1') || has('TFF1');
     return out;
   }
   if (inst.type === 'RAMB16') return bramArcs(inst, model, out);
@@ -487,7 +495,9 @@ function multArcs(inst, model, out) {
 const isConstNet = n => /^(vcc|gnd|power|ground|vdd)$/i.test(n.type || '');
 // an instance clocked on the falling edge: its clock inverted (a slice's CLKINV, a block RAM's CLKAINV / CLKBINV, a
 // multiplier's CLKINV = *_B; a latch with an active-high gate, CLK_B, closes on the falling edge too)
-const fallingEdge = inst => (inst.cfg.some(c => /^CLK[AB]?INV$/.test(c.attr) && /_B$/.test(c.value)) ? 1 : 0);
+const fallingEdge = inst => (inst.cfg.some(c => /^(CLK[AB]?|ICLK1|OTCLK1)INV$/.test(c.attr) && /_B$/.test(c.value)) ? 1 : 0);
+// the clock pins of the sites (an IOB's registers': ICLK1, OTCLK1, #96)
+const CLOCK_PIN = /^(CLK[AB]?|ICLK1|OTCLK1)$/;
 
 /**
  * The timing graph of a design (parseXdl's structure, placed; routed or not): the pins of the
@@ -509,7 +519,7 @@ export function timingGraph(design, model = SPEED_4) {
   // the clock of each instance: the net on its CLK pin
   const clockOf = new Map();
   // (a block RAM's CLKA / CLKB: its clock too)
-  for (const n of design.nets) for (const p of n.inpins) if (/^CLK[AB]?$/.test(p.pin)) clockOf.set(p.inst, n.name);
+  for (const n of design.nets) for (const p of n.inpins) if (CLOCK_PIN.test(p.pin)) clockOf.set(p.inst, n.name);
   // edges: from pin, to pin, delay, connection (-1: an arc through an instance)
   const eFrom = [], eTo = [], eDelay = [], eConn = [];
   const conns = [], connIndex = new Map();
@@ -518,7 +528,7 @@ export function timingGraph(design, model = SPEED_4) {
     const src = n.outpins[0];
     if (/^BUFG/.test(instByName.get(src.inst)?.type || '')) continue;
     for (const p of n.inpins) {
-      if (/^CLK[AB]?$/.test(p.pin)) continue;
+      if (CLOCK_PIN.test(p.pin)) continue;
       const c = conns.length;
       conns.push({ net: n.name, fromPin: src, toPin: p });
       connIndex.set(`${n.name}\u0000${p.inst}\u0000${p.pin}`, c);
