@@ -39,7 +39,7 @@ async function synth({ key, top, sources }) {
   const fe = [...lib.errors, ...design.diags].filter(d => d.severity === 'warning').map(d => `${d.file}:${d.line} ${d.message}`);
   expectWarnings(key, [...fe, ...r.warnings]);
   const nl = readYosysJson(r.files[`${r.top}.json`]);
-  const packed = pack(nl, { carryOut: 'xor' });
+  const packed = pack(nl);
   assert.deepEqual(packed.warnings, [], `${key}: the packer's warnings`);
   return { ...r, nl, packed };
 }

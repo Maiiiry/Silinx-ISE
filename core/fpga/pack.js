@@ -19,7 +19,8 @@
 //   cellSites: [{ inst, bel } | null]   where each netlist cell went (FFX / FFY, F / G, CYMUXF…; inst -1: left out)
 //   macros: [{ kind: 'carry' | 'F6' | 'F7' | 'F8', members: [{ inst, dx, dy }] }]   slices that must keep these
 //           relative positions (slice coordinates: SLICE_X(x+dx)Y(y+dy))
-//   stats:  { slices, luts, ffs, carry, muxes, iobs, bufgs, copies, passthru, unusedInputs, slicem, brams, mults, dcms,
+//   stats:  { slices, luts, ffs, carry, muxes, iobs, bufgs, copies, passthru, carryPass (carry stages left out:
+//             their select the constant 1), unusedInputs, slicem, brams, mults, dcms,
 //             timing (the slices filled by timing, #528: kept, not too many) },
 //           warnings: [] }
 // Besides the slices: distributed RAMs and shift registers in SLICEMs, block RAMs, multipliers and the
@@ -211,9 +212,10 @@ export function connectionCriticality(cells, nets) {
 
 /** Pack a netlist. ucf: UCF text or parseUcf() result (LOC, IOSTANDARD, DRIVE, SLEW, PULL).
  *  carryOut: how the carry out of a chain's last stage leaves the slice when logic reads it:
- *  'pin' (default, as ISE does: the XB / YB pin of the carry multiplexer) or 'xor' (one more
- *  stage, XOR with a LUT giving 0, so it leaves through X / Y like a sum: no XB / YB, whose output
- *  switches and settings Silinx's bitstream writer does not know yet).
+ *  'pin' (default, as ISE does: the XB / YB pin of the carry multiplexer; every XB / YB -> OMUX switch
+ *  is in the bit database of the four devices, and CIN -> XB is 0.13 ns where an XOR stage's CIN -> Y
+ *  takes 0.88, #591) or 'xor' (one more stage, XOR with a LUT giving 0, so it leaves through X / Y
+ *  like a sum; what the open flows did before the XB / YB switches were measured).
  *  timing (true): the units of critical connections in one slice (#528), unless that costs more
  *  slices than CRIT_SLICES allows; false: by shared nets only. */
 export function pack(nl, opts = {}) {
@@ -274,6 +276,23 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
     if (c.lowered) continue;
     if (c.type === 'INV') { c.type = 'LUT1'; c.params = { INIT: '01' }; c.pins = { I0: c.pins.I, O: c.pins.O }; relabel(c, { I: 'I0' }); }
     else if (c.type === 'BUF') { c.type = 'LUT1'; c.params = { INIT: '10' }; c.pins = { I0: c.pins.I, O: c.pins.O }; relabel(c, { I: 'I0' }); }
+  }
+  let carryPass = 0;
+  // A carry stage whose select is the constant 1 passes its carry in (O = CI) and no sum reads it:
+  // it is left out, its loads read the carry in (#591: blinky's comparator ended in three such
+  // stages, a constant's bits, each a stage of delay and the last one's carry out through the slow
+  // XORG instead of an XORF)
+  for (const c of cells) {
+    if (c.lowered || c.type !== 'MUXCY' || nets[c.pins.S].const !== 1) continue;
+    const ciNet = c.pins.CI, out = c.pins.O;
+    if (nets[ciNet].const !== undefined || nets[out].port) continue;
+    if (nets[ciNet].loads.some(l => cells[l.cell].type === 'XORCY' && l.pin === 'CI')) continue;
+    for (const n of new Set([ciNet, c.pins.S, c.pins.DI])) nets[n].loads = nets[n].loads.filter(l => l.cell !== c.idx);
+    for (const l of nets[out].loads) { cells[l.cell].pins[l.pin] = ciNet; nets[ciNet].loads.push(l); }
+    nets[out].loads = [];
+    nets[out].driver = null;
+    c.lowered = true;
+    carryPass++;
   }
   function relabel(c, map) {
     for (const n of Object.values(c.pins)) for (const l of nets[n].loads) if (l.cell === c.idx && map[l.pin]) l.pin = map[l.pin];
@@ -443,7 +462,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
 
   // ---------------------------------------------------------------- carry chains
   const macros = [];
-  const muxcy = cells.filter(c => c.type === 'MUXCY');
+  const muxcy = liveCells().filter(c => c.type === 'MUXCY');
   const xorcy = cells.filter(c => c.type === 'XORCY');
   const muxcyOn = new Map();   // CI net -> MUXCY cells reading it
   for (const m of muxcy) { const n = m.pins.CI; if (!muxcyOn.has(n)) muxcyOn.set(n, []); muxcyOn.get(n).push(m); }
@@ -1415,7 +1434,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin' }
     stats: {
       slices: slices.length, luts: slices.reduce((a, s) => a + !!s.lut.F + !!s.lut.G, 0), ffs: slices.reduce((a, s) => a + !!s.ff.X + !!s.ff.Y, 0),
       carry: stats.carry, muxes: stats.muxes, iobs: insts.filter(s => s.kind === 'iob').length, bufgs: insts.filter(s => s.kind === 'bufg').length,
-      copies: stats.copies, passthru: stats.passthru, muxLuts: stats.muxLuts || 0,
+      copies: stats.copies, passthru: stats.passthru, carryPass, muxLuts: stats.muxLuts || 0,
       unusedInputs: stats.unusedInputs || 0, slicem: stats.slicem, brams: insts.filter(s => s.kind === 'bram').length, mults: insts.filter(s => s.kind === 'mult').length,
       dcms: insts.filter(s => s.kind === 'dcm').length,
     },

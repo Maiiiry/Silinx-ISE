@@ -47,7 +47,7 @@ const setup = async () => {
   const r = await synthesizeOpen(elaborate(compile([{ path: 'fan.v', lang: 'verilog', text: FAN64 }]), 'fan'), { run: yosysNode });
   assert.deepEqual(r.warnings, []);
   const netlist = readYosysJson(r.files['fan.json']);
-  const packed = pack(netlist, { part: PART, carryOut: 'xor' });
+  const packed = pack(netlist, { part: PART });
   assert.deepEqual(packed.warnings, []);
   const device = loadDeviceCache(PART);
   const known = knownRouting(loadDb(PART, { graph: device }));
@@ -97,7 +97,7 @@ test('placeRouteBest: tries from the seed on, the fastest kept; then register re
   // from the first placement (#87) and routed; kept when faster
   const placed = [];
   let reported = null;
-  const best = placeRouteBest(netlist, packed, device, known, { seed: 1, pack: { part: PART, carryOut: 'xor' }, onPlaced: (pl, info) => placed.push(info.replication), onReplication: x => { reported = x; } });
+  const best = placeRouteBest(netlist, packed, device, known, { seed: 1, pack: { part: PART }, onPlaced: (pl, info) => placed.push(info.replication), onReplication: x => { reported = x; } });
   const plain = placeRouteBest(netlist, packed, device, known, { seed: 1, replicate: false });
   assert.equal(best.first.period, plain.period, 'the same first placement and routing');
   const r = best.replication;
@@ -127,7 +127,7 @@ test('placeRouteBest: tries from the seed on, the fastest kept; then register re
 test('placeRouteBest: a replicated design that cannot be placed is not kept (the error reported, the first placement kept)', { timeout: 600000 }, async () => {
   const { netlist, packed, device, known } = await setup();
   // the replicated netlist packed with an output on a pin the package does not have: the placer fails
-  const best = placeRouteBest(netlist, packed, device, known, { seed: 1, pack: { part: PART, carryOut: 'xor', ucf: 'NET "y" LOC = "ZZ99";' } });
+  const best = placeRouteBest(netlist, packed, device, known, { seed: 1, pack: { part: PART, ucf: 'NET "y" LOC = "ZZ99";' } });
   const r = best.replication;
   assert.ok(r.error instanceof Error, 'the error of the replicated placement');
   assert.match(r.error.message, /ZZ99/);

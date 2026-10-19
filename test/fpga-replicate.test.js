@@ -55,9 +55,9 @@ test('replicateCells: each group of loads gets a copy of the flip-flop (same typ
   }
   assert.deepEqual(nl2.nets[q].loads, groups[0]);
   // the replicated netlist, packed, behaves as the netlist
-  const packed = pack(nl2, { carryOut: 'xor' });
+  const packed = pack(nl2);
   assert.deepEqual(packed.warnings, []);
-  assert.equal(packed.stats.ffs, pack(nl, { carryOut: 'xor' }).stats.ffs + 2);
+  assert.equal(packed.stats.ffs, pack(nl).stats.ffs + 2);
   const d = compareSims(nl, packed, { cycles: 300, seed: 7 });
   assert.equal(d, null, d && `first difference at cycle ${d.cycle}`);
 });
@@ -112,9 +112,9 @@ test('replicateCells: a LUT (a reset computed by logic) copied with its inputs; 
   assert.deepEqual(nl2.nets[O].driver, { cell: nl.cells.length, pin: 'O' });
   assert.deepEqual(nl2.nets[O].loads, loads.slice(8));
   assert.deepEqual(nl2.nets[o0].loads, loads.slice(0, 8));
-  const packed = pack(nl2, { carryOut: 'xor' });
+  const packed = pack(nl2);
   assert.deepEqual(packed.warnings, []);
-  assert.equal(packed.stats.luts, pack(nl, { carryOut: 'xor' }).stats.luts + 1);
+  assert.equal(packed.stats.luts, pack(nl).stats.luts + 1);
   const d = compareSims(nl, packed, { cycles: 300, seed: 3 });
   assert.equal(d, null, d && `first difference at cycle ${d.cycle}`);
 });
@@ -139,13 +139,13 @@ test('replicationPlan: a LUT of many critical loads too (#522; luts: false leave
 
 test('warmStart (#87): each slice of the replicated design from the slice of its cells; a copy at the centre of its loads; pads on their sites', { timeout: 120000 }, async () => {
   const nl = await fanNetlist();
-  const packed = pack(nl, { carryOut: 'xor' });
+  const packed = pack(nl);
   // a made-up placement: instance k on slice (k, 2k), a pad on a pad of its own
   const placement = { sites: packed.insts.map((inst, k) => ({ site: inst.kind === 'slice' ? `SLICE_X${k}Y${2 * k}` : `PAD${k}` })) };
   const ff = nl.cells.findIndex(c => /^FD/.test(c.type) && nl.nets[c.pins.Q].loads.length >= 16);
   const loads = nl.nets[nl.cells[ff].pins.Q].loads;
   const nl2 = replicateCells(nl, [{ cell: ff, groups: [loads.slice(0, 8), loads.slice(8)] }]);
-  const packed2 = pack(nl2, { carryOut: 'xor' });
+  const packed2 = pack(nl2);
   const at = warmStart(nl, packed, placement, nl2, packed2);
   assert.equal(at.length, packed2.insts.length);
   const oldOf = i => packed.cellSites[i]?.inst;

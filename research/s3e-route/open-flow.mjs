@@ -63,11 +63,11 @@ if (!netFile) {
   netFile = path.join(outDir, `${top}.json`);
   step(`synthesis (${r.util.cells} cells)`, t);
 }
-// pack: a carry out read by logic leaves through an XOR stage, not XB / YB (not in the database)
+// pack
 t = Date.now();
 const ucf = proj.constraints ? fs.readFileSync(path.resolve(projDir, proj.constraints), 'utf8') : null;
 const netlist = readYosysJson(fs.readFileSync(netFile, 'utf8'));
-const packed = pack(netlist, { ucf, part, carryOut: 'xor' });
+const packed = pack(netlist, { ucf, part });
 for (const w of packed.warnings) console.log(`  Warning: pack: ${w}`);
 step(`pack (${packed.stats.slices} slices)`, t);
 // place, on the sites of the device cache
@@ -87,7 +87,7 @@ step('delay table', t);
 const label = r => (r ? ` (${r.flipFlops} flip-flops${r.luts ? ` and ${r.luts} LUTs` : ''} replicated, ${r.copies} copies)` : '');
 t = Date.now();
 const best = placeRouteBest(netlist, packed, device, known, {
-  seed, tries, effort, ...(timing !== null && { timing: +timing }), timingRoute, delays, replicate, replicateOpts, pack: { ucf, part, carryOut: 'xor' },
+  seed, tries, effort, ...(timing !== null && { timing: +timing }), timingRoute, delays, replicate, replicateOpts, pack: { ucf, part },
   onPlaced: (r, info) => {
     if (!info.replication && info.try === 0) for (const w of r.warnings || []) console.log(`  Warning: place: ${w}`);
     console.log(`place${label(info.replication)}${tries > 1 ? ` (seed ${info.seed})` : ''}: estimated critical path ${r.delay.toFixed(1)} ns`);

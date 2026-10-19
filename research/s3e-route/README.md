@@ -540,6 +540,37 @@ ISE's own SDF is trce's period within 2 ps, which checks the comparison's method
 of ISE's on the same routing. The tests (`test/sim-model-par.test.js`) check that the longest path over Silinx's SDF
 is its static timing's minimum period within 10 ps, on every example.
 
+## A carry chain's result read by logic (#591, 2026-10-19)
+
+blinky's critical path ended on its comparator's result (a 10-stage chain against a constant), the net
+that drives 9 LUT inputs. Two things made it slow, neither of them the routing of its 9 loads:
+
+- **The chain's last six stages passed the carry on**: their selects are the constant 1 (the constant's
+  bits), O = CI. The packer now leaves such a stage out (its loads read its carry in), unless a sum reads
+  that carry in. blinky's comparator is 4 stages instead of 10 (`stats.carryPass`: 6).
+- **The result left through one more stage, XOR with a LUT giving 0 (`carryOut: 'xor'`)**, because the
+  XB / YB outputs were not measured when the open flow began (above, "Fully open bitstreams"). They are
+  now: every `XBk / YBk -> OMUXj` of every CLB of the four devices is in the bit database, and XBUSED /
+  YBUSED set no bits. A stage's XOR on the G side costs CIN -> Y 0.869-0.883 ns, the carry multiplexer's
+  own output CIN -> XB 0.13 (the model's Tbyp: trce's value of this arc is still to be read). The open
+  flows now pack with `carryOut: 'pin'`, as ISE's map does.
+
+Silinx STA (the open flow, default options), main -> this change, seeds 1 / 2:
+
+| design | XC3S100E | XC3S250E | XC3S500E | XC3S1200E | slices |
+|---|---|---|---|---|---|
+| blinky | 7.55 / 7.35 -> 6.74 / 6.43 | 7.43 / 7.24 -> 6.43 / 6.54 | 7.61 / 7.54 -> 6.73 / 6.48 | 7.47 / 7.51 -> 6.68 / 7.02 | 79 -> 76 |
+| vga | 9.93 / 9.66 -> 9.99 / 9.51 | 10.09 / 9.56 -> 9.05 / 9.28 | 9.52 / 10.04 -> 9.41 / 9.55 | 9.81 / 9.84 -> 9.62 / 9.22 | 154 -> 144 |
+| pong | 12.47 / 12.28 -> 12.08 / 11.64 | 12.26 / 12.95 -> 12.52 / 12.48 | 13.02 / 11.92 -> 12.19 / 12.22 | 12.12 / 12.29 -> 12.11 / 12.13 | 245 |
+| stopwatch | 12.70 / 12.65 -> 13.11 / 13.17 | 13.01 / 12.77 -> 13.16 / 12.96 | 12.54 / 12.64 -> 12.79 / 12.36 | 12.71 / 12.46 -> 12.82 / 12.92 | 194 |
+
+gates, traffic and clock: the same (no chain read by logic). blinky over seeds 1-4 on the XC3S250E: 7.24-7.43
+-> 6.43-6.88 ns (ISE's own flow: 6.7). stopwatch's critical path is block RAM -> LUT -> multiplier ->
+flip-flop, no carry: its +1.8 % is the placement's noise (the same slices, packed in another order).
+
+To check with ISE (the Mac mini): `scripts/check-open-flow.mjs` on the examples (DRC, the `.bit`
+byte-identical with XBUSED / YBUSED and the XB / YB switches, trce's CIN -> XB).
+
 ## Open problems
 
 - Timing: no timing constraints (UCF PERIOD) are read yet; the router and the placer minimise the

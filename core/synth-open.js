@@ -251,7 +251,7 @@ export function keepSecond(ns, luts, rule = DEPTH_RULE, slices = null) {
 /** The slices of a mapped netlist of a 4-input-LUT family (Yosys's JSON), as core/fpga/pack.js packs them for
  *  the open flow; null when it does not pack (a cell it does not support yet). */
 export function sliceCount(json, top) {
-  try { return pack(readYosysJson(asText(json) || json, { top }), { carryOut: 'xor' }).stats.slices; } catch { return null; }
+  try { return pack(readYosysJson(asText(json) || json, { top })).stats.slices; } catch { return null; }
 }
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again,

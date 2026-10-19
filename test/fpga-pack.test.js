@@ -103,6 +103,56 @@ test('carryOut xor: a carry out read by logic leaves through an XOR stage (LUT 0
   assert.equal(d, null, d && `first difference at cycle ${d.cycle}`);
 });
 
+// a chain m0 (a real stage) -> m1 -> m2 whose selects are the constant 1 (as blinky's comparator against a
+// constant ended), its carry out to a pad; xorOn: an XORCY on m1's carry in (a sum that reads it)
+const passChain = ({ xorOn = false } = {}) => {
+  const io = (t, i, o) => ({ type: t, parameters: {}, port_directions: { I: 'input', O: 'output' }, connections: { I: [i], O: [o] } });
+  const lut2 = (i0, i1, o) => ({ type: 'LUT2', parameters: { INIT: '1001' }, port_directions: { I0: 'input', I1: 'input', O: 'output' }, connections: { I0: [i0], I1: [i1], O: [o] } });
+  const muxcy = (ci, di, sel, o) => ({ type: 'MUXCY', parameters: {}, port_directions: { CI: 'input', DI: 'input', S: 'input', O: 'output' }, connections: { CI: [ci], DI: [di], S: [sel], O: [o] } });
+  const xorcy = (ci, li, o) => ({ type: 'XORCY', parameters: {}, port_directions: { CI: 'input', LI: 'input', O: 'output' }, connections: { CI: [ci], LI: [li], O: [o] } });
+  return readYosysJson(JSON.stringify({ modules: { cmp: {
+    attributes: { top: '00000000000000000000000000000001' },
+    ports: { a: { direction: 'input', bits: [2] }, b: { direction: 'input', bits: [3] }, c: { direction: 'input', bits: [4] }, y: { direction: 'output', bits: [10] }, ...(xorOn && { z: { direction: 'output', bits: [11] } }) },
+    cells: {
+      ia: io('IBUF', 2, 12), ib: io('IBUF', 3, 13), ic: io('IBUF', 4, 14), oy: io('OBUF', 9, 10),
+      s0: lut2(12, 13, 6), m0: muxcy(14, 12, 6, 7), m1: muxcy(7, 13, '1', 8), m2: muxcy(8, 12, '1', 9),
+      ...(xorOn && { x1: xorcy(7, '1', 16), oz: io('OBUF', 16, 11) }),
+    },
+    netnames: {},
+  } } }));
+};
+
+test('a carry stage whose select is the constant 1 is left out: its loads read its carry in (#591)', () => {
+  const nl = passChain();
+  const p = pack(nl);
+  assert.equal(p.stats.carryPass, 2);
+  // one stage left: m0 in one slice, its carry out to the pad through XB
+  const chain = p.macros.find(m => m.kind === 'carry').members.map(x => p.insts[x.inst]);
+  assert.equal(chain.length, 1);
+  assert.ok(cfgOf(chain[0]).CYMUXF);
+  assert.equal(cfgOf(chain[0]).CYMUXG, undefined);
+  assert.equal(val(chain[0], 'XBUSED'), '0');
+  assert.deepEqual(nl.cells.filter(c => c.type === 'MUXCY').map(c => p.cellSites[nl.cells.indexOf(c)]?.bel ?? null), ['CYMUXF', null, null]);
+  const k = p.insts.indexOf(chain[0]);
+  assert.ok(p.nets.some(n => n.outpins[0]?.inst === k && n.outpins[0].pin === 'XB' && n.inpins.some(i => p.insts[i.inst].kind === 'iob')));
+  const d = compareSims(nl, p, { cycles: 64, seed: 3 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle}`);
+  // the same through an XOR stage
+  const px = pack(nl, { carryOut: 'xor' });
+  assert.equal(px.stats.carryPass, 2);
+  assert.equal(compareSims(nl, px, { cycles: 64, seed: 3 }), null);
+});
+
+test('a constant-1 carry stage whose carry in a sum reads stays in the chain (#591)', () => {
+  const nl = passChain({ xorOn: true });
+  const p = pack(nl);
+  assert.equal(p.stats.carryPass, 1);
+  const chain = p.macros.find(m => m.kind === 'carry').members.map(x => p.insts[x.inst]);
+  assert.ok(cfgOf(chain[0]).CYMUXF && cfgOf(chain[0]).CYMUXG && cfgOf(chain[0]).XORG);
+  const d = compareSims(nl, p, { cycles: 64, seed: 3 });
+  assert.equal(d, null, d && `first difference at cycle ${d.cycle}`);
+});
+
 test('carryOut xor: a chain ending on the G side gets its XOR stage on the F side of a slice above (CIN)', () => {
   // y = {a, c} >= {b, d}-like: two MUXCY stages (F, G of one slice) whose carry out drives a pad
   const io = (t, i, o) => ({ type: t, parameters: {}, port_directions: { I: 'input', O: 'output' }, connections: { I: [i], O: [o] } });
