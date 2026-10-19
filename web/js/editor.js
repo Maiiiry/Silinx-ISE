@@ -3,7 +3,7 @@
 // (snippets), live lint from the Silinx parsers with quick fixes (in the lint tooltip, a click on its
 // marker, Ctrl+.), hover info, go-to-definition, rename symbol (F2, web/js/refactor.js), folding,
 // comment toggling, search.
-import { EditorState, StateEffect, StateField, Compartment } from '@codemirror/state';
+import { EditorState, StateEffect, StateField, Compartment, Transaction } from '@codemirror/state';
 import { EditorView, Decoration, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection } from '@codemirror/view';
 import { StreamLanguage, syntaxHighlighting, syntaxTree, bracketMatching, foldGutter, foldService, foldCode, indentUnit } from '@codemirror/language';
 import { history, historyKeymap, defaultKeymap, undo, redo, undoDepth, redoDepth, toggleComment, indentMore, indentLess, selectAll } from '@codemirror/commands';
@@ -217,6 +217,7 @@ const phrases = () => (getLanguage() === 'pt' ? EDITOR_PHRASES_PT : {});
 
 // ------------------------------------------------------------------ editor factory
 export function createEditor(container, { text = '', lang = 'verilog', path = '', readOnly = false, project = () => null, onChange, onSave, onGotoDefinition, onCursor, onRename, onFix } = {}) {
+  // (onChange({ user }): user says whether the change was the user's own in the editor, #534)
   let parsed = { units: [], errors: [] }, syms = new Map(), parsedDoc = null;   // (parsedDoc: the text parsed)
   let externalDiags = [];
   let anns = [];   // the lint annotations shown (with their diagnostic: d), their lines 0-based
@@ -448,7 +449,9 @@ export function createEditor(container, { text = '', lang = 'verilog', path = ''
             hideLintTip();
             clearTimeout(changeTimer);
             changeTimer = setTimeout(() => { reparse(); }, 250);
-            onChange?.();
+            // (user: the change is the user's own, typed, pasted, dropped, undone or redone here, a fix or a
+            // snippet of theirs; false: written by setValue, as a command or an Undo of the project writes)
+            onChange?.({ user: u.transactions.some(tr => !!tr.annotation(Transaction.userEvent)) });
           }
           if (u.selectionSet) { const p = getCursor(); onCursor?.(p.line + 1, p.ch + 1); }
         }),
