@@ -24,6 +24,17 @@ const PARTS = {
   'implement.js': ['STEP_PROC', 'STEP_TOOL', 'RANK', 'worst', 'applyReportWarnings', 'stepTracker', 'ucfDiagnostics', 'checkUcfFile',
     'checkConstraints', 'regenerateUcf', 'runImpl', 'runImplInner', 'SYNTH_OPEN', 'synthOpenRunning', 'synthOpen', 'FLOW_UP_TO',
     'generateSimModel', 'postParTiming', 'textPowerReport', 'backAnnotatePins', 'readBuildFile', 'showTextDoc', 'stopProcesses'],
+  'drawings.js': ['openAsm', 'staleHdl', 'freshHdl', 'syncHdlFromAsm', 'asmFromHdlFile', 'syncAsmFromHdl',
+    'convertToAsm', 'asmContextMenu', 'ttDesignSources', 'openTt', 'ttModel', 'refreshTtLink', 'syncHdlFromTt',
+    'syncTtFromHdl', 'ttFromHdl', 'pickModule', 'moduleTable', 'loadTtFromModule', 'schematicFromTt', 'ttContextMenu',
+    'openFsm', 'fsmModel', 'refreshFsmLink', 'fsmDir', 'freeName', 'syncHdlFromFsm', 'syncFsmFromHdl',
+    'fsmFromHdlFile', 'convertToFsm', 'fsmToAsmChart', 'asmToFsmDiagram', 'fsmTruthTables', 'openPetri',
+    'syncHdlFromPetri', 'petriContextMenu', 'fsmContextMenu', 'schModules', 'openSch', 'isAsm', 'isTt', 'isFsm',
+    'isPn', 'viewNoun', 'viewTitle', 'viewIcon', 'viewKind', 'viewContextMenu', 'openView', 'viewBadge',
+    'syncedViewMenu', 'drawnHdlLanguage', 'adoptDrawnHdl', 'writeDrawnHdl', 'linkOpenEditor', 'clashTip',
+    'drawnHdlClashes', 'clashItem', 'resolveHdlClash', 'schStructure', 'syncBanner', 'refreshSyncBanner',
+    'topUcfPorts', 'ucfPort', 'refreshOpenEditor', 'syncHdlFromSchematic', 'syncSchematicFromHdl',
+    'convertToSchematic', 'drawingsAsBase', 'setViewAsTop', 'viewSel', 'topOfView', 'exportSchAsIse', 'schContextMenu'],
 };
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
@@ -92,4 +103,14 @@ test('#405 implement.js: the implementation processes, Check Constraints and Sto
     assert.ok(code.includes(s) && !app.includes(s), s);
   // the processes panel's runners in app.js still reach them
   for (const name of ['runImpl', 'synthOpen', 'checkUcfFile', 'stopProcesses']) assert.match(app, new RegExp(`\\b${name}\\(`), name);
+});
+
+test('#405 drawings.js: the drawings\' editors and their HDL synchronization left app.js', () => {
+  const code = read('drawings.js');
+  for (const s of ["import('./asm-editor.js')", "import('./truthtable.js')", "import('./fsm-editor.js')", "import('./petri-editor.js')"])
+    assert.ok(code.includes(s) && !app.includes(s), s);
+  // the names other modules took from app.js come from drawings.js now
+  assert.deepEqual(importedFrom(read('project.js'), 'drawings.js'), ['drawingsAsBase', 'adoptDrawnHdl', 'drawnHdlClashes']);
+  assert.deepEqual(importedFrom(read('implement.js'), 'drawings.js'), ['refreshOpenEditor', 'topUcfPorts', 'ucfPort']);
+  for (const name of ['openTt', 'openFsm', 'openPetri', 'openSch', 'openAsm']) assert.match(app, new RegExp(`export const app = \\{[^}]*\\b${name}\\b`));
 });

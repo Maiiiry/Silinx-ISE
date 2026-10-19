@@ -9,8 +9,9 @@ import { countEvent } from './analytics.js';
 import { log, logLine, showConsolePage, setDiagnostics } from './console.js';
 import { reloadProject } from './project.js';
 import { S, EXTRA_STEPS, IMPL_IDS, OPEN_SYNTH, SIM_MODEL_NAMES, checkSyntax, closeDoc, findDoc, inView, loadUcfText, moduleInfo, openDoc,
-  openMode, openSummary, projectBoard, refreshOpenEditor, refreshSummary, renderProcesses, saveAll, saveImplStatus, saveProjectJson,
-  setDirty, setStatus, setTop, status, synthFingerprint, topUcfPorts, ucfPort } from './app.js';
+  openMode, openSummary, projectBoard, refreshSummary, renderProcesses, saveAll, saveImplStatus, saveProjectJson,
+  setDirty, setStatus, setTop, status, synthFingerprint } from './app.js';
+import { refreshOpenEditor, topUcfPorts, ucfPort } from './drawings.js';
 
 // Live per-step status from run.sh's "=== SILINX STEP <step> ===" markers and ISE WARNING/ERROR lines.
 const STEP_PROC = { synth: 'synth', translate: 'translate', map: 'map', par: 'par', trce: 'par', bitgen: 'bitgen', prombit: 'bitgen',

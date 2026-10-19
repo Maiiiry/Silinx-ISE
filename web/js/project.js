@@ -8,7 +8,8 @@ import { PRODUCT, VERSION_LABEL } from '/core/version.js';
 import { EXAMPLE_ORDER } from '/core/examples.js';
 import { log, renderDiagnostics } from './console.js';
 import { S, closeAllDocs, compileProject, renderHierarchy, renderProcesses, renderFilesPage, renderLibsPage, showLeftPage, fixMissingTops,
-  restoreImplStatus, restoreViewState, openSummary, drawingsAsBase, adoptDrawnHdl, drawnHdlClashes } from './app.js';
+  restoreImplStatus, restoreViewState, openSummary } from './app.js';
+import { drawingsAsBase, adoptDrawnHdl, drawnHdlClashes } from './drawings.js';
 
 const $ = id => document.getElementById(id);
 
