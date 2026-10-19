@@ -147,7 +147,7 @@ const PT = {
   'Docker image with Xilinx ISE': 'Imagem Docker com Xilinx ISE', 'Remote host with Xilinx ISE via SSH': 'Máquina remota com Xilinx ISE por SSH',
   'ISE settings64.sh:': 'settings64.sh do ISE:', 'Docker image:': 'Imagem Docker:', 'Host:': 'Servidor:', 'User:': 'Utilizador:', 'Port:': 'Porto:',
   'Remote build dir:': 'Pasta remota de build:', 'Remote settings64.sh:': 'settings64.sh remoto:', 'Docker image on the remote host:': 'Imagem Docker na máquina remota:', 'none: ISE installed on the host': 'nenhuma: ISE instalado na máquina', 'Programmer tool:': 'Ferramenta de programação:',
-  'Cable:': 'Cabo:', 'Device programmers': 'Programadores de dispositivos', 'Tool': 'Ferramenta', 'Location': 'Localização',
+  'Cable:': 'Cabo:', 'Detecting the toolchain (Xilinx ISE, the device programmers)…': 'A detetar a toolchain (Xilinx ISE, os programadores de dispositivos)…', 'Device programmers': 'Programadores de dispositivos', 'Tool': 'Ferramenta', 'Location': 'Localização',
   'Board default': 'Predefinição da placa', 'board default': 'predefinição da placa', 'Save Changes': 'Guardar Alterações', 'Set Top Module': 'Definir Módulo de Topo',
   'Remove Source': 'Remover Fonte', 'Update Constraints': 'Atualizar Restrições', 'Constraints do not match the board': 'As restrições não correspondem à placa',
   'Version 0.1': 'Versão 0.1',

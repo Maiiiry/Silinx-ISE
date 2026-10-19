@@ -190,13 +190,59 @@ uiTest('dialogs close with Escape and only the topmost dialog handles Enter / Es
   await page.waitNoDialog();
   await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
   await page.waitDialog('Toolchain Settings');
+  await page.waitFor(() => !document.querySelector('.dlg-overlay .tc-detecting'), [], { what: 'toolchain detected' });
   await page.dialogButton('Cancel');
   await page.waitNoDialog();
+});
+
+uiTest('Toolchain Settings opens at once, filled in when the detection answers: never after the next menu is opened (#495)', E, async (page) => {
+  // the server's detection held (it runs the programmers for their versions: seconds on a slow machine)
+  await page.eval(() => {
+    const orig = window.fetch;
+    let release;
+    const held = new Promise((r) => { release = r; });
+    window.__releaseToolchain = release;
+    window.fetch = (u, o) => (String(u).includes('/api/toolchain') ? held.then(() => orig(u, o)) : orig(u, o));
+  });
+  await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
+  await page.waitDialog('Toolchain Settings');
+  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .dlg-body').textContent), /^Detecting the toolchain \(Xilinx ISE, the device programmers\)…$/);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .dlg-buttons .btn')].map((b) => [b.textContent, b.disabled])), [['Save', true], ['Cancel', false]]);
+  // in Portuguese
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  try {
+    await page.waitFor(() => document.querySelector('.dlg-overlay .dlg-body').textContent === 'A detetar a toolchain (Xilinx ISE, os programadores de dispositivos)…', [], { what: 'Portuguese' });
+  } finally { await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en')); }
+  // the answer fills it in, Save enabled
+  await page.eval(() => window.__releaseToolchain());
+  await page.waitFor(() => !document.querySelector('.dlg-overlay .tc-detecting'), [], { what: 'toolchain detected' });
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .form-grid label').textContent), 'Execution mode:');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .dlg-buttons .btn.primary').disabled), false);
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  // closed before the answer: no dialog comes after it (the menu bar is not covered)
+  await page.eval(() => {
+    const orig = window.fetch;
+    let release;
+    const held = new Promise((r) => { release = r; });
+    window.__releaseToolchain = release;
+    window.fetch = (u, o) => (String(u).includes('/api/toolchain') ? held.then(() => orig(u, o)) : orig(u, o));
+  });
+  await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
+  await page.waitDialog('Toolchain Settings');
+  await page.key('Escape');
+  await page.waitNoDialog();
+  await page.eval(() => window.__releaseToolchain());
+  const help = await page.openMenu('Help');
+  assert.ok(help.some((i) => i.label === 'About Silinx ISE'));
+  await page.closeMenus();
+  assert.equal(await page.dialogCount(), 0);
 });
 
 uiTest('Toolchain Settings: the SSH mode takes a Docker image on the remote host (e.g. an Intel Mac)', E, async (page) => {
   await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
   await page.waitDialog('Toolchain Settings');
+  await page.waitFor(() => !document.querySelector('.dlg-overlay .tc-detecting'), [], { what: 'toolchain detected' });
   assert.deepEqual(await page.eval(() => [...document.querySelector('.dlg-overlay select').options].map((o) => o.textContent)),
     ['Local (Xilinx ISE installed locally)', 'Docker image with Xilinx ISE', 'Remote host with Xilinx ISE via SSH', 'Silinx toolchain (experimental, no ISE)']);
   await page.eval(() => { const s = document.querySelector('.dlg-overlay select'); s.value = 'ssh'; s.dispatchEvent(new Event('change')); });
@@ -215,6 +261,7 @@ uiTest('Toolchain Settings: the SSH mode takes a Docker image on the remote host
   // reopened, the dialog shows it; emptied, the host's own ISE is used again
   await page.menu('Tools', 'Toolchain Settings (ISE / Programmers)…');
   await page.waitDialog('Toolchain Settings');
+  await page.waitFor(() => !document.querySelector('.dlg-overlay .tc-detecting'), [], { what: 'toolchain detected' });
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay select').value), 'ssh');
   assert.equal(await page.eval(() => { const ls = [...document.querySelectorAll('.dlg-overlay .form-grid label')]; return ls.find((x) => x.textContent === 'Docker image on the remote host:').nextElementSibling.value; }), 'xilinx/ise:14.7');
   await page.dialogButton('Cancel');

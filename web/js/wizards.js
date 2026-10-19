@@ -846,9 +846,19 @@ export async function implProperties() {
 
 // ------------------------------------------------------------------ toolchain
 export async function toolchainDialog() {
+  // the dialog at once, filled in when the detection answers (it runs the programmers for their versions:
+  // seconds on a slow machine, and the dialog opened after it came over whatever was done meanwhile, the
+  // menu bar's next menu: #495); Save once it is filled in
+  const body = h('div', { class: 'tc-detecting' }, h('p', {}, 'Detecting the toolchain (Xilinx ISE, the device programmers)…'));
+  const save = { label: 'Save', primary: true, value: true, disabled: true };
+  const answer = dialog({ title: 'Toolchain Settings', width: 640, body, buttons: [save, { label: 'Cancel', value: null }] });
   let tc;
   const pjName = S.project?.name || null;
-  try { tc = await api.toolchain(pjName); } catch (e) { return alertDlg('Toolchain', e.message, 'error'); }
+  try { tc = await api.toolchain(pjName); } catch (e) {
+    body.replaceChildren(h('div', { class: 'msg msg-error' }, h('div', { class: 'msg-icon' }, '✖'), h('div', { class: 'msg-text' }, e.message)));
+    body.classList.remove('tc-detecting');
+    return answer;
+  }
   const cfg = JSON.parse(JSON.stringify(tc.config));
   const ISE_OPTS = [['local', 'Local (Xilinx ISE installed locally)'], ['docker', 'Docker image with Xilinx ISE'], ['ssh', 'Remote host with Xilinx ISE via SSH']];
   const mode = select([...ISE_OPTS, ['silinx', 'Silinx toolchain (experimental, no ISE)']], cfg.mode);
@@ -891,23 +901,21 @@ export async function toolchainDialog() {
   renderMode();
   const st = tc.ise;
   const progRows = Object.entries(tc.programmers).map(([k, v]) => h('tr', {}, h('td', {}, k), h('td', { html: v.found ? icons.ok : icons.err }), h('td', {}, v.found ? `${v.path}${v.version ? ` (${v.version})` : ''}` : 'not found')));
-  const r = await dialog({
-    title: 'Toolchain Settings', width: 640,
-    body: h('div', {},
-      h('div', { class: `msg ${st.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, st.available ? '✓' : '!'),
-        h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'silinx' ? 'Silinx toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: 'var(--grey-3)' } }, st.help),
-          st.available ? null : h('div', { style: { marginTop: '8px' } }, h('b', {}, 'Easiest setup on any OS: '), 'build the private Docker image with the Silinx kit (docker/ise/README.md): ',
-            h('code', {}, 'docker/ise/build-ise-image.sh --installer <Xilinx_ISE_DS_Lin_14.7_1015_1.tar> --license <Xilinx.lic>'), ' (Windows: build-ise-image.ps1). It configures Silinx automatically.'))),
-      h('div', { class: 'form-grid' }, h('label', {}, 'Execution mode:'), mode),
-      h('div', { style: { margin: '6px 0 10px' } }, modeBox),
-      openBox,
-      h('div', { style: { fontWeight: 'bold', margin: '8px 0 4px' } }, 'Device programmers'),
-      h('table', { class: 'grid' }, h('tr', {}, h('th', {}, 'Tool'), h('th', {}, ''), h('th', {}, 'Location')), ...progRows),
-      h('div', { class: 'form-grid', style: { marginTop: '8px' } }, h('label', {}, labels['programmer.tool']), inputs['programmer.tool'], h('label', {}, labels['programmer.cable']), inputs['programmer.cable']),
-      h('div', { style: { color: 'var(--grey-5)', marginTop: '8px' } }, `Settings file: ${tc.configPath}`)),
-    buttons: [{ label: 'Save', primary: true, value: true }, { label: 'Cancel', value: null }],
-  });
-  if (!r) return;
+  body.replaceChildren(
+    h('div', { class: `msg ${st.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, st.available ? '✓' : '!'),
+      h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'silinx' ? 'Silinx toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: 'var(--grey-3)' } }, st.help),
+        st.available ? null : h('div', { style: { marginTop: '8px' } }, h('b', {}, 'Easiest setup on any OS: '), 'build the private Docker image with the Silinx kit (docker/ise/README.md): ',
+          h('code', {}, 'docker/ise/build-ise-image.sh --installer <Xilinx_ISE_DS_Lin_14.7_1015_1.tar> --license <Xilinx.lic>'), ' (Windows: build-ise-image.ps1). It configures Silinx automatically.'))),
+    h('div', { class: 'form-grid' }, h('label', {}, 'Execution mode:'), mode),
+    h('div', { style: { margin: '6px 0 10px' } }, modeBox),
+    openBox,
+    h('div', { style: { fontWeight: 'bold', margin: '8px 0 4px' } }, 'Device programmers'),
+    h('table', { class: 'grid' }, h('tr', {}, h('th', {}, 'Tool'), h('th', {}, ''), h('th', {}, 'Location')), ...progRows),
+    h('div', { class: 'form-grid', style: { marginTop: '8px' } }, h('label', {}, labels['programmer.tool']), inputs['programmer.tool'], h('label', {}, labels['programmer.cable']), inputs['programmer.cable']),
+    h('div', { style: { color: 'var(--grey-5)', marginTop: '8px' } }, `Settings file: ${tc.configPath}`));
+  body.classList.remove('tc-detecting');
+  save.el.disabled = false;
+  if (!await answer) return;
   const out = { mode: mode.value, local: {}, docker: {}, ssh: {}, programmer: {}, open: { iseMode: cfg.open?.iseMode || 'docker' } };
   for (const [k, el] of Object.entries(inputs)) {
     const [g, f] = k.split('.');

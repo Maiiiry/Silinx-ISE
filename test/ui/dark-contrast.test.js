@@ -107,6 +107,8 @@ for (const theme of ['dark', 'light']) {
       await page.waitDialog();
       // Check for Updates: its answer (here: no network, the failure)
       if (item === 'Check for Updates…') await page.waitFor(() => !/Checking/.test(document.querySelector('.dlg-overlay').textContent), [], { what: 'update check answered' });
+      // Toolchain Settings: filled in once the detection answers (#495)
+      if (item.startsWith('Toolchain Settings')) await page.waitFor(() => !document.querySelector('.dlg-overlay .tc-detecting'), [], { what: 'toolchain detected' });
       await check(item);
       await closeDialogs(page);
     }
