@@ -760,10 +760,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 33,
-   "luts": 63,
+   "slices": 31,
+   "luts": 59,
    "ffs": 37,
-   "period": 5.644
+   "period": 5.361
   }
  },
  "neorv32": {

@@ -728,7 +728,10 @@ endmodule
 // #377: ABC9 onto LUT4s alone, one more candidate of effort High (research/synth-quality/README.md, "ABC9")
 test('ABC9 candidate (#377): its script, from the netlist before the LUT mapping, the cells\' models and Silinx\'s SRL16E_1 read first', () => {
   assert.equal(abc9RemapCommands('top', 'spartan3e'), 'read_verilog -lib -specify +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; '
-    + `read_verilog -lib silinx_srl_cells.v; read_rtlil -nooverwrite ${PREMAP_FILE}; synth_xilinx -family xc3se -ise -flatten -top top -abc9 -nowidelut -run map_luts:`);
+    + `read_verilog -lib silinx_srl_cells.v; read_rtlil -nooverwrite ${PREMAP_FILE}; `
+    // (the clock nets' names kept through ABC9, #496)
+    + 'select -set silinx_clocks t:* %ci1:+[C]:+[CLK]:+[CLKA]:+[CLKB]:+[WCLK]:+[CLKIN] w:* %i; setattr -set keep 1 @silinx_clocks; '
+    + 'synth_xilinx -family xc3se -ise -flatten -top top -abc9 -nowidelut -run map_luts:; setattr -unset keep @silinx_clocks');
 });
 
 test('ABC9 candidate (#377): kept when better (the gates example: 1 LUT instead of 2), equal to the RTL; abc9: false leaves it out; with 4 Yosys at once the same', { timeout: 300000 }, async () => {

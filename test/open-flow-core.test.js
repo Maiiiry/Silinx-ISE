@@ -67,6 +67,13 @@ test('the browser edition\'s flow (in memory, the database as JSON) writes the b
   assert.ok(Buffer.from(store['top.bit']).equals(serverBit), 'the same bitstream');
   assert.equal(store['open/routed.xdl'], fs.readFileSync(path.join(outDir, 'routed.xdl'), 'utf8'));
   assert.ok(reports.at(-1).bit && reports.at(-1).timing?.met !== undefined, 'the report has the bitstream and the timing');
+  // the clock named by its net, ABC9's netlist kept (effort High, the flow's default: blinky keeps it), as the
+  // usual mapping names it, not ABC9's alias '$abc$…$aiger$o…' (#496)
+  const clockLines = lines.filter(l => /^clock /.test(l));
+  assert.equal(clockLines.length, 1, clockLines.join('\n'));
+  assert.match(clockLines[0], /^clock \$iopadmap\$clk: minimum period \d+\.\d{3} ns \(\d+\.\d MHz\)$/);
+  assert.match(store['open/timing.txt'], /^clock \$iopadmap\$clk: minimum period /m);
+  assert.deepEqual(reports.at(-1).timing.clocks.map(c => [c.clock, c.port]), [['$iopadmap$clk', 'clk']]);
 });
 
 test('Back-annotate Pin Locations (pin2ucf): the placer\'s pads as UCF; built again from the back-annotated UCF, the pads stay where they were (#118)', { timeout: 300000 }, async () => {
