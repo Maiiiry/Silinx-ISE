@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EXAMPLES, example, ROOT } from './examples-lib.mjs';
 import { diffCycles, designOf, rng } from './compiled-diff.js';
-import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit, segmentsOf } from '../core/compiled-sim.js';
+import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit, segmentsOf, chunks, prepCommands, gateLevel } from '../core/compiled-sim.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { timingGenerics, autoTimeScale, scaledGenerics } from '../core/emulate.js';
 
@@ -686,6 +686,65 @@ test('activity: the segments, from the rates of the values their blocks read', (
   assert.deepEqual(shape(segmentsOf([blk(1, ['x']), blk(3, ['c'])], new Map([['x', 0.1], ['c', 1]]))), [[4, null]]);
   const none = segmentsOf([], new Map());
   assert.deepEqual([[...none], none.cost], [[], 0]);
+});
+// #629: a run() above V8's limit of the bytecode it optimizes is split: the values the code's own, its combinational
+// cells in functions; the same values, cycle by cycle, as the code in one piece
+test('#629 chunks: statements in groups of a number of characters at most, a longer one alone', () => {
+  assert.deepEqual(chunks(['aaaa', 'bb', 'cc', 'dddddddd', 'e'], 8), ['aaaa\nbb', 'cc', 'dddddddd', 'e']);
+  assert.deepEqual(chunks(['a', 'b'], 100), ['a\nb']);
+  assert.deepEqual(chunks([], 10), []);
+});
+test('#629 a split run(): the same values as the code in one piece, every net, cycle by cycle (pong, a synthesized netlist)', async () => {
+  const ex = example('pong');
+  for (const [sources, top] of [[ex.design, ex.project.top], [logicPrims('verilog'), 'logic_v']]) {
+    const { json, top: t } = await netlistOf(designOf(sources, top), { run: yosysNode });
+    const one = compileNetlist(json, { top: t }), cut = compileNetlist(json, { top: t, split: 2000, chunk: 600 });
+    assert.doesNotMatch(one.code, /CF0\(\)/, top);
+    assert.match(one.code, /let v0 = V0/, top);
+    assert.match(cut.code, /const CF1 = \(\) => \{/, top);
+    assert.doesNotMatch(cut.code, /let v0 = V0|V0 = v0/, top);
+    const a = new CompiledSim(one), b = new CompiledSim(cut);
+    const ins = designOf(sources, top).top.ports.filter(x => x.dir === 'in' && x.name !== one.clock?.port), r = rng(629);
+    let compared = 0;
+    for (let k = 0; k < 300; k++) {
+      for (const x of ins) if (k === 0 || r() < 0.1) { const v = BigInt(Math.floor(r() * 2 ** Math.min(x.sig.t.w, 30))); a.set(x.name, v); b.set(x.name, v); }
+      const n = 1 + Math.floor(r() * 50);
+      a.cycle(n); b.cycle(n);
+      assert.deepEqual(b.inst.vals().map(String), a.inst.vals().map(String), `${top}: cycle ${a.cycles}`);
+      compared += a.model.vars.length;
+    }
+    assert.ok(compared > 30000, `${top}: ${compared} values compared`);
+  }
+});
+test('#629 a gate-level model: its LUTs read without a helper, its constants folded (opt_expr -full); a behavioural design as before', async () => {
+  assert.equal(prepCommands('t'), 'prep -flatten -top t; memory -nomap; opt_clean -purge');
+  assert.equal(prepCommands('t', { gates: true }), 'prep -flatten -top t; opt_expr -full; memory -nomap; opt_clean -purge');
+  assert.equal(gateLevel(['LUT4', 'FDRE']), true);
+  assert.equal(gateLevel(['X_LUT4', 'X_FF']), true);
+  assert.equal(gateLevel(['RAMB16_S9', 'BUFG']), false);
+  assert.equal(gateLevel([]), false);
+  const sim = await compileDesign(designOf(logicPrims('verilog'), 'logic_v'), { run: yosysNode });
+  assert.doesNotMatch(sim.model.code, /H\.shN/);
+  assert.match(sim.model.code, /\(\(\d+ >>> /);
+});
+test('#629 pong\'s Post-Synthesis Simulation Model: its run() split by itself (106 000 characters in one piece, never optimized), the same outputs as before', { timeout: 300000 }, async () => {
+  const { runOpenFlow } = await import('../core/open-flow-core.js');
+  const ex = example('pong'), top = ex.project.top, written = {};
+  const r = await runOpenFlow({ top, part: 'xc3s250ecp132-4', family: 'spartan3e', steps: ['postsynth'], simTop: ex.project.simTop },
+    { log: () => {}, sources: () => ex.design, simSources: () => ex.sim, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {} });
+  assert.equal(r.ok, true);
+  const file = `netgen/synthesis/${top}_synthesis.v`, model = designOf(src(file, written[file]), top);
+  const sim = await compileDesign(model, { run: yosysNode });
+  assert.deepEqual(sim.warnings, []);
+  assert.match(sim.model.code, /const CF0 = \(\) => \{/);
+  assert.doesNotMatch(sim.model.code, /let v0 = V0/);
+  const { json, top: t } = await netlistOf(model, { run: yosysNode });
+  const one = new CompiledSim(compileNetlist(json, { top: t, split: Infinity }));
+  assert.doesNotMatch(one.model.code, /CF0/);
+  for (const n of [1, 1000, 200_000]) {
+    sim.cycle(n); one.cycle(n);
+    for (const p of model.top.ports.filter(x => x.dir === 'out')) assert.equal(sim.get(p.name), one.get(p.name), `${p.name} after ${sim.cycles} cycles`);
+  }
 });
 test('speed: the compiled simulator runs millions of cycles per second (pong at its real generics)', async () => {
   const ex = example('pong');
