@@ -14,7 +14,7 @@ import { paramBits, paramInt } from './fpga/netlist.js';
 import { primitiveInterface } from './netlist-hier.js';
 import { validIdent } from './schdoc.js';
 import { lutTable } from './xdl.js';
-import { SPEED_4 } from './fpga/timing.js';
+import { SPEED_4, instArcs } from './fpga/timing.js';
 import { writeSdf } from './sdf.js';
 import { UNISIM_SOURCE, SIMPRIM_SOURCE } from './unisim.js';
 import * as V from './values.js';
@@ -460,7 +460,7 @@ function packedModel(M, packed, model = null) {
       const ports = ['A', 'B'].filter(x => c.has(`PORT${x}_ATTR`));
       const dual = ports.length === 2, ws = ports.map(x => WIDTH_OF_ATTR[val(`PORT${x}_ATTR`)]);
       const X = `X_RAMB16_${ws.map(w => `S${w}`).join('_')}`;
-      const pins = [], arcs = { clocked: [], setup: [] };
+      const pins = [];
       ports.forEach((x, n) => {
         const [d, p, aw] = BRAM_W[ws[n]], P = dual ? x : '';
         const outv = (pfx, w) => Array.from({ length: w }, (_, k) => { const s = M.signal(`${name}_${pfx}${x}${k}`); out(`${pfx}${x}${k}`, s); return s; });
@@ -468,11 +468,6 @@ function packedModel(M, packed, model = null) {
           [`ADDR${P}`, Array.from({ length: aw }, (_, j) => pin(i, `ADDR${x}${14 - aw + j}`))], [`CLK${P}`, inv(`CLK${x}`)],
           [`DI${P}`, Array.from({ length: d }, (_, k) => pin(i, `DI${x}${k}`))], ...(p ? [[`DIP${P}`, Array.from({ length: p }, (_, k) => pin(i, `DIP${x}${k}`))]] : []),
           [`EN${P}`, inv(`EN${x}`)], [`SSR${P}`, inv(`SSR${x}`)], [`WE${P}`, inv(`WE${x}`)]);
-        if (T) {
-          const B = T.bram;
-          arcs.clocked.push([`CLK${P}`, `DO${P}`, B.Tbcko], ...(p ? [[`CLK${P}`, `DOP${P}`, B.Tbcko]] : []));
-          arcs.setup.push([`ADDR${P}`, `CLK${P}`, B.Tback], [`DI${P}`, `CLK${P}`, B.Tbdck], [`EN${P}`, `CLK${P}`, B.Tbeck], [`WE${P}`, `CLK${P}`, B.Tbwck], [`SSR${P}`, `CLK${P}`, B.Tbrck]);
-        }
       });
       const get = g => {
         let m = /^(INITP?)_([0-9A-F]{2})$/.exec(g);
@@ -484,21 +479,24 @@ function packedModel(M, packed, model = null) {
         const [d, p] = BRAM_W[ws[ports.indexOf(x)]] || [0, 0];
         return val(`${m[1]}_${x}`) === undefined ? undefined : bitsOfHex(val(`${m[1]}_${x}`), d + p);
       };
-      M.inst(X, name, genericValues(X, get), pins, T && arcs);
+      // its delays: the static timing's arcs of the site (core/fpga/timing.js instArcs), on the primitive's pins
+      const formal = sp => {
+        const m = /^(DOP|DIP|DO|DI|ADDR|EN|WE|SSR|CLK)([AB])(\d*)$/.exec(sp);
+        const n = m ? ports.indexOf(m[2]) : -1;
+        if (n < 0) return null;
+        const [d, p, aw] = BRAM_W[ws[n]], P = dual ? m[2] : '', k = +m[3];
+        if (m[3] === '') return `${m[1]}${P}`;
+        const j = m[1] === 'ADDR' ? k - (14 - aw) : k;
+        return j >= 0 && j < { DO: d, DI: d, DOP: p, DIP: p, ADDR: aw }[m[1]] ? `${m[1]}${P}[${j}]` : null;
+      };
+      M.inst(X, name, genericValues(X, get), pins, T && hardArcs(inst, T, formal, sp => `CLK${dual ? sp.replace(/^\D+([AB])\d*$/, '$1') : ''}`));
       return;
     }
     if (inst.kind === 'mult') {
       const X = 'X_MULT18X18SIO';
       const P = Array.from({ length: 36 }, (_, k) => { const s = M.signal(`${name}_P${k}`); out(`P${k}`, s); return s; });
       const reg = g => +(val(g) ?? 0);
-      let arcs = null;
-      if (T) {
-        const U = T.mult;
-        arcs = { iopath: [], clocked: [], setup: [] };
-        if (reg('PREG')) arcs.clocked.push(['CLK', 'P', U.Tmsckp]);
-        else { for (const x of ['A', 'B']) if (!reg(`${x}REG`)) arcs.iopath.push([x, 'P', U.Tmult]); if (reg('AREG') || reg('BREG')) arcs.clocked.push(['CLK', 'P', U.Tmscka]); }
-        for (const x of ['A', 'B']) if (reg(`${x}REG`) || reg('PREG')) arcs.setup.push([x, 'CLK', reg(`${x}REG`) ? U.Tmsck : U.Tmsdck]);
-      }
+      const arcs = T && hardArcs(inst, T, sp => (/^([ABP])(\d+)$/.test(sp) ? sp.replace(/^([ABP])(\d+)$/, '$1[$2]') : /^(CE|RST)[ABP]$|^CLK$/.test(sp) ? sp : null), () => 'CLK');
       M.inst(X, name, [['AREG', { int: reg('AREG') }], ['BREG', { int: reg('BREG') }], ['PREG', { int: reg('PREG') }], ['B_INPUT', { str: val('B_INPUT') || 'DIRECT' }]],
         [['A', Array.from({ length: 18 }, (_, k) => pin(i, `A${k}`))], ['B', Array.from({ length: 18 }, (_, k) => pin(i, `B${k}`))],
           ...['CEA', 'CEB', 'CEP', 'CLK', 'RSTA', 'RSTB', 'RSTP'].map(x => [x, inv(x)]), ['P', P]], arcs);
@@ -531,6 +529,18 @@ function packedModel(M, packed, model = null) {
     M.alias.set(k, r || (d ? (unknown.add(`${insts[d.inst].type}.${d.pin}`), { c: 0 }) : { c: 0 }));
   });
   return [...unknown].sort();
+}
+
+// The delays of a block RAM's or a multiplier's site as the static timing has them (core/fpga/timing.js instArcs: its
+// paths through, its clock to out, its setups), on the primitive's pins: formal(site pin) -> the pin (a vector's bit
+// as P[3]) or null, clock(site pin) -> the clock pin of an output or a setup
+function hardArcs(inst, model, formal, clock) {
+  const a = instArcs({ ...inst, site: inst.loc }, model);
+  const out = { iopath: [], clocked: [], setup: [] };
+  for (const [i, o, d] of a.comb) { const fi = formal(i), fo = formal(o); if (fi && fo) out.iopath.push([fi, fo, d]); }
+  for (const [o, d] of a.clkToOut) { const fo = formal(o); if (fo) out.clocked.push([clock(o), fo, d]); }
+  for (const [i, d] of a.setup) { const fi = formal(i); if (fi && d > 0) out.setup.push([fi, clock(i), d]); }
+  return out;
 }
 
 // A Spartan-3E slice from its configuration (the elements it uses), as packedSim reads it (test/fpga-sim.js).

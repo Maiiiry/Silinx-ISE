@@ -19,8 +19,8 @@
 // path; each setup check is a process that reports a timing violation when the input changed less than its
 // setup time before the clock's edge (a warning), from 100 ns on: as in ISE's timing simulation, whose global
 // set / reset (glbl's GSR) holds the first 100 ns, while the values of time 0 settle through the delays. A combinational
-// element's paths are applied on its inputs, which is exact for an element of one output (the SIMPRIM gates)
-// and for one whose outputs all have the same delay from an input (the multiplier).
+// element's paths are applied on its inputs, which is exact for an element of one output (the SIMPRIM gates), or on
+// its outputs when their delay depends on the output only (a multiplier's product bits).
 import { primitiveInterface } from './netlist-hier.js';
 
 const ps = ns => Math.max(0, Math.round(ns * 1000));
@@ -105,18 +105,30 @@ const CLOCK_PIN = /^CLK[AB]?$/;
 // a formal as the SDF names it: ADDRA(3) / ADDRA[3] -> { base: ADDRA, key: ADDRA[3] }
 const formalKey = f => { const m = /^(\w+)\s*[([]\s*(\d+)\s*[)\]]$/.exec(f.trim()); return m ? { base: m[1], key: `${m[1]}[${m[2]}]` } : { base: f.trim(), key: f.trim() }; };
 
+// The paths through an element of several outputs whose delay depends on the output only (a multiplier's A / B -> P[j]):
+// applied on those outputs (outputs: Map(output -> ps)); the others on the inputs
+const clocked = a => !!a.edge || CLOCK_PIN.test(a.from);
+function splitPaths(cell) {
+  if (cell.split) return cell.split;
+  const to = new Map();
+  for (const a of cell.iopath) if (!clocked(a)) { if (!to.has(a.to)) to.set(a.to, new Set()); to.get(a.to).add(a.ps); }
+  const outputs = new Map();
+  if (to.size > 1) for (const [o, ds] of to) if (ds.size === 1) outputs.set(o, [...ds][0]);
+  return (cell.split = { outputs });
+}
 // the delays of one instance's pin from its cell: { input: { wire, gate } | null, output: ps | null }
 function pinDelays(cell, type, formal) {
   const { base, key } = formalKey(formal);
   const itf = primitiveInterface(type)?.ports.find(p => p.name.toUpperCase() === base.toUpperCase());
   const dir = itf?.dir || (cell.iopath.some(a => a.to === base || a.to === key) ? 'out' : 'in');
   const at = a => a === base || a === key;
+  const { outputs } = splitPaths(cell);
   if (dir === 'out') {
-    const d = Math.max(0, ...cell.iopath.filter(a => at(a.to) && (a.edge || CLOCK_PIN.test(a.from))).map(a => a.ps));
+    const d = Math.max(0, ...cell.iopath.filter(a => at(a.to) && clocked(a)).map(a => a.ps), outputs.get(key) ?? outputs.get(base) ?? 0);
     return { output: d > 0 ? d : null };
   }
   const wire = cell.port.get(key) ?? cell.port.get(base) ?? 0;
-  const gate = Math.max(0, ...cell.iopath.filter(a => at(a.from) && !a.edge && !CLOCK_PIN.test(a.from)).map(a => a.ps));
+  const gate = Math.max(0, ...cell.iopath.filter(a => at(a.from) && !clocked(a) && !outputs.has(a.to)).map(a => a.ps));
   return { input: wire > 0 || gate > 0 ? { wire, gate } : null };
 }
 const isConst = a => /^('[01xXzZuU-]'|"[01xXzZ]*"|open|[01]'b[01xz]|1'b[01xz]|\d+'[bhd][0-9a-fA-FxXzZ]+|GND|VCC)$/.test(a.trim());

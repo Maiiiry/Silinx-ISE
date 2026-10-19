@@ -72,12 +72,12 @@ function sdfPeriod(vhdl, sdf) {
     // (the clock network: not on the paths; a clocked element's clock to out starts them)
     if (/^X_(BUFGMUX|CKBUF|BUFGP)$/.test(it.type)) continue;
     for (const a of cell.iopath) {
-      for (const o of outs.filter(o => base(o.pin) === a.to)) {
+      for (const o of outs.filter(o => base(o.pin) === a.to || key(o.pin) === a.to)) {
         if (a.edge || /^CLK/.test(a.from)) starts.push([o.net, a.ps]);
-        else for (const i of ins.filter(i => base(i.pin) === a.from)) add(i.net, o.net, port(i.pin) + a.ps);
+        else for (const i of ins.filter(i => base(i.pin) === a.from || key(i.pin) === a.from)) add(i.net, o.net, port(i.pin) + a.ps);
       }
     }
-    for (const c of cell.setup) for (const i of ins.filter(i => base(i.pin) === c.pin)) ends.push([i.net, port(i.pin) + c.setup]);
+    for (const c of cell.setup) for (const i of ins.filter(i => base(i.pin) === c.pin || key(i.pin) === c.pin)) ends.push([i.net, port(i.pin) + c.setup]);
   }
   const arr = new Map(), order = [], seen = new Set();
   const visit = n => { if (seen.has(n)) return; seen.add(n); for (const [m] of edges.get(n) || []) visit(m); order.push(n); };
