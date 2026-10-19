@@ -29,6 +29,16 @@ entity tb is end; architecture t of tb is signal clk : std_logic := '0'; signal 
 begin clk <= not clk after 5 ns; wrap: block begin u: entity work.cnt generic map (N => 3) port map (clk => clk, q => q); end block;
 process begin wait for 95 ns; report "q = " & integer'image(to_integer(unsigned(q))); wait; end process; end;`;
 const src = [{ path: 'cnt.vhd', lang: 'vhdl', text: DUT }], tb = [{ path: 'tb.vhd', lang: 'vhdl', text: TB }];
+// the test bench with the design's own generics (N = 1000: q counts every 1000 clocks), for the board's model (#622)
+const tbOwn = [{ path: 'tb.vhd', lang: 'vhdl', text: TB.replace('generic map (N => 3) ', '').replace('wait for 95 ns', 'wait for 25 us') }];
+// a model's file simulated with a test bench: what it reports
+function reports(bench, file, text) {
+  const lang = file.endsWith('.v') ? 'verilog' : 'vhdl';
+  const all = [...bench, { path: file, lang, text: lang === 'vhdl' ? scalarizeNetlist(text) : text }];
+  const s = new Simulator(elaborate(compile([...primitiveSources(all), ...all]), 'tb'));
+  s.run(3e7);
+  return s.log.map(e => e.text).filter(t => /^q = /.test(t));
+}
 
 test('dutGenerics: the generics the test bench gives its instance of the top (inside a block too), integers only', () => {
   const d = elaborate(compile([...src, ...tb]), 'tb');
@@ -71,26 +81,41 @@ test('postSynthesisModels: only the top module\'s cells are looked at, not the l
   assert.deepEqual(postSynthesisModels(synth(json), { top: 'top' }).unknown, ['XYZ']);
 });
 
-test('the flow\'s postsynth step: the model synthesized with the test bench\'s generics, written, in the report; the server\'s steps', async () => {
+test('the flow\'s postsynth step: the model synthesized with the test bench\'s generics, and the board\'s with the design\'s own (#622), written, in the report; the server\'s steps', async () => {
   const written = {}, lines = [];
   const r = await runOpenFlow({ top: 'cnt', part: 'xc3s250ecp132-4', family: 'spartan3e', steps: ['postsynth'], simTop: 'tb' },
     { log: l => lines.push(l), sources: () => src, simSources: () => tb, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {} });
   assert.equal(r.ok, true, lines.join('\n'));
-  assert.deepEqual(Object.keys(written).sort(), ['netgen/synthesis/cnt_synthesis.v', 'netgen/synthesis/cnt_synthesis.vhd']);
-  assert.deepEqual(r.report.simModels, { postsynth: { path: 'build/netgen/synthesis/cnt_synthesis.vhd', verilog: 'build/netgen/synthesis/cnt_synthesis.v', testbench: 'tb', generics: { n: 3 } } });
+  assert.deepEqual(Object.keys(written).sort(), ['netgen/synthesis/cnt_synthesis.v', 'netgen/synthesis/cnt_synthesis.vhd', 'netgen/synthesis/cnt_synthesis_board.v', 'netgen/synthesis/cnt_synthesis_board.vhd']);
+  assert.deepEqual(r.report.simModels, { postsynth: { path: 'build/netgen/synthesis/cnt_synthesis.vhd', verilog: 'build/netgen/synthesis/cnt_synthesis.v', testbench: 'tb', generics: { n: 3 },
+    board: { path: 'build/netgen/synthesis/cnt_synthesis_board.vhd', verilog: 'build/netgen/synthesis/cnt_synthesis_board.v' } } });
+  // (no synthesis of the design before: the step synthesizes it with its own generics too)
   assert.deepEqual(lines.filter(l => /^(WARNING|INFO|Synthesizing|Post-Synthesis)/.test(l)), [
     "Synthesizing 'cnt' with the generics the test bench 'tb' gives: n = 3",
+    "Synthesizing 'cnt' with its own generics, for the Board Emulator",
     `Post-Synthesis Simulation Model: build/netgen/synthesis/cnt_synthesis.vhd (VHDL, UNISIM primitives) and build/netgen/synthesis/cnt_synthesis.v (Verilog), ${lines.join('\n').match(/\(Verilog\), (\d+) cells/)[1]} cells`,
+    'Post-Synthesis model for the Board Emulator, with the design\'s own generics: build/netgen/synthesis/cnt_synthesis_board.vhd (VHDL) and build/netgen/synthesis/cnt_synthesis_board.v (Verilog)',
   ]);
-  // the test bench on the model: q counts every 3 clocks (95 ns: 9 edges, q = 3)
+  // the test bench on the model: q counts every 3 clocks (95 ns: 9 edges, q = 3); the board's model counts every
+  // 1000 (25 us: 2500 edges, q = 2), its header without the test bench's generics
   for (const [file, text] of Object.entries(written)) {
-    const lang = file.endsWith('.v') ? 'verilog' : 'vhdl';
-    const all = [...tb, { path: file, lang, text: lang === 'vhdl' ? scalarizeNetlist(text) : text }];
-    const lib = compile([...primitiveSources(all), ...all]);
-    const s = new Simulator(elaborate(lib, 'tb'));
-    s.run(2e5);
-    assert.deepEqual(s.log.map(e => e.text).filter(t => /^q = /.test(t)), ['q = 3'], file);
+    const board = /_board\./.test(file);
+    assert.deepEqual(reports(board ? tbOwn : tb, file, text), [board ? 'q = 2' : 'q = 3'], file);
+    assert.equal(/Synthesized with the generics/.test(text), !board, file);
   }
+  // after a synthesis of the design (its netlist in build/open), the board's model is made of it: no synthesis again
+  const lines2 = [], written2 = {};
+  const own = await synthesizeOpen(elaborate(compile(src), 'cnt'), { family: 'spartan3e', run: yosysNode });
+  const r2 = await runOpenFlow({ top: 'cnt', part: 'xc3s250ecp132-4', family: 'spartan3e', steps: ['postsynth'], simTop: 'tb' },
+    { log: l => lines2.push(l), sources: () => src, simSources: () => tb, yosys: yosysNode, write: (n, d) => { written2[n] = d; return `build/${n}`; },
+      read: n => own.files[n.replace(/^open\//, '')] ?? null, save: () => {} });
+  assert.equal(r2.ok, true, lines2.join('\n'));
+  assert.deepEqual(lines2.filter(l => /^(WARNING|INFO|Synthesizing)/.test(l)), ["Synthesizing 'cnt' with the generics the test bench 'tb' gives: n = 3"]);
+  assert.deepEqual(reports(tbOwn, 'cnt_synthesis_board.vhd', written2['netgen/synthesis/cnt_synthesis_board.vhd']), ['q = 2']);
+  // without a test bench, or one that gives no generics: the model is the board's, no other
+  const r3 = await runOpenFlow({ top: 'cnt', part: 'xc3s250ecp132-4', family: 'spartan3e', steps: ['postsynth'] },
+    { log: () => {}, sources: () => src, yosys: yosysNode, write: n => `build/${n}`, read: n => own.files[n.replace(/^open\//, '')] ?? null, save: () => {} });
+  assert.deepEqual(r3.report.simModels, { postsynth: { path: 'build/netgen/synthesis/cnt_synthesis.vhd', verilog: 'build/netgen/synthesis/cnt_synthesis.v' } });
   // the steps: after the synthesis when it runs; alone it synthesizes itself
   assert.deepEqual(openSteps(['synth', 'postsynth']), ['synth', 'postsynth']);
   assert.deepEqual(openSteps(['postsynth']), ['postsynth']);

@@ -35,6 +35,8 @@ entity tb is end; architecture t of tb is signal clk, rst : std_logic := '0'; si
 begin clk <= not clk after 5 ns; u: entity work.cnt generic map (N => 3) port map (clk => clk, rst => rst, q => q);
 process begin wait for 95 ns; report "q = " & integer'image(to_integer(unsigned(q))); wait; end process; end;`;
 const src = [{ path: 'cnt.vhd', lang: 'vhdl', text: DUT }], tb = [{ path: 'tb.vhd', lang: 'vhdl', text: TB }];
+// the test bench with the design's own generics (N = 1000: q counts every 1000 clocks), for the board's models (#622)
+const tbOwn = [{ path: 'tb.vhd', lang: 'vhdl', text: TB.replace('generic map (N => 3) ', '').replace('wait for 95 ns', 'wait for 25 us') }];
 
 test('postTranslateModels: the netlist as SIMPRIM primitives, the top\'s ports and generics, the header, both languages', async () => {
   const r = await synthesizeOpen(elaborate(compile(src), 'cnt', { generics: { N: 3 } }), { family: 'spartan3e', run: yosysNode });
@@ -184,29 +186,36 @@ for (const name of ['adder', 'bram_dp', 'bram_prim', 'bram_sp', 'dram', 'fsm', '
   });
 }
 
-test('the flow\'s posttrans and postmap steps: the models synthesized with the test bench\'s generics, written, in the report, the exact log', { timeout: 300000 }, async () => {
+test('the flow\'s posttrans and postmap steps: the models synthesized with the test bench\'s generics, and the board\'s of this run\'s netlist (#622), written, in the report, the exact log', { timeout: 300000 }, async () => {
   const written = {}, lines = [];
   const r = await runOpenFlow({ top: 'cnt', part: 'xc3s250ecp132-4', family: 'spartan3e', steps: orderOpenSteps(['postmap', 'posttrans']), simTop: 'tb' },
     { log: l => lines.push(l), sources: () => src, simSources: () => tb, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {}, device });
   assert.equal(r.ok, true, lines.join('\n'));
   assert.deepEqual(lines.filter(l => /^=== SILINX STEP/.test(l)), ['synth', 'translate', 'posttrans', 'map', 'postmap'].map(x => `=== SILINX STEP ${x} ===`));
-  assert.deepEqual(Object.keys(written).filter(f => /^netgen/.test(f)).sort(), ['netgen/map/cnt_map.v', 'netgen/map/cnt_map.vhd', 'netgen/translate/cnt_translate.v', 'netgen/translate/cnt_translate.vhd']);
+  assert.deepEqual(Object.keys(written).filter(f => /^netgen/.test(f)).sort(), ['netgen/map/cnt_map.v', 'netgen/map/cnt_map.vhd', 'netgen/map/cnt_map_board.v', 'netgen/map/cnt_map_board.vhd',
+    'netgen/translate/cnt_translate.v', 'netgen/translate/cnt_translate.vhd', 'netgen/translate/cnt_translate_board.v', 'netgen/translate/cnt_translate_board.vhd']);
   assert.deepEqual(r.report.simModels, {
-    posttrans: { path: 'build/netgen/translate/cnt_translate.vhd', verilog: 'build/netgen/translate/cnt_translate.v', testbench: 'tb', generics: { n: 3 } },
-    postmap: { path: 'build/netgen/map/cnt_map.vhd', verilog: 'build/netgen/map/cnt_map.v', testbench: 'tb', generics: { n: 3 } },
+    posttrans: { path: 'build/netgen/translate/cnt_translate.vhd', verilog: 'build/netgen/translate/cnt_translate.v', testbench: 'tb', generics: { n: 3 },
+      board: { path: 'build/netgen/translate/cnt_translate_board.vhd', verilog: 'build/netgen/translate/cnt_translate_board.v' } },
+    postmap: { path: 'build/netgen/map/cnt_map.vhd', verilog: 'build/netgen/map/cnt_map.v', testbench: 'tb', generics: { n: 3 },
+      board: { path: 'build/netgen/map/cnt_map_board.vhd', verilog: 'build/netgen/map/cnt_map_board.v' } },
   });
-  // (the model's design synthesized once for both models)
+  // (the model's design synthesized once for both models; the board's of this run's netlist and packed design)
   const count = re => re.exec(lines.join('\n'))[1];
   assert.deepEqual(lines.filter(l => /^(WARNING|INFO|ERROR|Synthesizing|Post-)/.test(l)), [
     "Synthesizing 'cnt' with the generics the test bench 'tb' gives: n = 3",
     `Post-Translate Simulation Model: build/netgen/translate/cnt_translate.vhd (VHDL, SIMPRIM primitives) and build/netgen/translate/cnt_translate.v (Verilog), ${count(/translate\.v \(Verilog\), (\d+) primitives/)} primitives`,
+    'Post-Translate model for the Board Emulator, with the design\'s own generics: build/netgen/translate/cnt_translate_board.vhd (VHDL) and build/netgen/translate/cnt_translate_board.v (Verilog)',
     `Post-Map Simulation Model: build/netgen/map/cnt_map.vhd (VHDL, SIMPRIM primitives) and build/netgen/map/cnt_map.v (Verilog), ${count(/map\.v \(Verilog\), (\d+) primitives/)} primitives`,
+    'Post-Map model for the Board Emulator, with the design\'s own generics: build/netgen/map/cnt_map_board.vhd (VHDL) and build/netgen/map/cnt_map_board.v (Verilog)',
   ]);
-  // the test bench on the models: q counts every 3 clocks (95 ns: 9 edges, q = 3), no warnings
+  // the test bench on the models: q counts every 3 clocks (95 ns: 9 edges, q = 3), no warnings; the board's count
+  // every 1000 (25 us: 2500 edges, q = 2)
   for (const [file, text] of Object.entries(written).filter(([f]) => /^netgen/.test(f))) {
-    const s = simulate(tb, file, text, 'tb', 2e5, { stop: /^q = / });
+    const board = /_board\./.test(file);
+    const s = simulate(board ? tbOwn : tb, file, text, 'tb', 3e7, { stop: /^q = / });
     assert.deepEqual(s.diags, [], file);
-    assert.deepEqual(s.log, ['q = 3'], file);
+    assert.deepEqual(s.log, [board ? 'q = 2' : 'q = 3'], file);
   }
   // without a test bench: the design's own generics, from this run's netlist and packed design (no synthesis again)
   const lines3 = [];

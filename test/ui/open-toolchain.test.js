@@ -673,6 +673,15 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   assert.ok(lines.includes('Process "Generate Post-Synthesis Simulation Model" completed successfully'), lines.join('\n'));
   assert.ok(lines.some((l) => /^Board Emulator: 'top' \(Post-Synthesis netlist, compiled\) /.test(l)), lines.join('\n'));
   assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
+  // #622: the board runs the model with the design's own generics, not the test bench's (DIV => 2, which made the
+  // LEDs change millions of times a second: each of them half lit at Real time); the LEDs on or off
+  assert.ok(lines.includes("The board runs the post-synthesis model with the design's own generics (build/netgen/synthesis/top_synthesis_board.vhd); the simulation's has the test bench 'tb_top''s."), lines.join('\n'));
+  const leds = [];
+  for (let k = 0; k < 20; k++) {
+    leds.push(await page.eval(() => window.Silinx.active.view.outputs.leds.slice()));
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  assert.deepEqual(leds.flat().filter((v) => v > 0.05 && v < 0.95), [], JSON.stringify(leds));
   // the emulator's model menu knows the model just generated (not "(not generated)")
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select option')].filter((o) => o.value === 'postsynth').map((o) => o.textContent)), ['Post-Synthesis netlist']);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });

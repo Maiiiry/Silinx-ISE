@@ -124,34 +124,78 @@ export async function runOpenFlow(spec, io) {
     if (!given && (synth || (netlistOk && netlist))) return { synth, own: false, generics, testbench };
     if (!modelSynth) {
       if (given) log(`Synthesizing '${top}' with the generics the test bench '${testbench}' gives: ${Object.entries(generics).map(([k, v]) => `${k} = ${v}`).join(', ')}`);
-      const srcs = io.sources();
-      const lib = compile([...primitiveSources(srcs), ...srcs]);
-      const design = elaborate(lib, top, { generics });
-      const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
-      if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
-      try { modelSynth = await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high' }); } catch (e) {
-        for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
-        throw new StepError(`synthesis failed: ${e.message}`);
-      }
+      modelSynth = await synthesizeWith(generics);
     }
     return { synth: modelSynth, own: true, generics, testbench };
   }
-  // a model's files, in the report and the log
-  function writeModel(step, dir, suffix, title, m, prims, count) {
+  // the top synthesized with these generics, for a model
+  async function synthesizeWith(generics) {
+    const srcs = io.sources();
+    const lib = compile([...primitiveSources(srcs), ...srcs]);
+    const design = elaborate(lib, top, { generics });
+    const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
+    if (errs.length) throw new StepError('the design has errors', errs.map(e => `${e.file}:${e.line} ${e.message}`), 'Fix them (Check Syntax shows them in the Errors tab).');
+    try { return await synthesizeOpen(design, { family: spec.family, run: io.yosys, effort: spec.synthEffort || 'high' }); } catch (e) {
+      for (const l of e.lines || []) if (/ERROR/.test(l)) log(l);
+      throw new StepError(`synthesis failed: ${e.message}`);
+    }
+  }
+  // a model's files, in the report and the log; `board`: the board's model (#622), when it is another
+  function writeModel(step, dir, suffix, title, m, prims, count, board = null) {
     if (m.unknown.length) log(`WARNING:Silinx - ${/^post(map|par)$/.test(step) ? 'sites' : 'cells'} with no simulation model in Silinx (the model cannot be simulated as it is): ${m.unknown.join(', ')}`);
     const vhd = io.write(`netgen/${dir}/${top}_${suffix}.vhd`, m.vhdl);
     const v = io.write(`netgen/${dir}/${top}_${suffix}.v`, m.verilog);
     const sdf = m.sdf ? io.write(`netgen/${dir}/${top}_${suffix}.sdf`, m.sdf) : null;
     const { generics, testbench } = modelGen;
-    report.simModels = { ...(report.simModels || {}), [step]: { path: vhd, verilog: v, ...(sdf ? { sdf } : {}), ...(testbench ? { testbench, generics } : {}) } };
+    let b = null;
+    if (board) b = { path: io.write(`netgen/${dir}/${top}_${suffix}_board.vhd`, board.vhdl), verilog: io.write(`netgen/${dir}/${top}_${suffix}_board.v`, board.verilog) };
+    report.simModels = { ...(report.simModels || {}), [step]: { path: vhd, verilog: v, ...(sdf ? { sdf } : {}), ...(testbench ? { testbench, generics } : {}), ...(b ? { board: b } : {}) } };
     log(`${title} Simulation Model: ${vhd} (VHDL, ${prims} primitives)${sdf ? `, ${v} (Verilog) and ${sdf} (SDF, the static timing's delays)` : ` and ${v} (Verilog)`}, ${count}`);
+    if (b) log(`${title} model for the Board Emulator, with the design's own generics: ${b.path} (VHDL) and ${b.verilog} (Verilog)`);
   }
+  // The board's model (#622). A model synthesized with a test bench's generics (blinky's divider of 2 instead of
+  // 25 000 000) runs on the Board Emulator thousands of times too fast; the emulator runs the design's own beside
+  // it, made of this run's implementation (or the last run's): its synthesis, netlist, packing and routing. null
+  // when the model has the design's own generics already, or that implementation is not there (an INFO).
+  const ownText = () => (synth ? synth.files[`${synth.top}.json`] : io.read(`open/${top}.json`));
+  const withTestbench = d => d.own && Object.keys(d.generics).length > 0;
+  function boardModel(d, title, make) {
+    if (!withTestbench(d)) return null;
+    try {
+      const m = make();
+      if (m) return m;
+    } catch (e) { log(`INFO:Silinx - no ${title} model for the Board Emulator (${e.message}): it runs the test bench's`); return null; }
+    log(`INFO:Silinx - no ${title} model for the Board Emulator (no implementation of '${top}' to make it of): it runs the test bench's`);
+    return null;
+  }
+  // the synthesis of an earlier run, as synthesizeOpen's result: its netlist and Verilog (the netlist's top: the
+  // elaborated top's name, lower case for a VHDL top, #31); null when they are not in build/open
+  function earlierSynth() {
+    const text = io.read(`open/${top}.json`);
+    if (text == null) return null;
+    const mods = JSON.parse(text).modules || {};
+    const name = Object.keys(mods).find(k => mods[k].attributes?.top) || top;
+    const v = io.read(`open/${name}_yosys.v`);
+    return v == null ? null : { top: name, files: { [`${name}.json`]: text, [`${name}_yosys.v`]: v } };
+  }
+  const ownNetlist = () => { if (netlist) return netlist; const t = ownText(); return t == null ? null : readYosysJson(t); };
 
   // Generate Post-Synthesis Simulation Model (#120): build/netgen/synthesis/<top>_synthesis.vhd (and .v)
   async function runPostSynth() {
-    const { synth: r, generics, testbench } = await modelDesign(false);
-    const m = postSynthesisModels(r, { top, part: spec.part, generics, testbench });
-    writeModel('postsynth', 'synthesis', 'synthesis', 'Post-Synthesis', m, 'UNISIM', `${m.cells} cells`);
+    const d = await modelDesign(false);
+    const m = postSynthesisModels(d.synth, { top, part: spec.part, generics: d.generics, testbench: d.testbench });
+    // (the design's synthesis: this run's or the last run's files in build/open; none, the model's step alone:
+    // the design synthesized with its own generics too)
+    let own = null;
+    if (withTestbench(d)) {
+      own = synth || earlierSynth();
+      if (!own) {
+        log(`Synthesizing '${top}' with its own generics, for the Board Emulator`);
+        own = await synthesizeWith({});
+      }
+    }
+    const board = boardModel(d, 'post-synthesis', () => own && postSynthesisModels(own, { top, part: spec.part }));
+    writeModel('postsynth', 'synthesis', 'synthesis', 'Post-Synthesis', m, 'UNISIM', `${m.cells} cells`, board);
   }
   // Generate Post-Translate / Post-Map Simulation Model (#121): build/netgen/translate/<top>_translate.vhd,
   // build/netgen/map/<top>_map.vhd (and .v): the netlist, the packed design, of SIMPRIM primitives
@@ -163,9 +207,10 @@ export async function runOpenFlow(spec, io) {
     return { ...d, nl: modelNl };
   }
   async function runPostTranslate() {
-    const { nl, generics, testbench } = await modelNetlist();
-    const m = postTranslateModels(nl, { top, part: spec.part, generics, testbench });
-    writeModel('posttrans', 'translate', 'translate', 'Post-Translate', m, 'SIMPRIM', `${m.instances} primitives`);
+    const d = await modelNetlist();
+    const m = postTranslateModels(d.nl, { top, part: spec.part, generics: d.generics, testbench: d.testbench });
+    const board = boardModel(d, 'post-translate', () => { const nl = ownNetlist(); return nl && postTranslateModels(nl, { top, part: spec.part }); });
+    writeModel('posttrans', 'translate', 'translate', 'Post-Translate', m, 'SIMPRIM', `${m.instances} primitives`, board);
   }
   async function runPostMap() {
     const d = await modelNetlist();
@@ -174,7 +219,11 @@ export async function runOpenFlow(spec, io) {
       try { p = modelPacked ||= pack(d.nl, { ucf: ucfText, part: spec.part }); } catch (e) { throw new StepError(`packing failed: ${e.message}`); }
     }
     const m = postMapModels(d.nl, p, { top, part: spec.part, generics: d.generics, testbench: d.testbench });
-    writeModel('postmap', 'map', 'map', 'Post-Map', m, 'SIMPRIM', `${m.instances} primitives`);
+    const board = boardModel(d, 'post-map', () => {
+      const nl = ownNetlist();
+      return nl && postMapModels(nl, packed || pack(nl, { ucf: ucfText, part: spec.part }), { top, part: spec.part });
+    });
+    writeModel('postmap', 'map', 'map', 'Post-Map', m, 'SIMPRIM', `${m.instances} primitives`, board);
   }
   // Generate Post-Place & Route Simulation Model (#122): build/netgen/par/<top>_timesim.vhd (and .v), and its
   // timing build/netgen/par/<top>_timesim.sdf: the routed design (this run's, or the model's design placed and
@@ -197,7 +246,14 @@ export async function runOpenFlow(spec, io) {
     const design = parseXdl(text);
     const sta = analyzeTiming(design, io.device());
     const m = postParModels(d.nl || netlist || readYosysJson(io.read(`open/${top}.json`)), design, { top, part: spec.part, generics: d.generics, testbench: d.testbench, conns: sta.conns });
-    writeModel('postpar', 'par', 'timesim', 'Post-Place & Route', m, 'SIMPRIM', `${m.instances} primitives${sta.period ? `, minimum period ${sta.period.toFixed(3)} ns` : ''}`);
+    // (the board's: the implementation's routed design, the emulator runs it without its timing)
+    const board = boardModel(d, 'post-place & route', () => {
+      const nl = ownNetlist(), routed = routedText ?? io.read('open/routed.xdl');
+      if (!nl || routed == null) return null;
+      const rd = parseXdl(routed);
+      return postParModels(nl, rd, { top, part: spec.part, conns: analyzeTiming(rd, io.device()).conns });
+    });
+    writeModel('postpar', 'par', 'timesim', 'Post-Place & Route', m, 'SIMPRIM', `${m.instances} primitives${sta.period ? `, minimum period ${sta.period.toFixed(3)} ns` : ''}`, board);
   }
 
   function runTranslate() {
