@@ -798,7 +798,11 @@ export async function collectReports(buildDir, top, device) {
   out.simModels = {};
   for (const [step, rel] of Object.entries(SIM_MODELS)) {
     const f = path.join(buildDir, rel(top));
-    if (fss.existsSync(f)) out.simModels[step] = { path: `build/${rel(top)}`, mtime: (await fs.stat(f)).mtime.toISOString() };
+    if (!fss.existsSync(f)) continue;
+    out.simModels[step] = { path: `build/${rel(top)}`, mtime: (await fs.stat(f)).mtime.toISOString() };
+    // the place & route model's timing, netgen's SDF beside it (#558): Simulate applies it (core/sdf.js)
+    const sdf = f.replace(/\.vhd$/, '.sdf');
+    if (step === 'postpar' && fss.existsSync(sdf)) out.simModels[step].sdf = `build/${rel(top).replace(/\.vhd$/, '.sdf')}`;
   }
   const pins = path.join(buildDir, `${top}_pins.ucf`);
   if (fss.existsSync(pins)) out.pinsUcf = { path: `build/${top}_pins.ucf`, mtime: (await fs.stat(pins)).mtime.toISOString() };

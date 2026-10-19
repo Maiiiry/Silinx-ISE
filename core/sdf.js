@@ -22,6 +22,10 @@
 // set / reset (glbl's GSR) holds the first 100 ns, while the values of time 0 settle through the delays. A combinational
 // element's paths are applied on its inputs, which is exact for an element of one output (the SIMPRIM gates), or on
 // its outputs when their delay depends on the output only (a multiplier's product bits).
+// ISE's SDF (netgen's, #558) as well: the max of its triples (trce's values), its clock network's delays (the
+// BUFGMUX's path, the slices' clock inverters), its clock to out written without an edge (IOPATH CLK O), a flip-flop's
+// asynchronous set / reset path to the output its clock to out delays (on the input only the part of its delay
+// beyond that), one setup check per pin and clock edge (ISE writes one for each edge of the pin).
 import { primitiveInterface } from './netlist-hier.js';
 
 const ps = ns => Math.max(0, Math.round(ns * 1000));
@@ -62,8 +66,9 @@ function tree(text) {
   return stack[0];
 }
 const UNITS = { s: 1e12, ms: 1e9, us: 1e6, ns: 1e3, ps: 1, fs: 1e-3 };
-// a delay value ( 12 ) / ( 1:2:3 ) / ( 1:2:3 ) ( … ): its typical value (the middle one), in the file's unit
-const value = v => { const t = Array.isArray(v) ? v.find(x => typeof x === 'string') : v; if (t === undefined) return null; const p = String(t).split(':'); const x = parseFloat(p[p.length === 3 ? 1 : 0]); return Number.isFinite(x) ? x : null; };
+// a delay value ( 12 ) / ( 1:2:3 ) / ( 1:2:3 ) ( … ): its slowest value (the max of min:typ:max: the one ISE's
+// trce times, #558), in the file's unit
+const value = v => { const t = Array.isArray(v) ? v.find(x => typeof x === 'string') : v; if (t === undefined) return null; const p = String(t).split(':'); const x = parseFloat(p[p.length === 3 ? 2 : 0]); return Number.isFinite(x) ? x : null; };
 // a port spec: A, A[3], (posedge CLK)
 const portOf = x => (Array.isArray(x) ? { edge: x[0], pin: x[1] } : { edge: null, pin: x });
 
@@ -124,12 +129,15 @@ function pinDelays(cell, type, formal) {
   const dir = itf?.dir || (cell.iopath.some(a => a.to === base || a.to === key) ? 'out' : 'in');
   const at = a => a === base || a === key;
   const { outputs } = splitPaths(cell);
+  const outDelay = o => Math.max(0, ...cell.iopath.filter(a => a.to === o && clocked(a)).map(a => a.ps));
   if (dir === 'out') {
     const d = Math.max(0, ...cell.iopath.filter(a => at(a.to) && clocked(a)).map(a => a.ps), outputs.get(key) ?? outputs.get(base) ?? 0);
     return { output: d > 0 ? d : null };
   }
   const wire = cell.port.get(key) ?? cell.port.get(base) ?? 0;
-  const gate = Math.max(0, ...cell.iopath.filter(a => at(a.from) && !clocked(a) && !outputs.has(a.to)).map(a => a.ps));
+  // (a path to an output delayed by its clock to out, a flip-flop's asynchronous set / reset as ISE's SDF writes
+  // it, SET -> O: the rest of its delay)
+  const gate = Math.max(0, ...cell.iopath.filter(a => at(a.from) && !clocked(a) && !outputs.has(a.to)).map(a => a.ps - outDelay(a.to)));
   return { input: wire > 0 || gate > 0 ? { wire, gate } : null };
 }
 const isConst = a => /^('[01xXzZuU-]'|"[01xXzZ]*"|open|[01]'b[01xz]|1'b[01xz]|\d+'[bhd][0-9a-fA-FxXzZ]+|GND|VCC)$/.test(a.trim());
@@ -166,7 +174,10 @@ export function annotateSdf(text, lang, sdf) {
   };
   // the setup checks of an instance: its pins' (annotated) actuals
   const checks = (inst, cell, act) => {
-    for (const c of cell.setup) {
+    // (one per pin and clock edge: ISE's SDF writes a check for each edge of the pin, (posedge I) and (negedge I))
+    const one = new Map();
+    for (const c of cell.setup) { const k = `${c.pin} ${c.clock} ${c.edge}`; if (!(one.get(k)?.setup >= c.setup)) one.set(k, c); }
+    for (const c of one.values()) {
       if (!(c.setup > 0)) continue;
       const clk = act.get(c.clock);
       const pins = [...act.keys()].filter(k => k === c.pin || formalKey(k).base === c.pin);

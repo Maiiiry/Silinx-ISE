@@ -339,6 +339,29 @@ test('collectReports writes summary incl. bit info', async () => {
   assert.equal(r.summary.maxFreqMHz, 227.739);
   assert.equal(r.summary.utilization.slices.used, 16);
   assert.equal(r.bit.header.part, '3s500efg320');
+  assert.deepEqual(r.simModels, {});
+});
+
+test('collectReports: the simulation models netgen wrote, the post-place & route one with its SDF when netgen wrote it (#558)', async () => {
+  const b = path.join(tmp, 'rep-models');
+  for (const d of ['synthesis', 'map', 'par']) await fs.mkdir(path.join(b, 'netgen', d), { recursive: true });
+  await fs.writeFile(path.join(b, 'netgen/synthesis/top_synthesis.vhd'), '-- model\n');
+  await fs.writeFile(path.join(b, 'netgen/map/top_map.vhd'), '-- model\n');
+  // (an SDF beside the post-map model is not its timing: only the post-place & route one's is)
+  await fs.writeFile(path.join(b, 'netgen/map/top_map.sdf'), '(DELAYFILE)\n');
+  await fs.writeFile(path.join(b, 'netgen/par/top_timesim.vhd'), '-- model\n');
+  const models = async () => Object.fromEntries(Object.entries((await ise.collectReports(b, 'top', DEVICE)).simModels).map(([k, v]) => [k, { ...v, mtime: typeof v.mtime }]));
+  // without its SDF: no sdf
+  assert.deepEqual(await models(), {
+    postsynth: { path: 'build/netgen/synthesis/top_synthesis.vhd', mtime: 'string' },
+    postmap: { path: 'build/netgen/map/top_map.vhd', mtime: 'string' },
+    postpar: { path: 'build/netgen/par/top_timesim.vhd', mtime: 'string' },
+  });
+  await fs.writeFile(path.join(b, 'netgen/par/top_timesim.sdf'), '(DELAYFILE)\n');
+  assert.deepEqual((await models()).postpar, { path: 'build/netgen/par/top_timesim.vhd', mtime: 'string', sdf: 'build/netgen/par/top_timesim.sdf' });
+  // an SDF with no model: no model
+  await fs.rm(path.join(b, 'netgen/par/top_timesim.vhd'));
+  assert.equal((await models()).postpar, undefined);
 });
 
 // ------------------------------------------------------------------------------------------
