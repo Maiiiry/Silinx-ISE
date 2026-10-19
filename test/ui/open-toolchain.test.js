@@ -675,14 +675,15 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   assert.ok(lines.some((l) => /^Board Emulator: 'top' \(Post-Synthesis netlist, compiled\) /.test(l)), lines.join('\n'));
   assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
   // #622: the board runs the model with the design's own generics, not the test bench's (DIV => 2, which made the
-  // LEDs change millions of times a second: each of them half lit at Real time); the LEDs on or off
+  // LEDs change millions of times a second: each of them half lit at Real time); the LEDs on or off, but the two
+  // between which the light moved in the window shown (#627: 0.39 and 0.61)
   assert.ok(lines.includes("The board runs the post-synthesis model with the design's own generics (build/netgen/synthesis/top_synthesis_board.vhd); the simulation's has the test bench 'tb_top''s."), lines.join('\n'));
   const leds = [];
   for (let k = 0; k < 20; k++) {
     leds.push(await page.eval(() => window.Silinx.active.view.outputs.leds.slice()));
     await new Promise((r) => setTimeout(r, 25));
   }
-  assert.deepEqual(leds.flat().filter((v) => v > 0.05 && v < 0.95), [], JSON.stringify(leds));
+  for (const l of leds) assert.ok(l.filter((v) => v > 0.05 && v < 0.95).length <= 2, JSON.stringify(l));
   // the emulator's model menu knows the model just generated (not "(not generated)")
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select option')].filter((o) => o.value === 'postsynth').map((o) => o.textContent)), ['Post-Synthesis netlist']);
   // #625: another model generated after it (another run of the flow, its report without this model), the model is
@@ -693,12 +694,13 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Translate)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator' });
   // #627: on the compiled engine (it had no SIMPRIM primitives: the event-driven engine, far too slow for the design's
-  // own divider, and blinky stood still), its LEDs on or off and moving (blinky's: a step every 1/80 s or slower)
+  // own divider, and blinky stood still), its LEDs on or off (but the two the light moved between in the window) and
+  // moving (blinky's: a step every 1/80 s or slower)
   assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
   const seen = new Set();
   for (let k = 0; k < 40 && seen.size < 2; k++) {
     const l = await page.eval(() => window.Silinx.active.view.outputs.leds.slice());
-    assert.deepEqual(l.filter((v) => v > 0.05 && v < 0.95), [], JSON.stringify(l));
+    assert.ok(l.filter((v) => v > 0.05 && v < 0.95).length <= 2, JSON.stringify(l));
     seen.add(l.map((v) => (v > 0.5 ? 1 : 0)).join(''));
     await new Promise((r) => setTimeout(r, 100));
   }
