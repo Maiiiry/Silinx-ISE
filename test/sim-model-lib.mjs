@@ -16,6 +16,8 @@ import { Simulator } from '../core/simulator.js';
 import { loadDevice } from '../core/fpga/device.js';
 import { shippedDevicePath } from '../core/fpga/device-node.js';
 import { example } from './examples-lib.mjs';
+import { diffCycles, designOf, rng } from './compiled-diff.js';
+import { compileDesign } from '../core/compiled-sim.js';
 
 // the device description Map's report needs (loaded once)
 let DEVICE = null;
@@ -71,6 +73,16 @@ export function exampleModelTests(names) {
           assert.deepEqual(s.diags, [], `${name} ${file}`);
           assert.ok(s.log.some(l => /Simulation finished OK/.test(l)), `${name} ${file}: ${s.log.slice(-4).join(' | ')}`);
           assert.deepEqual(s.log.filter(l => /ERROR|WARNING/.test(l)), [], `${name} ${file}`);
+          // the Board Emulator's compiled engine runs the model (#627: it had no SIMPRIM primitives) as the
+          // event-driven simulator does, cycle by cycle (the VHDL scalarized, as the emulator reads it)
+          const lang = file.endsWith('.v') ? 'verilog' : 'vhdl', top = ex.project.top;
+          const model = [{ path: file, lang, role: 'design', text: lang === 'vhdl' ? scalarizeNetlist(written[file]) : written[file] }];
+          const cs = await compileDesign(designOf(model, top), { run: yosysNode });
+          assert.deepEqual(cs.warnings, [], `${name} ${file}`);
+          const ins = designOf(model, top).top.ports.filter(x => x.dir === 'in'), rnd = rng(627), cur = {};
+          const res = await diffCycles(model, top, { cycles: 1500, inputs: k => { for (const x of ins) if (k === 0 || rnd() < 0.02) cur[x.name] = BigInt(Math.floor(rnd() * 2 ** Math.min(x.sig.t.w, 30))); return cur; } });
+          assert.deepEqual(res.mismatches, [], `${name} ${file}`);
+          assert.ok(res.bits >= 1500, `${name} ${file}: ${res.bits} bits compared`);
         }
       });
     }

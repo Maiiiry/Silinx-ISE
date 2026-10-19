@@ -19,6 +19,8 @@ import { dbFileNames, dbFilesFrom, makeBitDb } from '../core/fpga/bitdb.js';
 import { scalarizeNetlist, parseNetgenVhdl, primitiveInterface } from '../core/netlist-hier.js';
 import { Simulator } from '../core/simulator.js';
 import { example } from './examples-lib.mjs';
+import { diffCycles, designOf, rng } from './compiled-diff.js';
+import { compileDesign } from '../core/compiled-sim.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const PART = 'xc3s250ecp132-4';
@@ -115,5 +117,14 @@ export async function exampleTimesim(name, langs = ['vhdl', 'verilog']) {
     assert.deepEqual(s.diags, [], `${name} ${file}`);
     assert.ok(s.log.some(l => /Simulation finished OK/.test(l)), `${name} ${file}: ${s.log.slice(-4).join(' | ')}`);
     assert.deepEqual(s.log.filter(l => /ERROR|WARNING/.test(l)), [], `${name} ${file}`);
+    // the Board Emulator's compiled engine runs the model without its timing (#627: it had no SIMPRIM primitives) as
+    // the event-driven simulator does, cycle by cycle (the VHDL scalarized, as the emulator reads it)
+    const model = [{ path: file, lang, role: 'design', text: lang === 'vhdl' ? scalarizeNetlist(r.store[file]) : r.store[file] }];
+    const cs = await compileDesign(designOf(model, top), { run: yosysNode });
+    assert.deepEqual(cs.warnings, [], `${name} ${file}`);
+    const ins = designOf(model, top).top.ports.filter(x => x.dir === 'in'), rnd = rng(627), cur = {};
+    const res = await diffCycles(model, top, { cycles: 1500, inputs: k => { for (const x of ins) if (k === 0 || rnd() < 0.02) cur[x.name] = BigInt(Math.floor(rnd() * 2 ** Math.min(x.sig.t.w, 30))); return cur; } });
+    assert.deepEqual(res.mismatches, [], `${name} ${file}`);
+    assert.ok(res.bits >= 1500, `${name} ${file}: ${res.bits} bits compared`);
   }
 }

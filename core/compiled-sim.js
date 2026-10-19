@@ -32,7 +32,7 @@
 //
 // Isomorphic ES module (browser + Node), no DOM.
 import { toVerilog } from './synth-verilog.js';
-import { PRIMITIVE_MODELS, DCM_CELLS, DCM_OUTPUTS, dcmWaves, dcmSchedule, bramInit } from './compiled-prims.js';
+import { PRIMITIVE_MODELS, DCM_CELLS, DCM_OUTPUTS, dcmWaves, dcmSchedule, bramInit, simprimCell } from './compiled-prims.js';
 
 export class CompileError extends Error {}
 
@@ -45,7 +45,8 @@ export const prepCommands = top => `prep -flatten -top ${top}; memory -nomap; op
  */
 export async function netlistOf(design, { run }) {
   let v;
-  try { v = toVerilog(design); } catch (e) { throw new CompileError(e.message); }
+  // (the SIMPRIM primitives of a post-translate / map / place & route model as their cells, #627)
+  try { v = toVerilog(design, { simprim: simprimCell }); } catch (e) { throw new CompileError(e.message); }
   const missing = v.primitives.filter(p => !PRIMITIVE_MODELS[p]);
   if (missing.length) throw new CompileError(`the compiled simulator has no model of ${missing.join(', ')}`);
   // (the primitives' models: core/compiled-prims.js)
