@@ -213,7 +213,12 @@ export async function openReports(buildDir, top, device) {
     const rel = SIM_MODELS[step](top), f = path.join(buildDir, rel);
     if (!r.simModels?.[step] && !fss.existsSync(f)) continue;
     const sdf = rel.replace(/\.vhd$/, '.sdf');
-    out.simModels[step] = { ...(r.simModels?.[step] || {}), path: `build/${rel}`, ...(step === 'postpar' && fss.existsSync(path.join(buildDir, sdf)) ? { sdf: `build/${sdf}` } : {}),
+    // (an earlier run's model made with a test bench's generics: the board's beside it, #622, when written with it,
+    // not before it, #625)
+    const board = rel.replace(/\.vhd$/, '_board.vhd'), bf = path.join(buildDir, board);
+    const own = !r.simModels?.[step] && fss.existsSync(f) && fss.existsSync(bf) && (await fs.stat(bf)).mtimeMs >= (await fs.stat(f)).mtimeMs
+      ? { board: { path: `build/${board}`, verilog: `build/${board.replace(/\.vhd$/, '.v')}` } } : {};
+    out.simModels[step] = { ...(r.simModels?.[step] || {}), ...own, path: `build/${rel}`, ...(step === 'postpar' && fss.existsSync(path.join(buildDir, sdf)) ? { sdf: `build/${sdf}` } : {}),
       mtime: fss.existsSync(f) ? (await fs.stat(f)).mtime.toISOString() : null };
   }
   out.summary = {

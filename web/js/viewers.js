@@ -39,7 +39,7 @@ async function netlistSources(step, { hier = false, action = 'Simulate', title =
   // the Board Emulator runs the design's own model when the simulation's has the test bench's generics (#622:
   // blinky's divider of 2 would make it blink millions of times a second)
   const file = action === 'Emulate' && m.board?.path ? m.board.path : m.path;
-  if (file !== m.path) log(`The board runs the ${name.toLowerCase()} model with the design's own generics (${file}); the simulation's has the test bench '${m.testbench}''s.`);
+  if (file !== m.path) log(`The board runs the ${name.toLowerCase()} model with the design's own generics (${file}); the simulation's has ${m.testbench ? `the test bench '${m.testbench}''s` : "the test bench's"}.`);
   let raw = await api.readFile(S.project.name, file);
   // the post-place & route model simulated with its timing (#122; ISE's, with netgen's SDF: #558): the delays and
   // setup checks of its SDF built in (core/sdf.js); the emulator runs it without

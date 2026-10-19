@@ -151,6 +151,15 @@ async function buildFileOf(name, path) {
   return (await store.readBinary(name, path).catch(() => null)) ?? undefined;
 }
 const buildOf = name => { if (!builds.has(name)) builds.set(name, { files: {}, report: null, view: null }); return builds.get(name); };
+// the simulation models of the earlier runs that this one did not make, while their files are in the build (#625:
+// a run's report has only its own; the full application finds them by their files): the models kept
+function keepModels(rep, earlier, b) {
+  if (!earlier?.simModels || earlier.top !== rep.top) return rep;
+  for (const [step, m] of Object.entries(earlier.simModels)) {
+    if (!rep.simModels[step] && (store.kind === 'folder' || b.files[m.path] !== undefined)) rep.simModels[step] = m;
+  }
+  return rep;
+}
 // build/reports.json's shape (server/open-flow.js openReports) from the flow's report
 function reportsOf(pj, r) {
   const out = { generatedAt: new Date().toISOString(), top: pj.top, device: pj.device || null, source: 'open', synthesis: r.synthesis, map: r.map, par: r.par, timing: r.timing,
@@ -293,7 +302,8 @@ export const api = {
     const ctl = new AbortController();
     job.cancel = () => ctl.abort();
     // (the synthesis up to date, #280: what the last run's report said about it)
-    const before = synthUpToDate ? (await savedBuild(name))?.report : null;
+    const earlier = (await savedBuild(name))?.report || null;
+    const before = synthUpToDate ? earlier : null;
     const b = buildOf(name);
     const push = l => { job.lines.push(l); job.next = job.lines.length; };
     // the outputs of a previous run no longer match the design (a failure must not leave a bitstream)
@@ -315,11 +325,11 @@ export const api = {
         b.files[path] = data;
         if (folder) writes.push(folder.writeBuild(name, path, data).catch(e => push(`WARNING: ${path} was not written into the workspace folder: ${e.message}`)));
       },
-      onReport: r => { if (!job.cancelled) { b.report = reportsOf(json, r); reported = true; } },
+      onReport: r => { if (!job.cancelled) { b.report = keepModels(reportsOf(json, r), earlier, b); reported = true; } },
     }).then(async res => {
       await Promise.all(writes);
       if (job.cancelled) throw Object.assign(new Error('cancelled by user'), { cancelled: true });
-      if (res.report) { b.report = reportsOf(json, res.report); reported = true; }
+      if (res.report) { b.report = keepModels(reportsOf(json, res.report), earlier, b); reported = true; }
       if (res.view) b.view = res.view;
       // the Design Summary's reports and the FPGA view's model, for the next visit (as the full application)
       if (folder) {
