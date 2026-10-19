@@ -67,7 +67,7 @@ test('#489 highlightHdl: no language given, either language\'s keywords and comm
   for (const lang of ['vhdl', 'verilog', undefined]) {
     const out = highlightHdl(evil, lang);
     assert.equal(shown(out), evil);
-    assert.ok(!/<(img|script|\/span><script)/.test(out.replace(/<\/?span[^>]*>/g, '')), `no markup from the text (${lang})`);
+    assert.ok(!/<(img|script|\/span><script)/i.test(out.replace(/<\/?span[^>]*>/gi, '')), `no markup from the text (${lang})`);
   }
   // the keyword sets are lower case, each language's own
   for (const set of Object.values(KEYWORDS)) for (const k of set) assert.equal(k, k.toLowerCase());
