@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-19T10:35:17.864Z",
-  "silinxVersion": "15.11.1",
+  "generatedAt": "2026-10-20T08:00:43.021Z",
+  "silinxVersion": "15.11.2",
   "device": "xc3s1200efg320-4",
   "steps": [
     "synth",
@@ -23,9 +23,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 14.074,
-        "seconds": 102.3,
-        "periodNs": 14.122
+        "estimateNs": 12.914,
+        "seconds": 54.2,
+        "periodNs": 13.342,
+        "path": {
+          "levels": 64,
+          "lut": 0,
+          "carry": 8.859,
+          "ff": 1.012,
+          "other": 0,
+          "logic": 9.871,
+          "route": 3.468
+        }
       },
       "silinxHigh": {
         "slices": 194,
@@ -34,9 +43,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 14.074,
-        "seconds": 108.3,
-        "periodNs": 14.122
+        "estimateNs": 12.914,
+        "seconds": 43.2,
+        "periodNs": 13.342,
+        "path": {
+          "levels": 64,
+          "lut": 0,
+          "carry": 8.859,
+          "ff": 1.012,
+          "other": 0,
+          "logic": 9.871,
+          "route": 3.468
+        }
       },
       "ise": {
         "slices": 446,
@@ -46,7 +64,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 12.249,
-        "seconds": 145.7
+        "path": {
+          "levels": 8,
+          "lut": 6.095,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 6.747,
+          "route": 5.324
+        },
+        "seconds": 154.8
       }
     },
     {
@@ -59,9 +86,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.734,
-        "seconds": 68.2,
-        "periodNs": 10.857
+        "estimateNs": 10.624,
+        "seconds": 54.7,
+        "periodNs": 10.639,
+        "path": {
+          "levels": 6,
+          "lut": 4.632,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 5.284,
+          "route": 5.355
+        }
       },
       "silinxHigh": {
         "slices": 601,
@@ -70,9 +106,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.734,
-        "seconds": 117.5,
-        "periodNs": 10.857
+        "estimateNs": 10.624,
+        "seconds": 64.7,
+        "periodNs": 10.639,
+        "path": {
+          "levels": 6,
+          "lut": 4.632,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 5.284,
+          "route": 5.355
+        }
       },
       "ise": {
         "slices": 534,
@@ -82,7 +127,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.077,
-        "seconds": 66.1
+        "path": {
+          "levels": 4,
+          "lut": 4.221,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 4.873,
+          "route": 4.204
+        },
+        "seconds": 67.6
       }
     },
     {
@@ -95,8 +149,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 24.1,
-        "periodNs": null
+        "seconds": 20.1,
+        "periodNs": null,
+        "path": null
       },
       "silinxHigh": {
         "slices": 143,
@@ -106,8 +161,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 56.7,
-        "periodNs": null
+        "seconds": 24.6,
+        "periodNs": null,
+        "path": null
       },
       "ise": {
         "slices": 111,
@@ -117,7 +173,8 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
-        "seconds": 45.5
+        "path": null,
+        "seconds": 45.6
       }
     },
     {
@@ -130,8 +187,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 20.1,
-        "periodNs": null
+        "seconds": 15.1,
+        "periodNs": null,
+        "path": null
       },
       "silinxHigh": {
         "slices": 25,
@@ -141,8 +199,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 59.2,
-        "periodNs": null
+        "seconds": 20.6,
+        "periodNs": null,
+        "path": null
       },
       "ise": {
         "slices": 24,
@@ -152,6 +211,7 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
+        "path": null,
         "seconds": 41.1
       }
     },
@@ -165,9 +225,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.237,
-        "seconds": 23.1,
-        "periodNs": 6.323
+        "estimateNs": 6.09,
+        "seconds": 19.1,
+        "periodNs": 6.054,
+        "path": {
+          "levels": 4,
+          "lut": 3.004,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 3.591,
+          "route": 2.463
+        }
       },
       "silinxHigh": {
         "slices": 187,
@@ -176,9 +245,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.237,
-        "seconds": 56.7,
-        "periodNs": 6.323
+        "estimateNs": 6.09,
+        "seconds": 23.1,
+        "periodNs": 6.054,
+        "path": {
+          "levels": 4,
+          "lut": 3.004,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 3.591,
+          "route": 2.463
+        }
       },
       "ise": {
         "slices": 190,
@@ -188,7 +266,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 6.121,
-        "seconds": 53.6
+        "path": {
+          "levels": 4,
+          "lut": 3.059,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 3.651,
+          "route": 2.434
+        },
+        "seconds": 54.1
       }
     },
     {
@@ -197,24 +284,42 @@
       "silinx": {
         "slices": 236,
         "luts": 471,
-        "ffs": 276,
+        "ffs": 278,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 7.674,
-        "seconds": 35.1,
-        "periodNs": 7.641
+        "estimateNs": 7.327,
+        "seconds": 30.1,
+        "periodNs": 7.232,
+        "path": {
+          "levels": 5,
+          "lut": 3.873,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 4.525,
+          "route": 2.634
+        }
       },
       "silinxHigh": {
-        "slices": 247,
-        "luts": 493,
-        "ffs": 276,
+        "slices": 249,
+        "luts": 489,
+        "ffs": 278,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.782,
-        "seconds": 70.4,
-        "periodNs": 6.672
+        "estimateNs": 6.465,
+        "seconds": 34.6,
+        "periodNs": 6.331,
+        "path": {
+          "levels": 4,
+          "lut": 3.059,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 3.646,
+          "route": 2.685
+        }
       },
       "ise": {
         "slices": 355,
@@ -224,7 +329,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 6.813,
-        "seconds": 177.3
+        "path": {
+          "levels": 4,
+          "lut": 2.981,
+          "carry": 0,
+          "ff": 1.502,
+          "other": 0,
+          "logic": 4.483,
+          "route": 2.33
+        },
+        "seconds": 172.2
       }
     },
     {
@@ -237,8 +351,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 20.1,
-        "periodNs": null
+        "seconds": 16.6,
+        "periodNs": null,
+        "path": null
       },
       "silinxHigh": {
         "slices": 41,
@@ -248,8 +363,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 52.2,
-        "periodNs": null
+        "seconds": 20.1,
+        "periodNs": null,
+        "path": null
       },
       "ise": {
         "slices": 32,
@@ -259,7 +375,8 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
-        "seconds": 44.1
+        "path": null,
+        "seconds": 41.1
       }
     },
     {
@@ -272,8 +389,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 1801.9,
-        "periodNs": null
+        "seconds": 1658.3,
+        "periodNs": null,
+        "path": null
       },
       "silinxHigh": {
         "slices": 5341,
@@ -283,8 +401,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 1734.5,
-        "periodNs": null
+        "seconds": 1619.1,
+        "periodNs": null,
+        "path": null
       },
       "ise": {
         "slices": 4959,
@@ -294,33 +413,52 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
-        "seconds": 585.7
+        "path": null,
+        "seconds": 571.1
       }
     },
     {
       "name": "epfl-max",
       "wrapper": true,
       "silinx": {
-        "slices": 722,
-        "luts": 1258,
+        "slices": 715,
+        "luts": 1234,
         "ffs": 643,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 29.118,
-        "seconds": 212,
-        "periodNs": 28.499
+        "estimateNs": 28.216,
+        "seconds": 117.5,
+        "periodNs": 27.754,
+        "path": {
+          "levels": 19,
+          "lut": 14.496,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 15.148,
+          "route": 12.525
+        }
       },
       "silinxHigh": {
-        "slices": 722,
-        "luts": 1258,
+        "slices": 715,
+        "luts": 1234,
         "ffs": 643,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 29.118,
-        "seconds": 197.6,
-        "periodNs": 28.499
+        "estimateNs": 28.216,
+        "seconds": 110.9,
+        "periodNs": 27.754,
+        "path": {
+          "levels": 19,
+          "lut": 14.496,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 15.148,
+          "route": 12.525
+        }
       },
       "ise": {
         "slices": 927,
@@ -330,7 +468,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 25.677,
-        "seconds": 189.8
+        "path": {
+          "levels": 17,
+          "lut": 13.2,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 13.787,
+          "route": 11.89
+        },
+        "seconds": 204.3
       }
     },
     {
@@ -343,9 +490,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 109.084,
-        "seconds": 1295.3,
-        "periodNs": 105.467
+        "estimateNs": 99.383,
+        "seconds": 1244.9,
+        "periodNs": 93.421,
+        "path": {
+          "levels": 87,
+          "lut": 62.811,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 63.402,
+          "route": 29.999
+        }
       },
       "silinxHigh": {
         "slices": 3787,
@@ -354,9 +510,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 109.084,
-        "seconds": 1335.3,
-        "periodNs": 105.467
+        "estimateNs": 99.383,
+        "seconds": 1228,
+        "periodNs": 93.421,
+        "path": {
+          "levels": 87,
+          "lut": 62.811,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 63.402,
+          "route": 29.999
+        }
       },
       "ise": {
         "slices": 6162,
@@ -366,33 +531,60 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 66.762,
-        "seconds": 760.8
+        "path": {
+          "levels": 38,
+          "lut": 28.1,
+          "carry": 0,
+          "ff": 1.748,
+          "other": 1.478,
+          "logic": 31.326,
+          "route": 35.404
+        },
+        "seconds": 808.5
       }
     },
     {
       "name": "epfl-priority",
       "wrapper": true,
       "silinx": {
-        "slices": 115,
+        "slices": 117,
         "luts": 214,
         "ffs": 137,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.825,
-        "seconds": 69.3,
-        "periodNs": 10.582
+        "estimateNs": 8.961,
+        "seconds": 36.1,
+        "periodNs": 8.782,
+        "path": {
+          "levels": 6,
+          "lut": 3.708,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0.85,
+          "logic": 5.145,
+          "route": 3.637
+        }
       },
       "silinxHigh": {
-        "slices": 115,
+        "slices": 117,
         "luts": 214,
         "ffs": 137,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.825,
-        "seconds": 80.2,
-        "periodNs": 10.582
+        "estimateNs": 8.961,
+        "seconds": 29.1,
+        "periodNs": 8.782,
+        "path": {
+          "levels": 6,
+          "lut": 3.708,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0.85,
+          "logic": 5.145,
+          "route": 3.637
+        }
       },
       "ise": {
         "slices": 257,
@@ -402,7 +594,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 20.829,
-        "seconds": 64.6
+        "path": {
+          "levels": 18,
+          "lut": 13.167,
+          "carry": 0,
+          "ff": 1.501,
+          "other": 0,
+          "logic": 14.668,
+          "route": 6.148
+        },
+        "seconds": 56.6
       }
     },
     {
@@ -415,20 +616,38 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.316,
-        "seconds": 21.1,
-        "periodNs": 10.091
+        "estimateNs": 10.361,
+        "seconds": 15.1,
+        "periodNs": 10.151,
+        "path": {
+          "levels": 9,
+          "lut": 6.744,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 7.335,
+          "route": 2.815
+        }
       },
       "silinxHigh": {
         "slices": 36,
-        "luts": 47,
+        "luts": 50,
         "ffs": 64,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 7.469,
-        "seconds": 73.8,
-        "periodNs": 7.315
+        "estimateNs": 6.819,
+        "seconds": 22.1,
+        "periodNs": 6.62,
+        "path": {
+          "levels": 5,
+          "lut": 4.144,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 4.736,
+          "route": 1.882
+        }
       },
       "ise": {
         "slices": 87,
@@ -438,7 +657,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.357,
-        "seconds": 54.6
+        "path": {
+          "levels": 6,
+          "lut": 4.782,
+          "carry": 0,
+          "ff": 1.562,
+          "other": 0,
+          "logic": 6.344,
+          "route": 3.01
+        },
+        "seconds": 48.6
       }
     },
     {
@@ -451,8 +679,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 216.2,
-        "periodNs": null
+        "seconds": 64.7,
+        "periodNs": null,
+        "path": null
       },
       "silinxHigh": {
         "slices": 1001,
@@ -462,8 +691,9 @@
         "bram": 0,
         "mult": 0,
         "estimateNs": null,
-        "seconds": 246.2,
-        "periodNs": null
+        "seconds": 155,
+        "periodNs": null,
+        "path": null
       },
       "ise": {
         "slices": 928,
@@ -473,33 +703,52 @@
         "bram": 0,
         "mult": 0,
         "periodNs": null,
-        "seconds": 124.2
+        "path": null,
+        "seconds": 107.1
       }
     },
     {
       "name": "epfl-voter",
       "wrapper": true,
       "silinx": {
-        "slices": 1163,
-        "luts": 2325,
+        "slices": 1177,
+        "luts": 2353,
         "ffs": 1003,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 23.515,
-        "seconds": 362.7,
-        "periodNs": 23.159
+        "estimateNs": 26.442,
+        "seconds": 150.1,
+        "periodNs": 25.437,
+        "path": {
+          "levels": 18,
+          "lut": 13.245,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 13.832,
+          "route": 11.605
+        }
       },
       "silinxHigh": {
-        "slices": 1163,
-        "luts": 2325,
+        "slices": 1162,
+        "luts": 2323,
         "ffs": 1003,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 23.515,
-        "seconds": 506.8,
-        "periodNs": 23.159
+        "estimateNs": 25.977,
+        "seconds": 277.6,
+        "periodNs": 25.131,
+        "path": {
+          "levels": 17,
+          "lut": 12.706,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 13.297,
+          "route": 11.834
+        }
       },
       "ise": {
         "slices": 2526,
@@ -509,33 +758,60 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 29.591,
-        "seconds": 419.6
+        "path": {
+          "levels": 21,
+          "lut": 14.091,
+          "carry": 0,
+          "ff": 1.501,
+          "other": 1.612,
+          "logic": 17.204,
+          "route": 12.386
+        },
+        "seconds": 381.1
       }
     },
     {
       "name": "femtorv32-quark",
       "wrapper": true,
       "silinx": {
-        "slices": 433,
+        "slices": 419,
         "luts": 710,
         "ffs": 224,
         "srl16": 0,
         "bram": 2,
         "mult": 0,
-        "estimateNs": 19.605,
-        "seconds": 34.6,
-        "periodNs": 18.719
+        "estimateNs": 19.143,
+        "seconds": 37.1,
+        "periodNs": 18.58,
+        "path": {
+          "levels": 24,
+          "lut": 6.524,
+          "carry": 3.704,
+          "ff": 0,
+          "other": 2.812,
+          "logic": 13.04,
+          "route": 5.433
+        }
       },
       "silinxHigh": {
-        "slices": 423,
+        "slices": 410,
         "luts": 642,
-        "ffs": 224,
+        "ffs": 227,
         "srl16": 0,
         "bram": 2,
         "mult": 0,
-        "estimateNs": 18.123,
-        "seconds": 157.4,
-        "periodNs": 18.356
+        "estimateNs": 17.021,
+        "seconds": 46.7,
+        "periodNs": 17.403,
+        "path": {
+          "levels": 20,
+          "lut": 5.038,
+          "carry": 3.168,
+          "ff": 0.555,
+          "other": 2.812,
+          "logic": 11.573,
+          "route": 5.772
+        }
       },
       "ise": {
         "slices": null,
@@ -545,7 +821,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 5.5,
+        "path": null,
+        "seconds": 4.5,
         "error": "ERROR:HDLCompilers:28 - \"src/src/femtorv32_quark.v\" line 63 'instr' has not been declared"
       }
     },
@@ -553,26 +830,44 @@
       "name": "fpu-adder",
       "wrapper": true,
       "silinx": {
-        "slices": 341,
+        "slices": 338,
         "luts": 486,
         "ffs": 389,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 11.789,
-        "seconds": 27.6,
-        "periodNs": 11.685
+        "estimateNs": 10.586,
+        "seconds": 28.1,
+        "periodNs": 10.885,
+        "path": {
+          "levels": 6,
+          "lut": 3.036,
+          "carry": 1.514,
+          "ff": 1.502,
+          "other": 0,
+          "logic": 6.052,
+          "route": 4.833
+        }
       },
       "silinxHigh": {
-        "slices": 341,
+        "slices": 338,
         "luts": 486,
         "ffs": 389,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 11.789,
-        "seconds": 68.7,
-        "periodNs": 11.685
+        "estimateNs": 10.586,
+        "seconds": 34.2,
+        "periodNs": 10.885,
+        "path": {
+          "levels": 6,
+          "lut": 3.036,
+          "carry": 1.514,
+          "ff": 1.502,
+          "other": 0,
+          "logic": 6.052,
+          "route": 4.833
+        }
       },
       "ise": {
         "slices": 446,
@@ -582,7 +877,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 12.07,
-        "seconds": 106.1
+        "path": {
+          "levels": 30,
+          "lut": 1.651,
+          "carry": 6.313,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 8.616,
+          "route": 3.429
+        },
+        "seconds": 97.1
       }
     },
     {
@@ -595,20 +899,38 @@
         "srl16": 0,
         "bram": 0,
         "mult": 4,
-        "estimateNs": 15.186,
-        "seconds": 33.1,
-        "periodNs": 15.104
+        "estimateNs": 14.647,
+        "seconds": 20.1,
+        "periodNs": 14.473,
+        "path": {
+          "levels": 16,
+          "lut": 0,
+          "carry": 5.639,
+          "ff": 0.591,
+          "other": 4.873,
+          "logic": 11.103,
+          "route": 3.346
+        }
       },
       "silinxHigh": {
         "slices": 231,
-        "luts": 385,
+        "luts": 384,
         "ffs": 404,
         "srl16": 0,
         "bram": 0,
         "mult": 4,
-        "estimateNs": 15.587,
-        "seconds": 66.2,
-        "periodNs": 15.516
+        "estimateNs": 14.181,
+        "seconds": 27.1,
+        "periodNs": 14.337,
+        "path": {
+          "levels": 15,
+          "lut": 0,
+          "carry": 5.389,
+          "ff": 0.591,
+          "other": 4.873,
+          "logic": 10.853,
+          "route": 3.476
+        }
       },
       "ise": {
         "slices": 397,
@@ -618,7 +940,16 @@
         "bram": 0,
         "mult": 4,
         "periodNs": 14.607,
-        "seconds": 57.6
+        "path": {
+          "levels": 16,
+          "lut": 0,
+          "carry": 5.622,
+          "ff": 0.652,
+          "other": 4.873,
+          "logic": 11.147,
+          "route": 3.46
+        },
+        "seconds": 57.1
       }
     },
     {
@@ -630,9 +961,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 3.17,
-        "seconds": 17.1,
-        "periodNs": 3.23
+        "estimateNs": 2.977,
+        "seconds": 12.5,
+        "periodNs": 2.992,
+        "path": {
+          "levels": 2,
+          "lut": 1.651,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 2.243,
+          "route": 0.749
+        }
       },
       "silinxHigh": {
         "slices": 5,
@@ -641,9 +981,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 2.538,
-        "seconds": 49.6,
-        "periodNs": 2.744
+        "estimateNs": 2.51,
+        "seconds": 23.6,
+        "periodNs": 2.732,
+        "path": {
+          "levels": 1,
+          "lut": 0,
+          "carry": 0,
+          "ff": 1.531,
+          "other": 0,
+          "logic": 1.531,
+          "route": 1.201
+        }
       },
       "ise": {
         "slices": 6,
@@ -653,6 +1002,15 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 3.803,
+        "path": {
+          "levels": 3,
+          "lut": 2.245,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 2.897,
+          "route": 0.906
+        },
         "seconds": 42.1
       }
     },
@@ -665,9 +1023,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 2.163,
-        "seconds": 17.6,
-        "periodNs": 2.289
+        "estimateNs": 1.954,
+        "seconds": 12,
+        "periodNs": 2.079,
+        "path": {
+          "levels": 1,
+          "lut": 0.837,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 1.428,
+          "route": 0.651
+        }
       },
       "silinxHigh": {
         "slices": 2,
@@ -676,9 +1043,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 2.163,
-        "seconds": 49.1,
-        "periodNs": 2.289
+        "estimateNs": 1.954,
+        "seconds": 16,
+        "periodNs": 2.079,
+        "path": {
+          "levels": 1,
+          "lut": 0.837,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 1.428,
+          "route": 0.651
+        }
       },
       "ise": {
         "slices": 2,
@@ -688,7 +1064,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 3.192,
-        "seconds": 41.6
+        "path": {
+          "levels": 1,
+          "lut": 0.892,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 1.479,
+          "route": 0.653
+        },
+        "seconds": 41.1
       }
     },
     {
@@ -700,9 +1085,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.808,
-        "seconds": 17.6,
-        "periodNs": 5.713
+        "estimateNs": 5.598,
+        "seconds": 14.5,
+        "periodNs": 5.508,
+        "path": {
+          "levels": 3,
+          "lut": 2.277,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 3.424,
+          "route": 2.084
+        }
       },
       "silinxHigh": {
         "slices": 15,
@@ -711,9 +1105,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.243,
-        "seconds": 48.1,
-        "periodNs": 5.219
+        "estimateNs": 6.044,
+        "seconds": 17.6,
+        "periodNs": 6.294,
+        "path": {
+          "levels": 3,
+          "lut": 2.222,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.429,
+          "route": 2.853
+        }
       },
       "ise": {
         "slices": 45,
@@ -723,32 +1126,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 5.29,
-        "seconds": 47.5
+        "path": {
+          "levels": 4,
+          "lut": 3.114,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 3.701,
+          "route": 1.581
+        },
+        "seconds": 47.6
       }
     },
     {
       "name": "itc99-b04",
       "silinx": {
-        "slices": 127,
+        "slices": 105,
         "luts": 139,
         "ffs": 66,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 16.27,
-        "seconds": 20.1,
-        "periodNs": 15.77
+        "estimateNs": 14.218,
+        "seconds": 16.1,
+        "periodNs": 13.764,
+        "path": {
+          "levels": 15,
+          "lut": 3.873,
+          "carry": 6.12,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 10.584,
+          "route": 3.18
+        }
       },
       "silinxHigh": {
-        "slices": 127,
+        "slices": 105,
         "luts": 139,
         "ffs": 66,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 16.27,
-        "seconds": 55.6,
-        "periodNs": 15.77
+        "estimateNs": 14.218,
+        "seconds": 20.1,
+        "periodNs": 13.764,
+        "path": {
+          "levels": 15,
+          "lut": 3.873,
+          "carry": 6.12,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 10.584,
+          "route": 3.18
+        }
       },
       "ise": {
         "slices": null,
@@ -758,33 +1188,52 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 14,
+        "path": null,
+        "seconds": 14.5,
         "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"data_in<8>\" LOC = \"C7\" ;>"
       }
     },
     {
       "name": "itc99-b05",
       "silinx": {
-        "slices": 258,
-        "luts": 294,
+        "slices": 245,
+        "luts": 293,
         "ffs": 34,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 11.02,
-        "seconds": 67.3,
-        "periodNs": 11.547
+        "estimateNs": 11.614,
+        "seconds": 29.6,
+        "periodNs": 12.019,
+        "path": {
+          "levels": 8,
+          "lut": 2.981,
+          "carry": 2.144,
+          "ff": 1.146,
+          "other": 1.176,
+          "logic": 7.447,
+          "route": 4.556
+        }
       },
       "silinxHigh": {
-        "slices": 258,
+        "slices": 259,
         "luts": 294,
-        "ffs": 34,
+        "ffs": 35,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 11.02,
-        "seconds": 70.7,
-        "periodNs": 11.547
+        "estimateNs": 10.724,
+        "seconds": 28.6,
+        "periodNs": 10.782,
+        "path": {
+          "levels": 7,
+          "lut": 2.488,
+          "carry": 1.758,
+          "ff": 1.147,
+          "other": 1.176,
+          "logic": 6.569,
+          "route": 4.207
+        }
       },
       "ise": {
         "slices": 123,
@@ -794,6 +1243,15 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.818,
+        "path": {
+          "levels": 8,
+          "lut": 4.211,
+          "carry": 1.959,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 6.822,
+          "route": 2.993
+        },
         "seconds": 50.6
       }
     },
@@ -806,9 +1264,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 3.076,
-        "seconds": 17.6,
-        "periodNs": 3.435
+        "estimateNs": 3.251,
+        "seconds": 13,
+        "periodNs": 3.49,
+        "path": {
+          "levels": 1,
+          "lut": 0.759,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 1.966,
+          "route": 1.524
+        }
       },
       "silinxHigh": {
         "slices": 5,
@@ -817,9 +1284,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 3.076,
-        "seconds": 57.7,
-        "periodNs": 3.435
+        "estimateNs": 3.251,
+        "seconds": 16.6,
+        "periodNs": 3.49,
+        "path": {
+          "levels": 1,
+          "lut": 0.759,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 1.966,
+          "route": 1.524
+        }
       },
       "ise": {
         "slices": 5,
@@ -829,6 +1305,15 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 3.192,
+        "path": {
+          "levels": 1,
+          "lut": 0.837,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 1.429,
+          "route": 1.477
+        },
         "seconds": 41.6
       }
     },
@@ -841,9 +1326,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.093,
-        "seconds": 18.6,
-        "periodNs": 6.147
+        "estimateNs": 6.584,
+        "seconds": 15.6,
+        "periodNs": 6.472,
+        "path": {
+          "levels": 3,
+          "lut": 2.277,
+          "carry": 0,
+          "ff": 1.142,
+          "other": 0,
+          "logic": 3.419,
+          "route": 3.053
+        }
       },
       "silinxHigh": {
         "slices": 56,
@@ -852,9 +1346,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.556,
-        "seconds": 59.2,
-        "periodNs": 5.586
+        "estimateNs": 5.424,
+        "seconds": 19.1,
+        "periodNs": 5.34,
+        "path": {
+          "levels": 3,
+          "lut": 2.548,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.755,
+          "route": 1.575
+        }
       },
       "ise": {
         "slices": null,
@@ -864,22 +1367,32 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 14.5,
+        "path": null,
+        "seconds": 14,
         "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"punti_retta<8>\" LOC = \"B6\" ;>"
       }
     },
     {
       "name": "itc99-b08",
       "silinx": {
-        "slices": 17,
+        "slices": 18,
         "luts": 34,
         "ffs": 21,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.639,
-        "seconds": 19.1,
-        "periodNs": 6.767
+        "estimateNs": 7.709,
+        "seconds": 14.1,
+        "periodNs": 7.692,
+        "path": {
+          "levels": 4,
+          "lut": 2.926,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 4.073,
+          "route": 3.619
+        }
       },
       "silinxHigh": {
         "slices": 17,
@@ -888,9 +1401,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.259,
-        "seconds": 55.2,
-        "periodNs": 6.399
+        "estimateNs": 6.419,
+        "seconds": 17.6,
+        "periodNs": 6.391,
+        "path": {
+          "levels": 4,
+          "lut": 2.96,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 4.107,
+          "route": 2.277
+        }
       },
       "ise": {
         "slices": 24,
@@ -900,7 +1422,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 5.874,
-        "seconds": 45.1
+        "path": {
+          "levels": 5,
+          "lut": 3.818,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 4.405,
+          "route": 1.467
+        },
+        "seconds": 45
       }
     },
     {
@@ -912,9 +1443,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.842,
-        "seconds": 17.6,
-        "periodNs": 6.566
+        "estimateNs": 6.722,
+        "seconds": 14.1,
+        "periodNs": 6.564,
+        "path": {
+          "levels": 4,
+          "lut": 2.981,
+          "carry": 0,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 4.127,
+          "route": 2.431
+        }
       },
       "silinxHigh": {
         "slices": 20,
@@ -923,9 +1463,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.393,
-        "seconds": 50.7,
-        "periodNs": 5.141
+        "estimateNs": 5.787,
+        "seconds": 17.1,
+        "periodNs": 5.71,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 3.313,
+          "route": 2.396
+        }
       },
       "ise": {
         "slices": 24,
@@ -935,6 +1484,15 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 5.904,
+        "path": {
+          "levels": 5,
+          "lut": 3.873,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 4.465,
+          "route": 1.439
+        },
         "seconds": 44.6
       }
     },
@@ -947,20 +1505,38 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.969,
-        "seconds": 18.1,
-        "periodNs": 6.064
+        "estimateNs": 6.358,
+        "seconds": 15.1,
+        "periodNs": 6.47,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 3.314,
+          "route": 3.156
+        }
       },
       "silinxHigh": {
-        "slices": 26,
-        "luts": 45,
-        "ffs": 18,
+        "slices": 21,
+        "luts": 38,
+        "ffs": 24,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.529,
-        "seconds": 62.2,
-        "periodNs": 5.777
+        "estimateNs": 4.624,
+        "seconds": 27.6,
+        "periodNs": 4.812,
+        "path": {
+          "levels": 2,
+          "lut": 1.729,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 2.936,
+          "route": 1.866
+        }
       },
       "ise": {
         "slices": 29,
@@ -970,6 +1546,15 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.897,
+        "path": {
+          "levels": 3,
+          "lut": 2.3,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 2.891,
+          "route": 2.006
+        },
         "seconds": 42.5
       }
     },
@@ -982,20 +1567,38 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 9.547,
-        "seconds": 19.6,
-        "periodNs": 9.773
+        "estimateNs": 8.949,
+        "seconds": 17.1,
+        "periodNs": 8.955,
+        "path": {
+          "levels": 6,
+          "lut": 3.575,
+          "carry": 0,
+          "ff": 1.146,
+          "other": 1.288,
+          "logic": 6.009,
+          "route": 2.945
+        }
       },
       "silinxHigh": {
-        "slices": 97,
-        "luts": 123,
-        "ffs": 31,
+        "slices": 94,
+        "luts": 117,
+        "ffs": 36,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 9.547,
-        "seconds": 53.1,
-        "periodNs": 9.773
+        "estimateNs": 9.617,
+        "seconds": 30.6,
+        "periodNs": 9.431,
+        "path": {
+          "levels": 6,
+          "lut": 3.52,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 1.109,
+          "logic": 5.776,
+          "route": 3.649
+        }
       },
       "ise": {
         "slices": null,
@@ -1005,7 +1608,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 14,
+        "path": null,
+        "seconds": 14.5,
         "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"x_in<6>\" LOC = \"D6\" ;>"
       }
     },
@@ -1018,9 +1622,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.014,
-        "seconds": 22.1,
-        "periodNs": 9.444
+        "estimateNs": 9.717,
+        "seconds": 18.6,
+        "periodNs": 9.612,
+        "path": {
+          "levels": 6,
+          "lut": 4.389,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 5.596,
+          "route": 4.016
+        }
       },
       "silinxHigh": {
         "slices": 168,
@@ -1029,9 +1642,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.014,
-        "seconds": 60.1,
-        "periodNs": 9.444
+        "estimateNs": 9.717,
+        "seconds": 37.1,
+        "periodNs": 9.612,
+        "path": {
+          "levels": 6,
+          "lut": 4.389,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 5.596,
+          "route": 4.016
+        }
       },
       "ise": {
         "slices": 214,
@@ -1041,7 +1663,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 7.795,
-        "seconds": 64.1
+        "path": {
+          "levels": 5,
+          "lut": 4.266,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 4.858,
+          "route": 2.937
+        },
+        "seconds": 63.6
       }
     },
     {
@@ -1053,9 +1684,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 8.35,
-        "seconds": 18.6,
-        "periodNs": 7.984
+        "estimateNs": 7.87,
+        "seconds": 14.5,
+        "periodNs": 7.92,
+        "path": {
+          "levels": 6,
+          "lut": 2.926,
+          "carry": 1.448,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 5.52,
+          "route": 2.391
+        }
       },
       "silinxHigh": {
         "slices": 44,
@@ -1064,9 +1704,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 8.157,
-        "seconds": 61.2,
-        "periodNs": 7.754
+        "estimateNs": 7.44,
+        "seconds": 28.1,
+        "periodNs": 7.429,
+        "path": {
+          "levels": 6,
+          "lut": 1.463,
+          "carry": 1.448,
+          "ff": 1.591,
+          "other": 0.806,
+          "logic": 5.308,
+          "route": 2.112
+        }
       },
       "ise": {
         "slices": null,
@@ -1076,6 +1725,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
+        "path": null,
         "seconds": 14,
         "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"canale<4>\" LOC = \"A7\" ;>"
       }
@@ -1084,26 +1734,44 @@
       "name": "itc99-b14",
       "wrapper": true,
       "silinx": {
-        "slices": 749,
-        "luts": 1137,
+        "slices": 667,
+        "luts": 1060,
         "ffs": 334,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 34.271,
-        "seconds": 114.8,
-        "periodNs": 33.787
+        "estimateNs": 35.142,
+        "seconds": 68.2,
+        "periodNs": 34.287,
+        "path": {
+          "levels": 36,
+          "lut": 12.573,
+          "carry": 5.331,
+          "ff": 0.948,
+          "other": 2.794,
+          "logic": 21.646,
+          "route": 12.597
+        }
       },
       "silinxHigh": {
-        "slices": 749,
+        "slices": 740,
         "luts": 1137,
         "ffs": 334,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 34.271,
-        "seconds": 113.8,
-        "periodNs": 33.787
+        "estimateNs": 33.167,
+        "seconds": 56.7,
+        "periodNs": 33.002,
+        "path": {
+          "levels": 37,
+          "lut": 11.857,
+          "carry": 6.993,
+          "ff": 0.591,
+          "other": 2.419,
+          "logic": 21.86,
+          "route": 11.058
+        }
       },
       "ise": {
         "slices": null,
@@ -1113,6 +1781,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
+        "path": null,
         "seconds": 5,
         "error": "ERROR:Xst:2587 - Port <addr> of instance <dut> has different type in definition <b14>."
       }
@@ -1121,26 +1790,44 @@
       "name": "itc99-b15",
       "wrapper": true,
       "silinx": {
-        "slices": 1297,
+        "slices": 1294,
         "luts": 1986,
         "ffs": 528,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 21.035,
-        "seconds": 118.8,
-        "periodNs": 20.38
+        "estimateNs": 20.207,
+        "seconds": 90.8,
+        "periodNs": 19.872,
+        "path": {
+          "levels": 17,
+          "lut": 9.317,
+          "carry": 2.144,
+          "ff": 1.146,
+          "other": 1.288,
+          "logic": 13.895,
+          "route": 5.964
+        }
       },
       "silinxHigh": {
-        "slices": 1379,
-        "luts": 2157,
-        "ffs": 528,
+        "slices": 1237,
+        "luts": 1875,
+        "ffs": 538,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 21.403,
-        "seconds": 185.5,
-        "periodNs": 20.596
+        "estimateNs": 18.049,
+        "seconds": 133.6,
+        "periodNs": 17.6,
+        "path": {
+          "levels": 23,
+          "lut": 6.666,
+          "carry": 3.168,
+          "ff": 1.147,
+          "other": 1.641,
+          "logic": 12.622,
+          "route": 4.978
+        }
       },
       "ise": {
         "slices": null,
@@ -1150,6 +1837,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
+        "path": null,
         "seconds": 5,
         "error": "ERROR:Xst:2587 - Port <address> of instance <dut> has different type in definition <b15>."
       }
@@ -1158,26 +1846,44 @@
       "name": "itc99-b17",
       "wrapper": true,
       "silinx": {
-        "slices": 4128,
+        "slices": 4113,
         "luts": 6400,
         "ffs": 1464,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 24.16,
-        "seconds": 265.3,
-        "periodNs": 23.543
+        "estimateNs": 22.693,
+        "seconds": 253.7,
+        "periodNs": 22.535,
+        "path": {
+          "levels": 16,
+          "lut": 10.186,
+          "carry": 1.44,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 12.772,
+          "route": 9.763
+        }
       },
       "silinxHigh": {
-        "slices": 4128,
-        "luts": 6400,
-        "ffs": 1464,
+        "slices": 3710,
+        "luts": 5605,
+        "ffs": 1492,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 24.16,
-        "seconds": 244.3,
-        "periodNs": 23.543
+        "estimateNs": 21.72,
+        "seconds": 274.8,
+        "periodNs": 21.411,
+        "path": {
+          "levels": 18,
+          "lut": 8.372,
+          "carry": 3.42,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 12.384,
+          "route": 9.027
+        }
       },
       "ise": {
         "slices": null,
@@ -1187,33 +1893,52 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 5,
+        "path": null,
+        "seconds": 5.5,
         "error": "ERROR:Xst:2587 - Port <address1> of instance <dut> has different type in definition <b17>."
       }
     },
     {
       "name": "itc99-b20",
       "silinx": {
-        "slices": 1452,
-        "luts": 2234,
+        "slices": 1320,
+        "luts": 2153,
         "ffs": 492,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 35.766,
-        "seconds": 183.6,
-        "periodNs": 35.315
+        "estimateNs": 33.962,
+        "seconds": 91.8,
+        "periodNs": 33.557,
+        "path": {
+          "levels": 35,
+          "lut": 13.387,
+          "carry": 5.033,
+          "ff": 0.953,
+          "other": 2.924,
+          "logic": 22.297,
+          "route": 11.25
+        }
       },
       "silinxHigh": {
-        "slices": 1452,
+        "slices": 1432,
         "luts": 2234,
         "ffs": 492,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 35.766,
-        "seconds": 165.1,
-        "periodNs": 35.315
+        "estimateNs": 33.06,
+        "seconds": 136.9,
+        "periodNs": 32.912,
+        "path": {
+          "levels": 34,
+          "lut": 10.382,
+          "carry": 4.99,
+          "ff": 0.973,
+          "other": 4.508,
+          "logic": 20.853,
+          "route": 12.059
+        }
       },
       "ise": {
         "slices": null,
@@ -1223,33 +1948,52 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 61.6,
+        "path": null,
+        "seconds": 57.1,
         "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"so<20>\" LOC = \"P17\" ;>"
       }
     },
     {
       "name": "itc99-b21",
       "silinx": {
-        "slices": 1529,
-        "luts": 2341,
+        "slices": 1347,
+        "luts": 2180,
         "ffs": 492,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 34.517,
-        "seconds": 186.6,
-        "periodNs": 34.242
+        "estimateNs": 33.679,
+        "seconds": 68.2,
+        "periodNs": 33.788,
+        "path": {
+          "levels": 24,
+          "lut": 13.167,
+          "carry": 3.627,
+          "ff": 0.951,
+          "other": 2.924,
+          "logic": 20.669,
+          "route": 13.115
+        }
       },
       "silinxHigh": {
-        "slices": 1529,
+        "slices": 1511,
         "luts": 2341,
         "ffs": 492,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 34.517,
-        "seconds": 174.1,
-        "periodNs": 34.242
+        "estimateNs": 33.974,
+        "seconds": 139.4,
+        "periodNs": 33.473,
+        "path": {
+          "levels": 35,
+          "lut": 10.011,
+          "carry": 5.434,
+          "ff": 0.591,
+          "other": 6.645,
+          "logic": 22.681,
+          "route": 10.792
+        }
       },
       "ise": {
         "slices": null,
@@ -1259,33 +2003,52 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 52.6,
+        "path": null,
+        "seconds": 51.1,
         "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"so<20>\" LOC = \"P17\" ;>"
       }
     },
     {
       "name": "itc99-b22",
       "silinx": {
-        "slices": 2023,
+        "slices": 1998,
         "luts": 3265,
         "ffs": 706,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 36.43,
-        "seconds": 214.2,
-        "periodNs": 35.838
+        "estimateNs": 34.806,
+        "seconds": 146.9,
+        "periodNs": 34.39,
+        "path": {
+          "levels": 36,
+          "lut": 13.332,
+          "carry": 5.067,
+          "ff": 0.973,
+          "other": 2.924,
+          "logic": 22.296,
+          "route": 12.094
+        }
       },
       "silinxHigh": {
-        "slices": 2023,
+        "slices": 1998,
         "luts": 3265,
         "ffs": 706,
         "srl16": 0,
         "bram": 0,
         "mult": 2,
-        "estimateNs": 36.43,
-        "seconds": 196.6,
-        "periodNs": 35.838
+        "estimateNs": 34.806,
+        "seconds": 183.5,
+        "periodNs": 34.39,
+        "path": {
+          "levels": 36,
+          "lut": 13.332,
+          "carry": 5.067,
+          "ff": 0.973,
+          "other": 2.924,
+          "logic": 22.296,
+          "route": 12.094
+        }
       },
       "ise": {
         "slices": null,
@@ -1295,33 +2058,52 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 77.6,
+        "path": null,
+        "seconds": 80.6,
         "error": "ERROR:ConstraintSystem:59 - Constraint <NET \"so<20>\" LOC = \"P17\" ;>"
       }
     },
     {
       "name": "iwls05-i2c",
       "silinx": {
-        "slices": 195,
+        "slices": 136,
         "luts": 251,
         "ffs": 129,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 9.54,
-        "seconds": 24.6,
-        "periodNs": 9.288
+        "estimateNs": 9.798,
+        "seconds": 21.6,
+        "periodNs": 9.514,
+        "path": {
+          "levels": 6,
+          "lut": 4.389,
+          "carry": 0,
+          "ff": 1.142,
+          "other": 0,
+          "logic": 5.531,
+          "route": 3.98
+        }
       },
       "silinxHigh": {
-        "slices": 140,
-        "luts": 259,
+        "slices": 141,
+        "luts": 260,
         "ffs": 129,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 8.915,
-        "seconds": 53.7,
-        "periodNs": 8.749
+        "estimateNs": 8.987,
+        "seconds": 28.1,
+        "periodNs": 8.772,
+        "path": {
+          "levels": 5,
+          "lut": 3.74,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 4.887,
+          "route": 3.884
+        }
       },
       "ise": {
         "slices": 121,
@@ -1331,32 +2113,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 5.909,
-        "seconds": 56.1
+        "path": {
+          "levels": 4,
+          "lut": 2.981,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 4.188,
+          "route": 1.721
+        },
+        "seconds": 52.1
       }
     },
     {
       "name": "iwls05-sasc",
       "silinx": {
-        "slices": 73,
+        "slices": 66,
         "luts": 89,
         "ffs": 118,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.161,
-        "seconds": 20.6,
-        "periodNs": 6.244
+        "estimateNs": 5.509,
+        "seconds": 16.5,
+        "periodNs": 5.595,
+        "path": {
+          "levels": 3,
+          "lut": 2.277,
+          "carry": 0,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 3.423,
+          "route": 2.157
+        }
       },
       "silinxHigh": {
-        "slices": 73,
+        "slices": 66,
         "luts": 104,
         "ffs": 118,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.041,
-        "seconds": 59.2,
-        "periodNs": 5.041
+        "estimateNs": 5.003,
+        "seconds": 24.6,
+        "periodNs": 4.988,
+        "path": {
+          "levels": 2,
+          "lut": 1.463,
+          "carry": 0,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 2.609,
+          "route": 2.376
+        }
       },
       "ise": {
         "slices": 47,
@@ -1366,32 +2175,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.846,
-        "seconds": 44.6
+        "path": {
+          "levels": 2,
+          "lut": 1.408,
+          "carry": 0,
+          "ff": 1.683,
+          "other": 0,
+          "logic": 3.091,
+          "route": 1.748
+        },
+        "seconds": 43.1
       }
     },
     {
       "name": "iwls05-simple-spi",
       "silinx": {
-        "slices": 103,
+        "slices": 83,
         "luts": 149,
         "ffs": 131,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.717,
-        "seconds": 23.6,
-        "periodNs": 6.74
+        "estimateNs": 7.202,
+        "seconds": 17.6,
+        "periodNs": 6.999,
+        "path": {
+          "levels": 4,
+          "lut": 2.981,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 4.128,
+          "route": 2.807
+        }
       },
       "silinxHigh": {
-        "slices": 109,
+        "slices": 89,
         "luts": 157,
         "ffs": 131,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.219,
-        "seconds": 53.7,
-        "periodNs": 6.215
+        "estimateNs": 6.464,
+        "seconds": 23.6,
+        "periodNs": 6.36,
+        "path": {
+          "levels": 3,
+          "lut": 2.112,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.319,
+          "route": 3.031
+        }
       },
       "ise": {
         "slices": 84,
@@ -1401,32 +2237,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 6.222,
+        "path": {
+          "levels": 4,
+          "lut": 2.871,
+          "carry": 0,
+          "ff": 1.708,
+          "other": 0,
+          "logic": 4.579,
+          "route": 1.63
+        },
         "seconds": 49.6
       }
     },
     {
       "name": "iwls05-spi",
       "silinx": {
-        "slices": 397,
-        "luts": 745,
-        "ffs": 229,
+        "slices": 355,
+        "luts": 672,
+        "ffs": 230,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 17.321,
-        "seconds": 47.1,
-        "periodNs": 17.573
+        "estimateNs": 13.229,
+        "seconds": 37.1,
+        "periodNs": 13.323,
+        "path": {
+          "levels": 11,
+          "lut": 3.169,
+          "carry": 5.609,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 9.37,
+          "route": 3.953
+        }
       },
       "silinxHigh": {
-        "slices": 397,
-        "luts": 745,
-        "ffs": 229,
+        "slices": 355,
+        "luts": 672,
+        "ffs": 230,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 17.321,
-        "seconds": 82.8,
-        "periodNs": 17.573
+        "estimateNs": 13.229,
+        "seconds": 46.7,
+        "periodNs": 13.323,
+        "path": {
+          "levels": 11,
+          "lut": 3.169,
+          "carry": 5.609,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 9.37,
+          "route": 3.953
+        }
       },
       "ise": {
         "slices": 430,
@@ -1436,21 +2299,39 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 13.039,
-        "seconds": 179.3
+        "path": {
+          "levels": 9,
+          "lut": 3.973,
+          "carry": 0,
+          "ff": 0.591,
+          "other": 2.646,
+          "logic": 7.21,
+          "route": 5.829
+        },
+        "seconds": 170.7
       }
     },
     {
       "name": "iwls05-ss-pcm",
       "silinx": {
-        "slices": 68,
+        "slices": 42,
         "luts": 33,
         "ffs": 79,
         "srl16": 1,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.305,
-        "seconds": 19.6,
-        "periodNs": 5.261
+        "estimateNs": 4.834,
+        "seconds": 15,
+        "periodNs": 4.81,
+        "path": {
+          "levels": 2,
+          "lut": 1.463,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 2.67,
+          "route": 2.137
+        }
       },
       "silinxHigh": {
         "slices": 42,
@@ -1459,9 +2340,18 @@
         "srl16": 1,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 4.852,
-        "seconds": 46.7,
-        "periodNs": 4.66
+        "estimateNs": 4.834,
+        "seconds": 20.1,
+        "periodNs": 4.81,
+        "path": {
+          "levels": 2,
+          "lut": 1.463,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 2.67,
+          "route": 2.137
+        }
       },
       "ise": {
         "slices": 44,
@@ -1471,32 +2361,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.829,
-        "seconds": 43.1
+        "path": {
+          "levels": 1,
+          "lut": 0.759,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 1.966,
+          "route": 2.863
+        },
+        "seconds": 48.5
       }
     },
     {
       "name": "iwls05-usb-phy",
       "silinx": {
-        "slices": 72,
+        "slices": 64,
         "luts": 103,
         "ffs": 106,
         "srl16": 1,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.589,
-        "seconds": 23.1,
-        "periodNs": 5.473
+        "estimateNs": 5.506,
+        "seconds": 17,
+        "periodNs": 5.428,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.374,
+          "route": 2.054
+        }
       },
       "silinxHigh": {
-        "slices": 67,
-        "luts": 107,
+        "slices": 64,
+        "luts": 103,
         "ffs": 106,
         "srl16": 1,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.665,
-        "seconds": 50.7,
-        "periodNs": 5.651
+        "estimateNs": 5.506,
+        "seconds": 22.1,
+        "periodNs": 5.428,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.374,
+          "route": 2.054
+        }
       },
       "ise": {
         "slices": 71,
@@ -1506,7 +2423,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.988,
-        "seconds": 44.1
+        "path": {
+          "levels": 2,
+          "lut": 1.463,
+          "carry": 0,
+          "ff": 1.769,
+          "other": 0,
+          "logic": 3.232,
+          "route": 1.742
+        },
+        "seconds": 44.6
       }
     },
     {
@@ -1518,9 +2444,18 @@
         "srl16": 0,
         "bram": 2,
         "mult": 0,
-        "estimateNs": 12.442,
-        "seconds": 29.6,
-        "periodNs": 12.628
+        "estimateNs": 12.785,
+        "seconds": 24.6,
+        "periodNs": 12.507,
+        "path": {
+          "levels": 6,
+          "lut": 4.389,
+          "carry": 0,
+          "ff": 0,
+          "other": 3.189,
+          "logic": 7.578,
+          "route": 4.929
+        }
       },
       "silinxHigh": {
         "slices": 192,
@@ -1529,9 +2464,18 @@
         "srl16": 0,
         "bram": 2,
         "mult": 0,
-        "estimateNs": 12.442,
-        "seconds": 62.2,
-        "periodNs": 12.628
+        "estimateNs": 12.785,
+        "seconds": 31.6,
+        "periodNs": 12.507,
+        "path": {
+          "levels": 6,
+          "lut": 4.389,
+          "carry": 0,
+          "ff": 0,
+          "other": 3.189,
+          "logic": 7.578,
+          "route": 4.929
+        }
       },
       "ise": {
         "slices": 482,
@@ -1541,32 +2485,59 @@
         "bram": 1,
         "mult": 0,
         "periodNs": 15.131,
-        "seconds": 316.4
+        "path": {
+          "levels": 9,
+          "lut": 6.682,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0.806,
+          "logic": 8.14,
+          "route": 6.991
+        },
+        "seconds": 312.9
       }
     },
     {
       "name": "nandland-spi-verilog",
       "silinx": {
-        "slices": 51,
+        "slices": 32,
         "luts": 44,
         "ffs": 37,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.341,
-        "seconds": 27.1,
-        "periodNs": 5.3
+        "estimateNs": 5.494,
+        "seconds": 14.6,
+        "periodNs": 5.391,
+        "path": {
+          "levels": 4,
+          "lut": 1.651,
+          "carry": 2.031,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 4.334,
+          "route": 1.052
+        }
       },
       "silinxHigh": {
-        "slices": 33,
+        "slices": 32,
         "luts": 44,
         "ffs": 37,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.314,
-        "seconds": 55.2,
-        "periodNs": 5.317
+        "estimateNs": 5.494,
+        "seconds": 20.6,
+        "periodNs": 5.391,
+        "path": {
+          "levels": 4,
+          "lut": 1.651,
+          "carry": 2.031,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 4.334,
+          "route": 1.052
+        }
       },
       "ise": {
         "slices": null,
@@ -1576,6 +2547,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
+        "path": null,
         "seconds": 4.5,
         "error": "ERROR:HDLCompilers:26 - \"src/src/SPI_Master.v\" line 60 unexpected token: '$clog2'"
       }
@@ -1583,26 +2555,44 @@
     {
       "name": "nandland-spi-vhdl",
       "silinx": {
-        "slices": 50,
+        "slices": 31,
         "luts": 42,
         "ffs": 37,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.517,
-        "seconds": 27.6,
-        "periodNs": 5.317
+        "estimateNs": 5.269,
+        "seconds": 14.5,
+        "periodNs": 5.308,
+        "path": {
+          "levels": 4,
+          "lut": 1.596,
+          "carry": 2.014,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 4.201,
+          "route": 1.103
+        }
       },
       "silinxHigh": {
-        "slices": 33,
-        "luts": 44,
+        "slices": 31,
+        "luts": 42,
         "ffs": 37,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.158,
-        "seconds": 53.2,
-        "periodNs": 6.08
+        "estimateNs": 5.269,
+        "seconds": 20.6,
+        "periodNs": 5.308,
+        "path": {
+          "levels": 4,
+          "lut": 1.596,
+          "carry": 2.014,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 4.201,
+          "route": 1.103
+        }
       },
       "ise": {
         "slices": null,
@@ -1612,33 +2602,52 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 5,
+        "path": null,
+        "seconds": 4.5,
         "error": "ERROR:HDLParsers:1401 - \"/work/src/src/SPI_Master.vhd\" Line 161. Object o_TX_Ready of mode OUT can not be read."
       }
     },
     {
       "name": "neorv32",
       "silinx": {
-        "slices": 2158,
+        "slices": 1679,
         "luts": 2900,
         "ffs": 1319,
         "srl16": 0,
         "bram": 6,
         "mult": 0,
-        "estimateNs": 15.609,
-        "seconds": 225.6,
-        "periodNs": 15.502
+        "estimateNs": 14.93,
+        "seconds": 135.9,
+        "periodNs": 15.041,
+        "path": {
+          "levels": 11,
+          "lut": 3.575,
+          "carry": 1.848,
+          "ff": 0.555,
+          "other": 2.812,
+          "logic": 8.79,
+          "route": 6.195
+        }
       },
       "silinxHigh": {
-        "slices": 2158,
+        "slices": 1679,
         "luts": 2900,
         "ffs": 1319,
         "srl16": 0,
         "bram": 6,
         "mult": 0,
-        "estimateNs": 15.609,
-        "seconds": 290.5,
-        "periodNs": 15.502
+        "estimateNs": 14.93,
+        "seconds": 177.6,
+        "periodNs": 15.041,
+        "path": {
+          "levels": 11,
+          "lut": 3.575,
+          "carry": 1.848,
+          "ff": 0.555,
+          "other": 2.812,
+          "logic": 8.79,
+          "route": 6.195
+        }
       },
       "ise": {
         "slices": null,
@@ -1648,6 +2657,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
+        "path": null,
         "seconds": 5,
         "error": "ERROR:HDLParsers:3317 - \"/work/src/src/neorv32_imem.vhd\" Line 16. Library neorv32 cannot be found."
       }
@@ -1656,26 +2666,44 @@
       "name": "picorv32",
       "wrapper": true,
       "silinx": {
-        "slices": 752,
+        "slices": 706,
         "luts": 1264,
         "ffs": 767,
         "srl16": 0,
         "bram": 2,
         "mult": 0,
-        "estimateNs": 12.32,
-        "seconds": 83.3,
-        "periodNs": 12.181
+        "estimateNs": 11.515,
+        "seconds": 43.7,
+        "periodNs": 11.483,
+        "path": {
+          "levels": 13,
+          "lut": 3.52,
+          "carry": 2.412,
+          "ff": 1.501,
+          "other": 0,
+          "logic": 7.433,
+          "route": 4.046
+        }
       },
       "silinxHigh": {
-        "slices": 752,
+        "slices": 706,
         "luts": 1264,
         "ffs": 767,
         "srl16": 0,
         "bram": 2,
         "mult": 0,
-        "estimateNs": 12.32,
-        "seconds": 126,
-        "periodNs": 12.181
+        "estimateNs": 11.515,
+        "seconds": 56.7,
+        "periodNs": 11.483,
+        "path": {
+          "levels": 13,
+          "lut": 3.52,
+          "carry": 2.412,
+          "ff": 1.501,
+          "other": 0,
+          "logic": 7.433,
+          "route": 4.046
+        }
       },
       "ise": {
         "slices": null,
@@ -1685,6 +2713,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
+        "path": null,
         "seconds": 4.5,
         "error": "ERROR:HDLCompilers:26 - \"src/src/picorv32.v\" line 549 Macro reference `assert is not defined"
       }
@@ -1693,26 +2722,44 @@
       "name": "secworks-aes",
       "wrapper": true,
       "silinx": {
-        "slices": 5584,
+        "slices": 4346,
         "luts": 8679,
         "ffs": 2996,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 28.385,
-        "seconds": 494,
-        "periodNs": 27.978
+        "estimateNs": 27.565,
+        "seconds": 750.4,
+        "periodNs": 27.176,
+        "path": {
+          "levels": 12,
+          "lut": 8.888,
+          "carry": 0,
+          "ff": 1.012,
+          "other": 0,
+          "logic": 9.9,
+          "route": 17.254
+        }
       },
       "silinxHigh": {
-        "slices": 5584,
+        "slices": 4346,
         "luts": 8679,
         "ffs": 2996,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 28.385,
-        "seconds": 470.4,
-        "periodNs": 27.978
+        "estimateNs": 27.565,
+        "seconds": 772.8,
+        "periodNs": 27.176,
+        "path": {
+          "levels": 12,
+          "lut": 8.888,
+          "carry": 0,
+          "ff": 1.012,
+          "other": 0,
+          "logic": 9.9,
+          "route": 17.254
+        }
       },
       "ise": {
         "slices": null,
@@ -1722,7 +2769,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 6,
+        "path": null,
+        "seconds": 6.5,
         "error": "ERROR:Xst:1468 - \"src/src/aes_key_mem.v\" line 180: Unexpected event in always block sensitivity list."
       }
     },
@@ -1730,26 +2778,44 @@
       "name": "secworks-sha1",
       "wrapper": true,
       "silinx": {
-        "slices": 1466,
+        "slices": 1042,
         "luts": 2064,
-        "ffs": 1537,
+        "ffs": 1533,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 17.363,
-        "seconds": 145.9,
-        "periodNs": 17.062
+        "estimateNs": 16.264,
+        "seconds": 85.8,
+        "periodNs": 16.197,
+        "path": {
+          "levels": 11,
+          "lut": 5.391,
+          "carry": 2.267,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 8.249,
+          "route": 7.858
+        }
       },
       "silinxHigh": {
-        "slices": 1091,
-        "luts": 2031,
+        "slices": 1025,
+        "luts": 2032,
         "ffs": 1528,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 17.171,
-        "seconds": 192.6,
-        "periodNs": 16.842
+        "estimateNs": 17.62,
+        "seconds": 102.9,
+        "periodNs": 17.027,
+        "path": {
+          "levels": 22,
+          "lut": 6.15,
+          "carry": 3.447,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 10.188,
+          "route": 6.839
+        }
       },
       "ise": {
         "slices": null,
@@ -1759,6 +2825,7 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
+        "path": null,
         "seconds": 5,
         "error": "ERROR:Xst:902 - \"src/src/sha1_w_mem.v\" line 146: Unexpected w_mem event in always block sensitivity list."
       }
@@ -1767,26 +2834,44 @@
       "name": "secworks-sha256",
       "wrapper": true,
       "silinx": {
-        "slices": 1936,
-        "luts": 2819,
+        "slices": 1436,
+        "luts": 2860,
         "ffs": 1809,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 25.108,
-        "seconds": 137.9,
-        "periodNs": 24.818
+        "estimateNs": 23.11,
+        "seconds": 87.4,
+        "periodNs": 22.838,
+        "path": {
+          "levels": 24,
+          "lut": 7.558,
+          "carry": 6.763,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 14.912,
+          "route": 7.91
+        }
       },
       "silinxHigh": {
-        "slices": 1498,
-        "luts": 2984,
+        "slices": 1436,
+        "luts": 2860,
         "ffs": 1809,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 25.545,
-        "seconds": 221.7,
-        "periodNs": 25.199
+        "estimateNs": 23.11,
+        "seconds": 118.4,
+        "periodNs": 22.838,
+        "path": {
+          "levels": 24,
+          "lut": 7.558,
+          "carry": 6.763,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 14.912,
+          "route": 7.91
+        }
       },
       "ise": {
         "slices": null,
@@ -1796,7 +2881,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 5.1,
+        "path": null,
+        "seconds": 5.5,
         "error": "ERROR:Xst:902 - \"src/src/sha256_w_mem.v\" line 138: Unexpected w_mem event in always block sensitivity list."
       }
     },
@@ -1804,26 +2890,44 @@
       "name": "secworks-siphash",
       "wrapper": true,
       "silinx": {
-        "slices": 913,
+        "slices": 686,
         "luts": 1228,
         "ffs": 798,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 14.9,
-        "seconds": 50.2,
-        "periodNs": 15.025
+        "estimateNs": 14.071,
+        "seconds": 34.1,
+        "periodNs": 14.187,
+        "path": {
+          "levels": 27,
+          "lut": 2.3,
+          "carry": 6.609,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 9.5,
+          "route": 4.68
+        }
       },
       "silinxHigh": {
-        "slices": 707,
-        "luts": 1268,
+        "slices": 686,
+        "luts": 1228,
         "ffs": 798,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 14.798,
-        "seconds": 93.8,
-        "periodNs": 14.738
+        "estimateNs": 14.071,
+        "seconds": 46.7,
+        "periodNs": 14.187,
+        "path": {
+          "levels": 27,
+          "lut": 2.3,
+          "carry": 6.609,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 9.5,
+          "route": 4.68
+        }
       },
       "ise": {
         "slices": 727,
@@ -1833,7 +2937,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 13.976,
-        "seconds": 119.2
+        "path": {
+          "levels": 34,
+          "lut": 1.596,
+          "carry": 7.106,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 9.294,
+          "route": 4.662
+        },
+        "seconds": 128.1
       }
     },
     {
@@ -1846,20 +2959,38 @@
         "srl16": 1,
         "bram": 1,
         "mult": 0,
-        "estimateNs": 13.729,
-        "seconds": 28.6,
-        "periodNs": 13.375
+        "estimateNs": 13.894,
+        "seconds": 20.6,
+        "periodNs": 13.535,
+        "path": {
+          "levels": 7,
+          "lut": 5.148,
+          "carry": 0,
+          "ff": 0.91,
+          "other": 2.812,
+          "logic": 8.87,
+          "route": 4.592
+        }
       },
       "silinxHigh": {
-        "slices": 209,
+        "slices": 212,
         "luts": 314,
         "ffs": 355,
         "srl16": 1,
         "bram": 1,
         "mult": 0,
-        "estimateNs": 14.226,
-        "seconds": 86.8,
-        "periodNs": 14.305
+        "estimateNs": 12.812,
+        "seconds": 33.1,
+        "periodNs": 12.849,
+        "path": {
+          "levels": 6,
+          "lut": 5.424,
+          "carry": 0,
+          "ff": 0.91,
+          "other": 2.812,
+          "logic": 9.146,
+          "route": 3.634
+        }
       },
       "ise": {
         "slices": null,
@@ -1869,7 +3000,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 4.5,
+        "path": null,
+        "seconds": 5.5,
         "error": "ERROR:HDLCompilers:26 - \"src/src/serv_rf_ram.v\" line 12 unexpected token: '$clog2'"
       }
     },
@@ -1882,9 +3014,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.025,
-        "seconds": 18.6,
-        "periodNs": 5.071
+        "estimateNs": 4.761,
+        "seconds": 12.1,
+        "periodNs": 4.84,
+        "path": {
+          "levels": 2,
+          "lut": 1.518,
+          "carry": 0,
+          "ff": 1.501,
+          "other": 0,
+          "logic": 3.019,
+          "route": 1.821
+        }
       },
       "silinxHigh": {
         "slices": 18,
@@ -1893,9 +3034,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.025,
-        "seconds": 49.7,
-        "periodNs": 5.071
+        "estimateNs": 4.761,
+        "seconds": 17.1,
+        "periodNs": 4.84,
+        "path": {
+          "levels": 2,
+          "lut": 1.518,
+          "carry": 0,
+          "ff": 1.501,
+          "other": 0,
+          "logic": 3.019,
+          "route": 1.821
+        }
       },
       "ise": {
         "slices": 17,
@@ -1905,7 +3055,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.992,
-        "seconds": 42.1
+        "path": {
+          "levels": 2,
+          "lut": 1.463,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 2.67,
+          "route": 2.322
+        },
+        "seconds": 49.1
       }
     },
     {
@@ -1917,9 +3076,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.996,
-        "seconds": 19.5,
-        "periodNs": 5.859
+        "estimateNs": 5.969,
+        "seconds": 12.1,
+        "periodNs": 5.833,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.374,
+          "route": 2.38
+        }
       },
       "silinxHigh": {
         "slices": 14,
@@ -1928,9 +3096,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.996,
-        "seconds": 49.7,
-        "periodNs": 5.859
+        "estimateNs": 5.969,
+        "seconds": 16.6,
+        "periodNs": 5.833,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.374,
+          "route": 2.38
+        }
       },
       "ise": {
         "slices": 29,
@@ -1940,32 +3117,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.939,
-        "seconds": 42.6
+        "path": {
+          "levels": 2,
+          "lut": 1.463,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 2.61,
+          "route": 2.308
+        },
+        "seconds": 53.1
       }
     },
     {
       "name": "t80",
       "silinx": {
-        "slices": 1296,
+        "slices": 1146,
         "luts": 2153,
         "ffs": 361,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 22.996,
-        "seconds": 135.4,
-        "periodNs": 22.431
+        "estimateNs": 22.203,
+        "seconds": 80.3,
+        "periodNs": 21.956,
+        "path": {
+          "levels": 14,
+          "lut": 8.723,
+          "carry": 2.031,
+          "ff": 0.952,
+          "other": 0,
+          "logic": 11.706,
+          "route": 10.228
+        }
       },
       "silinxHigh": {
-        "slices": 1296,
+        "slices": 1146,
         "luts": 2153,
         "ffs": 361,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 22.996,
-        "seconds": 204.1,
-        "periodNs": 22.431
+        "estimateNs": 22.203,
+        "seconds": 104.9,
+        "periodNs": 21.956,
+        "path": {
+          "levels": 14,
+          "lut": 8.723,
+          "carry": 2.031,
+          "ff": 0.952,
+          "other": 0,
+          "logic": 11.706,
+          "route": 10.228
+        }
       },
       "ise": {
         "slices": 1000,
@@ -1975,7 +3179,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 18.129,
-        "seconds": 190.7
+        "path": {
+          "levels": 18,
+          "lut": 8.911,
+          "carry": 2.503,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 12.001,
+          "route": 6.128
+        },
+        "seconds": 210.8
       }
     },
     {
@@ -1987,9 +3200,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 5.608,
-        "seconds": 28.6,
-        "periodNs": 5.527
+        "estimateNs": 4.765,
+        "seconds": 15.1,
+        "periodNs": 4.893,
+        "path": {
+          "levels": 2,
+          "lut": 0.837,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 1.06,
+          "logic": 2.484,
+          "route": 2.409
+        }
       },
       "silinxHigh": {
         "slices": 42,
@@ -1998,9 +3220,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 4.385,
-        "seconds": 71.2,
-        "periodNs": 4.466
+        "estimateNs": 4.889,
+        "seconds": 22.6,
+        "periodNs": 4.774,
+        "path": {
+          "levels": 2,
+          "lut": 1.408,
+          "carry": 0,
+          "ff": 1.501,
+          "other": 0,
+          "logic": 2.909,
+          "route": 1.865
+        }
       },
       "ise": {
         "slices": 38,
@@ -2010,7 +3241,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.689,
-        "seconds": 43
+        "path": {
+          "levels": 2,
+          "lut": 1.518,
+          "carry": 0,
+          "ff": 1.502,
+          "other": 0,
+          "logic": 3.02,
+          "route": 1.669
+        },
+        "seconds": 47.1
       }
     },
     {
@@ -2022,9 +3262,18 @@
         "srl16": 0,
         "bram": 1,
         "mult": 0,
-        "estimateNs": 6.066,
-        "seconds": 21.6,
-        "periodNs": 6.457
+        "estimateNs": 6.154,
+        "seconds": 14.1,
+        "periodNs": 5.987,
+        "path": {
+          "levels": 3,
+          "lut": 2.277,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 1.253,
+          "logic": 4.117,
+          "route": 1.87
+        }
       },
       "silinxHigh": {
         "slices": 19,
@@ -2033,9 +3282,18 @@
         "srl16": 0,
         "bram": 1,
         "mult": 0,
-        "estimateNs": 5.266,
-        "seconds": 51.6,
-        "periodNs": 5.49
+        "estimateNs": 6.181,
+        "seconds": 18.6,
+        "periodNs": 5.987,
+        "path": {
+          "levels": 2,
+          "lut": 1.911,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 1.253,
+          "logic": 3.756,
+          "route": 2.231
+        }
       },
       "ise": {
         "slices": null,
@@ -2045,7 +3303,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 4.5,
+        "path": null,
+        "seconds": 5,
         "error": "ERROR:HDLCompilers:26 - \"src/src/axis_fifo.v\" line 130 unexpected token: '$clog2'"
       }
     },
@@ -2058,20 +3317,38 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.266,
-        "seconds": 31.6,
-        "periodNs": 10.133
+        "estimateNs": 10.205,
+        "seconds": 17.1,
+        "periodNs": 9.822,
+        "path": {
+          "levels": 7,
+          "lut": 3.63,
+          "carry": 1.376,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 6.152,
+          "route": 3.67
+        }
       },
       "silinxHigh": {
-        "slices": 115,
-        "luts": 193,
+        "slices": 114,
+        "luts": 196,
         "ffs": 72,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 10.266,
-        "seconds": 64.7,
-        "periodNs": 10.133
+        "estimateNs": 9.693,
+        "seconds": 33.1,
+        "periodNs": 9.381,
+        "path": {
+          "levels": 6,
+          "lut": 4.389,
+          "carry": 0,
+          "ff": 1.147,
+          "other": 0,
+          "logic": 5.536,
+          "route": 3.843
+        }
       },
       "ise": {
         "slices": 145,
@@ -2081,7 +3358,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.883,
-        "seconds": 53.6
+        "path": {
+          "levels": 6,
+          "lut": 4.444,
+          "carry": 0,
+          "ff": 1.708,
+          "other": 0,
+          "logic": 6.152,
+          "route": 3.731
+        },
+        "seconds": 59.6
       }
     },
     {
@@ -2093,9 +3379,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 3.939,
-        "seconds": 23.1,
-        "periodNs": 3.961
+        "estimateNs": 3.808,
+        "seconds": 16.5,
+        "periodNs": 3.818,
+        "path": {
+          "levels": 2,
+          "lut": 1.596,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 2.183,
+          "route": 1.635
+        }
       },
       "silinxHigh": {
         "slices": 50,
@@ -2104,9 +3399,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 3.976,
-        "seconds": 53.2,
-        "periodNs": 3.866
+        "estimateNs": 3.77,
+        "seconds": 21.1,
+        "periodNs": 3.696,
+        "path": {
+          "levels": 2,
+          "lut": 1.651,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 2.238,
+          "route": 1.458
+        }
       },
       "ise": {
         "slices": null,
@@ -2116,7 +3420,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 8,
+        "path": null,
+        "seconds": 10,
         "error": "ERROR:Xst:890 - \"src/src/lfsr.v\" line 271: For statement is only supported when the new step evaluation is based on one the following operator: +, -."
       }
     },
@@ -2129,9 +3434,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 2.325,
-        "seconds": 20.6,
-        "periodNs": 2.356
+        "estimateNs": 2.169,
+        "seconds": 14,
+        "periodNs": 2.174,
+        "path": {
+          "levels": 1,
+          "lut": 0.837,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 1.489,
+          "route": 0.685
+        }
       },
       "silinxHigh": {
         "slices": 16,
@@ -2140,9 +3454,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 2.325,
-        "seconds": 49.6,
-        "periodNs": 2.356
+        "estimateNs": 2.169,
+        "seconds": 18.1,
+        "periodNs": 2.174,
+        "path": {
+          "levels": 1,
+          "lut": 0.837,
+          "carry": 0,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 1.489,
+          "route": 0.685
+        }
       },
       "ise": {
         "slices": null,
@@ -2152,7 +3475,8 @@
         "bram": null,
         "mult": null,
         "periodNs": null,
-        "seconds": 6.5,
+        "path": null,
+        "seconds": 7.5,
         "error": "ERROR:Xst:890 - \"src/src/lfsr.v\" line 235: For statement is only supported when the new step evaluation is based on one the following operator: +, -."
       }
     },
@@ -2165,9 +3489,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 11.442,
-        "seconds": 24.1,
-        "periodNs": 11.701
+        "estimateNs": 9.998,
+        "seconds": 14.6,
+        "periodNs": 10.53,
+        "path": {
+          "levels": 6,
+          "lut": 2.981,
+          "carry": 1.44,
+          "ff": 1.501,
+          "other": 0,
+          "logic": 5.922,
+          "route": 4.608
+        }
       },
       "silinxHigh": {
         "slices": 125,
@@ -2176,9 +3509,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 9.24,
-        "seconds": 64.3,
-        "periodNs": 9.068
+        "estimateNs": 8.104,
+        "seconds": 25.1,
+        "periodNs": 8.225,
+        "path": {
+          "levels": 6,
+          "lut": 2.112,
+          "carry": 1.57,
+          "ff": 1.502,
+          "other": 0,
+          "logic": 5.184,
+          "route": 3.041
+        }
       },
       "ise": {
         "slices": 84,
@@ -2188,33 +3530,60 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.239,
-        "seconds": 47.1
+        "path": {
+          "levels": 13,
+          "lut": 1.596,
+          "carry": 4.509,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 6.696,
+          "route": 2.533
+        },
+        "seconds": 52.6
       }
     },
     {
       "name": "vtr-ch-intrinsics",
       "wrapper": true,
       "silinx": {
-        "slices": 265,
+        "slices": 266,
         "luts": 141,
         "ffs": 509,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.221,
-        "seconds": 25.6,
-        "periodNs": 6.43
+        "estimateNs": 5.927,
+        "seconds": 17.1,
+        "periodNs": 5.764,
+        "path": {
+          "levels": 4,
+          "lut": 3.114,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 3.701,
+          "route": 2.058
+        }
       },
       "silinxHigh": {
-        "slices": 265,
+        "slices": 266,
         "luts": 141,
         "ffs": 509,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 6.221,
-        "seconds": 52.7,
-        "periodNs": 6.43
+        "estimateNs": 5.927,
+        "seconds": 23.6,
+        "periodNs": 5.764,
+        "path": {
+          "levels": 4,
+          "lut": 3.114,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 3.701,
+          "route": 2.058
+        }
       },
       "ise": {
         "slices": 273,
@@ -2224,7 +3593,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 5.061,
-        "seconds": 59.1
+        "path": {
+          "levels": 4,
+          "lut": 3.004,
+          "carry": 0,
+          "ff": 0.587,
+          "other": 0,
+          "logic": 3.591,
+          "route": 1.47
+        },
+        "seconds": 67.6
       }
     },
     {
@@ -2237,9 +3615,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 13,
-        "estimateNs": 40.07,
-        "seconds": 33.1,
-        "periodNs": 36.07
+        "estimateNs": 36.592,
+        "seconds": 23.1,
+        "periodNs": 38.695,
+        "path": {
+          "levels": 17,
+          "lut": 3.114,
+          "carry": 4.193,
+          "ff": 0.592,
+          "other": 16.729,
+          "logic": 24.628,
+          "route": 14.064
+        }
       },
       "silinxHigh": {
         "slices": 261,
@@ -2248,9 +3635,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 13,
-        "estimateNs": 41.363,
-        "seconds": 62.8,
-        "periodNs": 37.714
+        "estimateNs": 35.264,
+        "seconds": 32.1,
+        "periodNs": 34.489,
+        "path": {
+          "levels": 12,
+          "lut": 3.059,
+          "carry": 1.87,
+          "ff": 0.592,
+          "other": 18.617,
+          "logic": 24.138,
+          "route": 10.343
+        }
       },
       "ise": {
         "slices": 321,
@@ -2260,7 +3656,16 @@
         "bram": 0,
         "mult": 13,
         "periodNs": 35.797,
-        "seconds": 56.6
+        "path": {
+          "levels": 16,
+          "lut": 0.704,
+          "carry": 10.63,
+          "ff": 0,
+          "other": 15.617,
+          "logic": 26.951,
+          "route": 8.846
+        },
+        "seconds": 63.1
       }
     },
     {
@@ -2273,9 +3678,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 13,
-        "estimateNs": 29.27,
-        "seconds": 31.1,
-        "periodNs": 27.638
+        "estimateNs": 25.845,
+        "seconds": 20.1,
+        "periodNs": 25.914,
+        "path": {
+          "levels": 14,
+          "lut": 2.882,
+          "carry": 2.171,
+          "ff": 0.587,
+          "other": 10.799,
+          "logic": 16.439,
+          "route": 9.475
+        }
       },
       "silinxHigh": {
         "slices": 160,
@@ -2284,9 +3698,18 @@
         "srl16": 0,
         "bram": 0,
         "mult": 13,
-        "estimateNs": 29.27,
-        "seconds": 61.7,
-        "periodNs": 27.638
+        "estimateNs": 25.845,
+        "seconds": 27.1,
+        "periodNs": 25.914,
+        "path": {
+          "levels": 14,
+          "lut": 2.882,
+          "carry": 2.171,
+          "ff": 0.587,
+          "other": 10.799,
+          "logic": 16.439,
+          "route": 9.475
+        }
       },
       "ise": {
         "slices": 208,
@@ -2296,33 +3719,60 @@
         "bram": 0,
         "mult": 13,
         "periodNs": 26.737,
-        "seconds": 53.1
+        "path": {
+          "levels": 9,
+          "lut": 0,
+          "carry": 5.929,
+          "ff": 0.591,
+          "other": 11.275,
+          "logic": 17.795,
+          "route": 8.942
+        },
+        "seconds": 61.6
       }
     },
     {
       "name": "vtr-mkPktMerge",
       "wrapper": true,
       "silinx": {
-        "slices": 730,
+        "slices": 716,
         "luts": 256,
         "ffs": 962,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 7.637,
-        "seconds": 36.1,
-        "periodNs": 7.886
+        "estimateNs": 7.271,
+        "seconds": 37.1,
+        "periodNs": 7.45,
+        "path": {
+          "levels": 5,
+          "lut": 2.3,
+          "carry": 2.045,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 4.937,
+          "route": 2.512
+        }
       },
       "silinxHigh": {
-        "slices": 730,
+        "slices": 716,
         "luts": 256,
         "ffs": 962,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 7.637,
-        "seconds": 72.3,
-        "periodNs": 7.886
+        "estimateNs": 7.271,
+        "seconds": 46.7,
+        "periodNs": 7.45,
+        "path": {
+          "levels": 5,
+          "lut": 2.3,
+          "carry": 2.045,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 4.937,
+          "route": 2.512
+        }
       },
       "ise": {
         "slices": 5812,
@@ -2332,32 +3782,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 9.273,
-        "seconds": 423.6
+        "path": {
+          "levels": 4,
+          "lut": 3.059,
+          "carry": 0,
+          "ff": 0.592,
+          "other": 0,
+          "logic": 3.651,
+          "route": 5.618
+        },
+        "seconds": 463.1
       }
     },
     {
       "name": "vtr-sha",
       "silinx": {
-        "slices": 816,
+        "slices": 800,
         "luts": 1583,
         "ffs": 893,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 15.277,
-        "seconds": 42.7,
-        "periodNs": 15.513
+        "estimateNs": 15.319,
+        "seconds": 48.7,
+        "periodNs": 15.415,
+        "path": {
+          "levels": 13,
+          "lut": 4.577,
+          "carry": 4.454,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 9.622,
+          "route": 5.775
+        }
       },
       "silinxHigh": {
-        "slices": 816,
+        "slices": 800,
         "luts": 1583,
         "ffs": 893,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 15.277,
-        "seconds": 86.3,
-        "periodNs": 15.513
+        "estimateNs": 15.319,
+        "seconds": 61.7,
+        "periodNs": 15.415,
+        "path": {
+          "levels": 13,
+          "lut": 4.577,
+          "carry": 4.454,
+          "ff": 0.591,
+          "other": 0,
+          "logic": 9.622,
+          "route": 5.775
+        }
       },
       "ise": {
         "slices": 1149,
@@ -2367,32 +3844,59 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 19.919,
-        "seconds": 178.2
+        "path": {
+          "levels": 21,
+          "lut": 4.522,
+          "carry": 7.048,
+          "ff": 0.652,
+          "other": 0,
+          "logic": 12.222,
+          "route": 7.697
+        },
+        "seconds": 168.2
       }
     },
     {
       "name": "vtr-stereovision3",
       "silinx": {
-        "slices": 99,
+        "slices": 77,
         "luts": 127,
-        "ffs": 121,
+        "ffs": 120,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 8.225,
-        "seconds": 23.6,
-        "periodNs": 5.576
+        "estimateNs": 8.585,
+        "seconds": 17.6,
+        "periodNs": 5.861,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.374,
+          "route": 2.487
+        }
       },
       "silinxHigh": {
-        "slices": 99,
+        "slices": 77,
         "luts": 127,
-        "ffs": 121,
+        "ffs": 120,
         "srl16": 0,
         "bram": 0,
         "mult": 0,
-        "estimateNs": 8.225,
-        "seconds": 50.7,
-        "periodNs": 5.576
+        "estimateNs": 8.585,
+        "seconds": 23.1,
+        "periodNs": 5.861,
+        "path": {
+          "levels": 3,
+          "lut": 2.167,
+          "carry": 0,
+          "ff": 1.207,
+          "other": 0,
+          "logic": 3.374,
+          "route": 2.487
+        }
       },
       "ise": {
         "slices": 92,
@@ -2402,7 +3906,16 @@
         "bram": 0,
         "mult": 0,
         "periodNs": 4.916,
-        "seconds": 51.6
+        "path": {
+          "levels": 2,
+          "lut": 1.518,
+          "carry": 0,
+          "ff": 1.146,
+          "other": 0,
+          "logic": 2.664,
+          "route": 2.252
+        },
+        "seconds": 45.6
       }
     }
   ]
