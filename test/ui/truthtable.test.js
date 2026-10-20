@@ -407,7 +407,16 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
 uiTest('Truth Table (#434, #435): the / notation by default (results, essential primes, K-map groups), the others selectable; the XOR form when simpler, its HDL; in Portuguese', E, async (page) => {
   // a full adder (s, co) and an output XOR does not help (x = a·b + c)
   const fa = { version: 1, name: 'fa', inputs: ['a', 'b', 'c'], outputs: ['s', 'co', 'x'], table: { s: '01101001', co: '00010111', x: '01010111' }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
-  await makeProject(env, { name: 'TtXor', files: { 'src/fa.tt.json': JSON.stringify(fa, null, 2) } });
+  // (a module that instances the table's: it keeps working when the table's language changes, #696)
+  const top = `library ieee; use ieee.std_logic_1164.all;
+entity top is port (x, y, z : in std_logic; s, co, w : out std_logic); end top;
+architecture rtl of top is
+  component fa port (a, b, c : in std_logic; s, co, x : out std_logic); end component;
+begin
+  u_fa : fa port map (a => x, b => y, c => z, s => s, co => co, x => w);
+end rtl;
+`;
+  await makeProject(env, { name: 'TtXor', top: 'top', files: { 'src/fa.tt.json': JSON.stringify(fa, null, 2), 'src/top.vhd': top } });
   await page.openProject('TtXor');
   await page.eval(() => window.SilinxApp.openTt('src/fa.tt.json'));
   await page.waitFor(() => window.Silinx.active?.id === 'tt:src/fa.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor'), [], { what: 'truth table editor' });
@@ -499,6 +508,40 @@ uiTest('Truth Table (#434, #435): the / notation by default (results, essential 
   assert.deepEqual(netlist(sch).diagnostics, []);
   assert.deepEqual(simTable(generateHdl(sch).code, 'fa.vhd', 'fa'), fa.table);
 
+  // ---- its HDL language (#696): Verilog, then VHDL again; the file made again in it, the other removed, the
+  // badge follows, the instance in top and the schematic keep working
+  const row = (n) => page.eval((m) => { const r = [...document.querySelectorAll('#hier .row')].find((e) => e.querySelector('.lbl').textContent === m); return r && [...r.querySelectorAll('.badge')].map((b) => b.textContent); }, n);
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-lang`).value, T), 'vhdl');
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-lang option`)].map((o) => `${o.value}:${o.textContent}`), T), ['vhdl:VHDL', 'verilog:Verilog']);
+  for (const [lang, L, ext, other] of [['verilog', 'Verilog', 'v', 'vhd'], ['vhdl', 'VHDL', 'vhd', 'v']]) {
+    await page.eval(() => window.SilinxApp.openTt('src/fa.tt.json'));
+    await page.waitFor(() => window.Silinx.active?.id === 'tt:src/fa.tt.json');
+    await page.fill(`${T} .tt-lang`, lang);
+    await page.waitFor((h, o) => window.Silinx.hdlToSch?.[h] === 'src/fa.tt.json' && !window.Silinx.fileTree.includes(o), [`src/fa.${ext}`, `src/fa.${other}`], { what: `fa in ${L}`, timeout: 15000 });
+    await page.waitConsole(new RegExp(`src/fa\\.tt\\.json: its HDL is now in ${L}, src/fa\\.${ext} \\(src/fa\\.${other} removed\\)`));
+    const d = await ttFile('TtXor', 'src/fa.tt.json');
+    assert.deepEqual([d.lang, d.generatedFile, d.form], [lang, `src/fa.${ext}`, 'nor']);
+    const code = await readWs(env, 'TtXor', `src/fa.${ext}`);
+    assert.match(code, lang === 'verilog' ? /^module fa \(/m : /^entity fa is/m);
+    assert.match(code, /\(NOR gates only, from the minimal POS/);
+    assert.deepEqual(simTable(code, `fa.${ext}`, 'fa'), fa.table);
+    // the Design pane: top instances it, its row [Table*] [Schematic] [L]
+    await page.waitFor((l) => [...document.querySelectorAll('#hier .row')].some((r) => /fa$/.test(r.querySelector('.lbl').textContent) && [...r.querySelectorAll('.badge')].some((b) => b.textContent === l)), [L], { what: `the row of fa with [${L}]` });
+    assert.deepEqual(await row('u_fa - fa'), ['Table', 'Schematic', L]);
+    await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+    await page.waitFor(() => window.Silinx.active?.id === 'file:src/top.vhd');
+    assert.deepEqual(await problemRows(page), []);
+    // the schematic: in the language of the table, the same gates, simulates to the table
+    await page.eval(() => window.SilinxApp.openTtSchematic('src/fa.tt.json'));
+    await page.waitFor((l) => window.Silinx.active?.id === 'ttsch:src/fa.tt.json' && window.Silinx.active.viewer?.getDoc().lang === l, [lang], { what: `the schematic in ${L}` });
+    sch = await ttSchematic(page, 'src/fa.tt.json');
+    assert.deepEqual(netlist(sch).diagnostics, []);
+    assert.deepEqual(simTable(generateHdl(sch, { lang }).code, `fa.${ext}`, 'fa'), fa.table);
+  }
+  assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
+  await page.eval(() => window.SilinxApp.openTt('src/fa.tt.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/fa.tt.json');
+
   // ---- in Portuguese: every label of the editor (the XOR form shown) translated
   await page.click(`${T} .tt-tab[data-out=s]`);
   await page.eval(TEXTS);
@@ -510,9 +553,10 @@ uiTest('Truth Table (#434, #435): the / notation by default (results, essential 
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-xor .tt-cost`).textContent, T), '3 literal(is), 2 operador(es) de duas entradas: 2 XOR / XNOR, 0 AND, 0 OR');
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-form option[value=xor]`).textContent, T), 'Forma XOR (quando mais simples)');
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-form option`)].slice(3).map((o) => o.textContent), T), ['Só portas NAND', 'Só portas NOR']);
+  assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-toolbar label`)].map((l) => l.textContent), T), ['Entradas:', 'Saídas:', 'Lógica do HDL:', 'Linguagem:']);
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-nand b, ${t} .tt-nor b, ${t} .tt-nand .tt-cost`)].map((b) => b.textContent), T), ['Forma NAND', '8 porta(s), 3 delas inversora(s)', 'Forma NOR']);
   // the Design pane's badges and the schematic's bar
-  assert.deepEqual(await page.eval(() => [...[...document.querySelectorAll('#hier .row')].find((r) => r.querySelector('.lbl').textContent === 'fa').querySelectorAll('.badge')].map((b) => b.textContent)), ['Tabela', 'Esquemático', 'VHDL']);
+  assert.deepEqual(await page.eval(() => [...[...document.querySelectorAll('#hier .row')].find((r) => r.querySelector('.lbl').textContent === 'u_fa - fa').querySelectorAll('.badge')].map((b) => b.textContent)), ['Tabela', 'Esquemático', 'VHDL']);
   assert.equal(await page.eval(() => window.Silinx.docs.find((d) => d.id === 'ttsch:src/fa.tt.json').el.querySelector('.tt-sch-bar').textContent), 'Esquemático (só de leitura): gerado a partir de fa.tt.json');
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-ops`).textContent, T), "Operadores: / ' ~ (NOT), · . * (AND), ⊕ ^ ou xor (XOR), xnor, + (OR)");
   await setLang('en');

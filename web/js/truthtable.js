@@ -7,7 +7,7 @@
 // to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The table always has its HDL module, in
 // its language (the project's preferred one), generated from it by the host (app.js), which keeps
 // both in sync, and its schematic (#694, a view of its module in the Design pane), both in the form
-// chosen in HDL logic.
+// chosen in HDL logic; its language is chosen in Language (#696).
 //
 //   const ed = mountTtEditor(host, { model, onChange(model), onFromModule(), linkInfo() -> { file, why } | null,
 //                                    onOpenFile(path) });
@@ -85,6 +85,9 @@ export function mountTtEditor(container, opts = {}) {
   const formSel = h('select', { class: 'tt-form', title: FORM_TIP, onchange: () => { M.form = formSel.value; changed(); } },
     h('option', { value: 'sop' }, 'Minimal SOP'), h('option', { value: 'pos' }, 'Minimal POS'), h('option', { value: 'xor' }, 'XOR form (when simpler)'),
     h('option', { value: 'nand' }, 'NAND gates only'), h('option', { value: 'nor' }, 'NOR gates only'));
+  // its HDL module's language (#696): the host makes the module again in it (drawings.js drawnHdlLanguage)
+  const langSel = h('select', { class: 'tt-lang', title: 'HDL language', onchange: () => { M.lang = langSel.value; changed(); } },
+    h('option', { value: 'vhdl' }, 'VHDL'), h('option', { value: 'verilog' }, 'Verilog'));
   const btn = (label, title, onclick, cls = '') => h('button', { type: 'button', class: `btn tt-btn ${cls}`, title, onclick }, label);
   const link = h('span', { class: 'tt-link' });
   const toolbar = h('div', { class: 'tt-toolbar' },
@@ -92,7 +95,7 @@ export function mountTtEditor(container, opts = {}) {
     h('span', { class: 'tt-sep' }),
     h('label', {}, 'Inputs:'), inIn, h('label', {}, 'Outputs:'), outIn, btn('Apply', 'Apply the input and output names', applyShape), shapeErr,
     h('span', { class: 'tt-sep' }),
-    h('label', { title: FORM_TIP }, 'HDL logic:'), formSel,
+    h('label', { title: FORM_TIP }, 'HDL logic:'), formSel, h('label', { title: 'HDL language' }, 'Language:'), langSel,
     h('span', { class: 'tt-sep' }),
     btn('Truth Table from Module…', 'Fill the table with the truth table of a combinational module of the project (exhaustive simulation)', () => opts.onFromModule?.()),
     link);
@@ -293,7 +296,7 @@ export function mountTtEditor(container, opts = {}) {
     if (!M.outputs.includes(out)) out = M.outputs[0];
     if (document.activeElement !== inIn) inIn.value = M.inputs.join(', ');
     if (document.activeElement !== outIn) outIn.value = M.outputs.join(', ');
-    formSel.value = M.form;
+    formSel.value = M.form; langSel.value = M.lang;
     if (document.activeElement !== notes) notes.value = M.notes;
     A = analyzeOutput(M, out, M.inputs.length > MAX_EDIT_INPUTS ? { maxNodes: 50000 } : {});   // module tables of 7–8 inputs: keep it quick
     exprLbl.textContent = `${out} =`;

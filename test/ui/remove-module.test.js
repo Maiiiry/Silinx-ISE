@@ -59,13 +59,13 @@ const answer = async (page, button = 'Yes', title = 'Remove Source') => {
 const DRAWN = [
   { kind: 'Petri net', file: 'src/ctl.pn.json', mod: 'ctl', ico: 'petri', badge: 'Petri', model: newPetri('ctl', 'vhdl') },
   { kind: 'schematic', file: 'src/gate.sch.json', mod: 'gate', ico: 'schematic', badge: 'Schematic', model: newDoc('gate', 'vhdl') },
-  { kind: 'truth table', file: 'src/maj.tt.json', mod: 'maj', ico: 'truthtable', badge: 'Table', model: { ...newTable('maj', ['a', 'b', 'c'], ['f']), lang: 'vhdl', table: { f: '00010111' } } },
+  { kind: 'truth table', file: 'src/maj.tt.json', mod: 'maj', ico: 'truthtable', badge: 'Table', views: ' [Schematic]', model: { ...newTable('maj', ['a', 'b', 'c'], ['f']), lang: 'vhdl', table: { f: '00010111' } } },
   { kind: 'ASM chart', file: 'src/seq.asm.json', mod: 'seq', ico: 'asm', badge: 'ASM', model: newModel('seq', 'vhdl') },
   { kind: 'state diagram', file: 'src/st.fsm.json', mod: 'st', ico: 'fsm', badge: 'FSM', model: newFsm('st', 'vhdl') },
 ];
 const QUESTION = (d, hdl) => `Remove '${d}' and its HDL file '${hdl}' from the project?\n(The files stay in the project folder: Undo or Add to Project in the Files view brings them back.)`;
 const REMOVED = (d, hdl) => `Removed ${d} and its HDL file ${hdl} from the project (the files are kept in the project folder).`;
-const ROWS = (name, k) => [`project ${name}`, '  chip xc3s250e-4-cp132', `    moduleTop ${k.mod} [${k.badge}*] [VHDL] (${k.file.split('/').pop()})`];
+const ROWS = (name, k) => [`project ${name}`, '  chip xc3s250e-4-cp132', `    moduleTop ${k.mod} [${k.badge}*]${k.views || ''} [VHDL] (${k.file.split('/').pop()})`];
 
 // the drawing alone in the project: its HDL file generated and linked when the project is opened (#207)
 async function openDrawn(page, name, k) {

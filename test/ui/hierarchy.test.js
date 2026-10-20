@@ -38,6 +38,8 @@ const badge = async (page, label, text, opts = {}) => {
     const r = [...document.querySelectorAll('#hier .row')].find((x) => x.querySelector('.lbl').textContent === l && x.getClientRects().length);
     const b = r && [...r.querySelectorAll('.badge')].find((x) => x.textContent === t);
     if (!b) return null;
+    // (a narrow pane scrolls sideways to it: the name and the badges stay whole, #207)
+    b.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     const k = b.getBoundingClientRect();
     return { x: k.left + k.width / 2, y: k.top + k.height / 2 };
   }, [label, text], { what: `badge ${text} of ${label}` });
@@ -76,7 +78,7 @@ const EXAMPLES = {
       '    moduleTop top [VHDL*] (top.vhd)',
       '      fsm u_fsm - traffic [FSM*] [VHDL] (traffic.fsm.json)',
       '      vhdl u_timer - timer [VHDL*] (timer.vhd)',
-      '      truthtable u_lamps - lamps [Table*] [VHDL] (lamps.tt.json)',
+      '      truthtable u_lamps - lamps [Table*] [Schematic] [VHDL] (lamps.tt.json)',
       '      verilog u_display - sevenseg [Verilog*] (sevenseg.v)',
       '    ucf traffic.ucf',
     ],
@@ -87,14 +89,14 @@ const EXAMPLES = {
       '      vhdl uut - top [VHDL*] (top.vhd)',
       '        fsm u_fsm - traffic [FSM*] [VHDL] (traffic.fsm.json)',
       '        vhdl u_timer - timer [VHDL*] (timer.vhd)',
-      '        truthtable u_lamps - lamps [Table*] [VHDL] (lamps.tt.json)',
+      '        truthtable u_lamps - lamps [Table*] [Schematic] [VHDL] (lamps.tt.json)',
       '        verilog u_display - sevenseg [Verilog*] (sevenseg.v)',
     ],
     tips: [
       'top: VHDL (Open)',
       'u_fsm - traffic: FSM (Base: its HDL is generated from it) VHDL (Generated from the state diagram)',
       'u_timer - timer: VHDL (Open)',
-      'u_lamps - lamps: Table (Base: its HDL is generated from it) VHDL (Generated from the truth table)',
+      'u_lamps - lamps: Table (Base: its HDL is generated from it) Schematic (Generated from the truth table, in its HDL logic form) VHDL (Generated from the truth table)',
       'u_display - sevenseg: Verilog (Open)',
     ],
   },
@@ -242,7 +244,7 @@ const KINDS = [
   { type: 'sch', name: 'g1', file: 'src/g1.sch.json', ico: 'schematic', badge: 'Schematic', id: 'sch:src/g1.sch.json' },
   { type: 'asm', name: 'c1', file: 'src/c1.asm.json', ico: 'asm', badge: 'ASM', id: 'asm:src/c1.asm.json' },
   { type: 'fsm', name: 'f1', file: 'src/f1.fsm.json', ico: 'fsm', badge: 'FSM', id: 'fsm:src/f1.fsm.json' },
-  { type: 'tt', name: 't1', file: 'src/t1.tt.json', ico: 'truthtable', badge: 'Table', id: 'tt:src/t1.tt.json' },
+  { type: 'tt', name: 't1', file: 'src/t1.tt.json', ico: 'truthtable', badge: 'Table', views: ' [Schematic]', id: 'tt:src/t1.tt.json' },
   { type: 'petri', name: 'p1', file: 'src/p1.pn.json', ico: 'petri', badge: 'Petri', id: 'pn:src/p1.pn.json' },
 ];
 for (const [lang, L, ext] of [['vhdl', 'VHDL', 'vhd'], ['verilog', 'Verilog', 'v']]) {
@@ -267,7 +269,7 @@ for (const [lang, L, ext] of [['vhdl', 'VHDL', 'vhd'], ['verilog', 'Verilog', 'v
       assert.equal(await readWs(env, pj, hdl), viewHdl(k.file, JSON.stringify({ ...d, generatedFile: undefined })).text, hdl);
       await page.waitFor((n) => [...document.querySelectorAll('#hier .row')].some((r) => r.querySelector('.lbl').textContent === n), [k.name]);
       const row = (await rows(page)).find((r) => r.trim().startsWith(`${k.ico} ${k.name} `));
-      assert.equal(row?.trim(), `${k.ico} ${k.name} [${k.badge}*] [${L}] (${k.file.split('/').pop()})`);
+      assert.equal(row?.trim(), `${k.ico} ${k.name} [${k.badge}*]${k.views || ''} [${L}] (${k.file.split('/').pop()})`);
     }
     assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
   });
@@ -320,7 +322,7 @@ uiTest('Design pane (#207, #220) in Portuguese: the badges [FSM] [Tabela] [VHDL]
       'top: VHDL (Abrir)',
       'u_fsm - traffic: FSM (Base: o seu HDL é gerado a partir daqui) VHDL (Gerado a partir do diagrama de estados)',
       'u_timer - timer: VHDL (Abrir)',
-      'u_lamps - lamps: Tabela (Base: o seu HDL é gerado a partir daqui) VHDL (Gerado a partir da tabela de verdade)',
+      'u_lamps - lamps: Tabela (Base: o seu HDL é gerado a partir daqui) Esquemático (Gerado a partir da tabela de verdade, na sua forma da lógica do HDL) VHDL (Gerado a partir da tabela de verdade)',
       'u_display - sevenseg: Verilog (Abrir)',
     ]);
     assert.deepEqual(await badgeMenu(page, 'u_lamps - lamps', 'Tabela'), ['Abrir', 'Remover do Projeto']);
@@ -443,18 +445,18 @@ end architecture rtl;
     '    moduleTop top [VHDL*] (top.vhd)',
     '      vhdl u_fsm - traffic [VHDL*] (traffic.vhd)',
     '      vhdl u_timer - timer [VHDL*] (timer.vhd)',
-    '      truthtable u_lamps - lamps [Table*] [VHDL] (lamps.tt.json)',
+    '      truthtable u_lamps - lamps [Table*] [Schematic] [VHDL] (lamps.tt.json)',
     '      verilog u_display - sevenseg [Verilog*] (sevenseg.v)',
     '    ucf traffic.ucf',
   ]);
 });
 
 // a drawing's HDL language (its editor's HDL language, a schematic's Language): its HDL file made again in it, the other one
-// removed (no Generate HDL any more, #220)
-uiTest('a drawing\'s HDL language changed in its editor (ASM chart, state diagram, Petri net; a schematic\'s Language): its HDL file made again in that language, the other one removed (#220)', E, async (page) => {
+// removed (no Generate HDL any more, #220); a truth table's too (#696)
+uiTest('a drawing\'s HDL language changed in its editor (ASM chart, state diagram, truth table, Petri net; a schematic\'s Language): its HDL file made again in that language, the other one removed (#220, #696)', E, async (page) => {
   await makeProject(env, { name: 'H_lang', top: '' });
   await page.openProject('H_lang');
-  for (const k of KINDS.filter((x) => x.type !== 'tt')) {
+  for (const k of KINDS) {
     await page.eval(async (t) => { (await import('/js/wizards.js')).newSourceWizard({ type: t }); }, k.type);
     await page.waitDialog('New Source Wizard');
     await page.dialogButton('Next >');
@@ -475,7 +477,7 @@ uiTest('a drawing\'s HDL language changed in its editor (ASM chart, state diagra
       await page.waitFor((n, l) => [...document.querySelectorAll('#hier .row')].some((r) => r.querySelector('.lbl').textContent === n
         && [...r.querySelectorAll('.badge')].some((b) => b.textContent === l)), [k.name, L], { what: `the row of ${k.name} with [${L}]` });
       const row = (await rows(page)).find((r) => r.trim().startsWith(`${k.ico} ${k.name} `));
-      assert.equal(row?.trim(), `${k.ico} ${k.name} [${k.badge}*] [${L}] (${k.file.split('/').pop()})`);
+      assert.equal(row?.trim(), `${k.ico} ${k.name} [${k.badge}*]${k.views || ''} [${L}] (${k.file.split('/').pop()})`);
     }
   }
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
