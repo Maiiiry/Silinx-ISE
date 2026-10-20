@@ -21,7 +21,7 @@
 // The result is checked with netlist() against the ISE netlist (warnings list any difference).
 import {
   SYMBOLS, DOC_VERSION, defaultParams, normalizeDoc, symbolDef, symbolPins, symbolBox, portBox, portSide, netlist, normModules,
-  validIdent, generateHdl, constBits, newDoc, xform, modulesFromLibrary,
+  validIdent, generateHdl, constBits, newDoc, xform, modulesFromLibrary, joinWires,
 } from './schdoc.js';
 import { compile } from './compile.js';
 
@@ -1396,12 +1396,23 @@ export function importIseSch(xmlText, opts = {}) {
   const labelText = k => (mainInfo.has(k) || keyWidth(k) > 1 ? `${keyName.get(k)}(${keyWidth(k) - 1}:0)` : keyName.get(k));
   const build = () => {
     for (const l of labels) l.net = labelText(labelKey.get(l.id));
-    return normalizeDoc({ version: DOC_VERSION, name: docName, lang, sheet: { w: 1700, h: 1100 }, symbols: syms, wires, labels, ports });
+    const d = normalizeDoc({ version: DOC_VERSION, name: docName, lang, sheet: { w: 1700, h: 1100 }, symbols: syms, wires, labels, ports });
+    // each net's wires joined where they branch and at its pins and markers (#678: connected at the ends)
+    const ids = new Map(), at = new Map();
+    const of = (m, k) => { let v = m.get(k); if (!v) m.set(k, v = []); return v; };
+    for (const w of d.wires) if (wireKey.has(w.id)) of(ids, wireKey.get(w.id)).push(w.id);
+    for (const sy of d.symbols) for (const p of symbolPins(sy, modules)) if (pinKey.has(`${sy.id}/${p.name}`)) of(at, pinKey.get(`${sy.id}/${p.name}`)).push(p);
+    for (const p of d.ports) if (portKey.has(p.id)) of(at, portKey.get(p.id)).push(p);
+    pieceOf.clear();
+    for (const [k, w] of ids) for (const a of joinWires(d, at.get(k) || [], new Set(w))) pieceOf.set(a.id, pieceOf.get(a.from) || a.from);
+    return d;
   };
+  // (a wire of the document built split at its joints: its pieces stand for it)
+  const pieceOf = new Map(), orig = id => pieceOf.get(id) || id;
   const elemKeys = net => {
     const ks = new Set();
     for (const e of net.endpoints) ks.add(e.kind === 'pin' ? pinKey.get(`${e.sym}/${e.pin}`) : portKey.get(e.port));
-    for (const w of net.wires) ks.add(wireKey.get(w));
+    for (const w of net.wires) ks.add(wireKey.get(orig(w)));
     for (const l of net.labels) ks.add(labelKey.get(l));
     ks.delete(undefined);
     return ks;
@@ -1413,7 +1424,7 @@ export function importIseSch(xmlText, opts = {}) {
     if (!bad.length) break;
     if (round === 0) {
       // 1. drop the stubs that run into foreign nets (the pins get a net name instead)
-      const drop = new Set(bad.flatMap(n => n.wires.filter(w => stubOf.has(w))));
+      const drop = new Set(bad.flatMap(n => n.wires.map(orig).filter(w => stubOf.has(w))));
       for (let i = wires.length - 1; i >= 0; i--) if (drop.has(wires[i].id)) wires.splice(i, 1);
       continue;
     }
@@ -1428,9 +1439,9 @@ export function importIseSch(xmlText, opts = {}) {
   }
   // nets of one ISE signal that are not connected geometrically (connection by name in ISE): add net names
   const addNames = () => {
-    const nl = netlist(build(), { modules });
+    const bd = build(), nl = netlist(bd, { modules });
     const segOwner = [];
-    for (const w of wires) for (let i = 0; i + 1 < w.points.length; i++) segOwner.push({ a: w.points[i], b: w.points[i + 1], net: nl.wireNet.get(w.id) });
+    for (const w of bd.wires) for (let i = 0; i + 1 < w.points.length; i++) segOwner.push({ a: w.points[i], b: w.points[i + 1], net: nl.wireNet.get(w.id) });
     const freeAt = (x, y, net) => !segOwner.some(s => s.net !== net && onSegment(x, y, [s.a.x, s.a.y, s.b.x, s.b.y])) && !ports.some(p => p.x === x && p.y === y && nl.portNet.get(p.id) !== net);
     const pieces = new Map();   // key -> Set(net)
     for (const n of nl.nets) for (const k of elemKeys(n)) { if (k.startsWith('#')) continue; let s = pieces.get(k); if (!s) pieces.set(k, s = new Set()); s.add(n); }
@@ -1443,7 +1454,7 @@ export function importIseSch(xmlText, opts = {}) {
         if (nets.size === 1 && (n.labels.length || n.ports.length)) continue;
         let spot = null;
         for (const wId of n.wires) {
-          const w = wires.find(q => q.id === wId);
+          const w = bd.wires.find(q => q.id === wId);
           for (const p of w.points) if (freeAt(p.x, p.y, n)) { spot = [p.x, p.y]; break; }
           if (spot) break;
         }

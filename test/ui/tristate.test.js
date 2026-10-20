@@ -28,7 +28,8 @@ function sheet() {
     doc.ports.push({ id: `P${++k}`, name: nm, dir: 'in', width: 1, x: p.x - 60, y: p.y });
     doc.wires.push({ id: `W${k}`, points: [{ x: p.x - 60, y: p.y }, { x: p.x, y: p.y }] });
   }
-  doc.wires.push({ id: 'Wbus', points: [{ x: A.O.x, y: A.O.y }, { x: 500, y: A.O.y }, { x: 500, y: B.O.y }, { x: B.O.x, y: B.O.y }] });
+  // (the bus split where Wio branches off: a connection at the wires' ends, #678)
+  doc.wires.push({ id: 'Wbus', points: [{ x: A.O.x, y: A.O.y }, { x: 500, y: A.O.y }] }, { id: 'Wbus2', points: [{ x: 500, y: A.O.y }, { x: 500, y: B.O.y }, { x: B.O.x, y: B.O.y }] });
   doc.wires.push({ id: 'Wio', points: [{ x: 500, y: A.O.y }, { x: 600, y: A.O.y }] });
   doc.ports.push({ id: 'P9', name: 'data', dir: 'inout', width: 1, x: 600, y: A.O.y });
   return doc;

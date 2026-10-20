@@ -5,7 +5,7 @@ import { compile, elaborate, simulate } from '../core/compile.js';
 import * as V from '../core/values.js';
 import {
   newDoc, normalizeDoc, netlist, generateHdl, schematicFromHdl, symbolPins, symbolDef, modulesFromLibrary,
-  mergeNetWires, constBits, SYMBOLS, blockMarkOf,
+  mergeNetWires, constBits, SYMBOLS, blockMarkOf, splitWiresAt, joinOnWires, DOC_VERSION,
 } from '../core/schdoc.js';
 
 // ------------------------------------------------------------------ helpers
@@ -131,7 +131,8 @@ test('netlist: multiple drivers, width mismatch, unconnected input, junction dot
   const c = sym(doc, 'buf', 300, 300, { width: 4 });
   const oa = pinAt(doc, a, 'O'), ob = pinAt(doc, b, 'O');
   wire(doc, oa, { x: 200, y: oa.y }, { x: 200, y: ob.y }, ob);
-  wire(doc, { x: 200, y: 150 }, { x: 250, y: 150 });   // T on the vertical part
+  wire(doc, { x: 200, y: 150 }, { x: 250, y: 150 });   // T on the vertical part (the editor splits it there, #678)
+  splitWiresAt(doc, [{ x: 200, y: 150 }]);
   const ci = pinAt(doc, c, 'I');
   wire(doc, { x: 250, y: 150 }, { x: 250, y: ci.y }, ci);
   const nl = netlist(doc);
@@ -741,10 +742,18 @@ test('a pin dropped onto a wire connects there (#170): a bus tap in the middle o
   const ii = symbolPins(normalizeDoc({ ...doc, symbols: [inv] }).symbols[0], {}).find(p => p.name === 'I');
   inv.x = 250 - ii.x; inv.y = 400 - ii.y;
   doc.symbols.push(inv);
-  const nl = netlist(normalizeDoc(doc), {});
-  assert.equal(nl.pinNet.get('S1/I'), nl.portNet.get('P1'), 'the tap on the bus');
-  assert.equal(nl.pinNet.get('S2/I'), nl.portNet.get('P2'), 'the gate on the wire');
-  assert.ok(nl.junctions.some(j => j.x === 300 && j.y === 200) && nl.junctions.some(j => j.x === 250 && j.y === 400), 'dots where they join');
+  // (#678) only lying on the wires, they do not connect: a wire passing over a pin
+  const apart = netlist(normalizeDoc(doc), {});
+  assert.notEqual(apart.pinNet.get('S1/I'), apart.portNet.get('P1'));
+  assert.notEqual(apart.pinNet.get('S2/I'), apart.portNet.get('P2'));
+  assert.deepEqual(apart.junctions, []);
+  // dropped there (the editor splits the wires at their pins), or saved so before (version 2): connected
+  for (const d of [(() => { const d = normalizeDoc(doc); splitWiresAt(d, doc.symbols.flatMap(s => symbolPins(s, {}))); return d; })(), { ...doc, version: 2 }]) {
+    const nl = netlist(d, {});
+    assert.equal(nl.pinNet.get('S1/I'), nl.portNet.get('P1'), 'the tap on the bus');
+    assert.equal(nl.pinNet.get('S2/I'), nl.portNet.get('P2'), 'the gate on the wire');
+    assert.ok(nl.junctions.some(j => j.x === 300 && j.y === 200) && nl.junctions.some(j => j.x === 250 && j.y === 400), 'dots where they join');
+  }
 });
 
 test('generated HDL: one-line statements one after the other, a blank line only around a statement of several lines (#224)', () => {
@@ -790,7 +799,7 @@ test('#301 a M4_1 / DEMUX saved before keeps its bus S (the document, its HDL re
   const old = { version: 1, name: 'old', lang: 'vhdl', sheet: { w: 1700, h: 1100 }, wires: [], labels: [], ports: [],
     symbols: [{ id: 'S1', type: 'mux4', x: 100, y: 100, params: { width: 1 } }, { id: 'S2', type: 'demux', x: 300, y: 100, params: { width: 1, sel: 2 } }] };
   const d = normalizeDoc(old);
-  assert.equal(d.version, 2);
+  assert.equal(d.version, DOC_VERSION);
   assert.deepEqual(d.symbols.map(s => [s.type, s.params.selBus, s.params.en]), [['mux4', true, false], ['demux', true, false]]);
   assert.deepEqual(d.symbols.map(s => symbolPins(s).filter(p => /^S/.test(p.name)).map(p => `${p.name}:${p.width}`)), [['S:2'], ['S:2']]);
   // the same symbols in a new document: S1 S0

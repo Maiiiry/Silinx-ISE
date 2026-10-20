@@ -41,6 +41,9 @@ uiTest('schematic: a bus takes the name of its input (A(5:0) on its wires), a bu
   doc.symbols.push(g);
   const gp = symbolPins(normalizeDoc({ ...doc, symbols: [g] }).symbols[0], {}).find((p) => p.name === 'I0');
   doc.wires.push({ id: 'W2', points: [{ x: 200, y: 200 }, { x: 200, y: gp.y }, { x: gp.x, y: gp.y }] });
+  // (saved before #678: converted on opening, the bus split at the tap and at W2's T-junction; its name
+  // still once on the bus)
+  doc.version = 2;
   await makeProject(env, { name: 'BusPj', files: { 'src/bus.sch.json': JSON.stringify(doc) } });
   await page.openProject('BusPj');
   await page.eval(() => window.SilinxApp.openSch('src/bus.sch.json'));
@@ -54,8 +57,10 @@ uiTest('schematic: a bus takes the name of its input (A(5:0) on its wires), a bu
 uiTest('schematic: a wire dragged with Keep connections keeps its ends on the markers and wires they touch; without it, it moves whole (#206)', E, async (page) => {
   const doc = newDoc('mv', 'vhdl');
   doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, x: 100, y: 100 }, { id: 'P2', name: 'y', dir: 'out', width: 1, x: 400, y: 200 }, { id: 'P3', name: 'z', dir: 'out', width: 1, x: 400, y: 300 });
-  doc.wires.push({ id: 'W1', points: [{ x: 100, y: 100 }, { x: 250, y: 100 }, { x: 250, y: 200 }, { x: 400, y: 200 }] });
-  doc.wires.push({ id: 'W2', points: [{ x: 250, y: 150 }, { x: 320, y: 150 }, { x: 320, y: 300 }, { x: 400, y: 300 }] });   // a T on W1
+  // W1 + W3 from a to y, W2 from their joint (a T, as the editor makes it, #678) to z, over W3
+  doc.wires.push({ id: 'W1', points: [{ x: 100, y: 100 }, { x: 180, y: 100 }] });
+  doc.wires.push({ id: 'W3', points: [{ x: 180, y: 100 }, { x: 250, y: 100 }, { x: 250, y: 200 }, { x: 400, y: 200 }] });
+  doc.wires.push({ id: 'W2', points: [{ x: 180, y: 100 }, { x: 180, y: 150 }, { x: 320, y: 150 }, { x: 320, y: 300 }, { x: 400, y: 300 }] });
   await makeProject(env, { name: 'MvPj', files: { 'src/mv.sch.json': JSON.stringify(doc) } });
   await page.openProject('MvPj');
   await page.eval(() => window.SilinxApp.openSch('src/mv.sch.json'));
@@ -63,28 +68,30 @@ uiTest('schematic: a wire dragged with Keep connections keeps its ends on the ma
   const at = (x, y) => page.eval((ed, px, py) => { const l = document.querySelector(`${ed} svg [data-kind=wire] .whit`); const p = l.ownerSVGElement.createSVGPoint(); p.x = px; p.y = py; const q = p.matrixTransform(l.getScreenCTM()); return { x: q.x, y: q.y }; }, ED, x, y);
   const wire = (id) => page.eval((i) => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === i).points.map((p) => [p.x, p.y]), id);
   const keep = (on) => page.eval((ed, v) => { const c = [...document.querySelectorAll(`${ed} input[type=checkbox]`)].find((x) => x.parentElement.textContent.includes('Keep connections')); if (c.checked !== v) c.click(); }, ED, on);
-  // Keep connections: W1 dragged 40 to the right by its vertical segment: its ends stay on a and y
+  // Keep connections: W3 dragged 40 to the right by its vertical segment: its ends stay on the joint and y
   await keep(true);
   await page.drag(await at(250, 180), await at(290, 180));
-  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W1').points[1].x === 290, [], { what: 'moved' });
-  assert.deepEqual(await wire('W1'), [[100, 100], [290, 100], [290, 200], [400, 200]]);
-  // dragged down 20: still on both markers (jogs at the ends)
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W3').points[1].x === 290, [], { what: 'moved' });
+  assert.deepEqual(await wire('W3'), [[180, 100], [290, 100], [290, 200], [400, 200]]);
+  // dragged down 20: still on both (jogs at the ends)
   await page.drag(await at(290, 180), await at(290, 200));
-  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W1').points.length > 4, [], { what: 'moved down' });
-  const w1 = await wire('W1');
-  assert.deepEqual([w1[0], w1.at(-1)], [[100, 100], [400, 200]], 'its ends on a and y: ' + JSON.stringify(w1));
-  // W2: its start on W1 (a T) stays there too
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W3').points.length > 4, [], { what: 'moved down' });
+  const w3 = await wire('W3');
+  assert.deepEqual([w3[0], w3.at(-1)], [[180, 100], [400, 200]], 'its ends on the joint and y: ' + JSON.stringify(w3));
+  // W2: its start on the joint (the T) stays there too
   await page.menu('Edit', 'Undo'); await page.menu('Edit', 'Undo');
-  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W1').points[1].x === 250, [], { what: 'undone' });
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W3').points[1].x === 250, [], { what: 'undone' });
   await page.drag(await at(320, 250), await at(340, 250));
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W2').points.some((p) => p.x === 340), [], { what: 'W2 moved' });
-  assert.deepEqual(await wire('W2'), [[250, 150], [340, 150], [340, 300], [400, 300]]);
+  const w2 = await wire('W2');
+  assert.deepEqual([w2[0], w2.at(-1)], [[180, 100], [400, 300]], 'its ends on the joint and z: ' + JSON.stringify(w2));
+  assert.ok(w2.some(([x, y]) => x === 340 && y === 300), JSON.stringify(w2));
   // without Keep connections: the wire moves whole
   await page.menu('Edit', 'Undo');
   await keep(false);
   await page.drag(await at(250, 180), await at(290, 180));
-  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W1').points[0].x === 140, [], { what: 'moved whole' });
-  assert.deepEqual(await wire('W1'), [[140, 100], [290, 100], [290, 200], [440, 200]]);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W3').points[0].x === 220, [], { what: 'moved whole' });
+  assert.deepEqual(await wire('W3'), [[220, 100], [290, 100], [290, 200], [440, 200]]);
   await keep(true);
 });
 
