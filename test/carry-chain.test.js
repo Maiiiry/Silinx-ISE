@@ -125,8 +125,8 @@ test('a chain shorter than MIN_CHAIN is left to the LUTs; a design with few gate
 // #377: at effort Normal (the projects' default) an adder's chain too, when the design is not deep (#468 gives a
 // deep one, the EPFL adder's 98 ns on LUTs, High's mappings): its first run beside the usual one; a comparator's
 // chain left to the LUTs
-// (the runs of the synthesis's mappings; the critical path's remaps after each, #652 / #653, apart)
-const counted = () => { const f = (...a) => { if (!/speedup|silinx_fold_ce/.test(a[0].join(' '))) f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+// (the runs of the synthesis's mappings; the critical path's remaps after each, #652 / #653, and the wider mapping, #54, apart)
+const counted = () => { const f = (...a) => { if (!/speedup|silinx_fold_ce|abc -luts 1,1,1,1,2,4;/.test(a[0].join(' '))) f.n++; return yosysNode(...a); }; f.n = 0; return f; };
 test('#377 effort Normal: a ripple adder written as gates (16 bits, not deep) on the carry chain, three runs of Yosys; the netlist simulates like it, no warning', { timeout: 300000 }, async () => {
   const run = counted();
   const { r } = await syn(rippleV(16), 'add', 'verilog', { effort: 'normal', run });

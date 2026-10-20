@@ -100,7 +100,7 @@ export function qualityPage(res, { epfl = null } = {}) {
     `${res.isePeriodNs ?? 5} ns, so that its place and route works for speed (ISE stops improving once a constraint`,
     'is met; the Silinx toolchain always places and routes for speed).', '');
   if (hasHigh) L.push('Silinx is built at its two Optimization Efforts (Process Properties of *Synthesize*): **Normal**, the',
-    'default (one mapping, the faster synthesis; since 15.11.1 also the mappings for speed of a deep design and of wide multiplexers), and **High**',
+    'default (one mapping, the faster synthesis; since 15.11.1 also the mappings for speed of a deep design and of wide multiplexers, and the one with the wider functions), and **High**',
     '(the mappings for speed for every design, the faster circuit); ISE at its default. *Silinx* in the tables is Normal,',
     '*High* the other.', '');
   L.push('## Summary', '');
