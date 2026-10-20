@@ -154,7 +154,8 @@ const EXPECT = {
   'verilog-multi': { kinds: { slice: 1, hdlblock: 6, buf: 1 }, moved: true, hdlPath: 'src/proc.v', writes: ['src/proc.v', 'src/adder.v'] },
   'sv-enum': { kinds: { hdlblock: 3, buf: 1 }, moved: false, hdlPath: 'src/sv_fsm.sv', writes: ['src/sv_fsm.sv'] },
   'vhdl-split-files': { kinds: { hdlblock: 3 }, moved: false, hdlPath: 'src/acc_arch.vhd', writes: ['src/acc_ent.vhd', 'src/acc_arch.vhd'] },
-  'verilog-classic': { kinds: { hdlblock: 4, tbuf: 1, slice: 1, buf: 1 }, moved: false, hdlPath: 'src/dp.v', writes: ['src/dp.v'] },
+  // (its net bus: a good Verilog name, a reserved word of VHDL, #679)
+  'verilog-classic': { kinds: { hdlblock: 4, tbuf: 1, slice: 1, buf: 1 }, moved: false, hdlPath: 'src/dp.v', writes: ['src/dp.v'], warnings: ["'bus' is a reserved word of VHDL: rename it"] },
   'verilog-reg-init': { kinds: { hdlblock: 2, buf: 1 }, moved: false, hdlPath: 'src/ri.v', writes: ['src/ri.v'] },
   'verilog-generate-inst': { kinds: { hdlblock: 4 }, moved: false, hdlPath: 'src/bank.v', writes: ['src/bank.v'] },
   'vhdl-rom-gates': { kinds: { or2: 1, and2: 1, and2b1: 1, xor2: 1, and3b1: 1, slice: 2, hdlblock: 2 }, moved: false, hdlPath: 'src/romdec.vhd', writes: ['src/romdec.vhd'] },
@@ -169,7 +170,7 @@ for (const c of CASES) {
     assert.equal(r.moved, x.moved);
     assert.equal(r.hdlPath, x.hdlPath);
     assert.deepEqual(Object.keys(r.writes).sort(), [...x.writes].sort());
-    assert.deepEqual(r.warnings, []);
+    assert.deepEqual(r.warnings, x.warnings || []);
     const after = applied(sources, r);
     assert.deepEqual(messages(after, c.tb), messages(sources, c.tb));
     const a = waves(sources, c.tb, c.until), b = waves(after, c.tb, c.until);

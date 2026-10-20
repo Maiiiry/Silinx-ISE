@@ -12,19 +12,10 @@
 // and checkPorts() validates that table (identifiers, reserved words, duplicates, widths).
 // Isomorphic (no DOM).
 import { newDoc, normalizeDoc, portBox, GRID } from './schdoc.js';
+import { reservedError } from './reserved.js';
 
 // ===================================================================== identifiers
-// VHDL-2008 reserved words (VHDL is case-insensitive)
-const VHDL_RESERVED = new Set(('abs access after alias all and architecture array assert assume assume_guarantee attribute begin block body buffer bus case component configuration constant context cover default disconnect downto else elsif end entity exit fairness file for force function generate generic group guarded if impure in inertial inout is label library linkage literal loop map mod nand new next nor not null of on open or others out package parameter port postponed procedure process property protected pure range record register reject release rem report restrict restrict_guarantee return rol ror select sequence severity shared signal sla sll sra srl strong subtype then to transport type unaffected units until use variable vmode vprop vunit wait when while with xnor xor').split(' '));
-// Verilog-2005 keywords (plus a few SystemVerilog ones students meet: logic, bit, byte, int)
-const VLOG_RESERVED = new Set(('always and assign automatic begin buf bufif0 bufif1 case casex casez cell cmos config deassign default defparam design disable edge else end endcase endconfig endfunction endgenerate endmodule endprimitive endspecify endtable endtask event for force forever fork function generate genvar highz0 highz1 if ifnone incdir include initial inout input instance integer join large liblist library localparam macromodule medium module nand negedge nmos nor noshowcancelled not notif0 notif1 or output parameter pmos posedge primitive pull0 pull1 pulldown pullup pulsestyle_onevent pulsestyle_ondetect rcmos real realtime reg release repeat rnmos rpmos rtran rtranif0 rtranif1 scalared showcancelled signed small specify specparam strong0 strong1 supply0 supply1 table task time tran tranif0 tranif1 tri tri0 tri1 triand trior trireg unsigned use uwire vectored wait wand weak0 weak1 while wire wor xnor xor logic bit byte int').split(' '));
-
 export const MAX_WIDTH = 256;
-
-/** Is `name` a reserved word of the language? (VHDL: any case) */
-export function isReserved(name, lang) {
-  return lang === 'verilog' ? VLOG_RESERVED.has(name) : VHDL_RESERVED.has(String(name).toLowerCase());
-}
 
 /** Why `name` is not a valid identifier in `lang` (an English message), or null when it is valid.
  *  Both languages: a letter first, then letters, digits and _ (no __ and no _ at the end, as VHDL wants). */
@@ -34,7 +25,9 @@ export function identError(name, lang) {
   if (!/^[A-Za-z]/.test(n)) return `'${n}' must start with a letter`;
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(n)) return `'${n}' may only contain letters, digits and _`;
   if (/__/.test(n) || /_$/.test(n)) return `'${n}': no double __ and no _ at the end`;
-  if (isReserved(n, lang)) return `'${n}' is a reserved word of ${lang === 'verilog' ? 'Verilog' : 'VHDL'}`;
+  // a reserved word of either language, in any letter case: the HDL is generated in both (#679)
+  const r = reservedError(n);
+  if (r) return r;
   return null;
 }
 

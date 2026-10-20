@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { icons, icon } from './icons.js';
 import { h, dialog, popupMenu, toast, longPressMenu } from './ui.js';
 import { compile, elaborate } from '/core/compile.js';
+import { reservedModuleDiags } from '/core/reserved.js';
 import * as wiz from './wizards.js';
 import { designDiags, sevWord } from './diaghelp.js';
 import { S, flushDoc, openFile, openFpgaView, openImpact, openInstTemplate, openPinPlanner, openSummary, openUcf,
@@ -215,6 +216,13 @@ export function markStale() {
 }
 
 // ------------------------------------------------------------------ check syntax / elaboration
+// The modules named with a reserved word of VHDL or Verilog (a project made before #679, or imported): a
+// warning each, the drawing first (the HDL generated from it follows its name)
+export function reservedNameDiags() {
+  const drawn = Object.entries(S.viewTexts || {}).map(([file, t]) => { try { return { name: JSON.parse(t).name, file }; } catch { return null; } });
+  return reservedModuleDiags([...drawn.filter(m => m?.name), ...S.modules.map(m => ({ name: m.name, file: m.file, line: m.line }))]);
+}
+
 export function diagsFor(lib, design, extra = []) {
   const all = [...lib.errors, ...(design ? design.diags : []), ...extra];
   const seen = new Set();
@@ -244,7 +252,8 @@ async function checkSyntaxInner(mod, sim, id) {
     const { from, why } = S.staleHdl[s.path];
     return { severity: 'error', file: s.path, line: 1, col: 1, tool: 'Silinx', message: `${s.path} is not up to date: ${from} cannot generate it, ${why}. Fix ${from} (its HDL is then generated again).` };
   });
-  const diags = diagsFor(lib, design, [...designDiags(lib, design), ...stale]);   // + design checks (core/lint.js)
+  // (+ the modules named with a reserved word, #679)
+  const diags = diagsFor(lib, design, [...designDiags(lib, design), ...stale, ...reservedNameDiags()]);   // + design checks (core/lint.js)
   setDiagnostics(diags);
   const ne = diags.filter(d => d.severity === 'error').length, nw = diags.length - ne;
   for (const d of diags) log(`${sevWord(d)}:${d.tool || 'HDLCompiler'} - "${d.file}" Line ${d.line}: ${d.message}`, d.severity === 'error' ? 'err' : 'warn', { diag: false });
@@ -265,7 +274,8 @@ export function hdlDiagnostics(path, text, info = []) {
     .map(s => (s.path === path && text != null ? { ...s, text } : s));
   const lib = compile(withPrimitives(srcs));
   const units = (lib.parsed.find(p => p.file === path)?.units || []).filter(u => u.kind === 'module');
-  let diags = [...lib.errors];
+  // (+ its modules named with a reserved word, #679)
+  let diags = [...lib.errors, ...reservedModuleDiags(units.map(u => ({ name: u.name, file: path, line: u.loc?.line })))];
   for (const u of units) {
     let design;
     try { design = elaborate(lib, u.name); } catch (e) { diags.push({ file: path, line: u.loc?.line || 1, col: 1, severity: 'error', message: e.message }); continue; }

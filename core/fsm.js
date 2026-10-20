@@ -33,7 +33,7 @@
 // taken in the current cycle.
 
 import {
-  parseCondition, parseAction, exprToString, isIdentifier, reservedIn, portExprCoder, parseCaseChoices,
+  parseCondition, parseAction, exprToString, isIdentifier, reservedIn, reservedWarning, portExprCoder, parseCaseChoices,
   normalizeModel as normalizeAsm,
 } from './asm.js';
 import { asmFromHdl, asmLayout } from './asm-from-hdl.js';
@@ -329,6 +329,8 @@ export function validateFsm(model) {
   const reserved = (name, what, ref) => {
     const r = reservedIn(name);
     if (r.length) { add('error', `${what} '${name}' is a reserved word in ${r.join(' and ')}`, ref); return true; }
+    const w = reservedWarning(name);
+    if (w) add('warning', w, ref);
     return false;
   };
   if (!badName(m.name, 'The module name')) reserved(m.name, 'The module name');

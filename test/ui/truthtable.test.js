@@ -367,7 +367,9 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
   assert.equal(await apply('a b c d e f g', 'f'), '1 to 6 inputs');
   assert.equal(await apply('a, b, c', ''), 'At least 1 output');
   assert.equal(await apply('a, b, a', 'f'), "the name 'a' is used twice");
-  assert.equal(await apply('a, b, c', 'end'), "'end' is not a valid name (a letter, then letters, digits and single _; not a VHDL/Verilog keyword)");
+  // a reserved word of VHDL or Verilog, in any letter case (#679)
+  assert.equal(await apply('a, b, c', 'end'), "'end' is a reserved word of VHDL and Verilog: choose another name.");
+  assert.equal(await apply('a, b, c', 'Wire'), "'Wire' is a reserved word of Verilog: choose another name.");
   assert.equal(await apply('a, b, c', 'a'), "the name 'a' is used twice");
   assert.equal(await cells('f'), '00001111');
   // inputs reordered: f follows a, now the least significant bit; a new output g of 0s; separators , ; and spaces

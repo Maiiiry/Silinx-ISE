@@ -26,6 +26,7 @@ import { parse as parseVhdl } from './vhdl/parser.js';
 import { parse as parseVerilog } from './verilog/parser.js';
 import { clocksOf } from './schematic.js';
 import { elaborate } from './elaborate.js';
+import { VHDL93_WORDS, VERILOG_WORDS, reservedError } from './reserved.js';
 
 export const GRID = 10;
 // 2 (#301): the M4_1's and DEMUX's select bits on pins of their own (a document of version 1 keeps its bus S)
@@ -779,6 +780,9 @@ export function netlist(docIn, { modules = {} } = {}) {
   // duplicate instance / port names
   const seen = new Map();
   for (const s of doc.symbols) { const k = nk(s.name); if (seen.has(k)) diags.push({ severity: 'error', message: `duplicate instance name '${s.name}'`, ref: { kind: 'symbol', id: s.id }, x: s.x, y: s.y }); seen.set(k, s); }
+  // an instance named with a reserved word (#679): the label of a module's instance in the HDL (an error when
+  // the HDL would not compile), a warning for the others
+  for (const s of doc.symbols) if (rsvd(s.name)) diags.push({ severity: s.type === 'module' && !validIdent(s.name, doc.lang) ? 'error' : 'warning', message: `${rsvd(s.name)}: rename it`, ref: { kind: 'symbol', id: s.id }, x: s.x, y: s.y });
   const pseen = new Set();
   for (const p of doc.ports) { const k = nk(p.name); if (pseen.has(k)) diags.push({ severity: 'error', message: `duplicate I/O marker '${p.name}'`, ref: { kind: 'port', id: p.id }, x: p.x, y: p.y }); pseen.add(k); }
   return { nets, pinNet, portNet, wireNet, labelNet, junctions: junctionsOf(doc, pinInfo), diagnostics: diags };
@@ -865,8 +869,12 @@ export function joinWires(doc, pts, ids = null) {
 }
 
 // ===================================================================== HDL text helpers
-const VHDL_RESERVED = new Set(('abs access after alias all and architecture array assert attribute begin block body buffer bus case component configuration constant disconnect downto else elsif end entity exit file for function generate generic group guarded if impure in inertial inout is label library linkage literal loop map mod nand new next nor not null of on open or others out package port postponed procedure process pure range record register reject rem report return rol ror select severity signal shared sla sll sra srl subtype then to transport type unaffected units until use variable wait when while with xnor xor').split(' '));
-const VLOG_RESERVED = new Set(('always and assign begin buf case casex casez default defparam else end endcase endfunction endmodule endtask for forever function if initial inout input integer module nand negedge nor not or output parameter posedge reg repeat signed task while wire xnor xor localparam genvar generate endgenerate logic').split(' '));
+// (the shared lists, core/reserved.js, #679: a name the HDL of its language refuses is an error; one that is
+// a reserved word in another letter case, of the other language or of SystemVerilog, a warning)
+const VHDL_RESERVED = VHDL93_WORDS;
+const VLOG_RESERVED = new Set([...VERILOG_WORDS, 'logic']);
+// an existing name: a word of VHDL or Verilog (SystemVerilog's own words are refused only for a new name)
+const rsvd = n => reservedError(n, { sv: false });
 export function validIdent(name, lang) {
   if (lang === 'vhdl') return /^[A-Za-z](?:_?[A-Za-z0-9])*$/.test(name) && !VHDL_RESERVED.has(name.toLowerCase());
   return /^[A-Za-z_][A-Za-z0-9_$]*$/.test(name) && !VLOG_RESERVED.has(name);
@@ -1234,6 +1242,8 @@ export function generateHdl(docIn, opts = {}) {
   const isBlock = s => STRUCT && isBlockSymbol(s.type);
   const name = validIdent(doc.name, lang) ? doc.name : doc.name.replace(/[^A-Za-z0-9_]/g, '_').replace(/^([^A-Za-z])/, 'x$1').replace(/_+/g, '_').replace(/_$/, '');
   if (name !== doc.name) diags.push({ severity: 'warning', message: `module name '${doc.name}' is not a valid identifier, using '${name}'`, ref: { kind: 'sheet' } });
+  // a module named with a reserved word (#679): an error when its HDL would not compile, else a warning
+  if (rsvd(name)) diags.push({ severity: validIdent(name, lang) ? 'warning' : 'error', message: `${rsvd(name)}: rename it`, ref: { kind: 'sheet' } });
 
   // ports
   const portOf = new Map();       // net -> port
@@ -1241,6 +1251,7 @@ export function generateHdl(docIn, opts = {}) {
   for (const p of doc.ports) {
     const net = nl.portNet.get(p.id);
     if (!validIdent(p.name, lang)) diags.push({ severity: 'error', message: `I/O marker name '${p.name}' is not a valid ${lang.toUpperCase()} identifier`, ref: { kind: 'port', id: p.id }, x: p.x, y: p.y });
+    else if (rsvd(p.name)) diags.push({ severity: 'warning', message: `${rsvd(p.name)}: rename it`, ref: { kind: 'port', id: p.id }, x: p.x, y: p.y });
     ports.push({ ...p, net });
     if (net && !portOf.has(net)) portOf.set(net, p);
   }
@@ -1255,6 +1266,7 @@ export function generateHdl(docIn, opts = {}) {
   const PW = (sym, pin) => nl.pinNet.get(`${sym.id}/${pin}`)?.width ?? defs.get(sym.id).pins.find(p => p.name === pin)?.width ?? 1;
   for (const net of nl.nets) {
     if (!portOf.has(net) && !net.auto && !validIdent(net.name, lang)) diags.push({ severity: 'error', message: `net name '${net.name}' is not a valid ${lang.toUpperCase()} identifier`, ref: { kind: 'label', id: net.labels[0] }, net: net.name });
+    else if (!portOf.has(net) && !net.auto && rsvd(net.name)) diags.push({ severity: 'warning', message: `${rsvd(net.name)}: rename it`, ref: { kind: 'label', id: net.labels[0] }, net: net.name });
   }
   // module pin types (VHDL) used to type nets that only connect to module pins
   const pinType = new Map();
