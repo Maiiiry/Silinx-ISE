@@ -23,6 +23,7 @@ import { mountConsole } from './isim-console.js';
 import { mountForces } from './isim-forces.js';
 import { mountDialogs } from './isim-dialogs.js';
 import { mountStimuli } from './isim-stimuli.js';
+import { mountObjects } from './isim-objects.js';
 import { mountRun } from './isim-run.js';
 
 // ------------------------------------------------------------------------------- constants
@@ -36,7 +37,7 @@ const RADIXES = [
 const DEFAULT_CAP = 1e9; // 1 ms
 
 const S = (b) => `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">${b}</svg>`;
-const ICON = {
+export const ICON = {
   restart: S('<path d="M2.5 2.5v11" stroke="#1d4f91" stroke-width="2"/><path d="M14 3L5 8l9 5z" fill="#3a86d8" stroke="#1d4f91"/>'),
   runAll: S('<path d="M1.5 3l6 5-6 5z" fill="#2db12d" stroke="#0d6b0d"/><path d="M8 3l6 5-6 5z" fill="#2db12d" stroke="#0d6b0d"/>'),
   runFor: S('<path d="M1.5 2l9 6-9 6z" fill="#2db12d" stroke="#0d6b0d"/><circle cx="11.5" cy="11" r="3.8" fill="#fff" stroke="#444"/><path d="M11.5 8.8V11h1.8" fill="none" stroke="#444"/>'),
@@ -209,7 +210,7 @@ export function parseValue(text, t, radix = 'default') {
   return V.withSign(V.resize({ ...val, s: false }, w, false), !!t.s);
 }
 
-function typeName(sig) {
+export function typeName(sig) {
   const t = sig.t, vhdl = sig.inst?.lang === 'vhdl';
   const rng = (t) => (t.left !== undefined ? `[${t.left}:${t.right}]` : `[${t.w - 1}:0]`);
   switch (t.kind) {
@@ -1407,74 +1408,10 @@ export function mountISim(container, opts = {}) {
     rebuildFlat(); updateVScroll(); invalidate(); renderObjects();
   }
 
-  // ---------------------------------------------------------------- objects list
-  let objRows = [];
-  function renderObjects() {
-    const inst = st.curInst;
-    $('.isim-obj-scope').textContent = inst ? pathOf(inst) : '';
-    objBody.innerHTML = '';
-    objRows = [];
-    if (!inst) return;
-    const inWave = new Set(st.rows.filter(r => r.kind === 'sig').map(r => r.sig));
-    for (const o of instSignals(inst)) {
-      const sig = o.sig;
-      const tr = h('tr');
-      const dir = o.port?.dir;
-      const ico = !sig.wave ? ICON.sigArr : dir === 'in' ? ICON.sigIn : dir === 'out' ? ICON.sigOut : dir === 'inout' ? ICON.sigIo : (sig.t.w === 1 && sig.t.kind === 'logic' ? ICON.sigBit : ICON.sigBus);
-      tr.innerHTML = `<td class="c-chk"><input type="checkbox" ${inWave.has(sig) ? 'checked' : ''} title="Show in wave window"></td><td class="c-name"><span class="ico">${ico}</span>${esc(o.port ? o.port.name : sig.name)}</td><td class="c-val"></td><td class="c-type">${esc(typeName(sig))}</td>`;
-      tr.draggable = true;
-      if (st.selObj.has(sig)) tr.classList.add('sel');
-      tr.addEventListener('dragstart', (e) => {
-        if (!st.selObj.has(sig)) { st.selObj = new Set([sig]); }
-        e.dataTransfer.setData('text/x-isim', JSON.stringify({ sigs: [...st.selObj].map(s => s.path) }));
-        e.dataTransfer.effectAllowed = 'copy';
-      });
-      tr.addEventListener('mousedown', (e) => {
-        if (e.target.tagName === 'INPUT') return;
-        if (e.ctrlKey || e.metaKey) { if (st.selObj.has(sig)) st.selObj.delete(sig); else st.selObj.add(sig); }
-        else if (e.shiftKey && objRows.length) {
-          const idx = objRows.findIndex(r => r.sig === sig);
-          const a = objRows.findIndex(r => st.selObj.has(r.sig));
-          if (a >= 0) { const [lo, hi] = [Math.min(a, idx), Math.max(a, idx)]; st.selObj = new Set(objRows.slice(lo, hi + 1).map(r => r.sig)); }
-        } else if (!(e.button === 2 && st.selObj.has(sig))) st.selObj = new Set([sig]);
-        for (const r of objRows) r.tr.classList.toggle('sel', st.selObj.has(r.sig));
-      });
-      tr.addEventListener('dblclick', () => { if (!inWave.has(sig)) addSignals([sig]); });
-      tr.querySelector('input').addEventListener('change', (e) => {
-        if (e.target.checked) addSignals([sig]);
-        else { st.rows = st.rows.filter(r => r.sig !== sig); rebuildFlat(); updateVScroll(); invalidate(); renderObjects(); }
-      });
-      tr.addEventListener('contextmenu', (e) => {
-        e.preventDefault();
-        // (selected, as by the right button's mousedown: a touch's long press has none)
-        if (!st.selObj.has(sig)) { st.selObj = new Set([sig]); for (const r of objRows) r.tr.classList.toggle('sel', st.selObj.has(r.sig)); }
-        const sel = [...st.selObj];
-        const one = sel.length === 1 ? sel[0] : null;
-        showMenu(e.clientX, e.clientY, [
-          { label: 'Add to Wave Window', action: () => addSignals(sel.filter(s => true)) },
-          { sep: true },
-          { label: 'Force Constant...', disabled: !one || !one.wave, action: () => forceDialog(one, 'const') },
-          { label: 'Force Clock...', disabled: !one || !one.wave, action: () => forceDialog(one, 'clock') },
-          { label: 'Remove Force', disabled: !sel.some(s => isForced(s)), action: () => sel.forEach(removeForces) },
-          { sep: true },
-          { label: 'Go To Source Code', disabled: !one || !onOpenSource, action: () => openSource(one) },
-          { label: 'Copy Path', disabled: !one, action: () => navigator.clipboard?.writeText(pathOf(one)) },
-        ]);
-      });
-      objBody.appendChild(tr);
-      objRows.push({ sig, tr, val: tr.querySelector('.c-val') });
-    }
-    updateObjectValues();
-  }
-  function updateObjectValues() {
-    for (const r of objRows) {
-      const sig = r.sig;
-      const v = sig.wave ? sim.valueAt(sig, st.cursor) : sig.val;
-      const s = Array.isArray(v) ? '(array)' : formatValue(v, sig.t, sig.t.kind === 'logic' && sig.t.w > 1 ? 'bin' : 'default');
-      if (r.val.textContent !== s) r.val.textContent = s;
-      r.val.classList.toggle('x', !!(v && !Array.isArray(v) && v.x));
-    }
-  }
+  // ---------------------------------------------------------------- objects list (isim-objects.js)
+  // (made here, in mount order; the dialogs and the forces, made below, are used from its menu)
+  const { renderObjects, updateObjectValues } = mountObjects({ st, sim, $, objBody, instSignals, addSignals, rebuildFlat, updateVScroll, invalidate,
+    showMenu, forceDialog: (...a) => forceDialog(...a), isForced: (...a) => isForced(...a), removeForces: (...a) => removeForces(...a), onOpenSource, openSource });
 
   // drag & drop into the wave window
   const wavebody = $('.isim-wavebody');
