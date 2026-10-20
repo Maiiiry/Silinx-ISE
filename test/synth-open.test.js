@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE, pathEnds, criticalEnables, foldRemapCommands, speedRemapCommands, FOLD_CE_MAP, FOLD_CE_MAP_FILE, FOLD_CE_FILE, SPEED_ABC, SPEED_RULE, TOP_ONLY } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -401,6 +401,122 @@ test('logic depth: the estimated critical path of a netlist (flip-flop to flip-f
   assert.ok(criticalDelay(netlistOf(loop), 't') > 0);
 });
 
+test('#653 the ends of the estimated paths: each flip-flop pin with its arrival and setup; the clock enables that end the critical path', () => {
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  // FF -> LUT -> CE of f2 (critical), the same LUT into f3's D (inside the slice)
+  const cells = { f1: cell('FDRE', { C: 2, D: 3, CE: '1', R: '0' }, { Q: 10 }), l1: cell('LUT1', { I0: 10 }, { O: 11 }),
+    f2: cell('FDRE', { C: 2, D: 3, CE: 11, R: '0' }, { Q: 13 }), f3: cell('FDCE', { C: 2, D: 11, CE: '1', CLR: '0' }, { Q: 14 }) };
+  const { worst, ends } = pathEnds(netlistOf(cells), 't');
+  close(worst, 0.59 + 0.45 + 0.70 + 0.45 + 0.55);
+  const by = Object.fromEntries(ends.map(e => [`${e.cell}.${e.port}`, e]));
+  assert.deepEqual(Object.keys(by).sort(), ['f2.CE', 'f3.D'], 'the pins driven by logic (not the constants, not the inputs)');
+  close(by['f3.D'].ns, 0.59 + 0.45 + 0.70 + 0.13);
+  assert.equal(by['f2.CE'].type, 'FDRE');
+  assert.equal(criticalDelay(netlistOf(cells), 't'), worst);
+  assert.deepEqual(criticalEnables(netlistOf(cells), 't'), ['f2']);
+  // f3's D 0.87 ns from the worst, within the margin: not an enable; none when the critical path ends on a D
+  assert.deepEqual(criticalEnables(netlistOf(cells), 't', 1), ['f2']);
+  delete cells.f2;
+  assert.deepEqual(criticalEnables(netlistOf(cells), 't', 1), []);
+});
+
+test('#652 #653 the mappings for speed: their scripts, from the design before the LUT mapping', () => {
+  const tail = 'clean; techmap -map +/xilinx/ff_map.v; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:';
+  const speed = '+strash;&get,-n;&fraig,-x;&put;scorr;dc2;dretime;strash;dch,-f;if;speedup;if;mfs2;lutpack,-S,1';
+  assert.equal(speedRemapCommands('top', 'spartan3e'), `read_rtlil silinx_premap.il; abc -luts 1,1,1,1 -script ${speed}; ${tail}`);
+  // (the usual mapping's own script, Yosys's for -luts, with ABC's speedup after the first mapping)
+  assert.match(SPEED_ABC, /dch -f; if; speedup; if; mfs2; lutpack -S 1$/);
+  const fold = 'read_rtlil silinx_premap.il; select -set silinx_fold -read silinx_fold_ce.txt; techmap -max_iter 1 -map silinx_fold_ce.v @silinx_fold; select -clear; opt_expr -mux_undef -noclkinv; ';
+  assert.equal(foldRemapCommands('top', 'spartan3e'), `${fold}abc -luts 1,1,1,1; ${tail}`);
+  assert.equal(foldRemapCommands('top', 'spartan3e', { script: SPEED_ABC }), `${fold}abc -luts 1,1,1,1 -script ${speed}; ${tail}`);
+  assert.deepEqual([FOLD_CE_MAP_FILE, FOLD_CE_FILE], ['silinx_fold_ce.v', 'silinx_fold_ce.txt']);
+  // every flip-flop with a clock enable that synth_xilinx makes on the 4-input-LUT families, both clock edges
+  for (const t of ['FDRE', 'FDSE', 'FDCE', 'FDPE']) for (const n of [t, `${t}_1`]) assert.match(FOLD_CE_MAP, new RegExp(`^module ${n} \\(`, 'm'), n);
+  assert.deepEqual(SPEED_RULE, { maxLuts: 1500, margin: 0.05 });
+});
+
+// the fold of FOLD_CE_MAP on every flip-flop of a design (each kind: synchronous reset and set, asynchronous clear and
+// preset, both edges): the netlist simulates as the design, its flip-flops' CE tied high
+test('#653 FOLD_CE_MAP: every kind of flip-flop with its clock enable folded into D simulates as the design', { timeout: 300000 }, async () => {
+  const FF = `library ieee; use ieee.std_logic_1164.all;
+entity ffs is port (clk, rst, e1, e2 : in std_logic; d : in std_logic_vector(4 downto 0); q : out std_logic_vector(4 downto 0)); end ffs;
+architecture rtl of ffs is
+  signal r : std_logic_vector(4 downto 0) := "00000";
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      if rst = '1' then r(0) <= '0'; elsif e1 = '1' and e2 = '0' then r(0) <= d(0); end if;
+      if rst = '1' then r(1) <= '1'; elsif e1 = '0' or e2 = '1' then r(1) <= d(1); end if;
+    end if;
+  end process;
+  process (clk, rst) begin
+    if rst = '1' then r(2) <= '0'; r(3) <= '1';
+    elsif rising_edge(clk) then if e1 = '1' then r(2) <= d(2); r(3) <= d(3) xor d(2); end if; end if;
+  end process;
+  process (clk) begin
+    if falling_edge(clk) then if e2 = '1' and e1 = '1' then r(4) <= d(4); end if; end if;
+  end process;
+  q <= r;
+end rtl;
+`;
+  const des = design(FF, 'ffs');
+  const { text, top } = toVerilog(des);
+  const out = await yosysNode(['-q', '-p', yosysScript(top, 'spartan3e', { premap: PREMAP_FILE })], yosysFiles(top, text));
+  const usual = JSON.parse(out[`${top}.json`]).modules[top].cells;
+  const ffs = Object.entries(usual).filter(([, c]) => /^FD/.test(c.type) && c.connections.CE.some(b => typeof b === 'number'));
+  assert.deepEqual(ffs.map(([, c]) => c.type).sort(), ['FDCE', 'FDPE', 'FDRE', 'FDRE_1', 'FDSE'], 'every kind, an enable each');
+  const outF = await yosysNode(['-q', '-p', `${foldRemapCommands(top, 'spartan3e')}; delete t:$scopeinfo; ${TOP_ONLY}; write_json -selected ${top}.json`],
+    { [PREMAP_FILE]: out[PREMAP_FILE], [FOLD_CE_MAP_FILE]: FOLD_CE_MAP, [FOLD_CE_FILE]: ffs.map(([n]) => `${top}/${n}\n`).join('') });
+  const json = outF[`${top}.json`];
+  const folded = JSON.parse(json).modules[top].cells;
+  for (const [n, c] of ffs) {
+    assert.equal(folded[n]?.type, c.type, n);
+    assert.deepEqual(folded[n].connections.CE, ['1'], `${n}: its enable in D`);
+  }
+  const syn = { top, files: { [`${top}.json`]: json }, cells: cellCounts(json, top) };
+  const cmp = compareNetlist(des, syn, { name: 'fold-ce', seed: 'fold', sim: { cycles: 400 } });
+  assert.equal(cmp.status, 'pass', cmp.report || cmp.reason);
+});
+
+// Regression (#653): a flip-flop whose enable, a LUT of two LUTs, ended the critical path on its CE (Tceck 0.55 ns after
+// it): the enable's last LUT and the hold are one LUT before D now, at both efforts; the netlist simulates as the design
+test('#653 an enable on the critical path folded into the D logic: one LUT before D instead of the CE\'s setup, kept by DEPTH_RULE, at both efforts', { timeout: 300000 }, async () => {
+  const CE = `library ieee; use ieee.std_logic_1164.all;
+entity ce is port (clk, d : in std_logic; a, b : in std_logic_vector(3 downto 0); q : out std_logic); end ce;
+architecture rtl of ce is
+  signal ra, rb : std_logic_vector(3 downto 0) := (others => '0');
+  signal rd, r : std_logic := '0';
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      ra <= a; rb <= b; rd <= d;
+      if ra = "1011" and rb = "0110" then r <= rd; end if;
+    end if;
+  end process;
+  q <= r;
+end rtl;
+`;
+  const des = design(CE, 'ce');
+  const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} vs ${b}`);
+  for (const effort of ['normal', 'high']) {
+    const r = await synthesizeOpen(des, { run: yosysNode, effort });
+    const json = r.files['ce.json'];
+    // (it was 0.59 + 2 LUTs and their connections + 0.45 + the CE's 0.55: 3.89 ns)
+    close(criticalDelay(json, 'ce'), 0.59 + 0.45 + 0.70 + 0.45 + 0.70 + 0.13);
+    assert.deepEqual(criticalEnables(json, 'ce'), [], effort);
+    assert.deepEqual({ ...r.depth.fold, ns: +r.depth.fold.ns.toFixed(2) }, { flipFlops: 1, ns: 3.02, luts: 3, slices: 5, kept: true }, effort);
+    assert.equal(r.depth.speed.kept, false, effort);
+    assert.deepEqual([r.util.luts, r.util.flipFlops], [3, 10], effort);
+    assert.deepEqual(r.warnings, [], effort);
+    const cmp = compareNetlist(des, r, { name: `fold-${effort}`, seed: 'ce', sim: { cycles: 600 } });
+    assert.equal(cmp.status, 'pass', cmp.report || cmp.reason);
+  }
+  // speed: false, the netlist as before
+  const before = await synthesizeOpen(des, { run: yosysNode, effort: 'normal', speed: false });
+  close(criticalDelay(before.files['ce.json'], 'ce'), 0.59 + 0.45 + 0.70 + 0.45 + 0.70 + 0.45 + 0.55);
+  assert.equal(before.depth.fold, undefined);
+});
+
 test('logic depth: the depth-oriented netlist is kept when 3 % faster and not larger in proportion (10 % more LUTs at least)', () => {
   assert.equal(DEPTH_RULE.gain, 0.03);
   assert.ok(keepDepth([68.7, 32.6], [1090, 1168]), 'EPFL max: twice as fast, 7 % more LUTs');
@@ -483,8 +599,9 @@ endmodule
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
   const rot = elaborate(compile([{ path: 'rot.v', lang: 'verilog', text: SHL.replace('rd << rs', '(rd << rs) | (rd >> (32 - rs))').replace(/shl/g, 'rot') }]), 'rot');
   const r2 = await synthesizeOpen(rot, { family: 'spartan3e', run: yosysNode });
-  // (raised by Yosys 0.70 (#368): 313 LUTs with 0.68, 319 with 0.70)
-  assert.deepEqual([r2.util.luts, r2.util.muxes, r2.depth.wide.kept], [319, 0, false], JSON.stringify(r2.depth));
+  // (raised by Yosys 0.70 (#368): 313 LUTs with 0.68, 319 with 0.70; 313 again with the speedup's mapping, #652: as fast,
+  // 6 LUTs and 4 slices fewer)
+  assert.deepEqual([r2.util.luts, r2.util.muxes, r2.depth.wide.kept, r2.depth.speed.kept, r2.depth.speed.luts], [313, 0, false, true, 313], JSON.stringify(r2.depth));
   const d2 = compareNetlist(rot, r2, { name: 'lut4-rot', sim: { cycles: 300 } });
   assert.equal(d2.status, 'pass', d2.report || JSON.stringify(d2));
 });
@@ -594,8 +711,11 @@ test('logic depth: the maximum of four numbers is balanced once more, that netli
   assert.equal(r.depth.kept, true, JSON.stringify(r.depth));
   assert.equal(r.depth.second.kept, true, JSON.stringify(r.depth));
   assert.ok(r.depth.second.ns < r.depth.ns[1] && r.depth.second.luts < r.depth.luts[1], JSON.stringify(r.depth));
-  assert.equal(r.util.luts, r.depth.second.luts);
-  assert.equal(criticalDelay(r.files['max4.json'], 'max4'), r.depth.second.ns);
+  // (or, better still, the speedup's mapping or the enables folded, #652, #653)
+  const kept = [r.depth.fold, r.depth.speed].find(x => x?.kept) || r.depth.second;
+  assert.ok(kept.ns <= r.depth.second.ns, JSON.stringify(r.depth));
+  assert.equal(r.util.luts, kept.luts);
+  assert.equal(criticalDelay(r.files['max4.json'], 'max4'), kept.ns);
   assert.deepEqual(r.warnings, []);
   const d = compareNetlist(max4, r, { name: 'depth-max4', sim: { cycles: 300 } });
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
@@ -660,6 +780,13 @@ test('a depth-oriented mapping that fails (Yosys crashed): the usual mapping\'s 
   const plain = await synthesizeOpen(chain, { family: 'spartan3e', run: yosysNode, depth: false });
   assert.equal(r.util.luts, plain.util.luts);
   assert.equal(criticalDelay(r.files['chain.json'], 'chain'), criticalDelay(plain.files['chain.json'], 'chain'));
+  // at Normal, the critical path's remapping crashing (#652): the usual netlist kept, said (a remap that fails after the depth-oriented
+  // ones fail is not tried: no second warning above)
+  const n = await synthesizeOpen(chain, { family: 'spartan3e', run, effort: 'normal' });
+  assert.deepEqual(n.warnings, ['Warning: the critical path\'s remapping failed (Yosys failed: RangeError: out of memory): the netlist chosen before it is kept']);
+  assert.deepEqual([n.depth.speed, n.depth.fold, n.depth.speedFailed], [undefined, undefined, 'Yosys failed: RangeError: out of memory']);
+  const plainN = await synthesizeOpen(chain, { family: 'spartan3e', run: yosysNode, effort: 'normal', speed: false });
+  assert.equal(n.files['chain.json'], plainN.files['chain.json']);
   // the first mapping failing is still the synthesis failing
   const all = async () => { throw crashed; };
   await assert.rejects(synthesizeOpen(chain, { family: 'spartan3e', run: all }), /out of memory/);
@@ -672,7 +799,8 @@ test('logic depth: a comparator written as a chain of gates is mapped again for 
   assert.equal(r.depth.kept, true, JSON.stringify(r.depth));
   assert.ok(r.depth.ns[1] < r.depth.ns[0] * 0.9, JSON.stringify(r.depth));
   // the netlist kept: the depth-oriented one, or one balanced once more (with or without the LUT delays)
-  const kept = [r.depth.delays, r.depth.second].find(x => x?.kept) || { ns: r.depth.ns[1], luts: r.depth.luts[1] };
+  // (or, better still, the speedup's mapping or the enables folded, #652, #653)
+  const kept = [r.depth.fold, r.depth.speed, r.depth.delays, r.depth.second].find(x => x?.kept) || { ns: r.depth.ns[1], luts: r.depth.luts[1] };
   assert.ok(kept.ns <= r.depth.ns[1], JSON.stringify(r.depth));
   assert.equal(r.util.luts, kept.luts);
   assert.deepEqual(r.warnings, []);
@@ -875,11 +1003,11 @@ endmodule
   assert.deepEqual(r.warnings, []);
   const c = compareNetlist(d, r, { name: 'muxf-wide', seed: 'wide', sim: { cycles: 300 } });
   assert.equal(c.status, 'pass', c.report || c.reason);
-  // the counter: no tree, the usual run alone, no muxf in r.depth
+  // the counter: no tree, the usual run alone (and the mappings for speed from it, #652, #653), no muxf in r.depth
   const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
   const one = count();
   const n = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run: one, effort: 'normal' });
-  assert.deepEqual([one.n, n.depth.muxf], [1, undefined]);
+  assert.deepEqual([one.n - !!n.depth.speed - !!n.depth.fold, n.depth.muxf], [1, undefined]);
   assert.deepEqual(n.warnings, []);
 });
 
@@ -920,9 +1048,11 @@ test('ABC9 candidate (#377): a falling-edge shift register (SRL16E_1, a black bo
 });
 
 // #282: the synthesis's Optimization Effort: Normal (the projects' default) one Yosys run, the usual mapping
-// (a design written as gates: its adders' chains too, #377, test/carry-chain.test.js); High every mapping, the
-// fastest kept (the default of synthesizeOpen, for the quality comparisons)
-test('#282 Optimization Effort: Normal synthesizes once (no other mapping, no carry chains), High as before; the project\'s property', { timeout: 180000 }, async () => {
+// (a design written as gates: its adders' chains too, #377, test/carry-chain.test.js), and since #652 / #653 the
+// mappings for speed from its netlist before the LUT mapping (the speedup's, the enables folded: one or two
+// remaps, 0.3 to 1 s more); High every mapping, the fastest kept (the default of synthesizeOpen, for the quality
+// comparisons)
+test('#282 Optimization Effort: Normal synthesizes once (no depth-oriented mapping, no carry chains; the mappings for speed from that run, #652), High as before; the project\'s property', { timeout: 180000 }, async () => {
   assert.equal(synthEffort(undefined), 'normal');
   assert.equal(synthEffort({ optLevel: 1 }), 'normal');
   assert.equal(synthEffort({ optLevel: 2 }), 'high');
@@ -932,14 +1062,20 @@ test('#282 Optimization Effort: Normal synthesizes once (no other mapping, no ca
   const normal = count(), high = count();
   const n = await synthesizeOpen(chain, { family: 'spartan3e', run: normal, effort: 'normal' });
   const hi = await synthesizeOpen(chain, { family: 'spartan3e', run: high });
-  assert.equal(normal.n, 1);
-  assert.ok(high.n > 3, String(high.n));
+  // (the speedup's remap; the enables folded too when the critical path ends on a clock enable)
+  assert.ok(n.depth.speed, JSON.stringify(n.depth));
+  assert.equal(normal.n, 2 + !!n.depth.fold);
+  assert.ok(high.n > 4, String(high.n));
   assert.deepEqual([n.depth.tried, n.chains.length], [false, 0]);
   // (its 9 levels of logic: not limited by its depth, #468)
   assert.deepEqual([n.depth.levels, n.depth.auto], [9, false]);
   assert.deepEqual(n.warnings, []);
-  // the usual mapping: slower than High's on this comparator chain, the same function
-  assert.ok(criticalDelay(n.files['chain.json'], 'chain') > criticalDelay(hi.files['chain.json'], 'chain'));
+  // the usual mapping: slower than High's on this comparator chain; the speedup's mapping kept, as fast as High's or
+  // faster (#652); the same function
+  const usualNs = (await synthesizeOpen(chain, { family: 'spartan3e', run: yosysNode, effort: 'normal', speed: false })).files['chain.json'];
+  assert.ok(criticalDelay(usualNs, 'chain') > criticalDelay(hi.files['chain.json'], 'chain'));
+  assert.equal(n.depth.speed.kept, true, JSON.stringify(n.depth));
+  assert.ok(criticalDelay(n.files['chain.json'], 'chain') <= criticalDelay(hi.files['chain.json'], 'chain'), JSON.stringify([n.depth, hi.depth]));
   const d = compareNetlist(chain, n, { name: 'effort-normal-chain', sim: { cycles: 200 } });
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
 });
@@ -958,8 +1094,8 @@ test('#611 Optimization Effort Normal: High\'s mappings not a given part faster 
   assert.deepEqual(n.cells, one.cells);
   assert.deepEqual(n.warnings, []);
   // a design of more LUTs than DEEP_RULE.maxLuts: High's mappings not tried (the SOP balancing alone, #654: refused here,
-  // not 99 % faster)
-  const big = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', deepRule: { ...DEEP_RULE, maxLuts: 10, gain: 0.99 } });
+  // not 99 % faster; without the critical path's remaps, #652, Normal's own netlist)
+  const big = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', deepRule: { ...DEEP_RULE, maxLuts: 10, gain: 0.99 }, speed: false });
   assert.deepEqual([big.depth.levels, big.depth.auto, big.depth.tried, big.depth.sopb.kept], [17, false, false, false]);
   assert.equal(big.files['chain.json'], one.files['chain.json']);
   assert.deepEqual(big.warnings, []);

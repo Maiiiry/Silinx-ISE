@@ -237,7 +237,8 @@ test('#282 the flow\'s synthesis with Optimization Effort Normal: one Yosys run,
       log: l => lines.push(l),
       sources: () => (deep ? [deep] : sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') }))),
       ucf: null, device: () => null, bitDb: () => null,
-      yosys: (...a) => { runs++; return yosysNode(...a); },
+      // (the critical path's remaps, #652 / #653, apart)
+      yosys: (...a) => { if (!/speedup|silinx_fold_ce/.test(a[0].join(' '))) runs++; return yosysNode(...a); },
       write: (name) => `build/${name}`, read: () => null, save: () => {},
     };
     const res = await runOpenFlow({ ...spec, ...(deep && { top: 'chain' }), steps: ['synth'], synthEffort }, io);
