@@ -3,6 +3,182 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.11.3
+
+The simulation models run faster and all of them now run on the Board Emulator's compiled engine. The Silinx
+toolchain handles the clocks from DCMs (their timing, their dedicated clock paths, more global clocks), tries
+one-hot state machines at Optimization Effort High and balances deep logic once more; Normal is no larger on
+mid-depth designs. Toolchain Settings opens at once, and a click on the Start page is no longer lost.
+
+In short:
+
+- **Simulation models faster in the Board Emulator:** the Post-Synthesis model of pong runs about 6 times faster on
+  the compiled engine (0.57 to 3.5 million cycles a second), stopwatch's 30 % faster, vga's and blinky's up to 10 %.
+  A gate-level model stays below the board's 50 MHz; the status line says what share of real time it runs at.
+- **The post-translate, post-map and post-place & route models on the Board Emulator:** they ran on the event-driven
+  engine, far too slow for the design's own timing, and blinky stood still; they now run on the compiled engine, as
+  the post-synthesis model does.
+- **Optimization Effort Normal no larger on mid-depth designs:** a design limited by its logic depth keeps the
+  mappings for speed at Normal only when they make it a quarter faster at least, and a design of more than 1500 LUTs
+  no longer tries them. ITC'99 b14, b20 and b21 get back their 8 to 11 % fewer slices; the EPFL adder, max and
+  priority keep their 3 to 6 times the speed; the synthesis of the large deep designs is 2 to 4 times shorter (EPFL
+  voter 68 s to 22).
+- **Timing of the clocks from a DCM:** the Silinx toolchain's timing report gives each clock from a DCM the PERIOD
+  constraint ISE's trce derives from its input's (CLK2X half of it, CLKDV and CLKFX by their settings, phases), where
+  it said that no clock of the design came from the constrained pad; and a path from one clock's flip-flops into
+  another's of the same pad is timed against the time between the two clocks' edges, a warning when it is not met.
+- **A faster Verilog Post-Synthesis Model:** the Verilog Post-Synthesis Simulation Model is written a wire a bit and
+  simulates about four times faster (as fast as the VHDL one).
+- **Optimization Effort High, state machines:** with the Silinx toolchain, a state machine of 8 states or more is
+  also tried one-hot, as XST does, and kept when the circuit is better (ITC'99 b10 19 % fewer slices and 9 %
+  faster). The examples are unchanged.
+- **Toolchain Settings** opens at once and says it is detecting the toolchain, instead of appearing seconds later
+  over whatever was done meanwhile.
+- **The Start page:** a click on a recent project is no longer lost when the page is drawn again at that moment
+  (just after a project was closed).
+- **More global clocks in the Silinx toolchain:** more than eight global clocks (the left and right sides'
+  global buffers too; each line of the clock network then serves one clock per half of the chip).
+- **Silinx toolchain: every DCM's clock input from its clock pins:** a DCM's CLKIN now takes the dedicated path
+  from any of the clock pins that reach it (the Nexys2's clock socket to a bottom DCM, for instance), as ISE does,
+  instead of the general routing with a warning; a clock with no LOC goes on the pin ISE would choose.
+- **Faster deep logic:** the Silinx toolchain's synthesis balances the logic of a design limited by its depth
+  once more, and keeps that circuit when it is better (the EPFL priority benchmark 19 % faster).
+
+In detail:
+
+- **The quality comparison against ISE: each critical path's logic and routing (#646):** for ISE's flow and for
+  Silinx's routing at both Optimization Efforts, `test/designs-corpus/compare-ise.mjs` records, from trce's report
+  (the same analyser on both sides), the critical path's levels of logic, its LUT, carry, flip-flop and other
+  logic delays and its routing delay (`path` in `ise-comparison.json`); docs/QUALITY.md shows them in a table of
+  their own, with what the designs slower than ISE lose in logic and in routing, to tell a synthesis's loss from
+  a place and route's. Tests: `test/quality-page.test.js`, on extracts of ISE 14.7's trce reports
+  (`test/fixtures/trce`).
+- **Pull requests run the test files of the modules they change (#637):** CI runs at a release only (#607), and
+  a change merged after one test of its module, run by name, broke the module's other tests (#635). Each pull
+  request now runs, on GitHub (`.github/workflows/pr-tests.yml`, three parts of about the same time), the whole
+  test file of every module it changes: `scripts/related-tests.mjs` finds the unit test files that import a
+  changed file, directly or through a test helper, a changed test file, and the UI test of a changed page
+  script, and a test that names a changed file it reads. main requires its check, `related-tests`. Test:
+  `test/related-tests.test.js`.
+- **The compiled engine on gate-level models (#629):** measured on the examples' Post-Synthesis models (Node, Apple
+  silicon, millions of cycles a second, Verilog / VHDL): pong 0.57 / 0.56 to 3.48 / 3.53, stopwatch 39.1 / 38.0 to
+  50.4 / 47.5, vga 12.4 / 11.5 to 13.6 / 13.0, blinky 26.9 / 31.1 to 28.9 / 30.8; the behavioural designs unchanged,
+  every output the same after a million cycles. Three changes in `core/compiled-sim.js`:
+  - a run() above V8's limit of the bytecode it optimizes (60 KB, about 0.66 byte a character of code: pong's model
+    106 000 characters, 71 KB) stayed in the interpreter. The code of more than SPLIT (80 000) characters is now
+    generated again split: the values are the code's own, not copied into run() and back, and the combinational cells
+    are functions of CHUNK (40 000) characters at most inside run() (`chunks`). Below it, as before: split, the smaller
+    models ran at half their speed;
+  - a constant shifted by an unsigned amount of 5 bits at most (a LUT's INIT read at its inputs) is a shift, without
+    the helper `H.shN`: pong 1.6 to 3.1 split, stopwatch 39 to 53, vga 12.3 to 10.3;
+  - a gate-level model (`gateLevel`: LUTs or SIMPRIM's X_LUTs) has its constants folded after the flatten (`opt_expr
+    -full` in `prepCommands`): vga 10.3 to 13.6, blinky 26 to 29; a behavioural design is slower with it (blinky 118 to
+    94), so it is left as it was.
+  Tests: `test/compiled-sim.test.js` (`chunks`; split and in one piece the same values, every net, cycle by cycle, on
+  pong and the synthesized netlist's primitives; the LUTs without the helper; pong's model split by itself and its
+  outputs as in one piece; it fails on the old engine).
+- **SIMPRIM primitives on the compiled engine (#627):** the compiled engine had no model of the primitives the
+  post-implementation models are made of ("the primitives of a post-implementation netlist cannot be synthesized"),
+  so the emulator fell back to the event-driven engine. `core/compiled-prims.js` now has X_LUT1-6, X_FF, X_SFF,
+  X_LATCH, X_LATCHE, the buffers and gates, as `core/unisim.js` computes them, and `simprimCell` writes those with
+  a UNISIM twin as it (X_RAMB16_S*, X_MULT18X18SIO, X_SRL16E, X_SRLC16E, X_RAMSn / X_RAMDn as RAMnX1S / RAMnX1D,
+  X_DCM_SP, X_DCM: their models, a block RAM's contents, a DCM's schedule), the generics that place or time a
+  primitive left out (`toVerilog`'s option `simprim`). Not X_OBUFT, X_TRI and the pulls. Tests:
+  `test/compiled-sim.test.js` (every logic cell, the SRL16s and distributed RAMs, VHDL and Verilog, against the
+  event-driven simulator; X_OBUFT not compiled, with the reason), `test/sim-model-lib.mjs` and `test/timesim-lib.mjs`
+  (every example's post-translate, post-map and post-place & route model, cycle by cycle),
+  `test/ui/open-toolchain.test.js` (blinky's post-translate model compiled, its LEDs moving).
+- **DEEP_RULE: 1500 LUTs at most, a quarter faster (#611):** the weekly comparison found ITC'99 b14 / b20 / b21 9 to
+  12 % larger at Normal since 15.11.1 and the corpus's synthesis 44 % longer: at 23 levels they took High's mappings
+  (#468) for 0 to 15 % of the estimated critical path. Depth does not tell them from the designs the rule was made for
+  (a priority encoder of 20 levels is 2.7 times faster with the mappings); size does (the deep designs that gain
+  nothing are of 2000 to 3300 LUTs, those that gain several times of 1100 at most). DEEP_RULE is now `{ levels: 16,
+  maxLuts: 1500, gain: 0.25 }`: a smaller deep design's mappings are kept when a quarter faster than Normal's own
+  netlist, synthesized too (`r.depth.normal`, `r.depth.high`); the console says when they are not ("not a quarter
+  faster … the one mapping kept"). Measured at Normal: b14 707 to 648 slices (13.6 s instead of 10.3), b20 1452 to
+  1338 (22.1 to 5.2 s), b21 1529 to 1366 (19.0 to 5.2 s), b22 17.3 to 8.0 s, voter 67.8 to 22.0 s; EPFL max, priority
+  and adder as before (research/synth-quality/README.md, "Deep designs of 1500 LUTs at most"). `synthesizeOpen`'s
+  `deepRule` and the flow's `spec.deepRule` (for tests). Tests: `test/synth-open.test.js` (deepDesign at 1500 LUTs;
+  the mappings kept a quarter faster, dropped when not, Normal's own netlist then; not tried above maxLuts),
+  `test/open-flow-core.test.js` (the console's line when they are dropped).
+- **A DCM's clocks and the paths between two clocks (#601, a first part):** `clockSources` follows each clock net
+  through the global buffers and DCMs (CLKIN, cascades too) to its pad, with its period and first rising edge in the
+  pad's periods (CLK0 / 90 / 180 / 270, CLK2X / 2X180, CLKDV, CLKFX / FX180, CLKIN_DIVIDE_BY_2, a FIXED phase
+  shift). `checkPeriods` gives a DCM's clock the constraint derived from its pad's PERIOD ("constraint PERIOD 20 ns
+  on clk, CLKFX of u_dcm: 13.333 ns"). The analysis keeps the slowest path from each clock's flip-flops, by edge,
+  into each other clock's (`cross`); `checkCross` times those of two clocks of one constrained pad against
+  `clockRequirement`, from each launching edge to the first capturing edge after it over the clocks' common period
+  (CLK0 into CLKFX x 3 / 2: 6.667 ns), and reports the others as unrelated, not timed, as trce does. The flow's
+  warnings: a derived constraint not met, and "the paths from clock … to clock … not met". Not done yet, waiting
+  for ISE's trce to fit them: a DCM clock's insertion delay (deskewed, close to 0 instead of a pad clock's Tgclk;
+  the pads' OFFSET paths of such a clock are still left out) and the clock skew between a DCM's outputs. Tests:
+  `test/fpga-timing.test.js` (the sources through two DCMs, the requirements, the derived constraints, the
+  report's lines, the analysis's crossing paths), `test/open-flow-core.test.js` (a DCM's CLK0 into CLKFX, met at
+  x 3 / 2 and not at x 17 / 16, the warnings).
+- **The Post-Synthesis Simulation Model's Verilog a wire a bit (#575):** Yosys's Verilog netlist kept its buses,
+  each primitive driving one bit of one, so that a change of one bit woke every primitive reading another bit of
+  the bus: the vga example's Verilog model simulated about 4 times slower than its VHDL one. The postsynth step
+  now writes the netlist split (`splitnets`, the top's ports still buses, the same cells), and the unit test of
+  the vga example on that model is in a file of its own, `test/sim-model-synth-vga.test.js`, which runs alongside
+  the other examples'.
+- **State machines one-hot at Optimization Effort High (#539):** Yosys's `fsm` refuses every register with an
+  initial value, which Silinx's front end gives each one. At High a quiet first run finds the machines of 8 states or
+  more kept out for that alone; a design with some is synthesized once more with them extracted and re-encoded
+  one-hot, the power-up state kept (the init value written back in the new code), and that netlist is kept when
+  better by the same rule as the other mappings (`core/synth-fsm.js`, from #438's research). Smaller machines,
+  Normal, and machines whose power-up state cannot be kept are left as they are; a failed run is said and the usual
+  netlist kept. On the design corpus one-hot is kept on 4 of the 8 designs concerned (b10 −19 % slices / −9 % period,
+  b17 −8 % / −4 %, b11 −3 % / −1 %, b15 +3 % / −4 %), 0.96 of their slices and 0.98 of their period; the examples
+  have no such machine (research/synth-quality/README.md, "One-hot at Optimization Effort High"). Tests:
+  `test/synth-fsm.test.js`.
+- **Tools ▸ Toolchain Settings opens at once (#495):** the dialog waited for the server's detection (which runs
+  the device programmers for their versions: seconds on a slow machine) and then came over whatever was done
+  meanwhile; on CI it covered the menu bar while the next menu was being opened ("every menu opens…", in Firefox
+  and Chrome). It now opens at once with "Detecting the toolchain…", Save disabled, and is filled in when the
+  answer comes; closed before it, nothing comes after. The UI test harness names the element over a menu title
+  it cannot reach.
+- **The Start page kept when it has not changed (#494):** the Start page, drawn again when it is shown (each Close
+  Project), was rebuilt by every drawing, and a drawing finishing between the press on a recent project and its
+  release lost the click (the UI test of #375 failed so on CI); a drawing now keeps the page when nothing changed,
+  and the last drawing started is the one shown (an earlier one finishing later no longer shows the list as it
+  was). The UI test presses a recent project, draws the page again, then releases.
+- **mountISim split, third part: the simulation control in web/js/isim-run.js (#405):** the queue of commands
+  (#215), the run for a time in chunks, Run All, Break, Step and following the end of a run move from mountISim to
+  mountRun(ctx), called at the same point of the mount; no change in behaviour. The Break button and closing the
+  window go through it (breakCommands, destroy). Tests: `test/web-isim-run.test.js`, on the simulator itself.
+- **Silinx toolchain: the side global buffers (#95):** the placer uses the 16 global buffers of the left and
+  right sides (their bits measured in #45): a side buffer `BUFGMUX_X0Y(2+k)` / `X3Y(2+k)` sits on line k of
+  its half of the chip, its loads in that half; the top / bottom buffer of line k is then kept out of that
+  half (its slices, block RAMs and multipliers in the other one), since the centre tile drives line k of a
+  quadrant from one of them only. Past eight clocks the side buffers take the others (a board test with
+  twelve clocks, feat_clocks12, on the four devices, byte-identical to ISE's bitgen). A clock LOC'd on a
+  side GCLK pin still takes a top / bottom buffer through general routing, with a warning: its pad's path
+  into the side buffer has database bits ISE does not set (#641). The
+  global lines' reach (`clockReach`) no longer passes into general routing through the side clock tiles
+  (the even lines' side buffers seemed to reach the other half).
+- **Silinx toolchain: a clock pad's global buffer into a DCM's CLKIN (#94):** the placer chooses the DCM's
+  site and that buffer together, matched with the DCM's outputs: the clock on the GCLK pin whose buffer's
+  line reaches the DCM's CLKIN (B8 -> BUFGMUX_X2Y11 -> the top-left DCM; C8 -> BUFGMUX_X2Y10 on the
+  XC3S100E), the outputs on the other buffers. Before, the outputs took the buffers first, and the pad's
+  buffer, not reaching the CLKIN, was said in a warning and reached through general routing. A board test
+  (feat_dcm_bufgin) on the four devices, checked against ISE.
+- **Silinx toolchain: a global buffer's net into a DCM's CLKIN / CLKFB on the global lines (#93):** the
+  router's search of a clock net, kept on the global clock network, now takes the last switch off it into
+  the DCM's pin (`GCLKn -> DCM_CLKIN -> DCM_CLKIN_PINWIRE`): a cascaded DCM's CLKIN, a DCM's feedback and a
+  CLKIN from a pad's buffer no longer go through general routing (`CLKT_TO_OMUX`, hexes and doubles), which
+  added clock skew. Checked on the four devices (feat_dcm2, feat_dcm_bufgin); the routing of designs
+  without a DCM is unchanged.
+- **The bit database: the pads' dedicated paths to every DCM's CLKIN (#92):** the clock tiles' and DCM tiles'
+  switches from every clock pad to every DCM of the four devices, measured with ISE (research/s3e-bitstream:
+  `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh`; `measured/learn-15dcm-pad-pips.json`), with a few other DCM
+  tile switches those designs use. The placer gives a DCM's clock with no LOC the pad ISE's placer gives it; the
+  warning "its CLKIN comes from the pad … through general routing" no longer appears on the Spartan-3E boards.
+  New board test `feat_dcm_pads` (Nexys2-1200: B8 and the clock socket U9, two DCMs).
+- **Logic depth: a third candidate, balanced twice more (#52):** a design whose depth-oriented mapping is kept
+  is also mapped with ABC's SOP balancing four times (with the LUT delays), kept as the two balanced once more
+  are; routed, EPFL priority 11.20 -> 9.08 ns, EPFL max 29.0 -> 28.1 ns (fewer LUTs and slices), the pedestrian
+  crossing at High 8.61 -> 8.16 ns; the other designs as before.
+
 ## 15.11.2
 
 The Silinx toolchain now gives the simulation models of every step of the implementation: Post-Translate,
