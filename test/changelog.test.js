@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { parseChangelog, changesOf, changesSince, releaseNotes } from '../core/changelog.js';
+import { parseChangelog, changesOf, changesSince, releaseNotes, buildChanges, changeTitle } from '../core/changelog.js';
 import { compareVersions, VERSION } from '../core/version.js';
 
 const MD = fs.readFileSync(new URL('../CHANGELOG.md', import.meta.url), 'utf8');
@@ -68,4 +68,28 @@ test('release notes: the files\' checksums and how to check a download, at the e
     fs.writeFileSync(path.join(dir, 'SHA256SUMS'), '');
     assert.throws(() => execFileSync(process.execPath, ['scripts/release-notes.mjs', version, '--sums', path.join(dir, 'SHA256SUMS')], { stdio: 'pipe' }), /no checksum/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+// #707: a development build's changes (its Development menu), from the fragments, typed by their issues' labels
+const FRAG = (short, detail) => `${short ? `In short:\n\n${short}\n\n` : ''}In detail:\n\n${detail}\n`;
+test('buildChanges: the fragments as changes, newest issue first, typed by label, titled by their first item (#707)', () => {
+  const files = [
+    { name: '12-a-fix.md', text: FRAG(null, '- **The router: a net routed at every seed (#12):** it was not;\n  now it is.') },
+    { name: '30-new-menu.md', text: FRAG('- **A menu:** with `code` and **bold**.', '- **A menu (#30, #31):** the detail.') },
+    { name: '7-ci.md', text: FRAG(null, '- **CI (#7):** a workflow.') },
+    { name: '9-bad.md', text: 'no lists' },
+  ];
+  const c = buildChanges(files, { 12: ['bug', 'place & route'], 30: ['enhancement', 'interface'], 7: ['tests & CI'] });
+  assert.deepEqual(c.map(x => [x.issue, x.type, x.title]), [[30, 'feature', 'A menu'], [12, 'bugfix', 'The router: a net routed at every seed'], [7, 'other', 'CI']]);
+  // the items as text, their continuation lines joined; "In short" first when there is one
+  assert.deepEqual(c[0].short, ['**A menu:** with `code` and **bold**.']);
+  assert.deepEqual(c[1].detail, ['**The router: a net routed at every seed (#12):** it was not; now it is.']);
+  // no labels (offline): every change 'other'; a bug label wins over enhancement
+  assert.deepEqual(buildChanges(files).map(x => x.type), ['other', 'other', 'other']);
+  assert.equal(buildChanges(files.slice(0, 1), { 12: ['enhancement', 'bug'] })[0].type, 'bugfix');
+  assert.equal(changeTitle('- plain text, no bold\n  more'), 'plain text, no bold');
+  assert.equal(changeTitle('- **Title (#5, #6, Refs #7):** x'), 'Title');
+  // the repository's own fragments: every one a change with a title
+  const repo = buildChanges(fs.readdirSync('changes').filter(f => /^\d+-.*\.md$/.test(f)).map(name => ({ name, text: fs.readFileSync(path.join('changes', name), 'utf8') })));
+  assert.ok(repo.every(x => x.issue > 0 && x.title && !/\*\*|#\d+\)$/.test(x.title)), JSON.stringify(repo.filter(x => !x.title)));
 });

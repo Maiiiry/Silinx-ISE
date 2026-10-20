@@ -16,7 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { buildInfo } from './build-info.mjs';
+import { buildInfo, devChanges } from './build-info.mjs';
 import { VERSION } from '../core/version.js';
 import { THIRD_PARTY } from '../core/third-party.js';
 import { contentSecurityPolicy, inlineScriptHashes, withMetaCsp } from '../server/csp.js';
@@ -98,7 +98,9 @@ const plugin = {
     b.onLoad({ filter: /.*/, namespace: 'virtual' }, () => ({ contents: `export default ${JSON.stringify(examples)};`, loader: 'js' }));
   },
 };
-console.log(`Version: ${VERSION}${BUILD ? ` (development build dev:${BUILD.commit})` : ''}`);
+// a development build's changes since the last release, its Development menu (#707): a release has none
+if (BUILD) Object.assign(BUILD, await devChanges(ROOT));
+console.log(`Version: ${VERSION}${BUILD ? ` (development build dev:${BUILD.commit}, ${BUILD.changes.length} change(s) since ${BUILD.since})` : ''}`);
 const define = { __SILINX_BUILD__: JSON.stringify(BUILD) };
 const res = await esbuild.build({
   entryPoints: [path.join(ROOT, 'web/js/app.js')],
@@ -172,7 +174,7 @@ if (siteArg > 0) {
   fs.writeFileSync(path.join(site, 'Silinx-ISE.html'), html);
   // what this site serves (its page's version and build): on the site, Check for Updates compares the
   // page open with it, not with GitHub's latest release (published minutes before the site is rebuilt)
-  fs.writeFileSync(path.join(site, 'version.json'), `${JSON.stringify({ version: VERSION, build: BUILD })}\n`);
+  fs.writeFileSync(path.join(site, 'version.json'), `${JSON.stringify({ version: VERSION, build: BUILD && { commit: BUILD.commit, date: BUILD.date } })}\n`);
   writeAssets(path.join(site, 'assets'));
   console.log(`wrote the site in ${path.relative(ROOT, site) || site}`);
 }

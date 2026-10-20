@@ -114,6 +114,29 @@ export function mergeFragments(body, files) {
     .filter(Boolean).join('\n\n');
 }
 
+// ---- a development build's changes (its Development menu): the fragments, each change typed by its issue's label
+/** A change's title: its first item's bold label ("**Title (#N):**"), without the issue numbers and the colon. */
+export function changeTitle(item) {
+  const m = /^- \*\*(.+?)\*\*/.exec(String(item));
+  const t = m ? m[1] : String(item).replace(/^- /, '').split('\n')[0];
+  return t.replace(/:$/, '').replace(/\s*\(#\d+(?:,\s*#\d+)*(?:,[^)]*)?\)$/, '').replace(/:$/, '').trim();
+}
+const itemText = item => String(item).replace(/^- /, '').replace(/\n\s+/g, ' ');
+/** The fragments ([{ name, text }]) as the changes of a development build, the newest issue first:
+ *  [{ issue, type, title, short: [text], detail: [text] }]; type from the issue's labels ({ number: [label] }):
+ *  'bugfix' (bug), 'feature' (enhancement), else 'other'. A malformed fragment is left out. */
+export function buildChanges(files, labels = {}) {
+  const out = [];
+  for (const { name, text } of sortFragments(files)) {
+    let f;
+    try { f = parseFragment(text); } catch { continue; }
+    const issue = parseInt(name, 10) || null, ls = labels[issue] || [];
+    const type = ls.includes('bug') ? 'bugfix' : ls.includes('enhancement') ? 'feature' : 'other';
+    out.push({ issue, type, title: changeTitle(f.short[0] || f.detail[0]), short: f.short.map(itemText), detail: f.detail.map(itemText) });
+  }
+  return out;
+}
+
 /** CHANGELOG.md with the fragments assembled into the "## <version>" section: a new section at the top,
  *  or, when the version has a section already (written by hand), the fragments' items added to it. */
 export function assembleRelease(md, version, files) {

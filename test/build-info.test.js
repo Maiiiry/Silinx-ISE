@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { buildInfo } from '../scripts/build-info.mjs';
+import { buildInfo, devChanges } from '../scripts/build-info.mjs';
 import { VERSION, BUILD, VERSION_LABEL, versionLabel } from '../core/version.js';
 
 Object.defineProperty(globalThis, 'localStorage', { value: { getItem: (k) => (k === 'silinx.lang' ? 'pt' : null), setItem() {}, removeItem() {} }, configurable: true, writable: true });
@@ -42,4 +42,33 @@ test('version label: the version alone, or the development commit (English and P
   assert.equal(t('Silinx ISE dev:abc1234 (2026-10-13 11:12)'), 'Silinx ISE dev:abc1234 (2026-10-13 11:12)');
   assert.equal(t(versionLabel({ commit: 'abc1234' })), 'dev:abc1234');
   assert.equal(t('Silinx ISE dev:abc1234 (2026-10-13 11:12) Project Navigator'), 'Silinx ISE dev:abc1234 (2026-10-13 11:12) Project Navigator');
+});
+
+// #707: a development build's changes since the last release, typed by their issues' labels (GitHub's API faked here)
+test('devChanges: the last release, the changes with their labels; the token only in the requests; offline, every change other (#707)', async () => {
+  const files = [{ name: '5-x.md', text: 'In detail:\n\n- **X (#5):** y.\n' }, { name: '6-z.md', text: 'In detail:\n\n- **Z (#6):** w.\n' }];
+  const asked = [];
+  const fetch = async (url, o) => { asked.push([url, o.headers.authorization]); const n = +url.split('/').pop(); return { ok: n === 5, json: async () => ({ labels: [{ name: 'bug' }, 'interface'] }) }; };
+  const r = await devChanges('.', { env: { GITHUB_TOKEN: 'secret-token' }, fetch, files, tags: ['v15.9.0', 'v15.11.3', 'v15.11.2', 'vnope'] });
+  assert.equal(r.since, '15.11.3');
+  assert.deepEqual(r.changes.map(c => [c.issue, c.type]), [[6, 'other'], [5, 'bugfix']]);
+  assert.deepEqual(asked.map(a => a[0]).sort(), ['https://api.github.com/repos/pmnmalo/Silinx-ISE/issues/5', 'https://api.github.com/repos/pmnmalo/Silinx-ISE/issues/6']);
+  assert.ok(asked.every(a => a[1] === 'Bearer secret-token'));
+  assert.doesNotMatch(JSON.stringify(r), /secret-token/);
+  // a request that fails: its change 'other'
+  const failed = await devChanges('.', { env: { GITHUB_TOKEN: 't' }, fetch: async () => { throw new Error('offline'); }, files, tags: [] });
+  assert.deepEqual([failed.since, failed.changes.map(c => c.type)], [null, ['other', 'other']]);
+  // no token (a developer's build, the tests): nothing asked
+  let calls = 0;
+  const local = await devChanges('.', { env: {}, fetch: async () => { calls++; throw new Error('no'); }, files, tags: ['v1.2.3'] });
+  assert.deepEqual([calls, local.since, local.changes.map(c => c.type)], [0, '1.2.3', ['other', 'other']]);
+});
+
+test('a release build has no Development menu: the changes only on a development build, version.json without them (#707)', () => {
+  const src = fs.readFileSync('scripts/build-standalone.mjs', 'utf8');
+  // buildInfo is null on the release's commit (above): the build then computes no changes
+  assert.match(src, /\nif \(BUILD\) Object\.assign\(BUILD, await devChanges\(ROOT\)\);\n/);
+  assert.match(src, /build: BUILD && \{ commit: BUILD\.commit, date: BUILD\.date \}/);
+  // the menu needs BUILD.changes (web/js/devmenu.js): none on a release, nor on the local server
+  assert.match(fs.readFileSync('web/js/devmenu.js', 'utf8'), /if \(!build\?\.changes\) return null;/);
 });

@@ -20,6 +20,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  # the development edition's Development menu reads its changes' issue labels (#707)
+  issues: read
   pages: write
   id-token: write
 concurrency:
@@ -63,6 +65,9 @@ jobs:
       # the development edition: this commit of main, in dev/ (after the stable one: the root's build
       # empties the site folder first)
       - name: Build the development edition (dev/)
+        # (the token only reads the issues' labels of the Development menu, #707: it is not written anywhere)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           git log -1 --format='Development edition: %h %s (%ci)'
           npm ci
