@@ -15,7 +15,7 @@
 
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
-  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
+  xform, rotSize, portBox, portSide, freePortName, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -751,7 +751,7 @@ export function mountSchEditor(container, opts = {}) {
     select: 'Click to select, drag to move (connected wires follow), drag on empty space to select a region. Double-click a module to open it.',
     wire: 'Add Wire: click to start, click to add a bend, click on a pin/wire or double-click to finish. Esc ends the wire.',
     net: 'Add Net Name: type a name, then click a wire to attach it.',
-    io: 'Add I/O Marker: click a wire end or a pin to add a port marker.',
+    io: 'Add I/O Marker: click a wire end, a pin or empty space to add a port marker (a wire to its tip connects it later).',
     place: 'Click to place the symbol (Ctrl+R rotate, Ctrl+M mirror). Esc to stop placing.',
   };
   function updateStatus() {
@@ -1141,10 +1141,11 @@ export function mountSchEditor(container, opts = {}) {
     const net = near?.pin ? nl?.pinNet.get(`${near.sym.id}/${near.pin.name}`) : nl?.wireNet.get(wireNear(p, 0.5)?.w.id);
     if (near?.pin) { width = near.pin.width || net?.width || 1; if (dir === 'auto') dir = near.pin.dir === 'out' ? 'out' : near.pin.dir === 'inout' ? 'inout' : 'in'; }
     else if (net) { width = net.width; if (dir === 'auto') dir = net.drivers.length ? 'out' : 'in'; }
-    else if (!wireNear(p, 0.5)) { flash('Click on a wire end or a pin'); return; }
+    // (on empty space: a marker of 1 bit, an input unless chosen, with the next free name, wired later, #680)
     if (dir === 'auto') dir = 'in';
     const taken = new Set(doc.ports.map(q => q.name.toLowerCase()));
     if (net && !net.auto && !net.ports.length && !taken.has(net.name.toLowerCase())) suggest = net.name;
+    if (!near?.pin && !net) suggest = freePortName(doc, dir);
     let name = ioNameInput.value.trim();
     if (!name || taken.has(name.toLowerCase())) name = await promptBox(pt, `${dir === 'in' ? 'Input' : dir === 'out' ? 'Output' : 'Bidirectional'} port name`, name || suggest);
     if (!name) return;

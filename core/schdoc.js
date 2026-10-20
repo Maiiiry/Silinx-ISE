@@ -486,6 +486,16 @@ export const portSide = port => (PORT_SIDES.includes(port.side) ? port.side : po
 // a quarter turn clockwise; the opposite side (Mirror)
 export const turnSide = side => PORT_SIDES[(PORT_SIDES.indexOf(side) + 1) % 4];
 export const oppositeSide = side => PORT_SIDES[(PORT_SIDES.indexOf(side) + 2) % 4];
+// the default name of an I/O marker placed on empty space (no net to name it, #680): in1, out1, io1…, the
+// first not taken by a marker, a net name or an instance (case-insensitive, as VHDL compares them)
+export function freePortName(doc, dir) {
+  const base = dir === 'out' ? 'out' : dir === 'inout' ? 'io' : 'in';
+  const taken = new Set([...(doc.ports || []).map(p => p.name), ...(doc.labels || []).map(l => parseNetName(l.net).base), ...(doc.symbols || []).map(s => s.name)]
+    .filter(Boolean).map(s => String(s).toLowerCase()));
+  let n = 1;
+  while (taken.has(`${base}${n}`)) n++;
+  return `${base}${n}`;
+}
 export function portBox(port) {
   const tw = Math.max(20, String(port.name || '').length * 7.5);
   const w = r10(tw + 34);
