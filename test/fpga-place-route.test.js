@@ -15,7 +15,7 @@ import { readYosysJson } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
 import { deviceSites, place, placedXdl } from '../core/fpga/place.js';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
-import { routeDesign, clockReach, bufgReach } from '../core/fpga/route.js';
+import { routeDesign, clockReach, bufgReach, checkRouting } from '../core/fpga/route.js';
 import { knownRouting } from '../core/fpga/bitgen.js';
 import { analyzeTiming, delayTable } from '../core/fpga/timing.js';
 import { parseXdl, writeXdl } from '../core/xdl.js';
@@ -80,6 +80,29 @@ test('placeRoute: the placer with the delay table and the clock / global buffer 
   assert.deepEqual({ ...seen[0][2], placeMs: 0 }, { seed: 2, try: 0, replication: null, placeMs: 0 });
   assert.deepEqual(seen[1][2], { seed: 2, try: 0, replication: null });
   assert.equal(seen[1][1], sta.period);
+});
+
+// #662: after the routing is legal, the critical path's connections one at a time, each one's own branch
+// routed again on free wires or on less critical nets' (those nets routed again around it), kept when the
+// critical path is no longer. On FAN64's placement of seed 2 the router alone leaves its critical path at
+// 3.41 ns (by the analysis), the polish at 3.15; the routing stays legal and complete
+test('routeDesign: the polish of the critical path shortens it on a routing that is already legal, never lengthens it (#662)', { timeout: 300000 }, async () => {
+  const { packed, device, known } = await setup();
+  const { placedText } = placeRoute(packed, device, known, { seed: 2 });
+  const route = o => {
+    const r = routeDesign(parseXdl(placedText), device, { ...known, timing: true, ...o });
+    const d = parseXdl(writeXdl(r.design));
+    assert.deepEqual([r.errors, r.failed, r.unreached, r.overused], [[], [], [], 0]);
+    assert.deepEqual(checkRouting(d, device).problems, []);
+    const sta = analyzeTiming(d, device);
+    assert.ok(Math.abs(sta.period - r.period) < 1e-9, 'the period the router returns is its routing\'s');
+    return sta.period;
+  };
+  const without = route({ polish: 0 }), polished = route({}), free = route({ stealCost: 0 });
+  assert.ok(polished <= without - 0.2, `polished ${polished.toFixed(3)} ns, without ${without.toFixed(3)} ns`);
+  assert.ok(free <= without, `on free wires only ${free.toFixed(3)} ns`);
+  // the router as before #662 (2 timing passes at the congestion factor the passes left, no polish): no faster
+  assert.ok(route({ polish: 0, timingPasses: 2, timingPf: null }) >= polished);
 });
 
 test('placeRouteBest: tries from the seed on, the fastest kept; then register replication, kept only when faster; replicate: false tries none', { timeout: 600000 }, async () => {
