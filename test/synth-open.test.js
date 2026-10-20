@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -374,9 +374,7 @@ test('logic depth: the scripts (the design before the LUT mapping written, mappe
   assert.equal(yosysScript('top', 'spartan3e', { premap: PREMAP_FILE }), yosysScript('top', 'spartan3e').replace('abc -luts', 'write_rtlil silinx_premap.il; '
     + 'design -save silinx_premap; muxcover -mux8 -mux16 -nodecode -nopartial; tee -q -o silinx_muxes.txt select -count t:$_MUX8_ t:$_MUX16_; design -load silinx_premap; abc -luts'));
   assert.equal(remapCommands('top', 'spartan3e'), 'read_rtlil silinx_premap.il; abc -luts 1,1,1,1,2,4 -script silinx_depth.abc; clean; techmap -map +/xilinx/ff_map.v; '
-    + 'techmap -map silinx_lut6_map.v t:$lut r:WIDTH=6 %i; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
-  // (the usual mapping, onto LUT4s alone, has no 6-input function to split: no LUT6_MAP, #54)
-  assert.ok(!synthCommands('top', 'spartan3e').includes(LUT6_MAP_FILE));
+    + 'techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
   assert.match(DEPTH_ABC, /if -g; .*if; mfs2$/);
   // 6-input-LUT families: synth_xilinx as it is, nothing written
   assert.equal(synthCommands('m', 'spartan6', { premap: PREMAP_FILE }), 'synth_xilinx -family xc6s -ise -flatten -top m');
@@ -443,10 +441,6 @@ test('#377 logic depth: the rule weighs the slices too, when known; sliceCount p
   assert.ok(!keepDepth([10, 10], [100, 100], DEPTH_RULE, [80, 80]) && keepDepth([10, 10], [100, 100], DEPTH_RULE, [80, 79]), 'the same; one slice fewer');
   assert.ok(!keepDepth([10, 10], [100, 99], DEPTH_RULE, [80, 81]), 'one LUT fewer, a slice more');
   assert.ok(!keepDepth([10, 10.11], [100, 50], DEPTH_RULE, [80, 40]), 'more than 1 % slower');
-  // #54: faster with no more slices, up to `luts` more LUTs again (verilog-uart's ABC9 netlist)
-  assert.ok(keepDepth([8.07, 7.28], [130, 148], DEPTH_RULE, [130, 125]), '10 % faster, fewer slices, 14 % more LUTs');
-  assert.ok(keepDepth([10, 9], [100, 120], DEPTH_RULE, [80, 80]) && !keepDepth([10, 9], [100, 121], DEPTH_RULE, [80, 80]), '10 % faster, as many slices: 20 % more LUTs at most');
-  assert.ok(!keepDepth([10, 9], [100, 115], DEPTH_RULE, [80, 81]) && !keepDepth([10, 9], [100, 115]), 'more slices, or the slices unknown: 10 % more LUTs at most');
   // a slice count unknown (a netlist that does not pack): the LUTs alone
   assert.ok(keepDepth([10, 10.1], [100, 95], DEPTH_RULE, [null, 99]));
   assert.ok(keepSecond([20, 10, 9.9], [100, 110, 112], DEPTH_RULE, [80, 90, 85]), 'not 3 % faster than the first, but 5 % fewer slices');
@@ -460,9 +454,8 @@ test('#377 logic depth: the rule weighs the slices too, when known; sliceCount p
 });
 
 // Regression (#54): a shifter onto LUT4s alone, its 2:1 multiplexers in LUT3s (with the wider functions,
-// as before: 213 LUTs and 120 MUXF5 / MUXF6), equal to the RTL; a rotator too. Since LUT6_MAP the wider
-// mapping's 4:1 multiplexers are two LUT4s into a MUXF5 each: the shifter's then as fast with 2 LUTs fewer, kept
-test('a 32-bit shifter and a rotator: onto LUT4s alone, or with the 4:1 multiplexers as two LUT4s and a MUXF5 (LUT6_MAP); not 6-input functions of four LUT4s (#54)', { timeout: 300000 }, async () => {
+// as before: 213 LUTs and 120 MUXF5 / MUXF6), that mapping kept and equal to the RTL; a rotator too
+test('a 32-bit shifter and a rotator are mapped onto LUT4s alone, not 5- and 6-input functions (#54)', { timeout: 300000 }, async () => {
   const SHL = `module shl(input clk, input [31:0] d, input [4:0] s, output reg [31:0] q);
   reg [31:0] rd; reg [4:0] rs;
   always @(posedge clk) begin rd <= d; rs <= s; q <= rd << rs; end
@@ -470,9 +463,8 @@ endmodule
 `;
   const shl = elaborate(compile([{ path: 'shl.v', lang: 'verilog', text: SHL }]), 'shl');
   const r = await synthesizeOpen(shl, { family: 'spartan3e', run: yosysNode });
-  assert.deepEqual([r.util.luts, r.util.muxes, r.depth.wide.kept, r.depth.kept], [139, 47, true, false], JSON.stringify(r.depth));
-  assert.equal(r.cells.MUXF6 || 0, 0);
-  assert.ok(r.depth.wide.ns <= r.depth.ns[0], JSON.stringify(r.depth));
+  assert.deepEqual([r.util.luts, r.util.muxes, r.depth.wide.kept, r.depth.kept], [141, 0, false, false], JSON.stringify(r.depth));
+  assert.ok(r.depth.wide.luts > 200, JSON.stringify(r.depth));
   assert.deepEqual(r.warnings, []);
   const d = compareNetlist(shl, r, { name: 'lut4-shl', sim: { cycles: 300 } });
   assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
@@ -482,79 +474,6 @@ endmodule
   assert.deepEqual([r2.util.luts, r2.util.muxes, r2.depth.wide.kept], [319, 0, false], JSON.stringify(r2.depth));
   const d2 = compareNetlist(rot, r2, { name: 'lut4-rot', sim: { cycles: 300 } });
   assert.equal(d2.status, 'pass', d2.report || JSON.stringify(d2));
-});
-
-// #54: a 6-input function of the wider mapping split on the input whose cofactors are of 4 inputs at most (LUT6_MAP):
-// two LUT4s into a MUXF5; one without such an input left to lut_map.v (four LUT4s, two MUXF5, a MUXF6); each netlist
-// equal to its table on all 64 inputs
-test('#54 LUT6_MAP: a 6-input function with a select of two 4-input cofactors is two LUT4s and a MUXF5, the others as lut_map.v splits them; every one its own table', { timeout: 120000 }, async () => {
-  // a table of 64 bits from f(x), x the 6 inputs as a number
-  const table = f => Array.from({ length: 64 }, (_, x) => f(x) & 1);
-  const bit = (x, k) => (x >> k) & 1;
-  const mux4 = (s1, s0, d) => x => bit(x, d[bit(x, s1) * 2 + bit(x, s0)]);
-  let seed = 7;
-  const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
-  // a random function of 4 of the inputs (not v) for each value of input v
-  const split = v => { const fs = [0, 1].map(() => { const ins = [0, 1, 2, 3, 4, 5].filter(k => k !== v).sort(() => rnd() - 0.5).slice(0, 4); const t = Array.from({ length: 16 }, () => (rnd() < 0.5 ? 1 : 0)); return x => t[ins.reduce((i, k, j) => i | (bit(x, k) << j), 0)]; }); return x => fs[bit(x, v)](x); };
-  const cases = [
-    ['4:1 multiplexer, selects 5 and 4', table(mux4(5, 4, [0, 1, 2, 3])), 2],
-    ['4:1 multiplexer, selects 0 and 3', table(mux4(0, 3, [1, 2, 4, 5])), 2],
-    ['split on input 0', table(split(0)), 2],
-    ['split on input 2', table(split(2)), 2],
-    ['split on input 5', table(split(5)), 2],
-    ['a cofactor constant', table(x => bit(x, 1) & bit(x, 0) & bit(x, 2) & bit(x, 3) & bit(x, 4)), 2],
-    ['parity of 6 (no such input)', table(x => [0, 1, 2, 3, 4, 5].reduce((p, k) => p ^ bit(x, k), 0)), 4],
-    ['8 of the 16 values of 5 inputs by input 5 (no such input)', table(x => (bit(x, 5) ? [0, 1, 2, 3, 4].reduce((p, k) => p ^ bit(x, k), 0) : bit(x, 0) & bit(x, 1) | bit(x, 2) & bit(x, 3) & bit(x, 4))), 4],
-  ];
-  // (RTLIL: Yosys's Verilog reads \\$lut as a module of that name, not its $lut cell)
-  const il = `module \\top\n  wire width 6 input 1 \\a\n  wire width ${cases.length} output 2 \\y\n${cases.map(([, t], i) => `  cell $lut \\l${i}\n    parameter \\WIDTH 6\n    parameter \\LUT 64'${[...t].reverse().join('')}\n    connect \\A \\a\n    connect \\Y \\y [${i}]\n  end\n`).join('')}end\n`;
-  const out = await yosysNode(['-q', '-p', `read_rtlil t.il; hierarchy -top top; techmap -map ${LUT6_MAP_FILE}; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; opt_clean; write_json o.json`],
-    { 't.il': il, [LUT6_MAP_FILE]: LUT6_MAP });
-  const nl = readYosysJson(out['o.json'], { top: 'top' });
-  // the LUT4s of each output: those of its cone
-  const driver = new Map(nl.cells.flatMap(c => Object.entries(c.pins).filter(([p]) => p === 'O').map(([, n]) => [n, c])));
-  const cone = (n, seen = new Set()) => { const c = driver.get(n); if (!c || seen.has(c)) return seen; seen.add(c); for (const [p, m] of Object.entries(c.pins)) if (p !== 'O') cone(m, seen); return seen; };
-  const yNets = nl.ports.find(p => p.name === 'y').bits;
-  const sim = netlistSim(nl);
-  cases.forEach(([what, t, luts], i) => {
-    const cells = [...cone(yNets[i].net)].map(c => c.type).sort();
-    assert.equal(cells.filter(c => /^LUT/.test(c)).length, luts, `${what}: ${cells}`);
-    assert.deepEqual(cells.filter(c => /^MUXF/.test(c)), luts === 2 ? ['MUXF5'] : ['MUXF5', 'MUXF5', 'MUXF6'], what);
-    for (let x = 0; x < 64; x++) {
-      sim.step(Object.fromEntries([0, 1, 2, 3, 4, 5].map(k => [`a<${k}>`, bit(x, k)])));
-      assert.equal(sim.out()[`y<${i}>`], t[x], `${what}: input ${x}`);
-    }
-  });
-});
-
-// Regression (#54): a barrel rotator written as gates (as the EPFL barrel shifter: decoded 4:1 multiplexers);
-// the wider mapping's 4:1 multiplexers two LUT4s and a MUXF5 each (four LUT4s, two MUXF5 and a MUXF6 before),
-// that mapping kept, equal to the RTL; at Normal (one mapping) onto LUT4s alone as before
-const ROT_GATES = `module rotg(input clk, input [31:0] d, input [3:0] s, output reg [31:0] q);
-  reg [31:0] rd; reg [3:0] rs;
-  wire [31:0] m1, m2;
-  genvar i;
-  for (i = 0; i < 32; i = i + 1) begin : g
-    assign m1[i] = (rd[i] & ~rs[1] & ~rs[0]) | (rd[(i + 1) % 32] & ~rs[1] & rs[0]) | (rd[(i + 2) % 32] & rs[1] & ~rs[0]) | (rd[(i + 3) % 32] & rs[1] & rs[0]);
-    assign m2[i] = (m1[i] & ~rs[3] & ~rs[2]) | (m1[(i + 4) % 32] & ~rs[3] & rs[2]) | (m1[(i + 8) % 32] & rs[3] & ~rs[2]) | (m1[(i + 12) % 32] & rs[3] & rs[2]);
-  end
-  always @(posedge clk) begin rd <= d; rs <= s; q <= m2; end
-endmodule
-`;
-test('#54 a barrel rotator written as gates: its 4:1 multiplexers two LUT4s and a MUXF5 each, the wider mapping kept at High (faster, as large), equal to the RTL; Normal onto LUT4s alone', { timeout: 300000 }, async () => {
-  const rot = elaborate(compile([{ path: 'rotg.v', lang: 'verilog', text: ROT_GATES }]), 'rotg');
-  const r = await synthesizeOpen(rot, { family: 'spartan3e', run: yosysNode });
-  // (two levels of 32 4:1 multiplexers: 128 LUTs and 64 MUXF5, 64 slices; before LUT6_MAP the wider mapping was 256 LUTs)
-  assert.deepEqual([r.util.luts, r.util.muxes, r.cells.MUXF6 || 0, r.depth.wide.kept, r.depth.wide.slices], [128, 64, 0, true, 64], JSON.stringify(r.depth));
-  assert.deepEqual(r.warnings, []);
-  const c = compareNetlist(rot, r, { name: 'lut6-rotg', seed: 'rotg', sim: { cycles: 400 } });
-  assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
-  const n = await synthesizeOpen(rot, { family: 'spartan3e', run: yosysNode, effort: 'normal' });
-  assert.deepEqual([n.util.luts, n.util.muxes], [128, 0]);
-  assert.deepEqual(n.warnings, []);
-  // 30 % faster than the LUT4s alone by the estimate (3.66 ns against 5.32)
-  const top = 'rotg';
-  assert.ok(criticalDelay(r.files[`${top}.json`], top) < 0.75 * criticalDelay(n.files[`${top}.json`], top));
 });
 
 // #78: the LUT delays, ABC's script inline (YoWASP's ABC crashes on read_lut from a script file)
