@@ -1007,3 +1007,61 @@ benchmarks (#52, #54, #370: one benchmark each, two of them about size).
 
 The numbers are recomputed from `test/designs-corpus/ise-comparison.json` (`path` of each side); the weekly
 comparison's page (docs/QUALITY.md, *The critical paths: logic and routing*) shows them for every design.
+
+## 4:1 multiplexers in the wider mapping (#54)
+
+The EPFL barrel shifter (`bar`, 128 bits shifted by 7, written as gates: decoded 4:1 multiplexers on the shift
+amount's bit pairs) took 1201 LUTs and 601 slices onto LUT4s alone (its usual mapping), against XST's 939 and 534.
+ABC's mapping with the wider functions (`LUT4_COSTS`) finds the structure: 128 LUT3s and 384 6-input functions,
+each a 4:1 multiplexer. But Yosys's `lut_map.v` splits every 6-input function on its last two inputs, whatever the
+function: four LUT4s, two MUXF5 and a MUXF6 (1664 LUTs and 1152 MUXFs, so the mapping was refused). Split on its
+first select instead, a 4:1 multiplexer is two 2:1 multiplexers into a MUXF5: two LUT4s in one slice, as XST
+builds it.
+
+`LUT6_MAP` (`core/synth-open.js`, a techmap file given to the remaps on `LUT4_COSTS`, before `lut_map.v`, on the
+6-input `$lut`s alone) finds the input whose two cofactors each depend on 4 of the other inputs at most and makes
+those two LUT4s and a MUXF5; a function without such an input fails it and goes on to `lut_map.v` as before. Its
+tables are computed by Yosys's constant functions (the dependencies on 64-bit words: about 1 s more per remap of
+the T80, 0.8 s of bar's; bit by bit it was 7.7 s). Each 6-input function's split is checked against its table
+on all 64 inputs (test/synth-open.test.js).
+
+**The choice rule, twice.** The split makes the remaps on `LUT4_COSTS` smaller, so candidates the rule refused
+before now pass it, and the estimate does not always tell right:
+- verilog-uart was 22 % slower (8.39 → 10.26 ns, the same at seeds 2 and 3). Its depth-oriented netlist, now 130
+  LUTs and 8.07 ns by the estimate, made ABC9's (148 LUTs, 125 slices, 7.28 ns) 14 % larger in LUTs than the rule's
+  10 % allows, though it has fewer slices; it had been kept by a hair. So a netlist faster by the rule's `gain`
+  with no more slices may have `luts` (10 %) more LUTs again.
+- femtorv32-quark (in its I/O wrapper) was 9 % larger and slower once routed (816 → 887 LUTs, 410 → 445 slices,
+  16.69 → 17.01 ns): #584's third balancing, with the split 680 LUTs and 445 slices instead of 724 and 468, became
+  3.7 % faster by the estimate for 8.8 % more slices than the second balancing, inside the rule's flat 10 %. This
+  reached main (#634) and was reverted (#649, the Nightly's #648): the PR's corpus run predated #570 and #584. So
+  a faster netlist's slices may now grow no more in proportion than it is faster (they could grow by
+  `max(luts, gain)` before; its LUTs keep that bound): femtorv32 keeps the second balancing again.
+
+Measured on the whole design corpus (67 designs, effort High, routed, seed 1, the netlists simulated against the RTL),
+against main of the same day without the change (both after #570, #584 and #611). The examples' netlists are the
+same. Only the designs whose netlist changed:
+
+| design | LUTs | slices | period (ns) |
+|---|---|---|---|
+| epfl-bar | 1201 → **941** (XST 939) | 601 → **471** (XST 534) | 10.60 → **9.38** (XST 9.08) |
+| itc99-b14 | 1466 → **1358** | 740 → **686** | 32.67 → 32.38 |
+| itc99-b20 | 2841 → **2691** | 1430 → **1355** | 35.48 → **34.70** |
+| itc99-b21 | 3005 → **2804** | 1513 → **1412** | 35.79 → **33.96** |
+| itc99-b13 | 87 → 83 | 44 → 42 | 7.73 → **6.83** |
+| itc99-b05 | 476 → 468 | 258 → 254 | 10.82 → 10.76 |
+| uart-for-fpga | 80 → 78 | 42 → 41 | 5.33 → **4.49** |
+| serv | 346 → 342 | 212 → 209 | 12.17 → 12.54 (12.82 → 12.23 in an earlier measurement: placement) |
+| epfl-router | 59 → 62 | 36 → 34 | 6.54 → 7.18 (+10 %) |
+| itc99-b11 | 179 → 191 (+7 %) | 94 → 100 (+6 %) | 9.70 → **8.69** (−10 %) |
+| itc99-b15 | 2465 → 2649 (+7.5 %) | 1237 → 1330 (+7.5 %) | 18.50 → 18.35 |
+
+Geometric means over the 67 designs: LUTs 0.995, slices 0.993, period 0.991. ITC'99 b15's wider mapping is kept as
+10 % faster by the estimate for 7.5 % more slices (within the new bound), the routed design 1 % faster only; the
+EPFL router's I/O wrapper is the one design slower. Synthesis time: about 1 s more per remap of a design with many
+6-input functions (the T80 18.0 s instead of 17.0).
+
+The T80 (1.15 times XST's LUTs, #54) is not changed: its wider mapping is not kept (2204 LUTs, 1297 slices
+against 2154 and 1146 onto LUT4s alone). Its 361 flip-flops against XST's 247 are most likely its register file
+(T80_Reg: two arrays of 8 × 8 bits, written at one address, read asynchronously at three): 128 flip-flops in the open
+synthesis, no distributed RAM; XST can make it RAM16X1Ds (not checked: ISE's map report is not in the comparison). Left.
