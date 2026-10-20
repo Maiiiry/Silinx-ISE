@@ -15,6 +15,7 @@ import {
   instArcs, timingGraph, analyzeTiming, timingReport, clockPort, checkPeriods, delayTable, clockArrivals, parseOffsets, checkOffsets, DELAY_KIND, delayKind,
   clockSources, clockRequirement, checkCross,
 } from '../core/fpga/timing.js';
+import { checkSwitching, switchingLine } from '../core/fpga/timing.js';
 import zlib from 'node:zlib';
 import { parseDly, twrArcs, memArcs, hardArcs } from '../research/s3e-route/timing-fit.mjs';
 import { parseTwrClocks } from '../research/s3e-route/dcm-timing-compare.mjs';
@@ -799,4 +800,67 @@ test('timing-driven routing: branch loads (XC3S250E graph): a net of 17 timed lo
   const without = run(0), withLoads = run(1);
   assert.ok(withLoads.branches < without.branches, `${withLoads.branches} < ${without.branches} branches at the driver`);
   assert.ok(withLoads.period < without.period, `${withLoads.period} < ${without.period} ns`);
+});
+
+// #661: trce's Component Switching Limit checks on a DCM. One DCM_SP on the pad clk (PERIOD 20 ns unless said), its
+// outputs on global buffers; the expected periods, limits and slacks are trce 14.7's (Basys2-250, -4) on the same
+// settings, built by ISE's own flow (research/s3e-route/README.md)
+const oneDcm = (cfg, outs) => parseXdl(`design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "clk" "IOB",placed BIOIS_X1Y0 P11 , cfg " " ;
+inst "u_dcm" "DCM",placed DCM_BL_CENTER_X9Y0 DCM_X0Y0 , cfg " ${cfg} " ;
+${outs.map((o, k) => `inst "b${k}" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX${k} , cfg " " ;`).join('\n')}
+net "clk_in" , outpin "clk" I , inpin "u_dcm" CLKIN , ;
+${outs.map((o, k) => `net "${o}_u" , outpin "u_dcm" ${o} , inpin "b${k}" I0 , ;
+net "${o}" , outpin "b${k}" O , inpin "f${k}" CLK ,${o === 'CLK0' ? ' inpin "u_dcm" CLKFB ,' : ''} ;`).join('\n')}
+`);
+const sw = (cfg, outs, period = 20) => Object.fromEntries(checkSwitching(oneDcm(cfg, outs), [{ net: 'clk', period }])
+  .map(k => [k.resource.replace(/^u_dcm\//, ''), [k.limit, k.period, k.bound, k.bound === 'max' ? k.max : k.min, k.slack]]));
+test('#661 checkSwitching: a DCM\'s pins against trce\'s switching limits (DLL, DFS, the outputs), as trce on the same settings', () => {
+  // the DLL's CLKIN and CLK0, CLKFX 3 / 30: 200 ns, its maximum (trce: slack 0, met)
+  assert.deepEqual(sw('CLKFX_DIVIDE::30 CLKFX_MULTIPLY::3 CLK_FEEDBACK::1X', ['CLK0', 'CLKFX']), {
+    CLKIN: ['Tdcmpc', 20, 'min', 4.166, 15.834], CLK0: ['Tdcmpco', 20, 'min', 4.166, 15.834], CLKFX: ['Tdcmpfx', 200, 'max', 200, 0] });
+  // CLK2X, CLK90, CLKFX180 (x 3 / 2: 13.333 ns)
+  assert.deepEqual(sw('CLKFX_DIVIDE::2 CLKFX_MULTIPLY::3 CLK_FEEDBACK::1X', ['CLK0', 'CLK2X', 'CLK90', 'CLKFX180']), {
+    CLKIN: ['Tdcmpc', 20, 'min', 4.166, 15.834], CLK0: ['Tdcmpco', 20, 'min', 4.166, 15.834], CLK2X: ['Tdcmpco', 10, 'min', 3.214, 6.786],
+    CLK90: ['Tdcmpco', 20, 'min', 4.166, 15.834], CLKFX180: ['Tdcmpfx', 13.333333, 'min', 3.067, 10.266333] });
+  // CLKDV / 16: 320 ns
+  assert.deepEqual(sw('CLKDV_DIVIDE::16.0 CLK_FEEDBACK::1X', ['CLK0', 'CLKDV']).CLKDV, ['Tdcmpdv', 320, 'min', 6.249, 313.751]);
+  // CLKDV / 1.5 at 5 ns (7.5 ns); the feedback from CLK2X (CLK_FEEDBACK 2X): the DLL's CLKIN
+  assert.deepEqual(sw('CLKDV_DIVIDE::1.5 CLK_FEEDBACK::1X', ['CLK0', 'CLKDV'], 5), {
+    CLKIN: ['Tdcmpc', 5, 'min', 4.166, 0.834], CLK0: ['Tdcmpco', 5, 'min', 4.166, 0.834], CLKDV: ['Tdcmpdv', 7.5, 'min', 6.249, 1.251] });
+  assert.deepEqual(sw('CLK_FEEDBACK::2X', ['CLK2X']), { CLKIN: ['Tdcmpc', 20, 'min', 4.166, 15.834], CLK2X: ['Tdcmpco', 10, 'min', 3.214, 6.786] });
+  // no feedback: the DFS's CLKIN (3.002 to 5000 ns), at 250 ns too; CLKFX x 8: 31.25 ns
+  assert.deepEqual(sw('CLKFX_DIVIDE::30 CLKFX_MULTIPLY::3 CLK_FEEDBACK::NONE', ['CLKFX']), { CLKIN: ['Tdcmpc', 20, 'min', 3.002, 16.998], CLKFX: ['Tdcmpfx', 200, 'max', 200, 0] });
+  assert.deepEqual(sw('CLKFX_DIVIDE::1 CLKFX_MULTIPLY::8 CLK_FEEDBACK::NONE', ['CLKFX'], 250), { CLKIN: ['Tdcmpc', 250, 'min', 3.002, 246.998], CLKFX: ['Tdcmpfx', 31.25, 'min', 3.067, 28.183] });
+  // not met: the DLL's CLKIN and CLK0 at 250 ns (over 200) and at 4 ns (under 4.166); CLKFX x 7 (2.857 ns, under 3.067)
+  assert.deepEqual(sw('CLK_FEEDBACK::1X', ['CLK0'], 250), { CLKIN: ['Tdcmpc', 250, 'max', 200, -50], CLK0: ['Tdcmpco', 250, 'max', 200, -50] });
+  assert.deepEqual(sw('CLK_FEEDBACK::1X', ['CLK0'], 4), { CLKIN: ['Tdcmpc', 4, 'min', 4.166, -0.166], CLK0: ['Tdcmpco', 4, 'min', 4.166, -0.166] });
+  assert.deepEqual(sw('CLKFX_DIVIDE::1 CLKFX_MULTIPLY::7 CLK_FEEDBACK::1X', ['CLK0', 'CLKFX']).CLKFX, ['Tdcmpfx', 2.857143, 'min', 3.067, -0.209857]);
+  // no PERIOD on the DCM's pad: nothing checked (as trce)
+  assert.deepEqual(checkSwitching(oneDcm('CLK_FEEDBACK::1X', ['CLK0']), [{ net: 'other', period: 20 }]), []);
+});
+test('#661 checkSwitching: CLKIN_DIVIDE_BY_2 halves every limit of the DCM in trce, its outputs\' too', () => {
+  // feat_dcm_div2 as it was: CLKFX 3 / 15 of the halved input, 200 ns, over trce's 100 ns (trce: slack -100, Tdcmpfx)
+  const div2 = sw('CLKFX_DIVIDE::15 CLKFX_MULTIPLY::3 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::1X DESKEW_ADJUST::0', ['CLK0', 'CLKFX']);
+  assert.deepEqual(div2, { CLKIN: ['Tdcmpc', 20, 'min', 2.082, 17.918], CLK0: ['Tdcmpco', 40, 'min', 2.083, 37.917], CLKFX: ['Tdcmpfx', 200, 'max', 100, -100] });
+  const k = checkSwitching(oneDcm('CLKFX_DIVIDE::15 CLKFX_MULTIPLY::3 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::1X', ['CLK0', 'CLKFX']), [{ net: 'clk', period: 20 }]);
+  assert.deepEqual(k.map(x => x.met), [true, true, false]);
+  assert.equal(switchingLine(k[2]), 'switching limit of u_dcm/CLKFX (Tdcmpfx): NOT MET, period 200.000 ns, max period limit 100.000 ns (10.000 MHz), slack -100.000 ns');
+  assert.equal(switchingLine(k[0]), 'switching limit of u_dcm/CLKIN (Tdcmpc): met, period 20.000 ns, min period limit 2.082 ns (480.307 MHz), slack 17.918 ns');
+  // CLKDV / 16 (640 ns) and CLKFX x 2 (20 ns) of the halved input; at 4 ns, CLKIN within its halved limit
+  assert.deepEqual(sw('CLKDV_DIVIDE::16.0 CLKFX_DIVIDE::1 CLKFX_MULTIPLY::2 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::1X', ['CLK0', 'CLKDV', 'CLKFX']), {
+    CLKIN: ['Tdcmpc', 20, 'min', 2.082, 17.918], CLK0: ['Tdcmpco', 40, 'min', 2.083, 37.917], CLKDV: ['Tdcmpdv', 640, 'min', 3.125, 636.875], CLKFX: ['Tdcmpfx', 20, 'min', 1.533, 18.467] });
+  assert.deepEqual(sw('CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::1X', ['CLK0'], 4), { CLKIN: ['Tdcmpc', 4, 'min', 2.082, 1.918], CLK0: ['Tdcmpco', 8, 'min', 2.083, 5.917] });
+  // CLK2X (1.607 to 50 ns) and CLKFX180 of the halved input; no feedback: the DFS's CLKIN halved (1.501 to 2500 ns),
+  // CLKFX 3 / 15 over its 100 ns there too, x 8 at 250 ns within it
+  assert.deepEqual(sw('CLKFX_DIVIDE::1 CLKFX_MULTIPLY::2 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::1X', ['CLK0', 'CLK2X', 'CLKFX180']), {
+    CLKIN: ['Tdcmpc', 20, 'min', 2.082, 17.918], CLK0: ['Tdcmpco', 40, 'min', 2.083, 37.917], CLK2X: ['Tdcmpco', 20, 'min', 1.607, 18.393], CLKFX180: ['Tdcmpfx', 20, 'min', 1.533, 18.467] });
+  assert.deepEqual(sw('CLKFX_DIVIDE::15 CLKFX_MULTIPLY::3 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::NONE', ['CLKFX']), {
+    CLKIN: ['Tdcmpc', 20, 'min', 1.501, 18.499], CLKFX: ['Tdcmpfx', 200, 'max', 100, -100] });
+  assert.deepEqual(sw('CLKFX_DIVIDE::1 CLKFX_MULTIPLY::8 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::NONE', ['CLKFX'], 250), {
+    CLKIN: ['Tdcmpc', 250, 'min', 1.501, 248.499], CLKFX: ['Tdcmpfx', 62.5, 'max', 100, 37.5] });
+  // feat_dcm_div2 now: CLKFX x 2 / 5, 100 ns, at its limit (trce: slack 0.000)
+  assert.deepEqual(sw('CLKFX_DIVIDE::5 CLKFX_MULTIPLY::2 CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 CLK_FEEDBACK::1X DESKEW_ADJUST::0', ['CLK0', 'CLKFX']).CLKFX, ['Tdcmpfx', 100, 'max', 100, 0]);
+  // (ISE's XDL writes #OFF for a setting off)
+  assert.deepEqual(sw('CLKIN_DIVIDE_BY_2::#OFF CLK_FEEDBACK::1X', ['CLK0']).CLKIN, ['Tdcmpc', 20, 'min', 4.166, 15.834]);
 });

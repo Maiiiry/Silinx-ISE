@@ -1048,9 +1048,78 @@ export function checkOffsets(r, design, offsets = [], ucfClocks = []) {
   return out;
 }
 
+// A DCM's switching limits (#661): [name, min period, max period] (ns) of each pin as trce 14.7 checks them on the
+// Spartan-3E -4 (measured on 24 designs, research/s3e-route/README.md). CLKIN's are the DLL's when the DLL is used
+// (CLK_FEEDBACK 1X / 2X), the DFS's when it is not; with CLKIN_DIVIDE_BY_2, trce halves every limit of the DCM, its
+// outputs' too (a CLKFX of 200 ns, 5 MHz, is then over its 100 ns): the second row.
+const DCM_LIMITS = [{
+  CLKIN_DLL: ['Tdcmpc', 4.166, 200], CLKIN_DFS: ['Tdcmpc', 3.002, 5000], CLK0: ['Tdcmpco', 4.166, 200], CLK2X: ['Tdcmpco', 3.214, 100],
+  CLKDV: ['Tdcmpdv', 6.249, 3225.8], CLKFX: ['Tdcmpfx', 3.067, 200],
+}, {
+  CLKIN_DLL: ['Tdcmpc', 2.082, 100], CLKIN_DFS: ['Tdcmpc', 1.501, 2500], CLK0: ['Tdcmpco', 2.083, 100], CLK2X: ['Tdcmpco', 1.607, 50],
+  CLKDV: ['Tdcmpdv', 3.125, 1612.9], CLKFX: ['Tdcmpfx', 1.533, 100],
+}];
+const DCM_LIMIT_OF = { CLK90: 'CLK0', CLK180: 'CLK0', CLK270: 'CLK0', CLK2X180: 'CLK2X', CLKFX180: 'CLKFX' };
+
+/**
+ * The Component Switching Limit checks of trce on the DCMs (#661): the period of each DCM's CLKIN and of each output
+ * it drives, derived from the PERIOD constraint of the pad its CLKIN comes from (as checkPeriods), against the pin's
+ * minimum and maximum period (DCM_LIMITS). [{ kind: 'switching', resource: 'u_dcm/CLKFX', port, limit: 'Tdcmpfx',
+ * period, min, max, bound: 'min' | 'max' (the nearer), slack (to it), met }]; a DCM whose input has no constraint is
+ * not checked (as trce).
+ */
+export function checkSwitching(design, constraints = []) {
+  const periodOf = new Map(constraints.map(k => [String(k.net).toLowerCase(), k.period]));
+  const inst = new Map(design.insts.map(i => [i.name, i]));
+  const driver = new Map(), inNet = new Map();
+  for (const n of design.nets) {
+    if (n.outpins?.[0]) driver.set(n.name, n.outpins[0]);
+    for (const p of n.inpins || []) inNet.set(`${p.inst}\u0000${p.pin}`, n.name);
+  }
+  // a net's period (ns) and port: through the clock buffers and the DCMs, as clockSources
+  const periodAt = (net, depth = 0) => {
+    const d = driver.get(net), i = d && inst.get(d.inst);
+    if (!i || depth > 8) return null;
+    if (/^(IOB|IBUF|IBUFG|IOBS|IOBM|DIFFM|DIFFS)$/.test(i.type)) { const T = periodOf.get(i.name.toLowerCase()); return T ? { T, port: i.name } : null; }
+    if (/^BUFG/.test(i.type)) { const n = inNet.get(`${i.name}\u0000I0`) || inNet.get(`${i.name}\u0000I`); return n ? periodAt(n, depth + 1) : null; }
+    if (/^DCM/.test(i.type)) {
+      const n = inNet.get(`${i.name}\u0000CLKIN`), src = n ? periodAt(n, depth + 1) : null, out = dcmOutput(i, d.pin);
+      return src && out ? { T: src.T * out.f, port: src.port } : null;
+    }
+    return null;
+  };
+  const out = [];
+  for (const i of design.insts) {
+    if (!/^DCM/.test(i.type)) continue;
+    const n = inNet.get(`${i.name}\u0000CLKIN`), src = n && periodAt(n);
+    if (!src) continue;
+    const cfg = a => i.cfg?.find(c => c.attr === a)?.value;
+    const lim = DCM_LIMITS[cfg('CLKIN_DIVIDE_BY_2') && cfg('CLKIN_DIVIDE_BY_2') !== '#OFF' ? 1 : 0];
+    const pins = [['CLKIN', src.T, lim[/^(1X|2X)$/.test(cfg('CLK_FEEDBACK') || '1X') ? 'CLKIN_DLL' : 'CLKIN_DFS']]];
+    for (const m of design.nets) {
+      const p = m.outpins?.[0];
+      if (p?.inst !== i.name || !m.inpins?.length) continue;
+      const l = lim[DCM_LIMIT_OF[p.pin] || p.pin], o = l && dcmOutput(i, p.pin);
+      if (o) pins.push([p.pin, src.T * o.f, l]);
+    }
+    for (const [pin, T, [limit, min, max]] of pins) {
+      const period = Math.round(T * 1e6) / 1e6, sMin = period - min, sMax = max - period;
+      const bound = sMax < sMin ? 'max' : 'min', slack = Math.round(Math.min(sMin, sMax) * 1e6) / 1e6;
+      out.push({ kind: 'switching', resource: `${i.name}/${pin}`, port: src.port, limit, period, min, max, bound, slack, met: slack >= 0 });
+    }
+  }
+  return out;
+}
+
+/** A switching limit check (checkSwitching) in a line, as trce's: the nearer of the pin's two limits. */
+export function switchingLine(k) {
+  const lim = k.bound === 'max' ? k.max : k.min;
+  return `switching limit of ${k.resource} (${k.limit}): ${k.met ? 'met' : 'NOT MET'}, period ${k.period.toFixed(3)} ns, ${k.bound} period limit ${lim.toFixed(3)} ns (${(1000 / lim).toFixed(3)} MHz), slack ${k.slack.toFixed(3)} ns`;
+}
+
 /** A readable report of the critical path of each clock (lines of text), with the PERIOD checks
- *  (checkPeriods) and the OFFSET checks (checkOffsets) when given; the paths between two clocks (checkCross,
- *  #601); then the pads' paths and the hold check (#26). */
+ *  (checkPeriods), the switching limits (checkSwitching, #661) and the OFFSET checks (checkOffsets) when given; the
+ *  paths between two clocks (checkCross, #601); then the pads' paths and the hold check (#26). */
 export function timingReport(r, checks = []) {
   const lines = [];
   const step = s => `  ${s.kind.padEnd(12)} ${s.delay.toFixed(3).padStart(7)} ${s.arrival.toFixed(3).padStart(8)}  ${s.inst}.${s.pin}`;
@@ -1060,6 +1129,7 @@ export function timingReport(r, checks = []) {
   for (const k of checks) if (k.kind === 'offset' && k.clock) clocksOf.set(`${k.text}\u0000${k.port}`, (clocksOf.get(`${k.text}\u0000${k.port}`) || 0) + 1);
   for (const k of checks) {
     if (k.kind === 'cross') continue;
+    if (k.kind === 'switching') { lines.push(switchingLine(k)); continue; }
     if (k.via) {
       lines.push(`constraint PERIOD ${k.constraint} ns on ${k.port}, ${k.via}: ${+k.required.toFixed(3)} ns, ${k.met ? 'met' : 'NOT MET'} (period ${k.period.toFixed(3)} ns, slack ${k.slack.toFixed(3)} ns)`);
       continue;

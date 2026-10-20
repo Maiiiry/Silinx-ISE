@@ -611,7 +611,7 @@ mixed, xdl refusing these settings in an edited design) and xdl variants of the 
   XC3S100E, XC3S250E and XC3S500E; the XC3S1200E's differs only in its side global buffers (#45) and
   long-line splitters.
 - **The open flow**: `test/fixtures/open-flow/feat_dcm_div2` (Basys2-250: CLKIN_DIVIDE_BY_2,
-  SOURCE_SYNCHRONOUS, CLKFX 25 MHz x 3 / 15 at the edge of its range) and `feat_dcm_fx` (Nexys2-500:
+  SOURCE_SYNCHRONOUS, CLKFX 25 MHz x 3 / 15 at the edge of its range; since #661 x 2 / 5, trce's edge) and `feat_dcm_fx` (Nexys2-500:
   a period of 20.9 ns, CLKFX x 3 / 30) are byte-identical to ISE's bitgen, CRC on and off, DRC 0
   errors and 0 warnings.
 

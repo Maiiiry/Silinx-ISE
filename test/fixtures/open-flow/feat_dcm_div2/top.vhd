@@ -2,9 +2,10 @@
 -- source-synchronous deskew (DESKEW_ADJUST = SOURCE_SYNCHRONOUS) and a CLKFX at the edge of its
 -- frequency range (#46).
 -- The 50 MHz clock (B8) enters a DCM_SP that halves it: CLK0 (25 MHz, the feedback) and CLKFX
--- (25 MHz x 3 / 15 = 5 MHz: just inside the range of the fast CLKFX input, as ISE counts it with the
--- period in whole nanoseconds), each on a global buffer, each clocking a 27-bit counter:
---   LD0  CLKFX  (about 13.4 s per on-off cycle)
+-- (25 MHz x 2 / 5 = 10 MHz: the slowest CLKFX trce allows here, CLKIN_DIVIDE_BY_2 halving every limit
+-- of the DCM in its switching limit checks, #661; 5 MHz was a timing error), each on a global buffer,
+-- each clocking a 27-bit counter:
+--   LD0  CLKFX  (about 6.7 s per on-off cycle)
 --   LD1  CLK0   (about 2.7 s)
 --   LD7  LOCKED (on when the DCM has locked)
 -- sw(0) = 1 holds the counters.
@@ -29,7 +30,7 @@ begin
 
   u_dcm : DCM_SP
     generic map (
-      CLKDV_DIVIDE => 2.0, CLKFX_MULTIPLY => 3, CLKFX_DIVIDE => 15, CLKIN_PERIOD => 20.0,
+      CLKDV_DIVIDE => 2.0, CLKFX_MULTIPLY => 2, CLKFX_DIVIDE => 5, CLKIN_PERIOD => 20.0,
       CLK_FEEDBACK => "1X", CLKIN_DIVIDE_BY_2 => TRUE, CLKOUT_PHASE_SHIFT => "NONE",
       DESKEW_ADJUST => "SOURCE_SYNCHRONOUS",
       DFS_FREQUENCY_MODE => "LOW", DLL_FREQUENCY_MODE => "LOW", STARTUP_WAIT => FALSE)
