@@ -1193,3 +1193,45 @@ The T80 (1.15 times XST's LUTs, #54) is not changed: its wider mapping is not ke
 against 2154 and 1146 onto LUT4s alone). Its 361 flip-flops against XST's 247 are most likely its register file
 (T80_Reg: two arrays of 8 × 8 bits, written at one address, read asynchronously at three): 128 flip-flops in the open
 synthesis, no distributed RAM; XST can make it RAM16X1Ds (not checked: ISE's map report is not in the comparison). Left.
+
+### The wider mapping at effort Normal (#54)
+
+At Normal a design that is not deep (#468) got the usual mapping alone (and the critical path's remaps, #652, #653):
+the EPFL barrel shifter stayed at 1199 LUTs and 600 slices at the app's default effort, against 941 and 471 at High.
+Normal now makes the mapping with the wider functions too (`LUT4_COSTS`, `LUT6_MAP`), one more remap from the netlist
+before the LUT mapping, started beside the others, kept when better by `DEPTH_RULE` than the netlist chosen of the
+others. It is measured last: measured first, the kept wider netlist then kept out a faster one of the critical path's
+remaps (ITC'99 b08: the enables folded, 14 % faster by the estimate for 17 % more LUTs than the wider one, refused;
+routed 11 % slower). Not after the wide multiplexers were kept (#511), as the critical path's remaps.
+
+Measured on 2026-10-20 (synthesis at Normal, one Yosys at a time, the corpus's designs but the three largest, EPFL log2
+and multiplier and AES, above `DEPTH_RULE.maxLuts`, where it is not tried; routed in the corpus's projects on the XC3S1200E, seeds 1 to 3, the period their mean).
+8 designs change, all faster by the estimate:
+
+| design | LUTs | slices | period (ns) |
+|---|---|---|---|
+| epfl-bar | 1199 → **941** (XST 939) | 600 → **471** (XST 534) | 10.28 → **8.76** |
+| itc99-b01 | 13 → 9 | 7 → 5 | 3.12 → **2.52** |
+| iwls05-simple-spi | 149 → 157 | 83 → 89 (+7 %) | 6.81 → **6.21** |
+| verilog-axis-fifo | 16 → 16 | 19 → 19 | 6.16 → 5.87 |
+| uart-for-fpga | 58 → 56 | 41 → 42 | 4.89 → 4.75 |
+| itc99-b04 | 139 → 139 | 105 → 105 | 13.95 → 13.69 |
+| verilog-uart | 129 → 133 | 120 → 131 (+9 %) | 9.93 → 9.83 |
+| epfl-ctrl (no clock) | 50 → 44 | 25 → 26 | |
+
+The 7 timed ones: 0.92 times the LUTs, 0.95 times the slices, 0.92 times the period (geometric means); none slower.
+The examples keep their netlists. The corpus's synthesis at Normal took 356 s instead of 304 (one Yosys at a time;
+with the app's 4 workers the remap runs beside the others).
+
+### The T80's register file as distributed RAM (#54): tried, not kept
+
+The T80 has 361 flip-flops against XST's 247 and 2153 LUTs against 1874. Its register file (T80_Reg: two arrays of
+8 × 8 bits, written at one address, read asynchronously at three) is 128 flip-flops and their read multiplexers:
+Yosys's `memory_libmap` prices it as logic at 1 per bit (64) and as RAM16X1D at 84 (two copies for the three read
+ports), and ignores the multiplexers. With synth_xilinx's memory step made by hand (`-run :map_memory`, then
+`memory_libmap -lib +/xilinx/lutrams_xcv.txt -lib +/xilinx/brams_xc2v.txt -logic-cost-ram 2` and the two maps, then
+`-run map_ffram:`; `-logic-cost-ram 1` gives main's netlist exactly) the T80 gets 32 RAM16X1D. At Normal, routed
+(seeds 1 to 3): 1146 → 1024 slices (XST 1000), 361 → 233 flip-flops, 2153 → 1846 logic LUTs, but 21.71 → 23.11 ns
+(+6.4 %): the RAM's read address comes from about 12 levels of LUTs, and the read can no longer be mapped together
+with the logic after it. At High the second balancing is kept (18.6 ns by the estimate), routed 22.47 ns against
+21.44, 1177 slices. Slower, so not kept.

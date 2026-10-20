@@ -694,7 +694,8 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * the mapping with the clock enables that end the critical path folded into D (#653), both from the netlist before the
  * LUT mapping, measured against the netlist chosen of the others, on both efforts (speed: false leaves them out).
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
- * usual mapping alone (no other mapping tried: as depth false; but the critical path's remaps, #652), but for a design limited by its depth (#468:
+ * usual mapping alone (no other mapping tried: as depth false; but the critical path's remaps, #652, and the mapping with the
+ * wider functions, r.depth.wide, measured against the netlist chosen of the others, #54; wide: false leaves it out), but for a design limited by its depth (#468:
  * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too, kept when deepRule.gain
  * (DEEP_RULE's) faster than Normal's own netlist (#611: r.depth.normal { ns, luts, kept: Normal's own kept }, r.depth.high { ns, luts }
  * of High's then), and for a design
@@ -704,7 +705,7 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * synthesized once more with them one-hot (#539, core/synth-fsm.js), that netlist kept when better by DEPTH_RULE:
  * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
@@ -799,6 +800,13 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
       { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [LUT6_MAP_FILE]: LUT6_MAP, ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
       l => { if (!quiet(l)) lines.push(l); });
+    // Normal, a design that gets none of High's mappings (#54): the mapping with the wider functions too (LUT4_COSTS,
+    // ABC's own script, the 6-input functions split by LUT6_MAP), kept when better by DEPTH_RULE, as at High (the EPFL
+    // barrel shifter's 4:1 multiplexers: two LUT4s and a MUXF5 each); started at once beside the others (not after the wide
+    // multiplexers kept, as the critical path's remaps)
+    const linesW = [];
+    const wideN = wide && normal && !tryDepth && depth && !info.muxf?.kept && !info.muxf?.failed && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts ? remap(null, linesW) : null;
+    wideN?.catch(() => {});
     // the GIA's SOP balancing (#654): a deep design's candidate (SOPB_RULE), at both efforts and above DEPTH_RULE.maxLuts
     // too, started at once beside the other mappings
     const linesS = [];
@@ -966,6 +974,27 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         for (const k of ['speed', 'fold']) delete info[k];
         info.speedFailed = e.message;
         sayNew(`Warning: the critical path's remapping failed (${e.message}): the netlist chosen before it is kept`);
+      }
+    }
+    // (Normal: the wider mapping measured against the netlist chosen of the others, the critical path's remaps included:
+    // measured before them, it kept them out where they were faster, itc99-b08 11 % slower)
+    if (wideN) {
+      try {
+        const outW = await wideN, jW = outW[`${top}.json`];
+        if (jW) {
+          const cellsW = cellCounts(jW, top);
+          const j0 = chosen[`${top}.json`];
+          const ns = [criticalDelay(j0, top), criticalDelay(jW, top)], luts = [utilization(cells).luts, utilization(cellsW).luts], sl = [slices(j0), slices(jW)];
+          info.wide = { ns: ns[1], luts: luts[1], slices: sl[1], kept: keepDepth(ns, luts, DEPTH_RULE, sl) };
+          if (info.wide.kept) {
+            chosen = outW;
+            cells = cellsW;
+            for (const l of linesW) sayNew(l);
+          }
+        }
+      } catch (e) {
+        info.wide = { kept: false, failed: e.message };
+        sayNew(`Warning: the mapping with the wider functions failed (${e.message}): the netlist chosen before is kept`);
       }
     }
     return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]) };
