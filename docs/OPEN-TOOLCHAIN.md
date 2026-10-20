@@ -38,7 +38,7 @@ switch). It is built by black-box observation, as described below.
 **Devices.** The Silinx toolchain is developed for the Spartan-3E: the XC3S250E (Basys2-250) first,
 then the other Spartan-3E boards (XC3S100E, XC3S500E, XC3S1200E: their bit databases share the
 tile types' bits with the XC3S250E's; research/s3e-bitstream/README.md, stage F). It does not yet support the Spartan-6 boards (Nexys3, Atlys):
-that is planned ([#1](https://github.com/pmnmalo/Silinx-ISE/issues/1)).
+that is planned ([#1](https://github.com/pmnmalo/Silinx-ISE/issues/1); the plan: [research/s6/README.md](../research/s6/README.md)).
 
 ## Method: observation of a tool's behaviour (black-box)
 
