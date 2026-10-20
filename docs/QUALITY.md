@@ -30,7 +30,7 @@ default (one mapping, the faster synthesis; since 15.11.1 also the mappings for 
   critical path −2%, as fast or faster on 20 of 40.
 - **Reading the design:** XST (ISE 14.7's synthesis, from 2013) cannot read 15 of the designs (`$clog2`, VHDL-2008
   and other constructs it predates, listed below); Silinx reads them.
-- The Silinx toolchain is experimental: these numbers are tracked to improve it (the GitHub
+- These numbers are tracked to improve the Silinx toolchain (the GitHub
   [issues](https://github.com/pmnmalo/Silinx-ISE/issues) labelled *synthesis* and *place & route*).
 
 ## Size

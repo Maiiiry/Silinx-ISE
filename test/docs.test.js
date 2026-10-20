@@ -145,8 +145,13 @@ const named = text => [...text.matchAll(/\b(Basys2|Nexys2|Nexys3|Atlys)-(\w+)((?
   .flatMap(([, b, v, more]) => [v, ...more.split(' / ').slice(1)].map(x => `${b}-${x}`));
 
 test('docs: the Silinx toolchain\'s name and default mode are the code\'s', () => {
-  assert.equal(MODE_LABEL, 'Silinx toolchain (experimental, no ISE)');
+  assert.equal(MODE_LABEL, 'Silinx toolchain (no ISE)');
   for (const f of DOCS) assert.doesNotMatch(read(f), /Open toolchain \(experimental/, f);
+  // a production toolchain (#675): neither the docs nor the interface's labels call it experimental (the bit
+  // database's experiments are another word)
+  for (const f of [...DOCS, ...fs.readdirSync(path.join(ROOT, 'web/js')).filter(x => x.endsWith('.js')).map(x => `web/js/${x}`), 'server/toolchain.js', 'server/open-flow.js']) {
+    assert.doesNotMatch(read(f), /\bexperimental\b/i, f);
+  }
   const readme = read('README.md');
   assert.ok(readme.includes(`*${MODE_LABEL}*`), 'README names the mode by its label');
   // "the default mode" exactly when it is

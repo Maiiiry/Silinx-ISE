@@ -1,4 +1,4 @@
-// The Silinx toolchain (toolchain mode 'silinx', experimental): Implement Design and Generate
+// The Silinx toolchain (toolchain mode 'silinx'): Implement Design and Generate
 // Programming File without Xilinx ISE, for the devices with a device description (the routing
 // graph: core/fpga/devices/ or ~/.silinx/devices) and a bit database (research/s3e-bitstream/db).
 //
@@ -130,7 +130,7 @@ export function openSteps(steps, { synthUpToDate = false } = {}) {
 export async function runOpenImplementation(job, { project, projectDir, steps, seed = 1, effort = 1, synthUpToDate = false }) {
   const st = openSteps(steps, { synthUpToDate });
   const status = openStatus(project.device || {});
-  job.log(`Silinx implementation with the Silinx toolchain (experimental, no ISE): ${project.name} top=${project.top} device=${status.part || '?'}`);
+  job.log(`Silinx implementation with the Silinx toolchain (no ISE): ${project.name} top=${project.top} device=${status.part || '?'}`);
   const result = { buildDir: path.join(projectDir, 'build'), steps: st, warnings: [], mode: 'silinx', reports: null, completedSteps: [], failedStep: null };
   if (!status.available) {
     job.log(`ERROR: the Silinx toolchain cannot implement this design: ${status.reason}.`);

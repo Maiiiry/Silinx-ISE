@@ -114,7 +114,7 @@ export function qualityPage(res, { epfl = null } = {}) {
     `  critical path ${pct(gPeriodH)}, as fast or faster on ${fasterH} of ${timedH.length}.`);
   if (xstCannot) L.push(`- **Reading the design:** XST (ISE 14.7's synthesis, from 2013) cannot read ${xstCannot} of the designs (\`$clog2\`, VHDL-2008`,
     '  and other constructs it predates, listed below); Silinx reads them.');
-  L.push('- The Silinx toolchain is experimental: these numbers are tracked to improve it (the GitHub',
+  L.push('- These numbers are tracked to improve the Silinx toolchain (the GitHub',
     '  [issues](https://github.com/pmnmalo/Silinx-ISE/issues) labelled *synthesis* and *place & route*).', '');
   L.push('## Size', '');
   L.push('4-input LUTs used as logic (not the LUTs a route passes through), flip-flops and occupied slices',

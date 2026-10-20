@@ -861,7 +861,7 @@ export async function toolchainDialog() {
   }
   const cfg = JSON.parse(JSON.stringify(tc.config));
   const ISE_OPTS = [['local', 'Local (Xilinx ISE installed locally)'], ['docker', 'Docker image with Xilinx ISE'], ['ssh', 'Remote host with Xilinx ISE via SSH']];
-  const mode = select([...ISE_OPTS, ['silinx', 'Silinx toolchain (experimental, no ISE)']], cfg.mode);
+  const mode = select([...ISE_OPTS, ['silinx', 'Silinx toolchain (no ISE)']], cfg.mode);
   const inputs = {
     'local.settings': h('input', { type: 'text', value: cfg.local.settings || '', placeholder: 'auto-detect (…/14.7/ISE_DS/settings64.sh)' }),
     'docker.image': h('input', { type: 'text', value: cfg.docker.image || '', placeholder: 'e.g. my-ise:14.7' }),
@@ -889,7 +889,7 @@ export async function toolchainDialog() {
   const openBox = h('div', { class: `msg open-status ${os?.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, os?.available ? '✓' : '!'),
     h('div', { class: 'msg-text' }, h('b', {}, os ? `Silinx toolchain for ${os.part || S.project?.device?.part || 'this device'}: ${os.available ? 'available' : 'not available'}` : 'Silinx toolchain: open a project to see whether its device is supported'),
       os ? h('div', {}, os.reason) : null,
-      h('div', { style: { color: 'var(--grey-3)', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2). Experimental: check the design on the board.')));
+      h('div', { style: { color: 'var(--grey-3)', marginTop: '4px' } }, 'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2).')));
   const renderMode = () => {
     modeBox.innerHTML = '';
     const open = mode.value === 'silinx';
@@ -903,7 +903,7 @@ export async function toolchainDialog() {
   const progRows = Object.entries(tc.programmers).map(([k, v]) => h('tr', {}, h('td', {}, k), h('td', { html: v.found ? icons.ok : icons.err }), h('td', {}, v.found ? `${v.path}${v.version ? ` (${v.version})` : ''}` : 'not found')));
   body.replaceChildren(
     h('div', { class: `msg ${st.available ? '' : 'msg-warn'}`, style: { marginBottom: '10px' } }, h('div', { class: 'msg-icon' }, st.available ? '✓' : '!'),
-      h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'silinx' ? 'Silinx toolchain (experimental, no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: 'var(--grey-3)' } }, st.help),
+      h('div', { class: 'msg-text' }, h('b', {}, st.mode === 'silinx' ? 'Silinx toolchain (no ISE): selected' : `Xilinx ISE 14.7: ${st.available ? 'available' : 'not available'}`), `\n${st.reason}\n\n`, h('span', { style: { color: 'var(--grey-3)' } }, st.help),
         st.available ? null : h('div', { style: { marginTop: '8px' } }, h('b', {}, 'Easiest setup on any OS: '), 'build the private Docker image with the Silinx kit (docker/ise/README.md): ',
           h('code', {}, 'docker/ise/build-ise-image.sh --installer <Xilinx_ISE_DS_Lin_14.7_1015_1.tar> --license <Xilinx.lic>'), ' (Windows: build-ise-image.ps1). It configures Silinx automatically.'))),
     h('div', { class: 'form-grid' }, h('label', {}, 'Execution mode:'), mode),
