@@ -55,6 +55,8 @@ function busSheet(lang, { W = 4, reader = false, inout = true } = {}) {
   }
   return normalizeDoc(doc);
 }
+// the bus's vertical run at x = 500 (its wire split at the branches, the connections as wire ends, #678)
+const busWire = doc => doc.wires.find(w => w.points.every(p => p.x === 500));
 const errorsOf = d => d.diagnostics.filter(x => x.severity === 'error').map(x => x.message);
 
 // ------------------------------------------------------------------ library
@@ -195,8 +197,8 @@ test('generateHdl: an internal tri-state net (resolved signal), 1-bit buffers, o
   for (const lang of LANGS) {
     // internal bus read by a buffer: declared std_logic_vector / wire, two continuous drivers
     const doc = busSheet(lang, { reader: true });
-    const bus = doc.wires.find(w => w.points.length === 4);
-    doc.labels.push({ id: 'L1', x: bus.points[1].x, y: bus.points[1].y + 20, net: 'ibus' });
+    const bus = busWire(doc);
+    doc.labels.push({ id: 'L1', x: bus.points[0].x, y: Math.min(...bus.points.map(p => p.y)) + 20, net: 'ibus' });
     doc.ports = doc.ports.filter(p => p.name !== 'data');
     const g = generateHdl(normalizeDoc(doc));
     assert.deepEqual(errorsOf(g), [], g.code);
@@ -299,7 +301,7 @@ test('live schematic simulation: two tri-state buffers on a bus with an inout ma
     const id = n => doc.ports.find(p => p.name === n).id;
     const bits = n => V.toBin(live.portValue(id(n)));
     const busNet = live.nl.portNet.get(id('data'));
-    const wireLevel = () => level(live.netValue(live.nl.wireNet.get(doc.wires.find(w => w.points.length === 4).id)));
+    const wireLevel = () => level(live.netValue(live.nl.wireNet.get(busWire(doc).id)));
     assert.deepEqual(live.bidirs.map(b => b.name), ['data']);
     live.set(id('a'), 0b0101n); live.set(id('b'), 0b1010n); live.set(id('tn'), 1n);
     assert.equal(bits('data'), 'zzzz', 'both released');

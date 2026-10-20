@@ -297,7 +297,7 @@ uiTest('#301 #313 #334 schematic palette: one MUX and one DEMUX (no M4_1 … / D
   await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/SchMux/file?path=src%2Fmx.sch.json')).text()).symbols[0].type === 'mux4', [], { what: 'M4_1 saved' });
   await page.key('Escape');
   const saved = JSON.parse(await readWs(env, 'SchMux', 'src/mx.sch.json'));
-  assert.deepEqual([saved.version, saved.symbols[0].type, saved.symbols[0].params.selBus, saved.symbols[0].params.en], [2, 'mux4', false, false]);
+  assert.deepEqual([saved.version, saved.symbols[0].type, saved.symbols[0].params.selBus, saved.symbols[0].params.en], [3, 'mux4', false, false]);
   const texts = (cls) => page.eval((d, c) => [...document.querySelectorAll(`${d} .se-svg g.sym ${c}`)].map((t) => t.textContent), D, cls);
   const names = await texts('text');
   for (const n of ['S1', 'S0']) assert.ok(names.includes(n), names.join(' '));
@@ -855,7 +855,8 @@ uiTest('#303 a schematic with two drivers on a net: its old HDL file is not simu
   const out = (id) => symbolPins(normalizeDoc({ ...doc, symbols: [doc.symbols.find((s) => s.id === id)] }).symbols[0]).find((p) => p.name === 'O');
   const o1 = out('S1'), o2 = out('S2');
   doc.ports.push({ id: 'P1', name: 'y', dir: 'out', width: 1, x: o1.x + 60, y: o1.y });
-  doc.wires.push({ id: 'W1', points: [o1, { x: o1.x + 60, y: o1.y }] }, { id: 'W2', points: [o2, { x: o1.x + 30, y: o2.y }, { x: o1.x + 30, y: o1.y }] });
+  // (W1 in two, where W2 ends on it: a T-junction, #678)
+  doc.wires.push({ id: 'W1', points: [o1, { x: o1.x + 30, y: o1.y }] }, { id: 'W3', points: [{ x: o1.x + 30, y: o1.y }, { x: o1.x + 60, y: o1.y }] }, { id: 'W2', points: [o2, { x: o1.x + 30, y: o2.y }, { x: o1.x + 30, y: o1.y }] });
   const OLD = "library ieee;\nuse ieee.std_logic_1164.all;\nentity s is\n  port (y : out std_logic);\nend s;\narchitecture rtl of s is\nbegin\n  y <= '1';\nend rtl;\n";
   await makeProject(env, { name: 'StaleSch', files: { 'src/s.vhd': OLD, 'src/s.sch.json': JSON.stringify(doc) }, top: 's' });
   await page.openProject('StaleSch');

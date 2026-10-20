@@ -5,7 +5,7 @@
 //            schematicFromHdl, modulesFromLibrary } from '/core/schdoc.js';
 //
 // Document format (version 1, all coordinates in sheet pixels on a GRID = 10 px grid):
-//   { version: 2, name, lang: 'vhdl'|'verilog', sheet: { w, h },
+//   { version: 3, name, lang: 'vhdl'|'verilog', sheet: { w, h },
 //     symbols: [{ id, type, x, y, rot: 0|90|180|270, mirror: bool, name, params: {...}, hdl?: string }],
 //     wires:   [{ id, points: [{x,y},...], bus?: bool }],
 //     labels:  [{ id, x, y, net }],          // net name attached to the wire point (x,y)
@@ -17,9 +17,11 @@
 //     description?: 'text' }                // shown on the sheet, a comment in the generated HDL
 //
 // (x, y) of a symbol is the top-left corner of its (rotated) bounding box; rotation is clockwise.
-// Connectivity is purely geometric: a pin connects to a wire whose end point or vertex lies on it,
-// a wire end point lying on another wire's segment makes a T-junction, labels (and I/O markers)
-// with the same name join their nets.
+// Connectivity is geometric, at the ends only (#678): wire end points, pins and I/O markers at the
+// same point connect; a wire passing over a pin or another wire (a segment or a bend of it) does not.
+// A connection made in the middle of a wire (a wire ended on its segment, a symbol dropped onto it)
+// splits that wire there (splitWiresAt). Labels attach to the wire under them; labels (and I/O
+// markers) with the same name join their nets.
 import { parse as parseVhdl } from './vhdl/parser.js';
 import { parse as parseVerilog } from './verilog/parser.js';
 import { clocksOf } from './schematic.js';
@@ -27,7 +29,9 @@ import { elaborate } from './elaborate.js';
 
 export const GRID = 10;
 // 2 (#301): the M4_1's and DEMUX's select bits on pins of their own (a document of version 1 keeps its bus S)
-export const DOC_VERSION = 2;
+// 3 (#678): connections at the wires' ends only (a document of version 2 has its wires split where
+// they connected in their middle: a pin, a marker, a wire end or a bend on them)
+export const DOC_VERSION = 3;
 
 const snap = v => Math.round(v / GRID) * GRID;
 const r10 = v => Math.ceil(v / GRID) * GRID;
@@ -512,9 +516,12 @@ export function newDoc(name = 'schematic', lang = 'vhdl') {
   return { version: DOC_VERSION, name, lang, sheet: { w: 1700, h: 1100 }, symbols: [], wires: [], labels: [], ports: [] };
 }
 
-export function normalizeDoc(d) {
+// (modules: the project's modules, the pins of its module symbols, to convert a document of version 2;
+// without them, a document with module symbols stays at version 2, converted when they are known)
+export function normalizeDoc(d, { modules } = {}) {
   const doc = d && typeof d === 'object' ? clone(d) : newDoc();
   const before301 = !(+doc.version >= 2);
+  const before678 = !(+doc.version >= 3);
   doc.version = DOC_VERSION;
   doc.name = String(doc.name || 'schematic');
   doc.lang = doc.lang === 'verilog' ? 'verilog' : 'vhdl';
@@ -556,6 +563,11 @@ export function normalizeDoc(d) {
   for (const s of doc.symbols) if (!s.name) { do k++; while (names.has(`U${k}`)); s.name = `U${k}`; names.add(s.name); }
   if (doc.hdl && typeof doc.hdl !== 'object') delete doc.hdl;
   delete doc.importDiagnostics;
+  if (before678) {
+    const mods = normModules(modules);
+    joinOnWires(doc, mods);
+    if (doc.symbols.some(s => symbolDef(s, mods).missing)) doc.version = 2;
+  }
   return doc;
 }
 
@@ -587,8 +599,8 @@ class DSU {
 // net = { id, name, auto, width, endpoints: [{ kind:'pin', sym, pin, dir, width } | { kind:'port', port, dir, width }],
 //         wires: [ids], labels: [ids], ports: [ids], drivers: [endpoints] }
 export function netlist(docIn, { modules = {} } = {}) {
-  const doc = docIn && docIn.version ? docIn : normalizeDoc(docIn);
   modules = normModules(modules);
+  const doc = docIn && +docIn.version >= 3 ? docIn : normalizeDoc(docIn, { modules });
   const ci = doc.lang === 'vhdl';
   const nk = s => (ci ? String(s).toLowerCase() : String(s));
   // a signal declared in the HDL kept in the schematic (its declarations, a schematic made from HDL)
@@ -619,12 +631,12 @@ export function netlist(docIn, { modules = {} } = {}) {
     dsu.find(id);
     addAt(p.x, p.y, id);
   }
-  // wires: every vertex touches the wire
+  // wires: their end points touch what is there (#678: not their bends, nor their segments)
   const hseg = new Map(), vseg = new Map(), oseg = [];
   for (const w of doc.wires) {
     const id = `w:${w.id}`;
     dsu.find(id);
-    w.points.forEach(pt => addAt(pt.x, pt.y, id));
+    for (const pt of [w.points[0], w.points[w.points.length - 1]]) addAt(pt.x, pt.y, id);
     for (let i = 0; i + 1 < w.points.length; i++) {
       const a = w.points[i], b = w.points[i + 1];
       const seg = { a, b, id };
@@ -635,21 +647,8 @@ export function netlist(docIn, { modules = {} } = {}) {
   }
   for (const ids of at.values()) for (let i = 1; i < ids.length; i++) dsu.union(ids[0], ids[i]);
   const segsAt = pt => [...(hseg.get(pt.y) || []), ...(vseg.get(pt.x) || []), ...oseg].filter(s => onSeg(pt, s.a, s.b));
-  // T-junctions: wire end points (and I/O marker points) on another wire's segment
-  const tjunction = [];
-  for (const w of doc.wires) {
-    for (const pt of [w.points[0], w.points[w.points.length - 1]]) {
-      for (const s of segsAt(pt)) if (s.id !== `w:${w.id}`) { dsu.union(`w:${w.id}`, s.id); tjunction.push(pt); }
-    }
-  }
-  // a pin or an I/O marker on a wire (a bus tap dropped onto a bus, a symbol onto a wire): connected
-  // there, as in ISE, wherever on the segment (#170); a dot where it is not the wire's end
-  for (const [id, info] of pinInfo) {
-    for (const s of segsAt(info)) {
-      dsu.union(id, s.id);
-      if (!(s.a.x === info.x && s.a.y === info.y) && !(s.b.x === info.x && s.b.y === info.y)) tjunction.push({ x: info.x, y: info.y });
-    }
-  }
+  // (a wire ended on another's segment, a pin dropped onto a wire, #170: that wire was split there,
+  // splitWiresAt, the joint an end of both; a wire passing over a pin or a wire end does not connect)
   // labels: attach to the wire under them (or a pin/marker at that point)
   const labelOf = new Map();
   for (const l of doc.labels) {
@@ -780,34 +779,75 @@ function epName(e, symById, doc) {
   return `port ${doc.ports.find(p => p.id === e.port)?.name ?? '?'}`;
 }
 
-// Junction dots: points where three or more wire branches meet.
+// Junction dots: points where three or more branches meet (wire ends, a pin or a marker, #678; a wire
+// through the point counts two, but connects there only at a vertex shared with ends).
 function junctionsOf(doc, pinInfo = new Map()) {
   const arms = new Map();
   const add = (pt, n) => { const k = key(pt.x, pt.y); arms.set(k, (arms.get(k) || 0) + n); };
-  const H = new Map(), Vv = new Map();
-  const ends = [];
-  for (const w of doc.wires) {
-    const P = w.points;
-    add(P[0], 1); add(P[P.length - 1], 1);
-    for (let i = 1; i < P.length - 1; i++) add(P[i], 2);
-    ends.push(P[0], P[P.length - 1]);
-    for (let i = 0; i + 1 < P.length; i++) {
-      const a = P[i], b = P[i + 1];
-      if (a.y === b.y) { let l = H.get(a.y); if (!l) H.set(a.y, l = []); l.push([Math.min(a.x, b.x), Math.max(a.x, b.x)]); }
-      else if (a.x === b.x) { let l = Vv.get(a.x); if (!l) Vv.set(a.x, l = []); l.push([Math.min(a.y, b.y), Math.max(a.y, b.y)]); }
-    }
-  }
-  for (const pt of ends) {
-    for (const [lo, hi] of H.get(pt.y) || []) if (pt.x > lo && pt.x < hi) add(pt, 2);
-    for (const [lo, hi] of Vv.get(pt.x) || []) if (pt.y > lo && pt.y < hi) add(pt, 2);
-  }
-  // a pin / I/O marker inside a segment (#170): a junction there
-  for (const pt of pinInfo.values()) {
-    if ((H.get(pt.y) || []).some(([lo, hi]) => pt.x > lo && pt.x < hi) || (Vv.get(pt.x) || []).some(([lo, hi]) => pt.y > lo && pt.y < hi)) add(pt, 3);
-  }
+  for (const w of doc.wires) { const P = w.points; add(P[0], 1); add(P[P.length - 1], 1); }
+  for (const pt of pinInfo.values()) if (arms.has(key(pt.x, pt.y))) add(pt, 1);
   const out = [];
   for (const [k, n] of arms) if (n >= 3) { const [x, y] = k.split(',').map(Number); out.push({ x, y }); }
   return out;
+}
+
+// the segment of wire w that point p is inside of (on a segment or a bend, not one of its ends), or -1
+function interiorAt(w, p) {
+  const P = w.points, n = P.length;
+  if ((P[0].x === p.x && P[0].y === p.y) || (P[n - 1].x === p.x && P[n - 1].y === p.y)) return -1;
+  for (let i = 0; i + 1 < n; i++) if (onSeg(p, P[i], P[i + 1])) return i;
+  return -1;
+}
+
+// Splits the wires (of ids, or all of them) at the points inside them, so that each point is an end of
+// the wires through it and connects there (#678): a wire ended on another's segment, a symbol or an
+// I/O marker dropped onto a wire (#170). Returns the wires added, [{ id, from }] (from: the wire split).
+export function splitWiresAt(doc, pts, ids = null) {
+  const used = new Set(doc.wires.map(w => w.id));
+  const nid = () => { let k = doc.wires.length + 1; while (used.has(`W${k}`)) k++; used.add(`W${k}`); return `W${k}`; };
+  const added = [];
+  for (const p of pts) {
+    for (let j = 0; j < doc.wires.length; j++) {
+      const w = doc.wires[j];
+      if (ids && !ids.has(w.id) && !added.some(a => a.id === w.id)) continue;
+      const i = interiorAt(w, p);
+      if (i < 0) continue;
+      const P = w.points, same = q => q.x === p.x && q.y === p.y;
+      const head = P.slice(0, i + 1), tail = P.slice(i + 1);
+      if (!same(head[head.length - 1])) head.push({ x: p.x, y: p.y });
+      if (!same(tail[0])) tail.unshift({ x: p.x, y: p.y });
+      w.points = head;
+      const t = { id: nid(), points: tail };
+      if (w.bus) t.bus = true;
+      doc.wires.splice(j + 1, 0, t);
+      added.push({ id: t.id, from: w.id });
+    }
+  }
+  return added;
+}
+
+// The connections made in the middle of wires, as wire ends (#678): the wires split at every pin,
+// I/O marker and wire end inside them, and at the bends two wires share. For a document of version 2
+// (its nets kept) and the schematics made by the app (from HDL, a truth table, ISE's .sch).
+export function joinOnWires(doc, modules = {}) {
+  modules = normModules(modules);
+  const pts = [];
+  for (const s of doc.symbols) for (const p of symbolPins(s, modules)) pts.push(p);
+  for (const p of doc.ports) pts.push(p);
+  return joinWires(doc, pts);
+}
+// (of the wires of ids, or all of them: at the points given, their ends and their shared bends; a
+// generator's net, its wires joined to its own pins only)
+export function joinWires(doc, pts, ids = null) {
+  pts = [...pts];
+  const bends = new Map();
+  for (const w of doc.wires) {
+    if (ids && !ids.has(w.id)) continue;
+    pts.push(w.points[0], w.points[w.points.length - 1]);
+    for (const q of new Set(w.points.slice(1, -1).map(q => key(q.x, q.y)))) bends.set(q, (bends.get(q) || 0) + 1);
+  }
+  for (const [k, n] of bends) if (n > 1) { const [x, y] = k.split(',').map(Number); pts.push({ x, y }); }
+  return splitWiresAt(doc, pts, ids);
 }
 
 // ===================================================================== HDL text helpers
@@ -2715,10 +2755,13 @@ async function placeAndRoute(doc, conns, { layout, modules, nk }) {
         let l = perNet.get(e._net); if (!l) perNet.set(e._net, l = []); l.push(poly);
       }
       const wires = [], labels = [];
+      const netWires = [];   // [net, its wire ids]
       perNet.forEach((polys, k) => {
         const n = conns[k];
         const lines = mergeNetWires(polys);
-        for (const pts of lines) wires.push({ id: `W${wires.length + 1}`, points: pts, ...(n.width > 1 ? { bus: true } : {}) });
+        const ids = new Set();
+        for (const pts of lines) { ids.add(`W${wires.length + 1}`); wires.push({ id: `W${wires.length + 1}`, points: pts, ...(n.width > 1 ? { bus: true } : {}) }); }
+        netWires.push([n, ids]);
         if (!n.name.startsWith('__n') && !n.eps.some(e => e.port)) {
           const src = n.drivers[0] || n.eps[0];
           const a = epPos(doc, src, modules, cache);
@@ -2733,6 +2776,8 @@ async function placeAndRoute(doc, conns, { layout, modules, nk }) {
         }
       });
       doc.wires = wires; doc.labels = labels;
+      // each net's wires joined where they branch and at its pins (#678)
+      for (const [n, ids] of netWires) joinWires(doc, n.eps.map(e => epPos(doc, e, modules, cache)), ids);
       done = true;
       // verify connectivity; fall back to labelled stubs for nets that came out wrong
       const bad = verifyImport(doc, conns, modules, nk);

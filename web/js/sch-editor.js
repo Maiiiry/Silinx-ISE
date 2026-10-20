@@ -16,6 +16,7 @@
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
   xform, rotSize, portBox, portSide, freePortName, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
+  splitWiresAt,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -343,6 +344,22 @@ function portSvg(p, cls = '') {
 }
 
 // ------------------------------------------------------------------ geometry helpers
+// the runs of wires of one net meeting end to end in line (a wire split at a tap or a branch, #678):
+// wire id -> the id of its run's first wire
+function inLineRuns(wires, netOf) {
+  const up = new Map(wires.map(w => [w.id, w.id]));
+  const find = id => { while (up.get(id) !== id) id = up.get(id); return id; };
+  const at = new Map();   // 'x,y,h|v,net' -> wire ids ending there with an end segment that way
+  for (const w of wires) {
+    const P = w.points;
+    for (const [p, q] of [[P[0], P[1]], [P[P.length - 1], P[P.length - 2]]]) {
+      const k = `${p.x},${p.y},${p.y === q.y ? 'h' : p.x === q.x ? 'v' : 'o'},${netOf(w)}`;
+      const o = at.get(k);
+      if (o != null) up.set(find(w.id), find(o)); else at.set(k, w.id);
+    }
+  }
+  return new Map(wires.map(w => [w.id, find(w.id)]));
+}
 // a wire's longest run (horizontal runs first): where a net's name is written
 function wireRun(w) {
   let best = 0;
@@ -378,7 +395,7 @@ let editorCount = 0;
 export function mountSchEditor(container, opts = {}) {
   const uidE = ++editorCount;
   let modules = normMods(opts.modules);
-  let doc = normalizeDoc(opts.doc || newDoc('schematic', 'vhdl'));
+  let doc = normalizeDoc(opts.doc || newDoc('schematic', 'vhdl'), { modules });
   let nl = null;                      // cached netlist of the current doc
   let view = { s: 1, tx: 40, ty: 40 };
   let tool = 'select';                // select | wire | net | io | place
@@ -668,11 +685,15 @@ export function mountSchEditor(container, opts = {}) {
       const labelled = new Set(doc.labels.map(l => nl.labelNet.get(l.id)?.id));
       // (Names: also the 1-bit and the automatic nets, their name once, on their longest run)
       const once = new Set();
+      // (a wire split at a tap or a branch, #678: its pieces in line one wire, the name on the longest)
+      const run = inLineRuns(doc.wires, w => nl.wireNet.get(w.id)?.id), runNamed = new Set();
       for (const w of [...doc.wires].sort((a, b) => wireRun(b) - wireRun(a))) {
         const n = nl.wireNet.get(w.id);
         if (!n || !n.name || labelled.has(n.id)) continue;
         const named = !n.auto && n.width > 1;
         if (!named && (!showNames || once.has(n.id))) continue;
+        if (runNamed.has(run.get(w.id))) continue;
+        runNamed.add(run.get(w.id));
         let best = null;
         for (let i = 0; i + 1 < w.points.length; i++) {
           const a = w.points[i], b = w.points[i + 1];
@@ -1058,6 +1079,8 @@ export function mountSchEditor(container, opts = {}) {
       const sz = rotSize(s, def);
       s.x = snap(pt.x - sz.w / 2); s.y = snap(pt.y - sz.h / 2);
       doc.symbols.push(s);
+      // its pins dropped onto a wire connect there (#170): the wire split at them (#678)
+      splitWiresAt(doc, symbolPins(s, modules, def));
       if (tool !== 'place') { sel.clear(); sel.add(`sym:${s.id}`); }
     });
     // keep the keyboard on the editor (Esc, Ctrl+R / Ctrl+M while placing)
@@ -1095,7 +1118,11 @@ export function mountSchEditor(container, opts = {}) {
     if (!wireDraw) return;
     const pts = cleanPts(wireDraw.pts);
     wireDraw = null;
-    if (pts.length >= 2) edit(() => { doc.wires.push({ id: nextId('W', doc.wires), points: pts }); }, { keepProps: true });
+    // the wire connects at its ends only (#678): an end on another wire's segment or bend splits that
+    // wire there (a T-junction), unless it is on a pin or a marker (connected to that one); what the
+    // wire passes over stays apart
+    const ends = [pts[0], pts[pts.length - 1]].filter(q => !connPoints().some(c => c.x === q.x && c.y === q.y));
+    if (pts.length >= 2) edit(() => { splitWiresAt(doc, ends); doc.wires.push({ id: nextId('W', doc.wires), points: pts }); }, { keepProps: true });
     else renderOverlay();
   }
   function wireClick(pt, dbl) {
@@ -1150,7 +1177,7 @@ export function mountSchEditor(container, opts = {}) {
     if (!name || taken.has(name.toLowerCase())) name = await promptBox(pt, `${dir === 'in' ? 'Input' : dir === 'out' ? 'Output' : 'Bidirectional'} port name`, name || suggest);
     if (!name) return;
     if (taken.has(name.toLowerCase())) { flash(`An I/O marker named '${name}' already exists`); return; }
-    edit(() => { doc.ports.push({ id: nextId('P', doc.ports), name, dir, width, x: p.x, y: p.y }); }, { keepProps: true });
+    edit(() => { if (!near) splitWiresAt(doc, [p]); doc.ports.push({ id: nextId('P', doc.ports), name, dir, width, x: p.x, y: p.y }); }, { keepProps: true });
     if (ioNameInput.value.trim()) { const m = /^(.*?)(\d+)$/.exec(name); ioNameInput.value = m ? `${m[1]}${+m[2] + 1}` : ''; }
   }
 
@@ -1230,7 +1257,7 @@ export function mountSchEditor(container, opts = {}) {
       const stays = q => !moved.has(`${q.x},${q.y}`) && (
         doc.symbols.some(s => !symIds.has(s.id) && symbolPins(s, modules).some(p => p.x === q.x && p.y === q.y)) ||
         doc.ports.some(p => !portIds.has(p.id) && p.x === q.x && p.y === q.y) ||
-        doc.wires.some(w => !wireIds.has(w.id) && w.points.some((p, i) => (p.x === q.x && p.y === q.y) || (i + 1 < w.points.length && onSeg(q, p, w.points[i + 1])))));
+        doc.wires.some(w => !wireIds.has(w.id) && [w.points[0], w.points[w.points.length - 1]].some(p => p.x === q.x && p.y === q.y)));
       for (const w of doc.wires) if (wireIds.has(w.id)) {
         const a = stays(w.points[0]), b = stays(w.points[w.points.length - 1]);
         if (a || b) keepEnds[w.id] = { a, b };
@@ -1260,8 +1287,8 @@ export function mountSchEditor(container, opts = {}) {
     const fixedPts = [];
     for (const s of doc.symbols) if (!symIds.has(s.id)) for (const p of symbolPins(s, modules)) fixedPts.push(p);
     for (const p of doc.ports) if (!portIds.has(p.id)) fixedPts.push(p);
-    const wirePt = new Set();
-    for (const w of doc.wires) for (const p of w.points) wirePt.add(`${p.x},${p.y}`);
+    const wirePt = new Set();   // (the wires' ends: where they connect, #678)
+    for (const w of doc.wires) for (const p of [w.points[0], w.points[w.points.length - 1]]) wirePt.add(`${p.x},${p.y}`);
     // pins/markers connected before the move: guarded against landing on other nets
     const guard = new Set(movedPts.filter(q => wirePt.has(`${q.x},${q.y}`) || fixedPts.some(f => f.x === q.x && f.y === q.y)).map(q => q.key));
     // touching a pin/marker directly (no wire): add a wire so the connection is kept
@@ -1419,6 +1446,12 @@ export function mountSchEditor(container, opts = {}) {
     if (keepConn && m.attach.length) {
       try { rerouteAfterMove(doc, { orig: m.orig, attached: m.attach, dx: m.dx, dy: m.dy, modules }); } catch (e) { console.error(e); }
     }
+    // a free pin or marker dropped onto a wire connects there (#170): the wire split at it (#678)
+    const free = [];
+    for (const s of doc.symbols) if (m.symIds.has(s.id)) for (const p of symbolPins(s, modules)) if (!m.guard?.has(`${s.id}/${p.name}`)) free.push(p);
+    for (const p of doc.ports) if (m.portIds.has(p.id) && !m.guard?.has(`port:${p.id}`)) free.push(p);
+    const stretched = new Set([...m.wireIds, ...m.attach.map(a => a.id)]);
+    splitWiresAt(doc, free, new Set(doc.wires.map(w => w.id).filter(id => !stretched.has(id))));
     doc = normalizeDoc(doc);
     if (keepConn && m.conn0) {
       let now = null;
@@ -1730,7 +1763,7 @@ export function mountSchEditor(container, opts = {}) {
     // Edit ▸ Cut / Copy / Paste / Delete (#677)
     copy: () => copySel(), cut: () => copySel(true), paste: () => paste(), deleteSelection: () => { if (!live) deleteSel(); },
     canCopy: () => !readOnly && !live && sel.size > 0, canPaste: () => !readOnly && !live && hasClip('schematic'),
-    setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc()); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
+    setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc(), { modules }); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
     // its HDL file linked (generatedFile, #245): nothing else changes, Undo / Redo keep the link
     setLink(file) {
       linkModel(doc, file);
@@ -1741,7 +1774,10 @@ export function mountSchEditor(container, opts = {}) {
     setModules(m) {
       const next = normMods(m);
       if (!live && JSON.stringify(next) === JSON.stringify(modules)) return;
-      leaveSim(); modules = next; renderPalette(); render(); renderProps();
+      leaveSim(); modules = next;
+      // (a document of version 2 with module symbols, converted once their pins are known, #678)
+      if (+doc.version < 3) doc = normalizeDoc(doc, { modules });
+      renderPalette(); render(); renderProps();
     },
     check: () => runCheck(true),
     openSelected,

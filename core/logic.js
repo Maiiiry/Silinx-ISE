@@ -16,7 +16,7 @@
 //   XOR form of each output where it is cheaper than both (#435), else its minimal SOP, or NAND gates
 //   only (from the minimal SOP) or NOR gates only (from the minimal POS).
 
-import { newDoc, symbolDef, symbolPins, symbolBox, netlist } from './schdoc.js';
+import { newDoc, symbolDef, symbolPins, symbolBox, netlist, joinOnWires } from './schdoc.js';
 import { compile, elaborate, simulate } from './compile.js';
 import { clocksOf, latchGates } from './schematic.js';
 import { tbPorts, generateTestbench, expectedFromTrace } from './testbench.js';
@@ -1228,6 +1228,8 @@ export function schematicFromTable(docIn, { form, lang, name } = {}) {
   const maxX = Math.max(xOut + 140, ...syms.map(S => S.box.x + S.box.w + 40));
   doc.sheet = { w: Math.max(1100, Math.ceil(maxX / 100) * 100), h: Math.max(800, Math.ceil((yBottom + 60) / 100) * 100) };
   doc.fallbacks = fallbacks;
+  // the branches of the nets as wire ends, where they connect (#678)
+  joinOnWires(doc);
   return doc;
 }
 
