@@ -116,6 +116,12 @@ uiTest('editor: open from the hierarchy, edit, autosave, Ctrl+S, undo and live e
   await page.waitForSelector('body > .menu-popup');
   await page.click('body > .menu-popup .mi', { text: 'signal' });
   await page.waitFor(() => /signal\s+: std_logic_vector\(7 downto 0\)/.test(window.Silinx.active.editor.getValue()));
+  // (#703) the templates are the HDL editor's (its bar and its context menu), no longer the Edit menu's
+  await page.closeMenus();
+  const edit = await page.openMenu('Edit');
+  assert.ok(!edit.some((x) => x.label === 'Language Templates'), edit.map((x) => x.label).join(', '));
+  assert.ok(edit.some((x) => x.label === 'Go to Line…'));
+  await page.closeMenus();
 });
 
 uiTest('Check Syntax: errors in the Errors tab with file and line, click jumps to the line, fixed afterwards', E, async (page) => {
