@@ -3,7 +3,7 @@
 // palette offers gates of at most 4 inputs (#171).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { setupUi, uiTest, makeProject } from './harness.js';
+import { setupUi, uiTest, makeProject, readWs, waitDownload } from './harness.js';
 import { newDoc } from '../../core/schdoc.js';
 
 let env;
@@ -127,4 +127,52 @@ uiTest('#311 schematic: Names shows every instance and net name (also the automa
   assert.equal(saved.symbols[2].name, 'inst_2', 'after XLXI_1: inst_2');
   await page.click(`${ED} .se-names input`);
   await page.eval(() => { try { localStorage.removeItem('xl.sch.names'); } catch { /* none */ } });
+});
+
+// #681: an adder, subtractor or comparator shows its width: its type with it under the symbol (ADD8, as the Xilinx
+// names), the width by its bus pins, both updated as soon as Width changes; the same in the printed SVG and in
+// the Symbol Info drawing
+uiTest('#681 schematic: an adder placed shows its width (ADD4, 4 by its bus pins), updated when Width changes; printed and in Symbol Info', E, async (page) => {
+  // (a 4-bit CONSTANT already there: its width by its output)
+  const doc = newDoc('aw', 'vhdl');
+  doc.symbols.push({ id: 'K1', type: 'constant', x: 100, y: 100, rot: 0, mirror: false, name: 'XLXI_1', params: { value: '5', width: 4 } });
+  await makeProject(env, { name: 'AddW', files: { 'src/aw.sch.json': JSON.stringify(doc) }, top: '' });
+  await page.openProject('AddW');
+  await page.eval(() => window.SilinxApp.openSch('src/aw.sch.json'));
+  await page.waitFor((ed) => document.querySelector(`${ed} .se-symrow`), [ED], { what: 'schematic editor' });
+  await page.fill(`${ED} .se-search`, 'adder');
+  await page.click(`${ED} .se-symrow`, { text: 'ADD' });
+  const c = await page.eval((ed) => { const r = document.querySelector(`${ed} .se-svg`).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, ED);
+  await page.click(c);
+  await page.key('Escape');
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/AddW/file?path=src%2Faw.sch.json')).text()).symbols.length === 2, [], { what: 'ADD saved' });
+  const texts = (cls) => page.eval((ed, k) => [...document.querySelectorAll(`${ed} .se-svg g.sym .${k}`)].map((t) => t.textContent), ED, cls);
+  // the default width, 8: ADD8, 8 by A, B and S (after the constant's 4)
+  assert.deepEqual([await texts('stype'), await texts('pwidth'), await texts('sop')], [['ADD8'], ['4', '8', '8', '8'], ['+']]);
+  const sid = JSON.parse(await readWs(env, 'AddW', 'src/aw.sch.json')).symbols[1].id;
+  await page.click(`${ED} g.sym[data-id="${sid}"] .hitbox`);
+  await page.waitFor((ed) => document.querySelector(`${ed} [data-param=width]`), [ED], { what: 'its properties' });
+  await page.fill(`${ED} [data-param=width]`, '4');
+  await page.waitFor((ed) => [...document.querySelectorAll(`${ed} .se-svg g.sym .stype`)].map((t) => t.textContent).join() === 'ADD4', [ED], { what: 'ADD4 drawn' });
+  assert.deepEqual(await texts('pwidth'), ['4', '4', '4', '4']);
+  await page.fill(`${ED} [data-param=width]`, '16');
+  await page.waitFor((ed) => [...document.querySelectorAll(`${ed} .se-svg g.sym .stype`)].map((t) => t.textContent).join() === 'ADD16', [ED], { what: 'ADD16 drawn' });
+  assert.deepEqual(await texts('pwidth'), ['4', '16', '16', '16']);
+  await page.waitFor(async () => JSON.parse(await (await fetch('/api/projects/AddW/file?path=src%2Faw.sch.json')).text()).symbols[1].params.width === 16, [], { what: 'width 16 saved' });
+  // Symbol Info: its drawing names it ADD16 too
+  await page.click(`${ED} .se-props .se-infobtn`);
+  await page.waitFor((ed) => document.querySelector(`${ed} .se-symdoc`)?.dataset.type === 'add', [ED], { what: 'ADD datasheet' });
+  assert.deepEqual(await page.eval((ed) => [...document.querySelectorAll(`${ed} .se-symdoc .sd-svg .stype`)].map((t) => t.textContent), ED), ['ADD16']);
+  await page.key('Escape');
+  await page.waitFor((ed) => !document.querySelector(`${ed} .se-symdoc`), [ED], { what: 'datasheet closed' });
+  // printed: the SVG saved from the print preview has the name and the widths
+  await page.menu('File', 'Print…');
+  await page.waitDialog('Print — Schematic');
+  await page.dialogButton('Save SVG');
+  const fs = await import('node:fs/promises');
+  const svg = await fs.readFile(await waitDownload(page, 'Schematic_src_aw.sch.json.svg'), 'utf8');
+  assert.match(svg, />ADD16</);
+  assert.equal((svg.match(/>16</g) || []).length, 3, 'the adder\'s three bus widths');
+  assert.match(svg, />4</, 'the constant\'s');
+  await page.key('Escape');
 });

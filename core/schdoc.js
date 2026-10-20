@@ -260,6 +260,16 @@ function boxDef(west, east, title, minW = 80, top = 20) {
   return { w, h, body: { x: 20, y: 0, w: bw, h }, pins };
 }
 
+// The type name drawn on a symbol: its library title, with its width for the symbols whose width is part of
+// the Xilinx name (ADD8, SUB16, COMP4, CNT8, REG8, #681)
+const WIDE_NAMED = new Set(['add', 'sub', 'compare', 'register', 'counter']);
+export function symbolTypeName(sym) {
+  const nm = SYMBOLS[sym.type]?.title || String(sym.type || '').toUpperCase();
+  if (!WIDE_NAMED.has(sym.type)) return nm;
+  const p = { ...defaultParams(sym.type), ...(sym.params || {}) };
+  return `${nm}${Math.max(1, int(p.width, 1))}`;
+}
+
 // Local (unrotated) geometry of a symbol: { w, h, shape, body, pins: [{ name, dir, x, y, side, width }] }.
 // width null = takes the width of the net it is connected to.
 export function symbolDef(sym, modules = {}) {
