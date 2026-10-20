@@ -2,19 +2,20 @@
 // number: the table scrolls, one output at a time in the tabs) are named in the toolbar; the truth table is edited by clicking its output cells (0 → 1 → X) or by
 // typing an expression per output. For the selected output: Karnaugh map with the groups of the
 // minimal SOP (1s) or POS (0s), canonical forms Σm / ΠM, minimal SOP and POS with their literal and
-// gate counts, the XOR form when it is cheaper (#435), and a check of the student's own expression.
+// gate counts, the XOR form when it is cheaper (#435), the NAND-only and NOR-only forms (#694).
 // The expressions are written in the notation chosen, by default with / as NOT (/a·b + c, #434). Tables read from a module may have up
 // to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The table always has its HDL module, in
 // its language (the project's preferred one), generated from it by the host (app.js), which keeps
-// both in sync.
+// both in sync, and its schematic (#694, a view of its module in the Design pane), both in the form
+// chosen in HDL logic.
 //
-//   const ed = mountTtEditor(host, { model, onChange, onSchematic({ form, nand }),
-//                                    onFromModule(), linkInfo() -> { file, why } | null, onOpenFile(path) });
+//   const ed = mountTtEditor(host, { model, onChange(model), onFromModule(), linkInfo() -> { file, why } | null,
+//                                    onOpenFile(path) });
 //   ed.getModel(), ed.setModel(m), ed.setLink(file), ed.destroy()
 // Styles: web/css/truthtable.css.
 import { h, undoButton, linkModel, linkSnapshot } from './ui.js';
 import {
-  normalizeTable, validateTable, reshapeTable, analyzeOutput, parseExpr, exprColumn, formatExpr, compareExpr,
+  normalizeTable, validateTable, reshapeTable, analyzeOutput, parseExpr, exprColumn, formatExpr,
   kmapLayout, kmapRects, MAX_EDIT_INPUTS,
 } from '/core/logic.js';
 
@@ -35,8 +36,6 @@ export function mountTtEditor(container, opts = {}) {
   let out = M.outputs[0];
   let groups = 'sop';            // groups drawn on the K-map: 'sop' (1s) or 'pos' (0s)
   let notation = 'slash';         // of the expressions shown (#434)
-  let mine = '';                 // the student's expression for the selected output
-  let nand = false;
   let destroyed = false;
   // Undo / Redo: snapshots of the table (the notes typed are one step per pause)
   const hist = [JSON.stringify(M)];
@@ -82,9 +81,10 @@ export function mountTtEditor(container, opts = {}) {
     el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyShape(); } });
     el.addEventListener('change', applyShape);
   }
-  const formSel = h('select', { class: 'tt-form', title: 'Form of the logic in the generated HDL module', onchange: () => { M.form = formSel.value; changed(); } },
-    h('option', { value: 'sop' }, 'Minimal SOP'), h('option', { value: 'pos' }, 'Minimal POS'), h('option', { value: 'xor' }, 'XOR form (when simpler)'));
-  const nandBox = h('input', { type: 'checkbox', class: 'tt-nand', onchange: () => { nand = nandBox.checked; } });
+  const FORM_TIP = 'Form of the logic in the generated HDL module and schematic';
+  const formSel = h('select', { class: 'tt-form', title: FORM_TIP, onchange: () => { M.form = formSel.value; changed(); } },
+    h('option', { value: 'sop' }, 'Minimal SOP'), h('option', { value: 'pos' }, 'Minimal POS'), h('option', { value: 'xor' }, 'XOR form (when simpler)'),
+    h('option', { value: 'nand' }, 'NAND gates only'), h('option', { value: 'nor' }, 'NOR gates only'));
   const btn = (label, title, onclick, cls = '') => h('button', { type: 'button', class: `btn tt-btn ${cls}`, title, onclick }, label);
   const link = h('span', { class: 'tt-link' });
   const toolbar = h('div', { class: 'tt-toolbar' },
@@ -92,10 +92,7 @@ export function mountTtEditor(container, opts = {}) {
     h('span', { class: 'tt-sep' }),
     h('label', {}, 'Inputs:'), inIn, h('label', {}, 'Outputs:'), outIn, btn('Apply', 'Apply the input and output names', applyShape), shapeErr,
     h('span', { class: 'tt-sep' }),
-    h('label', { title: 'Form of the logic in the generated HDL module' }, 'HDL logic:'), formSel,
-    h('span', { class: 'tt-sep' }),
-    btn('Generate Schematic', 'Draw the minimal circuit of each output as a schematic (gates, inputs and outputs) and add it to the project', () => opts.onSchematic?.({ form: groups, nand })),
-    h('label', { class: 'tt-check', title: 'Use only NAND gates in the generated schematic' }, nandBox, ' NAND gates only'),
+    h('label', { title: FORM_TIP }, 'HDL logic:'), formSel,
     h('span', { class: 'tt-sep' }),
     btn('Truth Table from Module…', 'Fill the table with the truth table of a combinational module of the project (exhaustive simulation)', () => opts.onFromModule?.()),
     link);
@@ -127,18 +124,11 @@ export function mountTtEditor(container, opts = {}) {
   const kmapHost = h('div', { class: 'tt-kmap-host' });
   const grpSel = h('div', { class: 'tt-groups' });
   const results = h('div', { class: 'tt-results' });
-  const mineIn = h('input', { type: 'text', class: 'tt-mine-in', spellcheck: 'false', placeholder: 'type your answer, e.g. /a·c + b' });
-  const mineOut = h('div', { class: 'tt-mine-out' });
-  let mineT = null;
-  mineIn.addEventListener('input', () => { mine = mineIn.value; clearTimeout(mineT); mineT = setTimeout(() => { renderTable(); renderMine(); }, 250); });
   const right = h('div', { class: 'tt-right' },
     tabs,
     h('div', { class: 'tt-caption' }, 'Expression'), exprRow, h('div', { class: 'hint tt-ops' }, OPS), exprErr,
     h('div', { class: 'tt-caption' }, 'Karnaugh map'), grpSel, kmapHost,
-    h('div', { class: 'tt-caption' }, 'Results'), results,
-    h('div', { class: 'tt-caption' }, 'Check my answer'),
-    h('div', { class: 'tt-row' }, h('span', { class: 'tt-expr-lbl' }, 'My expression:'), mineIn), mineOut);
-  mineIn.title = OPS;
+    h('div', { class: 'tt-caption' }, 'Results'), results);
   root.append(toolbar, h('div', { class: 'tt-body' }, left, right));
   root.tabIndex = -1;
   root.addEventListener('keydown', e => {
@@ -157,21 +147,15 @@ export function mountTtEditor(container, opts = {}) {
     delete M.exprs[o];   // the column no longer comes from the typed expression
     changed();
   };
-  const mineCheck = () => {
-    if (!mine.trim()) return null;
-    try { return compareExpr(mine, M.inputs, M.table[out]); } catch (e) { return { error: e.message }; }
-  };
 
   function renderTable() {
     const n = M.inputs.length;
-    const chk = mineCheck();
-    const diff = new Set(chk?.diffs?.map(d => d.row) || []);
     const t = h('table', { class: 'tt-table', 'data-no-i18n': '' });
     t.append(h('tr', {}, h('th', { class: 'tt-idx' }, '#'), ...M.inputs.map(v => h('th', { class: 'tt-in' }, v)),
       ...M.outputs.map(o => h('th', { class: `tt-out${o === out ? ' sel' : ''}`, title: 'Select this output', onclick: () => { out = o; render(); } }, o))));
     for (let r = 0; r < 1 << n; r++) {
       const bits = r.toString(2).padStart(n, '0');
-      t.append(h('tr', { class: diff.has(r) ? 'tt-diff' : '' }, h('td', { class: 'tt-idx' }, String(r)), ...[...bits].map(b => h('td', { class: 'tt-in' }, b)),
+      t.append(h('tr', {}, h('td', { class: 'tt-idx' }, String(r)), ...[...bits].map(b => h('td', { class: 'tt-in' }, b)),
         ...M.outputs.map(o => {
           const c = M.table[o][r];
           return h('td', { class: `tt-cell v${c}${o === out ? ' sel' : ''}`, 'data-out': o, 'data-row': String(r), onclick: () => cycle(o, r) }, c);
@@ -183,7 +167,7 @@ export function mountTtEditor(container, opts = {}) {
 
   function renderTabs() {
     tabs.innerHTML = '';
-    for (const o of M.outputs) tabs.append(h('button', { type: 'button', class: `tt-tab${o === out ? ' active' : ''}`, 'data-out': o, onclick: () => { out = o; mine = ''; mineIn.value = ''; render(); } }, o));
+    for (const o of M.outputs) tabs.append(h('button', { type: 'button', class: `tt-tab${o === out ? ' active' : ''}`, 'data-out': o, onclick: () => { out = o; render(); } }, o));
   }
 
   function renderKmap() {
@@ -279,28 +263,21 @@ export function mountTtEditor(container, opts = {}) {
       h('div', {}, h('b', {}, 'XOR form'), ': ', h('code', { class: 'tt-expr', 'data-no-i18n': '' }, `${out} = ${formatExpr(x.ast, notation)}`)),
       h('div', { class: 'tt-cost' }, `${x.literals} literal(s), ${x.ops} two-input operator(s): ${x.xor} XOR / XNOR, ${x.and} AND, ${x.or} OR`),
       x.exact ? null : h('span', { class: 'tt-note' }, 'The search was cut short: a simpler XOR form may exist.'));
+    // NAND and NOR only (#694): the minimal SOP and POS by double negation
+    const gateForm = (label, g, cls, from) => h('div', { class: `tt-res ${cls}`, title: from },
+      h('div', {}, h('b', {}, label), ': ', h('code', { class: 'tt-expr', 'data-no-i18n': '' }, `${out} = ${formatExpr(g.ast, notation)}`)),
+      h('div', { class: 'tt-cost' }, `${g.gates} gate(s), ${g.inverters} of them inverter(s)`));
     results.append(
       h('div', { class: 'tt-row' }, h('label', {}, 'Notation:'), nsel),
       h('div', { class: 'tt-res tt-canon' }, h('b', {}, 'Canonical forms'), ': ', h('code', { 'data-no-i18n': '' }, `${out} = ${A.sigma}`), h('br'), h('code', { 'data-no-i18n': '', style: { marginLeft: '0' } }, `${out} = ${A.pi}`)),
       form('Minimal SOP', A.sop, 'tt-sop'),
       form('Minimal POS', A.pos, 'tt-pos'),
       ...(xorForm ? [xorForm] : []),
+      gateForm('NAND form', A.nand, 'tt-nand', 'The minimal SOP with NAND gates only (double negation); an inverter is a NAND of one input'),
+      gateForm('NOR form', A.nor, 'tt-nor', 'The minimal POS with NOR gates only (double negation); an inverter is a NOR of one input'),
       h('div', { class: 'tt-res tt-ess-list' }, h('b', {}, 'Essential prime implicants (SOP)'), ': ',
         h('code', { 'data-no-i18n': '' }, ess.length ? ess.map(t => formatExpr(termAst({ terms: [t] }), notation)).join(', ') : '—'),
         h('span', { class: 'tt-cost' }, ` (${A.sop.primes.length} prime implicant(s))`)));
-  }
-
-  function renderMine() {
-    mineOut.innerHTML = '';
-    const chk = mineCheck();
-    if (!chk) return;
-    if (chk.error) { mineOut.append(h('div', { class: 'tt-err' }, chk.error)); return; }
-    if (chk.equal) { mineOut.append(h('div', { class: 'tt-ok' }, `✔ Equal to the table (output ${out}).`)); return; }
-    mineOut.append(h('div', { class: 'tt-bad' }, `✘ Different from the table in ${chk.diffs.length} row(s):`));
-    const t = h('table', { class: 'tt-table tt-difftab', 'data-no-i18n': '' },
-      h('tr', {}, h('th', {}, '#'), ...M.inputs.map(v => h('th', {}, v)), h('th', {}, `${out} (table)`), h('th', {}, `${out} (yours)`)));
-    for (const d of chk.diffs.slice(0, 64)) t.append(h('tr', {}, h('td', {}, String(d.row)), ...[...d.row.toString(2).padStart(M.inputs.length, '0')].map(b => h('td', {}, b)), h('td', {}, d.expected), h('td', {}, d.got)));
-    mineOut.append(t);
   }
 
   function renderLink() {
@@ -322,7 +299,7 @@ export function mountTtEditor(container, opts = {}) {
     exprLbl.textContent = `${out} =`;
     if (document.activeElement !== exprIn || !exprIn.value) exprIn.value = M.exprs[out] || '';
     exprErr.textContent = '';
-    renderTabs(); renderTable(); renderKmap(); renderResults(); renderMine(); renderLink();
+    renderTabs(); renderTable(); renderKmap(); renderResults(); renderLink();
   }
   const uid = Math.random().toString(36).slice(2, 8);
   render();
@@ -337,6 +314,6 @@ export function mountTtEditor(container, opts = {}) {
     setLink(file) { linkModel(M, file); hist.forEach((s, i) => { hist[i] = linkSnapshot(s, file); }); renderLink(); },
     refreshLink: () => renderLink(),
     select(o) { if (M.outputs.includes(o)) { out = o; render(); } },
-    destroy() { destroyed = true; clearTimeout(mineT); container.innerHTML = ''; },
+    destroy() { destroyed = true; container.innerHTML = ''; },
   };
 }

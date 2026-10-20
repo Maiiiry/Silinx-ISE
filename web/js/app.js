@@ -18,7 +18,7 @@ import { log, logLine, showConsolePage, setDiagnostics, renderDiagnostics, clear
 import { openProject, closeProject, reloadProject, updateTitle, renderStartPage, updateStorageStatus } from './project.js';
 import { FLOW_UP_TO, checkUcfFile, regenerateUcf, runImpl, stepTracker, ucfDiagnostics } from './implement.js';
 import { adoptDrawnHdl, drawnHdlClashes, freshHdl, isAsm, isFsm, isPn, isTt, openAsm, openFsm, openPetri, openSch,
-  openTt, openView, schModules, staleHdl, syncAsmFromHdl, syncBanner, syncFsmFromHdl, syncSchematicFromHdl,
+  openTt, openTtSchematic, openView, schModules, staleHdl, syncAsmFromHdl, syncBanner, syncFsmFromHdl, syncSchematicFromHdl,
   syncTtFromHdl, viewNoun, viewTitle } from './drawings.js';
 import { checkFileSyntax, hdlDiagnostics, markStale, openMode, renderProcesses, saveAll } from './processes.js';
 import { fileContextMenu, inView, renderHierarchy, saveProjectJson, select, serialOp, setTop, treeItem } from './design.js';
@@ -409,7 +409,7 @@ const VIEW_KEY = name => `silinx.view.${name}`;
 const inProject = p => S.fileTree?.includes(p);
 const REOPEN = [
   [/^file:(.+)$/, p => inProject(p) && openFile(p)], [/^sch:(.+)$/, p => inProject(p) && openSch(p)],
-  [/^asm:(.+)$/, p => inProject(p) && openAsm(p)], [/^tt:(.+)$/, p => inProject(p) && openTt(p)],
+  [/^asm:(.+)$/, p => inProject(p) && openAsm(p)], [/^tt:(.+)$/, p => inProject(p) && openTt(p)], [/^ttsch:(.+)$/, p => inProject(p) && openTtSchematic(p)],
   [/^fsm:(.+)$/, p => inProject(p) && openFsm(p)], [/^pn:(.+)$/, p => inProject(p) && openPetri(p)], [/^rtl:(.+)$/, m => moduleInfo(m) && openSchematic(m)],
   [/^isim:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && runSimulation(mod, model || undefined)],
   [/^emulator:([^@]+)(?:@(\w+))?$/, async (mod, model) => await reopenable(mod, model) && openEmulator(mod, { model: model || null })],
@@ -931,7 +931,7 @@ async function boot() {
   if (!window.SILINX_NO_UPDATE_CHECK) wiz.checkUpdatesOnStart().catch(() => {});
 }
 
-export const app = { showInSim, saveAll, openTt, openFsm, openPetri, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, renderStartPage, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, openMode, S };
+export const app = { showInSim, saveAll, openTt, openTtSchematic, openFsm, openPetri, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, renderStartPage, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, openMode, S };
 window.SilinxApp = app;
 // a promise nobody waits for that fails (a menu's action, the start-up's project): said in the
 // Console and the Errors tab, not lost (#408); the browser's console keeps its stack

@@ -7,8 +7,6 @@
 .tt-sep { width: 1px; align-self: stretch; background: var(--border, #aaa); margin: 0 3px; }
 .tt-check { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .tt-err { color: var(--danger, #c00); }
-.tt-ok { color: var(--success, #080); font-weight: bold; margin: 4px 0; }
-.tt-bad { color: var(--danger, #c00); font-weight: bold; margin: 4px 0; }
 .tt-link .gen-banner { margin-left: 6px; padding: 1px 8px; background: #fff4ce; border: 1px solid #e6d690; border-radius: 3px; color: #5a4a00; }
 .tt-link .gen-banner.out-of-sync { background: #fdecea; border-color: #e0a0a0; color: #900; }
 .tt-link .gen-banner a { color: #0645ad; cursor: pointer; text-decoration: underline; }
@@ -19,7 +17,7 @@
 .tt-caption:first-child { margin-top: 0; }
 .tt-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .tt-expr-lbl { font-family: var(--mono, monospace); font-weight: bold; }
-.tt-expr-in, .tt-mine-in { flex: 1; min-width: 200px; max-width: 460px; font-family: var(--mono, monospace); }
+.tt-expr-in { flex: 1; min-width: 200px; max-width: 460px; font-family: var(--mono, monospace); }
 .tt-notes { width: 100%; min-width: 220px; font-family: var(--font, sans-serif); resize: vertical; }
 .tt-table { border-collapse: collapse; font-family: var(--mono, monospace); }
 .tt-table th, .tt-table td { border: 1px solid var(--border-light, #ccc); padding: 1px 8px; text-align: center; }
@@ -34,7 +32,6 @@
 .tt-table td.vX { color: #a06000; }
 .tt-table td.v0 { color: #555; }
 .tt-table td.v1 { color: #0040c0; }
-.tt-table tr.tt-diff td { background: #fde3e3; }
 .tt-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin-bottom: 4px; }
 .tt-tab { border: 1px solid var(--border, #aaa); background: var(--tab-inactive, #eee); padding: 2px 14px; font-family: var(--mono, monospace); font-weight: bold; cursor: pointer; border-radius: 3px 3px 0 0; }
 .tt-tab.active { background: var(--tab-active, #fff); border-bottom-color: var(--tab-active, #fff); color: var(--title-fg, #15428b); }
@@ -64,4 +61,3 @@
 .tt-res code, .tt-expr { font-family: var(--mono, monospace); font-size: 13px; }
 .tt-cost { color: var(--muted, #666); }
 .tt-note { display: block; color: #8a5a00; }
-.tt-difftab { margin-top: 4px; }

@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import {
   parseExpr, formatExpr, exprVars, exprColumn, canonical, minimize, minimalAst, gateCount, primeImplicants,
   cubeMinterms, kmapLayout, kmapRects, gray, newTable, normalizeTable, validateTable, reshapeTable, analyzeOutput,
-  generateTableHdl, dontCaresInHdl, truthTableFromModule, schematicFromTable, schematicErrors, compareExpr, LogicError,
-  minimizeXor, exprCost, MAX_XOR_INPUTS,
+  generateTableHdl, dontCaresInHdl, truthTableFromModule, schematicFromTable, schematicErrors, LogicError,
+  minimizeXor, exprCost, MAX_XOR_INPUTS, gateForm, outputForm, FORMS,
 } from '../core/logic.js';
 import { generateHdl } from '../core/schdoc.js';
 import { compile, elaborate } from '../core/compile.js';
@@ -292,7 +292,7 @@ test('K-map groups cover exactly the implicant\'s cells; wrap-around groups are 
 });
 
 // ------------------------------------------------------------------ documents
-test('table documents: normalise, validate, reshape, compare a student expression', () => {
+test('table documents: normalise, validate, reshape', () => {
   const d = normalizeTable({ name: 'm', inputs: ['a', 'b'], outputs: ['f'], table: { f: '1-0' } });
   assert.equal(d.table.f, '1X00');
   assert.deepEqual(validateTable(d), []);
@@ -304,10 +304,8 @@ test('table documents: normalise, validate, reshape, compare a student expressio
   assert.equal(t.table.f, '00111111'.split('').map((_, r) => '0111'[r >> 1]).join(''));
   assert.equal(t.table.g, '00000000');
   assert.deepEqual(t.exprs, {});
-  const c = compareExpr("a + b'", ['a', 'b'], '1X11');
-  assert.equal(c.equal, true);
-  const w = compareExpr('a', ['a', 'b'], '1011');
-  assert.deepEqual([w.equal, w.diffs], [false, [{ row: 0, expected: '1', got: '0' }]]);
+  // the logic forms (#694): the NAND and NOR ones kept, an unknown one is the minimal SOP
+  assert.deepEqual(['sop', 'pos', 'xor', 'nand', 'nor', 'nandnor', undefined].map(form => normalizeTable({ ...d, form }).form), ['sop', 'pos', 'xor', 'nand', 'nor', 'sop', 'sop']);
 });
 
 // ------------------------------------------------------------------ circuits simulate to the same table
@@ -370,23 +368,26 @@ architecture rtl of lat is begin process (g, d) begin if g = '1' then q <= d; en
   assert.throws(() => truthTableFromModule([{ path: 'x.v', text: 'module x(input a, output y); assign y = a &; endmodule' }], 'x'), /cannot be compiled/);
 });
 
-test('gate schematics (AND/OR, POS, NAND only) pass netlist() and simulate to the truth table', () => {
+test('gate schematics (AND/OR, POS, XOR, NAND only, NOR only) pass netlist() and simulate to the truth table', () => {
   const r = rng(77);
   let fallbacks = 0;
   const cases = [];
-  for (let k = 0; k < 30; k++) cases.push({ n: 1 + (k % 6), nout: 1 + (k % 4), form: k % 3 === 1 ? 'pos' : 'sop', nand: k % 3 === 2, lang: k % 2 ? 'verilog' : 'vhdl' });
+  for (let k = 0; k < 40; k++) cases.push({ n: 1 + (k % 6), nout: 1 + (k % 4), form: ['sop', 'pos', 'nand', 'xor', 'nor'][k % 5], lang: k % 2 ? 'verilog' : 'vhdl' });
   // larger fan-in: 6-input parity (32 terms of 6 literals: gate trees)
-  cases.push({ n: 6, nout: 1, form: 'sop', nand: false, lang: 'vhdl', col: Array.from({ length: 64 }, (_, i) => (i.toString(2).split('1').length % 2 ? '0' : '1')).join('') });
-  cases.push({ n: 6, nout: 1, form: 'sop', nand: true, lang: 'vhdl', col: Array.from({ length: 64 }, (_, i) => (i.toString(2).split('1').length % 2 ? '0' : '1')).join('') });
-  cases.push({ n: 3, nout: 4, form: 'sop', nand: true, lang: 'vhdl', cols: ['00000000', '11111111', '00001111', '11110000'] });
+  const parity6 = Array.from({ length: 64 }, (_, i) => (i.toString(2).split('1').length % 2 ? '0' : '1')).join('');
+  for (const form of ['sop', 'nand', 'nor', 'xor']) cases.push({ n: 6, nout: 1, form, lang: 'vhdl', col: parity6 });
+  // constants, a plain input, its complement
+  for (const form of ['nand', 'nor', 'xor']) cases.push({ n: 3, nout: 4, form, lang: 'vhdl', cols: ['00000000', '11111111', '00001111', '11110000'] });
   for (const [k, c] of cases.entries()) {
     const outs = ['x', 'y', 'z', 'w'].slice(0, c.nout);
     const doc = newTable(`sch${k}`, V(c.n), outs);
     outs.forEach((o, i) => { doc.table[o] = c.cols?.[i] || c.col || randCol(r, c.n, 0.15); });
-    const sch = schematicFromTable(doc, { form: c.form, nand: c.nand, lang: c.lang });
+    const sch = schematicFromTable(doc, { form: c.form, lang: c.lang });
     fallbacks += sch.fallbacks;
     assert.deepEqual(schematicErrors(sch).map(e => e.message), [], `case ${k}`);
-    if (c.nand) assert.ok(sch.symbols.every(s => /^nand\d$|^constant$/.test(s.type)), `NAND only: ${[...new Set(sch.symbols.map(s => s.type))]}`);
+    const types = [...new Set(sch.symbols.map(s => s.type))];
+    if (c.form === 'nand' || c.form === 'nor') assert.ok(types.every(t => new RegExp(`^${c.form}[234]$|^constant$`).test(t)), `${c.form} only: ${types}`);
+    else assert.ok(types.every(t => (c.form === 'xor' ? /^(and[2-5]|or[2-5]|x(n)?or[234]|inv|buf|constant)$/ : /^(and[2-5]|or[2-5]|inv|buf|constant)$/).test(t)), `${c.form}: ${types}`);
     const g = generateHdl(sch, { lang: c.lang });
     assert.deepEqual(g.diagnostics.filter(d => d.severity === 'error'), []);
     const t = truthTableFromModule([{ path: `${doc.name}.${c.lang === 'vhdl' ? 'vhd' : 'v'}`, text: g.code }], doc.name);
@@ -501,7 +502,7 @@ test('gate schematic of a 6- and a 9-output table: netlist() without errors, sim
   const r = rng(176);
   const nine = newTable('nine', V(4), Array.from({ length: 9 }, (_, i) => `q${i}`));
   for (const o of nine.outputs) nine.table[o] = randCol(r, 4, 0.1);
-  for (const [doc, opts] of [[SIX(), { form: 'sop', lang: 'vhdl' }], [SIX(), { form: 'pos', nand: true, lang: 'verilog' }], [nine, { form: 'sop', lang: 'verilog' }], [nine, { form: 'pos', lang: 'vhdl' }]]) {
+  for (const [doc, opts] of [[SIX(), { form: 'sop', lang: 'vhdl' }], [SIX(), { form: 'nand', lang: 'verilog' }], [SIX(), { form: 'nor', lang: 'vhdl' }], [SIX(), { form: 'xor', lang: 'verilog' }], [nine, { form: 'sop', lang: 'verilog' }], [nine, { form: 'pos', lang: 'vhdl' }]]) {
     const sch = schematicFromTable(doc, opts);
     assert.deepEqual(schematicErrors(sch).map(e => e.message), []);
     assert.equal(sch.fallbacks, 0);
@@ -738,4 +739,169 @@ endmodule
       for (const o of outs) assert.ok(careEqual(d.table[o], t.table[o]), `${lang} ${o}: ${d.table[o]} vs ${t.table[o]}`);
     }
   }
+});
+
+// ------------------------------------------------------------------ NAND and NOR forms (#694)
+// the gates of an expression: { op: [fan-ins] }, and whether it has only NAND (NOR) gates and inputs
+const gatesOf = e => { const g = {}; const w = x => { if (x.args) { (g[x.t] ||= []).push(x.args.length); x.args.forEach(w); } else if (x.t === 'not') { (g.not ||= []).push(1); w(x.a); } }; w(e); return g; };
+
+test('NAND and NOR forms (#694): only NAND / NOR gates of at most 4 inputs, equal to the table on every row but its don\'t cares (1–6 inputs)', () => {
+  const r = rng(694);
+  const cols = [];
+  for (let n = 1; n <= 6; n++) for (let k = 0; k < 12; k++) cols.push([n, randCol(r, n, k % 3 ? 0.15 : 0)]);
+  // and the edge cases: constants (also from don't cares), one input, its complement, parity
+  for (const n of [1, 3]) for (const c of ['0', '1', 'X']) cols.push([n, c.repeat(1 << n)]);
+  cols.push([2, '0011'], [2, '1100'], [2, 'X1X1'], [6, colOf(6, parity)]);
+  for (const [n, col] of cols) {
+    const inputs = V(n);
+    for (const [g, form] of [['nand', 'sop'], ['nor', 'pos']]) {
+      const m = minimize(col, n, { form });
+      const f = gateForm(m, inputs, g);
+      const got = exprColumn(f.ast, inputs);
+      assert.ok(careEqual(col, got), `${g} of ${col}: ${formatExpr(f.ast)} = ${got}`);
+      const gates = gatesOf(f.ast);
+      if (f.ast.t === 'const') { assert.deepEqual([f.gates, f.inverters], [0, 0]); continue; }
+      assert.deepEqual(Object.keys(gates), [g], `${g} only: ${formatExpr(f.ast)}`);
+      assert.ok(gates[g].every(k => k >= 1 && k <= 4), `fan-in of ${formatExpr(f.ast)}`);
+      // the gates counted: each gate once, the inverters of the inputs once each
+      const inputInv = new Set(); const wi = x => { if (x.t === g && x.args.length === 1 && x.args[0].t === 'var') inputInv.add(x.args[0].name); else x.args?.forEach(wi); }; wi(f.ast);
+      const gateNodes = gates[g].length - [...JSON.stringify(f.ast).matchAll(new RegExp(`{"t":"${g}","args":\\[{"t":"var","name":"[a-f]"}\\]}`, 'g'))].length;
+      assert.equal(f.gates, gateNodes + inputInv.size, formatExpr(f.ast));
+      // the expression the editor shows reads back as the same function, in every notation
+      for (const nt of ['slash', 'textbook', 'vhdl', 'verilog']) assert.equal(exprColumn(parseExpr(formatExpr(f.ast, nt), { vars: inputs }), inputs), got, `${nt}: ${formatExpr(f.ast, nt)}`);
+    }
+  }
+  // the textbook transformations, exactly: f = a·b + /c = /(c·/(a·b)), f = (a + b)·/c = /(/(a + b) + c)
+  const f1 = gateForm(minimize('10101011', 3, { form: 'sop' }), ['a', 'b', 'c'], 'nand');
+  assert.deepEqual([formatExpr(f1.ast, 'slash'), f1.gates, f1.inverters], ['/(c·/(a·b))', 2, 0]);
+  assert.equal(formatExpr(f1.ast, 'vhdl'), 'c nand (a nand b)');
+  assert.equal(formatExpr(f1.ast, 'verilog'), '~(c & ~(a & b))');
+  const f2 = gateForm(minimize('00101010', 3, { form: 'pos' }), ['a', 'b', 'c'], 'nor');
+  assert.deepEqual([formatExpr(f2.ast, 'slash'), f2.gates, f2.inverters], ['/(c + /(a + b))', 2, 0]);
+  assert.equal(formatExpr(f2.ast, 'vhdl'), 'c nor (a nor b)');
+  assert.equal(formatExpr(f2.ast, 'verilog'), '~(c | ~(a | b))');
+  // more than 4 inputs a gate: groups of ANDs (ORs) made of NANDs (NORs): a·b·c·d·e = /(/(/(/(a·b·c·d))·e))
+  const f5 = gateForm(minimize('0'.repeat(31) + '1', 5, { form: 'sop' }), V(5), 'nand');
+  assert.equal(formatExpr(f5.ast, 'slash'), '/(/(/(/(a·b·c·d))·e))');
+  // f = a and f = /a: two NANDs (an inverted rail and an inverter), one NAND
+  assert.equal(formatExpr(gateForm(minimize('0011', 2, { form: 'sop' }), ['a', 'b'], 'nand').ast, 'vhdl'), '(a nand a) nand (a nand a)');
+  assert.equal(formatExpr(gateForm(minimize('1100', 2, { form: 'pos' }), ['a', 'b'], 'nor').ast, 'vhdl'), 'a nor a');
+  // analyzeOutput shows them (the editor's NAND and NOR forms)
+  const a = analyzeOutput({ ...newTable('m', ['a', 'b', 'c'], ['f']), table: { f: '10101011' } }, 'f');
+  assert.deepEqual([formatExpr(a.nand.ast, 'slash'), formatExpr(a.nor.ast, 'slash')], ['/(c·/(a·b))', '/(/(a + /c) + /(b + /c))']);
+});
+
+test('HDL of the NAND and NOR forms (#694): exact VHDL and Verilog, NAND / NOR operations only, no warnings, simulates to the table', () => {
+  for (const [form, vhdl, verilog] of [
+    ['nand', [
+      'y0 <= (not (a and b and c)) nand (not (a and b and c));',
+      'y1 <= not ((c nand c) and (b nand b) and (a nand a));',
+      'y2 <= not ((not ((a nand a) and (b nand b) and c)) and (not ((a nand a) and b and (c nand c))) and (not (a and (b nand b) and (c nand c))) and (not (a and b and c)));',
+      'y3 <= not ((b nand c) and (a nand c) and (a nand b));',
+      'y4 <= ((a nand a) nand (c nand c)) nand ((a nand a) nand (c nand c));',
+      'y5 <= ((a nand a) nand (b nand b)) nand (a nand b);',
+    ], [
+      'assign y0 = ~(~(a & b & c) & ~(a & b & c));',
+      'assign y1 = ~(~(c & c) & ~(b & b) & ~(a & a));',
+      'assign y2 = ~(~(~(a & a) & ~(b & b) & c) & ~(~(a & a) & b & ~(c & c)) & ~(a & ~(b & b) & ~(c & c)) & ~(a & b & c));',
+      'assign y3 = ~(~(b & c) & ~(a & c) & ~(a & b));',
+      'assign y4 = ~(~(~(a & a) & ~(c & c)) & ~(~(a & a) & ~(c & c)));',
+      'assign y5 = ~(~(~(a & a) & ~(b & b)) & ~(a & b));',
+    ]],
+    ['nor', [
+      'y0 <= not ((a nor a) or (b nor b) or (c nor c));',
+      'y1 <= (not (a or b or c)) nor (not (a or b or c));',
+      'y2 <= not ((not (a or b or c)) or (not (a or (b nor b) or (c nor c))) or (not ((a nor a) or b or (c nor c))) or (not ((a nor a) or (b nor b) or c)));',
+      'y3 <= not ((a nor b) or (a nor c) or (b nor c));',
+      'y4 <= c nor a;',
+      'y5 <= (a nor (b nor b)) nor ((a nor a) nor b);',
+    ], [
+      'assign y0 = ~(~(a | a) | ~(b | b) | ~(c | c));',
+      'assign y1 = ~(~(a | b | c) | ~(a | b | c));',
+      'assign y2 = ~(~(a | b | c) | ~(a | ~(b | b) | ~(c | c)) | ~(~(a | a) | b | ~(c | c)) | ~(~(a | a) | ~(b | b) | c));',
+      'assign y3 = ~(~(a | b) | ~(a | c) | ~(b | c));',
+      'assign y4 = ~(c | a);',
+      'assign y5 = ~(~(a | ~(b | b)) | ~(~(a | a) | b));',
+    ]],
+  ]) {
+    const doc = { ...SIX(), form };
+    const vhd = generateTableHdl(doc, 'vhdl'), v = generateTableHdl(doc, 'verilog');
+    assert.deepEqual(vhd.code.split('\n').filter(l => /^ {4}y\d <=/.test(l)).map(l => l.trim()), vhdl);
+    assert.deepEqual(v.code.split('\n').filter(l => /^ {4}assign/.test(l)).map(l => l.trim()), verilog);
+    const G = form.toUpperCase();
+    assert.match(vhd.code, new RegExp(`-- y4 = .*   \\(${G} gates only, from the minimal ${form === 'nand' ? 'SOP' : 'POS'}, 2 literal\\(s\\): ${form === 'nand' ? 4 : 1} gate\\(s\\)\\)`));
+    // NAND (NOR) operations only: no other operator but the NOT of an n-input AND (OR)
+    const body = vhd.code.slice(vhd.code.indexOf('begin'));
+    assert.doesNotMatch(body, form === 'nand' ? /\bx?or\b|\bnor\b|\bxnor\b/ : /\bx?and\b|\bnand\b|\bxor\b/);
+    for (const g of [vhd, v]) {
+      const lib = compile([{ path: g.filename, text: g.code }]);
+      assert.deepEqual([...lib.errors, ...elaborate(lib, 'six').diags].map(d => `${d.severity}: ${d.message}`), []);
+      const t = truthTableFromModule([{ path: g.filename, text: g.code }], 'six');
+      assert.deepEqual(t.warnings, []);
+      for (const o of doc.outputs) assert.ok(careEqual(doc.table[o], t.table[o]), `${form} ${g.lang} ${o}`);
+      assert.deepEqual(dontCaresInHdl(g.code), { y5: [1, 3, 5, 7] });
+    }
+  }
+});
+
+test('every HDL logic form (#694): its VHDL and Verilog compile with no warnings and simulate to the table, several outputs with don\'t cares', () => {
+  const r = rng(6940);
+  for (let k = 0; k < 10; k++) {
+    const n = 1 + (k % 6), outs = ['y', 'z', 'w'].slice(0, 1 + (k % 3));
+    for (const form of FORMS) {
+      const d = { ...newTable(`t${k}`, V(n), outs), form };
+      for (const o of outs) d.table[o] = randCol(r, n, 0.2);
+      for (const lang of ['vhdl', 'verilog']) {
+        const g = generateTableHdl(d, lang);
+        const lib = compile([{ path: g.filename, text: g.code }]);
+        assert.deepEqual([...lib.errors, ...elaborate(lib, d.name).diags].map(x => `${x.severity}: ${x.message}`), [], `${form} ${lang}`);
+        const t = truthTableFromModule([{ path: g.filename, text: g.code }], d.name);
+        assert.deepEqual(t.warnings, []);
+        for (const o of outs) assert.ok(careEqual(d.table[o], t.table[o]), `${form} ${lang} ${o}: ${d.table[o]} vs ${t.table[o]}`);
+      }
+    }
+  }
+});
+
+test('the schematic of a table is drawn in its HDL logic form (#694): the same gates as the HDL\'s expression, simulates to the table', () => {
+  const r = rng(6941);
+  for (let k = 0; k < 15; k++) {
+    const n = 2 + (k % 5), outs = ['y', 'z'];
+    const doc = newTable(`s${k}`, V(n), outs);
+    for (const o of outs) doc.table[o] = randCol(r, n, 0.15);
+    for (const form of FORMS) {
+      // the form of the table (no option), as in the Design pane
+      const sch = schematicFromTable({ ...doc, form });
+      assert.deepEqual(schematicErrors(sch).map(e => e.message), [], `${form} ${k}`);
+      assert.equal(sch.fallbacks, 0);
+      // its gates: those of the HDL's expressions, the inverters of the inputs once (shared by the outputs)
+      const types = sch.symbols.map(s => s.type).filter(t => t !== 'constant');
+      if (form === 'nand' || form === 'nor') {
+        assert.ok(types.every(t => new RegExp(`^${form}[234]$`).test(t)), `${form}: ${types}`);
+        let gates = 0; const inv = new Set();
+        const w = x => { if (!x.args) return; if (x.args.length === 1 && x.args[0].t === 'var') inv.add(x.args[0].name); else { gates++; x.args.forEach(w); } };
+        for (const o of outs) {
+          const { ast } = outputForm(normalizeTable({ ...doc, form }), o, form);
+          // (f = /a: an inverter gate of its own, not the inverted input)
+          if (ast.args?.length === 1 && ast.args[0].t === 'var') gates++; else w(ast);
+        }
+        assert.equal(types.length, gates + inv.size, `${form} ${k}: ${types}`);
+      }
+      for (const lang of ['vhdl', 'verilog']) {
+        const g = generateHdl({ ...sch, lang }, { lang });
+        const t = truthTableFromModule([{ path: `${doc.name}.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: g.code }], doc.name);
+        for (const o of outs) assert.ok(careEqual(doc.table[o], t.table[o]), `${form} ${lang} ${o}`);
+      }
+    }
+  }
+  // the XOR form drawn with XOR / XNOR gates: a full adder's sum and a 2-bit equality
+  const fa = { ...newTable('fa', ['a', 'b', 'c'], ['s']), table: { s: '01101001' }, form: 'xor' };
+  assert.deepEqual(schematicFromTable(fa).symbols.map(s => s.type), ['xor3']);
+  const eq = { ...newTable('eq', ['a', 'b'], ['e']), table: { e: '1001' }, form: 'xor' };
+  assert.deepEqual(schematicFromTable(eq).symbols.map(s => s.type), ['xnor2']);
+  // NAND only: f = a·b + /c = /(c·/(a·b)), two NANDs
+  const nd = { ...newTable('nd', ['a', 'b', 'c'], ['f']), table: { f: '10101011' }, form: 'nand' };
+  assert.deepEqual(schematicFromTable(nd).symbols.map(s => s.type).sort(), ['nand2', 'nand2']);
+  // the form given overrides the table's
+  assert.deepEqual(schematicFromTable(nd, { form: 'sop' }).symbols.map(s => s.type).sort(), ['and2', 'inv', 'or2']);
 });
