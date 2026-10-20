@@ -138,6 +138,9 @@ const PROFILE = 20000;   // the cycles of the activity's profile (compileNetlist
 const GUARD = 2;         // a segment's guard, as cells
 const PMAX = 0.3;        // a segment more often evaluated: unguarded
 const WORTH = 0.5;       // the guards, when they leave at most this part of the cells evaluated per step
+const OPS = 4;           // (#670) a cell's operations, as cells (compileNetlist's weightOf)
+const CUT_GAIN = 0.25;   // (#670) a cut changing more often than this part of what it reads: no cut
+const DETECT = 1.5;      // (#670) a cut's test of its changes, as cells
 const SPLIT = 80000;     // the characters of code above which run() is split (#629: compileNetlist)
 const CHUNK = 40000;     // the characters of a function of its combinational code, at most
 const PIECE = 10000;     // the cycles of a call of run() at most (#650: CompiledSim.cycle)
@@ -158,8 +161,8 @@ export function chunks(list, max) {
 // one of them reads changed, chosen to evaluate the fewest cells per cycle, guards counted (dynamic
 // programming): a segment of C cells costs GUARD + p * C, p the chance one of its values changed (the sum of
 // their rates, up to 1), or C unguarded (when it reads a value that changes at every step, or p is high).
-// blocks: [{ cells, keys, always }] in order; rate: Map(key -> changes per evaluation). The segments, with
-// their cost: the cells evaluated per step, guards counted.
+// blocks: [{ cells, keys, always, weight }] in order (weight: the block's cost as cells, #670; else its cells); rate:
+// Map(key -> changes per evaluation). The segments, with their cost: the cells evaluated per step, guards counted.
 export function segmentsOf(blocks, rate, maxLen = 400) {
   const m = blocks.length, best = new Float64Array(m + 1), from = new Int32Array(m + 1), guarded = new Uint8Array(m + 1);
   for (let j = 1; j <= m; j++) {
@@ -168,7 +171,7 @@ export function segmentsOf(blocks, rate, maxLen = 400) {
     let C = 0, p = 0, always = false;
     for (let i = j; i >= 1 && j - i < maxLen; i--) {
       const b = blocks[i - 1];
-      C += b.cells.length;
+      C += b.weight ?? b.cells.length;
       always ||= b.always;
       for (const k of b.keys) if (!keys.has(k)) { keys.add(k); p += rate.get(k) || 0; }
       const g = always || p > PMAX ? Infinity : GUARD + p * C;
@@ -185,6 +188,34 @@ export function segmentsOf(blocks, rate, maxLen = 400) {
   }
   segs.cost = best[m];
   return segs;
+}
+
+// (#670) The blocks in an order their dependencies keep, those evaluated at most steps (reading a value that changes
+// at every step, or more often than PMAX) together, the others together, so that segmentsOf finds long segments
+// of either kind: the blocks ready, the next of the same kind as the last first, else the first in their order.
+export function clustered(blocks, rate) {
+  const hot = b => b.always || b.keys.reduce((p, k) => p + (rate.get(k) || 0), 0) > PMAX;
+  const index = new Map(blocks.map((b, i) => [b, i])), users = new Map(blocks.map(b => [b, []])), left = new Map();
+  for (const b of blocks) {
+    const deps = [...(b.deps || [])].filter(d => index.has(d));
+    left.set(b, deps.length);
+    deps.forEach(d => users.get(d).push(b));
+  }
+  const ready = blocks.filter(b => !left.get(b)), out = [];
+  let last = null;
+  while (ready.length) {
+    let k = ready.findIndex(b => hot(b) === last);
+    if (k < 0) k = 0;
+    const b = ready.splice(k, 1)[0];
+    out.push(b);
+    last = hot(b);
+    for (const u of users.get(b)) if (left.set(u, left.get(u) - 1).get(u) === 0) {
+      // (kept in their first order)
+      const i = ready.findIndex(r => index.get(r) > index.get(u));
+      ready.splice(i < 0 ? ready.length : i, 0, u);
+    }
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ a VGA monitor (watch.vga)
@@ -719,46 +750,68 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
 
   // ---- activity (#464): the combinational cells in blocks by the values they read, each block evaluated only
   // when one of them changed since the last evaluation. A change is a bit of the dirty words D<j>, set by the main
-  // clock's commits (its flip-flops, its memories' writes) and by the cuts (a 1-bit result of a comparison of
-  // several bits: a counter's end, which changes much less often than the counter), cleared after each
-  // evaluation; bit 0 (all): every block. A block reading a value that changes at every step (the main clock's,
-  // a DCM's output) is always evaluated; the values with no bit (the inputs, the other clocks' flip-flops, the
-  // latches, the asynchronous loads) change between runs or when settling, after which every block is (all).
+  // clock's commits (its flip-flops, its memories' writes) and by the cuts (a cell whose value changes much less
+  // often than what it reads: a counter's end, #670: any cell of a number, those the profile finds changing about
+  // as often as what they read no cuts), cleared after each evaluation; bit 0 (all): every block. A value read in
+  // part is a key of its bits read (a counter's high bits change seldom). A block reading a value that changes at
+  // every step (the main clock's, a DCM's output) is always evaluated; the values with no bit (the inputs, the
+  // other clocks' flip-flops, the latches, the asynchronous loads) change between runs or when settling, after
+  // which every block is (all).
   const always = new Set(dcms.flatMap(d => Object.values(d.outs)));
   if (mainPort && usesMain) always.add(mainPort.v);
   const flagged = new Set(onMain.filter(e => e.q != null).map(e => e.q));
   const memFlagged = new Set(mems.filter(m => m.writes.some(w => clkBit(w) === main)).map(m => m.k));
-  const CUTS = new Set(['$eq', '$ne', '$eqx', '$nex', '$lt', '$le', '$gt', '$ge', '$reduce_and', '$reduce_or', '$reduce_bool', '$logic_not', '$logic_and', '$logic_or']);
   const varsIn = n => [...new Set(inBits(n).map(b => (typeof b === 'number' ? src.get(b)?.[0] : null)).filter(v => v != null))];
-  const reads = new Map();   // comb node -> { keys: Set ('v<var>', 'm<memory>'), always }
-  for (const n of order) {
-    n.cut = CUTS.has(n.type) && vars[n.y].w === 1 && inBits(n).length >= 4;
-    const r = { keys: new Set(), always: false };
-    for (const v of varsIn(n)) {
-      const d = combOf.get(v);
-      if (d) {
-        if (d.cut) r.keys.add(`v${v}`);
-        else { const dr = reads.get(d); dr.keys.forEach(k => r.keys.add(k)); r.always ||= dr.always; }
-      } else if (always.has(v)) r.always = true;
-      else if (flagged.has(v)) r.keys.add(`v${v}`);
+  // (#670: a value of a number's kind read in part, a key of its bits read: 'v<var>&<mask>'; a counter's high bits
+  // change much less often than its low ones)
+  const keyOf = (v, mask) => (vars[v].kind === 'n' && mask !== (vars[v].w >= 32 ? -1 : 2 ** vars[v].w - 1) ? `v${v}&${mask}` : `v${v}`);
+  const masksIn = n => {
+    const m = new Map();
+    for (const b of inBits(n)) {
+      const s = typeof b === 'number' ? src.get(b) : null;
+      if (s) m.set(s[0], (m.get(s[0]) || 0) | (1 << s[1]));
     }
-    if (n.type === '$memrd' && memFlagged.has(n.mem.k)) r.keys.add(`m${n.mem.k}`);
-    r.always ||= !activity;
-    reads.set(n, r);
-  }
+    return m;
+  };
+  // (#670: a cell's cost, as cells, from its operations: a table's address of ten bits, ten times a NOT's)
+  const weightOf = n => Math.max(1, (cellExpr(n).match(/>>>|<<|>>|[-+*&|^~?[]|===|!==/g) || []).length / OPS);
   // the blocks (the cells reading the same values), in an order the cells' dependencies keep
-  const blocks = new Map();   // key -> { cells, keys, always, deps: Set of blocks }
-  for (const n of order) {
-    const r = reads.get(n), key = r.always || !activity ? '*' : [...r.keys].sort().join(' ');
-    if (!blocks.has(key)) blocks.set(key, { cells: [], keys: [...r.keys], always: r.always, deps: new Set() });
-    const b = blocks.get(key);
-    b.cells.push(n);
-    n.block = b;
-  }
-  for (const n of order) for (const v of varsIn(n)) { const d = combOf.get(v); if (d && d.block !== n.block) n.block.deps.add(d.block); }
-  const blockOrder = [], placed = new Set();
-  const place = (b) => { if (placed.has(b)) return; placed.add(b); b.deps.forEach(place); blockOrder.push(b); };
-  blocks.forEach(place);
+  const blocksOf = () => {
+    const reads = new Map();   // comb node -> { keys: Set ('v<var>', 'v<var>&<mask>', 'm<memory>'), always }
+    for (const n of order) {
+      n.cut = vars[n.y].kind === 'n' && !n.nocut;
+      const r = { keys: new Set(), always: false };
+      for (const [v, mask] of masksIn(n)) {
+        const d = combOf.get(v);
+        if (d) {
+          if (d.cut) r.keys.add(keyOf(v, mask));
+          else { const dr = reads.get(d); dr.keys.forEach(k => r.keys.add(k)); r.always ||= dr.always; }
+        } else if (always.has(v)) r.always = true;
+        else if (flagged.has(v)) r.keys.add(keyOf(v, mask));
+      }
+      if (n.type === '$memrd' && memFlagged.has(n.mem.k)) r.keys.add(`m${n.mem.k}`);
+      r.always ||= !activity;
+      reads.set(n, r);
+      n.reads = r;
+    }
+    const keyed = new Set([...reads.values()].flatMap(r => [...r.keys].map(k => k.split('&')[0])));
+    const blocks = new Map();   // key -> { cells, keys, always, deps: Set of blocks }
+    for (const n of order) {
+      const r = reads.get(n), key = r.always || !activity ? '*' : [...r.keys].sort().join(' ');
+      if (!blocks.has(key)) blocks.set(key, { cells: [], keys: [...r.keys], always: r.always, deps: new Set(), weight: 0 });
+      const b = blocks.get(key);
+      b.cells.push(n);
+      // (a cut read under a guard: its test of its changes)
+      b.weight += weightOf(n) + (n.cut && keyed.has(`v${n.y}`) ? DETECT : 0);
+      n.block = b;
+    }
+    for (const n of order) for (const v of varsIn(n)) { const d = combOf.get(v); if (d && d.block !== n.block) n.block.deps.add(d.block); }
+    const order_ = [], placed = new Set();
+    const place = (b) => { if (placed.has(b)) return; placed.add(b); b.deps.forEach(place); order_.push(b); };
+    blocks.forEach(place);
+    return order_;
+  };
+  let blockOrder = blocksOf();
   // (the main clock's edges: their commits flag what changed, @@changes <edge>@@ and @@set m<memory>@@, as
   // generate writes them)
   const fire = (els, edge) => `${els.map(sample).join('\n')}\n@@changes ${edge}@@\n${els.map(e => commit(e, e.type === '$memwr')).join('\n')}`;
@@ -929,10 +982,28 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
     // the dirty bits: one for the values the same guarded segments read (bit 0: all); one per value in the
     // profile, in the order they are read
     const readers = new Map(), bitOf = new Map(), bits = new Map();
-    segs.forEach((sg, i) => sg.keys?.forEach(k => { if (!readers.has(k)) readers.set(k, []); readers.get(k).push(i); }));
+    // (#670: a cell's value read only by its own segment, which runs already, sets no bit)
+    const writer = new Map();   // a cell's 'v<var>' -> its segment
+    segs.forEach((sg, i) => sg.blocks.forEach(b => b.cells.forEach(n => writer.set(`v${n.y}`, i))));
+    segs.forEach((sg, i) => sg.keys?.forEach(k => {
+      if (writer.get(k.split('&')[0]) === i) return;
+      if (!readers.has(k)) readers.set(k, []);
+      readers.get(k).push(i);
+    }));
     for (const [k, r] of readers) { const sg = prof ? k : r.join(); if (!bits.has(sg)) bits.set(sg, bits.size + 1); bitOf.set(k, bits.get(sg)); }
     const words = Math.ceil((bits.size + 1) / 32);
-    const dirty = (k) => { const i = bitOf.get(k); return i == null ? null : { i, d: `D${i >> 5}`, sh: i & 31, bit: (1 << (i & 31)) | 0, set: `D${i >> 5} |= ${(1 << (i & 31)) | 0};` }; };
+    // a value's dirty bits ('v<var>', 'm<memory>'): its keys' bits, each with the mask of the value's bits that set it
+    // (null: any bit)
+    const byValue = new Map();
+    for (const [k, i] of bitOf) {
+      const [base, m] = k.split('&'), mask = m == null ? null : Number(m);
+      if (!byValue.has(base)) byValue.set(base, new Map());
+      const g = byValue.get(base);
+      g.set(i, g.has(i) ? (g.get(i) === null || mask === null ? null : g.get(i) | mask) : mask);
+    }
+    const dirty = (base) => [...(byValue.get(base) || [])].map(([i, mask]) => ({ i, mask, d: `D${i >> 5}`, sh: i & 31, bit: (1 << (i & 31)) | 0, set: `D${i >> 5} |= ${(1 << (i & 31)) | 0};` }));
+    // (numbers: the bit set with no branch, from the sign of y | -y)
+    const setIf = (f, x) => { const y = f.mask == null ? x : `(${x} & ${f.mask})`; return `{ const y = ${y}; ${f.d} |= ((y | -y) >> 31) & ${f.bit}; }`; };
     const allDirty = Array.from({ length: words }, (_, j) => `D${j} = -1;`).join(' ');
     const clean = Array.from({ length: words }, (_, j) => `D${j} = 0;`).join(' ');
     // (prof: each dirty bit counted in H.P, the evaluations in its last element)
@@ -945,7 +1016,7 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
     segs.forEach((sg, i) => sg.blocks.forEach(b => b.cells.forEach(n => segOf.set(n.y, sg.keys ? i : -1))));
     const inputVars = new Set(inputs.filter(p => !always.has(p.v)).map(p => p.v));
     const quiet = (e) => {
-      if (!FF.has(e.type) || !dirty(`v${e.q}`)) return null;
+      if (!FF.has(e.type) || !dirty(`v${e.q}`).length) return null;
       const from = new Set();
       for (const [port, bits] of Object.entries(e.C)) {
         if (port === 'CLK' || port === 'Q') continue;
@@ -974,16 +1045,18 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
     // piece the guard runs needlessly gives the same values)
     const pieces = segs.flatMap((sg, i) => {
       const cells = (ranBit.has(i) ? [ranSet(i)] : []).concat(sg.blocks.flatMap(b => b.cells).map(n => {
-        const e = conv(cellExpr(n), n.kind, vars[n.y].kind), f = dirty(`v${n.y}`);
-        // (a cut's bit with no branch: the cell is 1 bit wide)
-        if (!f) return `v${n.y} = ${e};`;
-        return vars[n.y].kind === 'n' ? `{ const t = ${e}; ${f.d} |= (t ^ v${n.y}) << ${f.sh}; v${n.y} = t; }` : `{ const t = ${e}; if (t !== v${n.y}) ${f.set} v${n.y} = t; }`;
+        const e = conv(cellExpr(n), n.kind, vars[n.y].kind), fs = dirty(`v${n.y}`);
+        if (!fs.length) return `v${n.y} = ${e};`;
+        if (vars[n.y].kind === 'b') return `{ const t = ${e}; if (t !== v${n.y}) { ${fs.map(f => f.set).join(' ')} } v${n.y} = t; }`;
+        // (a cut's bit with no branch; a 1-bit cell's, the difference shifted)
+        if (vars[n.y].w === 1) return `{ const t = ${e}; ${fs.map(f => `${f.d} |= (t ^ v${n.y}) << ${f.sh};`).join(' ')} v${n.y} = t; }`;
+        return `{ const t = ${e}, x = t ^ v${n.y}; ${fs.map(f => setIf(f, 'x')).join(' ')} v${n.y} = t; }`;
       }));
       let guard = null;
       if (sg.keys) {
         const mask = new Array(words).fill(0);
         mask[0] = 1;
-        for (const k of sg.keys) { const i = bitOf.get(k); mask[i >> 5] |= 1 << (i & 31); }
+        for (const k of sg.keys) { const i = bitOf.get(k); if (i != null) mask[i >> 5] |= 1 << (i & 31); }
         guard = mask.map((m, j) => (m ? `(D${j} & ${m})` : '')).filter(Boolean).join(' | ');
       }
       return chunks(cells, chunk).map(c => (guard ? `if (${guard}) {\n${c}\n}` : c));
@@ -998,20 +1071,21 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
     const changes = (els, edge) => {
       const by = new Map();
       for (const e of els) {
-        const f = e.q != null && dirty(`v${e.q}`);
-        if (!f) continue;
+        if (e.q == null) continue;
         const q = quietOf.get(e), mask = new Array(ranWords).fill(0);
         q?.forEach(i => { const r = ranBit.get(i); mask[r >> 5] |= 1 << (r & 31); });
-        const key = `${f.i} ${q ? mask.join() : ''}`;
-        if (!by.has(key)) by.set(key, { f, ran: q ? mask.map((m, j) => (m ? `(R${edge}${j} & ${m})` : '')).filter(Boolean).join(' | ') : null, n: [], b: [] });
-        by.get(key)[vk(e)].push(e);
+        for (const f of dirty(`v${e.q}`)) {
+          const key = `${f.i} ${q ? mask.join() : ''}`;
+          if (!by.has(key)) by.set(key, { f, ran: q ? mask.map((m, j) => (m ? `(R${edge}${j} & ${m})` : '')).filter(Boolean).join(' | ') : null, n: [], b: [] });
+          by.get(key)[vk(e)].push([e, f.mask]);
+        }
       }
       // (numbers: the bit set with no branch, from the sign of d | -d: a change every other cycle is no
-      // mispredicted branch)
+      // mispredicted branch; a flip-flop read in part, the difference of those bits)
       const byRan = new Map();
       for (const { f, ran, n, b } of by.values()) {
-        const set = [...(n.length ? [`{ const d = ${n.map(e => `(v${e.q} ^ n${e.id})`).join(' | ')}; ${f.d} |= ((d | -d) >> 31) & ${f.bit}; }`] : []),
-          ...(b.length ? [`if (${b.map(e => `v${e.q} !== n${e.id}`).join(' || ')}) ${f.set}`] : [])].join(' ');
+        const set = [...(n.length ? [`{ const d = ${n.map(([e, m]) => (m == null ? `(v${e.q} ^ n${e.id})` : `((v${e.q} ^ n${e.id}) & ${m})`)).join(' | ')}; ${f.d} |= ((d | -d) >> 31) & ${f.bit}; }`] : []),
+          ...(b.length ? [`if (${b.map(([e]) => `v${e.q} !== n${e.id}`).join(' || ')}) ${f.set}`] : [])].join(' ');
         if (!byRan.has(ran || '')) byRan.set(ran || '', []);
         byRan.get(ran || '').push(set);
       }
@@ -1019,7 +1093,7 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
     };
 
     const fill = { comb: () => combCode, fns: () => fnsCode, all: () => allDirty, decl: () => `${Array.from({ length: words }, (_, j) => `, D${j} = -1`).join('')}${ranDecl.map(r => `, ${r}`).join('')}`,
-      changes: edge => changes(edge === 'r' ? posMain : negMain, edge), set: k => dirty(k)?.set || '' };
+      changes: edge => changes(edge === 'r' ? posMain : negMain, edge), set: k => dirty(k).map(f => f.set).join(' ') };
     const code = templateOf(OUT).replace(/@@(\w+)(?: (\w+))?@@/g, (_, what, arg) => fill[what](arg));
     // (#629: a run() of more than splitAt characters, above V8's limit of the bytecode it optimizes (60 KB, about 0.66
     // byte a character), is not optimized: then the values are the code's own, not run()'s, and its combinational
@@ -1032,29 +1106,50 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
   // from the start, `profile` of them) chooses them (segmentsOf); 'fine': each block guarded, 'max': the fewest
   // guarded segments (every rate 0), to test the code
   const fine = blockOrder.map(b => ({ blocks: [b], keys: b.always ? null : new Set(b.keys) }));
-  let segs = [{ blocks: blockOrder, keys: null }];
+  let segs = [{ blocks: blockOrder, keys: null }], work = null;
   if (activity === 'fine') segs = fine;
   else if (activity === 'max') segs = segmentsOf(blockOrder, new Map());
   else if (activity && profile > 0 && blockOrder.some(b => !b.always)) {
-    const keys = [...new Set(fine.flatMap(sg => (sg.keys ? [...sg.keys] : [])))];
-    const P = new Float64Array(Math.ceil((keys.length + 1) / 32) * 32 + 1);
-    try {
+    // (the rates: each key's changes per evaluation)
+    const profileOf = () => {
+      const fine = blockOrder.map(b => ({ blocks: [b], keys: b.always ? null : new Set(b.keys) }));
+      const keys = [...new Set(fine.flatMap(sg => (sg.keys ? [...sg.keys] : [])))];
+      const P = new Float64Array(Math.ceil((keys.length + 1) / 32) * 32 + 1);
       new Function('H', generate(fine, true))({ ...HELPERS, Error: CompileError, P }).run(profile);
-      const rate = new Map(keys.map((k, i) => [k, P[i + 1] / Math.max(1, P[P.length - 1])]));
-      const g = segmentsOf(blockOrder, rate);
+      return { rate: new Map(keys.map((k, i) => [k, P[i + 1] / Math.max(1, P[P.length - 1])])) };
+    };
+    try {
+      const { rate } = profileOf();
+      // (#670: a cut whose value changes about as often as what it reads, no cut: its readers read that, and its
+      // test of its changes is saved; the rates of what it reads are the profile's already)
+      const changes = new Map();   // 'v<var>' -> its changes per evaluation (the most of its keys')
+      for (const [k, r] of rate) { const base = k.split('&')[0]; changes.set(base, Math.max(changes.get(base) ?? 0, r)); }
+      let pruned = false;
+      for (const n of order) {
+        const out = changes.get(`v${n.y}`);
+        if (!n.cut || out == null) continue;
+        const pin = n.reads.always ? 1 : Math.min(1, [...n.reads.keys].reduce((p, k) => p + (rate.get(k) || 0), 0));
+        if (out > CUT_GAIN * pin) { n.nocut = true; pruned = true; }
+      }
+      if (pruned) blockOrder = blocksOf();
+      const g = segmentsOf(clustered(blockOrder, rate), rate);
       // (worth its overhead, the dirty bits and the values kept from step to step, when it evaluates at most
       // half the cells)
-      if (g.cost <= WORTH * order.length) segs = g;
+      if (g.cost <= WORTH * blockOrder.reduce((a, b) => a + b.weight, 0)) { segs = g; work = g.cost; }
     } catch { /* (a design that does not settle: unguarded, the error is CompiledSim's) */ }
   }
   const code = generate(segs);
+  const all = order.reduce((a, n) => a + weightOf(n), 0);
   const nets = new Map();
   for (const [name, n] of Object.entries(mod.netnames || {})) if (!n.hide_name && !n.bits.some(b => unread.has(b))) nets.set(name, n.bits);
   for (const p of ports) nets.set(p.name, p.bits);
   return {
     code, inputs, ports, nets, src, vars, warnings,
     clock: mainPort ? { port: mainPort.name } : null,
-    stats: { cells: names.length, comb: order.length, flipflops: elems.filter(e => FF.has(e.type)).length, memories: mems.length, clocks: dlist.length + (main != null ? 1 : 0), bothEdges: needFall, dcms: dcms.length },
+    stats: { cells: names.length, comb: order.length, flipflops: elems.filter(e => FF.has(e.type)).length, memories: mems.length, clocks: dlist.length + (main != null ? 1 : 0), bothEdges: needFall, dcms: dcms.length,
+      // (#670: the combinational cells' cost, as cells (their operations), and the part of it a step evaluates, as the
+      // profile estimates it, guards and tests of changes counted: all of it unguarded)
+      work: { all: +all.toFixed(1), step: +(work ?? all).toFixed(1) } },
   };
 }
 

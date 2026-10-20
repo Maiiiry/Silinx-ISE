@@ -164,7 +164,7 @@ async function same(design, label) {
       assert.equal(c.get(p.name), a.get(p.name), `${label}: '${p.name}' after ${a.cycles} cycles, with tables`);
     }
   }
-  return { stats: w.stats, tables: g.stats, chars: [a.model.code.length, b.model.code.length] };
+  return { stats: w.stats, tables: g.stats, chars: [a.model.code.length, b.model.code.length], work: c.model.stats.work };
 }
 
 // (chains, registers made words, cells before and after)
@@ -188,14 +188,30 @@ const TABLES = {
   clock: [8, { tables: 24, inputs: 12, words: 8480, outputs: 72, cells: [380, 129] }, 4],
   vga: [2, { tables: 19, inputs: 12, words: 48864, outputs: 55, cells: [425, 110] }, 2],
 };
+// (#670: the part of its operations a step evaluates at most, as the profile estimates it: clock's and vga's models,
+// their display's and their pixel clock's logic changing at every other step, unguarded)
+const WORK = { gates: 1, traffic: 0.6, blinky: 0.35, pong: 0.5, stopwatch: 0.2, clock: 1, vga: 1 };
 test('#650 #659 every example\'s Post-Synthesis Simulation Model at word level, its irregular logic as tables: the same outputs as bit by bit', { timeout: 600000 }, async () => {
   for (const name of EXAMPLES) {
     const { postsynth } = await models(name, ['postsynth']);
-    const { stats, tables, chars } = await same(postsynth, name);
+    const { stats, tables, chars, work } = await same(postsynth, name);
     assert.deepEqual(stats, EXPECTED[name], name);
     assert.deepEqual([tables.equalities.equalities, tables.tables, tables.registers], TABLES[name], name);
     if (stats.chains) assert.ok(chars[1] < chars[0], `${name}: ${chars}`);
+    assert.ok(work.step <= WORK[name] * work.all, `${name}: ${JSON.stringify(work)}`);
   }
+});
+test('#670 speed: pong\'s Post-Synthesis Simulation Model, at least 1.4 times as fast with the activity as without it', { timeout: 300000 }, async () => {
+  const { postsynth } = await models('pong', ['postsynth']);
+  const { json, top, warnings } = await netlistOf(postsynth, { run: yosysNode });
+  assert.deepEqual(warnings, []);
+  const sims = [true, false].map(activity => new CompiledSim(compileNetlist(json, { top, activity })));
+  const best = [0, 0];
+  for (const s of sims) s.cycle(300000);   // (compiled by the JIT)
+  for (let k = 0; k < 5; k++) sims.forEach((s, i) => { const t0 = performance.now(); s.cycle(500000); best[i] = Math.max(best[i], 500000 / ((performance.now() - t0) / 1000)); });
+  // (about 1.65 times on a laptop: 30 against 18 million cycles a second; 1.29 times before #670)
+  assert.ok(best[0] > 1.4 * best[1], `${best.map(x => Math.round(x / 1e6)).join(' against ')} million cycles a second`);
+  for (const p of postsynth.top.ports.filter(x => x.dir === 'out')) assert.equal(sims[0].get(p.name), sims[1].get(p.name), p.name);
 });
 test('#650 #659 blinky\'s post-translate, post-map and post-place & route models at word level, with tables (SIMPRIM; the router\'s LUT pins in any order)', { timeout: 600000 }, async () => {
   const m = await models('blinky', ['synth', 'translate', 'posttrans', 'map', 'postmap', 'par', 'trce', 'postpar']);
