@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -957,10 +957,57 @@ test('#611 Optimization Effort Normal: High\'s mappings not a given part faster 
   assert.equal(n.files['chain.json'], one.files['chain.json']);
   assert.deepEqual(n.cells, one.cells);
   assert.deepEqual(n.warnings, []);
-  // a design of more LUTs than DEEP_RULE.maxLuts: not tried
-  const big = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', deepRule: { ...DEEP_RULE, maxLuts: 10 } });
-  assert.deepEqual([big.depth.levels, big.depth.auto, big.depth.tried], [17, false, false]);
+  // a design of more LUTs than DEEP_RULE.maxLuts: High's mappings not tried (the SOP balancing alone, #654: refused here,
+  // not 99 % faster)
+  const big = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', deepRule: { ...DEEP_RULE, maxLuts: 10, gain: 0.99 } });
+  assert.deepEqual([big.depth.levels, big.depth.auto, big.depth.tried, big.depth.sopb.kept], [17, false, false, false]);
   assert.equal(big.files['chain.json'], one.files['chain.json']);
+  assert.deepEqual(big.warnings, []);
+});
+
+// ------------------------------------------------------------------ the GIA's SOP balancing (#654)
+test('#654 logic depth: the GIA\'s SOP balancing (DEPTH_SOPB), a deep design\'s candidate at both efforts; a comparator chain of 48 bits keeps it (6.5 ns estimated against DEPTH_ABC3\'s 8.3 and the usual 20.3), equal to the RTL; a shallow design does not make it', { timeout: 300000 }, async () => {
+  assert.equal(DEPTH_SOPB, 'strash; &get -n; &sopb; &if -g -K 6; &synch2; &sopb; &if -g -K 6; &synch2; &if -K 4; &put; mfs2');
+  assert.deepEqual(SOPB_RULE, { levels: 16, maxLuts: 20000 });
+  const text = CHAIN.replace(/23/g, '47').replace('i < 24', 'i < 48');
+  const deepChain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text }]), 'chain');
+  for (const effort of ['high', 'normal']) {
+    const r = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort });
+    const dp = JSON.stringify(r.depth);
+    assert.equal(r.depth.sopb.kept, true, dp);
+    // (faster than every other candidate, the usual mapping's slices)
+    assert.ok(r.depth.sopb.ns <= r.depth.third.ns * 0.85 && r.depth.sopb.ns <= r.depth.ns[0] * 0.4, dp);
+    assert.ok(r.depth.sopb.slices <= r.depth.slices[0], dp);
+    assert.deepEqual([r.util.luts, criticalDelay(r.files['chain.json'], 'chain'), logicLevels(r.files['chain.json'], 'chain') <= 6], [r.depth.sopb.luts, r.depth.sopb.ns, true]);
+    assert.deepEqual(r.warnings, []);
+    const d = compareNetlist(deepChain, r, { name: `sopb-chain-${effort}`, sim: { cycles: 300 } });
+    assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+  }
+  // at Normal, too large for High's mappings (DEEP_RULE.maxLuts): the SOP balancing alone, kept (69 % faster: more than
+  // DEEP_RULE.gain), equal to the RTL
+  const big = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', deepRule: { ...DEEP_RULE, maxLuts: 10 } });
+  assert.deepEqual([big.depth.auto, big.depth.tried, big.depth.wide, big.depth.sopb.kept], [false, false, undefined, true], JSON.stringify(big.depth));
+  assert.equal(criticalDelay(big.files['chain.json'], 'chain'), big.depth.sopb.ns);
+  assert.deepEqual(big.warnings, []);
+  const d = compareNetlist(deepChain, big, { name: 'sopb-chain-big', sim: { cycles: 300 } });
+  assert.equal(d.status, 'pass', d.report || JSON.stringify(d));
+  // a design of 16 levels or fewer: not made (the counter; the 24-bit chain, 9 levels)
+  for (const [name, dsg] of [['counter', design(COUNTER, 'counter')], ['chain', elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain')]]) {
+    const r = await synthesizeOpen(dsg, { family: 'spartan3e', run: yosysNode });
+    assert.equal(r.depth.sopb, undefined, name);
+  }
+});
+
+test('#654 the SOP balancing failing (Yosys crashed): the netlist chosen before kept, with a warning', { timeout: 300000 }, async () => {
+  const text = CHAIN.replace(/23/g, '47').replace('i < 24', 'i < 48');
+  const deepChain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text }]), 'chain');
+  const crashed = Object.assign(new Error('Yosys failed: RangeError: out of memory'), { crash: true });
+  const run = async (args, files, onLine) => { if (files['silinx_depth.abc'] === DEPTH_SOPB) throw crashed; return yosysNode(args, files, onLine); };
+  const r = await synthesizeOpen(deepChain, { family: 'spartan3e', run, effort: 'normal', deepRule: { ...DEEP_RULE, maxLuts: 10 } });
+  assert.deepEqual(r.warnings, ['Warning: the mapping balanced as sums of products failed (Yosys failed: RangeError: out of memory): the netlist chosen before is kept']);
+  assert.deepEqual(r.depth.sopb, { kept: false, failed: 'Yosys failed: RangeError: out of memory' });
+  const one = await synthesizeOpen(deepChain, { family: 'spartan3e', run: yosysNode, effort: 'normal', depth: false });
+  assert.equal(r.files['chain.json'], one.files['chain.json']);
 });
 test('#468 logicLevels: the LUTs and MUXF5s on the deepest path between sequential cells; deepDesign', () => {
   // a netlist by hand: FF -> LUT -> LUT -> MUXF5 (with a LUT on I1) -> MUXF6 -> FF; a carry chain of 3

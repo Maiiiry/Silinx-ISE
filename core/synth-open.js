@@ -318,6 +318,18 @@ export const DEPTH_ABC2 = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch
 // max 21.1 instead of 23.0); not in place of DEPTH_ABC2, slower on others (serv 7 %, the EPFL router 8 %)
 export const DEPTH_ABC3 = DEPTH_ABC2.replace('if -g; strash; dc2; dch -f; if;', 'if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if;');
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
+// The GIA's SOP balancing (#654): ABC's &sopb balances the logic as sums of products on its GIA form (the AIG with
+// structural choices), then &if -g (the same balancing, delay-oriented, of a mapping onto 6-input cuts) and &synch2
+// (choices again), twice, before a mapping onto LUT4s alone. Where if -g on the AIG (DEPTH_ABC…) keeps the
+// structure of an arithmetic array written as gates, this restructures it: the EPFL multiplier (a 64 x 64-bit
+// multiplier as an AIG, 87 levels of LUTs) 100.5 ns estimated -> 52.2 (45 levels) for 16 % more LUTs and slices, in
+// 19 s (its usual run: 6 min); the EPFL max 66.0 -> 16.6 (DEPTH_ABC3: 23.0); the EPFL adder 98.2 -> 9.7, 8 levels of
+// LUTs as ISE's (its carry chain: 17.4). A candidate of the designs whose usual netlist is more than `levels` levels
+// deep, of `maxLuts` LUTs at most (SOPB_RULE), at both efforts, the multiplier's 7500 LUTs too (above
+// DEPTH_RULE.maxLuts: it takes seconds where ABC's if -g takes minutes); research/synth-quality/README.md, "SOP
+// balancing of the GIA".
+export const DEPTH_SOPB = 'strash; &get -n; &sopb; &if -g -K 6; &synch2; &sopb; &if -g -K 6; &synch2; &if -K 4; &put; mfs2';
+export const SOPB_RULE = { levels: 16, maxLuts: 20000 };
 // LUT delays (#78): ABC maps for depth with every function as fast as a LUT4 (-luts gives costs, not
 // delays); its LUT library (read_lut) tells it what a 5-input function (a LUT4 into the MUXF5) and a
 // 6-input one (into the MUXF6 too) cost and take: the -4 delays of core/fpga/timing.js (Tilo, Tif5x,
@@ -613,7 +625,9 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * { ns, luts, kept } of the one balanced twice more with the LUT delays (DEPTH_ABC3, #52), and
  * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
  * abc9: false leaves it out); each with its slices too, when it packs (sliceCount); muxf: { trees, ns, luts, slices,
- * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511) }.
+ * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511), and sopb: { ns,
+ * luts, slices, kept } of the mapping balanced as sums of products (DEPTH_SOPB, #654), made for a design deeper than
+ * SOPB_RULE.levels at both efforts (at Normal kept by DEEP_RULE's gain too when the design gets none of High's mappings) }.
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
  * usual mapping alone (no other mapping tried: as depth false), but for a design limited by its depth (#468:
  * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too, kept when deepRule.gain
@@ -714,6 +728,17 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     }
     const json = out[`${top}.json`];
     let chosen = out, cells = cellCounts(json, top);
+    // a mapping of the design as it was before the LUT mapping, by an ABC script (null: ABC's own, onto LUT4_COSTS)
+    // (delays: the script inline with the LUT library, #78)
+    const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
+      { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [LUT6_MAP_FILE]: LUT6_MAP, ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
+      l => { if (!quiet(l)) lines.push(l); });
+    // the GIA's SOP balancing (#654): a deep design's candidate (SOPB_RULE), at both efforts and above DEPTH_RULE.maxLuts
+    // too, started at once beside the other mappings
+    const linesS = [];
+    const sopb = depth && out[PREMAP_FILE] && utilization(cells).luts <= SOPB_RULE.maxLuts && logicLevels(json, top) > SOPB_RULE.levels
+      ? remap(DEPTH_SOPB, linesS) : null;
+    sopb?.catch(() => {});
     if (tryDepth && out[PREMAP_FILE] && utilization(cells).luts <= DEPTH_RULE.maxLuts) {
       // (the kept mappings' warnings: said once the choice is made, none of a mapping a failure drops)
       const kept = [];
@@ -721,10 +746,6 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         // the mapping with the wider functions too (LUT4_COSTS, ABC's own script), kept when better than
         // the one onto LUT4s alone by DEPTH_RULE; the depth-oriented one is then measured against it
         // (the two from the same netlist, at once: in parallel when run() has several Yosys, #86)
-        // (delays: the script inline with the LUT library, #78)
-        const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
-          { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [LUT6_MAP_FILE]: LUT6_MAP, ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
-          l => { if (!quiet(l)) lines.push(l); });
         let base = json;
         const linesW = [], lines2 = [], lines3 = [], lines4 = [];
         const first = Promise.all([remap(null, linesW), remap(DEPTH_ABC, lines2)]);
@@ -816,6 +837,27 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         for (const k of ['wide', 'second', 'delays', 'third', 'abc9']) delete info[k];
         Object.assign(info, { tried: false, kept: false, ns: null, luts: null, slices: null, failed: e.message });
         sayNew(`Warning: the depth-oriented mapping failed (${e.message}): the usual mapping is kept`);
+      }
+    }
+    // the SOP-balanced netlist kept when better than the one chosen by DEPTH_RULE (at Normal, a design that gets none of
+    // High's mappings, too large for them: only when DEEP_RULE.gain faster, as High's mappings at Normal, #611)
+    if (sopb) {
+      try {
+        const outS = await sopb, jS = outS[`${top}.json`];
+        if (jS) {
+          const j0 = chosen[`${top}.json`], cellsS = cellCounts(jS, top);
+          const ns = [criticalDelay(j0, top), criticalDelay(jS, top)], luts = [utilization(cells).luts, utilization(cellsS).luts], sl = [slices(j0), slices(jS)];
+          const kept = keepDepth(ns, luts, DEPTH_RULE, sl) && (!normal || tryDepth || ns[1] <= ns[0] * (1 - deepRule.gain));
+          info.sopb = { ns: ns[1], luts: luts[1], slices: sl[1], kept };
+          if (kept) {
+            chosen = outS;
+            cells = cellsS;
+            for (const l of linesS) sayNew(l);
+          }
+        }
+      } catch (e) {
+        info.sopb = { kept: false, failed: e.message };
+        sayNew(`Warning: the mapping balanced as sums of products failed (${e.message}): the netlist chosen before is kept`);
       }
     }
     return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]) };

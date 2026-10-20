@@ -323,6 +323,58 @@ or comparing the four inputs pairwise at once, would restructure it. ISE could n
 measurement (the ISE host was out of reach); Silinx's timing of the routed max was within 2 % of ISE's
 trce in the last comparison (docs/QUALITY.md: 29.12 against 28.50 ns at High).
 
+## SOP balancing of the GIA (#654, #655, #52)
+
+The weekly comparison of 2026-10-20 left three EPFL benchmarks slower than ISE for their logic alone (*Where the
+speed is lost*, below): the multiplier (87 levels of LUTs against ISE's 38, 1.40 times ISE's period; 7527 LUTs, above
+DEPTH_RULE.maxLuts, so mapped for area at both efforts), the adder (its 128-bit carry chain, 1.09) and max (1.08).
+
+The multiplier is a 64 x 64-bit multiplier as an AIG of 27 062 ANDs, 274 levels deep, each output bit two levels
+deeper than the one before (f[k] at about 2k + 11): Booth-encoded partial products added row after row, the full
+adders not left as nodes (of 3714 three-input XORs of its cuts, 1430 have a majority of the same three leaves, by
+simulation; no two nodes are equivalent). A structural recovery of the adder tree (#77's carry chains, or a
+Wallace tree) would need the arithmetic found through the Booth encoding first. ABC's own restructuring does it
+without that: `&sopb`, the SOP balancing of the GIA (the AIG with structural choices), where `if -g` on the AIG (the
+depth-oriented mappings, DEPTH_ABC…) keeps the array's structure. ABC alone on the AIG (yosys-abc 0.70, LUT4
+levels / LUTs):
+
+| ABC script (the multiplier) | levels | LUT4s | s |
+|---|---:|---:|---:|
+| `strash; dch -f; if -K 4` (the usual) | 87 | 7795 | 1.0 |
+| `DEPTH_ABC` (`… if -g …`) | 87 | 7738 | 2.9 |
+| `&syn2; &if -g -K 6; &synch2; &if -K 4` | 60 | 8524 | 2.7 |
+| `&sopb; &if -K 4` | 57 | 9252 | 0.9 |
+| `&sopb` twice / three times | 48 / 44 | 10233 / 11099 | 2.0 / 3.3 |
+| `&sopb; &if -g -K 6; &synch2`, then `&if -K 4` | 50 | 8548 | 4.0 |
+| **the same twice, then `&if -K 4`** (`DEPTH_SOPB`) | **45** | **8792** | 9.1 |
+
+The same script on the others: max 57 -> 14 levels (1027 -> 1150 LUT4s), the adder 85 -> 8 (339 -> 491; ISE's
+adder is 8 levels of LUTs too), priority 56 -> 21, sin 54 -> 47, voter and log2 a little. In the open synthesis
+(`remapCommands` with the script, from the design before the LUT mapping; estimate / levels / LUTs / slices),
+the final mapping onto LUT4s alone (`&if -K 4`) is the smallest: the multiplier 100.5 ns -> 52.2 / 45 / 8729 / 4365
+in 19 s (with ABC's `if` onto LUT4_COSTS after it: 53.2 ns, 10362 LUTs, 5745 slices; its usual run takes 6 min).
+
+So `DEPTH_SOPB` is one more candidate (`r.depth.sopb`), made for a design whose usual netlist is more than 16
+levels deep, of 20 000 LUTs at most (`SOPB_RULE`), at both efforts, started beside the other mappings and kept when
+better than the netlist they chose by DEPTH_RULE; at Normal, for a design too large for High's mappings
+(DEEP_RULE.maxLuts), only when DEEP_RULE.gain (a quarter) faster, as High's mappings at Normal (#611). The routed
+designs (XC3S1200E, the I/O wrapper, as the weekly comparison; ISE's trce, DRC clean, the .bit byte-identical to
+ISE's bitgen), at both efforts (the same netlists):
+
+| design | before: trce / LUTs / slices | with DEPTH_SOPB | ISE |
+|---|---|---|---|
+| epfl-multiplier | 93.22 ns / 7574 / 3787 | **61.63 ns** / 8719 / 4360 (estimate 100.8 -> 53.6) | 66.76 ns / 12245 / 6162 |
+| epfl-max | 27.30 ns / 1234 / 715 | **22.53 ns** / 1344 / 672 (DEPTH_ABC3's netlist replaced) | 25.68 ns / 1386 / 927 |
+| epfl-adder | 13.34 ns / 171 / 194 (the carry chain) | **11.45 ns** / 675 / 338 (8 levels of LUTs) | 12.25 ns / 696 / 446 |
+
+The three are now faster than ISE's (0.92, 0.88 and 0.93 times its period); the adder's slices grow (still fewer
+than ISE's). The other designs of more than 16 levels make the candidate and refuse it, their netlists as before
+at both efforts: EPFL priority (15.7 ns against DEPTH_ABC3's 8.8), sin (51.3 against 60.5, but 37 % more LUTs),
+log2 (100.8 against 116.9, 25 % more LUTs), voter, ITC'99 b05, b14 (High), b20, b21, b22. The examples (1 to 8
+levels) and the other designs of the corpus do not make it (the examples' netlists checked identical at both
+efforts). Synthesis time: one Yosys run more for those deep designs, beside the others (the multiplier 331 ->
+350 s, log2 291 s with it, the others a few seconds more).
+
 ## LUT4s alone (#54)
 
 ABC's LUT mapping (`abc -luts 1,1,1,1,2,4`) was given functions of 5 and 6 inputs at their cost in LUT4s
