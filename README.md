@@ -177,18 +177,19 @@ for Xilinx FPGAs supported by ISE 14.7.
   counts; the *XOR form* when it is simpler than both (fewer literals, or as many and fewer
   two-input operators): `a ⊕ b ⊕ c`, a full adder's carry `a·b + c·(a ⊕ b)`, a comparator's
   `/(a1 ⊕ b1)·/(a0 ⊕ b0)`, `a ⊕ b·c` (sums of products of literals and XOR / XNOR factors, or a
-  variable XOR one; up to 6 inputs, don't cares used, checked on the whole table); and *Check my
-  answer*, which compares the student's own expression with the table and lists the rows that
-  differ. The expressions are written with `/` as NOT (`/a·b + c`, `/(a + b)`), or, chosen, as
+  variable XOR one; up to 6 inputs, don't cares used, checked on the whole table); and the *NAND
+  form* and *NOR form*, the minimal SOP with NAND gates only and the minimal POS with NOR gates only
+  (double negation: `/(/(a·b)·/(c·d))`), with their gate counts. The expressions are written with `/` as NOT (`/a·b + c`, `/(a + b)`), or, chosen, as
   `/ab + c`, `a·b' + c`, `ab' + c`, VHDL or Verilog; each reads back as typed. *HDL logic* picks the
-  module's logic: the minimal SOP, POS, or the XOR form where it is simpler (`xor` / `xnor`, `^` /
-  `~^`). The table always has its HDL module, made with it in the project's
+  logic of its module and of its schematic: the minimal SOP, POS, the XOR form where it is simpler
+  (`xor` / `xnor`, `^` / `~^`), NAND gates only (`a nand b`, `~(a & b)`) or NOR gates only. The table always has its HDL module, made with it in the project's
   preferred language, kept in sync with the table both ways (like ASM charts: editing the table
   rewrites it; editing and saving the HDL updates the table by exhaustive simulation, don't cares
   kept in its comments; a module that no longer fits — sequential, too many inputs — shows the
   reason in the editor banners).
-  *Generate Schematic* draws the minimal two-level circuit (AND/OR or NAND only) as an editable
-  schematic. *Truth Table from Module…* fills the table with the table of any combinational module
+  Its schematic is always drawn from it, in that logic (AND / OR / NOT gates, XOR / XNOR gates,
+  NAND or NOR gates only): the *Schematic* badge of the table's row in the Design pane opens it
+  (read-only, redrawn whenever the table changes). *Truth Table from Module…* fills the table with the table of any combinational module
   of up to 8 input bits.
 - **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *State Machine (FSM)*,
   `.fsm.json`): the bubble diagram of the 1st-semester courses, Moore or Mealy. Double-click to add

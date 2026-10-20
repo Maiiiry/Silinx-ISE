@@ -26,7 +26,7 @@ const PARTS = {
     'generateSimModel', 'postParTiming', 'textPowerReport', 'backAnnotatePins', 'readBuildFile', 'showTextDoc', 'stopProcesses'],
   'drawings.js': ['openAsm', 'staleHdl', 'freshHdl', 'syncHdlFromAsm', 'asmFromHdlFile', 'syncAsmFromHdl',
     'convertToAsm', 'asmContextMenu', 'ttDesignSources', 'openTt', 'ttModel', 'refreshTtLink', 'syncHdlFromTt',
-    'syncTtFromHdl', 'ttFromHdl', 'pickModule', 'moduleTable', 'loadTtFromModule', 'schematicFromTt', 'ttContextMenu',
+    'syncTtFromHdl', 'ttFromHdl', 'pickModule', 'moduleTable', 'loadTtFromModule', 'ttSchematicDoc', 'openTtSchematic', 'ttSchT', 'refreshTtSchematic', 'ttContextMenu',
     'openFsm', 'fsmModel', 'refreshFsmLink', 'fsmDir', 'freeName', 'syncHdlFromFsm', 'syncFsmFromHdl',
     'fsmFromHdlFile', 'convertToFsm', 'fsmToAsmChart', 'asmToFsmDiagram', 'fsmTruthTables', 'openPetri',
     'syncHdlFromPetri', 'petriContextMenu', 'fsmContextMenu', 'schModules', 'openSch', 'isAsm', 'isTt', 'isFsm',

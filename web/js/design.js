@@ -12,7 +12,7 @@ import { log } from './console.js';
 import { reloadProject } from './project.js';
 import { checkUcfFile } from './implement.js';
 import { asmContextMenu, clashTip, convertToAsm, convertToFsm, convertToSchematic, fsmContextMenu, openAsm, openFsm,
-  openPetri, openSch, openTt, openView, petriContextMenu, resolveHdlClash, schContextMenu, syncedViewMenu,
+  isTt, openPetri, openSch, openTt, openTtSchematic, openView, petriContextMenu, resolveHdlClash, schContextMenu, syncedViewMenu,
   ttContextMenu, viewBadge, viewContextMenu, viewIcon, viewKind, viewNoun } from './drawings.js';
 import { checkFileSyntax, checkSyntax, markStale, renderProcesses, saveAll } from './processes.js';
 import { openSchematic, runSimulation } from './viewers.js';
@@ -48,9 +48,10 @@ export function renderHierarchy() {
     const sch = drawn || (info && viewOfModule(info.name, file));
     // one row per module: its base's icon (the drawing's when it has one: its HDL is generated from it),
     // then a badge for each of its views: the drawing's first (the base's, marked), its HDL's last, named
-    // by the file's language (#207, #220)
+    // by the file's language (#207, #220); a truth table's schematic, generated from it, in between (#694)
     const badges = !info ? [] : [
       sch ? { text: viewBadge(sch), base: true, title: drawn ? 'Open' : 'Base: its HDL is generated from it', open: () => openView(sch), context: e => (drawn ? viewContextMenu(e, drawn) : syncedViewMenu(e, sch)) } : null,
+      isTt(sch) ? { text: 'Schematic', title: 'Generated from the truth table, in its HDL logic form', open: () => openTtSchematic(sch), context: e => (drawn ? viewContextMenu(e, drawn) : syncedViewMenu(e, sch)) } : null,
       drawn ? null : { text: info.lang === 'vhdl' ? 'VHDL' : 'Verilog', base: !sch, title: sch ? `Generated from the ${viewNoun(sch)}` : 'Open', open: () => openFile(file, info.line), context: e => moduleContextMenu(e, modName, file) },
       drawn ? clashBadge(drawn) : null,
     ].filter(Boolean);

@@ -11,9 +11,10 @@
 //
 // Truth table documents (<name>.tt.json):
 //   { version: 1, name, inputs: ['a', 'b'], outputs: ['f'], table: { f: '0110' }, exprs: { f: 'a^b' },
-//     notes: '', form: 'sop'|'pos'|'xor', lang: 'vhdl'|'verilog', generatedFile?: 'src/name.vhd' }
-//   form: the logic of the generated HDL module: the minimal SOP, POS, or the XOR form of each output
-//   where it is cheaper than both (#435), else its minimal SOP.
+//     notes: '', form: 'sop'|'pos'|'xor'|'nand'|'nor', lang: 'vhdl'|'verilog', generatedFile?: 'src/name.vhd' }
+//   form: the logic of the generated HDL module and of its schematic (#694): the minimal SOP, POS, the
+//   XOR form of each output where it is cheaper than both (#435), else its minimal SOP, or NAND gates
+//   only (from the minimal SOP) or NOR gates only (from the minimal POS).
 
 import { newDoc, symbolDef, symbolPins, symbolBox, netlist } from './schdoc.js';
 import { compile, elaborate, simulate } from './compile.js';
@@ -31,6 +32,7 @@ export class LogicError extends Error {
 
 // ===================================================================== expressions
 // AST: { t: 'var', name, pos } | { t: 'const', v: 0|1 } | { t: 'not', a } | { t: 'and'|'or'|'xor', args: [..] }
+//      | { t: 'nand'|'nor', args: [..] } (a gate of the NAND / NOR forms, #694; one argument: an inverter)
 const KW = { not: 'not', and: 'and', or: 'or', xor: 'xor', nand: 'nand', nor: 'nor', xnor: 'xnor' };
 
 function tokenize(src) {
@@ -187,6 +189,8 @@ export function evalExpr(e, env) {
     case 'and': return e.args.every(a => evalExpr(a, env)) ? 1 : 0;
     case 'or': return e.args.some(a => evalExpr(a, env)) ? 1 : 0;
     case 'xor': return e.args.reduce((x, a) => x ^ evalExpr(a, env), 0);
+    case 'nand': return e.args.every(a => evalExpr(a, env)) ? 0 : 1;
+    case 'nor': return e.args.some(a => evalExpr(a, env)) ? 0 : 1;
     default: throw new Error(`bad expression node ${e.t}`);
   }
 }
@@ -210,6 +214,8 @@ export function exprColumn(ast, inputs) {
  *   'textbook' a·b' + c   'compact' ab' + c (juxtaposition when every name is one letter)
  *   'ascii'    a*b' + c   'vhdl' (a and not b) or c   'verilog' (a & ~b) | c
  * XOR is ⊕ (ascii ^, vhdl xor, verilog ^); the XNOR of two operands is xnor / ~^ in VHDL / Verilog.
+ * A NAND / NOR gate (#694) is a complemented product / sum, /(a·b), (a + b)'; in VHDL a nand b, and
+ * not (a and b and c) for more inputs, in Verilog ~(a & b); an inverter (one input) a nand a, ~(a & a).
  * parseExpr reads the / notations back as the same expression (the editor's expressions: tested),
  * 'textbook', 'compact' and 'ascii' as the same function.
  */
@@ -234,6 +240,14 @@ export function formatExpr(e, notation = 'textbook') {
     switch (x.t) {
       case 'const': return x.v ? sym.c1 : sym.c0;
       case 'var': return x.name;
+      case 'nand': case 'nor': {
+        const base = x.t === 'nand' ? 'and' : 'or';
+        if (!hdl) return f({ t: 'not', a: x.args.length === 1 ? x.args[0] : { t: base, args: x.args } }, parentOp);
+        const args = x.args.length === 1 ? [x.args[0], x.args[0]] : x.args;
+        if (N === 'verilog') return `~(${args.map(a => f(a, base)).join(sym[base])})`;
+        const s = args.length === 2 ? args.map(a => f(a, x.t)).join(` ${x.t} `) : `not (${args.map(a => f(a, base)).join(sym[base])})`;
+        return parentOp ? `(${s})` : s;
+      }
       case 'not': {
         // XNOR of two operands: a xnor b, a ~^ b
         if (hdl && x.a.t === 'xor' && x.a.args.length === 2) {
@@ -592,7 +606,7 @@ export function exprCost(e) {
   const walk = x => {
     if (x.t === 'var') c.literals++;
     else if (x.t === 'not') walk(x.a);
-    else if (x.args) { c[x.t] += x.args.length - 1; x.args.forEach(walk); }
+    else if (x.args) { c[x.t] = (c[x.t] || 0) + x.args.length - 1; x.args.forEach(walk); }
   };
   walk(e);
   c.ops = c.xor + c.and + c.or;
@@ -634,16 +648,6 @@ export function minimizeXor(colIn, inputs, { than, maxNodes = 30000, timeMs = 25
   const got = exprColumn(best.ast, inputs);
   for (let r = 0; r < col.length; r++) if (col[r] !== 'X' && col[r] !== got[r]) throw new Error(`XOR form of ${col} wrong at row ${r}`);
   return { ast: best.ast, ...exprCost(best.ast), exact: !budget.cut };
-}
-
-/** A student's expression against a column: { equal, diffs: [{ row, expected, got }] } (X rows never differ). */
-export function compareExpr(text, inputs, colIn) {
-  const ast = parseExpr(text, { vars: inputs });
-  const col = normColumn(colIn, inputs.length);
-  const got = exprColumn(ast, inputs);
-  const diffs = [];
-  for (let r = 0; r < col.length; r++) if (col[r] !== 'X' && col[r] !== got[r]) diffs.push({ row: r, expected: col[r], got: got[r] });
-  return { equal: diffs.length === 0, diffs, ast, column: got };
 }
 
 // ===================================================================== Karnaugh maps
@@ -708,6 +712,9 @@ const IDENT = /^[A-Za-z][A-Za-z0-9_]*$/;
 const RESERVED = new Set(('abs access after alias all and architecture array assert attribute begin block body buffer bus case component configuration constant disconnect downto else elsif end entity exit file for function generate generic group guarded if impure in inertial inout is label library linkage literal loop map mod nand new next nor not null of on open or others out package port postponed procedure process pure range record register reject rem report return rol ror select severity signal shared sla sll sra srl subtype then to transport type unaffected units until use variable wait when while with xnor xor ' +
   'always assign begin buf case casex casez default defparam else end endcase endfunction endmodule endtask for forever function if initial inout input integer module nand negedge nor not or output parameter posedge reg repeat signed task while wire xnor xor localparam genvar generate endgenerate logic std_logic ieee').split(' '));
 
+/** The logic forms of a table's HDL module and schematic (#694). */
+export const FORMS = ['sop', 'pos', 'xor', 'nand', 'nor'];
+
 export function newTable(name = 'truth_table', inputs = ['a', 'b', 'c'], outputs = ['f']) {
   const n = inputs.length;
   return { version: TT_VERSION, name, inputs: [...inputs], outputs: [...outputs], table: Object.fromEntries(outputs.map(o => [o, '0'.repeat(1 << n)])), exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
@@ -725,7 +732,7 @@ export function normalizeTable(d) {
   const ex = doc.exprs && typeof doc.exprs === 'object' ? doc.exprs : {};
   doc.exprs = Object.fromEntries(doc.outputs.filter(o => typeof ex[o] === 'string' && ex[o].trim()).map(o => [o, ex[o]]));
   doc.notes = String(doc.notes ?? '');
-  doc.form = doc.form === 'pos' || doc.form === 'xor' ? doc.form : 'sop';
+  doc.form = FORMS.includes(doc.form) ? doc.form : 'sop';
   doc.lang = doc.lang === 'verilog' ? 'verilog' : 'vhdl';
   return doc;
 }
@@ -769,8 +776,9 @@ export function reshapeTable(doc, inputs, outputs) {
 }
 
 /**
- * All the results shown for one output: canonical forms, minimal SOP and POS, gate counts, and the
- * XOR form when it is cheaper than both (else null; none above MAX_XOR_INPUTS inputs).
+ * All the results shown for one output: canonical forms, minimal SOP and POS, gate counts, the
+ * XOR form when it is cheaper than both (else null; none above MAX_XOR_INPUTS inputs), and the NAND and
+ * NOR forms (#694: { ast, gates, inverters }).
  */
 export function analyzeOutput(doc, out, opts = {}) {
   const n = doc.inputs.length;
@@ -780,15 +788,38 @@ export function analyzeOutput(doc, out, opts = {}) {
   sop.ast = minimalAst(sop, doc.inputs); pos.ast = minimalAst(pos, doc.inputs);
   sop.gates = gateCount(sop); pos.gates = gateCount(pos);
   const xor = minimizeXor(col, doc.inputs, { than: [sop.ast, pos.ast] });
-  return { col, ...can, sop, pos, xor };
+  return { col, ...can, sop, pos, xor, nand: gateForm(sop, doc.inputs, 'nand'), nor: gateForm(pos, doc.inputs, 'nor') };
+}
+
+/**
+ * The expression of output `o` of a (normalized) table in a form (FORMS), the one of both its HDL
+ * module and its schematic (#694): { ast, what }.
+ */
+export function outputForm(doc, o, form = doc.form) {
+  const n = doc.inputs.length;
+  const m = minimize(doc.table[o], n, { form: form === 'pos' || form === 'nor' ? 'pos' : 'sop', ...(n > MAX_EDIT_INPUTS ? { maxNodes: 50000 } : {}) });
+  const ast = minimalAst(m, doc.inputs);
+  const what = `minimal ${m.form === 'pos' ? 'POS' : 'SOP'}, ${m.literals} literal(s)`;
+  if (form === 'xor') {
+    // the XOR form against both minimal forms; a fixed node budget only, no time limit: the
+    // same table always gives the same module
+    const x = minimizeXor(doc.table[o], doc.inputs, { timeMs: Infinity });
+    if (x) return { ast: x.ast, what: `XOR form, ${x.literals} literal(s)` };
+  }
+  if (form === 'nand' || form === 'nor') {
+    const g = gateForm(m, doc.inputs, form);
+    if (g.ast.t !== 'const') return { ast: g.ast, what: `${form.toUpperCase()} gates only, from the ${what}: ${g.gates} gate(s)` };
+  }
+  return { ast, what };
 }
 
 // ===================================================================== HDL module of a table
 const DC_RE = /don't cares?:\s*([A-Za-z][A-Za-z0-9_]*)\s*=\s*d\(([^)]*)\)/gi;
 
 /**
- * HDL module (VHDL or Verilog) of a table: one assignment per output, its minimal SOP or POS; with
- * form 'xor', its XOR form where there is one (xor / xnor, ^ / ~^), else its minimal SOP.
+ * HDL module (VHDL or Verilog) of a table: one assignment per output, its expression in the form
+ * (outputForm): its minimal SOP or POS; with form 'xor', its XOR form where there is one (xor / xnor,
+ * ^ / ~^), else its minimal SOP; with 'nand' / 'nor', NAND / NOR operations only (#694).
  */
 export function generateTableHdl(docIn, lang = docIn.lang || 'vhdl', { form = docIn.form || 'sop', source } = {}) {
   const doc = normalizeTable(docIn);
@@ -796,18 +827,7 @@ export function generateTableHdl(docIn, lang = docIn.lang || 'vhdl', { form = do
   if (errs.length) throw new Error(errs.map(x => x.message).join('; '));
   const c = lang === 'verilog' ? '//' : '--';
   const n = doc.inputs.length;
-  const res = doc.outputs.map(o => {
-    const m = minimize(doc.table[o], n, { form: form === 'pos' ? 'pos' : 'sop', ...(n > MAX_EDIT_INPUTS ? { maxNodes: 50000 } : {}) });
-    m.ast = minimalAst(m, doc.inputs);
-    m.what = `minimal ${m.form === 'pos' ? 'POS' : 'SOP'}, ${m.literals} literal(s)`;
-    if (form === 'xor') {
-      // the XOR form against both minimal forms; a fixed node budget only, no time limit: the
-      // same table always gives the same module
-      const x = minimizeXor(doc.table[o], doc.inputs, { timeMs: Infinity });
-      if (x) Object.assign(m, { ast: x.ast, what: `XOR form, ${x.literals} literal(s)` });
-    }
-    return { o, a: canonical(doc.table[o]), m };
-  });
+  const res = doc.outputs.map(o => ({ o, a: canonical(doc.table[o]), m: outputForm(doc, o, form) }));
   const head = [
     `${c} ${doc.name}: combinational module generated from the truth table ${source || `${doc.name}.tt.json`} (Silinx Truth Table / Karnaugh Map).`,
     `${c} It stays synchronized with the table: editing the table rewrites this file, and editing this file (and`,
@@ -926,56 +946,111 @@ function outputTree(res) {
   const terms = res.terms.map(t => (t.literals.length === 1 ? leaf(t.literals[0]) : { op: inner, kids: t.literals.map(leaf) }));
   return terms.length === 1 ? terms[0] : { op: outer, kids: terms };
 }
+// at most L inputs a gate (L(op) when L is a function); the groups of an XNOR, NAND or NOR are XORs,
+// ANDs or ORs: XNOR(a, b, c, d, e) = XNOR(XOR(a, b, c, d), e)
+const BASE_OP = { xnor: 'xor', nand: 'and', nor: 'or' };
 function splitFanIn(node, L) {
   if (!node.op) return node;
+  const max = typeof L === 'function' ? L(node.op) : L;
   let kids = node.kids.map(k => splitFanIn(k, L));
-  while (kids.length > L) {
+  const base = BASE_OP[node.op] || node.op;
+  while (kids.length > max) {
+    const bmax = typeof L === 'function' ? L(base) : L;
     const nk = [];
-    for (let i = 0; i < kids.length; i += L) { const ch = kids.slice(i, i + L); nk.push(ch.length === 1 ? ch[0] : { op: node.op, kids: ch }); }
+    for (let i = 0; i < kids.length; i += bmax) { const ch = kids.slice(i, i + bmax); nk.push(ch.length === 1 ? ch[0] : splitFanIn({ op: base, kids: ch }, L)); }
     kids = nk;
   }
   return { op: node.op, kids };
 }
-// NAND-only form computing node (inv = false) or its complement (inv = true)
-function nandify(node, inv) {
+// NAND-only (or NOR-only) form computing node (inv = false) or its complement (inv = true), by double
+// negation: a·b = /(/(a·b)), a + b = /(/a·/b); a + b = /(/(a + b)), a·b = /(/a + /b). A complemented
+// input is an inverter (a one-input gate, `nand1`, `nor1`), double inverters cancel.
+function gateOnly(node, inv, g) {
   if (node.leaf != null) return { leaf: node.leaf, neg: node.neg !== inv };
-  const not = x => (x.op === 'nand1' ? x.kids[0] : { op: 'nand1', kids: [x] });
-  if (node.op === 'buf') return nandify(node.kids[0], inv);
-  if (node.op === 'and') { const g = { op: 'nand', kids: node.kids.map(k => nandify(k, false)) }; return inv ? g : not(g); }
-  if (node.op === 'or') { const g = { op: 'nand', kids: node.kids.map(k => nandify(k, true)) }; return inv ? not(g) : g; }
-  throw new Error(`nandify: ${node.op}`);
+  const one = `${g}1`;
+  const not = x => (x.op === one ? x.kids[0] : { op: one, kids: [x] });
+  if (node.op === 'buf') return gateOnly(node.kids[0], inv, g);
+  // the gate's own operation (AND for NAND): its inputs as they are; the other one: complemented
+  const own = node.op === (g === 'nand' ? 'and' : 'or');
+  if (node.op !== 'and' && node.op !== 'or') throw new Error(`${g} form: ${node.op}`);
+  const x = { op: g, kids: node.kids.map(k => gateOnly(k, !own, g)) };
+  return own === inv ? x : not(x);
+}
+
+/**
+ * NAND-only form of a minimal SOP, or NOR-only form of a minimal POS (#694), with at most 4 inputs a
+ * gate: { ast, gates (every gate, the inverters of the inputs once each), inverters }; a constant
+ * output is its constant (no gate). In the ast a complemented input is a one-input gate (an inverter).
+ */
+export function gateForm(res, inputs, g = res.form === 'pos' ? 'nor' : 'nand') {
+  let t = outputTree(res);
+  if (t.const != null) return { ast: { t: 'const', v: t.const }, gates: 0, inverters: 0 };
+  t = splitFanIn(t, 4);
+  t = t.leaf != null ? { op: `${g}1`, kids: [{ leaf: t.leaf, neg: !t.neg }] } : gateOnly(t, false, g);
+  const negs = new Set();
+  let gates = 0, inverters = 0;
+  const ast = x => {
+    const v = { t: 'var', name: inputs[x.leaf] };
+    if (x.leaf != null) { if (x.neg) negs.add(x.leaf); return x.neg ? { t: g, args: [v] } : v; }
+    gates++; if (x.kids.length === 1) inverters++;
+    return { t: g, args: x.kids.map(ast) };
+  };
+  const a = ast(t);
+  return { ast: a, gates: gates + negs.size, inverters: inverters + negs.size };
+}
+
+// gate tree of an expression (the schematic of outputForm): the tree of outputTree, a complemented
+// input (NOT, or a one-input NAND / NOR) a leaf `neg`; XNOR, NAND, NOR of two or more inputs their gates
+function astTree(e, index) {
+  const leaf = x => (x.t === 'var' ? { leaf: index.get(x.name), neg: false } : null);
+  if (e.t === 'var') return leaf(e);
+  if ((e.t === 'not' || ((e.t === 'nand' || e.t === 'nor') && e.args.length === 1)) && (e.a || e.args[0]).t === 'var') return { leaf: index.get((e.a || e.args[0]).name), neg: true };
+  if (e.t === 'not') {
+    const op = { xor: 'xnor', and: 'nand', or: 'nor' }[e.a.t];
+    if (!op) throw new Error(`schematic of a table: NOT of ${e.a.t}`);
+    return { op, kids: e.a.args.map(k => astTree(k, index)) };
+  }
+  if (e.t === 'nand' || e.t === 'nor') return e.args.length === 1 ? { op: `${e.t}1`, kids: [astTree(e.args[0], index)] } : { op: e.t, kids: e.args.map(k => astTree(k, index)) };
+  if (e.args) return { op: e.t, kids: e.args.map(k => astTree(k, index)) };
+  throw new Error(`schematic of a table: ${e.t}`);
 }
 
 /**
  * Gate schematic (core/schdoc.js document) of a table: input markers on the left, one vertical
- * rail per used input literal (inverters at the top), the two-level circuit of each output
- * (minimal SOP: AND gates then an OR gate; POS: OR then AND) and the output markers on the right.
- * opts: { form: 'sop'|'pos', nand: NAND gates only, lang, name }.
+ * rail per used input literal (inverters at the top), the circuit of each output's expression in the
+ * form, the one of its HDL module (outputForm, #694: minimal SOP: AND gates then an OR gate; POS: OR
+ * then AND; the XOR form with XOR / XNOR gates; NAND or NOR gates only, the inverters too) and the
+ * output markers on the right. A gate has at most 5 inputs (AND, OR), 4 (NAND, NOR, XOR, XNOR).
+ * opts: { form: one of FORMS (default: the table's), lang, name }.
  */
-export function schematicFromTable(docIn, { form = 'sop', nand = false, lang, name } = {}) {
+export function schematicFromTable(docIn, { form, lang, name } = {}) {
   const tt = normalizeTable(docIn);
+  form ||= tt.form;
   const n = tt.inputs.length;
   const doc = newDoc(name || tt.name, lang || tt.lang);
   let sid = 0, wid = 0, pid = 0, lid = 0;
-  const L = nand ? 4 : 5;
+  const only = form === 'nand' || form === 'nor' ? form : null;   // the inverters' gate
+  const fanIn = op => (op === 'and' || op === 'or' ? 5 : 4);
+  const index = new Map(tt.inputs.map((v, j) => [v, j]));
   // ---- trees
   const trees = tt.outputs.map(o => {
-    const m = minimize(tt.table[o], n, { form });
-    let t = outputTree(m);
-    if (t.const != null) return { o, t };
-    t = splitFanIn(t, L);
-    if (nand) t = t.leaf != null ? { op: 'nand1', kids: [{ leaf: t.leaf, neg: !t.neg }] } : nandify(t, false);
-    else if (t.leaf != null) t = { op: 'buf', kids: [t] };
+    const { ast } = outputForm(tt, o, form);
+    if (ast.t === 'const') return { o, t: { const: ast.v } };
+    // (f = /a in NAND or NOR gates only: an inverter gate, not the inverted rail)
+    let t = only && ast.args?.length === 1 && ast.args[0].t === 'var' ? { op: `${only}1`, kids: [{ leaf: index.get(ast.args[0].name), neg: false }] } : astTree(ast, index);
+    t = splitFanIn(t, fanIn);
+    if (t.leaf != null) t = { op: 'buf', kids: [t] };
     return { o, t };
   });
   // ---- sizes and columns
+  const one = g => g.op === 'nand1' || g.op === 'nor1';
   const gateType = g => {
     const k = g.kids.length;
-    if (g.op === 'nand1') return 'nand2';
+    if (one(g)) return `${g.op.slice(0, -1)}2`;
     if (g.op === 'buf') return 'buf';
     return `${g.op}${k}`;
   };
-  const gateH = g => (g.op === 'buf' ? 20 : g.op === 'nand1' ? 40 : Math.max(40, g.kids.length * 20));
+  const gateH = g => (g.op === 'buf' ? 20 : one(g) ? 40 : Math.max(40, g.kids.length * 20));
   const size = g => {
     if (g.leaf != null) { g.h = 20; g.level = 0; return; }
     g.kids.forEach(size);
@@ -1001,7 +1076,7 @@ export function schematicFromTable(docIn, { form = 'sop', nand = false, lang, na
   const PX = 20 + 10 * Math.ceil(Math.max(...tt.inputs.map(v => v.length), 1) * 0.75 + 4);
   const portY = j => 40 + 30 * j;
   const yInv = portY(n - 1) + 30;
-  const invH = nand ? 80 : 60;
+  const invH = only ? 80 : 60;
   const xT = j => PX + 60 + 60 * j, xC = j => xT(j) + 30;
   const railsEnd = xT(n - 1) + 40;
   const bandTop0 = yInv + invH + 40;
@@ -1071,11 +1146,11 @@ export function schematicFromTable(docIn, { form = 'sop', nand = false, lang, na
     const u = used.get(j) || { pos: false, neg: false };
     const net = railNet(j, false);
     if (u.neg) {
-      const xin = nand ? xC(j) - 10 : xC(j);
+      const xin = only ? xC(j) - 10 : xC(j);
       addWire([{ x: PX, y: yj }, { x: xin, y: yj }, { x: xin, y: yInv }], net);
-      const inv = nand ? addSym('nand2', xC(j) - 20, yInv, 90) : addSym('inv', xC(j) - 10, yInv, 90);
+      const inv = only ? addSym(`${only}2`, xC(j) - 20, yInv, 90) : addSym('inv', xC(j) - 10, yInv, 90);
       inv.pins.forEach(p => { p.net = p.dir === 'out' ? railNet(j, true) : net; });
-      if (nand) addWire([{ x: xC(j) - 10, y: yInv }, { x: xC(j) + 10, y: yInv }], net);
+      if (only) addWire([{ x: xC(j) - 10, y: yInv }, { x: xC(j) + 10, y: yInv }], net);
       addWire([{ x: xC(j), y: yInv + invH }, { x: xC(j), y: yBottom }], railNet(j, true));
       if (u.pos) addWire([{ x: xT(j), y: yj }, { x: xT(j), y: yBottom }], net);
     } else if (u.pos) addWire([{ x: PX, y: yj }, { x: xT(j), y: yj }, { x: xT(j), y: yBottom }], net);
@@ -1134,7 +1209,7 @@ export function schematicFromTable(docIn, { form = 'sop', nand = false, lang, na
         connect({ x: out.x, y: out.y }, k.net, pin, g.level);
       }
     });
-    if (g.op === 'nand1') { const [a, b] = ins; addWire([{ x: a.x, y: a.y }, { x: b.x, y: b.y }], g.kids[0].leaf != null ? railNet(g.kids[0].leaf, g.kids[0].neg) : g.kids[0].net); }
+    if (one(g)) { const [a, b] = ins; addWire([{ x: a.x, y: a.y }, { x: b.x, y: b.y }], g.kids[0].leaf != null ? railNet(g.kids[0].leaf, g.kids[0].neg) : g.kids[0].net); }
   };
   for (const tr of trees) {
     if (tr.t.const != null) {

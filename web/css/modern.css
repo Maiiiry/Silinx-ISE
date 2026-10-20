@@ -403,7 +403,6 @@ html[data-ui="modern"] .tt-table td.tt-cell.sel { background: var(--m-accent-sof
 html[data-ui="modern"] .tt-table td.v1 { color: var(--m-info); }
 html[data-ui="modern"] .tt-table td.v0 { color: var(--m-muted); }
 html[data-ui="modern"] .tt-table td.vX { color: var(--m-warning); }
-html[data-ui="modern"] .tt-table tr.tt-diff td { background: rgba(201, 48, 44, .14); }
 html[data-ui="modern"] .tt-tab { border-color: var(--m-border); background: var(--m-surface-2); color: var(--m-muted); border-radius: 6px 6px 0 0; }
 html[data-ui="modern"] .tt-tab.active { background: var(--m-surface); color: var(--m-accent); border-bottom-color: var(--m-surface); }
 html[data-ui="modern"] .tt-kmap { border-radius: 8px; }

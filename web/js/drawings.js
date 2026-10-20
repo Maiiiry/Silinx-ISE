@@ -156,10 +156,9 @@ export async function openTt(path) {
       el.append(host);
       const ed = mountTtEditor(host, {
         model,
-        onChange: () => setDirty(d, true),
+        onChange: m => { setDirty(d, true); refreshTtSchematic(path, m); },
         linkInfo: () => { const f = S.schOwners?.[path]; return f ? { file: f, why: S.outOfSync?.[f] } : null; },
         onOpenFile: f => openFile(f),
-        onSchematic: o => schematicFromTt(path, o),
         onFromModule: () => loadTtFromModule(path),
       });
       d.ttEditor = ed;
@@ -229,6 +228,7 @@ export async function syncTtFromHdl(hdlPath, { quiet = false } = {}) {
       await api.writeFile(S.project.name, ttPath, JSON.stringify(next, null, 2));
       const d = findDoc(`tt:${ttPath}`);
       if (d?.ttEditor && !d.dirty) d.ttEditor.setModel(next);
+      refreshTtSchematic(ttPath, next);
       status(`${ttPath.split('/').pop()} updated from ${hdlPath.split('/').pop()}`);
     } finally { S.syncing = false; }
   }
@@ -277,29 +277,52 @@ async function loadTtFromModule(ttPath) {
   if (!t || !d?.ttEditor) return;
   if (!await confirmDlg(T, `Replace the contents of ${ttPath.split('/').pop()} by the truth table of '${mod}' (${t.inputs.length} input(s), ${t.outputs.length} output(s))?`)) return;
   d.ttEditor.setModel({ ...d.ttEditor.getModel(), inputs: t.inputs, outputs: t.outputs, table: t.table, exprs: {} });
-  setDirty(d, true);
+  setDirty(d, true); refreshTtSchematic(ttPath, d.ttEditor.getModel());
   for (const w of t.warnings) log(`WARNING: ${w}`, 'warn');
   log(`${ttPath}: truth table of '${mod}' (${1 << t.inputs.length} rows, exhaustive simulation).`, 'ok');
 }
 
-// "Generate Schematic": a one-off gate schematic of the table (not linked)
-async function schematicFromTt(ttPath, { form = 'sop', nand = false } = {}) {
+// The schematic of a truth table (#694): always generated from the table, in its HDL logic form (the
+// gates of its HDL's expressions: core/logic.js schematicFromTable), a read-only view of its module (a
+// badge of its row in the Design pane), redrawn whenever the table changes. Not a file of the project.
+async function ttSchematicDoc(model) {
   const { schematicFromTable, validateTable, normalizeTable } = await import('/core/logic.js');
-  const { netlist } = await import('/core/schdoc.js');
-  const m = normalizeTable(await ttModel(ttPath));
-  const errs = validateTable(m);
-  if (errs.length) { alertDlg('Generate Schematic', errs.map(x => x.message).join('\n'), 'error'); return; }
-  const dir = ttPath.includes('/') ? ttPath.replace(/\/[^/]*$/, '') : 'src';
-  let name = `${m.name}_sch`, k = 1;
-  while (S.fileTree.includes(`${dir}/${name}.sch.json`) || S.modules.some(x => x.name.toLowerCase() === name.toLowerCase())) name = `${m.name}_sch${++k}`;
-  const doc = schematicFromTable(m, { form, nand, lang: m.lang, name });
-  const bad = netlist(doc).diagnostics.filter(x => x.severity === 'error');
-  if (bad.length) { alertDlg('Generate Schematic', bad.map(x => x.message).join('\n'), 'error'); return; }
-  const target = `${dir}/${name}.sch.json`;
-  await api.writeFile(S.project.name, target, JSON.stringify(doc, null, 1));
-  log(`Truth table '${ttPath}' -> schematic ${target} (minimal ${form.toUpperCase()}${nand ? ', NAND gates only' : ''}; not linked to the table: a module of its own, '${name}').`, 'ok');
-  await reloadProject(false);
-  openSch(target);
+  const m = normalizeTable(model);
+  const errs = validateTable(m).filter(x => x.severity !== 'warning');
+  return errs.length ? { errors: errs.map(x => x.message) } : { doc: schematicFromTable(m) };
+}
+export async function openTtSchematic(ttPath) {
+  const id = `ttsch:${ttPath}`;
+  if (findDoc(id)) return activateDoc(findDoc(id));
+  let model;
+  try { model = await ttModel(ttPath); } catch (e) { toast(`Cannot open ${ttPath}: ${e.message}`, 'error'); return; }
+  const { mountSchEditor } = await import('./sch-editor.js');
+  const first = await ttSchematicDoc(model);
+  openDoc({
+    id, title: `${ttPath.split('/').pop().replace(/\.tt\.json$/i, '')} (Schematic)`, icon: 'schematic',
+    create(el, d) {
+      const bar = h('div', { class: 'doc-toolbar tt-sch-bar' });
+      const host = h('div', { class: 'doc-body' });
+      el.append(bar, host);
+      const ed = mountSchEditor(host, { doc: first.doc, readOnly: true });
+      d.viewer = ed;
+      d.showTt = ({ doc, errors }) => {
+        bar.innerHTML = '';
+        bar.append(h('span', { class: 'rtl-ro' }, 'Schematic (read-only): generated from '), h('a', { onclick: () => openTt(ttPath) }, ttPath.split('/').pop()));
+        if (errors) bar.append(h('span', { class: 'tt-err' }, ` — the truth table has errors: ${errors.join('; ')}`));
+        else ed.setDoc(doc);
+      };
+      d.showTt(first);
+      return { destroy: () => ed.destroy?.() };
+    },
+  });
+}
+// the table changed (edited, or read back from its HDL): its schematic, when open, follows
+let ttSchT = null;
+function refreshTtSchematic(ttPath, model) {
+  if (!findDoc(`ttsch:${ttPath}`)) return;
+  clearTimeout(ttSchT);
+  ttSchT = setTimeout(async () => { const d = findDoc(`ttsch:${ttPath}`); if (d?.showTt) d.showTt(await ttSchematicDoc(model)); }, 150);
 }
 
 export function ttContextMenu(e, file) {
