@@ -12,4 +12,6 @@ In detail:
   congestion factor, so that a critical net can take a contested wire. On 19 designs (the slowest of the
   corpus against ISE, those with multipliers or block RAMs, and the examples; three placements each) the
   critical path is 1.3 % shorter by Silinx's analysis (itc99-b08 −5 %, itc99-b12 −6 %, T80 −1.6 %), none
-  longer; the routing takes about 1.3 times as long.
+  longer; by ISE's trce, on the 9 slowest at seed 1, 2.1 % shorter (T80 −5.5 %, itc99-b08 −12.5 %, itc99-b10
+  +2.9 %), the examples as before (±0.8 %), every bitstream still byte-identical to ISE's bitgen with a clean
+  DRC. The routing takes about 1.3 times as long.
