@@ -12,6 +12,8 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  # the Development menu reads its changes' issue labels (#707)
+  issues: read
 concurrency:
   group: dev-release
   cancel-in-progress: true
@@ -27,6 +29,9 @@ jobs:
           ref: ${{ github.sha }}
       - uses: ./.github/actions/setup
       - name: Build the single-file edition
+        # (the token only reads the issues' labels of the Development menu, #707: it is not written anywhere)
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/build-standalone.mjs
       - name: Package (as a release, version dev)
         run: node scripts/package-release.mjs dev --out out && ls -la out

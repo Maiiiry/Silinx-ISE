@@ -71,6 +71,18 @@ test('CI at a release only: the development build and the site\'s dev/ after eve
   assert.match(pages, /github\.event_name != 'workflow_run' \|\| github\.event\.workflow_run\.conclusion == 'success'/);
 });
 
+test('the development builds read their changes\' issue labels (#707): issues: read, the token in the build step\'s env only', () => {
+  for (const [f, step] of [['.github/workflows/pages.yml', 'Build the development edition (dev/)'], ['.github/workflows/dev-release.yml', 'Build the single-file edition']]) {
+    const yml = read(f);
+    assert.match(/\npermissions:\n((?: {2}.*\n)+)/.exec(yml)[1], /^ {2}issues: read$/m, f);
+    const at = yml.indexOf(`- name: ${step}`), next = yml.indexOf('\n      - ', at + 1);
+    assert.ok(at > 0, `${f}: ${step}`);
+    assert.match(yml.slice(at, next), /\n {8}env:\n {10}GITHUB_TOKEN: \$\{\{ github\.token \}\}\n/, `${f}: the token in the step's env`);
+    // the build's own variable in that step only (the other steps' GH_TOKEN is gh's)
+    assert.equal(yml.match(/GITHUB_TOKEN:/g).length, 1, f);
+  }
+});
+
 test('CodeQL (#498): a workflow of its own, nightly on main when its code changed, and at a release (#607); its token writes the findings only; its actions pinned', () => {
   const yml = read('.github/workflows/codeql.yml');
   assert.match(yml, /^on:\n  push:\n    tags: \['v\*'\]\n  schedule:\n    - cron: '\d+ \d+ \* \* \*' +# nightly.*\n  workflow_dispatch:\nconcurrency:\n  group: codeql-\$\{\{ github\.ref \}\}\n  cancel-in-progress: true\n/m);

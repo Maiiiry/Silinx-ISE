@@ -698,13 +698,16 @@ export const BROWSER = (process.env.SILINX_UI_BROWSER || 'chrome').toLowerCase()
 export const chromeOnly = BROWSER === 'chrome' ? undefined : `needs the Chrome DevTools Protocol (not in ${BROWSER})`;
 
 // the scripts every page starts with
-function initScripts({ updateCheck }) {
+function initScripts({ updateCheck, build }) {
   return [
     // a Content-Security-Policy violation (the server's header, the static editions' <meta>, #487) is a
     // console error, which fails the test, in every browser
     "document.addEventListener('securitypolicyviolation', (e) => console.error(`Content-Security-Policy violation: ${e.violatedDirective} blocked ${e.blockedURI || 'an inline script'}${e.sourceFile ? ` (${e.sourceFile}:${e.lineNumber})` : ''}`));",
     // no update check against GitHub at start-up (a test can turn it on again with its own fetch stub)
     ...(updateCheck ? [] : ['window.SILINX_NO_UPDATE_CHECK = true;']),
+    // a development build's data (core/version.js BUILD, which the single file's build defines): its Development
+    // menu (#707) on the local server
+    ...(build ? [`window.__SILINX_BUILD__ = ${JSON.stringify(build)};`] : []),
     // SILINX_UI_INTERFACE=classic: run the tests in the Xilinx ISE interface (the default is the modern one)
     ...(process.env.SILINX_UI_INTERFACE ? [`try { if (!localStorage.getItem('silinx.ui')) localStorage.setItem('silinx.ui', ${JSON.stringify(process.env.SILINX_UI_INTERFACE)}); } catch (e) {}`] : []),
   ];
@@ -716,7 +719,7 @@ function initScripts({ updateCheck }) {
  * npm dependencies are missing from <root>/node_modules (root: the checkout; a test's own).
  * `server: false` for tests that do not need the Silinx server (standalone edition, or one started
  * by the test). `offline: true`: the browser's requests to other hosts are refused and recorded in
- * env.external (see startRecordingProxy). env.newPage(url, { updateCheck }) opens a page (the
+ * env.external (see startRecordingProxy). env.newPage(url, { updateCheck, build }) opens a page (the
  * update check against GitHub only with updateCheck: true). `fileAccess: false`: Chrome without
  * --allow-file-access-from-files, as a user opens a file (the standalone edition from file://, #512).
  */
@@ -738,7 +741,7 @@ export async function setupUi({ server = true, offline = false, root = ROOT, fil
   env.chromeProc = proc;
   env.cdp = cdp;
   env.pageSeq = 0;
-  env.newPage = async (url = env.server?.url, { updateCheck = false } = {}) => {
+  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null } = {}) => {
     const { browserContextId } = await cdp.send('Target.createBrowserContext', { disposeOnDetach: true });
     const downloadDir = path.join(tmp, `downloads-${++env.pageSeq}`);
     await fsp.mkdir(downloadDir, { recursive: true });
@@ -749,7 +752,7 @@ export async function setupUi({ server = true, offline = false, root = ROOT, fil
     if (proxy) await page.recordExternal(env.external);
     await page.send('Runtime.enable');
     await page.send('Page.enable');
-    for (const source of initScripts({ updateCheck })) await page.send('Page.addScriptToEvaluateOnNewDocument', { source });
+    for (const source of initScripts({ updateCheck, build })) await page.send('Page.addScriptToEvaluateOnNewDocument', { source });
     await page.send('DOM.enable');
     await page.send('Emulation.setDeviceMetricsOverride', { width: 1400, height: 900, deviceScaleFactor: 1, mobile: false });
     await page.send('Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {});
@@ -792,11 +795,11 @@ async function setupPlaywright({ server, offline }) {
   const browser = await type.launch({ executablePath, ...(proxy ? { proxy: { server: proxy.url } } : {}) });
   env.pw = browser;
   env.pageSeq = 0;
-  env.newPage = async (url = env.server?.url, { updateCheck = false } = {}) => {
+  env.newPage = async (url = env.server?.url, { updateCheck = false, build = null } = {}) => {
     const downloadDir = path.join(tmp, `downloads-${++env.pageSeq}`);
     await fsp.mkdir(downloadDir, { recursive: true });
     const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true });
-    for (const content of initScripts({ updateCheck })) await context.addInitScript({ content });
+    for (const content of initScripts({ updateCheck, build })) await context.addInitScript({ content });
     const page = new PwPage(env, context, await context.newPage(), downloadDir);
     if (url) await page.goto(url);
     return page;
@@ -817,7 +820,7 @@ async function setupPlaywright({ server, offline }) {
  * screenshot is written and its path printed.
  */
 // skip: a reason to skip the test (e.g. it needs the default interface)
-export function uiTest(name, envRef, fn, { timeout = 90000, url, skip } = {}) {
+export function uiTest(name, envRef, fn, { timeout = 90000, url, skip, build } = {}) {
   test(name, { timeout }, async (t) => {
     const env = typeof envRef === 'function' ? envRef() : envRef;
     if (env.skip || skip) { t.skip(env.skip || skip); return; }
@@ -828,7 +831,7 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip } = {}) {
     const listWs = async () => new Set(ws ? await fsp.readdir(ws).catch(() => []) : []);
     for (let attempt = 1; ; attempt++) {
       const before = await listWs();
-      try { await runUiTest(name, env, fn, url, t); return; } catch (e) {
+      try { await runUiTest(name, env, fn, url, t, build); return; } catch (e) {
         if (!(e instanceof PageGoneError) || BROWSER === 'chrome' || attempt > 1) throw e;
         console.error(`# ${e.message}, in '${name}': run once more in a fresh page (#237)`);
         t.diagnostic(`${e.message}: run once more in a fresh page`);
@@ -837,8 +840,8 @@ export function uiTest(name, envRef, fn, { timeout = 90000, url, skip } = {}) {
     }
   });
 }
-async function runUiTest(name, env, fn, url, t) {
-  const page = await env.newPage(url ? url(env) : undefined);
+async function runUiTest(name, env, fn, url, t, build) {
+  const page = await env.newPage(url ? url(env) : undefined, { build });
   try {
     if (!url) await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
     await fn(page, env, t);

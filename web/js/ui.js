@@ -125,7 +125,7 @@ function buildMenu(items) {
     const disabled = typeof it.disabled === 'function' ? it.disabled() : it.disabled;
     const row = h('div', { class: `mi${disabled ? ' disabled' : ''}` },
       h('span', { class: 'chk' }, it.checked ? '✓' : (it.icon || '')),
-      h('span', { class: 'lbl' }, it.label),
+      h('span', { class: 'lbl', ...(it.raw && { 'data-no-i18n': '' }) }, it.label),   // raw: a name or a title, not translated
       h('span', { class: 'sc' }, it.submenu ? '▸' : (it.shortcut || '')),
     );
     if (typeof it.icon === 'object' && it.icon instanceof Node) { row.firstChild.textContent = ''; row.firstChild.append(it.icon); }

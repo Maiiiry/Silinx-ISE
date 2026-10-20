@@ -39,12 +39,13 @@ before(async () => {
   } catch { skip = 'esbuild / @codemirror / elkjs not installed (npm install): standalone build test skipped'; return; }
   const root = path.join(env.tmp, 'standalone');
   await fs.mkdir(path.join(root, 'scripts'), { recursive: true });
-  for (const f of ['build-standalone.mjs', 'build-info.mjs']) await fs.copyFile(path.join(ROOT, 'scripts', f), path.join(root, 'scripts', f));
+  // (changelog-release.mjs: the changes/ fragments of the development build's Development menu, #707)
+  for (const f of ['build-standalone.mjs', 'build-info.mjs', 'changelog-release.mjs']) await fs.copyFile(path.join(ROOT, 'scripts', f), path.join(root, 'scripts', f));
   // a git checkout of its own, its commit untagged: a development build, labelled with it (#135)
   const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
   git('init', '-q'); git('-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'build');
   build = buildInfo(root, VERSION);
-  for (const d of ['web', 'core', 'server', 'examples', 'research']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
+  for (const d of ['web', 'core', 'server', 'examples', 'research', 'changes']) await fs.symlink(path.join(ROOT, d), path.join(root, d), 'dir');
   for (const f of ['LICENSE', 'NOTICE', 'THIRD-PARTY-NOTICES.md']) await fs.copyFile(path.join(ROOT, f), path.join(root, f));   // the embedded notices
   await fs.symlink(modules, path.join(root, 'node_modules'), 'dir');
   site = path.join(root, 'site');

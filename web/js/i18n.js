@@ -20,6 +20,9 @@ import { FPGA_PT, FPGA_PT_PATTERNS } from './i18n-fpga.js';
 import { SCH_PT, SCH_PT_PATTERNS } from './i18n-schematic.js';
 
 const PT = {
+  // the Development menu of a development build (#707)
+  'Development': 'Desenvolvimento', 'Features': 'Funcionalidades', 'Bug fixes': 'Correções', 'Other changes': 'Outras alterações',
+  'All Changes since the Last Release…': 'Todas as Alterações desde a Última Versão…', 'Changes since the last release': 'Alterações desde a última versão',
   // menus
   'File': 'Ficheiro', 'Edit': 'Editar', 'View': 'Ver', 'Project': 'Projeto', 'Process': 'Processo', 'Tools': 'Ferramentas',
   'Window': 'Janela', 'Help': 'Ajuda', 'Language': 'Idioma',
@@ -311,6 +314,10 @@ const PT_FF = [['synchronous set and reset (S over R)', 'set e reset síncronos 
   ['clock enable', 'habilitação do relógio'], ['asynchronous clear', 'clear assíncrono'], ['asynchronous preset', 'preset assíncrono'],
   ['synchronous reset', 'reset síncrono'], ['synchronous set', 'set síncrono']];
 const PT_PATTERNS = [
+  // the Development menu (#707)
+  [/^Features \((\d+)\)$/, 'Funcionalidades ($1)'], [/^Bug fixes \((\d+)\)$/, 'Correções ($1)'], [/^Other \((\d+)\)$/, 'Outras ($1)'],
+  [/^All Changes since (\d+\.\d+\.\d+)…$/, 'Todas as Alterações desde a $1…'], [/^Changes since (\d+\.\d+\.\d+)$/, 'Alterações desde a $1'],
+  [/^This Build on GitHub \(commit (\w+)\)$/, 'Esta Versão no GitHub (commit $1)'], [/^Open Issue #(\d+) on GitHub$/, 'Abrir a Issue #$1 no GitHub'],
   // the tip of a drawing's link banner, shortened on a narrow screen (#266)
   [/^HDL: (\S+) — generated from the (diagram|net|table)$/, (m, f, w) => `HDL: ${f} — gerado a partir ${{ diagram: 'do diagrama', net: 'da rede', table: 'da tabela' }[w]}`],
   // a process run on the top module while another module is selected (#223)

@@ -8,6 +8,7 @@ import { setLanguage, getLanguage, LOCALES } from './i18n.js';
 import { lintEnabled, setLintEnabled } from './diaghelp.js';
 import { getInterface, setInterface, getTheme, setTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
+import { developmentMenu } from './devmenu.js';
 import { S, activateDoc, app, canCopyAny, canDeleteAny, canPasteAny, closeDoc, copyAny, cutAny, deleteAny, docEditor, history, openFile,
   openFpgaView, openImpact, openPinPlanner, openSummary, pasteAny, projectRedo, projectUndo, redoAny, redoesProject, setView, showLeftPage,
   undoAny, undoesProject } from './app.js';
@@ -134,7 +135,9 @@ export function setupMenus() {
       '-',
       { label: 'Tell Us Who You Are…', action: () => wiz.whoAreYou() },
     ] },
-  ]);
+    // a development build's changes since the last release (#707)
+    developmentMenu(),
+  ].filter(Boolean));
 }
 
 export function setupToolbar() {
