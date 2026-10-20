@@ -17,6 +17,9 @@ import {
 } from '../core/fpga/timing.js';
 import zlib from 'node:zlib';
 import { parseDly, twrArcs, memArcs, hardArcs } from '../research/s3e-route/timing-fit.mjs';
+import { parseTwrClocks } from '../research/s3e-route/dcm-timing-compare.mjs';
+import { silinxPcf } from '../research/s3e-route/dcm-timing.mjs';
+import { parseUcf } from '../core/ucf.js';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fpga');
 const device = loadDevice(packDevice(fs.readFileSync(path.join(FIX, 'timing-device.xdlrc'), 'utf8')));
@@ -493,6 +496,163 @@ ${net('clk', [['ck', 'I']], [['a', 'CLK']])}${net('clk2', [['ck2', 'I']], [['b',
   }
   // the clock's own paths: a's flip-flop through its LUT back to itself
   assert.deepEqual(r.clocks.map(c => c.clock), ['clk']);
+});
+
+test('#601 clock arrivals through a DCM: from its CLKIN\'s, deskewed by its taps; a cascade after the first DCM\'s; the phase and a falling edge with the PERIOD', () => {
+  const { Tiopi } = SPEED_4.pad, { minScale: sc, Tgclk, dcm: D } = SPEED_4.clock;
+  // (the small device has none of these sites: no wire delay, the model's terms alone)
+  const withC = { ...DCMS, insts: [...DCMS.insts, { name: 'c', type: 'SLICEL', placed: false, cfg: [{ attr: 'CLKINV', name: '', value: 'CLK_B' }] }] };
+  const three = (m, i) => [m.get(i), m.early.get(i), m.hold.get(i)];
+  const near = (got, want, msg) => { assert.equal(got.length, want.length); got.forEach((g, k) => close(g, want[k], `${msg} [${k}]`)); };
+  const pin = [Tiopi, sc * Tiopi, Tiopi];   // at CLKIN, from the pad
+  const dcm0 = pin.map((x, k) => x + D.pad[k]);
+  const a = clockArrivals(withC, device);
+  // CLK0, CLK2X, CLKDV, CLKFX of u_dcm: deskewed alike (no skew between the outputs, as trce)
+  for (const i of ['a', 'b', 'c', 'd']) near(three(a, i), dcm0, i);
+  // u_dcm2's CLKIN on CLKFX's global line: after it; the pad's own global clock Tgclk
+  near(three(a, 'e'), dcm0.map((x, k) => x + D.global[k]), 'e');
+  near(three(a, 'f'), [Tgclk, sc * Tgclk, Tgclk], 'f');
+  // a DCM's clocks earlier than the pad's own global clock (deskewed), the earliest before the latest
+  assert.ok(a.get('a') < Tgclk && a.early.get('a') < a.get('a'));
+  // with the PERIOD: c90's first edge a third of the pad's 20 ns later; c's, a falling-edge flip-flop on CLKDV (80 ns),
+  // half of CLKDV's period later
+  const b = clockArrivals(withC, device, SPEED_4, [{ net: 'clk', period: 20 }]);
+  near(three(b, 'e'), dcm0.map((x, k) => x + D.global[k] + 20 / 3), 'e, phase');
+  near(three(b, 'c'), dcm0.map(x => x + 40), 'c, falling edge');
+  near(three(b, 'a'), dcm0, 'a');
+  near(three(b, 'f'), [Tgclk, sc * Tgclk, Tgclk], 'f');
+  // DESKEW_ADJUST 0 (SOURCE_SYNCHRONOUS): 7 taps later
+  const src = { ...withC, insts: withC.insts.map(i => i.name === 'u_dcm' ? { ...i, cfg: [...i.cfg, { attr: 'DESKEW_ADJUST', name: '', value: '0' }] } : i) };
+  near(three(clockArrivals(src, device), 'a'), dcm0.map((x, k) => x + 7 * D.tap[k]), 'a, source synchronous');
+  // a DCM whose CLKIN is not clocked from a pad: none
+  const loose = { ...DCMS, nets: DCMS.nets.filter(n => n.name !== 'clk_in') };
+  assert.equal(clockArrivals(loose, device).has('a'), false);
+});
+
+// Silinx's routing of six DCM designs (test/fixtures/open-flow, the OFFSET ones' UCF in dcm-trce.json), timed by trce with the same
+// constraints (research/s3e-route/dcm-timing.mjs): its paths between two clocks and its data sheet (setup, hold, clock to pad)
+test('#601 static timing of a DCM\'s clocks against trce on routed designs: the paths between two clocks, the pads\' setup, hold and clock to pad', async () => {
+  const { loadDeviceCache } = await import('../core/fpga/device-node.js');
+  const ref = JSON.parse(fs.readFileSync(path.join(FIX, 'trce', 'dcm-trce.json'), 'utf8'));
+  const err = { setup: [], hold: [], toPad: [], cross: [] };
+  for (const [name, t] of Object.entries(ref)) {
+    const text = zlib.gunzipSync(fs.readFileSync(path.join(FIX, 'trce', `${name}.xdl.gz`))).toString('utf8');
+    const d = parseXdl(text);
+    const sta = analyzeTiming(d, loadDeviceCache(/^design "[^"]*" ([\w-]+)/m.exec(text)[1]), { clocks: t.clocks });
+    for (const [pad, clock, setup, hold] of t.setup) {
+      const x = sta.pads.inputs.find(i => i.pad === pad && i.clock === clock);
+      assert.ok(x, `${name}: ${pad} on ${clock}`);
+      err.setup.push(x.setup - setup); err.hold.push(x.hold - hold);
+    }
+    for (const [pad, clock, delay] of t.toPad) {
+      const x = sta.pads.outputs.find(o => o.pad === pad && o.clock === clock);
+      assert.ok(x, `${name}: ${pad} from ${clock}`);
+      err.toPad.push(x.delay - delay);
+    }
+    // the same requirement as trce's (to its rounding), the data path within 0.3 ns (no skew, no uncertainty), met or not alike
+    const cc = checkCross(sta, d, t.clocks);
+    for (const [from, launch, to, capture, required, delay, slack] of t.cross) {
+      const x = cc.find(c => c.from === from && c.launch === launch && c.to === to && c.capture === capture);
+      assert.ok(x?.related, `${name}: ${from} -> ${to}`);
+      assert.ok(Math.abs(x.required - required) < 0.0015, `${name}: ${from} -> ${to}: ${x.required} against ${required}`);
+      err.cross.push(x.delay - delay);
+      assert.equal(x.met, slack >= 0, `${name}: ${from} -> ${to}`);
+    }
+    // the OFFSET constraints: every pad of trce's data sheet bounded, none left out
+    const offs = checkOffsets(sta, d, parseOffsets(t.offsets), t.clocks);
+    assert.deepEqual(offs.filter(o => o.missing || o.unsupported), [], name);
+    assert.equal(offs.filter(o => o.dir === 'in').length, t.setup.length, name);
+  }
+  const rms = a => Math.sqrt(a.reduce((s, x) => s + x * x, 0) / a.length);
+  // (fitted: rms 0.131 / 0.094 / 0.116 ns, the paths between two clocks 0.179, the model's data paths' error)
+  for (const [k, max, r] of [['setup', 0.35, 0.14], ['hold', 0.25, 0.1], ['toPad', 0.4, 0.125], ['cross', 0.3, 0.19]]) {
+    assert.ok(err[k].length >= 9, k);
+    assert.ok(Math.max(...err[k].map(Math.abs)) < max, `${k}: ${err[k].map(x => x.toFixed(3))}`);
+    assert.ok(rms(err[k]) < r, `${k}: rms ${rms(err[k])}`);
+  }
+  assert.equal(err.setup.length + err.hold.length + err.toPad.length, 81);
+});
+
+test('#601 OFFSET constraints on a DCM\'s clocks: the pad found through it; a pad bounded on two clocks named with each', () => {
+  const r = { clocks: [], pads: { inputs: [{ pad: 'sw', clock: 'clk0', setup: 3, hold: -1 }, { pad: 'sw', clock: 'clkfx', setup: 4, hold: -1 }, { pad: 'k', clock: 'c2', setup: 1, hold: 0 }],
+    outputs: [{ pad: 'led', clock: 'clk2x', delay: 6 }], padToPad: [], hold: [] } };
+  const ck = checkOffsets(r, DCMS, parseOffsets(['OFFSET = IN 3.5 ns BEFORE "clk"', 'OFFSET = OUT 5 ns AFTER "clk"']), [{ net: 'clk', period: 20 }]);
+  assert.deepEqual(ck.map(k => [k.port, k.clock, k.met]), [['sw', 'clk0', true], ['sw', 'clkfx', false], ['led', 'clk2x', false]]);
+  const lines = timingReport(r, ck);
+  assert.deepEqual(lines.slice(0, 3), [
+    'constraint OFFSET = IN 3.5 ns BEFORE "clk": met on sw, clock clk0 (pad to setup 3.000 ns, slack 0.500 ns)',
+    'constraint OFFSET = IN 3.5 ns BEFORE "clk": NOT MET on sw, clock clkfx (pad to setup 4.000 ns, slack -0.500 ns)',
+    'constraint OFFSET = OUT 5 ns AFTER "clk": NOT MET on led (clock to pad 6.000 ns, slack -1.000 ns)',
+  ]);
+});
+
+test('#601 dcm-timing: trce\'s report read (the paths between two clocks, its data sheet); a PCF for Silinx\'s routing as ISE\'s map writes one', () => {
+  const twr = `Timing constraint: TS_clk2x_b = PERIOD TIMEGRP "clk2x_b" TS_clk / 2 HIGH 50%;
+Slack (setup path):     -0.412ns (requirement - (data path - clock path skew + uncertainty))
+  Source:               a (FF)
+  Destination:          b (FF)
+  Requirement:          3.334ns
+  Data Path Delay:      3.726ns (Levels of Logic = 1)
+  Clock Path Skew:      -0.020ns
+  Source Clock:         clkfx_b rising at 26.666ns
+  Destination Clock:    clk2x_b rising at 30.000ns
+Slack (setup path):     -0.100ns (requirement - (data path - clock path skew + uncertainty))
+  Requirement:          3.334ns
+  Data Path Delay:      3.414ns (Levels of Logic = 1)
+  Source Clock:         clkfx_b rising at 26.666ns
+  Destination Clock:    clk2x_b rising at 30.000ns
+Slack (hold path):      0.800ns (requirement - (clock path skew + uncertainty - data path))
+  Requirement:          0.000ns
+  Source Clock:         clk0_b falling at 10.000ns
+  Destination Clock:    clk2x_b rising at 10.000ns
+Slack (setup path):     2.000ns (requirement - (data path - clock path skew + uncertainty))
+  Requirement:          10.000ns
+  Data Path Delay:      8.000ns (Levels of Logic = 1)
+  Source Clock:         clk2x_b rising at 0.000ns
+  Destination Clock:    clk2x_b rising at 10.000ns
+
+Data Sheet report:
+Setup/Hold to clock clk
+------------+------------+------------+------------------+--------+
+sw<0>       |    4.259(R)|   -2.316(R)|clk0_b            |   0.000|
+            |    3.747(R)|   -1.908(R)|clkfx_b           |   0.000|
+------------+------------+------------+------------------+--------+
+
+Clock clk to Pad
+------------+------------+------------------+--------+
+led<0>      |   15.021(F)|clk0_b            |   0.000|
+------------+------------+------------------+--------+
+`;
+  // (the worst setup path of each pair of clocks; a hold path, the same clock's, left out)
+  assert.deepEqual(parseTwrClocks(twr), {
+    cross: [{ slack: -0.412, hold: false, required: 3.334, delay: 3.726, from: 'clkfx_b', launch: 0, to: 'clk2x_b', capture: 0 }],
+    setup: [{ pad: 'sw<0>', clock: 'clk0_b', setup: 4.259, hold: -2.316 }, { pad: 'sw<0>', clock: 'clkfx_b', setup: 3.747, hold: -1.908 }],
+    toPad: [{ pad: 'led<0>', clock: 'clk0_b', edge: 1, delay: 15.021 }],
+  });
+  const xdl = `design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "clk" "IBUF",placed BIOIS_X1Y0 P11 , cfg " " ;
+inst "u_dcm" "DCM",placed DCM_BL_CENTER_X9Y0 DCM_X0Y0 , cfg " CLKFX_DIVIDE::2 CLKFX_MULTIPLY::3 CLKOUT_PHASE_SHIFT::FIXED PHASE_SHIFT::32 " ;
+inst "b0" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX0 , cfg " " ;
+inst "bfx" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX3 , cfg " " ;
+inst "s0" "SLICEL",placed CLB_X1Y1 SLICE_X0Y0 , cfg " FFX:$auto$ff.cc_1:#FF FFY:q_1:#FF " ;
+inst "s1" "SLICEL",placed CLB_X1Y1 SLICE_X0Y1 , cfg " FFY:r:#FF " ;
+net "clk_in" , outpin "clk" I , inpin "u_dcm" CLKIN , ;
+net "clk0_u" , outpin "u_dcm" CLK0 , inpin "b0" I0 , ;
+net "clk0" , outpin "b0" O , inpin "u_dcm" CLKFB , inpin "s0" CLK , ;
+net "clkfx_u" , outpin "u_dcm" CLKFX , inpin "bfx" I0 , ;
+net "clkfx<0>" , outpin "bfx" O , inpin "s1" CLK , ;
+`;
+  assert.equal(silinxPcf(xdl, 'NET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\nOFFSET = IN 10 ns BEFORE "clk" ;\nNET "clk" LOC = "P11" ;\n'), `SCHEMATIC START;
+PIN clk_clkin = BEL "u_dcm" PINNAME CLKIN;
+TIMEGRP clk = PIN "clk_clkin";
+TS_clk = PERIOD TIMEGRP "clk" 20 ns HIGH 50%;
+TIMEGRP clk0 = BEL "$auto$ff.cc_1" BEL "q_1";
+TS_clk0 = PERIOD TIMEGRP "clk0" TS_clk PHASE 2.5 ns HIGH 50%;
+TIMEGRP clkfx_0_ = BEL "r";
+TS_clkfx_0_ = PERIOD TIMEGRP "clkfx_0_" TS_clk / 1.5 PHASE 2.5 ns HIGH 50%;
+OFFSET = IN 10 ns BEFORE COMP "clk";
+SCHEMATIC END;
+`);
 });
 
 // The pads' paths and the hold check (#26): an input pad i into a's flip-flop (through its LUT F) and through c's LUT G to

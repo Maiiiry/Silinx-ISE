@@ -1,0 +1,151 @@
+{
+ "feat_dcm": {
+  "clocks": [
+   {
+    "net": "clk",
+    "period": 20
+   }
+  ],
+  "offsets": ["OFFSET = IN 10 ns BEFORE \"clk\"", "OFFSET = OUT 20 ns AFTER \"clk\""],
+  "cross": [],
+  "setup": [
+   ["sw<0>", "clk0_b", 4.09, -2.186],
+   ["sw<0>", "clk2x_b", 3.491, -1.704],
+   ["sw<0>", "clkdv_b", 4.091, -2.181],
+   ["sw<0>", "clkfx_b", 3.469, -1.691]
+  ],
+  "toPad": [
+   ["led<0>", "clkdv_b", 6.236],
+   ["led<1>", "clk0_b", 6.217],
+   ["led<2>", "clkfx_b", 6.213],
+   ["led<3>", "clk2x_b", 5.393]
+  ]
+ },
+ "feat_dcm_cross": {
+  "clocks": [
+   {
+    "net": "clk",
+    "period": 20
+   }
+  ],
+  "offsets": ["OFFSET = IN 10 ns BEFORE \"clk\"", "OFFSET = OUT 20 ns AFTER \"clk\""],
+  "cross": [
+   ["clkfx_b", 0, "clk2x_b", 0, 3.334, 3.726, -0.412],
+   ["clk0_b", 0, "clkfx_b", 0, 6.666, 3.136, 3.53],
+   ["clkfx_b", 0, "clk0_b", 0, 6.667, 3.135, 3.532],
+   ["clkdv_b", 0, "clk0_b", 1, 10, 3.236, 6.764],
+   ["clk2x_b", 0, "clk0_b", 0, 10, 3.229, 6.771],
+   ["clk0_b", 0, "clkdv_b", 0, 20, 3.268, 16.732]
+  ],
+  "setup": [
+   ["sw<0>", "clk0_b", 4.259, -2.316],
+   ["sw<0>", "clkfx_b", 3.747, -1.908],
+   ["sw<1>", "clk0_b", 4.271, -2.326],
+   ["sw<1>", "clkfx_b", 4.588, -2.581],
+   ["sw<2>", "clk0_b", 4.488, -2.498],
+   ["sw<2>", "clkfx_b", 4.491, -2.501],
+   ["sw<3>", "clk0_b", 4.976, -2.89],
+   ["sw<3>", "clkfx_b", 4.971, -2.885]
+  ],
+  "toPad": [
+   ["led<0>", "clk0_b", 15.021],
+   ["led<1>", "clk0_b", 15.82],
+   ["led<2>", "clk0_b", 15.297],
+   ["led<3>", "clk0_b", 15.293],
+   ["led<4>", "clk2x_b", 6.03],
+   ["led<5>", "clkfx_b", 6.142],
+   ["led<6>", "clk0_b", 6.028]
+  ]
+ },
+ "feat_dcm_phase": {
+  "clocks": [
+   {
+    "net": "clk",
+    "period": 20
+   }
+  ],
+  "offsets": ["OFFSET = IN 10 ns BEFORE \"clk\"", "OFFSET = OUT 20 ns AFTER \"clk\""],
+  "cross": [
+   ["clk180_b", 0, "clk0_b", 0, 10, 3.257, 6.743],
+   ["clk0_b", 0, "clk180_b", 0, 10, 3.498, 6.501],
+   ["clk0_b", 0, "clk90_b", 0, 5, 3.237, 1.763]
+  ],
+  "setup": [
+   ["sw<0>", "clk0_b", 1.299, 0.553],
+   ["sw<1>", "clk0_b", 1.337, 0.522],
+   ["sw<2>", "clk0_b", 1.284, 0.565],
+   ["sw<3>", "clk0_b", 2.137, -0.118],
+   ["sw<4>", "clk0_b", 1.893, 0.078],
+   ["sw<5>", "clk0_b", 1.939, 0.04]
+  ],
+  "toPad": [
+   ["led<0>", "clk0_b", 7.266],
+   ["led<1>", "clk0_b", 8.673],
+   ["led<2>", "clk0_b", 7.808],
+   ["led<3>", "clk0_b", 7.804],
+   ["led<4>", "clk0_b", 7.786],
+   ["led<5>", "clk0_b", 7.794],
+   ["led<6>", "clk0_b", 7.88]
+  ]
+ },
+ "feat_dcm_fx": {
+  "clocks": [
+   {
+    "net": "clk",
+    "period": 20
+   }
+  ],
+  "offsets": ["OFFSET = IN 10 ns BEFORE \"clk\"", "OFFSET = OUT 20 ns AFTER \"clk\""],
+  "cross": [],
+  "setup": [
+   ["sw<0>", "clk0_b", 5.166, -3.048],
+   ["sw<0>", "clkfx_b", 4.846, -2.791]
+  ],
+  "toPad": [
+   ["led<0>", "clkfx_b", 6.834],
+   ["led<1>", "clk0_b", 6.483]
+  ]
+ },
+ "feat_dcm_div2": {
+  "clocks": [
+   {
+    "net": "clk",
+    "period": 20
+   }
+  ],
+  "offsets": ["OFFSET = IN 10 ns BEFORE \"clk\"", "OFFSET = OUT 20 ns AFTER \"clk\""],
+  "cross": [],
+  "setup": [
+   ["sw<0>", "clk0_b", 2.299, -0.987],
+   ["sw<0>", "clkfx_b", 2.159, -0.878]
+  ],
+  "toPad": [
+   ["led<0>", "clkfx_b", 6.948],
+   ["led<1>", "clk0_b", 7.928]
+  ]
+ },
+ "feat_dcm2": {
+  "clocks": [
+   {
+    "net": "clk",
+    "period": 20
+   }
+  ],
+  "offsets": ["OFFSET = IN 10 ns BEFORE \"clk\"", "OFFSET = OUT 20 ns AFTER \"clk\""],
+  "cross": [],
+  "setup": [
+   ["sw<0>", "a0_b", 4.278, -2.335],
+   ["sw<0>", "afx_b", 4.038, -2.142],
+   ["sw<0>", "b0_b", 4.267, -2.32],
+   ["sw<0>", "b2x_b", -1.572, 3.347],
+   ["sw<0>", "bfx_b", 4.217, -2.286]
+  ],
+  "toPad": [
+   ["led<0>", "afx_b", 6.238],
+   ["led<1>", "a0_b", 6.488],
+   ["led<2>", "b0_b", 5.812],
+   ["led<3>", "bfx_b", 6.002],
+   ["led<4>", "b2x_b", 10.926]
+  ]
+ }
+}

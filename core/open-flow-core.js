@@ -344,9 +344,10 @@ export async function runOpenFlow(spec, io) {
 
   function runTiming() {
     const design = parseXdl(routedText);
-    const sta = analyzeTiming(design, io.device());
     const pu = ucfText ? parseUcf(ucfText) : { clocks: [], other: [] };
     const constraints = pu.clocks || [];
+    // (the PERIOD constraints: a DCM's clocks' phases at the pads, #601)
+    const sta = analyzeTiming(design, io.device(), { clocks: constraints });
     // the PERIOD constraints, then the OFFSET ones (#26)
     const offsets = checkOffsets(sta, design, parseOffsets(pu.other || []), constraints);
     // (#601: a DCM's clocks with their derived PERIOD; the paths between two related clocks)
@@ -363,7 +364,9 @@ export async function runOpenFlow(spec, io) {
     }
     for (const c of periods.filter(c => c.missing)) log(`WARNING:Timing - constraint PERIOD ${c.required} ns on ${c.port}: no clock of the design comes from this port`);
     for (const c of crossFailed) log(`WARNING:Timing - the paths from clock ${c.from} to clock ${c.to} not met: they need ${c.delay.toFixed(3)} ns, ${c.required.toFixed(3)} ns between the clocks' edges`);
-    for (const c of offFailed) log(`WARNING:Timing - constraint ${c.text} not met on ${c.port}: ${c.dir === 'in' ? 'pad to setup' : 'clock to pad'} ${c.value.toFixed(3)} ns`);
+    // (a pad bounded on several clocks, a DCM's: its clock named, #601)
+    const onClocks = c => offsets.filter(o => o.text === c.text && o.port === c.port && o.clock).length;
+    for (const c of offFailed) log(`WARNING:Timing - constraint ${c.text} not met on ${c.port}${onClocks(c) > 1 ? `, clock ${c.clock}` : ''}: ${c.dir === 'in' ? 'pad to setup' : 'clock to pad'} ${c.value.toFixed(3)} ns`);
     for (const c of offsets.filter(c => c.missing)) log(`WARNING:Timing - constraint ${c.text}: no pad of the design is bounded by it`);
     for (const c of offsets.filter(c => c.unsupported)) log(`WARNING:Timing - constraint ${c.text}: not analyzed (the Silinx toolchain reads OFFSET on a NET or on all pads)`);
     const worst = sta.clocks.reduce((a, c) => Math.max(a, c.period), 0);
@@ -375,7 +378,7 @@ export async function runOpenFlow(spec, io) {
       constraints: [...periods.filter(c => !c.missing).map(c => ({ name: `PERIOD ${c.port}${c.via ? ` ${c.via}` : ''}`, constraint: `PERIOD ${c.constraint ?? c.required} ns on ${c.port}${c.via ? `, ${c.via}` : ''}`, required: c.required,
         minPeriodNs: +c.period.toFixed(3), maxFreqMHz: +(1000 / c.period).toFixed(3), timingErrors: c.met ? 0 : 1, slackNs: +c.slack.toFixed(3) })),
       // (an OFFSET's: its pad to setup or clock to pad as the value, #26)
-      ...offsets.filter(c => !c.missing && !c.unsupported).map(c => ({ name: `OFFSET ${c.dir.toUpperCase()} ${c.port}`, constraint: c.text, required: c.required,
+      ...offsets.filter(c => !c.missing && !c.unsupported).map(c => ({ name: `OFFSET ${c.dir.toUpperCase()} ${c.port}${onClocks(c) > 1 ? ` ${c.clock}` : ''}`, constraint: c.text, required: c.required,
         minPeriodNs: +c.value.toFixed(3), timingErrors: c.met ? 0 : 1, slackNs: +c.slack.toFixed(3) }))],
     };
     report.par.constraintsMet = report.timing.met;
