@@ -796,9 +796,33 @@ Silinx's analysis, the app's place and route (no replication), 3 seeds per desig
 | geometric mean | 11.656 | 11.504 | **−1.3 %** |
 
 With 8 timing passes instead of 4, −1.5 %, at twice the routing time; the routing with 4 takes about 1.3 times
-as long as before (the T80 6.7 -> 9.7 s, vtr-diffeq2 2.7 -> 4.2 s, the examples 0.2-0.8 s).
+as long as before (the T80 6.7 -> 9.7 s, vtr-diffeq2 2.7 -> 4.2 s, the examples 0.2-0.6 -> 0.3-0.7 s).
 
-TRCE_RESULTS
+Checked with ISE (`scripts/check-open-flow.mjs`, seed 1; the 9 designs from the app's netlists of the runs above,
+the examples from open-flow.mjs's synthesis): every one DRC 0 errors and 0 warnings, xdl2ncd 0 warnings, the
+`.bit` byte-identical to ISE's bitgen (CRC on and off). ISE's trce, the main clock's period (ns):
+
+| design | before | after | | routing after (was) |
+|---|---:|---:|---:|---|
+| itc99-b08 | 7.692 | 6.727 | −12.5 % | 2.71 (3.62) |
+| iwls05-i2c | 9.514 | 9.514 | 0 | 3.98 (3.98) |
+| verilog-uart | 10.530 | 10.448 | −0.8 % | 4.31 (4.61) |
+| itc99-b05 | 12.019 | 11.922 | −0.8 % | 4.46 (4.56) |
+| itc99-b10 | 6.470 | 6.660 | +2.9 % | 3.35 (3.16) |
+| itc99-b12 | 9.612 | 9.468 | −1.5 % | 4.04 (4.02) |
+| iwls05-simple-spi | 6.999 | 6.996 | 0 | 2.80 (2.81) |
+| vtr-diffeq1 | 38.865 | 38.865 | 0 | 14.05 (14.05) |
+| t80 | 21.956 | 20.758 | −5.5 % | 8.90 (10.23) |
+| traffic | 7.927 | 7.985 | +0.7 % | |
+| blinky | 6.932 | 6.989 | +0.8 % | |
+| pong | 12.221 | 12.221 | 0 | |
+| stopwatch | 12.729 | 12.729 | 0 | |
+| clock | 8.124 | 8.094 | −0.4 % | |
+| vga | 10.193 | 10.141 | −0.5 % | |
+
+Geometric mean −2.1 % on the 9, +0.1 % on the examples. The polish alone is never slower by the analysis; the
+timing passes' new schedule can be (itc99-b10 at seed 1, +0.6 % by the analysis, +2.9 % by trce; blinky and
+traffic are within the analysis's error of trce).
 
 What is left (the same split after the change, seed 1): the contention is gone on itc99-b08 (1.63 -> 0.27 ns),
 verilog-uart, the T80 (0.40 -> 0) and itc99-b12, but stays on itc99-b10 (0.71), iwls05-simple-spi (0.81) and
