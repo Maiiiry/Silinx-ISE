@@ -25,6 +25,15 @@ const V = (body, decl = '', ports = 'a, b : in std_logic; y : out std_logic', ct
   ({ 't.vhd': `${ctx}\nentity t is port (${ports}); end t;\narchitecture rtl of t is\n${decl}\nbegin\n${body}\nend rtl;\n` });
 const VL = (body, ports = 'input a, b, output y') => ({ 't.v': `module t(${ports});\n${body}\nendmodule\n` });
 
+// #703: the language templates are the HDL editor's (its Templates ▾ button), no longer an Edit menu item
+test('the hints send to the templates of the editor, not to a menu item that is gone (#703)', () => {
+  const texts = HINTS.flatMap(h => [h.en, h.pt].flatMap(l => [l.explain, l.fix]));
+  for (const t of texts) assert.doesNotMatch(t, /Edit ▸ Language Templates|Editar ▸ Modelos de Linguagem/, t);
+  const en = HINTS.filter(h => /Language Template/.test(h.en.fix)), pt = HINTS.filter(h => /modelo de linguagem/.test(h.pt.fix));
+  assert.ok(en.length >= 2 && en.every(h => h.en.fix.includes("the editor's Templates ▾ button")), en.map(h => h.id).join(', '));
+  assert.ok(pt.length >= 2 && pt.every(h => h.pt.fix.includes('o botão Modelos ▾ do editor')), pt.map(h => h.id).join(', '));
+});
+
 test('the hint table is well formed: unique ids, English and Portuguese explanation + fix, a pattern or a check', () => {
   const ids = new Set();
   for (const h of HINTS) {

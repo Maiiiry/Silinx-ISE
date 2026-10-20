@@ -57,9 +57,9 @@ export const HINTS = [
   {
     id: 'missing-then', re: /^expected '(then|is|of|begin|=>|loop|generate|when|select|port|map)' but found '?([^']*)'?/,
     en: { explain: "A keyword of the statement is missing: the compiler expected '$1' but found '$2'. For example 'if cond then', 'case sel is', 'when value =>', 'architecture rtl of name is', 'for i in 0 to 3 loop'.",
-      fix: "Write '$1' in its place in the statement. Compare the line with a Language Template (Edit ▸ Language Templates)." },
+      fix: "Write '$1' in its place in the statement. Compare the line with a Language Template (the editor's Templates ▾ button)." },
     pt: { explain: "Falta uma palavra-chave da instrução: o compilador esperava '$1' mas encontrou '$2'. Por exemplo 'if cond then', 'case sel is', 'when valor =>', 'architecture rtl of nome is', 'for i in 0 to 3 loop'.",
-      fix: "Escreva '$1' no seu lugar na instrução. Compare a linha com um modelo de linguagem (Editar ▸ Modelos de Linguagem)." },
+      fix: "Escreva '$1' no seu lugar na instrução. Compare a linha com um modelo de linguagem (o botão Modelos ▾ do editor)." },
   },
   {
     id: 'unexpected-statement', re: /^unexpected '?([^']*?)'? in (concurrent statement part|declarative part|sequential statement|module body|expression)/,
@@ -85,9 +85,9 @@ export const HINTS = [
   {
     id: 'syntax', re: /^(expected|unexpected) /,
     en: { explain: "Syntax error: the text does not follow the grammar of the language at this point. The error is often caused by something just before it (a missing ';', ')' or 'end').",
-      fix: "Read the line and the one above it carefully; compare with a Language Template (Edit ▸ Language Templates). Fix the first error first: the next ones are often consequences of it." },
+      fix: "Read the line and the one above it carefully; compare with a Language Template (the editor's Templates ▾ button). Fix the first error first: the next ones are often consequences of it." },
     pt: { explain: "Erro de sintaxe: o texto não segue a gramática da linguagem neste ponto. Muitas vezes a causa está logo antes (um ';', ')' ou 'end' em falta).",
-      fix: "Leia com atenção esta linha e a de cima; compare com um modelo de linguagem (Editar ▸ Modelos de Linguagem). Corrija primeiro o primeiro erro: os seguintes são muitas vezes consequência dele." },
+      fix: "Leia com atenção esta linha e a de cima; compare com um modelo de linguagem (o botão Modelos ▾ do editor). Corrija primeiro o primeiro erro: os seguintes são muitas vezes consequência dele." },
   },
   // ======================================================================= names and types
   {
