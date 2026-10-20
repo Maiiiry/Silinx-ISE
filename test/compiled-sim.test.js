@@ -734,17 +734,43 @@ test('#629 pong\'s Post-Synthesis Simulation Model: its run() split by itself (1
     { log: () => {}, sources: () => ex.design, simSources: () => ex.sim, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {} });
   assert.equal(r.ok, true);
   const file = `netgen/synthesis/${top}_synthesis.v`, model = designOf(src(file, written[file]), top);
-  const sim = await compileDesign(model, { run: yosysNode });
-  assert.deepEqual(sim.warnings, []);
+  // (#650: at word level, 48 000 characters, not split; bit by bit, as here, split)
+  const words = await compileDesign(model, { run: yosysNode });
+  assert.deepEqual(words.warnings, []);
+  assert.doesNotMatch(words.model.code, /CF0/);
+  const { json, top: t } = await netlistOf(model, { run: yosysNode, words: false });
+  const sim = new CompiledSim(compileNetlist(json, { top: t }));
   assert.match(sim.model.code, /const CF0 = \(\) => \{/);
   assert.doesNotMatch(sim.model.code, /let v0 = V0/);
-  const { json, top: t } = await netlistOf(model, { run: yosysNode });
   const one = new CompiledSim(compileNetlist(json, { top: t, split: Infinity }));
   assert.doesNotMatch(one.model.code, /CF0/);
   for (const n of [1, 1000, 200_000]) {
-    sim.cycle(n); one.cycle(n);
-    for (const p of model.top.ports.filter(x => x.dir === 'out')) assert.equal(sim.get(p.name), one.get(p.name), `${p.name} after ${sim.cycles} cycles`);
+    sim.cycle(n); one.cycle(n); words.cycle(n);
+    for (const p of model.top.ports.filter(x => x.dir === 'out')) {
+      assert.equal(sim.get(p.name), one.get(p.name), `${p.name} after ${sim.cycles} cycles`);
+      assert.equal(words.get(p.name), one.get(p.name), `${p.name} after ${sim.cycles} cycles, at word level`);
+    }
   }
+});
+test('#650 cycle(n): run() called in pieces of 10 000 cycles at most (optimized by its calls, not on its stack: Chrome), the same values and counts as in one call', async () => {
+  const ex = example('blinky'), top = ex.project.top;
+  const { json, top: t } = await netlistOf(designOf(ex.design, top), { run: yosysNode });
+  const outs = Object.entries(json.modules[t].ports).filter(([, p]) => p.direction === 'output');
+  const levels = outs.flatMap(([name, p]) => p.bits.map((_, i) => ({ bit: portBit(json, t, name, i), on: 1 })));
+  const model = compileNetlist(json, { top: t, watch: { levels } });
+  const pieces = new CompiledSim(model), one = new CompiledSim(model);
+  const calls = [];
+  const run = pieces.inst.run;
+  pieces.inst.run = n => { calls.push(n); run(n); };
+  for (const [n, want] of [[0, [0]], [1, [1]], [10000, [10000]], [10001, [10000, 1]], [25000, [10000, 10000, 5000]], [3_000_000, Array(300).fill(10000)]]) {
+    calls.length = 0;
+    pieces.cycle(n);
+    one.inst.run(n);
+    assert.deepEqual(calls, want, `cycle(${n})`);
+    for (const [name] of outs) assert.equal(pieces.get(name), one.get(name), `${name} after ${n}`);
+    assert.deepEqual(pieces.take(), one.take(), `the counts of cycle(${n})`);
+  }
+  assert.equal(pieces.cycles, 3_045_002);
 });
 test('speed: the compiled simulator runs millions of cycles per second (pong at its real generics)', async () => {
   const ex = example('pong');
