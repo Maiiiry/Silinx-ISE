@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { EXAMPLES, example, ROOT } from './examples-lib.mjs';
 import { diffCycles, designOf, rng } from './compiled-diff.js';
-import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit, segmentsOf, chunks, prepCommands, gateLevel } from '../core/compiled-sim.js';
+import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit, segmentsOf, clustered, chunks, prepCommands, gateLevel } from '../core/compiled-sim.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { timingGenerics, autoTimeScale, scaledGenerics } from '../core/emulate.js';
 
@@ -686,6 +686,76 @@ test('activity: the segments, from the rates of the values their blocks read', (
   assert.deepEqual(shape(segmentsOf([blk(1, ['x']), blk(3, ['c'])], new Map([['x', 0.1], ['c', 1]]))), [[4, null]]);
   const none = segmentsOf([], new Map());
   assert.deepEqual([[...none], none.cost], [[], 0]);
+});
+// #670: the cells' cost from their operations (a table's address of ten bits, ten NOTs), the values read in part as
+// keys of their bits (a counter's high bits), the cuts the profile keeps, the blocks evaluated at most steps together
+test('#670 activity: a block\'s weight (its operations) in place of its cells', () => {
+  const blk = (cells, keys, weight) => ({ cells: Array(cells).fill(0), keys, always: false, weight });
+  const shape = segs => segs.map(sg => [sg.blocks.length, sg.keys ? [...sg.keys].sort().join() : null]);
+  const rate = new Map([['s', 0.25]]);
+  // (one cell of 2: not worth a guard of 2 + 0.25 x 2; of 12, worth it: 2 + 0.25 x 12 = 5)
+  assert.deepEqual(shape(segmentsOf([blk(1, ['s'], 2)], rate)), [[1, null]]);
+  const segs = segmentsOf([blk(1, ['s'], 12)], rate);
+  assert.deepEqual(shape(segs), [[1, 's']]);
+  assert.equal(segs.cost, 5);
+  // (no weight: its cells)
+  assert.deepEqual(shape(segmentsOf([blk(12, ['s'])], rate)), [[1, 's']]);
+});
+test('#670 activity: the blocks in an order their dependencies keep, those evaluated at most steps together', () => {
+  const blk = (name, keys, deps = [], always = false) => ({ name, keys, deps: new Set(deps), always, cells: [0] });
+  const rate = new Map([['c', 1], ['s', 0.01], ['t', 0.4]]);
+  const a = blk('a', ['c']), b = blk('b', ['s']), c = blk('c', ['c'], [a]), d = blk('d', ['s'], [b]), e = blk('e', ['t'], [d]), f = blk('f', [], [], true), g = blk('g', ['s'], [c]);
+  const out = clustered([a, b, c, d, e, f, g], rate).map(x => x.name);
+  // (the fast ones while there are some ready: a, c, f (always); then the slow ones, b, d, g; e (above PMAX) once d is)
+  assert.deepEqual(out, ['a', 'c', 'f', 'b', 'd', 'g', 'e']);
+  for (const x of [a, b, c, d, e, f, g]) for (const y of x.deps) assert.ok(out.indexOf(y.name) < out.indexOf(x.name), `${y.name} before ${x.name}`);
+  assert.deepEqual(clustered([], rate), []);
+});
+const ACT670 = `module act(input clk, input [3:0] sw, output reg [7:0] led = 0, output reg tick = 0);
+  reg [23:0] c = 0;
+  wire [23:0] d = c + 24'd7;
+  always @(posedge clk) begin
+    c <= c + 24'd1;
+    tick <= c[0];
+    led <= (d[23:20] * 4'd13 + sw) ^ (c[23:20] * 4'd7) ^ (d[23:16] > 8'd77 ? 8'h3c : 8'h0f) ^ {c[23:18], 2'b0};
+  end
+endmodule`;
+test('#670 activity: a counter\'s high bits read, the logic evaluated when they change (keys of a value\'s bits); the same values as without it', async () => {
+  const sources = src('act.v', ACT670);
+  const { json, top, warnings } = await netlistOf(designOf(sources, 'act'), { run: yosysNode });
+  assert.deepEqual(warnings, []);
+  const m = compileNetlist(json, { top });
+  // (the adder d = c + 7 changes at every step, its bits 16 to 23 seldom; the counter's bits 18 to 23 the same)
+  assert.match(m.code, /\{ const y = \(x & 16711680\); D0 \|= /);
+  assert.match(m.code, /\(\(v\d+ \^ n\d+\) & 16515072\)/);
+  assert.equal((m.code.match(/^if \(\(D0 & /gm) || []).length, 1);
+  assert.deepEqual(compileNetlist(json, { top, activity: false }).stats.work, { all: m.stats.work.all, step: m.stats.work.all });
+  // (the adder c + 1, the adder d and its test of changes, a guard; not the rest)
+  assert.deepEqual(m.stats.work, { all: 10, step: 5.5 });
+  await sameActivity(sources, 'act', { longest: 3000 });
+});
+test('#670 activity: the work of a step, as the profile estimates it, of every example (behavioural)', async () => {
+  // (the combinational cells' operations evaluated in a step, at most: gates is all guards, vga reads the pixel
+  // clock's enable, which changes at every other step, nearly everywhere: unguarded)
+  const most = { gates: 0.1, traffic: 0.2, blinky: 0.2, pong: 0.15, stopwatch: 0.1, clock: 0.15, vga: 1 };
+  for (const name of EXAMPLES) {
+    const ex = example(name);
+    const { json, top, warnings } = await netlistOf(designOf(ex.design, ex.project.top), { run: yosysNode });
+    assert.deepEqual(warnings, [], name);
+    const { work } = compileNetlist(json, { top }).stats;
+    assert.ok(work.step <= most[name] * work.all, `${name}: ${JSON.stringify(work)}`);
+  }
+});
+test('#670 speed: pong at its real generics, at least 1.5 times as fast with the activity as without it', async () => {
+  const ex = example('pong');
+  const { json, top } = await netlistOf(designOf(ex.design, ex.project.top), { run: yosysNode });
+  const sims = [true, false].map(activity => new CompiledSim(compileNetlist(json, { top, activity })));
+  const best = [0, 0];
+  for (const s of sims) s.cycle(300000);   // (compiled by the JIT)
+  for (let k = 0; k < 5; k++) sims.forEach((s, i) => { const t0 = performance.now(); s.cycle(500000); best[i] = Math.max(best[i], 500000 / ((performance.now() - t0) / 1000)); });
+  // (about 2 times on a laptop: 76 against 36 million cycles a second; 1.06 times before #670)
+  assert.ok(best[0] > 1.5 * best[1], `${best.map(x => Math.round(x / 1e6)).join(' against ')} million cycles a second`);
+  for (const p of ['led', 'seg', 'an', 'dp']) assert.equal(sims[0].get(p), sims[1].get(p), p);
 });
 // #629: a run() above V8's limit of the bytecode it optimizes is split: the values the code's own, its combinational
 // cells in functions; the same values, cycle by cycle, as the code in one piece
