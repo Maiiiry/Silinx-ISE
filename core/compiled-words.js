@@ -44,6 +44,10 @@ export function wordLevel(json, top) {
   if (!mod) return { json, stats: { chains: 0, registers: 0, cells: [0, 0] } };
   const cells = mod.cells || {};
   const before = Object.keys(cells).length;
+  // (the new cells' names: $words$…, $words2$… when made word level again, #659)
+  let pass = 1;
+  while (Object.keys(cells).some(n => n.startsWith(`$words${pass > 1 ? pass : ''}$`))) pass++;
+  const W = `$words${pass > 1 ? pass : ''}$`;
   let fresh = 1 + Math.max(0, ...Object.values(cells).flatMap(c => Object.values(c.connections).flat().filter(b => !isConst(b))),
     ...Object.values(mod.ports || {}).flatMap(p => p.bits.filter(b => !isConst(b))), ...Object.values(mod.netnames || {}).flatMap(n => n.bits.filter(b => !isConst(b))));
   const newBits = k => Array.from({ length: k }, () => fresh++);
@@ -261,7 +265,7 @@ export function wordLevel(json, top) {
       return B && { kind: 'cell', type: k, bits, conn: { A, B }, cells: cellsOf };
     })();
     if (!action) { undo(m); return null; }
-    action.id = `$words$${actions.length + 1}`;
+    action.id = `${W}${actions.length + 1}`;
     actions.push(action);
     bits.forEach((b, i) => place(b, action.id, i));
     return bits;
@@ -277,7 +281,7 @@ export function wordLevel(json, top) {
     p.forEach(st => { take(st.name); if (st.xor) take(st.xor); });
     const S = vec(p.map(sOf)), DI = S && vec(p.map(st => st.di));
     if (!DI) { undo(m); return false; }
-    const id = `$words$${actions.length + 1}`;
+    const id = `${W}${actions.length + 1}`;
     actions.push({ kind: 'chain', id, p, S, DI });
     p.forEach((st, i) => { if (st.xor) place(cells[st.xor].connections.Y[0], `${id}s`, i); if (i < p.length - 1) place(st.out, `${id}c`, i + 1); });
     place(p.at(-1).out, `${id}s`, p.length);
@@ -302,6 +306,27 @@ export function wordLevel(json, top) {
     for (const v of ins) if (!v.every(b => b === v[0])) propose(v, depth + 1);
   };
   for (const p of pieces) { propose(p.map(sOf)); propose(p.map(st => st.di)); }
+  // (#659: the flip-flops of one bit whose next values are outputs of one table, a ROM of core/compiled-tables.js,
+  // through the cells of their enable and reset: one register per table and kind, in the table's order)
+  const romAt = b => { const d = !isConst(b) && driver.get(b); return d && d.c.type === '$mem_v2' && d.port === 'RD_DATA' && !int(d.c.parameters.WR_PORTS) ? d : null; };
+  const romOf = (b, q, depth = 0) => {
+    const r = romAt(b);
+    if (r || b === q || depth > 2) return r;
+    const d = cellAt(b);
+    if (!d || d.kind === 'ff') return null;
+    for (const x of d.lut ? d.lut.ins : ['A', 'B', 'S'].flatMap(p => d.c.connections[p] || [])) { const f = romOf(x, q, depth + 1); if (f) return f; }
+    return null;
+  };
+  const fed = new Map();
+  for (const [name, c] of Object.entries(cells)) {
+    if (!ff1(c) || !c.connections.D) continue;
+    const r = romOf(c.connections.D[0], c.connections.Q[0]);
+    if (!r) continue;
+    const key = `${r.name} ${ffKey(c)}`;
+    if (!fed.has(key)) fed.set(key, new Map());
+    if (!fed.get(key).has(r.i)) fed.get(key).set(r.i, name);
+  }
+  for (const g of fed.values()) if (g.size >= 2) proposals.push([...g].sort((a, b) => a[0] - b[0]).map(([, n]) => n));
   const used = new Set();
   let groups = proposals.filter(g => { if (g.some(n => used.has(n))) return false; g.forEach(n => used.add(n)); return true; })
     .flatMap(g => Array.from({ length: Math.ceil(g.length / MAXW) }, (_, j) => g.slice(j * MAXW, (j + 1) * MAXW))).filter(g => g.length >= 2);
@@ -311,7 +336,7 @@ export function wordLevel(json, top) {
   // no word stays bits, and the round is done again without it
   for (;;) {
     reset();
-    groups.forEach((g, j) => g.forEach((n, i) => place(cells[n].connections.Q[0], `$words$r${j}`, i)));
+    groups.forEach((g, j) => g.forEach((n, i) => place(cells[n].connections.Q[0], `${W}r${j}`, i)));
     pieces.forEach(planChain);
     data = new Map();   // register -> { port: the bits it reads }
     const failed = groups.filter(g => {
@@ -329,7 +354,7 @@ export function wordLevel(json, top) {
 
   // ---- the new cells
   const add = (type, conn, params = {}) => {
-    const name = `$words$${Object.keys(cells).length}$${fresh}`;
+    const name = `${W}${Object.keys(cells).length}$${fresh}`;
     const w = (conn.Y || conn.Q).length;
     cells[name] = { hide_name: 1, type, parameters: { A_SIGNED: 0, B_SIGNED: 0, A_WIDTH: conn.A?.length ?? 0, B_WIDTH: conn.B?.length ?? 0, Y_WIDTH: w, WIDTH: w, ...params }, attributes: {}, connections: conn };
     return conn.Y;
@@ -342,7 +367,7 @@ export function wordLevel(json, top) {
     const params = { ...c0.parameters, WIDTH: g.length };
     for (const p of FF_VALUES) if (p in params) params[p] = g.map(n => pbits(cells[n].parameters[p])[0]).reverse().join('');
     drop(g);
-    cells[`$words$r${j}`] = { hide_name: 1, type: c0.type, parameters: params, attributes: {}, port_directions: c0.port_directions, connections: conn };
+    cells[`${W}r${j}`] = { hide_name: 1, type: c0.type, parameters: params, attributes: {}, port_directions: c0.port_directions, connections: conn };
   }
   let nChains = 0;
   for (const a of actions) {
