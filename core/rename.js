@@ -7,7 +7,8 @@
 
 import { lex } from './vhdl/lexer.js';
 import { tokenize } from './verilog/lexer.js';
-import { analyze, VHDL_KW, VLOG_KW } from './scopes.js';
+import { analyze } from './scopes.js';
+import { VHDL_WORDS, VERILOG_WORDS, SV_WORDS } from './reserved.js';
 
 /** Offsets of each line start, to turn token line/col (1-based) into string offsets. */
 function lineStarts(text) {
@@ -109,8 +110,6 @@ export function renameModuleInSchematic(doc, oldName, newName, { linked = false 
 
 const VHDL_NAME = /^[A-Za-z](?:_?[A-Za-z0-9])*$/;
 const VLOG_NAME = /^[A-Za-z_][A-Za-z0-9_$]*$/;
-// SystemVerilog words the Verilog lexer reads as names: not good names either
-const SV_WORDS = new Set('bit byte int shortint longint shortreal string typedef enum struct union packed import package endpackage interface endinterface always_latch unique priority void return break continue'.split(' '));
 
 const KIND_WORD = { entity: 'entity', architecture: 'architecture', package: 'package', configuration: 'configuration', component: 'component',
   module: 'module', port: 'port', generic: 'generic', parameter: 'parameter', signal: 'signal', variable: 'variable', constant: 'constant',
@@ -135,10 +134,11 @@ export function symbolAt(text, lang, line, col) {
 export function badName(name, lang) {
   if (lang === 'verilog') {
     if (!VLOG_NAME.test(name)) return `'${name}' is not a valid Verilog name: a letter or _ first, then letters, digits, _ or $.`;
-    if (VLOG_KW.has(name) || SV_WORDS.has(name)) return `'${name}' is a reserved word of Verilog.`;
+    // (the shared lists, core/reserved.js, #679: SystemVerilog's words are not good names either)
+    if (VERILOG_WORDS.has(name) || SV_WORDS.has(name)) return `'${name}' is a reserved word of Verilog.`;
   } else {
     if (!VHDL_NAME.test(name)) return `'${name}' is not a valid VHDL name: a letter first, then letters, digits and single underscores (not at the end).`;
-    if (VHDL_KW.has(name.toLowerCase())) return `'${name}' is a reserved word of VHDL.`;
+    if (VHDL_WORDS.has(name.toLowerCase())) return `'${name}' is a reserved word of VHDL.`;
   }
   return null;
 }

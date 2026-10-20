@@ -14,7 +14,7 @@
 // place may hold more than one token), synchronous, with a reset to the initial marking.
 // PNML (ISO/IEC 15909-2) import and export for the other Petri net tools.
 
-import { portExprCoder, isIdentifier, reservedIn } from './asm.js';
+import { portExprCoder, isIdentifier, reservedIn, reservedWarning } from './asm.js';
 import { parseCond, evalCond, parseOutputs, constValue } from './fsm.js';
 
 export const PETRI_VERSION = 1;
@@ -87,10 +87,12 @@ export function validatePetri(model) {
   const add = (severity, message, ref) => out.push({ severity, message, ...(ref ? { ref } : {}) });
   const lang = m.lang;
   if (!isIdentifier(m.name) || reservedIn(m.name).length) add('error', `'${m.name}' is not a valid module name`);
+  else if (reservedWarning(m.name)) add('warning', reservedWarning(m.name));
   const seen = new Map();
   // (places and transitions: prefixed in the HDL, pl_<name>, fired_<name>: any identifier, reserved words too)
   const name = (n, what, ref, prefixed = false) => {
     if (!isIdentifier(n) || (!prefixed && reservedIn(n).length)) { add('error', `${what} '${n}' is not a valid ${lang.toUpperCase()} name`, ref); return; }
+    if (!prefixed && reservedWarning(n)) add('warning', reservedWarning(n), ref);
     const k = lang === 'vhdl' ? n.toLowerCase() : n;
     if (seen.has(k)) add('error', `'${n}' is used twice (${seen.get(k)} and ${what})`, ref); else seen.set(k, what);
   };

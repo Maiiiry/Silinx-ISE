@@ -574,8 +574,13 @@ const ptIdent = s => s
   .replace(/^('.*') must start with a letter$/, '$1 tem de começar por uma letra')
   .replace(/^('.*') may only contain letters, digits and _$/, '$1 só pode ter letras, dígitos e _')
   .replace(/^('.*'): no double __ and no _ at the end$/, '$1: sem __ seguidos e sem _ no fim')
-  .replace(/^('.*') is a reserved word of (VHDL|Verilog)$/, '$1 é uma palavra reservada de $2');
+  .replace(/^('.*') is a reserved word of (.+)$/, (m, n, l) => `${n} é uma palavra reservada de ${l.replace(' and ', ' e ')}`);
 PT_PATTERNS.push(
+  // a name that is a reserved word of VHDL or Verilog (core/reserved.js, #679): refused, or said of a drawing / a module
+  [/^'(.*)' is a reserved word of (.+): choose another name\.$/, (m, n, l) => `'${n}' é uma palavra reservada de ${l.replace(' and ', ' e ')}: escolha outro nome.`],
+  [/^'(.*)' is a reserved word of (.+): rename it$/, (m, n, l) => `'${n}' é uma palavra reservada de ${l.replace(' and ', ' e ')}: mude-lhe o nome`],
+  [/^(\S+): '(.*)' is a reserved word of (.+): rename the module in the file first\.$/, (m, f, n, l) => `${f}: '${n}' é uma palavra reservada de ${l.replace(' and ', ' e ')}: mude primeiro o nome do módulo no ficheiro.`],
+  [/^The module name '(.*)' is a reserved word of (.+): rename it \(Rename in the Design pane\), or its HDL may not compile\.$/, (m, n, l) => `O nome do módulo '${n}' é uma palavra reservada de ${l.replace(' and ', ' e ')}: mude-lhe o nome (Mudar o Nome no painel Projeto), ou o seu HDL pode não compilar.`],
   [/^(Name|Module name|Architecture name|Generic|Port (\d+)): (.*)\.$/, (m, w, k, e) => `${{ Name: 'Nome', 'Module name': 'Nome do módulo', 'Architecture name': 'Nome da arquitetura', Generic: 'Genérico' }[w] || `Porto ${k}`}: ${ptIdent(e)}.`],
   [/^Port '(.*)' has the name of the module\.$/, "O porto '$1' tem o nome do módulo."],
   [/^Two ports are named '([^']*)'\.$/, "Há dois portos com o nome '$1'."],

@@ -10,7 +10,7 @@ import { S, closeAllDocs, compileProject, renderFilesPage, renderLibsPage, showL
   restoreViewState, openSummary } from './app.js';
 import { log, renderDiagnostics } from './console.js';
 import { drawingsAsBase, adoptDrawnHdl, drawnHdlClashes } from './drawings.js';
-import { renderProcesses, restoreImplStatus } from './processes.js';
+import { renderProcesses, restoreImplStatus, reservedNameDiags } from './processes.js';
 import { renderHierarchy } from './design.js';
 
 const $ = id => document.getElementById(id);
@@ -51,12 +51,18 @@ async function openProjectNow(name) {
   await reloadProject();
   await fixMissingTops();   // (a project saved with a top it no longer has, #253)
   log(`Project "${name}" opened (${S.project.device.part}${S.project.device.speed}-${S.project.device.package}).`, 'info');
+  warnReservedNames();
   // the processes' status of the last run, its synthesis up to date or not (#280), restored before the project is
   // used: not awaited, it drew the Processes panel again under a double-click on a process and Implement Design
   // then did not start, or synthesized again (#346)
   await restoreImplStatus();
   // where the user was in this project; the Design Summary the first time
   if (!await restoreViewState(name)) openSummary({ background: true });
+}
+
+// The modules named with a reserved word of VHDL or Verilog (#679), said when the project is opened
+function warnReservedNames() {
+  for (const d of reservedNameDiags()) log(`WARNING:${d.tool} - "${d.file}" Line ${d.line}: ${d.message}`, 'warn');
 }
 
 // Reloads run one after the other, in call order: two reloads close together (e.g. Remove from

@@ -77,36 +77,23 @@
 
 export const ASM_VERSION = 1;
 export const ENCODINGS = ['binary', 'gray', 'onehot', 'enum'];
+import { VHDL93_WORDS, VERILOG_WORDS, reservedError } from './reserved.js';
+
 export const LANGS = ['vhdl', 'verilog'];
 
 // ---------------------------------------------------------------------------------------
 // Reserved words
 // ---------------------------------------------------------------------------------------
 
-const VERILOG_RESERVED = new Set((
-  'always and assign automatic begin buf bufif0 bufif1 case casex casez cell cmos config ' +
-  'deassign default defparam design disable edge else end endcase endconfig endfunction ' +
-  'endgenerate endmodule endprimitive endspecify endtable endtask event for force forever ' +
-  'fork function generate genvar highz0 highz1 if ifnone incdir include initial inout input ' +
-  'instance integer join large liblist library localparam macromodule medium module nand ' +
-  'negedge nmos nor noshowcancelled not notif0 notif1 or output parameter pmos posedge ' +
-  'primitive pull0 pull1 pulldown pullup pulsestyle_onevent pulsestyle_ondetect rcmos real ' +
-  'realtime reg release repeat rnmos rpmos rtran rtranif0 rtranif1 scalared showcancelled ' +
-  'signed small specify specparam strong0 strong1 supply0 supply1 table task time tran ' +
-  'tranif0 tranif1 tri tri0 tri1 triand trior trireg unsigned use uwire vectored wait wand ' +
-  'weak0 weak1 while wire wor xnor xor logic bit byte int shortint longint').split(/\s+/));
+// (the shared lists, core/reserved.js, #679): the words that break the generated HDL (Verilog's as
+// written, the SystemVerilog types students meet; VHDL's in any case) are errors, the other reserved
+// words (another letter case, SystemVerilog's) warnings (reservedWarning)
+const VERILOG_RESERVED = new Set([...VERILOG_WORDS, ...'logic bit byte int shortint longint'.split(' ')]);
 
-const VHDL_RESERVED = new Set((
-  'abs access after alias all and architecture array assert attribute begin block body ' +
-  'buffer bus case component configuration constant disconnect downto else elsif end entity ' +
-  'exit file for function generate generic group guarded if impure in inertial inout is ' +
-  'label library linkage literal loop map mod nand new next nor not null of on open or ' +
-  'others out package port postponed procedure process pure range record register reject ' +
-  'rem report return rol ror select severity signal shared sla sll sra srl subtype then to ' +
-  'transport type unaffected units until use variable wait when while with xnor xor ' +
+const VHDL_RESERVED = new Set([...VHDL93_WORDS,
   // names that would clash with the standard packages we use
-  'std_logic std_logic_vector std_ulogic unsigned signed integer natural boolean bit ' +
-  'rising_edge falling_edge resize to_unsigned ieee std work numeric_std').split(/\s+/));
+  ...('std_logic std_logic_vector std_ulogic unsigned signed integer natural boolean bit ' +
+  'rising_edge falling_edge resize to_unsigned ieee std work numeric_std').split(' ')]);
 
 /** True if `s` is a portable identifier (valid in both Verilog and VHDL). */
 export function isIdentifier(s) {
@@ -118,6 +105,14 @@ export function reservedIn(s) {
   if (VERILOG_RESERVED.has(s)) out.push('Verilog');
   if (VHDL_RESERVED.has(s.toLowerCase())) out.push('VHDL');
   return out;
+}
+
+/** A name the generated HDL accepts but that is a reserved word of VHDL or Verilog in some letter case
+ *  (#679; SystemVerilog's own words are only refused for a new name): the warning `'Wire' is a reserved word of Verilog: rename it`, or null. */
+export function reservedWarning(s) {
+  if (reservedIn(s).length) return null;
+  const e = reservedError(s, { sv: false });
+  return e && `${e}: rename it`;
 }
 
 // ---------------------------------------------------------------------------------------
@@ -1053,6 +1048,8 @@ function analyze(model) {
     if (!bare) return true;
     const r = reservedIn(name);
     if (r.length) { err(`${what} '${name}' is a reserved word in ${r.join(' and ')}`, nodeId); return false; }
+    const w = reservedWarning(name);
+    if (w) warn(w, nodeId);
     return true;
   };
   checkName(m.name, 'Module/entity name');

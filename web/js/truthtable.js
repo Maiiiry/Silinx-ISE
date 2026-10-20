@@ -18,6 +18,7 @@ import {
   normalizeTable, validateTable, reshapeTable, analyzeOutput, parseExpr, exprColumn, formatExpr,
   kmapLayout, kmapRects, MAX_EDIT_INPUTS,
 } from '/core/logic.js';
+import { reservedError } from '/core/reserved.js';
 
 const NEXT = { 0: '1', 1: 'X', X: '0' };
 const COLORS = ['#d62728', '#1f77b4', '#2ca02c', '#9467bd', '#ff7f0e', '#17becf', '#e377c2', '#8c564b', '#bcbd22', '#7f7f7f'];
@@ -69,8 +70,11 @@ export function mountTtEditor(container, opts = {}) {
     shapeErr.textContent = '';
     if (ins.length < 1 || ins.length > MAX_EDIT_INPUTS) { shapeErr.textContent = `1 to ${MAX_EDIT_INPUTS} inputs`; return; }
     if (outs.length < 1) { shapeErr.textContent = 'At least 1 output'; return; }
+    // a new name: not a reserved word of VHDL or Verilog, in any letter case (#679)
+    const bad = [...ins, ...outs].filter(n => !M.inputs.includes(n) && !M.outputs.includes(n)).map(reservedError).find(Boolean);
+    if (bad) { shapeErr.textContent = `${bad}: choose another name.`; return; }
     const next = normalizeTable(reshapeTable(M, ins, outs));
-    const errs = validateTable(next);
+    const errs = validateTable(next).filter(x => x.severity === 'error');
     if (errs.length) { shapeErr.textContent = errs[0].message; return; }
     if (JSON.stringify(next) === JSON.stringify(M)) return;
     M = next;

@@ -5,6 +5,7 @@
 import { api } from './api.js';
 import { h, alertDlg, toast } from './ui.js';
 import { normalizePetri, petriErrors } from '/core/petri.js';
+import { reservedError } from '/core/reserved.js';
 import { wizard, field, replaceGuard, closeBeforeReplace } from './wizards.js';
 import { namePage, portEditor } from './modwizard.js';
 import { S, app } from './app.js';
@@ -43,6 +44,8 @@ export async function petriWizard({ name = '', location = 'src', lang = null } =
     validate: () => {
       const err = pe.check(p1.name());
       if (err) return err;
+      const r = reservedError(clkIn.value.trim()) || reservedError(rstIn.value.trim());
+      if (r) return `${r}: choose another name.`;
       const errs = petriErrors(net());
       return errs.length ? errs[0].message : null;
     },

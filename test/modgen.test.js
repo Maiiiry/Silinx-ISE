@@ -136,10 +136,14 @@ test('port table checks: identifiers, reserved words, duplicates, widths, generi
   assert.match(checkPorts([P('a_')], { lang: 'verilog' }), /_ at the end/);
   assert.match(checkPorts([P('signal')], { lang: 'vhdl' }), /reserved word of VHDL/);
   assert.match(checkPorts([P('SIGNAL')], { lang: 'vhdl' }), /reserved word of VHDL/);
-  assert.equal(checkPorts([P('SIGNAL')], { lang: 'verilog' }), null);
+  // a reserved word of either language, in any letter case, in both (#679: the HDL is generated in both)
+  assert.equal(checkPorts([P('SIGNAL')], { lang: 'verilog' }), "Port 1: 'SIGNAL' is a reserved word of VHDL.");
   assert.match(checkPorts([P('reg')], { lang: 'verilog' }), /reserved word of Verilog/);
   assert.match(checkPorts([P('wire')], { lang: 'verilog' }), /reserved word of Verilog/);
-  assert.equal(checkPorts([P('reg')], { lang: 'vhdl' }), null);
+  assert.equal(checkPorts([P('reg')], { lang: 'vhdl' }), "Port 1: 'reg' is a reserved word of Verilog.");
+  assert.equal(checkPorts([P('Or')], { lang: 'vhdl' }), "Port 1: 'Or' is a reserved word of VHDL and Verilog.");
+  assert.equal(checkPorts([P('logic')], { lang: 'vhdl' }), "Port 1: 'logic' is a reserved word of SystemVerilog.");
+  assert.equal(checkPorts([P('and1'), P('orr', 'out')], { lang: 'verilog', name: 'Module_1' }), null);
   assert.match(checkPorts([P('a'), P('A', 'out')], { lang: 'verilog' }), /Two ports are named 'A' \(letter case does not count: 'a'\)/);
   assert.match(checkPorts([P('m')], { lang: 'vhdl', name: 'm' }), /name of the module/);
   assert.match(checkPorts([P('a', 'in', 0)], { lang: 'vhdl' }), /width must be a whole number/);

@@ -29,6 +29,7 @@ import { esc, h } from './dom.js';
 import { highlightHdl } from './highlight.js';
 import { copySchematic, pasteSchematic, clipEmpty } from '/core/schclip.js';
 import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
+import { reservedError } from '/core/reserved.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -936,7 +937,7 @@ export function mountSchEditor(container, opts = {}) {
     const sum = s.type === 'module' ? (S?.description || '') : symbolSummary(s.type, s.params, getLanguage());
     propBody.append(h('div', { class: 'se-ptitle', text: title }), h('div', { class: 'se-note se-sum', 'data-no-i18n': '', text: sum }),
       h('div', { class: 'se-pbtns' }, h('button', { class: 'btn ro-ok se-infobtn', type: 'button', text: 'Symbol Info…', title: 'Symbol Info (F1)', onclick: () => openInfo(infoTarget()) })));
-    propBody.append(field('Instance name', inp(s.name, v => { s.name = String(v).trim() || s.name; })));
+    propBody.append(field('Instance name', inp(s.name, v => { s.name = newName(v, s.name); })));
     for (const p of S?.params || []) {
       const v = s.params[p.name];
       let el;
@@ -1022,9 +1023,20 @@ export function mountSchEditor(container, opts = {}) {
     const nets = symbolPins(s, modules).map(p => `${p.name} → ${nl?.pinNet.get(`${s.id}/${p.name}`)?.name ?? '(unconnected)'}`);
     if (nets.length) propBody.append(h('details', { class: 'se-sec' }, h('summary', { text: `Pins (${nets.length})` }), h('pre', { class: 'se-pins', text: nets.join('\n') })));
   }
+  // a name typed in the properties (an I/O marker, a net): the old one kept when it is empty or a reserved
+  // word of VHDL or Verilog, in any letter case (#679), said
+  function refused(v) {
+    const r = reservedError(parseNetName(String(v).trim()).base);
+    if (r) flash(`${r}: choose another name.`);
+    return !!r;
+  }
+  function newName(v, old) {
+    const name = String(v).trim();
+    return !name || refused(name) ? old : name;
+  }
   function portProps(p) {
     propBody.append(h('div', { class: 'se-ptitle', text: 'I/O Marker' }));
-    propBody.append(field('Name', inp(p.name, v => { p.name = String(v).trim() || p.name; })));
+    propBody.append(field('Name', inp(p.name, v => { p.name = newName(v, p.name); })));
     propBody.append(field('Direction', selBox(p.dir, [['in', 'Input'], ['out', 'Output'], ['inout', 'Bidirectional']], v => { p.dir = v; })));
     propBody.append(field('Width', inp(p.width, v => { p.width = Math.max(1, Math.round(+v || 1)); if (p.type && !/\(|\[/.test(p.type) && p.width > 1) delete p.type; }, { type: 'number', min: 1 })));
     propBody.append(field('HDL type', inp(p.type || '', v => { if (String(v).trim()) p.type = String(v).trim(); else delete p.type; }, { placeholder: doc.lang === 'vhdl' ? (p.width > 1 ? `std_logic_vector(${p.width - 1} downto 0)` : 'std_logic') : (p.width > 1 ? `[${p.width - 1}:0]` : ''), 'data-no-i18n': '' }), 'optional, overrides the type derived from the width'));
@@ -1034,6 +1046,7 @@ export function mountSchEditor(container, opts = {}) {
   function labelProps(l) {
     propBody.append(h('div', { class: 'se-ptitle', text: 'Net Name' }));
     propBody.append(field('Name', inp(l.net, async v => {
+      if (refused(v)) return false;
       if (!await joinByName(String(v).trim(), nl?.labelNet.get(l.id))) return false;
       return () => { if (String(v).trim()) l.net = String(v).trim(); };
     }), 'ISE style bus names are accepted: data(7:0)'));
@@ -1044,6 +1057,7 @@ export function mountSchEditor(container, opts = {}) {
     propBody.append(h('div', { class: 'se-ptitle', text: `Wire${n ? ` · net ${n.name}` : ''}` }));
     propBody.append(field('Draw as bus', chk(w.bus, v => { if (v) w.bus = true; else delete w.bus; })));
     if (n) propBody.append(field('Rename net', inp(n.auto ? '' : n.name, async v => {
+      if (refused(v)) return false;
       if (!await joinByName(String(v).trim(), n)) return false;
       return () => {
         const name = String(v).trim(); if (!name) return;
@@ -1213,6 +1227,7 @@ export function mountSchEditor(container, opts = {}) {
     if (!name) return;
     const pn = parseNetName(name);
     if (pn.bad) { flash(`Invalid net name '${name}'`); return; }
+    if (reservedError(pn.base)) { flash(`${reservedError(pn.base)}: choose another name.`); return; }   // (#679)
     if (!await joinByName(name, nl?.wireNet.get(hit.w.id))) return;
     edit(() => {
       const n = nl?.wireNet.get(hit.w.id);
@@ -1239,6 +1254,7 @@ export function mountSchEditor(container, opts = {}) {
     if (!name || taken.has(name.toLowerCase())) name = await promptBox(pt, `${dir === 'in' ? 'Input' : dir === 'out' ? 'Output' : 'Bidirectional'} port name`, name || suggest);
     if (!name) return;
     if (taken.has(name.toLowerCase())) { flash(`An I/O marker named '${name}' already exists`); return; }
+    if (reservedError(name)) { flash(`${reservedError(name)}: choose another name.`); return; }   // (#679)
     edit(() => { if (!near) splitWiresAt(doc, [p]); doc.ports.push({ id: nextId('P', doc.ports), name, dir, width, x: p.x, y: p.y }); }, { keepProps: true });
     if (ioNameInput.value.trim()) { const m = /^(.*?)(\d+)$/.exec(name); ioNameInput.value = m ? `${m[1]}${+m[2] + 1}` : ''; }
   }

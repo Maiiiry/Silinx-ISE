@@ -9,6 +9,7 @@ import { h, alertDlg, toast } from './ui.js';
 import { compile, elaborate, simulate } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
 import { clocksOf } from '/core/schematic.js';
+import { reservedError } from '/core/reserved.js';
 import { tbPorts, guessClockReset, makeVectors, parseValue, parseDrive, showValue, generateTestbench, generateSkeleton, expectedFromTrace, MAX_VECTORS } from '/core/testbench.js';
 import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere } from './wizards.js';
 import { S, app } from './app.js';
@@ -78,6 +79,8 @@ export async function testBenchWizard({ module, name = null, location = null, la
         ...field('Module to test:', modSel), ...field('Test bench name:', tbName), ...field('Language:', lang), ...field('Location:', loc))),
     validate: async () => {
       if (!NAME_RE.test(tbName.value.trim())) return 'Enter a valid test bench name (a letter, then letters, digits and _).';
+      const r = reservedError(tbName.value.trim());
+      if (r) return `${r}: choose another name.`;
       if (!/^[A-Za-z0-9_/-]+$/.test(loc.value.trim())) return 'Invalid location.';
       const path = `${loc.value.trim().replace(/\/+$/, '')}/${tbName.value.trim()}.${lang.value === 'vhdl' ? 'vhd' : 'v'}`;
       // a module of that name in another file: refused; the file itself may be replaced

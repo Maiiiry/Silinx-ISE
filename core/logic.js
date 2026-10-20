@@ -17,6 +17,8 @@
 //   only (from the minimal SOP) or NOR gates only (from the minimal POS).
 
 import { newDoc, symbolDef, symbolPins, symbolBox, netlist, joinOnWires } from './schdoc.js';
+import { VHDL93_WORDS, VERILOG_WORDS } from './reserved.js';
+import { reservedWarning } from './asm.js';
 import { compile, elaborate, simulate } from './compile.js';
 import { clocksOf, latchGates } from './schematic.js';
 import { tbPorts, generateTestbench, expectedFromTrace } from './testbench.js';
@@ -709,8 +711,9 @@ export function kmapRects(layout, cube) {
 
 // ===================================================================== truth table documents
 const IDENT = /^[A-Za-z][A-Za-z0-9_]*$/;
-const RESERVED = new Set(('abs access after alias all and architecture array assert attribute begin block body buffer bus case component configuration constant disconnect downto else elsif end entity exit file for function generate generic group guarded if impure in inertial inout is label library linkage literal loop map mod nand new next nor not null of on open or others out package port postponed procedure process pure range record register reject rem report return rol ror select severity signal shared sla sll sra srl subtype then to transport type unaffected units until use variable wait when while with xnor xor ' +
-  'always assign begin buf case casex casez default defparam else end endcase endfunction endmodule endtask for forever function if initial inout input integer module nand negedge nor not or output parameter posedge reg repeat signed task while wire xnor xor localparam genvar generate endgenerate logic std_logic ieee').split(' '));
+// (the shared lists, core/reserved.js, #679: the words that break the HDL of either language are errors,
+// the other reserved words warnings)
+const RESERVED = new Set([...VHDL93_WORDS, ...VERILOG_WORDS, 'logic', 'std_logic', 'ieee']);
 
 /** The logic forms of a table's HDL module and schematic (#694). */
 export const FORMS = ['sop', 'pos', 'xor', 'nand', 'nor'];
@@ -737,17 +740,20 @@ export function normalizeTable(d) {
   return doc;
 }
 
-/** Problems of a table document: [{ severity: 'error', message }] (names, sizes). */
+/** Problems of a table document: [{ severity: 'error' | 'warning', message }] (names, sizes; a warning: a
+ *  name that is a reserved word in another letter case or of SystemVerilog, #679). */
 export function validateTable(doc, { maxInputs = MAX_INPUTS } = {}) {
   const errs = [];
   const e = m => errs.push({ severity: 'error', message: m });
   if (!IDENT.test(doc.name) || RESERVED.has(doc.name.toLowerCase())) e(`'${doc.name}' is not a valid module name`);
+  else if (reservedWarning(doc.name)) errs.push({ severity: 'warning', message: reservedWarning(doc.name) });
   if (doc.inputs.length < 1 || doc.inputs.length > maxInputs) e(`a truth table has 1 to ${maxInputs} inputs`);
   if (doc.outputs.length < 1) e('a truth table has at least 1 output');
   const seen = new Set([doc.name.toLowerCase()]);
   for (const v of [...doc.inputs, ...doc.outputs]) {
     if (!IDENT.test(v) || /__|_$/.test(v) || RESERVED.has(v.toLowerCase())) e(`'${v}' is not a valid name (a letter, then letters, digits and single _; not a VHDL/Verilog keyword)`);
     else if (seen.has(v.toLowerCase())) e(`the name '${v}' is used twice`);
+    else if (reservedWarning(v)) errs.push({ severity: 'warning', message: reservedWarning(v) });
     seen.add(v.toLowerCase());
   }
   return errs;
@@ -823,7 +829,7 @@ const DC_RE = /don't cares?:\s*([A-Za-z][A-Za-z0-9_]*)\s*=\s*d\(([^)]*)\)/gi;
  */
 export function generateTableHdl(docIn, lang = docIn.lang || 'vhdl', { form = docIn.form || 'sop', source } = {}) {
   const doc = normalizeTable(docIn);
-  const errs = validateTable(doc);
+  const errs = validateTable(doc).filter(x => x.severity === 'error');
   if (errs.length) throw new Error(errs.map(x => x.message).join('; '));
   const c = lang === 'verilog' ? '//' : '--';
   const n = doc.inputs.length;

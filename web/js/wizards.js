@@ -8,6 +8,8 @@ import { typeText } from './editor.js';
 import { S, app } from './app.js';
 import { THIRD_PARTY } from '/core/third-party.js';
 import { drawnHdlPath, isView } from '/core/view-hdl.js';
+import { reservedError } from '/core/reserved.js';
+import { reservedNameDiags } from './processes.js';
 import { countEvent, siteCounts } from './analytics.js';
 
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
@@ -542,6 +544,12 @@ export async function newSourceWizard({ type } = {}) {
       if (!FILE_RE.test(n)) return 'Enter a valid file name (letters, digits, _ and -).';
       if (!/^[A-Za-z0-9_/-]+$/.test(loc.value.trim())) return 'Invalid location.';
       const p = `${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`;
+      // the module named as the file (a drawing, a test bench, a package): not a reserved word of VHDL or
+      // Verilog, in any letter case (#679; a module's own name is asked on the next page)
+      if (!['hdl', 'ucf', 'mem'].includes(st.id)) {
+        const r = reservedError(n.split('/').pop().replace(/[^A-Za-z0-9_]/g, '_'));
+        if (r) return `${r}: choose another name.`;
+      }
       // a drawing: its module (named as the file) and its HDL file must be free (#230)
       if (isView(p)) {
         const mod = n.split('/').pop().replace(/[^A-Za-z0-9_]/g, '_');
@@ -594,6 +602,8 @@ export async function newSourceWizard({ type } = {}) {
     onShow: () => { p2LangSlot.replaceChildren(langSel); if (!entName.value) entName.value = fname.value.trim().replace(/\..*$/, ''); syncArch(); },
     validate: () => {
       if (!NAME_RE.test(entName.value.trim())) return 'Invalid module name.';
+      const r = reservedError(entName.value.trim()) || ports.map(p => reservedError(p.name)).find(Boolean);
+      if (r) return `${r}: choose another name.`;
       for (const p of ports) {
         if (!NAME_RE.test(p.name)) return `Invalid port name '${p.name}'.`;
         if (p.bus && (isNaN(+p.msb) || isNaN(+p.lsb))) return `Port '${p.name}': MSB/LSB must be numbers.`;
@@ -745,8 +755,16 @@ export async function addSourceDialog() {
     const ext = f.name.split('.').pop().toLowerCase();
     const dir = ext === 'ucf' ? 'constraints' : role.value === 'sim' ? 'sim' : 'src';
     const path = `${dir}/${f.name}`;
+    const text = await f.text();
+    // a drawing named with a reserved word of VHDL or Verilog (its HDL is generated): refused (#679); an
+    // HDL file's module, written in its own language, is said when the project is reloaded
+    if (/\.json$/i.test(f.name)) {
+      let bad = null;
+      try { bad = reservedError(JSON.parse(text)?.name); } catch { /* not a drawing */ }
+      if (bad) { await alertDlg('Add Copy of Source', `${f.name}: ${bad}: rename the module in the file first.`, 'error'); continue; }
+    }
     if ((S.diskTree || S.fileTree).includes(path) && !await confirmDlg('Add Copy of Source', `${path} already exists in the project. Replace it with the copy of ${f.name}?`)) continue;
-    await api.writeFile(S.project.name, path, await f.text());
+    await api.writeFile(S.project.name, path, text);
     written.push(path);
     if (ext === 'ucf' && !S.fileTree.includes(S.project.constraints)) { S.project.constraints = path; await app.saveProjectJson(); }
   }
@@ -761,6 +779,7 @@ export async function addSourceDialog() {
   await api.saveProject(pj.name, pj);
   await app.reloadProject();
   app.log(`Added ${written.length} source file(s).`, 'ok');
+  for (const d of reservedNameDiags().filter(d => written.includes(d.file))) app.log(`WARNING:${d.tool} - "${d.file}" Line ${d.line}: ${d.message}`, 'warn');
 }
 
 export async function sourceProperties(path) {

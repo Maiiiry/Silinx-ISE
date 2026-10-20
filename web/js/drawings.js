@@ -183,7 +183,7 @@ export async function syncHdlFromTt(ttPath, model) {
   const { generateTableHdl, validateTable, normalizeTable } = await import('/core/logic.js');
   const m = normalizeTable(model);
   S.outOfSync ||= {};
-  const errs = validateTable(m);
+  const errs = validateTable(m).filter(x => x.severity === 'error');
   if (errs.length) {
     const why = `the truth table has errors: ${errs.map(x => x.message).join('; ')}`;
     if (S.outOfSync[target] !== why) log(`WARNING: ${target} not updated: ${why}`, 'warn');
