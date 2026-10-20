@@ -104,7 +104,7 @@ uiTest('#230 regression, a truth table whose HDL file name holds another module:
   assert.deepEqual(await rows(page), [
     'project C_tt',
     '  chip xc3s250e-4-cp132',
-    '    truthtable maj [Table*] [No HDL!] (maj.tt.json)',
+    '    truthtable maj [Table*] [Schematic] [No HDL!] (maj.tt.json)',
     '    vhdl parity [VHDL*] (maj.vhd)',
   ]);
   assert.equal(await warnTip(page), TIP_TT);
@@ -122,7 +122,7 @@ uiTest('#230 regression, a truth table whose HDL file name holds another module:
   assert.deepEqual(await rows(page), [
     'project C_tt',
     '  chip xc3s250e-4-cp132',
-    '    truthtable maj [Table*] [VHDL] (maj.tt.json)',
+    '    truthtable maj [Table*] [Schematic] [VHDL] (maj.tt.json)',
     '    vhdl parity [VHDL*] (maj.vhd)',
   ]);
   assert.deepEqual(await warnings(page), [W_TT]);
@@ -282,7 +282,7 @@ uiTest('#231 a truth table whose HDL file is gone when the project is opened: ma
   await page.waitConsole(/src\/maj\.vhd generated from src\/maj\.tt\.json \(its HDL file src\/maj\.vhd is no longer in the project folder\)/);
   await page.waitFor(() => window.Silinx.hdlToSch?.['src/maj.vhd'] === 'src/maj.tt.json', [], { what: 'linked' });
   assert.equal(await readWs(env, 'L_open', 'src/maj.vhd'), viewHdl('src/maj.tt.json', TT).text);
-  assert.deepEqual(await rows(page), ['project L_open', '  chip xc3s250e-4-cp132', '    truthtable maj [Table*] [VHDL] (maj.tt.json)']);
+  assert.deepEqual(await rows(page), ['project L_open', '  chip xc3s250e-4-cp132', '    truthtable maj [Table*] [Schematic] [VHDL] (maj.tt.json)']);
   assert.deepEqual(await warnings(page), []);
   // gone (it was src/maj_tt.vhd), src/maj.vhd holding another module: as #230
   await makeProject(env, { name: 'L_taken', top: '', files: { 'src/maj.tt.json': linked('src/maj_tt.vhd'), 'src/maj.vhd': OTHER } });
@@ -292,7 +292,7 @@ uiTest('#231 a truth table whose HDL file is gone when the project is opened: ma
   assert.deepEqual(await rows(page), [
     'project L_taken',
     '  chip xc3s250e-4-cp132',
-    '    truthtable maj [Table*] [No HDL!] (maj.tt.json)',
+    '    truthtable maj [Table*] [Schematic] [No HDL!] (maj.tt.json)',
     '    vhdl parity [VHDL*] (maj.vhd)',
   ]);
   assert.equal(await warnTip(page), TIP_TT);
