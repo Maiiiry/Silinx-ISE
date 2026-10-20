@@ -426,10 +426,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 168,
-   "luts": 334,
+   "slices": 178,
+   "luts": 354,
    "ffs": 119,
-   "period": 9.655
+   "period": 8.708
   }
  },
  "itc99-b13": {
@@ -440,10 +440,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 42,
-   "luts": 83,
-   "ffs": 64,
-   "period": 6.834
+   "slices": 41,
+   "luts": 81,
+   "ffs": 53,
+   "period": 7.073
   }
  },
  "itc99-b14": {
@@ -683,10 +683,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 64,
-   "luts": 121,
+   "slices": 63,
+   "luts": 120,
    "ffs": 106,
-   "period": 5.394
+   "period": 4.931
   }
  },
  "light8080": {
@@ -718,10 +718,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 192,
-   "luts": 380,
+   "slices": 189,
+   "luts": 374,
    "ffs": 206,
-   "period": 12.268
+   "period": 12.239
   }
  },
  "nandland-spi-verilog": {
@@ -1024,10 +1024,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 209,
-   "luts": 342,
-   "ffs": 355,
-   "period": 12.544
+   "slices": 162,
+   "luts": 300,
+   "ffs": 293,
+   "period": 10.118
   }
  },
  "spi-fpga-master": {
@@ -1331,10 +1331,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 716,
-   "luts": 750,
+   "slices": 719,
+   "luts": 751,
    "ffs": 962,
-   "period": 7.663
+   "period": 6.892
   }
  },
  "vtr-sha": {
@@ -1368,10 +1368,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 77,
-   "luts": 152,
-   "ffs": 120,
-   "period": 7.916
+   "slices": 78,
+   "luts": 155,
+   "ffs": 121,
+   "period": 7.729
   }
  }
 }

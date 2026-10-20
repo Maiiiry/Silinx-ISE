@@ -289,6 +289,52 @@ export function synthCommands(top, family, { srl = true, premap = null } = {}) {
   const shreg = srl ? `${synth} -run :fine; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
   return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ${MUX_COUNT}; ` : ''}abc -luts ${LUT4_ONLY}; ${lutsToCells(synth)}`;
 }
+// The clock enables on the critical path (#653): Yosys gives a flip-flop whose next state is held under a
+// condition that condition as its clock enable (FDRE's CE), its logic apart from the D logic's; a critical path
+// that ends there pays the CE's setup (Tceck 0.555 ns on the -4, against the D LUT's 0.13 after it), after the
+// enable's own levels of LUTs. XST, for the same logic, often has the enable in the LUT before D (D = CE ? d : Q),
+// mapped with the rest of the next state's logic. FOLD_CE_MAP does that for the flip-flops chosen (their names
+// read from the file FOLD_CE_FILE): their enable a multiplexer before D, CE tied high, left to ABC with the logic
+// around it. For every flip-flop it would cost much (on the slower designs of the corpus 1.1 to 1.9 times the
+// LUTs); for those whose enable ends the critical path (criticalEnables) it may save a level and the CE's setup.
+export const FOLD_CE_FILE = 'silinx_fold_ce.txt';
+export const FOLD_CE_MAP_FILE = 'silinx_fold_ce.v';
+const foldModule = (type, clr) => `module ${type} (output Q, input C, CE, D, ${clr});
+  parameter [0:0] INIT = 1'b0;
+  wire d;
+  \\$_MUX_ fold (.A(Q), .B(D), .S(CE), .Y(d));
+  ${type} #(.INIT(INIT)) _TECHMAP_REPLACE_ (.Q(Q), .C(C), .CE(1'b1), .D(d), .${clr}(${clr}));
+endmodule
+`;
+export const FOLD_CE_MAP = `// Silinx: a flip-flop's clock enable folded into its D logic (#653)
+${[['FDRE', 'R'], ['FDSE', 'S'], ['FDCE', 'CLR'], ['FDPE', 'PRE']].flatMap(([t, c]) => [foldModule(t, c), foldModule(`${t}_1`, c)]).join('')}`;
+/** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again with the clock
+ *  enables of the flip-flops listed in the file FOLD_CE_FILE (module/cell, a line each) folded into their D logic
+ *  (FOLD_CE_MAP, in the file FOLD_CE_MAP_FILE), onto LUT4s alone as the usual mapping (or with the ABC script given). */
+export function foldRemapCommands(top, family, { script = null } = {}) {
+  return `read_rtlil ${PREMAP_FILE}; select -set silinx_fold -read ${FOLD_CE_FILE}; techmap -max_iter 1 -map ${FOLD_CE_MAP_FILE} @silinx_fold; select -clear; opt_expr -mux_undef -noclkinv; `
+    + `abc -luts ${LUT4_ONLY}${script ? ` -script ${abcPlain(script)}` : ''}; ${lutsToCells(`synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`)}`;
+}
+// The critical path's LUTs mapped again for speed (#652): on a small control path ABC's mapping follows the
+// logic as written (spi-fpga-slave's enable, `load | shift`, 3 levels of LUTs where XST has 2). SPEED_ABC is
+// the usual mapping's script (Yosys's own for -luts) with ABC's speedup after the first mapping: the LUTs
+// on the critical path made gates again with their timing-critical cuts as choices, and mapped once more
+// (spi-fpga-slave 5.04 ns estimated -> 3.89, vtr-stereovision3 7.70 -> 6.55, itc99-b09 6.19 -> 5.04). A
+// candidate from the netlist before the LUT mapping, kept when better by DEPTH_RULE (slower on others: b05).
+export const SPEED_ABC = 'strash; &get -n; &fraig -x; &put; scorr; dc2; dretime; strash; dch -f; if; speedup; if; mfs2; lutpack -S 1';
+/** An ABC script for `abc -script` inline (+cmd,arg;cmd…), with the LUT library of `abc -luts`. */
+export const abcPlain = script => `+${script.split(';').map(c => c.trim().replace(/\s+/g, ',')).filter(Boolean).join(';')}`;
+/** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again onto LUT4s alone
+ *  with the ABC script given (SPEED_ABC). */
+export function speedRemapCommands(top, family, script = SPEED_ABC) {
+  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_ONLY} -script ${abcPlain(script)}; ${lutsToCells(`synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`)}`;
+}
+/** The flip-flops whose clock enable ends a critical path of a mapped netlist (pathEnds), `margin` ns from the
+ *  worst at most: their cell names. */
+export function criticalEnables(json, top, margin = 0) {
+  const { worst, ends } = pathEnds(json, top);
+  return [...new Set(ends.filter(e => e.port === 'CE' && /^FD/.test(e.type) && e.ns >= worst - margin).map(e => e.cell))];
+}
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again with its
  *  wide multiplexers onto MUXF5 … MUXF7 (MUXCOVER, MUXF_MAP in the file MUXF_MAP_FILE), the rest onto LUT4s
  *  alone as the usual mapping (#511). */
@@ -352,6 +398,9 @@ export const PREMAP_FILE = 'silinx_premap.il';
 // bounds on them too (a faster one's slices no more in proportion than it is faster, #54), and `area` fewer slices as smaller as `area` fewer LUTs (which are smaller only
 // with no more slices), with at most `luts` more LUTs (the adder fixture's ABC9 netlist: 9 % fewer slices
 // for 27 % more LUTs, refused)
+// The mappings for speed (#652, #653): on designs of `maxLuts` LUTs at most; the clock enables folded those of the
+// flip-flops whose CE ends a path `margin` ns from the critical one at most
+export const SPEED_RULE = { maxLuts: 1500, margin: 0.05 };
 export const DEPTH_RULE = { gain: 0.03, luts: 0.1, maxLuts: 5000, area: 0.05, slack: 0.01 };
 /** Is the depth-oriented mapping kept? ns, luts (and slices, when known): [usual, depth-oriented]. */
 export function keepDepth(ns, luts, rule = DEPTH_RULE, slices = null) {
@@ -451,7 +500,10 @@ const NET = 0.45;
 const isFF = t => /^(FD|LD)/.test(t);
 const isLutCell = t => /^(LUT[1-6]|INV|BUF)$/.test(t);
 /** The estimated critical path (ns) of a Yosys JSON netlist (its top module). */
-export function criticalDelay(json, top) {
+export const criticalDelay = (json, top) => pathEnds(json, top).worst;
+/** The estimate of criticalDelay with its ends: worst (ns), and each end { cell (its name), type, port, ns } (the
+ *  setup included) of the paths between sequential cells (or, a design without them, from inputs to outputs). */
+export function pathEnds(json, top) {
   const nl = typeof json === 'string' ? JSON.parse(json) : json;
   const mod = nl.modules[top] || Object.values(nl.modules).find(m => m.attributes?.top) || Object.values(nl.modules)[0];
   const cells = Object.values(mod?.cells || {});
@@ -511,13 +563,23 @@ export function criticalDelay(json, top) {
     if (/^OBUF/.test(t)) return withIO ? 0 : null;
     return null;
   };
+  const names = new Map(Object.entries(mod?.cells || {}).map(([n, c]) => [c, n]));
   const worst = () => {
     let w = 0;
-    for (const c of cells) for (const [p, bits] of ins(c)) { const s = setup(c, p); if (s !== null) for (const b of bits) w = Math.max(w, arrIn(c, p, b) + s); }
-    return w;
+    const ends = [];
+    for (const c of cells) {
+      for (const [p, bits] of ins(c)) {
+        const s = setup(c, p);
+        if (s === null) continue;
+        let t = -Infinity;
+        for (const b of bits) t = Math.max(t, arrIn(c, p, b) + s);
+        if (t > 0) { w = Math.max(w, t); ends.push({ cell: names.get(c), type: c.type, port: p, ns: t }); }
+      }
+    }
+    return { worst: w, ends };
   };
   const ff = worst();
-  if (ff > 0) return ff;
+  if (ff.worst > 0) return ff;
   withIO = true;
   memo.clear();
   return worst();
@@ -628,8 +690,11 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511), and sopb: { ns,
  * luts, slices, kept } of the mapping balanced as sums of products (DEPTH_SOPB, #654), made for a design deeper than
  * SOPB_RULE.levels at both efforts (at Normal kept by DEEP_RULE's gain too when the design gets none of High's mappings) }.
+ * speed: { ns, luts, slices, kept } of the speedup's mapping (SPEED_ABC, #652), fold: { flipFlops, ns, luts, slices, kept } of
+ * the mapping with the clock enables that end the critical path folded into D (#653), both from the netlist before the
+ * LUT mapping, measured against the netlist chosen of the others, on both efforts (speed: false leaves them out).
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
- * usual mapping alone (no other mapping tried: as depth false), but for a design limited by its depth (#468:
+ * usual mapping alone (no other mapping tried: as depth false; but the critical path's remaps, #652), but for a design limited by its depth (#468:
  * deepDesign, its levels in r.depth.levels; r.depth.auto true), which gets High's mappings too, kept when deepRule.gain
  * (DEEP_RULE's) faster than Normal's own netlist (#611: r.depth.normal { ns, luts, kept: Normal's own kept }, r.depth.high { ns, luts }
  * of High's then), and for a design
@@ -639,10 +704,11 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * synthesized once more with them one-hot (#539, core/synth-fsm.js), that netlist kept when better by DEPTH_RULE:
  * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
+  const speed = withSpeed && depth && lut4;
   let tryDepth = !normal && depth && lut4;
   // (Normal: the design as it is before the LUT mapping written too, for High's mappings if it is deep)
   const opts = (tryDepth || (normal && depth && lut4)) ? { premap: PREMAP_FILE } : {};
@@ -858,6 +924,48 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       } catch (e) {
         info.sopb = { kept: false, failed: e.message };
         sayNew(`Warning: the mapping balanced as sums of products failed (${e.message}): the netlist chosen before is kept`);
+      }
+    }
+    // the critical path mapped again for speed (#652), then the clock enables that end it folded into the D logic
+    // (#653): each a candidate from the netlist before the LUT mapping, measured against the netlist chosen of the
+    // others and kept by DEPTH_RULE (before them, the depth-oriented ones were measured against it: the EPFL max
+    // 18 % slower)
+    // (not after an optional mapping that failed: in the browser, out of memory once more, #401)
+    if (speed && !info.muxf?.kept && !info.muxf?.failed && !info.failed && !info.sopb?.failed && out[PREMAP_FILE] && utilization(cells).luts <= SPEED_RULE.maxLuts) {
+      const lutsOf = j => utilization(cellCounts(j, top)).luts;
+      const better = (a, b) => keepDepth([criticalDelay(a, top), criticalDelay(b, top)], [lutsOf(a), lutsOf(b)], DEPTH_RULE, [slices(a), slices(b)]);
+      const premap = asText(out[PREMAP_FILE]);
+      let script = null, base = chosen;
+      try {
+        const linesS = [];
+        const outS = await run(['-q', '-p', `${speedRemapCommands(top, family)}; ${outputs(top)}`], { [PREMAP_FILE]: premap }, l => { if (!quiet(l)) linesS.push(l); });
+        const jS = outS[`${top}.json`];
+        if (jS) {
+          info.speed = { ns: criticalDelay(jS, top), luts: lutsOf(jS), slices: slices(jS), kept: better(base[`${top}.json`], jS) };
+          if (info.speed.kept) {
+            base = outS;
+            script = SPEED_ABC;
+          }
+        }
+        const ffs = criticalEnables(base[`${top}.json`], top, SPEED_RULE.margin);
+        const linesF = [];
+        const outF = ffs.length ? await run(['-q', '-p', `${foldRemapCommands(top, family, { script })}; ${outputs(top)}`],
+          { [PREMAP_FILE]: premap, [FOLD_CE_MAP_FILE]: FOLD_CE_MAP, [FOLD_CE_FILE]: ffs.map(c => `${top}/${c}\n`).join('') }, l => { if (!quiet(l)) linesF.push(l); }) : {};
+        const jF = outF[`${top}.json`];
+        if (jF) {
+          info.fold = { flipFlops: ffs.length, ns: criticalDelay(jF, top), luts: lutsOf(jF), slices: slices(jF), kept: better(base[`${top}.json`], jF) };
+          if (info.fold.kept) base = outF;
+        }
+        if (base !== chosen) {
+          chosen = base;
+          cells = cellCounts(chosen[`${top}.json`], top);
+          for (const l of [...(info.speed?.kept ? linesS : []), ...(info.fold?.kept ? linesF : [])]) sayNew(l);
+        }
+      } catch (e) {
+        // (optional mappings that failed: the netlist chosen before them kept, as the others, #401)
+        for (const k of ['speed', 'fold']) delete info[k];
+        info.speedFailed = e.message;
+        sayNew(`Warning: the critical path's remapping failed (${e.message}): the netlist chosen before it is kept`);
       }
     }
     return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]) };

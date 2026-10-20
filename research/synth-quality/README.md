@@ -1060,6 +1060,82 @@ benchmarks (#52, #54, #370: one benchmark each, two of them about size).
 The numbers are recomputed from `test/designs-corpus/ise-comparison.json` (`path` of each side); the weekly
 comparison's page (docs/QUALITY.md, *The critical paths: logic and routing*) shows them for every design.
 
+## The short control paths: the critical path mapped again, its enables folded (#652, #653)
+
+Two of the causes above are the synthesis's on small control paths: a LUT level more than XST (#652) and a path that
+ends on a flip-flop's clock enable (#653). Both come from how the mapping follows the logic as written.
+
+**A level more (#652).** spi-fpga-slave's critical path is the enable of its shift register,
+`load_data_en | (spi_clk_redge_en & ~cs_n_reg)`, with `load_data_en = din_vld & ((cs_n_reg & ~shreg_busy) | rx_data_vld)`
+and `rx_data_vld` itself an AND of three flip-flops: a function of 6 inputs, which ABC maps as written, in 3 levels
+(`rx_data_vld`, `load_data_en`, the OR). A Shannon split on `cs_n_reg` makes it 2 levels of LUT4s (for `cs_n_reg = 0` a
+function of 4 inputs, for `cs_n_reg = 1` `din_vld & (~shreg_busy | rx_data_vld)`, the last LUT choosing), as XST has it
+(2 levels, its path ends on CE too); a cut-based mapping sees only the cuts of the graph as it is, so not this one.
+ABC's `speedup` (the LUTs of the critical path made gates again, their timing-critical cuts added as choices, then
+mapped once more) finds such restructurings: `SPEED_ABC`, the usual mapping's script (Yosys's own for `-luts`) with
+`speedup; if` after its first mapping. On spi-fpga-slave it gives the 2 levels (5.04 ns estimated → 3.89) but
+duplicates the shared `load_data_en` into the 8 bits' multiplexers (21 LUTs → 33, 14 slices → 19), so the rule refuses
+it; elsewhere it is a gain (below). The wider functions with the LUT delays (a 5-input function as two LUT4s and a MUXF5)
+also give spi 2 levels, but double the slices of others (itc99-b12 168 → 316).
+
+**The clock enable (#653).** Yosys makes a flip-flop whose next state is held under a condition an FDRE with that
+condition on CE, mapped apart from the D logic: a path through the enable pays Tceck (0.555 ns) where the D LUT's
+setup is 0.13 after it, and the enable's last LUT and the hold multiplexer cannot share a LUT. XST often has the
+enable in the LUT before D. Folding every enable into D (`dffunmap -ce-only` before the mapping) is faster on 8 of the
+13 designs but costs 20 to 90 % more slices (sasc 66 → 93, b12 168 → 216). `FOLD_CE_MAP` folds only the flip-flops
+whose CE ends the critical path (`criticalEnables`, from the estimate's path ends `pathEnds`, within 0.05 ns of the
+worst): their enable a `$_MUX_` before D, CE tied high, left to ABC with the rest of the next state's logic; where the
+enable's last LUT and the hold fit in one LUT (itc99-b08, b12, iwls05-i2c, usb-phy, the traffic example) the path
+ends on D.
+
+**As candidates.** Both are remaps from the netlist before the LUT mapping, after every other mapping of either
+effort, measured against the netlist chosen and kept by `DEPTH_RULE`: the speedup's, then the fold of the chosen
+netlist's critical enables (with the speedup's script when it was kept), on designs of 1500 LUTs at most. At Normal
+that is one or two Yosys runs more after the usual one: 0.3 to 1.1 s more synthesis (b08 1.13 → 1.62 s, picorv32
+2.64 → 3.76, itc99-b14 9.17 → 10.13). Placed before the depth-oriented mappings instead, those were measured against
+the faster netlist and the EPFL max (Normal, deep) ended 18 % slower; after them it is unchanged.
+
+**Measured by ISE's trce** on the routed designs (the corpus's designs of 1500 LUTs at most, 53, and the examples;
+the critical path in ns, before → after):
+
+| design | Normal | Δ | High | Δ |
+|---|---|---:|---|---:|
+| itc99-b09 | 6.730 → 5.216 | −22.5 % | | |
+| serv | 13.053 → 10.335 | −20.8 % | 12.670 → 10.335 | −18.4 % |
+| itc99-b08 | 6.727 → 5.717 | −15.0 % | | |
+| epfl-router | 9.906 → 8.666 | −12.5 % | | |
+| iwls05-i2c | 9.514 → 8.345 | −12.3 % | | |
+| iwls05-usb-phy | 5.461 → 4.804 | −12.0 % | 5.461 → 4.804 | −12.0 % |
+| traffic (example) | 10.063 → 8.889 | −11.7 % | | |
+| itc99-b10 | 6.660 → 5.920 | −11.1 % | | |
+| vtr-diffeq1 | 38.865 → 35.500 | −8.7 % | | |
+| itc99-b12 | 9.468 → 8.792 | −7.1 % | 9.468 → 8.792 | −7.1 % |
+| itc99-b07 | 6.449 → 6.010 | −6.8 % | | |
+| vtr-mkPktMerge | 7.135 → 6.665 | −6.6 % | 7.135 → 6.665 | −6.6 % |
+| itc99-b13 | 7.920 → 7.565 | −4.5 % | 6.887 → 7.565 | +9.8 % |
+| femtorv32-quark | 18.603 → 17.985 | −3.3 % | | |
+| verilog-i2c-master | 9.820 → 9.639 | −1.8 % | | |
+| vtr-stereovision3 | 5.495 → 5.502 | +0.1 % | 5.495 → 5.502 | +0.1 % |
+| epfl-i2c | 7.005 → 7.100 | +1.4 % | | |
+| epfl-bar | 10.410 → 10.568 | +1.5 % | | |
+| light8080 | 12.216 → 12.567 | +2.9 % | 12.216 → 12.567 | +2.9 % |
+| clock (example) | 8.094 → 8.431 | +4.2 % | 8.094 → 8.431 | +4.2 % |
+
+The other designs' netlists are unchanged. Over the 53 designs the critical path is 2.8 % shorter at Normal (24 changed:
+6.1 % shorter on average) and 0.7 % at High (7 changed); slices 10029 → 10015 at Normal, 9942 → 9904 at High. The
+weekly comparison's 40 designs, their Silinx periods scaled by these ratios: Normal +3.1 % against ISE → about +0.3 %,
+High −1.9 % → about −2.5 %. The slower ones are netlists the rule keeps as fast by the estimate and smaller (light8080
+313 → 307 LUTs, the clock example 207 → 204, b13 at High 71 → 68): once routed some are slower and others faster
+(b10 −11 %, diffeq1 −9 %, b07 −7 %, the same kind); together a gain, so the rule is kept as it is.
+
+serv's speedup netlist also has 62 flip-flops fewer (355 → 293, in the corpus's I/O wrapper): its outputs `o_dbus_adr`
+and `o_ext_rs1` are the same register, so their XOR into the wrapper's one pin cancels, which the remap's don't-care
+optimisation (mfs2 after the new structure) finds; the netlist simulates as the design (the corpus's diff stage).
+
+What is left: spi-fpga-slave (its enable shared by 8 flip-flops: the 2-level mapping duplicates it), vtr-stereovision3
+and iwls05-sasc keep their extra level; itc99-b03, b05, b06 and sasc still end on CE (b03's and sasc's enable is shared
+by 12 and 33 flip-flops: folding it costs 43 % more LUTs; b05's is slower folded); verilog-uart ends on the SR (Tsrck).
+
 ## 4:1 multiplexers in the wider mapping (#54)
 
 The EPFL barrel shifter (`bar`, 128 bits shifted by 7, written as gates: decoded 4:1 multiplexers on the shift
