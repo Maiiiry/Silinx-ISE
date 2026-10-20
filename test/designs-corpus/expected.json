@@ -21,10 +21,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 471,
-   "luts": 941,
-   "ffs": 264,
-   "period": 9.378
+   "slices": 604,
+   "luts": 1208,
+   "ffs": 272,
+   "period": 10.659
   }
  },
  "epfl-cavlc": {
@@ -171,10 +171,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 34,
-   "luts": 62,
+   "slices": 37,
+   "luts": 61,
    "ffs": 64,
-   "period": 7.184
+   "period": 7.562
   }
  },
  "epfl-sin": {
@@ -323,10 +323,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 254,
-   "luts": 468,
-   "ffs": 35,
-   "period": 10.759
+   "slices": 258,
+   "luts": 476,
+   "ffs": 34,
+   "period": 11
   }
  },
  "itc99-b06": {
@@ -407,10 +407,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 100,
-   "luts": 191,
+   "slices": 94,
+   "luts": 179,
    "ffs": 36,
-   "period": 8.692
+   "period": 9.703
   }
  },
  "itc99-b12": {
@@ -440,10 +440,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 42,
-   "luts": 83,
-   "ffs": 64,
-   "period": 6.834
+   "slices": 44,
+   "luts": 87,
+   "ffs": 53,
+   "period": 7.635
   }
  },
  "itc99-b14": {
@@ -459,10 +459,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 686,
-   "luts": 1358,
+   "slices": 740,
+   "luts": 1466,
    "ffs": 334,
-   "period": 32.384
+   "period": 32.478
   }
  },
  "itc99-b15": {
@@ -482,10 +482,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1330,
-   "luts": 2649,
-   "ffs": 546,
-   "period": 18.353
+   "slices": 1237,
+   "luts": 2465,
+   "ffs": 538,
+   "period": 18.5
   }
  },
  "itc99-b17": {
@@ -529,10 +529,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1355,
-   "luts": 2691,
+   "slices": 1430,
+   "luts": 2841,
    "ffs": 492,
-   "period": 34.703
+   "period": 35.156
   }
  },
  "itc99-b21": {
@@ -548,10 +548,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 1412,
-   "luts": 2804,
+   "slices": 1510,
+   "luts": 3000,
    "ffs": 492,
-   "period": 33.963
+   "period": 35.35
   }
  },
  "itc99-b22": {
@@ -1024,10 +1024,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 209,
-   "luts": 342,
+   "slices": 212,
+   "luts": 346,
    "ffs": 355,
-   "period": 12.544
+   "period": 12.803
   }
  },
  "spi-fpga-master": {
@@ -1102,10 +1102,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 41,
-   "luts": 78,
+   "slices": 42,
+   "luts": 80,
    "ffs": 53,
-   "period": 4.487
+   "period": 4.989
   }
  },
  "verilog-axis-fifo": {
