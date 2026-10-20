@@ -26,7 +26,7 @@ const SAME = [
   /^@?(src|sim|constraints)\/?$/,
   /^@?xc\d|^@?xc[a-z0-9]+/i,                       // part names
   /^@?(github\.com|https?:)/,
-  /^@?Ctrl\+|^@?F\d+$|^@?(Ctrl|Cmd|Shift|Alt)\b/,
+  /^@?Ctrl\+|^@?F\d+$|^@?(Ctrl|Cmd|Shift|Alt)\b|^@?(Del|Esc)$/,   // shortcuts (keys)
   /^@?-?\d/,                                       // speed grades, versions
   /^@?(MHz|kHz|Hz|ns|us|ms|ps|fs)$/,
   /^@?(English|Português)$/,

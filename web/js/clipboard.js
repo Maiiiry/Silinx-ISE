@@ -1,0 +1,66 @@
+// The app's clipboard (#677): Cut / Copy / Paste of the Edit menu and the toolbar, for the text editors and
+// the drawing editors. The system clipboard where the browser lets the page use it (a copy also reaches
+// other applications and other tabs), and a clipboard of the app's own as the fallback (file://, a
+// permission refused, a browser without the API): what was copied last in this session.
+//
+// A drawing is carried as text: a JSON object { silinx: <kind>, ... } (kind 'schematic', 'asm', 'fsm', …),
+// so that a copy pasted into a text editor is readable and a copy from another tab can be pasted here.
+
+let mem = null;   // { text, kind, data }: the last copy made in this session
+const clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
+
+const encode = (kind, data) => JSON.stringify({ silinx: kind, ...data });
+function decode(text, kind) {
+  if (typeof text !== 'string' || !text.startsWith('{"silinx":')) return null;
+  try { const o = JSON.parse(text); if (o?.silinx !== kind) return null; delete o.silinx; return o; } catch { return null; }
+}
+
+// a copy through the page's copy event (document.execCommand('copy')): synchronous, in the click's user
+// gesture, allowed on file:// and without a permission where navigator.clipboard is not
+function copyEvent(text) {
+  let done = false;
+  // (the focused editor's own copy handler not run: this copy is the one asked for)
+  const on = e => { e.clipboardData?.setData('text/plain', text); e.preventDefault(); e.stopImmediatePropagation(); done = !!e.clipboardData; };
+  document.addEventListener('copy', on, true);
+  try { document.execCommand('copy'); } catch { /* not allowed */ } finally { document.removeEventListener('copy', on, true); }
+  return done;
+}
+
+/** Copy text (kind 'text') or a drawing's selection (kind, data) to the clipboard. */
+export function writeClip(kind, data, text = kind === 'text' ? data : encode(kind, data)) {
+  mem = { text, kind, data: kind === 'text' ? null : clone(data) };
+  if (!copyEvent(text)) navigator.clipboard?.writeText?.(text).catch(() => {});
+}
+
+// what a text read from the system clipboard holds for kind ('' or null: it could not be read)
+function fromText(sys, kind) {
+  if (typeof sys === 'string' && sys !== '') {
+    if (kind === 'text') return sys;
+    if (mem && sys === mem.text) return mem.kind === kind ? clone(mem.data) : null;
+    return decode(sys, kind);
+  }
+  if (!mem) return null;
+  if (kind === 'text') return mem.text;
+  return mem.kind === kind ? clone(mem.data) : null;
+}
+/** What is on the clipboard for kind ('text': any text), or null: the system clipboard's when it can be
+ *  read (a copy made in another tab or application, newer than the app's), else the app's own. */
+export async function readClip(kind) {
+  let sys = null;
+  try { sys = await navigator.clipboard?.readText?.(); } catch { sys = null; }
+  return fromText(sys, kind);
+}
+
+/** The same, from a paste event (Ctrl+V: the browser gives the page the clipboard with no permission asked). */
+export const clipFromEvent = (e, kind) => fromText(e.clipboardData?.getData('text/plain') ?? null, kind);
+
+/** Whether something of kind was copied in this session (the menus' Paste is enabled by it). */
+export const hasClip = kind => !!mem && (kind === 'text' || mem.kind === kind);
+
+/** Record a copy made by the browser itself (Ctrl+C in a text editor, a copy event of an editor), so that
+ *  the app's own clipboard follows it when the system clipboard cannot be read. */
+export function noteCopy(text, kind = 'text', data = null) {
+  mem = { text, kind, data: clone(data) };
+}
+
+export { encode as encodeClip, decode as decodeClip };

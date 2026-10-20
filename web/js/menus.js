@@ -9,8 +9,9 @@ import { setLanguage, getLanguage, LOCALES } from './i18n.js';
 import { lintEnabled, setLintEnabled } from './diaghelp.js';
 import { getInterface, setInterface, getTheme, setTheme, menuCommands } from './modern.js';
 import { openPalette } from './palette.js';
-import { S, activateDoc, app, closeDoc, docEditor, history, openFile, openFpgaView, openImpact, openPinPlanner,
-  openSummary, projectRedo, projectUndo, redoAny, redoesProject, setView, showLeftPage, undoAny, undoesProject } from './app.js';
+import { S, activateDoc, app, canCopyAny, canDeleteAny, canPasteAny, closeDoc, copyAny, cutAny, deleteAny, docEditor, history, openFile,
+  openFpgaView, openImpact, openPinPlanner, openSummary, pasteAny, projectRedo, projectUndo, redoAny, redoesProject, setView, showLeftPage,
+  undoAny, undoesProject } from './app.js';
 import { log } from './console.js';
 import { openProject, closeProject, recent, clearRecent, storageMenuItems } from './project.js';
 import { runImpl, stopProcesses } from './implement.js';
@@ -56,6 +57,12 @@ export function setupMenus() {
       redoesProject()
         ? { label: `Redo ${history.redoLabel()}`, icon: icon('redo'), action: () => projectRedo(), shortcut: 'Ctrl+Y' }
         : { label: 'Redo', icon: icon('redo'), action: () => redoAny(), shortcut: 'Ctrl+Y', disabled: () => !docEditor(S.active) },
+      '-',
+      // the active editor's selection (#677): text, schematic, the other drawings
+      { label: 'Cut', icon: icon('cut'), action: () => cutAny(), shortcut: 'Ctrl+X', disabled: () => !canCopyAny() || !canDeleteAny() },
+      { label: 'Copy', icon: icon('copy'), action: () => copyAny(), shortcut: 'Ctrl+C', disabled: () => !canCopyAny() },
+      { label: 'Paste', icon: icon('paste'), action: () => pasteAny(), shortcut: 'Ctrl+V', disabled: () => !canPasteAny() },
+      { label: 'Delete', icon: icon('remove'), action: () => deleteAny(), shortcut: 'Del', disabled: () => !canDeleteAny() },
       '-',
       { label: 'Find…', icon: icon('find'), action: () => S.active?.editor?.exec('findPersistent'), shortcut: 'Ctrl+F', disabled: () => !S.active?.editor },
       { label: 'Replace…', action: () => S.active?.editor?.exec('replace'), disabled: () => !S.active?.editor },
@@ -148,9 +155,10 @@ export function setupToolbar() {
     btn('undo', 'Undo', () => undoAny()),   // as Edit ▸ Undo
     btn('redo', 'Redo', () => redoAny()),   // as Edit ▸ Redo
     h('div', { class: 'tb-sep' }),
-    btn('cut', 'Cut', () => document.execCommand('cut')),
-    btn('copy', 'Copy', () => document.execCommand('copy')),
-    btn('paste', 'Paste', () => navigator.clipboard?.readText().then(t => S.active?.editor?.replaceSelection(t))),
+    // as Edit ▸ Cut / Copy / Paste (#677), enabled as they are
+    btn('cut', 'Cut', () => cutAny(), () => canCopyAny() && canDeleteAny()),
+    btn('copy', 'Copy', () => copyAny(), canCopyAny),
+    btn('paste', 'Paste', () => pasteAny(), canPasteAny),
     btn('find', 'Find', () => S.active?.editor?.exec('findPersistent')),
     h('div', { class: 'tb-sep' }),
     btn('summary', 'Design Summary', () => S.project && openSummary()),
@@ -188,6 +196,7 @@ export function setupToolbar() {
 // enable / disable the labelled buttons of the modern toolbar (cheap: run on clicks and changes)
 export function refreshSteps() {
   for (const b of document.querySelectorAll('#toolbar .m-step')) b.disabled = !b._enabled();
+  for (const b of document.querySelectorAll('#toolbar .tb-btn:is([data-cmd=cut], [data-cmd=copy], [data-cmd=paste])')) b.disabled = !b._enabled();
 }
 
 // Command palette: every enabled menu command and every project file
