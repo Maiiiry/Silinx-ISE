@@ -317,6 +317,13 @@ export const HINTS = [
       fix: "Use-a na lógica onde é precisa (verifique se não há um erro de escrita: outro nome pode estar a ser usado em vez de '$1'), ou retire o porto se não for preciso." },
   },
   {
+    id: 'unused-inout', check: 'unused-inout', re: /^Inout <([^<>]+)(?:<\d+>)?> is never assigned/,
+    en: { explain: "The bidirectional (inout) port '$1' is neither read nor driven inside the module: it is not connected to anything (in a schematic, a bidirectional I/O marker left unconnected).",
+      fix: "Connect it where it is needed: read it, or drive it through a tri-state buffer ('$1 <= d when oe = '1' else 'Z';' / 'assign $1 = oe ? d : 1'bz;'; in a schematic, wire the marker to an IOBUF or to the net). If it is not needed, remove the port." },
+    pt: { explain: "O porto bidirecional (inout) '$1' não é lido nem comandado dentro do módulo: não está ligado a nada (num esquemático, um marcador de E/S bidirecional deixado por ligar).",
+      fix: "Ligue-o onde é preciso: leia-o, ou comande-o através de um buffer de três estados ('$1 <= d when oe = '1' else 'Z';' / 'assign $1 = oe ? d : 1'bz;'; num esquemático, ligue o marcador a um IOBUF ou à rede). Se não for preciso, retire o porto." },
+  },
+  {
     id: 'unused-input-bits', check: 'unused-input', re: /^Input <([^<>]+)<([^>]+)>> is never used/,
     en: { explain: "Only some bits of the input bus '$1' are read: bits $2 are never used, so whatever is connected to them has no effect.",
       fix: "Use those bits where they are needed (check the indices: '$1(…)' / '$1[…]' may select the wrong bit), or make the port narrower if they are not needed." },

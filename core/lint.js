@@ -8,11 +8,12 @@
 //    errors, numeric_std / std_logic_1164 functions or types used without their use clause, a
 //    procedural assignment to a Verilog wire, a continuous assignment to a Verilog reg;
 //  - lint warnings: latch inferred, incomplete sensitivity list, multiple drivers, combinational
-//    loop, output never assigned, input never used, signal assigned but never read, signal read but
-//    never assigned, clock used as data, logic used as clock, blocking / non-blocking assignments in
-//    the wrong kind of Verilog always block, case without others / default, Verilog names that
-//    differ only in case, and (info) integers without a range. An input bus of which only some bits
-//    are read gets the unused bit ranges (Input <btn<2:1>> is never used.).
+//    loop, output never assigned, input never used, inout neither read nor driven, signal assigned
+//    but never read, signal read but never assigned, clock used as data, logic used as clock,
+//    blocking / non-blocking assignments in the wrong kind of Verilog always block, case without
+//    others / default, Verilog names that differ only in case, and (info) integers without a
+//    range. An input bus of which only some bits are read gets the unused bit ranges
+//    (Input <btn<2:1>> is never used.).
 // A clocked process without a reset branch is fine and is not reported.
 //
 // Each diagnostic has { file, line, col, severity, message, tool, check, source: 'lint' }; `check`
@@ -25,7 +26,7 @@ import * as V from './values.js';
 import { clocksOf } from './schematic.js';
 import { readsOf } from './elaborate.js';
 
-export const LINT_CHECKS = ['latch', 'sensitivity', 'comb-loop', 'unassigned-output', 'unused-input', 'unused-signal',
+export const LINT_CHECKS = ['latch', 'sensitivity', 'comb-loop', 'unassigned-output', 'unused-input', 'unused-inout', 'unused-signal',
   'unassigned-signal', 'clock-as-data', 'data-as-clock', 'blocking', 'nonblocking', 'case-default', 'name-case', 'integer-range'];
 export const RULE_CHECKS = ['mode-in', 'mode-out', 'type-mismatch', 'missing-library', 'wire-procedural', 'reg-continuous', 'multi-driver'];
 
@@ -610,6 +611,13 @@ export function designChecks(lib, design, { lint = true, rules = true } = {}) {
       }
       if (port.dir === 'out' && !anyIn(writers.get(port.sig), i))
         add('unassigned-output', 'warning', file, line, `Signal <${port.name}>, unconnected in block <${i.module}>, is tied to its initial value.`, 'Silinx:2935');
+      // a bidirectional port neither read nor driven (a bidirectional I/O marker left unconnected, #684):
+      // XST's warning, one per bit of a bus from its right index (Inout <iob<0>> is never assigned.)
+      if (port.dir === 'inout' && !anyIn(readers.get(port.sig), i) && !anyIn(writers.get(port.sig), i)) {
+        const t = port.sig.t;
+        const names = t?.kind === 'logic' && t.w > 1 ? Array.from({ length: t.w }, (_, k) => `${port.name}<${t.desc ? t.right + k : t.right - k}>`) : [port.name];
+        for (const n of names) add('unused-inout', 'warning', file, line, `Inout <${n}> is never assigned.`, 'Silinx:2565');
+      }
     }
     for (const s of i.signals) {
       if (s.kind !== 'signal' || !s.loc) continue;

@@ -175,6 +175,44 @@ endmodule
   assert.deepEqual(ids(lint({ 't.v': v }, 't')), ['unassigned-output@2', 'unused-input@2']);
 });
 
+test('inout port neither read nor driven: XST\'s warning (Xst:2565, one per bit of a bus), in VHDL and Verilog; read, driven or through an instance is fine (#684)', () => {
+  const vh = (body) => VH('', body, 'a : in std_logic; y : out std_logic; io : inout std_logic; iob : inout std_logic_vector(3 downto 0)');
+  const r = lint({ 't.vhd': vh('y <= not a;') }, 't');
+  assert.deepEqual(r.map(d => `${d.check}@${d.line} ${d.tool}: ${d.message}`), [
+    'unused-inout@2 Silinx:2565: Inout <io> is never assigned.',
+    'unused-inout@2 Silinx:2565: Inout <iob<0>> is never assigned.',
+    'unused-inout@2 Silinx:2565: Inout <iob<1>> is never assigned.',
+    'unused-inout@2 Silinx:2565: Inout <iob<2>> is never assigned.',
+    'unused-inout@2 Silinx:2565: Inout <iob<3>> is never assigned.',
+  ]);
+  // an ascending bus and other bounds: one per bit, from the right index
+  assert.deepEqual(lint({ 't.vhd': VH('', 'y <= not a;', 'a : in std_logic; y : out std_logic; p : inout std_logic_vector(1 to 2)') }, 't').map(d => d.message), ['Inout <p<2>> is never assigned.', 'Inout <p<1>> is never assigned.']);
+  assert.deepEqual(lint({ 't.v': 'module t(input a, output y, inout [5:4] p);\nassign y = ~a;\nendmodule\n' }, 't').map(d => d.message), ['Inout <p<4>> is never assigned.', 'Inout <p<5>> is never assigned.']);
+  // read, driven (a tri-state buffer), or both: no warning
+  assert.deepEqual(ids(lint({ 't.vhd': vh("y <= io and iob(0);") }, 't')).filter(x => x.startsWith('unused-inout')), []);
+  assert.deepEqual(ids(lint({ 't.vhd': vh("y <= not a;\nio <= a when a = '1' else 'Z';\niob <= (others => 'Z');") }, 't')), []);
+  const v = (body) => `module t(input a, output y, inout io, inout [3:0] iob);\n${body}\nendmodule\n`;
+  assert.deepEqual(lint({ 't.v': v('assign y = ~a;') }, 't').map(d => `${d.check}@${d.line} ${d.tool}: ${d.message}`), [
+    'unused-inout@1 Silinx:2565: Inout <io> is never assigned.',
+    'unused-inout@1 Silinx:2565: Inout <iob<0>> is never assigned.',
+    'unused-inout@1 Silinx:2565: Inout <iob<1>> is never assigned.',
+    'unused-inout@1 Silinx:2565: Inout <iob<2>> is never assigned.',
+    'unused-inout@1 Silinx:2565: Inout <iob<3>> is never assigned.',
+  ]);
+  assert.deepEqual(ids(lint({ 't.v': v("assign y = io & iob[0];") }, 't')).filter(x => x.startsWith('unused-inout')), []);
+  assert.deepEqual(ids(lint({ 't.v': v("assign y = ~a;\nassign io = a ? 1'b0 : 1'bz;\nassign iob = 4'bzzzz;") }, 't')), []);
+  // connected to an instance's inout that uses it: not reported in the parent
+  const inst = `module pad(input d, input oe, inout p); assign p = oe ? d : 1'bz; endmodule
+module t(input a, output y, inout io);
+assign y = ~a;
+pad u(.d(a), .oe(a), .p(io));
+endmodule
+`;
+  assert.deepEqual(ids(lint({ 't.v': inst }, 't')), []);
+  // the suppression comment
+  assert.deepEqual(ids(lint({ 't.v': 'module t(input a, output y,\ninout io); // silinx: ignore unused-inout\nassign y = ~a;\nendmodule\n' }, 't')), []);
+});
+
 test('input bus of which only some bits are read: the unused bit ranges, as XST (Input <btn<2:1>> is never used.) (#38)', () => {
   // the pong example's buttons as found by XST: only btn[0] and btn[3] read (through instances)
   const v = `module db(input clk, input b, output reg q);

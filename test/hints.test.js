@@ -180,6 +180,19 @@ test('help for the unused bits of an input bus and for names that differ only in
   assert.match(nc.pt.fix, /nome claramente diferente/);
 });
 
+test('help for an inout port neither read nor driven (#684)', () => {
+  const h = hintFor({ message: 'Inout <io1> is never assigned.', tool: 'Silinx:2565', check: 'unused-inout' });
+  assert.equal(h.id, 'unused-inout');
+  assert.equal(hintText({ message: 'Inout <io1> is never assigned.', tool: 'Silinx:2565', check: 'unused-inout' }, 'en').explain,
+    "The bidirectional (inout) port 'io1' is neither read nor driven inside the module: it is not connected to anything (in a schematic, a bidirectional I/O marker left unconnected). (Xilinx ISE's XST reports this as Xst:2565.)");
+  // a bit of a bus: the port's name
+  assert.match(hintFor({ message: 'Inout <iob<3>> is never assigned.', check: 'unused-inout' }).en.explain, /^The bidirectional \(inout\) port 'iob' /);
+  assert.match(hintText({ message: 'Inout <io1> is never assigned.', check: 'unused-inout' }, 'pt').explain, /^O porto bidirecional \(inout\) 'io1' não é lido nem comandado/);
+  assert.match(h.en.fix, /tri-state buffer/);
+  // the input's own help is unchanged
+  assert.equal(hintFor({ message: 'Input <c> is never used.', check: 'unused-input' }).id, 'unused-input');
+});
+
 test('help for a function that is not pure: it uses what is declared outside it, or calls an impure function / a side-effect procedure; a warning, an error when written pure (#185)', () => {
   const acc = first(V('y <= f(a);', 'function f(x : std_logic) return std_logic is\nbegin\n  return x and b;\nend function;'), 't', 'warning');
   assert.equal(acc.message, "Function f is not pure: it uses port 'b' at line 6. VHDL 87 allowed this; VHDL 93 requires the keyword IMPURE.");

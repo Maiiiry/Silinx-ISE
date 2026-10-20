@@ -170,3 +170,51 @@ uiTest('Verilog: unused bits of an input bus, names that differ only in case, Si
   assert.match(await help(/Input <btn<2:1>>/, 'unused-input-bits'), /^Explanation: Only some bits of the input bus 'btn' are read: bits 2:1 are never used[\s\S]*Xst:647/);
   assert.match(await help(/Name conflict/, 'name-case'), /^Explanation: 'scorer' and 'scoreR' differ only in upper \/ lower case\.[\s\S]*Xst:863/);
 });
+
+// an inout port neither read nor driven (a bidirectional I/O marker left unconnected): XST's warning
+// and its help, in VHDL and Verilog, in English and in Portuguese (#684)
+const IO_SRC = {
+  vhd: `library ieee;
+use ieee.std_logic_1164.all;
+entity top is
+  port (a : in std_logic; y : out std_logic; io : inout std_logic);
+end top;
+architecture rtl of top is
+begin
+  y <= not a;
+end rtl;
+`,
+  v: `module top(input a, output y,
+  inout io);
+  assign y = ~a;
+endmodule
+`,
+};
+uiTest('inout port neither read nor driven: Inout <io> is never assigned., with its help in English and Portuguese, VHDL and Verilog (#684)', E, async (page) => {
+  for (const [ext, line] of [['vhd', 4], ['v', 2]]) {
+    const pj = `InoutPj${ext}`;
+    await makeProject(env, { name: pj, files: { [`src/top.${ext}`]: IO_SRC[ext] }, top: 'top' });
+    await page.openProject(pj);
+    await page.eval((f) => window.SilinxApp.openFile(f), `src/top.${ext}`);
+    await page.waitFor((f) => window.Silinx.active?.id === `file:${f}` && window.Silinx.active.editor, [`src/top.${ext}`]);
+    await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+    await page.click('#console-tabs .tab[data-page=console]');
+    await page.eval(() => { document.getElementById('console-log').innerHTML = ''; });
+    await page.click('.doc:not([hidden]) .editor-bar .btn', { text: 'Check Syntax' });
+    await page.waitConsole(/Process "Check Syntax" completed successfully with 1 warning\(s\)/);
+    assert.deepEqual((await page.consoleText()).split('\n').filter((l) => l.startsWith('WARNING:')),
+      [`WARNING:Silinx:2565 - "src/top.${ext}" Line ${line}: Inout <io> is never assigned.`]);
+    await page.click('#console-tabs .tab[data-page=warnings]');
+    await page.waitFor(() => !document.getElementById('console-warnings').hidden);
+    assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '(1)');
+    await page.eval(() => document.querySelector('#console-warnings .diag .diag-more').click());
+    const help = await page.waitFor(() => { const b = document.querySelector('#console-warnings .diag-hint[data-hint="unused-inout"]'); return b && !b.hidden && b.textContent; }, [], { what: 'help unused-inout' });
+    assert.match(help, /^Explanation: The bidirectional \(inout\) port 'io' is neither read nor driven inside the module[\s\S]*Xst:2565[\s\S]*How to fix: Connect it where it is needed/);
+    await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('pt'); });
+    await page.waitFor(() => /^Explicação: O porto bidirecional \(inout\) 'io' não é lido nem comandado/.test(document.querySelector('#console-warnings .diag-hint')?.textContent || ''), [], { what: 'Portuguese help' });
+    assert.match(await page.eval(() => document.querySelector('#console-warnings .diag-hint').textContent), /Como corrigir: Ligue-o onde é preciso/);
+    // the XST-style message itself is not translated
+    assert.match(await page.eval(() => document.querySelector('#console-warnings .diag').textContent), /Inout <io> is never assigned\./);
+    await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
+  }
+});
