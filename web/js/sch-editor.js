@@ -16,7 +16,7 @@
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
   xform, rotSize, portBox, portSide, freePortName, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
-  splitWiresAt, netByName,
+  splitWiresAt, netByName, wireCrossings,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -344,6 +344,25 @@ function portSvg(p, cls = '') {
 }
 
 // ------------------------------------------------------------------ geometry helpers
+// a wire's path with a small arc over each crossing of its horizontal segments (#692; segs: segment
+// index -> the x of its crossings); a crossing too close to a bend or to another one is drawn flat
+const HOP_R = 5;
+function hopPath(w, segs) {
+  const P = w.points;
+  let d = `M${P[0].x},${P[0].y}`;
+  for (let i = 0; i + 1 < P.length; i++) {
+    const a = P[i], b = P[i + 1], dir = Math.sign(b.x - a.x);
+    let last = a.x;
+    for (const x of (segs.get(i) || []).slice().sort((u, v) => dir * (u - v))) {
+      // (the arc from x - r to x + r, after the previous one and within the segment)
+      if (dir * (x - dir * HOP_R - last) < 0 || dir * (b.x - x - dir * HOP_R) < 0) continue;
+      d += ` L${x - dir * HOP_R},${a.y} A${HOP_R},${HOP_R} 0 0 ${dir > 0 ? 1 : 0} ${x + dir * HOP_R},${a.y}`;
+      last = x + dir * HOP_R;
+    }
+    d += ` L${b.x},${b.y}`;
+  }
+  return d;
+}
 // the runs of wires of one net meeting end to end in line (a wire split at a tap or a branch, #678):
 // wire id -> the id of its run's first wire
 function inLineRuns(wires, netOf) {
@@ -458,6 +477,12 @@ export function mountSchEditor(container, opts = {}) {
   try { showNames = localStorage.getItem('xl.sch.names') === '1'; } catch { /* default */ }
   const namesBox = h('input', { type: 'checkbox', checked: showNames });
   namesBox.addEventListener('change', () => { showNames = namesBox.checked; try { localStorage.setItem('xl.sch.names', showNames ? '1' : '0'); } catch { /* ignore */ } render(); });
+  // Hop-overs (#692): a small arc where two wires cross without connecting (a view only: the nets, the HDL
+  // the same)
+  let showHops = false;
+  try { showHops = localStorage.getItem('xl.sch.hops') === '1'; } catch { /* default */ }
+  const hopsBox = h('input', { type: 'checkbox', checked: showHops });
+  hopsBox.addEventListener('change', () => { showHops = hopsBox.checked; try { localStorage.setItem('xl.sch.hops', showHops ? '1' : '0'); } catch { /* ignore */ } render(); });
   const optBox = h('span', { class: 'se-opts' });
   tb.append(
     btn('select', 'select', 'Select (Esc)'), btn('wire', 'wire', 'Add Wire (W)'), btn('net', 'net', 'Add Net Name (N)'), btn('io', 'io', 'Add I/O Marker (O)'),
@@ -467,7 +492,8 @@ export function mountSchEditor(container, opts = {}) {
     sep(), undoButton('undo', undefined, { 'data-act': 'undo' }), undoButton('redo', undefined, { 'data-act': 'redo' }),
     sep(), btn('zin', 'zin', 'Zoom In (+)'), btn('zout', 'zout', 'Zoom Out (−)'), btn('fit', 'fit', 'Zoom to Full View (F)'),
     sep(), btn('info', 'info', 'Symbol Info (F1)'),
-    sep(), h('label', { class: 'se-names', title: 'Show the name of every instance and every net (the automatic ones too)' }, namesBox, h('span', { text: 'Names' })),
+    sep(), h('label', { class: 'se-hops', title: 'Draw a small arc where two wires cross without connecting' }, hopsBox, h('span', { text: 'Hop-overs' })),
+    h('label', { class: 'se-names', title: 'Show the name of every instance and every net (the automatic ones too)' }, namesBox, h('span', { text: 'Names' })),
     h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'check', title: 'Check Schematic', html: `${ICON.check}<span>Check</span>` }),
     sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'sim', title: 'Simulate: click the inputs and watch the circuit work (Esc to stop)', html: `${ICON.sim}<span>Simulate</span>` }),
     sep(), optBox,
@@ -671,12 +697,18 @@ export function mountSchEditor(container, opts = {}) {
     const parts = [];
     const busW = new Map();
     if (nl) for (const [wid, n] of nl.wireNet) busW.set(wid, n.width);
-    // wires
+    // wires (Hop-overs: the crossings of each, by segment, #692)
+    let hops = null;
+    if (showHops) {
+      hops = new Map();
+      for (const c of wireCrossings(doc)) { let m = hops.get(c.wire); if (!m) hops.set(c.wire, m = new Map()); let l = m.get(c.seg); if (!l) m.set(c.seg, l = []); l.push(c.x); }
+    }
     for (const w of doc.wires) {
       const pts = w.points.map(p => `${p.x},${p.y}`).join(' ');
       const bus = w.bus || (busW.get(w.id) || 1) > 1;
       const cls = `wire${bus ? ' bus' : ''}${sel.has(`wire:${w.id}`) ? ' sel' : ''}`;
-      parts.push(`<g class="${cls}" data-kind="wire" data-id="${esc(w.id)}"><polyline class="whit" points="${pts}"/><polyline class="wline" points="${pts}"/></g>`);
+      const line = hops?.has(w.id) ? `<path class="wline" d="${hopPath(w, hops.get(w.id))}"/>` : `<polyline class="wline" points="${pts}"/>`;
+      parts.push(`<g class="${cls}" data-kind="wire" data-id="${esc(w.id)}"><polyline class="whit" points="${pts}"/>${line}</g>`);
     }
     if (nl) for (const j of nl.junctions) parts.push(`<circle class="junction" cx="${j.x}" cy="${j.y}" r="3.2"/>`);
     // a named bus (connected to an input / output marker or labelled) carries its name on every wire

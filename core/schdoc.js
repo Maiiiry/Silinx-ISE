@@ -805,6 +805,21 @@ function junctionsOf(doc, pinInfo = new Map()) {
   return out;
 }
 
+// Where two wires cross without connecting (#692): a horizontal segment and a vertical one, the point
+// inside both (not an end of either: a wire's end, a bend, a T-junction). [{ x, y, wire, seg }]: the
+// horizontal segment's wire and index, which hops over the vertical one. A view of the drawing only.
+export function wireCrossings(doc) {
+  const H = [], Vt = [];
+  for (const w of doc.wires) for (let i = 0; i + 1 < w.points.length; i++) {
+    const a = w.points[i], b = w.points[i + 1];
+    if (a.y === b.y && a.x !== b.x) H.push({ w: w.id, i, y: a.y, lo: Math.min(a.x, b.x), hi: Math.max(a.x, b.x) });
+    else if (a.x === b.x && a.y !== b.y) Vt.push({ w: w.id, i, x: a.x, lo: Math.min(a.y, b.y), hi: Math.max(a.y, b.y) });
+  }
+  const out = [];
+  for (const h of H) for (const v of Vt) if (v.x > h.lo && v.x < h.hi && h.y > v.lo && h.y < v.hi) out.push({ x: v.x, y: h.y, wire: h.w, seg: h.i });
+  return out;
+}
+
 // the segment of wire w that point p is inside of (on a segment or a bend, not one of its ends), or -1
 function interiorAt(w, p) {
   const P = w.points, n = P.length;
