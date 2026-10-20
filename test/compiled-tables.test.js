@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { diffCycles, designOf, rng } from './compiled-diff.js';
 import { compileDesign, compileNetlist, CompiledSim, netlistOf } from '../core/compiled-sim.js';
-import { coneTables, gateModel, inputOrder } from '../core/compiled-tables.js';
+import { coneTables, equalities, gateModel, inputOrder } from '../core/compiled-tables.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { synthesizeOpen } from '../core/synth-open.js';
 import { postSynthesisModels } from '../core/sim-model.js';
@@ -51,11 +51,12 @@ test('#659 a Post-Synthesis Simulation Model\'s comparisons, decoder and state m
   const g = gateModel(raw.json, raw.top);
   assert.deepEqual(g.stats, {
     words: { chains: 2, registers: 2, cells: [201, 87] },
-    tables: { tables: 9, inputs: 12, words: 15416, outputs: 23, equalities: 2, cells: [87, 36] },
+    equalities: { equalities: 2, cells: [87, 79] },
+    tables: { tables: 6, inputs: 12, words: 4208, outputs: 13, cells: [79, 38] },
     registers: 2,
   });
   const types = Object.values(g.json.modules[raw.top].cells).map(c => c.type);
-  assert.equal(types.filter(t => t === '$mem_v2').length, 9);
+  assert.equal(types.filter(t => t === '$mem_v2').length, 6);
   assert.equal(types.filter(t => t === '$eq').length, 2);
   // (no net listed whose bits are no longer computed; those of the design's names all kept)
   const mod = g.json.modules[raw.top], driven = new Set(Object.values(mod.ports).filter(p => p.direction === 'input').flatMap(p => p.bits));
@@ -87,7 +88,7 @@ const values = (json, top, ins, out) => {
 };
 test('#659 no table makes a combinational loop: a cone\'s root joins a table only when deeper than its inputs', () => {
   const t = coneTables(LOOPY, 't', { inputs: 2 });
-  assert.deepEqual(t.stats, { tables: 1, inputs: 2, words: 4, outputs: 1, equalities: 0, cells: [5, 4] });
+  assert.deepEqual(t.stats, { tables: 1, inputs: 2, words: 4, outputs: 1, cells: [5, 4] });
   const types = Object.values(t.json.modules.t.cells).map(c => c.type).sort();
   assert.deepEqual(types, ['$and', '$mem_v2', '$not', '$or']);
   assert.deepEqual(values(t.json, 't', ['a', 'c', 'd'], 'y'), values(LOOPY, 't', ['a', 'c', 'd'], 'y'));
@@ -96,6 +97,40 @@ test('#659 no table makes a combinational loop: a cone\'s root joins a table onl
   loop.modules.t.cells.u.connections.A = [5];
   assert.deepEqual(coneTables(loop, 't', { inputs: 2 }).stats.tables, 0);
   assert.throws(() => compileNetlist(loop, { top: 't' }), /combinational loop/);
+});
+
+// x == 0xA5C3 of a 16-bit input as an ISE synthesis writes it: a LUT4 of each 4 bits (one minterm), a LUT4 of their
+// results (an AND); y: an OR of x's first 13 bits (no AND: left as it is); z: an AND of the comparison of x's first 4
+// bits with a bit and of its inverse (a bit at two values: left as it is)
+const lut4 = (init, B, Y) => ({ type: '$shiftx', parameters: { A_SIGNED: 0, B_SIGNED: 0, A_WIDTH: 16, B_WIDTH: 4, Y_WIDTH: 1 }, attributes: {},
+  connections: { A: Array.from({ length: 16 }, (_, m) => String((init >> m) & 1)), B, Y } });
+const X = 0xa5c3, xb = i => 2 + i;   // (x's bits: 2 to 17)
+const CMP = { modules: { t: {
+  ports: { x: { direction: 'input', bits: Array.from({ length: 16 }, (_, i) => xb(i)) }, y: { direction: 'output', bits: [30] }, eq: { direction: 'output', bits: [24] }, z: { direction: 'output', bits: [32] } },
+  cells: {
+    ...Object.fromEntries([0, 1, 2, 3].map(k => [`n${k}`, lut4(1 << ((X >> (4 * k)) & 15), [0, 1, 2, 3].map(j => xb(4 * k + j)), [20 + k])])),
+    all: lut4(1 << 15, [20, 21, 22, 23], [24]),
+    o: lut4(0xfffe, [xb(0), xb(1), xb(2), xb(3)], [25]),
+    o2: lut4(0xfffe, [25, xb(4), xb(5), xb(6)], [26]),
+    o3: lut4(0xfffe, [26, xb(7), xb(8), xb(9)], [27]),
+    o4: lut4(0xfffe, [27, xb(10), xb(11), xb(12)], [30]),
+    inv: cell('$not', { A: [20], Y: [31] }),
+    zz: cell('$and', { A: [20], B: [31], Y: [32] }),
+  },
+  netnames: { x: { bits: Array.from({ length: 16 }, (_, i) => xb(i)) }, y: { bits: [30] }, eq: { bits: [24] }, z: { bits: [32] } },
+} } };
+test('#670 a comparison of a word with a constant as LUTs, an equality; an OR, a contradiction left as they are', () => {
+  const e = equalities(CMP, 't');
+  assert.deepEqual(e.stats, { equalities: 1, cells: [11, 8] });   // (n1, n2, n3 and all gone; n0 read by z)
+  const eq = Object.values(e.json.modules.t.cells).find(c => c.type === '$eq');
+  assert.deepEqual(eq.connections.A, Array.from({ length: 16 }, (_, i) => xb(i)));
+  assert.deepEqual(eq.connections.B, Array.from({ length: 16 }, (_, i) => String((X >> i) & 1)));
+  assert.deepEqual(eq.connections.Y, [24]);
+  // (of 13 bits at least: those of 12 are a table's)
+  assert.equal(equalities(CMP, 't', { min: 17 }).stats.equalities, 0);
+  const all = json => { const sim = new CompiledSim(compileNetlist(json, { top: 't' })); return [0, X, X ^ 1, X ^ 0x8000, 0xffff, X & 0xfff0].map(v => { sim.set('x', v); sim.cycle(1); return ['eq', 'y', 'z'].map(o => sim.get(o)); }); };
+  assert.deepEqual(all(e.json), all(CMP));
+  assert.deepEqual(all(e.json).map(r => r[0]), [0n, 1n, 0n, 0n, 0n, 0n]);
 });
 
 // a table of 3 inputs and 2 outputs read at the bits of a port in another order: inputOrder puts them in the port's

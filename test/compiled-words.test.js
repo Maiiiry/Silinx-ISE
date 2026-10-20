@@ -177,24 +177,23 @@ const EXPECTED = {
   clock: { chains: 6, registers: 6, cells: [910, 424] },
   vga: { chains: 2, registers: 2, cells: [498, 426] },
 };
-// (#659: the tables (their inputs at most, their words, their outputs), the equalities, the cells before and after;
-// the registers wordLevel made again of the flip-flops the tables feed; pong's tables of 11 inputs, those of 12 above
-// the budget)
+// (#659, #670: the equalities with a constant; the tables (their inputs at most, their words, their outputs), the
+// cells before and after; the registers wordLevel made again of the flip-flops the tables feed)
 const TABLES = {
-  gates: [{ tables: 0, inputs: 12, words: 0, outputs: 0, equalities: 0, cells: [1, 1] }, 0],
-  traffic: [{ tables: 8, inputs: 12, words: 7632, outputs: 42, equalities: 1, cells: [141, 39] }, 4],
-  blinky: [{ tables: 20, inputs: 12, words: 17968, outputs: 30, equalities: 0, cells: [167, 95] }, 3],
-  pong: [{ tables: 38, inputs: 11, words: 37480, outputs: 98, equalities: 8, cells: [439, 215] }, 6],
-  stopwatch: [{ tables: 33, inputs: 12, words: 12208, outputs: 66, equalities: 1, cells: [254, 165] }, 8],
-  clock: [{ tables: 29, inputs: 12, words: 30152, outputs: 81, equalities: 8, cells: [424, 140] }, 4],
-  vga: [{ tables: 19, inputs: 12, words: 48864, outputs: 56, equalities: 2, cells: [426, 111] }, 2],
+  gates: [0, { tables: 0, inputs: 12, words: 0, outputs: 0, cells: [1, 1] }, 0],
+  traffic: [1, { tables: 8, inputs: 12, words: 7632, outputs: 42, cells: [137, 39] }, 4],
+  blinky: [0, { tables: 20, inputs: 12, words: 17968, outputs: 30, cells: [167, 95] }, 3],
+  pong: [9, { tables: 39, inputs: 12, words: 40084, outputs: 99, cells: [379, 203] }, 6],
+  stopwatch: [1, { tables: 31, inputs: 12, words: 12112, outputs: 62, cells: [250, 166] }, 9],
+  clock: [8, { tables: 24, inputs: 12, words: 8480, outputs: 72, cells: [380, 129] }, 4],
+  vga: [2, { tables: 19, inputs: 12, words: 48864, outputs: 55, cells: [425, 110] }, 2],
 };
 test('#650 #659 every example\'s Post-Synthesis Simulation Model at word level, its irregular logic as tables: the same outputs as bit by bit', { timeout: 600000 }, async () => {
   for (const name of EXAMPLES) {
     const { postsynth } = await models(name, ['postsynth']);
     const { stats, tables, chars } = await same(postsynth, name);
     assert.deepEqual(stats, EXPECTED[name], name);
-    assert.deepEqual([tables.tables, tables.registers], TABLES[name], name);
+    assert.deepEqual([tables.equalities.equalities, tables.tables, tables.registers], TABLES[name], name);
     if (stats.chains) assert.ok(chars[1] < chars[0], `${name}: ${chars}`);
   }
 });
@@ -202,13 +201,13 @@ test('#650 #659 blinky\'s post-translate, post-map and post-place & route models
   const m = await models('blinky', ['synth', 'translate', 'posttrans', 'map', 'postmap', 'par', 'trce', 'postpar']);
   const want = { posttrans: [362, 167], postmap: [420, 185], postpar: [423, 185] };
   const wantTables = {
-    posttrans: [{ tables: 16, inputs: 12, words: 9264, outputs: 58, equalities: 0, cells: [167, 109] }, 2],
-    postmap: [{ tables: 20, inputs: 12, words: 9392, outputs: 66, equalities: 0, cells: [185, 123] }, 2],
-    postpar: [{ tables: 17, inputs: 12, words: 1236, outputs: 42, equalities: 0, cells: [185, 143] }, 3],
+    posttrans: [0, { tables: 16, inputs: 12, words: 9264, outputs: 58, cells: [167, 109] }, 2],
+    postmap: [0, { tables: 20, inputs: 12, words: 9392, outputs: 66, cells: [185, 123] }, 2],
+    postpar: [0, { tables: 17, inputs: 12, words: 1236, outputs: 42, cells: [185, 143] }, 3],
   };
   for (const [step, design] of Object.entries(m)) {
     const { stats, tables } = await same(design, step);
     assert.deepEqual(stats, { chains: 4, registers: step === 'postpar' ? 5 : 4, cells: want[step] }, step);
-    assert.deepEqual([tables.tables, tables.registers], wantTables[step], step);
+    assert.deepEqual([tables.equalities.equalities, tables.tables, tables.registers], wantTables[step], step);
   }
 });
