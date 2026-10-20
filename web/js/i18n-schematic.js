@@ -28,6 +28,7 @@ export const SCH_PT = {
   'Properties': 'Propriedades', 'Parameters': 'Parâmetros', 'empty = module default': 'vazio = valor por omissão do módulo',
   'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
   // a net name another net has (#689)
+  'Hop-overs': 'Saltos', 'Draw a small arc where two wires cross without connecting': 'Desenhar um pequeno arco onde dois fios se cruzam sem se ligarem',
   'Net name already used': 'Nome de rede já usado', 'Connect by name': 'Ligar pelo nome',
   'Connect this net to it by name? They become one net, without a wire drawn between them.': 'Ligar esta rede a ela pelo nome? Passam a ser uma só rede, sem um fio desenhado entre elas.',
   'Rotate': 'Rodar', 'Mirror': 'Espelhar', 'Wire': 'Fio', 'I/O Marker': 'Marcador de E/S', 'Net Name': 'Nome de Rede',
