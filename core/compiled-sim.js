@@ -33,6 +33,7 @@
 // Isomorphic ES module (browser + Node), no DOM.
 import { toVerilog } from './synth-verilog.js';
 import { PRIMITIVE_MODELS, DCM_CELLS, DCM_OUTPUTS, dcmWaves, dcmSchedule, bramInit, simprimCell } from './compiled-prims.js';
+import { wordLevel } from './compiled-words.js';
 
 export class CompileError extends Error {}
 
@@ -45,9 +46,10 @@ export const gateLevel = primitives => primitives.some(p => /^(X_)?LUT\d/.test(p
 
 /**
  * The design's word-level netlist (Yosys's JSON, parsed): { json, top, warnings: [messages] }.
- * run(args, files, onLine): Yosys (as core/synth-open.js synthesizeOpen's).
+ * run(args, files, onLine): Yosys (as core/synth-open.js synthesizeOpen's); words: a gate-level model at word level
+ * (core/compiled-words.js, #650; false: bit by bit, as Yosys reads it).
  */
-export async function netlistOf(design, { run }) {
+export async function netlistOf(design, { run, words = true }) {
   let v;
   // (the SIMPRIM primitives of a post-translate / map / place & route model as their cells, #627)
   try { v = toVerilog(design, { simprim: simprimCell }); } catch (e) { throw new CompileError(e.message); }
@@ -68,7 +70,9 @@ export async function netlistOf(design, { run }) {
   // and those of the primitives' own models, their latches and FDCP's asynchronous load, #561)
   const quiet = l => /^Warning: Replacing memory \S+ with list of registers\./.test(l) || /^(\S+: )?Warning: Replacing floating point parameter /.test(l)
     || l.includes('silinx_cs_prims.v');
-  return { json: bramInit(JSON.parse(text), v.top, v.instances), top: v.top, warnings: [...v.warnings, ...lines.filter(l => /^Warning:/.test(l) && !quiet(l)).map(yosysWarning)] };
+  // (#650: a gate-level model's carry chains, registers and the logic between them at word level again)
+  const json = bramInit(JSON.parse(text), v.top, v.instances);
+  return { json: words && gateLevel(v.primitives) ? wordLevel(json, v.top).json : json, top: v.top, warnings: [...v.warnings, ...lines.filter(l => /^Warning:/.test(l) && !quiet(l)).map(yosysWarning)] };
 }
 
 // a Yosys warning as Silinx says it (a latch: the signal's name, without Yosys's process and cell names)
@@ -134,6 +138,7 @@ const PMAX = 0.3;        // a segment more often evaluated: unguarded
 const WORTH = 0.5;       // the guards, when they leave at most this part of the cells evaluated per step
 const SPLIT = 80000;     // the characters of code above which run() is split (#629: compileNetlist)
 const CHUNK = 40000;     // the characters of a function of its combinational code, at most
+const PIECE = 10000;     // the cycles of a call of run() at most (#650: CompiledSim.cycle)
 
 // Statements (strings) in consecutive groups of `max` characters at most (a longer one alone), joined by lines.
 export function chunks(list, max) {
@@ -1073,7 +1078,11 @@ export class CompiledSim {
   }
   /** Run n cycles of the main clock (n = 0: settle after set()). */
   cycle(n = 1) {
-    this.inst.run(n);
+    // (#650: in pieces of PIECE cycles, the same values and counts: V8 optimizes a run() called again and again by
+    // its calls, with Turbofan; a run() of millions of cycles, by on-stack replacement of its loop, which in Chrome
+    // leaves a large one in Maglev, 2 to 3 times slower)
+    for (let k = n; k > PIECE; k -= PIECE) this.inst.run(PIECE);
+    this.inst.run(n > PIECE ? (n - 1) % PIECE + 1 : n);
     this.cycles += n;
   }
   /** What the cycles counted since the last take (compileNetlist's watch): { counts: [levels…, pairs…],
