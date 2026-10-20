@@ -317,7 +317,7 @@ function elabInstance(ctx, mod, name, path, paramOverrides, portConns, parentIns
       // (an output connected to a whole Verilog net is that net: it starts at the primitive's
       // INIT, not at the x of a driven net)
       for (const [sig, v] of nat.init) { sig.init = v; sig.val = v; sig.netZ = false; }
-      const proc = addProc(E, { name: mod.name.toUpperCase(), kind: 'native', mode: 'native', native: nat.fn, body: { k: 'null' },
+      const proc = addProc(E, { name: mod.name.toUpperCase(), kind: 'native', mode: 'native', native: nat.fn, nativeReset: nat.reset, body: { k: 'null' },
         triggers: nat.inputs.map((sig) => ({ sig, edge: 'any' })), lang: 'vhdl', loc: mod.loc, file: inst.file, inst });
       proc.writes = new Set(nat.outputs);
       // it reads every input pin, not only the ones that trigger it (a flip-flop's D, CE, R: sampled

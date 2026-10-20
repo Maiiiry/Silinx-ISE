@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { setupUi, uiTest, makeProject, readWs } from './harness.js';
+import { setupUi, uiTest, makeProject, readWs, writeWs } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
 import { DB_DIR } from '../../core/fpga/bitdb-node.js';
 
@@ -740,6 +740,44 @@ uiTest('#561 open mode: the vga example\'s Post-Synthesis Model runs on the comp
   assert.deepEqual(await pixel(120, 100), [255, 255, 0], 'the yellow bar');
   assert.deepEqual(await pixel(310, 240), [255, 0, 255], 'the square over the green bar, magenta');
   assert.equal(await page.eval(() => { const e = document.querySelector('.doc:not([hidden]) .emu-vga-nosig'); return getComputedStyle(e).display !== 'none' && e.offsetHeight > 0; }), false, 'no "No signal" over the picture');
+  assert.deepEqual(page.dialogs, []);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 300000 });
+
+// #695: a model on the event-driven engine ran 5 to 18 times slower per cycle than the RTL (each native primitive a
+// generator, a waiter allocated at every wake); #698: a reset (Power cycle) starts the primitives again from their
+// initial state (test/netlist.test.js). blinky with a divider of 625 (its light a step every 20 000 cycles): the
+// post-map model on the event-driven engine moves, and again after a Power cycle, from LD0
+uiTest('#695 #698 open mode: blinky\'s Post-Map Model on the event-driven engine: its LEDs move, and again after a Power cycle', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'EventModel', template: 'blinky' });
+  const top = await readWs(env, 'EventModel', 'src/top.vhd');
+  assert.match(top, /DIV {6}: integer := 625_000;/);
+  await writeWs(env, 'EventModel', 'src/top.vhd', top.replace(/DIV {6}: integer := 625_000;/, 'DIV      : integer := 625;    '));
+  await page.openProject('EventModel');
+  await reloadToolchain(page);
+  await page.treeRow('#procs', 'Emulate Post-Map Model', { dbl: true, exact: true });
+  await page.waitDialog('Emulate Post-Map Model');
+  await page.dialogButton('Generate and Emulate');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Map)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator' });
+  assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+  const start = (await page.consoleText()).length;
+  await page.eval(() => { const s = [...document.querySelectorAll('.doc:not([hidden]) .emu-bar select')].find((x) => [...x.options].some((o) => o.value === 'event')); s.value = 'event'; s.dispatchEvent(new Event('change')); });
+  await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Map)' && window.Silinx.active.view?.engine === 'event' && window.Silinx.active.view.outputs, [], { timeout: 60000, what: 'the emulator on the event-driven engine' });
+  const lines = (await page.consoleText()).slice(start).split('\n').map((l) => l.trim()).filter(Boolean);
+  assert.ok(lines.some((l) => /^Board Emulator: 'top' \(Post-Map netlist, event-driven\) /.test(l)), lines.join('\n'));
+  assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
+  const leds = () => page.eval(() => window.Silinx.active.view.outputs.leds.map((v) => (v > 0.5 ? 1 : 0)).join(''));
+  const moving = async (what) => {
+    const seen = new Set();
+    for (let k = 0; k < 100 && seen.size < 3; k++) { seen.add(await leds()); await new Promise((r) => setTimeout(r, 100)); }
+    assert.ok(seen.size >= 3, `${what}: the LEDs move (${[...seen].join(' ')})`);
+  };
+  await moving('on the event-driven engine');
+  await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .emu-bar button')].find((b) => /Power cycle/.test(b.textContent)).click());
+  await page.waitFor(() => window.Silinx.active.view.outputs.leds.map((v) => (v > 0.5 ? 1 : 0)).join('') === '10000000', [], { timeout: 5000, what: 'LD0 after the power cycle' });
+  await moving('after the power cycle');
   assert.deepEqual(page.dialogs, []);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });
