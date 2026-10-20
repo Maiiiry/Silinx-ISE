@@ -29,7 +29,7 @@ import { placeRouteBest } from './fpga/place-route.js';
 import { deviceSites } from './fpga/place.js';
 import { checkRouting } from './fpga/route.js';
 import { bitgen, knownRouting } from './fpga/bitgen.js';
-import { analyzeTiming, timingReport, checkPeriods, checkCross, checkOffsets, parseOffsets, clockPort } from './fpga/timing.js';
+import { analyzeTiming, timingReport, checkPeriods, checkCross, checkSwitching, switchingLine, checkOffsets, parseOffsets, clockPort } from './fpga/timing.js';
 import { estimatePower, powerReport, ESTIMATE_ERROR_PERCENT } from './power.js';
 
 export const ISE_HINT = 'The Silinx toolchain does not support this yet: implement the design in an ISE mode (Toolchain Settings).';
@@ -352,17 +352,21 @@ export async function runOpenFlow(spec, io) {
     const offsets = checkOffsets(sta, design, parseOffsets(pu.other || []), constraints);
     // (#601: a DCM's clocks with their derived PERIOD; the paths between two related clocks)
     const periods = checkPeriods(sta, design, constraints), cross = checkCross(sta, design, constraints);
-    const checks = [...periods, ...cross, ...offsets];
+    // (#661: the DCMs' pins against their switching limits, as trce's Component Switching Limit checks)
+    const switching = checkSwitching(design, constraints);
+    const checks = [...periods, ...switching, ...cross, ...offsets];
     const lines = timingReport(sta, checks);
     report.files.timing = io.write('open/timing.txt', `Static timing analysis of ${top} (Silinx toolchain, delay model of core/fpga/timing.js)\n\n${lines.join('\n')}\n`);
     const failed = periods.filter(c => !c.missing && !c.met), offFailed = offsets.filter(c => !c.missing && !c.unsupported && !c.met);
     const crossFailed = cross.filter(c => c.related && !c.met);
+    const swFailed = switching.filter(c => !c.met);
     for (const l of lines) if (/^(clock|constraint)/.test(l) || (/^paths from/.test(l) && !/not timed/.test(l))) log(l);
     for (const c of failed) {
       log(c.via ? `WARNING:Timing - constraint PERIOD ${c.constraint} ns on ${c.port}, ${c.via} (${+c.required.toFixed(3)} ns) not met: the clock needs ${c.period.toFixed(3)} ns`
         : `WARNING:Timing - constraint PERIOD ${c.required} ns on ${c.port} not met: the clock needs ${c.period.toFixed(3)} ns`);
     }
     for (const c of periods.filter(c => c.missing)) log(`WARNING:Timing - constraint PERIOD ${c.required} ns on ${c.port}: no clock of the design comes from this port`);
+    for (const c of swFailed) log(`WARNING:Timing - component switching limit not met: ${switchingLine(c).replace(/^switching limit of /, '').replace(/: NOT MET,/, ':')}`);
     for (const c of crossFailed) log(`WARNING:Timing - the paths from clock ${c.from} to clock ${c.to} not met: they need ${c.delay.toFixed(3)} ns, ${c.required.toFixed(3)} ns between the clocks' edges`);
     // (a pad bounded on several clocks, a DCM's: its clock named, #601)
     const onClocks = c => offsets.filter(o => o.text === c.text && o.port === c.port && o.clock).length;
@@ -370,13 +374,16 @@ export async function runOpenFlow(spec, io) {
     for (const c of offsets.filter(c => c.missing)) log(`WARNING:Timing - constraint ${c.text}: no pad of the design is bounded by it`);
     for (const c of offsets.filter(c => c.unsupported)) log(`WARNING:Timing - constraint ${c.text}: not analyzed (the Silinx toolchain reads OFFSET on a NET or on all pads)`);
     const worst = sta.clocks.reduce((a, c) => Math.max(a, c.period), 0);
-    const nErr = failed.length + offFailed.length + crossFailed.length;
+    const nErr = failed.length + offFailed.length + crossFailed.length + swFailed.length;
     report.timing = {
       met: nErr === 0, timingErrors: nErr, score: null,
       minPeriodNs: worst ? +worst.toFixed(3) : null, maxFreqMHz: worst ? +(1000 / worst).toFixed(3) : null,
       clocks: sta.clocks.map(c => ({ clock: c.clock, port: clockPort(design, c.clock), minPeriodNs: +c.period.toFixed(3), maxFreqMHz: +(1000 / c.period).toFixed(3) })),
       constraints: [...periods.filter(c => !c.missing).map(c => ({ name: `PERIOD ${c.port}${c.via ? ` ${c.via}` : ''}`, constraint: `PERIOD ${c.constraint ?? c.required} ns on ${c.port}${c.via ? `, ${c.via}` : ''}`, required: c.required,
         minPeriodNs: +c.period.toFixed(3), maxFreqMHz: +(1000 / c.period).toFixed(3), timingErrors: c.met ? 0 : 1, slackNs: +c.slack.toFixed(3) })),
+      // (a switching limit not met, #661: the pin's period as the value, as trce counts it under its PERIOD)
+      ...swFailed.map(c => ({ name: `Component Switching Limit ${c.resource}`, constraint: `${c.limit}: ${c.bound} period limit ${c.bound === 'max' ? c.max : c.min} ns`,
+        required: c.bound === 'max' ? c.max : c.min, minPeriodNs: c.period, timingErrors: 1, slackNs: +c.slack.toFixed(3) })),
       // (an OFFSET's: its pad to setup or clock to pad as the value, #26)
       ...offsets.filter(c => !c.missing && !c.unsupported).map(c => ({ name: `OFFSET ${c.dir.toUpperCase()} ${c.port}${onClocks(c) > 1 ? ` ${c.clock}` : ''}`, constraint: c.text, required: c.required,
         minPeriodNs: +c.value.toFixed(3), timingErrors: c.met ? 0 : 1, slackNs: +c.slack.toFixed(3) }))],

@@ -390,3 +390,50 @@ OFFSET = IN 20 ns BEFORE "clk" ;\nNET "q" OFFSET = OUT 1 ns AFTER "clk" ;\nTIMEG
   assert.deepEqual(r.report.timing.constraints.map(c => [c.name, c.timingErrors]), [['PERIOD clk', 0], ['OFFSET IN a', 0], ['OFFSET OUT q', 1]]);
   assert.equal(r.report.timing.met, false);
 });
+
+// #661: trce's Component Switching Limit checks in the flow's timing: feat_dcm_div2 as it was (CLKIN_DIVIDE_BY_2, CLKFX
+// x 3 / 15: 200 ns, over the 100 ns trce allows once the input is halved: ISE's "Slack: -100.000ns", Tdcmpfx) is a
+// timing error, in the report, the warnings and the report's constraints; x 2 / 5 (100 ns, its fixture now) is met
+test('Implement Design: a DCM\'s pins against their switching limits, as trce (#661)', { timeout: 300000 }, async () => {
+  const { flow } = await import('./timesim-lib.mjs');
+  const { orderOpenSteps } = await import('../core/open-steps.js');
+  const src = (m, d) => [{ path: 'top.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+library unisim; use unisim.vcomponents.all;
+entity top is port (clk : in std_logic; led : out std_logic_vector(1 downto 0)); end;
+architecture rtl of top is
+  signal ci, c0u, c0, cfu, cf : std_logic; signal n0, nf : unsigned(7 downto 0) := (others => '0');
+begin
+  u_ibufg : IBUFG port map (I => clk, O => ci);
+  u_dcm : DCM_SP generic map (CLKFX_MULTIPLY => ${m}, CLKFX_DIVIDE => ${d}, CLKIN_PERIOD => 20.0, CLK_FEEDBACK => "1X",
+      CLKIN_DIVIDE_BY_2 => TRUE, DESKEW_ADJUST => "SOURCE_SYNCHRONOUS")
+    port map (CLKIN => ci, CLKFB => c0, RST => '0', DSSEN => '0', PSCLK => '0', PSEN => '0', PSINCDEC => '0', CLK0 => c0u, CLKFX => cfu);
+  u_b0 : BUFG port map (I => c0u, O => c0);
+  u_bf : BUFG port map (I => cfu, O => cf);
+  process (c0) begin if rising_edge(c0) then n0 <= n0 + 1; end if; end process;
+  process (cf) begin if rising_edge(cf) then nf <= nf + 1; end if; end process;
+  led <= nf(7) & n0(7);
+end;` }];
+  const ucf = 'NET "clk" LOC = "B8" ;\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\n';
+  const r = await flow({ top: 'top', steps: orderOpenSteps(['trce']) }, src(3, 15), [], ucf);
+  assert.equal(r.ok, true, r.lines.join('\n'));
+  const timing = r.store['open/timing.txt'];
+  const dcm = /^switching limit of (\S+)\/CLKIN /m.exec(timing)?.[1];
+  assert.ok(dcm, timing);
+  assert.match(timing, new RegExp(`^switching limit of ${dcm}/CLKIN \\(Tdcmpc\\): met, period 20\\.000 ns, min period limit 2\\.082 ns \\(480\\.307 MHz\\), slack 17\\.918 ns$`, 'm'));
+  assert.match(timing, new RegExp(`^switching limit of ${dcm}/CLK0 \\(Tdcmpco\\): met, period 40\\.000 ns, min period limit 2\\.083 ns \\(480\\.077 MHz\\), slack 37\\.917 ns$`, 'm'));
+  assert.match(timing, new RegExp(`^switching limit of ${dcm}/CLKFX \\(Tdcmpfx\\): NOT MET, period 200\\.000 ns, max period limit 100\\.000 ns \\(10\\.000 MHz\\), slack -100\\.000 ns$`, 'm'));
+  assert.deepEqual(r.lines.filter(l => /^WARNING/.test(l)), [
+    `WARNING:Timing - component switching limit not met: ${dcm}/CLKFX (Tdcmpfx): period 200.000 ns, max period limit 100.000 ns (10.000 MHz), slack -100.000 ns`]);
+  assert.equal(r.lines.filter(l => /constraint\(s\) not met|All constraints were met/.test(l)).join(), '1 constraint(s) not met.');
+  assert.equal(r.report.timing.met, false);
+  assert.equal(r.report.timing.timingErrors, 1);
+  assert.deepEqual(r.report.timing.constraints.filter(c => /Switching/.test(c.name)).map(c => [c.name, c.constraint, c.required, c.minPeriodNs, c.slackNs]),
+    [[`Component Switching Limit ${dcm}/CLKFX`, 'Tdcmpfx: max period limit 100 ns', 100, 200, -100]]);
+  // x 2 / 5: 100 ns, at the limit (trce: slack 0.000, met)
+  const t = await flow({ top: 'top', steps: orderOpenSteps(['trce']) }, src(2, 5), [], ucf);
+  assert.equal(t.ok, true, t.lines.join('\n'));
+  assert.match(t.store['open/timing.txt'], new RegExp(`^switching limit of ${dcm}/CLKFX \\(Tdcmpfx\\): met, period 100\\.000 ns, max period limit 100\\.000 ns \\(10\\.000 MHz\\), slack 0\\.000 ns$`, 'm'));
+  assert.deepEqual(t.lines.filter(l => /^WARNING/.test(l)), []);
+  assert.equal(t.lines.filter(l => /constraint\(s\) not met|All constraints were met/.test(l)).join(), 'All constraints were met.');
+  assert.equal(t.report.timing.met, true);
+});

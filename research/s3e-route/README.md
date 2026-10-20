@@ -659,8 +659,38 @@ pad and hold left 0.36 ns between their means). Model - trce (ns), Silinx's rout
 
 The data paths between two clocks are the model's (0.03-0.27 ns faster than trce's, as its periods). Silinx's
 routing of feat_dcm_cross misses CLKFX -> CLK2X (3.333 ns): Silinx -0.361, trce -0.392 ns (ISE's own routing meets
-it). Not checked here: trce's Component Switching Limit checks (feat_dcm_div2's CLKFX at 200 ns against Tdcmpfx's 100:
-an issue of its own).
+it). trce's Component Switching Limit checks (feat_dcm_div2's CLKFX at 200 ns against Tdcmpfx's 100): #661, below.
+
+## trce's Component Switching Limit checks on the DCMs (#661, 2026-10-20)
+
+trce reports, under each PERIOD constraint, the "Component Switching Limit Checks": each pin's period against the
+minimum and maximum the speed data allow, a timing error (score 100000 for the first) when one is out. ISE's own flow
+on feat_dcm_div2 gave one: its CLKFX, 200 ns, over a "Max period limit: 100.000ns (10.000MHz) (Tdcmpfx)".
+`switching-limits.mjs` builds DCM_SP variants (`switching-limits.json`: the settings, the outputs used, the pad's
+PERIOD) by ISE's own flow on the Basys2-250 and brings back trce's reports; 23 designs. On the -4 (ns):
+
+| pin (check) | DLL used (CLK_FEEDBACK 1X / 2X) | DFS only (CLK_FEEDBACK NONE) |
+|---|---|---|
+| CLKIN (Tdcmpc) | 4.166 - 200 | 3.002 - 5000 |
+| CLK0, CLK90, CLK180, CLK270 (Tdcmpco) | 4.166 - 200 | |
+| CLK2X, CLK2X180 (Tdcmpco) | 3.214 - 100 | |
+| CLKDV (Tdcmpdv) | 6.249 - 3225.8 | |
+| CLKFX, CLKFX180 (Tdcmpfx) | 3.067 - 200 | 3.067 - 200 |
+
+- **CLKIN_DIVIDE_BY_2 halves every limit of the DCM**, its outputs' too: CLKIN 2.082 - 100 (DFS only: 1.501 - 2500),
+  CLK0 2.083 - 100, CLK2X 1.607 - 50, CLKDV 3.125 - 1612.9, CLKFX 1.533 - 100. The CLKIN period checked is still the
+  pad's (20 ns), the outputs' those of the halved input (CLK0 40 ns). So a CLKFX of 5 MHz, legal without it, is a timing error with it: feat_dcm_div2's
+  x 3 / 15 (200 ns); its CLKFX is now x 2 / 5, 100 ns, slack 0 (met, as trce).
+- The limits do not depend on CLKIN_PERIOD (20.9 or 20), DESKEW_ADJUST or DFS_FREQUENCY_MODE: trce checks the PERIOD
+  constraint's periods. Without a PERIOD on the DCM's pad nothing is checked (feat_dcm_fx had no error for that).
+  par warns too (Par:450, "component switching limit violations").
+- CLKIN's pulse widths are checked too (period - pulse limit / duty): 3 ns at 20 or 40 ns, 1.5 ns at 4 or 8, 25 ns at
+  250; never the binding check (CLKIN's period limits bind first) and left out.
+- The flip-flops' Tcp (1.596 ns, a 0.798 ns pulse each way) and the global buffers have their limits too, far beyond
+  any period a design meets here: left out.
+
+`core/fpga/timing.js checkSwitching` checks these (DCM_LIMITS), in the flows' timing report, warnings and Design
+Summary. They are not checked in the packer: map and par accept such a DCM; it is a timing error, from the PERIOD.
 
 ## Open problems
 

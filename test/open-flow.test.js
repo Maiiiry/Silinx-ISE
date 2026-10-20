@@ -208,9 +208,9 @@ const FEATURES = {
   // of lines 0-4 kept out of the left half (none of their GCLKCORE switches in the left centre tile)
   feat_clocks12: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "[^"]+" "BUFGMUX",placed CLKL_X0Y17 BUFGMUX_X0Y6 /m, /pip GCLKVML_\S+ GCLKVML_GCLKLR4 -> GCLKVMLR_GCLK_/],
     [/pip GCLKVML_\S+ GCLKVML_GCLKCORE[0-4] -> /, /placed CLKR_/]],
-  // CLKIN_DIVIDE_BY_2, SOURCE_SYNCHRONOUS deskew (DESKEW_ADJUST 0), a CLKFX at the edge of its range;
-  // and (on the Nexys2-500) the input period in whole nanoseconds: 20.9 ns is 20 (#46)
-  feat_dcm_div2: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 /, /DESKEW_ADJUST::0 /, /CLKFX_DIVIDE::15 /]],
+  // CLKIN_DIVIDE_BY_2, SOURCE_SYNCHRONOUS deskew (DESKEW_ADJUST 0), a CLKFX at the edge of its range (as trce
+  // checks it, #661); and (on the Nexys2-500) the input period in whole nanoseconds: 20.9 ns is 20 (#46)
+  feat_dcm_div2: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 /, /DESKEW_ADJUST::0 /, /CLKFX_DIVIDE::5 /, /CLKFX_MULTIPLY::2 /]],
   feat_dcm_fx: [/^pack \(\d+ slices\)/m, 'DCM', [/X_CLKIN_PERIOD::20\.8999999999999986 /, /CLKFX_DIVIDE::30 /]],
   // paths between a DCM's clocks and the pads of its clocks, as trce times them (#601): CLK0, CLK2X, CLKFX, CLKDV each on
   // a global buffer; a fixed phase shift on CLK0, CLK90 and CLK180
