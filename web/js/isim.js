@@ -16,7 +16,7 @@
 import * as V from '/core/values.js';
 import { toVCD } from '/core/simulator.js';
 import { onPrefsChange } from './modern.js';
-import { longPressMenu } from './ui.js';
+import { longPressMenu, twoFingerView } from './ui.js';
 import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, checkExpected, fillExpected, applyStimuli, stimulusPlan, parseCellValue } from '/core/stimuli.js';
 import { esc, h } from './dom.js';
 import { mountConsole } from './isim-console.js';
@@ -248,16 +248,19 @@ export function mountISim(container, opts = {}) {
   const cleanups = [];
   const on = (el, ev, fn, o) => { el.addEventListener(ev, fn, o); cleanups.push(() => el.removeEventListener(ev, fn, o)); };
   // A drag from the pointerdown `e` on `el` (mouse, pen or finger, #264): mm(ev) on every move of that
-  // pointer, mu(ev) when it is released, or cancelled (then ev.type is 'pointercancel').
+  // pointer, mu(ev) when it is released, or cancelled (then ev.type is 'pointercancel'). Returns stop(): the
+  // drag dropped, with no mu.
   const track = (el, e, mm, mu) => {
     try { el.setPointerCapture(e.pointerId); } catch { /* not an active pointer */ }
     const move = (ev) => { if (ev.pointerId === e.pointerId) mm(ev); };
+    const stop = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up); };
     const up = (ev) => {
       if (ev.pointerId !== e.pointerId) return;
-      window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up);
+      stop();
       mu(ev);
     };
     window.addEventListener('pointermove', move); window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
+    return stop;
   };
 
   // ---------------------------------------------------------------- state
@@ -1125,6 +1128,25 @@ export function mountISim(container, opts = {}) {
     for (const m of st.markers) { const d = Math.abs(xOf(m.t) - x); if (d < bd) { bd = d; best = m; } }
     return best;
   }
+  // two fingers on the waves (#674): a drag scrolls them (time, rows), a pinch zooms the time; the cursor, the
+  // marker and the selection the first finger moved put back
+  let waveDrag = null;
+  twoFingerView(cw, {
+    cancel: () => {
+      const d = waveDrag;
+      waveDrag = null;
+      if (!d) return;
+      d.stop();
+      st.cursor = d.cursor; st.sel = d.sel; st.anchor = d.anchor; st.activeMarker = d.activeMarker;
+      if (d.m) d.m.t = d.mt;
+      objDirty = true; invalidate(false);
+    },
+    pan: (dx, dy) => {
+      if (dx) { st.t0 -= dx * st.scale; st.fit = false; clampView(); invalidate(); }
+      if (dy) vsc.scrollTop -= dy;
+    },
+    zoom: (f, cx) => zoomAt(1 / f, cx - cw.getBoundingClientRect().left),
+  });
   on(cw, 'pointerdown', (e) => {
     if (!e.isPrimary) return;
     cw.focus();
@@ -1132,6 +1154,7 @@ export function mountISim(container, opts = {}) {
     const [x, y] = localXY(e, cw);
     if (st.stim.on && y >= RULER_H && stimClick(x, y)) return;
     const m = y < RULER_H ? markerNear(x) : null;
+    const was = { cursor: st.cursor, sel: new Set(st.sel), anchor: st.anchor, activeMarker: st.activeMarker, m, mt: m?.t };
     if (y >= RULER_H) { const i = rowAtY(y); if (i >= 0) selectRow(i, e); }
     const move = (ev, final) => {
       const [xx, yy] = localXY(ev, cw);
@@ -1144,7 +1167,7 @@ export function mountISim(container, opts = {}) {
       }
     };
     move(e);
-    track(cw, e, (ev) => move(ev), (ev) => { if (ev.type === 'pointerup') move(ev, true); });
+    waveDrag = { ...was, stop: track(cw, e, (ev) => move(ev), (ev) => { waveDrag = null; if (ev.type === 'pointerup') move(ev, true); }) };
   });
   on(cw, 'mousemove', (e) => {
     if (e.buttons) return;

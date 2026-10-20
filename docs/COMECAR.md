@@ -56,7 +56,7 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, com os projetos à parte) e passe ao 
   (programe o `.bit` descarregado a partir de um computador ou de um tablet Android). Os projetos ficam no browser, que o iPadOS pode apagar ao fim de algumas
   semanas sem uso: guarde uma cópia com **File ▸ Export Silinx ISE Project (.zip)…**. Um tablet tem
   menos memória, por isso um desenho grande pode falhar na síntese. Os menus do botão direito abrem
-  com um **toque longo** (o dedo parado meio segundo). Na vertical o painel Projeto é uma gaveta (o botão à esquerda do
+  com um **toque longo** (o dedo parado meio segundo); dois dedos movem um desenho e o gesto de pinça faz zoom. Na vertical o painel Projeto é uma gaveta (o botão à esquerda do
   cabeçalho) e as propriedades dos editores abrem por cima do desenho (**Propriedades**).
 - A interface pode ser posta em português em **View ▸ Language**.
 

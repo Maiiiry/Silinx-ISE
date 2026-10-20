@@ -21,7 +21,7 @@ import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
 import { lutFunction } from '/core/fpga/techview.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
-import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu } from './ui.js';
+import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu, twoFingerView } from './ui.js';
 import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
 import { esc, h } from './dom.js';
@@ -1376,9 +1376,10 @@ export function mountSchEditor(container, opts = {}) {
       e.preventDefault();
       const k = `${it.kind}:${it.id}`;
       if (e.shiftKey || e.ctrlKey || e.metaKey) { if (sel.has(k)) sel.delete(k); else sel.add(k); render(); renderProps(); return; }
+      const sel0 = sel;
       if (!sel.has(k)) { sel = new Set([k]); render(); renderProps(); }
       if (e.detail >= 2) return;            // handled by the dblclick listener
-      if (!readOnly) drag = beginMove({ x: snap(pt.x), y: snap(pt.y) });
+      if (!readOnly) drag = { ...beginMove({ x: snap(pt.x), y: snap(pt.y) }), sel0 };
       return;
     }
     drag = { kind: 'band', start: pt, cur: pt, add: e.shiftKey || e.ctrlKey || e.metaKey };
@@ -1441,6 +1442,16 @@ export function mountSchEditor(container, opts = {}) {
       render(); renderProps();
     }
   }
+  // a second finger (#674): what the first one started undone, the selection as it was
+  function cancelDrag() {
+    const d = drag; drag = null;
+    if (d?.kind === 'pan') canvas.classList.remove('panning');
+    else if (d?.kind === 'move') {
+      Object.assign(doc, d.orig, { wires: d.orig.wires.filter(w => !d.synth?.includes(w.id)) });
+      if (d.sel0) sel = d.sel0;
+      render(); renderProps();
+    } else if (d?.kind === 'band') renderOverlay();
+  }
   function onDouble(it) {
     if (it.kind === 'sym') {
       const s = doc.symbols.find(x => x.id === it.id);
@@ -1457,6 +1468,7 @@ export function mountSchEditor(container, opts = {}) {
       view.tx -= e.shiftKey ? e.deltaY : e.deltaX; view.ty -= e.shiftKey ? 0 : e.deltaY; applyView();
     }
   }
+  twoFingerView(svg, { cancel: cancelDrag, pan: (dx, dy) => { view.tx += dx; view.ty += dy; applyView(); }, zoom: zoomAt });
   svg.addEventListener('pointerdown', onDown);
   svg.addEventListener('contextmenu', e => e.preventDefault());
   svg.addEventListener('dblclick', e => {

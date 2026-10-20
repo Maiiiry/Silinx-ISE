@@ -210,6 +210,65 @@ addEventListener('contextmenu', e => {
   if (lpPress.fired) { e.preventDefault(); e.stopImmediatePropagation(); } else lpCancel();
 }, true);
 
+// ------------------------------------------------------------------ two fingers on a drawing: pan and pinch (#674)
+// On a touch screen a second finger on `el` (a drawing's canvas) takes the gesture from the editor:
+// cancel() undoes what the first finger started (a selection band, a move), then the fingers' centre
+// moving pans the view, pan(dx, dy), and their spread changing zooms it about that centre, zoom(f, cx,
+// cy) (client px). The fingers' events are the gesture's until the last one is lifted (the editor sees
+// none of them, a finger left alone pans); one finger, the mouse and the pen stay the editor's own.
+// Wired before the editor's own 'pointerdown' listener on `el` (a capture one: it comes first).
+export function twoFingerView(el, { cancel, pan, zoom }) {
+  const pts = new Map();     // the fingers down on el: pointerId → { x, y }
+  let g = null;              // the gesture: its centre and spread as last applied
+  let raf = 0;
+  const measure = () => {
+    const p = [...pts.values()], n = p.length;
+    const x = p.reduce((s, q) => s + q.x, 0) / n, y = p.reduce((s, q) => s + q.y, 0) / n;
+    return { x, y, d: n > 1 ? Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y) : 0 };
+  };
+  // applied once a frame, from every finger's last point: each finger's move comes as an event of its own,
+  // and a spread measured between them (one finger moved, not yet the other) would zoom in and out
+  const apply = () => {
+    cancelAnimationFrame(raf); raf = 0;
+    if (!g || !pts.size) return;
+    const m = measure();
+    if (m.x !== g.x || m.y !== g.y) pan(m.x - g.x, m.y - g.y);
+    if (m.d > 10 && g.d > 10 && m.d !== g.d) zoom(m.d / g.d, m.x, m.y);
+    g = m;
+  };
+  const own = e => { e.stopImmediatePropagation(); if (e.cancelable) e.preventDefault(); };
+  const onMove = e => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (!g) return;
+    own(e);
+    raf ||= requestAnimationFrame(apply);
+  };
+  const onUp = e => {
+    if (!pts.has(e.pointerId)) return;
+    if (g) { own(e); apply(); }
+    pts.delete(e.pointerId);
+    if (g) g = pts.size ? measure() : null;
+    if (!pts.size) unlisten();
+  };
+  const listen = () => { addEventListener('pointermove', onMove, true); addEventListener('pointerup', onUp, true); addEventListener('pointercancel', onUp, true); };
+  const unlisten = () => { removeEventListener('pointermove', onMove, true); removeEventListener('pointerup', onUp, true); removeEventListener('pointercancel', onUp, true); };
+  el.addEventListener('pointerdown', e => {
+    if (e.pointerType !== 'touch') return;
+    if (e.isPrimary) { pts.clear(); g = null; }      // the first finger: none is down (one lifted unseen is forgotten)
+    if (!pts.size) listen();
+    if (g) apply();
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size < 2) return;
+    if (!g) { lpCancel(); cancel?.(); }
+    g = measure();
+    own(e);
+  }, true);
+  // Safari's own pinch (the page zoomed): touch-action: none says it already, its gesture events too
+  el.addEventListener('gesturestart', e => e.preventDefault());
+  return el;
+}
+
 export function menuBar(el, menus) {
   el.classList.add('menubar');
   el.innerHTML = '';
