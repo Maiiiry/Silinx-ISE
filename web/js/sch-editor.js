@@ -24,7 +24,7 @@ import { lutFunction } from '/core/fpga/techview.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
 import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu, twoFingerView } from './ui.js';
 import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
-import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
+import { rerouteAfterMove, connectivity, placementClashes, connectionsKept, moveSegment } from '/core/schroute.js';
 import { esc, h } from './dom.js';
 import { highlightHdl } from './highlight.js';
 import { copySchematic, pasteSchematic, clipEmpty } from '/core/schclip.js';
@@ -1326,6 +1326,60 @@ export function mountSchEditor(container, opts = {}) {
   }
   let moveFrame = 0;
   // a wire moved by (dx, dy), its kept ends where they were: joined by a jog square to its end segment
+  // ---------------- dragging one segment of a wire (#688)
+  // its neighbours stretch, its ends stay on what they connect (a short segment added), the net names on
+  // the segment go with it; the connections are not changed
+  function beginSegMove(id, pt) {
+    const w = doc.wires.find(x => x.id === id);
+    if (!w) return null;
+    let i = -1, best = Infinity;
+    for (let k = 0; k + 1 < w.points.length; k++) { const dd = segDist(pt, w.points[k], w.points[k + 1]); if (dd < best) { best = dd; i = k; } }
+    const a = w.points[i], b = w.points[i + 1];
+    const hz = a.y === b.y && a.x !== b.x, vt = a.x === b.x && a.y !== b.y;
+    if (!hz && !vt) return null;
+    // an end connected to something (a pin, a marker, another wire's end) stays there
+    const held = q => connPoints().some(c => c.x === q.x && c.y === q.y) || doc.wires.some(o => o !== w && [o.points[0], o.points[o.points.length - 1]].some(p => p.x === q.x && p.y === q.y));
+    const P = w.points;
+    const labels = doc.labels.filter(l => onSeg(l, a, b)).map(l => l.id);
+    const others = doc.labels.filter(l => !labels.includes(l.id) && P.some((q, k) => k + 1 < P.length && onSeg(l, q, P[k + 1]))).map(l => l.id);
+    let conn0 = null;
+    try { conn0 = connectivity(doc, modules); } catch { /* checked only when available */ }
+    return { kind: 'seg', before: snapshot(), id, i, hz, pts0: clone(P), keepA: held(P[0]), keepB: held(P[P.length - 1]), labels, others, labels0: clone(doc.labels), start: { x: snap(pt.x), y: snap(pt.y) }, conn0, d: 0 };
+  }
+  function applySegMove(m, d) {
+    if (d === m.d) return;
+    m.d = d;
+    const w = doc.wires.find(x => x.id === m.id);
+    if (!w) return;
+    w.points = moveSegment(m.pts0, m.i, d, { keepA: m.keepA, keepB: m.keepB });
+    for (const l of doc.labels) {
+      const l0 = m.labels0.find(x => x.id === l.id);
+      if (m.labels.includes(l.id)) { l.x = l0.x + (m.hz ? 0 : d); l.y = l0.y + (m.hz ? d : 0); continue; }
+      if (!m.others.includes(l.id)) continue;
+      // on a neighbour that shrank past it: put back on the wire, at its nearest point
+      l.x = l0.x; l.y = l0.y;
+      const P = w.points;
+      if (P.some((q, k) => k + 1 < P.length && onSeg(l, q, P[k + 1]))) continue;
+      let best = null;
+      for (let k = 0; k + 1 < P.length; k++) {
+        const q = P[k], r = P[k + 1];
+        const c = { x: Math.max(Math.min(q.x, r.x), Math.min(Math.max(q.x, r.x), l0.x)), y: Math.max(Math.min(q.y, r.y), Math.min(Math.max(q.y, r.y), l0.y)) };
+        const dd = Math.hypot(c.x - l0.x, c.y - l0.y);
+        if (!best || dd < best.dd) best = { ...c, dd };
+      }
+      if (best) { l.x = best.x; l.y = best.y; }
+    }
+    if (!moveFrame) moveFrame = requestAnimationFrame(() => { moveFrame = 0; render(); });
+  }
+  function finishSegMove(m) {
+    doc = normalizeDoc(doc);
+    if (m.conn0) {
+      let now = null;
+      try { now = connectivity(doc, modules); } catch { /* ignore */ }
+      if (now && !connectionsKept(m.conn0, now)) flash('Connections changed by this move (a pin now touches another net, or a wire could not be routed). Undo with Ctrl+Z if not intended.');
+    }
+    pushUndo(m.before); changed(); render(); renderProps();
+  }
   function keptEnds(pts0, keep, dx, dy) {
     let pts = pts0.map(p => ({ x: p.x + dx, y: p.y + dy }));
     if (!keep || (!dx && !dy)) return pts;
@@ -1407,6 +1461,8 @@ export function mountSchEditor(container, opts = {}) {
       const sel0 = sel;
       if (!sel.has(k)) { sel = new Set([k]); render(); renderProps(); }
       if (e.detail >= 2) return;            // handled by the dblclick listener
+      // one wire, Keep connections: the segment under the pointer is dragged, the rest stays (#688)
+      if (!readOnly && it.kind === 'wire' && keepConn && sel.size === 1) { const sd = beginSegMove(it.id, pt); if (sd) { drag = { ...sd, sel0 }; return; } }
       if (!readOnly) drag = { ...beginMove({ x: snap(pt.x), y: snap(pt.y) }), sel0 };
       return;
     }
@@ -1418,6 +1474,7 @@ export function mountSchEditor(container, opts = {}) {
     cursor = pt;
     if (drag?.kind === 'pan') { view.tx = drag.tx + e.clientX - drag.cx; view.ty = drag.ty + e.clientY - drag.cy; applyView(); return; }
     if (drag?.kind === 'move') { applyMove(drag, snap(pt.x) - drag.start.x, snap(pt.y) - drag.start.y); return; }
+    if (drag?.kind === 'seg') { applySegMove(drag, drag.hz ? snap(pt.y) - drag.start.y : snap(pt.x) - drag.start.x); return; }
     if (drag?.kind === 'band') { drag.cur = pt; renderOverlay(); return; }
     if (!svg.contains(e.target) && e.target !== svg) { live?.hideTip(); return; }
     if (live) { live.hover(e, pt, view.s); updateStatus(); return; }
@@ -1464,6 +1521,7 @@ export function mountSchEditor(container, opts = {}) {
     if (!drag) return;
     const d = drag; drag = null;
     if (d.kind === 'pan') { canvas.classList.remove('panning'); return; }
+    if (d.kind === 'seg') { if (d.d) finishSegMove(d); return; }
     if (d.kind === 'move') {
       if (d.dx || d.dy) finishMove(d);
       else if (d.synth?.length) { doc.wires = doc.wires.filter(w => !d.synth.includes(w.id)); render(); }   // just a click
@@ -1482,6 +1540,12 @@ export function mountSchEditor(container, opts = {}) {
     if (d?.kind === 'pan') canvas.classList.remove('panning');
     else if (d?.kind === 'move') {
       Object.assign(doc, d.orig, { wires: d.orig.wires.filter(w => !d.synth?.includes(w.id)) });
+      if (d.sel0) sel = d.sel0;
+      render(); renderProps();
+    } else if (d?.kind === 'seg') {
+      const w = doc.wires.find(x => x.id === d.id);
+      if (w) w.points = clone(d.pts0);
+      doc.labels = clone(d.labels0);
       if (d.sel0) sel = d.sel0;
       render(); renderProps();
     } else if (d?.kind === 'band') renderOverlay();

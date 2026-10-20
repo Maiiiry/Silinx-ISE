@@ -1,8 +1,8 @@
 // Schematic wire routing after moving symbols: the wires attached to moved pins are re-routed on
 // the grid (orthogonal, few bends) so that every connection is kept and no new one is made.
 //
-// Connectivity in a schematic is geometric (core/schdoc.js netlist): a wire vertex on a pin / port /
-// another wire vertex connects, and so does a wire end on another wire's segment. A route is
+// Connectivity in a schematic is geometric (core/schdoc.js netlist): wire ends, pins and ports at the
+// same point connect (#678; a wire passing over them does not, but is avoided all the same). A route is
 // therefore not allowed to bend on, end on, or run along anything of another net, nor to pass over
 // a pin, an I/O marker, a net label or another wire's vertex; it may cross another wire at a right
 // angle (crossings do not connect). Symbol bodies are avoided.
@@ -27,6 +27,28 @@ function onSeg(p, a, b) {
   return false;
 }
 
+/**
+ * A wire's segment i dragged by d across its direction (a horizontal one up or down, a vertical one left
+ * or right, #688): its two neighbours stretch or shrink to stay attached, every other segment stays.
+ * keepA / keepB: the wire's start / end stays where it is (connected there) when the segment is its
+ * first / last: a short segment joins it to the moved one. Returns the new points (no duplicate points,
+ * no point in the middle of a straight run); a diagonal segment, or d = 0, leaves the wire as it is.
+ */
+export function moveSegment(pts, i, d, { keepA = true, keepB = true } = {}) {
+  const P = pts.map(p => ({ x: p.x, y: p.y })), n = P.length;
+  const a = P[i], b = P[i + 1];
+  if (!a || !b || !d) return P;
+  const hz = a.y === b.y && a.x !== b.x, vt = a.x === b.x && a.y !== b.y;
+  if (!hz && !vt) return P;
+  const mv = p => (hz ? { x: p.x, y: p.y + d } : { x: p.x + d, y: p.y });
+  // a neighbour across the segment's direction stretches to the moved end; otherwise (the wire's end,
+  // or a neighbour in line) the old point stays and a short segment joins them
+  const across = (q, p) => (hz ? q.x === p.x : q.y === p.y);   // q-p across the segment's direction
+  const before = i === 0 ? (keepA ? [a] : []) : (across(P[i - 1], a) ? [] : [a]);
+  const after = i + 1 === n - 1 ? (keepB ? [b] : []) : (across(P[i + 2], b) ? [] : [b]);
+  const out = clean([...P.slice(0, i), ...before, mv(a), mv(b), ...after, ...P.slice(i + 2)]);
+  return out.length >= 2 ? out : P;
+}
 /** Minimal binary heap keyed by f. */
 class Heap {
   constructor() { this.a = []; }

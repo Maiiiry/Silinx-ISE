@@ -73,11 +73,10 @@ uiTest('schematic: a wire dragged with Keep connections keeps its ends on the ma
   await page.drag(await at(250, 180), await at(290, 180));
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W3').points[1].x === 290, [], { what: 'moved' });
   assert.deepEqual(await wire('W3'), [[180, 100], [290, 100], [290, 200], [400, 200]]);
-  // dragged down 20: still on both (jogs at the ends)
-  await page.drag(await at(290, 180), await at(290, 200));
+  // its last segment dragged down 20: only that segment moves, its end stays on y (a short segment, #688)
+  await page.drag(await at(350, 200), await at(350, 220));
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W3').points.length > 4, [], { what: 'moved down' });
-  const w3 = await wire('W3');
-  assert.deepEqual([w3[0], w3.at(-1)], [[180, 100], [400, 200]], 'its ends on the joint and y: ' + JSON.stringify(w3));
+  assert.deepEqual(await wire('W3'), [[180, 100], [290, 100], [290, 220], [400, 220], [400, 200]]);
   // W2: its start on the joint (the T) stays there too
   await page.menu('Edit', 'Undo'); await page.menu('Edit', 'Undo');
   await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W3').points[1].x === 250, [], { what: 'undone' });
