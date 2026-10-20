@@ -647,7 +647,9 @@ export function applyWrite(cur, wr, val, inPlace = false) {
     arr[wr.elem] = applyElem(arr[wr.elem], wr, val);
     return arr;
   }
-  if (wr.whole) return Array.isArray(val) ? val.slice() : isStr(val) || val.real !== undefined || cur?.real !== undefined ? val : { ...V.resize(val, cur.w), s: cur.s };
+  // (a value of the container's width and sign is stored as it is: values are never changed in place, and a
+  // netlist primitive's 0 / 1 stays the shared constant its inputs are compared with, #695)
+  if (wr.whole) return Array.isArray(val) ? val.slice() : isStr(val) || val.real !== undefined || cur?.real !== undefined ? val : V.resize(val, cur.w, cur.s);
   return V.setBits(cur, wr.lo, wr.w, V.resize(val, wr.w));
 }
 

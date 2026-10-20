@@ -124,6 +124,69 @@ test('netgen netlist: UNISIM primitives (native) count like the RTL would', () =
   assert.ok(procs.some((p) => p.mode === 'native'), 'primitives run as native processes');
 });
 
+// #695: a native primitive has a fixed sensitivity: one waiter record, in its inputs' waiter sets from the start
+// and kept there (it was a new one at every wake, added to the sets and removed: a third of a model's time); #698:
+// the same counts again after a reset (the emulator's power cycle: the primitives' state of the run before, their
+// outputs' projected values by the old run's delta stamps, held the counter at 0)
+test('netgen netlist: a native primitive keeps one waiter in its inputs\' sets, run after run; a reset starts it again', () => {
+  const srcs = [{ path: 'n.vhd', lang: 'vhdl', text: NET }];
+  const d = elaborate(compile([...primitiveSources(srcs), ...srcs]), 'top');
+  const sim = new Simulator(d);
+  const port = (n) => d.top.ports.find((p) => p.name === n).sig;
+  const natives = () => sim.rts.filter((rt) => rt.p.mode === 'native');
+  const cycle = () => {
+    sim.force(port('rst'), V.ONE); sim.force(port('en'), V.ONE);
+    sim.addClock(port('clk'), { period: 10000 });
+    sim.run(15000);
+    const recs = natives().map((rt) => rt.rec);
+    sim.force(port('rst'), V.ZERO);
+    const out = [];
+    for (let i = 0; i < 4; i++) { sim.run(sim.now + 10000); out.push(Number(port('q').val.v)); }
+    assert.ok(natives().length >= 4);
+    natives().forEach((rt, i) => {
+      assert.equal(rt.rec, recs[i], 'the same record');
+      assert.equal(rt.gen, null, 'no generator');
+      for (const tr of rt.p.triggers) assert.ok(tr.sig.waiters.has(rt.rec), `${rt.p.name} waits on ${tr.sig.name}`);
+    });
+    return out;
+  };
+  assert.deepEqual(cycle(), [1, 2, 3, 0]);
+  sim.reset();
+  assert.deepEqual(cycle(), [1, 2, 3, 0]);
+  assert.deepEqual(sim.log, []);
+});
+
+// #698: a shift register's contents back to its INIT after a reset
+test('netgen netlist: a native SRL16E starts again from its INIT after a reset', () => {
+  const text = `library IEEE; use IEEE.STD_LOGIC_1164.ALL; library UNISIM; use UNISIM.VCOMPONENTS.ALL;
+entity top is port (clk, d : in STD_LOGIC; q : out STD_LOGIC); end top;
+architecture Structure of top is
+  signal gnd, vcc : STD_LOGIC;
+begin
+  g : GND port map (G => gnd);
+  v : VCC port map (P => vcc);
+  s : SRL16E generic map (INIT => X"0003") port map (CLK => clk, D => d, CE => vcc, A0 => vcc, A1 => gnd, A2 => gnd, A3 => gnd, Q => q);
+end Structure;`;
+  const srcs = [{ path: 'n.vhd', lang: 'vhdl', text }];
+  const d = elaborate(compile([...primitiveSources(srcs), ...srcs]), 'top');
+  assert.deepEqual(d.diags, []);
+  assert.ok(d.procs.some((p) => p.mode === 'native' && p.name === 'SRL16E'));
+  const sim = new Simulator(d);
+  const port = (n) => d.top.ports.find((p) => p.name === n).sig;
+  // q = bit 1: 1 (INIT), then the zeros shifted in
+  const run = () => {
+    sim.force(port('d'), V.ZERO);
+    sim.addClock(port('clk'), { period: 10000 });
+    const out = [];
+    for (let i = 0; i < 3; i++) { sim.run(i * 10000 + 2000); out.push(Number(port('q').val.v)); }
+    return out;
+  };
+  assert.deepEqual(run(), [1, 1, 0]);
+  sim.reset();
+  assert.deepEqual(run(), [1, 1, 0]);
+  assert.deepEqual(sim.log, []);
+});
+
 test('scalarizeNetlist and regroupNetlist keep the behaviour', () => {
   const sc = scalarizeNetlist(NET);
   assert.match(sc, /signal cnt_cnt_q_0 : STD_LOGIC;/);

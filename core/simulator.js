@@ -125,7 +125,7 @@ export class Simulator {
       s.forced = null;
       s.wave = Array.isArray(s.init) || s.t.kind === 'str' ? null : { t: [0], v: [s.val] };
     }
-    this.rts = this.design.procs.map(p => ({ p, gen: null, done: false, rec: null, ctx: null, fork: null, parent: null, kids: null, waitKids: false }));
+    this.rts = this.design.procs.map(p => ({ p, gen: null, native: null, done: false, rec: null, ctx: null, fork: null, parent: null, kids: null, waitKids: false }));
     // Resolved signals: a logic signal with several drivers (VHDL processes / concurrent
     // statements, Verilog continuous assignments and port connections; all the procedural code of
     // a Verilog module counts as one driver) keeps one value per driver and resolves them.
@@ -348,7 +348,8 @@ export class Simulator {
   fire(rec, why) {
     if (rec.fired) return;
     rec.fired = true;
-    for (const tr of rec.triggers) tr.sig.waiters.delete(rec);
+    // (a native primitive's waiter stays in its triggers' sets, #695)
+    if (!rec.fixed) for (const tr of rec.triggers) tr.sig.waiters.delete(rec);
     this.active.push({ rt: rec.rt, val: why });
   }
 
@@ -363,10 +364,6 @@ export class Simulator {
     const sim = this;
     switch (p.mode) {
       case 'initial': return (function* () { yield* exec(body, ctx); })();
-      case 'native': return (function* () {   // netlist primitive evaluated in JavaScript (core/native.js)
-        const fn = p.native;
-        for (;;) { fn(sim); yield triggers.length ? { triggers } : { forever: true }; }
-      })();
       case 'loop': return (function* () {
         for (;;) {
           const t0 = sim.now, s0 = sim.stamp;
@@ -388,20 +385,41 @@ export class Simulator {
     }
   }
 
+  // A netlist primitive evaluated in JavaScript (core/native.js) has a fixed sensitivity: no generator, and one
+  // waiter record, put once in its triggers' sets, that stays there (#695: allocating a record and adding it to
+  // and removing it from the sets at each wake were a third of a gate-level model's time)
+  startNative(rt) {
+    const triggers = rt.p.triggers;
+    rt.p.nativeReset?.();   // (its state of a run before: a reset, the emulator's power cycle, #698)
+    rt.native = rt.p.native;
+    if (!triggers.length) return;
+    rt.rec = { rt, triggers, fired: true, fixed: true };   // (fired: its first run is queued)
+    for (const tr of triggers) tr.sig.waiters.add(rt.rec);
+  }
+  processError(rt, e) {
+    rt.done = true;
+    const msg = e instanceof SimError ? e.message : `internal error: ${e.message}`;
+    this.emit({ kind: 'error', text: `${msg} (in ${rt.p.inst.path}/${rt.p.name})`, file: rt.p.file, line: e.loc?.line || rt.ctx?.loc?.line || rt.p.loc?.line });
+    if (!(e instanceof SimError)) console.error(e);
+    this.finish('error');
+  }
+
   resume(rt, val) {
     if (rt.done) return;
     this.curProc = rt.p;
     this.stats.procRuns++;
+    if (rt.native) {
+      try { rt.native(this); } catch (e) { this.processError(rt, e); return; }
+      if (rt.rec) rt.rec.fired = false;
+      else rt.done = true;   // (no input: it waits forever)
+      return;
+    }
     for (;;) {
       let r;
       try {
         r = rt.gen.next(val);
       } catch (e) {
-        rt.done = true;
-        const msg = e instanceof SimError ? e.message : `internal error: ${e.message}`;
-        this.emit({ kind: 'error', text: `${msg} (in ${rt.p.inst.path}/${rt.p.name})`, file: rt.p.file, line: e.loc?.line || rt.ctx?.loc?.line || rt.p.loc?.line });
-        if (!(e instanceof SimError)) console.error(e);
-        this.finish('error');
+        this.processError(rt, e);
         return;
       }
       if (r.done) { rt.done = true; if (rt.fork) this.threadDone(rt); return; }
@@ -471,7 +489,8 @@ export class Simulator {
     this.started = true;
     // (variable initializers evaluated at time 0 first: integer b = a + 1; IEEE 1800-2017 10.5)
     for (const rt of [...this.rts.filter(r => r.p.declInit), ...this.rts.filter(r => !r.p.declInit)]) {
-      rt.gen = this.makeGen(rt);
+      if (rt.p.mode === 'native') this.startNative(rt);
+      else rt.gen = this.makeGen(rt);
       this.active.push({ rt, val: undefined });
     }
   }

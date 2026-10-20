@@ -6,8 +6,17 @@
 // Primitives not listed here (latches, block RAMs, multipliers, DCMs) keep their VHDL models.
 import * as V from './values.js';
 
-const bit = (v) => (v == null || Array.isArray(v) ? 2 : (v.x & 1n) ? 2 : Number(v.v & 1n));
 const VAL = [V.ZERO, V.ONE, V.X1];
+// bit 0 of a value: 0, 1 or 2 (unknown). (Compared, not masked, when it is a single bit: a BigInt & allocates,
+// and this was half of a gate-level model's time, #695)
+const bit = (v) => {
+  if (v === VAL[0]) return 0;
+  if (v === VAL[1]) return 1;
+  if (v == null || Array.isArray(v)) return 2;
+  const x = v.x, n = v.v;
+  if (x !== 0n && (x === 1n || (x & 1n))) return 2;
+  return n === 0n ? 0 : n === 1n ? 1 : Number(n & 1n);
+};
 const rising = (sim, s) => s.evStamp === sim.stamp && bit(s.val) === 1 && bit(s.prev) === 0;
 const falling = (sim, s) => s.evStamp === sim.stamp && bit(s.val) === 0 && bit(s.prev) === 1;
 
@@ -21,10 +30,17 @@ const FF = /^(FD(C|P|R|S|E|CE|PE|RE|SE|RS|RSE|CP|CPE)?)(_1)?$/;
 
 /**
  * Native process for primitive `name` with elaborated `params` ({ name, value }) and `ports`
- * ({ name, dir, sig }); null if the primitive has no native implementation.
- * @returns {{ fn(sim), inputs: object[], outputs: object[], init: Array<[sig, value]> } | null}
+ * ({ name, dir, sig }); null if the primitive has no native implementation. reset(): its state as at
+ * the start (a simulator that starts again: the board emulator's power cycle, #698).
+ * @returns {{ fn(sim), inputs: object[], outputs: object[], init: Array<[sig, value]>, reset() } | null}
  */
 export function nativePrimitive(name, params, ports) {
+  const proj = new Map();   // output -> [stamp, scheduled bit] (below)
+  const r = primitive(name, params, ports, proj);
+  if (r) { const own = r.reset; r.reset = () => { proj.clear(); own?.(); }; }
+  return r;
+}
+function primitive(name, params, ports, proj) {
   const N = String(name).toUpperCase();
   const P = new Map(ports.map((p) => [p.name.toUpperCase(), p.sig]));
   const param = (k) => params.find((p) => p.name.toUpperCase() === k)?.value;
@@ -34,7 +50,6 @@ export function nativePrimitive(name, params, ports) {
   // (not the current one): the process can run twice in a delta (an input written by a glue process
   // in the same delta), and a second result equal to the current value must still replace the
   // pending one, as a VHDL signal assignment replaces the projected transaction.
-  const proj = new Map();   // output -> [stamp, scheduled bit]
   const set = (sim, sigs, b) => {
     for (const s of sigs) {
       const p = proj.get(s);
@@ -93,11 +108,11 @@ export function nativePrimitive(name, params, ports) {
     const adr = ['A0', 'A1', 'A2', 'A3'].map((k) => P.get(k));
     if (!clk || !d || adr.some((x) => !x)) return null;
     const edge = m[2] ? falling : rising;
-    const r = initBits(param('INIT'), 16);
+    const r = initBits(param('INIT'), 16), r0 = r.slice();
     const q = outs('Q'), q15 = outs('Q15');
     const read = (sim) => { const a = addrOf(adr); set(sim, q, a < 0 ? 2 : r[a]); set(sim, q15, r[15]); };
     return {
-      inputs: [clk, ...adr], outputs: [...q, ...q15], init: [...q.map((s) => [s, VAL[r[0]]]), ...q15.map((s) => [s, VAL[r[15]]])],
+      inputs: [clk, ...adr], outputs: [...q, ...q15], init: [...q.map((s) => [s, VAL[r[0]]]), ...q15.map((s) => [s, VAL[r[15]]])], reset: () => r.set(r0),
       fn(sim) {
         if (edge(sim, clk) && (!ce || bit(ce.val) === 1)) { r.copyWithin(1, 0, 15); r[0] = bit(d.val); }
         read(sim);
@@ -112,10 +127,10 @@ export function nativePrimitive(name, params, ports) {
     const clk = P.get(simprim ? 'CLK' : 'WCLK'), din = P.get(simprim ? 'I' : 'D'), we = P.get('WE');
     if (!clk || !din || !we || wa.some((x) => !x) || reads.some(([o, a]) => !o || a.some((x) => !x))) return null;
     const edge = m[3] ? falling : rising;
-    const mem = initBits(param('INIT'), depth);
+    const mem = initBits(param('INIT'), depth), mem0 = mem.slice();
     return {
       inputs: [...new Set([clk, ...wa, ...reads.flatMap((r) => r[1])])], outputs: reads.map((r) => r[0]),
-      init: reads.map(([o]) => [o, VAL[mem[0]]]),
+      init: reads.map(([o]) => [o, VAL[mem[0]]]), reset: () => mem.set(mem0),
       fn(sim) {
         if (edge(sim, clk) && bit(we.val) === 1) { const a = addrOf(wa); if (a >= 0) mem[a] = bit(din.val); }
         for (const [o, a] of reads) { const k = addrOf(a); set(sim, [o], k < 0 ? 2 : mem[k]); }
