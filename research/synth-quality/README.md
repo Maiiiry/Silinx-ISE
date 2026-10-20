@@ -897,3 +897,106 @@ designs, seeds 1-3):
 - The cost: one quiet run up to `fsm` on every design at High, started beside the usual run (the examples'
   synthesis as long as before, 1.7 to 2.6 s with the Yosys workers); a design with such a machine is synthesized
   twice (after #86: b10 2.5 → 5.1 s, b17 16 → 43 s, one Yosys at a time).
+
+## Where the speed is lost: logic or routing (#656)
+
+The weekly comparison against ISE now records, for each critical path, trce's breakdown (#646): its levels of
+logic, its LUT, carry, flip-flop and other logic delays and its routing delay, for ISE's flow and for Silinx's
+routing at both efforts, all by ISE's trce. The run of 2026-10-20 (Silinx 15.11.2, main efe1a2e, the results on
+the branch `quality-results` at 43efe87): critical path +3 % against ISE at Normal (as fast or faster on 14 of 40),
+−2 % at High (20 of 40). The designs slower than ISE, slowest first (ns; *S / I*: Silinx's period / ISE's; *FF*:
+the flip-flops' clock to out and setup; Δ: Silinx's less ISE's):
+
+Normal:
+
+| design | S / I | gap (ns) | levels S / I | logic S / I | LUT S / I | carry S / I | FF S / I | route S / I | Δ logic | Δ route |
+|---|---:|---:|---|---|---|---|---|---|---:|---:|
+| iwls05-i2c | 1.61 | 3.60 | 6 / 4 | 5.53 / 4.19 | 4.39 / 2.98 | 0.00 / 0.00 | 1.14 / 1.21 | 3.98 / 1.72 | +1.34 | +2.26 |
+| epfl-multiplier | 1.40 | 26.66 | 87 / 38 | 63.40 / 31.33 | 62.81 / 28.10 | 0.00 / 0.00 | 0.59 / 1.75 | 30.00 / 35.40 | +32.08 | −5.41 |
+| itc99-b10 | 1.32 | 1.57 | 3 / 3 | 3.31 / 2.89 | 2.17 / 2.30 | 0.00 / 0.00 | 1.15 / 0.59 | 3.16 / 2.01 | +0.42 | +1.15 |
+| itc99-b08 | 1.31 | 1.82 | 4 / 5 | 4.07 / 4.41 | 2.93 / 3.82 | 0.00 / 0.00 | 1.15 / 0.59 | 3.62 / 1.47 | −0.33 | +2.15 |
+| itc99-b12 | 1.23 | 1.82 | 6 / 5 | 5.60 / 4.86 | 4.39 / 4.27 | 0.00 / 0.00 | 1.21 / 0.59 | 4.02 / 2.94 | +0.74 | +1.08 |
+| itc99-b05 | 1.22 | 2.20 | 8 / 8 | 7.45 / 6.82 | 2.98 / 4.21 | 2.14 / 1.96 | 1.15 / 0.65 | 4.56 / 2.99 | +0.62 | +1.56 |
+| t80 | 1.21 | 3.83 | 14 / 18 | 11.71 / 12.00 | 8.72 / 8.91 | 2.03 / 2.50 | 0.95 / 0.59 | 10.23 / 6.13 | −0.29 | +4.10 |
+| vtr-stereovision3 | 1.19 | 0.94 | 3 / 2 | 3.37 / 2.66 | 2.17 / 1.52 | 0.00 / 0.00 | 1.21 / 1.15 | 2.49 / 2.25 | +0.71 | +0.24 |
+| spi-fpga-slave | 1.18 | 0.89 | 3 / 2 | 3.37 / 2.61 | 2.17 / 1.46 | 0.00 / 0.00 | 1.21 / 1.15 | 2.38 / 2.31 | +0.76 | +0.07 |
+| epfl-bar | 1.17 | 1.56 | 6 / 4 | 5.28 / 4.87 | 4.63 / 4.22 | 0.00 / 0.00 | 0.65 / 0.65 | 5.36 / 4.20 | +0.41 | +1.15 |
+| iwls05-sasc | 1.15 | 0.75 | 3 / 2 | 3.42 / 3.09 | 2.28 / 1.41 | 0.00 / 0.00 | 1.15 / 1.68 | 2.16 / 1.75 | +0.33 | +0.41 |
+| verilog-uart | 1.14 | 1.29 | 6 / 13 | 5.92 / 6.70 | 2.98 / 1.60 | 1.44 / 4.51 | 1.50 / 0.59 | 4.61 / 2.53 | −0.77 | +2.07 |
+| vtr-ch-intrinsics | 1.14 | 0.70 | 4 / 4 | 3.70 / 3.59 | 3.11 / 3.00 | 0.00 / 0.00 | 0.59 / 0.59 | 2.06 / 1.47 | +0.11 | +0.59 |
+| iwls05-simple-spi | 1.12 | 0.78 | 4 / 4 | 4.13 / 4.58 | 2.98 / 2.87 | 0.00 / 0.00 | 1.15 / 1.71 | 2.81 / 1.63 | −0.45 | +1.18 |
+| itc99-b09 | 1.11 | 0.66 | 4 / 5 | 4.13 / 4.46 | 2.98 / 3.87 | 0.00 / 0.00 | 1.15 / 0.59 | 2.43 / 1.44 | −0.34 | +0.99 |
+| itc99-b06 | 1.09 | 0.30 | 1 / 1 | 1.97 / 1.43 | 0.76 / 0.84 | 0.00 / 0.00 | 1.21 / 0.59 | 1.52 / 1.48 | +0.54 | +0.05 |
+| epfl-adder | 1.09 | 1.09 | 64 / 8 | 9.87 / 6.75 | 0.00 / 6.09 | 8.86 / 0.00 | 1.01 / 0.65 | 3.47 / 5.32 | +3.12 | −1.86 |
+| iwls05-usb-phy | 1.09 | 0.44 | 3 / 2 | 3.37 / 3.23 | 2.17 / 1.46 | 0.00 / 0.00 | 1.21 / 1.77 | 2.05 / 1.74 | +0.14 | +0.31 |
+| epfl-router | 1.08 | 0.79 | 9 / 6 | 7.33 / 6.34 | 6.74 / 4.78 | 0.00 / 0.00 | 0.59 / 1.56 | 2.81 / 3.01 | +0.99 | −0.19 |
+| vtr-diffeq1 | 1.08 | 2.90 | 17 / 16 | 24.63 / 26.95 | 3.11 / 0.70 | 4.19 / 10.63 | 0.59 / 0.00 | 14.06 / 8.85 | −2.32 | +5.22 |
+| epfl-max | 1.08 | 2.08 | 19 / 17 | 15.15 / 13.79 | 14.50 / 13.20 | 0.00 / 0.00 | 0.65 / 0.59 | 12.53 / 11.89 | +1.36 | +0.63 |
+| epfl-i2c | 1.06 | 0.42 | 5 / 4 | 4.53 / 4.48 | 3.87 / 2.98 | 0.00 / 0.00 | 0.65 / 1.50 | 2.63 / 2.33 | +0.04 | +0.30 |
+| uart-for-fpga | 1.04 | 0.20 | 2 / 2 | 2.48 / 3.02 | 0.84 / 1.52 | 0.00 / 0.00 | 0.59 / 1.50 | 2.41 / 1.67 | −0.54 | +0.74 |
+| itc99-b03 | 1.04 | 0.22 | 3 / 4 | 3.42 / 3.70 | 2.28 / 3.11 | 0.00 / 0.00 | 1.15 / 0.59 | 2.08 / 1.58 | −0.28 | +0.50 |
+| iwls05-spi | 1.02 | 0.28 | 11 / 9 | 9.37 / 7.21 | 3.17 / 3.97 | 5.61 / 0.00 | 0.59 / 0.59 | 3.95 / 5.83 | +2.16 | −1.88 |
+| secworks-siphash | 1.02 | 0.21 | 27 / 34 | 9.50 / 9.29 | 2.30 / 1.60 | 6.61 / 7.11 | 0.59 / 0.59 | 4.68 / 4.66 | +0.21 | +0.02 |
+
+High:
+
+| design | S / I | gap (ns) | levels S / I | logic S / I | LUT S / I | carry S / I | FF S / I | route S / I | Δ logic | Δ route |
+|---|---:|---:|---|---|---|---|---|---|---:|---:|
+| iwls05-i2c | 1.48 | 2.86 | 5 / 4 | 4.89 / 4.19 | 3.74 / 2.98 | 0.00 / 0.00 | 1.15 / 1.21 | 3.88 / 1.72 | +0.70 | +2.16 |
+| epfl-multiplier | 1.40 | 26.66 | 87 / 38 | 63.40 / 31.33 | 62.81 / 28.10 | 0.00 / 0.00 | 0.59 / 1.75 | 30.00 / 35.40 | +32.08 | −5.41 |
+| itc99-b12 | 1.23 | 1.82 | 6 / 5 | 5.60 / 4.86 | 4.39 / 4.27 | 0.00 / 0.00 | 1.21 / 0.59 | 4.02 / 2.94 | +0.74 | +1.08 |
+| t80 | 1.21 | 3.83 | 14 / 18 | 11.71 / 12.00 | 8.72 / 8.91 | 2.03 / 2.50 | 0.95 / 0.59 | 10.23 / 6.13 | −0.29 | +4.10 |
+| vtr-stereovision3 | 1.19 | 0.94 | 3 / 2 | 3.37 / 2.66 | 2.17 / 1.52 | 0.00 / 0.00 | 1.21 / 1.15 | 2.49 / 2.25 | +0.71 | +0.24 |
+| itc99-b03 | 1.19 | 1.00 | 3 / 4 | 3.43 / 3.70 | 2.22 / 3.11 | 0.00 / 0.00 | 1.21 / 0.59 | 2.85 / 1.58 | −0.27 | +1.27 |
+| spi-fpga-slave | 1.18 | 0.89 | 3 / 2 | 3.37 / 2.61 | 2.17 / 1.46 | 0.00 / 0.00 | 1.21 / 1.15 | 2.38 / 2.31 | +0.76 | +0.07 |
+| epfl-bar | 1.17 | 1.56 | 6 / 4 | 5.28 / 4.87 | 4.63 / 4.22 | 0.00 / 0.00 | 0.65 / 0.65 | 5.36 / 4.20 | +0.41 | +1.15 |
+| vtr-ch-intrinsics | 1.14 | 0.70 | 4 / 4 | 3.70 / 3.59 | 3.11 / 3.00 | 0.00 / 0.00 | 0.59 / 0.59 | 2.06 / 1.47 | +0.11 | +0.59 |
+| itc99-b05 | 1.10 | 0.96 | 7 / 8 | 6.57 / 6.82 | 2.49 / 4.21 | 1.76 / 1.96 | 1.15 / 0.65 | 4.21 / 2.99 | −0.25 | +1.21 |
+| itc99-b06 | 1.09 | 0.30 | 1 / 1 | 1.97 / 1.43 | 0.76 / 0.84 | 0.00 / 0.00 | 1.21 / 0.59 | 1.52 / 1.48 | +0.54 | +0.05 |
+| epfl-adder | 1.09 | 1.09 | 64 / 8 | 9.87 / 6.75 | 0.00 / 6.09 | 8.86 / 0.00 | 1.01 / 0.65 | 3.47 / 5.32 | +3.12 | −1.86 |
+| iwls05-usb-phy | 1.09 | 0.44 | 3 / 2 | 3.37 / 3.23 | 2.17 / 1.46 | 0.00 / 0.00 | 1.21 / 1.77 | 2.05 / 1.74 | +0.14 | +0.31 |
+| itc99-b08 | 1.09 | 0.52 | 4 / 5 | 4.11 / 4.41 | 2.96 / 3.82 | 0.00 / 0.00 | 1.15 / 0.59 | 2.28 / 1.47 | −0.30 | +0.81 |
+| epfl-max | 1.08 | 2.08 | 19 / 17 | 15.15 / 13.79 | 14.50 / 13.20 | 0.00 / 0.00 | 0.65 / 0.59 | 12.53 / 11.89 | +1.36 | +0.63 |
+| iwls05-sasc | 1.03 | 0.14 | 2 / 2 | 2.61 / 3.09 | 1.46 / 1.41 | 0.00 / 0.00 | 1.15 / 1.68 | 2.38 / 1.75 | −0.48 | +0.63 |
+| iwls05-simple-spi | 1.02 | 0.14 | 3 / 4 | 3.32 / 4.58 | 2.11 / 2.87 | 0.00 / 0.00 | 1.21 / 1.71 | 3.03 / 1.63 | −1.26 | +1.40 |
+| iwls05-spi | 1.02 | 0.28 | 11 / 9 | 9.37 / 7.21 | 3.17 / 3.97 | 5.61 / 0.00 | 0.59 / 0.59 | 3.95 / 5.83 | +2.16 | −1.88 |
+| uart-for-fpga | 1.02 | 0.08 | 2 / 2 | 2.91 / 3.02 | 1.41 / 1.52 | 0.00 / 0.00 | 1.50 / 1.50 | 1.86 / 1.67 | −0.11 | +0.20 |
+| secworks-siphash | 1.02 | 0.21 | 27 / 34 | 9.50 / 9.29 | 2.30 / 1.60 | 6.61 / 7.11 | 0.59 / 0.59 | 4.68 / 4.66 | +0.21 | +0.02 |
+
+What the gap is made of:
+
+- **Routing, more than logic.** Leaving out epfl-multiplier, the designs slower than ISE have, together, 8.7 ns more
+  logic and 22.9 ns more routing at Normal (8.0 and 12.2 at High). The routing is the larger part on 17 designs;
+  per connection, the critical path's routing is 1.10 times ISE's on average at Normal (1.03 at High), but 2.0
+  times on t80 (14 levels, ISE 18, and 4.1 ns more routing) and 1.7 on iwls05-i2c.
+- **Logic where it is a level more.** On small control paths (spi-fpga-slave, vtr-stereovision3, iwls05-usb-phy,
+  iwls05-sasc: 3 levels against 2; iwls05-i2c 6 against 4) one LUT more is 10 to 20 % of the period. High removes
+  it on epfl-router, epfl-i2c and iwls05-sasc, not on the others.
+- **The flip-flops' clock enable.** On ITC'99 b03 to b12 Silinx's critical path ends on a flip-flop's CE: Tcko +
+  Tceck, 0.591 + 0.555 = 1.15 ns, after the enable's LUT and its net, where ISE's goes through the LUT into D (its
+  0.59 ns is Tcko alone, the setup in the LUT's Tfck). verilog-uart's ends on the SR (Tsrck 0.910).
+- **One synthesis loss alone:** epfl-multiplier, 87 levels against 38 and 32 ns more logic, with *less* routing
+  than ISE's; at 7527 LUTs it is above the depth mapping's limit, so High maps it as Normal (#468).
+- **The carry chain:** epfl-adder's 128-bit chain (64 carry levels, 8.86 ns) against ISE's 8 levels of LUTs: 1.09
+  times ISE's, less routing but a longer chain. iwls05-spi and secworks-siphash are within 2 %.
+
+The causes ranked by what each could win: the geometric mean of the critical path against ISE (40 designs) with
+that part of the affected designs' critical paths as ISE's (each alone; they overlap a little: an enable's net is
+also routing):
+
+| cause | issue | designs | Normal: +3.1 % → | High: −1.9 % → |
+|---|---|---|---:|---:|
+| routing of the critical path (placement, router) | #651 | t80, vtr-diffeq1, iwls05-i2c, itc99-b08, verilog-uart, itc99-b05, b09, b10, b12, iwls05-simple-spi, epfl-bar, fpu-adder, vtr-ch-intrinsics, and 4 more | −3.5 % (6.6 points) | −7.1 % (5.2) |
+| a LUT level more on short control paths | #652 | iwls05-i2c, spi-fpga-slave, vtr-stereovision3, iwls05-usb-phy, iwls05-sasc, epfl-router, epfl-i2c, epfl-bar (#54), vtr-diffeq1 | +0.8 % (2.3) | −3.1 % (1.2) |
+| the path ends on CE (Tceck) instead of through D | #653 | itc99-b03, b05, b06, b08, b09, b10, b12, verilog-uart, vtr-diffeq1 | +1.6 % (1.5) | −2.9 % (1.0) |
+| epfl-multiplier's depth | #654 | epfl-multiplier | +2.2 % (0.9) | −2.7 % (0.8) |
+| epfl-adder's long carry chain | #655 | epfl-adder | +2.9 % (0.2) | −2.1 % (0.2) |
+| epfl-max's depth | #52 | epfl-max | +3.0 % (0.1) | −2.0 % (0.1) |
+
+So place and route is the first target, about as large as all the synthesis causes together: the routing alone
+would make Silinx 3.5 % faster than ISE at Normal and 7 % at High. The synthesis's largest share is the short
+control paths, a LUT level and the clock enable (#652, #653: 3.8 points at Normal together), more than the deep
+benchmarks (#52, #54, #370: one benchmark each, two of them about size).
+
+The numbers are recomputed from `test/designs-corpus/ise-comparison.json` (`path` of each side); the weekly
+comparison's page (docs/QUALITY.md, *The critical paths: logic and routing*) shows them for every design.
