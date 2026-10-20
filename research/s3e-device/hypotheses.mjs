@@ -12,7 +12,8 @@
 // A tile with no slice (an I/O or block-RAM switch box, a tile at the edge) is driven from a slice of
 // a neighbouring CLB: the path crosses joins already known (observed in ISE's routes or confirmed by
 // earlier tests), e.g. slice -> OMUX -> E2BEG of the CLB, joined to E2END of the I/O tile, -> the
-// tested wire.
+// tested wire. A wire only a site of the I/O or block-RAM tile drives (its OMUX, the hexes that begin
+// there) is driven from that site: an IOB's input I, a block RAM's data output (`sourcesOf`, #3).
 
 const splitKey = k => { const i = k.indexOf('/'); return [k.slice(0, i), k.slice(i + 1)]; };
 
@@ -29,11 +30,13 @@ export const SOURCES = [['X', 'F1'], ['Y', 'G1']];
  *   joined(key) -> [keys] (the wires of other tiles known to be joined to 'TILE/WIRE': observed or
  *     confirmed; a path may cross them, to reach a tile with no slice from a neighbouring one),
  *   maxDepth (PIPs from the slice output to the tested wire, default 3),
- *   maxJoins (known joins a path may cross, default 0: the source in the tested wire's own tile).
+ *   maxJoins (known joins a path may cross, default 0: the source in the tested wire's own tile),
+ *   sourcesOf(tile) -> [{ site, type: 'IOB' | 'RAMB16', o: output pin, wire: its tile wire }] (other sites
+ *     that can drive a test: an IOB's input I, a block RAM's output; none by default).
  * Returns { designs: [{ xdl, tests: [{ net, join }] }], untestable: [join] }.
  */
 export function joinTestDesigns(opts) {
-  const { part, joins, slicesOf, pinWire, pipsOf, nodeOf = k => [k], joined = () => [], maxDepth = 3, maxJoins = 0 } = opts;
+  const { part, joins, slicesOf, pinWire, pipsOf, nodeOf = k => [k], joined = () => [], maxDepth = 3, maxJoins = 0, sourcesOf = () => [] } = opts;
   const cache = new Map();   // tile -> { out: Map from -> [to], into: Map to -> [from], src: Map wire -> [source] }
   const tileOf = tile => {
     if (!cache.has(tile)) {
@@ -48,6 +51,11 @@ export function joinTestDesigns(opts) {
         const w = pinWire(s.pos, o);
         if (!src.has(w)) src.set(w, []);
         src.get(w).push({ s, o, i });
+      }
+      // (an IOB's or a block RAM's output: no sink of its own, the net's antenna is the test's)
+      for (const x of sourcesOf(tile)) {
+        if (!src.has(x.wire)) src.set(x.wire, []);
+        src.get(x.wire).push({ s: { site: x.site, type: x.type }, o: x.o, i: null });
       }
       cache.set(tile, { out, into, src });
     }
@@ -131,17 +139,20 @@ export function joinTestDesigns(opts) {
 // and xdl -xdl2ncd spends about 30 ms on each error it reports.
 function testXdl(part, tests) {
   const lines = [`design "joins" ${part} v3.2 ;`];
-  const sites = new Map();
-  for (const t of tests) { const s = t.plan.src; if (!sites.has(s.s.site)) sites.set(s.s.site, new Set()); sites.get(s.s.site).add(s.o); }
+  const sites = new Map(), types = new Map();
+  for (const t of tests) { const s = t.plan.src; if (!sites.has(s.s.site)) sites.set(s.s.site, new Set()); sites.get(s.s.site).add(s.o); types.set(s.s.site, s.s.type || 'SLICEL'); }
   for (const [site, outs] of sites) {
     const n = `s_${site}`;
+    // an IOB, its input from the pad (LVCMOS25, no register, no delay); a block RAM, both ports 512 x 36
+    if (types.get(site) === 'IOB') { lines.push(`inst "${n}" "IOB", placed TILE ${site} ,`, `  cfg " IDELMUX::1 IMUX::1 IOATTRBOX::LVCMOS25 INBUF:${n}_ibuf: PAD:${n}_pad: " ;`); continue; }
+    if (types.get(site) === 'RAMB16') { lines.push(`inst "${n}" "RAMB16", placed TILE ${site} ,`, `  cfg " PORTA_ATTR::512X36 PORTB_ATTR::512X36 RAMB16:${n}.RAMB16: RAMB16A:${n}.A: RAMB16B:${n}.B: " ;`); continue; }
     const f = outs.has('X') ? ` F:${n}_f:#LUT:D=A1 FXMUX::F XUSED::0` : '';
     const g = outs.has('Y') ? ` G:${n}_g:#LUT:D=A1 GYMUX::G YUSED::0` : '';
     lines.push(`inst "${n}" "SLICEL", placed TILE ${site} ,`, `  cfg "${f}${g} " ;`);
   }
   for (const t of tests) {
     const { src, pips } = t.plan, n = `s_${src.s.site}`;
-    lines.push(`net "${t.net}" ,`, `  outpin "${n}" ${src.o} ,`, `  inpin "${n}" ${src.i} ,`);
+    lines.push(`net "${t.net}" ,`, `  outpin "${n}" ${src.o} ,`, ...(src.i ? [`  inpin "${n}" ${src.i} ,`] : []));
     for (const [tile, from, to] of pips) lines.push(`  pip ${tile} ${from} -> ${to} ,`);
     lines.push('  ;');
   }

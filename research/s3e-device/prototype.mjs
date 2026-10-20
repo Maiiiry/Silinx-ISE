@@ -117,11 +117,22 @@ if (cmd === 'observe') {
   const root = nodesOf(known), members = new Map();
   for (const [k, r] of root) { if (!members.has(r)) members.set(r, []); members.get(r).push(k); }
   const slicesOf = t => (t.startsWith('CLB_') ? clbSlices(t).map((site, pos) => ({ site, pos })) : []);
+  // (SOURCES=1: the IOBs' inputs and the block RAMs' outputs observed in ISE's routes as test sources too, #3)
+  const extra = new Map();
+  if (process.env.SOURCES === '1') {
+    const typeOf = new Map(obs.sites.map(x => [x.site, x.type]));
+    for (const p of obs.pins) {
+      const ty = typeOf.get(p.site), kind = /^(IOB|IBUF|DIFF[MS]I?)$/.test(ty) ? 'IOB' : ty === 'RAMB16' ? 'RAMB16' : null;
+      if (!kind || p.dir !== 'o' || (kind === 'IOB' && p.pin !== 'I') || (kind === 'RAMB16' && !/^DO[AB]\d+$/.test(p.pin))) continue;
+      if (!extra.has(p.tile)) extra.set(p.tile, []);
+      extra.get(p.tile).push({ site: p.site, type: kind, o: p.pin, wire: p.wire });
+    }
+  }
   const r = joinTestDesigns({
     part: PART, joins, slicesOf, pinWire: (pos, pin) => pins.get(`${pos}.${pin}`)?.[0],
     pipsOf: t => pipsOf(dbType(t)).filter(([a, b, f]) => !(f & PIP_BIDI)),
     joined: k => joinedTo.get(k) || [], nodeOf: k => (root.has(k) ? members.get(root.get(k)) : [k]),
-    maxJoins, maxDepth: +(process.env.MAXDEPTH ?? 3),
+    maxJoins, maxDepth: +(process.env.MAXDEPTH ?? 3), sourcesOf: t => extra.get(t) || [],
   });
   fs.mkdirSync(dir, { recursive: true });
   r.designs.forEach((d, i) => fs.writeFileSync(path.join(dir, `j${i}.xdl`), d.xdl));
