@@ -19,6 +19,15 @@ const opt = (k, d) => { const i = args.indexOf(k); if (i < 0) return d; const v 
 const clkPin = opt('--clk', 'B8');
 // --rot k (1-3): only rik / rok, the registers' kinds moved by k pads (every kind on every pad)
 const rot = +opt('--rot', '0');
+// --te k (0-3): only rtek: every pad that can drive one an output register and a registered output enable, the
+// registers' kinds moved by k pads (#96: ro / rok have the enable on a third of the pads, so each pad sees it with
+// two kinds at most)
+const te = opt('--te', null);
+const kr = te !== null ? +te : rot;
+// --outs-last: only rio (with --rot k: riok) and rbo, ri and rb with their eight outputs on the last pads that can drive one instead of the first (#96: ri
+// and rik never have an input register on those eight, so their plain input register was not measured)
+const outsLast = args.includes('--outs-last');
+if (outsLast) args.splice(args.indexOf('--outs-last'), 1);
 const [out] = args;
 const pads = [...deviceSites(loadDeviceCache(PART)).pads.values()].sort((a, b) => (a.tile < b.tile ? -1 : a.tile > b.tile ? 1 : a.name < b.name ? -1 : 1));
 const rest = pads.filter(p => p.name !== clkPin);
@@ -38,8 +47,8 @@ const write = (name, vhd, ucf) => {
 const xorOf = (v, n) => Array.from({ length: n }, (_, i) => `${v}(${i})`).join(' xor ') || "'0'";
 
 // ri: input registers; ctl(0) enable, ctl(1) reset; q: eight outputs (input-only pads cannot drive them)
-for (const name of rot ? [`rik${rot}`] : ['ri']) {
-  const outs = io.slice(0, 8), ctl = rest.filter(p => !outs.includes(p)).slice(0, 2);
+for (const name of outsLast ? [rot ? `rio${rot}` : 'rio'] : te !== null ? [] : rot ? [`rik${rot}`] : ['ri']) {
+  const outs = outsLast ? io.slice(-8) : io.slice(0, 8), ctl = rest.filter(p => !outs.includes(p)).slice(0, 2);
   const ins = rest.filter(p => !outs.includes(p) && !ctl.includes(p));
   const n = ins.length;
   const kinds = ins.map((_, i) => (i + rot) % 4);
@@ -73,14 +82,14 @@ end rtl;
 
 // ro, ro2, ro3: output registers (and one in three with a registered output enable: the pads i % 3 ==
 // 0, 1, 2); a shift register feeds them
-for (const [name, ph] of rot ? [[`rok${rot}`, rot % 3]] : [['ro', 0], ['ro2', 1], ['ro3', 2]]) {
+for (const [name, ph] of outsLast ? [] : te !== null ? [[`rtek${te}`, -1]] : rot ? [[`rok${rot}`, rot % 3]] : [['ro', 0], ['ro2', 1], ['ro3', 2]]) {
   const ctl = rest.filter(p => p.inputOnly).slice(0, 2).concat(rest.filter(p => !p.inputOnly)).slice(0, 2);
   const outs = io.filter(p => !ctl.includes(p));
   const n = outs.length;
   const procs = outs.map((_, i) => {
-    const t = i % 3 === ph;
+    const t = ph < 0 || i % 3 === ph;
     const body = (dv, tv) => `o(${i}) <= ${dv};${t ? ` te(${i}) <= ${tv};` : ''}`;
-    switch ((i + rot) % 4) {
+    switch ((i + kr) % 4) {
       case 0: return `  process (clk, ctl(1)) begin if ctl(1) = '1' then ${body("'0'", "'0'")} elsif rising_edge(clk) then if ctl(0) = '1' then ${body(`s(${i})`, `s(${(i + 1) % n})`)} end if; end if; end process;`;
       case 1: return `  process (clk) begin if rising_edge(clk) then if ctl(1) = '1' then ${body("'0'", "'0'")} elsif ctl(0) = '1' then ${body(`s(${i})`, `s(${(i + 1) % n})`)} end if; end if; end process;`;
       case 2: return `  process (clk) begin if rising_edge(clk) then if ctl(1) = '1' then ${body("'1'", "'1'")} else ${body(`s(${i})`, `s(${(i + 1) % n})`)} end if; end if; end process;`;
@@ -95,14 +104,14 @@ end top;
 
 architecture rtl of top is
   signal s : std_logic_vector(${n - 1} downto 0) := (0 => '1', others => '0');
-  signal o : std_logic_vector(${n - 1} downto 0) := (${outs.map((_, i) => ((i + rot) % 4 === 2 ? `${i} => '1'` : null)).filter(Boolean).concat(['others => \'0\'']).join(', ')});
-  signal te : std_logic_vector(${n - 1} downto 0) := (${outs.map((_, i) => ((i + rot) % 4 === 2 ? `${i} => '1'` : null)).filter(Boolean).concat(['others => \'0\'']).join(', ')});
+  signal o : std_logic_vector(${n - 1} downto 0) := (${outs.map((_, i) => ((i + kr) % 4 === 2 ? `${i} => '1'` : null)).filter(Boolean).concat(['others => \'0\'']).join(', ')});
+  signal te : std_logic_vector(${n - 1} downto 0) := (${outs.map((_, i) => ((i + kr) % 4 === 2 ? `${i} => '1'` : null)).filter(Boolean).concat(['others => \'0\'']).join(', ')});
   attribute IOB : string;
   attribute IOB of o, te : signal is "TRUE";
 begin
   process (clk) begin if rising_edge(clk) then s <= s(${n - 2} downto 0) & (s(${n - 1}) xor s(${Math.floor(n / 2)})); end if; end process;
 ${procs}
-${outs.map((_, i) => (i % 3 === ph ? `  q(${i}) <= o(${i}) when te(${i}) = '0' else 'Z';` : `  q(${i}) <= o(${i});`)).join('\n')}
+${outs.map((_, i) => (ph < 0 || i % 3 === ph ? `  q(${i}) <= o(${i}) when te(${i}) = '0' else 'Z';` : `  q(${i}) <= o(${i});`)).join('\n')}
 end rtl;
 `;
   write(name, vhd, [['clk', clkPin], ...ctl.map((p, i) => [`ctl<${i}>`, p.name]), ...outs.map((p, i) => [`q<${i}>`, p.name])]);
@@ -110,7 +119,7 @@ end rtl;
 
 // rd, rd2: IDDR2 on inputs, ODDR2 on outputs (alternately: the outputs on the odd, the even pads),
 // their registers' kinds varied
-for (const [name, par] of rot ? [] : [['rd', 1], ['rd2', 0]]) {
+for (const [name, par] of rot || te !== null || outsLast ? [] : [['rd', 1], ['rd2', 0]]) {
   const ctl = rest.filter(p => p.inputOnly).slice(0, 2);
   const others = rest.filter(p => !ctl.includes(p));
   const outs = others.filter((p, i) => !p.inputOnly && i % 2 === par);
@@ -142,7 +151,7 @@ end rtl;
 }
 // rt (#96): every pad that can drive an output a tristate output, its enable from the fabric (TMUX T1: a
 // flip-flop kept out of the IOB, one in two through an inverter), its data from a shift register
-if (!rot) {
+if (!rot && te === null && !outsLast) {
   const ctl = rest.filter(p => p.inputOnly).slice(0, 1).concat(rest.filter(p => !p.inputOnly)).slice(0, 1);
   const outs = io.filter(p => !ctl.includes(p));
   const n = outs.length;
@@ -165,8 +174,8 @@ end rtl;
 }
 // rb: every pad a direct input (no register; their input delays: gen-iobrand.mjs --delays), eight
 // outputs (XORs of the inputs)
-if (!rot) {
-  const outs = io.slice(0, 8);
+for (const name of outsLast ? (rot ? [] : ['rbo']) : rot || te !== null ? [] : ['rb']) {
+  const outs = outsLast ? io.slice(-8) : io.slice(0, 8);
   const ins = rest.filter(p => !outs.includes(p));
   const n = ins.length;
   const vhd = `-- rb: ${n} direct inputs (gen-iobreg.mjs)
@@ -180,6 +189,6 @@ begin
 ${Array.from({ length: 8 }, (_, k) => `  q(${k}) <= ${ins.map((_, i) => i).filter(i => i % 8 === k).map(i => `d(${i})`).join(' xor ') || "'0'"};`).join('\n')}
 end rtl;
 `;
-  write('rb', vhd, [...ins.map((p, i) => [`d<${i}>`, p.name]), ...outs.map((p, i) => [`q<${i}>`, p.name])]);
+  write(name, vhd, [...ins.map((p, i) => [`d<${i}>`, p.name]), ...outs.map((p, i) => [`q<${i}>`, p.name])]);
 }
-console.log(`${pads.length} pads (${io.length + 1} that can drive an output): ${rot ? `rik${rot}, rok${rot}` : 'ri, ro, ro2, ro3, rd, rd2, rt, rb'}`);
+console.log(`${pads.length} pads (${io.length + 1} that can drive an output): ${outsLast ? (rot ? `rio${rot}` : 'rio, rbo') : te !== null ? `rtek${te}` : rot ? `rik${rot}, rok${rot}` : 'ri, ro, ro2, ro3, rd, rd2, rt, rb'}`);

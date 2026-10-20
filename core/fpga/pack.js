@@ -1030,7 +1030,9 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   }
   function iobOutputRegs(r) {
     const cfg = [];
-    if (r.O) cfg.push(...iobRegCfg(r.O, 'O', 'OFF1', 'OTCLK1'));
+    // (as ISE's map writes an output register: its data through O1_DDRMUX, and the enable's PCICE_MUX; xdl refuses
+    // the register without O1_DDRMUX on some pads, P6 / P7 of the XC3S250E-CP132)
+    if (r.O) cfg.push(...iobRegCfg(r.O, 'O', 'OFF1', 'OTCLK1'), ['O1_DDRMUX', '', '1'], ...(r.O.ctrl.ce !== null ? [['PCICE_MUX', '', 'OCE']] : []));
     if (r.T) cfg.push(...iobRegCfg(r.T, 'T', 'TFF1', r.O ? null : 'OTCLK1'));
     // (SRINV once: the IOB's set / reset is shared)
     return cfg.filter(([a], k) => a !== 'SRINV' || cfg.findIndex(([b]) => b === 'SRINV') === k);
