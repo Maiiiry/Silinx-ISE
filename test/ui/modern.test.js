@@ -60,7 +60,7 @@ uiTest('modern interface by default: header with search, activity bar, tabs on t
   assert.match(L.brand, /^Silinx ISE \d+\.\d+\.\d+$/, 'product and version, as in the classic title bar');
   // without a project only Program (iMPACT) can run
   assert.deepEqual(L.steps, [['Check', true], ['Simulate', true], ['Implement', true], ['Emulate', true], ['Program', false]]);
-  assert.deepEqual(L.hiddenIcons.sort(), ['asm', 'copy', 'cut', 'impact', 'paste', 'run', 'wave'], 'icons covered by the labelled steps are hidden');
+  assert.deepEqual(L.hiddenIcons.sort(), ['asm', 'impact', 'run', 'wave'], 'icons covered by the labelled steps are hidden (Cut / Copy / Paste shown: they reach every editor, #677)');
   assert.equal(L.classicTitle, false);
   // a project: its name in the header chip, the empty state goes away with the first document
   await makeProject(env, { name: 'ModernPj', template: 'blinky' });

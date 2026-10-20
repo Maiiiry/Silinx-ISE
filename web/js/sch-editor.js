@@ -9,6 +9,7 @@
 //   });
 //   readOnly: true             // view only: pan/zoom/select/inspect, no edits (RTL schematic viewer)
 //   ed.getDoc(); ed.setDoc(doc); ed.setLink(file); ed.setModules(modules); ed.fit(); ed.destroy();
+//   ed.copy(); ed.cut(); ed.paste(); ed.deleteSelection(); ed.canCopy(); ed.canPaste();   // Edit menu (#677)
 //
 // Styles: web/css/sch-editor.css (scoped under .sch-editor, themed by the ISE variables of theme.css).
 
@@ -25,6 +26,8 @@ import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
 import { esc, h } from './dom.js';
 import { highlightHdl } from './highlight.js';
+import { copySchematic, pasteSchematic, clipEmpty } from '/core/schclip.js';
+import { writeClip, readClip, clipFromEvent, hasClip } from './clipboard.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -359,7 +362,6 @@ const rectsTouch = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b
 const inside = (p, r) => p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 
 let editorCount = 0;
-let clipboard = null;
 
 // ================================================================== the editor
 export function mountSchEditor(container, opts = {}) {
@@ -1174,30 +1176,38 @@ export function mountSchEditor(container, opts = {}) {
       sel.clear();
     });
   }
+  // Cut / Copy / Paste (#677, core/schclip.js): the selection with the wires joining it, through the app's
+  // clipboard (web/js/clipboard.js), pasted offset, selected, with fresh names
+  let pasteN = 0, pasteText = null;
   function copySel(cut = false) {
-    if (!sel.size) return;
-    clipboard = { symbols: [], wires: [], ports: [], labels: [] };
-    for (const [kind, arr] of Object.entries(KEYS)) { const ids = new Set(selected(kind)); clipboard[arr] = clone(doc[arr].filter(o => ids.has(o.id))); }
-    clipboard.n = 0;
+    if (!sel.size || readOnly || live) return;
+    const clip = copySchematic(doc, { symbols: selected('sym'), wires: selected('wire'), ports: selected('port'), labels: selected('label') }, modules);
+    writeClip('schematic', clip);
+    pasteText = JSON.stringify(clip); pasteN = 0;   // (pasted here: next to the original)
     if (cut) deleteSel();
   }
-  function paste() {
-    if (!clipboard) return;
-    clipboard.n++;
-    const d = 40 * clipboard.n;
+  async function paste(clip) {
+    if (readOnly || live) return;
+    clip ??= await readClip('schematic');
+    if (clipEmpty(clip) || destroyed) return;
+    // the same clipboard pasted again: one step further; another schematic's copy: where it was there
+    const t = JSON.stringify(clip);
+    if (t !== pasteText) { pasteText = t; pasteN = clip.from === doc.name ? 0 : -1; }
+    const d = 40 * ++pasteN;
+    if (tool !== 'select') setTool('select');
     edit(() => {
-      sel.clear();
-      const usedNames = new Set(doc.symbols.map(s => s.name));
-      for (const s0 of clipboard.symbols) {
-        const s = clone(s0); s.id = nextId('S', doc.symbols); s.x += d; s.y += d;
-        if (usedNames.has(s.name)) s.name = nextInstName();
-        usedNames.add(s.name); doc.symbols.push(s); sel.add(`sym:${s.id}`);
-      }
-      for (const w0 of clipboard.wires) { const w = clone(w0); w.id = nextId('W', doc.wires); w.points.forEach(p => { p.x += d; p.y += d; }); doc.wires.push(w); sel.add(`wire:${w.id}`); }
-      const pn = new Set(doc.ports.map(p => p.name));
-      for (const p0 of clipboard.ports) { const p = clone(p0); p.id = nextId('P', doc.ports); p.x += d; p.y += d; let k = 1; const base = p.name; while (pn.has(p.name)) p.name = `${base}_${k++}`; pn.add(p.name); doc.ports.push(p); sel.add(`port:${p.id}`); }
-      for (const l0 of clipboard.labels) { const l = clone(l0); l.id = nextId('L', doc.labels); l.x += d; l.y += d; doc.labels.push(l); sel.add(`label:${l.id}`); }
+      const { ids } = pasteSchematic(doc, clip, { dx: d, dy: d });
+      sel = new Set([...ids.symbols.map(id => `sym:${id}`), ...ids.wires.map(id => `wire:${id}`), ...ids.ports.map(id => `port:${id}`), ...ids.labels.map(id => `label:${id}`)]);
     });
+    container.focus({ preventScroll: true });
+  }
+  let pasteKey = null;
+  function onPaste(e) {
+    if (!pasteKey) return;
+    clearTimeout(pasteKey); pasteKey = null;
+    e.preventDefault();
+    const clip = clipFromEvent(e, 'schematic');
+    if (clip) paste(clip);
   }
   function selectAll() { sel = new Set([...doc.symbols.map(s => `sym:${s.id}`), ...doc.wires.map(w => `wire:${w.id}`), ...doc.ports.map(p => `port:${p.id}`), ...doc.labels.map(l => `label:${l.id}`)]); render(); renderProps(); }
 
@@ -1512,7 +1522,9 @@ export function mountSchEditor(container, opts = {}) {
     if (mod && k === 'm') { e.preventDefault(); mirrorSel(); return; }
     if (mod && k === 'c') { e.preventDefault(); if (!readOnly) copySel(); return; }
     if (mod && k === 'x') { e.preventDefault(); copySel(true); return; }
-    if (mod && k === 'v') { e.preventDefault(); paste(); return; }
+    // (Ctrl+V: the browser's paste event below, which reads the system clipboard with no permission asked;
+    // the app's own clipboard if the browser sends none)
+    if (mod && k === 'v') { pasteKey = setTimeout(() => { pasteKey = null; paste(); }, 50); return; }
     if (mod && k === 'a') { e.preventDefault(); selectAll(); return; }
     if (mod) return;
     if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSel(); return; }
@@ -1539,6 +1551,7 @@ export function mountSchEditor(container, opts = {}) {
   }
   function onKeyUp(e) { if (e.key === ' ') { spaceDown = false; canvas.classList.remove('pan-ready'); } }
   window.addEventListener('keydown', onKey);
+  window.addEventListener('paste', onPaste, true);
   window.addEventListener('keyup', onKeyUp);
 
   // ---------------- check / generate / view
@@ -1699,6 +1712,9 @@ export function mountSchEditor(container, opts = {}) {
     getDoc: () => clone(normalizeDoc(doc)),
     undo: () => undo(), redo: () => redo(),
     canUndo: () => undoStack.length > 0 && !live, canRedo: () => redoStack.length > 0 && !live,
+    // Edit ▸ Cut / Copy / Paste / Delete (#677)
+    copy: () => copySel(), cut: () => copySel(true), paste: () => paste(), deleteSelection: () => { if (!live) deleteSel(); },
+    canCopy: () => !readOnly && !live && sel.size > 0, canPaste: () => !readOnly && !live && hasClip('schematic'),
     setDoc(d) { leaveSim(); infoDlg?.close(); doc = normalizeDoc(d || newDoc()); undoStack.length = 0; redoStack.length = 0; sel.clear(); lastDiags = null; genLang = doc.lang; diagPanel.hidden = true; renderSheet(); renderPalette(); render(); renderProps(); fit(); },
     // its HDL file linked (generatedFile, #245): nothing else changes, Undo / Redo keep the link
     setLink(file) {
@@ -1731,6 +1747,7 @@ export function mountSchEditor(container, opts = {}) {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('keydown', onKey);
+      window.removeEventListener('paste', onPaste, true);
       window.removeEventListener('keyup', onKeyUp);
       ro?.disconnect();
       container.innerHTML = '';

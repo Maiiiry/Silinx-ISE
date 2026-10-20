@@ -164,11 +164,12 @@ html[data-theme="dark"] .m-sun, html:not([data-theme="dark"]) .m-moon { display:
 html[data-ui="modern"] #toolbar { height: 44px; gap: 2px; padding: 0 12px; background: var(--m-surface); border-bottom: 1px solid var(--m-border); flex: none; }
 html[data-ui="modern"] .tb-btn { width: 32px; height: 32px; border-radius: 6px; border: none; color: var(--m-fg); cursor: pointer; }
 html[data-ui="modern"] .tb-btn:hover { background: var(--m-hover); border: none; }
-html[data-ui="modern"] .tb-btn[data-cmd="cut"], html[data-ui="modern"] .tb-btn[data-cmd="copy"], html[data-ui="modern"] .tb-btn[data-cmd="paste"],
 html[data-ui="modern"] .tb-btn[data-cmd="asm"], html[data-ui="modern"] .tb-btn[data-cmd="run"], html[data-ui="modern"] .tb-btn[data-cmd="wave"],
 html[data-ui="modern"] .tb-btn[data-cmd="impact"] { display: none; }
 html[data-ui="modern"] .tb-sep { height: 20px; background: var(--m-border); box-shadow: none; margin: 0 6px; }
-html[data-ui="modern"] .tb-sep:has(+ .tb-sep), html[data-ui="modern"] .tb-sep:has(+ .tb-btn[data-cmd="cut"]) { display: none; }
+html[data-ui="modern"] .tb-sep:has(+ .tb-sep) { display: none; }
+html[data-ui="modern"] .tb-btn:disabled { opacity: .4; cursor: default; }
+html[data-ui="modern"] .tb-btn:disabled:hover { background: none; }
 .m-steps { margin-left: auto; display: flex; gap: 6px; align-items: center; }
 .m-step { display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px 0 10px; border: 1px solid var(--m-border-strong); border-radius: var(--m-radius);
   background: var(--m-surface); color: var(--m-fg); font-weight: 550; cursor: pointer; white-space: nowrap; }

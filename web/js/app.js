@@ -25,6 +25,7 @@ import { fileContextMenu, inView, renderHierarchy, saveProjectJson, select, seri
 import { printActive, refreshSteps, setupMenus, setupToolbar, showPalette } from './menus.js';
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 import { renameSymbolIn } from './rename.js';
+import { writeClip, readClip, noteCopy } from './clipboard.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -186,7 +187,7 @@ export function instancesOf(mod) {
 // ---- Undo / Redo of the project's commands (web/js/history.js): every menu, context menu and
 // command palette command is recorded (what it changes in the project folder and settings); the
 // processes (runs, simulations) are not commands that change the project
-const NOT_RECORDED = /^(Implement|Generate Programming File|Synthesize|Simulate|Run|Rerun|Re-run|Emulate|Configure Target|Program|Initialize Chain|Check Syntax|View RTL|Analyze|Undo|Redo|Open|Find|Replace|Go to|Print|Download|Export|Help|About|Check for Updates|Language|Theme|Interface|Zoom|Close|New Project|Open Project|Recent)/;
+const NOT_RECORDED = /^(Implement|Generate Programming File|Synthesize|Simulate|Run|Rerun|Re-run|Emulate|Configure Target|Program|Initialize Chain|Check Syntax|View RTL|Analyze|Undo|Redo|Open|Find|Replace|Go to|Print|Download|Export|Help|About|Check for Updates|Language|Theme|Interface|Zoom|Close|New Project|Open Project|Recent|(?:Cut|Copy|Paste|Delete)$)/;
 const docPath = d => d.path || (/^(file|sch|asm|tt|fsm):/.test(String(d.id || '')) ? String(d.id).replace(/^[a-z]+:/, '') : null);
 export const history = createHistory(api, {
   project: () => S.project?.name,
@@ -222,6 +223,34 @@ export async function projectRedo() {
 }
 export const undoAny = () => (undoesProject() ? projectUndo() : docEditor(S.active)?.undo());
 export const redoAny = () => (redoesProject() ? projectRedo() : docEditor(S.active)?.redo());
+
+// Cut / Copy / Paste / Delete (Edit menu, toolbar, #677): the active editor's. A text editor's selection through
+// the app's clipboard (web/js/clipboard.js); a drawing editor's by its own copy / paste (its selection, pasted
+// with fresh names)
+const textClip = ed => {
+  const ro = () => !!ed.view?.state.readOnly;
+  const done = () => ed.focus();
+  return {
+    canCopy: () => ed.somethingSelected(), canDelete: () => !ro() && ed.somethingSelected(), canPaste: () => !ro(),
+    copy() { if (ed.somethingSelected()) writeClip('text', ed.getSelection()); done(); },
+    cut() { if (!ed.somethingSelected() || ro()) return; writeClip('text', ed.getSelection()); ed.replaceSelection(''); done(); },
+    async paste() { const t = await readClip('text'); if (t != null && !ro()) ed.replaceSelection(t); done(); },
+    deleteSelection() { if (!ro()) ed.replaceSelection(''); done(); },
+  };
+};
+export const clipEditor = d => {
+  if (!d) return null;
+  if (d.editor) return textClip(d.editor);
+  const x = d.schEditor || d.asmEditor || d.fsmEditor || d.ttEditor || d.petriEditor;
+  return x?.copy ? x : null;
+};
+export const canCopyAny = () => !!clipEditor(S.active)?.canCopy();
+export const canPasteAny = () => !!clipEditor(S.active)?.canPaste();
+export const canDeleteAny = () => { const c = clipEditor(S.active); return !!c && !!(c.canDelete ? c.canDelete() : c.canCopy()); };
+export const cutAny = () => clipEditor(S.active)?.cut();
+export const copyAny = () => clipEditor(S.active)?.copy();
+export const pasteAny = () => clipEditor(S.active)?.paste();
+export const deleteAny = () => clipEditor(S.active)?.deleteSelection();
 
 // put a file of the project folder (back) into the project
 export function addToProject(file) { return serialOp(() => addNow(file)); }
@@ -839,6 +868,9 @@ async function boot() {
     // Ctrl+Y / Ctrl+Shift+Z / Cmd+Shift+Z outside an editor: redo it
     if ((e.metaKey || e.ctrlKey) && (e.key === 'y' || e.key === 'Y' || (e.shiftKey && (e.key === 'z' || e.key === 'Z'))) && outside && redoesProject()) { e.preventDefault(); projectRedo(); }
   });
+  // a copy made by the browser in a text editor (Ctrl+C, its context menu): the app's clipboard follows it, for
+  // Edit ▸ Paste where the system clipboard cannot be read (#677)
+  for (const ev of ['copy', 'cut']) addEventListener(ev, e => { const ed = S.active?.editor; if (ed && e.target.closest?.('.cm-editor') && ed.somethingSelected()) noteCopy(ed.getSelection()); }, true);
   addEventListener('beforeunload', e => { if (S.docs.some(d => d.dirty)) { e.preventDefault(); e.returnValue = ''; } });
 
   updateTitle();
