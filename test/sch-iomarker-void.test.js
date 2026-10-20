@@ -134,7 +134,7 @@ endmodule`;
     assert.deepEqual(designChecks(lib, design).map(d => `${d.severity}: ${d.message}`), [
       'warning: Input <in2> is never used.',
       'warning: Signal <out2>, unconnected in block <top>, is tied to its initial value.',
-      // (io1, bidirectional: no warning yet; XST's own to be learnt and matched, #684)
+      'warning: Inout <io1> is never assigned.',   // as XST (#684)
     ]);
   });
 }
