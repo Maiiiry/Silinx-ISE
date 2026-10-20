@@ -29,6 +29,10 @@ export const SCH_PT = {
   'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
   'Rotate': 'Rodar', 'Mirror': 'Espelhar', 'Wire': 'Fio', 'I/O Marker': 'Marcador de E/S', 'Net Name': 'Nome de Rede',
   'Bidirectional': 'Bidirecional', 'Auto direction': 'Direção automática',
+  // the Add I/O Marker tool: on a wire, a pin or empty space (#680)
+  'Add I/O Marker: click a wire end, a pin or empty space to add a port marker (a wire to its tip connects it later).':
+    'Adicionar Marcador de E/S: clique na ponta de um fio, num pino ou num espaço vazio para adicionar um marcador de porto (um fio até à sua ponta liga-o depois).',
+  'Input port name': 'Nome do porto de entrada', 'Output port name': 'Nome do porto de saída', 'Bidirectional port name': 'Nome do porto bidirecional',
   'optional, overrides the type derived from the width': 'opcional, substitui o tipo derivado da largura',
   'one per line: name[width] (add "clock" for a clock pin)': 'um por linha: nome[largura] (acrescente "clock" para um pino de relógio)',
   'name[width], add "reg" if assigned in always/initial': 'nome[largura], acrescente "reg" se atribuído em always/initial',
