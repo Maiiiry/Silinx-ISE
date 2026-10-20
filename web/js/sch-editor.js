@@ -16,7 +16,7 @@
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
   xform, rotSize, portBox, portSide, freePortName, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
-  splitWiresAt, netByName, wireCrossings,
+  splitWiresAt, netByName, renameNet, wireCrossings,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -874,6 +874,12 @@ export function mountSchEditor(container, opts = {}) {
   }
   // a net name another net already has (#689): the two become one net, connected by name (no wire drawn
   // between them, as in ISE), only when the user says so; never merged silently
+  // a net connected by name renamed as a whole (#734): what else took the name, said in the status line
+  function renamed(r, name) {
+    const others = r.labels.length - 1, base = parseNetName(name).base;
+    const parts = [others > 0 ? `${others} other net name${others > 1 ? 's' : ''}` : null, ...r.ports.map(p => `the I/O marker '${p.name}' (a port of the module)`)].filter(Boolean);
+    if (parts.length) setTimeout(() => flash(`Renamed to '${base}' with the net: ${parts.join(' and ')}`), 0);
+  }
   async function joinByName(name, net) {
     if (!name || !nl) return true;
     const other = netByName(doc, nl, name, net);
@@ -1048,7 +1054,12 @@ export function mountSchEditor(container, opts = {}) {
     propBody.append(field('Name', inp(l.net, async v => {
       if (refused(v)) return false;
       if (!await joinByName(String(v).trim(), nl?.labelNet.get(l.id))) return false;
-      return () => { if (String(v).trim()) l.net = String(v).trim(); };
+      return () => {
+        const name = String(v).trim(); if (!name) return;
+        // the whole net connected by name (#734): its other net names and I/O marker of the old name too
+        const n = nl?.labelNet.get(l.id);
+        if (n) renamed(renameNet(doc, nl, n, name, l.id), name); else l.net = name;
+      };
     }), 'ISE style bus names are accepted: data(7:0)'));
     netInfo(nl?.labelNet.get(l.id));
   }
@@ -1064,7 +1075,11 @@ export function mountSchEditor(container, opts = {}) {
         const p0 = w.points[0], p1 = w.points[1];
         const mid = { x: snap((p0.x + p1.x) / 2), y: snap((p0.y + p1.y) / 2) };
         const ex = doc.labels.find(l => nl.labelNet.get(l.id) === n);
-        if (ex) ex.net = name; else doc.labels.push({ id: nextId('L', doc.labels), x: p0.x === p1.x ? p0.x : mid.x, y: p0.y === p1.y ? p0.y : mid.y, net: name });
+        // (#734) the net's names and I/O marker of its old name renamed with it; a net without a name of its own
+        // gets one here
+        const r = n.auto ? { labels: [], ports: [] } : renameNet(doc, nl, n, name, ex?.id);
+        if (!ex && !r.ports.length) doc.labels.push({ id: nextId('L', doc.labels), x: p0.x === p1.x ? p0.x : mid.x, y: p0.y === p1.y ? p0.y : mid.y, net: name });
+        if (ex || r.ports.length) renamed(ex ? r : { ...r, labels: [null, ...r.labels] }, name);
       };
     }, { placeholder: n.name, 'data-no-i18n': '' })));
     netInfo(n);
@@ -1232,7 +1247,8 @@ export function mountSchEditor(container, opts = {}) {
     edit(() => {
       const n = nl?.wireNet.get(hit.w.id);
       const ex = n && doc.labels.find(l => nl.labelNet.get(l.id) === n && Math.hypot(l.x - at.x, l.y - at.y) < 1);
-      if (ex) ex.net = name; else doc.labels.push({ id: nextId('L', doc.labels), x: at.x, y: at.y, net: name });
+      if (ex) renamed(renameNet(doc, nl, n, name, ex.id), name);   // (#734) the whole net connected by name
+      else doc.labels.push({ id: nextId('L', doc.labels), x: at.x, y: at.y, net: name });
     }, { keepProps: true });
     // auto increment trailing numbers (d0 -> d1)
     if (netNameInput.value.trim()) { const m = /^(.*?)(\d+)(\)?)$/.exec(name); if (m) netNameInput.value = `${m[1]}${+m[2] + 1}${m[3]}`; }
