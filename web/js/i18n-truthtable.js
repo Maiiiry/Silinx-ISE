@@ -36,7 +36,7 @@ export const TT_PT = {
   'Generated from the truth table, in its HDL logic form': 'Gerado a partir da tabela de verdade, na sua forma da lógica do HDL',
   'Schematic (read-only): generated from': 'Esquemático (só de leitura): gerado a partir de',
   'Notation:': 'Notação:', 'Notation of the expressions': 'Notação das expressões', 'Canonical forms': 'Formas canónicas',
-  'Essential prime implicants (SOP)': 'Implicantes primos essenciais (SOP)', 'essential': 'essencial',
+  'essential': 'essencial',
   'No 1s: no groups (the output is always 0).': 'Sem 1s: sem grupos (a saída é sempre 0).',
   'No 0s: no groups (the output is always 1).': 'Sem 0s: sem grupos (a saída é sempre 1).',
   'The exact search was cut short: this solution may not be minimal.': 'A procura exata foi interrompida: esta solução pode não ser mínima.',

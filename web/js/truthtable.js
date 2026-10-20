@@ -263,7 +263,6 @@ export function mountTtEditor(container, opts = {}) {
         h('div', { class: 'tt-cost' }, `${r.terms.length} term(s), ${r.literals} literal(s); gates: ${g.and} AND, ${g.or} OR, ${g.not} NOT (${g.inputs} gate inputs)`),
         ...note);
     };
-    const ess = A.sop.essential;
     // the XOR form, when cheaper than both (#435)
     const x = A.xor;
     const xorForm = x && h('div', { class: 'tt-res tt-xor', title: 'Shown when it has fewer literals than the minimal SOP and POS, or as many and fewer operators' },
@@ -281,10 +280,7 @@ export function mountTtEditor(container, opts = {}) {
       form('Minimal POS', A.pos, 'tt-pos'),
       ...(xorForm ? [xorForm] : []),
       gateForm('NAND form', A.nand, 'tt-nand', 'The minimal SOP with NAND gates only (double negation); an inverter is a NAND of one input'),
-      gateForm('NOR form', A.nor, 'tt-nor', 'The minimal POS with NOR gates only (double negation); an inverter is a NOR of one input'),
-      h('div', { class: 'tt-res tt-ess-list' }, h('b', {}, 'Essential prime implicants (SOP)'), ': ',
-        h('code', { 'data-no-i18n': '' }, ess.length ? ess.map(t => formatExpr(termAst({ terms: [t] }), notation)).join(', ') : '—'),
-        h('span', { class: 'tt-cost' }, ` (${A.sop.primes.length} prime implicant(s))`)));
+      gateForm('NOR form', A.nor, 'tt-nor', 'The minimal POS with NOR gates only (double negation); an inverter is a NOR of one input'));
   }
 
   function renderLink() {

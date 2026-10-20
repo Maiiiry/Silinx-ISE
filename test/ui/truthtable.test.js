@@ -72,6 +72,8 @@ uiTest('Truth Table: new table, cells, K-map and SOP, linked VHDL module kept in
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-caption`)].map((c) => c.textContent), T), ['Truth table', 'Notes', 'Expression', 'Karnaugh map', 'Results']);
   assert.equal(await page.eval((t) => document.querySelectorAll(`${t} .tt-mine-in, ${t} .tt-mine-out`).length, T), 0);
   assert.deepEqual(await page.eval((t) => [...document.querySelectorAll(`${t} .tt-res > div:first-child b`)].map((b) => b.textContent), T), ['Minimal SOP', 'Minimal POS', 'XOR form', 'NAND form', 'NOR form']);
+  // no list of the essential prime implicants below them (#705): the K-map's legend marks them
+  assert.deepEqual(await page.eval((t) => [document.querySelectorAll(`${t} .tt-ess-list`).length, /Essential prime implicants/.test(document.querySelector(t).textContent)], T), [0, false]);
   assert.deepEqual(await page.eval((t) => [`${t} .tt-nand`, `${t} .tt-nor`].map((q) => [document.querySelector(`${q} .tt-expr`).textContent, document.querySelector(`${q} .tt-cost`).textContent]), T), [
     ['f = /(/(b·c)·/(a·c)·/(a·b))', '4 gate(s), 0 of them inverter(s)'], ['f = /(/(a + b) + /(a + c) + /(b + c))', '4 gate(s), 0 of them inverter(s)']]);
   // the table is saved (autosave)
@@ -406,7 +408,7 @@ uiTest('Truth Table (#196): Apply input / output names (columns follow their nam
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
 
-uiTest('Truth Table (#434, #435): the / notation by default (results, essential primes, K-map groups), the others selectable; the XOR form when simpler, its HDL; in Portuguese', E, async (page) => {
+uiTest('Truth Table (#434, #435): the / notation by default (results, K-map groups), the others selectable; the XOR form when simpler, its HDL; in Portuguese', E, async (page) => {
   // a full adder (s, co) and an output XOR does not help (x = a·b + c)
   const fa = { version: 1, name: 'fa', inputs: ['a', 'b', 'c'], outputs: ['s', 'co', 'x'], table: { s: '01101001', co: '00010111', x: '01010111' }, exprs: {}, notes: '', form: 'sop', lang: 'vhdl' };
   // (a module that instances the table's: it keeps working when the table's language changes, #696)
@@ -428,7 +430,6 @@ end rtl;
     pos: document.querySelector(`${t} .tt-pos .tt-expr`).textContent,
     xor: document.querySelector(`${t} .tt-xor .tt-expr`)?.textContent ?? null,
     xorCost: document.querySelector(`${t} .tt-xor .tt-cost`)?.textContent ?? null,
-    ess: document.querySelector(`${t} .tt-ess-list code`).textContent,
     groups: [...document.querySelectorAll(`${t} .tt-leg code`)].map((c) => c.textContent),
   }), T);
   // the notations: / first, the default
@@ -440,7 +441,7 @@ end rtl;
   assert.deepEqual(await texts(), {
     sop: 's = /a·/b·c + /a·b·/c + a·/b·/c + a·b·c', pos: 's = (a + b + c)·(a + /b + /c)·(/a + b + /c)·(/a + /b + c)',
     xor: 's = a ⊕ b ⊕ c', xorCost: '3 literal(s), 2 two-input operator(s): 2 XOR / XNOR, 0 AND, 0 OR',
-    ess: '/a·/b·c, /a·b·/c, a·/b·/c, a·b·c', groups: ['/a·/b·c', '/a·b·/c', 'a·/b·/c', 'a·b·c'],
+    groups: ['/a·/b·c', '/a·b·/c', 'a·/b·/c', 'a·b·c'],
   });
   // the K-map's POS groups: clauses in the / notation
   await page.click(`${T} .tt-groups input[value=pos]`);
@@ -451,25 +452,25 @@ end rtl;
   // co: the carry a·b + c·(a ⊕ b), 5 literals against 6
   await page.click(`${T} .tt-tab[data-out=co]`);
   let x = await texts();
-  assert.deepEqual([x.sop, x.xor, x.xorCost, x.ess], ['co = b·c + a·c + a·b', 'co = a·b + c·(a ⊕ b)', '5 literal(s), 4 two-input operator(s): 1 XOR / XNOR, 2 AND, 1 OR', 'b·c, a·c, a·b']);
+  assert.deepEqual([x.sop, x.xor, x.xorCost], ['co = b·c + a·c + a·b', 'co = a·b + c·(a ⊕ b)', '5 literal(s), 4 two-input operator(s): 1 XOR / XNOR, 2 AND, 1 OR']);
   // x = a·b + c: XOR does not help, no XOR form
   await page.click(`${T} .tt-tab[data-out=x]`);
   x = await texts();
   assert.deepEqual([x.sop, x.xor], ['x = c + a·b', null]);
   assert.equal(await page.eval((t) => document.querySelectorAll(`${t} .tt-xor`).length, T), 0);
-  // the other notations, selectable: on the results, the essential primes and the K-map groups
+  // the other notations, selectable: on the results and the K-map groups
   await page.click(`${T} .tt-tab[data-out=s]`);
   const want = {
-    'slash-compact': ['s = /a/bc + /ab/c + a/b/c + abc', 's = a ⊕ b ⊕ c', '/a/bc, /ab/c, a/b/c, abc', ['/a/bc', '/ab/c', 'a/b/c', 'abc']],
-    textbook: ["s = a'·b'·c + a'·b·c' + a·b'·c' + a·b·c", 's = a ⊕ b ⊕ c', "a'·b'·c, a'·b·c', a·b'·c', a·b·c", ["a'·b'·c", "a'·b·c'", "a·b'·c'", 'a·b·c']],
-    compact: ["s = a'b'c + a'bc' + ab'c' + abc", 's = a ⊕ b ⊕ c', "a'b'c, a'bc', ab'c', abc", ["a'b'c", "a'bc'", "ab'c'", 'abc']],
-    vhdl: ['s = (not a and not b and c) or (not a and b and not c) or (a and not b and not c) or (a and b and c)', 's = a xor b xor c', 'not a and not b and c, not a and b and not c, a and not b and not c, a and b and c', ['not a and not b and c', 'not a and b and not c', 'a and not b and not c', 'a and b and c']],
-    verilog: ['s = (~a & ~b & c) | (~a & b & ~c) | (a & ~b & ~c) | (a & b & c)', 's = a ^ b ^ c', '~a & ~b & c, ~a & b & ~c, a & ~b & ~c, a & b & c', ['~a & ~b & c', '~a & b & ~c', 'a & ~b & ~c', 'a & b & c']],
+    'slash-compact': ['s = /a/bc + /ab/c + a/b/c + abc', 's = a ⊕ b ⊕ c', ['/a/bc', '/ab/c', 'a/b/c', 'abc']],
+    textbook: ["s = a'·b'·c + a'·b·c' + a·b'·c' + a·b·c", 's = a ⊕ b ⊕ c', ["a'·b'·c", "a'·b·c'", "a·b'·c'", 'a·b·c']],
+    compact: ["s = a'b'c + a'bc' + ab'c' + abc", 's = a ⊕ b ⊕ c', ["a'b'c", "a'bc'", "ab'c'", 'abc']],
+    vhdl: ['s = (not a and not b and c) or (not a and b and not c) or (a and not b and not c) or (a and b and c)', 's = a xor b xor c', ['not a and not b and c', 'not a and b and not c', 'a and not b and not c', 'a and b and c']],
+    verilog: ['s = (~a & ~b & c) | (~a & b & ~c) | (a & ~b & ~c) | (a & b & c)', 's = a ^ b ^ c', ['~a & ~b & c', '~a & b & ~c', 'a & ~b & ~c', 'a & b & c']],
   };
-  for (const [N, [sop, xr, ess, groups]] of Object.entries(want)) {
+  for (const [N, [sop, xr, groups]] of Object.entries(want)) {
     await page.fill(`${T} .tt-notation`, N);
     x = await texts();
-    assert.deepEqual([x.sop, x.xor, x.ess, x.groups], [sop, xr, ess, groups], N);
+    assert.deepEqual([x.sop, x.xor, x.groups], [sop, xr, groups], N);
   }
   await page.click(`${T} .tt-tab[data-out=co]`);
   assert.equal((await texts()).xor, 'co = (a & b) | (c & (a ^ b))');
