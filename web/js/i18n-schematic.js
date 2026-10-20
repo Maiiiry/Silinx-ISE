@@ -45,6 +45,13 @@ export const SCH_PT = {
 };
 
 export const SCH_PT_PATTERNS = [
+  // a net connected by name renamed as a whole (#734)
+  [/^Renamed to '(.+)' with the net: (.+)$/, (m, n, parts) => `Mudado para '${n}' com a rede: ${parts.split(' and ').map(p => {
+    let k;
+    if ((k = /^(\d+) other net names?$/.exec(p))) return +k[1] > 1 ? `${k[1]} outros nomes de rede` : 'outro nome de rede';
+    if ((k = /^the I\/O marker '(.+)' \(a port of the module\)$/.exec(p))) return `o marcador de E/S '${k[1]}' (um porto do módulo)`;
+    return p;
+  }).join(' e ')}`],
   [/^Another net is already named '(.*)'\.$/, "Já há outra rede chamada '$1'."],
   // the multiplexers and demultiplexers, with and without the enable E (#301)
   [/^(\d+):1 multiplexer \(select ([S\d ]+)\)$/, 'Multiplexador $1:1 (seleção $2)'],

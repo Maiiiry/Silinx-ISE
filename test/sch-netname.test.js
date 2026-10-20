@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { simulate } from '../core/compile.js';
-import { newDoc, netlist, generateHdl, netByName } from '../core/schdoc.js';
+import { newDoc, netlist, generateHdl, netByName, renameNet } from '../core/schdoc.js';
 
 const P = (x, y) => ({ x, y });
 const inv = (id, name, x, y) => ({ id, type: 'inv', x, y, rot: 0, mirror: false, name, params: { width: 1 } });
@@ -100,4 +100,51 @@ test('#689 connected by name: the VHDL and the Verilog have one signal s, compil
     assert.deepEqual(r.sim.log.filter(l => l.kind === 'error' || l.kind === 'failure'), [], `${lang}: ${log.join('\n')}`);
     assert.ok(log.some(l => /done/.test(l)), `${lang}: ran to the end: ${log.join('\n')}`);
   }
+});
+
+// #734: a net connected by name renamed as a whole: its net names and its I/O marker of the old name
+test('#734 renameNet: every net name of the set takes the new name (VHDL: any case), each its own bus range; still one net, and it simulates', () => {
+  for (const lang of ['vhdl', 'verilog']) {
+    const doc = byName(lang, lang === 'vhdl' ? 'S' : 's');   // (VHDL: S is s)
+    const nl = netlist(doc);
+    const r = renameNet(doc, nl, nl.labelNet.get('L1'), 'q', 'L1');
+    assert.deepEqual([r.labels.map(l => l.id), r.ports.length], [['L1', 'L2'], 0], lang);
+    assert.deepEqual(doc.labels.map(l => l.net), ['q', 'q'], lang);
+    const after = netlist(doc);
+    assert.equal(after.wireNet.get('W2'), after.wireNet.get('W3'), `${lang}: still one net`);
+    assert.deepEqual(after.diagnostics.map(d => d.message), [], `${lang}: no warnings`);
+    const g = generateHdl(doc);
+    const ext = lang === 'vhdl' ? 'vhd' : 'v';
+    const sim = simulate([{ path: `byname.${ext}`, text: g.code }, { path: `tb.${ext}`, text: TB[lang] }], 'tb', { until: 1e6 });
+    assert.deepEqual(sim.errors.map(e => e.message), [], `${lang}: compiles\n${g.code}`);
+    assert.deepEqual(sim.sim.log.filter(l => l.kind === 'error' || l.kind === 'failure'), [], lang);
+  }
+  // Verilog: S and s are two names, two nets: S is left alone
+  const v = byName('verilog', 'S');
+  const vr = renameNet(v, netlist(v), netlist(v).labelNet.get('L1'), 'q', 'L1');
+  assert.deepEqual([vr.labels.length, v.labels.map(l => l.net)], [1, ['q', 'S']]);
+});
+
+test('#734 renameNet: a bus keeps each label\'s range; another name on the same net and a new name of nothing are left alone', () => {
+  const doc = byName('vhdl');
+  doc.labels[0].net = 'd(3:0)'; doc.labels[1].net = 'd(3:0)';
+  doc.labels.push({ id: 'L3', x: 180, y: 100, net: 'other' });   // a second name on W2's net
+  const nl = netlist(doc);
+  const r = renameNet(doc, nl, nl.labelNet.get('L2'), 'q', 'L2');
+  assert.deepEqual(doc.labels.map(l => l.net), ['q(3:0)', 'q', 'other']);
+  assert.deepEqual(r.labels.map(l => l.id), ['L1', 'L2']);
+  assert.deepEqual(renameNet(doc, nl, null, 'x'), { labels: [], ports: [] });
+  assert.deepEqual(renameNet(doc, nl, nl.labelNet.get('L1'), 'bad name!'), { labels: [], ports: [] });
+});
+
+test('#734 renameNet: a net named like an I/O marker renames the marker too (a port of the module)', () => {
+  const doc = byName('vhdl', 'a');   // W3's net named a: connected by name to the input marker a
+  const nl = netlist(doc);
+  assert.equal(nl.labelNet.get('L2'), nl.wireNet.get('W1'), 'one net with the marker');
+  const r = renameNet(doc, nl, nl.labelNet.get('L2'), 'b', 'L2');
+  assert.deepEqual([r.labels.map(l => l.id), r.ports.map(p => p.id)], [['L2'], ['P1']]);
+  assert.deepEqual([doc.ports.map(p => p.name), doc.labels.map(l => l.net)], [['b', 'y'], ['s', 'b']]);
+  const after = netlist(doc);
+  assert.equal(after.labelNet.get('L2'), after.wireNet.get('W1'), 'still connected to the marker');
+  assert.match(generateHdl(doc).code, /\bb\s*:\s*in\b/i);
 });

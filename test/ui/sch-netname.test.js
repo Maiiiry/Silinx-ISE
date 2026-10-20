@@ -67,3 +67,51 @@ uiTest('#689 schematic: a net name another net has asks to connect them by name;
   }
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
 });
+
+// #734: a net connected by name renamed by one of its net names: the whole set takes the new name (its other net
+// names, its I/O marker of that name), said in the status line, undone in one step; in English and Portuguese
+uiTest('#734 schematic: renaming a net name renames the whole net connected by name, its I/O marker too; one Undo (English, Portuguese)', E, async (page) => {
+  // a -> U1 -> W2 named s; W3 named s too (one net, by name) -> U2 -> y; a second wire W5 named a: the input marker's net
+  const doc = newDoc('rename', 'vhdl');
+  doc.symbols.push(inv('S1', 'U1', 100, 90), inv('S2', 'U2', 100, 290));
+  doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, x: 60, y: 100 }, { id: 'P2', name: 'y', dir: 'out', width: 1, x: 220, y: 300 });
+  doc.wires.push({ id: 'W1', points: [P(60, 100), P(100, 100)] }, { id: 'W2', points: [P(160, 100), P(220, 100)] },
+    { id: 'W3', points: [P(40, 300), P(100, 300)] }, { id: 'W4', points: [P(160, 300), P(220, 300)] }, { id: 'W5', points: [P(300, 100), P(360, 100)] });
+  doc.labels.push({ id: 'L1', x: 200, y: 100, net: 's' }, { id: 'L2', x: 60, y: 300, net: 'S' }, { id: 'L3', x: 320, y: 100, net: 'a' });
+  await makeProject(env, { name: 'RenamePj', files: { 'src/rename.sch.json': JSON.stringify(doc) } });
+  await page.openProject('RenamePj');
+  await page.eval(() => window.SilinxApp.openSch('src/rename.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 2, [ED], { what: 'drawn' });
+  const getDoc = () => page.eval(() => window.Silinx.active.schEditor.getDoc());
+  // a net name selected, its Name field set (as typed, then Enter)
+  const rename = async (id, name) => {
+    await page.click(`${ED} [data-kind=label][data-id=${id}] .hitbox`);
+    await page.waitFor((ed) => document.querySelector(`${ed} .se-field input`), [ED], { what: 'the net name\'s properties' });
+    await page.eval((ed, v) => { const i = document.querySelector(`${ed} .se-field input`); i.value = v; i.dispatchEvent(new Event('change', { bubbles: true })); }, ED, name);
+  };
+  // the status line's note (shown a moment, translated in Portuguese)
+  const hint = (t) => page.waitFor((ed, x) => { const e = document.querySelector(`${ed} .se-hint`); return !!e && !e.hidden && e.textContent === x; }, [ED, t], { what: `the note: ${t}` });
+  for (const lang of ['en', 'pt']) {
+    await page.eval(async (l) => (await import('/js/i18n.js')).setLanguage(l), lang);
+    // s (and S: VHDL) renamed q from L1: L2 too, the two still one net
+    await rename('L1', 'q');
+    await page.waitFor(() => window.Silinx.active.schEditor.getDoc().labels.map((l) => l.net).join() === 'q,q,a', [], { what: `${lang}: the set renamed` });
+    const nl = netlist(await getDoc());
+    assert.equal(nl.wireNet.get('W2'), nl.wireNet.get('W3'), `${lang}: one net`);
+    await hint(lang === 'en' ? "Renamed to 'q' with the net: 1 other net name" : "Mudado para 'q' com a rede: outro nome de rede");
+    // one Undo: both back
+    await page.key('Escape');
+    await page.menu(lang === 'en' ? 'Edit' : 'Editar', lang === 'en' ? 'Undo' : 'Anular');
+    await page.waitFor(() => window.Silinx.active.schEditor.getDoc().labels.map((l) => l.net).join() === 's,S,a', [], { what: `${lang}: undone in one step` });
+    // the net named a (W5) renamed b: the input marker a with it, the module's port
+    await rename('L3', 'b');
+    await page.waitFor(() => window.Silinx.active.schEditor.getDoc().ports.map((p) => p.name).join() === 'b,y', [], { what: `${lang}: the marker renamed` });
+    assert.deepEqual((await getDoc()).labels.map((l) => l.net), ['s', 'S', 'b']);
+    assert.match(generateHdl(await getDoc(), { lang: 'vhdl' }).code, /\bb\s*:\s*in\b/i);
+    await hint(lang === 'en' ? "Renamed to 'b' with the net: the I/O marker 'b' (a port of the module)" : "Mudado para 'b' com a rede: o marcador de E/S 'b' (um porto do módulo)");
+    await page.key('Escape');
+    await page.menu(lang === 'en' ? 'Edit' : 'Editar', lang === 'en' ? 'Undo' : 'Anular');
+    await page.waitFor(() => window.Silinx.active.schEditor.getDoc().ports.map((p) => p.name).join() === 'a,y', [], { what: `${lang}: the marker undone` });
+  }
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+});

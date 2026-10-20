@@ -593,6 +593,33 @@ export function netByName(doc, nl, name, except = null) {
     n.labels.some(id => nk(parseNetName(label.get(id)?.net).base) === base) || n.ports.some(id => nk(port.get(id)?.name) === base))) || null;
 }
 
+// A net connected by name renamed as a whole (#734): every net name (label) and I/O marker of the net that has its
+// old name (its base, case-insensitive in VHDL) takes the new one, each label keeping its own bus range
+// (d(7:0) -> q(7:0)); the label edited (`edited`, its id) takes the name as typed. A marker is a port of the
+// module: renamed too. nl: netlist(doc); net: the net of nl. Returns { labels, ports } (the ones renamed).
+export function renameNet(doc, nl, net, name, edited = null) {
+  const ci = doc.lang !== 'verilog';
+  const nk = v => (ci ? String(v).toLowerCase() : String(v));
+  const to = parseNetName(name);
+  const out = { labels: [], ports: [] };
+  if (!net || to.bad || !to.base) return out;
+  const label = new Map(doc.labels.map(l => [l.id, l]));
+  const old = edited && label.get(edited) ? parseNetName(label.get(edited).net).base
+    : net.labels.map(id => parseNetName(label.get(id)?.net).base).find(Boolean) ?? doc.ports.find(p => net.ports.includes(p.id))?.name ?? net.name;
+  const same = v => !!v && nk(v) === nk(old);
+  for (const id of net.labels) {
+    const l = label.get(id);
+    if (!l) continue;
+    if (id === edited) { l.net = String(name).trim(); out.labels.push(l); continue; }
+    const m = /^\s*([A-Za-z_][\w$]*)(.*)$/s.exec(String(l.net));
+    if (!m || !same(m[1])) continue;
+    l.net = `${to.base}${m[2].trim() ? m[2].trim() : ''}`;
+    out.labels.push(l);
+  }
+  for (const p of doc.ports) if (net.ports.includes(p.id) && same(p.name)) { p.name = to.base; out.ports.push(p); }
+  return out;
+}
+
 // ===================================================================== connectivity
 const key = (x, y) => `${x},${y}`;
 function onSeg(p, a, b) {
