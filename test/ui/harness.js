@@ -281,6 +281,35 @@ class PageBase {
     for (let i = 1; i <= steps; i++) await this.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(a.x + (b.x - a.x) * i / steps, a.y + (b.y - a.y) * i / steps) });
     await this.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   }
+  /**
+   * Several fingers at once (#674): fingers[i] = [from, to] (client points), put down one after the other, moved
+   * together in `steps`, lifted together. Chrome: CDP touch events; the other browsers (Playwright has no
+   * multi-touch): the pointer events of pointerType 'touch' a touch screen fires, dispatched by the page (each
+   * finger's to the element it went down on, as the browser's implicit capture does).
+   */
+  async touchGesture(fingers, { steps = 8 } = {}) {
+    const at = (i) => fingers.map(([a, b]) => ({ x: a.x + (b.x - a.x) * i / steps, y: a.y + (b.y - a.y) * i / steps }));
+    if (BROWSER === 'chrome') {
+      const pts = (ps) => ps.map((p, k) => ({ x: p.x, y: p.y, id: k + 1, radiusX: 1, radiusY: 1, force: 1 }));
+      for (let k = 1; k <= fingers.length; k++) await this.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pts(at(0).slice(0, k)) });
+      for (let i = 1; i <= steps; i++) await this.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pts(at(i)) });
+      await this.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+      return;
+    }
+    const frames = Array.from({ length: steps + 1 }, (_, i) => at(i));
+    await this.eval((fr) => {
+      const targets = [];
+      const fire = (type, k, p) => {
+        if (type === 'pointerdown') targets[k] = document.elementFromPoint(p.x, p.y);
+        const t = targets[k]?.isConnected ? targets[k] : document.elementFromPoint(p.x, p.y);
+        const down = type !== 'pointerup';
+        t.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, composed: true, view: window, pointerId: 101 + k, pointerType: 'touch', isPrimary: k === 0, clientX: p.x, clientY: p.y, button: type === 'pointermove' ? -1 : 0, buttons: down ? 1 : 0, width: 1, height: 1, pressure: down ? 0.5 : 0 }));
+      };
+      fr[0].forEach((p, k) => fire('pointerdown', k, p));
+      for (const f of fr.slice(1)) f.forEach((p, k) => fire('pointermove', k, p));
+      fr.at(-1).forEach((p, k) => fire('pointerup', k, p));
+    }, frames);
+  }
   /** Set the value of an <input>/<select> and fire input + change. */
   async fill(sel, value, { index = 0 } = {}) {
     const ok = await this.eval((s, v, i) => {

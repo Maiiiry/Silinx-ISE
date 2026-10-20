@@ -13,7 +13,7 @@
 // enabled transition whose guard is true fires, as the generated hardware does), run, reset; and shows
 // the HDL generated from the net. Model, simulation, HDL and PNML: core/petri.js.
 
-import { h, downloadText, undoButton, linkModel, linkSnapshot } from './ui.js';
+import { h, downloadText, undoButton, linkModel, linkSnapshot, twoFingerView } from './ui.js';
 import { panelToggle, PROPS_KEY } from './narrow.js';
 import {
   normalizePetri, newPetri, validatePetri, generatePetri, initialMarking, enabledTransitions, fire, clockStep, isDeadlock,
@@ -430,10 +430,24 @@ export function mountPetriEditor(container, opts = {}) {
 
   // ---------------------------------------------------------------- mouse and keys
   const hit = e => { const g = e.target.closest?.('[data-kind]'); return g ? { kind: g.dataset.kind, id: g.dataset.id } : null; };
+  // a second finger (#674): what the first one started undone, the selection as it was
+  twoFingerView(svg, {
+    cancel: () => {
+      const d = drag;
+      drag = null;
+      if (!d) return;
+      const n = d.kind === 'move' && nodeOf(d.id);
+      if (n) Object.assign(n, { x: d.x, y: d.y });
+      if ('sel0' in d) sel = d.sel0;
+      render();
+    },
+    pan: (dx, dy) => { view.tx += dx; view.ty += dy; applyView(); },
+    zoom: zoomAt,
+  });
   svg.addEventListener('pointerdown', e => {
     root.focus({ preventScroll: true });
     fitted = true;
-    const w = toWorld(e.clientX, e.clientY), t = hit(e);
+    const w = toWorld(e.clientX, e.clientY), t = hit(e), sel0 = sel;
     if (sim && t?.kind === 'transition' && tool === 'select') { fireOne(t.id); return; }
     if (tool === 'place' || tool === 'transition') { if (!t) addNode(tool, w); return; }
     if (tool === 'arc' || tool === 'inhibitor') {
@@ -446,14 +460,14 @@ export function mountPetriEditor(container, opts = {}) {
     if (t) {
       sel = { kind: t.kind, id: t.id };
       const n = nodeOf(t.id);
-      if (n) drag = { kind: 'move', id: n.id, dx: w.x - n.x, dy: w.y - n.y, moved: false };
+      if (n) drag = { kind: 'move', sel0, id: n.id, x: n.x, y: n.y, dx: w.x - n.x, dy: w.y - n.y, moved: false };
       render();
     } else {
       sel = null;
-      drag = { kind: 'pan', x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
+      drag = { kind: 'pan', sel0, x: e.clientX, y: e.clientY, tx: view.tx, ty: view.ty };
       render();
     }
-    svg.setPointerCapture?.(e.pointerId);
+    try { svg.setPointerCapture(e.pointerId); } catch { /* not an active pointer */ }
   });
   svg.addEventListener('pointermove', e => {
     if (!drag) return;
@@ -466,14 +480,14 @@ export function mountPetriEditor(container, opts = {}) {
     if (drag?.kind === 'move' && drag.moved) { drag = null; commit(); return; }
     if (drag?.kind !== 'arcdraw') drag = null;
   });
-  svg.addEventListener('wheel', e => {
-    e.preventDefault();
+  function zoomAt(f, cx, cy) {
     fitted = true;
-    const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
-    const k = Math.max(0.25, Math.min(4, view.k * (e.deltaY < 0 ? 1.1 : 1 / 1.1)));
+    const r = svg.getBoundingClientRect(), mx = cx - r.left, my = cy - r.top;
+    const k = Math.max(0.25, Math.min(4, view.k * f));
     view.tx = mx - (mx - view.tx) * k / view.k; view.ty = my - (my - view.ty) * k / view.k; view.k = k;
     applyView();
-  }, { passive: false });
+  }
+  svg.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX, e.clientY); }, { passive: false });
   root.addEventListener('keydown', e => {
     if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();

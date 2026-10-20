@@ -14,7 +14,7 @@
 // simulation of the diagram (current state highlighted, inputs set by hand, clock steps).
 // Model, validation, tables and HDL: core/fsm.js. Styles: asm-editor.css (shared look) + fsm-editor.css.
 
-import { h, downloadText, undoButton, linkModel, linkSnapshot } from './ui.js';
+import { h, downloadText, undoButton, linkModel, linkSnapshot, twoFingerView } from './ui.js';
 import { panelToggle, PROPS_KEY } from './narrow.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import {
@@ -456,14 +456,16 @@ export function mountFsmEditor(container, opts = {}) {
     }
     return null;
   };
+  const capture = (ev) => { try { svg.setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ } };
   function onPointerDown(ev) {
     fitted = true;
+    const sel0 = sel;
     const onItem = ev.target.closest('[data-state],[data-trans]');
     if (ev.button === 1 || (ev.button === 0 && !onItem)) {
       closeInline(true);
       if (sel) { sel = null; render(); renderSide(); }
-      drag = { kind: 'pan', x: ev.clientX, y: ev.clientY, tx: view.tx, ty: view.ty };
-      svg.setPointerCapture(ev.pointerId);
+      drag = { kind: 'pan', sel0, x: ev.clientX, y: ev.clientY, tx: view.tx, ty: view.ty };
+      capture(ev);
       svg.classList.add('panning');
       return;
     }
@@ -477,8 +479,8 @@ export function mountFsmEditor(container, opts = {}) {
     if (tEl) {
       const t = transById(tEl.dataset.trans);
       sel = { type: 'trans', id: t.id }; render(); renderSide();
-      drag = { kind: 'bend', t, start: w, moved: false };
-      svg.setPointerCapture(ev.pointerId);
+      drag = { kind: 'bend', sel0, t, start: w, moved: false, bend: t.bend, angle: t.angle };
+      capture(ev);
       return;
     }
     const sEl = ev.target.closest('[data-state]');
@@ -488,10 +490,10 @@ export function mountFsmEditor(container, opts = {}) {
       const r = radiusOf(s);
       sel = { type: 'state', id: s.id }; render(); renderSide();
       if (d > r - 7) {
-        drag = { kind: 'connect', from: s, start: w };
+        drag = { kind: 'connect', sel0, from: s, start: w };
         svg.classList.add('connecting');
-      } else drag = { kind: 'move', s, dx: w.x - s.x, dy: w.y - s.y, moved: false };
-      svg.setPointerCapture(ev.pointerId);
+      } else drag = { kind: 'move', sel0, s, x: s.x, y: s.y, dx: w.x - s.x, dy: w.y - s.y, moved: false };
+      capture(ev);
     }
   }
   function onPointerMove(ev) {
@@ -548,6 +550,19 @@ export function mountFsmEditor(container, opts = {}) {
       if (d.target && moved) addTransition(d.from.id, d.target.id);
     }
   }
+  // a second finger (#674): what the first one started undone, the selection as it was
+  function cancelDrag() {
+    const d = drag;
+    drag = null;
+    svg.classList.remove('panning', 'connecting');
+    gOverlay.textContent = '';
+    if (!d) return;
+    for (const el of gStates.querySelectorAll('.fsm-state.drop')) el.classList.remove('drop');
+    if (d.kind === 'move') Object.assign(d.s, { x: d.x, y: d.y });
+    else if (d.kind === 'bend') Object.assign(d.t, { bend: d.bend, angle: d.angle });
+    sel = d.sel0;
+    render(); renderSide();
+  }
   function onDblClick(ev) {
     const tEl = ev.target.closest('[data-trans]');
     if (tEl) { editLabel(transById(tEl.dataset.trans)); return; }
@@ -572,6 +587,7 @@ export function mountFsmEditor(container, opts = {}) {
     else if (k === '0') fit();
     else if (k === 'Escape' && sel) { sel = null; render(); renderSide(); }
   }
+  twoFingerView(svg, { cancel: cancelDrag, pan: (dx, dy) => { view.tx += dx; view.ty += dy; applyView(); }, zoom: zoomAt });
   svg.addEventListener('pointerdown', onPointerDown);
   svg.addEventListener('pointermove', onPointerMove);
   svg.addEventListener('pointerup', onPointerUp);

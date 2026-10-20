@@ -12,7 +12,7 @@
 // data path: generics, internal registers and the 2-flip-flop synchroniser of each input.
 
 import { svgSnapshot, printDiagram } from './print.js';
-import { undoButton, linkModel, linkSnapshot } from './ui.js';
+import { undoButton, linkModel, linkSnapshot, twoFingerView } from './ui.js';
 import { panelToggle, PROPS_KEY } from './narrow.js';
 import {
   normalizeModel, newModel, validate, generate, stateEncoding, ENCODINGS, nextCaseLabel as nextLabel,
@@ -976,7 +976,8 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     // mousedown to the removed element and moves the keyboard focus to the page (Delete did nothing)
     if (nodeEl || edgeEl) ev.preventDefault();
     const start ={ cx: ev.clientX, cy: ev.clientY, w: toWorld(ev.clientX, ev.clientY) };
-    svg.setPointerCapture(ev.pointerId);
+    try { svg.setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ }
+    const sel0 = sel;
     if (ev.button === 1 || spaceDown) {
       drag = { mode: 'pan', start, tx: view.tx, ty: view.ty };
     } else if (portEl && nodeEl) {
@@ -992,7 +993,7 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
         return;
       }
       if (!sel.nodes.has(id)) { sel = { nodes: new Set([id]), edge: null }; render(); renderInspector(); updateToolbar(); }
-      drag = { mode: 'move', start, orig: new Map([...sel.nodes].map((nid) => { const n = nodeById(nid); return [nid, { x: n.x, y: n.y }]; })), moved: false };
+      drag = { mode: 'move', start, sel0, orig: new Map([...sel.nodes].map((nid) => { const n = nodeById(nid); return [nid, { x: n.x, y: n.y }]; })), moved: false };
     } else if (edgeEl) {
       sel = { nodes: new Set(), edge: edgeEl.dataset.edge };
       render(); renderInspector(); updateToolbar();
@@ -1040,6 +1041,21 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
       rubber.setAttribute('width', Math.abs(dxs)); rubber.setAttribute('height', Math.abs(dys));
       rubber.setAttribute('visibility', 'visible');
     }
+  }
+
+  // a second finger (#674): what the first one started undone, the selection as it was
+  function cancelDrag() {
+    const d = drag;
+    drag = null;
+    svg.classList.remove('panning', 'connecting');
+    if (d?.mode === 'move') {
+      for (const [id, o] of d.orig) Object.assign(nodeById(id), o);
+      sel = d.sel0;
+      render(); renderInspector(); updateToolbar();
+    } else if (d?.mode === 'connect') {
+      gOverlay.innerHTML = '';
+      svg.querySelectorAll('.drop').forEach((el) => el.classList.remove('drop'));
+    } else if (d?.mode === 'rubber') rubber.setAttribute('visibility', 'hidden');
   }
 
   function validTarget(from, to) {
@@ -1139,6 +1155,7 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     if (ev.key === ' ') { spaceDown = false; svg.classList.remove('space'); }
   }
 
+  twoFingerView(svg, { cancel: cancelDrag, pan: (dx, dy) => { fitted = true; view.tx += dx; view.ty += dy; applyView(); }, zoom: zoomAt });
   svg.addEventListener('pointerdown', onPointerDown);
   svg.addEventListener('pointermove', onPointerMove);
   svg.addEventListener('pointerup', onPointerUp);
