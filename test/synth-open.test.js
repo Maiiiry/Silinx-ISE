@@ -377,6 +377,9 @@ test('logic depth: the scripts (the design before the LUT mapping written, mappe
     + 'techmap -map silinx_lut6_map.v t:$lut r:WIDTH=6 %i; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
   // (the usual mapping, onto LUT4s alone, has no 6-input function to split: no LUT6_MAP, #54)
   assert.ok(!synthCommands('top', 'spartan3e').includes(LUT6_MAP_FILE));
+  // onto LUT4s alone (#370): no 6-input function to split either
+  assert.equal(remapCommands('top', 'spartan3e', { luts: '1,1,1,1' }), 'read_rtlil silinx_premap.il; abc -luts 1,1,1,1 -script silinx_depth.abc; clean; techmap -map +/xilinx/ff_map.v; '
+    + 'techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
   assert.match(DEPTH_ABC, /if -g; .*if; mfs2$/);
   // 6-input-LUT families: synth_xilinx as it is, nothing written
   assert.equal(synthCommands('m', 'spartan6', { premap: PREMAP_FILE }), 'synth_xilinx -family xc6s -ise -flatten -top m');
@@ -681,6 +684,37 @@ test('#54 a barrel rotator written as gates: its 4:1 multiplexers two LUT4s and 
   const lut4 = await synthesizeOpen(rot, { family: 'spartan3e', run: yosysNode, effort: 'normal', wide: false });
   assert.deepEqual([lut4.util.luts, lut4.util.muxes, lut4.depth.wide], [128, 0, undefined]);
   assert.ok(criticalDelay(n.files[`${top}.json`], top) < 0.75 * criticalDelay(lut4.files[`${top}.json`], top));
+});
+
+// #370: a round-robin arbiter written as gates, as the EPFL arbiter (its grant i: request i and, from the position holding
+// the priority round the ring, no request before it): each grant a ring-shaped priority chain, the chains of the
+// outputs sharing nothing as written. Balanced (if -g) their trees overlap; mapped onto LUT4s alone (DEPTH_ABC2 on
+// LUT4_ONLY) they take fewer LUTs and slices than with the wider functions (161 LUTs, 81 slices, 7.6 ns estimated,
+// against the second balancing's 159, 99, 8.7)
+const arbiter = n => {
+  const grant = i => Array.from({ length: n }, (_, k) => {
+    const j = (i - k + n) % n;
+    return `(p[${j}]${Array.from({ length: k }, (_, m) => ` & ~r[${(j + m) % n}]`).join('')})`;
+  }).join(' | ');
+  return `module arb(input clk, input [${n - 1}:0] req, input [${n - 1}:0] pri, output reg [${n - 1}:0] g);
+  reg [${n - 1}:0] r, p; wire [${n - 1}:0] gw;
+  always @(posedge clk) begin r <= req; p <= pri; g <= gw; end
+${Array.from({ length: n }, (_, i) => `  assign gw[${i}] = r[${i}] & (${grant(i)});`).join('\n')}
+endmodule
+`;
+};
+test('#370 a round-robin arbiter written as gates: balanced once more onto LUT4s alone, a fourth candidate, kept (fewer slices, faster), equal to the RTL', { timeout: 300000 }, async () => {
+  const d = elaborate(compile([{ path: 'arb.v', lang: 'verilog', text: arbiter(24) }]), 'arb');
+  const r = await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode });
+  assert.deepEqual([r.depth.kept, r.depth.lut4.kept, r.depth.second.kept, r.depth.delays.kept, r.depth.third.kept], [true, true, false, false, false], JSON.stringify(r.depth));
+  assert.deepEqual([r.util.luts, sliceCount(r.files['arb.json'], 'arb')], [r.depth.lut4.luts, r.depth.lut4.slices]);
+  // fewer slices than each of the other three, and faster than the second balancing, which was kept before
+  for (const k of ['second', 'delays', 'third']) assert.ok(r.depth.lut4.slices < r.depth[k].slices, `${k}: ${JSON.stringify(r.depth)}`);
+  assert.ok(r.depth.lut4.ns < r.depth.second.ns, JSON.stringify(r.depth));
+  assert.equal(r.util.muxes, 0);
+  assert.deepEqual(r.warnings, []);
+  const c = compareNetlist(d, r, { name: 'lut4-arbiter', seed: 'arb', sim: { cycles: 400 } });
+  assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
 });
 
 // #78: the LUT delays, ABC's script inline (YoWASP's ABC crashes on read_lut from a script file)

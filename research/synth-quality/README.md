@@ -1235,3 +1235,29 @@ ports), and ignores the multiplexers. With synth_xilinx's memory step made by ha
 (+6.4 %): the RAM's read address comes from about 12 levels of LUTs, and the read can no longer be mapped together
 with the logic after it. At High the second balancing is kept (18.6 ns by the estimate), routed 22.47 ns against
 21.44, 1177 slices. Slower, so not kept.
+
+## The EPFL arbiter: balanced once more onto LUT4s alone (#370)
+
+The EPFL round-robin arbiter (256 inputs, 129 outputs, each grant a ring-shaped priority chain of about 88 gates; not
+in the corpus, whose runner runs out of memory on it, #372) maps at High to the balanced mappings on the wider
+functions (`LUT4_COSTS`). The second balancing onto LUT4s alone (#370's comment: 1972 LUTs and 986 slices against
+2212 and 1254) was not one of the candidates. It is now a fourth one, beside DEPTH_ABC2 with and without the LUT delays
+and DEPTH_ABC3, kept by the same rule (keepSecond, then the best by DEPTH_RULE).
+
+Measured on 2026-10-20 at High:
+
+| design | before: kept | LUTs | slices | ns (estimate) | ns (routed, seeds 1–3) |
+|---|---|---:|---:|---:|---:|
+| EPFL arbiter in the corpus's I/O wrapper (XC3S1200E) | DEPTH_ABC2, LUT delays | 2196 → **2019** | 1224 → **1010** | 9.86 → 9.92 | 13.60 → **13.39** |
+| EPFL arbiter alone | DEPTH_ABC3 | 2163 (not kept: 1972) | 1214 (986) | 9.27 (9.65) | |
+| a 24-request arbiter written as gates (`test/synth-open.test.js`) | DEPTH_ABC2 | 159 → 161 | 99 → **81** | 8.65 → **7.62** | |
+
+On the arbiter alone the new netlist is 4 % slower by the estimate than DEPTH_ABC3's, outside the rule's 1 % for a
+smaller one, so DEPTH_ABC3 stays; in the wrapper (where the build runs) the two are within it. On the design corpus at
+High the candidate is made for the 18 designs that keep the depth-oriented mapping and is never kept (slower by the
+estimate on each: the EPFL adder 76 ns against 9.7, max 66 against 16.6, the ITC'99 cores 10 to 16 %): the same
+netlists, the same warnings, 221 s of synthesis instead of 208 for those 18 (one Yosys at a time).
+
+Still far from the size record (259 LUT-6, about 520 LUT4s): each output's chain is mapped as its own tree; the record
+needs the two shared prefix scans of a round-robin arbiter (a functional rewrite before ABC), which neither ABC script
+finds.

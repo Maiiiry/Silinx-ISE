@@ -361,7 +361,10 @@ export const DEPTH_ABC = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch 
 export const DEPTH_ABC2 = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if; mfs2; strash; dch -f; if; mfs2';
 // and balanced twice more (#52), with the LUT delays, a third candidate kept as the other two: a priority
 // chain or a comparator tree is balanced further each time (the EPFL priority 8.8 ns estimated instead of 16.5,
-// max 21.1 instead of 23.0); not in place of DEPTH_ABC2, slower on others (serv 7 %, the EPFL router 8 %)
+// max 21.1 instead of 23.0); not in place of DEPTH_ABC2, slower on others (serv 7 %, the EPFL router 8 %).
+// DEPTH_ABC2 onto LUT4s alone (LUT4_ONLY, #370) is a fourth candidate: the trees of a round-robin arbiter's ring-shaped
+// priority chains in fewer LUTs and slices (the EPFL arbiter in the corpus's I/O wrapper 1224 -> 1010 slices, routed 1.5 %
+// faster); on the corpus never kept (slower by the estimate)
 export const DEPTH_ABC3 = DEPTH_ABC2.replace('if -g; strash; dc2; dch -f; if;', 'if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if;');
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
 // The GIA's SOP balancing (#654): ABC's &sopb balances the logic as sums of products on its GIA form (the AIG with
@@ -434,11 +437,11 @@ export function sliceCount(json, top) {
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again,
  *  with the depth-oriented ABC script (DEPTH_ABC, in the file DEPTH_ABC_FILE given to Yosys), onto LUT4_COSTS, the
- *  6-input functions split by LUT6_MAP (the file LUT6_MAP_FILE) where it can. */
-export function remapCommands(top, family, { script = true, inline = null } = {}) {
+ *  6-input functions split by LUT6_MAP (the file LUT6_MAP_FILE) where it can; luts: LUT4_ONLY onto LUT4s alone (#370). */
+export function remapCommands(top, family, { script = true, inline = null, luts = LUT4_COSTS } = {}) {
   const synth = `synth_xilinx -family ${YOSYS_FAMILY[family]} -ise -flatten -top ${top}`;
   const abc = inline ? ` -script ${abcInline(inline)}` : script ? ` -script ${DEPTH_ABC_FILE}` : '';
-  return `read_rtlil ${PREMAP_FILE}; abc -luts ${LUT4_COSTS}${abc}; ${lutsToCells(synth, { lut6: true })}`;
+  return `read_rtlil ${PREMAP_FILE}; abc -luts ${luts}${abc}; ${lutsToCells(synth, { lut6: luts === LUT4_COSTS })}`;
 }
 
 /** The commands that map the design written by synthCommands(…, { premap: PREMAP_FILE }) again with ABC9 onto
@@ -684,7 +687,8 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * ns: [usual, depth-oriented] (criticalDelay), luts: [usual, depth-oriented] (usual: the mapping kept
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
  * the depth-oriented one was kept, delays: { ns, luts, kept } of the same with the LUT delays (#78), third:
- * { ns, luts, kept } of the one balanced twice more with the LUT delays (DEPTH_ABC3, #52), and
+ * { ns, luts, kept } of the one balanced twice more with the LUT delays (DEPTH_ABC3, #52), lut4: { ns, luts, kept } of the
+ * one balanced once more onto LUT4s alone (DEPTH_ABC2 on LUT4_ONLY, #370), and
  * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
  * abc9: false leaves it out); each with its slices too, when it packs (sliceCount); muxf: { trees, ns, luts, slices,
  * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511), and sopb: { ns,
@@ -797,7 +801,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     let chosen = out, cells = cellCounts(json, top);
     // a mapping of the design as it was before the LUT mapping, by an ABC script (null: ABC's own, onto LUT4_COSTS)
     // (delays: the script inline with the LUT library, #78)
-    const remap = (script, lines, delays = false) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script } : { script: !!script })}; ${outputs(top)}`],
+    const remap = (script, lines, delays = false, luts = LUT4_COSTS) => run(['-q', '-p', `${remapCommands(top, family, delays ? { inline: script, luts } : { script: !!script, luts })}; ${outputs(top)}`],
       { [PREMAP_FILE]: asText(out[PREMAP_FILE]), [LUT6_MAP_FILE]: LUT6_MAP, ...(script && !delays && { [DEPTH_ABC_FILE]: script }), ...(delays && { [LUT_LIB_FILE]: LUT_LIB }) },
       l => { if (!quiet(l)) lines.push(l); });
     // Normal, a design that gets none of High's mappings (#54): the mapping with the wider functions too (LUT4_COSTS,
@@ -834,7 +838,8 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         early9?.catch(() => {});
         // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
         // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
-        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true), remap(DEPTH_ABC3, lines5, true)]);
+        const lines6 = [];
+        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true), remap(DEPTH_ABC3, lines5, true), remap(DEPTH_ABC2, lines6, false, LUT4_ONLY)]);
         const early = (run.parallel || 1) >= 4 ? second() : null;
         early?.catch(() => {});
         const [outW, out2] = await first;
@@ -865,21 +870,22 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
             chosen = out2;
             cells = cells2;
             for (const l of lines2) kept.push(l);
-            // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), and twice more with them
-            // (DEPTH_ABC3, #52), at once; each kept by keepSecond, a later one in place of an earlier one when
-            // both are and it is better by DEPTH_RULE
-            const [out3, out4, out5] = await (early || second());
+            // balanced once more (DEPTH_ABC2), with and without the LUT delays (#78), twice more with them
+            // (DEPTH_ABC3, #52), and once more onto LUT4s alone (#370), at once; each kept by keepSecond, a later one in
+            // place of an earlier one when both are and it is better by DEPTH_RULE
+            const [out3, out4, out5, out6] = await (early || second());
             const cand = (o, lines) => {
               const j = o[`${top}.json`];
               if (!j) return null;
               const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts, k = slices(j);
               return { out: o, lines, cells: c, ns: n, luts: l, slices: k, kept: keepSecond([...ns, n], [...luts, l], DEPTH_RULE, [...sl, k]) };
             };
-            const a = cand(out3, lines3), b = cand(out4, lines4), c = cand(out5, lines5);
-            const best = [a, b, c].reduce((x, y) => (y?.kept && (!x || keepDepth([x.ns, y.ns], [x.luts, y.luts], DEPTH_RULE, [x.slices, y.slices])) ? y : x), null);
+            const a = cand(out3, lines3), b = cand(out4, lines4), c = cand(out5, lines5), d = cand(out6, lines6);
+            const best = [a, b, c, d].reduce((x, y) => (y?.kept && (!x || keepDepth([x.ns, y.ns], [x.luts, y.luts], DEPTH_RULE, [x.slices, y.slices])) ? y : x), null);
             if (a) info.second = { ns: a.ns, luts: a.luts, slices: a.slices, kept: best === a };
             if (b) info.delays = { ns: b.ns, luts: b.luts, slices: b.slices, kept: best === b };
             if (c) info.third = { ns: c.ns, luts: c.luts, slices: c.slices, kept: best === c };
+            if (d) info.lut4 = { ns: d.ns, luts: d.luts, slices: d.slices, kept: best === d };
             if (best) {
               chosen = best.out;
               cells = best.cells;
@@ -908,7 +914,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         // first mapping's netlist, valid, is kept and said (#401)
         chosen = out;
         cells = cellCounts(json, top);
-        for (const k of ['wide', 'second', 'delays', 'third', 'abc9']) delete info[k];
+        for (const k of ['wide', 'second', 'delays', 'third', 'lut4', 'abc9']) delete info[k];
         Object.assign(info, { tried: false, kept: false, ns: null, luts: null, slices: null, failed: e.message });
         sayNew(`Warning: the depth-oriented mapping failed (${e.message}): the usual mapping is kept`);
       }
