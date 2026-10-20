@@ -692,6 +692,121 @@ PERIOD) by ISE's own flow on the Basys2-250 and brings back trce's reports; 23 d
 `core/fpga/timing.js checkSwitching` checks these (DCM_LIMITS), in the flows' timing report, warnings and Design
 Summary. They are not checked in the packer: map and par accept such a DCM; it is a timing error, from the PERIOD.
 
+## The critical path's routing against ISE's (#651, 2026-10-20)
+
+The weekly comparison (docs/QUALITY.md, 2026-10-20) had 17 of the 40 timed designs with more than 0.5 ns more
+routing on their critical path than ISE's, with about as much logic. Where that routing goes, on the worst
+(the app's flow at Normal on the XC3S1200E, seed 1; the same routed designs timed by ISE's trce, `trce -v`):
+
+- `crit-path.mjs`: each connection of Silinx's critical path (its timing analysis, which is within 1 % of trce
+  on these) against the fastest route the device has for the same placement: to the same pin, to any input of
+  the same LUT (the router may swap them: **the placement's floor**), and to any of them on the wires no other
+  net uses (the floor plus **the contention**); the rest is **the router's own choice** (the branch loads of
+  the net's own tree, a slower path where a free one was faster).
+- `twr-path.mjs`: a trce report's critical path, net by net (fanout, delay, the sites at both ends, the distance
+  in CLBs), for ISE's flow and for Silinx's routing alike.
+
+Silinx's critical path, split (ns), against ISE's routing (trce):
+
+| design | routing | placement floor | contention | router | per net: floor / ISE | ISE's routing |
+|---|---:|---:|---:|---:|---|---:|
+| itc99-b08 | 3.64 | 1.70 | 1.63 | 0.31 | 0.34 / 0.29 | 1.47 |
+| iwls05-i2c | 4.26 | 3.63 | 0 | 0.64 | 0.52 / 0.34 | 1.72 |
+| verilog-uart | 4.29 | 2.78 | 0.81 | 0.70 | 0.46 / 0.63 | 2.53 |
+| itc99-b05 | 4.31 | 3.03 | 0.08 | 1.20 | 0.43 / 0.50 | 2.99 |
+| itc99-b10 | 3.04 | 1.79 | 0.98 | 0.27 | 0.45 / 0.67 | 2.01 |
+| itc99-b12 | 4.12 | 3.26 | 0.21 | 0.66 | 0.47 / 0.59 | 2.94 |
+| iwls05-simple-spi | 3.01 | 1.90 | 0.81 | 0.31 | 0.38 / 0.33 | 1.63 |
+| vtr-diffeq1 | 11.97 | 8.04 | 2.16 | 1.77 | 0.73 / 0.80 | 8.85 |
+| t80 | 10.55 | 6.50 | 0.40 | 3.66 | 0.46 / 0.47 | 6.13 |
+
+What it says:
+
+- **Per connection, the placement is at ISE's level; the excess is the router's.** The floor per routed net of
+  the path is about what ISE's routing achieves per net (0.34 against 0.29 ns, 0.46 against 0.47 on the T80);
+  only iwls05-i2c's placement is clearly worse (0.52 against 0.34: six levels of LUTs, 1–2 CLBs apart, where
+  ISE's four are next to each other). What Silinx adds above the floor, 0.9–4 ns, is contention and the
+  router's choices, 30–45 % of the path's routing.
+- **Contention: the fast wires next to a load held by another net.** On itc99-b08 two connections inside one
+  CLB take 0.91–0.93 ns, a loop of three doubles back into the CLB, where the device has 0.105 ns (the CLB's
+  fast connect to another input of the same LUT) or 0.45 (an OMUX): the fast connect's input is another
+  critical net's, the OMUX (OMUX13) a non-critical net's (`in_r<2>`), and the other inputs of the LUT are taken
+  by nets that reached them first (one of crit 0.76 on the only input the critical net's fast connect reaches,
+  routed at 0.55 ns). vtr-diffeq1: a double (E2BEG5) next to the load held by an adder's net, 1.53 ns instead
+  of 0.72. Once the routing is legal, the router's two timing passes rerouted every net with a critical
+  connection at once, at the congestion cost the passes had reached (a present factor of 30 and more), and
+  kept the result only when the critical path was shorter: the conflicts stayed.
+- **The critical load of a high-fanout net at the end of a shared branch.** The T80's path goes through nets of
+  78 and 45 loads (ISE's: none above 8); the load of the 45 two rows from its driver at 2.52 ns, after ten
+  doubles shared with the other loads, where a free route takes 0.37: it was not critical when its net was
+  routed, and the timing passes routed the whole net again with the others' criticalities. Silinx's critical
+  paths go through more nets of many loads than ISE's (itc99-b08 17 against 3, itc99-b10 18 against 7,
+  verilog-uart 23 against 19, the T80 78 and 45 against 8): their branch loads are most of "router" above.
+- **The multipliers' column (vtr-diffeq1).** Its 13 multipliers fit in one of the XC3S1200E's two columns of 14;
+  ISE keeps those of its path in column X0 next to their logic; Silinx's placement of seed 1 has 5 in X0 and 8
+  in X1, so a product crosses the chip (3.54 ns from MULT18X18_X0Y8 to SLICE_X78Y59, 1.78 back). Seeds 2 and 3
+  are 4–8 % faster; vtr-diffeq2's 13 are in one column and it is faster than ISE. Not changed: moving the
+  multipliers within the placer's shrinking window instead of anywhere (as the slices move) gained nothing
+  (geometric mean of 7 designs with multipliers or block RAMs over 3 seeds −0.7 % at a window of 4 tiles, +0.2 %
+  at 8: noise).
+- **Placement options** (the timing weight 3 instead of 1.5, effort 2) moved the 8 smaller designs by +0.8 % and
+  −1.0 % (geometric mean over 3 seeds): the seeds alone move a design by 5–10 %.
+- The placer's delay table against the routed delays (9 designs, all connections between slices): the routed
+  ones are 1.3–1.8 times the table at every distance (the table has no fanout and no congestion), about evenly,
+  so it does not mislead the placer at short distances more than at long ones.
+
+**The change (#662): the router's polish of the critical path** (`core/fpga/route.js`). Once the routing is
+legal, the timing passes are 4 (were 2), at a present factor of 1 (`timingPf`), so that a critical net can take
+a contested wire; then the critical path's connections one at a time, the slowest first: its own branch (from
+the load up to where it leaves the net's tree) routed again on the wires no other net uses, else on those of
+other nets at a cost (`stealCost`, 1 unit = 0.3 ns at criticality 1), those nets (at most `stealNets`, 8) then
+routed again on free wires; kept when the analysis says the critical path is shorter, or as long with that
+connection faster (another path of the same delay), until no connection of the path gains (at most `polish`,
+300, changes). It is never slower by the analysis, the routing stays legal (each change is checked against its
+nets' wires) and complete.
+
+Tried on the same placements (seed 1 of the 9 designs, then of the examples) before it: more timing passes
+alone (8, 20: the T80 −2 %, itc99-b08 −12 %, the others unchanged), the critical nets first in the timing
+passes, the history cost cleared there, a polish that routes the path's whole nets again (the T80 −1 %: it moves
+their other loads too), a polish on free wires only (the T80 −2 %, nothing else: the wires it needs are taken).
+
+Silinx's analysis, the app's place and route (no replication), 3 seeds per design, mean of the seeds (ns):
+
+| design | before | after | |
+|---|---:|---:|---:|
+| itc99-b08 | 6.908 | 6.542 | −5.3 % |
+| iwls05-i2c | 9.788 | 9.792 | 0.0 % |
+| verilog-uart | 9.956 | 9.931 | −0.3 % |
+| itc99-b05 | 11.431 | 11.364 | −0.6 % |
+| itc99-b10 | 6.183 | 6.129 | −0.9 % |
+| itc99-b12 | 10.113 | 9.500 | −6.1 % |
+| iwls05-simple-spi | 6.899 | 6.809 | −1.3 % |
+| vtr-diffeq1 | 36.014 | 35.857 | −0.4 % |
+| t80 | 22.055 | 21.710 | −1.6 % |
+| vtr-diffeq2 | 26.603 | 26.557 | −0.2 % |
+| fpu-multiplier | 14.315 | 14.098 | −1.5 % |
+| femtorv32-quark | 19.028 | 18.853 | −0.9 % |
+| light8080 | 12.646 | 12.540 | −0.8 % |
+| traffic | 10.107 | 9.737 | −3.7 % |
+| blinky | 6.321 | 6.304 | −0.3 % |
+| pong | 12.313 | 12.325 | +0.1 % |
+| stopwatch | 12.678 | 12.674 | 0.0 % |
+| clock | 8.126 | 8.130 | +0.1 % |
+| vga | 9.391 | 9.302 | −0.9 % |
+| geometric mean | 11.656 | 11.504 | **−1.3 %** |
+
+With 8 timing passes instead of 4, −1.5 %, at twice the routing time; the routing with 4 takes about 1.3 times
+as long as before (the T80 6.7 -> 9.7 s, vtr-diffeq2 2.7 -> 4.2 s, the examples 0.2-0.8 s).
+
+TRCE_RESULTS
+
+What is left (the same split after the change, seed 1): the contention is gone on itc99-b08 (1.63 -> 0.27 ns),
+verilog-uart, the T80 (0.40 -> 0) and itc99-b12, but stays on itc99-b10 (0.71), iwls05-simple-spi (0.81) and
+vtr-diffeq1 (1.84), whose critical connections compete with others as critical; the router's share is the branch
+loads of the high-fanout nets (the T80 3.66 -> 1.86 ns), which only fewer loads per net (replication, or a
+netlist like XST's) remove; and the placement's floor, above ISE's routing on iwls05-i2c (the levels, #652) and
+on vtr-diffeq1 at seed 1 (the multipliers' columns).
+
 ## Open problems
 
 - Timing: no timing constraints (UCF PERIOD) are read yet; the router and the placer minimise the
