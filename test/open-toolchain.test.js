@@ -142,7 +142,7 @@ test('toolchain configuration: the Silinx toolchain mode, its ISE for device des
   await assert.rejects(tc.saveConfig({ open: { iseMode: 'cloud' } }), /invalid open.iseMode 'cloud' \(local\|docker\|ssh\)/);
   const st = tc.iseStatus(cfg, { ise: {}, helpers: {} });
   assert.equal(st.available, true);
-  assert.match(st.reason, /^Silinx toolchain \(experimental, no ISE\)/);
+  assert.match(st.reason, /^Silinx toolchain \(no ISE\)/);
   assert.match(st.help, /needs no Xilinx tool/);
   await app.call('POST', '/projects', { name: 'Stat', device: DEV('xc3s1600e', 'fg320') });
   const r = await app.call('GET', '/toolchain?project=Stat');

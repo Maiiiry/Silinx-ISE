@@ -21,7 +21,7 @@ const STATUS_ICON = { ok: 'ok', warn: 'warn', err: 'err', running: 'running', st
 
 // The Design Summary can always be (re)opened from the Processes panel: whatever is selected, in both views
 const SUMMARY_PROC = { id: 'summary', label: 'Design Summary/Reports', ico: 'summary', run: () => openSummary() };
-// The Silinx toolchain (Toolchain Settings: "Silinx toolchain (experimental, no ISE)"): Synthesize,
+// The Silinx toolchain (Toolchain Settings: "Silinx toolchain (no ISE)"): Synthesize,
 // Implement Design and Generate Programming File run Silinx's own flow on the server; the processes
 // that need Xilinx ISE are disabled (their tooltip says why).
 // the project's synthesis tool (Design Properties: Silinx or XST), else Toolchain Settings' mode; never
@@ -40,7 +40,7 @@ function forOpenMode(defs) {
     const q = { ...p };
     if (ISE_ONLY.has(p.id)) Object.assign(q, { disabled: true, title: ISE_ONLY_TIP });
     if (p.id === 'synth') q.label = OPEN_SYNTH;
-    if (['synth', 'impl', 'bitgen'].includes(p.id)) q.title = 'Silinx toolchain (experimental, no ISE)';
+    if (['synth', 'impl', 'bitgen'].includes(p.id)) q.title = 'Silinx toolchain (no ISE)';
     if (p.children) q.children = p.children.map(conv).filter(Boolean);
     return q;
   };

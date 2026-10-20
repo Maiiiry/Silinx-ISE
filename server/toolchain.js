@@ -7,7 +7,7 @@
 //   ssh    - build/ is streamed (tar over ssh) to another machine, run there (with ISE installed
 //            on it, or in a docker image on it: ssh.image, e.g. an Intel Mac) and the results
 //            are streamed back
-//   open   - no ISE: the Silinx toolchain (experimental) runs on this machine (server/open-flow.js:
+//   open   - no ISE: the Silinx toolchain runs on this machine (server/open-flow.js:
 //            Yosys + Silinx's pack, place, route and bitgen) for the devices with a device
 //            description and a bit database. ISE is still used (open.iseMode: local / docker / ssh,
 //            with the settings of that mode) to build the description of another device.
@@ -250,7 +250,7 @@ export function iseStatus(cfg, det) {
     return { mode, available: true, reason: `remote host ${cfg.ssh.user ? cfg.ssh.user + '@' : ''}${cfg.ssh.host}${cfg.ssh.image ? ` (docker image ${cfg.ssh.image})` : ''}`, help };
   }
   if (mode === 'silinx') {
-    return { mode, available: true, reason: 'Silinx toolchain (experimental, no ISE): synthesis, place and route and bitstream by Silinx and Yosys, for the devices with a device description and a bit database (the Spartan-3E XC3S100E, XC3S250E, XC3S500E and XC3S1200E: Basys2, Nexys2)', help };
+    return { mode, available: true, reason: 'Silinx toolchain (no ISE): synthesis, place and route and bitstream by Silinx and Yosys, for the devices with a device description and a bit database (the Spartan-3E XC3S100E, XC3S250E, XC3S500E and XC3S1200E: Basys2, Nexys2)', help };
   }
   return { mode, available: false, reason: `unknown mode '${mode}'`, help: HELP.local };
 }

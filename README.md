@@ -257,7 +257,7 @@ In short:
   first time; programming the board needs the site's address). For a course page (Moodle…), link the site's address as a URL: an HTML file uploaded to
   Moodle does not work (Moodle's filtering of uploaded HTML files removes its scripts).
 - **Synthesis and bitstreams need no Xilinx tool** for the **Basys2-100 / 250 and Nexys2-500 / 1200**:
-  the *Silinx toolchain (experimental, no ISE)*, the default mode, synthesizes (Yosys), places,
+  the *Silinx toolchain (no ISE)*, the default mode, synthesizes (Yosys), places,
   routes and writes the bitstream itself, in the browser or locally.
 - **Or run Silinx locally, with Node.js (an alternative):** install [Node.js](https://nodejs.org)
   (LTS), download **`silinx-ise-<version>.zip`** from the
@@ -409,7 +409,7 @@ needs the full application (`npm start`).
 Implementation uses the Silinx toolchain by default (below), or the ISE 14.7 command-line tools
 (WebPACK edition: free, with a free license).
 
-**Without ISE (Silinx toolchain, experimental):** the synthesis (*Synthesize - Yosys*, with Silinx as
+**Without ISE (Silinx toolchain):** the synthesis (*Synthesize - Yosys*, with Silinx as
 the project's synthesis tool; *Synthesize - Yosys (open)* in a project that synthesizes with XST)
 synthesizes any design with Yosys compiled to WebAssembly, in parallel Web Workers. Its *Optimization
 Effort* (Process Properties) Normal, the default, maps the design once (fast); High also tries the

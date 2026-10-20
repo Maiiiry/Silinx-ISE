@@ -69,7 +69,7 @@ export function mountSummary(el) {
         .map(([n, f, r]) => h('tr', {}, h('td', {}, n), h('td', {}, r ? h('a', { onclick: () => app.openFile(`build/${f}`) }, 'Current') : '')))));
     // quick links (ISE sidebar style)
     page.append(h('div', { style: { color: 'var(--grey-3)', marginTop: '8px' } },
-      app.openMode?.() ? 'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the Silinx toolchain (experimental, no ISE): Tools ▸ Toolchain Settings.'
+      app.openMode?.() ? 'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis and implementation use the Silinx toolchain (no ISE): Tools ▸ Toolchain Settings.'
         : 'Tip: double-click a process in the Processes panel to run it. Simulation runs entirely inside Silinx; synthesis/implementation require Xilinx ISE 14.7 (Tools ▸ Toolchain Settings).'));
   };
   return { refresh, onActivate: refresh };

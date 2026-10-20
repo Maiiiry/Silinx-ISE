@@ -1,4 +1,4 @@
-// UI: the toolchain mode "Silinx toolchain (experimental, no ISE)": chosen in Toolchain Settings (with
+// UI: the toolchain mode "Silinx toolchain (no ISE)": chosen in Toolchain Settings (with
 // the status of the project's device; no ISE setting nor Build Device Description, #8), Generate
 // Programming File of blinky for real (the device description and the bit database of the XC3S250E
 // ship with Silinx: no ISE), the Processes icons and the Design Summary, the FPGA view of the routed
@@ -54,7 +54,7 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   await page.waitDialog('Toolchain Settings');
   await page.waitFor(() => !document.querySelector('.dlg-overlay .tc-detecting'), [], { what: 'toolchain detected' });
   const modeSel = '.dlg-overlay .form-grid select';
-  assert.equal(await page.eval((s) => [...document.querySelector(s).options].pop().textContent, modeSel), 'Silinx toolchain (experimental, no ISE)');
+  assert.equal(await page.eval((s) => [...document.querySelector(s).options].pop().textContent, modeSel), 'Silinx toolchain (no ISE)');
   // not in open mode: no open status
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .open-status').style.display), 'none');
   await page.eval((s) => { const m = document.querySelector(s); m.value = 'silinx'; m.dispatchEvent(new Event('change')); }, modeSel);
@@ -78,7 +78,7 @@ uiTest('Toolchain Settings: the open mode, the status of the project\'s device, 
   await setLang('en');
   await page.dialogButton('Save');
   await page.waitNoDialog();
-  await page.waitConsole(/Toolchain settings saved \(silinx: Silinx toolchain \(experimental, no ISE\)/);
+  await page.waitConsole(/Toolchain settings saved \(silinx: Silinx toolchain \(no ISE\)/);
   const cfg = (await env.server.api('GET', '/api/toolchain')).config;
   assert.equal(cfg.mode, 'silinx');
   assert.equal(cfg.open.iseMode, 'ssh');
@@ -108,7 +108,7 @@ uiTest('open mode: Generate Programming File of blinky without ISE; the Processe
   await page.waitConsole(DONE('Generate Programming File'), { timeout: 120000 });
   const text = await page.consoleText();
   assert.match(text, /Process "Generate Programming File" completed successfully/, text.slice(-3000));
-  assert.match(text, /Silinx implementation with the Silinx toolchain \(experimental, no ISE\)/);
+  assert.match(text, /Silinx implementation with the Silinx toolchain \(no ISE\)/);
   assert.match(text, /All signals are completely routed\./);
   assert.match(text, /Bitstream: build\/top\.bit \(\d+ bytes, every feature in the bit database\)/);
   const st = await page.eval(() => window.SilinxApp.S.status);
