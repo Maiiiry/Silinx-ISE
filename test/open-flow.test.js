@@ -238,6 +238,10 @@ const FEATURES = {
   // register, a tristate output's value and enable registers, on pads where the bit database measured those kinds
   feat_iobreg: [/^pack \(1 slices\)/m, 'IOB', [/^inst "sw<0>" "IBUF",placed \S+ P11 +,\n {2}cfg "[^"]* IFF1:[^"]* ICEINV::ICE [^"]*IFD_DELAY_VALUE::DLY3 /m,
     /^inst "led<0>" "IOB",placed \S+ M5 +,\n {2}cfg "[^"]* OMUX::OFF1 [^"]* OFF1:/m, /^inst "led<1>" "IOB",placed \S+ P6 +,\n {2}cfg "[^"]* OMUX::OFF1 [^"]* TMUX::TFF1 [^"]* TFF1:/m]],
+  // plain registers in the IOBs (no enable, no set / reset), a tristate output's enable from the fabric and from an IOB
+  // register (#96: measured on every pad in its second round)
+  feat_iob_plain: [/^pack \(\d+ slices\)/m, 'IOB', [/^inst "sw<0>" "IBUF",placed \S+ P11 +,\n {2}cfg "[^"]* IFF1:/m, /^inst "led<4>" "IOB",placed \S+ N5 +,\n {2}cfg "[^"]* TMUX::T1 /m,
+    /^inst "led<5>" "IOB",placed \S+ N4 +,\n {2}cfg "[^"]* TMUX::TFF1 [^"]* O1_DDRMUX::1 /m]],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
 for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {
@@ -256,15 +260,17 @@ for (const [name, [packLine, type, settings = [], absent = []]] of Object.entrie
   });
 }
 
-// IOB registers on a pad where the bit database has not measured their kind (#96): the bitstream writer refuses them
-// and names the settings (feat_iobreg's tristate on M11, LED1: no output-enable register with a reset measured there)
-test('the open flow: an IOB register of a kind not measured on its pad is refused, its settings named (#96)', { timeout: 300000 }, () => {
+// IOB registers of every kind on every pad (#96, its second round; before, a kind was measured on a quarter of the pads
+// only): feat_iobreg's tristate output on M11 (LED1), an output-enable register with a clock enable and a reset, which
+// the bitstream writer refused there before (R:TCEINV:TCE…), now complete
+test('the open flow: an IOB register of every kind on every pad: feat_iobreg\'s tristate on M11, refused before #96\'s second round, complete', { timeout: 300000 }, () => {
   const dir = path.join(tmp, 'iobreg-m11');
   fs.cpSync(path.join(ROOT, 'test/fixtures/open-flow/feat_iobreg'), dir, { recursive: true });
   fs.writeFileSync(path.join(dir, 'top.ucf'), fs.readFileSync(path.join(dir, 'top.ucf'), 'utf8').replace('LOC = "P6"', 'LOC = "M11"'));
   const r = openFlow(dir, path.join(dir, 'out'));
-  assert.equal(r.status, 1);
-  assert.equal(r.stderr, ['open-flow: 4 features not in the bit database: no bitstream', '  @M11 R:TFF1_SR_ATTR:SRHIGH', '  @M11 R:TFFATTRBOX:SYNC', '  @M11 R:TSR_USED:0', '  @M11 R:TCEINV:TCE', ''].join('\n'));
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+  assert.match(fs.readFileSync(path.join(dir, 'out', 'routed.xdl'), 'utf8'), /^inst "led<1>" "IOB",placed \S+ M11 +,\n {2}cfg "[^"]* TMUX::TFF1 [^"]* TCEINV::TCE /m);
   assert.deepEqual(r.warnings, []);
 });
 

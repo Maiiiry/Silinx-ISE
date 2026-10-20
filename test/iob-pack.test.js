@@ -119,13 +119,18 @@ test('IOB registers: an output register and an output-enable register share the 
   const p = pack(nl, { iobRegs: 'o' });
   const y = iob(p, 'y'), z = iob(p, 'z');
   assert.equal(cfgText(y), 'DRIVEATTRBOX::12 IOATTRBOX::LVCMOS25 O1INV::O1 OMUX::OFF1 SLEW::SLOW T1INV::T1 TMUX::TFF1 OFF1:rd:#FF OFF1_INIT_ATTR::INIT0 OFF1_SR_ATTR::SRLOW OFFATTRBOX::ASYNC OSR_USED::0 SRINV::SR '
-    + 'OTCLK1INV::OTCLK1 TFF1:rt:#FF TFF1_INIT_ATTR::INIT0 TFF1_SR_ATTR::SRLOW TFFATTRBOX::ASYNC TSR_USED::0 TCEINV::TCE OUTBUF:y_OBUF: PAD:y:');
+    + 'OTCLK1INV::OTCLK1 O1_DDRMUX::1 TFF1:rt:#FF TFF1_INIT_ATTR::INIT0 TFF1_SR_ATTR::SRLOW TFFATTRBOX::ASYNC TSR_USED::0 TCEINV::TCE OUTBUF:y_OBUF: PAD:y:');
   assert.deepEqual(Object.keys(pinsOf(p, y)).sort(), ['O1', 'OTCLK1', 'SR', 'T1', 'TCE']);
   assert.equal(cfgOf(z).TMUX.value, 'T1');
   assert.equal(cfgOf(z).OMUX.value, 'OFF1');
   assert.deepEqual(Object.keys(pinsOf(p, z)).sort(), ['O1', 'OTCLK1', 'T1']);
   same(nl, p);
   same(nl, pack(nl));
+  // an output register with a clock enable: O1_DDRMUX and PCICE_MUX as ISE's map writes them (xdl refuses the register
+  // without O1_DDRMUX on P6 / P7 of the XC3S250E-CP132)
+  const ce = pack(design({ rq: fdre('a', 'q', 'ce') }, { ins: ['a', 'ce'], outs: ['q'] }), { iobRegs: 'o' });
+  assert.deepEqual(['O1_DDRMUX', 'PCICE_MUX', 'OCEINV'].map(a => cfgOf(iob(ce, 'q_o'))[a]?.value), ['1', 'OCE', 'OCE']);
+  assert.equal(cfgOf(iob(pack(design({ rq: fdre('a', 'q') }, { ins: ['a'], outs: ['q'] }), { iobRegs: 'o' }), 'q_o')).PCICE_MUX, undefined);
   // an enable register of another clock or set / reset than the output register's: in a slice
   const other = design({ rd: fdre('d', 'qd'), rt: fdce('t', 'qt', '1', 'clr') }, { ins: ['d', 't', 'clr'], tris: { y: ['qd', 'qt'] } });
   const po = pack(other, { iobRegs: 'o' });

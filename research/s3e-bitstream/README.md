@@ -767,6 +767,56 @@ projects of `test/open-flow.test.js` pass `scripts/check-open-flow.mjs` (DRC cle
 Runtime: 16 designs implemented from HDL and 336 xdl + bitgen runs (about 25 minutes), 18 more designs
 implemented for ISE's choice of pad (about 7 minutes).
 
+### The IOB registers' kinds on every pad, the tristate enable from the fabric (2026-10-20, #96, #97)
+
+#44's designs cycle the registers' kinds through the pads (`gen-iobreg.mjs`: clear + enable, synchronous reset +
+enable, synchronous set, falling edge), so each kind was measured on a quarter of the pads; the plain register (no
+clock enable, no set / reset: the open synthesis's usual kind, #96's packer) was refused on about three pads in four,
+and the tristate output's enable from the fabric (`TMUX:T1`) was never measured. `measure-iobrot.sh` adds the
+designs with the kinds moved by 1-3 pads (`--rot k`: rik, rok) and `rt` (every output pad a tristate output, its
+enable from a flip-flop kept out of the IOB), implemented by ISE, with 24 random variants each (`gen-iobrand.mjs`).
+
+- **Solved together with #44's designs.** Solved alone, the new designs give each bit to settings that differ from
+  #44's on about 10 % of the features (the settings that always occur together share their bits one way or
+  another); #44's numbers and the new ones do not combine (wrong bits on most new designs). #44's designs were not
+  kept, so its seven bases (ri, ro, ro2, ro3, rd, rd2, rb) were written again by the same script and implemented
+  by ISE, and `ana-iobreg.mjs` solves all 14 designs at once: 334 designs per device, every bit explained; the
+  register features of the database are replaced by that solution (about 90 % of #44's keep their bits).
+- **Checked.** Every one of the 334 designs per device, and 26 held out (2 more random variants of each design but
+  rb, not used to solve, the IDDR2 / ODDR2 ones too), byte-identical to ISE's bitgen on the XC3S100E, 250E and
+  500E; on the XC3S1200E every differing bit is one of its long-line splitters'. With 8 variants per design instead
+  of 24, about one held-out design in five had wrong bits (the DDR ones mostly): #44 had used about 24 too.
+- **Coverage**, with rtek0-3 (every output pad's enable registered, the four kinds) and rio, rio1-3 (ri with its outputs
+  on the last pads: the eight that drive ri's outputs never had an input register): every register kind on every pad of
+  the four devices: the plain input register on 80 / 89 / 229 / 247 pads (every pad with an input register) and the
+  plain output and output-enable registers and `TMUX:T1` on 72 / 85 / 176 / 194 (every output pad), XC3S100E / 250E /
+  500E / 1200E; 970 designs per device with the delay variants below, every bit explained, every one byte-identical to
+  ISE's bitgen.
+- **The packer** writes an output register as ISE's map does, with `O1_DDRMUX::1` (and `PCICE_MUX::OCE` with a clock
+  enable): xdl -xdl2ncd refused it without on P6 / P7 of the XC3S250E-CP132. `test/fixtures/open-flow/feat_iob_plain`
+  (Basys2-250: plain input and output registers, the enable from the fabric and from an IOB register) passes
+  `scripts/check-open-flow.mjs` (DRC clean, byte-identical); an input register on a left or top pad does not yet
+  (#671: the clocks of I/O registers through the left / right clock rows, and from general routing).
+
+### Every input delay on every pad but the clock pins (2026-10-20, #97)
+
+#44 kept only the delay ISE's map chooses by itself (DLY2 on the XC3S100E, DLY3 on the others): with random delays,
+about 40 % of its held-out designs had wrong bits, which it read as an interaction between neighbouring pads.
+`gen-iobdly.mjs` gives, on ISE's routed ri (input registers, IFD_DELAY_VALUE 0-6) and rb (direct inputs,
+IBUF_DELAY_VALUE 0-12), every pair of values to the pads of each I/O tile (K x K variants: 49 / 169), each tile's
+sequence of its own (no two tiles' pads with the same values), and `ana-iobdly.mjs` classifies every bit that changes:
+**every one follows a single pad's delay** (288 / 288 and 370 / 370 on the XC3S100E), none the pair's. So the per-pad
+model holds; #44 had too few values per pad. The delay variants (and those of rio, rbo: the eight pads ri and rb use
+as outputs) are solved with the registers' designs (`ana-iobreg.mjs`, every delay kept: 970 designs per device, every
+bit explained, every solved design byte-identical to ISE's bitgen).
+
+**But for the global clock pins.** Held-out designs with every pad's delay at random (`gen-iobrand.mjs --delays`, seed
+9) had wrong bits only on the pads with a dedicated path to a global buffer (32 on the CP132, 34 on the FG320:
+`route.js bufgReach`): bits of the clock tiles (CLKT / CLKB / CLKL / CLKR) that depend on their delay. Those pads keep
+only the delay ISE's map chooses (their other delays refused); on every other pad all of IFD_DELAY_VALUE 0-6 and
+IBUF_DELAY_VALUE 1-12 are in the database. Then every design, solved or held out, is byte-identical to ISE's bitgen or
+refused (a clock pin's other delay), never wrong (the XC3S1200E's but for its long-line splitters).
+
 ### The PIPs a tile does not have (2026-10-13, #74)
 
 The database's PIP features are per tile type, and several types take another's: the I/O, corner,

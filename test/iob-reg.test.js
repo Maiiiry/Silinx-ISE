@@ -7,6 +7,9 @@ import { parseXdl } from '../core/xdl.js';
 import { designFeatures, frameData, iobRegFeatures, parseBit } from '../core/fpga/bitgen.js';
 import { getBit, diffFrames } from '../core/fpga/bitstream.js';
 import { loadDb } from '../core/fpga/bitdb-node.js';
+import { loadDeviceCache } from '../core/fpga/device-node.js';
+import { deviceSites } from '../core/fpga/place.js';
+import { bufgReach } from '../core/fpga/route.js';
 
 const cfgOf = s => s.trim().split(/\s+/).map(t => { const m = /^([^:]+):([^:]*):(.*)$/.exec(t); return { attr: m[1], name: m[2], value: m[3] }; });
 
@@ -46,9 +49,11 @@ net "q" ,
   for (const f of ['IFD:DLY3', 'R:IFF1:#FF', 'R:IFF1_SR_ATTR:SRLOW', 'R:IFF2:#OFF', 'I:LVCMOS25']) assert.ok(feats.includes(f), f);
   // every bit the pad's register features set is set, every one they clear cleared
   for (const f of feats.filter(x => !/^I:/.test(x))) for (const s of db.padFeats.M11[f]) { const [fr, b, v] = parseBit(s); assert.equal(getBit(r.frames, r.frames.frameWords, fr, b), v, `${f} ${s}`); }
-  // the database keeps only the delay ISE's map chooses by itself (DLY3 here: a pad's other delays
-  // interact with its neighbours'): another one is refused, as a value ISE's map never writes (8)
-  assert.deepEqual(frameData(parseXdl(xdl('DLY0', '1')), db).unknown.map(u => `${u.tile} ${u.feature}`), ['@M11 IFD:DLY0']);
+  // every delay of the pad is in the database (#97: measured with every pair of values on the pads of each tile, its
+  // bits the pad's own; DLY0, the delay line bypassed, its own bits too); a value ISE's map never writes (8) is refused
+  const d0 = frameData(parseXdl(xdl('DLY0', '1')), db);
+  assert.deepEqual(d0.unknown, []);
+  assert.ok(diffFrames(r.frames, d0.frames, r.frames.frameWords).length > 0);
   assert.deepEqual(frameData(parseXdl(xdl('DLY8')), db).unknown.map(u => `${u.tile} ${u.feature}`), ['@M11 IFD:DLY8']);
   // the same register on another pad: that pad's own bits
   const other = frameData(parseXdl(xdl('DLY3').replace('BIOIS_X24Y0 M11', 'BIOIS_X26Y0 N12')), db);
@@ -66,7 +71,20 @@ test('I/O registers in the measured database: every pad of the four devices has 
     for (const f of [`IFD:${auto}`, 'R:IFF1:#FF', 'R:ICLK1INV:ICLK1', 'R:ICLK1INV:ICLK1_B', 'R:IFF1_INIT_ATTR:INIT0', 'R:IFF1_INIT_ATTR:INIT1']) assert.ok(n(f) >= inputs - 3, `${part} ${f}: ${n(f)} pads`);
     // every pad that can drive an output but those of the designs' controls: output and tristate registers, DDR
     for (const f of ['OMUX:OFF1', 'TMUX:TFF1', 'OMUX:OFFDDR', 'O1INV:O1_B', 'R:OFF1:#FF', 'R:OFF2:#FF']) assert.ok(n(f) >= outputs - 3, `${part} ${f}: ${n(f)} pads`);
-    // the other delays are not in the database
-    assert.equal(pads.filter(p => Object.keys(p).some(f => /^(IFD|IBUF):/.test(f) && f !== `IFD:${auto}`)).length, 0, part);
+    // (#96, the second round: every register kind on every pad, solved with #44's designs) the plain registers, no
+    // clock enable or set / reset (the open synthesis's usual kind), and the tristate output's enable from the fabric
+    // on every pad that can drive an output; the plain input register on every pad of an input register, the
+    // eight that drive the designs' outputs, measured with rio1-3; the output-enable register's kinds with rtek0-3
+    for (const f of ['R:OFF1_SR_ATTR:#OFF', 'R:OCEINV:#OFF', 'TMUX:T1', 'R:TFF1_SR_ATTR:#OFF', 'R:TCEINV:#OFF', 'R:TCEINV:TCE']) assert.ok(n(f) >= outputs - 3, `${part} ${f}: ${n(f)} pads`);
+    for (const f of ['R:IFF1_SR_ATTR:#OFF', 'R:ICEINV:#OFF']) assert.ok(n(f) >= inputs - 3, `${part} ${f}: ${n(f)} pads`);
+    // every input delay on every pad of an input but the global clock pins (#97): an input register's IFD_DELAY_VALUE
+    // 0-6, a direct input's IBUF_DELAY_VALUE 1-12 (0: no feature); a clock pin (a dedicated path to a global buffer)
+    // only the delay ISE's map chooses, its other delays setting bits of the clock tiles (refused)
+    const dev = loadDeviceCache(part);
+    const gclk = new Set([...deviceSites(dev).pads.keys()].filter(p => bufgReach(dev, p, 'I').length));
+    assert.equal(gclk.size, /fg320/.test(part) ? 34 : 32, part);
+    for (let k = 0; k <= 6; k++) assert.ok(n(`IFD:DLY${k}`) >= inputs - gclk.size - 3 || `IFD:DLY${k}` === `IFD:${auto}`, `${part} IFD:DLY${k}: ${n(`IFD:DLY${k}`)} pads`);
+    for (let k = 1; k <= 12; k++) assert.ok(n(`IBUF:DLY${k}`) >= inputs - gclk.size - 3, `${part} IBUF:DLY${k}: ${n(`IBUF:DLY${k}`)} pads`);
+    for (const [name, f] of Object.entries(db.padFeats)) if (gclk.has(name)) assert.deepEqual(Object.keys(f).filter(x => /^(IFD|IBUF):/.test(x) && x !== `IFD:${auto}`), [], `${part} ${name}`);
   }
 });

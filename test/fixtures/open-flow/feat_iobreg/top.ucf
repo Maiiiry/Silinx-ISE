@@ -1,6 +1,6 @@
 # Digilent Basys2: the pins of feat_iobreg, its registers in the IOBs (#96; on pads where the
-# bit database measured their kinds: led<1> on P6, the board's LED3; on M11, LED1, it has no output-enable
-# register with a reset)
+# bit database measured their kinds: led<1> on P6, the board's LED3; on M11, LED1, too since #96's second
+# round)
 NET "clk"    LOC = "B8" | IOSTANDARD = LVCMOS33 ;
 NET "sw<0>"  LOC = "P11" | IOSTANDARD = LVCMOS33 | IOB = TRUE ;
 NET "sw<1>"  LOC = "L3" | IOSTANDARD = LVCMOS33 ;
