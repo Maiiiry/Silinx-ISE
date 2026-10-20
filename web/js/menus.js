@@ -144,6 +144,8 @@ export function setupToolbar() {
   const tb = $('toolbar');
   const btn = (ico, title, fn, enabled = () => true) => {
     const b = h('button', { class: 'tb-btn', title, 'data-cmd': ico, html: icons[ico], onclick: () => enabled() && runAction(title, fn) });
+    // (Cut / Copy / Paste pressed leave the focus where it is: in the editor or the text field whose selection they take)
+    if (['cut', 'copy', 'paste'].includes(ico)) b.addEventListener('mousedown', e => e.preventDefault());
     b.dataset.enabled = '1';
     b._enabled = enabled;
     return b;

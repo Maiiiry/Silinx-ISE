@@ -116,6 +116,9 @@ export function popupMenu(items, x, y) {
 
 function buildMenu(items) {
   const m = h('div', { class: 'menu-popup' });
+  // a menu pressed leaves the focus where it is, as the menu bar does (Edit ▸ Copy takes the selection of the
+  // text field in focus, #677)
+  m.addEventListener('mousedown', e => e.preventDefault());
   for (const it of items) {
     if (it === '-') { m.append(h('div', { class: 'sep' })); continue; }
     if (!it) continue;

@@ -238,7 +238,26 @@ const textClip = ed => {
     deleteSelection() { if (!ro()) ed.replaceSelection(''); done(); },
   };
 };
+// a text field in focus (a drawing's name, an expression, a property): its own selection
+const fieldClip = el => {
+  const ro = () => el.readOnly || el.disabled;
+  const any = () => el.selectionEnd > el.selectionStart;
+  const put = t => { el.setRangeText(t, el.selectionStart, el.selectionEnd, 'end'); el.dispatchEvent(new Event('input', { bubbles: true })); el.focus(); };
+  return {
+    canCopy: any, canDelete: () => !ro() && any(), canPaste: () => !ro(),
+    copy() { if (any()) writeClip('text', el.value.slice(el.selectionStart, el.selectionEnd)); el.focus(); },
+    cut() { if (!any() || ro()) return; writeClip('text', el.value.slice(el.selectionStart, el.selectionEnd)); put(''); },
+    async paste() { const t = await readClip('text'); if (t != null && !ro()) put(el.tagName === 'INPUT' ? t.replace(/\r?\n/g, ' ') : t); },
+    deleteSelection() { if (!ro()) put(''); },
+  };
+};
+const focusedField = () => {
+  const el = document.activeElement;
+  return el && !el.closest('.cm-editor, .dlg-overlay') && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && /^(text|search|url|)$/i.test(el.getAttribute('type') || ''))) ? el : null;
+};
 export const clipEditor = d => {
+  const f = focusedField();
+  if (f) return fieldClip(f);
   if (!d) return null;
   if (d.editor) return textClip(d.editor);
   const x = d.schEditor || d.asmEditor || d.fsmEditor || d.ttEditor || d.petriEditor;

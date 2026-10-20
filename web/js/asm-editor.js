@@ -19,6 +19,8 @@ import {
 } from '/core/asm.js';
 import { esc, h } from './dom.js';
 import { highlightHdl } from './highlight.js';
+import { copyDrawing, pasteDrawing, drawingClipEmpty } from '/core/drawclip.js';
+import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
 
 const GRID = 20;
 const CHW = 7.25;          // approx. width of a 12px monospace character
@@ -361,6 +363,31 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     } else return;
     commit('delete');
     renderInspector();
+  }
+
+  // Cut / Copy / Paste (#677, core/drawclip.js): the boxes selected and the connections between them, pasted
+  // offset and selected, a state name already used made new
+  let pasteN = 0, pasteText = null;
+  function copySel(cut = false) {
+    if (!sel.nodes.size) return;
+    const clip = copyDrawing('asm', M, [...sel.nodes]);
+    writeClip('asm', clip);
+    pasteText = JSON.stringify(clip); pasteN = 0;   // (pasted here: next to the original)
+    if (cut) deleteSelection();
+  }
+  async function paste(clip) {
+    clip ??= await readClip('asm');
+    if (drawingClipEmpty('asm', clip) || destroyed) return;
+    const t = JSON.stringify(clip);
+    if (t !== pasteText) { pasteText = t; pasteN = clip.from === M.name ? 0 : -1; }
+    const d = 2 * GRID * ++pasteN;
+    const { ids } = pasteDrawing('asm', M, clip, { dx: d, dy: d });
+    M = normalizeModel(M);
+    if (!M.initial || !nodeById(M.initial)) M.initial = ids.find((id) => nodeById(id)?.type === 'state') || M.initial;
+    sel = { nodes: new Set(ids), edge: null };
+    commit('paste');
+    renderInspector();
+    root.focus({ preventScroll: true });
   }
 
   // ---------------------------------------------------------------------------- history
@@ -1120,6 +1147,9 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     if (mod && (k === 'z' || k === 'Z')) { if (ev.shiftKey) redo(); else undo(); ev.preventDefault(); return; }
     if (mod && (k === 'y' || k === 'Y')) { redo(); ev.preventDefault(); return; }
     if (mod && (k === 'p' || k === 'P')) { print(); ev.preventDefault(); return; }
+    if (mod && (k === 'c' || k === 'C')) { copySel(); ev.preventDefault(); return; }
+    if (mod && (k === 'x' || k === 'X')) { copySel(true); ev.preventDefault(); return; }
+    if (mod && (k === 'v' || k === 'V')) { pasteFromKey('asm', paste); return; }
     if (mod && (k === 'a' || k === 'A')) { sel = { nodes: new Set(M.nodes.map((n) => n.id)), edge: null }; render(); renderInspector(); updateToolbar(); ev.preventDefault(); return; }
     if (k === 'Escape') {
       if (drag?.mode === 'connect') { drag = null; gOverlay.innerHTML = ''; svg.classList.remove('connecting'); }
@@ -1169,6 +1199,9 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     getModel: () => clone(M),
     undo: () => undo(), redo: () => redo(),
     canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1,
+    // Edit ▸ Cut / Copy / Paste / Delete (#677)
+    copy: () => copySel(), cut: () => copySel(true), paste: () => paste(), deleteSelection: () => deleteSelection(),
+    canCopy: () => sel.nodes.size > 0, canDelete: () => sel.nodes.size > 0 || !!sel.edge, canPaste: () => hasClip('asm'),
     setModel(m) {
       M = normalizeModel(m || newModel('fsm', 'vhdl'));
       hist = [JSON.stringify(M)]; hi = 0; lastKey = null;
