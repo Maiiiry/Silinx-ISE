@@ -578,6 +578,20 @@ export function parseNetName(s) {
   return { base: m[1], width: m[2] != null ? Math.abs(+m[2] - +m[3]) + 1 : null };
 }
 
+// The net, other than `except`, that a net name would join (#689): net names (labels) and I/O markers of
+// the same name are one net, connected by name without a wire, as in ISE (case-insensitive in VHDL). The
+// name's base counts (d(7:0): d). nl: netlist(doc). Returns that net, or null.
+export function netByName(doc, nl, name, except = null) {
+  const ci = doc.lang !== 'verilog';
+  const nk = v => (ci ? String(v).toLowerCase() : String(v));
+  const base = nk(parseNetName(name).base);
+  if (!base) return null;
+  const label = new Map(doc.labels.map(l => [l.id, l]));
+  const port = new Map(doc.ports.map(p => [p.id, p]));
+  return nl.nets.find(n => n !== except && n.id !== except?.id && (
+    n.labels.some(id => nk(parseNetName(label.get(id)?.net).base) === base) || n.ports.some(id => nk(port.get(id)?.name) === base))) || null;
+}
+
 // ===================================================================== connectivity
 const key = (x, y) => `${x},${y}`;
 function onSeg(p, a, b) {
