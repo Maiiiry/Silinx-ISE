@@ -225,6 +225,33 @@ test('join tests: one net per hypothesis, from a slice output through the tile t
   assert.equal(r2.designs.length, 2);
 });
 
+test('join tests: a wire only an I/O or block-RAM site drives, tested from that site (an IOB\'s input, a block RAM\'s output) (#3)', () => {
+  // the I/O tile's OMUX0 and E2BEG0 are driven only from its IOB's I (IOIS_I0); the block-RAM tile's E2BEG1 only
+  // from the block RAM's DOA3: no slice reaches them, so the joins out of them were untestable (step 1's 3388)
+  const pips = {
+    LIOIS_X0Y10: [['IOIS_I0', 'OMUX0'], ['OMUX0', 'E2BEG0']],
+    BRAM0_SMALL_X7Y10: [['BRAM_DOA3', 'OMUX1'], ['OMUX1', 'E2BEG1']],
+    CLB_X1Y10: [['E2MID0', 'F1_B0']], CLB_X8Y10: [['E2MID1', 'G3_B0']],
+  };
+  const pipsOf = t => pips[t] || [];
+  const slicesOf = () => [];
+  const pinWire = (pos, pin) => `${pin}${pos}`;
+  const joins = [['LIOIS_X0Y10/E2BEG0', 'CLB_X1Y10/E2MID0'], ['BRAM0_SMALL_X7Y10/E2BEG1', 'CLB_X8Y10/E2MID1']];
+  const part = 'xc3s250ecp132-4';
+  assert.deepEqual(joinTestDesigns({ part, joins, slicesOf, pinWire, pipsOf }).untestable, joins);
+  const src = { LIOIS_X0Y10: [{ site: 'D2', type: 'IOB', o: 'I', wire: 'IOIS_I0' }], BRAM0_SMALL_X7Y10: [{ site: 'RAMB16_X0Y1', type: 'RAMB16', o: 'DOA3', wire: 'BRAM_DOA3' }] };
+  const r = joinTestDesigns({ part, joins, slicesOf, pinWire, pipsOf, sourcesOf: t => src[t] || [] });
+  assert.deepEqual(r.untestable, []);
+  assert.deepEqual(r.designs.map(d => d.tests.map(t => t.join)), [joins]);
+  const d = parseXdl(r.designs[0].xdl);
+  assert.deepEqual(d.insts.map(i => `${i.name} ${i.type} ${i.site}`), ['s_D2 IOB D2', 's_RAMB16_X0Y1 RAMB16 RAMB16_X0Y1']);
+  // the IOB's input from its pad, no register; the net: the site's output, no sink of its own
+  assert.ok(d.insts[0].cfg.some(c => c.attr === 'IMUX' && c.value === '1') && d.insts[0].cfg.some(c => c.attr === 'PAD'));
+  assert.deepEqual([d.nets[0].outpins, d.nets[0].inpins], [[{ inst: 's_D2', pin: 'I' }], []]);
+  assert.deepEqual(d.nets[0].pips.map(p => `${p.tile} ${p.from} ${p.to}`), ['LIOIS_X0Y10 IOIS_I0 OMUX0', 'LIOIS_X0Y10 OMUX0 E2BEG0', 'CLB_X1Y10 E2MID0 F1_B0']);
+  assert.deepEqual(d.nets[1].outpins, [{ inst: 's_RAMB16_X0Y1', pin: 'DOA3' }]);
+});
+
 test('join tests: a tile with no slice is driven from a neighbouring CLB across a known join', () => {
   // the I/O tile LIOIS_X0Y10 has no slice: its W2MID1 is reached from the CLB's W2BEG1 (a known join)
   const pips = {
