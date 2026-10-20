@@ -15,7 +15,7 @@
 
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
-  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS,
+  xform, rotSize, portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -174,6 +174,17 @@ function bodySvg(sym, def) {
 }
 
 // readable texts, positioned in sheet coordinates
+// the width of a bus pin, beside the end of its lead
+function pinWidth(p) {
+  const o = { W: [-10, -3], E: [10, -3], N: [4, -8], S: [4, 8] }[p.side];
+  return `<text class="pwidth" x="${p.x + o[0]}" y="${p.y + o[1]}" text-anchor="middle">${p.width}</text>`;
+}
+// the symbol's type under it (above it turned 180°, beside it turned 90° / 270°), as ISE draws it (#172)
+function typeUnder(sym, def, box, center, name) {
+  const t = xform(sym, def, def.body.x + def.body.w / 2, def.h);
+  const turned = sym.rot === 90 || sym.rot === 270;
+  return `<text class="stype" x="${turned ? box.x + box.w + 3 : t.x}" y="${turned ? center.y + 3 : (sym.rot === 180 ? box.y - 3 : box.y + box.h + 10)}" text-anchor="${turned ? 'start' : 'middle'}">${esc(name)}</text>`;
+}
 const AUTO_NAME = /^(XLXI_\d+|inst_\d+|U\d+)$/;
 function textsSvg(sym, def, ctx = {}) {
   let s = '';
@@ -208,8 +219,7 @@ function textsSvg(sym, def, ctx = {}) {
     const turned = sym.rot === 90 || sym.rot === 270;
     const t = turned ? center : cx(def.body.x + def.body.w - 3, def.body.h - 4);
     const dx = xform(sym, def, 1, 0).x - xform(sym, def, 0, 0).x;
-    const nm = SYMBOLS[sym.type]?.title || '';
-    s += `<text class="stype" x="${t.x}" y="${t.y + (turned ? 3 : sym.rot === 180 ? 7 : 0)}" text-anchor="${turned ? 'middle' : dx > 0 ? 'end' : 'start'}">${esc(sym.type === 'register' || sym.type === 'counter' ? `${nm}${sym.params.width}` : nm)}</text>`;
+    s += `<text class="stype" x="${t.x}" y="${t.y + (turned ? 3 : sym.rot === 180 ? 7 : 0)}" text-anchor="${turned ? 'middle' : dx > 0 ? 'end' : 'start'}">${esc(symbolTypeName(sym))}</text>`;
   } else if (def.shape === 'lib') {
     // decoders / encoders: symbol name in the free top row, like the title of module symbols (centre when turned)
     const top = cx(def.body.x + def.body.w / 2, def.body.y + 15);
@@ -217,6 +227,8 @@ function textsSvg(sym, def, ctx = {}) {
     s += `<text class="stitle" x="${rot ? center.x : top.x}" y="${rot ? center.y + 4 : top.y + 4}" text-anchor="middle">${esc(def.title)}</text>`;
   } else if (def.shape === 'arith') {
     s += `<text class="sop" x="${center.x}" y="${center.y + 5}" text-anchor="middle">${esc(def.op)}</text>`;
+    // the type with its width under the symbol (ADD8, SUB16, COMP4), as for the gates (#681)
+    s += typeUnder(sym, def, box, center, symbolTypeName(sym));
   } else if (def.shape === 'slice') {
     // the bit(s) it takes, with the bus's name: A(0) of A(5:0) (#174)
     const t = cx(20, 0);
@@ -224,6 +236,9 @@ function textsSvg(sym, def, ctx = {}) {
   } else if (def.shape === 'const') {
     const t = cx((def.w - 20) / 2, 10);
     s += `<text class="cval" x="${t.x}" y="${t.y + 4}" text-anchor="middle">${esc(def.text)}</text>`;
+    // a constant wider than a bit: the width by its output, as on the bus pins of the other symbols (#681)
+    const o = symbolPins(sym, null, def)[0];
+    if ((o.width || 1) > 1) s += pinWidth(o);
   } else if (def.shape === 'vcc' || def.shape === 'gnd') {
     const t = cx(10, def.shape === 'vcc' ? 6 : 34);
     s += `<text class="stype" x="${t.x}" y="${t.y + (def.shape === 'vcc' ? -2 : 6)}" text-anchor="middle">${def.shape.toUpperCase()}</text>`;
@@ -231,9 +246,7 @@ function textsSvg(sym, def, ctx = {}) {
     const w = sym.params?.width > 1 ? `${sym.params.width}` : '';
     if (w) { const t = cx(def.body.x + 8, def.h / 2); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${w}</text>`; }
     // the type under the symbol (AND2, OR3B1, INV…), as ISE draws it (#172)
-    const t = cx(def.body.x + def.body.w / 2, def.h);
-    const turned = sym.rot === 90 || sym.rot === 270;
-    s += `<text class="stype" x="${turned ? box.x + box.w + 3 : t.x}" y="${turned ? center.y + 3 : (sym.rot === 180 ? box.y - 3 : box.y + box.h + 10)}" text-anchor="${turned ? 'start' : 'middle'}">${esc(SYMBOLS[sym.type]?.title || sym.type.toUpperCase())}</text>`;
+    s += typeUnder(sym, def, box, center, symbolTypeName(sym));
   } else if (def.shape === 'tbuf') {
     // bus width inside the triangle (bus pins), as for the gates
     const w = def.rows === 1 && sym.params?.width > 1 ? `${sym.params.width}` : '';
@@ -260,18 +273,16 @@ function textsSvg(sym, def, ctx = {}) {
         if ((p.width || 1) > 1) s += `<text class="pwidth" x="${p.x + 10}" y="${p.y - 3}" text-anchor="middle">${p.width}</text>`;
         continue;
       }
-      if (def.shape === 'arith' && sym.type !== 'add' && p.side === 'E') continue;
+      if (def.shape === 'arith' && sym.type !== 'add' && p.side === 'E') { if ((p.width || 1) > 1) s += pinWidth(p); continue; }
       const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
       const inset = def.shape === 'mux' ? 23 : (def.shape === 'hdl' || def.shape === 'module') ? 23 + (p.clock && p.side === 'W' ? 8 : 0) : 22 + (p.clock ? 8 : 0);
       const x = p.x + v[0] * inset, y = p.y + v[1] * (p.side === 'S' ? 16 : 14);
       const anchor = v[0] > 0 ? 'start' : v[0] < 0 ? 'end' : 'middle';
       const label = def.shape === 'mux' ? (p.name.startsWith('D') ? p.name.slice(1) : p.name) : p.name;
       s += `<text class="pname" x="${x}" y="${y + (v[1] ? 0 : 3)}" text-anchor="${anchor}">${esc(label)}</text>`;
-      // (the width of a bus pin by it: modules, HDL blocks, multiplexers and demultiplexers, #313)
-      if ((p.width || 1) > 1 && (def.shape === 'module' || def.shape === 'hdl' || def.shape === 'mux' || def.shape === 'demux')) {
-        const o = { W: [-10, -3], E: [10, -3], N: [4, -8], S: [4, 8] }[p.side];
-        s += `<text class="pwidth" x="${p.x + o[0]}" y="${p.y + o[1]}" text-anchor="middle">${p.width}</text>`;
-      }
+      // (the width of a bus pin by it: modules, HDL blocks, multiplexers and demultiplexers, #313; adders,
+      // subtractors and comparators, #681)
+      if ((p.width || 1) > 1 && ['module', 'hdl', 'mux', 'demux', 'arith'].includes(def.shape)) s += pinWidth(p);
     }
   }
   return s;

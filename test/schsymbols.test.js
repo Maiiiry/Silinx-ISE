@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { simulate } from '../core/compile.js';
-import { newDoc, normalizeDoc, defaultParams, netlist, generateHdl, symbolDef, symbolPins, SYMBOLS, SYMBOL_CATEGORIES, gateVariant } from '../core/schdoc.js';
+import { newDoc, normalizeDoc, defaultParams, netlist, generateHdl, symbolDef, symbolPins, SYMBOLS, SYMBOL_CATEGORIES, gateVariant, symbolTypeName } from '../core/schdoc.js';
 
 // ------------------------------------------------------------------ JS models: (params, inputs { pin: BigInt }) -> { pin: BigInt }
 const bit = (v, i) => (v >> BigInt(i)) & 1n;
@@ -516,4 +516,34 @@ test('#322 subtractors: borrow in / out, a pin per bit; pins', () => {
   for (const width of [1, 2, 4]) for (const br of [false, true]) cases.push({ type: 'sub', params: { width, bin: br, bout: br, bits: width > 1 } });
   cases.push({ type: 'sub', params: { width: 4, bin: true, bout: true } }, { type: 'sub', params: { width: 1, bin: true, bout: true } }, { type: 'sub', params: { width: 4, bout: true } });
   check('subs322', cases, 64);
+});
+
+// #681: the type drawn on the adder, subtractor, comparator, register and counter carries their width (as the
+// Xilinx ADD8 / COMP4 / CB8CE), their bus pins Width bits; the other symbols keep their library title
+test('#681 symbols with a width in their name: ADD8, SUB16, COMP4, CNT8, REG8; bus pins of Width bits', () => {
+  const name = (type, params) => symbolTypeName({ type, params });
+  for (const w of [1, 2, 4, 8, 16, 32]) {
+    assert.equal(name('add', { width: w }), `ADD${w}`);
+    assert.equal(name('sub', { width: w, bin: true }), `SUB${w}`);
+    assert.equal(name('compare', { width: w, op: 'lt' }), `COMP${w}`);
+    assert.equal(name('counter', { width: w }), `CNT${w}`);
+    assert.equal(name('register', { width: w }), `REG${w}`);
+    const pins = t => Object.fromEntries(symbolDef({ type: t, params: { width: w } }).pins.map(p => [p.name, p.width]));
+    assert.deepEqual(pins('add'), { A: w, B: w, S: w });
+    assert.deepEqual(pins('sub'), { A: w, B: w, D: w });
+    assert.deepEqual(pins('compare'), { A: w, B: w, O: 1 });
+  }
+  // the default width (8) when none is given, a text width read as a number, a bad one as 1
+  assert.equal(name('add', {}), 'ADD8');
+  assert.equal(symbolTypeName({ type: 'compare' }), 'COMP8');
+  assert.equal(name('add', { width: '12' }), 'ADD12');
+  assert.equal(name('add', { width: 'x' }), 'ADD1');
+  assert.equal(name('add', { width: 0 }), 'ADD1');
+  // a pin per bit: the same name as the box's title (#304, #319)
+  assert.equal(name('add', { width: 4, bits: true }), symbolDef({ type: 'add', params: { width: 4, bits: true } }).title);
+  // the gates and flip-flops: their title only (their width inside the gate / on the bus pins)
+  assert.equal(name('and2', { width: 8 }), 'AND2');
+  assert.equal(name('fdce', { width: 8 }), 'FDCE');
+  assert.equal(name('inv', { width: 4 }), 'INV');
+  assert.equal(name('nosuch', {}), 'NOSUCH');
 });
