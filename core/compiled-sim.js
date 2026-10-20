@@ -33,7 +33,7 @@
 // Isomorphic ES module (browser + Node), no DOM.
 import { toVerilog } from './synth-verilog.js';
 import { PRIMITIVE_MODELS, DCM_CELLS, DCM_OUTPUTS, dcmWaves, dcmSchedule, bramInit, simprimCell } from './compiled-prims.js';
-import { wordLevel } from './compiled-words.js';
+import { gateModel } from './compiled-tables.js';
 
 export class CompileError extends Error {}
 
@@ -47,7 +47,8 @@ export const gateLevel = primitives => primitives.some(p => /^(X_)?LUT\d/.test(p
 /**
  * The design's word-level netlist (Yosys's JSON, parsed): { json, top, warnings: [messages] }.
  * run(args, files, onLine): Yosys (as core/synth-open.js synthesizeOpen's); words: a gate-level model at word level
- * (core/compiled-words.js, #650; false: bit by bit, as Yosys reads it).
+ * and its irregular logic as tables (core/compiled-words.js, #650, core/compiled-tables.js, #659; false: bit by bit, as
+ * Yosys reads it).
  */
 export async function netlistOf(design, { run, words = true }) {
   let v;
@@ -70,9 +71,10 @@ export async function netlistOf(design, { run, words = true }) {
   // and those of the primitives' own models, their latches and FDCP's asynchronous load, #561)
   const quiet = l => /^Warning: Replacing memory \S+ with list of registers\./.test(l) || /^(\S+: )?Warning: Replacing floating point parameter /.test(l)
     || l.includes('silinx_cs_prims.v');
-  // (#650: a gate-level model's carry chains, registers and the logic between them at word level again)
+  // (#650: a gate-level model's carry chains, registers and the logic between them at word level again; #659: its
+  // irregular logic as tables)
   const json = bramInit(JSON.parse(text), v.top, v.instances);
-  return { json: words && gateLevel(v.primitives) ? wordLevel(json, v.top).json : json, top: v.top, warnings: [...v.warnings, ...lines.filter(l => /^Warning:/.test(l) && !quiet(l)).map(yosysWarning)] };
+  return { json: words && gateLevel(v.primitives) ? gateModel(json, v.top).json : json, top: v.top, warnings: [...v.warnings, ...lines.filter(l => /^Warning:/.test(l) && !quiet(l)).map(yosysWarning)] };
 }
 
 // a Yosys warning as Silinx says it (a latch: the signal's name, without Yosys's process and cell names)
@@ -867,6 +869,7 @@ ${fire(negMain, 'f')}
     if (m.kind === 'b') return `const M${m.k} = ${nz ? `[${words.map(x => `${x}n`).join(',')}]` : `new Array(${m.size}).fill(0n)`};`;
     return `const M${m.k} = ${nz ? `Uint32Array.from([${words.map(Number).join(',')}])` : `new Uint32Array(${m.size})`};`;
   });
+  const memChars = memInit.reduce((n, l) => n + l.length, 0);
   const initOf = i => {
     const e = elems.find(x => x.q === i);
     return lit(e ? e.init : 0n, vars[i].kind);
@@ -1021,7 +1024,8 @@ return { run, set, vals, take, mems: [${mems.map(m => `M${m.k}`).join(', ')}]${w
     // (#629: a run() of more than splitAt characters, above V8's limit of the bytecode it optimizes (60 KB, about 0.66
     // byte a character), is not optimized: then the values are the code's own, not run()'s, and its combinational
     // cells functions of `chunk` characters at most, inside run(); below it, slower)
-    return !OUT && code.length > splitAt ? generate(segs, prof, true) : code;
+    // (#659: the memories' initial values, a table's contents, are no code of run())
+    return !OUT && code.length - memChars > splitAt ? generate(segs, prof, true) : code;
   };
 
   // the segments: one, unguarded, without activity; else the profile of the blocks' code (the cycles of a run

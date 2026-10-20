@@ -9,6 +9,7 @@ import { EXAMPLES, example, exampleUcf } from './examples-lib.mjs';
 import { diffCycles, designOf, rng } from './compiled-diff.js';
 import { compileDesign, compileNetlist, CompiledSim, netlistOf } from '../core/compiled-sim.js';
 import { wordLevel } from '../core/compiled-words.js';
+import { gateModel } from '../core/compiled-tables.js';
 import { yosysNode } from '../core/synth-open-node.js';
 
 const src = (name, text) => [{ path: name, lang: 'verilog', role: 'design', text }];
@@ -146,20 +147,24 @@ async function models(name, steps) {
     return [s, designOf(src(file, written[file]), top)];
   }));
 }
-// the same outputs at word level as bit by bit, cycle by cycle then in long runs, inputs at random; the speed-up
+// the same outputs at word level as bit by bit, and with its irregular logic as tables too (#659: gateModel, as
+// netlistOf makes it), cycle by cycle then in long runs, inputs at random; the speed-up
 async function same(design, label) {
   const raw = await netlistOf(design, { run: yosysNode, words: false });
-  const w = wordLevel(raw.json, raw.top);
-  const a = new CompiledSim(compileNetlist(raw.json, { top: raw.top })), b = new CompiledSim(compileNetlist(w.json, { top: raw.top }));
+  const w = wordLevel(raw.json, raw.top), g = gateModel(raw.json, raw.top);
+  const [a, b, c] = [raw, w, g].map(x => new CompiledSim(compileNetlist(x.json, { top: raw.top })));
   const clk = a.model.clock?.port, r = rng(650);
   const ins = design.top.ports.filter(p => p.dir === 'in' && p.name !== clk), outs = design.top.ports.filter(p => p.dir === 'out');
   for (let k = 0; k < 2500; k++) {
-    if (k % 50 === 0) for (const p of ins) { const v = Math.floor(r() * 2 ** Math.min(p.sig.t.w, 30)); a.set(p.name, v); b.set(p.name, v); }
+    if (k % 50 === 0) for (const p of ins) { const v = Math.floor(r() * 2 ** Math.min(p.sig.t.w, 30)); a.set(p.name, v); b.set(p.name, v); c.set(p.name, v); }
     const n = k < 2000 ? 1 : 10007;
-    a.cycle(n); b.cycle(n);
-    for (const p of outs) assert.equal(b.get(p.name), a.get(p.name), `${label}: '${p.name}' after ${a.cycles} cycles`);
+    a.cycle(n); b.cycle(n); c.cycle(n);
+    for (const p of outs) {
+      assert.equal(b.get(p.name), a.get(p.name), `${label}: '${p.name}' after ${a.cycles} cycles`);
+      assert.equal(c.get(p.name), a.get(p.name), `${label}: '${p.name}' after ${a.cycles} cycles, with tables`);
+    }
   }
-  return { stats: w.stats, chars: [a.model.code.length, b.model.code.length] };
+  return { stats: w.stats, tables: g.stats, chars: [a.model.code.length, b.model.code.length] };
 }
 
 // (chains, registers made words, cells before and after)
@@ -172,19 +177,38 @@ const EXPECTED = {
   clock: { chains: 6, registers: 6, cells: [910, 424] },
   vga: { chains: 2, registers: 2, cells: [498, 426] },
 };
-test('#650 every example\'s Post-Synthesis Simulation Model at word level: its counters additions, the same outputs as bit by bit', { timeout: 600000 }, async () => {
+// (#659: the tables (their inputs at most, their words, their outputs), the equalities, the cells before and after;
+// the registers wordLevel made again of the flip-flops the tables feed; pong's tables of 11 inputs, those of 12 above
+// the budget)
+const TABLES = {
+  gates: [{ tables: 0, inputs: 12, words: 0, outputs: 0, equalities: 0, cells: [1, 1] }, 0],
+  traffic: [{ tables: 8, inputs: 12, words: 7632, outputs: 42, equalities: 1, cells: [141, 39] }, 4],
+  blinky: [{ tables: 20, inputs: 12, words: 17968, outputs: 30, equalities: 0, cells: [167, 95] }, 3],
+  pong: [{ tables: 38, inputs: 11, words: 37480, outputs: 98, equalities: 8, cells: [439, 215] }, 6],
+  stopwatch: [{ tables: 33, inputs: 12, words: 12208, outputs: 66, equalities: 1, cells: [254, 165] }, 8],
+  clock: [{ tables: 29, inputs: 12, words: 30152, outputs: 81, equalities: 8, cells: [424, 140] }, 4],
+  vga: [{ tables: 19, inputs: 12, words: 48864, outputs: 56, equalities: 2, cells: [426, 111] }, 2],
+};
+test('#650 #659 every example\'s Post-Synthesis Simulation Model at word level, its irregular logic as tables: the same outputs as bit by bit', { timeout: 600000 }, async () => {
   for (const name of EXAMPLES) {
     const { postsynth } = await models(name, ['postsynth']);
-    const { stats, chars } = await same(postsynth, name);
+    const { stats, tables, chars } = await same(postsynth, name);
     assert.deepEqual(stats, EXPECTED[name], name);
+    assert.deepEqual([tables.tables, tables.registers], TABLES[name], name);
     if (stats.chains) assert.ok(chars[1] < chars[0], `${name}: ${chars}`);
   }
 });
-test('#650 blinky\'s post-translate, post-map and post-place & route models at word level (SIMPRIM; the router\'s LUT pins in any order)', { timeout: 600000 }, async () => {
+test('#650 #659 blinky\'s post-translate, post-map and post-place & route models at word level, with tables (SIMPRIM; the router\'s LUT pins in any order)', { timeout: 600000 }, async () => {
   const m = await models('blinky', ['synth', 'translate', 'posttrans', 'map', 'postmap', 'par', 'trce', 'postpar']);
-  const want = { posttrans: [362, 167], postmap: [420, 185], postpar: [420, 185] };
+  const want = { posttrans: [362, 167], postmap: [420, 185], postpar: [423, 185] };
+  const wantTables = {
+    posttrans: [{ tables: 16, inputs: 12, words: 9264, outputs: 58, equalities: 0, cells: [167, 109] }, 2],
+    postmap: [{ tables: 20, inputs: 12, words: 9392, outputs: 66, equalities: 0, cells: [185, 123] }, 2],
+    postpar: [{ tables: 17, inputs: 12, words: 1236, outputs: 42, equalities: 0, cells: [185, 143] }, 3],
+  };
   for (const [step, design] of Object.entries(m)) {
-    const { stats } = await same(design, step);
-    assert.deepEqual(stats, { chains: 4, registers: 4, cells: want[step] }, step);
+    const { stats, tables } = await same(design, step);
+    assert.deepEqual(stats, { chains: 4, registers: step === 'postpar' ? 5 : 4, cells: want[step] }, step);
+    assert.deepEqual([tables.tables, tables.registers], wantTables[step], step);
   }
 });
