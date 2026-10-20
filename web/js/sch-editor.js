@@ -16,13 +16,13 @@
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
   xform, rotSize, portBox, portSide, freePortName, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
-  splitWiresAt,
+  splitWiresAt, netByName,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
 import { lutFunction } from '/core/fpga/techview.js';
 import { getLanguage, onLanguageChange } from './i18n.js';
-import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu, twoFingerView } from './ui.js';
+import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu, twoFingerView, dialog } from './ui.js';
 import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept, moveSegment } from '/core/schroute.js';
 import { esc, h } from './dom.js';
@@ -827,10 +827,33 @@ export function mountSchEditor(container, opts = {}) {
     apply();
     if (kept && idx >= 0) setTimeout(() => { const f = fields()[idx]; if (f) { f.focus(); f.select?.(); } }, 0);
   }
+  // (set may be async: it then returns false, the value given up, or the function that applies it)
   function inp(value, set, attrs = {}) {
     const el = h('input', { type: 'text', value: value ?? '', ...attrs });
-    el.addEventListener('change', () => keepFocus(el, () => edit(() => set(el.type === 'number' ? Number(el.value) : el.value))));
+    el.addEventListener('change', async () => {
+      const v = el.type === 'number' ? Number(el.value) : el.value;
+      if (set.constructor.name !== 'AsyncFunction') { keepFocus(el, () => edit(() => set(v))); return; }
+      const apply = await set(v);
+      if (!apply) { el.value = value ?? ''; return; }
+      keepFocus(el, () => edit(apply));
+    });
     return el;
+  }
+  // a net name another net already has (#689): the two become one net, connected by name (no wire drawn
+  // between them, as in ISE), only when the user says so; never merged silently
+  async function joinByName(name, net) {
+    if (!name || !nl) return true;
+    const other = netByName(doc, nl, name, net);
+    if (!other) return true;
+    const base = parseNetName(name).base;
+    const ok = await dialog({
+      title: 'Net name already used', width: 460,
+      body: h('div', { class: 'se-join' }, h('div', { text: `Another net is already named '${base}'.` }),
+        h('div', { text: 'Connect this net to it by name? They become one net, without a wire drawn between them.' })),
+      buttons: [{ label: 'Connect by name', value: true, primary: true }, { label: 'Cancel', value: null }],
+    });
+    container.focus({ preventScroll: true });
+    return !!ok;
   }
   function chk(value, set) { const el = h('input', { type: 'checkbox', checked: !!value }); el.addEventListener('change', () => edit(() => set(el.checked))); return el; }
   function selBox(value, options, set) {
@@ -978,19 +1001,25 @@ export function mountSchEditor(container, opts = {}) {
   }
   function labelProps(l) {
     propBody.append(h('div', { class: 'se-ptitle', text: 'Net Name' }));
-    propBody.append(field('Name', inp(l.net, v => { if (String(v).trim()) l.net = String(v).trim(); }), 'ISE style bus names are accepted: data(7:0)'));
+    propBody.append(field('Name', inp(l.net, async v => {
+      if (!await joinByName(String(v).trim(), nl?.labelNet.get(l.id))) return false;
+      return () => { if (String(v).trim()) l.net = String(v).trim(); };
+    }), 'ISE style bus names are accepted: data(7:0)'));
     netInfo(nl?.labelNet.get(l.id));
   }
   function wireProps(w) {
     const n = nl?.wireNet.get(w.id);
     propBody.append(h('div', { class: 'se-ptitle', text: `Wire${n ? ` · net ${n.name}` : ''}` }));
     propBody.append(field('Draw as bus', chk(w.bus, v => { if (v) w.bus = true; else delete w.bus; })));
-    if (n) propBody.append(field('Rename net', inp(n.auto ? '' : n.name, v => {
-      const name = String(v).trim(); if (!name) return;
-      const p0 = w.points[0], p1 = w.points[1];
-      const mid = { x: snap((p0.x + p1.x) / 2), y: snap((p0.y + p1.y) / 2) };
-      const ex = doc.labels.find(l => nl.labelNet.get(l.id) === n);
-      if (ex) ex.net = name; else doc.labels.push({ id: nextId('L', doc.labels), x: p0.x === p1.x ? p0.x : mid.x, y: p0.y === p1.y ? p0.y : mid.y, net: name });
+    if (n) propBody.append(field('Rename net', inp(n.auto ? '' : n.name, async v => {
+      if (!await joinByName(String(v).trim(), n)) return false;
+      return () => {
+        const name = String(v).trim(); if (!name) return;
+        const p0 = w.points[0], p1 = w.points[1];
+        const mid = { x: snap((p0.x + p1.x) / 2), y: snap((p0.y + p1.y) / 2) };
+        const ex = doc.labels.find(l => nl.labelNet.get(l.id) === n);
+        if (ex) ex.net = name; else doc.labels.push({ id: nextId('L', doc.labels), x: p0.x === p1.x ? p0.x : mid.x, y: p0.y === p1.y ? p0.y : mid.y, net: name });
+      };
     }, { placeholder: n.name, 'data-no-i18n': '' })));
     netInfo(n);
   }
@@ -1152,6 +1181,7 @@ export function mountSchEditor(container, opts = {}) {
     if (!name) return;
     const pn = parseNetName(name);
     if (pn.bad) { flash(`Invalid net name '${name}'`); return; }
+    if (!await joinByName(name, nl?.wireNet.get(hit.w.id))) return;
     edit(() => {
       const n = nl?.wireNet.get(hit.w.id);
       const ex = n && doc.labels.find(l => nl.labelNet.get(l.id) === n && Math.hypot(l.x - at.x, l.y - at.y) < 1);

@@ -27,6 +27,9 @@ export const SCH_PT = {
   // properties panel
   'Properties': 'Propriedades', 'Parameters': 'Parâmetros', 'empty = module default': 'vazio = valor por omissão do módulo',
   'Names': 'Nomes', 'Clock enable (CE)': 'Habilitação do relógio (CE)', 'Asynchronous clear (CLR)': 'Limpeza assíncrona (CLR)', 'Asynchronous preset (PRE)': 'Preset assíncrono (PRE)', 'Synchronous reset (R)': 'Reset síncrono (R)', 'Synchronous set (S)': 'Set síncrono (S)', 'not with the other inputs chosen (no such Xilinx flip-flop)': 'não com as outras entradas escolhidas (não há esse flip-flop Xilinx)', 'Show the name of every instance and every net (the automatic ones too)': 'Mostrar o nome de todas as instâncias e de todas as redes (também os automáticos)',
+  // a net name another net has (#689)
+  'Net name already used': 'Nome de rede já usado', 'Connect by name': 'Ligar pelo nome',
+  'Connect this net to it by name? They become one net, without a wire drawn between them.': 'Ligar esta rede a ela pelo nome? Passam a ser uma só rede, sem um fio desenhado entre elas.',
   'Rotate': 'Rodar', 'Mirror': 'Espelhar', 'Wire': 'Fio', 'I/O Marker': 'Marcador de E/S', 'Net Name': 'Nome de Rede',
   'Bidirectional': 'Bidirecional', 'Auto direction': 'Direção automática',
   // the Add I/O Marker tool: on a wire, a pin or empty space (#680)
@@ -41,6 +44,7 @@ export const SCH_PT = {
 };
 
 export const SCH_PT_PATTERNS = [
+  [/^Another net is already named '(.*)'\.$/, "Já há outra rede chamada '$1'."],
   // the multiplexers and demultiplexers, with and without the enable E (#301)
   [/^(\d+):1 multiplexer \(select ([S\d ]+)\)$/, 'Multiplexador $1:1 (seleção $2)'],
   [/^(\d+):1 multiplexer with enable \(Xilinx (\w+)\): O = (.+) when E = 1, 0 when E = 0$/, 'Multiplexador $1:1 com habilitação (Xilinx $2): O = $3 quando E = 1, 0 quando E = 0'],
