@@ -21,6 +21,8 @@ import {
 } from '/core/petri.js';
 import { parseOutputs, formatOutputs } from '/core/fsm.js';
 import { analyzePetri } from '/core/petri-analysis.js';
+import { copyDrawing, pasteDrawing, drawingClipEmpty } from '/core/drawclip.js';
+import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
@@ -164,6 +166,29 @@ export function mountPetriEditor(container, opts = {}) {
     }
     sel = null;
     commit();
+  }
+
+  // Cut / Copy / Paste (#677, core/drawclip.js): the place or transition selected, pasted offset and selected,
+  // its name made new when it is used
+  let pasteN = 0, pasteText = null;
+  function copySel(cut = false) {
+    if (!sel || sel.kind === 'arc') return;
+    const clip = copyDrawing('petri', M, [sel.id]);
+    writeClip('petri', clip);
+    pasteText = JSON.stringify(clip); pasteN = 0;   // (pasted here: next to the original)
+    if (cut) deleteSelection();
+  }
+  async function paste(clip) {
+    clip ??= await readClip('petri');
+    if (drawingClipEmpty('petri', clip) || destroyed) return;
+    const t = JSON.stringify(clip);
+    if (t !== pasteText) { pasteText = t; pasteN = clip.from === M.name ? 0 : -1; }
+    const d = 2 * GRID * ++pasteN;
+    const { ids } = pasteDrawing('petri', M, clip, { dx: d, dy: d });
+    M = normalizePetri(M);
+    if (ids.length) sel = { kind: M.places.some(p => p.id === ids[0]) ? 'place' : 'transition', id: ids[0] };
+    commit();
+    root.focus({ preventScroll: true });
   }
 
   // ---------------------------------------------------------------- drawing
@@ -479,6 +504,9 @@ export function mountPetriEditor(container, opts = {}) {
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (mod && k === 'z' && !e.shiftKey) { e.preventDefault(); e.stopPropagation(); undo(); }
     else if (mod && (k === 'y' || (k === 'z' && e.shiftKey))) { e.preventDefault(); e.stopPropagation(); redo(); }
+    else if (mod && k === 'c') { e.preventDefault(); copySel(); }
+    else if (mod && k === 'x') { e.preventDefault(); copySel(true); }
+    else if (mod && k === 'v') pasteFromKey('petri', paste);
     else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); }
     else if (e.key === 'Escape') { setTool('select'); }
   });
@@ -509,6 +537,9 @@ export function mountPetriEditor(container, opts = {}) {
     getModel: () => clone(M),
     setModel(m) { M = normalizePetri(m); hist.length = 0; hist.push(JSON.stringify(M)); hi = 0; sel = null; if (sim) resetSim(false); render(); },
     undo, redo, canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1,
+    // Edit ▸ Cut / Copy / Paste / Delete (#677): a place or a transition (an arc: Delete only)
+    copy: () => copySel(), cut: () => copySel(true), paste: () => paste(), deleteSelection: () => deleteSelection(),
+    canCopy: () => !!sel && sel.kind !== 'arc', canDelete: () => !!sel, canPaste: () => hasClip('petri'),
     // its HDL file linked (generatedFile, #245): nothing else changes, Undo / Redo keep the link
     setLink(file) { linkModel(M, file); hist.forEach((s, i) => { hist[i] = linkSnapshot(s, file, normalizePetri); }); refreshLink(); },
     fit, refreshLink,

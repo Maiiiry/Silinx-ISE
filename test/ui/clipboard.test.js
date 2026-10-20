@@ -1,10 +1,14 @@
 // UI: Cut / Copy / Paste / Delete of the Edit menu, the toolbar and the keyboard in every editor (#677): the text
-// editor's selection, the schematic's (pasted offset, selected, with fresh names; into another schematic and
+// editor's selection, the ASM chart's, FSM diagram's and Petri net's, the schematic's (pasted offset, selected, with fresh names; into another schematic and
 // into another project opened later), the items disabled when there is nothing to copy or paste; in Portuguese.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject } from './harness.js';
 import { newDoc, normalizeDoc, symbolPins } from '../../core/schdoc.js';
+import { newModel } from '../../core/asm.js';
+import { newFsm } from '../../core/fsm.js';
+import { newPetri } from '../../core/petri.js';
+import { newTable } from '../../core/logic.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -153,4 +157,97 @@ uiTest('Edit ▸ Cut / Copy / Paste / Delete in Portuguese: the menu and the too
   } finally {
     await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
   }
+});
+
+uiTest('Edit ▸ Cut / Copy / Paste / Delete in the ASM, FSM and Petri net editors: the menu, the toolbar, the keyboard, another drawing', E, async (page) => {
+  await makeProject(env, { name: 'ClipDraw', files: {
+    'src/ctl.asm.json': JSON.stringify(newModel('ctl', 'vhdl')), 'src/ctl2.asm.json': JSON.stringify({ ...newModel('ctl2', 'vhdl'), nodes: [], edges: [], initial: '' }),
+    'src/det.fsm.json': JSON.stringify(newFsm('det', 'vhdl')), 'src/net.pn.json': JSON.stringify(newPetri('net', 'vhdl')) } });
+  await page.openProject('ClipDraw');
+  const D = '.doc:not([hidden])';
+  const model = () => page.eval(() => { const d = window.Silinx.active; return (d.asmEditor || d.fsmEditor || d.petriEditor).getModel(); });
+  const focus = (sel) => page.eval((x) => document.querySelector(x).focus(), sel);
+  // ASM: nothing selected → Cut / Copy / Delete off, nothing to paste; Ctrl+A, Edit ▸ Copy, Edit ▸ Paste
+  await page.eval(() => window.SilinxApp.openAsm('src/ctl.asm.json'));
+  await page.waitFor((d) => window.Silinx.active?.id === 'asm:src/ctl.asm.json' && document.querySelector(`${d} [data-node]`), [D], { what: 'the ASM chart' });
+  const n0 = (await model()).nodes.length;
+  await focus(`${D} .asm-editor`);
+  let m = await editItems(page);
+  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [false, false, false, false]);
+  await page.key('a', { modifiers: CTRL });
+  m = await editItems(page);
+  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [true, true, false, true]);
+  await page.menu('Edit', 'Copy');
+  await page.menu('Edit', 'Paste');
+  await page.waitFor((n) => window.Silinx.active.asmEditor.getModel().nodes.length === 2 * n, [n0], { what: 'the chart pasted' });
+  let a = await model();
+  assert.ok(a.nodes.some((n) => n.name === 'IDLE_1'), 'renamed');
+  // the copy is selected: Delete removes it
+  await page.menu('Edit', 'Delete');
+  await page.waitFor((n) => window.Silinx.active.asmEditor.getModel().nodes.length === n, [n0], { what: 'the copy deleted' });
+  // another chart (empty): the toolbar's Paste, nothing renamed, its initial state the copy's
+  await page.eval(() => window.SilinxApp.openAsm('src/ctl2.asm.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'asm:src/ctl2.asm.json');
+  await page.eval(async () => (await import('/js/menus.js')).refreshSteps());
+  await page.click('#toolbar .tb-btn[data-cmd=paste]');
+  await page.waitFor((n) => window.Silinx.active.asmEditor.getModel().nodes.length === n, [n0], { what: 'pasted into the other chart' });
+  a = await model();
+  assert.ok(a.nodes.some((n) => n.name === 'IDLE') && !a.nodes.some((n) => /_1$/.test(n.name || '')));
+  assert.equal(a.nodes.find((n) => n.id === a.initial)?.name, 'IDLE');
+  // FSM: a state selected (a click), Ctrl+C, Ctrl+V; a transition: Copy off, Delete on
+  await page.eval(() => window.SilinxApp.openFsm('src/det.fsm.json'));
+  await page.waitFor((d) => window.Silinx.active?.id === 'fsm:src/det.fsm.json' && document.querySelector(`${d} [data-state=s2] .fsm-circle`), [D], { what: 'the FSM' });
+  const c = await page.eval((d) => { const b = document.querySelector(`${d} [data-state=s2] .fsm-circle`).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }, D);
+  await page.click(c);
+  m = await editItems(page);
+  assert.deepEqual([m.Cut, m.Copy, m.Delete], [true, true, true]);
+  await focus(`${D} .fsm-editor`);
+  await page.key('c', { modifiers: CTRL });
+  await page.key('v', { modifiers: CTRL });
+  await page.waitFor(() => window.Silinx.active.fsmEditor.getModel().states.length === 4, [], { what: 'the state pasted with Ctrl+V' });
+  assert.deepEqual((await model()).states.map((s) => s.name), ['S0', 'S1', 'S2', 'S1_1']);
+  // Ctrl+X: the pasted state (selected) cut
+  await focus(`${D} .fsm-editor`);
+  await page.key('x', { modifiers: CTRL });
+  await page.waitFor(() => window.Silinx.active.fsmEditor.getModel().states.length === 3, [], { what: 'cut with Ctrl+X' });
+  // Petri net: a place selected, Edit ▸ Cut, Edit ▸ Paste: it comes back (its arcs do not: they lead to the rest)
+  await page.eval(() => window.SilinxApp.openPetri('src/net.pn.json'));
+  await page.waitFor((d) => window.Silinx.active?.id === 'pn:src/net.pn.json' && document.querySelector(`${d} [data-id=p2] circle`), [D], { what: 'the Petri net' });
+  // (where the place is once the view is fitted: the same twice in a row)
+  const at = () => page.eval((d) => { const r = document.querySelector(`${d} [data-id=p2] circle`).getBoundingClientRect(); return `${r.left + r.width / 2},${r.top + r.height / 2}`; }, D);
+  let p0 = null;
+  for (let i = 0; i < 20; i++) { const p1 = await at(); if (p1 === p0) break; p0 = p1; await new Promise((r) => setTimeout(r, 100)); }
+  const [px, py] = p0.split(',').map(Number);
+  await page.click({ x: px, y: py });
+  await page.waitFor((d) => document.querySelector(`${d} [data-id=p2]`)?.classList.contains('sel'), [D], { what: 'the place selected' });
+  assert.equal((await editItems(page)).Cut, true);
+  await page.menu('Edit', 'Cut');
+  await page.waitFor(() => !window.Silinx.active.petriEditor.getModel().places.some((x) => x.name === 'work'), [], { what: 'cut' });
+  await page.menu('Edit', 'Paste');
+  await page.waitFor(() => window.Silinx.active.petriEditor.getModel().places.some((x) => x.name === 'work'), [], { what: 'pasted back' });
+  const net = await model();
+  assert.equal(net.places.length, 2);
+  assert.equal(net.arcs.length, 2, 'the arcs of the place cut are gone');
+  // a schematic's copy is not pasted into a drawing of another kind
+  assert.equal((await editItems(page)).Paste, true, 'the Petri net has its own copy');
+});
+
+uiTest('Edit ▸ Copy / Paste / Delete with a text field of an editor in focus: its selected text, not the drawing (the truth table)', E, async (page) => {
+  await makeProject(env, { name: 'ClipField', files: { 'src/maj.tt.json': JSON.stringify(newTable('maj', ['a', 'b', 'c'], ['f'])) } });
+  await page.openProject('ClipField');
+  await page.eval(() => window.SilinxApp.openTt('src/maj.tt.json'));
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/maj.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor .tt-expr-in'), [], { what: 'the truth table' });
+  const F = '.doc:not([hidden]) .tt-expr-in';
+  await page.eval((f) => { const el = document.querySelector(f); el.value = 'a·b + c'; el.focus(); el.setSelectionRange(0, 3); }, F);
+  const m = await editItems(page);
+  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [true, true, true, true]);
+  await page.menu('Edit', 'Copy');
+  await page.eval((f) => { const el = document.querySelector(f); el.setSelectionRange(el.value.length, el.value.length); }, F);
+  await page.eval(async () => (await import('/js/menus.js')).refreshSteps());
+  await page.click('#toolbar .tb-btn[data-cmd=paste]');
+  await page.waitFor((f) => document.querySelector(f).value === 'a·b + ca·b', [F], { what: 'pasted into the field' });
+  assert.equal(await page.eval((f) => document.activeElement === document.querySelector(f), F), true, 'the focus kept in the field');
+  await page.eval((f) => document.querySelector(f).setSelectionRange(0, 4), F);
+  await page.menu('Edit', 'Delete');
+  await page.waitFor((f) => document.querySelector(f).value === '+ ca·b', [F], { what: 'deleted in the field' });
 });

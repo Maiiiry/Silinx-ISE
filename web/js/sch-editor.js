@@ -27,7 +27,7 @@ import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } fro
 import { esc, h } from './dom.js';
 import { highlightHdl } from './highlight.js';
 import { copySchematic, pasteSchematic, clipEmpty } from '/core/schclip.js';
-import { writeClip, readClip, clipFromEvent, hasClip } from './clipboard.js';
+import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -1201,14 +1201,6 @@ export function mountSchEditor(container, opts = {}) {
     });
     container.focus({ preventScroll: true });
   }
-  let pasteKey = null;
-  function onPaste(e) {
-    if (!pasteKey) return;
-    clearTimeout(pasteKey); pasteKey = null;
-    e.preventDefault();
-    const clip = clipFromEvent(e, 'schematic');
-    if (clip) paste(clip);
-  }
   function selectAll() { sel = new Set([...doc.symbols.map(s => `sym:${s.id}`), ...doc.wires.map(w => `wire:${w.id}`), ...doc.ports.map(p => `port:${p.id}`), ...doc.labels.map(l => `label:${l.id}`)]); render(); renderProps(); }
 
   // ---------------- moving with rubber-banding wires
@@ -1524,7 +1516,7 @@ export function mountSchEditor(container, opts = {}) {
     if (mod && k === 'x') { e.preventDefault(); copySel(true); return; }
     // (Ctrl+V: the browser's paste event below, which reads the system clipboard with no permission asked;
     // the app's own clipboard if the browser sends none)
-    if (mod && k === 'v') { pasteKey = setTimeout(() => { pasteKey = null; paste(); }, 50); return; }
+    if (mod && k === 'v') { if (!readOnly) pasteFromKey('schematic', paste); return; }
     if (mod && k === 'a') { e.preventDefault(); selectAll(); return; }
     if (mod) return;
     if (k === 'delete' || k === 'backspace') { e.preventDefault(); deleteSel(); return; }
@@ -1551,7 +1543,6 @@ export function mountSchEditor(container, opts = {}) {
   }
   function onKeyUp(e) { if (e.key === ' ') { spaceDown = false; canvas.classList.remove('pan-ready'); } }
   window.addEventListener('keydown', onKey);
-  window.addEventListener('paste', onPaste, true);
   window.addEventListener('keyup', onKeyUp);
 
   // ---------------- check / generate / view
@@ -1747,7 +1738,6 @@ export function mountSchEditor(container, opts = {}) {
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
       window.removeEventListener('keydown', onKey);
-      window.removeEventListener('paste', onPaste, true);
       window.removeEventListener('keyup', onKeyUp);
       ro?.disconnect();
       container.innerHTML = '';

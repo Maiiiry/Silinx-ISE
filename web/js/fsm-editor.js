@@ -22,6 +22,8 @@ import {
   transitionTable, stateTable, encodedTable, toCsv, stepFsm, autoLayout, FSM_ENCODINGS, STATE_R,
 } from '/core/fsm.js';
 import { highlightHdl } from './highlight.js';
+import { copyDrawing, pasteDrawing, drawingClipEmpty } from '/core/drawclip.js';
+import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
@@ -184,6 +186,29 @@ export function mountFsmEditor(container, opts = {}) {
     sel = null;
     commit();
     renderSide();
+  }
+
+  // Cut / Copy / Paste (#677, core/drawclip.js): the state selected with its self-loops, pasted offset and
+  // selected, its name made new when it is used
+  let pasteN = 0, pasteText = null;
+  function copySel(cut = false) {
+    if (sel?.type !== 'state') return;
+    const clip = copyDrawing('fsm', M, [sel.id]);
+    writeClip('fsm', clip);
+    pasteText = JSON.stringify(clip); pasteN = 0;   // (pasted here: next to the original)
+    if (cut) deleteSelection();
+  }
+  async function paste(clip) {
+    clip ??= await readClip('fsm');
+    if (drawingClipEmpty('fsm', clip) || destroyed) return;
+    const t = JSON.stringify(clip);
+    if (t !== pasteText) { pasteText = t; pasteN = clip.from === M.name ? 0 : -1; }
+    const d = 2 * GRID * ++pasteN;
+    const { ids } = pasteDrawing('fsm', M, clip, { dx: d, dy: d });
+    if (ids.length) sel = { type: 'state', id: ids[0] };
+    commit('paste');
+    renderSide();
+    root.focus({ preventScroll: true });
   }
 
   // ---------------------------------------------------------------------------- history
@@ -564,6 +589,9 @@ export function mountFsmEditor(container, opts = {}) {
     if (mod && (k === 'z' || k === 'Z')) { if (ev.shiftKey) redo(); else undo(); ev.preventDefault(); return; }
     if (mod && (k === 'y' || k === 'Y')) { redo(); ev.preventDefault(); return; }
     if (mod && (k === 'p' || k === 'P')) { print(); ev.preventDefault(); ev.stopPropagation(); return; }
+    if (mod && (k === 'c' || k === 'C')) { copySel(); ev.preventDefault(); return; }
+    if (mod && (k === 'x' || k === 'X')) { copySel(true); ev.preventDefault(); return; }
+    if (mod && (k === 'v' || k === 'V')) { pasteFromKey('fsm', paste); return; }
     if (mod) return;
     if (k === 'Delete' || k === 'Backspace') { deleteSelection(); ev.preventDefault(); return; }
     if (k === 'F2' && sel) { if (sel.type === 'state') editState(stateById(sel.id)); else editLabel(transById(sel.id)); ev.preventDefault(); return; }
@@ -916,6 +944,9 @@ export function mountFsmEditor(container, opts = {}) {
     getModel: () => clone(M),
     undo: () => undo(), redo: () => redo(),
     canUndo: () => hi > 0, canRedo: () => hi < hist.length - 1,
+    // Edit ▸ Cut / Copy / Paste / Delete (#677): a state (a transition: Delete only)
+    copy: () => copySel(), cut: () => copySel(true), paste: () => paste(), deleteSelection: () => deleteSelection(),
+    canCopy: () => sel?.type === 'state', canDelete: () => !!sel, canPaste: () => hasClip('fsm'),
     setModel(m) {
       closeInline(false);
       M = normalizeFsm(m);

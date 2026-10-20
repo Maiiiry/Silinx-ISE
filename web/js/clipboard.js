@@ -54,6 +54,17 @@ export async function readClip(kind) {
 /** The same, from a paste event (Ctrl+V: the browser gives the page the clipboard with no permission asked). */
 export const clipFromEvent = (e, kind) => fromText(e.clipboardData?.getData('text/plain') ?? null, kind);
 
+/** Ctrl+V in a drawing editor (its keydown, not prevented): the browser's paste event that follows reads the system
+ *  clipboard with no permission asked; when the browser sends none (a page that is not editable), the clipboard
+ *  read as Edit ▸ Paste does. paste(clip) gets what there is for kind. */
+export function pasteFromKey(kind, paste) {
+  let done = false, timer = null;
+  const end = () => { done = true; clearTimeout(timer); removeEventListener('paste', on, true); };
+  const on = e => { if (done) return; end(); e.preventDefault(); const c = clipFromEvent(e, kind); if (c) paste(c); };
+  addEventListener('paste', on, true);
+  timer = setTimeout(() => { if (done) return; end(); readClip(kind).then(c => { if (c) paste(c); }); }, 50);
+}
+
 /** Whether something of kind was copied in this session (the menus' Paste is enabled by it). */
 export const hasClip = kind => !!mem && (kind === 'text' || mem.kind === kind);
 
