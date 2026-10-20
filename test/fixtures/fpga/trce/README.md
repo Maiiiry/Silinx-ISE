@@ -10,3 +10,9 @@ test/fpga-timing.test.js (#457). They are Silinx's own XDL files, not ISE's outp
 | `hard_prim.xdl.gz` | test/fixtures/open-flow/hard_prim | 3 RAMB16 (both ports, three widths), MULT18X18SIO (AREG, PREG), MULT18X18S | 7.147 |
 | `mult_reg.xdl.gz` | `mult_reg/top.vhd`: MULT18X18SIOs with input registers and no product register | 2 MULT18X18SIO | 8.722 |
 | `stopwatch.xdl.gz` | examples/stopwatch | 1 RAMB16, 3 multipliers | 12.719 |
+
+`feat_dcm*.xdl.gz` (#601): Silinx's routing (seed 1) of the DCM designs of test/fixtures/open-flow with PERIOD 20 ns and
+`OFFSET = IN 10 ns BEFORE` / `OUT 20 ns AFTER` on the pad's clock (feat_dcm_fx on the XC3S500E-FG320), and
+`dcm-trce.json`: trce's numbers for each with the same constraints (research/s3e-route/dcm-timing.mjs): the worst setup
+path of each pair of clocks (from, launch edge, to, capture edge, requirement, data path, slack), the data sheet's
+setup / hold of each input and clock to pad of each output, by clock.

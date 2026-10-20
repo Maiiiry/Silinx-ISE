@@ -20,6 +20,8 @@ Xilinx ISE 14.7, following the method in [docs/OPEN-TOOLCHAIN.md](../../docs/OPE
 | `ise-check.sh` | Inside the ISE container: `xdl -xdl2ncd`, `drc`, `bitgen`, `trce` for each design |
 | `cmpbit.mjs` | Compares the configuration frames of two bitstreams |
 | `sdf-compare.mjs` | Compares the post-place & route model's SDF (#122) with ISE's netgen SDF of the same routed design |
+| `dcm-timing.mjs` | trce on DCM designs (#601): Silinx's open flow here; on the ISE host ISE's own flow and trce on both routings (`ise-timing-check.sh`), Silinx's with a PCF in map's form (`silinxPcf`) |
+| `dcm-timing-compare.mjs` | Silinx's static timing against trce's report of the same routing: the paths between two clocks, the pads' setup, hold, clock to pad |
 
 Tools: ISE 14.7 (`xdl` P.20131013, `drc`, `bitgen`, `trce`) in the private Docker image
 `xilinx/ise:14.7` (linux/amd64 under emulation); Node 22+.
@@ -616,9 +618,49 @@ Model - trce (ns):
 | lab11, ISE's routing | rms 0.139, max 0.264 | rms 0.146, max 0.339 | rms 0.181, max 0.575 | rms 0.098, max 0.192 |
 
 That is the connection model's accuracy (rms 0.1 per connection). Still estimates: the IOB registers' delays (#96).
-A clock from a DCM (deskewed, about 0 insertion delay, not Tgclk) and paths between two clocks are left to #601.
+A clock from a DCM and paths between two clocks: #601, below.
 blinky's pad-to-pad paths (sw<3> -> led<1> 9.81 ns on main's seed-1 placement) are what its test bench's invert check
 waits for: half a clock period was too little for another placement (#591).
+
+## A DCM's clocks and the paths between two clocks (#601, 2026-10-20)
+
+The first part (#644) gave a DCM's clocks the PERIOD constraints trce derives from the pad's (`clockSources`,
+`checkPeriods`) and timed the paths between two clocks of one pad against the time between their edges
+(`clockRequirement`, `checkCross`). The second part measures the rest with trce: six DCM designs (feat_dcm,
+feat_dcm_cross, feat_dcm_phase, feat_dcm_fx on the XC3S500E, feat_dcm_div2, feat_dcm2), with PERIOD 20 ns and
+`OFFSET = IN 10 ns BEFORE` / `OUT 20 ns AFTER` on the pad's clock, built by ISE's own flow and placed and routed by
+Silinx (`dcm-timing.mjs`). trce reads no UCF for an NCD from XDL ("no timing constraints found"), so Silinx's routing
+gets a PCF in the form map writes (`silinxPcf`: a TIMEGRP of each clock's flip-flops, `TS_clk / 1.5 PHASE 2.5 ns`).
+
+- **The derived constraints** are the ones `clockSources` computes: CLK2X `TS_clk / 2`, CLKDV `* 4`, CLKFX `/ 1.5`,
+  CLKIN_DIVIDE_BY_2 `* 2`, CLK2X180 `PHASE 5 ns`, PHASE_SHIFT 32 `PHASE 2.5 ns` on every output (CLK90 7.5, CLK180
+  12.5), a cascade relative to the first DCM's.
+- **The requirements between two clocks** are `clockRequirement`'s to trce's rounding: CLK0 -> CLKFX 6.666 (6.667),
+  CLKFX -> CLK2X 3.334 (3.333), CLKDV -> CLK0's falling edge 10, CLK0 -> CLKDV 20, CLK0 -> CLK90 5, CLK180 -> CLK0 10.
+- **No skew, no uncertainty between a DCM's outputs:** trce's clock path skew is within ±0.02 ns, its clock
+  uncertainty 0.000 ns (the Spartan-3E has no default system jitter, no discrete jitter or phase error terms).
+- **A DCM's clock path** (trce's, from the pad): Tiopi, the CLKIN net, `Tdcmino` (negative: the deskew), the
+  buffer and the global line: 0.79 ns at the latest and -0.27 at the earliest on the XC3S250E's B8 (a pad's own
+  global clock: about 3.4), 0.96 / -0.04 on the XC3S500E. `Tdcmino` is -3.596 / -3.879 ns with DESKEW_ADJUST 7
+  (SYSTEM_SYNCHRONOUS), -2.389 / -2.068 with 0 (SOURCE_SYNCHRONOUS: 0.176 / 0.26 ns a tap), -2.222 / -1.795 for a
+  DCM whose CLKIN is on a global line (a cascade: 0.02 ns after the first DCM's clock).
+- **The phase** is the clock's arrival: trce's data sheet gives setup and clock to pad from the pad's edge, the
+  output's first edge o x the period later; a falling-edge flip-flop's from its edge, half the output's period later.
+
+`clockArrivals` gives a DCM's clock its CLKIN's arrival plus `SPEED_4.clock.dcm` (pad / global / taps), then the
+phase. As `Tgclk` (#26), the terms are fitted with the model's data paths, to trce's data sheet of Silinx's routing:
+three of them, the latest (clock to pad), the earliest (setup) and the one of the inputs' hold (one for both clock to
+pad and hold left 0.36 ns between their means). Model - trce (ns), Silinx's routing of the six designs:
+
+| | setup | hold | clock to pad | between two clocks (data path) |
+|---|---|---|---|---|
+| raw trce clock path (0.79 / -0.27) | mean -0.94, rms 0.95 | mean +0.27, rms 0.29 | mean +0.63 | |
+| fitted (27 values each) | rms 0.131, max 0.296 | rms 0.094, max 0.206 | rms 0.116, max 0.361 | rms 0.179, max 0.272 |
+
+The data paths between two clocks are the model's (0.03-0.27 ns faster than trce's, as its periods). Silinx's
+routing of feat_dcm_cross misses CLKFX -> CLK2X (3.333 ns): Silinx -0.361, trce -0.392 ns (ISE's own routing meets
+it). Not checked here: trce's Component Switching Limit checks (feat_dcm_div2's CLKFX at 200 ns against Tdcmpfx's 100:
+an issue of its own).
 
 ## Open problems
 

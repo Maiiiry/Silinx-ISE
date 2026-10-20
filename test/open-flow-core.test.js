@@ -320,6 +320,48 @@ end;` }];
   assert.equal(t.report.timing.met, false);
 });
 
+// #601: the OFFSET constraints of a DCM's clocks (left out before: "no pad of the design is bounded by it"): its clocks
+// deskewed, a falling-edge flip-flop's clock to pad from its edge, half CLK0's period later, as trce times it
+test('Implement Design: the OFFSET constraints of a DCM\'s clocks, a pad on two of them, a falling edge half a period later (#601)', { timeout: 300000 }, async () => {
+  const { flow } = await import('./timesim-lib.mjs');
+  const { orderOpenSteps } = await import('../core/open-steps.js');
+  const src = [{ path: 'top.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all;
+library unisim; use unisim.vcomponents.all;
+entity top is port (clk, a : in std_logic; q, f : out std_logic); end;
+architecture rtl of top is
+  signal ci, c0u, c0, cfu, cf, r0, rf, rn : std_logic := '0';
+begin
+  u_ibufg : IBUFG port map (I => clk, O => ci);
+  u_dcm : DCM_SP generic map (CLKFX_MULTIPLY => 3, CLKFX_DIVIDE => 2, CLKIN_PERIOD => 20.0, CLK_FEEDBACK => "1X")
+    port map (CLKIN => ci, CLKFB => c0, RST => '0', DSSEN => '0', PSCLK => '0', PSEN => '0', PSINCDEC => '0', CLK0 => c0u, CLKFX => cfu);
+  u_b0 : BUFG port map (I => c0u, O => c0);
+  u_bf : BUFG port map (I => cfu, O => cf);
+  process (c0) begin if rising_edge(c0) then r0 <= a; end if; end process;
+  process (cf) begin if rising_edge(cf) then rf <= a; end if; end process;
+  process (c0) begin if falling_edge(c0) then rn <= r0 xor rf; end if; end process;
+  q <= r0; f <= rn;
+end;` }];
+  const ucf = 'NET "clk" LOC = "B8" ;\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\nOFFSET = IN 8 ns BEFORE "clk" ;\nOFFSET = OUT 12 ns AFTER "clk" ;\n';
+  const r = await flow({ top: 'top', steps: orderOpenSteps(['trce']) }, src, [], ucf);
+  assert.equal(r.ok, true, r.lines.join('\n'));
+  const timing = r.store['open/timing.txt'];
+  assert.doesNotMatch(timing, /no pad of the design is bounded by it/);
+  // a on CLK0's flip-flop and on CLKFX's: a line each, with its clock
+  const ins = [...timing.matchAll(/^constraint OFFSET = IN 8 ns BEFORE "clk": met on a, clock (\S+) \(pad to setup (-?\d+\.\d{3}) ns, slack \d+\.\d{3} ns\)$/mg)];
+  assert.equal(ins.length, 2, timing);
+  // (deskewed: well within the 8 ns, as trce's 3.5-5 ns of the DCM designs)
+  for (const m of ins) assert.ok(+m[2] > 1 && +m[2] < 7, m[0]);
+  // q from CLK0's rising edge: met; f from its falling edge, 10 ns after the pad's rising one: not
+  assert.match(timing, /^constraint OFFSET = OUT 12 ns AFTER "clk": met on q \(clock to pad \d\.\d{3} ns, slack \d+\.\d{3} ns\)$/m);
+  const f = /^constraint OFFSET = OUT 12 ns AFTER "clk": NOT MET on f \(clock to pad (1\d\.\d{3}) ns, slack -\d+\.\d{3} ns\)$/m.exec(timing);
+  assert.ok(f, timing);
+  assert.deepEqual(r.lines.filter(l => /^WARNING/.test(l)), [`WARNING:Timing - constraint OFFSET = OUT 12 ns AFTER "clk" not met on f: clock to pad ${f[1]} ns`]);
+  assert.equal(r.lines.filter(l => /constraint\(s\) not met|All constraints were met/.test(l)).join(), '1 constraint(s) not met.');
+  assert.deepEqual(ins.map(m => m[1]).sort(), ['c0', 'cf']);
+  assert.deepEqual(r.report.timing.constraints.filter(c => /^OFFSET/.test(c.name)).map(c => [c.name, c.timingErrors]).sort(),
+    [['OFFSET IN a c0', 0], ['OFFSET IN a cf', 0], ['OFFSET OUT f', 1], ['OFFSET OUT q', 0]]);
+});
+
 test('Implement Design: the UCF\'s OFFSET constraints checked, in the timing report and the warnings (#26)', { timeout: 300000 }, async () => {
   const { flow } = await import('./timesim-lib.mjs');
   const { orderOpenSteps } = await import('../core/open-steps.js');

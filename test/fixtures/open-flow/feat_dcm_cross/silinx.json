@@ -1,0 +1,24 @@
+{
+  "name": "feat_dcm_cross",
+  "description": "Board test: paths between the clocks of one DCM (CLK0, CLK2X, CLKFX, CLKDV, a falling edge) and the pads of its clocks, timed as trce does (#601)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

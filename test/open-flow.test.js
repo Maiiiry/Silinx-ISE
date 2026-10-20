@@ -212,6 +212,10 @@ const FEATURES = {
   // and (on the Nexys2-500) the input period in whole nanoseconds: 20.9 ns is 20 (#46)
   feat_dcm_div2: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKIN_DIVIDE_BY_2::CLKIN_DIVIDE_BY_2 /, /DESKEW_ADJUST::0 /, /CLKFX_DIVIDE::15 /]],
   feat_dcm_fx: [/^pack \(\d+ slices\)/m, 'DCM', [/X_CLKIN_PERIOD::20\.8999999999999986 /, /CLKFX_DIVIDE::30 /]],
+  // paths between a DCM's clocks and the pads of its clocks, as trce times them (#601): CLK0, CLK2X, CLKFX, CLKDV each on
+  // a global buffer; a fixed phase shift on CLK0, CLK90 and CLK180
+  feat_dcm_cross: [/^pack \(\d+ slices\)/m, 'DCM', [/^net "clk2x_u" , \n {2}outpin "u_dcm" CLK2X ,/m, /^net "clkdv_u" , \n {2}outpin "u_dcm" CLKDV ,/m, /^net "clkfx_u" , \n {2}outpin "u_dcm" CLKFX ,/m]],
+  feat_dcm_phase: [/^pack \(\d+ slices\)/m, 'DCM', [/CLKOUT_PHASE_SHIFT::FIXED /, /PHASE_SHIFT::32 /, /^net "clk90_u" , \n {2}outpin "u_dcm" CLK90 ,/m, /^net "clk180_u" , \n {2}outpin "u_dcm" CLK180 ,/m]],
   // two DCMs, each CLKIN on the dedicated path from a clock pad of its own (#92): B8 to the top-left DCM, the clock
   // socket (U9) through the bottom clock tile to the bottom-left one
   feat_dcm_pads: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcma" "DCM",placed DCM_TL_CENTER_X23Y60 DCM_X1Y3 /m, /^inst "u_dcmb" "DCM",placed DCM_BL_CENTER_X23Y1 DCM_X1Y0 /m,

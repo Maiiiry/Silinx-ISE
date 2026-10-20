@@ -1,0 +1,24 @@
+{
+  "name": "feat_dcm_phase",
+  "description": "Board test: paths between phase-shifted clocks of one DCM (CLK0, CLK90, CLK180, a fixed phase shift), timed as trce does (#601)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

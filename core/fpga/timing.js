@@ -91,7 +91,17 @@ export const SPEED_4 = {
   // to pad) of lab11 placed and routed by Silinx and by ISE (research/s3e-route/README.md, "Pad paths"): a global
   // clock reaches every flip-flop at once (trce's clock skew 0.000 ns), Tgclk after its pad, minScale x that at
   // the earliest; trce's shortest paths are minScale x the model's; hold: a flip-flop's data hold time
-  clock: { Tgclk: 3.045, minScale: 0.751, hold: -1.018 },
+  clock: {
+    Tgclk: 3.045, minScale: 0.751, hold: -1.018,
+    // a DCM's clocks (#601), each on a global buffer: from the arrival at its CLKIN to the flip-flops' (trce's clock path:
+    // the input, Tdcmino, the buffer and the global line), fitted as Tgclk above with the model's data paths to trce's
+    // data sheet of Silinx's routing of six DCM designs (research/s3e-route/dcm-timing.mjs, dcm-timing-compare.mjs:
+    // 27 setup, 27 hold, 27 clock to pad). [latest (clock to pad), earliest (setup), hold] ns: pad, CLKIN from a pad
+    // (deskewed, DESKEW_ADJUST 7, SYSTEM_SYNCHRONOUS); global, CLKIN from a global line (a cascade: after the first
+    // DCM's clock); tap, each tap of DESKEW_ADJUST below 7 later (0: SOURCE_SYNCHRONOUS), from trce's Tdcmino. Between
+    // two outputs trce counts no skew (within ±0.02 ns) and no uncertainty (0 on the Spartan-3E).
+    dcm: { pad: [-1.097, -2.150, -0.735], global: [0.02, 0.015, 0.02], tap: [0.176, 0.26, 0.176] },
+  },
   // the SLICEM's RAMs and shift registers: trce's values (research/s3e-route/timing-fit.mjs --arcs, #443: the srl
   // and dram fixtures, feat_srl, feat_srl_var, hard_prim; the same on either clock edge)
   mem: {
@@ -653,15 +663,16 @@ export function timingGraph(design, model = SPEED_4) {
   // The paths at the pads and the hold check (#26), apart from the period: clockArr (Map instance -> the arrival of
   // its clock at its clock pin from the clock's pad, ns: clockArrivals) gives each flip-flop its clock's time.
   // - inputs: [{ pad, clock, setup, hold, path }]: an input pad to the setups of a clock's flip-flops, the data's
-  //   arrival plus the setup minus the clock's earliest arrival there (minScale x it: trce's "pad to setup", what
-  //   OFFSET IN BEFORE bounds), and the hold: the clock's arrival less the data's earliest (minScale x the
-  //   shortest path) plus the hold time; an asynchronous set / reset is not a data input (trce leaves it out);
+  //   arrival plus the setup minus the clock's earliest arrival there (clockArr.early, else minScale x it: trce's
+  //   "pad to setup", what OFFSET IN BEFORE bounds), and the hold: the clock's arrival (clockArr.hold, else its
+  //   latest) less the data's earliest (minScale x the shortest path) plus the hold time; an asynchronous set / reset
+  //   is not a data input (trce leaves it out);
   // - outputs: [{ pad, clock, delay, path }]: the clock's pad through a flip-flop of that clock to an output pad
   //   (trce's "clock to pad", OFFSET OUT AFTER);
   // - padToPad: [{ from, to, delay, path }]: an input pad through logic only to an output pad;
   // - hold: [{ clock, slack, path }]: the shortest path from a flip-flop to a flip-flop of the same clock and edge,
   //   at its earliest (minScale x it), less the hold time (model.clock.hold); a global clock reaches both at once.
-  // A flip-flop with no clock arrival (a clock through a DCM, or made by logic) is left out of inputs and outputs.
+  // A flip-flop with no clock arrival (a clock made by logic) is left out of inputs and outputs.
   function pads(connDelay, clockArr = new Map()) {
     const delay = Float64Array.from(eDelay);
     for (let e = 0; e < E; e++) if (eConn[e] >= 0) delay[e] = connDelay[eConn[e]];
@@ -702,9 +713,9 @@ export function timingGraph(design, model = SPEED_4) {
         let w = null, hold = -Infinity;
         for (const [e, su, c] of dataEnds) {
           if (c !== clk || !Number.isFinite(arr[e]) || !known(e)) continue;
-          const ca = clockArr.get(pinName[e].inst), t = arr[e] + su - sc * ca;
+          const ca = clockArr.get(pinName[e].inst), t = arr[e] + su - (clockArr.early?.get(pinName[e].inst) ?? sc * ca);
           if (!w || t > w.t) w = { t, e, su };
-          hold = Math.max(hold, ca - sc * early[e] + Th);
+          hold = Math.max(hold, (clockArr.hold?.get(pinName[e].inst) ?? ca) - sc * early[e] + Th);
         }
         if (w) out.inputs.push({ pad, clock: clk, setup: w.t, hold, path: trace(w.e, 'setup', w.su, 'pad') });
       }
@@ -735,45 +746,75 @@ export function timingGraph(design, model = SPEED_4) {
 /**
  * The arrival of each instance's clock at its clock pin (CLK, CLKA / CLKB, an IOB's ICLK1 / OTCLK1), from the clock's pad (ns): the input
  * pad's delay and the routed (or estimated) delays of the nets on the way; through a global buffer, model.clock.Tgclk
- * for every load (the global lines reach them all at once, #26). A clock through a DCM or made by logic has none
- * (left out). Map instance name -> ns.
+ * for every load (the global lines reach them all at once, #26). Through a DCM (#601): the arrival at its CLKIN plus
+ * model.clock.dcm (deskewed: earlier than the pad's own global clock), and the output's phase (clockSources' first
+ * edge, o x the port's PERIOD; clocks: parseUcf().clocks, no phase without one), as trce's clock arrival. A clock made
+ * by logic has none (left out). Map instance name -> ns, the latest; its .early and .hold: Map instance name -> ns, the
+ * earliest (setup) and the one of the inputs' hold (for a pad's clock minScale x the latest and the latest; a DCM's,
+ * model.clock.dcm's).
  */
-export function clockArrivals(design, device, model = SPEED_4) {
+export function clockArrivals(design, device, model = SPEED_4, clocks = []) {
   const inst = new Map(design.insts.map(i => [i.name, i]));
   const pinNode = p => { const i = inst.get(p.inst); return i && i.placed ? device.sitePinNode(i.site, p.pin) : -1; };
   const netOfPin = new Map();   // 'inst\0pin' -> net (inputs)
   for (const n of design.nets) for (const p of n.inpins) netOfPin.set(`${p.inst}\u0000${p.pin}`, n);
-  const at = new Map();         // net name -> Map 'inst\0pin' -> arrival at that load
+  const { minScale: sc, Tgclk, dcm: D } = model.clock;
+  const src = clockSources(design);
+  const periodOf = new Map(clocks.map(k => [String(k.net).toLowerCase(), k.period]));
+  const at = new Map();         // net name -> Map 'inst\0pin' -> [latest, earliest, hold] arrival at that load
+  // a DCM's clocks, from the arrival at its CLKIN: [latest, earliest, hold]
+  const dcmOut = (di, depth) => {
+    const n = netOfPin.get(`${di.name}\u0000CLKIN`);
+    const a = n && loadsOf(n, depth + 1)?.get(`${di.name}\u0000CLKIN`);
+    if (!a) return null;
+    const drv = inst.get(n.outpins[0]?.inst), fromPad = !!drv && /^(IOB|IBUF|DIFF[MS]I?)$/.test(drv.type);
+    const taps = 7 - (parseInt(di.cfg?.find(c => c.attr === 'DESKEW_ADJUST')?.value ?? '7', 10) || 0);
+    return a.map((x, k) => x + (fromPad ? D.pad : D.global)[k] + taps * D.tap[k]);
+  };
   const loadsOf = (n, depth = 0) => {
     if (at.has(n.name)) return at.get(n.name);
     at.set(n.name, null);
     const drv = n.outpins[0], di = drv && inst.get(drv.inst);
-    let base = null;
-    if (di && /^(IOB|IBUF|DIFF[MS]I?)$/.test(di.type)) base = model.pad.Tiopi;
-    else if (di && /^BUFG/.test(di.type) && depth < 4) {
-      const inNet = netOfPin.get(`${di.name}\u0000I0`) || netOfPin.get(`${di.name}\u0000I`);
-      const a = inNet && loadsOf(inNet, depth + 1)?.get(`${di.name}\u0000${netOfPin.has(`${di.name}\u0000I0`) ? 'I0' : 'I'}`);
-      if (a !== undefined && a !== null) base = a;
+    if (di && /^BUFG/.test(di.type) && depth < 8) {
+      const pin = netOfPin.has(`${di.name}\u0000I0`) ? 'I0' : 'I', inNet = netOfPin.get(`${di.name}\u0000${pin}`);
+      const from = inNet && inst.get(inNet.outpins[0]?.inst);
+      // a global buffer's loads: all at once (trce: no clock skew on the global lines, #26); a pad's clock Tgclk after
+      // the pad; a DCM's deskewed, then its phase, and a falling-edge flip-flop's edge half the output's period later
+      // (trce times it from that edge, not from the pad's falling one)
+      let g = null, half = 0;
+      if (from && /^DCM/.test(from.type)) {
+        const a = dcmOut(from, depth), s = src.get(n.name), T = s && periodOf.get(String(s.port).toLowerCase());
+        if (a) g = T ? a.map(x => x + s.o * T) : a;
+        if (T) half = s.f * T / 2;
+      } else if (inNet && loadsOf(inNet, depth + 1)?.get(`${di.name}\u0000${pin}`)) g = [Tgclk, sc * Tgclk, Tgclk];
+      if (!g) return null;
+      const m = new Map(n.inpins.map(p => {
+        const h = half && inst.has(p.inst) && fallingEdge(inst.get(p.inst)) ? half : 0;
+        return [`${p.inst}\u0000${p.pin}`, h ? g.map(x => x + h) : g];
+      }));
+      at.set(n.name, m);
+      return m;
     }
-    if (base === null) return null;
-    // a global buffer's loads: all at once, Tgclk after the pad (trce: no clock skew on the global lines, #26)
-    if (/^BUFG/.test(di.type)) { const g = new Map(n.inpins.map(p => [`${p.inst}\u0000${p.pin}`, model.clock.Tgclk])); at.set(n.name, g); return g; }
-    const src = pinNode(drv);
-    const tree = n.pips.length && src >= 0 ? netTree(n.pips, [src], device) : null;
+    if (!di || !/^(IOB|IBUF|DIFF[MS]I?)$/.test(di.type)) return null;
+    const s0 = pinNode(drv);
+    const tree = n.pips.length && s0 >= 0 ? netTree(n.pips, [s0], device) : null;
     const m = new Map();
     for (const p of n.inpins) {
       const sink = pinNode(p);
       const path = tree && sink >= 0 ? treePath(tree, sink) : null;
-      m.set(`${p.inst}\u0000${p.pin}`, base + (path ? pathDelay(path, tree, device, model) : src >= 0 && sink >= 0 ? distanceDelay(src, sink, device, model) : 0));
+      const t = model.pad.Tiopi + (path ? pathDelay(path, tree, device, model) : s0 >= 0 && sink >= 0 ? distanceDelay(s0, sink, device, model) : 0);
+      m.set(`${p.inst}\u0000${p.pin}`, [t, sc * t, t]);
     }
     at.set(n.name, m);
     return m;
   };
   const out = new Map();
+  out.early = new Map();
+  out.hold = new Map();
   for (const n of design.nets) for (const p of n.inpins) {
     if (!CLOCK_PIN.test(p.pin)) continue;
     const a = loadsOf(n)?.get(`${p.inst}\u0000${p.pin}`);
-    if (a !== undefined && !out.has(p.inst)) out.set(p.inst, a);
+    if (a && !out.has(p.inst)) { out.set(p.inst, a[0]); out.early.set(p.inst, a[1]); out.hold.set(p.inst, a[2]); }
   }
   return out;
 }
@@ -802,7 +843,8 @@ export function routedDelays(design, device, tg, model = SPEED_4) {
 
 /**
  * Static timing analysis of a placed (and routed) design: connection delays from the routing (the
- * nets' PIPs) or, for a net without them, from the distance. Returns timingGraph's analysis plus
+ * nets' PIPs) or, for a net without them, from the distance. opts: { model, clocks (parseUcf().clocks: the phases of
+ * a DCM's clocks at the pads, #601) }. Returns timingGraph's analysis plus
  * conns: [{ net, from: 'inst.pin', to, delay, slack, crit }] and pads (timingGraph's pads(): the paths at the
  * pads and the hold check, #26).
  */
@@ -813,7 +855,8 @@ export function analyzeTiming(design, device, opts = {}) {
   const r = tg.analyze(connDelay);
   r.conns = tg.conns.map((c, i) => ({ net: c.net, from: `${c.fromPin.inst}.${c.fromPin.pin}`, to: `${c.toPin.inst}.${c.toPin.pin}`, delay: connDelay[i], slack: r.slack[i], crit: r.crit[i] }));
   // the pads' paths and the hold check (#26), apart from the period
-  r.pads = tg.pads(connDelay, clockArrivals(design, device, model));
+  // (opts.clocks: the UCF's PERIOD constraints, parseUcf().clocks: a DCM output's phase in its clock's arrival, #601)
+  r.pads = tg.pads(connDelay, clockArrivals(design, device, model, opts.clocks || []));
   return r;
 }
 
@@ -942,7 +985,8 @@ export function checkPeriods(r, design, constraints = []) {
  * two clocks of the same port (its own, a DCM's outputs) with a PERIOD constraint on it are related, the requirement
  * from each launching edge to the first capturing edge after it (clockRequirement); others are unrelated, not timed.
  * [{ kind: 'cross', from, to, launch, capture (0 rising, 1 falling), delay, path, related, required, slack, met }]
- * (the clocks' global lines reaching the flip-flops at once: no clock skew counted).
+ * (the clocks' global lines reaching the flip-flops at once: no clock skew counted; trce's between two outputs of a DCM
+ * is within ±0.02 ns, its clock uncertainty 0 on the Spartan-3E: research/s3e-route/dcm-timing.mjs).
  */
 export function checkCross(r, design, constraints = []) {
   const src = clockSources(design);
@@ -984,9 +1028,11 @@ export function parseOffsets(statements = []) {
  */
 export function checkOffsets(r, design, offsets = [], ucfClocks = []) {
   const out = [];
-  const portOf = new Map(r.clocks.map(c => [c.clock, String(clockPort(design, c.clock) || c.clock).toLowerCase()]));
+  // (a DCM's clock: the port of its input, #601)
+  const src = clockSources(design);
+  const portOf = clk => String(src.get(clk)?.port || clockPort(design, clk) || clk).toLowerCase();
   const clockMatches = (clk, name) => {
-    const n = String(name).toLowerCase(), port = portOf.get(clk);
+    const n = String(name).toLowerCase(), port = portOf(clk);
     return port === n || String(clk).toLowerCase() === n || ucfClocks.some(u => String(u.tnm || '').toLowerCase() === n && String(u.net).toLowerCase() === port);
   };
   for (const o of offsets) {
@@ -1009,6 +1055,9 @@ export function timingReport(r, checks = []) {
   const lines = [];
   const step = s => `  ${s.kind.padEnd(12)} ${s.delay.toFixed(3).padStart(7)} ${s.arrival.toFixed(3).padStart(8)}  ${s.inst}.${s.pin}`;
   const edgeName = e => (e ? 'falling' : 'rising');
+  // (a pad bounded on two clocks or more, a DCM's: each line names its clock, #601)
+  const clocksOf = new Map();
+  for (const k of checks) if (k.kind === 'offset' && k.clock) clocksOf.set(`${k.text}\u0000${k.port}`, (clocksOf.get(`${k.text}\u0000${k.port}`) || 0) + 1);
   for (const k of checks) {
     if (k.kind === 'cross') continue;
     if (k.via) {
@@ -1018,7 +1067,7 @@ export function timingReport(r, checks = []) {
     if (k.kind === 'offset') {
       lines.push(k.unsupported ? `constraint ${k.text}: not analyzed (only OFFSET on a NET or on all pads)`
         : k.missing ? `constraint ${k.text}: no pad of the design is bounded by it`
-          : `constraint ${k.text}: ${k.met ? 'met' : 'NOT MET'} on ${k.port} (${k.dir === 'in' ? 'pad to setup' : 'clock to pad'} ${k.value.toFixed(3)} ns, slack ${k.slack.toFixed(3)} ns)`);
+          : `constraint ${k.text}: ${k.met ? 'met' : 'NOT MET'} on ${k.port}${clocksOf.get(`${k.text}\u0000${k.port}`) > 1 ? `, clock ${k.clock}` : ''} (${k.dir === 'in' ? 'pad to setup' : 'clock to pad'} ${k.value.toFixed(3)} ns, slack ${k.slack.toFixed(3)} ns)`);
       continue;
     }
     lines.push(k.missing ? `constraint PERIOD ${k.required} ns on ${k.port}: no clock of the design comes from this port`
