@@ -27,8 +27,9 @@ A project is a directory under the workspace (default `~/Silinx-projects`, overr
   `'xst'` (Xilinx ISE 14.7); without it, the mode of Toolchain Settings.
 * `impl.optLevel`: the synthesis's Optimization Effort, 1 Normal (the default; with the Silinx
   toolchain one mapping, fast, and every mapping for a design limited by its logic depth; its wide multiplexers
-  on MUXF5 … MUXF7 and the mapping with the wider functions when that is better) or 2 High (every
-  mapping tried, and the state machines of 8 states or more one-hot, the best kept).
+  on MUXF5 … MUXF7, the mapping with the wider functions and the state machines Yosys leaves as written (of 8
+  states or more) one-hot when that is better) or 2 High (every mapping tried, and the state machines of 8 states
+  or more one-hot, the best kept).
 * Generated implementation output lives in `<project>/build/` (ISE work dir), bitstream `build/<top>.bit`.
 
 ## HTTP API (server/)

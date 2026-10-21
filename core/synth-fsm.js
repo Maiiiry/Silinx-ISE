@@ -13,11 +13,17 @@
 //   2. fsmChosen: the machines kept are those with an init value (refused today: the others Yosys extracts
 //      already) of FSM_RULE.states states or more whose init state is one of their states (a VHDL integer
 //      starting at integer'left, never written again, is not: fsm_opt drops it);
+//      also those fsm_detect refused only because their users "don't seem to benefit" (#652: iwls05-i2c's bit
+//      controller, 18 states written one-hot and tested on all 17 bits, which XST re-encodes one-hot): run 1's
+//      fsm_detect messages (FSM_DETECT_FILE) name them, fsmForceCommands extracts them by hand from run 1's netlist
+//      (their states and codes), and one without an init value starts in state 0 (the flip-flops' power-up); these
+//      at Optimization Effort Normal too, the others at High alone;
 //   3. fsmExtractCommands: those lose their init value and are marked one-hot (fsm_encoding), `fsm` extracts and
 //      re-encodes them (the others as it does today) and writes each one's old -> new codes;
 //   4. each re-encoded register gets as init the new code of its old init state (fsmInits), and fsmRestCommands
 //      runs the rest of prepare and of the usual script from that netlist.
-// fsm_detect itself refuses a register a port reads (marking one by hand crashes Yosys 0.70 on ITC'99 b06).
+// fsm_detect itself refuses a register a port reads (marking one by hand crashes Yosys 0.70 on ITC'99 b06): such a
+// register is never forced.
 
 // synth_xilinx's prepare step (Yosys 0.70, `help synth_xilinx`, no -widemux) around its `fsm`
 export const PREP_HEAD = 'proc; check; flatten; tribuf -logic; deminout; opt_expr; check; opt_clean; opt -nodffe -nosdff';
@@ -26,6 +32,10 @@ export const FSM_PRE_FILE = 'silinx_fsm_pre.il';
 export const FSM_MARKED_FILE = 'silinx_fsm_marked.il';
 export const FSM_POST_FILE = 'silinx_fsm_post.il';
 export const FSM_ENC_FILE = 'silinx_fsm_enc.txt';
+export const FSM_DETECT_FILE = 'silinx_fsm_detect.txt';
+export const FSM_FORCED_FILE = 'silinx_fsm_forced.il';
+// fsm_detect's one reason that marking a register by hand overrides (#652): its heuristic on the register's users
+export const USERS_REASON = "Users of register don't seem to benefit from recoding.";
 // the machines tried one-hot: of 8 states or more (#539: ITC'99 b01, 8 states, 17 % fewer slices; the 7-state
 // b02 and b06 150 % and 60 % more)
 export const FSM_RULE = { states: 8 };
@@ -119,19 +129,44 @@ export function setInits(il, inits) {
 }
 
 /** Run 1: the design up to fsm written (FSM_PRE_FILE); quietly, its machines without the init values extracted
- *  one-hot, their codes in FSM_ENC_FILE (`synth`: synth_xilinx's command; `read`: the commands that read the
- *  design). */
+ *  one-hot, their codes in FSM_ENC_FILE, fsm_detect's messages in FSM_DETECT_FILE (`synth`: synth_xilinx's command;
+ *  `read`: the commands that read the design). */
 export const fsmProbeCommands = (read, synth) => `${read}${synth} -run :prepare; ${PREP_HEAD}; write_rtlil ${FSM_PRE_FILE}; `
-  + `tee -q setattr -unset init; tee -q fsm_detect; tee -q fsm -nodetect -encoding one-hot -encfile ${FSM_ENC_FILE}`;
+  + `tee -q setattr -unset init; tee -q -o ${FSM_DETECT_FILE} fsm_detect; tee -q fsm -nodetect -encoding one-hot -encfile ${FSM_ENC_FILE}`;
+
+/** The registers fsm_detect refused for their users alone (USERS_REASON), from run 1's FSM_DETECT_FILE. */
+export const refusedForUsers = (text, top) => parseDetect((text || '').split('\n'), top).refused
+  .filter(r => r.reasons.length === 1 && r.reasons[0] === USERS_REASON).map(r => r.wire);
+
+/** Run 1b, when some were refused for their users alone: run 1's netlist with them marked one-hot by hand
+ *  (FSM_FORCED_FILE: markWires), quietly extracted with the others (run 1's way): every machine's codes in
+ *  FSM_ENC_FILE. */
+export const fsmForceCommands = () => `read_rtlil ${FSM_FORCED_FILE}; tee -q setattr -unset init; tee -q fsm_detect; `
+  + `tee -q fsm -nodetect -encoding one-hot -encfile ${FSM_ENC_FILE}`;
 
 /** The machines to re-encode one-hot, from run 1's files: [{ wire, states, init }] (wire as fsm_recode names it,
- *  init the RTLIL's). */
-export function fsmChosen(pre, enc, rule = FSM_RULE) {
+ *  init the RTLIL's); `forced`: the wires marked by hand (run 1b), kept with or without an init value (without:
+ *  state 0, the flip-flops' power-up, as init). */
+export function fsmChosen(pre, enc, rule = FSM_RULE, forced = []) {
   const inits = wireInits(pre);
+  const zero = map => `${map[0][0].length}'${'0'.repeat(map[0][0].length)}`;
   return Object.entries(parseEncfile(enc))
-    .map(([wire, map]) => ({ wire, states: map.length, init: inits[rtlilName(wire)], map }))
+    .map(([wire, map]) => ({ wire, states: map.length, init: inits[rtlilName(wire)] ?? (forced.includes(wire) && map.length ? zero(map) : undefined), map }))
     .filter(m => m.init && m.states >= rule.states && newInit(m.init, m.map))
     .map(({ wire, states, init }) => ({ wire, states, init }));
+}
+
+/** A run's messages without Yosys's warning on the wires marked by hand (fsm_detect's "Regarding the user-specified
+ *  fsm_encoding attribute on <top>.<wire>:" and its indented reasons): `say` given the others. */
+export function quietForced(say, top, wires) {
+  const heads = new Set(wires.map(w => `Warning: Regarding the user-specified fsm_encoding attribute on ${top}.${w}:`));
+  let skip = false;
+  return l => {
+    if (heads.has(l)) { skip = true; return; }
+    if (skip && /^\s+\S/.test(l)) return;
+    skip = false;
+    say(l);
+  };
 }
 
 /** Run 2: the chosen machines (marked in FSM_MARKED_FILE) extracted and re-encoded, the others as `fsm` does. */
@@ -148,6 +183,14 @@ export function fsmInits(machines, enc) {
     inits[rtlilName(m.wire)] = n;
   }
   return inits;
+}
+
+/** The init values of the old state registers `fsm` keeps beside a re-encoded machine for the readers it could not
+ *  take in (`$fsm$oldstate\<wire>`, a copy of the register as written, in run 2's RTLIL `post`: a machine read bit by
+ *  bit, as the forced ones of #652 may be): each its machine's old init, else it would power up undefined. */
+export function oldStateInits(machines, post) {
+  const wires = new Set([...(post || '').matchAll(/^\s*wire\b.* (\S+)$/gm)].map(m => m[1]));
+  return Object.fromEntries(machines.map(m => [`$fsm$oldstate${rtlilName(m.wire)}`, m.init]).filter(([w]) => wires.has(w)));
 }
 
 /** Run 3: the rest of prepare and of the script (`synth`: synth_xilinx's command, `rest`: the usual script after

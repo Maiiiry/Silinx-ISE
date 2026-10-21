@@ -4,14 +4,16 @@
 // equal to the RTL from power-up in each encoding, with its exact warnings; and the tables. The open synthesis at
 // Optimization Effort High (#539, core/synth-fsm.js): the machines of 8 states or more tried one-hot, equal to the
 // RTL from power-up and with the resets, in VHDL and in Verilog; 7 states, Normal and an integer'left start left
-// as they are; a failed run said and the usual netlist kept.
+// as they are; a failed run said and the usual netlist kept. The machines fsm_detect refuses for their users alone
+// (#652), marked by hand at both efforts: in VHDL and in Verilog, with and without a power-up value, equal to the RTL,
+// no warning.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { parseDetect, chosen, markWires, parseEncfile, newInit, setInits, fsmRun, detectTable, resultsTable, WAYS } from '../research/synth-quality/fsm.mjs';
 import { parseSyrFsms } from '../research/synth-quality/fsm-ise.mjs';
 import { compareNetlist } from './diff-synth.js';
-import { wireInits, fsmChosen, fsmInits, fsmProbeCommands, fsmExtractCommands, fsmRestCommands, FSM_RULE, PREP_HEAD, PREP_TAIL } from '../core/synth-fsm.js';
+import { wireInits, fsmChosen, fsmInits, fsmProbeCommands, fsmExtractCommands, fsmForceCommands, fsmRestCommands, refusedForUsers, quietForced, oldStateInits, FSM_RULE, PREP_HEAD, PREP_TAIL, USERS_REASON } from '../core/synth-fsm.js';
 
 test('FSM measurement: fsm_detect\'s messages, the registers each way extracts', () => {
   const lines = [
@@ -237,9 +239,51 @@ test('One-hot state machines (#539): the machines chosen from the first run, the
   // the three runs' scripts
   const synth = 'synth_xilinx -family xc3se -ise -flatten -top top';
   assert.equal(fsmProbeCommands('read_verilog -sv top_syn.v; ', synth), `read_verilog -sv top_syn.v; ${synth} -run :prepare; ${PREP_HEAD}; write_rtlil silinx_fsm_pre.il; `
-    + 'tee -q setattr -unset init; tee -q fsm_detect; tee -q fsm -nodetect -encoding one-hot -encfile silinx_fsm_enc.txt');
+    + 'tee -q setattr -unset init; tee -q -o silinx_fsm_detect.txt fsm_detect; tee -q fsm -nodetect -encoding one-hot -encfile silinx_fsm_enc.txt');
   assert.equal(fsmExtractCommands(), 'read_rtlil silinx_fsm_marked.il; fsm -encfile silinx_fsm_enc.txt; write_rtlil silinx_fsm_post.il');
   assert.equal(fsmRestCommands(synth, 'abc'), `read_rtlil silinx_fsm_post.il; ${PREP_TAIL}; ${synth} -run map_dsp:fine; abc`);
+});
+
+test('One-hot state machines (#652): the registers refused for their users alone, marked by hand, their power-up state', () => {
+  const detect = [
+    'Not marking top.u.c_state as FSM state register:',
+    `    ${USERS_REASON}`,
+    'Found FSM state register top.st.',
+    'Not marking top.port_reg as FSM state register:',
+    '    Register is connected to module port.',
+    `    ${USERS_REASON}`,
+    'Not marking top.cnt as FSM state register:',
+    '    Circuit seems to be self-resetting.',
+  ].join('\n');
+  // a register a port reads is never forced (Yosys 0.70 crashes on one, ITC'99 b06), nor one refused for another reason
+  assert.deepEqual(refusedForUsers(detect, 'top'), ['u.c_state']);
+  assert.deepEqual(refusedForUsers('', 'top'), []);
+  assert.deepEqual(refusedForUsers(undefined, 'top'), []);
+  assert.equal(USERS_REASON, "Users of register don't seem to benefit from recoding.");
+  // u.c_state forced: no init value, so state 0 (the flip-flops' power-up) as its init; 8 states kept by the rule
+  const pre = "module \\top\n  wire width 3 \\u.c_state\n  attribute \\init 3'101\n  wire width 3 \\v\n  wire width 3 \\w\nend";
+  const codes = (n, from = 0) => Array.from({ length: n }, (_, i) => [(i + from).toString(2).padStart(3, '0'), '-'.repeat(n - 1 - i) + '1' + '-'.repeat(i)]);
+  const enc = (name, n, from) => [`.fsm top ${name}`, ...codes(n, from).map(([o, c]) => `.map ${o} ${c}`)];
+  const text = [...enc('u.c_state', 8), ...enc('v', 8), ...enc('w', 7, 1)].join('\n');
+  assert.deepEqual(fsmChosen(pre, text, FSM_RULE, ['u.c_state']), [{ wire: 'u.c_state', states: 8, init: "3'000" }, { wire: 'v', states: 8, init: "3'101" }]);
+  // not forced: no init, so Yosys's own (it extracts it already)
+  assert.deepEqual(fsmChosen(pre, text), [{ wire: 'v', states: 8, init: "3'101" }]);
+  // forced, but state 0 not one of its states (w: 1 … 7), or fewer states than the rule's: not kept
+  assert.deepEqual(fsmChosen(pre, text, FSM_RULE, ['w']).map(m => m.wire), ['v']);
+  assert.deepEqual(fsmChosen(pre, text, { states: 7 }, ['w']).map(m => m.wire), ['v']);
+  assert.deepEqual(fsmChosen(pre, enc('w', 7, 0).join('\n'), { states: 7 }, ['w']), [{ wire: 'w', states: 7, init: "3'000" }]);
+  assert.deepEqual(fsmInits([{ wire: 'u.c_state', states: 8, init: "3'000" }], text), { '\\u.c_state': "8'00000001" });
+  // the copy of an old state register fsm keeps for a reader it cannot take in: its machine's old init
+  const post = "module \\top\n  wire width 3 $fsm$oldstate\\u.c_state\n  wire width 8 \\u.c_state\nend";
+  assert.deepEqual(oldStateInits([{ wire: 'u.c_state', states: 8, init: "3'000" }, { wire: 'v', states: 8, init: "3'101" }], post), { '$fsm$oldstate\\u.c_state': "3'000" });
+  assert.deepEqual(oldStateInits([{ wire: 'v', states: 8, init: "3'101" }], post), {});
+  assert.equal(fsmForceCommands(), 'read_rtlil silinx_fsm_forced.il; tee -q setattr -unset init; tee -q fsm_detect; tee -q fsm -nodetect -encoding one-hot -encfile silinx_fsm_enc.txt');
+  // Yosys's warning on a wire marked by hand, and its reasons, not said; every other line is
+  const said = [];
+  const say = quietForced(l => said.push(l), 'top', ['u.c_state']);
+  for (const l of ['Warning: Regarding the user-specified fsm_encoding attribute on top.u.c_state:', '    Users of state reg look like FSM recoding might result in larger circuit.',
+    'Warning: x', 'Warning: Regarding the user-specified fsm_encoding attribute on top.other:', '    Users of state reg look like FSM recoding might result in larger circuit.', 'done']) say(l);
+  assert.deepEqual(said, ['Warning: x', 'Warning: Regarding the user-specified fsm_encoding attribute on top.other:', '    Users of state reg look like FSM recoding might result in larger circuit.', 'done']);
 });
 
 // a machine of `n` states with no reset (its declared initial value, not the first state, starts it) and with a
@@ -366,4 +410,120 @@ test('One-hot state machines (#539) with Yosys: an integer\'left start left as i
   const r2 = await synthesizeOpen(design, { run: probeFails });
   assert.equal(r2.depth.fsm, undefined);
   assert.deepEqual(r2.warnings, []);
+});
+
+// a machine of 9 states written one-hot (idle all 0s), tested on all its bits and read bit by bit too (busy): fsm_detect
+// refuses it for its users alone, as iwls05-i2c's bit controller (#652); Verilog with an asynchronous reset and no
+// power-up value, VHDL with one (state a, not idle)
+const FORCED_VERILOG = `module top (input clk, input nrst, input go, input back, input [1:0] cmd, output reg [1:0] y, output z, output busy);
+  parameter [7:0] idle = 8'd0, a = 8'b00000001, b = 8'b00000010, c = 8'b00000100, d = 8'b00001000,
+                  e = 8'b00010000, f = 8'b00100000, g = 8'b01000000, h = 8'b10000000;
+  reg [7:0] st;
+  always @(posedge clk or negedge nrst)
+    if (!nrst) st <= idle;
+    else if (go)
+      case (st) // synopsys full_case parallel_case
+        idle: case (cmd) 2'd0: st <= a; 2'd1: st <= c; 2'd2: st <= e; default: st <= idle; endcase
+        a: st <= b;
+        b: st <= back ? a : c;
+        c: st <= d;
+        d: st <= back ? idle : e;
+        e: st <= f;
+        f: st <= g;
+        g: st <= back ? e : h;
+        h: st <= idle;
+      endcase
+  always @(posedge clk or negedge nrst)
+    if (!nrst) y <= 2'b00;
+    else case (st) // synopsys full_case parallel_case
+      a, d: y <= 2'b01;
+      b, g: y <= 2'b10;
+      h: y <= 2'b11;
+      default: y <= y;
+    endcase
+  assign z = st == f || st == c;
+  assign busy = |st;
+endmodule
+`;
+const FORCED_VHDL = `library ieee; use ieee.std_logic_1164.all;
+entity top is port (clk, nrst, go, back : in std_logic; cmd : in std_logic_vector(1 downto 0); y : out std_logic_vector(1 downto 0); z, busy : out std_logic); end entity;
+architecture rtl of top is
+  constant idle : std_logic_vector(7 downto 0) := "00000000";
+  constant a : std_logic_vector(7 downto 0) := "00000001";
+  constant b : std_logic_vector(7 downto 0) := "00000010";
+  constant c : std_logic_vector(7 downto 0) := "00000100";
+  constant d : std_logic_vector(7 downto 0) := "00001000";
+  constant e : std_logic_vector(7 downto 0) := "00010000";
+  constant f : std_logic_vector(7 downto 0) := "00100000";
+  constant g : std_logic_vector(7 downto 0) := "01000000";
+  constant h : std_logic_vector(7 downto 0) := "10000000";
+  signal st : std_logic_vector(7 downto 0) := a;
+  signal yr : std_logic_vector(1 downto 0) := "00";
+begin
+  process (clk, nrst) begin
+    if nrst = '0' then st <= idle;
+    elsif rising_edge(clk) then
+      if go = '1' then
+        case st is
+          when idle => case cmd is when "00" => st <= a; when "01" => st <= c; when "10" => st <= e; when others => st <= idle; end case;
+          when a => st <= b;
+          when b => if back = '1' then st <= a; else st <= c; end if;
+          when c => st <= d;
+          when d => if back = '1' then st <= idle; else st <= e; end if;
+          when e => st <= f;
+          when f => st <= g;
+          when g => if back = '1' then st <= e; else st <= h; end if;
+          when h => st <= idle;
+          when others => st <= idle;
+        end case;
+      end if;
+    end if;
+  end process;
+  process (clk, nrst) begin
+    if nrst = '0' then yr <= "00";
+    elsif rising_edge(clk) then
+      if st = a or st = d then yr <= "01"; elsif st = b or st = g then yr <= "10"; elsif st = h then yr <= "11"; end if;
+    end if;
+  end process;
+  y <= yr;
+  z <= '1' when st = f or st = c else '0';
+  busy <= st(0) or st(1) or st(2) or st(3) or st(4) or st(5) or st(6) or st(7);
+end architecture;
+`;
+
+test('One-hot state machines (#652) with Yosys: a machine refused for its users alone forced one-hot at both efforts, equal to the RTL, VHDL and Verilog', { timeout: 600000 }, async () => {
+  const { yosysNode } = await import('../core/synth-open-node.js');
+  const { synthesizeOpen, utilization, criticalDelay } = await import('../core/synth-open.js');
+  for (const [lang, src] of [['verilog', FORCED_VERILOG], ['vhdl', FORCED_VHDL]]) {
+    const design = elaborate(compile([{ path: lang === 'vhdl' ? 'top.vhd' : 'top.v', lang, text: src }]), 'top');
+    // by the rule: tried, kept (one level and LUTs fewer), 9 state flip-flops and y's 2, no warning (Yosys's on the
+    // marked wire not said)
+    const high = await synthesizeOpen(design, { run: yosysNode });
+    assert.deepEqual(high.warnings, [], `${lang}: no warnings`);
+    assert.ok(!high.log.some(l => /fsm_encoding/.test(l)), lang);
+    assert.deepEqual(high.depth.fsm.machines, [{ wire: 'st', states: 9 }], lang);
+    assert.equal(high.depth.fsm.kept, true, lang);
+    assert.equal(utilization(high.cells).flipFlops, 11, lang);
+    // every flip-flop with its power-up value (the VHDL's st: state a), the Verilog's y alone without one: a copy of
+    // the old register that fsm keeps for a reader it cannot take in gets the old init too (oldStateInits)
+    const mod = JSON.parse(high.files[`${high.top}.json`]).modules[high.top];
+    const undefinedInit = Object.values(mod.cells).filter(c => /^FD/.test(c.type) && !/^[01]$/.test(String(c.parameters.INIT)));
+    assert.equal(undefinedInit.length, lang === 'vhdl' ? 0 : 2, lang);
+    simulated(design, high, `${lang} forced`);
+    // fsm false (as before #652): the state register as written, 8 flip-flops, slower and larger
+    const off = await synthesizeOpen(design, { run: yosysNode, fsm: false });
+    assert.equal(off.depth.fsm, undefined);
+    assert.deepEqual(off.warnings, []);
+    assert.equal(utilization(off.cells).flipFlops, 10, lang);
+    const top = high.top;
+    assert.ok(criticalDelay(high.files[`${top}.json`], top) < criticalDelay(off.files[`${top}.json`], top), `${lang}: faster`);
+    assert.ok(utilization(high.cells).luts < utilization(off.cells).luts, `${lang}: fewer LUTs`);
+    // Normal: tried too (the forced machines alone, #539's stay High's), kept, equal to the RTL
+    const normal = await synthesizeOpen(design, { run: yosysNode, effort: 'normal' });
+    assert.deepEqual(normal.depth.fsm.machines, [{ wire: 'st', states: 9 }], lang);
+    assert.equal(normal.depth.fsm.kept, true, lang);
+    assert.equal(utilization(normal.cells).flipFlops, 11, lang);
+    assert.deepEqual(normal.warnings, []);
+    simulated(design, normal, `${lang} forced, Normal`);
+  }
 });

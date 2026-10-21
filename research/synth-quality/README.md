@@ -957,6 +957,54 @@ designs, seeds 1-3):
   4 % of trce's and the same direction on each design. (b11's +1.1 % is one seed's: −0.9 % in the
   mean of three seeds above.)
 
+### State machines fsm_detect refuses for their users (#652)
+
+iwls05-i2c was the corpus's slowest design against ISE (1.61 times XST's period at Normal): six LUT levels on its
+critical path where ISE has four. The path starts at the I2C bit controller's state register, 18 states written
+one-hot by hand (`parameter [16:0] … = 17'b0_0000_0000_0000_0001`, idle all zeros) and compared on all 17 bits in a
+`case (c_state) // synopsys full_case parallel_case`: every state test is a 17-input AND, two levels of LUTs before
+any logic. XST finds the machine and re-encodes it one-hot (its report: `c_state[1:18]: one-hot`), so a state is one
+bit. Yosys's fsm_detect turns it down: "Users of register don't seem to benefit from recoding" (a heuristic on the
+cells that read it; fsm-detect.json lists the corpus's 18 registers refused so, most of them counters).
+
+A register marked by hand (`fsm_encoding`) is extracted whatever that heuristic says, so the search for state
+machines (`core/synth-fsm.js`) now does it for these:
+
+- run 1 (`fsmProbeCommands`) writes fsm_detect's messages too (`tee -q -o`); the registers refused for their users
+  alone (`refusedForUsers`; not those a port reads, which crash Yosys 0.70 when forced, nor any other reason);
+- run 1b (`fsmForceCommands`), only when there are some: run 1's netlist with them marked one-hot, extracted quietly
+  as run 1 does: their states and codes;
+- `fsmChosen`: those of `FSM_RULE.states` (8) or more, with their initial value, else state 0 (the flip-flops'
+  power-up; a machine whose state 0 is not one of its states is left);
+- then #539's runs, the netlist kept by `DEPTH_RULE`. Yosys's warning on a wire marked by hand ("Regarding the
+  user-specified fsm_encoding attribute") is not said (`quietForced`).
+- At Normal too (#539's machines, which the init values keep out, stay High's: #438 found them no better on average).
+  The quiet run goes beside the usual one in the Yosys workers: the synthesis's time is the same where nothing is forced
+  (pong 3.6 → 3.4 s, iwls05-sasc 2.6 → 2.7, itc99-b14 12.8 → 12.7), iwls05-i2c 2.6 → 5.3 s.
+
+A defect found on the way: when the machine is read bit by bit as well (`busy <= st(0) or …`), `fsm` keeps a copy of
+the old register for that reader (`$fsm$oldstate\st`), and the copy had lost its initial value with the marking (a
+VHDL machine starting in state `a` powered up with `busy` low). `oldStateInits` gives it the old one;
+test/synth-fsm.test.js checks that every flip-flop has its power-up value.
+
+Measured (routed, Silinx's static timing, seed 1; the corpus's 53 designs of 1500 LUTs at most in their I/O wrapper
+on the XC3S1200E and the 7 examples, against main of 2026-10-21, be58d33): **iwls05-i2c alone changes**:
+
+| effort | LUTs | slices | levels | estimate (ns) | routed (ns) | |
+|---|---|---|---|---|---|---:|
+| Normal | 253 → 211 | 137 → 116 | 6 → 4 | 7.62 → 5.41 | 8.657 → 5.820 | −32.8 % |
+| High | 260 → 205 | 141 → 123 | 5 → 5 | 7.34 → 5.41 | 8.678 → 6.322 | −27.1 % |
+
+(ISE's own flow: 5.91 ns by trce.) Over the 60: Normal −0.66 % and High −0.53 % in geometric mean, slices 10788 →
+10767 and 10750 → 10732. Tried and not kept: verilog-i2c-master's `phy_state_reg` (16 states, 9.60 ns estimated
+against 8.85). The other registers refused for their users have fewer than 8 states or are no machine `fsm` can
+extract (counters: run 1b extracts nothing for them).
+
+**ISE's check** (on the Mac mini, the same routed designs, main against the change; seeds 1-3 at both efforts): every
+DRC 0 errors and 0 warnings, xdl2ncd 0 warnings, the `.bit` byte-identical to ISE's bitgen (CRC on and off); trce's
+period of iwls05-i2c 29.8 % shorter in geometric mean, all six faster: Normal 8.329 / 8.386 / 8.937 → 5.712 / 5.943 /
+5.968 ns, High 8.561 / 8.236 / 8.562 → 5.913 / 6.032 / 6.236 ns (ISE's own flow 5.909).
+
 ## Where the speed is lost: logic or routing (#656)
 
 The weekly comparison against ISE now records, for each critical path, trce's breakdown (#646): its levels of
