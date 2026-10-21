@@ -274,16 +274,17 @@ test('the XC3S1200E\'s own features: the long-line splitters of the centre row, 
 test('the PIPs a tile type\'s features offer that its tiles do not have (#74): measured on ISE\'s device descriptions, refused to the router', () => {
   const t = JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types;
   // every tile of the type, on every device: [wires (every PIP into or out of it), PIPs]; the left and
-  // right I/O tiles also lack GCLK4_BRK (their features have the clock-row tiles' GCLK4_BRK -> IOIS_CLKk, #48)
+  // right I/O tiles also lack GCLK4_BRK (their features have the clock-row tiles' GCLK4_BRK -> IOIS_CLKk, #48); the
+  // tiles with the CLB's switch box but no SLICEM lack SHIFTOUT2 and SHIFTIN0 (the CLB's SHIFTOUT2 -> SHIFTIN0, #2)
   const counts = Object.fromEntries(Object.entries(t).filter(([, v]) => v.absent).map(([k, v]) => [k, [v.absent.filter(x => !x.includes('->')).length, v.absent.filter(x => x.includes('->')).length]]));
-  const io = [100, 433], io4 = [101, 433], sb = [140, 218], cnr = [140, 250], bram = [140, 0], gclkh = [8, 0];
+  const io = [102, 433], io4 = [103, 433], sb = [142, 218], cnr = [142, 250], bram = [142, 0], gclkh = [8, 0];
   assert.deepEqual(counts, {
-    CENTER_SMALL_BRK: [8, 0], BIOIS: io, BIBUFS: io, LIOIS_PCI: io4, LIBUFS_PCI: io4, RIOIS: io4, RIBUFS_PCI: io4, RIOIS_PCI: [101, 436],
-    RIBUFS_CLK_PCI: [97, 446], RIOIS_CLK_PCI: [97, 452], LIOIS_CLK_PCI: [97, 449], LIBUFS_CLK_PCI: [97, 449], RIBUFS: [101, 425], RIBUFS_BRK: [108, 425],
-    TIBUFS: [100, 429], TIOIS: [100, 429], LIOIS: [101, 430], LIOIS_BRK: [108, 430], LIBUFS: [101, 422],
-    BRAM0_SMALL: bram, BRAM1_SMALL: bram, BRAM2_SMALL: bram, BRAM3_SMALL: bram, BRAM3_SMALL_BRK: [148, 0],
+    CENTER_SMALL_BRK: [8, 0], BIOIS: io, BIBUFS: io, LIOIS_PCI: io4, LIBUFS_PCI: io4, RIOIS: io4, RIBUFS_PCI: io4, RIOIS_PCI: [103, 436],
+    RIBUFS_CLK_PCI: [99, 446], RIOIS_CLK_PCI: [99, 452], LIOIS_CLK_PCI: [99, 449], LIBUFS_CLK_PCI: [99, 449], RIBUFS: [103, 425], RIBUFS_BRK: [110, 425],
+    TIBUFS: [102, 429], TIOIS: [102, 429], LIOIS: [103, 430], LIOIS_BRK: [110, 430], LIBUFS: [103, 422],
+    BRAM0_SMALL: bram, BRAM1_SMALL: bram, BRAM2_SMALL: bram, BRAM3_SMALL: bram, BRAM3_SMALL_BRK: [150, 0],
     LL: cnr, LR: cnr, UL: cnr, UR: cnr,
-    DCM_BL_CENTER: sb, DCM_BR_CENTER: sb, DCM_TL_CENTER: sb, DCM_TR_CENTER: sb, DCMAUX_BL_CENTER: [140, 219], DCMAUX_TL_CENTER: [140, 219],
+    DCM_BL_CENTER: sb, DCM_BR_CENTER: sb, DCM_TL_CENTER: sb, DCM_TR_CENTER: sb, DCMAUX_BL_CENTER: [142, 219], DCMAUX_TL_CENTER: [142, 219],
     DCM_H_BL_CENTER: sb, DCM_H_BR_CENTER: sb, DCM_H_TL_CENTER: sb, DCM_H_TR_CENTER: sb,
     BRAMSITE2_UP_GCLKH: gclkh, BRAM2_UP_GCLKH_FEEDTHRU: gclkh, BRAM2_UP_GCLKH_FEEDTHRUA: gclkh, BRAMSITE2_DN_GCLKH: gclkh, BRAM2_DN_GCLKH_FEEDTHRU: gclkh, BRAM2_DN_GCLKH_FEEDTHRUA: gclkh,
   });

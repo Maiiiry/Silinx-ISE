@@ -192,6 +192,10 @@ const FEATURES = {
   feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],
   // shift registers read at a variable tap (#5): SRL16E / SRL16E_1 addressed by the switches
   feat_srl_var: [/^pack \(\d+ slices\)/m, 'SLICEM', [/^inst "[^"]+" "SLICEM",placed /m]],
+  // SRLC16E chained through Q15 (#2): four on the two SLICEMs of a CLB, the upper one's SHIFTOUT into the lower one's
+  // SHIFTIN on the CLB's switch, as ISE packs and routes them
+  feat_srl_chain: [/^pack \(\d+ slices\)/m, 'SLICEM', [/^net "ca<1>" , \n {2}outpin "la\[1\]_u" SHIFTOUT ,\n {2}inpin "la\[3\]_u" SHIFTIN ,\n {2}pip CLB_X\d+Y\d+ SHIFTOUT2 -> SHIFTIN0 ,$/m,
+    /^net "cb<1>" , \n {2}outpin "lb\[1\]_u" SHIFTOUT ,\n {2}inpin "lb\[2\]_u" SHIFTIN ,\n {2}pip CLB_X\d+Y\d+ SHIFTOUT2 -> SHIFTIN0 ,$/m, /DIG_MUX::SHIFTIN /, /SHIFTOUTUSED::0 /]],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
   feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],

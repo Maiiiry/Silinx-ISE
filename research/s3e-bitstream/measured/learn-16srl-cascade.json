@@ -1,0 +1,13 @@
+{
+ "source": "#2: the SRLC16E cascade between the two SLICEMs of a CLB (the upper slice's SHIFTOUT into the lower one's SHIFTIN): gen-cascade.mjs's srl design (8 chains of 4 SRLC16E through Q15) implemented by ISE 14.7 on the four devices (measure-2.sh). Every bit of ISE's bitstream is explained by the database's other features (check-writer.mjs: no bit differs), and removing the switch by codewords (gen-pipdrop.mjs, ana-pipdrop.mjs) changes no bit: the settings and the switch set none. The multiplier cascade (B_INPUT = CASCADE, BCOUT -> BCIN) of gen-cascade.mjs's mult design was already in the database: its bits equal ISE's on the four devices; 2026-10-21",
+ "types": {
+  "CENTER_SMALL": {
+   "features": {
+    "SLICE0:DIG_MUX:SHIFTIN": [],
+    "SLICE1:SHIFTOUTUSED:0": [],
+    "SLICE1:FMC15_BLACKBOX:": [],
+    "SHIFTOUT2->SHIFTIN0": []
+   }
+  }
+ }
+}

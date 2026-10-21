@@ -418,7 +418,8 @@ CLK270, CLK2X180, CLKFX180 on a global buffer and the other three DCMs (no measu
 from another pad, `STARTUP_WAIT` (it also changes the COR register), `CLKIN_DIVIDE_BY_2`,
 `DESKEW_ADJUST = SOURCE_SYNCHRONOUS`, input periods other than 20 ns (the bitstream would lack
 2 bits: "features not in the bit database"), BUFGMUX clock switching (I1 / S measured on one buffer
-only), the SRLC16 cascade output and the multiplier cascade (BCIN / BCOUT).
+only), the SRLC16 cascade output and the multiplier cascade (BCIN / BCOUT) (since: the SRLC16E chains of up to
+4 through Q15, #2).
 
 ### Stage F: the other Spartan-3E devices — XC3S100E, XC3S500E, XC3S1200E (2026-10-11)
 
@@ -816,6 +817,22 @@ bit explained, every solved design byte-identical to ISE's bitgen).
 only the delay ISE's map chooses (their other delays refused); on every other pad all of IFD_DELAY_VALUE 0-6 and
 IBUF_DELAY_VALUE 1-12 are in the database. Then every design, solved or held out, is byte-identical to ISE's bitgen or
 refused (a clock pin's other delay), never wrong (the XC3S1200E's but for its long-line splitters).
+
+### The SRLC16E cascade between the SLICEMs of a CLB (2026-10-21, #2)
+
+`gen-cascade.mjs` writes two designs per device: srl, 8 chains of 4 SRLC16E (each one's Q15 into the next one's D,
+each stage read at a variable tap), and mult, a column of 4 MULT18X18SIO (each one's BCOUT into the next one's BCIN,
+B_INPUT = CASCADE); `measure-2.sh` implements them with ISE on the four devices and removes every PIP by codewords.
+ISE's map packs a chain of 4 on the two SLICEMs of a CLB: G then F of the upper one (F's data G's last stage through
+SHIFTIN, DIF_MUX = SHIFTIN), its SHIFTOUT (SHIFTOUTUSED) into the lower one's SHIFTIN (DIG_MUX = SHIFTIN, the CLB's
+switch `SHIFTOUT2 -> SHIFTIN0`), then G and F of the lower one. **None of these sets a bit**: every bit of ISE's
+bitstreams is explained by the database's other features (`check-writer.mjs`, the four devices), and removing the
+switch changes none (`measured/learn-16srl-cascade.json`). The multiplier cascade was in the database already (its
+bits equal ISE's on the four devices).
+
+The packer (`core/fpga/pack.js`) now packs SRLC16E chains through Q15 as ISE's map does (up to 4, a macro of the two
+slices for the placer, the SHIFTOUT -> SHIFTIN net); the lower slice's SHIFTOUT leaves the CLB only through XB (not
+measured), so a longer chain, or Q15 into anything but the next shift register's D, is refused.
 
 ### The PIPs a tile does not have (2026-10-13, #74)
 
