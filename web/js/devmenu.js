@@ -55,7 +55,7 @@ export function developmentMenu(build = BUILD) {
     ...TYPES.map(([t, label]) => {
       const list = build.changes.filter(c => c.type === t);
       return { label: `${label} (${list.length})`, disabled: !list.length,
-        submenu: list.map(c => ({ label: `#${c.issue} ${c.title}`, raw: true, action: () => changeDialog(c) })) };
+        submenu: list.map(c => ({ label: `#${c.issue} ${c.title}`, title: `#${c.issue} ${c.title}`, raw: true, action: () => changeDialog(c) })) };
     }),
     '-',
     { label: build.since ? `All Changes since ${build.since}…` : 'All Changes since the Last Release…', action: () => changesDialog(build) },

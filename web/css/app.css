@@ -21,6 +21,8 @@
 .menu-popup .chk { width: 24px; text-align: center; display: inline-flex; justify-content: center; }
 .menu-popup .chk .ico, .menu-popup .chk svg { width: 16px; height: 16px; }
 .menu-popup .lbl { flex: 1; padding-right: 24px; }
+/* a raw label (a change's title of the Development menu, #767): at most 60 characters shown, the rest in its tooltip */
+.menu-popup .lbl[data-no-i18n] { max-width: 60ch; overflow: hidden; text-overflow: ellipsis; }
 .menu-popup .sc { color: #666; min-width: 20px; text-align: right; }
 .menu-popup .sep { height: 1px; background: #d7d7d7; margin: 3px 2px 3px 28px; border-bottom: 1px solid #fff; }
 

@@ -140,6 +140,16 @@ function buildMenu(items) {
         const r = row.getBoundingClientRect();
         sub.style.left = `${r.right - 2}px`; sub.style.top = `${r.top - 3}px`;
         sub.style.position = 'fixed';
+        // kept inside the window (#767): on the menu's left when there is no room on its right (the last menu of the
+        // bar, long labels: the Development menu's changes), else against the window's edge; moved up when it runs
+        // past the bottom
+        const W = window.innerWidth, H = window.innerHeight, b = sub.getBoundingClientRect();
+        if (b.right > W) {
+          sub.style.maxWidth = `${W - 8}px`;
+          const w = sub.getBoundingClientRect().width;
+          sub.style.left = `${r.left - w + 2 >= 4 ? r.left - w + 2 : Math.max(4, W - w - 4)}px`;
+        }
+        if (b.bottom > H) sub.style.top = `${Math.max(4, H - b.height - 4)}px`;
       });
     } else {
       row.addEventListener('mouseenter', () => m.querySelectorAll(':scope > .menu-popup').forEach(s => s.remove()));
@@ -281,6 +291,9 @@ export function menuBar(el, menus) {
       openMenu = buildMenu(typeof menu.items === 'function' ? menu.items() : menu.items);
       openMenu.style.left = `${r.left}px`; openMenu.style.top = `${r.bottom}px`;
       document.body.append(openMenu);
+      // (kept inside the window too, #767: the last menus of the bar on a narrow window)
+      const b = openMenu.getBoundingClientRect();
+      if (b.right > window.innerWidth) openMenu.style.left = `${Math.max(4, window.innerWidth - b.width - 4)}px`;
     };
     item.addEventListener('mousedown', e => { e.preventDefault(); if (item.classList.contains('open')) closeMenus(); else open(); });
     item.addEventListener('mouseenter', () => { if (openMenu && !item.classList.contains('open')) open(); });
