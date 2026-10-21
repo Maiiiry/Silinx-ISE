@@ -11,7 +11,7 @@ import { compile, elaborate } from '../core/compile.js';
 import { synthesizeOpen } from '../core/synth-open.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
-import { packS6, checkSlice, ctrlKey, lutInputs, PackError } from '../core/fpga/s6/pack.js';
+import { packS6, checkSlice, ctrlKey, lutInputs, PackError, AND2L } from '../core/fpga/s6/pack.js';
 import { example, EXAMPLES } from './examples-lib.mjs';
 
 // a design synthesized for the Spartan-6 and read as the packer reads it
@@ -160,20 +160,40 @@ endmodule`);
     ['a RAM or shift register in a slice that is not a SLICEM']);
 });
 
+// night 1: map's packing of the clock example (BOUTMUX CY, BFF #AND2L with BFFMUX XOR) in a slice of no other storage element
+test('a carry\'s sum and carry out both out of one position: the carry out by its MUX, the sum through the storage element as a gate (AND2L), alone in the slice', async () => {
+  // (the clock example's 2-bit adder: a plain one takes its carry out by the next stage's sum, without the conflict)
+  const ex = example('clock');
+  const nl = await netlistOf(ex.design.map(f => ({ path: f.path, lang: f.lang, text: f.text })), ex.project.top);
+  const p = packed(nl);
+  const g = p.slices.flatMap(sl => Object.entries(sl.pos).filter(([, q]) => q.ff === AND2L).map(([k, q]) => ({ sl, k, q })));
+  assert.equal(g.length, 1);
+  assert.equal(g[0].k, 'B', 'BFF, as map');
+  assert.equal(g[0].q.mux, 'cy');
+  assert.equal(g[0].sl.ctrl, AND2L);
+  assert.deepEqual(p.warnings, []);
+  assert.equal(p.stats.and2l, 1);
+  assert.ok(Object.values(g[0].sl.pos).every(q => q.ff5 === null && (q.ff === null || q.ff === AND2L)), 'no flip-flop beside the gate');
+  // the rule's own error: a gate anywhere else
+  const bad = JSON.parse(JSON.stringify(g[0].sl));
+  bad.pos[g[0].k].mux = 'xor';
+  assert.deepEqual(checkSlice(bad, nl), [`${g[0].k}FF: a gate (AND2L) but not the carry's sum beside its carry out`]);
+});
+
 test('a cell the packer has no place for: a PackError naming it', () => {
   const nl = { cells: [{ name: 'u0', type: 'ICAP_SPARTAN6', params: {}, pins: {}, dirs: {} }], nets: [{ id: 0, loads: [] }, { id: 1, loads: [] }], ports: [] };
   assert.throws(() => packS6(nl), e => e instanceof PackError && e.message === 'the Spartan-6 packer has no place for the cell u0 (ICAP_SPARTAN6)');
 });
 
-// every example for the XC6SLX16: its slices by kind and the packer's warnings (clock: a 2-bit adder whose sum and
-// carry out both leave the slice by BMUX, which a slice cannot; how ISE's map packs it is a question for night 1)
+// every example for the XC6SLX16: its slices by kind and the packer's warnings (none: clock's 2-bit adder, whose sum
+// and carry out both leave the slice, has its sum through a storage element as a gate, as map packs it on night 1)
 const EXAMPLE_PACK = {
   gates: { slices: 1, X: 1, L: 0, M: 0, luts: 1, ffs: 0, warnings: 0 },
   traffic: { slices: 34, X: 14, L: 20, M: 0, luts: 96, ffs: 58, warnings: 0 },
   blinky: { slices: 35, X: 14, L: 21, M: 0, luts: 64, ffs: 97, warnings: 0 },
   pong: { slices: 117, X: 60, L: 57, M: 0, luts: 275, ffs: 226, warnings: 0 },
   stopwatch: { slices: 84, X: 42, L: 42, M: 0, luts: 179, ffs: 200, warnings: 0 },
-  clock: { slices: 87, X: 36, L: 51, M: 0, luts: 161, ffs: 174, warnings: 1 },
+  clock: { slices: 87, X: 36, L: 51, M: 0, luts: 161, ffs: 174, warnings: 0 },
   vga: { slices: 52, X: 22, L: 30, M: 0, luts: 129, ffs: 56, warnings: 0 },
 };
 // map's packing of the same netlists on ISE (research/s6/measured/night1.json, night 1): its SLICELs are the packer's
@@ -199,7 +219,7 @@ test('every example packs into legal slices for the XC6SLX16 (the slices by kind
     const p = packed(nl);
     const { slices, X, L, M, luts, ffs } = p.stats;
     assert.deepEqual({ slices, X, L, M, luts, ffs, warnings: p.warnings.length }, EXAMPLE_PACK[name], name);
-    if (name === 'clock') assert.match(p.warnings[0], /^\S+carry4: the output BMUX of its slice carries xor already \(cy needs it too\)$/);
+    assert.equal(p.stats.and2l, name === 'clock' ? 1 : 0, name);
     // (LUT combining: never more slices)
     assert.ok(packed(nl, { combine: 'area' }).stats.slices <= slices, name);
   }
