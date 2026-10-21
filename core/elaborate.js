@@ -575,6 +575,8 @@ function elabChild(E, it) {
     conns.push({ port: pname, expr: c.expr, formal: c.formal || null });
   });
   const portConns = new Map();
+  // (the ports connected to nothing on purpose: Verilog `.P()`, VHDL `P => open`)
+  const openPorts = new Set(conns.filter(c => !c.expr).map(c => c.port));
   for (const c of conns) {
     if (!c.expr) continue;
     const pdecl = childPorts.find(p => p.name === c.port);
@@ -677,6 +679,8 @@ function elabChild(E, it) {
       };
     });
     for (const p of mod.ports) {
+      // (a primitive's input left open on purpose in Verilog, `.B()` of a cascaded MULT18X18SIO: as XST, no warning, #893)
+      if (E.lang === 'verilog' && String(mod.file || '').startsWith('<silinx>/') && openPorts.has(p.name)) continue;
       if (p.dir === 'in' && !portConns.has(p.name) && !p.default)
         diag(E, `input port '${p.name}' of '${iname}' is not connected`, it.loc, 'warning');
     }

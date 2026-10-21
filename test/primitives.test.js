@@ -329,6 +329,36 @@ test('a primitive\'s unconnected inputs: the ones it needs a warning, the others
   assert.deepEqual(mult('CASCADE', ['BCIN']), []);
   assert.deepEqual(mult('CASCADE', ['B']), ['warning: input pin BCIN of U1 (MULT18X18SIO) is not connected']);
   assert.deepEqual(mult('DIRECT', ['BCIN']), ['warning: input pin B of U1 (MULT18X18SIO) is not connected']);
+  // (#893) the cascade's B, which it does not use, open in Verilog: not tied to zeros (ISE's map warns PhysDesignRules:1135
+  // then); VHDL ties it (UNISIM's component gives B no default; a component of its own makes XST warn more: Xst:2211, 753)
+  for (const lang of ['vhdl', 'verilog']) {
+    const doc = sheet('casc', [{ type: 'mult18x18sio', params: { B_INPUT: 'CASCADE', AREG: 0, BREG: 0, PREG: 0 }, wired: ['A', 'BCIN', 'P'] }], lang);
+    const g = generateHdl(doc, { lang });
+    assert.deepEqual(msgs(g.diagnostics), [], lang);
+    if (lang === 'vhdl') {
+      assert.ok(g.code.includes(`    B => "${'0'.repeat(18)}",`), g.code);
+      assert.doesNotMatch(g.code, /component/);
+    } else assert.ok(g.code.includes('  .B(),'), g.code);
+    // compiled, elaborated (no message: `.B()` an input left open on purpose) and simulated: P = A × BCIN
+    const srcs = [{ path: g.filename, lang, text: g.code }];
+    const lib = compile([...primitiveSources(srcs), ...srcs]);
+    const d = elaborate(lib, 'casc');
+    assert.deepEqual(msgs([...lib.errors, ...d.diags]), [], lang);
+    const sim = new Simulator(d), port = n => d.top.ports.find(p => p.name.toLowerCase() === n).sig;
+    sim.force(port('a'), V.mk(18, BigInt.asUintN(18, -7n))); sim.force(port('bcin'), V.mk(18, 300n));
+    sim.run(1000);
+    assert.equal(port('p').val.v, BigInt.asUintN(36, -2100n), lang);
+  }
+  // the DIRECT one: its BCIN tied (it is not free), in Verilog too
+  const direct = generateHdl(sheet('dir', [{ type: 'mult18x18sio', wired: ['A', 'B', 'CLK', 'P'] }], 'verilog'));
+  assert.ok(direct.code.includes(".BCIN(18'b0)"), direct.code);
+  // Silinx's elaboration: a primitive's input left out (not `.B()`) or VHDL's `B => open` still warns
+  const el = (lang, text) => { const srcs = [{ path: lang === 'vhdl' ? 't.vhd' : 't.v', lang, text }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return msgs([...lib.errors, ...elaborate(lib, 't').diags]); };
+  const ports = "CEA(1'b1), .CEB(1'b1), .CEP(1'b1), .CLK(c), .RSTA(1'b0), .RSTB(1'b0), .RSTP(1'b0)";
+  assert.deepEqual(el('verilog', `module t(input c, input [17:0] a, b, output [35:0] p); MULT18X18SIO #(.B_INPUT("CASCADE")) u (.A(a), .BCIN(b), .${ports}, .P(p)); endmodule`), ["warning: input port 'b' of 'u' is not connected"]);
+  assert.deepEqual(el('verilog', `module t(input c, input [17:0] a, b, output [35:0] p); MULT18X18SIO #(.B_INPUT("CASCADE")) u (.A(a), .B(), .BCIN(b), .${ports}, .P(p)); endmodule`), []);
+  // (a module of the design's own: `.x()` warns)
+  assert.deepEqual(el('verilog', 'module s(input x, output y); assign y = x; endmodule\nmodule t(output y); s u (.x(), .y(y)); endmodule'), ["warning: input port 'x' of 'u' is not connected"]);
   // a DSP48A1's clock enables tied to 1, its resets to 0, its wide inputs to zeros
   const dsp = generateHdl(sheet('mac', [{ type: 'dsp48a1', wired: ['A', 'B', 'P'] }], 'verilog'));
   assert.deepEqual(msgs(dsp.diagnostics), []);
