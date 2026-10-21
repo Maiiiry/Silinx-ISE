@@ -460,7 +460,8 @@ function packedModel(M, packed, model = null) {
       const pad = M.portBit.get(c.get('PAD')?.name);
       if (!pad) { unknown.add(`pad ${c.get('PAD')?.name}`); return; }
       // its registers (#96): IFF1 (the input), OFF1 (the output), TFF1 (the output enable); one set / reset
-      // (SR) for all, one clock for OFF1 and TFF1 (each inverter once)
+      // (SR) for all, one clock for OFF1 and TFF1 (each inverter once); or on the second flip-flops, IFF2, OFF2,
+      // TFF2 clocked by ICLK2 / OTCLK2, their data on O2 / T2 (#749)
       const invs = new Map(), iv = p => { if (!invs.has(p)) invs.set(p, inv(p)); return invs.get(p); };
       const reg = (ff, g, clkPin, d, q, setup) => {
         if (val(ff) !== '#FF') return d;
@@ -469,7 +470,7 @@ function packedModel(M, packed, model = null) {
         const ce = c.has(`${g}CEINV`) ? iv(`${g}CE`) : { c: 1 };
         const init = { bit: val(`${ff}_INIT_ATTR`) === 'INIT1' ? 1 : 0 };
         const s = M.signal(q);
-        const arcs = T && (ff === 'IFF1' ? { clocked: [['CLK', 'O', T.pad.Tiockiq]] } : { setup: [['I', 'CLK', setup]] });
+        const arcs = T && (g === 'I' ? { clocked: [['CLK', 'O', T.pad.Tiockiq]] } : { setup: [['I', 'CLK', setup]] });
         if (sync) M.inst('X_SFF', c.get(ff).name || `${name}_${ff}`, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', iv(clkPin)], ['SET', none], ['RST', none], ['SSET', high ? sr : none], ['SRST', high ? none : sr], ['O', s]], arcs);
         else M.inst('X_FF', c.get(ff).name || `${name}_${ff}`, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', iv(clkPin)], ['SET', high ? sr : none], ['RST', high ? none : sr], ['O', s]], arcs);
         return s;
@@ -478,10 +479,11 @@ function packedModel(M, packed, model = null) {
         const s = M.signal(`${name}_INBUF`);
         M.inst('X_BUF', `${name}_IBUF`, [], [['I', pad], ['O', s]], T && { iopath: [['I', 'O', T.pad.Tiopi]] });
         out('I', s);
-        if (val('IFF1') === '#FF') out('IQ1', reg('IFF1', 'I', 'ICLK1', s, `${name}_IQ1`));
+        for (const k of [1, 2]) if (val(`IFF${k}`) === '#FF') out(`IQ${k}`, reg(`IFF${k}`, 'I', `ICLK${k}`, s, `${name}_IQ${k}`));
       } else {
-        const o = reg('OFF1', 'O', 'OTCLK1', inv('O1'), `${name}_OQ`, T?.pad.Tioock);
-        if (c.has('TMUX')) M.inst('X_OBUFT', `${name}_OBUFT`, [], [['I', o], ['CTL', reg('TFF1', 'T', 'OTCLK1', inv('T1'), `${name}_TQ`, T?.pad.Tiotck)], ['O', pad]], T && { iopath: [['I', 'O', T.pad.Tioop]] });
+        const ko = val('OFF2') === '#FF' ? 2 : 1, kt = val('TFF2') === '#FF' ? 2 : 1, kc = ko === 2 || kt === 2 ? 2 : 1;
+        const o = reg(`OFF${ko}`, 'O', `OTCLK${kc}`, inv(`O${ko}`), `${name}_OQ`, T?.pad.Tioock);
+        if (c.has('TMUX')) M.inst('X_OBUFT', `${name}_OBUFT`, [], [['I', o], ['CTL', reg(`TFF${kt}`, 'T', `OTCLK${kc}`, inv(`T${kt}`), `${name}_TQ`, T?.pad.Tiotck)], ['O', pad]], T && { iopath: [['I', 'O', T.pad.Tioop]] });
         else M.inst('X_OBUF', `${name}_OBUF`, [], [['I', o], ['O', pad]], T && { iopath: [['I', 'O', T.pad.Tioop]] });
       }
       return;
