@@ -1,6 +1,6 @@
 // The Clocking Wizard's modules (#793, core/clocking.js): the DCM_SP's and the PLL's parameters against the data
 // sheets' equations and ranges (DS312 Tables 104-107, DS162 Table 52), the modules in VHDL and Verilog compiled,
-// elaborated with no warnings and simulated (every output's period measured once LOCKED rises), the spec read
+// elaborated with no warnings and simulated (every output's period and phase measured once LOCKED rises), the spec read
 // back from the module's header.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -147,7 +147,8 @@ test('the spec in the module\'s header, read back; a module not made by the wiza
 
 // ------------------------------------------------------------------ simulation
 // a test bench of a clock module: the input at its frequency (a half period in whole picoseconds), each output's
-// period measured over `n` rising edges once LOCKED has risen (and two edges more), reported "<port> <ps>"
+// period measured over `n` rising edges once LOCKED has risen (and two edges more), reported "<port> <ps>", and the time
+// of the first of them, "<port>@ <ps>"
 function vhdlBench(spec, plan, n) {
   const half = Math.round(500000 / spec.inMHz);
   const outs = plan.outputs.map(o => o.port);
@@ -170,6 +171,7 @@ ${outs.map(p => `  process
     t := now;
     for i in 1 to ${n} loop wait until rising_edge(${p}); end loop;
     report "${p} " & integer'image((now - t) / 1 ps);
+    report "${p}@ " & integer'image(t / 1 ps);
     wait;
   end process;`).join('\n')}
 end sim;`;
@@ -192,6 +194,7 @@ ${outs.map(p => `  initial begin : m_${p}
     t = $time;
     for (i = 0; i < ${n}; i = i + 1) @(posedge ${p});
     $display("${p} %0d", $time - t);
+    $display("${p}@ %0d", t);
   end`).join('\n')}
 endmodule`;
 }
@@ -205,7 +208,7 @@ function simulateClock(spec, n, until = 20e6) {
   assert.deepEqual(r.errors.map(e => `${e.file}:${e.line}: ${e.message}`), [], 'compile errors');
   const warnings = [...(r.lib?.errors || []), ...(r.design?.diags || [])].filter(d => d.file?.startsWith('src/') || d.file?.startsWith('sim/')).map(d => `${d.file}:${d.line}: ${d.message}`);
   assert.deepEqual(warnings, [], 'no warnings');
-  const out = Object.fromEntries(r.sim.log.filter(l => /^\w+ \d+$/.test(l.text)).map(l => l.text.split(' ')).map(([k, x]) => [k, +x]));
+  const out = Object.fromEntries(r.sim.log.filter(l => /^[\w@]+ \d+$/.test(l.text)).map(l => l.text.split(' ')).map(([k, x]) => [k, +x]));
   return { out, plan };
 }
 
@@ -216,7 +219,12 @@ for (const lang of ['vhdl', 'verilog']) {
     // 13 edges of CLKFX (x 13 / 10) span 10 input periods exactly: 200 ns
     const { out, plan } = simulateClock(spec, 13);
     assert.deepEqual(plan.outputs.map(o => o.period), [20, 20, 10, 80, 15.385, 15.385]);
-    assert.deepEqual(out, { locked: out.locked, clk0: 13 * 20000, clk90: 13 * 20000, clk2x: 13 * 10000, clkdv: 13 * 80000, clkfx: 200000, clkfx180: 200000 });
+    const periods = Object.fromEntries(Object.entries(out).filter(([k]) => !/@$|^locked$/.test(k)));
+    assert.deepEqual(periods, { clk0: 13 * 20000, clk90: 13 * 20000, clk2x: 13 * 10000, clkdv: 13 * 80000, clkfx: 200000, clkfx180: 200000 });
+    // CLK90 a quarter of the period after CLK0; CLKFX180 half of CLKFX's from it (before or after: which edge each
+    // bench's count starts from differs by a delta between the languages)
+    assert.equal(out['clk90@'] - out['clk0@'], 5000);
+    assert.equal(Math.abs(out['clkfx180@'] - out['clkfx@']), 7692);
     // LOCKED: at the third rising edge of the input after the reset (80 ns): 90, 110, 130 ns
     assert.equal(out.locked, 130000);
   });
@@ -231,17 +239,12 @@ for (const lang of ['vhdl', 'verilog']) {
   });
 }
 
-// Spartan-6: the PLL_BASE module compiled in both languages with no error nor warning (its elaboration and simulation
-// wait for a PLL_BASE model in core/unisim-s6.js, #791)
-test('a PLL_BASE module (Spartan-6) compiles with no error nor warning, in VHDL and in Verilog; its parameters in its text', async () => {
-  const { compile } = await import('../core/compile.js');
-  for (const lang of ['vhdl', 'verilog']) {
+// Spartan-6: the PLL_BASE module (its model: core/unisim-s6.js, #791) simulated in both languages, its parameters in its text
+for (const lang of ['vhdl', 'verilog']) {
+  test(`a PLL_BASE module simulated (Spartan-6, ${lang}): each output's period, a 90° phase, LOCKED after the reset`, () => {
     // (exact at the fastest VCO: 100 x 21 / 2 = 1050 MHz, / 42 and / 21)
     const spec = pllSpec({ lang, outputs: [{ port: 'clk_a', mhz: 25 }, { port: 'clk_b', mhz: 50, phase: 90 }] });
     const { code } = clockModule(spec);
-    const src = [{ path: `src/clkgen.${lang === 'vhdl' ? 'vhd' : 'v'}`, lang, text: code }];
-    const lib = compile([...primitiveSources(src), ...src]);
-    assert.deepEqual(lib.errors.filter(e => e.file === src[0].path).map(e => `${e.severity}: ${e.message}`), [], lang);
     const g = lang === 'vhdl' ? (n, v) => new RegExp(`${n} +=> ${v.replace(/[.()]/g, '\\$&')}[,\\n]`) : (n, v) => new RegExp(`\\.${n} *\\(${v.replace(/[.()]/g, '\\$&')}\\)`);
     for (const [n, v] of [['CLKFBOUT_MULT', '21'], ['DIVCLK_DIVIDE', '2'], ['CLKOUT0_DIVIDE', '42'], ['CLKOUT1_DIVIDE', '21'], ['CLKOUT1_PHASE', '90.000'], ['CLKIN_PERIOD', '10.000']]) {
       assert.match(code, g(n, v), `${lang}: ${n}`);
@@ -250,5 +253,11 @@ test('a PLL_BASE module (Spartan-6) compiles with no error nor warning, in VHDL 
     // a BUFG on each output
     assert.deepEqual([...code.matchAll(lang === 'vhdl' ? /^ {2}(\w+) : BUFG port map \(I => (\w+), O => (\w+)\);$/gm : /^ {2}BUFG (\w+) \(\.I\((\w+)\), \.O\((\w+)\)\);$/gm)].map(m => m.slice(1)),
       [['u_bufg_clkout0', 'clkout0_u', 'clk_a'], ['u_bufg_clkout1', 'clkout1_u', 'clk_b']]);
-  }
-});
+    const { out } = simulateClock(spec, 21, 40e6);
+    assert.deepEqual({ clk_a: out.clk_a, clk_b: out.clk_b }, { clk_a: 21 * 40000, clk_b: 21 * 20000 });
+    // clk_b 90° (5 ns) after clk_a's edges (both from the same aligned edge)
+    assert.equal(((out['clk_b@'] - out['clk_a@']) % 20000 + 20000) % 20000, 5000);
+    // LOCKED: at the third rising edge of the input after the reset (40 ns, the input's period 10 ns): 45, 55, 65 ns
+    assert.equal(out.locked, 65000);
+  });
+}
