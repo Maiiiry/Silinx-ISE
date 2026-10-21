@@ -304,6 +304,10 @@ const PT = {
   'Emulate the design on the board: the board opens here.': 'Emule o projeto na placa: a placa abre aqui.',
   'Implement the design: synthesis, place & route and the programming file.': 'Implemente o projeto: síntese, place & route e o ficheiro de programação.',
   'Program the board: the FPGA, or its flash to keep the design.': 'Programe a placa: a FPGA, ou a sua flash para guardar o projeto.',
+  // the Program task (#803)
+  'Up to date with the sources': 'Atualizado com as fontes', 'Out of date: the sources changed since the last implementation': 'Desatualizado: as fontes mudaram desde a última implementação',
+  'The last implementation failed': 'A última implementação falhou', 'Being implemented…': 'A ser implementado…', 'No programming file yet': 'Ainda não há ficheiro de programação',
+  'Board, programming tool and cable…': 'Placa, ferramenta de programação e cabo…',
   // the Implement task (#802)
   'Program the board…': 'Programar a placa…',
   // the Simulate task (#800)

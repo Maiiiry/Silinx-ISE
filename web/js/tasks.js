@@ -13,6 +13,7 @@
 //   it runs the test bench with the model chosen in the task's bar;
 // - Emulate (web/js/tasks-emu.js, #801): the board fits the task's area, its side panel the emulator's Watch;
 // - Implement (web/js/tasks-impl.js, #802): its side panel the top's Processes, its page the Design Summary as cards;
+// - Program (web/js/tasks-prog.js, #803): iMPACT's programming file and its state first, then the chain and Program;
 // - a task whose document is single by nature (Simulate: ISim; Emulate: the board; Program: iMPACT, one each,
 //   web/js/viewers.js) shows no tab bar: what the tab said (the module, the model) and its close are in the task's
 //   bar (#854);
@@ -29,6 +30,7 @@ import { buildMessages, unbuildMessages, messagesTask, initMessages } from './me
 import { modelSelect, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
+import { arrangeProgram, initProgram } from './tasks-prog.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl', 'prog'];
 export const TASK_LABEL = { edit: 'Edit', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
@@ -146,7 +148,7 @@ export function setTask(t, { fromDoc = false } = {}) {
 /** Puts the current task and its arrangement on the page. */
 function apply() {
   const r = root();
-  if (!on()) { if (document.getElementById('task-bar')) { unbuild(); fitBoard(false); dispatchEvent(new Event('resize')); } return; }
+  if (!on()) { if (document.getElementById('task-bar')) { unbuild(); fitBoard(false); arrangeProgram(false, PROG); dispatchEvent(new Event('resize')); } return; }
   build();
   const t = current(), a = arr(t);
   if (t !== shownTask) { shownTask = t; messagesTask(t); if (t === 'impl' && app) showTopProcesses(app); }
@@ -170,6 +172,7 @@ function apply() {
   // (the editors, the waves and the board measure their space again)
   dispatchEvent(new Event('resize'));
   fitSoon();
+  arrangeProgram(true, PROG);
 }
 
 // each document and its tab say their task (the CSS shows the current task's only)
@@ -244,6 +247,8 @@ function followActive() {
   if (t !== current()) setTask(t, { fromDoc: true }); else tagDocs();
 }
 
+// Program's iMPACT: the programming file's state from Implement's, Implement offered when it is not up to date (#803)
+const PROG = { implDot: () => taskDot('impl', app?.S.status || {}), implement: () => setTask('impl') };
 let implDot = null;
 function refreshDots() {
   const st = app?.S.status || {};
@@ -251,6 +256,7 @@ function refreshDots() {
   const now = taskDot('impl', st);
   if (implementationEnded(implDot, now) && on() && current() === 'impl' && app.S.project) app.openSummary();
   implDot = now;
+  if (on()) arrangeProgram(true, PROG);
   for (const b of document.querySelectorAll('.task-btn')) {
     const dot = taskDot(b.dataset.task, st);
     const el = b.querySelector('.task-dot');
@@ -324,6 +330,7 @@ export function initTasks(a) {
   load();
   initMessages();
   fitSoon = initEmulate(() => on() && current() === 'emu');
+  initProgram(() => arrangeProgram(on(), PROG));
   const $ = id => document.getElementById(id);
   // a folded side panel or messages open again when one of their tabs is clicked
   $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) arrange({ side: true }); });
