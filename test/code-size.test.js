@@ -16,14 +16,14 @@ const MAX_FILE = 1000, MAX_FUNCTION = 300;
 const BIG_FILES = new Set([
   'core/asm-from-hdl.js', 'core/asm.js', 'core/compiled-sim.js', 'core/elab-expr.js', 'core/elaborate.js', 'core/fpga/pack.js',
   'core/fpga/place.js', 'core/fpga/timing.js', 'core/fsm.js', 'core/interp.js', 'core/isesch.js', 'core/logic.js', 'core/schdoc.js',
-  'core/synth-open.js', 'core/synth-verilog.js', 'core/verilog/parser.js', 'core/vhdl/parser.js', 'server/devices.js',
+  'core/synth-open.js', 'core/verilog/parser.js', 'core/vhdl/parser.js', 'server/devices.js',
   'web/js/drawings.js', 'web/js/wizards.js',
 ]);
 const BIG_FUNCTIONS = new Set([
   'core/asm-from-hdl.js asmFromHdl', 'core/asm-hdl-analysis.js analyzeModule', 'core/asm.js analyze', 'core/compiled-sim.js compileNetlist',
   'core/compiled-words.js wordLevel', 'core/fpga/pack.js packWith', 'core/fpga/place.js place', 'core/fpga/route.js routeDesign',
   'core/isesch.js importIseSch', 'core/lint.js designChecks', 'core/open-flow-core.js runOpenFlow', 'core/schdoc.js generateHdl',
-  'core/schdoc.js schematicFromHdl', 'core/scopes.js analyzeVhdl', 'core/synth-open.js synthesizeOpen', 'core/synth-verilog.js toVerilog',
+  'core/schdoc.js schematicFromHdl', 'core/scopes.js analyzeVhdl', 'core/synth-open.js synthesizeOpen',
   'server/impl-routes.js registerImplRoutes', 'web/js/asm-editor.js mountAsmEditor', 'web/js/editor.js createEditor',
   'web/js/emulator.js mountEmulator', 'web/js/fpgaview.js mountFpgaView', 'web/js/fsm-editor.js mountFsmEditor', 'web/js/isim-draw.js mountDraw',
   'web/js/isim.js mountISim', 'web/js/petri-editor.js mountPetriEditor', 'web/js/sch-editor.js mountSchEditor', 'web/js/sch-live.js liveController',
