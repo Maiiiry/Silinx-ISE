@@ -197,6 +197,55 @@ test('#377 rewriteCarryChains: each chain\'s sums; adders: a comparator\'s chain
   assert.deepEqual([none.chains, none.sums], [[], []]);
 });
 
+// #746: an adder whose sums are written as an AND-inverter graph's XOR (an AND of two inverted nets, so each sum
+// is also a start, c = a & b), and a second adder whose carry in is one of them (the EPFL multiplier's rows)
+const sumIntoAdder = `module two(input [7:0] a, b, e, f, output [7:0] s, t, output co, cot);
+  wire [8:0] c, d;
+  wire [7:0] h;
+  assign c[0] = 1'b0;
+  assign d[0] = s[3];
+  genvar i;
+  generate for (i = 0; i < 8; i = i + 1) begin : g
+    assign h[i] = a[i] ^ b[i];
+    assign s[i] = ~(~h[i] & ~c[i]) & ~(h[i] & c[i]);
+    assign c[i + 1] = (a[i] & b[i]) | (c[i] & h[i]);
+    assign t[i] = e[i] ^ f[i] ^ d[i];
+    assign d[i + 1] = (e[i] & f[i]) | (d[i] & (e[i] ^ f[i]));
+  end endgenerate
+  assign co = c[8];
+  assign cot = d[8];
+endmodule`;
+// the bits of a Yosys JSON module driven more than once (by cells' outputs and the input ports)
+function multiplyDriven(mod) {
+  const n = new Map();
+  const see = b => { if (typeof b === 'number') n.set(b, (n.get(b) || 0) + 1); };
+  for (const c of Object.values(mod.cells)) for (const [p, bits] of Object.entries(c.connections)) if (c.port_directions[p] === 'output') bits.forEach(see);
+  for (const p of Object.values(mod.ports)) if (p.direction === 'input') p.bits.forEach(see);
+  return [...n].filter(([, k]) => k > 1).map(([b]) => b);
+}
+
+test('#746 rewriteCarryChains: a chain whose first bit is another chain\'s sum starts at its next bit, the sum its carry in; every bit driven once', { timeout: 300000 }, async () => {
+  const { splitCommands, yosysFiles, SRL_CELLS_FILE, asText } = await import('../core/synth-open.js');
+  const { toVerilog } = await import('../core/synth-verilog.js');
+  const { text: v } = toVerilog(elaborate(compile([{ path: 'd.v', lang: 'verilog', text: sumIntoAdder }]), 'two'));
+  const [first] = splitCommands('two', 'spartan3e');
+  const out = await yosysNode(['-q', '-p', `read_verilog -lib ${SRL_CELLS_FILE}; read_verilog -sv two_syn.v; ${first}; select -module two; write_json -selected c.json`], yosysFiles('two', v));
+  const json = asText(out['c.json']);
+  assert.deepEqual(multiplyDriven(JSON.parse(json).modules.two), []);
+  const r = rewriteCarryChains(json, { top: 'two' });
+  // (before: the second chain 9 bits, s[3] its first carry, driven by both chains)
+  assert.deepEqual([r.chains, r.sums], [[8, 8], [7, 8]]);
+  assert.deepEqual(multiplyDriven(r.json.modules.two), []);
+});
+
+test('#746 the two adders synthesized: both chains on the carry chain, no conflicting drivers, the netlist simulates like the design, no warning', { timeout: 300000 }, async () => {
+  const { r } = await syn(sumIntoAdder, 'two');
+  assert.deepEqual(r.chains, [8, 8]);
+  assert.ok(r.cells.MUXCY >= 16, JSON.stringify(r.cells));
+  assert.deepEqual(r.warnings, []);
+  assert.ok(!r.log.some(l => /conflicting drivers/.test(l)), r.log.filter(l => /conflicting/.test(l)).join('\n'));
+});
+
 test('rewriteCarryChains on a netlist with no logic: nothing found, the netlist unchanged', () => {
   const json = { modules: { top: { attributes: { top: 1 }, ports: { a: { direction: 'input', bits: [2] }, y: { direction: 'output', bits: [3] } }, cells: { n: { type: '$not', parameters: {}, port_directions: { A: 'input', Y: 'output' }, connections: { A: [2], Y: [3] } } }, netnames: {} } } };
   const before = JSON.stringify(json);
