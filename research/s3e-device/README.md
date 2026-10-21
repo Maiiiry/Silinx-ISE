@@ -349,3 +349,19 @@ I/O tile: `BIOIS/N6BEG -> CLB/N6MID`, `LIOIS/E6BEG -> CLB/E6END`, `RIOIS/W6BEG -
 a test source in a pad or a block RAM (an IOB's input, a block RAM's output), the next step together
 with the I/O and block-RAM sites and pins (step 3 above).
 
+
+### Round 4: tests driven from an IOB's input or a block RAM's output (2026-10-21)
+
+`joinTestDesigns` takes the observed IOB inputs and block-RAM outputs as test sources too (`sourcesOf`,
+`prototype.mjs tests` with `SOURCES=1`; an input-only pad is an IBUF site, placed in its own tile). On the 3388 joins
+round 3 left untestable, crossing up to 3 known joins (`MAXJOINS=3 MAXDEPTH=5`), ISE 14.7 on the Mac mini:
+
+| Round | Tests (designs, ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 4, from IOB / block-RAM sources | 717 (15, 54 s) | 423 joins, 294 islands | **all** |
+
+By kinds: CLB-I/O 464, I/O-I/O 173, block RAM-CLB 34, block RAM-block RAM 25, block RAM-I/O 21. **2671 stay
+untestable**: of them only 247 are in a tile with an observed source. The observed designs use 4 of the 12 block RAMs
+(the block-RAM OMUX joins are 987 of the 2671) and their pads' inputs reach few of the I/O tiles' hexes. The next step:
+observation designs that use every block RAM's outputs and every pad's input (ISE-routed HDL, as `impl-remote.sh io
+bram`), then the same rounds.
