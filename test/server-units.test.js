@@ -609,3 +609,22 @@ test('xise: Top-Level Source Type round trip (Schematic <-> topSourceType sch, o
     assert.equal(importXise(x).topSourceType, 'hdl');
   }
 });
+
+test('toolchain: iseWorkBase, the host\'s folder for ISE work outside a project: the environment\'s, else ssh.remoteDir, else the fallback (#482)', async () => {
+  const cfg = path.join(process.env.SILINX_CONFIG_DIR, 'config.json');
+  const saved = await fs.readFile(cfg, 'utf8').catch(() => null);
+  try {
+    await fs.rm(cfg, { force: true });
+    assert.equal(tc.iseWorkBase('silinx-open-check', {}), 'silinx-open-check');
+    await fs.mkdir(path.dirname(cfg), { recursive: true });
+    await fs.writeFile(cfg, JSON.stringify({ mode: 'ssh', ssh: { host: 'h', remoteDir: '/Users/Shared/silinx-ise/build/' } }));
+    assert.equal(tc.iseWorkBase('silinx-open-check', {}), '/Users/Shared/silinx-ise/build');
+    await fs.writeFile(cfg, JSON.stringify({ ssh: { remoteDir: '~/silinx-build' } }));
+    assert.equal(tc.iseWorkBase('silinx-open-check', {}), 'silinx-build');
+    assert.equal(tc.iseWorkBase('silinx-open-check', { SILINX_ISE_REMOTE_DIR: '/srv/ise' }), '/srv/ise');
+    await fs.writeFile(cfg, '{ not json');
+    assert.equal(tc.iseWorkBase('silinx-open-check', {}), 'silinx-open-check');
+  } finally {
+    if (saved === null) await fs.rm(cfg, { force: true }); else await fs.writeFile(cfg, saved);
+  }
+});

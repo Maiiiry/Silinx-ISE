@@ -9,7 +9,7 @@
 //   SILINX_ISE_HOST=local …: the ISE Docker image on this machine (the self-hosted runner of
 //   .github/workflows/ise.yml), no ssh
 //   (also: SILINX_ISE_IMAGE, default xilinx/ise:14.7; SILINX_ISE_REMOTE_DIR, the host's folder for the work, default
-//   ~/silinx-open-check: an absolute one where Docker Desktop shares folders, /Users/Shared/silinx-ise/build, #482).
+//   ~/.silinx/config.json's ssh.remoteDir, else ~/silinx-open-check: one Docker Desktop shares, #482).
 //   Needs the device cache (~/.silinx/devices).
 // Options after a project folder go to its open flow (e.g. `examples/pong --seed 2 --timing-route 0`); the
 // same project may be given several times with different options. With SILINX_KEEP=1 the work
@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { iseWorkBase } from '../server/toolchain.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const HOST = process.env.SILINX_ISE_HOST;   // only from the environment, never written in a file
@@ -55,9 +56,9 @@ if (!names.length) process.exit(1);
 
 // 2. ISE, on the remote host (or here, SILINX_ISE_HOST=local): xdl -xdl2ncd, drc, bitgen (CRC on and off)
 // a folder of its own on the host (other checks may run there at the same time)
-// (SILINX_ISE_REMOTE_DIR: an absolute folder on the host, e.g. /Users/Shared/silinx-ise/build where Docker Desktop shares
-// folders, #482; by default one in the home)
-const remoteBase = process.env.SILINX_ISE_REMOTE_DIR || 'silinx-open-check';
+// (SILINX_ISE_REMOTE_DIR, else the ssh config's remoteDir: e.g. /Users/Shared/silinx-ise/build, where Docker Desktop shares
+// folders, #482; else ~/silinx-open-check)
+const remoteBase = iseWorkBase('silinx-open-check');
 const remote = `${remoteBase}/${path.basename(work)}`;
 const mount = remote.startsWith('/') ? remote : `$HOME/${remote}`;
 fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(work, 'ise-open-check.sh'));
