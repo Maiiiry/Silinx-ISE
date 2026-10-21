@@ -61,6 +61,11 @@ export const RETRY_SEEDS = 3;
 // the placements of the flows at Optimization Effort High (#651): seeds seed and seed + 1, the faster kept (one
 // seed's placement moves a design's period by several per cent: the better of two, 2.3 % shorter on average)
 export const HIGH_TRIES = 2;
+// at Normal (#651): as many for a design of maxSlices slices at most (its place and route takes seconds), one for a
+// larger one (Normal's place and route of a large design as fast as before)
+export const NORMAL_TRIES = { tries: 2, maxSlices: 500 };
+/** The placements the flows make at an Optimization Effort ('high', else Normal) for a design of `slices` slices. */
+export const effortTries = (effort, slices) => (effort === 'high' ? HIGH_TRIES : slices <= NORMAL_TRIES.maxSlices ? NORMAL_TRIES.tries : 1);
 
 /**
  * The flow's place and route: `tries` placements from `seed` on (the fastest kept; when none routes
