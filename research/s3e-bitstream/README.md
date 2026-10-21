@@ -937,6 +937,23 @@ of the four sides) and `feat_iob_lines` (new: eight global clocks, lines 0-7, ea
 right pads; on the four devices with pads of each picked by `test/ise/open-flow.test.js`) and the lone-register designs
 pass `scripts/check-open-flow.mjs`: DRC clean, byte-identical to ISE's bitgen (CRC on and off).
 
+### The side clock pads' dedicated paths (2026-10-21, #641)
+
+`gen-sidepad.mjs` writes, per device, designs of the side clock pads (the pads whose graph reaches a side global
+buffer), at most four of one side per design, each into a BUFG with no LOC: ISE's placer gives each pad its own
+buffer (a pad LOC'd with its buffer elsewhere is `ERROR:Place:1018`). `measure-641.sh` implements them and removes
+every PIP by codewords. ISE routes a pad on **its I/O tile's pin switch** (`I0_PINWIRE -> LIOIS_IBUF1`, no bits, as
+the database had it) into the **side clock tile's `CKIk -> GCLKk`** (one bit each, the same on the four devices:
+`measured/learn-17side-pad-pips.json`), not through the `IOIS_Yk -> IOIS_Fk_B3` switch #641 suspected. Two pads of
+the XC3S500E / XC3S1200E (K2, K18) have no fast path to a side buffer (their designs failed with that error).
+
+With those bits known, the nearest side buffer a side clock pad reaches on switches of known bits (`route.js
+bufgReach`, breadth first) is, for each of the 58 measured, the one ISE gives it; the others it reaches go through its
+OMUX into another pad's `IOIS_Fk_B3` (as a clock from the fabric does, #95). The pad's own `IOIS_Yk -> IOIS_Fk_B3` in
+the CLK_PCI tiles (#641's switch: the shared CLB table's bits, none in ISE) is refused to the router (`noRoutePips`).
+So the placer puts a clock on a side GCLK pin on its own side buffer, no longer on a top / bottom one through general
+routing (#95's exception, with its warning).
+
 ### The PIPs a tile does not have (2026-10-13, #74)
 
 The database's PIP features are per tile type, and several types take another's: the I/O, corner,

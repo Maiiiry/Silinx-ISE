@@ -199,6 +199,9 @@ const FEATURES = {
   // SHIFTIN on the CLB's switch, as ISE packs and routes them
   feat_srl_chain: [/^pack \(\d+ slices\)/m, 'SLICEM', [/^net "ca<1>" , \n {2}outpin "la\[1\]_u" SHIFTOUT ,\n {2}inpin "la\[3\]_u" SHIFTIN ,\n {2}pip CLB_X\d+Y\d+ SHIFTOUT2 -> SHIFTIN0 ,$/m,
     /^net "cb<1>" , \n {2}outpin "lb\[1\]_u" SHIFTOUT ,\n {2}inpin "lb\[2\]_u" SHIFTIN ,\n {2}pip CLB_X\d+Y\d+ SHIFTOUT2 -> SHIFTIN0 ,$/m, /DIG_MUX::SHIFTIN /, /SHIFTOUTUSED::0 /]],
+  // two clocks on side GCLK pins (#641): each on its own side buffer, through its side clock tile's CKIk, as ISE pairs them
+  feat_side_clock: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "[^"]+" "BUFGMUX",placed CLKL_X0Y23 BUFGMUX_X0Y6 /m, /^inst "[^"]+" "BUFGMUX",placed CLKR_X35Y23 BUFGMUX_X3Y9 /m,
+    /^ {2}pip CLKL_X0Y23 CLKL_CKI4 -> CLKL_GCLK4 ,$/m, /^ {2}pip CLKR_X35Y23 CLKR_CKI7 -> CLKR_GCLK7 ,$/m], [/IOIS_F\d_B3 ,/]],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
   feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],
@@ -429,8 +432,8 @@ for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s5
 // feat_constmult's clock LOC'd on the bottom GCLK pin (its buffer's lines reach no block RAM /
 // multiplier clock on known switches: BUFGMUX_X2Y11 through general routing, a warning), feat_dcm
 // with no constraints (the clock on the pad ISE gives the DCM's CLKIN, on its dedicated path, #92), and
-// feat_constmult's clock LOC'd on a side GCLK pin (its pad's path into the side buffers is not known
-// yet, #641: a top buffer through general routing, a warning).
+// feat_constmult's clock LOC'd on a side GCLK pin (on its own side buffer, through the side clock tile's CKIk, as
+// ISE pairs them, #641).
 const CLOCK_CASES = [
   ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y11' },
     ['Warning: place: clk: the global buffer BUFGMUX_X2Y1 that its pad M4 reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing']],
@@ -440,10 +443,9 @@ const CLOCK_CASES = [
   // dedicated path from M6 (#47, #92)
   ['#47', 'feat_dcm', 'xc3s1200e', 'fg320', null, { clk: 'B9', dcm: 'DCM_X1Y3' }, []],
   ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { clk: 'M6', dcm: 'DCM_X0Y0' }, []],
-  // (#95 / #641: not the side buffers K3 reaches, whose path from the pad has database bits ISE does
-  // not set: BUFGMUX_X2Y11 through general routing, a warning)
-  ['#58', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X2Y11' },
-    ['Warning: place: clk: its pad K3 reaches on a dedicated path only side global buffers (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7), whose path from the pad is not in the bit database yet (#641): BUFGMUX_X2Y11 instead, through general routing']],
+  // (#641: K3's own side buffer, BUFGMUX_X0Y6, the one ISE gives it; the path ISE routes, I0_PINWIRE -> LIOIS_IBUF1 of its
+  // I/O tile, CLKL_CKI4 -> CLKL_GCLK4 of the side clock tile)
+  ['#641', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X0Y6', pips: [/^ {2}pip LIOIS_CLK_PCI_X0Y23 I0_PINWIRE -> LIOIS_IBUF1 ,$/m, /^ {2}pip CLKL_X0Y23 CLKL_CKI4 -> CLKL_GCLK4 ,$/m] }, []],
 ];
 for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
   test(`the open flow: ${fixture} on the ${part.toUpperCase()}-${pkg.toUpperCase()}, the clock ${loc ? `LOC'd on ${loc}` : 'with no LOC'}: complete bitstream, the exact warnings (${issue})`, { timeout: 300000 }, () => {
@@ -463,6 +465,7 @@ for (const [issue, fixture, part, pkg, loc, want, warnings] of CLOCK_CASES) {
     if (want.clk) assert.equal(clk, want.clk);
     if (want.bufg) assert.deepEqual(placedOf('BUFGMUX').map(([, s]) => s), [want.bufg]);
     if (want.dcm) assert.deepEqual(placedOf('DCM').map(([, s]) => s), [want.dcm]);
+    for (const re of want.pips || []) assert.match(routed, re);
   });
 }
 
