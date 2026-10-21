@@ -266,6 +266,10 @@ const FEATURES = {
   // registers, never in the two IOBs of one differential pair (which share each clock wire of their I/O tile)
   feat_iob_pair: [/^pack \(\d+ slices\)/m, 'IOB', [/^inst "sw<1>" "IBUF",placed \S+ \S+ +,\n {2}cfg "[^"]* IFF1:/m, /^inst "led<1>" "IOB",placed \S+ \S+ +,\n {2}cfg "[^"]* OFF1:/m],
     [/[IOT]FF2:/]],
+  // input registers on pads whose neighbouring pad is unused (#751: a bit of the delay ISE's map chooses had gone to
+  // both pads of a pair): B3, E17, F14, G13 of the XC3S500E, each alone
+  feat_iob_lone: [/^pack \(\d+ slices\)/m, 'IOB', [...['B3', 'E17', 'F14', 'G13'].map(p => new RegExp(`^inst "d<\\d>" "IBUF",placed \\S+ ${p} +,\\n {2}cfg "[^"]* IFF1:[^"]* IFD_DELAY_VALUE::DLY3 `, 'm'))],
+    [/placed \S+ (?:A3|C3|D18|F15|G14|E18) /]],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
 for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {

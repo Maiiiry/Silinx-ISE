@@ -116,3 +116,46 @@ net "q" ,
   const db = loadDb('xc3s250ecp132-4');
   assert.deepEqual(Object.values(db.padFeats.B3).flat().filter(s => /^!?1[0-3],3$/.test(s)), []);
 });
+
+// #751: #44 / #97 solved the input delays from designs where every pad had an input (all registered, or all direct), so a
+// bit of one pad's delay could go to its neighbour's; measured with ISE with each pad used on its own (gen-paddly.mjs,
+// gen-pairdly.mjs, ana-paddly.mjs: research/s3e-bitstream, measured/fix-28-pad-delays.json)
+test('I/O registers in the measured database: each bit of an input delay its own pad\'s, as ISE sets it with the pad used alone (#751)', () => {
+  const r = spawnSync(process.execPath, [fileURLToPath(new URL('../research/s3e-bitstream/pad-delays.mjs', import.meta.url)), '--check'], { encoding: 'utf8' });
+  assert.equal(r.status, 0, `pad-delays.mjs: ${r.stdout}${r.stderr}`);
+  // a lone input register (IFD_DELAY_VALUE dly) on a pad, its neighbours unused
+  const lone = (part, tile, pad, dly = 'DLY3') => parseXdl(`design "t" ${part} v3.2 , cfg "";
+inst "d" "IBUF",placed ${tile} ${pad} ,
+  cfg " ICLK1INV::ICLK1 IDDRIN_MUX::2 IFD_DELAY_VALUE::${dly} IFF1:r:#FF IFF1_INIT_ATTR::INIT0 IFFDELMUX::0 IFFDMUX::1 IOATTRBOX::LVCMOS25 PRE_DELAY_MUX::0 IFD_DELAY:d.IFD_DELAY: INBUF:d_IBUF: PAD:d: "
+  ;
+net "q" ,
+  outpin "d" IQ1 ,
+  ;
+`);
+  const bits = (part, tile, pad, list, dly) => { const r = frameData(lone(part, tile, pad, dly), loadDb(part)); assert.deepEqual(r.unknown, []); return list.map(b => getBit(r.frames, r.frames.frameWords, ...b.split(',').map(Number))); };
+  // the issue's five bits, as ISE sets them (measured: a lone register on each pad, every pair of the two pads' kinds and
+  // delays): each the input-only pad's next to the I/O tile, not its neighbour's. XC3S500E: 46,31 is A3's (its register,
+  // any delay), not B3's; 538,356 D18's (IFD_DELAY_VALUE 1-3), not E17's, whose is 538,420
+  assert.deepEqual(bits('xc3s500efg320-4', 'TIOIS_X1Y47', 'B3', ['46,31']), [0]);
+  assert.deepEqual(bits('xc3s500efg320-4', 'TIBUFS_X2Y47', 'A3', ['46,31']), [1]);
+  assert.deepEqual(bits('xc3s500efg320-4', 'TIBUFS_X2Y47', 'A3', ['46,31'], 'DLY0'), [1]);
+  assert.deepEqual(bits('xc3s500efg320-4', 'RIOIS_X35Y41', 'E17', ['538,356', '538,420']), [0, 1]);
+  assert.deepEqual(bits('xc3s500efg320-4', 'RIBUFS_X35Y42', 'D18', ['538,356', '538,420']), [1, 0]);
+  assert.deepEqual(bits('xc3s500efg320-4', 'RIBUFS_X35Y42', 'D18', ['538,356', '538,343'], 'DLY1'), [1, 1]);
+  assert.deepEqual(bits('xc3s500efg320-4', 'RIBUFS_X35Y42', 'D18', ['538,356', '538,343'], 'DLY4'), [0, 1]);
+  // XC3S1200E: 47,31 A3's; 767,740 E17's (above F14's tile), 767,996 E18's (above G13's)
+  assert.deepEqual(bits('xc3s1200efg320-4', 'TIOIS_X1Y61', 'B3', ['47,31']), [0]);
+  assert.deepEqual(bits('xc3s1200efg320-4', 'TIBUFS_X2Y61', 'A3', ['47,31']), [1]);
+  assert.deepEqual(bits('xc3s1200efg320-4', 'RIOIS_X47Y49', 'F14', ['767,740', '767,806']), [0, 1]);
+  assert.deepEqual(bits('xc3s1200efg320-4', 'RIBUFS_X47Y50', 'E17', ['767,740', '767,806']), [1, 0]);
+  assert.deepEqual(bits('xc3s1200efg320-4', 'RIOIS_X47Y45', 'G13', ['767,996', '767,1062']), [0, 1]);
+  assert.deepEqual(bits('xc3s1200efg320-4', 'RIBUFS_BRK_X47Y46', 'E18', ['767,996', '767,1062']), [1, 0]);
+  // no bit in the delays of two pads (a bit two pads set would be one of them only, as ISE sets it)
+  for (const part of ['xc3s100ecp132-4', 'xc3s250ecp132-4', 'xc3s500efg320-4', 'xc3s1200efg320-4']) {
+    const owner = new Map();
+    for (const [pad, f] of Object.entries(loadDb(part).padFeats)) for (const [k, v] of Object.entries(f)) if (/^(IFD|IBUF):/.test(k)) for (const b of v) {
+      assert.ok(!owner.has(b) || owner.get(b) === pad, `${part} ${b}: ${owner.get(b)} and ${pad}`);
+      owner.set(b, pad);
+    }
+  }
+});

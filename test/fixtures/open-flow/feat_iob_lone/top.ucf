@@ -1,0 +1,11 @@
+# Nexys2-500: the clock and LD0; the inputs on B3, E17, F14 and G13 (the expansion connectors' and the board's other
+# pins, their neighbours A3, C3, D18, F15, G14, E18 unused), their registers in the IOBs (#751)
+NET "clk"  LOC = "B8" | IOSTANDARD = LVCMOS33 ;
+NET "d<0>" LOC = "B3" | IOSTANDARD = LVCMOS33 ;
+NET "d<1>" LOC = "E17" | IOSTANDARD = LVCMOS33 ;
+NET "d<2>" LOC = "F14" | IOSTANDARD = LVCMOS33 ;
+NET "d<3>" LOC = "G13" | IOSTANDARD = LVCMOS33 ;
+NET "led"  LOC = "J14" | IOSTANDARD = LVCMOS33 ;
+NET "clk" TNM_NET = "clk" ;
+TIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;
+NET "d<*>" IOB = TRUE ;
