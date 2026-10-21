@@ -205,9 +205,11 @@ const FEATURES = {
   // a clock switch (#846): a BUFGMUX choosing between the two clock pins, I1 / S used (SINV not inverted); clka also
   // on a BUFG of its own (X2Y11), so the switch on another pair (its I1 is the line of its partner's I0): from clka's
   // pad, not from the BUFG's global line through the fabric
-  feat_bufgmux: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "u_mux" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X1Y11 +,\n {2}cfg " DISABLE_ATTR::LOW I0_USED::0 I1_USED::0 SINV::S GCLKMUX:u_mux: "/m,
+  feat_bufgmux: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "u_mux" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X1Y11 +,\n {2}cfg " DISABLE_ATTR::LOW I0_USED::0 I1_USED::0 SINV::S GCLKMUX:u_mux.GCLKMUX: "/m,
     /^inst "[^"]+" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^net "[^"]+" , \n {2}outpin "clka" I ,\n {2}inpin "[^"]+" I0 ,\n {2}inpin "u_mux" I0 ,$/m,
     /^ {2}pip CLKT_X13Y35 CLKT_GCLK3 -> CLKT_GCLKIN12 ,$/m, /^ {2}pip CLKT_X13Y35 CLKV_\w+ -> CLKT_SELDUB2 ,$/m], [/BUFGMUX_X2Y10/, /BUFGMUX_X1Y10/, /CLKT_TO_OMUX/]],
+  // BUFGMUX_1 (#846): its output held high while it switches, DISABLE_ATTR HIGH (measured on the 24 buffers)
+  feat_bufgmux_1: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "u_mux" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X1Y11 +,\n {2}cfg " DISABLE_ATTR::HIGH I0_USED::0 I1_USED::0 SINV::S GCLKMUX:u_mux.GCLKMUX: "/m]],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
   feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],

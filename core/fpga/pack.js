@@ -1594,7 +1594,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     if (s.kind === 'bufg') {
       s.name = uniqueName(s.name);
       const n = escCfg(s.name);
-      s.cfg = (s.mux ? [['DISABLE_ATTR', '', s.mux], ['I0_USED', '', '0'], ['I1_USED', '', '0'], ['SINV', '', 'S'], ['GCLKMUX', n, '']]
+      s.cfg = (s.mux ? [['DISABLE_ATTR', '', s.mux], ['I0_USED', '', '0'], ['I1_USED', '', '0'], ['SINV', '', 'S'], ['GCLKMUX', `${n}.GCLKMUX`, '']]
         : [['DISABLE_ATTR', '', 'LOW'], ['I0_USED', '', '0'], ['SINV', '', 'S_B'], ['GCLKMUX', `${n}.GCLKMUX`, ''], ['GCLK_BUFFER', n, '']]).map(([attr, name, value]) => ({ attr, name, value }));
       continue;
     }

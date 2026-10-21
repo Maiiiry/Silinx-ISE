@@ -58,6 +58,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-dcmhdl.mjs`, `gen-sidebufg.mjs` | Stage G: designs of several DCMs with settings of their own, and of subsets of the side global buffers, implemented by ISE from HDL (settings xdl refuses in an edited design; inputs in combination); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
 | `measure-671.sh` (`gen-iobreg.mjs --bufg`), `pad-clock-rows.mjs`, `pad-owners.mjs` | #671: the I/O registers' clocks from every global line: rd / rd2 with their clock buffer on each top / bottom BUFGMUX in turn, implemented by ISE and measured by PIP drop; the clock rows' bits out of the pads' features, each bit of R:ICLK2INV:#OFF to its pad |
 | `gen-pairdly.mjs`, `gen-paddly.mjs`, `gen-padrand.mjs`, `ana-pairdly.mjs`, `ana-paddly.mjs`, `pad-delays.mjs` | #751: the pads' input delays with each pad used on its own: designs written by the open flow, every pad's kind (unused, output, input register, direct input) and delay varied apart from its neighbours'; each delay bit to the one pad it follows; ISE's bitgen against Silinx's writer on held-out designs |
+| `measure-846.sh` (`gen-sidebufg.mjs bufgmux1-846.json`) | #846: a BUFGMUX_1's DISABLE_ATTR HIGH on each of the 24 global buffers: BUFGMUX_1 designs implemented by ISE, the setting set back to LOW on one buffer at a time (`gen-sitevar.mjs`, `ana-sitevar.mjs`) |
 | `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh` | #92: every pad's dedicated path to a DCM's CLKIN and the switches on it the database lacks; designs whose DCMs take CLKIN from each of their clock pads in turn, implemented by ISE and measured by PIP drop |
 | `gen-dcmomux.mjs`, `measure-dcmomux.sh` | #2: the DCMs' output multiplexer (`DCM_<output> -> OMUXk`); designs with every output of every DCM through each line, its BUFG LOC'd on the line's buffer, implemented by ISE and measured by PIP drop (`--list`: the pairs and the unknown ones) |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
@@ -1084,6 +1085,26 @@ bitgen in LVCMOS33, LVCMOS25 and LVTTL, with every drive, slew and pull of the d
 `measured/pads-96-bidir-<device>.json`. LVCMOS18 / 15 / 12 are not in the database as outputs (`O:<standard>`), so not as
 bidirectional pads either (ISE's par also refused the XC3S100E's designs of those, the clock's LVCMOS25 pad in their
 bank: `gen-iobidir.mjs` now gives the clock the design's standard).
+
+### Clock switching: a BUFGMUX with I1 and S, and BUFGMUX_1 (2026-10-21, #846)
+
+- **The open flow builds a BUFGMUX that switches** (I0, I1, S: `core/fpga/pack.js`, `place.js`): its settings as ISE's
+  map writes them (`DISABLE_ATTR::LOW I0_USED::0 I1_USED::0 SINV::S GCLKMUX:<name>.GCLKMUX:`); the select inverter
+  `SINV:S` of every buffer was measured in stages D and G, I1_USED and the switches into I1 (`GCLKk -> GCLKIN1j`) set
+  no bits. The two buffers of a pair (`BUFGMUX_XxYy` and `XxY(y^1)`) share their input lines: buffer k's I1 is line
+  k^1, the line of the other buffer's I0, so the placer keeps a switch off its pair's other buffer unless that one's
+  I0 is the switch's I1.
+- **BUFGMUX_1** (its output held high while it switches) is `DISABLE_ATTR::HIGH`: one bit per buffer
+  (`measure-846.sh`: six designs of BUFGMUX_1 on one buffer of each pair, implemented by ISE for the XC3S250E, 30
+  xdl variants; `measured/fix-29-bufgmux1.json`): CLKT 2,68 2,47 2,41 2,78 for X2Y11, X2Y10, X1Y11, X1Y10; CLKB 2,11
+  2,32 2,38 2,1 for X2Y1, X2Y0, X1Y1, X1Y0; CLKL frame 0 and CLKR frame 19, bits -3 -5 -10 -11 4 3 2 1 for Y2-Y9
+  (CLKR: -1 -2 -3 -4 8 9 3 2). ISE's two side designs are byte-identical to Silinx's writer with them; the top /
+  bottom ones differ only by the switches from the fabric into CLKDUB / SELDUB that ISE's router took and the
+  database lacks (the same bits in the base and in every variant).
+- **Checked** (`npm run check:open-flow`): feat_bufgmux and feat_bufgmux_1 on the XC3S250E, feat_bufgmux on the
+  XC3S100E, XC3S500E and XC3S1200E: byte-identical to ISE's bitgen, CRC on and off, no DRC error or warning, no
+  warning of xdl2ncd or of the open flow.
+- Runtime: 6 designs implemented by ISE (2 minutes), 30 xdl + bitgen runs (2 minutes), 5 checks of the open flow.
 
 ### The PIPs a tile does not have (2026-10-13, #74)
 
