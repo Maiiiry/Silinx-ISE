@@ -525,7 +525,7 @@ test('a BUFGMUX: a global buffer with I0, I1 and S, its select not inverted; its
   const p = pack(clockSwitch());
   const u = p.insts.findIndex(i => i.name === 'u');
   assert.equal(p.insts[u].type, 'BUFGMUX');
-  assert.deepEqual(p.insts[u].cfg.map(c => `${c.attr}:${c.name}:${c.value}`), ['DISABLE_ATTR::LOW', 'I0_USED::0', 'I1_USED::0', 'SINV::S', 'GCLKMUX:u:']);
+  assert.deepEqual(p.insts[u].cfg.map(c => `${c.attr}:${c.name}:${c.value}`), ['DISABLE_ATTR::LOW', 'I0_USED::0', 'I1_USED::0', 'SINV::S', 'GCLKMUX:u.GCLKMUX:']);
   assert.deepEqual(['I0', 'I1', 'S'].map(pin => driverOf(p, u, pin)), ['clk', 'clkb', 'sel']);
   // the clock's BUFG stays for its other flip-flop; with none, it is gone
   assert.equal(p.stats.bufgs, 2);

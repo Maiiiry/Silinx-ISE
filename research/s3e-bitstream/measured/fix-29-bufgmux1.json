@@ -1,0 +1,93 @@
+{
+ "source": "#846 (research/s3e-bitstream/measure-846.sh): a BUFGMUX_1 on each of the 24 global buffers of the XC3S250E (6 designs implemented by ISE from HDL, gen-sidebufg.mjs bufgmux1-846.json), DISABLE_ATTR set back to LOW on one buffer at a time (gen-sitevar.mjs, ana-sitevar.mjs): the bits of DISABLE_ATTR HIGH",
+ "types": {
+  "CLKL": {
+   "features": {
+    "BUFGMUX_X0Y2:DISABLE_ATTR:HIGH": [
+     "0,-3"
+    ],
+    "BUFGMUX_X0Y4:DISABLE_ATTR:HIGH": [
+     "0,-10"
+    ],
+    "BUFGMUX_X0Y6:DISABLE_ATTR:HIGH": [
+     "0,4"
+    ],
+    "BUFGMUX_X0Y8:DISABLE_ATTR:HIGH": [
+     "0,2"
+    ],
+    "BUFGMUX_X0Y3:DISABLE_ATTR:HIGH": [
+     "0,-5"
+    ],
+    "BUFGMUX_X0Y5:DISABLE_ATTR:HIGH": [
+     "0,-11"
+    ],
+    "BUFGMUX_X0Y7:DISABLE_ATTR:HIGH": [
+     "0,3"
+    ],
+    "BUFGMUX_X0Y9:DISABLE_ATTR:HIGH": [
+     "0,1"
+    ]
+   }
+  },
+  "CLKR": {
+   "features": {
+    "BUFGMUX_X3Y3:DISABLE_ATTR:HIGH": [
+     "19,-2"
+    ],
+    "BUFGMUX_X3Y5:DISABLE_ATTR:HIGH": [
+     "19,-4"
+    ],
+    "BUFGMUX_X3Y7:DISABLE_ATTR:HIGH": [
+     "19,9"
+    ],
+    "BUFGMUX_X3Y9:DISABLE_ATTR:HIGH": [
+     "19,2"
+    ],
+    "BUFGMUX_X3Y2:DISABLE_ATTR:HIGH": [
+     "19,-1"
+    ],
+    "BUFGMUX_X3Y4:DISABLE_ATTR:HIGH": [
+     "19,-3"
+    ],
+    "BUFGMUX_X3Y6:DISABLE_ATTR:HIGH": [
+     "19,8"
+    ],
+    "BUFGMUX_X3Y8:DISABLE_ATTR:HIGH": [
+     "19,3"
+    ]
+   }
+  },
+  "CLKT": {
+   "features": {
+    "BUFGMUX_X2Y11:DISABLE_ATTR:HIGH": [
+     "2,68"
+    ],
+    "BUFGMUX_X1Y11:DISABLE_ATTR:HIGH": [
+     "2,41"
+    ],
+    "BUFGMUX_X2Y10:DISABLE_ATTR:HIGH": [
+     "2,47"
+    ],
+    "BUFGMUX_X1Y10:DISABLE_ATTR:HIGH": [
+     "2,78"
+    ]
+   }
+  },
+  "CLKB": {
+   "features": {
+    "BUFGMUX_X1Y1:DISABLE_ATTR:HIGH": [
+     "2,38"
+    ],
+    "BUFGMUX_X1Y0:DISABLE_ATTR:HIGH": [
+     "2,1"
+    ],
+    "BUFGMUX_X2Y1:DISABLE_ATTR:HIGH": [
+     "2,11"
+    ],
+    "BUFGMUX_X2Y0:DISABLE_ATTR:HIGH": [
+     "2,32"
+    ]
+   }
+  }
+ }
+}
