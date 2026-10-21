@@ -232,8 +232,25 @@ export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN, adders = f
     }
     return out;
   }
+  const bitsOf = path => path.map(b => ({ b, ...link.get(b) }));
+  // a chain whose first bit is the sum of another (an AND-inverter graph's XOR is an AND of two inverted nets,
+  // so its sum is also a start, c = a & b: the EPFL multiplier's rows, #746): it starts at its next bit, the
+  // sum its carry in, rather than both chains driving that bit
+  let sums = new Map();   // chain -> its sums
+  for (let trimmed = true; trimmed;) {
+    sums = new Map(chains.map(path => [path, sumsOf(bitsOf(path))]));
+    const sumOf = new Map();   // bit -> the chain of which it is a sum
+    for (const [path, ss] of sums) for (const { b } of ss) sumOf.set(b, path);
+    trimmed = false;
+    chains = chains.map(path => {
+      let k = 0;
+      while (k < path.length && sumOf.has(path[k]) && sumOf.get(path[k]) !== path) k++;
+      if (k) trimmed = true;
+      return k ? path.slice(k) : path;
+    }).filter(path => path.length >= minChain);
+  }
   // (adders: only the chains half of whose bits at least have their sum, comparators left as they are)
-  if (adders) chains = chains.filter(path => 2 * sumsOf(path.map(b => ({ b, ...link.get(b) }))).length >= path.length);
+  if (adders) chains = chains.filter(path => 2 * sums.get(path).length >= path.length);
   if (!chains.length) return { json: j, chains: [], sums: [] };
 
   // the rewrite
@@ -244,16 +261,21 @@ export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN, adders = f
     mod.cells[`$silinx$carry$${++cellN}`] = { hide_name: 1, type, parameters: params, attributes: {}, port_directions: dirs, connections: conns };
   };
   const inv = (b) => { if (b === '0') return '1'; if (b === '1') return '0'; const y = newBit(); addCell('$_NOT_', { A: [b], Y: [y] }, { A: 'input', Y: 'output' }); return y; };
-  // a bit driven by `src` (inverted when `neg`) in place of its old driver
+  // a bit driven by `src` (inverted when `neg`) in place of its old driver; once only (a bit of two chains,
+  // #746: by the first, the same function)
+  const redriven = new Set();
   const redrive = (b, src, neg) => {
+    if (redriven.has(b)) return false;
+    redriven.add(b);
     const d = drv.get(b);
     if (d) d.c.connections.Y = [newBit()];   // the old logic: no loads any more
     addCell(neg ? '$_NOT_' : '$_BUF_', { A: [src], Y: [b] }, { A: 'input', Y: 'output' });
+    return true;
   };
   const lengths = [], sumCounts = [];
   for (const path of chains) {
     // bit i of the $alu: the carry path[i] = MAJ(x, y, path[i-1]); the first one's carry in: its own third leaf
-    const bits = path.map(b => ({ b, ...link.get(b) }));
+    const bits = bitsOf(path);
     const L = bits.length;
     // the true carries t[i] = c[i] ^ q[i]: each bit's form flipped (MAJ(~a, ~b, ~c) = ~MAJ(a, b, c)) so that
     // its carry in has the polarity of the bit before's carry out
@@ -276,14 +298,14 @@ export function rewriteCarryChains(json, { top, minChain = MIN_CHAIN, adders = f
       { A_SIGNED: '0', B_SIGNED: '0', A_WIDTH: bin(L), B_WIDTH: bin(L), Y_WIDTH: bin(L) });
     bits.forEach((bt, i) => redrive(bt.b, CO[i], bt.q === 1));
     // the sums of the chain's bits: XOR3(x, y, carry in) = Y[i] ^ (px ^ py ^ q[i] ^ k)
-    const sums = sumsOf(bits);
-    for (const { b, i, k } of sums) {
+    let n = 0;
+    for (const { b, i, k } of sums.get(path)) {
       // the polarities of the $alu's A, B and carry in against the leaves
       const pA = A[i] === bits[i].x ? 0 : 1, pB = B[i] === bits[i].y ? 0 : 1;
-      redrive(b, Y[i], (pA ^ pB ^ qs[i] ^ k) === 1);
+      if (redrive(b, Y[i], (pA ^ pB ^ qs[i] ^ k) === 1)) n++;
     }
     lengths.push(L);
-    sumCounts.push(sums.length);
+    sumCounts.push(n);
   }
   return { json: j, chains: lengths, sums: sumCounts };
 }
