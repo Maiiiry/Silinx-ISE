@@ -74,6 +74,10 @@ export function makeDb({ layout, lut, tiles, pads = {}, padFeatures = null, bram
   // the PIPs a type's features offer that its tiles do not have (#74, research/s3e-bitstream/
   // pip-exceptions.mjs): `absent` for every tile of the type, `absentIn: [{ tiles, absent }]` for some;
   // an entry is a feature "from->to" or a wire (every PIP into or out of it)
+  // the switches the router must not take in a type's tiles (`noRoutePips`: a regexp of "from->to"; a side clock
+  // pad's own IOIS_Yk -> IOIS_Fk_B3 into its clock tile, in the CLK_PCI I/O tiles: the shared CLB table's bits,
+  // none in ISE, which takes the dedicated path through the pad's IBUF instead, #641)
+  for (const t of Object.values(types)) if (t.noRoutePips) t.noRoutePipsRe = new RegExp(t.noRoutePips);
   for (const t of Object.values(types)) {
     if (!t.absent && !t.absentIn) continue;
     t.absentAll = new Set(t.absent || []);
@@ -461,6 +465,8 @@ const IO_CLOCK = /^IOIS_CLK\d$/;
  *                                  switch box it shares, sameAs, stay: the XC3S1200E's other long-line
  *                                  splitters, #709, in the centre column's CLKV_LL, whose clock switches
  *                                  are CLKV's; CLKH_LL's are routed since #23);
+ *                                  never one its type's noRoutePips names (a side clock pad's own
+ *                                  IOIS_Yk -> IOIS_Fk_B3 in the CLK_PCI I/O tiles, #641);
  *                                  never one the tile does not have though its type's features offer
  *                                  it (pipAbsent, #74: with a device description from ISE the router
  *                                  meets only PIPs the tile has; one built from the database's
@@ -499,6 +505,7 @@ export function knownRouting(db, { exceptions = true } = {}) {
     // an I/O tile's clock pin (IOIS_CLKj) from the global lines only, never from general routing: ISE clocks the
     // IOBs from the global lines, and the packer puts in the IOBs only registers on a global clock (#671)
     if (IO_CLOCK.test(to) && GENERAL_WIRE.test(from)) return false;
+    if (type?.noRoutePipsRe?.test(`${from}->${to}`)) return false;
     const bits = bitsOf(tileName, `${from}->${to}`);
     return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to)) && !(exceptions && pipAbsent(type, tileName, from, to));
   };

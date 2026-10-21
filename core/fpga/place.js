@@ -436,10 +436,12 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     return ok;
   };
   const padReach = new Map();   // pad name -> the buffers its dedicated paths of known bits reach
-  // (not the side buffers: a side GCLK pin's dedicated path into its clock tile, IOIS_Yk -> IOIS_Fk_B3 of
-  // the CLK_PCI I/O tiles, has database bits ISE does not set, #641; padSideOf: those buffers)
-  const padReachOf = name => { if (!padReach.has(name)) padReach.set(name, bufgSites(name, 'I') || []); return padReach.get(name).filter(b => !sideBufg(b)); };
-  const padSideOf = name => { padReachOf(name); return padReach.get(name).filter(b => sideBufg(b)); };
+  // (of the side buffers only the first, the nearest: a side GCLK pin's own one, through its I/O tile's IBUF and its
+  // clock tile's CKIk, as ISE pairs them; the others through its OMUX into another pad's IOIS_Fk_B3, #641)
+  const padReachOf = name => {
+    if (!padReach.has(name)) { const r = bufgSites(name, 'I') || [], side = r.find(b => sideBufg(b)); padReach.set(name, r.filter(b => !sideBufg(b) || b === side)); }
+    return padReach.get(name);
+  };
   const bufClaimed = new Set();
   // DCMs (#47): each on a DCM site (its INST LOC, or any) from which every clock output that drives
   // a global buffer reaches a buffer of its own through dedicated paths of known bits (bufgSites),
@@ -639,9 +641,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     const top = pad && pad.py > dev.rows / 2;
     const reach = reachOf(o);
     const order = [...BUFG_ORDER.slice(top ? 0 : 4, top ? 4 : 8), ...BUFG_ORDER.slice(top ? 4 : 0, top ? 8 : 4), ...dev.bufgmux.map(b => b.name)];
-    // (a clock pad: not on a side buffer its pad reaches, whose path is not known yet, #641)
-    const padSide = pad && bufgSites && packed.insts[d.inst].kind === 'iob' ? padSideOf(pad.name) : [];
-    const free = order.map(n => byName.get(n)).filter((b, k, a) => b && !bufUsed.has(b.name) && !bufOwner.has(b.name) && !padSide.includes(b.name) && a.indexOf(b) === k);
+    const free = order.map(n => byName.get(n)).filter((b, k, a) => b && !bufUsed.has(b.name) && !bufOwner.has(b.name) && a.indexOf(b) === k);
     // a buffer the driver's dedicated path reaches, whose lines reach the clock's loads (#56), else
     // any it reaches; a clock pad that reaches none (not a GCLK pin, or #56): by the pad's edge, from
     // the pad through general routing
@@ -653,8 +653,7 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       if (!b) throw new PlaceError(`place: ${packed.insts[o.inst].name}: no free global clock buffer reachable from ${packed.insts[d.inst].name}.${d.pin} through switches of known bits${reach.size ? ` (${[...reach].join(', ')})` : ''}`);
     } else if (!b) {
       b = free.find(ok);
-      if (b && !ded.length && padSide.length) warnings.push(`${packed.insts[d.inst].name}: its pad ${pad.name} reaches on a dedicated path only side global buffers (${padSide.join(', ')}), whose path from the pad is not in the bit database yet (#641): ${b.name} instead, through general routing`);
-      else if (b && ded.length) warnings.push(`${packed.insts[d.inst].name}: the global buffer${ded.length > 1 ? 's' : ''} ${ded.map(b => b.name).join(', ')} that its pad ${pad.name} reaches on a dedicated path ${ded.length > 1 ? 'do' : 'does'} not reach every clock pin of its loads on switches of known bits: ${b.name} instead, through general routing`);
+      if (b && ded.length) warnings.push(`${packed.insts[d.inst].name}: the global buffer${ded.length > 1 ? 's' : ''} ${ded.map(b => b.name).join(', ')} that its pad ${pad.name} reaches on a dedicated path ${ded.length > 1 ? 'do' : 'does'} not reach every clock pin of its loads on switches of known bits: ${b.name} instead, through general routing`);
       b ||= ded[0] || free[0];
     }
     if (!b) throw new PlaceError('place: no free global clock buffer');

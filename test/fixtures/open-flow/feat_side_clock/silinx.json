@@ -1,0 +1,23 @@
+{
+  "name": "feat_side_clock",
+  "description": "ISE check: two clocks on side GCLK pins, each on its own side global buffer (#641)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s500e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

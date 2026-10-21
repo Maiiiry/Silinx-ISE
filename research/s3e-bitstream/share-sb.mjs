@@ -63,6 +63,9 @@ if (process.argv[1] && process.argv[1].endsWith('share-sb.mjs')) {
       // bits are the pad's own features (184 measured, none with bits of the tile); the PIPs into
       // the stub wires of the input-only tiles (IOIS_STUB_…: 1260 measured, none with bits)
       if (io) t.emptyFeatures = IO_EMPTY; else delete t.emptyFeatures;
+      // a side clock pad's own IOIS_Yk -> IOIS_Fk_B3 into its clock tile (the CLK_PCI tiles): the CLB table's bits, none
+      // in ISE, which takes the dedicated path through the pad's IBUF instead (#641)
+      if (/_CLK_PCI$/.test(type)) t.noRoutePips = '^IOIS_Y\\d->IOIS_F\\d_B3$'; else delete t.noRoutePips;
       for (const [f, bits] of Object.entries(t.features)) {
         const c = clb[io ? renamed(f) : f];
         if (!c || !/->|=-/.test(f)) continue;

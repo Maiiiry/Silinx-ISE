@@ -845,21 +845,18 @@ test('a clock with no LOC that drives a DCM\'s CLKIN goes on a pad whose dedicat
   assert.deepEqual([siteOf(p, other, 'clk'), siteOf(p, other, 'u'), other.warnings], ['P11', 'DCM_X1Y1', []]);
 });
 
-test('a clock LOC\'d on a side GCLK pin (K3 / G3): not on the side buffers its pad reaches (#641: that path\'s bits are not known), a top / bottom buffer through general routing, with a warning (#58, #95)', { timeout: 300000 }, async () => {
+test('a clock LOC\'d on a side GCLK pin (K3 / G3): on its own side buffer, through the side clock tile\'s CKIk, as ISE pairs them, no warning (#641, #58, #95)', { timeout: 300000 }, async () => {
   for (const [part, , side] of SHIPPED) {
     const { opts, sites } = await flowOf(part);
     // (the eight top / bottom buffers and the sixteen side ones, #95)
     assert.equal(sites.bufgmux.length, 24, part);
     const ucf = `NET "clk" LOC = "${side}";`;
-    const warn = b => [`clk: its pad ${side} reaches on a dedicated path only side global buffers (BUFGMUX_X0Y6, BUFGMUX_X0Y8, BUFGMUX_X0Y7), whose path from the pad is not in the bit database yet (#641): ${b} instead, through general routing`];
-    const p = pack(clockedHard(), { ucf, part });
-    const r = place(p, sites, { seed: 1, effort: 0.1, ...opts });
-    assert.deepEqual([siteOf(p, r, 'clk'), siteOf(p, r, 'bufg'), r.warnings], [side, 'BUFGMUX_X2Y11', warn('BUFGMUX_X2Y11')], part);
-    const f = pack(clockedFf(), { ucf, part });
-    const rf = place(f, sites, { seed: 1, effort: 0.1, ...opts });
-    const b = siteOf(f, rf, 'bufg');
-    assert.match(b, /^BUFGMUX_X2Y(1|11)$/, part);
-    assert.deepEqual(rf.warnings, warn(b), part);
+    // G3 / K3: BUFGMUX_X0Y6, the buffer ISE's placer gives it (measure-641.sh: every side GCLK pin on its own buffer)
+    for (const nl of [clockedHard(), clockedFf()]) {
+      const p = pack(nl, { ucf, part });
+      const r = place(p, sites, { seed: 1, effort: 0.1, ...opts });
+      assert.deepEqual([siteOf(p, r, 'clk'), siteOf(p, r, 'bufg'), r.warnings], [side, 'BUFGMUX_X0Y6', []], part);
+    }
   }
 });
 

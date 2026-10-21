@@ -1,0 +1,61 @@
+{
+ "source": "#641: the side clock pads' dedicated paths into their side global buffers (the side clock tiles' CKIk -> GCLKk): gen-sidepad.mjs designs (each side clock pad, no buffer LOC: ISE gives each pad its own buffer) implemented by ISE 14.7 on the four devices, every PIP removed by codewords (gen-pipdrop.mjs, 20 variants), ana-pipdrop.mjs, pips-to-db.mjs (measure-641.sh); the same bits on every device; the pads' pin switches (I0_PINWIRE -> IOIS_IBUF1 …) set none, as the database has; 2026-10-21",
+ "types": {
+  "CLKL": {
+   "features": {
+    "CLKL_CKI2->CLKL_GCLK2": [
+     "1,-4"
+    ],
+    "CLKL_CKI1->CLKL_GCLK1": [
+     "1,-16"
+    ],
+    "CLKL_CKI0->CLKL_GCLK0": [
+     "1,-6"
+    ],
+    "CLKL_CKI3->CLKL_GCLK3": [
+     "1,-23"
+    ],
+    "CLKL_CKI4->CLKL_GCLK4": [
+     "1,16"
+    ],
+    "CLKL_CKI5->CLKL_GCLK5": [
+     "1,14"
+    ],
+    "CLKL_CKI6->CLKL_GCLK6": [
+     "1,4"
+    ],
+    "CLKL_CKI7->CLKL_GCLK7": [
+     "1,0"
+    ]
+   }
+  },
+  "CLKR": {
+   "features": {
+    "CLKR_CKI3->CLKR_GCLK3": [
+     "20,-24"
+    ],
+    "CLKR_CKI2->CLKR_GCLK2": [
+     "20,-18"
+    ],
+    "CLKR_CKI1->CLKR_GCLK1": [
+     "20,-9"
+    ],
+    "CLKR_CKI0->CLKR_GCLK0": [
+     "20,-4"
+    ],
+    "CLKR_CKI5->CLKR_GCLK5": [
+     "20,13"
+    ],
+    "CLKR_CKI6->CLKR_GCLK6": [
+     "20,3"
+    ],
+    "CLKR_CKI7->CLKR_GCLK7": [
+     "20,0"
+    ],
+    "CLKR_CKI4->CLKR_GCLK4": [
+     "20,16"
+    ]
+   }
+  }
+ }
+}

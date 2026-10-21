@@ -327,6 +327,24 @@ test('the XC3S1200E\'s other long-line splitters (#709): the centre column\'s an
   for (const type of ['DCM_H_TL_CENTER', 'DCM_H_TR_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_BR_CENTER']) assert.deepEqual(featureBits(db.types[type], 'DCM_CLKFB->DCM_CLKFB_PINWIRE'), [], type);
 });
 
+test('the side clock pads (#641): their dedicated path into their own side buffer, CKIk -> GCLKk of the side clock tile; never the pad\'s own IOIS_Yk -> IOIS_Fk_B3 of the CLK_PCI tiles', () => {
+  const db = loadDb('xc3s500efg320-4', { graph: { siteIndex: new Map() } });
+  const k = knownRouting(db);
+  // one bit each, measured on the four devices (measure-641.sh), the same in CLKL and CLKR's own place
+  assert.deepEqual(featureBits(db.types.CLKL, 'CLKL_CKI4->CLKL_GCLK4'), ['1,16']);
+  assert.deepEqual(featureBits(db.types.CLKR, 'CLKR_CKI7->CLKR_GCLK7'), ['20,0']);
+  assert.equal(k.allowPip('CLKL_X0Y23', 'CLKL_CKI4', 'CLKL_GCLK4'), true);
+  // the pad's pin switch into the path: no bits
+  assert.deepEqual(featureBits(db.types.LIOIS_CLK_PCI, 'I0_PINWIRE->LIOIS_IBUF1'), []);
+  // the pad's own IOIS_Yk -> IOIS_Fk_B3 into its clock tile (the CLB table's bits, none in ISE): refused in the CLK_PCI
+  // tiles; the other switches into IOIS_Fk_B3 (a clock from the fabric into a side buffer, #95) stay
+  for (const type of ['LIOIS_CLK_PCI', 'RIOIS_CLK_PCI', 'LIBUFS_CLK_PCI', 'RIBUFS_CLK_PCI']) assert.equal(db.types[type].noRoutePips, '^IOIS_Y\\d->IOIS_F\\d_B3$', type);
+  assert.equal(k.allowPip('LIOIS_CLK_PCI_X0Y23', 'IOIS_Y0', 'IOIS_F1_B3'), false);
+  assert.equal(featureBits(db.types.LIOIS_CLK_PCI, 'IOIS_Y0->IOIS_F1_B3') !== undefined, true, '(a feature of the shared table all the same)');
+  assert.equal(k.allowPip('RIBUFS_CLK_PCI_X35Y23', 'OMUX_N10', 'IOIS_F1_B3'), true);
+  assert.equal(db.types.LIOIS_PCI.noRoutePips, undefined);
+});
+
 test('the PIPs a tile type\'s features offer that its tiles do not have (#74): measured on ISE\'s device descriptions, refused to the router', () => {
   const t = JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types;
   // every tile of the type, on every device: [wires (every PIP into or out of it), PIPs]; the left and
