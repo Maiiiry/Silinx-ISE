@@ -844,6 +844,13 @@ The packer (`core/fpga/pack.js`) now packs SRLC16E chains through Q15 as ISE's m
 slices for the placer, the SHIFTOUT -> SHIFTIN net); the lower slice's SHIFTOUT leaves the CLB only through XB (not
 measured), so a longer chain, or Q15 into anything but the next shift register's D, is refused.
 
+The multiplier cascade too: a MULT18X18SIO with B_INPUT = CASCADE takes B from the BCOUT of the multiplier below,
+BCINk from BCOUTk on the block-RAM column's switches `MULT_CCARRY_BCOUTk -> MULT_CARRYB_BCOUTk` (the routing graph:
+the site above, MULT18X18_XxY(y + 1), on every device), as ISE's map builds it; B is left open (connected, ISE's DRC
+warns: PhysDesignRules:1135). The placer puts
+a chain on consecutive sites of a column and keeps it there; BCOUT into anything but the BCIN of a cascading
+multiplier is refused.
+
 ### The XC3S1200E's other long-line splitters (2026-10-21, #709)
 
 `gen-pipcover.mjs xc3s1200efg320-4 --types CLKV_LL,CLKT_LL,CLKB_LL,CLKL_IOIS_LL,CLKR_IOIS_LL --long 1` (three rounds,

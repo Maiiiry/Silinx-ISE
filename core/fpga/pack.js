@@ -1003,6 +1003,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   // ---------------------------------------------------------------- pads and clock buffers
   const portOfNet = new Map();
   for (const p of nl.ports) for (const b of p.bits) if (nets[b.net].const === undefined) portOfNet.set(b.net, { ...b, dir: p.dir });
+  const multBelow = new Map();   // the multiplier cascade (#2): cell -> the multiplier whose BCOUT is its BCIN
   for (const c of cells) {
     if (/^(IBUF|IBUFG)$/.test(c.type)) {
       const port = portOfNet.get(c.pins.I);
@@ -1293,11 +1294,39 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   }
   // Multiplier: MULT18X18 (no registers), MULT18X18S (registered product: C, CE, R) or MULT18X18SIO.
   // As ISE builds the first two (#50): MULT18X18S's CE on CEA, CEB and CEP, R on RSTA, RSTB and
-  // RSTP; MULT18X18's enables and clock tied to 0, its resets to 1
+  // RSTP; MULT18X18's enables and clock tied to 0, its resets to 1.
+  // The cascade (#2): a MULT18X18SIO with B_INPUT = CASCADE takes B from the BCOUT of the multiplier below it
+  // (BCIN<k> = its BCOUT<k>, the block-RAM column's dedicated wires MULT_CCARRY_BCOUTk -> MULT_CARRYB_BCOUTk, as ISE
+  // builds it; measured with ISE, research/s3e-bitstream gen-cascade.mjs); the placer puts a chain on consecutive
+  // sites of a column (multChains). BCIN with B_INPUT = DIRECT is not used, nor B with CASCADE (connected, ISE's DRC
+  // warns: PhysDesignRules:1135, "Input pins B0-B17 should not be connected if B_INPUT is set to CASCADE").
+  function cascaded(c) { return c.type === 'MULT18X18SIO' && String(c.params.B_INPUT || 'DIRECT').trim().toUpperCase() === 'CASCADE'; }
+  function multCascade(c) {
+    const bad = why => { throw new PackError(`pack: ${c.type} ${c.name}: ${why}`); };
+    for (const [p, n] of Object.entries(c.pins)) {
+      const q = /^BCOUT<(\d+)>$/.exec(p);
+      if (!q) continue;
+      for (const l of nets[n].loads) if (!(cascaded(cells[l.cell]) && l.pin === `BCIN<${q[1]}>`)) bad(`the cascade output BCOUT<${q[1]}> into anything but BCIN<${q[1]}> of a multiplier with B_INPUT = CASCADE is not supported`);
+      if (new Set(nets[n].loads.map(l => l.cell)).size > 1) bad('the cascade output BCOUT into more than one multiplier is not possible');
+    }
+    if (!cascaded(c)) return;
+    const below = new Set();
+    for (let k = 0; k < 18; k++) {
+      const n = c.pins[`BCIN<${k}>`], d = n === undefined ? null : nets[n].driver;
+      if (!d || cells[d.cell].type !== 'MULT18X18SIO' || d.pin !== `BCOUT<${k}>`) bad(`B_INPUT = CASCADE: BCIN<${k}> is not the BCOUT<${k}> of a multiplier`);
+      below.add(d.cell);
+    }
+    if (below.size > 1) bad('B_INPUT = CASCADE: BCIN from more than one multiplier');
+    multBelow.set(ci(c), [...below][0]);
+  }
   function packMult(c) {
+    multCascade(c);
+    const casc = cascaded(c);
     const s = hardSite(c, 'mult', 'MULT18X18SIO', p => {
       const q = /^(A|B|P|BCIN|BCOUT)<(\d+)>$/.exec(p);
-      if (q) return q[1] === 'BCIN' || q[1] === 'BCOUT' ? null : `${q[1]}${q[2]}`;
+      if (q && q[1] === 'BCIN') return casc ? `BCIN${q[2]}` : null;
+      if (q && q[1] === 'BCOUT') return nets[c.pins[p]].loads.length ? `BCOUT${q[2]}` : null;
+      if (q) return casc && q[1] === 'B' ? null : `${q[1]}${q[2]}`;
       if (c.type === 'MULT18X18S') return { C: 'CLK', CE: ['CEA', 'CEB', 'CEP'], R: ['RSTA', 'RSTB', 'RSTP'] }[p] || null;
       return /^(CLK|CEA|CEB|CEP|RSTA|RSTB|RSTP)$/.test(p) ? p : null;
     });
@@ -1308,9 +1337,19 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
       }
     }
     s.mult = c.type;
-    for (const p of ['BCIN', 'BCOUT']) for (const k of Object.keys(c.pins)) if (k.startsWith(`${p}<`) && p === 'BCIN' && nets[c.pins[k]].const === undefined) throw new PackError(`pack: ${c.type} ${c.name}: the multiplier cascade (BCIN) is not supported yet`);
   }
   for (const c of cells) if (!c.lowered && !where.has(ci(c))) throw new PackError(`pack: ${c.type} ${c.name} was not packed`);
+  // the multiplier chains (#2), each from its lowest one up: instance indices
+  const multChains = [];
+  const multAbove = new Map([...multBelow].map(([up, down]) => [down, up]));
+  for (const [down] of multAbove) {
+    if (multBelow.has(down)) continue;
+    const chain = [down];
+    for (let x = multAbove.get(down); x !== undefined && !chain.includes(x); x = multAbove.get(x)) chain.push(x);
+    multChains.push(chain.map(x => where.get(x).inst));
+  }
+  const ringMult = [...multBelow.keys()].find(x => !multChains.some(ch => ch.includes(where.get(x).inst)));
+  if (ringMult !== undefined) throw new PackError(`pack: ${cells[ringMult].type} ${cells[ringMult].name}: a ring of multipliers through BCIN is not possible`);
 
   // ---------------------------------------------------------------- site pins of every connection
   // the inputs of the LUTs in slices, by pin
@@ -1575,6 +1614,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     insts: insts.map(s => ({ name: s.name, type: s.type, cfg: s.cfg, loc: s.loc || null, kind: s.kind, dir: s.dir, ...(s.regs?.length ? { regs: s.regs } : {}), ...(s.kind === 'bram' ? { wide: Object.values(s.ports).includes(36) } : {}) })),
     nets: outNets.filter(n => n.inpins.length),
     macros,
+    multChains,
     // where each cell of the netlist went: { inst, bel } (FFX / FFY, F / G, CYMUXF…; inst -1: left out)
     cellSites: nl.cells.map((c, i) => (where.has(i) ? { inst: where.get(i).inst, bel: where.get(i).bel } : null)),
     stats: {

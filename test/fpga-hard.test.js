@@ -368,6 +368,75 @@ test('placement: RAMs and shift registers (SLICEM instances) only on SLICEM site
   });
 });
 
+// a multiplier cascade (#2): m0's B (registered) into m1 through BCOUT -> BCIN, m1's (not registered) into m2; m3 apart
+function multChain() {
+  const sio = (name, breg, cascade, b, bcout) => ({ name, type: 'MULT18X18SIO', params: { AREG: 0, BREG: breg, PREG: 1, B_INPUT: cascade ? 'CASCADE' : 'DIRECT' },
+    conns: { A: [...bus('a_i', 6), ...Array(12).fill('a_i[5]')], B: b, BCIN: cascade ? bus(cascade, 18) : Array(18).fill('0'), CEA: '1', CEB: 'c_i[0]', CEP: '1', CLK: 'clk_g',
+      RSTA: '0', RSTB: '0', RSTP: 'c_i[1]', P: bus(`p_${name}`, 36), BCOUT: bcout ? bus(bcout, 18) : bus(`x_${name}`, 18) }, outs: ['P', 'BCOUT'] });
+  const bb = [...bus('b_i', 6), ...Array(12).fill('b_i[5]')];
+  return yjson({ clk: ['input', 1], a: ['input', 6], b: ['input', 6], c: ['input', 2], p: ['output', 12] }, [
+    ...clock, ...ibuf('a', 6), ...ibuf('b', 6), ...ibuf('c', 2),
+    sio('m0', 1, null, bb, 'bc0'), sio('m1', 0, 'bc0', bb, 'bc1'), sio('m2', 1, 'bc1', Array(18).fill('0')), sio('m3', 1, null, bb),
+    ...['p_m0[0]', 'p_m0[9]', 'p_m1[1]', 'p_m1[11]', 'p_m1[35]', 'p_m2[0]', 'p_m2[5]', 'p_m2[12]', 'p_m2[35]', 'p_m3[2]', 'p_m3[7]', 'p_m3[35]'].map((n, i) => obuf(`p[${i}]`, n)),
+  ]);
+}
+
+test('the multiplier cascade (#2): BCOUT -> BCIN as ISE builds it, the chain on consecutive sites of a column, behaviour', () => {
+  const nl = multChain();
+  const p = pack(nl);
+  assert.deepEqual(p.warnings, []);
+  const k = n => p.insts.findIndex(i => i.name === n);
+  assert.deepEqual(['m0', 'm1', 'm2', 'm3'].map(n => val(p.insts[k(n)], 'B_INPUT')), ['DIRECT', 'CASCADE', 'CASCADE', 'DIRECT']);
+  assert.deepEqual(p.multChains, [[k('m0'), k('m1'), k('m2')]]);
+  // each BCOUTj of one into BCINj of the next, one net each; a cascading one's B not connected (ISE's DRC warns:
+  // PhysDesignRules:1135); m2's and m3's BCOUT unused
+  for (const [lo, hi] of [['m0', 'm1'], ['m1', 'm2']]) for (let j = 0; j < 18; j++) {
+    assert.deepEqual(p.nets.filter(n => n.inpins.some(x => x.inst === k(hi) && x.pin === `BCIN${j}`)).map(n => [n.outpins, n.inpins]), [[[{ inst: k(lo), pin: `BCOUT${j}` }], [{ inst: k(hi), pin: `BCIN${j}` }]]]);
+  }
+  assert.ok(!p.nets.some(n => n.inpins.some(x => (x.inst === k('m1') || x.inst === k('m2')) && /^B\d+$/.test(x.pin))));
+  assert.ok(p.nets.some(n => n.inpins.some(x => x.inst === k('m0') && x.pin === 'B0')));
+  assert.ok(!p.nets.some(n => n.outpins.some(x => (x.inst === k('m2') || x.inst === k('m3')) && /^BCOUT/.test(x.pin))));
+  assert.ok(!p.nets.some(n => n.inpins.some(x => (x.inst === k('m0') || x.inst === k('m3')) && /^BCIN/.test(x.pin))));
+  same(nl, p, 300);
+  // the placer: the chain one above the other (MULT18X18_XxYy, y + 1), on every seed
+  for (const seed of [1, 2, 3]) {
+    const r = place(p, device(), { seed, effort: 0.3 });
+    const at = n => /^MULT18X18_X(\d+)Y(\d+)$/.exec(r.sites[k(n)].site).slice(1).map(Number);
+    const [a, b, c] = ['m0', 'm1', 'm2'].map(at);
+    assert.deepEqual([b, c], [[a[0], a[1] + 1], [a[0], a[1] + 2]], `seed ${seed}`);
+  }
+});
+
+test('the multiplier cascade (#2): the site above each one is the one its BCOUT reaches in the routing graph, on every device', () => {
+  for (const part of ['xc3s100ecp132-4', 'xc3s250ecp132-4', 'xc3s500efg320-4', 'xc3s1200efg320-4']) {
+    const g = loadDeviceCache(part), d = deviceSites(g);
+    const bcin = new Map(d.mults.map(m => [g.sitePinNode(m.name, 'BCIN0'), m.name]));
+    for (const m of d.mults) {
+      // BCOUT0 -> MULT_CCARRY_BCOUT0 -> MULT_CARRYB_BCOUT0 = the next one's BCIN0
+      const reach = new Set();
+      g.forEachPip(g.sitePinNode(m.name, 'BCOUT0'), to => { if (bcin.has(to)) reach.add(bcin.get(to)); g.forEachPip(to, x => { if (bcin.has(x)) reach.add(bcin.get(x)); }); });
+      assert.deepEqual([...reach], m.above ? [m.above] : [], `${part} ${m.name}`);
+    }
+    // (the top one of each column: none above)
+    assert.ok(d.mults.some(m => !m.above), part);
+  }
+});
+
+test('the multiplier cascade (#2): what is not a chain of BCOUT -> BCIN is refused', () => {
+  const two = (bcinOf, extra = [], m1 = {}) => yjson({ clk: ['input', 1], a: ['input', 2], p: ['output', 2] }, [...clock, ...ibuf('a', 2),
+    { name: 'm0', type: 'MULT18X18SIO', params: { B_INPUT: 'DIRECT' }, conns: { A: Array(18).fill('a_i[0]'), B: Array(18).fill('a_i[1]'), CLK: 'clk_g', CEA: '1', CEB: '1', CEP: '1', RSTA: '0', RSTB: '0', RSTP: '0', P: bus('p0', 36), BCOUT: bus('bc', 18) }, outs: ['P', 'BCOUT'] },
+    { name: 'm1', type: 'MULT18X18SIO', params: { B_INPUT: 'CASCADE', ...m1 }, conns: { A: Array(18).fill('a_i[0]'), B: Array(18).fill('0'), BCIN: bcinOf, CLK: 'clk_g', CEA: '1', CEB: '1', CEP: '1', RSTA: '0', RSTB: '0', RSTP: '0', P: bus('p1', 36) }, outs: ['P', 'BCOUT'] },
+    ...extra, obuf('p[0]', 'p0[0]'), obuf('p[1]', 'p1[0]')]);
+  assert.doesNotThrow(() => pack(two(bus('bc', 18))));
+  // BCIN bits crossed (BCOUT<j> into another BCIN), or from the fabric
+  assert.throws(() => pack(two([...bus('bc', 18)].reverse())), /MULT18X18SIO m0: the cascade output BCOUT<0> into anything but BCIN<0> of a multiplier with B_INPUT = CASCADE is not supported/);
+  assert.throws(() => pack(two(Array(18).fill('a_i[1]'))), /MULT18X18SIO m1: B_INPUT = CASCADE: BCIN<0> is not the BCOUT<0> of a multiplier/);
+  // BCOUT into the fabric
+  assert.throws(() => pack(two(bus('bc', 18), [obuf('q', 'bc[3]')])), /MULT18X18SIO m0: the cascade output BCOUT<3> into anything but BCIN<3> of a multiplier with B_INPUT = CASCADE is not supported/);
+  // BCOUT into a multiplier that does not cascade (B_INPUT = DIRECT): its BCIN is not used
+  assert.throws(() => pack(two(bus('bc', 18), [], { B_INPUT: 'DIRECT' })), /MULT18X18SIO m0: the cascade output BCOUT<0> into anything but BCIN<0>/);
+});
+
 test('DCM: the top-left DCM site (no INST LOC: the placer\'s choice, #47), the settings as ISE\'s map writes them, constant inputs', () => {
   const nl = yjson({ clk: ['input', 1], o: ['output', 2] }, [
     { name: 'ib', type: 'IBUFG', conns: { I: 'clk', O: 'clk_i' }, outs: ['O'] },

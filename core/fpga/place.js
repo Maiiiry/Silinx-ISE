@@ -80,6 +80,12 @@ export function deviceSites(dev, { allowBufg = null } = {}) {
       }
     }
   }
+  // the multiplier a multiplier's BCOUT cascades into (#2): the site above it in its column, MULT18X18_XxY(y + 1)
+  const multName = new Set(hard.MULT18X18SIO.map(m => m.name));
+  for (const m of hard.MULT18X18SIO) {
+    const above = m.name.replace(/Y(\d+)$/, (_, y) => `Y${+y + 1}`);
+    m.above = multName.has(above) ? above : null;
+  }
   return { part: dev.part, rows, cols: dev.cols, slices, pads, bufgmux, brams: hard.RAMB16, mults: hard.MULT18X18SIO, dcms };
 }
 
@@ -690,7 +696,26 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     const n = objs.filter(o => o.kind === kind).length, have = hardSites[kind].length;
     if (n > have) throw new PlaceError(`place: ${n} ${kind === 'bram' ? 'block RAMs' : 'multipliers'} needed, the device has ${have}`);
   }
-  for (const o of objs) if (o.kind === 'bram' || o.kind === 'mult') {
+  // a multiplier chain (#2, packed.multChains: BCOUT -> BCIN, from the lowest one up) on consecutive sites of a
+  // column, placed first and not moved by the annealing
+  const objOfInst = new Map(objs.filter(o => o.kind === 'mult').map(o => [o.inst, o]));
+  const multByName = new Map(hardSites.mult.map(s => [s.name, s]));
+  const inChain = new Set();
+  for (const chain of [...(packed.multChains || [])].sort((a, b) => b.length - a.length)) {
+    const name = packed.insts[chain[0]].name;
+    if (chain.some(i => packed.insts[i].loc)) throw new PlaceError(`place: ${name}: a LOC on a multiplier of a cascade (BCIN) is not supported yet`);
+    const runFrom = s => {
+      const run = [];
+      for (let x = s; x && run.length < chain.length; x = x.above && multByName.get(x.above)) run.push(x);
+      return run.length === chain.length && run.every((x, k) => !hardUsed.mult.has(x.name) && hardOk(objOfInst.get(chain[k]), x)) ? run : null;
+    };
+    const starts = hardSites.mult.map(runFrom).filter(Boolean);
+    if (!starts.length) throw new PlaceError(`place: ${name}: no ${chain.length} free multiplier sites one above the other for its cascade (BCIN)`);
+    const want = start?.at[chain[0]]?.site;
+    const run = (want && starts.find(r => r[0].name === want)) || starts[ri(starts.length)];
+    chain.forEach((i, k) => { const o = objOfInst.get(i); o.fixed = true; inChain.add(o); setHard(o, run[k]); });
+  }
+  for (const o of objs) if ((o.kind === 'bram' || o.kind === 'mult') && !inChain.has(o)) {
     const inst = packed.insts[o.inst];
     const free = hardSites[o.kind].filter(s => !hardUsed[o.kind].has(s.name) && hardOk(o, s) && (!inst.loc || s.name === inst.loc));
     if (!free.length && clockPins.has(o.inst) && hardSites[o.kind].every(s => !clockOk(o, s) || s.name !== (inst.loc || s.name))) {
