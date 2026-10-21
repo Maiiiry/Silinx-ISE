@@ -428,7 +428,8 @@ the project's synthesis tool; *Synthesize - Yosys (open)* in a project that synt
 synthesizes any design with Yosys compiled to WebAssembly, in parallel Web Workers. Its *Optimization
 Effort* (Process Properties) Normal, the default, maps the design once (fast; a state machine of 8 states or more
 that Yosys leaves as written also one-hot, when that is better); High also tries the
-mappings for speed, and its state machines of 8 states or more one-hot, and keeps the best. Implement Design and Generate Programming File do not
+mappings for speed, and its state machines of 8 states or more one-hot, and keeps the best, and Place & Route
+makes two placements and keeps the faster. Implement Design and Generate Programming File do not
 synthesize again while the synthesis is up to date (the design's sources, top, device and effort
 unchanged). For the **Basys2-100 and Basys2-250
 (XC3S100E / XC3S250E-CP132) and the Nexys2-500 and Nexys2-1200 (XC3S500E / XC3S1200E-FG320)**
