@@ -704,7 +704,9 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
     seen.add(l.map((v) => (v > 0.5 ? 1 : 0)).join(''));
     await new Promise((r) => setTimeout(r, 100));
   }
-  assert.ok(seen.size >= 2, `the LEDs change: ${[...seen].join(' ')}`);
+  // (a failure says what the emulator was doing: its status line, paused or its rate, and the page's visibility)
+  const why = seen.size >= 2 ? '' : await page.eval(() => `${document.querySelector('.doc:not([hidden]) .emu-bar .stat')?.textContent} · page ${document.visibilityState}`);
+  assert.ok(seen.size >= 2, `the LEDs change: ${[...seen].join(' ')} (${why})`);
   const again = (await page.consoleText()).length;
   await page.treeRow('#procs', 'Emulate Post-Synthesis Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Synthesis)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator again' });
