@@ -301,28 +301,47 @@ test('a long-line splitter in a routed design (#23): "a =- b" takes the directio
   assert.deepEqual([getBit(fr.frames, fw, base.frame + 15, base.bit + 1), getBit(fu.frames, fw, base.frame + 15, base.bit + 1)], [1, 0]);
 });
 
-test('the XC3S1200E\'s other long-line splitters (#709): the centre column\'s and the I/O columns\', one bit each, not used by the router', () => {
+test('the XC3S1200E\'s other long-line splitters (#709): the centre column\'s, the I/O columns\' and the side DCM columns\', one bit each, used by the router', () => {
   const db = loadDb('xc3s1200efg320-4', { graph: { siteIndex: new Map() } });
   const abs = (tile, f) => { const t = tileOf(tile, db), b = tileBase(t, db); return featureBits(db.types[t.type], f).map(s => s.split(',').map(Number)).map(([fr, bit]) => [b.frame + fr, b.bit + bit]); };
-  // the centre column (CLKV_LL): the horizontal long lines joined across it, the bit in the clock column's frame 3, the
-  // tile's own row; the I/O columns (CLKL_IOIS_LL / CLKR_IOIS_LL): the vertical ones across the centre row, the bit in
-  // the I/O row at the top (bits 1-3) or at the bottom (FB - 4 …) of the frame, as CLKH_LL's
+  // the centre column (CLKV_LL; CLKT_LL, CLKB_LL its top and bottom tiles): the horizontal long lines joined across it,
+  // the bit in the clock column's frame 3, the tile's own row; the I/O columns (CLKL_IOIS_LL / CLKR_IOIS_LL) and the
+  // side DCMs' columns (CLKLH_DCM_LL / CLKRH_DCM_LL): the vertical ones across the centre row, the bit in the I/O row
+  // at the top (bits 1-3) or at the bottom (FB - 4 …) of a frame of the column, as CLKH_LL's
   assert.deepEqual(abs('CLKV_LL_X23Y20', 'CLKV_LLL_LH0->CLKV_LLR_LH0'), [[3, 2640 + 62]]);
   assert.deepEqual(abs('CLKV_LL_X23Y59', 'CLKV_LLL_LH0->CLKV_LLR_LH0'), [[3, 144 + 62]]);
+  assert.deepEqual(abs('CLKV_LL_X23Y20', 'CLKV_LLL_LH10->CLKV_LLR_LH10'), [[3, 2640 + 36]]);
+  assert.deepEqual(abs('CLKT_LL_X23Y61', 'CLKV_LLL_LH0->CLKV_LLR_LH0'), [[3, 78]]);
+  assert.deepEqual(abs('CLKB_LL_X23Y0', 'CLKV_LLL_LH0->CLKV_LLR_LH0'), [[3, 3920 + 62]]);
   assert.deepEqual(abs('CLKL_IOIS_LL_X0Y30', 'CLKLH_LLB_LV0->CLKLH_LLT_LV0'), [[9, 2]]);
+  assert.deepEqual(abs('CLKL_IOIS_LL_X0Y30', 'CLKLH_LLT_LV0->CLKLH_LLB_LV0'), [[9, 1]]);
   assert.deepEqual(abs('CLKR_IOIS_LL_X47Y30', 'CLKRH_LLB_LV11->CLKRH_LLT_LV11'), [[758, 125 * 32 - 3]]);
-  // (the splitters: the long lines' halves, LLL / LLR, LLB / LLT)
-  const n = type => [...db.types[type].feats].filter(([f]) => /_LL[LRBT]_L[HV]\d+->/.test(f)).map(([, b]) => b);
-  for (const [type, count] of [['CLKV_LL', 36], ['CLKL_IOIS_LL', 28], ['CLKR_IOIS_LL', 28]]) {
-    assert.equal(n(type).length, count, type);
-    assert.ok(n(type).every(b => b.length === 1), `${type}: one bit each`);
-    assert.equal(new Set(n(type).map(b => b[0])).size, count, `${type}: no two of a bit`);
-    assert.equal(db.types[type].noRoute, true, type);
+  // the side DCMs' columns: CLKH_LL's switches, the same bits of the column's frames
+  for (const [tile, col] of [['CLKLH_DCM_LL_X9Y30', 9], ['CLKRH_DCM_LL_X38Y30', 38]]) {
+    for (const f of [...db.types.CLKH_LL.feats.keys()]) {
+      const [df, b] = featureBits(db.types.CLKH_LL, f)[0].split(',').map(Number);
+      assert.deepEqual(abs(tile, f), [[db.layout.cols[col] + df, b]], `${tile} ${f}`);
+    }
   }
+  // (the splitters: the long lines' halves, LLL / LLR, LLB / LLT): all 48 of every type, one bit each, none shared
+  const n = type => [...db.types[type].feats].filter(([f]) => /_LL[LRBT]_L[HV]\d+->/.test(f)).map(([, b]) => b);
+  for (const type of ['CLKV_LL', 'CLKT_LL', 'CLKB_LL', 'CLKL_IOIS_LL', 'CLKR_IOIS_LL', 'CLKLH_DCM_LL', 'CLKRH_DCM_LL']) {
+    assert.equal(n(type).length, 48, type);
+    assert.ok(n(type).every(b => b.length === 1), `${type}: one bit each`);
+    assert.equal(new Set(n(type).map(b => b[0])).size, 48, `${type}: no two of a bit`);
+    assert.equal(db.types[type].splitter, true, type);
+    assert.equal(db.types[type].noRoute, undefined, type);
+  }
+  // the router takes them (the direction of "a =- b" from the device description, #23); the placer's delay table leaves
+  // out the splitter types' own switches only (the centre column's clock switches, CLKV's that CLKV_LL shares, stay)
   const k = knownRouting(db);
-  assert.equal(k.allowPip('CLKV_LL_X23Y20', 'CLKV_LLL_LH0', 'CLKV_LLR_LH0'), false, 'noRoute');
-  // (only the type's own features: the centre column's clock switches, CLKV's that CLKV_LL shares, stay routable)
+  for (const [tile, from, to] of [['CLKV_LL_X23Y20', 'CLKV_LLL_LH0', 'CLKV_LLR_LH0'], ['CLKT_LL_X23Y61', 'CLKV_LLR_LH5', 'CLKV_LLL_LH5'],
+    ['CLKB_LL_X23Y0', 'CLKV_LLL_LH23', 'CLKV_LLR_LH23'], ['CLKR_IOIS_LL_X47Y30', 'CLKRH_LLT_LV8', 'CLKRH_LLB_LV8'], ['CLKLH_DCM_LL_X9Y30', 'CLKH_LLB_LV6', 'CLKH_LLT_LV6']]) {
+    assert.equal(k.allowPip(tile, from, to), true, `${tile} ${from} -> ${to}`);
+    assert.equal(k.delayPip(tile, from, to), false, `${tile} ${from} -> ${to}`);
+  }
   assert.equal(k.allowPip('CLKV_LL_X23Y1', 'CLKV_OMUX15_OUTL3', 'CLKV_OUTL3'), true);
+  assert.equal(k.delayPip('CLKV_LL_X23Y1', 'CLKV_OMUX15_OUTL3', 'CLKV_OUTL3'), true);
   // a bit stage F gave the side DCM's CLKFB switch was a splitter's (its codeword's, far away): none, as the other side DCMs'
   for (const type of ['DCM_H_TL_CENTER', 'DCM_H_TR_CENTER', 'DCM_H_BL_CENTER', 'DCM_H_BR_CENTER']) assert.deepEqual(featureBits(db.types[type], 'DCM_CLKFB->DCM_CLKFB_PINWIRE'), [], type);
 });

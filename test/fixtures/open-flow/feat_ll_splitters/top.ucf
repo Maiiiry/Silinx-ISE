@@ -1,0 +1,27 @@
+# the left side to the right (rows 2-60), the top to the bottom (columns 1-46), the registers in the IOBs
+NET "clk" LOC = "B8" ;
+NET "clk" PERIOD = 20 ns ;
+NET "l<0>" LOC = "T1" | IOB = TRUE ;
+NET "l<1>" LOC = "N4" | IOB = TRUE ;
+NET "l<2>" LOC = "K3" | IOB = TRUE ;
+NET "l<3>" LOC = "H3" | IOB = TRUE ;
+NET "l<4>" LOC = "E2" | IOB = TRUE ;
+NET "l<5>" LOC = "C1" | IOB = TRUE ;
+NET "r<0>" LOC = "R18" | IOB = TRUE ;
+NET "r<1>" LOC = "N15" | IOB = TRUE ;
+NET "r<2>" LOC = "L16" | IOB = TRUE ;
+NET "r<3>" LOC = "J15" | IOB = TRUE ;
+NET "r<4>" LOC = "G15" | IOB = TRUE ;
+NET "r<5>" LOC = "C18" | IOB = TRUE ;
+NET "t<0>" LOC = "C3" | IOB = TRUE ;
+NET "t<1>" LOC = "B6" | IOB = TRUE ;
+NET "t<2>" LOC = "C8" | IOB = TRUE ;
+NET "t<3>" LOC = "A11" | IOB = TRUE ;
+NET "t<4>" LOC = "D13" | IOB = TRUE ;
+NET "t<5>" LOC = "C15" | IOB = TRUE ;
+NET "b<0>" LOC = "U3" | IOB = TRUE ;
+NET "b<1>" LOC = "R6" | IOB = TRUE ;
+NET "b<2>" LOC = "N9" | IOB = TRUE ;
+NET "b<3>" LOC = "P11" | IOB = TRUE ;
+NET "b<4>" LOC = "N12" | IOB = TRUE ;
+NET "b<5>" LOC = "T16" | IOB = TRUE ;

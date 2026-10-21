@@ -1007,6 +1007,27 @@ off). The splitters change little: a design that reaches across the centre row i
 two does nearly as well. The XC3S1200E's other splitters (horizontal, across the centre column; the
 I/O columns') are not in the bit database yet: #709.
 
+### The other splitters (#709, 2026-10-22)
+
+The bit database now has the XC3S1200E's other long-line splitters too (research/s3e-bitstream/README.md: CLKV_LL,
+CLKT_LL / CLKB_LL across the centre column, CLKL_IOIS_LL / CLKR_IOIS_LL and CLKLH_DCM_LL / CLKRH_DCM_LL across the centre
+row), and the router takes them as it takes CLKH_LL's; the placer's delay table leaves out the splitter types' own
+switches only. Measured with Silinx's analysis on 18 designs of the corpus on the XC3S1200E (`research/s3e-route/open-flow.mjs`, the
+same netlists and seeds 1 and 2, against main: the first placement is the same, as the delay table is; 9 of the 36
+end on another one, register replication placing again after a different routing):
+
+| | |
+|---|---:|
+| the 36 routings, geometric mean | −0.13 % |
+| routings that take a new splitter | 8 (vtr-diffeq1: 33 and 19 of them; picorv32, secworks-sha1, itc99-b15: 1-2) |
+| the most changed | vtr-ch-intrinsics s1 −4.1 %, fpu-adder s1 −3.8 %, secworks-sha1 s1 +4.0 % |
+
+Within the noise of a router change (±0.2 % in geometric mean, ±2-5 % per routing): the routes change even where no
+splitter is taken (the search sees them), and a design that crosses the centre on a long line is rare. The splitters
+are there for completeness (ISE's own routings of the XC3S1200E are now byte-identical) more than for speed.
+`test/fixtures/open-flow/feat_ll_splitters` (paths between IOB registers of opposite sides) takes the left DCM column's
+at seeds 2, 7 and 8.
+
 ## Open problems
 
 - Timing: no timing constraints (UCF PERIOD) are read yet; the router and the placer minimise the
