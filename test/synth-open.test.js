@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE, pathEnds, criticalEnables, foldRemapCommands, speedRemapCommands, FOLD_CE_MAP, FOLD_CE_MAP_FILE, FOLD_CE_FILE, SPEED_ABC, SPEED_RULE, TOP_ONLY } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, keepChains, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE, pathEnds, criticalEnables, foldRemapCommands, speedRemapCommands, FOLD_CE_MAP, FOLD_CE_MAP_FILE, FOLD_CE_FILE, SPEED_ABC, SPEED_RULE, TOP_ONLY } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -549,6 +549,27 @@ test('logic depth: the mapping balanced once more is kept when better than the d
 
 // #377: the slices too, when known (sliceCount: core/fpga/pack.js's count): a netlist with 5 % fewer slices is
 // smaller even with more LUTs; fewer LUTs, more slices is not; a faster one is not larger in slices either
+// Regression (#742): the netlist with the carry chains against the one without them, both ways. The EPFL adder in the
+// corpus's I/O wrapper: its chains' netlist 17.81 ns estimated, 171 LUTs, 194 slices; without them the SOP-balanced
+// one (#654) 9.92 ns, 675 LUTs, 338 slices, kept before (the chains had to beat it, it never had to beat them), routed
+// 12.98 -> 11.84 ns, 9 % faster for 4 times the LUTs
+test('#742 the carry chains\' netlist against the one without them, both ways: the EPFL adder keeps its chains; a chain netlist driven twice never kept (#746)', () => {
+  const chains = { ns: 17.81, luts: 171, slices: 194 }, sopb = { ns: 9.92, luts: 675, slices: 338 };
+  assert.equal(keepChains(sopb, chains), true);
+  // (as before: the chains kept only when better than the netlist without them, here not)
+  assert.equal(keepDepth([sopb.ns, chains.ns], [sopb.luts, chains.luts], DEPTH_RULE, [sopb.slices, chains.slices]), false);
+  // without them kept when better than the chains by the rule: faster with no more LUTs, or as fast and 5 % smaller
+  assert.equal(keepChains({ ns: 10, luts: 160, slices: 190 }, chains), false);
+  assert.equal(keepChains({ ns: 17.9, luts: 150, slices: 180 }, chains), false);
+  // neither better: the chains
+  assert.equal(keepChains({ ns: 17.81, luts: 171, slices: 194 }, chains), true);
+  // the EPFL multiplier's chains' run warned that nets are driven twice (#746): never kept, whatever its numbers
+  const twice = 'Warning: multiple conflicting drivers for top.\\n13325:';
+  assert.equal(keepChains(sopb, chains, { linesC: [twice], linesN: [] }), false);
+  // (unless the run without them warns the same: the design's own, not the rewrite's)
+  assert.equal(keepChains(sopb, chains, { linesC: [twice], linesN: [twice] }), true);
+});
+
 test('#377 logic depth: the rule weighs the slices too, when known; sliceCount packs a netlist as the open flow', () => {
   assert.ok(keepDepth([10, 10.05], [100, 104], DEPTH_RULE, [80, 76]), '5 % fewer slices, more LUTs, as fast: smaller');
   assert.ok(!keepDepth([10, 10.05], [100, 104], DEPTH_RULE, [80, 77]), 'not 5 % fewer slices');

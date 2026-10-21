@@ -429,6 +429,17 @@ export function keepSecond(ns, luts, rule = DEPTH_RULE, slices = null) {
     || (ns[2] <= ns[1] * (1 - rule.gain) && keepDepth([ns[0], ns[2]], [luts[0], luts[2]], rule, slices && [slices[0], slices[2]]));
 }
 
+/** Is the netlist with the carry chains written as gates (#77) kept? n, c: { ns, luts, slices } of the netlists without
+ *  and with them; linesN, linesC: their runs' messages. Both ways (#742): the one without kept only when better than the
+ *  one with them by DEPTH_RULE (kept unless the chains were, the EPFL adder's SOP-balanced netlist, 44 % faster by the
+ *  estimate, 4 times its chains' LUTs and 74 % more slices, kept; routed 9 % faster). Never a netlist whose chains Yosys
+ *  found driven twice, the usual run's not (the EPFL multiplier's rewrite, #746). */
+export function keepChains(n, c, { linesN = [], linesC = [] } = {}, rule = DEPTH_RULE) {
+  const conflicts = lines => lines.some(l => /^Warning: multiple conflicting drivers/.test(l));
+  if (conflicts(linesC) && !conflicts(linesN)) return false;
+  return !keepDepth([c.ns, n.ns], [c.luts, n.luts], rule, [c.slices, n.slices]);
+}
+
 /** The slices of a mapped netlist of a 4-input-LUT family (Yosys's JSON), as core/fpga/pack.js packs them for
  *  the open flow; null when it does not pack (a cell it does not support yet). */
 export function sliceCount(json, top) {
@@ -1034,7 +1045,8 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           { ...yosysFiles(top, text), [CHAIN_FILE]: JSON.stringify(rw.json) }, l => { if (!quiet(l)) linesC.push(l); }).then(outC => withDepth(outC, () => {}, linesC)),
         usualRun(l => { if (!quiet(l)) linesN.push(l); }).then(outN => withDepth(outN, () => {}, linesN)),
       ]);
-      const withChains = keepDepth([resN.ns, resC.ns], [utilization(resN.cells).luts, utilization(resC.cells).luts], DEPTH_RULE, [resN.slices(), resC.slices()]);
+      const measure = r => ({ ns: r.ns, luts: utilization(r.cells).luts, slices: r.slices() });
+      const withChains = keepChains(measure(resN), measure(resC), { linesN, linesC });
       if (withChains) { chains = rw.chains; for (const l of [...lines1, ...linesC]) emit(l); res = resC; }
       else { for (const l of linesN) emit(l); res = resN; }
     }
