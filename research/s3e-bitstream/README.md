@@ -990,6 +990,35 @@ the CLK_PCI tiles (#641's switch: the shared CLB table's bits, none in ISE) is r
 So the placer puts a clock on a side GCLK pin on its own side buffer, no longer on a top / bottom one through general
 routing (#95's exception, with its warning).
 
+### An IOB's second flip-flop alone (2026-10-21, #759)
+
+The two IOBs of a differential pair (DIFFM / DIFFS) share each clock wire of their I/O tile: two registers of one kind
+there on different clocks put the DIFFM's on its second flip-flop (IFF2 / OFF2 / TFF2, on the tile's second clock wire;
+#749). The database had the second flip-flop's settings only with the first (the DDR registers'), so a LOC'd pair was
+refused (`OMUX:OFF2`, `R:OFF1:#OFF`, `R:IFF1:#OFF`…). `measure-759.sh`:
+
+- **Designs** (`gen-iobpair.mjs`): every pair of the device two registers of one kind, the DIFFS's on the clock pad's
+  buffer, the DIFFM's on a buffer driven by a counter bit; `rpi0-3` input registers (the four kinds of gen-iobreg.mjs,
+  moved by one pair in each), `rpo0-3` output registers, output-enable registers with the data straight from the fabric,
+  or both, by turns. ISE's map put every DIFFM's register on its second flip-flop (34 / 40 / 91 / 98 pairs, XC3S100E /
+  250E / 500E / 1200E), no warning; 8 random variants of each (`gen-iobrand.mjs`), 2 more held out.
+- **Solved against the database** (`ana-iobreg.mjs --known`: the writer writes the settings the database has, only
+  those it lacks on a pad are solved, a bit a new one clears written `!frame,bit`), with #96's IDDR2 / ODDR2 variants
+  (rd, rd2), which have the second flip-flop with the first (`R:IFF2:#FF`, measured on 68 of the XC3S100E's 80 input
+  pads before). Every pad bit explained on the four devices (280 / 336 / 765 / 815 bits); the features in
+  `measured/pads-759-<device>.json`, merged by `build-db.sh`.
+- **Checked:** solved first against the database before #751, a neighbour's delay bit went to the second flip-flop
+  (A4's `R:IFF2:#FF` had C4's 564,11: the LOC'd pair below differed from ISE by it on the XC3S500E / 1200E); solved
+  again against #751's delays, the held-out variants are byte-identical to ISE's bitgen but for the bits of switches the
+  database does not have, outside the pads: the top clock tile's `CLKV_W2END7 / CLKV_E2BEG7 -> CLKT_CLKDUB3` (the second
+  buffer's input from the fabric; frame 2 bits 17, 20, 21 on the XC3S250E) and, on the XC3S1200E, long-line splitters
+  (`CLKV_LLL_LHk -> CLKV_LLR_LHk`…; its frame 445 bit 50 is a misplaced `R:ISR_USED:0` bit, given to its pad by #96's
+  `ana-padowner.mjs`).
+
+**The Silinx toolchain:** a LOC'd pair with registers of one kind on two clocks writes a complete bitstream (the placer's
+warning of #749 is gone); pads without a LOC are still kept out of such a pair. `feat_iob_pair` LOC'd on two pairs of
+each device: `test/ise/open-flow.test.js`.
+
 ### The PIPs a tile does not have (2026-10-13, #74)
 
 The database's PIP features are per tile type, and several types take another's: the I/O, corner,

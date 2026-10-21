@@ -58,6 +58,38 @@ test('the clock fixtures on every device: Silinx\'s bitstream byte-identical to 
   }
 });
 
+// feat_iob_pair with its registers LOC'd on two differential pairs of every device (#749, #759): each pair's two
+// registers of one kind on different clocks, the DIFFM's on its IOB's second flip-flop alone (IFF2, OFF2), as ISE's map
+// puts it. The pairs: the first two whose pads can both drive an output, by tile.
+function twoPairs(part, pkg) {
+  const byTile = new Map();
+  for (const p of deviceSites(loadDeviceCache(`${part}${pkg}-4`)).pads.values()) if (p.pair && !p.inputOnly && p.name !== 'B8') byTile.set(p.pair, [...(byTile.get(p.pair) || []), p]);
+  return [...byTile.values()].filter(ps => ps.length === 2).slice(0, 2).map(ps => ps.sort((a, b) => b.master - a.master).map(p => p.name));
+}
+
+test('feat_iob_pair LOC\'d on two pairs of every device: the second flip-flops alone, byte-identical to ISE\'s, DRC clean, no warning', { skip, timeout: 60 * 60000 }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-ise-iobpair-'));
+  const names = [];
+  for (const [part, pkg] of DEVICES) {
+    const name = `feat_iob_pair_loc-${part}`, dir = path.join(tmp, name);
+    fs.cpSync(path.join(ROOT, 'test/fixtures/open-flow/feat_iob_pair'), dir, { recursive: true });
+    const [[m0, s0], [m1, s1]] = twoPairs(part, pkg);
+    // (each net's standard too: the fixture's NET "led<*>" is not applied by the open flow yet, #773, and the clock's
+    // LVCMOS33 on B8 would leave its bank to them)
+    fs.appendFileSync(path.join(dir, 'top.ucf'), [['led<0>', s0], ['led<1>', m0], ['sw<0>', m1], ['sw<1>', s1]].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;\n`).join(''));
+    const j = JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8'));
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ ...j, name, board: undefined, device: { family: 'spartan3e', part, package: pkg, speed: '-4' } }));
+    names.push(name);
+  }
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), ...names.map(n => path.join(tmp, n))], { encoding: 'utf8', env: process.env });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  for (const n of names) {
+    assert.match(r.stdout, new RegExp(`^${n}: open flow ok; 0 warning\\(s\\)$`, 'm'));
+    assert.match(r.stdout, new RegExp(`^${n}: DRC 0 errors, 0 warnings; xdl2ncd 0 warnings; \\.bit vs ISE's bitgen: byte-identical \\(CRC on and off\\)$`, 'm'));
+  }
+});
+
 // feat_iob_lines on every device (#671): its IOB registers on left and right pads of each device, each on an I/O tile of
 // its own (the two IOBs of a tile share each clock wire), spread over the side's rows (every clock row, up and down),
 // on pads where the plain register is measured; the eight clocks on the eight top and bottom buffers (lines 0-7)
