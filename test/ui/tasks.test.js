@@ -118,7 +118,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   s = await state(page);
   assert.deepEqual(s, { task: 'sim', side: 'folded', console: 'folded', max: 'off', current: ['sim'], tabs: [], empty: true });
   assert.ok(!(await shown(page, '.doc .cm-editor')));
-  assert.ok(!(await shown(page, '#hier')) && await shown(page, '#left-tabs'));
+  assert.ok(!(await shown(page, '#hier')) && !(await shown(page, '#left-tabs')), 'no Design pane, no activity bar (Edit\'s, #876)');
   assert.ok(!(await shown(page, '#console-body')) && await shown(page, '#console-tabs'));
   assert.equal(await page.eval(() => document.querySelector('#task-empty h2').textContent), 'Simulate');
   // its action: the simulation of the top module (as the toolbar's Simulate of the modern interface)
@@ -129,8 +129,8 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.equal(s.empty, false);
   assert.deepEqual(s.tabs, [], 'one document: no tab bar (#854)');
   assert.equal(await page.eval(() => document.querySelector('#task-doc .task-doc-mod').textContent), 'tb_top', 'the test bench (#800)');
-  // the side panel unfolds from the activity bar, kept for Simulate
-  await page.click('#left-tabs .tab[data-page="design"]');
+  // the side panel unfolds from the task's bar, kept for Simulate
+  await page.click('#task-bar [data-act="side"]');
   assert.equal((await state(page)).side, 'open');
   // back to Edit: its editor in front again, its arrangement as left
   await page.click('#task-switch .task-btn[data-task="edit"]');
@@ -399,7 +399,7 @@ uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the tes
   await page.waitFor(() => document.querySelector('#task-doc .task-doc-mod')?.textContent === 'tb_top', [], { what: 'the test bench simulated' });
   // the waves get the screen: no ISim title bar, no Instances / Objects column, no Design pane, no console
   assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-title')) && !(await shown(page, '.doc:not([hidden]) .isim-left')));
-  assert.ok(!(await shown(page, '#left-pages')) && await shown(page, '#left-tabs'));
+  assert.ok(!(await shown(page, '#left-pages')) && !(await shown(page, '#left-tabs')));
   const W = await page.eval(() => {
     const w = document.querySelector('.doc:not([hidden]) .isim-wavewin').getBoundingClientRect(), ws = document.getElementById('workspace').getBoundingClientRect();
     return { width: Math.round(w.width), ws: Math.round(ws.width), height: Math.round(w.height) };
@@ -585,6 +585,44 @@ uiTest('#803 Tasks ▸ Program: the file\'s state first, the chain and Program; 
     const p = document.querySelector('.doc:not([hidden]) > .page');
     return [p.querySelectorAll('.task-prog-state, .task-prog-more, .task-prog-settings').length, !!p.querySelector('.imp-settings').getClientRects().length, !!p.querySelector('.imp-more').getClientRects().length];
   }), [0, true, true]);
+  await noWarnings(page);
+}, { build: DEV });
+
+// #876: the activity bar (Start, Design, Files, Libraries) is Edit's: none in the other tasks; Implement's side panel
+// its Processes whichever page Edit left in front; Program no side panel
+uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatever page Edit left; Program no side panel', E, async (page) => {
+  await makeProject(env, { name: 'TasksBar', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksBar');
+  // (the Design pane dragged wide, as a student may leave it: its column is not left empty in the other tasks)
+  await page.eval(() => { document.getElementById('left').style.width = '820px'; });
+  const L = () => page.eval(() => {
+    const vis = (s) => !!document.querySelector(s)?.getClientRects().length;
+    return { bar: vis('#left-tabs'), left: vis('#left'), side: vis('#task-bar [data-act="side"]'), procs: vis('#proc-panel'), files: vis('#files-page') };
+  });
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: false });
+  // Edit's Files page in front: still Edit's only
+  await page.click('#left-tabs .tab[data-page="files"]');
+  assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: true });
+  for (const t of ['sim', 'emu']) {
+    await page.click(`#task-switch .task-btn[data-task="${t}"]`);
+    assert.deepEqual(await L(), { bar: false, left: false, side: true, procs: false, files: false }, t);
+    // (the workspace from the window's left edge: no empty column)
+    assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4, `${t}: no empty column`);
+  }
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  assert.deepEqual(await L(), { bar: false, left: true, side: true, procs: true, files: false }, 'Implement: its Processes, not the Files page');
+  await page.click('#task-switch .task-btn[data-task="prog"]');
+  assert.deepEqual(await L(), { bar: false, left: false, side: false, procs: false, files: false }, 'Program: no side panel');
+  // back to Edit: its Files page as it was left
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.deepEqual(await L(), { bar: true, left: true, side: true, procs: false, files: true });
+  // the modern interface: the activity bar as before
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.ok(await shown(page, '#left-tabs'));
   await noWarnings(page);
 }, { build: DEV });
 
