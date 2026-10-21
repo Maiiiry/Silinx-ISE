@@ -307,7 +307,7 @@ const PT = {
   'Emulator': 'Emulador', 'Synthesis': 'Síntese', 'Messages from': 'Mensagens de', 'Command line': 'Linha de comandos',
   'Type an ISim command (help)': 'Escreva um comando do ISim (help)', 'Type a command or a file name': 'Escreva um comando ou o nome de um ficheiro',
   // modern interface (web/js/modern.js, web/js/palette.js): View ▸ Interface / Theme, header, design flow, command palette
-  'Interface': 'Interface', 'Modern': 'Moderna', 'Xilinx ISE (Classic)': 'Xilinx ISE (Clássica)',
+  'Interface': 'Interface', 'Modern': 'Moderna', 'Classic': 'Clássica',
   'Theme': 'Tema', 'System': 'Sistema', 'Light': 'Claro', 'Dark': 'Escuro', 'Command Palette…': 'Paleta de Comandos…',
   'Implement': 'Implementar', 'Emulate': 'Emular', 'Design flow': 'Fluxo de projeto',
   'Check Syntax of the selected module': 'Verificar a sintaxe do módulo selecionado',

@@ -104,8 +104,9 @@ uiTest('start page: its sentence\'s lines balanced, the last word never alone on
 uiTest('View ▸ Interface: the Xilinx ISE look and back, live and remembered after a reload', E, async (page) => {
   await page.waitForSelector('#start-page .start-box');
   let subs = await subMenu(page, 'View', 'Interface');
-  assert.deepEqual(subs, [{ label: 'Modern', checked: true }, { label: 'Xilinx ISE (Classic)', checked: false }, { label: 'Tasks', checked: false }]);
-  await subMenu(page, 'View', 'Interface', 'Xilinx ISE (Classic)');
+  // (Tasks: a development build's only, #838)
+  assert.deepEqual(subs, [{ label: 'Modern', checked: true }, { label: 'Classic', checked: false }]);
+  await subMenu(page, 'View', 'Interface', 'Classic');
   await page.waitFor(() => document.documentElement.dataset.ui === 'classic');
   const C = await page.eval(() => {
     const r = (id) => document.getElementById(id).getBoundingClientRect();
@@ -274,7 +275,7 @@ uiTest('Portuguese: the modern header, buttons, empty state and palette are tran
     empty: 'Abra uma fonte no painel Projeto, ou procure qualquer comando ou ficheiro.', keys: ['Procurar comandos e ficheiros'], theme: 'Alternar entre tema claro e escuro',
   });
   const subs = await subMenu(page, 'Ver', 'Interface');
-  assert.deepEqual(subs.map((s) => s.label), ['Moderna', 'Xilinx ISE (Clássica)', 'Tarefas']);
+  assert.deepEqual(subs.map((s) => s.label), ['Moderna', 'Clássica']);   // (Tarefas: a development build's only, #838)
   // the palette in Portuguese: found by the Portuguese and by the English name
   await page.key('k', { modifiers: CTRL });
   await page.waitForSelector('.pal-overlay');

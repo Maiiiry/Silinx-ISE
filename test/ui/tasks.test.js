@@ -13,6 +13,9 @@ let env;
 before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
+// the Tasks interface is a development build's only, for now (#838): the tests run as one (without its changes'
+// list: no Development menu, whose width in the header is #839's)
+const DEV = { commit: 'abc1234', date: '2026-10-21 12:00' };
 
 // the page in the Tasks interface (kept, as View ▸ Interface keeps it), booted again
 async function tasksInterface(page) {
@@ -57,7 +60,7 @@ uiTest('View ▸ Interface ▸ Tasks: the task switcher in the header, the task\
   await page.hover(await page.point('body > .menu-popup > .mi', { index: items.findIndex((x) => x.label === 'Interface') }));
   await page.waitForSelector('.menu-popup.sub .mi');
   const subs = await page.eval(() => [...document.querySelectorAll('.menu-popup.sub .mi .lbl')].map((l) => l.textContent));
-  assert.deepEqual(subs, ['Modern', 'Xilinx ISE (Classic)', 'Tasks']);
+  assert.deepEqual(subs, ['Modern', 'Classic', 'Tasks']);
   await page.click('.menu-popup.sub .mi', { index: 2 });
   await page.waitFor(() => document.documentElement.dataset.layout === 'tasks', [], { what: 'the Tasks interface' });
   const L = await page.eval(() => ({
@@ -92,7 +95,7 @@ uiTest('View ▸ Interface ▸ Tasks: the task switcher in the header, the task\
   await makeProject(env, { name: 'TasksMenu', template: 'gates' });
   await page.openProject('TasksMenu');
   await noWarnings(page);
-});
+}, { build: DEV });
 
 uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task with no document offers its action, maximize', E, async (page) => {
   await makeProject(env, { name: 'TasksLaptop', template: 'blinky' });
@@ -169,7 +172,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.match(kept.tasks.edit.doc, /^file:src\/top\.vhd$/);
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
   await noWarnings(page);
-});
+}, { build: DEV });
 
 uiTest('Tasks on a tablet: the tab bar at the bottom in portrait, the header\'s switcher in landscape; a task closes the drawer', E, async (page) => {
   await makeProject(env, { name: 'TasksTablet', template: 'gates' });
@@ -199,7 +202,7 @@ uiTest('Tasks on a tablet: the tab bar at the bottom in portrait, the header\'s 
   assert.ok(!(await shown(page, '#task-tabs')));
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
   await noWarnings(page);
-});
+}, { build: DEV });
 
 uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translated; the header fits at 1180 and 1280 px', E, async (page) => {
   await page.setViewport(1366, 768);
@@ -224,7 +227,7 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   await makeProject(env, { name: 'TasksPt', template: 'gates' });
   await page.openProject('TasksPt');
   await noWarnings(page);
-});
+}, { build: DEV });
 
 // the lines of the message centre shown (its filter): [source, text]
 const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));
@@ -296,4 +299,21 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.waitFor(() => !document.getElementById('mc-filters'));
   assert.equal(await page.eval(() => document.querySelectorAll('#console-log .ln.mc-off, #console-log .ln[data-src]').length), 0);
   await noWarnings(page);
+}, { build: DEV });
+
+// #838: a release (and the local server) offers no Tasks interface, and a stored tasks (the dev/ site's, which shares
+// the stable one's storage) opens the modern one, with no Tasks layout before the first paint either
+uiTest('#838 without a development build: View ▸ Interface is Modern and Classic; a stored tasks opens the modern interface', E, async (page) => {
+  await page.waitFor(() => window.Silinx?.startupChecked && document.querySelector('#start-page .start-box'), [], { what: 'app boot' });
+  const items = await page.openMenu('View');
+  await page.hover(await page.point('body > .menu-popup > .mi', { index: items.findIndex((x) => x.label === 'Interface') }));
+  await page.waitForSelector('.menu-popup.sub .mi');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.menu-popup.sub .mi .lbl')].map((l) => l.textContent)), ['Modern', 'Classic']);
+  await page.closeMenus();
+  await page.eval(() => localStorage.setItem('silinx.ui', 'tasks'));
+  await page.reload();
+  await page.waitFor(() => window.Silinx?.startupChecked && document.querySelector('#start-page .start-box'), [], { what: 'app boot' });
+  assert.deepEqual(await page.eval(() => [document.documentElement.dataset.ui, document.documentElement.dataset.layout ?? null]), ['modern', null]);
+  assert.ok(!(await shown(page, '#task-switch')) && !(await shown(page, '#task-tabs')));
+  await page.eval(() => localStorage.removeItem('silinx.ui'));
 });

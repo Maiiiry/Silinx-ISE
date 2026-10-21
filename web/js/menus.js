@@ -6,7 +6,7 @@ import { h, alertDlg, menuBar, toast, downloadText, runAction } from './ui.js';
 import * as wiz from './wizards.js';
 import { setLanguage, getLanguage, LOCALES } from './i18n.js';
 import { lintEnabled, setLintEnabled } from './diaghelp.js';
-import { getInterface, setInterface, getTheme, setTheme, menuCommands } from './modern.js';
+import { getInterface, setInterface, getTheme, setTheme, menuCommands, tasksAvailable } from './modern.js';
 import { openPalette } from './palette.js';
 import { developmentMenu } from './devmenu.js';
 import { S, activateDoc, app, canCopyAny, canDeleteAny, canPasteAny, closeDoc, copyAny, cutAny, deleteAny, docEditor, history, openFile,
@@ -79,9 +79,10 @@ export function setupMenus() {
       { label: 'Language', submenu: Object.entries(LOCALES).map(([id, l]) => ({ label: l.name, checked: getLanguage() === id, action: () => setLanguage(id) })) },
       { label: 'Interface', submenu: [
         { label: 'Modern', checked: getInterface() === 'modern', action: () => setInterface('modern') },
-        { label: 'Xilinx ISE (Classic)', checked: getInterface() === 'classic', action: () => setInterface('classic') },
-        { label: 'Tasks', checked: getInterface() === 'tasks', action: () => setInterface('tasks') },
-      ] },
+        { label: 'Classic', checked: getInterface() === 'classic', action: () => setInterface('classic') },
+        // (a development build's only, for now: #838)
+        tasksAvailable() ? { label: 'Tasks', checked: getInterface() === 'tasks', action: () => setInterface('tasks') } : null,
+      ].filter(Boolean) },
       // the classic ISE look is light only
       getInterface() !== 'classic' ? { label: 'Theme', submenu: [
         { label: 'System', checked: getTheme() === 'system', action: () => setTheme('system') },
