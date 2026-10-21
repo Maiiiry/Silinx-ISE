@@ -176,3 +176,27 @@ html[data-layout="tasks"] .summary-table :is(th, td) { border: none; border-top:
 .task-program { display: none; }
 html[data-layout="tasks"] .task-program { display: table-row; }
 html[data-layout="tasks"] .task-program button { font-weight: 600; }
+
+/* ------------------------------------------------------------------ Program (#803, web/js/tasks-prog.js) */
+/* iMPACT arranged for the task: the programming file and its state first, then the chain and Program FPGA / PROM;
+   the board, tool and cable folded away (a board chooses them), the PROM's other operations behind More… */
+.task-prog-state, .task-prog-more, .task-prog-settings { display: none; }
+html[data-layout="tasks"] #workspace > .doc[data-task="prog"] > .page { display: flex; flex-direction: column; gap: 10px; max-width: 920px; }
+html[data-layout="tasks"] .task-prog-state { display: flex; align-items: center; gap: 12px; order: 0; padding: 12px 14px; border: 1px solid var(--m-border);
+  border-radius: 10px; background: var(--m-surface-2); font-weight: 600; }
+html[data-layout="tasks"] .task-prog-state[data-state="ok"] { color: var(--m-success); }
+html[data-layout="tasks"] .task-prog-state:is([data-state="stale"], [data-state="none"]) { color: var(--m-warning); }
+html[data-layout="tasks"] .task-prog-state[data-state="err"] { color: var(--m-danger); }
+html[data-layout="tasks"] .task-prog-state:is([data-state="ok"], [data-state="running"]) .task-prog-impl { display: none; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > h2 { order: 1; margin: 0; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .imp-file { order: 2; margin: 0; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .impact-chain { order: 3; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .imp-scan { order: 4; margin: 0; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .imp-fpga { order: 5; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .prom-box { order: 6; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .task-prog-settings { display: inline-flex; order: 7; align-self: flex-start; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .imp-settings { order: 8; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page > .note-box { order: 9; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page:not(.settings-open) > .imp-settings { display: none; }
+html[data-layout="tasks"] .task-prog-more { display: inline-flex; }
+html[data-layout="tasks"] .doc[data-task="prog"] > .page:not(.more-open) .imp-more { display: none; }

@@ -25,11 +25,11 @@ export function mountImpact(el) {
   const promFile = pj?.top ? `build/${pj.top}_prom.bit` : '';
   const bitfile = h('input', { type: 'text', style: { width: '360px' }, value: fpgaFile });
   const chainHost = h('div', { class: 'impact-chain' });
-  const info = h('div', { style: { color: 'var(--grey-2)', margin: '6px 0' } });
+  const info = h('div', { class: 'imp-file', style: { color: 'var(--grey-2)', margin: '6px 0' } });
   const verify = h('input', { type: 'checkbox', checked: true });
   const reload = h('input', { type: 'checkbox' });
   const promBox = h('div', { class: 'prom-box' });
-  const fpgaBox = h('div', {});
+  const fpgaBox = h('div', { class: 'imp-fpga' });
   const help = h('div', { class: 'note-box' });
   // the browser edition: a .bit from the disk (its bytes go to the board over WebUSB)
   let bitData = null;
@@ -153,10 +153,11 @@ export function mountImpact(el) {
       h('label', { style: { margin: 0 } }, reload, ' Reload the FPGA from the PROM afterwards (mode jumper on ROM)')),
     h('div', { style: { display: 'flex', gap: '8px', flexWrap: 'wrap' } },
       h('button', { class: 'btn primary', onclick: () => prom('program') }, 'Program PROM'),
-      h('button', { class: 'btn', onclick: () => prom('verify') }, 'Verify'),
-      h('button', { class: 'btn', onclick: () => prom('erase') }, 'Erase'),
-      h('button', { class: 'btn', onclick: () => prom('read') }, 'Back up PROM'),
-      h('button', { class: 'btn', onclick: () => prom('reconfigure') }, 'Reload FPGA from PROM')),
+      // (imp-*: the parts the Tasks interface arranges, web/js/tasks-prog.js, #803)
+      h('button', { class: 'btn imp-more', onclick: () => prom('verify') }, 'Verify'),
+      h('button', { class: 'btn imp-more', onclick: () => prom('erase') }, 'Erase'),
+      h('button', { class: 'btn imp-more', onclick: () => prom('read') }, 'Back up PROM'),
+      h('button', { class: 'btn imp-more', onclick: () => prom('reconfigure') }, 'Reload FPGA from PROM')),
     h('div', { style: { color: 'var(--grey-4)', marginTop: '6px' } },
       'The PROM image is build/<top>_prom.bit (generated with StartUpClk:CCLK by "Generate Programming File"). ',
       'To boot from flash at power-up, set the mode jumper to ROM (Basys2: JP3). ',
@@ -164,13 +165,13 @@ export function mountImpact(el) {
 
   page.append(
     h('h2', {}, 'iMPACT — Boundary Scan'),
-    h('div', { class: 'form-grid', style: { maxWidth: '760px' } },
+    h('div', { class: 'form-grid imp-settings', style: { maxWidth: '760px' } },
       h('label', {}, 'Board:'), boardSel,
       ...(api.standalone ? [h('label', {}, 'Programmer:'), h('span', {}, 'the board\'s USB (Digilent Adept), from the browser (WebUSB)')]
         : [h('label', {}, 'Programming tool:'), toolSel, h('label', {}, 'Cable:'), cable]),
       h('label', {}, 'Configuration file (.bit):'), bitRow),
     info, chainHost,
-    h('div', { style: { margin: '6px 0' } }, h('button', { class: 'btn', onclick: scan }, 'Initialize Chain (Scan)')),
+    h('div', { class: 'imp-scan', style: { margin: '6px 0' } }, h('button', { class: 'btn', onclick: scan }, 'Initialize Chain (Scan)')),
     fpgaBox, promBox,
     help);
   renderHelp();
