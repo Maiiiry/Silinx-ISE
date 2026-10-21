@@ -43,11 +43,15 @@ function fromText(sys, kind) {
   if (kind === 'text') return mem.text;
   return mem.kind === kind ? clone(mem.data) : null;
 }
+// how long a read of the system clipboard is waited for: Firefox holds it until the viewer clicks its own Paste
+// prompt, so that it never comes in a paste from a menu; past it, the app's own copy (#888)
+export const READ_WAIT_MS = 300;
 /** What is on the clipboard for kind ('text': any text), or null: the system clipboard's when it can be
  *  read (a copy made in another tab or application, newer than the app's), else the app's own. */
-export async function readClip(kind) {
-  let sys = null;
-  try { sys = await navigator.clipboard?.readText?.(); } catch { sys = null; }
+export async function readClip(kind, wait = READ_WAIT_MS) {
+  let sys = null, timer = null;
+  const late = new Promise(ok => { timer = setTimeout(() => ok(null), wait); });
+  try { sys = await Promise.race([navigator.clipboard?.readText?.(), late]); } catch { sys = null; } finally { clearTimeout(timer); }
   return fromText(sys, kind);
 }
 
