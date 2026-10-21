@@ -90,3 +90,9 @@ uiTest('Design Summary after a MAP over the XC3S100E\'s block RAMs and multiplie
     ['Number of bonded IOBs', '47', '83', '57%', false], ['Number of RAMB16s', '5', '4', '125%', true], ['Number of MULT18X18SIOs', '5', '4', '125%', true],
     ['Number of BUFGMUXs', '1', '24', '4%', false], ['Number of DCMs', '0', '2', '0%', false]]);
 });
+
+uiTest('Design Summary, not yet implemented: a Spartan-3 part\'s 8 global clock buffers (#821)', E, async (page) => {
+  await makeProject(env, { name: 'ResS3', template: 'blinky', board: 's3-starter' });
+  assert.deepEqual(await shown(page, 'ResS3'), [['Number of Slice Flip Flops', '3840'], ['Number of 4 input LUTs', '3840'], ['Number of occupied Slices', '1920'],
+    ['Number of bonded IOBs', '173'], ['Number of BUFGMUXs', '8']]);
+});

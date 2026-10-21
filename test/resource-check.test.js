@@ -36,10 +36,13 @@ test('overResources: the resources over the part\'s counts, in its order; none a
     { id: 'ramb16', used: 14, count: 4, noun: 'block RAMs', report: 'Number of RAMB16s' },
     { id: 'dcm', used: 3, count: 2, noun: 'DCMs', report: 'Number of DCMs' }]);
   assert.deepEqual(overResources(S100, {}), []);
-  // (the I/O of a part without a package: its maximum; the BUFHs of the LX4: not known, not checked)
+  // (the I/O of a part without a package: its maximum; a count not known, a Zynq's distributed RAM: not checked;
+  // the LX4's BUFHs measured, #820)
   assert.deepEqual(overResources(resourcesOf(findPart('xc3s100e')), { iob: 109 }).map(o => [o.id, o.count]), [['iob', 108]]);
-  assert.equal(LX4.find(r => r.id === 'bufh').count, null);
-  assert.deepEqual(overResources(LX4, { bufh: 1000 }), []);
+  const z = resourcesOf(findPart('xc7z010'));
+  assert.equal(z.find(r => r.id === 'distRam').count, null);
+  assert.deepEqual(overResources(z, { distRam: 1e9 }), []);
+  assert.deepEqual(overResources(LX4, { bufh: 129 }).map(o => [o.id, o.count]), [['bufh', 128]]);
 });
 
 test('overResources: the Spartan-6\'s block RAM halves counted in the block RAMs (two RAMB8BWER, one RAMB16BWER\'s sites)', () => {

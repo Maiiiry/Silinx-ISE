@@ -22,7 +22,8 @@ import { primitiveSources } from '../core/unisim.js';
 import { spawn } from 'node:child_process';
 import { runCommand, JobCancelled } from './jobs.js';
 import { loadConfig, detectIse, iseStatus, iseModeOf, which } from './toolchain.js';
-import { validateDevice } from './devices.js';
+import { validateDevice, findPart } from './devices.js';
+import { resourceCount } from '../core/resources.js';
 import { parseBitHeader } from './programmer.js';
 
 // the default flow (an empty request runs these)
@@ -83,6 +84,10 @@ export function generatePrj(files) {
 /** The XST options that name files, folders, the device or the top: Silinx's own (generateXst). */
 const XST_FIXED = new Set(['ifn', 'ofn', 'ifmt', 'ofmt', 'p', 'top', 'uc', 'sd', 'lso', 'iuc', 'vlgincdir', 'tmpdir', 'xsthdpdir', 'xsthdpini']);
 
+/** XST's -bufg: the part's global clock buffers (core/resources.js, #821); 24, the Spartan-3E's, for a part
+ *  outside the device database. */
+const globalBuffers = device => { const p = findPart(device.part); return (p && resourceCount(p, 'bufgmux')) || 24; };
+
 /** Contents of the XST script. */
 export function generateXst({ top, device, impl = {}, includeDirs = [] }) {
   const ps = partStrings(device);
@@ -122,7 +127,7 @@ export function generateXst({ top, device, impl = {}, includeDirs = [] }) {
     ['mult_style', 'Auto'],
     ['iobuf', 'YES'],
     ['max_fanout', 100000],
-    ['bufg', 24],
+    ['bufg', globalBuffers(device)],
     ['register_duplication', 'YES'],
     ['register_balancing', 'No'],
     ['slice_packing', 'YES'],

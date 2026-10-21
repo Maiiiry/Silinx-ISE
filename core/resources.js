@@ -6,7 +6,8 @@
 //
 // The counts come from the part records of server/devices.js (DS312 / DS160 tables; the page has them as
 // S.devices.parts): this module adds what those records lack, the clock buffers of each family and the
-// primitive names. A part of another family has the common resources only.
+// primitive names. The Spartan-3, 3A, 3A DSP and Virtex-4 have the common resources and their global clock
+// buffers (#821); a part of another family has the common resources only.
 //
 // Isomorphic ES module (browser + Node), no DOM.
 //
@@ -16,7 +17,7 @@
 //   familyResources(family)        the resources of a family, without counts
 //   primitivesOf(family)           the primitives of a family that use a counted resource: { name, resource }
 //   resourceOfPrimitive(family, n) the resource a primitive uses on a family (null: none counted)
-//   RESOURCE_FAMILIES              the families with their own resources described
+//   RESOURCE_FAMILIES              the families with all their own resources described
 
 const label = (en, pt) => ({ en, pt });
 
@@ -44,47 +45,60 @@ const common = ({ lutInputs, lutReport, ffReport, dram }) => [
     count: (p, pkg) => (pkg ? p.packages?.[String(pkg).toLowerCase()]?.userIo ?? null : p.maxUserIo), primitives: IO_PRIMS },
 ];
 
+// the common resources of the 4-input LUT families (the Spartan-3 generation, Virtex-4) and of the 6-input ones
+const LUT4_COMMON = common({ lutInputs: 4, lutReport: 'Number of 4 input LUTs', ffReport: 'Number of Slice Flip Flops', dram: S3_DRAM_PRIMS });
+const LUT6_COMMON = common({ lutInputs: 6, lutReport: 'Number of Slice LUTs', ffReport: 'Number of Slice Registers', dram: S3_DRAM_PRIMS });
+const globalBuffers = (n, report = 'Number of BUFGMUXs', primitives = BUFG_PRIMS) =>
+  ({ id: 'bufgmux', label: label('Global clock buffers', 'Buffers globais de relógio'), report, count: () => n, primitives });
+
+// the BUFH of the Spartan-6 parts (an LXT part has its LX's)
+const BUFH = { xc6slx4: 128, xc6slx9: 128, xc6slx16: 128, xc6slx25: 160, xc6slx45: 256, xc6slx75: 384 };
+
 /** The resources of each family described here. A count is a function of the part record (and package);
  *  a fixed number is the family's own (the same on every part, the data sheet's or the user guide's). */
 const FAMILY_RESOURCES = {
   // DS312 Table 1; the global clock buffers: 24 BUFGMUX on every part (DS312 "Clocking Infrastructure",
   // and the device reports of the shipped devices, core/fpga/devices/)
   spartan3e: [
-    ...common({ lutInputs: 4, lutReport: 'Number of 4 input LUTs', ffReport: 'Number of Slice Flip Flops', dram: S3_DRAM_PRIMS }),
+    ...LUT4_COMMON,
     { id: 'ramb16', label: label('Block RAM (18 Kb)', 'RAM de bloco (18 Kb)'), report: 'Number of RAMB16s', count: p => p.brams, primitives: RAMB16_PRIMS },
     { id: 'mult18x18', label: label('18×18 multipliers', 'Multiplicadores 18×18'), report: 'Number of MULT18X18SIOs', count: p => p.multipliers,
       primitives: ['MULT18X18', 'MULT18X18S', 'MULT18X18SIO'] },
-    { id: 'bufgmux', label: label('Global clock buffers', 'Buffers globais de relógio'), report: 'Number of BUFGMUXs', count: () => 24, primitives: BUFG_PRIMS },
+    globalBuffers(24),
     { id: 'dcm', label: label('DCMs', 'DCMs'), report: 'Number of DCMs', count: p => p.dcms, primitives: ['DCM_SP', 'DCM'] },
   ],
   // DS160 Table 1 (a CMT is 2 DCM + 1 PLL; an 18 Kb block RAM is one RAMB16BWER or two RAMB8BWER); the
-  // clock buffers from UG382 and ISE's MAP report of the LX16 / LX45 (research/s6/measured/night1.json):
-  // 16 BUFGMUX and 32 BUFIO2 on every part, 32 BUFH per clock region row (the LX16 128, the LX45 256;
-  // the other parts' are not known yet: null)
-  spartan6: [
+  // clock buffers from ISE's device report of every part (xdl -report, #820): 16 BUFGMUX and 32 BUFIO2 on
+  // every part, 32 BUFH per clock region row
+    spartan6: [
     ...common({ lutInputs: 6, lutReport: 'Number of Slice LUTs', ffReport: 'Number of Slice Registers',
       dram: [...S3_DRAM_PRIMS, 'SRLC32E', 'RAM32M', 'RAM64M', 'RAM128X1S', 'RAM128X1D', 'RAM256X1S'] }),
     { id: 'ramb16bwer', label: label('Block RAM (18 Kb)', 'RAM de bloco (18 Kb)'), report: 'Number of RAMB16BWERs', count: p => p.brams, primitives: ['RAMB16BWER'] },
     { id: 'ramb8bwer', label: label('Block RAM (9 Kb halves)', 'RAM de bloco (metades de 9 Kb)'), report: 'Number of RAMB8BWERs', count: p => 2 * p.brams,
       primitives: ['RAMB8BWER'], shares: { with: 'ramb16bwer', per: 2 } },
     { id: 'dsp48a1', label: label('DSP slices', 'Slices DSP'), report: 'Number of DSP48A1s', count: p => p.dsp, primitives: ['DSP48A1'] },
-    { id: 'bufgmux', label: label('Global clock buffers', 'Buffers globais de relógio'), report: 'Number of BUFG/BUFGMUXs', count: () => 16, primitives: BUFG_PRIMS },
+    globalBuffers(16, 'Number of BUFG/BUFGMUXs'),
     { id: 'bufio2', label: label('I/O clock buffers', 'Buffers de relógio de E/S'), report: 'Number of BUFIO2/BUFIO2_2CLKs', count: () => 32, primitives: ['BUFIO2', 'BUFIO2_2CLK'] },
     { id: 'bufh', label: label('Horizontal clock buffers', 'Buffers horizontais de relógio'), report: 'Number of BUFHs',
-      count: p => ({ xc6slx16: 128, xc6slx45: 256 })[p.part] ?? null, primitives: ['BUFH', 'BUFHCE'] },
+      count: p => BUFH[p.part.replace(/t$/, '')] ?? null, primitives: ['BUFH', 'BUFHCE'] },
     { id: 'dcm', label: label('DCMs', 'DCMs'), report: 'Number of DCM/DCM_CLKGENs', count: p => p.dcms, primitives: ['DCM_SP', 'DCM_CLKGEN'] },
     { id: 'pll', label: label('PLLs', 'PLLs'), report: 'Number of PLL_ADVs', count: p => p.plls, primitives: ['PLL_BASE', 'PLL_ADV'] },
     { id: 'mcb', label: label('Memory controllers', 'Controladores de memória'), report: 'Number of MCBs', count: p => p.mcb ?? 0, primitives: ['MCB'] },
   ],
+  // the families whose XST takes -bufg (server/ise.js, #821): the common resources and the global clock
+  // buffers, the same on every part (DS099, DS529, DS610, DS112; ISE's device reports): 8 BUFGMUX on the
+  // Spartan-3, 24 on the Spartan-3A / 3A DSP, 32 BUFGCTRL on the Virtex-4
+  spartan3: [...LUT4_COMMON, globalBuffers(8)],
+  spartan3a: [...LUT4_COMMON, globalBuffers(24)],
+  spartan3adsp: [...LUT4_COMMON, globalBuffers(24)],
+  virtex4: [...LUT4_COMMON, globalBuffers(32, 'Number of BUFG/BUFGCTRLs', [...BUFG_PRIMS, 'BUFGCTRL'])],
 };
 
-/** The families with their own resources described (the others have the common ones only). */
-export const RESOURCE_FAMILIES = Object.keys(FAMILY_RESOURCES);
+/** The families whose own resources are all described (the Spartan-3, 3A, 3A DSP and Virtex-4 have their
+ *  global clock buffers only, the others none: the common ones). */
+export const RESOURCE_FAMILIES = ['spartan3e', 'spartan6'];
 
-// the common resources of a family not described here: the Spartan-3 generation's or the 6-input LUTs'
-const OTHER_S3 = common({ lutInputs: 4, lutReport: 'Number of 4 input LUTs', ffReport: 'Number of Slice Flip Flops', dram: S3_DRAM_PRIMS });
-const OTHER_MODERN = common({ lutInputs: 6, lutReport: 'Number of Slice LUTs', ffReport: 'Number of Slice Registers', dram: S3_DRAM_PRIMS });
-const definitions = family => FAMILY_RESOURCES[family] || (/^spartan3/.test(family || '') ? OTHER_S3 : OTHER_MODERN);
+const definitions = family => FAMILY_RESOURCES[family] || (/^(spartan3|virtex4)/.test(family || '') ? LUT4_COMMON : LUT6_COMMON);
 
 const strip = ({ count, ...r }) => ({ ...r, primitives: [...r.primitives], ...(r.shares ? { shares: { ...r.shares } } : {}) });
 const checkPart = part => {

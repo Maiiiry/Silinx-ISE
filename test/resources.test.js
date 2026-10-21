@@ -32,6 +32,30 @@ const DS160 = {
   xc6slx75t: [11662, 93296, 692, 132, 172, 6, 4, 348, { csg484: 292, fgg484: 268, fgg676: 348 }],
 };
 
+// ISE 14.7's device report of each part (xdl -report <part>, the sites only; #820, #821): the count of each
+// site type of a resource, the slices, the bonded I/O of the package named
+const ISE_SITES = {
+  xc6slx4: { pkg: 'tqg144', SLICE: 600, IOB: 102, RAMB16BWER: 12, RAMB8BWER: 24, DSP48A1: 8, BUFGMUX: 16, BUFIO2: 32, BUFH: 128, DCM: 4, PLL_ADV: 2, MCB: 0 },
+  xc6slx9: { pkg: 'tqg144', SLICE: 1430, IOB: 102, RAMB16BWER: 32, RAMB8BWER: 64, DSP48A1: 16, BUFGMUX: 16, BUFIO2: 32, BUFH: 128, DCM: 4, PLL_ADV: 2, MCB: 2 },
+  xc6slx16: { pkg: 'csg324', SLICE: 2278, IOB: 232, RAMB16BWER: 32, RAMB8BWER: 64, DSP48A1: 32, BUFGMUX: 16, BUFIO2: 32, BUFH: 128, DCM: 4, PLL_ADV: 2, MCB: 2 },
+  xc6slx25: { pkg: 'ftg256', SLICE: 3758, IOB: 186, RAMB16BWER: 52, RAMB8BWER: 104, DSP48A1: 38, BUFGMUX: 16, BUFIO2: 32, BUFH: 160, DCM: 4, PLL_ADV: 2, MCB: 2 },
+  xc6slx45: { pkg: 'csg324', SLICE: 6822, IOB: 218, RAMB16BWER: 116, RAMB8BWER: 232, DSP48A1: 58, BUFGMUX: 16, BUFIO2: 32, BUFH: 256, DCM: 8, PLL_ADV: 4, MCB: 2 },
+  xc6slx75: { pkg: 'fgg484', SLICE: 11662, IOB: 280, RAMB16BWER: 172, RAMB8BWER: 344, DSP48A1: 132, BUFGMUX: 16, BUFIO2: 32, BUFH: 384, DCM: 12, PLL_ADV: 6, MCB: 4 },
+  xc6slx25t: { pkg: 'csg324', SLICE: 3758, IOB: 190, RAMB16BWER: 52, RAMB8BWER: 104, DSP48A1: 38, BUFGMUX: 16, BUFIO2: 32, BUFH: 160, DCM: 4, PLL_ADV: 2, MCB: 2 },
+  xc6slx45t: { pkg: 'csg324', SLICE: 6822, IOB: 190, RAMB16BWER: 116, RAMB8BWER: 232, DSP48A1: 58, BUFGMUX: 16, BUFIO2: 32, BUFH: 256, DCM: 8, PLL_ADV: 4, MCB: 2 },
+  xc6slx75t: { pkg: 'fgg484', SLICE: 11662, IOB: 268, RAMB16BWER: 172, RAMB8BWER: 344, DSP48A1: 132, BUFGMUX: 16, BUFIO2: 32, BUFH: 384, DCM: 12, PLL_ADV: 6, MCB: 4 },
+  xc3s1600e: { pkg: 'fg320', SLICE: 14752, IOB: 250, RAMB16: 36, MULT18X18SIO: 36, BUFGMUX: 24, DCM: 8 },
+  xc3s50: { pkg: 'vq100', SLICE: 768, IOB: 63, BUFGMUX: 8 },
+  xc3s200: { pkg: 'ft256', SLICE: 1920, IOB: 173, BUFGMUX: 8 },
+  xc3s50a: { pkg: 'vq100', SLICE: 704, BUFGMUX: 24 },
+  xc3s200a: { pkg: 'ft256', SLICE: 1792, BUFGMUX: 24 },
+  xc3sd1800a: { pkg: 'cs484', SLICE: 16640, BUFGMUX: 24 },
+  xc4vlx15: { pkg: 'sf363', SLICE: 6144, BUFGCTRL: 32 },
+};
+// the model's resource of each site type
+const SITE_RESOURCE = { SLICE: 'slices', IOB: 'iob', RAMB16BWER: 'ramb16bwer', RAMB8BWER: 'ramb8bwer', DSP48A1: 'dsp48a1', BUFGMUX: 'bufgmux', BUFGCTRL: 'bufgmux',
+  BUFIO2: 'bufio2', BUFH: 'bufh', DCM: 'dcm', PLL_ADV: 'pll', MCB: 'mcb', RAMB16: 'ramb16', MULT18X18SIO: 'mult18x18' };
+
 const counts = (part, pkg) => Object.fromEntries(resourcesOf(findPart(part), pkg).map(r => [r.id, r.count]));
 
 test('Spartan-3E: every part\'s resources as DS312 gives them, the I/O of every package', () => {
@@ -50,7 +74,7 @@ test('Spartan-6: every part\'s resources as DS160 gives them (a CMT 2 DCM + 1 PL
   for (const [part, [slices, ffs, distKb, dsp, brams, cmts, mcb, maxIo, pkgs]] of Object.entries(DS160)) {
     assert.deepEqual(counts(part), { ffs, luts: 4 * slices, slices, distRam: distKb * 1024, iob: maxIo,
       ramb16bwer: brams, ramb8bwer: 2 * brams, dsp48a1: dsp, bufgmux: 16, bufio2: 32,
-      bufh: { xc6slx16: 128, xc6slx45: 256 }[part] ?? null, dcm: 2 * cmts, pll: cmts, mcb }, part);
+      bufh: ISE_SITES[part].BUFH, dcm: 2 * cmts, pll: cmts, mcb }, part);
     assert.equal(ffs, 8 * slices, part);
     for (const [pkg, io] of Object.entries(pkgs)) assert.equal(resourceCount(findPart(part), 'iob', pkg), io, `${part} ${pkg}`);
     assert.deepEqual(Object.keys(findPart(part).packages).sort(), Object.keys(pkgs).sort(), part);
@@ -86,6 +110,13 @@ test('Spartan-6: the totals of ISE\'s MAP report of the LX16 and the LX45 (resea
     assert.ok(seen.length >= 11, `${part}: ${seen.map(r => r.report)} of ${Object.keys(totals)}`);
     for (const r of seen) assert.equal(r.count, totals[r.report], `${part}: ${r.report}`);
     assert.deepEqual(model.filter(r => !(r.report in totals)).map(r => r.id), [], part);
+  }
+});
+
+test('ISE\'s device reports: every Spartan-6 part\'s sites (BUFH, BUFGMUX, BUFIO2 and the others), the global buffers of the Spartan-3, 3A, 3A DSP, 3E and Virtex-4 equal to the model\'s counts (#820, #821)', () => {
+  assert.deepEqual(Object.keys(ISE_SITES).filter(p => p.startsWith('xc6')), partsOfFamily('spartan6').map(p => p.part), 'every Spartan-6 part measured');
+  for (const [part, { pkg, ...sites }] of Object.entries(ISE_SITES)) {
+    for (const [type, n] of Object.entries(sites)) assert.equal(resourceCount(findPart(part), SITE_RESOURCE[type], pkg), n, `${part} ${type}`);
   }
 });
 
@@ -127,7 +158,7 @@ test('primitivesOf: each family\'s primitives once, in the resources\' order; ev
 test('familyResources: ids, labels in English and Portuguese, the MAP report\'s lines; copies, not the model itself', () => {
   assert.deepEqual(familyResources('spartan3e').map(r => r.id), ['ffs', 'luts', 'slices', 'distRam', 'iob', 'ramb16', 'mult18x18', 'bufgmux', 'dcm']);
   assert.deepEqual(familyResources('spartan6').map(r => r.id), ['ffs', 'luts', 'slices', 'distRam', 'iob', 'ramb16bwer', 'ramb8bwer', 'dsp48a1', 'bufgmux', 'bufio2', 'bufh', 'dcm', 'pll', 'mcb']);
-  for (const f of [...RESOURCE_FAMILIES, 'spartan3', 'artix7']) {
+  for (const f of [...RESOURCE_FAMILIES, 'artix7']) {
     for (const r of familyResources(f)) {
       assert.ok(r.label.en && r.label.pt, `${f} ${r.id}`);
       assert.ok(r.report === null || /^Number of /.test(r.report), `${f} ${r.id}`);
@@ -143,12 +174,29 @@ test('familyResources: ids, labels in English and Portuguese, the MAP report\'s 
   assert.ok(familyResources('spartan3e')[5].label.en);
 });
 
-test('other families: the common resources only; unknown or missing data null', () => {
-  assert.deepEqual(familyResources('spartan3').map(r => r.id), ['ffs', 'luts', 'slices', 'distRam', 'iob']);
-  assert.equal(familyResources('spartan3')[1].label.en, '4-input LUTs');
-  assert.equal(familyResources('kintex7')[1].label.en, '6-input LUTs');
-  assert.deepEqual(familyResources(undefined).map(r => r.id), ['ffs', 'luts', 'slices', 'distRam', 'iob']);
-  assert.deepEqual(counts('xc3s200', 'ft256'), { ffs: 3840, luts: 3840, slices: 1920, distRam: 30 * 1024, iob: 173 });
+test('other families: the Spartan-3, 3A, 3A DSP and Virtex-4 the common resources and their global clock buffers (#821), the others the common ones only', () => {
+  const COMMON = ['ffs', 'luts', 'slices', 'distRam', 'iob'];
+  assert.deepEqual(RESOURCE_FAMILIES, ['spartan3e', 'spartan6'], 'the families with all their own resources: the others\' global buffers only (core/resource-check.js checks a device change between the first)');
+  for (const f of ['spartan3', 'spartan3a', 'spartan3adsp', 'virtex4']) {
+    assert.deepEqual(familyResources(f).map(r => r.id), [...COMMON, 'bufgmux'], f);
+    assert.equal(familyResources(f)[1].label.en, '4-input LUTs', f);
+    assert.equal(familyResources(f)[1].report, 'Number of 4 input LUTs', f);
+  }
+  // the same count on every part of the family
+  const bufg = { spartan3: 8, spartan3a: 24, spartan3adsp: 24, virtex4: 32 };
+  for (const [f, n] of Object.entries(bufg)) for (const p of partsOfFamily(f)) assert.equal(resourceCount(p, 'bufgmux'), n, p.part);
+  assert.equal(familyResources('spartan3')[5].report, 'Number of BUFGMUXs');
+  assert.equal(familyResources('virtex4')[5].report, 'Number of BUFG/BUFGCTRLs');
+  assert.equal(resourceOfPrimitive('virtex4', 'BUFGCTRL'), 'bufgmux');
+  assert.equal(resourceOfPrimitive('spartan3', 'BUFGCTRL'), null);
+  assert.equal(resourceOfPrimitive('spartan3', 'RAMB16_S9'), null, 'the Spartan-3\'s block RAMs not described yet');
+  for (const f of ['virtex5', 'virtex6', 'artix7', 'kintex7', 'zynq', undefined]) {
+    assert.deepEqual(familyResources(f).map(r => r.id), COMMON, String(f));
+    assert.equal(familyResources(f)[1].label.en, '6-input LUTs', String(f));
+    assert.equal(resourceCount(PARTS.find(p => p.family === (f || 'zynq')), 'bufgmux'), 0, String(f));
+  }
+  assert.deepEqual(counts('xc3s200', 'ft256'), { ffs: 3840, luts: 3840, slices: 1920, distRam: 30 * 1024, iob: 173, bufgmux: 8 });
+  assert.deepEqual(counts('xc4vlx15', 'sf363'), { ffs: 12288, luts: 12288, slices: 6144, distRam: 96 * 1024, iob: 240, bufgmux: 32 });
   assert.equal(counts('xc7z010').distRam, null, 'DS190 lists no distributed RAM: not known');
   assert.deepEqual(primitivesOf('virtex5').map(p => p.resource).filter(x => !['ffs', 'luts', 'distRam', 'iob'].includes(x)), []);
   // every part of the database has its common resources
@@ -164,7 +212,8 @@ test('resourceCount: a resource the part lacks is 0, an unknown package or count
   assert.equal(resourceCount(lx4, 'mult18x18'), 0);
   assert.equal(resourceCount(s3e, 'bufgmux'), 24);
   assert.equal(resourceCount(lx4, 'bufgmux'), 16);
-  assert.equal(resourceCount(lx4, 'bufh'), null, 'not known yet');
+  assert.equal(resourceCount(lx4, 'bufh'), 128);
+  assert.equal(resourceCount({ ...lx4, part: 'xc6slx150' }, 'bufh'), null, 'a part outside the device reports: not known');
   assert.equal(resourceCount(s3e, 'iob'), 172, 'no package: the maximum');
   assert.equal(resourceCount(s3e, 'iob', 'CP132'), 92, 'any case');
   assert.equal(resourceCount(s3e, 'iob', 'fg484'), null, 'a package the part is not made in');
