@@ -61,8 +61,9 @@ test('the Silinx toolchain\'s devices: the sites of each shipped device report e
   const { loadDeviceCache, SHIPPED_DEVICES_DIR } = await import('../core/fpga/device-node.js');
   const { deviceSites } = await import('../core/fpga/place.js');
   const shipped = fs.readdirSync(SHIPPED_DEVICES_DIR).filter(f => f.endsWith('.json.gz')).map(f => f.replace(/\.json\.gz$/, ''));
-  assert.deepEqual(shipped.sort(), ['xc3s100ecp132-4', 'xc3s1200efg320-4', 'xc3s250ecp132-4', 'xc3s500efg320-4']);
-  for (const name of shipped) {
+  // (the Spartan-6 ones, #723, their sites in a description of their own: core/fpga/s6, #826)
+  assert.deepEqual(shipped.sort(), ['xc3s100ecp132-4', 'xc3s1200efg320-4', 'xc3s250ecp132-4', 'xc3s500efg320-4', 'xc6slx16csg324-3', 'xc6slx45csg324-3']);
+  for (const name of shipped.filter(n => /^xc3s/.test(n))) {
     const [, part, pkg] = /^(xc3s\d+e)([a-z]+\d+)-\d$/.exec(name);
     const d = deviceSites(loadDeviceCache(name)), c = counts(part, pkg);
     assert.deepEqual({ slices: d.slices.size, iob: d.pads.size, bufgmux: d.bufgmux.length, ramb16: d.brams.length, mult18x18: d.mults.length, dcm: d.dcms.length },
@@ -92,7 +93,8 @@ const unisimNames = [...new Set([...UNISIM_SOURCE.text.matchAll(/^entity\s+(\w+)
 
 test('primitives: every UNISIM primitive of a counted resource (block RAM, multiplier, DSP, DCM / PLL, clock buffer) mapped to it', () => {
   const counted = unisimNames.filter(n => /^(RAMB|MULT18X18|DSP48|DCM|PLL|BUFG|BUFIO2|BUFH|MCB)/.test(n));
-  assert.equal(counted.length, 27 + 3 + 1 + 2 + 6 + 2, counted.join(' '));
+  // (the PLL_BASE and BUFIO2 models: #791)
+  assert.equal(counted.length, 27 + 3 + 1 + 2 + 6 + 2 + 1 + 1, counted.join(' '));
   for (const n of counted) assert.ok(RESOURCE_FAMILIES.some(f => resourceOfPrimitive(f, n)), n);
   // the families' own
   const s3e = n => resourceOfPrimitive('spartan3e', n), s6 = n => resourceOfPrimitive('spartan6', n);

@@ -266,7 +266,7 @@ const PT = {
   'Combinational outputs take their default unless assigned. Registered outputs (Reg) hold their value, reset to the default and can be read in conditions, e.g. cnt = cnt + 1.': 'As saídas combinatórias tomam o valor por omissão quando não atribuídas. As saídas registadas (Reg) mantêm o valor, fazem reset para o valor por omissão e podem ser lidas em condições, p.ex. cnt = cnt + 1.',
   // schematic symbol library: categories, decoders / encoders / demultiplexers
   'Logic': 'Lógica', 'Arithmetic': 'Aritmética', 'Flip-Flops': 'Flip-Flops', 'Mux': 'Multiplexadores', 'Decoders/Encoders': 'Descodificadores/Codificadores',
-  'Bus': 'Barramento', 'General': 'Geral', 'Project modules': 'Módulos do projeto',
+  'Bus': 'Barramento', 'General': 'Geral', 'Device Primitives': 'Primitivas do Dispositivo', 'Project modules': 'Módulos do projeto',
   'n:2^n binary decoder (one-hot outputs, all 0 when E = 0; like Xilinx D2_4E / D3_8E / D4_16E)': 'Descodificador binário n:2^n (saídas one-hot, todas a 0 quando E = 0; como os Xilinx D2_4E / D3_8E / D4_16E)',
   '2^n:n binary encoder: priority (highest active input wins) or one-hot (OR of the inputs); V = some input is 1': 'Codificador binário 2^n:n: com prioridade (ganha a entrada ativa de maior índice) ou one-hot (OU das entradas); V = alguma entrada a 1',
   '1:2^n demultiplexer: output O<S> = D, the other outputs 0 (bitwise when Width > 1)': 'Desmultiplexador 1:2^n: saída O<S> = D, as outras saídas a 0 (bit a bit quando Largura > 1)',
@@ -360,7 +360,7 @@ const PT_PATTERNS = [
   [/^(\d+):(\d+) one-hot encoder: A = OR of the indices of the inputs at 1, V = some input is 1$/, 'Codificador one-hot $1:$2: A = OU dos índices das entradas a 1, V = alguma entrada a 1'],
   [/^1:(\d+) demultiplexer \((select S0|(\d)-bit select S)\): O<S> = D, the other outputs 0 \(bitwise when Width > 1\)$/,
     (m, n, sel, k) => `Desmultiplexador 1:${n} (${k ? `seleção S de ${k} bits` : 'seleção S0'}): O<S> = D, as outras saídas a 0 (bit a bit quando Largura > 1)`],
-  [/^(Logic|Tri-State|Arithmetic|Flip-Flops|Mux|Decoders\/Encoders|Bus|General|Project modules) \((\d+)\)$/, (m, c, n) => `${t(c)} (${n})`],
+  [/^(Logic|Tri-State|Arithmetic|Flip-Flops|Mux|Decoders\/Encoders|Bus|General|Device Primitives|Project modules) \((\d+)\)$/, (m, c, n) => `${t(c)} (${n})`],
   [/^Silinx - (.*) - \[(.*)\]$/, (m, a, b) => `Silinx - ${a} - [${t(b)}]`],
   [/^(.*) \(RTL\)$/, '$1 (RTL)'],
   [/^(.*) \(Technology\)$/, '$1 (Tecnológico)'],

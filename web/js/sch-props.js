@@ -3,7 +3,7 @@
 // net label's and a wire's (its net, renamed with the whole net), several objects' commands. mountProps(ctx) is called
 // by mountSchEditor where this code was.
 import {
-  SYMBOLS, symbolDef, symbolPins, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, netByName, renameNet,
+  SYMBOLS, symbolDef, symbolParams, symbolPins, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, netByName, renameNet,
 } from '/core/schdoc.js';
 import { symbolSummary } from '/core/symdocs.js';
 import { lutFunction } from '/core/fpga/techview.js';
@@ -146,7 +146,7 @@ export function mountProps(ctx) {
     propBody.append(h('div', { class: 'se-ptitle', text: title }), h('div', { class: 'se-note se-sum', 'data-no-i18n': '', text: sum }),
       h('div', { class: 'se-pbtns' }, h('button', { class: 'btn ro-ok se-infobtn', type: 'button', text: 'Symbol Info…', title: 'Symbol Info (F1)', onclick: () => openInfo(infoTarget()) })));
     propBody.append(field('Instance name', inp(s.name, v => { s.name = newName(v, s.name); })));
-    for (const p of S?.params || []) {
+    for (const p of symbolParams(s)) {
       const v = s.params[p.name];
       let el;
       if (p.kind === 'bool') el = chk(v, x => { s.params[p.name] = x; });
@@ -154,7 +154,8 @@ export function mountProps(ctx) {
       else if (p.kind === 'int') el = inp(v, x => { s.params[p.name] = Math.max(p.min ?? 0, Math.min(p.max ?? 1e6, Math.round(+x || p.default))); }, { type: 'number', min: p.min, max: p.max });
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
       el.dataset.param = p.name;
-      propBody.append(field(p.label, el));
+      // (a device primitive's attribute: its range, #791)
+      propBody.append(field(p.label, el, p.note));
     }
     // a multiplexer's select bits (#334): 1 … 4 make it M2_1, M4_1, M8_1, M16_1 (its width, enable and select bus kept)
     if (MUX_INPUTS[s.type]) {

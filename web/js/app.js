@@ -19,7 +19,7 @@ import { log, logLine, showConsolePage, setDiagnostics, renderDiagnostics, clear
 import { openProject, closeProject, reloadProject, updateTitle, renderStartPage, updateStorageStatus } from './project.js';
 import { FLOW_UP_TO, checkUcfFile, regenerateUcf, runImpl, stepTracker, ucfDiagnostics } from './implement.js';
 import { adoptDrawnHdl, drawnHdlClashes, freshHdl, isAsm, isFsm, isPn, isTt, openAsm, openFsm, openPetri, openSch,
-  openTt, openTtSchematic, openView, schModules, staleHdl, syncAsmFromHdl, syncBanner, syncFsmFromHdl, syncSchematicFromHdl,
+  openTt, openTtSchematic, openView, projectPart, schModules, staleHdl, syncAsmFromHdl, syncBanner, syncFsmFromHdl, syncSchematicFromHdl,
   syncTtFromHdl, viewNoun, viewTitle } from './drawings.js';
 import { checkFileSyntax, hdlDiagnostics, markStale, openMode, renderProcesses, saveAll } from './processes.js';
 import { fileContextMenu, inView, renderHierarchy, saveProjectJson, select, serialOp, setTop, treeItem } from './design.js';
@@ -108,7 +108,8 @@ export function compileProject() {
   S.sources = [...S.sources.filter(s => !s.view), ...S.viewSources];
   S.lib = compile([...srcs, ...S.viewSources]);
   // open schematics: their palette (Project modules) and module symbols follow the sources
-  if (S.docs.some(d => d.schEditor)) schModules().then(mods => { for (const d of S.docs) d.schEditor?.setModules(mods); }).catch(() => {});
+  // (and their Device Primitives the project's part's, #791)
+  if (S.docs.some(d => d.schEditor)) schModules().then(mods => { for (const d of S.docs) { d.schEditor?.setModules(mods); d.schEditor?.setDevice?.(projectPart()); } }).catch(() => {});
   // module info for editor completion / templates
   const fileOf = new Map();
   for (const p of S.lib.parsed) for (const u of p.units) if (u.kind === 'module' || u.kind === 'package') fileOf.set(u.name, p);

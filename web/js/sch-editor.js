@@ -8,6 +8,8 @@
 //     onOpenModule(moduleName) {},
 //   });
 //   readOnly: true             // view only: pan/zoom/select/inspect, no edits (RTL schematic viewer)
+//   device                     // the project's part (a record of S.devices.parts): its family's Device Primitives in the
+//                              // palette, their count in Symbol Info (#791); ed.setDevice(part) when it changes
 //   ed.getDoc(); ed.setDoc(doc); ed.setLink(file); ed.setModules(modules); ed.fit(); ed.destroy();
 //   ed.copy(); ed.cut(); ed.paste(); ed.deleteSelection(); ed.canCopy(); ed.canPaste();   // Edit menu (#677)
 //
@@ -32,6 +34,7 @@ import { SVGNS, r1, bodySvg, symbolDrawingSvg } from './sch-svg.js';
 import { mountRender } from './sch-render.js';
 import { mountMove } from './sch-move.js';
 import { mountTools } from './sch-tools.js';
+import { primitiveResource, devicePrimitives } from '/core/primitives.js';
 
 export const clone = o => JSON.parse(JSON.stringify(o));
 export const snap = v => Math.round(v / GRID) * GRID;
@@ -86,6 +89,7 @@ let editorCount = 0;
 export function mountSchEditor(container, opts = {}) {
   const uidE = ++editorCount;
   let modules = normMods(opts.modules);
+  let device = opts.device || null;     // the project's part (#791)
   let doc = normalizeDoc(opts.doc || newDoc('schematic', 'vhdl'), { modules });
   let nl = null;                      // cached netlist of the current doc
   let view = { s: 1, tx: 40, ty: 40 };
@@ -212,11 +216,17 @@ export function mountSchEditor(container, opts = {}) {
     const items = [];
     for (const [type, S] of Object.entries(SYMBOLS)) {
       if (type === 'module' || S.hidden) continue;
+      // (a device primitive: of the project's family only, #791)
+      if (S.families && !S.families.includes(device?.family)) continue;
       // parameterised symbols listed under their Xilinx-style names (D2_4E, DEMUX1_4...), then the generic one
       for (const pr of S.presets || []) items.push({ type, cat: S.category, title: pr.title, desc: pr.description || S.description, params: { ...pr.params }, preset: pr.title });
       // (the decoders and encoders by their presets only: the generic DECODER / ENCODER are the same symbols, #301)
       if (!S.presetsOnly) items.push({ type, cat: S.category, title: S.paletteTitle || S.title, desc: S.paletteDescription || S.description, params: {} });
     }
+    // (the device primitives in their family's order, #791)
+    const order = devicePrimitives(device?.family).map(p => p.type);
+    const prims = items.filter(it => SYMBOLS[it.type].prim).sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
+    items.forEach((it, k) => { if (SYMBOLS[it.type].prim) items[k] = prims.shift(); });
     // (not a test bench, #332: a Simulation-only source, or a module without ports, which a schematic cannot connect)
     for (const m of Object.values(modules).filter(x => !x.block && !x.testbench && x.ports?.length).sort((a, b) => a.name.localeCompare(b.name))) {
       if (m.name === doc.name) continue;
@@ -240,12 +250,12 @@ export function mountSchEditor(container, opts = {}) {
     const cats = [...SYMBOL_CATEGORIES];
     for (const c of cats) {
       const its = items.filter(i => i.cat === c);
-      if (!its.length && !(c === 'Project modules' && cat === c)) continue;
+      if (!its.length && !((c === 'Project modules' || c === 'Device Primitives') && cat === c)) continue;
       const open = !collapsed.has(c) || q;
       const head = h('div', { class: `se-cathead${open ? ' open' : ''}`, text: `${c} (${its.length})`, onclick: () => { if (collapsed.has(c)) collapsed.delete(c); else collapsed.add(c); renderPalette(); } });
       symList.append(head);
       if (!open) continue;
-      if (!its.length) symList.append(h('div', { class: 'se-empty', text: 'No other modules in the project' }));
+      if (!its.length) symList.append(h('div', { class: 'se-empty', text: c === 'Device Primitives' ? 'No device primitives for this device\'s family' : 'No other modules in the project' }));
       for (const it of its) {
         const row = h('div', {
           class: `se-symrow${placing && placing.type === it.type && (placing.preset || null) === (it.preset || null) && (it.type !== 'module' || placing.params.module === it.params.module) ? ' active' : ''}`,
@@ -828,11 +838,18 @@ export function mountSchEditor(container, opts = {}) {
     if (destroyed) return null;
     infoDlg?.close();
     infoDlg = openSymbolInfo({
-      container, ...target, modules, lang: genLang, highlight: highlightHdl,
+      container, ...target, modules, lang: genLang, highlight: highlightHdl, ...primUse(target),
       draw: (sym, def) => symbolDrawingSvg(sym, def),
       onClose: () => { infoDlg = null; if (container.isConnected) container.focus({ preventScroll: true }); },
     });
     return infoDlg;
+  }
+  // a device primitive's Symbol Info (#791): the project's part, and how many of the schematic's symbols take the
+  // same resource
+  function primUse(target) {
+    if (!SYMBOLS[target?.type]?.prim || !device) return {};
+    const id = primitiveResource(target.type, device.family, target.params);
+    return { part: device, used: id ? doc.symbols.filter(s => SYMBOLS[s.type]?.prim && primitiveResource(s.type, device.family, s.params) === id).length : null };
   }
   const offLang = onLanguageChange(() => { if (infoItem) showSymInfo(infoItem); if (!live) renderProps(); });
 
@@ -897,6 +914,12 @@ export function mountSchEditor(container, opts = {}) {
     },
     // (called after every compile of the project: the same modules again change nothing, so that the palette and
     // the properties are not made anew between the press and the release of a click on them, #339)
+    /** The project's part changed (Design Properties): the palette's Device Primitives follow its family (#791). */
+    setDevice(part) {
+      if ((part?.part || null) === (device?.part || null)) return;
+      device = part || null;
+      renderPalette();
+    },
     setModules(m) {
       const next = normMods(m);
       if (!live && JSON.stringify(next) === JSON.stringify(modules)) return;

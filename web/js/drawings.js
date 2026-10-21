@@ -607,6 +607,9 @@ export async function schModules() {
   return mods;
 }
 
+/** The project's part: its record in the device database (a Device Primitives' family and count, #791). */
+export const projectPart = () => S.devices?.parts?.find(p => p.part === S.project?.device?.part) || null;
+
 export async function openSch(path) {
   const id = `sch:${path}`;
   if (findDoc(id)) return activateDoc(findDoc(id));
@@ -622,7 +625,7 @@ export async function openSch(path) {
       el.append(host);
       const save = async m => { await api.writeFile(S.project.name, path, JSON.stringify(m, null, 1)); setDirty(d, false); };
       const ed = mountSchEditor(host, {
-        doc, modules,
+        doc, modules, device: projectPart(),
         simSources: () => S.sources,   // live simulation: bodies of the module symbols
         onChange: () => setDirty(d, true),
         onOpenModule: name => { const i = moduleInfo(name); if (i) openFile(i.file, i.line); },

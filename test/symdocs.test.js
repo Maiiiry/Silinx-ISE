@@ -7,6 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SYMBOLS, defaultParams, symbolDef, symbolPins } from '../core/schdoc.js';
 import { compile, elaborate } from '../core/compile.js';
+import { primitiveSources } from '../core/unisim.js';
 import {
   docKeys, symbolDoc, symbolSummary, presetOf, modeTable, modeQText, xilinxEquivalents, XILINX_SYMBOLS,
   UI_TEXTS, T, PARAM_LABELS_PT, symbolHdl, oneSymbolDoc, firstSentence,
@@ -134,7 +135,9 @@ test('the equivalent HDL of every symbol compiles (VHDL and Verilog) and is name
       const code = hdl[lang];
       assert.match(code, lang === 'vhdl' ? new RegExp(`entity ${doc.name} is`) : new RegExp(`module ${doc.name}\\b`), `${k.type} ${lang}`);
       assert.match(code.split('\n')[0], /Symbol Info/);
-      const lib = compile([{ path: `t.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: code, lang }]);
+      // (a device primitive's with the UNISIM models, #791)
+      const src = { path: `t.${lang === 'vhdl' ? 'vhd' : 'v'}`, text: code, lang };
+      const lib = compile([...primitiveSources([src]), src]);
       const design = elaborate(lib, doc.name);
       const errs = [...lib.errors, ...design.diags].filter(d => d.severity === 'error');
       assert.deepEqual(errs.map(e => e.message), [], `${k.type}${k.preset ? ` ${k.preset}` : ''} ${lang}:\n${code}`);
