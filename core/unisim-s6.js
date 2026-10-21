@@ -19,6 +19,14 @@
 //     at start. In SDP mode port A writes 36 bits (DIBDI & DIADI, WEBWEU & WEAWEL) and port B reads them (DOBDO &
 //     DOADO), INIT_A / SRVAL_A the low half, INIT_B / SRVAL_B the high half. On an edge the reads of both ports,
 //     then the writes; collisions are not checked.
+//   - PLL_BASE (#791): the VCO at CLKIN × CLKFBOUT_MULT / DIVCLK_DIVIDE, CLKOUT0-5 its frequency / CLKOUTn_DIVIDE with
+//     their duty cycles and phases (in degrees of their own period), CLKFBOUT at CLKIN / DIVCLK_DIVIDE; as core/unisim.js's
+//     DCM, each output re-aligned to CLKIN's rising edges (every DIVCLK_DIVIDE × CLKOUTn_DIVIDE of them), LOCKED after
+//     3 of them (RST restarts it, the outputs low until then); the feedback (CLKFBIN), the bandwidth, the
+//     compensation and the jitter are not modelled;
+//   - BUFIO2 (#791): IOCLK the input clock (inverted with I_INVERT), DIVCLK the same or divided by DIVIDE (high for
+//     the first half of the DIVIDE periods, rounded up), SERDESSTROBE 1 for one input period in DIVIDE (0 with
+//     DIVIDE_BYPASS); USE_DOUBLER is not modelled.
 //
 // Isomorphic ES module (browser + Node), no DOM.
 
@@ -345,5 +353,92 @@ ${out('B', B.dout, B.dop, 0, '      ')}
 end silinx;`;
 };
 
+// ------------------------------------------------------------------ clocking
+const PLL_LOCK_CYCLES = 3;
+const PLL_N = [0, 1, 2, 3, 4, 5];
+// one output of the PLL: on every d-th CLKIN rising edge (after lock), m periods of p * d / m, each high for `duty`
+// (thousandths) of it, shifted by `ph` (thousandths of a degree, 0 … 359999)
+const pllOut = (sig, m, d, duty, ph) => `
+  process (CLKIN, RST)
+    variable k : integer := 0;
+    variable t, sh : time;
+  begin
+    if RST = '1' then k := 0; ${sig} <= transport '0';
+    elsif rising_edge(CLKIN) and lk then
+      if k = 0 then
+        t := (p * ${d}) / ${m};
+        sh := (t * ${ph}) / 360000;
+        for i in 0 to ${m} - 1 loop
+          ${sig} <= transport '1' after sh + t * i;
+          ${sig} <= transport '0' after sh + t * i + (t * ${duty}) / 1000;
+        end loop;
+      end if;
+      k := k + 1;
+      if k >= ${d} then k := 0; end if;
+    end if;
+  end process;`;
+const PLL_BASE = `
+${IEEE}
+entity PLL_BASE is
+  generic (BANDWIDTH : string := "OPTIMIZED"; CLKFBOUT_MULT : integer := 1; CLKFBOUT_PHASE : real := 0.0; CLKIN_PERIOD : real := 0.0;
+           ${PLL_N.map((n) => `CLKOUT${n}_DIVIDE : integer := 1; CLKOUT${n}_DUTY_CYCLE : real := 0.5; CLKOUT${n}_PHASE : real := 0.0;`).join('\n           ')}
+           CLK_FEEDBACK : string := "CLKFBOUT"; COMPENSATION : string := "SYSTEM_SYNCHRONOUS"; DIVCLK_DIVIDE : integer := 1;
+           REF_JITTER : real := 0.1; RESET_ON_LOSS_OF_LOCK : boolean := FALSE);
+  port (CLKFBOUT, ${PLL_N.map((n) => `CLKOUT${n}`).join(', ')}, LOCKED : out std_ulogic;
+        CLKFBIN : in std_ulogic := '0'; CLKIN : in std_ulogic; RST : in std_ulogic := '0');
+end PLL_BASE;
+architecture silinx of PLL_BASE is
+  signal p : time := 0 ns;               -- CLKIN's period
+  signal lk : boolean := false;
+  signal cfb, ${PLL_N.map((n) => `c${n}`).join(', ')} : std_ulogic := '0';
+  -- a phase in thousandths of a degree, 0 … 359999; a duty cycle in thousandths
+  constant FBPH : integer := ((integer(CLKFBOUT_PHASE * 1000.0) mod 360000) + 360000) mod 360000;
+${PLL_N.map((n) => `  constant PH${n} : integer := ((integer(CLKOUT${n}_PHASE * 1000.0) mod 360000) + 360000) mod 360000;
+  constant DU${n} : integer := integer(CLKOUT${n}_DUTY_CYCLE * 1000.0);`).join('\n')}
+begin
+  process (CLKIN, RST)
+    variable last : time := 0 ns;
+    variable n : integer := 0;
+  begin
+    if RST = '1' then n := 0; lk <= false;
+    elsif rising_edge(CLKIN) then
+      if n > 0 then p <= now - last; end if;
+      last := now;
+      if n < ${PLL_LOCK_CYCLES} then n := n + 1; end if;
+      lk <= n >= ${PLL_LOCK_CYCLES};
+    end if;
+  end process;
+${pllOut('cfb', 1, 'DIVCLK_DIVIDE', 500, 'FBPH')}
+${PLL_N.map((n) => pllOut(`c${n}`, 'CLKFBOUT_MULT', `DIVCLK_DIVIDE * CLKOUT${n}_DIVIDE`, `DU${n}`, `PH${n}`)).join('\n')}
+  CLKFBOUT <= cfb;
+${PLL_N.map((n) => `  CLKOUT${n} <= c${n};`).join('\n')}
+  LOCKED <= '1' when lk else '0';
+end silinx;`;
+
+const BUFIO2 = `
+${IEEE}
+entity BUFIO2 is
+  generic (DIVIDE : integer := 1; DIVIDE_BYPASS : boolean := TRUE; I_INVERT : boolean := FALSE; USE_DOUBLER : boolean := FALSE);
+  port (DIVCLK, IOCLK, SERDESSTROBE : out std_ulogic; I : in std_ulogic);
+end BUFIO2;
+architecture silinx of BUFIO2 is
+  signal ii, dv, sb : std_ulogic := '0';
+begin
+  ii <= not I when I_INVERT else I;
+  IOCLK <= ii;
+  DIVCLK <= ii when DIVIDE_BYPASS or DIVIDE = 1 else dv;
+  SERDESSTROBE <= '0' when DIVIDE_BYPASS else sb;
+  process (ii)
+    variable k : integer := 0;
+  begin
+    if rising_edge(ii) then
+      if k < (DIVIDE + 1) / 2 then dv <= '1'; else dv <= '0'; end if;
+      if k = DIVIDE - 1 then sb <= '1'; else sb <= '0'; end if;
+      k := k + 1;
+      if k >= DIVIDE then k := 0; end if;
+    end if;
+  end process;
+end silinx;`;
+
 /** VHDL source of the Spartan-6 primitives (joined to core/unisim.js's UNISIM_VHDL). */
-export const UNISIM_S6_VHDL = [CARRY4, SRLC32E, LUTRAMS, DSP48A1, bwer('RAMB16BWER'), bwer('RAMB8BWER')].join('\n');
+export const UNISIM_S6_VHDL = [CARRY4, SRLC32E, LUTRAMS, DSP48A1, bwer('RAMB16BWER'), bwer('RAMB8BWER'), PLL_BASE, BUFIO2].join('\n');

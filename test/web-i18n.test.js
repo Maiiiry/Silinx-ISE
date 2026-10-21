@@ -166,7 +166,8 @@ test('schematic editor and its RTL / Technology views (#130): every symbol descr
   for (const [type, S] of Object.entries(SYMBOLS)) {
     check(S.description, type);
     for (const p of S.presets || []) check(p.description, `${type} ${p.title}`);
-    for (const p of S.params || []) { check(p.label, `${type} parameter`); for (const o of p.options || []) check(Array.isArray(o) ? o[1] : o, `${type} option`); }
+    // (a device primitive's attributes, #791: their UNISIM names and values, as the HDL writes them)
+    for (const p of S.params || []) if (!p.attr) { check(p.label, `${type} parameter`); for (const o of p.options || []) check(Array.isArray(o) ? o[1] : o, `${type} option`); }
   }
   // text: '…' literals of the editor (captions, panel titles, options), besides the labels checked above; the editor's
   // parts in modules of their own (#405) too

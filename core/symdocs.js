@@ -12,7 +12,9 @@
 // Every SYMBOLS type and every preset has a description, a function per pin and a meaning per
 // parameter in both languages (test/symdocs.test.js). Flip-flop texts and mode tables are derived
 // from the ff flags of the symbol ({ k, ce, clr, pre, r, s, sp }), so FD*, FT* and FJK* agree.
-import { SYMBOLS, MUX_INPUTS, defaultParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
+import { SYMBOLS, MUX_INPUTS, defaultParams, symbolParams, symbolDef, newDoc, generateHdl, validIdent, symbolPins, normModules } from './schdoc.js';
+import { DEVICE_PRIMITIVES, primitiveOf, primitiveResource } from './primitives.js';
+import { resourcesOf } from './resources.js';
 
 const int = (v, d) => { const n = parseInt(v, 10); return Number.isFinite(n) ? n : d; };
 const pick = lang => (en, pt) => (lang === 'pt' ? pt : en);
@@ -80,6 +82,10 @@ const PARAM_PT = {
   'Enable input': 'Entrada de habilitação', 'Pins per bit (I0.., O0..)': 'Um pino por bit (I0.., O0..)',
   'MSB index': 'Índice do MSB', 'LSB index': 'Índice do LSB', 'Input widths (MSB first)': 'Larguras das entradas (MSB primeiro)',
 };
+// (the device primitives' (#791): their attributes by their UNISIM names, the same in Portuguese)
+Object.assign(PARAM_PT, { 'Port width': 'Largura do porto', 'Port A width': 'Largura do porto A', 'Port B width': 'Largura do porto B',
+  'Contents (hex words from address 0)': 'Conteúdo (palavras hexadecimais a partir do endereço 0)' });
+for (const S of Object.values(SYMBOLS)) for (const p of S.params || []) if (p.attr) PARAM_PT[p.label] = p.label;
 export const PARAM_LABELS_PT = PARAM_PT;
 
 // ------------------------------------------------------------------ keys, presets
@@ -215,6 +221,10 @@ function ffText(type, S, p, tx) {
 function describe(type, p, tx, preset) {
   const S = SYMBOLS[type];
   if (!S) return { text: [tx('Unknown symbol.', 'Símbolo desconhecido.')] };
+  // a device primitive (#791): its texts in core/primitives.js
+  if (S.prim) return { text: [...DEVICE_PRIMITIVES[type].text.map(t => tx(t.en, t.pt)),
+    tx(`It is the ${primitiveOf(type, p).name} primitive of the Xilinx library (UNISIM) itself, instanced in the generated HDL as it is; its attributes, the parameters here, are the generics (VHDL) or parameters (Verilog) of the instance. An input left unconnected is tied to its inactive value.`,
+      `É a própria primitiva ${primitiveOf(type, p).name} da biblioteca Xilinx (UNISIM), instanciada tal e qual no HDL gerado; os seus atributos, aqui os parâmetros, são os genéricos (VHDL) ou parâmetros (Verilog) da instância. Uma entrada desligada fica ligada ao seu valor inativo.`)] };
   const W = Math.max(1, int(p.width, 1));
   // (a multiplexer with its enable E, #301)
   const muxEn = p.en && MUX_INPUTS[type] ? [tx('With the enable E at 0 the output O is 0, whatever the select and data inputs (as the Xilinx M2_1E … M16_1E); with E at 1 it is the multiplexer.',
@@ -364,6 +374,7 @@ function pinFunc(type, p, pin, tx) {
   const n = pin.name;
   const idx = /^[A-Z]+(\d+)$/.exec(n)?.[1];
   const i = idx != null ? +idx : null;
+  if (S?.prim) { const q = primitiveOf(type, p).pins.find(x => x.name === n); return q ? tx(q.func.en, q.func.pt) : ''; }
   if (S?.gate && S.inputs > 1) {
     if (pin.dir === 'out') return tx(`Output: ${gateFormula(S)}`, `Saída: ${gateFormula(S)}`);
     return pin.inv ? tx(`Input ${i}, inverted before the gate (active at 0)`, `Entrada ${i}, invertida antes da porta (ativa a 0)`) : tx(`Input ${i}`, `Entrada ${i}`);
@@ -475,6 +486,10 @@ function pinFunc(type, p, pin, tx) {
 // ------------------------------------------------------------------ parameters
 function paramMeaning(type, d, p, tx) {
   const S = SYMBOLS[type];
+  if (S?.prim) {
+    const m = DEVICE_PRIMITIVES[type].meanings?.[d.name] || primitiveOf(type, p).generics.find(g => g.name === d.name)?.meaning;
+    return m ? tx(m.en, m.pt) : '';
+  }
   switch (d.name) {
     case 'width':
       if (type === 'constant') return tx('Number of bits of the output', 'Número de bits da saída');
@@ -576,7 +591,8 @@ export function modeQText(q, type, params = {}, lang = 'en') {
 function hdlName(type, params, modules) {
   const S = SYMBOLS[type];
   const pr = presetOf(type, params);
-  let nm = type === 'module' ? `${params.module || 'module'}_symbol` : type === 'hdlblock' ? 'hdl_block' : (pr || symbolDef({ type, params: { ...defaultParams(type), ...params } }, modules).title || S?.title || type);
+  // (a device primitive's: not its own name, which the HDL instances, #791)
+  let nm = type === 'module' ? `${params.module || 'module'}_symbol` : S?.prim ? `${symbolDef({ type, params: { ...defaultParams(type), ...params } }, modules).title}_symbol` : type === 'hdlblock' ? 'hdl_block' : (pr || symbolDef({ type, params: { ...defaultParams(type), ...params } }, modules).title || S?.title || type);
   nm = String(nm).replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
   if (!/^[A-Za-z]/.test(nm)) nm = `x${nm}`;
   if (!validIdent(nm, 'vhdl') || !validIdent(nm, 'verilog')) nm = `${nm}_sym`;
@@ -632,7 +648,19 @@ export function symbolSummary(type, params = {}, lang = 'en', preset = null) {
  * The datasheet of a symbol at the given parameters (texts in `lang`), without the simulated
  * truth table (core/symtables.js truthTable()).
  */
-export function symbolDoc(type, params = {}, { lang = 'en', modules = {}, preset, hdl, withHdl = true } = {}) {
+/**
+ * The resource a device primitive takes on a part (a record of server/devices.js, S.devices.parts), #791:
+ * { id, label, count (null: not known), used (the `used` given, the ones of the schematic) }, null for another symbol or
+ * a part of a family without it.
+ */
+export function primitiveUse(type, params, part, used = null) {
+  if (!SYMBOLS[type]?.prim || !part?.part) return null;
+  const id = primitiveResource(type, part.family, { ...defaultParams(type), ...params });
+  const r = id && resourcesOf(part).find(x => x.id === id);
+  return r ? { id, label: r.label, count: r.count, used } : null;
+}
+
+export function symbolDoc(type, params = {}, { lang = 'en', modules = {}, preset, hdl, withHdl = true, part = null, used = null } = {}) {
   modules = normModules(modules);
   const tx = pick(lang);
   const S = SYMBOLS[type];
@@ -649,14 +677,22 @@ export function symbolDoc(type, params = {}, { lang = 'en', modules = {}, preset
     widthText: q.width == null ? (type === 'slice' ? `≥ ${Math.max(int(p.msb, 0), int(p.lsb, 0)) + 1}` : T('net', lang)) : String(q.width),
     func: pinFunc(type, p, q, tx) || '', inv: !!q.inv, clock: !!q.clock,
   }));
-  const params2 = (S?.params || []).map(x => ({
+  const params2 = symbolParams({ type, params: p }).map(x => ({
     name: x.name, label: lang === 'pt' ? (PARAM_PT[x.label] || x.label) : x.label, kind: x.kind, options: x.options, min: x.min, max: x.max,
     value: p[x.name], default: x.default, meaning: paramMeaning(type, x, p, tx),
   }));
   const mode = modeTable(type, p, lang);
+  // a device primitive: its resource on the project's part (#791), "Block RAM (18 Kb): 12 on this device, 3 used"
+  const use = primitiveUse(type, p, part, used);
+  const text = [...d.text];
+  if (use) {
+    const dev = String(part.part).toUpperCase(), n = use.count == null ? tx('not known', 'desconhecido') : use.count;
+    const u = use.used != null ? tx(`, ${use.used} used in this schematic`, `, ${use.used} usado(s) neste esquemático`) : '';
+    text.push(`${tx(use.label.en, use.label.pt)}: ${tx(`${n} on this device (${dev})`, `${n} neste dispositivo (${dev})`)}${u}.`);
+  } else if (S?.prim && part?.part && !S.families.includes(part.family)) text.push(tx(`Not a primitive of this device's family (${String(part.part).toUpperCase()}): the design will not build for it.`, `Não é uma primitiva da família deste dispositivo (${String(part.part).toUpperCase()}): o projeto não se implementa para ele.`));
   const out = {
     type, title, preset: pr, category: S?.category || '', lang,
-    summary: firstSentence(d.text[0]), text: d.text, formula: d.formula || null,
+    summary: firstSentence(d.text[0]), text, resource: use, formula: d.formula || null,
     xilinx: xilinxEquivalents(type, p), pins, params: params2, mode, sequential: !!mode,
     sym, def,
   };

@@ -154,7 +154,8 @@ export function openSymbolInfo(opts) {
     const lang = getLanguage() === 'pt' ? 'pt' : 'en';
     const scroll = box.querySelector('.sd-body')?.scrollTop || 0;
     const focusParam = document.activeElement?.dataset?.param;
-    const d = symbolDoc(type, params, { lang, modules: opts.modules, preset, hdl: opts.hdl });
+    // (a device primitive's resource on the project's part, opts.part, and the schematic's use of it, opts.used: #791)
+    const d = symbolDoc(type, params, { lang, modules: opts.modules, preset, hdl: opts.hdl, part: opts.part, used: opts.used });
     box.innerHTML = '';
     box.dataset.type = type;
     box.dataset.lang = lang;
@@ -185,7 +186,7 @@ export function openSymbolInfo(opts) {
     // function table
     const ttBox = h('div', { class: 'sd-ttbox' });
     if (d.mode) { main.append(h('h3', { text: T('Mode table', lang) }), ttBox); ttBox.append(modeEl(d, lang)); }
-    else if (type !== 'module' && type !== 'hdlblock') {
+    else if (type !== 'module' && type !== 'hdlblock' && !SYMBOLS[type]?.prim) {
       main.append(h('h3', { text: T('Truth table', lang) }), ttBox);
       ttBox.append(h('div', { class: 'sd-note', text: T('Computing…', lang) }));
       clearTimeout(tableTimer);
@@ -205,7 +206,7 @@ export function openSymbolInfo(opts) {
     body.scrollTop = scroll;
     if (focusParam) { const f = box.querySelector(`[data-param="${focusParam}"]`); if (f) f.focus(); }
   }
-  const CAT_PT = { 'Logic': 'Lógica', 'Tri-State': 'Três estados', 'Arithmetic': 'Aritmética', 'Flip-Flops': 'Flip-Flops', 'Mux': 'Multiplexadores', 'Decoders/Encoders': 'Descodificadores/Codificadores', 'Bus': 'Barramento', 'General': 'Geral', 'Project modules': 'Módulos do projeto' };
+  const CAT_PT = { 'Logic': 'Lógica', 'Tri-State': 'Três estados', 'Arithmetic': 'Aritmética', 'Flip-Flops': 'Flip-Flops', 'Mux': 'Multiplexadores', 'Decoders/Encoders': 'Descodificadores/Codificadores', 'Bus': 'Barramento', 'General': 'Geral', 'Device Primitives': 'Primitivas do Dispositivo', 'Project modules': 'Módulos do projeto' };
   function catPt(c) { return CAT_PT[c] || c; }
 
   container.append(modal);

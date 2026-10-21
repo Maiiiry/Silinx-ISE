@@ -27,6 +27,7 @@ import { parse as parseVerilog } from './verilog/parser.js';
 import { clocksOf } from './schematic.js';
 import { elaborate } from './elaborate.js';
 import { VHDL93_WORDS, VERILOG_WORDS, reservedError } from './reserved.js';
+import { DEVICE_PRIMITIVES, primitiveOf, genericValue, initWords } from './primitives.js';
 
 export const GRID = 10;
 // 2 (#301): the M4_1's and DEMUX's select bits on pins of their own (a document of version 1 keeps its bus S)
@@ -223,7 +224,34 @@ SYMBOLS.hdlblock = {
   params: [],
 };
 
-export const SYMBOL_CATEGORIES = ['Logic', 'Tri-State', 'Arithmetic', 'Flip-Flops', 'Mux', 'Decoders/Encoders', 'Bus', 'General', 'Project modules'];
+// the device primitives (#791, core/primitives.js): the block RAMs, multipliers / DSP slices, clock managers and
+// clock buffers of the project's family (`families`: the palette offers a symbol for these only), each the UNISIM
+// primitive instanced as it is; their attributes (the generics) the symbol's parameters, named as the primitive's
+const ATTR_KIND = { int: 'int', string: 'select', bool: 'bool', hex: 'text' };
+/** The parameter of a primitive's symbol for its attribute g (core/primitives.js). */
+export function attrParam(g) {
+  const kind = g.kind === 'real' ? (g.options ? 'select' : 'text') : ATTR_KIND[g.kind];
+  const note = g.kind === 'hex' ? `${g.bits} bits, hexadecimal` : g.kind === 'int' || (g.kind === 'real' && !g.options) ? `${g.min} … ${g.max}` : null;
+  return { name: g.name, label: g.name, kind, default: g.default, attr: true, ...(g.options ? { options: [...g.options] } : {}),
+    ...(g.kind === 'int' ? { min: g.min, max: g.max } : {}), ...(note ? { note } : {}) };
+}
+for (const [type, P] of Object.entries(DEVICE_PRIMITIVES)) {
+  const p0 = {};
+  for (const x of P.params || []) p0[x.name] = x.default;
+  SYMBOLS[type] = { category: 'Device Primitives', title: P.title, prim: true, families: [...P.families], description: P.description,
+    params: [...(P.params || []).map(x => ({ ...x })), ...P.of(p0).generics.map(attrParam)] };
+}
+
+/** The parameters of a placed symbol: its library's, a device primitive's attributes at its parameters (an INIT of
+ *  the width its port has, #791). */
+export function symbolParams(sym) {
+  const S = SYMBOLS[sym?.type];
+  if (!S?.prim) return S?.params || [];
+  const own = DEVICE_PRIMITIVES[sym.type].params || [];
+  return [...own, ...primitiveOf(sym.type, { ...defaultParams(sym.type), ...(sym.params || {}) }).generics.map(attrParam)];
+}
+
+export const SYMBOL_CATEGORIES = ['Logic', 'Tri-State', 'Arithmetic', 'Flip-Flops', 'Mux', 'Decoders/Encoders', 'Bus', 'General', 'Device Primitives', 'Project modules'];
 
 export function defaultParams(type) {
   const s = SYMBOLS[type];
@@ -439,6 +467,14 @@ export function symbolDef(sym, modules = {}) {
     ports = ports.map(q => ({ name: q.name, dir: q.dir || 'in', width: (overridden && snapW.has(String(q.name).toLowerCase())) ? snapW.get(String(q.name).toLowerCase()) : (q.width ?? 1), type: q.type }));
     const d = boxDef(ports.filter(q => q.dir !== 'out'), ports.filter(q => q.dir === 'out'), p.module, 80);
     return { ...d, shape: 'module', title: p.module || '?', missing: !m && !p.ports };
+  }
+  if (S?.prim) {
+    // (a box: the inputs on the left, the outputs on the right, in the order of UNISIM's ports; the name of the
+    // primitive its parameters make on top, RAMB16_S9_S18)
+    const r = primitiveOf(t, p);
+    const pinOf = q => ({ name: q.name, dir: q.dir, width: q.width, ...(q.clock ? { clock: true } : {}), ...(q.dir === 'in' ? { tie: q.tie, need: q.need } : {}) });
+    const d = boxDef(r.pins.filter(q => q.dir !== 'out').map(pinOf), r.pins.filter(q => q.dir === 'out').map(pinOf), r.name, 100, 40);
+    return { ...d, shape: 'lib', title: r.name, prim: r.name };
   }
   if (t === 'hdlblock') {
     const ins = (p.inputs || []).map(q => ({ name: q.name, dir: q.dir === 'inout' ? 'inout' : 'in', width: Math.max(1, int(q.width, 1)), clock: !!q.clock }));
@@ -820,9 +856,10 @@ export function netlist(docIn, { modules = {} } = {}) {
     for (const p of defs.get(s.id).pins) {
       const net = pinNet.get(`${s.id}/${p.name}`);
       const alone = !net || net.endpoints.length + net.wires.length + net.labels.length <= 1;
-      if (alone && p.dir !== 'out') {
+      // (a primitive's input it works without: tied, #791)
+      if (alone && p.dir !== 'out' && !(SYMBOLS[s.type]?.prim && !p.need)) {
         const pp = symbolPins(s, modules, defs.get(s.id)).find(q => q.name === p.name);
-        diags.push({ severity: s.type === 'module' ? 'warning' : 'warning', message: `input pin ${p.name} of ${s.name} (${s.type === 'module' ? s.params.module : s.type}) is not connected`, ref: { kind: 'symbol', id: s.id, pin: p.name }, x: pp.x, y: pp.y });
+        diags.push({ severity: s.type === 'module' ? 'warning' : 'warning', message: `input pin ${p.name} of ${s.name} (${s.type === 'module' ? s.params.module : SYMBOLS[s.type]?.prim ? defs.get(s.id).title : s.type}) is not connected`, ref: { kind: 'symbol', id: s.id, pin: p.name }, x: pp.x, y: pp.y });
       }
     }
   }
@@ -1449,6 +1486,48 @@ export function generateHdl(docIn, opts = {}) {
       : `${sub.name} ${s.name} (\n${conns.map(([k, a]) => `  .${k}(${a})`).join(',\n')}\n);`);
   };
 
+  // a device primitive (#791): the UNISIM primitive instanced, its attributes in its generic map / parameters
+  // (every one, at the symbol's values), an input left unconnected tied (its `tie`), an output unconnected open
+  let unisim = false;
+  const primInstance = s => {
+    const p = s.params, r = primitiveOf(s.type, p), ref = { kind: 'symbol', id: s.id };
+    unisim = true;
+    if (nk(r.name) === nk(name)) diags.push({ severity: 'error', message: `module name '${name}' is the name of the primitive ${s.name} instances: rename the schematic`, ref: { kind: 'sheet' } });
+    if (r.error) diags.push({ severity: 'error', message: `${s.name}: ${r.error}`, ref });
+    const gens = [];
+    for (const g of r.generics) {
+      const v = genericValue(g, p[g.name] ?? g.default, lang);
+      if (v != null) { gens.push([g.name, v]); continue; }
+      const range = g.options ? g.options.join(', ') : g.kind === 'hex' ? `${g.bits} bits, hexadecimal` : g.kind === 'bool' ? 'TRUE, FALSE' : `${g.min} … ${g.max}`;
+      diags.push({ severity: 'error', message: `${s.name}: ${g.name} = '${p[g.name]}' is not a value of ${r.name}'s ${g.name} (${range})`, ref });
+    }
+    if (r.contents && String(p.contents || '').trim()) {
+      try {
+        for (const [k, h] of Object.entries(initWords(p.contents, r.contents.width, r.contents.inits))) gens.push([k, ci ? `X"${h}"` : `256'h${h}`]);
+      } catch (e) { diags.push({ severity: 'error', message: `${s.name}: contents: ${e.message}`, ref }); }
+    } else if (String(p.contents || '').trim()) diags.push({ severity: 'warning', message: `${s.name}: contents ignored (port A unused, DATA_WIDTH_A = 0)`, ref });
+    const lit = (w, bit) => (ci ? (w > 1 ? `"${bit.repeat(w)}"` : `'${bit}'`) : bit === '1' && w > 1 ? `{${w}{1'b1}}` : `${w}'b${bit}`);
+    const conns = r.pins.map(q => {
+      if (q.dir === 'out') {
+        const n = nl.pinNet.get(`${s.id}/${q.name}`);
+        return [q.name, n && !isolated(n) ? OUTN(s, q.name) : null];
+      }
+      const n = inNet(s, q.name);
+      return [q.name, n ? outRead.get(n) || netName(n) : lit(q.width, q.tie)];
+    });
+    // (VHDL: a pin of one bit that UNISIM declares a vector, DIP(0 downto 0), associated by its bit 0)
+    const formal = (k, a) => (ci && a != null && r.pins.find(q => q.name === k)?.vec && r.pins.find(q => q.name === k).width === 1 ? `${k}(0)` : k);
+    if (ci) {
+      const lines = [`${s.name} : ${r.name}`];
+      if (gens.length) lines.push(`  generic map (\n${gens.map(([k, v]) => `    ${k} => ${v}`).join(',\n')}\n  )`);
+      lines.push(`  port map (\n${conns.map(([k, a]) => `    ${formal(k, a)} => ${a ?? 'open'}`).join(',\n')}\n  );`);
+      body.push(lines.join('\n'));
+    } else {
+      const g = gens.length ? ` #(\n${gens.map(([k, v]) => `  .${k}(${v})`).join(',\n')}\n)` : '';
+      body.push(`${r.name}${g} ${s.name} (\n${conns.map(([k, a]) => `  .${k}(${a ?? ''})`).join(',\n')}\n);`);
+    }
+  };
+
   const syms = doc.symbols;
   for (const s of syms) {
     const def = defs.get(s.id);
@@ -1456,6 +1535,7 @@ export function generateHdl(docIn, opts = {}) {
     const S = SYMBOLS[s.type];
     if (isBlock(s)) { blockInstance(s, def); continue; }
     const cmt = ci ? `-- ${s.name}: ${def.title || S?.title || s.type}` : `// ${s.name}: ${def.title || S?.title || s.type}`;
+    if (S?.prim) { primInstance(s); continue; }
     if (S && S.gate) {
       const o = OUTN(s, 'O');
       if (!o) { diags.push({ severity: 'warning', message: `${s.name}: output not connected, gate skipped`, ref: { kind: 'symbol', id: s.id } }); continue; }
@@ -1933,6 +2013,8 @@ export function generateHdl(docIn, opts = {}) {
     if (!net.endpoints.length) continue;
     if (isolated(net) && net.auto && net.endpoints[0].kind === 'pin' && net.endpoints[0].dir !== 'out'
       && !['module', 'hdlblock'].includes(doc.symbols.find(x => x.id === net.endpoints[0].sym)?.type)) continue;
+    // (a device primitive's output left unconnected: open)
+    if (isolated(net) && net.auto && net.endpoints[0].kind === 'pin' && SYMBOLS[doc.symbols.find(x => x.id === net.endpoints[0].sym)?.type]?.prim) continue;
     const iv = init.get(net);
     if (ci) sigDecls.push(`  signal ${nm} : ${netType(net)}${iv ? ` := ${vhdlClass(netType(net)) === 'sl' ? vhdlBits(iv, true) : vhdlBits(iv, false)}` : ''};`);
     else {
@@ -1952,7 +2034,9 @@ export function generateHdl(docIn, opts = {}) {
   let code;
   const generics = verbatimOK ? (hdl.generics || []) : [];
   if (ci) {
-    const ctx = verbatimOK && hdl.context ? String(hdl.context).trim() : 'library ieee;\nuse ieee.std_logic_1164.all;\nuse ieee.numeric_std.all;';
+    let ctx = verbatimOK && hdl.context ? String(hdl.context).trim() : 'library ieee;\nuse ieee.std_logic_1164.all;\nuse ieee.numeric_std.all;';
+    // (the device primitives' components, #791)
+    if (unisim && !/\blibrary\s+unisim\b/i.test(ctx)) ctx += '\nlibrary UNISIM;\nuse UNISIM.VCOMPONENTS.ALL;';
     const arch = (verbatimOK && hdl.arch) || 'schematic';
     // an output driven directly by a flip-flop / register starts at its INIT value (port default)
     const plist = ports.map(p => {

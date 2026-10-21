@@ -192,7 +192,8 @@ function pinGroups(type, ports) {
  */
 export function truthTable(type, params = {}, opts = {}) {
   const { modules = {}, maxExhaustive = MAX_EXHAUSTIVE, maxFull = MAX_FULL } = opts;
-  if (!SYMBOLS[type] || isSeq(type) || type === 'module' || type === 'hdlblock') return { kind: 'none' };
+  // (a device primitive, #791: clocked, its behaviour its datasheet's)
+  if (!SYMBOLS[type] || isSeq(type) || type === 'module' || type === 'hdlblock' || SYMBOLS[type].prim) return { kind: 'none' };
   let p = { ...defaultParams(type), ...params };
   let perBit = false;
   let sim = symbolSim(type, p, { modules, lang: opts.lang });

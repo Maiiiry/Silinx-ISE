@@ -42,6 +42,23 @@ export const SCH_PT = {
   'name[width], add "reg" if assigned in always/initial': 'nome[largura], acrescente "reg" se atribuído em always/initial',
   'name[width]': 'nome[largura]',
   'No errors or warnings found.': 'Nenhum erro ou aviso encontrado.',
+  // the device primitives (#791, core/primitives.js): their descriptions and parameters (their attributes: the
+  // UNISIM names, the same in Portuguese)
+  'Block RAM 16 Kbit + parity, single port (RAMB16_S1 … RAMB16_S36)': 'RAM de bloco de 16 Kbit + paridade, um porto (RAMB16_S1 … RAMB16_S36)',
+  'Block RAM 16 Kbit + parity, dual port (RAMB16_S1_S1 … RAMB16_S36_S36)': 'RAM de bloco de 16 Kbit + paridade, duplo porto (RAMB16_S1_S1 … RAMB16_S36_S36)',
+  '18 × 18 signed multiplier with optional input and output registers': 'Multiplicador de 18 × 18 com sinal, com registos opcionais nas entradas e na saída',
+  'Digital clock manager: clocks of the input\'s frequency, its double, a division and a synthesized frequency': 'Gestor digital de relógio: relógios com a frequência da entrada, o seu dobro, uma divisão e uma frequência sintetizada',
+  'Global clock buffer: a clock onto the global clock network': 'Buffer global de relógio: um relógio na rede global de relógio',
+  'Global clock buffer that chooses between two clocks': 'Buffer global de relógio que escolhe entre dois relógios',
+  'Input buffer of a global clock pin': 'Buffer de entrada de um pino de relógio global',
+  'Block RAM 9 Kbit (half of an 18 Kbit block), true or simple dual port': 'RAM de bloco de 9 Kbit (metade de um bloco de 18 Kbit), duplo porto verdadeiro ou simples',
+  'Block RAM 18 Kbit, true dual port': 'RAM de bloco de 18 Kbit, duplo porto verdadeiro',
+  'DSP slice: pre-adder, 18 × 18 multiplier and 48-bit post-adder / accumulator': 'Slice DSP: pré-somador, multiplicador de 18 × 18 e pós-somador / acumulador de 48 bits',
+  'Phase-locked loop: up to six clocks of the VCO\'s frequency divided': 'Anel de captura de fase (PLL): até seis relógios com a frequência do VCO dividida',
+  'I/O clock buffer: a clock pin\'s clock to the I/O and to a PLL / DCM, optionally divided': 'Buffer de relógio de E/S: o relógio de um pino de relógio para as E/S e para uma PLL / um DCM, dividido ou não',
+  'Port width': 'Largura do porto', 'Port A width': 'Largura do porto A', 'Port B width': 'Largura do porto B',
+  'Contents (hex words from address 0)': 'Conteúdo (palavras hexadecimais a partir do endereço 0)',
+  'No device primitives for this device\'s family': 'Nenhuma primitiva para a família deste dispositivo',
 };
 
 export const SCH_PT_PATTERNS = [
@@ -64,6 +81,8 @@ export const SCH_PT_PATTERNS = [
   [/^(\d)-input (AND|OR|NAND|NOR|XOR|XNOR) gate \(bitwise when Width > 1\)$/, 'Porta $2 de $1 entradas (bit a bit quando Largura > 1)'],
   [/^(\d+) ports( · .*)?$/, (m, n, rest) => `${n} porto${n === '1' ? '' : 's'}${rest || ''}`],
   [/^(\d+) objects selected$/, '$1 objetos selecionados'],
+  // a device primitive's hexadecimal attribute (#791)
+  [/^(\d+) bits, hexadecimal$/, '$1 bits, hexadecimal'],
   [/^Module (\S+)$/, 'Módulo $1'],
   [/^Pins \((\d+)\)$/, 'Pinos ($1)'],
   [/^Wire · net (.+)$/, 'Fio · rede $1'],
