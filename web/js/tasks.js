@@ -9,6 +9,8 @@
 //   their tabs, a document maximized or not, and its documents (the tabs of the other tasks are hidden),
 //   the last one in front; a document brought to the front makes its task the current one;
 // - the messages: the bottom panel as the message centre (web/js/messages.js, #798), its filter following the task;
+// - Simulate (web/js/tasks-sim.js, #800): the waves get the screen, its side panel ISim's Instances and Objects;
+//   it runs the test bench with the model chosen in the task's bar;
 // - a task whose document is single by nature (Simulate: ISim; Emulate: the board; Program: iMPACT, one each,
 //   web/js/viewers.js) shows no tab bar: what the tab said (the module, the model) and its close are in the task's
 //   bar (#854);
@@ -22,6 +24,7 @@ import { h } from './ui.js';
 import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { buildMessages, unbuildMessages, messagesTask, initMessages } from './messages.js';
+import { modelSelect, simTarget, simulate } from './tasks-sim.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl', 'prog'];
 export const TASK_LABEL = { edit: 'Edit', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
@@ -83,7 +86,7 @@ export function readState(raw) {
  *  is the drawer, closed when the task comes to the front (the document first). */
 export function arrangement(task, kept = {}, narrow = false) {
   const a = { ...DEFAULTS[task], max: false, ...kept };
-  if (narrow) a.side = false;
+  if (narrow && task !== 'sim') a.side = false;   // (Simulate's side panel is ISim's Instances and Objects, not the drawer: #800)
   return a;
 }
 
@@ -149,7 +152,7 @@ function apply() {
   fitHeader();
   const bar = document.getElementById('task-bar');
   if (bar) {
-    bar.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() ? drawerOpen() : a.side));
+    bar.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() && t !== 'sim' ? drawerOpen() : a.side));
     bar.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
     bar.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
     const main = bar.querySelector('[data-act=main]');
@@ -195,17 +198,19 @@ function tagDocs() {
     empty.querySelector('.ico').innerHTML = ICON[current()];
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];
-    go.disabled = !stepButton()?._enabled?.();
+    go.disabled = !mainEnabled();
   }
 }
 
 const stepButton = (t = current()) => document.querySelector(`#toolbar .m-step[data-step="${STEP[t]}"]`);
+// (Simulate runs the test bench, whatever is selected: #800)
+const mainEnabled = () => (current() === 'sim' ? !!app?.S.project && !!simTarget(app.S.project, app.S.modules) : !!stepButton()?._enabled?.());
 /** The current task's main action: the design-flow button of the modern toolbar; Edit's Check checks the selected
  *  module, a test bench with the simulation's sources (one tree, no views: #799). */
 async function runMain() {
-  const b = stepButton();
-  if (!b || b.disabled || b._enabled?.() === false) return;
-  const S = app.S, mod = S.sel?.module;
+  if (!mainEnabled()) return;
+  if (current() === 'sim') { simulate(app); return; }
+  const b = stepButton(), S = app.S, mod = S.sel?.module;
   if (current() === 'edit' && mod && S.modules.find(m => m.name === mod)?.role === 'sim') {
     const { checkSyntax } = await import('./processes.js');   // (not at load: processes.js loads the app)
     checkSyntax(mod, true);
@@ -262,11 +267,12 @@ function build() {
     h('span', { id: 'task-doc', hidden: true },
       h('span', { class: 'task-doc-mod', 'data-no-i18n': true }), h('span', { class: 'task-doc-model' }),
       h('button', { class: 'tb-btn', type: 'button', 'data-act': 'close', title: 'Close', 'aria-label': 'Close', html: ICON.close })),
+    modelSelect(),
     Object.assign(h('button', { class: 'm-step task-main', type: 'button', 'data-act': 'main', onclick: runMain }, h('span', { class: 'ico-inline' }), h('span', { class: 'lbl' })),
-      { _enabled: () => !!stepButton()?._enabled?.() })));   // (disabled as its design-flow button: menus.js refreshSteps)
+      { _enabled: mainEnabled })));   // (disabled as its design-flow button: menus.js refreshSteps)
   $('task-bar').addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'side') { if (isNarrow()) { setDrawer(!drawerOpen()); apply(); } else arrange({ side: !arr().side }); }
+    if (act === 'side') { if (isNarrow() && current() !== 'sim') { setDrawer(!drawerOpen()); apply(); } else arrange({ side: !arr().side }); }
     else if (act === 'console') arrange({ console: !arr().console });
     else if (act === 'max') arrange({ max: !arr().max });
     else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
@@ -331,6 +337,6 @@ export function initTasks(a) {
   // menu, the project's name)
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
-  setInterval(() => { if (on()) { refreshDots(); const g = document.querySelector('#task-empty button'); if (g) g.disabled = !stepButton()?._enabled?.(); } }, 1000);
+  setInterval(() => { if (on()) { refreshDots(); const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled(); } }, 1000);
   apply();
 }

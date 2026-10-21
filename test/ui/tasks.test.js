@@ -75,7 +75,7 @@ uiTest('View ▸ Interface ▸ Tasks: the task switcher in the header, the task\
   }));
   assert.deepEqual(L, {
     ui: 'modern', stored: 'tasks', tasks: ['Edit', 'Simulate', 'Emulate', 'Implement', 'Program'], steps: 0,
-    bar: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)', 'Close', 'Check'],   // (Close: a single document's, #854)
+    bar: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)', 'Close', 'The model to simulate', 'Check'],   // (Close: a single document's, #854; the model: Simulate's, #800)
   });
   assert.ok(await shown(page, '#task-switch'));
   assert.ok(!(await shown(page, '#task-tabs')), 'the bottom tab bar: on a narrow screen only');
@@ -128,7 +128,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.equal(s.task, 'sim');
   assert.equal(s.empty, false);
   assert.deepEqual(s.tabs, [], 'one document: no tab bar (#854)');
-  assert.equal(await page.eval(() => document.querySelector('#task-doc .task-doc-mod').textContent), 'top');
+  assert.equal(await page.eval(() => document.querySelector('#task-doc .task-doc-mod').textContent), 'tb_top', 'the test bench (#800)');
   // the side panel unfolds from the activity bar, kept for Simulate
   await page.click('#left-tabs .tab[data-page="design"]');
   assert.equal((await state(page)).side, 'open');
@@ -303,7 +303,7 @@ uiTest('#854 Tasks: no tab bar in a task with a single document; its module and 
   await page.click('#task-empty button');
   await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
   await page.waitFor(() => document.getElementById('task-doc').getClientRects().length > 0, [], { what: 'the document in the bar' });
-  assert.deepEqual(await docInfo(page), { tabs: false, info: ['top', 'Behavioral'] });
+  assert.deepEqual(await docInfo(page), { tabs: false, info: ['tb_top', 'Behavioral'] });   // (the test bench: #800)
   // the workspace has the tab bar's height
   const top = await page.eval(() => Math.round(document.getElementById('workspace').getBoundingClientRect().top - document.getElementById('toolbar').getBoundingClientRect().bottom));
   assert.ok(top <= 1, `the document right under the toolbar: ${top}`);
@@ -377,6 +377,63 @@ uiTest('#799 Tasks ▸ Edit: one design tree (the design, Test Benches, Constrai
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.ok(await shown(page, '#design-panel .view-select') && await shown(page, '#proc-panel'));
   assert.ok(!(await hierRows(page)).some((r) => r === 'Test Benches' || r === 'Constraints'));
+  await noWarnings(page);
+}, { build: DEV });
+
+// #800: Simulate gives the waves the screen (ISim's title bar is the task's; its Instances and Objects the task's
+// side panel, folded at first; no Design pane) and runs the test bench whatever is selected, the model chosen
+uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the test bench, the model in the task\'s bar', E, async (page) => {
+  await makeProject(env, { name: 'TasksSim', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSim');
+  // a design module selected in Edit: Simulate still runs the test bench
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  await page.treeRow('#hier', 'top', { exact: true });
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-model option')].map((o) => [o.value, o.textContent])),
+    [['', 'Behavioral'], ['postsynth', 'Post-Synthesis'], ['posttrans', 'Post-Translate'], ['postmap', 'Post-Map'], ['postpar', 'Post-Place & Route']]);
+  assert.ok(await shown(page, '#task-model'));
+  await page.click('#task-empty button');
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
+  await page.waitFor(() => document.querySelector('#task-doc .task-doc-mod')?.textContent === 'tb_top', [], { what: 'the test bench simulated' });
+  // the waves get the screen: no ISim title bar, no Instances / Objects column, no Design pane, no console
+  assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-title')) && !(await shown(page, '.doc:not([hidden]) .isim-left')));
+  assert.ok(!(await shown(page, '#left-pages')) && await shown(page, '#left-tabs'));
+  const W = await page.eval(() => {
+    const w = document.querySelector('.doc:not([hidden]) .isim-wavewin').getBoundingClientRect(), ws = document.getElementById('workspace').getBoundingClientRect();
+    return { width: Math.round(w.width), ws: Math.round(ws.width), height: Math.round(w.height) };
+  });
+  assert.ok(W.width >= W.ws - 4, `the wave window has the workspace's width: ${JSON.stringify(W)}`);
+  assert.ok(W.height >= 0.55 * 768, `and most of the height: ${JSON.stringify(W)}`);
+  // the side panel: ISim's Instances and Objects (not the Design pane)
+  await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim-left')?.getClientRects().length > 0, [], { what: 'Instances and Objects' });
+  assert.ok(!(await shown(page, '#left-pages')));
+  // not in the other tasks
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.ok(!(await shown(page, '#task-model')) && await shown(page, '#left-pages'));
+  // in Portuguese: the models
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#task-model option').textContent === 'Comportamental', [], { what: 'Portuguese' });
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-model option')].map((o) => o.textContent)),
+    ['Comportamental', 'Pós-Síntese', 'Pós-Translate', 'Pós-Map', 'Pós-Place & Route']);
+  assert.equal(await page.eval(() => document.getElementById('task-model').title), 'O modelo a simular');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // a tablet in portrait: the same (the side button folds ISim's columns, not the drawer, which Simulate has not)
+  await page.setViewport(820, 1180);
+  assert.ok(!(await shown(page, '#drawer-btn')));
+  await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => !document.querySelector('.doc:not([hidden]) .isim-left')?.getClientRects().length, [], { what: 'the columns folded' });
+  const P = await page.eval(() => [Math.round(document.querySelector('.doc:not([hidden]) .isim-wavewin').getBoundingClientRect().width), Math.round(document.getElementById('workspace').getBoundingClientRect().width)]);
+  assert.ok(P[0] >= P[1] - 4, `portrait: the waves have the width: ${P}`);
+  assert.deepEqual(await noOverflow(page), { page: true, over: [] });
+  await page.setViewport(1366, 768);
+  // the modern interface: ISim as it was (its title bar, its Instances and Objects)
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.ok(await shown(page, '.doc:not([hidden]) .isim-title') && await shown(page, '.doc:not([hidden]) .isim-left'));
   await noWarnings(page);
 }, { build: DEV });
 

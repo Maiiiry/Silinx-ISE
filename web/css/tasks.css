@@ -133,3 +133,15 @@ html[data-layout="tasks"] .emu-box:has(> .emu-log) { display: none; }
   html[data-layout="tasks"] #mc-filters .filt { height: 34px; }
   html[data-layout="tasks"] #mc-cmd { height: 42px; }
 }
+
+/* ------------------------------------------------------------------ Simulate (#800, web/js/tasks-sim.js) */
+/* the waves get the screen: ISim's title bar is the task's bar's; its side panel is ISim's Instances and Objects
+   (folded at first), not the Design pane */
+html[data-layout="tasks"] .isim-title { display: none; }
+html[data-layout="tasks"][data-task="sim"] :is(#left-pages, #v-split, #drawer-btn, #drawer-scrim) { display: none !important; }
+html[data-layout="tasks"][data-task="sim"][data-side="folded"] .isim :is(.isim-left, .isim-split-main) { display: none; }
+/* the model to simulate */
+#task-model { display: none; }
+html[data-layout="tasks"][data-task="sim"] #task-model { display: inline-block; height: 32px; margin-left: 8px; max-width: 200px;
+  border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
+@media (pointer: coarse) { html[data-layout="tasks"][data-task="sim"] #task-model { height: 40px; } }
