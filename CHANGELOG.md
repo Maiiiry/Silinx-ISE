@@ -3,6 +3,1115 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.12.0
+
+The Silinx toolchain is now a production toolchain, no longer marked experimental. Its circuits are faster:
+- deep logic and small control paths;
+- one-hot state machines;
+- registers in the IOBs of every pad, including DDR and bidirectional ones;
+- the DCMs' clocks on any global buffer.
+
+Each target device's own resources are offered to the user:
+- Device Primitives in the schematic library and the Language Templates;
+- a Clocking Wizard (DCM / PLL) and a Block Memory wizard;
+- every resource shown as used of available, with an overflow reported early;
+- a change of device checked against the design first.
+
+The schematic editor gains hop-overs, wires that connect only where they end, names checked before use, and
+Cut / Copy / Paste in every editor. On touch screens, two fingers move a drawing and a pinch zooms it. The Board
+Emulator runs the simulation models several times faster, on less energy. The development builds add a
+Development menu and a third interface, Tasks, still in progress.
+
+In short:
+
+- **Device Primitives built with ISE:** a schematic's RAMB16_S1, Spartan-6 block RAMs and DSP48A1 now give HDL that
+  Xilinx ISE synthesizes and implements; a DSP48A1 with both M and P connected is an error.
+- **Edit Stimuli is seen:** ISim's toolbar shows the button with its label, "Edit Stimuli", next to its icon,
+  so that drawing the inputs' waveforms is not hidden among the icons.
+- **Clock switching:** a design that chooses between two clocks with a BUFGMUX (the schematic library's Device
+  Primitives, or instantiated in VHDL / Verilog) builds with the Silinx toolchain on the Spartan-3E.
+- **Board Emulator, Spartan-6 clocks:** a design with a PLL_BASE (the Clocking Wizard's Spartan-6 module) or a
+  BUFIO2 now runs at the emulator's full speed instead of falling back to the slower simulator.
+- **View ▸ Interface: Modern and Classic** ("Xilinx ISE (Classic)" is named Classic); the Tasks interface is in the
+  development builds only, for now.
+- **XST's global buffers by family:** an ISE build of a Spartan-3 project lets XST use the part's 8 global clock buffers
+  (24 on the Spartan-3A / 3A DSP / 3E, 32 on the Virtex-4), not 24 on every family.
+- **The Design Summary of every Spartan-6 part:** before an implementation it shows the part's horizontal clock buffers
+  (BUFH), not only on the Nexys3's and the Atlys's parts.
+- **Schematic: a move or a paste that would short two named nets is refused too:** like a drawn wire, moving a
+  symbol, a marker or a wire, dragging a wire segment, or pasting, so that a net named x touches a net named y,
+  leaves the schematic as it was, and the status line says why.
+- **A third interface, Tasks (View ▸ Interface ▸ Tasks), in the development builds for now:** the five tasks of a lab session (Edit, Simulate,
+  Emulate, Implement, Program) in the header, each with its own documents and arrangement: the task in front
+  gets the space, the side panel and the messages fold away and come back with one click, a document
+  maximizes with a double-click on its tab. On a tablet in portrait the tasks are a tab bar at the bottom.
+  The modern and classic interfaces are unchanged.
+- **The Tasks interface's message centre (in the development builds for now):** in View ▸ Interface ▸ Tasks every flow's messages are in the bottom
+  panel, with filters by source (Check Syntax, Simulation, Emulator, Synthesis, Implementation, Board) that follow
+  the task in front. ISim's console and its `ISim>` command line, and the emulator's Messages box, are there
+  too, so the waves and the board get their space. Folded, the panel shows its last line.
+- **Changing the target device checks the design first:** in Design Properties, a new device (or family) that the
+  design does not fit is said before the change: the modules that use a primitive the new family lacks, with its
+  equivalent (MULT18X18SIO → DSP48A1 on a Spartan-6, DSP48A1 → MULT18X18SIO on a Spartan-3E…), and the resources
+  over the new part's ("5 block RAMs needed, the XC3S100E has 4"). The device can still be changed.
+- **Every resource used of available, an overflow said early:** the Silinx toolchain's synthesis and MAP reports and the
+  Design Summary give the block RAMs, multipliers, DCMs, global clock buffers and I/O as used of the device's, and a
+  design with more of one than the device has fails at synthesis (or MAP) with it named ("5 block RAMs needed, the
+  XC3S100E has 4"), not at Place & Route.
+- **Block Memory:** New Source ▸ Block Memory writes a RAM or a ROM of the device's block RAMs (width × depth,
+  one or two ports, its contents from a .mem or .coe file of the project), showing how many block RAMs it takes
+  of the device's. Opening the module in the Design pane reopens the wizard.
+- **Clocking Wizard:** New Source ▸ Clocking Wizard writes a module with a DCM (Spartan-3E) or a PLL (Spartan-6)
+  for the frequencies you ask, from the board's oscillator: it shows the frequency each output gets and the
+  ones near it the device can make. Opening the module in the Design pane reopens the wizard.
+- **Device Primitives in the Language Templates:** the HDL editor's Templates ▾ (and its context menu) has an
+  instantiation template of each primitive of the project's family, VHDL and Verilog, with how many the device has.
+- **Device Primitives in the schematic library:** the target device's block RAMs, multipliers / DSP slices, DCM /
+  PLL and clock buffers as symbols of their own, the ones of the project's family (Spartan-3E: RAMB16_S*, single
+  and dual port, MULT18X18SIO, DCM_SP, BUFG, BUFGMUX, IBUFG; Spartan-6: RAMB8BWER, RAMB16BWER, DSP48A1, PLL_BASE,
+  DCM_SP, BUFG, BUFIO2), their attributes in the Properties panel, their count on the device in Symbol Info.
+- **The Design Summary of a Spartan-6 project:** before an implementation it lists the part's own resources (RAMB16BWER
+  and RAMB8BWER, DSP48A1, BUFG/BUFGMUX, BUFIO2, BUFH, DCM, PLL, MCB) instead of the Spartan-3E's.
+- **Start page:** the seven "Open Example (…)" entries are gone; the examples are in New Project…, under *Start from*
+  (Example: gates, traffic, blinky, pong, stopwatch, clock, vga).
+- **UCF wildcards in the Silinx toolchain:** `NET "sw<*>" IOSTANDARD = LVCMOS33 ;` (and `*`, `?` anywhere in a NET
+  name) now sets the I/O standard, drive, slew, pull and LOC of every port bit it matches, as ISE does.
+- **Menus inside the window:** a menu or a submenu near the window's right edge (the Development menu on a 1024 px
+  window, an iPad's) opens inside it, on the left when there is no room on the right; a long change title is cut with
+  an ellipsis, whole in its tooltip.
+- **I/O registers on two clocks in a differential pair:** two input (or output) registers on different clocks LOC'd on
+  the two pads of a differential pair now build with the Silinx toolchain, the second on its IOB's second flip-flop as
+  ISE puts it.
+- **Schematic: hop-overs on by default:** where two wires cross without connecting, the horizontal one hops over
+  the other with a small arc, in every schematic, printed too; untick Hop-overs to turn them off (remembered).
+- **Schematic: a wire between two named nets is refused, as in ISE:** drawing a wire from a net named x to a net
+  named y (or to an I/O marker's net) no longer makes one net with two names; the status line says the wire would
+  short them and to rename one first (the same name connects them).
+- **An input register on a pad whose neighbour is unused:** the Silinx toolchain's bitstream is now byte-identical to
+  ISE's there too: on the XC3S500E and XC3S1200E such a register (on B3, E17, F14 or G13, for example) set a bit that
+  belongs to the input-only pad next to it.
+- **Two IOB registers on different clocks in one I/O tile:** the Silinx toolchain no longer ends with "the routing did
+  not converge" when two pads of one tile hold registers on different clocks.
+- **Schematic: a net connected by name renamed as a whole:** renaming one of its net names renames the others of
+  that name too (and its I/O marker, a port of the module), so the net stays one; one Undo takes it all back.
+- **Board Emulator, less energy:** it pauses while it is not seen (another browser tab, a minimised window, another
+  document tab) and goes on where it was when shown again; the new "When hidden" setting of its toolbar keeps it
+  running instead, and is remembered. It draws the board at most 60 times a second, and nothing wakes up while it is
+  paused or powered off: hidden, Chrome's CPU drops from about 55 % to under 2 %.
+- **Board Emulator: designs run up to twice as fast at Max speed:** the compiled engine skips more of the logic
+  whose inputs did not change. The examples' designs run at 60 to 210 million cycles a second, pong's at 75
+  instead of 39 and clock's at 115 instead of 71. pong's post-synthesis model runs at 30 instead of 22.
+- **A Development menu in the development builds:** after Help, the changes since the last release, as Features,
+  Bug fixes and Other: each one opens with its text and its issue on GitHub; "All Changes since …" lists them all.
+- **Truth table:** the results no longer list the essential prime implicants; the Karnaugh map's legend still marks
+  each essential group.
+- **Language Templates in the HDL editor only:** the Edit menu no longer lists them; they are the editor's
+  Templates ▾ button and its context menu, where the error hints now send you.
+- **Truth tables:** the language of a table's HDL module, VHDL or Verilog, is chosen in the editor (*Language*,
+  next to *HDL logic*) and can be changed at any time.
+- **Board Emulator, a simulation model on the event-driven engine, 3 to 5 times faster:** blinky's post-map model
+  runs about 84 000 cycles a second (was 16 000) and pong's about 25 000 (was 6 000), with the same results.
+- **Truth tables:** the schematic of a table is always drawn from it, in its HDL logic, and opens from the
+  *Schematic* badge of its row in the Design pane; two new HDL logic forms, *NAND gates only* and *NOR gates
+  only*, and the editor shows the NAND and NOR forms of each output. *Generate Schematic* and *Check my
+  answer* are gone.
+- **Hop-overs in the schematic editor:** an option draws a small arc where two wires cross without
+  connecting, so a crossing no longer looks like a connection; real connections keep their junction dot.
+- **A net name already used asks first:** naming a wire with the name of another net asks whether to connect
+  the two by name (one net, without a wire drawn between them, as in ISE); Cancel leaves them apart.
+- **Dragging a wire segment moves only that segment:** a horizontal one up or down, a vertical one left or
+  right; the segments next to it stretch to stay attached and the rest of the wire stays where it is. An end
+  segment keeps its pin connected, with a short segment added.
+- **Check Syntax warns of an unconnected inout port:** a bidirectional port neither read nor driven (in a
+  schematic, a bidirectional I/O marker left unconnected) gets XST's warning, `Inout <io> is never assigned.`,
+  with its explanation and fix in English and Portuguese, as an unused input and an unassigned output already do.
+- **Schematic: the width of an adder, subtractor or comparator on its symbol:** an 8-bit adder reads ADD8
+  under it, a 4-bit comparator COMP4, as the Xilinx symbols are named, and the width of each bus pin is
+  shown beside it; they change as soon as Width does.
+- **I/O markers anywhere on the sheet:** the schematic editor's Add I/O Marker tool now places a marker on
+  empty space too, named in1, out1, io1… (renamed in place), and a wire drawn later to its tip connects it.
+- **Reserved words refused as names:** a new source, a module, a port, an I/O marker, a net or an instance can no
+  longer be named with a reserved word of VHDL or Verilog (AND, OR, BEGIN, MODULE, wire, signal…, in any letter
+  case): the message names the word and the language. A project that already has such a module is warned when it
+  is opened and at Check Syntax.
+- **Schematic wires connect only where they end:** a wire drawn across a symbol's pin, or across the end
+  of another wire, no longer connects to it (no more nets with two drivers because a wire passed over a
+  gate). Ending a wire on a pin, a marker or another wire, and dropping a symbol onto a wire, still connect
+  there, as in ISE. Schematics saved before keep their connections.
+- **Cut, Copy, Paste in the state machine and Petri net editors:** the ASM chart's boxes, the FSM diagram's
+  states and the Petri net's places and transitions are copied and pasted too (Edit menu, toolbar, Ctrl+X, C,
+  V), with new names, also into another drawing.
+- **Cut, Copy, Paste and Delete everywhere:** Edit ▸ Cut / Copy / Paste / Delete (Ctrl+X, C, V, Del) and the
+  toolbar's buttons work in the text editors and in the schematic editor; a schematic's parts are pasted next
+  to the original, selected, with new names, also into another schematic or another project.
+- **The Silinx toolchain is a production toolchain:** Toolchain Settings, the start page, the processes and the
+  documentation no longer call it experimental ("Silinx toolchain (no ISE)").
+- **Touch screens (iPad): two fingers move the drawing, a pinch zooms it:** in the schematic, ASM chart, state
+  diagram and Petri net editors and the waveform viewer, a two-finger drag pans the view (it selected, like one
+  finger) and a pinch zooms it; one finger still selects and moves parts as before.
+- **Registers in the IOBs of every pad with the Silinx toolchain:** an I/O register on a left, right or top pad
+  (IOB = TRUE) is clocked from the global clock lines as ISE clocks it, and its bitstream is byte-identical to ISE's.
+- **Faster designs with the Silinx toolchain:** the router gives the critical path's connections the fast
+  wires other nets held: about 1.3 % shorter critical paths on average (up to 15 % on small control designs).
+- **A DCM's frequency limits in the timing report:** the Silinx toolchain's timing checks each DCM's input and outputs
+  against the frequencies they allow, as ISE's trce does ("Component Switching Limit"), with a warning when one is
+  out of range: a CLKFX of 5 MHz with CLKIN_DIVIDE_BY_2, for one, which ISE counts as a timing error.
+- **Board Emulator: the simulation models run 2 to 4 times faster again:** a post-synthesis, post-translate,
+  post-map or post-place & route model of vga, clock, stopwatch, traffic or blinky runs at 35 to 200 million
+  cycles a second in Chrome (the board's clock is 50 MHz): vga's at 67 instead of 18, clock's at 35 instead of 17.
+  pong's runs at 20 instead of 15.
+- **Faster deep logic:** the open synthesis restructures deep arithmetic written as gates (multipliers, adders,
+  comparators) at both Optimization Efforts: the EPFL multiplier, max and adder benchmarks are now faster than
+  with ISE.
+- **Faster small control designs with the Silinx toolchain:** the synthesis maps the critical path once more for
+  speed and, where it ends on a flip-flop's clock enable, puts that enable in the logic before the flip-flop, as XST
+  does: about 3 % shorter critical paths on average at Optimization Effort Normal (up to 22 % on small state
+  machines and counters), with no more slices; the synthesis takes 0.3 to 1 s longer.
+- **Faster small control paths with the Silinx toolchain:** after the LUT mapping, the synthesis makes the LUTs at the
+  end of the critical path one level shallower where it can, without making shared logic again: spi-fpga-slave's shift
+  register 18 % faster, the clock example 15 %, iwls05-sasc 11 %; 1.2 to 1.4 % shorter critical paths on average, with
+  as many slices.
+- **Faster state machines written one-hot with the Silinx toolchain:** a state machine of 8 states or more that Yosys
+  would leave as written (its states tested on all their bits) is tried one-hot too, at both Optimization Efforts:
+  iwls05-i2c's I2C bit controller 33 % faster at Normal and 27 % at High, with 15 % fewer slices.
+- **Faster designs at Optimization Effort High with the Silinx toolchain:** Place & Route makes two placements and keeps
+  the faster: 1.5 % shorter critical paths on average, up to 10 % (the clock example), for a third more place and route
+  time.
+- **Board Emulator: the simulation models run faster, in Chrome as in Node:** a post-synthesis, post-translate,
+  post-map or post-place & route model of an example runs up to 5 times faster than before (in Chrome blinky's 2.5
+  times, near the board's 50 MHz; pong's and clock's 4 to 5 times), and Chrome no longer runs one for seconds at a
+  tenth of its speed before it optimizes it.
+- **Clocks on the side GCLK pins:** a clock on a left or right global clock pin goes on its own side global buffer
+  through the dedicated path, as ISE places it, without a warning.
+- **Timing of the pads of a DCM's clocks:** the Silinx toolchain's OFFSET IN / OUT checks and its data sheet (pad to
+  setup, hold, clock to pad) now cover the inputs and outputs of a DCM's clocks, which they left out ("no pad of the
+  design is bounded by it"): deskewed by the DCM, with its phase shift and, for a falling-edge register, half the
+  clock's period, as ISE's trce times them; within 0.13 ns of trce on average.
+- **Open synthesis:** a large round-robin arbiter written as gates takes about a quarter fewer LUTs and slices at High.
+- **IDDR2 / ODDR2 and bidirectional pads with the Silinx toolchain:** designs that instantiate the DDR registers IDDR2 and
+  ODDR2, or that have inout ports (IOBUF), build to a bitstream, byte-identical to ISE's; the simulators know IDDR2 and
+  ODDR2.
+- **Silinx toolchain: registers in the IOBs on any pad:** a plain register (no enable, no reset) in an I/O block, and a
+  tristate output whose enable comes from the logic, are no longer refused for want of measurements on most pads.
+- **Silinx toolchain, synthesis at effort High:** a 4:1 multiplexer of the mapping with the wider functions is two
+  LUTs and an F5 multiplexer, as XST builds it, instead of four LUTs and three F-multiplexers: the EPFL barrel
+  shifter takes as many LUTs as with XST (941 instead of 1201; XST 939) and fewer slices (471; XST 534), and is faster.
+- **Silinx toolchain, synthesis at effort Normal:** the T80 (Z80) takes about as many slices as with XST at the default
+  effort too (1009 instead of 1146), its register file in distributed RAM, and is 6 % faster by ISE's timing analysis.
+- **Silinx toolchain, synthesis at effort High:** a memory written at one address and read asynchronously at several
+  (a processor's register file) becomes distributed RAM when that makes the design smaller and no slower: the T80
+  (Z80) takes about as many slices as with XST (1009 instead of 1146; XST 1000), 233 flip-flops instead of 361, and is
+  6 % faster by ISE's timing analysis.
+- **Silinx toolchain, synthesis at effort Normal:** the mapping with the wider functions (two LUTs into an F5
+  multiplexer for a 4:1 multiplexer) is tried at Normal too, and kept when better: the EPFL barrel shifter takes as
+  many LUTs as with XST at the default effort (941 instead of 1199; XST 939), 471 slices instead of 600, and is 15 %
+  faster.
+- **DCM outputs on any global buffer:** every output of every DCM of the Spartan-3E devices now reaches its four global
+  buffers in the Silinx toolchain (before, CLK90, CLKDV, CLKFX180 or CLK2X180 often reached none), so a Clocking
+  Wizard module places on the DCM nearest its clock.
+- **Cascaded multipliers:** MULT18X18SIO instances that take B from the multiplier below (B_INPUT = CASCADE, BCOUT ->
+  BCIN) build with the Silinx toolchain.
+- **Shift registers chained through Q15:** SRLC16E instances whose Q15 drives the next one's D (up to four) build
+  with the Silinx toolchain, packed on the two SLICEMs of a CLB as ISE packs them.
+
+In detail:
+
+- **Memory: closed documents no longer kept by the Tasks interface's Emulate (#879):** its watcher for an emulator's
+  board put an observer on every document opened, in every interface, for up to two minutes, so closed documents
+  (ISim, the editors, the FPGA view) stayed in memory and `test/ui/memory.test.js` failed. It is now one observer on
+  the workspace, connected only in the Tasks interface, with no timer.
+- **Device primitives under ISE (#859):** a 1-bit data port of a RAMB16 (RAMB16_S1, a dual port's 1-bit side) is
+  associated `DI(0) =>` as UNISIM's vector (XST's HDLParsers:800); RAMB8BWER / RAMB16BWER's DATA_WIDTH_A / _B written as
+  integers (XST's HDLCompiler:837 on the string); RAMB16BWER's SIM_DEVICE = "SPARTAN6" always written, in the schematic
+  and in its Language Template (ngdbuild changed it from SPARTAN3ADSP, a warning); DSP48A1's M and P both connected an
+  error (ISE's map refuses it, PhysDesignRules:2136), Symbol Info's HDL leaving M out; a bus tap of bit 0 of a 1-bit net
+  written as the net (an index of a scalar, refused by XST in VHDL and Verilog).
+- **The Tasks interface: no tab bar in Simulate, Emulate and Program (#854):** ISim, the board emulator and iMPACT
+  are one document each (a new one replaces the old), so the task's tab bar only repeated their name. There
+  it is gone; the document's module and model (Behavioral, Behavioral (RTL), Post-Synthesis…) and its Close
+  are in the task's bar. Edit and Implement keep their tabs.
+- **A document closed brings no other task to the front:** the document that comes forward in its place,
+  of another task, leaves the task where it was, with its page.
+- **ISim's Edit Stimuli button with its label (#853):** the toolbar's only labelled button (web/js/isim.js),
+  in the modern, classic and Tasks interfaces; in Portuguese "Editar Estímulos".
+- **Schematic: a MULT18X18SIO cascaded (#848):** with B_INPUT = CASCADE its input B is no longer needed (no warning
+  when it is left unconnected), and BCIN is: left unconnected, it warns.
+- **Timing: a DCM's CLKDV with a half-integer divider (#847):** CLKDV_DIVIDE 1.5, 2.5 … 7.5, written `2_5` in the
+  XDL, was read as the integer below (2.5 as 2): the PERIOD derived for CLKDV, its switching limit and the paths
+  between it and the other clocks used a period too short (40 ns instead of 50 ns from a 20 ns input).
+- **BUFGMUX in the Silinx toolchain (#846):** the packer makes a BUFGMUX a global buffer with I0, I1 and S, as ISE's map
+  writes it (I1_USED, its select not inverted); a clock switch's input from the BUFG Yosys put on that clock is taken
+  from the BUFG's input (the clock into the switch on its own line), the BUFG dropped when nothing else uses it; a
+  BUFGMUX whose select is a constant is a BUFG of the input it selects. The placer keeps a switch off the other
+  buffer of its pair unless that buffer's input is the switch's I1 (the two share their input lines). The timing
+  checks apply the PERIOD of the switch's I1 clock to it too (before: "no clock of the design comes from this port").
+  BUFGMUX_1 (its output held high while it switches) too: its DISABLE_ATTR HIGH measured with ISE on the 24 global
+  buffers (one bit each, research/s3e-bitstream/measure-846.sh). Two new open-flow fixtures, feat_bufgmux and
+  feat_bufgmux_1, byte-identical to ISE's bitgen with a clean DRC.
+- **ISE runs in a folder Docker Desktop shares (#482):** check-open-flow.mjs works in SILINX_ISE_REMOTE_DIR, else the ssh
+  configuration's remoteDir (e.g. /Users/Shared/silinx-ise/build), else ~/silinx-open-check as before; the research
+  scripts impl-remote.sh and fuzz-remote.sh mount an absolute RW as it is.
+- **PLL_BASE and BUFIO2 in the compiled cycle simulator (#845):** the PLL scheduled as the DCM is (a black box whose
+  outputs follow a schedule of their edges in the main clock's cycles: CLKFBOUT, CLKOUT0-5 with their DIVIDE,
+  DIVCLK_DIVIDE, duty cycles and phases, LOCKED, RST driven by the design, cascaded with a DCM); BUFIO2 a wire or a
+  divider (DIVIDE, DIVIDE_BYPASS, I_INVERT, SERDESSTROBE). A DCM on a clock whose duty cycle is not 50 % is not
+  compiled. The event-driven BUFIO2 with I_INVERT no longer sees a rising edge at time 0 (its inverted input is
+  high from the start, as on the FPGA). Both engines compared cycle by cycle, in VHDL and Verilog, with the
+  Clocking Wizard's PLL module among the designs.
+- **The Tasks interface's header fits in a development build, in Portuguese (#839):** the task switcher's labels
+  give way when the header is short of room, measured rather than at a fixed width: first the other tasks'
+  labels (their names in their tips), then every label, then a shorter project name. The Development menu
+  and Portuguese labels at 1280 × 800 had pushed the switcher past the right edge.
+- **The classic interface named Classic; Tasks in the development builds only (#838):** View ▸ Interface's "Xilinx
+  ISE (Classic)" is Classic (pt Clássica). The Tasks interface (#804) is offered only where core/version.js BUILD is
+  set (the dev/ site, the development single file): web/js/modern.js tasksAvailable, getInterface and applyPrefs
+  read a stored 'tasks' as the modern interface elsewhere (the dev/ and stable sites share their storage) and
+  setInterface('tasks') does nothing there; web/index.html's early script takes it only with a development build's
+  `<html data-dev>` (scripts/build-standalone.mjs), so a release shows no Tasks layout before its first paint either.
+  Tests: test/modern.test.js and test/tasks.test.js (a release reads tasks as modern, the early script without
+  data-dev), test/ui/tasks.test.js (its tests as a development build; without one, no Tasks item and a stored tasks
+  opens the modern interface), test/ui/modern.test.js (Modern and Classic, in English and Portuguese).
+- **Pack: a never-written block-RAM port's constant inputs left out (#836):** a port whose WE is tied to 0 and whose data
+  and parity inputs are all constants (a ROM, the read-only port of a RAM, the Block Memory wizard's) leaves them
+  unconnected, as ISE's map trims them; ISE's DRC called that block's unread outputs dangling pins
+  (PhysDesignRules:812) before. A never-written port with a signal on a data input keeps them all, as ISE does.
+- **The Clocking Wizard's Spartan-6 module simulated (#829):** its PLL_BASE (the model of #791) elaborated and simulated in
+  VHDL and Verilog, each output's period and a 90° phase measured once LOCKED rises; the DCM's CLK90 and CLKFX180
+  offsets measured too.
+- **XST's -bufg from the device resources model (#821):** server/ise.js reads the part's global clock buffers from
+  core/resources.js, which now has them for the Spartan-3 (8 BUFGMUX), 3A and 3A DSP (24) and Virtex-4 (32 BUFGCTRL),
+  measured with ISE's device reports; a part outside the database keeps 24. Those families' LUTs are 4-input ones in
+  the model (the Virtex-4's were labelled 6-input), and their Design Summary before an implementation shows the global
+  buffers.
+- **The BUFH of every Spartan-6 part (#820):** the device resources model (core/resources.js) has the count of every
+  part (128 on the LX4 / LX9 / LX16, 160 on the LX25(T), 256 on the LX45(T), 384 on the LX75(T)), measured with ISE's
+  device report (`xdl -report`), which also confirms 16 BUFGMUX and 32 BUFIO2 on every part and the model's other
+  counts; the test has those reports as its reference.
+- **Moves and pastes that short two named nets refused (#806):** after #754 refused a drawn wire between two
+  named nets, a move, a wire segment dragged or a paste could still make one net with two names ("net has several
+  names" in Check Syntax). Now they are refused the same way (core/schdoc.js netShort, the schematic before and
+  after): the document as it was, nothing to undo, the note "The move would short…" / "Pasting would short…".
+  Tests: test/sch-netname.test.js (a wire moved, the same name moved, a paste), test/ui/sch-netname.test.js (a
+  segment dragged, a marker moved, a paste, refused with the note; a move that shorts nothing still moves; both
+  interfaces, English and Portuguese).
+- **The Tasks interface and its frame (#804, from #782's direction A):** a third choice in View ▸ Interface,
+  with the modern look and its own layout (`<html data-layout="tasks">`, web/js/tasks.js, web/css/tasks.css).
+  - The task switcher in the header (a tab bar at the bottom of a screen 1024 px wide or less) shows each
+    task's state from its processes (done, warnings, errors, running, out of date).
+  - Each task keeps its arrangement per viewer: the side panel open or folded into the activity bar, the
+    messages open or folded to their tabs, a maximized document, and its last document. Only its own
+    documents' tabs are shown, and a document brought to the front brings its task. Implement opens the
+    Design Summary and Program opens iMPACT.
+  - A task with no document says what it does and offers its action (the design-flow button of the modern
+    toolbar). New errors open the messages.
+  - Maximize: double-click a document's tab, press Ctrl/Cmd+Shift+Enter or use the task's bar.
+  - Its parts exist only in that interface; labels are in Portuguese, and the header fits from 1025 to
+    1440 px in both languages.
+- **The Tasks interface's Implement task: the top's processes, the Design Summary as cards (#802):** its side panel
+  is the Implementation view's Processes list for the top module whatever is selected (ISE's names: Synthesize,
+  Implement Design ▸ Translate, Map, Place & Route, Generate Programming File; each with its state, a double-click
+  to run it, its other processes in its menu; I/O Pin Planning and the UCF's processes with them). Its page is the
+  Design Summary, laid out as cards, which comes to the front when an implementation ends; its Programming File
+  links to Program ("Program the board…"), and its reports open in Implement. The modern and classic interfaces
+  keep the summary's tables.
+- **The Tasks interface's Emulate task: the board gets the screen (#801):** the board's picture is zoomed to the
+  room it has (at most 1.5×), so its LEDs, display, switches and buttons are on screen without scrolling on a laptop,
+  a tablet in either orientation and a lab desktop (at 1366 × 768 its switches and buttons had been below the fold).
+  The emulator's Watch and timing generics are the task's side panel, folded at first: beside the board, below it on
+  a tablet in portrait. No Design pane in Emulate; the emulator's own bar stays its controls, right under the task's
+  bar. The modern and classic interfaces keep the board at its own size.
+- **The Tasks interface's Simulate task: the waves get the screen; Simulate runs the test bench (#800):** ISim's title
+  bar is the task's bar's (the module and the model, #854); its Instances and Objects are the task's side panel,
+  folded at first, and the Design pane is not shown, so the wave window has the workspace's width and most of its
+  height (on a tablet in portrait too, where the side button folds ISim's columns). Simulate runs the project's test
+  bench (its simulation top, else its first test bench, else the top) whatever module is selected, with the model
+  chosen in the task's bar (Behavioral, Post-Synthesis, Post-Translate, Post-Map, Post-Place & Route). ISim's run
+  controls stay its toolbar, right under the task's bar. The modern and classic interfaces are unchanged.
+- **The Tasks interface's Edit task: one design tree, no views (#799):** the Design pane shows the design (as the
+  Implementation view does: the top, its modules with their drawings' and wizards' badges), then a Test Benches group
+  (each with its unit under test) and a Constraints group (the UCF); no Implementation / Simulation switch and no
+  Processes list, their processes being the tasks' actions. Check checks the selected module, a test bench with the
+  simulation's sources (Behavioral Check Syntax). The groups' names are in Portuguese too. The modern and classic
+  interfaces keep their two views.
+- **One message centre in the Tasks interface (#798, from #782):** web/js/messages.js, built in that
+  interface only (the modern and classic ones keep their Console, ISim's console and the emulator's box).
+  - Each Console line says its source. It is read from the processes' headers (`Started : "…"`,
+    `=== SILINX STEP …`, iMPACT's operations), and the lines after a header are its process's.
+  - The filter follows the task (Implement: Synthesis and Implementation) until the viewer picks one or
+    All.
+  - ISim's console and the emulator's Messages box are hidden, and their lines are written into the message
+    centre.
+  - One command line: ISim's commands while simulating (`ISim> run 1 us`), else the command palette with
+    the text typed.
+  - The Design Summary opened behind a project at its opening no longer brings the Implement task to the
+    front (#804's frame).
+- **A change of the target device checked against the design (#796, part of #787):** core/resource-check.js's
+  `deviceChangeIssues` takes the design's primitive instances (its elaborated hierarchy, the drawings' HDL among the
+  sources), its top's ports and the last synthesis's or MAP's resource use (carried over to the new family: a
+  RAMB16_S* is a RAMB16BWER, a RAMB8BWER takes a whole RAMB16), and names each primitive the new family lacks with
+  its equivalent and each resource over the new part's count. Design Properties shows them in a "Device Change"
+  dialog (Change Device or Cancel; in Portuguese too) and logs them as warnings when the device is changed.
+- **Resources used of available, the overflow caught at synthesis or MAP (#795, part of #787):** core/resource-check.js
+  counts the resources of a netlist's cells (core/resources.js's primitives; a Spartan-6 RAMB8BWER is half a block RAM)
+  and names the ones over the part's counts. The Silinx toolchain's synthesis lines carry the part's totals (also the
+  Spartan-6's: DSP48A1s, RAMB16BWER/RAMB8BWERs, PLLs…) and fail on a design over any of them; MAP lists every resource
+  of the device's sites (block RAMs, multipliers and DCMs too) and fails before Place, its report kept. The Design
+  Summary shows every resource of the part: from MAP (ISE's unlisted ones as 0), or after the synthesis alone its
+  used of available, a row over 100 % in red.
+- **New Source ▸ Block Memory (#794):** the name, language and location; the memory: RAM or ROM, one port or two
+  (A and B, each its own clock), width × depth, READ_FIRST or WRITE_FIRST, the block RAM primitives or the
+  inferable HDL, its initial contents from a `.mem` (`$readmemh`'s format) or `.coe` file of the project (its
+  errors said); the block RAMs it takes against the device's (`core/resources.js`: RAMB16s, or the Spartan-6's
+  9 Kbit halves), one that does not fit refused. The module (`core/blockram.js`): the shape with the fewest blocks
+  (RAMB16_Sw / RAMB16_Sw_Sw, the parity bits as data; RAMB8BWER / RAMB16BWER counted in halves), then the fewest
+  rows, side by side for the width and in rows for the depth (the high address bits choose a row's write enable
+  and, registered, the output), their INIT_xx / INITP_xx from the file; or an array read on the clock edge, its
+  initial words written in (XST's templates; the Silinx toolchain maps it to the same RAMB16). Its settings in a
+  `silinx-wizard:` header line: the Design pane shows *[Block Memory] [VHDL]*, and reopening it reads the file
+  again. Three board tests of its output (`feat_bramwiz`, `feat_bramwiz_v`, `feat_bramwiz_inf`) build on the four
+  Spartan-3E devices of the Silinx toolchain. In Portuguese.
+- **New Source ▸ Clocking Wizard (#793):** the name, language and location; the input clock (the board's
+  oscillator by default, from a pin through an IBUFG or not), the reset and LOCKED, on the Spartan-3E the input
+  divided by 2 and a fixed phase shift; the outputs: the DCM_SP's nine (CLKDV's divide and CLKFX's multiply /
+  divide chosen nearest the frequency asked) or the PLL_BASE's six (one VCO for all, its multiply and divides
+  chosen with the smallest error, then the fastest VCO; the phase in eighths of the VCO period), each with the
+  frequency it gets and the ones near it the primitive can make; DS312's (Stepping 1) and DS162's ranges, with
+  the input divided by 2 trce's halved limits. The module (`core/clocking.js`) has the primitive and a BUFG per
+  output (CLK0 fed back to CLKFB, the PLL's feedback internal), its parameters commented, its settings in a
+  `silinx-wizard:` header line: the Design pane shows *[Clocking Wizard] [VHDL]*, a double-click, the badge or
+  *View/Edit Clocking Wizard* reopen the wizard (a module changed by hand since is said so). Two board tests
+  of its output (`feat_clkwiz`, `feat_clkwiz_v`) build on the four Spartan-3E devices of the Silinx toolchain.
+  In Portuguese.
+- **The Language Templates' Device Primitives (#792):** a template per primitive of the schematic library's list
+  (core/prim-templates.js reading core/primitives.js): its attributes at their defaults with their ranges, its pins
+  with what they do, the inputs it works without tied, a comment with the primitive and its count on the project's
+  part; its placeholders (the instance's name, the signals, a DCM's or a PLL's frequencies) inserted with the
+  instance's name selected.
+- **The schematic's Device Primitives (#791):** a category of the palette with the primitives of the project's
+  family, following it when the device changes (core/primitives.js, one list read by the library and the
+  templates); each symbol has UNISIM's pins and its attributes as parameters (their ranges checked: a value out of
+  range an error), a block RAM's width and its initial contents (hex words from address 0, its INIT_xx); the
+  generated HDL instances the primitive itself (VHDL with `library UNISIM`, Verilog), an unconnected input tied
+  to its inactive value, a needed one (a clock, an address, a DCM's feedback) a warning; Symbol Info gives its
+  resource on the device and the schematic's use of it ("Block RAM (18 Kb): 12 on this device, 2 used").
+- **PLL_BASE and BUFIO2 simulated (#791):** functional models of the Spartan-6 PLL (CLKOUT0-5 at the VCO's
+  frequency divided, their duty cycle and phase, LOCKED) and I/O clock buffer (IOCLK, DIVCLK divided,
+  SERDESSTROBE).
+- **The device resources' test (#826):** its shipped devices' check takes the Spartan-3E ones, the Spartan-6
+  device descriptions shipped too.
+- **One model of each device's resources (#790, part of #787):** core/resources.js describes, for every part of the
+  device database, the resources it has and how many: the common ones (flip-flops, LUTs, slices, distributed RAM, user
+  I/O per package) and the family's own (Spartan-3E: RAMB16, MULT18X18SIO, 24 BUFGMUX, DCM; Spartan-6: RAMB16BWER /
+  RAMB8BWER, DSP48A1, 16 BUFGMUX, 32 BUFIO2, BUFH, DCM, PLL, MCB), each with its label in English and Portuguese, its
+  line of ISE's MAP report and the UNISIM primitives that use it. `resourcesOf`, `resourceCount`, `familyResources`,
+  `primitivesOf` and `resourceOfPrimitive` are its API, for the schematic primitives, templates, wizards, reports and
+  checks of #791-#796. The Design Summary reads it instead of its hard-coded 24 BUFGMUXs. Tested against DS312's and
+  DS160's tables, the shipped devices' sites and ISE's MAP report of the LX16 and LX45.
+- **The Start page's Open Example entries removed (#776):** its Project Commands are New Project…, Open Project… and the
+  two imports; the examples stay New Project's templates, in their order (web/js/project.js, their Portuguese
+  labels out of web/js/i18n.js). docs/GETTING-STARTED.md and docs/COMECAR.md say New Project… ▸ Start from ▸ Example.
+  Test: test/ui/projects.test.js (no Open Example entry; the wizard's templates in their order; gates, traffic and
+  pong opened through New Project…).
+- **Test: the word-level models' counts of pong and clock (#775):** test/compiled-words.test.js records pong's and
+  clock's cells, equalities and tables as the synthesis makes them since #742, #743 and #652's changes (the models still
+  give the same outputs as bit by bit).
+- **NET names with wildcards in the Silinx toolchain (#773):** the packer looked a NET's constraints up by its name as
+  written, so `NET "led<*>" IOSTANDARD = LVCMOS33 ;` left those pads in LVCMOS25 (seen in the feat_iob_pair fixture).
+  The constraints of each port bit now come from every NET statement whose name matches it (`*` any characters, `?`
+  one, ignoring case), each attribute the last statement's that sets it, as ngdbuild does (core/ucf.js
+  `portAssignments`; measured with ISE 14.7). Check Constraints reports a wildcard NET that matches no port: an error
+  with I/O attributes (ngdbuild stops on one that matches no design object, ConstraintSystem:58), a warning with
+  timing ones. feat_iob_pair's pads are now LVCMOS33, its bitstream byte-identical to ISE's.
+- **The related tests of a data file (#772):** a pull request that changes only data (the bit database's JSON,
+  a device description of `core/fpga/devices/`, an example, a test fixture, a research tool's measurements) runs
+  the tests of the modules that read it and of the modules that import those, at any depth, as the tests that
+  read it themselves; `scripts/related-tests.mjs` finds the readers in the code (a folder or a file named from
+  the module's own place, `path.join(path.dirname(fileURLToPath(import.meta.url)), …)` or
+  `new URL('…', import.meta.url)`), so a new file of the database is covered too. The research tools are among
+  the sources it reads.
+- **A menu and its submenus kept inside the window (#767):** web/js/ui.js menuBar and buildMenu move a menu left, a
+  submenu to its menu's left (or against the window's edge) when it would run past the right edge, and up past the
+  bottom; the Development menu's change titles at most 60 characters wide (web/css/app.css), whole in the item's
+  tooltip. Test: test/ui/dev-menu.test.js (a 1024 px window, a long title: the menu and the submenu inside it, the
+  title cut, its tooltip whole; both interfaces).
+- **The bit database: an IOB's second flip-flop alone (#759):** IFF2 / OFF2 / TFF2 without the first, as ISE's map
+  uses them for two registers of one kind on different clocks in a differential pair, measured with ISE on every DIFFM
+  pad of the four devices (research/s3e-bitstream measure-759.sh, gen-iobpair.mjs; ana-iobreg.mjs --known solves only
+  the settings the database lacks). A LOC'd pair of #749 writes a complete bitstream, byte-identical to ISE's (its
+  placer warning is gone).
+- **The UI test of the open mode's Technology Schematic (#758):** pong's netlist is 1009 cells since the synthesis makes
+  the critical LUTs one level shallower (221fc1b, #652); the test expected 1012.
+- **Hop-overs on by default (#756):** the Hop-overs checkbox of the schematic editor (#692) is now ticked unless
+  the user turned it off (the choice remembered, as before); crossing wires that connect keep their junction dot.
+  The printed schematic (and its saved SVG) shows the hops as drawn. Tests: test/ui/sch-hops.test.js (on with
+  nothing remembered, the T's dot, the printed SVG, off remembered after the schematic is opened again, Portuguese;
+  both interfaces).
+- **A wire that would short two named nets is refused (#754):** the wire was added and the net had two names, the
+  drawing keeping both, the HDL one of them, the error "net has several names" found only later. Now, as ISE's
+  schematic editor ("Wire would create a short between net x and net y"), a drawn wire joining two nets that each
+  have a name of their own (a net name or an I/O marker; VHDL case-insensitive) is not added, and the status line
+  says why (core/schdoc.js netShort). Still allowed: the same name, an unnamed net, an output marker on another
+  marker's net (assigned, y <= a). Tests: test/sch-netname.test.js (net names, markers, two input markers, VHDL's
+  case, the cases allowed, the HDL of an allowed wire compiled and simulated in VHDL and Verilog),
+  test/ui/sch-netname.test.js (refused with the note, an allowed wire drawn; both interfaces, English and
+  Portuguese).
+- **The pads' input delays measured with each pad used on its own (#751):** #97 solved them from designs where every pad
+  had an input, so a bit of one pad's delay could go to its neighbour's. The issue's five bits are each the input-only
+  pad's next to the I/O tile (46,31 / 47,31 A3's register, not B3's; 538,356 D18's, not E17's; 767,740 and 767,996 the
+  XC3S1200E's E17 and E18's, not F14 and G13's), and designs with only some pads used found more such bits on all four
+  devices. New measurements with ISE (research/s3e-bitstream: `gen-pairdly.mjs`, `gen-paddly.mjs`: every pad's kind and
+  delay varied apart from its neighbours', 2 020 designs; `ana-paddly.mjs` gives each bit to the one pad it follows):
+  1 199 of the 10 051 delay features change (`measured/fix-28-pad-delays.json`, applied by `pad-delays.mjs` at the end
+  of `build-db.sh`), and every measured design, the 32 held-out random ones too, is byte-identical to ISE's bitgen. New
+  board test `feat_iob_lone` (lone input registers on the XC3S500E, and on the XC3S1200E in the ISE tests). Tests:
+  `test/iob-reg.test.js` (the five bits as ISE sets them with each pad alone, no delay bit in two pads' features,
+  `pad-delays.mjs --check`), `test/open-flow.test.js`, `test/ise/open-flow.test.js`.
+- **The two IOBs of a differential pair share each clock wire of their I/O tile (#749):** registers of one kind (input,
+  or output / output enable) in a DIFFM / DIFFS pair on different clocks made the routing fail to converge. As ISE does
+  (checked with ISE 14.7 on the Basys2-250: input and output registers, both ports' orders), the DIFFM's register goes
+  on the IOB's second flip-flop (IFF2 / OFF2 / TFF2), clocked from the tile's second clock wire (IOIS_CLK4 / 5), with
+  the static timing and the Post-Place & Route model following it; ISE's DRC is clean on that routed XDL. Pads without
+  a LOC are kept out of such a pair by the placer (the bit database does not have the second flip-flop's settings on a
+  pad alone yet, #759): a LOC'd pair is said with a warning naming the ports, their clocks and the tile, and the
+  bitstream writer names the settings it lacks. `feat_iob_pair` (new): registers on two clocks, their pads left to the
+  placer, byte-identical to ISE's bitgen.
+- **Carry chains written as gates: a sum that starts another chain driven once (#746):** in an AND-inverter graph a
+  sum is an AND of two inverted nets, so it was also found as the first carry (c = a & b) of the chain that adds it
+  next, and both chains' rewrites drove it (Yosys's "multiple conflicting drivers": the EPFL multiplier 10 nets, sin 4,
+  log2 16). Such a chain now starts at its next bit, the sum its carry in, and no bit is redriven twice. A regression
+  test: an adder whose sum is the carry in of a second one, its netlist simulated against the design.
+- **The netlist without the chains kept when larger by no more times than it is faster (#746):** the multiplier's
+  netlist with its chains, now correct, was kept by the choice of #742 (2.1 times slower by the estimate, 128.6 ns
+  routed instead of 63.9, for 36 % fewer slices); the one without them is kept again (the EPFL adder keeps its chains:
+  1.8 times slower for a quarter of the LUTs).
+- **A negation that wraps, read wider, synthesized right (#743):** Yosys 0.70's alumacc, after wreduce, merged a `$neg`
+  narrower than the sum reading it into that sum at its full width, so -(-16) at 5 bits, read at 16, came out
+  unwrapped (the Nightly's VlogHammer wideexpr_24040: `-($signed(-x))` gave 0xfff0 instead of 0x0010, at both
+  efforts). core/synth-verilog.js writes `-x` as `0 - x`, a subtraction, which Yosys keeps at its width; the examples'
+  netlists are unchanged, and the corpus's nine designs with a negation (ITC'99) within ±1.5 % in LUTs (b04 25 %
+  faster). Test: test/synth-negation.test.js (the value by hand, the simulator, the netlist at Normal and High).
+- **The carry chains' netlist chosen both ways (#742):** a design written as gates is mapped with and without its
+  carry chains (#77); the netlist without them is now kept only when better than the one with them by `DEPTH_RULE`,
+  not by default whenever the chains' was not better (`keepChains`). Since the SOP balancing (#654) the EPFL adder in
+  the design corpus had kept a netlist 44 % faster by the estimate with 4 times the LUTs (171 → 676) and 74 % more
+  slices, routed only 9 % faster: it has its chains again (171 LUTs, 194 slices, 12.98 ns). The EPFL max keeps its
+  chains too: 1437 → 1367 LUTs, 27.9 → 23.6 ns. A netlist whose chains Yosys finds driven twice (the EPFL
+  multiplier's rewrite, #746) is never kept. The EPFL multiplier's (+15 % LUTs, 38 % faster) and bar's (24 more
+  flip-flops replicated, 7 % faster) results since #654 are recorded as the corpus's expectations.
+- **Renaming a net connected by name renames the set (#734):** a net name's Name, a wire's Rename net and a net name
+  put on an existing one now rename every net name of that net with the old name (case-insensitive in VHDL), each
+  keeping its own bus range (d(7:0) becomes q(7:0)), and its I/O marker of that name (core/schdoc.js renameNet); the
+  status line says what else took the name. Tests: test/sch-netname.test.js (the set, VHDL's case, a bus range,
+  another name on the net left alone, the marker, the HDL compiled and simulated, in VHDL and Verilog),
+  test/ui/sch-netname.test.js (the rename, the note, one Undo, the marker; both interfaces, English and Portuguese).
+- **The Spartan-6 open toolchain's plan (#733, #1):** `research/s6/README.md`: what the Nexys3 (XC6SLX16) and the
+  Atlys (XC6SLX45) need that the Spartan-3E flow lacks (the SLICEX / SLICEL / SLICEM slices, CARRY4, RAMB8BWER /
+  RAMB16BWER, DSP48A1, the clocking, the I/O, the routing fabric, the UG380 bitstream), how each part is measured
+  with ISE, the order of the work and its issues (#720–#733); the scripts of the first measurement night, checked
+  without ISE: the work folder of the examples on both boards and their open-synthesis netlists (`night1.mjs`),
+  the ISE runs (`ise-s6.sh`, `night1-remote.sh`), a reader of the Spartan-6 `.bit` (`bits6.mjs`) and the summary
+  of the results as Silinx's own record (`summarize-night1.mjs`).
+- **The Spartan-6 boards' device descriptions (#723, #1):** the packed routing graphs of the XC6SLX16-CSG324
+  (Nexys3, 1.4 MB) and the XC6SLX45-CSG324 (Atlys, 2.9 MB), computed by Silinx from ISE's device reports of the
+  first measurement night, ship in `core/fpga/devices/` as the Spartan-3E boards' do; their tiles, sites by type and
+  PIPs are the reports', every pin of both boards a bonded pad.
+- **The Spartan-6 devices of the Silinx toolchain, behind a developer flag (#722, #1):** `core/fpga/s6/devices.js`:
+  the parts of the Nexys3 (XC6SLX16-CSG324) and the Atlys (XC6SLX45-CSG324) with UG380's IDCODE, frame length and
+  configuration size, until the measurements replace them. With `SILINX_SPARTAN6_OPEN=1` in the server's environment
+  the Silinx toolchain takes them for the steps it has (the synthesis and the Post-Synthesis Simulation Model) and
+  refuses the others with a message naming them; without the flag nothing changes.
+- **The Spartan-6's first ISE measurements (#721, #723, #724, #1):** night 1 of `research/s6` run on ISE 14.7: the
+  device reports of the XC6SLX16 and XC6SLX45 (their tiles, sites and PIPs: DS160's slices exactly), the empty
+  designs' bitstreams (the UG380 packet sequence, the IDCODEs confirmed), and the seven examples implemented from
+  HDL and from Silinx's netlist on the Nexys3 and the Atlys, all routed; recorded as `research/s6/measured/night1.json`
+  and in the research note. The packer's SLICELs are map's on every example (a test); map's SLICEX are a placement's.
+  The scripts' fixes: the empty designs uploaded, `ngdbuild -aul` for Silinx's netlists, one device report at a time.
+- **The Spartan-6 packer, a carry's sum and carry out both out of one position (#721):** as ISE's map packs it
+  (night 1, the clock example), the carry out leaves by the position's multiplexed output and the sum through the
+  position's storage element set as a gate (AND2L), out by its Q, in a slice of no other storage element; the
+  packer's last warning on the examples is gone. Its SLICEL counts equal map's on every example and both boards.
+- **The Spartan-6 slice model and packer (#721, #1):** `core/fpga/s6/pack.js` packs a netlist of the open synthesis
+  for the Spartan-6 into SLICEX, SLICEL and SLICEM slices: four LUT6 positions (O6, and O5 when LUT combining is on,
+  off by default as in ISE's map), eight storage elements of one control set (latches in the FFs only, never beside
+  a 5FF), carry chains as columns of SLICELs with their LUTs at S and DI by O5 or the bypass inputs, the F7AMUX /
+  F7BMUX / F8MUX with their LUTs, the SLICEM's RAMs and shift registers by clock, write enable and write address, the
+  multiplexed outputs; `checkSlice` checks every rule. Every example packs into legal slices for the XC6SLX16; the
+  comparison with ISE's map comes with the first measurement night.
+- **The Spartan-6 primitives simulated (#720, #1):** Silinx's models of the cells the open synthesis maps a Spartan-6
+  design onto (Yosys `xc6s`): CARRY4, SRLC32E, the SLICEM's RAM128X1S / RAM128X1D / RAM256X1S / RAM32M / RAM64M,
+  DSP48A1 (its registers, pre-adder, multiplier, X / Z multiplexers, post-adder, synchronous or asynchronous reset)
+  and RAMB16BWER / RAMB8BWER (every width, TDP and SDP, byte write enables, the write modes, the output register,
+  SRVAL, INIT), in the UNISIM library of the simulator (`core/unisim-s6.js`) and in the Board Emulator's compiled
+  engine (`core/compiled-prims-s6.js`). The Post-Synthesis Simulation Model of a design synthesized for the XC6SLX16
+  (Nexys3) can be simulated: every example's test bench passes on it in VHDL and in Verilog, with no warnings, and
+  the compiled engine runs it as the event-driven simulator does; each primitive's netlists simulate as their RTL.
+- **The Board Emulator while it is not seen, and its drawing (#719):** paused by default while `document.hidden` and
+  while its document tab is not the active one (an IntersectionObserver on its element), the status line saying
+  "paused while hidden"; seen again, it goes on in real time from where it was (no backlog). "When hidden: Keep
+  running" (remembered in `silinx.emulator.hidden`) simulates on and draws nothing. The frames come by
+  `requestAnimationFrame` (at most 60 a second, a timer only while it runs hidden), an LED's style, a digit's segments,
+  the watched values and the status written only when they changed; no timer while paused or powered off (it was every
+  4 ms running and every 30 ms paused). Measured with blinky in Chrome on macOS: running about the same (the worker's
+  50 MHz simulation), 0 timers a second instead of 205; behind another document tab 0 % CPU instead of 60 %; hidden
+  0.1-1.6 % instead of 53 %; paused 0 timers a second instead of 31. Tests: `test/ui/emu-hidden.test.js`.
+- **The compiled engine's activity by the bits of a value read (#715, found with #670):** a cell reading part of a
+  value is evaluated only when those bits change. Logic reading a counter's high bits no longer runs at every
+  cycle. Every combinational cell of up to 32 bits may now track its changes for the cells that read it; the
+  profile keeps this only for a cell whose value changes less than a quarter as often as what it reads, since the
+  test costs more than it saves otherwise. The choice of the guarded segments weighs each cell by its operations (a
+  table read with a ten-bit address against a NOT), and puts the cells evaluated at most cycles together. A cell
+  read only inside its own segment sets no flag. The results are the same, cycle for cycle. In millions of cycles a
+  second, Node / Chrome, against the previous version: the behavioural designs traffic 151 / 133 (from 73 / 78),
+  blinky 210 / 180 (131 / 185), pong 76 / 74 (39 / 45), stopwatch 103 / 104 (70 / 77), clock 118 / 115 (71 / 75),
+  vga 63 / 63 (64 / 64); the post-synthesis models pong 30 / 31 (22 / 22), stopwatch 77 / 67 (59 / 60), traffic,
+  blinky, clock and vga as before. pong's and clock's models stay below the board's 50 MHz (#670): their test
+  bench's generics make most of their logic change every cycle or two. With the same generics, the behavioural
+  designs run at 52 (pong) and 68 (clock). A compiled model's `stats.work` gives the estimated work of a cycle.
+- **The XC3S1200E's other long-line splitters in the bit database (#709):** the centre column's (CLKV_LL, 36
+  switches) and the I/O columns' (CLKL_IOIS_LL / CLKR_IOIS_LL, 28 each), one bit each, measured with ISE
+  (`ll-splitters.mjs`), not used by the router yet. ISE's XC3S1200E designs that use them are byte-identical with no
+  exception for the splitters' frames. The side DCM's `DCM_CLKFB -> DCM_CLKFB_PINWIRE` loses a bit stage F gave it,
+  which was a splitter's. `merge-db.mjs` keeps a type's `noRoute`, which keeps the router off
+  the type's own features only (CLKV_LL's clock switches, shared with CLKV, stay routable).
+- **The Development menu tested on real builds (#707):** scripts/build-info.mjs takes GitHub's API from
+  GITHUB_API_URL (a workflow's, api.github.com by default). test/build-dev-menu.test.js builds the single file on a
+  repository of its own against an API served by the test: a development build carries its changes typed by their
+  labels and never the token; the same commit tagged v<VERSION>, a release, carries none and asks the API nothing.
+- **The Development menu (#707):** a development build (the site's dev/ and the development single file) carries its
+  changes since the last release, the changes/*.md fragments typed by their issues' labels (bug, enhancement) from
+  GitHub's API at build time (scripts/build-info.mjs devChanges, only with the publishing workflows' token, issues:
+  read in pages.yml and dev-release.yml; core/changelog.js buildChanges), in core/version.js BUILD. web/js/devmenu.js
+  shows them after Help, their text written as text (bold and code as elements); a release and the local server show
+  no menu. Tests: test/changelog.test.js, test/build-info.test.js (the labels, the token only in the requests, no
+  request without one), test/ci-workflow.test.js (the permissions, the token in the build step only),
+  test/ui/dev-menu.test.js (the menu in both interfaces and in Portuguese, a change's window, the text not as HTML,
+  no menu without a development build).
+- **The truth table's "Essential prime implicants (SOP)" line removed (#705):** below the NAND and NOR forms, with
+  its Portuguese translation; the K-map legend's "essential" marks stay. Test: test/ui/truthtable.test.js (the line
+  gone, in both interfaces; the results' other forms as before).
+- **Edit ▸ Language Templates removed (#703):** the templates stay in the HDL editor (its Templates ▾ button and its
+  context menu's Language Templates); the error hints that sent to the menu item (core/hints.js, in English and
+  Portuguese) name the editor's button. Tests: test/ui/editing.test.js (the Edit menu without it, in both
+  interfaces; the editor's button inserts a template), test/hints.test.js (no hint names the menu item),
+  test/ui/app.test.js (the menu test's list).
+- **A truth table's HDL language in its editor (#696):** *Language* (VHDL / Verilog) beside *HDL logic*, as the
+  ASM, state diagram and Petri net editors have it: a change makes the table's HDL file again in that language
+  and removes the other one (`drawnHdlLanguage`), the Design pane's badge follows (`[VHDL]` / `[Verilog]`,
+  last), a module that instances it and the table's schematic keep working. A new table is in the project's
+  preferred language, as before.
+- **Native primitives with a fixed sensitivity (#695):** the netlist primitives evaluated in JavaScript
+  (core/native.js) no longer run as generators that allocate a waiter at every wake. Each has one waiter, kept in its
+  inputs' waiter sets (core/simulator.js). Their inputs' bits are compared, not masked (a BigInt `&` allocates). A
+  whole write of a value of the signal's width and sign stores that value itself instead of a copy, so the
+  primitives' shared 0 and 1 reach their inputs (core/interp.js). blinky's models now run 123k / 85k / 83k cycles a
+  second (post-synthesis / post-translate / post-map, was 31k / 17k / 16k) and pong's 33k / 28k / 25k (was
+  10k / 6k / 5.9k), with the same outputs cycle by cycle. The behavioural design's speed is unchanged.
+- **A reset of a netlist's simulation (#698):** the native primitives kept the previous run's state: their outputs'
+  values projected under the old run's delta stamps, and a shift register's or a distributed RAM's contents. After
+  `Simulator.reset()` (the Board Emulator's Power cycle) a counter could stand still. They now start again from
+  their initial state.
+- **The schematic of a truth table, always generated, in its HDL logic form (#694):** the table's module row
+  in the Design pane has a *Schematic* badge (between *Table* and *VHDL* / *Verilog*) that opens it,
+  read-only, redrawn whenever the table or its form changes; not a file of the project. HDL and schematic
+  are made from the same expression of each output (`outputForm`): minimal SOP (AND / OR / NOT gates), POS,
+  the XOR form (XOR / XNOR gates), NAND or NOR gates only; at most 5 inputs an AND / OR gate, 4 the
+  others. The *Generate Schematic* button and its *NAND gates only* check box are removed; a schematic an
+  older project made with them stays a module of its own.
+- **NAND gates only and NOR gates only (#694):** two new *HDL logic* forms, the minimal SOP with NAND gates
+  only and the minimal POS with NOR gates only, by double negation (`gateForm`; a complemented input is an
+  inverter, a NAND / NOR of one input): the HDL with NAND (NOR) operations only (`a nand b`,
+  `not (a and b and c)`, `a nand a`; `~(a & b)`), the schematic with NAND (NOR) gates only. The editor's
+  results show the *NAND form* and the *NOR form* of each output, below the XOR form, with their gate
+  counts.
+- **No Check my answer (#694):** the editor's *Check my answer* and *My expression* are removed
+  (`compareExpr` too).
+- **Hop-overs (#692):** the schematic toolbar's Hop-overs checkbox (off by default, remembered) draws the
+  horizontal segment of a crossing with a small arc over the vertical one, where the two cross inside both
+  (`wireCrossings`, core/schdoc.js); not at a T-junction, a bend or a wire's end. A view only: the document,
+  its nets and its HDL do not change. In Portuguese, "Saltos".
+- **Connecting nets by name, asked (#689):** Add Net Name, a wire's Rename net and a net name's Name, given
+  a name that another net has (a net name or an I/O marker, case-insensitive in VHDL, a bus name by its
+  base), ask "Connect by name" or "Cancel" (`netByName`, core/schdoc.js); Cancel adds or changes nothing.
+  The rule itself is the same as before (the same names are one net, as the gates example uses it): only
+  a new name no longer joins a net silently. In Portuguese too.
+- **One wire segment dragged (#688):** with Keep connections, dragging a wire moves the segment under the
+  pointer across its direction (`moveSegment`, core/schroute.js); its two neighbours stretch or shrink, a
+  neighbour shrunk to nothing is merged away; the wire's end on a pin, a marker or another wire stays, joined
+  by a new short segment (a free end moves with the segment); the net names on the segment go with it, one
+  on a neighbour that shrank past it is put back on the wire. The nets and the generated HDL do not change.
+  Without Keep connections the wire still moves whole; a part dragged still drags its wires' ends.
+- **An inout port neither read nor driven, as XST (#684):** the design checks (`core/lint.js`, check
+  `unused-inout`) report a bidirectional port that nothing in its module (or below it) reads or drives, at the
+  port's line, as `WARNING:Silinx:2565 - Inout <io> is never assigned.`: XST's warning (Xst:2565, learnt from XST
+  14.7 on probe designs), one per bit of a bus from its right index (`Inout <iob<0>> is never assigned.`). A port
+  only read, only driven (a tri-state buffer) or connected to an instance that uses it gets none, as in XST. Its
+  help text is in `core/hints.js`. Silinx's open synthesis gives none of these unused-port warnings (Check Syntax
+  does), so it is not added there. Tests: `test/lint.test.js` (VHDL and Verilog, a scalar and a bus, read, driven,
+  through an instance, the suppression comment), `test/sch-iomarker-void.test.js` (a schematic's bidirectional
+  marker left unconnected), `test/hints.test.js` (the help, English and Portuguese), `test/ui/hints.test.js` (Check
+  Syntax and the help in the app, VHDL and Verilog, English and Portuguese).
+- **The width on the arithmetic symbols (#681):** ADD, SUB and COMP with bus pins draw their type with their
+  width under the symbol (ADD8, SUB16, COMP4, as the gates their type) and the width by each bus pin (A, B,
+  S / D), as multiplexers and module symbols do; a CONSTANT wider than a bit shows its width by its output.
+  The name comes from one function, `symbolTypeName` in core/schdoc.js (the counters' and registers' CNT8 /
+  REG8 too), so the canvas, the printed / saved SVG and the Symbol Info drawing show the same.
+- **I/O markers placed on empty space (#680):** Add I/O Marker no longer needs a wire end or a pin. On empty
+  space it places a marker of 1 bit (an input unless the options choose another direction) and asks for its
+  name with the next free one, in1, out1 or io1 (core/schdoc.js `freePortName`: not taken by a marker, a net
+  name or an instance). Its port is in the generated VHDL and Verilog. A wire drawn later from or to its tip,
+  or the marker dragged onto a pin or a wire end, connects it. Left unconnected, the editor's Check warns
+  `I/O marker 'in1' is not connected`, and Check Syntax gives XST's warnings: `Input <in1> is never used.`,
+  `Signal <out1>, unconnected in block <top>, is tied to its initial value.` (a bidirectional one: XST's warning
+  to come, #684). The tool's hint and the name prompts are in Portuguese.
+- **One list of the reserved words of VHDL and Verilog (#679):** `core/reserved.js` holds the words of VHDL-93 /
+  2008, Verilog-2005 and SystemVerilog-2017, used by the New Source wizard (and its Module, Schematic, Petri net
+  and Test Bench wizards), Rename, Add Copy of Source (a drawing so named is refused), the truth table's and the
+  schematic editor's names, Rename Symbol, and the checks of the schematics, FSMs, ASM charts, Petri nets and
+  truth tables (several copies of the list, which differed, are gone). A new name is refused in any letter case
+  and in both languages, as a drawing's HDL is generated in either; an existing name is an error of its drawing
+  when its HDL would not compile (a schematic named AND now says so instead of failing in the compiler), else a
+  warning (a word of VHDL or Verilog; SystemVerilog's own words, good names for XST and Yosys, only refused for
+  a new name); a module so named is warned of when the project is opened and at Check Syntax.
+- **Schematic connectivity at the wires' ends (#678):** pins, I/O markers and wire ends at the same point
+  connect; a wire's segments and bends do not (a pin or a wire end lying on them stays apart). A connection
+  made in the middle of a wire (a wire ended on its segment or bend, a symbol or a marker dropped onto it,
+  #170) splits that wire there, so the joint is an end of both (`splitWiresAt`). The documents become
+  version 3: one of version 2 is converted on opening, its wires split where they connected (its nets and
+  its HDL the same; with module symbols, once the modules are known). The schematics made from HDL, from a
+  truth table and from ISE's `.sch` join each net's own wires only: two of their nets that merely touched no
+  longer merge (an imported ISE adder's CO and OFL, a fallback layout's nets). The junction dots: three
+  wire ends, or two at a pin; a named bus split at its taps still shows its name once per straight run.
+- **The ASM, FSM and Petri net editors' Cut / Copy / Paste (#677, core/drawclip.js):** the nodes selected and
+  the connections between them (ASM connections, FSM transitions and self-loops, Petri arcs), pasted offset and
+  selected, a name already used made new (_1, _2…); pasted into an empty drawing, the copy's initial state
+  becomes its. Edit ▸ Delete deletes the selection, a transition or an arc included.
+- **Edit ▸ Cut / Copy / Paste / Delete in a text field (#677):** with a field of an editor in focus (a name, an
+  expression, a property, the truth table's or the pin planner's), the menu and the toolbar act on its selected
+  text, not on the drawing; the toolbar's buttons leave the focus where it was.
+- **Edit ▸ Cut / Copy / Paste / Delete and the toolbar dispatched to the active editor (#677):** as Undo / Redo
+  are; disabled when there is nothing to copy or paste; the modern interface shows the toolbar's Cut / Copy /
+  Paste too. Through the system clipboard where the browser allows it, else a clipboard of the app's own
+  (file://, a permission refused).
+- **The schematic's Cut / Copy / Paste (#677, core/schclip.js):** the selected parts, wires, net names and I/O
+  markers, with the wires joining the copied parts (not those leading to parts left behind); pasted offset and
+  selected, an instance name already used gets the next inst_n, a marker's or a net's name already used gets
+  _1, _2… (a net name of a marker of the sheet is kept: the copy joins that port). Ctrl+V reads the system
+  clipboard, so a copy made in another tab pastes too.
+- **The Silinx toolchain no longer called experimental (#675):** the mode's label "Silinx toolchain (no ISE)"
+  (Toolchain Settings, the processes' tooltip, the start page's tip, the server's log and status, the CLI) and its
+  Portuguese "Toolchain Silinx (sem ISE)"; the settings' note "Experimental: check the design on the board." left
+  out; README.md and docs/QUALITY.md (test/designs-corpus/quality-page.mjs) updated. Tests: test/docs.test.js (no
+  doc and no label of the interface calls it experimental), the label's tests in test/cli.test.js,
+  test/open-toolchain.test.js, test/ui/app.test.js and test/ui/open-toolchain.test.js.
+- **Two fingers on a drawing (#674):** `twoFingerView` (`web/js/ui.js`): a second finger on a drawing's canvas takes
+  the gesture from the editor, undoing what the first finger started (a selection band, a move, a changed
+  selection; in the waveform viewer, the cursor moved); the fingers' centre pans the view and their spread zooms it
+  about that centre, once a frame from every finger's last point; Safari's own pinch of the page is turned off on
+  the canvas. The UI test simulates the gestures (real touch events in Chrome, the touch screen's pointer events
+  in WebKit and Firefox: `page.touchGesture`).
+- **The I/O registers' clocks (#671):** the left and right I/O tiles' clock pins from every global line (only line 4
+  was measured) and the horizontal clock rows of the I/O columns (GCLKH_PCI_CE_S / _N: GCLKH's switches, 2 frames
+  further in the left column; the writer had set them 2 frames early there), measured with ISE (`measure-671.sh`:
+  designs with IDDR2 / ODDR2 on every pad clocked from each of the 8 top and bottom buffers, every PIP removed by
+  codewords, on the XC3S100E, XC3S250E and XC3S1200E; `measured/learn-16iob-clk-lines.json`, the layouts' `typeCols`).
+  The router reaches an I/O register's clock pin from the global lines only, as ISE does (the clock search takes the
+  tile's IOIS_CLKj on its way; B4's register came through general routing), and the packer keeps out of the IOB a
+  register whose clock is not on a global buffer, with a warning. Two kinds of bits of the pads' own features (#44 /
+  #96's solution) corrected with ISE: the clock rows' bits one pad of each row held for the writer's error
+  (`pad-clock-rows.mjs`), and the bits of `R:ICLK2INV:#OFF` given to the pad they belong to, not the other pad of the
+  tile or one of the next (the 3,71 ISE sets for B4 had gone to C4: `pad-owners.mjs`,
+  `measured/fix-27iclk2-owners.json`); 5 bits of an input delay stay open (#751). Two registers of one I/O tile on different clocks do not route (#749).
+  `feat_iob_plain` has its registers on pads of the four sides, `feat_iob_lines` (new) clocks left and right IOB
+  registers from each of the eight lines: DRC clean and byte-identical to ISE's bitgen on the four devices.
+- **A gate-level model's comparisons with a constant found before its tables (#670):** core/compiled-tables.js now
+  recognizes a model's comparisons of a counter with a constant (LUTs of 4 bits each and the LUT of their results)
+  in a pass of their own, before the tables. Each is one equality, and the logic beneath it no longer goes into a
+  table: clock's model has 8 500 words of tables instead of 30 000. In Node, clock's post-synthesis model runs about
+  9 % faster and stopwatch's about 4 %, the others the same. In Chrome stopwatch's runs about 18 % faster. Measured
+  under load, against main, interleaved. Two words compared bit by bit (a ^ b = v) as one equality was tried and
+  was slower: pong and blinky about 10 %.
+- **The router's polish of the critical path (#662, #651):** once the routing is legal, the critical path's
+  connections one at a time, the slowest first, each one's own branch routed again on the wires no other net
+  uses, or on those of less critical nets, which are then routed again around it; a change is kept only when
+  the critical path is no longer. The timing passes after the routing is legal are 4 (were 2), at a lower
+  congestion factor, so that a critical net can take a contested wire. On 19 designs (the slowest of the
+  corpus against ISE, those with multipliers or block RAMs, and the examples; three placements each) the
+  critical path is 1.3 % shorter by Silinx's analysis (itc99-b08 −5 %, itc99-b12 −6 %, T80 −1.6 %), none
+  longer; by ISE's trce, on the 9 slowest at seed 1, 2.1 % shorter (T80 −5.5 %, itc99-b08 −12.5 %, itc99-b10
+  +2.9 %), the examples as before (±0.8 %), every bitstream still byte-identical to ISE's bitgen with a clean
+  DRC. The routing takes about 1.3 times as long.
+- **trce's Component Switching Limit checks on the DCMs (#661):** `checkSwitching` gives each DCM's CLKIN and each
+  output it drives (CLK0 / 90 / 180 / 270, CLK2X / 2X180, CLKDV, CLKFX / FX180) its period, derived from the PERIOD
+  of the pad its CLKIN comes from, against the pin's minimum and maximum period as trce 14.7 checks them on the -4
+  (measured on 23 designs built by ISE's own flow, `research/s3e-route/switching-limits.mjs`): CLKIN 4.166 to 200 ns
+  when the DLL is used (CLK_FEEDBACK 1X / 2X), 3.002 to 5000 ns when not; CLK0 4.166 to 200, CLK2X 3.214 to 100, CLKDV
+  6.249 to 3225.8, CLKFX 3.067 to 200 ns; with CLKIN_DIVIDE_BY_2, trce halves every one of them, the outputs' too. The
+  timing report has a line for each ("switching limit of u_dcm/CLKFX (Tdcmpfx): NOT MET, period 200.000 ns, max
+  period limit 100.000 ns (10.000 MHz), slack -100.000 ns"), the flow a `WARNING:Timing` and a timing error for each
+  one not met, the Design Summary a row. Not in the packer: the limits are checked against the PERIOD constraint,
+  as trce does, not CLKIN_PERIOD, and ISE's map and par accept such a DCM. The board test `feat_dcm_div2` had
+  this error under ISE (CLKFX x 3 / 15 of its halved input: 200 ns): its CLKFX is now x 2 / 5, 100 ns, at trce's
+  limit. Tests: `test/fpga-timing.test.js` (every limit against trce's figures on the same settings),
+  `test/open-flow-core.test.js` (the old and new feat_dcm_div2 settings in the flow, the report, the warning).
+- **A gate-level model's irregular logic as lookup tables (#659):** core/compiled-tables.js turns a model's
+  one-bit logic into tables after core/compiled-words.js. This covers a counter's comparisons with constants, the
+  decoders and the next state of a state machine. Each cone of gates, multiplexers and LUTs with 12 inputs at most
+  is a ROM of its outputs at every value of those inputs: one read for tens of cells, several outputs in one word.
+  When a netlist's tables would exceed 50 000 words, they get fewer inputs. A wide comparison of a counter with a
+  constant becomes one equality. wordLevel then makes the flip-flops the tables feed into registers again, and each
+  table's inputs follow their register's bits. Nets inside a table are no longer listed in the Watch box.
+  Results are cycle for cycle the same: each example's models against bit by bit, and a synthesized design against
+  the event-driven simulator. In millions of cycles a second (Node / Chrome), the post-synthesis models now run:
+  traffic 165 / 203 (from 47 / 46), blinky 80 / 79 (39 / 44), stopwatch 50 / 49 (29 / 32), clock 35 / 35
+  (16 / 17), vga 56 / 67 (18 / 18), pong 20 / 20 (15 / 16).
+- **Research: where the speed against ISE is lost, design by design (#656):** a section of
+  research/synth-quality/README.md, from the weekly comparison's breakdown of the critical paths (#646): for each
+  design slower than ISE at Normal and at High, its logic (levels, LUT, carry and flip-flop delay) and its routing
+  against ISE's, and the causes ranked by the speed each could win: the critical path's routing first (#651), then a
+  LUT level more on short control paths (#652), the clock enable at the end of the path (#653), the EPFL
+  multiplier's depth (#654) and the adder's carry chain (#655).
+- **The GIA's SOP balancing, a candidate of the deep designs (#654, #655, #52):** a design whose usual netlist is
+  more than 16 levels of logic deep (of 20 000 LUTs at most) is also mapped by ABC's `&sopb` (the logic balanced
+  as sums of products on its GIA, then `&if -g` and `&synch2`, twice) onto LUT4s, at both efforts, and that
+  netlist kept when better by the depth-oriented mapping's rule (at Normal, for a design too large for High's
+  mappings, only when a quarter faster). Measured by ISE's trce on the routed designs (XC3S1200E, I/O wrapper):
+  the EPFL multiplier 93.2 ns -> 61.6 (ISE 66.8; 16 % more slices, still 29 % fewer than ISE's), max 27.3 ->
+  22.5 (ISE 25.7, fewer slices), adder 13.3 -> 11.4 (ISE 12.2: 8 levels of LUTs as ISE's, in place of the
+  128-bit carry chain). `r.depth.sopb` says what happened.
+- **The critical path mapped again, its clock enables folded into D (#653, #652):** two candidates after every other
+  mapping, at both efforts (designs of 1500 LUTs at most), each from the netlist before the LUT mapping and kept by
+  `DEPTH_RULE` against the netlist chosen: ABC's `speedup` after the usual mapping (`SPEED_ABC`: the critical path's
+  LUTs remapped with their timing-critical cuts as choices), then the flip-flops whose CE ends the critical path
+  (`criticalEnables`, from the estimate's path ends, `pathEnds`) with their enable a multiplexer before D and CE tied
+  high (`FOLD_CE_MAP`, every FDRE / FDSE / FDCE / FDPE and its falling-edge form), so that the enable's last LUT and the
+  hold share one LUT and the path does not pay the CE's setup (Tceck 0.555 ns). Recorded in the synthesis's
+  `depth.speed` and `depth.fold`; a remap that fails keeps the netlist chosen, with a warning. By ISE's trce on the
+  corpus's 53 designs of 1500 LUTs at most and the examples: at Normal 24 change, 6.1 % shorter on average (itc99-b09
+  −22 %, serv −21 %, itc99-b08 −15 %, iwls05-i2c and usb-phy −12 %, the traffic example −12 %; light8080 +2.9 %, the
+  clock example +4.2 %), 2.8 % over the 53; at High 7 change, 0.7 % over the 53; slices 10029 → 10015 (Normal) and
+  9942 → 9904 (High); every bitstream byte-identical to ISE's bitgen with a clean DRC. The level more of
+  spi-fpga-slave (#652) is found by the speedup but duplicates its shared enable (21 LUTs → 33): refused, still open
+  (research/synth-quality/README.md, "The short control paths").
+- **The critical LUTs made one level shallower, their fan-out kept (#652):** a last candidate of the synthesis
+  (`core/lut-resynth.js`, at both efforts, designs of 1500 LUTs at most), on the netlist chosen of all the others and
+  kept by `DEPTH_RULE`: each LUT that ends a critical path, at level L, is made again from its cone's signals of level
+  L-2 at most, as one LUT of up to 4 of them or as h(g(A), S) (a decomposition of its function with a new LUT g of
+  signals of level L-3 at most), found by truth tables, its output (and so its fan-out) kept; the LUTs it read stay
+  where something else reads them, and a LUT that the netlist already has (the same function of the same signals) is
+  read instead of a new one. Round after round while every end of the critical path can be made shallower. On
+  spi-fpga-slave the shift register's enable is 2 levels instead of 3 with its shared `load_data_en` kept (21 LUTs → 23,
+  14 slices; ABC's speedup found the 2 levels with 33 LUTs and 19 slices, refused). Recorded in the synthesis's
+  `depth.resynth` (`resynth: false` leaves it out). Measured with Silinx's static timing on the corpus's 53 designs of
+  1500 LUTs at most and the 7 examples, routed: at Normal 14 change, 5.8 % shorter on average (1.4 % over the 60), at
+  High 16 change, 4.3 % (1.2 %); slices +5 at each effort (of 10935); at placer seeds 1 to 3 the changed ones 4.5 %
+  shorter (spi-fpga-slave −18 %, the clock example −15 %, itc99-b13 at High −14 %, verilog-uart at Normal −12 %),
+  three slower (verilog-uart at High +5 %, vtr-ch-intrinsics and iwls05-sasc at High +3 %: faster by the estimate,
+  slower routed). By ISE's trce on the same routed designs: 4.55 % shorter over the 20 changed builds (spi-fpga-slave
+  5.76 → 4.95 ns, ISE's own flow 4.94), every bitstream byte-identical to ISE's bitgen with a clean DRC.
+  research/synth-quality/README.md, "The critical LUTs made shallower".
+- **The state machines fsm_detect refuses for their users alone, one-hot (#652):** Yosys's fsm_detect turns down a
+  state register whose users "don't seem to benefit from recoding" (a heuristic), where XST re-encodes it: iwls05-i2c's
+  bit controller, 18 states written one-hot (idle all zeros) and tested on all 17 bits, two LUT levels more than XST's
+  netlist on the critical path. The search for state machines (`core/synth-fsm.js`, #539) now reads fsm_detect's
+  messages, marks such registers by hand (never one a port reads, nor one refused for another reason), extracts them in
+  a quiet run of their own, and tries those of 8 states or more one-hot, their power-up state kept (state 0, the
+  flip-flops', when the register has no initial value), kept by `DEPTH_RULE`; at Normal too (one quiet Yosys run more
+  beside the usual one), where #539's machines stay High's. The copy of an old state register that `fsm` keeps for a
+  reader it cannot take in now gets the old initial value too (it powered up undefined). Measured on the corpus's 53
+  designs of 1500 LUTs at most and the 7 examples, routed (Silinx's static timing, seed 1): iwls05-i2c alone changes,
+  at Normal 253 → 211 LUTs, 137 → 116 slices, 8.66 → 5.82 ns (ISE's flow 5.91 by trce), at High 260 → 205 LUTs,
+  141 → 123 slices, 8.68 → 6.32 ns; verilog-i2c-master's 16-state machine is tried and not kept; the other netlists
+  are the same. By ISE's trce on the same routings (seeds 1 to 3, both efforts): 29.8 % shorter, Normal 8.33 → 5.71
+  ns at seed 1 (ISE's own flow 5.91), every bitstream byte-identical to ISE's bitgen with a clean DRC.
+  research/synth-quality/README.md, "State machines fsm_detect refuses for their users".
+- **Two placements at Optimization Effort High (#651):** a placement's seed moves a design's critical path by several
+  per cent, more than the placer's options do, so at High the flows (`core/open-flow-core.js`, Implement Design and the
+  Post-Place & Route model's design) place and route the design from seeds 1 and 2 (`HIGH_TRIES`) and keep the faster
+  (then register replication from it, as before); the console says both periods and the seed kept. Normal makes one
+  placement, as before. Measured with Silinx's static timing on the corpus's 53 designs of 1500 LUTs at most and the 7
+  examples, routed at High: 1.52 % shorter in geometric mean, 29 designs faster (3.1 % on average: verilog-axis-fifo
+  −10.8 %, the clock example −10.4 %, spi-fpga-slave −7.3 %, epfl-router −6.9 %, picorv32 −4.8 %), two slower
+  (iwls05-usb-phy +2.2 %, iwls05-sasc +0.1 %: register replication from the other placement), the slices the same, the
+  place and route 1.33 times as long. Tried and dropped: a second, cool placement from the first one with each
+  connection's estimate scaled by its routed delay (0.6 % on 15 designs, against 2.3 % for a second seed at the same
+  time). By ISE's trce on the 29 changed routings: 2.92 % shorter (the clock example −14.3 %, femtorv32-quark −8.1 %,
+  picorv32 −7.3 %), 8 slower by 2.3 % at most, every bitstream byte-identical to ISE's bitgen with a clean DRC.
+  research/s3e-route/README.md, "Two placements at Optimization Effort High".
+- **The router's polish of the critical path: a connection's whole net routed again, and a lookahead (#651):**
+  two more moves after #662's, each kept only when Silinx's timing analysis says the critical path is shorter,
+  so never slower by it. The whole net of a connection of the critical path routed again on the wires no other
+  net uses, its branch loads weighted by the most critical load below a node instead of the sum of their
+  criticalities: a reset or a clock enable whose loads are all critical had a chain of shared doubles
+  (vtr-ch-intrinsics' reset, 1.41 ns where 0.51 was free), which no change of one load at a time shortens,
+  each new branch slowing the others. And, when no change gains, a lookahead: one of the path's three slowest
+  connections made faster though another path gets longer, then up to 16 changes from there, all of it kept
+  when the critical path ends shorter. The polish's searches count the branch loads of the net's tree, as the
+  router's do. By the analysis, on 31 designs (the issue's, the examples and more; seeds 1-3 of the same
+  placements, without replication): −0.33 % on the XC3S250E (epfl-bar −2.8 %, epfl-max −1.8 %, verilog-uart
+  −1.1 %), −0.49 % on 16 of them on the XC3S1200E (epfl-bar −2.7 %, iwls05-i2c −1.7 %), none slower, the
+  routing 3–4 % longer; in the app's flow (with register replication, seeds 1-2) −0.27 % and −0.29 %, the place
+  and route as long as before. Checked with ISE: by trce −1.12 % on the examples and six corpus designs (epfl-max
+  −4.4 %, epfl-bar −2.9 %, iwls05-i2c −2.5 %, verilog-uart −2.2 %, none slower), every `.bit` byte-identical to
+  ISE's bitgen, DRC clean. `research/s3e-route/crit-path.mjs` no longer counts a carry chain's connection as
+  −0.103 ns of the placement's floor (it inflated the router's share by 0.1 ns per carry stage).
+- **A gate-level model at word level again (#650):** core/compiled-words.js rewrites the netlist the compiled
+  simulator reads from a synthesized or implemented netlist: a carry chain (MUXCY / XORCY, or their folded gates)
+  is an addition, the flip-flops of its operands one register in its order, the multiplexers, gates and LUTs of
+  the same kind side by side between them one word cell (a LUT a few bitwise operations, its pins in any order as
+  the router leaves them); what is not such a word stays bits. Cycle for cycle the same values (the event-driven
+  simulator on primitive netlists, every example's models against bit by bit). pong's and clock's models run at
+  13 to 15 million cycles a second instead of 3 to 4, blinky's at 45 to 58 instead of 32.
+- **The compiled code optimized by Chrome from the start (#650):** `CompiledSim.cycle` calls `run()` in pieces of
+  10 000 cycles, the same values and counts: V8 optimizes a function called again and again with Turbofan, while a
+  long-running `run()` stayed seconds in Maglev in Chrome (vga's model: 3 million cycles a second over its first 8
+  million, now 10, as Node). A UI test runs vga's model in the browser and in Node: the same outputs, counts and VGA
+  state, and in Chrome at least 0.6 of Node's speed.
+- **The side clock pads' dedicated paths in the bit database (#641):** measured with ISE on the four devices (each side
+  clock pad on the buffer ISE's placer gives it): the side clock tiles' CKIk -> GCLKk, one bit each; the pads' pin
+  switches set none. The nearest side buffer a pad reaches on known switches is the one ISE gives it (the 58 measured),
+  and the placer puts a clock on a side GCLK pin there instead of on a top / bottom buffer through general routing; the
+  router no longer takes the pad's own IOIS_Yk -> IOIS_Fk_B3 in the CLK_PCI I/O tiles (`noRoutePips`). A new
+  open-flow fixture, feat_side_clock.
+- **A DCM's clocks at the pads, fitted to trce (#601, the second part):** `clockArrivals` gives a DCM's clocks the
+  arrival at its CLKIN plus `SPEED_4.clock.dcm` (the deskew: CLKIN from a pad or from a global line, DESKEW_ADJUST's
+  taps), then the output's phase (its first edge times the pad's PERIOD; a falling-edge flip-flop half its period
+  later), three arrivals as trce counts them: the latest (clock to pad), the earliest (setup) and the inputs' hold.
+  `analyzeTiming` takes the UCF's clocks (`opts.clocks`) for the phases; `checkOffsets` finds a DCM clock's pad; a pad
+  bounded on two clocks names each in the report, the warning and the report's constraints ("met on sw<0>, clock
+  clkfx_b"). Measured with trce on six DCM designs (research/s3e-route/dcm-timing.mjs, ISE's own flow and Silinx's
+  routing with a PCF in map's form; dcm-timing-compare.mjs): the derived constraints and the requirements between two
+  clocks are the first part's (CLK0 -> CLKFX 6.666, CLKFX -> CLK2X 3.334), the skew between a DCM's outputs within
+  ±0.02 ns and the clock uncertainty 0 (none counted); model - trce on Silinx's routing: setup rms 0.131 ns, hold
+  0.094, clock to pad 0.116 (27 values each), the data paths between two clocks 0.179. New board tests
+  `feat_dcm_cross` (CLK0, CLK2X, CLKFX, CLKDV and a falling edge into each other, OFFSET on two clocks; its CLKFX ->
+  CLK2X path not met on Silinx's routing, as trce finds) and `feat_dcm_phase` (a fixed phase shift, CLK90, CLK180).
+  Tests: `test/fpga-timing.test.js` (the arrivals' terms, the six routings against trce's numbers in
+  test/fixtures/fpga/trce, the OFFSET lines, the trce report reader and the PCF), `test/open-flow-core.test.js` (a
+  DCM's OFFSET in Implement Design, its one expected warning), `test/open-flow.test.js` (the two board tests).
+- **The ISE runner as a user of its own (#482):** `scripts/ise-runner/install.sh --system <user> <folder>`
+  installs the self-hosted runner as a launchd daemon run by a standard user with no keys or tokens, and its
+  on-line window as a daemon of root, whose scripts and Node.js are copied where that user cannot change them
+  (`window.mjs` `serviceCommands`: the daemon loaded and unloaded with `launchctl`). The runner's jobs keep
+  their temporary files in its folder (`TMPDIR`) and reach Docker Desktop through its socket, which
+  `install.sh --docker-acl <user>` opens to that user again each time Docker Desktop makes it. Docker Desktop
+  shares only `/Users/Shared/silinx-ise`, so that no container can mount the machine's main user's home; ISE
+  work over ssh goes there too (`ssh.remoteDir`). A tag ruleset lets only the admin create, move or delete a
+  `v*` tag. Tests: `test/ise-runner.test.js` (both install modes in a scratch folder, with `launchctl` and
+  `chown` recorded; the service's commands).
+- **core/asm.js split: the generators in core/asm-gen.js (#405):** the VHDL and Verilog generators of an ASM chart move
+  to a module of their own; asm.js still exports them. No change in behaviour: the same code generated for every
+  chart, language and encoding. Tests: `test/asm-gen.test.js`, the generated code compiled and elaborated with no
+  diagnostics and recovered to the same chart.
+- **core/asm-from-hdl.js split: the module's analysis in core/asm-hdl-analysis.js (#405):** the recovery of an ASM chart
+  from HDL reads the generator's header, the clocked process and the module's state register, states, outputs and logic
+  in a module of its own, with the small helpers on the parsers' IR in core/asm-hdl-util.js. No change in behaviour:
+  the same recovered charts as before. Tests: `test/asm-hdl-analysis.test.js`.
+- **mountAsmEditor split, first part: the inspector in web/js/asm-inspector.js (#405):** the ASM chart editor's
+  inspector (the selection's properties and the machine's: its name, clock and reset, initial state, inputs, outputs,
+  registers and generics) moves from mountAsmEditor to mountInspector(ctx), called at the same point of the mount; no
+  change in behaviour. Tests: `test/ui/asm-inspector.test.js`, the inspector mounted alone.
+- **core/asm-from-hdl.js split: the layout in core/asm-layout.js (#405):** the layout of an ASM chart recovered from HDL
+  and the reuse of a previous chart's ids, positions and edge points move to a module of their own; asm-from-hdl.js
+  still exports asmLayout and nodeSize. No change in behaviour: every HDL file of the repository and the generated
+  code of the charts recover to the same result as before. Tests: `test/asm-layout.test.js`.
+- **mountAsmEditor split, second part: the drawing of the chart in web/js/asm-render.js (#405):** the ASM chart
+  editor's drawing (the ASM blocks, the connections, the boxes with their codes and problems, the status line) and the
+  toolbar's state move from mountAsmEditor to mountRender(ctx), called at the same point of the mount; no change in
+  behaviour. Tests: `test/ui/asm-render.test.js`, the drawing mounted alone.
+- **Small modules and functions, a rule of the project (#405):** CLAUDE.md (and its summary in ONBOARDING.md) asks
+  for source files under 1000 lines and functions under 300, one module per concern, and says how to split one (the
+  way #405 did); `test/code-size.test.js` enforces it, the files and functions over the limit today listed as
+  exceptions that only shrink, and a pull request that changes a source runs it (`scripts/related-tests.mjs`).
+- **core/elaborate.js split: the expressions in core/elab-expr.js (#405):** the elaboration of expressions (names and
+  hierarchical names, operators typed and sized for Verilog and VHDL, slices, fields, conversions, the built-in
+  subprograms, function calls and their overloads, std.textio) moves to a module of its own. No change in behaviour:
+  every design of the repository elaborates and simulates as before. Tests: `test/elab-expr.test.js`.
+- **mountFsmEditor split, second part: the drawing of the diagram in web/js/fsm-render.js (#405):** the FSM editor's
+  geometry of a transition and its drawing of the states and transitions (codes, labels, selection, problems, the
+  simulation) move from mountFsmEditor to mountRender(ctx), called at the same point of the mount; no change in
+  behaviour. Tests: `test/ui/fsm-render.test.js`, the drawing mounted alone.
+- **mountFsmEditor split, first part: the side panel in web/js/fsm-side.js (#405):** the FSM editor's side panel (the
+  selected state's or transition's properties and the machine's) moves from mountFsmEditor to mountSide(ctx), called
+  at the same point of the mount; no change in behaviour. Tests: `test/ui/fsm-side.test.js`, the panel mounted alone.
+- **core/isesch.js split: the export to ISE in core/isesch-export.js (#405):** writing a Silinx schematic as an ISE 14.7
+  schematic (its library symbols, the Silinx-only xl_… symbols with their .sym and HDL files, wires, bus taps, net
+  names, I/O markers) moves to a module of its own; isesch.js still exports exportIseSch, decodeXlSymbol and
+  iseTimestamp. No change in behaviour. Tests: `test/isesch-export.test.js`.
+- **core/isesch.js split: importIseSch in three phases (#405):** the import of an ISE schematic reads its netlist
+  (core/isesch-nets.js), lays out its blocks and maps its coordinates (core/isesch-geometry.js), places and wires them,
+  then assembles and checks the document (core/isesch-assemble.js); importIseSch keeps the placement and calls the
+  phases (731 → 277 lines). No change in behaviour. Tests: `test/isesch-import.test.js`.
+- **mountISim split, fourth part: the dialogs in web/js/isim-dialogs.js (#405):** the dialog open over the window
+  (one at a time: `show`, `closeDialog`) and Force Constant / Force Clock (`forceDialog`) move from mountISim to
+  mountDialogs(ctx), called at the same point of the mount; the drawn stimuli's dialogs open through `show`. No
+  change in behaviour. Tests: `test/ui/isim-dialogs.test.js`, the dialogs mounted alone.
+- **mountISim split, seventh part: the rendering in web/js/isim-draw.js (#405):** the drawing of the names column
+  and of the wave window (the ruler, the grid, the waves, the markers, the cursor and their delta) moves from
+  mountISim to mountDraw(ctx), called at the same point of the mount; the scheduling of a frame stays in mountISim;
+  no change in behaviour. Tests: `test/ui/isim-draw.test.js`, the drawing mounted alone on its own canvases.
+- **mountISim split, eighth part: the wave window's pointer and keys in web/js/isim-input.js (#405):** the names
+  column's selection, twisties, drag of rows, column widths, double click and menu, the waves' cursor and markers
+  (dragged, snapped), two-finger scroll and zoom, wheel and menu, and the keys of both move from mountISim to
+  mountInput(ctx), called at the same point of the mount; no change in behaviour. Tests: `test/ui/isim-input.test.js`,
+  the wave window's input mounted alone on its own canvases.
+- **mountISim split, sixth part: the Objects panel in web/js/isim-objects.js (#405):** the signals of the instance
+  selected, their values at the cursor, their selection, their drag into the wave window and their menu move from
+  mountISim to mountObjects(ctx), called at the same point of the mount; no change in behaviour. Tests:
+  `test/ui/isim-objects.test.js`, the panel mounted alone.
+- **mountISim split, ninth part: the rows of the wave window in web/js/isim-rows.js (#405):** the rows model (the
+  signals, dividers and groups, the lines shown with a bus's bits, a bit's wave, the value at a time) and the rows'
+  commands (Delete, New Group, Ungroup, the dividers, the radix, the rows' menu) move from mountISim to
+  mountRows(ctx), called where the rows model was; no change in behaviour. Tests: `test/web-isim-rows.test.js`, the
+  rows on the simulator.
+- **mountISim split, fifth part: the drawn stimuli in web/js/isim-stimuli.js (#405):** Edit Stimuli (#336), its
+  clicks on the inputs' and outputs' cycles, the run of the stimuli and the check of the expected outputs, Fill
+  Expected, their drawing over the waves, and the Stimulus Timing and bus value dialogs move from mountISim to
+  mountStimuli(ctx), called at the same point of the mount; no change in behaviour. Tests:
+  `test/ui/isim-stimuli.test.js`, the stimuli mounted alone.
+- **mountISim split, tenth part: the context menu and the instance tree in web/js/isim-menu.js and
+  web/js/isim-tree.js (#405):** ISim's context menu (its submenus, closed by a click elsewhere or Escape) and the
+  instance tree (the instances and their processes, the selection, their menu, an instance added to the wave window)
+  move from mountISim to mountMenu(ctx) and mountTree(ctx), called at the same point of the mount; no change in
+  behaviour. Tests: `test/ui/isim-menu.test.js` and `test/ui/isim-tree.test.js`, each mounted alone.
+- **mountSchEditor split, fourth part: moving and dragging a wire's segment in web/js/sch-move.js (#405):** the
+  schematic editor's drags that change the drawing (the selection moved with its wires stretched, one segment of a
+  wire dragged) move from mountSchEditor to mountMove(ctx), called at the same point of the mount, and the geometry of a
+  wire (keptEnds, rubber) to plain functions; no change in behaviour. Tests: `test/web-sch-move.test.js`, on real
+  documents against their geometry and connectivity.
+- **mountSchEditor split, first part: the Properties panel in web/js/sch-props.js (#405):** the schematic editor's
+  Properties panel (the sheet's, a symbol's, an I/O marker's, a net name's and a wire's properties, several objects'
+  commands, a net connected or renamed by name) moves from mountSchEditor to mountProps(ctx), called at the same point
+  of the mount; no change in behaviour. Tests: `test/ui/sch-props.test.js`, the panel mounted alone.
+- **mountSchEditor split, third part: the drawing of the document in web/js/sch-render.js (#405):** the schematic
+  editor's drawing of the sheet, wires, symbols, I/O markers, net names and unconnected pins, the overlay of the tool in
+  use, the toolbar's state and the status line move from mountSchEditor to mountRender(ctx), called at the same point of
+  the mount; no change in behaviour. Tests: `test/ui/sch-render.test.js`, the drawing mounted alone.
+- **sch-editor.js split, second part: the schematic's drawing in web/js/sch-svg.js (#405):** the SVG of a symbol (its
+  body, pins and texts, placed and turned, and its datasheet drawing), of an I/O marker, a wire's hops and its runs in
+  line move from sch-editor.js to a module of their own; no change in behaviour. Tests: `test/web-sch-svg.test.js`, the
+  drawing against the document's geometry.
+- **mountSchEditor split, fifth part: the tools in web/js/sch-tools.js (#405):** the schematic editor's tools (the
+  tool in use and its options, a symbol placed, a wire drawn, a net name attached, an I/O marker added, the points a
+  wire connects to) move from mountSchEditor to mountTools(ctx), called at the same point of the mount; no change in
+  behaviour. Tests: `test/ui/sch-tools.test.js`, the tools mounted alone on a real document.
+- **core/schdoc.js split: the HDL generation in core/schdoc-hdl.js (#405):** the HDL generated from a schematic moves
+  to a module of its own, generateHdl's per-symbol logic to schdoc-hdl-symbol.js, schdoc-hdl-cases.js and
+  schdoc-hdl-more.js (generateHdl 759 → 216 lines; schdoc.js 3105 → 2286); schdoc.js still exports generateHdl and
+  the rest. No change in behaviour: every schematic of the repository and one of every symbol kind generate the same
+  HDL. Tests: `test/schdoc-hdl.test.js`.
+- **core/synth-verilog.js split: toVerilog in parts (#405):** the translator of an elaborated design into Verilog for
+  Yosys mounts its values, operators, tables (expressions as tables, ROMs, functions), statements and module from
+  modules of their own (core/synth-values.js, synth-operators.js, synth-tables.js, synth-stmts.js, synth-module.js);
+  toVerilog 1182 → 176 lines. No change in behaviour: every design of the repository translates to the same text.
+  Tests: `test/synth-parts.test.js`.
+- **core/vhdl/parser.js split: the expressions in core/vhdl/parse-expr.js (#405):** the VHDL parser's expression
+  methods (an expression down to its primaries: names, calls, attributes, aggregates, literals) move to a module of
+  their own, assigned to the parser's class, with the operator tables they alone use; the small helpers both use go to
+  core/vhdl/nodes.js. No change in behaviour: every VHDL file of the repository, and 1488 damaged copies of them, parse
+  to the same result as before. Tests: `test/vhdl-parse-expr.test.js`.
+- **A fourth candidate of the balanced mappings: onto LUT4s alone (#370):** at High (and at Normal for a deep design),
+  when the depth-oriented mapping is kept, the mapping balanced once more (`DEPTH_ABC2`) is also made onto LUT4s alone
+  (`LUT4_ONLY`), beside the three on the wider functions, and kept by the same rule. A round-robin arbiter's ring-shaped
+  priority chains take fewer LUTs and slices so: the EPFL arbiter (in the corpus's I/O wrapper, not in the corpus) 2196
+  → 2019 LUTs, 1224 → 1010 slices, routed 1.5 % faster; a 24-request arbiter written as gates 99 → 81 slices, 12 %
+  faster by the estimate. On the design corpus it is never kept (the same netlists); the 18 designs that make it
+  synthesize 6 % longer (one Yosys at a time; beside the other three with the app's 4 workers).
+- **The fourth balanced candidate: mfs2 on windows of 5000 nodes (#370):** the mapping balanced once more onto LUT4s alone
+  (now `DEPTH_ABC2_LUT4`) ends with ABC's don't-care optimization on windows of up to 5000 nodes (`mfs2 -M 5000`, its
+  own limit 300), which reach the terms a round-robin arbiter's balanced chains share: the EPFL arbiter in the corpus's
+  I/O wrapper 2019 → 1537 LUTs and 1010 → 769 slices at High, as deep, routed 0.9 % faster by ISE's trce (seeds 1–3).
+  The examples and the design corpus keep their netlists and warnings (the candidate is never kept there). The other
+  candidates keep mfs2's own windows: on the wider functions with the LUT delays a wider window is slower, and the GIA's
+  SOP balancing with it routed the arbiter 4 % slower at Normal.
+- **The bit database: every input delay on every pad but the global clock pins (#97):** a pad's delay bits are its own,
+  not its neighbours' (every pair of values on the pads of each I/O tile, measured with ISE: `gen-iobdly.mjs`,
+  `ana-iobdly.mjs`); IFD_DELAY_VALUE 0-6 and IBUF_DELAY_VALUE 1-12 on every pad, solved with the IOB registers'
+  designs; the pads with a dedicated path to a global buffer keep only the delay ISE's map chooses (their other delays
+  set bits of the clock tiles, refused). The packer writes the delay ISE chooses, as before.
+- **IDDR2 / ODDR2 (#96):** simulation models (core/unisim.js, the compiled engine's core/compiled-prims.js), the packer
+  putting them in their pads' IOBs with the settings and pins of ISE's map (DDR_ALIGNMENT NONE; the clock's inverter
+  becomes ICLK2INV / OTCLK2INV), the static timing on both clock edges (an IOB's register pins with their own clock and
+  edge), the post-translate, post-map and post-place & route models and the test simulators. The placer refuses a DDR
+  register and another register of that kind on a different clock in one differential pair. The DDR input registers
+  measured with ISE on every pad (measure-iobddr.sh: an earlier design had ISE trim most of them), and the bits of a
+  pad's IDDR2 that its neighbour's features held given to their pad (ana-padowner.mjs). Fixtures feat_iob_ddr (VHDL)
+  and feat_iob_ddr_v (Verilog).
+- **Bidirectional pads (#96):** the packer's IOBUF (output on O1, enable on T1, input to the fabric), the bit database's
+  IO:<standard> on every pad of the four devices in LVCMOS33, LVCMOS25 and LVTTL (measured with ISE:
+  measure-iobidir.sh), the models and the test simulators. Fixtures feat_iob_bidir and feat_iob_bidir_v.
+- **The bit database: the IOB registers' kinds on every pad, the tristate enable from the fabric (#96, #97):** every
+  register kind moved through every pad and every output pad a tristate output (research/s3e-bitstream
+  `measure-iobrot.sh`: `gen-iobreg.mjs --rot`, `rt`), measured with ISE and solved together with #44's designs written
+  again (334 designs per device, 24 random variants each, every bit explained; held-out variants byte-identical to
+  ISE's bitgen). The plain input and output registers and `TMUX:T1` are now measured on every pad that has the
+  register. New board test `feat_iob_plain`.
+- **A 6-input function split on the right input (#54):** the remaps with the wider functions (`LUT4_COSTS`) split a
+  6-input function on the input whose two cofactors each depend on 4 inputs at most, when there is one, into two
+  LUT4s and a MUXF5 (`LUT6_MAP`, before Yosys's `lut_map.v`, which splits on the last two inputs whatever the
+  function: four LUT4s, two MUXF5 and a MUXF6). On the design corpus at High: EPFL bar 1201 → 941 LUTs, 601 → 471
+  slices, 10.6 → 9.4 ns; ITC'99 b13, b14, b20 and b21 5 to 7 % smaller; ITC'99 b11 and b15 7 % larger (10 % and 1 %
+  faster); the 67 designs 0.5 % fewer LUTs, 0.7 % fewer slices, 0.9 % faster; the examples unchanged. Every netlist
+  equal to the RTL. (Merged once as #634 and reverted, #648: it made femtorv32-quark 9 % larger.)
+- **The choice of the mapping (#54):** a faster netlist's slices may grow no more in proportion than it is faster
+  (femtorv32-quark keeps its netlist), and one faster with no more slices may have up to 20 % more LUTs (10 %
+  before: verilog-uart keeps its faster ABC9 netlist).
+- **The register file as distributed RAM, measured after #370 (#54):** research/synth-quality/README.md has IWLS'05
+  simple_spi's trce (at Normal 3.3 % faster, at High 1.8 % slower in the mean, within the seeds' spread, 11 % fewer
+  slices at both) and the T80 at High with #370's `DEPTH_ABC2_LUT4`: 992 slices (XST 1000), trce 21.34 ns (main's
+  21.67). Normal's RAM remap stays on `DEPTH_ABC2` (the T80 1009 slices, 20.36 ns; with `DEPTH_ABC2_LUT4` 992 slices,
+  4.8 % slower).
+- **The memories as distributed RAM at effort Normal (#54):** a design that gets none of High's mappings and whose usual
+  run left memories written to in logic makes two more Yosys runs: the memories as RAM16X1D with the usual mapping, and
+  that netlist balanced onto LUT4s alone (High's smallest balancing); the same rule as at High chooses (the fewest
+  slices, kept by `DEPTH_RULE` and no slower by the estimate). On the design corpus at Normal: the T80 1146 → 1009
+  slices, trce 21.67 → 20.36 ns (the netlist High keeps); IWLS'05 simple_spi 89 → 79 slices, 6.16 → 5.94 ns routed; every
+  other netlist the same. `lutram: false` leaves it out.
+- **The memories as distributed RAM (#54):** Yosys's memory step prices a memory left to logic at a flip-flop per bit
+  and leaves out its read multiplexers, so the T80's register file (two arrays of 8 × 8 bits, three read ports) was
+  128 flip-flops. With High's mappings, the usual run now counts the memories written to that it left to logic
+  (without changing the netlist), and a design with some is synthesized once more with them priced at `LUTRAM_COST`
+  (RAM16X1D), High's mappings made from that netlist; of those, the one with the fewest slices that is kept by
+  `DEPTH_RULE` and no slower than the netlist chosen by the estimate is kept. On the examples and the design corpus at
+  High every netlist is the same but two: the T80 1146 → 1009 slices, 2153 → 1816 LUTs (and 32 RAM16X1D), trce
+  21.67 → 20.36 ns (seeds 1 to 3); IWLS'05 simple_spi 89 → 79 slices, 6.16 → 6.07 ns routed. The usual mapping with
+  the RAM alone is slower (the read address deeper: the T80 7 % slower by trce), so it is never taken on its own; the
+  T80's synthesis at High takes 42 → 80 s. `synthesizeOpen`'s `depth.lutram` says what happened.
+- **The wider mapping at effort Normal (#54):** a design that gets none of High's mappings is also mapped with the
+  wider functions (`LUT4_COSTS`, the 6-input functions split by `LUT6_MAP`), from the netlist before the LUT mapping,
+  and that netlist is kept when better by `DEPTH_RULE` than the one chosen of the others (the critical path's remaps
+  included: measured before them, it kept out ITC'99 b08's faster netlist, 11 % slower). On the design corpus at
+  Normal 8 designs of 64 change, routed (seeds 1 to 3): EPFL bar 1199 → 941 LUTs, 600 → 471 slices, 10.3 → 8.8 ns;
+  ITC'99 b01 20 % faster; IWLS'05 simple_spi 9 % faster for 7 % more slices; verilog-uart 9 % more slices, as fast;
+  the 7 timed ones 0.92 times the LUTs, 0.95 times the slices and 0.92 times the period; none slower. The examples
+  unchanged. One more Yosys run per design (the corpus's synthesis at Normal 17 % longer, one Yosys at a time);
+  `wide: false` leaves it out.
+- **Silinx toolchain, XC3S1200E: the long-line splitters (#23):** the router may join a vertical long line's two
+  halves across the centre row (CLKH_LL) where that is faster, and bitgen writes the splitter's bit of the right
+  direction: a routed design names it `a =- b`, and `pipFeatures` now takes the half of the line the net drives (a
+  PIP in any tile, or the net's output pin) from the device description as its input. The placer's delay table
+  leaves the splitters out (`knownRouting` `delayPip`): counted there, they made the placements slower. The other
+  devices are unchanged. The XC3S1200E's other splitters are left for #709.
+- **Device measurements: join tests from IOB inputs and block-RAM outputs (#3):** the joins no slice can drive (the I/O
+  and block-RAM tiles' OMUX, the hexes that begin in an I/O tile) are tested from an IOB's input (an IBUF site for an
+  input-only pad) or a block RAM's output; round 4 on the XC3S250E: 717 tests, 423 joins and 294 islands, every verdict
+  agreeing with the shipped graph (research/s3e-device/README.md).
+- **Bit database: the DCMs' output multiplexer measured (#2):** the switches `DCM_<output> -> OMUXk` of the 8 DCM tile
+  types, 194 of which were unknown, measured with ISE on designs that route every output of every DCM through each
+  line of its multiplexer (`research/s3e-bitstream/gen-dcmomux.mjs`, `measure-dcmomux.sh`: 35 designs, 700 xdl + bitgen
+  runs), with the clock tiles' switches those designs route (`measured/learn-16dcm-omux-pips.json`, 250 features). The
+  35 designs are byte-identical to ISE's bitgen. Every DCM output of the four devices reaches its four global buffers
+  on known switches; the Clocking Wizard's board tests on the XC3S100E now use its top DCM.
+- **The multiplier cascade in the Silinx toolchain (#2):** the packer connects BCIN / BCOUT as ISE's map does (a
+  cascading multiplier's B left open: ISE's DRC warns otherwise) and refuses BCOUT into anything but the same bit of a
+  cascading multiplier's BCIN; the placer puts a chain on consecutive sites of a column (the site above in the routing
+  graph on every device) and keeps it there; the router takes the column's dedicated switches. The test simulators
+  model B_INPUT and BCOUT. A new open-flow fixture, feat_mult_chain.
+- **SRLC16E chains through Q15 in the Silinx toolchain (#2):** the cascade between the two SLICEMs of a CLB (DIG_MUX =
+  SHIFTIN, SHIFTOUTUSED, the switch SHIFTOUT2 -> SHIFTIN0) measured with ISE on the four devices (no bits: every bit of
+  ISE's bitstreams explained, the switch removed by codewords changes none; the multiplier cascade's bits were known
+  already); the packer packs a chain of up to four as ISE's map does (a macro of the two slices, the SHIFTOUT -> SHIFTIN
+  net) and refuses a longer chain or Q15 into anything else; a new open-flow fixture, feat_srl_chain.
+
 ## 15.11.3
 
 The simulation models run faster and all of them now run on the Board Emulator's compiled engine. The Silinx
