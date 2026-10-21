@@ -26,15 +26,12 @@ import { mountObjects } from './isim-objects.js';
 import { mountRun } from './isim-run.js';
 import { mountDraw } from './isim-draw.js';
 import { mountInput } from './isim-input.js';
+import { mountRows } from './isim-rows.js';
 
 // ------------------------------------------------------------------------------- constants
 export const ROW_H = 20;
 export const RULER_H = 30;
 const UNITS = { fs: 1e-3, ps: 1, ns: 1e3, us: 1e6, ms: 1e9 };
-const RADIXES = [
-  ['default', 'Default'], ['bin', 'Binary'], ['hex', 'Hexadecimal'], ['oct', 'Octal'],
-  ['udec', 'Unsigned Decimal'], ['sdec', 'Signed Decimal'], ['ascii', 'ASCII'],
-];
 const DEFAULT_CAP = 1e9; // 1 ms
 
 const S = (b) => `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">${b}</svg>`;
@@ -118,8 +115,6 @@ function hexFull(v, bitsPerDigit = 4) {
   }
   return s;
 }
-const BIT_VALS = [V.ZERO, V.ONE, V.X1, V.mk(1, 1n, 1n)];
-const bitKey = (b) => Number(b.v & 1n) | (Number(b.x & 1n) << 1);
 export function isScalarType(t) { return (t.kind === 'logic' && t.w === 1); }
 export function isBitsType(t) { return t.kind === 'logic' || t.kind === 'int'; }
 
@@ -229,16 +224,6 @@ export function typeName(sig) {
   return t.kind;
 }
 
-function bitIndices(t) {
-  // returns [{index, pos}] in display order (left .. right)
-  const out = [];
-  const left = t.left ?? t.w - 1, right = t.right ?? 0;
-  const desc = t.left === undefined ? true : left >= right;
-  const step = desc ? -1 : 1;
-  for (let i = left; desc ? i >= right : i <= right; i += step) out.push({ index: i, pos: desc ? i - right : right - i });
-  return out.slice(0, t.w);
-}
-
 export const pathOf = (x) => '/' + String(x.path || x.name).replace(/\./g, '/');
 
 // ------------------------------------------------------------------------------- mount
@@ -285,8 +270,6 @@ export function mountISim(container, opts = {}) {
   const topSig = new Map((stimInst?.ports || []).map(p => [p.name, p.sig]));
   const stimPortOf = new Map((stimOpt?.ports || []).filter(p => topSig.has(p.name)).map(p => [topSig.get(p.name), p]));
   if (stimOpt?.model) st.stim.m = normalizeStimuli(stimOpt.model, stimOpt.ports);
-  const bitCache = new Map();
-  let flat = [];
   let colors = {};
 
   // ---------------------------------------------------------------- DOM skeleton
@@ -438,84 +421,11 @@ export function mountISim(container, opts = {}) {
   ro.observe(root); ro.observe(waveArea);
   cleanups.push(() => ro.disconnect());
 
-  // ---------------------------------------------------------------- rows model
-  function newRow(sig, extra = {}) { return { id: st.rowSeq++, kind: 'sig', sig, name: sig.name, radix: 'default', expanded: false, ...extra }; }
-  // groups (#341, as ISim's New Group): a row of kind 'group' (name, expanded), its members the rows after it that
-  // have `group` = its id; normalizeGroups keeps them right after it, in their order
-  function normalizeGroups() {
-    const groups = new Map(st.rows.filter(r => r.kind === 'group').map(g => [g.id, g]));
-    for (const r of st.rows) if (r.group != null && (!groups.has(r.group) || r.kind === 'group')) delete r.group;
-    const out = [];
-    for (const r of st.rows) {
-      if (r.group != null) continue;
-      out.push(r);
-      if (r.kind === 'group') out.push(...st.rows.filter(m => m.group === r.id));
-    }
-    st.rows = out;
-  }
-  function rebuildFlat() {
-    normalizeGroups();
-    flat = [];
-    const groups = new Map(st.rows.filter(r => r.kind === 'group').map(g => [g.id, g]));
-    for (const r of st.rows) {
-      if (r.group != null && !groups.get(r.group).expanded) continue;
-      const d = r.group != null ? 1 : 0;
-      flat.push({ row: r, bit: null, key: String(r.id), depth: d });
-      if (r.kind === 'sig' && r.expanded && r.sig.wave && isBitsType(r.sig.t) && r.sig.t.w > 1) {
-        for (const b of bitIndices(r.sig.t)) flat.push({ row: r, bit: b, key: `${r.id}:${b.index}`, depth: d + 1 });
-      }
-    }
-    for (const k of [...st.sel]) if (!flat.some(f => f.key === k)) st.sel.delete(k);
-  }
-  function addSignals(sigs, at = st.rows.length) {
-    const rows = [];
-    for (const s of sigs) if (s) rows.push(newRow(s));
-    st.rows.splice(at, 0, ...rows);
-    rebuildFlat(); updateVScroll(); invalidate(); renderObjects();
-    return rows;
-  }
-  function instSignals(inst) {
-    const seen = new Set(), out = [];
-    for (const p of inst.ports || []) if (!seen.has(p.sig)) { seen.add(p.sig); out.push({ sig: p.sig, port: p }); }
-    for (const s of inst.signals || []) if (!seen.has(s)) { seen.add(s); out.push({ sig: s, port: null }); }
-    return out;
-  }
-  function itemWave(it) {
-    const sig = it.row.sig;
-    if (!sig?.wave) return null;
-    if (!it.bit) return sig.wave;
-    return bitWave(sig, it.bit.pos);
-  }
-  function bitWave(sig, pos) {
-    const w = sig.wave, key = `${sig.id}:${pos}`;
-    let c = bitCache.get(key);
-    if (!c || c.src !== w || c.len > w.t.length) { c = { src: w, len: 0, t: [], v: [] }; bitCache.set(key, c); }
-    if (c.len === w.t.length) return c;
-    let i = 0;
-    if (c.len > 0) {
-      i = c.len - 1;
-      const lastT = w.t[i];
-      while (c.t.length && c.t[c.t.length - 1] >= lastT) { c.t.pop(); c.v.pop(); }
-    }
-    const P = BigInt(pos);
-    let last = c.t.length ? bitKey(c.v[c.t.length - 1]) : -1;
-    for (; i < w.t.length; i++) {
-      const v = w.v[i];
-      const k = Number((v.v >> P) & 1n) | (Number((v.x >> P) & 1n) << 1);
-      if (k !== last) { c.t.push(w.t[i]); c.v.push(BIT_VALS[k]); last = k; }
-    }
-    c.len = w.t.length;
-    return c;
-  }
-  function valueOf(it, t) {
-    const sig = it.row.sig;
-    if (!sig) return null;
-    const v = sim.valueAt(sig, t);
-    if (!it.bit || !v || Array.isArray(v)) return v;
-    return V.getBits(v, it.bit.pos, 1);
-  }
-  function itemType(it) { return it.bit ? { kind: 'logic', w: 1, s: false } : it.row.sig.t; }
-  function itemRadix(it) { return it.bit ? 'bin' : it.row.radix; }
+  // ---------------------------------------------------------------- rows model and commands (isim-rows.js)
+  // (made here, in mount order; the Objects panel and the forces, made below, are used when the rows change or from their menu)
+  const { flat, rebuildFlat, clearBits, newRow, addSignals, instSignals, itemWave, valueOf, itemType, itemRadix, selectedItems, removeSelectedRows,
+    renameDivider, radixItems, waveRowMenu } = mountRows({ st, sim, onOpenSource, updateVScroll, invalidate, renderObjects: () => renderObjects(),
+    forceDialog: (...a) => forceDialog(...a), isForced: (...a) => isForced(...a), removeForces: (...a) => removeForces(...a), openSource });
 
   // ---------------------------------------------------------------- view math
   const xOf = (t) => (t - st.t0) / st.scale;
@@ -549,7 +459,7 @@ export function mountISim(container, opts = {}) {
 
   // ---------------------------------------------------------------- scrollbars
   let progScroll = 0;
-  function totalRowsH() { return flat.length * ROW_H + RULER_H + ROW_H; }
+  function totalRowsH() { return flat().length * ROW_H + RULER_H + ROW_H; }
   function updateVScroll() {
     const inner = vsc.firstElementChild;
     inner.style.height = totalRowsH() + 'px';
@@ -594,7 +504,7 @@ export function mountISim(container, opts = {}) {
   }
 
   const { drawNames, drawWaves, setFont } = mountDraw({ st, sim, cn, cw, sizes: () => ({ dpr, NW, NH, WW, WH }), colors: () => colors,
-    flat: () => flat, dragRow: () => dragRow(), xOf, tOf, itemWave, valueOf, itemType, itemRadix, isForced: (...a) => isForced(...a),
+    flat, dragRow: () => dragRow(), xOf, tOf, itemWave, valueOf, itemType, itemRadix, isForced: (...a) => isForced(...a),
     drawStim: (...a) => drawStim(...a) });
 
   // ---------------------------------------------------------------- status
@@ -628,7 +538,6 @@ export function mountISim(container, opts = {}) {
     if (st.activeMarker === m) st.activeMarker = st.markers[st.markers.length - 1] || null;
     invalidate(false);
   }
-  function selectedItems() { return flat.filter(f => st.sel.has(f.key)); }
   function jumpEdge(dir) {
     const its = selectedItems().filter(f => f.row.kind === 'sig' && f.row.sig.wave);
     if (!its.length) { setMsg('Select a signal in the wave window first'); return; }
@@ -646,86 +555,11 @@ export function mountISim(container, opts = {}) {
 
   // ---------------------------------------------------------------- the wave window's pointer and keys (isim-input.js)
   // (made here, in mount order; the drawn stimuli, made below, are clicked when editing is on)
-  const { rowAtY, selectRow, localXY, dragRow } = mountInput({ st, sim, $, on, track, cn, cw, vsc, treeEl, objBody, flat: () => flat,
+  const { rowAtY, selectRow, localXY, dragRow } = mountInput({ st, sim, $, on, track, cn, cw, vsc, treeEl, objBody, flat,
     sizes: () => ({ NH, WH, WW }), layout, invalidate, rebuildFlat, updateVScroll, objectsChanged: () => { objDirty = true; }, xOf, tOf, clampView,
     zoomAt, zoomFit, itemWave, setCursor, addMarker, removeMarker, jumpEdge, selectedItems, removeSelectedRows, renameDivider, openSource, showMenu,
     waveRowMenu, stimClick: (...a) => stimClick(...a) });
 
-  function removeSelectedRows() {
-    const keys = st.sel;
-    if (!keys.size) return;
-    // (a group deleted with its signals)
-    st.rows = st.rows.filter(r => !keys.has(String(r.id)) && !(r.group != null && keys.has(String(r.group))));
-    st.sel.clear(); rebuildFlat(); updateVScroll(); invalidate(); renderObjects();
-  }
-  // New Group: the selected rows (not groups) in a new group, where the first of them was; Ungroup: its rows back
-  function newGroup() {
-    const its = selectedItems().filter(f => !f.bit && f.row.kind !== 'group');
-    if (!its.length) return;
-    const n = prompt('Group name:', 'New Group');
-    if (n == null) return;
-    const g = { id: st.rowSeq++, kind: 'group', name: n.trim() || 'New Group', expanded: true };
-    // (where the first of them is, or its group; normalizeGroups puts the members after it, in the window's order)
-    const first = its[0].row;
-    st.rows.splice(st.rows.indexOf(first.group != null ? st.rows.find(r => r.id === first.group) : first), 0, g);
-    for (const f of its) f.row.group = g.id;
-    st.sel.clear(); st.sel.add(String(g.id));
-    rebuildFlat(); updateVScroll(); invalidate();
-  }
-  function renameGroup(g) {
-    const n = prompt('Group name:', g.name);
-    if (n != null && n.trim()) { g.name = n.trim(); invalidate(false); }
-  }
-  function ungroup(gs) {
-    for (const g of gs) {
-      const at = st.rows.indexOf(g);
-      for (const r of st.rows) if (r.group === g.id) delete r.group;
-      st.rows.splice(at, 1);
-    }
-    st.sel.clear(); rebuildFlat(); updateVScroll(); invalidate();
-  }
-  function renameDivider(row) {
-    const n = prompt('Divider name:', row.name);
-    if (n != null) { row.name = n; invalidate(false); }
-  }
-  function addDivider() {
-    const sel = flat.findIndex(f => st.sel.has(f.key));
-    const at = sel >= 0 ? st.rows.indexOf(flat[sel].row) : st.rows.length;
-    const row = { id: st.rowSeq++, kind: 'div', name: 'New Divider' };
-    st.rows.splice(at, 0, row); rebuildFlat(); invalidate();
-    renameDivider(row);
-  }
-  function radixItems() {
-    const its = selectedItems().filter(f => f.row.kind === 'sig' && !f.bit);
-    const cur = its.length ? its[0].row.radix : null;
-    return RADIXES.map(([k, label]) => ({
-      label, checked: cur === k, disabled: !its.length,
-      action: () => { for (const f of its) f.row.radix = k; invalidate(false); },
-    }));
-  }
-  function waveRowMenu() {
-    const its = selectedItems();
-    const sigs = its.filter(f => f.row.kind === 'sig' && !f.bit);
-    const one = sigs.length === 1 ? sigs[0].row.sig : null;
-    const expandable = sigs.filter(f => f.row.sig.wave && isBitsType(f.row.sig.t) && f.row.sig.t.w > 1);
-    return [
-      { label: 'Radix', sub: radixItems(), disabled: !sigs.length },
-      { label: expandable.some(f => f.row.expanded) ? 'Collapse Bus' : 'Expand Bus', disabled: !expandable.length, action: () => { const v = !expandable.some(f => f.row.expanded); for (const f of expandable) f.row.expanded = v; rebuildFlat(); invalidate(); } },
-      { sep: true },
-      { label: 'Force Constant...', disabled: !one || !one.wave, action: () => forceDialog(one, 'const') },
-      { label: 'Force Clock...', disabled: !one || !one.wave, action: () => forceDialog(one, 'clock') },
-      { label: 'Remove Force', disabled: !sigs.some(f => isForced(f.row.sig)), action: () => { for (const f of sigs) removeForces(f.row.sig); } },
-      { sep: true },
-      { label: 'New Divider', action: addDivider },
-      { label: 'Rename Divider...', disabled: !(its.length === 1 && its[0].row.kind === 'div'), action: () => renameDivider(its[0].row) },
-      { label: 'New Group', disabled: !its.some(f => !f.bit && f.row.kind !== 'group'), action: newGroup },
-      { label: 'Rename Group...', disabled: !(its.length === 1 && its[0].row.kind === 'group'), action: () => renameGroup(its[0].row) },
-      { label: 'Ungroup', disabled: !its.some(f => f.row.kind === 'group'), action: () => ungroup(its.filter(f => f.row.kind === 'group').map(f => f.row)) },
-      { label: 'Go To Source Code', disabled: !one || !onOpenSource, action: () => openSource(one) },
-      { sep: true },
-      { label: 'Delete', disabled: !its.some(f => !f.bit), action: removeSelectedRows },
-    ];
-  }
   function openSource(x) {
     if (!onOpenSource || !x) return;
     const file = x.file || x.inst?.file, line = x.loc?.line || 1;
@@ -850,7 +684,7 @@ export function mountISim(container, opts = {}) {
     const [, y] = localXY(e, cn);
     let at = st.rows.length;
     const i = rowAtY(y);
-    if (i >= 0) at = st.rows.indexOf(flat[i].row);
+    if (i >= 0) at = st.rows.indexOf(flat()[i].row);
     if (inst) { const I = findInst(inst); if (I) addInstance(I, false, at); }
     else addSignals(sigs.map(p => design.signals.find(s => s.path === p)).filter(Boolean), at);
   });
@@ -863,7 +697,7 @@ export function mountISim(container, opts = {}) {
   // ---------------------------------------------------------------- drawn stimuli (isim-stimuli.js, #336)
   // (made here, in mount order; what is made below, the dialogs, the console, the runs and api, is called when it is used)
   const { toggleStim, timingDialog, fillStim, stimClick, drawStim, runStim } = mountStimuli({ st, sim, design, stimOpt, stimInst, topSig, stimPortOf,
-    stimBar, btns, layout, invalidate, rowAtY, tOf, xOf, selectRow, setFont, flat: () => flat, width: () => WW, colors: () => colors,
+    stimBar, btns, layout, invalidate, rowAtY, tOf, xOf, selectRow, setFont, flat, width: () => WW, colors: () => colors,
     api: () => api, echo: (...a) => echo(...a), enqueue: (...a) => enqueue(...a), runTo: (...a) => runTo(...a), logLine: (...a) => logLine(...a),
     showDialog: (ov) => showDialog(ov), closeDialog: () => closeDialog() });
 
@@ -911,7 +745,7 @@ export function mountISim(container, opts = {}) {
       if (st.running) { st.breakReq = true; }
       if (!silentEcho) echo('restart');
       sim.reset();
-      bitCache.clear();
+      clearBits();
       for (const f of st.forces) injectForce(f);
       if (st.stim.m) applyStimuli(sim, n => topSig.get(n) || null, st.stim.m);
       st.cursor = 0; st.t0 = 0;
