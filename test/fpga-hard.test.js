@@ -282,7 +282,8 @@ test('cells the Silinx toolchain cannot implement yet are reported clearly', () 
   assert.equal(val(pack(dcm({ CLKIN_DIVIDE_BY_2: 'FALSE', DESKEW_ADJUST: '5' })).insts.find(i => i.type === 'DCM'), 'CLKIN_DIVIDE_BY_2'), undefined);
   assert.equal(val(pack(dcm({ DESKEW_ADJUST: '5' })).insts.find(i => i.type === 'DCM'), 'DESKEW_ADJUST'), '5');
   assert.throws(() => pack(dcm({ DESKEW_ADJUST: '16' })), /DCM_SP u: DESKEW_ADJUST = 16 is not in the bit database yet/);
-  assert.throws(() => pack(one('BUFGMUX', { I0: 'clk_i', I1: 'clk_i', S: 'clk_i', O: 'y' }, ['O'])), /BUFGMUX u: the Silinx toolchain cannot switch clocks with a BUFGMUX yet/);
+  // a BUFGMUX that switches clocks is packed since #846 (test/fpga-pack.test.js)
+  assert.equal(pack(one('BUFGMUX', { I0: 'clk_i', I1: 'clk_i', S: 'clk_i', O: 'y' }, ['O'])).insts.find(i => i.name === 'u').type, 'BUFGMUX');
   assert.throws(() => pack(one('RAM32X1D', { A0: 'clk_i', O: 'y' }, ['O'])), PackError);
 });
 
