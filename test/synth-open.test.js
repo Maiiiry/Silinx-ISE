@@ -900,7 +900,7 @@ test('#54 a register file read at three addresses: its memory as distributed RAM
 // slices, as deep); the other candidates and the GIA's SOP balancing keep mfs2's own windows
 test('#370 the fourth candidate with mfs2\'s windows of 5000 nodes: a 32-request arbiter in 320 LUTs instead of 354, as deep and as fast by the estimate, equal to the RTL', { timeout: 300000 }, async () => {
   assert.equal(MFS, 'mfs2 -M 5000');
-  assert.equal(DEPTH_ABC2_LUT4, DEPTH_ABC2.replaceAll('mfs2', 'mfs2 -M 5000'));
+  assert.ok(DEPTH_ABC2_LUT4.startsWith(DEPTH_ABC2.replaceAll('mfs2', 'mfs2 -M 5000')));
   for (const s of [DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, DEPTH_SOPB]) assert.ok(!s.includes(' -M '), s);
   const d = elaborate(compile([{ path: 'arb.v', lang: 'verilog', text: arbiter(32) }]), 'arb');
   const { text, top } = toVerilog(d);
@@ -911,10 +911,30 @@ test('#370 the fourth candidate with mfs2\'s windows of 5000 nodes: a 32-request
     const j = o[`${top}.json`];
     return { top, files: { [`${top}.json`]: j }, luts: utilization(cellCounts(j, top)).luts, slices: sliceCount(j, top), ns: +criticalDelay(j, top).toFixed(2), levels: logicLevels(j, top) };
   };
-  const a = await map(DEPTH_ABC2), b = await map(DEPTH_ABC2_LUT4);
+  const a = await map(DEPTH_ABC2), b = await map(DEPTH_ABC2.replaceAll('mfs2', MFS));
   assert.deepEqual([a.luts, a.slices, a.ns, a.levels], [354, 177, 8.77, 7]);
   assert.deepEqual([b.luts, b.slices, b.ns, b.levels], [320, 160, 8.77, 7]);
   const c = compareNetlist(d, b, { name: 'mfs-arbiter', seed: 'arb32', sim: { cycles: 400 } });
+  assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
+});
+
+// #370: each more round of the fourth candidate's area mapping (choices, mapping, mfs2 on wide windows) shares more of
+// the arbiter's terms, as deep: four more rounds (the EPFL arbiter in the corpus's I/O wrapper 1537 -> 1410 LUTs at High)
+test('#370 the fourth candidate\'s area mapping made four more times: a 32-request arbiter in 248 LUTs instead of 320, as deep and as fast by the estimate, equal to the RTL', { timeout: 300000 }, async () => {
+  assert.equal(DEPTH_ABC2_LUT4, `${DEPTH_ABC2.replaceAll('mfs2', 'mfs2 -M 5000')}${'; strash; dch -f; if; mfs2 -M 5000'.repeat(4)}`);
+  const d = elaborate(compile([{ path: 'arb.v', lang: 'verilog', text: arbiter(32) }]), 'arb');
+  const { text, top } = toVerilog(d);
+  const out = await yosysNode(['-q', '-p', yosysScript(top, 'spartan3e', { premap: PREMAP_FILE })], yosysFiles(top, text));
+  const map = async script => {
+    const o = await yosysNode(['-q', '-p', `${remapCommands(top, 'spartan3e', { luts: '1,1,1,1' })}; delete t:$scopeinfo; ${TOP_ONLY}; write_json -selected ${top}.json`],
+      { [PREMAP_FILE]: String(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: script });
+    const j = o[`${top}.json`];
+    return { top, files: { [`${top}.json`]: j }, luts: utilization(cellCounts(j, top)).luts, slices: sliceCount(j, top), ns: +criticalDelay(j, top).toFixed(2), levels: logicLevels(j, top) };
+  };
+  const a = await map(DEPTH_ABC2.replaceAll('mfs2', MFS)), b = await map(DEPTH_ABC2_LUT4);
+  assert.deepEqual([a.luts, a.slices, a.ns, a.levels], [320, 160, 8.77, 7]);
+  assert.deepEqual([b.luts, b.slices, b.ns, b.levels], [248, 124, 8.77, 7]);
+  const c = compareNetlist(d, b, { name: 'rounds-arbiter', seed: 'arb32r', sim: { cycles: 400 } });
   assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
 });
 

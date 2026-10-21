@@ -1526,3 +1526,49 @@ Tried and not kept:
 
 With it the open synthesis is far below XST on the arbiter (1537 LUTs against 3514) but still about 3× the LUT-6 record's
 equivalent: the shared prefix scans remain a functional rewrite.
+
+### More area rounds, and how far a rewrite could go (#370)
+
+**Each more round of the area mapping shares more.** The fourth candidate (`DEPTH_ABC2_LUT4`) now ends with four more
+rounds of `strash; dch -f; if; mfs2 -M 5000`. The EPFL arbiter alone, onto LUT4s, all at 8 levels and 9.65 ns estimated:
+
+| rounds of the area mapping at the end | 2 (before) | 3 | 4 | 6 (now) | 8 |
+|---|---:|---:|---:|---:|---:|
+| LUTs | 1500 | 1433 | 1404 | **1350** | 1347 |
+
+Tried in the rounds and not kept: `dc2` in each round (1413 LUTs, 9 levels), the GIA's `&dch -f; &if -K 4` (1412),
+`if -a` then `lutpack` (1540, 14 levels), `mfs2 -a` at the end (1403 after 4 rounds, as plain), `fx` on the SOP network
+after the balancing (1632), the GIA's `&syn2; &if -a` (1672). `resyn2rs` and `compress2rs` are not commands of YoWASP's
+ABC (they are aliases of abc.rc).
+
+Measured at High (2026-10-22), the examples and the design corpus at both efforts (`synthesizeOpen`, one Yosys at a time;
+routed by the open flow, seeds 1–3, Silinx's timing analysis):
+
+| design | LUTs | slices | ns routed (mean of seeds 1–3) |
+|---|---:|---:|---:|
+| EPFL arbiter in the corpus's I/O wrapper (XC3S1200E) | 1537 → **1410** | 769 → **705** | 13.10 → 13.06 |
+| T80 (its distributed-RAM mapping takes the candidate's netlist) | 1782 → **1720** | 992 → **961** | 22.36 → **20.69** |
+| the stopwatch example | 197 → 196 | 182 → 181 | 12.72 → 12.75 |
+| EPFL i2c alone (in the corpus's I/O wrapper: the same netlist) | 394 → 413 | 247 → 207 | estimate 5.76 → 5.05 |
+
+The other 71 designs at High and all 74 at Normal keep their netlists and warnings. The candidate's remap of the arbiter
+takes 16 s instead of 10.
+
+**The bound of a functional rewrite at the same depth.** The arbiter's function (checked by simulation, then by Yosys's
+SAT on a miter) is a ring-shaped carry chain: grant[i] = req[i] and, for some j, priority[j] with no request at j … i−1
+(round the ring). With c[i] the carry into i, G and P the generate and propagate of a range (generate priority[j],
+propagate ~req[j−1]), c[i] = G[0..i] | P[0..i] & G[i+1..127]: one forward and one backward prefix scan, shared by every
+grant. Written so by hand (equal to the EPFL file by `sat -prove-asserts` on a miter) and mapped by the same scripts:
+
+| the arbiter written as | LUTs | levels | ns estimated |
+|---|---:|---:|---:|
+| the EPFL file (today's fourth candidate) | 1350 | 8 | 9.65 |
+| two Kogge-Stone scans | 1588 | 8 | 9.65 |
+| two Sklansky scans | **779** | 8 | 9.65 |
+| two ripple scans | 673 (643 balanced) | 85 | 98.2 |
+
+So at the same speed about 780 LUT4s is the floor of this structure: the record (259 LUT-6, about 520 LUT4s) is a
+ripple chain's size, not reachable without a deeper netlist. Finding the scans in the EPFL file would take a matcher of
+functions, not of structure: each grant's cone is a chain of about 85 private AND stages (339 nodes, 768 of them shared
+by about 42 grants each), with the positions grouped differently for each grant. Such a matcher would fire on this one
+benchmark; not made.
