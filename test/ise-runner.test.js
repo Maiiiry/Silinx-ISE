@@ -7,7 +7,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { REPO, WORKFLOWS, OPEN, HARD_CLOSE, lastOpening, needs, decide, runs, run } from '../scripts/ise-runner/window.mjs';
+import os from 'node:os';
+import { REPO, WORKFLOWS, OPEN, HARD_CLOSE, lastOpening, needs, decide, runs, run, serviceCommands } from '../scripts/ise-runner/window.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIR = path.join(ROOT, 'scripts/ise-runner');
@@ -79,6 +80,121 @@ test('scripts: the shell scripts parse; install.sh sets the hook and the agent',
   assert.match(install, /cp "\$SRC\/job-started\.sh" "\$SRC\/window\.sh" "\$SRC\/window\.mjs" "\$DEST\/"/, 'copied out of the checkout');
   assert.match(install, /<key>StartInterval<\/key><integer>900<\/integer>/);
   assert.match(install, /<key>RunAtLoad<\/key><true\/>/);
+});
+
+/**
+ * install.sh in a scratch folder: a configured runner (bin/runsvc.sh, .runner, externals/node*), the
+ * Library and the home in the scratch folder, launchctl and chown recorded instead of run.
+ */
+function installIn(args, { env = {}, runner = true } = {}) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'ise-runner-'));
+  const dir = path.join(tmp, 'runner'), lib = path.join(tmp, 'Library'), home = path.join(tmp, 'home'), bin = path.join(tmp, 'bin');
+  for (const d of [path.join(dir, 'bin'), path.join(dir, 'externals/node20/bin'), path.join(dir, 'externals/node24/bin'), lib, home, bin]) fs.mkdirSync(d, { recursive: true });
+  if (runner) {
+    fs.writeFileSync(path.join(dir, '.runner'), '{}');
+    fs.writeFileSync(path.join(dir, 'bin/runsvc.sh'), '#!/bin/bash\n');
+    fs.writeFileSync(path.join(dir, 'externals/node20/bin/node'), 'node 20');
+    fs.writeFileSync(path.join(dir, 'externals/node24/bin/node'), 'node 24');
+    fs.writeFileSync(path.join(dir, '.env'), 'LANG=en_US.UTF-8\nTMPDIR=/old\n');
+  }
+  const log = path.join(tmp, 'calls');
+  for (const t of ['launchctl', 'chown']) fs.writeFileSync(path.join(bin, t), `#!/bin/sh\necho "${t} $*" >> "${log}"\n`, { mode: 0o755 });
+  const r = spawnSync('sh', [path.join(DIR, 'install.sh'), ...args.map(a => a.replace('RUNNER', dir))], {
+    encoding: 'utf8',
+    env: { PATH: process.env.PATH, HOME: home, SILINX_RUNNER_LIBRARY: lib, SILINX_RUNNER_LAUNCHCTL: path.join(bin, 'launchctl'),
+      SILINX_RUNNER_CHOWN: path.join(bin, 'chown'), SILINX_RUNNER_HOME: '/var/empty/runner-home', ...env },
+  });
+  const read = f => { try { return fs.readFileSync(f, 'utf8'); } catch { return null; } };
+  return { code: r.status, out: r.stdout, err: r.stderr, dir, lib, home, read, calls: () => (read(log) || '').split('\n').filter(Boolean) };
+}
+
+test('install.sh --system: the runner a daemon of its own user, the window root\'s, their scripts root\'s copies', { skip: !posix }, () => {
+  const r = installIn(['--system', 'iserunner', 'RUNNER']);
+  assert.equal(r.code, 0, r.err);
+  assert.equal(r.err, '');
+  const dest = path.join(r.lib, 'Application Support/Silinx-ISE-runner');
+  // root's copies of the scripts and of the newest Node.js, owned by root
+  assert.deepEqual(fs.readdirSync(dest).sort(), ['job-started.sh', 'node', 'window.mjs', 'window.sh']);
+  assert.equal(fs.readFileSync(path.join(dest, 'node'), 'utf8'), 'node 24');
+  assert.equal(fs.readFileSync(path.join(dest, 'window.mjs'), 'utf8'), fs.readFileSync(path.join(DIR, 'window.mjs'), 'utf8'));
+  for (const f of ['job-started.sh', 'window.sh', 'node']) assert.equal(fs.statSync(path.join(dest, f)).mode & 0o777, 0o755, f);
+  // the runner's .env: the hook, its temporary files in its folder (shared with Docker), Docker's socket; the rest kept
+  assert.equal(r.read(path.join(r.dir, '.env')), `LANG=en_US.UTF-8\nACTIONS_RUNNER_HOOK_JOB_STARTED=${dest}/job-started.sh\nTMPDIR=${r.dir}/_tmp\nDOCKER_HOST=unix:///var/run/docker.sock\n`);
+  assert.ok(fs.statSync(path.join(r.dir, '_tmp')).isDirectory());
+  assert.equal(r.read(path.join(r.dir, 'runsvc.sh')), '#!/bin/bash\n', 'runsvc.sh from bin/, as svc.sh install makes it');
+  // the runner's daemon: its own user, not loaded by the installer (the window starts it)
+  const runner = r.read(path.join(r.lib, 'LaunchDaemons/com.github.pmnmalo.silinx-ise.runner.plist'));
+  assert.match(runner, /<key>UserName<\/key><string>iserunner<\/string>/);
+  assert.match(runner, new RegExp(`<array><string>/bin/bash</string><string>${r.dir}/runsvc\\.sh</string></array>`));
+  assert.match(runner, /<key>HOME<\/key><string>\/var\/empty\/runner-home<\/string>/);
+  assert.match(runner, /<key>KeepAlive<\/key><dict><key>SuccessfulExit<\/key><false\/><\/dict>/);
+  // the window: root's daemon (no UserName), root's copies, the runner's daemon to start and stop
+  const win = r.read(path.join(r.lib, 'LaunchDaemons/com.github.pmnmalo.silinx-ise.runner-window.plist'));
+  assert.doesNotMatch(win, /UserName/);
+  assert.match(win, new RegExp(`<string>${dest}/window\\.sh</string><string>tick</string>`));
+  assert.match(win, new RegExp(`<key>RUNNER_DAEMON</key><string>${r.lib}/LaunchDaemons/com\\.github\\.pmnmalo\\.silinx-ise\\.runner\\.plist</string>`));
+  assert.match(win, new RegExp(`<key>STATE_DIR</key><string>${dest}</string>`));
+  assert.match(win, /<key>StartInterval<\/key><integer>900<\/integer>/);
+  assert.deepEqual(r.calls(), [
+    'launchctl bootout system/com.github.pmnmalo.silinx-ise.runner-window',
+    'launchctl bootout system/com.github.pmnmalo.silinx-ise.runner',
+    `chown -R root:wheel ${dest}`,
+    `chown iserunner ${r.dir}/_tmp ${r.dir}/_diag ${r.dir}/runsvc.sh ${r.dir}/.env`,
+    `chown root:wheel ${r.lib}/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner.plist ${r.lib}/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner-window.plist`,
+    `launchctl bootstrap system ${r.lib}/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner-window.plist`,
+  ]);
+  // installed again: one entry each in .env; uninstalled: the daemons and the copies gone, .env without them
+  assert.equal(installIn(['--system', 'iserunner', 'RUNNER']).code, 0);
+  const again = spawnSync('sh', [path.join(DIR, 'install.sh'), '--system', 'iserunner', r.dir], { encoding: 'utf8', env: { PATH: process.env.PATH, SILINX_RUNNER_LIBRARY: r.lib, SILINX_RUNNER_LAUNCHCTL: 'true', SILINX_RUNNER_CHOWN: 'true', SILINX_RUNNER_HOME: '/var/empty/runner-home' } });
+  assert.equal(again.status, 0, again.stderr);
+  assert.equal(r.read(path.join(r.dir, '.env')).match(/^ACTIONS_RUNNER_HOOK_JOB_STARTED=/gm).length, 1);
+  const un = spawnSync('sh', [path.join(DIR, 'install.sh'), '--uninstall', '--system', 'iserunner', r.dir], { encoding: 'utf8', env: { PATH: process.env.PATH, SILINX_RUNNER_LIBRARY: r.lib, SILINX_RUNNER_LAUNCHCTL: 'true', SILINX_RUNNER_CHOWN: 'true', SILINX_RUNNER_HOME: '/var/empty/runner-home' } });
+  assert.equal(un.status, 0, un.stderr);
+  assert.deepEqual(fs.readdirSync(path.join(r.lib, 'LaunchDaemons')), []);
+  assert.equal(fs.existsSync(dest), false);
+  assert.equal(r.read(path.join(r.dir, '.env')), 'LANG=en_US.UTF-8\n');
+});
+
+test('install.sh --system: refused without sudo, or on a folder that is not a runner', { skip: !posix }, () => {
+  const r = spawnSync('sh', [path.join(DIR, 'install.sh'), '--system', 'iserunner', os.tmpdir()], { encoding: 'utf8', env: { PATH: process.env.PATH } });
+  if (process.getuid?.() !== 0) {
+    assert.equal(r.status, 1);
+    assert.equal(r.stderr, '--system: run it with sudo\n');
+  }
+  const n = installIn(['--system', 'iserunner', 'RUNNER'], { runner: false });
+  assert.equal(n.code, 1);
+  assert.equal(n.err, `${n.dir}: not a configured runner (no bin/runsvc.sh / .runner)\n`);
+  assert.deepEqual(n.calls(), []);
+});
+
+test('install.sh --docker-acl: the runner\'s user on Docker Desktop\'s socket, again each time it is made', { skip: !posix }, () => {
+  const r = installIn(['--docker-acl', 'iserunner']);
+  assert.equal(r.code, 0, r.err);
+  const plist = r.read(path.join(r.home, 'Library/LaunchAgents/com.github.pmnmalo.silinx-ise.docker-acl.plist'));
+  const sock = path.join(r.home, '.docker/run/docker.sock');
+  assert.match(plist, new RegExp(`<string>chmod -a 'user:iserunner allow read,write' '${sock}' 2&gt;/dev/null; chmod \\+a 'user:iserunner allow read,write' '${sock}'</string>`));
+  assert.match(plist, new RegExp(`<key>WatchPaths</key><array><string>${path.dirname(sock)}</string></array>`));
+  assert.match(plist, /<key>RunAtLoad<\/key><true\/>/);
+  assert.equal(r.calls().length, 2);
+  assert.match(r.calls()[0], /^launchctl bootout gui\/\d+\/com\.github\.pmnmalo\.silinx-ise\.docker-acl$/);
+  assert.match(r.calls()[1], new RegExp(`^launchctl bootstrap gui/\\d+ ${r.home}/Library/LaunchAgents/com\\.github\\.pmnmalo\\.silinx-ise\\.docker-acl\\.plist$`));
+});
+
+test('window: the runner\'s service started and stopped through svc.sh, or as root\'s daemon', () => {
+  assert.deepEqual(serviceCommands('start', { RUNNER_DIR: '/r' }), [{ cmd: './svc.sh', args: ['start'], cwd: '/r', optional: false }]);
+  assert.deepEqual(serviceCommands('stop', { RUNNER_DIR: '/r' }), [{ cmd: './svc.sh', args: ['stop'], cwd: '/r', optional: false }]);
+  const env = { RUNNER_DIR: '/r', RUNNER_DAEMON: '/Library/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner.plist' };
+  assert.deepEqual(serviceCommands('start', env), [
+    { cmd: 'launchctl', args: ['bootout', 'system/com.github.pmnmalo.silinx-ise.runner'], cwd: '/', optional: true },
+    { cmd: 'launchctl', args: ['bootstrap', 'system', env.RUNNER_DAEMON], cwd: '/', optional: false },
+  ]);
+  assert.deepEqual(serviceCommands('stop', env), [{ cmd: 'launchctl', args: ['bootout', 'system/com.github.pmnmalo.silinx-ise.runner'], cwd: '/', optional: false }]);
+  assert.throws(() => serviceCommands('restart', env), /service: start or stop, not 'restart'/);
+});
+
+test('window.sh: root\'s own Node.js copy first, then the runner\'s', { skip: !posix }, () => {
+  const text = fs.readFileSync(path.join(DIR, 'window.sh'), 'utf8');
+  assert.match(text, /^node="\$\(dirname "\$0"\)\/node"\n\[ -x "\$node" \] \|\| node=\$\(ls -d "\$RUNNER_DIR"\/externals\/node\*\/bin\/node/m);
 });
 
 // ---------------------------------------------------------------- the label
