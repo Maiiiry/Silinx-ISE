@@ -21,7 +21,7 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, com os projetos à parte) e passe ao 
 1. Abra a **[última versão](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Em **Assets**, clique em **`Silinx-ISE.html`** para o descarregar.
 3. Faça duplo clique no ficheiro descarregado. Abre no browser (Chrome, Edge, Firefox ou Safari).
-4. Na página inicial clique em **Open Example (gates)** (portas lógicas desenhadas num esquemático: um bom primeiro exemplo), **Open Example (traffic)** (uma passadeira para peões: um diagrama de estados e uma tabela de verdade), **Open Example (blinky)** (ou *pong*, um jogo para dois, *stopwatch*, *clock* ou *vga*, uma imagem num monitor VGA) ou **New Project…**.
+4. Na página inicial clique em **New Project…** e escolha em *Start from* **Example: gates** (portas lógicas desenhadas num esquemático: um bom primeiro exemplo), **Example: traffic** (uma passadeira para peões: um diagrama de estados e uma tabela de verdade), **Example: blinky** (ou *pong*, um jogo para dois, *stopwatch*, *clock* ou *vga*, uma imagem num monitor VGA) ou **Empty project**.
 
 É tudo. A saber:
 
@@ -130,10 +130,10 @@ Abre-se uma janela preta (o servidor do Silinx) e depois o browser mostra o Sili
 
 ### Passo 4: usar
 
-- Página inicial ▸ **Open Example (gates)** para começar (portas AND, OR, NOT e NAND num esquemático:
-  um detetor de números primos de 4 bits nos interruptores e em dois LEDs), **Open Example (traffic)**
+- Página inicial ▸ **New Project…**, *Start from* **Example: gates** para começar (portas AND, OR, NOT e NAND
+  num esquemático: um detetor de números primos de 4 bits nos interruptores e em dois LEDs), **Example: traffic**
   a seguir (uma passadeira para peões: o controlador é um diagrama de estados, as luzes uma tabela de
-  verdade), **Open Example (blinky)** para explorar um projeto completo, ou **New Project…**.
+  verdade), **Example: blinky** para explorar um projeto completo, ou **Empty project**.
 - Os projetos ficam em pastas normais em **`Silinx-projects`**, na sua pasta de utilizador
   (Windows: `C:\Users\<você>\Silinx-projects`, macOS: `/Users/<você>/Silinx-projects`).
   Pode copiá-los, fazer cópias de segurança, ou comprimi-los para entregar.
