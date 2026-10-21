@@ -1,0 +1,24 @@
+{
+  "name": "feat_iob_lone",
+  "description": "Board test: input registers in the IOBs of pads whose neighbouring pad is unused (#751)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s500e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "board": "nexys2-500",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

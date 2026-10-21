@@ -57,6 +57,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `gen-iobreg.mjs`, `gen-iobrand.mjs`, `ana-iobreg.mjs` | Stage G: designs with registers in the IOBs of every pad (implemented by ISE), their settings and input delays at random (xdl variants), the bits of each pad's settings solved |
 | `gen-dcmhdl.mjs`, `gen-sidebufg.mjs` | Stage G: designs of several DCMs with settings of their own, and of subsets of the side global buffers, implemented by ISE from HDL (settings xdl refuses in an edited design; inputs in combination); `gen-sitevar.mjs` variants with other values on each instance (`perSite`) |
 | `measure-671.sh` (`gen-iobreg.mjs --bufg`), `pad-clock-rows.mjs`, `pad-owners.mjs` | #671: the I/O registers' clocks from every global line: rd / rd2 with their clock buffer on each top / bottom BUFGMUX in turn, implemented by ISE and measured by PIP drop; the clock rows' bits out of the pads' features, each bit of R:ICLK2INV:#OFF to its pad |
+| `gen-pairdly.mjs`, `gen-paddly.mjs`, `gen-padrand.mjs`, `ana-pairdly.mjs`, `ana-paddly.mjs`, `pad-delays.mjs` | #751: the pads' input delays with each pad used on its own: designs written by the open flow, every pad's kind (unused, output, input register, direct input) and delay varied apart from its neighbours'; each delay bit to the one pad it follows; ISE's bitgen against Silinx's writer on held-out designs |
 | `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh` | #92: every pad's dedicated path to a DCM's CLKIN and the switches on it the database lacks; designs whose DCMs take CLKIN from each of their clock pads in turn, implemented by ISE and measured by PIP drop |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
@@ -925,8 +926,8 @@ designs below (DRC clean, but up to 7 bits from ISE's):
   input register on only the first, then only the second, pad of every tile where such a bit lies: each bit set in
   exactly one, by its owner (`measured/fix-27iclk2-owners.json`, applied by `pad-owners.mjs`; both scripts run at the
   end of `build-db.sh`).
-- Still open (#751): 5 bits of `IFD:DLY3` on the XC3S500E / 1200E that ISE sets only when both pads of the tile have an
-  input register.
+- 5 bits of `IFD:DLY3` on the XC3S500E / 1200E that ISE set only when both pads of a pair had an input register:
+  solved below (#751).
 
 **The Silinx toolchain:** the router's clock search also takes an I/O tile's IOIS_CLKj on its way to the sink (a node
 with a switch straight into it, as a DCM's CLKIN), and `knownRouting` never offers a switch from general routing into
@@ -936,6 +937,41 @@ OTCLK11`): two registers of one tile on different clocks do not route (#749). `f
 of the four sides) and `feat_iob_lines` (new: eight global clocks, lines 0-7, each clocking IOB registers of left and
 right pads; on the four devices with pads of each picked by `test/ise/open-flow.test.js`) and the lone-register designs
 pass `scripts/check-open-flow.mjs`: DRC clean, byte-identical to ISE's bitgen (CRC on and off).
+
+### The input delays with each pad used on its own (2026-10-21, #751)
+
+#97's delays were solved from designs where **every** pad had an input (ri: every pad an input register, rb: every pad a
+direct input), so two pads always used together could not be told apart: a bit of one pad's delay could go to its
+neighbour's. #671's lone-register designs found five such bits on the XC3S500E / 1200E, and designs with only some pads
+used (`gen-padrand.mjs`: every pad unused, an output, an input register or a direct input at random, with random
+delays; a design per kind pattern written by the open flow, then ISE's xdl -xdl2ncd + bitgen) found more on all four
+devices: 15 / 1 / 44 / 48 bits differing from ISE's bitgen in 8 designs of the XC3S100E / 250E / 500E / 1200E, nearly
+all bits of the pads' `IFD:` / `IBUF:` features, many in two neighbouring pads' at once.
+
+- **The issue's five bits** (`gen-pairdly.mjs`: the pad, the input-only pad next to its I/O tile and the tile's other
+  pad at every kind and every pair of delays, 623 designs per device): each is the **input-only pad's** (the IBUFS tile
+  next to the I/O tile), never the other's. 46,31 (47,31 on the XC3S1200E) is A3's register at any delay (TIBUFS_X2Y47,
+  given to B3); 538,356 is D18's IFD_DELAY_VALUE 1-3 and IBUF_DELAY_VALUE 1-5 (RIBUFS_X35Y42, given to E17 too, whose
+  own bit is 538,420); on the XC3S1200E 767,740 and 767,996 are E17's and E18's (given to F14 and G13). ISE sets each
+  as that one pad's setting, whatever the other pads do.
+- **Every pad** (`gen-paddly.mjs`, two rounds per device, the designs' output pad moved between them so that it is
+  measured too): 8 base designs, each pad an input register in 3, a direct input in 3, unused or an output in the
+  others, in an order of its own; 11 variants of each giving every input pad a delay, every value about as often
+  on every pad. `ana-paddly.mjs` gives each bit that changes between variants, and each bit the database gave a delay,
+  to the one pad whose state (kind and delay) it is a function of; where several pads fit (two pads' kinds together in
+  every base), the one the database gave it to, then the nearest. Solved from 184 / 184 / 822 / 830 designs: every bit
+  one pad's, none ambiguous; 1 199 of the 10 051 delay features change (134 / 7 / 535 / 523), the rest are #97's.
+  `measured/fix-28-pad-delays.json` lists the changed features, `pad-delays.mjs` applies them (at the end of
+  `build-db.sh`).
+- **Checked**: the 2 052 designs of the five rounds byte-identical to ISE's bitgen, the 32 held out (`gen-padrand.mjs`,
+  new seeds, not used to solve) among them; before, every random design of the XC3S100E, 500E and 1200E differed. The
+  global clock pins keep only the delay ISE's map chooses (#97). The board test `feat_iob_lone` (input registers on B3,
+  E17, F14, G13 with their neighbours unused, on the XC3S500E and XC3S1200E) passes `scripts/check-open-flow.mjs`.
+- The packer writes only the delay ISE's map chooses (DLY3, DLY2 on the XC3S100E) and direct inputs without delay, so
+  in Silinx's own designs the difference was a lone input register (#751's five bits); the other delays matter for an
+  XDL read with them.
+- Still open: a bit of an IDDR2's second register (`R:IFF2:#FF`, U11 of the XC3S500E, 349,3078) that ISE sets only
+  with the other pad of the tile registered too (#96's IDDR2 measurements).
 
 ### The side clock pads' dedicated paths (2026-10-21, #641)
 

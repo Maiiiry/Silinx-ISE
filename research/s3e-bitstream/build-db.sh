@@ -93,3 +93,6 @@ node pip-exceptions.mjs
 node pad-clock-rows.mjs
 # the bits of R:ICLK2INV:#OFF given to the pads they belong to (#671, measured/fix-27iclk2-owners.json)
 node pad-owners.mjs
+# the pads' input delays as measured with each pad used on its own (#751, measured/fix-28-pad-delays.json: #44 / #97's
+# designs used every pad, so a bit of one pad's delay could go to its neighbour's)
+node pad-delays.mjs
