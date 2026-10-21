@@ -14,9 +14,8 @@
 // Styles: web/css/sch-editor.css (scoped under .sch-editor, themed by the ISE variables of theme.css).
 
 import {
-  SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
-  rotSize, portBox, portSide, freePortName, turnSide, oppositeSide, netlist, generateHdl, parseNetName,
-  splitWiresAt, renameNet, netShort,
+  SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox, rotSize,
+  portBox, portSide, turnSide, oppositeSide, netlist, generateHdl, splitWiresAt, netShort,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -28,11 +27,11 @@ import { esc, h } from './dom.js';
 import { highlightHdl } from './highlight.js';
 import { copySchematic, pasteSchematic, clipEmpty } from '/core/schclip.js';
 import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
-import { reservedError } from '/core/reserved.js';
 import { mountProps } from './sch-props.js';
 import { SVGNS, r1, bodySvg, symbolDrawingSvg } from './sch-svg.js';
 import { mountRender } from './sch-render.js';
 import { mountMove } from './sch-move.js';
+import { mountTools } from './sch-tools.js';
 
 export const clone = o => JSON.parse(JSON.stringify(o));
 export const snap = v => Math.round(v / GRID) * GRID;
@@ -351,7 +350,8 @@ export function mountSchEditor(container, opts = {}) {
   function refreshNetlist() { try { nl = netlist(doc, { modules }); } catch (e) { console.error(e); nl = null; } }
   const { renderSheet, render, renderOverlay, updateToolbar, updateStatus } = mountRender({
     state: () => ({ doc, nl, sel, tool, placing, drag, wireDraw, cursor, hoverPin, lastDiags, live, modules, view, destroyed, showHops, showNames }),
-    refreshNetlist, uidE, readOnly, sheetG, contentG, overlayG, tb, status, undoStack, redoStack, routeTo, snapPoint, bandRect, infoTarget });
+    refreshNetlist, uidE, readOnly, sheetG, contentG, overlayG, tb, status, undoStack, redoStack,
+    routeTo: (...a) => routeTo(...a), snapPoint: (...a) => snapPoint(...a), bandRect, infoTarget });
 
   // ---------------- properties panel (sch-props.js)
   const { renderProps, openSelected, renamed, joinByName } = mountProps({ opts, container, propBody, readOnly, doc: () => doc, sel: () => sel, nl: () => nl,
@@ -396,82 +396,13 @@ export function mountSchEditor(container, opts = {}) {
     let nm; do nm = `inst_${++n}`; while (used.has(nm)); return nm;
   }
 
-  // ---------------- tools
-  function setTool(t) {
-    if (readOnly && t !== 'select') return;
-    if (wireDraw) finishWire();
-    tool = t;
-    if (t !== 'place') placing = null;
-    canvas.dataset.tool = t;
-    renderOpts();
-    renderOverlay(); updateToolbar(); updateStatus();
-    if (t !== 'place') renderPalette();
-  }
-  const netNameInput = h('input', { type: 'text', class: 'se-optin', placeholder: 'net name' });
-  const ioNameInput = h('input', { type: 'text', class: 'se-optin', placeholder: 'auto' });
-  const ioDirSel = h('select', { class: 'se-optin' }, h('option', { value: 'auto', text: 'Auto direction' }), h('option', { value: 'in', text: 'Input' }), h('option', { value: 'out', text: 'Output' }), h('option', { value: 'inout', text: 'Bidirectional' }));
-  function renderOpts() {
-    optBox.innerHTML = '';
-    if (tool === 'net') optBox.append(h('label', { text: 'Name:' }), netNameInput);
-    else if (tool === 'io') optBox.append(h('label', { text: 'Name:' }), ioNameInput, ioDirSel);
-    else if (tool === 'place' && placing) optBox.append(h('span', { class: 'se-placing', text: `Placing ${placing.type === 'module' ? placing.params.module : (placing.preset || SYMBOLS[placing.type]?.title || placing.type)}` }));
-  }
-  function startPlace(it) {
-    if (wireDraw) finishWire();
-    placing = { type: it.type, params: { ...defaultParams(it.type), ...clone(it.params || {}) }, rot: 0, mirror: false, preset: it.preset || null };
-    if (it.type === 'module') {
-      const m = modules[it.params.module];
-      if (m) placing.params.ports = m.ports.map(p => ({ name: p.name, dir: p.dir, width: p.width }));
-    }
-    tool = 'place';
-    canvas.dataset.tool = 'place';
-    sel.clear();
-    renderOpts(); renderPalette(); render(); renderProps();
-    container.focus({ preventScroll: true });
-  }
-  function placeAt(pt, src = placing) {
-    if (!src) return;
-    edit(() => {
-      const s = { id: nextId('S', doc.symbols), type: src.type, x: 0, y: 0, rot: src.rot || 0, mirror: !!src.mirror, name: nextInstName(), params: clone(src.params) };
-      const def = symbolDef(s, modules);
-      const sz = rotSize(s, def);
-      s.x = snap(pt.x - sz.w / 2); s.y = snap(pt.y - sz.h / 2);
-      doc.symbols.push(s);
-      // its pins dropped onto a wire connect there (#170): the wire split at them (#678)
-      splitWiresAt(doc, symbolPins(s, modules, def));
-      if (tool !== 'place') { sel.clear(); sel.add(`sym:${s.id}`); }
-    });
-    // keep the keyboard on the editor (Esc, Ctrl+R / Ctrl+M while placing)
-    setTimeout(() => { if (!destroyed && container.isConnected) container.focus({ preventScroll: true }); }, 0);
-  }
-
-  // all connectable points (pins, I/O markers, wire vertices)
-  function connPoints() {
-    const pts = [];
-    for (const s of doc.symbols) for (const p of symbolPins(s, modules)) pts.push({ x: p.x, y: p.y, pin: p, sym: s });
-    for (const p of doc.ports) pts.push({ x: p.x, y: p.y, port: p });
-    return pts;
-  }
-  function pinNear(pt, tol = 7 / Math.max(0.3, view.s)) {
-    let best = null, bd = tol;
-    for (const c of connPoints()) { const d = Math.hypot(c.x - pt.x, c.y - pt.y); if (d <= bd) { bd = d; best = c; } }
-    return best;
-  }
-  function wireNear(pt, tol = 5 / Math.max(0.3, view.s)) {
-    for (const w of doc.wires) for (let i = 0; i + 1 < w.points.length; i++) if (segDist(pt, w.points[i], w.points[i + 1]) <= tol) return { w, i };
-    return null;
-  }
-  function snapPoint(pt) { const p = hoverPin || null; return p ? { x: p.x, y: p.y } : { x: snap(pt.x), y: snap(pt.y) }; }
-  // orthogonal route from a to b
-  function routeTo(a, b, wd) {
-    if (a.x === b.x || a.y === b.y) return [b];
-    let first = 'h';
-    const pts = wd.pts;
-    if (pts.length >= 2) { const p = pts[pts.length - 2]; first = p.y === a.y ? 'v' : 'h'; }
-    else if (wd.startSide) first = wd.startSide === 'N' || wd.startSide === 'S' ? 'v' : 'h';
-    else first = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? 'h' : 'v';
-    return first === 'h' ? [{ x: b.x, y: a.y }, b] : [{ x: a.x, y: b.y }, b];
-  }
+  // ---------------- tools (sch-tools.js)
+  const { setTool, renderOpts, startPlace, placeAt, connPoints, pinNear, snapPoint, routeTo, finishWire, wireClick, netClick, ioClick } = mountTools({
+    doc: () => doc, nl: () => nl, sel: () => sel, modules: () => modules, view: () => view, hoverPin: () => hoverPin, destroyed: () => destroyed,
+    tool: () => tool, placing: () => placing, wireDraw: () => wireDraw,
+    set: (o) => { if ('tool' in o) tool = o.tool; if ('placing' in o) placing = o.placing; if ('wireDraw' in o) wireDraw = o.wireDraw; },
+    readOnly, canvas, optBox, container, edit, flash, shortNote, nextId, nextInstName, promptBox, renderPalette, render, renderOverlay, renderProps,
+    updateToolbar, updateStatus, joinByName, renamed });
   // a short of two named nets refused (#754, #806): the status line says why
   function shortNote(what, [a, b]) {
     flash(`${what} would short net '${a}' and net '${b}': two named nets cannot be joined. Rename one of them first (the same name connects them).`, 6000);
@@ -484,81 +415,6 @@ export function mountSchEditor(container, opts = {}) {
     pruneSel(); render(); renderProps();
     shortNote(what, short);
     return true;
-  }
-  function finishWire() {
-    if (!wireDraw) return;
-    const pts = cleanPts(wireDraw.pts);
-    wireDraw = null;
-    // the wire connects at its ends only (#678): an end on another wire's segment or bend splits that
-    // wire there (a T-junction), unless it is on a pin or a marker (connected to that one); what the
-    // wire passes over stays apart
-    const ends = [pts[0], pts[pts.length - 1]].filter(q => !connPoints().some(c => c.x === q.x && c.y === q.y));
-    if (pts.length < 2) { renderOverlay(); return; }
-    // a wire between two named nets is refused, as in ISE (#754): rename one of them, or give both the same name
-    const trial = clone(doc);
-    splitWiresAt(trial, ends); trial.wires.push({ id: nextId('W', trial.wires), points: pts });
-    const short = netShort(doc, normalizeDoc(trial), { modules });
-    if (short) { shortNote('The wire', short); renderOverlay(); return; }
-    edit(() => { splitWiresAt(doc, ends); doc.wires.push({ id: nextId('W', doc.wires), points: pts }); }, { keepProps: true });
-  }
-  function wireClick(pt, dbl) {
-    const p = snapPoint(pt);
-    if (!wireDraw) {
-      const near = pinNear(pt);
-      wireDraw = { pts: [p], startSide: near?.pin?.side || (near?.port ? (near.port.dir === 'in' ? 'E' : 'W') : null) };
-      renderOverlay();
-      return;
-    }
-    const last = wireDraw.pts[wireDraw.pts.length - 1];
-    if (dbl) { finishWire(); return; }
-    if (last.x === p.x && last.y === p.y) return;
-    wireDraw.pts.push(...routeTo(last, p, wireDraw));
-    // end on a pin / marker / another wire
-    const onPin = pinNear(pt);
-    const onWire = doc.wires.some(w => w.points.some((q, i) => i + 1 < w.points.length && onSeg(p, q, w.points[i + 1])));
-    if (onPin || onWire) finishWire(); else renderOverlay();
-  }
-  async function netClick(pt) {
-    const hit = wireNear(pt);
-    if (!hit) { flash('Click on a wire to attach the net name'); return; }
-    const a = hit.w.points[hit.i], b = hit.w.points[hit.i + 1];
-    const at = a.x === b.x ? { x: a.x, y: Math.max(Math.min(a.y, b.y), Math.min(Math.max(a.y, b.y), snap(pt.y))) } : { x: Math.max(Math.min(a.x, b.x), Math.min(Math.max(a.x, b.x), snap(pt.x))), y: a.y };
-    let name = netNameInput.value.trim();
-    if (!name) name = await promptBox(pt, 'Net name', nl?.wireNet.get(hit.w.id)?.auto ? '' : (nl?.wireNet.get(hit.w.id)?.name || ''));
-    if (!name) return;
-    const pn = parseNetName(name);
-    if (pn.bad) { flash(`Invalid net name '${name}'`); return; }
-    if (reservedError(pn.base)) { flash(`${reservedError(pn.base)}: choose another name.`); return; }   // (#679)
-    if (!await joinByName(name, nl?.wireNet.get(hit.w.id))) return;
-    edit(() => {
-      const n = nl?.wireNet.get(hit.w.id);
-      const ex = n && doc.labels.find(l => nl.labelNet.get(l.id) === n && Math.hypot(l.x - at.x, l.y - at.y) < 1);
-      if (ex) renamed(renameNet(doc, nl, n, name, ex.id), name);   // (#734) the whole net connected by name
-      else doc.labels.push({ id: nextId('L', doc.labels), x: at.x, y: at.y, net: name });
-    }, { keepProps: true });
-    // auto increment trailing numbers (d0 -> d1)
-    if (netNameInput.value.trim()) { const m = /^(.*?)(\d+)(\)?)$/.exec(name); if (m) netNameInput.value = `${m[1]}${+m[2] + 1}${m[3]}`; }
-  }
-  async function ioClick(pt) {
-    const near = pinNear(pt);
-    const p = near ? { x: near.x, y: near.y } : { x: snap(pt.x), y: snap(pt.y) };
-    if (near?.port) { flash('There is already an I/O marker here'); return; }
-    let dir = ioDirSel.value, width = 1, suggest = '';
-    const net = near?.pin ? nl?.pinNet.get(`${near.sym.id}/${near.pin.name}`) : nl?.wireNet.get(wireNear(p, 0.5)?.w.id);
-    if (near?.pin) { width = near.pin.width || net?.width || 1; if (dir === 'auto') dir = near.pin.dir === 'out' ? 'out' : near.pin.dir === 'inout' ? 'inout' : 'in'; }
-    else if (net) { width = net.width; if (dir === 'auto') dir = net.drivers.length ? 'out' : 'in'; }
-    // (on empty space: a marker of 1 bit, an input unless chosen, with the next free name, wired later, #680)
-    if (dir === 'auto') dir = 'in';
-    const taken = new Set(doc.ports.map(q => q.name.toLowerCase()));
-    if (net && !net.auto && !net.ports.length && !taken.has(net.name.toLowerCase())) suggest = net.name;
-    if (!near?.pin && !net) suggest = freePortName(doc, dir);
-    let name = ioNameInput.value.trim();
-    if (!name || taken.has(name.toLowerCase())) name = await promptBox(pt, `${dir === 'in' ? 'Input' : dir === 'out' ? 'Output' : 'Bidirectional'} port name`, name || suggest);
-    if (!name) return;
-    if (taken.has(name.toLowerCase())) { flash(`An I/O marker named '${name}' already exists`); return; }
-    if (reservedError(name)) { flash(`${reservedError(name)}: choose another name.`); return; }   // (#679)
-    edit(() => { if (!near) splitWiresAt(doc, [p]); doc.ports.push({ id: nextId('P', doc.ports), name, dir, width, x: p.x, y: p.y }); }, { keepProps: true });
-    if (ioNameInput.value.trim()) { const m = /^(.*?)(\d+)$/.exec(name); ioNameInput.value = m ? `${m[1]}${+m[2] + 1}` : ''; }
   }
 
   // ---------------- selection operations

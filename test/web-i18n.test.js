@@ -170,7 +170,7 @@ test('schematic editor and its RTL / Technology views (#130): every symbol descr
   }
   // text: '…' literals of the editor (captions, panel titles, options), besides the labels checked above; the editor's
   // parts in modules of their own (#405) too
-  for (const f of ['sch-editor.js', 'sch-props.js']) {
+  for (const f of ['sch-editor.js', 'sch-props.js', 'sch-tools.js']) {
     const src = fs.readFileSync(path.join(WEB, f), 'utf8');
     for (const m of src.matchAll(/\btext: '([^'$`]+)'/g)) if (/[a-z]{2}/.test(m[1]) && !['labels', 'Verilog', 'schematic'].includes(m[1])) check(m[1], f);
   }
