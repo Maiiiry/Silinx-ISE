@@ -30,7 +30,7 @@
 // that are off, which is what xdl -xdl2ncd expects of a design.
 import { paramBits, paramInt } from './netlist.js';
 import { initToEquation } from './lut.js';
-import { parseUcf } from '../ucf.js';
+import { parseUcf, portAssignments, ucfPattern } from '../ucf.js';
 
 export class PackError extends Error {}
 
@@ -231,7 +231,8 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   const warnings = [];
   // (given the top's ports, a name such as x[1] is a bus bit only when x is a bus: #63, #84)
   const parsedUcf = typeof ucf === 'string' ? parseUcf(ucf, { ports: ucfPortsOf(nl) }) : ucf;
-  const cons = typeof ucf === 'string' ? parsedUcf.assignments : ucf?.assignments || ucf || {};
+  // the constraints of each port bit, a NET name with wildcards on every bit it matches (#773)
+  const cons = portAssignments(parsedUcf?.assignments ? parsedUcf : { assignments: ucf || {} }, nl.ports.flatMap(p => p.bits.map(b => b.name))).assignments;
   // INST "name" LOC = "DCM_X1Y0": the site of a DCM (#47; the placer chooses one otherwise)
   const instLocs = new Map();
   for (const st of parsedUcf?.other || []) {
@@ -465,7 +466,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   const iobAsked = [];   // [NET / INST, name pattern (UCF's * and ?), true / false]: the last that matches
   for (const st of parsedUcf?.other || []) {
     const m = /^(NET|INST)\s+"?([^"\s]+)"?\s+IOB\s*=\s*"?(TRUE|FALSE|FORCE)"?\s*$/i.exec(String(st).trim());
-    if (m) iobAsked.push([m[1].toUpperCase(), new RegExp(`^${m[2].replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`), !/^FALSE$/i.test(m[3])]);
+    if (m) iobAsked.push([m[1].toUpperCase(), ucfPattern(m[2]), !/^FALSE$/i.test(m[3])]);
   }
   const asked = (kind, name) => { let v; for (const [k, re, x] of iobAsked) if (k === kind && name !== null && re.test(name)) v = x; return v; };
   const portName = n => { for (const p of nl.ports) for (const b of p.bits) if (b.net === n) return b.name; return null; };

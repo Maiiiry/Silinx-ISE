@@ -253,6 +253,7 @@ export function parseUcf(text, { ports } = {}) {
   const tnmToNet = {};
   const tnmStmts = [];       // TNM_NET/TNM attributes: kept verbatim unless a parsed clock re-creates them
   const pendingTs = [];
+  const netStatements = [];  // [{ net, attrs }]: the NET statements' attributes in order (portAssignments)
 
   statements(text).forEach((st, i) => {
     const keep = t => other.push({ i, text: t });
@@ -268,6 +269,7 @@ export function parseUcf(text, { ports } = {}) {
         return;
       }
       const a = assignments[net] || {};
+      const own = {};   // this statement's attributes (netStatements)
       let touched = false;
       for (const raw of rest.split('|')) {
         const part = raw.trim();
@@ -280,19 +282,19 @@ export function parseUcf(text, { ports } = {}) {
         const needsVal = ['LOC', 'IOSTANDARD', 'DRIVE', 'SLEW', 'CLOCK_DEDICATED_ROUTE', 'TNM_NET', 'TNM'].includes(key);
         if (needsVal && val === undefined) { asIs(); continue; }   // 'NET "a" LOC;': keep it, do not throw
         switch (key) {
-          case 'LOC': a.loc = val.toUpperCase(); touched = true; break;
-          case 'IOSTANDARD': a.iostandard = val.toUpperCase(); touched = true; break;
-          case 'PULLUP': a.pull = 'up'; touched = true; break;
-          case 'PULLDOWN': a.pull = 'down'; touched = true; break;
-          case 'KEEPER': a.pull = 'keeper'; touched = true; break;
-          case 'DRIVE': if (Number.isNaN(parseInt(val, 10))) asIs(); else { a.drive = parseInt(val, 10); touched = true; } break;
-          case 'SLEW': a.slew = val.toLowerCase(); touched = true; break;
-          case 'CLOCK_DEDICATED_ROUTE': a.clockDedicatedRoute = !/^false$/i.test(val); touched = true; break;
+          case 'LOC': own.loc = val.toUpperCase(); touched = true; break;
+          case 'IOSTANDARD': own.iostandard = val.toUpperCase(); touched = true; break;
+          case 'PULLUP': own.pull = 'up'; touched = true; break;
+          case 'PULLDOWN': own.pull = 'down'; touched = true; break;
+          case 'KEEPER': own.pull = 'keeper'; touched = true; break;
+          case 'DRIVE': if (Number.isNaN(parseInt(val, 10))) asIs(); else { own.drive = parseInt(val, 10); touched = true; } break;
+          case 'SLEW': own.slew = val.toLowerCase(); touched = true; break;
+          case 'CLOCK_DEDICATED_ROUTE': own.clockDedicatedRoute = !/^false$/i.test(val); touched = true; break;
           case 'TNM_NET': case 'TNM': tnmToNet[val] ??= net; tnmStmts.push({ i, net, tnm: val, text: `NET "${net}" ${part}` }); break;
           default: asIs();
         }
       }
-      if (touched) assignments[net] = a;
+      if (touched) { assignments[net] = Object.assign(a, own); netStatements.push({ net, attrs: own }); }
       return;
     }
     const mTs = /^TIMESPEC\s+("[^"]*"|\S+)\s*=\s*PERIOD\s+("[^"]*"|\S+)\s+(.*)$/i.exec(st);
@@ -315,7 +317,33 @@ export function parseUcf(text, { ports } = {}) {
     other.push({ i: t.i, text: t.text });
   }
   other.sort((x, y) => x.i - y.i);
-  return { assignments, clocks, other: other.map(o => o.text) };
+  return { assignments, clocks, other: other.map(o => o.text), netStatements };
+}
+
+/** A UCF name with wildcards (* any characters, ? one character) as a RegExp of the whole name. */
+export function ucfPattern(name, flags = '') {
+  return new RegExp(`^${String(name).replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.')}$`, flags);
+}
+const hasWildcard = name => /[*?]/.test(name);
+
+/**
+ * The constraints of the top's port bits (names: their UCF names, x<i> for a bus bit) from a UCF's
+ * NET statements (parseUcf's result): a NET name with wildcards (* and ?) is applied to every name it
+ * matches, and each attribute is the last statement's that sets it, as ngdbuild does (#773). An
+ * exact name is taken as written, as parseUcf keeps it (a name no port has stays in the result).
+ * parsed: parseUcf's result, or { assignments } alone (taken in the order of its names).
+ * @returns {{ assignments: Object<string, object>, unmatched: string[] }} unmatched: the wildcard
+ *   names that match no port bit
+ */
+export function portAssignments(parsed, names) {
+  const stmts = parsed?.netStatements || Object.entries(parsed?.assignments || {}).map(([net, attrs]) => ({ net, attrs }));
+  const assignments = {}, unmatched = [];
+  for (const { net, attrs } of stmts) {
+    const targets = hasWildcard(net) ? names.filter(n => ucfPattern(net, 'i').test(n)) : [net];
+    if (!targets.length && !unmatched.includes(net)) unmatched.push(net);
+    for (const n of targets) assignments[n] = { ...assignments[n], ...attrs };
+  }
+  return { assignments, unmatched };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -605,7 +633,17 @@ export function checkUcf(text, { top = '', ports = [], lang = 'vhdl', iostandard
         add('error', netPos, `NET "${net}" is not found by ISE: XST names the port '${p.name}' ${bitName(p.name)} in its netlist (use NET "${want}")`);
         continue;
       }
-      if (/[/*?]/.test(net)) continue;   // hierarchical names / wildcards: resolved by the tools
+      if (net.includes('/')) continue;   // hierarchical names: resolved by the tools
+      // a name with wildcards (* and ?, ignoring case as ngdbuild): every port bit it matches (#773); one that
+      // matches no design object stops ngdbuild (ConstraintSystem:58, measured with ISE 14.7)
+      if (hasWildcard(net)) {
+        const re = ucfPattern(net, 'i');
+        if ([...portMap.values()].some(p => expandPort(p).some(n => re.test(n)))) continue;
+        const msg = `NET "${net}" matches no port of the top module '${top}'`;
+        if (ioAttr) add('error', netPos, `${msg} (ISE: "does not match any design objects")`);
+        else add('warning', netPos, `${msg} (timing constraints on internal nets are resolved after synthesis)`);
+        continue;
+      }
       m = /^([A-Za-z_][\w$]*)\s*(?:([<([])\s*(-?\d+)\s*[>)\]])?$/.exec(net);
     }
     if (!m) { add('error', netPos, `invalid net name '${net}'`); continue; }
