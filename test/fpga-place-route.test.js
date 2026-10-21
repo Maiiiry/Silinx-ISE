@@ -20,7 +20,7 @@ import { knownRouting } from '../core/fpga/bitgen.js';
 import { analyzeTiming, delayTable } from '../core/fpga/timing.js';
 import { parseXdl, writeXdl } from '../core/xdl.js';
 import { loadDb } from '../core/fpga/bitdb-node.js';
-import { placeRoute, placeRouteBest, RETRY_SEEDS } from '../core/fpga/place-route.js';
+import { placeRoute, placeRouteBest, RETRY_SEEDS, HIGH_TRIES, NORMAL_TRIES, effortTries } from '../core/fpga/place-route.js';
 
 const PART = 'xc3s250ecp132-4';
 // a flip-flop (s) that selects 64 registers spread over the chip, on the critical path: replicated
@@ -254,6 +254,17 @@ test('placeRouteBest: no placement routed completely for nodes left shared: the 
   assert.deepEqual(run(() => 'ok').calls.length, 1);
   assert.deepEqual(run(() => 'unroutable').calls.length, 1);
   assert.deepEqual(run(() => 'shared', { retries: 0 }).calls.length, 1);
+});
+
+// #651: the placements of the flows: two at High, two at Normal for a design of 500 slices at most, one for a larger one
+test('effortTries: two placements at High, at Normal two up to NORMAL_TRIES.maxSlices slices and one above (#651)', () => {
+  assert.equal(HIGH_TRIES, 2);
+  assert.deepEqual(NORMAL_TRIES, { tries: 2, maxSlices: 500 });
+  for (const slices of [1, 500, 501, 4000]) assert.equal(effortTries('high', slices), 2, `high ${slices}`);
+  assert.deepEqual([1, 25, 499, 500].map(n => effortTries('normal', n)), [2, 2, 2, 2]);
+  assert.deepEqual([501, 960, 4656].map(n => effortTries('normal', n)), [1, 1, 1]);
+  // (no effort given: Normal's)
+  assert.deepEqual([effortTries(undefined, 100), effortTries(undefined, 600)], [2, 1]);
 });
 
 test('the XC3S1200E\'s long-line splitters (#23): the router takes one where it is faster, the placer\'s delay table leaves them out; bitgen gives it its direction', { timeout: 300000 }, async () => {

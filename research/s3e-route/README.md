@@ -951,6 +951,37 @@ spi-fpga-slave −5.2 %, verilog-i2c-master −4.5 %, verilog-uart −4.2 %, epf
 epfl-i2c +1.9 %, itc99-b12 +1.3 %, epfl-adder +1.2 %, serv +1.1 %, itc99-b11 +0.2 %: within the static timing's
 error of trce, the two placements' periods close).
 
+### Two placements at Normal for a small design (#651, 2026-10-22)
+
+At Normal, the default, the designs furthest from ISE were small ones (the weekly comparison of 2026-10-21 by Silinx's
+static timing on today's main: itc99-b05 1.21×, b10 1.20×, b12 1.15×, epfl-i2c and uart-for-fpga 1.09×), whose critical
+path is mostly routing above the placement's floor; at High, with its two placements, they were 0.94-1.06×. So Normal
+now makes two placements too (`NORMAL_TRIES`: seeds 1 and 2, the faster kept, then register replication) for a design
+of 500 slices at most, and one for a larger one (`effortTries` in core/fpga/place-route.js).
+
+The corpus's 53 designs of 1500 LUTs at most and the 7 examples at Normal (main 1d895f9, the same netlists placed and
+routed by each variant, seed 1; Silinx's static timing):
+
+| two placements | period, geometric mean over the 60 | designs changed |
+|---|---:|---:|
+| every design | −1.42 % | 27 |
+| 500 slices at most | **−1.25 %** | 24 |
+| 250 slices at most | −1.25 % | 22 |
+| 100 slices at most | −0.70 % | 13 |
+
+The slices are the same (10756 → 10755). The place and route's time (translate to trce, measured interleaved, the
+best of two runs): itc99-b10 (25 slices) 2.4 → 2.6 s, iwls05-sasc (65) 3.4 → 3.4 s, itc99-b12 (178) 4.2 → 5.2 s, pong
+(243) 2.0 → 4.2 s, femtorv32-quark (438) 11.9 → 17.3 s, picorv32 (706) 20.7 → 33.0 s, epfl-max (672) 22.1 → 35.0 s.
+Above 500 slices the three designs that gain (picorv32 −4.7 %, itc99-b14 −4.2 %, vtr-mkPktMerge −0.9 %) would take
+about 12 s more each: they keep Normal's one placement (High is there for them).
+
+**ISE's check** (on the Mac mini, the 24 changed routings, one placement against two): trce's period **2.38 % shorter**
+in geometric mean (about 1 % over the 60), 18 faster (the clock example 7.508 → 6.433 ns, −14.3 %; verilog-axis-fifo
+−9.1 %, vga −5.3 %, spi-fpga-slave −5.2 %, verilog-lfsr-crc −4.6 %, itc99-b07 −3.0 %, iwls05-i2c, sasc and spi −2.3 to
+−2.5 %), 6 slower by 2.1 % at most (nandland-spi-verilog +2.1 %, itc99-b12 +1.3 %, epfl-adder +1.2 %, serv +1.1 %,
+verilog-i2c-master +1.0 %: the two placements' periods within the static timing's error of trce). Every DRC 0 errors and
+0 warnings, xdl2ncd no warning, every `.bit` byte-identical to ISE's bitgen (CRC on and off).
+
 ## The XC3S1200E's long-line splitters (#23, 2026-10-21)
 
 The XC3S1200E joins each vertical long line's two halves across the centre row (CLKH_LL; the bits:

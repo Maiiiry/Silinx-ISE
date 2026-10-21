@@ -185,8 +185,8 @@ test('Implement Design: the routing does not converge on the placements tried: s
 });
 
 // #651: at Optimization Effort High, Place & Route makes two placements (seeds 1 and 2) and keeps the faster, said;
-// at Normal one
-test('Implement Design at Optimization Effort High: two placements, the faster kept and said; Normal: one (#651)', { timeout: 300000 }, async () => {
+// at Normal too for a design of 500 slices at most (blinky; a larger one: one, test/fpga-place-route.test.js)
+test('Implement Design at Optimization Effort High: two placements, the faster kept and said; Normal, a small design: two too (#651)', { timeout: 300000 }, async () => {
   const device = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(spec.graph)).toString('utf8')));
   const json = {};
   for (const [k, f] of Object.entries(dbFileNames(spec.device, spec.pkg))) {
@@ -207,18 +207,21 @@ test('Implement Design at Optimization Effort High: two placements, the faster k
     assert.deepEqual(lines.filter(l => /warning/i.test(l)), [], synthEffort);
     return { lines, period: res.report.timing.minPeriodNs };
   };
-  const high = await run('high');
-  const said = high.lines.filter(l => /placements/.test(l));
-  assert.equal(said.length, 1, high.lines.join('\n'));
-  const m = /^Optimization Effort High: 2 placements \(seeds 1, 2\): (\d+\.\d{3}) ns, (\d+\.\d{3}) ns; seed ([12]) kept\.$/.exec(said[0]);
-  assert.ok(m, said[0]);
-  const ns = [+m[1], +m[2]];
-  // the faster kept: its period the report's (replication gives none faster on blinky)
-  assert.equal(+m[3], ns[0] <= ns[1] ? 1 : 2);
-  assert.ok(Math.abs(high.period - Math.min(...ns)) < 0.0015, `${high.period} against ${ns}`);
-  // Normal: one placement, nothing said
-  const normal = await run('normal');
-  assert.deepEqual(normal.lines.filter(l => /placements/.test(l)), []);
+  const two = async (effort, name) => {
+    const r = await run(effort);
+    const said = r.lines.filter(l => /placements/.test(l));
+    assert.equal(said.length, 1, r.lines.join('\n'));
+    const m = new RegExp(`^Optimization Effort ${name}: 2 placements \\(seeds 1, 2\\): (\\d+\\.\\d{3}) ns, (\\d+\\.\\d{3}) ns; seed ([12]) kept\\.$`).exec(said[0]);
+    assert.ok(m, said[0]);
+    const ns = [+m[1], +m[2]];
+    // the faster kept: its period the report's (replication gives none faster on blinky)
+    assert.equal(+m[3], ns[0] <= ns[1] ? 1 : 2);
+    assert.ok(Math.abs(r.period - Math.min(...ns)) < 0.0015, `${r.period} against ${ns}`);
+    return r;
+  };
+  await two('high', 'High');
+  // Normal: blinky is small (500 slices at most), so two placements too, said
+  await two('normal', 'Normal');
 });
 
 // #280: the synthesis up to date: the steps from Translate on use the netlist of the earlier run, and the

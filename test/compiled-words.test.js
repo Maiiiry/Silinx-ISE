@@ -219,15 +219,16 @@ test('#670 speed: pong\'s Post-Synthesis Simulation Model, at least 1.4 times as
 });
 test('#650 #659 blinky\'s post-translate, post-map and post-place & route models at word level, with tables (SIMPRIM; the router\'s LUT pins in any order)', { timeout: 600000 }, async () => {
   const m = await models('blinky', ['synth', 'translate', 'posttrans', 'map', 'postmap', 'par', 'trce', 'postpar']);
-  const want = { posttrans: [362, 167], postmap: [420, 185], postpar: [423, 185] };
+  // (postpar: Normal's two placements of a small design (#651), the faster kept, with no flip-flop replicated)
+  const want = { posttrans: [362, 167], postmap: [420, 185], postpar: [420, 185] };
   const wantTables = {
     posttrans: [0, { tables: 16, inputs: 12, words: 9264, outputs: 58, cells: [167, 109] }, 2],
     postmap: [0, { tables: 20, inputs: 12, words: 9392, outputs: 66, cells: [185, 123] }, 2],
-    postpar: [0, { tables: 17, inputs: 12, words: 1236, outputs: 42, cells: [185, 143] }, 3],
+    postpar: [0, { tables: 20, inputs: 12, words: 9392, outputs: 66, cells: [185, 123] }, 2],
   };
   for (const [step, design] of Object.entries(m)) {
     const { stats, tables } = await same(design, step);
-    assert.deepEqual(stats, { chains: 4, registers: step === 'postpar' ? 5 : 4, cells: want[step] }, step);
+    assert.deepEqual(stats, { chains: 4, registers: 4, cells: want[step] }, step);
     assert.deepEqual([tables.equalities.equalities, tables.tables, tables.registers], wantTables[step], step);
   }
 });
