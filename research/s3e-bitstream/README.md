@@ -843,6 +843,36 @@ The packer (`core/fpga/pack.js`) now packs SRLC16E chains through Q15 as ISE's m
 slices for the placer, the SHIFTOUT -> SHIFTIN net); the lower slice's SHIFTOUT leaves the CLB only through XB (not
 measured), so a longer chain, or Q15 into anything but the next shift register's D, is refused.
 
+### The XC3S1200E's other long-line splitters (2026-10-21, #709)
+
+`gen-pipcover.mjs xc3s1200efg320-4 --types CLKV_LL,CLKT_LL,CLKB_LL,CLKL_IOIS_LL,CLKR_IOIS_LL --long 1` (three rounds,
+and three more with `--nosink 1 --k 8`), ISE's xdl2ncd + bitgen, `ana-pipdrop.mjs`, then `ll-splitters.mjs`. Each
+switch sets **one bit**, the same relative to its tile in every tile of the type:
+
+- **CLKV_LL** (the horizontal long lines joined across the centre column): in the clock column's frame 3, at the tile's
+  row (`-364,b`); 36 of the 48 switches.
+- **CLKL_IOIS_LL / CLKR_IOIS_LL** (the vertical long lines of the I/O columns across the centre row): in the I/O row
+  at the top (bits 1-3) or at the bottom of a frame of the column, as CLKH_LL's; 28 of 48 each.
+
+The codewords of `gen-pipdrop.mjs` repeat in tiles far apart, and `ana-pipdrop.mjs` gives a bit to the nearest tile of
+its codeword. A splitter's bit is far from its tile, so it sometimes went to another switch of the same codeword. So
+`ll-splitters.mjs` takes, per tile, the intersection of the observations that show a bit; it drops the I/O columns'
+bits in the centre column's frame; and it gives a type's switch the one pattern its tiles show. The same artefact had
+given stage F's `DCM_H_TL_CENTER` `DCM_CLKFB -> DCM_CLKFB_PINWIRE` a bit, `-98,102` (frame 3), which is a splitter's: it
+now has none, as the other side DCMs' (ISE's #92 designs of the XC3S1200E use that switch with the bit clear).
+
+The types are `noRoute` (the router does not use them yet; CLKH_LL's are used since #23). With the direction of
+`a =- b` taken from the device description (#23), ISE's XC3S1200E routings that use them are byte-identical:
+
+- the six rounds (54 designs);
+- the #92 DCM designs and their PIP-drop bases;
+- the #2 multiplier cascade.
+
+That holds with no exception for the splitters' frames. Of the 1031 IOB designs, 11 are byte-identical and 382 more
+differ only by switches still unmeasured (12 of CLKV_LL, 40 of CLKT_LL / CLKB_LL, 20 per I/O column: the rounds'
+router reaches no path through them). 136 differ only by the left and right I/O columns' clock-row bits (#671). The
+rest have the input delays the database refuses on the clock pins (#97).
+
 ### The PIPs a tile does not have (2026-10-13, #74)
 
 The database's PIP features are per tile type, and several types take another's: the I/O, corner,

@@ -36,6 +36,8 @@ for (const f of args.filter(a => !a.startsWith('--'))) {
   for (const [type, t] of Object.entries(add.types || {})) {
     const dst = (db.types[type] ||= { features: {} });
     if (t.sameAs) dst.sameAs = t.sameAs;
+    // (a type the router must not use: the XC3S1200E's long-line splitters)
+    if (t.noRoute) dst.noRoute = true;
     for (const [k, v] of Object.entries(t.features || {})) {
       if (keep && dst.features[k]) continue;
       dst.features[k] = [...v].sort();
