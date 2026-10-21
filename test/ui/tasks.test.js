@@ -75,7 +75,7 @@ uiTest('View ▸ Interface ▸ Tasks: the task switcher in the header, the task\
   }));
   assert.deepEqual(L, {
     ui: 'modern', stored: 'tasks', tasks: ['Edit', 'Simulate', 'Emulate', 'Implement', 'Program'], steps: 0,
-    bar: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)', 'Check'],
+    bar: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)', 'Close', 'Check'],   // (Close: a single document's, #854)
   });
   assert.ok(await shown(page, '#task-switch'));
   assert.ok(!(await shown(page, '#task-tabs')), 'the bottom tab bar: on a narrow screen only');
@@ -127,7 +127,8 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   s = await state(page);
   assert.equal(s.task, 'sim');
   assert.equal(s.empty, false);
-  assert.deepEqual(s.tabs.map((t) => t.replace(/ \(.*\)$/, '')), ['ISim']);
+  assert.deepEqual(s.tabs, [], 'one document: no tab bar (#854)');
+  assert.equal(await page.eval(() => document.querySelector('#task-doc .task-doc-mod').textContent), 'top');
   // the side panel unfolds from the activity bar, kept for Simulate
   await page.click('#left-tabs .tab[data-page="design"]');
   assert.equal((await state(page)).side, 'open');
@@ -144,12 +145,12 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   await page.click('#task-switch .task-btn[data-task="prog"]');
   await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('iMPACT'), [], { what: 'iMPACT' });
   s = await state(page);
-  assert.deepEqual([s.task, s.side, s.console, s.tabs], ['prog', 'folded', 'open', ['iMPACT']]);
+  assert.deepEqual([s.task, s.side, s.console, s.tabs], ['prog', 'folded', 'open', []]);   // (iMPACT, its one document: no tab bar, #854)
   // a document of another task brought to the front (the Window menu, a link…): its task comes to the front
   await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
   await page.waitFor(() => document.documentElement.dataset.task === 'edit', [], { what: 'Edit in front' });
-  // maximize: the document's tab double-clicked; kept for its task; the bar's button gives the space back
-  await page.click('#task-switch .task-btn[data-task="sim"]');
+  // maximize: the document's tab double-clicked (Edit's: a task with tabs); kept for its task; the bar's button gives the space back
+  await page.click('#task-switch .task-btn[data-task="edit"]');
   const tab = await page.point('#doc-tabs > .tab.active');
   await page.mouse('mousePressed', tab.x, tab.y, { clickCount: 1 }); await page.mouse('mouseReleased', tab.x, tab.y, { clickCount: 1 });
   await page.mouse('mousePressed', tab.x, tab.y, { clickCount: 2 }); await page.mouse('mouseReleased', tab.x, tab.y, { clickCount: 2 });
@@ -157,14 +158,15 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   assert.ok(!(await shown(page, '#left')) && !(await shown(page, '#console-wrap')));
   const ws = await page.eval(() => document.getElementById('workspace').getBoundingClientRect().width);
   assert.ok(ws >= 1366 - 2, `the document has the width: ${ws}`);
-  await page.click('#task-switch .task-btn[data-task="edit"]');
-  assert.equal((await state(page)).max, 'off');
   await page.click('#task-switch .task-btn[data-task="sim"]');
-  assert.equal((await state(page)).max, 'on', 'kept for Simulate');
+  assert.equal((await state(page)).max, 'off');
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.equal((await state(page)).max, 'on', 'kept for Edit');
   await page.click('#task-bar [data-act="max"]');
   assert.equal((await state(page)).max, 'off');
   assert.ok(await shown(page, '#left'));
-  // the messages: folded, they open from their tabs and from the bar
+  // the messages: folded in Simulate, they open from their tabs and from the bar
+  await page.click('#task-switch .task-btn[data-task="sim"]');
   assert.equal((await state(page)).console, 'folded');
   await page.click('#task-bar [data-act="console"]');
   assert.equal((await state(page)).console, 'open');
@@ -172,7 +174,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   // kept per viewer, and after a reload
   const kept = await page.eval(() => JSON.parse(localStorage.getItem('silinx.tasks')));
   assert.equal(kept.task, 'sim');
-  assert.deepEqual([kept.tasks.sim.side, kept.tasks.sim.console, kept.tasks.sim.max], [true, true, false]);
+  assert.deepEqual([kept.tasks.sim.side, kept.tasks.sim.console, kept.tasks.edit.max], [true, true, false]);
   assert.match(kept.tasks.edit.doc, /^file:src\/top\.vhd$/);
   assert.deepEqual(await noOverflow(page), { page: true, over: [] });
   await noWarnings(page);
@@ -279,6 +281,62 @@ uiTest('#839 Tasks in a development build: with the Development menu, in Portugu
   await page.openProject('TasksDev');
   await noWarnings(page);
 }, { build: FULL });
+
+// #854: Simulate, Emulate and Program have one document each (a new one replaces the old): no tab bar there; the
+// document's module and model, and its close, in the task's bar; Edit keeps its tabs
+const docInfo = (page) => page.eval(() => {
+  const vis = (e) => !!e && e.getClientRects().length > 0;
+  const i = document.getElementById('task-doc');
+  return { tabs: vis(document.getElementById('doc-tabs')), info: vis(i) ? [...i.querySelectorAll('span')].filter(vis).map((x) => x.textContent) : null };
+});
+uiTest('#854 Tasks: no tab bar in a task with a single document; its module and model, and its close, in the task\'s bar', E, async (page) => {
+  await makeProject(env, { name: 'TasksSingle', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksSingle');
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitForSelector('.doc:not([hidden]) .cm-editor');
+  assert.deepEqual(await docInfo(page), { tabs: true, info: null }, 'Edit keeps its tabs, even with one file');
+  // Simulate: none open (its page, no tab bar), then ISim: its module and model in the bar
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  assert.deepEqual(await docInfo(page), { tabs: false, info: null });
+  await page.click('#task-empty button');
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
+  await page.waitFor(() => document.getElementById('task-doc').getClientRects().length > 0, [], { what: 'the document in the bar' });
+  assert.deepEqual(await docInfo(page), { tabs: false, info: ['top', 'Behavioral'] });
+  // the workspace has the tab bar's height
+  const top = await page.eval(() => Math.round(document.getElementById('workspace').getBoundingClientRect().top - document.getElementById('toolbar').getBoundingClientRect().bottom));
+  assert.ok(top <= 1, `the document right under the toolbar: ${top}`);
+  // Emulate: the board, RTL
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  await page.click('#task-empty button');
+  await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
+  assert.deepEqual(await docInfo(page), { tabs: false, info: ['top', 'Behavioral (RTL)'] });
+  // its close: the emulator closes, the task's page again
+  await page.click('#task-doc [data-act="close"]');
+  await page.waitFor(() => !window.SilinxApp.findDoc('emulator'), [], { what: 'the emulator closed' });
+  assert.deepEqual(await docInfo(page), { tabs: false, info: null });
+  assert.ok(await shown(page, '#task-empty'));
+  // Program: iMPACT, named by its title
+  await page.click('#task-switch .task-btn[data-task="prog"]');
+  await page.waitFor(() => !!window.SilinxApp.findDoc('impact'), [], { what: 'iMPACT' });
+  assert.deepEqual(await docInfo(page), { tabs: false, info: ['iMPACT'] });
+  // in Portuguese: the model's name
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#task-doc .task-doc-model').textContent === 'Comportamental', [], { what: 'Portuguese' });
+  assert.equal(await page.eval(() => document.querySelector('#task-doc [data-act="close"]').title), 'Fechar');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // back to Edit: its tabs
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.deepEqual(await docInfo(page), { tabs: true, info: null });
+  // the modern interface: its tab bar as before
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => document.documentElement.dataset.single), undefined);
+  assert.ok(await shown(page, '#doc-tabs'));
+  await noWarnings(page);
+}, { build: DEV });
 
 // the lines of the message centre shown (its filter): [source, text]
 const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));
