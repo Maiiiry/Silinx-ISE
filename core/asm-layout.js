@@ -6,7 +6,8 @@
 //   asmLayout(model)                -> copy of the model with x/y assigned (top-down layout)
 //   reusePrevious(model, previous)  -> the model with the previous chart's ids, positions and edge points
 import { normalizeModel, parseCondition, parseAction, exprToString, asmJoinPoints } from './asm.js';
-import { clone, condKey, valueLits } from './asm-from-hdl.js';
+import { clone } from './asm-hdl-util.js';
+import { condKey, valueLits } from './asm-from-hdl.js';
 
 // ---------------------------------------------------------------------------------------
 // Layout
