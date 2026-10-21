@@ -256,6 +256,10 @@ const FEATURES = {
   feat_iob_lines: [/^pack \(\d+ slices\)/m, 'IOB', [...[0, 1, 2, 3, 4, 5, 6, 7].map(k => new RegExp(`^ {2}pip [LR]I(?:OIS|BUFS)\\w*_X\\d+Y\\d+ GCLK${k} -> IOIS_CLK\\d ,$`, 'm')),
     /^inst "btn<0>" "IBUF",placed RIBUFS_PCI_X27Y21 G12 +,\n {2}cfg "[^"]* IFF1:/m, /^inst "led<7>" "IOB",placed LIOIS_PCI_X0Y19 G1 +,\n {2}cfg "[^"]* OFF1:/m],
     [/^ {2}pip \S+ (?:[EWNS][26]\w+|L[HV]\d+|OMUX\w*) -> IOIS_CLK\d ,$/m]],
+  // IOB registers on two global clocks, their pads left to the placer (#749): the two input registers, and the two output
+  // registers, never in the two IOBs of one differential pair (which share each clock wire of their I/O tile)
+  feat_iob_pair: [/^pack \(\d+ slices\)/m, 'IOB', [/^inst "sw<1>" "IBUF",placed \S+ \S+ +,\n {2}cfg "[^"]* IFF1:/m, /^inst "led<1>" "IOB",placed \S+ \S+ +,\n {2}cfg "[^"]* OFF1:/m],
+    [/[IOT]FF2:/]],
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
 for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {
@@ -273,6 +277,30 @@ for (const [name, [packLine, type, settings = [], absent = []]] of Object.entrie
     for (const re of absent) assert.doesNotMatch(routed, re);
   });
 }
+
+// #749: feat_iob_pair with its pads LOC'd on two differential pairs of the Basys2-250 (J12 / K14, N13 / N14), each pair's
+// two registers on different clocks: before, "the routing did not converge"; now both clocks routed into each tile, the
+// DIFFM's register on its second flip-flop (as ISE does: its DRC clean on this routed XDL), whose settings on a pad alone
+// the bit database lacks (#759): said, and no bitstream
+test('the open flow: two registers of one kind on different clocks in the two IOBs of a LOC\'d pair: routed, the DIFFM\'s on its second flip-flop, the missing settings named (#749)', { timeout: 300000 }, () => {
+  const dir = path.join(tmp, 'feat_iob_pair_loc'), out = path.join(tmp, 'feat_iob_pair_loc-out');
+  fs.cpSync(path.join(ROOT, 'test/fixtures/open-flow/feat_iob_pair'), dir, { recursive: true });
+  fs.appendFileSync(path.join(dir, 'top.ucf'), 'NET "led<0>" LOC = "J12" ;\nNET "led<1>" LOC = "K14" ;\nNET "sw<0>" LOC = "N13" ;\nNET "sw<1>" LOC = "N14" ;\n');
+  const r = openFlow(dir, out);
+  assert.equal(r.status, 1, `${r.stdout}\n${r.stderr}`);
+  assert.doesNotMatch(r.stdout + r.stderr, /did not converge/);
+  assert.deepEqual(r.warnings, [
+    'Warning: place: led<1>, led<0>: their output registers have different clocks (ck1, ck0) on pads K14, J12, whose IOBs share the clock wires of the I/O tile RIOIS_PCI_X27Y14: led<1>\'s on the IOB\'s second flip-flop (OFF2), as ISE does, whose settings on that pad alone are not in the bit database yet (#759)',
+    'Warning: place: sw<0>, sw<1>: their input registers have different clocks (ck0, ck1) on pads N13, N14, whose IOBs share the clock wires of the I/O tile RIOIS_X27Y1: sw<0>\'s on the IOB\'s second flip-flop (IFF2), as ISE does, whose settings on that pad alone are not in the bit database yet (#759)',
+  ]);
+  assert.match(r.stderr + r.stdout, /open-flow: 7 features not in the bit database: no bitstream\n {2}@K14 OMUX:OFF2\n {2}@K14 R:OFF1:#OFF\n {2}@K14 R:OFF1_INIT_ATTR:#OFF\n {2}@K14 R:OTCLK1INV:#OFF\n {2}@N13 R:IFF1:#OFF\n {2}@N13 R:IFF1_INIT_ATTR:#OFF\n {2}@N13 R:ICLK1INV:#OFF\n/);
+  const routed = fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8');
+  assert.match(routed, /^inst "led<1>" "IOB",placed RIOIS_PCI_X27Y14 K14 +,\n {2}cfg "[^"]* OMUX::OFF2 [^"]* OFF2:/m);
+  assert.match(routed, /^inst "led<0>" "IOB",placed RIOIS_PCI_X27Y14 J12 +,\n {2}cfg "[^"]* OFF1:/m);
+  assert.match(routed, /^inst "sw<0>" "IBUF",placed RIOIS_X27Y1 N13 +,\n {2}cfg "[^"]* IFF2:/m);
+  for (const re of [/^ {2}pip RIOIS_PCI_X27Y14 GCLK\d -> IOIS_CLK5 ,\n {2}pip RIOIS_PCI_X27Y14 IOIS_CLK5 -> OTCLK20 ,$/m, /^ {2}pip RIOIS_PCI_X27Y14 IOIS_CLK1 -> OTCLK11 ,$/m,
+    /^ {2}pip RIOIS_X27Y1 IOIS_CLK4 -> ICLK20 ,$/m, /^ {2}pip RIOIS_X27Y1 IOIS_CLK0 -> ICLK11 ,$/m]) assert.match(routed, re);
+});
 
 // IOB registers of every kind on every pad (#96, its second round; before, a kind was measured on a quarter of the pads
 // only): feat_iobreg's tristate output on M11 (LED1), an output-enable register with a clock enable and a reset, which

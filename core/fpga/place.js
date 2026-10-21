@@ -66,7 +66,9 @@ export function deviceSites(dev, { allowBufg = null } = {}) {
         const x = +m[1], y = +m[2];
         slices.set(`${x},${y}`, { name: s.name, tile: t.name, type: s.type, x, y, px: t.c + (x % 2) * 0.5, py: rows - 1 - t.r + (y % 2) * 0.5 });
       } else if (/^(IOB|IBUF|DIFFM|DIFFS|DIFFMI|DIFFSI)$/.test(s.type) && s.bonded) {
-        pads.set(s.name, { name: s.name, tile: t.name, type: s.type, px: t.c, py: rows - 1 - t.r, inputOnly: /^(IBUF|DIFFMI|DIFFSI)$/.test(s.type) });
+        // (pair: the tile of a differential pair, DIFFM / DIFFS, whose two IOBs share each clock wire, #749)
+        pads.set(s.name, { name: s.name, tile: t.name, type: s.type, px: t.c, py: rows - 1 - t.r, inputOnly: /^(IBUF|DIFFMI|DIFFSI)$/.test(s.type),
+          pair: /^DIFF[MS]/.test(s.type) ? t.name : null, master: /^DIFFM/.test(s.type) });
       } else if (s.type === 'BUFGMUX') {
         if (!allowBufg || allowBufg(t.name, s.name)) bufgmux.push({ name: s.name, tile: t.name, px: t.c, py: rows - 1 - t.r });
       } else if (s.type === 'DCM') {
@@ -344,6 +346,20 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     sites[o.inst] = p;
   }
   const freePads = (dir, v) => [...dev.pads.values()].filter(p => !padUsed.has(p.name) && (dir === 'in' || !p.inputOnly) && bankOk(p, v));
+  // the clocks of the IOBs' registers (#749): the input register's (ICLK1) and the output and output-enable
+  // registers' (OTCLK1) nets. The two IOBs of a differential pair (DIFFM / DIFFS) share each clock wire of
+  // their tile (IOIS_CLK0 -> ICLK10 / ICLK11, IOIS_CLK1 -> OTCLK10 / OTCLK11; the tile's third IOB has its
+  // own): two registers of one kind there on different clocks need the DIFFM's second flip-flop (IFF2 / OFF2
+  // on the tile's second clock wire, as ISE's map does: secondFlipFlops), whose bits on a pad alone the
+  // database lacks: an I/O with no LOC is kept out of such a pair (clashAt), LOC'd ones take it.
+  const regClk = new Array(N).fill(null);
+  packed.nets.forEach((n, k) => { for (const p of n.inpins) if (p.pin === 'ICLK1' || p.pin === 'OTCLK1') (regClk[p.inst] ||= {})[p.pin[0]] = k; });
+  const clash = (i, j) => !!regClk[i] && !!regClk[j] && ['I', 'O'].some(g => regClk[i][g] !== undefined && regClk[j][g] !== undefined && regClk[i][g] !== regClk[j][g]);
+  const pairPads = new Map();   // tile -> its pair's bonded pads
+  for (const p of dev.pads.values()) if (p.pair) (pairPads.get(p.pair) || pairPads.set(p.pair, []).get(p.pair)).push(p);
+  const partnerOf = p => (p.pair ? pairPads.get(p.pair).find(q => q !== p) : undefined);
+  // instance i on pad p clashes with the I/O on its partner pad (at: the object on a pad, padUsed's by default)
+  const clashAt = (i, p, at = q => padUsed.get(q.name)) => { const q = partnerOf(p), j = q && at(q); return !!j && j.inst !== i && clash(i, j.inst); };
   // a clock input with no LOC (its pad drives a global buffer straight): on a pad from which a
   // global buffer is reached through the dedicated clock paths of known bits (a GCLK pin, as ISE
   // places it: B8 -> BUFGMUX_X2Y11), the buffers in BUFG_ORDER's order, and kept there (#49)
@@ -552,8 +568,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   // an I/O with registers (#96): only the pads its registers' settings are measured on, if any is free
   const padFits = (i, p) => !padOk || !packed.insts[i].regs?.length || padOk(p.name, packed.insts[i].cfg);
   for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
-    const all = freePads(o.dir, vccoOf(o.inst)), fits = all.filter(p => padFits(o.inst, p));
-    const fp = fits.length ? fits : all;
+    const all = freePads(o.dir, vccoOf(o.inst)), fits = all.filter(p => padFits(o.inst, p)), apart = fits.filter(p => !clashAt(o.inst, p));
+    const fp = apart.length ? apart : fits.length ? fits : all;
     if (!fp.length) throw padsError(o);
     const want = start?.at[o.inst]?.site;
     const p = (want && fp.find(q => q.name === want)) || fp[ri(fp.length)];
@@ -927,6 +943,9 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       if (other && (other.fixed || (other.dir !== 'in' && sites[o.inst].inputOnly))) return false;
       if (!padFits(o.inst, p) && padFits(o.inst, sites[o.inst])) return false;
       if (other && !padFits(other.inst, sites[o.inst]) && padFits(other.inst, p)) return false;
+      // (no two registers of one kind on different clocks in a pair, #749)
+      const after = q => (q === p ? o : q === sites[o.inst] ? other : padUsed.get(q.name));
+      if (clashAt(o.inst, p, after) || (other && clashAt(other.inst, sites[o.inst], after))) return false;
       // both I/Os must suit the VCCO of the bank they go to
       const old = sites[o.inst], vo = vccoOf(o.inst), vt = other ? vccoOf(other.inst) : null;
       bankAdd(old, vo, -1); if (other) bankAdd(p, vt, -1);
@@ -1103,20 +1122,60 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   return finish();
 
   function finish() {
+    // the DIFFM of a pair whose two IOBs' registers of one kind have different clocks: that register on its
+    // second flip-flop (#749; ISE's map moves the DIFFM's, whichever the ports' order)
+    const ff2 = [];
+    for (const ps of pairPads.values()) {
+      const [m, sl] = [ps.find(p => p.master), ps.find(p => !p.master)].map(p => p && padUsed.get(p.name)?.inst);
+      if (m === undefined || sl === undefined || !regClk[m] || !regClk[sl]) continue;
+      for (const g of ['I', 'O']) {
+        if (regClk[m][g] === undefined || regClk[sl][g] === undefined || regClk[m][g] === regClk[sl][g]) continue;
+        ff2.push({ inst: m, group: g });
+        // (said while the bit database lacks the settings of the second flip-flop alone on that pad, #759)
+        const moved = secondFlipFlops(packed.insts[m].cfg, [g]).cfg;
+        if (!padOk || padOk(sites[m].name, moved)) continue;
+        const [a, b] = [m, sl].map(i => packed.insts[i].name), ffs = moved.filter(c => /^[IOT]FF2$/.test(c.attr)).map(c => c.attr).join(' / ');
+        warnings.push(`${a}, ${b}: their ${g === 'I' ? 'input' : 'output'} registers have different clocks (${packed.nets[regClk[m][g]].name}, ${packed.nets[regClk[sl][g]].name}) on pads ${sites[m].name}, ${sites[sl].name}, whose IOBs share the clock wires of the I/O tile ${sites[m].tile}: ${a}'s on the IOB's second flip-flop (${ffs}), as ISE does, whose settings on that pad alone are not in the bit database yet (#759)`);
+      }
+    }
     return {
-      sites: sites.map(s => ({ tile: s.tile, site: s.name })),
+      sites: sites.map(s => ({ tile: s.tile, site: s.name })), ff2,
       cost: bb, delay: dmax, warnings: [...warnings, ...dcmClkinWarnings()], stats: { initialCost, initialDelay, moves, temps, seconds: (Date.now() - t0) / 1000, objects: objs.length },
     };
   }
 }
 
-/** The placed design, ready for writeXdl: instances with their sites, nets by instance name. */
+// An IOB's registers on its second flip-flops (#749), as ISE's map writes them: IFF1 -> IFF2 clocked by ICLK2,
+// out on IQ2; OFF1 / TFF1 -> OFF2 / TFF2 clocked by OTCLK2, their data on O2 / T2 (each part only when used)
+const FF2_PARTS = {
+  I: [{ ff: 'IFF1', attrs: ['IFF1', 'IFF1_INIT_ATTR', 'IFF1_SR_ATTR', 'ICLK1INV'], pins: ['ICLK1', 'IQ1'] }],
+  O: [{ ff: 'OFF1', attrs: ['OFF1', 'OFF1_INIT_ATTR', 'OFF1_SR_ATTR', 'O1INV', 'O1_DDRMUX', 'OMUX'], pins: ['O1'] },
+    { ff: 'TFF1', attrs: ['TFF1', 'TFF1_INIT_ATTR', 'TFF1_SR_ATTR', 'T1INV', 'TMUX'], pins: ['T1'] },
+    { ff: /^[OT]FF1$/, attrs: ['OTCLK1INV'], pins: ['OTCLK1'] }],
+};
+const second = v => v.replace(/1(?=$|_|INV$)/, '2');
+/** The cfg and pin names of an IOB with the registers of groups (['I'] / ['O']) on its second flip-flops:
+ *  { cfg, pin: Map first pin -> second }. */
+export function secondFlipFlops(cfg, groups) {
+  const used = ff => cfg.some(c => (typeof ff === 'string' ? c.attr === ff : ff.test(c.attr)) && c.value === '#FF');
+  const attrs = new Set(), pin = new Map();
+  for (const g of groups) for (const part of FF2_PARTS[g]) if (used(part.ff)) { part.attrs.forEach(a => attrs.add(a)); part.pins.forEach(p => pin.set(p, second(p))); }
+  const out = cfg.map(c => (attrs.has(c.attr) ? { ...c, attr: second(c.attr), value: /^(IFF|OFF|TFF|ICLK|OTCLK|O|T)1(_B)?$/.test(c.value) ? second(c.value) : c.value } : c));
+  return { cfg: out, pin };
+}
+
+/** The placed design, ready for writeXdl: instances with their sites, nets by instance name; the registers
+ *  the placement puts on an IOB's second flip-flops (placement.ff2, #749) there. */
 export function placedXdl(packed, placement) {
-  const insts = packed.insts.map((i, k) => ({ name: i.name, type: i.type, placed: true, tile: placement.sites[k].tile, site: placement.sites[k].site, cfg: i.cfg }));
+  const ff2 = new Map();
+  for (const { inst, group } of placement.ff2 || []) ff2.set(inst, [...(ff2.get(inst) || []), group]);
+  const moved = new Map([...ff2].map(([k, groups]) => [k, secondFlipFlops(packed.insts[k].cfg, groups)]));
+  const insts = packed.insts.map((i, k) => ({ name: i.name, type: i.type, placed: true, tile: placement.sites[k].tile, site: placement.sites[k].site, cfg: moved.get(k)?.cfg || i.cfg }));
+  const pinOf = p => moved.get(p.inst)?.pin.get(p.pin) || p.pin;
   const nets = packed.nets.map(n => ({
     name: n.name, type: n.type,
-    outpins: n.outpins.map(p => ({ inst: insts[p.inst].name, pin: p.pin })),
-    inpins: n.inpins.map(p => ({ inst: insts[p.inst].name, pin: p.pin })),
+    outpins: n.outpins.map(p => ({ inst: insts[p.inst].name, pin: pinOf(p) })),
+    inpins: n.inpins.map(p => ({ inst: insts[p.inst].name, pin: pinOf(p) })),
     pips: [],
   }));
   return { name: packed.name, part: packed.part, cfg: packed.cfg || '', insts, nets };

@@ -385,15 +385,17 @@ export function instArcs(inst, model = SPEED_4) {
   const out = { comb, setup, clkToOut, input: [], output: [], clock: false };
   if (/^(IOB|IBUF|DIFF[MS]I?)$/.test(inst.type)) {
     out.input.push(['I', model.pad.Tiopi]);
-    // an output pad's path from O1 (not through its output register, whose O1 is the register's data)
-    if (!inst.cfg.some(c => c.attr === 'OFF1' && c.value === '#FF')) out.output.push(['O1', model.pad.Tioop]);
-    // its registers (#96): the input register's output IQ1 after the clock, the output and output-enable
-    // registers' data O1 / T1 before it
     const has = a => inst.cfg.some(c => c.attr === a && c.value === '#FF');
-    if (has('IFF1')) clkToOut.push(['IQ1', model.pad.Tiockiq]);
-    if (has('OFF1')) setup.push(['O1', model.pad.Tioock]);
-    if (has('TFF1')) setup.push(['T1', model.pad.Tiotck]);
-    out.clock = has('IFF1') || has('OFF1') || has('TFF1');
+    // an output pad's path from O1 (not through its output register, whose O1 / O2 is the register's data)
+    if (!has('OFF1') && !has('OFF2')) out.output.push(['O1', model.pad.Tioop]);
+    // its registers (#96): the input register's output IQ1 after the clock, the output and output-enable
+    // registers' data O1 / T1 before it; on the second flip-flops IQ2, O2, T2 (#749)
+    for (const k of [1, 2]) {
+      if (has(`IFF${k}`)) clkToOut.push([`IQ${k}`, model.pad.Tiockiq]);
+      if (has(`OFF${k}`)) setup.push([`O${k}`, model.pad.Tioock]);
+      if (has(`TFF${k}`)) setup.push([`T${k}`, model.pad.Tiotck]);
+    }
+    out.clock = clkToOut.length + setup.length > 0;
     return out;
   }
   if (inst.type === 'RAMB16') return bramArcs(inst, model, out);
@@ -526,9 +528,9 @@ function multArcs(inst, model, out) {
 const isConstNet = n => /^(vcc|gnd|power|ground|vdd)$/i.test(n.type || '');
 // an instance clocked on the falling edge: its clock inverted (a slice's CLKINV, a block RAM's CLKAINV / CLKBINV, a
 // multiplier's CLKINV = *_B; a latch with an active-high gate, CLK_B, closes on the falling edge too)
-const fallingEdge = inst => (inst.cfg.some(c => /^(CLK[AB]?|ICLK1|OTCLK1)INV$/.test(c.attr) && /_B$/.test(c.value)) ? 1 : 0);
-// the clock pins of the sites (an IOB's registers': ICLK1, OTCLK1, #96)
-const CLOCK_PIN = /^(CLK[AB]?|ICLK1|OTCLK1)$/;
+const fallingEdge = inst => (inst.cfg.some(c => /^(CLK[AB]?|ICLK[12]|OTCLK[12])INV$/.test(c.attr) && /_B$/.test(c.value)) ? 1 : 0);
+// the clock pins of the sites (an IOB's registers': ICLK1, OTCLK1, #96; ICLK2, OTCLK2 on the second flip-flops, #749)
+const CLOCK_PIN = /^(CLK[AB]?|ICLK[12]|OTCLK[12])$/;
 
 /**
  * The timing graph of a design (parseXdl's structure, placed; routed or not): the pins of the

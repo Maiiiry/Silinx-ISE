@@ -1,0 +1,7 @@
+# Basys2-250 (#749): the clock on B8; the switches' and LEDs' pads left to the placer, their registers in the IOBs
+NET "clk"    LOC = "B8" | IOSTANDARD = LVCMOS33 ;
+NET "clk"    CLOCK_DEDICATED_ROUTE = FALSE ;
+NET "sw<*>"  IOSTANDARD = LVCMOS33 ;
+NET "led<*>" IOSTANDARD = LVCMOS33 ;
+NET "sw<*>"  IOB = TRUE ;
+NET "led<*>" IOB = TRUE ;
