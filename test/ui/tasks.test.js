@@ -437,6 +437,57 @@ uiTest('#800 Tasks ▸ Simulate: the waves get the screen; Simulate runs the tes
   await noWarnings(page);
 }, { build: DEV });
 
+// #801: Emulate gives the board the screen: zoomed to fit, its switches and buttons inside the window with no scrolling
+// (a laptop, a tablet in portrait, a lab desktop); its Watch the task's side panel, beside the board or below it
+const boardFit = (page) => page.eval(() => {
+  const emu = document.querySelector('.doc:not([hidden]) .emu'), wrap = emu.querySelector('.emu-board-wrap');
+  const ctrls = [...emu.querySelectorAll('.emu-btn, .emu-sw')];
+  const inside = ctrls.every((c) => { const r = c.getBoundingClientRect(); return r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth; });
+  // (the pointer still aims at them: what is at a button's centre is that button)
+  const b = ctrls.find((c) => c.classList.contains('emu-btn')), r = b.getBoundingClientRect();
+  const aim = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest('.emu-btn') === b;
+  const side = emu.querySelector('.emu-side'), sr = side.getBoundingClientRect(), wr = wrap.getBoundingClientRect();
+  return { zoom: +wrap.style.zoom || 1, controls: ctrls.length, inside, aim, noScroll: emu.scrollHeight <= emu.clientHeight + 1,
+    side: side.getClientRects().length ? (sr.left >= wr.right - 1 ? 'beside' : sr.top >= wr.bottom - 1 ? 'below' : 'over') : 'folded' };
+});
+uiTest('#801 Tasks ▸ Emulate: the board fits, its switches and buttons on screen; its Watch beside the board or below it', E, async (page) => {
+  await makeProject(env, { name: 'TasksEmu', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksEmu');
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  await page.click('#task-empty button');
+  await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
+  await page.waitFor(() => +document.querySelector('.doc:not([hidden]) .emu-board-wrap')?.style.zoom > 0, [], { what: 'the board zoomed' });
+  assert.ok(!(await shown(page, '#left-pages')), 'no Design pane in Emulate');
+  let f = await boardFit(page);
+  assert.ok(f.controls >= 12 && f.inside && f.aim && f.noScroll && f.side === 'folded', JSON.stringify(f));
+  // the side panel: the emulator's Watch, beside the board; the board still fits
+  await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .emu-side')?.getClientRects().length > 0, [], { what: 'Watch' });
+  await page.waitFor(() => new Promise((r) => requestAnimationFrame(() => r(true))));
+  f = await boardFit(page);
+  assert.ok(f.inside && f.aim && f.side === 'beside', JSON.stringify(f));
+  // a tablet in portrait: the board across, Watch below it
+  await page.setViewport(820, 1180);
+  await page.waitFor(() => { const e = document.querySelector('.doc:not([hidden]) .emu'); const s = e.querySelector('.emu-side').getBoundingClientRect(); return s.top >= e.querySelector('.emu-board-wrap').getBoundingClientRect().bottom - 1; }, [], { what: 'Watch below the board' });
+  f = await boardFit(page);
+  assert.ok(f.inside && f.aim && f.side === 'below', JSON.stringify(f));
+  assert.deepEqual(await noOverflow(page), { page: true, over: [] });
+  // a lab desktop, Watch folded: a larger board
+  await page.setViewport(1920, 1080);
+  await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => +document.querySelector('.doc:not([hidden]) .emu-board-wrap').style.zoom > 1, [], { what: 'a larger board' });
+  f = await boardFit(page);
+  assert.ok(f.inside && f.aim && f.side === 'folded', JSON.stringify(f));
+  // the modern interface: the board at its own size again
+  await page.setViewport(1366, 768);
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .emu-board-wrap').style.zoom), '');
+  await noWarnings(page);
+}, { build: DEV });
+
 // the lines of the message centre shown (its filter): [source, text]
 const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));
 const pressed = (page) => page.eval(() => [...document.querySelectorAll('#mc-filters .filt[aria-pressed="true"]')].map((b) => b.dataset.src));

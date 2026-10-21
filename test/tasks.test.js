@@ -11,6 +11,7 @@ globalThis.addEventListener ??= () => {};
 globalThis.matchMedia ??= () => ({ matches: false, addEventListener() {} });
 const T = await import('../web/js/tasks.js');
 const SIM = await import('../web/js/tasks-sim.js');
+const EMU = await import('../web/js/tasks-emu.js');
 
 test('the five tasks, in the order of a lab session, with the names of the modern toolbar\'s steps', () => {
   assert.deepEqual(T.TASKS, ['edit', 'sim', 'emu', 'impl', 'prog']);
@@ -57,6 +58,8 @@ test('arrangement: the task in front gets the space; what the viewer left wins; 
   assert.deepEqual(T.arrangement('edit', { side: true }, true), { side: false, console: true, max: false });
   // (Simulate's side panel is ISim's Instances and Objects, not the drawer: what the viewer left, on a narrow screen too: #800)
   assert.deepEqual(T.arrangement('sim', { side: true }, true), { side: true, console: false, max: false });
+  assert.deepEqual(T.arrangement('emu', { side: true }, true), { side: true, console: false, max: false });   // (the emulator's Watch: #801)
+  assert.deepEqual(T.OWN_SIDE, ['sim', 'emu']);
 });
 
 test('#854 docDetail: the module and the model a single document\'s title says; the tasks whose document is single', () => {
@@ -77,6 +80,18 @@ test('#800 simTarget: Simulate runs the simulation top, else the first test benc
   assert.equal(SIM.simTarget({ top: 'gone' }, mods.filter((m) => m.role !== 'sim')), null);
   assert.equal(SIM.simTarget(null, []), null);
   assert.deepEqual(SIM.SIM_MODELS.map(([v]) => v), ['', 'postsynth', 'posttrans', 'postmap', 'postpar']);
+});
+
+test('#801 boardZoom: as large as fits the room, at most 1.5, at least 0.3; nothing to measure: 1', () => {
+  const board = { w: 700, h: 520 };
+  assert.equal(EMU.boardZoom({ w: 1400, h: 1040 }, board), 1.5);                       // (a lab desktop: larger, not huge)
+  assert.equal(EMU.boardZoom({ w: 1000, h: 520 }, board), 1);
+  assert.equal(EMU.boardZoom({ w: 1300, h: 390 }, board), 0.75);                       // (the height decides)
+  assert.equal(EMU.boardZoom({ w: 350, h: 1000 }, board), 0.5);                        // (a narrow window: the width)
+  assert.equal(EMU.boardZoom({ w: 70, h: 52 }, board), 0.3);
+  assert.equal(EMU.boardZoom({ w: 0, h: 500 }, board), 1);
+  assert.equal(EMU.boardZoom({ w: 800, h: 600 }, { w: 0, h: 0 }), 1);
+  assert.equal(EMU.boardZoom(null, board), 1);
 });
 
 test('taskDot: the worst status of the task\'s processes (errors, then running, out of date, warnings, done)', () => {

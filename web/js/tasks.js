@@ -11,6 +11,7 @@
 // - the messages: the bottom panel as the message centre (web/js/messages.js, #798), its filter following the task;
 // - Simulate (web/js/tasks-sim.js, #800): the waves get the screen, its side panel ISim's Instances and Objects;
 //   it runs the test bench with the model chosen in the task's bar;
+// - Emulate (web/js/tasks-emu.js, #801): the board fits the task's area, its side panel the emulator's Watch;
 // - a task whose document is single by nature (Simulate: ISim; Emulate: the board; Program: iMPACT, one each,
 //   web/js/viewers.js) shows no tab bar: what the tab said (the module, the model) and its close are in the task's
 //   bar (#854);
@@ -25,6 +26,7 @@ import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { buildMessages, unbuildMessages, messagesTask, initMessages } from './messages.js';
 import { modelSelect, simTarget, simulate } from './tasks-sim.js';
+import { fitBoard, initEmulate } from './tasks-emu.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl', 'prog'];
 export const TASK_LABEL = { edit: 'Edit', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
@@ -84,9 +86,11 @@ export function readState(raw) {
 
 /** A task's arrangement: what the viewer left, else its defaults; on a narrow screen the side panel
  *  is the drawer, closed when the task comes to the front (the document first). */
+// the tasks whose side panel is their document's own: ISim's Instances and Objects (#800), the emulator's Watch (#801)
+export const OWN_SIDE = ['sim', 'emu'];
 export function arrangement(task, kept = {}, narrow = false) {
   const a = { ...DEFAULTS[task], max: false, ...kept };
-  if (narrow && task !== 'sim') a.side = false;   // (Simulate's side panel is ISim's Instances and Objects, not the drawer: #800)
+  if (narrow && !OWN_SIDE.includes(task)) a.side = false;   // (the drawer: closed when the task comes to the front)
   return a;
 }
 
@@ -111,7 +115,7 @@ export function taskDot(task, status = {}) {
 // ------------------------------------------------------------------ the page
 const root = () => document.documentElement;
 const on = () => root().dataset.layout === 'tasks';
-let app = null, state = readState(null), lastActive = null, shownTask = null;
+let app = null, state = readState(null), lastActive = null, shownTask = null, fitSoon = () => {};
 
 function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } }
 function load() { try { state = readState(localStorage.getItem(TASKS_KEY)); } catch { state = readState(null); } }
@@ -140,7 +144,7 @@ export function setTask(t, { fromDoc = false } = {}) {
 /** Puts the current task and its arrangement on the page. */
 function apply() {
   const r = root();
-  if (!on()) { if (document.getElementById('task-bar')) { unbuild(); dispatchEvent(new Event('resize')); } return; }
+  if (!on()) { if (document.getElementById('task-bar')) { unbuild(); fitBoard(false); dispatchEvent(new Event('resize')); } return; }
   build();
   const t = current(), a = arr(t);
   if (t !== shownTask) { shownTask = t; messagesTask(t); }
@@ -152,7 +156,7 @@ function apply() {
   fitHeader();
   const bar = document.getElementById('task-bar');
   if (bar) {
-    bar.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() && t !== 'sim' ? drawerOpen() : a.side));
+    bar.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() && !OWN_SIDE.includes(t) ? drawerOpen() : a.side));
     bar.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
     bar.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
     const main = bar.querySelector('[data-act=main]');
@@ -163,6 +167,7 @@ function apply() {
   tagDocs();
   // (the editors, the waves and the board measure their space again)
   dispatchEvent(new Event('resize'));
+  fitSoon();
 }
 
 // each document and its tab say their task (the CSS shows the current task's only)
@@ -272,7 +277,7 @@ function build() {
       { _enabled: mainEnabled })));   // (disabled as its design-flow button: menus.js refreshSteps)
   $('task-bar').addEventListener('click', e => {
     const act = e.target.closest('[data-act]')?.dataset.act;
-    if (act === 'side') { if (isNarrow() && current() !== 'sim') { setDrawer(!drawerOpen()); apply(); } else arrange({ side: !arr().side }); }
+    if (act === 'side') { if (isNarrow() && !OWN_SIDE.includes(current())) { setDrawer(!drawerOpen()); apply(); } else arrange({ side: !arr().side }); }
     else if (act === 'console') arrange({ console: !arr().console });
     else if (act === 'max') arrange({ max: !arr().max });
     else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
@@ -311,6 +316,7 @@ export function initTasks(a) {
   app = a;
   load();
   initMessages();
+  fitSoon = initEmulate(() => on() && current() === 'emu');
   const $ = id => document.getElementById(id);
   // a folded side panel or messages open again when one of their tabs is clicked
   $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) arrange({ side: true }); });
