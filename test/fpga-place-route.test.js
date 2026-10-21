@@ -105,6 +105,58 @@ test('routeDesign: the polish of the critical path shortens it on a routing that
   assert.ok(route({ polish: 0, timingPasses: 2, timingPf: null }) >= polished);
 });
 
+// #651: an enable computed from eight flip-flops by two levels of LUTs, on the CE pins of a 64-bit
+// register: its loads are all about as critical, so no change of one load's branch shortens the critical
+// path (each new branch slows the others), where the whole net routed again does
+const CE64 = `module ce64(input clk, input [3:0] k, input [3:0] m, input din, output y);
+  reg [3:0] kr, mr;
+  reg [63:0] a;
+  reg [15:0] r1;
+  reg [3:0] r2;
+  reg yy;
+  integer i;
+  always @(posedge clk) begin
+    kr <= k; mr <= m;
+    if ((&kr) | (&mr)) a <= {a[62:0], din ^ a[63]};
+    for (i = 0; i < 16; i = i + 1) r1[i] <= ^a[4*i +: 4];
+    for (i = 0; i < 4; i = i + 1) r2[i] <= ^r1[4*i +: 4];
+    yy <= ^r2;
+  end
+  assign y = yy;
+endmodule
+`;
+
+// #651: the polish's two more moves, the whole net of a critical connection routed again (polishNet) and
+// the lookahead when no change gains; on CE64's placements of seeds 2 and 5 (by the analysis): the router
+// as before 5.776 and 5.342 ns, the whole-net move 5.547 on seed 2, the lookahead 5.122 on seed 5; never
+// longer, the routing legal and complete
+test('routeDesign: the polish routes a critical connection\'s whole net again, and looks ahead when stuck (#651)', { timeout: 300000 }, async () => {
+  const r = await synthesizeOpen(elaborate(compile([{ path: 'ce64.v', lang: 'verilog', text: CE64 }]), 'ce64'), { run: yosysNode });
+  assert.deepEqual(r.warnings, []);
+  const packed = pack(readYosysJson(r.files['ce64.json']), { part: PART });
+  assert.deepEqual(packed.warnings, []);
+  const { device, known } = await setup();
+  const periods = seed => {
+    const { placedText, placement } = placeRoute(packed, device, known, { seed });
+    assert.deepEqual(placement.warnings, []);
+    const route = o => {
+      const x = routeDesign(parseXdl(placedText), device, { ...known, timing: true, ...o });
+      const d = parseXdl(writeXdl(x.design));
+      assert.deepEqual([x.errors, x.failed, x.unreached, x.overused], [[], [], [], 0]);
+      assert.deepEqual(checkRouting(d, device).problems, []);
+      const sta = analyzeTiming(d, device);
+      assert.ok(Math.abs(sta.period - x.period) < 1e-9, 'the period the router returns is its routing\'s');
+      return sta.period;
+    };
+    return { before: route({ polishNet: false, lookahead: 0 }), net: route({ lookahead: 0 }), look: route({ polishNet: false }), both: route({}) };
+  };
+  const s2 = periods(2), s5 = periods(5);
+  for (const p of [s2, s5]) for (const k of ['net', 'look', 'both']) assert.ok(p[k] <= p.before + 1e-9, `${k} ${p[k].toFixed(3)} ns, before ${p.before.toFixed(3)} ns`);
+  assert.ok(s2.net <= s2.before - 0.15, `seed 2: the whole net again ${s2.net.toFixed(3)} ns, before ${s2.before.toFixed(3)} ns`);
+  assert.ok(s5.look <= s5.before - 0.15, `seed 5: the lookahead ${s5.look.toFixed(3)} ns, before ${s5.before.toFixed(3)} ns`);
+  assert.ok(s2.both <= s2.before - 0.15 && s5.both <= s5.before - 0.15);
+});
+
 test('placeRouteBest: tries from the seed on, the fastest kept; then register replication, kept only when faster; replicate: false tries none', { timeout: 600000 }, async () => {
   const { netlist, packed, device, known } = await setup();
   // two tries, no replication: the faster of seeds 3 and 4
