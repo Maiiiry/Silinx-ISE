@@ -7,7 +7,11 @@
 // file in quotes, by its path or its name (one that reads it: docs.test.js CLAUDE.md, ci-workflow.test.js the
 // workflows); test/code-size.test.js for a changed source of core/, web/js/, server/ or scripts/ (it measures them
 // all, #405). The UI tests (test/ui/) run when they changed, or when the page script of their name did
-// (web/js/<name>.js), or when they name a changed file.
+// (web/js/<name>.js), or when they name a changed file. A changed data file (any file not JavaScript: the bit
+// database's JSON, a device description, an example, a fixture, #772) counts as a change of every source that
+// reads it, found from the code (a file or folder named from the source's own place: path.join(path.dirname(
+// fileURLToPath(import.meta.url)), '..', 'db'), a constant holding one, new URL('../db/', import.meta.url)), and
+// of the modules that import one of those, at any depth.
 //
 //   node scripts/related-tests.mjs <base> <head> [--shard i/n] [--list] [node --test options …]
 //   → runs node --test with those options on the unit tests, then (one at a time) on the UI tests; --list
@@ -30,6 +34,42 @@ export function imports(text) {
   return [...out];
 }
 
+/** The folders of the repository's JavaScript (sources()). */
+const SOURCE_DIRS = ['core', 'server', 'web', 'scripts', 'test', 'bin', 'research'];
+// a source's own folder; path.join / path.resolve of it (or of a constant) and literal parts; new URL(…, import.meta.url)
+const HERE = String.raw`(?:path\.)?dirname\(\s*(?:fileURLToPath\(\s*import\.meta\.url\s*\)|new URL\(\s*import\.meta\.url\s*\)\.pathname)\s*\)`;
+const LIT = String.raw`'[^'\n]*'|"[^"\n]*"`;
+const JOIN = String.raw`\b(?:path\.)?(?:join|resolve)\(\s*(${HERE}|[A-Za-z_$][\w$]*)((?:\s*,\s*(?:${LIT}))*)`;
+const URL_OF = String.raw`\bnew URL\(\s*(?:'([^'\n]*)'|"([^"\n]*)"|\x60([^\x60$\n]*)(\$\{)?[^\x60\n]*\x60)\s*,\s*import\.meta\.url\s*\)`;
+
+/** The repository paths (files or folders, from the root) a source names as data it reads, from its own place:
+ *  path.join / path.resolve of its folder, or of a constant holding a path, with literal parts; new URL of a literal
+ *  and import.meta.url (of a template: its folder before the first ${…}). The root, a folder of the sources as a
+ *  whole (web/, which a server serves) and a path out of the repository are no data. */
+export function dataPaths(file, text) {
+  const dir = path.posix.dirname(file);
+  const named = new Map(), out = new Set();
+  const at = (from, ...parts) => path.posix.normalize(path.posix.join(from, ...parts)).replace(/\/$/, '');
+  const evaluate = m => {   // the path of a match of JOIN or URL_OF; null for a constant not known
+    if (m[0].startsWith('new')) return at(dir, m[1] ?? m[2] ?? (m[4] ? m[3].replace(/[^/]*$/, '') : m[3]));
+    const from = new RegExp(`^(?:${HERE})$`).test(m[1]) ? dir : named.get(m[1]);
+    return from == null ? null : at(from, ...[...m[2].matchAll(new RegExp(LIT, 'g'))].map(l => l[0].slice(1, -1)));
+  };
+  const sticky = (re, i) => Object.assign(new RegExp(re, 'y'), { lastIndex: i });
+  // the constants that hold a path, in order (const ROOT = path.join(HERE, '..'); const DB = path.join(ROOT, 'db'))
+  for (const d of text.matchAll(/\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:fileURLToPath\(\s*)?/g)) {
+    const i = d.index + d[0].length;
+    const m = sticky(JOIN, i).exec(text) ?? sticky(URL_OF, i).exec(text);
+    const v = m ? evaluate(m) : sticky(HERE, i).test(text) ? dir : null;
+    if (v != null) named.set(d[1], v);
+  }
+  for (const re of [JOIN, URL_OF]) for (const m of text.matchAll(new RegExp(re, 'g'))) {
+    const p = evaluate(m);
+    if (p != null && p !== '.' && !p.startsWith('../') && !SOURCE_DIRS.includes(p)) out.add(p);
+  }
+  return [...out];
+}
+
 /** files: { 'test/a.test.js': text, … } (paths relative to the root, with '/'); changed: the paths changed. */
 export function relatedTests(files, changed) {
   const resolve = (from, spec) => path.posix.normalize(path.posix.join(path.posix.dirname(from), spec));
@@ -37,9 +77,18 @@ export function relatedTests(files, changed) {
   const isUnit = f => /^test\/[^/]+\.test\.js$/.test(f);
   const isUi = f => /^test\/ui\/[^/]+\.test\.js$/.test(f);
   const isHelper = f => /^test\/[^/]+\.m?js$/.test(f) && !isUnit(f);
-  const ch = new Set(changed);
+  // a changed data file (#772): the sources that read it count as changed, and the modules that import one of them,
+  // at any depth (what a module reads reaches its importers: the bit database, through bitdb-node.js, the open flow)
+  const data = changed.filter(f => !/\.m?js$/.test(f));
+  const reads = f => dataPaths(f, files[f]).some(p => data.some(d => d === p || d.startsWith(`${p}/`)));
+  const readers = new Set(data.length ? Object.keys(files).filter(reads) : []);
+  for (let grew = readers.size > 0; grew;) {
+    grew = false;
+    for (const f of Object.keys(files)) if (!f.startsWith('test/') && !readers.has(f) && deps[f].some(d => readers.has(d))) { readers.add(f); grew = true; }
+  }
+  const ch = new Set([...changed, ...readers]);
   // a helper of the tests that imports a changed file (or changed itself) counts as changed for its tests
-  const touched = new Set(changed);
+  const touched = new Set(ch);
   for (const f of Object.keys(files)) if (isHelper(f) && deps[f].some(d => ch.has(d))) touched.add(f);
   const unit = new Set(), ui = new Set();
   for (const f of Object.keys(files)) {
@@ -55,7 +104,7 @@ export function relatedTests(files, changed) {
   }
   // the size of every source (#405): a source changed may have grown past the limit
   if (files['test/code-size.test.js'] != null && changed.some(f => /^(core|web\/js|server|scripts)\/.+\.m?js$/.test(f))) unit.add('test/code-size.test.js');
-  for (const f of changed) {
+  for (const f of ch) {
     if (!/\.m?js$/.test(f) || f.startsWith('test/')) continue;
     const name = path.posix.basename(f).replace(/\.m?js$/, '');
     if (files[`test/${name}.test.js`] != null) unit.add(`test/${name}.test.js`);
@@ -74,7 +123,7 @@ export function sources(root = ROOT) {
       else if (/\.m?js$/.test(e.name)) out[p] = fs.readFileSync(path.join(root, p), 'utf8');
     }
   };
-  for (const d of ['core', 'server', 'web', 'scripts', 'test', 'bin']) if (fs.existsSync(path.join(root, d))) walk(d);
+  for (const d of SOURCE_DIRS) if (fs.existsSync(path.join(root, d))) walk(d);
   return out;
 }
 

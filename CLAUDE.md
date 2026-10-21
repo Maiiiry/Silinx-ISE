@@ -72,7 +72,8 @@ the code and the lessons learnt.
   open a pull request (`gh pr create`, its description saying `Fixes #N`). A pull request runs the whole test
   file of every module it changes (`.github/workflows/pr-tests.yml`, `scripts/related-tests.mjs`, #637: the
   unit test files that import a changed file, directly or through a test helper; a changed test; the UI test
-  of a changed page script); `main` requires its check, `related-tests`. Before pushing, run the same files
+  of a changed page script; for a data file (the bit database, a device description, an example), the tests of
+  the modules that read it and of their importers, #772); `main` requires its check, `related-tests`. Before pushing, run the same files
   locally: `node scripts/related-tests.mjs origin/main HEAD`.
 - **Merging**: when `related-tests` is green, merge it into `main` (rebased, fast-forward, no merge commit;
   rebase the branch first if `main` moved). A break found later (by the
