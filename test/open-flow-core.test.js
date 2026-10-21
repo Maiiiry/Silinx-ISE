@@ -184,6 +184,43 @@ test('Implement Design: the routing does not converge on the placements tried: s
   assert.deepEqual(lines.filter(l => /warning/i.test(l)), []);
 });
 
+// #651: at Optimization Effort High, Place & Route makes two placements (seeds 1 and 2) and keeps the faster, said;
+// at Normal one
+test('Implement Design at Optimization Effort High: two placements, the faster kept and said; Normal: one (#651)', { timeout: 300000 }, async () => {
+  const device = loadDevice(JSON.parse(zlib.gunzipSync(fs.readFileSync(spec.graph)).toString('utf8')));
+  const json = {};
+  for (const [k, f] of Object.entries(dbFileNames(spec.device, spec.pkg))) {
+    const p = path.join(DB_DIR, f);
+    json[k] = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null;
+  }
+  const db = makeBitDb(dbFilesFrom(json, spec.pkg), device, spec.part);
+  const run = async synthEffort => {
+    const lines = [];
+    const io = {
+      log: l => lines.push(l),
+      sources: () => sources.map(s => ({ path: s.path, lang: s.lang, text: fs.readFileSync(path.join(PJ, s.path), 'utf8') })),
+      ucf: fs.readFileSync(path.join(PJ, project.constraints), 'utf8'), ucfName: 'top.ucf', device: () => device, bitDb: () => db, yosys: yosysNode,
+      write: name => `build/${name}`, read: () => null, save: () => {},
+    };
+    const res = await runOpenFlow({ ...spec, steps: ['synth', 'translate', 'map', 'par', 'trce'], synthEffort }, io);
+    assert.ok(res.ok, `${res.error}\n${lines.join('\n')}`);
+    assert.deepEqual(lines.filter(l => /warning/i.test(l)), [], synthEffort);
+    return { lines, period: res.report.timing.minPeriodNs };
+  };
+  const high = await run('high');
+  const said = high.lines.filter(l => /placements/.test(l));
+  assert.equal(said.length, 1, high.lines.join('\n'));
+  const m = /^Optimization Effort High: 2 placements \(seeds 1, 2\): (\d+\.\d{3}) ns, (\d+\.\d{3}) ns; seed ([12]) kept\.$/.exec(said[0]);
+  assert.ok(m, said[0]);
+  const ns = [+m[1], +m[2]];
+  // the faster kept: its period the report's (replication gives none faster on blinky)
+  assert.equal(+m[3], ns[0] <= ns[1] ? 1 : 2);
+  assert.ok(Math.abs(high.period - Math.min(...ns)) < 0.0015, `${high.period} against ${ns}`);
+  // Normal: one placement, nothing said
+  const normal = await run('normal');
+  assert.deepEqual(normal.lines.filter(l => /placements/.test(l)), []);
+});
+
 // #280: the synthesis up to date: the steps from Translate on use the netlist of the earlier run, and the
 // report says what that synthesis made; without that netlist the synthesis runs
 test('#280 the synthesis up to date: its netlist used, its report kept; no netlist there: it runs', { timeout: 300000 }, async () => {

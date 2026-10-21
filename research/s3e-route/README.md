@@ -909,6 +909,48 @@ examples and six corpus designs on the XC3S250E): every one DRC 0 errors and 0 w
 
 Geometric mean −1.12 % (12 timed designs; gates has no clock), none slower.
 
+### Two placements at Optimization Effort High (#651, 2026-10-21)
+
+After #662 and #741 the router is no longer most of what is left: on the slowest designs against ISE, Silinx's critical
+path splits (`crit-path.mjs`, routed at Normal, seed 1) as itc99-b05 3.41 ns of routing = 2.85 placement floor + 0.08
+contention + 0.49 router, itc99-b12 3.89 = 3.20 + 0.08 + 0.61, itc99-b10 2.52 = 1.87 + 0.27 + 0.39, epfl-i2c 2.99 = 2.22
++ 0.27 + 0.51, verilog-uart 4.40 = 3.30 + 0.81 + 0.29. The placement's floor (the cells of the path apart) is most of it.
+And one placement's seed moves a design by several per cent, more than any placer option measured before (timing weight
+3, effort 2: ±1 %).
+
+Tried on 15 of them (the ITC'99 b05, b08, b10, b12, vtr-ch-intrinsics, epfl-i2c, uart-for-fpga, verilog-uart,
+iwls05-simple-spi, fpu-adder, light8080, femtorv32-quark, pong, vga, clock; Normal's netlists, the same placement and
+routing before each), a second placement and routing, the faster of the two kept (Silinx's static timing, geometric
+mean of the period; place and route time):
+
+| the second placement | period | changed | time |
+|---|---:|---:|---:|
+| from the first (warm start, window 3, temperature 0.05), each connection's estimate scaled by routed / estimated there (0.5-4) | −0.59 % | 5 of 15 | ×1.27 |
+| the same, window 6, temperature 0.3 | −0.69 % | 6 | ×1.27 |
+| the same, without the scaling | −0.94 % | 6 | ×1.30 |
+| **another seed (seed + 1), from scratch** | **−2.28 %** | 8 | ×1.26 |
+
+The routed delays fed back into the placer gain least: the cool annealing from the first placement stays in its
+neighbourhood, and the connections that routed slowly are those of many loads, which a move does not make shorter. A
+placement from another seed is a different neighbourhood. So the flows (`core/open-flow-core.js`) make `HIGH_TRIES` (2)
+placements at Optimization Effort High, seeds 1 and 2, and keep the faster, then register replication from it, as
+before; Normal makes one (its place and route stays as fast).
+
+The corpus's 53 designs of 1500 LUTs at most and the 7 examples at High, main of 2026-10-21 (ce30ac0) against the change,
+seed 1: **1.52 % shorter** in geometric mean, 29 designs faster (3.1 % on average: verilog-axis-fifo −10.8 %, the clock
+example −10.4 %, spi-fpga-slave −7.3 %, epfl-router −6.9 %, itc99-b09 −5.5 %, verilog-i2c-master −5.0 %, picorv32 −4.8 %,
+femtorv32-quark −3.8 %, vga −3.0 %), two slower (iwls05-usb-phy +2.2 %, iwls05-sasc +0.1 %: the faster placement before
+replication is not the faster after it), slices 10738 → 10735, place and route 563 → 751 s in all (×1.33).
+
+**ISE's check** (on the Mac mini, the 29 changed routings, main against the change): every DRC 0 errors (picorv32's one
+warning, a gated clock, main's too), xdl2ncd no new warning, the `.bit` byte-identical to ISE's bitgen (CRC on and off);
+trce's period **2.92 % shorter** over the 29 in geometric mean (1.42 % over the 60), 20 faster: the clock example
+−14.3 %, verilog-axis-fifo −9.1 %, femtorv32-quark −8.1 %, picorv32 −7.3 %, itc99-b03 and b09 −7.2 %, vga −5.3 %,
+spi-fpga-slave −5.2 %, verilog-i2c-master −4.5 %, verilog-uart −4.2 %, epfl-router −4.1 %, blinky −3.9 %, stopwatch
+−3.2 %; 8 slower, by 2.3 % at most (vtr-mkPktMerge +2.3 %, nandland-spi-verilog +2.1 %, verilog-lfsr-crc +2.0 %,
+epfl-i2c +1.9 %, itc99-b12 +1.3 %, epfl-adder +1.2 %, serv +1.1 %, itc99-b11 +0.2 %: within the static timing's
+error of trce, the two placements' periods close).
+
 ## The XC3S1200E's long-line splitters (#23, 2026-10-21)
 
 The XC3S1200E joins each vertical long line's two halves across the centre row (CLKH_LL; the bits:

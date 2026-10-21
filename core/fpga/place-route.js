@@ -58,6 +58,9 @@ export function placeRoute(packed, device, known, { seed = 1, effort = 1, timing
 
 // the placements made more when none routes completely for nodes left shared (#249)
 export const RETRY_SEEDS = 3;
+// the placements of the flows at Optimization Effort High (#651): seeds seed and seed + 1, the faster kept (one
+// seed's placement moves a design's period by several per cent: the better of two, 2.3 % shorter on average)
+export const HIGH_TRIES = 2;
 
 /**
  * The flow's place and route: `tries` placements from `seed` on (the fastest kept; when none routes
