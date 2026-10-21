@@ -455,9 +455,10 @@ const GENERAL_WIRE = /^([EWNS](2|6)(BEG|MID|END|[A-D])\d+|[EWNS]2END_[NS]\d+|L[H
  *                                  for a switch driving a general routing wire (such an entry was
  *                                  a measurement artefact: W6END4->E2BEG4 of the left I/O tiles
  *                                  sets 2 bits; the I/O tiles now share the CLB switch box); never
- *                                  in a tile type marked noRoute (none today: the XC3S1200E's
- *                                  long-line splitters were, until pipFeatures took the direction of
- *                                  their "a =- b" from the device description, #23);
+ *                                  among the own features of a tile type marked noRoute (those of the
+ *                                  switch box it shares, sameAs, stay: the XC3S1200E's other long-line
+ *                                  splitters, #709, in the centre column's CLKV_LL, whose clock switches
+ *                                  are CLKV's; CLKH_LL's are routed since #23);
  *                                  never one the tile does not have though its type's features offer
  *                                  it (pipAbsent, #74: with a device description from ISE the router
  *                                  meets only PIPs the tile has; one built from the database's
@@ -492,7 +493,7 @@ export function knownRouting(db, { exceptions = true } = {}) {
   const known = (tileName, feature) => !!bitsOf(tileName, feature);
   const allowPip = (tileName, from, to) => {
     const { type } = tileInfo(tileName);
-    if (type?.noRoute) return false;
+    if (type?.noRoute && !type.shared?.has(`${from}->${to}`)) return false;
     const bits = bitsOf(tileName, `${from}->${to}`);
     return !!bits && (bits.length > 0 || !GENERAL_WIRE.test(to)) && !(exceptions && pipAbsent(type, tileName, from, to));
   };
