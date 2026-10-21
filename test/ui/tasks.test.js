@@ -2,7 +2,8 @@
 // switcher in the header (a tab bar at the bottom of a narrow screen), each task with its own arrangement
 // and documents (the side panel and the messages folded or open, the last document in front), a task with
 // no document offering its action, a maximized document; at a laptop's and a tablet's sizes, in English and
-// Portuguese. The modern and classic interfaces are unchanged (test/ui/modern.test.js).
+// Portuguese; its message centre (#798: the bottom panel's sources and filters, ISim's console and command
+// line in it). The modern and classic interfaces are unchanged (test/ui/modern.test.js).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject } from './harness.js';
@@ -204,7 +205,7 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   await page.setViewport(1366, 768);
   await tasksInterface(page);
   await page.eval(TEXTS);
-  const texts = () => page.eval(() => [...window.__uiTexts(document.getElementById('task-switch')), ...window.__uiTexts(document.getElementById('task-bar')), ...window.__uiTexts(document.getElementById('task-empty'))]);
+  const texts = () => page.eval(() => ['task-switch', 'task-bar', 'task-empty', 'mc-filters', 'mc-cmd'].flatMap((id) => window.__uiTexts(document.getElementById(id))));
   const en = await texts();
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   await page.waitFor(() => document.querySelector('#task-switch .task-btn[data-task="sim"] .lbl').textContent === 'Simular', [], { what: 'Portuguese' });
@@ -212,6 +213,8 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   assert.deepEqual(untranslated(en, pt), []);
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-switch .lbl')].map((l) => l.textContent)), ['Editar', 'Simular', 'Emular', 'Implementar', 'Programar']);
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent), 'Abra uma fonte no painel Projeto, ou verifique o projeto.');
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#mc-filters .filt')].map((b) => b.textContent)),
+    ['Todas', 'Verificar Sintaxe', 'Simulação', 'Emulador', 'Síntese', 'Implementação', 'Placa']);
   // the longer labels (the menus too) fit the header: a laptop, a tablet in landscape
   for (const [w, hgt] of [[1280, 800], [1180, 820], [1025, 768]]) {
     await page.setViewport(w, hgt);
@@ -220,5 +223,77 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
   await makeProject(env, { name: 'TasksPt', template: 'gates' });
   await page.openProject('TasksPt');
+  await noWarnings(page);
+});
+
+// the lines of the message centre shown (its filter): [source, text]
+const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));
+const pressed = (page) => page.eval(() => [...document.querySelectorAll('#mc-filters .filt[aria-pressed="true"]')].map((b) => b.dataset.src));
+
+uiTest('Tasks: the message centre: every line\'s source, the filter following the task, ISim\'s console and command line in it', E, async (page) => {
+  await makeProject(env, { name: 'TasksMsgs', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksMsgs');
+  // (the Design Summary opened behind with the project does not bring Implement: the task stays Edit)
+  await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('Design Summary'), [], { what: 'the Design Summary behind' });
+  assert.equal((await state(page)).task, 'edit');
+  // Edit: Check (the task's action, enabled once the project is there): its lines only; All shows the application's too
+  await page.waitFor(() => !document.querySelector('#task-bar [data-act="main"]').disabled, [], { what: 'Check enabled' });
+  await page.click('#task-bar [data-act="main"]');
+  await page.waitConsole(/Process "Check Syntax" completed successfully/);
+  assert.deepEqual(await pressed(page), ['check']);
+  let lines = await shownLines(page);
+  assert.ok(lines.length >= 4 && lines.every(([src]) => src === 'check'), JSON.stringify(lines));
+  assert.ok(lines.some(([, t]) => t === 'Started : "Check Syntax".'));
+  await page.click('#mc-filters .filt[data-src="all"]');
+  assert.deepEqual(await pressed(page), ['all']);
+  lines = await shownLines(page);
+  assert.ok(lines.some(([src, t]) => src === 'app' && /^Project "TasksMsgs" opened/.test(t)), JSON.stringify(lines));
+  // Simulate: its filter (the picked one forgotten); ISim's console is not in its window, its lines are here
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.click('#task-empty button');
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim .isim-console'), [], { what: 'ISim', timeout: 30000 });
+  assert.ok(!(await shown(page, '.doc:not([hidden]) .isim-bottom')), 'ISim\'s console hidden');
+  await page.click('#task-bar [data-act="console"]');
+  assert.deepEqual(await pressed(page), ['sim']);
+  await page.waitFor(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].some((l) => /circuit initialization/.test(l.textContent)), [], { what: 'ISim\'s lines' });
+  // one command line: ISim's while simulating
+  assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), 'ISim>');
+  const before = await page.eval(() => document.querySelector('.isim-st-time').textContent);
+  await page.click('#mc-cmd input');
+  await page.type('run 2 us');
+  await page.key('Enter');
+  await page.waitFor((b) => document.querySelector('.isim-st-time').textContent !== b, [before], { what: 'ISim ran' });
+  await page.waitFor(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'ISim> run 2 us' && l.dataset.src === 'sim' && l.getClientRects().length), [], { what: 'the command in the message centre' });
+  assert.match(await page.eval(() => document.querySelector('.isim-st-time').textContent), /3,000,000 ps/);
+  // folded: the last line of the filter
+  await page.click('#task-bar [data-act="console"]');
+  const last = await page.eval(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].filter((l) => l.textContent.trim()).pop().textContent);
+  assert.ok(await shown(page, '#mc-last'));
+  assert.equal(await page.eval(() => document.getElementById('mc-last').textContent), last);
+  assert.ok(!(await shown(page, '#mc-cmd')) && !(await shown(page, '#mc-filters')));
+  // Emulate: the emulator's line under Emulator; its Messages box is not in its window
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  await page.click('#task-empty button');
+  await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
+  await page.click('#task-bar [data-act="console"]');
+  assert.deepEqual(await pressed(page), ['emu']);
+  lines = await shownLines(page);
+  assert.ok(lines.length && lines.every(([src]) => src === 'emu') && lines.some(([, t]) => /^Board Emulator: 'top'/.test(t)), JSON.stringify(lines));
+  assert.ok(!(await shown(page, '.doc:not([hidden]) .emu-log')), 'the emulator\'s Messages box hidden');
+  // Implement: Synthesis and Implementation; the command line outside ISim: the command palette
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  assert.deepEqual(await pressed(page), ['synth', 'impl']);
+  assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), '›');
+  await page.click('#mc-cmd input');
+  await page.type('pin plan');
+  await page.key('Enter');
+  await page.waitFor(() => document.querySelector('.pal-input')?.value === 'pin plan', [], { what: 'the palette with the command line\'s text' });
+  await page.key('Escape');
+  // back to the modern interface: its Console as it was (every line, no filters)
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.getElementById('mc-filters'));
+  assert.equal(await page.eval(() => document.querySelectorAll('#console-log .ln.mc-off, #console-log .ln[data-src]').length), 0);
   await noWarnings(page);
 });

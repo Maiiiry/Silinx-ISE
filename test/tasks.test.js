@@ -74,10 +74,11 @@ test('tasks.css: its rules apply in the Tasks interface only (or to its own elem
   const parts = (sel) => { const out = []; let depth = 0, cur = ''; for (const c of sel) { if (c === ',' && !depth) { out.push(cur.trim()); cur = ''; continue; } depth += c === '(' ? 1 : c === ')' ? -1 : 0; cur += c; } out.push(cur.trim()); return out; };
   const selectors = [...css.matchAll(/(^|[{}])\s*([^{}@][^{}]*)\{/g)].map((m) => m[2].trim()).filter((x) => x && !x.startsWith('@'));
   assert.ok(selectors.length > 20);
-  const own = /^(html\[data-layout="tasks"\]|#task-|\.task-)/;
+  const own = /^(html\[data-layout="tasks"\]|#task-|\.task-|#mc-)/;   // (#mc-: the message centre's own elements, #798)
   assert.deepEqual(selectors.filter((sel) => !parts(sel).every((p) => own.test(p))), []);
   // its own elements are hidden in the other interfaces
   assert.match(css, /#task-switch, #task-tabs, #task-bar, #task-empty \{ display: none; \}/);
+  for (const id of ['mc-last', 'mc-cmd']) assert.match(css, new RegExp(`^#${id} \\{ display: none; \\}`, 'm'), id);
   // colours: the modern look's tokens only (light and dark), no colour written here
   assert.deepEqual(css.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g), null);
 });
