@@ -1,14 +1,14 @@
 {
  "local": {
   "epfl-adder": {
-   "synth": 9191,
-   "flow": 11357,
-   "total": 20827
+   "synth": 11182,
+   "flow": 14899,
+   "total": 26341
   },
   "epfl-bar": {
-   "synth": 15518,
-   "flow": 28831,
-   "total": 46312
+   "synth": 10396,
+   "flow": 24028,
+   "total": 35367
   },
   "epfl-cavlc": {
    "synth": 10450,
@@ -41,14 +41,14 @@
    "total": 789653
   },
   "epfl-max": {
-   "synth": 11415,
-   "flow": 30222,
-   "total": 44168
+   "synth": 23543,
+   "flow": 56943,
+   "total": 81640
   },
   "epfl-multiplier": {
-   "synth": 354867,
-   "flow": 797746,
-   "total": 1216165
+   "synth": 350920,
+   "flow": 869116,
+   "total": 1262546
   },
   "epfl-priority": {
    "synth": 5989,

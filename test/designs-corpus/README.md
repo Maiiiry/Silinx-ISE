@@ -186,14 +186,14 @@ least its slowest design's time (the testbench included: uart-for-fpga's is most
 | machine class | designs | synthesis (s) | flow (s) | all the stages (s) |
 | --- | ---: | ---: | ---: | ---: |
 | `ci` | 38 | 1614 | 2341 | 4423 |
-| `local` | 67 | 1645 | 2436 | 4575 |
+| `local` | 67 | 1650 | 2533 | 4653 |
 
 The 8 slowest designs (s: synthesis / flow / all the stages):
 
 | design | `ci` | `local` |
 | --- | ---: | ---: |
+| epfl-multiplier | - | 351 / 869 / 1263 |
 | secworks-aes | 325 / 852 / 1253 | 105 / 535 / 658 |
-| epfl-multiplier | - | 355 / 798 / 1216 |
 | epfl-log2 | - | 405 / 116 / 790 |
 | secworks-sha256 | 149 / 275 / 443 | 43 / 98 / 146 |
 | secworks-sha1 | 102 / 194 / 309 | 20 / 61 / 83 |
@@ -251,12 +251,12 @@ stage, repeats counted. The I/O wrapper, the times and the cell counts of Yosys 
 | epfl-priority | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 117 | 233 | 137 | 8.950 | 0 |
 | epfl-dec | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 187 | 373 | 265 | 6.460 | 0 |
 | epfl-i2c | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 249 | 489 | 276 | 6.773 | 0 |
-| epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 194 | 171 | 386 | 14.917 | 0 |
-| epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 471 | 941 | 264 | 9.378 | 0 |
-| epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 719 | 1437 | 643 | 27.908 | 1 (flow 1) |
+| epfl-adder | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 194 | 171 | 386 | 12.975 | 0 |
+| epfl-bar | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 471 | 941 | 288 | 8.768 | 0 |
+| epfl-max | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 684 | 1367 | 643 | 23.557 | 1 (flow 1) |
 | epfl-sin | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 1001 | 2001 | 0 |  | 0 |
 | epfl-voter | Verilog | MIT | pass | - | pass | pass | complete | XC3S250E | 1162 | 2323 | 1003 | 25.689 | 1 (flow 1) |
-| epfl-multiplier | Verilog | MIT | pass | - | pass | pass | complete | XC3S500E | 3787 | 7574 | 257 | 103.426 | 1 (flow 1) |
+| epfl-multiplier | Verilog | MIT | pass | - | pass | pass | complete | XC3S500E | 4360 | 8719 | 257 | 63.924 | 1 (flow 1) |
 | epfl-log2 | Verilog | MIT | pass | - | pass | pass | complete | XC3S1200E | 5341 | 10682 | 0 |  | 0 |
 | itc99-b01 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 5 | 9 | 5 | 2.538 | 0 |
 | itc99-b02 | VHDL | ITC'99 notice | pass | - | pass | pass | complete | XC3S250E | 2 | 4 | 4 | 1.959 | 0 |
