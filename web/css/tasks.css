@@ -139,6 +139,8 @@ html[data-layout="tasks"] .emu-box:has(> .emu-log) { display: none; }
    (folded at first), not the Design pane */
 html[data-layout="tasks"] .isim-title { display: none; }
 html[data-layout="tasks"][data-task="sim"] :is(#left-pages, #v-split, #drawer-btn, #drawer-scrim) { display: none !important; }
+/* (#left the activity bar only, open or folded: no empty column of the Design pane's width, #882) */
+html[data-layout="tasks"]:is([data-task="sim"], [data-task="emu"]) #left { width: auto !important; min-width: 0; }
 html[data-layout="tasks"][data-task="sim"][data-side="folded"] .isim :is(.isim-left, .isim-split-main) { display: none; }
 /* the model to simulate */
 #task-model { display: none; }
