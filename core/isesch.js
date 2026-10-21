@@ -27,6 +27,9 @@ import { compile } from './compile.js';
 
 // the export (#405: isesch-export.js), still exported from here
 import { exportIseSch, decodeXlSymbol, iseTimestamp } from './isesch-export.js';
+import { readIseNets } from './isesch-nets.js';
+import { blockGeometry } from './isesch-geometry.js';
+import { assembleIseImport } from './isesch-assemble.js';
 export { exportIseSch, decodeXlSymbol, iseTimestamp };
 
 export function parseXml(text) {
@@ -275,7 +278,7 @@ export function parseIseName(name) {
   return { base: s, width: 1 };
 }
 export const lc = s => String(s ?? '').toLowerCase();
-const r10 = v => Math.round(v / 10) * 10;
+export const r10 = v => Math.round(v / 10) * 10;
 
 // ===================================================================== Xilinx library knowledge
 // Pin positions (ISE units, symbol-local, y up = negative) checked against real ISE 14.x schematics.
@@ -464,7 +467,7 @@ export function libPins(sym) {
 }
 
 // pins of a blockdef that look like pin stubs: a line with one end on the outside of the body
-function blockdefPinPoints(def) {
+export function blockdefPinPoints(def) {
   if (!def) return [];
   const pts = new Map();
   const rects = def.shapes.filter(s => s.kind === 'rect' && s.w > 32 && s.h > 32);
@@ -718,10 +721,10 @@ function libTemplate(s, conn) {
 }
 
 // ===================================================================== import: .sch -> .sch.json
-const S_IN = 5 / 16;                       // ISE units -> Silinx px (ISE pin pitch 64 -> grid 20)
-const AUTO_RE = /^XLXN_\d+$/i;
-const SIDE_VEC = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
-const INWARD_ROT = { W: 0, N: 90, E: 180, S: 270 };   // inverter rotation so that it points into a pin on that side
+export const S_IN = 5 / 16;                       // ISE units -> Silinx px (ISE pin pitch 64 -> grid 20)
+export const AUTO_RE = /^XLXN_\d+$/i;
+export const SIDE_VEC = { W: [-1, 0], E: [1, 0], N: [0, -1], S: [0, 1] };
+export const INWARD_ROT = { W: 0, N: 90, E: 180, S: 270 };   // inverter rotation so that it points into a pin on that side
 
 export function findModule(modules, name) {
   if (!name) return null;
@@ -731,7 +734,7 @@ export function findModule(modules, name) {
 }
 
 // Order preserving coordinate map with minimum spacing (keeps the topology of orthogonal wiring exact).
-class AxisMap {
+export class AxisMap {
   constructor(scale) { this.s = scale; this.vals = new Set(); this.cons = new Map(); }
   add(v) { if (Number.isFinite(v)) this.vals.add(v); }
   need(a, b, d) {
@@ -769,7 +772,7 @@ class AxisMap {
   }
 }
 
-function onSegment(px, py, [x1, y1, x2, y2]) {
+export function onSegment(px, py, [x1, y1, x2, y2]) {
   if (x1 === x2) return px === x1 && py >= Math.min(y1, y2) && py <= Math.max(y1, y2);
   if (y1 === y2) return py === y1 && px >= Math.min(x1, x2) && px <= Math.max(x1, x2);
   const cross = (x2 - x1) * (py - y1) - (y2 - y1) * (px - x1);
@@ -794,316 +797,13 @@ export function importIseSch(xmlText, opts = {}) {
   const lang = opts.lang === 'verilog' ? 'verilog' : 'vhdl';
   const modules = normModules(opts.modules);
   const docName = String(opts.name || 'schematic');
-  // project symbol files (.sym): pin names, directions and positions of non-library symbols
-  const symDefs = new Map();
-  for (const [k, t] of Object.entries(opts.symbols || {})) {
-    try { const d = typeof t === 'string' ? parseIseSym(t) : t; symDefs.set(lc(d.name || String(k).replace(/^.*\//, '').replace(/\.sym$/i, '')), d); } catch (e) { warn(`${k}: ${e.message}`); }
-  }
+  // the ISE netlist read: signals, blocks, buses, names, the HDL blocks' specs (isesch-nets.js)
+  const { sigs, keyWidth, blocks, portPol, helpers, memberOf, mainInfo, claim, keyName, declLines, sheetGeo, sheetPt } =
+    readIseNets(model, opts, { lang, modules, docName, warn });
 
-  // ------------------------------------------------------------- signals (keys = lower-case ISE names)
-  const sigs = new Map();
-  const sig = name => {
-    if (name == null) return null;
-    const n = String(name).trim();
-    if (!n) return null;
-    const k = lc(n);
-    if (!sigs.has(k)) sigs.set(k, { key: k, name: n, p: parseIseName(n) });
-    return k;
-  };
-  for (const s of model.signals) sig(s.name);
-  for (const p of model.ports) sig(p.name);
-  for (const b of model.blocks) for (const p of b.pins) if (p.signal) sig(p.signal);
-  for (const sh of model.sheets) { for (const b of sh.branches) sig(b.name); for (const io of sh.iomarkers) sig(io.name); }
-  const keyWidth = k => sigs.get(k)?.p.width || 1;
-
-  // ------------------------------------------------------------- blocks -> Silinx specs
-  const instOf = new Map();
-  model.sheets.forEach((sh, si) => sh.instances.forEach(i => instOf.set(lc(i.name), { ...i, sheet: si })));
-  // ISE pin positions (sheet units) of a block, from the library tables and the wires that end on the symbol
-  const sheetGeo = model.sheets.map(sh => {
-    const ends = new Map();  // 'x,y' -> Set(keys)
-    const segs = [];
-    const add = (x, y, k) => { const q = `${x},${y}`; let s = ends.get(q); if (!s) ends.set(q, s = new Set()); s.add(k); };
-    for (const br of sh.branches) { const k = lc(br.name.trim()); for (const w of br.wires) { add(w[0], w[1], k); add(w[2], w[3], k); segs.push({ w, k }); } }
-    for (const io of sh.iomarkers) add(io.x, io.y, lc(io.name.trim()));
-    return { ends, segs, touches: (x, y, k) => ends.get(`${x},${y}`)?.has(k) || segs.some(s => s.k === k && onSegment(x, y, s.w)) };
-  });
-
-  const sheetPt = (inst, x, y) => { const [dx, dy] = iseXform(inst.orien, x, y); return [inst.x + dx, inst.y + dy]; };
-  const blocks = [];
-  for (const b of model.blocks) {
-    const inst = instOf.get(lc(b.name)) || null;
-    const def = model.blockdefs.get(lc(b.symbol)) || null;
-    // ISE pin positions: library table when the wires confirm it, else the blockdef pin stub the wires end on
-    const sd = symDefs.get(lc(b.symbol));
-    const lib = libPins(b.symbol) || (sd ? Object.fromEntries(sd.pins.map(q => [q.name, [q.dir, q.x, q.y]])) : null);
-    const libAt = n => { const L = lib?.[n] || (lib ? lib[Object.keys(lib).find(k => lc(k) === lc(n))] : null); return L && L[1] != null && L[2] != null ? [L[1], L[2]] : null; };
-    const cand = blockdefPinPoints(def);
-    const local = new Map(), pt = new Map();
-    const claimed = new Set();
-    if (inst) {
-      const geo = sheetGeo[inst.sheet];
-      const touch = (l, key) => { const q = sheetPt(inst, l[0], l[1]); return geo.touches(q[0], q[1], key) ? q : null; };
-      const pend = [];
-      for (const p of b.pins) {
-        const key = p.signal ? lc(p.signal.trim()) : null;
-        const L = libAt(p.name);
-        if (key && L && touch(L, key)) { local.set(p.name, L); claimed.add(`${L[0]},${L[1]}`); } else pend.push([p, key, L]);
-      }
-      for (const [p, key, L] of pend) {
-        if (key) for (const c of cand) { if (claimed.has(`${c[0]},${c[1]}`)) continue; if (touch(c, key)) { local.set(p.name, c); claimed.add(`${c[0]},${c[1]}`); break; } }
-        if (!local.has(p.name) && L) local.set(p.name, L);
-      }
-      for (const [n, l] of local) pt.set(n, sheetPt(inst, l[0], l[1]));
-    }
-    const spec = mapSymbol(b, modules, warn, { local, def, sym: sd });
-    blocks.push({ blk: b, name: b.name, spec, inst, def, pt });
-  }
-
-  // pin directions / drivers
-  const driven = new Map();
-  const portPol = new Map(model.ports.map(p => [lc(p.name), p.polarity]));
-  for (const B of blocks) {
-    for (const p of B.blk.pins) {
-      const k = p.signal ? lc(p.signal.trim()) : null;
-      const pm = B.spec.pins[p.name];
-      if (!k || !pm) continue;
-      if (pm.dir === 'out' || pm.dir === 'inout') driven.set(k, (driven.get(k) || 0) + 1);
-    }
-  }
-  for (const [k, pol] of portPol) if (/input|bidir/i.test(pol)) driven.set(k, (driven.get(k) || 0) + 1);
-
-  // ------------------------------------------------------------- buses: bit / sub-range signals of a bus
-  const groups = new Map();
-  for (const s of sigs.values()) if (s.p.range || s.p.bit != null) { const g = lc(s.p.base); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(s); }
-  const helpers = [];          // virtual blocks: slices / bus joins
-  const memberOf = new Map();  // member key -> { main, msb, lsb }
-  const mainInfo = new Map();  // main key -> { width }
-  for (const list of groups.values()) {
-    const ranged = list.filter(s => s.p.range).sort((a, b) => b.p.width - a.p.width);
-    if (!ranged.length) continue;
-    const main = ranged[0];
-    const lo = Math.min(main.p.msb, main.p.lsb), hi = Math.max(main.p.msb, main.p.lsb);
-    const desc = main.p.msb >= main.p.lsb;
-    const pos = i => (desc ? i - main.p.lsb : main.p.lsb - i);
-    const members = [];
-    for (const s of list) {
-      if (s === main) continue;
-      const a = s.p.range ? s.p.msb : s.p.bit, b = s.p.range ? s.p.lsb : s.p.bit;
-      if (Math.min(a, b) < lo || Math.max(a, b) > hi) { if (s.p.range) warn(`bus '${s.name}' is not part of '${main.name}': kept as a separate net`); continue; }
-      const pa = pos(a), pb = pos(b);
-      if (s.p.range && (a >= b) !== desc && a !== b) warn(`bus '${s.name}' has the opposite bit order of '${main.name}': bits are taken in '${main.name}' order`);
-      members.push({ s, msb: Math.max(pa, pb), lsb: Math.min(pa, pb) });
-    }
-    mainInfo.set(main.key, { width: main.p.width });
-    if (!members.length) continue;
-    const mainDriven = driven.has(main.key);
-    const drivenMembers = members.filter(m => driven.has(m.s.key));
-    let joined = new Set();
-    if (!mainDriven && drivenMembers.length) {
-      // the bus is assembled from separately driven parts: one bus join
-      const chosen = [];
-      for (const m of drivenMembers.sort((x, y) => (y.msb - y.lsb) - (x.msb - x.lsb))) {
-        if (chosen.some(c => !(m.msb < c.lsb || m.lsb > c.msb))) { warn(`'${m.s.name}' overlaps another driven part of bus '${main.name}' (multiple drivers)`); continue; }
-        chosen.push(m);
-      }
-      chosen.sort((x, y) => y.msb - x.msb);
-      const segs = [];
-      let at = main.p.width - 1;
-      for (const c of chosen) {
-        if (c.msb < at) segs.push({ key: null, width: at - c.msb });
-        segs.push({ key: c.s.key, width: c.msb - c.lsb + 1 });
-        at = c.lsb - 1;
-      }
-      if (at >= 0) segs.push({ key: null, width: at + 1 });
-      if (segs.some(s => !s.key)) warn(`bus '${main.name}': bits not driven by any part are tied to 0`);
-      helpers.push({ kind: 'join', main: main.key, segs });
-      joined = new Set(chosen.map(c => c.s.key));
-    } else if (mainDriven && drivenMembers.length) warn(`bus '${main.name}' and its part${drivenMembers.length > 1 ? 's' : ''} ${drivenMembers.map(m => `'${m.s.name}'`).join(', ')} are both driven`);
-    for (const m of members) {
-      memberOf.set(m.s.key, { main: main.key, msb: m.msb, lsb: m.lsb });
-      if (!joined.has(m.s.key)) helpers.push({ kind: 'slice', main: main.key, member: m.s.key, msb: m.msb, lsb: m.lsb, width: main.p.width });
-    }
-  }
-
-  // ------------------------------------------------------------- names (Silinx identifiers)
-  const owner = new Map();     // lower-case identifier -> owner tag
-  const claim = (want, tag) => {
-    let b = String(want || 'n').replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '') || 'n';
-    if (!/^[A-Za-z]/.test(b)) b = 'n' + b;
-    let nm = b, k = 0;
-    while ((owner.has(lc(nm)) && owner.get(lc(nm)) !== tag) || !validIdent(nm, 'vhdl') || !validIdent(nm, 'verilog')) nm = `${b}_${++k}`;
-    owner.set(lc(nm), tag);
-    return nm;
-  };
-  owner.set(lc(docName), '#doc');
-  const keyName = new Map();
-  const portNames = new Set();
-  // ports first (keep their names), then named signals, bus parts, ISE auto names
-  const portKeys = [...new Set([...model.ports.map(p => lc(p.name.trim())), ...model.sheets.flatMap(s => s.iomarkers.map(i => lc(i.name.trim())))])];
-  for (const k of portKeys) {
-    const s = sigs.get(k);
-    const nm = claim(s.p.base, k);
-    if (nm !== s.p.base) warn(`I/O marker '${s.name}' renamed '${nm}' (not a valid HDL identifier or name clash)`);
-    keyName.set(k, nm); portNames.add(k);
-  }
-  const order = [...sigs.values()].sort((a, b) => (AUTO_RE.test(a.name) - AUTO_RE.test(b.name)) || ((memberOf.has(a.key) ? 1 : 0) - (memberOf.has(b.key) ? 1 : 0)));
-  for (const s of order) {
-    if (keyName.has(s.key)) continue;
-    const mo = memberOf.get(s.key);
-    let want = s.p.base;
-    if (mo) want = `${keyName.get(mo.main) || sigs.get(mo.main).p.base}_${mo.msb === mo.lsb ? mo.msb : `${mo.msb}_${mo.lsb}`}`;
-    else if (s.p.bit != null) want = `${s.p.base}_${s.p.bit}`;
-    else if (s.p.range && !mainInfo.has(s.key)) want = `${s.p.base}_${s.p.msb}_${s.p.lsb}`;
-    keyName.set(s.key, claim(want, s.key));
-  }
-  for (const B of blocks) B.xname = claim(B.name, `#inst:${B.name}`);
-
-  // ------------------------------------------------------------- finalize specs (hdl block pin names, code)
-  const declLines = [];
-  for (const B of blocks) {
-    const sp = B.spec;
-    if (sp.type !== 'hdlblock') continue;
-    const pinNet = new Map(B.blk.pins.map(p => [p.name, p.signal ? lc(p.signal.trim()) : null]));
-    const fin = {};
-    const inputs = [], outputs = [];
-    for (const [ise, pm] of Object.entries(sp.pins)) {
-      const k = pinNet.get(ise);
-      // a pin may reuse the name of the net it is wired to; otherwise it needs its own identifier
-      const base = parseIseName(ise).base;
-      let nm;
-      // clock pins take the name of their net: no aliasing assignment, so no delta-cycle skew on the clock
-      if (k && (lc(keyName.get(k)) === lc(base) || pm.clock) && !Object.values(fin).some(v => lc(v) === lc(keyName.get(k)))) nm = keyName.get(k);
-      else nm = claim(base, `#pin:${B.name}/${ise}`);
-      fin[ise] = nm;
-      pm.xai = nm;
-      const d = { name: nm, width: pm.width || 1 };
-      if (pm.clock) d.clock = true;
-      if (pm.dir === 'out') outputs.push(d); else inputs.push({ ...d, ...(pm.dir === 'inout' ? { dir: 'inout' } : {}) });
-    }
-    // remember the ISE symbol so that the export writes it back (library symbol or the project's own symbol)
-    sp.params = { title: sp.title || B.blk.symbol, inputs, outputs, iseSymbol: B.blk.symbol, isePins: Object.fromEntries(Object.entries(fin).map(([ise, nm]) => [nm, ise])) };
-    if (sp.tpl) {
-      const T = suf => claim(`${B.xname}_${suf}`, `#tmp:${B.name}/${suf}`);
-      const has = ise => !!pinNet.get(ise);
-      const r = sp.tpl(lang, ise => fin[ise] ?? ise, T, has);
-      sp.hdl = r.code;
-      if (r.decls) declLines.push(...r.decls);
-    } else {
-      sp.hdl = lang === 'vhdl' ? `-- TODO: ISE symbol '${B.blk.symbol}' has no Silinx equivalent: describe its function here` : `// TODO: ISE symbol '${B.blk.symbol}' has no Silinx equivalent: describe its function here`;
-    }
-  }
-
-  // ------------------------------------------------------------- local geometry of every block (macro)
-  let sid = 0, wid = 0, lid = 0, pid = 0;
-  const pinKey = new Map();         // 'symId/pin' -> key
-  const macros = [];
-  const mkSym = (type, name, params, rot = 0, mirror = false, hdl) => {
-    const s = { id: `S${++sid}`, type, x: 0, y: 0, rot, mirror, name, params: { ...defaultParams(type), ...params } };
-    if (hdl != null) s.hdl = hdl;
-    return s;
-  };
-  const pinsOf = s => symbolPins(s, modules);
-
-  for (const B of blocks) {
-    const sp = B.spec;
-    const o = B.inst ? iseOrienToXai(B.inst.orien) : { rot: 0, mirror: false };
-    const main = mkSym(sp.type, B.xname, sp.params, o.rot, o.mirror, sp.hdl);
-    const syms = [main];
-    const pins = new Map(pinsOf(main).map(p => [p.name, p]));
-    const ext = [];   // { ise, key, E:[x,y], side, sym, pin, invSym? }
-    for (const p of B.blk.pins) {
-      const pm = sp.pins[p.name];
-      const key = p.signal ? lc(p.signal.trim()) : null;
-      if (!pm) { if (key) warn(`${B.name} (${B.blk.symbol}): pin ${p.name} has no Silinx equivalent and is left unconnected`); continue; }
-      const xp = pins.get(pm.xai);
-      if (!xp) { if (key) warn(`${B.name} (${B.blk.symbol}): pin ${p.name} not found on the Silinx symbol`); continue; }
-      let E = [xp.x, xp.y], inv = null;
-      if (pm.invert) {
-        const [vx, vy] = SIDE_VEC[xp.side];
-        inv = mkSym('inv', `${B.xname}_inv${p.name.replace(/\W/g, '')}`, {}, INWARD_ROT[xp.side]);
-        inv.name = claim(inv.name, `#inst:${inv.name}`);
-        const ip = pinsOf(inv);
-        const O = ip.find(q => q.name === 'O');
-        inv.x = xp.x - O.x; inv.y = xp.y - O.y;
-        E = [xp.x + 60 * vx, xp.y + 60 * vy];
-        syms.push(inv);
-        pinKey.set(`${inv.id}/O`, `#int:${B.name}/${p.name}`);
-        pinKey.set(`${main.id}/${pm.xai}`, `#int:${B.name}/${p.name}`);
-      } else pinKey.set(`${main.id}/${pm.xai}`, key || `#nc:${main.id}/${pm.xai}`);
-      if (inv) pinKey.set(`${inv.id}/I`, key || `#nc:${inv.id}/I`);
-      const pt = key && B.pt.get(p.name) || null;
-      ext.push({ ise: p.name, key, E, side: xp.side, sym: inv || main, pin: inv ? 'I' : pm.xai, pt });
-    }
-    for (const p of pinsOf(main)) if (!pinKey.has(`${main.id}/${p.name}`)) pinKey.set(`${main.id}/${p.name}`, `#nc:${main.id}/${p.name}`);
-    macros.push({ B, syms, ext, inst: B.inst, sheet: B.inst ? B.inst.sheet : -1 });
-  }
-  // virtual blocks for buses
-  let hk = 0;
-  for (const H of helpers) {
-    const mn = keyName.get(H.main);
-    if (H.kind === 'slice') {
-      const s = mkSym('slice', claim(`${mn}_tap${++hk}`, `#inst:tap${hk}`), { msb: H.msb, lsb: H.lsb, inWidth: H.width });
-      pinKey.set(`${s.id}/I`, H.main); pinKey.set(`${s.id}/O`, H.member);
-      macros.push({ helper: H, syms: [s], ext: [], sheet: -1 });
-    } else {
-      const s = mkSym('busjoin', claim(`${mn}_join`, `#inst:join${++hk}`), { widths: H.segs.map(x => x.width).join(',') });
-      H.segs.forEach((g, i) => pinKey.set(`${s.id}/I${i}`, g.key || `#nc:${s.id}/I${i}`));
-      pinKey.set(`${s.id}/O`, H.main);
-      macros.push({ helper: H, syms: [s], ext: [], sheet: -1 });
-    }
-  }
-  // bus taps -> slices drawn where ISE drew the tap
-  model.sheets.forEach((sh, si) => {
-    const geo = sheetGeo[si];
-    for (const t of sh.bustaps) {
-      const at2 = [...(geo.ends.get(`${t.x2},${t.y2}`) || [])];
-      const member = at2.find(k => memberOf.has(k));
-      if (!member) continue;
-      const M = macros.find(m => m.helper?.kind === 'slice' && m.helper.member === member && m.sheet < 0);
-      if (!M || !geo.touches(t.x1, t.y1, M.helper.main)) continue;
-      const s = M.syms[0];
-      const dx = Math.sign(t.x2 - t.x1), dy = Math.sign(t.y2 - t.y1);
-      if (dx > 0) { s.rot = 0; s.mirror = false; } else if (dx < 0) { s.rot = 0; s.mirror = true; } else if (dy > 0) { s.rot = 90; s.mirror = false; } else { s.rot = 270; s.mirror = false; }
-      const pp = new Map(pinsOf(s).map(p => [p.name, p]));
-      M.ext = [
-        { ise: 'I', key: M.helper.main, E: [pp.get('I').x, pp.get('I').y], side: pp.get('I').side, sym: s, pin: 'I', pt: [t.x1, t.y1] },
-        { ise: 'O', key: member, E: [pp.get('O').x, pp.get('O').y], side: pp.get('O').side, sym: s, pin: 'O', pt: [t.x2, t.y2] },
-      ];
-      M.sheet = si; M.tap = true;
-    }
-  });
-
-  // ------------------------------------------------------------- coordinate maps (one per sheet)
-  const maps = model.sheets.map(() => ({ X: new AxisMap(S_IN), Y: new AxisMap(S_IN) }));
-  model.sheets.forEach((sh, si) => {
-    const { X, Y } = maps[si];
-    X.add(0); Y.add(0); X.add(sh.width); Y.add(sh.height);
-    for (const br of sh.branches) for (const w of br.wires) { X.add(w[0]); X.add(w[2]); Y.add(w[1]); Y.add(w[3]); }
-    for (const io of sh.iomarkers) { X.add(io.x); Y.add(io.y); }
-    for (const t of sh.bustaps) { X.add(t.x1); X.add(t.x2); Y.add(t.y1); Y.add(t.y2); }
-  });
-  for (const M of macros) {
-    if (M.sheet < 0) continue;
-    const { X, Y } = maps[M.sheet];
-    const pts = M.ext.filter(e => e.pt);
-    for (const e of pts) { X.add(e.pt[0]); Y.add(e.pt[1]); }
-    if (M.inst) X.add(M.inst.x), Y.add(M.inst.y);
-    // spacing constraints so the Silinx symbol fits between its ISE pin positions
-    for (const [ax, A] of [[0, X], [1, Y]]) {
-      const byC = new Map();
-      for (const e of pts) { const c = e.pt[ax]; let g = byC.get(c); if (!g) byC.set(c, g = []); g.push(e.E[ax]); }
-      const cs = [...byC.keys()].sort((a, b) => a - b);
-      for (let i = 0; i + 1 < cs.length; i++) {
-        const lo = byC.get(cs[i]), hi = byC.get(cs[i + 1]);
-        const d = Math.max(...hi) - Math.min(...lo);
-        if (Math.min(...hi) > Math.max(...lo) - 1) A.need(cs[i], cs[i + 1], d);
-      }
-    }
-  }
-  let xoff = 0;
-  maps.forEach(m => { m.X.build(0); m.Y.build(0); m.X.off = xoff - m.X.min + 40; m.Y.off = -m.Y.min + 40; xoff = m.X.off + m.X.max + 200; });
-  const MX = (si, x) => maps[si].X.f(x), MY = (si, y) => maps[si].Y.f(y);
+  // ------------------------------------------------------------- local geometry of every block, coordinate maps (isesch-geometry.js)
+  let wid = 0, lid = 0, pid = 0;
+  const { MX, MY, macros, pinKey, pinsOf } = blockGeometry({ blocks, claim, helpers, keyName, memberOf, model, modules, sheetGeo, warn });
 
   // ------------------------------------------------------------- place
   const syms = [], wires = [], labels = [], ports = [];
@@ -1360,167 +1060,16 @@ export function importIseSch(xmlText, opts = {}) {
     }
   }
 
-  // ------------------------------------------------------------- parking area (no position in the ISE drawing)
-  const content = () => {
-    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-    const acc = (x, y) => { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); };
-    for (const w of wires) for (const p of w.points) acc(p.x, p.y);
-    for (const p of ports) { const b = portBox(p); acc(b.x, b.y); acc(b.x + b.w, b.y + b.h); }
-    for (const s of syms) { const b = symbolBox(s, modules); acc(b.x, b.y); acc(b.x + b.w, b.y + b.h); }
-    for (const l of labels) acc(l.x, l.y);
-    if (x0 === Infinity) return { x0: 40, y0: 40, x1: 40, y1: 40 };
-    return { x0, y0, x1, y1 };
-  };
-  const park = list => {
-    if (!list.length) return;
-    const c = content();
-    const maxW = Math.max(1200, c.x1 - c.x0);
-    let x = Math.max(80, c.x0 + 40), y = c.y1 + 100, rowH = 0;
-    for (const M of list) {
-      const b = macroBox(M);
-      const w = b.x1 - b.x0, h = b.y1 - b.y0;
-      if (x + w + 80 > c.x0 + maxW && x > c.x0 + 40) { x = Math.max(80, c.x0 + 40); y += rowH + 80; rowH = 0; }
-      shiftMacro(M, r10(x + 40 - b.x0), r10(y - b.y0));
-      x += w + 120; rowH = Math.max(rowH, h);
-      M.parked = true;
-    }
-  };
-  park(parked);
-  if (unplacedPorts.length) {
-    const c = content();
-    let y = c.y1 + 80;
-    for (const up of unplacedPorts) {
-      const k = lc(up.name.trim());
-      const p = { id: `P${++pid}`, name: keyName.get(k), dir: /bidir/i.test(up.polarity) ? 'inout' : /output/i.test(up.polarity) ? 'out' : 'in', width: keyWidth(k), x: c.x0 + 120, y };
-      ports.push(p); portKey.set(p.id, k); y += 40;
-    }
-  }
-
-  // ------------------------------------------------------------- assemble, check connectivity, repair
-  const labelText = k => (mainInfo.has(k) || keyWidth(k) > 1 ? `${keyName.get(k)}(${keyWidth(k) - 1}:0)` : keyName.get(k));
-  const build = () => {
-    for (const l of labels) l.net = labelText(labelKey.get(l.id));
-    const d = normalizeDoc({ version: DOC_VERSION, name: docName, lang, sheet: { w: 1700, h: 1100 }, symbols: syms, wires, labels, ports });
-    // each net's wires joined where they branch and at its pins and markers (#678: connected at the ends)
-    const ids = new Map(), at = new Map();
-    const of = (m, k) => { let v = m.get(k); if (!v) m.set(k, v = []); return v; };
-    for (const w of d.wires) if (wireKey.has(w.id)) of(ids, wireKey.get(w.id)).push(w.id);
-    for (const sy of d.symbols) for (const p of symbolPins(sy, modules)) if (pinKey.has(`${sy.id}/${p.name}`)) of(at, pinKey.get(`${sy.id}/${p.name}`)).push(p);
-    for (const p of d.ports) if (portKey.has(p.id)) of(at, portKey.get(p.id)).push(p);
-    pieceOf.clear();
-    for (const [k, w] of ids) for (const a of joinWires(d, at.get(k) || [], new Set(w))) pieceOf.set(a.id, pieceOf.get(a.from) || a.from);
-    return d;
-  };
-  // (a wire of the document built split at its joints: its pieces stand for it)
-  const pieceOf = new Map(), orig = id => pieceOf.get(id) || id;
-  const elemKeys = net => {
-    const ks = new Set();
-    for (const e of net.endpoints) ks.add(e.kind === 'pin' ? pinKey.get(`${e.sym}/${e.pin}`) : portKey.get(e.port));
-    for (const w of net.wires) ks.add(wireKey.get(orig(w)));
-    for (const l of net.labels) ks.add(labelKey.get(l));
-    ks.delete(undefined);
-    return ks;
-  };
-  const relocated = new Set();
-  for (let round = 0; round < 4; round++) {
-    const nl = netlist(build(), { modules });
-    const bad = nl.nets.filter(n => elemKeys(n).size > 1);
-    if (!bad.length) break;
-    if (round === 0) {
-      // 1. drop the stubs that run into foreign nets (the pins get a net name instead)
-      const drop = new Set(bad.flatMap(n => n.wires.map(orig).filter(w => stubOf.has(w))));
-      for (let i = wires.length - 1; i >= 0; i--) if (drop.has(wires[i].id)) wires.splice(i, 1);
-      continue;
-    }
-    // 2. move the symbols whose pins touch foreign nets to the parking area
-    const symM = new Map(); for (const M of macros) for (const s of M.syms) symM.set(s.id, M);
-    const move = [];
-    for (const n of bad) for (const e of n.endpoints) if (e.kind === 'pin') { const M = symM.get(e.sym); if (M && !relocated.has(M)) { relocated.add(M); move.push(M); } }
-    if (!move.length) break;
-    for (let i = wires.length - 1; i >= 0; i--) if (move.includes(stubOf.get(wires[i].id))) wires.splice(i, 1);
-    for (const M of move) warn(`${M.syms[0].name}: placed apart from the drawing (its pins overlapped other nets)`);
-    park(move);
-  }
-  // nets of one ISE signal that are not connected geometrically (connection by name in ISE): add net names
-  const addNames = () => {
-    const bd = build(), nl = netlist(bd, { modules });
-    const segOwner = [];
-    for (const w of bd.wires) for (let i = 0; i + 1 < w.points.length; i++) segOwner.push({ a: w.points[i], b: w.points[i + 1], net: nl.wireNet.get(w.id) });
-    const freeAt = (x, y, net) => !segOwner.some(s => s.net !== net && onSegment(x, y, [s.a.x, s.a.y, s.b.x, s.b.y])) && !ports.some(p => p.x === x && p.y === y && nl.portNet.get(p.id) !== net);
-    const pieces = new Map();   // key -> Set(net)
-    for (const n of nl.nets) for (const k of elemKeys(n)) { if (k.startsWith('#')) continue; let s = pieces.get(k); if (!s) pieces.set(k, s = new Set()); s.add(n); }
-    let added = 0;
-    for (const [k, nets] of pieces) {
-      const needName = nets.size > 1 || (!AUTO_RE.test(sigs.get(k)?.name || '') && ![...nets].some(n => n.labels.length || n.ports.length)) || ((mainInfo.has(k) || keyWidth(k) > 1) && ![...nets].some(n => n.labels.length || n.ports.length));
-      if (!needName) continue;
-      for (const n of nets) {
-        if (n.labels.some(l => labelKey.get(l) === k) || n.ports.some(p => portKey.get(p) === k)) continue;
-        if (nets.size === 1 && (n.labels.length || n.ports.length)) continue;
-        let spot = null;
-        for (const wId of n.wires) {
-          const w = bd.wires.find(q => q.id === wId);
-          for (const p of w.points) if (freeAt(p.x, p.y, n)) { spot = [p.x, p.y]; break; }
-          if (spot) break;
-        }
-        if (!spot) {
-          // a pin without wires: short stub + name
-          const e = n.endpoints.find(q => q.kind === 'pin');
-          if (e) {
-            const s = syms.find(q => q.id === e.sym);
-            const pp = pinsOf(s).find(q => q.name === e.pin);
-            const out = SIDE_VEC[pp.side];
-            const dirs = [out, [out[1], out[0]], [-out[1], -out[0]], [-out[0], -out[1]]];
-            occReset();
-            search: for (const [vx, vy] of dirs) for (const len of [20, 30, 40, 50, 60]) {
-              const ex = pp.x + vx * len, ey = pp.y + vy * len;
-              if (!freeAt(ex, ey, n) || occ.has(`${ex},${ey}`) || passes([pp.x, pp.y], [ex, ey], new Set([`${pp.x},${pp.y}`]), k) || overlapsForeign([pp.x, pp.y], [ex, ey], k)) continue;
-              const w = addWire([{ x: pp.x, y: pp.y }, { x: ex, y: ey }], k);
-              if (w) { occAdd(ex, ey, k); segAdd(w); spot = [ex, ey]; }
-              break search;
-            }
-            if (!spot && freeAt(pp.x, pp.y, n)) spot = [pp.x, pp.y];
-          } else {
-            const pe = n.endpoints.find(q => q.kind === 'port');
-            if (pe) { const p = ports.find(q => q.id === pe.port); if (freeAt(p.x, p.y, n)) spot = [p.x, p.y]; }
-          }
-        }
-        if (!spot) { warn(`could not attach the net name '${keyName.get(k)}'`); continue; }
-        const l = { id: `L${++lid}`, x: spot[0], y: spot[1], net: null };
-        labels.push(l); labelKey.set(l.id, k); added++;
-      }
-    }
-    return added;
-  };
-  addNames();
-  addNames();
-
-  // ------------------------------------------------------------- final check against the ISE connectivity
-  const doc = build();
-  const c = content();
-  doc.sheet = { w: Math.max(1700, r10(c.x1 + 120)), h: Math.max(1100, r10(c.y1 + 120)) };
-  if (declLines.length) doc.hdl = { lang, decls: declLines.join('\n') };
-  const nl = netlist(doc, { modules });
-  const unconnected = [];
-  const where = new Map();
-  for (const n of nl.nets) {
-    const ks = elemKeys(n);
-    const real = [...ks].filter(k => !k.startsWith('#nc'));
-    if (real.length > 1) warn(`connectivity: net '${n.name}' joins ISE nets ${real.filter(k => !k.startsWith('#')).map(k => `'${sigs.get(k)?.name || k}'`).join(', ')}`);
-    for (const k of ks) { if (k.startsWith('#')) continue; let s = where.get(k); if (!s) where.set(k, s = new Set()); s.add(n.id); }
-  }
-  for (const [k, s] of where) if (s.size > 1) { warn(`connectivity: ISE net '${sigs.get(k)?.name || k}' is split in ${s.size} parts`); unconnected.push(sigs.get(k)?.name || k); }
-  for (const d of nl.diagnostics) if (d.severity === 'error') warn(`schematic check: ${d.message}`);
-  if (model.sheets.some(s => s.texts.length)) warn(`${model.sheets.reduce((a, s) => a + s.texts.length, 0)} text annotation(s) of the ISE sheet were not imported`);
-  if (model.sheets.length > 1) warn(`the ${model.sheets.length} ISE sheets are placed side by side on one Silinx sheet`);
-  doc.importedFrom = { format: 'ise-sch', version: model.version, family: model.attrs.DeviceFamilyName || null };
-  // where each ISE block pin ended up ('XLXI_1.I0' -> 'XLXI_1_invI0.I')
-  const pinMap = {};
-  for (const M of macros) if (M.B) for (const e of M.ext) pinMap[`${M.B.name}.${e.ise}`] = `${e.sym.name}.${e.pin}`;
-  return { doc, warnings, unconnected, pinMap };
+  // ------------------------------------------------------------- park, assemble, check (isesch-assemble.js)
+  return assembleIseImport({
+    addWire, declLines, docName, keyName, keyWidth, labelKey, labels, lang, macroBox, macros, mainInfo, model, modules,
+    occ, occAdd, occReset, overlapsForeign, parked, passes, pinKey, pinsOf, portKey, ports, segAdd, shiftMacro, sigs,
+    stubOf, syms, unplacedPorts, warn, warnings, wireKey, wires, lid, pid
+  });
 }
 
 // ISE block -> Silinx symbol spec: { type, params, pins: { isePin: { xai, dir, width, invert?, clock? } }, tpl?, title? }
-function mapSymbol(blk, modules, warn, geo = {}) {
+export function mapSymbol(blk, modules, warn, geo = {}) {
   const sym = lc(blk.symbol);
   const conn = n => blk.pins.some(p => lc(p.name) === lc(n) && p.signal);
   const blkPins = blk.pins.map(p => p.name);
