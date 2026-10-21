@@ -1,0 +1,102 @@
+// web/js/tasks.js: the Tasks interface (#804): the task of a document, the arrangements, the kept state, the
+// task's state dot; web/css/tasks.css: its rules apply in that interface only, with the modern look's colours.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+globalThis.addEventListener ??= () => {};
+globalThis.matchMedia ??= () => ({ matches: false, addEventListener() {} });
+const T = await import('../web/js/tasks.js');
+
+test('the five tasks, in the order of a lab session, with the names of the modern toolbar\'s steps', () => {
+  assert.deepEqual(T.TASKS, ['edit', 'sim', 'emu', 'impl', 'prog']);
+  assert.deepEqual(T.TASKS.map((t) => T.TASK_LABEL[t]), ['Edit', 'Simulate', 'Emulate', 'Implement', 'Program']);
+});
+
+test('taskOfDoc: each kind of document belongs to one task (the editors and the viewers of the design to Edit)', () => {
+  const cases = {
+    isim: 'sim', emulator: 'emu', impact: 'prog',
+    summary: 'impl', pins: 'impl', fpgaview: 'impl', 'text:pong.pwr': 'impl', 'tech:pong': 'impl',
+    'file:src/pong.v': 'edit', 'file:constraints/top.ucf': 'edit', 'rtl:pong': 'edit', 'tpl:debounce': 'edit',
+    'asm:src/speed_ctrl.asm.json': 'edit', 'sch:src/gates.sch.json': 'edit', 'fsm:src/traffic.fsm.json': 'edit',
+    'tt:src/lamps.tt.json': 'edit', 'ttsch:src/lamps.tt.json': 'edit', 'pn:src/net.pn.json': 'edit',
+  };
+  for (const [id, task] of Object.entries(cases)) assert.equal(T.taskOfDoc(id), task, id);
+  // (an unknown id, or none: Edit, where the documents of the design are)
+  assert.equal(T.taskOfDoc('something-new'), 'edit');
+  assert.equal(T.taskOfDoc(undefined), 'edit');
+  // (not a prefix match: a file whose path starts like an id is still a file)
+  assert.equal(T.taskOfDoc('file:summary'), 'edit');
+});
+
+test('readState: the kept state checked; anything else falls back to Edit and the defaults', () => {
+  const empty = { edit: {}, sim: {}, emu: {}, impl: {}, prog: {} };
+  assert.deepEqual(T.readState(null), { task: 'edit', tasks: empty });
+  assert.deepEqual(T.readState('not json'), { task: 'edit', tasks: empty });
+  assert.deepEqual(T.readState('[1,2]'), { task: 'edit', tasks: empty });
+  assert.deepEqual(T.readState(JSON.stringify({ task: 'run', tasks: { sim: { side: 'yes', max: 1 } } })), { task: 'edit', tasks: empty });
+  const kept = { task: 'sim', tasks: { sim: { side: true, console: false, max: true, doc: 'isim', extra: 3 }, emu: { doc: 7 }, bogus: { side: true } } };
+  assert.deepEqual(T.readState(JSON.stringify(kept)), {
+    task: 'sim',
+    tasks: { edit: {}, sim: { side: true, console: false, max: true, doc: 'isim' }, emu: {}, impl: {}, prog: {} },
+  });
+});
+
+test('arrangement: the task in front gets the space; what the viewer left wins; a narrow screen closes the drawer', () => {
+  assert.deepEqual(T.arrangement('edit'), { side: true, console: true, max: false });
+  assert.deepEqual(T.arrangement('sim'), { side: false, console: false, max: false });
+  assert.deepEqual(T.arrangement('emu'), { side: false, console: false, max: false });
+  assert.deepEqual(T.arrangement('impl'), { side: true, console: true, max: false });
+  assert.deepEqual(T.arrangement('prog'), { side: false, console: true, max: false });
+  assert.deepEqual(T.arrangement('sim', { side: true, max: true, doc: 'isim' }), { side: true, console: false, max: true, doc: 'isim' });
+  assert.deepEqual(T.arrangement('edit', {}, true), { side: false, console: true, max: false });
+  assert.deepEqual(T.arrangement('edit', { side: true }, true), { side: false, console: true, max: false });
+});
+
+test('taskDot: the worst status of the task\'s processes (errors, then running, out of date, warnings, done)', () => {
+  assert.equal(T.taskDot('edit', {}), null);
+  assert.equal(T.taskDot('edit', { check: 'ok' }), 'ok');
+  assert.equal(T.taskDot('edit', { 'sim-check': 'err' }), null);        // the Simulation view's check is Simulate's
+  assert.equal(T.taskDot('sim', { 'sim-check': 'warn' }), 'warn');
+  assert.equal(T.taskDot('impl', { synth: 'ok', map: 'ok', par: 'stale', bitgen: 'warn' }), 'stale');
+  assert.equal(T.taskDot('impl', { synth: 'ok', par: 'running' }), 'running');
+  assert.equal(T.taskDot('impl', { 'synth-open': 'ok', translate: 'err', par: 'running' }), 'err');
+  assert.equal(T.taskDot('impl', { synth: null, bitgen: 'ok' }), 'ok');
+  assert.equal(T.taskDot('emu', { check: 'ok', synth: 'ok' }), null);
+  assert.equal(T.taskDot('prog', { bitgen: 'ok' }), null);
+});
+
+test('tasks.css: its rules apply in the Tasks interface only (or to its own elements), with the modern look\'s colours', () => {
+  const css = fs.readFileSync(path.join(ROOT, 'web/css/tasks.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+  const parts = (sel) => { const out = []; let depth = 0, cur = ''; for (const c of sel) { if (c === ',' && !depth) { out.push(cur.trim()); cur = ''; continue; } depth += c === '(' ? 1 : c === ')' ? -1 : 0; cur += c; } out.push(cur.trim()); return out; };
+  const selectors = [...css.matchAll(/(^|[{}])\s*([^{}@][^{}]*)\{/g)].map((m) => m[2].trim()).filter((x) => x && !x.startsWith('@'));
+  assert.ok(selectors.length > 20);
+  const own = /^(html\[data-layout="tasks"\]|#task-|\.task-)/;
+  assert.deepEqual(selectors.filter((sel) => !parts(sel).every((p) => own.test(p))), []);
+  // its own elements are hidden in the other interfaces
+  assert.match(css, /#task-switch, #task-tabs, #task-bar, #task-empty \{ display: none; \}/);
+  // colours: the modern look's tokens only (light and dark), no colour written here
+  assert.deepEqual(css.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g), null);
+});
+
+test('index.html: the Tasks interface before the first paint (data-ui modern, data-layout tasks), its stylesheet', () => {
+  const html = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
+  assert.match(html, /<link rel="stylesheet" href="\/css\/modern.css">\n<link rel="stylesheet" href="\/css\/tasks.css">/);
+  const script = html.slice(html.indexOf('<script>'), html.indexOf('</script>'));
+  // run the early script with each kept interface: the attributes it puts on <html>
+  const run = (ui) => {
+    const attrs = {};
+    const d = { setAttribute: (k, v) => { attrs[k] = v; } };
+    const store = { 'silinx.ui': ui, 'silinx.theme': 'dark' };
+    new Function('document', 'localStorage', 'window', 'matchMedia', script.replace('<script>', ''))(
+      { documentElement: d }, { getItem: (k) => store[k] ?? null }, {}, () => ({ matches: false }));
+    return attrs;
+  };
+  assert.deepEqual(run('tasks'), { 'data-ui': 'modern', 'data-layout': 'tasks', 'data-theme': 'dark', 'data-drawer': 'open' });
+  assert.deepEqual(run('modern'), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
+  assert.deepEqual(run('classic'), { 'data-ui': 'classic', 'data-theme': 'light', 'data-drawer': 'open' });
+  assert.deepEqual(run('retro'), { 'data-ui': 'modern', 'data-theme': 'dark', 'data-drawer': 'open' });
+});

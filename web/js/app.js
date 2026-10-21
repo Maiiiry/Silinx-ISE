@@ -10,6 +10,7 @@ import { PRODUCT, VERSION_LABEL } from '/core/version.js';
 import { startI18n, t } from './i18n.js';
 import { applyPrefs, toggleTheme } from './modern.js';
 import { initDrawer, drawerGiveWay, leftTabClicked } from './narrow.js';
+import { initTasks } from './tasks.js';
 import { createHistory } from './history.js';
 import { viewHdl } from '/core/view-hdl.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
@@ -872,6 +873,7 @@ async function boot() {
   $('theme-btn').addEventListener('click', () => toggleTheme());
   $('title-project').addEventListener('click', () => wiz.openProjectDialog());
   document.querySelectorAll('#left-tabs .tab').forEach(t => t.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); t.click(); } }));
+  initTasks(app);   // the Tasks interface's switchers and bar (built in every interface, shown in that one: #804)
   for (const ev of ['click', 'keyup']) addEventListener(ev, () => setTimeout(refreshSteps), true);
   setInterval(refreshSteps, 1000);
   addEventListener('keydown', e => {

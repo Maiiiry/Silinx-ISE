@@ -1,0 +1,88 @@
+/* The Tasks interface (#804, web/js/tasks.js): the modern look (modern.css, data-ui="modern") with a
+   layout of its own under <html data-layout="tasks">: the task switcher in the header (the tab bar at
+   the bottom of a narrow screen), the current task's documents only (data-task), the side panel and the
+   messages folded or open (data-side, data-console), a maximized document (data-max). */
+
+#task-switch, #task-tabs, #task-bar, #task-empty { display: none; }
+html[data-layout="tasks"] #ws-empty { display: none !important; }
+
+/* ------------------------------------------------------------------ the task switcher */
+html[data-layout="tasks"] #title-brand { display: none; }
+html[data-layout="tasks"] #task-switch { display: flex; gap: 2px; padding: 3px; margin: 0 auto; flex: none;
+  background: var(--m-surface-2); border: 1px solid var(--m-border); border-radius: 10px; }
+.task-btn { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border: none; border-radius: 7px;
+  background: none; color: var(--m-muted); font: inherit; font-weight: 550; white-space: nowrap; cursor: pointer; }
+.task-btn:hover { background: var(--m-hover); color: var(--m-fg); }
+.task-btn[aria-current="true"] { background: var(--m-surface); color: var(--m-accent); box-shadow: var(--m-shadow); font-weight: 650; }
+.task-btn .ico-inline { width: 16px; height: 16px; margin: 0; }
+.task-btn .ico-inline svg { width: 16px; height: 16px; }
+.task-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: none; }
+.task-dot[data-state="ok"] { display: inline-block; background: var(--m-success); }
+.task-dot[data-state="warn"] { display: inline-block; background: var(--m-warning); }
+.task-dot[data-state="err"] { display: inline-block; background: var(--m-danger); }
+.task-dot[data-state="stale"] { display: inline-block; background: transparent; border: 1.5px solid var(--m-warning); }
+.task-dot[data-state="running"] { display: inline-block; background: var(--m-accent); }
+/* the search box: its icon only below a lab desktop's width */
+@media (max-width: 1599px) {
+  html[data-layout="tasks"] .m-search { width: 32px; padding: 0; justify-content: center; }
+  html[data-layout="tasks"] .m-search-text, html[data-layout="tasks"] #palette-kbd { display: none; }
+}
+@media (max-width: 1439px) {
+  html[data-layout="tasks"] .menubar .item { padding: 0 7px; }
+  html[data-layout="tasks"] #task-switch .task-btn { padding: 0 9px; gap: 6px; }
+  html[data-layout="tasks"] #topbar { gap: 6px; }
+}
+/* below a laptop's width: the current task's label only (the others' in their tip) */
+@media (max-width: 1279px) {
+  html[data-layout="tasks"] #task-switch .task-btn:not([aria-current="true"]) .lbl { display: none; }
+  html[data-layout="tasks"] #title-project { max-width: 120px; }
+}
+
+/* ------------------------------------------------------------------ the task's bar (the toolbar's right end) */
+html[data-layout="tasks"] .m-steps { display: none; }
+html[data-layout="tasks"] #task-bar { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+html[data-layout="tasks"] #task-bar .tb-btn[aria-pressed="true"] { background: var(--m-accent-soft); color: var(--m-accent); }
+html[data-layout="tasks"] #task-bar .tb-btn svg { width: 18px; height: 18px; }
+html[data-layout="tasks"] #task-bar .task-main { margin-left: 8px; }
+
+/* ------------------------------------------------------------------ the current task's documents only */
+html[data-layout="tasks"][data-task="edit"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="edit"]),
+html[data-layout="tasks"][data-task="sim"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="sim"]),
+html[data-layout="tasks"][data-task="emu"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="emu"]),
+html[data-layout="tasks"][data-task="impl"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="impl"]),
+html[data-layout="tasks"][data-task="prog"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="prog"]) { display: none !important; }
+/* a task with no document: what it does and its action */
+html[data-layout="tasks"] #task-empty:not([hidden]) { display: flex; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center;
+  gap: 8px; padding: 24px; color: var(--m-muted); text-align: center; }
+#task-empty .ico { width: 44px; height: 44px; color: var(--m-accent); }
+#task-empty .ico svg { width: 44px; height: 44px; }
+#task-empty h2 { margin: 0; font-size: 20px; font-weight: 650; color: var(--m-fg); }
+#task-empty p { margin: 0 0 8px; max-width: 420px; text-wrap: balance; }
+
+/* ------------------------------------------------------------------ folded panels, a maximized document */
+@media (min-width: 1025px) {
+  html[data-layout="tasks"][data-side="folded"] #left { width: auto !important; min-width: 0; }
+  html[data-layout="tasks"][data-side="folded"] :is(#left-pages, #v-split) { display: none; }
+}
+html[data-layout="tasks"][data-console="folded"] #console-wrap { height: auto !important; }
+html[data-layout="tasks"][data-console="folded"] :is(#console-wrap > .body, #console-wrap > .caption, #h-split) { display: none; }
+html[data-layout="tasks"][data-console="folded"] #console-tabs .tab.active { background: none; font-weight: 500; color: var(--m-muted); }
+html[data-layout="tasks"][data-max="on"] :is(#left, #v-split, #h-split, #console-wrap, #drawer-scrim) { display: none !important; }
+
+/* ------------------------------------------------------------------ a narrow screen: the tab bar at the bottom */
+@media (max-width: 1024px) {
+  html[data-layout="tasks"] #task-switch { display: none; }
+  html[data-layout="tasks"] #task-tabs { display: flex; justify-content: space-around; flex: none; padding: 4px 4px 6px; gap: 2px;
+    background: var(--m-surface); border-top: 1px solid var(--m-border); }
+  html[data-layout="tasks"] #task-tabs .task-btn { flex: 1 1 0; min-width: 0; flex-direction: column; height: 52px; gap: 3px; padding: 4px 2px; font-size: 12px; box-shadow: none; }
+  html[data-layout="tasks"] #task-tabs .task-btn[aria-current="true"] { background: var(--m-accent-soft); }
+  html[data-layout="tasks"] #task-tabs .task-btn .ico-inline, html[data-layout="tasks"] #task-tabs .task-btn .ico-inline svg { width: 22px; height: 22px; }
+  html[data-layout="tasks"] #task-tabs .task-dot { position: absolute; top: 6px; right: calc(50% - 18px); }
+  html[data-layout="tasks"] #task-tabs .lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+}
+/* touch: targets of 40 px or more */
+@media (pointer: coarse) {
+  html[data-layout="tasks"] #task-switch .task-btn { height: 40px; }
+  html[data-layout="tasks"] #task-bar .tb-btn { width: 40px; height: 40px; }
+  html[data-layout="tasks"] #task-bar .task-main { height: 40px; }
+}

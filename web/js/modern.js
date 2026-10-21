@@ -1,14 +1,16 @@
-// Silinx interfaces: the modern interface (default) or the classic Xilinx ISE one, the colour theme
+// Silinx interfaces: the modern interface (default), the classic Xilinx ISE one or the Tasks one, the colour theme
 // of the modern interface (follows the system, light or dark) and the command palette (Ctrl+K / Cmd+K):
 // every menu command and every project file, searched by name.
 //
 // The two interfaces share the same page and element ids (web/index.html): the modern one is
-// web/css/modern.css, applied under <html data-ui="modern">, with the theme in data-theme.
+// web/css/modern.css, applied under <html data-ui="modern">, with the theme in data-theme. The Tasks
+// interface (#804, web/js/tasks.js) has the modern look and a layout of its own: data-ui="modern" and
+// data-layout="tasks".
 // The palette's matching (fuzzyScore, rankEntries, menuCommands) has no DOM and is unit tested.
 
 export const UI_KEY = 'silinx.ui';
 export const THEME_KEY = 'silinx.theme';
-export const INTERFACES = ['modern', 'classic'];
+export const INTERFACES = ['modern', 'classic', 'tasks'];
 export const THEMES = ['system', 'light', 'dark'];
 
 const store = () => { try { return globalThis.localStorage || null; } catch { return null; } };
@@ -30,12 +32,14 @@ const listeners = new Set();
 /** Call fn({ ui, theme, shown }) after every change of interface or theme. */
 export function onPrefsChange(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
-/** Puts the preferences on <html>: data-ui (modern | classic) and data-theme (light | dark). */
+/** Puts the preferences on <html>: data-ui (modern | classic: the look), data-layout (tasks, or none) and
+ *  data-theme (light | dark). */
 export function applyPrefs(root = document.documentElement) {
   const ui = getInterface();
   const theme = getTheme();
-  const shown = ui === 'modern' ? effectiveTheme(theme, !!darkQuery()?.matches) : 'light';   // the ISE look is light only
-  root.dataset.ui = ui;
+  const shown = ui !== 'classic' ? effectiveTheme(theme, !!darkQuery()?.matches) : 'light';   // the ISE look is light only
+  root.dataset.ui = ui === 'tasks' ? 'modern' : ui;
+  if (ui === 'tasks') root.dataset.layout = 'tasks'; else delete root.dataset.layout;
   root.dataset.theme = shown;
   root.style.colorScheme = shown;
   for (const fn of [...listeners]) { try { fn({ ui, theme, shown }); } catch (e) { console.error(e); } }

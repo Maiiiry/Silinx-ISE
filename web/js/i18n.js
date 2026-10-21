@@ -293,6 +293,14 @@ const PT = {
   'Error': 'Erro', 'Warning': 'Aviso', 'Note': 'Nota', 'Failure': 'Falha', 'Running': 'Em curso', 'Running...': 'Em curso...', 'Other': 'Outro',
   'not available': 'indisponível', 'not found': 'não encontrado', 'see log': 'ver registo', 'Exported .xise': '.xise exportado',
 
+  // the Tasks interface (web/js/tasks.js, #804): View ▸ Interface ▸ Tasks, the task switcher, the task's bar
+  'Tasks': 'Tarefas', 'Task': 'Tarefa', 'Show or hide the side panel': 'Mostrar ou esconder o painel lateral',
+  'Show or hide the messages': 'Mostrar ou esconder as mensagens', 'Maximize the document (double-click its tab)': 'Maximizar o documento (duplo clique no separador)',
+  'Open a source from the Design panel, or check the design.': 'Abra uma fonte no painel Projeto, ou verifique o projeto.',
+  'Simulate the design: its waves open here.': 'Simule o projeto: as formas de onda abrem aqui.',
+  'Emulate the design on the board: the board opens here.': 'Emule o projeto na placa: a placa abre aqui.',
+  'Implement the design: synthesis, place & route and the programming file.': 'Implemente o projeto: síntese, place & route e o ficheiro de programação.',
+  'Program the board: the FPGA, or its flash to keep the design.': 'Programe a placa: a FPGA, ou a sua flash para guardar o projeto.',
   // modern interface (web/js/modern.js, web/js/palette.js): View ▸ Interface / Theme, header, design flow, command palette
   'Interface': 'Interface', 'Modern': 'Moderna', 'Xilinx ISE (Classic)': 'Xilinx ISE (Clássica)',
   'Theme': 'Tema', 'System': 'Sistema', 'Light': 'Claro', 'Dark': 'Escuro', 'Command Palette…': 'Paleta de Comandos…',

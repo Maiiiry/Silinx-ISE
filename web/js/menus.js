@@ -80,9 +80,10 @@ export function setupMenus() {
       { label: 'Interface', submenu: [
         { label: 'Modern', checked: getInterface() === 'modern', action: () => setInterface('modern') },
         { label: 'Xilinx ISE (Classic)', checked: getInterface() === 'classic', action: () => setInterface('classic') },
+        { label: 'Tasks', checked: getInterface() === 'tasks', action: () => setInterface('tasks') },
       ] },
       // the classic ISE look is light only
-      getInterface() === 'modern' ? { label: 'Theme', submenu: [
+      getInterface() !== 'classic' ? { label: 'Theme', submenu: [
         { label: 'System', checked: getTheme() === 'system', action: () => setTheme('system') },
         { label: 'Light', checked: getTheme() === 'light', action: () => setTheme('light') },
         { label: 'Dark', checked: getTheme() === 'dark', action: () => setTheme('dark') },
@@ -178,7 +179,7 @@ export function setupToolbar() {
   );
   // the modern interface: the main steps of the design flow as labelled buttons
   const step = (ico, label, title, fn, enabled) => {
-    const b = h('button', { class: 'm-step', title, onclick: () => enabled() && fn() }, h('span', { class: 'ico-inline', html: icons[ico] }), h('span', {}, label));
+    const b = h('button', { class: 'm-step', title, 'data-step': label.toLowerCase(), onclick: () => enabled() && fn() }, h('span', { class: 'ico-inline', html: icons[ico] }), h('span', {}, label));
     b._enabled = enabled;
     return b;
   };

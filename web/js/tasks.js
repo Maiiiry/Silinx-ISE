@@ -1,0 +1,259 @@
+// The Tasks interface (#782, #804): a third interface beside the modern and the classic ones, organised
+// around the five tasks of a lab session: Edit, Simulate, Emulate, Implement, Program. It has the modern
+// look (<html data-ui="modern">) and a layout of its own (data-layout="tasks", web/css/tasks.css):
+// - a task switcher in the header (a tab bar at the bottom of a narrow screen, NARROW_QUERY), each task
+//   with a state dot from its processes' status;
+// - each task with its own arrangement, kept per viewer (localStorage TASKS_KEY): the side panel open or
+//   folded into the activity bar (on a narrow screen: the drawer, closed), the messages open or folded to
+//   their tabs, a document maximized or not, and its documents (the tabs of the other tasks are hidden),
+//   the last one in front; a document brought to the front makes its task the current one;
+// - the task's bar (the toolbar's right end): the fold and maximize buttons and the task's main action
+//   (the modern toolbar's design-flow buttons, [data-step]), also offered when the task has no document.
+// A document is maximized by double-clicking its tab, Ctrl/Cmd+Shift+Enter or the bar's button.
+// The task of a document, the arrangements and the kept state (taskOfDoc, arrangement, readState,
+// taskDot) have no DOM and are unit tested (test/tasks.test.js).
+
+import { h } from './ui.js';
+import { icons } from './icons.js';
+import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
+
+export const TASKS = ['edit', 'sim', 'emu', 'impl', 'prog'];
+export const TASK_LABEL = { edit: 'Edit', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
+export const TASKS_KEY = 'silinx.tasks';
+// the design-flow button of the modern toolbar (web/js/menus.js, data-step) each task runs
+const STEP = { edit: 'check', sim: 'simulate', emu: 'emulate', impl: 'implement', prog: 'program' };
+const ACTION = { edit: 'Check', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
+const HINT = {
+  edit: 'Open a source from the Design panel, or check the design.',
+  sim: 'Simulate the design: its waves open here.',
+  emu: 'Emulate the design on the board: the board opens here.',
+  impl: 'Implement the design: synthesis, place & route and the programming file.',
+  prog: 'Program the board: the FPGA, or its flash to keep the design.',
+};
+const L = body => `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+const ICON = {
+  edit: L('<path d="M4 20l1.2-4.8L15.5 4.9a2.1 2.1 0 0 1 3 3L8.2 18.2z"/><path d="M14 6.5l3.5 3.5"/>'),
+  sim: icons.mWave, emu: icons.mBoard, impl: icons.mBolt, prog: icons.mUpload,
+  max: L('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'),
+  side: icons.mPanel,
+  msgs: L('<path d="M4 4h16v12H9l-5 4z"/>'),
+};
+
+// the side panel and the messages of a task the first time (the task in front gets the space)
+const DEFAULTS = {
+  edit: { side: true, console: true },
+  sim: { side: false, console: false },
+  emu: { side: false, console: false },
+  impl: { side: true, console: true },
+  prog: { side: false, console: true },
+};
+
+/** The task a document belongs to, by its id (web/js/app.js openDoc and its callers). */
+export function taskOfDoc(id) {
+  const s = String(id || '');
+  if (s === 'isim') return 'sim';
+  if (s === 'emulator') return 'emu';
+  if (s === 'impact') return 'prog';
+  if (/^(summary|pins|fpgaview)$/.test(s) || /^(text|tech):/.test(s)) return 'impl';
+  return 'edit';
+}
+
+/** The kept state (TASKS_KEY's JSON) checked: { task, tasks: { <task>: { side?, console?, max?, doc? } } }. */
+export function readState(raw) {
+  let v = null;
+  try { v = JSON.parse(raw); } catch { /* none kept, or not ours */ }
+  const out = { task: TASKS.includes(v?.task) ? v.task : 'edit', tasks: {} };
+  for (const t of TASKS) {
+    const k = v?.tasks?.[t] || {}, a = {};
+    for (const f of ['side', 'console', 'max']) if (typeof k[f] === 'boolean') a[f] = k[f];
+    if (typeof k.doc === 'string') a.doc = k.doc;
+    out.tasks[t] = a;
+  }
+  return out;
+}
+
+/** A task's arrangement: what the viewer left, else its defaults; on a narrow screen the side panel
+ *  is the drawer, closed when the task comes to the front (the document first). */
+export function arrangement(task, kept = {}, narrow = false) {
+  const a = { ...DEFAULTS[task], max: false, ...kept };
+  if (narrow) a.side = false;
+  return a;
+}
+
+const RANK = { err: 4, running: 3, stale: 2, warn: 1, ok: 0 };
+/** A task's state dot from the processes' status (S.status): 'err' | 'running' | 'stale' | 'warn' | 'ok' | null. */
+export function taskDot(task, status = {}) {
+  const ids = { edit: ['check'], sim: ['sim-check'], impl: ['synth', 'synth-open', 'translate', 'map', 'par', 'bitgen'] }[task] || [];
+  let worst = null;
+  for (const id of ids) { const s = status[id]; if (s in RANK && (worst === null || RANK[s] > RANK[worst])) worst = s; }
+  return worst;
+}
+
+// ------------------------------------------------------------------ the page
+const root = () => document.documentElement;
+const on = () => root().dataset.layout === 'tasks';
+let app = null, state = readState(null), lastActive = null;
+
+function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } }
+function load() { try { state = readState(localStorage.getItem(TASKS_KEY)); } catch { state = readState(null); } }
+const current = () => state.task;
+const arr = (t = current()) => arrangement(t, state.tasks[t], isNarrow());
+/** Changes the current task's arrangement (`patch`: side, console, max), kept. */
+function arrange(patch) { Object.assign(state.tasks[current()], patch); keep(); apply(); }
+
+/** The task in front (`t`), its arrangement and its document; `fromDoc`: its document is already in front. */
+export function setTask(t, { fromDoc = false } = {}) {
+  if (!TASKS.includes(t)) return;
+  state.task = t;
+  keep();
+  if (!fromDoc && isNarrow() && drawerOpen()) setDrawer(false, { remember: false });   // (a task chosen: its document first)
+  if (!fromDoc && app) {
+    const S = app.S, docs = S.docs.filter(d => taskOfDoc(d.id) === t);
+    const want = docs.find(d => d.id === state.tasks[t].doc) || docs.at(-1);
+    if (want && want !== S.active) app.openDoc({ id: want.id });
+    // the task's own page, cheap to open: the Design Summary, iMPACT
+    else if (!want && S.project && t === 'impl') app.openSummary();
+    else if (!want && S.project && t === 'prog') app.openImpact();
+  }
+  apply();
+}
+
+/** Puts the current task and its arrangement on the page. */
+function apply() {
+  const r = root();
+  if (!on()) { if (document.getElementById('task-bar')) { unbuild(); dispatchEvent(new Event('resize')); } return; }
+  build();
+  const t = current(), a = arr(t);
+  r.dataset.task = t;
+  r.dataset.side = a.side ? 'open' : 'folded';
+  r.dataset.console = a.console ? 'open' : 'folded';
+  r.dataset.max = a.max ? 'on' : 'off';
+  for (const b of document.querySelectorAll('.task-btn')) b.setAttribute('aria-current', String(b.dataset.task === t));
+  const bar = document.getElementById('task-bar');
+  if (bar) {
+    bar.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() ? drawerOpen() : a.side));
+    bar.querySelector('[data-act=console]').setAttribute('aria-pressed', String(a.console));
+    bar.querySelector('[data-act=max]').setAttribute('aria-pressed', String(a.max));
+    const main = bar.querySelector('[data-act=main]');
+    main.querySelector('.lbl').textContent = ACTION[t];
+    main.title = ACTION[t];
+    main.querySelector('.ico-inline').innerHTML = ICON[t];
+  }
+  tagDocs();
+  // (the editors, the waves and the board measure their space again)
+  dispatchEvent(new Event('resize'));
+}
+
+// each document and its tab say their task (the CSS shows the current task's only)
+function tagDocs() {
+  const S = app?.S;
+  if (!S) return;
+  let mine = 0;
+  for (const d of S.docs) {
+    const t = taskOfDoc(d.id);
+    if (d.el.dataset.task !== t) d.el.dataset.task = t;
+    if (d.tab.dataset.task !== t) d.tab.dataset.task = t;
+    if (t === current()) mine++;
+  }
+  const empty = document.getElementById('task-empty');
+  if (empty) {
+    empty.hidden = !on() || mine > 0;
+    empty.querySelector('h2').textContent = TASK_LABEL[current()];
+    empty.querySelector('p').textContent = HINT[current()];
+    empty.querySelector('.ico').innerHTML = ICON[current()];
+    const go = empty.querySelector('button');
+    go.textContent = ACTION[current()];
+    go.disabled = !stepButton()?._enabled?.();
+  }
+}
+
+const stepButton = (t = current()) => document.querySelector(`#toolbar .m-step[data-step="${STEP[t]}"]`);
+/** The current task's main action: the design-flow button of the modern toolbar. */
+function runMain() { const b = stepButton(); if (b && !b.disabled && b._enabled?.() !== false) b.click(); }
+
+// a document brought to the front: its task comes to the front; the task remembers it
+function followActive() {
+  const d = app?.S.active;
+  if (!on()) return;
+  if (!d || d === lastActive) { tagDocs(); return; }
+  lastActive = d;
+  const t = taskOfDoc(d.id);
+  state.tasks[t].doc = d.id;
+  keep();
+  if (t !== current()) setTask(t, { fromDoc: true }); else tagDocs();
+}
+
+function refreshDots() {
+  const st = app?.S.status || {};
+  for (const b of document.querySelectorAll('.task-btn')) {
+    const dot = taskDot(b.dataset.task, st);
+    const el = b.querySelector('.task-dot');
+    if (el.dataset.state !== (dot || '')) el.dataset.state = dot || '';
+  }
+}
+
+function taskButton(t) {
+  return h('button', { class: 'task-btn', type: 'button', 'data-task': t, title: TASK_LABEL[t], onclick: () => setTask(t) },
+    h('span', { class: 'ico-inline', html: ICON[t] }), h('span', { class: 'lbl' }, TASK_LABEL[t]), h('span', { class: 'task-dot' }));
+}
+
+// the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
+// only (the other interfaces' pages, their tests and their translations do not have them)
+const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty'];   // (their ids)
+function build() {
+  const $ = id => document.getElementById(id);
+  if ($('task-bar')) return;
+  $('menubar').after(h('nav', { id: 'task-switch', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
+  $('statusbar').before(h('nav', { id: 'task-tabs', class: 'task-switch', 'aria-label': 'Tasks' }, ...TASKS.map(taskButton)));
+  const tb = (act, title, ico) => h('button', { class: 'tb-btn', type: 'button', 'data-act': act, title, 'aria-label': title, html: ICON[ico] });
+  $('toolbar').append(h('div', { id: 'task-bar', role: 'group', 'aria-label': 'Task' },
+    tb('side', 'Show or hide the side panel', 'side'),
+    tb('console', 'Show or hide the messages', 'msgs'),
+    tb('max', 'Maximize the document (double-click its tab)', 'max'),
+    Object.assign(h('button', { class: 'm-step task-main', type: 'button', 'data-act': 'main', onclick: runMain }, h('span', { class: 'ico-inline' }), h('span', { class: 'lbl' })),
+      { _enabled: () => !!stepButton()?._enabled?.() })));   // (disabled as its design-flow button: menus.js refreshSteps)
+  $('task-bar').addEventListener('click', e => {
+    const act = e.target.closest('[data-act]')?.dataset.act;
+    if (act === 'side') { if (isNarrow()) { setDrawer(!drawerOpen()); apply(); } else arrange({ side: !arr().side }); }
+    else if (act === 'console') arrange({ console: !arr().console });
+    else if (act === 'max') arrange({ max: !arr().max });
+  });
+  $('workspace').append(h('div', { id: 'task-empty', hidden: true },
+    h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain })));
+  refreshDots();
+}
+function unbuild() {
+  for (const id of PARTS) document.getElementById(id)?.remove();
+  const r = root();
+  for (const k of ['task', 'side', 'console', 'max']) delete r.dataset[k];
+}
+
+/** The Tasks interface's behaviour; its parts are built while it is the interface. `a` is the app (web/js/app.js). */
+export function initTasks(a) {
+  app = a;
+  load();
+  const $ = id => document.getElementById(id);
+  // a folded side panel or messages open again when one of their tabs is clicked
+  $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) arrange({ side: true }); });
+  $('console-tabs').addEventListener('click', () => { if (on() && !arr().console) arrange({ console: true }); });
+  // new errors open the messages (Check Syntax shows the Errors tab)
+  let errs = 0;
+  new MutationObserver(() => {
+    const n = parseInt($('err-count').textContent, 10) || 0;
+    if (on() && n > errs && !arr().console) arrange({ console: true });
+    errs = n;
+  }).observe($('err-count'), { childList: true, characterData: true, subtree: true });
+  // maximize: a document's tab double-clicked, or Ctrl/Cmd+Shift+Enter
+  $('doc-tabs').addEventListener('dblclick', e => { if (on() && e.target.closest('.tab') && !e.target.closest('.tclose')) arrange({ max: !arr().max }); });
+  addEventListener('keydown', e => {
+    if (on() && (e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter' && !document.querySelector('.dlg-overlay')) { e.preventDefault(); arrange({ max: !arr().max }); }
+  });
+  // the documents: opened, closed, brought to the front
+  new MutationObserver(followActive).observe($('doc-tabs'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(refreshDots).observe($('procs'), { childList: true, subtree: true });
+  // the interface switched (View ▸ Interface), or a narrow screen turned wide
+  new MutationObserver(apply).observe(root(), { attributes: true, attributeFilter: ['data-layout'] });
+  globalThis.matchMedia?.('(max-width: 1024px)').addEventListener?.('change', apply);
+  setInterval(() => { if (on()) { refreshDots(); const g = document.querySelector('#task-empty button'); if (g) g.disabled = !stepButton()?._enabled?.(); } }, 1000);
+  apply();
+}
