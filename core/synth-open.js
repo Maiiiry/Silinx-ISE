@@ -757,13 +757,14 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * written as gates also has its adders' carry chains recovered (#77, #377), the faster netlist kept. At High a
  * design whose state machines of FSM_RULE.states states or more the init values keep out of Yosys's fsm is
  * synthesized once more with them one-hot (#539, core/synth-fsm.js), that netlist kept when better by DEPTH_RULE:
- * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it). With High's
- * mappings, a design whose usual run left memories to logic is synthesized once more with them as distributed RAM
- * (#54, LUTRAM_COST), its netlist of fewest slices no slower than the one chosen kept: r.depth.lutram { memories, left (those
- * still in logic), netlist (the name of the candidate shown: usual, wide, depth, second, delays, third, lut4, abc9; null, the
- * variant's own choice), ns, luts, slices, kept }.
+ * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it). A design
+ * whose usual run left memories written to in logic is synthesized once more with them as distributed RAM (#54, LUTRAM_COST),
+ * High's mappings made from it (at Normal without them: its usual mapping and the one balanced onto LUT4s alone), its netlist
+ * of fewest slices no slower than the one chosen kept: r.depth.lutram { memories, left (those still in logic), netlist (the
+ * name of the candidate shown: usual, wide, depth, second, delays, third, lut4, abc9; null, the variant's own choice), ns,
+ * luts, slices, kept } (lutram: false leaves it out).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true, lutram: withLutram = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
@@ -1159,9 +1160,10 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     }
     res.info.fsm = fsmInfo;
   }
-  if (highMappings && memories) {
+  if (withLutram && memories && (highMappings || (depth && lut4))) {
     // the memories as distributed RAM (#54, LUTRAM_COST), when the usual run left some to logic: the design synthesized
-    // again so and, when that took some of them, High's mappings from its netlist. A mapping for size: of its
+    // again so and, when that took some of them, High's mappings from its netlist (at Normal, a design that gets none
+    // of them: its usual mapping and the one balanced onto LUT4s alone, High's smallest balancing, #370). A mapping for size: of its
     // netlists, those kept by DEPTH_RULE against the netlist chosen and no slower than it by the estimate (the rule's
     // slack), the one with the fewest slices; else its own choice, when better by DEPTH_RULE (the T80: the second
     // balancing chosen, 10 % faster by the estimate than the one onto LUT4s alone and 17 % more slices, routed
@@ -1171,7 +1173,18 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     try {
       const outR = await run(['-q', '-p', yosysScript(top, family, { ...opts, lutram: true })], yosysFiles(top, text), l => { if (!quiet(l)) linesR.push(l); });
       left = logicMemories(outR);
-      if (left !== null && left < memories) resR = await withDepth(outR, () => {}, linesR, { measured: true });
+      if (left !== null && left < memories && highMappings) resR = await withDepth(outR, () => {}, linesR, { measured: true });
+      else if (left !== null && left < memories) {
+        const linesB = [];
+        const outB = await run(['-q', '-p', `${remapCommands(top, family, { luts: LUT4_ONLY })}; ${outputs(top)}`], { [PREMAP_FILE]: asText(outR[PREMAP_FILE]), [DEPTH_ABC_FILE]: DEPTH_ABC2 },
+          l => { if (!quiet(l)) linesB.push(l); });
+        const measure = (name, o, lines) => {
+          const j = o[`${top}.json`], c = cellCounts(j, top);
+          return { name, out: o, lines, cells: c, ns: criticalDelay(j, top), luts: utilization(c).luts, slices: sliceCount(j, top) };
+        };
+        const pool = [measure('usual', outR, []), ...(outB[`${top}.json`] ? [measure('lut4', outB, linesB)] : [])];
+        resR = { chosen: outR, cells: pool[0].cells, info: res.info, ns: pool[0].ns, slices: () => pool[0].slices, pool };
+      }
     } catch (e) { failed = e.message; }
     const lutsOf = r => utilization(r.cells).luts;
     const keeps = c => keepDepth([res.ns, c.ns], [lutsOf(res), c.luts], DEPTH_RULE, [res.slices(), c.slices]);
