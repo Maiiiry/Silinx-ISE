@@ -33,17 +33,23 @@ export function mountSummary(el) {
       row('Product Version:', `${PRODUCT} ${VERSION_LABEL} (${open ? 'Silinx toolchain, no ISE' : 'Xilinx ISE 14.7 flow'})`, 'Constraints:', pj.constraints || '(none)'),
       row('Design Goal:', `Balanced (${pj.impl?.optMode || 'Speed'})`, 'Sources:', `${pj.files.length} HDL files`),
     ));
-    // utilization (from the MAP report when available)
-    const tbl = h('table', { class: 'summary-table' }, h('caption', {}, `Device Utilization Summary${rep?.map ? (open ? ' (Silinx toolchain)' : '') : ' (not yet implemented)'}`),
+    // utilization: every resource of the part (core/resources.js, #790), used of available (#795): MAP's report's
+    // lines (and the part's resources it does not list, ISE's leaves the unused ones out), or before an
+    // implementation the synthesis's (the Silinx toolchain's), or the part's counts alone
+    const syn = open ? (rep?.synthesis?.utilization || []).filter(u => u.total) : [];
+    const caption = rep?.map ? (open ? ' (Silinx toolchain)' : '') : syn.length ? ' (after synthesis)' : ' (not yet implemented)';
+    const tbl = h('table', { class: 'summary-table' }, h('caption', {}, `Device Utilization Summary${caption}`),
       h('tr', {}, h('th', {}, 'Logic Utilization'), h('th', {}, 'Used'), h('th', {}, 'Available'), h('th', {}, 'Utilization'), h('th', {}, '')));
+    const res = part ? resourcesOf(part, pj.device.package).filter(r => r.report && r.count) : [];
     let lines = (rep?.map?.utilization || []).filter(u => u.total).map(u => [u.name, u.used, u.total, u.percent]);
-    if (!lines.length && part) {
-      // the part's resources (core/resources.js, #790): the MAP report's lines, those the part has
-      lines = resourcesOf(part, pj.device.package).filter(r => r.report && r.count).map(r => [r.report, '-', r.count]);
+    if (lines.length) lines.push(...res.filter(r => !lines.some(l => l[0] === r.report)).map(r => [r.report, 0, r.count]));
+    else {
+      const used = r => syn.find(u => u.id === r.id || u.name === r.report)?.used ?? (syn.length && r.id !== 'slices' ? 0 : '-');
+      lines = res.map(r => [r.report, used(r), r.count]);
     }
     for (const [k, used, avail, pc] of lines) {
       const p = typeof used === 'number' ? (pc ?? pct(used, avail)) : null;
-      tbl.append(h('tr', {}, h('td', {}, k), h('td', { class: 'num' }, used), h('td', { class: 'num' }, avail ?? ''), h('td', { class: 'num' }, p === null ? '' : `${p}%`),
+      tbl.append(h('tr', {}, h('td', {}, k), h('td', { class: 'num' }, used), h('td', { class: 'num' }, avail ?? ''), h('td', { class: p > 100 ? 'num status-bad' : 'num' }, p === null ? '' : `${p}%`),
         h('td', {}, p === null ? '' : h('span', { class: 'util-bar' }, h('div', { style: { width: `${Math.min(100, p)}%` } })))));
     }
     page.append(tbl);

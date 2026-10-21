@@ -184,7 +184,9 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
   await page.waitConsole(/=== SILINX DONE ===/, { timeout: 120000 });
   await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished', timeout: 30000 });
   const log = await page.consoleText();
-  for (const re of [/=== SILINX STEP synth ===/, /=== SILINX STEP par ===/, /=== SILINX STEP bitgen ===/, /Bitstream: build\/top\.bit/, /Bitstream downloaded: top\.bit/])
+  // (the synthesis's and MAP's resources used of the XC3S250E's, #795)
+  for (const re of [/=== SILINX STEP synth ===/, / {2}Number of 4 input LUTs: \d+ out of 4896 \d+%\n {2}Number of Slice Flip Flops: \d+ out of 4896 \d+%/, / {2}Number of RAMB16s: 0 out of 12 0%/,
+    /=== SILINX STEP par ===/, /=== SILINX STEP bitgen ===/, /Bitstream: build\/top\.bit/, /Bitstream downloaded: top\.bit/])
     assert.match(log, re);
   assert.doesNotMatch(log, /SILINX FAILED|Process failed/);
   // the bitstream is downloaded

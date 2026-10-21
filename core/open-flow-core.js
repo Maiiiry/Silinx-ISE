@@ -14,13 +14,16 @@
 //                                      the Design Summary shows it (build/open/…, build/top.bit)
 //   io.read(name)                      a file written by an earlier run (or null)
 //   io.save(report)                    the report so far (after every step: the Design Summary)
+// spec.resources: the part's resources (core/resources.js resourcesOf(part, pkg)), for the synthesis's used of
+// available and its check (#795); without them the synthesis gives the used ones only.
 // Prints "=== SILINX STEP <step> ===" before each step, "=== SILINX FAILED <step> (exit 1) ===" and the
 // ERROR lines when one fails, "=== SILINX DONE ===" at the end (the protocol of ISE's run.sh).
 // Returns { ok, report }.
 import { compile, elaborate } from './compile.js';
 import { primitiveSources } from './unisim.js';
 import { dutGenerics, scalarVerilog, postSynthesisModels, postTranslateModels, postMapModels, postParModels } from './sim-model.js';
-import { synthesizeOpen } from './synth-open.js';
+import { synthesizeOpen, cellCounts } from './synth-open.js';
+import { usedOfPrimitives, overResources, overMessage } from './resource-check.js';
 import { parseXdl, writeXdl, placedPins } from './xdl.js';
 import { parseUcf, pinsUcf } from './ucf.js';
 import { readYosysJson } from './fpga/netlist.js';
@@ -88,12 +91,23 @@ export async function runOpenFlow(spec, io) {
     const paths = {};
     for (const [name, text] of Object.entries(r.files)) paths[name] = io.write(`open/${name}`, text);
     const u = r.util;
-    const items = [['luts', 'Number of 4 input LUTs'], ['flipFlops', 'Number of Slice Flip Flops'], ['latches', 'Number of latches'], ['muxes', 'Number of F5-F8 multiplexers'],
-      ['carry', 'Number of carry cells'], ['shiftRegisters', 'Number of shift registers'], ['distributedRam', 'Number of distributed RAMs'], ['blockRam', 'Number of RAMB16s'],
-      ['multipliers', 'Number of MULT18X18SIOs'], ['clockBuffers', 'Number of GCLKs'], ['dcms', 'Number of DCMs'], ['ios', 'Number of IOs']]
-      .filter(([k]) => u[k]).map(([k, name]) => ({ name, used: u[k], total: null, percent: null }));
+    // every resource used of the device's (#795): the family's own from the netlist's cells (core/resources.js),
+    // the LUTs, flip-flops and I/O from the utilization; the others (latches, carry…) with no total
+    const used = { ...usedOfPrimitives(spec.family, cellCounts(r.files[`${r.top}.json`], r.top)), luts: u.luts || 0, ffs: u.flipFlops || 0, iob: u.ios || 0 };
+    const res = (spec.resources || []).filter(x => !['slices', 'distRam'].includes(x.id));
+    const own = res.filter(x => !['luts', 'ffs', 'iob'].includes(x.id));
+    const of = id => res.find(x => x.id === id);
+    const row = (id, name) => ({ id, name, used: used[id] || 0, total: of(id)?.count ?? null, percent: of(id)?.count ? pct(used[id] || 0, of(id).count) : null });
+    // (the Spartan-3E's lines as XST names them; another family's, its MAP report's)
+    const s3e = { luts: 'Number of 4 input LUTs', ffs: 'Number of Slice Flip Flops', ramb16: 'Number of RAMB16s', mult18x18: 'Number of MULT18X18SIOs', bufgmux: 'Number of GCLKs', dcm: 'Number of DCMs', iob: 'Number of IOs' };
+    const name = id => (spec.family === 'spartan3e' ? s3e[id] : of(id)?.report) || s3e[id] || id;
+    const other = (k, n) => ({ name: n, used: u[k], total: null, percent: null });
+    const items = [row('luts', name('luts')), row('ffs', name('ffs')), other('latches', 'Number of latches'), other('muxes', 'Number of F5-F8 multiplexers'),
+      other('carry', 'Number of carry cells'), other('shiftRegisters', 'Number of shift registers'), other('distributedRam', 'Number of distributed RAMs'),
+      ...(own.length ? own.map(x => row(x.id, name(x.id))) : [['ramb16', 'blockRam'], ['mult18x18', 'multipliers'], ['bufgmux', 'clockBuffers'], ['dcm', 'dcms']].map(([id, k]) => ({ ...row(id, s3e[id]), used: u[k] || 0 }))),
+      row('iob', name('iob'))].filter(i => i.used);
     log('Device utilization (open synthesis):');
-    for (const i of items) log(`  ${i.name}: ${i.used}`);
+    for (const i of items) log(`  ${i.name}: ${i.used}${i.total != null ? ` out of ${i.total} ${i.percent}%` : ''}`);
     report.synthesis = { tool: 'Yosys', utilization: items, cells: u.cells, warnings: r.warnings.length, errors: 0,
       summary: { luts: { used: u.luts || 0 }, ffs: { used: u.flipFlops || 0 }, iobs: { used: u.ios || 0 } } };
     // (the netlist's name is the elaborated top's: a VHDL top is lower case, #31)
@@ -101,6 +115,12 @@ export async function runOpenFlow(spec, io) {
     report.files.synthesis = paths[`${r.top}_stat.txt`];
     synth = r;
     log(`Netlist: ${report.files.netlist} (${u.cells} cells) in ${ms(t)}`);
+    // more of a resource than the device has: said here, not at Place (#795)
+    const over = overResources(res, used);
+    if (over.length) {
+      report.synthesis.errors = over.length;
+      throw new StepError(over.map(o => overMessage(o, spec.device)).join('; '), [], 'Choose a larger device (Design Properties).');
+    }
   }
 
   // The design the simulation models are made of (#120, #121): synthesized with the generics the test bench
@@ -288,15 +308,26 @@ export async function runOpenFlow(spec, io) {
     log(`Packed in ${ms(t)}.`);
   }
 
-  // the Design Summary's map section, from the packed design (again after a register replication)
+  // the Design Summary's map section, from the packed design (again after a register replication): every
+  // resource used of the device's sites, in the MAP report's order (core/resources.js); more than the device
+  // has, the step fails with the resources named, the report kept (the summary shows them over 100 %, #795)
   function mapReport() {
     const s = packed.stats;
     const sites = deviceSites(io.device());
-    const nSlices = sites.slices.size, nPads = sites.pads.size, nBufg = sites.bufgmux.length;
-    const items = [util('Number of Slice Flip Flops', s.ffs, 2 * nSlices), util('Number of 4 input LUTs', s.luts, 2 * nSlices),
-      util('Number of occupied Slices', s.slices, nSlices), util('Number of bonded IOBs', s.iobs, nPads), util('Number of BUFGMUXs', s.bufgs, nBufg)];
-    if (s.slices > nSlices) throw new StepError(`the design needs ${s.slices} slices, the device has ${nSlices}`, [], 'Choose a larger device.');
-    report.map = { utilization: items, summary: { slices: items[2], ffs: items[0], luts: items[1], iobs: items[3], bufg: items[4] }, carry: s.carry, muxes: s.muxes, warnings: (packed.warnings || []).length, errors: 0 };
+    const nSlices = sites.slices.size;
+    const rows = [['ffs', 'Number of Slice Flip Flops', s.ffs, 2 * nSlices], ['luts', 'Number of 4 input LUTs', s.luts, 2 * nSlices], ['slices', 'Number of occupied Slices', s.slices, nSlices],
+      ['iob', 'Number of bonded IOBs', s.iobs, sites.pads.size], ['ramb16', 'Number of RAMB16s', s.brams || 0, sites.brams.length], ['mult18x18', 'Number of MULT18X18SIOs', s.mults || 0, sites.mults.length],
+      ['bufgmux', 'Number of BUFGMUXs', s.bufgs, sites.bufgmux.length], ['dcm', 'Number of DCMs', s.dcms || 0, sites.dcms.length]];
+    const items = rows.map(([id, name, used, total]) => ({ id, ...util(name, used, total) }));
+    const byId = Object.fromEntries(items.map(i => [i.id, i]));
+    report.map = { utilization: items, summary: { slices: byId.slices, ffs: byId.ffs, luts: byId.luts, iobs: byId.iob, bufg: byId.bufgmux }, carry: s.carry, muxes: s.muxes, warnings: (packed.warnings || []).length, errors: 0 };
+    const over = overResources(items.map(i => ({ id: i.id, report: i.name, count: i.total })), Object.fromEntries(items.map(i => [i.id, i.used])));
+    if (over.length) {
+      report.map.errors = over.length;
+      log('Design summary (pack):');
+      for (const i of items) log(`  ${i.name}: ${i.used} out of ${i.total} ${i.percent}%`);
+      throw new StepError(over.map(o => overMessage(o, spec.device)).join('; '), [], 'Choose a larger device (Design Properties).');
+    }
     return items;
   }
 

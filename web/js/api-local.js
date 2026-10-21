@@ -10,7 +10,8 @@
 // view's model: read back from there after a reload) and the bitstream is downloaded. Configure
 // Target Device programs the FPGA of a Digilent board over WebUSB (core/adept.js; Chrome / Edge),
 // and its Platform Flash (core/xcf.js). XST (Xilinx ISE) needs the full application.
-import { getDeviceDb } from '../../server/devices.js';
+import { getDeviceDb, findPart } from '../../server/devices.js';
+import { resourcesOf } from '../../core/resources.js';
 import { exportXise, importXise, importIseSchematics, exportIseSchematics } from '../../server/xise.js';
 import EXAMPLES from 'silinx-examples';
 import { orderExamples } from '../../core/examples.js';
@@ -318,6 +319,8 @@ export const api = {
     const json = p.json, files = { ...p.files };
     runBrowserFlow({
       project: json, files: { ...files, ...b.files }, steps,
+      // (the part's resources: the synthesis's used of available and its check, #795)
+      resources: findPart(json.device?.part) ? resourcesOf(findPart(json.device.part), json.device.package) : null,
       synthUpToDate: synthUpToDate ? { report: before ? { synthesis: before.synthesis, files: { netlist: before.files?.netlist, synthesis: before.files?.synthesis } } : null } : null,
       onLine: push, signal: ctl.signal,
       onWrite: (path, data) => {
