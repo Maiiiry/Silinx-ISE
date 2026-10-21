@@ -402,12 +402,12 @@ export const DEPTH_ABC3 = DEPTH_ABC2.replace('if -g; strash; dc2; dch -f; if;', 
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
 // The fourth candidate's don't-care optimization (mfs2) on windows of up to 5000 nodes (#370; mfs2's own: 300): a
 // round-robin arbiter's balanced chains share terms of its requests and priorities that reach further, the EPFL arbiter
-// in the corpus's I/O wrapper 2019 -> 1537 LUTs (1010 -> 769 slices) at High, as deep, routed 0.9 % faster (ISE's trce,
-// seeds 1-3). Not on the candidates on the wider functions (with the LUT delays a wider window makes 5- and 6-input
-// functions of 4-input ones, slower: a 48-request arbiter's third balancing 9.5 -> 9.9 ns estimated), nor on the GIA's
-// SOP balancing (the arbiter at Normal 1290 -> 1109 slices but routed 4 % slower; the EPFL max 5 % fewer slices)
+// in the corpus's I/O wrapper 2019 -> 1537 LUTs at High, as deep, routed 0.9 % faster (ISE's trce); its area mapping made
+// four more times (choices, mapping, mfs2: each shares more, the arbiter alone 1500 -> 1350 LUTs, as deep). Not on the
+// candidates with the LUT delays (a wider window makes 5- and 6-input functions of 4-input ones, slower: a 48-request
+// arbiter's third balancing 9.5 -> 9.9 ns estimated), nor on the GIA's SOP balancing (the arbiter at Normal routed 4 % slower)
 export const MFS = 'mfs2 -M 5000';
-export const DEPTH_ABC2_LUT4 = DEPTH_ABC2.replaceAll('mfs2', MFS);
+export const DEPTH_ABC2_LUT4 = DEPTH_ABC2.replaceAll('mfs2', MFS) + `; strash; dch -f; if; ${MFS}`.repeat(4);
 // The GIA's SOP balancing (#654): ABC's &sopb balances the logic as sums of products on its GIA form (the AIG with
 // structural choices), then &if -g (the same balancing, delay-oriented, of a mapping onto 6-input cuts) and &synch2
 // (choices again), twice, before a mapping onto LUT4s alone. Where if -g on the AIG (DEPTH_ABC…) keeps the
