@@ -10,7 +10,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { yosysNode, yosysWorkers } from '../core/synth-open-node.js';
-import { synthesizeOpen, DEPTH_ABC2 } from '../core/synth-open.js';
+import { synthesizeOpen, DEPTH_ABC2, DEPTH_ABC2_LUT4 } from '../core/synth-open.js';
 import { compile, elaborate } from '../core/compile.js';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -80,7 +80,7 @@ function recorder(parallel) {
     const p = args.join(' ');
     // (ABC9's remap, #377: the cells' models read before the RTLIL)
     // (High's search for state machines to try one-hot, #539: started first, beside the usual run)
-    const r = { kind: /silinx_fold_ce/.test(p) ? 'fold' : /speedup/.test(p) ? 'speed' : /write_rtlil silinx_fsm_pre\.il/.test(p) ? 'fsm' : / -abc9 -nowidelut /.test(p) ? 'abc9' : /^-q -p read_rtlil/.test(p) ? (/silinx_lut\.lib/.test(p) ? (p.split('if,-g').length > 3 ? 'third' : 'second-delays') : files['silinx_depth.abc'] === DEPTH_ABC2 ? (/abc -luts 1,1,1,1 /.test(p) ? 'second-lut4' : 'second') : 'first') : 'synth', start: ++tick, end: null };
+    const r = { kind: /silinx_fold_ce/.test(p) ? 'fold' : /speedup/.test(p) ? 'speed' : /write_rtlil silinx_fsm_pre\.il/.test(p) ? 'fsm' : / -abc9 -nowidelut /.test(p) ? 'abc9' : /^-q -p read_rtlil/.test(p) ? (/silinx_lut\.lib/.test(p) ? (p.split('if,-g').length > 3 ? 'third' : 'second-delays') : files['silinx_depth.abc'] === DEPTH_ABC2_LUT4 && /abc -luts 1,1,1,1 /.test(p) ? 'second-lut4' : files['silinx_depth.abc'] === DEPTH_ABC2 ? 'second' : 'first') : 'synth', start: ++tick, end: null };
     runs.push(r);
     return yosysNode(args, files, onLine).then(o => { r.end = ++tick; return o; });
   };

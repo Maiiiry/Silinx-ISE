@@ -1391,3 +1391,33 @@ netlists, the same warnings, 221 s of synthesis instead of 208 for those 18 (one
 Still far from the size record (259 LUT-6, about 520 LUT4s): each output's chain is mapped as its own tree; the record
 needs the two shared prefix scans of a round-robin arbiter (a functional rewrite before ABC), which neither ABC script
 finds.
+
+### mfs2's windows (#370)
+
+What kept the balanced mapping of the arbiter larger: ABC's don't-care optimization at the end of each script (`mfs2`)
+looks at windows of 300 nodes at most (`-M`), and the terms of the requests and priorities that the balanced chains share
+reach further. With `mfs2 -M 5000` (the same with no limit, `-M 0`, and with `-W 10`; `-M 1500` gains little) the
+fourth candidate (`DEPTH_ABC2_LUT4`) maps the arbiter in the I/O wrapper to 1537 LUTs instead of 2019, as deep (8 levels,
+9.92 ns estimated). A third round of mapping and mfs2 gives 1499. ABC's other area commands gain nothing on it:
+`lutpack` 2016, `if -a` 2016 (and 13 levels), `&dsdb` 4137; the usual mapping with the wider window stays at 4090.
+
+Measured on 2026-10-21, the arbiter in the corpus's I/O wrapper on the XC3S1200E, ISE 14.7's trce on the open flow's
+routing (seeds 1–3, DRC 0 errors, 0 warnings), and XST + map + par on the same project:
+
+| | LUTs | slices | trce (ns), seeds 1 / 2 / 3 | mean |
+|---|---:|---:|---|---:|
+| XST (Normal) | 3514 | 1864 | 13.602 (par) | |
+| Silinx High, before | 2019 | 1010 | 13.239 / 12.735 / 13.101 | 13.03 |
+| Silinx High, the wider window | **1537** | **769** | 12.924 / 12.839 / 12.960 | **12.91** |
+| Silinx Normal (the SOP balancing) | 2579 | 1290 | 11.588 / 11.799 / 11.842 | 11.74 |
+| Silinx Normal, the SOP balancing with the wider window (not kept) | 2217 | 1109 | 12.348 / 12.314 / 11.963 | 12.21 |
+
+Tried and not kept:
+- the wider window on every depth-oriented script: with the LUT delays (`DEPTH_ABC2` with them, `DEPTH_ABC3`) mfs2 keeps
+  the levels but not the delays and makes 5- and 6-input functions of 4-input ones (a 48-request arbiter's third balancing
+  9.54 -> 9.90 ns estimated, then lost to the fourth candidate);
+- on the GIA's SOP balancing (`DEPTH_SOPB`): the EPFL max 672 -> 639 slices, trce 22.195 -> 21.901 ns, the multiplier
+  1 % fewer LUTs, but the arbiter at Normal 4 % slower (above). On the rest of the corpus the netlists were the same.
+
+With it the open synthesis is far below XST on the arbiter (1537 LUTs against 3514) but still about 3× the LUT-6 record's
+equivalent: the shared prefix scans remain a functional rewrite.

@@ -395,11 +395,19 @@ export const DEPTH_ABC2 = 'strash; dc2; balance; dch -f; if -g; strash; dc2; dch
 // and balanced twice more (#52), with the LUT delays, a third candidate kept as the other two: a priority
 // chain or a comparator tree is balanced further each time (the EPFL priority 8.8 ns estimated instead of 16.5,
 // max 21.1 instead of 23.0); not in place of DEPTH_ABC2, slower on others (serv 7 %, the EPFL router 8 %).
-// DEPTH_ABC2 onto LUT4s alone (LUT4_ONLY, #370) is a fourth candidate: the trees of a round-robin arbiter's ring-shaped
+// DEPTH_ABC2 onto LUT4s alone (LUT4_ONLY, #370; DEPTH_ABC2_LUT4, its mfs2 on wider windows) is a fourth candidate: the trees of a round-robin arbiter's ring-shaped
 // priority chains in fewer LUTs and slices (the EPFL arbiter in the corpus's I/O wrapper 1224 -> 1010 slices, routed 1.5 %
 // faster); on the corpus never kept (slower by the estimate)
 export const DEPTH_ABC3 = DEPTH_ABC2.replace('if -g; strash; dc2; dch -f; if;', 'if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if -g; strash; dc2; dch -f; if;');
 export const DEPTH_ABC_FILE = 'silinx_depth.abc';
+// The fourth candidate's don't-care optimization (mfs2) on windows of up to 5000 nodes (#370; mfs2's own: 300): a
+// round-robin arbiter's balanced chains share terms of its requests and priorities that reach further, the EPFL arbiter
+// in the corpus's I/O wrapper 2019 -> 1537 LUTs (1010 -> 769 slices) at High, as deep, routed 0.9 % faster (ISE's trce,
+// seeds 1-3). Not on the candidates on the wider functions (with the LUT delays a wider window makes 5- and 6-input
+// functions of 4-input ones, slower: a 48-request arbiter's third balancing 9.5 -> 9.9 ns estimated), nor on the GIA's
+// SOP balancing (the arbiter at Normal 1290 -> 1109 slices but routed 4 % slower; the EPFL max 5 % fewer slices)
+export const MFS = 'mfs2 -M 5000';
+export const DEPTH_ABC2_LUT4 = DEPTH_ABC2.replaceAll('mfs2', MFS);
 // The GIA's SOP balancing (#654): ABC's &sopb balances the logic as sums of products on its GIA form (the AIG with
 // structural choices), then &if -g (the same balancing, delay-oriented, of a mapping onto 6-input cuts) and &synch2
 // (choices again), twice, before a mapping onto LUT4s alone. Where if -g on the AIG (DEPTH_ABC…) keeps the
@@ -742,7 +750,7 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * of the two before), second: { ns, luts, kept } of the mapping balanced once more (DEPTH_ABC2), when
  * the depth-oriented one was kept, delays: { ns, luts, kept } of the same with the LUT delays (#78), third:
  * { ns, luts, kept } of the one balanced twice more with the LUT delays (DEPTH_ABC3, #52), lut4: { ns, luts, kept } of the
- * one balanced once more onto LUT4s alone (DEPTH_ABC2 on LUT4_ONLY, #370), and
+ * one balanced once more onto LUT4s alone (DEPTH_ABC2_LUT4 on LUT4_ONLY, #370), and
  * abc9: { ns, luts, kept } of ABC9's mapping onto LUT4s alone, kept when better than the netlist chosen (#377;
  * abc9: false leaves it out); each with its slices too, when it packs (sliceCount); muxf: { trees, ns, luts, slices,
  * kept } of the mapping with the wide multiplexers onto MUXF5 … MUXF7, when the usual run found some (#511), and sopb: { ns,
@@ -906,7 +914,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         // the second balancing (below) from the same netlist: with 4 Yosys or more at a time started now,
         // after the first ones, only its choice waiting for them (#277); with fewer, only when it is needed
         const lines6 = [];
-        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true), remap(DEPTH_ABC3, lines5, true), remap(DEPTH_ABC2, lines6, false, LUT4_ONLY)]);
+        const second = () => Promise.all([remap(DEPTH_ABC2, lines3), remap(DEPTH_ABC2, lines4, true), remap(DEPTH_ABC3, lines5, true), remap(DEPTH_ABC2_LUT4, lines6, false, LUT4_ONLY)]);
         const early = (run.parallel || 1) >= 4 ? second() : null;
         early?.catch(() => {});
         const [outW, out2] = await first;
