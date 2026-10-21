@@ -66,7 +66,9 @@ export function mountSummary(el) {
       page.append(h('table', { class: 'summary-table' }, h('caption', {}, 'Programming File'),
         h('tr', {}, h('th', {}, 'Bitstream'), h('td', {}, `build/${pj.top}.bit (${Math.round(rep.bit.size / 1024)} KB)`)),
         h('tr', {}, h('th', {}, 'Part'), h('td', {}, bh.part || '')),
-        h('tr', {}, h('th', {}, 'Generated'), h('td', {}, `${bh.date || ''} ${bh.time || ''}`))));
+        h('tr', {}, h('th', {}, 'Generated'), h('td', {}, `${bh.date || ''} ${bh.time || ''}`)),
+        // (the Tasks interface: the next task, Program, from here: #802; hidden in the others, web/css/tasks.css)
+        h('tr', { class: 'task-program' }, h('td', { colspan: 2 }, h('button', { class: 'btn', type: 'button', onclick: () => app.openImpact() }, 'Program the board…')))));
     }
     // reports list
     page.append(h('table', { class: 'summary-table' }, h('caption', {}, 'Detailed Reports'),

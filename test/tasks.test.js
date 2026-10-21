@@ -12,6 +12,7 @@ globalThis.matchMedia ??= () => ({ matches: false, addEventListener() {} });
 const T = await import('../web/js/tasks.js');
 const SIM = await import('../web/js/tasks-sim.js');
 const EMU = await import('../web/js/tasks-emu.js');
+const IMPL = await import('../web/js/tasks-impl.js');
 
 test('the five tasks, in the order of a lab session, with the names of the modern toolbar\'s steps', () => {
   assert.deepEqual(T.TASKS, ['edit', 'sim', 'emu', 'impl', 'prog']);
@@ -32,6 +33,9 @@ test('taskOfDoc: each kind of document belongs to one task (the editors and the 
   assert.equal(T.taskOfDoc(undefined), 'edit');
   // (not a prefix match: a file whose path starts like an id is still a file)
   assert.equal(T.taskOfDoc('file:summary'), 'edit');
+  // (a build file, a report the Design Summary opens: Implement's, #802)
+  assert.equal(T.taskOfDoc('file:build/open/top_stat.txt'), 'impl');
+  assert.equal(T.taskOfDoc('file:build/top.syr'), 'impl');
 });
 
 test('readState: the kept state checked; anything else falls back to Edit and the defaults', () => {
@@ -92,6 +96,15 @@ test('#801 boardZoom: as large as fits the room, at most 1.5, at least 0.3; noth
   assert.equal(EMU.boardZoom({ w: 0, h: 500 }, board), 1);
   assert.equal(EMU.boardZoom({ w: 800, h: 600 }, { w: 0, h: 0 }), 1);
   assert.equal(EMU.boardZoom(null, board), 1);
+});
+
+test('#802 implementationEnded: Implement\'s dot from running to done, with or without warnings', () => {
+  assert.equal(IMPL.implementationEnded('running', 'ok'), true);
+  assert.equal(IMPL.implementationEnded('running', 'warn'), true);
+  assert.equal(IMPL.implementationEnded('running', 'err'), false);
+  assert.equal(IMPL.implementationEnded('ok', 'ok'), false);
+  assert.equal(IMPL.implementationEnded(null, 'ok'), false);
+  assert.equal(IMPL.implementationEnded('running', 'running'), false);
 });
 
 test('taskDot: the worst status of the task\'s processes (errors, then running, out of date, warnings, done)', () => {

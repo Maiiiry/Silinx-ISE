@@ -488,6 +488,61 @@ uiTest('#801 Tasks ▸ Emulate: the board fits, its switches and buttons on scre
   await noWarnings(page);
 }, { build: DEV });
 
+// #802: Implement's side panel is the top's Processes (ISE's names and states), its page the Design Summary as cards,
+// which comes forward when the implementation ends, its Programming File linking to Program, its reports in Implement
+uiTest('#802 Tasks ▸ Implement: the top\'s Processes, the Design Summary as cards; it comes forward, links to Program', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'TasksImpl', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksImpl');
+  await page.eval(async () => { window.SilinxApp.S.toolchain = await (await import('/js/api.js')).api.toolchain(); window.SilinxApp.renderProcesses(); });
+  // a module selected in Edit: Implement still lists the top's processes
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  await page.treeRow('#hier', 'tb_top', { exact: true });
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => document.getElementById('proc-caption')?.textContent === 'Processes: top', [], { what: 'the top\'s processes' });
+  assert.ok(await shown(page, '#proc-panel') && !(await shown(page, '#design-panel')), 'the Processes, not the tree');
+  const procs = await page.eval(() => [...document.querySelectorAll('#procs .lbl')].filter((l) => l.getClientRects().length).map((l) => l.textContent));
+  for (const p of ['Synthesize - Yosys', 'Implement Design', 'Translate', 'Map', 'Place & Route', 'Generate Programming File', 'I/O Pin Planning'])
+    assert.ok(procs.includes(p), `${p}: ${procs.join(', ')}`);
+  // the Design Summary as cards: side by side at a laptop's width
+  const cards = await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .summary-table')].map((t) => Math.round(t.getBoundingClientRect().top)));
+  assert.ok(cards.length >= 3 && new Set(cards).size < cards.length, `cards in rows: ${cards}`);
+  // Implement (the task's action): when it ends, the Design Summary in front, its programming file and the link to Program
+  // (another of Implement's documents in front meanwhile: I/O Pin Planning, from its process)
+  await page.treeRow('#procs', 'I/O Pin Planning', { dbl: true, exact: true });
+  await page.waitFor(() => window.SilinxApp.S.active?.id === 'pins', [], { what: 'I/O Pin Planning in front' });
+  await page.click('#task-bar [data-act="main"]');
+  await page.waitConsole(/Process "Generate Programming File" (completed successfully|failed)/, { timeout: 120000 });
+  await page.waitFor(() => window.SilinxApp.S.active?.id === 'summary', [], { what: 'the summary come forward', timeout: 10000 });
+  await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .summary-table caption')].some((c) => c.textContent === 'Programming File'), [], { what: 'the summary with its programming file', timeout: 30000 });
+  assert.equal((await state(page)).task, 'impl');
+  assert.ok(await shown(page, '.doc:not([hidden]) .task-program button'));
+  // a report: opened in Implement
+  await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .summary-table a')].find((a) => a.textContent === 'Current').click());
+  await page.waitFor(() => (window.SilinxApp.S.active?.id || '').startsWith('file:build/'), [], { what: 'a report' });
+  assert.equal((await state(page)).task, 'impl');
+  // Program the board…: Program's iMPACT
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.eval(() => window.SilinxApp.openSummary());
+  await page.waitFor(() => window.SilinxApp.S.active?.id === 'summary', [], { what: 'the summary' });
+  await page.click('.doc:not([hidden]) .task-program button');
+  await page.waitFor(() => document.documentElement.dataset.task === 'prog' && !!window.SilinxApp.findDoc('impact'), [], { what: 'Program' });
+  // in Portuguese: the link
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .task-program button')?.textContent === 'Programar a placa…', [], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // the modern interface: the summary's tables as before, no link; its tree and its views
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.ok(!(await shown(page, '.doc:not([hidden]) .task-program')));
+  assert.ok(await shown(page, '#design-panel'));
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+  await noWarnings(page);
+}, { build: DEV, timeout: 180000 });
+
 // the lines of the message centre shown (its filter): [source, text]
 const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));
 const pressed = (page) => page.eval(() => [...document.querySelectorAll('#mc-filters .filt[aria-pressed="true"]')].map((b) => b.dataset.src));
