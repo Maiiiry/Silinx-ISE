@@ -131,9 +131,15 @@ docs/          user guides (EN, PT), the project model and API, QUALITY.md (agai
 - **The ISE tests and the quality comparison** run on the self-hosted runner (the Mac mini).
   - They run only on code from `main`, never a PR's.
   - The runner refuses every other job before its first step, and is on line only in the two workflows'
-    window (#482, `scripts/ise-runner/`: a job-started hook and a launchd agent, installed on the Mac mini
-    with `sh scripts/ise-runner/install.sh <the runner's folder>`, again after those scripts change).
-    A run by hand outside the window: `sh window.sh open` there first, or it waits for the evening.
+    window (#482, `scripts/ise-runner/`: a job-started hook and a launchd daemon, installed on the Mac mini
+    with `sudo sh scripts/ise-runner/install.sh --system <its user> <the runner's folder>`, again after
+    those scripts change). A run by hand outside the window: `sudo … window.sh open` there first (the
+    command `install.sh` prints), or it waits for the evening.
+  - The runner runs as a standard user of its own, with no keys or tokens, its folder in
+    `/Users/Shared/silinx-ise/runner`; it reaches the Docker Desktop of the Mac mini's user through its
+    socket (`install.sh --docker-acl`). Docker Desktop shares only `/Users/Shared/silinx-ise`, so that no
+    container can mount that user's home: ISE work over ssh goes there too (`ssh.remoteDir`
+    `/Users/Shared/silinx-ise/build` in `~/.silinx/config.json`), and a folder elsewhere cannot be mounted.
   - The weekly comparison pushes its results to the branch `quality-results`, to be merged by hand.
   - GitHub starts scheduled runs hours late (the nightly's 21:17 UTC has started at 23:37 and at 08:13):
     look for the night's results in the morning, not at the cron's time.

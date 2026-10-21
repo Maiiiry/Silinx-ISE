@@ -70,7 +70,8 @@ the code and the lessons learnt.
   quality comparison against ISE is run by hand (Actions ▸ Quality ▸ Run workflow) and reviewed. The
   sources pinned outside npm are checked monthly (`pins.yml`: one issue lists what is behind).
 - **`main` is protected** (repository rulesets): no deletion and no force push, for anyone; a linear
-  history, rebase merging only; a pull request's `related-tests` check required to merge. The weekly quality
+  history, rebase merging only; a pull request's `related-tests` check required to merge. Only the admin
+  creates, moves or deletes a `v*` tag (a tag ruleset: a workflow's token cannot make a release). The weekly quality
   comparison cannot push to `main`: it pushes its results to the branch `quality-results`, which a
   maintainer merges.
 - **CI** (`.github/workflows/ci.yml`) runs everything when a version tag `v*` is pushed, and by hand

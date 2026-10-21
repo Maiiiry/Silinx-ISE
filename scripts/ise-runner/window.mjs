@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // The ISE runner's on-line window (#482): the runner (the maintainer's machine, label "ise") is on line
 // only while the ISE and Quality workflows need it, so that a job it is not meant for has less time to
-// reach it. A launchd agent (install.sh) runs `window.sh tick` every 15 minutes and at log-in:
+// reach it. launchd (install.sh: an agent of the runner's user, or with --system a daemon of root) runs
+// `window.sh tick` every 15 minutes and at start:
 //   - every evening at OPEN (local time, before ise.yml's cron, 21:47 UTC) the window opens and the
 //     runner's service starts;
 //   - it stops when the runner is idle, no run of ise.yml / quality.yml is queued or running, and the
@@ -108,7 +109,22 @@ export async function run(cmd, sys) {
   return d;
 }
 
-/** The real machine: the runner's service (svc.sh), its processes, the state file. */
+/**
+ * The commands that start or stop the runner's service: [{ cmd, args, cwd, optional }]. RUNNER_DAEMON
+ * (install.sh --system): the runner's launchd daemon, run as its own user, loaded and unloaded by root
+ * (unloaded first when starting, as a daemon that exited stays loaded); otherwise the logged-in user's
+ * agent, through the runner's svc.sh.
+ */
+export function serviceCommands(action, env = process.env) {
+  if (action !== 'start' && action !== 'stop') throw new Error(`service: start or stop, not '${action}'`);
+  const plist = env.RUNNER_DAEMON;
+  if (!plist) return [{ cmd: './svc.sh', args: [action], cwd: env.RUNNER_DIR, optional: false }];
+  const bootout = { cmd: 'launchctl', args: ['bootout', `system/${path.basename(plist, '.plist')}`], cwd: '/' };
+  if (action === 'stop') return [{ ...bootout, optional: false }];
+  return [{ ...bootout, optional: true }, { cmd: 'launchctl', args: ['bootstrap', 'system', plist], cwd: '/', optional: false }];
+}
+
+/** The real machine: the runner's service (svc.sh or its daemon), its processes, the state file. */
 export function machine(env = process.env) {
   const dir = env.RUNNER_DIR;
   if (!dir) throw new Error('RUNNER_DIR: the runner\'s folder');
@@ -121,7 +137,11 @@ export function machine(env = process.env) {
     running: () => pgrep('Runner.Listener'),
     busy: () => pgrep('Runner.Worker'),
     runs,
-    service: action => execFileSync('./svc.sh', [action], { cwd: dir, stdio: 'inherit' }),
+    service: action => {
+      for (const c of serviceCommands(action, env)) {
+        try { execFileSync(c.cmd, c.args, { cwd: c.cwd, stdio: c.optional ? 'ignore' : 'inherit' }); } catch (e) { if (!c.optional) throw e; }
+      }
+    },
     log: m => console.log(`${new Date().toISOString()} ${m}`),
   };
 }
