@@ -1,0 +1,23 @@
+{
+  "name": "feat_bufgmux",
+  "description": "ISE check: a clock switch, a BUFGMUX choosing between two clock pins for a counter (#846)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

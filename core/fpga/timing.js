@@ -896,6 +896,20 @@ export function clockPort(design, netName) {
   return null;
 }
 
+// The clocks of the clock switches (#846): Map net driven by a BUFGMUX with I1 -> the ports (lower case) of its I1
+function switchPorts(design) {
+  const out = new Map(), i1 = new Map();
+  for (const n of design.nets) for (const p of n.inpins || []) if (p.pin === 'I1') i1.set(p.inst, n.name);
+  const type = new Map(design.insts.map(i => [i.name, i.type]));
+  for (const n of design.nets) {
+    const d = n.outpins?.[0];
+    if (!d || type.get(d.inst) !== 'BUFGMUX' || !i1.has(d.inst)) continue;
+    const port = clockPort(design, i1.get(d.inst));
+    if (port) out.set(n.name, [String(port).toLowerCase()]);
+  }
+  return out;
+}
+
 // A DCM's outputs (#601): [period, the first rising edge], in its input clock's periods (CLKIN's, halved first when
 // CLKIN_DIVIDE_BY_2), as trce derives their PERIOD constraints from the input's; CLKDV and CLKFX from the settings
 const DCM_OUT = { CLK0: [1, 0], CLK90: [1, 0.25], CLK180: [1, 0.5], CLK270: [1, 0.75], CLK2X: [0.5, 0], CLK2X180: [0.5, 0.25] };
@@ -980,8 +994,11 @@ export function checkPeriods(r, design, constraints = []) {
   const out = [];
   const src = clockSources(design);
   const portOf = c => String(src.get(c.clock)?.port || clockPort(design, c.clock) || c.clock).toLowerCase();
+  // (a clock switch, a BUFGMUX with I1, #846: its clock also comes from the port of its I1, whose PERIOD trce applies to it too)
+  const switched = switchPorts(design);
+  const ports = c => [portOf(c), ...(switched.get(c.clock) || [])];
   for (const k of constraints) {
-    const hit = r.clocks.filter(c => portOf(c) === String(k.net).toLowerCase());
+    const hit = r.clocks.filter(c => ports(c).includes(String(k.net).toLowerCase()));
     if (!hit.length) { out.push({ port: k.net, required: k.period, missing: true }); continue; }
     // (the port's own clock first, the slowest of its nets, then the DCMs')
     const own = hit.filter(c => !src.get(c.clock)?.via.length).sort((a, b) => b.period - a.period).slice(0, 1);

@@ -147,7 +147,7 @@ export function connectionCriticality(cells, nets) {
     if (/^RAMB16/.test(t)) return 2.39;
     if (registered(c)) return 1.0;
     if (/^IBUF/.test(t)) return withIO ? 0 : -Infinity;
-    if (t === 'BUFG' || t === 'DCM' || t === 'DCM_SP') return -Infinity;
+    if (/^BUFG(MUX(_1)?)?$/.test(t) || t === 'DCM' || t === 'DCM_SP') return -Infinity;
     return null;
   };
   // arrival on a net (its driver's output); memoised, a loop counts as no path
@@ -336,11 +336,40 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   }
   function uniqueNetName(base) { let n = base, k = 1; const names = new Set(nets.map(x => x.name)); while (names.has(n)) n = `${base}_${k++}`; return n; }
   const liveCells = () => cells.filter(c => !c.lowered);
-  const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|OBUFT|IOBUF|BUFG|IDDR2|ODDR2)$/.test(c.type) || SLICEM_MEM[c.type]
-    || BRAM_TYPE.test(c.type) || MULT_TYPE.test(c.type) || DCM_TYPE.test(c.type);
+  // a clock switch's input from a BUFG (Yosys's clkbufmap puts one on a clock that also clocks flip-flops): the
+  // BUFG's input instead, the clock into the switch on its own line, not from the global lines through the fabric
   for (const c of liveCells()) {
-    if (c.type === 'BUFGMUX') throw new PackError(`pack: BUFGMUX ${c.name}: the Silinx toolchain cannot switch clocks with a BUFGMUX yet (its I1 / S inputs are measured on one of the 8 buffers only)`);
+    if (!/^BUFGMUX(_1)?$/.test(c.type)) continue;
+    for (const pin of ['I0', 'I1']) {
+      const b = c.pins[pin] !== undefined && driverCell(c.pins[pin]);
+      if (b?.type !== 'BUFG' || b.pins.I === undefined) continue;
+      nets[c.pins[pin]].loads = nets[c.pins[pin]].loads.filter(l => !(l.cell === c.idx && l.pin === pin));
+      c.pins[pin] = b.pins.I;
+      nets[b.pins.I].loads.push({ cell: c.idx, pin });
+      // (a BUFG left with no load and no port: gone)
+      if (!nets[b.pins.O].loads.length && !nets[b.pins.O].port) {
+        nets[b.pins.I].loads = nets[b.pins.I].loads.filter(l => l.cell !== b.idx);
+        nets[b.pins.O].driver = null;
+        b.lowered = true;
+      }
+    }
   }
+  // A BUFGMUX whose select is a constant is a BUFG of the input it selects (#846)
+  for (const c of liveCells()) {
+    if (!/^BUFGMUX(_1)?$/.test(c.type)) continue;
+    const s = nets[c.pins.S]?.const;
+    if (s !== 0 && s !== 1) continue;
+    const keep = s ? 'I1' : 'I0';
+    for (const pin of ['I0', 'I1', 'S']) if (pin !== keep && c.pins[pin] !== undefined) {
+      const n = nets[c.pins[pin]];
+      n.loads = n.loads.filter(l => !(l.cell === c.idx && l.pin === pin));
+    }
+    relabel(c, { [keep]: 'I' });
+    c.pins = { I: c.pins[keep], O: c.pins.O };
+    c.type = 'BUFG';
+  }
+  const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|OBUFT|IOBUF|BUFG|BUFGMUX|BUFGMUX_1|IDDR2|ODDR2)$/.test(c.type) || SLICEM_MEM[c.type]
+    || BRAM_TYPE.test(c.type) || MULT_TYPE.test(c.type) || DCM_TYPE.test(c.type);
   const unsupported = liveCells().filter(c => !supported(c));
   if (unsupported.length) throw new PackError(`pack: cells not supported yet: ${[...new Set(unsupported.map(c => c.type))].join(', ')}`);
 
@@ -472,7 +501,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   const portName = n => { for (const p of nl.ports) for (const b of p.bits) if (b.net === n) return b.name; return null; };
   // (an IOB register's clock comes from a global buffer, as ISE clocks the IOBs: the router reaches an I/O
   // tile's clock pin from the global lines only, #671)
-  const onGlobal = n => driverCell(n)?.type === 'BUFG';
+  const onGlobal = n => /^BUFG(MUX(_1)?)?$/.test(driverCell(n)?.type);
   const wantsIob = (f, port, role) => {
     const want = (() => {
       const a = asked('INST', f.name) ?? asked('NET', port);
@@ -1030,7 +1059,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   const portOfNet = new Map();
   for (const p of nl.ports) for (const b of p.bits) if (nets[b.net].const === undefined) portOfNet.set(b.net, { ...b, dir: p.dir });
   const multBelow = new Map();   // the multiplier cascade (#2): cell -> the multiplier whose BCOUT is its BCIN
-  for (const c of cells) {
+  for (const c of liveCells()) {
     if (/^(IBUF|IBUFG)$/.test(c.type)) {
       const port = portOfNet.get(c.pins.I);
       if (!port) throw new PackError(`pack: ${c.name}: input buffer not on a port`);
@@ -1100,6 +1129,13 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
       setSink(ci(c), 'I', { inst: s.idx, pin: 'I0', kind: 'gen' });
       // the select input is tied high (SINV inverts it: I0 selected), as ISE's map does
       extra.push({ net: 1, inst: s.idx, pin: 'S', kind: 'gen' });
+    } else if (/^BUFGMUX(_1)?$/.test(c.type)) {
+      // a clock switch (#846): I0 when S is low, I1 when it is high (SINV not inverted); BUFGMUX_1 holds its
+      // output high while it switches (DISABLE_ATTR HIGH)
+      const s = { kind: 'bufg', type: 'BUFGMUX', name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c), mux: c.type === 'BUFGMUX_1' ? 'HIGH' : 'LOW' };
+      insts.push(s);
+      where.set(ci(c), { inst: s.idx, bel: 'BUFG' });
+      for (const pin of ['I0', 'I1', 'S']) setSink(ci(c), pin, { inst: s.idx, pin, kind: 'gen' });
     } else if (BRAM_TYPE.test(c.type)) packBram(c);
     else if (MULT_TYPE.test(c.type)) packMult(c);
     else if (DCM_TYPE.test(c.type)) packDcm(c);
@@ -1558,7 +1594,8 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     if (s.kind === 'bufg') {
       s.name = uniqueName(s.name);
       const n = escCfg(s.name);
-      s.cfg = [['DISABLE_ATTR', '', 'LOW'], ['I0_USED', '', '0'], ['SINV', '', 'S_B'], ['GCLKMUX', `${n}.GCLKMUX`, ''], ['GCLK_BUFFER', n, '']].map(([attr, name, value]) => ({ attr, name, value }));
+      s.cfg = (s.mux ? [['DISABLE_ATTR', '', s.mux], ['I0_USED', '', '0'], ['I1_USED', '', '0'], ['SINV', '', 'S'], ['GCLKMUX', n, '']]
+        : [['DISABLE_ATTR', '', 'LOW'], ['I0_USED', '', '0'], ['SINV', '', 'S_B'], ['GCLKMUX', `${n}.GCLKMUX`, ''], ['GCLK_BUFFER', n, '']]).map(([attr, name, value]) => ({ attr, name, value }));
       continue;
     }
     if (s.kind === 'bram') { s.name = uniqueName(s.name); bramCfg(s); continue; }

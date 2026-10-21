@@ -6,8 +6,9 @@
 // the user design constraints").
 // Each buffer clocks a counter of its own; the counters' top bits are XORed to the outputs. The
 // buffers of a pair (Y2 / Y3, Y4 / Y5…) share two lines: a BUFGMUX leaves its pair's other buffer free.
+// (#846: BUFGMUX_1 too, on any buffer, the top and bottom ones included: its DISABLE_ATTR HIGH.)
 //   node gen-sidebufg.mjs outdir spec.json
-// spec.json: { name: { bufs: [{ site: 'BUFGMUX_X0Y4', kind: 'BUFG' | 'BUFGMUX' | 'BUFGCE' }, …],
+// spec.json: { name: { bufs: [{ site: 'BUFGMUX_X0Y4', kind: 'BUFG' | 'BUFGMUX' | 'BUFGMUX_1' | 'BUFGCE' }, …],
 //   clkPin?: 'B8', ucf?: [more UCF lines] } }; random: node gen-sidebufg.mjs outdir --random N seed [prefix]
 //   (N designs, each side buffer used with probability 1/2, a BUFGMUX in about one pair of four)
 import fs from 'node:fs';
@@ -33,11 +34,11 @@ if (specArg === '--random') {
 
 for (const [name, s] of Object.entries(spec)) {
   const n = s.bufs.length;
-  const sels = b => b.kind === 'BUFGMUX' || b.kind === 'BUFGCE';
+  const sels = b => /^BUFGMUX/.test(b.kind) || b.kind === 'BUFGCE';
   const nmux = s.bufs.filter(sels).length;
   const sel = k => `sel(${s.bufs.slice(0, k).filter(sels).length})`;
-  const body = s.bufs.map((b, k) => (b.kind === 'BUFGMUX'
-    ? `  u_b${k} : BUFGMUX port map (I0 => div(${k}), I1 => div(${k + 1}), S => ${sel(k)}, O => gclk(${k}));`
+  const body = s.bufs.map((b, k) => (/^BUFGMUX/.test(b.kind)
+    ? `  u_b${k} : ${b.kind} port map (I0 => div(${k}), I1 => div(${k + 1}), S => ${sel(k)}, O => gclk(${k}));`
     : b.kind === 'BUFGCE' ? `  u_b${k} : BUFGCE port map (I => div(${k}), CE => ${sel(k)}, O => gclk(${k}));`
     : `  u_b${k} : BUFG port map (I => div(${k}), O => gclk(${k}));`)
     + `\n  process (gclk(${k})) begin if rising_edge(gclk(${k})) then n(${k}) <= n(${k}) + 1; end if; end process;`).join('\n');

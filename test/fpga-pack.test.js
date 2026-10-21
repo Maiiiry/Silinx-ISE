@@ -508,3 +508,39 @@ NET "nothing*" IOSTANDARD = LVCMOS33;`;
   assert.deepEqual([pad('en').loc, val(pad('en'), 'IOATTRBOX'), val(pad('en'), 'PULL')], [null, 'LVCMOS25', undefined]);
   assert.deepEqual(p.warnings, []);
 });
+
+// ------------------------------------------------------------------ clock switches (#846)
+// a BUFGMUX between the clock (through its BUFG, net 4, as Yosys's clkbufmap leaves it) and clkb, selected by sel,
+// clocking a flip-flop; `also`: another flip-flop on the BUFG's own clock
+function clockSwitch({ type = 'BUFGMUX', s = 'sel', also = true } = {}) {
+  return tiny({
+    u: [type, { I0: 4, I1: 'clkb', S: s, O: 'gclk' }],
+    f1: ['FDRE', { C: 'gclk', CE: '1', R: '0', D: 'x', Q: 'q1' }],
+    ...(also && { f2: ['FDRE', { C: 4, CE: '1', R: '0', D: 'x', Q: 'q2' }] }),
+  }, ['clkb', 'sel', 'x'], ['q1', 'q2']);
+}
+const driverOf = (p, inst, pin) => { const n = p.nets.find(n => n.inpins.some(q => q.inst === inst && q.pin === pin)); return n && p.insts[n.outpins[0].inst].name; };
+
+test('a BUFGMUX: a global buffer with I0, I1 and S, its select not inverted; its input from the clock\'s pad, not from the clock\'s BUFG (#846)', () => {
+  const p = pack(clockSwitch());
+  const u = p.insts.findIndex(i => i.name === 'u');
+  assert.equal(p.insts[u].type, 'BUFGMUX');
+  assert.deepEqual(p.insts[u].cfg.map(c => `${c.attr}:${c.name}:${c.value}`), ['DISABLE_ATTR::LOW', 'I0_USED::0', 'I1_USED::0', 'SINV::S', 'GCLKMUX:u:']);
+  assert.deepEqual(['I0', 'I1', 'S'].map(pin => driverOf(p, u, pin)), ['clk', 'clkb', 'sel']);
+  // the clock's BUFG stays for its other flip-flop; with none, it is gone
+  assert.equal(p.stats.bufgs, 2);
+  assert.equal(pack(clockSwitch({ also: false })).stats.bufgs, 1);
+  assert.deepEqual(p.warnings, []);
+});
+
+test('a BUFGMUX_1: DISABLE_ATTR HIGH (its output high while it switches); a constant select: a BUFG of the input it selects (#846)', () => {
+  const p = pack(clockSwitch({ type: 'BUFGMUX_1' }));
+  assert.equal(val(p.insts.find(i => i.name === 'u'), 'DISABLE_ATTR'), 'HIGH');
+  for (const [s, from] of [['0', 'clk'], ['1', 'clkb']]) {
+    const q = pack(clockSwitch({ s }));
+    const u = q.insts.findIndex(i => i.name === 'u');
+    assert.deepEqual([val(q.insts[u], 'SINV'), val(q.insts[u], 'I1_USED')], ['S_B', undefined], `S = ${s}`);
+    assert.equal(driverOf(q, u, 'I0'), from, `S = ${s}`);
+    assert.equal(driverOf(q, u, 'I1'), undefined, `S = ${s}`);
+  }
+});
