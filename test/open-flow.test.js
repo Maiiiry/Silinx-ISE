@@ -187,6 +187,9 @@ test('the open flow replicates a flip-flop of many loads on the critical path, a
 const FEATURES = {
   feat_bram: [/^pack \(\d+ slices\)/m, 'RAMB16'],
   feat_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
+  // three multipliers cascaded through BCOUT -> BCIN (#2): one above the other in a column, the dedicated switches
+  feat_mult_chain: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO', [/B_INPUT::CASCADE /, /^net "[^"]+" , \n {2}outpin "u_m0" BCOUT5 ,\n {2}inpin "u_m1" BCIN5 ,\n {2}pip BRAMSITE2\w* MULT_CCARRY_BCOUT5 -> MULT_CARRYB_BCOUT5 ,$/m,
+    /^net "[^"]+" , \n {2}outpin "u_m1" BCOUT17 ,\n {2}inpin "u_m2" BCIN17 ,\n/m]],
   // multiplications by a constant (inputs tied to 1) and a 14-bit memory word (#35)
   feat_constmult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
   feat_srl: [/^pack \(\d+ slices\)/m, 'SLICEM'],

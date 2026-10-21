@@ -105,6 +105,8 @@ export function netlistSim(nl) {
   }
   const bus = (c, name, n) => Array.from({ length: n }, (_, j) => v[c.pins[`${name}<${j}>`]] || 0);
   const multReg = (c, k) => (c.type === 'MULT18X18S' ? k === 'PREG' : paramInt(c.params[k], 1) === 1);
+  // B: from BCIN, the BCOUT of the multiplier below, with B_INPUT = CASCADE (#2); BCOUT is B after its register
+  const multB = c => (String(c.params.B_INPUT || 'DIRECT').trim().toUpperCase() === 'CASCADE' ? bus(c, 'BCIN', 18) : bus(c, 'B', 18));
   const addr = (c, pfx, k) => { let a = 0; for (let j = 0; j < k; j++) a |= v[c.pins[`${pfx}${j}`]] << j; return a; };
   const setOut = (c, val) => { const n = c.pins.O; if (n !== undefined && n > 1) v[n] = val; };
   const comb = () => {
@@ -143,8 +145,10 @@ export function netlistSim(nl) {
           continue;
         } else if (/^MULT18X18S(IO)?$/.test(c.type)) {
           const r = mults.find(x => x.c === c);
-          const pr = multReg(c, 'PREG') ? r.p : mult18(multReg(c, 'AREG') ? r.a : bus(c, 'A', 18), multReg(c, 'BREG') ? r.b : bus(c, 'B', 18));
+          const b = multReg(c, 'BREG') ? r.b : multB(c);
+          const pr = multReg(c, 'PREG') ? r.p : mult18(multReg(c, 'AREG') ? r.a : bus(c, 'A', 18), b);
           for (let j = 0; j < 36; j++) put(c.pins[`P<${j}>`], pr[j]);
+          for (let j = 0; j < 18; j++) if (c.pins[`BCOUT<${j}>`] !== undefined) put(c.pins[`BCOUT<${j}>`], b[j]);
           continue;
         } else if (c.type === 'MULT18X18') {
           // signed 18 x 18 -> 36 bits
@@ -228,7 +232,7 @@ export function netlistSim(nl) {
           const c = r.c, clk = v[c.pins.CLK ?? c.pins.C];
           if (clk && !r.prevClk) {
             const pin = k => (c.pins[k] === undefined ? 0 : v[c.pins[k]]);
-            const A = bus(c, 'A', 18), B = bus(c, 'B', 18);
+            const A = bus(c, 'A', 18), B = multB(c);
             const a = multReg(c, 'AREG') ? r.a : A, b = multReg(c, 'BREG') ? r.b : B, prod = mult18(a, b);
             const S = c.type === 'MULT18X18S';
             later.push(() => {
@@ -306,8 +310,10 @@ export function packedSim(packed) {
     }
     if (inst.kind === 'mult') {
       const r = st[i], bus = (n, w) => Array.from({ length: w }, (_, j) => pin(i, `${n}${j}`));
-      const pr = val('PREG') === '1' ? r.p : mult18(val('AREG') === '1' ? r.a : bus('A', 18), val('BREG') === '1' ? r.b : bus('B', 18));
+      const b = val('BREG') === '1' ? r.b : bus(val('B_INPUT') === 'CASCADE' ? 'BCIN' : 'B', 18);
+      const pr = val('PREG') === '1' ? r.p : mult18(val('AREG') === '1' ? r.a : bus('A', 18), b);
       pr.forEach((x, j) => { o[`P${j}`] = x; });
+      b.forEach((x, j) => { o[`BCOUT${j}`] = x; });
       return o;
     }
     const lut = side => {
@@ -427,7 +433,7 @@ export function packedSim(packed) {
       const clk = val('CLKINV') === 'CLK_B' ? 1 - pin(i, 'CLK') : pin(i, 'CLK');
       if (clk && !r.prevClk) {
         const bus = (n, w) => Array.from({ length: w }, (_, j) => pin(i, `${n}${j}`));
-        const A = bus('A', 18), B = bus('B', 18);
+        const A = bus('A', 18), B = bus(val('B_INPUT') === 'CASCADE' ? 'BCIN' : 'B', 18);
         const prod = mult18(val('AREG') === '1' ? r.a : A, val('BREG') === '1' ? r.b : B);
         const p = n => (val(`${n}INV`) === `${n}_B` ? 1 - pin(i, n) : pin(i, n));
         later.push(() => {
