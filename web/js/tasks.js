@@ -200,8 +200,19 @@ function tagDocs() {
 }
 
 const stepButton = (t = current()) => document.querySelector(`#toolbar .m-step[data-step="${STEP[t]}"]`);
-/** The current task's main action: the design-flow button of the modern toolbar. */
-function runMain() { const b = stepButton(); if (b && !b.disabled && b._enabled?.() !== false) b.click(); }
+/** The current task's main action: the design-flow button of the modern toolbar; Edit's Check checks the selected
+ *  module, a test bench with the simulation's sources (one tree, no views: #799). */
+async function runMain() {
+  const b = stepButton();
+  if (!b || b.disabled || b._enabled?.() === false) return;
+  const S = app.S, mod = S.sel?.module;
+  if (current() === 'edit' && mod && S.modules.find(m => m.name === mod)?.role === 'sim') {
+    const { checkSyntax } = await import('./processes.js');   // (not at load: processes.js loads the app)
+    checkSyntax(mod, true);
+    return;
+  }
+  b.click();
+}
 
 // a document brought to the front: its task comes to the front; the task remembers it
 function followActive() {
@@ -263,6 +274,7 @@ function build() {
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain })));
   buildMessages(app);
+  app.renderHierarchy();   // (one tree, no views: #799)
   refreshDots();
 }
 // The header's room (#839): every label of the switcher if they fit, else the current task's only, else none,
@@ -283,6 +295,7 @@ function unbuild() {
   delete document.getElementById('topbar').dataset.fit;
   unbuildMessages();
   shownTask = null;
+  app.renderHierarchy();
   const r = root();
   for (const k of ['task', 'side', 'console', 'max', 'single']) delete r.dataset[k];
 }

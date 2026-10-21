@@ -359,8 +359,7 @@ export function mountISim(container, opts = {}) {
   stimBar.hidden = true;
   if (stimOpt) {
     sep();
-    // with its label, so that drawing stimuli is seen among the icons (#853)
-    addBtn('stim', 'Edit Stimuli: click the waveforms of the inputs (as the HDL Bencher)', () => toggleStim()).append(h('span', { class: 'tb-label', text: 'Edit Stimuli' }));
+    addBtn('stim', 'Edit Stimuli: click the waveforms of the inputs (as the HDL Bencher)', () => toggleStim());
     stimBar.innerHTML = `<span class="isim-stim-h">Stimuli</span><button class="btn" data-stim="timing">Timing…</button><button class="btn" data-stim="fill">Fill Expected Outputs</button>`
       + `<button class="btn" data-stim="save">Save as Test Bench…</button><button class="btn" data-stim="stop">Stop Editing</button><span class="isim-stim-st"></span>`;
     tb.after(stimBar);
