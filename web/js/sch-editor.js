@@ -471,6 +471,19 @@ export function mountSchEditor(container, opts = {}) {
     else first = Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? 'h' : 'v';
     return first === 'h' ? [{ x: b.x, y: a.y }, b] : [{ x: a.x, y: b.y }, b];
   }
+  // a short of two named nets refused (#754, #806): the status line says why
+  function shortNote(what, [a, b]) {
+    flash(`${what} would short net '${a}' and net '${b}': two named nets cannot be joined. Rename one of them first (the same name connects them).`, 6000);
+  }
+  // a move or a paste that shorted two named nets (#806): the document as it was before, nothing to undo
+  function refusedShort(before, what) {
+    const short = netShort(JSON.parse(before), doc, { modules });
+    if (!short) return false;
+    doc = normalizeDoc(JSON.parse(before));
+    pruneSel(); render(); renderProps();
+    shortNote(what, short);
+    return true;
+  }
   function finishWire() {
     if (!wireDraw) return;
     const pts = cleanPts(wireDraw.pts);
@@ -484,7 +497,7 @@ export function mountSchEditor(container, opts = {}) {
     const trial = clone(doc);
     splitWiresAt(trial, ends); trial.wires.push({ id: nextId('W', trial.wires), points: pts });
     const short = netShort(doc, normalizeDoc(trial), { modules });
-    if (short) { flash(`The wire would short net '${short[0]}' and net '${short[1]}': two named nets cannot be joined. Rename one of them first (the same name connects them).`, 6000); renderOverlay(); return; }
+    if (short) { shortNote('The wire', short); renderOverlay(); return; }
     edit(() => { splitWiresAt(doc, ends); doc.wires.push({ id: nextId('W', doc.wires), points: pts }); }, { keepProps: true });
   }
   function wireClick(pt, dbl) {
@@ -600,10 +613,12 @@ export function mountSchEditor(container, opts = {}) {
     if (t !== pasteText) { pasteText = t; pasteN = clip.from === doc.name ? 0 : -1; }
     const d = 40 * ++pasteN;
     if (tool !== 'select') setTool('select');
+    const before = snapshot();
     edit(() => {
       const { ids } = pasteSchematic(doc, clip, { dx: d, dy: d });
       sel = new Set([...ids.symbols.map(id => `sym:${id}`), ...ids.wires.map(id => `wire:${id}`), ...ids.ports.map(id => `port:${id}`), ...ids.labels.map(id => `label:${id}`)]);
     });
+    if (refusedShort(before, 'Pasting')) { undoStack.pop(); changed(); }
     container.focus({ preventScroll: true });
   }
   function selectAll() { sel = new Set([...doc.symbols.map(s => `sym:${s.id}`), ...doc.wires.map(w => `wire:${w.id}`), ...doc.ports.map(p => `port:${p.id}`), ...doc.labels.map(l => `label:${l.id}`)]); render(); renderProps(); }
@@ -739,6 +754,7 @@ export function mountSchEditor(container, opts = {}) {
   }
   function finishSegMove(m) {
     doc = normalizeDoc(doc);
+    if (refusedShort(m.before, 'The move')) return;
     if (m.conn0) {
       let now = null;
       try { now = connectivity(doc, modules); } catch { /* ignore */ }
@@ -876,6 +892,7 @@ export function mountSchEditor(container, opts = {}) {
     const stretched = new Set([...m.wireIds, ...m.attach.map(a => a.id)]);
     splitWiresAt(doc, free, new Set(doc.wires.map(w => w.id).filter(id => !stretched.has(id))));
     doc = normalizeDoc(doc);
+    if (refusedShort(m.before, 'The move')) return;
     if (keepConn && m.conn0) {
       let now = null;
       try { now = connectivity(doc, modules); } catch { /* ignore */ }

@@ -156,3 +156,53 @@ uiTest('#754 schematic: a wire between two named nets is refused with a note; to
   assert.equal(nl.wireNet.get('W6').name, 's');
   assert.deepEqual(nl.diagnostics.map((x) => x.message).sort(), ["net 't' connects only U2.I", "net 't' has no driver (read by U2.I)"], 'only t\'s own warnings');
 });
+
+// #806: a move, a wire segment dragged or a paste that would short two named nets is refused like a drawn wire
+// (#754): the schematic as it was, nothing to undo, the note in the status line; in English and Portuguese
+uiTest('#806 schematic: a segment dragged, a marker moved or a paste onto another named net is refused with a note (English, Portuguese)', E, async (page) => {
+  // a -> U1 -> W2 named s, its end at (220, 100); W7 named t (free); W11 named u (free), 40 up-left of W2's end;
+  // the input marker b (free)
+  const doc = newDoc('moves', 'vhdl');
+  doc.symbols.push(inv('S1', 'U1', 100, 90));
+  doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, x: 60, y: 100 }, { id: 'P2', name: 'b', dir: 'in', width: 1, x: 400, y: 300 });
+  doc.wires.push({ id: 'W1', points: [P(60, 100), P(100, 100)] }, { id: 'W2', points: [P(160, 100), P(220, 100)] },
+    { id: 'W7', points: [P(220, 160), P(280, 160)] }, { id: 'W11', points: [P(140, 60), P(180, 60)] });
+  doc.labels.push({ id: 'L1', x: 200, y: 100, net: 's' }, { id: 'L7', x: 260, y: 160, net: 't' }, { id: 'L11', x: 160, y: 60, net: 'u' });
+  await makeProject(env, { name: 'MovesPj', files: { 'src/moves.sch.json': JSON.stringify(doc) } });
+  await page.openProject('MovesPj');
+  await page.eval(() => window.SilinxApp.openSch('src/moves.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .port`).length === 2, [ED], { what: 'drawn' });
+  const at = (x, y) => page.eval((ed, px, py) => { const l = document.querySelector(`${ed} svg [data-kind=wire] .whit`); const p = l.ownerSVGElement.createSVGPoint(); p.x = px; p.y = py; const q = p.matrixTransform(l.getScreenCTM()); return { x: q.x, y: q.y }; }, ED, x, y);
+  const getDoc = () => page.eval(() => window.Silinx.active.schEditor.getDoc());
+  const doc0 = JSON.stringify(await getDoc());
+  const hint = (t) => page.waitFor((ed, x) => { const e = document.querySelector(`${ed} .se-hint`); return !!e && !e.hidden && e.textContent === x; }, [ED, t], { what: `the note: ${t}` });
+  const note = (lang, what, a, b) => (lang === 'en'
+    ? `${what} would short net '${a}' and net '${b}': two named nets cannot be joined. Rename one of them first (the same name connects them).`
+    : `${{ 'The wire': 'O fio', 'The move': 'A deslocação', Pasting: 'Colar' }[what]} poria em curto a rede '${a}' e a rede '${b}': duas redes com nome não podem ser unidas. Mude primeiro o nome de uma delas (o mesmo nome liga-as).`);
+  const same = async (what) => {
+    assert.equal(JSON.stringify(await getDoc()), doc0, `${what}: the schematic as it was`);
+    assert.equal(await page.eval(() => window.Silinx.active.schEditor.canUndo()), false, `${what}: nothing to undo`);
+  };
+  for (const lang of ['en', 'pt']) {
+    await page.eval(async (l) => (await import('/js/i18n.js')).setLanguage(l), lang);
+    // W7 (t) dragged up by its segment onto W2's end (s)
+    await page.drag(await at(250, 160), await at(250, 100));
+    await hint(note(lang, 'The move', 's', 't'));
+    await same(`${lang}: the segment`);
+    // the marker b moved onto W2's end
+    await page.drag(await at(400, 300), await at(220, 100));
+    await hint(note(lang, 'The move', 's', 'b'));
+    await same(`${lang}: the marker`);
+    // W11 (u) copied and pasted (40 right and down): the copy (its net u_1, a name of its own) ends on W2's end
+    await page.click(await at(170, 60));
+    await page.eval(() => window.Silinx.active.schEditor.copy());
+    await page.eval(() => window.Silinx.active.schEditor.paste());
+    await hint(note(lang, 'Pasting', 's', 'u_1'));
+    await same(`${lang}: the paste`);
+    await page.key('Escape');
+  }
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // a move that shorts nothing still moves: W7 dragged down 20
+  await page.drag(await at(250, 160), await at(250, 180));
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.find((w) => w.id === 'W7').points[0].y === 180, [], { what: 'W7 moved' });
+});

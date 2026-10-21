@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { simulate } from '../core/compile.js';
+import { copySchematic, pasteSchematic } from '../core/schclip.js';
 import { newDoc, netlist, generateHdl, netByName, renameNet, netShort } from '../core/schdoc.js';
 
 const P = (x, y) => ({ x, y });
@@ -207,4 +208,23 @@ test('#754 a wire to an unnamed net (allowed): the VHDL and the Verilog compile 
     assert.deepEqual(r.sim.log.filter(l => l.kind === 'error' || l.kind === 'failure'), [], `${lang}: ${log.join('\n')}`);
     assert.ok(log.some(l => /done/.test(l)), `${lang}: ran to the end`);
   }
+});
+
+// #806: the same short made by a move (W3 and its name t moved onto W2's end) or by a paste (a copy of W3 there):
+// what the editor compares, the schematic before and after
+test('#806 netShort: a wire moved, or pasted, onto another named net\'s end is a short; moved with the same name, not', () => {
+  const doc = named('vhdl', 't');
+  const moved = structuredClone(doc);
+  moved.wires.find(w => w.id === 'W3').points = [P(220, 100), P(280, 100)];
+  moved.labels.find(l => l.id === 'L2').x = 240; moved.labels.find(l => l.id === 'L2').y = 100;
+  assert.deepEqual(netShort(doc, moved), ['s', 't'], 'moved');
+  const s2 = named('vhdl', 's'), m2 = structuredClone(s2);
+  m2.wires.find(w => w.id === 'W3').points = [P(220, 100), P(280, 100)];
+  m2.labels.find(l => l.id === 'L2').x = 240; m2.labels.find(l => l.id === 'L2').y = 100;
+  assert.equal(netShort(s2, m2), null, 'the same name s: no short');
+  // a copy of W3 (its name t, pasted as t_1) 180 right and 200 up: its start on W2's end
+  const pasted = structuredClone(doc);
+  const r = pasteSchematic(pasted, copySchematic(doc, { wires: ['W3'], labels: ['L2'] }), { dx: 180, dy: -200 });
+  assert.deepEqual(r.renamed.nets.get('t'), 't_1');
+  assert.deepEqual(netShort(doc, pasted), ['s', 't_1'], 'pasted');
 });
