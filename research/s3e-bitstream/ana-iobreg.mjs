@@ -10,7 +10,9 @@
 //   PART=… node ana-iobreg.mjs [--pads out.json] [--delays REGEXP] dir… (each: *.xdl + *.bit)
 // --pads: { padFeatures: { PAD: { feature: [bits "frame,bit" / "!frame,bit"] } } } for merge-db.mjs, every
 // feature seen on a pad (empty when it has no bits of its own there); --delays: only the delay features
-// (IFD:… / IBUF:…) the regexp matches are written (the others are left out of the database: refused)
+// (IFD:… / IBUF:…) the regexp matches are written (the others are left out of the database: refused); --known: only
+// the settings the database lacks on a pad are solved, the writer writing the others (#759: the second flip-flop alone,
+// whose settings occur only there), their bits against what it writes (a bit a new setting clears: "!frame,bit")
 import fs from 'node:fs';
 import { readBit, diffFrames } from '../../core/fpga/bitstream.js';
 import { parseXdl } from '../../core/xdl.js';
@@ -30,6 +32,8 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*\//,
   const opt = k => { const i = args.indexOf(k); if (i < 0) return null; const v = args[i + 1]; args.splice(i, 2); return v; };
   const padsFile = opt('--pads');
   const delayKeep = opt('--delays');
+  const known = args.includes('--known');
+  if (known) args.splice(args.indexOf('--known'), 1);
   const db = loadDb();
   // a pad's anchor: its own bits (the I/O standards' features)
   const anchor = new Map();
@@ -46,9 +50,9 @@ if (process.argv[1] && import.meta.url.endsWith(process.argv[1].replace(/^.*\//,
     const feats = new Map();
     for (const i of design.insts) {
       if (!/^(IOB|IBUF)$/.test(i.type) || !i.placed || !anchor.has(i.site)) continue;
-      const fs1 = padRegFeatures(i.cfg);
+      const fs1 = padRegFeatures(i.cfg).filter(f => !known || !db.padFeats[i.site]?.[f]);
       if (fs1.length) feats.set(i.site, new Set(fs1));
-      i.cfg = i.cfg.filter(c => !REG_ATTRS.test(c.attr));
+      if (!known) i.cfg = i.cfg.filter(c => !REG_ATTRS.test(c.attr));
     }
     const { frames } = frameData(design, db);
     const d = diffFrames(frames, readBit(fs.readFileSync(`${dir}/${n}.bit`)).frames, db.format.frameWords);

@@ -356,8 +356,8 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   // registers' (OTCLK1) nets. The two IOBs of a differential pair (DIFFM / DIFFS) share each clock wire of
   // their tile (IOIS_CLK0 -> ICLK10 / ICLK11, IOIS_CLK1 -> OTCLK10 / OTCLK11; the tile's third IOB has its
   // own): two registers of one kind there on different clocks need the DIFFM's second flip-flop (IFF2 / OFF2
-  // on the tile's second clock wire, as ISE's map does: secondFlipFlops), whose bits on a pad alone the
-  // database lacks: an I/O with no LOC is kept out of such a pair (clashAt), LOC'd ones take it.
+  // on the tile's second clock wire, as ISE's map does: secondFlipFlops; their bits on every pad since #759): an I/O
+  // with no LOC is kept out of such a pair (clashAt: one clock wire of each kind per tile), LOC'd ones take it.
   const regClk = new Array(N).fill(null);
   packed.nets.forEach((n, k) => { for (const p of n.inpins) if (p.pin === 'ICLK1' || p.pin === 'OTCLK1') (regClk[p.inst] ||= {})[p.pin[0]] = k; });
   const clash = (i, j) => !!regClk[i] && !!regClk[j] && ['I', 'O'].some(g => regClk[i][g] !== undefined && regClk[j][g] !== undefined && regClk[i][g] !== regClk[j][g]);
@@ -1155,11 +1155,6 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       for (const g of ['I', 'O']) {
         if (regClk[m][g] === undefined || regClk[sl][g] === undefined || regClk[m][g] === regClk[sl][g]) continue;
         ff2.push({ inst: m, group: g });
-        // (said while the bit database lacks the settings of the second flip-flop alone on that pad, #759)
-        const moved = secondFlipFlops(packed.insts[m].cfg, [g]).cfg;
-        if (!padOk || padOk(sites[m].name, moved)) continue;
-        const [a, b] = [m, sl].map(i => packed.insts[i].name), ffs = moved.filter(c => /^[IOT]FF2$/.test(c.attr)).map(c => c.attr).join(' / ');
-        warnings.push(`${a}, ${b}: their ${g === 'I' ? 'input' : 'output'} registers have different clocks (${packed.nets[regClk[m][g]].name}, ${packed.nets[regClk[sl][g]].name}) on pads ${sites[m].name}, ${sites[sl].name}, whose IOBs share the clock wires of the I/O tile ${sites[m].tile}: ${a}'s on the IOB's second flip-flop (${ffs}), as ISE does, whose settings on that pad alone are not in the bit database yet (#759)`);
       }
     }
     return {

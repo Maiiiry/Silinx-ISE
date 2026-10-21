@@ -3,8 +3,8 @@
 // the DIFFM's on the IOB's second flip-flop (IFF2 / OFF2), clocked from the tile's second wire (IOIS_CLK4 -> ICLK20,
 // IOIS_CLK5 -> OTCLK20), whatever the ports' order (ISE 14.7 on the Basys2-250, K14 / J12: input and output
 // registers, both orders). The placer keeps I/Os without a LOC out of such a pair; LOC'd ones take the second
-// flip-flop, routed on every device (before: "the routing did not converge"), the bitstream writer naming the
-// settings the bit database lacks for it (#759).
+// flip-flop, routed on every device (before: "the routing did not converge"), its settings in the bit database (#759:
+// measured on every DIFFM pad of the four devices): a complete bitstream.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -123,7 +123,7 @@ test('the placer keeps two registers of one kind on different clocks out of one 
 });
 
 for (const kind of ['o', 'i']) {
-  test(`two LOC'd ${kind === 'o' ? 'output' : 'input'} registers on different clocks in one pair: the DIFFM's on its second flip-flop, both clocks routed, the missing settings named (#749, every device)`, { timeout: 600000 }, () => {
+  test(`two LOC'd ${kind === 'o' ? 'output' : 'input'} registers on different clocks in one pair: the DIFFM's on its second flip-flop, both clocks routed, every setting in the bit database (#749, #759, every device)`, { timeout: 600000 }, () => {
     for (const part of PARTS) {
       const { graph } = dev(part), db = loadDb(part, { graph }), known = knownRouting(db);
       const { m, s } = pairOf(deviceSites(graph, known), db);
@@ -148,10 +148,10 @@ for (const kind of ['o', 'i']) {
         // both clocks into the tile: the DIFFM's from its second wire (IOIS_CLK4 / 5), the DIFFS's from the first
         const pips = d.nets.flatMap(n => n.pips.filter(x => x.tile === m.tile && /^IOIS_CLK\d$/.test(x.from)).map(x => `${n.name}: ${x.from} -> ${x.to}`)).sort();
         assert.deepEqual(pips, [`${ckM}: IOIS_CLK${kind === 'o' ? 5 : 4} -> ${clk}20`, `${ckS}: IOIS_CLK${kind === 'o' ? 1 : 0} -> ${clk}11`].sort());
-        // said: the bit database lacks the second flip-flop's settings on a pad alone (#759)
-        assert.deepEqual(pr.placement.warnings, [`${mp}, ${sp}: their ${kind === 'o' ? 'output' : 'input'} registers have different clocks (${ckM}, ${ckS}) on pads ${m.name}, ${s.name}, whose IOBs share the clock wires of the I/O tile ${m.tile}: ${mp}'s on the IOB's second flip-flop (${fm}2), as ISE does, whose settings on that pad alone are not in the bit database yet (#759)`]);
-        const unknown = frameData(parseXdl(writeXdl(d)), db).unknown.map(u => `${u.tile} ${u.feature}`).sort();
-        assert.deepEqual(unknown, (kind === 'o' ? ['OMUX:OFF2', 'R:OFF1:#OFF', 'R:OFF1_INIT_ATTR:#OFF', 'R:OTCLK1INV:#OFF'] : ['R:ICLK1INV:#OFF', 'R:IFF1:#OFF', 'R:IFF1_INIT_ATTR:#OFF']).map(f => `@${m.name} ${f}`).sort(), part);
+        // the second flip-flop's settings on that pad alone in the bit database (#759; before, OMUX:OFF2, R:OFF1:#OFF…
+        // were missing, with a warning)
+        assert.deepEqual(pr.placement.warnings, []);
+        assert.deepEqual(frameData(parseXdl(writeXdl(d)), db).unknown.map(u => `${u.tile} ${u.feature}`), [], part);
         // the post-place & route simulation model has both registers, the DIFFM's clocked by its second clock pin
         const model = postParModels(twoClocks(), d, { top: 't', part });
         assert.deepEqual(model.unknown, []);
