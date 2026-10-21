@@ -486,3 +486,25 @@ test('timing-driven packing: kept only when it costs few slices (CRIT_SLICES), e
     assert.ok(a <= b + Math.max(1, Math.floor(0.02 * b)), `${name}: ${a} vs ${b}`);
   }
 });
+
+// #773: a NET name with wildcards constrains every port bit it matches (before, the packer looked the name up as written,
+// and the pads kept LVCMOS25); the last statement that sets an attribute wins, an exact name's or a wildcard's
+test('pads: UCF NET wildcards (<*>, *, ?) give every matching pad its I/O standard, drive, slew, pull and LOC (#773)', () => {
+  const ucf = `NET "q<*>" IOSTANDARD = LVCMOS33 | SLEW = FAST;
+NET "q<0>" LOC = "M5" | IOSTANDARD = LVTTL;
+NET "q<?>" DRIVE = 4;
+NET "lim*" IOSTANDARD = LVCMOS33 | PULLUP;
+NET "lim<7>" PULLDOWN;
+NET "h?t" IOSTANDARD = LVCMOS18 | LOC = "P6";
+NET "nothing*" IOSTANDARD = LVCMOS33;`;
+  const p = pack(load('counter'), { ucf });
+  const pad = n => p.insts.find(i => i.name === n);
+  for (let k = 1; k < 8; k++) assert.deepEqual([val(pad(`q<${k}>`), 'IOATTRBOX'), val(pad(`q<${k}>`), 'SLEW'), val(pad(`q<${k}>`), 'DRIVEATTRBOX')], ['LVCMOS33', 'FAST', '4'], `q<${k}>`);
+  assert.deepEqual([pad('q<0>').loc, val(pad('q<0>'), 'IOATTRBOX'), val(pad('q<0>'), 'DRIVEATTRBOX')], ['M5', 'LVTTL', '4']);
+  for (let k = 0; k < 7; k++) assert.deepEqual([val(pad(`lim<${k}>`), 'IOATTRBOX'), val(pad(`lim<${k}>`), 'PULL')], ['LVCMOS33', 'PULLUP'], `lim<${k}>`);
+  assert.equal(val(pad('lim<7>'), 'PULL'), 'PULLDOWN');
+  assert.deepEqual([pad('hit').loc, val(pad('hit'), 'IOATTRBOX'), val(pad('hit'), 'DRIVEATTRBOX')], ['P6', 'LVCMOS18', '12']);
+  // the ports no statement names: ISE's defaults
+  assert.deepEqual([pad('en').loc, val(pad('en'), 'IOATTRBOX'), val(pad('en'), 'PULL')], [null, 'LVCMOS25', undefined]);
+  assert.deepEqual(p.warnings, []);
+});

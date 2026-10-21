@@ -263,9 +263,11 @@ const FEATURES = {
     /^inst "btn<0>" "IBUF",placed RIBUFS_PCI_X27Y21 G12 +,\n {2}cfg "[^"]* IFF1:/m, /^inst "led<7>" "IOB",placed LIOIS_PCI_X0Y19 G1 +,\n {2}cfg "[^"]* OFF1:/m],
     [/^ {2}pip \S+ (?:[EWNS][26]\w+|L[HV]\d+|OMUX\w*) -> IOIS_CLK\d ,$/m]],
   // IOB registers on two global clocks, their pads left to the placer (#749): the two input registers, and the two output
-  // registers, never in the two IOBs of one differential pair (which share each clock wire of their I/O tile)
-  feat_iob_pair: [/^pack \(\d+ slices\)/m, 'IOB', [/^inst "sw<1>" "IBUF",placed \S+ \S+ +,\n {2}cfg "[^"]* IFF1:/m, /^inst "led<1>" "IOB",placed \S+ \S+ +,\n {2}cfg "[^"]* OFF1:/m],
-    [/[IOT]FF2:/]],
+  // registers, never in the two IOBs of one differential pair (which share each clock wire of their I/O tile); every pad
+  // in LVCMOS33, as the UCF's NET "sw<*>" / "led<*>" IOSTANDARD ask (#773: they were left in LVCMOS25)
+  feat_iob_pair: [/^pack \(\d+ slices\)/m, 'IOB', [/^inst "sw<1>" "IBUF",placed \S+ \S+ +,\n {2}cfg "[^"]* IFF1:/m, /^inst "led<1>" "IOB",placed \S+ \S+ +,\n {2}cfg "[^"]* OFF1:/m,
+    ...['sw<0>', 'sw<1>', 'led<0>', 'led<1>'].map(n => new RegExp(`^inst "${n}" "(?:IBUF|IOB)",placed \\S+ \\S+ +,\\n {2}cfg "[^"]* IOATTRBOX::LVCMOS33 `, 'm'))],
+    [/[IOT]FF2:/, /IOATTRBOX::LVCMOS25/]],
   // input registers on pads whose neighbouring pad is unused (#751: a bit of the delay ISE's map chooses had gone to
   // both pads of a pair): B3, E17, F14, G13 of the XC3S500E, each alone
   feat_iob_lone: [/^pack \(\d+ slices\)/m, 'IOB', [...['B3', 'E17', 'F14', 'G13'].map(p => new RegExp(`^inst "d<\\d>" "IBUF",placed \\S+ ${p} +,\\n {2}cfg "[^"]* IFF1:[^"]* IFD_DELAY_VALUE::DLY3 `, 'm'))],
