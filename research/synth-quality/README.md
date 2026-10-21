@@ -1348,7 +1348,7 @@ but two:
 | design | slices | FFs | LUTs | routed (ns, seeds 1–3) | trce (ns) |
 |---|---:|---:|---:|---:|---:|
 | t80 | 1146 → **1009** | 361 → **233** | 2153 → **1816** | 22.09 → **21.29** | 21.67 → **20.36** |
-| iwls05-simple-spi (its two FIFOs) | 89 → **79** | 131 → **67** | 157 → **108** | 6.16 → **6.07** | SPI_TRCE |
+| iwls05-simple-spi (its two FIFOs) | 89 → **79** | 131 → **67** | 157 → **108** | 6.16 → **6.07** | – |
 
 iwls05-sasc's FIFOs as RAM are not kept (no smaller netlist as fast); neorv32's two memories written to are not taken by
 the RAM (one more Yosys run, nothing else). A ROM is not counted (its price is `-logic-cost-rom`). The T80's synthesis at
