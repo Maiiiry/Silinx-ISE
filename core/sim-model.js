@@ -1,7 +1,8 @@
 // The Post-Synthesis Simulation Model of the Silinx toolchain (#120), as ISE's netgen -sim writes it
 // from XST's netlist: the open synthesis's netlist (Yosys's JSON) as a structural VHDL model of the
 // UNISIM primitives (core/fpga/techview.js technologyNetlist: LUT1-4 with their INIT, FD* flip-flops,
-// MUXF5-8, MUXCY / XORCY, RAMB16, MULT18X18, SRL16, I/O buffers…), the entity with the top's ports, so
+// MUXF5-8, MUXCY / XORCY, RAMB16, MULT18X18, SRL16, I/O buffers…; a Spartan-6 netlist's CARRY4, DSP48A1, RAMB8BWER /
+// RAMB16BWER, SRLC32E…, #720), the entity with the top's ports, so
 // that the user's test bench simulates it in place of the RTL; and the same netlist in Verilog (Yosys's
 // write_verilog, a wire a bit: scalarVerilog). Silinx's simulator has the UNISIM models (core/unisim.js).
 //

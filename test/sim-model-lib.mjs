@@ -92,18 +92,20 @@ export function exampleModelTests(names) {
 }
 
 // every example's test bench, on its Post-Synthesis Simulation Model (#120; its generics the test bench's), VHDL
-// and Verilog; and the Board Emulator's compiled engine runs the model as the event-driven simulator does (#561)
-export function examplePostSynthTests(names) {
+// and Verilog; and the Board Emulator's compiled engine runs the model as the event-driven simulator does (#561).
+// part / family: the device synthesized for (the Spartan-6's netlists of CARRY4, DSP48A1, RAMB8BWER…, #720)
+export function examplePostSynthTests(names, { part = 'xc3s250ecp132-4', family = 'spartan3e' } = {}) {
   for (const name of names) {
-    test(`example ${name}: its test bench passes on the post-synthesis model, VHDL and Verilog (#120); the compiled engine runs it as the event-driven one (#561)`, { timeout: 600000 }, async () => {
+    test(`example ${name}: its test bench passes on the post-synthesis model${family === 'spartan3e' ? '' : ` for the ${part}`}, VHDL and Verilog (#120${family === 'spartan6' ? ', #720' : ''}); the compiled engine runs it as the event-driven one (#561)`, { timeout: 600000 }, async () => {
       const ex = example(name);
       const read = f => ({ path: f.path, lang: f.lang, text: fs.readFileSync(path.join(ex.dir, f.path), 'utf8') });
       const design = ex.project.files.filter(f => (f.role || 'design') === 'design').map(read);
       const sim = ex.project.files.filter(f => f.role === 'sim').map(read);
       const written = {}, lines = [];
-      const r = await runOpenFlow({ top: ex.project.top, part: 'xc3s250ecp132-4', family: 'spartan3e', steps: ['postsynth'], simTop: ex.project.simTop },
+      const r = await runOpenFlow({ top: ex.project.top, part, family, steps: ['postsynth'], simTop: ex.project.simTop },
         { log: l => lines.push(l), sources: () => design, simSources: () => sim, yosys: yosysNode, write: (n, d) => { written[n] = d; return `build/${n}`; }, read: () => null, save: () => {} });
       assert.equal(r.ok, true, lines.join('\n'));
+      assert.deepEqual(lines.filter(l => /^(WARNING|INFO|ERROR)/.test(l)), [], name);
       // (the board's model beside it when the test bench gives generics, #622: the design's own, which the test bench's
       // generic map does not fit; the test bench runs on the simulation's)
       const t = ex.project.top, board = Object.keys(r.report.simModels.postsynth.generics || {}).length > 0;
