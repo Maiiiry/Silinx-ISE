@@ -1,0 +1,30 @@
+{
+  "name": "feat_bramwiz_inf",
+  "description": "Board test: the Block Memory wizard's module written as inferable HDL (VHDL): a RAM of 512 x 16, WRITE_FIRST, mapped to a RAMB16_S18, its initial contents from init.mem (#794)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "bram.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "init.mem",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf"
+}

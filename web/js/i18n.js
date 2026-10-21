@@ -19,6 +19,7 @@ import { PETRI_PT, PETRI_PT_PATTERNS } from './i18n-petri.js';
 import { FPGA_PT, FPGA_PT_PATTERNS } from './i18n-fpga.js';
 import { SCH_PT, SCH_PT_PATTERNS } from './i18n-schematic.js';
 import { CLOCKING_PT, CLOCKING_PT_PATTERNS } from './i18n-clocking.js';
+import { MEMORY_PT, MEMORY_PT_PATTERNS } from './i18n-memory.js';
 
 const PT = {
   // the Development menu of a development build (#707)
@@ -684,6 +685,8 @@ PT_PATTERNS.unshift(...FPGA_PT_PATTERNS);
 for (const [k, v] of Object.entries(SCH_PT)) if (!(k in PT)) PT[k] = v;   // schematic editor, RTL / Technology Schematic (#130)
 PT_PATTERNS.unshift(...SCH_PT_PATTERNS);
 for (const [k, v] of Object.entries(CLOCKING_PT)) if (!(k in PT)) PT[k] = v;   // the Clocking Wizard (#793)
+for (const [k, v] of Object.entries(MEMORY_PT)) if (!(k in PT)) PT[k] = v;   // the Block Memory wizard (#794)
+PT_PATTERNS.unshift(...MEMORY_PT_PATTERNS);
 PT_PATTERNS.unshift(...CLOCKING_PT_PATTERNS,
   [/^(Input port|Reset input|LOCKED output|Output (\w+)): (.*)\.$/, (m, w, o, e) => `${{ 'Input port': 'Porto de entrada', 'Reset input': 'Entrada de reset', 'LOCKED output': 'Saída LOCKED' }[w] || `Saída ${o}`}: ${ptIdent(e)}.`]);
 
