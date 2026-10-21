@@ -1,7 +1,7 @@
 // Silinx - the Xilinx primitives in the compiled cycle simulator (core/compiled-sim.js, #429): synthesizable
 // Verilog models, flattened into the design by Yosys `prep`, that compute what Silinx's UNISIM models
-// (core/unisim.js, the event-driven simulator's) compute, with two-state values; and the DCM, kept by Yosys as
-// a black box, as a schedule of its output clocks' edges in the main clock's cycles (dcmSchedule).
+// (core/unisim.js, the event-driven simulator's) compute, with two-state values; and the DCM and the PLL, kept by
+// Yosys as black boxes, as a schedule of their output clocks' edges in the main clock's cycles (dcmSchedule).
 //
 //   - the buffers are wires (BUFGMUX a multiplexer, BUFGCE an AND / OR with its enable);
 //   - RAMB16_Sw / RAMB16_Sm_Sn: the 16 Kbit as 512 words of 32 data bits and 512 of 4 parity bits (their
@@ -19,11 +19,12 @@
 //     others as the models below (X_LUT1-6, X_FF, X_SFF, X_LATCH, X_LATCHE, buffers and gates), as unisim.js's.
 //     Not X_OBUFT, X_TRI and the pulls.
 //
-//   - the Spartan-6 primitives (#720): core/compiled-prims-s6.js (CARRY4, SRLC32E, DSP48A1, RAMB8BWER / RAMB16BWER…).
+//   - the Spartan-6 primitives (#720): core/compiled-prims-s6.js (CARRY4, SRLC32E, DSP48A1, RAMB8BWER / RAMB16BWER,
+//     BUFIO2…; PLL_BASE's clocks: pllWaves, #845).
 //
 // Isomorphic ES module (browser + Node), no DOM.
 
-import { PRIMITIVE_MODELS_S6, BWER_MEMORIES } from './compiled-prims-s6.js';
+import { PRIMITIVE_MODELS_S6, BWER_MEMORIES, PLL_OUTPUTS } from './compiled-prims-s6.js';
 
 const hex2 = (k) => k.toString(16).toUpperCase().padStart(2, '0');
 const BRAM_W = { 1: [1, 0, 14], 2: [2, 0, 13], 4: [4, 0, 12], 9: [8, 1, 11], 18: [16, 2, 10], 36: [32, 4, 9] };   // data, parity, address bits (as unisim.js)
@@ -283,7 +284,6 @@ const dcm = (name) => `(* blackbox *)
 module ${name} #(${DCM_PARAMS}) (input CLKIN, CLKFB, RST, DSSEN, PSCLK, PSEN, PSINCDEC,
   output ${DCM_OUTPUTS.slice(0, -1).join(', ')}, output [7:0] STATUS);
 endmodule`;
-export const DCM_CELLS = new Set(['DCM_SP', 'DCM']);
 
 /** The Xilinx primitives the compiled simulator has a model of: name -> Verilog (or a function writing it). */
 export const PRIMITIVE_MODELS = {
@@ -316,10 +316,10 @@ export const PRIMITIVE_MODELS = {
   ...PRIMITIVE_MODELS_S6,
 };
 
-// ------------------------------------------------------------------ the DCM's clocks
+// ------------------------------------------------------------------ the DCM's and the PLL's clocks
 // Time in the main clock's cycles (fractions [n, d]), 0 at the first rising edge of the main clock. A waveform:
-// { pre: [[t, v]…] (its first changes), s, q }: after pre, a rising edge at s + kq and a falling one at
-// s + kq + q / 2 (s = null: none). unisim.js's DCM (dcm, dcmOut): with its input's rising edges r1, r2…
+// { pre: [[t, v]…] (its first changes), s, q, h }: after pre, a rising edge at s + kq and a falling one at
+// s + kq + h (h: q / 2 when not given; s = null: none). unisim.js's DCM (dcm, dcmOut): with its input's rising edges r1, r2…
 // (period q), LOCKED at r3; CLK0 = CLKIN from r3 (CLKIN_DIVIDE_BY_2: from r4, at half the frequency); the
 // synthesized clocks (CLK2X, CLKDV, CLKFX) from r4, their periods pin * D / M (pin = q, or 2q divided by 2);
 // CLK180 / CLK2X180 / CLKFX180 = not the clock, once locked; CLK90 / CLK270 = CLK0 / CLK180 delayed pin / 4.
@@ -332,7 +332,8 @@ const lt = (a, b) => a[0] * b[1] < b[0] * a[1];
 const eq = (a, b) => a[0] === b[0] && a[1] === b[1];
 const half = (a) => mul(a, F(1, 2));
 
-const reg = (s, q) => ({ pre: [], s, q });
+const reg = (s, q, h) => ({ pre: [], s, q, ...(h ? { h } : {}) });
+const high = (w) => w.h || half(w.q);
 const delay = (w, d) => ({ pre: w.pre.map(([t, v]) => [add(t, d), v]), s: w.s && add(w.s, d), q: w.q });
 // not w, from the lock (w starting at or after it)
 const invLk = (w, L) => (eq(w.s, L) ? reg(add(L, half(w.q)), w.q) : { pre: [[L, 1], [w.s, 0]], s: add(w.s, half(w.q)), q: w.q });
@@ -340,6 +341,8 @@ const invLk = (w, L) => (eq(w.s, L) ? reg(add(L, half(w.q)), w.q) : { pre: [[L, 
 /** The waveforms of a DCM's outputs (name -> waveform): P its parameters (Yosys's), input its CLKIN's waveform. */
 export function dcmWaves(P, input, name) {
   if (input.pre.length || !input.s) throw new Error(`the DCM '${name}' has a clock input that is not a steady clock`);
+  // (unisim.js's CLK0 / CLK180 are its input and not the input: of 50 % duty)
+  if (input.h && !eq(input.h, half(input.q))) throw new Error(`the DCM '${name}' has a clock input whose duty cycle is not 50 %`);
   const q = input.q, r = (j) => add(input.s, mul(q, F(j - 1)));
   const str = (k, d) => String(P[k] ?? d).replace(/^"|"$/g, '').toUpperCase();
   const int = (k, d) => (P[k] == null ? d : typeof P[k] === 'number' ? P[k] : parseInt(P[k], 2));
@@ -360,6 +363,36 @@ export function dcmWaves(P, input, name) {
   };
 }
 
+// a PLL's generics as numbers: P[k] Yosys's (an integer in binary, a real as a string), d its default
+const num = (P, k, d, real) => (P[k] == null ? d : typeof P[k] === 'number' ? P[k] : real ? parseFloat(P[k]) : parseInt(P[k], 2));
+
+/**
+ * The waveforms of a PLL_BASE's outputs (name -> waveform), as unisim-s6.js's PLL_BASE: with its input's rising edges
+ * r1, r2… (period q), LOCKED at r3; from r4 CLKFBOUT of period q × DIVCLK_DIVIDE, CLKOUTn of period
+ * q × DIVCLK_DIVIDE × CLKOUTn_DIVIDE / CLKFBOUT_MULT, high for its duty cycle, delayed by its phase (thousandths of
+ * a degree of its own period, 0 … 359999; the duty cycle in thousandths).
+ */
+export function pllWaves(P, input, name) {
+  if (input.pre.length || !input.s) throw new Error(`the PLL '${name}' has a clock input that is not a steady clock`);
+  const q = input.q, L = add(input.s, mul(q, F(2))), r4 = add(input.s, mul(q, F(3)));
+  const M = num(P, 'CLKFBOUT_MULT', 1), D = num(P, 'DIVCLK_DIVIDE', 1);
+  const phase = (k) => ((Math.round(num(P, k, 0, true) * 1000) % 360000) + 360000) % 360000;
+  const out = (t, du, ph) => reg(add(r4, mul(t, F(ph, 360000))), t, mul(t, F(du, 1000)));
+  const waves = { CLKFBOUT: out(mul(q, F(D)), 500, phase('CLKFBOUT_PHASE')), LOCKED: { pre: [[L, 1]], s: null, q: null } };
+  for (const n of [0, 1, 2, 3, 4, 5]) {
+    const du = Math.round(num(P, `CLKOUT${n}_DUTY_CYCLE`, 0.5, true) * 1000);
+    if (!(du > 0 && du < 1000)) throw new Error(`the PLL '${name}' has its CLKOUT${n}_DUTY_CYCLE out of (0, 1)`);
+    waves[`CLKOUT${n}`] = out(mul(q, F(D * num(P, `CLKOUT${n}_DIVIDE`, 1), M)), du, phase(`CLKOUT${n}_PHASE`));
+  }
+  return waves;
+}
+
+/** The black boxes whose outputs are scheduled clocks: cell type -> { kind, outputs, waves(P, input, name) }. */
+export const CLOCK_CELLS = new Map([
+  ...['DCM_SP', 'DCM'].map((t) => [t, { kind: 'DCM', outputs: DCM_OUTPUTS, waves: dcmWaves }]),
+  ['PLL_BASE', { kind: 'PLL', outputs: PLL_OUTPUTS, waves: pllWaves }],
+]);
+
 // a waveform's changes before `end` (a number of cycles), as [t, v]
 function changes(w, end) {
   const out = w.pre.filter(([t]) => lt(t, F(end)));
@@ -367,7 +400,7 @@ function changes(w, end) {
     const t = add(w.s, mul(w.q, F(k)));
     if (!lt(t, F(end))) break;
     out.push([t, 1]);
-    const f = add(t, half(w.q));
+    const f = add(t, high(w));
     if (lt(f, F(end))) out.push([f, 0]);
   }
   return out;
@@ -384,7 +417,7 @@ export function dcmSchedule(chans, { limit = 1 << 20 } = {}) {
   for (const { wave: w } of chans) {
     for (const [t] of w.pre) { T = lcm(T, t[1]); S = Math.max(S, Math.ceil(t[0] / t[1])); }
     if (!w.s) continue;
-    T = lcm(lcm(T, w.s[1]), half(w.q)[1]);
+    T = lcm(lcm(T, w.s[1]), high(w)[1]);
     S = Math.max(S, Math.ceil(w.s[0] / w.s[1]));
   }
   for (const { wave: w } of chans) if (w.s) H = lcm(H, lcm(T, w.q[0] * (T / w.q[1])) / T);

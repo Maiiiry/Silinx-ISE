@@ -422,7 +422,11 @@ entity BUFIO2 is
   port (DIVCLK, IOCLK, SERDESSTROBE : out std_ulogic; I : in std_ulogic);
 end BUFIO2;
 architecture silinx of BUFIO2 is
-  signal ii, dv, sb : std_ulogic := '0';
+  -- (the inverted input high from the start, as on the FPGA: no rising edge at time 0, #845)
+  type init_t is array (boolean) of std_ulogic;
+  constant II0 : init_t := (false => '0', true => '1');
+  signal ii : std_ulogic := II0(I_INVERT);
+  signal dv, sb : std_ulogic := '0';
 begin
   ii <= not I when I_INVERT else I;
   IOCLK <= ii;
