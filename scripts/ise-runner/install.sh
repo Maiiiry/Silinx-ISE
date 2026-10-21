@@ -71,7 +71,9 @@ if [ "${1:-}" = --system ]; then
   [ -f "$RUNNER_DIR/bin/runsvc.sh" ] && [ -f "$RUNNER_DIR/.runner" ] || { echo "$RUNNER_DIR: not a configured runner (no bin/runsvc.sh / .runner)" >&2; exit 1; }
   CHOWN=${SILINX_RUNNER_CHOWN:-chown}
   RHOME=${SILINX_RUNNER_HOME:-$(dscl . -read "/Users/$RUSER" NFSHomeDirectory | sed 's/^NFSHomeDirectory: //')}
-  DEST="$LIBRARY/Application Support/Silinx-ISE-runner"
+  # no whitespace in the path: the runner runs its hook unquoted (#891)
+  DEST="$LIBRARY/Silinx-ISE-runner"
+  OLD="$LIBRARY/Application Support/Silinx-ISE-runner"
   RUNNER=com.github.pmnmalo.silinx-ise.runner
   RPLIST="$LIBRARY/LaunchDaemons/$RUNNER.plist"
   WPLIST="$LIBRARY/LaunchDaemons/$WINDOW.plist"
@@ -81,6 +83,7 @@ if [ "${1:-}" = --system ]; then
   touch "$ENVF"
   grep -v -E '^(ACTIONS_RUNNER_HOOK_JOB_STARTED|TMPDIR|DOCKER_HOST)=' "$ENVF" > "$ENVF.tmp" || true
   mv "$ENVF.tmp" "$ENVF"
+  rm -rf "$OLD"
   if [ $uninstall = yes ]; then
     rm -f "$RPLIST" "$WPLIST"
     rm -rf "$DEST"
@@ -153,12 +156,14 @@ fi
 # ---------------------------------------------------------------- the runner as the logged-in user
 RUNNER_DIR=$(cd "${1:?usage: install.sh [--uninstall] RUNNER_FOLDER}" && pwd)
 [ -x "$RUNNER_DIR/svc.sh" ] && [ -f "$RUNNER_DIR/.runner" ] || { echo "$RUNNER_DIR: not a configured runner (no svc.sh / .runner)" >&2; exit 1; }
-DEST="$HOME/Library/Application Support/Silinx-ISE-runner"
+# no whitespace in the path: the runner runs its hook unquoted (#891)
+DEST="$HOME/Library/Silinx-ISE-runner"
 LABEL=$WINDOW
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 ENVF="$RUNNER_DIR/.env"
 
 $LAUNCHCTL bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+rm -rf "$HOME/Library/Application Support/Silinx-ISE-runner"
 touch "$ENVF"
 grep -v '^ACTIONS_RUNNER_HOOK_JOB_STARTED=' "$ENVF" > "$ENVF.tmp" || true
 mv "$ENVF.tmp" "$ENVF"
