@@ -631,3 +631,43 @@ uiTest('#838 without a development build: View ▸ Interface is Modern and Class
   assert.ok(!(await shown(page, '#task-switch')) && !(await shown(page, '#task-tabs')));
   await page.eval(() => localStorage.removeItem('silinx.ui'));
 });
+
+uiTest('#882 Tasks: Simulate and Emulate, their side panel open or folded, have no empty column where the Design pane is', E, async (page) => {
+  await makeProject(env, { name: 'TasksLeft', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksLeft');
+  // the Design pane as a viewer leaves it: wide (#left's width, from its splitter)
+  await page.eval(() => { document.getElementById('left').style.width = '520px'; });
+  // the gap between the activity bar and the task's document: #left is the activity bar only
+  const gap = () => page.eval(() => {
+    const l = document.getElementById('left').getBoundingClientRect(), t = document.getElementById('left-tabs').getBoundingClientRect();
+    const d = document.querySelector('#workspace > .doc:not([hidden])').getBoundingClientRect();
+    return { left: Math.round(l.width - t.width), doc: Math.round(d.left - t.right) };
+  });
+  const sideOpen = (open) => page.eval((o) => {
+    if ((document.documentElement.dataset.side === 'open') !== o) document.querySelector('#task-bar [data-act="side"], [data-act="side"]').click();
+  }, open);
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.click('#task-empty button');
+  await page.waitFor(() => document.querySelector('.doc:not([hidden]) .isim'), [], { what: 'ISim', timeout: 30000 });
+  for (const open of [true, false]) {
+    await sideOpen(open);
+    await page.waitFor((o) => document.documentElement.dataset.side === (o ? 'open' : 'folded'), [open]);
+    assert.deepEqual({ open, ...await gap() }, { open, left: 0, doc: 0 }, 'Simulate');
+    assert.equal(await shown(page, '.isim .isim-left'), open, 'ISim\'s Instances and Objects: the side panel');
+  }
+  await page.click('#task-switch .task-btn[data-task="emu"]');
+  await page.click('#task-empty button');
+  await page.waitConsole(/Board Emulator: 'top'/, { timeout: 30000 });
+  for (const open of [true, false]) {
+    await sideOpen(open);
+    await page.waitFor((o) => document.documentElement.dataset.side === (o ? 'open' : 'folded'), [open]);
+    assert.deepEqual({ open, ...await gap() }, { open, left: 0, doc: 0 }, 'Emulate');
+  }
+  // Edit: the Design pane, its width as left
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  await sideOpen(true);
+  assert.equal(await page.eval(() => Math.round(document.getElementById('left').getBoundingClientRect().width)), 520);
+  await noWarnings(page);
+}, { build: DEV });
