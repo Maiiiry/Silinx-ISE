@@ -1,11 +1,14 @@
-// A design's use of the device's resources against what the device has (core/resource-check.js, #795): the
+// A design's use of the device's resources against what the device has (core/resource-check.js, #795, #796): the
 // resources of a netlist's cells, the ones over the part's counts and their message; the Silinx toolchain's
 // synthesis and MAP give every resource used of available and fail, with the resource named, on a design
 // over any of them (block RAMs, multipliers, DCMs, global buffers, I/O, flip-flops; the Spartan-6's DSP
-// slices), not at Place.
+// slices), not at Place. A change of the target device (#796): the design's primitives the new family lacks, with
+// their equivalent, and the resources over the new part's counts, each said; none for a compatible change.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { usedOfPrimitives, overResources, overMessage, resourceNoun } from '../core/resource-check.js';
+import { usedOfPrimitives, overResources, overMessage, resourceNoun, primitiveEquivalent, primitiveInstances, usedOfReport, deviceChangeIssues } from '../core/resource-check.js';
+import { compile, elaborate } from '../core/compile.js';
+import { primitiveSources } from '../core/unisim.js';
 import { resourcesOf } from '../core/resources.js';
 import { findPart } from '../server/devices.js';
 import { runOpenFlow } from '../core/open-flow-core.js';
@@ -181,4 +184,102 @@ test('#795 the Spartan-6 synthesis (the Silinx toolchain\'s, synthesis only): it
   assert.ok(ok.ok, ok.lines.join('\n'));
   assert.deepEqual(ok.warnings, []);
   assert.ok(ok.util.includes('  Number of DSP48A1s: 8 out of 8 100%'), ok.util.join('\n'));
+});
+
+// ------------------------------------------------------------------ a change of the target device (#796)
+test('#796 primitiveEquivalent: a primitive the family lacks, its equivalent there; one it has, or not counted, or a family not described: undefined', () => {
+  assert.equal(primitiveEquivalent('spartan6', 'MULT18X18SIO'), 'DSP48A1');
+  assert.equal(primitiveEquivalent('spartan6', 'mult18x18'), 'DSP48A1');
+  assert.equal(primitiveEquivalent('spartan6', 'RAMB16_S9_S36'), 'RAMB16BWER');
+  assert.equal(primitiveEquivalent('spartan6', 'RAMB16_S1'), 'RAMB16BWER');
+  assert.equal(primitiveEquivalent('spartan6', 'DCM'), 'DCM_SP');
+  assert.equal(primitiveEquivalent('spartan3e', 'DSP48A1'), 'MULT18X18SIO');
+  assert.equal(primitiveEquivalent('spartan3e', 'RAMB16BWER'), 'RAMB16_S36_S36');
+  assert.equal(primitiveEquivalent('spartan3e', 'RAMB8BWER'), 'RAMB16_S18_S18');
+  assert.equal(primitiveEquivalent('spartan3e', 'PLL_BASE'), 'DCM_SP');
+  assert.equal(primitiveEquivalent('spartan3e', 'BUFIO2'), 'BUFG');
+  assert.equal(primitiveEquivalent('spartan3e', 'MCB'), null);
+  for (const [f, n] of [['spartan6', 'DCM_SP'], ['spartan6', 'BUFG'], ['spartan3e', 'RAMB16_S9'], ['spartan3e', 'LUT4'], ['spartan6', 'FOO'], ['spartan3a', 'DSP48A1'], ['spartan3e', '']]) {
+    assert.equal(primitiveEquivalent(f, n), undefined, `${f} ${n}`);
+  }
+});
+
+const elaborated = (text, top = 'top') => {
+  const srcs = [{ path: 'top.v', lang: 'verilog', text }];
+  return elaborate(compile([...primitiveSources(srcs), ...srcs]), top).top;
+};
+const S3E_DESIGN = `module mac(input clk, input [17:0] a, output [35:0] p);
+  MULT18X18SIO #(.AREG(0), .BREG(0), .PREG(0)) m (.A(a), .B(a), .BCIN(18'd0), .CEA(1'b0), .CEB(1'b0), .CEP(1'b0), .CLK(clk), .RSTA(1'b0), .RSTB(1'b0), .RSTP(1'b0), .P(p));
+endmodule
+module top(input clk, input [17:0] a, output [2:0] q);
+  genvar i;
+  generate for (i = 0; i < 2; i = i + 1) begin : g
+    wire [35:0] p;
+    mac u (.clk(clk), .a(a), .p(p));
+    assign q[i] = ^p;
+  end endgenerate
+  wire [7:0] o; wire op;
+  RAMB16_S9 r (.CLK(clk), .EN(1'b1), .SSR(1'b0), .WE(a[0]), .ADDR(a[10:0]), .DI(a[8:1]), .DIP(1'b0), .DO(o), .DOP(op));
+  assign q[2] = ^o;
+endmodule
+`;
+
+test('#796 primitiveInstances: every instance of a counted primitive in the elaborated hierarchy, with the module that instantiates it', () => {
+  assert.deepEqual(primitiveInstances(elaborated(S3E_DESIGN)), [{ module: 'mac', primitive: 'MULT18X18SIO' }, { module: 'mac', primitive: 'MULT18X18SIO' }, { module: 'top', primitive: 'RAMB16_S9' }]);
+  assert.deepEqual(primitiveInstances(elaborated('module top(input a, output y);\n  assign y = ~a;\nendmodule\n')), []);
+  assert.deepEqual(primitiveInstances(null), []);
+});
+
+test('#796 usedOfReport: MAP\'s lines (by id, or ISE\'s by name), else the synthesis\'s; none', () => {
+  const S250 = resourcesOf(findPart('xc3s250e'), 'cp132');
+  const open = { synthesis: { utilization: [{ id: 'ramb16', name: 'Number of RAMB16s', used: 5, total: 12 }, { name: 'Number of latches', used: 2, total: null }] } };
+  assert.deepEqual(usedOfReport(open, S250), { ramb16: 5 });
+  const ise = { map: { utilization: [{ name: 'Number of Slice Flip Flops', used: 26, total: 4896 }, { name: 'Number of RAMB16s', used: 1, total: 12 }, { name: 'Number of Slices containing only related logic', used: 16, total: 16 }] },
+    synthesis: { utilization: [{ id: 'ramb16', name: 'Number of RAMB16s', used: 9 }] } };
+  assert.deepEqual(usedOfReport(ise, S250), { ffs: 26, ramb16: 1 });
+  assert.deepEqual(usedOfReport(null, S250), {});
+  assert.deepEqual(usedOfReport({ synthesis: { utilization: [] } }, S250), {});
+});
+
+const S3E_TO_S6 = { from: 'spartan3e', to: findPart('xc6slx4'), pkg: 'cpg196', familyName: 'Spartan-6' };
+test('#796 deviceChangeIssues: a Spartan-3E design on a Spartan-6: its multipliers and block RAM named with their equivalents, by module; the resources counted on the new part', () => {
+  const r = deviceChangeIssues({ ...S3E_TO_S6, instances: primitiveInstances(elaborated(S3E_DESIGN)), used: { ramb16: 1, mult18x18: 2, ffs: 0, luts: 40, iob: 22 } });
+  assert.deepEqual(r.messages, [
+    "Module 'mac' uses MULT18X18SIO, which the Spartan-6 family does not have: use DSP48A1 instead.",
+    "Module 'top' uses RAMB16_S9, which the Spartan-6 family does not have: use RAMB16BWER instead."]);
+  assert.deepEqual(r.over, []);
+  // over the new part: 13 block RAMs and 9 multipliers of a synthesis report on the XC6SLX4 (12 block RAMs, 8 DSP slices), 120 ports (106 pads)
+  const o = deviceChangeIssues({ ...S3E_TO_S6, instances: [], used: { ramb16: 13, mult18x18: 9, luts: 9000, iob: 120 } });
+  assert.deepEqual(o.messages, ['120 I/O pads needed, the XC6SLX4 has 106.', '13 block RAMs needed, the XC6SLX4 has 12.', '9 DSP slices needed, the XC6SLX4 has 8.']);
+});
+
+test('#796 deviceChangeIssues: a Spartan-6 design on a Spartan-3E: DSP48A1, PLL, RAMB8BWER and MCB named; a block RAM half takes a whole RAMB16', () => {
+  const instances = [{ module: 'fir', primitive: 'DSP48A1' }, { module: 'fir', primitive: 'DSP48A1' }, { module: 'clocks', primitive: 'PLL_BASE' }, { module: 'mem', primitive: 'MCB' },
+    ...Array.from({ length: 5 }, () => ({ module: 'buf', primitive: 'RAMB8BWER' }))];
+  const r = deviceChangeIssues({ from: 'spartan6', to: findPart('xc3s100e'), pkg: 'cp132', familyName: 'Spartan-3E', instances, used: {} });
+  assert.deepEqual(r.messages, [
+    "Module 'fir' uses DSP48A1, which the Spartan-3E family does not have: use MULT18X18SIO instead.",
+    "Module 'clocks' uses PLL_BASE, which the Spartan-3E family does not have: use DCM_SP instead.",
+    "Module 'mem' uses MCB, which the Spartan-3E family does not have, nor an equivalent.",
+    "Module 'buf' uses RAMB8BWER, which the Spartan-3E family does not have: use RAMB16_S18_S18 instead.",
+    '5 block RAMs needed, the XC3S100E has 4.']);
+  // (the report's RAMB16BWERs and RAMB8BWERs together as RAMB16s)
+  assert.deepEqual(deviceChangeIssues({ from: 'spartan6', to: findPart('xc3s100e'), pkg: 'cp132', used: { ramb16bwer: 2, ramb8bwer: 3, pll: 1, dcm: 1 } }).messages,
+    ['5 block RAMs needed, the XC3S100E has 4.']);
+});
+
+test('#796 deviceChangeIssues: a smaller part of the same family: the resources over its counts (a report\'s, the instances\', the ports); a compatible change: nothing', () => {
+  const to100 = { from: 'spartan3e', to: findPart('xc3s100e'), pkg: 'cp132', familyName: 'Spartan-3E' };
+  assert.deepEqual(deviceChangeIssues({ ...to100, used: { ramb16: 5, mult18x18: 4, dcm: 3, luts: 2000, slices: 1000 } }).messages,
+    ['2000 LUTs needed, the XC3S100E has 1920.', '1000 slices needed, the XC3S100E has 960.', '5 block RAMs needed, the XC3S100E has 4.', '3 DCMs needed, the XC3S100E has 2.']);
+  // (no report: the instances and the top's ports; more of them than the report says: the instances)
+  const inst = Array.from({ length: 6 }, () => ({ module: 'top', primitive: 'MULT18X18SIO' }));
+  assert.deepEqual(deviceChangeIssues({ ...to100, instances: inst, ports: 100 }).messages, ['100 I/O pads needed, the XC3S100E has 83.', '6 multipliers needed, the XC3S100E has 4.']);
+  assert.deepEqual(deviceChangeIssues({ ...to100, instances: inst, used: { mult18x18: 2 } }).messages, ['6 multipliers needed, the XC3S100E has 4.']);
+  // compatible: blinky's use, to the XC3S100E; a Spartan-3E design to the XC3S1200E; the same part
+  assert.deepEqual(deviceChangeIssues({ ...to100, instances: [], used: { ffs: 26, luts: 28, slices: 16, iob: 9, bufgmux: 1 }, ports: 9 }), { primitives: [], over: [], messages: [] });
+  assert.deepEqual(deviceChangeIssues({ from: 'spartan3e', to: findPart('xc3s1200e'), pkg: 'fg320', instances: primitiveInstances(elaborated(S3E_DESIGN)), used: { ramb16: 1, mult18x18: 2 } }).messages, []);
+  // (a family not described here: the common resources only, no primitive said)
+  assert.deepEqual(deviceChangeIssues({ from: 'spartan3e', to: findPart('xc3s50a'), instances: [{ module: 'top', primitive: 'RAMB16_S9' }], used: { ffs: 1500, ramb16: 9 } }).messages,
+    ['1500 flip-flops needed, the XC3S50A has 1408.']);
 });
