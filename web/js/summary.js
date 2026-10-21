@@ -1,6 +1,7 @@
 // Design Summary page (ISE "Design Summary/Reports").
 import { api } from './api.js';
 import { PRODUCT, VERSION_LABEL } from '/core/version.js';
+import { resourcesOf } from '/core/resources.js';
 import { h } from './ui.js';
 import { S, app } from './app.js';
 
@@ -37,8 +38,8 @@ export function mountSummary(el) {
       h('tr', {}, h('th', {}, 'Logic Utilization'), h('th', {}, 'Used'), h('th', {}, 'Available'), h('th', {}, 'Utilization'), h('th', {}, '')));
     let lines = (rep?.map?.utilization || []).filter(u => u.total).map(u => [u.name, u.used, u.total, u.percent]);
     if (!lines.length && part) {
-      lines = [['Number of Slice Flip Flops', '-', part.ffs], ['Number of 4 input LUTs', '-', part.luts], ['Number of occupied Slices', '-', part.slices],
-        ['Number of bonded IOBs', '-', part.packages[pj.device.package]?.userIo], ['Number of RAMB16s', '-', part.brams], ['Number of MULT18X18SIOs', '-', part.multipliers], ['Number of BUFGMUXs', '-', 24], ['Number of DCMs', '-', part.dcms]];
+      // the part's resources (core/resources.js, #790): the MAP report's lines, those the part has
+      lines = resourcesOf(part, pj.device.package).filter(r => r.report && r.count).map(r => [r.report, '-', r.count]);
     }
     for (const [k, used, avail, pc] of lines) {
       const p = typeof used === 'number' ? (pc ?? pct(used, avail)) : null;
