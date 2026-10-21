@@ -571,6 +571,26 @@ test('#742 the carry chains\' netlist against the one without them, both ways: t
   assert.equal(keepChains(sopb, chains, { linesC: [twice], linesN: [twice] }), true);
 });
 
+// Regression (#746): the EPFL multiplier's chains' netlist, once driven once, estimated 111.32 ns, 5322 LUTs, 2768
+// slices; without them 52.20 ns, 8729 LUTs, 4365 slices (routed 128.6 -> 63.9 ns): 2.1 times faster for 1.6 times the
+// LUTs and slices, refused by DEPTH_RULE alone (its gain, 53 %, below the LUTs' growth, 64 %)
+test('#746 the netlist without the chains kept when larger by no more times than it is faster: the EPFL multiplier\'s; the adder\'s not', () => {
+  const chains = { ns: 111.32, luts: 5322, slices: 2768 }, none = { ns: 52.2, luts: 8729, slices: 4365 };
+  assert.equal(keepDepth([chains.ns, none.ns], [chains.luts, none.luts], DEPTH_RULE, [chains.slices, none.slices]), false);
+  assert.equal(keepChains(none, chains), false);
+  // (the LUTs or the slices more times larger than it is faster: the chains)
+  const k = chains.ns / none.ns;
+  assert.equal(keepChains({ ...none, luts: Math.ceil(chains.luts * k) + 1 }, chains), true);
+  assert.equal(keepChains({ ...none, slices: Math.ceil(chains.slices * k) + 1 }, chains), true);
+  assert.equal(keepChains({ ...none, luts: Math.floor(chains.luts * k), slices: Math.floor(chains.slices * k) }, chains), false);
+  // (slices unknown: the LUTs alone)
+  assert.equal(keepChains({ ...none, slices: null }, { ...chains, slices: null }), false);
+  // (not faster by the rule's gain: the chains, the netlist without them larger)
+  assert.equal(keepChains({ ns: chains.ns * (1 - DEPTH_RULE.gain / 2), luts: chains.luts + 1, slices: chains.slices + 1 }, chains), true);
+  // the EPFL adder's (above): 1.8 times faster for 3.9 times the LUTs, the chains kept
+  assert.equal(keepChains({ ns: 9.92, luts: 675, slices: 338 }, { ns: 17.81, luts: 171, slices: 194 }), true);
+});
+
 test('#377 logic depth: the rule weighs the slices too, when known; sliceCount packs a netlist as the open flow', () => {
   assert.ok(keepDepth([10, 10.05], [100, 104], DEPTH_RULE, [80, 76]), '5 % fewer slices, more LUTs, as fast: smaller');
   assert.ok(!keepDepth([10, 10.05], [100, 104], DEPTH_RULE, [80, 77]), 'not 5 % fewer slices');
