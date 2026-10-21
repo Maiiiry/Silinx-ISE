@@ -466,7 +466,10 @@ export function toVerilog(design, { name, tables = true, simprim = null } = {}) 
     switch (n.o) {
       // (the operand of a unary operator is parenthesized: Yosys reads ~8'(x) as (~8)'(x))
       case '~': return { x: `${w}'(~(${fit(a.x, a.w, es, w, a.s)}))`, w, s: es };
-      case '-': return { x: `${w}'(-(${fit(a.x, a.w, es, w, a.s)}))`, w, s: es };
+      // (-x as 0 - x, a subtraction: Yosys 0.70's alumacc, after wreduce, merges a $neg narrower than the
+      // sum that reads it into that sum at its full width, so a negation that wraps, -(-16) at 5 bits, comes out
+      // unwrapped: VlogHammer wideexpr_24040, #743. A sum keeps its width there)
+      case '-': return { x: `${w}'(${w}'${es ? 's' : ''}d0 - (${fit(a.x, a.w, es, w, a.s)}))`, w, s: es };
       case '!': return { x: `!(${a.w === 1 ? a.x : `${a.x} != 0`})`, w: 1, s: false };
       case 'abs': { const v = fit(a.x, a.w, !!t.s, w); return { x: `${w}'(${S(v)} < 0 ? -(${S(v)}) : ${S(v)})`, w, s: !!t.s }; }
       case '&': case '|': case '^': case '~&': case '~|': case '~^': case '^~': return { x: `(${n.o}(${sized(a.x, a.w)}))`, w: 1, s: false };
