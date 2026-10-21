@@ -1,0 +1,6399 @@
+{
+ "stage": "S6-0",
+ "ise": "ISE 14.7",
+ "boards": {
+  "nexys3": {
+   "part": "xc6slx16-csg324-3",
+   "examples": {
+    "gates": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 0,
+        "of": 18224
+       },
+       "Slice LUTs": {
+        "used": 1,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 1,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 1
+       },
+       "using O5 output only": {
+        "used": 0
+       },
+       "using O5 and O6": {
+        "used": 0
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "occupied Slices": {
+        "used": 1,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 0,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 1
+       },
+       "with an unused Flip Flop": {
+        "used": 1,
+        "of": 1
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 1
+       },
+       "fully used LUT-FF pairs": {
+        "used": 0,
+        "of": 1
+       },
+       "bonded IOBs": {
+        "used": 6,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 6,
+        "of": 6
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 0,
+        "of": 16
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "IOB": 6,
+       "SLICEX": 1
+      },
+      "routed": true,
+      "minPeriod": null,
+      "times": {
+       "xst": 15,
+       "ngdbuild": 8,
+       "map": 12,
+       "par": 14,
+       "trce": 7,
+       "xdl": 4,
+       "bitgen": 9
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 0,
+        "of": 18224
+       },
+       "Slice LUTs": {
+        "used": 1,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 1,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 1
+       },
+       "using O5 output only": {
+        "used": 0
+       },
+       "using O5 and O6": {
+        "used": 0
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "occupied Slices": {
+        "used": 1,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 0,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 1
+       },
+       "with an unused Flip Flop": {
+        "used": 1,
+        "of": 1
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 1
+       },
+       "fully used LUT-FF pairs": {
+        "used": 0,
+        "of": 1
+       },
+       "bonded IOBs": {
+        "used": 6,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 6,
+        "of": 6
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 0,
+        "of": 16
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "IOB": 6,
+       "SLICEX": 1
+      },
+      "routed": true,
+      "minPeriod": null,
+      "times": {
+       "ngdbuild": 13,
+       "map": 12,
+       "par": 11,
+       "trce": 5,
+       "xdl": 3
+      }
+     }
+    },
+    "traffic": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 59,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 59
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 131,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 128,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 79
+       },
+       "using O5 output only": {
+        "used": 14
+       },
+       "using O5 and O6": {
+        "used": 35
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 2,
+        "of": 2176
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 2
+       },
+       "used exclusively as route-thrus": {
+        "used": 1
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 1
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 44,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 40,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 131
+       },
+       "with an unused Flip Flop": {
+        "used": 72,
+        "of": 131
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 131
+       },
+       "fully used LUT-FF pairs": {
+        "used": 59,
+        "of": 131
+       },
+       "unique control sets": {
+        "used": 6
+       },
+       "bonded IOBs": {
+        "used": 24,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 24,
+        "of": 24
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 24,
+       "SLICEL": 12,
+       "SLICEM": 1,
+       "SLICEX": 31
+      },
+      "routed": true,
+      "minPeriod": 4.559,
+      "times": {
+       "xst": 17,
+       "ngdbuild": 7,
+       "map": 14,
+       "par": 14,
+       "trce": 8,
+       "xdl": 5,
+       "bitgen": 9
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 2
+       },
+       "Slice Registers": {
+        "used": 58,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 58
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 122,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 120,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 82
+       },
+       "using O5 output only": {
+        "used": 15
+       },
+       "using O5 and O6": {
+        "used": 23
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "used exclusively as route-thrus": {
+        "used": 2
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 0
+       },
+       "with other load": {
+        "used": 2
+       },
+       "occupied Slices": {
+        "used": 45,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 40,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 127
+       },
+       "with an unused Flip Flop": {
+        "used": 69,
+        "of": 127
+       },
+       "with an unused LUT": {
+        "used": 5,
+        "of": 127
+       },
+       "fully used LUT-FF pairs": {
+        "used": 53,
+        "of": 127
+       },
+       "unique control sets": {
+        "used": 7
+       },
+       "bonded IOBs": {
+        "used": 24,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 23,
+        "of": 24
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 24,
+       "SLICEL": 20,
+       "SLICEX": 25
+      },
+      "routed": true,
+      "minPeriod": 5.213,
+      "times": {
+       "ngdbuild": 8,
+       "map": 13,
+       "par": 12,
+       "trce": 6,
+       "xdl": 4
+      }
+     }
+    },
+    "blinky": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 96,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 96
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 189,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 183,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 100
+       },
+       "using O5 output only": {
+        "used": 65
+       },
+       "using O5 and O6": {
+        "used": 18
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "used exclusively as route-thrus": {
+        "used": 6
+       },
+       "with same-slice register load": {
+        "used": 1
+       },
+       "with same-slice carry load": {
+        "used": 5
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 60,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 84,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 191
+       },
+       "with an unused Flip Flop": {
+        "used": 100,
+        "of": 191
+       },
+       "with an unused LUT": {
+        "used": 2,
+        "of": 191
+       },
+       "fully used LUT-FF pairs": {
+        "used": 89,
+        "of": 191
+       },
+       "unique control sets": {
+        "used": 4
+       },
+       "bonded IOBs": {
+        "used": 15,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 15
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 15,
+       "SLICEL": 21,
+       "SLICEX": 39
+      },
+      "routed": true,
+      "minPeriod": 4.228,
+      "times": {
+       "xst": 16,
+       "ngdbuild": 8,
+       "map": 14,
+       "par": 15,
+       "trce": 8,
+       "xdl": 5,
+       "bitgen": 10
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 97,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 96
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 1
+       },
+       "Slice LUTs": {
+        "used": 133,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 132,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 54
+       },
+       "using O5 output only": {
+        "used": 70
+       },
+       "using O5 and O6": {
+        "used": 8
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "used exclusively as route-thrus": {
+        "used": 1
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 1
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 53,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 84,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 137
+       },
+       "with an unused Flip Flop": {
+        "used": 40,
+        "of": 137
+       },
+       "with an unused LUT": {
+        "used": 4,
+        "of": 137
+       },
+       "fully used LUT-FF pairs": {
+        "used": 93,
+        "of": 137
+       },
+       "unique control sets": {
+        "used": 10
+       },
+       "bonded IOBs": {
+        "used": 15,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 15
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 15,
+       "SLICEL": 21,
+       "SLICEX": 32
+      },
+      "routed": true,
+      "minPeriod": 4.139,
+      "times": {
+       "ngdbuild": 16,
+       "map": 13,
+       "par": 11,
+       "trce": 6,
+       "xdl": 3
+      }
+     }
+    },
+    "pong": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 203,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 203
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 366,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 355,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 150
+       },
+       "using O5 output only": {
+        "used": 131
+       },
+       "using O5 and O6": {
+        "used": 74
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 2176
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 7
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 7
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 114,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 216,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 366
+       },
+       "with an unused Flip Flop": {
+        "used": 178,
+        "of": 366
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 366
+       },
+       "fully used LUT-FF pairs": {
+        "used": 188,
+        "of": 366
+       },
+       "unique control sets": {
+        "used": 12
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 27,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 55,
+       "SLICEM": 1,
+       "SLICEX": 58
+      },
+      "routed": true,
+      "minPeriod": 5.525,
+      "times": {
+       "xst": 15,
+       "ngdbuild": 7,
+       "map": 15,
+       "par": 16,
+       "trce": 7,
+       "xdl": 5,
+       "bitgen": 10
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 226,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 226
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 416,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 411,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 242
+       },
+       "using O5 output only": {
+        "used": 159
+       },
+       "using O5 and O6": {
+        "used": 10
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "used exclusively as route-thrus": {
+        "used": 5
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 5
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 141,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 228,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 427
+       },
+       "with an unused Flip Flop": {
+        "used": 201,
+        "of": 427
+       },
+       "with an unused LUT": {
+        "used": 11,
+        "of": 427
+       },
+       "fully used LUT-FF pairs": {
+        "used": 215,
+        "of": 427
+       },
+       "unique control sets": {
+        "used": 28
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 27,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 57,
+       "SLICEX": 84
+      },
+      "routed": true,
+      "minPeriod": 7.691,
+      "times": {
+       "ngdbuild": 9,
+       "map": 14,
+       "par": 11,
+       "trce": 6,
+       "xdl": 4
+      }
+     }
+    },
+    "stopwatch": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 1
+       },
+       "Slice Registers": {
+        "used": 183,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 183
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 261,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 248,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 88
+       },
+       "using O5 output only": {
+        "used": 130
+       },
+       "using O5 and O6": {
+        "used": 30
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 2176
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 9
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 9
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 85,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 156,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 266
+       },
+       "with an unused Flip Flop": {
+        "used": 91,
+        "of": 266
+       },
+       "with an unused LUT": {
+        "used": 5,
+        "of": 266
+       },
+       "fully used LUT-FF pairs": {
+        "used": 170,
+        "of": 266
+       },
+       "unique control sets": {
+        "used": 13
+       },
+       "bonded IOBs": {
+        "used": 26,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 26,
+        "of": 26
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 1,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 3,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "DSP48A1": 3,
+       "IOB": 26,
+       "RAMB8BWER": 1,
+       "SLICEL": 39,
+       "SLICEM": 1,
+       "SLICEX": 45
+      },
+      "routed": true,
+      "minPeriod": 7.089,
+      "times": {
+       "xst": 15,
+       "ngdbuild": 7,
+       "map": 15,
+       "par": 15,
+       "trce": 8,
+       "xdl": 5,
+       "bitgen": 11
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 1
+       },
+       "Slice Registers": {
+        "used": 200,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 200
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 319,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 316,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 168
+       },
+       "using O5 output only": {
+        "used": 139
+       },
+       "using O5 and O6": {
+        "used": 9
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "used exclusively as route-thrus": {
+        "used": 3
+       },
+       "with same-slice register load": {
+        "used": 3
+       },
+       "with same-slice carry load": {
+        "used": 0
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 113,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 168,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 336
+       },
+       "with an unused Flip Flop": {
+        "used": 142,
+        "of": 336
+       },
+       "with an unused LUT": {
+        "used": 17,
+        "of": 336
+       },
+       "fully used LUT-FF pairs": {
+        "used": 177,
+        "of": 336
+       },
+       "unique control sets": {
+        "used": 18
+       },
+       "bonded IOBs": {
+        "used": 26,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 25,
+        "of": 26
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 1,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 3,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "DSP48A1": 3,
+       "IOB": 26,
+       "RAMB8BWER": 1,
+       "SLICEL": 42,
+       "SLICEX": 71
+      },
+      "routed": true,
+      "minPeriod": 8.74,
+      "times": {
+       "ngdbuild": 5,
+       "map": 11,
+       "par": 12,
+       "trce": 6,
+       "xdl": 3
+      }
+     }
+    },
+    "clock": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 154,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 154
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 369,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 359,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 222
+       },
+       "using O5 output only": {
+        "used": 110
+       },
+       "using O5 and O6": {
+        "used": 27
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 2176
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 6
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 6
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 108,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 124,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 369
+       },
+       "with an unused Flip Flop": {
+        "used": 215,
+        "of": 369
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 369
+       },
+       "fully used LUT-FF pairs": {
+        "used": 154,
+        "of": 369
+       },
+       "unique control sets": {
+        "used": 5
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 27,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 33,
+       "SLICEM": 1,
+       "SLICEX": 74
+      },
+      "routed": true,
+      "minPeriod": 4.325,
+      "times": {
+       "xst": 12,
+       "ngdbuild": 7,
+       "map": 14,
+       "par": 16,
+       "trce": 8,
+       "xdl": 5,
+       "bitgen": 10
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 175,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 174
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 1
+       },
+       "Slice LUTs": {
+        "used": 321,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 307,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 144
+       },
+       "using O5 output only": {
+        "used": 144
+       },
+       "using O5 and O6": {
+        "used": 19
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "used exclusively as route-thrus": {
+        "used": 14
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 14
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 119,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 196,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 332
+       },
+       "with an unused Flip Flop": {
+        "used": 157,
+        "of": 332
+       },
+       "with an unused LUT": {
+        "used": 11,
+        "of": 332
+       },
+       "fully used LUT-FF pairs": {
+        "used": 164,
+        "of": 332
+       },
+       "unique control sets": {
+        "used": 20
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 27,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 51,
+       "SLICEX": 68
+      },
+      "routed": true,
+      "minPeriod": 5.341,
+      "times": {
+       "ngdbuild": 9,
+       "map": 10,
+       "par": 10,
+       "trce": 6,
+       "xdl": 4
+      }
+     }
+    },
+    "vga": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 53,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 53
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 173,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 167,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 124
+       },
+       "using O5 output only": {
+        "used": 16
+       },
+       "using O5 and O6": {
+        "used": 27
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 2176
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 2
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 2
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 57,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 68,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 173
+       },
+       "with an unused Flip Flop": {
+        "used": 120,
+        "of": 173
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 173
+       },
+       "fully used LUT-FF pairs": {
+        "used": 53,
+        "of": 173
+       },
+       "unique control sets": {
+        "used": 6
+       },
+       "bonded IOBs": {
+        "used": 16,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 16,
+        "of": 16
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 16,
+       "SLICEL": 17,
+       "SLICEM": 1,
+       "SLICEX": 39
+      },
+      "routed": true,
+      "minPeriod": 6.054,
+      "times": {
+       "xst": 11,
+       "ngdbuild": 4,
+       "map": 9,
+       "par": 9,
+       "trce": 5,
+       "xdl": 3,
+       "bitgen": 6
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 56,
+        "of": 18224
+       },
+       "used as Flip Flops": {
+        "used": 56
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 166,
+        "of": 9112
+       },
+       "used as logic": {
+        "used": 163,
+        "of": 9112
+       },
+       "using O6 output only": {
+        "used": 104
+       },
+       "using O5 output only": {
+        "used": 43
+       },
+       "using O5 and O6": {
+        "used": 16
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 2176
+       },
+       "used exclusively as route-thrus": {
+        "used": 3
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 3
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 61,
+        "of": 2278
+       },
+       "MUXCYs used": {
+        "used": 120,
+        "of": 4556
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 174
+       },
+       "with an unused Flip Flop": {
+        "used": 118,
+        "of": 174
+       },
+       "with an unused LUT": {
+        "used": 8,
+        "of": 174
+       },
+       "fully used LUT-FF pairs": {
+        "used": 48,
+        "of": 174
+       },
+       "unique control sets": {
+        "used": 7
+       },
+       "bonded IOBs": {
+        "used": 16,
+        "of": 232
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 16
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 32
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 64
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 4
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 248
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 248
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 128
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 32
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 2
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 16,
+       "SLICEL": 30,
+       "SLICEX": 31
+      },
+      "routed": true,
+      "minPeriod": 5.706,
+      "times": {
+       "ngdbuild": 8,
+       "map": 13,
+       "par": 13,
+       "trce": 6,
+       "xdl": 4
+      }
+     }
+    }
+   }
+  },
+  "atlys": {
+   "part": "xc6slx45-csg324-3",
+   "examples": {
+    "gates": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 0,
+        "of": 54576
+       },
+       "Slice LUTs": {
+        "used": 1,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 1,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 1
+       },
+       "using O5 output only": {
+        "used": 0
+       },
+       "using O5 and O6": {
+        "used": 0
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "occupied Slices": {
+        "used": 1,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 0,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 1
+       },
+       "with an unused Flip Flop": {
+        "used": 1,
+        "of": 1
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 1
+       },
+       "fully used LUT-FF pairs": {
+        "used": 0,
+        "of": 1
+       },
+       "bonded IOBs": {
+        "used": 6,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 6,
+        "of": 6
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 0,
+        "of": 16
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "IOB": 6,
+       "SLICEX": 1
+      },
+      "routed": true,
+      "minPeriod": null,
+      "times": {
+       "xst": 12,
+       "ngdbuild": 7,
+       "map": 14,
+       "par": 16,
+       "trce": 7,
+       "xdl": 5,
+       "bitgen": 13
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 0,
+        "of": 54576
+       },
+       "Slice LUTs": {
+        "used": 1,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 1,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 1
+       },
+       "using O5 output only": {
+        "used": 0
+       },
+       "using O5 and O6": {
+        "used": 0
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "occupied Slices": {
+        "used": 1,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 0,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 1
+       },
+       "with an unused Flip Flop": {
+        "used": 1,
+        "of": 1
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 1
+       },
+       "fully used LUT-FF pairs": {
+        "used": 0,
+        "of": 1
+       },
+       "bonded IOBs": {
+        "used": 6,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 6,
+        "of": 6
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 0,
+        "of": 16
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "IOB": 6,
+       "SLICEX": 1
+      },
+      "routed": true,
+      "minPeriod": null,
+      "times": {
+       "ngdbuild": 16,
+       "map": 14,
+       "par": 13,
+       "trce": 6,
+       "xdl": 3
+      }
+     }
+    },
+    "traffic": {
+     "unmatched": [
+      "seg",
+      "dp",
+      "an"
+     ],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 59,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 59
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 131,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 128,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 79
+       },
+       "using O5 output only": {
+        "used": 14
+       },
+       "using O5 and O6": {
+        "used": 35
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 2,
+        "of": 6408
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 2
+       },
+       "used exclusively as route-thrus": {
+        "used": 1
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 1
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 46,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 40,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 133
+       },
+       "with an unused Flip Flop": {
+        "used": 74,
+        "of": 133
+       },
+       "with an unused LUT": {
+        "used": 2,
+        "of": 133
+       },
+       "fully used LUT-FF pairs": {
+        "used": 57,
+        "of": 133
+       },
+       "unique control sets": {
+        "used": 6
+       },
+       "bonded IOBs": {
+        "used": 24,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 12,
+        "of": 24
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 24,
+       "SLICEL": 12,
+       "SLICEM": 1,
+       "SLICEX": 33
+      },
+      "routed": true,
+      "minPeriod": 6.773,
+      "times": {
+       "xst": 14,
+       "ngdbuild": 6,
+       "map": 20,
+       "par": 19,
+       "trce": 10,
+       "xdl": 5,
+       "bitgen": 14
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 2
+       },
+       "Slice Registers": {
+        "used": 58,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 58
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 122,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 120,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 82
+       },
+       "using O5 output only": {
+        "used": 15
+       },
+       "using O5 and O6": {
+        "used": 23
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "used exclusively as route-thrus": {
+        "used": 2
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 0
+       },
+       "with other load": {
+        "used": 2
+       },
+       "occupied Slices": {
+        "used": 47,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 40,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 127
+       },
+       "with an unused Flip Flop": {
+        "used": 69,
+        "of": 127
+       },
+       "with an unused LUT": {
+        "used": 5,
+        "of": 127
+       },
+       "fully used LUT-FF pairs": {
+        "used": 53,
+        "of": 127
+       },
+       "unique control sets": {
+        "used": 7
+       },
+       "bonded IOBs": {
+        "used": 24,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 11,
+        "of": 24
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 24,
+       "SLICEL": 20,
+       "SLICEX": 27
+      },
+      "routed": true,
+      "minPeriod": 5.772,
+      "times": {
+       "ngdbuild": 6,
+       "map": 16,
+       "par": 15,
+       "trce": 7,
+       "xdl": 5
+      }
+     }
+    },
+    "blinky": {
+     "unmatched": [],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 96,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 96
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 188,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 183,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 100
+       },
+       "using O5 output only": {
+        "used": 65
+       },
+       "using O5 and O6": {
+        "used": 18
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "used exclusively as route-thrus": {
+        "used": 5
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 5
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 65,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 84,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 192
+       },
+       "with an unused Flip Flop": {
+        "used": 100,
+        "of": 192
+       },
+       "with an unused LUT": {
+        "used": 4,
+        "of": 192
+       },
+       "fully used LUT-FF pairs": {
+        "used": 88,
+        "of": 192
+       },
+       "unique control sets": {
+        "used": 4
+       },
+       "bonded IOBs": {
+        "used": 15,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 15
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 15,
+       "SLICEL": 21,
+       "SLICEX": 44
+      },
+      "routed": true,
+      "minPeriod": 4.529,
+      "times": {
+       "xst": 14,
+       "ngdbuild": 7,
+       "map": 18,
+       "par": 19,
+       "trce": 9,
+       "xdl": 5,
+       "bitgen": 14
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 97,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 96
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 1
+       },
+       "Slice LUTs": {
+        "used": 133,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 132,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 54
+       },
+       "using O5 output only": {
+        "used": 70
+       },
+       "using O5 and O6": {
+        "used": 8
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "used exclusively as route-thrus": {
+        "used": 1
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 1
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 51,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 84,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 138
+       },
+       "with an unused Flip Flop": {
+        "used": 41,
+        "of": 138
+       },
+       "with an unused LUT": {
+        "used": 5,
+        "of": 138
+       },
+       "fully used LUT-FF pairs": {
+        "used": 92,
+        "of": 138
+       },
+       "unique control sets": {
+        "used": 10
+       },
+       "bonded IOBs": {
+        "used": 15,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 15
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 15,
+       "SLICEL": 21,
+       "SLICEX": 30
+      },
+      "routed": true,
+      "minPeriod": 4.749,
+      "times": {
+       "ngdbuild": 16,
+       "map": 16,
+       "par": 14,
+       "trce": 6,
+       "xdl": 4
+      }
+     }
+    },
+    "pong": {
+     "unmatched": [
+      "seg",
+      "an",
+      "dp"
+     ],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 203,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 203
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 366,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 355,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 150
+       },
+       "using O5 output only": {
+        "used": 131
+       },
+       "using O5 and O6": {
+        "used": 74
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 6408
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 7
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 7
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 114,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 216,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 367
+       },
+       "with an unused Flip Flop": {
+        "used": 179,
+        "of": 367
+       },
+       "with an unused LUT": {
+        "used": 1,
+        "of": 367
+       },
+       "fully used LUT-FF pairs": {
+        "used": 187,
+        "of": 367
+       },
+       "unique control sets": {
+        "used": 12
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 55,
+       "SLICEM": 1,
+       "SLICEX": 58
+      },
+      "routed": true,
+      "minPeriod": 6.036,
+      "times": {
+       "xst": 14,
+       "ngdbuild": 9,
+       "map": 24,
+       "par": 19,
+       "trce": 10,
+       "xdl": 5,
+       "bitgen": 15
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 226,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 226
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 416,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 411,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 242
+       },
+       "using O5 output only": {
+        "used": 159
+       },
+       "using O5 and O6": {
+        "used": 10
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "used exclusively as route-thrus": {
+        "used": 5
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 5
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 141,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 228,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 426
+       },
+       "with an unused Flip Flop": {
+        "used": 200,
+        "of": 426
+       },
+       "with an unused LUT": {
+        "used": 10,
+        "of": 426
+       },
+       "fully used LUT-FF pairs": {
+        "used": 216,
+        "of": 426
+       },
+       "unique control sets": {
+        "used": 28
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 57,
+       "SLICEX": 84
+      },
+      "routed": true,
+      "minPeriod": 8.039,
+      "times": {
+       "ngdbuild": 8,
+       "map": 17,
+       "par": 15,
+       "trce": 7,
+       "xdl": 4
+      }
+     }
+    },
+    "stopwatch": {
+     "unmatched": [
+      "seg",
+      "dp",
+      "an"
+     ],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 1
+       },
+       "Slice Registers": {
+        "used": 183,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 183
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 261,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 248,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 88
+       },
+       "using O5 output only": {
+        "used": 130
+       },
+       "using O5 and O6": {
+        "used": 30
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 6408
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 9
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 9
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 82,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 156,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 265
+       },
+       "with an unused Flip Flop": {
+        "used": 90,
+        "of": 265
+       },
+       "with an unused LUT": {
+        "used": 4,
+        "of": 265
+       },
+       "fully used LUT-FF pairs": {
+        "used": 171,
+        "of": 265
+       },
+       "unique control sets": {
+        "used": 13
+       },
+       "bonded IOBs": {
+        "used": 26,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 14,
+        "of": 26
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 1,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 3,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "DSP48A1": 3,
+       "IOB": 26,
+       "RAMB8BWER": 1,
+       "SLICEL": 39,
+       "SLICEM": 1,
+       "SLICEX": 42
+      },
+      "routed": true,
+      "minPeriod": 7.948,
+      "times": {
+       "xst": 14,
+       "ngdbuild": 7,
+       "map": 21,
+       "par": 21,
+       "trce": 9,
+       "xdl": 5,
+       "bitgen": 16
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 1
+       },
+       "Slice Registers": {
+        "used": 200,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 200
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 319,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 316,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 168
+       },
+       "using O5 output only": {
+        "used": 139
+       },
+       "using O5 and O6": {
+        "used": 9
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "used exclusively as route-thrus": {
+        "used": 3
+       },
+       "with same-slice register load": {
+        "used": 3
+       },
+       "with same-slice carry load": {
+        "used": 0
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 113,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 168,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 332
+       },
+       "with an unused Flip Flop": {
+        "used": 138,
+        "of": 332
+       },
+       "with an unused LUT": {
+        "used": 13,
+        "of": 332
+       },
+       "fully used LUT-FF pairs": {
+        "used": 181,
+        "of": 332
+       },
+       "unique control sets": {
+        "used": 18
+       },
+       "bonded IOBs": {
+        "used": 26,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 13,
+        "of": 26
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 1,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 3,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "DSP48A1": 3,
+       "IOB": 26,
+       "RAMB8BWER": 1,
+       "SLICEL": 42,
+       "SLICEX": 71
+      },
+      "routed": true,
+      "minPeriod": 9.319,
+      "times": {
+       "ngdbuild": 5,
+       "map": 14,
+       "par": 14,
+       "trce": 7,
+       "xdl": 3
+      }
+     }
+    },
+    "clock": {
+     "unmatched": [
+      "seg",
+      "an",
+      "dp"
+     ],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 154,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 154
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 369,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 359,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 222
+       },
+       "using O5 output only": {
+        "used": 110
+       },
+       "using O5 and O6": {
+        "used": 27
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 6408
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 6
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 6
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 112,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 124,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 369
+       },
+       "with an unused Flip Flop": {
+        "used": 215,
+        "of": 369
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 369
+       },
+       "fully used LUT-FF pairs": {
+        "used": 154,
+        "of": 369
+       },
+       "unique control sets": {
+        "used": 5
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 33,
+       "SLICEM": 1,
+       "SLICEX": 78
+      },
+      "routed": true,
+      "minPeriod": 5.688,
+      "times": {
+       "xst": 15,
+       "ngdbuild": 6,
+       "map": 20,
+       "par": 20,
+       "trce": 10,
+       "xdl": 5,
+       "bitgen": 14
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 175,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 174
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 1
+       },
+       "Slice LUTs": {
+        "used": 321,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 307,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 144
+       },
+       "using O5 output only": {
+        "used": 144
+       },
+       "using O5 and O6": {
+        "used": 19
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "used exclusively as route-thrus": {
+        "used": 14
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 14
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 116,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 196,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 331
+       },
+       "with an unused Flip Flop": {
+        "used": 156,
+        "of": 331
+       },
+       "with an unused LUT": {
+        "used": 10,
+        "of": 331
+       },
+       "fully used LUT-FF pairs": {
+        "used": 165,
+        "of": 331
+       },
+       "unique control sets": {
+        "used": 20
+       },
+       "bonded IOBs": {
+        "used": 27,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 15,
+        "of": 27
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 27,
+       "SLICEL": 51,
+       "SLICEX": 65
+      },
+      "routed": true,
+      "minPeriod": 5.909,
+      "times": {
+       "ngdbuild": 8,
+       "map": 14,
+       "par": 15,
+       "trce": 7,
+       "xdl": 3
+      }
+     }
+    },
+    "vga": {
+     "unmatched": [
+      "vga_red",
+      "vga_green",
+      "vga_blue",
+      "vga_hsync",
+      "vga_vsync"
+     ],
+     "hdl": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 53,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 53
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 173,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 167,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 124
+       },
+       "using O5 output only": {
+        "used": 16
+       },
+       "using O5 and O6": {
+        "used": 27
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 4,
+        "of": 6408
+       },
+       "used as Dual Port RAM": {
+        "used": 0
+       },
+       "used as Single Port RAM": {
+        "used": 0
+       },
+       "used as Shift Register": {
+        "used": 4
+       },
+       "used exclusively as route-thrus": {
+        "used": 2
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 2
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 58,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 68,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 173
+       },
+       "with an unused Flip Flop": {
+        "used": 120,
+        "of": 173
+       },
+       "with an unused LUT": {
+        "used": 0,
+        "of": 173
+       },
+       "fully used LUT-FF pairs": {
+        "used": 53,
+        "of": 173
+       },
+       "unique control sets": {
+        "used": 6
+       },
+       "bonded IOBs": {
+        "used": 16,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 6,
+        "of": 16
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 16,
+       "SLICEL": 18,
+       "SLICEM": 1,
+       "SLICEX": 39
+      },
+      "routed": true,
+      "minPeriod": 6.191,
+      "times": {
+       "xst": 11,
+       "ngdbuild": 4,
+       "map": 14,
+       "par": 13,
+       "trce": 6,
+       "xdl": 3,
+       "bitgen": 9
+      }
+     },
+     "open": {
+      "map": {
+       "errors": {
+        "used": 0
+       },
+       "warnings": {
+        "used": 0
+       },
+       "Slice Registers": {
+        "used": 56,
+        "of": 54576
+       },
+       "used as Flip Flops": {
+        "used": 56
+       },
+       "used as Latches": {
+        "used": 0
+       },
+       "used as Latch-thrus": {
+        "used": 0
+       },
+       "used as AND/OR logics": {
+        "used": 0
+       },
+       "Slice LUTs": {
+        "used": 166,
+        "of": 27288
+       },
+       "used as logic": {
+        "used": 163,
+        "of": 27288
+       },
+       "using O6 output only": {
+        "used": 104
+       },
+       "using O5 output only": {
+        "used": 43
+       },
+       "using O5 and O6": {
+        "used": 16
+       },
+       "used as ROM": {
+        "used": 0
+       },
+       "used as Memory": {
+        "used": 0,
+        "of": 6408
+       },
+       "used exclusively as route-thrus": {
+        "used": 3
+       },
+       "with same-slice register load": {
+        "used": 0
+       },
+       "with same-slice carry load": {
+        "used": 3
+       },
+       "with other load": {
+        "used": 0
+       },
+       "occupied Slices": {
+        "used": 60,
+        "of": 6822
+       },
+       "MUXCYs used": {
+        "used": 120,
+        "of": 13644
+       },
+       "LUT Flip Flop pairs used": {
+        "used": 174
+       },
+       "with an unused Flip Flop": {
+        "used": 118,
+        "of": 174
+       },
+       "with an unused LUT": {
+        "used": 8,
+        "of": 174
+       },
+       "fully used LUT-FF pairs": {
+        "used": 48,
+        "of": 174
+       },
+       "unique control sets": {
+        "used": 7
+       },
+       "bonded IOBs": {
+        "used": 16,
+        "of": 218
+       },
+       "LOCed IOBs": {
+        "used": 5,
+        "of": 16
+       },
+       "RAMB16BWERs": {
+        "used": 0,
+        "of": 116
+       },
+       "RAMB8BWERs": {
+        "used": 0,
+        "of": 232
+       },
+       "BUFIO2/BUFIO2_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFIO2FB/BUFIO2FB_2CLKs": {
+        "used": 0,
+        "of": 32
+       },
+       "BUFG/BUFGMUXs": {
+        "used": 1,
+        "of": 16
+       },
+       "used as BUFGs": {
+        "used": 1
+       },
+       "used as BUFGMUX": {
+        "used": 0
+       },
+       "DCM/DCM_CLKGENs": {
+        "used": 0,
+        "of": 8
+       },
+       "ILOGIC2/ISERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "IODELAY2/IODRP2/IODRP2_MCBs": {
+        "used": 0,
+        "of": 376
+       },
+       "OLOGIC2/OSERDES2s": {
+        "used": 0,
+        "of": 376
+       },
+       "BSCANs": {
+        "used": 0,
+        "of": 4
+       },
+       "BUFHs": {
+        "used": 0,
+        "of": 256
+       },
+       "BUFPLLs": {
+        "used": 0,
+        "of": 8
+       },
+       "BUFPLL_MCBs": {
+        "used": 0,
+        "of": 4
+       },
+       "DSP48A1s": {
+        "used": 0,
+        "of": 58
+       },
+       "ICAPs": {
+        "used": 0,
+        "of": 1
+       },
+       "MCBs": {
+        "used": 0,
+        "of": 2
+       },
+       "PCILOGICSEs": {
+        "used": 0,
+        "of": 2
+       },
+       "PLL_ADVs": {
+        "used": 0,
+        "of": 4
+       },
+       "PMVs": {
+        "used": 0,
+        "of": 1
+       },
+       "STARTUPs": {
+        "used": 0,
+        "of": 1
+       },
+       "SUSPEND_SYNCs": {
+        "used": 0,
+        "of": 1
+       }
+      },
+      "sites": {
+       "BUFG": 1,
+       "IOB": 16,
+       "SLICEL": 30,
+       "SLICEX": 30
+      },
+      "routed": true,
+      "minPeriod": 5.966,
+      "times": {
+       "ngdbuild": 7,
+       "map": 15,
+       "par": 16,
+       "trce": 7,
+       "xdl": 4
+      }
+     }
+    }
+   }
+  }
+ },
+ "parts": {
+  "xc6slx16-csg324-3": {
+   "empty": {
+    "header": {
+     "a": "xc6slx16-csg324-3.ncd;UserID=0xFFFFFFFF",
+     "b": "6slx16csg324",
+     "c": "2026/10/21",
+     "d": "08:33:57"
+    },
+    "packets": [
+     "W CMD 1: 0007",
+     "NOOP x1",
+     "W FLR 1: 0430",
+     "W COR1 1: 3d10",
+     "W COR2 1: 09ee",
+     "W IDCODE 2: 0400 2093",
+     "W MASK 1: 00cf",
+     "W CTL 1: 0081",
+     "NOOP x17",
+     "W CCLK_FREQ 1: 3cc8",
+     "W PWRDN_REG 1: 0881",
+     "W EYE_MASK 1: 0000",
+     "W HC_OPT_REG 1: 001f",
+     "W CWDT 1: ffff",
+     "W PU_GWE 1: 0005",
+     "W PU_GTS 1: 0004",
+     "W MODE_REG 1: 0100",
+     "W GENERAL1 1: 0000",
+     "W GENERAL2 1: 0000",
+     "W GENERAL3 1: 0000",
+     "W GENERAL4 1: 0000",
+     "W GENERAL5 1: 0000",
+     "W SEU_OPT 1: 1be2",
+     "W EXP_SIGN 2: 0000 0000",
+     "NOOP x2",
+     "W FAR_MAJ 2: 0000 0000",
+     "W CMD 1: 0001",
+     "W FDRI 231953 words",
+     "? 9876",
+     "? defc",
+     "NOOP x24",
+     "W CMD 1: 000a",
+     "W CMD 1: 0003",
+     "NOOP x4",
+     "W CMD 1: 000a",
+     "W CMD 1: 0005",
+     "W MASK 1: 00ff",
+     "W CTL 1: 0081",
+     "W CRC 2: 9876 defc",
+     "W CMD 1: 000d",
+     "NOOP x14"
+    ],
+    "fdriWords": 231953,
+    "bytes": 464299
+   },
+   "emptyCrc": {
+    "header": {
+     "a": "xc6slx16-csg324-3.crc.ncd;UserID=0xFFFFFFFF",
+     "b": "6slx16csg324",
+     "c": "2026/10/21",
+     "d": "08:34:04"
+    },
+    "packets": [
+     "W CMD 1: 0007",
+     "NOOP x1",
+     "W FLR 1: 0430",
+     "W COR1 1: 3d00",
+     "W COR2 1: 09ee",
+     "W IDCODE 2: 0400 2093",
+     "W MASK 1: 00cf",
+     "W CTL 1: 0081",
+     "NOOP x17",
+     "W CCLK_FREQ 1: 3cc8",
+     "W PWRDN_REG 1: 0881",
+     "W EYE_MASK 1: 0000",
+     "W HC_OPT_REG 1: 001f",
+     "W CWDT 1: ffff",
+     "W PU_GWE 1: 0005",
+     "W PU_GTS 1: 0004",
+     "W MODE_REG 1: 0100",
+     "W GENERAL1 1: 0000",
+     "W GENERAL2 1: 0000",
+     "W GENERAL3 1: 0000",
+     "W GENERAL4 1: 0000",
+     "W GENERAL5 1: 0000",
+     "W SEU_OPT 1: 1be2",
+     "W EXP_SIGN 2: 0000 0000",
+     "NOOP x2",
+     "W FAR_MAJ 2: 0000 0000",
+     "W CMD 1: 0001",
+     "W FDRI 231953 words",
+     "? 0000",
+     "? a98b",
+     "NOOP x24",
+     "W CMD 1: 000a",
+     "W CMD 1: 0003",
+     "NOOP x4",
+     "W CMD 1: 000a",
+     "W CMD 1: 0005",
+     "W MASK 1: 00ff",
+     "W CTL 1: 0081",
+     "W CRC 2: 002f d308",
+     "W CMD 1: 000d",
+     "NOOP x14"
+    ],
+    "fdriWords": 231953,
+    "bytes": 464303
+   },
+   "report": {
+    "summary": {
+     "tiles": 4526,
+     "sites": 5378,
+     "sitedefs": 46,
+     "numpins": 157962,
+     "numpips": 5782505
+    },
+    "tiles": {
+     "BIOB": 16,
+     "BIOB_SINGLE": 1,
+     "BIOI_INNER": 17,
+     "BIOI_OUTER": 16,
+     "BIOI_OUTER_UNUSED": 1,
+     "BRAMSITE2": 32,
+     "BRAM_BOT": 2,
+     "BRAM_BOT_BTERM_L": 1,
+     "BRAM_BOT_BTERM_R": 1,
+     "BRAM_HCLK_FEEDTHRU": 8,
+     "BRAM_HCLK_FEEDTHRU_INTER": 8,
+     "BRAM_INTER_BTERM": 2,
+     "BRAM_INTER_TTERM": 2,
+     "BRAM_INT_INTERFACE_BOT": 2,
+     "BRAM_INT_INTERFACE_TOP": 2,
+     "BRAM_REGH_FEEDTHRU": 2,
+     "BRAM_REGH_FEEDTHRU_INTER": 2,
+     "BRAM_TOP": 2,
+     "BRAM_TOP_TTERM_L": 1,
+     "BRAM_TOP_TTERM_R": 1,
+     "CLB_EMP_BTERM": 2,
+     "CLB_INT_BTERM": 2,
+     "CLEXL": 595,
+     "CLEXM": 544,
+     "CLKC": 1,
+     "CMT_DCM_BOT": 1,
+     "CMT_DCM_TOP": 1,
+     "CMT_PLL_BOT": 1,
+     "CMT_PLL_TOP": 1,
+     "CNR_BR_BTERM": 2,
+     "CNR_TL_LTERM": 2,
+     "CNR_TR_RTERM": 4,
+     "CNR_TR_TTERM": 2,
+     "DSP_BOT_BTERM_L": 1,
+     "DSP_BOT_BTERM_R": 1,
+     "DSP_CLB_HCLK_FEEDTHRU": 8,
+     "DSP_EMP_BOT": 2,
+     "DSP_EMP_TEMP": 4,
+     "DSP_EMP_TOP": 2,
+     "DSP_HCLK_FEEDTHRU_TOP": 8,
+     "DSP_INTER_TTERM": 2,
+     "DSP_INT_BTERM": 2,
+     "DSP_INT_EMP_BOT": 2,
+     "DSP_INT_EMP_TOP": 2,
+     "DSP_INT_HCLK_FEEDTHRU": 8,
+     "DSP_INT_TTERM": 2,
+     "DSP_TOP_TTERM_L": 1,
+     "DSP_TOP_TTERM_R": 1,
+     "EMP_LIOB": 34,
+     "EMP_RIOB": 32,
+     "HCLK_BRAM_FEEDTHRU": 8,
+     "HCLK_CLB_XL_CLE": 40,
+     "HCLK_CLB_XL_INT": 40,
+     "HCLK_CLB_XM_CLE": 36,
+     "HCLK_CLB_XM_INT": 36,
+     "HCLK_IOIL_BOT_SPLIT": 1,
+     "HCLK_IOIL_BOT_UP": 1,
+     "HCLK_IOIL_EMP": 4,
+     "HCLK_IOIL_INT": 4,
+     "HCLK_IOIL_TOP_DN": 1,
+     "HCLK_IOIL_TOP_SPLIT": 1,
+     "HCLK_IOIR_BOT_SPLIT": 1,
+     "HCLK_IOIR_BOT_UP": 1,
+     "HCLK_IOIR_EMP": 4,
+     "HCLK_IOIR_INT": 4,
+     "HCLK_IOIR_TOP_DN": 1,
+     "HCLK_IOIR_TOP_SPLIT": 1,
+     "HCLK_IOI_LTERM": 4,
+     "HCLK_IOI_RTERM": 4,
+     "INT": 1271,
+     "INT_BRAM": 120,
+     "INT_BRAM_BRK": 8,
+     "INT_BRK": 69,
+     "INT_GCLK": 2,
+     "INT_INTERFACE": 318,
+     "INT_INTERFACE_CARRY": 6,
+     "INT_INTERFACE_IOI": 4,
+     "INT_INTERFACE_IOI_DCMBOT": 2,
+     "INT_INTERFACE_REGC": 1,
+     "IOI_BTERM": 16,
+     "IOI_BTERM_BUFPLL": 1,
+     "IOI_BTERM_CLB": 17,
+     "IOI_BTERM_REGB": 2,
+     "IOI_INT": 102,
+     "IOI_LTERM": 58,
+     "IOI_LTERM_LOWER_BOT": 1,
+     "IOI_LTERM_LOWER_TOP": 1,
+     "IOI_LTERM_UPPER_BOT": 1,
+     "IOI_LTERM_UPPER_TOP": 1,
+     "IOI_PCI_CE_LEFT": 2,
+     "IOI_PCI_CE_RIGHT": 2,
+     "IOI_RTERM": 56,
+     "IOI_RTERM_LOWER_BOT": 1,
+     "IOI_RTERM_LOWER_TOP": 1,
+     "IOI_RTERM_UPPER_BOT": 1,
+     "IOI_RTERM_UPPER_TOP": 1,
+     "IOI_TTERM": 18,
+     "IOI_TTERM_BUFPLL": 1,
+     "IOI_TTERM_CLB": 17,
+     "IOI_TTERM_REGT": 2,
+     "LIOB": 26,
+     "LIOB_PCI": 1,
+     "LIOB_RDY": 1,
+     "LIOI": 28,
+     "LIOI_INT": 28,
+     "LL": 1,
+     "LR_LOWER": 1,
+     "LR_UPPER": 1,
+     "MACCSITE2": 32,
+     "MCB_CAP_CLKPN": 2,
+     "MCB_CAP_INT": 16,
+     "MCB_CNR_TOP": 4,
+     "MCB_HCLK": 8,
+     "MCB_INT": 32,
+     "MCB_INT_BOT": 16,
+     "MCB_INT_DQI": 4,
+     "MCB_INT_ULDM": 2,
+     "MCB_L": 2,
+     "MCB_MUI0R": 2,
+     "MCB_MUI0W": 2,
+     "MCB_MUI1R": 2,
+     "MCB_MUI1W": 2,
+     "MCB_MUI2": 2,
+     "MCB_MUI3": 2,
+     "MCB_MUI4": 2,
+     "MCB_MUI5": 2,
+     "MCB_REGH": 2,
+     "NULL": 372,
+     "RAMB_BOT": 2,
+     "RAMB_BOT_BTERM": 2,
+     "RAMB_TOP": 2,
+     "RAMB_TOP_TTERM": 2,
+     "REGC_CLE": 1,
+     "REGC_INT": 1,
+     "REGH_BRAM_FEEDTHRU": 2,
+     "REGH_CLEXL_CLE": 9,
+     "REGH_CLEXL_INT": 9,
+     "REGH_CLEXM_CLE": 9,
+     "REGH_CLEXM_INT": 9,
+     "REGH_DSP_CLB": 2,
+     "REGH_DSP_INT": 2,
+     "REGH_DSP_L": 1,
+     "REGH_DSP_R": 1,
+     "REGH_IOI": 1,
+     "REGH_IOI_LTERM": 1,
+     "REGH_IOI_RTERM": 1,
+     "REGH_LIOI_INT": 1,
+     "REGH_RIOI": 1,
+     "REGH_RIOI_INT": 1,
+     "REG_B": 1,
+     "REG_B_BTERM": 1,
+     "REG_C_CMT": 1,
+     "REG_L": 1,
+     "REG_R": 1,
+     "REG_T": 1,
+     "REG_T_TTERM": 1,
+     "REG_V": 54,
+     "REG_V_BRK": 2,
+     "REG_V_BTERM": 1,
+     "REG_V_HCLK": 4,
+     "REG_V_HCLKBUF_BOT": 1,
+     "REG_V_HCLKBUF_TOP": 1,
+     "REG_V_MEMB_BOT": 2,
+     "REG_V_MEMB_TOP": 2,
+     "REG_V_MIDBUF_BOT": 1,
+     "REG_V_MIDBUF_TOP": 1,
+     "REG_V_TTERM": 1,
+     "RIOB": 26,
+     "RIOB_PCI": 1,
+     "RIOB_RDY": 1,
+     "RIOI": 28,
+     "TIOB": 16,
+     "TIOB_SINGLE": 1,
+     "TIOI_INNER": 16,
+     "TIOI_INNER_UNUSED": 1,
+     "TIOI_OUTER": 17,
+     "UL": 1,
+     "UR_LOWER": 1,
+     "UR_UPPER": 1
+    },
+    "sites": {
+     "BSCAN": 4,
+     "BUFGMUX": 16,
+     "BUFH": 128,
+     "BUFIO2": 32,
+     "BUFIO2FB": 32,
+     "BUFPLL": 8,
+     "BUFPLL_MCB": 4,
+     "DCM": 4,
+     "DNA_PORT": 1,
+     "DSP48A1": 32,
+     "ICAP": 1,
+     "ILOGIC2": 248,
+     "IOBM": 122,
+     "IOBS": 122,
+     "IODELAY2": 248,
+     "MCB": 2,
+     "OCT_CALIBRATE": 6,
+     "OLOGIC2": 248,
+     "PCILOGICSE": 2,
+     "PLL_ADV": 2,
+     "PMV": 1,
+     "POST_CRC_INTERNAL": 1,
+     "RAMB16BWER": 32,
+     "RAMB8BWER": 64,
+     "SLAVE_SPI": 1,
+     "SLICEL": 595,
+     "SLICEM": 544,
+     "SLICEX": 1139,
+     "SPI_ACCESS": 1,
+     "STARTUP": 1,
+     "SUSPEND_SYNC": 1,
+     "TIEOFF": 1736
+    }
+   }
+  },
+  "xc6slx45-csg324-3": {
+   "empty": {
+    "header": {
+     "a": "xc6slx45-csg324-3.ncd;UserID=0xFFFFFFFF",
+     "b": "6slx45csg324",
+     "c": "2026/10/21",
+     "d": "08:34:14"
+    },
+    "packets": [
+     "W CMD 1: 0007",
+     "NOOP x1",
+     "W FLR 1: 0628",
+     "W COR1 1: 3d10",
+     "W COR2 1: 09ee",
+     "W IDCODE 2: 0400 8093",
+     "W MASK 1: 00cf",
+     "W CTL 1: 0081",
+     "NOOP x17",
+     "W CCLK_FREQ 1: 3cc8",
+     "W PWRDN_REG 1: 0881",
+     "W EYE_MASK 1: 0000",
+     "W HC_OPT_REG 1: 001f",
+     "W CWDT 1: ffff",
+     "W PU_GWE 1: 0005",
+     "W PU_GTS 1: 0004",
+     "W MODE_REG 1: 0100",
+     "W GENERAL1 1: 0000",
+     "W GENERAL2 1: 0000",
+     "W GENERAL3 1: 0000",
+     "W GENERAL4 1: 0000",
+     "W GENERAL5 1: 0000",
+     "W SEU_OPT 1: 1be2",
+     "W EXP_SIGN 2: 0000 0000",
+     "NOOP x2",
+     "W FAR_MAJ 2: 0000 0000",
+     "W CMD 1: 0001",
+     "W FDRI 742057 words",
+     "? 9876",
+     "? defc",
+     "NOOP x24",
+     "W CMD 1: 000a",
+     "W CMD 1: 0003",
+     "NOOP x4",
+     "W CMD 1: 000a",
+     "W CMD 1: 0005",
+     "W MASK 1: 00ff",
+     "W CTL 1: 0081",
+     "W CRC 2: 9876 defc",
+     "W CMD 1: 000d",
+     "NOOP x14"
+    ],
+    "fdriWords": 742057,
+    "bytes": 1484507
+   },
+   "emptyCrc": {
+    "header": {
+     "a": "xc6slx45-csg324-3.crc.ncd;UserID=0xFFFFFFFF",
+     "b": "6slx45csg324",
+     "c": "2026/10/21",
+     "d": "08:34:23"
+    },
+    "packets": [
+     "W CMD 1: 0007",
+     "NOOP x1",
+     "W FLR 1: 0628",
+     "W COR1 1: 3d00",
+     "W COR2 1: 09ee",
+     "W IDCODE 2: 0400 8093",
+     "W MASK 1: 00cf",
+     "W CTL 1: 0081",
+     "NOOP x17",
+     "W CCLK_FREQ 1: 3cc8",
+     "W PWRDN_REG 1: 0881",
+     "W EYE_MASK 1: 0000",
+     "W HC_OPT_REG 1: 001f",
+     "W CWDT 1: ffff",
+     "W PU_GWE 1: 0005",
+     "W PU_GTS 1: 0004",
+     "W MODE_REG 1: 0100",
+     "W GENERAL1 1: 0000",
+     "W GENERAL2 1: 0000",
+     "W GENERAL3 1: 0000",
+     "W GENERAL4 1: 0000",
+     "W GENERAL5 1: 0000",
+     "W SEU_OPT 1: 1be2",
+     "W EXP_SIGN 2: 0000 0000",
+     "NOOP x2",
+     "W FAR_MAJ 2: 0000 0000",
+     "W CMD 1: 0001",
+     "W FDRI 742057 words",
+     "? 0019",
+     "? 0b77",
+     "NOOP x24",
+     "W CMD 1: 000a",
+     "W CMD 1: 0003",
+     "NOOP x4",
+     "W CMD 1: 000a",
+     "W CMD 1: 0005",
+     "W MASK 1: 00ff",
+     "W CTL 1: 0081",
+     "W CRC 2: 000a 7091",
+     "W CMD 1: 000d",
+     "NOOP x14"
+    ],
+    "fdriWords": 742057,
+    "bytes": 1484511
+   },
+   "report": {
+    "summary": {
+     "tiles": 12690,
+     "sites": 13830,
+     "sitedefs": 46,
+     "numpins": 427428,
+     "numpips": 16299860
+    },
+    "tiles": {
+     "BIOB": 24,
+     "BIOB_SINGLE": 1,
+     "BIOB_SINGLE_ALT": 1,
+     "BIOI_INNER": 25,
+     "BIOI_INNER_UNUSED": 1,
+     "BIOI_OUTER": 25,
+     "BIOI_OUTER_UNUSED": 1,
+     "BRAMSITE2": 116,
+     "BRAM_BOT": 4,
+     "BRAM_BOT_BTERM_L": 2,
+     "BRAM_BOT_BTERM_R": 2,
+     "BRAM_HCLK_FEEDTHRU_FOLD": 29,
+     "BRAM_HCLK_FEEDTHRU_INTER_FOLD": 29,
+     "BRAM_INTER_BTERM": 4,
+     "BRAM_INTER_TTERM": 4,
+     "BRAM_INT_INTERFACE_BOT": 4,
+     "BRAM_INT_INTERFACE_TOP": 4,
+     "BRAM_REGH_FEEDTHRU": 4,
+     "BRAM_REGH_FEEDTHRU_INTER": 4,
+     "BRAM_TOP": 4,
+     "BRAM_TOP_TTERM_L": 2,
+     "BRAM_TOP_TTERM_R": 2,
+     "CLB_EMP_BTERM": 4,
+     "CLB_INT_BTERM": 4,
+     "CLEXL": 1809,
+     "CLEXM": 1602,
+     "CLKC": 1,
+     "CMT_DCM2_BOT": 1,
+     "CMT_DCM2_TOP": 1,
+     "CMT_DCM_BOT": 1,
+     "CMT_DCM_TOP": 1,
+     "CMT_PLL1_BOT": 1,
+     "CMT_PLL2_BOT": 1,
+     "CMT_PLL2_TOP": 1,
+     "CMT_PLL_TOP": 1,
+     "CNR_BR_BTERM": 2,
+     "CNR_TL_LTERM": 2,
+     "CNR_TR_RTERM": 4,
+     "CNR_TR_TTERM": 2,
+     "DSP_BOT_BTERM_L": 1,
+     "DSP_BOT_BTERM_R": 1,
+     "DSP_CLB_HCLK_FEEDTHRU_FOLD": 15,
+     "DSP_EMP_BOT": 2,
+     "DSP_EMP_TEMP": 4,
+     "DSP_EMP_TOP": 2,
+     "DSP_HCLK_GCLK_FOLD": 15,
+     "DSP_INTER_TTERM": 2,
+     "DSP_INT_BTERM": 2,
+     "DSP_INT_EMP_BOT": 2,
+     "DSP_INT_EMP_TOP": 2,
+     "DSP_INT_HCLK_FEEDTHRU_FOLD": 15,
+     "DSP_INT_TTERM": 2,
+     "DSP_TOP_TTERM_L": 1,
+     "DSP_TOP_TTERM_R": 1,
+     "EMP_LIOB": 70,
+     "EMP_RIOB": 68,
+     "GTPDUAL_CLB_FEEDTHRU": 13,
+     "GTPDUAL_DSP_FEEDTHRU": 1,
+     "GTPDUAL_INT_FEEDTHRU": 15,
+     "GTPDUAL_LEFT_CLB_FEEDTHRU": 6,
+     "GTPDUAL_LEFT_DSP_FEEDTHRU": 1,
+     "GTPDUAL_LEFT_INT_FEEDTHRU": 7,
+     "GTPDUAL_TOP_UNUSED": 2,
+     "HCLK_BRAM_FEEDTHRU_FOLD": 29,
+     "HCLK_CLB_XL_CLE_FOLD": 122,
+     "HCLK_CLB_XL_INT_FOLD": 121,
+     "HCLK_CLB_XM_CLE_FOLD": 106,
+     "HCLK_CLB_XM_INT_FOLD": 105,
+     "HCLK_IOIL_BOT_DN": 1,
+     "HCLK_IOIL_BOT_SPLIT": 1,
+     "HCLK_IOIL_BOT_UP": 2,
+     "HCLK_IOIL_EMP": 8,
+     "HCLK_IOIL_INT_FOLD": 8,
+     "HCLK_IOIL_TOP_DN": 2,
+     "HCLK_IOIL_TOP_SPLIT": 1,
+     "HCLK_IOIL_TOP_UP": 1,
+     "HCLK_IOIR_BOT_DN": 1,
+     "HCLK_IOIR_BOT_SPLIT": 1,
+     "HCLK_IOIR_BOT_UP": 2,
+     "HCLK_IOIR_EMP": 8,
+     "HCLK_IOIR_INT_FOLD": 8,
+     "HCLK_IOIR_TOP_DN": 2,
+     "HCLK_IOIR_TOP_SPLIT": 1,
+     "HCLK_IOIR_TOP_UP": 1,
+     "HCLK_IOI_LTERM": 8,
+     "HCLK_IOI_RTERM": 8,
+     "INT": 3606,
+     "INT_BRAM": 435,
+     "INT_BRAM_BRK": 29,
+     "INT_BRK": 216,
+     "INT_GCLK": 2,
+     "INT_INTERFACE": 826,
+     "INT_INTERFACE_CARRY": 12,
+     "INT_INTERFACE_IOI": 8,
+     "INT_INTERFACE_IOI_DCMBOT": 4,
+     "INT_INTERFACE_LTERM": 32,
+     "INT_INTERFACE_REGC": 1,
+     "INT_INTERFACE_RTERM": 32,
+     "INT_LTERM": 24,
+     "INT_RTERM": 16,
+     "INT_TERM": 29,
+     "INT_TERM_BRK": 3,
+     "IOI_BTERM": 25,
+     "IOI_BTERM_BUFPLL": 1,
+     "IOI_BTERM_CLB": 26,
+     "IOI_BTERM_REGB": 2,
+     "IOI_INT": 142,
+     "IOI_LTERM": 122,
+     "IOI_LTERM_LOWER_BOT": 1,
+     "IOI_LTERM_LOWER_TOP": 1,
+     "IOI_LTERM_UPPER_BOT": 1,
+     "IOI_LTERM_UPPER_TOP": 1,
+     "IOI_PCI_CE_LEFT": 2,
+     "IOI_PCI_CE_RIGHT": 2,
+     "IOI_RTERM": 120,
+     "IOI_RTERM_LOWER_BOT": 1,
+     "IOI_RTERM_LOWER_TOP": 1,
+     "IOI_RTERM_UPPER_BOT": 1,
+     "IOI_RTERM_UPPER_TOP": 1,
+     "IOI_TTERM": 29,
+     "IOI_TTERM_BUFPLL": 1,
+     "IOI_TTERM_CLB": 28,
+     "IOI_TTERM_REGT": 2,
+     "LIOB": 54,
+     "LIOB_PCI": 1,
+     "LIOB_RDY": 1,
+     "LIOI": 54,
+     "LIOI_BRK": 2,
+     "LIOI_INT": 54,
+     "LIOI_INT_BRK": 4,
+     "LL": 1,
+     "LR_LOWER": 1,
+     "LR_UPPER": 1,
+     "MACCSITE2": 58,
+     "MCB_CAP_CLKPN": 2,
+     "MCB_CAP_INT": 144,
+     "MCB_CNR_TOP": 4,
+     "MCB_HCLK": 16,
+     "MCB_INT": 32,
+     "MCB_INT_BOT": 16,
+     "MCB_INT_DQI": 4,
+     "MCB_INT_ULDM": 2,
+     "MCB_L": 2,
+     "MCB_MUI0R": 2,
+     "MCB_MUI0W": 2,
+     "MCB_MUI1R": 2,
+     "MCB_MUI1W": 2,
+     "MCB_MUI2": 2,
+     "MCB_MUI3": 2,
+     "MCB_MUI4": 2,
+     "MCB_MUI5": 2,
+     "MCB_REGH": 2,
+     "NULL": 1512,
+     "PCIE_TOP_CLB_FEEDTHRU": 3,
+     "PCIE_TOP_INT_FEEDTHRU": 3,
+     "PCIE_TOP_UNUSED": 1,
+     "RAMB_BOT": 4,
+     "RAMB_BOT_BTERM": 4,
+     "RAMB_TOP": 4,
+     "RAMB_TOP_TTERM": 4,
+     "REGC_CLE": 1,
+     "REGC_INT": 1,
+     "REGH_BRAM_FEEDTHRU": 4,
+     "REGH_CLEXL_CLE": 15,
+     "REGH_CLEXL_INT": 15,
+     "REGH_CLEXM_CLE": 14,
+     "REGH_CLEXM_INT": 14,
+     "REGH_DSP_CLB": 2,
+     "REGH_DSP_INT": 2,
+     "REGH_DSP_L": 1,
+     "REGH_DSP_R": 1,
+     "REGH_IOI": 1,
+     "REGH_IOI_LTERM": 1,
+     "REGH_IOI_RTERM": 1,
+     "REGH_LIOI_INT": 1,
+     "REGH_RIOI": 1,
+     "REGH_RIOI_INT": 1,
+     "REG_B": 1,
+     "REG_B_BTERM": 1,
+     "REG_C_CMT": 1,
+     "REG_L": 1,
+     "REG_R": 1,
+     "REG_T": 1,
+     "REG_T_TTERM": 1,
+     "REG_V": 110,
+     "REG_V_BRK": 6,
+     "REG_V_BTERM": 1,
+     "REG_V_HCLK": 8,
+     "REG_V_HCLKBUF_BOT": 1,
+     "REG_V_HCLKBUF_TOP": 1,
+     "REG_V_MEMB_BOT": 4,
+     "REG_V_MEMB_TOP": 4,
+     "REG_V_MIDBUF_BOT": 1,
+     "REG_V_MIDBUF_TOP": 1,
+     "REG_V_TTERM": 1,
+     "RIOB": 54,
+     "RIOB_PCI": 1,
+     "RIOB_RDY": 1,
+     "RIOI": 54,
+     "RIOI_BRK": 2,
+     "TIOB": 11,
+     "TIOB_SINGLE": 1,
+     "TIOI_INNER": 11,
+     "TIOI_INNER_UNUSED": 1,
+     "TIOI_OUTER": 12,
+     "UL": 1,
+     "UR_LOWER": 1,
+     "UR_UPPER": 1
+    },
+    "sites": {
+     "BSCAN": 4,
+     "BUFGMUX": 16,
+     "BUFH": 256,
+     "BUFIO2": 32,
+     "BUFIO2FB": 32,
+     "BUFPLL": 8,
+     "BUFPLL_MCB": 4,
+     "DCM": 8,
+     "DNA_PORT": 1,
+     "DSP48A1": 58,
+     "ICAP": 1,
+     "ILOGIC2": 376,
+     "IOBM": 185,
+     "IOBS": 185,
+     "IODELAY2": 376,
+     "MCB": 2,
+     "OCT_CALIBRATE": 6,
+     "OLOGIC2": 376,
+     "PCILOGICSE": 2,
+     "PLL_ADV": 4,
+     "PMV": 1,
+     "POST_CRC_INTERNAL": 1,
+     "RAMB16BWER": 116,
+     "RAMB8BWER": 232,
+     "SLAVE_SPI": 1,
+     "SLICEL": 1809,
+     "SLICEM": 1602,
+     "SLICEX": 3411,
+     "SPI_ACCESS": 1,
+     "STARTUP": 1,
+     "SUSPEND_SYNC": 1,
+     "TIEOFF": 4722
+    }
+   }
+  }
+ }
+}

@@ -16,13 +16,15 @@ SSH=($SSHO "$SILINX_ISE_HOST")
 DOCKER="export PATH=\"\$PATH:/usr/local/bin\"; docker run --rm --network none -v \"\$HOME/$RW\":/w xilinx/ise:14.7 bash /w/ise-s6.sh"
 "${SSH[@]}" "mkdir -p $RW"
 rsync -a -e "$SSHO" "$(dirname "$0")/ise-s6.sh" "$SILINX_ISE_HOST:$RW/"
-rsync -a -e "$SSHO" --exclude='*.bit' --exclude='*.ncd' --exclude='*.xdl' --exclude='*.log' --exclude='*.twr' --exclude='*.mrp' "$W/" "$SILINX_ISE_HOST:$RW/"
+# (the inputs only: not ISE's outputs copied back by an earlier run; the empty designs are .xdl inputs)
+rsync -a -e "$SSHO" --exclude='*.bit' --exclude='*.ncd' --exclude='top.xdl' --exclude='top_map.xdl' --exclude='*.log' --exclude='*.twr' --exclude='*.mrp' --exclude='*.xdlrc.gz' "$W/" "$SILINX_ISE_HOST:$RW/"
 parts() { node -e 'const m=require(process.argv[1]);for(const b of Object.values(m.boards))console.log(b.part)' "$W/manifest.json"; }
 boards() { node -e 'const m=require(process.argv[1]);for(const [k,b] of Object.entries(m.boards))console.log(k+" "+b.part+" "+Object.keys(b.examples).join(","))' "$W/manifest.json"; }
 for part in "${PARTS[@]}"; do
   start=$(date +%s)
   case "$part" in
-    report) for p in $(parts); do "${SSH[@]}" "$DOCKER report $(echo "$p" | sed 's/-\([a-z]\)/\1/') /w/reports" & done; wait ;;
+    # (one report at a time: the XC6SLX45's needs much of the memory of a small machine)
+    report) for p in $(parts); do "${SSH[@]}" "$DOCKER report $(echo "$p" | sed 's/-\([a-z]\)/\1/') /w/reports"; done ;;
     empty) "${SSH[@]}" "$DOCKER empty /w/empty" ;;
     impl|edif)
       boards | while read -r board pt list; do
