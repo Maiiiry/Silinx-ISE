@@ -651,6 +651,42 @@ uiTest('#490 open mode: Simulate Post-Synthesis Model with no model offers "Gene
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 300000 });
 
+// #878: the emulator's Model menu offers every model, those not generated too (the Tasks interface's Emulate has no
+// Processes list): choosing one asks "Generate and Emulate"; cancelled, the emulator and its menu stay on the RTL
+uiTest('#878 open mode: the emulator\'s Model menu: a model not generated chosen asks to generate it; cancelled, the RTL stays', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'EmuMenu', template: 'blinky' });
+  await page.openProject('EmuMenu');
+  await reloadToolchain(page);
+  const start = (await page.consoleText()).length;
+  await page.treeRow('#procs', 'Emulate Behavioral Model (RTL)', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { timeout: 60000, what: 'the emulator' });
+  const menu = () => page.eval(() => { const s = document.querySelector('.doc:not([hidden]) .emu-bar select'); return { value: s.value, options: [...s.options].map((o) => [o.value, o.textContent, o.disabled]) }; });
+  assert.deepEqual(await menu(), { value: '', options: [['', 'Behavioral (RTL)', false], ['postsynth', 'Post-Synthesis netlist (not generated)', false],
+    ['posttrans', 'Post-Translate netlist (not generated)', false], ['postmap', 'Post-Map netlist (not generated)', false], ['postpar', 'Post-Place & Route netlist (not generated)', false]] });
+  const choose = (v) => page.eval((x) => { const s = document.querySelector('.doc:not([hidden]) .emu-bar select'); s.value = x; s.dispatchEvent(new Event('change', { bubbles: true })); }, v);
+  // chosen: the question of the process; cancelled: the emulator on the RTL, its menu too
+  await choose('postsynth');
+  await page.waitDialog('Emulate Post-Synthesis Model');
+  assert.deepEqual((await modelDialog(page)).buttons, ['Generate and Emulate', 'Cancel']);
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'Board Emulator (top)');
+  assert.equal((await menu()).value, '');
+  // chosen again and generated: the emulator on the model
+  await choose('postsynth');
+  await page.waitDialog('Emulate Post-Synthesis Model');
+  await page.dialogButton('Generate and Emulate');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.title === 'Board Emulator (top, Post-Synthesis)' && window.Silinx.active.view?.outputs, [], { timeout: 180000, what: 'the emulator on the model' });
+  const m = await menu();
+  assert.deepEqual([m.value, m.options[1][1]], ['postsynth', 'Post-Synthesis netlist']);
+  const lines = (await page.consoleText()).slice(start).split('\n').map((l) => l.trim()).filter(Boolean);
+  assert.ok(lines.includes('Process "Generate Post-Synthesis Simulation Model" completed successfully'), lines.join('\n'));
+  assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+}, { timeout: 300000 });
+
 uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate and Emulate" (pressed twice) generates it once and the emulator opens on it', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'GenAndEmu', template: 'blinky' });
