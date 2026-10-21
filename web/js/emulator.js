@@ -16,6 +16,10 @@ import { h } from './dom.js';
 
 const SPEEDS = [['real', 'Real time'], ['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
 const FRAME_BUDGET_MS = 14;
+// what the emulator does while it is not seen (another browser tab, a minimised window, another document tab,
+// #719): 'pause' (the default: it goes on where it was when shown again) or 'run' (it simulates on, drawing nothing)
+const HIDDEN_KEY = 'silinx.emulator.hidden';
+const hiddenPref = () => { try { return localStorage.getItem(HIDDEN_KEY) === 'run' ? 'run' : 'pause'; } catch { return 'pause'; } };
 
 const SVG = (tag, attrs = {}) => {
   const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -118,7 +122,14 @@ function makeDigit() {
   const segs = SEG_PATHS.map((d) => { const p = SVG('path', { d, fill: '#ff2a1a', opacity: 0.08 }); s.append(p); return p; });
   const dp = SVG('circle', { cx: 39, cy: 58, r: 3.2, fill: '#ff2a1a', opacity: 0.08 });
   s.append(dp);
-  return { el: s, set(d) { segs.forEach((p, j) => p.setAttribute('opacity', d ? 0.08 + 0.92 * d.seg[j] : 0.08)); dp.setAttribute('opacity', d ? 0.08 + 0.92 * d.dp : 0.08); } };
+  // (its segments written only when what it shows changed, #719)
+  let shown = '';
+  return { el: s, set(d) {
+    const key = d ? `${d.seg.map((x) => Math.round(100 * x)).join()},${Math.round(100 * d.dp)}` : '';
+    if (key === shown) return;
+    shown = key;
+    segs.forEach((p, j) => p.setAttribute('opacity', d ? 0.08 + 0.92 * d.seg[j] : 0.08)); dp.setAttribute('opacity', d ? 0.08 + 0.92 * d.dp : 0.08);
+  } };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -397,7 +408,14 @@ export function mountEmulator(container, { design, board, assignments, title = '
   for (const b of wiring.bits) if (b.dir === 'in' && b.res.pull === 'up' && b.kind !== 'sw' && b.kind !== 'btn') inVal.set(b.sig, (inVal.get(b.sig) ?? 0n) | (1n << BigInt(b.pos)));
   let lcd = lcdState(), lcdView = null;
 
-  let running = false, speed = compiled ? 'real' : 'max', prev = null, raf = 0, destroyed = false, knobEnd = 0;
+  let running = false, speed = compiled ? 'real' : 'max', prev = null, destroyed = false, knobEnd = 0;
+  // the next frame: an animation frame while the page is visible, a timer while it is hidden (when it keeps
+  // running hidden); none while paused, powered off or held (#719)
+  let raf = 0, timer = 0, paintRaf = 0, dirty = true, lastFrame = 0, paints = 0;
+  // not seen: the page hidden or the emulator's document tab not the active one (inView: its element shown);
+  // held: paused while not seen (the default setting)
+  let whenHidden = hiddenPref(), inView = true, held = false;
+  const shown = () => !document.hidden && inView;
   let powered = true;   // the board's power switch: off = nothing runs, outputs dark
   // (cycles per run of the event-driven engine: the compiled one slices its runs itself)
   const maxSlice = 200000;
@@ -414,6 +432,9 @@ export function mountEmulator(container, { design, board, assignments, title = '
   const speedSel = h('select', { title: 'Emulated clock rate', onchange: (e) => { speed = e.target.value === 'max' || e.target.value === 'real' ? e.target.value : Number(e.target.value); } },
     ...SPEEDS.map(([v, l]) => h('option', { value: v, selected: v === speed }, l)));
   const stat = h('span', { class: 'stat' });
+  const hiddenSel = h('select', { title: 'What the emulator does while it is not seen (another browser tab, a minimised window, another document tab): pause, and go on where it was when shown again, or keep running',
+    onchange: (e) => { whenHidden = e.target.value; try { localStorage.setItem(HIDDEN_KEY, whenHidden); } catch { /* ignore */ } visibility(); } },
+    h('option', { value: 'pause', selected: whenHidden === 'pause' }, 'Pause'), h('option', { value: 'run', selected: whenHidden === 'run' }, 'Keep running'));
   // timing scale: the top's large integer generics divided (see core/emulate.js)
   let timingSel = null;
   if (timing?.gens?.length) {
@@ -436,7 +457,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
   root.append(h('div', { class: 'emu-bar' }, modelSel ? 'Model:' : null, modelSel, modelSel ? h('span', { class: 'sep' }) : null,
     engineSel ? 'Engine:' : null, engineSel, engineSel ? h('span', { class: 'sep' }) : null,
     runBtn, stepBtn, resetBtn, h('span', { class: 'sep' }), 'Clock:', speedSel,
-    timingSel ? h('span', { class: 'sep' }) : null, timingSel ? 'Timing:' : null, timingSel, stat));
+    timingSel ? h('span', { class: 'sep' }) : null, timingSel ? 'Timing:' : null, timingSel, h('span', { class: 'sep' }), 'When hidden:', hiddenSel, stat));
 
   const main = h('div', { class: 'emu-main' });
   root.append(main);
@@ -734,16 +755,45 @@ export function mountEmulator(container, { design, board, assignments, title = '
     resetBtn.disabled = !powered;
     lastT = performance.now();
     cyclesAcc = 0;
+    unschedule();
+    schedule();
+    refresh();
   }
 
-  // a timer rather than requestAnimationFrame: the board keeps running (slower) when its tab is
-  // not visible, and in headless browsers
-  const schedule = () => { raf = setTimeout(() => frame(performance.now()), running ? 4 : 30); };
-  function frame(now) {
+  // one frame per displayed frame while it is seen (it simulates and draws); a timer while the page is hidden and
+  // it keeps running (simulated, not drawn; slower: the browser slows a hidden page's timers)
+  function schedule() {
+    if (destroyed || raf || timer || !running || held) return;
+    if (document.hidden) timer = setTimeout(() => { timer = 0; frame(performance.now()); }, 4);
+    else raf = requestAnimationFrame(() => { raf = 0; frame(performance.now()); });
+  }
+  function unschedule() { cancelAnimationFrame(raf); clearTimeout(timer); raf = timer = 0; }
+  // seen or not (the page's visibility, the document tab's): held while not seen with the default setting, and
+  // on from where it was when seen again (real time: no backlog)
+  function visibility() {
     if (destroyed) return;
+    const hold = whenHidden === 'pause' && !shown();
+    if (hold !== held) {
+      held = hold;
+      if (!held) { lastT = performance.now(); cyclesAcc = 0; rateWin = { t: lastT, cyc: 0, rate: rateWin.rate }; }
+    }
+    unschedule();
     schedule();
-    if (!running) return;
-    if (compiled) { pump(now); return; }
+    if (held && powered) setStat(`t = ${formatTime(sim.now)} · ${Math.round(sim.now / period).toLocaleString()} cycles · paused while hidden`);
+    else refresh();
+  }
+  document.addEventListener('visibilitychange', visibility);
+  // (the document tab: its element is hidden when another tab is active)
+  const seen = typeof IntersectionObserver === 'function' ? new IntersectionObserver((es) => { inView = es[es.length - 1].isIntersecting; visibility(); }) : null;
+  seen?.observe(root);
+
+  function frame(now) {
+    if (destroyed || !running || held) return;
+    schedule();
+    // (at most 60 a second: every other frame of a 120 Hz display)
+    if (!document.hidden && now - lastFrame < 15) return;
+    lastFrame = now;
+    if (compiled) { pump(now); paint(); return; }
     const start = performance.now();
     if (speed === 'max') {
       // as many cycles as fit in the frame budget
@@ -771,6 +821,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     }
     if (sim.finished) setRunning(false);
     refresh();
+    paint();
   }
 
   // the compiled engine: one run in the worker at a time, the cycles owed in real time (or, Max speed, as many
@@ -781,7 +832,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
       cyclesAcc += (speed === 'real' ? 1e12 / period : speed) * Math.min(0.25, (now - lastT) / 1000);
       lastT = now;
     }
-    if (sim.busy || !running) return;
+    if (sim.busy || !running || held) return;
     if (sim.finished) { setRunning(false); refresh(); return; }   // (the worker stopped by an error)
     const n = speed === 'max' ? Infinity : Math.floor(cyclesAcc);
     if (n <= 0) return;
@@ -797,21 +848,41 @@ export function mountEmulator(container, { design, board, assignments, title = '
     });
   }
 
+  // what the board shows is to be drawn: at once when paused (a step, a power cycle), else by the next frame,
+  // at most once per displayed frame; nothing while it is not seen (drawn when it is again, #719)
   function refresh() {
+    dirty = true;
+    if (!running) paint();
+    else if (!raf && !paintRaf && shown()) paintRaf = requestAnimationFrame(() => { paintRaf = 0; paint(); });
+  }
+  const setStat = (t) => { if (stat.textContent !== t) stat.textContent = t; };
+  // (each LED's style written only when its brightness changed: the glow is a repaint)
+  const ledShown = [];
+  function paint() {
+    if (!dirty || !shown()) return;
+    dirty = false;
+    paints++;
     // no window run yet (start-up, power cycle): LEDs and digits dark
-    leds.forEach((l, k) => { const v = prev?.leds[k] ?? 0; l.style.background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`; l.style.boxShadow = v > 0.05 ? `0 0 ${Math.round(8 * v)}px #4f4` : 'none'; });
+    leds.forEach((l, k) => {
+      const v = prev?.leds[k] ?? 0;
+      const background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`;
+      if (ledShown[k] === background) return;
+      ledShown[k] = background;
+      l.style.background = background; l.style.boxShadow = v > 0.05 ? `0 0 ${Math.round(8 * v)}px #4f4` : 'none';
+    });
     digits.forEach((d, k) => d && d.set(prev?.digits[k] ?? null));
     if (lcdView && lcdDirty) { lcdView.set(powered ? lcdText(lcd) : null, lcd); lcdDirty = false; }
     vgaView?.draw();
     for (const w of watched) {
       const v = compiled ? sim.value(w.s) : w.s.val;
-      w.val.textContent = v == null || Array.isArray(v) ? '?' : (w.s.t?.w > 1 ? `${V.toBin(v)}${v.x ? '' : ` (${v.v.toString(16).toUpperCase()}h)`}` : (v.x ? 'X' : v.v.toString()));
+      const t = v == null || Array.isArray(v) ? '?' : (w.s.t?.w > 1 ? `${V.toBin(v)}${v.x ? '' : ` (${v.v.toString(16).toUpperCase()}h)`}` : (v.x ? 'X' : v.v.toString()));
+      if (w.val.textContent !== t) w.val.textContent = t;
     }
     const nowMs = performance.now();
     if (nowMs - rateWin.t > 1000) { rateWin.rate = rateWin.cyc * 1000 / (nowMs - rateWin.t); rateWin = { t: nowMs, cyc: 0, rate: rateWin.rate }; }
     const r = running ? rateWin.rate : 0;
-    if (!powered) { stat.textContent = 'Power off'; return; }
-    stat.textContent = `t = ${formatTime(sim.now)} · ${Math.round(sim.now / period).toLocaleString()} cycles${running ? ` · ${r >= 1000 ? `${(r / 1000).toFixed(1)} kHz` : `${Math.round(r)} Hz`} (${(r * period / 1e10).toFixed(r * period / 1e10 < 1 ? 3 : 1)}% of real time)` : ''}${sim.finished === 'error' ? ' · stopped by an error' : ''}`;
+    if (!powered) { setStat('Power off'); return; }
+    setStat(`t = ${formatTime(sim.now)} · ${Math.round(sim.now / period).toLocaleString()} cycles${running ? ` · ${r >= 1000 ? `${(r / 1000).toFixed(1)} kHz` : `${Math.round(r)} Hz`} (${(r * period / 1e10).toFixed(r * period / 1e10 < 1 ? 3 : 1)}% of real time)` : ''}${sim.finished === 'error' ? ' · stopped by an error' : ''}`);
     // simulator messages
     const log = sim.log;
     if (log.length !== logN) {
@@ -825,11 +896,10 @@ export function mountEmulator(container, { design, board, assignments, title = '
   setupSim();
   if (!compiled) sim.run(0);
   refresh();
-  schedule();
   setRunning(true);
 
   return {
-    destroy() { destroyed = true; clearTimeout(raf); compiled?.destroy(); root.remove(); },
+    destroy() { destroyed = true; unschedule(); cancelAnimationFrame(paintRaf); seen?.disconnect(); document.removeEventListener('visibilitychange', visibility); compiled?.destroy(); root.remove(); },
     pause: () => setRunning(false),
     power: (on) => setPower(!!on),
     get powered() { return powered; },
@@ -838,5 +908,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
     engine: compiled ? 'compiled' : 'event',
     worker: !!host?.worker,
     get outputs() { return prev; },
+    get paints() { return paints; },
+    get held() { return held; },
   };
 }
