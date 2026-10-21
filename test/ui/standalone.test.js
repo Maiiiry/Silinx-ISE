@@ -1026,7 +1026,8 @@ uiTest('#487 static editions: a Content-Security-Policy with the inline scripts\
   const ls = async (p) => (await fs.readdir(path.join(site, p))).sort();
   assert.deepEqual(await ls('assets'), [dir.slice(0, -1), 'vendor']);
   assert.deepEqual(await ls(`assets/${dir}`), ['bitdb', 'devices']);
-  assert.deepEqual(await ls(`assets/${dir}devices`), ['xc3s100ecp132-4.json.gz', 'xc3s1200efg320-4.json.gz', 'xc3s250ecp132-4.json.gz', 'xc3s500efg320-4.json.gz']);
+  assert.deepEqual(await ls(`assets/${dir}devices`), ['xc3s100ecp132-4.json.gz', 'xc3s1200efg320-4.json.gz', 'xc3s250ecp132-4.json.gz', 'xc3s500efg320-4.json.gz',
+    'xc6slx16csg324-3.json.gz', 'xc6slx45csg324-3.json.gz']);   // (the Spartan-6 ones too: #723, #817)
   assert.ok((await ls(`assets/${dir}bitdb`)).length >= 20);
   assert.deepEqual(await ls('assets/vendor/yowasp-yosys'), [yosysVersion]);
   assert.ok((await ls(`assets/vendor/yowasp-yosys/${yosysVersion}/gen`)).includes('bundle.js'));
