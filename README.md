@@ -140,7 +140,7 @@ for Xilinx FPGAs supported by ISE 14.7.
 - **New Source types**: *Module (HDL)* (the ISE Define Module page: language, entity/module and
   architecture names, a port table), *Module (Wizard)*, *Test Bench (HDL)*, *Test Bench (Wizard)*,
   *Schematic (Diagram)* (a blank sheet), *Schematic (Wizard)*, *State Machine (ASM)*, *Truth Table*,
-  *Implementation Constraints File*, *Memory Initialization File (.mem)*. For the wizards, page 1
+  *Clocking Wizard*, *Implementation Constraints File*, *Memory Initialization File (.mem)*. For the wizards, page 1
   asks only the file name and location; *Finish* opens the wizard.
 - **Module Wizard** (*New Source ▸ Module (Wizard)*), for beginners: name, language (VHDL/Verilog)
   and a description (it goes into the header comment); the inputs, outputs and bidirectional ports
@@ -159,6 +159,17 @@ for Xilinx FPGAs supported by ISE 14.7.
   the driver `data <= data_out when data_oe = '1' else (others => 'Z');` /
   `assign data = data_oe ? data_out : 8'bz;`, and the bus read from the port itself. Generator:
   `core/modgen.js`.
+- **Clocking Wizard** (*New Source ▸ Clocking Wizard*): a module with the target device's clock
+  manager, a DCM_SP on the Spartan-3E, a PLL_BASE on the Spartan-6, for the frequencies asked: the
+  input clock (the board's oscillator by default; from a pin through an IBUFG or not), the reset and
+  LOCKED; on the Spartan-3E the DCM's outputs (CLK0 / 90 / 180 / 270, CLK2X / 2X180, CLKDV, CLKFX /
+  FX180), the input divided by 2 and a fixed phase shift; on the Spartan-6 up to six outputs with a
+  phase each. Each output shows the frequency it gets (the nearest the primitive can make: CLKDV's
+  divide, CLKFX's multiply / divide, the PLL's VCO and dividers, within DS312's / DS162's ranges)
+  and the ones near it it can make (a click asks for one). It writes the module (VHDL or Verilog)
+  with the primitive and a BUFG per output, its parameters computed and commented, and its settings
+  in a header line: the Design pane shows it as *[Clocking Wizard] [VHDL]*, and a double-click, the
+  badge or *View/Edit Clocking Wizard* reopen the wizard with them. Generator: `core/clocking.js`.
 - **Schematic Wizard** (*New Source ▸ Schematic (Wizard)*): the same port table and quick-add
   buttons, an optional clock input and the language of the synchronized HDL; it creates the
   `.sch.json` with the I/O markers placed tidily (inputs on the left edge, outputs on the right,

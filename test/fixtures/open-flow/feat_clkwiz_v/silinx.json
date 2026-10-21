@@ -1,0 +1,26 @@
+{
+  "name": "feat_clkwiz_v",
+  "description": "Board test: the Clocking Wizard's DCM_SP module (Verilog): a fixed phase shift, CLK0, CLK90, CLKFX and LOCKED, no reset (#793)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s500e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "board": "nexys2-500",
+  "top": "top",
+  "files": [
+    {
+      "path": "clkgen.v",
+      "lang": "verilog",
+      "role": "design"
+    },
+    {
+      "path": "top.v",
+      "lang": "verilog",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf"
+}

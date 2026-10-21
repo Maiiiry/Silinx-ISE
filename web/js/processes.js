@@ -14,6 +14,7 @@ import { SYNTH_OPEN, backAnnotatePins, checkUcfFile, generateSimModel, postParTi
   synthOpen, textPowerReport, worst } from './implement.js';
 import { isAsm, isFsm, isPn, isTt, openAsm, openFsm, openPetri, openSch, openTt } from './drawings.js';
 import { inView, testBench } from './design.js';
+import { openWizardModule, wizardProcessOf } from './wizard-modules.js';
 import { openEmulator, openSchematic, openTechSchematic, runSimulation } from './viewers.js';
 
 const $ = id => document.getElementById(id);
@@ -91,6 +92,7 @@ function selectionProcesses() {
         : isPn(sel.sch) ? { id: 'sch-open', label: 'View/Edit Petri Net', ico: 'petri', run: () => openPetri(sel.sch) }
                      : { id: 'sch-open', label: 'View/Edit Schematic', ico: 'schematic', run: () => openSch(sel.sch) },
     ] : []),
+    ...(sel.wizard ? [{ id: 'wiz-open', label: wizardProcessOf(sel.file), ico: 'template', run: () => openWizardModule(sel.file) }] : []),
     SUMMARY_PROC,
     { id: 'utils', label: 'Design Utilities', ico: 'procGroup', children: [
       { id: 'template', label: 'View HDL Instantiation Template', ico: 'template', run: () => openInstTemplate(mod) },

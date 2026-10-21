@@ -489,6 +489,7 @@ const SOURCE_TYPES = [
   { id: 'asm', label: 'State Machine (ASM)', ico: 'asm', ext: '.asm.json', dir: 'src' },
   { id: 'petri', label: 'Petri Net (Diagram)', ico: 'petri', ext: '.pn.json', dir: 'src' },
   { id: 'pnwiz', label: 'Petri Net (Wizard)', ico: 'petri', ext: '.pn.json', dir: 'src' },
+  { id: 'clkwiz', label: 'Clocking Wizard', ico: 'template', ext: null, dir: 'src' },
   { id: 'tb', label: 'Test Bench (HDL)', ico: 'vhdl', ext: null, dir: 'sim' },
   { id: 'tbwiz', label: 'Test Bench (Wizard)', ico: 'template', ext: null, dir: 'sim' },
   { id: 'ucf', label: 'Implementation Constraints File', ico: 'ucf', ext: '.ucf', dir: 'constraints' },
@@ -497,7 +498,7 @@ const SOURCE_TYPES = [
   { id: 'vhdl-pkg', label: 'VHDL Package', ico: 'vhdl', ext: '.vhd', dir: 'src', hidden: true },
 ];
 // the wizards opened by Finish on page 1 (New Source asks only the file name and location)
-const WIZARD_TYPES = new Set(['tbwiz', 'modwiz', 'schwiz', 'pnwiz']);
+const WIZARD_TYPES = new Set(['tbwiz', 'modwiz', 'schwiz', 'pnwiz', 'clkwiz']);
 
 export async function newSourceWizard({ type } = {}) {
   if (!S.project) return;
@@ -672,6 +673,10 @@ export async function newSourceWizard({ type } = {}) {
   if (st.id === 'pnwiz') {
     const { petriWizard } = await import('./petri-wizard.js');
     return petriWizard({ location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
+  }
+  if (st.id === 'clkwiz') {
+    const { clockWizard } = await import('./clock-wizard.js');
+    return clockWizard({ location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
   }
   const path = `${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`;
   let text;
