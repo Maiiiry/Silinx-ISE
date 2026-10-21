@@ -335,7 +335,8 @@ export function packedSim(packed) {
     const xorF = F ^ cin, xorG = G ^ cyF;
     const fxmux = { F, F5, FXOR: xorF }[val('FXMUX')] ?? 0;
     const gymux = { G, FX, GXOR: xorG }[val('GYMUX')] ?? 0;
-    Object.assign(o, { X: fxmux, Y: gymux, XB: cyF, YB: cyG, COUT: cyG, F5, FX, XQ: st[i].q.X, YQ: st[i].q.Y });
+    // (SHIFTOUT: F's last stage, into the SHIFTIN of the SLICEM below, #2)
+    Object.assign(o, { X: fxmux, Y: gymux, XB: cyF, YB: cyG, COUT: cyG, F5, FX, XQ: st[i].q.X, YQ: st[i].q.Y, SHIFTOUT: st[i].mem?.F?.[15] ?? 0 });
     o._d = { X: val('DXMUX') === '1' ? fxmux : BX, Y: val('DYMUX') === '1' ? gymux : BY };
     return o;
   }
@@ -443,8 +444,8 @@ export function packedSim(packed) {
     const clk = val('CLKINV') === 'CLK_B' ? 1 - pin(i, 'CLK') : pin(i, 'CLK');
     if (clk && !r.memClk && pin(i, 'SR')) {
       const BX = pin(i, 'BX'), BY = pin(i, 'BY');
-      // (SHIFTIN: a cascade, F's data G's last stage before this shift)
-      const din = { F: { BX, ALTDIF: BY, SHIFTIN: r.mem.G?.[15] }[val('DIF_MUX')] ?? 0, G: BY };
+      // (SHIFTIN: a cascade, F's data G's last stage before this shift, G's the slice above's, #2)
+      const din = { F: { BX, ALTDIF: BY, SHIFTIN: r.mem.G?.[15] }[val('DIF_MUX')] ?? 0, G: val('DIG_MUX') === 'SHIFTIN' ? pin(i, 'SHIFTIN') : BY };
       const addrOf = side => { let a = 0; for (let j = 0; j < 4; j++) a |= pin(i, `${side}${j + 1}`) << j; return a; };
       for (const side of ['F', 'G']) {
         if (!r.mem[side]) continue;

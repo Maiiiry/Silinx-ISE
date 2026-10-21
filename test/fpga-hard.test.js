@@ -121,6 +121,73 @@ test('shift registers (SRL16E, SRL16E_1) in SLICEMs: CE on SR, an always-enabled
   same(nl, p);
 });
 
+// SRLC16E chains through Q15 (#2): of 4 (both SLICEMs of a CLB), 3, 2 (one slice), each stage read at the tap t,
+// a shift enable on the first two chains, the last one's Q15 unused
+function srlChains() {
+  const cells = [...clock, ...ibuf('d', 3), ...ibuf('t', 4), ...ibuf('ce', 1)];
+  const outs = [];
+  [4, 3, 2].forEach((n, k) => {
+    for (let j = 0; j < n; j++) {
+      cells.push({ name: `s${k}_${j}`, type: 'SRLC16E', params: { INIT: bin((0x1234 * (k + 1) + 0x0F0F * j) & 0xffff, 16) },
+        conns: { A0: 't_i[0]', A1: 't_i[1]', A2: 't_i[2]', A3: 't_i[3]', CE: k < 2 ? 'ce_i' : '1', CLK: 'clk_g', D: j ? `c${k}_${j - 1}` : `d_i[${k}]`, Q: `q${k}_${j}`,
+          ...(j < n - 1 ? { Q15: `c${k}_${j}` } : {}) }, outs: ['Q', 'Q15'] });
+      outs.push(`q${k}_${j}`);
+    }
+  });
+  return yjson({ clk: ['input', 1], d: ['input', 3], t: ['input', 4], ce: ['input', 1], q: ['output', outs.length] }, [...cells, ...outs.map((n, i) => obuf(`q[${i}]`, n))]);
+}
+
+test('SRLC16E chains through Q15 (#2): as ISE\'s map packs them, up to 4 on the two SLICEMs of a CLB (SHIFTOUT -> SHIFTIN), behaviour', () => {
+  const nl = srlChains();
+  const p = pack(nl);
+  assert.deepEqual(p.warnings, []);
+  const sl = p.insts.filter(i => i.type === 'SLICEM');
+  assert.equal(sl.length, 5);
+  const at = n => sl.find(s => cfgOf(s).G?.name === n);
+  // chain 0: s0_0 / s0_1 in the upper slice (G, F), its SHIFTOUT into the lower one's SHIFTIN, s0_2 / s0_3 there
+  const [u0, l0] = [at('s0_0'), at('s0_2')];
+  assert.deepEqual([cfgOf(u0).F.name, val(u0, 'DIG_MUX'), val(u0, 'DIF_MUX'), val(u0, 'SHIFTOUTUSED')], ['s0_1', 'BY', 'SHIFTIN', '0']);
+  assert.deepEqual([cfgOf(l0).F.name, val(l0, 'DIG_MUX'), val(l0, 'DIF_MUX'), val(l0, 'SHIFTOUTUSED')], ['s0_3', 'SHIFTIN', 'SHIFTIN', undefined]);
+  // chain 1 (3): the lower slice's G only; chain 2 (2): one slice, no SHIFTOUT
+  const [u1, l1, u2] = [at('s1_0'), at('s1_2'), at('s2_0')];
+  assert.deepEqual([cfgOf(u1).F.name, val(u1, 'SHIFTOUTUSED'), cfgOf(l1).F, val(l1, 'DIG_MUX')], ['s1_1', '0', undefined, 'SHIFTIN']);
+  assert.deepEqual([cfgOf(u2).F.name, val(u2, 'DIF_MUX'), val(u2, 'SHIFTOUTUSED')], ['s2_1', 'SHIFTIN', undefined]);
+  // the pairs: one macro each, the upper slice above the lower one, starting on an even slice row
+  const idx = s => p.insts.indexOf(s);
+  for (const [u, l] of [[u0, l0], [u1, l1]]) {
+    assert.deepEqual(p.macros.filter(m => m.members.some(x => x.inst === idx(u))).map(m => [m.kind, m.members, m.align]),
+      [['SRL', [{ inst: idx(l), dx: 0, dy: 0 }, { inst: idx(u), dx: 0, dy: 1 }], [1, 2]]]);
+    const n = p.nets.filter(x => x.inpins.some(y => y.inst === idx(l) && y.pin === 'SHIFTIN'));
+    assert.deepEqual(n.map(x => [x.outpins, x.inpins]), [[[{ inst: idx(u), pin: 'SHIFTOUT' }], [{ inst: idx(l), pin: 'SHIFTIN' }]]]);
+  }
+  // no general routing into the stages after the first (their D inside the CLB)
+  for (const s of [l0, l1]) assert.ok(!p.nets.some(x => x.inpins.some(y => y.inst === idx(s) && y.pin === 'BY')));
+  same(nl, p, 600);
+});
+
+test('SRLC16E Q15: what ISE\'s map would not pack on the two SLICEMs of a CLB is refused (#2)', () => {
+  const chain = (n, more = {}) => yjson({ clk: ['input', 1], d: ['input', 1], o: ['output', n] }, [...clock, ...ibuf('d', 1),
+    ...Array.from({ length: n }, (_, j) => ({ name: `u${j}`, type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: j ? `c${j - 1}` : 'd_i', Q: `y${j}`, Q15: `c${j}`, ...more[j] }, outs: ['Q', 'Q15'] })),
+    ...Array.from({ length: n }, (_, j) => obuf(`o[${j}]`, `y${j}`))]);
+  assert.doesNotThrow(() => pack(chain(4)));
+  assert.throws(() => pack(chain(5)), /SRLC16E u0: a chain of 5 shift registers through Q15 is not supported yet \(at most 4, on the two SLICEMs of a CLB\)/);
+  // another clock enable
+  assert.throws(() => pack(chain(2, { 1: { CE: 'd_i' } })), /SRLC16E u0: the cascade output Q15 into anything but the D of one shift register of the same clock and enable is not supported yet/);
+  // Q15 into anything else: a pad, or a shift register and a pad
+  const out = yjson({ clk: ['input', 1], o: ['output', 2] }, [...clock,
+    { name: 'u', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'clk_i', Q: 'y', Q15: 'y15' }, outs: ['Q', 'Q15'] }, obuf('o[0]', 'y'), obuf('o[1]', 'y15')]);
+  assert.throws(() => pack(out), /SRLC16E u: the cascade output Q15 into anything but the D of one shift register/);
+  const two = yjson({ clk: ['input', 1], d: ['input', 1], o: ['output', 3] }, [...clock, ...ibuf('d', 1),
+    { name: 'u', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'd_i', Q: 'y', Q15: 'c' }, outs: ['Q', 'Q15'] },
+    { name: 'v', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'c', Q: 'z' }, outs: ['Q', 'Q15'] }, obuf('o[0]', 'y'), obuf('o[1]', 'z'), obuf('o[2]', 'c')]);
+  assert.throws(() => pack(two), /SRLC16E u: the cascade output Q15 into anything but/);
+  // a ring: no first one
+  const ring = yjson({ clk: ['input', 1], o: ['output', 2] }, [...clock,
+    { name: 'u', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'b', Q: 'y', Q15: 'a' }, outs: ['Q', 'Q15'] },
+    { name: 'v', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'a', Q: 'z', Q15: 'b' }, outs: ['Q', 'Q15'] }, obuf('o[0]', 'y'), obuf('o[1]', 'z')]);
+  assert.throws(() => pack(ring), /a ring of shift registers through Q15 is not supported/);
+});
+
 // block RAMs: single port 2048 x 9 with a constant enable and undriven data bits, dual port 18 / 36
 function brams() {
   const init = '0'.repeat(192) + bin(0xDEADBEEFCAFEBABEn, 64);
@@ -216,9 +283,6 @@ test('cells the Silinx toolchain cannot implement yet are reported clearly', () 
   assert.equal(val(pack(dcm({ DESKEW_ADJUST: '5' })).insts.find(i => i.type === 'DCM'), 'DESKEW_ADJUST'), '5');
   assert.throws(() => pack(dcm({ DESKEW_ADJUST: '16' })), /DCM_SP u: DESKEW_ADJUST = 16 is not in the bit database yet/);
   assert.throws(() => pack(one('BUFGMUX', { I0: 'clk_i', I1: 'clk_i', S: 'clk_i', O: 'y' }, ['O'])), /BUFGMUX u: the Silinx toolchain cannot switch clocks with a BUFGMUX yet/);
-  const cascade = yjson({ clk: ['input', 1], o: ['output', 2] }, [...clock,
-    { name: 'u', type: 'SRLC16E', conns: { A0: '0', A1: '0', A2: '0', A3: '0', CE: '1', CLK: 'clk_g', D: 'clk_i', Q: 'y', Q15: 'y15' }, outs: ['Q', 'Q15'] }, obuf('o[0]', 'y'), obuf('o[1]', 'y15')]);
-  assert.throws(() => pack(cascade), /SRLC16E u: the cascade output Q15 is not supported yet/);
   assert.throws(() => pack(one('RAM32X1D', { A0: 'clk_i', O: 'y' }, ['O'])), PackError);
 });
 

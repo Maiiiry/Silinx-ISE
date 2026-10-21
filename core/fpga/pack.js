@@ -337,7 +337,6 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     || BRAM_TYPE.test(c.type) || MULT_TYPE.test(c.type) || DCM_TYPE.test(c.type);
   for (const c of liveCells()) {
     if (c.type === 'BUFGMUX') throw new PackError(`pack: BUFGMUX ${c.name}: the Silinx toolchain cannot switch clocks with a BUFGMUX yet (its I1 / S inputs are measured on one of the 8 buffers only)`);
-    if (/^SRLC16E?(_1)?$/.test(c.type) && nets[c.pins.Q15]?.loads.length) throw new PackError(`pack: ${c.type} ${c.name}: the cascade output Q15 is not supported yet`);
   }
   const unsupported = liveCells().filter(c => !supported(c));
   if (unsupported.length) throw new PackError(`pack: cells not supported yet: ${[...new Set(unsupported.map(c => c.type))].join(', ')}`);
@@ -731,7 +730,8 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   //   SRL16(E)   F or G, F_ATTR / G_ATTR = SHIFT_REG; two in a slice share the clock and CE; the
   //              flip-flop of a side may take the shift register's output (DXMUX = 1) when the
   //              shift is always enabled (SR = 1) and the flip-flop has no CE, no set / reset;
-  //              a cascade (#24): G's last stage into F's data through SHIFTIN (DIF_MUX = SHIFTIN)
+  //              a cascade (#24): G's last stage into F's data through SHIFTIN (DIF_MUX = SHIFTIN); a chain
+  //              of SRLC16E through Q15 (#2) on the two SLICEMs of a CLB
   const memCells = liveCells().filter(c => SLICEM_MEM[c.type]);
   const memInit = (c, n) => { const b = paramBits(c.params.INIT) || []; let v = 0; for (let a = 0; a < n; a++) if (b[a]) v += 2 ** a; return v; };
   const memClk = c => {
@@ -780,11 +780,63 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   };
   // a shift register longer than 16 stages (core/synth-open.js SRL_MAP: an SRL16E of 16 stages, read at address 15,
   // into the rest) is cascaded in one SLICEM, as ISE's map does: G the first 16 stages, F the next, F's data G's last
-  // stage through SHIFTIN (DIF_MUX), inside the slice instead of through general routing (#24). (Between slices,
-  // DIG_MUX = SHIFTIN, the bits are not measured yet, #2: a longer chain goes on through general routing.)
+  // stage through SHIFTIN (DIF_MUX), inside the slice instead of through general routing (#24). (A longer chain goes
+  // on through general routing.)
   const cascadeOf = c => (SLICEM_MEM[c.type] === 'srl' && addrNets(c).every(n => nets[n]?.const === 1)
     ? memCells.find(x => x !== c && SLICEM_MEM[x.type] === 'srl' && x.pins.D === c.pins.Q && memKey(x) === memKey(c)) || null : null);
+  // a RAM16X1S / shift register on side `side` of slice s, its data in through BX / BY, or (shiftIn) the stage before
+  // it through SHIFTIN: F's G's last stage (DIF_MUX), G's the last stage of the slice above (DIG_MUX)
+  const putMem = (s, side, cc, shiftIn = false) => {
+    const kind = SLICEM_MEM[cc.type];
+    memLut(s, side, cc, { init: memInit(cc, 16), mode: kind === 'srl' ? 'SHIFT_REG' : null, out: cc.pins[kind === 'srl' ? 'Q' : 'O'] });
+    if (shiftIn) { setSink(ci(cc), 'D', 'int'); s.dmux = s.dmux || {}; s.dmux[side] = 'SHIFTIN'; }
+    else memData(s, side, cc);
+    if (kind !== 'srl') s[side === 'F' ? 'wf' : 'wg'] = true;
+    where.set(ci(cc), { inst: s.idx, bel: side });
+    // the shift register's output into the flip-flop of its side (always shifting: SR = 1)
+    if (kind === 'srl' && s.mctrl.en === 1) {
+      const X = side === 'F' ? 'X' : 'Y';
+      const f = ffsOn(cc.pins.Q).find(x => x.ctrl.ce === null && x.ctrl.sr === null && !x.ctrl.latch && x.ctrl.clk === s.mctrl.clk && x.ctrl.clkInv === s.mctrl.clkInv);
+      if (f && !s.ff[X]) { placeFf(s, X, f, 'mux'); s.out[X] = side; }
+    }
+  };
+  // SRLC16E chains through Q15 (#2): each one's Q15 the D of the next (its only load; the same clock and enable), as
+  // ISE's map packs them: up to four on the two SLICEMs of a CLB, G then F of the upper one (F's data G's Q15 through
+  // SHIFTIN), its SHIFTOUT (F's Q15) into the lower one's SHIFTIN (DIG_MUX = SHIFTIN; the CLB's switch SHIFTOUT2 ->
+  // SHIFTIN0), G then F of the lower one; measured with ISE (research/s3e-bitstream gen-cascade.mjs): no bits. (The
+  // lower one's SHIFTOUT leaves the CLB only through XB, not measured: a longer chain, or Q15 into anything else, is
+  // refused.)
+  const q15Next = c => {
+    const n = /^SRLC16E?(_1)?$/.test(c.type) ? c.pins.Q15 : undefined;
+    const loads = n === undefined ? [] : nets[n]?.loads || [];
+    if (!loads.length) return null;
+    const x = loads.length === 1 && loads[0].pin === 'D' ? cells[loads[0].cell] : null;
+    if (!x || !memCells.includes(x) || SLICEM_MEM[x.type] !== 'srl' || memKey(x) !== memKey(c)) {
+      throw new PackError(`pack: ${c.type} ${c.name}: the cascade output Q15 into anything but the D of one shift register of the same clock and enable is not supported yet`);
+    }
+    return x;
+  };
+  const q15Prev = new Set(memCells.map(q15Next).filter(Boolean));
   const memUsed = new Set();
+  for (const c of memCells) {
+    if (q15Prev.has(c) || !q15Next(c)) continue;
+    const chain = [c];
+    for (let x = q15Next(c); x; x = q15Next(x)) chain.push(x);
+    if (chain.length > 4) throw new PackError(`pack: ${c.type} ${c.name}: a chain of ${chain.length} shift registers through Q15 is not supported yet (at most 4, on the two SLICEMs of a CLB)`);
+    for (const x of chain) memUsed.add(x);
+    const up = memSlice(c);
+    putMem(up, 'G', chain[0]);
+    putMem(up, 'F', chain[1], true);
+    if (chain.length < 3) continue;
+    const lo = memSlice(chain[2]);
+    putMem(lo, 'G', chain[2], true);
+    if (chain[3]) putMem(lo, 'F', chain[3], true);
+    up.shiftOut = true;
+    macros.push({ kind: 'SRL', members: [{ inst: lo.idx, dx: 0, dy: 0 }, { inst: up.idx, dx: 0, dy: 1 }], align: [1, 2], net: chain[1].pins.Q15 });
+  }
+  // (a ring of them has no first one)
+  const ring = memCells.find(c => q15Prev.has(c) && !memUsed.has(c));
+  if (ring) throw new PackError(`pack: ${ring.type} ${ring.name}: a ring of shift registers through Q15 is not supported`);
   for (const c of memCells) {
     if (memUsed.has(c)) continue;
     // (the second of a cascade is placed with the first)
@@ -819,27 +871,12 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     }
     // RAM16X1S / SRL16: G first; a second cell of the same kind and controls (and, for RAMs, the
     // same address) takes F
-    const mode = kind === 'srl' ? 'SHIFT_REG' : null;
-    const outPin = kind === 'srl' ? 'Q' : 'O';
-    const put = (side, cc, cascade = false) => {
-      memLut(s, side, cc, { init: memInit(cc, 16), mode, out: cc.pins[outPin] });
-      if (cascade) { setSink(ci(cc), 'D', 'int'); s.dmux = s.dmux || {}; s.dmux.F = 'SHIFTIN'; }
-      else memData(s, side, cc);
-      if (kind !== 'srl') s[side === 'F' ? 'wf' : 'wg'] = true;
-      where.set(ci(cc), { inst: s.idx, bel: side });
-      // the shift register's output into the flip-flop of its side (always shifting: SR = 1)
-      if (kind === 'srl' && s.mctrl.en === 1) {
-        const X = side === 'F' ? 'X' : 'Y';
-        const f = ffsOn(cc.pins.Q).find(x => x.ctrl.ce === null && x.ctrl.sr === null && !x.ctrl.latch && x.ctrl.clk === s.mctrl.clk && x.ctrl.clkInv === s.mctrl.clkInv);
-        if (f && !s.ff[X]) { placeFf(s, X, f, 'mux'); s.out[X] = side; }
-      }
-    };
-    put('G', c);
+    putMem(s, 'G', c);
     const next = cascadeOf(c);
-    if (next && !memUsed.has(next)) { memUsed.add(next); put('F', next, true); continue; }
+    if (next && !memUsed.has(next)) { memUsed.add(next); putMem(s, 'F', next, true); continue; }
     const sameAddr = x => kind === 'srl' || addrNets(x).every((n, j) => n === addrNets(c)[j]);
     const mate = memCells.find(x => !memUsed.has(x) && SLICEM_MEM[x.type] === kind && memKey(x) === memKey(c) && sameAddr(x));
-    if (mate) { memUsed.add(mate); put('F', mate); }
+    if (mate) { memUsed.add(mate); putMem(s, 'F', mate); }
   }
   stats.slicem = insts.filter(s => s.slicem).length;
 
@@ -1359,6 +1396,10 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     const name = uniqueNet(`${a.carry.G?.mux?.name || a.carry.F?.mux?.name || 'carry'}_COUT`);
     outNets.push({ name, type: 'wire', outpins: [{ inst: a.idx, pin: 'COUT' }], inpins: [{ inst: b.idx, pin: 'CIN' }] });
   }
+  // shift-register chains between the SLICEMs of a CLB: SHIFTOUT of the upper one -> SHIFTIN of the lower one
+  for (const mac of macros) if (mac.kind === 'SRL') {
+    outNets.push({ name: uniqueNet(nets[mac.net].name), type: 'wire', outpins: [{ inst: mac.members[1].inst, pin: 'SHIFTOUT' }], inpins: [{ inst: mac.members[0].inst, pin: 'SHIFTIN' }] });
+  }
   // ---------------------------------------------------------------- configuration strings
   for (const s of insts) if (s.kind === 'iob') s.name = uniqueName(s.name);   // pads keep their port's name
   // names of the slices: the first flip-flop or LUT inside
@@ -1463,6 +1504,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
       add('SRINV', '', 'SR');
       if (s.dmux?.F) add('DIF_MUX', '', s.dmux.F);
       if (s.dmux?.G) add('DIG_MUX', '', s.dmux.G);
+      if (s.shiftOut) add('SHIFTOUTUSED', '', '0');
       const first = s.lut.F || s.lut.G;
       add('WSGEN', `${nm(first.name)}.${m.srl ? 'CE' : 'WE'}`, '');
       if (s.we0) add('SLICEWE0USED', '', '0');
