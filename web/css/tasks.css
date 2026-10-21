@@ -200,3 +200,12 @@ html[data-layout="tasks"] .doc[data-task="prog"] > .page > .note-box { order: 9;
 html[data-layout="tasks"] .doc[data-task="prog"] > .page:not(.settings-open) > .imp-settings { display: none; }
 html[data-layout="tasks"] .task-prog-more { display: inline-flex; }
 html[data-layout="tasks"] .doc[data-task="prog"] > .page:not(.more-open) .imp-more { display: none; }
+
+/* ------------------------------------------------------------------ the activity bar is Edit's (#876) */
+/* Start, Design, Files and Libraries are Edit's pages: Simulate and Emulate have their document's own side panel,
+   Program none (no left column); Implement its Processes, whichever page Edit left in front */
+html[data-layout="tasks"]:not([data-task="edit"]) #left-tabs { display: none; }
+html[data-layout="tasks"]:is([data-task="sim"], [data-task="emu"], [data-task="prog"]) :is(#left, #v-split, #drawer-btn, #drawer-scrim) { display: none !important; }
+html[data-layout="tasks"][data-task="prog"] #task-bar [data-act="side"] { display: none; }
+html[data-layout="tasks"][data-task="impl"] .left-page[data-page="design"] { display: flex !important; }
+html[data-layout="tasks"][data-task="impl"] .left-page:not([data-page="design"]) { display: none !important; }
