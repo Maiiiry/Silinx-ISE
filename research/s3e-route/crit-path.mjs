@@ -34,7 +34,7 @@ for (const n of design.nets) { if (!n.outpins.length || !n.pips.length) continue
 let FREE = null;
 function best(src, targets) {   // Dijkstra by node delay
   const g = new Map([[src, 0]]); const q = new Heap(); q.push(0, src); const T = new Set(targets);
-  while (q.size) { const [d, n] = q.pop(); if (d > g.get(n)) continue; if (T.has(n)) return d + SPEED_4.base; if (d > 6) return Infinity;
+  while (q.size) { const [d, n] = q.pop(); if (d > g.get(n)) continue; if (T.has(n)) return Math.max(0, d + SPEED_4.base); if (d > 6) return Infinity;
     for (let e = E.edgeStart[n]; e < E.edgeStart[n + 1]; e++) { const m = E.edgeTo[e], dm = d + ndel[m]; if (FREE && user.has(m) && user.get(m) !== FREE && !T.has(m)) continue; if (dm < (g.get(m) ?? Infinity) && ok(e)) { g.set(m, dm); q.push(dm, m); } } }
   return Infinity;
 }

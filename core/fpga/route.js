@@ -36,7 +36,9 @@
 //   connections one at a time, each one's own branch routed again on the wires no other net uses, or on
 //   less critical nets' wires, those nets routed again around it, kept when the critical path is no
 //   longer (a critical connection's fast wire, an OMUX or a double next to its load, or the LUT input
-//   its fast connect reaches, is often held by a net routed before it).
+//   its fast connect reaches, is often held by a net routed before it); a critical connection's whole net
+//   routed again (a reset or an enable whose loads are all critical, #651); and, when stuck, a short
+//   lookahead: one connection faster though another path gets longer, then the polish from there.
 // - LUT inputs (opts.swapLutPins, default on): the four inputs of a LUT are interchangeable, so a
 //   net may end on any input of its LUT no other net takes (as ISE's router swaps them): the one
 //   its fastest or least congested path reaches; the LUT's equation is rewritten for the inputs
@@ -140,8 +142,9 @@ function globalClockMask(device) {
  * core/fpga/timing.js), timingPasses (4: passes after the routing is legal, for timing only), timingPf (1: the present
  * congestion factor of those passes; null: as the passes before left it), polish (300: the changes the polish of the critical path may make;
  * 0: none), stealCost (1: the cost, in units of 0.3 ns at criticality 1, of a wire of another net in
- * the polish; 0: free wires only) and stealNets (8: the nets it may route again around a connection),
- * maxCriticality (0.99), model (timing.js SPEED_4), branchLoad (1: the weight of the branch loads
+ * the polish; 0: free wires only), stealNets (8: the nets it may route again around a connection),
+ * polishNet (true: the polish may route a critical connection's whole net again, #651) and lookahead
+ * (16: the changes of the polish's lookahead when it is stuck, #651; 0: none), maxCriticality (0.99), model (timing.js SPEED_4), branchLoad (1: the weight of the branch loads
  * a new branch puts on the routed connections; 0: not counted), swapLutPins (true: LUT inputs may
  * be permuted; the returned design then has the LUT equations and inpins rewritten), searchCap
  * (400 000: the nodes one search from a net's tree to a sink may expand) and searchCapRetry
@@ -221,7 +224,9 @@ export function routeDesign(design, device, opts = {}) {
   let curStamp = 0;
   // the polish (after the routing): a search on the nodes no other net uses (blockUsed), or on theirs too
   // at stealPen each (cost units)
-  let blockUsed = false, stealPen = 0;
+  // belowMax: a new branch's load on the routed connections below its node weighted by the most critical
+  // of them, not by the sum of their criticalities (the polish's whole-net move)
+  let blockUsed = false, stealPen = 0, belowMax = false;
   // the from-node of each edge (the CSR keeps only edgeTo), to walk a path back
   const edgeFrom = new Int32Array(E.edgeTo.length);
   for (let n = 0; n < N; n++) edgeFrom.fill(n, E.edgeStart[n], E.edgeStart[n + 1]);
@@ -372,7 +377,7 @@ export function routeDesign(design, device, opts = {}) {
         kids.set(top, (kids.get(top) || 0) + 1);
         for (let j = path.length - 1; j > 0; j--) kids.set(E.edgeTo[path[j]], 1);
         const c = critOf(s);
-        for (let m = s.node; m >= 0; m = tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]) below.set(m, (below.get(m) || 0) + c);
+        for (let m = s.node; m >= 0; m = tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]) below.set(m, belowMax ? Math.max(below.get(m) || 0, c) : (below.get(m) || 0) + c);
       }
     }
     for (const n of tree.keys()) occ[n]++;
@@ -415,6 +420,7 @@ export function routeDesign(design, device, opts = {}) {
   let best = null;     // timing: the best legal routing so far
   let timingPasses = timing ? opts.timingPasses ?? 4 : 0;
   const TIMING_PF = opts.timingPf === undefined ? 1 : opts.timingPf, POLISH = opts.polish ?? 300, STEAL_COST = opts.stealCost ?? 1, STEAL_NETS = opts.stealNets ?? 8;
+  const POLISH_NET = opts.polishNet ?? true, LOOKAHEAD = opts.lookahead ?? 16, LOOK_CONNS = 3;
   for (iter = 1; iter <= maxIter; iter++) {
     for (const i of toRoute) { ripUp(i); if (routeNet(i, pf)) failed.delete(i); else failed.add(i); }
     // congestion: nodes used by more than one net
@@ -453,7 +459,13 @@ export function routeDesign(design, device, opts = {}) {
   // branch routed again on the wires no other net uses, else on less critical nets' wires (stealCost
   // each), those nets (at most stealNets) then routed again around it; a change is kept when the
   // critical path is shorter, or as long with that connection faster (paths of the same delay), until
-  // no connection of the critical path gains (at most `polish` changes)
+  // no connection of the critical path gains (at most `polish` changes). Two more moves (#651): the whole net
+  // of a connection of the path routed again on free nodes, with its branch loads weighted by the most
+  // critical load below a node (polishNet: a reset or an enable whose loads are all critical gets a tree of
+  // short branches instead of a chain of shared doubles, which no change of one load at a time improves:
+  // each new branch slows the others); and, when no change gains, a lookahead (`lookahead` changes at
+  // most): a connection of the path made faster though another path gets longer, then the polish from
+  // there, all of it kept when the critical path ends shorter, else every net back as it was
   if (timing && POLISH && !overused && !failed.size) {
     const connOfPin = new Map(tg.conns.map((c, k) => [`${c.toPin.inst}\u0000${c.toPin.pin}`, k]));
     const sinkOfConn = new Map();
@@ -479,6 +491,28 @@ export function routeDesign(design, device, opts = {}) {
       for (const n of tree.keys()) get(n);
       return d;
     };
+    // the branch loads of a net's tree for a search from it (as routeNet's, weighted by the most critical
+    // load below a node): a new branch pays the loads on its way and the one it adds
+    const loadStart = (i, tree, tdel) => {
+      const net = work[i], srcSet = new Set(net.sources);
+      const br = n => (srcSet.has(n) ? model.source : model.branch[ncls[n]]);
+      const kids = new Map(), below = new Map();
+      for (const e of tree.values()) if (e >= 0) kids.set(edgeFrom[e], (kids.get(edgeFrom[e]) || 0) + 1);
+      for (const x of net.sinks) {
+        if (!tree.has(x.node)) continue;
+        const c = x.conn >= 0 ? sinkCrit[x.conn] : 0;
+        for (let m = x.node; m >= 0; m = tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]) below.set(m, Math.max(below.get(m) || 0, c));
+      }
+      const up = m => (tree.get(m) < 0 ? -1 : edgeFrom[tree.get(m)]);
+      return (n, dw) => {
+        let load = 0;
+        for (let m = up(n); m >= 0; m = up(m)) { const k = kids.get(m) || 0; if (k > 1) load += br(m) * (k - 1); }
+        const k = kids.get(n) || 0;
+        return dw * (tdel.get(n) + load + br(n) * k) + (k ? BRANCH * br(n) * (below.get(n) || 0) / D0 : 0);
+      };
+    };
+    // kept: the critical path shorter, or as long with connection c faster (force: c faster, the lookahead)
+    const keeps = (r2, r, c, cd, force) => r2 && ((!force && r2.period < r.period - 1e-9) || ((force || r2.period <= r.period + 1e-9) && connDelays()[c] < cd[c] - 1e-6));
     const snapshot = idx => idx.map(v => ({ v, tree: trees[v], nodes: work[v].sinks.map(x => x.node) }));
     const restore = snap => {
       for (const { v } of snap) ripUp(v);
@@ -486,7 +520,7 @@ export function routeDesign(design, device, opts = {}) {
     };
     // one connection's branch routed again on its own, on free nodes (steal: also on other nets'
     // nodes at a cost, those nets then routed again around it); the analysis if kept, else null
-    const attempt = (c, r, cd, steal) => {
+    const attempt = (c, r, cd, steal, force = false) => {
       const [i, s] = sinkOfConn.get(c);
       const sinkSet = new Set(work[i].sinks.filter(x => x !== s).map(x => x.node));
       const br = branchOf(trees[i], s.node, sinkSet);
@@ -498,7 +532,8 @@ export function routeDesign(design, device, opts = {}) {
       trees[i] = t; for (const n of t.keys()) occ[n]++;
       blockUsed = true; stealPen = steal ? STEAL_COST : 0;
       const targets = s.targets && (steal ? s.targets : s.targets.filter(x => occ[x] === 0));
-      const path = search(t, s.node, i, pf, null, maxCrit, tdelOf(t), targets, null);
+      const td = tdelOf(t);
+      const path = search(t, s.node, i, pf, null, maxCrit, td, targets, BRANCH ? loadStart(i, t, td) : null);
       stealPen = 0;
       const pathNodes = path ? path.map(e => E.edgeTo[e]) : [];
       const victims = steal && path ? work.map((_, v) => v).filter(v => v !== i && trees[v] && pathNodes.some(n => trees[v].has(n))) : [];
@@ -511,22 +546,62 @@ export function routeDesign(design, device, opts = {}) {
       for (const v of victims) if (!routeNet(v, pf)) { ok = false; break; }
       blockUsed = false;
       const r2 = ok ? tg.analyze(connDelays()) : null;
-      const kept = r2 && (r2.period < r.period - 1e-9 || (r2.period <= r.period + 1e-9 && connDelays()[c] < cd[c] - 1e-6));
-      if (kept) return r2;
+      if (keeps(r2, r, c, cd, force)) return r2;
       restore(vsnap); restore(snap);
+      return null;
+    };
+    // the whole net of a connection routed again on free nodes (and its own), belowMax
+    const netAttempt = (c, r, cd, force = false) => {
+      const [i] = sinkOfConn.get(c);
+      const snap = snapshot([i]);
+      ripUp(i);
+      blockUsed = true; belowMax = true;
+      const ok = routeNet(i, pf);
+      blockUsed = false; belowMax = false;
+      const r2 = ok ? tg.analyze(connDelays()) : null;
+      if (keeps(r2, r, c, cd, force)) return r2;
+      restore(snap);
+      return null;
+    };
+    // the connections of an analysis's critical path, the slowest first
+    const pathConns = r => {
+      const worst = r.clocks.reduce((a, k) => (!a || k.period > a.period ? k : a), null);
+      if (!worst) return null;
+      const conns = worst.path.filter(st => st.kind === 'net').map(st => connOfPin.get(`${st.inst}\u0000${st.pin}`)).filter(c => c !== undefined && sinkOfConn.has(c));
+      const cd = connDelays();
+      conns.sort((a, b) => cd[b] - cd[a]);
+      return { conns, cd };
+    };
+    // one change that gains: a branch on free nodes, on other nets' nodes, the whole net
+    const step = r => {
+      const p = pathConns(r);
+      if (!p) return null;
+      let r2 = null;
+      for (const c of p.conns) if ((r2 = attempt(c, r, p.cd, false))) return r2;
+      if (STEAL_COST) for (const c of p.conns) if ((r2 = attempt(c, r, p.cd, true))) return r2;
+      if (POLISH_NET) for (const c of p.conns) if ((r2 = netAttempt(c, r, p.cd))) return r2;
+      return null;
+    };
+    // the lookahead from the path's slowest connections (LOOK_CONNS): each made faster on free nodes, else
+    // on other nets', whatever the critical path does, then up to LOOKAHEAD changes that gain
+    const lookahead = r => {
+      const p = pathConns(r);
+      if (!p) return null;
+      for (const c of p.conns.slice(0, LOOK_CONNS)) {
+        const saved = { trees: trees.slice(), nodes: work.map(w => w.sinks.map(x => x.node)) };
+        let cur = attempt(c, r, p.cd, false, true) || (STEAL_COST ? attempt(c, r, p.cd, true, true) : null);
+        for (let j = 0; cur && j < LOOKAHEAD && !(cur.period < r.period - 1e-9); j++) cur = step(cur);
+        if (cur && cur.period < r.period - 1e-9) return cur;
+        // (every net back as it was: the trees are replaced, never changed in place)
+        occ.fill(0);
+        saved.trees.forEach((t, v) => { trees[v] = t; if (t) for (const n of t.keys()) occ[n]++; });
+        saved.nodes.forEach((ns, v) => work[v].sinks.forEach((x, j) => { x.node = ns[j]; }));
+      }
       return null;
     };
     let r = tg.analyze(connDelays());
     for (let k = 0; k < POLISH; k++) {
-      const worst = r.clocks.reduce((a, c) => (!a || c.period > a.period ? c : a), null);
-      if (!worst) break;
-      const conns = worst.path.filter(st => st.kind === 'net').map(st => connOfPin.get(`${st.inst}\u0000${st.pin}`)).filter(c => c !== undefined && sinkOfConn.has(c));
-      // the connections of the path, the slowest first
-      const cd = connDelays();
-      conns.sort((a, b) => cd[b] - cd[a]);
-      let r2 = null;
-      for (const c of conns) if ((r2 = attempt(c, r, cd, false))) break;
-      if (!r2 && STEAL_COST) for (const c of conns) if ((r2 = attempt(c, r, cd, true))) break;
+      const r2 = step(r) || (LOOKAHEAD ? lookahead(r) : null);
       if (!r2) break;
       r = r2; period = r2.period;
     }

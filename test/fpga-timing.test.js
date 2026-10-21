@@ -791,8 +791,9 @@ test('timing-driven routing: branch loads (XC3S250E graph): a net of 17 timed lo
     + loads.map(([n], k) => at(n, `SLICE_X${17 + (k % 4) * 2}Y${16 + Math.floor(k / 4) * 2}`, ` G:${n}_g:#LUT:D=A1 GYMUX::G FFY:${n}:#FF DYMUX::1 `)).join('')
     + net('clk', [], [['a', 'CLK'], ['b', 'CLK'], ...loads.map(([n]) => [n, 'CLK'])]) + net('d', [['a', 'XQ']], [['b', 'F1'], ...loads]);
   const src = dev.sitePinNode('SLICE_X20Y20', 'XQ');
+  // (the router's passes alone: the polish routes the net again, with the loads, either way, #651)
   const run = branchLoad => {
-    const r = routeDesign(parseXdl(text), dev, { timing: true, branchLoad });
+    const r = routeDesign(parseXdl(text), dev, { timing: true, branchLoad, polish: 0 });
     assert.deepEqual(r.failed, []);
     assert.deepEqual(checkRouting(parseXdl(writeXdl(r.design)), dev).problems.filter(p => !/^net clk: sink/.test(p)), []);   // (the clock has no source here)
     return { period: analyzeTiming(parseXdl(writeXdl(r.design)), dev).period, branches: netTree(r.design.nets.find(n => n.name === 'd').pips, [src], dev).children.get(src) };

@@ -831,6 +831,84 @@ loads of the high-fanout nets (the T80 3.66 -> 1.86 ns), which only fewer loads 
 netlist like XST's) remove; and the placement's floor, above ISE's routing on iwls05-i2c (the levels, #652) and
 on vtr-diffeq1 at seed 1 (the multipliers' columns).
 
+### The polish's whole-net move and lookahead (#651, 2026-10-21)
+
+Measured locally, with Silinx's analysis only (ISE's machine busy that night): the corpus netlists of 31 designs
+(the issue's, the examples, a few more; main 0b69aca), each placed once per seed (1-3) and the placement cached,
+then routed with each variant of the router on the same placements (no replication), on the corpus's device
+(the XC3S250E; vtr-diffeq1 / 2 on the XC3S1200E for their multipliers) and 16 of them on the XC3S1200E (seeds
+1-2). One seed of one design moves by ±2-5 % with any change to the router's main passes, so the geometric mean
+of the 90 routings is known to about ±0.2 %.
+
+`crit-path.mjs` counted the floor of a carry chain's connection (COUT -> CIN, no general wire) as the model's
+base, −0.103 ns, where its delay is 0: the router's share was 0.1 ns too high per carry stage (pong 1.13 of its
+1.57 ns). Corrected, the split at seed 1 (sums over the designs, ns):
+
+| | routing on the critical paths | placement's floor | contention | router |
+|---|---:|---:|---:|---:|
+| XC3S250E, 30 designs | 123.6 | 99.5 | 8.7 | 15.4 |
+| XC3S1200E, 16 designs × 2 seeds, before | 137.1 | 104.8 | 7.7 | 24.6 |
+| XC3S1200E, the same, after the change | 132.9 | 103.8 | 9.8 | 19.3 |
+
+The router's share left on the XC3S1200E was mostly two cases:
+
+- **A reset or an enable whose loads are all critical** (CE, SR, BX pins of 12-23 flip-flops): the critical load
+  at the end of a chain of doubles shared by the others (vtr-ch-intrinsics 1.41 ns where 0.51 is free, iwls05-i2c
+  1.22 against 0.51, femtorv32 1.49 against 0.85). The polish could not shorten it: a direct branch for one load
+  adds a branch at the driver (0.049 ns) to all the others, so the critical path gets longer at every step. The
+  cause is the branch-load term of the router's cost: a new branch off a node pays its load times the *sum* of
+  the criticalities of the routed loads below the node; with 16 loads at 0.99 that is 16 × 0.049 ns, so the
+  search keeps to the deep nodes of the tree (a chain) rather than branch near the driver, where the period
+  only grows by 0.049.
+- **Nets of 117-257 loads** (epfl-bar, epfl-max): the same, plus the loads of so many branches; the app's flow
+  replicates these (#4).
+
+Tried (each on the same placements; geometric mean of the period by the analysis, against the router before):
+
+| change | XC3S250E (30 × 3) | XC3S1200E (16 × 2) | kept |
+|---|---:|---:|---|
+| the polish's searches counting the branch loads of the tree (they did not) | −0.0 % | | as part of the last |
+| the polish's A* estimate 0.05 ns / tile (0.1: above a hex's or a long line's per tile) | −0.0 % | | no |
+| a steal's victim repaired (only its branches through the wires taken) instead of routed again | +0.0 % | | no |
+| a 4-step lookahead after a steal that makes the path longer | −0.03 % | | as part of the last |
+| the branch-load term weighted by the most critical load below (max), in all the router's passes | +0.18 % (12 worse) | | no: the sum protects the many moderately critical loads |
+| the same, the sum capped at 2 / 4, or a sum of criticality⁴ | −0.21 / −0.22 / −0.15 % (3-5 worse) | −0.24 % (4 worse) | no |
+| the branch-load term without counting the node's own branches twice | −0.05 % (7 worse, 7 better) | | no |
+| **the polish: the whole net routed again with the max weighting, and a 16-step lookahead with free moves** | **−0.33 %** (none worse) | **−0.49 %** (none worse) | **yes** |
+
+The polish (core/fpga/route.js) now has, besides #662's moves (a connection's own branch on free wires, then on
+other nets' wires): the whole net of a connection of the critical path routed again on free wires (and its own),
+its branch loads weighted by the most critical load below a node (`polishNet`, default on); and, when no move
+gains, a lookahead (`lookahead`, 16): one of the path's three slowest connections made faster on free wires (else
+on others') whatever the critical path does, then up to 16 moves from there, all kept when the critical path ends
+shorter, else every net back as it was. Every move is still kept only when the analysis says so: never slower by
+it, the routing legal and complete. Its searches count the branch loads of the net's tree (with the max
+weighting), as the router's do.
+
+The app's flow (`placeRouteBest`: the placement, the routing, register replication), main's code against the
+change from the same netlists, seeds 1-2: XC3S250E (30 designs) −0.27 % (epfl-max −1.8 %, epfl-bar −1.6 %,
+verilog-uart −1.0 %, none slower), XC3S1200E (16) −0.29 % (epfl-bar −1.9 %, verilog-uart −0.8 %; epfl-max seed 2
++1.1 %: its first routing differs, so replication copies differently; seed 1 −0.9 %); the place and route's time
+×0.98-1.02. A small step: what is left of the gap with ISE's routing is the placement's floor (above ISE's on
+iwls05-i2c and the T80) and the high-fanout nets of Silinx's netlists (#652).
+
+Checked with ISE (`scripts/check-open-flow.mjs`, seed 1, default options, main 08182b2 against the change; the
+examples and six corpus designs on the XC3S250E): every one DRC 0 errors and 0 warnings, xdl2ncd 0 warnings, the
+`.bit` byte-identical to ISE's bitgen (CRC on and off). ISE's trce, the main clock's period (ns):
+
+| design | before | after | |
+|---|---:|---:|---:|
+| epfl-max | 23.523 | 22.487 | −4.4 % |
+| epfl-bar | 8.874 | 8.620 | −2.9 % |
+| iwls05-i2c | 8.735 | 8.516 | −2.5 % |
+| verilog-uart | 8.421 | 8.236 | −2.2 % |
+| femtorv32-quark | 16.536 | 16.413 | −0.7 % |
+| blinky | 6.989 | 6.961 | −0.4 % |
+| clock | 8.431 | 8.411 | −0.2 % |
+| iwls05-simple-spi, traffic, pong, stopwatch, vga | | | 0 |
+
+Geometric mean −1.12 % (12 timed designs; gates has no clock), none slower.
+
 ## The XC3S1200E's long-line splitters (#23, 2026-10-21)
 
 The XC3S1200E joins each vertical long line's two halves across the centre row (CLKH_LL; the bits:
