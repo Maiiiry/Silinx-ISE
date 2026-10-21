@@ -65,3 +65,28 @@ uiTest('no Development menu without a development build (a release, the local se
   assert.equal((await menuTitles(page)).at(-1), 'Help');
   assert.ok(!(await menuTitles(page)).includes('Development'));
 });
+
+// #767: the last menu of the bar, its long change titles, a 1024 px window (an iPad's): the submenu opens on the
+// menu's left, inside the window; a title cut with an ellipsis, whole in its tooltip
+const LONG = { ...BUILD, changes: [{ issue: 30, type: 'feature', title: `A change whose title is long ${'and longer '.repeat(12)}than any window`, short: [], detail: ['**A long one (#30):** x.'] }] };
+uiTest('#767 a submenu stays inside the window: the Development menu at 1024 px, a long title cut, whole in its tooltip', E, async (page) => {
+  await page.setViewport(1024, 700);
+  try {
+    // (the modern interface lays itself out again after a resize, narrow mode #266: settled before the menu opens)
+    await page.waitFor(() => innerWidth === 1024);
+    await page.eval(() => new Promise((r) => setTimeout(r, 500)));
+    await page.openMenu('Development');
+    await page.hover(await page.point('body > .menu-popup > .mi', { index: 0 }));
+    await page.waitForSelector('.menu-popup.sub .mi');
+    const box = await page.eval(() => {
+      const sub = document.querySelector('.menu-popup.sub'), r = sub.getBoundingClientRect(), lbl = sub.querySelector('.mi .lbl');
+      const top = document.querySelector('body > .menu-popup:not(.sub)').getBoundingClientRect();
+      return { left: r.left, right: r.right, top: r.top, bottom: r.bottom, W: innerWidth, H: innerHeight, cut: lbl.scrollWidth > lbl.clientWidth, tip: sub.querySelector('.mi').title, menu: [top.left, top.right] };
+    });
+    assert.ok(box.left >= 0 && box.right <= box.W && box.top >= 0 && box.bottom <= box.H, JSON.stringify(box));
+    assert.ok(box.menu[0] >= 0 && box.menu[1] <= box.W, `the menu itself inside the window: ${JSON.stringify(box)}`);
+    assert.equal(box.cut, true, 'the long title cut');
+    assert.equal(box.tip, `#30 ${LONG.changes[0].title}`);
+    await page.closeMenus();
+  } finally { await page.setViewport(1400, 900); }
+}, { build: LONG });
