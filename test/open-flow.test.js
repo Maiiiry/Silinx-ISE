@@ -205,10 +205,10 @@ const FEATURES = {
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
   feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],
-  // two DCMs, cascaded: the second on the bottom-left DCM, the one whose CLK2X180 reaches a global
-  // buffer on switches of known bits; its CLKIN from the first one's CLK0 buffer (#47)
+  // two DCMs, cascaded: the second on the bottom-left DCM, its CLK2X180 on a buffer of the bottom (every DCM output
+  // reaches its four on switches of known bits, #2); its CLKIN from the first one's CLK0 buffer (#47)
   feat_dcm2: [/^pack \(\d+ slices\)/m, 'DCM', [/^inst "u_dcma" "DCM",placed DCM_TL_CENTER_X13Y34 DCM_X0Y1 /m, /^inst "u_dcmb" "DCM",placed DCM_BL_CENTER_X13Y1 DCM_X0Y0 /m,
-    /^inst "u_ba0" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^inst "u_bb2x" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX_X1Y1 /m,
+    /^inst "u_ba0" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^inst "u_bb2x" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX_X2Y0 /m,
     // (B's CLKIN from A's CLK0 buffer on the global line, not through general routing, #93)
     /^ {2}pip DCM_BL_CENTER_X13Y1 GCLK\d -> DCM_CLKIN ,$/m], [/_TO_OMUX/]],
   // the clock pad (B8, LOC'd) into a global buffer that feeds the DCM's CLKIN: B8's buffer, whose line
@@ -368,20 +368,24 @@ test('the open flow: inputs that drive nothing (the clock, the buttons) get no p
   assert.deepEqual(pads, [...[0, 1, 2, 3, 4, 5, 6, 7].map(i => `led<${i}>`), ...[0, 1, 2, 3, 4, 5, 6, 7].map(i => `sw<${i}>`)].sort());
 });
 
-test('the open flow fails clearly for what the bit database does not have: a DCM output with no known path to a global buffer', { timeout: 300000 }, () => {
-  // (CLK2X180 of either DCM of the XC3S100E: no measured path; on the XC3S250E the bottom-left DCM's
-  // reaches one, #47: feat_dcm2)
-  const dir = path.join(tmp, 'dcm2x180');
+test('the open flow fails clearly for a DCM with more outputs on global buffers than its output multiplexer reaches (four)', { timeout: 300000 }, () => {
+  // (feat_dcm's CLK0, CLKDV, CLKFX, CLK2X and CLK90 too: five outputs, the four buffers of its lines; before #2 the test
+  // was CLK2X180 of the XC3S100E, which then reached no buffer on known switches)
+  const dir = path.join(tmp, 'dcm5');
   fs.mkdirSync(dir, { recursive: true });
-  const src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm/top.vhd'), 'utf8').replace('CLK2X180 => open', 'CLK2X180 => clk2x_u').replace('CLK2X => clk2x_u', 'CLK2X => open');
+  const src = fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_dcm/top.vhd'), 'utf8').replace('CLK90 => open', 'CLK90 => clk90_u')
+    .replace('clk2x_u, clk2x_b, locked : std_logic;', 'clk2x_u, clk2x_b, clk90_u, clk90_b, h90, locked : std_logic;')
+    .replace('  u_b2x : BUFG port map (I => clk2x_u, O => clk2x_b);', '  u_b2x : BUFG port map (I => clk2x_u, O => clk2x_b);\n  u_b90 : BUFG port map (I => clk90_u, O => clk90_b);\n  process (clk90_b) begin if rising_edge(clk90_b) then h90 <= sw(0); end if; end process;')
+    .replace('led <= locked & "000"', 'led <= locked & h90 & "00"');
+  assert.match(src, /u_b90 : BUFG/);
   fs.writeFileSync(path.join(dir, 'top.vhd'), src);
-  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm2x180', version: 1, device: { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' }, top: 'top',
+  fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name: 'dcm5', version: 1, device: { family: 'spartan3e', part: 'xc3s100e', package: 'cp132', speed: '-4' }, top: 'top',
     // the constraints by an absolute path (on Windows a relative one across drives is absolute too: it was
     // joined onto the project folder, CI b898d8e)
     files: [{ path: 'top.vhd', lang: 'vhdl', role: 'design' }], constraints: path.join(ROOT, 'test/fixtures/open-flow/basys2.ucf') }));
   const r = spawnSync(process.execPath, [path.join(ROOT, 'research/s3e-route/open-flow.mjs'), dir, path.join(dir, 'out')], { encoding: 'utf8', env: { ...process.env, SILINX_CONFIG_DIR: path.join(tmp, 'cfg') } });
   assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /u_b2x: no free global clock buffer reachable from u_dcm\.CLK2X180 through switches of known bits/);
+  assert.match(r.stderr, /u_b\w+: no free global clock buffer reachable from u_dcm\.CLK\w+ through switches of known bits/);
 });
 
 // blinky on the other boards (stage F of research/s3e-bitstream): the Basys2-100 with the Basys2's
@@ -449,11 +453,11 @@ const CLOCK_CASES = [
   ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y11' },
     ['Warning: place: clk: the global buffer BUFGMUX_X2Y1 that its pad M4 reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing']],
   ['#57', 'feat_dcm', 'xc3s500e', 'fg320', null, { clk: 'B9', dcm: 'DCM_X0Y1' }, []],
-  // the XC3S1200E's top-left DCM is DCM_X1Y3 (its DCM_X0Y1 is a side DCM); on the XC3S100E the
-  // bottom DCM (CLKDV of the top one reaches no global buffer on known switches), its CLKIN on its
-  // dedicated path from M6 (#47, #92)
+  // the XC3S1200E's top-left DCM is DCM_X1Y3 (its DCM_X0Y1 is a side DCM); on the XC3S100E the top DCM, its CLKIN on
+  // its dedicated path from A9, ISE's pad (#47, #92; before #2 the bottom one and M6: the top one's CLKDV reached no
+  // global buffer on known switches)
   ['#47', 'feat_dcm', 'xc3s1200e', 'fg320', null, { clk: 'B9', dcm: 'DCM_X1Y3' }, []],
-  ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { clk: 'M6', dcm: 'DCM_X0Y0' }, []],
+  ['#47', 'feat_dcm', 'xc3s100e', 'cp132', null, { clk: 'A9', dcm: 'DCM_X0Y1' }, []],
   // (#641: K3's own side buffer, BUFGMUX_X0Y6, the one ISE gives it; the path ISE routes, I0_PINWIRE -> LIOIS_IBUF1 of its
   // I/O tile, CLKL_CKI4 -> CLKL_GCLK4 of the side clock tile)
   ['#641', 'feat_constmult', 'xc3s500e', 'fg320', 'K3', { clk: 'K3', bufg: 'BUFGMUX_X0Y6', pips: [/^ {2}pip LIOIS_CLK_PCI_X0Y23 I0_PINWIRE -> LIOIS_IBUF1 ,$/m, /^ {2}pip CLKL_X0Y23 CLKL_CKI4 -> CLKL_GCLK4 ,$/m] }, []],
