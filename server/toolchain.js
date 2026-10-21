@@ -36,6 +36,15 @@ export function configDir() {
 }
 export const configPath = () => path.join(configDir(), 'config.json');
 
+/** The folder on the ssh host for ISE work outside a project (scripts/check-open-flow.mjs, #482): SILINX_ISE_REMOTE_DIR,
+ *  else config.json's ssh.remoteDir (Docker Desktop on the host may share only some folders: /Users/Shared/silinx-ise/build),
+ *  else `fallback` in the remote home; without a leading '~/' or a trailing '/'. */
+export function iseWorkBase(fallback, env = process.env) {
+  let dir = env.SILINX_ISE_REMOTE_DIR;
+  if (!dir) try { dir = JSON.parse(fss.readFileSync(configPath(), 'utf8')).ssh?.remoteDir; } catch { /* no config */ }
+  return String(dir || '').replace(/^~\/?/, '').replace(/(.)\/+$/, '$1') || fallback;
+}
+
 export const DEFAULT_CONFIG = Object.freeze({
   mode: 'silinx',                               // the Silinx toolchain: no ISE to install for the supported boards (#27)
   local: { settings: '' },                      // '' = auto-detect
