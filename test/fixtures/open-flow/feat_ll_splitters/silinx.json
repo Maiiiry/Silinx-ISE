@@ -1,0 +1,24 @@
+{
+  "name": "feat_ll_splitters",
+  "description": "ISE check: signals across the XC3S1200E, routed on its long-line splitters (#709)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s1200e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "board": "nexys2-1200",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

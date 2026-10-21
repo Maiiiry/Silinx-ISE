@@ -307,6 +307,20 @@ for (const [name, [packLine, type, settings = [], absent = []]] of Object.entrie
   });
 }
 
+// #709: paths across the XC3S1200E between IOB registers (feat_ll_splitters): at seed 2 the router joins a vertical long
+// line of the left DCMs' column across the centre row (CLKLH_DCM_LL, not routable before), its bit from the device
+// description's direction; a complete bitstream, no warning (ISE: byte-identical, DRC clean, scripts/check-open-flow.mjs)
+test('the open flow: feat_ll_splitters at seed 2 takes the side DCM column\'s long-line splitter, a complete bitstream, no warning (#709)', { timeout: 300000 }, () => {
+  const out = path.join(tmp, 'feat_ll_splitters-s2');
+  const r = openFlow(path.join(ROOT, 'test/fixtures/open-flow/feat_ll_splitters'), out, ['--seed', '2']);
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  assert.deepEqual(r.warnings, []);
+  assert.match(r.stdout, /top\.bit: complete \(every feature in the bit database\)/);
+  const routed = fs.readFileSync(path.join(out, 'routed.xdl'), 'utf8');
+  assert.match(routed, /^ {2}pip CLKLH_DCM_LL_X9Y30 CLKH_LL[BT]_LV\d+ =- CLKH_LL[BT]_LV\d+ ,$/m);
+  assert.equal((routed.match(/^inst "[lrtb]<\d>" "(?:IBUF|IOB)",placed \S+ \S+ +,\n {2}cfg "[^"]* [IO]FF1:/gm) || []).length, 24, 'every register in its IOB');
+});
+
 // #749: feat_iob_pair with its pads LOC'd on two differential pairs of the Basys2-250 (J12 / K14, N13 / N14), each pair's
 // two registers on different clocks: before, "the routing did not converge"; now both clocks routed into each tile, the
 // DIFFM's register on its second flip-flop (as ISE does: its DRC clean on this routed XDL), whose settings on a pad alone

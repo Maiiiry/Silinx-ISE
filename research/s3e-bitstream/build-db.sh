@@ -82,10 +82,13 @@ if [ -f "$W2/s1200/clkhll/key.json" ]; then
   node ana-pipdrop.mjs "$W2/s1200/clkhll" "$PART" > "$W2/s1200/clkhll/pips.json"
   node clkh-ll.mjs "$W2/s1200/clkhll/pips.json" > "$W2/s1200/clkh-ll.json"
   rm -f db/xc3s1200e-tiles.json && node merge-db.mjs --device "$W2/s1200/clkh-ll.json"
-  node -e "const fs=require('fs'),f='db/xc3s1200e-tiles.json',t=JSON.parse(fs.readFileSync(f,'utf8'));t.types.CLKH_LL.noRoute=true;fs.writeFileSync(f,JSON.stringify(t))"
 fi
-# the XC3S1200E's other long-line splitters (#709: CLKV_LL, CLKL_IOIS_LL, CLKR_IOIS_LL; ll-splitters.mjs, noRoute)
+# the XC3S1200E's other long-line splitters (#709: CLKV_LL, CLKT_LL, CLKB_LL, CLKL_IOIS_LL, CLKR_IOIS_LL, CLKLH_DCM_LL,
+# CLKRH_DCM_LL; ll-splitters.mjs)
 [ -f measured/ll-splitters-709.json ] && PART=xc3s1200efg320-4 node merge-db.mjs --device measured/ll-splitters-709.json
+# every splitter type: the router takes one where it is faster, the placer's delay table leaves them out (#23, #709;
+# core/fpga/bitgen.js knownRouting delayPip)
+node -e "const fs=require('fs'),f='db/xc3s1200e-tiles.json',t=JSON.parse(fs.readFileSync(f,'utf8'));for(const k of ['CLKH_LL','CLKV_LL','CLKT_LL','CLKB_LL','CLKL_IOIS_LL','CLKR_IOIS_LL','CLKLH_DCM_LL','CLKRH_DCM_LL'])if(t.types[k]){delete t.types[k].noRoute;t.types[k].splitter=true}fs.writeFileSync(f,JSON.stringify(t))"
 # the PIPs of the shared tile types that some or all of a type's tiles do not have (#74)
 unset PART
 node pip-exceptions.mjs

@@ -267,7 +267,7 @@ test('effortTries: two placements at High, at Normal two up to NORMAL_TRIES.maxS
   assert.deepEqual([effortTries(undefined, 100), effortTries(undefined, 600)], [2, 1]);
 });
 
-test('the XC3S1200E\'s long-line splitters (#23): the router takes one where it is faster, the placer\'s delay table leaves them out; bitgen gives it its direction', { timeout: 300000 }, async () => {
+test('the XC3S1200E\'s long-line splitters (#23, #709): the router takes one where it is faster, the placer\'s delay table leaves them out; bitgen gives it its direction', { timeout: 300000 }, async () => {
   const { example, exampleUcf } = await import('./examples-lib.mjs');
   const { bitgen, pipFeatures } = await import('../core/fpga/bitgen.js');
   const part = 'xc3s1200efg320-4';
@@ -279,8 +279,8 @@ test('the XC3S1200E\'s long-line splitters (#23): the router takes one where it 
   const device = loadDeviceCache(part);
   const db = loadDb(part, { graph: device });
   const known = knownRouting(db);
-  // without the splitters (a database whose CLKH_LL is noRoute, as before #23)
-  const noSplit = knownRouting({ ...db, types: { ...db.types, CLKH_LL: { ...db.types.CLKH_LL, noRoute: true } } });
+  // without the splitters (a database whose splitter types are noRoute, as CLKH_LL's before #23 and the others' before #709)
+  const noSplit = knownRouting({ ...db, types: Object.fromEntries(Object.entries(db.types).map(([k, t]) => [k, t.splitter ? { ...t, noRoute: true } : t])) });
   assert.equal(known.allowPip('CLKH_LL_X35Y30', 'CLKH_LLB_LV17', 'CLKH_LLT_LV17'), true);
   assert.equal(known.delayPip('CLKH_LL_X35Y30', 'CLKH_LLB_LV17', 'CLKH_LLT_LV17'), false);
   assert.equal(known.delayPip('CLB_X35Y30', 'OMUX0', 'E2BEG0'), known.allowPip('CLB_X35Y30', 'OMUX0', 'E2BEG0'));
@@ -292,12 +292,12 @@ test('the XC3S1200E\'s long-line splitters (#23): the router takes one where it 
   assert.equal(best.placedText, before.placedText);
   // the router: a splitter on this placement, the routing legal; bitgen: its direction, every feature known
   const design = best.routed.design;
-  const split = design.nets.flatMap(n => n.pips.filter(p => /^CLKH_LL_/.test(p.tile)).map(p => ({ n, p })));
+  const split = design.nets.flatMap(n => n.pips.filter(p => /_LL[LRBT]_L[HV]\d+$/.test(p.from)).map(p => ({ n, p })));
   assert.ok(split.length >= 1, 'a splitter used');
   assert.ok(split.every(({ p }) => p.dir === '=-'), 'written "a =- b", as ISE does');
   assert.ok(checkRouting(parseXdl(writeXdl(design)), device).ok);
   const siteOf = name => design.insts.find(i => i.name === name)?.site;
-  for (const { n, p } of split) assert.match(pipFeatures(n, device, siteOf)[n.pips.indexOf(p)], /^CLKH_LL[BT]_LV\d+->CLKH_LL[BT]_LV\d+$/);
+  for (const { n, p } of split) assert.match(pipFeatures(n, device, siteOf)[n.pips.indexOf(p)], /^\w+_LL[LRBT]_L[HV]\d+->\w+_LL[LRBT]_L[HV]\d+$/);
   assert.deepEqual(bitgen(writeXdl(design), db).unknown, []);
   assert.ok(best.period <= before.period + 0.05, `${best.period} ns against ${before.period} ns without the splitters`);
 });

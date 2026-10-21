@@ -462,9 +462,7 @@ const IO_CLOCK = /^IOIS_CLK\d$/;
  *                                  a measurement artefact: W6END4->E2BEG4 of the left I/O tiles
  *                                  sets 2 bits; the I/O tiles now share the CLB switch box); never
  *                                  among the own features of a tile type marked noRoute (those of the
- *                                  switch box it shares, sameAs, stay: the XC3S1200E's other long-line
- *                                  splitters, #709, in the centre column's CLKV_LL, whose clock switches
- *                                  are CLKV's; CLKH_LL's are routed since #23);
+ *                                  switch box it shares, sameAs, stay);
  *                                  never one its type's noRoutePips names (a side clock pad's own
  *                                  IOIS_Yk -> IOIS_Fk_B3 in the CLK_PCI I/O tiles, #641);
  *                                  never one the tile does not have though its type's features offer
@@ -472,10 +470,12 @@ const IO_CLOCK = /^IOIS_CLK\d$/;
  *                                  meets only PIPs the tile has; one built from the database's
  *                                  features per type needs them)
  *   delayPip(tileName, from, to)   the PIPs the placer's delay table counts (timing.js delayTable):
- *                                  allowPip's but for a tile type marked splitter (the XC3S1200E's
- *                                  long-line splitters, #23: the router takes one where it is
- *                                  faster; counted in the table they make far vertical offsets look
- *                                  faster than they route, and the placements slower)
+ *                                  allowPip's but the own features of a tile type marked splitter
+ *                                  (the XC3S1200E's long-line splitters: the router takes one where
+ *                                  it is faster, CLKH_LL's since #23, the others since #709; counted
+ *                                  in the table they make far offsets look faster than they route,
+ *                                  and the placements slower; the clock switches CLKV_LL, CLKT_LL and
+ *                                  CLKB_LL share with CLKV, CLKT, CLKB stay)
  *   allowConstSource(kind, site)   a VCC site (no settings of its own) or a slice whose settings as
  *                                  a GND source (USED, _GND_SOURCE:Y) are known
  *   allowBufg(tileName, site)      a global clock buffer whose settings (USED) are known: the top and
@@ -511,7 +511,10 @@ export function knownRouting(db, { exceptions = true } = {}) {
   };
   return {
     allowPip,
-    delayPip: (tileName, from, to) => !tileInfo(tileName).type?.splitter && allowPip(tileName, from, to),
+    delayPip: (tileName, from, to) => {
+      const { type } = tileInfo(tileName);
+      return !(type?.splitter && !type.shared?.has(`${from}->${to}`)) && allowPip(tileName, from, to);
+    },
     allowConstSource: (kind, site) => {
       if (kind === 'vcc') return site.type === 'VCC';
       const kindOf = siteKind({ site: site.name, type: site.type }, db);

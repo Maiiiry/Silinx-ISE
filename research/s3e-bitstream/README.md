@@ -62,7 +62,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh` | #92: every pad's dedicated path to a DCM's CLKIN and the switches on it the database lacks; designs whose DCMs take CLKIN from each of their clock pads in turn, implemented by ISE and measured by PIP drop |
 | `gen-dcmomux.mjs`, `measure-dcmomux.sh` | #2: the DCMs' output multiplexer (`DCM_<output> -> OMUXk`); designs with every output of every DCM through each line, its BUFG LOC'd on the line's buffer, implemented by ISE and measured by PIP drop (`--list`: the pairs and the unknown ones) |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
-| `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
+| `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `ll-splitters.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters (CLKH_LL's; the others', #709); the other DCMs' settings as mirror images of the top-left one's |
 
 ## Results
 
@@ -494,9 +494,8 @@ byte-identical bitstreams on the three other devices for every design above. Wha
   there, they made the placements slower). ISE's own XC3S1200E routings (the I/O register designs, 861
   of 1031 using a splitter) are no longer byte-identical only for CLKH_LL: 0 before, 10 with the
   CLKV_LL bits below added; the others differ by input delays the database leaves out. The other
-  splitters, not in the database (#709): CLKV_LL (the horizontal long lines across the centre column;
-  19 of its 48 switches pinned down by those designs: frame 3, at the tile's row, two bits per line),
-  CLKT_LL / CLKB_LL, CLKL_IOIS_LL / CLKR_IOIS_LL.
+  splitters (CLKV_LL, CLKT_LL / CLKB_LL, CLKL_IOIS_LL / CLKR_IOIS_LL, CLKLH_DCM_LL / CLKRH_DCM_LL) came later,
+  #709 (below).
 - **REVUSED** (a flip-flop's REV pin used): one bit per slice position, seen in all four positions in
   ISE's designs of the three devices; the input pads' pin wires of the top I/O tiles (no bits).
 - **Pads** per package (`gen-iob.mjs --third / --sparse`, `ana-pads.mjs`: the LVCMOS33 / 25 inputs
@@ -886,33 +885,46 @@ multiplier is refused.
 
 ### The XC3S1200E's other long-line splitters (2026-10-21, #709)
 
-`gen-pipcover.mjs xc3s1200efg320-4 --types CLKV_LL,CLKT_LL,CLKB_LL,CLKL_IOIS_LL,CLKR_IOIS_LL --long 1` (three rounds,
-and three more with `--nosink 1 --k 8`), ISE's xdl2ncd + bitgen, `ana-pipdrop.mjs`, then `ll-splitters.mjs`. Each
-switch sets **one bit**, the same relative to its tile in every tile of the type:
+Besides CLKH_LL's (stage F, #23), the XC3S1200E joins the halves of its long lines in seven more tile types:
 
-- **CLKV_LL** (the horizontal long lines joined across the centre column): in the clock column's frame 3, at the tile's
-  row (`-364,b`); 36 of the 48 switches.
-- **CLKL_IOIS_LL / CLKR_IOIS_LL** (the vertical long lines of the I/O columns across the centre row): in the I/O row
-  at the top (bits 1-3) or at the bottom of a frame of the column, as CLKH_LL's; 28 of 48 each.
+- **CLKV_LL** (the centre column, one tile per row), **CLKT_LL** / **CLKB_LL** (its top and bottom tiles): the
+  horizontal long lines LH0-23 across the centre column, `CLKV_LLL_LHk -> CLKV_LLR_LHk` and back;
+- **CLKL_IOIS_LL** / **CLKR_IOIS_LL** (the I/O columns, centre row) and **CLKLH_DCM_LL** / **CLKRH_DCM_LL** (the side
+  DCMs' columns, centre row, which the issue did not name): the vertical long lines LV0-23 across the centre row.
 
-The codewords of `gen-pipdrop.mjs` repeat in tiles far apart, and `ana-pipdrop.mjs` gives a bit to the nearest tile of
-its codeword. A splitter's bit is far from its tile, so it sometimes went to another switch of the same codeword. So
-`ll-splitters.mjs` takes, per tile, the intersection of the observations that show a bit; it drops the I/O columns'
-bits in the centre column's frame; and it gives a type's switch the one pattern its tiles show. The same artefact had
-given stage F's `DCM_H_TL_CENTER` `DCM_CLKFB -> DCM_CLKFB_PINWIRE` a bit, `-98,102` (frame 3), which is a splitter's: it
-now has none, as the other side DCMs' (ISE's #92 designs of the XC3S1200E use that switch with the bit clear).
+Measured with `gen-pipcover.mjs xc3s1200efg320-4 --types … --long 1`: a first pass of six rounds (`--k 8`, three of
+them `--nosink 1`) measured 92 switches, and its search (up to 3 tiles from the tile under test) found no path through
+the rest. The long lines are tapped every sixth tile, so a splitter's drivers and loads can lie 4-6 tiles away:
+with `--radius 9` (`--radius 12 --nosink 1` for the 24 the router of the rounds reaches no sink from) every switch
+is in a design. 40 more rounds, 360 designs (one direction of a line per tile and round, so two rounds per full
+cover; the single-tile types again in rounds of their own, so that their codewords repeat in fewer tiles), about an
+hour of ISE.
 
-The types are `noRoute` (the router does not use them yet; CLKH_LL's are used since #23). With the direction of
-`a =- b` taken from the device description (#23), ISE's XC3S1200E routings that use them are byte-identical:
+**The analysis** (`ll-splitters.mjs`, rewritten): a splitter's bit lies far from its tile (the centre column's in the
+clock column's frame 3, the vertical lines' in the I/O rows at the top and bottom), and `gen-pipcover.mjs`'s codewords
+repeat in tiles far apart, so `ana-pipdrop.mjs`'s rule (a bit to the nearest tile of its codeword) gave most of the
+new rounds' bits to the wrong tile. Instead, each time a switch is in a round, the bits that change with its codeword
+are its candidates, relative to its tile; its bit is the one candidate all its observations share (other tiles of
+the type, other rounds with other codewords). The first pass, analysed again this way, gives the same 92 bits.
 
-- the six rounds (54 designs);
-- the #92 DCM designs and their PIP-drop bases;
-- the #2 multiplier cascade.
+**Result** (`measured/ll-splitters-709.json`, merged into `db/xc3s1200e-tiles.json`): all 336 switches, one bit each,
+no two of a type on one bit:
 
-That holds with no exception for the splitters' frames. Of the 1031 IOB designs, 11 are byte-identical and 382 more
-differ only by switches still unmeasured (12 of CLKV_LL, 40 of CLKT_LL / CLKB_LL, 20 per I/O column: the rounds'
-router reaches no path through them). 136 differ only by the left and right I/O columns' clock-row bits (#671). The
-rest have the input delays the database refuses on the clock pins (#97).
+- CLKV_LL `-364,b` (the clock column's frame 3, the tile's row: LH0 62 / 61, … LH23 2 / 1), CLKT_LL and CLKB_LL the
+  same frame and order in the top and bottom rows (16 bits further in the top one);
+- the I/O columns' and the DCM columns' in the I/O row at the top (bits 1-3) or at the bottom of a frame of the
+  column; the DCM columns' are CLKH_LL's switches on the same bits of the column's frames (all 96).
+
+**The router uses them all** (`splitter`, as CLKH_LL's since #23; `build-db.sh` sets it on the eight types): bitgen
+gives `a =- b` its direction from the device description, and the placer's delay table leaves out the splitter
+types' own switches only (`knownRouting` `delayPip`; CLKV_LL's, CLKT_LL's and CLKB_LL's clock switches, which they
+share with CLKV, CLKT and CLKB, stay in it).
+
+**Checked against ISE**, its bitstreams of earlier XC3S1200E experiments (held out: the IOB designs of #96 / #97, the
+DCM pad designs of #92 and their PIP-drop variants, the DCM output-multiplexer designs of #862 and theirs; 1427
+designs): 480 byte-identical (150 before), none with a splitter unknown (505 before). The rest differ by settings the
+database refuses (the input delays of #97, 542) or by one or two bits of the top I/O tiles' register clocks that main
+has too (405). The open flow on the design corpus: below in research/s3e-route/README.md.
 
 ### The I/O registers' clocks from every global line (2026-10-21, #671)
 
