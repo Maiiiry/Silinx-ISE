@@ -5,7 +5,6 @@ import { icon } from './icons.js';
 import { h, alertDlg, toast } from './ui.js';
 import * as wiz from './wizards.js';
 import { PRODUCT, VERSION_LABEL } from '/core/version.js';
-import { EXAMPLE_ORDER } from '/core/examples.js';
 import { S, closeAllDocs, compileProject, renderFilesPage, renderLibsPage, showLeftPage, fixMissingTops,
   restoreViewState, openSummary } from './app.js';
 import { log, renderDiagnostics } from './console.js';
@@ -157,7 +156,7 @@ export async function renderStartPage() {
   const recentHere = recent().filter(r => projects.some(p => p.name === r));
   const page = h('div', { class: 'page' },
     h('div', { class: 'start-box' }, h('h3', {}, 'Project Commands'),
-      ...[['New Project…', 'newProject', () => wiz.newProjectWizard()], ['Open Project…', 'open', () => wiz.openProjectDialog()], ['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()], ...EXAMPLE_ORDER.map(t => [`Open Example (${t})`, 'project', () => wiz.newProjectWizard({ template: t })])]
+      ...[['New Project…', 'newProject', () => wiz.newProjectWizard()], ['Open Project…', 'open', () => wiz.openProjectDialog()], ['Import Silinx ISE Project (.zip)…', 'open', () => wiz.importSilinxDialog()], ['Import Xilinx ISE Project (.zip)…', 'open', () => wiz.importXiseDialog()]]
         .map(([l, ic, f]) => h('div', { class: 'entry' }, icon(ic), h('a', { onclick: f }, l)))),
     h('div', { class: 'start-box' }, h('h3', {}, 'Recent Projects'),
       ...(recentHere.map(r => h('div', { class: 'entry' }, icon('project'), h('a', { onclick: () => openProject(r).then(() => showLeftPage('design')) }, r)))),

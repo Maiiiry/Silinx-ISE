@@ -21,7 +21,7 @@ https://pmnmalo.github.io/Silinx-ISE/dev/, its projects kept apart) and go to st
 1. Open the **[latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)**.
 2. Under **Assets**, click **`Silinx-ISE.html`** to download it.
 3. Double-click the downloaded file. It opens in your browser (Chrome, Edge, Firefox or Safari).
-4. On the Start page click **Open Example (gates)** (logic gates drawn as a schematic: a good first example), **Open Example (traffic)** (a pedestrian crossing: a state diagram and a truth table), **Open Example (blinky)** (or *pong*, a game for two, *stopwatch*, *clock* or *vga*, a picture on a VGA monitor) or **New Project…**.
+4. On the Start page click **New Project…** and choose in *Start from* **Example: gates** (logic gates drawn as a schematic: a good first example), **Example: traffic** (a pedestrian crossing: a state diagram and a truth table), **Example: blinky** (or *pong*, a game for two, *stopwatch*, *clock* or *vga*, a picture on a VGA monitor) or **Empty project**.
 
 That's all. Things to know:
 
@@ -126,10 +126,10 @@ A black window (the Silinx server) opens and then your browser shows Silinx at
 
 ### Step 4: use it
 
-- Start page ▸ **Open Example (gates)** for a first look (AND, OR, NOT and NAND gates in a schematic: a
-  4-bit prime-number detector on the switches and two LEDs), **Open Example (traffic)** next (a
-  pedestrian crossing: its controller a state diagram, its lamps a truth table), **Open Example (blinky)**
-  to explore a complete design, or **New Project…**.
+- Start page ▸ **New Project…**, *Start from* **Example: gates** for a first look (AND, OR, NOT and NAND gates in
+  a schematic: a 4-bit prime-number detector on the switches and two LEDs), **Example: traffic** next (a
+  pedestrian crossing: its controller a state diagram, its lamps a truth table), **Example: blinky** to explore a
+  complete design, or **Empty project**.
 - Your projects are saved as normal folders in **`Silinx-projects`** in your user folder
   (Windows: `C:\Users\<you>\Silinx-projects`, macOS: `/Users/<you>/Silinx-projects`).
   You can copy them, back them up, or zip them to hand in.

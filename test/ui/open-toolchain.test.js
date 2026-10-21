@@ -472,7 +472,7 @@ uiTest('open mode: Generate Post-Synthesis Simulation Model of blinky, then Simu
   await page.treeRow('#hier', 'tb_top');
   await page.treeRow('#procs', 'Simulate Post-Synthesis Model', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running, [], { timeout: 60000, what: 'ISim ready' });
-  // (longer than ISim's first run: run all; typed again if no run started, as in Open Example (traffic))
+  // (longer than ISim's first run: run all; typed again if no run started, as in the traffic example's test)
   for (let k = 0; ; k++) {
     await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');
     await page.key('Enter');

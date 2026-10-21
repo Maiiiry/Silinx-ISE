@@ -126,23 +126,30 @@ uiTest('New Project wizard: the synthesis tool, Silinx by default (no ISE); Desi
   assert.equal((await env.server.api('GET', '/api/projects/SynthTool')).synthTool, 'xst');
 });
 
-uiTest('Start page: the seven examples, gates first, traffic second; Open Example (pong) for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
-  await page.eval(() => window.SilinxApp.closeProject?.());
-  await page.waitForSelector('#start-page .start-box');
-  // (drawn again asynchronously after the project closes: wait for the seven)
-  const SEVEN = ['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock', 'vga'].map((t) => `Open Example (${t})`);
-  await page.waitFor((want) => { const e = [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent); return want.every((t) => e.includes(t)); }, [SEVEN], { what: 'the seven examples on the Start page' });
-  const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
-  // the examples in their order, gates first, traffic second
-  assert.deepEqual(entries.filter((e) => e.startsWith('Open Example')), SEVEN);
-  // (the Start page is drawn again asynchronously after the project closes: a click on the link it
-  // replaces is lost, so click until the wizard opens)
+// an example opened from the Start page (#776): New Project…, then its template in "Start from"
+async function newFromExample(page, t) {
+  // (the Start page is drawn again asynchronously after the project closes: a click on the link it replaces is
+  // lost, so click until the wizard opens)
   for (let k = 0; ; k++) {
-    await page.click('#start-page .entry a', { text: 'Open Example (pong)' });
+    await page.click('#start-page .entry a', { text: 'New Project…' });
     try { await page.waitDialog('New Project Wizard', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
   }
-  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main input[type=text]').value), 'pong');
-  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main select').value), 'pong');
+  await page.fill('.dlg-overlay .wiz-main select', t);
+}
+
+uiTest('Start page: no Open Example entries (#776); New Project… lists the seven examples, gates first, traffic second; pong for the Nexys2-1200: the game with the Nexys2\'s pins', E, async (page) => {
+  await page.eval(() => window.SilinxApp.closeProject?.());
+  await page.waitForSelector('#start-page .start-box');
+  // (drawn again asynchronously after the project closes: wait for its Project Commands)
+  await page.waitFor(() => [...document.querySelectorAll('#start-page .entry a')].some((a) => a.textContent === 'New Project…'), [], { what: 'the Start page' });
+  // the examples are New Project's templates now, not entries of their own (#776)
+  const entries = await page.eval(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent));
+  assert.deepEqual(entries.filter((e) => /^Open Example/.test(e)), []);
+  assert.deepEqual(entries.slice(0, 4), ['New Project…', 'Open Project…', 'Import Silinx ISE Project (.zip)…', 'Import Xilinx ISE Project (.zip)…']);
+  await newFromExample(page, 'pong');
+  // the wizard's list of templates: the empty project, then the examples in their order
+  assert.deepEqual(await page.eval(() => [...document.querySelector('.dlg-overlay .wiz-main select').options].map((o) => [o.value, o.textContent])),
+    [['empty', 'Empty project'], ...['gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock', 'vga'].map((t) => [t, `Example: ${t}`])]);
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'PongN2');
   await page.dialogButton('Next >');
   await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Settings');
@@ -164,14 +171,10 @@ uiTest('Start page: the seven examples, gates first, traffic second; Open Exampl
   assert.doesNotMatch(ucf, /"G12"/);
 });
 
-uiTest('Open Example (gates): the schematic of the gates, synchronized with its VHDL; the test bench checks the 16 inputs: Simulation finished OK', E, async (page) => {
+uiTest('Example gates (New Project…): the schematic of the gates, synchronized with its VHDL; the test bench checks the 16 inputs: Simulation finished OK', E, async (page) => {
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.waitForSelector('#start-page .start-box');
-  for (let k = 0; ; k++) {
-    await page.click('#start-page .entry a', { text: 'Open Example (gates)' });
-    try { await page.waitDialog('New Project Wizard', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
-  }
-  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main select').value), 'gates');
+  await newFromExample(page, 'gates');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Gates');
   await page.dialogButton('Next >');
   await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Settings');
@@ -212,18 +215,10 @@ uiTest('Open Example (gates): the schematic of the gates, synchronized with its 
   assert.doesNotMatch(await page.consoleText(), /WARNING|ERROR/);
 });
 
-uiTest('Open Example (traffic), the second example: the state diagram and the truth table, synchronized with their VHDL; the test bench: Simulation finished OK', E, async (page) => {
+uiTest('Example traffic (New Project…), the second example: the state diagram and the truth table, synchronized with their VHDL; the test bench: Simulation finished OK', E, async (page) => {
   await page.eval(() => window.SilinxApp.closeProject?.());
   await page.waitForSelector('#start-page .start-box');
-  // the second example on the Start page
-  await page.waitFor(() => [...document.querySelectorAll('#start-page .entry a')].map((a) => a.textContent).filter((t) => t.startsWith('Open Example'))[1] === 'Open Example (traffic)', [], { what: 'traffic, the second example' });
-  for (let k = 0; ; k++) {
-    await page.click('#start-page .entry a', { text: 'Open Example (traffic)' });
-    try { await page.waitDialog('New Project Wizard', { timeout: 3000 }); break; } catch (e) { if (k >= 4) throw e; }
-  }
-  // the wizard's list of templates: the empty project, then the examples in their order
-  assert.deepEqual(await page.eval(() => [...document.querySelector('.dlg-overlay .wiz-main select').options].map((o) => o.value)), ['empty', 'gates', 'traffic', 'blinky', 'pong', 'stopwatch', 'clock', 'vga']);
-  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main select').value), 'traffic');
+  await newFromExample(page, 'traffic');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Traffic');
   await page.dialogButton('Next >');
   await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Project Settings');
