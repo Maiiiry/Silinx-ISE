@@ -157,7 +157,7 @@ test('tri-state buffers: the palette category, parameter labels and the descript
   assert.equal(t('Pins per bit (I0.., O0..)'), 'Um pino por bit (I0.., O0..)');
 });
 
-test('schematic editor and its RTL / Technology views (#130): every symbol description, parameter and option, the texts of web/js/sch-editor.js', async () => {
+test('schematic editor and its RTL / Technology views (#130): every symbol description, parameter and option, the texts of web/js/sch-editor.js and its parts', async () => {
   const { SYMBOLS } = await import('../core/schdoc.js');
   // the same in Portuguese: Buffer, Reset, one-hot, INIT, the comparison operators
   const SAME = new Set(['Buffer', 'Reset', 'one-hot', 'INIT', 'eq', 'ne', 'lt', 'le', 'gt', 'ge']);
@@ -168,9 +168,12 @@ test('schematic editor and its RTL / Technology views (#130): every symbol descr
     for (const p of S.presets || []) check(p.description, `${type} ${p.title}`);
     for (const p of S.params || []) { check(p.label, `${type} parameter`); for (const o of p.options || []) check(Array.isArray(o) ? o[1] : o, `${type} option`); }
   }
-  // text: '…' literals of the editor (captions, panel titles, options), besides the labels checked above
-  const src = fs.readFileSync(path.join(WEB, 'sch-editor.js'), 'utf8');
-  for (const m of src.matchAll(/\btext: '([^'$`]+)'/g)) if (/[a-z]{2}/.test(m[1]) && !['labels', 'Verilog', 'schematic'].includes(m[1])) check(m[1], 'sch-editor.js');
+  // text: '…' literals of the editor (captions, panel titles, options), besides the labels checked above; the editor's
+  // parts in modules of their own (#405) too
+  for (const f of ['sch-editor.js', 'sch-props.js']) {
+    const src = fs.readFileSync(path.join(WEB, f), 'utf8');
+    for (const m of src.matchAll(/\btext: '([^'$`]+)'/g)) if (/[a-z]{2}/.test(m[1]) && !['labels', 'Verilog', 'schematic'].includes(m[1])) check(m[1], f);
+  }
   assert.deepEqual(missing, []);
   // exact translations: palette, tooltips, properties, the status bar
   const T = {
