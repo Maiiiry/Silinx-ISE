@@ -10,6 +10,7 @@ const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 globalThis.addEventListener ??= () => {};
 globalThis.matchMedia ??= () => ({ matches: false, addEventListener() {} });
 const T = await import('../web/js/tasks.js');
+const SIM = await import('../web/js/tasks-sim.js');
 
 test('the five tasks, in the order of a lab session, with the names of the modern toolbar\'s steps', () => {
   assert.deepEqual(T.TASKS, ['edit', 'sim', 'emu', 'impl', 'prog']);
@@ -54,6 +55,8 @@ test('arrangement: the task in front gets the space; what the viewer left wins; 
   assert.deepEqual(T.arrangement('sim', { side: true, max: true, doc: 'isim' }), { side: true, console: false, max: true, doc: 'isim' });
   assert.deepEqual(T.arrangement('edit', {}, true), { side: false, console: true, max: false });
   assert.deepEqual(T.arrangement('edit', { side: true }, true), { side: false, console: true, max: false });
+  // (Simulate's side panel is ISim's Instances and Objects, not the drawer: what the viewer left, on a narrow screen too: #800)
+  assert.deepEqual(T.arrangement('sim', { side: true }, true), { side: true, console: false, max: false });
 });
 
 test('#854 docDetail: the module and the model a single document\'s title says; the tasks whose document is single', () => {
@@ -63,6 +66,17 @@ test('#854 docDetail: the module and the model a single document\'s title says; 
   assert.deepEqual(T.docDetail('Board Emulator (pong, Post-Place & Route)'), { module: 'pong', model: 'Post-Place & Route' });
   assert.deepEqual(T.docDetail('iMPACT'), { module: null, model: null });
   assert.deepEqual(T.docDetail(undefined), { module: null, model: null });
+});
+
+test('#800 simTarget: Simulate runs the simulation top, else the first test bench, else the top; the models', () => {
+  const mods = [{ name: 'top', role: 'design' }, { name: 'knight', role: 'design' }, { name: 'tb_top', role: 'sim' }];
+  assert.equal(SIM.simTarget({ top: 'top', simTop: 'tb_top' }, mods), 'tb_top');
+  assert.equal(SIM.simTarget({ top: 'top', simTop: '' }, mods), 'tb_top');
+  assert.equal(SIM.simTarget({ top: 'top', simTop: 'gone' }, mods), 'tb_top');
+  assert.equal(SIM.simTarget({ top: 'top' }, mods.filter((m) => m.role !== 'sim')), 'top');
+  assert.equal(SIM.simTarget({ top: 'gone' }, mods.filter((m) => m.role !== 'sim')), null);
+  assert.equal(SIM.simTarget(null, []), null);
+  assert.deepEqual(SIM.SIM_MODELS.map(([v]) => v), ['', 'postsynth', 'posttrans', 'postmap', 'postpar']);
 });
 
 test('taskDot: the worst status of the task\'s processes (errors, then running, out of date, warnings, done)', () => {
