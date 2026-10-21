@@ -25,6 +25,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { deviceFamily } from '../core/family.js';
+import { resourcesOf } from '../core/resources.js';
+import { findPart } from './devices.js';
 import { OPEN_STEPS, orderOpenSteps } from '../core/open-steps.js';
 import { synthEffort } from '../core/synth-open.js';
 import { findDeviceGraph, shippedDevicePath, buildDeviceCache, devicesDir, SHIPPED_DEVICES_DIR } from '../core/fpga/device-node.js';
@@ -169,6 +171,8 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
     ucf: gen.hasUcf ? path.join(gen.buildDir, `${gen.top}.ucf`) : null,
     buildDir: gen.buildDir, outDir, steps: st, seed, effort, startupClk: project.impl?.startupClk || 'JtagClk', synthEffort: synthEffort(project.impl),
     ...(!st.includes('synth') && { synthUpToDate: { report: earlier } }),
+    // the part's resources: the synthesis's used of available and its check (#795)
+    ...(findPart(project.device.part) && { resources: resourcesOf(findPart(project.device.part), project.device.package) }),
     // the test bench, for the simulation models' generics (#120, #121)
     simTop: project.simTop || null,
     simSources: (project.files || []).filter(f => f.role === 'sim' && (f.lang === 'vhdl' || f.lang === 'verilog')).map(f => ({ path: f.path, lang: f.lang, file: safeJoin(projectDir, f.path) })),

@@ -426,6 +426,7 @@ Object.assign(PT, {
   'Silinx toolchain: open a project to see whether its device is supported': 'Toolchain Silinx: abra um projeto para ver se o seu dispositivo é suportado',
   'Supported now: the Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E and XC3S1200E (Nexys2).': 'Suportado agora: o Spartan-3E XC3S100E, XC3S250E (Basys2), XC3S500E e XC3S1200E (Nexys2).',
   'Device Utilization Summary (Silinx toolchain)': 'Resumo da Utilização do Dispositivo (toolchain Silinx)',
+  'Device Utilization Summary (after synthesis)': 'Resumo da Utilização do Dispositivo (após a síntese)',
   'Timing (post Place & Route, Silinx toolchain estimate)': 'Temporização (após Posicionar e Encaminhar, estimativa da toolchain Silinx)',
   'Synthesis Report (Yosys)': 'Relatório de Síntese (Yosys)', 'Placed Design (XDL)': 'Projeto Posicionado (XDL)', 'Routed Design (XDL)': 'Projeto Encaminhado (XDL)',
   'Static Timing Report': 'Relatório de Temporização Estática',

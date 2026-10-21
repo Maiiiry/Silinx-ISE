@@ -189,7 +189,8 @@ test('open mode: Implement + Generate Programming File of blinky, for real: step
   assert.equal(rep.summary.timingMet, true);
   assert.equal(rep.summary.bitstream, true);
   assert.ok(rep.summary.maxFreqMHz > 50);
-  assert.deepEqual(rep.map.utilization.map(u => u.name), ['Number of Slice Flip Flops', 'Number of 4 input LUTs', 'Number of occupied Slices', 'Number of bonded IOBs', 'Number of BUFGMUXs']);
+  assert.deepEqual(rep.map.utilization.map(u => u.name), ['Number of Slice Flip Flops', 'Number of 4 input LUTs', 'Number of occupied Slices', 'Number of bonded IOBs', 'Number of RAMB16s',
+    'Number of MULT18X18SIOs', 'Number of BUFGMUXs', 'Number of DCMs']);   // (every resource, #795)
   assert.equal(rep.map.summary.iobs.total, 92);
   assert.equal(rep.map.summary.bufg.used, 1);
   assert.equal(rep.timing.constraints[0].constraint, 'PERIOD 20 ns on clk');
@@ -272,6 +273,27 @@ test('open mode: a VHDL top with capital letters (its netlist is named in lower 
   assert.equal(j.status, 'ok', j.lines.join('\n'));
   assert.ok(j.lines.some(l => /^Netlist: build\/open\/blink_top\.json/.test(l)), j.lines.join('\n'));
   assert.ok(j.lines.some(l => /Number of occupied Slices: 1 out of 2448/.test(l)), j.lines.join('\n'));
+});
+
+test('open mode: a design over the XC3S100E\'s block RAMs fails in Synthesize, the resource named, the summary\'s row over 100 % (#795)', { timeout: 120000 }, async () => {
+  await writeConfig({ mode: 'silinx' });
+  await app.call('POST', '/projects', { name: 'BramOver', device: DEV('xc3s100e', 'cp132') });
+  await app.call('PUT', '/projects/BramOver/file?path=src/top.v', ['module top(input clk, input [10:0] a, input [7:0] d, input we, output [4:0] q);', 'genvar i;',
+    'generate for (i = 0; i < 5; i = i + 1) begin : g', '  wire [7:0] o; wire op;',
+    "  RAMB16_S9 r (.CLK(clk), .EN(1'b1), .SSR(1'b0), .WE(we), .ADDR(a), .DI(d), .DIP(1'b0), .DO(o), .DOP(op));", '  assign q[i] = ^o;', 'end endgenerate', 'endmodule', ''].join('\n'));
+  await P.updateProject('BramOver', pj => { pj.top = 'top'; });
+  const j = await waitJob(jobs, await implement('BramOver', { steps: ['synth', 'translate', 'map', 'par'] }), { timeoutMs: 110000 });
+  assert.equal(j.status, 'error', j.lines.join('\n'));
+  assert.equal(j.result.failedStep, 'synth');
+  assert.ok(j.lines.includes('  Number of RAMB16s: 5 out of 4 125%'), j.lines.join('\n'));
+  const i = j.lines.indexOf('ERROR:Silinx - 5 block RAMs needed, the XC3S100E has 4');
+  assert.ok(i > 0, j.lines.join('\n'));
+  assert.deepEqual(j.lines.slice(i + 1, i + 3), ['Choose a larger device (Design Properties).', '=== SILINX FAILED synth (exit 1) ===']);
+  // (the one warning: the ports without a pin, no board)
+  assert.deepEqual(j.lines.filter(l => /warning/i.test(l)), ['WARNING: 26 port bit(s) have no LOC constraint (clk, a<0>, a<1>, a<2>, a<3>, a<4>, a<5>, a<6>, …): Silinx assigns free I/O pins automatically - do NOT program real hardware with this bitstream']);
+  const rep = (await app.call('GET', '/projects/BramOver/reports')).body;
+  assert.deepEqual(rep.synthesis.utilization.find(u => u.id === 'ramb16'), { id: 'ramb16', name: 'Number of RAMB16s', used: 5, total: 4, percent: 125 });
+  assert.equal(rep.map, undefined);
 });
 
 test('open mode: Place & Route replicates a flip-flop of many loads on the critical path, the faster routing kept, the Design Summary of the design kept (#4)', { timeout: 240000 }, async () => {

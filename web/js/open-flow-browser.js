@@ -88,11 +88,11 @@ function stopWorker(error) {
 /**
  * Run the flow for a project. project: { name, top, device, board, files: [{ path, lang, role }],
  * constraints, impl }; files: { path: text } (the project's files, and build/ of an earlier run);
- * steps as the processes ask; synthUpToDate ({ report }), the synthesis up to date (#280). onLine(line); onWrite(path, data) for each file of the build.
+ * steps as the processes ask; resources: the part's (core/resources.js resourcesOf), for the synthesis's used of available (#795); synthUpToDate ({ report }), the synthesis up to date (#280). onLine(line); onWrite(path, data) for each file of the build.
  * signal (an AbortSignal): Stop; the worker is terminated and the run rejects with { cancelled: true }.
  * Resolves { ok, report, error, view }.
  */
-export async function runBrowserFlow({ project, files, steps, synthUpToDate = null, onLine, onWrite = () => {}, onReport = () => {}, signal = null }) {
+export async function runBrowserFlow({ project, files, steps, resources = null, synthUpToDate = null, onLine, onWrite = () => {}, onReport = () => {}, signal = null }) {
   const st = browserOpenStatus(project.device || {});
   if (!st.available) throw new Error(`the Silinx toolchain cannot implement this design: ${st.reason}`);
   const top = project.top;
@@ -121,7 +121,7 @@ export async function runBrowserFlow({ project, files, steps, synthUpToDate = nu
   if (unplaced.length && project.board) throw new Error(`${unplaced.length} top-level port bit(s) have no pin location (LOC) for the ${project.board} board: ${unplaced.slice(0, 12).map(u => u.net).join(', ')}${unplaced.length > 12 ? ', …' : ''}. Assign them in I/O Pin Planning (or remove the board in Design Properties).`);
   if (unplaced.length) onLine(`WARNING:Silinx - ${unplaced.length} port bit(s) have no LOC constraint (${unplaced.slice(0, 8).map(u => u.net).join(', ')}${unplaced.length > 8 ? ', …' : ''}): the Silinx toolchain chooses their pins - do NOT program real hardware with this bitstream`);
   const dev = String(project.device.part).toLowerCase(), pkg = String(project.device.package).toLowerCase();
-  const spec = { top, part: st.part, device: dev, pkg, family: 'spartan3e', graph: st.graph, steps: browserSteps(steps, { synthUpToDate: !!synthUpToDate }), seed: 1, effort: 1, startupClk: project.impl?.startupClk || 'JtagClk', simTop: project.simTop || null, synthEffort: synthEffort(project.impl) };
+  const spec = { top, part: st.part, device: dev, pkg, family: 'spartan3e', graph: st.graph, steps: browserSteps(steps, { synthUpToDate: !!synthUpToDate }), seed: 1, effort: 1, startupClk: project.impl?.startupClk || 'JtagClk', simTop: project.simTop || null, synthEffort: synthEffort(project.impl), ...(resources && { resources }) };
   if (synthUpToDate && !spec.steps.includes('synth')) spec.synthUpToDate = synthUpToDate;
   // the test benches, for the post-synthesis model's generics (#120)
   const simSources = (project.files || []).filter(f => f.role === 'sim' && (f.lang === 'verilog' || f.lang === 'vhdl') && typeof files[f.path] === 'string')
