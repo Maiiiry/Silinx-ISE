@@ -1,10 +1,11 @@
 // The Clocking Wizard's modules (#793) through the Silinx toolchain: the two board tests made of them
 // (test/fixtures/open-flow/feat_clkwiz, VHDL, and feat_clkwiz_v, Verilog) are the generator's output for their
 // specs, and build to a complete bitstream on the four devices of the toolchain (Basys2-100 /
-// 250, Nexys2-500 / 1200), each output's PERIOD derived from the input's, with no warning but on the XC3S100E: there
-// the top DCM's CLKDV and CLK90 reach no global buffer on switches of known bits (#47, #2), so the bottom DCM is used,
-// which the board's clock pad B8 reaches through general routing only (the warning says so; the board clock's
-// CLOCK_DEDICATED_ROUTE = FALSE lets ISE do the same). Checked against ISE (npm run
+// 250, Nexys2-500 / 1200), each output's PERIOD derived from the input's, with no warning but on the XC3S100E. Every DCM
+// output reaches its four global buffers on switches of known bits (#2: before, the XC3S100E's top DCM's CLKDV and CLK90
+// reached none and the bottom DCM was used); but on the XC3S100E the board's clock pin B8 is a dedicated clock pad of no
+// DCM (the top one's: B9, A9, A10, C9; #92 measured them all), so its CLKIN comes through general routing, said (the
+// board clock's CLOCK_DEDICATED_ROUTE = FALSE lets ISE do the same). Checked against ISE (npm run
 // check:open-flow on the two fixtures): DRC 0 errors / 0 warnings, the .bit byte-identical.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,7 +45,7 @@ const pinsOf = (part, pkg, btn) => ({
 });
 const DEVICES = [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s500e', 'fg320'], ['xc3s1200e', 'fg320']];
 const WARNINGS = {
-  xc3s100e: ['Warning: place: u_clk_u_dcm: its CLKIN comes from the pad B8 through general routing: only M6, N6, P6, P7 reach the CLKIN of DCM_X0Y0 on a dedicated path of known bits'],
+  xc3s100e: ['Warning: place: u_clk_u_dcm: its CLKIN comes from the pad B8 through general routing: only B9, A9, A10, C9 reach the CLKIN of DCM_X0Y1 on a dedicated path of known bits'],
 };
 // the derived PERIOD of each output, as the open flow's timing prints it
 const PERIODS = {

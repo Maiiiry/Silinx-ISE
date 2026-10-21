@@ -215,9 +215,9 @@ test('measured database: the global buffers of the left and right sides (#45)', 
       assert.deepEqual(f[`${s}:SINV:S`], [sinv[k]], s);
       for (const a of ['USED', 'SINV:S_B', 'I0_USED:0', 'I1_USED:0', 'DISABLE_ATTR:LOW', 'GCLKMUX:', 'GCLK_BUFFER:']) assert.deepEqual(f[`${s}:${a}`], [], `${s}:${a}`);
     }
-    // the inputs of the lines: one bit each (15: with CLKL_OUTT0 -> CLKL_GCLK0 / CLKR_OUTB3 -> CLKR_GCLK7, from the
-    // XC3S1200E's side DCMs, #92)
-    assert.equal(Object.entries(f).filter(([k, v]) => /(IOIS_F\d_B3|OUT[TB]\d)->\w+_GCLK\d$/.test(k) && v.length === 1).length, 15);
+    // the inputs of the lines: one bit each (16: with CLKL_OUTT0 -> CLKL_GCLK0 / CLKR_OUTB3 -> CLKR_GCLK7, from the
+    // XC3S1200E's side DCMs, #92, and CLKL_OUTB1 -> CLKL_GCLK5 / CLKR_OUTT1 -> CLKR_GCLK1, their output multiplexer, #2)
+    assert.equal(Object.entries(f).filter(([k, v]) => /(IOIS_F\d_B3|OUT[TB]\d)->\w+_GCLK\d$/.test(k) && v.length === 1).length, 16);
   }
   assert.deepEqual(t.CLKR.features['CLKR_DN_IOIS_F4_B3->CLKR_GCLK7'], ['20,2']);
   // the centre tiles: every side line up and down, the same bits left and right
@@ -250,7 +250,7 @@ test('want-pips: the PIPs of the database the batches have not measured yet, one
   try {
     let r = tool('want-pips.mjs', ['db', W]);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stderr.trim(), '17765 PIPs (per tile type) known to the reference database, 0 measured, 17765 left');
+    assert.equal(r.stderr.trim(), '17883 PIPs (per tile type) known to the reference database, 0 measured, 17883 left');
     const all = JSON.parse(r.stdout);
     // a type sharing another's switch box: only its own features (the CLB's are measured in the CLB)
     assert.deepEqual([all.CENTER_SMALL.length, all.CENTER_SMALL_BRK.length, all.LIOIS.length, all.LIOIS_PCI.length, all.BRAM0_SMALL.length, all.UR.length], [2837, 948, 249, 194, 1793, 6]);
@@ -260,7 +260,7 @@ test('want-pips: the PIPs of the database the batches have not measured yet, one
     fs.writeFileSync(path.join(W, 'pips', 't1', 'pips.json'), JSON.stringify({ pips: [pip('LIOIS_PCI_X0Y16', 'LIOIS_PCI', 'E2BEG4', 'IOIS_CLK0'), pip('CLB_X1Y1', 'CENTER_SMALL', 'BX0', 'BX_PINWIRE0'), pip('BRAM1_SMALL_X5Y1', 'BRAM1_SMALL', 'BRAM_DOA0', 'BRAM_ADDRA_B2')] }));
     assert.deepEqual([...measuredPips(W)], ['LIOIS E2BEG4->IOIS_CLK0', 'CENTER_SMALL BX0->BX_PINWIRE0', 'BRAM0_SMALL BRAM_DOA0->BRAM_ADDRA_B2']);
     r = tool('want-pips.mjs', ['db', W]);
-    assert.equal(r.stderr.trim(), '17765 PIPs (per tile type) known to the reference database, 3 measured, 17752 left');
+    assert.equal(r.stderr.trim(), '17883 PIPs (per tile type) known to the reference database, 3 measured, 17870 left');
     const left = JSON.parse(r.stdout);
     // measured in LIOIS_PCI: no longer wanted on the left side's I/O tiles; in BRAM1_SMALL: in the four block-RAM interconnect tiles
     for (const t of [...UNIFY[0], ...UNIFY[4], 'CENTER_SMALL']) assert.equal(all[t].length - left[t].length, 1, t);

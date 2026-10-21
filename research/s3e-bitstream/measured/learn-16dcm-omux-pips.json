@@ -1,0 +1,1843 @@
+{
+ "source": "#2: the DCMs' output multiplexer (DCM_<output> -> OMUXk of every DCM tile type) and the clock tiles' switches of these designs (the fabric's other switches they route are left out): gen-dcmomux.mjs designs (every output of every DCM through each line of its multiplexer, 21 on the XC3S250E for the four corner DCM types, 14 on the XC3S1200E for its four side ones) implemented by ISE 14.7, every PIP removed by codewords (gen-pipdrop.mjs, 20 variants), ana-pipdrop.mjs, pips-to-db.mjs (measure-dcmomux.sh); a feature measured on both devices has the same bits on both",
+ "types": {
+  "CLKB": {
+   "features": {
+    "CLKB_CKI2->CLKB_DLL_CLKPAD2": [],
+    "CLKB_CKI4->CLKB_DLL_CLKPAD7": [],
+    "CLKB_DLL_OUTL0->CLKB_GCLK0": [
+     "2,14"
+    ],
+    "CLKB_DLL_OUTL1->CLKB_GCLK1": [
+     "2,35"
+    ],
+    "CLKB_DLL_OUTL2->CLKB_GCLK2": [
+     "2,50"
+    ],
+    "CLKB_DLL_OUTL3->CLKB_GCLK3": [
+     "2,55"
+    ],
+    "CLKB_DLL_OUTR0->CLKB_GCLK0": [
+     "2,15"
+    ],
+    "CLKB_DLL_OUTR1->CLKB_GCLK1": [
+     "2,36"
+    ],
+    "CLKB_DLL_OUTR2->CLKB_GCLK2": [
+     "2,51"
+    ],
+    "CLKB_DLL_OUTR3->CLKB_GCLK3": [
+     "2,56"
+    ],
+    "CLKB_GCLK0->CLKB_GCLKIN00": [],
+    "CLKB_GCLK1->CLKB_GCLKIN01": [],
+    "CLKB_GCLK2->CLKB_GCLKIN02": [],
+    "CLKB_GCLK3->CLKB_GCLKIN03": [],
+    "CLKB_GCLK_PINWIRE0->CLKB_GCLK_MAIN0": [],
+    "CLKB_GCLK_PINWIRE1->CLKB_GCLK_MAIN1": [],
+    "CLKB_GCLK_PINWIRE2->CLKB_GCLK_MAIN2": [],
+    "CLKB_GCLK_PINWIRE3->CLKB_GCLK_MAIN3": [],
+    "CLKB_VCC_WIRE->CLKB_SELDUB0": [],
+    "CLKB_VCC_WIRE->CLKB_SELDUB1": [],
+    "CLKB_VCC_WIRE->CLKB_SELDUB2": [],
+    "CLKB_VCC_WIRE->CLKB_SELDUB3": []
+   }
+  },
+  "CLKC": {
+   "features": {
+    "CLKC_GCLK_MAIN_B0->CLKC_GCLK0": [],
+    "CLKC_GCLK_MAIN_B1->CLKC_GCLK1": [],
+    "CLKC_GCLK_MAIN_B2->CLKC_GCLK2": [],
+    "CLKC_GCLK_MAIN_B3->CLKC_GCLK3": [],
+    "CLKC_GCLK_MAIN_T0->CLKC_GCLK4": [],
+    "CLKC_GCLK_MAIN_T1->CLKC_GCLK5": [],
+    "CLKC_GCLK_MAIN_T2->CLKC_GCLK6": [],
+    "CLKC_GCLK_MAIN_T3->CLKC_GCLK7": []
+   }
+  },
+  "CLKL": {
+   "features": {
+    "CLKL_GCLK0->CLKL_GCLKIN00": [],
+    "CLKL_GCLK1->CLKL_GCLKIN01": [],
+    "CLKL_GCLK2->CLKL_GCLKIN02": [],
+    "CLKL_GCLK3->CLKL_GCLKIN03": [],
+    "CLKL_GCLK4->CLKL_GCLKIN04": [],
+    "CLKL_GCLK5->CLKL_GCLKIN05": [],
+    "CLKL_GCLK6->CLKL_GCLKIN06": [],
+    "CLKL_GCLK7->CLKL_GCLKIN07": [],
+    "CLKL_GCLK_PWO0->CLKL_GCLKH_MAIN0": [],
+    "CLKL_GCLK_PWO1->CLKL_GCLKH_MAIN1": [],
+    "CLKL_GCLK_PWO2->CLKL_GCLKH_MAIN2": [],
+    "CLKL_GCLK_PWO3->CLKL_GCLKH_MAIN3": [],
+    "CLKL_GCLK_PWO4->CLKL_GCLKH_MAIN4": [],
+    "CLKL_GCLK_PWO5->CLKL_GCLKH_MAIN5": [],
+    "CLKL_GCLK_PWO6->CLKL_GCLKH_MAIN6": [],
+    "CLKL_GCLK_PWO7->CLKL_GCLKH_MAIN7": [],
+    "CLKL_OUTB0->CLKL_GCLK4": [
+     "1,19"
+    ],
+    "CLKL_OUTB1->CLKL_GCLK5": [
+     "1,15"
+    ],
+    "CLKL_OUTB2->CLKL_GCLK6": [
+     "1,6"
+    ],
+    "CLKL_OUTB3->CLKL_GCLK7": [
+     "1,1"
+    ],
+    "CLKL_OUTT0->CLKL_GCLK0": [
+     "1,-5"
+    ],
+    "CLKL_OUTT1->CLKL_GCLK1": [
+     "1,-9"
+    ],
+    "CLKL_OUTT2->CLKL_GCLK2": [
+     "1,-3"
+    ],
+    "CLKL_OUTT3->CLKL_GCLK3": [
+     "1,-22"
+    ],
+    "CLKL_VCC_WIRE->CLKL_SELDUB0": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB1": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB2": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB3": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB4": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB5": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB6": [],
+    "CLKL_VCC_WIRE->CLKL_SELDUB7": []
+   }
+  },
+  "CLKR": {
+   "features": {
+    "CLKR_GCLK0->CLKR_GCLKIN00": [],
+    "CLKR_GCLK1->CLKR_GCLKIN01": [],
+    "CLKR_GCLK2->CLKR_GCLKIN02": [],
+    "CLKR_GCLK3->CLKR_GCLKIN03": [],
+    "CLKR_GCLK4->CLKR_GCLKIN04": [],
+    "CLKR_GCLK5->CLKR_GCLKIN05": [],
+    "CLKR_GCLK6->CLKR_GCLKIN06": [],
+    "CLKR_GCLK7->CLKR_GCLKIN07": [],
+    "CLKR_GCLK_PWO0->CLKR_GCLKH_MAIN0": [],
+    "CLKR_GCLK_PWO1->CLKR_GCLKH_MAIN1": [],
+    "CLKR_GCLK_PWO2->CLKR_GCLKH_MAIN2": [],
+    "CLKR_GCLK_PWO3->CLKR_GCLKH_MAIN3": [],
+    "CLKR_GCLK_PWO4->CLKR_GCLKH_MAIN4": [],
+    "CLKR_GCLK_PWO5->CLKR_GCLKH_MAIN5": [],
+    "CLKR_GCLK_PWO6->CLKR_GCLKH_MAIN6": [],
+    "CLKR_GCLK_PWO7->CLKR_GCLKH_MAIN7": [],
+    "CLKR_OUTB0->CLKR_GCLK4": [
+     "20,18"
+    ],
+    "CLKR_OUTB1->CLKR_GCLK5": [
+     "20,14"
+    ],
+    "CLKR_OUTB2->CLKR_GCLK6": [
+     "20,4"
+    ],
+    "CLKR_OUTB3->CLKR_GCLK7": [
+     "20,1"
+    ],
+    "CLKR_OUTT0->CLKR_GCLK0": [
+     "20,-3"
+    ],
+    "CLKR_OUTT1->CLKR_GCLK1": [
+     "20,-6"
+    ],
+    "CLKR_OUTT2->CLKR_GCLK2": [
+     "20,-17"
+    ],
+    "CLKR_OUTT3->CLKR_GCLK3": [
+     "20,-22"
+    ],
+    "CLKR_VCC_WIRE->CLKR_SELDUB0": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB1": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB2": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB3": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB4": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB5": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB6": [],
+    "CLKR_VCC_WIRE->CLKR_SELDUB7": []
+   }
+  },
+  "CLKT": {
+   "features": {
+    "CLKT_CKI2->CLKT_DLL_CLKPAD2": [],
+    "CLKT_CKI6->CLKT_DLL_CLKPAD6": [],
+    "CLKT_DLL_OUTL0->CLKT_GCLK0": [
+     "2,65"
+    ],
+    "CLKT_DLL_OUTL1->CLKT_GCLK1": [
+     "2,44"
+    ],
+    "CLKT_DLL_OUTL2->CLKT_GCLK2": [
+     "2,29"
+    ],
+    "CLKT_DLL_OUTL3->CLKT_GCLK3": [
+     "2,24"
+    ],
+    "CLKT_DLL_OUTR0->CLKT_GCLK0": [
+     "2,64"
+    ],
+    "CLKT_DLL_OUTR1->CLKT_GCLK1": [
+     "2,43"
+    ],
+    "CLKT_DLL_OUTR2->CLKT_GCLK2": [
+     "2,28"
+    ],
+    "CLKT_DLL_OUTR3->CLKT_GCLK3": [
+     "2,23"
+    ],
+    "CLKT_GCLK0->CLKT_GCLKIN00": [],
+    "CLKT_GCLK1->CLKT_GCLKIN01": [],
+    "CLKT_GCLK2->CLKT_GCLKIN02": [],
+    "CLKT_GCLK3->CLKT_GCLKIN03": [],
+    "CLKT_GCLK_PINWIRE0->CLKT_GCLK_MAIN0": [],
+    "CLKT_GCLK_PINWIRE1->CLKT_GCLK_MAIN1": [],
+    "CLKT_GCLK_PINWIRE2->CLKT_GCLK_MAIN2": [],
+    "CLKT_GCLK_PINWIRE3->CLKT_GCLK_MAIN3": [],
+    "CLKT_VCC_WIRE->CLKT_SELDUB0": [],
+    "CLKT_VCC_WIRE->CLKT_SELDUB1": [],
+    "CLKT_VCC_WIRE->CLKT_SELDUB2": [],
+    "CLKT_VCC_WIRE->CLKT_SELDUB3": []
+   }
+  },
+  "CLKT_LL": {
+   "features": {
+    "CLKV_LLL_LH19=-CLKV_LLR_LH19": [
+     "3,28"
+    ]
+   }
+  },
+  "CLKV": {
+   "features": {
+    "CLKV_OMUX10_OUTL0->CLKV_OUTL0": [],
+    "CLKV_OMUX10_OUTR0->CLKV_OUTR0": [],
+    "CLKV_OMUX11_OUTL1->CLKV_OUTL1": [],
+    "CLKV_OMUX11_OUTR1->CLKV_OUTR1": [],
+    "CLKV_OMUX12_OUTL2->CLKV_OUTL2": [],
+    "CLKV_OMUX12_OUTR2->CLKV_OUTR2": [],
+    "CLKV_OMUX15_OUTL3->CLKV_OUTL3": [],
+    "CLKV_OMUX15_OUTR3->CLKV_OUTR3": []
+   }
+  },
+  "DCM_BL_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX11": [
+     "6,20"
+    ],
+    "DCM_CLK0->OMUX12": [
+     "6,12"
+    ],
+    "DCM_CLK180->OMUX10": [
+     "6,18"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK180->OMUX15": [
+     "7,2"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX12": [
+     "6,10",
+     "6,8"
+    ],
+    "DCM_CLK270->OMUX15": [
+     "6,0",
+     "7,5"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK90->OMUX10": [
+     "7,20"
+    ],
+    "DCM_CLK90->OMUX11": [
+     "7,19"
+    ],
+    "DCM_CLKDV->OMUX15": [
+     "6,1",
+     "7,6"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX->OMUX10": [
+     "7,23"
+    ],
+    "DCM_CLKFX180->OMUX10": [
+     "6,21"
+    ],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD3->DCM_CLKIN": [
+     "5,32",
+     "5,36"
+    ],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "E2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,26"
+    ],
+    "E2MID6->DCM_G1_B2": [
+     "8,8",
+     "8,9",
+     "9,12"
+    ],
+    "GCLK0->DCM_CLKFB": [
+     "4,17",
+     "4,19"
+    ],
+    "GCLK1->DCM_CLKFB": [
+     "4,17",
+     "5,20"
+    ],
+    "GCLK2->DCM_CLKFB": [
+     "4,17",
+     "5,21"
+    ],
+    "N2MID1->DCM_G1_B1": [
+     "10,50"
+    ],
+    "N2MID1->DCM_G1_B3": [
+     "10,38"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUTL0": [],
+    "OMUX11->DCM_OMUX11_CLKOUTL1": [],
+    "OMUX12->DCM_OMUX12_CLKOUTL2": [],
+    "OMUX15->DCM_OMUX15_CLKOUTL3": [],
+    "OMUX_E2->S2BEG1": [
+     "13,53",
+     "15,53"
+    ],
+    "OMUX_E7->N2BEG4": [
+     "13,28"
+    ],
+    "S2MID1->DCM_G1_B1": [
+     "12,57"
+    ],
+    "S2MID1->DCM_G1_B3": [
+     "12,45"
+    ],
+    "S2MID1->E2BEG1": [
+     "13,48",
+     "15,51"
+    ],
+    "W2END7->DCM_G1_B2": [
+     "8,10",
+     "9,7"
+    ],
+    "W2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,24"
+    ]
+   }
+  },
+  "DCM_BR_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX12": [
+     "6,12"
+    ],
+    "DCM_CLK0->OMUX15": [
+     "6,4"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK180->OMUX15": [
+     "7,2"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX15": [
+     "6,0",
+     "7,5"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X180->OMUX12": [
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX15": [
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "E2BEG4->DCM_PSCLK": [
+     "4,21",
+     "4,26"
+    ],
+    "E2END4->E2BEG4": [
+     "13,26",
+     "15,27"
+    ],
+    "E2MID1->DCM_G1_B1": [
+     "11,54",
+     "11,55",
+     "12,56"
+    ],
+    "E2MID1->DCM_G1_B3": [
+     "11,41",
+     "11,42",
+     "12,39"
+    ],
+    "GCLK0->DCM_CLKFB": [
+     "4,17",
+     "4,19"
+    ],
+    "GCLK2->DCM_CLKFB": [
+     "4,17",
+     "5,21"
+    ],
+    "GCLK3->DCM_CLKFB": [
+     "4,17",
+     "4,25"
+    ],
+    "N2MID4->E2BEG4": [
+     "13,24",
+     "15,26",
+     "15,27"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUTR0": [],
+    "OMUX11->DCM_OMUX11_CLKOUTR1": [],
+    "OMUX12->DCM_OMUX12_CLKOUTR2": [],
+    "OMUX15->DCM_OMUX15_CLKOUTR3": [],
+    "S2MID4->W2BEG4": [
+     "14,25",
+     "14,26",
+     "14,27"
+    ],
+    "W2MID1->DCM_G1_B1": [
+     "11,53",
+     "11,55",
+     "11,57"
+    ],
+    "W2MID1->DCM_G1_B3": [
+     "10,42",
+     "11,40",
+     "11,41"
+    ],
+    "W2MID7->DCM_G1_B2": [
+     "10,8",
+     "8,9"
+    ]
+   }
+  },
+  "DCM_H_BL_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX11": [
+     "6,20"
+    ],
+    "DCM_CLK180->OMUX10": [
+     "6,18"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK180->OMUX15": [
+     "7,2"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX12": [
+     "6,10",
+     "6,8"
+    ],
+    "DCM_CLK270->OMUX15": [
+     "6,0",
+     "7,5"
+    ],
+    "DCM_CLK2X->OMUX10": [
+     "6,22",
+     "6,23",
+     "7,16"
+    ],
+    "DCM_CLK2X->OMUX11": [
+     "6,16",
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X->OMUX12": [
+     "6,8",
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X->OMUX15": [
+     "6,0",
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X180->OMUX12": [
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX15": [
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK90->OMUX12": [
+     "7,11"
+    ],
+    "DCM_CLK90->OMUX15": [
+     "7,3"
+    ],
+    "DCM_CLKDV->OMUX11": [
+     "6,17",
+     "7,22"
+    ],
+    "DCM_CLKDV->OMUX12": [
+     "6,9",
+     "7,8"
+    ],
+    "DCM_CLKDV->OMUX15": [
+     "6,1",
+     "7,6"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX->OMUX11": [
+     "7,22"
+    ],
+    "DCM_CLKFX->OMUX15": [
+     "7,6"
+    ],
+    "DCM_CLKFX180->OMUX10": [
+     "6,21"
+    ],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "E2MID1->DCM_G1_B1": [
+     "11,54",
+     "11,55",
+     "12,56"
+    ],
+    "E2MID1->DCM_G1_B3": [
+     "11,41",
+     "11,42",
+     "12,39"
+    ],
+    "E2MID1->N2BEG1": [
+     "14,52",
+     "14,53",
+     "14,54"
+    ],
+    "E2MID6->DCM_G1_B2": [
+     "8,8",
+     "8,9",
+     "9,12"
+    ],
+    "GCLK4->DCM_CLKFB": [
+     "4,18",
+     "4,19"
+    ],
+    "GCLK5->DCM_CLKFB": [
+     "4,18",
+     "5,20"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUT0": [],
+    "OMUX11->DCM_OMUX11_CLKOUT1": [],
+    "OMUX12->DCM_OMUX12_CLKOUT2": [],
+    "OMUX15->DCM_OMUX15_CLKOUT3": [],
+    "OMUX_E7->N2BEG4": [
+     "13,28"
+    ],
+    "W2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,24"
+    ]
+   }
+  },
+  "DCM_H_BR_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX11": [
+     "6,20"
+    ],
+    "DCM_CLK180->OMUX10": [
+     "6,18"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK180->OMUX15": [
+     "7,2"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX12": [
+     "6,10",
+     "6,8"
+    ],
+    "DCM_CLK270->OMUX15": [
+     "6,0",
+     "7,5"
+    ],
+    "DCM_CLK2X->OMUX10": [
+     "6,22",
+     "6,23",
+     "7,16"
+    ],
+    "DCM_CLK2X->OMUX11": [
+     "6,16",
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X->OMUX12": [
+     "6,8",
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X->OMUX15": [
+     "6,0",
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X180->OMUX12": [
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX15": [
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK90->OMUX10": [
+     "7,20"
+    ],
+    "DCM_CLK90->OMUX11": [
+     "7,19"
+    ],
+    "DCM_CLK90->OMUX12": [
+     "7,11"
+    ],
+    "DCM_CLK90->OMUX15": [
+     "7,3"
+    ],
+    "DCM_CLKDV->OMUX11": [
+     "6,17",
+     "7,22"
+    ],
+    "DCM_CLKDV->OMUX12": [
+     "6,9",
+     "7,8"
+    ],
+    "DCM_CLKDV->OMUX15": [
+     "6,1",
+     "7,6"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX->OMUX11": [
+     "7,22"
+    ],
+    "DCM_CLKFX->OMUX12": [
+     "7,8"
+    ],
+    "DCM_CLKFX->OMUX15": [
+     "7,6"
+    ],
+    "DCM_CLKFX180->OMUX10": [
+     "6,21"
+    ],
+    "DCM_CLKFX180->OMUX11": [
+     "7,21"
+    ],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "E2BEG4->DCM_PSCLK": [
+     "4,21",
+     "4,26"
+    ],
+    "GCLK4->DCM_CLKFB": [
+     "4,18",
+     "4,19"
+    ],
+    "GCLK5->DCM_CLKFB": [
+     "4,18",
+     "5,20"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUT0": [],
+    "OMUX11->DCM_OMUX11_CLKOUT1": [],
+    "OMUX12->DCM_OMUX12_CLKOUT2": [],
+    "OMUX15->DCM_OMUX15_CLKOUT3": [],
+    "OMUX_W9->N2BEG7": [
+     "13,4",
+     "14,5"
+    ],
+    "S2MID4->E2BEG4": [
+     "13,25",
+     "15,26",
+     "15,27"
+    ],
+    "W2END0->DCM_G1_B1": [
+     "11,53",
+     "11,57"
+    ],
+    "W2END0->DCM_G1_B3": [
+     "10,42",
+     "11,40"
+    ],
+    "W2END1->DCM_G1_B1": [
+     "11,52",
+     "11,54"
+    ],
+    "W2END1->DCM_G1_B3": [
+     "11,39",
+     "11,42"
+    ],
+    "W2END4->DCM_PSCLK": [
+     "4,21",
+     "4,24"
+    ],
+    "W2MID1->DCM_G1_B1": [
+     "11,53",
+     "11,55",
+     "11,57"
+    ],
+    "W2MID1->DCM_G1_B3": [
+     "10,42",
+     "11,40",
+     "11,41"
+    ],
+    "W2MID7->DCM_G1_B2": [
+     "10,8",
+     "8,9"
+    ],
+    "W2MID7->N2BEG7": [
+     "14,4",
+     "14,7"
+    ]
+   }
+  },
+  "DCM_H_TL_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX11": [
+     "6,20"
+    ],
+    "DCM_CLK0->OMUX12": [
+     "6,12"
+    ],
+    "DCM_CLK0->OMUX15": [
+     "6,4"
+    ],
+    "DCM_CLK180->OMUX10": [
+     "6,18"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK180->OMUX15": [
+     "7,2"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX12": [
+     "6,10",
+     "6,8"
+    ],
+    "DCM_CLK270->OMUX15": [
+     "6,0",
+     "7,5"
+    ],
+    "DCM_CLK2X->OMUX10": [
+     "6,22",
+     "6,23",
+     "7,16"
+    ],
+    "DCM_CLK2X->OMUX11": [
+     "6,16",
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X->OMUX12": [
+     "6,8",
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X180->OMUX12": [
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX15": [
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK90->OMUX12": [
+     "7,11"
+    ],
+    "DCM_CLK90->OMUX15": [
+     "7,3"
+    ],
+    "DCM_CLKDV->OMUX11": [
+     "6,17",
+     "7,22"
+    ],
+    "DCM_CLKDV->OMUX12": [
+     "6,9",
+     "7,8"
+    ],
+    "DCM_CLKDV->OMUX15": [
+     "6,1",
+     "7,6"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX->OMUX10": [
+     "7,23"
+    ],
+    "DCM_CLKFX->OMUX11": [
+     "7,22"
+    ],
+    "DCM_CLKFX180->OMUX10": [
+     "6,21"
+    ],
+    "DCM_CLKFX180->OMUX11": [
+     "7,21"
+    ],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "E2BEG4->DCM_PSCLK": [
+     "4,21",
+     "4,26"
+    ],
+    "E2MID7->DCM_G1_B2": [
+     "10,8",
+     "8,10"
+    ],
+    "GCLK0->DCM_CLKFB": [
+     "4,17",
+     "4,19"
+    ],
+    "GCLK1->DCM_CLKFB": [
+     "4,17",
+     "5,20"
+    ],
+    "GCLK2->DCM_CLKFB": [
+     "4,17",
+     "5,21"
+    ],
+    "GCLK3->DCM_CLKFB": [
+     "4,17",
+     "4,25"
+    ],
+    "N2MID1->DCM_G1_B1": [
+     "10,50"
+    ],
+    "N2MID1->DCM_G1_B3": [
+     "10,38"
+    ],
+    "N2MID4->E2BEG4": [
+     "13,24",
+     "15,26",
+     "15,27"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUT0": [],
+    "OMUX11->DCM_OMUX11_CLKOUT1": [],
+    "OMUX12->DCM_OMUX12_CLKOUT2": [],
+    "OMUX15->DCM_OMUX15_CLKOUT3": []
+   }
+  },
+  "DCM_H_TR_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX11": [
+     "6,20"
+    ],
+    "DCM_CLK0->OMUX12": [
+     "6,12"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK180->OMUX15": [
+     "7,2"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX12": [
+     "6,10",
+     "6,8"
+    ],
+    "DCM_CLK270->OMUX15": [
+     "6,0",
+     "7,5"
+    ],
+    "DCM_CLK2X->OMUX10": [
+     "6,22",
+     "6,23",
+     "7,16"
+    ],
+    "DCM_CLK2X->OMUX12": [
+     "6,8",
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X->OMUX15": [
+     "6,0",
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X180->OMUX12": [
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX15": [
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK90->OMUX11": [
+     "7,19"
+    ],
+    "DCM_CLK90->OMUX15": [
+     "7,3"
+    ],
+    "DCM_CLKDV->OMUX10": [
+     "6,22",
+     "7,23"
+    ],
+    "DCM_CLKDV->OMUX12": [
+     "6,9",
+     "7,8"
+    ],
+    "DCM_CLKDV->OMUX15": [
+     "6,1",
+     "7,6"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX->OMUX10": [
+     "7,23"
+    ],
+    "DCM_CLKFX->OMUX11": [
+     "7,22"
+    ],
+    "DCM_CLKFX->OMUX15": [
+     "7,6"
+    ],
+    "DCM_CLKFX180->OMUX10": [
+     "6,21"
+    ],
+    "DCM_CLKFX180->OMUX11": [
+     "7,21"
+    ],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_H_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "GCLK0->DCM_CLKFB": [
+     "4,17",
+     "4,19"
+    ],
+    "GCLK1->DCM_CLKFB": [
+     "4,17",
+     "5,20"
+    ],
+    "GCLK2->DCM_CLKFB": [
+     "4,17",
+     "5,21"
+    ],
+    "N2MID7->DCM_G1_B2": [
+     "10,10",
+     "8,10",
+     "8,8",
+     "8,9"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUT0": [],
+    "OMUX11->DCM_OMUX11_CLKOUT1": [],
+    "OMUX12->DCM_OMUX12_CLKOUT2": [],
+    "OMUX15->DCM_OMUX15_CLKOUT3": [],
+    "W2END0->DCM_G1_B1": [
+     "11,53",
+     "11,57"
+    ],
+    "W2END0->DCM_G1_B3": [
+     "10,42",
+     "11,40"
+    ],
+    "W2END4->DCM_PSCLK": [
+     "4,21",
+     "4,24"
+    ],
+    "W2END7->DCM_G1_B2": [
+     "8,10",
+     "9,7"
+    ],
+    "W2MID1->DCM_G1_B1": [
+     "11,53",
+     "11,55",
+     "11,57"
+    ],
+    "W2MID1->DCM_G1_B3": [
+     "10,42",
+     "11,40",
+     "11,41"
+    ],
+    "W2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,24"
+    ],
+    "W2MID4->S2BEG4": [
+     "13,30",
+     "15,28"
+    ]
+   }
+  },
+  "DCM_TL_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX11": [
+     "6,20"
+    ],
+    "DCM_CLK0->OMUX12": [
+     "6,12"
+    ],
+    "DCM_CLK0->OMUX15": [
+     "6,4"
+    ],
+    "DCM_CLK180->OMUX10": [
+     "6,18"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX12": [
+     "6,10",
+     "6,8"
+    ],
+    "DCM_CLK2X->OMUX10": [
+     "6,22",
+     "6,23",
+     "7,16"
+    ],
+    "DCM_CLK2X->OMUX11": [
+     "6,16",
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X->OMUX15": [
+     "6,0",
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X180->OMUX12": [
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX15": [
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK90->OMUX10": [
+     "7,20"
+    ],
+    "DCM_CLK90->OMUX11": [
+     "7,19"
+    ],
+    "DCM_CLK90->OMUX15": [
+     "7,3"
+    ],
+    "DCM_CLKDV->OMUX11": [
+     "6,17",
+     "7,22"
+    ],
+    "DCM_CLKDV->OMUX12": [
+     "6,9",
+     "7,8"
+    ],
+    "DCM_CLKDV->OMUX15": [
+     "6,1",
+     "7,6"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX->OMUX11": [
+     "7,22"
+    ],
+    "DCM_CLKFX180->OMUX10": [
+     "6,21"
+    ],
+    "DCM_CLKFX180->OMUX11": [
+     "7,21"
+    ],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD2->DCM_CLKIN": [
+     "5,33",
+     "5,36"
+    ],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "E2END4->N2BEG3": [
+     "14,36",
+     "14,38"
+    ],
+    "E2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,26"
+    ],
+    "E2MID4->N2BEG4": [
+     "14,28",
+     "14,29",
+     "14,30"
+    ],
+    "E2MID6->DCM_G1_B2": [
+     "8,8",
+     "8,9",
+     "9,12"
+    ],
+    "E6MID4->N2BEG4": [
+     "14,28",
+     "14,31"
+    ],
+    "GCLK4->DCM_CLKFB": [
+     "4,18",
+     "4,19"
+    ],
+    "GCLK5->DCM_CLKFB": [
+     "4,18",
+     "5,20"
+    ],
+    "GCLK6->DCM_CLKFB": [
+     "4,18",
+     "5,21"
+    ],
+    "GCLK7->DCM_CLKFB": [
+     "4,18",
+     "4,25"
+    ],
+    "N2END1->DCM_G1_B1": [
+     "11,57"
+    ],
+    "N2END1->DCM_G1_B3": [
+     "10,42"
+    ],
+    "N2MID1->DCM_G1_B1": [
+     "10,50"
+    ],
+    "N2MID1->DCM_G1_B3": [
+     "10,38"
+    ],
+    "N2MID1->E2BEG1": [
+     "15,49",
+     "15,50",
+     "15,51"
+    ],
+    "N2MID4->E2BEG4": [
+     "13,24",
+     "15,26",
+     "15,27"
+    ],
+    "N2MID5->E2BEG5": [
+     "15,17",
+     "15,18",
+     "15,19"
+    ],
+    "N6A4->DCM_PSCLK": [
+     "5,23",
+     "5,24"
+    ],
+    "N6B4->DCM_PSCLK": [
+     "4,21",
+     "5,24"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUTL0": [],
+    "OMUX11->DCM_OMUX11_CLKOUTL1": [],
+    "OMUX12->DCM_OMUX12_CLKOUTL2": [],
+    "OMUX15->DCM_OMUX15_CLKOUTL3": [],
+    "OMUX_E7->N2BEG4": [
+     "13,28"
+    ],
+    "OMUX_N11->E6BEG7": [
+     "16,1"
+    ],
+    "OMUX_N12->N2BEG5": [
+     "13,20",
+     "14,21"
+    ],
+    "S2MID0->DCM_G1_B1": [
+     "10,50",
+     "11,54",
+     "11,55"
+    ],
+    "S2MID0->DCM_G1_B3": [
+     "10,38",
+     "11,41",
+     "11,42"
+    ],
+    "S2MID1->DCM_G1_B1": [
+     "12,57"
+    ],
+    "S2MID1->DCM_G1_B3": [
+     "12,45"
+    ],
+    "S2MID1->E2BEG1": [
+     "13,48",
+     "15,51"
+    ],
+    "W2END4->DCM_PSCLK": [
+     "4,21",
+     "4,24"
+    ],
+    "W2END7->DCM_G1_B2": [
+     "8,10",
+     "9,7"
+    ],
+    "W2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,24"
+    ],
+    "W2MID6->N2BEG6": [
+     "14,12",
+     "14,14"
+    ]
+   }
+  },
+  "DCM_TR_CENTER": {
+   "features": {
+    "DCM_CLK0->OMUX10": [
+     "6,19"
+    ],
+    "DCM_CLK0->OMUX11": [
+     "6,20"
+    ],
+    "DCM_CLK0->OMUX12": [
+     "6,12"
+    ],
+    "DCM_CLK0->OMUX15": [
+     "6,4"
+    ],
+    "DCM_CLK180->OMUX10": [
+     "6,18"
+    ],
+    "DCM_CLK180->OMUX11": [
+     "7,18"
+    ],
+    "DCM_CLK180->OMUX12": [
+     "6,13"
+    ],
+    "DCM_CLK180->OMUX15": [
+     "7,2"
+    ],
+    "DCM_CLK270->OMUX10": [
+     "6,21",
+     "6,23"
+    ],
+    "DCM_CLK270->OMUX11": [
+     "6,16",
+     "7,21"
+    ],
+    "DCM_CLK270->OMUX12": [
+     "6,10",
+     "6,8"
+    ],
+    "DCM_CLK270->OMUX15": [
+     "6,0",
+     "7,5"
+    ],
+    "DCM_CLK2X->OMUX10": [
+     "6,22",
+     "6,23",
+     "7,16"
+    ],
+    "DCM_CLK2X->OMUX11": [
+     "6,16",
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X->OMUX12": [
+     "6,8",
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX10": [
+     "6,22",
+     "7,16"
+    ],
+    "DCM_CLK2X180->OMUX11": [
+     "6,17",
+     "7,17"
+    ],
+    "DCM_CLK2X180->OMUX12": [
+     "6,9",
+     "7,15"
+    ],
+    "DCM_CLK2X180->OMUX15": [
+     "6,1",
+     "7,1"
+    ],
+    "DCM_CLK90->OMUX10": [
+     "7,20"
+    ],
+    "DCM_CLK90->OMUX11": [
+     "7,19"
+    ],
+    "DCM_CLK90->OMUX12": [
+     "7,11"
+    ],
+    "DCM_CLK90->OMUX15": [
+     "7,3"
+    ],
+    "DCM_CLKDV->OMUX10": [
+     "6,22",
+     "7,23"
+    ],
+    "DCM_CLKDV->OMUX11": [
+     "6,17",
+     "7,22"
+    ],
+    "DCM_CLKDV->OMUX12": [
+     "6,9",
+     "7,8"
+    ],
+    "DCM_CLKDV->OMUX15": [
+     "6,1",
+     "7,6"
+    ],
+    "DCM_CLKFB->DCM_CLKFB_PINWIRE": [],
+    "DCM_CLKFX->OMUX10": [
+     "7,23"
+    ],
+    "DCM_CLKFX180->OMUX11": [
+     "7,21"
+    ],
+    "DCM_CLKFX180->OMUX12": [
+     "6,10"
+    ],
+    "DCM_CLKFX180->OMUX15": [
+     "7,5"
+    ],
+    "DCM_CLKIN->DCM_CLKIN_PINWIRE": [],
+    "DCM_DLL_CLKPAD0->DCM_CLKIN": [
+     "5,35",
+     "5,36"
+    ],
+    "DCM_G1_B1->DCM_PSEN_PINWIRE": [],
+    "DCM_G1_B2->DCM_PSINCDEC_PINWIRE": [],
+    "DCM_G1_B3->DCM_RST_PINWIRE": [],
+    "DCM_PSCLK->DCM_PSCLK_PINWIRE": [],
+    "E2BEG4->DCM_PSCLK": [
+     "4,21",
+     "4,26"
+    ],
+    "E2END5->N2BEG4": [
+     "14,28",
+     "14,29",
+     "14,31"
+    ],
+    "E2END6->DCM_G1_B2": [
+     "8,11",
+     "8,8",
+     "8,9"
+    ],
+    "E2END6->E2BEG4": [
+     "13,26",
+     "15,26",
+     "15,27"
+    ],
+    "E2MID1->DCM_G1_B1": [
+     "11,54",
+     "11,55",
+     "12,56"
+    ],
+    "E2MID1->DCM_G1_B3": [
+     "11,41",
+     "11,42",
+     "12,39"
+    ],
+    "E2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,26"
+    ],
+    "E2MID5->N2BEG5": [
+     "14,20",
+     "14,21",
+     "14,22"
+    ],
+    "E6END4->E6BEG4": [
+     "16,27",
+     "18,27"
+    ],
+    "E6END6->N2BEG6": [
+     "14,15"
+    ],
+    "E6MID4->N2BEG4": [
+     "14,28",
+     "14,31"
+    ],
+    "GCLK4->DCM_CLKFB": [
+     "4,18",
+     "4,19"
+    ],
+    "GCLK5->DCM_CLKFB": [
+     "4,18",
+     "5,20"
+    ],
+    "GCLK6->DCM_CLKFB": [
+     "4,18",
+     "5,21"
+    ],
+    "GCLK7->DCM_CLKFB": [
+     "4,18",
+     "4,25"
+    ],
+    "LV12->N6BEG4": [
+     "17,28",
+     "17,29",
+     "18,29"
+    ],
+    "N6BEG4->DCM_PSCLK": [
+     "4,16",
+     "5,24"
+    ],
+    "N6MID4->W2BEG4": [
+     "14,27",
+     "15,24"
+    ],
+    "OMUX10->DCM_OMUX10_CLKOUTR0": [],
+    "OMUX11->DCM_OMUX11_CLKOUTR1": [],
+    "OMUX12->DCM_OMUX12_CLKOUTR2": [],
+    "OMUX15->DCM_OMUX15_CLKOUTR3": [],
+    "OMUX_N12->N2BEG5": [
+     "13,20",
+     "14,21"
+    ],
+    "W2MID1->DCM_G1_B1": [
+     "11,53",
+     "11,55",
+     "11,57"
+    ],
+    "W2MID1->DCM_G1_B3": [
+     "10,42",
+     "11,40",
+     "11,41"
+    ],
+    "W2MID1->LV12": [
+     "18,47",
+     "18,49",
+     "18,54"
+    ],
+    "W2MID4->DCM_PSCLK": [
+     "4,23",
+     "4,24"
+    ],
+    "W2MID5->N2BEG5": [
+     "14,20",
+     "14,23"
+    ],
+    "W2MID7->DCM_G1_B2": [
+     "10,8",
+     "8,9"
+    ],
+    "W6END6->W2BEG6": [
+     "14,10",
+     "15,8"
+    ]
+   }
+  },
+  "GCLKH": {
+   "features": {
+    "GCLKH_GCLK0->GCLKH_GCLK_DN0": [
+     "15,0"
+    ],
+    "GCLKH_GCLK0->GCLKH_GCLK_UP0": [
+     "16,0"
+    ],
+    "GCLKH_GCLK1->GCLKH_GCLK_DN1": [
+     "13,0"
+    ],
+    "GCLKH_GCLK1->GCLKH_GCLK_UP1": [
+     "14,0"
+    ],
+    "GCLKH_GCLK2->GCLKH_GCLK_DN2": [
+     "11,0"
+    ],
+    "GCLKH_GCLK2->GCLKH_GCLK_UP2": [
+     "12,0"
+    ],
+    "GCLKH_GCLK3->GCLKH_GCLK_DN3": [
+     "9,0"
+    ],
+    "GCLKH_GCLK3->GCLKH_GCLK_UP3": [
+     "10,0"
+    ],
+    "GCLKH_GCLK4->GCLKH_GCLK_DN4": [
+     "7,0"
+    ],
+    "GCLKH_GCLK4->GCLKH_GCLK_UP4": [
+     "8,0"
+    ],
+    "GCLKH_GCLK5->GCLKH_GCLK_DN5": [
+     "5,0"
+    ],
+    "GCLKH_GCLK5->GCLKH_GCLK_UP5": [
+     "6,0"
+    ],
+    "GCLKH_GCLK6->GCLKH_GCLK_DN6": [
+     "3,0"
+    ],
+    "GCLKH_GCLK6->GCLKH_GCLK_UP6": [
+     "4,0"
+    ],
+    "GCLKH_GCLK7->GCLKH_GCLK_DN7": [
+     "1,0"
+    ],
+    "GCLKH_GCLK7->GCLKH_GCLK_UP7": [
+     "2,0"
+    ]
+   }
+  },
+  "GCLKVC": {
+   "features": {
+    "GCLKC_GCLK0->GCLKC_GCLK_OUT_L0": [],
+    "GCLKC_GCLK0->GCLKC_GCLK_OUT_R0": [],
+    "GCLKC_GCLK1->GCLKC_GCLK_OUT_L1": [],
+    "GCLKC_GCLK1->GCLKC_GCLK_OUT_R1": [],
+    "GCLKC_GCLK2->GCLKC_GCLK_OUT_L2": [],
+    "GCLKC_GCLK2->GCLKC_GCLK_OUT_R2": [],
+    "GCLKC_GCLK3->GCLKC_GCLK_OUT_L3": [],
+    "GCLKC_GCLK3->GCLKC_GCLK_OUT_R3": [],
+    "GCLKC_GCLK4->GCLKC_GCLK_OUT_L4": [],
+    "GCLKC_GCLK4->GCLKC_GCLK_OUT_R4": [],
+    "GCLKC_GCLK5->GCLKC_GCLK_OUT_L5": [],
+    "GCLKC_GCLK5->GCLKC_GCLK_OUT_R5": [],
+    "GCLKC_GCLK6->GCLKC_GCLK_OUT_L6": [],
+    "GCLKC_GCLK6->GCLKC_GCLK_OUT_R6": [],
+    "GCLKC_GCLK7->GCLKC_GCLK_OUT_L7": [],
+    "GCLKC_GCLK7->GCLKC_GCLK_OUT_R7": []
+   }
+  },
+  "GCLKVML": {
+   "features": {
+    "GCLKVML_GCLKCORE0->GCLKVMLR_GCLK_DN0": [
+     "0,72"
+    ],
+    "GCLKVML_GCLKCORE1->GCLKVMLR_GCLK_DN1": [
+     "0,74"
+    ],
+    "GCLKVML_GCLKCORE2->GCLKVMLR_GCLK_DN2": [
+     "0,76"
+    ],
+    "GCLKVML_GCLKCORE4->GCLKVMLR_GCLK_UP4": [
+     "0,51"
+    ],
+    "GCLKVML_GCLKCORE5->GCLKVMLR_GCLK_UP5": [
+     "0,53"
+    ],
+    "GCLKVML_GCLKCORE6->GCLKVMLR_GCLK_UP6": [
+     "0,55"
+    ],
+    "GCLKVML_GCLKCORE7->GCLKVMLR_GCLK_UP7": [
+     "0,57"
+    ],
+    "GCLKVML_GCLKLR0->GCLKVMLR_GCLK_UP0": [
+     "0,21"
+    ],
+    "GCLKVML_GCLKLR1->GCLKVMLR_GCLK_UP1": [
+     "0,23"
+    ],
+    "GCLKVML_GCLKLR2->GCLKVMLR_GCLK_UP2": [
+     "0,25"
+    ],
+    "GCLKVML_GCLKLR3->GCLKVMLR_GCLK_UP3": [
+     "0,27"
+    ],
+    "GCLKVML_GCLKLR4->GCLKVMLR_GCLK_DN4": [
+     "0,99"
+    ],
+    "GCLKVML_GCLKLR4->GCLKVMLR_GCLK_UP4": [
+     "0,49"
+    ],
+    "GCLKVML_GCLKLR5->GCLKVMLR_GCLK_DN5": [
+     "0,102"
+    ],
+    "GCLKVML_GCLKLR5->GCLKVMLR_GCLK_UP5": [
+     "0,52"
+    ],
+    "GCLKVML_GCLKLR6->GCLKVMLR_GCLK_UP6": [
+     "0,54"
+    ],
+    "GCLKVML_GCLKLR7->GCLKVMLR_GCLK_UP7": [
+     "0,56"
+    ]
+   }
+  },
+  "GCLKVMR": {
+   "features": {
+    "GCLKVMR_GCLKCORE0->GCLKVMLR_GCLK_DN0": [
+     "0,72"
+    ],
+    "GCLKVMR_GCLKCORE0->GCLKVMLR_GCLK_UP0": [
+     "0,22"
+    ],
+    "GCLKVMR_GCLKCORE1->GCLKVMLR_GCLK_DN1": [
+     "0,74"
+    ],
+    "GCLKVMR_GCLKCORE1->GCLKVMLR_GCLK_UP1": [
+     "0,24"
+    ],
+    "GCLKVMR_GCLKCORE2->GCLKVMLR_GCLK_DN2": [
+     "0,76"
+    ],
+    "GCLKVMR_GCLKCORE2->GCLKVMLR_GCLK_UP2": [
+     "0,26"
+    ],
+    "GCLKVMR_GCLKCORE3->GCLKVMLR_GCLK_DN3": [
+     "0,78"
+    ],
+    "GCLKVMR_GCLKCORE3->GCLKVMLR_GCLK_UP3": [
+     "0,29"
+    ],
+    "GCLKVMR_GCLKCORE4->GCLKVMLR_GCLK_UP4": [
+     "0,51"
+    ],
+    "GCLKVMR_GCLKCORE5->GCLKVMLR_GCLK_UP5": [
+     "0,53"
+    ],
+    "GCLKVMR_GCLKCORE6->GCLKVMLR_GCLK_UP6": [
+     "0,55"
+    ],
+    "GCLKVMR_GCLKCORE7->GCLKVMLR_GCLK_UP7": [
+     "0,57"
+    ],
+    "GCLKVMR_GCLKLR0->GCLKVMLR_GCLK_UP0": [
+     "0,21"
+    ],
+    "GCLKVMR_GCLKLR1->GCLKVMLR_GCLK_UP1": [
+     "0,23"
+    ],
+    "GCLKVMR_GCLKLR2->GCLKVMLR_GCLK_UP2": [
+     "0,25"
+    ],
+    "GCLKVMR_GCLKLR3->GCLKVMLR_GCLK_UP3": [
+     "0,27"
+    ],
+    "GCLKVMR_GCLKLR4->GCLKVMLR_GCLK_DN4": [
+     "0,99"
+    ],
+    "GCLKVMR_GCLKLR4->GCLKVMLR_GCLK_UP4": [
+     "0,49"
+    ],
+    "GCLKVMR_GCLKLR5->GCLKVMLR_GCLK_DN5": [
+     "0,102"
+    ],
+    "GCLKVMR_GCLKLR5->GCLKVMLR_GCLK_UP5": [
+     "0,52"
+    ],
+    "GCLKVMR_GCLKLR6->GCLKVMLR_GCLK_UP6": [
+     "0,54"
+    ],
+    "GCLKVMR_GCLKLR7->GCLKVMLR_GCLK_UP7": [
+     "0,56"
+    ]
+   }
+  }
+ }
+}

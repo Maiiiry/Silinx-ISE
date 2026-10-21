@@ -59,6 +59,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `measure-671.sh` (`gen-iobreg.mjs --bufg`), `pad-clock-rows.mjs`, `pad-owners.mjs` | #671: the I/O registers' clocks from every global line: rd / rd2 with their clock buffer on each top / bottom BUFGMUX in turn, implemented by ISE and measured by PIP drop; the clock rows' bits out of the pads' features, each bit of R:ICLK2INV:#OFF to its pad |
 | `gen-pairdly.mjs`, `gen-paddly.mjs`, `gen-padrand.mjs`, `ana-pairdly.mjs`, `ana-paddly.mjs`, `pad-delays.mjs` | #751: the pads' input delays with each pad used on its own: designs written by the open flow, every pad's kind (unused, output, input register, direct input) and delay varied apart from its neighbours'; each delay bit to the one pad it follows; ISE's bitgen against Silinx's writer on held-out designs |
 | `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh` | #92: every pad's dedicated path to a DCM's CLKIN and the switches on it the database lacks; designs whose DCMs take CLKIN from each of their clock pads in turn, implemented by ISE and measured by PIP drop |
+| `gen-dcmomux.mjs`, `measure-dcmomux.sh` | #2: the DCMs' output multiplexer (`DCM_<output> -> OMUXk`); designs with every output of every DCM through each line, its BUFG LOC'd on the line's buffer, implemented by ISE and measured by PIP drop (`--list`: the pairs and the unknown ones) |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters; the other DCMs' settings as mirror images of the top-left one's |
 
@@ -778,6 +779,35 @@ projects of `test/open-flow.test.js` pass `scripts/check-open-flow.mjs` (DRC cle
 
 Runtime: 16 designs implemented from HDL and 336 xdl + bitgen runs (about 25 minutes), 18 more designs
 implemented for ISE's choice of pad (about 7 minutes).
+
+### The DCMs' output multiplexer (2026-10-21, #2)
+
+The Clocking Wizard (#793) found DCM outputs that reached no global buffer on switches of known bits (`bufgReach`): the
+XC3S100E's top DCM's CLKDV and CLK90, the XC3S500E's DCM_X0Y1's CLKFX180. The placer then took another DCM, which the
+board's clock pad reached through general routing only. A DCM drives its four global buffers through four lines of
+its output multiplexer (`DCM_<output> -> OMUXk`, k = 10, 11, 12, 15, each line reaching one buffer on a dedicated
+path). Of the 9 outputs x 4 lines, 194 switches of the 8 DCM tile types were not in the database: on the XC3S250E,
+80 of its 144 (DCM, output, line) pairs.
+
+- **Designs** (`gen-dcmomux.mjs`, implemented by ISE from HDL): every output of every DCM through each line of its
+  multiplexer. Each round has every DCM it can (its CLKIN from its first clock pad, `dcm-pads.mjs`), CLK0 on a BUFG as
+  its feedback and up to three other outputs, each on a BUFG LOC'd on the buffer the chosen line reaches. The pairs
+  not measured yet come first, CLK0 trying each free line in turn. The bits are the tile type's, the same on every
+  device, so 21 designs of the XC3S250E (the four corner types) and 14 of the XC3S1200E's side DCMs (`DCMS`, the four
+  `DCM_H_` types) do: no pair left unscheduled.
+- **Measured** (`measure-dcmomux.sh`): every PIP of each routed design removed by codewords (`gen-pipdrop.mjs`, 20
+  variants, 700 xdl + bitgen runs), `ana-pipdrop.mjs`, `pips-to-db.mjs`. Kept in `measured/learn-16dcm-omux-pips.json`:
+  the DCM tiles' and the clock tiles' switches (250 features: the multiplexer, the clock tiles' and centre tiles' global
+  lines, the side clock tiles' inputs from the side DCMs: `CLKL_OUTB1 -> CLKL_GCLK5`, `CLKR_OUTT1 -> CLKR_GCLK1` one bit
+  each). The fabric's other switches these designs routed were left out (three of them, a CLB's `Y2 ->`, had different
+  bits on the two devices).
+- **Result:** the 35 designs are byte-identical to ISE's bitgen, CRC on and off (one of the XC3S1200E's but for a bit
+  of its long-line splitters, `CLKT_LL ... LH19`, as before). Every output of every DCM of the four devices reaches its
+  four global buffers on known switches (`gen-dcmomux.mjs --list`: 72, 144, 144, 288 pairs, 0 unknown). On the
+  XC3S100E the Basys2's clock pin B8 is still a dedicated clock pad of no DCM (#92 measured them all): its CLKIN goes
+  through general routing, said.
+
+Runtime: 35 designs implemented from HDL (about 4 minutes), 700 xdl + bitgen runs (about 2 hours).
 
 ### The IOB registers' kinds on every pad, the tristate enable from the fabric (2026-10-20, #96, #97)
 
