@@ -8,7 +8,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { simulate } from '../core/compile.js';
-import { newDoc, netlist, generateHdl, netByName, renameNet } from '../core/schdoc.js';
+import { newDoc, netlist, generateHdl, netByName, renameNet, netShort } from '../core/schdoc.js';
 
 const P = (x, y) => ({ x, y });
 const inv = (id, name, x, y) => ({ id, type: 'inv', x, y, rot: 0, mirror: false, name, params: { width: 1 } });
@@ -147,4 +147,64 @@ test('#734 renameNet: a net named like an I/O marker renames the marker too (a p
   const after = netlist(doc);
   assert.equal(after.labelNet.get('L2'), after.wireNet.get('W1'), 'still connected to the marker');
   assert.match(generateHdl(doc).code, /\bb\s*:\s*in\b/i);
+});
+
+// #754: a wire drawn from W2's net (s) to W3's net is a short when W3's net has another name of its own, as ISE's
+// schematic editor says ("Wire would create a short between net x and net y"); the editor refuses it
+const W5 = { id: 'W5', points: [P(220, 100), P(220, 200), P(40, 200), P(40, 300)] };
+const wired = (doc, w = W5) => { const d = structuredClone(doc); d.wires.push(structuredClone(w)); return d; };
+const named = (lang, second) => { const d = byName(lang, second); if (second == null) d.labels.pop(); return d; };
+
+test('#754 netShort: a wire between two nets of different names (net names, I/O markers) is a short', () => {
+  for (const lang of ['vhdl', 'verilog']) {
+    const doc = named(lang, 't');
+    assert.deepEqual(netShort(doc, wired(doc)), ['s', 't'], `${lang}: s and t`);
+    // the same wire in the old code: one net with two names, an error found only later
+    assert.deepEqual(netlist(wired(doc)).diagnostics.map(d => d.message), ['net has several names: s, t'], lang);
+    // a net named after the input marker a, joined to s: a short too
+    const a = named(lang, 'a');
+    assert.deepEqual(netShort(a, wired(a)), ['s', 'a'], `${lang}: s and the marker a`);
+  }
+  // two input markers on one net: a short (each marker names its net)
+  const doc = named('vhdl', null);
+  doc.ports.push({ id: 'P3', name: 'b', dir: 'in', width: 1, x: 40, y: 300 });
+  doc.wires = doc.wires.filter(w => w.id !== 'W3').concat({ id: 'W3', points: [P(40, 300), P(100, 300)] });
+  const w1 = { id: 'W6', points: [P(60, 100), P(60, 200), P(40, 200), P(40, 300)] };
+  assert.deepEqual(netShort(doc, wired(doc, w1)), ['a', 'b']);
+});
+
+test('#754 netShort: not a short: the same name (VHDL: any case), an unnamed net, an output marker on an input\'s net, names one net already had', () => {
+  const same = named('vhdl', 'S');
+  assert.equal(netShort(same, wired(same)), null, 'VHDL: S is s, already one net');
+  const v = named('verilog', 'S');
+  assert.deepEqual(netShort(v, wired(v)), ['s', 'S'], 'Verilog: S is not s');
+  const unnamed = named('vhdl', null);
+  assert.equal(netShort(unnamed, wired(unnamed)), null, 'an unnamed net takes the name s');
+  assert.equal(netShort(unnamed, unnamed), null, 'nothing joined');
+  // an output marker on the input marker's net: y <= a, as the HDL assigns it
+  const fed = named('vhdl', null);
+  fed.ports.push({ id: 'P3', name: 'z', dir: 'out', width: 1, x: 60, y: 160 });
+  assert.equal(netShort(fed, wired(fed, { id: 'W6', points: [P(60, 100), P(60, 160)] })), null, 'an output marker joined');
+  // a net that already had two names (an older document), extended by a wire to U3's input
+  const old = wired(named('vhdl', 't'));
+  old.symbols.push(inv('S3', 'U3', 300, 190));
+  const ext = wired(old, { id: 'W7', points: [P(220, 100), P(300, 100), P(300, 200)] });
+  const en = netlist(ext);
+  assert.equal(en.wireNet.get('W7'), en.wireNet.get('W3'), 'W7 on the net of s and t');
+  assert.equal(netShort(old, ext), null, 'no new short');
+});
+
+test('#754 a wire to an unnamed net (allowed): the VHDL and the Verilog compile and simulate (y = a), no warnings', () => {
+  for (const lang of ['vhdl', 'verilog']) {
+    const doc = wired(named(lang, null));
+    assert.deepEqual(netlist(doc).diagnostics.map(d => d.message), [], `${lang}: no warnings`);
+    const g = generateHdl(doc, { lang });
+    assert.deepEqual(g.diagnostics.map(d => d.message), [], `${lang}: no warnings`);
+    const ext = lang === 'vhdl' ? 'vhd' : 'v';
+    const r = simulate([{ path: `byname.${ext}`, text: g.code }, { path: `tb.${ext}`, text: TB[lang] }], 'tb', { until: 1e6 });
+    assert.deepEqual(r.errors.map(e => e.message), [], `${lang}: compiles\n${g.code}`);
+    const log = r.sim.log.map(l => `${l.kind}:${l.text}`);
+    assert.deepEqual(r.sim.log.filter(l => l.kind === 'error' || l.kind === 'failure'), [], `${lang}: ${log.join('\n')}`);
+    assert.ok(log.some(l => /done/.test(l)), `${lang}: ran to the end`);
+  }
 });
