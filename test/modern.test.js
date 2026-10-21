@@ -53,6 +53,23 @@ test('applyPrefs puts data-ui and data-theme on the root; the classic look is al
   M.applyPrefs(r);
   assert.equal(r.dataset.ui, 'classic');
   assert.equal(r.dataset.theme, 'light', 'the ISE look has no dark theme');
+  assert.equal(r.dataset.layout, undefined);
+});
+
+test('the Tasks interface (#804): the modern look and its own layout, its theme as the modern one\'s', () => {
+  mem.clear();
+  assert.deepEqual(M.INTERFACES, ['modern', 'classic', 'tasks']);
+  const r = fakeRoot();
+  mem.set(M.UI_KEY, 'tasks'); mem.set(M.THEME_KEY, 'dark');
+  assert.deepEqual(M.applyPrefs(r), { ui: 'tasks', theme: 'dark', shown: 'dark' });
+  assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['modern', 'tasks', 'dark']);
+  // back to the modern interface: no layout of its own
+  mem.set(M.UI_KEY, 'modern');
+  M.applyPrefs(r);
+  assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['modern', undefined, 'dark']);
+  mem.set(M.UI_KEY, 'tasks'); M.applyPrefs(r);
+  mem.set(M.UI_KEY, 'classic'); M.applyPrefs(r);
+  assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['classic', undefined, 'light']);
 });
 
 test('setInterface / setTheme store valid values and notify the listeners', () => {
