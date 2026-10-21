@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, keepChains, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE, pathEnds, criticalEnables, foldRemapCommands, speedRemapCommands, FOLD_CE_MAP, FOLD_CE_MAP_FILE, FOLD_CE_FILE, SPEED_ABC, SPEED_RULE, TOP_ONLY, memorySteps, logicMemories, MEMORIES_FILE, LUTRAM_COST, asText } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, keepChains, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, DEPTH_ABC2_LUT4, MFS, DEPTH_ABC_FILE, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE, pathEnds, criticalEnables, foldRemapCommands, speedRemapCommands, FOLD_CE_MAP, FOLD_CE_MAP_FILE, FOLD_CE_FILE, SPEED_ABC, SPEED_RULE, TOP_ONLY, memorySteps, logicMemories, MEMORIES_FILE, LUTRAM_COST, asText } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -890,6 +890,30 @@ test('#54 a register file read at three addresses: its memory as distributed RAM
     assert.deepEqual(r2.depth.lutram, { memories: 1, left: 1, netlist: null, ns: null, luts: null, slices: null, kept: false }, effort);
     assert.deepEqual([r2.util.distributedRam, r2.warnings], [0, []], effort);
   }
+});
+
+// #370: the arbiter's chains share their range terms once balanced, but mfs2's windows (ABC's don't-cares) are of
+// 300 nodes at most: the requests' and the priorities' terms reach more. The fourth candidate (onto LUT4s alone)
+// takes windows of MFS's 5000 nodes (the EPFL arbiter in the corpus's I/O wrapper 2019 -> 1537 LUTs, 1010 -> 769
+// slices, as deep); the other candidates and the GIA's SOP balancing keep mfs2's own windows
+test('#370 the fourth candidate with mfs2\'s windows of 5000 nodes: a 32-request arbiter in 320 LUTs instead of 354, as deep and as fast by the estimate, equal to the RTL', { timeout: 300000 }, async () => {
+  assert.equal(MFS, 'mfs2 -M 5000');
+  assert.equal(DEPTH_ABC2_LUT4, DEPTH_ABC2.replaceAll('mfs2', 'mfs2 -M 5000'));
+  for (const s of [DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, DEPTH_SOPB]) assert.ok(!s.includes(' -M '), s);
+  const d = elaborate(compile([{ path: 'arb.v', lang: 'verilog', text: arbiter(32) }]), 'arb');
+  const { text, top } = toVerilog(d);
+  const out = await yosysNode(['-q', '-p', yosysScript(top, 'spartan3e', { premap: PREMAP_FILE })], yosysFiles(top, text));
+  const map = async script => {
+    const o = await yosysNode(['-q', '-p', `${remapCommands(top, 'spartan3e', { luts: '1,1,1,1' })}; delete t:$scopeinfo; ${TOP_ONLY}; write_json -selected ${top}.json`],
+      { [PREMAP_FILE]: String(out[PREMAP_FILE]), [DEPTH_ABC_FILE]: script });
+    const j = o[`${top}.json`];
+    return { top, files: { [`${top}.json`]: j }, luts: utilization(cellCounts(j, top)).luts, slices: sliceCount(j, top), ns: +criticalDelay(j, top).toFixed(2), levels: logicLevels(j, top) };
+  };
+  const a = await map(DEPTH_ABC2), b = await map(DEPTH_ABC2_LUT4);
+  assert.deepEqual([a.luts, a.slices, a.ns, a.levels], [354, 177, 8.77, 7]);
+  assert.deepEqual([b.luts, b.slices, b.ns, b.levels], [320, 160, 8.77, 7]);
+  const c = compareNetlist(d, b, { name: 'mfs-arbiter', seed: 'arb32', sim: { cycles: 400 } });
+  assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
 });
 
 // #78: the LUT delays, ABC's script inline (YoWASP's ABC crashes on read_lut from a script file)
