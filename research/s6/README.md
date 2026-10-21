@@ -89,6 +89,59 @@ board, map's slices (by kind), LUTs, flip-flops, block RAMs and DSP48A1s, par's 
 minimum period; per part, the empty bitstream's packets (registers written, word counts, the frame data's
 length) and the device report's tile, site and PIP counts.
 
+## Results of night 1 (2026-10-21)
+
+Run on the Mac mini with ISE 14.7 (09:32–11:10, with the measurement queue's other jobs waiting: next time take a
+slot first). Silinx's record: [measured/night1.json](measured/night1.json) (`summarize-night1.mjs`: counts and
+observations, no Xilinx file; the reports, bitstreams and XDL stay in the work folder, outside the repository).
+
+**Times** (the estimates above were pessimistic): an example from HDL 1–2 min (xst 11–17 s, map 9–24 s, par
+9–21 s), 516 s for the 14 at 3 containers; the 14 netlists 194–226 s; the empty designs 39 s; the device report of
+the XC6SLX16 942 s (48 MB gzipped), of the XC6SLX45 2816 s (132 MB gzipped).
+
+**The devices** (the reports' summaries; DS160's slices exactly):
+
+| Part | Tiles | Sites | PIPs | SLICEX | SLICEL | SLICEM | RAMB16BWER | DSP48A1 | BUFGMUX | BUFH | BUFIO2 | DCM | PLL_ADV | ILOGIC2 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| XC6SLX16-CSG324 | 4 526 | 5 378 | 5 782 505 | 1 139 | 595 | 544 | 32 | 32 | 16 | 128 | 32 | 4 | 2 | 248 |
+| XC6SLX45-CSG324 | 12 690 | 13 830 | 16 299 860 | 3 411 | 1 809 | 1 602 | 116 | 58 | 16 | 256 | 32 | 8 | 4 | 376 |
+
+The CLB tiles are CLEXL (SLICEL + SLICEX) and CLEXM (SLICEM + SLICEX); the switch boxes INT, INT_BRAM, IOI_INT, INT_TERM.
+
+**The bitstream** (the empty designs, `bits6.mjs`, for #724): the packet sequence starts `CMD 0007` (RCRC), then FLR
+`0430` (XC6SLX16) / `0628` (XC6SLX45), COR1 `3d10`, COR2 `09ee`, IDCODE `0400 2093` / `0400 8093` (UG380's), MASK,
+CTL `0081`, CCLK_FREQ `3cc8`, PWRDN_REG, EYE_MASK, HC_OPT_REG `001f`, CWDT `ffff`, PU_GWE, PU_GTS, MODE_REG `0100`,
+GENERAL1–5, SEU_OPT `1be2`, EXP_SIGN, FAR_MAJ / FAR_MIN `0000 0000`, CMD WCFG, then one Type 2 FDRI of 231 953 words
+(XC6SLX16) / 742 057 (XC6SLX45), followed by two words `9876 defc` that the reader takes for unknown packets (the
+auto-CRC words after the frame data, to be read as such), the end sequence (GRESTORE, LFRM, START, CRC, DESYNC).
+FLR is not the frame length of 65 words: its meaning, and the frames' order, are #724's first questions.
+
+**The examples on ISE** (all routed, every signal): occupied slices from HDL (XST) / from Silinx's netlist (open):
+
+| Example | Nexys3 XST | Nexys3 open | Atlys XST | Atlys open | open: SLICEL map / packer | open: SLICEX map / packer |
+|---|---|---|---|---|---|---|
+| gates | 1 | 1 | 1 | 1 | 0 / 0 | 1 / 1 |
+| traffic | 44 | 45 | 46 | 47 | 20 / 20 | 25 / 14 |
+| blinky | 60 | 53 | 65 | 51 | 21 / 21 | 32 / 14 |
+| pong | 114 | 141 | 114 | 141 | 57 / 57 | 84 / 60 |
+| stopwatch | 85 | 113 | 82 | 113 | 42 / 42 | 71 / 42 |
+| clock | 108 | 119 | 112 | 116 | 51 / 51 | 68 / 36 |
+| vga | 57 | 61 | 58 | 60 | 30 / 30 | 31 / 22 |
+
+**What it says about the packer (#721):**
+- its SLICELs are map's exactly, on every example (the carry chains and the F7 / F8 as map packs them);
+- map uses many more SLICEX than the packer: it places while it packs (Spartan-6's map), and spreads the logic: 14 of
+  blinky's 32 SLICEX hold one LUT and nothing else; it never uses a 5FF; its SLICELs take DI from O5 in every
+  position. Occupied slices are a placement result, not a packing one: the comparison with map is made by slice kind
+  and by the cells in them, the SLICEX density being the placer's (#729) concern;
+- map counts every LUT site it uses (the carry chain's constant and route-through LUTs at S too): pong 416 against
+  the packer's 275 LUT cells;
+- the netlist's unused inputs are gone from it, so its implementations need `ngdbuild -aul` (the LOC of a port that is
+  not there);
+- the clock example's 2-bit adder, whose sum and carry out both need BMUX (the packer's one warning): map sends the
+  carry out by BMUX (`BOUTMUX::CY`) and the sum through the B storage element set as a gate (`BFF … #AND2L`,
+  `BFFMUX::XOR`, "used as AND/OR logics" in its report), out by BQ: the rule the packer takes next (#721).
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6

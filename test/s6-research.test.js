@@ -152,5 +152,8 @@ test('ise-s6.sh and night1-remote.sh: their syntax, the usage, the host asked fo
   const r = spawnSync('bash', [path.join(S6, 'night1-remote.sh'), os.tmpdir()], { encoding: 'utf8', env });
   assert.notEqual(r.status, 0);
   assert.match(r.stderr, /SILINX_ISE_HOST: set SILINX_ISE_HOST=user@host/);
-  for (const f of fs.readdirSync(S6)) assert.doesNotMatch(fs.readFileSync(path.join(S6, f), 'utf8'), /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\.local\b/, f);
+  // (the scripts and the measurements: no address, no host, no user's home)
+  for (const f of fs.readdirSync(S6, { recursive: true }).filter(f => fs.statSync(path.join(S6, f)).isFile())) {
+    assert.doesNotMatch(fs.readFileSync(path.join(S6, f), 'utf8'), /\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\.local\b|\/Users\/|\/home\//, f);
+  }
 });

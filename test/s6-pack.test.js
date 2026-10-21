@@ -6,6 +6,7 @@
 // comparison with ISE's map comes with the first measurement night, research/s6/README.md).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { compile, elaborate } from '../core/compile.js';
 import { synthesizeOpen } from '../core/synth-open.js';
 import { yosysNode } from '../core/synth-open-node.js';
@@ -175,6 +176,21 @@ const EXAMPLE_PACK = {
   clock: { slices: 87, X: 36, L: 51, M: 0, luts: 161, ffs: 174, warnings: 1 },
   vga: { slices: 52, X: 22, L: 30, M: 0, luts: 129, ffs: 56, warnings: 0 },
 };
+// map's packing of the same netlists on ISE (research/s6/measured/night1.json, night 1): its SLICELs are the packer's
+// (the carry chains and the wide multiplexers); its SLICEX are a placement's, more (research/s6/README.md)
+test('the packer\'s SLICELs are those of ISE\'s map on the same netlists, every example on the Nexys3 and the Atlys (night 1)', () => {
+  const night1 = JSON.parse(fs.readFileSync(new URL('../research/s6/measured/night1.json', import.meta.url), 'utf8'));
+  for (const board of ['nexys3', 'atlys']) {
+    for (const name of EXAMPLES) {
+      const open = night1.boards[board].examples[name].open;
+      assert.equal(open.routed, true, `${board} ${name}`);
+      assert.equal(open.sites.SLICEL || 0, EXAMPLE_PACK[name].L, `${board} ${name}`);
+      assert.equal(open.sites.SLICEM || 0, EXAMPLE_PACK[name].M, `${board} ${name}`);
+      assert.ok(open.sites.SLICEX >= EXAMPLE_PACK[name].X, `${board} ${name}: map's SLICEX ${open.sites.SLICEX}, the packer's ${EXAMPLE_PACK[name].X}`);
+    }
+  }
+});
+
 test('every example packs into legal slices for the XC6SLX16 (the slices by kind, the warnings)', { timeout: 300000 }, async () => {
   assert.deepEqual(Object.keys(EXAMPLE_PACK), EXAMPLES);
   for (const name of EXAMPLES) {

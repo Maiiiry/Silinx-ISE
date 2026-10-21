@@ -13,8 +13,8 @@ source /opt/Xilinx/14.7/ISE_DS/settings64.sh >/dev/null 2>&1
 mode=$1; shift
 t() { local s=$(date +%s); "$@"; local rc=$?; echo "$STEP $(( $(date +%s) - s ))" >> times.txt; return $rc; }
 
-backend() {   # ngdbuild input -> map, par, trce, XDL; $1 the part, $2 the netlist
-  STEP=ngdbuild t ngdbuild -p "$1" -uc top.ucf "$2" top.ngd > ngd.log 2>&1 || { echo "$PWD: ngdbuild FAILED"; return 1; }
+backend() {   # ngdbuild input -> map, par, trce, XDL; $1 the part, $2 the netlist, $3 more ngdbuild options
+  STEP=ngdbuild t ngdbuild -p "$1" $3 -uc top.ucf "$2" top.ngd > ngd.log 2>&1 || { echo "$PWD: ngdbuild FAILED"; return 1; }
   STEP=map t map -w -p "$1" -o top_map.ncd top.ngd top.pcf > map.log 2>&1 || { echo "$PWD: map FAILED"; return 1; }
   STEP=par t par -w top_map.ncd top.ncd top.pcf > par.log 2>&1 || { echo "$PWD: par FAILED"; return 1; }
   STEP=trce t trce -v 10 -u 10 top.ncd top.pcf -o top.twr > trce.log 2>&1
@@ -38,6 +38,7 @@ case "$mode" in
   empty)
     cd "$1" || exit 1
     for x in *.xdl; do
+      [ -f "$x" ] || { echo "$PWD: no .xdl design"; exit 1; }
       b=${x%.xdl}; [ -s "$b.bit" ] && continue
       STEP="xdl2ncd $b" t xdl -xdl2ncd -force "$x" "$b.ncd" > "$b.xlog" 2>&1 || { echo "$b: xdl2ncd FAILED"; continue; }
       STEP="bitgen $b" t bitgen -w -d -g CRC:Disable "$b.ncd" "$b.bit" > "$b.blog" 2>&1 || echo "$b: bitgen FAILED"
@@ -65,7 +66,8 @@ case "$mode" in
           STEP=bitgen t bitgen -w -d -g CRC:Disable top.ncd top.bit > bitgen.log 2>&1
           cp top.ncd top.crc.ncd; bitgen -w -d top.crc.ncd top.crc.bit > bitgen-crc.log 2>&1; rm -f top.crc.ncd
         else
-          backend "$part" top.edf || exit 1
+          # (-aul: the open synthesis drops the inputs the design does not use, whose LOC then matches nothing)
+          backend "$part" top.edf -aul || exit 1
         fi
       )
     done
