@@ -2,7 +2,7 @@
 // (XC3S250E) using IBUFG, DCM_SP, BUFG, a RAMB16_S9 with its contents and a MULT18X18SIO, with a counter, a bus join
 // and a bus tap of the library, its HDL generated in VHDL and in Verilog, synthesized, mapped, placed, routed and
 // its bitstream written with no warning; the generated HDL simulated: the LEDs show the product of the ROM's words
-// and the switches.
+// and the switches. A BUFGMUX (#846) switching a counter between the board's two clocks, the same way.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultParams, symbolDef, newDoc, netlist, generateHdl } from '../core/schdoc.js';
@@ -85,5 +85,75 @@ for (const lang of ['vhdl', 'verilog']) {
     // the primitives in the design: the MAP report's
     const map = r.lines.join('\n');
     for (const x of [/RAMB16/, /MULT18X18/, /DCM/]) assert.match(map, x);
+  });
+}
+
+// a clock switch (#846): the BUFGMUX of the library chooses the Basys2's oscillator (B8, I0) or the clock socket's
+// (M6, I1) by SW0 for an 8-bit counter on the LEDs
+function switchDesign(lang) {
+  const doc = newDoc('top', lang);
+  let w = 0;
+  const stub = (x, y, side, net) => {
+    const dx = side === 'W' ? -20 : 20;
+    doc.wires.push({ id: `W${++w}`, points: [{ x, y }, { x: x + dx, y }] });
+    doc.labels.push({ id: `L${w}`, x: x + dx, y, net });
+  };
+  const sym = (k, type, params, conns) => {
+    const s = { id: `S${k}`, type, x: 200 + 400 * k, y: 200, rot: 0, mirror: false, name: `X${k}`, params: { ...defaultParams(type), ...params } };
+    doc.symbols.push(s);
+    for (const q of symbolDef(s).pins) if (conns[q.name]) stub(s.x + q.x, s.y + q.y, q.side, conns[q.name]);
+  };
+  [['clka', 'in', 1], ['clkb', 'in', 1], ['sel', 'in', 1], ['led', 'out', 8]].forEach(([name, dir, width], i) => {
+    const x = dir === 'in' ? 60 : 1800, y = 1200 + 60 * i;
+    doc.ports.push({ id: `P${i}`, name, dir, width, x, y });
+    stub(x, y, dir === 'in' ? 'E' : 'W', name);
+  });
+  sym(1, 'bufgmux', {}, { I0: 'clka', I1: 'clkb', S: 'sel', O: 'clk' });
+  sym(2, 'counter', { width: 8, en: false, reset: 'none' }, { C: 'clk', Q: 'led' });
+  return doc;
+}
+
+for (const lang of ['vhdl', 'verilog']) {
+  test(`${lang}: a schematic of a BUFGMUX switching a counter between two clocks, built by the Silinx toolchain for the XC3S250E with no warning (#846)`, { timeout: 600000 }, async () => {
+    const doc = switchDesign(lang);
+    assert.deepEqual(netlist(doc).diagnostics.map(d => d.message), []);
+    const g = generateHdl(doc, { lang });
+    assert.deepEqual(g.diagnostics.map(d => d.message), []);
+    assert.match(g.code, lang === 'vhdl' ? /X1 : BUFGMUX\n?\s*port map/ : /BUFGMUX X1 \(/);
+    const src = { path: g.filename, lang, text: g.code };
+
+    // simulated: the counter counts the edges of the clock SW0 chooses
+    const lib = compile([...primitiveSources([src]), src]);
+    const d = elaborate(lib, 'top');
+    assert.deepEqual([...lib.errors, ...d.diags].filter(x => x.severity === 'error').map(x => x.message), []);
+    const s = new Simulator(d);
+    const port = n => d.top.ports.find(p => p.name.toLowerCase() === n).sig;
+    const count = () => Number(port('led').val.v);
+    let t = 0;
+    // clka every 20 ns, clkb every 60 ns (rising at 10 and 30 ns of each 60 ns)
+    const run = (ns, sel) => {
+      s.force(port('sel'), V.mk(1, BigInt(sel)));
+      for (const end = t + ns; t < end; t += 10) {
+        s.force(port('clka'), V.mk(1, (t / 10) % 2 === 1 ? 1n : 0n));
+        s.force(port('clkb'), V.mk(1, (t / 30) % 2 === 1 ? 1n : 0n));
+        s.run(t + 10);
+      }
+    };
+    run(600, 0);
+    const a0 = count();
+    run(1200, 0);
+    assert.equal((count() - a0 + 256) % 256, 60, 'on clka: one count every 20 ns');
+    run(600, 1);
+    const b0 = count();
+    run(1200, 1);
+    assert.equal((count() - b0 + 256) % 256, 20, 'on clkb: one count every 60 ns');
+
+    const ucf = 'NET "clka" LOC = "B8" ;\nNET "clkb" LOC = "M6" ;\nNET "sel" LOC = "P11" ;\n'
+      + 'NET "clka" TNM_NET = "clka" ;\nTIMESPEC "TS_clka" = PERIOD "clka" 20 ns HIGH 50% ;\nNET "clkb" TNM_NET = "clkb" ;\nTIMESPEC "TS_clkb" = PERIOD "clkb" 60 ns HIGH 50% ;\n'
+      + ['M5', 'M11', 'P7', 'P6', 'N5', 'N4', 'P4', 'G1'].map((l, i) => `NET "led<${i}>" LOC = "${l}" ;\n`).join('');
+    const r = await flow({ top: 'top', steps: orderOpenSteps(['bitgen']) }, [src], [], ucf);
+    assert.equal(r.ok, true, r.lines.join('\n'));
+    assert.deepEqual(r.lines.filter(l => /warning/i.test(l)), []);
+    assert.ok(r.store['top.bit'], 'the bitstream');
   });
 }

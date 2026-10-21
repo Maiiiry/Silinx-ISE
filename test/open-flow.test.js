@@ -202,6 +202,12 @@ const FEATURES = {
   // two clocks on side GCLK pins (#641): each on its own side buffer, through its side clock tile's CKIk, as ISE pairs them
   feat_side_clock: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "[^"]+" "BUFGMUX",placed CLKL_X0Y23 BUFGMUX_X0Y6 /m, /^inst "[^"]+" "BUFGMUX",placed CLKR_X35Y23 BUFGMUX_X3Y9 /m,
     /^ {2}pip CLKL_X0Y23 CLKL_CKI4 -> CLKL_GCLK4 ,$/m, /^ {2}pip CLKR_X35Y23 CLKR_CKI7 -> CLKR_GCLK7 ,$/m], [/IOIS_F\d_B3 ,/]],
+  // a clock switch (#846): a BUFGMUX choosing between the two clock pins, I1 / S used (SINV not inverted); clka also
+  // on a BUFG of its own (X2Y11), so the switch on another pair (its I1 is the line of its partner's I0): from clka's
+  // pad, not from the BUFG's global line through the fabric
+  feat_bufgmux: [/^pack \(\d+ slices\)/m, 'BUFGMUX', [/^inst "u_mux" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X1Y11 +,\n {2}cfg " DISABLE_ATTR::LOW I0_USED::0 I1_USED::0 SINV::S GCLKMUX:u_mux: "/m,
+    /^inst "[^"]+" "BUFGMUX",placed CLKT_X13Y35 BUFGMUX_X2Y11 /m, /^net "[^"]+" , \n {2}outpin "clka" I ,\n {2}inpin "[^"]+" I0 ,\n {2}inpin "u_mux" I0 ,$/m,
+    /^ {2}pip CLKT_X13Y35 CLKT_GCLK3 -> CLKT_GCLKIN12 ,$/m, /^ {2}pip CLKT_X13Y35 CLKV_\w+ -> CLKT_SELDUB2 ,$/m], [/BUFGMUX_X2Y10/, /BUFGMUX_X1Y10/, /CLKT_TO_OMUX/]],
   feat_dcm: [/^pack \(\d+ slices\)/m, 'DCM'],
   // STARTUP_WAIT (its bit and the COR register), CLKFX under 5 MHz, two of the clock outputs (stage F)
   feat_dcm_wait: [/^pack \(\d+ slices\)/m, 'DCM', [/STARTUP_WAIT::STARTUP_WAIT/, /CLKFX_DIVIDE::32 /]],
