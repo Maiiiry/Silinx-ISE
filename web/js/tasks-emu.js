@@ -37,20 +37,18 @@ export function fitBoard(on) {
   }
 }
 
-/** Fits the boards whenever the workspace's size changes or an emulator's board appears. */
+/** Fits the boards whenever the workspace's size changes or an emulator's board appears (in the Tasks interface). */
 export function initEmulate(on) {
   const ws = document.getElementById('workspace');
   let soon = false;
   const later = () => { if (soon) return; soon = true; requestAnimationFrame(() => { soon = false; fitBoard(on()); }); };
   new ResizeObserver(later).observe(ws);
-  // (an emulator builds its board after its document opens, once its design is compiled: watched until it is there)
-  new MutationObserver(ms => {
-    for (const m of ms) for (const doc of m.addedNodes) {
-      if (doc.nodeType !== 1) continue;
-      const mo = new MutationObserver(() => { if (doc.querySelector('.emu-board-wrap')) { mo.disconnect(); later(); } });
-      mo.observe(doc, { childList: true, subtree: true });
-      setTimeout(() => mo.disconnect(), 120000);
-    }
-  }).observe(ws, { childList: true });
+  // (an emulator builds its board after its document opens, once its design is compiled: a board appearing is watched
+  // in the Tasks interface only, by one observer and no timer, so that no closed document is kept: #879)
+  const isBoard = n => n.nodeType === 1 && (n.matches('.emu-board-wrap') || !!n.querySelector('.emu-board-wrap'));
+  const boards = new MutationObserver(ms => { if (ms.some(m => [...m.addedNodes].some(isBoard))) later(); });
+  const watch = () => { if (document.documentElement.dataset.layout === 'tasks') boards.observe(ws, { childList: true, subtree: true }); else boards.disconnect(); };
+  new MutationObserver(watch).observe(document.documentElement, { attributes: true, attributeFilter: ['data-layout'] });
+  watch();
   return later;
 }
