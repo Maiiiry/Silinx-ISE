@@ -7,6 +7,8 @@
 set -e
 : "${SILINX_FUZZ_HOST:?set SILINX_FUZZ_HOST=user@host}"
 W=${W:-/tmp/claude-501/bg}; RW=${RW:-silinx-fuzz}
+# (an absolute RW, e.g. under /Users/Shared/silinx-ise/build where Docker Desktop shares folders, #482; else in the home)
+case "$RW" in /*) MNT=$RW ;; *) MNT='$HOME/'$RW ;; esac
 OPTS=(); while [[ "$1" == -* ]]; do OPTS+=("$1"); [[ "$1" == -P || "$1" == -g ]] && { OPTS+=("$2"); shift; }; shift; done
 SSH=(ssh -o BatchMode=yes -o ServerAliveInterval=60 -o ServerAliveCountMax=10 "$SILINX_FUZZ_HOST")
 "${SSH[@]}" "mkdir -p $RW"
@@ -27,7 +29,7 @@ for d in "$@"; do
 done
 [ "$reused" = 0 ] || echo "$reused results of an earlier run reused (same .xdl)"
 start=$(date +%s)
-"${SSH[@]}" "export PATH=\"\$PATH:/usr/local/bin\"; docker run --rm --network none -v \"\$HOME/$RW\":/w xilinx/ise:14.7 bash /w/run-many.sh ${OPTS[*]} $(printf '/w/%s ' "$@")" | grep -v '^DONE' || true
+"${SSH[@]}" "export PATH=\"\$PATH:/usr/local/bin\"; docker run --rm --network none -v \"$MNT\":/w xilinx/ise:14.7 bash /w/run-many.sh ${OPTS[*]} $(printf '/w/%s ' "$@")" | grep -v '^DONE' || true
 for d in "$@"; do
   rsync -a -e "ssh -o BatchMode=yes -o ServerAliveInterval=60 -o ServerAliveCountMax=10" --include='*.bit' --include='*log' --exclude='*' "$SILINX_FUZZ_HOST:$RW/$d/" "$W/$d/"
   "${SSH[@]}" "rm -f $RW/$d/*.ncd"

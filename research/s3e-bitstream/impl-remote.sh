@@ -8,6 +8,8 @@
 set -e
 : "${SILINX_FUZZ_HOST:?set SILINX_FUZZ_HOST=user@host}"
 W=${W:-/tmp/claude-501/bg2}; RW=${RW:-silinx-fuzz2}; PART=${PART:-xc3s250e-cp132-4}
+# (an absolute RW, e.g. under /Users/Shared/silinx-ise/build where Docker Desktop shares folders, #482; else in the home)
+case "$RW" in /*) MNT=$RW ;; *) MNT='$HOME/'$RW ;; esac
 P=4; if [ "$1" = -P ]; then P=$2; shift 2; fi
 SSH=(ssh -o BatchMode=yes -o ServerAliveInterval=60 -o ServerAliveCountMax=10 "$SILINX_FUZZ_HOST")
 "${SSH[@]}" "mkdir -p $RW"
@@ -29,7 +31,7 @@ pids=()
 for ((k = 0; k < P; k++)); do
   set_k=(); i=0; for d in "$@"; do (( i % P == k )) && set_k+=("/w/$d"); i=$((i + 1)); done
   [ ${#set_k[@]} -eq 0 ] && continue
-  "${SSH[@]}" "export PATH=\"\$PATH:/usr/local/bin\"; docker run --rm --network none -e PART=$PART -v \"\$HOME/$RW\":/w xilinx/ise:14.7 bash /w/ise-impl.sh ${set_k[*]}" &
+  "${SSH[@]}" "export PATH=\"\$PATH:/usr/local/bin\"; docker run --rm --network none -e PART=$PART -v \"$MNT\":/w xilinx/ise:14.7 bash /w/ise-impl.sh ${set_k[*]}" &
   pids+=($!)
 done
 for p in "${pids[@]}"; do wait "$p" || true; done

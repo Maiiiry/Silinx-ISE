@@ -1,0 +1,6 @@
+{"m1a":{"bufs":[{"site":"BUFGMUX_X0Y2","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X0Y4","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X0Y6","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X0Y8","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y3","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y5","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y7","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y9","kind":"BUFGMUX_1"}]},
+ "m1b":{"bufs":[{"site":"BUFGMUX_X0Y3","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X0Y5","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X0Y7","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X0Y9","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y2","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y4","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y6","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X3Y8","kind":"BUFGMUX_1"}]},
+ "m1c":{"bufs":[{"site":"BUFGMUX_X2Y11","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X1Y11","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X1Y1","kind":"BUFGMUX_1"}],"clkPin":"M6"},
+ "m1d":{"bufs":[{"site":"BUFGMUX_X2Y10","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X1Y10","kind":"BUFGMUX_1"},{"site":"BUFGMUX_X1Y0","kind":"BUFGMUX_1"}],"clkPin":"M6"},
+ "m1e":{"bufs":[{"site":"BUFGMUX_X2Y1","kind":"BUFGMUX_1"}]},
+ "m1f":{"bufs":[{"site":"BUFGMUX_X2Y0","kind":"BUFGMUX_1"}]}}

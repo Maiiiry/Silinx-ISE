@@ -8,7 +8,9 @@
 //   SILINX_ISE_HOST=user@host node scripts/check-open-flow.mjs [project folder [open-flow options] …]   (default: examples/blinky)
 //   SILINX_ISE_HOST=local …: the ISE Docker image on this machine (the self-hosted runner of
 //   .github/workflows/ise.yml), no ssh
-//   (also: SILINX_ISE_IMAGE, default xilinx/ise:14.7). Needs the device cache (~/.silinx/devices).
+//   (also: SILINX_ISE_IMAGE, default xilinx/ise:14.7; SILINX_ISE_REMOTE_DIR, the host's folder for the work, default
+//   ~/silinx-open-check: an absolute one where Docker Desktop shares folders, /Users/Shared/silinx-ise/build, #482).
+//   Needs the device cache (~/.silinx/devices).
 // Options after a project folder go to its open flow (e.g. `examples/pong --seed 2 --timing-route 0`); the
 // same project may be given several times with different options. With SILINX_KEEP=1 the work
 // folder is kept, with ISE's timing report (routed.twr, trce -a) and every connection's delay
@@ -53,14 +55,18 @@ if (!names.length) process.exit(1);
 
 // 2. ISE, on the remote host (or here, SILINX_ISE_HOST=local): xdl -xdl2ncd, drc, bitgen (CRC on and off)
 // a folder of its own on the host (other checks may run there at the same time)
-const remote = `silinx-open-check/${path.basename(work)}`;
+// (SILINX_ISE_REMOTE_DIR: an absolute folder on the host, e.g. /Users/Shared/silinx-ise/build where Docker Desktop shares
+// folders, #482; by default one in the home)
+const remoteBase = process.env.SILINX_ISE_REMOTE_DIR || 'silinx-open-check';
+const remote = `${remoteBase}/${path.basename(work)}`;
+const mount = remote.startsWith('/') ? remote : `$HOME/${remote}`;
 fs.copyFileSync(path.join(ROOT, 'research/s3e-route/ise-open-check.sh'), path.join(work, 'ise-open-check.sh'));
 let out;
 if (LOCAL) out = run('docker', ['run', '--rm', '--platform', 'linux/amd64', '-v', `${work}:/w`, IMAGE, 'bash', '/w/ise-open-check.sh', '/w', ...names]);
 else {
   ssh(`rm -rf ${remote} && mkdir -p ${remote}`);
   run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', `${work}/`, `${HOST}:${remote}/`]);
-  out = ssh(`docker run --rm -v "$HOME/${remote}":/w ${IMAGE} bash /w/ise-open-check.sh /w ${names.join(' ')}`);
+  out = ssh(`docker run --rm -v "${mount}":/w ${IMAGE} bash /w/ise-open-check.sh /w ${names.join(' ')}`);
   run('rsync', ['-a', '-e', 'ssh -o BatchMode=yes', '--include=*/', '--include=ise*.bit', '--include=drc.log', '--include=xdl2ncd.log', '--include=routed.twr', '--include=routed.dly', '--exclude=*', `${HOST}:${remote}/`, `${work}/`]);
   ssh(`rm -rf ${remote}`);
 }

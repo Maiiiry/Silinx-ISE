@@ -421,7 +421,7 @@ CLK270, CLK2X180, CLKFX180 on a global buffer and the other three DCMs (no measu
 from another pad, `STARTUP_WAIT` (it also changes the COR register), `CLKIN_DIVIDE_BY_2`,
 `DESKEW_ADJUST = SOURCE_SYNCHRONOUS`, input periods other than 20 ns (the bitstream would lack
 2 bits: "features not in the bit database"), BUFGMUX clock switching (I1 / S measured on one buffer
-only), the SRLC16 cascade output and the multiplier cascade (BCIN / BCOUT) (since: the SRLC16E chains of up to
+only; since: every buffer, #846), the SRLC16 cascade output and the multiplier cascade (BCIN / BCOUT) (since: the SRLC16E chains of up to
 4 through Q15, #2).
 
 ### Stage F: the other Spartan-3E devices — XC3S100E, XC3S500E, XC3S1200E (2026-10-11)
@@ -672,7 +672,8 @@ flip-flops in the same quadrant of that half (the open flow with twelve clocks f
 that reason: `GCLKVMLR_GCLK_UP1` driven by both). The input of a side buffer comes from the I/O
 tiles beside the clock tile (`CLKL_UP_IOIS_F*_B3`, `…_DN_…`: a pad of the side's clock inputs or the
 fabric) or, on the XC3S1200E, a side DCM. A BUFGMUX that switches (I1, S) is refused by the packer
-on every buffer still; the database has its bits now.
+on every buffer still; the database has its bits now (since #846 the open flow builds it: a switch is
+kept off the other buffer of its pair, whose I0 line is its I1).
 
 Runtime #45: 30 designs implemented from HDL (two with BUFGCE refused by map), 3 + 8 xdl + bitgen runs,
 about 30 minutes of wall time.
