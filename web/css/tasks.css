@@ -48,6 +48,13 @@ html[data-layout="tasks"] #task-bar { display: flex; align-items: center; gap: 2
 html[data-layout="tasks"] #task-bar .tb-btn[aria-pressed="true"] { background: var(--m-accent-soft); color: var(--m-accent); }
 html[data-layout="tasks"] #task-bar .tb-btn svg { width: 18px; height: 18px; }
 html[data-layout="tasks"] #task-bar .task-main { margin-left: 8px; }
+/* a task with a single document (#854): no tab bar; its module and model in the task's bar */
+html[data-layout="tasks"][data-single="on"] #doc-tabs { display: none; }
+html[data-layout="tasks"] #task-doc:not([hidden]) { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; padding-left: 10px;
+  border-left: 1px solid var(--m-border); white-space: nowrap; min-width: 0; }
+#task-doc .task-doc-mod { font-weight: 650; overflow: hidden; text-overflow: ellipsis; max-width: 200px; }
+#task-doc .task-doc-model { color: var(--m-muted); }
+#task-doc .task-doc-model:empty { display: none; }
 
 /* ------------------------------------------------------------------ the current task's documents only */
 html[data-layout="tasks"][data-task="edit"] :is(#workspace > .doc, #doc-tabs > .tab):not([data-task="edit"]),

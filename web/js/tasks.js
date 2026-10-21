@@ -9,6 +9,9 @@
 //   their tabs, a document maximized or not, and its documents (the tabs of the other tasks are hidden),
 //   the last one in front; a document brought to the front makes its task the current one;
 // - the messages: the bottom panel as the message centre (web/js/messages.js, #798), its filter following the task;
+// - a task whose document is single by nature (Simulate: ISim; Emulate: the board; Program: iMPACT, one each,
+//   web/js/viewers.js) shows no tab bar: what the tab said (the module, the model) and its close are in the task's
+//   bar (#854);
 // - the task's bar (the toolbar's right end): the fold and maximize buttons and the task's main action
 //   (the modern toolbar's design-flow buttons, [data-step]), also offered when the task has no document.
 // A document is maximized by double-clicking its tab, Ctrl/Cmd+Shift+Enter or the bar's button.
@@ -40,6 +43,7 @@ const ICON = {
   max: L('<path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5"/>'),
   side: icons.mPanel,
   msgs: L('<path d="M4 4h16v12H9l-5 4z"/>'),
+  close: L('<path d="M6 6l12 12M18 6L6 18"/>'),
 };
 
 // the side panel and the messages of a task the first time (the task in front gets the space)
@@ -81,6 +85,15 @@ export function arrangement(task, kept = {}, narrow = false) {
   const a = { ...DEFAULTS[task], max: false, ...kept };
   if (narrow) a.side = false;
   return a;
+}
+
+// the tasks whose document is single by nature: a new simulation, emulation or iMPACT replaces the old one
+export const SINGLE = ['sim', 'emu', 'prog'];
+/** What a document's title says of it: "ISim (top, Post-Synthesis)" → { module: 'top', model: 'Post-Synthesis' }
+ *  (a behavioural model: null); a title with no module (iMPACT): { module: null, model: null }. */
+export function docDetail(title) {
+  const m = /\(([^,()]+)(?:, ([^()]+))?\)$/.exec(String(title || ''));
+  return { module: m ? m[1].trim() : null, model: m?.[2]?.trim() || null };
 }
 
 const RANK = { err: 4, running: 3, stale: 2, warn: 1, ok: 0 };
@@ -153,12 +166,26 @@ function apply() {
 function tagDocs() {
   const S = app?.S;
   if (!S) return;
-  let mine = 0;
+  let mine = 0, only = null;
   for (const d of S.docs) {
     const t = taskOfDoc(d.id);
     if (d.el.dataset.task !== t) d.el.dataset.task = t;
     if (d.tab.dataset.task !== t) d.tab.dataset.task = t;
-    if (t === current()) mine++;
+    if (t === current()) { mine++; only = d; }
+  }
+  // a task whose document is single by nature: no tab bar (none open: its page); the document's module and model,
+  // and its close, in the task's bar (#854)
+  const single = on() && SINGLE.includes(current()) && mine <= 1;
+  const r = root();
+  if (single) r.dataset.single = 'on'; else delete r.dataset.single;
+  const info = document.getElementById('task-doc');
+  if (info) {
+    const doc = single && mine === 1 ? only : null;
+    info.hidden = !doc;
+    const { module, model } = docDetail(doc?.title);
+    info.querySelector('.task-doc-mod').textContent = doc ? module || doc.title : '';
+    info.querySelector('.task-doc-model').textContent = !doc || !module ? '' : model || (current() === 'sim' ? 'Behavioral' : 'Behavioral (RTL)');
+    info._doc = doc;
   }
   const empty = document.getElementById('task-empty');
   if (empty) {
@@ -181,7 +208,10 @@ function followActive() {
   const d = app?.S.active;
   if (!on()) return;
   if (!d || d === lastActive) { tagDocs(); return; }
+  // (the document in front was closed and another came forward in its place: the task stays, its page shown, #854)
+  const closed = lastActive && !app.S.docs.includes(lastActive);
   lastActive = d;
+  if (closed && taskOfDoc(d.id) !== current()) { tagDocs(); return; }
   // (a document opened behind, with the project (its Design Summary): the task stays the viewer's, until it is brought to the front)
   if (d.background && !d._taskSeen) { d._taskSeen = true; tagDocs(); return; }
   d._taskSeen = true;
@@ -218,6 +248,9 @@ function build() {
     tb('side', 'Show or hide the side panel', 'side'),
     tb('console', 'Show or hide the messages', 'msgs'),
     tb('max', 'Maximize the document (double-click its tab)', 'max'),
+    h('span', { id: 'task-doc', hidden: true },
+      h('span', { class: 'task-doc-mod', 'data-no-i18n': true }), h('span', { class: 'task-doc-model' }),
+      h('button', { class: 'tb-btn', type: 'button', 'data-act': 'close', title: 'Close', 'aria-label': 'Close', html: ICON.close })),
     Object.assign(h('button', { class: 'm-step task-main', type: 'button', 'data-act': 'main', onclick: runMain }, h('span', { class: 'ico-inline' }), h('span', { class: 'lbl' })),
       { _enabled: () => !!stepButton()?._enabled?.() })));   // (disabled as its design-flow button: menus.js refreshSteps)
   $('task-bar').addEventListener('click', e => {
@@ -225,6 +258,7 @@ function build() {
     if (act === 'side') { if (isNarrow()) { setDrawer(!drawerOpen()); apply(); } else arrange({ side: !arr().side }); }
     else if (act === 'console') arrange({ console: !arr().console });
     else if (act === 'max') arrange({ max: !arr().max });
+    else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
   });
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain })));
@@ -250,7 +284,7 @@ function unbuild() {
   unbuildMessages();
   shownTask = null;
   const r = root();
-  for (const k of ['task', 'side', 'console', 'max']) delete r.dataset[k];
+  for (const k of ['task', 'side', 'console', 'max', 'single']) delete r.dataset[k];
 }
 
 /** The Tasks interface's behaviour; its parts are built while it is the interface. `a` is the app (web/js/app.js). */

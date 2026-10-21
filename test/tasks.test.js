@@ -56,6 +56,15 @@ test('arrangement: the task in front gets the space; what the viewer left wins; 
   assert.deepEqual(T.arrangement('edit', { side: true }, true), { side: false, console: true, max: false });
 });
 
+test('#854 docDetail: the module and the model a single document\'s title says; the tasks whose document is single', () => {
+  assert.deepEqual(T.SINGLE, ['sim', 'emu', 'prog']);
+  assert.deepEqual(T.docDetail('ISim (top)'), { module: 'top', model: null });
+  assert.deepEqual(T.docDetail('ISim (tb_pong, Post-Synthesis)'), { module: 'tb_pong', model: 'Post-Synthesis' });
+  assert.deepEqual(T.docDetail('Board Emulator (pong, Post-Place & Route)'), { module: 'pong', model: 'Post-Place & Route' });
+  assert.deepEqual(T.docDetail('iMPACT'), { module: null, model: null });
+  assert.deepEqual(T.docDetail(undefined), { module: null, model: null });
+});
+
 test('taskDot: the worst status of the task\'s processes (errors, then running, out of date, warnings, done)', () => {
   assert.equal(T.taskDot('edit', {}), null);
   assert.equal(T.taskDot('edit', { check: 'ok' }), 'ok');
