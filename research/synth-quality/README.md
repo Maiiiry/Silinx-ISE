@@ -1300,18 +1300,59 @@ The 7 timed ones: 0.92 times the LUTs, 0.95 times the slices, 0.92 times the per
 The examples keep their netlists. The corpus's synthesis at Normal took 356 s instead of 304 (one Yosys at a time;
 with the app's 4 workers the remap runs beside the others).
 
-### The T80's register file as distributed RAM (#54): tried, not kept
+### The T80's register file as distributed RAM (#54)
 
-The T80 has 361 flip-flops against XST's 247 and 2153 LUTs against 1874. Its register file (T80_Reg: two arrays of
-8 × 8 bits, written at one address, read asynchronously at three) is 128 flip-flops and their read multiplexers:
-Yosys's `memory_libmap` prices it as logic at 1 per bit (64) and as RAM16X1D at 84 (two copies for the three read
-ports), and ignores the multiplexers. With synth_xilinx's memory step made by hand (`-run :map_memory`, then
-`memory_libmap -lib +/xilinx/lutrams_xcv.txt -lib +/xilinx/brams_xc2v.txt -logic-cost-ram 2` and the two maps, then
-`-run map_ffram:`; `-logic-cost-ram 1` gives main's netlist exactly) the T80 gets 32 RAM16X1D. At Normal, routed
-(seeds 1 to 3): 1146 → 1024 slices (XST 1000), 361 → 233 flip-flops, 2153 → 1846 logic LUTs, but 21.71 → 23.11 ns
-(+6.4 %): the RAM's read address comes from about 12 levels of LUTs, and the read can no longer be mapped together
-with the logic after it. At High the second balancing is kept (18.6 ns by the estimate), routed 22.47 ns against
-21.44, 1177 slices. Slower, so not kept.
+The T80 had 361 flip-flops against XST's 247 and 2153 LUTs against 1874. Its register file (T80_Reg: two arrays of
+8 × 8 bits, written at one address, read asynchronously at three) was 128 flip-flops and their read multiplexers:
+Yosys's `memory_libmap` prices a memory left to logic at 1 per bit (64) and as RAM16X1D at 84 (two copies for the
+three read ports), and leaves the multiplexers out. XST maps it onto 32 RAM16X1D (its report: two 8 × 8 dual-port RAMs
+per array, ports A + B and A + C), and its critical path goes through one: the first read address (`RegAddrA`) after 9
+levels of LUTs, then the RAM's read (Tilo, 0.759 ns in trce, as a LUT's), then the 16-bit increment.
+
+**The usual mapping is slower with the RAM.** With each bit priced at 2 (`-logic-cost-ram 2` in synth_xilinx's
+memory step made by hand; 1 gives main's netlist exactly) the T80 gets the 32 RAM16X1D, but the usual mapping is
+slower: the read address comes from 11 levels of LUTs, which the flip-flops' multiplexers absorbed (the late select
+taken in their last level). By the estimate 22.71 ns against 20.36; routed at Normal 21.71 → 23.11 ns, trce 20.758 →
+22.286 ns. Only the first read port limits it: the paths through the others end 18.52 ns at most.
+
+**The balanced mappings are not.** From that netlist, High's depth-oriented mappings put the address logic in fewer
+levels. Each candidate routed (XC3S250E, seeds 1 to 3, the means; trce: ISE 14.7 on the routed designs, DRC clean, the
+.bit files byte-identical to ISE's bitgen):
+
+| T80 at High | slices | FFs | LUTs | estimate (ns) | routed (ns) | trce (ns) |
+|---|---:|---:|---:|---:|---:|---:|
+| flip-flops (main) | 1146 | 361 | 2153 | 20.36 | 22.09 | 21.67 |
+| RAM, the usual mapping | 1024 | 233 | 1846 | 22.71 | 23.87 | |
+| RAM, balanced once more (DEPTH_ABC2) | 1177 | 233 | 1814 | 18.58 | 21.38 | 21.10 |
+| RAM, the same with the LUT delays | 1106 | 233 | 1803 | 19.39 | 21.31 | |
+| RAM, balanced twice more (DEPTH_ABC3) | 1065 | 233 | 1777 | 20.29 | 22.20 | |
+| **RAM, balanced once more onto LUT4s alone** | **1009** | **233** | **1816** | 20.41 | **21.29** | **20.36** |
+| XST | 1000 | 247 | 1874 | | | 18.13 |
+
+(LUTs: the logic's; the RAM's 64 LUT sites apart.) The estimate ranks the netlists with many F-multiplexers too fast:
+the second balancing has 598 MUXF5/MUXF6, its routed period 1.15 times its estimate, against 1.04 for the one onto LUT4s
+alone. By DEPTH_RULE the second balancing would be kept (10 % faster by the estimate), 17 % more slices than the
+one onto LUT4s alone, and slower by trce.
+
+**What the open synthesis does.** At High (and a deep design at Normal), the usual run counts the memories written
+to that it left to logic (`select -count t:$mem_v2 r:WR_PORTS>0 %i` between synth_xilinx's memory steps: it changes no
+name, the netlist byte-identical; the extra passes on a copy first tried changed Yosys's automatic names, and with them
+ABC's mapping). A design with some is synthesized once more with them priced at `LUTRAM_COST` (2); when that took
+some, High's mappings are made from its netlist. It is a mapping for size: of its netlists, those kept by DEPTH_RULE
+against the netlist chosen and no slower than it by the estimate (the rule's 1 % slack), the one with the fewest
+slices is kept; else its own choice, when better by DEPTH_RULE.
+
+On the examples and the design corpus at High (one Yosys at a time) every netlist is the same as before, byte for byte,
+but two:
+
+| design | slices | FFs | LUTs | routed (ns, seeds 1–3) | trce (ns) |
+|---|---:|---:|---:|---:|---:|
+| t80 | 1146 → **1009** | 361 → **233** | 2153 → **1816** | 22.09 → **21.29** | 21.67 → **20.36** |
+| iwls05-simple-spi (its two FIFOs) | 89 → **79** | 131 → **67** | 157 → **108** | 6.16 → **6.07** | SPI_TRCE |
+
+iwls05-sasc's FIFOs as RAM are not kept (no smaller netlist as fast); neorv32's two memories written to are not taken by
+the RAM (one more Yosys run, nothing else). A ROM is not counted (its price is `-logic-cost-rom`). The T80's synthesis at
+High takes 42 → 80 s.
 
 ## The EPFL arbiter: balanced once more onto LUT4s alone (#370)
 

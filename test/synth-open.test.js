@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { compile, elaborate } from '../core/compile.js';
 import { primitiveSources } from '../core/unisim.js';
-import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, keepChains, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE, pathEnds, criticalEnables, foldRemapCommands, speedRemapCommands, FOLD_CE_MAP, FOLD_CE_MAP_FILE, FOLD_CE_FILE, SPEED_ABC, SPEED_RULE, TOP_ONLY } from '../core/synth-open.js';
+import { synthesizeOpen, synthEffort, yosysScript, yosysFiles, synthCommands, remapCommands, abc9RemapCommands, muxfRemapCommands, muxTrees, MUXF_MAP, MUXF_MAP_FILE, LUT6_MAP, LUT6_MAP_FILE, MUX_COUNT_FILE, criticalDelay, keepDepth, keepSecond, keepChains, sliceCount, cellCounts, utilization, lineStream, YOSYS_FAMILY, QUIET, DEPTH_ABC, DEPTH_ABC2, DEPTH_ABC3, PREMAP_FILE, DEPTH_RULE, LUT_LIB, LUT_LIB_FILE, abcInline, logicLevels, deepDesign, DEEP_RULE, DEPTH_SOPB, SOPB_RULE, pathEnds, criticalEnables, foldRemapCommands, speedRemapCommands, FOLD_CE_MAP, FOLD_CE_MAP_FILE, FOLD_CE_FILE, SPEED_ABC, SPEED_RULE, TOP_ONLY, memorySteps, logicMemories, MEMORIES_FILE, LUTRAM_COST, asText } from '../core/synth-open.js';
 import { compareNetlist } from './diff-synth.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
@@ -370,8 +370,9 @@ const cell = (type, ins, outs) => ({ type, port_directions: { ...Object.fromEntr
 const netlistOf = cells => ({ modules: { t: { attributes: { top: 1 }, cells } } });
 
 test('logic depth: the scripts (the design before the LUT mapping written, mapped again by the depth-oriented ABC script)', () => {
-  // (and the wide multiplexer trees counted on a copy of it, #511)
-  assert.equal(yosysScript('top', 'spartan3e', { premap: PREMAP_FILE }), yosysScript('top', 'spartan3e').replace('abc -luts', 'write_rtlil silinx_premap.il; '
+  // (and the wide multiplexer trees counted on a copy of it, #511; the memories left to logic counted, #54)
+  const S = 'synth_xilinx -family xc3se -ise -flatten -top top';
+  assert.equal(yosysScript('top', 'spartan3e', { premap: PREMAP_FILE }), yosysScript('top', 'spartan3e').replace(`${S} -run :fine;`, `${memorySteps(S, { count: true })};`).replace('abc -luts', 'write_rtlil silinx_premap.il; '
     + 'design -save silinx_premap; muxcover -mux8 -mux16 -nodecode -nopartial; tee -q -o silinx_muxes.txt select -count t:$_MUX8_ t:$_MUX16_; design -load silinx_premap; abc -luts'));
   assert.equal(remapCommands('top', 'spartan3e'), 'read_rtlil silinx_premap.il; abc -luts 1,1,1,1,2,4 -script silinx_depth.abc; clean; techmap -map +/xilinx/ff_map.v; '
     + 'techmap -map silinx_lut6_map.v t:$lut r:WIDTH=6 %i; techmap -map +/xilinx/lut_map.v -map +/xilinx/cells_map.v -D LUT_WIDTH=4; xilinx_dffopt -lut4; opt_lut_ins -tech xilinx; synth_xilinx -family xc3se -ise -flatten -top top -run finalize:');
@@ -736,6 +737,134 @@ test('#370 a round-robin arbiter written as gates: balanced once more onto LUT4s
   assert.deepEqual(r.warnings, []);
   const c = compareNetlist(d, r, { name: 'lut4-arbiter', seed: 'arb', sim: { cycles: 400 } });
   assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
+});
+
+// #54: a register file of 8 x 8 bits written at one address and read at three (as the T80's), its first read
+// address decoded from an instruction register; the word read incremented or decremented and written back
+const REGFILE_V = `module rf(input clk, input [7:0] din, input load, output reg [7:0] q);
+  reg [7:0] ir, acc;
+  reg [2:0] rb, rc;
+  reg [1:0] t;
+  reg [7:0] r [0:7];
+  wire [2:0] ra = (t == 2 && ir[7:6] == 2'b01) ? {ir[0], ir[2:1] ^ ir[5:4]} : (ir[3] & acc[0]) ? {1'b1, ir[5:4]} : (t == 3 ? ir[6:4] : rb);
+  wire [7:0] a = r[ra], b = r[rb], c = r[rc];
+  wire [7:0] id = ir[7] ? a - 8'd1 : a + 8'd1;
+  always @(posedge clk) begin
+    t <= t + 2'd1;
+    if (load) ir <= din; else ir <= {ir[6:0], ir[7] ^ acc[3]};
+    rb <= ir[2:0] ^ acc[2:0];
+    rc <= {acc[7], ir[1:0]};
+    if (t != 0 || load) r[ra] <= load ? din : id;
+    acc <= (b & c) ^ id;
+    q <= acc ^ c;
+  end
+endmodule
+`;
+const REGFILE_VHD = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity rf is port (clk, load : in std_logic; din : in std_logic_vector(7 downto 0); q : out std_logic_vector(7 downto 0)); end rf;
+architecture rtl of rf is
+  type regs_t is array (0 to 7) of std_logic_vector(7 downto 0);
+  signal r : regs_t;
+  signal ir, acc, a, b, c, id : std_logic_vector(7 downto 0);
+  signal rb, rc, ra : std_logic_vector(2 downto 0);
+  signal t : unsigned(1 downto 0);
+begin
+  ra <= ir(0) & (ir(2 downto 1) xor ir(5 downto 4)) when t = 2 and ir(7 downto 6) = "01" else
+        '1' & ir(5 downto 4) when (ir(3) and acc(0)) = '1' else
+        ir(6 downto 4) when t = 3 else rb;
+  a <= r(to_integer(unsigned(ra))); b <= r(to_integer(unsigned(rb))); c <= r(to_integer(unsigned(rc)));
+  id <= std_logic_vector(unsigned(a) - 1) when ir(7) = '1' else std_logic_vector(unsigned(a) + 1);
+  process (clk) begin
+    if rising_edge(clk) then
+      t <= t + 1;
+      if load = '1' then ir <= din; else ir <= ir(6 downto 0) & (ir(7) xor acc(3)); end if;
+      rb <= ir(2 downto 0) xor acc(2 downto 0);
+      rc <= acc(7) & ir(1 downto 0);
+      if t /= 0 or load = '1' then
+        if load = '1' then r(to_integer(unsigned(ra))) <= din; else r(to_integer(unsigned(ra))) <= id; end if;
+      end if;
+      acc <= (b and c) xor id;
+      q <= acc xor c;
+    end if;
+  end process;
+end rtl;
+`;
+// the same register file with a second write port: distributed RAM has one, the memory stays in logic
+const REGFILE2_V = REGFILE_V.replace('if (t != 0 || load) r[ra] <= load ? din : id;', 'if (t != 0 || load) r[ra] <= load ? din : id;\n    if (t == 0) r[rc] <= acc;');
+
+test('#54 the memories as distributed RAM: the scripts (the memories left to logic counted by the usual run; the memory step at LUTRAM_COST), the count read', () => {
+  const S = 'synth_xilinx -family xc3se -ise -flatten -top top';
+  assert.equal(memorySteps(S), `${S} -run :fine`);
+  assert.equal(memorySteps(S, { count: true }), `${S} -run :map_ffram; tee -q -o silinx_memories.txt select -count t:$mem_v2 r:WR_PORTS>0 %i; ${S} -run map_ffram:fine`);
+  assert.equal(memorySteps(S, { lutram: true }), `${S} -run :map_memory; memory_libmap -lib +/xilinx/lutrams_xcv.txt -lib +/xilinx/brams_xc2v.txt -logic-cost-ram 2; `
+    + `techmap -map +/xilinx/lutrams_xcv_map.v; techmap -map +/xilinx/brams_xc2v_map.v; tee -q -o silinx_memories.txt select -count t:$mem_v2 r:WR_PORTS>0 %i; ${S} -run map_ffram:fine`);
+  assert.equal(LUTRAM_COST, 2);
+  assert.equal(MEMORIES_FILE, 'silinx_memories.txt');
+  // the usual run (premap) counts them; lutram, the memory step priced; neither, as before
+  assert.ok(synthCommands('top', 'spartan3e', { premap: PREMAP_FILE }).startsWith(`${memorySteps(S, { count: true })}; memory_map;`));
+  assert.ok(synthCommands('top', 'spartan3e', { lutram: true }).startsWith(`${memorySteps(S, { lutram: true })}; memory_map;`));
+  assert.ok(synthCommands('top', 'spartan3e').startsWith(`${S} -run :fine; memory_map;`));
+  assert.ok(synthCommands('top', 'spartan3', { premap: PREMAP_FILE }).includes('-run :map_ffram; tee -q -o silinx_memories.txt'));
+  // Virtex-4: its memory step reads other libraries (brams_xc4v), neither counted nor priced
+  for (const o of [{ premap: PREMAP_FILE }, { lutram: true }]) assert.ok(synthCommands('top', 'virtex4', o).startsWith('synth_xilinx -family xc4v -ise -flatten -top top -run :fine; memory_map;'));
+  assert.equal(logicMemories({ [MEMORIES_FILE]: '2 objects.\n' }), 2);
+  assert.equal(logicMemories({ [MEMORIES_FILE]: new TextEncoder().encode('0 objects.\n') }), 0);
+  assert.equal(logicMemories({}), null);
+});
+
+// a ROM (a case of constants: Yosys's proc_rom), no write port: not counted (its price is another, -logic-cost-rom)
+const ROM_V = `module rf(input clk, input [3:0] a, output reg [7:0] q);
+  always @(posedge clk) case (a)
+    0: q <= 8'h3c; 1: q <= 8'ha5; 2: q <= 8'h0f; 3: q <= 8'h96; 4: q <= 8'h5a; 5: q <= 8'hc3; 6: q <= 8'h18; 7: q <= 8'h7e;
+    8: q <= 8'he1; 9: q <= 8'h24; 10: q <= 8'hdb; 11: q <= 8'h42; 12: q <= 8'hbd; 13: q <= 8'h81; 14: q <= 8'h66; default: q <= 8'h99;
+  endcase
+endmodule
+`;
+
+test('#54 the memories left to logic: counted by the usual run, its netlist unchanged; at LUTRAM_COST a register file of three read ports is RAM16X1D, one of two write ports stays in logic', { timeout: 300000 }, async () => {
+  const S = 'synth_xilinx -family xc3se -ise -flatten -top rf';
+  const TWO_READS = 'module rf(input clk, we, input [2:0] a, b, input [7:0] d, output [7:0] qa, qb); reg [7:0] r [0:7]; always @(posedge clk) if (we) r[a] <= d; assign qa = r[a]; assign qb = r[b]; endmodule';
+  const rams = o => cellCounts(o['rf.json'], 'rf').RAM16X1D || 0;
+  for (const [name, text, logic, lutram] of [['three reads', REGFILE_V, 1, 16], ['two reads', TWO_READS, 0, 8], ['two writes', REGFILE2_V, 1, 0], ['none', 'module rf(input clk, input [7:0] d, output reg [7:0] q); always @(posedge clk) q <= q + d; endmodule', 0, 0], ['a ROM', ROM_V, 0, 0]]) {
+    const { text: v, top } = toVerilog(elaborate(compile([{ path: 'rf.v', lang: 'verilog', text }]), 'rf'));
+    assert.equal(top, 'rf');
+    const counted = yosysScript('rf', 'spartan3e', { premap: PREMAP_FILE });
+    const [a, b, c] = await Promise.all([counted, counted.replace(memorySteps(S, { count: true }), `${S} -run :fine`), yosysScript('rf', 'spartan3e', { lutram: true })]
+      .map(sc => yosysNode(['-q', '-p', sc], yosysFiles('rf', v))));
+    assert.equal(logicMemories(a), logic, name);
+    // (the count changes nothing: the same netlist, byte for byte, and the same netlist before the LUT mapping)
+    assert.ok(a['rf.json'] === b['rf.json'] && asText(a[PREMAP_FILE]) === asText(b[PREMAP_FILE]), name);
+    assert.equal(logicMemories(b), null, name);
+    // at LUTRAM_COST: the register file of three reads as two copies of 8 RAM16X1D (none left in logic); of two reads,
+    // RAM16X1D at both prices; of two writes, in logic at both
+    assert.deepEqual([rams(a), rams(c), logicMemories(c)], [lutram === 16 ? 0 : lutram, lutram, logic && !lutram ? 1 : 0], name);
+  }
+});
+
+test('#54 a register file read at three addresses: at High, its memory as distributed RAM, the variant kept (half the slices, as fast within the rule\'s slack), equal to the RTL, in Verilog and VHDL; at Normal as before; with two write ports, not taken', { timeout: 600000 }, async () => {
+  for (const [lang, text] of [['verilog', REGFILE_V], ['vhdl', REGFILE_VHD]]) {
+    const d = elaborate(compile([{ path: lang === 'vhdl' ? 'rf.vhd' : 'rf.v', lang, text }]), 'rf');
+    const [high, normal] = [await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode }), await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort: 'normal' })];
+    const l = high.depth.lutram;
+    assert.deepEqual([l.memories, l.left, l.kept], [1, 0, true], `${lang}: ${JSON.stringify(high.depth)}`);
+    assert.deepEqual([high.util.distributedRam, high.util.flipFlops, high.util.luts, sliceCount(high.files['rf.json'], 'rf')], [16, 32, l.luts, l.slices], lang);
+    // at Normal (one run, no High mappings): the 64 bits in flip-flops, as before
+    assert.equal(normal.depth.lutram, undefined, lang);
+    assert.deepEqual([normal.util.distributedRam, normal.util.flipFlops], [0, 96], lang);
+    const slicesNormal = sliceCount(normal.files['rf.json'], 'rf');
+    assert.ok(l.slices <= slicesNormal * 0.6, `${lang}: ${l.slices} slices against ${slicesNormal}`);
+    assert.ok(l.ns <= criticalDelay(normal.files['rf.json'], 'rf') * 1.01, `${lang}: ${JSON.stringify(high.depth)}`);
+    assert.deepEqual([high.warnings, normal.warnings], [[], []], lang);
+    for (const [e, r] of [['high', high], ['normal', normal]]) {
+      const c = compareNetlist(d, r, { name: `regfile-${lang}-${e}`, seed: 'rf', sim: { cycles: 600 } });
+      assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
+    }
+  }
+  // two write ports: counted, not taken by distributed RAM, no more mapping made
+  const d2 = elaborate(compile([{ path: 'rf.v', lang: 'verilog', text: REGFILE2_V }]), 'rf');
+  const r2 = await synthesizeOpen(d2, { family: 'spartan3e', run: yosysNode });
+  assert.deepEqual(r2.depth.lutram, { memories: 1, left: 1, netlist: null, ns: null, luts: null, slices: null, kept: false });
+  assert.deepEqual([r2.util.distributedRam, r2.warnings], [0, []]);
 });
 
 // #78: the LUT delays, ABC's script inline (YoWASP's ABC crashes on read_lut from a script file)

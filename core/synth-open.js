@@ -270,15 +270,47 @@ module \\$__XILINX_SHREG_ (input C, input D, input [31:0] L, input E, output Q, 
 endmodule
 `;
 
+// The asynchronous-read memories as distributed RAM (#54). synth_xilinx's memory step (memory_libmap) prices a
+// memory left to logic at a flip-flop per bit and leaves out its read multiplexers (about a LUT per bit and read
+// port): the T80's register file (two arrays of 8 × 8 bits, written at one address, read at three) is cheaper so
+// as 128 flip-flops than as 32 RAM16X1D (two copies for the three read ports), its multiplexers then a seventh of
+// the T80's LUTs. With each bit priced at LUTRAM_COST it is RAM16X1D. The usual mapping is then slower (the
+// RAM's read address comes from about 11 levels of LUTs, which the multiplexers absorbed), the balanced ones not
+// (research/synth-quality/README.md, "The T80's register file as distributed RAM"): a variant of High's mappings
+// (synthesizeOpen) for a design whose usual run left memories written to in logic (MEMORIES_FILE: counted, without
+// changing the netlist, after the memory step; the variant's own run counts those left at LUTRAM_COST, and its mappings are
+// made when it took some). The families whose memory step reads these libraries (synth_xilinx's own).
+export const LUTRAM_COST = 2;
+export const MEMORIES_FILE = 'silinx_memories.txt';
+const LUTRAM_FAMILIES = new Set(['xc3s', 'xc3se', 'xc3sa']);
+// (the memories written to: a ROM's price is another, -logic-cost-rom)
+const MEMORIES_COUNT = `tee -q -o ${MEMORIES_FILE} select -count t:$mem_v2 r:WR_PORTS>0 %i`;
+/** The memories a run of synthCommands (with premap, or lutram) left to logic after its memory step (MEMORIES_FILE);
+ *  null when it did not count them. */
+export function logicMemories(out) {
+  const n = /^(\d+) objects/m.exec(asText(out?.[MEMORIES_FILE]))?.[1];
+  return n === undefined ? null : +n;
+}
+/** synth_xilinx up to its fine step: lutram, its memory step at LUTRAM_COST; count (or lutram), the memories it
+ *  leaves to logic counted into MEMORIES_FILE. */
+export function memorySteps(synth, { lutram = false, count = false } = {}) {
+  if (lutram) return `${synth} -run :map_memory; memory_libmap -lib +/xilinx/lutrams_xcv.txt -lib +/xilinx/brams_xc2v.txt -logic-cost-ram ${LUTRAM_COST}; `
+    + `techmap -map +/xilinx/lutrams_xcv_map.v; techmap -map +/xilinx/brams_xc2v_map.v; ${MEMORIES_COUNT}; ${synth} -run map_ffram:fine`;
+  if (count) return `${synth} -run :map_ffram; ${MEMORIES_COUNT}; ${synth} -run map_ffram:fine`;
+  return `${synth} -run :fine`;
+}
+const memoryOpts = (fam, { premap = null, lutram = false } = {}) => ({ lutram: lutram && LUTRAM_FAMILIES.has(fam), count: !!premap && !lutram && LUTRAM_FAMILIES.has(fam) });
+
 /**
  * The Yosys commands that map the module `top` onto the cells of the family (synth_xilinx, with
  * the LUT mapping of the 4-input-LUT families replaced: synth_xilinx up to its map_ffs step, the
  * fixed-length shift registers as SRL16E (SRL_MAP: the file `silinx_srl_map.v` given to Yosys), up
  * to its map_luts step, then the steps of map_luts with ABC on LUT4_COSTS, then synth_xilinx from
  * its finalize step). srl: false leaves the shift registers in flip-flops; premap: a file name to
- * write the design to just before the LUT mapping (RTLIL), for remapCommands.
+ * write the design to just before the LUT mapping (RTLIL), for remapCommands (and the memories left to logic
+ * counted, MEMORIES_FILE); lutram: the memories priced at LUTRAM_COST (#54).
  */
-export function synthCommands(top, family, { srl = true, premap = null } = {}) {
+export function synthCommands(top, family, { srl = true, premap = null, lutram = false } = {}) {
   const fam = YOSYS_FAMILY[family];
   if (!fam) throw new Error(`open synthesis: no Yosys mapping for the device family '${family}'`);
   const synth = `synth_xilinx -family ${fam} -ise -flatten -top ${top}`;
@@ -287,7 +319,7 @@ export function synthCommands(top, family, { srl = true, premap = null } = {}) {
   // fine step maps it to multiplexers: memory_map (a shift-chain array's words as flip-flops), then
   // xilinx_srl and the map to SRL16E (before map_cells, whose own map writes SRLC32E), then the step;
   // fine's own opt -full run first made t80 7 % larger)
-  const shreg = srl ? `${synth} -run :fine; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
+  const shreg = srl ? `${memorySteps(synth, memoryOpts(fam, { premap, lutram }))}; memory_map; xilinx_srl -variable -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run fine:map_ffs; xilinx_srl -fixed -minlen 3; techmap -map ${SRL_MAP_FILE}; ${synth} -run map_ffs:map_luts` : `${synth} -run :map_luts`;
   return `${shreg}; opt_expr -mux_undef -noclkinv; ${premap ? `write_rtlil ${premap}; ${MUX_COUNT}; ` : ''}abc -luts ${LUT4_ONLY}; ${lutsToCells(synth)}`;
 }
 // The clock enables on the critical path (#653): Yosys gives a flip-flop whose next state is held under a
@@ -725,7 +757,11 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * written as gates also has its adders' carry chains recovered (#77, #377), the faster netlist kept. At High a
  * design whose state machines of FSM_RULE.states states or more the init values keep out of Yosys's fsm is
  * synthesized once more with them one-hot (#539, core/synth-fsm.js), that netlist kept when better by DEPTH_RULE:
- * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it).
+ * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it). With High's
+ * mappings, a design whose usual run left memories to logic is synthesized once more with them as distributed RAM
+ * (#54, LUTRAM_COST), its netlist of fewest slices no slower than the one chosen kept: r.depth.lutram { memories, left (those
+ * still in logic), netlist (the name of the candidate shown: usual, wide, depth, second, delays, third, lut4, abc9; null, the
+ * variant's own choice), ns, luts, slices, kept }.
  */
 export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
@@ -782,7 +818,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
   const highMappings = !normal || !!deep?.deep;
   // a mapping (its run's output) and, from the design as it was before its LUT mapping, the depth-oriented
   // one: the faster kept (DEPTH_RULE); its messages apart, only a warning of its own joins the log
-  async function withDepth(out, say, seen) {
+  async function withDepth(out, say, seen, { measured = false } = {}) {
     // (a kept netlist's warnings: those the run before did not print, the netlist being the same before
     // the LUT mapping)
     const sayNew = l => { if (/^Warning:/.test(l) && !seen.includes(l)) { seen.push(l); say(l); } };
@@ -791,6 +827,12 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     const slicesOf = new Map();
     const slices = j => (slicesOf.has(j) ? slicesOf.get(j) : slicesOf.set(j, sliceCount(j, top)).get(j));
     const info = { tried: false, kept: false, ns: null, luts: null };
+    // (the memories the run left to logic, #54: counted before a mapping kept below takes the place of its output)
+    const memories = logicMemories(out);
+    // (measured: the netlists measured, each { name, out, lines, cells, ns, luts, slices }, the candidates of the memories
+    // as distributed RAM, #54)
+    const pool = [];
+    const offer = (name, o, lines, c, n, l, k) => { if (measured) pool.push({ name, out: o, lines, cells: c, ns: n, luts: l, slices: k }); };
     // the wide multiplexers onto MUXF5 … MUXF7 (#511), when the usual run counted some: kept by DEPTH_RULE, then
     // the usual mapping for the rest (the other mappings are made from the same netlist and measured against it)
     const trees = muxTrees(out);
@@ -861,12 +903,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         const early = (run.parallel || 1) >= 4 ? second() : null;
         early?.catch(() => {});
         const [outW, out2] = await first;
+        offer('usual', chosen, [], cells, criticalDelay(json, top), utilization(cells).luts, slices(json));
         const jsonW = outW[`${top}.json`];
         if (jsonW) {
           const cellsW = cellCounts(jsonW, top);
           const nsW = [criticalDelay(json, top), criticalDelay(jsonW, top)], lutsW = [utilization(cells).luts, utilization(cellsW).luts];
           const slW = [slices(json), slices(jsonW)];
           info.wide = { ns: nsW[1], luts: lutsW[1], slices: slW[1], kept: keepDepth(nsW, lutsW, DEPTH_RULE, slW) };
+          offer('wide', outW, linesW, cellsW, nsW[1], lutsW[1], slW[1]);
           if (info.wide.kept) {
             chosen = outW;
             cells = cellsW;
@@ -884,6 +928,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           const kept = info.wide && !info.wide.kept ? keepSecond([info.wide.ns, ...ns], [info.wide.luts, ...luts], DEPTH_RULE, [info.wide.slices, ...sl])
             : keepDepth(ns, luts, DEPTH_RULE, sl);
           Object.assign(info, { tried: true, kept, ns, luts, slices: sl });
+          offer('depth', out2, lines2, cells2, ns[1], luts[1], sl[1]);
           if (info.kept) {
             chosen = out2;
             cells = cells2;
@@ -892,13 +937,14 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
             // (DEPTH_ABC3, #52), and once more onto LUT4s alone (#370), at once; each kept by keepSecond, a later one in
             // place of an earlier one when both are and it is better by DEPTH_RULE
             const [out3, out4, out5, out6] = await (early || second());
-            const cand = (o, lines) => {
+            const cand = (o, lines, name) => {
               const j = o[`${top}.json`];
               if (!j) return null;
               const c = cellCounts(j, top), n = criticalDelay(j, top), l = utilization(c).luts, k = slices(j);
+              offer(name, o, lines, c, n, l, k);
               return { out: o, lines, cells: c, ns: n, luts: l, slices: k, kept: keepSecond([...ns, n], [...luts, l], DEPTH_RULE, [...sl, k]) };
             };
-            const a = cand(out3, lines3), b = cand(out4, lines4), c = cand(out5, lines5), d = cand(out6, lines6);
+            const a = cand(out3, lines3, 'second'), b = cand(out4, lines4, 'delays'), c = cand(out5, lines5, 'third'), d = cand(out6, lines6, 'lut4');
             const best = [a, b, c, d].reduce((x, y) => (y?.kept && (!x || keepDepth([x.ns, y.ns], [x.luts, y.luts], DEPTH_RULE, [x.slices, y.slices])) ? y : x), null);
             if (a) info.second = { ns: a.ns, luts: a.luts, slices: a.slices, kept: best === a };
             if (b) info.delays = { ns: b.ns, luts: b.luts, slices: b.slices, kept: best === b };
@@ -919,6 +965,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
           const ns9 = [criticalDelay(chosen[`${top}.json`], top), criticalDelay(json9, top)], luts9 = [utilization(cells).luts, utilization(cells9).luts];
           const sl9 = [slices(chosen[`${top}.json`]), slices(json9)];
           info.abc9 = { ns: ns9[1], luts: luts9[1], slices: sl9[1], kept: keepDepth(ns9, luts9, DEPTH_RULE, sl9) };
+          offer('abc9', out9, lines9, cells9, ns9[1], luts9[1], sl9[1]);
           if (info.abc9.kept) {
             chosen = out9;
             cells = cells9;
@@ -1045,7 +1092,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
         sayNew(`Warning: the critical path's LUTs could not be made shallower (${e.message}): the netlist chosen before is kept`);
       }
     }
-    return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]) };
+    return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]), memories, pool };
   }
   // a design with logic written as gates: its carry chains (adders, comparators: core/carry-chain.js, #77)
   // made $alu cells between two runs of Yosys (up to synth_xilinx's fine step, the netlist rewritten, then on
@@ -1083,6 +1130,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
     }
   }
   if (!res) res = machines ? await withDepth(await usualRun(emit), () => {}, linesU) : await withDepth(await usualRun(line), line, [...log]);
+  const memories = res.memories || 0;
   if (machines) {
     // the machines one-hot (#539): marked, extracted and re-encoded, their new power-up codes written back, the
     // rest of the script and High's mappings from that netlist; kept when better than the usual one by DEPTH_RULE
@@ -1093,7 +1141,7 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       const { il } = markWires(asText(fsmFound.out[FSM_PRE_FILE]), machines.map(m => m.wire), 'one-hot');
       const out2 = await run(['-q', '-p', fsmExtractCommands()], { [FSM_MARKED_FILE]: il }, say);
       const inits = fsmInits(machines, asText(out2[FSM_ENC_FILE]));
-      const cmds = synthCommands(top, family, opts), first = `${synth} -run :fine; `;
+      const cmds = synthCommands(top, family, opts), first = `${memorySteps(synth, memoryOpts(YOSYS_FAMILY[family], opts))}; `;
       if (inits && cmds.startsWith(first)) {
         const out3 = await run(['-q', '-p', `${fsmRestCommands(synth, cmds.slice(first.length))}; ${outputs(top)}`],
           { ...yosysFiles(top, text), [FSM_POST_FILE]: setInits(asText(out2[FSM_POST_FILE]), inits) }, say);
@@ -1110,6 +1158,39 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       line(`Warning: the one-hot encoding of the state machines failed (${failed}): the usual encoding is kept`);
     }
     res.info.fsm = fsmInfo;
+  }
+  if (highMappings && memories) {
+    // the memories as distributed RAM (#54, LUTRAM_COST), when the usual run left some to logic: the design synthesized
+    // again so and, when that took some of them, High's mappings from its netlist. A mapping for size: of its
+    // netlists, those kept by DEPTH_RULE against the netlist chosen and no slower than it by the estimate (the rule's
+    // slack), the one with the fewest slices; else its own choice, when better by DEPTH_RULE (the T80: the second
+    // balancing chosen, 10 % faster by the estimate than the one onto LUT4s alone and 17 % more slices, routed
+    // slower by trce, 21.10 ns against 20.36)
+    const linesR = [];
+    let resR = null, left = null, failed = null;
+    try {
+      const outR = await run(['-q', '-p', yosysScript(top, family, { ...opts, lutram: true })], yosysFiles(top, text), l => { if (!quiet(l)) linesR.push(l); });
+      left = logicMemories(outR);
+      if (left !== null && left < memories) resR = await withDepth(outR, () => {}, linesR, { measured: true });
+    } catch (e) { failed = e.message; }
+    const lutsOf = r => utilization(r.cells).luts;
+    const keeps = c => keepDepth([res.ns, c.ns], [lutsOf(res), c.luts], DEPTH_RULE, [res.slices(), c.slices]);
+    const own = resR && { name: null, out: resR.chosen, lines: [], cells: resR.cells, ns: resR.ns, luts: lutsOf(resR), slices: resR.slices() };
+    const pick = !resR ? null : resR.pool.filter(c => Number.isFinite(c.slices) && c.ns <= res.ns * (1 + DEPTH_RULE.slack) && keeps(c))
+      .sort((x, y) => x.slices - y.slices)[0] || (keeps(own) ? own : null);
+    const shown = pick || own;
+    const lutram = { memories, left, netlist: shown?.name ?? null, ns: shown?.ns ?? null, luts: shown?.luts ?? null, slices: shown?.slices ?? null, kept: !!pick };
+    if (pick) {
+      if (res.info.fsm) resR.info.fsm = res.info.fsm;
+      res = { ...resR, chosen: pick.out, cells: pick.cells, ns: pick.ns, slices: () => pick.slices };
+      chains = [];
+      for (const l of [...linesR, ...pick.lines]) if (/^Warning:/.test(l) && !log.includes(l)) line(l);
+    }
+    if (failed) {
+      lutram.failed = failed;
+      line(`Warning: the memories as distributed RAM could not be mapped (${failed}): the netlist chosen before is kept`);
+    }
+    res.info.lutram = lutram;
   }
   const { chosen, cells, info } = res;
   if (deep) Object.assign(info, { levels: deep.levels, auto: deep.deep });

@@ -72,8 +72,9 @@ export function fsmRun(base, way, record = []) {
   if (way === 'stock' || way === 'core') return base;
   return async (args, files, say = () => {}) => {
     const p = args.indexOf('-p');
-    const script = args[p + 1];
-    const m = /^(.*?)read_verilog -sv (\S+)_syn\.v; (synth_xilinx [^;]*?) -run :fine; (.*)$/s.exec(script || '');
+    // (the memories left to logic counted between synth_xilinx's memory steps, #54: one step again, not counted)
+    const script = (args[p + 1] || '').replace(/ -run :map_ffram; tee -q -o silinx_memories\.txt [^;]*; synth_xilinx [^;]*? -run map_ffram:fine;/, ' -run :fine;');
+    const m = /^(.*?)read_verilog -sv (\S+)_syn\.v; (synth_xilinx [^;]*?) -run :fine; (.*)$/s.exec(script);
     if (!m) return base(args, files, say);
     const [, libs, top, synth, rest] = m;
     const run = async (s, f) => {
