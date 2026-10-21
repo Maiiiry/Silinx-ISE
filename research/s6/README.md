@@ -138,6 +138,13 @@ Recorded here because the work was planned without the author's answers (2026-10
 - **The device descriptions** of the two parts will ship as the Spartan-3E boards' do, the decision of
   2026-10-11 (docs/OPEN-TOOLCHAIN.md) extended to the two Spartan-6 boards Silinx supports.
 
+## Trying the parts that exist
+
+The Spartan-6 parts of the flow are behind a developer flag (#722): with `SILINX_SPARTAN6_OPEN=1` in the server's
+environment (`SILINX_SPARTAN6_OPEN=1 npm start`), a project on the Nexys3 or the Atlys in the Silinx toolchain mode
+runs the steps that exist (the synthesis for the Spartan-6 and its Post-Synthesis Simulation Model) and refuses the
+others; without it the Spartan-6 is refused as before. The browser edition has no flag.
+
 ## Files
 
 | File | What it does |
