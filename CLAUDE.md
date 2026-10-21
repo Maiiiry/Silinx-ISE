@@ -31,6 +31,26 @@ the code and the lessons learnt.
 ## Programming
 
 - Write code that reads like the code around it: its comment density, naming and idiom.
+- **Small modules and functions** (#405): a source file (`core/`, `web/js/`, `server/`, `scripts/`) stays under
+  1000 lines and a function under 300; one module per concern (an editor's panel, its drawing, its tools; a
+  compiler's expressions, its statements). A change that would take a file or a function past the limit splits it
+  first, in a pull request of its own. `test/code-size.test.js` enforces it: the files and functions over the limit
+  today are listed there, a new one fails, and an entry leaves the list once it is under the limit (the list only
+  shrinks). Do not grow a listed one: split the part you work on.
+- **Splitting** (the way #405 did it):
+  - move code as it is, in a pull request that changes no behaviour (no fixes or renames mixed in);
+  - a section of a mount function becomes `mountX(ctx)` in a module of its own, called where the code was, so the
+    mount order stays; state the mount function reassigns is read through getters (`doc()`, `sel()`), or through one
+    `state()` read on entry by synchronous code that changes none of it, and written through setters
+    (`setDoc`, `set({ … })`); what is defined later in the mount is passed lazily (`(...a) => f(...a)`);
+  - the old module keeps exporting what moved (`export { … } from './new.js'`), and the importers stay as they
+    are: check it by importing the old module and testing every name it exported before (importers in `server/`
+    and `web/` are easy to miss);
+  - two modules may import each other only if neither reads the other's names at load time (only inside
+    functions); shared helpers go in a small module of their own rather than into a cycle;
+  - the new module gets its own test (mounted alone, or on real designs), and core moves are checked against
+    main's module on the repository's corpus (every HDL file, schematic, chart) with the same output;
+  - a module that holds interface labels (`text: '…'`) joins the list of files `test/web-i18n.test.js` scans.
 - Every label of the interface has a Portuguese translation in `web/js/i18n.js` (anchored patterns,
   `^…$`); `test/web-i18n.test.js` checks it.
 - The Design pane shows one row per module: its drawing (schematic, ASM, FSM, truth table, Petri

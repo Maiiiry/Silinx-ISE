@@ -5,7 +5,8 @@
 // imports it, directly or through one of the tests' helper modules (test/*.js and test/*.mjs that are not
 // tests); a changed test file itself; test/<name>.test.js for a changed <name>.js; a test that names a changed
 // file in quotes, by its path or its name (one that reads it: docs.test.js CLAUDE.md, ci-workflow.test.js the
-// workflows). The UI tests (test/ui/) run when they changed, or when the page script of their name did
+// workflows); test/code-size.test.js for a changed source of core/, web/js/, server/ or scripts/ (it measures them
+// all, #405). The UI tests (test/ui/) run when they changed, or when the page script of their name did
 // (web/js/<name>.js), or when they name a changed file.
 //
 //   node scripts/related-tests.mjs <base> <head> [--shard i/n] [--list] [node --test options …]
@@ -52,6 +53,8 @@ export function relatedTests(files, changed) {
     for (const [t, text] of Object.entries(files))
       if ((isUnit(t) || isUi(t)) && t !== f && names.some(r => r.test(text))) (isUnit(t) ? unit : ui).add(t);
   }
+  // the size of every source (#405): a source changed may have grown past the limit
+  if (files['test/code-size.test.js'] != null && changed.some(f => /^(core|web\/js|server|scripts)\/.+\.m?js$/.test(f))) unit.add('test/code-size.test.js');
   for (const f of changed) {
     if (!/\.m?js$/.test(f) || f.startsWith('test/')) continue;
     const name = path.posix.basename(f).replace(/\.m?js$/, '');
