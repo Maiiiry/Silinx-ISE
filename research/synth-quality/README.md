@@ -1348,7 +1348,7 @@ but two:
 | design | slices | FFs | LUTs | routed (ns, seeds 1–3) | trce (ns) |
 |---|---:|---:|---:|---:|---:|
 | t80 | 1146 → **1009** | 361 → **233** | 2153 → **1816** | 22.09 → **21.29** | 21.67 → **20.36** |
-| iwls05-simple-spi (its two FIFOs) | 89 → **79** | 131 → **67** | 157 → **108** | 6.16 → **6.07** | – |
+| iwls05-simple-spi (its two FIFOs) | 89 → **79** | 131 → **67** | 157 → **108** | 6.16 → **6.07** | 6.05 → 6.16 |
 
 iwls05-sasc's FIFOs as RAM are not kept (no smaller netlist as fast); neorv32's two memories written to are not taken by
 the RAM (one more Yosys run, nothing else). A ROM is not counted (its price is `-logic-cost-rom`). The T80's synthesis at
@@ -1357,14 +1357,27 @@ High takes 42 → 80 s.
 **At effort Normal.** A design that gets none of High's mappings makes two more Yosys runs when its usual run left
 memories written to in logic: the RAM's usual mapping and, from its netlist, the one balanced onto LUT4s alone
 (DEPTH_ABC2 on LUT4s, High's smallest balancing, #370), the same rule choosing (`lutram: false` leaves it out). The T80
-then gets the netlist High keeps (the same, byte for byte), its synthesis at Normal about 21 → 24 s. On the design
+then gets the netlist High kept (the same, byte for byte), its synthesis at Normal about 21 → 24 s. On the design
 corpus at Normal three designs have such memories: the T80 and simple_spi change, sasc does not (its netlist the same);
 neorv32's are not taken (one run more).
 
 | design at Normal | slices | FFs | LUTs | routed (ns, seeds 1–3) | trce (ns) |
 |---|---:|---:|---:|---:|---:|
 | t80 | 1146 → **1009** | 361 → **233** | 2153 → **1816** | 22.09 → **21.29** | 21.67 → **20.36** |
-| iwls05-simple-spi | 89 → **79** | 131 → **67** | 157 → **110** | 6.16 → **5.94** | – |
+| iwls05-simple-spi | 89 → **79** | 131 → **67** | 157 → **110** | 6.16 → **5.94** | 6.05 → **5.86** |
+
+simple_spi's trce (seeds 1/2/3): before 6.094 / 5.924 / 6.142 ns; at High (the wider mapping with the RAM)
+5.898 / 6.291 / 6.302, 1.8 % slower in the mean, within the seeds' spread (Silinx's own analysis has it 1.5 % faster);
+at Normal (the balanced one onto LUT4s alone) 5.743 / 6.038 / 5.785, 3.3 % faster. At High it has no balanced
+candidate (its depth-oriented mapping is not kept, so no second balancing is made), and of the two as fast by the
+estimate (5.40 ns) the wider mapping has the fewer slices.
+
+**After #370's wider mfs2 windows (`DEPTH_ABC2_LUT4`, High's fourth candidate).** The T80 at High then keeps another
+netlist onto LUT4s alone: 1782 LUTs, **992 slices** (XST 1000), the same estimate (20.41 ns), but routed slower
+(seeds 1–3): Silinx 21.88 / 22.94 / 22.10 ns (22.31; the one of #771 21.29, main 22.09), trce 20.836 / 21.951 /
+21.246 ns (**21.34**; #771's 20.36, main's flip-flops 21.67). Still 1.5 % faster than main by trce, 13 % fewer slices.
+At Normal its RAM remap stays on `DEPTH_ABC2` (tried with `DEPTH_ABC2_LUT4`: the same 992-slice netlist, 4.8 % slower
+by trce for 17 slices): the T80 at Normal 1009 slices, 20.36 ns. simple_spi and sasc are the same with either.
 
 ## The EPFL arbiter: balanced once more onto LUT4s alone (#370)
 
