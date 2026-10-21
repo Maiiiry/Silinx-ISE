@@ -16,7 +16,7 @@
 import {
   SYMBOLS, SYMBOL_CATEGORIES, GRID, defaultParams, normalizeDoc, newDoc, symbolDef, symbolPins, symbolBox,
   xform, rotSize, portBox, portSide, freePortName, turnSide, oppositeSide, netlist, generateHdl, parseNetName, FF_INPUTS, ffVariant, gateVariant, MUX_INPUTS, symbolTypeName,
-  splitWiresAt, netByName, renameNet, wireCrossings,
+  splitWiresAt, netByName, renameNet, netShort, wireCrossings,
 } from '/core/schdoc.js';
 import { svgSnapshot, printDiagram } from './print.js';
 import { symbolSummary, presetOf } from '/core/symdocs.js';
@@ -1213,8 +1213,13 @@ export function mountSchEditor(container, opts = {}) {
     // wire there (a T-junction), unless it is on a pin or a marker (connected to that one); what the
     // wire passes over stays apart
     const ends = [pts[0], pts[pts.length - 1]].filter(q => !connPoints().some(c => c.x === q.x && c.y === q.y));
-    if (pts.length >= 2) edit(() => { splitWiresAt(doc, ends); doc.wires.push({ id: nextId('W', doc.wires), points: pts }); }, { keepProps: true });
-    else renderOverlay();
+    if (pts.length < 2) { renderOverlay(); return; }
+    // a wire between two named nets is refused, as in ISE (#754): rename one of them, or give both the same name
+    const trial = clone(doc);
+    splitWiresAt(trial, ends); trial.wires.push({ id: nextId('W', trial.wires), points: pts });
+    const short = netShort(doc, normalizeDoc(trial), { modules });
+    if (short) { flash(`The wire would short net '${short[0]}' and net '${short[1]}': two named nets cannot be joined. Rename one of them first (the same name connects them).`, 6000); renderOverlay(); return; }
+    edit(() => { splitWiresAt(doc, ends); doc.wires.push({ id: nextId('W', doc.wires), points: pts }); }, { keepProps: true });
   }
   function wireClick(pt, dbl) {
     const p = snapPoint(pt);
@@ -1872,9 +1877,9 @@ export function mountSchEditor(container, opts = {}) {
 
   // ---------------- small UI helpers
   let flashTimer = null;
-  function flash(msg) {
+  function flash(msg, ms = 1800) {
     hint.textContent = msg; hint.hidden = false;
-    clearTimeout(flashTimer); flashTimer = setTimeout(() => { hint.hidden = true; }, 1800);
+    clearTimeout(flashTimer); flashTimer = setTimeout(() => { hint.hidden = true; }, ms);
   }
   function promptBox(pt, label, value) {
     return new Promise(resolve => {

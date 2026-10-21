@@ -620,6 +620,32 @@ export function renameNet(doc, nl, net, name, edited = null) {
   return out;
 }
 
+// Two named nets shorted (#754): nets of `before`, each with a name of its own (a net name or an I/O marker),
+// that are one net in `after` (a wire drawn between them). ISE's schematic editor refuses such a wire ("Wire
+// would create a short between net x and net y"). Not a short: the same name (connected by name), an unnamed
+// net, output markers on another marker's net (assigned in the HDL, y <= a), nor names one net of `before`
+// already had. Returns the two names [x, y], or null.
+export function netShort(before, after, { modules = {} } = {}) {
+  const b = netlist(before, { modules }), a = netlist(after, { modules });
+  const names = (doc, n) => {
+    const ci = doc.lang === 'vhdl', out = new Map();
+    const add = (name, marker, dir) => { const k = ci ? name.toLowerCase() : name; if (name && !out.has(k)) out.set(k, { key: k, name, marker, dir }); };
+    for (const id of n.labels) add(parseNetName(doc.labels.find(l => l.id === id)?.net).base, false);
+    for (const id of n.ports) { const p = doc.ports.find(q => q.id === id); if (p) add(p.name, true, p.dir); }
+    return [...out.values()];
+  };
+  const owner = new Map();   // a name of `before` -> its net (names alike are one net)
+  for (const n of b.nets) for (const x of names(before, n)) owner.set(x.key, n.id);
+  for (const n of a.nets) {
+    const xs = names(after, n);
+    if (xs.length < 2 || (xs.every(x => x.marker) && xs.filter(x => x.dir !== 'out').length <= 1)) continue;
+    const by = new Map();
+    for (const x of xs) { const g = owner.get(x.key) ?? `new:${x.key}`; if (!by.has(g)) by.set(g, x.name); }
+    if (by.size > 1) return [...by.values()].slice(0, 2);
+  }
+  return null;
+}
+
 // ===================================================================== connectivity
 const key = (x, y) => `${x},${y}`;
 function onSeg(p, a, b) {

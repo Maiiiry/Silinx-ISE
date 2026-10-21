@@ -1,4 +1,4 @@
-// UI (#689): a wire named with a name another net has: the editor asks whether to connect them by name.
+// UI (#689, #734, #754): a wire named with a name another net has: the editor asks whether to connect them by name.
 // Cancel: nothing changes, the nets stay apart; Connect by name: one net (the HDL one signal). In
 // English and in Portuguese.
 import { before, after } from 'node:test';
@@ -114,4 +114,45 @@ uiTest('#734 schematic: renaming a net name renames the whole net connected by n
     await page.waitFor(() => window.Silinx.active.schEditor.getDoc().ports.map((p) => p.name).join() === 'a,y', [], { what: `${lang}: the marker undone` });
   }
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+});
+
+// #754: a wire drawn between two named nets (s and t) is refused, as in ISE's schematic editor ("would create a
+// short"): the status line says why, nothing is added; a wire to an unnamed net is drawn. In English and Portuguese
+uiTest('#754 schematic: a wire between two named nets is refused with a note; to an unnamed net it is drawn (English, Portuguese)', E, async (page) => {
+  // a -> U1 -> W2 named s; W3 named t -> U2 -> y; W6 (unnamed) -> U3
+  const doc = newDoc('short', 'vhdl');
+  doc.symbols.push(inv('S1', 'U1', 100, 90), inv('S2', 'U2', 100, 290), inv('S3', 'U3', 100, 490));
+  doc.ports.push({ id: 'P1', name: 'a', dir: 'in', width: 1, x: 60, y: 100 }, { id: 'P2', name: 'y', dir: 'out', width: 1, x: 220, y: 300 });
+  doc.wires.push({ id: 'W1', points: [P(60, 100), P(100, 100)] }, { id: 'W2', points: [P(160, 100), P(220, 100)] },
+    { id: 'W3', points: [P(40, 300), P(100, 300)] }, { id: 'W4', points: [P(160, 300), P(220, 300)] }, { id: 'W6', points: [P(40, 500), P(100, 500)] });
+  doc.labels.push({ id: 'L1', x: 200, y: 100, net: 's' }, { id: 'L2', x: 60, y: 300, net: 't' });
+  await makeProject(env, { name: 'ShortPj', files: { 'src/short.sch.json': JSON.stringify(doc) } });
+  await page.openProject('ShortPj');
+  await page.eval(() => window.SilinxApp.openSch('src/short.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 3, [ED], { what: 'drawn' });
+  const at = (x, y) => page.eval((ed, px, py) => { const l = document.querySelector(`${ed} svg [data-kind=wire] .whit`); const p = l.ownerSVGElement.createSVGPoint(); p.x = px; p.y = py; const q = p.matrixTransform(l.getScreenCTM()); return { x: q.x, y: q.y }; }, ED, x, y);
+  const getDoc = () => page.eval(() => window.Silinx.active.schEditor.getDoc());
+  const hint = (t) => page.waitFor((ed, x) => { const e = document.querySelector(`${ed} .se-hint`); return !!e && !e.hidden && e.textContent === x; }, [ED, t], { what: `the note: ${t}` });
+  const draw = async (pts) => { await page.click(`${ED} .se-btn[data-act=wire]`); for (const [x, y] of pts) await page.click(await at(x, y)); await page.key('Escape'); };
+  for (const lang of ['en', 'pt']) {
+    await page.eval(async (l) => (await import('/js/i18n.js')).setLanguage(l), lang);
+    // from W2's end (s) to W3's end (t): refused
+    await draw([[220, 100], [220, 200], [40, 200], [40, 300]]);
+    await hint(lang === 'en' ? "The wire would short net 's' and net 't': two named nets cannot be joined. Rename one of them first (the same name connects them)."
+      : "O fio poria em curto a rede 's' e a rede 't': duas redes com nome não podem ser unidas. Mude primeiro o nome de uma delas (o mesmo nome liga-as).");
+    const d = await getDoc();
+    assert.equal(d.wires.length, 5, `${lang}: no wire added`);
+    const nl = netlist(d);
+    assert.notEqual(nl.wireNet.get('W2'), nl.wireNet.get('W3'), `${lang}: s and t apart`);
+    assert.ok(!nl.diagnostics.some((x) => /several names/.test(x.message)), `${lang}: no net with two names`);
+  }
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // from W2's end (s) to W6's end (unnamed): drawn, U3's input on s; the warnings only t's (driven by nothing)
+  await draw([[220, 100], [240, 100], [240, 440], [40, 440], [40, 500]]);
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.length === 6, [], { what: 'the wire drawn' });
+  const d = await getDoc();
+  const nl = netlist(d);
+  assert.equal(nl.wireNet.get('W6'), nl.wireNet.get('W2'), 'one net');
+  assert.equal(nl.wireNet.get('W6').name, 's');
+  assert.deepEqual(nl.diagnostics.map((x) => x.message).sort(), ["net 't' connects only U2.I", "net 't' has no driver (read by U2.I)"], 'only t\'s own warnings');
 });
