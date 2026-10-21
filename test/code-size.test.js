@@ -22,7 +22,7 @@ const BIG_FILES = new Set([
 const BIG_FUNCTIONS = new Set([
   'core/asm-from-hdl.js asmFromHdl', 'core/asm-hdl-analysis.js analyzeModule', 'core/asm.js analyze', 'core/compiled-sim.js compileNetlist',
   'core/compiled-words.js wordLevel', 'core/fpga/pack.js packWith', 'core/fpga/place.js place', 'core/fpga/route.js routeDesign',
-  'core/isesch.js importIseSch', 'core/lint.js designChecks', 'core/open-flow-core.js runOpenFlow', 'core/schdoc.js generateHdl',
+  'core/lint.js designChecks', 'core/open-flow-core.js runOpenFlow', 'core/schdoc.js generateHdl',
   'core/schdoc.js schematicFromHdl', 'core/scopes.js analyzeVhdl', 'core/synth-open.js synthesizeOpen',
   'server/impl-routes.js registerImplRoutes', 'web/js/asm-editor.js mountAsmEditor', 'web/js/editor.js createEditor',
   'web/js/emulator.js mountEmulator', 'web/js/fpgaview.js mountFpgaView', 'web/js/fsm-editor.js mountFsmEditor', 'web/js/isim-draw.js mountDraw',
