@@ -78,7 +78,9 @@ export function mountSymbolHdl(ctx) {
         return [q.name, n && !isolated(n) ? OUTN(s, q.name) : null];
       }
       const n = inNet(s, q.name);
-      return [q.name, n ? outRead.get(n) || netName(n) : lit(q.width, q.tie)];
+      // (an input its settings leave unused: open in Verilog, `.B()`, #893; VHDL ties it, UNISIM's component giving it no
+      // default, ISE's map warning PhysDesignRules:1135 then)
+      return [q.name, n ? outRead.get(n) || netName(n) : q.free && !ci ? null : lit(q.width, q.tie)];
     });
     for (const [x, y] of r.exclusive || []) {
       if (conns.find(([k]) => k === x)?.[1] && conns.find(([k]) => k === y)?.[1]) diags.push({ severity: 'error', message: `${s.name}: ${r.name}'s outputs ${x} and ${y} cannot both be used: connect one of them`, ref });

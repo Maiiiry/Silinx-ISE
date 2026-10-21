@@ -29,8 +29,10 @@
 import { resourceOfPrimitive } from './resources.js';
 
 const tx = (en, pt) => ({ en, pt });
-// (vec: a vector of one bit in UNISIM, std_logic_vector(0 downto 0): the parity of a 9-bit port)
-const pin = (name, dir, width, func, o = {}) => ({ name, dir, width, tie: dir === 'in' ? (o.tie ?? '0') : null, need: !!o.need, clock: !!o.clock, ...(o.vec ? { vec: true } : {}), func });
+// (vec: a vector of one bit in UNISIM, std_logic_vector(0 downto 0): the parity of a 9-bit port; free: an input the
+// primitive's settings leave unused, left open in Verilog when unconnected rather than tied, as ISE wants it, #893)
+const pin = (name, dir, width, func, o = {}) => ({ name, dir, width, tie: dir === 'in' ? (o.tie ?? '0') : null, need: !!o.need, clock: !!o.clock,
+  ...(o.vec ? { vec: true } : {}), ...(o.free ? { free: true } : {}), func });
 const int = (name, def, min, max, meaning) => ({ name, kind: 'int', default: def, min, max, meaning });
 const real = (name, def, min, max, meaning, options) => ({ name, kind: 'real', default: def, min, max, meaning, ...(options ? { options } : {}) });
 const str = (name, def, options, meaning, num) => ({ name, kind: 'string', default: def, options, meaning, ...(num ? { num: true } : {}) });
@@ -215,7 +217,7 @@ P.mult18x18sio = {
     'Multiplicador dedicado de 18 × 18 bits de números em complemento para dois, P = A × B em 36 bits, com um registo opcional em A, em B e no produto (AREG, BREG, PREG), cada um com a sua habilitação e o seu reset síncrono; B da sua entrada ou do multiplicador de baixo (BCIN).')],
   // (B needed from its input with B_INPUT DIRECT, BCIN with CASCADE, #848)
   of: p => ({ name: 'MULT18X18SIO', pins: [
-    pin('A', 'in', 18, tx('Operand A (signed)', 'Operando A (com sinal)'), { need: true }), pin('B', 'in', 18, tx('Operand B (signed)', 'Operando B (com sinal)'), { need: p.B_INPUT !== 'CASCADE' }),
+    pin('A', 'in', 18, tx('Operand A (signed)', 'Operando A (com sinal)'), { need: true }), pin('B', 'in', 18, tx('Operand B (signed)', 'Operando B (com sinal)'), { need: p.B_INPUT !== 'CASCADE', free: p.B_INPUT === 'CASCADE' }),
     pin('BCIN', 'in', 18, tx('Operand B from the multiplier below (B_INPUT CASCADE)', 'Operando B do multiplicador de baixo (B_INPUT CASCADE)'), { need: p.B_INPUT === 'CASCADE' }),
     pin('CEA', 'in', 1, tx('Clock enable of the A register; unconnected 1', 'Habilitação do registo de A; desligado, 1'), { tie: '1' }),
     pin('CEB', 'in', 1, tx('Clock enable of the B register; unconnected 1', 'Habilitação do registo de B; desligado, 1'), { tie: '1' }),
