@@ -96,6 +96,8 @@ function installIn(args, { env = {}, runner = true } = {}) {
     fs.writeFileSync(path.join(dir, 'externals/node20/bin/node'), 'node 20');
     fs.writeFileSync(path.join(dir, 'externals/node24/bin/node'), 'node 24');
     fs.writeFileSync(path.join(dir, '.env'), 'LANG=en_US.UTF-8\nTMPDIR=/old\n');
+    // a previous install's folder, whose path had a space (#891)
+    fs.mkdirSync(path.join(lib, 'Application Support/Silinx-ISE-runner'), { recursive: true });
   }
   const log = path.join(tmp, 'calls');
   for (const t of ['launchctl', 'chown']) fs.writeFileSync(path.join(bin, t), `#!/bin/sh\necho "${t} $*" >> "${log}"\n`, { mode: 0o755 });
@@ -112,7 +114,7 @@ test('install.sh --system: the runner a daemon of its own user, the window root\
   const r = installIn(['--system', 'iserunner', 'RUNNER']);
   assert.equal(r.code, 0, r.err);
   assert.equal(r.err, '');
-  const dest = path.join(r.lib, 'Application Support/Silinx-ISE-runner');
+  const dest = path.join(r.lib, 'Silinx-ISE-runner');
   // root's copies of the scripts and of the newest Node.js, owned by root
   assert.deepEqual(fs.readdirSync(dest).sort(), ['job-started.sh', 'node', 'window.mjs', 'window.sh']);
   assert.equal(fs.readFileSync(path.join(dest, 'node'), 'utf8'), 'node 24');
@@ -121,6 +123,9 @@ test('install.sh --system: the runner a daemon of its own user, the window root\
   // the runner's .env: the hook, its temporary files in its folder (shared with Docker), Docker's socket; the rest kept
   assert.equal(r.read(path.join(r.dir, '.env')), `LANG=en_US.UTF-8\nACTIONS_RUNNER_HOOK_JOB_STARTED=${dest}/job-started.sh\nTMPDIR=${r.dir}/_tmp\nDOCKER_HOST=unix:///var/run/docker.sock\n`);
   assert.ok(fs.statSync(path.join(r.dir, '_tmp')).isDirectory());
+  // the runner runs its hook unquoted: no whitespace in its path (#891)
+  assert.match(r.read(path.join(r.dir, '.env')), /^ACTIONS_RUNNER_HOOK_JOB_STARTED=\S+$/m);
+  assert.equal(fs.existsSync(path.join(r.lib, 'Application Support/Silinx-ISE-runner')), false, 'the old folder removed');
   assert.equal(r.read(path.join(r.dir, 'runsvc.sh')), '#!/bin/bash\n', 'runsvc.sh from bin/, as svc.sh install makes it');
   // the runner's daemon: its own user, not loaded by the installer (the window starts it)
   const runner = r.read(path.join(r.lib, 'LaunchDaemons/com.github.pmnmalo.silinx-ise.runner.plist'));
