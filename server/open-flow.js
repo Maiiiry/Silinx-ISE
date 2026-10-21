@@ -29,6 +29,7 @@ import { OPEN_STEPS, orderOpenSteps } from '../core/open-steps.js';
 import { synthEffort } from '../core/synth-open.js';
 import { findDeviceGraph, shippedDevicePath, buildDeviceCache, devicesDir, SHIPPED_DEVICES_DIR } from '../core/fpga/device-node.js';
 import { S3E_DEVICES } from '../core/fpga/bitstream.js';
+import { spartan6Open, s6OpenStatus } from '../core/fpga/s6/devices.js';
 import { DB_DIR, hasBitDb, dbPackages } from '../core/fpga/bitdb-node.js';
 import { runCommand } from './jobs.js';
 import { safeJoin } from './projects.js';
@@ -80,15 +81,17 @@ export function flowHeapMb(totalBytes = os.totalmem(), nodeOptions = process.env
  * Can the Silinx toolchain implement a design for this device?
  * { available, reason, part, device, graph (file or null), shipped, bitDb, canBuild (a device
  * description built from an ISE would make it available: developers only, POST
- * /toolchain/build-device; the interface does not offer it, #8) }.
+ * /toolchain/build-device; the interface does not offer it, #8), steps (the steps it has for the
+ * device, when not all of them: the Spartan-6's under the developer flag SILINX_SPARTAN6_OPEN, #722) }.
  */
-export function openStatus(device, { dbDir = BIT_DB_DIR } = {}) {
+export function openStatus(device, { dbDir = BIT_DB_DIR, env = process.env } = {}) {
   const out = { available: false, reason: '', part: null, device: null, graph: null, shipped: false, bitDb: false, canBuild: false };
   let part;
   try { part = reportPart(device || {}); } catch (e) { out.reason = e.message; return out; }
   const dev = String(device.part).toLowerCase();
   Object.assign(out, { part, device: dev });
   const fam = deviceFamily(device) || '';
+  if (fam === 'spartan6' && spartan6Open(env)) return Object.assign(out, s6OpenStatus(dev, String(device.package || '').toLowerCase(), part));
   if (fam !== 'spartan3e') {
     out.reason = `the Silinx toolchain does not support the ${fam || dev} family yet (only the Spartan-3E ${supported(dbDir)}): use an ISE mode`;
     return out;
@@ -135,6 +138,12 @@ export async function runOpenImplementation(job, { project, projectDir, steps, s
   if (!status.available) {
     job.log(`ERROR: the Silinx toolchain cannot implement this design: ${status.reason}.`);
     throw Object.assign(new Error(`Silinx toolchain not available for ${status.part || 'this device'}: ${status.reason}`), { result, openStatus: status });
+  }
+  // (a device with some of the steps only: the Spartan-6 under its developer flag, #722)
+  const missing = status.steps ? st.filter(s => !status.steps.includes(s)) : [];
+  if (missing.length) {
+    job.log(`ERROR: the Silinx toolchain has no ${missing.join(', ')} for this device yet: ${status.reason}.`);
+    throw Object.assign(new Error(`Silinx toolchain: no ${missing.join(', ')} for ${status.part} yet (only ${status.steps.join(', ')})`), { result, openStatus: status });
   }
   job.log(`Device: ${status.reason}.`);
   // the sources and the UCF, as the ISE flow takes them (build/src, build/<top>.ucf; the checks of
