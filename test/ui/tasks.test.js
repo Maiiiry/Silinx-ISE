@@ -338,6 +338,48 @@ uiTest('#854 Tasks: no tab bar in a task with a single document; its module and 
   await noWarnings(page);
 }, { build: DEV });
 
+// #799: Edit's Design pane is one tree, no views: the design, then the test benches and the constraints; Check checks
+// the selected module, a test bench with the simulation's sources
+const hierRows = (page) => page.eval(() => [...document.querySelectorAll('#hier .row')].filter((r) => r.getClientRects().length)
+  .map((r) => [r.querySelector('.lbl').textContent, ...[...r.querySelectorAll('.badge')].map((b) => b.textContent)].join(' ')));
+uiTest('#799 Tasks ▸ Edit: one design tree (the design, Test Benches, Constraints), no views; Check of a test bench', E, async (page) => {
+  await makeProject(env, { name: 'TasksTree', template: 'blinky' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksTree');
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.ok(!(await shown(page, '#design-panel .view-select')) && !(await shown(page, '#proc-panel')), 'no views, no Processes');
+  const rows = await hierRows(page);
+  const at = (label) => rows.findIndex((r) => r === label || r.startsWith(`${label} `));
+  // the design first (its top, its modules with their drawings' badges), then the groups
+  assert.ok(at('TasksTree') === 0 && at('xc3s250e-4-cp132') === 1 && at('top') === 2, rows.join(' | '));
+  assert.ok(rows.includes('u_speed - speed_ctrl ASM VHDL'), 'a drawing\'s badge first, its HDL last');
+  assert.ok(at('Test Benches') > at('top') && at('tb_top') === at('Test Benches') + 1, rows.join(' | '));
+  assert.ok(at('Constraints') > at('tb_top') && at('top.ucf') === at('Constraints') + 1, rows.join(' | '));
+  // Check of the test bench: the simulation's sources (Behavioral Check Syntax), no error
+  await page.treeRow('#hier', 'tb_top', { exact: true });
+  await page.click('#task-bar [data-act="main"]');
+  await page.waitConsole(/Elaborating top module <tb_top>/);
+  await page.waitConsole(/Process "Check Syntax" completed successfully/);
+  assert.match(await page.eval(() => document.getElementById('console-log').innerText), /Started : "Behavioral Check Syntax"/);
+  assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
+  // the UCF from its group: in Edit
+  await page.treeRow('#hier', 'top.ucf', { dbl: true, exact: true });
+  await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('top.ucf'), [], { what: 'the UCF' });
+  assert.equal((await state(page)).task, 'edit');
+  // in Portuguese: the groups' names
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => [...document.querySelectorAll('#hier .lbl')].some((l) => l.textContent === 'Bancadas de Teste'), [], { what: 'Portuguese' });
+  assert.ok((await hierRows(page)).some((r) => r === 'Restrições'));
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // the modern interface: its views and Processes again, no groups
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.ok(await shown(page, '#design-panel .view-select') && await shown(page, '#proc-panel'));
+  assert.ok(!(await hierRows(page)).some((r) => r === 'Test Benches' || r === 'Constraints'));
+  await noWarnings(page);
+}, { build: DEV });
+
 // the lines of the message centre shown (its filter): [source, text]
 const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));
 const pressed = (page) => page.eval(() => [...document.querySelectorAll('#mc-filters .filt[aria-pressed="true"]')].map((b) => b.dataset.src));

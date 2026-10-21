@@ -215,7 +215,7 @@ const PT = {
   'Specify the properties of the clock to be applied to the selected signal.': 'Indique as propriedades do relógio a aplicar ao sinal selecionado.',
   // the stimuli drawn on the waveforms (#336)
   'Edit Stimuli: click the waveforms of the inputs (as the HDL Bencher)': 'Editar Estímulos: clique nas formas de onda das entradas (como no HDL Bencher)',
-  'Edit Stimuli': 'Editar Estímulos', 'Stimuli': 'Estímulos', 'Timing…': 'Temporização…', 'Fill Expected Outputs': 'Preencher Saídas Esperadas', 'Save as Test Bench…': 'Guardar como Bancada de Teste…',
+  'Stimuli': 'Estímulos', 'Timing…': 'Temporização…', 'Fill Expected Outputs': 'Preencher Saídas Esperadas', 'Save as Test Bench…': 'Guardar como Bancada de Teste…',
   'Stop Editing': 'Terminar a Edição', 'Stimulus Timing': 'Temporização dos Estímulos', 'None (combinational)': 'Nenhum (combinatório)',
   'Clock Period (ns):': 'Período do Relógio (ns):', 'Time Step (ns):': 'Passo de Tempo (ns):', 'Cycles:': 'Ciclos:', 'Input Value': 'Valor da Entrada',
   'Expected Value': 'Valor Esperado', 'From Cycle:': 'A partir do Ciclo:', 'Value:': 'Valor:', 'Save as Test Bench': 'Guardar como Bancada de Teste',
@@ -304,6 +304,8 @@ const PT = {
   'Emulate the design on the board: the board opens here.': 'Emule o projeto na placa: a placa abre aqui.',
   'Implement the design: synthesis, place & route and the programming file.': 'Implemente o projeto: síntese, place & route e o ficheiro de programação.',
   'Program the board: the FPGA, or its flash to keep the design.': 'Programe a placa: a FPGA, ou a sua flash para guardar o projeto.',
+  // the Edit task's one tree: its groups (#799)
+  'Test Benches': 'Bancadas de Teste', 'Constraints': 'Restrições',
   // a single document's module and model in the task's bar (#854)
   'Post-Synthesis': 'Pós-Síntese', 'Post-Translate': 'Pós-Translate', 'Post-Map': 'Pós-Map', 'Post-Place & Route': 'Pós-Place & Route',
   // its message centre (web/js/messages.js, #798)

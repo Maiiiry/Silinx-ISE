@@ -18,8 +18,13 @@ import { checkFileSyntax, checkSyntax, markStale, renderProcesses, saveAll } fro
 import { openSchematic, runSimulation } from './viewers.js';
 import { renameDialog } from './rename.js';
 import { openWizardModule, wizardLabelOf } from './wizard-modules.js';
+import { t, onLanguageChange } from './i18n.js';
 
 const $ = id => document.getElementById(id);
+// the Tasks interface (#799): one tree, no views: the design (as the Implementation view shows it), then the test
+// benches and the constraints, each a group
+const oneTree = () => document.documentElement.dataset.layout === 'tasks';
+onLanguageChange(() => { if (oneTree() && S.project) renderHierarchy(); });   // (its groups' names: the tree is not translated)
 
 export function renderHierarchy() {
   const host = $('hier');
@@ -27,16 +32,17 @@ export function renderHierarchy() {
   host.innerHTML = '';
   if (!S.project) { host.append(h('div', { class: 'tree empty' }, 'No project open. Use File > New Project or File > Open Project.')); return; }
   const pj = S.project;
+  const one = oneTree(), sim = S.view === 'sim' && !one;
   const tree = h('ul', { class: 'tree', tabindex: '0', 'aria-label': 'Design hierarchy', onkeydown: treeKeys });
   const dev = `${pj.device.part}${pj.device.speed}-${pj.device.package}`;
   const root = treeItem({ label: pj.name, ico: 'project', open: true, onSelect: () => select({ type: 'project' }), key: 'project' });
   tree.append(root.li);
-  const devItem = treeItem({ label: S.view === 'impl' ? dev : 'Behavioral', ico: S.view === 'impl' ? 'chip' : 'sim', open: true, key: 'device', onSelect: () => select({ type: 'device' }), onContext: e => projectContextMenu(e) });
+  const devItem = treeItem({ label: !sim ? dev : 'Behavioral', ico: !sim ? 'chip' : 'sim', open: true, key: 'device', onSelect: () => select({ type: 'device' }), onContext: e => projectContextMenu(e) });
   root.ul.append(devItem.li);
 
   const lib = S.lib;
-  const roots = viewRoots(S.view === 'sim');
-  const topName = S.view === 'impl' ? pj.top : null;   // the Simulation view has no top: Simulate runs the selected module
+  const roots = viewRoots(sim);
+  const topName = !sim ? pj.top : null;   // the Simulation view has no top: Simulate runs the selected module
   roots.sort((a, b) => (a === topName ? -1 : b === topName ? 1 : a.localeCompare(b)));
   const addModule = (parentUl, modName, instName, depth, path) => {
     const info = moduleInfo(modName);
@@ -78,13 +84,17 @@ export function renderHierarchy() {
   // packages, constraints, ASM charts and other files
   for (const p of lib.packages.values()) {
     const fi = S.project.files.find(f => f.path === p.file);
-    if (!inView(fi?.role, S.view === 'sim')) continue;
+    if (!inView(fi?.role, sim)) continue;
     const it = treeItem({ label: p.name, meta: `(${p.file.split('/').pop()})`, ico: 'vhdl', key: `pkg:${p.name}`, onSelect: () => select({ type: 'file', file: p.file }), onOpen: () => openFile(p.file, p.loc?.line), onContext: e => fileContextMenu(e, p.file) });
     it.setLeaf(); devItem.ul.append(it.li);
   }
-  if (S.view === 'impl' && pj.constraints && S.fileTree?.includes(pj.constraints)) {
+  // (one tree: the test benches and their units under test, then the constraints, each a group)
+  const group = (label, ico, key) => { const g = treeItem({ label, ico, open: true, key }); root.ul.append(g.li); return g.ul; };
+  const benches = one ? viewRoots(true).filter(n => moduleInfo(n)?.role === 'sim') : [];
+  if (benches.length) { const ul = group(t('Test Benches'), 'sim', 'group:tb'); for (const r of benches) addModule(ul, r, null, 0, r); }
+  if (!sim && pj.constraints && S.fileTree?.includes(pj.constraints)) {
     const it = treeItem({ label: pj.constraints.split('/').pop(), ico: 'ucf', key: 'ucf', onSelect: () => select({ type: 'ucf', file: pj.constraints }), onOpen: () => openFile(pj.constraints), onContext: e => fileContextMenu(e, pj.constraints) });
-    it.setLeaf(); devItem.ul.append(it.li);
+    it.setLeaf(); (one ? group(t('Constraints'), 'ucf', 'group:ucf') : devItem.ul).append(it.li);
   }
   for (const f of (S.fileTree || []).filter(f => /\.sch\.json$/.test(f) && !S.schOwners?.[f] && !S.modules.some(m => m.file === f))) {
     const owned = null;
@@ -109,7 +119,7 @@ export function renderHierarchy() {
   }
   // files that failed to parse into any unit
   const withUnits = new Set(lib.parsed.filter(p => p.units.length).map(p => p.file));
-  for (const f of S.project.files.filter(f => !withUnits.has(f.path) && inView(f.role, S.view === 'sim'))) {
+  for (const f of S.project.files.filter(f => !withUnits.has(f.path) && (one || inView(f.role, sim)))) {
     const it = treeItem({ label: f.path.split('/').pop(), meta: '(no units)', ico: f.lang === 'vhdl' ? 'vhdl' : 'verilog', key: `f:${f.path}`, onSelect: () => select({ type: 'file', file: f.path }), onOpen: () => openFile(f.path), onContext: e => fileContextMenu(e, f.path) });
     it.setLeaf(); devItem.ul.append(it.li);
   }

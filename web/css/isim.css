@@ -29,8 +29,6 @@
 .isim-toolbar .tb-btn svg { width: 16px; height: 16px; }
 .isim-toolbar .tb-sep { width: 1px; height: 18px; background: #c0c0c0; margin: 0 4px; box-shadow: 1px 0 #fff; }
 /* the stimuli drawn on the waveforms (#336): the Edit Stimuli button on, its bar */
-.isim-toolbar .tb-btn:has(.tb-label) { width: auto; gap: 4px; padding: 0 6px; }
-.isim-toolbar .tb-label { white-space: nowrap; }
 .isim-toolbar .tb-btn.on { border-color: #7ea6d8; background: linear-gradient(#d5e6f8, #bcd7f3); }
 .isim-stimbar {
   flex: none; display: flex; align-items: center; gap: 6px; padding: 2px 6px; min-height: 26px; flex-wrap: wrap;

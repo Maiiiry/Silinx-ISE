@@ -42,6 +42,10 @@ html[data-layout="tasks"] #topbar[data-fit="tight"] #title-project { max-width: 
   html[data-layout="tasks"] #title-project { max-width: 120px; }
 }
 
+/* ------------------------------------------------------------------ the Design pane: one tree, no views (#799) */
+html[data-layout="tasks"] :is(#design-panel .view-select, #left-split, #proc-panel) { display: none; }
+html[data-layout="tasks"] #design-panel { flex: 1; }
+
 /* ------------------------------------------------------------------ the task's bar (the toolbar's right end) */
 html[data-layout="tasks"] .m-steps { display: none; }
 html[data-layout="tasks"] #task-bar { display: flex; align-items: center; gap: 2px; margin-left: auto; }
