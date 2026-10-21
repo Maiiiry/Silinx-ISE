@@ -1135,6 +1135,83 @@ optimisation (mfs2 after the new structure) finds; the netlist simulates as the 
 What is left: spi-fpga-slave (its enable shared by 8 flip-flops: the 2-level mapping duplicates it), vtr-stereovision3
 and iwls05-sasc keep their extra level; itc99-b03, b05, b06 and sasc still end on CE (b03's and sasc's enable is shared
 by 12 and 33 flip-flops: folding it costs 43 % more LUTs; b05's is slower folded); verilog-uart ends on the SR (Tsrck).
+(Since then, spi-fpga-slave's and sasc's level: below.)
+
+### The critical LUTs made shallower, their fan-out kept (#652)
+
+What spi-fpga-slave needed is a mapping that changes only the critical cone and makes nothing shared again. It is done
+after the LUT mapping, on the netlist (`core/lut-resynth.js`): the LUT that drives the end of a critical path, at level L,
+is made again with level L-1 at most, its output kept (so its fan-out is), every other LUT left as it is.
+
+- **Its cone, cut twice.** X: the cone's signals of level L-2 at most, where the cone stops (what the new last LUT, h,
+  may read). Then cuts Z of the same cone with some of X's signals of level L-2 replaced by their LUTs' inputs (level L-3
+  at most: what a new LUT g may read), the smallest first, of `RESYNTH_RULE.leaves` (8) leaves at most.
+- **Two forms.** h alone, of up to 4 of X (a cone that converges again: two LUTs into one); or h(g(A), S): A up to 4
+  leaves of Z of level L-3 at most, S up to 3 signals of X (the shared ones included: spi's `rx_data_vld`). F is such a
+  function when, for each value of A and of S, F has one value, and the values of A fall into two classes that agree on
+  every S both reach (a 2-colouring of their conflicts): g's two values. All by truth tables over Z (256 rows), so the
+  new LUTs compute F by construction; `test/lut-resynth.test.js` checks the decomposition against functions built so
+  and a netlist against its expressions on every input, and the corpus's diff stage simulates the netlists.
+- **Rounds.** A round makes every end of the critical path (the estimate's ends within the worst, `pathEnds`) one level
+  shallower, or it is undone and the pass ends; at most `RESYNTH_RULE.rounds` (16). The LUTs read only by the old
+  ones are removed.
+- **Nothing made twice.** A new g or h that the netlist already has (the same function of the same signals) is not
+  made again: that LUT is read instead (h's: the root's readers moved to it). vtr-ch-intrinsics' 13 critical ends
+  were 13 inverters of one LUT's output (Yosys's `extractinv`), each collapsed into the same LUT4: 13 new LUTs (141 →
+  154 LUTs, 266 → 272 slices, its inputs loaded 14 times, 6.5 % slower once routed); one with the sharing (142, 266).
+- **A candidate.** The last of the synthesis, on the netlist chosen of all the others (`depth.resynth`), at both
+  efforts, designs of `SPEED_RULE.maxLuts` (1500) LUTs at most, kept by `DEPTH_RULE`; Yosys reads the new netlist back
+  (`resynthCommands`: the cells' library, `read_json`) to write the Verilog netlist and the statistics as of any other.
+  It takes milliseconds (vtr-ch-intrinsics 0.12 s) and that one Yosys run.
+
+On spi-fpga-slave the shift register's enable becomes 2 levels with `load_data_en` kept: 21 LUTs → 23, 14 slices, 5.04 ns
+estimated → 4.17 (its D logic, 3 levels into D, is the critical path then: making it 2 levels takes a LUT more per bit, the
+speedup's 33). What it cannot do: iwls05-i2c's 24 critical ends (a counter's next state, 6 levels, 7 signals of level
+L-2 at most) have no such decomposition; vtr-stereovision3's ends on two flip-flops' SR, one of them not.
+
+Measured with Silinx's static timing (calibrated against trce, #457) on the routed designs: the corpus's 53 designs of
+1500 LUTs at most (in their I/O wrapper on the XC3S1200E, as the weekly comparison builds them) and the 7 examples,
+against main of the same day (after #714 and #716); the period in ns (a combinational design: its longest pad-to-pad
+path), at placer seeds 1, 2 and 3, the mean of the three:
+
+| design | effort | LUTs | slices | seed 1 | mean of 3 | Δ |
+|---|---|---|---|---|---|---:|
+| spi-fpga-slave | both | 21 → 23 | 14 → 14 | 5.905 → 4.937 | 5.74 → 4.71 | −17.9 % |
+| clock (example) | both | 204 → 215 | 202 → 207 | 8.556 → 7.537 | 8.44 → 7.20 | −14.7 % |
+| itc99-b13 | High | 68 → 71 | 41 → 42 | 7.161 → 6.131 | 7.17 → 6.15 | −14.2 % |
+| verilog-uart | Normal | 133 → 137 | 131 → 133 | 9.838 → 8.882 | 9.83 → 8.69 | −11.6 % |
+| iwls05-sasc | Normal | 89 → 94 | 66 → 65 | 5.509 → 4.966 | 5.52 → 4.92 | −10.9 % |
+| vga (example) | both | 166 → 166 | 144 → 144 | 9.651 → 8.902 | 9.30 → 8.78 | −5.6 % |
+| pong (example) | both | 282 → 279 | 245 → 243 | 12.497 → 11.794 | 12.33 → 11.75 | −4.7 % |
+| light8080 | both | 307 → 307 | 189 → 189 | 12.289 → 11.623 | 12.67 → 12.10 | −4.5 % |
+| iwls05-usb-phy | both | 102 → 102 | 63 → 64 | 5.026 → 4.664 | 4.93 → 4.73 | −4.1 % |
+| traffic (example) | High | 106 → 106 | 66 → 66 | 8.179 → 7.801 | 8.28 → 7.97 | −3.7 % |
+| fpu-adder | both | 486 → 486 | 338 → 338 | 10.468 → 9.981 | 10.84 → 10.43 | −3.7 % |
+| itc99-b13 | Normal | 68 → 68 | 41 → 42 | 7.161 → 6.892 | 7.17 → 6.91 | −3.7 % |
+| spi-fpga-master | both | 26 → 27 | 18 → 19 | 4.781 → 4.490 | 4.65 → 4.55 | −2.2 % |
+| serv | both | 283 → 283 | 162 → 159 | 10.512 → 10.398 | 10.55 → 10.37 | −1.7 % |
+| femtorv32-quark | High | 642 → 643 | 409 → 410 | 17.042 → 17.159 | 16.89 → 16.68 | −1.3 % |
+| uart-for-fpga | Normal | 58 → 58 | 41 → 42 | 4.765 → 5.111 | 4.89 → 4.91 | +0.4 % |
+| itc99-b09 | High | 40 → 41 | 20 → 21 | 5.542 → 5.773 | 5.42 → 5.46 | +0.6 % |
+| iwls05-sasc | High | 104 → 104 | 66 → 66 | 5.003 → 5.032 | 4.88 → 5.03 | +3.2 % |
+| vtr-ch-intrinsics | both | 141 → 142 | 266 → 266 | 5.684 → 5.842 | 5.75 → 5.94 | +3.3 % |
+| verilog-uart | High | 148 → 148 | 125 → 125 | 8.104 → 9.052 | 8.06 → 8.48 | +5.2 % |
+
+The other designs' netlists are the same. Over the 60, at seed 1: Normal 1.40 % shorter (14 changed, 5.8 % on average),
+High 1.17 % (16 changed, 4.3 %); slices 10935 → 10940 at Normal, 10921 → 10926 at High; over the three seeds the
+changed ones are 4.5 % shorter. The slower ones are netlists faster by the estimate (verilog-uart at High 7.28 → 6.92
+ns, the same LUTs and slices) whose routing is slower, the kind the other candidates have (#653): together a gain, the
+rule as it is. The designs #652 lists: spi-fpga-slave, iwls05-sasc (Normal) and usb-phy gain their level; vtr-stereovision3,
+iwls05-i2c, the EPFL router, i2c and bar and vtr-diffeq1 are unchanged (no decomposition of every critical end).
+
+**ISE's check** (on the Mac mini, the same routed designs of seed 1, before and after): trce 4.55 % shorter over the 20
+changed builds; spi-fpga-slave 5.762 → 4.951 ns (−14.1 %; ISE's own flow 4.939), itc99-b13 at High −15.9 %, verilog-uart
+at Normal −11.8 %, iwls05-sasc at Normal −10.1 %, spi-fpga-master −10.1 %, the clock example −9.7 %, vga −8.7 %,
+light8080 −8.4 %, pong −6.7 %, itc99-b13 at Normal −6.4 %, traffic at High −2.7 %, iwls05-usb-phy and serv −2.3 %,
+fpu-adder −1.5 %, femtorv32-quark at High +0.1 %, uart-for-fpga +1.4 %, iwls05-sasc at High +2.0 %, vtr-ch-intrinsics +3.2 %,
+itc99-b09 at High +6.4 %, verilog-uart at High +11.5 % (the estimate's seed 1 too: +11.7 %; +5.2 % over three seeds).
+Every bitstream byte-identical to ISE's bitgen (CRC on and off), every DRC 0 errors; vtr-ch-intrinsics's one DRC
+warning (a gated clock, its latches) is main's too.
 
 ## 4:1 multiplexers in the wider mapping (#54)
 

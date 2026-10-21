@@ -1,0 +1,213 @@
+// The critical LUTs made one level shallower, their fan-out kept (core/lut-resynth.js, #652): the decomposition
+// F = h(g(A), S) against functions built so (and one that is not), a netlist written by hand (spi-fpga-slave's shift
+// register enable) checked against its expressions on every input, a round undone, and the open synthesis's candidate
+// (the same design in VHDL and in Verilog, its netlist simulated against the design, test/diff-synth.js).
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { compile, elaborate } from '../core/compile.js';
+import { synthesizeOpen, criticalDelay, logicLevels, pathEnds, cellCounts, utilization } from '../core/synth-open.js';
+import { yosysNode } from '../core/synth-open-node.js';
+import { decompose, shallower, netlistLevels, resynthCritical, RESYNTH_RULE } from '../core/lut-resynth.js';
+import { compareNetlist } from './diff-synth.js';
+
+// a table of n variables from a function of the row's bits
+const table = (n, f) => Uint8Array.from({ length: 1 << n }, (_, m) => +!!f(Array.from({ length: n }, (_, i) => (m >> i) & 1)));
+const column = (n, i) => table(n, x => x[i]);
+// a deterministic pseudo-random generator (tests repeat)
+const rng = (s => () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x80000000; })(652);
+
+test('#652 decompose: F = h(g(A), S) found for functions built so, its g and h giving F again; none where F is not such a function', () => {
+  const n = 7;
+  for (let k = 0; k < 40; k++) {
+    // A: 2 to 4 of the variables, S: up to 3 of the others; g and h random tables
+    const vars = [...Array(n).keys()].sort(() => rng() - 0.5);
+    const nA = 2 + Math.floor(rng() * 3), nS = Math.floor(rng() * Math.min(4, n - nA));
+    const A = vars.slice(0, nA), S = vars.slice(nA, nA + nS);
+    const g = Array.from({ length: 1 << nA }, () => +(rng() < 0.5)), h = Array.from({ length: 2 << nS }, () => +(rng() < 0.5));
+    const idx = (x, vs) => vs.reduce((v, i, j) => v | (x[i] << j), 0);
+    const F = table(n, x => h[(idx(x, S) << 1) | g[idx(x, A)]]);
+    const r = decompose(F, 1 << n, A.map(i => column(n, i)), S.map(i => column(n, i)));
+    assert.ok(r, `case ${k}`);
+    assert.deepEqual(table(n, x => r.h[(idx(x, S) << 1) | r.g[idx(x, A)]]), F, `case ${k}: h(g(A), S) is F`);
+  }
+  // with no A: F a function of S alone (h over S), or not
+  const F = table(4, x => (x[0] & x[1]) | x[3]);
+  const r = decompose(F, 16, [], [0, 1, 3].map(i => column(4, i)));
+  assert.deepEqual([...r.h], [0, 0, 0, 1, 1, 1, 1, 1]);
+  assert.equal(decompose(F, 16, [], [0, 1].map(i => column(4, i))), null, 'F depends on x3 too');
+  // the majority of 5: its two inputs' sum has three values that matter, not a function of one bit of them
+  const maj = table(5, x => x.reduce((a, b) => a + b) >= 3);
+  assert.equal(decompose(maj, 32, [0, 1].map(i => column(5, i)), [2, 3, 4].map(i => column(5, i))), null);
+  // but h(g(x0, x1, x2), x3, x4)? also three values of the sum that matter: none
+  assert.equal(decompose(maj, 32, [0, 1, 2].map(i => column(5, i)), [3, 4].map(i => column(5, i))), null);
+});
+
+// spi-fpga-slave's shift register (#652), its signals the module's inputs (level 0): rx (a LUT3, level 1), load (a LUT4 of
+// rx, level 2, read by the D logic too), en = load | (sp & ~sc & ~cs) (level 3) on a flip-flop's CE
+const INPUTS = ['sc', 'sp', 'last', 'busy', 'vld', 'cs', 'd0', 'q1'];
+function spiNetlist() {
+  const bit = Object.fromEntries(INPUTS.map((n, i) => [n, i + 2]));
+  const lut = (ins, f, out) => ({ type: `LUT${ins.length}`, parameters: { INIT: Array.from({ length: 1 << ins.length }, (_, m) => +!!f(ins.map((_, i) => (m >> i) & 1))).reverse().join('') },
+    port_directions: { ...Object.fromEntries(ins.map((_, i) => [`I${i}`, 'input'])), O: 'output' }, connections: { ...Object.fromEntries(ins.map((b, i) => [`I${i}`, [b]])), O: [out] } });
+  const [rx, load, en, d] = [20, 21, 22, 23];
+  const cells = {
+    rx: lut([bit.sc, bit.sp, bit.last], ([a, b, c]) => a & !b & c, rx),
+    load: lut([bit.busy, bit.cs, rx, bit.vld], ([b, c, r, v]) => v & ((c & !b) | r), load),
+    en: lut([load, bit.sp, bit.sc, bit.cs], ([l, p, s, c]) => l | (p & !s & !c), en),
+    d: lut([load, bit.d0, bit.q1], ([l, a, b]) => (l ? a : b), d),
+    ff: { type: 'FDRE', parameters: {}, port_directions: { C: 'input', CE: 'input', D: 'input', R: 'input', Q: 'output' }, connections: { C: [bit.sc], CE: [en], D: [d], R: ['0'], Q: [30] } },
+  };
+  const ports = { ...Object.fromEntries(INPUTS.map(n => [n, { direction: 'input', bits: [bit[n]] }])), q: { direction: 'output', bits: [30] } };
+  const netnames = { ...Object.fromEntries(Object.entries(ports).map(([n, p]) => [n, { bits: p.bits }])), rx: { bits: [rx] }, load: { bits: [load] }, en: { bits: [en] }, d: { bits: [d] } };
+  return { bit, json: { modules: { spi: { attributes: { top: '1' }, ports, cells, netnames } } } };
+}
+// the value of a bit of the netlist for the inputs given (through its LUTs), an evaluator of the test's own
+function value(mod, b, inputs) {
+  const drv = new Map();
+  for (const c of Object.values(mod.cells)) for (const [p, bits] of Object.entries(c.connections)) if (c.port_directions[p] === 'output') drv.set(bits[0], c);
+  const ev = x => {
+    if (typeof x !== 'number') return +(x === '1');
+    if (inputs.has(x)) return inputs.get(x);
+    const c = drv.get(x);
+    const k = +c.type[3], init = c.parameters.INIT;
+    let i = 0;
+    for (let j = 0; j < k; j++) i |= ev(c.connections[`I${j}`][0]) << j;
+    return +init[init.length - 1 - i];
+  };
+  return ev(b);
+}
+
+test('#652 the enable of spi-fpga-slave\'s shift register: 2 levels instead of 3, the shared load kept and read by D, the same functions on every input', () => {
+  const { bit, json } = spiNetlist();
+  const mod = json.modules.spi;
+  const lv = netlistLevels(mod);
+  assert.deepEqual([20, 21, 22, 23].map(lv.level), [1, 2, 3, 3]);
+  const r = resynthCritical(json, 'spi', () => [{ cell: 'ff', port: 'CE' }]);
+  assert.ok(r);
+  assert.deepEqual([r.rounds, r.luts], [1, 1]);
+  const m = r.json.modules.spi;
+  const after = netlistLevels(m);
+  assert.equal(after.level(22), 2, 'the enable one level shallower');
+  // its output (and so the flip-flop's CE) kept; load and rx kept, read by D and by the new LUTs; one LUT more
+  assert.deepEqual(m.cells.ff.connections.CE, [22]);
+  assert.ok(m.cells.load && m.cells.rx);
+  assert.equal(m.cells.d.connections.I0[0], 21);
+  assert.equal(Object.values(m.cells).filter(c => /^LUT/.test(c.type)).length, 5);
+  assert.ok(Object.values(m.cells).every(c => !/^LUT/.test(c.type) || +c.type[3] <= 4));
+  // every input: the enable and D as their expressions (the test's reference), and as the netlist before
+  for (let v = 0; v < 1 << INPUTS.length; v++) {
+    const x = Object.fromEntries(INPUTS.map((n, i) => [n, (v >> i) & 1]));
+    const inputs = new Map(INPUTS.map(n => [bit[n], x[n]]));
+    const load = x.vld & ((x.cs & !x.busy) | (x.sc & !x.sp & x.last));
+    assert.equal(value(m, 22, inputs), +(load | (x.sp & !x.sc & !x.cs)), `en, inputs ${v}`);
+    assert.equal(value(m, 23, inputs), load ? x.d0 : x.q1, `d, inputs ${v}`);
+    assert.equal(value(m, 22, inputs), value(mod, 22, inputs));
+  }
+  // the netlist given is not changed
+  assert.equal(netlistLevels(mod).level(22), 3);
+});
+
+test('#652 a round that cannot make every end of the critical path shallower is undone: nothing changed', () => {
+  const { json } = spiNetlist();
+  // the D logic (a LUT3 of load, level 3) has no shallower form of a LUT and one LUT more: the round with it is undone
+  const ends = () => [{ cell: 'ff', port: 'CE' }, { cell: 'ff', port: 'D' }];
+  const mod = json.modules.spi;
+  assert.equal(shallower(mod, 23, netlistLevels(mod)), null);
+  assert.equal(resynthCritical(json, 'spi', ends), null);
+  // a LUT of level 1 (nothing shallower) and an end that is no LUT's (an input): none either
+  assert.equal(shallower(mod, 20, netlistLevels(mod)), null);
+  assert.equal(resynthCritical(json, 'spi', () => [{ cell: 'ff', port: 'C' }]), null);
+  // a round per critical path, RESYNTH_RULE.rounds at most
+  assert.deepEqual(RESYNTH_RULE, { rounds: 16, leaves: 8, candidates: 10 });
+});
+
+test('#652 the same LUT made for several ends is one LUT: two inverters of one LUT (as Yosys\'s extractinv makes them) on two critical ends', () => {
+  // x, y, z inputs; a = x & y (level 1), b = a | z (level 2), n1 = ~b and n2 = ~b (level 3) into two flip-flops' D
+  const lut = (ins, f, out) => ({ type: `LUT${ins.length}`, parameters: { INIT: Array.from({ length: 1 << ins.length }, (_, m) => +!!f(ins.map((_, i) => (m >> i) & 1))).reverse().join('') },
+    port_directions: { ...Object.fromEntries(ins.map((_, i) => [`I${i}`, 'input'])), O: 'output' }, connections: { ...Object.fromEntries(ins.map((b, i) => [`I${i}`, [b]])), O: [out] } });
+  const inv = (i, out) => ({ type: 'INV', parameters: {}, port_directions: { I: 'input', O: 'output' }, connections: { I: [i], O: [out] } });
+  const ff = (d, q) => ({ type: 'FDRE', parameters: {}, port_directions: { C: 'input', CE: 'input', D: 'input', R: 'input', Q: 'output' }, connections: { C: [5], CE: ['1'], D: [d], R: ['0'], Q: [q] } });
+  const json = { modules: { m: { attributes: { top: '1' },
+    ports: { x: { direction: 'input', bits: [2] }, y: { direction: 'input', bits: [3] }, z: { direction: 'input', bits: [4] }, clk: { direction: 'input', bits: [5] }, q: { direction: 'output', bits: [30, 31] } },
+    cells: { a: lut([2, 3], ([x, y]) => x & y, 10), b: lut([10, 4], ([a, z]) => a | z, 11), n1: inv(11, 12), n2: inv(11, 13), f1: ff(12, 30), f2: ff(13, 31) },
+    netnames: { x: { bits: [2] }, y: { bits: [3] }, z: { bits: [4] }, clk: { bits: [5] }, q: { bits: [30, 31] }, a: { bits: [10] }, b: { bits: [11] }, n1: { bits: [12] }, n2: { bits: [13] } } } } };
+  const r = resynthCritical(json, 'm', () => [{ cell: 'f1', port: 'D' }, { cell: 'f2', port: 'D' }]);
+  // round 1: one LUT of a and z for both ends (the second end's inverter moved to the first's, b no longer read); round 2:
+  // that LUT, now the one end, one LUT3 of x, y and z (a no longer read either)
+  assert.deepEqual([r.rounds, r.luts], [2, 3]);
+  const m = r.json.modules.m;
+  assert.deepEqual(m.cells.f1.connections.D, m.cells.f2.connections.D);
+  assert.deepEqual(Object.keys(m.cells).filter(n => /^(LUT|INV)/.test(m.cells[n].type)), ['n1']);
+  assert.deepEqual([m.cells.n1.type, netlistLevels(m).level(m.cells.f1.connections.D[0])], ['LUT3', 1]);
+  for (let v = 0; v < 8; v++) {
+    const inputs = new Map([[2, v & 1], [3, (v >> 1) & 1], [4, (v >> 2) & 1]]);
+    assert.equal(value(m, m.cells.f2.connections.D[0], inputs), +!((v & 1 & (v >> 1)) | (v >> 2)), `inputs ${v}`);
+  }
+  // the netlist names: n2's net now the same bit as n1's
+  assert.deepEqual(m.netnames.n2.bits, m.netnames.n1.bits);
+});
+
+// the same shift register as a design: its registered inputs, the enable and the load as spi-fpga-slave writes them
+const SHIFT_VHDL = `library ieee; use ieee.std_logic_1164.all;
+entity shift is port (clk, cs, sclk, last, busy, vld, mosi : in std_logic; din : in std_logic_vector(7 downto 0); q : out std_logic_vector(7 downto 0)); end shift;
+architecture rtl of shift is
+  signal rcs, rsclk, rspi, rlast, rbusy, rvld, rmosi : std_logic := '0';
+  signal rdin, sh : std_logic_vector(7 downto 0) := (others => '0');
+  signal rx, load, en : std_logic;
+begin
+  rx <= rsclk and not rspi and rlast;
+  load <= rvld and ((rcs and not rbusy) or rx);
+  en <= load or (rspi and not rsclk and not rcs);
+  process (clk) begin
+    if rising_edge(clk) then
+      rcs <= cs; rsclk <= sclk; rspi <= rsclk; rlast <= last; rbusy <= busy; rvld <= vld; rmosi <= mosi; rdin <= din;
+      if en = '1' then
+        if load = '1' then sh <= rdin; else sh <= sh(6 downto 0) & rmosi; end if;
+      end if;
+    end if;
+  end process;
+  q <= sh;
+end rtl;
+`;
+const SHIFT_VERILOG = `module shift(input clk, cs, sclk, last, busy, vld, mosi, input [7:0] din, output [7:0] q);
+  reg rcs = 0, rsclk = 0, rspi = 0, rlast = 0, rbusy = 0, rvld = 0, rmosi = 0;
+  reg [7:0] rdin = 0, sh = 0;
+  wire rx = rsclk & ~rspi & rlast;
+  wire load = rvld & ((rcs & ~rbusy) | rx);
+  wire en = load | (rspi & ~rsclk & ~rcs);
+  always @(posedge clk) begin
+    rcs <= cs; rsclk <= sclk; rspi <= rsclk; rlast <= last; rbusy <= busy; rvld <= vld; rmosi <= mosi; rdin <= din;
+    if (en) sh <= load ? rdin : {sh[6:0], rmosi};
+  end
+  assign q = sh;
+endmodule
+`;
+
+test('#652 the open synthesis: the enable on 2 levels of LUTs (the speedup\'s 2 levels refused, 20 LUTs), kept by DEPTH_RULE at both efforts, in VHDL and in Verilog; the netlist simulates as the design, no warning', { timeout: 300000 }, async () => {
+  const close = (a, b, what) => assert.ok(Math.abs(a - b) < 1e-9, `${what}: ${a} vs ${b}`);
+  for (const [lang, text] of [['vhdl', SHIFT_VHDL], ['verilog', SHIFT_VERILOG]]) {
+    const des = elaborate(compile([{ path: lang === 'vhdl' ? 'd.vhd' : 'd.v', lang, text }]), 'shift');
+    for (const effort of lang === 'vhdl' ? ['normal', 'high'] : ['normal']) {
+      const what = `${lang} ${effort}`;
+      const r = await synthesizeOpen(des, { run: yosysNode, effort });
+      const json = r.files['shift.json'];
+      // (it was 0.59 + 3 LUTs and their connections + the CE's 0.55: 5.04 ns; now the D logic's 3 levels, into D: 4.17)
+      close(criticalDelay(json, 'shift'), 0.59 + 0.45 + 0.70 + 0.45 + 0.70 + 0.45 + 0.70 + 0.13, what);
+      assert.equal(pathEnds(json, 'shift').ends.filter(e => e.port === 'CE').every(e => e.ns < 4), true, `${what}: the enable's paths 2 levels`);
+      assert.deepEqual({ ...r.depth.resynth, ns: +r.depth.resynth.ns.toFixed(2) }, { rounds: 1, changed: 1, ns: 4.17, luts: 12, slices: 12, kept: true }, what);
+      assert.deepEqual([r.depth.speed.kept, r.depth.speed.luts], [false, 20], what);
+      assert.deepEqual([r.util.luts, r.util.flipFlops, logicLevels(json, 'shift')], [12, 23, 3], what);
+      // the Verilog netlist and the statistics are the new netlist's
+      assert.equal(r.files['shift_yosys.v'].match(/^ {2}LUT[1-4] #/gm).length, 12, what);
+      assert.deepEqual(['LUT2', 'LUT3', 'LUT4'].map(t => +(new RegExp(`(\\d+) +${t}\\b`).exec(r.files['shift_stat.txt'])?.[1] ?? 0)), [0, 9, 3], what);
+      assert.deepEqual(r.warnings, [], what);
+      const cmp = compareNetlist(des, r, { name: `resynth-${lang}-${effort}`, seed: 'shift', sim: { cycles: 600 } });
+      assert.equal(cmp.status, 'pass', cmp.report || cmp.reason);
+    }
+  }
+  // resynth: false, the netlist as before (the usual one: 5.04 ns, 11 LUTs)
+  const des = elaborate(compile([{ path: 'd.vhd', lang: 'vhdl', text: SHIFT_VHDL }]), 'shift');
+  const before = await synthesizeOpen(des, { run: yosysNode, effort: 'normal', resynth: false });
+  close(criticalDelay(before.files['shift.json'], 'shift'), 0.59 + 0.45 + 0.70 + 0.45 + 0.70 + 0.45 + 0.70 + 0.45 + 0.55, 'before');
+  assert.deepEqual([before.util.luts, before.depth.resynth], [11, undefined]);
+});

@@ -12,6 +12,7 @@ import { toVerilog } from './synth-verilog.js';
 import { rewriteCarryChains, gateAssignments, GATE_MIN, ADDER_MIN } from './carry-chain.js';
 import { readYosysJson } from './fpga/netlist.js';
 import { pack } from './fpga/pack.js';
+import { resynthCritical } from './lut-resynth.js';
 import { fsmProbeCommands, fsmChosen, fsmExtractCommands, fsmInits, fsmRestCommands, markWires, setInits, FSM_PRE_FILE, FSM_MARKED_FILE, FSM_POST_FILE, FSM_ENC_FILE } from './synth-fsm.js';
 
 // Silinx's device families -> synth_xilinx -family
@@ -489,6 +490,10 @@ const outputs = top => `delete t:$scopeinfo; ${TOP_ONLY}; write_json -selected $
 
 // the netlist between the two runs of a design with carry chains written as gates (#77)
 export const CHAIN_FILE = 'silinx_chains.json';
+// the mapped netlist with its critical LUTs made shallower (#652, core/lut-resynth.js), read by Yosys to write the
+// outputs (the Verilog netlist, the statistics) as of every other netlist; the cells' library for their ports
+export const RESYNTH_FILE = 'silinx_resynth.json';
+export const resynthCommands = top => `read_verilog -lib +/xilinx/cells_sim.v; read_verilog -lib +/xilinx/cells_xtra.v; read_verilog -lib ${SRL_CELLS_FILE}; read_json ${RESYNTH_FILE}; hierarchy -top ${top}; ${outputs(top)}`;
 /** synthCommands in two: up to synth_xilinx's fine step (the coarse netlist), and from it on. */
 export function splitCommands(top, family, opts = {}) {
   const cmds = synthCommands(top, family, opts);
@@ -707,7 +712,9 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * SOPB_RULE.levels at both efforts (at Normal kept by DEEP_RULE's gain too when the design gets none of High's mappings) }.
  * speed: { ns, luts, slices, kept } of the speedup's mapping (SPEED_ABC, #652), fold: { flipFlops, ns, luts, slices, kept } of
  * the mapping with the clock enables that end the critical path folded into D (#653), both from the netlist before the
- * LUT mapping, measured against the netlist chosen of the others, on both efforts (speed: false leaves them out).
+ * LUT mapping, measured against the netlist chosen of the others, on both efforts (speed: false leaves them out); resynth:
+ * { rounds, changed, ns, luts, slices, kept } of the netlist chosen of all of them with its critical LUTs made one level
+ * shallower, their fan-out kept (#652, core/lut-resynth.js; resynth: false leaves it out).
  * effort ('high'): 'normal', the synthesis's Optimization Effort Normal (#282), is one Yosys run, the
  * usual mapping alone (no other mapping tried: as depth false; but the critical path's remaps, #652, and the mapping with the
  * wider functions, r.depth.wide, measured against the netlist chosen of the others, #54; wide: false leaves it out), but for a design limited by its depth (#468:
@@ -720,7 +727,7 @@ export const synthEffort = impl => (String(impl?.optLevel) === '2' ? 'high' : 'n
  * synthesized once more with them one-hot (#539, core/synth-fsm.js), that netlist kept when better by DEPTH_RULE:
  * r.depth.fsm { machines: [{ wire, states }], ns, luts, slices, kept } (fsm: false leaves it out, 'always' keeps it).
  */
-export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true } = {}) {
+export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine = () => {}, depth = true, effort = 'high', abc9: withAbc9 = true, deepRule = DEEP_RULE, fsm: withFsm = true, speed: withSpeed = true, wide = true, resynth: withResynth = true } = {}) {
   const { text, top, warnings, shiftArrays = [] } = toVerilog(design);
   const lut4 = LUT4_FAMILIES.has(YOSYS_FAMILY[family]);
   const normal = effort === 'normal';
@@ -1012,6 +1019,30 @@ export async function synthesizeOpen(design, { family = 'spartan3e', run, onLine
       } catch (e) {
         info.wide = { kept: false, failed: e.message };
         sayNew(`Warning: the mapping with the wider functions failed (${e.message}): the netlist chosen before is kept`);
+      }
+    }
+    // the chosen netlist's critical LUTs made one level shallower, their fan-out kept (#652, core/lut-resynth.js): the
+    // last candidate, of the netlist chosen of all the others, kept by DEPTH_RULE
+    if (speed && withResynth && !info.muxf?.failed && !info.failed && !info.sopb?.failed && !info.speedFailed && !info.wide?.failed && utilization(cells).luts <= SPEED_RULE.maxLuts) {
+      try {
+        const j0 = chosen[`${top}.json`];
+        const r = resynthCritical(asText(j0) || j0, top, nl => { const { worst, ends } = pathEnds(nl, top); return ends.filter(e => e.ns >= worst - 1e-9); });
+        if (r) {
+          const outR = await run(['-q', '-p', resynthCommands(top)], { [RESYNTH_FILE]: JSON.stringify(r.json), [SRL_CELLS_FILE]: SRL_CELLS }, () => {});
+          const jR = outR[`${top}.json`];
+          if (jR) {
+            const cellsR = cellCounts(jR, top);
+            const ns = [criticalDelay(j0, top), criticalDelay(jR, top)], luts = [utilization(cells).luts, utilization(cellsR).luts], sl = [slices(j0), slices(jR)];
+            info.resynth = { rounds: r.rounds, changed: r.luts, ns: ns[1], luts: luts[1], slices: sl[1], kept: keepDepth(ns, luts, DEPTH_RULE, sl) };
+            if (info.resynth.kept) {
+              chosen = { ...chosen, ...outR };
+              cells = cellsR;
+            }
+          }
+        }
+      } catch (e) {
+        info.resynth = { kept: false, failed: e.message };
+        sayNew(`Warning: the critical path's LUTs could not be made shallower (${e.message}): the netlist chosen before is kept`);
       }
     }
     return { chosen, cells, info, ns: criticalDelay(chosen[`${top}.json`], top), slices: () => slices(chosen[`${top}.json`]) };
