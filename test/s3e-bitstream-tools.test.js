@@ -337,7 +337,7 @@ function fakeRemote(T) {
   const sh = (n, s) => { fs.writeFileSync(path.join(bin, n), `#!/bin/bash\n${s}\n`); fs.chmodSync(path.join(bin, n), 0o755); };
   const rsync = spawnSync('bash', ['-c', 'command -v rsync'], { encoding: 'utf8' }).stdout.trim();
   sh('ssh', `while [[ "$1" == -* ]]; do [ "$1" = -- ] && { shift; break; }; [ "$1" = -o ] && shift; shift; done; shift; cd "${R}" && HOME="${R}" exec bash -c "$*"`);
-  sh('rsync', `A=(); while [ $# -gt 0 ]; do case "$1" in -e) shift;; *:*) A+=("${R}/\${1#*:}");; *) A+=("$1");; esac; shift; done; exec "${rsync}" "\${A[@]}"`);
+  sh('rsync', `A=(); while [ $# -gt 0 ]; do case "$1" in -e) shift;; *:/*) A+=("\${1#*:}");; *:*) A+=("${R}/\${1#*:}");; *) A+=("$1");; esac; shift; done; exec "${rsync}" "\${A[@]}"`);
   sh('docker', [
     'while [ "$1" != -v ]; do shift; done; m=${2%:/w}; m=${m//\\"/}; while [ "$1" != bash ]; do shift; done; shift; s=$1; shift',
     'for d in "$@"; do [[ "$d" == /w/* ]] || continue; d="$m/${d#/w/}"',
@@ -385,6 +385,25 @@ test('impl-remote: a design folder an earlier run left on the remote machine is 
     assert.deepEqual(ranOn(path.join(R, 'rw', 'runs')), ['b', 'c']);
     const xdl = d => fs.readFileSync(path.join(T, 'W', 'impl', d, 'top.xdl'), 'utf8').trim();
     assert.deepEqual([xdl('a'), xdl('b'), xdl('c')], ['old a', 'new', 'new']);
+  } finally { fs.rmSync(T, { recursive: true, force: true }); }
+});
+
+// #482 / #846: the remote folder anywhere on the machine (an absolute RW: one Docker Desktop shares), mounted as it is
+test('fuzz-remote / impl-remote: an absolute RW is the folder mounted in the container, not one in the home', { skip: process.platform === 'win32' && 'bash' }, () => {
+  const T = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-rwabs-'));
+  try {
+    const { env, R } = fakeRemote(T);
+    const RW = path.join(T, 'shared', 'build', 'rw');
+    put(path.join(T, 'W', 'b1', 'V0.xdl'), 'design V0\n');
+    put(path.join(T, 'W', 'impl', 'a', 'top.vhd'), 'entity a\n'); put(path.join(T, 'W', 'impl', 'a', 'top.ucf'), 'NET x;\n');
+    for (const [tool, args] of [['fuzz-remote.sh', ['b1']], ['impl-remote.sh', ['-P', '1', 'impl/a']]]) {
+      const r = spawnSync('bash', [path.join(TOOLS, tool), ...args], { encoding: 'utf8', env: { ...env, RW } });
+      assert.equal(r.status, 0, `${tool}: ${r.stderr}`);
+    }
+    assert.deepEqual(ranOn(path.join(RW, 'runs')), ['V0', 'a']);
+    assert.equal(fs.existsSync(path.join(R, path.relative('/', RW))), false);
+    assert.equal(fs.readFileSync(path.join(T, 'W', 'b1', 'V0.bit'), 'utf8').trim(), 'new');
+    assert.equal(fs.readFileSync(path.join(T, 'W', 'impl', 'a', 'top.xdl'), 'utf8').trim(), 'new');
   } finally { fs.rmSync(T, { recursive: true, force: true }); }
 });
 
