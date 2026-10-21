@@ -1,8 +1,10 @@
 // #641: designs whose side clock pads (the GCLK pins of the left and right sides, in the CLK_PCI I/O tiles) each drive
 // a global buffer of their side on the dedicated path (IOIS_Yk -> IOIS_Fk_B3, then the side clock tile's input),
-// to be implemented by ISE from HDL (ise-impl.sh, impl-remote.sh) and measured with gen-pipdrop.mjs. The pads and the
-// side buffers each reaches come from the device's graph (route.js bufgReach, every switch allowed); round r gives each
-// pad its r-th buffer, no buffer twice in a round. Each buffer clocks a counter, one output bit each.
+// to be implemented by ISE from HDL (ise-impl.sh, impl-remote.sh) and measured with gen-pipdrop.mjs. The side clock pads
+// are the pads whose graph reaches a side buffer (route.js bufgReach, every switch allowed); which buffer is a pad's
+// dedicated one ISE's placer knows (a pad LOC'd with its buffer elsewhere is ERROR:Place:1018), so the buffers have no
+// LOC: ISE gives each pad its own. A round has at most 4 pads of one side (each side has 8 buffers). Each buffer
+// clocks a counter, one output bit each.
 //   PART=xc3s500efg320-4 node gen-sidepad.mjs outdir      (folders s0, s1, …)
 import fs from 'node:fs';
 import { loadDeviceCache } from '../../core/fpga/device-node.js';
@@ -22,14 +24,13 @@ for (const t of ['IOB', 'IBUF', 'DIFFM', 'DIFFS', 'DIFFMI', 'DIFFSI']) for (cons
 }
 const pads = [...reach.keys()].sort();
 const rounds = [];
-for (let r = 0; r < Math.max(...reach.values().map(v => v.length)); r++) {
-  const used = new Set(), round = [];
-  for (const p of pads) { const b = reach.get(p).find((x, i) => i >= r && !used.has(x)) ?? reach.get(p).find(x => !used.has(x)); if (b && !rounds.some(rd => rd.some(([q, c]) => q === p && c === b))) { used.add(b); round.push([p, b]); } }
-  if (round.length) rounds.push(round);
+for (const sideX of ['X0', 'X3']) {
+  const of = pads.filter(p => reach.get(p).some(b => b.startsWith(`BUFGMUX_${sideX}`)));
+  for (let k = 0; k < of.length; k += 4) rounds.push(of.slice(k, k + 4).map(p => [p, sideX]));
 }
 rounds.forEach((round, r) => {
   const n = round.length;
-  const vhd = `-- ${PART} round ${r}: ${n} side clock pads, each on a side global buffer on its dedicated path (#641)
+  const vhd = `-- ${PART} round ${r}: ${n} side clock pads, each on its own side global buffer, ISE's choice (#641)
 library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
@@ -51,9 +52,9 @@ ${round.map((_, k) => `  u_ib${k} : IBUFG port map (I => clk(${k}), O => ci(${k}
   q(${k}) <= cnt${k}(7);`).join('\n')}
 end rtl;
 `;
-  const ucf = round.flatMap(([p, b], k) => [`NET "clk<${k}>" LOC = "${p}" ;`, `INST "u_bg${k}" LOC = "${b}" ;`]).join('\n') + '\n';
+  const ucf = round.map(([p], k) => `NET "clk<${k}>" LOC = "${p}" ;`).join('\n') + '\n';
   fs.mkdirSync(`${out}/s${r}`, { recursive: true });
   fs.writeFileSync(`${out}/s${r}/top.vhd`, vhd);
   fs.writeFileSync(`${out}/s${r}/top.ucf`, ucf);
-  console.log(`s${r}: ${round.map(([p, b]) => `${p}->${b}`).join(' ')}`);
+  console.log(`s${r}: ${round.map(([p, x]) => `${p} (${x === 'X0' ? 'left' : 'right'})`).join(' ')}`);
 });
