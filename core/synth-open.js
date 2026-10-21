@@ -466,11 +466,17 @@ export function keepSecond(ns, luts, rule = DEPTH_RULE, slices = null) {
  *  and with them; linesN, linesC: their runs' messages. Both ways (#742): the one without kept only when better than the
  *  one with them by DEPTH_RULE (kept unless the chains were, the EPFL adder's SOP-balanced netlist, 44 % faster by the
  *  estimate, 4 times its chains' LUTs and 74 % more slices, kept; routed 9 % faster). Never a netlist whose chains Yosys
- *  found driven twice, the usual run's not (the EPFL multiplier's rewrite, #746). */
+ *  found driven twice, the usual run's not (the EPFL multiplier's rewrite, #746). The one without them kept too when
+ *  faster by the rule's gain and larger (LUTs, slices) by no more times than it is faster (#746: the EPFL multiplier's,
+ *  2.1 times faster by the estimate for 1.6 times the LUTs and slices, routed 2 times faster; the adder's, 1.8 times
+ *  faster for 4 times the LUTs, not). */
 export function keepChains(n, c, { linesN = [], linesC = [] } = {}, rule = DEPTH_RULE) {
   const conflicts = lines => lines.some(l => /^Warning: multiple conflicting drivers/.test(l));
   if (conflicts(linesC) && !conflicts(linesN)) return false;
-  return !keepDepth([c.ns, n.ns], [c.luts, n.luts], rule, [c.slices, n.slices]);
+  const k = c.ns / n.ns;
+  const sl = Number.isFinite(n.slices) && Number.isFinite(c.slices);
+  const times = n.ns <= c.ns * (1 - rule.gain) && n.luts <= c.luts * k && (!sl || n.slices <= c.slices * k);
+  return !times && !keepDepth([c.ns, n.ns], [c.luts, n.luts], rule, [c.slices, n.slices]);
 }
 
 /** The slices of a mapped netlist of a 4-input-LUT family (Yosys's JSON), as core/fpga/pack.js packs them for
