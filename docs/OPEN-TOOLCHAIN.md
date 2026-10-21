@@ -29,7 +29,7 @@ or to get around any protection.
 | Synthesis | Yosys `synth_xilinx -family xc3se` (ISC), compiled to WebAssembly by YoWASP: it runs in the browser | independent open-source projects |
 | Place and route | Silinx (AGPL-3.0) | written for Silinx |
 | Bitstream | Silinx (AGPL-3.0), from the bit database below | written for Silinx |
-| Device description (the chip's wires and routing switches) | The Spartan-3E boards' devices (XC3S100E-CP132, XC3S250E-CP132, XC3S500E-FG320, XC3S1200E-FG320): shipped with Silinx (`core/fpga/devices/`). Other devices: each user builds it once from their own ISE | computed by Silinx from the output of ISE's documented `xdl -report` command |
+| Device description (the chip's wires and routing switches) | The Spartan-3E boards' devices (XC3S100E-CP132, XC3S250E-CP132, XC3S500E-FG320, XC3S1200E-FG320) and the Spartan-6 boards' (XC6SLX16-CSG324, XC6SLX45-CSG324, for the toolchain under development, #1): shipped with Silinx (`core/fpga/devices/`). Other devices: each user builds it once from their own ISE | computed by Silinx from the output of ISE's documented `xdl -report` command |
 
 The bitstream generator needs a **bit database**: which configuration bits set each feature of the
 chip (each LUT memory bit, each multiplexer setting inside a slice, each I/O setting, each routing
@@ -69,7 +69,7 @@ documentation: the Spartan-3 Generation Configuration User Guide (UG332) and XAP
 - **No Xilinx code, and no Xilinx data files, in Silinx.** The bit database is Silinx's own record
   of observations. It does not contain any file produced by Xilinx. The device descriptions shipped
   for the Spartan-3E boards' devices (XC3S100E-CP132, XC3S250E-CP132, XC3S500E-FG320,
-  XC3S1200E-FG320) are Silinx's own packed descriptions of the chips' wires and switches
+  XC3S1200E-FG320) and the Spartan-6 boards' (XC6SLX16-CSG324, XC6SLX45-CSG324) are Silinx's own packed descriptions of the chips' wires and switches
   (`core/fpga/device.js`), computed from the output of ISE's documented `xdl -report -pips
   -all_conns` command; it is neither that report nor any file of ISE's installation.
 - **No redistribution of ISE.** The Docker image with ISE that Silinx's developers use is private
@@ -128,7 +128,10 @@ or Digilent, or endorsed by them.
   routing switches) may be redistributed. Project X-Ray publishes the equivalent description of
   the Xilinx 7-series chips, obtained from Vivado. The author decided (2026-10-11) to ship it for
   the devices of the Spartan-3E boards Silinx supports (XC3S100E-CP132, XC3S250E-CP132,
-  XC3S500E-FG320, XC3S1200E-FG320), so that the Silinx toolchain works without ISE on them; for
+  XC3S500E-FG320, XC3S1200E-FG320), so that the Silinx toolchain works without ISE on them; the
+  same was done for the two Spartan-6 boards' devices (XC6SLX16-CSG324 of the Nexys3, XC6SLX45-CSG324 of the
+  Atlys) on 2026-10-21, for the Spartan-6 toolchain under development
+  ([#723](https://github.com/pmnmalo/Silinx-ISE/issues/723)); for
   every other device each user builds it from their own ISE installation. Measuring it instead by
   black-box observation, as the bit database is, would remove the question: the method and a first
   prototype on the XC3S250E's CLB array are in
