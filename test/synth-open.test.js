@@ -841,30 +841,35 @@ test('#54 the memories left to logic: counted by the usual run, its netlist unch
   }
 });
 
-test('#54 a register file read at three addresses: at High, its memory as distributed RAM, the variant kept (half the slices, as fast within the rule\'s slack), equal to the RTL, in Verilog and VHDL; at Normal as before; with two write ports, not taken', { timeout: 600000 }, async () => {
+test('#54 a register file read at three addresses: its memory as distributed RAM at both efforts (half the slices, as fast within the rule\'s slack; lutram: false, flip-flops), equal to the RTL, in Verilog and VHDL; with two write ports, not taken', { timeout: 600000 }, async () => {
   for (const [lang, text] of [['verilog', REGFILE_V], ['vhdl', REGFILE_VHD]]) {
     const d = elaborate(compile([{ path: lang === 'vhdl' ? 'rf.vhd' : 'rf.v', lang, text }]), 'rf');
-    const [high, normal] = [await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode }), await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort: 'normal' })];
-    const l = high.depth.lutram;
-    assert.deepEqual([l.memories, l.left, l.kept], [1, 0, true], `${lang}: ${JSON.stringify(high.depth)}`);
-    assert.deepEqual([high.util.distributedRam, high.util.flipFlops, high.util.luts, sliceCount(high.files['rf.json'], 'rf')], [16, 32, l.luts, l.slices], lang);
-    // at Normal (one run, no High mappings): the 64 bits in flip-flops, as before
-    assert.equal(normal.depth.lutram, undefined, lang);
-    assert.deepEqual([normal.util.distributedRam, normal.util.flipFlops], [0, 96], lang);
-    const slicesNormal = sliceCount(normal.files['rf.json'], 'rf');
-    assert.ok(l.slices <= slicesNormal * 0.6, `${lang}: ${l.slices} slices against ${slicesNormal}`);
-    assert.ok(l.ns <= criticalDelay(normal.files['rf.json'], 'rf') * 1.01, `${lang}: ${JSON.stringify(high.depth)}`);
-    assert.deepEqual([high.warnings, normal.warnings], [[], []], lang);
-    for (const [e, r] of [['high', high], ['normal', normal]]) {
-      const c = compareNetlist(d, r, { name: `regfile-${lang}-${e}`, seed: 'rf', sim: { cycles: 600 } });
+    for (const effort of ['high', 'normal']) {
+      const r = await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort });
+      const ff = await synthesizeOpen(d, { family: 'spartan3e', run: yosysNode, effort, lutram: false });
+      const l = r.depth.lutram, what = `${lang} ${effort}: ${JSON.stringify(r.depth)}`;
+      assert.deepEqual([l.memories, l.left, l.kept], [1, 0, true], what);
+      // (at Normal, a design that gets none of High's mappings: the RAM's usual mapping, or the one balanced onto LUT4s alone)
+      if (effort === 'normal') assert.ok(['usual', 'lut4'].includes(l.netlist), what);
+      assert.deepEqual([r.util.distributedRam, r.util.flipFlops, r.util.luts, sliceCount(r.files['rf.json'], 'rf')], [16, 32, l.luts, l.slices], what);
+      // lutram: false: the 64 bits in flip-flops, as before #54
+      assert.equal(ff.depth.lutram, undefined, what);
+      assert.deepEqual([ff.util.distributedRam, ff.util.flipFlops], [0, 96], what);
+      const slicesFF = sliceCount(ff.files['rf.json'], 'rf');
+      assert.ok(l.slices <= slicesFF * 0.6, `${what}: ${l.slices} slices against ${slicesFF}`);
+      assert.ok(l.ns <= criticalDelay(ff.files['rf.json'], 'rf') * 1.01, what);
+      assert.deepEqual([r.warnings, ff.warnings], [[], []], what);
+      const c = compareNetlist(d, r, { name: `regfile-${lang}-${effort}`, seed: 'rf', sim: { cycles: 600 } });
       assert.equal(c.status, 'pass', c.report || JSON.stringify(c));
     }
   }
-  // two write ports: counted, not taken by distributed RAM, no more mapping made
+  // two write ports: counted, not taken by distributed RAM, no more mapping made, at both efforts
   const d2 = elaborate(compile([{ path: 'rf.v', lang: 'verilog', text: REGFILE2_V }]), 'rf');
-  const r2 = await synthesizeOpen(d2, { family: 'spartan3e', run: yosysNode });
-  assert.deepEqual(r2.depth.lutram, { memories: 1, left: 1, netlist: null, ns: null, luts: null, slices: null, kept: false });
-  assert.deepEqual([r2.util.distributedRam, r2.warnings], [0, []]);
+  for (const effort of ['high', 'normal']) {
+    const r2 = await synthesizeOpen(d2, { family: 'spartan3e', run: yosysNode, effort });
+    assert.deepEqual(r2.depth.lutram, { memories: 1, left: 1, netlist: null, ns: null, luts: null, slices: null, kept: false }, effort);
+    assert.deepEqual([r2.util.distributedRam, r2.warnings], [0, []], effort);
+  }
 });
 
 // #78: the LUT delays, ABC's script inline (YoWASP's ABC crashes on read_lut from a script file)

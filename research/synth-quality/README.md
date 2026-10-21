@@ -1354,6 +1354,18 @@ iwls05-sasc's FIFOs as RAM are not kept (no smaller netlist as fast); neorv32's 
 the RAM (one more Yosys run, nothing else). A ROM is not counted (its price is `-logic-cost-rom`). The T80's synthesis at
 High takes 42 → 80 s.
 
+**At effort Normal.** A design that gets none of High's mappings makes two more Yosys runs when its usual run left
+memories written to in logic: the RAM's usual mapping and, from its netlist, the one balanced onto LUT4s alone
+(DEPTH_ABC2 on LUT4s, High's smallest balancing, #370), the same rule choosing (`lutram: false` leaves it out). The T80
+then gets the netlist High keeps (the same, byte for byte), its synthesis at Normal about 21 → 24 s. On the design
+corpus at Normal three designs have such memories: the T80 and simple_spi change, sasc does not (its netlist the same);
+neorv32's are not taken (one run more).
+
+| design at Normal | slices | FFs | LUTs | routed (ns, seeds 1–3) | trce (ns) |
+|---|---:|---:|---:|---:|---:|
+| t80 | 1146 → **1009** | 361 → **233** | 2153 → **1816** | 22.09 → **21.29** | 21.67 → **20.36** |
+| iwls05-simple-spi | 89 → **79** | 131 → **67** | 157 → **110** | 6.16 → **5.94** | – |
+
 ## The EPFL arbiter: balanced once more onto LUT4s alone (#370)
 
 The EPFL round-robin arbiter (256 inputs, 129 outputs, each grant a ring-shaped priority chain of about 88 gates; not
