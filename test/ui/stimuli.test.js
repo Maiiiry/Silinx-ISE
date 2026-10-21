@@ -60,6 +60,11 @@ uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus v
   await simulate(page, 'ctr');
   await simTime(page, '1,000,000');
 
+  // ---- the button with its label, whole, next to its icon (#853)
+  assert.deepEqual(await page.eval((d) => {
+    const b = document.querySelector(`${d} .isim-toolbar .tb-btn[title^="Edit Stimuli"]`), l = b.querySelector('.tb-label'), r = l.getBoundingClientRect();
+    return { label: l.textContent, icon: !!b.querySelector('svg'), shown: r.width > 40 && r.height > 0, whole: b.scrollWidth <= b.clientWidth && r.right <= b.getBoundingClientRect().right };
+  }, DOC), { label: 'Edit Stimuli', icon: true, shown: true, whole: true });
   // ---- Edit Stimuli: the timing dialog, its clock found (clk); 8 cycles of 20 ns
   await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Edit Stimuli"]`);
   await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg [name=cycles]`), [DOC], { what: 'Stimulus Timing' });
@@ -142,7 +147,7 @@ uiTest('ISim stimuli (#336): Edit Stimuli, timing, clicks on the inputs, a bus v
   await setLang('pt');
   const pt = await texts();
   assert.deepEqual(untranslated(en, pt), []);
-  assert.ok(pt.includes('Preencher Saídas Esperadas') && pt.includes('8 ciclos (relógio clk, período 20 ns): saídas esperadas certas'), pt.join(' | '));
+  assert.ok(pt.includes('Editar Estímulos') && pt.includes('Preencher Saídas Esperadas') && pt.includes('8 ciclos (relógio clk, período 20 ns): saídas esperadas certas'), pt.join(' | '));
   await page.click(`${DOC} .isim-stimbar [data-stim=timing]`);
   await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg`), [DOC], { what: 'timing dialog' });
   await setLang('en');

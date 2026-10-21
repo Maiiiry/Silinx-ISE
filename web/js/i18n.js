@@ -215,7 +215,7 @@ const PT = {
   'Specify the properties of the clock to be applied to the selected signal.': 'Indique as propriedades do relógio a aplicar ao sinal selecionado.',
   // the stimuli drawn on the waveforms (#336)
   'Edit Stimuli: click the waveforms of the inputs (as the HDL Bencher)': 'Editar Estímulos: clique nas formas de onda das entradas (como no HDL Bencher)',
-  'Stimuli': 'Estímulos', 'Timing…': 'Temporização…', 'Fill Expected Outputs': 'Preencher Saídas Esperadas', 'Save as Test Bench…': 'Guardar como Bancada de Teste…',
+  'Edit Stimuli': 'Editar Estímulos', 'Stimuli': 'Estímulos', 'Timing…': 'Temporização…', 'Fill Expected Outputs': 'Preencher Saídas Esperadas', 'Save as Test Bench…': 'Guardar como Bancada de Teste…',
   'Stop Editing': 'Terminar a Edição', 'Stimulus Timing': 'Temporização dos Estímulos', 'None (combinational)': 'Nenhum (combinatório)',
   'Clock Period (ns):': 'Período do Relógio (ns):', 'Time Step (ns):': 'Passo de Tempo (ns):', 'Cycles:': 'Ciclos:', 'Input Value': 'Valor da Entrada',
   'Expected Value': 'Valor Esperado', 'From Cycle:': 'A partir do Ciclo:', 'Value:': 'Valor:', 'Save as Test Bench': 'Guardar como Bancada de Teste',
