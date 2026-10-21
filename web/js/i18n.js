@@ -301,6 +301,9 @@ const PT = {
   'Emulate the design on the board: the board opens here.': 'Emule o projeto na placa: a placa abre aqui.',
   'Implement the design: synthesis, place & route and the programming file.': 'Implemente o projeto: síntese, place & route e o ficheiro de programação.',
   'Program the board: the FPGA, or its flash to keep the design.': 'Programe a placa: a FPGA, ou a sua flash para guardar o projeto.',
+  // its message centre (web/js/messages.js, #798)
+  'Emulator': 'Emulador', 'Synthesis': 'Síntese', 'Messages from': 'Mensagens de', 'Command line': 'Linha de comandos',
+  'Type an ISim command (help)': 'Escreva um comando do ISim (help)', 'Type a command or a file name': 'Escreva um comando ou o nome de um ficheiro',
   // modern interface (web/js/modern.js, web/js/palette.js): View ▸ Interface / Theme, header, design flow, command palette
   'Interface': 'Interface', 'Modern': 'Moderna', 'Xilinx ISE (Classic)': 'Xilinx ISE (Clássica)',
   'Theme': 'Tema', 'System': 'Sistema', 'Light': 'Claro', 'Dark': 'Escuro', 'Command Palette…': 'Paleta de Comandos…',

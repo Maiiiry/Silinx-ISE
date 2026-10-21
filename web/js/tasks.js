@@ -7,6 +7,7 @@
 //   folded into the activity bar (on a narrow screen: the drawer, closed), the messages open or folded to
 //   their tabs, a document maximized or not, and its documents (the tabs of the other tasks are hidden),
 //   the last one in front; a document brought to the front makes its task the current one;
+// - the messages: the bottom panel as the message centre (web/js/messages.js, #798), its filter following the task;
 // - the task's bar (the toolbar's right end): the fold and maximize buttons and the task's main action
 //   (the modern toolbar's design-flow buttons, [data-step]), also offered when the task has no document.
 // A document is maximized by double-clicking its tab, Ctrl/Cmd+Shift+Enter or the bar's button.
@@ -16,6 +17,7 @@
 import { h } from './ui.js';
 import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
+import { buildMessages, unbuildMessages, messagesTask, initMessages } from './messages.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl', 'prog'];
 export const TASK_LABEL = { edit: 'Edit', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
@@ -92,7 +94,7 @@ export function taskDot(task, status = {}) {
 // ------------------------------------------------------------------ the page
 const root = () => document.documentElement;
 const on = () => root().dataset.layout === 'tasks';
-let app = null, state = readState(null), lastActive = null;
+let app = null, state = readState(null), lastActive = null, shownTask = null;
 
 function keep() { try { localStorage.setItem(TASKS_KEY, JSON.stringify(state)); } catch { /* storage unavailable */ } }
 function load() { try { state = readState(localStorage.getItem(TASKS_KEY)); } catch { state = readState(null); } }
@@ -124,6 +126,7 @@ function apply() {
   if (!on()) { if (document.getElementById('task-bar')) { unbuild(); dispatchEvent(new Event('resize')); } return; }
   build();
   const t = current(), a = arr(t);
+  if (t !== shownTask) { shownTask = t; messagesTask(t); }
   r.dataset.task = t;
   r.dataset.side = a.side ? 'open' : 'folded';
   r.dataset.console = a.console ? 'open' : 'folded';
@@ -177,6 +180,9 @@ function followActive() {
   if (!on()) return;
   if (!d || d === lastActive) { tagDocs(); return; }
   lastActive = d;
+  // (a document opened behind, with the project (its Design Summary): the task stays the viewer's, until it is brought to the front)
+  if (d.background && !d._taskSeen) { d._taskSeen = true; tagDocs(); return; }
+  d._taskSeen = true;
   const t = taskOfDoc(d.id);
   state.tasks[t].doc = d.id;
   keep();
@@ -220,10 +226,13 @@ function build() {
   });
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain })));
+  buildMessages(app);
   refreshDots();
 }
 function unbuild() {
   for (const id of PARTS) document.getElementById(id)?.remove();
+  unbuildMessages();
+  shownTask = null;
   const r = root();
   for (const k of ['task', 'side', 'console', 'max']) delete r.dataset[k];
 }
@@ -232,6 +241,7 @@ function unbuild() {
 export function initTasks(a) {
   app = a;
   load();
+  initMessages();
   const $ = id => document.getElementById(id);
   // a folded side panel or messages open again when one of their tabs is clicked
   $('left-tabs').addEventListener('click', () => { if (on() && !isNarrow() && !arr().side) arrange({ side: true }); });
