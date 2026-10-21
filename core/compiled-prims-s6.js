@@ -6,7 +6,11 @@
 //     words of 4 parity bits (512 or 256 of them; their contents, INIT_xx / INITP_xx, written into the netlist's
 //     memories after Yosys: compiled-prims.js bramInit), a port of w bits reading and writing its part of a word, by
 //     bytes (WE) on a port of 18 bits or more; WRITE_MODE, the output latch and register, SRVAL, INIT. On one edge
-//     the reads of both ports, then the writes, port B's last.
+//     the reads of both ports, then the writes, port B's last;
+//   - PLL_BASE (#845): a black box, as the DCM, its outputs a schedule of their edges (compiled-prims.js pllWaves);
+//   - BUFIO2 (#845): IOCLK the input clock (inverted with I_INVERT), DIVCLK the same or divided by DIVIDE (a counter on
+//     the input's rising edges, high for the first half of the DIVIDE periods, rounded up), SERDESSTROBE high for one
+//     input period in DIVIDE (0 with DIVIDE_BYPASS).
 //
 // Isomorphic ES module (browser + Node), no DOM.
 
@@ -199,9 +203,34 @@ ${k.sdp ? `  assign ${A.dout} = ${sdp} ? dataB[15:0] : dataA[15:0];
 endmodule`;
 };
 
+// the PLL: a black box (compileNetlist schedules its outputs), its generics as unisim-s6.js declares them
+const PLL_N = [0, 1, 2, 3, 4, 5];
+export const PLL_OUTPUTS = ['CLKFBOUT', ...PLL_N.map((n) => `CLKOUT${n}`), 'LOCKED'];
+const PLL_BASE = `(* blackbox *)
+module PLL_BASE #(parameter BANDWIDTH = "OPTIMIZED", parameter integer CLKFBOUT_MULT = 1, parameter real CLKFBOUT_PHASE = 0.0, parameter real CLKIN_PERIOD = 0.0,
+  ${PLL_N.map((n) => `parameter integer CLKOUT${n}_DIVIDE = 1, parameter real CLKOUT${n}_DUTY_CYCLE = 0.5, parameter real CLKOUT${n}_PHASE = 0.0,`).join('\n  ')}
+  parameter CLK_FEEDBACK = "CLKFBOUT", parameter COMPENSATION = "SYSTEM_SYNCHRONOUS", parameter integer DIVCLK_DIVIDE = 1,
+  parameter real REF_JITTER = 0.1, parameter RESET_ON_LOSS_OF_LOCK = "FALSE") (output ${PLL_OUTPUTS.join(', ')}, input CLKFBIN, CLKIN, RST);
+endmodule`;
+
+const BUFIO2 = `module BUFIO2 #(parameter integer DIVIDE = 1, parameter DIVIDE_BYPASS = "TRUE", parameter I_INVERT = "FALSE", parameter USE_DOUBLER = "FALSE") (
+  output DIVCLK, IOCLK, SERDESSTROBE, input I);
+  wire ii = I_INVERT == "TRUE" ? ~I : I;
+  reg [3:0] k = 4'd0;
+  reg dv = 1'b0, sb = 1'b0;
+  always @(posedge ii) begin
+    dv <= k < (DIVIDE + 1) / 2;
+    sb <= k == DIVIDE - 1;
+    k <= k >= DIVIDE - 1 ? 4'd0 : k + 4'd1;
+  end
+  assign IOCLK = ii;
+  assign DIVCLK = DIVIDE_BYPASS == "TRUE" || DIVIDE == 1 ? ii : dv;
+  assign SERDESSTROBE = DIVIDE_BYPASS == "TRUE" ? 1'b0 : sb;
+endmodule`;
+
 /** The Spartan-6 primitives of the compiled simulator: name -> Verilog (or a function writing it). */
 export const PRIMITIVE_MODELS_S6 = {
-  CARRY4, SRLC32E, DSP48A1,
+  CARRY4, SRLC32E, DSP48A1, PLL_BASE, BUFIO2,
   RAM128X1S: lutram('RAM128X1S', 7, { scalar: true }),
   RAM128X1D: lutram('RAM128X1D', 7, { rams: [['INIT', 'D', [['SPO', 'A'], ['DPO', 'DPRA']]]] }),
   RAM256X1S: lutram('RAM256X1S', 8),

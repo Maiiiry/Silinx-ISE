@@ -19,7 +19,7 @@
 //     until nothing changes;
 //   - the Xilinx primitives are Verilog models flattened into the design (core/compiled-prims.js: block
 //     RAMs, multipliers, SRL16s, distributed RAMs, clock buffers, and the LUTs, flip-flops, latches and carry
-//     chain of a synthesized netlist, #561); a DCM's outputs are variables set by a
+//     chain of a synthesized netlist, #561); a DCM's (or a PLL_BASE's, #845) outputs are variables set by a
 //     schedule of their edges in the main clock's cycles (dcmSchedule): the main clock is its input, each
 //     cycle's edges are steps of the loop in time order; a DCM whose RST the design drives starts its
 //     schedule again after a reset (#465).
@@ -32,7 +32,7 @@
 //
 // Isomorphic ES module (browser + Node), no DOM.
 import { toVerilog } from './synth-verilog.js';
-import { PRIMITIVE_MODELS, DCM_CELLS, DCM_OUTPUTS, dcmWaves, dcmSchedule, bramInit, simprimCell } from './compiled-prims.js';
+import { PRIMITIVE_MODELS, CLOCK_CELLS, dcmSchedule, bramInit, simprimCell } from './compiled-prims.js';
 import { gateModel } from './compiled-tables.js';
 
 export class CompileError extends Error {}
@@ -325,15 +325,15 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
       elems.push({ name: cname, type: t, P, C, q: v, init: bigOf(C.Q.map(b => init.get(b) || 0)) });
     } else if (t === '$mem_v2') {
       mems.push({ name: cname, P, C });
-    } else if (DCM_CELLS.has(t)) {
-      // a DCM: its outputs are variables the clock schedule sets (below)
-      const outs = {};
-      for (const port of DCM_OUTPUTS) {
+    } else if (CLOCK_CELLS.has(t)) {
+      // a DCM (or a PLL, as one): its outputs are variables the clock schedule sets (below)
+      const { kind, outputs, waves } = CLOCK_CELLS.get(t), outs = {};
+      for (const port of outputs) {
         if (!C[port]?.length) continue;
         outs[port] = newVar(C[port].length);
         drive(C[port], outs[port]);
       }
-      dcms.push({ name: cname, P, C, outs });
+      dcms.push({ name: cname, P, C, outs, kind, waves });
     } else if (t === '$tribuf' || t === '$_TBUF_') {
       throw new CompileError(`the tristate buffer '${cellName(cname)}' cannot be compiled`);
     } else {
@@ -651,16 +651,16 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
   const dcmOf = new Map();   // a DCM output's bit -> [dcm, port]
   for (const d of dcms) for (const [port, v] of Object.entries(d.outs)) d.C[port].forEach(b => dcmOf.set(b, [d, port]));
   const roots = dcms.filter(d => !dcmOf.has(d.C.CLKIN?.[0]));
-  if (dcms.length && !roots.length) throw new CompileError(`the DCM '${cellName(dcms[0].name)}' is in a loop of DCMs: not compiled`);
+  if (dcms.length && !roots.length) throw new CompileError(`the ${dcms[0].kind} '${cellName(dcms[0].name)}' is in a loop of DCMs: not compiled`);
   for (const d of roots) {
     const b = d.C.CLKIN?.[0];
-    if (typeof b !== 'number' || !inputs.some(i => i.bits.includes(b))) throw new CompileError(`the DCM '${cellName(d.name)}' is not clocked by an input port: not compiled`);
+    if (typeof b !== 'number' || !inputs.some(i => i.bits.includes(b))) throw new CompileError(`the ${d.kind} '${cellName(d.name)}' is not clocked by an input port: not compiled`);
   }
   const dcmClock = roots[0]?.C.CLKIN[0];
   if (roots.some(d => d.C.CLKIN[0] !== dcmClock)) throw new CompileError('DCMs clocked by two input ports: not compiled');
   const portOfBit = b => inputs.find(i => i.bits.includes(b))?.name;
   if (dcms.length && (clock === false || (clock && portOfBit(dcmClock) !== clock))) {
-    throw new CompileError(`the DCM '${cellName(roots[0].name)}' is clocked by '${portOfBit(dcmClock)}', ${clock ? `not by the main clock '${clock}'` : 'with no main clock'}: not compiled`);
+    throw new CompileError(`the ${roots[0].kind} '${cellName(roots[0].name)}' is clocked by '${portOfBit(dcmClock)}', ${clock ? `not by the main clock '${clock}'` : 'with no main clock'}: not compiled`);
   }
   if (dcms.length) main = dcmClock;
   else if (clock === false) main = null;
@@ -711,19 +711,19 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
     const driven = d => (d.C.RST || []).some(b => typeof b === 'number');
     const resolve = (d, seen = new Set()) => {
       if (waves.has(d)) return;
-      if (seen.has(d)) throw new CompileError(`the DCM '${cellName(d.name)}' is in a loop of DCMs: not compiled`);
+      if (seen.has(d)) throw new CompileError(`the ${d.kind} '${cellName(d.name)}' is in a loop of DCMs: not compiled`);
       seen.add(d);
       const rst = d.C.RST || [];
       const src = dcmOf.get(d.C.CLKIN[0]);
       if (src) resolve(src[0], seen);
-      if (src && driven(d)) throw new CompileError(`the DCM '${cellName(d.name)}' has its RST driven by the design and is clocked by ${src[1]} of '${cellName(src[0].name)}': not compiled`);
-      if (src && driven(src[0])) throw new CompileError(`the DCM '${cellName(d.name)}' is clocked by ${src[1]} of '${cellName(src[0].name)}', whose RST is driven by the design: not compiled`);
+      if (src && driven(d)) throw new CompileError(`the ${d.kind} '${cellName(d.name)}' has its RST driven by the design and is clocked by ${src[1]} of '${cellName(src[0].name)}': not compiled`);
+      if (src && driven(src[0])) throw new CompileError(`the ${d.kind} '${cellName(d.name)}' is clocked by ${src[1]} of '${cellName(src[0].name)}', whose RST is driven by the design: not compiled`);
       const input = src ? waves.get(src[0])[src[1]] : { pre: [], s: [0, 1], q: [1, 1] };
-      if (!input) throw new CompileError(`the DCM '${cellName(d.name)}' is clocked by ${src[1]} of '${cellName(src[0].name)}': not compiled`);
+      if (!input) throw new CompileError(`the ${d.kind} '${cellName(d.name)}' is clocked by ${src[1]} of '${cellName(src[0].name)}': not compiled`);
       level.set(d, src ? level.get(src[0]) + 1 : 0);
       root.set(d, src ? root.get(src[0]) : d);
       // (RST tied high: never locked, its outputs low)
-      try { waves.set(d, rst.includes('1') ? {} : dcmWaves(d.P, input, cellName(d.name))); } catch (e) { throw new CompileError(`${e.message}: not compiled`); }
+      try { waves.set(d, rst.includes('1') ? {} : d.waves(d.P, input, cellName(d.name))); } catch (e) { throw new CompileError(`${e.message}: not compiled`); }
     };
     dcms.forEach(d => resolve(d));
     for (const r of roots) groups.push({ dcm: r, rst: driven(r) ? r.C.RST : null, chans: [] });
@@ -734,7 +734,7 @@ export function compileNetlist(json, { top, clock = null, wide = false, watch = 
         if (!w) continue;
         if (!read.has(b)) { unread.add(b); continue; }
         // (CLK90 / CLK270: CLK0 / CLK180 delayed, which a reset does not stop at once: not modelled)
-        if (g.rst && (port === 'CLK90' || port === 'CLK270')) throw new CompileError(`the DCM '${cellName(d.name)}' has its RST driven by the design and its ${port} used: not compiled`);
+        if (g.rst && (port === 'CLK90' || port === 'CLK270')) throw new CompileError(`the ${d.kind} '${cellName(d.name)}' has its RST driven by the design and its ${port} used: not compiled`);
         const riseOnly = !other.has(b) && clocked.every(e => clkBit(e) !== b || pol(e, 'CLK_POLARITY') === 1);
         if (riseOnly) unread.add(b);
         g.chans.push({ wave: w, v, bit: b, level: level.get(d), riseOnly });

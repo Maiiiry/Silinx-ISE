@@ -12,6 +12,7 @@ import { diffCycles, designOf, rng } from './compiled-diff.js';
 import { compileDesign, compileNetlist, CompiledSim, CompileError, netlistOf, portBit, segmentsOf, clustered, chunks, prepCommands, gateLevel } from '../core/compiled-sim.js';
 import { yosysNode } from '../core/synth-open-node.js';
 import { timingGenerics, autoTimeScale, scaledGenerics } from '../core/emulate.js';
+import { clockModule } from '../core/clocking.js';
 
 const FIX = path.join(ROOT, 'test/fixtures/compiled-sim');
 const fixture = name => [{ path: name, lang: name.endsWith('.vhd') ? 'vhdl' : 'verilog', role: 'design', text: fs.readFileSync(path.join(FIX, name), 'utf8') }];
@@ -353,6 +354,96 @@ test('a DCM with what the board shows counted (watch): sampled once a main clock
   assert.ok(falls.length > 50, rst);
   }
 });
+// PLL_BASE and BUFIO2 (#845): the PLL scheduled as a DCM is, the BUFIO2 a wire or a divider
+const PLL_SETS = [{}, { MULT: 6, DIV: 2, D0: 3, D1: 12, D2: 4, D3: 1, D4: 9, D5: 7, DUTY1: 30, PH5: 45, FBPH: 180, IODIV: 3 },
+  { MULT: 21, DIV: 2, D0: 42, D1: 21, D2: 7, D3: 14, D4: 6, D5: 2, PH2: 270, DUTY4: 75, IODIV: 2, BYPASS: true },
+  { MULT: 5, DIV: 3, D0: 5, D1: 1, D2: 2, D3: 10, D4: 4, D5: 3, DUTY1: 60, PH2: -90, PH5: 120, FBPH: 90, IODIV: 8 }];
+test('a PLL_BASE: every output (CLKFBOUT, CLKOUT0-5), both edges, duty cycles and phases, LOCKED; BUFIO2s on the main clock and on a PLL output, at several frequencies (VHDL)', async () => {
+  for (const generics of PLL_SETS) {
+    const sim = await compileDesign(designOf(fixture('pll.vhd'), 'pll_vhd', { generics }), { run: yosysNode });
+    assert.deepEqual(sim.warnings, []);
+    assert.equal(sim.model.clock.port, 'clk');
+    assert.equal(sim.model.stats.dcms, 1);
+    await same(fixture('pll.vhd'), 'pll_vhd', { p: 0.2, generics, cycles: 300 });
+  }
+});
+test('PLL_BASEs reset by an active-low button and by a register of a PLL\'s clock, a DCM_SP on a PLL\'s clock, BUFIO2s inverted and bypassed, a BUFGCE (Verilog)', async () => {
+  const sim = await compileDesign(designOf(fixture('pll_rst.v'), 'pll_rst_v'), { run: yosysNode });
+  assert.deepEqual(sim.warnings, []);
+  assert.equal(sim.model.stats.dcms, 4);
+  await same(fixture('pll_rst.v'), 'pll_rst_v', { p: 0.1 });
+});
+for (const lang of ['vhdl', 'verilog']) {
+  test(`the Clocking Wizard's PLL_BASE module (Spartan-6, ${lang}): its outputs, one of them 90°, LOCKED, reset by a button`, async () => {
+    const { code, plan } = clockModule({ wizard: 'clock', version: 1, name: 'clkgen', lang, family: 'spartan6', speed: '-3', inMHz: 100, input: 'clk_in', ibufg: true,
+      reset: 'rst', locked: 'locked', outputs: [{ port: 'clk_a', mhz: 25 }, { port: 'clk_b', mhz: 50, phase: 90 }, { port: 'clk_c', mhz: 40 }] });
+    assert.deepEqual(plan.errors, []);
+    const top = lang === 'vhdl' ? `library IEEE; use IEEE.STD_LOGIC_1164.ALL; use IEEE.NUMERIC_STD.ALL;
+entity wiz is port (clk, btn : in std_logic; lk : out std_logic; na, nb, nc : out unsigned(7 downto 0)); end wiz;
+architecture rtl of wiz is
+  signal a, b, c : std_logic;
+  signal ra, rb, rc : unsigned(7 downto 0) := (others => '0');
+begin
+  u : entity work.clkgen port map (clk_in => clk, rst => btn, clk_a => a, clk_b => b, clk_c => c, locked => lk);
+  process (a) begin if rising_edge(a) then ra <= ra + 1; end if; end process;
+  process (b) begin if falling_edge(b) then rb <= rb + 3; end if; end process;
+  process (c) begin if rising_edge(c) then rc <= rc + 1; end if; end process;
+  na <= ra; nb <= rb; nc <= rc;
+end rtl;` : `module wiz(input clk, btn, output lk, output reg [7:0] na = 0, nb = 0, nc = 0);
+  wire a, b, c;
+  clkgen u (.clk_in(clk), .rst(btn), .clk_a(a), .clk_b(b), .clk_c(c), .locked(lk));
+  always @(posedge a) na <= na + 1;
+  always @(negedge b) nb <= nb + 3;
+  always @(posedge c) nc <= nc + 1;
+endmodule`;
+    const ext = lang === 'vhdl' ? 'vhd' : 'v';
+    const sources = [...src(`clkgen.${ext}`, code), ...src(`wiz.${ext}`, top)];
+    const sim = await compileDesign(designOf(sources, 'wiz'), { run: yosysNode });
+    assert.deepEqual(sim.warnings, []);
+    assert.equal(sim.model.stats.dcms, 1);
+    await same(sources, 'wiz', { p: 0.05, minBits: 3000 });
+  });
+}
+test('a PLL_BASE\'s clocks against their arithmetic: CLKOUTn and CLKFBOUT from the 4th input edge (after their phase), LOCKED from the 3rd; RST', async () => {
+  const text = (mult, div, ds, phs) => `module f(input clk, r, output lk, output reg [31:0] nfb = 0, n0 = 0, n1 = 0, n2 = 0, nlk = 0);
+    wire fb, c0, c1, c2;
+    PLL_BASE #(.CLKFBOUT_MULT(${mult}), .DIVCLK_DIVIDE(${div}), .CLKOUT0_DIVIDE(${ds[0]}), .CLKOUT1_DIVIDE(${ds[1]}), .CLKOUT2_DIVIDE(${ds[2]}),
+      .CLKOUT0_PHASE(${phs[0]}.0), .CLKOUT1_PHASE(${phs[1]}.0), .CLKOUT2_PHASE(${phs[2]}.0), .CLKOUT1_DUTY_CYCLE(0.25))
+      u (.CLKIN(clk), .CLKFBIN(fb), .RST(r), .CLKFBOUT(fb), .CLKOUT0(c0), .CLKOUT1(c1), .CLKOUT2(c2), .LOCKED(lk));
+    always @(posedge fb) nfb <= nfb + 1;
+    always @(posedge c0) n0 <= n0 + 1;
+    always @(posedge c1) n1 <= n1 + 1;
+    always @(posedge c2) n2 <= n2 + 1;
+    always @(posedge clk) nlk <= nlk + lk;
+  endmodule`;
+  // rising edges at s, s + q, s + 2q… before the end of cycle n (the main clock's rising edges at 0, 1, 2…)
+  const edges = (n, s, q) => (n <= s ? 0 : Math.ceil((n - s) / q));
+  for (const [mult, div, ds, phs] of [[8, 1, [8, 3, 20], [0, 90, 45]], [21, 2, [42, 7, 5], [180, 0, 270]], [5, 3, [1, 10, 4], [-90, 30, 0]]]) {
+    const s = await compileDesign(designOf(src('f.v', text(mult, div, ds, phs)), 'f'), { run: yosysNode });
+    s.set('r', 0);
+    const per = d => div * d / mult, ph = (d, p) => per(d) * (((p % 360) + 360) % 360) / 360;
+    for (const n of [1, 2, 3, 4, 5, 37, 1000, 10007]) {
+      s.cycle(n - s.cycles);
+      const what = `M ${mult}, D ${div}, ${ds.join('/')}, ${n} cycles`;
+      assert.equal(s.get('lk'), n >= 3 ? 1n : 0n, `LOCKED, ${what}`);
+      assert.equal(s.get('nlk'), BigInt(Math.max(0, n - 3)), `LOCKED seen by the main clock, ${what}`);
+      assert.equal(s.get('nfb'), BigInt(edges(n, 3, div)), `CLKFBOUT, ${what}`);
+      ds.forEach((d, i) => assert.equal(s.get(`n${i}`), BigInt(edges(n, 3 + ph(d, phs[i]), per(d))), `CLKOUT${i}, ${what}`));
+    }
+    // RST: the clocks stopped and LOCKED low while it is high, the lock sequence again from the release
+    s.set('r', 1);
+    s.cycle(1);
+    assert.equal(s.get('lk'), 0n);
+    const at = ['nfb', 'n0', 'n1', 'n2'].map(k => s.get(k));
+    s.cycle(9);
+    assert.deepEqual(['nfb', 'n0', 'n1', 'n2'].map(k => s.get(k)), at);
+    s.set('r', 0);
+    s.cycle(3);
+    assert.equal(s.get('lk'), 1n);
+    s.cycle(97);
+    assert.equal(s.get('n0'), at[1] + BigInt(edges(100, 3 + ph(ds[0], phs[0]), per(ds[0]))));
+  }
+});
 
 test('the comparison finds a wrong compiled model', async () => {
   // the state machine's count down (st - 1) made a count up
@@ -543,6 +634,23 @@ test('a DCM: not compiled when its RST is driven and it is cascaded or its CLK90
   assert.throws(() => compileNetlist(json, { top: 'd', clock: false }), { message: "the DCM 'u' is clocked by 'clk', with no main clock: not compiled" });
   // RST tied high: never locked, its clocks low
   const s = await compileDesign(designOf(src('d.v', dcm('input b', ".CLKIN(clk), .RST(1'b1)")), 'd'), { run: yosysNode });
+  s.cycle(100);
+  assert.equal(s.get('n'), 0n);
+});
+test('a PLL_BASE: not compiled when its CLKIN is not an input port, a duty cycle is out of (0, 1), or a DCM it clocks has a duty cycle not of 50 %', async () => {
+  const pll = (conn, extra = '', more = '') => `module d(input clk, r, output reg [3:0] n = 0); wire c; ${more}
+    PLL_BASE #(.CLKFBOUT_MULT(4), .CLKOUT0_DIVIDE(2)${extra}) u (${conn}, .CLKOUT0(c)); always @(posedge c) n <= n + 1; endmodule`;
+  assert.ok(await compileDesign(designOf(src('d.v', pll('.CLKIN(clk), .RST(r)')), 'd'), { run: yosysNode }));
+  assert.equal(await failure('d.v', pll(".CLKIN(k[1]), .RST(1'b0)", '', 'reg [1:0] k = 0; always @(posedge clk) k <= k + 1;')),
+    "the PLL 'u' is not clocked by an input port: not compiled");
+  assert.equal(await failure('d.v', pll(".CLKIN(clk), .RST(1'b0)", ', .CLKOUT0_DUTY_CYCLE(1.0)')),
+    "the PLL 'u' has its CLKOUT0_DUTY_CYCLE out of (0, 1): not compiled");
+  assert.equal(await failure('d.v', `module d(input clk, output reg [3:0] n = 0); wire c, fx;
+    PLL_BASE #(.CLKFBOUT_MULT(4), .CLKOUT0_DIVIDE(8), .CLKOUT0_DUTY_CYCLE(0.3)) u (.CLKIN(clk), .RST(1'b0), .CLKOUT0(c));
+    DCM_SP m (.CLKIN(c), .RST(1'b0), .CLKFX(fx)); always @(posedge fx) n <= n + 1; endmodule`),
+    "the DCM 'm' has a clock input whose duty cycle is not 50 %: not compiled");
+  // (RST tied high: never locked, its outputs low)
+  const s = await compileDesign(designOf(src('d.v', pll(".CLKIN(clk), .RST(1'b1)")), 'd'), { run: yosysNode });
   s.cycle(100);
   assert.equal(s.get('n'), 0n);
 });

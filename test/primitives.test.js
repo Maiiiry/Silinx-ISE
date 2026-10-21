@@ -269,6 +269,28 @@ for (const lang of ['vhdl', 'verilog']) {
   });
 }
 
+test('BUFIO2 with I_INVERT on an input low from the start: no rising edge at time 0, its divided clock low until the first falling edge (#845)', () => {
+  const text = `library IEEE; use IEEE.STD_LOGIC_1164.ALL; library UNISIM; use UNISIM.VCOMPONENTS.ALL;
+entity tb is end tb;
+architecture sim of tb is
+  signal i, io, dv : std_logic := '0';
+begin
+  u : BUFIO2 generic map (DIVIDE => 2, DIVIDE_BYPASS => false, I_INVERT => true) port map (I => i, IOCLK => io, DIVCLK => dv);
+  process begin
+    wait for 1 ns; report "io " & std_logic'image(io) & " dv " & std_logic'image(dv);
+    i <= '1'; wait for 1 ns; i <= '0'; wait for 1 ns; report "io " & std_logic'image(io) & " dv " & std_logic'image(dv);
+    wait;
+  end process;
+end sim;`;
+  const srcs = [{ path: 'tb.vhd', lang: 'vhdl', text }];
+  const lib = compile([...primitiveSources(srcs), ...srcs]);
+  const d = elaborate(lib, 'tb');
+  assert.deepEqual([...lib.errors, ...d.diags].map(x => x.message), []);
+  const s = new Simulator(d);
+  s.run(5000);
+  assert.deepEqual(s.log.map(l => l.text).filter(t => t.startsWith('io')), ["io '1' dv '0'", "io '1' dv '1'"]);
+});
+
 // ------------------------------------------------------------------ a schematic using them: its messages
 // a schematic with symbols of `type` (params), the pins named in `wired` on I/O markers of their names
 function sheet(name, syms, lang = 'vhdl') {
