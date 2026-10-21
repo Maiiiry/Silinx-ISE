@@ -220,8 +220,8 @@
    "part": "xc3s250ecp132-4",
    "slices": 410,
    "luts": 816,
-   "ffs": 226,
-   "period": 16.765
+   "ffs": 224,
+   "period": 16.235
   }
  },
  "fpu-adder": {
@@ -232,10 +232,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 340,
-   "luts": 674,
+   "slices": 338,
+   "luts": 671,
    "ffs": 389,
-   "period": 11.533
+   "period": 10.238
   }
  },
  "fpu-multiplier": {
@@ -379,10 +379,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 20,
-   "luts": 40,
+   "slices": 21,
+   "luts": 41,
    "ffs": 28,
-   "period": 5.704
+   "period": 5.362
   }
  },
  "itc99-b10": {
@@ -440,10 +440,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 41,
-   "luts": 81,
-   "ffs": 53,
-   "period": 7.073
+   "slices": 42,
+   "luts": 83,
+   "ffs": 64,
+   "period": 5.737
   }
  },
  "itc99-b14": {
@@ -607,8 +607,8 @@
    "part": "xc3s250ecp132-4",
    "slices": 66,
    "luts": 114,
-   "ffs": 119,
-   "period": 5.107
+   "ffs": 118,
+   "period": 4.795
   }
  },
  "iwls05-simple-spi": {
@@ -686,7 +686,7 @@
    "slices": 63,
    "luts": 120,
    "ffs": 106,
-   "period": 4.931
+   "period": 4.852
   }
  },
  "light8080": {
@@ -721,7 +721,7 @@
    "slices": 189,
    "luts": 374,
    "ffs": 206,
-   "period": 12.239
+   "period": 12.173
   }
  },
  "nandland-spi-verilog": {
@@ -1024,10 +1024,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 162,
+   "slices": 159,
    "luts": 300,
    "ffs": 293,
-   "period": 10.118
+   "period": 10.174
   }
  },
  "spi-fpga-master": {
@@ -1043,10 +1043,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 18,
-   "luts": 33,
+   "slices": 19,
+   "luts": 34,
    "ffs": 21,
-   "period": 5.078
+   "period": 4.679
   }
  },
  "spi-fpga-slave": {
@@ -1058,9 +1058,9 @@
   "quality": {
    "part": "xc3s250ecp132-4",
    "slices": 14,
-   "luts": 24,
+   "luts": 27,
    "ffs": 21,
-   "period": 5.479
+   "period": 4.696
   }
  },
  "t80": {
@@ -1204,7 +1204,7 @@
    "slices": 125,
    "luts": 244,
    "ffs": 79,
-   "period": 8.863
+   "period": 8.431
   }
  },
  "vtr-ch-intrinsics": {
@@ -1243,9 +1243,9 @@
   "quality": {
    "part": "xc3s250ecp132-4",
    "slices": 266,
-   "luts": 157,
+   "luts": 158,
    "ffs": 509,
-   "period": 5.863
+   "period": 5.931
   }
  },
  "vtr-diffeq1": {
