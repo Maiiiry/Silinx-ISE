@@ -17,7 +17,7 @@ import * as V from '/core/values.js';
 import { toVCD } from '/core/simulator.js';
 import { onPrefsChange } from './modern.js';
 import { normalizeStimuli, applyStimuli } from '/core/stimuli.js';
-import { esc, h } from './dom.js';
+import { h } from './dom.js';
 import { mountConsole } from './isim-console.js';
 import { mountForces } from './isim-forces.js';
 import { mountDialogs } from './isim-dialogs.js';
@@ -27,6 +27,8 @@ import { mountRun } from './isim-run.js';
 import { mountDraw } from './isim-draw.js';
 import { mountInput } from './isim-input.js';
 import { mountRows } from './isim-rows.js';
+import { mountMenu } from './isim-menu.js';
+import { mountTree } from './isim-tree.js';
 
 // ------------------------------------------------------------------------------- constants
 export const ROW_H = 20;
@@ -557,8 +559,8 @@ export function mountISim(container, opts = {}) {
   // (made here, in mount order; the drawn stimuli, made below, are clicked when editing is on)
   const { rowAtY, selectRow, localXY, dragRow } = mountInput({ st, sim, $, on, track, cn, cw, vsc, treeEl, objBody, flat,
     sizes: () => ({ NH, WH, WW }), layout, invalidate, rebuildFlat, updateVScroll, objectsChanged: () => { objDirty = true; }, xOf, tOf, clampView,
-    zoomAt, zoomFit, itemWave, setCursor, addMarker, removeMarker, jumpEdge, selectedItems, removeSelectedRows, renameDivider, openSource, showMenu,
-    waveRowMenu, stimClick: (...a) => stimClick(...a) });
+    zoomAt, zoomFit, itemWave, setCursor, addMarker, removeMarker, jumpEdge, selectedItems, removeSelectedRows, renameDivider, openSource,
+    showMenu: (...a) => showMenu(...a), waveRowMenu, stimClick: (...a) => stimClick(...a) });
 
   function openSource(x) {
     if (!onOpenSource || !x) return;
@@ -566,107 +568,14 @@ export function mountISim(container, opts = {}) {
     if (file) onOpenSource({ file, line, object: x });
   }
 
-  // ---------------------------------------------------------------- context menu
-  let menuEl = null;
-  function closeMenu() { if (menuEl) { menuEl.remove(); menuEl = null; } }
-  function buildMenu(items, x, y) {
-    const m = h('div', { class: 'isim-menu' });
-    for (const it of items) {
-      if (it.sep) { m.appendChild(h('div', { class: 'isim-menu-sep' })); continue; }
-      const r = h('div', { class: 'isim-menu-item' + (it.disabled ? ' dis' : ''), html: `<span class="chk">${it.checked ? '✓' : ''}</span><span class="lbl">${esc(it.label)}</span><span class="arr">${it.sub ? '▸' : ''}</span>` });
-      if (it.sub && !it.disabled) {
-        let subEl = null;
-        r.addEventListener('mouseenter', () => {
-          m.querySelectorAll(':scope > .isim-menu').forEach(s => s.remove());
-          const rr = r.getBoundingClientRect(), mr = m.getBoundingClientRect();
-          subEl = buildMenu(it.sub, rr.right - mr.left - 2, rr.top - mr.top - 3);
-          m.appendChild(subEl);
-          // past the window's edge: to the left of the menu instead, and up as far as needed
-          const sr = subEl.getBoundingClientRect();
-          if (sr.right > window.innerWidth - 4) subEl.style.left = (rr.left - mr.left - sr.width + 2) + 'px';
-          if (sr.bottom > window.innerHeight - 4) subEl.style.top = (rr.top - mr.top - 3 - (sr.bottom - window.innerHeight + 4)) + 'px';
-        });
-      } else {
-        r.addEventListener('mouseenter', () => m.querySelectorAll(':scope > .isim-menu').forEach(s => s.remove()));
-      }
-      if (!it.disabled && it.action) r.addEventListener('mousedown', (e) => { e.preventDefault(); e.stopPropagation(); closeMenu(); it.action(); });
-      m.appendChild(r);
-    }
-    m.style.left = x + 'px'; m.style.top = y + 'px';
-    return m;
-  }
-  function showMenu(x, y, items) {
-    closeMenu();
-    menuEl = buildMenu(items, 0, 0);
-    menuEl.classList.add('isim-menu-root');
-    document.body.appendChild(menuEl);
-    const r = menuEl.getBoundingClientRect();
-    menuEl.style.left = clamp(x, 0, window.innerWidth - r.width - 4) + 'px';
-    menuEl.style.top = clamp(y, 0, window.innerHeight - r.height - 4) + 'px';
-  }
-  const docDown = (e) => { if (menuEl && !menuEl.contains(e.target)) closeMenu(); };
-  const docKey = (e) => { if (e.key === 'Escape') { closeMenu(); closeDialog(); } };
-  document.addEventListener('mousedown', docDown, true);
-  document.addEventListener('keydown', docKey);
-  cleanups.push(() => { document.removeEventListener('mousedown', docDown, true); document.removeEventListener('keydown', docKey); closeMenu(); });
+  // ---------------------------------------------------------------- context menu (isim-menu.js)
+  // (made here, in mount order; the dialogs, made below, are closed by Escape)
+  const { showMenu } = mountMenu({ cleanups, closeDialog: () => closeDialog() });
 
-  // ---------------------------------------------------------------- instance tree
-  function renderTree() {
-    treeEl.innerHTML = '';
-    const mk = (inst, isTop) => {
-      const li = h('li');
-      const procs = (inst.procs || []).filter(p => p.kind !== 'glue');
-      const hasKids = inst.children.length || procs.length;
-      const row = h('div', { class: 'row' + (inst === st.curInst ? ' sel' : ''),
-        html: `<span class="twisty">${hasKids ? (inst._isimOpen === false ? '▸' : '▾') : ''}</span><span class="ico">${isTop ? ICON.top : ICON.inst}</span><span class="lbl">${esc(inst.name)}</span><span class="isim-mod">(${esc(inst.module ?? '')})</span>` });
-      row.title = pathOf(inst);
-      row.draggable = true;
-      row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/x-isim', JSON.stringify({ inst: inst.path })); e.dataTransfer.effectAllowed = 'copy'; });
-      row.addEventListener('mousedown', (e) => {
-        if (e.target.classList.contains('twisty') && hasKids) { inst._isimOpen = inst._isimOpen === false; renderTree(); return; }
-        st.curInst = inst; renderTree(); renderObjects();
-      });
-      row.addEventListener('dblclick', () => openSource(inst));
-      row.addEventListener('contextmenu', (e) => {
-        e.preventDefault(); st.curInst = inst; renderTree(); renderObjects();
-        showMenu(e.clientX, e.clientY, [
-          { label: 'Add to Wave Window', action: () => addInstance(inst, false) },
-          { label: 'Add to Wave Window (Recursive)', action: () => addInstance(inst, true) },
-          { sep: true },
-          { label: 'Go To Source Code', disabled: !onOpenSource, action: () => openSource(inst) },
-        ]);
-      });
-      li.appendChild(row);
-      if (hasKids && inst._isimOpen !== false) {
-        const ul = h('ul');
-        for (const c of inst.children) ul.appendChild(mk(c, false));
-        for (const p of procs) {
-          const pl = h('li');
-          const pr = h('div', { class: 'row', html: `<span class="twisty"></span><span class="ico">${ICON.proc}</span><span class="lbl">${esc(p.name)}</span>` });
-          pr.title = `${p.kind}${p.loc?.line ? ` (line ${p.loc.line})` : ''}`;
-          pr.addEventListener('dblclick', () => openSource(p));
-          pr.addEventListener('mousedown', () => { st.curInst = inst; renderTree(); renderObjects(); });
-          pl.appendChild(pr); ul.appendChild(pl);
-        }
-        li.appendChild(ul);
-      }
-      return li;
-    };
-    if (design.top) treeEl.appendChild(mk(design.top, true));
-  }
-  function addInstance(inst, recursive, at) {
-    const sigs = [];
-    const walk = (i) => {
-      if (recursive) sigs.push({ divider: pathOf(i) });
-      for (const o of instSignals(i)) sigs.push(o.sig);
-      if (recursive) for (const c of i.children) walk(c);
-    };
-    walk(inst);
-    const rows = [];
-    for (const s of sigs) rows.push(s.divider ? { id: st.rowSeq++, kind: 'div', name: s.divider } : newRow(s));
-    st.rows.splice(at ?? st.rows.length, 0, ...rows);
-    rebuildFlat(); updateVScroll(); invalidate(); renderObjects();
-  }
+  // ---------------------------------------------------------------- instance tree (isim-tree.js)
+  // (made here, in mount order; the Objects panel, made below, is drawn again when an instance is selected or added)
+  const { renderTree, addInstance } = mountTree({ st, design, treeEl, onOpenSource, openSource, showMenu, renderObjects: () => renderObjects(),
+    instSignals, newRow, rebuildFlat, updateVScroll, invalidate });
 
   // ---------------------------------------------------------------- objects list (isim-objects.js)
   // (made here, in mount order; the dialogs and the forces, made below, are used from its menu)
