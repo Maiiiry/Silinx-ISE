@@ -357,6 +357,7 @@ html[data-ui="modern"] .isim .ise-panel { border: none; }
 html[data-ui="modern"] .isim .ise-panel > .caption { border-bottom: 1px solid var(--m-border); }
 html[data-ui="modern"] .isim-toolbar { background: var(--m-surface); border-color: var(--m-border); min-height: 36px; }
 html[data-ui="modern"] .isim-toolbar .tb-btn:hover:not(:disabled) { background: var(--m-hover); }
+html[data-ui="modern"] .isim-toolbar .tb-btn:has(.tb-label) { width: auto; padding: 0 10px; }
 html[data-ui="modern"] .isim-toolbar .tb-sep { background: var(--m-border); box-shadow: none; }
 html[data-ui="modern"] :is(.isim-split-v, .isim-split-h, .isim-split-names, .isim-hscroll-pad, .isim-vscroll, .isim-hscroll) { background: var(--m-surface-2); border-color: var(--m-border); }
 html[data-ui="modern"] :is(.isim-split-v, .isim-split-h):hover { background: var(--m-accent); }
