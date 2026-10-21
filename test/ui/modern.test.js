@@ -126,7 +126,7 @@ uiTest('View ▸ Interface: the Xilinx ISE look and back, live and remembered af
   await page.reload();
   assert.deepEqual(await ui(page), { ui: 'classic', theme: 'light' });
   subs = await subMenu(page, 'View', 'Interface');
-  assert.deepEqual(subs.map((s) => s.checked), [false, true, false]);
+  assert.deepEqual(subs.map((s) => s.checked), [false, true]);
   await subMenu(page, 'View', 'Interface', 'Modern');
   await page.waitFor(() => document.documentElement.dataset.ui === 'modern');
   assert.ok((await page.openMenu('View')).some((x) => x.label === 'Theme'));
