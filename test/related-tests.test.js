@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { imports, relatedTests, shardOf, sources } from '../scripts/related-tests.mjs';
+import { imports, dataPaths, relatedTests, shardOf, sources } from '../scripts/related-tests.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -65,6 +65,94 @@ test('related tests: the unit tests that import a changed module, directly or th
   assert.deepEqual(relatedTests(sized, ['core/b.js']), { unit: ['test/b.test.js', 'test/code-size.test.js'], ui: [] });
   assert.deepEqual(relatedTests(sized, ['web/js/menus.js']), { unit: ['test/code-size.test.js'], ui: ['test/ui/menus.test.js'] });
   assert.deepEqual(relatedTests(sized, ['README.md', 'test/other.test.js', 'web/css/app.css']), { unit: ['test/other.test.js'], ui: [] });
+});
+
+test('related tests: the data a source reads, named from its own place (#772)', () => {
+  const here = 'path.dirname(fileURLToPath(import.meta.url))';
+  // the folder of the source joined with literal parts; a constant holding a path, then joined; path.resolve
+  assert.deepEqual(dataPaths('core/fpga/db-node.js', `export const DB_DIR = path.join(${here}, '..', '..', 'research', 's3e-bitstream', 'db');`), ['research/s3e-bitstream/db']);
+  assert.deepEqual(dataPaths('core/fpga/dev-node.js', `export const SHIPPED = path.join(${here}, 'devices');`), ['core/fpga/devices']);
+  assert.deepEqual(dataPaths('server/projects.js', `const HERE = ${here};\nexport const EXAMPLES_DIR = path.join(HERE, '..', 'examples');`), ['examples']);
+  assert.deepEqual(dataPaths('test/a.test.js', `const ROOT = path.resolve(${here}, '..');\nconst f = path.join(ROOT, 'research/s6/measured', name);\nconst g = path.join(ROOT, "docs", 'A.md');`).sort(), ['docs/A.md', 'research/s6/measured']);
+  assert.deepEqual(dataPaths('test/a.test.js', `const ROOT = fileURLToPath(new URL('..', import.meta.url));\nread(path.join(ROOT, 'package.json'));`), ['package.json']);
+  assert.deepEqual(dataPaths('test/a.test.js', `const R = path.join(path.dirname(new URL(import.meta.url).pathname), '..');\nread(path.join(R, 'x', 'y.json'));`), ['x/y.json']);
+  assert.deepEqual(dataPaths('test/a.test.js', `const FIX = path.join(${here}, 'fixtures', 'fpga');`), ['test/fixtures/fpga']);
+  // new URL of a literal, of a template (its folder before the first \${…}), of a template with no \${…}
+  assert.deepEqual(dataPaths('research/s3e-bitstream/pad-delays.mjs', "JSON.parse(fs.readFileSync(new URL('./measured/fix-28.json', import.meta.url)));"), ['research/s3e-bitstream/measured/fix-28.json']);
+  assert.deepEqual(dataPaths('test/a.test.js', 'const p = new URL(`../research/s3e-bitstream/db/${f}`, import.meta.url);'), ['research/s3e-bitstream/db']);
+  assert.deepEqual(dataPaths('test/a.test.js', 'const p = new URL(`../research/s3e-bitstream/db-${f}.json`, import.meta.url);'), ['research/s3e-bitstream']);
+  assert.deepEqual(dataPaths('test/a.test.js', 'const p = new URL(`../CHANGELOG.md`, import.meta.url);'), ['CHANGELOG.md']);
+  // no data: the root, a folder of the sources as a whole, a path out of the repository, a constant not known,
+  // a part that is no literal (the path up to it), a join of no path (an array's), a comment of no call
+  assert.deepEqual(dataPaths('scripts/x.mjs', `const ROOT = path.join(${here}, '..');\nconst y = path.join(ROOT, name);`), []);
+  assert.deepEqual(dataPaths('server/server.js', `const ROOT = path.join(${here}, '..');\napp.use('/', express.static(path.join(ROOT, 'web')));\napp.use(path.join(ROOT, 'core'));`), []);
+  assert.deepEqual(dataPaths('scripts/x.mjs', `const out = path.join(${here}, '..', '..', 'elsewhere');`), []);
+  assert.deepEqual(dataPaths('scripts/x.mjs', "const f = path.join(dir, 'a.json'); const g = path.join(os.tmpdir(), 'b');"), []);
+  assert.deepEqual(dataPaths('core/a.js', `const d = path.join(${here}, 'db', \`\${device}-lut.json\`);`), ['core/db']);
+  assert.deepEqual(dataPaths('core/a.js', "const s = parts.join(', '); const t = names.join(sep);"), []);
+  assert.deepEqual(dataPaths('core/a.js', ''), []);
+});
+
+test('related tests: a changed data file, the tests of the sources that read it and of their importers (#772)', () => {
+  const here = 'path.dirname(fileURLToPath(import.meta.url))';
+  const files = {
+    'core/fpga/bitdb-node.js': `export const DB_DIR = path.join(${here}, '..', '..', 'research', 's3e-bitstream', 'db');`,
+    'core/fpga/device-node.js': `export const SHIPPED = path.join(${here}, 'devices');`,
+    'core/fpga/bitgen.js': '',
+    'server/open-flow.js': "import { DB_DIR } from '../core/fpga/bitdb-node.js';",
+    'server/server.js': "import { run } from './open-flow.js';",
+    'research/s3e-bitstream/db.mjs': "export { DB_DIR } from '../../core/fpga/bitdb-node.js';",
+    'research/s3e-bitstream/pad-delays.mjs': "const m = JSON.parse(fs.readFileSync(new URL('./measured/delays.json', import.meta.url)));",
+    'test/bitdb-node.test.js': '',
+    'test/fpga-hard.test.js': "import { DB_DIR } from '../core/fpga/bitdb-node.js';",
+    'test/open-flow.test.js': "import { run } from '../server/open-flow.js';",
+    'test/server.test.js': "import { start } from '../server/server.js';",
+    'test/s3e-devices.test.js': "import { DB_DIR } from '../research/s3e-bitstream/db.mjs';",
+    'test/fpga-bitgen.test.js': "import { bitgen } from '../core/fpga/bitgen.js';\nconst dbDir = new URL('../research/s3e-bitstream/db/', import.meta.url);",
+    'test/fpga-device.test.js': "import { SHIPPED } from '../core/fpga/device-node.js';",
+    'test/flow-lib.mjs': "import { DB_DIR } from '../core/fpga/bitdb-node.js';",
+    'test/flow.test.js': "import { flow } from './flow-lib.mjs';",
+    'test/iob-reg.test.js': "const tool = s => fileURLToPath(new URL(`../research/s3e-bitstream/${s}`, import.meta.url));",
+    'test/other.test.js': "import { bitgen } from '../core/fpga/bitgen.js';",
+    'test/ui/open-toolchain.test.js': "const db = new URL('../../research/s3e-bitstream/db/', import.meta.url);",
+    'test/ui/app.test.js': '',
+  };
+  const db = ['test/bitdb-node.test.js', 'test/fpga-bitgen.test.js', 'test/fpga-hard.test.js', 'test/flow.test.js', 'test/iob-reg.test.js',
+    'test/open-flow.test.js', 'test/s3e-devices.test.js', 'test/server.test.js'].sort();
+  // the bit database's JSON: the loader's tests and its importers', at any depth; through a helper; the tests that
+  // read the folder themselves (a unit test, a UI test); the test of the loader's name
+  assert.deepEqual(relatedTests(files, ['research/s3e-bitstream/db/xc3s1200e-layout.json']), { unit: db, ui: ['test/ui/open-toolchain.test.js'] });
+  // a new file of the database, which no source names: the same
+  assert.deepEqual(relatedTests(files, ['research/s3e-bitstream/db/xc3s1600e-lut.json']), { unit: db, ui: ['test/ui/open-toolchain.test.js'] });
+  // a device description: device-node.js's tests
+  assert.deepEqual(relatedTests(files, ['core/fpga/devices/xc3s500efg320-4.json.gz']), { unit: ['test/fpga-device.test.js'], ui: [] });
+  // a file a research tool reads: the tests that run the tools of its folder
+  assert.deepEqual(relatedTests(files, ['research/s3e-bitstream/measured/delays.json']), { unit: ['test/iob-reg.test.js'], ui: [] });
+  // not the folder: a name that only begins like it; another folder; JavaScript in the folder (its importers only)
+  assert.deepEqual(relatedTests(files, ['research/s3e-bitstream/db2/x.json']), { unit: ['test/iob-reg.test.js'], ui: [] });
+  assert.deepEqual(relatedTests(files, ['research/other/db/x.json', 'docs/x.md']), { unit: [], ui: [] });
+  assert.deepEqual(relatedTests(files, ['core/fpga/devices/make.js']), { unit: [], ui: [] });
+});
+
+test('related tests: the repository — the bit database, a device description, an example select the tests that read them (#772)', () => {
+  const files = sources();
+  assert.ok(Object.keys(files).includes('research/s3e-bitstream/db.mjs'), 'the research tools, which read the database too');
+  // #748: the database alone changed, its tests not run; a file of the database that is not there yet, the same
+  for (const f of ['research/s3e-bitstream/db/xc3s1200e-tiles.json', 'research/s3e-bitstream/db/xc3s9999e-lut.json']) {
+    const { unit } = relatedTests(files, [f]);
+    for (const t of ['test/fpga-hard.test.js', 'test/open-flow.test.js', 'test/s3e-devices.test.js', 'test/fpga-bitgen.test.js', 'test/open-flow-core.test.js']) assert.ok(unit.includes(t), `${f}: ${t}`);
+    assert.ok(!unit.includes('test/schdoc.test.js') && !unit.includes('test/code-size.test.js'), f);
+  }
+  const dev = relatedTests(files, ['core/fpga/devices/xc3s500efg320-4.json.gz']).unit;
+  for (const t of ['test/fpga-device.test.js', 'test/open-flow.test.js', 'test/s3e-devices.test.js']) assert.ok(dev.includes(t), t);
+  const ex = relatedTests(files, ['examples/gates/silinx.json']).unit;
+  for (const t of ['test/examples.test.js', 'test/gates-example.test.js']) assert.ok(ex.includes(t), t);
+  // the measurements a research tool reads; a test's fixture
+  assert.ok(relatedTests(files, ['research/s3e-bitstream/measured/fix-28-pad-delays.json']).unit.includes('test/iob-reg.test.js'));
+  assert.ok(relatedTests(files, ['test/fixtures/fpga/new.xdl']).unit.includes('test/fpga-pack.test.js'));
+  // a style sheet: no server test (a server serves web/ as a whole), documentation: none of the flow's
+  assert.ok(!relatedTests(files, ['web/css/app.css']).unit.includes('test/server.test.js'));
+  assert.ok(!relatedTests(files, ['changes/1-x.md']).unit.includes('test/open-flow.test.js'));
 });
 
 test('related tests: in parts of about the same time, the UI tests in the first', () => {
