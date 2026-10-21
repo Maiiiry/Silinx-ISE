@@ -21,7 +21,7 @@ async function openWizard(page, type, name, title) {
   // the list: the new order, no VHDL Package
   const types = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.lastChild.textContent.trim()));
   assert.deepEqual(types, ['Truth Table', 'Module (HDL)', 'Module (Wizard)', 'Schematic (Diagram)', 'Schematic (Wizard)', 'State Machine (FSM)', 'State Machine (ASM)',
-    'Petri Net (Diagram)', 'Petri Net (Wizard)', 'Clocking Wizard', 'Test Bench (HDL)', 'Test Bench (Wizard)', 'Implementation Constraints File', 'Memory Initialization File (.mem)']);
+    'Petri Net (Diagram)', 'Petri Net (Wizard)', 'Clocking Wizard', 'Block Memory', 'Test Bench (HDL)', 'Test Bench (Wizard)', 'Implementation Constraints File', 'Memory Initialization File (.mem)']);
   await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === t); r.scrollIntoView(); r.click(); }, type);
   await page.dialogButton('Finish');
   await page.waitDialog(title);

@@ -140,7 +140,7 @@ for Xilinx FPGAs supported by ISE 14.7.
 - **New Source types**: *Module (HDL)* (the ISE Define Module page: language, entity/module and
   architecture names, a port table), *Module (Wizard)*, *Test Bench (HDL)*, *Test Bench (Wizard)*,
   *Schematic (Diagram)* (a blank sheet), *Schematic (Wizard)*, *State Machine (ASM)*, *Truth Table*,
-  *Clocking Wizard*, *Implementation Constraints File*, *Memory Initialization File (.mem)*. For the wizards, page 1
+  *Clocking Wizard*, *Block Memory*, *Implementation Constraints File*, *Memory Initialization File (.mem)*. For the wizards, page 1
   asks only the file name and location; *Finish* opens the wizard.
 - **Module Wizard** (*New Source ▸ Module (Wizard)*), for beginners: name, language (VHDL/Verilog)
   and a description (it goes into the header comment); the inputs, outputs and bidirectional ports
@@ -170,6 +170,15 @@ for Xilinx FPGAs supported by ISE 14.7.
   with the primitive and a BUFG per output, its parameters computed and commented, and its settings
   in a header line: the Design pane shows it as *[Clocking Wizard] [VHDL]*, and a double-click, the
   badge or *View/Edit Clocking Wizard* reopen the wizard with them. Generator: `core/clocking.js`.
+- **Block Memory** (*New Source ▸ Block Memory*): a RAM or a ROM of the target device's block RAMs, width ×
+  depth, one port or two (each with its own clock), read-first or write-first, its initial contents from a
+  `.mem` (hexadecimal words, `@address`) or `.coe` file of the project. It shows the block RAMs it takes
+  against the device's (Spartan-3E RAMB16s; Spartan-6 9 Kbit halves) and refuses one that does not fit. It
+  writes the module with the primitives (RAMB16_S*w* / RAMB16_S*w*_S*w* on the Spartan-3E, RAMB8BWER /
+  RAMB16BWER on the Spartan-6: the shape with the fewest blocks, side by side for a wider memory, in rows for
+  a deeper one, the high address bits choosing the row), their INIT_xx from the file, or the inferable HDL (an
+  array that synthesis maps to the same block RAMs). Like the Clocking Wizard's, the module shows as
+  *[Block Memory] [VHDL]* and reopens the wizard (which reads the file again). Generator: `core/blockram.js`.
 - **Schematic Wizard** (*New Source ▸ Schematic (Wizard)*): the same port table and quick-add
   buttons, an optional clock input and the language of the synchronized HDL; it creates the
   `.sch.json` with the I/O markers placed tidily (inputs on the left edge, outputs on the right,

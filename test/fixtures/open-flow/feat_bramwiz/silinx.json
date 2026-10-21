@@ -1,0 +1,30 @@
+{
+  "name": "feat_bramwiz",
+  "description": "Board test: the Block Memory wizard's module (VHDL): a dual-port RAM of two rows of RAMB16_S9_S9, its initial contents from msg.mem (#794)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "bram.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "top.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "msg.mem",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf"
+}

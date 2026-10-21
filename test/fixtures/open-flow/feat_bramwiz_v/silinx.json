@@ -1,0 +1,30 @@
+{
+  "name": "feat_bramwiz_v",
+  "description": "Board test: the Block Memory wizard's module (Verilog): a ROM of two RAMB16_S9 side by side, its contents from table.coe (#794)",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s500e",
+    "package": "fg320",
+    "speed": "-4"
+  },
+  "board": "nexys2-500",
+  "top": "top",
+  "files": [
+    {
+      "path": "bram.v",
+      "lang": "verilog",
+      "role": "design"
+    },
+    {
+      "path": "top.v",
+      "lang": "verilog",
+      "role": "design"
+    },
+    {
+      "path": "table.coe",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf"
+}

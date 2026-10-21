@@ -1,4 +1,4 @@
-// The modules a wizard of New Source writes from its settings (#793, the Clocking Wizard): their settings in a line
+// The modules a wizard of New Source writes from its settings (#793, the Clocking Wizard; #794, the Block Memory): their settings in a line
 // of the header (core/clocking.js, readWizardSpec), so that the Design pane shows the wizard as the module's base
 // and opening it reopens the wizard with them.
 import { readWizardSpec } from '/core/clocking.js';
@@ -7,6 +7,7 @@ import { S } from './app.js';
 // the wizards that write such modules: their name (the Design pane's badge) and how they open
 const WIZARDS = {
   clock: { label: 'Clocking Wizard', process: 'View/Edit Clocking Wizard', open: async (path, spec) => (await import('./clock-wizard.js')).clockWizard({ path, spec }) },
+  memory: { label: 'Block Memory', process: 'View/Edit Block Memory', open: async (path, spec) => (await import('./bram-wizard.js')).blockMemoryWizard({ path, spec }) },
 };
 
 /** The spec of the wizard that made the HDL file `path` (from its text in the project), or null. */
