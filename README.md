@@ -415,7 +415,8 @@ Implementation uses the Silinx toolchain by default (below), or the ISE 14.7 com
 **Without ISE (Silinx toolchain):** the synthesis (*Synthesize - Yosys*, with Silinx as
 the project's synthesis tool; *Synthesize - Yosys (open)* in a project that synthesizes with XST)
 synthesizes any design with Yosys compiled to WebAssembly, in parallel Web Workers. Its *Optimization
-Effort* (Process Properties) Normal, the default, maps the design once (fast); High also tries the
+Effort* (Process Properties) Normal, the default, maps the design once (fast; a state machine of 8 states or more
+that Yosys leaves as written also one-hot, when that is better); High also tries the
 mappings for speed, and its state machines of 8 states or more one-hot, and keeps the best. Implement Design and Generate Programming File do not
 synthesize again while the synthesis is up to date (the design's sources, top, device and effort
 unchanged). For the **Basys2-100 and Basys2-250

@@ -10,6 +10,8 @@ import { yosysNode } from '../core/synth-open-node.js';
 import { readYosysJson } from '../core/fpga/netlist.js';
 import { netlistSim } from './fpga-sim.js';
 import { toVerilog } from '../core/synth-verilog.js';
+// the search for state machines (#539, #652: its runs at Normal too), apart from the runs the tests count
+const FSM_PROBE = /silinx_fsm_(pre|forced)\.il/;
 
 const COUNTER = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 entity counter is port (clk, rst, en : in std_logic; q : out std_logic_vector(3 downto 0)); end counter;
@@ -1200,7 +1202,7 @@ test('#511 wide multiplexers onto MUXF5 / MUXF6 / MUXF7, at Normal and High: fas
   ];
   for (const [what, d, trees, muxes] of cases) {
     const top = d.top.name;
-    const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+    const count = () => { const f = (...a) => { if (!FSM_PROBE.test(a[0].join(' '))) f.n++; return yosysNode(...a); }; f.n = 0; return f; };
     const normal = count();
     const r = await synthesizeOpen(d, { family: 'spartan3e', run: normal, effort: 'normal' });
     // (the usual run and the one with the trees)
@@ -1242,7 +1244,7 @@ endmodule
   const c = compareNetlist(d, r, { name: 'muxf-wide', seed: 'wide', sim: { cycles: 300 } });
   assert.equal(c.status, 'pass', c.report || c.reason);
   // the counter: no tree, the usual run alone (and the mappings for speed from it, #652, #653, and the wider one, #54), no muxf in r.depth
-  const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+  const count = () => { const f = (...a) => { if (!FSM_PROBE.test(a[0].join(' '))) f.n++; return yosysNode(...a); }; f.n = 0; return f; };
   const one = count();
   const n = await synthesizeOpen(design(COUNTER, 'counter'), { family: 'spartan3e', run: one, effort: 'normal' });
   assert.deepEqual([one.n - !!n.depth.speed - !!n.depth.fold - !!n.depth.wide, n.depth.muxf], [1, undefined]);
@@ -1296,7 +1298,7 @@ test('#282 Optimization Effort: Normal synthesizes once (no depth-oriented mappi
   assert.equal(synthEffort({ optLevel: 2 }), 'high');
   assert.equal(synthEffort({ optLevel: '2' }), 'high');
   const chain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text: CHAIN }]), 'chain');
-  const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+  const count = () => { const f = (...a) => { if (!FSM_PROBE.test(a[0].join(' '))) f.n++; return yosysNode(...a); }; f.n = 0; return f; };
   const normal = count(), high = count();
   const n = await synthesizeOpen(chain, { family: 'spartan3e', run: normal, effort: 'normal' });
   const hi = await synthesizeOpen(chain, { family: 'spartan3e', run: high });
@@ -1429,7 +1431,7 @@ test('#468 logicLevels: the LUTs and MUXF5s on the deepest path between sequenti
 test('#468 Optimization Effort Normal: a comparator chain of 17 levels gets the mappings for speed, faster; the same function', { timeout: 180000 }, async () => {
   const text = CHAIN.replace(/23/g, '47').replace('i < 24', 'i < 48');
   const deepChain = elaborate(compile([{ path: 'chain.v', lang: 'verilog', text }]), 'chain');
-  const count = () => { const f = (...a) => { f.n++; return yosysNode(...a); }; f.n = 0; return f; };
+  const count = () => { const f = (...a) => { if (!FSM_PROBE.test(a[0].join(' '))) f.n++; return yosysNode(...a); }; f.n = 0; return f; };
   const auto = count(), alone = count();
   const n = await synthesizeOpen(deepChain, { family: 'spartan3e', run: auto, effort: 'normal' });
   // (depth: false, the usual mapping alone: Normal before #468)
