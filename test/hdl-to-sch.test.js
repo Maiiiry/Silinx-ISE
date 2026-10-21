@@ -257,9 +257,10 @@ test('a module that does not elaborate is not converted (nothing written)', asyn
 });
 
 // ------------------------------------------------------------------ the layout engine (elkjs, #351)
-test('every ELK layout option Silinx sets is one the installed elkjs knows (schdoc.js, schematic-view.js)', async () => {
+test('every ELK layout option Silinx sets is one the installed elkjs knows (schdoc-place.js, schematic-view.js)', async () => {
   const known = new Set((await elk.knownLayoutOptions()).map(o => o.id));
-  for (const f of ['core/schdoc.js', 'web/js/schematic-view.js']) {
+  // (the placement of a schematic made from HDL, in schdoc-place.js since #405)
+  for (const f of ['core/schdoc-place.js', 'web/js/schematic-view.js']) {
     const used = new Set([...fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8').matchAll(/'(elk\.[A-Za-z.]+)'/g)].map(m => m[1]).filter(o => !o.endsWith('.js')));
     assert.ok(used.size >= 15, `${f}: ${used.size} options`);
     for (const o of used) assert.ok(known.has(`org.eclipse.${o}`), `${f}: ${o} unknown to elkjs`);
