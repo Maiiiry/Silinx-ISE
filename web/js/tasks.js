@@ -2,7 +2,8 @@
 // around the five tasks of a lab session: Edit, Simulate, Emulate, Implement, Program. It has the modern
 // look (<html data-ui="modern">) and a layout of its own (data-layout="tasks", web/css/tasks.css):
 // - a task switcher in the header (a tab bar at the bottom of a narrow screen, NARROW_QUERY), each task
-//   with a state dot from its processes' status;
+//   with a state dot from its processes' status; its labels give way when the header is short of room
+//   (fitHeader: the other tasks' first, then all; #839);
 // - each task with its own arrangement, kept per viewer (localStorage TASKS_KEY): the side panel open or
 //   folded into the activity bar (on a narrow screen: the drawer, closed), the messages open or folded to
 //   their tabs, a document maximized or not, and its documents (the tabs of the other tasks are hidden),
@@ -132,6 +133,7 @@ function apply() {
   r.dataset.console = a.console ? 'open' : 'folded';
   r.dataset.max = a.max ? 'on' : 'off';
   for (const b of document.querySelectorAll('.task-btn')) b.setAttribute('aria-current', String(b.dataset.task === t));
+  fitHeader();
   const bar = document.getElementById('task-bar');
   if (bar) {
     bar.querySelector('[data-act=side]').setAttribute('aria-pressed', String(isNarrow() ? drawerOpen() : a.side));
@@ -229,8 +231,22 @@ function build() {
   buildMessages(app);
   refreshDots();
 }
+// The header's room (#839): every label of the switcher if they fit, else the current task's only, else none,
+// else a shorter project name too (#topbar data-fit; the window's width, the language and a development
+// build's Development menu decide it, not a fixed width).
+export const FIT_STEPS = ['', 'current', 'icons', 'tight'];
+function fitHeader() {
+  const sw = document.getElementById('task-switch'), top = document.getElementById('topbar');
+  if (!sw || !on()) return;
+  for (const fit of FIT_STEPS) {
+    if (top.dataset.fit !== fit) top.dataset.fit = fit;
+    if (!sw.getClientRects().length || top.scrollWidth <= top.clientWidth) return;   // (hidden on a narrow screen: the tab bar)
+  }
+}
+
 function unbuild() {
   for (const id of PARTS) document.getElementById(id)?.remove();
+  delete document.getElementById('topbar').dataset.fit;
   unbuildMessages();
   shownTask = null;
   const r = root();
@@ -264,6 +280,10 @@ export function initTasks(a) {
   // the interface switched (View ▸ Interface), or a narrow screen turned wide
   new MutationObserver(apply).observe(root(), { attributes: true, attributeFilter: ['data-layout'] });
   globalThis.matchMedia?.('(max-width: 1024px)').addEventListener?.('change', apply);
+  // the header's room: its width, and what is in it (the menus' labels in another language, the Development
+  // menu, the project's name)
+  new ResizeObserver(() => fitHeader()).observe($('topbar'));
+  new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
   setInterval(() => { if (on()) { refreshDots(); const g = document.querySelector('#task-empty button'); if (g) g.disabled = !stepButton()?._enabled?.(); } }, 1000);
   apply();
 }
