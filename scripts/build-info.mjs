@@ -40,9 +40,11 @@ export async function devChanges(root, { env = process.env, fetch = globalThis.f
   const issues = [...new Set(files.map(f => parseInt(f.name, 10)).filter(Boolean))];
   const labels = {};
   const headers = { accept: 'application/vnd.github+json', authorization: `Bearer ${env.GITHUB_TOKEN}` };
+  // (GitHub's API: the address a workflow gives in GITHUB_API_URL, as GitHub Enterprise and the tests do)
+  const api = String(env.GITHUB_API_URL || 'https://api.github.com').replace(/\/+$/, '');
   if (env.GITHUB_TOKEN) await Promise.all(issues.map(async n => {
     try {
-      const r = await fetch(`https://api.github.com/repos/${REPOSITORY}/issues/${n}`, { headers, signal: AbortSignal.timeout(15000) });
+      const r = await fetch(`${api}/repos/${REPOSITORY}/issues/${n}`, { headers, signal: AbortSignal.timeout(15000) });
       if (r.ok) labels[n] = ((await r.json()).labels || []).map(l => (typeof l === 'string' ? l : l.name));
     } catch { /* offline: the change is 'other' */ }
   }));
