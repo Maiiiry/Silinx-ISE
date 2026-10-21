@@ -304,6 +304,8 @@ const PT = {
   'Emulate the design on the board: the board opens here.': 'Emule o projeto na placa: a placa abre aqui.',
   'Implement the design: synthesis, place & route and the programming file.': 'Implemente o projeto: síntese, place & route e o ficheiro de programação.',
   'Program the board: the FPGA, or its flash to keep the design.': 'Programe a placa: a FPGA, ou a sua flash para guardar o projeto.',
+  // the Implement task (#802)
+  'Program the board…': 'Programar a placa…',
   // the Simulate task (#800)
   'The model to simulate': 'O modelo a simular',
   // the Edit task's one tree: its groups (#799)

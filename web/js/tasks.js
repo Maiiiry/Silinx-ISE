@@ -12,6 +12,7 @@
 // - Simulate (web/js/tasks-sim.js, #800): the waves get the screen, its side panel ISim's Instances and Objects;
 //   it runs the test bench with the model chosen in the task's bar;
 // - Emulate (web/js/tasks-emu.js, #801): the board fits the task's area, its side panel the emulator's Watch;
+// - Implement (web/js/tasks-impl.js, #802): its side panel the top's Processes, its page the Design Summary as cards;
 // - a task whose document is single by nature (Simulate: ISim; Emulate: the board; Program: iMPACT, one each,
 //   web/js/viewers.js) shows no tab bar: what the tab said (the module, the model) and its close are in the task's
 //   bar (#854);
@@ -27,6 +28,7 @@ import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { buildMessages, unbuildMessages, messagesTask, initMessages } from './messages.js';
 import { modelSelect, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
+import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 
 export const TASKS = ['edit', 'sim', 'emu', 'impl', 'prog'];
 export const TASK_LABEL = { edit: 'Edit', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
@@ -66,7 +68,7 @@ export function taskOfDoc(id) {
   if (s === 'isim') return 'sim';
   if (s === 'emulator') return 'emu';
   if (s === 'impact') return 'prog';
-  if (/^(summary|pins|fpgaview)$/.test(s) || /^(text|tech):/.test(s)) return 'impl';
+  if (/^(summary|pins|fpgaview)$/.test(s) || /^(text|tech):/.test(s) || s.startsWith('file:build/')) return 'impl';   // (a build file: a report, #802)
   return 'edit';
 }
 
@@ -147,7 +149,7 @@ function apply() {
   if (!on()) { if (document.getElementById('task-bar')) { unbuild(); fitBoard(false); dispatchEvent(new Event('resize')); } return; }
   build();
   const t = current(), a = arr(t);
-  if (t !== shownTask) { shownTask = t; messagesTask(t); }
+  if (t !== shownTask) { shownTask = t; messagesTask(t); if (t === 'impl' && app) showTopProcesses(app); }
   r.dataset.task = t;
   r.dataset.side = a.side ? 'open' : 'folded';
   r.dataset.console = a.console ? 'open' : 'folded';
@@ -242,8 +244,13 @@ function followActive() {
   if (t !== current()) setTask(t, { fromDoc: true }); else tagDocs();
 }
 
+let implDot = null;
 function refreshDots() {
   const st = app?.S.status || {};
+  // an implementation ended while Implement is in front: its Design Summary comes forward (#802)
+  const now = taskDot('impl', st);
+  if (implementationEnded(implDot, now) && on() && current() === 'impl' && app.S.project) app.openSummary();
+  implDot = now;
   for (const b of document.querySelectorAll('.task-btn')) {
     const dot = taskDot(b.dataset.task, st);
     const el = b.querySelector('.task-dot');

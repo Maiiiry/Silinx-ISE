@@ -157,3 +157,20 @@ html[data-layout="tasks"][data-task="emu"][data-side="folded"] .emu-side { displ
   html[data-layout="tasks"] .emu-main { flex-direction: column; align-items: center; }
   html[data-layout="tasks"] .emu-side { width: 100%; }
 }
+
+/* ------------------------------------------------------------------ Implement (#802, web/js/tasks-impl.js) */
+/* its side panel: the top's Processes (ISE's names and states), not the tree */
+html[data-layout="tasks"][data-task="impl"] #design-panel { display: none; }
+html[data-layout="tasks"][data-task="impl"] #proc-panel { display: flex; flex: 1; height: auto !important; }
+/* its page: the Design Summary as cards */
+html[data-layout="tasks"] #workspace > .doc > .page:has(> .summary-table) { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr));
+  gap: 14px; align-items: start; padding: 16px; }
+html[data-layout="tasks"] #workspace > .doc > .page:has(> .summary-table) > :not(.summary-table) { grid-column: 1 / -1; margin: 0; }
+html[data-layout="tasks"] .summary-table { min-width: 0; width: 100%; margin: 0; border: 1px solid var(--m-border); border-radius: 10px; border-collapse: separate;
+  border-spacing: 0; overflow: hidden; background: var(--m-surface); }
+html[data-layout="tasks"] .summary-table caption { padding: 10px 12px 6px; border: none; background: none; color: var(--m-muted); font-size: 11px; font-weight: 650;
+  letter-spacing: .06em; text-transform: uppercase; }
+html[data-layout="tasks"] .summary-table :is(th, td) { border: none; border-top: 1px solid var(--m-border); }
+.task-program { display: none; }
+html[data-layout="tasks"] .task-program { display: table-row; }
+html[data-layout="tasks"] .task-program button { font-weight: 600; }
