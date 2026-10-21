@@ -162,7 +162,6 @@ test('ISE scripts for Spartan-6 / 7-series: no legacy XST options, MAP placement
   for (const k of ['ofn', 'IFN', 'tmpdir', 'xsthdpdir', 'p', 'top', 'uc', 'sd', 'vlgincdir'])
     assert.throws(() => ise.generateXst({ top: 'top', device: S6, impl: { xstOptions: { [k]: '/tmp/x' } } }), new RegExp(`XST option '${k}' is set by Silinx and cannot be changed`));
   assert.match(ise.generateXst({ top: 'top', device: { part: 'xc3s250e', package: 'cp132', speed: '-4' } }), /-verilog2001 YES/);
-
   const ut = ise.generateUt({ impl: { startupClk: 'UserClk' }, family: 'spartan6' });
   assert.match(ut, /-g StartUpClk:UserClk/);
   assert.doesNotMatch(ut, /ConfigRate|DCMShutdown/);
@@ -179,6 +178,19 @@ test('ISE scripts for Spartan-6 / 7-series: no legacy XST options, MAP placement
   assert.equal(ise.shQuote('plain/path-1.v'), 'plain/path-1.v');
   assert.deepEqual(ise.normalizeSteps('XST'), ['synth']);
   assert.deepEqual(ise.normalizeSteps([]), ise.STEPS);
+});
+
+test('XST\'s -bufg: the part\'s global clock buffers from the device resources model; 24 for a part outside the database (#821)', () => {
+  const bufg = device => ise.generateXst({ top: 'top', device }).match(/^-bufg (\d+)$/m)?.[1];
+  assert.equal(bufg({ part: 'xc3s250e', package: 'cp132', speed: '-4' }), '24', 'Spartan-3E: unchanged');
+  assert.equal(bufg({ part: 'xc3s1600e', package: 'fg320', speed: '-4' }), '24');
+  assert.equal(bufg({ part: 'xc3s200', package: 'ft256', speed: '-4' }), '8', 'Spartan-3');
+  assert.equal(bufg({ part: 'xc3s50', package: 'vq100', speed: '-4' }), '8');
+  assert.equal(bufg({ part: 'xc3s200a', package: 'ft256', speed: '-4' }), '24', 'Spartan-3A');
+  assert.equal(bufg({ part: 'xc3sd1800a', package: 'cs484', speed: '-4' }), '24', 'Spartan-3A DSP');
+  assert.equal(bufg({ part: 'xc4vlx15', package: 'sf363', speed: '-10' }), '32', 'Virtex-4');
+  assert.equal(bufg({ part: 'xc3s5000', package: 'fg900', speed: '-4' }), '24', 'a part outside the database');
+  assert.equal(bufg(S6), undefined, 'not an option of the Spartan-6 XST');
 });
 
 test('generateBuild: invalid top name / device, missing sources, include files, no constraints', async () => {
