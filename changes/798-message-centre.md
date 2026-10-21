@@ -1,6 +1,6 @@
 In short:
 
-- **The Tasks interface's message centre:** in View ▸ Interface ▸ Tasks every flow's messages are in the bottom
+- **The Tasks interface's message centre (in the development builds for now):** in View ▸ Interface ▸ Tasks every flow's messages are in the bottom
   panel, with filters by source (Check Syntax, Simulation, Emulator, Synthesis, Implementation, Board) that follow
   the task in front. ISim's console and its `ISim>` command line, and the emulator's Messages box, are there
   too, so the waves and the board get their space. Folded, the panel shows its last line.

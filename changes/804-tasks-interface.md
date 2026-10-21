@@ -1,6 +1,6 @@
 In short:
 
-- **A third interface, Tasks (View ▸ Interface ▸ Tasks):** the five tasks of a lab session (Edit, Simulate,
+- **A third interface, Tasks (View ▸ Interface ▸ Tasks), in the development builds for now:** the five tasks of a lab session (Edit, Simulate,
   Emulate, Implement, Program) in the header, each with its own documents and arrangement: the task in front
   gets the space, the side panel and the messages fold away and come back with one click, a document
   maximizes with a double-click on its tab. On a tablet in portrait the tasks are a tab bar at the bottom.

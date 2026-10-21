@@ -124,6 +124,8 @@ const emuWorkerJs = emuWorkerRes.outputFiles[0].text;
 
 // ---- inline everything into index.html
 let html = rd('web/index.html');
+// a development build says so on <html>, for the early script before the bundle runs (the Tasks interface, #838)
+if (BUILD) html = html.replace(/<html\b/, '<html data-dev');
 const safeJs = js => js.replace(/<\/script/gi, '<\\/script');
 const safeCss = css => css.replace(/<\/style/gi, '<\\/style');
 html = html.replace(/<link rel="stylesheet" href="([^"]+)">/g, (m, href) => {
