@@ -21,7 +21,7 @@ import { deviceSites } from '../../core/fpga/place.js';
 const enabled = process.env.SILINX_ISE_TESTS === '1';
 // the host only from the environment (never written in a file)
 const skip = !enabled ? 'set SILINX_ISE_TESTS=1 to run the ISE tests' : !process.env.SILINX_ISE_HOST ? 'set SILINX_ISE_HOST=user@host (the machine with the ISE Docker image), or local (the image here)' : false;
-const FIXTURES = ['feat_bram', 'feat_mult', 'feat_mult_chain', 'feat_constmult', 'feat_dcm', 'feat_dcm_pads', 'feat_iob_plain', 'feat_iob_lines', 'feat_iob_pair', 'feat_iob_lone', 'feat_dcm_bufgin', 'feat_clocks12', 'feat_side_clock', 'hard_prim', 'feat_const_bram', 'feat_const_mult', 'feat_const_dcm', 'feat_srl', 'feat_srl_var', 'feat_srl_chain', 'feat_manual_clock'];
+const FIXTURES = ['feat_bram', 'feat_mult', 'feat_mult_chain', 'feat_constmult', 'feat_dcm', 'feat_dcm_pads', 'feat_iob_plain', 'feat_iob_lines', 'feat_iob_pair', 'feat_iob_lone', 'feat_iob_ddr', 'feat_iob_ddr_v', 'feat_iob_bidir', 'feat_iob_bidir_v', 'feat_dcm_bufgin', 'feat_clocks12', 'feat_side_clock', 'hard_prim', 'feat_const_bram', 'feat_const_mult', 'feat_const_dcm', 'feat_srl', 'feat_srl_var', 'feat_srl_chain', 'feat_manual_clock'];
 
 test('the open-flow fixtures of the hard blocks: Silinx\'s bitstream byte-identical to ISE\'s, ISE\'s DRC clean, no warning', { skip, timeout: 60 * 60000 }, () => {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), ...FIXTURES.map(f => path.join(ROOT, 'test/fixtures/open-flow', f))], { encoding: 'utf8', env: process.env });
@@ -79,6 +79,30 @@ test('feat_iob_pair LOC\'d on two pairs of every device: the second flip-flops a
     fs.appendFileSync(path.join(dir, 'top.ucf'), [['led<0>', s0], ['led<1>', m0], ['sw<0>', m1], ['sw<1>', s1]].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;\n`).join(''));
     const j = JSON.parse(fs.readFileSync(path.join(dir, 'silinx.json'), 'utf8'));
     fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ ...j, name, board: undefined, device: { family: 'spartan3e', part, package: pkg, speed: '-4' } }));
+    names.push(name);
+  }
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), ...names.map(n => path.join(tmp, n))], { encoding: 'utf8', env: process.env });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  assert.equal(r.status, 0, `${r.stdout}\n${r.stderr}`);
+  for (const n of names) {
+    assert.match(r.stdout, new RegExp(`^${n}: open flow ok; 0 warning\\(s\\)$`, 'm'));
+    assert.match(r.stdout, new RegExp(`^${n}: DRC 0 errors, 0 warnings; xdl2ncd 0 warnings; \\.bit vs ISE's bitgen: byte-identical \\(CRC on and off\\)$`, 'm'));
+  }
+});
+
+// The IOBs' DDR registers and the bidirectional pads on every device (#96), in VHDL and Verilog, their pads left to the
+// placer (on the XC3S500E, an IDDR2 beside a plain input: the bits of its own a neighbour's features held before)
+const DDR_FIXTURES = [['feat_iob_ddr', 'top.vhd'], ['feat_iob_ddr_v', 'top.v'], ['feat_iob_bidir', 'top.vhd'], ['feat_iob_bidir_v', 'top.v']];
+
+test('feat_iob_ddr (IDDR2, ODDR2) and feat_iob_bidir (IOBUF) on every device, in VHDL and Verilog: Silinx\'s bitstream byte-identical to ISE\'s, ISE\'s DRC clean, no warning', { skip, timeout: 60 * 60000 }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'silinx-ise-ddr-'));
+  const names = [];
+  for (const [f, file] of DDR_FIXTURES) for (const [part, pkg] of DEVICES) {
+    const name = `${f}-${part}`, dir = path.join(tmp, name);
+    fs.mkdirSync(dir);
+    fs.copyFileSync(path.join(ROOT, 'test/fixtures/open-flow', f, file), path.join(dir, file));
+    fs.writeFileSync(path.join(dir, 'silinx.json'), JSON.stringify({ name, version: 1, device: { family: 'spartan3e', part, package: pkg, speed: '-4' }, top: 'top',
+      files: [{ path: file, lang: file.endsWith('.v') ? 'verilog' : 'vhdl', role: 'design' }] }));
     names.push(name);
   }
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), ...names.map(n => path.join(tmp, n))], { encoding: 'utf8', env: process.env });

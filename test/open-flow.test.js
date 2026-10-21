@@ -270,6 +270,15 @@ const FEATURES = {
   // both pads of a pair): B3, E17, F14, G13 of the XC3S500E, each alone
   feat_iob_lone: [/^pack \(\d+ slices\)/m, 'IOB', [...['B3', 'E17', 'F14', 'G13'].map(p => new RegExp(`^inst "d<\\d>" "IBUF",placed \\S+ ${p} +,\\n {2}cfg "[^"]* IFF1:[^"]* IFD_DELAY_VALUE::DLY3 `, 'm'))],
     [/placed \S+ (?:A3|C3|D18|F15|G14|E18) /]],
+  // the IOBs' DDR registers (#96): two IDDR2 and three ODDR2 on the clock and its inverse (ICLK2 / OTCLK2 inverted, on the
+  // clock's net: the inverter left out), with clock enables and synchronous and asynchronous set / reset; in VHDL and Verilog
+  ...Object.fromEntries(['feat_iob_ddr', 'feat_iob_ddr_v'].map(n => [n, [/^pack \(1 slices\)/m, 'IOB', [/^inst "sw<0>" "IBUF",placed \S+ \S+ +,\n {2}cfg "[^"]* IFF1:u_i0\/FF0:#FF [^"]* IFF2:u_i0\/FF1:#FF [^"]* IFFATTRBOX::SYNC [^"]* ICLK2INV::ICLK2_B /m,
+    /^inst "sw<1>" "IBUF",placed \S+ \S+ +,\n {2}cfg "[^"]* IFFATTRBOX::ASYNC /m, /^inst "led<1>" "IOB",placed \S+ \S+ +,\n {2}cfg "[^"]* OMUX::OFFDDR [^"]* OFF1_SR_ATTR::SRHIGH [^"]* OFFATTRBOX::ASYNC [^"]* OTCLK2INV::OTCLK2_B OFFDDRBLACKBOX:u_o1: /m,
+    /^inst "led<2>" "IOB",placed \S+ \S+ +,\n {2}cfg "[^"]* OMUX::OFFDDR /m, /^ {2}inpin "led<0>" OTCLK2 ,$/m]]])),
+  // bidirectional pads (#96, IOBUF): each driven or released by the design and read (IO:<standard>, the input's settings
+  // but its driver's and the output's), one with a drive and a slew of its own; in VHDL and Verilog
+  ...Object.fromEntries(['feat_iob_bidir', 'feat_iob_bidir_v'].map(n => [n, [/^pack \(\d+ slices\)/m, 'IOB', [/^inst "io<0>" "IOB",placed \S+ \S+ +,\n {2}cfg "[^"]*IOATTRBOX::LVCMOS33 O1INV::O1 OMUX::O1 SLEW::SLOW T1INV::T1 TMUX::T1 IDELMUX::1 IMUX::1 INBUF:io<0>_IBUF: OUTBUF:io<0>_OBUF: /m,
+    /^inst "io<1>" "IOB",placed \S+ \S+ +,\n {2}cfg " DRIVEATTRBOX::4 [^"]* SLEW::FAST [^"]* INBUF:io<1>_IBUF: /m]]])),
   feat_starter: [/^pack \(\d+ slices\)/m, 'IOB', [/IOATTRBOX::LVTTL\b/, /DRIVEATTRBOX::8\b/, /DRIVEATTRBOX::4\b/, /SLEW::FAST\b/, /PULL::PULLUP\b/, /PULL::PULLDOWN\b/]],
 };
 for (const [name, [packLine, type, settings = [], absent = []]] of Object.entries(FEATURES)) {

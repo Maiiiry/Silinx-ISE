@@ -336,6 +336,11 @@ export function postTranslateModels(nl, o = {}) {
     else if (/^(IBUF|IBUFG)$/.test(t)) M.inst('X_BUF', base, [], [['I', p('I')], ['O', p('O')]]);
     else if (t === 'OBUF') M.inst('X_OBUF', base, [], [['I', p('I')], ['O', p('O')]]);
     else if (t === 'OBUFT') M.inst('X_OBUFT', base, [], [['I', p('I')], ['CTL', p('T')], ['O', p('O')]]);
+    else if (t === 'IOBUF') {
+      // (a bidirectional pad, #96: its output buffer and its input buffer on the inout port)
+      M.inst('X_OBUFT', `${base}_OBUFT`, [], [['I', p('I')], ['CTL', p('T')], ['O', p('IO')]]);
+      if (c.pins.O !== undefined) M.inst('X_BUF', `${base}_IBUF`, [], [['I', p('IO')], ['O', p('O')]]);
+    }
     else if (t === 'BUFG') M.inst('X_CKBUF', base, [], [['I', p('I')], ['O', p('O')]]);
     else if (t === 'BUFGMUX') M.inst('X_BUFGMUX', base, [], [['I0', p('I0')], ['I1', p('I1')], ['S', p('S')], ['O', p('O')]]);
     else if (/^FD/.test(m[1]) && (FF_ASYNC.test(m[1]) || FF_SYNC.test(m[1]) || /^FDE?$/.test(m[1]))) {
@@ -346,6 +351,19 @@ export function postTranslateModels(nl, o = {}) {
       const sync = FF_SYNC.test(m[1]);
       M.inst(sync ? 'X_SFF' : 'X_FF', base, [['INIT', { bit: init }]], [['I', p('D')], ['CE', ce], ['CLK', clk], ['SET', sync ? { c: 0 } : pin('PRE')], ['RST', sync ? { c: 0 } : pin('CLR')],
         ...(sync ? [['SSET', pin('S')], ['SRST', pin('R')]] : []), ['O', p('Q')]]);
+    } else if (t === 'IDDR2' || t === 'ODDR2') {
+      // the DDR registers (#96), as their IOB's two flip-flops (D into the first on C0, into the second on C1; R before
+      // S, SRTYPE SYNC or ASYNC); an ODDR2's Q the first while C0 is high, else the second (its clocks C1 = not C0)
+      const sync = String(c.params.SRTYPE ?? 'SYNC').replace(/"/g, '').toUpperCase() !== 'ASYNC';
+      const pin = x => (c.pins[x] !== undefined ? p(x) : { c: x === 'CE' ? 1 : 0 });
+      const clk = k => invd(p(`C${k}`), `C${k}`);
+      const qs = [0, 1].map(k => (t === 'IDDR2' ? p(`Q${k}`) || M.signal(`NLW_${base}_Q${k}`) : M.signal(`${base}_Q${k}`)));
+      [0, 1].forEach(k => {
+        const init = paramInt(c.params[t === 'IDDR2' ? `INIT_Q${k}` : 'INIT']) & 1;
+        M.inst(sync ? 'X_SFF' : 'X_FF', `${base}_FF${k}`, [['INIT', { bit: init }]], [['I', t === 'IDDR2' ? p('D') : p(`D${k}`)], ['CE', pin('CE')], ['CLK', clk(k)],
+          ['SET', sync ? { c: 0 } : pin('S')], ['RST', sync ? { c: 0 } : pin('R')], ...(sync ? [['SSET', pin('S')], ['SRST', pin('R')]] : []), ['O', qs[k]]]);
+      });
+      if (t === 'ODDR2') M.inst('X_MUX2', `${base}_DDRMUX`, [], [['IA', qs[1]], ['IB', qs[0]], ['SEL', clk(0)], ['O', p('Q')]]);
     } else if (/^LD(C|P|CE|PE|E)?$/.test(m[1])) {
       const g = falling ^ paramInt(c.params.IS_G_INVERTED) ? M.inv(p('G'), `${base}_GINV`) : p('G');
       const pin = x => (c.pins[x] !== undefined ? invd(p(x), x) : { c: x === 'GE' ? 1 : 0 });
@@ -463,16 +481,20 @@ function packedModel(M, packed, model = null) {
       // (SR) for all, one clock for OFF1 and TFF1 (each inverter once); or on the second flip-flops, IFF2, OFF2,
       // TFF2 clocked by ICLK2 / OTCLK2, their data on O2 / T2 (#749)
       const invs = new Map(), iv = p => { if (!invs.has(p)) invs.set(p, inv(p)); return invs.get(p); };
+      // (an input register's REV, an IDDR2's S, #96: the value its SR does not give)
       const reg = (ff, g, clkPin, d, q, setup) => {
         if (val(ff) !== '#FF') return d;
         const none = { c: 0 }, high = val(`${ff}_SR_ATTR`) === 'SRHIGH';
-        const sr = c.has(`${ff}_SR_ATTR`) && c.has('SRINV') ? iv('SR') : none, sync = val(`${g}FFATTRBOX`) === 'SYNC' && sr !== none;
+        const sr = c.has(`${ff}_SR_ATTR`) && c.has('SRINV') ? iv('SR') : none;
+        const rev = g === 'I' && c.has('REVINV') ? iv('REV') : none;
+        const sync = val(`${g}FFATTRBOX`) === 'SYNC' && (sr !== none || rev !== none);
+        const [set, rst] = high ? [sr, rev] : [rev, sr];
         const ce = c.has(`${g}CEINV`) ? iv(`${g}CE`) : { c: 1 };
         const init = { bit: val(`${ff}_INIT_ATTR`) === 'INIT1' ? 1 : 0 };
         const s = M.signal(q);
         const arcs = T && (g === 'I' ? { clocked: [['CLK', 'O', T.pad.Tiockiq]] } : { setup: [['I', 'CLK', setup]] });
-        if (sync) M.inst('X_SFF', c.get(ff).name || `${name}_${ff}`, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', iv(clkPin)], ['SET', none], ['RST', none], ['SSET', high ? sr : none], ['SRST', high ? none : sr], ['O', s]], arcs);
-        else M.inst('X_FF', c.get(ff).name || `${name}_${ff}`, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', iv(clkPin)], ['SET', high ? sr : none], ['RST', high ? none : sr], ['O', s]], arcs);
+        if (sync) M.inst('X_SFF', c.get(ff).name || `${name}_${ff}`, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', iv(clkPin)], ['SET', none], ['RST', none], ['SSET', set], ['SRST', rst], ['O', s]], arcs);
+        else M.inst('X_FF', c.get(ff).name || `${name}_${ff}`, [['INIT', init]], [['I', d], ['CE', ce], ['CLK', iv(clkPin)], ['SET', set], ['RST', rst], ['O', s]], arcs);
         return s;
       };
       if (inst.dir === 'in') {
@@ -481,10 +503,23 @@ function packedModel(M, packed, model = null) {
         out('I', s);
         for (const k of [1, 2]) if (val(`IFF${k}`) === '#FF') out(`IQ${k}`, reg(`IFF${k}`, 'I', `ICLK${k}`, s, `${name}_IQ${k}`));
       } else {
-        const ko = val('OFF2') === '#FF' ? 2 : 1, kt = val('TFF2') === '#FF' ? 2 : 1, kc = ko === 2 || kt === 2 ? 2 : 1;
-        const o = reg(`OFF${ko}`, 'O', `OTCLK${kc}`, inv(`O${ko}`), `${name}_OQ`, T?.pad.Tioock);
+        const ddr = val('OMUX') === 'OFFDDR';
+        const ko = val('OFF2') === '#FF' && !ddr ? 2 : 1, kt = val('TFF2') === '#FF' ? 2 : 1, kc = ko === 2 || kt === 2 ? 2 : 1;
+        let o = reg(`OFF${ko}`, 'O', `OTCLK${kc}`, inv(`O${ko}`), `${name}_OQ`, T?.pad.Tioock);
+        // (the DDR registers, #96: OFF1 on OTCLK1, OFF2 on OTCLK2, the output OFF1's while OTCLK1 is high)
+        if (ddr) {
+          const o2 = reg('OFF2', 'O', 'OTCLK2', inv('O2'), `${name}_OQ2`, T?.pad.Tioock), q = M.signal(`${name}_ODDR`);
+          M.inst('X_MUX2', `${name}_DDRMUX`, [], [['IA', o2], ['IB', o], ['SEL', iv('OTCLK1')], ['O', q]]);
+          o = q;
+        }
         if (c.has('TMUX')) M.inst('X_OBUFT', `${name}_OBUFT`, [], [['I', o], ['CTL', reg(`TFF${kt}`, 'T', `OTCLK${kc}`, inv(`T${kt}`), `${name}_TQ`, T?.pad.Tiotck)], ['O', pad]], T && { iopath: [['I', 'O', T.pad.Tioop]] });
         else M.inst('X_OBUF', `${name}_OBUF`, [], [['I', o], ['O', pad]], T && { iopath: [['I', 'O', T.pad.Tioop]] });
+        // (a bidirectional pad's input, #96)
+        if (c.has('INBUF')) {
+          const s = M.signal(`${name}_INBUF`);
+          M.inst('X_BUF', `${name}_IBUF`, [], [['I', pad], ['O', s]], T && { iopath: [['I', 'O', T.pad.Tiopi]] });
+          out('I', s);
+        }
       }
       return;
     }

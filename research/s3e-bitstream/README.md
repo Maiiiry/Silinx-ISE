@@ -1019,6 +1019,41 @@ refused (`OMUX:OFF2`, `R:OFF1:#OFF`, `R:IFF1:#OFF`…). `measure-759.sh`:
 warning of #749 is gone); pads without a LOC are still kept out of such a pair. `feat_iob_pair` LOC'd on two pairs of
 each device: `test/ise/open-flow.test.js`.
 
+### IDDR2 / ODDR2 and the bidirectional pads in the Silinx toolchain (2026-10-21, #96)
+
+**IDDR2 / ODDR2.** Their bits were measured with the rest of the IOB registers (rd / rd2 above); the packer now writes
+them as ISE's map does, read from its routed rd / rd2 on every pad: both flip-flops of the IOB (`<instance>/FF0` on C0,
+`FF1` on C1), C1 = not C0 as `ICLK2INV::ICLK2_B` / `OTCLK2INV::OTCLK2_B` on C0's net (the inverter left out), an
+IDDR2's set / reset parts always written (R on SR, S on REV, `SRLOW`), an ODDR2's the one of R / S used on SR (`SRHIGH`
+for S), `OMUX::OFFDDR`, `OFFDDRBLACKBOX`; pins tied to a constant stay connected to it. Only `DDR_ALIGNMENT = NONE`
+(C0 / C1 use the neighbouring IOB's registers: refused).
+
+**IDDR2 on every pad** (`measure-iobddr.sh`). rd / rd2 had an IDDR2 on every input, but ISE's map trimmed those whose
+outputs the design did not read (rd's XOR read the first ~90): the DDR input registers were measured on 68 / 85 / 142 /
+158 pads of the XC3S100E / 250E / 500E / 1200E. `gen-iobddr.mjs`'s rdi0 / rdi1 read every output (an IDDR2 on every pad
+in one of them), solved against the database (`ana-iobreg.mjs --known`, with #751's delays): 80 / 89 / 229 / 247 pads
+(all but the clock pin and the two control inputs, the same pads in both designs). Their held-out variants, and rdi2 /
+rdi3 (an IDDR2 on one pad of each I/O tile, its neighbour a plain input), showed **bits of a pad's IDDR2 that its
+neighbour's features held** (U11's `R:IFF2:#FF` had T11's 349,3078 on the XC3S500E; C8's `R:IREV_USED:0` its tile
+partner's…), as #751 found for the delays: the designs always registered both pads of a tile. `ana-padowner.mjs` gives
+each bit any design gets wrong to the one register feature present exactly where ISE sets it (1 / 0 / 11 / 12 bits),
+the features the single registers do not have first (R:IREV_USED, R:REVINV, R:IFF2…), then the pad nearest its old
+holder: some are ties, between pads always registered together in these designs (B3 / A3's 45,29, D8 / F8 / F9's
+178,49 on the XC3S500E). Then every one of the 150 designs per device (rd, rd2, rdi0-3, #759's) is byte-identical to
+ISE's bitgen but for the switches the database does not have (the top clock tile's CLKDUB3 inputs, the XC3S1200E's
+splitters); `measured/pads-96-iddr2-<device>.json`.
+
+**Bidirectional pads (`IO:<standard>`, never measured before).** `measure-iobidir.sh`: designs with every pad that can
+drive an output an IOBUF (`gen-iobidir.mjs`, one per standard; one pad in four with DRIVE = 4, SLEW = FAST or a
+pull-up), implemented by ISE and compared with the writer (`ana-iobidir.mjs`). The union of a pad's `I:<standard>` and
+`O:<standard>` bits was 2-3 bits off on every pad with the default drive: three bits of `I:<standard>` are the output
+driver's (they belong to the `O:DRIVE:<n>` changes: an input pad's driver off). **`IO:<standard>` = `O:<standard>` and
+`I:<standard>` but the bits of the standard's DRIVE changes**: every pad of the four devices byte-identical to ISE's
+bitgen in LVCMOS33, LVCMOS25 and LVTTL, with every drive, slew and pull of the designs (72 / 85 / 176 / 194 pads). Kept in
+`measured/pads-96-bidir-<device>.json`. LVCMOS18 / 15 / 12 are not in the database as outputs (`O:<standard>`), so not as
+bidirectional pads either (ISE's par also refused the XC3S100E's designs of those, the clock's LVCMOS25 pad in their
+bank: `gen-iobidir.mjs` now gives the clock the design's standard).
+
 ### The PIPs a tile does not have (2026-10-13, #74)
 
 The database's PIP features are per tile type, and several types take another's: the I/O, corner,

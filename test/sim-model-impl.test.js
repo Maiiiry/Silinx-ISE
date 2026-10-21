@@ -19,9 +19,7 @@ import { runOpenFlow } from '../core/open-flow-core.js';
 import { orderOpenSteps } from '../core/open-steps.js';
 import { readYosysJson, paramBits } from '../core/fpga/netlist.js';
 import { pack } from '../core/fpga/pack.js';
-import { Simulator } from '../core/simulator.js';
-import { netlistSim } from './fpga-sim.js';
-import { simulate, device } from './sim-model-lib.mjs';
+import { simulate, device, compareWithNetlist } from './sim-model-lib.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FPGA = path.join(HERE, 'fixtures', 'fpga'), DESIGNS = path.join(HERE, 'fixtures', 'designs');
@@ -97,72 +95,6 @@ test('postMapModels: the packed slices as their elements (LUTs, carry, flip-flop
 });
 
 // ------------------------------------------------------------------ against the netlist's cycle simulator
-// A VHDL test bench applying the same random inputs as netlistSim, half a clock period each (the inputs change
-// with the clock low, then it rises), and the model's outputs read in the middle of each half. single: one
-// input bit changes a cycle (a latch's gate and its data changing at the same instant race in a simulation
-// without delays: the event-driven one and the cycle simulator settle them differently)
-function bench(nl, m, clock, cycles, seed, single = false) {
-  let a = seed >>> 0;
-  const rnd = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-  const ports = [...m.vhdl.matchAll(/^ {4}(\w+) : (in|out|inout) (?:STD_LOGIC_VECTOR \( (\d+) downto (\d+) \)|STD_LOGIC)/gm)].map(x => ({ ident: x[1], dir: x[2], lsb: x[4] === undefined ? null : +x[4] }));
-  const entity = /^entity (\w+) is/m.exec(m.vhdl)[1];
-  ports.forEach((p, k) => { p.bits = nl.ports[k].bits.map(b => b.name); });
-  const ins = ports.filter(p => p.dir === 'in' && p.bits[0] !== clock);
-  const hasClock = ports.some(p => p.bits[0] === clock);
-  const bits = ins.flatMap(p => p.bits);
-  let cur = Object.fromEntries(bits.map(b => [b, 0]));
-  const stim = Array.from({ length: cycles }, () => {
-    if (single) cur = { ...cur, [bits[Math.floor(rnd() * bits.length)]]: rnd() < 0.5 ? 1 : 0 };
-    else cur = Object.fromEntries(bits.map(b => [b, rnd() < 0.5 ? 1 : 0]));
-    return cur;
-  });
-  const val = (p, v) => (p.lsb === null ? `'${v[p.bits[0]]}'` : `"${p.bits.map(b => v[b]).reverse().join('')}"`);
-  const text = `library IEEE; use IEEE.STD_LOGIC_1164.ALL;
-entity tbx is end; architecture t of tbx is
-${ports.map(p => `  signal ${p.ident}_s : ${p.lsb === null ? 'std_logic' : `std_logic_vector(${p.lsb + p.bits.length - 1} downto ${p.lsb})`};`).join('\n')}
-begin
-  u: entity work.${entity} port map (${ports.map(p => `${p.ident} => ${p.ident}_s`).join(', ')});
-  process begin
-${stim.map(v => `    ${ins.map(p => `${p.ident}_s <= ${val(p, v)}; `).join('')}${hasClock ? `${ports.find(p => p.bits[0] === clock).ident}_s <= '0'; ` : ''}wait for 10 ns;${hasClock ? ` ${ports.find(p => p.bits[0] === clock).ident}_s <= '1';` : ''} wait for 10 ns;`).join('\n')}
-    wait;
-  end process;
-end;`;
-  return { text, ports, stim, hasClock };
-}
-// (from the second cycle: netlistSim's clocks start at 0, so a falling-edge flip-flop sees an edge at its first step)
-function compareWithNetlist(nl, models, { clock = 'clk', cycles = 120, seed = 7, single = false } = {}) {
-  const out = [];
-  for (const [name, m] of Object.entries(models)) {
-    for (const lang of ['vhdl', 'verilog']) {
-      const b = bench(nl, m, clock, cycles, seed, single);
-      const file = `model.${lang === 'vhdl' ? 'vhd' : 'v'}`;
-      const all = [{ path: 'tbx.vhd', lang: 'vhdl', text: b.text }, { path: file, lang, text: m[lang] }];
-      const lib = compile([...primitiveSources(all), ...all]);
-      const d = elaborate(lib, 'tbx');
-      const errs = [...lib.errors, ...d.diags].filter(x => x.severity === 'error');
-      if (errs.length) { out.push(`${name} ${lang}: ${errs[0].message}`); continue; }
-      const sim = new Simulator(d);
-      const sig = new Map(d.signals.map(s => [s.name.toLowerCase(), s]));
-      const ref = netlistSim(nl);
-      const read = () => Object.fromEntries(b.ports.filter(p => p.dir === 'out').flatMap(p => p.bits.map((bn, k) => {
-        const v = sig.get(`${p.ident}_s`.toLowerCase()).val, sh = BigInt(p.lsb === null ? 0 : k);
-        return [bn, (v.x >> sh) & 1n ? 'x' : Number((v.v >> sh) & 1n)];
-      })));
-      let bad = null;
-      for (let k = 0; k < b.stim.length && !bad; k++) {
-        for (const clk of b.hasClock ? [0, 1] : [0]) {
-          ref.step({ ...b.stim[k], ...(b.hasClock ? { [clock]: clk } : {}) });
-          sim.run(20000 * k + (b.hasClock ? 10000 * clk : 0) + 5000);
-          const got = read(), want = ref.out();
-          const diff = Object.keys(want).filter(x => got[x] !== want[x]);
-          if (diff.length && k > 0) { bad = `${name} ${lang}: cycle ${k} clk ${clk}: ${diff.map(x => `${x} ${got[x]} (netlist ${want[x]})`).join(', ')}`; break; }
-        }
-      }
-      if (bad) out.push(bad);
-    }
-  }
-  return out;
-}
 const bothModels = nl => ({ translate: postTranslateModels(nl, { top: nl.name }), map: postMapModels(nl, pack(nl), { top: nl.name }) });
 
 for (const name of ['sw', 'counter', 'ffs', 'widemux', 'mux64', 'latches', 'srmux']) {

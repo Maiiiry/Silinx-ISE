@@ -93,6 +93,15 @@ node pip-exceptions.mjs
 for d in xc3s100ecp132-4:xc3s100e-cp132 xc3s250ecp132-4:xc3s250e-cp132 xc3s500efg320-4:xc3s500e-fg320 xc3s1200efg320-4:xc3s1200e-fg320; do
   [ -f "measured/pads-759-${d#*:}.json" ] && PART=${d%%:*} node merge-db.mjs "measured/pads-759-${d#*:}.json"
 done
+# the bidirectional pads' IO:<standard> on the four devices (#96, measure-iobidir.sh: kept as numbers)
+for d in xc3s100ecp132-4:xc3s100e-cp132 xc3s250ecp132-4:xc3s250e-cp132 xc3s500efg320-4:xc3s500e-fg320 xc3s1200efg320-4:xc3s1200e-fg320; do
+  [ -f "measured/pads-96-bidir-${d#*:}.json" ] && PART=${d%%:*} node merge-db.mjs "measured/pads-96-bidir-${d#*:}.json"
+done
+# the DDR input registers (IDDR2) on every pad, and the bits of a pad's IDDR2 its neighbour's features held (#96,
+# measure-iobddr.sh, ana-padowner.mjs: kept as numbers)
+for d in xc3s100ecp132-4:xc3s100e-cp132 xc3s250ecp132-4:xc3s250e-cp132 xc3s500efg320-4:xc3s500e-fg320 xc3s1200efg320-4:xc3s1200e-fg320; do
+  [ -f "measured/pads-96-iddr2-${d#*:}.json" ] && PART=${d%%:*} node merge-db.mjs "measured/pads-96-iddr2-${d#*:}.json"
+done
 # the I/O columns' clock rows' bits out of the pads' own features (#671: #44's solution held the writer's error there)
 node pad-clock-rows.mjs
 # the bits of R:ICLK2INV:#OFF given to the pads they belong to (#671, measured/fix-27iclk2-owners.json)

@@ -17,10 +17,12 @@ import { paramBits, paramInt } from '../core/fpga/netlist.js';
 
 const LUT_K = { LUT1: 1, LUT2: 2, LUT3: 3, LUT4: 4 };
 const RAM_A = { RAM16X1S: 4, RAM32X1S: 5, RAM64X1S: 6, RAM16X1D: 4 };
-// an IOB's registers: [register, its group's prefix (ICEINV, OFFATTRBOX…), its clock pin, its data]
-const IOB_FFS = [['IFF1', 'I', 'ICLK1', 'PAD'], ['OFF1', 'O', 'OTCLK1', 'O1'], ['TFF1', 'T', 'OTCLK1', 'T1']];
+// an IOB's registers: [register, its group's prefix (ICEINV, OFFATTRBOX…), its clock pin, its data]; the second
+// flip-flops too (#749; both, with the DDR registers, #96)
+const IOB_FFS = [['IFF1', 'I', 'ICLK1', 'PAD'], ['OFF1', 'O', 'OTCLK1', 'O1'], ['TFF1', 'T', 'OTCLK1', 'T1'],
+  ['IFF2', 'I', 'ICLK2', 'PAD'], ['OFF2', 'O', 'OTCLK2', 'O2'], ['TFF2', 'T', 'OTCLK2', 'T2']];
 /** The cell types netlistSim models. */
-export const CELLS_SIMULATED = /^(LUT[1-4]|INV|MUXF[5-8]|MUXCY|XORCY|(FDRE|FDSE|FDCE|FDPE|LDCE|LDPE)(_1)?|IBUF|IBUFG|OBUF|OBUFT|BUFG|BUF|RAM16X1S|RAM32X1S|RAM64X1S|RAM16X1D|MULT18X18|MULT18X18S|MULT18X18SIO|SRLC?16E?(_1)?|RAMB16_S(1|2|4|9|18|36)(_S(1|2|4|9|18|36))?|\$_(BUF|NOT|AND|NAND|OR|NOR|XOR|XNOR|ANDNOT|ORNOT|MUX|NMUX|AOI3|OAI3|AOI4|OAI4)_)$/;
+export const CELLS_SIMULATED = /^(LUT[1-4]|INV|MUXF[5-8]|MUXCY|XORCY|(FDRE|FDSE|FDCE|FDPE|LDCE|LDPE)(_1)?|IBUF|IBUFG|OBUF|OBUFT|IOBUF|BUFG|BUF|IDDR2|ODDR2|RAM16X1S|RAM32X1S|RAM64X1S|RAM16X1D|MULT18X18|MULT18X18S|MULT18X18SIO|SRLC?16E?(_1)?|RAMB16_S(1|2|4|9|18|36)(_S(1|2|4|9|18|36))?|\$_(BUF|NOT|AND|NAND|OR|NOR|XOR|XNOR|ANDNOT|ORNOT|MUX|NMUX|AOI3|OAI3|AOI4|OAI4)_)$/;
 
 // ------------------------------------------------------------------ block RAM and multiplier (both simulators)
 // a block-RAM port of each width: data bits, parity bits, address bits (as core/unisim.js)
@@ -72,12 +74,27 @@ export function netlistSim(nl) {
   v[1] = 1;
   const inPorts = new Map(), outPorts = new Map();
   for (const p of nl.ports) for (const b of p.bits) (p.dir === 'in' ? inPorts : outPorts).set(b.name, b.net);
+  // a bidirectional pad (#96, an IOBUF on an inout port): its value from outside (the inputs, by the port's bit) while the
+  // design does not drive it; the design's drive (or z) out
+  const ext = new Map(), iobufOn = new Map();   // the port's net -> its value from outside, its IOBUF
+  for (const c of nl.cells) if (c.type === 'IOBUF') iobufOn.set(c.pins.IO, c);
+  for (const p of nl.ports) for (const b of p.bits) if (p.dir === 'inout') inPorts.set(b.name, b.net);
   const ffs = [];
   for (const c of nl.cells) {
     const m = /^(FD|LD)(\w*?)(_1)?$/.exec(c.type);
     if (!m) continue;
     const init = paramBits(c.params.INIT)?.[0] ?? (/^(FDSE|FDPE|FDS|FDP|LDPE)$/.test(c.type.replace(/_1$/, '')) ? 1 : 0);
     ffs.push({ c, latch: m[1] === 'LD', neg: !!m[3], q: init, prevClk: 0 });
+  }
+  // the DDR registers (#96) as two flip-flops each: D into Q0 on C0, into Q1 on C1 (an ODDR2's D0 / D1 into two nets of
+  // its own, its Q the first while C0 is high, else the second); R before S, SYNC or ASYNC (SRTYPE)
+  const oddr = new Map();   // ODDR2 cell -> its two registers' nets
+  for (const c of nl.cells) if (/^(IDDR2|ODDR2)$/.test(c.type)) {
+    const i = c.type === 'IDDR2', qs = i ? [c.pins.Q0, c.pins.Q1] : [v.push(0) - 1, v.push(0) - 1];
+    if (!i) oddr.set(c, qs);
+    [0, 1].forEach(k => ffs.push({ c: { type: 'DDR', params: { IS_C_INVERTED: c.params[`IS_C${k}_INVERTED`], SRTYPE: c.params.SRTYPE },
+      pins: { C: c.pins[`C${k}`], CE: c.pins.CE, R: c.pins.R, S: c.pins.S, D: i ? c.pins.D : c.pins[`D${k}`], Q: qs[k] } },
+    latch: false, neg: false, q: paramInt(c.params[i ? `INIT_Q${k}` : 'INIT']) & 1, prevClk: 0 }));
   }
   // distributed RAMs: contents from INIT, written on the rising WCLK edge when WE
   const rams = [];
@@ -125,6 +142,8 @@ export function netlistSim(nl) {
         else if (c.type === 'XORCY') o = p('CI') ^ p('LI');
         else if (/^(IBUF|IBUFG|OBUF|BUFG|BUF)$/.test(c.type)) o = p('I');
         else if (c.type === 'OBUFT') o = p('T') ? 'z' : p('I');
+        else if (c.type === 'IOBUF') o = p('T') ? ext.get(c.pins.IO) || 0 : p('I');
+        else if (c.type === 'ODDR2') { const q = oddr.get(c); put(c.pins.Q, v[q[(p('C0') ^ paramInt(c.params.IS_C0_INVERTED)) ? 0 : 1]]); continue; }
         else if (RAM_A[c.type]) {
           const r = ramOf.get(c);
           if (c.type === 'RAM16X1D') { put(c.pins.SPO, r.mem[addr(c, 'A', 4)]); put(c.pins.DPO, r.mem[addr(c, 'DPRA', 4)]); continue; }
@@ -179,7 +198,7 @@ export function netlistSim(nl) {
   void setOut;
   return {
     step(inputs) {
-      for (const [k, val] of Object.entries(inputs)) if (inPorts.has(k)) v[inPorts.get(k)] = val;
+      for (const [k, val] of Object.entries(inputs)) if (inPorts.has(k)) { if (iobufOn.has(inPorts.get(k))) ext.set(inPorts.get(k), val); else v[inPorts.get(k)] = val; }
       comb();
       // flip-flops: asynchronous set / reset, then clock edges
       let again = true;
@@ -190,11 +209,14 @@ export function netlistSim(nl) {
           const clk = v[c.pins.C] ^ (f.neg ? 1 : 0) ^ paramInt(c.params.IS_C_INVERTED);
           const ce = c.pins.CE === undefined ? 1 : pinv(c, 'CE');
           let q = f.q;
+          const ddr = t === 'DDR', async = ddr && /ASYNC/i.test(String(c.params.SRTYPE));
           if (t === 'FDCE' && pinv(c, 'CLR')) q = 0;
           else if (t === 'FDPE' && pinv(c, 'PRE')) q = 1;
+          else if (async && pinv(c, 'R')) q = 0;
+          else if (async && pinv(c, 'S')) q = 1;
           else if (clk && !f.prevClk) {
-            if (t === 'FDRE' && pinv(c, 'R')) q = 0;
-            else if (t === 'FDSE' && pinv(c, 'S')) q = 1;
+            if ((t === 'FDRE' || ddr) && pinv(c, 'R')) q = 0;
+            else if ((t === 'FDSE' || ddr) && pinv(c, 'S')) q = 1;
             else if (ce) q = v[c.pins.D];
           }
           f.next = q;
@@ -250,7 +272,11 @@ export function netlistSim(nl) {
         comb();
       }
     },
-    out() { const o = {}; for (const [k, n] of outPorts) o[k] = v[n]; return o; },
+    out() {
+      const o = {};
+      for (const [k, n] of outPorts) { const c = iobufOn.get(n); o[k] = c ? (v[c.pins.T] ? 'z' : v[c.pins.I]) : v[n]; }
+      return o;
+    },
   };
 }
 
@@ -288,7 +314,7 @@ export function packedSim(packed) {
     }
     if (inst.kind === 'mult') Object.assign(r, { a: new Array(18).fill(0), b: new Array(18).fill(0), p: new Array(36).fill(0) });
     // an IOB's registers (#96): IFF1, OFF1, TFF1 at their INIT; ICLK1 and OTCLK1 as they were at the last step
-    if (inst.kind === 'iob') Object.assign(r, { iq: Object.fromEntries(IOB_FFS.map(([ff]) => [ff, c.get(`${ff}_INIT_ATTR`)?.value === 'INIT1' ? 1 : 0])), prev: { ICLK1: 0, OTCLK1: 0 } });
+    if (inst.kind === 'iob') Object.assign(r, { iq: Object.fromEntries(IOB_FFS.map(([ff]) => [ff, c.get(`${ff}_INIT_ATTR`)?.value === 'INIT1' ? 1 : 0])), prev: { ICLK1: 0, OTCLK1: 0, ICLK2: 0, OTCLK2: 0 } });
     return r;
   });
   const pads = new Map();
@@ -297,7 +323,12 @@ export function packedSim(packed) {
   // the outputs of one instance from its inputs and state
   function evalInst(i) {
     const inst = insts[i], c = C[i], o = {};
-    if (inst.kind === 'iob') { if (inst.dir === 'in') { o.I = padIn.get(c.get('PAD').name) || 0; o.IQ1 = st[i].iq.IFF1; } return o; }
+    if (inst.kind === 'iob') {
+      if (inst.dir === 'in') { o.I = padIn.get(c.get('PAD').name) || 0; o.IQ1 = st[i].iq.IFF1; o.IQ2 = st[i].iq.IFF2; }
+      // (a bidirectional pad's input, #96: its own drive, or the outside's while T1 is 1)
+      else if (c.has('INBUF')) o.I = c.has('TMUX') && pin(i, 'T1') ? padIn.get(c.get('PAD').name) || 0 : pin(i, 'O1');
+      return o;
+    }
     if (inst.kind === 'bufg') { o.O = pin(i, 'I0'); return o; }
     const val = a => c.get(a)?.value;
     if (inst.kind === 'bram') {
@@ -373,20 +404,22 @@ export function packedSim(packed) {
   };
   // the next value of a flip-flop / latch: edge = a rising clock edge happened (or, for a latch, the gate is open)
   // the next values of an IOB's registers (#96): { ff: value }, and its clocks now; D of IFF1 the pad, of OFF1 / TFF1
-  // O1 / T1 (through O1INV / T1INV); one SR (SRINV) for all, each register's SR_ATTR and ATTRBOX
+  // O1 / T1 (through O1INV / T1INV); one SR (SRINV) for all, each register's SR_ATTR and ATTRBOX; an input
+  // register's REV (an IDDR2's S, #96) the value SR does not give
   function iobNext(i) {
     const c = C[i], val = a => c.get(a)?.value, r = st[i];
     const inv = p => (val(`${p}INV`) === `${p}_B` ? 1 - pin(i, p) : pin(i, p));
-    const clk = { ICLK1: inv('ICLK1'), OTCLK1: inv('OTCLK1') };
+    const clk = { ICLK1: inv('ICLK1'), OTCLK1: inv('OTCLK1'), ICLK2: inv('ICLK2'), OTCLK2: inv('OTCLK2') };
     const next = {};
     for (const [ff, g, ck, d] of IOB_FFS) {
       if (val(ff) !== '#FF') continue;
       const q = r.iq[ff], ce = c.has(`${g}CEINV`) ? inv(`${g}CE`) : 1;
       const sr = c.has(`${ff}_SR_ATTR`) && c.has('SRINV') ? inv('SR') : 0, srv = val(`${ff}_SR_ATTR`) === 'SRHIGH' ? 1 : 0;
+      const rev = g === 'I' && c.has('REVINV') ? inv('REV') : 0;
       const data = d === 'PAD' ? padIn.get(c.get('PAD').name) || 0 : inv(d);
-      if (sr && val(`${g}FFATTRBOX`) !== 'SYNC') next[ff] = srv;
+      if ((sr || rev) && val(`${g}FFATTRBOX`) !== 'SYNC') next[ff] = sr ? srv : 1 - srv;
       else if (!(clk[ck] && !r.prev[ck])) next[ff] = q;
-      else next[ff] = sr ? srv : ce ? data : q;
+      else next[ff] = sr ? srv : rev ? 1 - srv : ce ? data : q;
     }
     return { next, clk };
   }
@@ -505,7 +538,9 @@ export function packedSim(packed) {
         if (inst.kind !== 'iob' || inst.dir !== 'out') return;
         const c = C[i], val = a => c.get(a)?.value, inv = p => (val(`${p}INV`) === `${p}_B` ? 1 - pin(i, p) : pin(i, p));
         const t = !c.has('TMUX') ? 0 : val('TMUX') === 'TFF1' ? st[i].iq.TFF1 : inv('T1');
-        o[c.get('PAD').name] = t ? 'z' : val('OMUX') === 'OFF1' ? st[i].iq.OFF1 : inv('O1');
+        // (the DDR registers' output, #96: OFF1's while OTCLK1 is high, OFF2's after OTCLK2's edge)
+        const ddr = () => (inv('OTCLK1') ? st[i].iq.OFF1 : st[i].iq.OFF2);
+        o[c.get('PAD').name] = t ? 'z' : val('OMUX') === 'OFF1' ? st[i].iq.OFF1 : val('OMUX') === 'OFF2' ? st[i].iq.OFF2 : val('OMUX') === 'OFFDDR' ? ddr() : inv('O1');
       });
       return o;
     },
@@ -517,7 +552,7 @@ export function compareSims(nl, packed, { cycles = 300, seed = 1, clock = 'clk' 
   let a = seed >>> 0 || 1;
   const rnd = () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const A = netlistSim(nl), B = packedSim(packed);
-  const ins = nl.ports.filter(p => p.dir === 'in').flatMap(p => p.bits.map(b => b.name)).filter(n => n !== clock);
+  const ins = nl.ports.filter(p => p.dir !== 'out').flatMap(p => p.bits.map(b => b.name)).filter(n => n !== clock);
   const hasClock = nl.ports.some(p => p.name === clock);
   for (let k = 0; k < cycles; k++) {
     const v = {};

@@ -150,6 +150,72 @@ const buffers = [
     "  O <= I1 when S = '1' else I0 when S = '0' else I0 when (I0 = '0' and I1 = '0') or (I0 = '1' and I1 = '1') else 'X';", 'CLK_SEL_TYPE : string := "SYNC"')),
 ];
 
+// the DDR registers of the IOBs (#96): IDDR2 (D captured into Q0 on C0's rising edge, into Q1 on C1's) and ODDR2
+// (D0 on C0, D1 on C1, Q the first while C0 is high, else the second: the IOB's output multiplexer, C1 = not C0). R resets and S sets, R first; SYNC on the register's own clock,
+// ASYNC at once; CE enables. DDR_ALIGNMENT C0 / C1: IDDR2's other output retimed to that clock, ODDR2's two inputs
+// both captured on it.
+const DDR_GENS = 'DDR_ALIGNMENT : string := "NONE"; SRTYPE : string := "SYNC"';
+// a register of a DDR pair: q (initial value init) loaded with d on clk's rising edge
+const ddrReg = (q, init, clk, d) => `  process (${clk}, R, S)
+    variable started : boolean := false;
+  begin
+    if not started then
+      started := true;
+      if ${init} = '1' then ${q} <= '1'; else ${q} <= '0'; end if;
+    end if;
+    if SRTYPE = "ASYNC" and R = '1' then ${q} <= '0';
+    elsif SRTYPE = "ASYNC" and S = '1' then ${q} <= '1';
+    elsif rising_edge(${clk}) then
+      if R = '1' then ${q} <= '0';
+      elsif S = '1' then ${q} <= '1';
+      elsif CE = '1' then ${q} <= ${d};
+      end if;
+    end if;
+  end process;`;
+const ddrs = [`
+library IEEE; use IEEE.STD_LOGIC_1164.ALL;
+entity IDDR2 is
+  generic (${DDR_GENS}; INIT_Q0 : bit := '0'; INIT_Q1 : bit := '0');
+  port (Q0 : out std_ulogic; Q1 : out std_ulogic; C0 : in std_ulogic; C1 : in std_ulogic; CE : in std_ulogic := '1'; D : in std_ulogic;
+        R : in std_ulogic := '0'; S : in std_ulogic := '0');
+end IDDR2;
+architecture silinx of IDDR2 is
+  signal q0_i, q1_i, q0_a, q1_a : std_ulogic := '0';
+begin
+${ddrReg('q0_i', 'INIT_Q0', 'C0', 'D')}
+${ddrReg('q1_i', 'INIT_Q1', 'C1', 'D')}
+  -- the other output retimed (DDR_ALIGNMENT C0: Q1 on C0; C1: Q0 on C1)
+  process (C0, C1)
+  begin
+    if rising_edge(C0) then q1_a <= q1_i; end if;
+    if rising_edge(C1) then q0_a <= q0_i; end if;
+  end process;
+  Q0 <= q0_a when DDR_ALIGNMENT = "C1" else q0_i;
+  Q1 <= q1_a when DDR_ALIGNMENT = "C0" else q1_i;
+end silinx;`, `
+library IEEE; use IEEE.STD_LOGIC_1164.ALL;
+entity ODDR2 is
+  generic (${DDR_GENS}; INIT : bit := '0');
+  port (Q : out std_ulogic; C0 : in std_ulogic; C1 : in std_ulogic; CE : in std_ulogic := '1'; D0 : in std_ulogic; D1 : in std_ulogic;
+        R : in std_ulogic := '0'; S : in std_ulogic := '0');
+end ODDR2;
+architecture silinx of ODDR2 is
+  signal q0_i, q1_i, d0_c, d1_c : std_ulogic := '0';
+begin
+${ddrReg('q0_i', 'INIT', 'C0', 'd0_c')}
+${ddrReg('q1_i', 'INIT', 'C1', 'd1_c')}
+  -- the inputs as the registers see them: DDR_ALIGNMENT C0, D1 captured on C0 first; C1, D0 on C1
+  process (C0, D1)
+  begin
+    if DDR_ALIGNMENT /= "C0" then d1_c <= D1; elsif rising_edge(C0) then d1_c <= D1; end if;
+  end process;
+  process (C1, D0)
+  begin
+    if DDR_ALIGNMENT /= "C1" then d0_c <= D0; elsif rising_edge(C1) then d0_c <= D0; end if;
+  end process;
+  Q <= q0_i when C0 = '1' else q1_i;
+end silinx;`];
+
 // 2:1 multiplexer `out` <= b when s = '1' else a; with an unknown select the output is known only
 // when both inputs agree (the native models in core/native.js do the same)
 const mux2 = (out, a, b, s) => `  ${out} <= ${b} when ${s} = '1' else ${a} when ${s} = '0' else ${a} when (${a} = '0' and ${b} = '0') or (${a} = '1' and ${b} = '1') else 'X';`;
@@ -747,7 +813,7 @@ end VPKG;`,
   ...[1, 2, 3, 4, 5, 6].flatMap((n) => [lut(n, `LUT${n}`, ['O']), lut(n, `LUT${n}_L`, ['LO']), lut(n, `LUT${n}_D`, ['O', 'LO'])]),
   ...FFS.flatMap(([b, p]) => [ff(b, p, false), ff(b, p, true)]),
   ...LATCHES.flatMap(([n, p]) => [latch(n, p, false), latch(n, p, true)]),
-  SRLS, DRAMS, MULTS, BRAMS, dcm('DCM_SP'), dcm('DCM'),
+  SRLS, DRAMS, MULTS, BRAMS, dcm('DCM_SP'), dcm('DCM'), ...ddrs,
   UNISIM_S6_VHDL,
 ].join('\n');
 
