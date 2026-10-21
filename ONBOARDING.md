@@ -50,6 +50,11 @@ npm start          # http://127.0.0.1:8642
    assembles the fragments into CHANGELOG.md (`node scripts/changelog-release.mjs X`).
 6. **Releases happen only when Pedro asks.** The session that releases asks the others to hold their
    merges until the tag is pushed.
+7. **Small modules and functions** (#405): a source file under 1000 lines, a function under 300, one
+   module per concern. A change that would go past splits first, in a pull request of its own that only
+   moves code; `test/code-size.test.js` lists today's exceptions, which only shrink. How to split (the
+   `mountX(ctx)` modules, getters for reassigned state, the old module re-exporting what moved, checking
+   against main on the corpus) is in CLAUDE.md ▸ Programming.
 
 ## 3. Several Claude sessions at once
 

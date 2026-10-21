@@ -60,6 +60,11 @@ test('related tests: the unit tests that import a changed module, directly or th
   assert.deepEqual(relatedTests(reads, ['docs/CLAUDE.mdx']), { unit: [], ui: [] }, 'the whole name, not a part of it');
   // nothing related: documentation, a file no test reads; a deleted file is no test
   assert.deepEqual(relatedTests(files, ['README.md', 'changes/1-x.md', 'core/gone.js']), { unit: [], ui: [] });
+  // the size of the sources (#405): test/code-size.test.js for any source of core/, web/js/, server/, scripts/
+  const sized = { ...files, 'test/code-size.test.js': "const DIRS = ['core', 'web/js'];" };
+  assert.deepEqual(relatedTests(sized, ['core/b.js']), { unit: ['test/b.test.js', 'test/code-size.test.js'], ui: [] });
+  assert.deepEqual(relatedTests(sized, ['web/js/menus.js']), { unit: ['test/code-size.test.js'], ui: ['test/ui/menus.test.js'] });
+  assert.deepEqual(relatedTests(sized, ['README.md', 'test/other.test.js', 'web/css/app.css']), { unit: ['test/other.test.js'], ui: [] });
 });
 
 test('related tests: in parts of about the same time, the UI tests in the first', () => {
