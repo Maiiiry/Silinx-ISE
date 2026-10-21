@@ -1101,10 +1101,10 @@ bank: `gen-iobidir.mjs` now gives the clock the design's standard).
   (CLKR: -1 -2 -3 -4 8 9 3 2). ISE's two side designs are byte-identical to Silinx's writer with them; the top /
   bottom ones differ only by the switches from the fabric into CLKDUB / SELDUB that ISE's router took and the
   database lacks (the same bits in the base and in every variant).
-- **Checked** (`npm run check:open-flow`): feat_bufgmux and feat_bufgmux_1 on the XC3S250E, feat_bufgmux on the
-  XC3S100E, XC3S500E and XC3S1200E: byte-identical to ISE's bitgen, CRC on and off, no DRC error or warning, no
+- **Checked** (`npm run check:open-flow`): feat_bufgmux and feat_bufgmux_1 on the four devices (the measured bits
+  at the same place on the XC3S100E, XC3S500E and XC3S1200E): byte-identical to ISE's bitgen, CRC on and off, no DRC error or warning, no
   warning of xdl2ncd or of the open flow.
-- Runtime: 6 designs implemented by ISE (2 minutes), 30 xdl + bitgen runs (2 minutes), 5 checks of the open flow.
+- Runtime: 6 designs implemented by ISE (2 minutes), 30 xdl + bitgen runs (2 minutes), 8 checks of the open flow.
 
 ### The PIPs a tile does not have (2026-10-13, #74)
 
