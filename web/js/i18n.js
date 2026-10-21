@@ -20,6 +20,7 @@ import { FPGA_PT, FPGA_PT_PATTERNS } from './i18n-fpga.js';
 import { SCH_PT, SCH_PT_PATTERNS } from './i18n-schematic.js';
 import { CLOCKING_PT, CLOCKING_PT_PATTERNS } from './i18n-clocking.js';
 import { MEMORY_PT, MEMORY_PT_PATTERNS } from './i18n-memory.js';
+import { RESOURCES_PT, RESOURCES_PT_PATTERNS } from './i18n-resources.js';
 
 const PT = {
   // the Development menu of a development build (#707)
@@ -690,6 +691,8 @@ for (const [k, v] of Object.entries(MEMORY_PT)) if (!(k in PT)) PT[k] = v;   // 
 PT_PATTERNS.unshift(...MEMORY_PT_PATTERNS);
 PT_PATTERNS.unshift(...CLOCKING_PT_PATTERNS,
   [/^(Input port|Reset input|LOCKED output|Output (\w+)): (.*)\.$/, (m, w, o, e) => `${{ 'Input port': 'Porto de entrada', 'Reset input': 'Entrada de reset', 'LOCKED output': 'Saída LOCKED' }[w] || `Saída ${o}`}: ${ptIdent(e)}.`]);
+for (const [k, v] of Object.entries(RESOURCES_PT)) if (!(k in PT)) PT[k] = v;   // the device's resources checked against the design (#796)
+PT_PATTERNS.unshift(...RESOURCES_PT_PATTERNS);
 
 export const LOCALES = {
   en: { name: 'English', strings: {}, patterns: [] },

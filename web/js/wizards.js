@@ -11,6 +11,7 @@ import { drawnHdlPath, isView } from '/core/view-hdl.js';
 import { reservedError } from '/core/reserved.js';
 import { reservedNameDiags } from './processes.js';
 import { countEvent, siteCounts } from './analytics.js';
+import { confirmDeviceChange } from './device-change.js';
 
 const NAME_RE = /^[A-Za-z][A-Za-z0-9_]*$/;
 // Device used when no evaluation board is selected.
@@ -834,6 +835,9 @@ export async function projectProperties() {
       ...field('Preferred Language:', lang)),
   });
   if (!r) return;
+  // a new device: the design checked against it first, the user told (#796)
+  const next = dp.value();
+  if ((next.part !== pj.device.part || next.package !== pj.device.package) && !await confirmDeviceChange(pj, next, db)) return;
   const oldBoard = pj.board, oldDev = `${pj.device.part}-${pj.device.package}`;
   pj.board = boardSel.value || null;
   pj.device = dp.value();
