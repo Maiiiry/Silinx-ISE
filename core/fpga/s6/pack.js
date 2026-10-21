@@ -26,16 +26,21 @@
 //   slices: [{ kind: 'X' | 'L' | 'M', pos: { A: { o6, o5, ff, ff5, x (the bypass input's net), mux } … }, carry, f7: { A, B },
 //              f8, chain: { id, index } | null, ctrl (the storage elements' control set key) | null, mem (the SLICEM's
 //              RAM / SRL control key) | null }]   (cells by their index in the netlist; o6 / o5 / ff / ff5: a cell or
-//              null; mux: what leaves by AMUX … ('o5', 'xor', 'cy', 'f7', 'f8', 'ff5'))
+//              null; ff: AND2L, the storage element as a gate passing the carry's sum; mux: what leaves by AMUX … ('o5', 'xor',
+//              'cy', 'f7', 'f8', 'ff5'))
 //   chains: [[slice indices, bottom to top]]   carry chains: consecutive SLICEL / SLICEM of one column
 //   others: { type: count }   the cells on sites of their own (I/O buffers, BUFG, RAMB8BWER / RAMB16BWER, DSP48A1…)
-//   stats:  { slices, X, L, M, luts, ffs, carry4, f7, f8, lutram, srl, others }   (X / L / M: the slices that need that
+//   stats:  { slices, X, L, M, luts, ffs, and2l (storage elements used as gates), carry4, f7, f8, lutram, srl, others }   (X / L / M: the slices that need that
 //            kind at least: an X fits any slice, an L a SLICEL or SLICEM, an M a SLICEM)
 //   warnings: [] }
 // checkSlice(slice, nl) -> [errors]: every rule above, for the tests (and the placer, #729).
 import { paramInt } from '../netlist.js';
 
 export class PackError extends Error {}
+
+/** A storage element used as a gate (ISE map's AND2L): the carry's sum out of the slice by the position's Q, the
+ *  multiplexed output being the carry out's. The slice then has no storage element (its control key is this). */
+export const AND2L = 'and2l';
 
 const POS = ['A', 'B', 'C', 'D'];
 const LUT_TYPE = /^LUT([1-6])$/;
@@ -140,6 +145,16 @@ export function packS6(nl, { combine = 'off' } = {}) {
         if (dl !== null && typeof o6 === 'number' && new Set([...lutInputs(cells[o6]), ...lutInputs(cells[dl])]).size <= 5 && lutInputs(cells[dl]).length <= 5) {
           s.pos[p].o5 = dl; put(dl, si);
         } else if (di > 1 && di !== c.pins[`S<${i}>`]) s.pos[p].x = di;
+      });
+      // the sum and the carry out both out of a position (the sum to anything but a flip-flop, the carry out to
+      // anything but the carry above): the carry out by the multiplexed output, the sum through the position's
+      // storage element set as a gate (map's AND2L, out by Q; night 1's clock example), the slice then without any
+      // flip-flop (the gate takes the slice's control)
+      POS.forEach((p, i) => {
+        const o = c.pins[`O<${i}>`], co = c.pins[`CO<${i}>`];
+        const sumOut = o > 1 && ix.loads(o).some(l => !(ffKind(cells[l.cell].type) && l.pin === 'D'));
+        const coOut = i < 3 && co > 1 && ix.loads(co).some(l => !(cells[l.cell].type === 'CARRY4' && l.pin === 'CI'));
+        if (sumOut && coOut && s.ctrl === null) { s.pos[p].ff = AND2L; s.ctrl = AND2L; }
       });
       // CYINIT from AX when it is a signal (a constant is a setting)
       const cy = c.pins.CYINIT ?? 0;
@@ -317,9 +332,13 @@ export function packS6(nl, { combine = 'off' } = {}) {
       const c = cells[s.carry];
       POS.forEach((p, i) => {
         const o = c.pins[`O<${i}>`], co = c.pins[`CO<${i}>`];
-        if (o > 1 && usedOutside(o, si)) setMux(s, p, 'xor', warnings, c);
+        const xorOut = o > 1 && usedOutside(o, si);
         // (CO<3> goes up the column; out of the slice by DMUX when it has other loads)
-        if (co > 1 && ix.loads(co).some(l => !(cells[l.cell].type === 'CARRY4' && l.pin === 'CI') && (where.get(l.cell) !== si || l.pin !== 'D'))) setMux(s, p, 'cy', warnings, c);
+        const cyOut = co > 1 && ix.loads(co).some(l => !(cells[l.cell].type === 'CARRY4' && l.pin === 'CI') && (where.get(l.cell) !== si || l.pin !== 'D'));
+        // (the sum through a gate, AND2L, marked with the carry slices: the carry out by the multiplexed output)
+        if (s.pos[p].ff === AND2L) { setMux(s, p, 'cy', warnings, c); return; }
+        if (xorOut) setMux(s, p, 'xor', warnings, c);
+        if (cyOut) setMux(s, p, 'cy', warnings, c);
       });
     }
     for (const [h, p] of [['A', 'A'], ['B', 'C']]) {
@@ -344,7 +363,7 @@ export function packS6(nl, { combine = 'off' } = {}) {
   const stats = {
     slices: live.length, ...kinds,
     luts: count(q => typeof q.o6 === 'number' && isLut(cells[q.o6])) + count(q => typeof q.o5 === 'number'),
-    ffs: count(q => q.ff !== null) + count(q => q.ff5 !== null),
+    ffs: count(q => typeof q.ff === 'number') + count(q => q.ff5 !== null), and2l: count(q => q.ff === AND2L),
     carry4: carry.length, f7: cells.filter(c => c.type === 'MUXF7').length, f8: cells.filter(c => c.type === 'MUXF8').length,
     lutram: cells.filter(c => MEM[c.type] && !MEM[c.type].srl).length, srl: cells.filter(c => MEM[c.type]?.srl).length,
     others: Object.values(others).reduce((a, b) => a + b, 0),
@@ -371,6 +390,11 @@ export function checkSlice(s, nl) {
     const q = s.pos[p];
     for (const k of ['ff', 'ff5']) {
       if (q[k] === null) continue;
+      if (q[k] === AND2L) {
+        if (k !== 'ff' || s.carry === null || q.mux !== 'cy') err.push(`${p}${k === 'ff' ? 'FF' : '5FF'}: a gate (AND2L) but not the carry's sum beside its carry out`);
+        ctrls.add(AND2L);
+        continue;
+      }
       const c = cells[q[k]], kind = ffKind(c.type);
       if (!kind) { err.push(`${p}${k === 'ff' ? 'FF' : '5FF'}: ${c.type} is not a storage element`); continue; }
       ctrls.add(ctrlKey(c));
