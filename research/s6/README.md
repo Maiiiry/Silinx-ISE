@@ -142,6 +142,14 @@ FLR is not the frame length of 65 words: its meaning, and the frames' order, are
   carry out by BMUX (`BOUTMUX::CY`) and the sum through the B storage element set as a gate (`BFF … #AND2L`,
   `BFFMUX::XOR`, "used as AND/OR logics" in its report), out by BQ: the rule the packer takes next (#721).
 
+### The device descriptions (#723, 2026-10-21)
+
+Built from the two reports by Silinx's generic builder (`research/s3e-route/build-device.mjs`, the Spartan-3E
+one, unchanged: it reads any `xdl -report`): the XC6SLX16 in 5 s, 1.4 MB gzipped (307 tile templates, 509 302
+nodes), the XC6SLX45 in 14 s, 2.9 MB (369 templates, 1 397 026 nodes, loaded in 136 ms); their tiles, sites by type
+and PIPs exactly the reports'. Shipped in `core/fpga/devices/` as the Spartan-3E boards' are. A slice's carry goes
+up by a switch of its own tile (`XL_COUT -> XL_COUT_N`, the CIN of the slice above), not by a wire.
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
