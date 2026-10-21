@@ -125,7 +125,7 @@ if (cmd === 'observe') {
       const ty = typeOf.get(p.site), kind = /^(IOB|IBUF|DIFF[MS]I?)$/.test(ty) ? 'IOB' : ty === 'RAMB16' ? 'RAMB16' : null;
       if (!kind || p.dir !== 'o' || (kind === 'IOB' && p.pin !== 'I') || (kind === 'RAMB16' && !/^DO[AB]\d+$/.test(p.pin))) continue;
       if (!extra.has(p.tile)) extra.set(p.tile, []);
-      extra.get(p.tile).push({ site: p.site, type: kind, o: p.pin, wire: p.wire });
+      extra.get(p.tile).push({ site: p.site, type: kind, siteType: ty, tile: p.tile, o: p.pin, wire: p.wire });
     }
   }
   const r = joinTestDesigns({

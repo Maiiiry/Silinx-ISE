@@ -31,7 +31,7 @@ export const SOURCES = [['X', 'F1'], ['Y', 'G1']];
  *     confirmed; a path may cross them, to reach a tile with no slice from a neighbouring one),
  *   maxDepth (PIPs from the slice output to the tested wire, default 3),
  *   maxJoins (known joins a path may cross, default 0: the source in the tested wire's own tile),
- *   sourcesOf(tile) -> [{ site, type: 'IOB' | 'RAMB16', o: output pin, wire: its tile wire }] (other sites
+ *   sourcesOf(tile) -> [{ site, type: 'IOB' | 'RAMB16', siteType, tile, o: output pin, wire: its tile wire }] (other sites
  *     that can drive a test: an IOB's input I, a block RAM's output; none by default).
  * Returns { designs: [{ xdl, tests: [{ net, join }] }], untestable: [join] }.
  */
@@ -55,7 +55,7 @@ export function joinTestDesigns(opts) {
       // (an IOB's or a block RAM's output: no sink of its own, the net's antenna is the test's)
       for (const x of sourcesOf(tile)) {
         if (!src.has(x.wire)) src.set(x.wire, []);
-        src.get(x.wire).push({ s: { site: x.site, type: x.type }, o: x.o, i: null });
+        src.get(x.wire).push({ s: { site: x.site, type: x.type, siteType: x.siteType, tile: x.tile }, o: x.o, i: null });
       }
       cache.set(tile, { out, into, src });
     }
@@ -140,12 +140,15 @@ export function joinTestDesigns(opts) {
 function testXdl(part, tests) {
   const lines = [`design "joins" ${part} v3.2 ;`];
   const sites = new Map(), types = new Map();
-  for (const t of tests) { const s = t.plan.src; if (!sites.has(s.s.site)) sites.set(s.s.site, new Set()); sites.get(s.s.site).add(s.o); types.set(s.s.site, s.s.type || 'SLICEL'); }
+  const of = new Map();
+  for (const t of tests) { const s = t.plan.src; if (!sites.has(s.s.site)) sites.set(s.s.site, new Set()); sites.get(s.s.site).add(s.o); types.set(s.s.site, s.s.type || 'SLICEL'); of.set(s.s.site, s.s); }
   for (const [site, outs] of sites) {
     const n = `s_${site}`;
     // an IOB, its input from the pad (LVCMOS25, no register, no delay); a block RAM, both ports 512 x 36
-    if (types.get(site) === 'IOB') { lines.push(`inst "${n}" "IOB", placed TILE ${site} ,`, `  cfg " IDELMUX::1 IMUX::1 IOATTRBOX::LVCMOS25 INBUF:${n}_ibuf: PAD:${n}_pad: " ;`); continue; }
-    if (types.get(site) === 'RAMB16') { lines.push(`inst "${n}" "RAMB16", placed TILE ${site} ,`, `  cfg " PORTA_ATTR::512X36 PORTB_ATTR::512X36 RAMB16:${n}.RAMB16: RAMB16A:${n}.A: RAMB16B:${n}.B: " ;`); continue; }
+    // (an input-only pad is an IBUF site: the instance of the site's own type, in its own tile)
+    const at = `${of.get(site).tile || 'TILE'} ${site}`;
+    if (types.get(site) === 'IOB') { lines.push(`inst "${n}" "${of.get(site).siteType || 'IOB'}", placed ${at} ,`, `  cfg " IDELMUX::1 IMUX::1 IOATTRBOX::LVCMOS25 INBUF:${n}_ibuf: PAD:${n}_pad: " ;`); continue; }
+    if (types.get(site) === 'RAMB16') { lines.push(`inst "${n}" "RAMB16", placed ${at} ,`, `  cfg " PORTA_ATTR::512X36 PORTB_ATTR::512X36 RAMB16:${n}.RAMB16: RAMB16A:${n}.A: RAMB16B:${n}.B: " ;`); continue; }
     const f = outs.has('X') ? ` F:${n}_f:#LUT:D=A1 FXMUX::F XUSED::0` : '';
     const g = outs.has('Y') ? ` G:${n}_g:#LUT:D=A1 GYMUX::G YUSED::0` : '';
     lines.push(`inst "${n}" "SLICEL", placed TILE ${site} ,`, `  cfg "${f}${g} " ;`);

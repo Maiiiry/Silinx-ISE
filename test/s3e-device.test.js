@@ -250,6 +250,13 @@ test('join tests: a wire only an I/O or block-RAM site drives, tested from that 
   assert.deepEqual([d.nets[0].outpins, d.nets[0].inpins], [[{ inst: 's_D2', pin: 'I' }], []]);
   assert.deepEqual(d.nets[0].pips.map(p => `${p.tile} ${p.from} ${p.to}`), ['LIOIS_X0Y10 IOIS_I0 OMUX0', 'LIOIS_X0Y10 OMUX0 E2BEG0', 'CLB_X1Y10 E2MID0 F1_B0']);
   assert.deepEqual(d.nets[1].outpins, [{ inst: 's_RAMB16_X0Y1', pin: 'DOA3' }]);
+  // an input-only pad: an IBUF site, the instance of its own type in its own tile (xdl -xdl2ncd refuses an IOB there:
+  // ERROR:XDL:190, the first ISE run of these tests); likewise the block RAM's tile
+  const src2 = { LIOIS_X0Y10: [{ site: 'E2', type: 'IOB', siteType: 'IBUF', tile: 'LIBUFS_X0Y10', o: 'I', wire: 'IOIS_I0' }],
+    BRAM0_SMALL_X7Y10: [{ site: 'RAMB16_X0Y1', type: 'RAMB16', siteType: 'RAMB16', tile: 'BRAMSITE_X7Y10', o: 'DOA3', wire: 'BRAM_DOA3' }] };
+  const x2 = joinTestDesigns({ part, joins, slicesOf, pinWire, pipsOf, sourcesOf: t => src2[t] || [] }).designs[0].xdl;
+  assert.match(x2, /^inst "s_E2" "IBUF", placed LIBUFS_X0Y10 E2 ,$/m);
+  assert.match(x2, /^inst "s_RAMB16_X0Y1" "RAMB16", placed BRAMSITE_X7Y10 RAMB16_X0Y1 ,$/m);
 });
 
 test('join tests: a tile with no slice is driven from a neighbouring CLB across a known join', () => {
