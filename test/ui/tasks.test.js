@@ -13,9 +13,13 @@ let env;
 before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
-// the Tasks interface is a development build's only, for now (#838): the tests run as one (without its changes'
-// list: no Development menu, whose width in the header is #839's)
+// the Tasks interface is a development build's only, for now (#838): the tests run as one; FULL has its changes'
+// list, so the header also has the Development menu (#707, #839)
 const DEV = { commit: 'abc1234', date: '2026-10-21 12:00' };
+const FULL = { ...DEV, since: '15.11.3', changes: [
+  { issue: 804, type: 'feature', title: 'A third interface, Tasks', short: [], detail: ['**Tasks (#804):** the frame.'] },
+  { issue: 839, type: 'bugfix', title: 'The Tasks header in Portuguese', short: [], detail: ['**The header (#839):** it fits.'] },
+] };
 
 // the page in the Tasks interface (kept, as View ▸ Interface keeps it), booted again
 async function tasksInterface(page) {
@@ -218,9 +222,11 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent), 'Abra uma fonte no painel Projeto, ou verifique o projeto.');
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#mc-filters .filt')].map((b) => b.textContent)),
     ['Todas', 'Verificar Sintaxe', 'Simulação', 'Emulador', 'Síntese', 'Implementação', 'Placa']);
-  // the longer labels (the menus too) fit the header: a laptop, a tablet in landscape
+  // the longer labels (the menus too) fit the header: a laptop, a tablet in landscape (the switcher's labels giving
+  // way once the header has measured itself, #839)
   for (const [w, hgt] of [[1280, 800], [1180, 820], [1025, 768]]) {
     await page.setViewport(w, hgt);
+    await page.waitFor(() => { const t = document.getElementById('topbar'); return t.scrollWidth <= t.clientWidth; }, [], { what: `the header fits at ${w} px`, timeout: 3000 });
     assert.deepEqual(await noOverflow(page), { page: true, over: [] }, `${w} px`);
   }
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
@@ -228,6 +234,51 @@ uiTest('Tasks in Portuguese: the switcher, the task\'s bar and its page translat
   await page.openProject('TasksPt');
   await noWarnings(page);
 }, { build: DEV });
+
+// #839: a development build's header has the Development menu too; in Portuguese the switcher's labels give way
+// (the other tasks' first) so that the header fits; with room, every label again
+uiTest('#839 Tasks in a development build: with the Development menu, in Portuguese at 1280 × 800, the header fits', E, async (page) => {
+  await page.setViewport(1440, 900);
+  await tasksInterface(page);
+  await page.waitFor(() => [...document.querySelectorAll('#menubar .item')].some((e) => e.textContent.trim() === 'Development'), [], { what: 'the Development menu' });
+  const fit = () => page.eval(() => {
+    const sw = document.getElementById('task-switch'), top = document.getElementById('topbar').getBoundingClientRect();
+    const btns = [...sw.querySelectorAll('.task-btn')];
+    return {
+      fit: document.getElementById('topbar').dataset.fit,
+      labels: btns.filter((b) => b.querySelector('.lbl').getClientRects().length).map((b) => b.dataset.task),
+      inside: btns.every((b) => { const r = b.getBoundingClientRect(); return r.left >= top.left && r.right <= top.right; }),
+    };
+  });
+  // English, a lab desktop's width: every label
+  assert.deepEqual(await fit(page), { fit: '', labels: ['edit', 'sim', 'emu', 'impl', 'prog'], inside: true });
+  assert.deepEqual(await noOverflow(page), { page: true, over: [] });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => [...document.querySelectorAll('#menubar .item')].some((e) => e.textContent.trim() === 'Desenvolvimento'), [], { what: 'Portuguese' });
+  for (const [w, hgt] of [[1440, 900], [1366, 768], [1280, 800], [1180, 820], [1025, 768]]) {
+    await page.setViewport(w, hgt);
+    await page.waitFor(() => { const t = document.getElementById('topbar'); return t.scrollWidth <= t.clientWidth; }, [], { what: `the header fits at ${w} px`, timeout: 3000 });
+    const f = await fit(page);
+    assert.ok(f.inside, `${w} px: every task inside the header`);
+    // (the current task's label down to a tablet in landscape; at the narrowest width, icons with their tips)
+    if (w >= 1180) assert.ok(f.labels.includes('edit'), `${w} px: the current task's label`);
+    else assert.ok(['icons', 'tight'].includes(f.fit) && !f.labels.length, `${w} px: icons only (${f.fit}; how short the header is depends on the system's fonts)`);
+    assert.deepEqual(await noOverflow(page), { page: true, over: [] }, `${w} px`);
+  }
+  // 1280 × 800: the other tasks' labels gave way; their names in their tips
+  await page.setViewport(1280, 800);
+  await page.waitFor(() => document.getElementById('topbar').dataset.fit === 'current', [], { what: 'the current label only' });
+  assert.deepEqual((await fit(page)).labels, ['edit']);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#task-switch .task-btn')].map((b) => b.title)), ['Editar', 'Simular', 'Emular', 'Implementar', 'Programar']);
+  // with room again (a lab desktop): every label
+  await page.setViewport(1920, 1080);
+  await page.waitFor(() => document.getElementById('topbar').dataset.fit === '', [], { what: 'every label' });
+  assert.deepEqual((await fit(page)).labels, ['edit', 'sim', 'emu', 'impl', 'prog']);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  await makeProject(env, { name: 'TasksDev', template: 'gates' });
+  await page.openProject('TasksDev');
+  await noWarnings(page);
+}, { build: FULL });
 
 // the lines of the message centre shown (its filter): [source, text]
 const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));

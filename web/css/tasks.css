@@ -32,9 +32,13 @@ html[data-layout="tasks"] #task-switch { display: flex; gap: 2px; padding: 3px; 
   html[data-layout="tasks"] #task-switch .task-btn { padding: 0 9px; gap: 6px; }
   html[data-layout="tasks"] #topbar { gap: 6px; }
 }
-/* below a laptop's width: the current task's label only (the others' in their tip) */
+/* a header short of room (tasks.js fitHeader, #839: a narrow window, the menus in Portuguese, a development
+   build's Development menu): the current task's label only (the others' in their tip), then icons only, then
+   a shorter project name too */
+html[data-layout="tasks"] #topbar[data-fit="current"] .task-btn:not([aria-current="true"]) .lbl,
+html[data-layout="tasks"] #topbar:is([data-fit="icons"], [data-fit="tight"]) .task-btn .lbl { display: none; }
+html[data-layout="tasks"] #topbar[data-fit="tight"] #title-project { max-width: 80px; }
 @media (max-width: 1279px) {
-  html[data-layout="tasks"] #task-switch .task-btn:not([aria-current="true"]) .lbl { display: none; }
   html[data-layout="tasks"] #title-project { max-width: 120px; }
 }
 
