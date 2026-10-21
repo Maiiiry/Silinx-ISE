@@ -50,9 +50,19 @@ export const READ_WAIT_MS = 300;
  *  read (a copy made in another tab or application, newer than the app's), else the app's own. */
 export async function readClip(kind, wait = READ_WAIT_MS) {
   let sys = null, timer = null;
+  if (!await systemReadable()) return fromText(null, kind);
   const late = new Promise(ok => { timer = setTimeout(() => ok(null), wait); });
   try { sys = await Promise.race([navigator.clipboard?.readText?.(), late]); } catch { sys = null; } finally { clearTimeout(timer); }
   return fromText(sys, kind);
+}
+// whether the system clipboard is read at all: where the browser has a clipboard-read permission (Chromium), not
+// refused. Firefox and Safari have none: they answer a read with a Paste prompt of their own, which stays open in
+// the way of the next clicks (#888); there Ctrl+V pastes the system clipboard, a menu's Paste the app's own copy
+async function systemReadable() {
+  try {
+    const p = await navigator.permissions?.query?.({ name: 'clipboard-read' });
+    return !!p && p.state !== 'denied';
+  } catch { return false; }
 }
 
 /** The same, from a paste event (Ctrl+V: the browser gives the page the clipboard with no permission asked). */
