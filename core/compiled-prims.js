@@ -19,7 +19,11 @@
 //     others as the models below (X_LUT1-6, X_FF, X_SFF, X_LATCH, X_LATCHE, buffers and gates), as unisim.js's.
 //     Not X_OBUFT, X_TRI and the pulls.
 //
+//   - the Spartan-6 primitives (#720): core/compiled-prims-s6.js (CARRY4, SRLC32E, DSP48A1, RAMB8BWER / RAMB16BWER…).
+//
 // Isomorphic ES module (browser + Node), no DOM.
+
+import { PRIMITIVE_MODELS_S6, BWER_MEMORIES } from './compiled-prims-s6.js';
 
 const hex2 = (k) => k.toString(16).toUpperCase().padStart(2, '0');
 const BRAM_W = { 1: [1, 0, 14], 2: [2, 0, 13], 4: [4, 0, 12], 9: [8, 1, 11], 18: [16, 2, 10], 36: [32, 4, 9] };   // data, parity, address bits (as unisim.js)
@@ -104,8 +108,10 @@ export function bramInit(json, top, instances) {
     return BigInt.asUintN(w, v).toString(2).padStart(w, '0');
   };
   for (const { cell, name, params } of instances) {
-    if (!/^RAMB16_S\d+(_S\d+)?$/.test(cell)) continue;
-    for (const [mem, prefix, n] of [['mem', 'INIT', 64], ['par', 'INITP', 8]]) {
+    // (the Spartan-6 block RAMs: core/compiled-prims-s6.js, their INIT_xx / INITP_xx counts)
+    const s6 = BWER_MEMORIES[cell];
+    if (!s6 && !/^RAMB16_S\d+(_S\d+)?$/.test(cell)) continue;
+    for (const [mem, prefix, n] of [['mem', 'INIT', s6?.inits ?? 64], ['par', 'INITP', s6?.initps ?? 8]]) {
       const c = cells[`${name}.${mem}`];
       if (!c || c.type !== '$mem_v2') continue;
       // (the most significant word first: INIT_3F … INIT_00)
@@ -281,6 +287,7 @@ export const PRIMITIVE_MODELS = {
   ...Object.fromEntries(FFS.flatMap(([b, p]) => [false, true].map((f) => [`${b}${f ? '_1' : ''}`, ff(b, p, f)]))),
   ...Object.fromEntries(LATCHES.flatMap(([b, p]) => [false, true].map((i) => [`${b}${i ? '_1' : ''}`, latch(b, p, i)]))),
   ...SIMPRIM_MODELS,
+  ...PRIMITIVE_MODELS_S6,
 };
 
 // ------------------------------------------------------------------ the DCM's clocks
