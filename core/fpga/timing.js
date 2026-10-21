@@ -531,6 +531,15 @@ const isConstNet = n => /^(vcc|gnd|power|ground|vdd)$/i.test(n.type || '');
 const fallingEdge = inst => (inst.cfg.some(c => /^(CLK[AB]?|ICLK[12]|OTCLK[12])INV$/.test(c.attr) && /_B$/.test(c.value)) ? 1 : 0);
 // the clock pins of the sites (an IOB's registers': ICLK1, OTCLK1, #96; ICLK2, OTCLK2 on the second flip-flops, #749)
 const CLOCK_PIN = /^(CLK[AB]?|ICLK[12]|OTCLK[12])$/;
+// an IOB register's pin (IQk after its clock, Ok / Tk before it) -> its clock pin: an IOB's registers may have two
+// clocks, or both edges of one (the DDR registers, #96: ICLK2INV::ICLK2_B on C0's net)
+const ioClockPin = pin => { const m = /^(IQ|O|T)([12])$/.exec(pin); return m ? `${m[1] === 'IQ' ? 'ICLK' : 'OTCLK'}${m[2]}` : null; };
+// the edge of the clock at an instance's clock pin (an IOB's: its own inverter; the others: the instance's)
+const edgeAt = (inst, clockPin) => {
+  if (!/^(ICLK|OTCLK)[12]$/.test(clockPin || '')) return fallingEdge(inst);
+  const c = inst.cfg.find(x => x.attr === `${clockPin}INV`);
+  return c && /_B$/.test(c.value) ? 1 : 0;
+};
 
 /**
  * The timing graph of a design (parseXdl's structure, placed; routed or not): the pins of the
@@ -552,7 +561,8 @@ export function timingGraph(design, model = SPEED_4) {
   // the clock of each instance: the net on its CLK pin
   const clockOf = new Map();
   // (a block RAM's CLKA / CLKB: its clock too)
-  for (const n of design.nets) for (const p of n.inpins) if (CLOCK_PIN.test(p.pin)) clockOf.set(p.inst, n.name);
+  const clockAt = new Map();   // 'inst\0clock pin' -> its clock net
+  for (const n of design.nets) for (const p of n.inpins) if (CLOCK_PIN.test(p.pin)) { clockOf.set(p.inst, n.name); clockAt.set(`${p.inst}\u0000${p.pin}`, n.name); }
   // edges: from pin, to pin, delay, connection (-1: an arc through an instance)
   const eFrom = [], eTo = [], eDelay = [], eConn = [];
   const conns = [], connIndex = new Map();
@@ -578,8 +588,10 @@ export function timingGraph(design, model = SPEED_4) {
     for (const [o, d] of a.output) if (pinId.has(`${inst.name}\u0000${o}`)) padOuts.push([pid(inst.name, o), d]);
     if (!clk) continue;
     const edge = fallingEdge(inst);
-    for (const [o, d] of a.clkToOut) starts.push([pid(inst.name, o), d, clk, edge]);
-    for (const [i, d] of a.setup) ends.push([pid(inst.name, i), d, clk, edge]);
+    // (an IOB's register pins: their own clock pin's net and edge)
+    const at = p => { const cp = ioClockPin(p); return cp ? [clockAt.get(`${inst.name}\u0000${cp}`) || clk, edgeAt(inst, cp)] : [clk, edge]; };
+    for (const [o, d] of a.clkToOut) starts.push([pid(inst.name, o), d, ...at(o)]);
+    for (const [i, d] of a.setup) ends.push([pid(inst.name, i), d, ...at(i)]);
   }
   const P = pinName.length, E = eFrom.length;
   // edges by from-pin, and a topological order (Kahn; pins on a combinational loop are left out)
@@ -791,7 +803,7 @@ export function clockArrivals(design, device, model = SPEED_4, clocks = []) {
       } else if (inNet && loadsOf(inNet, depth + 1)?.get(`${di.name}\u0000${pin}`)) g = [Tgclk, sc * Tgclk, Tgclk];
       if (!g) return null;
       const m = new Map(n.inpins.map(p => {
-        const h = half && inst.has(p.inst) && fallingEdge(inst.get(p.inst)) ? half : 0;
+        const h = half && inst.has(p.inst) && edgeAt(inst.get(p.inst), p.pin) ? half : 0;
         return [`${p.inst}\u0000${p.pin}`, h ? g.map(x => x + h) : g];
       }));
       at.set(n.name, m);

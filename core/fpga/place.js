@@ -1154,6 +1154,12 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
       if (m === undefined || sl === undefined || !regClk[m] || !regClk[sl]) continue;
       for (const g of ['I', 'O']) {
         if (regClk[m][g] === undefined || regClk[sl][g] === undefined || regClk[m][g] === regClk[sl][g]) continue;
+        // (a DDR register, #96, has both flip-flops of its IOB, on both clock wires: no room for a second clock)
+        const ddr = [m, sl].find(i => packed.insts[i].cfg.some(c => c.attr === (g === 'I' ? 'IFF2' : 'OFF2') && c.value === '#FF'));
+        if (ddr !== undefined) {
+          const [a, b] = [m, sl].map(i => packed.insts[i].name);
+          throw new PlaceError(`place: ${a}, ${b}: their ${g === 'I' ? 'input' : 'output'} registers have different clocks (${packed.nets[regClk[m][g]].name}, ${packed.nets[regClk[sl][g]].name}) on pads ${sites[m].name}, ${sites[sl].name}, whose IOBs share the clock wires of the I/O tile ${sites[m].tile}, and ${packed.insts[ddr].name}'s are DDR registers (both flip-flops): put them on pads of different I/O tiles`);
+        }
         ff2.push({ inst: m, group: g });
       }
     }

@@ -250,7 +250,9 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   // So do the clock enable and set / reset pins (#527): the slice's CEINV / SRINV, as XST maps an
   // active-low reset; extractinv writes one INV per flip-flop, which made a LUT of each. An inverter
   // that also drives logic keeps those loads.
+  // (and the clocks of the IOBs' DDR registers, #96: ISE's map writes C1 = not C0 as ICLK2INV / OTCLK2INV::*_B on C0's net)
   const ctrlPin = l => {
+    if (/^(IDDR2|ODDR2)$/.test(cells[l.cell].type)) return l.pin === 'C0' || l.pin === 'C1';
     const k = ffKind(cells[l.cell].type);
     return !!k && [k.latch ? 'G' : 'C', k.latch ? 'GE' : 'CE', k.sr].includes(l.pin);
   };
@@ -333,7 +335,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
   }
   function uniqueNetName(base) { let n = base, k = 1; const names = new Set(nets.map(x => x.name)); while (names.has(n)) n = `${base}_${k++}`; return n; }
   const liveCells = () => cells.filter(c => !c.lowered);
-  const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|OBUFT|BUFG)$/.test(c.type) || SLICEM_MEM[c.type]
+  const supported = c => isLut(c) || ffKind(c.type) || MUXF[c.type] || /^(MUXCY|XORCY|IBUF|IBUFG|OBUF|OBUFT|IOBUF|BUFG|IDDR2|ODDR2)$/.test(c.type) || SLICEM_MEM[c.type]
     || BRAM_TYPE.test(c.type) || MULT_TYPE.test(c.type) || DCM_TYPE.test(c.type);
   for (const c of liveCells()) {
     if (c.type === 'BUFGMUX') throw new PackError(`pack: BUFGMUX ${c.name}: the Silinx toolchain cannot switch clocks with a BUFGMUX yet (its I1 / S inputs are measured on one of the 8 buffers only)`);
@@ -481,12 +483,35 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     if (want && !onGlobal(f.ctrl.clk)) { warnings.push(`flip-flop ${f.name} kept out of the IOB of ${port}: its clock ${nets[f.ctrl.clk].name} is not on a global clock buffer`); return false; }
     return want;
   };
+  // The DDR registers (#96): an IDDR2 reading a pad's input, an ODDR2 driving only an output buffer, go into that
+  // pad's IOB, both flip-flops (IFF1 / IFF2, OFF1 / OFF2), as ISE's map puts them (they have no other place); the IOB
+  // then has no other register of that direction (an ODDR2's output buffer no output-enable register either: the
+  // IOB's OTCLK1 / OTCLK2 and SR are the ODDR2's).
+  const iobDdr = new Map();   // pad buffer cell -> the DDR register's cell
+  const strParam = (c, k, d) => String(c.params?.[k] ?? d).replace(/"/g, '').toUpperCase();
+  for (const c of liveCells()) {
+    if (!/^(IDDR2|ODDR2)$/.test(c.type)) continue;
+    const align = strParam(c, 'DDR_ALIGNMENT', 'NONE');
+    if (align !== 'NONE') throw new PackError(`pack: ${c.type} ${c.name}: DDR_ALIGNMENT = ${align} is not supported by the Silinx toolchain yet (only NONE)`);
+    const ld = c.type === 'ODDR2' ? loadsOf(c.pins.Q) : [];
+    const buf = c.type === 'IDDR2' ? driverCell(c.pins.D) : ld.length === 1 && ld[0].pin === 'I' ? cells[ld[0].cell] : null;
+    if (!buf || !(c.type === 'IDDR2' ? /^(IBUF|IBUFG)$/ : /^(OBUF|OBUFT)$/).test(buf.type)) {
+      throw new PackError(`pack: ${c.type} ${c.name}: ${c.type === 'IDDR2' ? 'its D must come straight from an input port' : 'its Q must drive an output port and nothing else'} (the DDR registers are in the IOBs)`);
+    }
+    if (iobDdr.has(ci(buf))) throw new PackError(`pack: ${c.type} ${c.name} and ${iobDdr.get(ci(buf)).name} on one pad`);
+    // its clocks from global buffers (as an IOB register's, #671): C1 on C0's net (inverted) or on a buffer of its own
+    for (const p of ['C0', 'C1']) if (!onGlobal(c.pins[p])) throw new PackError(`pack: ${c.type} ${c.name}: its clock ${p} (${nets[c.pins[p]].name}) is not on a global clock buffer (BUFG)`);
+    const used = p => c.pins[p] !== undefined && nets[c.pins[p]].const !== 0;
+    if (c.type === 'ODDR2' && used('R') && used('S')) throw new PackError(`pack: ODDR2 ${c.name}: both R and S used (the IOB has one set / reset for its output registers)`);
+    iobDdr.set(ci(buf), c);
+  }
   const iobFf = new Map();   // pad buffer cell -> { I | O | T: ffInfo }
   const soleFf = n => { const d = driverCell(n); const f = d && ffs.get(ci(d)); return f && f.q === n && loadsOf(n).length === 1 ? f : null; };
   const sameOt = (a, b) => !a || !b || (a.ctrl.clk === b.ctrl.clk && a.ctrl.clkInv === b.ctrl.clkInv && a.ctrl.sr === b.ctrl.sr && a.ctrl.srInv === b.ctrl.srInv && a.ctrl.sync === b.ctrl.sync);
   for (const c of cells) {
     if (c.lowered) continue;
     const r = {};
+    if (iobDdr.has(ci(c))) continue;
     if (c.type === 'IBUF') {
       const port = portName(c.pins.I);
       const f = loadsOf(c.pins.O).filter(l => l.pin === 'D' && ffs.has(l.cell)).map(l => ffs.get(l.cell)).find(x => !x.kind.latch && wantsIob(x, port, 'I'));
@@ -1012,39 +1037,61 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
       // output a dangling pin)
       if (!loadsOf(c.pins.O).length) { where.set(ci(c), { inst: -1, bel: 'UNUSED' }); setSink(ci(c), 'I', 'int'); stats.unusedInputs = (stats.unusedInputs || 0) + 1; continue; }
       const a = cons[port.name] || {};
-      const reg = iobFf.get(ci(c))?.I;
+      const reg = iobFf.get(ci(c))?.I, ddr = iobDdr.get(ci(c));
       // (the input straight to the fabric too: IMUX; an input register alone does not have it)
-      const direct = !reg || loadsOf(c.pins.O).some(l => l.cell !== reg.cell);
+      const direct = !(reg || ddr) || loadsOf(c.pins.O).some(l => l.cell !== (reg || ddr).cell && l.cell !== ddr?.idx);
       const cfg = [...(direct ? [['IDELMUX', '', '1'], ['IMUX', '', '1']] : []), ['IOATTRBOX', '', a.iostandard || 'LVCMOS25']];
       if (reg) cfg.push(...iobInputReg(reg, port.name));
+      if (ddr) cfg.push(...iobInputDdr(ddr, port.name));
       cfg.push(['INBUF', `${port.name}_IBUF`, ''], ['PAD', port.name, '']);
       if (a.pull) cfg.push(['PULL', '', { up: 'PULLUP', down: 'PULLDOWN', keeper: 'KEEPER' }[a.pull]]);
-      const s = { kind: 'iob', type: 'IBUF', name: port.name, loc: a.loc || null, dir: 'in', fixedCfg: cfg, idx: insts.length, regs: reg ? ['I'] : [] };
+      const s = { kind: 'iob', type: 'IBUF', name: port.name, loc: a.loc || null, dir: 'in', fixedCfg: cfg, idx: insts.length, regs: reg || ddr ? ['I'] : [] };
       insts.push(s);
       where.set(ci(c), { inst: s.idx, bel: 'INBUF' });
       setSink(ci(c), 'I', 'int');
       if (reg) iobRegSinks(s, reg, 'I');
+      if (ddr) iobDdrSinks(s, ddr);
     } else if (c.type === 'OBUF' || c.type === 'OBUFT') {
       const port = portOfNet.get(c.pins.O);
       if (!port) throw new PackError(`pack: ${c.name}: output buffer not on a port`);
       const a = cons[port.name] || {};
-      const r = iobFf.get(ci(c)) || {};
+      const r = iobFf.get(ci(c)) || {}, ddr = iobDdr.get(ci(c));
       // a tristate output: its enable on T1 (TMUX T1) or from the output-enable register (TFF1)
       const tri = c.type === 'OBUFT' && nets[c.pins.T].const !== 0;
-      const cfg = [['DRIVEATTRBOX', '', String(a.drive || 12)], ['IOATTRBOX', '', a.iostandard || 'LVCMOS25'], ['O1INV', '', 'O1'], ['OMUX', '', r.O ? 'OFF1' : 'O1'],
+      const cfg = [['DRIVEATTRBOX', '', String(a.drive || 12)], ['IOATTRBOX', '', a.iostandard || 'LVCMOS25'], ['O1INV', '', 'O1'], ['OMUX', '', ddr ? 'OFFDDR' : r.O ? 'OFF1' : 'O1'],
         ['SLEW', '', (a.slew || 'slow').toUpperCase()]];
       if (tri) cfg.push(['T1INV', '', 'T1'], ['TMUX', '', r.T ? 'TFF1' : 'T1']);
       cfg.push(...iobOutputRegs(r));
+      if (ddr) cfg.push(...iobOutputDdr(ddr));
       cfg.push(['OUTBUF', `${port.name}_OBUF`, ''], ['PAD', port.name, '']);
       if (a.pull) cfg.push(['PULL', '', { up: 'PULLUP', down: 'PULLDOWN', keeper: 'KEEPER' }[a.pull]]);
-      const s = { kind: 'iob', type: 'IOB', name: port.name, loc: a.loc || null, dir: 'out', fixedCfg: cfg, idx: insts.length, regs: Object.keys(r) };
+      const s = { kind: 'iob', type: 'IOB', name: port.name, loc: a.loc || null, dir: 'out', fixedCfg: cfg, idx: insts.length, regs: ddr ? ['O'] : Object.keys(r) };
       insts.push(s);
       where.set(ci(c), { inst: s.idx, bel: 'OUTBUF' });
-      if (r.O) { setSink(ci(c), 'I', 'int'); iobRegSinks(s, r.O, 'O'); } else setSink(ci(c), 'I', { inst: s.idx, pin: 'O1', kind: 'gen' });
+      if (ddr) { setSink(ci(c), 'I', 'int'); iobDdrSinks(s, ddr); } else if (r.O) { setSink(ci(c), 'I', 'int'); iobRegSinks(s, r.O, 'O'); } else setSink(ci(c), 'I', { inst: s.idx, pin: 'O1', kind: 'gen' });
       if (c.type === 'OBUFT') {
         if (!tri) setSink(ci(c), 'T', 'int');
         else if (r.T) { setSink(ci(c), 'T', 'int'); iobRegSinks(s, r.T, 'T'); } else setSink(ci(c), 'T', { inst: s.idx, pin: 'T1', kind: 'gen' });
       }
+    } else if (c.type === 'IOBUF') {
+      // a bidirectional pad (#96): the output buffer from O1, its enable on T1 (TMUX T1; tied to 0, always driving), the
+      // input buffer straight to the fabric (IMUX) when something reads it; no IOB registers
+      const port = portOfNet.get(c.pins.IO);
+      if (!port) throw new PackError(`pack: ${c.name}: bidirectional buffer not on a port`);
+      const a = cons[port.name] || {};
+      const tri = nets[c.pins.T].const !== 0, read = c.pins.O !== undefined && loadsOf(c.pins.O).length > 0;
+      const cfg = [['DRIVEATTRBOX', '', String(a.drive || 12)], ['IOATTRBOX', '', a.iostandard || 'LVCMOS25'], ['O1INV', '', 'O1'], ['OMUX', '', 'O1'],
+        ['SLEW', '', (a.slew || 'slow').toUpperCase()]];
+      if (tri) cfg.push(['T1INV', '', 'T1'], ['TMUX', '', 'T1']);
+      if (read) cfg.push(['IDELMUX', '', '1'], ['IMUX', '', '1'], ['INBUF', `${port.name}_IBUF`, '']);
+      cfg.push(['OUTBUF', `${port.name}_OBUF`, ''], ['PAD', port.name, '']);
+      if (a.pull) cfg.push(['PULL', '', { up: 'PULLUP', down: 'PULLDOWN', keeper: 'KEEPER' }[a.pull]]);
+      const s = { kind: 'iob', type: 'IOB', name: port.name, loc: a.loc || null, dir: 'out', fixedCfg: cfg, idx: insts.length, regs: [] };
+      insts.push(s);
+      where.set(ci(c), { inst: s.idx, bel: 'IOBUF' });
+      setSink(ci(c), 'I', { inst: s.idx, pin: 'O1', kind: 'gen' });
+      setSink(ci(c), 'T', tri ? { inst: s.idx, pin: 'T1', kind: 'gen' } : 'int');
+      setSink(ci(c), 'IO', 'int');
     } else if (c.type === 'BUFG') {
       const s = { kind: 'bufg', type: 'BUFGMUX', name: c.name, loc: null, fixedCfg: null, idx: insts.length, cell: ci(c) };
       insts.push(s);
@@ -1091,6 +1138,48 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     if (f.cePin in cells[f.cell].pins) pin(f.cePin, t.ce !== null ? `${role}CE` : null);
     if (f.srPin) pin(f.srPin, t.sr !== null ? 'SR' : null);
     pin('D', role === 'I' ? null : role === 'O' ? 'O1' : 'T1');
+  }
+  // The DDR registers' settings (#96), as ISE's map writes them (its routed IDDR2 / ODDR2 on every pad, gen-iobreg.mjs
+  // rd / rd2): the two flip-flops (<instance>/FF0 on C0, FF1 on C1), their initial values, their set / reset kind
+  // (SYNC / ASYNC) and the clock inverters (C1 = not C0: ICLK2INV::ICLK2_B on C0's net). An IDDR2's set / reset parts
+  // are always written (SRLOW: R on SR, S on REV), with the input delay of an input register; an ODDR2's
+  // set / reset is the one of R / S used (SRHIGH for S), on SR.
+  function ddrInit(c, k) { return paramInt(c.params?.[k] ?? 0) ? 'INIT1' : 'INIT0'; }
+  function ddrClkInv(c, k, pin) { return paramInt(c.params?.[`IS_C${k}_INVERTED`] ?? 0) ? `${pin}_B` : pin; }
+  function iobInputDdr(c, pad) {
+    const dly = /^xc3s100e/i.test(part) ? 'DLY2' : 'DLY3';
+    return [['IFF1', `${escCfg(c.name)}/FF0`, '#FF'], ['IFF1_INIT_ATTR', '', ddrInit(c, 'INIT_Q0')], ['IFF1_SR_ATTR', '', 'SRLOW'],
+      ['IFF2', `${escCfg(c.name)}/FF1`, '#FF'], ['IFF2_INIT_ATTR', '', ddrInit(c, 'INIT_Q1')], ['IFF2_SR_ATTR', '', 'SRLOW'],
+      ['IFFATTRBOX', '', strParam(c, 'SRTYPE', 'SYNC')], ['ISR_USED', '', '0'], ['IREV_USED', '', '0'], ['SRINV', '', 'SR'], ['REVINV', '', 'REV'], ['ICEINV', '', 'ICE'],
+      ['ICLK1INV', '', ddrClkInv(c, 0, 'ICLK1')], ['ICLK2INV', '', ddrClkInv(c, 1, 'ICLK2')],
+      ['IDDRIN_MUX', '', '2'], ['IFD_DELAY_VALUE', '', dly], ['IFFDELMUX', '', '0'], ['IFFDMUX', '', '1'], ['PRE_DELAY_MUX', '', '0'], ['IFD_DELAY', `${pad}.IFD_DELAY`, '']];
+  }
+  function iobOutputDdr(c) {
+    const sr = c.pins.S !== undefined && nets[c.pins.S].const !== 0 ? 'SRHIGH' : 'SRLOW';
+    return [['OFF1', `${escCfg(c.name)}/FF0`, '#FF'], ['OFF1_INIT_ATTR', '', ddrInit(c, 'INIT')], ['OFF1_SR_ATTR', '', sr],
+      ['OFF2', `${escCfg(c.name)}/FF1`, '#FF'], ['OFF2_INIT_ATTR', '', ddrInit(c, 'INIT')], ['OFF2_SR_ATTR', '', sr],
+      ['OFFATTRBOX', '', strParam(c, 'SRTYPE', 'SYNC')], ['OSR_USED', '', '0'], ['SRINV', '', 'SR'], ['OCEINV', '', 'OCE'], ['PCICE_MUX', '', 'OCE'],
+      ['O1_DDRMUX', '', '1'], ['O2_DDRMUX', '', '1'], ['O2INV', '', 'O2'], ['OTCLK1INV', '', ddrClkInv(c, 0, 'OTCLK1')], ['OTCLK2INV', '', ddrClkInv(c, 1, 'OTCLK2')],
+      ['OFFDDRBLACKBOX', escCfg(c.name), '']];
+  }
+  // a DDR register's pins: its clocks on the site's two clock pins, its enable and set / reset on the site's (tied to a
+  // constant: connected to it, as ISE's map does), its outputs IQ1 / IQ2 or its data O1 / O2 (D, Q: the pad's, inside)
+  function iobDdrSinks(s, c) {
+    const pin = (p, v) => { if (c.pins[p] !== undefined) setSink(ci(c), p, v === null ? 'int' : { inst: s.idx, pin: v, kind: 'gen' }); };
+    const used = p => c.pins[p] !== undefined && nets[c.pins[p]].const !== 0;
+    if (c.type === 'IDDR2') {
+      where.set(ci(c), { inst: s.idx, bel: 'SITE', outs: { Q0: 'IQ1', Q1: 'IQ2' } });
+      pin('D', null); pin('C0', 'ICLK1'); pin('C1', 'ICLK2'); pin('CE', 'ICE'); pin('R', 'SR'); pin('S', 'REV');
+    } else {
+      where.set(ci(c), { inst: s.idx, bel: 'SITE', outs: {} });
+      pin('D0', 'O1'); pin('D1', 'O2'); pin('C0', 'OTCLK1'); pin('C1', 'OTCLK2'); pin('CE', 'OCE');
+      const sr = used('S') ? 'S' : 'R';
+      pin(sr, 'SR'); pin(sr === 'S' ? 'R' : 'S', null);
+    }
+    // (an unconnected enable or set / reset: the constant ISE's map ties it to)
+    for (const [p, v, k] of c.type === 'IDDR2' ? [['CE', 'ICE', 1], ['R', 'SR', 0], ['S', 'REV', 0]] : [['CE', 'OCE', 1], ...(used('S') ? [] : [['R', 'SR', 0]])]) {
+      if (c.pins[p] === undefined) extra.push({ net: k, inst: s.idx, pin: v, kind: 'gen' });
+    }
   }
   // a site of its own whose pins are the cell's: pin map cell pin -> site pin (inputs; or several
   // site pins on one net), outputs by name
@@ -1403,7 +1492,7 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
       case 'XORG': return sel('Y', 'GXOR');
       case 'CYMUXF': s.xb = true; return { inst: w.inst, pin: 'XB' };
       case 'CYMUXG': s.yb = true; return { inst: w.inst, pin: 'YB' };
-      case 'INBUF': return { inst: w.inst, pin: 'I' };
+      case 'INBUF': case 'IOBUF': return { inst: w.inst, pin: 'I' };
       case 'IFF1': return { inst: w.inst, pin: 'IQ1' };
       case 'BUFG': return { inst: w.inst, pin: 'O' };
       default: throw new PackError(`pack: no output pin for ${w.bel}`);

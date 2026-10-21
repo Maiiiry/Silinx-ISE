@@ -1,0 +1,13 @@
+# Basys2-250 (#96): the clock on B8; the switches', buttons' and LEDs' pads left to the placer (one line per bit: #773)
+NET "clk"    LOC = "B8" | IOSTANDARD = LVCMOS33 ;
+NET "clk"    CLOCK_DEDICATED_ROUTE = FALSE ;
+NET "sw<0>"  IOSTANDARD = LVCMOS33 ;
+NET "sw<1>"  IOSTANDARD = LVCMOS33 ;
+NET "sw<2>"  IOSTANDARD = LVCMOS33 ;
+NET "sw<3>"  IOSTANDARD = LVCMOS33 ;
+NET "btn<0>" IOSTANDARD = LVCMOS33 ;
+NET "btn<1>" IOSTANDARD = LVCMOS33 ;
+NET "led<0>" IOSTANDARD = LVCMOS33 ;
+NET "led<1>" IOSTANDARD = LVCMOS33 ;
+NET "led<2>" IOSTANDARD = LVCMOS33 ;
+NET "led<3>" IOSTANDARD = LVCMOS33 ;

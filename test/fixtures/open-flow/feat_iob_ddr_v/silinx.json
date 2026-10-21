@@ -1,0 +1,24 @@
+{
+  "name": "feat_iob_ddr_v",
+  "description": "The IOBs' DDR registers in Verilog (#96): IDDR2 and ODDR2 on a global clock and its inverse, with clock enables, synchronous and asynchronous set / reset, their pads left to the placer",
+  "version": 1,
+  "device": {
+    "family": "spartan3e",
+    "part": "xc3s250e",
+    "package": "cp132",
+    "speed": "-4"
+  },
+  "board": "basys2",
+  "top": "top",
+  "files": [
+    {
+      "path": "top.v",
+      "lang": "verilog",
+      "role": "design"
+    }
+  ],
+  "constraints": "top.ucf",
+  "impl": {
+    "startupClk": "JtagClk"
+  }
+}

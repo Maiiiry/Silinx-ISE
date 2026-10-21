@@ -10,7 +10,7 @@
 //     share the bits whatever their widths; INIT_xx / INITP_xx, INIT, SRVAL, WRITE_MODE; on one edge the
 //     reads of both ports, then the writes, port B's last (its always block written first: Yosys numbers the
 //     write ports of different processes from the last one, and the compiled code commits them in that order);
-//   - MULT18X18 / MULT18X18S / MULT18X18SIO (AREG, BREG, PREG, B_INPUT), SRL16* (and _1), RAMnX1S / RAMnX1D.
+//   - MULT18X18 / MULT18X18S / MULT18X18SIO (AREG, BREG, PREG, B_INPUT), SRL16* (and _1), RAMnX1S / RAMnX1D, IDDR2 / ODDR2 (#96).
 //   - a synthesized netlist's logic (the Post-Synthesis Simulation Model, #561): LUT1-6 (_L, _D), the flip-flops
 //     FD* and latches LD* (and _1) with their INIT, MUXCY, MUXF5-8, XORCY (_L, _D), MULT_AND. Not the tristate
 //     buffers (OBUFT, IOBUF) and pulls, which the compiled simulator cannot run.
@@ -188,6 +188,31 @@ const latch = (base, pins, inverted) => {
 endmodule`;
 };
 
+// the DDR registers (#96, as unisim.js's): IDDR2 (D into Q0 on C0, into Q1 on C1; DDR_ALIGNMENT C0 / C1: the other
+// output retimed to that clock) and ODDR2 (D0 on C0, D1 on C1, Q the first while C0 is high; C0 / C1: both inputs
+// captured on that clock first); R before S, asynchronous with SRTYPE ASYNC, before CE
+const DDR_PARAMS = 'parameter DDR_ALIGNMENT = "NONE", parameter SRTYPE = "SYNC"';
+const ddrReg = (q, clk, d) => `  always @(posedge ${clk} or posedge l) if (l) ${q} <= !R; else if (R) ${q} <= 1'b0; else if (S) ${q} <= 1'b1; else if (CE) ${q} <= ${d};`;
+const IDDR2 = `module IDDR2 #(${DDR_PARAMS}, parameter [0:0] INIT_Q0 = 1'b0, parameter [0:0] INIT_Q1 = 1'b0) (output Q0, Q1, input C0, C1, CE, D, R, S);
+  reg q0 = INIT_Q0, q1 = INIT_Q1, q0a = INIT_Q0, q1a = INIT_Q1;
+  wire l = SRTYPE == "ASYNC" && (R | S);
+${ddrReg('q0', 'C0', 'D')}
+${ddrReg('q1', 'C1', 'D')}
+  always @(posedge C0) q1a <= q1;
+  always @(posedge C1) q0a <= q0;
+  assign Q0 = DDR_ALIGNMENT == "C1" ? q0a : q0;
+  assign Q1 = DDR_ALIGNMENT == "C0" ? q1a : q1;
+endmodule`;
+const ODDR2 = `module ODDR2 #(${DDR_PARAMS}, parameter [0:0] INIT = 1'b0) (output Q, input C0, C1, CE, D0, D1, R, S);
+  reg q0 = INIT, q1 = INIT, d0c = 1'b0, d1c = 1'b0;
+  wire l = SRTYPE == "ASYNC" && (R | S);
+  always @(posedge C0) d1c <= D1;
+  always @(posedge C1) d0c <= D0;
+${ddrReg('q0', 'C0', 'DDR_ALIGNMENT == "C1" ? d0c : D0')}
+${ddrReg('q1', 'C1', 'DDR_ALIGNMENT == "C0" ? d1c : D1')}
+  assign Q = C0 ? q0 : q1;
+endmodule`;
+
 // SIMPRIM's logic (#627), as unisim.js's models: X_LUT1-6 reading INIT at ADR0.. (ADR0 its least significant bit);
 // the flip-flops' asynchronous RST before SET, then (X_SFF) the synchronous SRST before SSET, before CE; the latches'
 // RST before SET, then the gate CLK (and GE)
@@ -284,6 +309,7 @@ export const PRIMITIVE_MODELS = {
   ...Object.fromEntries([...cell2('MUXCY', 'CI, DI, S', 'S ? CI : DI'), ...[5, 6, 7, 8].flatMap((n) => cell2(`MUXF${n}`, 'I0, I1, S', 'S ? I1 : I0')),
     ...cell2('XORCY', 'CI, LI', 'CI ^ LI')]),
   MULT_AND: 'module MULT_AND(output LO, input I0, I1); assign LO = I0 & I1; endmodule',
+  IDDR2, ODDR2,
   ...Object.fromEntries(FFS.flatMap(([b, p]) => [false, true].map((f) => [`${b}${f ? '_1' : ''}`, ff(b, p, f)]))),
   ...Object.fromEntries(LATCHES.flatMap(([b, p]) => [false, true].map((i) => [`${b}${i ? '_1' : ''}`, latch(b, p, i)]))),
   ...SIMPRIM_MODELS,
