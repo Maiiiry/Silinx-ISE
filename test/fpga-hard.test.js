@@ -531,9 +531,10 @@ test('block RAMs: a word bit in a parity position that its port writes and does 
   // each input pin: the input buffer driving it (named after its port bit), or the constant
   const ins = new Map(p.nets.flatMap(n => n.inpins.filter(x => x.inst === k).map(x => [x.pin, n.type === 'wire' ? p.insts[n.outpins[0].inst].name : n.type])));
   const outs = p.nets.flatMap(n => n.outpins.filter(x => x.inst === k).map(x => x.pin)).sort();
-  // bit 8 of the word on DI13 / DO13 (the first data bit no port uses); the parity inputs tied to 0
+  // bit 8 of the word on DI13 / DO13 (the first data bit no port uses); port A's parity inputs tied to 0, port B's
+  // (never written, its inputs all undriven) left out (#836)
   assert.equal(ins.get('DIA13'), 'd<8>');
-  assert.deepEqual(['DIPA0', 'DIPA1', 'DIPB0', 'DIPB1'].map(x => ins.get(x)), ['gnd', 'gnd', 'gnd', 'gnd']);
+  assert.deepEqual(['DIPA0', 'DIPA1', 'DIPB0', 'DIPB1'].map(x => ins.get(x)), ['gnd', 'gnd', undefined, undefined]);
   assert.ok(!ins.has('DIA14') && !ins.has('DIA15') && !ins.has('DIB13'));
   assert.deepEqual(outs, Array.from({ length: 14 }, (_, i) => `DOB${i}`).sort());
   // the contents: data bit 13 and parity bit 0 of every word swapped
@@ -554,6 +555,30 @@ test('block RAMs: a word bit in a parity position that its port writes and does 
   const kr = pr.insts.findIndex(i => i.name === 'm');
   assert.equal(pr.insts[pr.nets.find(n => n.inpins.some(x => x.inst === kr && x.pin === 'DIPA0')).outpins[0].inst].name, 'd<13>');
   same(read, pr, 200);
+});
+
+// #836: a port never written (WE tied to 0) whose data and parity inputs are all constants (a ROM, the Block Memory
+// wizard's, #794): its inputs left out, as ISE's map trims them (its DRC calls the unread outputs of a block with them
+// tied dangling pins); a never-written port with a signal on a data input keeps them all, as ISE keeps them
+// (feat_const_bram's b1)
+test('block RAMs: a never-written port\'s constant data and parity inputs left out; one with a signal kept (#836)', () => {
+  const rom = (di, dip) => yjson({ clk: ['input', 1], a: ['input', 11], d: ['input', 8], q: ['output', 3] }, [
+    ...clock, ...ibuf('a', 11), ...ibuf('d', 8),
+    { name: 'm', type: 'RAMB16_S9', params: { INIT_00: bin(0xA5C3n, 256) },
+      conns: { ADDR: bus('a_i', 11), DI: di, DIP: dip, DO: bus('qr', 8), DOP: 'qrp', CLK: 'clk_g', EN: '1', SSR: '0', WE: '0' }, outs: ['DO', 'DOP'] },
+    ...['qr[0]', 'qr[1]', 'qr[2]'].map((n, i) => obuf(`q[${i}]`, n)),
+  ]);
+  const insOf = p => { const k = p.insts.findIndex(i => i.name === 'm'); return new Map(p.nets.flatMap(n => n.inpins.filter(x => x.inst === k).map(x => [x.pin, n.type === 'wire' ? p.insts[n.outpins[0].inst].name : n.type]))); };
+  // the ROM: its DI and DIP tied to 0 and 1: none connected; its address, clock and controls as before
+  const p = pack(rom([...Array(4).fill('0'), ...Array(4).fill('1')], '0'));
+  assert.deepEqual(p.warnings, []);
+  const ins = insOf(p);
+  assert.deepEqual([...ins.keys()].filter(x => /^DIP?A/.test(x)), []);
+  assert.deepEqual(['ADDRA3', 'ENA', 'SSRA', 'WEA'].map(x => ins.get(x)), ['a<0>', 'vcc', 'gnd', 'gnd']);
+  same(rom([...Array(4).fill('0'), ...Array(4).fill('1')], '0'), p, 200);
+  // never written, a signal on a data input: every data and parity input kept (the constants on their constant)
+  const q = insOf(pack(rom([...bus('d_i', 4), ...Array(4).fill('0')], '0')));
+  assert.deepEqual(['DIA0', 'DIA3', 'DIA4', 'DIA7', 'DIPA0'].map(x => q.get(x)), ['d<0>', 'd<3>', 'gnd', 'gnd', 'gnd']);
 });
 
 // A FIFO's 64 x 9 memory on 2048 x 9 ports, as Yosys maps verilog-axis-fifo's: port A writes the
@@ -579,10 +604,10 @@ test('block RAMs: a 9-bit word on 2048 x 9 ports, written on port A and read on 
   const ins = new Map(p.nets.flatMap(n => n.inpins.filter(x => x.inst === k).map(x => [x.pin, n.type === 'wire' ? p.insts[n.outpins[0].inst].name : n.type])));
   const outs = p.nets.flatMap(n => n.outpins.filter(x => x.inst === k).map(x => x.pin)).sort();
   assert.deepEqual([val(m, 'PORTA_ATTR'), val(m, 'PORTB_ATTR')], ['1024X18', '1024X18']);
-  // the 9th bit on DIA8 / DOB8; the parity inputs tied to 0 (ISE's DRC: all of a port's or none);
-  // 10 address bits from ADDR4 (the MSB, 0, left out)
+  // the 9th bit on DIA8 / DOB8; port A's parity inputs tied to 0 (ISE's DRC: all of a port's or none), port B's
+  // (never written, its inputs all undriven) left out (#836); 10 address bits from ADDR4 (the MSB, 0, left out)
   assert.equal(ins.get('DIA8'), 'd<8>');
-  assert.deepEqual(['DIPA0', 'DIPA1', 'DIPB0', 'DIPB1'].map(x => ins.get(x)), ['gnd', 'gnd', 'gnd', 'gnd']);
+  assert.deepEqual(['DIPA0', 'DIPA1', 'DIPB0', 'DIPB1'].map(x => ins.get(x)), ['gnd', 'gnd', undefined, undefined]);
   assert.ok(!ins.has('DIB8'));
   assert.deepEqual(outs, Array.from({ length: 9 }, (_, i) => `DOB${i}`).sort());
   assert.deepEqual(['ADDRA4', 'ADDRB4', 'ADDRA9', 'ADDRA10', 'ADDRA13'].map(x => ins.get(x)), ['wa<0>', 'ra<0>', 'wa<5>', 'gnd', 'gnd']);

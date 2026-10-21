@@ -1104,8 +1104,12 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
       // inputs the site does not have (a cascade input tied to 0…) are left out, and so are a
       // block RAM's data inputs Yosys leaves undriven (ISE's DRC calls the output bit of a data
       // input tied to a constant a dangling pin); parity inputs stay connected (DRC: all or none).
-      // A DCM's DSSEN tied to a constant is left open, as ISE's map does (DSSENINV #OFF)
-      const skip = !sp || (kind === 'bram' && /^DI[AB]?\d+$/.test(sp) && c.undriven?.includes(p)) || (kind === 'dcm' && sp === 'DSSEN' && nets[n].const !== undefined);
+      // A port that is never written (its WE tied to 0) whose data and parity inputs are all
+      // constants (a ROM): they are left out too, as ISE's map trims them (#836; a never-written port
+      // with a signal on a data input keeps them all, as ISE does). A DCM's DSSEN tied to a constant is left open, as ISE's map does (DSSENINV #OFF)
+      const skip = !sp || (kind === 'bram' && /^DI[AB]?\d+$/.test(sp) && c.undriven?.includes(p))
+        || (kind === 'bram' && /^DIP?[AB]\d+$/.test(sp) && nets[n].const !== undefined && c.unwritten?.has(sp.replace(/^DIP?([AB]).*$/, '$1')))
+        || (kind === 'dcm' && sp === 'DSSEN' && nets[n].const !== undefined);
       if (skip) { setSink(ci(c), p, 'int'); continue; }
       // the other control pins tied to a constant are connected to it, not inverted, as ISE's map
       // does (block RAM EN / WE / SSR, multiplier CE / RST / CLK: 1 from the VCC site of the
@@ -1125,6 +1129,12 @@ function packWith(nl, { ucf = null, part = 'xc3s250ecp132-4', carryOut = 'pin', 
     const ports = m[3] ? { A: +m[1], B: +m[3] } : { A: +m[1] };
     const single = !m[3];
     parityToData(c, ports, single);
+    // the ports never written whose data and parity inputs are all constants (a ROM's): WE tied to 0 (#836)
+    const inputsOf = P => Object.keys(c.pins).filter(p => new RegExp(`^DIP?${single ? '' : P}(<\\d+>)?$`).test(p));
+    c.unwritten = new Set(Object.keys(ports).filter(P => {
+      const we = c.pins[single ? 'WE' : `WE${P}`];
+      return we !== undefined && nets[we].const === 0 && inputsOf(P).every(p => nets[c.pins[p]].const !== undefined || c.undriven?.includes(p));
+    }));
     const s = hardSite(c, 'bram', 'RAMB16', p => {
       const q = /^(DOP|DIP|DO|DI|ADDR|CLK|EN|SSR|WE)([AB])?(?:<(\d+)>)?$/.exec(p);
       if (!q) return null;
