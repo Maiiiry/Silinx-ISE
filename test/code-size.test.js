@@ -19,7 +19,6 @@ const BIG_FILES = new Set([
   'core/synth-open.js',
 ]);
 const BIG_FUNCTIONS = new Set([
-  'core/open-flow-core.js runOpenFlow',
   'core/synth-open.js synthesizeOpen',
   'web/js/asm-editor.js mountAsmEditor', 'web/js/editor.js createEditor',
   'web/js/emulator.js mountEmulator', 'web/js/fsm-editor.js mountFsmEditor',
