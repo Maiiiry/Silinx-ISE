@@ -18,7 +18,6 @@ const MAX_FILE = 1000, MAX_FUNCTION = 300;
 const BIG_FILES = new Set([
 ]);
 const BIG_FUNCTIONS = new Set([
-  'web/js/sch-editor.js mountSchEditor',
 ]);
 
 function sources() {
