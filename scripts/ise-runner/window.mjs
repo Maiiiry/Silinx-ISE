@@ -116,16 +116,20 @@ export async function run(cmd, sys) {
 /**
  * The commands that start or stop the runner's service: [{ cmd, args, cwd, optional }]. RUNNER_DAEMON
  * (install.sh --system): the runner's launchd daemon, run as its own user, loaded and unloaded by root
- * (unloaded first when starting, as a daemon that exited stays loaded); otherwise the logged-in user's
+ * (unloaded first when starting, as a daemon that exited stays loaded, and loaded again once launchd has let
+ * it go); otherwise the logged-in user's
  * agent, through the runner's svc.sh.
  */
 export function serviceCommands(action, env = process.env) {
   if (action !== 'start' && action !== 'stop') throw new Error(`service: start or stop, not '${action}'`);
   const plist = env.RUNNER_DAEMON;
   if (!plist) return [{ cmd: './svc.sh', args: [action], cwd: env.RUNNER_DIR, optional: false }];
-  const bootout = { cmd: 'launchctl', args: ['bootout', `system/${path.basename(plist, '.plist')}`], cwd: '/' };
+  const label = `system/${path.basename(plist, '.plist')}`;
+  const bootout = { cmd: 'launchctl', args: ['bootout', label], cwd: '/' };
   if (action === 'stop') return [{ ...bootout, optional: false }];
-  return [{ ...bootout, optional: true }, { cmd: 'launchctl', args: ['bootstrap', 'system', plist], cwd: '/', optional: false }];
+  // launchd refuses a bootstrap while the unloaded daemon is still exiting (5: Input/output error): wait for it
+  const gone = { cmd: '/bin/sh', args: ['-c', `i=0; while launchctl print ${label} >/dev/null 2>&1 && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done`], cwd: '/', optional: true };
+  return [{ ...bootout, optional: true }, gone, { cmd: 'launchctl', args: ['bootstrap', 'system', plist], cwd: '/', optional: false }];
 }
 
 /** The real machine: the runner's service (svc.sh or its daemon), its processes, the state file. */
