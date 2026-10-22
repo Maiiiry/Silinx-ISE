@@ -26,6 +26,7 @@
 
 import { lex, KEYWORDS as VHDL_KW } from './vhdl/lexer.js';
 import { tokenize, KEYWORDS as VLOG_KW } from './verilog/lexer.js';
+import { mountVhdlScopes } from './scopes-vhdl.js';
 
 export { VHDL_KW, VLOG_KW };
 
@@ -159,27 +160,11 @@ function analyzeVhdl(text) {
   let pendingLabel = null;   // a label waiting for the construct it names
   let inst = null;           // an instance statement: { unit: { scope, key } }
   let uses = [];             // packages of this file named by use clauses, for the next design unit
-  const open = (kind, tok, opts = {}) => {
-    const s = new Scope(kind, cur, opts.parent || cur, tok, opts.closer || kind);
-    C.scopes.push(s);
-    Object.assign(s, opts.extra || {});
-    if (opts.sym !== undefined) { s.sym = opts.sym; if (opts.sym) opts.sym.owner = s; }
-    else if (pendingLabel) { s.sym = pendingLabel; pendingLabel.owner = s; }
-    pendingLabel = null;
-    cur = s;
-    return s;
-  };
-  const unitScope = () => { const s = cur; s.imports.push(...uses); uses = []; return s; };
-  // the type of a declaration as written, for the names it declares (ports: without the mode)
-  const typeOf = (ctx, end) => {
-    if (ctx.typeStart == null) return;
-    const e = ctx.typeEnd ?? end;
-    let ty = text.slice(tokens[ctx.typeStart].off, tokens[e].off).trim();
-    const m = /^(in|out|inout|buffer|linkage)\b\s*/i.exec(ty);
-    if (m) ty = ty.slice(m[0].length);
-    for (const s of ctx.syms) { if (s.type == null) s.type = ty; if (m && !s.mode) s.mode = m[1].toLowerCase(); }
-    ctx.syms = []; ctx.typeStart = null; ctx.typeEnd = null;
-  };
+  // a scope opened, a design unit's scope, a declaration's type (scopes-vhdl.js)
+  const { open, unitScope, typeOf } = mountVhdlScopes({
+    text, tokens, C, Scope, cur: () => cur, setCur: (v) => { cur = v; }, pendingLabel: () => pendingLabel,
+    setPendingLabel: (v) => { pendingLabel = v; }, uses: () => uses, setUses: (v) => { uses = v; }
+  });
 
   for (let i = 0; i < tokens.length; i++) {
     const t = tokens[i];
