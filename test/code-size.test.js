@@ -23,7 +23,7 @@ const BIG_FILES = new Set([
 ]);
 const BIG_FUNCTIONS = new Set([
   'core/compiled-words.js wordLevel', 'core/fpga/route.js routeDesign',
-  'core/lint.js designChecks', 'core/open-flow-core.js runOpenFlow',
+  'core/open-flow-core.js runOpenFlow',
   'core/synth-open.js synthesizeOpen',
   'web/js/asm-editor.js mountAsmEditor', 'web/js/editor.js createEditor',
   'web/js/emulator.js mountEmulator', 'web/js/fpgaview.js mountFpgaView', 'web/js/fsm-editor.js mountFsmEditor', 'web/js/isim-draw.js mountDraw',
