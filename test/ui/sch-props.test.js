@@ -11,7 +11,8 @@ before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
-// a sheet with an AND2 (U1), an I/O marker A and a module instance (M1 of 'sub'); the editor's edit() applies, normalizes
+// a sheet with an AND2 (U1), an I/O marker A, a module instance (M1 of 'sub'), a VCC (V1) and a GND saved before VCC / GND
+// had a Width (G1, #953); the editor's edit() applies, normalizes
 // the document (a new object, as the editor's) and draws the panel again
 const MOUNT = async (readOnly = false) => {
   const { mountProps } = await import('/js/sch-props.js');
@@ -20,7 +21,8 @@ const MOUNT = async (readOnly = false) => {
   document.body.append(propBody);
   const modules = { sub: { name: 'sub', lang: 'vhdl', ports: [{ name: 'i', dir: 'in', width: 1 }, { name: 'o', dir: 'out', width: 1 }] } };
   let doc = normalizeDoc({ name: 'top', lang: 'vhdl', symbols: [{ id: 'S1', type: 'and2', name: 'U1', x: 100, y: 100 },
-    { id: 'S2', type: 'module', name: 'M1', x: 300, y: 100, params: { module: 'sub' } }],
+    { id: 'S2', type: 'module', name: 'M1', x: 300, y: 100, params: { module: 'sub' } },
+    { id: 'S3', type: 'vcc', name: 'V1', x: 500, y: 100, params: { width: 1 } }, { id: 'S4', type: 'gnd', name: 'G1', x: 600, y: 100 }],
   ports: [{ id: 'P1', name: 'A', dir: 'in', x: 20, y: 100 }] }, { modules });
   let sel = new Set(), genLang = 'vhdl', live = null;
   const calls = [];
@@ -140,4 +142,40 @@ uiTest('#405 schematic Properties: read-only, the fields cannot be changed (Symb
     return [...propBody.querySelectorAll('input, select, button')].map((el) => `${el.tagName}:${el.readOnly || el.disabled ? 'ro' : 'rw'}`);
   });
   assert.deepEqual(out, ['BUTTON:rw', 'INPUT:ro', 'INPUT:ro', 'SELECT:ro', 'SELECT:ro']);
+});
+
+uiTest('#953 schematic Properties: the Width of a VCC and of a GND (one saved without one: empty, its net\'s); in Portuguese', E, async (page) => {
+  await page.eval(MOUNT);
+  const read = () => page.eval(() => {
+    const { propBody } = window.__props;
+    return [...propBody.querySelectorAll('.se-field')].map((f) => [f.querySelector('label').textContent, f.querySelector('input, select')?.value ?? '',
+      f.querySelector('.se-note')?.textContent ?? '']);
+  });
+  const select = (id) => page.eval((i) => { const { props, setSel } = window.__props; setSel([`sym:${i}`]); props.renderProps(); }, id);
+  const setWidth = (label, v) => page.eval((l, x) => { const { field, set } = window.__props; set(field(l), x); }, label, v);
+  // the VCC: its Width, 1; 8 makes its output a bus of 8 bits
+  await select('S3');
+  assert.deepEqual(await read(), [['Instance name', 'V1', ''], ['Width', '1', '']]);
+  await setWidth('Width', '8');
+  assert.deepEqual(await page.eval(async () => {
+    const { symbolPins } = await import('/core/schdoc.js');
+    const s = window.__props.doc().symbols.find((x) => x.id === 'S3');
+    return [s.params.width, symbolPins(s, {}).map((p) => `${p.name}:${p.width}`)];
+  }), [8, ['P:8']]);
+  // the GND saved without a Width: empty, said; in Portuguese
+  await select('S4');
+  assert.deepEqual(await read(), [['Instance name', 'G1', ''], ['Width', '', 'empty: the width of its net']]);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  try {
+    await select('S4');
+    await page.waitFor(() => window.__props.propBody.querySelector('.se-note:not(.se-sum)')?.textContent === 'vazia: a largura da sua rede', [], { what: 'the PT note' });
+    assert.deepEqual((await read()).map((r) => r[0]), ['Nome da instância', 'Largura']);
+  } finally {
+    await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  }
+  // a Width given: 4, no note any more
+  await select('S4');
+  await setWidth('Width', '4');
+  assert.deepEqual(await read(), [['Instance name', 'G1', ''], ['Width', '4', '']]);
+  assert.equal(await page.eval(() => window.__props.doc().symbols.find((x) => x.id === 'S4').params.width), 4);
 });

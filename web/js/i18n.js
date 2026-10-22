@@ -237,7 +237,7 @@ const PT = {
   'Show / hide the generated HDL preview': 'Mostrar / ocultar a pré-visualização do HDL gerado', 'Selection': 'Seleção', 'Machine': 'Máquina',
   'Module / entity name': 'Nome do módulo / entidade', 'HDL language': 'Linguagem HDL', 'State encoding': 'Codificação de estados', 'Clock': 'Relógio',
   'Reset': 'Reset', 'Reset level': 'Nível do reset', 'Reset type': 'Tipo de reset', 'Initial state': 'Estado inicial', 'Inputs': 'Entradas', 'Inverted inputs': 'Entradas invertidas', 'Outputs': 'Saídas',
-  'Width': 'Largura', 'Registered': 'Registada', 'Condition': 'Condição', 'Problems': 'Problemas', 'No problems found': 'Nenhum problema encontrado',
+  'Width': 'Largura', 'empty: the width of its net': 'vazia: a largura da sua rede', 'Registered': 'Registada', 'Condition': 'Condição', 'Problems': 'Problemas', 'No problems found': 'Nenhum problema encontrado',
   'Moore outputs (one per line)': 'Saídas de Moore (uma por linha)', 'Mealy outputs (one per line)': 'Saídas de Mealy (uma por linha)',
   'Make this the initial (reset) state': 'Tornar este o estado inicial (reset)', 'Initial (reset) state': 'Estado inicial (reset)',
   'Exchange the true and false branches': 'Trocar os ramos verdadeiro e falso', 'Swap 1 / 0 exits': 'Trocar saídas 1 / 0', 'Delete box': 'Apagar caixa',

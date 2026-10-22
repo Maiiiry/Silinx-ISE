@@ -74,8 +74,11 @@ test('pin tables are the real pins of the symbol at the shown parameters', () =>
   assert.deepEqual(symbolDoc('mux4', { width: 8, selBus: true }).pins.map(p => `${p.name}:${p.width}`), ['D0:8', 'D1:8', 'D2:8', 'D3:8', 'S:2', 'O:8']);
   assert.deepEqual(symbolDoc('mux4', { en: true }).pins.map(p => p.name), ['D0', 'D1', 'D2', 'D3', 'E', 'S1', 'S0', 'O']);
   assert.deepEqual(symbolDoc('fdcpe').pins.map(p => p.name), ['PRE', 'D', 'CE', 'C', 'CLR', 'Q']);
-  assert.equal(symbolDoc('vcc').pins[0].widthText, 'net');
-  assert.equal(symbolDoc('vcc', {}, { lang: 'pt' }).pins[0].widthText, 'da rede');
+  // (VCC / GND: their Width, #953; a pin of the net's width: a bus join with no widths)
+  assert.equal(symbolDoc('vcc').pins[0].widthText, '1');
+  assert.equal(symbolDoc('gnd', { width: 8 }).pins[0].widthText, '8');
+  assert.equal(symbolDoc('busjoin', { widths: '' }).pins.at(-1).widthText, 'net');
+  assert.equal(symbolDoc('busjoin', { widths: '' }, { lang: 'pt' }).pins.at(-1).widthText, 'da rede');
   assert.equal(symbolDoc('slice', { msb: 7, lsb: 4 }).pins[0].widthText, '≥ 8');
 });
 

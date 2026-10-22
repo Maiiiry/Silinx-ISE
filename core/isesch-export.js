@@ -110,7 +110,8 @@ function iseSymbolFor(s, def, netW, modules) {
     case 'vcc': case 'gnd': {
       const w = pinW(t === 'vcc' ? 'P' : 'G');
       if (w === 1) return { lib: true, name: t, pins: { P: 'P', G: 'G' } };
-      return { lib: false, name: `xl_const${w}_h${hexOf((t === 'vcc' ? '1' : '0').repeat(w))}`, constant: true };
+      // (a CONSTANT's symbol, its output O, read back as one, #953)
+      return { lib: false, name: `xl_const${w}_h${hexOf((t === 'vcc' ? '1' : '0').repeat(w))}`, constant: true, pins: { [t === 'vcc' ? 'P' : 'G']: `O(${w - 1}:0)` } };
     }
     case 'constant': {
       const w = pinW('O');

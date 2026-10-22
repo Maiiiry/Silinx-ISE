@@ -154,8 +154,9 @@ export function mountProps(ctx) {
       else if (p.kind === 'int') el = inp(v, x => { s.params[p.name] = Math.max(p.min ?? 0, Math.min(p.max ?? 1e6, Math.round(+x || p.default))); }, { type: 'number', min: p.min, max: p.max });
       else el = inp(v, x => { s.params[p.name] = String(x).trim(); });
       el.dataset.param = p.name;
-      // (a device primitive's attribute: its range, #791)
-      propBody.append(field(p.label, el, p.note));
+      // (a device primitive's attribute: its range, #791; a VCC / GND saved with no Width, its net's, #953)
+      const legacy = p.name === 'width' && v == null && (s.type === 'vcc' || s.type === 'gnd');
+      propBody.append(field(p.label, el, legacy ? 'empty: the width of its net' : p.note));
     }
     // a multiplexer's select bits (#334): 1 … 4 make it M2_1, M4_1, M8_1, M16_1 (its width, enable and select bus kept)
     if (MUX_INPUTS[s.type]) {

@@ -96,3 +96,17 @@ test('#405 schematic drawing: the hops of a wire over its crossings, the runs of
   assert.equal(wireRun(w), 200);
   assert.equal(wireRun({ points: [{ x: 0, y: 0 }, { x: 0, y: 300 }, { x: 120, y: 300 }] }), 150);
 });
+
+test('#953 schematic drawing: a VCC / GND wider than a bit, its width by its output (none for one bit or one saved without)', () => {
+  for (const type of ['vcc', 'gnd']) {
+    const draw = (params) => { const sym = { id: 'S1', type, x: 200, y: 100, rot: 0, mirror: false, name: 'U1', params }; return symbolSvg(sym, symbolDef(sym)); };
+    const w8 = [...draw({ width: 8 }).matchAll(/<text class="pwidth"[^>]*>([^<]*)</g)];
+    assert.deepEqual(w8.map((m) => m[1]), ['8'], type);
+    const pin = symbolPins({ id: 'S1', type, x: 200, y: 100, rot: 0, mirror: false, params: { width: 8 } })[0];
+    const at = attrs(w8[0][0]);
+    assert.deepEqual([+at.x, +at.y], [pin.x + 4, pin.y + (type === 'vcc' ? 8 : -8)], type);
+    assert.doesNotMatch(draw({ width: 1 }), /class="pwidth"/);
+    assert.doesNotMatch(draw({}), /class="pwidth"/);
+    assert.match(draw({ width: 8 }), new RegExp(`>${type.toUpperCase()}</text>`));
+  }
+});

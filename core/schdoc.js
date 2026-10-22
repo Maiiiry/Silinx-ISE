@@ -38,6 +38,7 @@ export {
   findMod, freePortName, gateVariant, int, normModules, oppositeSide, portBox, portSide, rotSize, symbolBox, symbolDef,
   symbolParams, symbolPins, symbolTypeName, turnSide, xform, xformSide
 };
+export { constWidth } from './schdoc-symbols.js';
 export {
   modulesFromLibrary, schematicFromHdl
 };
@@ -84,6 +85,8 @@ export function normalizeDoc(d, { modules } = {}) {
     const o = { id: s.id, type: String(s.type), x: snap(+s.x || 0), y: snap(+s.y || 0), rot: ROT_OK.has(+s.rot) ? +s.rot : 0, mirror: !!s.mirror, name: String(s.name ?? ''), params: { ...defaultParams(s.type), ...(s.params || {}) } };
     // a M4_1 / DEMUX saved before its select bits had pins of their own (#301): its bus pin S kept
     if (before301 && (o.type === 'mux4' || o.type === 'demux') && !('selBus' in (s.params || {}))) o.params.selBus = true;
+    // a VCC / GND saved before it had a Width (#953): none, it keeps taking the width of its net
+    if ((o.type === 'vcc' || o.type === 'gnd') && !('width' in (s.params || {}))) delete o.params.width;
     if (s.hdl != null) o.hdl = String(s.hdl);
     uid(o, 'S'); return o;
   });

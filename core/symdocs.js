@@ -337,8 +337,8 @@ function describe(type, p, tx, preset) {
     }
     case 'constant': return { text: [tx(`CONSTANT drives a fixed value on its output O (${W} bit${W > 1 ? 's' : ''}): the Value written in decimal, hexadecimal (0x…) or binary (0b…). It sets fixed operands (e.g. the end value of a counter for a comparator), ties unused inputs, and selects fixed modes.`,
       `CONSTANT impõe um valor fixo na saída O (${W} bit${W > 1 ? 's' : ''}): o Valor escrito em decimal, hexadecimal (0x…) ou binário (0b…). Define operandos fixos (p. ex. o valor final de um contador para um comparador), fixa entradas não usadas e seleciona modos fixos.`)], formula: `O = ${p.value ?? 0}` };
-    case 'vcc': return { text: [tx('VCC is the logic 1 source: every bit of the net it is connected to is 1 (the width comes from the net). It ties inputs to 1, e.g. an enable that must always be active.', 'VCC é a fonte do 1 lógico: todos os bits da rede a que está ligado ficam a 1 (a largura vem da rede). Fixa entradas a 1, p. ex. uma habilitação que tem de estar sempre ativa.')], formula: 'P = 1…1' };
-    case 'gnd': return { text: [tx('GND is the logic 0 source: every bit of the net it is connected to is 0 (the width comes from the net). It ties inputs to 0, e.g. an unused reset or the carry in of an adder.', 'GND é a fonte do 0 lógico: todos os bits da rede a que está ligado ficam a 0 (a largura vem da rede). Fixa entradas a 0, p. ex. um reset não usado ou o transporte de entrada de um somador.')], formula: 'G = 0…0' };
+    case 'vcc': return { text: [tx('VCC is the logic 1 source: every one of its Width bits is 1 (a Width above 1 ties a whole bus). It ties inputs to 1, e.g. an enable that must always be active.', 'VCC é a fonte do 1 lógico: todos os seus bits (Width) ficam a 1 (uma Width acima de 1 fixa um barramento inteiro). Fixa entradas a 1, p. ex. uma habilitação que tem de estar sempre ativa.')], formula: 'P = 1…1' };
+    case 'gnd': return { text: [tx('GND is the logic 0 source: every one of its Width bits is 0 (a Width above 1 ties a whole bus). It ties inputs to 0, e.g. an unused reset or the carry in of an adder.', 'GND é a fonte do 0 lógico: todos os seus bits (Width) ficam a 0 (uma Width acima de 1 fixa um barramento inteiro). Fixa entradas a 0, p. ex. um reset não usado ou o transporte de entrada de um somador.')], formula: 'G = 0…0' };
     case 'register': {
       const rs = p.reset === 'async' ? tx(' CLR = 1 loads the Reset/INIT value immediately (asynchronous).', ' CLR = 1 carrega o valor de Reset/INIT imediatamente (assíncrono).') : p.reset === 'sync' ? tx(' R = 1 loads the Reset/INIT value at the next rising edge (synchronous).', ' R = 1 carrega o valor de Reset/INIT no flanco ascendente seguinte (síncrono).') : '';
       return { text: [tx(`REG is a ${W}-bit register: ${W} D flip-flops sharing the clock C. At each rising edge of C${p.en ? ' with CE = 1' : ''} the output Q takes the word on D; otherwise Q keeps its value.${rs} At power-up Q starts with the Reset/INIT value (${p.init ?? 0}).`,
@@ -453,8 +453,8 @@ function pinFunc(type, p, pin, tx) {
       return { A: tx('First operand', 'Primeiro operando'), B: tx('Second operand', 'Segundo operando'), O: tx(`1 when A ${sym} B (${p.signed ? 'signed' : 'unsigned'}), else 0`, `1 quando A ${sym} B (${p.signed ? 'com sinal' : 'sem sinal'}), senão 0`) }[n];
     }
     case 'constant': return tx('The constant value', 'O valor constante');
-    case 'vcc': return tx('Logic 1 on every bit of the connected net', '1 lógico em todos os bits da rede ligada');
-    case 'gnd': return tx('Logic 0 on every bit of the connected net', '0 lógico em todos os bits da rede ligada');
+    case 'vcc': return tx('Logic 1 on every bit', '1 lógico em todos os bits');
+    case 'gnd': return tx('Logic 0 on every bit', '0 lógico em todos os bits');
     case 'slice': return n === 'I' ? tx('Input bus (at least MSB + 1 bits)', 'Barramento de entrada (pelo menos MSB + 1 bits)') : tx(`Bits ${int(p.msb, 0)}..${int(p.lsb, 0)} of I`, `Bits ${int(p.msb, 0)}..${int(p.lsb, 0)} de I`);
     case 'busjoin': return n === 'O' ? tx('Concatenation I0 & I1 & … (I0 = most significant part)', 'Concatenação I0 & I1 & … (I0 = parte mais significativa)')
       : tx(`Part ${i} of the result${i === 0 ? ' (most significant)' : ''}`, `Parte ${i} do resultado${i === 0 ? ' (mais significativa)' : ''}`);
@@ -492,7 +492,7 @@ function paramMeaning(type, d, p, tx) {
   }
   switch (d.name) {
     case 'width':
-      if (type === 'constant') return tx('Number of bits of the output', 'Número de bits da saída');
+      if (type === 'constant' || type === 'vcc' || type === 'gnd') return tx('Number of bits of the output', 'Número de bits da saída');
       if (type === 'add' || type === 'sub' || type === 'compare') return tx('Number of bits of the operands (and of the result)', 'Número de bits dos operandos (e do resultado)');
       if (type === 'register' || type === 'counter') return tx('Number of bits (flip-flops) of the register / counter', 'Número de bits (básculas) do registo / contador');
       return tx('Number of bits of the data pins: > 1 makes them buses and the function bitwise', 'Número de bits dos pinos de dados: > 1 torna-os barramentos e a função bit a bit');
