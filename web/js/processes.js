@@ -142,7 +142,7 @@ export function renderProcesses() {
   $('proc-caption').textContent = `Processes: ${sel.module || (sel.file ? sel.file.split('/').pop() : '')}`;
   const tree = h('ul', { class: 'tree' });
   const add = (ul, p) => {
-    const li = h('li');
+    const li = h('li', { 'data-proc': p.id || null });   // (the Tasks interface leaves other tasks' groups out of Implement: #923)
     const st = S.status[p.id];
     // collapsed groups are remembered: the panel is redrawn on every status change
     const key = p.id || p.label;
