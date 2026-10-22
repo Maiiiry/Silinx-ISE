@@ -82,7 +82,7 @@ export function mountImpact(el) {
   const renderHelp = () => {
     const p = board?.programmer;
     if (api.standalone) {
-      help.textContent = 'The browser programs the FPGA through the board\'s own USB port (Digilent Basys2 / Nexys2), with WebUSB: Chrome or Edge, not Firefox or Safari. The first time, choose the board in the list the browser shows.\n'
+      help.textContent = 'The browser programs the FPGA through the board\'s own USB port (Digilent Basys2 / Nexys2), with WebUSB: Chrome or Edge, not Firefox or Safari, nor any browser on an iPad or iPhone (all run on Safari\'s engine there). The first time, choose the board in the list the browser shows.\n'
         + '• Windows: if Digilent Adept is installed, its driver holds the board; to use it from the browser, give it the WinUSB driver with Zadig (zadig.akeo.ie; Adept then no longer sees it until its driver is put back).\n'
         + '• Linux: allow access to the board (a udev rule: SUBSYSTEM=="usb", ATTR{idVendor}=="1443", MODE="0666").\n'
         + '• Close Adept, iMPACT or the Silinx application first: one program at a time can use the board.\n'

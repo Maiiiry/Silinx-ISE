@@ -223,6 +223,17 @@ uiTest('browser edition (the site over HTTP): Generate Programming File runs the
   await page.waitFor(() => /WebUSB/.test(document.querySelector('.doc:not([hidden])')?.innerText || ''), [], { what: 'iMPACT, browser edition' });
   await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
   await page.waitConsole(/Programming FPGA \(SRAM\) failed: programming from the browser needs Chrome or Edge \(WebUSB\)/);
+  // an iPad (#1079): no browser there has WebUSB (all run on Safari's engine, Chrome too): not "use Chrome or Edge";
+  // iMPACT's help says it too. (An iPad says it is a Mac with a touch screen.)
+  assert.match(await page.eval(() => document.querySelector('.doc:not([hidden])').innerText), /not Firefox or Safari, nor any browser on an iPad or iPhone \(all run on Safari's engine there\)/);
+  const ua = await page.eval(() => navigator.userAgent);
+  await page.eval(() => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0 Mobile/15E148 Safari/604.1', configurable: true });
+    Object.defineProperty(navigator, 'maxTouchPoints', { value: 5, configurable: true });
+  });
+  await page.click('.doc:not([hidden]) .btn.primary', { text: 'Program FPGA' });
+  await page.waitConsole(/Programming FPGA \(SRAM\) failed: an iPad or iPhone cannot program the board: every browser there, Chrome and Edge too, runs on Safari's engine, which has no WebUSB; program the downloaded \.bit from a computer \(Chrome or Edge, the full Silinx application, Digilent Adept or iMPACT\) or from an Android tablet in Chrome/);
+  await page.eval((u) => { Object.defineProperty(navigator, 'userAgent', { value: u, configurable: true }); Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true }); }, ua);
   // a Basys2 (simulated: its Adept USB firmware and JTAG chain) plugged in
   await page.eval(async (url) => {
     const { SimAdeptBoard, simUsb } = await import(url);
