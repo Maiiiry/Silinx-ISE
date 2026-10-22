@@ -194,6 +194,9 @@ function textsSvg(sym, def, ctx = {}) {
   } else if (def.shape === 'vcc' || def.shape === 'gnd') {
     const t = cx(10, def.shape === 'vcc' ? 6 : 34);
     s += `<text class="stype" x="${t.x}" y="${t.y + (def.shape === 'vcc' ? -2 : 6)}" text-anchor="middle">${def.shape.toUpperCase()}</text>`;
+    // (a VCC / GND wider than a bit: its width by its output, #953)
+    const o = symbolPins(sym, null, def)[0];
+    if ((o.width || 1) > 1) s += pinWidth(o);
   } else if (def.shape === 'gate' || def.shape === 'inv' || def.shape === 'buf') {
     const w = sym.params?.width > 1 ? `${sym.params.width}` : '';
     if (w) { const t = cx(def.body.x + 8, def.h / 2); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${w}</text>`; }

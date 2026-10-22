@@ -115,8 +115,9 @@ SYMBOLS.constant = {
   category: 'General', title: 'CONSTANT', description: 'Constant value (decimal, 0x.. hex or 0b.. binary)',
   params: [{ name: 'value', label: 'Value', kind: 'text', default: '0' }, { ...P_WIDTH, default: 1 }],
 };
-SYMBOLS.vcc = { category: 'General', title: 'VCC', description: 'Logic 1 (all bits)', params: [] };
-SYMBOLS.gnd = { category: 'General', title: 'GND', description: 'Logic 0 (all bits)', params: [] };
+// (a Width of their own, #953; one saved before it, with none, takes the width of its net)
+SYMBOLS.vcc = { category: 'General', title: 'VCC', description: 'Logic 1 (all bits)', params: [P_WIDTH] };
+SYMBOLS.gnd = { category: 'General', title: 'GND', description: 'Logic 0 (all bits)', params: [P_WIDTH] };
 // Flip-flops of the Xilinx Unified Libraries (FT* / FJK* plus a plain FT / FJK, which Xilinx does not have).
 // ff: { k: 'd'|'t'|'jk', ce, clr, pre (asynchronous; CLR wins over PRE), r, s (synchronous; R wins over S unless sp) }.
 // Priorities as in the Xilinx Libraries Guide: CLR > PRE > clock; R > S > CE (FDSE/FTSRE/FJKSRE: S > R > CE).
@@ -265,6 +266,12 @@ export function symbolTypeName(sym) {
   if (!WIDE_NAMED.has(sym.type)) return nm;
   const p = { ...defaultParams(sym.type), ...(sym.params || {}) };
   return `${nm}${Math.max(1, int(p.width, 1))}`;
+}
+
+// The width of a VCC / GND (#953): its Width; null (its net's width) for one saved before it had one
+export function constWidth(sym) {
+  const w = sym?.params?.width;
+  return w == null || w === '' ? null : Math.max(1, int(w, 1));
 }
 
 // Local (unrotated) geometry of a symbol: { w, h, shape, body, pins: [{ name, dir, x, y, side, width }] }.
@@ -421,8 +428,11 @@ export function symbolDef(sym, modules = {}) {
     return { w, h: 20, shape: 'const', text: txt, body: { x: 0, y: 0, w: w - 20, h: 20 },
       pins: [{ name: 'O', dir: 'out', x: w, y: 10, side: 'E', width: W }] };
   }
-  if (t === 'vcc') return { w: 20, h: 30, shape: 'vcc', body: { x: 0, y: 0, w: 20, h: 10 }, pins: [{ name: 'P', dir: 'out', x: 10, y: 30, side: 'S', width: null }] };
-  if (t === 'gnd') return { w: 20, h: 30, shape: 'gnd', body: { x: 0, y: 20, w: 20, h: 10 }, pins: [{ name: 'G', dir: 'out', x: 10, y: 0, side: 'N', width: null }] };
+  if (t === 'vcc' || t === 'gnd') {
+    const cw = constWidth(sym);
+    return t === 'vcc' ? { w: 20, h: 30, shape: 'vcc', body: { x: 0, y: 0, w: 20, h: 10 }, pins: [{ name: 'P', dir: 'out', x: 10, y: 30, side: 'S', width: cw }] }
+      : { w: 20, h: 30, shape: 'gnd', body: { x: 0, y: 20, w: 20, h: 10 }, pins: [{ name: 'G', dir: 'out', x: 10, y: 0, side: 'N', width: cw }] };
+  }
   if (t === 'module') {
     const m = findMod(modules, p.module);
     let ports = m ? m.ports : (p.ports || []);

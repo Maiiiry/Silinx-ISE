@@ -2,6 +2,7 @@
 // adders and subtractors, comparators, constants, slices and bus joins, registers and counters, module instances and
 // HDL blocks; an unknown kind skipped with a warning. Isomorphic ES module: no DOM and no Node APIs.
 import { arithIo, constBits, findMod, int, vhdlBits, vlogBits } from './schdoc.js';
+import { constWidth } from './schdoc-symbols.js';
 import { vhdlClass } from './schdoc-hdl.js';
 
 /** { symbolCasesMore } of generateHdl. */
@@ -95,8 +96,10 @@ export function mountSymbolCasesMore(ctx) {
         } else bits = (s.type === 'vcc' ? '1' : '0').repeat(w);
         init.set(n, bits);
         const ty = ci ? netType(n) : '';
-        if (ci) body.push(`${o} <= ${w === 1 && vhdlClass(ty) === 'sl' ? vhdlBits(bits, true) : vhdlBits(bits, false)};`);
-        else assign(o, vlogBits(bits));
+        // (a VCC / GND with a Width, #953: every bit, (others => '1') / {N{1'b1}})
+        const all = s.type !== 'constant' && constWidth(s) != null && w > 1;
+        if (ci) body.push(`${o} <= ${w === 1 && vhdlClass(ty) === 'sl' ? vhdlBits(bits, true) : all ? `(others => '${bits[0]}')` : vhdlBits(bits, false)};`);
+        else assign(o, all ? `{${w}{1'b${bits[0]}}}` : vlogBits(bits));
         break;
       }
       case 'slice': {
