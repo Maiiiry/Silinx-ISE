@@ -124,7 +124,7 @@ for Xilinx FPGAs supported by ISE 14.7.
   it draws the inputs of its unit under test, over what the bench drives them with. The stimuli are saved
   in the project and run when SSim opens; *Save as Test Bench…* writes them as a self-checking VHDL / Verilog
   test bench.
-- **Test Bench Wizard** (*New Source ▸ Test Bench (HDL) ▸ Wizard*, or right-click a module): writes a
+- **Test Bench Wizard** (*New Source ▸ Test Bench ▸ Wizard*, or right-click a module): writes a
   self-checking VHDL or Verilog test bench for a module. Input vectors: every combination of the
   inputs (exhaustive), random, counting, walking ones/zeros, or typed in; clock and reset detected
   (sequential designs get one vector per clock cycle). The expected outputs of each vector are
@@ -139,8 +139,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   drives the port like an input, then releases it (`Z`) with the same inputs so that the value the
   design drives is checked; any row can be changed by hand.
 - **New Source types**: *Truth Table*, *Module (HDL)* (the ISE Define Module page: language, entity/module and
-  architecture names, a port table), *Schematic (Diagram)* (a blank sheet), *State Machine (FSM)*, *State Machine
-  (ASM)*, *Petri Net (Diagram)*, *Clock Manager (DCM / PLL)*, *Block Memory*, *Test Bench (HDL)*, *Implementation
+  architecture names, a port table), *Schematic* (a blank sheet), *Finite State Machine (FSM)*, *Algorithmic State
+  Machine (ASM)*, *Petri Net*, *Clock Manager (DCM / PLL)*, *Block Memory*, *Test Bench*, *Implementation
   Constraints File*, *Memory Initialization File (.mem)*. Page 2 asks the file name and location, with the buttons
   *Wizard | < Back | Next > | Cancel*: *Next >* makes the plain source, *Wizard* opens the type's wizard (Module,
   Schematic, Petri Net, Test Bench, Clocking Wizard, Block Memory) with that name and location; it is disabled for
@@ -182,7 +182,7 @@ for Xilinx FPGAs supported by ISE 14.7.
   a deeper one, the high address bits choosing the row), their INIT_xx from the file, or the inferable HDL (an
   array that synthesis maps to the same block RAMs). Like the Clocking Wizard's, the module shows as
   *[Block Memory] [VHDL]* and reopens the wizard (which reads the file again). Generator: `core/blockram.js`.
-- **Schematic Wizard** (*New Source ▸ Schematic (Diagram) ▸ Wizard*): the same port table and quick-add
+- **Schematic Wizard** (*New Source ▸ Schematic ▸ Wizard*): the same port table and quick-add
   buttons, an optional clock input and the language of the synchronized HDL; it creates the
   `.sch.json` with the I/O markers placed tidily (inputs on the left edge, outputs on the right,
   bidirectional markers on the right below the outputs, bus markers with their width), the
@@ -214,7 +214,7 @@ for Xilinx FPGAs supported by ISE 14.7.
   NAND or NOR gates only): the *Schematic* badge of the table's row in the Design pane opens it
   (read-only, redrawn whenever the table changes). *Truth Table from Module…* fills the table with the table of any combinational module
   of up to 8 input bits.
-- **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *State Machine (FSM)*,
+- **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *Finite State Machine (FSM)*,
   `.fsm.json`): the bubble diagram of the 1st-semester courses, Moore or Mealy. Double-click to add
   a state, drag from the rim of a state to another (or to itself) to add a transition, double-click
   to edit in place (`S2 / z=1` in a state, `x && !y / z=1` on an arrow), drag a label to bend its

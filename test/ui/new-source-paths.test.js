@@ -16,13 +16,13 @@ const ADDER = 'library ieee;\nuse ieee.std_logic_1164.all;\nentity adder is\n  p
 const TYPES = {
   'Truth Table': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.tt.json' },
   'Module (HDL)': { pages: ['File Name and Location', 'Define Module', 'Summary'], wiz: true, file: 'src/NAME.vhd' },
-  'Schematic (Diagram)': { pages: ['File Name and Location', 'Summary'], wiz: true, file: 'src/NAME.sch.json' },
-  'State Machine (FSM)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.fsm.json' },
-  'State Machine (ASM)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.asm.json' },
-  'Petri Net (Diagram)': { pages: ['File Name and Location', 'Summary'], wiz: true, file: 'src/NAME.pn.json' },
+  'Schematic': { pages: ['File Name and Location', 'Summary'], wiz: true, file: 'src/NAME.sch.json' },
+  'Finite State Machine (FSM)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.fsm.json' },
+  'Algorithmic State Machine (ASM)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.asm.json' },
+  'Petri Net': { pages: ['File Name and Location', 'Summary'], wiz: true, file: 'src/NAME.pn.json' },
   'Clock Manager (DCM / PLL)': { pages: ['File Name and Location'], wiz: true, only: true },
   'Block Memory': { pages: ['File Name and Location'], wiz: true, only: true },
-  'Test Bench (HDL)': { pages: ['File Name and Location', 'Associate Source', 'Summary'], wiz: true, file: 'sim/NAME.vhd' },
+  'Test Bench': { pages: ['File Name and Location', 'Associate Source', 'Summary'], wiz: true, file: 'sim/NAME.vhd' },
   'Implementation Constraints File': { pages: ['File Name and Location', 'Summary'], file: 'constraints/NAME.ucf' },
   'Memory Initialization File (.mem)': { pages: ['File Name and Location', 'Summary'], file: 'src/NAME.mem' },
 };
@@ -137,7 +137,7 @@ uiTest('New Source: Cancel and New Source again start afresh (the default type, 
   await forward(page, 'File Name and Location');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'w1');
   await back(page, 'Select Source Type');
-  await pickSourceType(page, 'Petri Net (Diagram)');
+  await pickSourceType(page, 'Petri Net');
   await forward(page, 'File Name and Location');
   // the file name typed is kept across a change of type (as ISE does)
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main input[type=text]').value), 'w1');

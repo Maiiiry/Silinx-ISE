@@ -1,6 +1,6 @@
 // UI: the beginner wizards of New Source (the Wizard button, #958). Module (HDL) ▸ Wizard: a sequential VHDL module
 // with an asynchronous reset, an enable and a bus, built with the quick-add buttons (a reserved word is
-// refused), opened in the editor and compiling; Schematic (Diagram) ▸ Wizard: an empty port table (no suggested
+// refused), opened in the editor and compiling; Schematic ▸ Wizard: an empty port table (no suggested
 // ports), the user's own ports added, edited and removed, the schematic opened with its markers placed
 // and its VHDL and Verilog with exactly those ports, or no ports at all; both wizards in Portuguese.
 import { before, after } from 'node:test';
@@ -83,10 +83,10 @@ const hdlOf = (doc, lang) => {
 const ED = '.dlg-overlay';
 const portRows = (page) => page.eval((s) => [...document.querySelectorAll(`${s} .mw-pname`)].map((e, k) => `${e.value}:${document.querySelectorAll(`${s} .mw-pdir`)[k].value}:${document.querySelectorAll(`${s} .mw-pwidth`)[k].value}`), ED);
 
-uiTest('Schematic (Diagram) ▸ Wizard: the port table starts empty (no suggested ports); the ports the user adds, edits and removes are the schematic\'s and its VHDL and Verilog ports (#950)', E, async (page) => {
+uiTest('Schematic ▸ Wizard: the port table starts empty (no suggested ports); the ports the user adds, edits and removes are the schematic\'s and its VHDL and Verilog ports (#950)', E, async (page) => {
   await makeProject(env, { name: 'SwPj' });
   await page.openProject('SwPj');
-  await openWizard(page, 'Schematic (Diagram)', 'board_io', 'Schematic Wizard');
+  await openWizard(page, 'Schematic', 'board_io', 'Schematic Wizard');
   await page.fill('.dlg-overlay .wiz-main select', 'verilog');
   await page.fill('.dlg-overlay .mw-desc', 'Switches to LEDs.');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .mw-file').textContent), 'src/board_io.sch.json');
@@ -137,10 +137,10 @@ uiTest('Schematic (Diagram) ▸ Wizard: the port table starts empty (no suggeste
   }
 });
 
-uiTest('Schematic (Diagram) ▸ Wizard: finishing with no ports makes a schematic with no I/O markers and an HDL module with no ports (#950)', E, async (page) => {
+uiTest('Schematic ▸ Wizard: finishing with no ports makes a schematic with no I/O markers and an HDL module with no ports (#950)', E, async (page) => {
   await makeProject(env, { name: 'SwNone' });
   await page.openProject('SwNone');
-  await openWizard(page, 'Schematic (Diagram)', 'empty_sch', 'Schematic Wizard');
+  await openWizard(page, 'Schematic', 'empty_sch', 'Schematic Wizard');
   await page.fill('.dlg-overlay .wiz-main select', 'vhdl');
   await next(page, 'Inputs and Outputs');
   // a port added and removed again: back to the empty table
@@ -175,12 +175,12 @@ uiTest('Portuguese: the New Source list and every page of the Module and Schemat
     for (const s of untranslated(en, pt, [/^(clk|reset|enable|q|y|sw|led|p\d+|N)$/, /^\(none\)$/])) missing.push(`${where}: ${s}`);
     await setLang('en');
   };
-  for (const [type, title, pages] of [['Module (HDL)', 'Module Wizard', 4], ['Schematic (Diagram)', 'Schematic Wizard', 3]]) {
+  for (const [type, title, pages] of [['Module (HDL)', 'Module Wizard', 4], ['Schematic', 'Schematic Wizard', 3]]) {
     await page.menu('Project', 'New Source…');
     await page.waitDialog('New Source Wizard');
     await setLang('pt');
     const list = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.lastChild.textContent.trim()));
-    for (const s of ['Módulo (HDL)', 'Esquemático (Diagrama)']) assert.ok(list.includes(s), `${s} in ${list}`);
+    for (const s of ['Módulo (HDL)', 'Esquemático']) assert.ok(list.includes(s), `${s} in ${list}`);
     assert.ok(!list.some((s) => /Assistente/.test(s)), `no wizard type in ${list}`);
     await setLang('en');
     await compare('New Source');

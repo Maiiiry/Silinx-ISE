@@ -28,9 +28,9 @@ const COUNTER = `module counter(input clk, input rst, input en, output reg [2:0]
 endmodule
 `;
 
-// New Source ▸ Test Bench (HDL), the file name, Wizard (#958) -> the Test Bench Wizard opens with that name
+// New Source ▸ Test Bench, the file name, Wizard (#958) -> the Test Bench Wizard opens with that name
 const openTbw = async (page, name) => {
-  await newSourceWizardOf(page, 'Test Bench (HDL)', name, 'Test Bench Wizard');
+  await newSourceWizardOf(page, 'Test Bench', name, 'Test Bench Wizard');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main input[type=text]').value), name);
 };
 
@@ -105,7 +105,7 @@ uiTest('Test Bench Wizard: sequential counter (Verilog) with clock and reset, ve
   assert.match(out, /TEST FAILED: 1 of 4/);
 });
 
-uiTest('New Source ▸ Test Bench (HDL) in VHDL and in Verilog, Module (HDL) in Verilog: files registered, extension follows the language, test bench is the simulation top', E, async (page) => {
+uiTest('New Source ▸ Test Bench in VHDL and in Verilog, Module (HDL) in Verilog: files registered, extension follows the language, test bench is the simulation top', E, async (page) => {
   await makeProject(env, { name: 'TbwNs', top: 'adder', files: { 'src/adder.vhd': ADDER } });
   await page.openProject('TbwNs');
   const newSource = async (type, name, lang) => {
@@ -123,11 +123,11 @@ uiTest('New Source ▸ Test Bench (HDL) in VHDL and in Verilog, Module (HDL) in 
     await page.dialogButton('Finish');
     await page.waitNoDialog();
   };
-  await newSource('Test Bench (HDL)', 'tb_skel', 'vhdl');
+  await newSource('Test Bench', 'tb_skel', 'vhdl');
   await page.waitFor(() => (window.Silinx.view === 'sim' && window.Silinx.sel?.module === 'tb_skel') && window.Silinx.project.files.some((f) => f.path === 'sim/tb_skel.vhd' && f.role === 'sim'), [], { what: 'tb_skel registered' });
   const pj = JSON.parse(await readWs(env, 'TbwNs', 'silinx.json'));
   assert.ok(pj.files.some((f) => f.path === 'sim/tb_skel.vhd' && f.role === 'sim'), JSON.stringify(pj.files));
-  await newSource('Test Bench (HDL)', 'tb_skel_v', 'verilog');
+  await newSource('Test Bench', 'tb_skel_v', 'verilog');
   await page.waitFor(() => (window.Silinx.view === 'sim' && window.Silinx.sel?.module === 'tb_skel_v') && window.Silinx.project.files.some((f) => f.path === 'sim/tb_skel_v.v' && f.role === 'sim'), [], { what: 'tb_skel_v registered' });
   assert.match(await readWs(env, 'TbwNs', 'sim/tb_skel_v.v'), /module tb_skel_v;/);
   await newSource('Module (HDL)', 'blk', 'verilog');

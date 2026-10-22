@@ -24,7 +24,7 @@ uiTest('New Source on an existing file: asks to replace; No keeps it, Yes replac
   const start = async () => {
     await page.menu('Project', 'New Source…');
     await page.waitDialog('New Source Wizard');
-    await pickType(page, 'Test Bench (HDL)');
+    await pickType(page, 'Test Bench');
     await page.dialogButton('Next >');
     await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tb_inv');
     await page.dialogButton('Next >');
@@ -58,7 +58,7 @@ uiTest('Test Bench Wizard and Module Wizard on an existing file: replace after c
   // Test Bench Wizard: tb_inv exists (defined in that same file): Yes replaces it
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  await pickType(page, 'Test Bench (HDL)');
+  await pickType(page, 'Test Bench');
   await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tb_inv');
   await page.dialogButton('Wizard');   // (#958)

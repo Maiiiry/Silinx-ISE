@@ -161,7 +161,7 @@ uiTest('#230 New Source: a Petri net, a truth table and the Petri Net Wizard ref
   const pickType = (label) => page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.textContent.trim().endsWith(t)); r.scrollIntoView(); r.click(); }, label);
   const wizText = () => page.eval(() => document.querySelector('.dlg-overlay .wiz').innerText);
   for (const [type, name, msg] of [
-    ['Petri Net (Diagram)', 'maj', 'src/maj.vhd already exists: the HDL generated from the new source would be written there. Choose another name.'],
+    ['Petri Net', 'maj', 'src/maj.vhd already exists: the HDL generated from the new source would be written there. Choose another name.'],
     ['Truth Table', 'maj', 'src/maj.vhd already exists: the HDL generated from the new source would be written there. Choose another name.'],
     ['Truth Table', 'parity', "A module named 'parity' already exists."],
   ]) {
@@ -179,7 +179,7 @@ uiTest('#230 New Source: a Petri net, a truth table and the Petri Net Wizard ref
   // the Petri Net Wizard (its first page)
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  await pickType('Petri Net (Diagram)');
+  await pickType('Petri Net');
   await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'maj');
   await page.dialogButton('Wizard');   // (#958)
@@ -193,7 +193,7 @@ uiTest('#230 New Source: a Petri net, a truth table and the Petri Net Wizard ref
   // another name: created, its HDL file at once, nothing to warn about
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  await pickType('Petri Net (Diagram)');
+  await pickType('Petri Net');
   await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'maj2');
   await page.dialogButton('Next >');

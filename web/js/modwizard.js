@@ -1,4 +1,4 @@
-// Beginner wizards of the New Source dialog (the Wizard button of the types 'Module (HDL)' and 'Schematic (Diagram)', #958):
+// Beginner wizards of the New Source dialog (the Wizard button of the types 'Module (HDL)' and 'Schematic', #958):
 // Finish on the New Source page 1 (the type) opens one of these; they ask the name and the location.
 //
 //   moduleWizard:    name, language and description -> inputs, outputs and bidirectional (inout,

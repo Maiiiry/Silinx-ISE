@@ -15,12 +15,12 @@ before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
-const TYPES = ['Truth Table', 'Module (HDL)', 'Schematic (Diagram)', 'State Machine (FSM)', 'State Machine (ASM)', 'Petri Net (Diagram)',
-  'Clock Manager (DCM / PLL)', 'Block Memory', 'Test Bench (HDL)', 'Implementation Constraints File', 'Memory Initialization File (.mem)'];
+const TYPES = ['Truth Table', 'Module (HDL)', 'Schematic', 'Finite State Machine (FSM)', 'Algorithmic State Machine (ASM)', 'Petri Net',
+  'Clock Manager (DCM / PLL)', 'Block Memory', 'Test Bench', 'Implementation Constraints File', 'Memory Initialization File (.mem)'];
 // each type: its wizard's dialog (null: none), only a wizard (Next > disabled)
 const WIZARD = {
-  'Module (HDL)': 'Module Wizard', 'Schematic (Diagram)': 'Schematic Wizard', 'Petri Net (Diagram)': 'Petri Net Wizard',
-  'Clock Manager (DCM / PLL)': 'Clocking Wizard', 'Block Memory': 'Block Memory', 'Test Bench (HDL)': 'Test Bench Wizard',
+  'Module (HDL)': 'Module Wizard', 'Schematic': 'Schematic Wizard', 'Petri Net': 'Petri Net Wizard',
+  'Clock Manager (DCM / PLL)': 'Clocking Wizard', 'Block Memory': 'Block Memory', 'Test Bench': 'Test Bench Wizard',
 };
 const ONLY = new Set(['Clock Manager (DCM / PLL)', 'Block Memory']);
 const ADDER = 'library ieee;\nuse ieee.std_logic_1164.all;\nentity adder is\n  port (a, b : in std_logic; s : out std_logic);\nend adder;\narchitecture rtl of adder is\nbegin\n  s <= a xor b;\nend rtl;\n';
@@ -103,7 +103,7 @@ uiTest('New Source (#958): Wizard opens each type\'s wizard with the file name a
     assert.equal(await page.eval(() => document.querySelectorAll('.dlg-overlay').length), 1, `${type}: New Source closed`);
     assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main input[type=text]').value), 'w_one', type);
     // the location typed (the Test Bench's sim, the others' src)
-    const loc = type === 'Test Bench (HDL)' ? 'sim' : 'src';
+    const loc = type === 'Test Bench' ? 'sim' : 'src';
     assert.ok(await page.eval((l) => [...document.querySelectorAll('.dlg-overlay .wiz-main input[type=text]')].some((i) => i.value === l), loc), `${type}: location ${loc}`);
     await page.dialogButton('Cancel');
     await page.waitNoDialog();
@@ -120,7 +120,7 @@ uiTest('New Source (#958) in Portuguese: Assistente | < Anterior | Seguinte > | 
     await page.menu('Projeto', 'Nova Fonte…');
     await page.waitFor(() => /Assistente de Nova Fonte/.test(document.querySelector('.dlg-overlay')?.innerText || ''), [], { what: 'the wizard in Portuguese' });
     const list = await listed(page);
-    for (const s of ['Módulo (HDL)', 'Esquemático (Diagrama)', 'Rede de Petri (Diagrama)', 'Gestor de Relógio (DCM / PLL)', 'Memória de Bloco', 'Bancada de Teste (HDL)']) assert.ok(list.includes(s), `${s} in ${list}`);
+    for (const s of ['Módulo (HDL)', 'Esquemático', 'Máquina de Estados Finitos (FSM)', 'Máquina de Estados Algorítmica (ASM)', 'Rede de Petri', 'Gestor de Relógio (DCM / PLL)', 'Memória de Bloco', 'Bancada de Teste']) assert.ok(list.includes(s), `${s} in ${list}`);
     assert.ok(!list.some((s) => /Assistente/.test(s)), list.join(' | '));
     await pickSourceType(page, 'Gestor de Relógio (DCM / PLL)');
     await page.dialogButton('Seguinte >');

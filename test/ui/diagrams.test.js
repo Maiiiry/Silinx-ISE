@@ -46,7 +46,7 @@ const SCH_PIN = `window.__schPin = async (symIndex, dir) => {
 uiTest('schematic editor: place two inverters, wire them, add I/O markers, save, its HDL generated from it', E, async (page) => {
   await makeProject(env, { name: 'SchPj' });
   await page.openProject('SchPj');
-  await newSource(page, 'Schematic (Diagram)', 'chain');
+  await newSource(page, 'Schematic', 'chain');
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/chain.sch.json' && document.querySelector('.doc:not([hidden]) .se-symrow'));
   await page.eval(SCH_PIN);
   // the palette: search, then click the symbol and click twice on the sheet
@@ -560,7 +560,7 @@ uiTest('ASM chart editor: add a state, a decision and a case box, connect them, 
   // Tools ▸ ASM State Machine Editor… opens the New Source wizard on the ASM type
   await page.menu('Tools', 'ASM State Machine Editor…');
   await page.waitDialog('New Source Wizard');
-  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .src-types .st.sel').textContent), 'State Machine (ASM)');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .src-types .st.sel').textContent), 'Algorithmic State Machine (ASM)');
   await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'ctrl');
   await page.dialogButton('Next >');

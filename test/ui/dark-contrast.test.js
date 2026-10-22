@@ -248,7 +248,7 @@ for (const theme of ['dark', 'light']) {
     assert.ok(types.length >= 10, types.join(' | '));
     await closeDialogs(page);
     // every type, then the Module, Schematic, Petri Net and Test Bench wizards through the Wizard button (#958)
-    const runs = [...types.map((t) => [t, false]), ...['Module (HDL)', 'Schematic (Diagram)', 'Petri Net (Diagram)', 'Test Bench (HDL)'].map((t) => [types.find((x) => x.endsWith(t)), true])];
+    const runs = [...types.map((t) => [t, false]), ...['Module (HDL)', 'Schematic', 'Petri Net', 'Test Bench'].map((t) => [types.find((x) => x.endsWith(t)), true])];
     for (const [k, [type, wiz]] of runs.entries()) {
       await page.menu('Project', 'New Source…');
       await page.waitDialog('New Source Wizard');

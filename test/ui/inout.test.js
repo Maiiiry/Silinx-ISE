@@ -72,7 +72,7 @@ uiTest('Module Wizard: bidirectional ports (quick-add data[7:0], a typed inout r
 uiTest('Schematic Wizard: bidirectional markers on the right edge; live simulation drives and releases them', E, async (page) => {
   await makeProject(env, { name: 'IoSw' });
   await page.openProject('IoSw');
-  await openWizard(page, 'Schematic (Diagram)', 'bus_io', 'Schematic Wizard');
+  await openWizard(page, 'Schematic', 'bus_io', 'Schematic Wizard');
   await next(page, 'Inputs and Outputs');
   // the user's own rows (the Schematic Wizard suggests no ports, #950)
   for (const [k, [name, dir, width]] of [['sw', 'in', 4], ['led', 'out', 8], ['data', 'inout', 8], ['sda', 'inout', 1]].entries()) {
@@ -135,7 +135,7 @@ const BIREG_V = `module bireg(input clk, input we, input oe, inout [3:0] data, o
   assign q = r;
 endmodule
 `;
-const openTbw = (page, name) => newSourceWizardOf(page, 'Test Bench (HDL)', name, 'Test Bench Wizard');
+const openTbw = (page, name) => newSourceWizardOf(page, 'Test Bench', name, 'Test Bench Wizard');
 const simulateAll = async (page, tb) => {
   await page.click('input[name=view][value=sim]');
   await page.treeRow('#hier', tb);
