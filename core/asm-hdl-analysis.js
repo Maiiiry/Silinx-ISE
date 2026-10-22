@@ -7,6 +7,9 @@
 import { generate } from './asm.js';
 import { lineOf, atLine, fail, stmtList, walkStmts, walkExpr, stripConv, bitsValue, lit, evalInt, vhdlCaseMap, verilogLiteralTable } from './asm-hdl-util.js';
 import { readable } from './asm-from-hdl.js';
+import { mountLogicBodies } from './asm-hdl-bodies.js';
+import { mountSynchronisers } from './asm-hdl-sync.js';
+import { mountStates } from './asm-hdl-states.js';
 
 // ---------------------------------------------------------------------------------------
 // Header written by core/asm.js (used to recover the original spelling of the chart)
@@ -106,7 +109,7 @@ export function parseHeader(src, lang) {
 }
 
 /** Comment lines `-- every cycle: <name>` written by the generator before each every-cycle block. */
-function everyCycleMarks(src, lang) {
+export function everyCycleMarks(src, lang) {
   const re = lang === 'vhdl' ? /^\s*--\s*every cycle:\s*(\S+)\s*$/ : /^\s*\/\/\s*every cycle:\s*(\S+)\s*$/;
   const out = [];
   src.split(/\r?\n/).forEach((l, i) => { const m = re.exec(l); if (m) out.push({ line: i + 1, name: m[1] }); });
@@ -370,96 +373,16 @@ export function analyzeModule(mod, src, lang) {
     fail(`next-state signal '${orig(N)}' must be assigned in a combinational process`);
   }
 
-  // ---- states --------------------------------------------------------------------------
-  let states; // [{ key, name, code, index }]
-  let enumType = false;
-  let sWidth = null;
-  const sType = sDecl.type;
-  if (sType.kind === 'named' && types.get(sType.name)?.kind === 'enum') {
-    enumType = true;
-    states = types.get(sType.name).values.map((v, i) => ({ key: v, name: orig(v).replace(/^S_/i, '') || orig(v), code: BigInt(i) }));
-  } else {
-    sWidth = widthOfType(sType, `state signal '${orig(S)}'`, sDecl.loc);
-    if (sWidth == null) fail(`state signal '${orig(S)}' must be an enumeration or a bit vector`);
-    // constants related to the state: of the state subtype, or used with the state register
-    const related = new Set();
-    if (sType.kind === 'named') for (const [n, c] of consts) if (c.typeName === sType.name) related.add(n);
-    const refOf = (e) => (e && e.op === 'ref' && consts.has(e.name) ? e.name : null);
-    const visit = (st) => {
-      if (st.kind === 'case' && st.expr.op === 'ref' && st.expr.name === S) for (const it of st.items) for (const ch of it.choices) { const r = refOf(ch); if (r) related.add(r); }
-      if (st.kind === 'assign' && st.target.op === 'ref' && (st.target.name === S || st.target.name === N)) {
-        walkExpr(st.value, (x) => { const r = refOf(x); if (r) related.add(r); });
-      }
-      for (const e of [st.cond, st.value]) walkExpr(e, (x) => {
-        if (x.op === 'binary' && (x.o === '==' || x.o === '!=') && x.a.op === 'ref' && x.a.name === S) { const r = refOf(x.b); if (r) related.add(r); }
-      });
-    };
-    for (const b of allBodies) walkStmts(b, visit);
-    for (const c of clocked) walkStmts(c.resetStmts, visit);
-    for (const a of concs) visit({ kind: 'assign', target: a.target, value: a.value });
-    if (!related.size) fail(`the states of '${orig(S)}' must be named constants (${lang === 'vhdl' ? 'constant S_X : state_t := ...' : 'localparam S_X = ...'}) or an enumeration type`);
-    states = [...related].sort((a, b) => consts.get(a).order - consts.get(b).order).map((n) => {
-      const c = consts.get(n);
-      if (c.value == null) fail(`state constant '${orig(n)}'${atLine(c.loc)} has no constant value`);
-      return { key: n, name: orig(n).replace(/^S_/i, '') || orig(n), code: c.value };
-    });
-    const codes = new Set();
-    for (const s of states) {
-      if (codes.has(s.code)) fail(`state constants share the code ${s.code}: each state needs a distinct code`);
-      codes.add(s.code);
-    }
-  }
-  const stateByKey = new Map(states.map((s) => [s.key, s]));
-  const stateOfExpr = (e) => {
-    if (e.op === 'ref' && stateByKey.has(e.name)) return stateByKey.get(e.name);
-    if (!enumType && (e.op === 'lit' || e.op === 'int')) {
-      const v = e.op === 'lit' ? bitsValue(e.bits, 'state code') : BigInt(e.value);
-      return states.find((s) => s.code === v) || null;
-    }
-    return null;
-  };
-  const initial = stateOfExpr(sReset.value);
-  if (!initial) fail(`the reset value of '${orig(S)}'${atLine(sReset.loc)} is not one of its states`);
-
-  // ---- generics: integer VHDL generics / Verilog parameters that are not state codes -----
-  const generics = [];
-  const genericSet = new Set();
-  for (const p of mod.params || []) {
-    if (p.local || stateByKey.has(p.name)) continue;
-    const integer = lang === 'vhdl' ? p.type?.kind === 'integer' : (p.type == null || p.type.kind === 'integer');
-    const v = consts.get(p.name)?.value;
-    if (!integer || v == null || v < 0n || v > 2147483647n) continue;
-    generics.push({ name: p.name, default: Number(v) });
-    genericSet.add(p.name);
-  }
-
-  // ---- input synchronisers: `m <= in; s <= m;` (2 flip-flops, reset to 0) ----------------
-  const refCount = new Map();
-  const countRefs = (e) => walkExpr(e, (x) => { if (x.op === 'ref') refCount.set(x.name, (refCount.get(x.name) || 0) + 1); });
-  const countStmts = (list) => walkStmts(list, (st) => {
-    for (const e of [st.cond, st.value, st.expr]) countRefs(e);
-    if (st.kind === 'case') for (const it of st.items) for (const ch of it.choices) if (ch && ch.op) countRefs(ch);
+  // ---- states -------------------------------------------------------------------------- (asm-hdl-states.js)
+  const { enumType, genericSet, generics, initial, sWidth, stateByKey, stateOfExpr, states } = mountStates({
+    lang, mod, N, S, allBodies, clocked, concs, consts, orig, sDecl, sReset, types, widthOfType
   });
-  for (const c of clocked) countStmts(c.load);
-  for (const p of comb) countStmts(p.body);
-  for (const a of concs) countRefs(a.value);
-  const loadOf = new Map(); // register -> value of its unconditional load
-  for (const c of clocked) for (const st of c.load) if (st.kind === 'assign' && st.target.op === 'ref') loadOf.set(st.target.name, stripConv(st.value));
-  const zeroReset = (r) => { const rv = resetVals.get(r); return !!rv && constValue(rv.value, 1) === 0n; };
-  const syncOf = new Map(); // input -> { meta, sync }
-  const syncRegs = new Map(); // register -> { kind: 'syncmeta'|'syncout', input }
-  for (const [M, v] of loadOf) {
-    if (v.op !== 'ref' || ports.get(v.name)?.dir !== 'in' || v.name === clock || v.name === reset.name) continue;
-    const P = v.name;
-    if (ports.has(M) || syncOf.has(P) || refCount.get(P) !== 1 || refCount.get(M) !== 1 || drivers.get(M)?.kind !== 'clocked') continue;
-    const Y = [...loadOf].find(([, x]) => x.op === 'ref' && x.name === M)?.[0];
-    if (!Y || ports.has(Y) || !zeroReset(M) || !zeroReset(Y)) continue;
-    const w = ports.get(P).width;
-    if ([M, Y].some((r) => !signals.has(r) || widthOfType(signals.get(r).type, `signal '${orig(r)}'`, signals.get(r).loc) !== w)) continue;
-    syncOf.set(P, { meta: M, sync: Y });
-    syncRegs.set(M, { kind: 'syncmeta', input: P });
-    syncRegs.set(Y, { kind: 'syncout', input: P });
-  }
+
+  // ---- input synchronisers: `m <= in; s <= m;` (2 flip-flops, reset to 0) ---------------- (asm-hdl-sync.js)
+  const { syncOf, syncRegs } = mountSynchronisers({
+    clock, clocked, comb, concs, constValue: (...a) => constValue(...a), drivers, orig, ports, reset, resetVals,
+    signals, widthOfType
+  });
 
   // ---- registers and outputs -----------------------------------------------------------
   const roles = new Map();    // name -> { kind, out? }
@@ -552,97 +475,10 @@ export function analyzeModule(mod, src, lang) {
     return null;
   }
 
-  // ---- logic bodies --------------------------------------------------------------------
-  const bodies = []; // { stmts, ctx: 'comb'|'clocked', loc }
-  const alwaysGroups = []; // every-cycle blocks: { name, stmts, ctx }
-  const marks = everyCycleMarks(src, lang);
-  const stateFree = (st) => {
-    let ok = true;
-    const noS = (e) => walkExpr(e, (x) => { if (x.op === 'ref' && x.name === S) ok = false; });
-    walkStmts([st], (x) => {
-      if (!['assign', 'if', 'case', 'null'].includes(x.kind)) ok = false;
-      if (x.kind === 'assign' && (x.target.op !== 'ref' || x.target.name === S || x.target.name === N)) ok = false;
-      for (const e of [x.cond, x.value, x.expr]) noS(e);
-      if (x.kind === 'case') for (const it of x.items) for (const ch of it.choices) if (ch && ch.op) noS(ch);
-    });
-    return ok;
-  };
-  const addGroups = (stmts, ctx, procLine, nextLine) => {
-    const mine = marks.filter((mk) => mk.line > procLine && mk.line < nextLine);
-    let cur = null;
-    for (const st of stmts) {
-      const line = lineOf(st.loc) || 0;
-      const mk = [...mine].reverse().find((x) => x.line < line);
-      const name = mk ? mk.name : null;
-      if (!cur || (mk && cur.mark !== mk)) {
-        cur = { name, mark: mk || null, stmts: [], ctx, line: mk ? mk.line : line };
-        alwaysGroups.push(cur);
-      }
-      cur.stmts.push(st);
-    }
-    // marks without statements: empty blocks
-    for (const mk of mine) if (!alwaysGroups.some((g) => g.mark === mk)) alwaysGroups.push({ name: mk.name, mark: mk, stmts: [], ctx, line: mk.line });
-  };
-  const units = [...comb, ...clocked.map((c) => c.proc), ...concs].sort((a, b) => (lineOf(a.loc) || 0) - (lineOf(b.loc) || 0));
-  const nextUnitLine = (it) => { const k = units.indexOf(it); return k >= 0 && k + 1 < units.length ? (lineOf(units[k + 1].loc) || Infinity) : Infinity; };
-  for (const it of [...comb, ...clocked.map((c) => c.proc), ...concs].sort((a, b) => (lineOf(a.loc) || 0) - (lineOf(b.loc) || 0))) {
-    if (it.kind === 'assign') {
-      if (consumed.has(it)) continue;
-      bodies.push({ stmts: [{ kind: 'assign', target: it.target, value: it.value, loc: it.loc }], ctx: 'comb', loc: it.loc });
-      continue;
-    }
-    const ck = clocked.find((c) => c.proc === it);
-    if (ck) {
-      const rest = ck.load.filter((st) => !(st.kind === 'assign' && st.target.op === 'ref' &&
-        ((st.target.name === S && N && st.value.op === 'ref' && st.value.name === N) ||
-         (syncRegs.has(st.target.name) && stripConv(st.value).op === 'ref') ||
-         (nextOfReg.has(st.target.name) && stripConv(st.value).op === 'ref' && stripConv(st.value).name === nextOfReg.get(st.target.name)))));
-      // a clocked process that does not involve the state at all: an every-cycle block
-      if (rest.length && rest.every(stateFree) && !ck.resetStmts.some((st) => st.target?.name === S)) {
-        addGroups(rest, 'clocked', lineOf(it.loc) || 0, nextUnitLine(it));
-        continue;
-      }
-      bodies.push({ stmts: rest, ctx: 'clocked', loc: it.loc });
-      continue;
-    }
-    // combinational process: leading default assignments (up to the first every-cycle block)
-    const list = stmtList(it.body);
-    const procLine = lineOf(it.loc) || 0;
-    const firstMark = marks.find((mk) => mk.line > procLine && mk.line < nextUnitLine(it))?.line ?? Infinity;
-    const defaulted = new Set();
-    let i = 0;
-    for (; i < list.length; i++) {
-      const st = list[i];
-      if (st.kind !== 'assign' || st.target.op !== 'ref') break;
-      if ((lineOf(st.loc) || 0) > firstMark || defaulted.has(st.target.name)) break;
-      defaulted.add(st.target.name);
-      const r = roles.get(st.target.name);
-      if (r?.kind === 'next' && st.value.op === 'ref' && st.value.name === S) continue;
-      if (r?.kind === 'reg' && stripConv(st.value).op === 'ref' && stripConv(st.value).name === outInfo.get(r.out).reg) continue;
-      if (r?.kind === 'out') {
-        const v = constValue(st.value, outInfo.get(r.out).width);
-        if (v != null) { outInfo.get(r.out).default = v; continue; }
-      }
-      break;
-    }
-    // statements that do not depend on the state, before the state logic: every-cycle blocks
-    // (the state logic after them takes priority, as in the chart)
-    let j = i;
-    while (j < list.length && stateFree(list[j])) j++;
-    if (j > i || firstMark < Infinity) addGroups(list.slice(i, j), 'comb', procLine, nextUnitLine(it));
-    bodies.push({ stmts: list.slice(j), ctx: 'comb', loc: it.loc });
-  }
-  alwaysGroups.sort((a, b) => a.line - b.line);
-  // names of the blocks (the generator's comments, else every_cycle, every_cycle2, ...)
-  const usedNames = new Set(alwaysGroups.filter((g) => g.name).map((g) => g.name.toLowerCase()));
-  let anon = 0;
-  for (const g of alwaysGroups) {
-    if (g.name) continue;
-    let nm;
-    do { anon++; nm = anon === 1 ? 'every_cycle' : `every_cycle${anon}`; } while (usedNames.has(nm));
-    usedNames.add(nm);
-    g.name = nm;
-  }
+  // ---- logic bodies -------------------------------------------------------------------- (asm-hdl-bodies.js)
+  const { alwaysGroups, bodies } = mountLogicBodies({
+    lang, src, N, S, clocked, comb, concs, constValue, consumed, nextOfReg, outInfo, roles, syncRegs
+  });
 
   const widthOf = (name) => {
     const p = ports.get(name);

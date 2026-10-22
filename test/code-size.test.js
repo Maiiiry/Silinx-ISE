@@ -22,7 +22,6 @@ const BIG_FILES = new Set([
   'web/js/drawings.js',
 ]);
 const BIG_FUNCTIONS = new Set([
-  'core/asm-hdl-analysis.js analyzeModule',
   'core/compiled-words.js wordLevel', 'core/fpga/route.js routeDesign',
   'core/lint.js designChecks', 'core/open-flow-core.js runOpenFlow',
   'core/synth-open.js synthesizeOpen',
