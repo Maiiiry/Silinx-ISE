@@ -194,6 +194,13 @@ test('the handwritten input (#1056): the texts of its modules and the recognizer
     "The name Q is at no wire's end.": 'O nome Q não está na ponta de nenhum fio.', '3 wire ends touch nothing.': '3 pontas de fios não tocam em nada.',
     'A wire of F could not be routed clear of the others: check it.': 'Um fio de F não pôde ser traçado livre dos outros: verifique-o.',
     "A wire of U2's output could not be routed clear of the others: check it.": 'Um fio da saída de U2 não pôde ser traçado livre dos outros: verifique-o.',
+    // the flip-flops drawn by hand (#1083)
+    "U1 (flip-flop): 'X' is not one of its pins (D, T, J, K, C, CE, CLR, PRE, R, S; Q, Q̄).": "U1 (flip-flop): 'X' não é um dos seus pinos (D, T, J, K, C, CE, CLR, PRE, R, S; Q, Q̄).",
+    'U1 (flip-flop): two wires to D.': 'U1 (flip-flop): dois fios para D.', 'U2 (flip-flop): no wire to C.': 'U2 (flip-flop): nenhum fio para C.',
+    'U1 (flip-flop): no wire from its outputs.': 'U1 (flip-flop): nenhum fio sai das suas saídas.',
+    'U1 (flip-flop): no data input: write D, T, or J and K.': 'U1 (flip-flop): nenhuma entrada de dados: escreva D, T, ou J e K.',
+    'U1 (flip-flop): no clock: write C or CLK, or draw a wedge.': 'U1 (flip-flop): nenhum relógio: escreva C ou CLK, ou desenhe uma cunha.',
+    'U1 (flip-flop): no flip-flop of the library has the inputs J, K, C, R.': 'U1 (flip-flop): nenhum flip-flop da biblioteca tem as entradas J, K, C, R.',
   };
   for (const [en, pt] of Object.entries(T)) assert.equal(t(en), pt, en);
   // the recognizer's own messages, as it writes them

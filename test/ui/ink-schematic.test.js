@@ -1,4 +1,4 @@
-// UI: hand-drawn schematics (#1067). The schematic editor's Handwritten…: a half adder drawn on the pad with the
+// UI: hand-drawn schematics (#1067, flip-flops #1083). The schematic editor's Handwritten…: a half adder drawn on the pad with the
 // mouse, a finger and a pen (CDP input) is read (its gates listed with their types, its names), a gate's type and a
 // name corrected, and made into the editor's drawing in one edit (Undo brings the drawing before back): its netlist
 // clean, its HDL simulating to the corrected circuit's truth table. The dialog in Portuguese, with a drawing that is
@@ -10,6 +10,9 @@ import { writeSchematic } from '../../core/ink/synth-schematic.js';
 import { writeText } from '../../core/ink/synth.js';
 import { newDoc, netlist, generateHdl } from '../../core/schdoc.js';
 import { truthTableFromModule } from '../../core/logic.js';
+import { compileDesign } from '../../core/compiled-sim.js';
+import { yosysNode } from '../../core/synth-open-node.js';
+import { designOf } from '../compiled-diff.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -109,6 +112,7 @@ uiTest('Handwritten… (schematic): in Portuguese, a drawing that is not a circu
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), label, .hint')].map((e) => e.textContent.trim()), D);
     assert.deepEqual(labels, [
       'Desenhe o circuito com uma caneta, um dedo ou o rato: as portas (AND, OR, XOR, um triângulo para um buffer, um pequeno círculo na saída para NOT) maiores do que os nomes, as suas entradas à esquerda, fios em esquadria, e o nome de cada entrada e saída na ponta do seu fio.',
+      'Um flip-flop: uma caixa com os seus pinos escritos dentro, à esquerda D, T, ou J e K, o relógio (C, CLK ou uma cunha), CE, CLR, PRE; à direita Q, e Q com uma barra.',
       'Ajustar', 'Anular', 'Refazer', 'Limpar', 'Reconhecido:', 'Criar Esquemático', 'Cancelar',
     ]);
     await page.dialogButton('Criar Esquemático');
@@ -131,5 +135,36 @@ uiTest('Handwritten… (schematic): in Portuguese, a drawing that is not a circu
     await page.waitNoDialog();
     assert.equal(await page.eval(() => window.Silinx.active.schEditor.getDoc().symbols.length), 0);
   } finally { await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en')); }
+  assert.deepEqual(warnings(page), []);
+}, { skip: chromeOnly });
+
+// a 2-bit counter of T flip-flops (#1083): q0 toggles while en is 1, q1 when q0 is 1 too
+const COUNTER = { gates: [{ type: 'ff', x: 2.4, y: 0, ins: ['T', 'C'], outs: ['Q'], wedge: true }, { type: 'and', x: 5.2, y: 1.2, n: 2 }, { type: 'ff', x: 7.4, y: 1.6, ins: ['T', 'C'], outs: ['Q'], wedge: true }], nets: [
+  { name: 'en', at: [0.6, -0.3], to: [[0, 'T'], [1, 0]], j: 0.3 }, { name: 'clk', at: [0.6, 3.1], to: [[0, 'C'], [2, 'C']], j: 0.25 },
+  { from: 0, out: 'Q', name: 'q0', to: [[1, 1]] }, { from: 1, to: [[2, 'T']] }, { from: 2, out: 'Q', name: 'q1' }] };
+
+uiTest('Handwritten… (schematic): a counter of flip-flops drawn with the mouse, a finger and a pen, made into the drawing; clocked', E, async (page) => {
+  await openSchematic(page, 'InkSch3');
+  await page.click(`${ED} [data-act=ink]`);
+  await page.waitDialog('Handwritten Schematic');
+  await draw(page, writeSchematic(COUNTER, { seed: 9, amount: 0.4, size: 48, x: 24, y: 30 }).strokes);
+  const rows = () => page.eval((d) => [...document.querySelectorAll(`${d} .ink-gate`)].map((r) => `${r.querySelector('b').textContent} ${r.querySelector('.ink-ff-type')?.textContent ?? r.querySelector('select').value} ${r.querySelector('code').textContent}`), D);
+  await page.waitFor((d) => /\(.*\) → Q: q1$/.test([...document.querySelectorAll(`${d} .ink-gate`)].map((r) => r.querySelector("code").textContent).join("|")), [D], { what: 'the circuit read', timeout: 20000 });
+  const [u1, u2, u3] = await rows();
+  assert.match(u1, /^U1 FT \(T: en, C: clk\) → Q: q0$/);
+  assert.match(u2, /^U2 and2 \(en, q0\) → n\d+$/);
+  assert.match(u3, /^U3 FT \((C: clk, T: n\d+|T: n\d+, C: clk)\) → Q: q1$/);
+  assert.equal(await message(page), '');
+  await page.dialogButton('Create Schematic');
+  await page.waitNoDialog();
+  const doc = await page.waitFor(() => { const d = window.Silinx.active.schEditor.getDoc(); return d.symbols.length === 3 && d; }, [], { what: 'the drawing made' });
+  assert.deepEqual(doc.symbols.map((s) => [s.name, s.type]), [['U1', 'ft'], ['U2', 'and2'], ['U3', 'ft']]);
+  assert.deepEqual(doc.ports.map((p) => [p.name, p.dir]).sort(), [['clk', 'in'], ['en', 'in'], ['q0', 'out'], ['q1', 'out']]);
+  assert.deepEqual(netlist(doc).diagnostics, []);
+  // clocked: it counts while en is 1, holds while 0
+  const sim = await compileDesign(designOf([{ path: 'hand.v', lang: 'verilog', role: 'design', text: generateHdl(doc, { lang: 'verilog' }).code }], 'hand'), { run: yosysNode, clock: 'clk' });
+  const seen = [];
+  for (const en of [1, 1, 1, 1, 0, 0, 1]) { sim.set('en', en); sim.cycle(1); seen.push(Number(sim.get('q1')) * 2 + Number(sim.get('q0'))); }
+  assert.deepEqual(seen, [1, 2, 3, 0, 0, 0, 1]);
   assert.deepEqual(warnings(page), []);
 }, { skip: chromeOnly });

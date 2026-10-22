@@ -13,6 +13,7 @@ import { classify } from './pdollar.js';
 import { gateTemplates } from './gates.js';
 import { builtinTemplates } from './templates.js';
 import { recognizeWords } from './expression.js';
+import { findFlipFlops, ffSymbol } from './flipflops.js';
 
 const median = a => [...a].sort((x, y) => x - y)[a.length >> 1];
 // the farthest a gate's template may be (held-out gates: 0.84 at most; letters: 1.5 and more, an o 0.9)
@@ -20,7 +21,7 @@ export const GATE_DISTANCE = 1.2;
 const MAX_IN = { and: 5, or: 5, xor: 4 }, MAX_INV = { and: 4, or: 4, xor: 4 };
 const NAME = { and: 'AND', or: 'OR', xor: 'XOR', buf: 'BUF' };
 const NAME_INV = { and: 'NAND', or: 'NOR', xor: 'XNOR', buf: 'NOT' };
-export const gateName = g => (g.inv ? NAME_INV : NAME)[g.kind];
+export const gateName = g => (g.kind === 'ff' ? g.type.toUpperCase() : (g.inv ? NAME_INV : NAME)[g.kind]);
 
 // a stroke's measures: its box, length, how open it is (its ends apart over its length), how square (the part of it
 // that runs level or upright, over steps of about a tenth of its box: a hand's wobble does not count)
@@ -60,13 +61,14 @@ function groups(items, m) {
 
 // the shapes: the gates (the lines of their outline, their bubble), the wires (square open strokes), the names' strokes;
 // Hg: the gates' height (of the tallest groups of strokes that are not wires)
-function shapes(items) {
-  const squareOpen = items.filter(i => i.open >= 0.5 && i.square >= 0.75);
+function shapes(items, minHg = 0) {
+  // (a wire that goes round, back to the left of where it starts, #1083: its ends close, all of it square)
+  const squareOpen = items.filter(i => (i.open >= 0.5 && i.square >= 0.75) || (i.square >= 0.8 && !i.closed));
   const others = items.filter(i => !squareOpen.includes(i));
   const big = Math.max(...others.map(i => Math.max(i.box.w, i.box.h)), 0);
   const blobs = groups(others, 0.1 * big);
   const tallest = Math.max(...blobs.map(b => b.box.h), 0);
-  const Hg = blobs.length ? median(blobs.map(b => b.box.h).filter(h => h >= 0.6 * tallest)) : Math.max(...items.map(i => i.box.h));
+  const Hg = Math.max(minHg, blobs.length ? median(blobs.map(b => b.box.h).filter(h => h >= 0.6 * tallest)) : Math.max(0, ...items.map(i => i.box.h)));
   // a gate: tall, with the square lines all in its box (its back, an AND's or a triangle's; an XOR's a little before
   // it), and shaped as one (a name's letter, even the tallest thing drawn, is not)
   const ring = (i, b) => i.closed && Math.hypot(i.box.w, i.box.h) < 0.45 * b.box.h && i.box.cx > b.box.minX + 0.6 * b.box.w;
@@ -121,25 +123,33 @@ export function circuitErrors(circuit) {
 export function readSchematic(strokes, { templates = builtinTemplates() } = {}) {
   const items = (strokes || []).filter(s => Array.isArray(s) && s.length).map(info);
   if (!items.length) throw new InkError('Nothing drawn: draw the circuit on the pad.');
-  const { gates, wires, text, Hg } = shapes(items);
-  if (!gates.length) throw new InkError('No gate found: draw the gates larger than the names, their inputs on the left.');
+  // the flip-flops first (#1083): their boxes and labels are not gates, wires or names
+  const ffs = findFlipFlops(items, { templates }).map(f => ({ ...f, kind: 'ff', ins: [], drivers: new Map() }));
+  const taken = new Set(ffs.flatMap(f => f.items));
+  const { gates, wires, text, Hg } = shapes(items.filter(i => !taken.has(i)), ffs.length ? 0.75 * Math.min(...ffs.map(f => f.box.h)) : 0);
+  if (!gates.length && !ffs.length) throw new InkError('No gate found: draw the gates larger than the names, their inputs on the left.');
   const words = names(text, Hg, templates);
   const warnings = [], errors = [];
   // (numbered by columns, half a gate wide, then from the top)
   const col = g => Math.round(g.box.minX / (0.5 * Hg));
-  gates.sort((a, b) => col(a) - col(b) || a.box.minY - b.box.minY);
-  gates.forEach((g, i) => {
-    g.id = `U${i + 1}`;
+  const parts = [...gates, ...ffs].sort((a, b) => col(a) - col(b) || a.box.minY - b.box.minY);
+  parts.forEach((g, i) => { g.id = `U${i + 1}`; });
+  gates.forEach(g => {
     g.kind = classify(g.items.filter(x => x !== g.inv).map(x => x.s), gateTemplates())[0].ch;
     g.inv = !!g.inv;
     g.ins = [];
   });
+  // a flip-flop's output: Q or Q̄, by the label beside the wire's end
+  const ffOut = (f, y) => {
+    const label = f.right.length ? f.right.reduce((a, b) => (Math.abs(b.y - y) < Math.abs(a.y - y) ? b : a)).label : 'Q';
+    if (!f.drivers.has(label)) f.drivers.set(label, { id: f.id, pin: label, ff: f, tip: { x: f.box.maxX, y } });
+    return f.drivers.get(label);
+  };
   // what each end of a wire touches: a gate's tip or its left side, a name, another wire
   const parent = wires.map((_, i) => i);
   const find = i => (parent[i] === i ? i : (parent[i] = find(parent[i])));
   const ends = [];
   let loose = 0;
-  // (the nearest of a gate's tip, a gate's left side, a name; else a wire it ends on)
   const dBox = (e, b) => Math.hypot(Math.max(b.minX - e.x, 0, e.x - b.maxX), Math.max(b.minY - e.y, 0, e.y - b.maxY));
   wires.forEach((w, wi) => {
     for (const e of [w.s[0], w.s.at(-1)]) {
@@ -147,14 +157,24 @@ export function readSchematic(strokes, { templates = builtinTemplates() } = {}) 
         ...gates.filter(g => near(e, g.tip, 0.35 * Hg)).map(g => ({ d: Math.hypot(e.x - g.tip.x, e.y - g.tip.y), f: () => ends.push({ wi, out: g }) })),
         ...gates.filter(g => e.x >= g.body.minX - 0.4 * Hg && e.x <= g.body.minX + 0.3 * Hg && e.y >= g.body.minY - 0.05 * Hg && e.y <= g.body.maxY + 0.05 * Hg)
           .map(g => ({ d: Math.abs(e.x - g.body.minX), f: () => g.ins.push({ wi, y: e.y }) })),
-        ...words.filter(t => dBox(e, t.box) <= 0.5 * Hg).map(t => ({ d: dBox(e, t.box), f: () => { ends.push({ wi, word: t, at: e }); t.used = true; } })),
+        ...ffs.filter(f => e.y >= f.box.minY && e.y <= f.box.maxY && e.x >= f.box.minX - 0.4 * Hg && e.x <= f.box.minX + 0.15 * Hg)
+          .map(f => ({ d: Math.abs(e.x - f.box.minX), f: () => f.ins.push({ wi, y: e.y }) })),
+        ...ffs.filter(f => e.y >= f.box.minY && e.y <= f.box.maxY && e.x >= f.box.maxX - 0.15 * Hg && e.x <= f.box.maxX + 0.4 * Hg)
+          .map(f => ({ d: Math.abs(e.x - f.box.maxX), f: () => ends.push({ wi, out: ffOut(f, e.y) }) })),
+        ...words.filter(t => dBox(e, t.box) <= 0.5 * Hg).map(t => ({ d: dBox(e, t.box), word: true, f: () => { ends.push({ wi, word: t, at: e }); t.used = true; } })),
       ].sort((a, b) => a.d - b.d);
-      if (options.length) { options[0].f(); continue; }
+      // (a pin first; then a wire it ends on, a T junction even beside a name; then a name)
+      const pin = options.find(o => !o.word);
+      if (pin) { pin.f(); continue; }
       const other = wires.findIndex((o, oi) => oi !== wi && o.s.some(p => near(p, e, 0.12 * Hg)));
       if (other >= 0) { parent[find(wi)] = find(other); continue; }
+      if (options.length) { options[0].f(); continue; }
       loose++;
     }
   });
+  // (two wires from one output: one net)
+  const fromOut = new Map();
+  for (const e of ends) if (e.out) { if (fromOut.has(e.out)) parent[find(e.wi)] = find(fromOut.get(e.out)); else fromOut.set(e.out, e.wi); }
   // the nets
   const byRoot = new Map();
   const netOf = wi => { const r = find(wi); if (!byRoot.has(r)) byRoot.set(r, { id: `n${byRoot.size + 1}`, name: null, dir: null, driver: null, drivers: new Set(), sinks: [], names: [] }); return byRoot.get(r); };
@@ -180,6 +200,28 @@ export function readSchematic(strokes, { templates = builtinTemplates() } = {}) 
       g.type = `${g.inv ? { and: 'nand', or: 'nor', xor: 'xnor' }[g.kind] : g.kind}${n}`;
     }
   }
+  // the flip-flops' pins: each wire on the left to the label beside it
+  for (const f of ffs) {
+    const pins = {}, label = `${f.id} (flip-flop)`;
+    for (const u of f.unknown) errors.push(`${label}: '${u.text}' is not one of its pins (D, T, J, K, C, CE, CLR, PRE, R, S; Q, Q̄).`);
+    // (a label not known keeps its wire: its error is said)
+    const beside = [...f.left, ...f.unknown.filter(u => u.side === 'left')];
+    for (const x of f.ins) {
+      if (!beside.length) break;
+      const l = beside.reduce((a, b) => (Math.abs(b.y - x.y) < Math.abs(a.y - x.y) ? b : a)).label;
+      if (!l) continue;
+      if (pins[l]) errors.push(`${label}: two wires to ${l}.`); else pins[l] = netOf(x.wi);
+    }
+    for (const l of f.left) if (!pins[l.label]) errors.push(`${label}: no wire to ${l.label}.`);
+    const sym = ffSymbol(f.left.map(l => l.label));
+    if (sym.error) errors.push(`${label}: ${sym.error}.`);
+    f.type = sym.type || 'fd';
+    f.ffKind = sym.kind;
+    f.pins = pins;
+    Object.entries(pins).forEach(([pin, n]) => n.sinks.push({ gate: f, pin }));
+    f.outputs = Object.fromEntries([...f.drivers.keys()].map(k => [k, [...byRoot.values()].find(n => n.drivers.has(f.drivers.get(k)))]).filter(([, n]) => n));
+    if (!Object.keys(f.outputs).length) errors.push(`${label}: no wire from its outputs.`);
+  }
   // the names: an input's (no gate drives it), an output's
   let outs = 0;
   for (const n of byRoot.values()) {
@@ -195,7 +237,10 @@ export function readSchematic(strokes, { templates = builtinTemplates() } = {}) 
   for (const w of words) if (!w.used) warnings.push(`The name ${w.text} is at no wire's end.`);
   if (loose) warnings.push(`${loose === 1 ? 'A wire end touches' : `${loose} wire ends touch`} nothing.`);
   const nets = [...byRoot.values()].map(n => ({ id: n.id, name: n.name, dir: n.dir, at: n.at ? { x: n.at.x, y: n.at.y } : null,
-    driver: n.driver?.id ?? null, sinks: n.sinks.map(k => ({ gate: k.gate.id, pin: k.pin })) }));
-  return { gates: gates.map(g => ({ id: g.id, kind: g.kind, inv: g.inv, type: g.type, box: g.body, inputs: g.inputs.map(n => n.id), output: g.output?.id ?? null })),
-    nets, Hg, warnings, errors };
+    driver: n.driver?.id ?? null, ...(n.driver?.pin ? { driverPin: n.driver.pin } : {}), sinks: n.sinks.map(k => ({ gate: k.gate.id, pin: k.pin })) }));
+  const out = g => (g.kind === 'ff'
+    ? { id: g.id, kind: 'ff', ffKind: g.ffKind, type: g.type, box: g.box, pins: Object.fromEntries(Object.entries(g.pins).map(([k, n]) => [k, n.id])),
+      outputs: Object.fromEntries(Object.entries(g.outputs).map(([k, n]) => [k, n.id])), inputs: Object.values(g.pins).map(n => n.id), output: g.outputs.Q?.id ?? g.outputs.QN?.id ?? null }
+    : { id: g.id, kind: g.kind, inv: g.inv, type: g.type, box: g.body, inputs: g.inputs.map(n => n.id), output: g.output?.id ?? null });
+  return { gates: parts.map(out), nets, Hg, warnings, errors };
 }

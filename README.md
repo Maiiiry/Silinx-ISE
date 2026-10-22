@@ -226,11 +226,12 @@ for Xilinx FPGAs supported by ISE 14.7.
   a header, a line under it, a line between the inputs and the outputs, a row of 0, 1 or X for each combination —
   and Silinx reads it offline into its text (`A B | F`, then a row a line), which you correct before it fills the
   table.
-- **Hand-drawn schematics** (*Handwritten…* in the schematic editor's toolbar): draw a combinational circuit — AND,
-  OR, XOR gates, a triangle for a buffer, a small circle at a gate's output for NOT / NAND / NOR / XNOR, square wires,
-  the inputs' and outputs' names at the wires' ends — and Silinx reads it offline: the gates are listed with their
-  types and the names, to correct, then made into the schematic with Silinx's symbols where you drew them and the
-  wires routed square (Undo brings the drawing before back).
+- **Hand-drawn schematics** (*Handwritten…* in the schematic editor's toolbar): draw a circuit — AND, OR, XOR gates,
+  a triangle for a buffer, a small circle at a gate's output for NOT / NAND / NOR / XNOR, flip-flops as boxes with
+  their pins written inside them (D, T, or J and K, the clock as C, CLK or a wedge, CE, CLR, PRE; Q and Q̄), square
+  wires (looping back too), the inputs' and outputs' names at the wires' ends — and Silinx reads it offline: the gates
+  and flip-flops are listed with their types and the names, to correct, then made into the schematic with Silinx's
+  symbols where you drew them and the wires routed square (Undo brings the drawing before back).
 - **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *Finite State Machine (FSM)*,
   `.fsm.json`): the bubble diagram of the 1st-semester courses, Moore or Mealy. Double-click to add
   a state, drag from the rim of a state to another (or to itself) to add a transition, double-click
