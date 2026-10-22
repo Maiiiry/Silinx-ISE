@@ -117,7 +117,7 @@ uiTest('touch (#265): a finger drags a state of the FSM editor and a place of th
   // a state diagram
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.textContent.trim() === 'State Machine (FSM)'); r.scrollIntoView(); r.click(); });
+  await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.textContent.trim() === 'Finite State Machine (FSM)'); r.scrollIntoView(); r.click(); });
   await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'det');
   await page.dialogButton('Next >');

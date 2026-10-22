@@ -300,8 +300,8 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
 const TOP_TYPES = [
   { id: 'hdl', label: 'HDL' },
   { id: 'sch', label: 'Schematic', file: 'src/top.sch.json' },
-  { id: 'fsm', label: 'State Machine (FSM)', file: 'src/top.fsm.json' },
-  { id: 'asm', label: 'State Machine (ASM)', file: 'src/top.asm.json' },
+  { id: 'fsm', label: 'Finite State Machine (FSM)', file: 'src/top.fsm.json' },
+  { id: 'asm', label: 'Algorithmic State Machine (ASM)', file: 'src/top.asm.json' },
   { id: 'tt', label: 'Truth Table', file: 'src/top.tt.json' },
 ];
 

@@ -1,7 +1,7 @@
 // Portuguese strings of the FSM state diagram editor (merged into the dictionary of i18n.js).
 export const FSM_PT = {
   // New Source, menus, processes, hierarchy
-  'State Machine (FSM)': 'Máquina de Estados (FSM)', 'FSM State Diagram Editor…': 'Editor de Diagramas de Estados FSM…',
+  'FSM State Diagram Editor…': 'Editor de Diagramas de Estados FSM…',
   'View/Edit State Diagram (FSM)': 'Ver/Editar Diagrama de Estados (FSM)', 'Convert to State Diagram (FSM)…': 'Converter para Diagrama de Estados (FSM)…',
   'Open State Diagram': 'Abrir Diagrama de Estados', 'Convert to ASM chart': 'Converter para fluxograma ASM',
   'Convert to State Diagram': 'Converter para Diagrama de Estados', 'Create Truth Tables': 'Criar Tabelas de Verdade',

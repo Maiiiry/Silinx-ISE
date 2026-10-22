@@ -281,16 +281,16 @@ uiTest('Petri net editor: the analysis (#188): properties, places, transitions, 
   await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
 });
 
-uiTest('Petri Net Wizard (#208): New Source ▸ Petri Net (Diagram) ▸ Wizard (#958), name and location, the inputs and outputs (no bidirectional), the clock and the reset, a clash refused; the net created with its ports and its HDL file, opened', E, async (page) => {
+uiTest('Petri Net Wizard (#208): New Source ▸ Petri Net ▸ Wizard (#958), name and location, the inputs and outputs (no bidirectional), the clock and the reset, a clash refused; the net created with its ports and its HDL file, opened', E, async (page) => {
   await makeProject(env, { name: 'PnWiz', top: '' });
   await page.openProject('PnWiz');
-  // New Source: one 'Petri Net (Diagram)' type; the Wizard button of its File Name and Location page opens the wizard
+  // New Source: one 'Petri Net' type; the Wizard button of its File Name and Location page opens the wizard
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.textContent.trim()).filter((t) => /Petri/.test(t))), ['Petri Net (Diagram)']);
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.textContent.trim()).filter((t) => /Petri/.test(t))), ['Petri Net']);
   await page.dialogButton('Cancel');
   await page.waitNoDialog();
-  await newSourceWizardOf(page, 'Petri Net (Diagram)', 'ctl', 'Petri Net Wizard');
+  await newSourceWizardOf(page, 'Petri Net', 'ctl', 'Petri Net Wizard');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3').textContent), 'Name and Language');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .mw-name').value), 'ctl');
   await page.fill('.dlg-overlay .mw-name', 'ctl');
