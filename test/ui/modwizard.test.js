@@ -273,6 +273,7 @@ uiTest('New Source: page 1 is only the type; the file name and the location on t
   await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')][0].click());
   await page.click('.dlg-overlay .dlg-buttons .btn.primary');
   await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'Nome do Ficheiro e Localização', [], { what: 'page 2 in Portuguese' });
-  assert.deepEqual(await labels(), ['Tipo de fonte:', 'Nome do ficheiro:', 'Localização:']);
+  // (the first type, a truth table: its optional expression too, #1056)
+  assert.deepEqual(await labels(), ['Tipo de fonte:', 'Nome do ficheiro:', 'Localização:', 'Expressão:']);
   await page.eval(async () => { (await import('/js/i18n.js')).setLanguage('en'); });
 });

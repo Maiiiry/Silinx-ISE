@@ -3,11 +3,11 @@
 // typing an expression per output. For the selected output: Karnaugh map with the groups of the
 // minimal SOP (1s) or POS (0s), canonical forms Σm / ΠM, minimal SOP and POS with their literal and
 // gate counts, the XOR form when it is cheaper (#435), the NAND-only and NOR-only forms (#694).
-// The expressions are written in the notation chosen, by default with / as NOT (/a·b + c, #434). Tables read from a module may have up
-// to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The table always has its HDL module, in
-// its language (the project's preferred one), generated from it by the host (app.js), which keeps
-// both in sync, and its schematic (#694, a view of its module in the Design pane), both in the form
-// chosen in HDL logic; its language is chosen in Language (#696).
+// The expressions are written in the notation chosen, by default with / as NOT (/a·b + c, #434); one may be written
+// by hand (Handwritten…, #1056). Tables read from a module may have up to 8 inputs (no Karnaugh map then).
+// Logic: core/logic.js. The table always has its HDL module, in its language (the project's preferred one),
+// generated from it by the host (app.js), which keeps both in sync, and its schematic (#694, a view of its module
+// in the Design pane), both in the form chosen in HDL logic; its language is chosen in Language (#696).
 //
 //   const ed = mountTtEditor(host, { model, onChange(model), onFromModule(), linkInfo() -> { file, why } | null,
 //                                    onOpenFile(path) });
@@ -125,7 +125,18 @@ export function mountTtEditor(container, opts = {}) {
   };
   exprIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyExpr(); } });
   const exprLbl = h('span', { class: 'tt-expr-lbl' });
-  const exprRow = h('div', { class: 'tt-row' }, exprLbl, exprIn, btn('Fill Table', 'Fill the column of this output from the expression', applyExpr));
+  // written by hand (#1056): "F = ..." selects the output F, then the expression fills its column
+  const handwritten = async () => {
+    const { handwrittenExpression } = await import('./ink-dialog.js');
+    const r = await handwrittenExpression({ vars: M.inputs });
+    if (!r || destroyed) return;
+    const named = M.outputs.find(o => o.toLowerCase() === r.name.toLowerCase());
+    if (named && named !== out) { out = named; render(); }
+    exprIn.value = r.expr;
+    applyExpr();
+  };
+  const exprRow = h('div', { class: 'tt-row' }, exprLbl, exprIn, btn('Fill Table', 'Fill the column of this output from the expression', applyExpr),
+    btn('Handwritten…', 'Write the expression by hand: with a pen, a finger or the mouse', handwritten, 'tt-ink'));
   const OPS = "Operators: / ' ~ (NOT), · . * (AND), ⊕ ^ or xor (XOR), xnor, + (OR)";
   exprIn.title = OPS;
   const kmapHost = h('div', { class: 'tt-kmap-host' });

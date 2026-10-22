@@ -214,6 +214,13 @@ for Xilinx FPGAs supported by ISE 14.7.
   NAND or NOR gates only): the *Schematic* badge of the table's row in the Design pane opens it
   (read-only, redrawn whenever the table changes). *Truth Table from Module…* fills the table with the table of any combinational module
   of up to 8 input bits.
+- **Handwritten expressions** (*Handwritten…* beside a truth table's expression, and the New Source wizard's
+  *Truth Table*, whose optional expression gives the table's inputs, its output and its column): write
+  `F = A·B' + C` on a pad with a pen, a finger or the mouse — on an interactive whiteboard or a tablet too. Silinx's
+  own recognizer reads it, offline (a point-cloud recognizer with built-in templates; nothing is sent anywhere):
+  letters, digits, `_`, `+ · * ' ¬ ~ ( ) = ⊕ ^ & |`, and a bar over letters as NOT. The text is shown for you to
+  correct before it is inserted; *Teach Silinx my handwriting* keeps samples of your own way of writing a symbol in
+  the browser.
 - **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *Finite State Machine (FSM)*,
   `.fsm.json`): the bubble diagram of the 1st-semester courses, Moore or Mealy. Double-click to add
   a state, drag from the rim of a state to another (or to itself) to add a transition, double-click
