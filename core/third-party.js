@@ -3,7 +3,7 @@
 export const THIRD_PARTY = [
   {
     "name": "@codemirror/autocomplete",
-    "version": "6.20.3",
+    "version": "6.20.4",
     "license": "MIT",
     "url": "https://code.haverbeke.berlin/codemirror/autocomplete",
     "standalone": true
@@ -59,7 +59,7 @@ export const THIRD_PARTY = [
   },
   {
     "name": "@codemirror/view",
-    "version": "6.43.14",
+    "version": "6.43.15",
     "license": "MIT",
     "url": "https://code.haverbeke.berlin/codemirror/view",
     "standalone": true
