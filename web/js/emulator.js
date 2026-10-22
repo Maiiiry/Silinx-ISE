@@ -8,17 +8,20 @@
 import { Simulator } from '/core/simulator.js';
 import { CompiledBoard } from '/core/emulate-compiled.js';
 import { RemoteBoard, hostBoard } from '/core/emulate-remote.js';
-import { vgaPins, vgaPixels } from '/core/vga.js';
 import * as V from '/core/values.js';
 import { formatTime } from '/core/interp.js';
-import { boardWiring, boardOutputs, lcdState, lcdFeed, lcdText, emulatorClocks, manualClocks } from '/core/emulate.js';
+import { boardWiring, boardOutputs, lcdState, lcdFeed, emulatorClocks, manualClocks } from '/core/emulate.js';
 import { h } from './dom.js';
+import { mountBoardParts } from './emulator-board.js';
+import { mountEmuSide } from './emulator-side.js';
+import { mountEmuPaint } from './emulator-paint.js';
+import { mountEmuToolbar } from './emulator-toolbar.js';
 
-const SPEEDS = [['real', 'Real time'], ['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
+export const SPEEDS = [['real', 'Real time'], ['max', 'Max speed'], [1e5, '100 kHz'], [1e4, '10 kHz'], [1e3, '1 kHz'], [100, '100 Hz'], [10, '10 Hz'], [1, '1 Hz']];
 const FRAME_BUDGET_MS = 14;
 // what the emulator does while it is not seen (another browser tab, a minimised window, another document tab,
 // #719): 'pause' (the default: it goes on where it was when shown again) or 'run' (it simulates on, drawing nothing)
-const HIDDEN_KEY = 'silinx.emulator.hidden';
+export const HIDDEN_KEY = 'silinx.emulator.hidden';
 const hiddenPref = () => { try { return localStorage.getItem(HIDDEN_KEY) === 'run' ? 'run' : 'pause'; } catch { return 'pause'; } };
 
 const SVG = (tag, attrs = {}) => {
@@ -117,7 +120,7 @@ const SEG_PATHS = [
   'M7,6 L7,30 L12,26 L12,10 Z',       // f
   'M9,32 L13,28 L27,28 L31,32 L27,36 L13,36 Z', // g
 ];
-function makeDigit() {
+export function makeDigit() {
   const s = SVG('svg', { viewBox: '0 0 44 64', width: 36, height: 54 });
   const segs = SEG_PATHS.map((d) => { const p = SVG('path', { d, fill: '#ff2a1a', opacity: 0.08 }); s.append(p); return p; });
   const dp = SVG('circle', { cx: 39, cy: 58, r: 3.2, fill: '#ff2a1a', opacity: 0.08 });
@@ -332,7 +335,7 @@ function s3eLayout({ board, title, h, mkLed, mkSwitch, mkButton, portLabel, bitF
   return wrap;
 }
 
-const BOARD_LAYOUTS = { basys2: basys2Layout, nexys2: nexys2Layout, 's3e-starter': s3eLayout };
+export const BOARD_LAYOUTS = { basys2: basys2Layout, nexys2: nexys2Layout, 's3e-starter': s3eLayout };
 s3eLayout.lcd = true;   // the layout shows the character LCD
 
 // Yosys for the compiled engine (core/compiled-sim.js netlistOf): the page's workers (the local server), or,
@@ -425,44 +428,14 @@ export function mountEmulator(container, { design, board, assignments, title = '
   let logN = 0;
   let lcdDirty = true;
 
-  // ------------------------------------------------------------------------------- DOM
-  const root = h('div', { class: 'emu' });
-  container.append(root);
-  const runBtn = h('button', { class: 'btn', onclick: () => setRunning(!running) }, '▶ Run');
-  const stepBtn = h('button', { class: 'btn', title: 'Advance one clock cycle', onclick: () => step() }, '⏭ Step');
-  const resetBtn = h('button', { class: 'btn', title: 'Power-cycle the board: restart the design from time 0', onclick: () => powerCycle() }, '⟲ Power cycle');
-  const speedSel = h('select', { title: 'Emulated clock rate', onchange: (e) => { speed = e.target.value === 'max' || e.target.value === 'real' ? e.target.value : Number(e.target.value); } },
-    ...SPEEDS.map(([v, l]) => h('option', { value: v, selected: v === speed }, l)));
-  const stat = h('span', { class: 'stat' });
-  const hiddenSel = h('select', { title: 'What the emulator does while it is not seen (another browser tab, a minimised window, another document tab): pause, and go on where it was when shown again, or keep running',
-    onchange: (e) => { whenHidden = e.target.value; try { localStorage.setItem(HIDDEN_KEY, whenHidden); } catch { /* ignore */ } visibility(); } },
-    h('option', { value: 'pause', selected: whenHidden === 'pause' }, 'Pause'), h('option', { value: 'run', selected: whenHidden === 'run' }, 'Keep running'));
-  // timing scale: the top's large integer generics divided (see core/emulate.js)
-  let timingSel = null;
-  if (timing?.gens?.length) {
-    const opts = [1, 10, 100, 1000, 10000, 100000];
-    if (!opts.includes(timing.scale)) opts.push(timing.scale);
-    timingSel = h('select', { title: `Divide the timing generics (${timing.gens.map((g) => `${g.name} = ${g.value.toLocaleString()}`).join(', ')}) so that the design runs visibly at the emulator's speed`,
-      onchange: (e) => timing.onChange?.(Number(e.target.value)) },
-      ...opts.sort((a, b) => a - b).map((k) => h('option', { value: k, selected: k === timing.scale }, k === 1 ? 'real (÷1)' : `÷${k.toLocaleString()}`)));
-  }
-  // the model: the RTL or a netgen netlist, also one not generated yet (its emulation offers to generate it: #490, #878)
-  const modelSel = model ? h('select', { title: 'What runs on the board: the HDL (RTL) or a netlist generated by ISE (netgen)', onchange: (e) => { const v = e.target.value; e.target.value = model.current || ''; model.onChange?.(v); } },
-    h('option', { value: '', selected: !model.current }, 'Behavioral (RTL)'),
-    ...Object.entries(model.names).map(([k, n]) => h('option', { value: k, selected: model.current === k },
-      `${n} netlist${model.available.includes(k) ? '' : ' (not generated)'}`))) : null;
-  // the engine (#418): compiled (the board's speed) or event-driven (debugging)
-  const engineSel = engine ? h('select', { title: 'The simulator that runs the design: compiled (its netlist, at the board\'s real speed) or event-driven (the behavioural RTL, with X values and the design\'s messages: for debugging)',
-    onchange: (e) => engine.onChange?.(e.target.value) },
-    h('option', { value: 'compiled', selected: !!compiled, disabled: !compiled && !!engineNote, title: !compiled && engineNote ? `Not compiled: ${engineNote}` : null }, 'Compiled (real speed)'),
-    h('option', { value: 'event', selected: !compiled }, 'Event-driven (debugging)')) : null;
-  root.append(h('div', { class: 'emu-bar' }, modelSel ? 'Model:' : null, modelSel, modelSel ? h('span', { class: 'sep' }) : null,
-    engineSel ? 'Engine:' : null, engineSel, engineSel ? h('span', { class: 'sep' }) : null,
-    runBtn, stepBtn, resetBtn, h('span', { class: 'sep' }), 'Clock:', speedSel,
-    timingSel ? h('span', { class: 'sep' }) : null, timingSel ? 'Timing:' : null, timingSel, h('span', { class: 'sep' }), 'When hidden:', hiddenSel, stat));
+  // ------------------------------------------------------------------------------- DOM (emulator-toolbar.js)
+  const { main, resetBtn, root, runBtn, stat, stepBtn } = mountEmuToolbar({
+    container, engine, model, timing, title, compiled: () => compiled, engineNote: () => engineNote,
+    powerCycle: (...a) => powerCycle(...a), running: () => running, setRunning: (...a) => setRunning(...a),
+    speed: () => speed, step: (...a) => step(...a), visibility: (...a) => visibility(...a),
+    whenHidden: () => whenHidden, setSpeed: (v) => { speed = v; }, setWhenHidden: (v) => { whenHidden = v; }
+  });
 
-  const main = h('div', { class: 'emu-main' });
-  root.append(main);
   // the port bit on resource `res` (its pin `idx`); widgets are addressed by board resource name
   const bitFor = (res, idx = 0) => wiring.bits.find((b) => b.res.name === res && b.idx === idx);
   const resOf = (name) => board.resources.find((r) => r.name === name);
@@ -479,210 +452,24 @@ export function mountEmulator(container, { design, board, assignments, title = '
     applyInput(b.sig, m);
   };
 
-  // ---- interactive parts (placed by the board layout below)
-  const digits = [], leds = [];
-  const mkDigit = (k) => { const d = makeDigit(); digits[k] = d; return d.el; };
-  const mkLed = (k, cls = 'emu-led') => { const l = h('div', { class: cls }); leds[k] = l; return l; };
-  const mkSwitch = (k, cls = 'emu-sw', res = 'sw') => {
-    const b = bitFor(res, k);
-    const el = h('div', { class: cls, title: `${tip(res, k)} — click to toggle` });
-    el.addEventListener('click', () => { const on = !el.classList.contains('on'); el.classList.toggle('on', on); setInputBit(b, on); if (!running) refresh(); });
-    return el;
-  };
-  const mkButton = (k, cls = 'emu-btn', res = 'btn') => {
-    const b = bitFor(res, k);
-    const el = h('div', { class: cls, title: `${tip(res, k)} — press and hold (Shift+click keeps it pressed)` });
-    let latched = false;
-    const set = (on) => { el.classList.toggle('on', on); setInputBit(b, on); };
-    el.addEventListener('pointerdown', (e) => { e.preventDefault(); if (e.shiftKey) { latched = !latched; set(latched); } else { latched = false; set(true); el.setPointerCapture(e.pointerId); } });
-    el.addEventListener('pointerup', () => { if (!latched) set(false); });
-    el.addEventListener('pointercancel', () => { if (!latched) set(false); });
-    return el;
-  };
-  const portLabel = (res, k = 0) => { const b = bitFor(res, k); return b ? b.bit : '—'; };
-  // character LCD: 2 x 16 cells drawn from the HD44780 model (custom characters from CGRAM)
-  const mkLcd = ({ cellW = 15.5, cellH = 24, w = 12, h: ch = 19 } = {}) => {
-    const el = h('div', { class: 'emu-lcd', title: hasLcd ? 'Character LCD (HD44780): lcd_e, lcd_rs, lcd_rw, lcd_d' : 'LCD: not connected in the UCF' });
-    const cells = [];
-    for (let r = 0; r < 2; r++) for (let c = 0; c < 16; c++) {
-      const cell = h('div', { class: 'emu-lcd-cell', style: { left: `${c * cellW}px`, top: `${r * cellH}px`, width: `${w}px`, height: `${ch}px` } });
-      cells.push(cell); el.append(cell);
-    }
-    lcdView = {
-      set(lines, st) {
-        cells.forEach((cell, i) => {
-          const code = lines ? lines[i >> 4][i & 15] : 0x20;
-          if (cell._code === code && !(code < 16 && lines)) return;
-          cell._code = code;
-          if (lines && code < 16) {   // custom character: 5x8 dots from CGRAM
-            const base = (code & 7) * 8;
-            let svg = '<svg viewBox="0 0 5 8" width="100%" height="100%">';
-            for (let y = 0; y < 8; y++) for (let x = 0; x < 5; x++) if ((st.cgram[base + y] >> (4 - x)) & 1) svg += `<rect x="${x}" y="${y}" width=".9" height=".9" fill="#1c2a08"/>`;
-            cell.innerHTML = `${svg}</svg>`;
-          } else cell.textContent = code === 0x20 ? '' : (code === 0x5c ? '¥' : code === 0x7e ? '→' : code === 0x7f ? '←' : String.fromCharCode(code));
-        });
-      },
-    };
-    return el;
-  };
-  // rotary encoder (ROT_A / ROT_B in quadrature, at rest both '1'): one detent per click / wheel step
-  const QUAD_CYCLES = 1000;
-  const turnKnob = (dir) => {
-    const a = bitFor('rot_a'), b = bitFor('rot_b');
-    if (!a || !b) return;
-    const seq = dir > 0 ? [[0, 1], [0, 0], [1, 0], [1, 1]] : [[1, 0], [0, 0], [0, 1], [1, 1]];   // clockwise: A leads
-    // turns queue up: a click while the previous detent is still being played (the emulator is
-    // slower than the clicks) must not interleave the two quadrature sequences
-    const t0 = Math.max(sim.now, knobEnd);
-    if (compiled) {
-      // (the worker sets the bits, from its own time: the page's may be a run behind; data, not a function;
-      // the page's copy of the inputs where the knob rests)
-      const bitSet = (x, v) => ({ sig: x.sig, value: BigInt(v) << BigInt(x.pos), mask: 1n << BigInt(x.pos) });
-      sim.sequence(seq.map(([va, vb], k) => ({ dt: (k + 1) * QUAD_CYCLES * period, sets: [bitSet(a, va), bitSet(b, vb)] })));
-      for (const [x, v] of [[a, seq.at(-1)[0]], [b, seq.at(-1)[1]]]) { const m = 1n << BigInt(x.pos), cur = inVal.get(x.sig) ?? 0n; inVal.set(x.sig, v ? cur | m : cur & ~m); }
-    } else seq.forEach(([va, vb], k) => sim.at(t0 + (k + 1) * QUAD_CYCLES * period, () => { setInputBit(a, va); setInputBit(b, vb); }));
-    knobEnd = t0 + seq.length * QUAD_CYCLES * period;
-    if (!running) after(runCycles(Math.ceil((knobEnd - sim.now) / period) + QUAD_CYCLES));
-  };
-  const mkRotary = () => {
-    const el = h('div', { class: 'emu-rot', title: bitFor('rot_a') ? 'Turn the knob: ⟲ / ⟳ or the mouse wheel (ROT_A / ROT_B)' : 'Rotary encoder: ROT_A / ROT_B not connected in the UCF' },
-      h('button', { class: 'emu-rot-btn', title: 'Turn left (counter-clockwise)', onclick: () => turnKnob(-1) }, '⟲'),
-      h('button', { class: 'emu-rot-btn', title: 'Turn right (clockwise)', onclick: () => turnKnob(1) }, '⟳'));
-    return el;
-  };
-
-  // the power switch: off stops the board (LEDs, displays and LCD dark); on starts the design again
-  // from time 0, as configuring the FPGA at power-up does
-  const powerSwitches = [];
-  const mkPower = () => {
-    const el = h('div', { class: 'emu-power on', role: 'switch', tabindex: '0', 'aria-checked': 'true', 'aria-label': 'Power', title: 'Power switch: click to turn the board off / on' },
-      h('div', { class: 'emu-power-sw' }), h('div', { class: 'emu-power-led' }));
-    el.addEventListener('click', () => setPower(!powered));
-    el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPower(!powered); } });
-    powerSwitches.push(el);
-    return el;
-  };
-  const vgaWired = vgaPins(wiring, board);
-  const notEmulated = board.resources.filter((r) => !['led', 'sw', 'btn', 'seg', 'dp', 'an', 'rot'].includes(wiring.bits.find((b) => b.res === r)?.kind) && r.group !== 'Clock'
-    && !(r.group === 'LCD' && BOARD_LAYOUTS[board.id]?.lcd) && !(r.group === 'VGA' && vgaWired && compiled)
-    && wiring.bits.some((b) => b.res === r)).map((r) => r.name);
-  const clockNote = (wiring.clocks.length ? `Clock ${wiring.clocks.map((c) => c.port).join(', ')}: ${1e6 / period} MHz on the board${wiring.clocks[0].guessed ? ' (not in the UCF: assumed)' : ''}`
-    : manual.length ? `Manual clock ${manual.map((b) => `${b.port} (${b.res.name.toUpperCase()})`).join(', ')}: one edge per press` : 'No clock input found')
-    + (notEmulated.length ? ` · not emulated: ${notEmulated.join(', ')}` : '');
-
-  const layout = BOARD_LAYOUTS[board.id];
-  if (layout) main.append(layout({ board, title, h, mkDigit, mkLed, mkSwitch, mkButton, portLabel, bitFor, clockNote, mkLcd, mkRotary, turnKnob, mkPower }));
-  else {
-    // generic board: rows of displays, LEDs, switches and buttons
-    const boardEl = h('div', { class: 'emu-board' }, h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' } },
-      h('h3', { style: { margin: 0 } }, `${board.name}${title ? ` — ${title}` : ''}`), h('span', { class: 'emu-silk' }, 'POWER'), mkPower()));
-    main.append(boardEl);
-    const cell = (kind, idx, widget) => h('div', { class: `emu-cell${bitFor(kind, idx) ? '' : ' nc'}`, title: tip(kind, idx) },
-      widget, h('span', { class: 'res' }, `${resLabel[kind] || kind}${idx}`), h('span', { class: 'port' }, portLabel(kind, idx)));
-    const row = (res, kind, mk) => {
-      const r = resOf(res);
-      if (!r) return;
-      const el = h('div', { class: 'emu-row' });
-      for (let k = r.pins.length - 1; k >= 0; k--) el.append(cell(kind, k, mk(k)));
-      boardEl.append(el);
-    };
-    if (resOf('an') && resOf('seg')) {
-      const disp = h('div', { class: 'emu-disp' });
-      for (let k = resOf('an').pins.length - 1; k >= 0; k--) disp.append(cell('an', k, mkDigit(k)));
-      boardEl.append(h('div', { class: 'emu-row' }, disp));
-    }
-    row('led', 'led', (k) => mkLed(k));
-    row('sw', 'sw', (k) => mkSwitch(k));
-    row('btn', 'btn', (k) => mkButton(k));
-    const others = board.resources.filter((r) => r.name !== 'btn' && (/^btn_/.test(r.name) || r.name === 'rot_center'));
-    if (others.length) boardEl.append(h('div', { class: 'emu-row' }, ...others.map((r) => h('div', { class: `emu-cell${bitFor(r.name) ? '' : ' nc'}`, title: tip(r.name) },
-      mkButton(0, 'emu-btn', r.name), h('span', { class: 'res' }, r.name.replace(/^btn_/, '').toUpperCase()), h('span', { class: 'port' }, portLabel(r.name))))));
-    boardEl.append(h('div', { style: { fontSize: '11px', color: '#cfe8d4', marginTop: '6px' } }, clockNote));
-  }
+  // ---- interactive parts (placed by the board layout below) (emulator-board.js)
+  const { digits, leds, powerSwitches, vgaWired } = mountBoardParts({
+    board, title, after: (...a) => after(...a), bitFor, compiled: () => compiled, hasLcd, inVal, knobEnd: () => knobEnd,
+    lcdView: () => lcdView, main, manual, period, powered: () => powered, refresh: (...a) => refresh(...a), resLabel,
+    resOf, runCycles: (...a) => runCycles(...a), running: () => running, setInputBit,
+    setPower: (...a) => setPower(...a), sim, tip, wiring, setKnobEnd: (v) => { knobEnd = v; },
+    setLcdView: (v) => { lcdView = v; }
+  });
 
   // the VGA monitor (#420): the picture the design scans out on the board's VGA connector, as a monitor
   // finds it in the sync pulses (core/vga.js), in the board's time; with the compiled engine only
   let vgaView = null;
-  if (vgaWired) {
-    const canvas = h('canvas', { width: 640, height: 480 });
-    const nosig = h('div', { class: 'emu-vga-nosig' }, compiled ? 'No signal' : 'The VGA monitor needs the compiled engine (the event-driven one is too slow for a frame)');
-    const statEl = h('div', { class: 'emu-vga-stat' }), warnEl = h('div', { class: 'emu-vga-warn' });
-    main.append(h('div', { class: 'emu-box emu-vga' }, h('h4', {}, 'VGA monitor (640×480)'), h('div', { class: 'emu-vga-frame' }, canvas, nosig), statEl, warnEl));
-    const ctx = canvas.getContext('2d');
-    const img = ctx?.createImageData(640, 480), px = img ? new Uint32Array(img.data.buffer) : null;
-    let drawn = 0, warned = '';
-    const dark = () => { ctx?.clearRect(0, 0, 640, 480); nosig.hidden = false; statEl.textContent = ''; if (warned) { warnEl.textContent = ''; warned = ''; } };
-    vgaView = {
-      draw() {
-        if (!compiled || !powered) { dark(); return; }
-        const v = sim.vga();
-        if (!v?.status.signal || !v.fb) { dark(); return; }
-        const now = performance.now();
-        if (now - drawn < 33 && running) return;   // (30 pictures a second at most)
-        drawn = now;
-        nosig.hidden = true;
-        if (px) { vgaPixels(v.fb, v.palette, px); ctx.putImageData(img, 0, 0); }
-        statEl.textContent = `640×480 · ${v.status.summary}`;
-        const w = v.status.warnings.join('\n');
-        if (w !== warned) { warned = w; warnEl.replaceChildren(...v.status.warnings.map((t) => h('div', {}, t))); }
-      },
-    };
-  }
-
-  // side: watch, unconnected ports, log
-  const side = h('div', { class: 'emu-side' });
-  main.append(side);
-  const watchBody = h('tbody');
-  const watched = [];
-  const sigSel = h('select', { style: { maxWidth: '100%' } }, h('option', { value: '' }, 'Add a signal to watch…'),
-    ...design.signals.filter((s) => !Array.isArray(s.init) && s.t?.kind !== 'str').map((s, i) => h('option', { value: String(i) }, s.path || s.name)));
-  const sigList = design.signals.filter((s) => !Array.isArray(s.init) && s.t?.kind !== 'str');
-  sigSel.addEventListener('change', () => {
-    const s = sigList[Number(sigSel.value)];
-    sigSel.value = '';
-    if (!s || watched.some((w) => w.s === s)) return;
-    const val = h('td', { style: { textAlign: 'right' } });
-    const tr = h('tr', {}, h('td', {}, s.path || s.name), val,
-      h('td', {}, h('a', { href: '#', title: 'Remove', onclick: (e) => { e.preventDefault(); tr.remove(); watched.splice(watched.findIndex((w) => w.s === s), 1); watchChanged(); } }, '✕')));
-    watched.push({ s, val });
-    watchBody.append(tr);
-    watchChanged();
+  // (the VGA monitor, the side panel: emulator-side.js)
+  const { logEl, watched } = mountEmuSide({
+    board, design, engine, timing, title, after: (...a) => after(...a), clockSigs, compiled: () => compiled,
+    engineNote: () => engineNote, main, powered: () => powered, refresh: (...a) => refresh(...a),
+    running: () => running, sim, vgaView: () => vgaView, vgaWired, wiring, setVgaView: (v) => { vgaView = v; }
   });
-  // (the compiled engine: the worker sends the watched signals' values with each run; paused, a run of no cycle)
-  function watchChanged() {
-    if (!compiled) { refresh(); return; }
-    sim.watch(watched.map((w) => w.s));
-    if (!running) after(sim.advance(0));
-  }
-  side.append(h('div', { class: 'emu-box' }, h('h4', {}, 'Watch'), sigSel, h('table', {}, watchBody)));
-  if (timing?.gens?.length) {
-    const used = new Map((design.top.params || []).map((p) => [p.name, Number(p.value?.v ?? 0)]));
-    side.append(h('div', { class: 'emu-box' }, h('h4', {}, timing.scale > 1 ? `Timing ÷${timing.scale.toLocaleString()} (emulation only)` : 'Timing generics'),
-      h('table', {}, h('tbody', {}, ...timing.gens.map((g) => h('tr', {}, h('td', {}, g.name), h('td', { style: { textAlign: 'right' } }, g.value.toLocaleString()),
-        h('td', { style: { textAlign: 'right' } }, timing.scale > 1 ? `→ ${(used.get(g.name) ?? 0).toLocaleString()}` : ''))))),
-      h('div', { class: 'emu-hint', style: { marginTop: '4px' } }, timing.scale > 1
-        ? 'Divided so that counters, dividers and debouncers advance at the emulator\'s speed (about 10^5 clock cycles per second instead of 50 MHz). The design and the bitstream are not changed.'
-        : compiled ? 'Real values: the compiled engine runs the design at up to the board\'s clock rate.'
-          : 'Real values: at the emulator\'s speed, a design that counts millions of cycles moves very slowly.')));
-  }
-  const unm = wiring.unmapped.filter((u) => !clockSigs.has(design.top.ports.find((p) => p.name === u.port)?.sig));
-  if (unm.length) {
-    side.append(h('div', { class: 'emu-box' }, h('h4', {}, 'Not on the board'),
-      h('div', { class: 'emu-hint' }, `${unm.length} port bit(s) have no LOC on a ${board.name} resource (inputs are held at 0): `),
-      h('div', { style: { fontFamily: 'var(--mono, monospace)', marginTop: '4px' } }, unm.map((u) => `${u.bit}${u.loc ? ` (${u.loc})` : ''}`).join(', '))));
-  }
-  const logEl = h('div', { class: 'emu-log' });
-  side.append(h('div', { class: 'emu-box' }, h('h4', {}, 'Messages'), logEl));
-  side.append(h('div', { class: 'emu-hint' }, compiled
-    ? 'The design is compiled (its netlist, by Yosys) and runs at up to the board\'s clock rate; registers without an initial value start at 0, as on the FPGA; '
-      + 'the event-driven engine shows X values and the design\'s messages. Each display digit keeps the last pattern it showed between its refreshes, as your eye does on the real board. '
-      + 'Buttons: press and hold; Shift+click keeps a button pressed.'
-    : 'The design is simulated from its HDL (behavioural RTL) at a reduced clock rate; registers without an initial value start at 0, as on the FPGA; '
-      + 'each display digit keeps the last pattern it showed between its refreshes, as your eye does on the real board. Buttons: press and hold; Shift+click keeps a button pressed.'));
-  // why the event-driven engine runs it (the design could not be compiled), what the compiled one warns of
-  if (engineNote) side.append(h('div', { class: 'emu-hint' }, `Not compiled (${engineNote}): the event-driven simulator runs the design.`));
-  else if (engine?.auto && !compiled) side.append(h('div', { class: 'emu-hint emu-engine-auto' }, `The event-driven engine by default on this device (${engine.auto}): choose Engine ▸ Compiled to run the design at the board's real speed.`));
-  for (const w of compiled?.warnings || []) side.append(h('div', { class: 'emu-hint' }, `Compiled engine: ${w}`));
 
   // ------------------------------------------------------------------------------- simulation
   // (mask: the bits that changed, to the compiled engine: the rotary knob's may be the worker's to set)
@@ -858,43 +645,13 @@ export function mountEmulator(container, { design, board, assignments, title = '
     if (!running) paint();
     else if (!raf && !paintRaf && shown()) paintRaf = requestAnimationFrame(() => { paintRaf = 0; paint(); });
   }
-  const setStat = (t) => { if (stat.textContent !== t) stat.textContent = t; };
-  // (each LED's style written only when its brightness changed: the glow is a repaint)
-  const ledShown = [];
-  function paint() {
-    if (!dirty || !shown()) return;
-    dirty = false;
-    paints++;
-    // no window run yet (start-up, power cycle): LEDs and digits dark
-    leds.forEach((l, k) => {
-      const v = prev?.leds[k] ?? 0;
-      const background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`;
-      if (ledShown[k] === background) return;
-      ledShown[k] = background;
-      l.style.background = background; l.style.boxShadow = v > 0.05 ? `0 0 ${Math.round(8 * v)}px #4f4` : 'none';
-    });
-    digits.forEach((d, k) => d && d.set(prev?.digits[k] ?? null));
-    if (lcdView && lcdDirty) { lcdView.set(powered ? lcdText(lcd) : null, lcd); lcdDirty = false; }
-    vgaView?.draw();
-    for (const w of watched) {
-      const v = compiled ? sim.value(w.s) : w.s.val;
-      const t = v == null || Array.isArray(v) ? '?' : (w.s.t?.w > 1 ? `${V.toBin(v)}${v.x ? '' : ` (${v.v.toString(16).toUpperCase()}h)`}` : (v.x ? 'X' : v.v.toString()));
-      if (w.val.textContent !== t) w.val.textContent = t;
-    }
-    const nowMs = performance.now();
-    if (nowMs - rateWin.t > 1000) { rateWin.rate = rateWin.cyc * 1000 / (nowMs - rateWin.t); rateWin = { t: nowMs, cyc: 0, rate: rateWin.rate }; }
-    const r = running ? rateWin.rate : 0;
-    if (!powered) { setStat('Power off'); return; }
-    setStat(`t = ${formatTime(sim.now)} · ${Math.round(sim.now / period).toLocaleString()} cycles${running ? ` · ${r >= 1000 ? `${(r / 1000).toFixed(1)} kHz` : `${Math.round(r)} Hz`} (${(r * period / 1e10).toFixed(r * period / 1e10 < 1 ? 3 : 1)}% of real time)` : ''}${sim.finished === 'error' ? ' · stopped by an error' : ''}`);
-    // simulator messages
-    const log = sim.log;
-    if (log.length !== logN) {
-      for (const e of log.slice(Math.max(logN, log.length - 50))) logEl.append(h('div', { class: e.kind }, `${formatTime(e.time)}  ${e.kind === 'print' ? '' : `${e.kind.toUpperCase()}: `}${e.text}`));
-      logN = log.length;
-      while (logEl.childElementCount > 200) logEl.firstChild.remove();
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-  }
+  const { paint, setStat } = mountEmuPaint({
+    compiled: () => compiled, digits, dirty: () => dirty, lcd: () => lcd, lcdDirty: () => lcdDirty,
+    lcdView: () => lcdView, leds, logEl, logN: () => logN, paints: () => paints, period, powered: () => powered,
+    prev: () => prev, rateWin: () => rateWin, running: () => running, shown, sim, stat, vgaView: () => vgaView, watched,
+    setDirty: (v) => { dirty = v; }, setPaints: (v) => { paints = v; }, setLcdDirty: (v) => { lcdDirty = v; },
+    setRateWin: (v) => { rateWin = v; }, setLogN: (v) => { logN = v; }
+  });
 
   setupSim();
   if (!compiled) sim.run(0);

@@ -211,15 +211,15 @@ test('theme.css: the pages\' own colours have a dark value; no colour written in
   const dark = css.slice(start, css.indexOf('}', start));
   assert.deepEqual(vars.filter((v) => !dark.includes(`  ${v}: `)), [], 'a dark value for each');
   // the colours written in the scripts: only these, on purpose (the board emulator's board and LEDs, the FPGA
-  // view's colour of a module on its chip, the logo)
+  // view's colour of a module on its chip, the logo; the emulator's in its board and painting modules since #405)
   const found = [];
   for (const f of fs.readdirSync(path.join(ROOT, 'web/js')).filter((x) => x.endsWith('.js')).sort()) {
     const src = fs.readFileSync(path.join(ROOT, 'web/js', f), 'utf8');
     for (const m of src.matchAll(/\b(background|backgroundColor|color|border\w*|outline)\s*(:|=)\s*['`][^'`]*(#[0-9a-fA-F]{3,8}\b|rgba?\()[^'`]*['`]/g)) found.push(`${f}: ${m[0]}`);
   }
   assert.deepEqual(found, [
-    "emulator.js: color: '#cfe8d4'",
-    'emulator.js: background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`',
+    "emulator-board.js: color: '#cfe8d4'",
+    'emulator-paint.js: background = `rgb(${Math.round(27 + 20 * v)}, ${Math.round(58 + 197 * v)}, ${Math.round(35 + 40 * v)})`',
     "fpgaview.js: color = '#4e79a7'",
     "wizards.js: background: '#c4161c'",
     "wizards.js: color: '#fff'",
