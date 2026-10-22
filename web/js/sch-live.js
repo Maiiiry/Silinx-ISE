@@ -86,12 +86,12 @@ function liveController(ctx, live) {
     return { c, runBtn, box };
   });
   bar.append(
-    h('span', { class: 'lv-badge', text: 'Live simulation' }),
+    h('span', { class: 'lv-badge', text: 'Trying it out' }),
     h('button', { type: 'button', class: 'btn lv-reset', title: 'Power cycle: back to time 0, registers to their initial values', text: 'Reset', onclick: () => { stopAll(); act(() => live.reset()); } }),
     ...(clocks.length ? [h('span', { class: 'lv-sep' }), h('span', { class: 'lv-lbl', text: 'Clock:' }), ...clockBoxes.map(b => b.box)] : []),
     h('span', { class: 'lv-sep' }), h('label', { class: 'lv-lbl', text: 'Buses:' }), radixSel,
     h('span', { class: 'lv-sp' }), errEl, tEl,
-    h('button', { type: 'button', class: 'btn lv-exit', title: 'Leave the simulation and edit the schematic (Esc)', text: 'Stop Simulation', onclick: () => ctx.onExit() }),
+    h('button', { type: 'button', class: 'btn lv-exit', title: 'Stop trying it out and go back to the schematic (Esc)', text: 'Stop', onclick: () => ctx.onExit() }),
   );
 
   // ------------------------------------------------------------------ tooltip and bus editor
@@ -202,7 +202,7 @@ function liveController(ctx, live) {
     if (err !== errorText) {
       errorText = err;
       errEl.hidden = !err;
-      errEl.textContent = err ? `Simulation stopped: ${err.split('\n')[0]}` : '';
+      errEl.textContent = err ? `Stopped: ${err.split('\n')[0]}` : '';
       errEl.title = err || '';
       if (err) stopAll();
     }
@@ -311,7 +311,7 @@ function liveController(ctx, live) {
   function renderProps(el) {
     propEl = el;
     el.innerHTML = '';
-    el.append(h('div', { class: 'se-ptitle', text: 'Live simulation' }),
+    el.append(h('div', { class: 'se-ptitle', text: 'Trying it out' }),
       h('div', { class: 'se-note', text: 'Click an input to change it: 1-bit inputs toggle, buses open a value editor, clock inputs step one cycle. Wires: green = 1, dark green = 0, red = X/U, blue = Z. Hover a pin or a wire to see its value; click a component to list its pins.' }),
       ...(live.bidirs?.length ? [h('div', { class: 'se-note lv-bidir-note', text: 'Bidirectional (inout) markers show the value on the bus. Click one to drive the bus from outside (1-bit: Z, 0, 1 in turn; a bus opens the value editor, Z releases it); released (Z), the circuit drives it.' })] : []),
       h('div', { class: 'lv-inst' }));

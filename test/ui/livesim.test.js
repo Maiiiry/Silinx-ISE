@@ -129,8 +129,10 @@ uiTest('live schematic simulation: toggle inputs, wire colours, outputs, clock s
   await setLang('pt');
   const pt = await texts();
   await setLang('en');
-  assert.ok(en.includes('Stop Simulation') && pt.includes('Parar Simulação'));
-  assert.ok(en.includes('Simulate') && pt.includes('Simular'));
+  assert.ok(en.includes('Stop') && pt.includes('Parar'));
+  // Try it, not Simulate (the design flow's, its waves, #992)
+  assert.ok(en.includes('Try it') && pt.includes('Experimentar') && en.includes('Trying it out') && pt.includes('A experimentar'));
+  assert.ok(!en.some((t) => /simulat/i.test(t)) && !pt.some((t) => /simula/i.test(t)), JSON.stringify(en));
   assert.deepEqual(untranslated(en, pt, [/^@?(Hex|Decimal|Reset)$/, /symbols?, \d+ nets/]), []);
   // Esc leaves the simulation: wires back to normal, editing possible again
   await page.click(`${ED} .se-canvas`, { });
@@ -152,7 +154,7 @@ uiTest('live schematic simulation is refused with the errors listed (two drivers
   await page.eval(() => window.SilinxApp.openSch('src/bad.sch.json'));
   await page.waitFor((sel) => document.querySelector(`${sel} .se-btn[data-act=sim]`), [ED]);
   await page.click(`${ED} .se-btn[data-act=sim]`);
-  await page.waitFor((sel) => { const d = document.querySelector(`${sel} .se-diags`); return d && !d.hidden && /Simulation refused/.test(d.textContent); }, [ED], { what: 'refusal listed' });
+  await page.waitFor((sel) => { const d = document.querySelector(`${sel} .se-diags`); return d && !d.hidden && /^Cannot try it out: \d+ error/.test(d.textContent); }, [ED], { what: 'refusal listed' });
   assert.match(await page.eval((sel) => document.querySelector(`${sel} .se-diags`).textContent, ED), /2 drivers/);
   assert.equal(await page.eval((sel) => document.querySelector(sel).classList.contains('sim-mode'), ED), false);
 });

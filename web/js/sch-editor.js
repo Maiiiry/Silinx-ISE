@@ -176,7 +176,7 @@ export function mountSchEditor(container, opts = {}) {
     sep(), h('label', { class: 'se-hops', title: 'Draw a small arc where two wires cross without connecting' }, hopsBox, h('span', { text: 'Hop-overs' })),
     h('label', { class: 'se-names', title: 'Show the name of every instance and every net (the automatic ones too)' }, namesBox, h('span', { text: 'Names' })),
     h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'check', title: 'Check Schematic', html: `${ICON.check}<span>Check</span>` }),
-    sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'sim', title: 'Simulate: click the inputs and watch the circuit work (Esc to stop)', html: `${ICON.sim}<span>Simulate</span>` }),
+    sep(), h('button', { type: 'button', class: 'se-btn wide', 'data-act': 'sim', title: 'Try it: click the inputs and watch the circuit work (Esc to stop)', html: `${ICON.sim}<span>Try it</span>` }),   // (not "Simulate": the design flow's, the waves, #992)
     sep(), optBox,
     // a narrow screen (#266): the symbols and the properties over the canvas, shown by these
     h('span', { class: 'se-panels' },
@@ -767,7 +767,7 @@ export function mountSchEditor(container, opts = {}) {
     if (wireDraw) finishWire();
     if (tool !== 'select') setTool('select');
     liveStarting = true;
-    flash('Building the simulation model…');
+    flash('Building the circuit\'s model…');
     try {
       const [{ startLiveSim }, sources] = await Promise.all([import('./sch-live.js'), Promise.resolve(opts.simSources ? opts.simSources() : [])]);
       if (destroyed || live) return;
@@ -777,8 +777,8 @@ export function mountSchEditor(container, opts = {}) {
       });
       if (!res.ok) {
         lastDiags = res.diagnostics?.length ? res.diagnostics : res.errors.map(message => ({ severity: 'error', message }));
-        showDiags('Simulation refused');
-        flash(`Cannot simulate: ${res.errors[0]}`);
+        showDiags('Cannot try it out');
+        flash(`Cannot try it out: ${res.errors[0]}`);
         updateStatus();
         return;
       }
@@ -791,7 +791,7 @@ export function mountSchEditor(container, opts = {}) {
       opts.onSimulate?.(true);
     } catch (err) {
       console.error(err);
-      flash(`Cannot simulate: ${err.message}`);
+      flash(`Cannot try it out: ${err.message}`);
     } finally { liveStarting = false; }
   }
   function leaveSim() {

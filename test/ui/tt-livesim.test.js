@@ -33,7 +33,7 @@ const viewerDoc = (page) => page.eval(() => window.Silinx.active.viewer.getDoc()
 async function simulateTable(page) {
   const doc = await viewerDoc(page);
   const port = (n) => doc.ports.find((p) => p.name === n).id;
-  assert.ok(await shown(page, `${ED} .se-btn[data-act=sim]`), 'Simulate shown');
+  assert.ok(await shown(page, `${ED} .se-btn[data-act=sim]`), 'Try it shown');
   for (const act of ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo']) assert.ok(!(await shown(page, `${ED} [data-act=${act}]`)), `${act} hidden`);
   await page.click(`${ED} .se-btn[data-act=sim]`);
   await page.waitFor((sel) => document.querySelector(sel)?.classList.contains('sim-mode') && document.querySelector(`${sel} .se-simlayer .lv-sw`), [ED], { what: 'simulation mode' });
@@ -105,7 +105,7 @@ uiTest('Truth Table schematic: Simulate in the read-only view, outputs as the ta
   await setLang('en'); const en = await texts();
   await setLang('pt'); const pt = await texts();
   assert.deepEqual(untranslated(en, pt, [/^@?(Hex|Decimal|Reset)$/, /symbols?, \d+ nets/]), []);   // (the same words in Portuguese)
-  assert.equal(await page.eval((sel) => document.querySelector(`${sel} [data-act=sim] span`).textContent, ED), 'Simular');
+  assert.equal(await page.eval((sel) => document.querySelector(`${sel} [data-act=sim] span`).textContent, ED), 'Experimentar');   // (Try it, #992)
   await setLang('en');
   await page.key('Escape');
 
