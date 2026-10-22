@@ -220,7 +220,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   own recognizer reads it, offline (a point-cloud recognizer with built-in templates; nothing is sent anywhere):
   letters, digits, `_`, `+ · * ' ¬ ~ ( ) = ⊕ ^ & |`, and a bar over letters as NOT. The text is shown for you to
   correct before it is inserted; *Teach Silinx my handwriting* keeps samples of your own way of writing a symbol in
-  the browser.
+  the browser. On the pad, two fingers zoom and move the writing area, the mouse wheel zooms it, *Fit* shows the
+  whole drawing; the Handwritten Schematic dialog uses the whole page.
 - **Hand-drawn truth tables** (*Handwritten Table…* in the truth table editor): draw the whole table — the names in
   a header, a line under it, a line between the inputs and the outputs, a row of 0, 1 or X for each combination —
   and Silinx reads it offline into its text (`A B | F`, then a row a line), which you correct before it fills the

@@ -62,6 +62,9 @@ uiTest('Handwritten… (schematic): a half adder drawn with the mouse, a finger 
   await openSchematic(page, 'InkSch');
   await page.click(`${ED} [data-act=ink]`);
   await page.waitDialog('Handwritten Schematic');
+  // the whole page (#1088): the dialog over all of the window, the pad most of it
+  const size = await page.eval((d) => { const r = document.querySelector(d).closest('.dlg').getBoundingClientRect(), p = document.querySelector(`${d} .ink-canvas`).getBoundingClientRect(); return [r.width / innerWidth, r.height / innerHeight, p.width / r.width, p.height / r.height]; }, D);
+  assert.ok(size[0] > 0.98 && size[1] > 0.98 && size[2] > 0.5 && size[3] > 0.5, String(size));
   // (an empty schematic: nothing replaced, nothing said of it)
   assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-replaces`), D), null);
   await draw(page, writeSchematic(HALF_ADDER, { seed: 9, amount: 0.4, size: 60, x: 30, y: 30 }).strokes);
@@ -106,7 +109,7 @@ uiTest('Handwritten… (schematic): in Portuguese, a drawing that is not a circu
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), label, .hint')].map((e) => e.textContent.trim()), D);
     assert.deepEqual(labels, [
       'Desenhe o circuito com uma caneta, um dedo ou o rato: as portas (AND, OR, XOR, um triângulo para um buffer, um pequeno círculo na saída para NOT) maiores do que os nomes, as suas entradas à esquerda, fios em esquadria, e o nome de cada entrada e saída na ponta do seu fio.',
-      'Desfazer Traço', 'Limpar', 'Reconhecido:', 'Criar Esquemático', 'Cancelar',
+      'Ajustar', 'Desfazer Traço', 'Limpar', 'Reconhecido:', 'Criar Esquemático', 'Cancelar',
     ]);
     await page.dialogButton('Criar Esquemático');
     assert.equal(await message(page), 'Nada desenhado: desenhe o circuito na área de escrita.');
