@@ -33,6 +33,9 @@ export function assetsBase(loc = globalThis.location) {
   const page = loc && /^https?:$/.test(loc.protocol) ? loc.href : LAYOUT.site;
   return new URL(`assets/${LAYOUT.dir}`, page).href;
 }
+/** The site's assets/ folder, which holds every version's (pruneAssetCache, #967): the folder of this version's
+ *  parent; unbuilt (tests), this version's itself. */
+export const assetsRoot = (base = assetsBase()) => (LAYOUT.dir ? new URL('../', base).href : base);
 /** The URL of Yosys's bundle (gen/bundle.js) for the assets at `base`. */
 export const yosysBundleUrl = (base = assetsBase()) => new URL(LAYOUT.yosys, base).href;
 
@@ -145,6 +148,24 @@ export async function runBrowserFlow({ project, files, steps, resources = null, 
     });
     signal?.addEventListener('abort', abort, { once: true });
     w.postMessage({ id, spec, sources, simSources, ucf, ucfName: project.constraints ? project.constraints.split('/').pop() : null, files: earlier, assets: assetsBase(), yosys: yosysBundleUrl() });
+  });
+}
+
+/**
+ * What Implement of the project's device fetches (Yosys, the device description, its bit database), fetched into the
+ * browser's Cache Storage by the flow's worker, in the background, when a project opens (#967): its first run does not
+ * wait for 17 MB to download. Nothing where there is no Cache Storage (a page opened from a file), for a device the
+ * Silinx toolchain does not support, or once the device's are prepared. Resolves { fetched, bytes, pruned } or null.
+ */
+const prepared = new Set();
+export function prepareBrowserFlow(device = {}) {
+  const st = browserOpenStatus(device);
+  if (!st.available || prepared.has(st.graph) || !globalThis.isSecureContext || !globalThis.caches) return Promise.resolve(null);
+  prepared.add(st.graph);
+  const w = getWorker(), id = ++runSeq;
+  return new Promise(resolve => {
+    runs.set(id, { onData: data => { if (data.done) { runs.delete(id); resolve(data.done); } }, fail: () => { runs.delete(id); prepared.delete(st.graph); resolve(null); } });
+    w.postMessage({ id, prepare: { graph: st.graph, device: String(device.part).toLowerCase(), pkg: String(device.package).toLowerCase() }, assets: assetsBase(), yosys: yosysBundleUrl(), root: assetsRoot() });
   });
 }
 

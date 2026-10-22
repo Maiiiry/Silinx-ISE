@@ -13,6 +13,8 @@ import { renderProcesses, restoreImplStatus, reservedNameDiags } from './process
 import { renderHierarchy } from './design.js';
 
 const $ = id => document.getElementById(id);
+// how long after a project opens the browser edition fetches what Implement needs (#967): after the opening's own work
+const prepareDelay = () => globalThis.SILINX_PREPARE_DELAY ?? 2000;
 
 // per-project UI state (cleared when another project is opened or the project is closed)
 function resetProjectState() {
@@ -55,6 +57,8 @@ async function openProjectNow(name) {
   // used: not awaited, it drew the Processes panel again under a double-click on a process and Implement Design
   // then did not start, or synthesized again (#346)
   await restoreImplStatus();
+  // the browser edition: what Implement needs, downloaded now in the background, kept by the browser (#967)
+  if (api.standalone) setTimeout(() => S.project?.name === name && import('./open-flow-browser.js').then(m => m.prepareBrowserFlow(S.project.device)).catch(() => {}), prepareDelay());
   // where the user was in this project; the Design Summary the first time
   if (!await restoreViewState(name)) openSummary({ background: true });
 }

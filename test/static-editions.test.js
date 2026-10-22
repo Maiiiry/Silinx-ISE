@@ -77,17 +77,21 @@ test('#487 the assets\' URLs of a built page: its version\'s folder next to the 
   globalThis.SILINX_ASSET_LAYOUT = layout;
   delete globalThis.SILINX_ASSETS;
   try {
-    const { assetsBase, yosysBundleUrl } = await import('../web/js/open-flow-browser.js?layout=1');
+    const { assetsBase, yosysBundleUrl, assetsRoot } = await import('../web/js/open-flow-browser.js?layout=1');
     assert.equal(assetsBase({ protocol: 'file:', href: 'file:///tmp/Downloads/Silinx-ISE.html' }), 'https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/');
     assert.equal(assetsBase({ protocol: 'https:', href: 'https://pmnmalo.github.io/Silinx-ISE/' }), 'https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/');
     assert.equal(assetsBase({ protocol: 'https:', href: 'https://pmnmalo.github.io/Silinx-ISE/dev/index.html' }), 'https://pmnmalo.github.io/Silinx-ISE/dev/assets/15.12.0/');
     assert.equal(yosysBundleUrl('https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/'), 'https://pmnmalo.github.io/Silinx-ISE/assets/vendor/yowasp-yosys/0.70.1258/gen/bundle.js');
+    // the folder of every version's assets (the cache's other versions pruned under it, #967): each edition's own
+    assert.equal(assetsRoot('https://pmnmalo.github.io/Silinx-ISE/assets/15.12.0/'), 'https://pmnmalo.github.io/Silinx-ISE/assets/');
+    assert.equal(assetsRoot('https://pmnmalo.github.io/Silinx-ISE/dev/assets/15.12.0/'), 'https://pmnmalo.github.io/Silinx-ISE/dev/assets/');
     // a test's SILINX_ASSETS replaces them
     globalThis.SILINX_ASSETS = 'http://127.0.0.1:9/assets/x/';
     assert.equal(assetsBase({ protocol: 'file:', href: 'file:///x.html' }), 'http://127.0.0.1:9/assets/x/');
   } finally { delete globalThis.SILINX_ASSET_LAYOUT; delete globalThis.SILINX_ASSETS; }
   // unbuilt (the module as it is in web/js): the unversioned folder, as the tests' servers have it
-  const { assetsBase, yosysBundleUrl } = await import('../web/js/open-flow-browser.js?layout=0');
+  const { assetsBase, yosysBundleUrl, assetsRoot } = await import('../web/js/open-flow-browser.js?layout=0');
   assert.equal(assetsBase({ protocol: 'http:', href: 'http://127.0.0.1:8/' }), 'http://127.0.0.1:8/assets/');
+  assert.equal(assetsRoot('http://127.0.0.1:8/assets/'), 'http://127.0.0.1:8/assets/');
   assert.equal(yosysBundleUrl('http://127.0.0.1:8/assets/'), 'http://127.0.0.1:8/assets/vendor/yowasp-yosys/gen/bundle.js');
 });

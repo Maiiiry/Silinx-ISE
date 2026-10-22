@@ -4,15 +4,22 @@
 // assets/ folder; web/js/open-flow-browser.js chooses it).
 //   in:  { spec, sources: [{ path, lang, text }], simSources (the test benches), ucf, ucfName, files: { name: text }, assets, yosys (its bundle's URL) }
 //   out: { line } … { write: name, data } … { report } … then { done: { ok, report, error, view } }
+//   in:  { prepare: { graph, device, pkg }, assets, yosys, root }: what a run of that device fetches, fetched into
+//        Cache Storage (web/js/asset-cache.js, #967), this edition's other versions deleted from it
+//   out: { done: { fetched, bytes, pruned } }
 import { runOpenFlow } from '/core/open-flow-core.js';
 import { loadDevice } from '/core/fpga/device.js';
 import { dbFileNames, dbFilesFrom, makeBitDb } from '/core/fpga/bitdb.js';
 import { runYosysOnce, yosysWorkerSource, readableBlobs } from '/core/synth-open.js';
 import { yosysPool } from './yosys-client.js';
 import { parseXdl, fpgaModel, deviceGrid, MODEL_VERSION } from '/core/xdl.js';
+import { assetFetch, assetFetchSource, assetCached, prefetchAssets, pruneAssetCache, YOSYS_FILES } from './asset-cache.js';
 
 // (Yosys in this worker's own thread, where it cannot start workers of its own: its Blobs readable, #556)
 readableBlobs();
+// the versioned assets from Cache Storage (#967): this worker's fetches, Yosys's in its thread among them
+const netFetch = self.fetch.bind(self);
+assetFetch(self);
 
 const fetchOk = async (url, what) => {
   const r = await fetch(url);
@@ -28,6 +35,18 @@ async function gunzipJson(res) {
 
 // the Yosys workers, by the URL of Yosys: kept from one run of the flow to the next
 const pools = new Map();
+const loaded = new Set();   // (the URLs of Yosys a run of this worker has loaded)
+// a Yosys worker's code: the cache first, then Yosys (core/synth-open.js)
+const yosysSource = bundle => assetFetchSource() + yosysWorkerSource(bundle);
+
+/** What a run of the device fetches, fetched into the cache: { fetched, bytes, pruned }. */
+async function prepare({ prepare: d, assets, yosys, root }) {
+  const base = new URL(assets);
+  const pruned = await pruneAssetCache(root, [base.href, new URL('.', yosys).href]);
+  const urls = [new URL(`devices/${d.graph}`, base), ...Object.values(dbFileNames(d.device, d.pkg)).map(f => new URL(`bitdb/${f}`, base)),
+    ...YOSYS_FILES.map(f => new URL(f, yosys))];
+  return { ...await prefetchAssets(urls, { fetchFn: netFetch }), pruned };
+}
 // the last device description and bit database loaded (1.6-2.5 MB gzipped): the next run of the same
 // device uses them again (the flow does not change them) instead of fetching and parsing them anew
 let lastDevice = null;   // { key, device, db }
@@ -36,6 +55,7 @@ self.onmessage = async ({ data }) => {
   const { spec, sources, simSources = [], ucf, ucfName, files, assets, yosys: yosysUrl } = data;
   // every message carries the run's id (web/js/open-flow-browser.js: each run hears only its own)
   const post = m => self.postMessage({ ...m, id: data.id });
+  if (data.prepare) { post({ done: await prepare(data).catch(e => ({ fetched: 0, bytes: 0, pruned: 0, error: e.message })) }); return; }
   try {
     const base = new URL(assets);
     // what the flow needs, fetched before it starts (it reads them synchronously)
@@ -55,7 +75,7 @@ self.onmessage = async ({ data }) => {
       lastDevice = { key, device: dev, db: makeBitDb(dbFilesFrom(json, spec.pkg), dev, spec.part) };
     }
     const { device, db } = lastDevice;
-    // Yosys, compiled to WebAssembly (YoWASP): fetched once, then cached by the browser; in workers of
+    // Yosys, compiled to WebAssembly (YoWASP): fetched once, then kept in Cache Storage (#967); in workers of
     // this worker (#279), the synthesis's mappings from the same netlist in parallel (web/js/yosys-client.js),
     // or in this worker's own thread where it cannot start them
     // (its versioned path: web/js/open-flow-browser.js yosysBundleUrl)
@@ -68,13 +88,20 @@ self.onmessage = async ({ data }) => {
     let pool = null;
     if (!pools.has(bundle) && typeof Worker !== 'undefined') {
       try {
-        const url = URL.createObjectURL(new Blob([yosysWorkerSource(bundle)], { type: 'text/javascript' }));
+        const url = URL.createObjectURL(new Blob([yosysSource(bundle)], { type: 'text/javascript' }));
         pools.set(bundle, yosysPool({ spawn: () => new Worker(url) }));   // (classic workers: from a file:// page too, #512)
       } catch { pools.set(bundle, null); }
     }
     pool = pools.get(bundle) || null;
     const yosys = Object.assign(async (args, yfiles, onLine) => {
-      if (!loading) { loading = true; post({ line: 'Loading Yosys (WebAssembly: downloaded once, then kept by the browser)…' }); }
+      if (!loading) {
+        loading = true;
+        // (what the wait is: the first time, a download of 16.7 MB, #967)
+        const kept = loaded.has(bundle) || await assetCached(new URL('yosys.core.wasm', bundle));
+        loaded.add(bundle);
+        post({ line: kept ? 'Loading Yosys (WebAssembly, kept by this browser)…'
+          : 'Downloading Yosys, the synthesis tool (WebAssembly, about 17 MB: once, then kept by this browser)…' });
+      }
       if (pool) {
         try { return await pool(args, yfiles, onLine); } catch (e) {
           if (!e.workerFailed) throw e;

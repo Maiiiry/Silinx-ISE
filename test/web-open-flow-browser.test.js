@@ -1,6 +1,6 @@
 // The browser edition's flow runner (web/js/open-flow-browser.js) with a fake Web Worker: each run
 // hears only its own messages, Stop terminates the worker, a failed worker is terminated and
-// replaced (#397, #399).
+// replaced (#397, #399); what a device's Implement needs, prepared in the background (#967).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ui/core-hooks.js';
@@ -15,7 +15,7 @@ class FakeWorker {
 }
 globalThis.Worker = FakeWorker;
 globalThis.SILINX_ASSETS = 'https://example.test/assets/';
-const { runBrowserFlow } = await import('../web/js/open-flow-browser.js');
+const { runBrowserFlow, prepareBrowserFlow } = await import('../web/js/open-flow-browser.js');
 
 const project = { name: 'p', top: 'top', device: { family: 'spartan3e', part: 'xc3s250e', package: 'cp132', speed: '-4' }, files: [{ path: 'top.v', lang: 'verilog', role: 'design' }] };
 const files = { 'top.v': 'module top(input a, output y); assign y = a; endmodule\n' };
@@ -85,4 +85,38 @@ test('a worker that fails: terminated, every run on it rejects, the next run sta
   const [m] = w2.posted;
   w2.send({ id: m.id, done: { ok: true } });
   assert.deepEqual(await c.run, { ok: true });
+});
+
+test('#967 prepareBrowserFlow: the device\'s assets asked of the flow\'s worker once (with the cache\'s root and Yosys); none without Cache Storage, for a device not supported; again after a failed worker', async () => {
+  const dev = { family: 'spartan3e', part: 'xc3s500e', package: 'fg320', speed: '-4' };
+  // no Cache Storage (a page opened from a file, an insecure page): nothing asked, no worker
+  const n = FakeWorker.all.length;
+  assert.equal(await prepareBrowserFlow(dev), null);
+  globalThis.caches = {};
+  assert.equal(await prepareBrowserFlow(dev), null, 'not a secure context');
+  globalThis.isSecureContext = true;
+  assert.equal(await prepareBrowserFlow({ family: 'spartan6', part: 'xc6slx16', package: 'csg324' }), null, 'a device the Silinx toolchain does not support');
+  assert.equal(FakeWorker.all.length, n);
+  try {
+    const p = prepareBrowserFlow(dev);
+    const w = live(), m = w.posted.at(-1);
+    assert.deepEqual(m.prepare, { graph: 'xc3s500efg320-4.json.gz', device: 'xc3s500e', pkg: 'fg320' });
+    assert.equal(m.assets, 'https://example.test/assets/');
+    assert.equal(m.root, 'https://example.test/assets/', 'unbuilt: the assets folder itself');
+    assert.equal(m.yosys, 'https://example.test/assets/vendor/yowasp-yosys/gen/bundle.js');
+    w.send({ id: m.id, line: 'ignored' });
+    w.send({ id: m.id, done: { fetched: 9, bytes: 17e6, pruned: 0 } });
+    assert.deepEqual(await p, { fetched: 9, bytes: 17e6, pruned: 0 });
+    assert.equal(await prepareBrowserFlow(dev), null, 'prepared already');
+    // another device: asked; its worker fails: null, and asked again later
+    const dev2 = { ...dev, part: 'xc3s1200e' };
+    const q = prepareBrowserFlow(dev2);
+    live().onerror({ message: 'boom' });
+    assert.equal(await q, null);
+    const q2 = prepareBrowserFlow(dev2);
+    const w2 = live(), m2 = w2.posted.at(-1);
+    assert.equal(m2.prepare.graph, 'xc3s1200efg320-4.json.gz');
+    w2.send({ id: m2.id, done: { fetched: 0, bytes: 0, pruned: 1 } });
+    assert.deepEqual(await q2, { fetched: 0, bytes: 0, pruned: 1 });
+  } finally { delete globalThis.caches; delete globalThis.isSecureContext; }
 });
