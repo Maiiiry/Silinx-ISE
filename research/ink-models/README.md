@@ -22,6 +22,8 @@ Nothing here is part of the app: the page is not loaded, served or built by Sili
   processes, measured on the Mac), and per drawing on an Apple M-series Mac: 0.1–0.4 s with WebGPU,
   0.2–3 s with WebAssembly on 4 threads, 0.7–10 s on one thread. The board will be several times
   slower; its own figures are to be measured (below).
+- **Safari's engine (WebKit) runs all of it** — WebGPU, 4 threads, the same answers and times as
+  Chrome on the Mac — so the iPad can be measured too (over HTTPS, steps below).
 - **Recommendation:** no model now. Expressions are what the templates are best at too, tables are a
   grid of `0`/`1` cells (geometry plus a digit classifier), and schematics need either the templates'
   shape recognition or a model trained on Silinx-style drawings. If expressions turn out to be the
@@ -46,8 +48,8 @@ Options in the address: `?threads=1` (WebAssembly threads), `?dtype={"vision_enc
 | `worker.js` | Loads a model (`pipeline('image-to-text')` for TrOCR, `AutoModelForVision2Seq` for SmolVLM, `Florence2ForConditionalGeneration`) and recognizes; one 512-pixel tile for SmolVLM (its default splits a drawing into up to 16) |
 | `score.js` | 0 to 1 per answer: expressions 1 − character error rate (operator spellings made one), tables the same on the 0/1 digits, schematics the share of expected gate types and signal names mentioned |
 | `gen-samples.mjs` | Draws the 10 samples: two handwriting fonts (Caveat, Kalam: SIL OFL) with every character turned, moved and sized at random, wobbly lines for the gates and rules; a fixed seed |
-| `serve.mjs` | Serves the folder on the network with COOP/COEP (`credentialless`), so the page is cross-origin isolated: WebAssembly threads, and a memory measure |
-| `bench.mjs` | The Mac runner: the installed Chrome, headless, per model and backend a cold load, then in a fresh browser a warm load and the samples while every Chrome process's resident memory is sampled |
+| `serve.mjs` | Serves the folder on the network with COOP/COEP (`require-corp`: Safari has no `credentialless`), so the page is cross-origin isolated: WebAssembly threads, and a memory measure; `--https` for the iPad, with a local certificate authority of its own |
+| `bench.mjs` | The Mac runner: the installed Chrome (or Playwright's WebKit, `SPIKE_BROWSER=webkit`), headless, per model and backend a cold load, then in a fresh browser a warm load and the samples while every Chrome process's resident memory is sampled |
 | `report.mjs` | The tables below from `results/*.json`, answers scored again |
 | `results/` | The measurements, one JSON per machine or option |
 
@@ -105,6 +107,23 @@ Observations:
   cross-origin isolated has one thread; Silinx's browser edition would need COOP/COEP (or the
   standalone edition's server) to get them.
 
+## Results in WebKit, Safari's engine (the same Mac, Playwright's WebKit 27.2 headless)
+
+`SPIKE_BROWSER=webkit node research/ink-models/bench.mjs mac-webkit`: the engine of every browser on
+the iPad. Everything runs, WebGPU included, cross-origin isolated with 4 threads; the answers and the
+times are those of Chrome on WebGPU; the 8-bit builds on WebAssembly differ on a few samples (a
+drawing reaches them resized by another engine), within the scores' noise. WebKit's memory is not measured
+(its processes are not found by the profile's name).
+
+| Model | Backend (dtype) | Download | Cold load | Warm load | Median / drawing | Expressions | Tables | Schematics¹ |
+|---|---|--:|--:|--:|--:|--:|--:|--:|
+| TrOCR-small | WebGPU (fp32) | 239 MB | 7.9 s | 1.7 s | 0.12 s | 0.40 | 0.00 | 0.21 |
+| SmolVLM-256M | WebGPU (q4, embeddings fp16) | 201 MB | 5.9 s | 0.9 s | 0.52 s | **0.94** | 0.08 | 0.46 |
+| Florence-2-base-ft | WebGPU (q4, vision fp16) | 343 MB | 10.6 s | 2.3 s | 0.37 s | 0.83 | 0.25 | 0.46 |
+| TrOCR-small | WASM 4 threads (q8) | 65 MB | 3.8 s | 1.3 s | 0.22 s | 0.47 | 0.00 | 0.13 |
+| SmolVLM-256M | WASM 4 threads (q8) | 251 MB | 7.5 s | 1.0 s | 1.47 s | 0.71 | 0.21 | 0.13 |
+| Florence-2-base-ft | WASM 4 threads (q8) | 265 MB | 8.2 s | 1.7 s | 2.65 s | 0.59 | 0.32 | 0.71 |
+
 ## Licences (all compatible with AGPL-3.0-only)
 
 The weights are not part of Silinx: they would be downloaded by the user's browser on demand, like
@@ -140,6 +159,33 @@ Copy the JSON into `results/benq-re7504.json`; `node research/ink-models/report.
 Expect the board to be several times slower than the Mac on WebAssembly (its A73 cores against the
 Mac's): a few seconds per expression for SmolVLM on 4 threads, ten or more for Florence-2. Under
 about 3 s per drawing would make SmolVLM usable for expressions.
+
+## Measuring on an iPad (Safari)
+
+Safari has no flag to treat a plain-HTTP address as secure, and WebGPU and the threads need a secure
+page, so the Mac serves the page over HTTPS with a certificate authority of its own, which the iPad
+trusts once. The authority is made by `openssl` in `~/.silinx/ink-models-tls` on the Mac (never in the
+repository; its key stays there) and can vouch only for private network addresses and `localhost`
+(name constraints). Every browser on the iPad is WebKit, so Chrome there behaves as Safari.
+
+1. On the Mac, in the repository: `node research/ink-models/serve.mjs --https` — it prints the page's
+   address on the network (`https://<the Mac's address>:8790/`). The iPad and the Mac on the same network.
+2. On the iPad, in Safari: open `https://<the Mac's address>:8790/spike-ca.cer`. Safari warns that the
+   connection is not private (the authority is not trusted yet): **Show Details ▸ visit this website**,
+   then **Allow** the configuration profile.
+3. Settings ▸ General ▸ VPN & Device Management ▸ *Silinx ink-models spike (local)* ▸ **Install**. Then
+   Settings ▸ General ▸ About ▸ Certificate Trust Settings: turn on full trust for it.
+4. Open `https://<the Mac's address>:8790/`: no warning now. The line under the title should say WebGPU
+   (on by default in Safari 26; in iPadOS 18, Settings ▸ Apps ▸ Safari ▸ Advanced ▸ Feature Flags ▸
+   WebGPU) and cross-origin isolated: yes.
+5. **Run every model** with WebGPU, then with WebAssembly; draw your own with the Pencil; **Save
+   results** (Files ▸ Downloads), AirDrop it to the Mac as `results/ipad-<model>.json`.
+6. Memory: Safari gives no measure. If a model is too large for the tab, Safari reloads the page ("A
+   problem repeatedly occurred"): note which model and backend did it.
+7. Afterwards, remove the profile if you wish (VPN & Device Management ▸ Remove Profile).
+
+`serve.mjs --https` works for the board too, instead of the Chrome flag: Android's Settings ▸ Security ▸
+Encryption & credentials ▸ Install a certificate ▸ CA certificate, with the same `spike-ca.cer`.
 
 ## Recommendation
 

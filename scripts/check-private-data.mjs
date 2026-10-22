@@ -28,6 +28,7 @@ export const ALLOW = [
   ['test/report-failure.test.js', /^(dev|me)@(192\.0\.2|203\.0\.113)\.\d+$/, 'made-up logins on documentation addresses (RFC 5737): the cleaning of a log line is tested on them (#251)'],
   ['scripts/measure-power.mjs', /^3\.3\.1\.[12]$/, "XPower's section numbers (in the history only)"],
   ['test/static-editions.test.js', '/Users/x', 'a made-up file:// path of a downloaded edition (in the history only, #555)'],
+  ['research/ink-models/serve.mjs', /^(10\.0\.0\.0|172\.16\.0\.0|192\.168\.0\.0|255\.(0|240|255)\.0\.0)$/, 'the private networks\' ranges and masks: the name constraints of the spike\'s local certificate authority (#1060)'],
   [/^\(message of (fda526c|dc20cc0)\)$/, '3.3.1.1', "XPower's section number in two commit messages"],
   // ISE's text reports and simulation models of our own test designs (no personal data in them):
   // the fixtures of the report parsers and of the netgen simulation

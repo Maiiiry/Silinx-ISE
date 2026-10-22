@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Runs the spike page in the installed Chrome, headless, for every model and backend, and writes
+// Runs the spike page in the installed Chrome (or Playwright's WebKit, Safari's engine: SPIKE_BROWSER=webkit),
+// headless, for every model and backend, and writes
 // results/<name>.json (#1060). Copyright 2026 Pedro Maló, AGPL-3.0-only.
 //   node research/ink-models/bench.mjs [name] [model…]
 //   SPIKE_BACKENDS=webgpu,wasm (default both)   SPIKE_QUERY='threads=1' (the page's options)
@@ -12,7 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
+import { chromium, webkit } from 'playwright';
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const [name = 'mac', ...only] = process.argv.slice(2);
@@ -26,7 +27,8 @@ const PROFILE = fs.mkdtempSync(path.join(os.tmpdir(), 'ink-models-profile-'));
 let context;
 async function relaunch() {
   await context?.close();
-  context = await chromium.launchPersistentContext(PROFILE, { channel: process.env.SPIKE_CHANNEL ?? 'chrome', args: ['--enable-unsafe-webgpu'] });
+  context = process.env.SPIKE_BROWSER === 'webkit' ? await webkit.launchPersistentContext(PROFILE)
+    : await chromium.launchPersistentContext(PROFILE, { channel: process.env.SPIKE_CHANNEL ?? 'chrome', args: ['--enable-unsafe-webgpu'] });
 }
 await relaunch();
 
@@ -79,7 +81,7 @@ for (const backend of backends) {
       run.coldLoadS = cold.loadS;
       run.loadedMBCold = cold.loadedMB;
       run.rssBaseMB = base;
-      run.rssPeakIncreaseMB = base == null ? null : peak - base;
+      run.rssPeakIncreaseMB = base == null || process.env.SPIKE_BROWSER === 'webkit' ? null : peak - base; // WebKit's processes are not the profile's
       all.runs.push(run);
       console.log(`  cold ${run.coldLoadS} s, warm ${run.loadS} s, median ${run.medianS} s, +${run.rssPeakIncreaseMB} MB, ` +
         `scores e ${run.expressionScore} t ${run.tableScore} s ${run.schematicScore}`);
