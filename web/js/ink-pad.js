@@ -68,6 +68,11 @@ export function mountInkPad(host, { onStroke } = {}) {
   canvas.addEventListener('pointermove', move);
   canvas.addEventListener('pointerup', up);
   canvas.addEventListener('pointercancel', up);
+  // (an iPad's pen, #1086: its touches' own actions, selecting the text around, Scribble's handwriting into text,
+  // cancelled; the pointer events still come)
+  const still = e => { if (e.cancelable) e.preventDefault(); };
+  canvas.addEventListener('touchstart', still, { passive: false });
+  canvas.addEventListener('touchmove', still, { passive: false });
   const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(() => draw()) : null;
   ro?.observe(canvas);
   requestAnimationFrame(draw);
