@@ -109,6 +109,10 @@ uiTest('#1054 Development ▸ Pen and Touch Test: the mouse, a finger, a long pr
   await page.click('body > .menu-popup > .mi', { text: 'Pen and Touch Test…' });
   await page.waitDialog('Pen and Touch Test');
   await page.waitFor((s) => document.querySelector(s).width > 0, [PAD]);
+  // (its area in the theme's colours, #1077: the page's own panel and border)
+  assert.ok(await page.eval((s) => { const c = getComputedStyle(document.querySelector(s)), probe = document.createElement('div');
+    probe.style.cssText = 'background: var(--panel); border: 1px solid var(--border)'; document.body.append(probe);
+    const p = getComputedStyle(probe), same = c.backgroundColor === p.backgroundColor && c.borderTopColor === p.borderTopColor; probe.remove(); return same; }, PAD));
   assert.equal(await countText(page), 'Pointers down at once: 0 (most: 0)');
   assert.deepEqual(await pointerRows(page), []);
   // the screen's facts, against the page's own

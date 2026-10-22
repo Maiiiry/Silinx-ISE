@@ -62,7 +62,7 @@ export function pointerTestDialog() {
   const pointers = new Map();     // pointerType:pointerId → the pointer's last reading, its trail, its long-press timer
   const down = new Set();         // the keys of the pointers down
   let most = 0, next = 0;
-  const canvas = h('canvas', { class: 'ptr-pad', style: { display: 'block', width: '100%', height: '260px', touchAction: 'none', border: '1px solid #999', background: '#fff', cursor: 'crosshair' } });
+  const canvas = h('canvas', { class: 'ptr-pad', style: { display: 'block', width: '100%', height: '260px', touchAction: 'none', border: '1px solid var(--border)', background: 'var(--panel)', cursor: 'crosshair' } });
   const count = h('div', { class: 'ptr-count' });
   const rows = h('tbody', {});
   const report = h('pre', { class: 'ptr-report', 'data-no-i18n': '', style: { display: 'none', maxHeight: '160px', overflow: 'auto', userSelect: 'text', whiteSpace: 'pre-wrap', fontSize: '11px' } });
