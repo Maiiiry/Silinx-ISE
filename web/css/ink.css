@@ -20,3 +20,6 @@
 /* the Handwritten Truth Table dialog */
 .ink-pad-table .ink-canvas { height: min(420px, 52vh); }
 .ink-table-text { width: 100%; box-sizing: border-box; font-family: var(--mono, monospace); font-size: 14px; resize: vertical; }
+/* the Handwritten Schematic dialog: the circuit read */
+.ink-circuit { display: flex; flex-direction: column; gap: 3px; height: 150px; overflow: auto; }
+.ink-circuit .ink-net-name { width: 10em; font-family: var(--mono, monospace); }

@@ -39,7 +39,7 @@ uiTest('#405 schematic editor parts: the toolbar, the palette, Select All and De
   const doc = () => page.eval(() => window.Silinx.active.schEditor.getDoc());
   // ---- the toolbar: its buttons in order
   assert.deepEqual(await ev((ed) => [...document.querySelectorAll(`${ed} .se-toolbar [data-act]`)].map((b) => b.dataset.act)),
-    ['select', 'wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo', 'zin', 'zout', 'fit', 'info', 'check', 'sim']);
+    ['select', 'wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo', 'zin', 'zout', 'fit', 'info', 'check', 'sim', 'ink']);
   // the zooms (the view): Zoom In scales the drawing by 1.25, Fit back
   const scale = () => ev((ed) => parseFloat(/scale\(([\d.]+)\)/.exec(document.querySelector(`${ed} .se-vp`).getAttribute('transform'))[1]));
   await page.click(`${ED} .se-btn[data-act=fit]`);

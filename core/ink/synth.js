@@ -5,6 +5,7 @@
 //
 //   rng(seed) -> () => [0, 1)
 //   handGlyph(ch, { rand, amount, variant, slant }) -> strokes in cap-height units ([[{x, y}]]), or null
+//   handDraw(skeleton, { rand, amount, slant }) -> the same for any skeleton (a gate's outline)
 //   writeText(text, { seed, amount, size, x, y, bars: [[first, last]] }) -> { strokes, boxes, owner }
 //     (strokes in pixels; boxes[i]: the box of text[i]; owner[k]: the character of stroke k, -1 for a bar;
 //     bars: overbars over the characters first..last)
@@ -34,10 +35,14 @@ function densify(pts, step) {
 }
 
 /** A glyph of the font as a hand writes it (amount 0: the skeleton itself). */
-export function handGlyph(ch, { rand = rng(1), amount = 1, variant, slant: lean = 0 } = {}) {
+export function handGlyph(ch, { rand = rng(1), amount = 1, variant, slant = 0 } = {}) {
   const vs = GLYPHS[ch];
   if (!vs) return null;
-  const v = vs[variant ?? Math.floor(rand() * vs.length) % vs.length];
+  return handDraw(vs[variant ?? Math.floor(rand() * vs.length) % vs.length], { rand, amount, slant });
+}
+
+/** A skeleton's strokes ([[[x, y], ...], ...], in its own units) as a hand draws them (a gate's outline too). */
+export function handDraw(v, { rand = rng(1), amount = 1, slant: lean = 0 } = {}) {
   const r = (k) => (rand() * 2 - 1) * k * amount;
   const slant = lean + r(0.1), rot = r(0.08), sx = 1 + r(0.15), sy = 1 + r(0.1);
   const xs = v.flat().map(p => p[0]), cx = (Math.min(...xs) + Math.max(...xs)) / 2, cy = 0.5;

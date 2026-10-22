@@ -55,19 +55,20 @@ function touches(s, c, gap) {
 }
 
 /**
- * The slant of the writing: dx/dy of its steep parts (a hand leaning right: > 0). Upright again, x - slant·y, the
- * characters side by side no longer overlap in x, and they look like the templates.
+ * The slant of the writing: dx/dy of its nearly upright parts, within 20° (a hand leaning right: > 0). Upright again,
+ * x - slant·y, the characters side by side no longer overlap in x, and they look like the templates. Too few upright
+ * parts (less than one and a half times the ink's height, a Z's diagonal alone): no slant.
  */
 export function slantOf(strokes) {
   let sx = 0, sy = 0;
   for (const s of strokes) {
     for (let i = 1; i < s.length; i++) {
       const dx = s[i].x - s[i - 1].x, dy = s[i].y - s[i - 1].y;
-      if (Math.abs(dy) < 2 * Math.abs(dx) || dy === 0) continue;
+      if (Math.abs(dx) > 0.36 * Math.abs(dy) || dy === 0) continue;
       sx += dy > 0 ? dx : -dx; sy += Math.abs(dy);
     }
   }
-  return sy ? Math.max(-0.6, Math.min(0.6, sx / sy)) : 0;
+  return sy && sy >= 1.5 * boxOf(strokes).h ? Math.max(-0.6, Math.min(0.6, sx / sy)) : 0;
 }
 
 export function segment(strokes) {
