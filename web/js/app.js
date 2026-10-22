@@ -28,7 +28,7 @@ import { fileContextMenu, inView, renderHierarchy, saveProjectJson, select, seri
 import { printActive, refreshSteps, setupMenus, setupToolbar, showPalette } from './menus.js';
 import { openEmulator, openSchematic, runSimulation } from './viewers.js';
 import { renameSymbolIn } from './rename.js';
-import { writeClip, readClip, noteCopy } from './clipboard.js';
+import { writeClip, readClip, noteCopy, canPasteText } from './clipboard.js';
 
 // ------------------------------------------------------------------ state
 export const S = {
@@ -241,7 +241,7 @@ const textClip = ed => {
   const ro = () => !!ed.view?.state.readOnly;
   const done = () => ed.focus();
   return {
-    canCopy: () => ed.somethingSelected(), canDelete: () => !ro() && ed.somethingSelected(), canPaste: () => !ro(),
+    canCopy: () => ed.somethingSelected(), canDelete: () => !ro() && ed.somethingSelected(), canPaste: () => !ro() && canPasteText(),
     copy() { if (ed.somethingSelected()) writeClip('text', ed.getSelection()); done(); },
     cut() { if (!ed.somethingSelected() || ro()) return; writeClip('text', ed.getSelection()); ed.replaceSelection(''); done(); },
     async paste() { const t = await readClip('text'); if (t != null && !ro()) ed.replaceSelection(t); done(); },
@@ -254,7 +254,7 @@ const fieldClip = el => {
   const any = () => el.selectionEnd > el.selectionStart;
   const put = t => { el.setRangeText(t, el.selectionStart, el.selectionEnd, 'end'); el.dispatchEvent(new Event('input', { bubbles: true })); el.focus(); };
   return {
-    canCopy: any, canDelete: () => !ro() && any(), canPaste: () => !ro(),
+    canCopy: any, canDelete: () => !ro() && any(), canPaste: () => !ro() && canPasteText(),
     copy() { if (any()) writeClip('text', el.value.slice(el.selectionStart, el.selectionEnd)); el.focus(); },
     cut() { if (!any() || ro()) return; writeClip('text', el.value.slice(el.selectionStart, el.selectionEnd)); put(''); },
     async paste() { const t = await readClip('text'); if (t != null && !ro()) put(el.tagName === 'INPUT' ? t.replace(/\r?\n/g, ' ') : t); },

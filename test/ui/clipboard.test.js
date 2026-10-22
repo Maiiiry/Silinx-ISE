@@ -3,7 +3,7 @@
 // into another project opened later), the items disabled when there is nothing to copy or paste; in Portuguese.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { setupUi, uiTest, makeProject } from './harness.js';
+import { setupUi, uiTest, makeProject, BROWSER } from './harness.js';
 import { newDoc, normalizeDoc, symbolPins } from '../../core/schdoc.js';
 import { newModel } from '../../core/asm.js';
 import { newFsm } from '../../core/fsm.js';
@@ -31,6 +31,8 @@ function chain(name) {
   doc.labels.push({ id: 'L1', x: 300, y: 110, net: 'mid' });
   return doc;
 }
+// a text Paste with nothing copied here: on where the system clipboard is read (Chromium), off in Firefox and WebKit (#888)
+const sys = BROWSER === 'chrome' || BROWSER === 'chromium';
 const editItems = async (page, menu = 'Edit') => {
   const items = await page.openMenu(menu);
   await page.closeMenus();
@@ -46,16 +48,17 @@ uiTest('Edit ▸ Cut / Copy / Paste / Delete and the toolbar: the text editor\'s
   await page.eval(() => window.SilinxApp.openFile('src/inv.vhd'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:src/inv.vhd' && window.Silinx.active.editor);
   const ed = (fn, ...a) => page.eval(fn, ...a);
-  // nothing selected: Cut, Copy, Delete disabled; Paste enabled (the system clipboard may hold text)
+  // nothing selected: Cut, Copy, Delete disabled; Paste enabled where the system clipboard is read (Chromium: it may hold
+  // text), off in Firefox and WebKit until something is copied here (#888)
   await ed(() => { const e = window.Silinx.active.editor; e.focus(); e.setCursor({ line: 0, ch: 0 }); });
   let m = await editItems(page);
-  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [false, false, true, false]);
-  assert.deepEqual(await tbEnabled(page), { cut: false, copy: false, paste: true });
+  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [false, false, sys, false]);
+  assert.deepEqual(await tbEnabled(page), { cut: false, copy: false, paste: sys });
   // 'library' selected: Copy, then Paste at the end
   await ed(() => window.Silinx.active.editor.view.dispatch({ selection: { anchor: 0, head: 7 } }));
   m = await editItems(page);
-  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [true, true, true, true]);
-  assert.deepEqual(await tbEnabled(page), { cut: true, copy: true, paste: true });
+  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [true, true, sys, true]);
+  assert.deepEqual(await tbEnabled(page), { cut: true, copy: true, paste: sys });
   await page.menu('Edit', 'Copy');
   await ed(() => { const v = window.Silinx.active.editor.view; v.dispatch({ selection: { anchor: v.state.doc.length } }); });
   await page.menu('Edit', 'Paste');
@@ -240,7 +243,7 @@ uiTest('Edit ▸ Copy / Paste / Delete with a text field of an editor in focus: 
   const F = '.doc:not([hidden]) .tt-expr-in';
   await page.eval((f) => { const el = document.querySelector(f); el.value = 'a·b + c'; el.focus(); el.setSelectionRange(0, 3); }, F);
   const m = await editItems(page);
-  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [true, true, true, true]);
+  assert.deepEqual([m.Cut, m.Copy, m.Paste, m.Delete], [true, true, sys, true]);
   await page.menu('Edit', 'Copy');
   await page.eval((f) => { const el = document.querySelector(f); el.setSelectionRange(el.value.length, el.value.length); }, F);
   await page.eval(async () => (await import('/js/menus.js')).refreshSteps());
