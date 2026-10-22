@@ -1,18 +1,44 @@
 // The drawing pad of the handwritten input (#1056): a canvas a pen, a finger or the mouse writes on, one stroke at a
-// time (a second pointer is ignored; once a pen has written, a touch is the hand resting on the screen). The strokes
-// are kept in CSS pixels of the canvas; the characters recognized can be shown under their ink.
+// time (a second pointer is ignored; once a pen has written, a touch is the hand resting on the screen). Two fingers
+// pinch and move the writing area, the mouse wheel zooms it, Fit shows the whole drawing (#1088). The strokes are kept
+// in the pad's own coordinates (CSS pixels at zoom 1): what is recognized does not change with the view; the
+// characters recognized can be shown under their ink.
 //
 //   const pad = mountInkPad(host, { onStroke(strokes) });
-//   pad.strokes(), pad.undo(), pad.clear(), pad.setLabels([{ ch, box }]), pad.canvas, pad.destroy()
+//   pad.strokes(), pad.undo(), pad.clear(), pad.setLabels([{ ch, box }]), pad.view(), pad.fit(), pad.canvas,
+//   pad.destroy()
 // Styles: web/css/ink.css.
-import { h } from './ui.js';
+import { h, twoFingerView } from './ui.js';
+
+const ZOOM = [0.25, 4];
 
 export function mountInkPad(host, { onStroke } = {}) {
   const canvas = h('canvas', { class: 'ink-canvas' });
   host.append(canvas);
+  const fitBtn = h('button', { type: 'button', class: 'btn ink-fit', title: 'Show the whole drawing', onclick: () => fit() }, 'Fit');
+  host.append(fitBtn);
   let strokes = [], cur = null, penSeen = false, labels = [];
+  // the view: a point (x, y) of the pad is at (x·s + ox, y·s + oy) on the canvas
+  const v = { s: 1, ox: 0, oy: 0 };
   const ctx = canvas.getContext('2d');
-  const point = e => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  const point = e => { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left - v.ox) / v.s, y: (e.clientY - r.top - v.oy) / v.s }; };
+  // zoom by f about the canvas point (cx, cy) (client px)
+  const zoomAt = (f, cx, cy) => {
+    const r = canvas.getBoundingClientRect(), x = cx - r.left, y = cy - r.top;
+    const s = Math.min(ZOOM[1], Math.max(ZOOM[0], v.s * f));
+    v.ox = x - (x - v.ox) * s / v.s; v.oy = y - (y - v.oy) * s / v.s; v.s = s;
+    draw();
+  };
+  // the whole drawing in view (none: the view at rest)
+  function fit() {
+    const all = strokes.flat();
+    if (!all.length) { Object.assign(v, { s: 1, ox: 0, oy: 0 }); draw(); return; }
+    const w = canvas.clientWidth, ht = canvas.clientHeight, m = 24;
+    const x0 = Math.min(...all.map(p => p.x)), x1 = Math.max(...all.map(p => p.x)), y0 = Math.min(...all.map(p => p.y)), y1 = Math.max(...all.map(p => p.y));
+    v.s = Math.min(ZOOM[1], Math.max(ZOOM[0], Math.min((w - 2 * m) / Math.max(x1 - x0, 1), (ht - 2 * m) / Math.max(y1 - y0, 1))));
+    v.ox = (w - (x1 - x0) * v.s) / 2 - x0 * v.s; v.oy = (ht - (y1 - y0) * v.s) / 2 - y0 * v.s;
+    draw();
+  }
 
   function draw() {
     const dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, ht = canvas.clientHeight;
@@ -20,14 +46,17 @@ export function mountInkPad(host, { onStroke } = {}) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, ht);
     const css = getComputedStyle(canvas);
+    canvas.dataset.view = `${+v.s.toFixed(3)} ${+v.ox.toFixed(1)} ${+v.oy.toFixed(1)}`;   // (the view, for the tests)
     // a guide line to write on
     ctx.strokeStyle = css.getPropertyValue('--ink-guide').trim() || css.color;
     ctx.lineWidth = 1;
     ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.moveTo(8, ht * 0.72); ctx.lineTo(w - 8, ht * 0.72); ctx.stroke();
     ctx.setLineDash([]);
+    // the ink and its labels in the view (as thick on the screen at any zoom)
+    ctx.setTransform(dpr * v.s, 0, 0, dpr * v.s, dpr * v.ox, dpr * v.oy);
     ctx.strokeStyle = css.color;
-    ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = 3 / v.s; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const s of strokes) {
       ctx.beginPath();
       ctx.moveTo(s[0].x, s[0].y);
@@ -36,8 +65,8 @@ export function mountInkPad(host, { onStroke } = {}) {
       ctx.stroke();
     }
     ctx.fillStyle = css.getPropertyValue('--ink-label').trim() || css.color;
-    ctx.font = '13px sans-serif'; ctx.textAlign = 'center';
-    for (const l of labels) ctx.fillText(l.ch, (l.box.minX + l.box.maxX) / 2, Math.min(ht - 4, l.box.maxY + 16));
+    ctx.font = `${13 / v.s}px sans-serif`; ctx.textAlign = 'center';
+    for (const l of labels) ctx.fillText(l.ch, (l.box.minX + l.box.maxX) / 2, Math.min((ht - 4 - v.oy) / v.s, l.box.maxY + 16 / v.s));
   }
 
   const down = e => {
@@ -64,6 +93,13 @@ export function mountInkPad(host, { onStroke } = {}) {
     draw();
     onStroke?.(strokes);
   };
+  // two fingers: the view's (wired first: the first finger's stroke dropped when the second comes)
+  twoFingerView(canvas, {
+    cancel: () => { if (cur) { strokes.splice(strokes.indexOf(cur.pts), 1); cur = null; draw(); } },
+    pan: (dx, dy) => { v.ox += dx; v.oy += dy; draw(); },
+    zoom: (f, cx, cy) => zoomAt(f, cx, cy),
+  });
+  canvas.addEventListener('wheel', e => { e.preventDefault(); zoomAt(Math.exp(-e.deltaY * 0.0015), e.clientX, e.clientY); }, { passive: false });
   canvas.addEventListener('pointerdown', down);
   canvas.addEventListener('pointermove', move);
   canvas.addEventListener('pointerup', up);
@@ -83,6 +119,8 @@ export function mountInkPad(host, { onStroke } = {}) {
     undo() { if (cur) return; strokes.pop(); labels = []; draw(); onStroke?.(strokes); },
     clear() { cur = null; strokes = []; labels = []; draw(); onStroke?.(strokes); },
     setLabels(list) { labels = list || []; draw(); },
+    view: () => ({ ...v }),
+    fit,
     destroy() { ro?.disconnect(); canvas.remove(); },
   };
 }

@@ -152,7 +152,7 @@ uiTest('Handwritten expressions: Teach Silinx my handwriting, and the dialog in 
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), summary, label, .hint')].map((e) => e.textContent.trim()).filter(Boolean), D);
     assert.deepEqual(labels, [
       "Escreva a expressão com uma caneta, um dedo ou o rato, p.ex. F = A·B' + C. Uma barra sobre letras é NOT; um ponto ou um * é AND.",
-      'Desfazer Traço', 'Limpar', 'Reconhecido:', 'Ensinar ao Silinx a minha letra',
+      'Ajustar', 'Desfazer Traço', 'Limpar', 'Reconhecido:', 'Ensinar ao Silinx a minha letra',
       'Escreva um símbolo na área de escrita, escreva-o aqui e guarde-o: o Silinx passa a ler também a sua maneira de o escrever. As amostras ficam só neste navegador.',
       'Símbolo:', 'Guardar Amostra', 'Esquecer as Minhas Amostras', 'Inserir', 'Cancelar',
     ]);
@@ -206,5 +206,42 @@ uiTest('Handwritten expressions: Teach Silinx my handwriting, and the dialog in 
     await page.waitNoDialog();
     assert.equal(await page.eval(() => window.__ink), null);
   } finally { await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en')); }
+  assert.deepEqual(warnings(page), []);
+}, { skip: chromeOnly });
+
+// #1088: the pad's view: two fingers pinch and move it, the wheel zooms it, Fit shows the whole drawing; what is
+// written is the same at any zoom (the strokes kept in the pad's own coordinates)
+const view = (page) => page.eval((d) => document.querySelector(`${d} .ink-canvas`).dataset.view.split(' ').map(Number), D);
+uiTest('Handwritten expressions: the pad zoomed and moved with two fingers and the wheel; Fit; the same text at any zoom', E, async (page) => {
+  void page.eval(async () => { window.__ink = (await import('/js/ink-dialog.js')).handwrittenExpression(); });
+  await page.waitDialog('Handwritten Expression');
+  const c = await canvasAt(page);
+  const mid = { x: c.x + c.w / 2, y: c.y + c.h / 2 };
+  assert.deepEqual(await view(page), [1, 0, 0]);
+  // two fingers spread from 80 to 160 px apart about the middle: zoom 2 about it, no stroke left by the first finger
+  await page.touchGesture([[{ x: mid.x - 40, y: mid.y }, { x: mid.x - 80, y: mid.y }], [{ x: mid.x + 40, y: mid.y }, { x: mid.x + 80, y: mid.y }]], { steps: 10 });
+  const [s, ox, oy] = await view(page);
+  assert.ok(Math.abs(s - 2) < 0.05, String(s));
+  assert.ok(Math.abs(ox + (mid.x - c.x)) < 4 && Math.abs(oy + (mid.y - c.y)) < 4, `${ox} ${oy}`);
+  assert.equal(await recognized(page), '');
+  // moved: both fingers 30 px right, 20 down
+  await page.touchGesture([[{ x: mid.x - 40, y: mid.y }, { x: mid.x - 10, y: mid.y + 20 }], [{ x: mid.x + 40, y: mid.y }, { x: mid.x + 70, y: mid.y + 20 }]], { steps: 10 });
+  const [s2, ox2, oy2] = await view(page);
+  assert.ok(Math.abs(s2 - s) < 0.02 && Math.abs(ox2 - ox - 30) < 3 && Math.abs(oy2 - oy - 20) < 3, `${s2} ${ox2} ${oy2}`);
+  // written zoomed out by the wheel, the strokes where the pen was: the same text as at zoom 1
+  await page.click(`${D} .ink-fit`);
+  assert.deepEqual(await view(page), [1, 0, 0]);
+  for (let i = 0; i < 3; i++) await page.eval((p) => document.elementFromPoint(p.x, p.y).dispatchEvent(new WheelEvent('wheel', { deltaY: 150, clientX: p.x, clientY: p.y, bubbles: true, cancelable: true })), { x: c.x + 10, y: c.y + 10 });
+  const [s3] = await view(page);
+  assert.ok(s3 < 0.6 && s3 >= 0.25, String(s3));
+  await write(page, 'F=A+B', { seed: 2 });
+  await waitText(page, 'F = A + B');
+  // Fit: the whole drawing in view, larger
+  await page.click(`${D} .ink-fit`);
+  const [s4] = await view(page);
+  assert.ok(s4 > s3, `${s4} ${s3}`);
+  assert.equal(await recognized(page), 'F = A + B');
+  await page.dialogButton('Cancel');
+  await page.waitNoDialog();
   assert.deepEqual(warnings(page), []);
 }, { skip: chromeOnly });

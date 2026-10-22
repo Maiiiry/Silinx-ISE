@@ -5,7 +5,7 @@ export const INK_PT = {
   'Write the expression by hand: with a pen, a finger or the mouse': 'Escrever a expressão à mão: com uma caneta, um dedo ou o rato',
   "Write the expression with a pen, a finger or the mouse, e.g. F = A·B' + C. A bar over letters is NOT; a dot or a * is AND.":
     "Escreva a expressão com uma caneta, um dedo ou o rato, p.ex. F = A·B' + C. Uma barra sobre letras é NOT; um ponto ou um * é AND.",
-  'Undo Stroke': 'Desfazer Traço', 'Recognized:': 'Reconhecido:', 'The recognized text appears here': 'O texto reconhecido aparece aqui',
+  'Undo Stroke': 'Desfazer Traço', 'Show the whole drawing': 'Mostrar todo o desenho', 'Recognized:': 'Reconhecido:', 'The recognized text appears here': 'O texto reconhecido aparece aqui',
   'Insert': 'Inserir',
   'Teach Silinx my handwriting': 'Ensinar ao Silinx a minha letra',
   'Write one symbol on the pad, type it here and save it: Silinx then reads your way of writing it too. The samples are kept by this browser only.':

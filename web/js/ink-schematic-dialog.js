@@ -26,7 +26,7 @@ export function handwrittenSchematic({ name = 'schematic', lang = 'vhdl', replac
   const list = h('div', { class: 'ink-circuit' });
   const showMsg = (lines, kind = 'warn') => { msg.className = `ink-msg ink-${kind}`; msg.replaceChildren(...lines.map(l => h('div', {}, l))); };
   const check = () => { const e = circuit ? circuitErrors(circuit) : ['Nothing drawn: draw the circuit on the pad.']; showMsg([...e, ...(circuit?.warnings || [])], e.length || circuit?.warnings.length ? 'warn' : 'ok'); return !e.length; };
-  const padHost = h('div', { class: 'ink-pad ink-pad-table' });
+  const padHost = h('div', { class: 'ink-pad ink-pad-full' });
   const pad = mountInkPad(padHost, { onStroke: () => { clearTimeout(timer); timer = setTimeout(recognize, 400); } });
   const flush = () => { if (timer) { clearTimeout(timer); recognize(); } };
   // the circuit read: a row a gate (its type to choose), a row a name (to correct)
@@ -60,16 +60,19 @@ export function handwrittenSchematic({ name = 'schematic', lang = 'vhdl', replac
       pad.setLabels([]); renderList(); showMsg([e.message]);
     }
   }
-  const body = h('div', { class: 'ink-dialog' },
-    h('div', { class: 'hint' }, "Draw the circuit with a pen, a finger or the mouse: the gates (AND, OR, XOR, a triangle for a buffer, a small circle at the output for NOT) larger than the names, their inputs on the left, square wires, and the name of each input and output at its wire's end."),
-    ...(replaces ? [h('div', { class: 'hint ink-replaces' }, 'The schematic drawn replaces the one in the editor (Undo brings it back).')] : []),
-    padHost,
-    h('div', { class: 'ink-row' },
-      h('button', { type: 'button', class: 'btn ink-undo', onclick: () => pad.undo() }, 'Undo Stroke'),
-      h('button', { type: 'button', class: 'btn ink-clear', onclick: () => pad.clear() }, 'Clear')),
-    h('label', {}, 'Recognized:'), list, msg);
+  // the whole page (#1088): the pad, its hints over it; beside it its buttons, the circuit read, the messages
+  const body = h('div', { class: 'ink-dialog ink-full-body' },
+    h('div', { class: 'ink-main' },
+      h('div', { class: 'hint' }, "Draw the circuit with a pen, a finger or the mouse: the gates (AND, OR, XOR, a triangle for a buffer, a small circle at the output for NOT) larger than the names, their inputs on the left, square wires, and the name of each input and output at its wire's end."),
+      ...(replaces ? [h('div', { class: 'hint ink-replaces' }, 'The schematic drawn replaces the one in the editor (Undo brings it back).')] : []),
+      padHost),
+    h('div', { class: 'ink-side' },
+      h('div', { class: 'ink-row' },
+        h('button', { type: 'button', class: 'btn ink-undo', onclick: () => pad.undo() }, 'Undo Stroke'),
+        h('button', { type: 'button', class: 'btn ink-clear', onclick: () => pad.clear() }, 'Clear')),
+      h('label', {}, 'Recognized:'), list, msg));
   return dialog({
-    title, width: 'min(900px, 96vw)', body, className: 'ink-dlg',
+    title, width: '100vw', body, className: 'ink-dlg ink-full',
     onOpen: () => setTimeout(() => { if (body.contains(document.activeElement)) document.activeElement.blur(); }, 0),
     buttons: [
       { label: 'Create Schematic', primary: true, validate: () => { flush(); return check(); }, value: () => ({ ...schematicFromCircuit(circuit, { name, lang }), circuit }) },
