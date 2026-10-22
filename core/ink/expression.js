@@ -25,7 +25,7 @@ const LOOKALIKE = [['O', 'o', '0'], ['l', '1', '|', 'I'], ['C', 'c', '('], ['(',
   ['B', '8'], ['g', '9', 'q'], ['b', '6'], ['A', '^'], ['V', 'v', 'U', 'u'], ['P', 'p'], ['K', 'k'], ['W', 'w'], ['Y', 'y'], ['¬', '7']];
 const MARKS = ["'", '·'];
 // the letters whose capital is the small letter drawn larger
-const SAME_SHAPE = new Set('cokpsuvwxyz');
+const SAME_SHAPE = new Set('copsuvwxyz');   // (a k is as tall as a K)
 const TALL = /[A-Z0-9bdfhklt]/;
 const DESCENDS = /^[gjpqyY]$/;
 const SHORT = /[acemnorsuvwxz]/;
