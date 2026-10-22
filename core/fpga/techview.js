@@ -15,7 +15,8 @@
 // (u_pre.cnt<3> -> u_pre_cnt_3_FDRE; an I/O buffer after its port: led_3_OBUF), a cell Yosys named
 // (a block RAM: laps_ram.0.0) keeps its name, the others are TYPE_<n>. A cell belongs to the instance
 // whose name starts the name of the net it drives (a cell driving a signal of the top module stays
-// on the top level); a cell that drives no named net joins the instance most of its neighbours
+// on the top level, unless that signal is also one inside an instance, #1003: u_count.ones driving the
+// top's digits); a cell that drives no named net joins the instance most of its neighbours
 // belong to; the I/O buffers stay at the top. A top level with more than TOP_MAX cells of its own
 // is drawn by blocks, one per signal of the top module (ball_x_logic: the cells driving ball_x and
 // their neighbours). An output bus is driven by its bits (d <= d_1 & d_0), as the schematic draws it.
@@ -47,6 +48,27 @@ export function vhdlName(name) {
 // a net name Yosys made up ($abc$…, $auto$…) or the reader's n<bit>: not shown
 const hiddenName = n => !n || n.includes('$') || /^n\d+$/.test(n);
 
+/** The bit names of a module's nets (its netnames; as the reader names them: d<3>) that are also a visible name
+ *  inside one of the instances (groupOf: the instance of a name, or null): Map(name -> instance). */
+function instanceAliases(netnames, groupOf) {
+  const names = new Map();   // bit -> its visible names
+  for (const [nname, n] of Object.entries(netnames)) {
+    if (n.hide_name) continue;
+    n.bits.forEach((b, i) => {
+      if (typeof b === 'string') return;
+      const full = n.bits.length > 1 ? `${nname}<${(n.offset ?? 0) + (n.upto ? n.bits.length - 1 - i : i)}>` : nname;
+      if (!names.has(b)) names.set(b, []);
+      names.get(b).push(full);
+    });
+  }
+  const out = new Map();
+  for (const list of names.values()) {
+    const inside = list.filter(n => groupOf(n)).sort((a, b) => a.length - b.length || (a < b ? -1 : 1))[0];
+    if (inside) for (const n of list) if (!groupOf(n)) out.set(n, groupOf(inside));
+  }
+  return out;
+}
+
 /**
  * The netlist of the open synthesis as a schematic model and as structural VHDL.
  * json: Yosys's JSON (text or object); top: its top module (default: the one Yosys marked);
@@ -60,9 +82,14 @@ export function technologyNetlist(json, { top, groups } = {}) {
   const visible = nets.map(n => !hiddenName(n.name) || n.port);
   const dotted = new Set();
   nets.forEach((n, i) => { if (visible[i] && !n.port && /^[A-Za-z_]\w*\./.test(n.name)) dotted.add(n.name.split('.')[0]); });
+  const netnames = (typeof json === 'string' ? JSON.parse(json) : json).modules?.[nl.name]?.netnames || {};
+  for (const [nname, n] of Object.entries(netnames)) if (!n.hide_name && /^[A-Za-z_]\w*\./.test(nname)) dotted.add(nname.split('.')[0]);
   const labels = (groups || [...dotted]).filter(Boolean);
   const labelOf = new Map(labels.map(l => [l.toLowerCase(), l]));
   const groupOfName = name => { const m = /^([A-Za-z_]\w*)\./.exec(name || ''); return m ? labelOf.get(m[1].toLowerCase()) ?? null : null; };
+  // a signal of the top that is also a signal inside an instance (u_count.ones<3>, which drives the top's digits<3>):
+  // the instance of the shortest such name (the reader names a net by its shortest name)
+  const insideOf = instanceAliases(netnames, groupOfName);
   const isOut = (c, pin) => c.dirs[pin.replace(/<\d+>$/, '')] === 'output';
   const group = cells.map(() => undefined);   // label, null (the top), or undefined (not known yet)
   const fixed = cells.map(c => IO_CELL.test(c.type));
@@ -71,7 +98,7 @@ export function technologyNetlist(json, { top, groups } = {}) {
     // the net it drives: in an instance (u_pre.cnt<3>), or a signal of the top (ball_x<2>)
     for (const [pin, k] of Object.entries(c.pins)) {
       if (!isOut(c, pin) || !visible[k] || nets[k].port) continue;
-      group[i] = groupOfName(nets[k].name) ?? (/^[A-Za-z_]\w*\./.test(nets[k].name) ? undefined : null);
+      group[i] = groupOfName(nets[k].name) ?? insideOf.get(nets[k].name) ?? (/^[A-Za-z_]\w*\./.test(nets[k].name) ? undefined : null);
       if (group[i] !== undefined) return;
     }
     if (!c.name.startsWith('$')) { const g = groupOfName(c.name); if (g) group[i] = g; }
