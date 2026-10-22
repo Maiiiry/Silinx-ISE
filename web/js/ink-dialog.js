@@ -34,9 +34,12 @@ export function expressionError(text, vars) {
   } catch (e) { return e.message; }
 }
 
+/** The templates of the recognizer: the built-in ones and the user's samples kept by the browser. */
+export const inkTemplates = () => [...builtinTemplates(), ...userTemplates(loadSamples())];
+
 export function handwrittenExpression({ vars = null, title = 'Handwritten Expression' } = {}) {
   let samples = loadSamples();
-  let templates = [...builtinTemplates(), ...userTemplates(samples)];
+  let templates = inkTemplates();
   let timer = null;
   const text = h('input', { type: 'text', class: 'ink-text', spellcheck: 'false', placeholder: 'The recognized text appears here' });
   const msg = h('div', { class: 'ink-msg' });

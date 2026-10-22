@@ -221,6 +221,10 @@ for Xilinx FPGAs supported by ISE 14.7.
   letters, digits, `_`, `+ · * ' ¬ ~ ( ) = ⊕ ^ & |`, and a bar over letters as NOT. The text is shown for you to
   correct before it is inserted; *Teach Silinx my handwriting* keeps samples of your own way of writing a symbol in
   the browser.
+- **Hand-drawn truth tables** (*Handwritten Table…* in the truth table editor): draw the whole table — the names in
+  a header, a line under it, a line between the inputs and the outputs, a row of 0, 1 or X for each combination —
+  and Silinx reads it offline into its text (`A B | F`, then a row a line), which you correct before it fills the
+  table.
 - **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *Finite State Machine (FSM)*,
   `.fsm.json`): the bubble diagram of the 1st-semester courses, Moore or Mealy. Double-click to add
   a state, drag from the rim of a state to another (or to itself) to add a transition, double-click

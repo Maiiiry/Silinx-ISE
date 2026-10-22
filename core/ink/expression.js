@@ -9,6 +9,7 @@
 //     vars: the inputs' names, if known; name / expr: the two sides of "name = expr" (name '' without '=');
 //     chars: [{ ch, box, ink, alts }] (ink: the indexes of its strokes); warnings: what to check; error: the
 //     parser's message, if the text does not parse
+//   recognizeWords(strokes, { templates, gap, capH }) -> [{ text, box, ink }] names on a line (letters, digits, _)
 //   splitEquation(text) -> { name, expr }; expressionInputs(expr) -> the inputs of an expression
 import { segment, boxOf, InkError } from './segment.js';
 import { classify } from './pdollar.js';
@@ -26,6 +27,7 @@ const MARKS = ["'", '·'];
 // the letters whose capital is the small letter drawn larger
 const SAME_SHAPE = new Set('cokpsuvwxyz');
 const TALL = /[A-Z0-9bdfhklt]/;
+const DESCENDS = /^[gjpqyY]$/;
 const SHORT = /[acemnorsuvwxz]/;
 // a symbol of the wrong height for its place (a capital-only shape at x-height, a short one up to the capitals)
 const MISPLACED = 1.25;
@@ -69,11 +71,16 @@ function fixCase(gs) {
 }
 
 // where the capitals' tops and the baseline are (the letters' and digits'), or null
+// (gs.capH: the capitals' height when it is known from elsewhere, e.g. the digits of a table under its header)
 function lineOf(gs, filter = () => true) {
-  const ref = gs.filter(g => /[A-Za-z0-9]/.test(g.ch) && !g.small && filter(g));
+  const ref = gs.filter(g => /[A-Za-z0-9]/.test(g.ch) && !g.small && (gs.capH || filter(g)));
   if (!ref.length) return null;
   const median = a => a.sort((x, y) => x - y)[a.length >> 1];
-  return { top: Math.min(...ref.map(g => g.box.minY)), base: median(ref.map(g => g.box.maxY)) };
+  if (!gs.capH) return { top: Math.min(...ref.map(g => g.box.minY)), base: median(ref.map(g => g.box.maxY)) };
+  // (the baseline: of the letters that do not go below it, else above the descenders)
+  const sit = ref.filter(g => !DESCENDS.test(g.ch));
+  const base = sit.length ? median(sit.map(g => g.box.maxY)) : median(ref.map(g => g.box.maxY)) - 0.35 * gs.capH;
+  return { top: base - gs.capH, base };
 }
 const atXHeight = (g, line) => g.box.minY > line.top + 0.3 * (line.base - line.top);
 
@@ -92,7 +99,15 @@ function byHeight(gs) {
   }
 }
 
-function readChars(strokes, templates) {
+// an i or a j: a small mark above the top of a stem
+function dotted(g) {
+  if (g.strokes.length < 2) return false;
+  const boxes = g.strokes.map(st => boxOf([st]));
+  const dot = boxes.findIndex(b => Math.hypot(b.w, b.h) < 0.3 * g.box.h);
+  return dot >= 0 && boxes.every((b, i) => i === dot || b.minY > boxes[dot].maxY);
+}
+
+function readChars(strokes, templates, capH = null) {
   const { chars, bars, H } = segment(strokes);
   const shapes = templates.filter(t => !MARKS.includes(t.ch));   // the marks are read by their place
   const gs = chars.map(c => ({ ...c, small: Math.hypot(c.box.w, c.box.h) < 0.45 * H }));
@@ -100,8 +115,11 @@ function readChars(strokes, templates) {
     const mark = (g.small ? markOf(g, gs[i - 1], gs[i + 1], H) : null) || equals(g);
     if (mark) { g.ch = mark; g.alts = [{ ch: mark, d: 0 }]; return; }
     g.alts = classify(g.strokes, shapes);
+    // (a dot over a stem: an i or a j, however far their templates are)
+    if (dotted(g)) { g.alts = classify(g.strokes, shapes.filter(t => t.ch === 'i' || t.ch === 'j')); g.ch = g.alts[0].ch; return; }
     g.ch = g.alts[0] && g.alts[0].d <= UNKNOWN_DISTANCE ? g.alts[0].ch : '?';
   });
+  gs.capH = capH;
   byHeight(gs);
   fixCase(gs);
   return { gs, bars, H };
@@ -208,16 +226,43 @@ export function expressionInputs(expr) {
   return inputs;
 }
 
-export function recognizeExpression(strokes, { templates = builtinTemplates(), vars = null } = {}) {
-  const { gs, bars, H } = readChars(strokes, templates);
-  const eq = gs.findIndex(g => g.ch === '=');
-  const lhs = eq < 0 ? [] : gs.slice(0, eq), rhs = eq < 0 ? gs : gs.slice(eq + 1);
-  // the name: letters, digits and _, a letter first
-  lhs.forEach((g, i) => {
+// a name: letters, digits and _, a letter first (a symbol written alike read as one of them)
+function asName(gs) {
+  gs.forEach((g, i) => {
     if (/[A-Za-z0-9_]/.test(g.ch) && (i > 0 || isLetter(g.ch))) return;
     const c = [g.ch, ...choices(g)].find(x => (i > 0 ? /^[A-Za-z0-9_]$/ : /^[A-Za-z]$/).test(x));
     if (c) g.ch = c;
   });
+}
+
+/**
+ * Handwritten names on a line (a truth table's header, #1066; a schematic's markers): letters, digits and _, read
+ * together (their sizes tell the capitals), a word ending where the gap after a character is wider than `gap`
+ * line heights; capH: the capitals' height, when known. Returns [{ text, box, ink }], from the left; box: of the
+ * word's strokes as drawn.
+ */
+export function recognizeWords(strokes, { templates = builtinTemplates(), gap = 0.5, capH = null } = {}) {
+  const live = strokes.filter(s => s?.length);
+  const { gs, H } = readChars(live, templates, capH);
+  const words = [];
+  for (const g of gs) {
+    const w = words.at(-1);
+    if (w && g.box.minX - w.last.box.maxX <= gap * H) { w.gs.push(g); w.last = g; } else words.push({ gs: [g], last: g });
+  }
+  words.forEach(w => asName(w.gs));
+  // the case: with the capitals' height known, word by word (each on its own baseline), else on the line
+  if (capH) words.forEach(w => { w.gs.capH = capH; fixCase(w.gs); }); else fixCase(gs);
+  return words.map(w => {
+    const ink = w.gs.flatMap(g => g.ink);
+    return { text: w.gs.map(g => g.ch).join(''), box: boxOf(ink.map(k => live[k])), ink };
+  });
+}
+
+export function recognizeExpression(strokes, { templates = builtinTemplates(), vars = null } = {}) {
+  const { gs, bars, H } = readChars(strokes, templates);
+  const eq = gs.findIndex(g => g.ch === '=');
+  const lhs = eq < 0 ? [] : gs.slice(0, eq), rhs = eq < 0 ? gs : gs.slice(eq + 1);
+  asName(lhs);
   resolve(rhs, vars);
   const parse = vars ? t => parseExpr(t, { vars }) : t => expressionInputs(t);
   balance(rhs);

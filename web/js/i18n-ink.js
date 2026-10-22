@@ -18,6 +18,18 @@ export const INK_PT = {
   "Write an expression, e.g. F = A·B' + C.": "Escreva uma expressão, p.ex. F = A·B' + C.",
   'Nothing written: write the expression on the pad.': 'Nada escrito: escreva a expressão na área de escrita.',
   "More than one '=': only the first one separates the name from the expression.": "Mais de um '=': só o primeiro separa o nome da expressão.",
+  // the Handwritten Truth Table dialog (#1066) and its messages
+  'Handwritten Table…': 'Tabela Manuscrita…', 'Handwritten Truth Table': 'Tabela de Verdade Manuscrita',
+  'Draw the whole truth table by hand: with a pen, a finger or the mouse': 'Desenhar toda a tabela de verdade à mão: com uma caneta, um dedo ou o rato',
+  "Draw the truth table with a pen, a finger or the mouse: the names in a header, a line under it, a line between the inputs and the outputs, then a row of 0, 1 or X (don't care) for each combination.":
+    'Desenhe a tabela de verdade com uma caneta, um dedo ou o rato: os nomes num cabeçalho, uma linha por baixo dele, uma linha entre as entradas e as saídas, depois uma linha de 0, 1 ou X (indiferente) para cada combinação.',
+  'Nothing written: draw the table on the pad.': 'Nada escrito: desenhe a tabela na área de escrita.',
+  'Only lines: write the names and the values in the table.': 'Só linhas: escreva os nomes e os valores na tabela.',
+  'One row only: write the names in a header and the values in the rows below it.': 'Uma só linha: escreva os nomes num cabeçalho e os valores nas linhas por baixo dele.',
+  'Lines between all the columns, none double: the last column is the output.': 'Linhas entre todas as colunas, nenhuma dupla: a última coluna é a saída.',
+  'No line between the inputs and the outputs: the last column is the output.': 'Nenhuma linha entre as entradas e as saídas: a última coluna é a saída.',
+  'The table is empty.': 'A tabela está vazia.', "Line 1: the names of the inputs, '|', the names of the outputs.": "Linha 1: os nomes das entradas, '|', os nomes das saídas.",
+  'At least 1 output.': 'Pelo menos 1 saída.',
   // New Source: a truth table from an expression
   'Expression:': 'Expressão:', "optional, e.g. F = A·B' + C": "opcional, p.ex. F = A·B' + C",
 };
@@ -32,4 +44,17 @@ export const INK_PT_PATTERNS = [
   [/^Expression: '(.+)' is not a valid output name\.$/, "Expressão: '$1' não é um nome de saída válido."],
   [/^Expression: the output '(.+)' is also an input\.$/, "Expressão: a saída '$1' é também uma entrada."],
   [/^Expression: (.+)$/, 'Expressão: $1'],
+  [/^Header: two names over column (\d+) \((.+)\)\.$/, 'Cabeçalho: dois nomes sobre a coluna $1 ($2).'],
+  [/^Row (\d+), column (\d+): no value\.$/, 'Linha $1, coluna $2: sem valor.'],
+  [/^Row (\d+), column (\d+): (\d+) symbols\.$/, 'Linha $1, coluna $2: $3 símbolos.'],
+  [/^Column (\d+) has no name: (.+)\.$/, 'A coluna $1 não tem nome: $2.'],
+  [/^Line 1: '(.+)' is not a name\.$/, "Linha 1: '$1' não é um nome."],
+  [/^Line 1: '(.+)' is named twice\.$/, "Linha 1: '$1' aparece duas vezes."],
+  [/^1 to (\d+) inputs \(the table has (\d+)\)\.$/, '1 a $1 entradas (a tabela tem $2).'],
+  [/^Line (\d+): (\d+) values, (\d+) expected\.$/, 'Linha $1: $2 valores, $3 esperados.'],
+  [/^Line (\d+): an input is '(.+)': only 0 or 1\.$/, "Linha $1: uma entrada é '$2': só 0 ou 1."],
+  [/^Line (\d+): an output is '(.+)': only 0, 1 or X\.$/, "Linha $1: uma saída é '$2': só 0, 1 ou X."],
+  [/^Lines (\d+) and (\d+): the inputs (\S+) with other outputs\.$/, 'Linhas $1 e $2: as entradas $3 com outras saídas.'],
+  [/^Line (\d+) repeats line (\d+)\.$/, 'A linha $1 repete a linha $2.'],
+  [/^Not in the table: (.+?)(?: and (\d+) more)? \(their outputs are 0\)\.$/, (m, list, more) => `Fora da tabela: ${list}${more ? ` e mais ${more}` : ''} (as suas saídas são 0).`],
 ];
