@@ -24,7 +24,7 @@ const BIG_FUNCTIONS = new Set([
   'web/js/asm-editor.js mountAsmEditor', 'web/js/editor.js createEditor',
   'web/js/emulator.js mountEmulator', 'web/js/fsm-editor.js mountFsmEditor', 'web/js/isim-draw.js mountDraw',
   'web/js/isim.js mountISim', 'web/js/petri-editor.js mountPetriEditor', 'web/js/sch-editor.js mountSchEditor', 'web/js/sch-live.js liveController',
-  'web/js/schematic-view.js mountSchematic', 'web/js/tbwizard.js testBenchWizard',
+  'web/js/schematic-view.js mountSchematic',
 ]);
 
 function sources() {
