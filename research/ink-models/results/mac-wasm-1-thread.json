@@ -1,0 +1,364 @@
+{
+  "env": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "cores": 14,
+    "deviceMemoryGB": 32,
+    "crossOriginIsolated": true,
+    "webgpu": {
+      "vendor": "apple",
+      "architecture": "metal-3",
+      "f16": true
+    },
+    "transformers": "4.3.1"
+  },
+  "runs": [
+    {
+      "model": "trocr-small",
+      "backend": "wasm",
+      "dtype": "q8",
+      "threads": 1,
+      "cachedOnnxFiles": 2,
+      "downloadMB": 65,
+      "loadedMB": 65,
+      "loadS": 1.4,
+      "memoryAfterLoadMB": 200,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "F-A-B.",
+          "s": 0.78,
+          "tokens": null,
+          "score": 0.4,
+          "exact": false
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F-A.Bt C.",
+          "s": 0.74,
+          "tokens": null,
+          "score": 0.625,
+          "exact": false
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y- ( A-B ) \" C.",
+          "s": 0.73,
+          "tokens": null,
+          "score": 0.5555555555555556,
+          "exact": false
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S-A. O.B.",
+          "s": 0.73,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "2 - A\"B* AB'",
+          "s": 0.75,
+          "tokens": null,
+          "score": 0.5555555555555556,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F-not ( A and B )",
+          "s": 0.74,
+          "tokens": null,
+          "score": 0.9166666666666666,
+          "exact": false
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "# # #",
+          "s": 0.7,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "# # # #",
+          "s": 0.71,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "8 D. F.",
+          "s": 0.72,
+          "tokens": null,
+          "score": 0.25,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "# Dyer.. #",
+          "s": 0.73,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        }
+      ],
+      "medianS": 0.73,
+      "memoryAfterRunMB": 202,
+      "expressionScore": 0.51,
+      "tableScore": 0,
+      "schematicScore": 0.13,
+      "query": "?threads=1",
+      "coldLoadS": 3.7,
+      "loadedMBCold": 65,
+      "rssBaseMB": 1108,
+      "rssPeakIncreaseMB": 921
+    },
+    {
+      "model": "smolvlm-256m",
+      "backend": "wasm",
+      "dtype": {
+        "embed_tokens": "q8",
+        "vision_encoder": "q8",
+        "decoder_model_merged": "q8"
+      },
+      "threads": 1,
+      "cachedOnnxFiles": 3,
+      "downloadMB": 251.2,
+      "loadedMB": 251.2,
+      "loadS": 0.8,
+      "memoryAfterLoadMB": 483,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "F=A+B",
+          "s": 5.31,
+          "tokens": 6,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F=A\\cdot B+C^{\\prime}",
+          "s": 5.46,
+          "tokens": 13,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y=(A+B)\\cdot C",
+          "s": 5.42,
+          "tokens": 9,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S=A\\otimes B",
+          "s": 5.34,
+          "tokens": 8,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "A B + AB '",
+          "s": 5.12,
+          "tokens": 6,
+          "score": 0.6666666666666667,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F=not(A and B)",
+          "s": 5.35,
+          "tokens": 9,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "The header first, then the row with the numbers 0, 0, 0, and 0.",
+          "s": 5.86,
+          "tokens": 24,
+          "score": 0.33333333333333337,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "A table of 0s and 1s is a table of 0s and 1s.",
+          "s": 5.74,
+          "tokens": 23,
+          "score": 0.125,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "The logic gates are labeled as A, B, and C.",
+          "s": 5.49,
+          "tokens": 14,
+          "score": 0.75,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "The following logic gates are listed: D_{1}=1, D_{2}=1, D_{3}=1, D_{4}=1, D_{5}=1, D_{6}=1, D_{7}=1, D_{8}=1, D_{9}=1, D_{10}=1, D_{11}=1, D_{12}=1, D_{",
+          "s": 7.32,
+          "tokens": 96,
+          "score": 0,
+          "exact": false
+        }
+      ],
+      "medianS": 5.46,
+      "memoryAfterRunMB": 493,
+      "expressionScore": 0.78,
+      "tableScore": 0.23,
+      "schematicScore": 0.38,
+      "query": "?threads=1",
+      "coldLoadS": 7.8,
+      "loadedMBCold": 251.2,
+      "rssBaseMB": 1106,
+      "rssPeakIncreaseMB": 1407
+    },
+    {
+      "model": "florence2-base",
+      "backend": "wasm",
+      "dtype": {
+        "embed_tokens": "q8",
+        "vision_encoder": "q8",
+        "encoder_model": "q8",
+        "decoder_model_merged": "q8"
+      },
+      "threads": 1,
+      "cachedOnnxFiles": 4,
+      "downloadMB": 264.4,
+      "loadedMB": 264.6,
+      "loadS": 1.4,
+      "memoryAfterLoadMB": 506,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "E4+B",
+          "s": 10.09,
+          "tokens": 7,
+          "score": 0.4,
+          "exact": false
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F4.B+C",
+          "s": 10.25,
+          "tokens": 9,
+          "score": 0.625,
+          "exact": false
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y+B.C",
+          "s": 10.17,
+          "tokens": 8,
+          "score": 0.5555555555555556,
+          "exact": false
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S3= A+B",
+          "s": 10.02,
+          "tokens": 9,
+          "score": 0.6,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "3=4B + 4B",
+          "s": 10.06,
+          "tokens": 10,
+          "score": 0.4444444444444444,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F-enot(handB)",
+          "s": 10.32,
+          "tokens": 11,
+          "score": 0.75,
+          "exact": false
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "ABF00O00O0O0T",
+          "s": 10.13,
+          "tokens": 13,
+          "score": 0.5,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "ABCM00",
+          "s": 10.47,
+          "tokens": 6,
+          "score": 0.0625,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "A drawing of a circle with four letters A, B, and T on either side of it. The circle is drawn in black ink. The background is white. The letters are drawn in a simple, hand drawn.",
+          "s": 11.04,
+          "tokens": 47,
+          "score": 0.75,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "A drawing of a pot is drawn on a white background. The pot has a handle on one side and a spout on the other side. There are two knobs on the front of the pot. There is a line drawn on the right side of the image. There's a letter \"A\" drawn on top of the handle. There appears to be a line going through the pot on the left side of it.",
+          "s": 11.81,
+          "tokens": 89,
+          "score": 0.3333333333333333,
+          "exact": false
+        }
+      ],
+      "medianS": 10.25,
+      "memoryAfterRunMB": 816,
+      "expressionScore": 0.56,
+      "tableScore": 0.28,
+      "schematicScore": 0.54,
+      "query": "?threads=1",
+      "coldLoadS": 8.3,
+      "loadedMBCold": 264.6,
+      "rssBaseMB": 1111,
+      "rssPeakIncreaseMB": 1285
+    }
+  ]
+}

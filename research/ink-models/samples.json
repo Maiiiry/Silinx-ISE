@@ -1,0 +1,14 @@
+[
+  { "id": "e1", "kind": "expression", "text": "F = A + B" },
+  { "id": "e2", "kind": "expression", "text": "F = A·B + C'" },
+  { "id": "e3", "kind": "expression", "text": "Y = (A + B)·C" },
+  { "id": "e4", "kind": "expression", "text": "S = A ⊕ B" },
+  { "id": "e5", "kind": "expression", "text": "Z = A'B + AB'" },
+  { "id": "e6", "kind": "expression", "text": "F = not (A and B)" },
+  { "id": "t1", "kind": "table", "header": ["A", "B", "F"],
+    "rows": [[0, 0, 0], [0, 1, 0], [1, 0, 0], [1, 1, 1]] },
+  { "id": "t2", "kind": "table", "header": ["A", "B", "C", "M"],
+    "rows": [[0, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0], [0, 1, 1, 1], [1, 0, 0, 0], [1, 0, 1, 1], [1, 1, 0, 1], [1, 1, 1, 1]] },
+  { "id": "s1", "kind": "schematic", "gates": ["and"], "labels": ["A", "B", "F"], "text": "F = A·B" },
+  { "id": "s2", "kind": "schematic", "gates": ["and", "or"], "labels": ["A", "B", "C", "F"], "text": "F = A·B + C" }
+]
