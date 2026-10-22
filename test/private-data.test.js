@@ -34,6 +34,10 @@ test('personal data: e-mail addresses, home folders with a user name, logins', (
 test('computer names and network addresses; versions and local addresses are fine', () => {
   assert.deepEqual(kinds('a.md', `the server at ${dot(192, 168, 1, 20)}`), [`IP address: ${dot(192, 168, 1, 20)}`]);
   assert.deepEqual(kinds('a.md', `public ${dot(8, 8, 4, 4)}`), [`IP address: ${dot(8, 8, 4, 4)}`]);
+  // a product's version after its name and a slash (a User-Agent string) is not an address; one after :// or a path's
+  // slash is (#1027, #1080)
+  assert.deepEqual(kinds('a.json', `"ua": "Mozilla/5.0 (X11) AppleWebKit/537.36 Chrome/${dot(156, 0, 0, 0)} Safari/537.36"`), []);
+  assert.deepEqual(kinds('a.md', `http://${dot(8, 8, 4, 4)}/x and /${dot(8, 8, 4, 4)}`), [`IP address: ${dot(8, 8, 4, 4)}`, `IP address: ${dot(8, 8, 4, 4)}`]);
   assert.deepEqual(kinds('a.md', `${dot(127, 0, 0, 1)}:8642 ${dot(0, 0, 0, 0)} ${dot(192, 0, 2, 7)} v${dot(1, 2, 3, 4)} ${dot(1, 2, 3, 4, 5)} 15.10.1`), []);
   assert.deepEqual(kinds('a.md', `open http://${'Janes-MacBook-Pro'}.local:8642`), ['computer name: Janes-MacBook-Pro.local']);
   assert.deepEqual(kinds('a.js', 'const local = p.local; x.local = 1;'), []);   // code, not names
