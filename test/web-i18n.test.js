@@ -145,6 +145,17 @@ test('SSim (#920): the simulator\'s labels translated with its name, SSim; no la
   assert.deepEqual(isim, []);
 });
 
+test('the Development menu\'s Pen and Touch Test (#1054): its labels, its states and Silinx\'s actions translated; the report in English', async () => {
+  // every capitalised text of web/js/devmenu-pointer.js but the report's (English, pasted into an issue) and the name
+  const src = fs.readFileSync(path.join(WEB, 'devmenu-pointer.js'), 'utf8');
+  const texts = [...new Set([...src.matchAll(/'([A-Z][^'$`]*[a-z][^'$`]*)'/g)].map((m) => m[1]))].filter((s) => !['Silinx', 'Silinx ISE: pen and touch test'].includes(s));
+  assert.ok(texts.length >= 20, texts.join(', '));
+  assert.deepEqual(texts.filter((s) => t(s) === s), []);
+  assert.equal(t('Pen and Touch Test…'), 'Teste de Caneta e Toque…');
+  assert.equal(t('Two-finger pan and zoom'), 'Deslocar e ampliar com dois dedos');
+  assert.equal(t('Pointers down at once: 2 (most: 3)'), 'Ponteiros premidos ao mesmo tempo: 2 (máximo: 3)');
+});
+
 test('ISim groups (#341): the menu items and the prompt are translated', () => {
   assert.deepEqual(['New Group', 'Rename Group...', 'Ungroup', 'Group name:'].map(t), ['Novo Grupo', 'Mudar Nome do Grupo...', 'Desagrupar', 'Nome do grupo:']);
 });

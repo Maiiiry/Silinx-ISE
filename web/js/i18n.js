@@ -26,6 +26,14 @@ const PT = {
   // the Development menu of a development build (#707)
   'Development': 'Desenvolvimento', 'Features': 'Funcionalidades', 'Bug fixes': 'Correções', 'Other changes': 'Outras alterações',
   'All Changes since the Last Release…': 'Todas as Alterações desde a Última Versão…', 'Changes since the last release': 'Alterações desde a última versão',
+  // its Pen and Touch Test (#1054)
+  'Pen and Touch Test…': 'Teste de Caneta e Toque…', 'Pen and Touch Test': 'Teste de Caneta e Toque',
+  'Draw here with the mouse, a pen or your fingers: each pointer leaves a trail in its own colour.': 'Desenhe aqui com o rato, uma caneta ou os dedos: cada ponteiro deixa um rasto na sua cor.',
+  'Copy Report': 'Copiar Relatório', 'Report copied to the clipboard': 'Relatório copiado para a área de transferência',
+  'Pointers': 'Ponteiros', 'Screen': 'Ecrã', 'Primary': 'Primário', 'Pressure': 'Pressão', 'Contact': 'Contacto', 'Tilt': 'Inclinação', 'Buttons': 'Botões',
+  'Pressed': 'Premido', 'Hovering': 'A pairar', 'Lifted': 'Levantado', 'Cancelled': 'Cancelado',
+  'Two-finger pan and zoom': 'Deslocar e ampliar com dois dedos', 'Edits; held still: the context menu': 'Edita; parado: o menu de contexto',
+  'Edits, as the mouse': 'Edita, como o rato', 'Long press: the context menu': 'Toque longo: o menu de contexto',
   // menus
   'File': 'Ficheiro', 'Edit': 'Editar', 'View': 'Ver', 'Project': 'Projeto', 'Process': 'Processo', 'Tools': 'Ferramentas',
   'Window': 'Janela', 'Help': 'Ajuda', 'Language': 'Idioma',
@@ -358,6 +366,7 @@ const PT_PATTERNS = [
   // the Development menu (#707)
   [/^Features \((\d+)\)$/, 'Funcionalidades ($1)'], [/^Bug fixes \((\d+)\)$/, 'Correções ($1)'], [/^Other \((\d+)\)$/, 'Outras ($1)'],
   [/^All Changes since (\d+\.\d+\.\d+)…$/, 'Todas as Alterações desde a $1…'], [/^Changes since (\d+\.\d+\.\d+)$/, 'Alterações desde a $1'],
+  [/^Pointers down at once: (\d+) \(most: (\d+)\)$/, 'Ponteiros premidos ao mesmo tempo: $1 (máximo: $2)'],
   [/^This Build on GitHub \(commit (\w+)\)$/, 'Esta Versão no GitHub (commit $1)'], [/^Open Issue #(\d+) on GitHub$/, 'Abrir a Issue #$1 no GitHub'],
   // the tip of a drawing's link banner, shortened on a narrow screen (#266)
   [/^HDL: (\S+) — generated from the (diagram|net|table)$/, (m, f, w) => `HDL: ${f} — gerado a partir ${{ diagram: 'do diagrama', net: 'da rede', table: 'da tabela' }[w]}`],
