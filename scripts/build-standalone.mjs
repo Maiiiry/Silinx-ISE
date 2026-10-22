@@ -3,7 +3,7 @@
 //   node scripts/build-standalone.mjs [--site <dir>] [--assets-url <site URL>]
 //   node scripts/build-standalone.mjs --assets-only <assets dir>
 // --site also writes the GitHub Pages site (.github/workflows/pages.yml): the page as index.html and
-// Silinx-ISE.html, and assets/ with what the Silinx toolchain fetches in the browser
+// Silinx-ISE.html, index.html's web app manifest and service worker (scripts/pwa.mjs, #1051), and assets/ with what the Silinx toolchain fetches in the browser
 // (web/js/open-flow-browser.js): the device descriptions (core/fpga/devices), the bit database
 // (research/s3e-bitstream/db) and Yosys in WebAssembly (node_modules/@yowasp/yosys/gen).
 // The assets are versioned (#487): assets/<version>/ (a development build: assets/dev-<commit>/) holds
@@ -17,9 +17,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildInfo, devChanges } from './build-info.mjs';
-import { VERSION } from '../core/version.js';
+import { VERSION, versionLabel } from '../core/version.js';
 import { THIRD_PARTY } from '../core/third-party.js';
 import { contentSecurityPolicy, inlineScriptHashes, withMetaCsp } from '../server/csp.js';
+import { withManifestLink, writePwa } from './pwa.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = path.join(ROOT, 'dist', 'Silinx-ISE.html');
@@ -172,8 +173,10 @@ if (siteArg > 0) {
   const site = path.resolve(process.argv[siteArg + 1] || 'site');
   fs.rmSync(site, { recursive: true, force: true });
   fs.mkdirSync(site, { recursive: true });
-  fs.writeFileSync(path.join(site, 'index.html'), html);
+  // the page opened on the site, installable as an app (#1051); Silinx-ISE.html, the file people download, is not
+  fs.writeFileSync(path.join(site, 'index.html'), withManifestLink(html));
   fs.writeFileSync(path.join(site, 'Silinx-ISE.html'), html);
+  await writePwa(site, { esbuild, label: versionLabel(BUILD, VERSION), dev: !!BUILD });
   // what this site serves (its page's version and build): on the site, Check for Updates compares the
   // page open with it, not with GitHub's latest release (published minutes before the site is rebuilt)
   fs.writeFileSync(path.join(site, 'version.json'), `${JSON.stringify({ version: VERSION, build: BUILD && { commit: BUILD.commit, date: BUILD.date } })}\n`);

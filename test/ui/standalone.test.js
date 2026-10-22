@@ -23,6 +23,7 @@ import { createZip } from '../../core/zip.js';
 
 let env, plain, html, site, server, siteUrl, build, skip = null;
 const served = [];   // (the paths the site served, #967)
+let unreachable = false;   // (the site out of reach: its connections closed unanswered, #1051)
 before(async () => {
   env = await setupUi({ server: false });
   if (env.skip) return;
@@ -42,7 +43,7 @@ before(async () => {
   const root = path.join(env.tmp, 'standalone');
   await fs.mkdir(path.join(root, 'scripts'), { recursive: true });
   // (changelog-release.mjs: the changes/ fragments of the development build's Development menu, #707)
-  for (const f of ['build-standalone.mjs', 'build-info.mjs', 'changelog-release.mjs']) await fs.copyFile(path.join(ROOT, 'scripts', f), path.join(root, 'scripts', f));
+  for (const f of ['build-standalone.mjs', 'build-info.mjs', 'changelog-release.mjs', 'pwa.mjs']) await fs.copyFile(path.join(ROOT, 'scripts', f), path.join(root, 'scripts', f));
   // a git checkout of its own, its commit untagged: a development build, labelled with it (#135)
   const git = (...a) => spawnSync('git', a, { cwd: root, encoding: 'utf8' });
   git('init', '-q'); git('-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'build');
@@ -52,8 +53,10 @@ before(async () => {
   await fs.symlink(modules, path.join(root, 'node_modules'), 'dir');
   site = path.join(root, 'site');
   // the site over HTTP, as GitHub Pages serves it (no Content-Encoding: the .json.gz are fetched as bytes)
-  const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.gz': 'application/gzip' };
+  const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm', '.gz': 'application/gzip',
+    '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
   server = http.createServer(async (req, res) => {
+    if (unreachable) { served.push(`unreachable ${req.url}`); req.socket.destroy(); return; }
     // (dev/: the same site as the development edition of GitHub Pages, https://pmnmalo.github.io/Silinx-ISE/dev/)
     const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '').replace(/^dev\//, '').replace(/^$/, 'index.html') || 'index.html';
     // (the simulated Digilent board of the programming test, the fake folder of the workspace folder tests)
@@ -616,6 +619,75 @@ uiTest('#967 browser edition: what Implement needs is downloaded when a project 
   assert.match(log, /Process "Generate Programming File" completed successfully/);
   assert.ok(versioned().some((p) => p.endsWith('yosys.core.wasm')) && versioned().some((p) => p.endsWith('.json.gz')));
   await page.waitFor(() => caches.open('silinx-assets').then((c) => c.keys()).then((ks) => ks.length >= 8), [], { what: 'kept by the run' });
+}, { url: () => 'about:blank', timeout: 300000 });
+
+uiTest('#1051 the site installable as an app: its manifest, icons and service worker; with the site out of reach the page opens and Generate Programming File runs', E, async (page) => {
+  const boot = async (url = siteUrl) => {
+    await page.goto(url);
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: `boot of ${url}` });
+  };
+  await boot();
+  // the page links its manifest; the manifest names the edition's folder and its icons, which the site serves at their sizes
+  const manifest = await page.eval(async () => {
+    const link = document.querySelector('link[rel="manifest"]');
+    const m = await (await fetch(link.href)).json();
+    const icons = await Promise.all(m.icons.map((i) => new Promise((ok) => { const im = new Image(); im.onload = () => ok(`${i.src} ${im.naturalWidth}x${im.naturalHeight} ${i.purpose}`); im.onerror = () => ok(`${i.src} not loaded`); im.src = new URL(i.src, link.href).href; })));
+    return { href: link.href, theme: document.querySelector('meta[name="theme-color"]')?.content, m, icons };
+  });
+  assert.equal(manifest.href, `${siteUrl}manifest.webmanifest`);
+  assert.equal(manifest.theme, '#a5121a');
+  assert.deepEqual([manifest.m.id, manifest.m.start_url, manifest.m.scope, manifest.m.display, manifest.m.name, manifest.m.short_name], ['./', './', './', 'standalone', 'Silinx ISE (development)', 'Silinx dev']);
+  assert.deepEqual(manifest.icons, ['icons/silinx-192.png 192x192 any', 'icons/silinx-512.png 512x512 any', 'icons/silinx-maskable-512.png 512x512 maskable']);
+  // its service worker, scoped to the edition's folder, controls the page once reloaded
+  const scope = await page.eval(async () => (await navigator.serviceWorker.ready).scope);
+  assert.equal(scope, siteUrl);
+  await boot();
+  assert.equal(await page.eval(() => navigator.serviceWorker.controller?.scriptURL ?? null), `${siteUrl}sw.js`);
+  if (BROWSER === 'chrome') {
+    // installable, as Chrome sees it: no error in the manifest, none against installing it
+    const { errors } = await page.send('Page.getAppManifest', {});
+    assert.deepEqual(errors, []);
+    // (the test's browser context is an incognito one, where Chrome installs nothing: that reason only)
+    const { installabilityErrors } = await page.send('Page.getInstallabilityErrors');
+    assert.deepEqual(installabilityErrors.map((e) => e.errorId), ['in-incognito']);
+  }
+  // the development edition (dev/ beside it): a worker of its own, which the root's does not take over
+  await boot(`${siteUrl}dev/`);
+  assert.equal(await page.eval(async () => (await navigator.serviceWorker.ready).scope), `${siteUrl}dev/`);
+  // the downloaded file's copy on the site: no manifest
+  await boot(`${siteUrl}Silinx-ISE.html`);
+  assert.equal(await page.eval(() => document.querySelector('link[rel="manifest"]')), null);
+  // a project: what Implement needs is kept when it opens (#967)
+  await boot();
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Away');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Away' && window.Silinx.project.top);
+  await page.waitFor(() => caches.open('silinx-assets').then((c) => c.keys()).then((ks) => ks.length >= 13), [], { what: 'the assets prefetched', timeout: 60000 });
+  // the site out of reach: the page opens from the worker's copy, the project with it, and the flow runs to the bitstream
+  unreachable = true;
+  try {
+    served.length = 0;
+    await boot();
+    await page.waitFor(() => window.Silinx.project?.name === 'Away');
+    assert.equal(await page.eval(() => document.title), `Away — Silinx ISE ${versionLabel(build)}`);
+    await page.click('input[name=view][value=impl]');
+    await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+    await page.waitFor(() => /Process "Generate Programming File" (completed successfully|failed)/.test(document.getElementById('console-log').innerText), [], { what: 'the flow', timeout: 120000 });
+    await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished' });
+    const log = await page.consoleText();
+    assert.match(log, /Loading Yosys \(WebAssembly, kept by this browser\)…/);
+    assert.match(log, /Process "Generate Programming File" completed successfully/);
+    assert.doesNotMatch(log, /WARNING|ERROR|Downloading/);
+    // asked, unanswered: the page (the network first) and the browser's check for a newer worker; nothing of the flow's
+    assert.deepEqual([...new Set(served)].sort(), ['unreachable /', 'unreachable /sw.js'], 'what was asked of the site');
+  } finally { unreachable = false; }
 }, { url: () => 'about:blank', timeout: 300000 });
 
 uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in a folder on the disk, in the full application\'s format', E, async (page) => {
