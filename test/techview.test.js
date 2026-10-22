@@ -140,7 +140,8 @@ test('lutFunction: a LUT\'s INIT as an equation (ISE\'s notation) and a truth ta
 test('the examples blinky and pong, synthesized by Yosys: technology netlists by instance that compile and are drawn', { timeout: 300000 }, async () => {
   const ELK = (await import('elkjs/lib/elk.bundled.js')).default;
   const elk = new ELK();
-  for (const [name, want] of [['blinky', { u_pre: 67, u_speed: 203, u_knight: 51 }], ['pong', null]]) {
+  // (blinky's BCD counter u_count drives the top's signal digits: its cells in the top's own logic)
+  for (const [name, want] of [['blinky', { u_pre: 67, u_speed: 203, u_knight: 52, u_display: 61 }], ['pong', null]]) {
     const ex = example(name);
     const design = elaborate(compile([...primitiveSources(ex.design), ...ex.design]), ex.project.top);
     const syn = await synthesizeOpen(design, { run: yosysNode });

@@ -61,8 +61,9 @@ const BUDGETS = {
   cpu8: { design: () => fixture('cpu8'), luts: 275, muxes: 90, slices: 165 },
   // blinky (stock: 376 cells, 89 slices; XST: 145 LUTs)
   blinky: { design: () => fixture('blinky'), luts: 70, muxes: 16, slices: 78 },
-  // the example project (stock: 104 slices; XST: 104 LUTs, 99 slices)
-  'examples/blinky': { design: () => example('blinky'), luts: 78, muxes: 19, slices: 95 },
+  // the example project (stock: 104 slices; XST: 104 LUTs, 99 slices; with its display, #983: 120 LUTs, 0 MUXF,
+  // 221 carry, 131 FFs, 117 slices; XST: 157 LUTs)
+  'examples/blinky': { design: () => example('blinky'), luts: 132, muxes: 5, slices: 129 },
   // the other examples (the game: state machine, display; the stopwatch: block RAM, multipliers)
   // (pong, 15.10.16, balanced with the LUT delays (#78): 311 LUTs instead of 275, 11.2 ns estimated instead of 12.4)
   'examples/pong': { design: () => example('pong'), luts: 340, muxes: 68, slices: 300 },

@@ -558,7 +558,7 @@ scripts/    adepttool installer/patch, Platform Flash programmer, standalone bui
 examples/   example projects for the Basys2 / Nexys2 (the Silinx toolchain's devices): gates (the first one: logic
             gates drawn as a schematic, a 4-bit prime-number detector with NOT / AND / OR and with NAND gates only),
             traffic (a pedestrian crossing: a state diagram, a truth table, VHDL and a Verilog display),
-            blinky (VHDL + Verilog, an ASM chart),
+            blinky (VHDL + Verilog, an ASM chart, its steps counted on the display),
             pong (a game for two, Verilog), stopwatch (VHDL, block RAM and multipliers), clock (Verilog, set
             with the buttons), vga (VHDL, a picture on a VGA monitor); each with a self-checking testbench
 docs/       GETTING-STARTED.md / COMECAR.md (step-by-step guides), IR.md (parser intermediate

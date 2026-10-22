@@ -108,6 +108,8 @@ const EXAMPLES = {
       '      verilog u_pre - prescaler [Verilog*] (counter.v)',
       '      asm u_speed - speed_ctrl [ASM*] [VHDL] (speed_ctrl.asm.json)',
       '      vhdl u_knight - knight [VHDL*] (knight.vhd)',
+      '      vhdl u_count - bcd_counter [VHDL*] (bcd_counter.vhd)',
+      '      verilog u_display - sevenseg [Verilog*] (sevenseg.v)',
       '    ucf top.ucf',
     ],
     sim: [
@@ -118,12 +120,16 @@ const EXAMPLES = {
       '        verilog u_pre - prescaler [Verilog*] (counter.v)',
       '        asm u_speed - speed_ctrl [ASM*] [VHDL] (speed_ctrl.asm.json)',
       '        vhdl u_knight - knight [VHDL*] (knight.vhd)',
+      '        vhdl u_count - bcd_counter [VHDL*] (bcd_counter.vhd)',
+      '        verilog u_display - sevenseg [Verilog*] (sevenseg.v)',
     ],
     tips: [
       'top: VHDL (Open)',
       'u_pre - prescaler: Verilog (Open)',
       'u_speed - speed_ctrl: ASM (Base: its HDL is generated from it) VHDL (Generated from the state machine)',
       'u_knight - knight: VHDL (Open)',
+      'u_count - bcd_counter: VHDL (Open)',
+      'u_display - sevenseg: Verilog (Open)',
     ],
   },
 };

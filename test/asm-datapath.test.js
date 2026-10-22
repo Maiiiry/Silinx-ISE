@@ -545,7 +545,7 @@ test('blinky example: the chart generates speed_ctrl.vhd, which round-trips and 
   const pj = JSON.parse(fs.readFileSync(path.join(BLINKY, 'silinx.json'), 'utf8'));
   assert.ok(!pj.files.some((f) => /speed_fsm/.test(f.path)));
   const sources = pj.files.map((f) => ({ path: f.path, text: fs.readFileSync(path.join(BLINKY, f.path), 'utf8') }));
-  const r = simulate(sources, pj.simTop, { until: 2e8 });
+  const r = simulate(sources, pj.simTop, { until: 1e9 });   // (the display's wrap from 9999 to 0000: about 500 us)
   assert.deepEqual(r.errors, []);
   const log = r.sim.log.map((e) => `${e.kind}: ${e.text}`);
   assert.ok(log.some((l) => /Simulation finished OK/.test(l)), log.join('\n'));

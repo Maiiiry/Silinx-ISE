@@ -120,7 +120,7 @@ uiTest('open mode: Generate Programming File of blinky without ISE; the Processe
   assert.match(sum, /Implementation State:\s*Programming File Generated/);
   assert.match(sum, /Device Utilization Summary \(Silinx toolchain\)/);
   assert.match(sum, /Number of occupied Slices\s+\d+\s+2448\s+\d+%/);
-  assert.match(sum, /Number of bonded IOBs\s+15\s+92\s+16%/);
+  assert.match(sum, /Number of bonded IOBs\s+27\s+92\s+29%/);
   assert.match(sum, /Timing \(post Place & Route, Silinx toolchain estimate\)/);
   assert.match(sum, /All constraints met/);
   assert.match(sum, /PERIOD 20 ns on clk/);
@@ -193,7 +193,7 @@ uiTest('open mode: Generate Text Power Report of blinky without ISE: the estimat
 // built again, nothing more to add (the pads of the two placements at Normal, #651; #938)
 const BA_UCF = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '../../examples/blinky/constraints/top.ucf'), 'utf8')
   .split('\n').map((l) => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
-const BA_PINS = ['NET "led<4>" LOC = "J3";', 'NET "led<5>" LOC = "M4";', 'NET "led<6>" LOC = "N7";', 'NET "led<7>" LOC = "L13";', 'NET "sw<3>" LOC = "P8";'];
+const BA_PINS = ['NET "led<4>" LOC = "J14";', 'NET "led<5>" LOC = "J13";', 'NET "led<6>" LOC = "G14";', 'NET "led<7>" LOC = "G13";', 'NET "sw<3>" LOC = "H13";'];
 uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose into the UCF; Portuguese', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenPins', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
@@ -208,15 +208,15 @@ uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose 
   assert.equal(await msg(), `Add the 5 pin location(s) chosen by the tools to constraints/top.ucf?\n\n${BA_PINS.join('\n')}`);
   const text = await page.consoleText();
   assert.match(text, /=== SILINX STEP pin2ucf ===/);
-  assert.match(text, /Pin locations of 15 port bit\(s\), 5 of them chosen by the placer \(no LOC in the constraints\): build\/top_pins\.ucf/);
+  assert.match(text, /Pin locations of 27 port bit\(s\), 5 of them chosen by the placer \(no LOC in the constraints\): build\/top_pins\.ucf/);
   assert.deepEqual(text.split('\n').filter((l) => /warning/i.test(l)),
-    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 22: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
+    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 34: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
       'WARNING: 5 port bit(s) have no LOC constraint (sw<3>, led<4>, led<5>, led<6>, led<7>): Silinx assigns free I/O pins automatically - do NOT program real hardware with this bitstream',
       'Process "Back-annotate Pin Locations" completed successfully with 2 warning(s)']);
   // the constraints' warning: the process's own (after its Started line), counted with the others,
   // in the Warnings tab once; the process's icon a warning (#129)
   const run = text.slice(text.lastIndexOf('Started : "Back-annotate Pin Locations"'));
-  assert.match(run, /^Started : "Back-annotate Pin Locations"\.\n+WARNING:ConstraintSystem - "constraints\/top\.ucf" Line 22: 5 port bit\(s\) of 'top' have no LOC/);
+  assert.match(run, /^Started : "Back-annotate Pin Locations"\.\n+WARNING:ConstraintSystem - "constraints\/top\.ucf" Line 34: 5 port bit\(s\) of 'top' have no LOC/);
   assert.equal(await page.eval(() => document.querySelectorAll('#console-warnings .diag').length), 2);
   assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '(2)');
   assert.equal(await page.eval(() => window.SilinxApp.S.status.pin2ucf), 'warn');
@@ -256,7 +256,7 @@ uiTest('open mode: Synthesize counts the constraints\' warnings printed before i
   const text = await page.consoleText();
   const run = text.slice(text.lastIndexOf('Started : "Synthesize - Yosys"'));
   assert.deepEqual(run.split('\n').filter((l) => /warning/i.test(l)),
-    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 22: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
+    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 34: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
       'WARNING: 5 port bit(s) have no LOC constraint (sw<3>, led<4>, led<5>, led<6>, led<7>): Silinx assigns free I/O pins automatically - do NOT program real hardware with this bitstream',
       'Process "Synthesize - Yosys" completed successfully with 2 warning(s)']);
   assert.equal(text.split('\n').filter((l) => /warning/i.test(l)).length, 3, 'printed once');
@@ -348,8 +348,8 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await reloadToolchain(page);
   await page.click('input[name=view][value=impl]');
   assert.deepEqual((await procLabels(page)).find((p) => p.label === 'View Technology Schematic'), { label: 'View Technology Schematic', disabled: false, title: '' });
-  await checkTechSchematic(page, { top: 'top', blocks: ['u_pre', 'u_speed', 'u_knight'], inside: 'u_pre',
-    message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 353 cells in 3 block(s): u_knight (50), u_speed (203), u_pre (68)." });
+  await checkTechSchematic(page, { top: 'top', blocks: ['u_pre', 'u_speed', 'u_knight', 'u_display'], inside: 'u_pre',
+    message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 511 cells in 4 block(s): u_display (61), u_knight (52), u_speed (203), u_pre (67)." });
   assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
   // Portuguese: the view's bar, its tab and the LUT's function have no untranslated text (the netlist's names apart)
   await page.eval(TEXTS);
@@ -432,7 +432,7 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   await page.treeRow('#procs', 'View RTL Schematic', { dbl: true, exact: true });
   await page.waitFor(() => window.Silinx.active?.id === 'rtl:top' && document.querySelectorAll('.doc:not([hidden]) .se-svg [data-kind=sym]').length >= 5, [], { what: 'RTL schematic' });
   const rtl = await viewerTexts(page);
-  assert.deepEqual(rtl.kinds, ['wire', 'sym:module', 'sym:slice', 'sym:and2b1', 'sym:hdlblock', 'port', 'label']);
+  assert.deepEqual(rtl.kinds, ['wire', 'sym:module', 'sym:slice', 'sym:constant', 'sym:and2b1', 'sym:hdlblock', 'port', 'label']);   // (the constant: the display's decimal points, #983)
   assert.deepEqual(rtl.untranslated, []);
   for (const s of ['Propriedades', '<--Todos os Símbolos-->', '@Inversor', '@Porta AND de 2, 3 ou 4 entradas, as entradas e as entradas invertidas nas suas propriedades (bit a bit quando Largura > 1)', 'Abrir top.vhd', 'Fio · rede clk', "Rede 'clk', 1 bit",
     'Módulo prescaler', 'Parâmetros', 'vazio = valor por omissão do módulo', 'Pinos (3)', 'Índice do MSB', 'Marcador de E/S', 'Bidirecional', 'Nome de Rede',
@@ -446,9 +446,9 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
   await waitTech(page, 'top');
   const tech = await viewerTexts(page);
-  assert.deepEqual(tech.kinds, ['wire', 'sym:module', 'sym:constant', 'sym:slice', 'sym:busjoin', 'port', 'label']);
+  assert.deepEqual(tech.kinds, ['wire', 'sym:module', 'sym:constant', 'sym:slice', 'port', 'label']);
   assert.deepEqual(tech.untranslated, []);
-  for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo LUT2', 'Pinos (3)', 'Larguras das entradas (MSB primeiro)', 'Função do LUT (INIT)'])
+  for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo LUT4', 'Pinos (5)', 'Função do LUT (INIT)'])
     assert.ok(tech.pt.has(s), `${s}: ${[...tech.pt].join(' | ')}`);
   assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });

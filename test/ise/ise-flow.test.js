@@ -84,7 +84,7 @@ test('ISE flow end to end through the API: blinky on the Basys2 (reports, pins, 
   const u = rep.map.summary;
   assert.ok(u.slices.used > 10 && u.slices.total === 2448, JSON.stringify(u.slices));
   assert.ok(u.ffs.used > 10 && u.luts.used > 10);
-  assert.deepEqual([u.iobs.used, u.iobs.total], [15, 92]);
+  assert.deepEqual([u.iobs.used, u.iobs.total], [27, 92]);   // clk, 4 switches, 2 buttons, 8 LEDs, the display's 12
   assert.equal(u.bufg.used, 1);
   // place & route, timing (TS_clk: 20 ns)
   assert.equal(rep.par.routed, true);
@@ -97,7 +97,7 @@ test('ISE flow end to end through the API: blinky on the Basys2 (reports, pins, 
   // pins chosen by the tools = the board's
   assert.ok(rep.pinsUcf);
   const pins = (await call('GET', `/projects/flow/file?path=${encodeURIComponent(rep.pinsUcf.path)}`)).body;
-  for (const [net, loc] of [['clk', 'B8'], ['led<0>', 'M5'], ['led<7>', 'G1'], ['sw<0>', 'P11'], ['btn<1>', 'C11']])
+  for (const [net, loc] of [['clk', 'B8'], ['led<0>', 'M5'], ['led<7>', 'G1'], ['sw<0>', 'P11'], ['btn<1>', 'C11'], ['seg<0>', 'L14'], ['an<3>', 'K14'], ['dp', 'N13']])
     assert.match(pins, new RegExp(`NET "${net.replace(/[<>]/g, '\\$&')}"\\s+LOC\\s*=\\s*"?${loc}"?\\s*[;|]`, 'i'), `${net} on ${loc}`);
   // post-place & route simulation model
   assert.ok(rep.simModels.postpar);
