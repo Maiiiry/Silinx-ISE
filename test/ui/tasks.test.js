@@ -797,10 +797,10 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.key('Enter');
   await page.waitFor(() => document.querySelector('.pal-input')?.value === 'pin plan', [], { what: 'the palette with the command line\'s text' });
   await page.key('Escape');
-  // back to the modern interface: its Console as it was (every line, no filters)
+  // back to the modern interface: its Console shows every source again (its filters at All, #925)
   await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
-  await page.waitFor(() => !document.getElementById('mc-filters'));
-  assert.equal(await page.eval(() => document.querySelectorAll('#console-log .ln.mc-off, #console-log .ln[data-src]').length), 0);
+  await page.waitFor(() => document.querySelector('#mc-filters .filt[aria-pressed="true"]')?.dataset.src === 'all');
+  assert.equal(await page.eval(() => document.querySelectorAll('#console-log .ln.mc-off').length), 0);
   await noWarnings(page);
 }, { build: DEV });
 

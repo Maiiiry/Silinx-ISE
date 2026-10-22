@@ -147,7 +147,7 @@ test('tasks.css: its rules apply in the Tasks interface only (or to its own elem
   assert.deepEqual(selectors.filter((sel) => !parts(sel).every((p) => own.test(p))), []);
   // its own elements are hidden in the other interfaces
   assert.match(css, /#task-switch, #task-tabs, #task-bar, #task-empty \{ display: none; \}/);
-  for (const id of ['mc-last', 'mc-cmd']) assert.match(css, new RegExp(`^#${id} \\{ display: none; \\}`, 'm'), id);
+  assert.match(css, /^#mc-last \{ display: none; \}/m);   // (the message centre's other rules: every interface's, messages.css, #925)
   // colours: the modern look's tokens only (light and dark), no colour written here
   assert.deepEqual(css.match(/#[0-9a-fA-F]{3,8}\b|rgba?\(/g), null);
 });
