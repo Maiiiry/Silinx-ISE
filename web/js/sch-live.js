@@ -3,14 +3,16 @@
 // bus and can drive it from outside or release it (Z), every wire is coloured by its value,
 // buses carry their value, outputs light up, registers show what they store, hovering shows values.
 // The model is core/schlive.js; sch-editor.js owns the drawing and calls this module.
-import { buildLiveSim, level, fmtValue, parseValue } from '/core/schlive.js';
+import { buildLiveSim, level, fmtValue } from '/core/schlive.js';
 import { symbolPins, symbolBox, SYMBOLS } from '/core/schdoc.js';
 import { formatTime } from '/core/interp.js';
 import { t } from './i18n.js';
 import { esc } from './dom.js';
+import { mountLiveInputs } from './sch-live-inputs.js';
+import { mountLiveInstance } from './sch-live-instance.js';
 
 const LV = ['lv-1', 'lv-0', 'lv-x', 'lv-z', 'lv-n'];
-const lvClass = v => `lv-${level(v) ?? 'n'}`;
+export const lvClass = v => `lv-${level(v) ?? 'n'}`;
 const RATES = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
 const rateText = r => (r >= 1000 ? `${r / 1000} kHz` : `${r} Hz`);
 const textW = s => String(s).length * 6.2 + 8;
@@ -211,112 +213,17 @@ function liveController(ctx, live) {
   }
   function act(fn) { fn(); update(); }
 
-  // ------------------------------------------------------------------ clocks
-  function startClock(id, rate) {
-    running.set(id, { rate, acc: 0 });
-    syncClockBtns();
-    if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(tick); }
-  }
-  function stopClock(id) { running.delete(id); syncClockBtns(); }
-  function stopAll() { running.clear(); syncClockBtns(); }
-  function syncClockBtns() {
-    for (const b of clockBoxes) {
-      const on = running.has(b.c.id);
-      b.runBtn.textContent = on ? 'Pause' : 'Run';
-      b.runBtn.classList.toggle('on', on);
-    }
-  }
-  function tick(t) {
-    raf = 0;
-    if (destroyed || !running.size) return;
-    const dt = Math.min(0.25, Math.max(0, (t - lastT) / 1000));
-    lastT = t;
-    let any = false;
-    for (const [id, st] of running) {
-      st.acc += dt * st.rate;
-      const n = Math.min(100, Math.floor(st.acc));
-      if (n > 0) { st.acc -= n; live.cycles([id], n); any = true; }
-    }
-    if (any) update();
-    if (running.size && !live.error) raf = requestAnimationFrame(tick);
-  }
+  // ------------------------------------------------------------------ clocks (sch-live-inputs.js)
+  const { closeEditor, openEditor, startClock, stopAll, stopClock } = mountLiveInputs({
+    ctx, live, act, canvas, clockBoxes, destroyed: () => destroyed, doc, editor: () => editor, h, lastT: () => lastT,
+    radix: () => radix, raf: () => raf, running, update, setRaf: (v) => { raf = v; }, setLastT: (v) => { lastT = v; },
+    setEditor: (v) => { editor = v; }
+  });
 
-  // ------------------------------------------------------------------ bus value editor
-  function openEditor(portId) {
-    closeEditor();
-    const p = doc.ports.find(q => q.id === portId), bd = live.bidir?.(portId), inp = live.input(portId) || bd;
-    if (!p || !inp) return;
-    const setv = n => (bd ? live.drive(portId, n) : live.set(portId, n));
-    const pos = ctx.toCanvas({ x: p.x - 30, y: p.y + 10 });
-    const field = h('input', { type: 'text', class: 'lv-edit-in', spellcheck: 'false' });
-    const rsel = h('select', { title: 'Number format' }, h('option', { value: 'bin', text: 'Bin' }), h('option', { value: 'hex', text: 'Hex' }), h('option', { value: 'dec', text: 'Dec' }));
-    rsel.value = radix;
-    const show = () => { field.value = fmtValue(live.portValue(portId), rsel.value).replace(/^X+$|^Z+$/, ''); };
-    const apply = () => {
-      const n = parseValue(field.value, inp.width, rsel.value);
-      if (n == null) { field.classList.add('bad'); return false; }
-      field.classList.remove('bad');
-      act(() => setv(n));
-      show();
-      return true;
-    };
-    const step = d => { act(() => setv((inp.value ?? 0n) + BigInt(d))); show(); };
-    rsel.addEventListener('change', show);
-    field.addEventListener('keydown', e => {
-      e.stopPropagation();
-      if (e.key === 'Enter') { if (apply()) closeEditor(); }
-      else if (e.key === 'Escape') closeEditor();
-      else if (e.key === 'ArrowUp') { e.preventDefault(); step(1); }
-      else if (e.key === 'ArrowDown') { e.preventDefault(); step(-1); }
-    });
-    const box = h('div', { class: 'lv-editor', style: `left:${Math.max(4, pos.x)}px;top:${Math.max(4, pos.y)}px` },
-      h('div', { class: 'lv-edit-head' }, h('b', { text: `${p.name}`, 'data-no-i18n': '' }), h('span', { text: ` (${inp.width} bits)`, 'data-no-i18n': '' }), h('span', { class: 'lv-sp' }),
-        h('button', { type: 'button', class: 'lv-x', title: 'Close', text: '×', onclick: closeEditor })),
-      h('div', { class: 'lv-edit-row' }, field, rsel),
-      h('div', { class: 'lv-edit-row' },
-        h('button', { type: 'button', class: 'btn', title: 'Subtract 1', text: '−1', onclick: () => step(-1) }),
-        h('button', { type: 'button', class: 'btn', title: 'Add 1', text: '+1', onclick: () => step(1) }),
-        h('button', { type: 'button', class: 'btn', text: '0', title: 'All bits 0', onclick: () => { act(() => setv(0n)); show(); } }),
-        bd ? h('button', { type: 'button', class: 'btn lv-release', text: 'Z', title: 'Release the bus (Z): the circuit drives it', onclick: () => { act(() => live.drive(portId, null)); closeEditor(); } }) : null,
-        h('button', { type: 'button', class: 'btn primary', text: 'Set', onclick: () => { if (apply()) closeEditor(); } })),
-      h('div', { class: 'lv-note', text: 'Hex 0x1F, binary 0b101, or decimal; ↑ / ↓ add / subtract 1' }));
-    box.addEventListener('pointerdown', e => e.stopPropagation());
-    canvas.append(box);
-    editor = { box, portId };
-    // a marker near the right edge (bidirectional markers are on the right): keep the editor inside the canvas
-    const over = box.offsetLeft + box.offsetWidth - (canvas.clientWidth - 4);
-    if (over > 0) box.style.left = `${Math.max(4, box.offsetLeft - over)}px`;
-    show();
-    setTimeout(() => { field.focus(); field.select(); }, 0);
-  }
-  function closeEditor() { if (editor) { editor.box.remove(); editor = null; } }
-
-  // ------------------------------------------------------------------ module instances
-  function renderInstance() {
-    if (!propEl) return;
-    const box = propEl.querySelector('.lv-inst');
-    if (!box) return;
-    if (!selSym) { box.innerHTML = ''; return; }
-    const ports = live.instancePorts(selSym.id);
-    const rows = ports.length
-      ? ports.map(p => `<tr class="${lvClass(p.value)}"><td>${esc(p.name)}</td><td>${p.dir === 'in' ? 'in' : p.dir === 'out' ? 'out' : 'inout'}</td><td class="v">${esc(fmtValue(p.value, radix))}</td></tr>`).join('')
-      : (() => {
-        let ps = [];
-        try { ps = symbolPins(selSym, modules); } catch { /* none */ }
-        return ps.map(p => { const v = live.pinValue(selSym.id, p.name); return `<tr class="${lvClass(v)}"><td>${esc(p.name)}</td><td>${p.dir}</td><td class="v">${esc(fmtValue(v, radix))}</td></tr>`; }).join('');
-      })();
-    box.innerHTML = `<div class="se-ptitle" data-no-i18n>${esc(selSym.name)} : ${esc(selSym.type === 'module' ? selSym.params.module : (SYMBOLS[selSym.type]?.title || selSym.type))}</div>`
-      + `<table class="lv-ports" data-no-i18n><tbody>${rows}</tbody></table>`;
-  }
-  function renderProps(el) {
-    propEl = el;
-    el.innerHTML = '';
-    el.append(h('div', { class: 'se-ptitle', text: 'Trying it out' }),
-      h('div', { class: 'se-note', text: 'Click an input to change it: 1-bit inputs toggle, buses open a value editor, clock inputs step one cycle. Wires: green = 1, dark green = 0, red = X/U, blue = Z. Hover a pin or a wire to see its value; click a component to list its pins.' }),
-      ...(live.bidirs?.length ? [h('div', { class: 'se-note lv-bidir-note', text: 'Bidirectional (inout) markers show the value on the bus. Click one to drive the bus from outside (1-bit: Z, 0, 1 in turn; a bus opens the value editor, Z releases it); released (Z), the circuit drives it.' })] : []),
-      h('div', { class: 'lv-inst' }));
-    renderInstance();
-  }
+  // ------------------------------------------------------------------ module instances (sch-live-instance.js)
+  const { renderInstance, renderProps } = mountLiveInstance({
+    live, h, modules, propEl: () => propEl, radix: () => radix, selSym: () => selSym, setPropEl: (v) => { propEl = v; }
+  });
 
   // ------------------------------------------------------------------ pointer
   /** Pointer down on the sheet: true when it was a simulation control. */
