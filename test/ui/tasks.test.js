@@ -680,6 +680,58 @@ uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the te
   await noWarnings(page);
 }, { build: DEV });
 
+// #923: Implement lists the implementation's processes only (Emulate on Board and Configure Target Device are the Emulate
+// and Program tasks'); the Design Summary's cards, their captions with them, never overlap
+const procRows = (page) => page.eval(() => [...document.querySelectorAll('#procs .lbl')].filter((l) => l.getClientRects().length).map((l) => l.textContent));
+uiTest('#923 Tasks ▸ Implement: no Emulate or Configure processes; the Design Summary\'s cards do not overlap', E, async (page) => {
+  await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
+  await makeProject(env, { name: 'TasksCards', template: 'vga' });
+  await tasksInterface(page);
+  await page.openProject('TasksCards');
+  await page.eval(async () => { window.SilinxApp.S.toolchain = await (await import('/js/api.js')).api.toolchain(); window.SilinxApp.renderProcesses(); });
+  await page.click('#task-switch .task-btn[data-task="impl"]');
+  await page.waitFor(() => document.getElementById('proc-caption')?.textContent === 'Processes: vga', [], { what: 'the top\'s processes' });
+  let procs = await procRows(page);
+  assert.ok(procs.includes('Generate Programming File') && procs.includes('Generate Post-Synthesis Simulation Model'), procs.join(', '));
+  for (const p of ['Emulate on Board', 'Emulate Behavioral Model (RTL)', 'Emulate Post-Synthesis Model', 'Configure Target Device', 'Manage Configuration Project (iMPACT)'])
+    assert.ok(!procs.includes(p), `${p} in Implement`);
+  // no card over another, its caption included, at every width from a tablet's to a lab desktop's
+  const overlaps = () => page.eval(() => {
+    const boxes = [...document.querySelectorAll('.doc:not([hidden]) .summary-table')].map((t) => {
+      const r = t.getBoundingClientRect(), c = t.querySelector('caption')?.getBoundingClientRect() || r;
+      return { name: t.querySelector('caption')?.textContent || 'status', top: Math.min(r.top, c.top), bottom: Math.max(r.bottom, c.bottom), left: r.left, right: r.right };
+    });
+    const out = [];
+    for (const a of boxes) for (const b of boxes) if (a !== b && a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1 && a.top <= b.top) out.push(`${a.name} / ${b.name}`);
+    return { cards: boxes.length, out };
+  });
+  const sweep = async (cards, when) => {
+    for (let w = 820; w <= 1920; w += 50) {
+      await page.setViewport(w, 900);
+      await page.waitFor(() => new Promise((r) => requestAnimationFrame(() => r(true))));
+      const o = await overlaps();
+      assert.ok(o.cards >= cards, `${when}, ${w} px: ${o.cards} cards`);
+      assert.deepEqual(o.out, [], `${when}, ${w} px: cards overlapping`);
+    }
+    await page.setViewport(1366, 768);
+  };
+  // before an implementation (the utilization "not yet implemented"), then after it (timing, programming file)
+  await page.waitFor(() => /not yet implemented/.test(document.querySelector('.doc:not([hidden]) .summary-table caption')?.parentElement?.parentElement?.textContent || ''), [], { what: 'the summary before an implementation' });
+  await sweep(3, 'before');
+  await page.click('#task-bar [data-act="main"]');
+  await page.waitConsole(/Process "Generate Programming File" (completed successfully|failed)/, { timeout: 120000 });
+  await page.waitFor(() => [...document.querySelectorAll('.doc:not([hidden]) .summary-table caption')].some((c) => c.textContent === 'Programming File'), [], { what: 'the summary', timeout: 30000 });
+  await sweep(5, 'after');
+  // the modern interface: every process as before
+  await page.setViewport(1366, 768);
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  procs = await procRows(page);
+  assert.ok(procs.includes('Emulate on Board') && procs.includes('Configure Target Device'), procs.join(', '));
+  await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
+  await noWarnings(page);
+}, { build: DEV, timeout: 180000 });
+
 // the lines of the message centre shown (its filter): [source, text]
 const shownLines = (page) => page.eval(() => [...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => [l.dataset.src, l.textContent]));
 const pressed = (page) => page.eval(() => [...document.querySelectorAll('#mc-filters .filt[aria-pressed="true"]')].map((b) => b.dataset.src));
