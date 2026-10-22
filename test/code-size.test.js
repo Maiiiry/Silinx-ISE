@@ -18,7 +18,6 @@ const MAX_FILE = 1000, MAX_FUNCTION = 300;
 const BIG_FILES = new Set([
   'core/elab-expr.js', 'core/elaborate.js',
   'core/synth-open.js',
-  'web/js/drawings.js',
 ]);
 const BIG_FUNCTIONS = new Set([
   'core/open-flow-core.js runOpenFlow',
