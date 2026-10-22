@@ -24,7 +24,6 @@ export const ALLOW = [
   ['test/corpus/vloghammer-gen.mjs', 'claire@yosyshq.com', 'the copyright notice of VlogHammer (ISC licence), which a port must keep'],
   ['test/lang-vhdl-types.test.js', '6.4.2.3', 'a section of the VHDL standard'],
   ['test/server-api.test.js', 'fpga-lab.local', 'a made-up computer name for the Host header test'],
-  ['test/emulate-engine.test.js', '130.0.0.0', "Chrome's version in the browsers' User-Agent strings of the engine's default (#1027)"],
   ['test/impl.test.js', /^(dev@)?10\.0\.0\.2$/, 'a made-up address of an example (in the history only)'],
   ['test/report-failure.test.js', /^(dev|me)@(192\.0\.2|203\.0\.113)\.\d+$/, 'made-up logins on documentation addresses (RFC 5737): the cleaning of a log line is tested on them (#251)'],
   ['scripts/measure-power.mjs', /^3\.3\.1\.[12]$/, "XPower's section numbers (in the history only)"],
@@ -50,8 +49,9 @@ const isNetworkIp = (ip) => { const [a, b] = ip.split('.').map(Number); return a
 /** The rules: { kind, re, check?(match) -> the text to report or null }. */
 export const RULES = [
   { kind: 'e-mail address', re: /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b/g },
-  // an IPv4 address (not part of a longer dotted number such as a version)
-  { kind: 'IP address', re: /(?<![\w.])(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.]*\d)/g },
+  // an IPv4 address (not part of a longer dotted number such as a version, nor a product's version after its name and a
+  // slash, as in a User-Agent string: Chrome/1.2.3.4, #1080)
+  { kind: 'IP address', re: /(?<![\w.]|[A-Za-z]\/)(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\w.]*\d)/g },
   { kind: 'login (user@address)', re: /\b[A-Za-z0-9._-]+@(?:\d{1,3}\.){3}\d{1,3}\b/g },
   { kind: 'computer name', re: /(?:\b[A-Za-z0-9]+(?:-[A-Za-z0-9]+)+\.local\b|(?:@|:\/\/)[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.(?:local|lan|internal|home\.arpa)\b)/g,
     check: (m) => m[0].replace(/^(@|:\/\/)/, '') },
