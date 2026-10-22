@@ -11,20 +11,22 @@
 // parallel with the states; unconnected exits end the block), and the machine panel edits the
 // data path: generics, internal registers and the 2-flip-flop synchroniser of each input.
 
-import { svgSnapshot, printDiagram } from './print.js';
-import { undoButton, linkModel, linkSnapshot, twoFingerView } from './ui.js';
+import { undoButton, linkModel, linkSnapshot } from './ui.js';
 import { panelToggle, PROPS_KEY } from './narrow.js';
 import {
-  normalizeModel, newModel, validate, generate, ENCODINGS, nextCaseLabel as nextLabel,
+  normalizeModel, newModel, validate, generate, ENCODINGS,
 } from '/core/asm.js';
 import { h } from './dom.js';
 import { highlightHdl } from './highlight.js';
 import { mountInspector } from './asm-inspector.js';
 import { mountRender } from './asm-render.js';
-import { copyDrawing, pasteDrawing, drawingClipEmpty } from '/core/drawclip.js';
-import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
+import { hasClip } from './clipboard.js';
+import { mountAsmPointer } from './asm-pointer.js';
+import { mountAsmLayout } from './asm-layout.js';
+import { mountAsmView } from './asm-view.js';
+import { mountAsmOps } from './asm-ops.js';
 
-const GRID = 20;
+export const GRID = 20;
 const CHW = 7.25;          // approx. width of a 12px monospace character
 const SVGNS = 'http://www.w3.org/2000/svg';
 let instanceCounter = 0;
@@ -33,7 +35,7 @@ let instanceCounter = 0;
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const ceilTo = (v, g) => Math.ceil(v / g) * g;
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+export const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 
 /** Size of a node box in chart units. */
@@ -248,149 +250,14 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
 
   root.append(toolbar, h('div', { class: 'asm-body' }, mainCol, side), status);
 
-  // ---------------------------------------------------------------------------- model ops
-  const nodeById = (id) => M.nodes.find((n) => n.id === id);
-  const exitsOf = (id) => {
-    const o = {};
-    for (const e of M.edges) if (e.from === id && !o[e.port]) o[e.port] = e;
-    return o;
-  };
-  function newId(prefix) {
-    const used = new Set([...M.nodes.map((n) => n.id), ...M.edges.map((e) => e.id)]);
-    let i = 1;
-    while (used.has(`${prefix}${i}`)) i++;
-    return `${prefix}${i}`;
-  }
-  function uniqueStateName() {
-    const used = new Set(M.nodes.filter((n) => n.type === 'state').map((n) => n.name.toLowerCase()));
-    let i = 0;
-    while (used.has(`s${i}`)) i++;
-    return `S${i}`;
-  }
-  const snapV = (v) => (snap ? Math.round(v / GRID) * GRID : Math.round(v));
-
-  function connect(from, port, to) {
-    M.edges = M.edges.filter((e) => !(e.from === from && e.port === port));
-    const e = { id: newId('e'), from, to, port };
-    M.edges.push(e);
-    return e;
-  }
-
-  /** Width (bits) of the expression of a case box, or 1 if unknown. */
-  function caseWidth(n) {
-    const m = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(?:[[(]\s*(\d+)\s*(?:(?::|downto)\s*(\d+))?\s*[\])])?\s*$/i.exec(n.expr || '');
-    if (!m) return 1;
-    if (m[2] != null) return m[3] != null ? Math.abs(+m[2] - +m[3]) + 1 : 1;
-    const p = [...M.inputs, ...M.outputs, ...(M.registers || [])].find((x) => x.name === m[1]);
-    return p ? p.width : 1;
-  }
-  const caseExits = (id) => M.edges.filter((e) => e.from === id);
-  /** Target of an exit as drawn: exits of a case box that share a target are spread apart. */
-  function drawTarget(e) {
-    const a = nodeById(e.from), b = nodeById(e.to);
-    if (!a || !b || a.type !== 'case') return b;
-    const sib = M.edges.filter((x) => x.from === e.from && x.to === e.to);
-    if (sib.length < 2) return b;
-    return { ...b, x: b.x + (sib.indexOf(e) - (sib.length - 1) / 2) * 22 };
-  }
-  /** Label for a new exit of a case box (see nextCaseLabel in core/asm.js), null when all values have one. */
-  const nextCaseLabel = (n) => nextLabel(caseExits(n.id).map((e) => e.port), caseWidth(n));
-
-  function uniqueBlockName() {
-    const used = new Set(M.nodes.filter((n) => n.type === 'always').map((n) => (n.name || '').toLowerCase()));
-    let i = 1;
-    while (used.has(i === 1 ? 'every_cycle' : `every_cycle${i}`)) i++;
-    return i === 1 ? 'every_cycle' : `every_cycle${i}`;
-  }
-
-  function addNode(type, at) {
-    const n = { id: newId({ state: 's', decision: 'd', case: 'c', always: 'a' }[type] || 'o'), type, x: 0, y: 0 };
-    if (type === 'state') { n.name = uniqueStateName(); n.actions = []; }
-    if (type === 'always') { n.name = uniqueBlockName(); n.actions = []; }
-    if (type === 'decision') n.cond = M.inputs[0]?.name || 'cond';
-    if (type === 'case') n.expr = (M.inputs.find((i) => i.width > 1) || M.inputs[0])?.name || 'sel';
-    if (type === 'output') n.actions = M.outputs[0] ? [`${M.outputs[0].name} = 1`] : [];
-    const s = nodeSize(n);
-    let parent = null, port = null;
-    if (!at && sel.nodes.size === 1 && type !== 'always') {
-      parent = nodeById([...sel.nodes][0]);
-      const ex = exitsOf(parent.id);
-      port = parent.type === 'case' ? nextCaseLabel(parent) : (portsOf(parent).find((p) => !ex[p]) || null);
-      if (!port) parent = null;
-    }
-    if (at) { n.x = snapV(at.x); n.y = snapV(at.y); }
-    else if (parent) {
-      const pb = box(parent);
-      if (port === 'false') {
-        const dir = parent.flip ? -1 : 1;
-        n.x = snapV(parent.x + dir * (pb.w / 2 + s.w / 2 + 60));
-        n.y = snapV(parent.y + pb.h / 2 + 40 + s.h / 2);
-      } else {
-        n.x = parent.x;
-        n.y = snapV(pb.b + 50 + s.h / 2 + (type === 'state' ? 20 : 0));
-      }
-    } else {
-      const r = svg.getBoundingClientRect();
-      const c = toWorld(r.left + r.width / 2, r.top + r.height / 2);
-      n.x = snapV(c.x); n.y = snapV(c.y);
-      // find a free spot to the right of the chart if the centre is occupied
-      const overlaps = () => {
-        const a = box(n);
-        return M.nodes.some((o) => { const b = box(o); return a.l < b.r + 30 && a.r > b.l - 30 && a.t < b.b + 40 && a.b > b.t - 40; });
-      };
-      if (type === 'always') { // to the right of the chart
-        const bb = chartBounds();
-        if (bb) { n.x = snapV(bb.r + s.w / 2 + 40); n.y = snapV(bb.t + 50 + s.h / 2); }
-      }
-      for (let i = 0; i < 200 && overlaps(); i++) n.x += GRID;
-    }
-    M.nodes.push(n);
-    if (parent) connect(parent.id, port, n.id);
-    if (type === 'state' && (!M.initial || !nodeById(M.initial))) M.initial = n.id;
-    sel = { nodes: new Set([n.id]), edge: null };
-    commit('add');
-    renderInspector();
-    return n;
-  }
-
-  function deleteSelection() {
-    if (sel.edge) {
-      M.edges = M.edges.filter((e) => e.id !== sel.edge);
-      sel.edge = null;
-    } else if (sel.nodes.size) {
-      M.nodes = M.nodes.filter((n) => !sel.nodes.has(n.id));
-      M.edges = M.edges.filter((e) => !sel.nodes.has(e.from) && !sel.nodes.has(e.to));
-      if (sel.nodes.has(M.initial)) M.initial = M.nodes.find((n) => n.type === 'state')?.id || '';
-      sel.nodes.clear();
-    } else return;
-    commit('delete');
-    renderInspector();
-  }
-
-  // Cut / Copy / Paste (#677, core/drawclip.js): the boxes selected and the connections between them, pasted
-  // offset and selected, a state name already used made new
-  let pasteN = 0, pasteText = null;
-  function copySel(cut = false) {
-    if (!sel.nodes.size) return;
-    const clip = copyDrawing('asm', M, [...sel.nodes]);
-    writeClip('asm', clip);
-    pasteText = JSON.stringify(clip); pasteN = 0;   // (pasted here: next to the original)
-    if (cut) deleteSelection();
-  }
-  async function paste(clip) {
-    clip ??= await readClip('asm');
-    if (drawingClipEmpty('asm', clip) || destroyed) return;
-    const t = JSON.stringify(clip);
-    if (t !== pasteText) { pasteText = t; pasteN = clip.from === M.name ? 0 : -1; }
-    const d = 2 * GRID * ++pasteN;
-    const { ids } = pasteDrawing('asm', M, clip, { dx: d, dy: d });
-    M = normalizeModel(M);
-    if (!M.initial || !nodeById(M.initial)) M.initial = ids.find((id) => nodeById(id)?.type === 'state') || M.initial;
-    sel = { nodes: new Set(ids), edge: null };
-    commit('paste');
-    renderInspector();
-    root.focus({ preventScroll: true });
-  }
+  // ---------------------------------------------------------------------------- model ops (asm-ops.js)
+  const {
+    addNode, caseExits, caseWidth, connect, copySel, deleteSelection, drawTarget, exitsOf, nextCaseLabel, nodeById, paste, snapV,
+  } = mountAsmOps({
+    M: () => M, chartBounds: (...a) => chartBounds(...a), commit: (...a) => commit(...a), destroyed: () => destroyed,
+    renderInspector: (...a) => renderInspector(...a), root, sel: () => sel, snap: () => snap, svg,
+    toWorld: (...a) => toWorld(...a), setSel: (v) => { sel = v; }, setM: (v) => { M = v; }
+  });
 
   // ---------------------------------------------------------------------------- history
   function commit(key) {
@@ -431,67 +298,11 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
     timers.val = setTimeout(runValidate, 150);
   }
 
-  // ---------------------------------------------------------------------------- view
-  function applyView() {
-    vp.setAttribute('transform', `translate(${view.tx},${view.ty}) scale(${view.k})`);
-    pattern.setAttribute('patternTransform', `translate(${view.tx},${view.ty}) scale(${view.k})`);
-    zoomLbl.textContent = `${Math.round(view.k * 100)}%`;
-  }
-  function toWorld(cx, cy) {
-    const r = svg.getBoundingClientRect();
-    return { x: (cx - r.left - view.tx) / view.k, y: (cy - r.top - view.ty) / view.k };
-  }
-  function zoomAt(f, cx, cy) {
-    const r = svg.getBoundingClientRect();
-    const px = cx - r.left, py = cy - r.top;
-    const k = clamp(view.k * f, 0.2, 4);
-    fitted = true;
-    view.tx = px - ((px - view.tx) * k) / view.k;
-    view.ty = py - ((py - view.ty) * k) / view.k;
-    view.k = k;
-    applyView();
-  }
-  function zoomBy(f) {
-    const r = svg.getBoundingClientRect();
-    zoomAt(f, r.left + r.width / 2, r.top + r.height / 2);
-  }
-  function chartBounds() {
-    if (!M.nodes.length) return null;
-    let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity;
-    for (const n of M.nodes) {
-      const bx = box(n);
-      l = Math.min(l, bx.l - 50); r = Math.max(r, bx.r + 50); t = Math.min(t, bx.t - (n.type === 'state' || n.type === 'always' ? 50 : 20)); b = Math.max(b, bx.b + 40);
-    }
-    return { l, t, r, b };
-  }
-  /** Print dialog for the whole chart (selection and editing handles left out). */
-  function print() {
-    const bb = chartBounds();
-    if (!bb) return;
-    const saved = sel;
-    sel = { nodes: new Set(), edge: null };
-    render();
-    let snap;
-    try { snap = svgSnapshot(svg, vp, bb, ['.asm-bg', '.asm-rubber', '.asm-port', '.asm-overlay > *', 'defs pattern']); } finally { sel = saved; render(); }
-    printDiagram({ title: `ASM chart ${M.name}`, snapshot: snap, filename: `${M.name}_asm` });
-  }
-  function fit() {
-    const bb = chartBounds();
-    const r = svg.getBoundingClientRect();
-    if (!bb || r.width < 10 || r.height < 10) { view = { tx: 40, ty: 40, k: 1 }; applyView(); return; }
-    const pad = 30;
-    const k = clamp(Math.min((r.width - 2 * pad) / (bb.r - bb.l), (r.height - 2 * pad) / (bb.b - bb.t)), 0.2, 1.25);
-    view.k = k;
-    view.tx = (r.width - (bb.r - bb.l) * k) / 2 - bb.l * k;
-    view.ty = (r.height - (bb.b - bb.t) * k) / 2 - bb.t * k;
-    applyView();
-  }
-  function centerOn(n) {
-    const r = svg.getBoundingClientRect();
-    view.tx = r.width / 2 - n.x * view.k;
-    view.ty = r.height / 2 - n.y * view.k;
-    applyView();
-  }
+  // ---------------------------------------------------------------------------- view (asm-view.js)
+  const { applyView, centerOn, chartBounds, fit, print, toWorld, zoomAt, zoomBy } = mountAsmView({
+    M: () => M, fitted: () => fitted, pattern, render: (...a) => render(...a), sel: () => sel, svg, view: () => view,
+    vp, zoomLbl, setView: (v) => { view = v; }, setFitted: (v) => { fitted = v; }, setSel: (v) => { sel = v; }
+  });
 
   // ---------------------------------------------------------------------------- rendering (asm-render.js)
   const { render, updateToolbar } = mountRender({ state: () => ({ M, sel, diags, hist, hi }), uid, gBlocks, gEdges, gNodes, statusInfo, undoBtn,
@@ -559,300 +370,19 @@ export function mountAsmEditor(container, { model, onChange } = {}) {
   const { renderInspector, renderMachine } = mountInspector({ M: () => M, sel: () => sel, selSection, machineBody, btn, nodeById, caseExits,
     caseWidth, commit, deleteSelection });
 
-  // ---------------------------------------------------------------------------- layout
-  // Arrange: the layout used for charts extracted from HDL (state blocks top-down in BFS order,
-  // every-cycle blocks in a column on the right); the layered layout below is the fallback
-  async function autoArrange() {
-    if (!M.nodes.length) return;
-    let asmLayout = null;
-    try { ({ asmLayout } = await import('/core/asm-from-hdl.js')); } catch { /* not available: fallback */ }
-    if (destroyed) return;
-    if (asmLayout) {
-      try {
-        const pos = new Map(asmLayout(M).nodes.map((n) => [n.id, n]));
-        for (const n of M.nodes) { const p = pos.get(n.id); if (p) { n.x = p.x; n.y = p.y; } }
-        for (const e of M.edges) delete e.points;
-        commit('arrange');
-        fit();
-        return;
-      } catch { /* fallback */ }
-    }
-    layeredArrange();
-  }
-  function layeredArrange() {
-    const layer = new Map(), parentOf = new Map();
-    const order = [];
-    const bfs = (start) => {
-      if (layer.has(start)) return;
-      let base = 0;
-      for (const v of layer.values()) base = Math.max(base, v + 1);
-      layer.set(start, base); order.push(start);
-      const q = [start];
-      while (q.length) {
-        const id = q.shift();
-        const ex = exitsOf(id);
-        const ports = nodeById(id)?.type === 'case' ? caseExits(id).map((e) => e.port) : ['next', 'true', 'false'];
-        for (const p of ports) {
-          const e = ex[p];
-          if (!e || layer.has(e.to) || !nodeById(e.to)) continue;
-          layer.set(e.to, layer.get(id) + 1); parentOf.set(e.to, { id, port: p }); order.push(e.to); q.push(e.to);
-        }
-      }
-    };
-    if (nodeById(M.initial)) bfs(M.initial);
-    for (const n of M.nodes) if (n.type === 'state') bfs(n.id);
-    for (const n of M.nodes) bfs(n.id);
-    const layers = [];
-    for (const id of order) (layers[layer.get(id)] ||= []).push(nodeById(id));
-    let y = 0;
-    for (let li = 0; li < layers.length; li++) {
-      const L = layers[li];
-      if (!L) continue;
-      const maxH = Math.max(...L.map((n) => nodeSize(n).h));
-      const hasState = L.some((n) => n.type === 'state');
-      y += maxH / 2 + (hasState && li ? 24 : 0);
-      const want = L.map((n) => {
-        const p = parentOf.get(n.id);
-        if (!p) return 0;
-        const par = nodeById(p.id);
-        if (p.port === 'false') {
-          const dir = par.flip ? -1 : 1;
-          return par.x + dir * (nodeSize(par).w / 2 + nodeSize(n).w / 2 + 50);
-        }
-        return par.x;
-      });
-      const idxs = L.map((_, i) => i).sort((a, b) => want[a] - want[b] || a - b);
-      const xs = [];
-      idxs.forEach((i, k) => {
-        let x = want[i];
-        if (k) {
-          const pi = idxs[k - 1];
-          const min = xs[pi] + nodeSize(L[pi]).w / 2 + nodeSize(L[i]).w / 2 + 50;
-          x = Math.max(x, min);
-        }
-        xs[i] = x;
-      });
-      const shift = xs.reduce((s, x, i) => s + (x - want[i]), 0) / xs.length;
-      L.forEach((n, i) => { n.x = Math.round((xs[i] - shift) / GRID) * GRID; n.y = Math.round(y / GRID) * GRID; });
-      y += maxH / 2 + 60;
-    }
-    for (const e of M.edges) delete e.points;
-    commit('arrange');
-    fit();
-  }
+  // ---------------------------------------------------------------------------- layout (asm-layout.js)
+  const { autoArrange } = mountAsmLayout({
+    M: () => M, caseExits, commit, destroyed: () => destroyed, exitsOf, fit, nodeById
+  });
 
-  // ---------------------------------------------------------------------------- pointer interaction
-  function onPointerDown(ev) {
-    if (ev.button !== 0 && ev.button !== 1) return;
-    fitted = true;
-    root.focus({ preventScroll: true });
-    const t = ev.target;
-    const nodeEl = t.closest?.('[data-node]');
-    const portEl = t.closest?.('[data-port]');
-    const edgeEl = t.closest?.('[data-edge]');
-    // a block or arrow is drawn again below (render): without this, Safari (WebKit) sends the
-    // mousedown to the removed element and moves the keyboard focus to the page (Delete did nothing)
-    if (nodeEl || edgeEl) ev.preventDefault();
-    const start ={ cx: ev.clientX, cy: ev.clientY, w: toWorld(ev.clientX, ev.clientY) };
-    try { svg.setPointerCapture(ev.pointerId); } catch { /* not an active pointer */ }
-    const sel0 = sel;
-    if (ev.button === 1 || spaceDown) {
-      drag = { mode: 'pan', start, tx: view.tx, ty: view.ty };
-    } else if (portEl && nodeEl) {
-      drag = { mode: 'connect', start, from: nodeEl.dataset.node, port: portEl.dataset.port };
-      svg.classList.add('connecting');
-    } else if (nodeEl) {
-      const id = nodeEl.dataset.node;
-      if (ev.shiftKey || ev.metaKey || ev.ctrlKey) {
-        if (sel.nodes.has(id)) sel.nodes.delete(id); else sel.nodes.add(id);
-        sel.edge = null;
-        render(); renderInspector(); updateToolbar();
-        drag = null;
-        return;
-      }
-      if (!sel.nodes.has(id)) { sel = { nodes: new Set([id]), edge: null }; render(); renderInspector(); updateToolbar(); }
-      drag = { mode: 'move', start, sel0, orig: new Map([...sel.nodes].map((nid) => { const n = nodeById(nid); return [nid, { x: n.x, y: n.y }]; })), moved: false };
-    } else if (edgeEl) {
-      sel = { nodes: new Set(), edge: edgeEl.dataset.edge };
-      render(); renderInspector(); updateToolbar();
-      drag = null;
-    } else if (ev.shiftKey) {
-      drag = { mode: 'rubber', start };
-    } else {
-      drag = { mode: 'pan', start, tx: view.tx, ty: view.ty, click: true };
-    }
-    if (drag?.mode === 'pan') svg.classList.add('panning');
-  }
-
-  function onPointerMove(ev) {
-    if (!drag) return;
-    const dxs = ev.clientX - drag.start.cx, dys = ev.clientY - drag.start.cy;
-    const far = Math.hypot(dxs, dys) > 3;
-    if (drag.mode === 'pan') {
-      view.tx = drag.tx + dxs; view.ty = drag.ty + dys; applyView();
-      if (far) drag.click = false;
-    } else if (drag.mode === 'move') {
-      if (!far && !drag.moved) return;
-      drag.moved = true;
-      const w = toWorld(ev.clientX, ev.clientY);
-      for (const [id, o] of drag.orig) {
-        const n = nodeById(id);
-        n.x = snapV(o.x + w.x - drag.start.w.x);
-        n.y = snapV(o.y + w.y - drag.start.w.y);
-      }
-      render();
-    } else if (drag.mode === 'connect') {
-      const a = nodeById(drag.from);
-      const cur = a.type === 'case' ? M.edges.find((e) => e.from === a.id && e.port === drag.port) : null;
-      const p = portGeom(a, drag.port, cur ? drawTarget(cur) : null);
-      const w = toWorld(ev.clientX, ev.clientY);
-      const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-node]');
-      svg.querySelectorAll('.drop').forEach((el) => el.classList.remove('drop'));
-      let target = null;
-      if (over && validTarget(drag.from, over.dataset.node)) { over.classList.add('drop'); target = nodeById(over.dataset.node); }
-      const pts = target ? routeEdge(a, drag.port, target, 0) : [p, { x: p.x + p.dx * 12, y: p.y + p.dy * 12 }, w];
-      gOverlay.innerHTML = `<path class="asm-edge-temp" d="${pathD(pts)}" marker-end="url(#${uid}-arr-sel)"/>`;
-    } else if (drag.mode === 'rubber') {
-      const r = svg.getBoundingClientRect();
-      const x = Math.min(ev.clientX, drag.start.cx) - r.left, y = Math.min(ev.clientY, drag.start.cy) - r.top;
-      rubber.setAttribute('x', x); rubber.setAttribute('y', y);
-      rubber.setAttribute('width', Math.abs(dxs)); rubber.setAttribute('height', Math.abs(dys));
-      rubber.setAttribute('visibility', 'visible');
-    }
-  }
-
-  // a second finger (#674): what the first one started undone, the selection as it was
-  function cancelDrag() {
-    const d = drag;
-    drag = null;
-    svg.classList.remove('panning', 'connecting');
-    if (d?.mode === 'move') {
-      for (const [id, o] of d.orig) Object.assign(nodeById(id), o);
-      sel = d.sel0;
-      render(); renderInspector(); updateToolbar();
-    } else if (d?.mode === 'connect') {
-      gOverlay.innerHTML = '';
-      svg.querySelectorAll('.drop').forEach((el) => el.classList.remove('drop'));
-    } else if (d?.mode === 'rubber') rubber.setAttribute('visibility', 'hidden');
-  }
-
-  function validTarget(from, to) {
-    const a = nodeById(from), b = nodeById(to);
-    if (!a || !b) return false;
-    if (b.type === 'always') return false; // an every-cycle block has no entry
-    if (from === to) return a.type === 'state';
-    return true;
-  }
-
-  function onPointerUp(ev) {
-    if (!drag) return;
-    const d = drag;
-    drag = null;
-    svg.classList.remove('panning', 'connecting');
-    try { svg.releasePointerCapture(ev.pointerId); } catch { /* ignore */ }
-    if (d.mode === 'move' && d.moved) commit('move');
-    else if (d.mode === 'connect') {
-      gOverlay.innerHTML = '';
-      svg.querySelectorAll('.drop').forEach((el) => el.classList.remove('drop'));
-      const over = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-node]');
-      if (over && validTarget(d.from, over.dataset.node)) {
-        const a = nodeById(d.from);
-        const same = a.type === 'case' && d.port === '+' ? M.edges.find((x) => x.from === a.id && x.to === over.dataset.node && x.port !== 'others') : null;
-        const label = a.type === 'case' && d.port === '+' ? nextCaseLabel(a) : d.port;
-        if (label == null) flash('Every value of the case box already has an exit (edit the labels to change them)');
-        else {
-          let e;
-          if (same && label !== 'others') { same.port = `${same.port}|${label}`; e = same; }   // one more value for the same exit
-          else e = connect(d.from, label, over.dataset.node);
-          sel = { nodes: new Set(), edge: e.id };
-          commit('connect'); renderInspector();
-        }
-      } else if (!over && Math.hypot(ev.clientX - d.start.cx, ev.clientY - d.start.cy) > 30) {
-        flash('Drop the connection on a box (a state, decision or conditional output)');
-      }
-    } else if (d.mode === 'rubber') {
-      rubber.setAttribute('visibility', 'hidden');
-      const a = d.start.w, b = toWorld(ev.clientX, ev.clientY);
-      const l = Math.min(a.x, b.x), r = Math.max(a.x, b.x), t = Math.min(a.y, b.y), bt = Math.max(a.y, b.y);
-      for (const n of M.nodes) if (n.x >= l && n.x <= r && n.y >= t && n.y <= bt) sel.nodes.add(n.id);
-      sel.edge = null;
-      render(); renderInspector(); updateToolbar();
-    } else if (d.mode === 'pan' && d.click) {
-      if (sel.nodes.size || sel.edge) { sel = { nodes: new Set(), edge: null }; render(); renderInspector(); updateToolbar(); }
-    }
-  }
-
-  function onDblClick(ev) {
-    const nodeEl = ev.target.closest?.('[data-node]');
-    if (nodeEl) {
-      const f = selSection.querySelector('[data-focus]');
-      f?.focus(); f?.select?.();
-      return;
-    }
-    if (ev.target.closest?.('[data-edge]')) return;
-    sel = { nodes: new Set(), edge: null };
-    const n = addNode('state', toWorld(ev.clientX, ev.clientY));
-    focusInspectorSoon(n);
-  }
-  function focusInspectorSoon() {
-    setTimeout(() => { const f = selSection.querySelector('[data-focus]'); f?.focus(); f?.select?.(); }, 0);
-  }
-
-  function onWheel(ev) {
-    ev.preventDefault();
-    const f = Math.exp(-ev.deltaY * (ev.deltaMode === 1 ? 0.05 : 0.0015));
-    zoomAt(f, ev.clientX, ev.clientY);
-  }
-
-  const isEditable = (el) => el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
-  function onKeyDown(ev) {
-    if (isEditable(ev.target)) return;
-    const mod = ev.ctrlKey || ev.metaKey;
-    const k = ev.key;
-    if (k === ' ') { spaceDown = true; svg.classList.add('space'); ev.preventDefault(); return; }
-    if (k === 'Delete' || k === 'Backspace') { deleteSelection(); ev.preventDefault(); return; }
-    if (mod && (k === 'z' || k === 'Z')) { if (ev.shiftKey) redo(); else undo(); ev.preventDefault(); return; }
-    if (mod && (k === 'y' || k === 'Y')) { redo(); ev.preventDefault(); return; }
-    if (mod && (k === 'p' || k === 'P')) { print(); ev.preventDefault(); return; }
-    if (mod && (k === 'c' || k === 'C')) { copySel(); ev.preventDefault(); return; }
-    if (mod && (k === 'x' || k === 'X')) { copySel(true); ev.preventDefault(); return; }
-    if (mod && (k === 'v' || k === 'V')) { pasteFromKey('asm', paste); return; }
-    if (mod && (k === 'a' || k === 'A')) { sel = { nodes: new Set(M.nodes.map((n) => n.id)), edge: null }; render(); renderInspector(); updateToolbar(); ev.preventDefault(); return; }
-    if (k === 'Escape') {
-      if (drag?.mode === 'connect') { drag = null; gOverlay.innerHTML = ''; svg.classList.remove('connecting'); }
-      sel = { nodes: new Set(), edge: null }; render(); renderInspector(); updateToolbar(); return;
-    }
-    if (!mod && (k === '+' || k === '=')) { zoomBy(1.2); return; }
-    if (!mod && k === '-') { zoomBy(1 / 1.2); return; }
-    if (!mod && k === '0') { fit(); return; }
-    const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
-    if (arrows[k] && sel.nodes.size) {
-      const step = ev.shiftKey ? 1 : GRID;
-      for (const id of sel.nodes) { const n = nodeById(id); n.x += arrows[k][0] * step; n.y += arrows[k][1] * step; }
-      commit('nudge'); ev.preventDefault();
-    }
-  }
-  function onKeyUp(ev) {
-    if (ev.key === ' ') { spaceDown = false; svg.classList.remove('space'); }
-  }
-
-  twoFingerView(svg, { cancel: cancelDrag, pan: (dx, dy) => { fitted = true; view.tx += dx; view.ty += dy; applyView(); }, zoom: zoomAt });
-  svg.addEventListener('pointerdown', onPointerDown);
-  svg.addEventListener('pointermove', onPointerMove);
-  svg.addEventListener('pointerup', onPointerUp);
-  svg.addEventListener('pointercancel', onPointerUp);
-  svg.addEventListener('dblclick', onDblClick);
-  svg.addEventListener('wheel', onWheel, { passive: false });
-  root.addEventListener('keydown', onKeyDown);
-  root.addEventListener('keyup', onKeyUp);
-  const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => { if (!fitted) { fitted = tryInitialFit(); } }) : null;
-  function tryInitialFit() {
-    const r = svg.getBoundingClientRect();
-    if (r.width < 10 || r.height < 10) return false;
-    fit();
-    return true;
-  }
-  ro?.observe(svg);
+  // ---------------------------------------------------------------------------- pointer interaction (asm-pointer.js)
+  const { ro, tryInitialFit } = mountAsmPointer({
+    M: () => M, addNode, applyView, commit, connect, copySel, deleteSelection, drag: () => drag, drawTarget, fit,
+    fitted: () => fitted, flash, gOverlay, nextCaseLabel, nodeById, paste, print, redo, render, renderInspector, root,
+    rubber, sel: () => sel, selSection, snapV, spaceDown: () => spaceDown, svg, toWorld, uid, undo, updateToolbar,
+    view: () => view, zoomAt, zoomBy, setDrag: (v) => { drag = v; }, setSel: (v) => { sel = v; },
+    setFitted: (v) => { fitted = v; }, setSpaceDown: (v) => { spaceDown = v; }
+  });
 
   // ---------------------------------------------------------------------------- init
   applyView();

@@ -20,7 +20,6 @@ const BIG_FILES = new Set([
 ]);
 const BIG_FUNCTIONS = new Set([
   'core/synth-open.js synthesizeOpen',
-  'web/js/asm-editor.js mountAsmEditor',
   'web/js/emulator.js mountEmulator',
   'web/js/sch-editor.js mountSchEditor',
 ]);
