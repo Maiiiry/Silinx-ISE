@@ -152,7 +152,7 @@ export function mountRender(ctx) {
   function updateStatus() {
     const { doc, nl, live, tool, lastDiags, cursor, view } = state();
     const n = doc.symbols.length;
-    const tip = live ? 'Live simulation: click the inputs (switches, bus values, clocks), hover a wire or pin to see its value, drag to pan. Esc stops the simulation.' : readOnly ? 'Read-only view. Drag on empty space to select, double-click a module to open it, wheel to zoom.' : (TOOL_HINT[tool] || '');
+    const tip = live ? 'Trying it out: click the inputs (switches, bus values, clocks), hover a wire or pin to see its value, drag to pan. Esc stops.' : readOnly ? 'Read-only view. Drag on empty space to select, double-click a module to open it, wheel to zoom.' : (TOOL_HINT[tool] || '');
     const d = lastDiags ? ` · ${lastDiags.filter(x => x.severity === 'error').length} error(s), ${lastDiags.filter(x => x.severity === 'warning').length} warning(s)` : '';
     status.innerHTML = `<span class="hint">${esc(tip)}</span><span class="sp"></span><span>${n} symbol${n === 1 ? '' : 's'}, ${nl ? nl.nets.length : 0} nets${d}</span><span class="xy">X ${snap(cursor.x)} Y ${snap(cursor.y)}</span><span class="zoom">${Math.round(view.s * 100)}%</span>`;
   }

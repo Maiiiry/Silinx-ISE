@@ -555,17 +555,17 @@ PT_PATTERNS.unshift(
     'Desenho: $1 × $2 px. Diagramas grandes: várias páginas na horizontal (mosaico) ou A3; texto abaixo de ~5 pt é difícil de ler em papel. Para um PDF escolha "Guardar como PDF" no diálogo de impressão (mantenha as margens em "Predefinição").'],
 );
 
-// live schematic simulation (sch-live.js)
+// live schematic simulation (sch-live.js): Try it, not Simulate (the design flow's, #992)
 Object.assign(PT, {
-  'Simulate': 'Simular', 'Simulate: click the inputs and watch the circuit work (Esc to stop)': 'Simular: clique nas entradas e veja o circuito a funcionar (Esc para parar)',
-  'Live simulation: click the inputs (switches, bus values, clocks), hover a wire or pin to see its value, drag to pan. Esc stops the simulation.':
-    'Simulação em tempo real: clique nas entradas (interruptores, valores de barramentos, relógios), passe o rato sobre um fio ou pino para ver o valor, arraste para deslocar. Esc para a simulação.',
-  'Building the simulation model…': 'A construir o modelo de simulação…', 'Live simulation': 'Simulação em tempo real',
+  'Simulate': 'Simular', 'Try it': 'Experimentar', 'Try it: click the inputs and watch the circuit work (Esc to stop)': 'Experimentar: clique nas entradas e veja o circuito a funcionar (Esc para parar)',
+  'Trying it out: click the inputs (switches, bus values, clocks), hover a wire or pin to see its value, drag to pan. Esc stops.':
+    'A experimentar: clique nas entradas (interruptores, valores de barramentos, relógios), passe o rato sobre um fio ou pino para ver o valor, arraste para deslocar. Esc para.',
+  'Building the circuit\'s model…': 'A construir o modelo do circuito…', 'Trying it out': 'A experimentar',
   'Power cycle: back to time 0, registers to their initial values': 'Religar: volta ao tempo 0, registos com os valores iniciais',
   'Step': 'Passo', 'One clock cycle (rising and falling edge)': 'Um ciclo de relógio (flanco ascendente e descendente)', 'Pause': 'Pausa',
   'Run / pause the clock': 'Executar / pausar o relógio', 'Clock rate': 'Frequência do relógio', 'Buses:': 'Barramentos:',
-  'Number format of the bus values': 'Formato dos valores dos barramentos', 'Stop Simulation': 'Parar Simulação',
-  'Leave the simulation and edit the schematic (Esc)': 'Sair da simulação e editar o esquemático (Esc)', 'Number format': 'Formato do número',
+  'Number format of the bus values': 'Formato dos valores dos barramentos',
+  'Stop trying it out and go back to the schematic (Esc)': 'Parar de experimentar e voltar ao esquemático (Esc)', 'Number format': 'Formato do número',
   'Subtract 1': 'Subtrair 1', 'Add 1': 'Somar 1', 'All bits 0': 'Todos os bits a 0', 'Set': 'Aplicar',
   'Hex 0x1F, binary 0b101, or decimal; ↑ / ↓ add / subtract 1': 'Hex 0x1F, binário 0b101 ou decimal; ↑ / ↓ somam / subtraem 1',
   'Click an input to change it: 1-bit inputs toggle, buses open a value editor, clock inputs step one cycle. Wires: green = 1, dark green = 0, red = X/U, blue = Z. Hover a pin or a wire to see its value; click a component to list its pins.':
@@ -574,8 +574,9 @@ Object.assign(PT, {
   'no value': 'sem valor', '(unconnected)': '(não ligado)',
 });
 PT_PATTERNS.push(
-  [/^Cannot simulate: (.*)$/s, 'Não é possível simular: $1'],
-  [/^Simulation refused: (\d+) error\(s\), (\d+) warning\(s\)$/, 'Simulação recusada: $1 erro(s), $2 aviso(s)'],
+  [/^Cannot try it out: (\d+) error\(s\), (\d+) warning\(s\)$/, 'Não é possível experimentar: $1 erro(s), $2 aviso(s)'],
+  [/^Cannot try it out: (.*)$/s, 'Não é possível experimentar: $1'],
+  [/^Stopped: (.*)$/s, 'Parado: $1'],
   [/^Simulation stopped: (.*)$/s, 'Simulação parada: $1'],
 );
 // New Source types, Module Wizard and Schematic Wizard (web/js/modwizard.js, core/modgen.js)
