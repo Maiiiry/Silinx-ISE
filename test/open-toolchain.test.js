@@ -205,7 +205,7 @@ test('open mode: Implement + Generate Programming File of blinky, for real: step
   const fv = (await app.call('GET', '/projects/Blinky/fpga-view')).body;
   assert.equal(fv.available, true, JSON.stringify(fv).slice(0, 300));
   assert.equal(fv.source, 'open');
-  assert.equal(fv.util.IOBs.used, 15);
+  assert.equal(fv.util.IOBs.used, 27);   // clk, 4 switches, 2 buttons, 8 LEDs and the display's 12 (#983)
   assert.ok(fv.util.Slices.used > 50);
   assert.ok(fv.nets.some(n => n.kind === 'clock'));
   assert.ok(fv.insts.some(i => i.cells.some(c => c.kind === 'lut' && c.text)));
@@ -224,9 +224,11 @@ test('open mode: Implement + Generate Programming File of blinky, for real: step
 });
 
 // the other boards (research/s3e-bitstream, stage F): blinky for the Nexys2-1200 (its LEDs LD4-LD7)
-// and the Basys2-100, Implement + Generate Programming File through the API, no warning
+// (and its display), and the Basys2-100, Implement + Generate Programming File through the API, no warning
 const NEXYS2_UCF = [['clk', 'B8'], ['sw<0>', 'G18'], ['sw<1>', 'H18'], ['sw<2>', 'K18'], ['sw<3>', 'K17'], ['btn<0>', 'B18'], ['btn<1>', 'D18'],
-  ...['J14', 'J15', 'K15', 'K14', 'E16', 'P16', 'E4', 'P4'].map((p, i) => [`led<${i}>`, p])].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;`).join('\n')
+  ...['J14', 'J15', 'K15', 'K14', 'E16', 'P16', 'E4', 'P4'].map((p, i) => [`led<${i}>`, p]),
+  ...['L18', 'F18', 'D17', 'D16', 'G14', 'J17', 'H14'].map((p, i) => [`seg<${i}>`, p]), ['dp', 'C17'],
+  ...['F17', 'H17', 'C18', 'F15'].map((p, i) => [`an<${i}>`, p])].map(([n, p]) => `NET "${n}" LOC = "${p}" | IOSTANDARD = LVCMOS33 ;`).join('\n')
   + '\nNET "clk" TNM_NET = "clk" ;\nTIMESPEC "TS_clk" = PERIOD "clk" 20 ns HIGH 50% ;\n';
 for (const [name, part, pkg, ucf, slices, iobs, bytes] of [['N2', 'xc3s1200e', 'fg320', NEXYS2_UCF, 8672, 250, 480219], ['B100', 'xc3s100e', 'cp132', null, 960, 83, 72738]]) {
   test(`open mode: Implement + Generate Programming File of blinky for ${part}-${pkg}, no warning`, { timeout: 420000 }, async () => {

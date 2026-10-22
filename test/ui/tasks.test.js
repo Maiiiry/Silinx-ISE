@@ -369,8 +369,10 @@ uiTest('#799 Tasks ▸ Edit: one design tree (the design, Constraints), no views
   await page.waitConsole(/Process "Check Syntax" completed successfully/);
   assert.match(await page.eval(() => document.getElementById('console-log').innerText), /Started : "Behavioral Check Syntax"/);
   assert.equal(await page.eval(() => document.getElementById('err-count').textContent), '');
-  // the UCF from its group: in Edit
+  // the UCF from its group: in Edit (the tree scrolled to its end: its last row clear of the horizontal scroll bar
+  // the long rows of blinky's modules give it, which the headless browser draws over the pane)
   await page.click('#left-tabs .tab[data-page="design"]');
+  await page.eval(() => { const h = document.getElementById('hier'); h.scrollTop = h.scrollHeight; });
   await page.treeRow('#hier', 'top.ucf', { dbl: true, exact: true });
   await page.waitFor(() => document.querySelector('#doc-tabs > .tab.active')?.textContent.includes('top.ucf'), [], { what: 'the UCF' });
   assert.equal((await state(page)).task, 'edit');

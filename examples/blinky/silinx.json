@@ -27,6 +27,16 @@
       "role": "design"
     },
     {
+      "path": "src/bcd_counter.vhd",
+      "lang": "vhdl",
+      "role": "design"
+    },
+    {
+      "path": "src/sevenseg.v",
+      "lang": "verilog",
+      "role": "design"
+    },
+    {
       "path": "src/top.vhd",
       "lang": "vhdl",
       "role": "design"

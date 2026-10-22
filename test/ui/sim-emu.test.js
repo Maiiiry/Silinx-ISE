@@ -252,6 +252,39 @@ for (const [board, name] of [['basys2', 'Basys2'], ['nexys2', 'Nexys2']]) {
   });
 }
 
+// the number a digit of the display shows (its segments a..g lit), null when dark or not a decimal digit
+const SEGS = ['1111110', '0110000', '1101101', '1111001', '0110011', '1011011', '1011111', '1110000', '1111111', '1111011'];
+const shown = (page) => page.eval(() => window.Silinx.active.view.outputs?.digits.map((d) => (d ? d.seg.map((x) => (x > 0.5 ? 1 : 0)).join('') : null)) || [])
+  .then((ds) => { const n = [3, 2, 1, 0].map((k) => SEGS.indexOf(ds[k] ?? '')); return n.some((x) => x < 0) ? null : Number(n.join('')); });
+
+// #983: blinky counts the steps of its LED pattern on the 4-digit display, multiplexed (one digit per ms)
+for (const [board, name] of [['basys2', 'Basys2'], ['nexys2', 'Nexys2']]) {
+  uiTest(`board emulator (RTL) on the ${name}: blinky's display counts the LED pattern's steps, four digits; SW0 resets it`, E, async (page) => {
+    await makeProject(env, { name: `EmuBlinky_${board}`, template: 'blinky', board });
+    await page.openProject(`EmuBlinky_${board}`);
+    assert.equal(await page.eval(() => window.SilinxApp.regenerateUcf()), true, 'every port is on a board resource');
+    await page.menu('Tools', 'Board Emulator');
+    await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'emulator running' });
+    assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+    // the four digits lit (the scan reached them all), counting from 0000
+    await page.waitFor(() => window.Silinx.active.view.outputs.digits.filter(Boolean).length === 4, [], { what: 'the four digits lit' });
+    const first = await shown(page);
+    assert.ok(first !== null && first < 10, `a count from 0000: ${first}`);
+    // BTN1 (faster) five times: 80 steps a second; the count goes on, past 0010
+    // (each press held, then released, for 40 ms of the board's time: longer than its 20 ms debounce)
+    const boardWait = async () => { const t = await page.eval(() => window.Silinx.active.view.sim.now); await page.waitFor((t0) => window.Silinx.active.view.sim.now > t0 + 40e9, [t], { what: '40 ms on the board' }); };
+    for (let i = 0; i < 5; i++) { await widget(page, 'BTN1 = btn<1>', { modifiers: 8 }); await boardWait(); await widget(page, 'BTN1 = btn<1>', { modifiers: 8 }); await boardWait(); }
+    let n = first;
+    for (const t0 = Date.now(); Date.now() - t0 < 30000 && !(n > 10); await new Promise((r) => setTimeout(r, 100))) n = (await shown(page)) ?? n;
+    assert.ok(n > 10, `the display counts on: ${first} -> ${n}`);
+    // SW0 (reset) on: 0000
+    await widget(page, 'SW0 = sw<0>');
+    for (const t0 = Date.now(); Date.now() - t0 < 30000 && n !== 0; await new Promise((r) => setTimeout(r, 100))) n = await shown(page);
+    assert.equal(n, 0, 'reset: 0000');
+    assert.deepEqual(page.dialogs, []);
+  });
+}
+
 const EMU_S3E = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
 entity s3e is
   port (clk : in std_logic;

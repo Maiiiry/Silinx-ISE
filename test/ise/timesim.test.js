@@ -40,11 +40,11 @@ before(() => {
 test('ISE\'s post-place & route model of blinky with its SDF: the test bench passes, no timing violation, no warning', { skip, timeout: 30 * 60000 }, async () => {
   const { createJob } = await import('../../server/jobs.js');
   const { runImplementation } = await import('../../server/ise.js');
-  // the generics the test bench gives the top (DIV = 2, DEBOUNCE = 2), to XST
+  // the generics the test bench gives the top (DIV = 2, DEBOUNCE = 2, REFRESH = 4), to XST
   const ex = example('blinky');
   const tbLib = compile([...primitiveSources(ex.sources), ...ex.sources]);
   const { generics } = dutGenerics(elaborate(tbLib, ex.project.simTop), ex.project.top);
-  assert.deepEqual(generics, { div: 2, debounce: 2 });
+  assert.deepEqual(generics, { div: 2, debounce: 2, refresh: 4 });
   const { dir, project } = exampleProject('blinky', { board: 'basys2', variant: '250' }, tmp);
   project.impl = { ...project.impl, xstOptions: { generics: `{${Object.entries(generics).map(([k, v]) => `${k}=${v}`).join(' ')}}` } };
   const job = createJob('timesim', j => runImplementation(j, { project, projectDir: dir, steps: ['synth', 'translate', 'map', 'par', 'trce', 'postpar'] }));

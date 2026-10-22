@@ -81,7 +81,7 @@ test('the protocol\'s errors: a line that is not JSON, an unknown method, an unk
 test('the examples, a new project from one (for another board too), the projects, a project\'s settings', async () => {
   const ex = await srv.call('list_examples');
   assert.deepEqual(ex.structuredContent.examples.map(e => e.name), EXAMPLE_ORDER);
-  assert.deepEqual(ex.structuredContent.examples.find(e => e.name === 'blinky'), { name: 'blinky', top: 'top', simTop: 'tb_top', board: 'basys2', device: 'xc3s250ecp132-4', files: 5 });
+  assert.deepEqual(ex.structuredContent.examples.find(e => e.name === 'blinky'), { name: 'blinky', top: 'top', simTop: 'tb_top', board: 'basys2', device: 'xc3s250ecp132-4', files: 7 });
   assert.equal((await srv.call('list_projects')).content[0].text, 'No project in the workspace (new_project_from_example makes one).');
   const made = await srv.call('new_project_from_example', { name: 'Blinky', example: 'blinky' });
   assert.equal(made.content[0].text, 'Project \'Blinky\' made from the example blinky: top top, basys2 (xc3s250ecp132-4).');
@@ -98,7 +98,7 @@ test('the examples, a new project from one (for another board too), the projects
     { name: 'Blinky', top: 'top', board: 'basys2', device: 'xc3s250ecp132-4' }, { name: 'TrafficN', top: 'top', board: 'nexys2', device: 'xc3s500efg320-4' }]);
   const info = await srv.call('project_info', { project: 'Blinky' });
   assert.equal(info.structuredContent.simTop, 'tb_top');
-  assert.deepEqual(info.structuredContent.files.map(f => `${f.path} ${f.lang} ${f.role}`), ['src/counter.v verilog design', 'src/knight.vhd vhdl design', 'src/speed_ctrl.vhd vhdl design', 'src/top.vhd vhdl design', 'sim/tb_top.vhd vhdl sim'].filter(l => info.structuredContent.files.some(f => l.startsWith(f.path))));
+  assert.deepEqual(info.structuredContent.files.map(f => `${f.path} ${f.lang} ${f.role}`), ['src/counter.v verilog design', 'src/knight.vhd vhdl design', 'src/speed_ctrl.vhd vhdl design', 'src/bcd_counter.vhd vhdl design', 'src/sevenseg.v verilog design', 'src/top.vhd vhdl design', 'sim/tb_top.vhd vhdl sim'].filter(l => info.structuredContent.files.some(f => l.startsWith(f.path))));
   assert.equal((await srv.call('project_info', { project: 'Nope' })).content[0].text, 'project_info: no project \'Nope\' in the workspace');
 });
 
@@ -126,7 +126,7 @@ test('read_file / write_file: a source read and written, a new HDL file added to
 
 test('check_syntax: the design as the application checks it, then an error and a warning with their file and line', async () => {
   const ok = await srv.call('check_syntax', { project: 'Blinky' });
-  assert.equal(ok.content[0].text, 'Process "Check Syntax" of <top> completed successfully (38 signals, 15 processes).');
+  assert.equal(ok.content[0].text, 'Process "Check Syntax" of <top> completed successfully (51 signals, 24 processes).');
   assert.deepEqual(ok.structuredContent, { project: 'Blinky', top: 'top', ok: true, errors: [], warnings: [] });
   assert.equal((await srv.call('check_syntax', { project: 'Blinky', simulation: true })).structuredContent.top, 'tb_top');
   // a missing ';' and an unused signal
@@ -151,7 +151,7 @@ test('simulate: the test bench\'s signals, their last changes, its messages; a d
   const d = s.structuredContent;
   assert.equal(d.top, 'tb_top');
   assert.equal(d.stoppedAtNs, 2000);
-  assert.deepEqual(Object.keys(d.signals), ['clk', 'sw', 'btn', 'led']);
+  assert.deepEqual(Object.keys(d.signals), ['clk', 'sw', 'btn', 'led', 'seg', 'dp', 'an']);
   assert.equal(d.signals.clk.width, 1);
   assert.equal(d.signals.clk.changes.length, 3);
   assert.equal(d.signals.clk.totalChanges, 201);   // 20 ns period from 0: a change every 10 ns

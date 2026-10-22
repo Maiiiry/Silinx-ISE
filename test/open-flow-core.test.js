@@ -105,26 +105,27 @@ test('Back-annotate Pin Locations (pin2ucf): the placer\'s pads as UCF; built ag
   // blinky's UCF without the LOCs of four LEDs and a switch (their I/O standard kept)
   const full = fs.readFileSync(path.join(PJ, project.constraints), 'utf8');
   const ucf = full.split('\n').map(l => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
-  assert.equal(ucf.split('\n').filter(l => /LOC =/.test(l)).length, 10);
+  assert.equal(ucf.split('\n').filter(l => /LOC =/.test(l)).length, 22);
   const steps = ['synth', 'translate', 'map', 'par', 'trce', 'pin2ucf'];
   const one = await run(ucf, steps);
-  assert.ok(one.lines.includes('Pin locations of 15 port bit(s), 5 of them chosen by the placer (no LOC in the constraints): build/top_pins.ucf'), one.lines.join('\n'));
+  assert.ok(one.lines.includes('Pin locations of 27 port bit(s), 5 of them chosen by the placer (no LOC in the constraints): build/top_pins.ucf'), one.lines.join('\n'));
   assert.deepEqual(one.report.pinsUcf, { path: 'build/top_pins.ucf' });
   const pinsText = one.store['top_pins.ucf'];
   const placed = placedPins(parseXdl(one.store['open/routed.xdl']));
-  assert.equal(placed.length, 15);
-  assert.ok(pinsText.startsWith('# Pin locations of \'top\' on xc3s250ecp132-4: the pads of the placed design (Silinx toolchain), as Xilinx pin2ucf writes them\n\nNET "btn<0>" LOC = "G12" ;\n'), pinsText);
+  assert.equal(placed.length, 27);
+  assert.ok(pinsText.startsWith('# Pin locations of \'top\' on xc3s250ecp132-4: the pads of the placed design (Silinx toolchain), as Xilinx pin2ucf writes them\n\nNET "an<0>"  LOC = "F12" ;\n'), pinsText);
   // the user's LOCs are where they asked
   for (const [net, loc] of [['clk', 'B8'], ['led<0>', 'M5'], ['sw<2>', 'K3']]) assert.equal(placed.find(p => p.net === net).loc, loc, net);
   // the UCF back-annotated: the five pins the placer chose added, the rest as written
-  const ports = [{ name: 'clk' }, { name: 'sw', width: 4, msb: 3, lsb: 0 }, { name: 'btn', width: 2, msb: 1, lsb: 0 }, { name: 'led', width: 8, msb: 7, lsb: 0 }];
+  const ports = [{ name: 'clk' }, { name: 'sw', width: 4, msb: 3, lsb: 0 }, { name: 'btn', width: 2, msb: 1, lsb: 0 }, { name: 'led', width: 8, msb: 7, lsb: 0 },
+    { name: 'seg', width: 7, msb: 6, lsb: 0 }, { name: 'dp' }, { name: 'an', width: 4, msb: 3, lsb: 0 }];
   const ba = backAnnotateUcf(ucf, pinsText, { ports, tool: 'Silinx toolchain', date: '2026-10-12' });
   assert.deepEqual(ba.added.map(a => a.net), ['led<4>', 'led<5>', 'led<6>', 'led<7>', 'sw<3>']);
   assert.deepEqual(ba.added.map(a => a.loc), ['led<4>', 'led<5>', 'led<6>', 'led<7>', 'sw<3>'].map(n => placed.find(p => p.net === n).loc));
   assert.ok(ba.text.startsWith(ucf.replace(/\s*$/, '\n')));
   // built again from it: every port on the pad it had, and the same pin file
   const two = await run(ba.text, steps);
-  assert.ok(two.lines.includes('Pin locations of 15 port bit(s), 0 of them chosen by the placer (no LOC in the constraints): build/top_pins.ucf'), two.lines.join('\n'));
+  assert.ok(two.lines.includes('Pin locations of 27 port bit(s), 0 of them chosen by the placer (no LOC in the constraints): build/top_pins.ucf'), two.lines.join('\n'));
   const byNet = (a, b) => a.net.localeCompare(b.net);
   assert.deepEqual(placedPins(parseXdl(two.store['open/routed.xdl'])).sort(byNet), [...placed].sort(byNet));
   assert.equal(two.store['top_pins.ucf'], pinsText);
@@ -152,7 +153,7 @@ test('Implement Design: ports without a LOC nor an I/O standard (LVCMOS25) where
   const at = lines.findIndex(l => l.startsWith('ERROR:'));
   assert.deepEqual(lines.slice(at), [
     'ERROR:Silinx - placement failed: place: no pad for 4 I/O(s) of LVCMOS25 (VCCO 2.5 V): led<4>, led<5>, led<6>, led<7>: the banks with free pads need another VCCO: '
-      + 'bank 0 VCCO 3.3 V (LVCMOS33: btn<1>, clk, sw<3>), bank 1 VCCO 3.3 V (LVCMOS33: btn<0>), bank 2 VCCO 3.3 V (LVCMOS33: led<0>, led<1>, led<2> and 2 more), bank 3 VCCO 3.3 V (LVCMOS33: sw<1>, sw<2>)',
+      + 'bank 0 VCCO 3.3 V (LVCMOS33: btn<1>, clk, sw<3>), bank 1 VCCO 3.3 V (LVCMOS33: an<0>, an<1>, an<2> and 8 more), bank 2 VCCO 3.3 V (LVCMOS33: led<0>, led<1>, led<2> and 4 more), bank 3 VCCO 3.3 V (LVCMOS33: sw<1>, sw<2>)',
     'Give them the I/O standard of a bank in the constraints (UCF), e.g. NET "led<4>" IOSTANDARD = LVCMOS33; (or LOC them on pads of a bank of their own).',
     '=== SILINX FAILED par (exit 1) ===',
   ]);

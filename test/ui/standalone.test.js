@@ -922,20 +922,20 @@ uiTest('browser edition: Back-annotate Pin Locations runs the Silinx toolchain i
   }, ucf);
   await page.treeRow('#procs', 'Back-annotate Pin Locations', { dbl: true, exact: true });
   await page.waitDialog('Back-annotate Pin Locations', { timeout: 120000 });
-  const pins = ['NET "led<4>" LOC = "J3";', 'NET "led<5>" LOC = "M4";', 'NET "led<6>" LOC = "N7";', 'NET "led<7>" LOC = "L13";', 'NET "sw<3>" LOC = "P8";'];
+  const pins = ['NET "led<4>" LOC = "J14";', 'NET "led<5>" LOC = "J13";', 'NET "led<6>" LOC = "G14";', 'NET "led<7>" LOC = "G13";', 'NET "sw<3>" LOC = "H13";'];
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .msg-text').textContent),
     `Add the 5 pin location(s) chosen by the tools to constraints/top.ucf?\n\n${pins.join('\n')}`);
   const log = await page.consoleText();
-  for (const re of [/=== SILINX STEP par ===/, /=== SILINX STEP pin2ucf ===/, /Pin locations of 15 port bit\(s\), 5 of them chosen by the placer \(no LOC in the constraints\): build\/top_pins\.ucf/])
+  for (const re of [/=== SILINX STEP par ===/, /=== SILINX STEP pin2ucf ===/, /Pin locations of 27 port bit\(s\), 5 of them chosen by the placer \(no LOC in the constraints\): build\/top_pins\.ucf/])
     assert.match(log, re);
   assert.deepEqual(log.split('\n').filter((l) => /warning/i.test(l)),
-    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 22: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
+    ['WARNING:ConstraintSystem - "constraints/top.ucf" Line 34: 5 port bit(s) of \'top\' have no LOC: sw<3>, led<4>, led<5>, led<6>, led<7>',
       'WARNING:Silinx - 5 port bit(s) have no LOC constraint (sw<3>, led<4>, led<5>, led<6>, led<7>): the Silinx toolchain chooses their pins - do NOT program real hardware with this bitstream',
       'Process "Back-annotate Pin Locations" completed successfully with 2 warning(s)']);
   // the constraints' warning: the process's own (after its Started line), counted with the others,
   // in the Warnings tab once; the process's icon a warning (#129)
   const run = log.slice(log.lastIndexOf('Started : "Back-annotate Pin Locations"'));
-  assert.match(run, /^Started : "Back-annotate Pin Locations"\.\n+WARNING:ConstraintSystem - "constraints\/top\.ucf" Line 22: 5 port bit\(s\) of 'top' have no LOC/);
+  assert.match(run, /^Started : "Back-annotate Pin Locations"\.\n+WARNING:ConstraintSystem - "constraints\/top\.ucf" Line 34: 5 port bit\(s\) of 'top' have no LOC/);
   assert.equal(await page.eval(() => document.querySelectorAll('#console-warnings .diag').length), 2);
   assert.equal(await page.eval(() => document.getElementById('warn-count').textContent), '(2)');
   await page.dialogButton('Yes');
