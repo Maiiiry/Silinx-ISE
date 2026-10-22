@@ -18,6 +18,7 @@ import { primitiveTemplates } from '/core/prim-templates.js';
 import { deviceFamily } from '/core/family.js';
 import { setActionRunner, longPressMenu } from './ui.js';
 import { log, logLine, showConsolePage, setDiagnostics, renderDiagnostics, clearConsole } from './console.js';
+import { isOwnFailure } from './own-error.js';
 import { openProject, closeProject, reloadProject, updateTitle, renderStartPage, updateStorageStatus } from './project.js';
 import { FLOW_UP_TO, checkUcfFile, regenerateUcf, runImpl, stepTracker, ucfDiagnostics } from './implement.js';
 import { adoptDrawnHdl, drawnHdlClashes, freshHdl, isAsm, isFsm, isPn, isTt, openAsm, openFsm, openPetri, openSch,
@@ -947,6 +948,9 @@ async function boot() {
 export const app = { showInSim, saveAll, openTt, openTtSchematic, openFsm, openPetri, openSch, stepTracker, projectBoard, regenerateUcf, openFile, openAsm, openProject, reloadProject, closeProject, renderStartPage, openDoc, log, setDiagnostics, compileProject, renderHierarchy, renderProcesses, saveProjectJson, setTop, openSummary, showLeftPage, setDirty, findDoc, closeDoc, runSimulation, openPinPlanner, openImpact, followJob, logLine, openMode, S };
 window.SilinxApp = app;
 // a promise nobody waits for that fails (a menu's action, the start-up's project): said in the
-// Console and the Errors tab, not lost (#408); the browser's console keeps its stack
-window.addEventListener('unhandledrejection', e => log(`ERROR: ${e.reason?.message || e.reason}`, 'err'));
+// Console and the Errors tab, not lost (#408); the browser's console keeps its stack. Only Silinx's own:
+// another script's (an extension's, a host application's) is left to the browser's console (#997)
+window.addEventListener('unhandledrejection', e => {
+  if (isOwnFailure(e.reason)) log(`ERROR: ${e.reason?.message || e.reason}`, 'err');
+});
 boot();

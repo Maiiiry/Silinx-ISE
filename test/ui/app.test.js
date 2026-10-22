@@ -58,13 +58,45 @@ async function settle(page) {
 }
 
 uiTest('a failed promise nobody waits for is said in the Console and the Errors tab (#408)', E, async (page) => {
-  page.allowErrors.push(/boom-408/);   // (the browser's own console keeps it too)
   await page.waitForSelector('#start-page .start-box');
-  await page.eval(() => { Promise.reject(new Error('boom-408')); });
-  await page.waitFor(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'ERROR: boom-408'));
-  assert.ok(await page.eval(() => document.querySelector('#console-log .ln.err:last-child')?.textContent === 'ERROR: boom-408'));
+  // a promise of Silinx's code (its API: a project that does not exist) that nobody waits for
+  const msg = await page.eval(async () => {
+    const { api } = await import('/js/api.js');
+    api.project('no-such-project-408');
+    return api.project('no-such-project-408').then(() => '', (e) => e.message);
+  });
+  assert.ok(msg);
+  page.allowErrors.push(new RegExp(msg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));   // (the browser's own console keeps it too)
+  await page.waitFor((m) => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === `ERROR: ${m}`), [msg]);
+  assert.equal(await page.eval(() => document.querySelector('#console-log .ln.err:last-child')?.textContent), `ERROR: ${msg}`);
   // (the Errors tab's list: the diagnostics the console's lines made)
-  assert.ok(await page.eval(() => window.Silinx.diags.some((d) => d.severity === 'error' && d.message === 'boom-408')));
+  assert.ok(await page.eval((m) => window.Silinx.diags.some((d) => d.severity === 'error' && d.message === m), msg));
+});
+
+uiTest('another script\'s failed promise (an extension\'s, a host\'s) is not said in the Console (#997)', E, async (page) => {
+  // (the browser's own console has them; a string reason is said with no text in Chrome)
+  page.allowErrors.push(/sseError|foreign-997|own-997/, /^uncaught: Uncaught \(in promise\)$/);
+  await page.waitForSelector('#start-page .start-box');
+  await page.eval(() => {
+    // code the host injects (evaluated: no URL), a script of an extension (its URL), a reason that is no Error
+    Promise.reject(new Error('func sseError not found'));
+    new Function('Promise.reject(new Error("foreign-997 extension"));\n//# sourceURL=chrome-extension://abcdefgh/content.js')();
+    Promise.reject('foreign-997 string');
+  });
+  // then one of Silinx's: said, after the others were dealt with
+  await page.eval(async () => {
+    const { api } = await import('/js/api.js');
+    await new Promise((r) => setTimeout(r, 50));
+    api.project('own-997');
+  });
+  await page.waitFor(() => window.Silinx.diags.length > 0 && document.querySelector('#console-log .ln.err:last-child'));
+  const lines = await page.eval(() => [...document.querySelectorAll('#console-log .ln.err')].map((l) => l.textContent));
+  assert.equal(lines.length, 1, lines.join('\n'));
+  assert.match(lines[0], /^ERROR: /);
+  assert.doesNotMatch(await page.consoleText(), /sseError|foreign-997/);
+  const diags = await page.eval(() => window.Silinx.diags.map((d) => d.message));
+  assert.ok(diags.includes(lines[0].slice('ERROR: '.length)), diags.join('\n'));
+  assert.ok(!diags.some((m) => /sseError|foreign-997/.test(m)), diags.join('\n'));
 });
 
 uiTest('every menu opens and every enabled item acts or opens its dialog', E, async (page) => {
