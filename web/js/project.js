@@ -126,10 +126,10 @@ async function closeProjectNow() {
 
 export function updateTitle() {
   const pj = S.project;
-  $('title-text').textContent = pj ? `${PRODUCT} ${VERSION_LABEL} - ${pj.name} - [${S.active?.title || 'Design Summary'}]` : `${PRODUCT} ${VERSION_LABEL} - Project Navigator`;
-  // the modern header: product and version (as the classic title bar)
-  const brand = $('title-brand');
-  if (!brand.querySelector('.m-ver')) { brand.textContent = `${PRODUCT} `; brand.append(h('span', { class: 'm-ver' }, VERSION_LABEL)); }
+  // the header: the project and its document, not the product and version (#987): those are the logo's tooltip, the
+  // window's title, Help ▸ About
+  $('title-text').textContent = pj ? `${pj.name} - [${S.active?.title || 'Design Summary'}]` : 'Project Navigator';
+  document.querySelector('#titlebar .app-logo').title = `${PRODUCT} ${VERSION_LABEL}`;
   $('title-project').textContent = pj ? pj.name : 'No project open';
   $('title-project').classList.toggle('none', !pj);
   document.title = pj ? `${pj.name} — ${PRODUCT} ${VERSION_LABEL}` : `${PRODUCT} ${VERSION_LABEL} Project Navigator`;
