@@ -155,12 +155,24 @@ test('related tests: the repository — the bit database, a device description, 
   assert.ok(!relatedTests(files, ['changes/1-x.md']).unit.includes('test/open-flow.test.js'));
 });
 
-test('related tests: in parts of about the same time, the UI tests in the first', () => {
+test('related tests: in parts of about the same time, the UI tests balanced too, the heaviest with the lightest unit part (#1032)', () => {
   const all = { unit: ['test/a.test.js', 'test/b.test.js', 'test/c.test.js'], ui: ['test/ui/x.test.js'] };
   const t = { 'test/a.test.js': 10, 'test/b.test.js': 6, 'test/c.test.js': 5 };
+  // (one UI test: with the lighter unit part, 10 against 11)
   assert.deepEqual(shardOf(all, { i: 1, n: 2 }, t), { unit: ['test/a.test.js'], ui: ['test/ui/x.test.js'] });
   assert.deepEqual(shardOf(all, { i: 2, n: 2 }, t), { unit: ['test/b.test.js', 'test/c.test.js'], ui: [] });
+  assert.deepEqual(shardOf(all, { i: 1, n: 2 }, { ...t, 'test/c.test.js': 3 }).ui, [], 'b and c the lighter: 9 against 10');
   assert.deepEqual(shardOf({ unit: [], ui: [] }, { i: 3, n: 3 }), { unit: [], ui: [] });
+  // many UI tests (#983's 22: all of them in part 1 passed its 45 minutes): spread over the parts, every test once
+  const ui = Array.from({ length: 22 }, (_, k) => `test/ui/u${String(k).padStart(2, '0')}.test.js`);
+  const tu = { ...t, ...Object.fromEntries(ui.map((f, k) => [f, 60 + 10 * k])) };
+  const parts = [1, 2, 3].map((i) => shardOf({ unit: all.unit, ui }, { i, n: 3 }, tu));
+  assert.deepEqual(parts.flatMap((p) => p.ui).sort(), ui);
+  assert.deepEqual(parts.flatMap((p) => p.unit).sort(), all.unit);
+  const time = (p) => [...p.unit, ...p.ui].reduce((s, f) => s + tu[f], 0);
+  const times = parts.map(time), total = times.reduce((a, b) => a + b, 0);
+  assert.ok(Math.max(...times) < 0.4 * total, `${times} of ${total}`);
+  assert.ok(parts.every((p) => p.ui.length >= 7), parts.map((p) => p.ui.length).join(' '));
 });
 
 test('related tests: the repository — the synthesis\'s tests for a change of core/synth-open.js (#635\'s), its helpers read', () => {
