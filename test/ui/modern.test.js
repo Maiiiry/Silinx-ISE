@@ -45,7 +45,7 @@ uiTest('modern interface by default: header with search, activity bar, tabs on t
       consoleTabsOnTop: r('console-tabs').top < r('console-body').top,
       empty: vis('#ws-empty'),
       project: document.getElementById('title-project').textContent,
-      brand: document.getElementById('title-brand').textContent,
+      titlebar: document.getElementById('titlebar').innerText,
       steps: [...document.querySelectorAll('#toolbar .m-step')].map((b) => [b.textContent, b.disabled]),
       hiddenIcons: [...document.querySelectorAll('#toolbar .tb-btn')].filter((b) => !b.getClientRects().length).map((b) => b.dataset.cmd),
       classicTitle: vis('#title-text'),
@@ -57,7 +57,7 @@ uiTest('modern interface by default: header with search, activity bar, tabs on t
   assert.ok(L.consoleTabsOnTop, 'Console / Errors / Warnings above the log');
   assert.ok(L.empty, 'empty state when no document is open');
   assert.equal(L.project, 'No project open');
-  assert.match(L.brand, /^Silinx ISE \d+\.\d+\.\d+$/, 'product and version, as in the classic title bar');
+  assert.doesNotMatch(L.titlebar, /Silinx|\d+\.\d+\.\d+/, 'no product and version in the header (#987)');
   // without a project only Program (iMPACT) can run
   assert.deepEqual(L.steps, [['Check', true], ['Simulate', true], ['Implement', true], ['Emulate', true], ['Program', false]]);
   assert.deepEqual(L.hiddenIcons.sort(), ['asm', 'impact', 'run', 'wave'], 'icons covered by the labelled steps are hidden (Cut / Copy / Paste shown: they reach every editor, #677)');
@@ -131,6 +131,33 @@ uiTest('View ▸ Interface: the Xilinx ISE look and back, live and remembered af
   await page.waitFor(() => document.documentElement.dataset.ui === 'modern');
   assert.ok((await page.openMenu('View')).some((x) => x.label === 'Theme'));
   await page.closeMenus();
+}, O);
+
+// #987: neither interface's header shows the product and version (Silinx ISE 15.12.0): the classic title bar the project
+// and its document, the modern header the logo and the project; the product and version the logo's tooltip and the
+// window's title
+uiTest('#987 the header: the project and its document, not the product and version, in the modern and classic interfaces', E, async (page) => {
+  const head = () => page.eval(() => ({ text: document.getElementById('titlebar').innerText.replace(/\s+/g, ' ').trim(),
+    logo: document.querySelector('#titlebar .app-logo').title, window: document.title }));
+  for (const look of ['Classic', 'Modern']) {
+    await subMenu(page, 'View', 'Interface', look);
+    await page.waitFor((l) => document.documentElement.dataset.ui === l, [look.toLowerCase()]);
+    const none = await head();
+    assert.doesNotMatch(none.text, /Silinx|\d+\.\d+\.\d+/, look);
+    assert.match(none.logo, /^Silinx ISE \S/, look);
+    assert.match(none.window, /^Silinx ISE \S.* Project Navigator$/, look);
+    if (look === 'Classic') assert.equal(none.text, 'S Project Navigator');
+  }
+  await makeProject(env, { name: 'HeadPj', template: 'gates' });
+  await page.openProject('HeadPj');
+  for (const look of ['Classic', 'Modern']) {
+    await subMenu(page, 'View', 'Interface', look);
+    await page.waitFor((l) => document.documentElement.dataset.ui === l, [look.toLowerCase()]);
+    const pj = await head();
+    assert.doesNotMatch(pj.text, /Silinx|\d+\.\d+\.\d+/, look);
+    assert.match(pj.window, /^HeadPj — Silinx ISE \S/, look);
+    assert.match(pj.text, look === 'Classic' ? /^S HeadPj - \[.+\]$/ : /^S HeadPj$/, look);
+  }
 }, O);
 
 uiTest('theme: follows the system, View ▸ Theme ▸ Dark / Light / System, header button; remembered', E, async (page) => {

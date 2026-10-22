@@ -92,7 +92,7 @@ uiTest('standalone edition (dist build): loads from file://, creates a project f
   assert.match(build?.commit || '', /^[0-9a-f]{7,}$/);
   assert.match(versionLabel(build), /^dev:[0-9a-f]{7,} \(\d{4}-\d\d-\d\d \d\d:\d\d\)$/);
   assert.equal(await page.eval(() => document.title), `Silinx ISE ${versionLabel(build)} Project Navigator`);
-  assert.equal(await page.eval(() => document.querySelector('.m-ver').textContent), versionLabel(build));
+  assert.equal(await page.eval(() => document.querySelector('#titlebar .app-logo').title), `Silinx ISE ${versionLabel(build)}`);   // (not in the header, #987)
   await page.waitConsole(/Browser edition: projects are stored in this browser/);
   // File menu: the bundle commands of the standalone edition
   const file = (await page.openMenu('File')).map((i) => i.label);

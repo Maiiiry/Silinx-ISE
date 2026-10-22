@@ -7,7 +7,6 @@
 html[data-layout="tasks"] #ws-empty { display: none !important; }
 
 /* ------------------------------------------------------------------ the task switcher */
-html[data-layout="tasks"] #title-brand { display: none; }
 html[data-layout="tasks"] #task-switch { display: flex; gap: 2px; padding: 3px; margin: 0 auto; flex: none;
   background: var(--m-surface-2); border: 1px solid var(--m-border); border-radius: 10px; }
 .task-btn { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border: none; border-radius: 7px;
