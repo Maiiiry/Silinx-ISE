@@ -75,7 +75,7 @@ uiTest('View ▸ Interface ▸ Tasks: the task switcher in the header, the task\
   }));
   assert.deepEqual(L, {
     ui: 'modern', stored: 'tasks', tasks: ['Edit', 'Simulate', 'Emulate', 'Implement', 'Program'], steps: 0,
-    bar: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)', 'Close', 'The model to simulate', 'Check'],   // (Close: a single document's, #854; the model: Simulate's, #800)
+    bar: ['Show or hide the side panel', 'Show or hide the messages', 'Maximize the document (double-click its tab)', 'Close', 'The test bench to simulate', "Open the test bench's source", 'The model to simulate', 'Check'],   // (Close: a single document's, #854; the test bench, #917, and the model, #800: Simulate's)
   });
   assert.ok(await shown(page, '#task-switch'));
   assert.ok(!(await shown(page, '#task-tabs')), 'the bottom tab bar: on a narrow screen only');
@@ -623,6 +623,60 @@ uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatev
   await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
   await page.waitFor(() => !document.documentElement.dataset.layout);
   assert.ok(await shown(page, '#left-tabs'));
+  await noWarnings(page);
+}, { build: DEV });
+
+// #917: Simulate chooses the test bench (or a design module), creates one with the wizard, opens its source: the tree is
+// Edit's. A project with no test bench: Simulate's page offers the wizard
+const AND2 = 'library ieee;\nuse ieee.std_logic_1164.all;\nentity and2 is\n  port (a, b : in std_logic; y : out std_logic);\nend and2;\n'
+  + 'architecture rtl of and2 is\nbegin\n  y <= a and b;\nend rtl;\n';
+uiTest('#917 Tasks ▸ Simulate: no test bench, the wizard from its page; the test bench chosen in the bar; its source opened', E, async (page) => {
+  await makeProject(env, { name: 'TasksBench', top: 'and2', files: { 'src/and2.vhd': AND2 } });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksBench');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  const bench = () => page.eval(() => { const s = document.getElementById('task-bench'); return { value: s.value, options: [...s.options].map((o) => [o.value, o.textContent, o.disabled]) }; });
+  // no test bench: said, and the wizard offered; the design module listed
+  await page.waitFor(() => !document.querySelector('#task-empty .task-empty-bench').hidden, [], { what: 'the wizard offered' });
+  assert.equal(await page.eval(() => document.querySelector('#task-empty p').textContent),
+    'The project has no test bench yet: create one with the wizard, or simulate the top with stimuli drawn in ISim.');
+  assert.deepEqual(await bench(), { value: 'and2', options: [['Design modules', 'Design modules', true], ['and2', 'and2', false], ['+new', 'New Test Bench (Wizard)…', false]] });
+  // the wizard: its test bench becomes the one Simulate runs
+  await page.click('#task-empty .task-empty-bench');
+  await page.waitDialog('Test Bench Wizard');
+  for (let k = 0; k < 4; k++) await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project.simTop === 'tb_and2', [], { what: 'the new test bench chosen' });
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.waitFor(() => document.getElementById('task-bench').value === 'tb_and2', [], { what: 'the choice' });
+  assert.deepEqual((await bench()).options.map(([v]) => v), ['Test Benches', 'tb_and2', 'Design modules', 'and2', '+new']);
+  assert.ok(await shown(page, '#task-empty') && !(await shown(page, '#task-empty .task-empty-bench')), 'a test bench: no offer');
+  // a design module chosen instead: the simulation top (as Set as Top Module in the Simulation view), Simulate runs it
+  await page.eval(() => { const s = document.getElementById('task-bench'); s.value = 'and2'; s.dispatchEvent(new Event('change')); });
+  await page.waitFor(() => window.Silinx.project.simTop === 'and2' && document.getElementById('task-bench').value === 'and2', [], { what: 'and2 chosen' });
+  await page.click('#task-bar [data-act="main"]');
+  await page.waitFor(() => document.querySelector('#task-doc .task-doc-mod')?.textContent === 'and2', [], { what: 'ISim of and2', timeout: 30000 });
+  // Edit: the chosen module's source, in Edit
+  await page.click('#task-bar .task-bench-edit');
+  await page.waitFor(() => window.Silinx.active?.id === 'file:src/and2.vhd' && document.documentElement.dataset.task === 'edit', [], { what: 'its source in Edit' });
+  // in Portuguese
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.querySelector('#task-bar .task-bench-edit').textContent === 'Editar', [], { what: 'Portuguese' });
+  assert.deepEqual((await bench()).options.map(([, t]) => t), ['Bancadas de Teste', 'tb_and2', 'Módulos do projeto', 'and2', 'Nova Bancada de Teste (Assistente)…']);
+  assert.equal(await page.eval(() => document.getElementById('task-bench').title), 'A bancada de teste a simular');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // the toolbar fits: a laptop, a tablet in either orientation
+  for (const [w, hgt] of [[1280, 800], [1180, 820], [820, 1180]]) {
+    await page.setViewport(w, hgt);
+    assert.deepEqual(await noOverflow(page), { page: true, over: [] }, `${w} px`);
+  }
+  await page.setViewport(1366, 768);
+  // not in the other tasks
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  assert.ok(!(await shown(page, '#task-bench')) && !(await shown(page, '#task-bar .task-bench-edit')));
   await noWarnings(page);
 }, { build: DEV });
 

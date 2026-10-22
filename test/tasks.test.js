@@ -87,6 +87,14 @@ test('#800 simTarget: Simulate runs the simulation top, else the first test benc
   assert.deepEqual(SIM.SIM_MODELS.map(([v]) => v), ['', 'postsynth', 'posttrans', 'postmap', 'postpar']);
 });
 
+test('#917 simChoices: the test benches, then the design\'s modules with the top first', () => {
+  const mods = [{ name: 'top', role: 'design' }, { name: 'knight', role: 'design' }, { name: 'tb_top', role: 'sim' }, { name: 'counter', role: 'design' }, { name: 'tb_a', role: 'sim' }];
+  assert.deepEqual(SIM.simChoices({ top: 'top' }, mods), { benches: ['tb_a', 'tb_top'], design: ['top', 'counter', 'knight'] });
+  assert.deepEqual(SIM.simChoices({ top: 'knight' }, mods).design, ['knight', 'counter', 'top']);
+  assert.deepEqual(SIM.simChoices(null, []), { benches: [], design: [] });
+  assert.equal(SIM.NEW_BENCH, '+new');
+});
+
 test('#801 boardZoom: as large as fits the room, at most 1.5, at least 0.3; nothing to measure: 1', () => {
   const board = { w: 700, h: 520 };
   assert.equal(EMU.boardZoom({ w: 1400, h: 1040 }, board), 1.5);                       // (a lab desktop: larger, not huge)

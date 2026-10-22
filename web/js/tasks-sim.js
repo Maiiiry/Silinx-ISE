@@ -4,7 +4,9 @@
 //   toolbar, right under the task's bar (web/css/tasks.css).
 // - Simulate runs the project's test bench whatever module is selected (simTarget), with the model chosen in the
 //   task's bar: Behavioral, or a netlist (Post-Synthesis … Post-Place & Route; web/js/viewers.js runSimulation).
-// simTarget has no DOM and is unit tested (test/tasks.test.js).
+// - The task's bar chooses the test bench (or a design module, simulated with stimuli drawn in ISim), makes a new one
+//   with the Test Bench Wizard, and opens the chosen one's source (#917): the design tree is Edit's.
+// simTarget and simChoices have no DOM and are unit tested (test/tasks.test.js).
 
 import { h } from './ui.js';
 
@@ -32,4 +34,55 @@ export async function simulate(app) {
   const model = document.getElementById('task-model')?.value || undefined;
   const { runSimulation } = await import('./viewers.js');   // (not at load: viewers.js loads the app)
   return runSimulation(mod, model);
+}
+
+/** The modules Simulate can run: the test benches, then the design's modules (its top first). */
+export function simChoices(project, modules = []) {
+  const benches = modules.filter(m => m.role === 'sim').map(m => m.name).sort((a, b) => a.localeCompare(b));
+  const design = modules.filter(m => m.role !== 'sim').map(m => m.name)
+    .sort((a, b) => (a === project?.top ? -1 : b === project?.top ? 1 : a.localeCompare(b)));
+  return { benches, design };
+}
+
+export const NEW_BENCH = '+new';
+/** The task's bar's choice of the test bench (shown in Simulate only; its options follow the project: refreshBench). */
+export function benchSelect(app) {
+  const sel = h('select', { id: 'task-bench', title: 'The test bench to simulate', 'aria-label': 'The test bench to simulate' });
+  sel.addEventListener('change', () => {
+    const v = sel.value;
+    sel.value = simTarget(app.S.project, app.S.modules) || '';   // (until the choice is made: a wizard may be cancelled)
+    if (v === NEW_BENCH) newBench(app);
+    else if (v) app.setTop(v, true).then(() => refreshBench(app));
+  });
+  return sel;
+}
+/** The test bench choice's options, and the one Simulate runs, as the project is now. */
+export function refreshBench(app) {
+  const sel = document.getElementById('task-bench');
+  if (!sel || !app?.S.project) return;
+  const { benches, design } = simChoices(app.S.project, app.S.modules);
+  const key = JSON.stringify([benches, design]);
+  if (sel.dataset.key !== key) {
+    sel.dataset.key = key;
+    sel.replaceChildren(
+      ...(benches.length ? [h('option', { disabled: true }, 'Test Benches'), ...benches.map(n => h('option', { value: n }, n))] : []),
+      h('option', { disabled: true }, 'Design modules'), ...design.map(n => h('option', { value: n }, n)),
+      h('option', { value: NEW_BENCH }, 'New Test Bench (Wizard)…'));
+    for (const o of sel.options) if (o.hasAttribute('value') && o.value !== NEW_BENCH) o.dataset.noI18n = '';   // (the modules' names)
+  }
+  sel.value = simTarget(app.S.project, app.S.modules) || '';
+}
+/** The Test Bench Wizard for the top module; the test bench it makes becomes the one Simulate runs. */
+export async function newBench(app) {
+  const before = new Set(simChoices(app.S.project, app.S.modules).benches);
+  const { testBenchWizard } = await import('./tbwizard.js');   // (not at load: it loads the app)
+  await testBenchWizard({ module: app.S.project.top });
+  const made = simChoices(app.S.project, app.S.modules).benches.find(n => !before.has(n));
+  if (made) await app.setTop(made, true);
+  refreshBench(app);
+}
+/** The source of the module Simulate runs, in Edit. */
+export function editBench(app) {
+  const m = app.S.modules.find(x => x.name === simTarget(app.S.project, app.S.modules));
+  if (m) app.openFile(m.file, m.line);
 }

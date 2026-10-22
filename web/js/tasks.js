@@ -27,7 +27,7 @@ import { h } from './ui.js';
 import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
 import { buildMessages, unbuildMessages, messagesTask, initMessages } from './messages.js';
-import { modelSelect, simTarget, simulate } from './tasks-sim.js';
+import { benchSelect, editBench, modelSelect, newBench, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
 import { arrangeProgram, initProgram } from './tasks-prog.js';
@@ -38,6 +38,7 @@ export const TASKS_KEY = 'silinx.tasks';
 // the design-flow button of the modern toolbar (web/js/menus.js, data-step) each task runs
 const STEP = { edit: 'check', sim: 'simulate', emu: 'emulate', impl: 'implement', prog: 'program' };
 const ACTION = { edit: 'Check', sim: 'Simulate', emu: 'Emulate', impl: 'Implement', prog: 'Program' };
+const NO_BENCH = 'The project has no test bench yet: create one with the wizard, or simulate the top with stimuli drawn in ISim.';
 const HINT = {
   edit: 'Open a source from the Design panel, or check the design.',
   sim: 'Simulate the design: its waves open here.',
@@ -152,6 +153,7 @@ function apply() {
   build();
   const t = current(), a = arr(t);
   if (t !== shownTask) { shownTask = t; messagesTask(t); if (t === 'impl' && app) showTopProcesses(app); }
+  if (t === 'sim') refreshBench(app);
   r.dataset.task = t;
   r.dataset.side = a.side ? 'open' : 'folded';
   r.dataset.console = a.console ? 'open' : 'folded';
@@ -204,7 +206,10 @@ function tagDocs() {
   if (empty) {
     empty.hidden = !on() || mine > 0;
     empty.querySelector('h2').textContent = TASK_LABEL[current()];
-    empty.querySelector('p').textContent = HINT[current()];
+    // (Simulate with no test bench yet: one to create, or the top simulated with stimuli drawn in ISim: #917)
+    const noBench = current() === 'sim' && !!app.S.project && !simChoices(app.S.project, app.S.modules).benches.length;
+    empty.querySelector('p').textContent = noBench ? NO_BENCH : HINT[current()];
+    empty.querySelector('.task-empty-bench').hidden = !noBench;
     empty.querySelector('.ico').innerHTML = ICON[current()];
     const go = empty.querySelector('button');
     go.textContent = ACTION[current()];
@@ -285,6 +290,8 @@ function build() {
     h('span', { id: 'task-doc', hidden: true },
       h('span', { class: 'task-doc-mod', 'data-no-i18n': true }), h('span', { class: 'task-doc-model' }),
       h('button', { class: 'tb-btn', type: 'button', 'data-act': 'close', title: 'Close', 'aria-label': 'Close', html: ICON.close })),
+    benchSelect(app),
+    h('button', { class: 'btn task-bench-edit', type: 'button', title: 'Open the test bench\'s source', onclick: () => editBench(app) }, 'Edit'),
     modelSelect(),
     Object.assign(h('button', { class: 'm-step task-main', type: 'button', 'data-act': 'main', onclick: runMain }, h('span', { class: 'ico-inline' }), h('span', { class: 'lbl' })),
       { _enabled: mainEnabled })));   // (disabled as its design-flow button: menus.js refreshSteps)
@@ -296,7 +303,8 @@ function build() {
     else if (act === 'close') { const d = document.getElementById('task-doc')._doc; if (d) app.closeDoc(d); }
   });
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
-    h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain })));
+    h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain }),
+    h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…')));
   buildMessages(app);
   app.renderHierarchy();   // (one tree, no views: #799)
   refreshDots();
@@ -357,6 +365,6 @@ export function initTasks(a) {
   // menu, the project's name)
   new ResizeObserver(() => fitHeader()).observe($('topbar'));
   new MutationObserver(() => fitHeader()).observe($('topbar'), { childList: true, subtree: true, characterData: true });
-  setInterval(() => { if (on()) { refreshDots(); const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled(); } }, 1000);
+  setInterval(() => { if (on()) { refreshDots(); if (current() === 'sim') { refreshBench(app); tagDocs(); } const g = document.querySelector('#task-empty button'); if (g) g.disabled = !mainEnabled(); } }, 1000);
   apply();
 }
