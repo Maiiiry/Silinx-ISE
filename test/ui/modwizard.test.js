@@ -1,12 +1,13 @@
-// UI: the beginner wizards of New Source. Module (Wizard): a sequential VHDL module with an
-// asynchronous reset, an enable and a bus, built with the quick-add buttons (a reserved word is
-// refused), opened in the editor and compiling; Schematic (Wizard): an empty port table (no suggested
+// UI: the beginner wizards of New Source (the Wizard button, #958). Module (HDL) ▸ Wizard: a sequential VHDL module
+// with an asynchronous reset, an enable and a bus, built with the quick-add buttons (a reserved word is
+// refused), opened in the editor and compiling; Schematic (Diagram) ▸ Wizard: an empty port table (no suggested
 // ports), the user's own ports added, edited and removed, the schematic opened with its markers placed
 // and its VHDL and Verilog with exactly those ports, or no ports at all; both wizards in Portuguese.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
 import { TEXTS, untranslated } from './i18n-check.js';
+import { newSourceWizardOf, pickSourceType, waitNewSourcePage } from './new-source-helpers.js';
 import { compile, elaborate } from '../../core/compile.js';
 import { generateHdl } from '../../core/schdoc.js';
 
@@ -15,19 +16,8 @@ before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
-// New Source ▸ <type>: the file name, Finish on page 1 opens the wizard `title`
-async function openWizard(page, type, name, title) {
-  await page.menu('Project', 'New Source…');
-  await page.waitDialog('New Source Wizard');
-  // the list: the new order, no VHDL Package
-  const types = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.lastChild.textContent.trim()));
-  assert.deepEqual(types, ['Truth Table', 'Module (HDL)', 'Module (Wizard)', 'Schematic (Diagram)', 'Schematic (Wizard)', 'State Machine (FSM)', 'State Machine (ASM)',
-    'Petri Net (Diagram)', 'Petri Net (Wizard)', 'Clocking Wizard', 'Block Memory', 'Test Bench (HDL)', 'Test Bench (Wizard)', 'Implementation Constraints File', 'Memory Initialization File (.mem)']);
-  await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === t); r.scrollIntoView(); r.click(); }, type);
-  await page.dialogButton('Finish');
-  await page.waitDialog(title);
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
-}
+// New Source ▸ <type>, the file name, Wizard (#958): the wizard `title` opens with that name (the list: new-source.test.js)
+const openWizard = (page, type, name, title) => newSourceWizardOf(page, type, name, title);
 const next = async (page, title) => {
   await page.dialogButton(title === null ? 'Finish' : 'Next >');
   if (title) await page.waitFor((t) => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === t, [title], { what: `wizard page ${title}` });
@@ -37,10 +27,10 @@ const quick = (page, port) => page.click(`.dlg-overlay .mw-qa[data-port=${port}]
 const UNWIRED = ['sw', 'led', 'data'].map((n) => `I/O marker '${n}' is not connected`);
 const errText = (page) => page.eval(() => document.querySelector('.dlg-overlay .wiz-main').nextElementSibling.textContent);
 
-uiTest('Module (Wizard): sequential VHDL module, asynchronous reset, enable and a bus; reserved word refused; opened and compiling', E, async (page) => {
+uiTest('Module (HDL) ▸ Wizard: sequential VHDL module, asynchronous reset, enable and a bus; reserved word refused; opened and compiling', E, async (page) => {
   await makeProject(env, { name: 'MwPj' });
   await page.openProject('MwPj');
-  await openWizard(page, 'Module (Wizard)', 'counter8', 'Module Wizard');
+  await openWizard(page, 'Module (HDL)', 'counter8', 'Module Wizard');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .mw-name').value), 'counter8');
   await page.fill('.dlg-overlay .wiz-main select', 'vhdl');
   await page.fill('.dlg-overlay .mw-desc', 'An 8-bit counter.\nCounts when enable is 1.');
@@ -93,10 +83,10 @@ const hdlOf = (doc, lang) => {
 const ED = '.dlg-overlay';
 const portRows = (page) => page.eval((s) => [...document.querySelectorAll(`${s} .mw-pname`)].map((e, k) => `${e.value}:${document.querySelectorAll(`${s} .mw-pdir`)[k].value}:${document.querySelectorAll(`${s} .mw-pwidth`)[k].value}`), ED);
 
-uiTest('Schematic (Wizard): the port table starts empty (no suggested ports); the ports the user adds, edits and removes are the schematic\'s and its VHDL and Verilog ports (#950)', E, async (page) => {
+uiTest('Schematic (Diagram) ▸ Wizard: the port table starts empty (no suggested ports); the ports the user adds, edits and removes are the schematic\'s and its VHDL and Verilog ports (#950)', E, async (page) => {
   await makeProject(env, { name: 'SwPj' });
   await page.openProject('SwPj');
-  await openWizard(page, 'Schematic (Wizard)', 'board_io', 'Schematic Wizard');
+  await openWizard(page, 'Schematic (Diagram)', 'board_io', 'Schematic Wizard');
   await page.fill('.dlg-overlay .wiz-main select', 'verilog');
   await page.fill('.dlg-overlay .mw-desc', 'Switches to LEDs.');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .mw-file').textContent), 'src/board_io.sch.json');
@@ -147,10 +137,10 @@ uiTest('Schematic (Wizard): the port table starts empty (no suggested ports); th
   }
 });
 
-uiTest('Schematic (Wizard): finishing with no ports makes a schematic with no I/O markers and an HDL module with no ports (#950)', E, async (page) => {
+uiTest('Schematic (Diagram) ▸ Wizard: finishing with no ports makes a schematic with no I/O markers and an HDL module with no ports (#950)', E, async (page) => {
   await makeProject(env, { name: 'SwNone' });
   await page.openProject('SwNone');
-  await openWizard(page, 'Schematic (Wizard)', 'empty_sch', 'Schematic Wizard');
+  await openWizard(page, 'Schematic (Diagram)', 'empty_sch', 'Schematic Wizard');
   await page.fill('.dlg-overlay .wiz-main select', 'vhdl');
   await next(page, 'Inputs and Outputs');
   // a port added and removed again: back to the empty table
@@ -185,16 +175,21 @@ uiTest('Portuguese: the New Source list and every page of the Module and Schemat
     for (const s of untranslated(en, pt, [/^(clk|reset|enable|q|y|sw|led|p\d+|N)$/, /^\(none\)$/])) missing.push(`${where}: ${s}`);
     await setLang('en');
   };
-  for (const [type, title, pages] of [['Module (Wizard)', 'Module Wizard', 4], ['Schematic (Wizard)', 'Schematic Wizard', 3]]) {
+  for (const [type, title, pages] of [['Module (HDL)', 'Module Wizard', 4], ['Schematic (Diagram)', 'Schematic Wizard', 3]]) {
     await page.menu('Project', 'New Source…');
     await page.waitDialog('New Source Wizard');
     await setLang('pt');
     const list = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.lastChild.textContent.trim()));
-    for (const s of ['Módulo (HDL)', 'Módulo (Assistente)', 'Esquemático (Diagrama)', 'Esquemático (Assistente)']) assert.ok(list.includes(s), `${s} in ${list}`);
+    for (const s of ['Módulo (HDL)', 'Esquemático (Diagrama)']) assert.ok(list.includes(s), `${s} in ${list}`);
+    assert.ok(!list.some((s) => /Assistente/.test(s)), `no wizard type in ${list}`);
     await setLang('en');
     await compare('New Source');
-    await page.eval((t) => { [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === t).click(); }, type);
-    await page.dialogButton('Finish');
+    await pickSourceType(page, type);
+    await page.dialogButton('Next >');
+    await waitNewSourcePage(page, 'File Name and Location');
+    await page.fill('.dlg-overlay .wiz-main input[type=text]', 'pt_mod');
+    await compare('New Source page 2');   // (the Wizard button too)
+    await page.dialogButton('Wizard');
     await page.waitDialog(title);
     await page.fill('.dlg-overlay .wiz-main input[type=text]', 'pt_mod');
     for (let k = 0; k < pages; k++) {
@@ -230,7 +225,7 @@ uiTest('Portuguese: the New Source list and every page of the Module and Schemat
   assert.deepEqual(missing, [], `untranslated:\n${missing.join('\n')}`);
 });
 
-uiTest('New Source: page 1 is only the type; the file name and the location on the next page (or on the wizard\'s own page, with its Location)', E, async (page) => {
+uiTest('New Source: page 1 is only the type; the file name and the location on the next page (Wizard: the wizard\'s own page, with them, #958)', E, async (page) => {
   await makeProject(env, { name: 'NsPages', top: '' });
   await page.openProject('NsPages');
   await page.menu('Project', 'New Source…');
@@ -252,13 +247,17 @@ uiTest('New Source: page 1 is only the type; the file name and the location on t
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'data', { index: 1 });
   await page.dialogButton('Next >');
   await page.waitFor(() => /Source Directory: data[\s\S]*Source Name: rom\.mem/.test(document.querySelector('.dlg-overlay .code-box')?.textContent || ''), [], { what: 'the summary' });
-  // back to page 1, another type: a wizard (Finish), with its own name and location
+  // back to page 1, another type: Wizard on page 2 opens its wizard with the name and the location typed (#958)
   await page.dialogButton('< Back');
   await page.dialogButton('< Back');
-  await pick('Module (Wizard)');
-  await page.dialogButton('Finish');
+  await pick('Module (HDL)');
+  await page.dialogButton('Next >');
+  await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === 'File Name and Location');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'lib', { index: 1 });
+  await page.dialogButton('Wizard');
   await page.waitDialog('Module Wizard');
   assert.deepEqual(await labels(), ['Module name:', 'Language:', 'Architecture name:', 'Location:', 'File:']);
+  assert.deepEqual(await page.eval(() => ['.mw-name', '.mw-loc'].map((s) => document.querySelector(`.dlg-overlay ${s}`).value)), ['rom', 'lib']);
   await page.fill('.dlg-overlay .mw-name', 'blk');
   await page.fill('.dlg-overlay .mw-loc', 'rtl');
   await page.waitFor(() => document.querySelector('.dlg-overlay .mw-file').textContent === 'rtl/blk.vhd', [], { what: 'the file in rtl' });

@@ -1,4 +1,4 @@
-// The Clocking Wizard (#793), New Source ▸ 'Clocking Wizard': a module with the target device's clock manager for
+// The Clocking Wizard (#793), New Source ▸ 'Clock Manager (DCM / PLL)' ▸ Wizard (#958): a module with the target device's clock manager for
 // the frequencies asked, a DCM_SP on Spartan-3E, a PLL_BASE on Spartan-6 (core/clocking.js). The pages: the name,
 // language and location -> the input clock (the board's oscillator by default; the input from a pin, the reset,
 // LOCKED, on Spartan-3E the input divided by 2 and a fixed phase shift) -> the outputs (each with the frequency it
@@ -37,13 +37,13 @@ function defaultSpec(family, fin, lang) {
  * The wizard: a new module (location, lang), or the module of `path` again (spec: its settings, from its header).
  * Returns the path written, or undefined when cancelled.
  */
-export async function clockWizard({ location = 'src', lang = null, path: editPath = null, spec: old = null } = {}) {
+export async function clockWizard({ name = '', location = 'src', lang = null, path: editPath = null, spec: old = null } = {}) {
   if (!S.project) return;
   const pj = S.project;
   const family = old?.family || pj.device.family;
   if (!FAMILY_PRIM[family]) return alertDlg('Clocking Wizard', 'The Clocking Wizard makes a DCM for the Spartan-3E and a PLL for the Spartan-6: choose one of them as the target device (Design Properties).', 'error');
   if (old && old.family !== pj.device.family) {
-    return alertDlg('Clocking Wizard', `${editPath} was made for another family of devices than the project's: create a new one with New Source ▸ Clocking Wizard.`, 'error');
+    return alertDlg('Clocking Wizard', `${editPath} was made for another family of devices than the project's: create a new one with New Source ▸ Clock Manager (DCM / PLL) ▸ Wizard.`, 'error');
   }
   const part = S.devices?.parts?.find(p => p.part === pj.device.part) || null;
   const res = family === 'spartan6' ? 'pll' : 'dcm';
@@ -51,6 +51,7 @@ export async function clockWizard({ location = 'src', lang = null, path: editPat
   const { mhz: oscMHz, board } = boardMHz();
   const L = lang || (pj.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl');
   const spec = structuredClone(old || defaultSpec(family, oscMHz, L));
+  if (!old && name) spec.name = name;   // the file name typed in New Source (#958)
   spec.speed = pj.device.speed;
   const guard = replaceGuard('Clocking Wizard');
   // ------------------------------------------------------------ page 1: name, language, location

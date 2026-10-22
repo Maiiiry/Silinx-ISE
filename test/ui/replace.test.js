@@ -58,10 +58,11 @@ uiTest('Test Bench Wizard and Module Wizard on an existing file: replace after c
   // Test Bench Wizard: tb_inv exists (defined in that same file): Yes replaces it
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  await pickType(page, 'Test Bench (Wizard)');
-  await page.dialogButton('Finish');
-  await page.waitDialog('Test Bench Wizard');
+  await pickType(page, 'Test Bench (HDL)');
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'tb_inv');
+  await page.dialogButton('Wizard');   // (#958)
+  await page.waitDialog('Test Bench Wizard');
   await page.dialogButton('Next >');
   await page.waitFor(() => document.querySelectorAll('.dlg-overlay').length === 2);
   assert.match(await topText(page), /sim\/tb_inv\.vhd already exists/);
@@ -79,10 +80,11 @@ uiTest('Test Bench Wizard and Module Wizard on an existing file: replace after c
   // Module Wizard: a module named inv lives in src/inv.vhd: a new file named inv2 with module inv is refused
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  await pickType(page, 'Module (Wizard)');
-  await page.dialogButton('Finish');
-  await page.waitDialog('Module Wizard');
+  await pickType(page, 'Module (HDL)');
+  await page.dialogButton('Next >');
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'inv');
+  await page.dialogButton('Wizard');   // (#958)
+  await page.waitDialog('Module Wizard');
   await page.dialogButton('Next >');
   // the same file (src/inv.vhd defines inv): the replace question
   await page.waitFor(() => document.querySelectorAll('.dlg-overlay').length === 2);

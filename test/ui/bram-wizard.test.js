@@ -1,4 +1,4 @@
-// UI: New Source ▸ Block Memory (#794). On a Basys2 project (XC3S250E, 12 RAMB16): width x depth, one port or two, the
+// UI: New Source ▸ Block Memory ▸ Wizard (#794, #958). On a Basys2 project (XC3S250E, 12 RAMB16): width x depth, one port or two, the
 // write mode, the block RAMs it takes against the device's (one that does not fit refused), its initial contents from
 // a .mem file of the project (a wrong file refused); the module written (the generator's own output for the file,
 // compiling and elaborating with no warning), the Design pane's [Block Memory] base, reopened by its process and
@@ -12,19 +12,15 @@ import { compile, elaborate } from '../../core/compile.js';
 import { primitiveSources } from '../../core/unisim.js';
 import { readWizardSpec } from '../../core/clocking.js';
 import { memoryModule, readInitFile } from '../../core/blockram.js';
+import { newSourceWizardOf } from './new-source-helpers.js';
 
 let env;
 before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
-async function openMemoryWizard(page) {
-  await page.menu('Project', 'New Source…');
-  await page.waitDialog('New Source Wizard');
-  await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === 'Block Memory'); r.scrollIntoView(); r.click(); });
-  await page.dialogButton('Finish');
-  await page.waitDialog('Block Memory');
-}
+// New Source ▸ Block Memory, the file name, Wizard (#958)
+const openMemoryWizard = (page, name = 'bram') => newSourceWizardOf(page, 'Block Memory', name, 'Block Memory');
 const pageTitle = (page) => page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent);
 const next = async (page, title) => {
   await page.dialogButton(title === null ? 'Finish' : 'Next >');

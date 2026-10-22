@@ -1,4 +1,4 @@
-// Beginner wizards of the New Source dialog (types 'Module (Wizard)' and 'Schematic (Wizard)'):
+// Beginner wizards of the New Source dialog (the Wizard button of the types 'Module (HDL)' and 'Schematic (Diagram)', #958):
 // Finish on the New Source page 1 (the type) opens one of these; they ask the name and the location.
 //
 //   moduleWizard:    name, language and description -> inputs, outputs and bidirectional (inout,
@@ -134,7 +134,7 @@ export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'ou
   return { node, render, check };
 }
 
-// ---------------------------------------------------------------- Module (Wizard)
+// ---------------------------------------------------------------- Module Wizard
 export async function moduleWizard({ name = '', location = 'src', lang = null } = {}) {
   const guard = replaceGuard('Module Wizard');
   if (!S.project) return;
@@ -290,7 +290,7 @@ export async function moduleWizard({ name = '', location = 'src', lang = null } 
   app.openFile(path);
 }
 
-// ---------------------------------------------------------------- Schematic (Wizard)
+// ---------------------------------------------------------------- Schematic Wizard
 export async function schematicWizard({ name = '', location = 'src', lang = null } = {}) {
   const guard = replaceGuard('Schematic Wizard');
   if (!S.project) return;

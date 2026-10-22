@@ -1,4 +1,4 @@
-// The Petri Net Wizard (#208), New Source ▸ 'Petri Net (Wizard)': the name, language and location ->
+// The Petri Net Wizard (#208), New Source ▸ 'Petri Net (Diagram)' ▸ Wizard (#958): the name, language and location ->
 // the inputs and outputs (the Schematic Wizard's table, inputs and outputs only), the clock and the
 // reset -> summary; it creates a .pn.json with those ports declared and no places yet, and opens it in
 // the Petri net editor. The pages: web/js/modwizard.js (namePage, portEditor).

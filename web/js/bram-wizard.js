@@ -1,4 +1,4 @@
-// The Block Memory wizard (#794), New Source ▸ 'Block Memory': a RAM or a ROM of the target device's block RAMs
+// The Block Memory wizard (#794), New Source ▸ 'Block Memory' ▸ Wizard (#958): a RAM or a ROM of the target device's block RAMs
 // (core/blockram.js). The pages: the name, language and location -> the memory (RAM or ROM, one port or two, width x
 // depth, the write mode, block RAM primitives or inferable HDL, its initial contents from a .mem / .coe file of the
 // project), with the block RAMs it takes against the device's (one that does not fit is refused) -> summary. It
@@ -41,17 +41,18 @@ async function contentsOf(spec) {
  * The wizard: a new module (location, lang), or the module of `path` again (spec: its settings, from its header).
  * Returns the path written, or undefined when cancelled.
  */
-export async function blockMemoryWizard({ location = 'src', lang = null, path: editPath = null, spec: old = null } = {}) {
+export async function blockMemoryWizard({ name = '', location = 'src', lang = null, path: editPath = null, spec: old = null } = {}) {
   if (!S.project) return;
   const pj = S.project;
   const family = old?.family || pj.device.family;
   if (!MEMORY_FAMILIES.includes(family)) return alertDlg('Block Memory', 'The Block Memory wizard makes block RAMs of the Spartan-3E and the Spartan-6: choose one of them as the target device (Design Properties).', 'error');
   if (old && old.family !== pj.device.family) {
-    return alertDlg('Block Memory', `${editPath} was made for another family of devices than the project's: create a new one with New Source ▸ Block Memory.`, 'error');
+    return alertDlg('Block Memory', `${editPath} was made for another family of devices than the project's: create a new one with New Source ▸ Block Memory ▸ Wizard.`, 'error');
   }
   const have = deviceBlocks(family);
   const L = lang || (pj.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl');
   const spec = structuredClone(old || { wizard: 'memory', version: 1, name: 'bram', lang: L, family, kind: 'ram', ports: 'single', width: 8, depth: 1024, writeMode: 'READ_FIRST', style: 'primitive', init: '' });
+  if (!old && name) spec.name = name;   // the file name typed in New Source (#958)
   const guard = replaceGuard('Block Memory');
   // a module changed by hand since the wizard wrote it (from the file's contents of then): said
   const edited = editPath && await (async () => (S.sources || []).find(s => s.path === editPath)?.text !== memoryModule(old, (await contentsOf(old)).words).code)();

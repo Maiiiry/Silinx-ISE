@@ -1,4 +1,4 @@
-// UI: New Source ▸ Clocking Wizard (#793). On a Basys2 project (Spartan-3E): the board's oscillator as the input,
+// UI: New Source ▸ Clock Manager (DCM / PLL) ▸ Wizard, the Clocking Wizard (#793, #958). On a Basys2 project (Spartan-3E): the board's oscillator as the input,
 // the outputs with the frequency each gets and the reachable ones near it (a click asks for one), the errors; the
 // module written (the generator's own output, compiling and elaborating with no warning), shown in the Design pane
 // with the wizard as its base, reopened by its badge, by a double-click and by its process with its settings, and
@@ -11,6 +11,7 @@ import { TEXTS, untranslated } from './i18n-check.js';
 import { compile, elaborate } from '../../core/compile.js';
 import { primitiveSources } from '../../core/unisim.js';
 import { clockModule, readWizardSpec } from '../../core/clocking.js';
+import { newSourceWizardOf } from './new-source-helpers.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -18,13 +19,8 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
 const DLG = '.dlg-overlay .wiz-main';
-async function openClockWizard(page) {
-  await page.menu('Project', 'New Source…');
-  await page.waitDialog('New Source Wizard');
-  await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === 'Clocking Wizard'); r.scrollIntoView(); r.click(); });
-  await page.dialogButton('Finish');
-  await page.waitDialog('Clocking Wizard');
-}
+// New Source ▸ Clock Manager (DCM / PLL), the file name, Wizard (#958)
+const openClockWizard = (page, name = 'clkgen') => newSourceWizardOf(page, 'Clock Manager (DCM / PLL)', name, 'Clocking Wizard');
 const pageTitle = (page) => page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent);
 const next = async (page, title) => {
   await page.dialogButton(title === null ? 'Finish' : 'Next >');

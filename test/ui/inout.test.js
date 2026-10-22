@@ -1,11 +1,12 @@
-// UI: bidirectional (inout, tri-state) ports in the beginner wizards. Module (Wizard): a module with
+// UI: bidirectional (inout, tri-state) ports in the beginner wizards. Module Wizard: a module with
 // inout ports (quick-add and a typed row), tri-state template written and compiling; Schematic
-// (Wizard): inout markers on the right edge, then the live simulation drives / releases them; Test
+// Wizard: inout markers on the right edge, then the live simulation drives / releases them; Test
 // Bench Wizard: a bidirectional register tested exhaustively (expected values from the design) and
 // with typed drive / release rows, TEST PASSED in ISim.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
+import { newSourceWizardOf } from './new-source-helpers.js';
 import { compile, elaborate } from '../../core/compile.js';
 
 let env;
@@ -13,15 +14,8 @@ before(async () => { env = await setupUi(); });
 after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
-// New Source ▸ <type>: the file name, Finish on page 1 opens the wizard `title`
-async function openWizard(page, type, name, title) {
-  await page.menu('Project', 'New Source…');
-  await page.waitDialog('New Source Wizard');
-  await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.lastChild.textContent.trim() === t); r.scrollIntoView(); r.click(); }, type);
-  await page.dialogButton('Finish');
-  await page.waitDialog(title);
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
-}
+// New Source ▸ <type>, the file name, Wizard (#958): the wizard `title` opens with that name
+const openWizard = (page, type, name, title) => newSourceWizardOf(page, type, name, title);
 const next = async (page, title) => {
   await page.dialogButton(title === null ? 'Finish' : 'Next >');
   if (title) await page.waitFor((t) => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === t, [title], { what: `wizard page ${title}` });
@@ -35,12 +29,12 @@ const noErrors = (text, lang, top) => {
   return d;
 };
 
-uiTest('Module (Wizard): bidirectional ports (quick-add data[7:0], a typed inout row), tri-state template, opened and compiling', E, async (page) => {
+uiTest('Module Wizard: bidirectional ports (quick-add data[7:0], a typed inout row), tri-state template, opened and compiling', E, async (page) => {
   await makeProject(env, { name: 'IoMw' });
   await page.openProject('IoMw');
   for (const lang of ['vhdl', 'verilog']) {
     const name = `busctl_${lang}`;
-    await openWizard(page, 'Module (Wizard)', name, 'Module Wizard');
+    await openWizard(page, 'Module (HDL)', name, 'Module Wizard');
     await page.fill('.dlg-overlay .wiz-main select', lang);
     await next(page, 'Inputs and Outputs');
     for (const p of ['a', 'data', 'y']) await quick(page, p);
@@ -75,10 +69,10 @@ uiTest('Module (Wizard): bidirectional ports (quick-add data[7:0], a typed inout
   }
 });
 
-uiTest('Schematic (Wizard): bidirectional markers on the right edge; live simulation drives and releases them', E, async (page) => {
+uiTest('Schematic Wizard: bidirectional markers on the right edge; live simulation drives and releases them', E, async (page) => {
   await makeProject(env, { name: 'IoSw' });
   await page.openProject('IoSw');
-  await openWizard(page, 'Schematic (Wizard)', 'bus_io', 'Schematic Wizard');
+  await openWizard(page, 'Schematic (Diagram)', 'bus_io', 'Schematic Wizard');
   await next(page, 'Inputs and Outputs');
   // the user's own rows (the Schematic Wizard suggests no ports, #950)
   for (const [k, [name, dir, width]] of [['sw', 'in', 4], ['led', 'out', 8], ['data', 'inout', 8], ['sda', 'inout', 1]].entries()) {
@@ -141,14 +135,7 @@ const BIREG_V = `module bireg(input clk, input we, input oe, inout [3:0] data, o
   assign q = r;
 endmodule
 `;
-const openTbw = async (page, name) => {
-  await page.menu('Project', 'New Source…');
-  await page.waitDialog('New Source Wizard');
-  await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => /^\s*Test Bench \(Wizard\)\s*$/.test(e.textContent)); r.scrollIntoView(); r.click(); });
-  await page.dialogButton('Finish');
-  await page.waitDialog('Test Bench Wizard');
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
-};
+const openTbw = (page, name) => newSourceWizardOf(page, 'Test Bench (HDL)', name, 'Test Bench Wizard');
 const simulateAll = async (page, tb) => {
   await page.click('input[name=view][value=sim]');
   await page.treeRow('#hier', tb);
