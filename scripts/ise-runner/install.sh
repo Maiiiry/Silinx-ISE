@@ -100,8 +100,10 @@ if [ "${1:-}" = --system ]; then
   $CHOWN -R root:wheel "$DEST"
   # the service's script, as svc.sh install makes it (svc.sh's own agent is not used)
   [ -f "$RUNNER_DIR/runsvc.sh" ] || { cp "$RUNNER_DIR/bin/runsvc.sh" "$RUNNER_DIR/runsvc.sh"; chmod 755 "$RUNNER_DIR/runsvc.sh"; }
+  # the PATH runsvc.sh exports to the runner (config.sh run with sudo leaves sudo's, without Docker's CLI, #904)
+  echo "$PATHS" > "$RUNNER_DIR/.path"
   mkdir -p "$RUNNER_DIR/_tmp" "$RUNNER_DIR/_diag"
-  $CHOWN "$RUSER" "$RUNNER_DIR/_tmp" "$RUNNER_DIR/_diag" "$RUNNER_DIR/runsvc.sh" "$ENVF"
+  $CHOWN "$RUSER" "$RUNNER_DIR/_tmp" "$RUNNER_DIR/_diag" "$RUNNER_DIR/runsvc.sh" "$RUNNER_DIR/.path" "$ENVF"
   {
     echo "ACTIONS_RUNNER_HOOK_JOB_STARTED=$DEST/job-started.sh"
     echo "TMPDIR=$RUNNER_DIR/_tmp"
