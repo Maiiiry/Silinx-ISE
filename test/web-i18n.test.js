@@ -160,7 +160,7 @@ test('the handwritten input (#1056): the texts of its modules and the recognizer
   // the literals of the dialog and the pad: texts of elements, messages, titles (besides the labels checked above)
   const missing = [];
   let n = 0;
-  for (const f of ['ink-dialog.js', 'ink-pad.js']) {
+  for (const f of ['ink-dialog.js', 'ink-pad.js', 'ink-table-dialog.js']) {
     const src = fs.readFileSync(path.join(WEB, f), 'utf8');
     for (const m of src.matchAll(/(?:\}, |textContent = |showMsg\(\[|return )(['"])((?:(?!\1).)*[a-z]{2}(?:(?!\1).)*)\1/g)) { n++; if (t(m[2]) === m[2]) missing.push(`${f}: ${m[2]}`); }
   }
@@ -176,11 +176,23 @@ test('the handwritten input (#1056): the texts of its modules and the recognizer
     'Expression: 1 to 6 inputs (it has 7).': 'Expressão: 1 a 6 entradas (tem 7).', "Expression: 'F-1' is not a valid output name.": "Expressão: 'F-1' não é um nome de saída válido.",
     "Expression: the output 'a' is also an input.": "Expressão: a saída 'a' é também uma entrada.", "Expression: unexpected '+' (at position 3)": "Expressão: unexpected '+' (at position 3)",
     'Handwritten…': 'Manuscrita…', 'Handwritten Expression': 'Expressão Manuscrita', 'Teach Silinx my handwriting': 'Ensinar ao Silinx a minha letra',
+    // the truth tables drawn by hand (#1066)
+    'Handwritten Table…': 'Tabela Manuscrita…', 'Header: two names over column 2 (A, B).': 'Cabeçalho: dois nomes sobre a coluna 2 (A, B).',
+    'Row 3, column 1: no value.': 'Linha 3, coluna 1: sem valor.', 'Row 3, column 1: 2 symbols.': 'Linha 3, coluna 1: 2 símbolos.',
+    'Column 3 has no name: out1.': 'A coluna 3 não tem nome: out1.', "Line 1: '1b' is not a name.": "Linha 1: '1b' não é um nome.",
+    "Line 1: 'A' is named twice.": "Linha 1: 'A' aparece duas vezes.", '1 to 6 inputs (the table has 7).': '1 a 6 entradas (a tabela tem 7).',
+    'Line 2: 2 values, 3 expected.': 'Linha 2: 2 valores, 3 esperados.', "Line 2: an input is 'X': only 0 or 1.": "Linha 2: uma entrada é 'X': só 0 ou 1.",
+    "Line 2: an output is '?': only 0, 1 or X.": "Linha 2: uma saída é '?': só 0, 1 ou X.", 'Lines 2 and 3: the inputs 01 with other outputs.': 'Linhas 2 e 3: as entradas 01 com outras saídas.',
+    'Line 3 repeats line 2.': 'A linha 3 repete a linha 2.', 'Not in the table: 00, 01 (their outputs are 0).': 'Fora da tabela: 00, 01 (as suas saídas são 0).',
+    'Not in the table: 0001, 0010 and 7 more (their outputs are 0).': 'Fora da tabela: 0001, 0010 e mais 7 (as suas saídas são 0).',
   };
   for (const [en, pt] of Object.entries(T)) assert.equal(t(en), pt, en);
   // the recognizer's own messages, as it writes them
   const { recognizeExpression, InkError } = await import('../core/ink/expression.js');
   assert.throws(() => recognizeExpression([]), (e) => e instanceof InkError && t(e.message) !== e.message);
+  const { readTable, tableFromText } = await import('../core/ink/table.js');
+  assert.throws(() => readTable([]), (e) => e instanceof InkError && t(e.message) !== e.message);
+  for (const text of ['', 'a b f', '| f', 'a |', 'a b | f\n1 1 | 1\n1 1 | 1']) for (const m of [...tableFromText(text).errors, ...tableFromText(text).warnings]) assert.notEqual(t(m), m, m);
 });
 
 test('ISim groups (#341): the menu items and the prompt are translated', () => {
