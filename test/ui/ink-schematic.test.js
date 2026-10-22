@@ -109,7 +109,7 @@ uiTest('Handwritten… (schematic): in Portuguese, a drawing that is not a circu
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), label, .hint')].map((e) => e.textContent.trim()), D);
     assert.deepEqual(labels, [
       'Desenhe o circuito com uma caneta, um dedo ou o rato: as portas (AND, OR, XOR, um triângulo para um buffer, um pequeno círculo na saída para NOT) maiores do que os nomes, as suas entradas à esquerda, fios em esquadria, e o nome de cada entrada e saída na ponta do seu fio.',
-      'Ajustar', 'Desfazer Traço', 'Limpar', 'Reconhecido:', 'Criar Esquemático', 'Cancelar',
+      'Ajustar', 'Anular', 'Refazer', 'Limpar', 'Reconhecido:', 'Criar Esquemático', 'Cancelar',
     ]);
     await page.dialogButton('Criar Esquemático');
     assert.equal(await message(page), 'Nada desenhado: desenhe o circuito na área de escrita.');

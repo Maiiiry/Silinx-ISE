@@ -1,7 +1,7 @@
 // UI: handwritten Boolean expressions (#1056). The New Source wizard's truth table made from an expression written
 // on the Handwritten Expression dialog's pad with the mouse, a finger and a pen (CDP input: pointer events of each
 // type), the table's inputs, output and column from it; the truth table editor's Handwritten…, with a stroke drawn by
-// page.touchDrag, filling the column of the output named; Undo Stroke, Clear, a hand resting on the screen while
+// page.touchDrag, filling the column of the output named; Undo, Redo (their keys too), Clear undone, a hand resting on the screen while
 // the pen writes (ignored); Teach Silinx my handwriting (a sample saved, used, forgotten); the dialog in Portuguese,
 // its warnings and its errors. The console's lines are asserted; no warnings.
 import { before, after } from 'node:test';
@@ -48,7 +48,7 @@ async function write(page, text, { kind = () => 'pen', seed = 3, bars = [] } = {
 }
 const waitText = (page, text) => page.waitFor((d, t) => document.querySelector(`${d} .ink-text`)?.value === t, [D, text], { what: `recognized '${text}'` });
 
-uiTest('Handwritten expressions: a truth table from the New Source wizard, the editor\'s column, Undo Stroke and Clear', E, async (page) => {
+uiTest('Handwritten expressions: a truth table from the New Source wizard, the editor\'s column, Undo, Redo and Clear', E, async (page) => {
   await page.eval(() => localStorage.removeItem('silinx.ink.samples'));
   await makeProject(env, { name: 'Ink', files: {} });
   await page.openProject('Ink');
@@ -86,15 +86,38 @@ uiTest('Handwritten expressions: a truth table from the New Source wizard, the e
   await stroke(page, [{ x: c.x + c.w - 40, y: c.y + 30 }, { x: c.x + c.w - 30, y: c.y + 120 }], 'touch');
   await page.eval(() => new Promise((r) => setTimeout(r, 400)));
   assert.equal(await recognized(page), "F = A·B' + C");
-  // a stroke more, undone; Clear empties the pad, a stroke written again
+  // a stroke more, undone, redone, undone by the keys (#1092)
+  const states = () => page.eval((d) => ['ink-undo', 'ink-redo', 'ink-clear'].map((k) => !document.querySelector(`${d} .${k}`).disabled), D);
+  assert.deepEqual(await states(), [true, false, true]);
   await stroke(page, [{ x: c.x + c.w - 60, y: c.y + 40 }, { x: c.x + c.w - 60, y: c.y + 110 }], 'pen');
-  await page.waitFor((d) => /^F = A·B' \+ C.+/.test(document.querySelector(`${d} .ink-text`).value), [D], { what: 'a character more' });
+  const more = await page.waitFor((d) => { const v = document.querySelector(`${d} .ink-text`).value; return /^F = A·B' \+ C.+/.test(v) && v; }, [D], { what: 'a character more' });
   await page.click(`${D} .ink-undo`);
   await waitText(page, "F = A·B' + C");
+  assert.deepEqual(await states(), [true, true, true]);
+  await page.click(`${D} .ink-redo`);
+  await waitText(page, more);
+  assert.deepEqual(await states(), [true, false, true]);
+  await page.key('z', { modifiers: 2 });
+  await waitText(page, "F = A·B' + C");
+  await page.key('y', { modifiers: 2 });
+  await waitText(page, more);
+  await page.key('z', { modifiers: 2 });
+  await waitText(page, "F = A·B' + C");
+  // Clear empties the pad; undone, the drawing is back; redone, gone again; a stroke written then: nothing to redo
   await page.click(`${D} .ink-clear`);
+  await waitText(page, '');
+  assert.deepEqual(await states(), [true, false, false]);
+  await page.click(`${D} .ink-undo`);
+  await waitText(page, "F = A·B' + C");
+  await page.click(`${D} .ink-redo`);
+  await waitText(page, '');
+  await page.click(`${D} .ink-undo`);
+  await waitText(page, "F = A·B' + C");
+  await page.click(`${D} .ink-redo`);
   await waitText(page, '');
   await write(page, text, { kind: () => 'pen' });
   await waitText(page, "F = A·B' + C");
+  assert.deepEqual(await states(), [true, false, true]);
   await page.dialogButton('Insert');
   await page.waitDialog('New Source Wizard');
   assert.equal(await page.eval(() => document.querySelector('.ns-tt-expr').value), "F = A·B' + C");
@@ -152,7 +175,7 @@ uiTest('Handwritten expressions: Teach Silinx my handwriting, and the dialog in 
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), summary, label, .hint')].map((e) => e.textContent.trim()).filter(Boolean), D);
     assert.deepEqual(labels, [
       "Escreva a expressão com uma caneta, um dedo ou o rato, p.ex. F = A·B' + C. Uma barra sobre letras é NOT; um ponto ou um * é AND.",
-      'Ajustar', 'Desfazer Traço', 'Limpar', 'Reconhecido:', 'Ensinar ao Silinx a minha letra',
+      'Ajustar', 'Anular', 'Refazer', 'Limpar', 'Reconhecido:', 'Ensinar ao Silinx a minha letra',
       'Escreva um símbolo na área de escrita, escreva-o aqui e guarde-o: o Silinx passa a ler também a sua maneira de o escrever. As amostras ficam só neste navegador.',
       'Símbolo:', 'Guardar Amostra', 'Esquecer as Minhas Amostras', 'Inserir', 'Cancelar',
     ]);

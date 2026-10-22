@@ -7,7 +7,7 @@
 //     check(result) -> an error message or null (the editor's own rules: reserved names...)
 // Styles: web/css/ink.css.
 import { h, dialog } from './ui.js';
-import { mountInkPad } from './ink-pad.js';
+import { mountInkPad, padButtons } from './ink-pad.js';
 import { inkTemplates } from './ink-dialog.js';
 import { readTable, tableFromText } from '/core/ink/table.js';
 import { InkError } from '/core/ink/segment.js';
@@ -47,9 +47,7 @@ export function handwrittenTable({ check = () => null, title = 'Handwritten Trut
   const body = h('div', { class: 'ink-dialog' },
     h('div', { class: 'hint' }, "Draw the truth table with a pen, a finger or the mouse: the names in a header, a line under it, a line between the inputs and the outputs, then a row of 0, 1 or X (don't care) for each combination."),
     padHost,
-    h('div', { class: 'ink-row' },
-      h('button', { type: 'button', class: 'btn ink-undo', onclick: () => pad.undo() }, 'Undo Stroke'),
-      h('button', { type: 'button', class: 'btn ink-clear', onclick: () => pad.clear() }, 'Clear')),
+    padButtons(pad),
     h('label', {}, 'Recognized:'), text, msg);
   return dialog({
     title, width: 'min(860px, 96vw)', body, className: 'ink-dlg',

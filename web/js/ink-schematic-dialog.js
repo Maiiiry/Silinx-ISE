@@ -8,7 +8,7 @@
 //     replaces: the schematic has a drawing already (the dialog says it is replaced, Undo bringing it back)
 // Styles: web/css/ink.css.
 import { h, dialog } from './ui.js';
-import { mountInkPad } from './ink-pad.js';
+import { mountInkPad, padButtons } from './ink-pad.js';
 import { inkTemplates } from './ink-dialog.js';
 import { readSchematic, circuitErrors, gateName } from '/core/ink/schematic.js';
 import { schematicFromCircuit } from '/core/ink/schematic-doc.js';
@@ -67,9 +67,7 @@ export function handwrittenSchematic({ name = 'schematic', lang = 'vhdl', replac
       ...(replaces ? [h('div', { class: 'hint ink-replaces' }, 'The schematic drawn replaces the one in the editor (Undo brings it back).')] : []),
       padHost),
     h('div', { class: 'ink-side' },
-      h('div', { class: 'ink-row' },
-        h('button', { type: 'button', class: 'btn ink-undo', onclick: () => pad.undo() }, 'Undo Stroke'),
-        h('button', { type: 'button', class: 'btn ink-clear', onclick: () => pad.clear() }, 'Clear')),
+      padButtons(pad),
       h('label', {}, 'Recognized:'), list, msg));
   return dialog({
     title, width: '100vw', body, className: 'ink-dlg ink-full',
