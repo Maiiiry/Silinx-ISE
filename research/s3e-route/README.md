@@ -1022,6 +1022,12 @@ end on another one, register replication placing again after a different routing
 | routings that take a new splitter | 8 (vtr-diffeq1: 33 and 19 of them; picorv32, secworks-sha1, itc99-b15: 1-2) |
 | the most changed | vtr-ch-intrinsics s1 −4.1 %, fpu-adder s1 −3.8 %, secworks-sha1 s1 +4.0 % |
 
+ISE on the 8 routings that take a new splitter, and on main's of the same designs (`scripts/check-open-flow.mjs`,
+SILINX_KEEP=1): all 16 byte-identical to ISE's bitgen (CRC on and off), DRC 0 errors (picorv32's one warning, its gated
+clock, on both). By ISE's trce, against main's: +0.74 % in geometric mean (vtr-diffeq1, 33 and 21 CLKV_LL splitters:
+−0.3 / −0.5 %; itc99-b15 −0.6 / +1.4 %; picorv32 +1.7 / +0.6 %; secworks-sha1 +2.2 / +1.5 %, which take one or two). The
+splitters taken are all CLKV_LL's; where one or two are, the rest of the routing changed more than they did.
+
 Within the noise of a router change (±0.2 % in geometric mean, ±2-5 % per routing): the routes change even where no
 splitter is taken (the search sees them), and a design that crosses the centre on a long line is rare. The splitters
 are there for completeness (ISE's own routings of the XC3S1200E are now byte-identical) more than for speed.
