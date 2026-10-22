@@ -44,17 +44,14 @@ export async function newSourceWizard({ type } = {}) {
   const fname = h('input', { type: 'text', placeholder: 'file name' });
   const loc = h('input', { type: 'text', value: st.dir });
   const list = h('div', { class: 'src-types' });
+  let refresh = () => {};   // the wizard's steps and buttons for the type now (bound by the wizard)
   const renderList = () => {
     list.innerHTML = '';
     for (const t of shown()) {
       const row = h('div', { class: `st${t === st ? ' sel' : ''}` }, icon(t.ico), t.label);
-      row.addEventListener('click', () => {
-        st = t; loc.value = t.dir; renderList();
-        // the number of pages depends on the type
-        const btn = [...(list.closest('.dlg')?.querySelectorAll('.dlg-buttons .btn') || [])].find(b => b.classList.contains('primary'));
-        if (btn) btn.textContent = pages().length === 1 ? 'Finish' : 'Next >';
-      });
-      row.addEventListener('dblclick', () => { st = t; document.querySelector('.dlg .btn.primary')?.click(); });
+      // the pages, the steps and the buttons follow the type (their number depends on it)
+      row.addEventListener('click', () => { st = t; loc.value = t.dir; renderList(); refresh(); });
+      row.addEventListener('dblclick', () => { st = t; refresh(); list.closest('.dlg')?.querySelector('.dlg-buttons .btn.primary')?.click(); });
       list.append(row);
     }
   };
@@ -71,12 +68,13 @@ export async function newSourceWizard({ type } = {}) {
     if (!/^[A-Za-z0-9_/-]+$/.test(loc.value.trim())) return 'Invalid location.';
     return null;
   };
+  const typeShown = h('span');   // (the page is drawn once: the type set on show)
   const pFile = {
     title: 'File Name and Location',
     render: () => h('div', {},
-      h('div', { class: 'form-grid' }, ...field('Source type:', h('span', {}, st.label)), ...field('File name:', fname), ...field('Location:', loc)),
+      h('div', { class: 'form-grid' }, ...field('Source type:', typeShown), ...field('File name:', fname), ...field('Location:', loc)),
       h('label', { style: { display: 'block', marginTop: '12px' } }, h('input', { type: 'checkbox', checked: true, disabled: true }), ' Add to project')),
-    onShow: () => setTimeout(() => fname.focus(), 0),
+    onShow: () => { typeShown.textContent = st.label; setTimeout(() => fname.focus(), 0); },
     noNext: () => !!st.only,   // a wizard-only type: Wizard
     validate: async () => {
       const n = nameOf();
@@ -188,15 +186,12 @@ export async function newSourceWizard({ type } = {}) {
     if (st.only) return [p1, pFile];   // the wizard only: Wizard on the File Name page
     return [p1, pFile, pSum];
   };
-  // The wizard driver takes a fixed page list; rebuild when the type changes on page 1.
-  const dyn = [p1, pFile, { title: 'Options', render: () => h('div') }, pSum];
-  const proxy = new Proxy(dyn, { get: (t, k) => (k === 'length' ? pages().length : (typeof k === 'string' && /^\d+$/.test(k) ? pages()[+k] : t[k])) });
   pSum.validate = () => {   // the language (extension) may have changed after page 1
     const nn = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
     return guard(`${loc.value.trim().replace(/\/+$/, '')}/${nn}${extOf(st)}`);
   };
-  const ok = await wizard('New Source Wizard', proxy, {
-    width: 760,
+  const ok = await wizard('New Source Wizard', pages, {
+    width: 760, bind: r => { refresh = r; },
     extra: { label: 'Wizard', value: 'wizard', shown: p => p === pFile, disabled: () => !st.wiz, validate: fileError },
   });
   if (!ok) return;
