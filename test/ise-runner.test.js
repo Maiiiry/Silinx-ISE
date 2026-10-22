@@ -317,6 +317,31 @@ test('window: the runs read from GitHub\'s API (both workflows only, the window\
   assert.equal(asked.length, 7, 'a tick makes 7 requests: 28 an hour, under the 60 without a token');
   assert.ok(asked.every(u => u.startsWith(`https://api.github.com/repos/${REPO}/actions/`)));
   assert.ok(asked.includes(`https://api.github.com/repos/${REPO}/actions/workflows/quality.yml/runs?status=completed&created=%3E%3D2026-10-20T20:15:00Z&per_page=1`));
+  // a window opened by the schedule counts its scheduled runs only (#901)
+  asked.length = 0;
+  await runs(Date.UTC(2026, 9, 20, 20, 15), fetchJson, true);
+  assert.ok(asked.includes(`https://api.github.com/repos/${REPO}/actions/workflows/ise.yml/runs?status=completed&created=%3E%3D2026-10-20T20:15:00Z&event=schedule&per_page=1`));
+  assert.equal(asked.filter(u => u.includes('event=schedule')).length, 2);
+});
+
+test('window: a run by hand does not close the evening\'s window before its scheduled run (#901)', async () => {
+  // the GitHub API as on 2026-10-21: a run of ise.yml by hand finished in the window, the scheduled one not yet
+  const fetchJson = async url => {
+    if (url.includes('/actions/runs?status=')) return { workflow_runs: [] };
+    if (url.includes('/workflows/ise.yml/')) return { total_count: url.includes('event=schedule') ? 0 : 1 };
+    return { total_count: 0 };
+  };
+  const tick = async st => {
+    const m = { logs: [], svc: [], st, now: () => at(21, 1, 4), readState: () => m.st, writeState: x => { m.st = x; },
+      running: () => true, busy: () => false, runs: (since, f, scheduled) => runs(since, fetchJson, scheduled),
+      service: a => m.svc.push(a), log: msg => m.logs.push(msg) };
+    return [await run('tick', m), m];
+  };
+  const [d] = await tick(state(at(20, 21, 15)));
+  assert.deepEqual([d.action, d.why], ['none', 'waiting for the runs']);
+  // opened by hand: the run by hand closes it, as before
+  const [h, m] = await tick({ opened: at(20, 22).getTime(), needs: 'any' });
+  assert.deepEqual([h.action, m.svc], ['stop', ['stop']]);
 });
 
 test('window: the commands, against a fake machine', async () => {
