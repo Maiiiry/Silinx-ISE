@@ -67,35 +67,45 @@ function devicePicker(db, device) {
   };
 }
 
-// Multi-page wizard driver. pages: [{ title, render() -> Node, validate?() -> string|null, noNext?() -> true: Next > disabled }]
+// Multi-page wizard driver. pages: [{ title, render() -> Node, validate?() -> string|null, noNext?() -> true: Next > disabled }],
+// or a function returning the pages now (they may change with a choice on a page: New Source's type). The steps on
+// the side and the buttons follow the pages now on every render; bind(refresh) hands the page that changes them a
+// way to show the change at once.
 // extra: a button before < Back on the pages it is shown on, closing the wizard with its value
 // ({ label, value, shown(page), disabled?(), validate?() -> string|null }; New Source's Wizard, #958)
-export function wizard(title, pages, { width = 720, finishLabel = 'Finish', extra = null } = {}) {
+export function wizard(title, pages, { width = 720, finishLabel = 'Finish', extra = null, bind = null } = {}) {
+  const now = typeof pages === 'function' ? pages : () => pages;
   return new Promise(resolve => {
     let idx = 0;
-    const side = h('div', { class: 'wiz-side' }, h('div', { class: 'logo' }, 'Silinx'), ...pages.map(p => h('div', { class: 'step' }, p.title)));
+    const side = h('div', { class: 'wiz-side' });
     const main = h('div', { class: 'wiz-main' });
     const err = h('div', { style: { color: 'var(--danger)', minHeight: '16px', marginTop: '6px' } });
     const body = h('div', {}, h('div', { class: 'wiz' }, side, h('div', { style: { flex: 1, display: 'flex', flexDirection: 'column' } }, main, err)));
     let ctl;
+    // the steps and the buttons of the pages now
+    const refresh = () => {
+      const ps = now(), p = ps[idx];
+      side.replaceChildren(h('div', { class: 'logo' }, 'Silinx'), ...ps.map((q, i) => h('div', { class: `step${i === idx ? ' cur' : ''}` }, q.title)));
+      if (!ctl) return;
+      const k = extra ? 1 : 0;
+      if (extra) { const b = ctl.buttons[0].el; b.style.display = extra.shown(p) ? '' : 'none'; b.disabled = !!extra.disabled?.(); }
+      ctl.buttons[k].el.disabled = idx === 0;
+      ctl.buttons[k + 1].el.textContent = idx === ps.length - 1 ? finishLabel : 'Next >';
+      ctl.buttons[k + 1].el.disabled = !!p.noNext?.();
+    };
     const render = () => {
+      const p = now()[idx];
       main.innerHTML = '';
-      main.append(h('h3', {}, pages[idx].title), pages[idx].node ||= pages[idx].render());
-      pages[idx].onShow?.();
-      side.querySelectorAll('.step').forEach((s, i) => s.classList.toggle('cur', i === idx));
-      if (ctl) {
-        const k = extra ? 1 : 0;
-        if (extra) { const b = ctl.buttons[0].el; b.style.display = extra.shown(pages[idx]) ? '' : 'none'; b.disabled = !!extra.disabled?.(); }
-        ctl.buttons[k].el.disabled = idx === 0;
-        ctl.buttons[k + 1].el.textContent = idx === pages.length - 1 ? finishLabel : 'Next >';
-        ctl.buttons[k + 1].el.disabled = !!pages[idx].noNext?.();
-      }
+      main.append(h('h3', {}, p.title), p.node ||= p.render());
+      p.onShow?.();
+      refresh();
       err.textContent = '';
     };
+    bind?.(refresh);
     const next = async () => {
-      const msg = await pages[idx].validate?.();
+      const msg = await now()[idx].validate?.();
       if (msg) { err.textContent = msg; return false; }
-      if (idx === pages.length - 1) return true;
+      if (idx === now().length - 1) return true;
       idx++; render();
       return false;
     };
