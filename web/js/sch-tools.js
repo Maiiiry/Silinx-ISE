@@ -1,11 +1,12 @@
 // The schematic editor's tools (#405: out of mountSchEditor): the tool in use and its options (a net name, an I/O
-// marker's name and direction), a symbol placed, a wire drawn (routed square, its ends connecting, a short between two
-// named nets refused, #754), a net name attached to a wire, an I/O marker added; the points a wire can connect to.
+// marker's name and direction), a symbol placed, a wire drawn (routed square, nudged clear of other wires, pins and
+// bodies, #948, its ends connecting, a short between two named nets refused, #754), a net name attached to a wire, an I/O marker added; the points a wire can connect to.
 // mountTools(ctx) is called by mountSchEditor where this code was.
 import { SYMBOLS, defaultParams, symbolDef, symbolPins, rotSize, freePortName, normalizeDoc, parseNetName, splitWiresAt, renameNet, netShort,
 } from '/core/schdoc.js';
 import { h } from './dom.js';
 import { reservedError } from '/core/reserved.js';
+import { nudgeWire } from '/core/schpath.js';
 import { clone, snap, onSeg, segDist, cleanPts } from './sch-editor.js';
 
 /** { setTool, renderOpts, startPlace, placeAt, connPoints, pinNear, snapPoint, routeTo, finishWire, wireClick, netClick, ioClick } of a
@@ -91,7 +92,8 @@ export function mountTools(ctx) {
   }
   function finishWire() {
     if (!wireDraw()) return;
-    const pts = cleanPts(wireDraw().pts);
+    // (nudged onto a clear path where it would run along another wire, over a pin or through a body, #948)
+    const pts = nudgeWire(doc(), cleanPts(wireDraw().pts), { modules: modules() });
     set({ wireDraw: null });
     // the wire connects at its ends only (#678): an end on another wire's segment or bend splits that
     // wire there (a T-junction), unless it is on a pin or a marker (connected to that one); what the

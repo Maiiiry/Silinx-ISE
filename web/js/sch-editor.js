@@ -26,6 +26,7 @@ import { getLanguage, onLanguageChange } from './i18n.js';
 import { popupMenu, undoButton, linkModel, linkSnapshot, longPressMenu, twoFingerView, dialog } from './ui.js';
 import { panelToggle, PROPS_KEY, SYMBOLS_KEY } from './narrow.js';
 import { rerouteAfterMove, connectivity, placementClashes, connectionsKept } from '/core/schroute.js';
+import { untangleNew } from '/core/schpath.js';
 import { esc, h } from './dom.js';
 import { highlightHdl } from './highlight.js';
 import { copySchematic, pasteSchematic, clipEmpty } from '/core/schclip.js';
@@ -486,6 +487,8 @@ export function mountSchEditor(container, opts = {}) {
     const before = snapshot();
     edit(() => {
       const { ids } = pasteSchematic(doc, clip, { dx: d, dy: d });
+      // (its wires routed clear of what was there, #948)
+      try { untangleNew(JSON.parse(before), doc, { modules, prefer: ids.wires }); } catch (e) { console.error(e); }
       sel = new Set([...ids.symbols.map(id => `sym:${id}`), ...ids.wires.map(id => `wire:${id}`), ...ids.ports.map(id => `port:${id}`), ...ids.labels.map(id => `label:${id}`)]);
     });
     if (refusedShort(before, 'Pasting')) { undoStack.pop(); changed(); }
@@ -583,6 +586,8 @@ export function mountSchEditor(container, opts = {}) {
     for (const p of doc.ports) if (m.portIds.has(p.id) && !m.guard?.has(`port:${p.id}`)) free.push(p);
     const stretched = new Set([...m.wireIds, ...m.attach.map(a => a.id)]);
     splitWiresAt(doc, free, new Set(doc.wires.map(w => w.id).filter(id => !stretched.has(id))));
+    // a wire the move left on another wire, over a pin or through a body routed around them (#948)
+    try { untangleNew(JSON.parse(m.before), doc, { modules, prefer: [...stretched] }); } catch (e) { console.error(e); }
     doc = normalizeDoc(doc);
     if (refusedShort(m.before, 'The move')) return;
     if (keepConn && m.conn0) {
