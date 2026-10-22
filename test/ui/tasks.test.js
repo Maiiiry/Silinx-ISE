@@ -626,6 +626,68 @@ uiTest('#876 Tasks: the activity bar in Edit only; Implement\'s Processes whatev
   await noWarnings(page);
 }, { build: DEV });
 
+// #984: Edit's pages (Start, Design, Files, Libraries) are tabs at the top of its side panel, not a column of their own:
+// the open page's name shown, the others' their tooltip; folded, neither; on a narrow screen, the drawer's top row
+uiTest('#984 Tasks ▸ Edit: its pages are tabs at the top of the side panel; folded, none; the drawer\'s top row; Portuguese', E, async (page) => {
+  await makeProject(env, { name: 'TasksTabs', template: 'gates' });
+  await page.setViewport(1366, 768);
+  await tasksInterface(page);
+  await page.openProject('TasksTabs');
+  await page.click('#task-switch .task-btn[data-task="edit"]');
+  const T = () => page.eval(() => {
+    const r = (s) => document.querySelector(s).getBoundingClientRect();
+    const l = r('#left'), t = r('#left-tabs'), p = r('#left-pages');
+    return {
+      row: Math.round(t.left - l.left) === 0 && Math.round(t.width - l.width) === 0 && t.height <= 40 && Math.abs(p.top - t.bottom) < 1,
+      names: [...document.querySelectorAll('#left-tabs .tab')].filter((b) => b.querySelector('.tab-lbl').getBoundingClientRect().width > 1).map((b) => b.dataset.page),
+      titles: [...document.querySelectorAll('#left-tabs .tab')].map((b) => b.title),
+    };
+  });
+  assert.deepEqual(await T(), { row: true, names: ['design'], titles: ['Start', 'Design', 'Files', 'Libraries'] });
+  // (no column of its own: the hierarchy from the window's left edge)
+  assert.ok(await page.eval(() => document.querySelector('#hier').getBoundingClientRect().left) < 12);
+  await page.click('#left-tabs .tab[data-page="files"]');
+  assert.deepEqual((await T()).names, ['files']);
+  assert.ok(await shown(page, '#files-page'));
+  // folded: neither the tabs nor the pages; the document from the window's left edge
+  await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'folded');
+  assert.ok(!(await shown(page, '#left-tabs')) && !(await shown(page, '#left')));
+  assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4);
+  await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => document.documentElement.dataset.side === 'open');
+  assert.deepEqual((await T()).row, true);
+  // a narrow screen: the drawer, its tabs its top row; closed, nothing at the left
+  await page.setViewport(900, 700);
+  await page.waitFor(() => !document.documentElement.dataset.drawer || document.documentElement.dataset.drawer !== 'open'
+    || document.querySelector('#left-pages').getClientRects().length);
+  if (await page.eval(() => document.documentElement.dataset.drawer === 'open')) await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => document.documentElement.dataset.drawer !== 'open');
+  assert.ok(!(await shown(page, '#left-tabs')));
+  assert.ok(await page.eval(() => document.getElementById('workspace').getBoundingClientRect().left) < 4);
+  await page.click('#task-bar [data-act="side"]');
+  await page.waitFor(() => document.documentElement.dataset.drawer === 'open');
+  assert.deepEqual(await page.eval(() => {
+    const t = document.getElementById('left-tabs').getBoundingClientRect(), p = document.getElementById('left-pages').getBoundingClientRect();
+    return { left: Math.round(t.left), width: Math.round(t.width - p.width), below: Math.abs(p.top - t.bottom) < 1, pageLeft: Math.round(p.left) };
+  }), { left: 0, width: 0, below: true, pageLeft: 0 });
+  await page.click('#task-bar [data-act="side"]');
+  await page.setViewport(1366, 768);
+  // Portuguese: the tooltips
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  assert.deepEqual((await T()).titles, ['Início', 'Projeto', 'Ficheiros', 'Bibliotecas']);
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  // the modern interface: the activity bar as before, a column with every name, no tooltips
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.waitFor(() => !document.documentElement.dataset.layout);
+  assert.deepEqual(await page.eval(() => {
+    const tabs = [...document.querySelectorAll('#left-tabs .tab')];
+    return { width: Math.round(document.getElementById('left-tabs').getBoundingClientRect().width), titles: tabs.filter((b) => b.title).length,
+      names: tabs.filter((b) => b.querySelector('.tab-lbl').getBoundingClientRect().width > 1).length };
+  }), { width: 64, titles: 0, names: 4 });
+  await noWarnings(page);
+}, { build: DEV });
+
 // #917: Simulate chooses the test bench (or a design module), creates one with the wizard, opens its source: the tree is
 // Edit's. A project with no test bench: Simulate's page offers the wizard
 const AND2 = 'library ieee;\nuse ieee.std_logic_1164.all;\nentity and2 is\n  port (a, b : in std_logic; y : out std_logic);\nend and2;\n'

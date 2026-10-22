@@ -202,3 +202,26 @@ html[data-layout="tasks"]:is([data-task="sim"], [data-task="emu"], [data-task="p
 html[data-layout="tasks"][data-task="prog"] #task-bar [data-act="side"] { display: none; }
 html[data-layout="tasks"][data-task="impl"] .left-page[data-page="design"] { display: flex !important; }
 html[data-layout="tasks"][data-task="impl"] .left-page:not([data-page="design"]) { display: none !important; }
+
+/* ------------------------------------------------------------------ Edit's pages: tabs at the top of its side panel (#984) */
+/* no column of their own: a row above the hierarchy (the open page's icon and name, the others' icon, their name the
+   tooltip); folded, neither; on a narrow screen, the drawer's top row */
+html[data-layout="tasks"][data-task="edit"] #left { flex-direction: column; }
+html[data-layout="tasks"][data-task="edit"] #left-tabs { order: -1; flex: none; flex-direction: row; align-items: stretch; width: auto; height: 36px;
+  padding: 4px 6px; gap: 2px; border-right: none; border-bottom: 1px solid var(--m-border); }
+html[data-layout="tasks"][data-task="edit"] #left-tabs .tab { flex: 0 0 auto; flex-direction: row; gap: 6px; padding: 0 9px; }
+html[data-layout="tasks"][data-task="edit"] #left-tabs .tab.active { flex: 1 1 auto; justify-content: flex-start; }
+html[data-layout="tasks"][data-task="edit"] #left-tabs .tab-ico, html[data-layout="tasks"][data-task="edit"] #left-tabs .tab-ico svg { width: 17px; height: 17px; }
+html[data-layout="tasks"][data-task="edit"] #left-tabs .tab-lbl { max-width: none; font-size: 12px; }
+html[data-layout="tasks"][data-task="edit"] #left-tabs .tab:not(.active) .tab-lbl { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (min-width: 1025px) {
+  html[data-layout="tasks"][data-task="edit"][data-side="folded"] #left { display: none; }
+}
+@media (max-width: 1024px) {
+  html[data-layout="tasks"][data-task="edit"] #left { width: 0 !important; min-width: 0; }
+  html[data-layout="tasks"][data-task="edit"] #left-tabs { position: absolute; top: 0; left: 0; z-index: 1; width: min(344px, calc(100vw - 56px));
+    background: var(--m-surface-2); }
+  html[data-layout="tasks"][data-task="edit"] #left-pages { left: 0; top: 36px; width: min(344px, calc(100vw - 56px)); }
+  html[data-layout="tasks"][data-task="edit"]:not([data-drawer="open"]) #left-tabs { display: none; }
+  html[data-layout="tasks"][data-task="edit"] #drawer-scrim { left: 0; }
+}
