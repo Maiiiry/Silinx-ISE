@@ -15,31 +15,24 @@
 
 import { h, downloadText, undoButton, linkModel, linkSnapshot, twoFingerView } from './ui.js';
 import { panelToggle, PROPS_KEY } from './narrow.js';
-import {
-  normalizePetri, newPetri, validatePetri, generatePetri, initialMarking, enabledTransitions, fire, clockStep, isDeadlock,
-  outputsOf, toPnml, fromPnml, PLACE_R, TRANS_W, TRANS_H,
-} from '/core/petri.js';
-import { parseOutputs, formatOutputs } from '/core/fsm.js';
-import { analyzePetri } from '/core/petri-analysis.js';
+import { normalizePetri, newPetri, fire, toPnml, fromPnml } from '/core/petri.js';
 import { copyDrawing, pasteDrawing, drawingClipEmpty } from '/core/drawclip.js';
 import { writeClip, readClip, pasteFromKey, hasClip } from './clipboard.js';
+import { mountPetriSim } from './petri-sim.js';
+import { mountPetriSide } from './petri-side.js';
+import { mountPetriDraw } from './petri-draw.js';
 
 const SVGNS = 'http://www.w3.org/2000/svg';
 const GRID = 20;
 let instances = 0;
 const clone = o => JSON.parse(JSON.stringify(o));
 const snap = v => Math.round(v / (GRID / 2)) * (GRID / 2);
-const sv = (tag, attrs = {}, ...kids) => {
+export const sv = (tag, attrs = {}, ...kids) => {
   const el = document.createElementNS(SVGNS, tag);
   for (const [k, v] of Object.entries(attrs)) if (v != null && v !== false) el.setAttribute(k, v);
   for (const c of kids) if (c != null) el.append(c instanceof Node ? c : document.createTextNode(String(c)));
   return el;
 };
-const ioText = list => list.map(p => (p.width > 1 ? `${p.name}[${p.width}]` : p.name)).join(', ');
-const parseIo = text => String(text || '').split(/[,;\s]+/).map(s => s.trim()).filter(Boolean).map(s => {
-  const m = /^([A-Za-z][A-Za-z0-9_]*)(?:\[(\d+)\])?$/.exec(s);
-  return m ? { name: m[1], width: Math.max(1, Math.min(32, +(m[2] || 1))) } : null;
-}).filter(Boolean);
 
 export function mountPetriEditor(container, opts = {}) {
   const uid = `pn${++instances}`;
@@ -191,267 +184,26 @@ export function mountPetriEditor(container, opts = {}) {
     root.focus({ preventScroll: true });
   }
 
-  // ---------------------------------------------------------------- drawing
-  const toWorld = (cx, cy) => { const r = svg.getBoundingClientRect(); return { x: (cx - r.left - view.tx) / view.k, y: (cy - r.top - view.ty) / view.k }; };
-  const applyView = () => world.setAttribute('transform', `translate(${view.tx},${view.ty}) scale(${view.k})`);
-  /** Where an arc meets a node: the rim of a place, the edge of a transition's bar. */
-  function rim(n, toward) {
-    const dx = toward.x - n.x, dy = toward.y - n.y, d = Math.hypot(dx, dy) || 1;
-    if (placeOf(n.id)) return { x: n.x + dx / d * PLACE_R, y: n.y + dy / d * PLACE_R };
-    const sx = Math.abs(dx) > 1e-6 ? (TRANS_W / 2 + 2) / Math.abs(dx) : Infinity, sy = Math.abs(dy) > 1e-6 ? (TRANS_H / 2 + 2) / Math.abs(dy) : Infinity;
-    const s = Math.min(sx, sy);
-    return { x: n.x + dx * s, y: n.y + dy * s };
-  }
-  function tokensSvg(p, k) {
-    const g = sv('g', { class: 'pn-tokens' });
-    if (k <= 0) return g;
-    if (k <= 5) {
-      const pos = [[[0, 0]], [[-6, 0], [6, 0]], [[-6, 5], [6, 5], [0, -6]], [[-6, -6], [6, -6], [-6, 6], [6, 6]], [[-8, -7], [8, -7], [0, 0], [-8, 7], [8, 7]]][k - 1];
-      for (const [x, y] of pos) g.append(sv('circle', { cx: p.x + x, cy: p.y + y, r: 3.6, class: 'pn-token' }));
-    } else g.append(sv('text', { x: p.x, y: p.y + 5, 'text-anchor': 'middle', class: 'pn-count' }, String(k)));
-    return g;
-  }
-  function render() {
-    if (destroyed) return;
-    applyView();
-    world.replaceChildren();
-    const marking = sim ? sim.marking : initialMarking(M);
-    const enabled = new Set(sim ? enabledTransitions(M, marking, null) : []);
-    const ready = new Set(sim ? enabledTransitions(M, marking, envOf()) : []);
-    const fired = new Set(sim ? sim.fired : []);
-    // arcs (under the nodes)
-    for (const a of M.arcs) {
-      const A = nodeOf(a.from), B = nodeOf(a.to);
-      if (!A || !B) continue;
-      const p1 = rim(A, B), p2 = rim(B, A);
-      const isSel = sel?.kind === 'arc' && sel.id === a.id;
-      const g = sv('g', { class: `pn-arc${isSel ? ' sel' : ''}${a.inhibitor ? ' inhibitor' : ''}`, 'data-kind': 'arc', 'data-id': a.id });
-      const end = a.inhibitor ? { x: p2.x - (p2.x - p1.x) / Math.hypot(p2.x - p1.x, p2.y - p1.y) * 5, y: p2.y - (p2.y - p1.y) / Math.hypot(p2.x - p1.x, p2.y - p1.y) * 5 } : p2;
-      g.append(sv('line', { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, class: 'pn-arc-hit' }), sv('line', { x1: p1.x, y1: p1.y, x2: end.x, y2: end.y, class: 'pn-arc-line', 'marker-end': a.inhibitor ? null : `url(#${uid}-arr)` }));
-      if (a.inhibitor) g.append(sv('circle', { cx: end.x, cy: end.y, r: 5, class: 'pn-inhib' }));
-      if (a.weight > 1) g.append(sv('text', { x: (p1.x + p2.x) / 2 + 6, y: (p1.y + p2.y) / 2 - 6, class: 'pn-weight' }, String(a.weight)));
-      world.append(g);
-    }
-    if (arcFrom && drag?.kind === 'arcdraw') {
-      const A = nodeOf(arcFrom);
-      if (A) world.append(sv('line', { x1: A.x, y1: A.y, x2: drag.x, y2: drag.y, class: 'pn-arc-line pn-ghost' }));
-    }
-    for (const p of M.places) {
-      const isSel = sel?.kind === 'place' && sel.id === p.id;
-      const g = sv('g', { class: `pn-place${isSel ? ' sel' : ''}${arcFrom === p.id ? ' from' : ''}`, 'data-kind': 'place', 'data-id': p.id });
-      g.append(sv('circle', { cx: p.x, cy: p.y, r: PLACE_R, class: 'pn-circle' }), tokensSvg(p, marking[p.id] || 0),
-        sv('text', { x: p.x, y: p.y + PLACE_R + 14, 'text-anchor': 'middle', class: 'pn-name' }, p.name));
-      if (p.capacity > 1) g.append(sv('text', { x: p.x + PLACE_R - 2, y: p.y - PLACE_R + 2, class: 'pn-cap' }, `k=${p.capacity}`));
-      const outs = formatOutputs(p.outputs);
-      if (outs) g.append(sv('text', { x: p.x, y: p.y + PLACE_R + 27, 'text-anchor': 'middle', class: 'pn-outs' }, outs));
-      world.append(g);
-    }
-    for (const t of M.transitions) {
-      const isSel = sel?.kind === 'transition' && sel.id === t.id;
-      const cls = sim ? (ready.has(t.id) ? ' ready' : enabled.has(t.id) ? ' enabled' : '') + (fired.has(t.id) ? ' fired' : '') : '';
-      const g = sv('g', { class: `pn-trans${isSel ? ' sel' : ''}${cls}${arcFrom === t.id ? ' from' : ''}`, 'data-kind': 'transition', 'data-id': t.id });
-      g.append(sv('rect', { x: t.x - TRANS_W / 2, y: t.y - TRANS_H / 2, width: TRANS_W, height: TRANS_H, class: 'pn-bar' }),
-        sv('text', { x: t.x + TRANS_W / 2 + 5, y: t.y - 6, class: 'pn-name' }, t.name));
-      const lbl = [t.guard ? `[${t.guard}]` : '', formatOutputs(t.outputs) ? `/ ${formatOutputs(t.outputs)}` : ''].filter(Boolean).join(' ');
-      if (lbl) g.append(sv('text', { x: t.x + TRANS_W / 2 + 5, y: t.y + 10, class: 'pn-guard' }, lbl));
-      world.append(g);
-    }
-    renderSide();
-    renderPanel();
-    undoBtn.disabled = hi <= 0; redoBtn.disabled = hi >= hist.length - 1; delBtn.disabled = !sel;
-    langSel.value = M.lang;
-    statusInfo.textContent = `${M.places.length} places · ${M.transitions.length} transitions · ${M.arcs.length} arcs`;
-    refreshLink();
-  }
-
-  // ---------------------------------------------------------------- side panel
-  const field = (label, input, hintText) => h('label', { class: 'asm-field' }, h('span', { class: 'asm-label' }, label), input, hintText ? h('span', { class: 'asm-fhint' }, hintText) : null);
-  const text = (value, onChange, cls = '') => { const i = h('input', { type: 'text', class: `asm-input ${cls}`, value: value ?? '', spellcheck: 'false' }); i.addEventListener('change', () => onChange(i.value)); return i; };
-  const number = (value, min, max, onChange) => { const i = h('input', { type: 'number', class: 'asm-input', value: String(value), min: String(min), max: String(max) }); i.addEventListener('change', () => onChange(Math.max(min, Math.min(max, Math.round(+i.value || min))))); return i; };
-  function renderSide() {
-    selSection.replaceChildren();
-    if (!sel) selSection.append(h('div', { class: 'asm-label' }, 'Nothing selected: click a place, a transition or an arc'));
-    else if (sel.kind === 'place') {
-      const p = placeOf(sel.id);
-      if (p) selSection.append(h('div', { class: 'asm-section-title' }, `Place ${p.name}`),
-        field('Name', text(p.name, v => { p.name = v.trim() || p.name; commit(); }, 'mono')),
-        field('Initial tokens', number(p.tokens, 0, 255, v => { p.tokens = v; p.capacity = Math.max(p.capacity, v); commit(); })),
-        field('Capacity', number(p.capacity, 1, 255, v => { p.capacity = v; p.tokens = Math.min(p.tokens, v); commit(); }), '1: a safe place (one flip-flop); more: a counter'),
-        field('Outputs while marked', text(formatOutputs(p.outputs), v => { const o = parseOutputs(v); if (o.error) status(o.error, true); else { p.outputs = o.outputs; commit(); } }, 'mono'), 'e.g. busy=1, st=2'));
-    } else if (sel.kind === 'transition') {
-      const t = transOf(sel.id);
-      const pos = M.transitions.indexOf(t);
-      const move = d => { const k = pos + d; if (k < 0 || k >= M.transitions.length) return; M.transitions.splice(pos, 1); M.transitions.splice(k, 0, t); commit(); };
-      if (t) selSection.append(h('div', { class: 'asm-section-title' }, `Transition ${t.name}`),
-        field('Name', text(t.name, v => { t.name = v.trim() || t.name; commit(); }, 'mono')),
-        field('Guard', text(t.guard, v => { t.guard = v.trim(); commit(); }, 'mono'), 'a condition on the inputs, e.g. go & !stop (empty: always)'),
-        field('Pulses when it fires', text(formatOutputs(t.outputs), v => { const o = parseOutputs(v); if (o.error) status(o.error, true); else { t.outputs = o.outputs; commit(); } }, 'mono'), '1 during the clock cycle after it fired'),
-        h('div', { class: 'asm-label' }, `Priority ${pos + 1} of ${M.transitions.length} (in a conflict, the first takes the tokens)`),
-        h('div', { class: 'asm-row' }, btn('▲ Higher', 'Fire before the others', () => move(-1), 'asm-small'), btn('▼ Lower', 'Fire after the others', () => move(1), 'asm-small')));
-    } else {
-      const a = M.arcs.find(x => x.id === sel.id);
-      if (a) selSection.append(h('div', { class: 'asm-section-title' }, `Arc ${nodeOf(a.from)?.name ?? '?'} → ${nodeOf(a.to)?.name ?? '?'}`),
-        field('Weight', number(a.weight, 1, 255, v => { a.weight = v; commit(); }), a.inhibitor ? 'the transition fires while the place holds fewer tokens than this' : placeOf(a.from) ? 'the tokens it takes' : 'the tokens it puts'),
-        ...(placeOf(a.from) ? [h('label', { class: 'asm-check' }, (() => { const c = h('input', { type: 'checkbox', checked: !!a.inhibitor }); c.addEventListener('change', () => { if (c.checked) a.inhibitor = true; else delete a.inhibitor; commit(); }); return c; })(), ' Inhibitor arc')] : []));
-    }
-    // the net
-    netBody.replaceChildren(
-      field('Module name', text(M.name, v => { M.name = v.trim() || M.name; commit(); }, 'mono')),
-      field('Inputs', text(ioText(M.inputs), v => { M.inputs = parseIo(v); commit(); }, 'mono'), 'names, a width in brackets: go, sel[2]'),
-      field('Outputs', text(ioText(M.outputs), v => { M.outputs = parseIo(v); commit(); }, 'mono'), 'e.g. busy, st[2]'),
-      field('Clock', text(M.clock, v => { M.clock = v.trim() || 'clk'; commit(); }, 'mono')),
-      field('Reset (synchronous, to the initial marking)', text(M.reset.name, v => { M.reset.name = v.trim() || 'rst'; commit(); }, 'mono')),
-      field('Description', (() => { const ta = h('textarea', { class: 'asm-input', rows: 2 }, M.description || ''); ta.addEventListener('change', () => { M.description = ta.value; commit(); }); return ta; })()));
-    // the problems
-    const diags = validatePetri(M);
-    probList.replaceChildren(...diags.map(d => {
-      const li = h('li', { class: `asm-prob ${d.severity}` }, d.message);
-      if (d.ref?.id) li.addEventListener('click', () => { sel = { kind: d.ref.kind, id: d.ref.id }; render(); });
-      return li;
-    }));
-    probCount.textContent = diags.length ? `(${diags.length})` : '';
-  }
-  function refreshLink() {
-    const li = opts.linkInfo?.();
-    linkHost.replaceChildren(...(li?.file ? [h('span', { class: 'gen-banner', title: `HDL: ${li.file.split('/').pop()} — generated from the net` }, 'HDL: ', (() => { const a = h('a', {}, li.file.split('/').pop()); a.addEventListener('click', () => opts.onOpenFile?.(li.file)); return a; })(), ' — generated from the net')] : []));
-  }
-
-  // ---------------------------------------------------------------- simulation and HDL panel
-  const envOf = () => Object.fromEntries(M.inputs.map(i => [i.name, BigInt(sim?.inputs[i.name] ?? 0)]));
-  function resetSim(rerender = true) {
-    if (sim?.timer) clearInterval(sim.timer);
-    sim = { marking: initialMarking(M), fired: [], inputs: sim?.inputs || {}, log: [], timer: null };
-    if (rerender) render();
-  }
-  function togglePanel(which) {
-    panel = panel === which ? null : which;
-    bottom.hidden = !panel;
-    for (const [k, b] of Object.entries(tabBtns)) b.classList.toggle('active', k === panel);
-    if (panel === 'sim' && !sim) resetSim(false);
-    if (panel !== 'sim' && sim) { if (sim.timer) clearInterval(sim.timer); sim = null; }
-    render();
-  }
-  const say = (msg) => { sim.log.unshift(msg); sim.log.length = Math.min(sim.log.length, 50); };
-  function fireOne(tid) {
-    const ok = enabledTransitions(M, sim.marking, envOf()).includes(tid);
-    if (!ok) { status(`${transOf(tid)?.name}: not enabled${enabledTransitions(M, sim.marking, null).includes(tid) ? ' (its guard is false)' : ''}`, true); return; }
-    sim.marking = fire(M, sim.marking, tid); sim.fired = [tid];
-    say(`fire ${transOf(tid).name}`);
-    status('');
-    render();
-  }
-  function step() {
-    const r = clockStep(M, sim.marking, envOf());
-    sim.marking = r.marking; sim.fired = r.fired;
-    say(r.fired.length ? `clock: ${r.fired.map(id => transOf(id).name).join(', ')}` : 'clock: nothing fires');
-    render();
-  }
-  function randomFire() {
-    const en = enabledTransitions(M, sim.marking, envOf());
-    if (!en.length) { status(isDeadlock(M, sim.marking) ? 'Deadlock: no transition can fire' : 'No transition is enabled with these inputs', true); return; }
-    fireOne(en[Math.floor(Math.random() * en.length)]);
-  }
-  // the simulation's controls (its buttons, the inputs) are made once and kept: drawn again at every
-  // clock step of Run, a click on ■ Stop or on an input whose press and release fell on each side of
-  // a step went to an element no longer there, and was lost
-  const runBtn = btn('▶▶ Run', 'Clock steps every half second', () => {
-    if (sim.timer) { clearInterval(sim.timer); sim.timer = null; } else sim.timer = setInterval(() => { if (!destroyed && sim) step(); }, 500);
-    render();
+  // ---------------------------------------------------------------- drawing (petri-draw.js)
+  const { applyView, render, toWorld } = mountPetriDraw({
+    M: () => M, arcFrom: () => arcFrom, delBtn, destroyed: () => destroyed, drag: () => drag,
+    envOf: (...a) => envOf(...a), hi: () => hi, hist, langSel, nodeOf, placeOf, redoBtn,
+    refreshLink: (...a) => refreshLink(...a), renderPanel: (...a) => renderPanel(...a),
+    renderSide: (...a) => renderSide(...a), sel: () => sel, sim: () => sim, statusInfo, svg, uid, undoBtn,
+    view: () => view, world
   });
-  const simTools = [btn('⏭ Clock step', 'A clock edge: every enabled transition whose guard is true fires (priority order), as the hardware does', () => step()),
-    btn('🎲 Random', 'Fire one enabled transition at random (the token game)', () => randomFire()), runBtn,
-    btn('⟲ Reset', 'Back to the initial marking', () => { sim.inputs = sim.inputs || {}; resetSim(); })];
-  const simLive = h('div', { class: 'pn-sim-live' });
-  let simIns = null;   // { key: the inputs (names, widths), row, set(): the controls show sim.inputs }
-  function simInputs() {
-    const key = JSON.stringify(M.inputs.map(i => [i.name, i.width]));
-    if (simIns?.key !== key) {
-      const sets = [];
-      const ins = h('div', { class: 'pn-sim-ins' }, ...M.inputs.map(i => {
-        if (i.width === 1) {
-          const c = h('input', { type: 'checkbox' });
-          c.addEventListener('change', () => { sim.inputs[i.name] = c.checked ? 1 : 0; render(); });
-          sets.push(() => { c.checked = !!sim.inputs[i.name]; });
-          return h('label', { class: 'asm-check' }, c, ` ${i.name}`);
-        }
-        const n = h('input', { type: 'number', class: 'asm-input pn-num', min: '0', max: String((1 << i.width) - 1) });
-        n.addEventListener('change', () => { sim.inputs[i.name] = Math.max(0, Math.min((1 << i.width) - 1, +n.value || 0)); render(); });
-        sets.push(() => { if (document.activeElement !== n) n.value = String(sim.inputs[i.name] ?? 0); });
-        return h('label', { class: 'asm-field pn-inline' }, h('span', { class: 'asm-label' }, i.name), n);
-      }));
-      simIns = { key, row: h('div', { class: 'pn-sim-row' }, h('b', {}, 'Inputs: '), M.inputs.length ? ins : h('span', {}, 'none')), set: () => sets.forEach(f => f()) };
-    }
-    simIns.set();
-    return simIns.row;
-  }
-  function renderPanel() {
-    if (!panel) return;
-    if (panel !== 'sim') { panelTools.replaceChildren(); panelBody.replaceChildren(); }
-    if (panel === 'code') {
-      panelTitle.textContent = `${M.lang === 'vhdl' ? 'VHDL' : 'Verilog'} generated from the net`;
-      let code;
-      try { code = generatePetri(M, M.lang, { source: `${M.name}.pn.json` }).code; } catch (e) { code = e.message; }
-      panelBody.append(h('pre', { class: 'asm-code pn-code' }, code));
-      return;
-    }
-    if (panel === 'analysis') { renderAnalysis(); return; }
-    panelTitle.textContent = 'Simulation';
-    const runLabel = sim.timer ? '■ Stop' : '▶▶ Run';
-    if (runBtn.dataset.label !== runLabel) { runBtn.dataset.label = runLabel; runBtn.textContent = runLabel; }
-    if (panelTools.firstChild !== simTools[0]) panelTools.replaceChildren(...simTools);
-    const insRow = simInputs();
-    if (panelBody.firstChild !== insRow || panelBody.lastChild !== simLive) panelBody.replaceChildren(insRow, simLive);
-    const outs = outputsOf(M, sim.marking, sim.fired);
-    const dead = isDeadlock(M, sim.marking);
-    simLive.replaceChildren(...[
-      h('div', { class: 'pn-sim-row' }, h('b', {}, 'Outputs: '), h('span', { class: 'mono pn-outs-now' }, Object.entries(outs).map(([k, v]) => `${k}=${v.toString(2)}`).join('  ') || 'none')),
-      h('div', { class: 'pn-sim-row' }, h('b', {}, 'Marking: '), h('span', { class: 'mono pn-marking' }, M.places.map(p => `${p.name}=${sim.marking[p.id] || 0}`).join('  '))),
-      dead ? h('div', { class: 'pn-sim-row pn-dead' }, 'Deadlock: no transition can fire, whatever the inputs') : null,
-      h('div', { class: 'asm-label' }, 'Click an enabled transition (green: its guard is true) to fire it.'),
-      h('ol', { class: 'pn-log' }, ...sim.log.map(l => h('li', {}, l)))].filter(Boolean));
-  }
 
-  // ---------------------------------------------------------------- analysis (#188)
-  let anCache = null;
-  function analysis() {
-    const key = JSON.stringify([M.places, M.transitions, M.arcs]);
-    if (anCache?.key !== key) anCache = { key, res: analyzePetri(M) };
-    return anCache.res;
-  }
-  const mark = mk => M.places.map(p => `${p.name}=${mk[p.id] || 0}`).join('  ');
-  const sum = (w, list) => Object.entries(w).map(([id, k]) => `${k > 1 ? `${k}·` : ''}${list.find(x => x.id === id)?.name ?? id}`).join(' + ');
-  function renderAnalysis() {
-    panelTitle.textContent = 'Analysis';
-    const a = analysis();
-    const yes = (ok, txt) => h('span', { class: ok ? 'pn-ok' : 'pn-bad' }, txt);
-    const maxB = Math.max(0, ...Object.values(a.bounds));
-    const row = (k, v) => h('tr', {}, h('th', {}, k), h('td', {}, v));
-    const showAt = mk => { if (panel !== 'sim') togglePanel('sim'); sim.marking = { ...mk }; sim.fired = []; sim.log = []; say('analysis: a deadlock'); render(); };
-    const states = a.states.length;
-    panelBody.append(
-      h('div', { class: 'asm-label' }, `The token game, whatever the inputs (the guards are not taken into account): ${states}${a.truncated ? '+' : ''} reachable marking${states === 1 ? '' : 's'}${a.truncated ? ` (stopped at ${a.maxStates}: the results are partial)` : ''}.`),
-      h('table', { class: 'pn-an-props' },
-        row('Bounded', a.safe ? yes(true, 'safe (at most 1 token in each place)') : yes(true, `${maxB}-bounded`)),
-        row('Deadlocks', a.deadlockCount ? yes(false, `${a.deadlockCount} reachable marking${a.deadlockCount === 1 ? '' : 's'} where no transition can fire`) : yes(true, 'none')),
-        row('Live', a.truncated ? 'unknown (partial graph)' : a.live ? yes(true, 'yes: every transition can always fire again') : yes(false, 'no')),
-        row('Reversible', a.reversible == null ? 'unknown (partial graph)' : a.reversible ? yes(true, 'yes: the initial marking can always be reached again') : yes(false, 'no')),
-        row('Conservative', a.conservative ? yes(true, 'yes: every place is in a P-invariant') : 'no')),
-      h('div', { class: 'pn-an-title' }, 'Places'),
-      h('table', { class: 'pn-an-table pn-an-places' }, h('tr', {}, h('th', {}, 'Place'), h('th', {}, 'Most tokens'), h('th', {}, 'Capacity'), h('th', {}, 'Bits needed')),
-        ...M.places.map(p => { const b = a.bounds[p.id]; return h('tr', {}, h('td', {}, p.name), h('td', {}, String(b)), h('td', {}, String(p.capacity) + (b >= p.capacity && p.capacity > 0 ? ' (reached)' : '')), h('td', {}, b > 1 ? `${Math.ceil(Math.log2(b + 1))} bits` : '1 flip-flop')); })),
-      h('div', { class: 'pn-an-title' }, 'Transitions'),
-      h('table', { class: 'pn-an-table pn-an-trans' }, h('tr', {}, h('th', {}, 'Transition'), h('th', {}, '')),
-        ...M.transitions.map(t => { const l = a.liveness[t.id]; return h('tr', {}, h('td', {}, t.name), h('td', {}, l === 'dead' ? yes(false, 'never fires') : l === 'live' ? yes(true, 'live') : 'can fire, but not always again')); })),
-      ...(a.deadlocks.length ? [h('div', { class: 'pn-an-title' }, 'Deadlocks'),
-        h('ul', { class: 'pn-an-dead' }, ...a.deadlocks.map(d => h('li', {}, h('span', { class: 'mono' }, mark(d.marking)), ` after ${d.path.length ? d.path.map(id => transOf(id)?.name).join(', ') : 'nothing (the initial marking)'} `,
-          btn('Show', 'Simulate from this marking', () => showAt(d.marking), 'asm-small'))))] : []),
-      h('div', { class: 'pn-an-title' }, 'P-invariants (weighted token sums that never change)'),
-      h('ul', { class: 'pn-an-pinv mono' }, ...(a.pInvariants == null ? [h('li', {}, 'too many to compute')] : a.pInvariants.length ? a.pInvariants.map(v => h('li', {}, `${sum(v.weights, M.places)} = ${v.tokens}`)) : [h('li', {}, 'none')])),
-      h('div', { class: 'pn-an-title' }, 'T-invariants (firing counts that bring a marking back)'),
-      h('ul', { class: 'pn-an-tinv mono' }, ...(a.tInvariants == null ? [h('li', {}, 'too many to compute')] : a.tInvariants.length ? a.tInvariants.map(v => h('li', {}, sum(v, M.transitions))) : [h('li', {}, 'none')])),
-      h('details', { class: 'pn-an-graph' }, h('summary', {}, `Reachability graph${states > 200 ? ' (the first 200 markings)' : ''}`),
-        h('ol', { start: '0', class: 'mono' }, ...a.states.slice(0, 200).map(st => h('li', {}, mark(st.marking), st.succ.length ? `  →  ${st.succ.map(e => `${transOf(e.transition)?.name}: M${e.to}`).join(', ')}` : '  (deadlock)')))));
-  }
+  // ---------------------------------------------------------------- side panel (petri-side.js)
+  const { refreshLink, renderSide } = mountPetriSide({
+    opts, M: () => M, btn, commit, linkHost, netBody, nodeOf, placeOf, probCount, probList, render, sel: () => sel,
+    selSection, status, transOf, setSel: (v) => { sel = v; }
+  });
+
+  // ---------------------------------------------------------------- simulation and HDL panel (petri-sim.js)
+  const { analysis, envOf, fireOne, renderPanel, resetSim, togglePanel } = mountPetriSim({
+    M: () => M, bottom, btn, destroyed: () => destroyed, panel: () => panel, panelBody, panelTitle, panelTools, render,
+    sim: () => sim, status, tabBtns, transOf, setSim: (v) => { sim = v; }, setPanel: (v) => { panel = v; }
+  });
 
   // ---------------------------------------------------------------- mouse and keys
   const hit = e => { const g = e.target.closest?.('[data-kind]'); return g ? { kind: g.dataset.kind, id: g.dataset.id } : null; };
