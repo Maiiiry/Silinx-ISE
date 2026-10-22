@@ -733,11 +733,15 @@ uiTest('#490 open mode: Emulate Post-Synthesis Model with no model: "Generate an
   // own divider, and blinky stood still), its LEDs on or off (but the two the light moved between in the window) and
   // moving (blinky's: a step every 1/80 s or slower)
   assert.equal(await page.eval(() => window.Silinx.active.view.engine), 'compiled');
+  // (blinky's first step comes 400 ms after the start, at 2.5 steps a second: watched until 1.2 s of simulated time, not
+  // a wall time, a slow runner's emulation far slower than real time, #908)
   const seen = new Set();
-  for (let k = 0; k < 40 && seen.size < 2; k++) {
-    const l = await page.eval(() => window.Silinx.active.view.outputs.leds.slice());
+  const t0 = Date.now();
+  for (;;) {
+    const [l, now] = await page.eval(() => [window.Silinx.active.view.outputs.leds.slice(), window.Silinx.active.view.sim.now]);
     assert.ok(l.filter((v) => v > 0.05 && v < 0.95).length <= 2, JSON.stringify(l));
     seen.add(l.map((v) => (v > 0.5 ? 1 : 0)).join(''));
+    if (seen.size >= 2 || now >= 1.2e12 || Date.now() - t0 > 90000) break;
     await new Promise((r) => setTimeout(r, 100));
   }
   // (a failure says what the emulator was doing: its status line, paused or its rate, and the page's visibility)
