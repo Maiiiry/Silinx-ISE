@@ -16,7 +16,7 @@
 //   node scripts/related-tests.mjs <base> <head> [--shard i/n] [--list] [node --test options …]
 //   → runs node --test with those options on the unit tests, then (one at a time) on the UI tests; --list
 //     prints them instead. --shard i/n: part i of n of them, of about the same time (scripts/test-shard.mjs,
-//     the UI tests in the first part). No test related to the change: nothing runs, the exit is 0.
+//     the UI tests balanced too, #1032). No test related to the change: nothing runs, the exit is 0.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -133,10 +133,13 @@ export function changedFiles(base, head, cwd = ROOT) {
   catch { return null; }
 }
 
-/** Part i of n of the tests: the unit tests balanced by their measured times; the UI tests in part 1. */
+/** Part i of n of the tests: the unit tests and the UI tests each balanced by their measured times, the
+ *  heaviest part of the UI tests with the lightest of the unit tests (all of them in part 1 passed its time, #1032). */
 export function shardOf({ unit, ui }, { i, n }, timings = {}) {
   const parts = balance(unit, weights(unit, timings), n);
-  return { unit: parts[i - 1].files, ui: i === 1 ? ui : [] };
+  const uiParts = balance(ui, weights(ui, timings), n).sort((a, b) => b.time - a.time);
+  const byUnit = parts.map((p, k) => k).sort((a, b) => parts[a].time - parts[b].time || a - b);
+  return { unit: parts[i - 1].files, ui: uiParts[byUnit.indexOf(i - 1)].files };
 }
 
 function main() {
