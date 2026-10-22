@@ -573,6 +573,8 @@ Object.assign(PT, {
   'click for one clock cycle': 'clique para um ciclo de relógio', 'click to toggle': 'clique para comutar', 'click to change the value': 'clique para mudar o valor',
   'no value': 'sem valor', '(unconnected)': '(não ligado)',
 });
+// the classic title bar (web/js/project.js updateTitle, #987): "<project> - [Design Summary]", its name translated (#1007)
+PT_PATTERNS.push([/^(.+) - \[Design Summary\]$/, (m, pj) => `${pj} - [${PT['Design Summary']}]`]);
 PT_PATTERNS.push(
   [/^Cannot try it out: (\d+) error\(s\), (\d+) warning\(s\)$/, 'Não é possível experimentar: $1 erro(s), $2 aviso(s)'],
   [/^Cannot try it out: (.*)$/s, 'Não é possível experimentar: $1'],
