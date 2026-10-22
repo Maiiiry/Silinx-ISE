@@ -786,15 +786,17 @@ test('clockReach: the clock pins of the block RAMs and multipliers a global buff
   for (const [part] of SHIPPED) {
     const { sites, clockSites } = await flowOf(part);
     const hard = [...sites.brams.flatMap(s => [`${s.name}.CLKA`, `${s.name}.CLKB`]), ...sites.mults.map(s => `${s.name}.CLK`)];
-    // the buffer of B8 reaches every one; the bottom buffer of N9 / M4 none (yet), but every slice
-    assert.deepEqual(hard.filter(h => !clockSites('BUFGMUX_X2Y11').has(h)), [], part);
-    assert.deepEqual(hard.filter(h => clockSites('BUFGMUX_X2Y1').has(h)), [], part);
+    // every top and bottom buffer reaches every one (#2: the block-RAM interconnect tiles' GCLKk -> BRAM_CLKj measured;
+    // before, the bottom buffer of N9 / M4 reached none), and every slice
+    for (const b of ['BUFGMUX_X1Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X2Y1', 'BUFGMUX_X1Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X2Y11']) {
+      assert.deepEqual(hard.filter(h => !clockSites(b).has(h)), [], `${part} ${b}`);
+    }
     // (and DCM clock inputs, #47)
-    assert.equal([...clockSites('BUFGMUX_X2Y1')].filter(s => !s.startsWith('DCM_')).length, sites.slices.size, part);
+    assert.equal([...clockSites('BUFGMUX_X2Y1')].filter(s => s.startsWith('SLICE_')).length, sites.slices.size, part);
   }
 });
 
-test('a clock LOC\'d on the bottom GCLK pin (N9 / M4): its dedicated buffer when it reaches the loads, else a buffer that reaches the block RAM / multiplier clocks, with a warning (#56)', { timeout: 300000 }, async () => {
+test('a clock LOC\'d on the bottom GCLK pin (N9 / M4): its dedicated buffer, which reaches the flip-flops, the block RAM and the multiplier clocks, no warning (#56, #2)', { timeout: 300000 }, async () => {
   for (const [part, bottom] of SHIPPED) {
     const { opts, sites, clockSites } = await flowOf(part);
     const ucf = `NET "clk" LOC = "${bottom}";`;
@@ -802,14 +804,14 @@ test('a clock LOC\'d on the bottom GCLK pin (N9 / M4): its dedicated buffer when
     const f = pack(clockedFf(), { ucf, part });
     const rf = place(f, sites, { seed: 1, effort: 0.1, ...opts });
     assert.deepEqual([siteOf(f, rf, 'bufg'), rf.warnings], ['BUFGMUX_X2Y1', []], part);
-    // a block RAM and a multiplier: BUFGMUX_X2Y11 (general routing from the pad), each on a site whose clock pins it reaches
+    // a block RAM and a multiplier: BUFGMUX_X2Y1 too (before #2's measurement its line reached no block RAM or multiplier
+    // clock, and BUFGMUX_X2Y11 was taken through general routing, with a warning)
     const p = pack(clockedHard(), { ucf, part });
     for (const seed of [1, 2]) {
       const r = place(p, sites, { seed, effort: 0.1, ...opts });
       assert.equal(siteOf(p, r, 'clk'), bottom);
-      assert.equal(siteOf(p, r, 'bufg'), 'BUFGMUX_X2Y11', part);
-      assert.deepEqual(r.warnings, [`clk: the global buffer BUFGMUX_X2Y1 that its pad ${bottom} reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing`], part);
-      const reach = clockSites('BUFGMUX_X2Y11');
+      assert.deepEqual([siteOf(p, r, 'bufg'), r.warnings], ['BUFGMUX_X2Y1', []], part);
+      const reach = clockSites('BUFGMUX_X2Y1');
       assert.ok(reach.has(`${siteOf(p, r, 'm')}.CLKA`) && reach.has(`${siteOf(p, r, 'm')}.CLKB`) && reach.has(`${siteOf(p, r, 'x')}.CLK`), part);
     }
   }

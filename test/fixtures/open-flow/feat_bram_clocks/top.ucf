@@ -1,0 +1,4 @@
+# every pad LVCMOS33 (the banks of the Basys2 are at 3.3 V); the clocks' pads chosen by the placer
+NET "clk<*>" IOSTANDARD = LVCMOS33 ;
+NET "s<*>" IOSTANDARD = LVCMOS33 ;
+NET "y<*>" IOSTANDARD = LVCMOS33 ;

@@ -186,6 +186,9 @@ test('the open flow replicates a flip-flop of many loads on the critical path, a
 // slow and fast slew, pull-ups and pull-downs: the FG320 pads' settings, stage F).
 const FEATURES = {
   feat_bram: [/^pack \(\d+ slices\)/m, 'RAMB16'],
+  // four clocks, each on a block RAM's port B and a multiplier's registers (#2: the clock pins from every global line;
+  // before, only line 4 reached a CLKB or a multiplier's CLK, and the placer refused the design)
+  feat_bram_clocks: [/^pack \(\d+ slices\)/m, 'RAMB16', [/^ {2}pip BRAM1_SMALL_X\d+Y\d+ GCLK[0-35-7] -> BRAM_CLK3 ,$/m, /^ {2}pip BRAM2_SMALL_X\d+Y\d+ GCLK[0-35-7] -> BRAM_CLK0 ,$/m]],
   feat_mult: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO'],
   // three multipliers cascaded through BCOUT -> BCIN (#2): one above the other in a column, the dedicated switches
   feat_mult_chain: [/^pack \(\d+ slices\)/m, 'MULT18X18SIO', [/B_INPUT::CASCADE /, /^net "[^"]+" , \n {2}outpin "u_m0" BCOUT5 ,\n {2}inpin "u_m1" BCIN5 ,\n {2}pip BRAMSITE2\w* MULT_CCARRY_BCOUT5 -> MULT_CARRYB_BCOUT5 ,$/m,
@@ -472,8 +475,9 @@ for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s5
 // feat_constmult's clock LOC'd on a side GCLK pin (on its own side buffer, through the side clock tile's CKIk, as
 // ISE pairs them, #641).
 const CLOCK_CASES = [
-  ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y11' },
-    ['Warning: place: clk: the global buffer BUFGMUX_X2Y1 that its pad M4 reaches on a dedicated path does not reach every clock pin of its loads on switches of known bits: BUFGMUX_X2Y11 instead, through general routing']],
+  // (M4's own buffer, BUFGMUX_X2Y1, on its dedicated path: since #2 its line reaches the block RAMs' and multipliers'
+  // clock pins; before, BUFGMUX_X2Y11 through general routing, with a warning)
+  ['#56', 'feat_constmult', 'xc3s250e', 'cp132', 'M4', { clk: 'M4', bufg: 'BUFGMUX_X2Y1' }, []],
   ['#57', 'feat_dcm', 'xc3s500e', 'fg320', null, { clk: 'B9', dcm: 'DCM_X0Y1' }, []],
   // the XC3S1200E's top-left DCM is DCM_X1Y3 (its DCM_X0Y1 is a side DCM); on the XC3S100E the top DCM, its CLKIN on
   // its dedicated path from A9, ISE's pad (#47, #92; before #2 the bottom one and M6: the top one's CLKDV reached no
@@ -573,14 +577,15 @@ for (const [part, pkg] of [['xc3s100e', 'cp132'], ['xc3s250e', 'cp132'], ['xc3s5
 // A clock pad driving a global buffer that feeds a DCM's CLKIN (#94; checked against ISE: npm run
 // check:open-flow gives DRC 0 errors / 0 warnings and a byte-identical .bit): feat_dcm_bufgin with no
 // constraints. The DCM's site and the buffer are chosen together: the clock on the GCLK pin whose
-// buffer's line reaches the DCM's CLKIN (B8 -> BUFGMUX_X2Y11; on the XC3S100E C8 -> BUFGMUX_X2Y10),
-// the DCM's outputs on the other buffers, no warning (before: the DCM's outputs took the buffers
+// buffer's line reaches the DCM's CLKIN (since #2 every global clock pad's dedicated path to its buffer is known, and
+// the placer takes B7 -> BUFGMUX_X1Y10, D9 on the FG320; before, B8 -> BUFGMUX_X2Y11, on the XC3S100E C8 ->
+// BUFGMUX_X2Y10), the DCM's outputs on the other buffers, no warning (before #94: the DCM's outputs took the buffers
 // first, and the pad's buffer, not reaching the CLKIN, was said and reached through general routing).
 const DCM_BUFGIN = [
-  ['xc3s100e', 'cp132', { clk: 'C8', u_bin: 'BUFGMUX_X2Y10', dcm: 'DCM_X0Y1' }],
-  ['xc3s250e', 'cp132', { clk: 'B8', u_bin: 'BUFGMUX_X2Y11', dcm: 'DCM_X0Y1' }],
-  ['xc3s500e', 'fg320', { clk: 'B8', u_bin: 'BUFGMUX_X2Y11', dcm: 'DCM_X0Y1' }],
-  ['xc3s1200e', 'fg320', { clk: 'B8', u_bin: 'BUFGMUX_X2Y11', dcm: 'DCM_X1Y3' }],
+  ['xc3s100e', 'cp132', { clk: 'B7', u_bin: 'BUFGMUX_X1Y10', dcm: 'DCM_X0Y1' }],
+  ['xc3s250e', 'cp132', { clk: 'B7', u_bin: 'BUFGMUX_X1Y10', dcm: 'DCM_X0Y1' }],
+  ['xc3s500e', 'fg320', { clk: 'D9', u_bin: 'BUFGMUX_X1Y10', dcm: 'DCM_X0Y1' }],
+  ['xc3s1200e', 'fg320', { clk: 'D9', u_bin: 'BUFGMUX_X1Y10', dcm: 'DCM_X1Y3' }],
 ];
 for (const [part, pkg, want] of DCM_BUFGIN) {
   test(`the open flow: a pad's global buffer into a DCM's CLKIN (feat_dcm_bufgin) on the ${part.toUpperCase()}-${pkg.toUpperCase()}: the DCM and the buffer together, no warning (#94)`, { timeout: 300000 }, () => {

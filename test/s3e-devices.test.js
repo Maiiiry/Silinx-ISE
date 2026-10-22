@@ -447,3 +447,40 @@ test('the PIPs a tile type\'s features offer that its tiles do not have (#74): m
     ['LIOIS_PCI_X0Y16', 'OMUX_W14', 'IOIS_F4_B1', true], ['LIOIS_PCI_X0Y16', 'OMUX_W14', 'IOIS_F1_B0', false],
   ]) assert.equal(k.allowPip(tile, from, to), ok, `${tile} ${from} -> ${to}`);
 });
+
+test('the block RAMs\' and multipliers\' clock pins from every global line (#2): every top / bottom buffer reaches every CLKA, CLKB and multiplier CLK on known switches, on the four devices', async () => {
+  const { clockReach } = await import('../core/fpga/route.js');
+  // (GCLKk -> BRAM_CLKj of the block-RAM interconnect tiles, two bits each: before, only lines 4 and 5 reached a CLKA,
+  // line 4 alone a CLKB or a multiplier's CLK)
+  const t = JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types;
+  assert.deepEqual(t.BRAM1_SMALL.features['GCLK0->BRAM_CLK2'], ['4,44', '4,46']);
+  assert.deepEqual(t.BRAM1_SMALL.features['GCLK7->BRAM_CLK3'], ['4,18', '4,25']);
+  assert.deepEqual(t.BRAM2_SMALL.features['GCLK3->BRAM_CLK0'], ['4,37', '5,40']);
+  for (const part of ['xc3s100ecp132-4', 'xc3s250ecp132-4', 'xc3s500efg320-4', 'xc3s1200efg320-4']) {
+    const dev = loadDeviceCache(part), known = knownRouting(loadDb(part, { graph: dev }));
+    const pins = [...dev.sites('RAMB16').flatMap(s => [`${s.name}.CLKA`, `${s.name}.CLKB`]), ...dev.sites('MULT18X18SIO').map(s => `${s.name}.CLK`)];
+    const bufgs = dev.sites('BUFGMUX').filter(s => /^CLK[TB]/.test(s.tileName));
+    assert.equal(bufgs.length, 8, part);
+    for (const b of bufgs) {
+      const r = clockReach(dev, b.name, known.allowPip);
+      assert.deepEqual(pins.filter(p => !r.has(p)), [], `${part} ${b.name}`);
+    }
+  }
+});
+
+test('the global clock pads\' dedicated paths to the top and bottom buffers (#2): every one on known switches, on the four devices (CKIk -> GCLKj, one bit each)', async () => {
+  const { bufgReach } = await import('../core/fpga/route.js');
+  const t = JSON.parse(fs.readFileSync(path.join(DB_DIR, 's3e-tiles.json'), 'utf8')).types;
+  // (each buffer from two pads: CKIk and CKI(k+4) of its clock tile; before, three of the sixteen were known)
+  assert.deepEqual(t.CLKT.features['CLKT_CKI0->CLKT_GCLK0'], ['2,67']);
+  assert.deepEqual(t.CLKT.features['CLKT_CKI7->CLKT_GCLK3'], ['2,25']);
+  assert.deepEqual(t.CLKB.features['CLKB_CKI5->CLKB_GCLK1'], ['2,34']);
+  for (const part of ['xc3s100ecp132-4', 'xc3s250ecp132-4', 'xc3s500efg320-4', 'xc3s1200efg320-4']) {
+    const dev = loadDeviceCache(part), db = loadDb(part, { graph: dev }), known = knownRouting(db);
+    const pads = ['IOB', 'IBUF', 'DIFFM', 'DIFFS', 'DIFFMI', 'DIFFSI'].flatMap(ty => dev.sites(ty)).filter(s => db.pads[s.name]);
+    const reach = allow => pads.flatMap(s => bufgReach(dev, s.name, 'I', allow).filter(b => /^BUFGMUX_X[12]Y(0|1|10|11)$/.test(b)).map(b => `${s.name}>${b}`));
+    const all = reach(null);
+    assert.equal(all.length, 16, `${part}: two pads per top / bottom buffer`);
+    assert.deepEqual(reach(known.allowPip), all, part);
+  }
+});
