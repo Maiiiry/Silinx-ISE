@@ -162,7 +162,7 @@ export function mountSchEditor(container, opts = {}) {
     leaveSim: (...a) => leaveSim(...a), live: () => live, mirrorSel: (...a) => mirrorSel(...a), namesBox,
     openInfo: (...a) => openInfo(...a), readOnly, redo: (...a) => redo(...a), rotateSel: (...a) => rotateSel(...a),
     runCheck: (...a) => runCheck(...a), sep, setTool: (...a) => setTool(...a), tb, undo: (...a) => undo(...a),
-    zoomAt: (...a) => zoomAt(...a)
+    zoomAt: (...a) => zoomAt(...a), handwritten: () => import('./sch-ink.js').then(m => m.handwrittenSchematicInto({ doc: () => doc, replace: parts => edit(() => { doc = { ...doc, ...parts }; }), fit: () => fit() }))   // (#1067)
   });
 
   // ---------------- left: symbols palette (sch-palette.js)

@@ -30,6 +30,15 @@ export const INK_PT = {
   'No line between the inputs and the outputs: the last column is the output.': 'Nenhuma linha entre as entradas e as saídas: a última coluna é a saída.',
   'The table is empty.': 'A tabela está vazia.', "Line 1: the names of the inputs, '|', the names of the outputs.": "Linha 1: os nomes das entradas, '|', os nomes das saídas.",
   'At least 1 output.': 'Pelo menos 1 saída.',
+  // the Handwritten Schematic dialog (#1067) and its messages
+  'Handwritten Schematic': 'Esquemático Manuscrito', 'Draw the schematic by hand: with a pen, a finger or the mouse': 'Desenhar o esquemático à mão: com uma caneta, um dedo ou o rato',
+  "Draw the circuit with a pen, a finger or the mouse: the gates (AND, OR, XOR, a triangle for a buffer, a small circle at the output for NOT) larger than the names, their inputs on the left, square wires, and the name of each input and output at its wire's end.":
+    'Desenhe o circuito com uma caneta, um dedo ou o rato: as portas (AND, OR, XOR, um triângulo para um buffer, um pequeno círculo na saída para NOT) maiores do que os nomes, as suas entradas à esquerda, fios em esquadria, e o nome de cada entrada e saída na ponta do seu fio.',
+  'The schematic drawn replaces the one in the editor (Undo brings it back).': 'O esquemático desenhado substitui o do editor (Anular repõe-no).',
+  'Create Schematic': 'Criar Esquemático', 'Input:': 'Entrada:', 'Output:': 'Saída:',
+  'Nothing drawn: draw the circuit on the pad.': 'Nada desenhado: desenhe o circuito na área de escrita.',
+  'No gate found: draw the gates larger than the names, their inputs on the left.': 'Nenhuma porta encontrada: desenhe as portas maiores do que os nomes, as suas entradas à esquerda.',
+  'A wire end touches nothing.': 'Uma ponta de fio não toca em nada.',
   // New Source: a truth table from an expression
   'Expression:': 'Expressão:', "optional, e.g. F = A·B' + C": "opcional, p.ex. F = A·B' + C",
 };
@@ -56,5 +65,17 @@ export const INK_PT_PATTERNS = [
   [/^Line (\d+): an output is '(.+)': only 0, 1 or X\.$/, "Linha $1: uma saída é '$2': só 0, 1 ou X."],
   [/^Lines (\d+) and (\d+): the inputs (\S+) with other outputs\.$/, 'Linhas $1 e $2: as entradas $3 com outras saídas.'],
   [/^Line (\d+) repeats line (\d+)\.$/, 'A linha $1 repete a linha $2.'],
+  [/^Two gate outputs are joined \((\w+), (\w+)\)\.$/, 'Duas saídas de portas estão ligadas ($1, $2).'],
+  [/^(\w+) \((\w+)\): no wire from its output\.$/, '$1 ($2): nenhum fio sai da sua saída.'],
+  [/^(\w+) \((\w+)\): (\d+) inputs?, 1 expected\.$/, '$1 ($2): $3 entrada(s), 1 esperada.'],
+  [/^(\w+) \((\w+)\): (\d+) inputs?, 2 to (\d+) expected\.$/, '$1 ($2): $3 entrada(s), 2 a $4 esperadas.'],
+  [/^Two names on one net: (.+)\.$/, 'Dois nomes numa só rede: $1.'],
+  [/^The output of (\w+) has no name: (.+)\.$/, 'A saída de $1 não tem nome: $2.'],
+  [/^A wire to (.+) starts at no output and no name: write the input's name at its end\.$/, 'Um fio para $1 não começa numa saída nem num nome: escreva o nome da entrada na sua ponta.'],
+  [/^'(.+)' is not a name: correct it\.$/, "'$1' não é um nome: corrija-o."],
+  [/^The name (.+) is on two nets\.$/, 'O nome $1 está em duas redes.'],
+  [/^The name (.+) is at no wire's end\.$/, 'O nome $1 não está na ponta de nenhum fio.'],
+  [/^(\d+) wire ends touch nothing\.$/, '$1 pontas de fios não tocam em nada.'],
+  [/^A wire of (.+?)(?:'s output)? could not be routed clear of the others: check it\.$/, (m, n) => `Um fio ${m.includes("'s output") ? `da saída de ${n}` : `de ${n}`} não pôde ser traçado livre dos outros: verifique-o.`],
   [/^Not in the table: (.+?)(?: and (\d+) more)? \(their outputs are 0\)\.$/, (m, list, more) => `Fora da tabela: ${list}${more ? ` e mais ${more}` : ''} (as suas saídas são 0).`],
 ];

@@ -160,7 +160,7 @@ test('the handwritten input (#1056): the texts of its modules and the recognizer
   // the literals of the dialog and the pad: texts of elements, messages, titles (besides the labels checked above)
   const missing = [];
   let n = 0;
-  for (const f of ['ink-dialog.js', 'ink-pad.js', 'ink-table-dialog.js']) {
+  for (const f of ['ink-dialog.js', 'ink-pad.js', 'ink-table-dialog.js', 'ink-schematic-dialog.js', 'sch-ink.js']) {
     const src = fs.readFileSync(path.join(WEB, f), 'utf8');
     for (const m of src.matchAll(/(?:\}, |textContent = |showMsg\(\[|return )(['"])((?:(?!\1).)*[a-z]{2}(?:(?!\1).)*)\1/g)) { n++; if (t(m[2]) === m[2]) missing.push(`${f}: ${m[2]}`); }
   }
@@ -185,11 +185,22 @@ test('the handwritten input (#1056): the texts of its modules and the recognizer
     "Line 2: an output is '?': only 0, 1 or X.": "Linha 2: uma saída é '?': só 0, 1 ou X.", 'Lines 2 and 3: the inputs 01 with other outputs.': 'Linhas 2 e 3: as entradas 01 com outras saídas.',
     'Line 3 repeats line 2.': 'A linha 3 repete a linha 2.', 'Not in the table: 00, 01 (their outputs are 0).': 'Fora da tabela: 00, 01 (as suas saídas são 0).',
     'Not in the table: 0001, 0010 and 7 more (their outputs are 0).': 'Fora da tabela: 0001, 0010 e mais 7 (as suas saídas são 0).',
+    // the schematics drawn by hand (#1067)
+    'Two gate outputs are joined (U1, U2).': 'Duas saídas de portas estão ligadas (U1, U2).', 'U2 (NOR): no wire from its output.': 'U2 (NOR): nenhum fio sai da sua saída.',
+    'U3 (NOT): 2 inputs, 1 expected.': 'U3 (NOT): 2 entrada(s), 1 esperada.', 'U1 (AND): 1 input, 2 to 5 expected.': 'U1 (AND): 1 entrada(s), 2 a 5 esperadas.',
+    'Two names on one net: A, B.': 'Dois nomes numa só rede: A, B.', 'The output of U2 has no name: out1.': 'A saída de U2 não tem nome: out1.',
+    "A wire to U1 starts at no output and no name: write the input's name at its end.": 'Um fio para U1 não começa numa saída nem num nome: escreva o nome da entrada na sua ponta.',
+    "'_F' is not a name: correct it.": "'_F' não é um nome: corrija-o.", 'The name A is on two nets.': 'O nome A está em duas redes.',
+    "The name Q is at no wire's end.": 'O nome Q não está na ponta de nenhum fio.', '3 wire ends touch nothing.': '3 pontas de fios não tocam em nada.',
+    'A wire of F could not be routed clear of the others: check it.': 'Um fio de F não pôde ser traçado livre dos outros: verifique-o.',
+    "A wire of U2's output could not be routed clear of the others: check it.": 'Um fio da saída de U2 não pôde ser traçado livre dos outros: verifique-o.',
   };
   for (const [en, pt] of Object.entries(T)) assert.equal(t(en), pt, en);
   // the recognizer's own messages, as it writes them
   const { recognizeExpression, InkError } = await import('../core/ink/expression.js');
   assert.throws(() => recognizeExpression([]), (e) => e instanceof InkError && t(e.message) !== e.message);
+  const { readSchematic } = await import('../core/ink/schematic.js');
+  assert.throws(() => readSchematic([]), (e) => e instanceof InkError && t(e.message) !== e.message);
   const { readTable, tableFromText } = await import('../core/ink/table.js');
   assert.throws(() => readTable([]), (e) => e instanceof InkError && t(e.message) !== e.message);
   for (const text of ['', 'a b f', '| f', 'a |', 'a b | f\n1 1 | 1\n1 1 | 1']) for (const m of [...tableFromText(text).errors, ...tableFromText(text).warnings]) assert.notEqual(t(m), m, m);
