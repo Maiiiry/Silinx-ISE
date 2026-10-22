@@ -7,26 +7,29 @@
 // Layout: ELK layered (RIGHT, orthogonal routing) — run in a Web Worker when available,
 // otherwise with the bundled (main-thread) build. Layouts are cached by graph id + structure.
 import { esc } from './dom.js';
+import { mountSchRender } from './schematic-render.js';
+import { mountSchHover } from './schematic-hover.js';
+import { mountSchExport } from './schematic-export.js';
 
-const SVGNS = 'http://www.w3.org/2000/svg';
+export const SVGNS = 'http://www.w3.org/2000/svg';
 const FONT = '11px Arial, Helvetica, sans-serif';
-const FONT_SMALL = '9px Arial, Helvetica, sans-serif';
+export const FONT_SMALL = '9px Arial, Helvetica, sans-serif';
 const FONT_BOLD = 'bold 11px Arial, Helvetica, sans-serif';
 const STUB = 10;          // pin stub length
 const PITCH = 20;         // pin pitch on block symbols
 const LOGIC = new Set(['and', 'nand', 'or', 'nor', 'xor', 'xnor']);
 const ROUND_OPS = new Set(['add', 'sub', 'mul', 'neg']);
-const BOXES = new Set(['inst', 'blackbox', 'reg', 'comb', 'tb']);
+export const BOXES = new Set(['inst', 'blackbox', 'reg', 'comb', 'tb']);
 const MAX_LABEL = 32;
 
 // ------------------------------------------------------------------ helpers
-const r1 = v => Math.round(v * 10) / 10;
+export const r1 = v => Math.round(v * 10) / 10;
 const trunc = (s, n = MAX_LABEL) => { s = String(s ?? ''); return s.length > n ? s.slice(0, n - 1) + '…' : s; };
-const leaf = p => String(p ?? '').split('.').pop();
+export const leaf = p => String(p ?? '').split('.').pop();
 
 let measureCtx = null;
 const measureCache = new Map();
-function textW(s, font = FONT) {
+export function textW(s, font = FONT) {
   s = String(s ?? '');
   if (!s) return 0;
   const k = font + '\u0000' + s;
@@ -610,231 +613,20 @@ export function mountSchematic(container, opts = {}) {
     if (saved && !saved.auto) { view = { ...saved }; autoFit = false; applyView(); } else initialView();
   }
 
-  // ---------------- render
-  function render() {
-    const pos = new Map();
-    for (const c of layout.children || []) pos.set(c.id, c);
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    const grow = (x, y) => { if (x < minX) minX = x; if (y < minY) minY = y; if (x > maxX) maxX = x; if (y > maxY) maxY = y; };
+  // ---------------- render (schematic-render.js)
+  const { render } = mountSchRender({
+    bounds: () => bounds, content: () => content, edgeNet: () => edgeNet, layout: () => layout, netEls: () => netEls,
+    netInfo: () => netInfo, nodeEls: () => nodeEls, prep: () => prep, vp, setEdgeNet: (v) => { edgeNet = v; },
+    setNetInfo: (v) => { netInfo = v; }, setBounds: (v) => { bounds = v; }, setContent: (v) => { content = v; },
+    setNodeEls: (v) => { nodeEls = v; }, setNetEls: (v) => { netEls = v; }
+  });
 
-    // nets
-    edgeNet = new Map(); netInfo = new Map();
-    for (const e of prep.edges) {
-      const key = e.net ? `n:${e.net}` : `d:${e.from.node}\u0001${e.from.port}`;
-      edgeNet.set(e._eid, key);
-      let ni = netInfo.get(key);
-      if (!ni) {
-        ni = { key, net: e.net || null, name: e.net ? leaf(e.net) : '', w: e.w || 1, edges: [], from: e.from, sinks: [] };
-        netInfo.set(key, ni);
-      }
-      ni.edges.push(e);
-      ni.sinks.push(e.to);
-      if ((e.w || 1) > ni.w) ni.w = e.w;
-    }
-
-    const routes = new Map();
-    for (const le of layout.edges || []) {
-      const pts = [];
-      for (const s of le.sections || []) {
-        if (!pts.length) pts.push(s.startPoint);
-        for (const b of s.bendPoints || []) pts.push(b);
-        pts.push(s.endPoint);
-      }
-      routes.set(le.id, { pts, junctions: le.junctionPoints || [] });
-    }
-
-    // --- edges
-    let eh = '';
-    const junctions = new Map();
-    const netLabelDone = new Set(), widthDone = new Set(), labelSegs = new Map();
-    let labels = '';
-    for (const e of prep.edges) {
-      const r = routes.get(e._eid);
-      if (!r || r.pts.length < 2) continue;
-      const key = edgeNet.get(e._eid);
-      const dstW = prep.shapes.get(e.to.node)?.pins[e.to.port]?.w;
-      const ew = Math.min(e.w || 1, dstW > 0 ? dstW : Infinity);
-      const bus = ew > 1;
-      const d = 'M' + r.pts.map(p => `${r1(p.x)},${r1(p.y)}`).join('L');
-      for (const p of r.pts) grow(p.x, p.y);
-      eh += `<g class="edge${bus ? ' bus' : ''}" data-net="${esc(key)}" data-e="${esc(e._eid)}"><path class="hit" d="${d}"/><path class="wire" d="${d}"/></g>`;
-      for (const j of r.junctions) junctions.set(`${r1(j.x)},${r1(j.y)}`, { key, bus, x: j.x, y: j.y });
-
-      // bus slash + width near the driver (once per net)
-      const srcKind = prep.byId.get(e.from.node)?.kind;
-      if (bus && !widthDone.has(key) && !BOXES.has(srcKind)) {
-        widthDone.add(key);
-        const p0 = r.pts[0], p1 = r.pts[1];
-        if (Math.abs(p0.y - p1.y) < 0.5 && Math.abs(p1.x - p0.x) >= 14) {
-          const dir = p1.x > p0.x ? 1 : -1, x = p0.x + dir * 7;
-          labels += `<g class="wann" data-net="${esc(key)}"><line class="slash" x1="${r1(x - 3)}" y1="${r1(p0.y + 4)}" x2="${r1(x + 3)}" y2="${r1(p0.y - 4)}"/>`
-            + `<text class="wtext" x="${r1(x)}" y="${r1(p0.y + 12)}" text-anchor="middle">${e.w}</text></g>`;
-        }
-      }
-      // net name, once per net, on the first long-enough horizontal run near the source
-      const ni = netInfo.get(key);
-      const srcNode = prep.byId.get(e.from.node), dstNode = prep.byId.get(e.to.node);
-      const name = ni.name;
-      const lab = e.label && e.label !== name ? e.label : '';
-      if (name && !netLabelDone.has(key)) {
-        const redundant = srcNode && ['in', 'inout', 'netlabel'].includes(srcNode.kind) && srcNode.label === name;
-        const allToOut = ni.sinks.every(s => { const n = prep.byId.get(s.node); return n?.kind === 'out' && n.label === name; });
-        if (redundant || allToOut) netLabelDone.add(key);
-      }
-      if (name && !netLabelDone.has(key)) {
-        // collect horizontal runs; the label is placed after all edges are known
-        let segs = labelSegs.get(key);
-        if (!segs) labelSegs.set(key, segs = []);
-        const sinkW = lab ? textW(lab, FONT_SMALL) + 8 : 0;
-        for (let i = 0; i < r.pts.length - 1; i++) {
-          const a = r.pts[i], b = r.pts[i + 1];
-          if (Math.abs(a.y - b.y) > 0.5 || Math.abs(b.x - a.x) < 1) continue;
-          let x1 = Math.min(a.x, b.x), x2 = Math.max(a.x, b.x);
-          if (i === 0) x1 += bus ? 18 : 3;
-          if (i === r.pts.length - 2) x2 -= sinkW;
-          segs.push({ x1, x2, y: a.y });
-        }
-      }
-      // per-sink labels for slices (e.g. count[3]) near the sink end
-      if (lab && !(dstNode && dstNode.kind === 'out' && dstNode.label === lab)) {
-        const tw = textW(lab, FONT_SMALL);
-        const n = r.pts.length;
-        const a = r.pts[n - 2], b = r.pts[n - 1];
-        if (Math.abs(a.y - b.y) < 0.5 && Math.abs(b.x - a.x) >= tw + 8) {
-          labels += `<text class="netlabel sink" data-net="${esc(key)}" x="${r1(b.x - 4)}" y="${r1(b.y - 3)}" text-anchor="end">${esc(lab)}</text>`;
-        }
-      }
-    }
-    // net names: longest junction-free horizontal run, text left-aligned in it
-    const jByY = new Map();
-    for (const j of junctions.values()) { const k = Math.round(j.y); let a = jByY.get(k); if (!a) jByY.set(k, a = []); a.push(j.x); }
-    for (const [key, segs] of labelSegs) {
-      const name = netInfo.get(key).name;
-      const tw = textW(name, FONT_SMALL);
-      let best = null;
-      for (const sg of segs) {
-        const cuts = (jByY.get(Math.round(sg.y)) || []).filter(x => x > sg.x1 && x < sg.x2).sort((a, b) => a - b);
-        let lo = sg.x1;
-        for (const c of [...cuts, sg.x2]) {
-          const hi = c === sg.x2 ? c : c - 4;
-          if (hi - lo >= tw + 8 && (!best || hi - lo > best.hi - best.lo + 0.5 || (Math.abs(hi - lo - (best.hi - best.lo)) <= 0.5 && sg.y < best.y))) best = { lo, hi, y: sg.y };
-          lo = c + 4;
-        }
-        if (best && best.hi - best.lo > 4 * tw) break;    // good enough, keep it near the source
-      }
-      if (best) labels += `<text class="netlabel" data-net="${esc(key)}" x="${r1(best.lo + 4)}" y="${r1(best.y - 3)}">${esc(name)}</text>`;
-    }
-    let jh = '';
-    for (const j of junctions.values()) jh += `<circle class="junction${j.bus ? ' bus' : ''}" data-net="${esc(j.key)}" cx="${r1(j.x)}" cy="${r1(j.y)}" r="${j.bus ? 3.2 : 2.4}"/>`;
-
-    // --- nodes
-    let nh = '';
-    for (const n of prep.nodes) {
-      const p = pos.get(n.id); if (!p) continue;
-      const s = prep.shapes.get(n.id);
-      grow(p.x - 4, p.y - 4); grow(p.x + s.w + 4, p.y + s.h + 4);
-      const kcls = `k-${n.kind}${n.gate ? ' g-' + n.gate : ''}`;
-      const openable = (n.kind === 'inst' && n.ref?.inst) || (n.ref?.file && ['gate', 'reg', 'comb', 'tb', 'blackbox'].includes(n.kind));
-      nh += `<g class="node ${kcls}${openable ? ' openable' : ''}" data-node="${esc(n.id)}" transform="translate(${r1(p.x)},${r1(p.y)})">`
-        + `<rect class="nodehit" x="0" y="0" width="${r1(s.w)}" height="${r1(s.h)}"/>${s.body}</g>`;
-    }
-    if (!isFinite(minX)) { minX = minY = 0; maxX = maxY = 100; }
-    bounds = { x: minX - 10, y: minY - 10, w: maxX - minX + 20, h: maxY - minY + 20 };
-    content = `<g class="edges">${eh}</g><g class="anns">${labels}</g><g class="juncs">${jh}</g><g class="nodes">${nh}</g>`;
-    vp.innerHTML = content;
-    // indices
-    nodeEls = new Map();
-    for (const el of vp.querySelectorAll('.node')) nodeEls.set(el.dataset.node, el);
-    netEls = new Map();
-    for (const el of vp.querySelectorAll('[data-net]')) {
-      const k = el.dataset.net;
-      let a = netEls.get(k); if (!a) netEls.set(k, a = []);
-      a.push(el);
-    }
-  }
-
-  // ---------------- hover / selection
-  const keyOfTarget = t => {
-    if (!(t instanceof Element)) return null;
-    const ne = t.closest('[data-node]');
-    if (ne && vp.contains(ne)) return 'N:' + ne.dataset.node;
-    const ee = t.closest('[data-net]');
-    if (ee && vp.contains(ee)) return 'E:' + ee.dataset.net;
-    return null;
-  };
-  function elsOf(key) {
-    if (!key) return [];
-    if (key.startsWith('N:')) { const el = nodeEls.get(key.slice(2)); return el ? [el] : []; }
-    return netEls.get(key.slice(2)) || [];
-  }
-  function mark(key, cls, on) { for (const el of elsOf(key)) el.classList.toggle(cls, on); }
-  function setHover(key) {
-    if (key === hoverKey) return;
-    mark(hoverKey, 'hover', false);
-    hoverKey = key;
-    mark(hoverKey, 'hover', true);
-    // a hovered node also lights its attached wires faintly
-  }
-  function select(key) {
-    mark(selKey, 'sel', false);
-    selKey = key;
-    mark(selKey, 'sel', true);
-    if (!key) { onSelect?.(null); return; }
-    if (key.startsWith('N:')) {
-      const n = prep.byId.get(key.slice(2));
-      onSelect?.({ kind: 'node', id: n.id, node: n, ref: n.ref || null });
-    } else {
-      const ni = netInfo.get(key.slice(2));
-      if (ni) onSelect?.({ kind: 'net', net: ni.net, name: ni.name, w: ni.w, edges: ni.edges.map(e => e.id ?? e._eid), from: ni.from, to: ni.sinks });
-    }
-  }
-
-  // ---------------- tooltip
-  function hideTip() { tip.hidden = true; }
-  function tipHtml(key, target) {
-    if (key.startsWith('N:')) {
-      const n = prep.byId.get(key.slice(2)); if (!n) return '';
-      const pinEl = target.closest?.('[data-pin]');
-      const pin = pinEl ? (n.ports || []).find(p => String(p.id) === pinEl.dataset.pin) : null;
-      const rows = [];
-      const kindName = { in: 'Input port', out: 'Output port', inout: 'Bidirectional port', inst: 'Instance', blackbox: 'Black box (module not found)', reg: 'Clocked process', comb: 'Combinational logic', tb: 'Testbench process', const: 'Constant', netlabel: 'Net (driven elsewhere)' }[n.kind];
-      if (n.kind === 'inst' || n.kind === 'blackbox') rows.push(`<b>${esc(n.label)}</b> : ${esc(n.sub)}`);
-      else if (n.kind === 'gate') rows.push(`<b>${esc(n.gate)}</b>${n.label && n.label !== n.gate ? ` <span class="m">${esc(n.label)}</span>` : ''}${n.w > 1 ? ` <span class="m">[${n.w}]</span>` : ''}`);
-      else rows.push(`<b>${esc(n.label)}</b>${n.sub && n.sub !== n.label ? ` <span class="m">${esc(n.sub)}</span>` : ''}`);
-      if (kindName) rows.push(`<span class="m">${kindName}</span>`);
-      if (Array.isArray(n.params) && n.params.length) rows.push(`<span class="m">generics:</span> ${n.params.map(esc).join(', ')}`);
-      if (pin) rows.push(`<hr>pin <b>${esc(pin.label || pin.id)}</b>${pin.w > 1 ? ` [${pin.w}]` : ''}${pin.clock ? ' (clock)' : ''}${pin.reset ? ' (reset)' : ''}${pin.conn ? ` ⇐ <code>${esc(pin.conn)}</code>` : ''}`);
-      else if (BOXES.has(n.kind) && (n.ports || []).some(p => p.conn)) {
-        const list = n.ports.slice(0, 16).map(p => `${esc(p.label)} ${p.side === 'E' ? '⇒' : '⇐'} <code>${esc(p.conn ?? '')}</code>`);
-        if (n.ports.length > 16) list.push(`… ${n.ports.length - 16} more`);
-        rows.push('<hr>' + list.join('<br>'));
-      }
-      if (n.ref?.sig) rows.push(`<span class="m">net:</span> ${esc(n.ref.sig)}`);
-      if (n.ref?.file) rows.push(`<span class="m">${esc(n.ref.file)}${n.ref.line ? ':' + n.ref.line : ''}</span>`);
-      if (n.kind === 'inst' && n.ref?.inst) rows.push('<i>Double-click to push into this instance</i>');
-      else if (n.ref?.file && n.kind !== 'in' && n.kind !== 'out') rows.push('<i>Double-click to open source</i>');
-      return rows.join('<br>').replace(/<br><hr>/g, '<hr>');
-    }
-    const ni = netInfo.get(key.slice(2)); if (!ni) return '';
-    const drv = prep.byId.get(ni.from.node);
-    const rows = [`net <b>${esc(ni.name || '(unnamed)')}</b>${ni.w > 1 ? ` [${ni.w - 1}:0]` : ''}`];
-    rows.push(`<span class="m">width ${ni.w} bit${ni.w > 1 ? 's' : ''}, ${ni.sinks.length} load${ni.sinks.length > 1 ? 's' : ''}</span>`);
-    if (ni.net) rows.push(`<span class="m">${esc(ni.net)}</span>`);
-    if (drv) rows.push(`<span class="m">driver:</span> ${esc(drv.kind === 'gate' ? drv.gate : drv.label)}`);
-    return rows.join('<br>');
-  }
-  function showTip(key, target, cx, cy) {
-    const html = tipHtml(key, target);
-    if (!html) { hideTip(); return; }
-    if (tip.innerHTML !== html) tip.innerHTML = html;
-    tip.hidden = false;
-    const r = container.getBoundingClientRect();
-    let x = cx - r.left + 14, y = cy - r.top + 16;
-    const tw = tip.offsetWidth, th = tip.offsetHeight;
-    if (x + tw > r.width - 4) x = Math.max(4, cx - r.left - tw - 10);
-    if (y + th > r.height - 4) y = Math.max(4, cy - r.top - th - 10);
-    tip.style.left = x + 'px'; tip.style.top = y + 'px';
-  }
+  // ---------------- hover / selection (schematic-hover.js)
+  const { hideTip, keyOfTarget, select, setHover, showTip } = mountSchHover({
+    container, hoverKey: () => hoverKey, netEls: () => netEls, netInfo: () => netInfo, nodeEls: () => nodeEls, onSelect,
+    prep: () => prep, selKey: () => selKey, tip, vp, setHoverKey: (v) => { hoverKey = v; },
+    setSelKey: (v) => { selKey = v; }
+  });
 
   // ---------------- pointer interaction
   let drag = null;
@@ -910,28 +702,10 @@ export function mountSchematic(container, opts = {}) {
   ro?.observe(container);
   addEventListener('resize', onResize);
 
-  // ---------------- export
-  function exportSvg() {
-    const pad = 20;
-    const b = bounds.w ? bounds : { x: 0, y: 0, w: 200, h: 100 };
-    const cs = getComputedStyle(container);
-    const resolve = txt => txt.replace(/var\((--[\w-]+)(?:\s*,\s*([^)]+))?\)/g, (_, v, fb) => (cs.getPropertyValue(v).trim() || fb || 'black'));
-    let css = '';
-    for (const sheet of document.styleSheets) {
-      let rules; try { rules = sheet.cssRules; } catch { continue; }
-      for (const r of rules || []) {
-        if (r.selectorText && r.selectorText.includes('.sch-svg ') && !/:hover|\.hover|\.sel\b|\.panning|\.sch-lod/.test(r.selectorText)) {
-          css += resolve(r.cssText.replace(/\.sch-view\s+/g, '')) + '\n';
-        }
-      }
-    }
-    const bg = cs.getPropertyValue('--sch-bg').trim() || '#fff';
-    const W = Math.ceil(b.w + 2 * pad), H = Math.ceil(b.h + 2 * pad);
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="${SVGNS}" class="sch-svg" width="${W}" height="${H}" viewBox="${r1(b.x - pad)} ${r1(b.y - pad)} ${W} ${H}">`
-      + `<title>${esc(meta.title || graph?.title || 'schematic')}</title><style>${css}</style>`
-      + `<rect x="${r1(b.x - pad)}" y="${r1(b.y - pad)}" width="${W}" height="${H}" fill="${bg}"/>`
-      + `<g class="sch-vp">${content}</g></svg>`;
-  }
+  // ---------------- export (schematic-export.js)
+  const { exportSvg } = mountSchExport({
+    container, bounds: () => bounds, content: () => content, graph: () => graph, meta: () => meta
+  });
 
   function destroy() {
     destroyed = true; token++;
