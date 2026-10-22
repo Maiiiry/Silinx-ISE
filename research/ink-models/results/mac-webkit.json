@@ -1,0 +1,712 @@
+{
+  "env": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/27.2 Safari/605.1.15",
+    "cores": 8,
+    "deviceMemoryGB": null,
+    "crossOriginIsolated": true,
+    "webgpu": {
+      "vendor": "apple",
+      "architecture": "apple",
+      "f16": true
+    },
+    "transformers": "4.3.1"
+  },
+  "runs": [
+    {
+      "model": "trocr-small",
+      "backend": "webgpu",
+      "dtype": "fp32",
+      "threads": 4,
+      "cachedOnnxFiles": 2,
+      "downloadMB": 239.4,
+      "loadedMB": 239.4,
+      "loadS": 1.7,
+      "memoryAfterLoadMB": null,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "F-A-A-B-",
+          "s": 0.74,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F-A.Bt ( \"",
+          "s": 0.14,
+          "tokens": null,
+          "score": 0.5,
+          "exact": false
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y-CA-BI-C-",
+          "s": 0.12,
+          "tokens": null,
+          "score": 0.33333333333333337,
+          "exact": false
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S-A-O.B.",
+          "s": 0.13,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "2 - A\"B + AB'",
+          "s": 0.12,
+          "tokens": null,
+          "score": 0.6666666666666667,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F-not (A and B )",
+          "s": 0.12,
+          "tokens": null,
+          "score": 0.9166666666666666,
+          "exact": false
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "# STS",
+          "s": 0.07,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "# # #",
+          "s": 0.07,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "& D-F",
+          "s": 0.08,
+          "tokens": null,
+          "score": 0.25,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "# DVD F.",
+          "s": 0.09,
+          "tokens": null,
+          "score": 0.16666666666666666,
+          "exact": false
+        }
+      ],
+      "medianS": 0.12,
+      "memoryAfterRunMB": null,
+      "expressionScore": 0.4,
+      "tableScore": 0,
+      "schematicScore": 0.21,
+      "query": "",
+      "coldLoadS": 7.9,
+      "loadedMBCold": 239.4,
+      "rssBaseMB": 113,
+      "rssPeakIncreaseMB": null
+    },
+    {
+      "model": "smolvlm-256m",
+      "backend": "webgpu",
+      "dtype": {
+        "embed_tokens": "fp16",
+        "vision_encoder": "q4",
+        "decoder_model_merged": "q4"
+      },
+      "threads": 4,
+      "cachedOnnxFiles": 3,
+      "downloadMB": 200.9,
+      "loadedMB": 200.9,
+      "loadS": 0.9,
+      "memoryAfterLoadMB": null,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "F=A+B",
+          "s": 0.96,
+          "tokens": 6,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F=A\\cdot B+C^{\\prime}",
+          "s": 0.31,
+          "tokens": 13,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y=(A+B)\\cdot C",
+          "s": 0.26,
+          "tokens": 9,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S=A\\oplus B",
+          "s": 0.26,
+          "tokens": 8,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "Z=A^{B}+AB^{\\prime}",
+          "s": 0.3,
+          "tokens": 13,
+          "score": 0.6666666666666667,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F=not(A and B)",
+          "s": 0.27,
+          "tokens": 9,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "\\frac{0\\cdot0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+0+",
+          "s": 1.08,
+          "tokens": 96,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "\\begin{matrix}0 & 0 & 0 & 0 \\\\ & & & & 0 \\\\ & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & & &",
+          "s": 1.31,
+          "tokens": 96,
+          "score": 0.15625,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "\\mathbb{A}=\\mathbb{D}_{B}=\\mathbb{D}_{F}",
+          "s": 0.52,
+          "tokens": 23,
+          "score": 0.75,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "\\lfloor{D_{\\mathbb{D}}_{\\mathbb{D}}}F_{\\mathbb{D}}\\rfloor",
+          "s": 0.64,
+          "tokens": 32,
+          "score": 0.16666666666666666,
+          "exact": false
+        }
+      ],
+      "medianS": 0.52,
+      "memoryAfterRunMB": null,
+      "expressionScore": 0.94,
+      "tableScore": 0.08,
+      "schematicScore": 0.46,
+      "query": "",
+      "coldLoadS": 5.9,
+      "loadedMBCold": 200.9,
+      "rssBaseMB": 113,
+      "rssPeakIncreaseMB": null
+    },
+    {
+      "model": "florence2-base",
+      "backend": "webgpu",
+      "dtype": {
+        "embed_tokens": "fp16",
+        "vision_encoder": "fp16",
+        "encoder_model": "q4",
+        "decoder_model_merged": "q4"
+      },
+      "threads": 4,
+      "cachedOnnxFiles": 4,
+      "downloadMB": 342.8,
+      "loadedMB": 343,
+      "loadS": 2.3,
+      "memoryAfterLoadMB": null,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "F=A+B",
+          "s": 1.06,
+          "tokens": 8,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F= A.B + C",
+          "s": 0.35,
+          "tokens": 10,
+          "score": 0.875,
+          "exact": false
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y=CA+B1.C",
+          "s": 0.34,
+          "tokens": 11,
+          "score": 0.7777777777777778,
+          "exact": false
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S=A+B",
+          "s": 0.32,
+          "tokens": 8,
+          "score": 0.8,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "Z = A8 + A8",
+          "s": 0.33,
+          "tokens": 10,
+          "score": 0.5555555555555556,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F = not (A and B)",
+          "s": 0.34,
+          "tokens": 11,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "ABIFO0O0oO0-0O1O0",
+          "s": 0.4,
+          "tokens": 18,
+          "score": 0.5,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "ABCMOOOOOOO-O-OO-O",
+          "s": 0.37,
+          "tokens": 15,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "A simple black drawing of a letter A, B, and E. The letter A is on the left side of the image and the letter E is on on the right side of it. The letters are drawn in black ink. The background of the drawing is white.",
+          "s": 0.71,
+          "tokens": 57,
+          "score": 0.75,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "A simple black drawing of a arrow is drawn on a white background. The arrow is pointing to the left and the arrow is pointed towards the right. There are letters on either side of the arrow that are drawn in black ink.",
+          "s": 0.7,
+          "tokens": 49,
+          "score": 0.16666666666666666,
+          "exact": false
+        }
+      ],
+      "medianS": 0.37,
+      "memoryAfterRunMB": null,
+      "expressionScore": 0.83,
+      "tableScore": 0.25,
+      "schematicScore": 0.46,
+      "query": "",
+      "coldLoadS": 10.6,
+      "loadedMBCold": 343,
+      "rssBaseMB": 112,
+      "rssPeakIncreaseMB": null
+    },
+    {
+      "model": "trocr-small",
+      "backend": "wasm",
+      "dtype": "q8",
+      "threads": 4,
+      "cachedOnnxFiles": 2,
+      "downloadMB": 65,
+      "loadedMB": 65,
+      "loadS": 1.3,
+      "memoryAfterLoadMB": null,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "F-A-B.",
+          "s": 0.28,
+          "tokens": null,
+          "score": 0.4,
+          "exact": false
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F-A.B.C.",
+          "s": 0.23,
+          "tokens": null,
+          "score": 0.625,
+          "exact": false
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y- ( A-H ) - C.",
+          "s": 0.23,
+          "tokens": null,
+          "score": 0.4444444444444444,
+          "exact": false
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S-A.A.B.",
+          "s": 0.22,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "2 - A.B.AB.",
+          "s": 0.22,
+          "tokens": null,
+          "score": 0.4444444444444444,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F-not (A and B )",
+          "s": 0.21,
+          "tokens": null,
+          "score": 0.9166666666666666,
+          "exact": false
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "# its",
+          "s": 0.21,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "# # # (",
+          "s": 0.22,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "8 D. F.",
+          "s": 0.21,
+          "tokens": null,
+          "score": 0.25,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "# Dyer.. #",
+          "s": 0.21,
+          "tokens": null,
+          "score": 0,
+          "exact": false
+        }
+      ],
+      "medianS": 0.22,
+      "memoryAfterRunMB": null,
+      "expressionScore": 0.47,
+      "tableScore": 0,
+      "schematicScore": 0.13,
+      "query": "",
+      "coldLoadS": 3.8,
+      "loadedMBCold": 65,
+      "rssBaseMB": 112,
+      "rssPeakIncreaseMB": null
+    },
+    {
+      "model": "smolvlm-256m",
+      "backend": "wasm",
+      "dtype": {
+        "embed_tokens": "q8",
+        "vision_encoder": "q8",
+        "decoder_model_merged": "q8"
+      },
+      "threads": 4,
+      "cachedOnnxFiles": 3,
+      "downloadMB": 251.2,
+      "loadedMB": 251.2,
+      "loadS": 1,
+      "memoryAfterLoadMB": null,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "A+B",
+          "s": 1.47,
+          "tokens": 4,
+          "score": 0.6,
+          "exact": false
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F=A\\cdot B+C^{\\prime}",
+          "s": 1.44,
+          "tokens": 13,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y=(A+B)\\cdot C",
+          "s": 1.39,
+          "tokens": 9,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S=A\\otimes B",
+          "s": 1.39,
+          "tokens": 8,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "A1B+AB'",
+          "s": 1.39,
+          "tokens": 7,
+          "score": 0.6666666666666667,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F=not(A and B)",
+          "s": 1.43,
+          "tokens": 9,
+          "score": 1,
+          "exact": true
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "The header first, then the row with the numbers 0, 0, 0, 0, and 0.",
+          "s": 1.71,
+          "tokens": 27,
+          "score": 0.41666666666666663,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "For the table, the first row is labeled “A” and the last row is labeled “M”.",
+          "s": 1.57,
+          "tokens": 22,
+          "score": 0,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "A is a D-F.",
+          "s": 1.47,
+          "tokens": 8,
+          "score": 0.25,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "\\frac{1}{2}D_{\\mathbb{Z}}",
+          "s": 1.52,
+          "tokens": 16,
+          "score": 0,
+          "exact": false
+        }
+      ],
+      "medianS": 1.47,
+      "memoryAfterRunMB": null,
+      "expressionScore": 0.71,
+      "tableScore": 0.21,
+      "schematicScore": 0.13,
+      "query": "",
+      "coldLoadS": 7.5,
+      "loadedMBCold": 251.2,
+      "rssBaseMB": 113,
+      "rssPeakIncreaseMB": null
+    },
+    {
+      "model": "florence2-base",
+      "backend": "wasm",
+      "dtype": {
+        "embed_tokens": "q8",
+        "vision_encoder": "q8",
+        "encoder_model": "q8",
+        "decoder_model_merged": "q8"
+      },
+      "threads": 4,
+      "cachedOnnxFiles": 4,
+      "downloadMB": 264.4,
+      "loadedMB": 264.6,
+      "loadS": 1.7,
+      "memoryAfterLoadMB": null,
+      "samples": [
+        {
+          "id": "e1",
+          "kind": "expression",
+          "text": "E=A+B",
+          "s": 2.76,
+          "tokens": 8,
+          "score": 0.8,
+          "exact": false
+        },
+        {
+          "id": "e2",
+          "kind": "expression",
+          "text": "F3.B+C",
+          "s": 2.61,
+          "tokens": 9,
+          "score": 0.625,
+          "exact": false
+        },
+        {
+          "id": "e3",
+          "kind": "expression",
+          "text": "Y=C4+B3.C",
+          "s": 2.63,
+          "tokens": 12,
+          "score": 0.6666666666666667,
+          "exact": false
+        },
+        {
+          "id": "e4",
+          "kind": "expression",
+          "text": "S3-4+B",
+          "s": 2.65,
+          "tokens": 9,
+          "score": 0.19999999999999996,
+          "exact": false
+        },
+        {
+          "id": "e5",
+          "kind": "expression",
+          "text": "2=4B + 4B",
+          "s": 2.77,
+          "tokens": 10,
+          "score": 0.4444444444444444,
+          "exact": false
+        },
+        {
+          "id": "e6",
+          "kind": "expression",
+          "text": "F-enot(aandB)",
+          "s": 2.65,
+          "tokens": 12,
+          "score": 0.8333333333333334,
+          "exact": false
+        },
+        {
+          "id": "t1",
+          "kind": "table",
+          "text": "ABF00O00O0O0-1",
+          "s": 2.65,
+          "tokens": 14,
+          "score": 0.5833333333333333,
+          "exact": false
+        },
+        {
+          "id": "t2",
+          "kind": "table",
+          "text": "ABCM00",
+          "s": 2.63,
+          "tokens": 6,
+          "score": 0.0625,
+          "exact": false
+        },
+        {
+          "id": "s1",
+          "kind": "schematic",
+          "text": "A drawing of a round object with a long stem and a round top. There are four letters A, B, and E in the drawing. The drawing is drawn in black ink on a white background.",
+          "s": 2.94,
+          "tokens": 44,
+          "score": 0.75,
+          "exact": false
+        },
+        {
+          "id": "s2",
+          "kind": "schematic",
+          "text": "A drawing of a boat is drawn on a white background. The boat has a long narrow narrow line going up to the top of the boat. There are two large round objects that are connected to a narrow narrow piece of boat. The letters A, B, and F are drawn on the boat in black marker. The drawing is drawn in a simple, hand-drawn style.",
+          "s": 3.06,
+          "tokens": 79,
+          "score": 0.6666666666666666,
+          "exact": false
+        }
+      ],
+      "medianS": 2.65,
+      "memoryAfterRunMB": null,
+      "expressionScore": 0.59,
+      "tableScore": 0.32,
+      "schematicScore": 0.71,
+      "query": "",
+      "coldLoadS": 8.2,
+      "loadedMBCold": 264.6,
+      "rssBaseMB": 113,
+      "rssPeakIncreaseMB": null
+    }
+  ]
+}
