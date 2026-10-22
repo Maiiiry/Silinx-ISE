@@ -62,8 +62,12 @@ export function decide({ now, state, running, busy, active, ran }) {
   return done ? { action: 'stop', state, why: 'the window\'s runs have finished' } : { action: 'none', state, why: 'waiting for the runs' };
 }
 
-/** The runs of the two workflows queued or running, and those finished since `since` (ms). */
-export async function runs(since, fetchJson = getJson) {
+/**
+ * The runs of the two workflows queued or running, and those finished since `since` (ms): the scheduled
+ * ones only when `scheduled` (a window opened by the schedule waits for its scheduled runs; a run by
+ * hand inside it does not close it, #901).
+ */
+export async function runs(since, fetchJson = getJson, scheduled = false) {
   let active = 0;
   for (const s of ACTIVE) {
     const r = await fetchJson(`https://api.github.com/repos/${REPO}/actions/runs?status=${s}&per_page=100`);
@@ -72,7 +76,7 @@ export async function runs(since, fetchJson = getJson) {
   const ran = {};
   const created = new Date(since).toISOString().replace(/\.\d+Z$/, 'Z');
   for (const f of WORKFLOWS) {
-    const r = await fetchJson(`https://api.github.com/repos/${REPO}/actions/workflows/${f}/runs?status=completed&created=%3E%3D${created}&per_page=1`);
+    const r = await fetchJson(`https://api.github.com/repos/${REPO}/actions/workflows/${f}/runs?status=completed&created=%3E%3D${created}${scheduled ? '&event=schedule' : ''}&per_page=1`);
     ran[f] = r.total_count > 0;
   }
   return { active, ran };
@@ -95,7 +99,7 @@ export async function run(cmd, sys) {
   else if (cmd === 'tick' || cmd === 'status') {
     let active = null, ran = null;
     if (state && running && !busy && state.opened >= lastOpening(now).getTime()) {
-      try { ({ active, ran } = await sys.runs(state.opened)); } catch (e) { sys.log(`GitHub: ${e.message}`); }
+      try { ({ active, ran } = await sys.runs(state.opened, undefined, state.needs !== 'any')); } catch (e) { sys.log(`GitHub: ${e.message}`); }
     }
     d = decide({ now, state, running, busy, active, ran });
     if (cmd === 'status') {
