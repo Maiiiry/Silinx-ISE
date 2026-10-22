@@ -2,7 +2,7 @@
 // editor (states, decision, case box, connections, its HDL; # Snap, </> Code and Copy, Reset
 // route / Delete connection, Swap 1 / 0 exits, a case exit's ✕, Delete box, Zoom / Fit, ↶ ↷ and
 // Edit ▸ Undo / Redo: #195), print preview of a diagram; the schematic editor's Rotate (Ctrl+R,
-// toolbar, properties), zoom buttons, palette Place Symbol.
+// toolbar, properties; an I/O marker's properties without them, #949), zoom buttons, palette Place Symbol.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs, waitDownload, chromeOnly } from './harness.js';
@@ -206,10 +206,11 @@ uiTest('#339 schematic editor: a click on the properties\' Rotate or a palette r
   assert.deepEqual(page.dialogs, []);
 });
 
-// #296: the I/O markers turned (Ctrl+R, the toolbar, the properties: a quarter turn clockwise around their
-// connection point) and mirrored (to the opposite side); the side saved in the .sch.json (none when it is
-// the default one), the marker drawn there; with a symbol selected too, both turn; one Undo
-uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M, the toolbar, the properties), drawn and saved on their side', E, async (page) => {
+// #296: the I/O markers turned (Ctrl+R, the toolbar: a quarter turn clockwise around their connection point)
+// and mirrored (to the opposite side); the side saved in the .sch.json (none when it is the default one), the
+// marker drawn there; with a symbol selected too, both turn; one Undo. #949: the marker's properties have no
+// Rotate / Mirror / Delete buttons; the toolbar and Del delete it
+uiTest('#296 #949 schematic editor: I/O markers rotated, mirrored and deleted (Ctrl+R / Ctrl+M / Del, the toolbar; no buttons in their properties), drawn and saved on their side', E, async (page) => {
   const { newDoc } = await import('../../core/schdoc.js');
   const doc = newDoc('io', 'vhdl');
   doc.symbols.push({ id: 'S1', type: 'inv', x: 300, y: 100, rot: 0, mirror: false, name: 'U1', params: {} });
@@ -231,6 +232,8 @@ uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M
   await page.click(`${D} g.port[data-id="P1"] .iomark`);
   await page.waitFor((d) => !document.querySelector(`${d} .se-btn[data-act=rotate]`).disabled && !document.querySelector(`${d} .se-btn[data-act=mirror]`).disabled, [D], { what: 'Rotate, Mirror enabled' });
   assert.equal(await page.eval((d) => document.querySelector(`${d} .se-ptitle`)?.textContent, D), 'I/O Marker');
+  // #949: the properties: the fields only, no Rotate / Mirror / Delete (nor any other button)
+  assert.deepEqual(await page.eval((d) => [...document.querySelectorAll(`${d} .se-props button`)].map((b) => b.textContent), D), []);
   // Ctrl+R: above (N), the name turned; the toolbar: E; Ctrl+R: S; the toolbar: W, the default again
   await page.key('r', { modifiers: 2 });
   await waitSides(['N', null]);
@@ -243,13 +246,13 @@ uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M
   assert.deepEqual(await drawn('P1'), { x: 193, y: 303, w: 14, h: 27, turned: true });
   await page.click(`${D} .se-btn[data-act=rotate]`);
   await waitSides([null, null]);
-  // Ctrl+M: the opposite side (E); the properties' Mirror: back (W); the properties' Rotate: N; Undo: W
+  // Ctrl+M: the opposite side (E); the toolbar's Mirror: back (W); the toolbar's Rotate: N; Undo: W
   // (then Ctrl+A on the sheet: the focus there again)
   await page.key('m', { modifiers: 2 });
   await waitSides(['E', null]);
-  await page.click(`${D} .se-pbtns .btn`, { text: 'Mirror' });
+  await page.click(`${D} .se-btn[data-act=mirror]`);
   await waitSides([null, null]);
-  await page.click(`${D} .se-pbtns .btn`, { text: 'Rotate' });
+  await page.click(`${D} .se-btn[data-act=rotate]`);
   await waitSides(['N', null]);
   await page.click(`${D} [data-act=undo]`);
   await waitSides([null, null]);
@@ -260,6 +263,18 @@ uiTest('#296 schematic editor: I/O markers rotated and mirrored (Ctrl+R / Ctrl+M
   await page.key('r', { modifiers: 2 });
   await waitSides(['N', 'S']);
   assert.deepEqual(JSON.parse(await readWs(env, 'SchIo', 'src/io.sch.json')).symbols.map((x) => x.rot), [90]);
+  // #949: the output deleted with the toolbar's Delete, Undo brings it back; deleted again with Del
+  await page.click(`${D} .se-svg`);
+  await page.click(`${D} g.port[data-id="P2"] .iomark`);
+  await page.waitFor((d) => document.querySelector(`${d} .se-ptitle`)?.textContent === 'I/O Marker' && !document.querySelector(`${d} .se-btn[data-act=delete]`).disabled, [D], { what: 'the output selected' });
+  await page.click(`${D} .se-btn[data-act=delete]`);
+  await waitSides(['N']);
+  await page.click(`${D} [data-act=undo]`);
+  await waitSides(['N', 'S']);
+  await page.click(`${D} g.port[data-id="P2"] .iomark`);
+  await page.waitFor((d) => document.querySelector(`${d} .se-ptitle`)?.textContent === 'I/O Marker', [D], { what: 'the output selected' });
+  await page.key('Delete');
+  await waitSides(['N']);
   assert.deepEqual(page.dialogs, []);
 });
 
