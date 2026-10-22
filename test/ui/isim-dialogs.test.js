@@ -71,11 +71,11 @@ uiTest('#405 ISim dialogs: Force Constant, its fields, the force and its command
   assert.deepEqual(out.enumFields, { sig: '/top/st', radix: 'bin (disabled)', value: 'IDLE', start: '0', cancel: '' });
   assert.deepEqual(out.calls, [
     ['addForce', 'q', { pattern: [{ off: 0, val: '0110' }], start: 7000, cancel: 22000, desc: 'constant 0110' }],
-    ['echo', 'isim force add /top/q 0110 -radix bin -time 5 ns -cancel 20 ns'],
+    ['echo', 'ssim force add /top/q 0110 -radix bin -time 5 ns -cancel 20 ns'],
     ['addForce', 'q', { pattern: [{ off: 0, val: '1111' }], start: 2000, cancel: null, desc: 'constant F' }],
-    ['echo', 'isim force add /top/q F -radix hex'],
+    ['echo', 'ssim force add /top/q F -radix hex'],
     ['addForce', 'st', { pattern: [{ off: 0, val: '1' }], start: 2000, cancel: null, desc: 'constant RUN' }],
-    ['echo', 'isim force add /top/st RUN -radix bin'],
+    ['echo', 'ssim force add /top/st RUN -radix bin'],
   ]);
 });
 
@@ -130,6 +130,6 @@ uiTest('#405 ISim dialogs: Force Clock, its pattern, repeat, duty cycle and thei
   assert.equal(out.none, 0);
   assert.deepEqual(out.calls, [
     ['addForce', 'q', { pattern: [{ off: 0, val: '0000' }, { off: 3000, val: '0001' }], start: 5000, repeat: 10000, cancel: 102000, desc: 'clock 0/1 period 10 ns duty 30%' }],
-    ['echo', 'isim force add /top/q 0 -radix bin -time 3 ns -value 1 -time 6 ns -repeat 10 ns -cancel 100 ns'],
+    ['echo', 'ssim force add /top/q 0 -radix bin -time 3 ns -value 1 -time 6 ns -repeat 10 ns -cancel 100 ns'],
   ]);
 });

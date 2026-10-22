@@ -1,5 +1,5 @@
 // ISim's Console and command line (#405: out of mountISim): the simulator's messages and the commands' output, the
-// command line with its history, and the commands (run, restart, isim force, wave add, show, zoom, marker, help).
+// command line with its history, and the commands (run, restart, ssim force (isim force: its old name, still accepted), wave add, show, zoom, marker, help).
 // mountConsole(ctx) is called by mountISim where this code was, with what it uses of the simulator window.
 import { h } from './dom.js';
 import { fmtTime, parseTime, formatValue, parseValue } from './isim.js';
@@ -23,7 +23,7 @@ export function mountConsole(ctx) {
     if (atBottom) cons.scrollTop = cons.scrollHeight;
   }
   function logLine(text, kind = 'info') { appendConsole(text, 'k-' + kind); }
-  function echo(cmd) { appendConsole(`ISim> ${cmd}`, 'k-cmd'); }
+  function echo(cmd) { appendConsole(`SSim> ${cmd}`, 'k-cmd'); }
   function formatLog(e) {
     if (e.kind === 'print') return e.text;
     const lbl = KIND_LABEL[e.kind] || e.kind;
@@ -40,8 +40,8 @@ export function mountConsole(ctx) {
     'Available commands:',
     '  run [<time> [<unit>]] | run all       advance the simulation (default run time from the toolbar)',
     '  restart                               restart the simulation from time 0 (forces are kept)',
-    '  isim force add <path> <value> [-radix bin|hex|dec|oct|ascii] [-time <t>] [-value <v> -time <t>]... [-repeat <period>] [-cancel <t>]',
-    '  isim force remove <path>              release a forced signal',
+    '  ssim force add <path> <value> [-radix bin|hex|dec|oct|ascii] [-time <t>] [-value <v> -time <t>]... [-repeat <period>] [-cancel <t>]',
+    '  ssim force remove <path>              release a forced signal',
     '  wave add <path>                       add a signal (or every signal of an instance) to the wave window',
     '  show value <path> [-radix <r>]        print the current value of a signal',
     '  show time                             print the current simulation time',
@@ -94,12 +94,12 @@ export function mountConsole(ctx) {
       }
       if (c0 === 'zoom') { const a = tk[1]; if (a === 'fit' || a === 'full') zoomFit(); else if (a === 'in') zoomAt(0.5); else if (a === 'out') zoomAt(2); return; }
       if (c0 === 'marker' && tk[1] === 'add') { addMarker(tk[2] ? parseTime(tk.slice(2).join(''), 'ns') : st.cursor); return; }
-      if (c0 === 'isim' && tk[1] === 'force') {
+      if ((c0 === 'ssim' || c0 === 'isim') && tk[1] === 'force') {
         const sub = tk[2];
         const sig = findSignal(tk[3] || '');
         if (!sig) throw new Error(`signal '${tk[3] || ''}' not found`);
         if (sub === 'remove') { removeForces(sig); return; }
-        if (sub !== 'add') throw new Error('usage: isim force add|remove <path> ...');
+        if (sub !== 'add') throw new Error('usage: ssim force add|remove <path> ...');
         if (!sig.wave) throw new Error('arrays/memories cannot be forced');
         let radix = 'default';
         const ri = tk.indexOf('-radix');

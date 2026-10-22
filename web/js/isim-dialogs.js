@@ -1,5 +1,5 @@
 // ISim's dialogs (#405: out of mountISim): one at a time over the window (show, closeDialog), and Force Constant /
-// Force Clock of the selected signal (forceDialog), which add the force and echo its isim force add command.
+// Force Clock of the selected signal (forceDialog), which add the force and echo its ssim force add command.
 // mountDialogs(ctx) is called by mountISim where this code was.
 import { esc, h } from './dom.js';
 import { fmtTime, parseTime, formatValue, parseValue, pathOf } from './isim.js';
@@ -66,11 +66,11 @@ export function mountDialogs(ctx) {
           if (!(duty > 0 && duty < 100)) throw new Error('duty cycle must be between 0 and 100');
           const hi = Math.max(1, Math.min(period - 1, Math.round(period * duty / 100)));
           addForce(sig, { pattern: [{ off: 0, val: lead }, { off: hi, val: trail }], start, repeat: period, cancel, desc: `clock ${q('lead').value}/${q('trail').value} period ${fmtTime(period)} duty ${duty}%` });
-          echo(`isim force add ${pathOf(sig)} ${q('lead').value} -radix ${radix === 'default' ? 'bin' : radix}${start > sim.now ? ` -time ${fmtTime(start - sim.now)}` : ''} -value ${q('trail').value} -time ${fmtTime(hi + start - sim.now)} -repeat ${fmtTime(period)}${cancelOff != null ? ` -cancel ${fmtTime(cancelOff)}` : ''}`);
+          echo(`ssim force add ${pathOf(sig)} ${q('lead').value} -radix ${radix === 'default' ? 'bin' : radix}${start > sim.now ? ` -time ${fmtTime(start - sim.now)}` : ''} -value ${q('trail').value} -time ${fmtTime(hi + start - sim.now)} -repeat ${fmtTime(period)}${cancelOff != null ? ` -cancel ${fmtTime(cancelOff)}` : ''}`);
         } else {
           const val = parseValue(q('value').value, t, radix);
           addForce(sig, { pattern: [{ off: 0, val }], start, cancel, desc: `constant ${q('value').value}` });
-          echo(`isim force add ${pathOf(sig)} ${q('value').value} -radix ${radix === 'default' ? 'bin' : radix}${start > sim.now ? ` -time ${fmtTime(start - sim.now)}` : ''}${cancelOff != null ? ` -cancel ${fmtTime(cancelOff)}` : ''}`);
+          echo(`ssim force add ${pathOf(sig)} ${q('value').value} -radix ${radix === 'default' ? 'bin' : radix}${start > sim.now ? ` -time ${fmtTime(start - sim.now)}` : ''}${cancelOff != null ? ` -cancel ${fmtTime(cancelOff)}` : ''}`);
         }
         err.textContent = '';
         return true;

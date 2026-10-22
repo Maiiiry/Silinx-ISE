@@ -52,32 +52,32 @@ uiTest('#405 ISim console: run, restart, show, wave add, zoom, marker, help, and
     ['addSignals', ['sig']], ['addInstance', 'inst', false], ['zoomFit'], ['zoomAt', 0.5], ['zoomAt', 2], ['addMarker', 5000], ['addMarker', 30000],
   ]);
   assert.deepEqual(out.lines, [
-    'k-cmd|ISim> run', 'k-cmd|ISim> run 20 ns', 'k-cmd|ISim> run 1.5us', 'k-cmd|ISim> run all', 'k-cmd|ISim> restart',
-    'k-cmd|ISim> show time', 'k-info|Simulation time: 2 ns',
-    'k-cmd|ISim> show value top/q', 'k-info|A', 'k-cmd|ISim> show value q -radix bin', 'k-info|1010',
-    'k-cmd|ISim> wave add /top/q top', 'k-cmd|ISim> zoom fit', 'k-cmd|ISim> zoom in', 'k-cmd|ISim> zoom out',
-    'k-cmd|ISim> marker add', 'k-cmd|ISim> marker add 30 ns',
-    "k-cmd|ISim> run -5", "k-error|ERROR: invalid time '-5'",
-    'k-cmd|ISim> show value nope', "k-error|ERROR: signal 'nope' not found",
-    'k-cmd|ISim> frobnicate', "k-error|ERROR: unknown command 'frobnicate' (type help)",
+    'k-cmd|SSim> run', 'k-cmd|SSim> run 20 ns', 'k-cmd|SSim> run 1.5us', 'k-cmd|SSim> run all', 'k-cmd|SSim> restart',
+    'k-cmd|SSim> show time', 'k-info|Simulation time: 2 ns',
+    'k-cmd|SSim> show value top/q', 'k-info|A', 'k-cmd|SSim> show value q -radix bin', 'k-info|1010',
+    'k-cmd|SSim> wave add /top/q top', 'k-cmd|SSim> zoom fit', 'k-cmd|SSim> zoom in', 'k-cmd|SSim> zoom out',
+    'k-cmd|SSim> marker add', 'k-cmd|SSim> marker add 30 ns',
+    "k-cmd|SSim> run -5", "k-error|ERROR: invalid time '-5'",
+    'k-cmd|SSim> show value nope', "k-error|ERROR: signal 'nope' not found",
+    'k-cmd|SSim> frobnicate', "k-error|ERROR: unknown command 'frobnicate' (type help)",
     'k-info|plain', 'k-warning|careful',
   ]);
   // help: its text, as many lines as written
   const help = await page.eval(async () => { const { con, host } = window.__con; host.querySelector('.isim-clear').click(); await con.execCommand('help'); return [...host.querySelectorAll('.isim-ln')].map(d => d.textContent); });
-  assert.equal(help[0], 'ISim> help');
+  assert.equal(help[0], 'SSim> help');
   assert.equal(help[1], 'Available commands:');
-  assert.ok(help.some(l => l.startsWith('  isim force add <path> <value>')));
+  assert.ok(help.some(l => l.startsWith('  ssim force add <path> <value>')));
 });
 
-uiTest('#405 ISim console: isim force add / remove, its pattern, repeat and cancel; the simulator\'s messages; the history keys', E, async (page) => {
+uiTest('#405 ISim console: ssim force add / remove (isim force, its old name, still accepted, #920), its pattern, repeat and cancel; the simulator\'s messages; the history keys', E, async (page) => {
   await page.eval(MOUNT);
   const out = await page.eval(async () => {
     const { con, calls, sim, host } = window.__con;
-    await con.execCommand('isim force add q 1010 -radix bin -value 0011 -time 10 ns -repeat 20 ns -cancel 100 ns');
-    await con.execCommand('isim force add q 5 -radix dec');
-    await con.execCommand('isim force remove q');
-    await con.execCommand('isim force add q 1 -value 0 -time 30 -repeat 20');
-    await con.execCommand('isim force add q');
+    await con.execCommand('ssim force add q 1010 -radix bin -value 0011 -time 10 ns -repeat 20 ns -cancel 100 ns');
+    await con.execCommand('isim force add q 5 -radix dec');   // (its old name, ISim's: still a command, #920)
+    await con.execCommand('ssim force remove q');
+    await con.execCommand('ssim force add q 1 -value 0 -time 30 -repeat 20');
+    await con.execCommand('ssim force add q');
     const forces = calls.filter(c => c[0] !== 'addSignals').map(([n, s, f]) => (n === 'addForce'
       ? [n, s, f.pattern.map(p => [p.off, Number(p.val.v)]), f.start, f.repeat, f.cancel, f.desc] : [n, s]));
     // the simulator's messages: a report with its process and place, a print as it is
@@ -91,12 +91,12 @@ uiTest('#405 ISim console: isim force add / remove, its pattern, repeat and canc
     return { forces, msgs, up1, up2, down, errors: [...host.querySelectorAll('.k-error')].map(d => d.textContent) };
   });
   assert.deepEqual(out.forces, [
-    ['addForce', 'sig', [[0, 10], [10000, 3]], 2000, 20000, 102000, 'isim force add q 1010 -radix bin -value 0011 -time 10 ns -repeat 20 ns -cancel 100 ns'],
+    ['addForce', 'sig', [[0, 10], [10000, 3]], 2000, 20000, 102000, 'ssim force add q 1010 -radix bin -value 0011 -time 10 ns -repeat 20 ns -cancel 100 ns'],
     ['addForce', 'sig', [[0, 5]], 2000, 0, null, 'isim force add q 5 -radix dec'],
     ['removeForces', 'sig'],
   ]);
   // (the simulator's error report is one too)
   assert.deepEqual(out.errors, ['ERROR: -repeat period must exceed the last -time offset', 'ERROR: missing value', 'ERROR: no process']);
   assert.deepEqual(out.msgs, ['at 15 ns: Warning: too fast (tb.vhd:12)', 'hello', 'ERROR: no process']);
-  assert.deepEqual([out.up1, out.up2, out.down], ['isim force add q', 'isim force add q 1 -value 0 -time 30 -repeat 20', 'isim force add q']);
+  assert.deepEqual([out.up1, out.up2, out.down], ['ssim force add q', 'ssim force add q 1 -value 0 -time 30 -repeat 20', 'ssim force add q']);
 });

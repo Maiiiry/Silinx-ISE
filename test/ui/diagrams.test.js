@@ -875,9 +875,9 @@ uiTest('#303 a schematic with two drivers on a net: its old HDL file is not simu
   // the simulation: stopped by its Check Syntax, not run on the old HDL
   await page.click('input[name=view][value=sim]');
   await page.treeRow('#hier', 's');
-  log = await run('Simulate Behavioral Model', /Process "Check Syntax" failed|Launching ISim/);
+  log = await run('Simulate Behavioral Model', /Process "Check Syntax" failed|Launching SSim/);
   assert.ok(log.includes(WHY), log);
-  assert.doesNotMatch(log, /Launching ISim/);
+  assert.doesNotMatch(log, /Launching SSim/);
   // fixed in the editor (U2 deleted): its HDL generated again, the check passes
   await page.click('input[name=view][value=impl]');
   await page.eval(() => window.SilinxApp.openSch('src/s.sch.json'));

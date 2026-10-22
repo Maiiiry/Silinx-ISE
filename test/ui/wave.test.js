@@ -165,25 +165,25 @@ uiTest('ISim Wave window: zoom, markers, radix, force constant / clock / remove,
   assert.deepEqual(await edgesIn(1200000, 1400000), every(1200000, 1400000, 10000), 'the forced 20 ns clock');
   assert.equal(await qShown(), '78');
   assert.equal(await consoleText(page), `${startLog}
-ISim> isim force add /tb/clk 0 -radix bin
-ISim> run 100 ns
+SSim> ssim force add /tb/clk 0 -radix bin
+SSim> run 100 ns
 Force removed from /tb/clk
-ISim> run 100 ns
-ISim> isim force add /tb/clk 0 -radix bin -value 1 -time 10 ns -repeat 20 ns
-ISim> run 200 ns`);
+SSim> run 100 ns
+SSim> ssim force add /tb/clk 0 -radix bin -value 1 -time 10 ns -repeat 20 ns
+SSim> run 200 ns`);
 
   // ---- restart: time 0, the forces kept
   await tbBtn('Restart');
   await simTime(page, '0');
   assert.equal(await view('cursor'), 0);
   assert.equal(await consoleText(page), `${startLog}
-ISim> isim force add /tb/clk 0 -radix bin
-ISim> run 100 ns
+SSim> ssim force add /tb/clk 0 -radix bin
+SSim> run 100 ns
 Force removed from /tb/clk
-ISim> run 100 ns
-ISim> isim force add /tb/clk 0 -radix bin -value 1 -time 10 ns -repeat 20 ns
-ISim> run 200 ns
-ISim> restart
+SSim> run 100 ns
+SSim> ssim force add /tb/clk 0 -radix bin -value 1 -time 10 ns -repeat 20 ns
+SSim> run 200 ns
+SSim> restart
 Simulator is doing circuit initialization process.
 Finished circuit initialization process.
 2 force(s) re-applied.`);
@@ -223,7 +223,7 @@ Finished circuit initialization process.
 // A test bench whose clock toggles every 10 ps (a run of 1 ms does not end before a Break).
 const TB_FAST = TB.replace('after 5 ns', 'after 10 ps');
 // the console's lines from the first command on
-const commandLines = (page) => page.eval(() => { const l = document.querySelector('.doc:not([hidden]) .isim-console').innerText.split('\n'); return l.slice(l.findIndex((x) => x.startsWith('ISim>'))); });
+const commandLines = (page) => page.eval(() => { const l = document.querySelector('.doc:not([hidden]) .isim-console').innerText.split('\n'); return l.slice(l.findIndex((x) => x.startsWith('SSim>'))); });
 // in the page: type `cmds` into ISim's command line (`input`), one after the other, at once
 const TYPE = `(input, cmds) => { for (const c of cmds) { input.value = c; input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); } }`;
 // starts `run` and types `cmds` while it goes on: performance.now() made to jump, the run yields
@@ -259,13 +259,13 @@ uiTest('ISim command line: commands given before ISim\'s first run starts or dur
   await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view, [], { what: 'ISim open', timeout: 20000 });
   await simTime(page, '1,002,000');
   assert.deepEqual(await page.eval(() => window.__early), { running: false, time: '' }, 'typed before the first run started');
-  assert.deepEqual(await commandLines(page), ['ISim> run 1 us', 'ISim> run 2 ns', 'ISim> show time', 'Simulation time: 1.002 us']);
+  assert.deepEqual(await commandLines(page), ['SSim> run 1 us', 'SSim> run 2 ns', 'SSim> show time', 'Simulation time: 1.002 us']);
 
   // typed during a run: a run, the time, another run; each waits for the one before it
   await page.eval(() => { document.querySelector('.doc:not([hidden]) .isim-console').innerHTML = ''; });
   assert.equal(await typeDuringRun(page, 'run 100 ns', ['run 2 ns', 'show time', 'run 3 ns']), true, 'typed while the run goes on');
   await simTime(page, '1,107,000');
-  assert.deepEqual(await commandLines(page), ['ISim> run 100 ns', 'ISim> run 2 ns', 'ISim> show time', 'ISim> run 3 ns', 'Simulation time: 1.104 us']);
+  assert.deepEqual(await commandLines(page), ['SSim> run 100 ns', 'SSim> run 2 ns', 'SSim> show time', 'SSim> run 3 ns', 'Simulation time: 1.104 us']);
   assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .isim-st-msg').textContent), 'Ready');
 
   // Break during a run: that run stops, the command waiting for it is cancelled (said so)
@@ -275,7 +275,7 @@ uiTest('ISim command line: commands given before ISim\'s first run starts or dur
   await page.waitFor(() => !window.Silinx.active.view.state.running && /cancelled/.test(document.querySelector('.doc:not([hidden]) .isim-console').innerText), [], { what: 'run broken, the waiting one cancelled', timeout: 20000 });
   const lines = await commandLines(page);
   assert.equal(lines.length, 4, lines.join('\n'));
-  assert.deepEqual([lines[0], lines[1], lines[3]], ['ISim> run 1 ms', 'ISim> run 1 us', 'Command \'run 1 us\' cancelled (Break)']);
+  assert.deepEqual([lines[0], lines[1], lines[3]], ['SSim> run 1 ms', 'SSim> run 1 us', 'Command \'run 1 us\' cancelled (Break)']);
   assert.match(lines[2], /^Simulation interrupted \(Break\) at [\d.]+ (ns|us)$/);
   assert.equal(await page.eval(() => window.Silinx.active.view.state.runTarget), 1_107_000 + 1e9, 'the broken run, not the cancelled one, was the last');
   // the next command runs as usual

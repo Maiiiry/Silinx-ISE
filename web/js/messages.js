@@ -126,8 +126,8 @@ function prompt() {
   const sim = task === 'sim' && isimOpen();
   const p = document.querySelector('#mc-cmd .mc-prompt'), input = document.querySelector('#mc-cmd input');
   if (!p) return;
-  p.textContent = sim ? 'ISim>' : '›';
-  input.placeholder = sim ? 'Type an ISim command (help)' : 'Type a command or a file name';
+  p.textContent = sim ? 'SSim>' : '›';
+  input.placeholder = sim ? 'Type an SSim command (help)' : 'Type a command or a file name';
 }
 
 /** Builds the message centre (the Tasks interface). `a` is the app (web/js/app.js). */

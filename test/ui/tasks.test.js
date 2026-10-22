@@ -136,7 +136,7 @@ uiTest('Tasks at 1366 × 768: each task its arrangement and documents, a task wi
   await page.click('#task-switch .task-btn[data-task="edit"]');
   s = await state(page);
   assert.deepEqual([s.task, s.side, s.console, s.empty], ['edit', 'open', 'open', false]);
-  assert.ok(s.tabs.includes('top.vhd') && !s.tabs.some((t) => t.startsWith('ISim')), s.tabs.join());
+  assert.ok(s.tabs.includes('top.vhd') && !s.tabs.some((t) => t.startsWith('SSim')), s.tabs.join());
   assert.ok(await shown(page, '.doc:not([hidden]) .cm-editor'));
   // Implement: the Design Summary opens by itself; Program: iMPACT
   await page.click('#task-switch .task-btn[data-task="impl"]');
@@ -576,13 +576,13 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   assert.deepEqual(await pressed(page), ['sim']);
   await page.waitFor(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].some((l) => /circuit initialization/.test(l.textContent)), [], { what: 'ISim\'s lines' });
   // one command line: ISim's while simulating
-  assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), 'ISim>');
+  assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), 'SSim>');
   const before = await page.eval(() => document.querySelector('.isim-st-time').textContent);
   await page.click('#mc-cmd input');
   await page.type('run 2 us');
   await page.key('Enter');
   await page.waitFor((b) => document.querySelector('.isim-st-time').textContent !== b, [before], { what: 'ISim ran' });
-  await page.waitFor(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'ISim> run 2 us' && l.dataset.src === 'sim' && l.getClientRects().length), [], { what: 'the command in the message centre' });
+  await page.waitFor(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'SSim> run 2 us' && l.dataset.src === 'sim' && l.getClientRects().length), [], { what: 'the command in the message centre' });
   assert.match(await page.eval(() => document.querySelector('.isim-st-time').textContent), /3,000,000 ps/);
   // folded: the last line of the filter
   await page.click('#task-bar [data-act="console"]');

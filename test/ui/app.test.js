@@ -143,7 +143,7 @@ uiTest('every menu opens and every enabled item acts or opens its dialog', E, as
   assert.deepEqual(idle, [], `menu items that did nothing: ${idle.join(', ')}`);
   // the processes ran on a valid design: the simulator and the emulator opened
   const windows = log.filter((l) => l.startsWith('Window ▸')).map((l) => l.slice(9, l.indexOf(':')));
-  for (const w of ['ISim (tb_top)', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.includes(w), `Window menu lists ${w}: ${windows}`);
+  for (const w of ['SSim (tb_top)', 'Board Emulator (top)', 'I/O Pin Planning', 'iMPACT', 'Design Summary']) assert.ok(windows.includes(w), `Window menu lists ${w}: ${windows}`);
   for (const must of ['File ▸ New Project…', 'File ▸ Open Project…', 'File ▸ Import Silinx ISE Project (.zip)…', 'File ▸ Export Silinx ISE Project (.zip)…',
     'File ▸ Import Xilinx ISE Project (.zip)…', 'File ▸ Export Xilinx ISE Project (.zip)…', 'File ▸ Recent Projects', 'Edit ▸ Undo', 'Edit ▸ Redo', 'Edit ▸ Find…',
     'Edit ▸ Replace…', 'Edit ▸ Go to Line…', 'View ▸ Implementation', 'View ▸ Simulation', 'View ▸ Design Summary', 'View ▸ Language',
@@ -764,7 +764,7 @@ uiTest('a reload comes back to the simulation (ISim) and the board emulator, run
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'board emulator', timeout: 30000 });
   const docs = () => page.eval(() => ({ docs: window.Silinx.docs.map((d) => `${d.id} ${d.title}`), active: window.Silinx.active?.id }));
   const before = await docs();
-  assert.deepEqual(before, { docs: ['summary Design Summary', 'isim ISim (tb_top)', 'emulator Board Emulator (top)'], active: 'emulator' });
+  assert.deepEqual(before, { docs: ['summary Design Summary', 'isim SSim (tb_top)', 'emulator Board Emulator (top)'], active: 'emulator' });
   assert.deepEqual(await page.eval(() => JSON.parse(localStorage.getItem('silinx.view.ViewSim')).open), ['summary', 'isim:tb_top', 'emulator:top']);
   await page.reload();
   await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs && window.Silinx.docs.find((d) => d.id === 'isim')?.view, [], { what: 'ISim and the emulator again', timeout: 60000 });
