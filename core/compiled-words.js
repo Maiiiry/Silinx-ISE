@@ -21,21 +21,23 @@
 //
 // Isomorphic ES module (browser + Node), no DOM.
 
-const GATES = new Set(['$and', '$or', '$xor', '$not', '$mux']);
-const FFS = new Set(['$dff', '$dffe', '$aldff', '$aldffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce']);
-const FF_DATA = ['D', 'AD'];                       // a flip-flop's ports of one bit each
-const FF_VALUES = ['ARST_VALUE', 'SRST_VALUE'];    // its parameters of one bit each
+export const GATES = new Set(['$and', '$or', '$xor', '$not', '$mux']);
+import { mountBitCells } from './compiled-words-bits.js';
+import { mountRegisterProposals } from './compiled-words-regs.js';
+export const FFS = new Set(['$dff', '$dffe', '$aldff', '$aldffe', '$adff', '$adffe', '$sdff', '$sdffe', '$sdffce']);
+export const FF_DATA = ['D', 'AD'];                       // a flip-flop's ports of one bit each
+export const FF_VALUES = ['ARST_VALUE', 'SRST_VALUE'];    // its parameters of one bit each
 const MAXW = 31;     // the bits of a word at most (a number, its carry out the 32nd)
-const MIN_CHAIN = 3; // the stages of a carry chain made an addition, at least
-const DEPTH = 12;    // the cells a word is looked for through, at most
+export const MIN_CHAIN = 3; // the stages of a carry chain made an addition, at least
+export const DEPTH = 12;    // the cells a word is looked for through, at most
 
-function permutations(n) {
+export function permutations(n) {
   if (n === 0) return [[]];
   return permutations(n - 1).flatMap(p => Array.from({ length: n }, (_, i) => [...p.slice(0, i), n - 1, ...p.slice(i)]));
 }
-const isConst = b => typeof b !== 'number';
+export const isConst = b => typeof b !== 'number';
 const pbits = s => (typeof s === 'number' ? s.toString(2) : String(s)).split('').reverse().map(c => (c === '1' ? 1 : 0));
-const int = s => (typeof s === 'number' ? s : parseInt(String(s).replace(/[xz]/gi, '0'), 2));
+export const int = s => (typeof s === 'number' ? s : parseInt(String(s).replace(/[xz]/gi, '0'), 2));
 
 /** The netlist (Yosys's JSON) with its gate-level logic at word level: { json: a copy, stats }. */
 export function wordLevel(json, top) {
@@ -52,117 +54,10 @@ export function wordLevel(json, top) {
     ...Object.values(mod.ports || {}).flatMap(p => p.bits.filter(b => !isConst(b))), ...Object.values(mod.netnames || {}).flatMap(n => n.bits.filter(b => !isConst(b))));
   const newBits = k => Array.from({ length: k }, () => fresh++);
 
-  // ---- the cells of one bit: drivers and readers
-  const driver = new Map();   // bit -> { name, c, port, i }
-  const readers = new Map();  // bit -> number of reading ports (and output ports)
-  const read = b => { if (!isConst(b)) readers.set(b, (readers.get(b) || 0) + 1); };
-  for (const [name, c] of Object.entries(cells)) {
-    for (const [port, bits] of Object.entries(c.connections)) {
-      const out = c.port_directions?.[port] === 'output' || (!c.port_directions && (port === 'Y' || port === 'Q'));
-      bits.forEach((b, i) => { if (out) { if (!isConst(b)) driver.set(b, { name, c, port, i }); } else read(b); });
-    }
-  }
-  for (const p of Object.values(mod.ports || {})) if (p.direction !== 'input') p.bits.forEach(read);
-  // a LUT ($shiftx of a constant, one bit): its inputs (constant ones folded, those it does not read dropped) and its
-  // table in a canonical order of them (the router swaps a LUT's pins: the same function, another INIT); alts: the
-  // orders of its inputs that give that table (a symmetric function: several)
-  const canon = new Map();
-  const lutOf = c => {
-    if (c.type !== '$shiftx' || c.connections.Y.length !== 1 || int(c.parameters?.B_SIGNED ?? 0)) return null;
-    const A = c.connections.A, B = c.connections.B;
-    if (!A.every(isConst) || B.length > 6) return null;
-    let table = Array.from({ length: 1 << B.length }, (_, m) => (A[m] === '1' ? 1 : 0)), ins = B.slice();
-    for (let j = ins.length - 1; j >= 0; j--) {
-      const lo = table.filter((_, m) => !((m >> j) & 1)), hi = table.filter((_, m) => (m >> j) & 1);
-      if (isConst(ins[j])) table = ins[j] === '1' ? hi : lo;
-      else if (lo.join('') === hi.join('')) table = lo;
-      else continue;
-      ins.splice(j, 1);
-    }
-    const key = `${ins.length} ${table.join('')}`;
-    if (!canon.has(key)) {
-      let best = null, perms = [];
-      for (const pi of permutations(ins.length)) {
-        const t = Array.from({ length: table.length }, (_, x) => table[pi.reduce((y, from, q) => y | (((x >> q) & 1) << from), 0)]).join('');
-        if (best === null || t < best) { best = t; perms = [pi]; } else if (t === best) perms.push(pi);
-      }
-      canon.set(key, { table: best.split('').map(Number), perms });
-    }
-    const { table: t, perms } = canon.get(key);
-    const alts = perms.map(pi => pi.map(from => ins[from]));
-    return { table: t, ins: alts[0], alts };
-  };
-  const gate = c => GATES.has(c.type) && c.connections.Y.length === 1;
-  const ff1 = c => FFS.has(c.type) && c.connections.Q.length === 1;
-  // a cell of one bit driving b (a gate, a LUT, a flip-flop), with its kind
-  const cellAt = b => {
-    const d = isConst(b) ? null : driver.get(b);
-    if (!d) return null;
-    if (gate(d.c)) return { ...d, kind: d.c.type };
-    const l = lutOf(d.c);
-    if (l) return { ...d, kind: `$lut ${l.table.join('')}`, lut: l };
-    if (ff1(d.c) && d.port === 'Q') return { ...d, kind: 'ff' };
-    return null;
-  };
-  // a flip-flop's kind: its type, parameters and controls (its data and values per bit apart)
-  const ffKey = c => JSON.stringify([c.type, Object.entries(c.parameters || {}).filter(([k]) => k !== 'WIDTH' && !FF_VALUES.includes(k)),
-    Object.entries(c.connections).filter(([k]) => k !== 'Q' && !FF_DATA.includes(k))]);
-
-  // ---- the carry chains: stages c' = S ? c : DI ($mux, B = c), c & S ($and: DI 0), c | ~S ($or: DI 1, S its other input
-  // inverted); a stage's output read by the next as its carry, its XOR (o = c ^ S) when there is one
-  const stageOf = (name, c, carry) => {
-    const C = c.connections;
-    if (c.type === '$mux') return C.B[0] === carry ? { name, carry, s: C.S[0], inv: false, di: C.A[0], out: C.Y[0] } : null;
-    if (c.type !== '$and' && c.type !== '$or') return null;
-    const other = C.A[0] === carry ? C.B[0] : C.B[0] === carry ? C.A[0] : null;
-    if (other == null) return null;
-    return { name, carry, s: other, inv: c.type === '$or', di: c.type === '$or' ? '1' : '0', out: C.Y[0] };
-  };
-  // the XOR of a stage: o = c ^ S (S inverted: the output of a $not of its bit)
-  const xorsOf = new Map();   // bit -> [$xor names reading it]
-  for (const [name, c] of Object.entries(cells)) {
-    if (c.type !== '$xor' || c.connections.Y.length !== 1) continue;
-    for (const b of [c.connections.A[0], c.connections.B[0]]) if (!isConst(b)) { if (!xorsOf.has(b)) xorsOf.set(b, []); xorsOf.get(b).push(name); }
-  }
-  const xorOf = (st) => {
-    for (const x of xorsOf.get(st.carry) || []) {
-      const C = cells[x].connections, other = C.A[0] === st.carry ? C.B[0] : C.A[0];
-      if (!st.inv && other === st.s) return x;
-      // (c | t, its XOR c ^ ~t: ~t a $not of t)
-      const d = st.inv && driver.get(other);
-      if (d && d.c.type === '$not' && d.c.connections.A[0] === st.s) return x;
-    }
-    return null;
-  };
-  // the stages reading a bit as their carry
-  const stagesOf = new Map();
-  for (const [name, c] of Object.entries(cells)) {
-    if (!gate(c) || !['$mux', '$and', '$or'].includes(c.type)) continue;
-    const C = c.connections;
-    for (const carry of c.type === '$mux' ? [C.B[0]] : [C.A[0], C.B[0]]) {
-      const st = !isConst(carry) && stageOf(name, c, carry);
-      if (!st) continue;
-      if (!stagesOf.has(carry)) stagesOf.set(carry, []);
-      stagesOf.get(carry).push(st);
-    }
-  }
-  // (of the stages reading a carry, the one with its XOR; else the only one)
-  const nextOf = (out) => {
-    const sts = stagesOf.get(out) || [];
-    const withXor = sts.filter(st => xorOf(st));
-    return withXor.length === 1 ? withXor[0] : sts.length === 1 ? sts[0] : null;
-  };
-  // (a chain starts at a stage no stage's output is the carry of; of a cell's two, the one with its XOR)
-  const all = [...stagesOf.values()].flat(), hasPrev = new Set();
-  for (const st of all) { const n = nextOf(st.out); if (n) hasPrev.add(n.name); }
-  const chains = [], inChain = new Set();
-  for (const st0 of all.filter(st => !hasPrev.has(st.name)).sort((a, b) => (xorOf(b) ? 1 : 0) - (xorOf(a) ? 1 : 0))) {
-    if (inChain.has(st0.name)) continue;
-    const chain = [];
-    for (let st = st0; st && !inChain.has(st.name); st = nextOf(st.out)) { chain.push({ ...st, xor: xorOf(st) }); inChain.add(st.name); }
-    if (chain.length >= MIN_CHAIN) chains.push(chain);
-    else chain.forEach(st => inChain.delete(st.name));
-  }
+  // ---- the cells of one bit: drivers and readers (compiled-words-bits.js)
+  const { cellAt, chains, driver, ff1, ffKey, readers } = mountBitCells({
+    cells, mod
+  });
 
   // ---- the plan: words and where each bit is (a word's name and the bit's position), undone on a failure
   let where, planned, actions, log;
@@ -289,44 +184,11 @@ export function wordLevel(json, top) {
   }
 
   reset();
-  // the registers: the flip-flops of a chain's S or DI (or of the cells computing them), of one kind, in its order
-  const proposals = [];
-  const propose = (bits, depth = 0) => {
-    bits = bits.map(b => peel(b)[0]);
-    const ds = bits.map(b => (isConst(b) ? null : cellAt(b)));
-    if (bits.length < 2) return;
-    if (ds.some(d => !d || d.kind !== ds[0].kind)) { segments(ds).forEach(([i, j]) => propose(bits.slice(i, j), depth + 1)); return; }
-    if (new Set(ds.map(d => d.name)).size !== ds.length) return;
-    if (ds.every(d => d.kind === 'ff')) {
-      if (ds.every(d => ffKey(d.c) === ffKey(ds[0].c))) proposals.push(ds.map(d => d.name));
-      return;
-    }
-    if (depth >= DEPTH || ds.some(d => d.kind !== ds[0].kind)) return;
-    const ins = ds[0].lut ? ds[0].lut.ins.map((_, j) => ds.map((d, i) => align(d, ds[0], i)[j])) : ['A', 'B', 'S'].filter(p => ds[0].c.connections[p]).map(p => ds.map(d => d.c.connections[p][0]));
-    for (const v of ins) if (!v.every(b => b === v[0])) propose(v, depth + 1);
-  };
-  for (const p of pieces) { propose(p.map(sOf)); propose(p.map(st => st.di)); }
-  // (#659: the flip-flops of one bit whose next values are outputs of one table, a ROM of core/compiled-tables.js,
-  // through the cells of their enable and reset: one register per table and kind, in the table's order)
-  const romAt = b => { const d = !isConst(b) && driver.get(b); return d && d.c.type === '$mem_v2' && d.port === 'RD_DATA' && !int(d.c.parameters.WR_PORTS) ? d : null; };
-  const romOf = (b, q, depth = 0) => {
-    const r = romAt(b);
-    if (r || b === q || depth > 2) return r;
-    const d = cellAt(b);
-    if (!d || d.kind === 'ff') return null;
-    for (const x of d.lut ? d.lut.ins : ['A', 'B', 'S'].flatMap(p => d.c.connections[p] || [])) { const f = romOf(x, q, depth + 1); if (f) return f; }
-    return null;
-  };
-  const fed = new Map();
-  for (const [name, c] of Object.entries(cells)) {
-    if (!ff1(c) || !c.connections.D) continue;
-    const r = romOf(c.connections.D[0], c.connections.Q[0]);
-    if (!r) continue;
-    const key = `${r.name} ${ffKey(c)}`;
-    if (!fed.has(key)) fed.set(key, new Map());
-    if (!fed.get(key).has(r.i)) fed.get(key).set(r.i, name);
-  }
-  for (const g of fed.values()) if (g.size >= 2) proposals.push([...g].sort((a, b) => a[0] - b[0]).map(([, n]) => n));
+  // the registers: the flip-flops of a chain's S or DI (or of the cells computing them), of one kind, in its order (compiled-words-regs.js)
+  const { proposals } = mountRegisterProposals({
+    align, cellAt, cells, driver, ff1, ffKey, peel, pieces, sOf, segments
+  });
+
   const used = new Set();
   let groups = proposals.filter(g => { if (g.some(n => used.has(n))) return false; g.forEach(n => used.add(n)); return true; })
     .flatMap(g => Array.from({ length: Math.ceil(g.length / MAXW) }, (_, j) => g.slice(j * MAXW, (j + 1) * MAXW))).filter(g => g.length >= 2);
