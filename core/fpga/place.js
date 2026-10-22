@@ -28,6 +28,13 @@
 //   place(packed, dev, { seed, start: { at, rlim, t } })   a warm start (#87): from a placement given
 
 import { instArcs, delayKind, SPEED_4 } from './timing.js';
+import { mountPads } from './place-pads.js';
+import { mountDcms } from './place-dcms.js';
+import { mountIobs } from './place-iobs.js';
+import { mountBufgs } from './place-bufgs.js';
+import { mountHard } from './place-hard.js';
+import { mountSlices } from './place-slices.js';
+import { mountMoves } from './place-moves.js';
 
 // (hint: what to change, printed after the error by the flow; core/open-flow-core.js)
 export class PlaceError extends Error {
@@ -106,20 +113,20 @@ export function rng(seed) {
 const CROSS = [1, 1, 1, 1, 1.0828, 1.1536, 1.2206, 1.2823, 1.3385, 1.3991, 1.4493, 1.4974, 1.5455, 1.5937, 1.6418, 1.6899, 1.7304, 1.7709, 1.8114, 1.8519, 1.8924, 1.9288, 1.9652, 2.0015, 2.0379, 2.0743, 2.1061, 2.1379, 2.1698, 2.2016, 2.2334, 2.2646, 2.2958, 2.3271, 2.3583, 2.3895, 2.4187, 2.4479, 2.4772, 2.5064, 2.5356, 2.5610, 2.5864, 2.6117, 2.6371, 2.6625, 2.6887, 2.7148, 2.7410, 2.7671, 2.7933];
 const crossing = n => (n < CROSS.length ? CROSS[n] : 2.7933 + 0.02616 * (n - 50));
 // nets of at most this many pins: their bounding box scanned at every move (faster than kept up to date)
-const BOX_SCAN = 6;
+export const BOX_SCAN = 6;
 
 // Clock buffers next to their pad: a BUFG driven straight from a pad on the top / bottom edge
 // takes a global buffer of that edge (as ISE does: B8 -> BUFGMUX_X2Y11); others the first free one.
-const BUFG_ORDER = ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10', 'BUFGMUX_X2Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y0'];
+export const BUFG_ORDER = ['BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10', 'BUFGMUX_X2Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y0'];
 // The lines of the global clock network (#95): the top / bottom buffer of each line k (the centre
 // tiles' GCLKCOREk), and the side buffers BUFGMUX_X0Y(2+k) / X3Y(2+k), line k of the left / right half
 // only (GCLKLRk). In each half the centre tile (GCLKVML / GCLKVMR) drives line k of its quadrants from
 // the top / bottom buffer k or from the side buffer k, never both.
-const LINE_BUFG = ['BUFGMUX_X2Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y0', 'BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'];
-const sideBufg = name => { const m = /^BUFGMUX_X([03])Y(\d+)$/.exec(name); return m ? { half: m[1] === '0' ? 'L' : 'R', line: +m[2] - 2 } : null; };
+export const LINE_BUFG = ['BUFGMUX_X2Y1', 'BUFGMUX_X2Y0', 'BUFGMUX_X1Y1', 'BUFGMUX_X1Y0', 'BUFGMUX_X2Y11', 'BUFGMUX_X2Y10', 'BUFGMUX_X1Y11', 'BUFGMUX_X1Y10'];
+export const sideBufg = name => { const m = /^BUFGMUX_X([03])Y(\d+)$/.exec(name); return m ? { half: m[1] === '0' ? 'L' : 'R', line: +m[2] - 2 } : null; };
 // The clock pad ISE's placer gives a DCM's CLKIN when the pad has no LOC (#92: a design of one DCM on
 // each site, implemented by ISE): one of the pads whose dedicated path reaches that DCM
-const DCM_PAD = {
+export const DCM_PAD = {
   xc3s100e: { DCM_X0Y1: 'A9', DCM_X0Y0: 'M6' },
   xc3s250e: { DCM_X0Y1: 'C8', DCM_X1Y1: 'A9', DCM_X0Y0: 'N5', DCM_X1Y0: 'M6' },
   xc3s500e: { DCM_X0Y1: 'B9', DCM_X1Y1: 'A10', DCM_X0Y0: 'V9', DCM_X1Y0: 'U10' },
@@ -327,525 +334,36 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
     else throw new PlaceError(`place: unknown instance kind ${inst.kind}`);
   });
 
-  // ---------------------------------------------------------------- pads and clock buffers
-  const padUsed = new Map();   // pad name -> obj
-  // the VCCO of each bank, from the I/O standards of the IOBs placed in it (bankOfPad, vccoOfStandard)
-  const vccoMemo = new Map();
-  const vccoOf = i => { if (!vccoMemo.has(i)) vccoMemo.set(i, vccoOfStandard((packed.insts[i].cfg || []).find(c => c.attr === 'IOATTRBOX')?.value)); return vccoMemo.get(i); };
-  const bankV = new Map();     // bank -> { v, n }
-  const bankAdd = (p, v, k) => {
-    if (v == null) return;
-    const b = bankOfPad(p), e = bankV.get(b) || { v, n: 0 };
-    e.n += k;
-    if (e.n <= 0) bankV.delete(b); else bankV.set(b, e);
-  };
-  const bankOk = (p, v) => v == null || !bankV.has(bankOfPad(p)) || bankV.get(bankOfPad(p)).v === v;
-  for (const o of objs) if (o.kind === 'iob' && o.fixed) {
-    const inst = packed.insts[o.inst];
-    const p = dev.pads.get(inst.loc);
-    if (!p) throw new PlaceError(`place: ${inst.name}: LOC ${inst.loc} is not a bonded pad of ${dev.part}`);
-    if (p.inputOnly && o.dir !== 'in') throw new PlaceError(`place: ${inst.name}: pad ${inst.loc} is input-only`);
-    if (padUsed.has(p.name)) throw new PlaceError(`place: two ports on pad ${p.name}`);
-    if (!bankOk(p, vccoOf(o.inst))) throw new PlaceError(`place: ${inst.name}: pad ${p.name} is in bank ${bankOfPad(p)}, whose other I/Os need VCCO ${bankV.get(bankOfPad(p)).v} V, not ${vccoOf(o.inst)} V (I/O standards)`);
-    bankAdd(p, vccoOf(o.inst), 1);
-    padUsed.set(p.name, o);
-    sites[o.inst] = p;
-  }
-  const freePads = (dir, v) => [...dev.pads.values()].filter(p => !padUsed.has(p.name) && (dir === 'in' || !p.inputOnly) && bankOk(p, v));
-  // the clocks of the IOBs' registers (#749): the input register's (ICLK1) and the output and output-enable
-  // registers' (OTCLK1) nets. The two IOBs of a differential pair (DIFFM / DIFFS) share each clock wire of
-  // their tile (IOIS_CLK0 -> ICLK10 / ICLK11, IOIS_CLK1 -> OTCLK10 / OTCLK11; the tile's third IOB has its
-  // own): two registers of one kind there on different clocks need the DIFFM's second flip-flop (IFF2 / OFF2
-  // on the tile's second clock wire, as ISE's map does: secondFlipFlops; their bits on every pad since #759): an I/O
-  // with no LOC is kept out of such a pair (clashAt: one clock wire of each kind per tile), LOC'd ones take it.
-  const regClk = new Array(N).fill(null);
-  packed.nets.forEach((n, k) => { for (const p of n.inpins) if (p.pin === 'ICLK1' || p.pin === 'OTCLK1') (regClk[p.inst] ||= {})[p.pin[0]] = k; });
-  const clash = (i, j) => !!regClk[i] && !!regClk[j] && ['I', 'O'].some(g => regClk[i][g] !== undefined && regClk[j][g] !== undefined && regClk[i][g] !== regClk[j][g]);
-  const pairPads = new Map();   // tile -> its pair's bonded pads
-  for (const p of dev.pads.values()) if (p.pair) (pairPads.get(p.pair) || pairPads.set(p.pair, []).get(p.pair)).push(p);
-  const partnerOf = p => (p.pair ? pairPads.get(p.pair).find(q => q !== p) : undefined);
-  // instance i on pad p clashes with the I/O on its partner pad (at: the object on a pad, padUsed's by default)
-  const clashAt = (i, p, at = q => padUsed.get(q.name)) => { const q = partnerOf(p), j = q && at(q); return !!j && j.inst !== i && clash(i, j.inst); };
-  // a clock input with no LOC (its pad drives a global buffer straight): on a pad from which a
-  // global buffer is reached through the dedicated clock paths of known bits (a GCLK pin, as ISE
-  // places it: B8 -> BUFGMUX_X2Y11), the buffers in BUFG_ORDER's order, and kept there (#49)
-  const bufgRank = new Map();
-  [...BUFG_ORDER, ...dev.bufgmux.map(b => b.name)].forEach((n, k) => { if (!bufgRank.has(n)) bufgRank.set(n, k); });
-  const bufgOfPad = o => packed.nets.find(n => n.outpins[0]?.inst === o.inst)?.inpins.find(p => p.pin === 'I0' && packed.insts[p.inst].kind === 'bufg')?.inst;
-  // the clock loads of each global buffer (#56): its slices, the clock pins of its block RAMs and
-  // multipliers; a buffer serves them when its lines reach (clockSites) enough slices and enough
-  // block RAM / multiplier sites on those pins
-  const loads = new Map();   // bufg inst -> { slices: Set, bram: { insts: Set, pins: Set }, mult: … }
-  for (const n of packed.nets) {
-    const d = n.outpins[0];
-    if (!d || packed.insts[d.inst].kind !== 'bufg') continue;
-    const L = loads.get(d.inst) || { slices: new Set(), bram: { insts: new Set(), pins: new Set() }, mult: { insts: new Set(), pins: new Set() }, dcm: [] };
-    for (const p of n.inpins) {
-      const k = packed.insts[p.inst].kind;
-      if (k === 'slice' && p.pin === 'CLK') L.slices.add(p.inst);
-      else if (k === 'dcm' && /^CLK(IN|FB)$/.test(p.pin)) L.dcm.push(p);
-      else if ((k === 'bram' && /^CLK[AB]$/.test(p.pin)) || (k === 'mult' && p.pin === 'CLK')) { L[k].insts.add(p.inst); L[k].pins.add(p.pin); }
-    }
-    loads.set(d.inst, L);
-  }
-  const reachCache = new Map();
-  // the side buffers (#95): a side buffer's lines reach only its half of the chip; a top / bottom
-  // buffer is kept out of the half whose side buffer of its line is used (excluded), its loads (slices,
-  // block RAMs, multipliers) in the other half. The halves: either side of the clock tiles' column.
-  const centre = dev.bufgmux.find(b => /^CLK[TB]/.test(b.tile))?.px ?? dev.cols / 2;
-  const sitePx = new Map([...dev.slices.values(), ...(dev.brams || []), ...(dev.mults || [])].map(x => [x.name, x.px]));
-  const excluded = new Map();   // top / bottom buffer -> the halves ('L', 'R') it is kept out of
-  const clockReachOf = name => {
-    if (!reachCache.has(name)) reachCache.set(name, clockSites ? clockSites(name) : null);
-    const base = reachCache.get(name), side = sideBufg(name), ex = excluded.get(name);
-    if (!base || (!side && !ex?.size)) return base;
-    const key = `${name}|${side ? side.half : [...ex].sort().join('')}`;
-    if (!reachCache.has(key)) {
-      const keep = e => { const px = sitePx.get(e.split('.')[0]); if (px === undefined) return true; const h = px < centre ? 'L' : 'R'; return side ? h === side.half : !ex.has(h); };
-      reachCache.set(key, new Set([...base].filter(keep)));
-    }
-    return reachCache.get(key);
-  };
-  // (a DCM's CLKIN / CLKFB too, #47: on the DCM's site, or the one tried, dcmTried)
-  const dcmTried = new Map();
-  const serves = (bi, name) => {
-    const cs = clockReachOf(name), L = loads.get(bi);
-    if (!cs || !L) return true;
-    if (L.dcm.some(p => { const s = dcmTried.get(p.inst) || sites[p.inst]; return s && !cs.has(`${s.name}.${p.pin}`); })) return false;
-    if ([...L.slices].length > [...cs].filter(s => !s.includes('.')).length) return false;
-    return ['bram', 'mult'].every(k => L[k].insts.size <= ((k === 'bram' ? dev.brams : dev.mults) || []).filter(s => [...L[k].pins].every(p => cs.has(`${s.name}.${p}`))).length);
-  };
-  // the buffers taken (by the DCMs' outputs, the clock pads, the buffers' placement): a side buffer
-  // keeps the top / bottom buffer of its line out of its half; lineServes: the buffer serves its loads,
-  // and a side buffer leaves the top / bottom buffer of its line (if taken) serving its own
-  const bufOwner = new Map();   // buffer name -> bufg inst
-  const takeBuf = (bi, b) => {
-    bufOwner.set(b, bi);
-    const s = sideBufg(b);
-    if (s) excluded.set(LINE_BUFG[s.line], new Set([...(excluded.get(LINE_BUFG[s.line]) || []), s.half]));
-  };
-  const lineServes = (bi, b) => {
-    if (!serves(bi, b)) return false;
-    const s = sideBufg(b), t = s ? LINE_BUFG[s.line] : null, u = t ? bufOwner.get(t) : undefined;
-    if (u === undefined || u === bi) return true;
-    const ex = excluded.get(t) || new Set();
-    if (ex.has(s.half)) return true;
-    excluded.set(t, new Set([...ex, s.half]));
-    const ok = serves(u, t);
-    excluded.set(t, ex);
-    return ok;
-  };
-  const padReach = new Map();   // pad name -> the buffers its dedicated paths of known bits reach
-  // (of the side buffers only the first, the nearest: a side GCLK pin's own one, through its I/O tile's IBUF and its
-  // clock tile's CKIk, as ISE pairs them; the others through its OMUX into another pad's IOIS_Fk_B3, #641)
-  const padReachOf = name => {
-    if (!padReach.has(name)) { const r = bufgSites(name, 'I') || [], side = r.find(b => sideBufg(b)); padReach.set(name, r.filter(b => !sideBufg(b) || b === side)); }
-    return padReach.get(name);
-  };
-  const bufClaimed = new Set();
-  // DCMs (#47): each on a DCM site (its INST LOC, or any) from which every clock output that drives
-  // a global buffer reaches a buffer of its own through dedicated paths of known bits (bufgSites),
-  // the buffers matched to the outputs. Of the placements, the one with the most outputs on such a
-  // buffer, then the most buffers whose lines reach their clock's loads (#56), then the most DCMs
-  // whose CLKIN a pad reaches on a dedicated path of known bits (its LOC'd pad, or a free one: #57),
-  // then by site (dcmRank: the top-left DCM first, the side ones of the XC3S1200E last).
-  const dcmObjs = objs.filter(o => o.kind === 'dcm');
-  const driverOf = bi => packed.nets.find(n => n.inpins.some(p => p.inst === bi && p.pin === 'I0'))?.outpins[0];
-  const preBuf = new Map();   // bufg inst -> the buffer matched to its DCM output
-  const dcmPads = new Map();   // pad name -> the DCM sites whose CLKIN its dedicated paths reach
-  const dcmPadsOf = name => { if (!dcmPads.has(name)) dcmPads.set(name, bufgSites ? bufgSites(name, 'I', ['DCM', 'CLKIN']) || [] : []); return dcmPads.get(name); };
-  const clkinPad = o => { const n = packed.nets.find(n => n.inpins.some(p => p.inst === o.inst && p.pin === 'CLKIN')); const d = n?.outpins[0]; return d && packed.insts[d.inst].kind === 'iob' ? d.inst : undefined; };
-  if (dcmObjs.length) {
-    const dcmSites = dev.dcms || [];
-    if (dcmObjs.length > dcmSites.length) throw new PlaceError(`place: ${dcmObjs.length} DCMs needed, the device has ${dcmSites.length}`);
-    for (const o of dcmObjs) {
-      const inst = packed.insts[o.inst];
-      if (inst.loc && !dcmSites.some(d => d.name === inst.loc)) throw new PlaceError(`place: ${inst.name}: no DCM site ${inst.loc} on ${dev.part}`);
-      if (inst.loc && dcmObjs.some(x => x !== o && packed.insts[x.inst].loc === inst.loc)) throw new PlaceError(`place: ${inst.name}: DCM site ${inst.loc} used twice`);
-    }
-    const dcmRank = d => (/^DCM_H_/.test(d.tile) ? 2000 : 0) + (d.py > dev.rows / 2 ? 0 : 1000) + d.px;
-    const order = [...dcmSites].sort((a, b) => dcmRank(a) - dcmRank(b));
-    // the global buffers each DCM's outputs drive
-    const outs = dcmObjs.map(o => packed.nets.flatMap(n => (n.outpins[0]?.inst === o.inst ? n.inpins.filter(p => p.pin === 'I0' && packed.insts[p.inst].kind === 'bufg').map(p => ({ bi: p.inst, pin: n.outpins[0].pin })) : [])));
-    const canUse = new Set(dev.bufgmux.map(b => b.name));
-    const reachMemo = new Map();
-    const reachB = (site, pin) => { const k = `${site}:${pin}`; if (!reachMemo.has(k)) reachMemo.set(k, bufgSites ? (bufgSites(site, pin) || []).filter(b => canUse.has(b)) : []); return reachMemo.get(k); };
-    const pads = dcmObjs.map(clkinPad);
-    // the global buffers a clock pad drives whose net reaches a DCM's CLKIN / CLKFB (#94): matched
-    // with the DCMs' outputs, to a buffer that a GCLK pin (its LOC'd pad, or a free one) reaches on a
-    // dedicated path, the buffer then serving the DCM's pin on the site tried
-    const padBufs = [...loads].filter(([bi, L]) => L.dcm.length && packed.insts[driverOf(bi)?.inst]?.kind === 'iob').map(([bi]) => {
-      const pi = driverOf(bi).inst;
-      const from = sites[pi] ? [sites[pi]] : freePads('in', vccoOf(pi));
-      return { bi, reach: [...new Set(from.flatMap(p => padReachOf(p.name)))].filter(b => canUse.has(b)).sort((a, b) => bufgRank.get(a) - bufgRank.get(b)) };
-    });
-    const better = (a, b) => { for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return a[i] > b[i]; return false; };
-    let best = null, budget = 200000;
-    const assign = [];
-    const evaluate = () => {
-      dcmObjs.forEach((o, k) => dcmTried.set(o.inst, assign[k]));
-      // the buffers: the matching of the most outputs, then the most buffers that serve their loads
-      const items = [...dcmObjs.flatMap((o, k) => outs[k].map(x => ({ bi: x.bi, reach: reachB(assign[k].name, x.pin) }))), ...padBufs];
-      let bm = null;
-      const taken = new Set(), pick = [];
-      // (then the most top / bottom buffers, whose lines reach the whole chip, #95)
-      const W = items.length + 1, value = (m, sv, tb) => (m * W + sv) * W + tb;
-      const rec = (i, matched, serving, tb) => {
-        if (budget-- < 0) return;
-        const rest = items.length - i;
-        if (bm && value(matched + rest, serving + rest, tb + rest) <= bm.value) return;
-        if (i === items.length) { bm = { matched, serving, value: value(matched, serving, tb), pick: [...pick] }; return; }
-        for (const b of items[i].reach) if (!taken.has(b)) {
-          // (a side buffer and the top / bottom buffer of its line: not both, #95)
-          const sl = sideBufg(b)?.line ?? LINE_BUFG.indexOf(b);
-          if (sl >= 0 && [...taken].some(x => (sideBufg(x)?.line ?? LINE_BUFG.indexOf(x)) === sl && !!sideBufg(x) !== !!sideBufg(b))) continue;
-          taken.add(b); pick.push(b);
-          rec(i + 1, matched + 1, serving + (serves(items[i].bi, b) ? 1 : 0), tb + (sideBufg(b) ? 0 : 1));
-          pick.pop(); taken.delete(b);
-        }
-        pick.push(null); rec(i + 1, matched, serving, tb); pick.pop();
-      };
-      rec(0, 0, 0, 0);
-      bm ||= { matched: 0, serving: 0, pick: items.map(() => null) };
-      // CLKIN on a dedicated path: from its LOC'd pad, or from a free pad (one per DCM)
-      let ded = 0;
-      const padTaken = new Set();
-      pads.forEach((pi, k) => {
-        if (pi === undefined) return;
-        if (sites[pi]) { if (dcmPadsOf(sites[pi].name).includes(assign[k].name)) ded++; return; }
-        const p = freePads('in', vccoOf(pi)).find(p => !padTaken.has(p.name) && dcmPadsOf(p.name).includes(assign[k].name));
-        if (p) { padTaken.add(p.name); ded++; }
-      });
-      const score = [bm.matched, bm.serving, ded, -assign.reduce((a, d) => a + dcmRank(d), 0)];
-      if (!best || better(score, best.score)) best = { score, sites: [...assign], items, pick: bm.pick };
-    };
-    const used = new Set();
-    const search = k => {
-      if (budget < 0 && best) return;
-      if (k === dcmObjs.length) { evaluate(); return; }
-      const loc = packed.insts[dcmObjs[k].inst].loc;
-      for (const d of order) {
-        if (used.has(d.name) || (loc && d.name !== loc) || (!loc && dcmObjs.some(x => packed.insts[x.inst].loc === d.name))) continue;
-        used.add(d.name); assign.push(d);
-        search(k + 1);
-        assign.pop(); used.delete(d.name);
-      }
-    };
-    search(0);
-    dcmTried.clear();
-    dcmObjs.forEach((o, k) => { sites[o.inst] = best.sites[k]; });
-    best.items.forEach((it, i) => { if (best.pick[i]) { preBuf.set(it.bi, best.pick[i]); bufClaimed.add(best.pick[i]); takeBuf(it.bi, best.pick[i]); } });
-  }
-  // a clock input with no LOC that drives a DCM's CLKIN: on a free pad whose dedicated path of
-  // known bits reaches that DCM's CLKIN, ISE's choice first (DCM_PAD, #92), kept there (#57); before the
-  // clock inputs of global buffers, which have more GCLK pins to choose from
-  const dcmOfPad = o => packed.nets.find(n => n.outpins[0]?.inst === o.inst)?.inpins.find(p => p.pin === 'CLKIN' && packed.insts[p.inst].kind === 'dcm')?.inst;
-  if (bufgSites) for (const o of objs) if (o.kind === 'iob' && !o.fixed && o.dir === 'in' && dcmOfPad(o) !== undefined) {
-    const loc = sites[dcmOfPad(o)].name;
-    const ise = DCM_PAD[/^xc3s\d+e/i.exec(dev.part || '')?.[0].toLowerCase()]?.[loc];
-    const reach = freePads('in', vccoOf(o.inst)).filter(p => dcmPadsOf(p.name).includes(loc));
-    const p = reach.find(p => p.name === ise) || reach[0];
-    if (!p) continue;   // none: a pad like any other (general routing to the DCM)
-    bankAdd(p, vccoOf(o.inst), 1);
-    padUsed.set(p.name, o);
-    sites[o.inst] = p;
-    o.fixed = true;
-  }
-  if (bufgSites) for (const o of objs) if (o.kind === 'iob' && !o.fixed && o.dir === 'in' && bufgOfPad(o) !== undefined) {
-    let best = null;
-    for (const p of freePads('in', vccoOf(o.inst))) {
-      for (const b of padReachOf(p.name)) {
-        if (!dev.bufgmux.some(x => x.name === b)) continue;   // (not a buffer the flow can use: #45)
-        // (the buffer matched above with the DCMs, #94: only it)
-        if (preBuf.has(bufgOfPad(o))) { if (b === preBuf.get(bufgOfPad(o)) && !best) best = { p, b, k: 0 }; continue; }
-        // (a buffer whose lines do not reach the clock's loads after the others, #56)
-        const k = (bufgRank.get(b) ?? Infinity) + (lineServes(bufgOfPad(o), b) ? 0 : 1000);
-        if (!bufClaimed.has(b) && (!best || k < best.k)) best = { p, b, k };
-      }
-    }
-    if (!best && preBuf.has(bufgOfPad(o))) { bufClaimed.delete(preBuf.get(bufgOfPad(o))); bufOwner.delete(preBuf.get(bufgOfPad(o))); preBuf.delete(bufgOfPad(o)); }
-    if (!best) continue;   // no GCLK pin free: a pad like any other (general routing to the buffer)
-    bufClaimed.add(best.b);
-    // (a buffer that serves the clock's loads: kept for it, #95: a side GCLK pin reaches several)
-    if (best.k < 1000) { preBuf.set(bufgOfPad(o), best.b); takeBuf(bufgOfPad(o), best.b); }
-    bankAdd(best.p, vccoOf(o.inst), 1);
-    padUsed.set(best.p.name, o);
-    sites[o.inst] = best.p;
-    o.fixed = o.gclk = true;
-  }
-  // an I/O with registers (#96): only the pads its registers' settings are measured on, if any is free
-  const padFits = (i, p) => !padOk || !packed.insts[i].regs?.length || padOk(p.name, packed.insts[i].cfg);
-  for (const o of objs) if (o.kind === 'iob' && !o.fixed) {
-    const all = freePads(o.dir, vccoOf(o.inst)), fits = all.filter(p => padFits(o.inst, p)), apart = fits.filter(p => !clashAt(o.inst, p));
-    const fp = apart.length ? apart : fits.length ? fits : all;
-    if (!fp.length) throw padsError(o);
-    const want = start?.at[o.inst]?.site;
-    const p = (want && fp.find(q => q.name === want)) || fp[ri(fp.length)];
-    bankAdd(p, vccoOf(o.inst), 1);
-    padUsed.set(p.name, o);
-    sites[o.inst] = p;
-  }
-  // no free pad for an I/O: too few pads, or (#128) free pads only in banks whose VCCO the I/O
-  // standards already placed there set to another voltage (LVCMOS25, the default, where every bank
-  // holds LVCMOS33 pins): said, with the ports, the banks and the standard to give them
-  function padsError(o) {
-    if (!freePads(o.dir, null).length) return new PlaceError('place: not enough pads');
-    const v = vccoOf(o.inst), stdOf = i => (packed.insts[i].cfg || []).find(c => c.attr === 'IOATTRBOX')?.value;
-    const ports = objs.filter(x => x.kind === 'iob' && !sites[x.inst] && vccoOf(x.inst) === v && !freePads(x.dir, v).length).map(x => packed.insts[x.inst].name);
-    const shown = ports.length > 8 ? `${ports.slice(0, 8).join(', ')} and ${ports.length - 8} more` : ports.join(', ');
-    // the banks with pads free for it: their VCCO, and the standards of the I/Os placed there
-    const banks = [...new Set(freePads(o.dir, null).map(bankOfPad))].sort((a, b) => a - b);
-    const stds = new Map();   // bank -> standard -> port names
-    for (const x of objs) if (x.kind === 'iob' && sites[x.inst] && banks.includes(bankOfPad(sites[x.inst]))) {
-      const m = stds.get(bankOfPad(sites[x.inst])) || stds.set(bankOfPad(sites[x.inst]), new Map()).get(bankOfPad(sites[x.inst]));
-      const std = stdOf(x.inst);
-      (m.get(std) || m.set(std, []).get(std)).push(packed.insts[x.inst].name);
-    }
-    const said = banks.map(b => `bank ${b} VCCO ${bankV.get(b).v} V (${[...stds.get(b)].map(([std, n]) => `${std}: ${n.length > 3 ? `${n.slice(0, 3).join(', ')} and ${n.length - 3} more` : n.join(', ')}`).join('; ')})`);
-    // the standard of the most I/Os of those banks
-    const count = new Map();
-    for (const m of stds.values()) for (const [std, n] of m) count.set(std, (count.get(std) || 0) + n.length);
-    const best = [...count].sort((a, b) => b[1] - a[1])[0][0];
-    return new PlaceError(`place: no pad for ${ports.length} I/O(s) of ${stdOf(o.inst)} (VCCO ${v} V): ${shown}: the banks with free pads need another VCCO: ${said.join(', ')}`,
-      `Give them the I/O standard of a bank in the constraints (UCF), e.g. NET "${packed.insts[o.inst].name}" IOSTANDARD = ${best}; (or LOC them on pads of a bank of their own).`);
-  }
-  // a DCM's CLKIN from a pad that reaches it only through general routing: said (#47; once the pads
-  // have their final sites)
-  const dcmClkinWarnings = () => (bufgSites ? dcmObjs : []).flatMap(o => {
-    const pi = clkinPad(o), site = sites[o.inst].name;
-    if (pi === undefined || dcmPadsOf(sites[pi].name).includes(site)) return [];
-    const from = [...dev.pads.keys()].filter(n => dcmPadsOf(n).includes(site));
-    return [`${packed.insts[o.inst].name}: its CLKIN comes from the pad ${sites[pi].name} through general routing: ${from.length ? `only ${from.join(', ')} ${from.length > 1 ? 'reach' : 'reaches'}` : 'no pad reaches'} the CLKIN of ${site} on a dedicated path of known bits`];
+  // ---------------------------------------------------------------- pads and clock buffers (place-pads.js)
+  const { bankAdd, bankOk, bankV, bufOwner, bufgOfPad, bufgRank, clashAt, clockReachOf, dcmTried, freePads, lineServes, loads, padReachOf, padUsed, pairPads, regClk, serves, takeBuf, vccoOf } = mountPads({
+    bufgSites, clockSites, dev, packed, N, objs, sites
   });
-  // clock buffers: by the pad (or DCM) that drives them
-  const bufUsed = new Set();
-  const byName = new Map(dev.bufgmux.map(b => [b.name, b]));
-  const driverOfPin = new Map();
-  for (const n of packed.nets) for (const ip of n.inpins) driverOfPin.set(`${ip.inst}:${ip.pin}`, n.outpins[0]);
-  // a buffer driven by a DCM output, or by a clock pad put on a GCLK pin: one of the buffers that
-  // output reaches (bufgSites: the dedicated paths of known bits, route.js bufgReach), those first
-  const reachOf = o => {
-    const d = driverOfPin.get(`${o.inst}:I0`);
-    // a clock pad, with or without a LOC: the buffers of its GCLK pin, if it is one (#58)
-    if (d && bufgSites && packed.insts[d.inst].kind === 'iob') return new Set(padReachOf(sites[d.inst].name));
-    return d && bufgSites && packed.insts[d.inst].kind === 'dcm' ? new Set(bufgSites(sites[d.inst].name, d.pin)) : null;
-  };
-  // (the most constrained first: a DCM output that reaches fewer buffers chooses before the others)
-  const reachSize = o => reachOf(o)?.size || Infinity;
-  // The two buffers of a pair (BUFGMUX_XxYy and XxY(y^1)) share their input lines (#846): the I1 of one is
-  // the line of the other's I0. A clock switch (a BUFGMUX with I1) and a buffer on its partner only when
-  // the partner's I0 is the switch's I1 (and the switch's I0 the partner's I1, if it switches too).
-  const pairBuf = name => name.replace(/Y(\d+)$/, (_, y) => `Y${+y ^ 1}`);
-  const inNet = (bi, pin) => { const d = driverOfPin.get(`${bi}:${pin}`); return d ? `${d.inst}:${d.pin}` : undefined; };
-  const pairOk = (bi, name) => {
-    const q = bufAt.get(pairBuf(name)) ?? bufOwner.get(pairBuf(name));
-    if (q === undefined) return true;
-    const sw = i => driverOfPin.has(`${i}:I1`);
-    if (sw(bi) && inNet(q, 'I0') !== inNet(bi, 'I1')) return false;
-    return !sw(q) || inNet(bi, 'I0') === inNet(q, 'I1');
-  };
-  const bufAt = new Map();   // buffer name -> the bufg inst placed on it
-  // (the buffers matched to the DCMs' outputs above first)
-  const bufgObjs = objs.filter(o => o.kind === 'bufg').sort((a, b) => (preBuf.has(b.inst) - preBuf.has(a.inst)) || reachSize(a) - reachSize(b));
-  for (const o of bufgObjs) {
-    if (preBuf.has(o.inst) && pairOk(o.inst, preBuf.get(o.inst))) { bufUsed.add(preBuf.get(o.inst)); bufAt.set(preBuf.get(o.inst), o.inst); sites[o.inst] = byName.get(preBuf.get(o.inst)); continue; }
-    if (preBuf.has(o.inst)) { bufClaimed.delete(preBuf.get(o.inst)); bufOwner.delete(preBuf.get(o.inst)); preBuf.delete(o.inst); }
-    const d = driverOfPin.get(`${o.inst}:I0`);
-    const pad = d && sites[d.inst];
-    const top = pad && pad.py > dev.rows / 2;
-    const reach = reachOf(o);
-    const order = [...BUFG_ORDER.slice(top ? 0 : 4, top ? 4 : 8), ...BUFG_ORDER.slice(top ? 4 : 0, top ? 8 : 4), ...dev.bufgmux.map(b => b.name)];
-    const free = order.map(n => byName.get(n)).filter((b, k, a) => b && !bufUsed.has(b.name) && !bufOwner.has(b.name) && a.indexOf(b) === k && pairOk(o.inst, b.name));
-    // a buffer the driver's dedicated path reaches, whose lines reach the clock's loads (#56), else
-    // any it reaches; a clock pad that reaches none (not a GCLK pin, or #56): by the pad's edge, from
-    // the pad through general routing
-    const ded = reach ? free.filter(b => reach.has(b.name)) : [];
-    const ok = b => lineServes(o.inst, b.name);
-    let b = ded.find(ok);
-    if (reach && packed.insts[d.inst].kind === 'dcm') {
-      b ||= ded[0];
-      if (!b) throw new PlaceError(`place: ${packed.insts[o.inst].name}: no free global clock buffer reachable from ${packed.insts[d.inst].name}.${d.pin} through switches of known bits${reach.size ? ` (${[...reach].join(', ')})` : ''}`);
-    } else if (!b) {
-      b = free.find(ok);
-      if (b && ded.length) warnings.push(`${packed.insts[d.inst].name}: the global buffer${ded.length > 1 ? 's' : ''} ${ded.map(b => b.name).join(', ')} that its pad ${pad.name} reaches on a dedicated path ${ded.length > 1 ? 'do' : 'does'} not reach every clock pin of its loads on switches of known bits: ${b.name} instead, through general routing`);
-      b ||= ded[0] || free[0];
-    }
-    if (!b) throw new PlaceError('place: no free global clock buffer');
-    bufUsed.add(b.name);
-    bufAt.set(b.name, o.inst);
-    takeBuf(o.inst, b.name);
-    sites[o.inst] = b;
-  }
-  // block RAMs and multipliers: on their sites (RAMB16_XxYy, MULT18X18_XxYy); a block RAM and the
-  // multiplier of the same tile share the tile's routing: both only when the block RAM's ports are
-  // at most 18 bits wide (Spartan-3E: the multiplier's inputs take the upper data bits)
-  const hardSites = { bram: dev.brams || [], mult: dev.mults || [] };
-  const hardUsed = { bram: new Map(), mult: new Map() };   // site name -> obj
-  const tileUse = new Map();                                // tile -> { bram: obj, mult: obj }
-  const wideBram = o => !!packed.insts[o.inst].wide;
-  // (and only where the lines of its clocks' global buffers reach its clock pins, clockSites: #56)
-  const clockPins = new Map();   // inst -> [[bufg inst, pin]]
-  for (const [bi, L] of loads) for (const n of packed.nets) if (n.outpins[0]?.inst === bi) for (const p of n.inpins) if (L.bram.insts.has(p.inst) || L.mult.insts.has(p.inst)) {
-    if (!clockPins.has(p.inst)) clockPins.set(p.inst, []);
-    clockPins.get(p.inst).push([bi, p.pin]);
-  }
-  const clockOk = (o, site) => (clockPins.get(o.inst) || []).every(([bi, pin]) => { const cs = clockReachOf(sites[bi].name); return !cs || cs.has(`${site.name}.${pin}`); });
-  const hardOk = (o, site, other = null) => {
-    if (!clockOk(o, site)) return false;
-    const t = tileUse.get(site.tile) || {};
-    const k = o.kind === 'bram' ? 'mult' : 'bram';
-    const nb = t[k] && t[k] !== other ? t[k] : null;   // the neighbour in that tile (unless it moves away)
-    return !nb || !(o.kind === 'bram' ? wideBram(o) : wideBram(nb));
-  };
-  const setHard = (o, site) => {
-    const old = sites[o.inst];
-    if (old && hardUsed[o.kind].get(old.name) === o) { hardUsed[o.kind].delete(old.name); delete (tileUse.get(old.tile) || {})[o.kind]; }
-    hardUsed[o.kind].set(site.name, o);
-    if (!tileUse.has(site.tile)) tileUse.set(site.tile, {});
-    tileUse.get(site.tile)[o.kind] = o;
-    sites[o.inst] = site;
-  };
-  // more than the device has: say so plainly, before trying them one by one (#19)
-  for (const kind of ['bram', 'mult']) {
-    const n = objs.filter(o => o.kind === kind).length, have = hardSites[kind].length;
-    if (n > have) throw new PlaceError(`place: ${n} ${kind === 'bram' ? 'block RAMs' : 'multipliers'} needed, the device has ${have}`);
-  }
-  // a multiplier chain (#2, packed.multChains: BCOUT -> BCIN, from the lowest one up) on consecutive sites of a
-  // column, placed first and not moved by the annealing
-  const objOfInst = new Map(objs.filter(o => o.kind === 'mult').map(o => [o.inst, o]));
-  const multByName = new Map(hardSites.mult.map(s => [s.name, s]));
-  const inChain = new Set();
-  for (const chain of [...(packed.multChains || [])].sort((a, b) => b.length - a.length)) {
-    const name = packed.insts[chain[0]].name;
-    if (chain.some(i => packed.insts[i].loc)) throw new PlaceError(`place: ${name}: a LOC on a multiplier of a cascade (BCIN) is not supported yet`);
-    const runFrom = s => {
-      const run = [];
-      for (let x = s; x && run.length < chain.length; x = x.above && multByName.get(x.above)) run.push(x);
-      return run.length === chain.length && run.every((x, k) => !hardUsed.mult.has(x.name) && hardOk(objOfInst.get(chain[k]), x)) ? run : null;
-    };
-    const starts = hardSites.mult.map(runFrom).filter(Boolean);
-    if (!starts.length) throw new PlaceError(`place: ${name}: no ${chain.length} free multiplier sites one above the other for its cascade (BCIN)`);
-    const want = start?.at[chain[0]]?.site;
-    const run = (want && starts.find(r => r[0].name === want)) || starts[ri(starts.length)];
-    chain.forEach((i, k) => { const o = objOfInst.get(i); o.fixed = true; inChain.add(o); setHard(o, run[k]); });
-  }
-  for (const o of objs) if ((o.kind === 'bram' || o.kind === 'mult') && !inChain.has(o)) {
-    const inst = packed.insts[o.inst];
-    const free = hardSites[o.kind].filter(s => !hardUsed[o.kind].has(s.name) && hardOk(o, s) && (!inst.loc || s.name === inst.loc));
-    if (!free.length && clockPins.has(o.inst) && hardSites[o.kind].every(s => !clockOk(o, s) || s.name !== (inst.loc || s.name))) {
-      throw new PlaceError(`place: ${inst.name}: no ${o.kind === 'bram' ? 'block RAM' : 'multiplier'} site${inst.loc ? ` ${inst.loc}` : ''} whose clock pins the lines of ${[...new Set(clockPins.get(o.inst).map(([bi]) => sites[bi].name))].join(', ')} reach through switches of known bits`);
-    }
-    if (!free.length) throw new PlaceError(`place: ${inst.name}: no free ${o.kind === 'bram' ? 'block RAM' : 'multiplier'} site${inst.loc ? ` ${inst.loc}` : ''} (the device has ${hardSites[o.kind].length}${o.kind === 'bram' ? '' : '; a multiplier cannot share its tile with a block RAM of 36-bit ports'})`);
-    o.fixed = !!inst.loc;
-    const want = start?.at[o.inst]?.site;
-    setHard(o, (want && free.find(s => s.name === want)) || free[ri(free.length)]);
-  }
-  // the slices a clock may reach (clockSites): the flip-flops of each clock stay on them
-  const allowedOf = new Array(N).fill(null);
-  if (clockSites) for (const n of packed.nets) {
-    const d = n.outpins[0] && packed.insts[n.outpins[0].inst];
-    if (!d || d.kind !== 'bufg') continue;
-    const reach = clockReachOf(sites[n.outpins[0].inst].name);
-    if (reach) for (const p of n.inpins) if (p.pin === 'CLK' && packed.insts[p.inst].kind === 'slice') allowedOf[p.inst] = reach;
-  }
-  // RAMs and shift registers (instances of type SLICEM) only on SLICEM sites (the left column of a CLB)
-  const allowedAt = (i, k) => (!allowedOf[i] || allowedOf[i].has(dev.slices.get(k).name)) && (packed.insts[i].type !== 'SLICEM' || dev.slices.get(k).type === 'SLICEM');
 
-  // ---------------------------------------------------------------- slices: legal anchors, occupancy
-  // the slice grid: index gx * GH + gy of slice (gx, gy); its site (null: no slice there), whether it
-  // is a SLICEM, and the occupant (-1: free)
-  const sliceList = [...dev.slices.values()];
-  const maxX = Math.max(...sliceList.map(s => s.x)), maxY = Math.max(...sliceList.map(s => s.y));
-  const GH = maxY + 1, GN = (maxX + 1) * GH;
-  const gridSite = new Array(GN).fill(null);
-  const gridM = new Uint8Array(GN);
-  for (const s of sliceList) { gridSite[s.x * GH + s.y] = s; gridM[s.x * GH + s.y] = s.type === 'SLICEM' ? 1 : 0; }
-  const gidx = (x, y) => (x < 0 || y < 0 || x > maxX || y > maxY ? -1 : x * GH + y);
-  // allowedAt on the grid: a table of the slices an instance may take (null: any), one per clock
-  // reach and SLICEM need (the slices the clock reaches, the SLICEM sites)
-  const allowedTables = new Map();
-  const allowedG = allowedOf.map((r, i) => {
-    const m = packed.insts[i].type === 'SLICEM';
-    if (!r && !m) return null;
-    if (!allowedTables.has(r)) allowedTables.set(r, [null, null]);
-    const t = allowedTables.get(r);
-    if (!t[+m]) {
-      const a = t[+m] = new Uint8Array(GN);
-      for (let g = 0; g < GN; g++) if (gridSite[g] && (!r || r.has(gridSite[g].name)) && (!m || gridM[g] === 1)) a[g] = 1;
-    }
-    return t[+m];
+  // DCMs (#47): on DCM sites, their clock outputs matched to global buffers (place-dcms.js)
+  const { bufClaimed, clkinPad, dcmObjs, dcmPadsOf, preBuf } = mountDcms({
+    bufgSites, dev, packed, bufgRank, dcmTried, freePads, loads, objs, padReachOf, serves, sites, takeBuf, vccoOf
   });
-  const allowedAtG = (i, g) => { const a = allowedG[i]; return a === null || a[g] === 1; };
-  const occ = new Int32Array(GN).fill(-1);   // grid index -> inst
-  const fitsAt = (o, x, y) => {
-    if (x % o.align[0] || y % o.align[1]) return false;
-    for (const m of o.members) {
-      const g = gidx(x + m.dx, y + m.dy);
-      if (g < 0 || !gridSite[g] || !allowedAtG(m.inst, g)) return false;
-    }
-    return true;
-  };
-  const freeAt = (o, x, y) => o.members.every(m => occ[gidx(x + m.dx, y + m.dy)] < 0);
-  const anchorX = new Int32Array(objs.length), anchorY = new Int32Array(objs.length);   // a group's slice (x, y) by object
-  const setAt = (o, x, y) => {
-    anchorX[o.id] = x; anchorY[o.id] = y;
-    for (const m of o.members) {
-      const g = gidx(x + m.dx, y + m.dy);
-      occ[g] = m.inst;
-      sites[m.inst] = gridSite[g];
-    }
-  };
-  // initial placement: the largest groups first, each at a random free legal position near the
-  // middle of the chip (then the annealing spreads and orders them)
-  const slicesObjs = objs.filter(o => o.kind === 'macro').sort((a, b) => b.members.length - a.members.length);
-  const total = slicesObjs.reduce((a, o) => a + o.members.length, 0);
-  if (total > dev.slices.size) throw new PlaceError(`place: ${total} slices needed, the device has ${dev.slices.size}`);
-  // a warm start: each group with a slice to start from on the free legal anchor nearest to it (the
-  // exact ones first, the largest first), ring by ring around it; the others as without one
-  const target = o => { const m = o.members.find(x => start.at[x.inst]?.x !== undefined); return m && { ...start.at[m.inst], x: start.at[m.inst].x - m.dx, y: start.at[m.inst].y - m.dy }; };
-  const warm = start ? slicesObjs.filter(target).sort((a, b) => (target(b).exact - target(a).exact) || b.members.length - a.members.length) : [];
-  for (const o of warm) {
-    const t = target(o), cx = Math.round(t.x), cy = Math.round(t.y);
-    let at = null;
-    for (let r = 0; r <= maxX + maxY && !at; r++) {
-      let bd = Infinity;
-      for (let dx = -r; dx <= r; dx++) for (const dy of Math.abs(dx) === r ? [...Array(2 * r + 1).keys()].map(k => k - r) : [-r, r]) {
-        const x = cx + dx, y = cy + dy;
-        if (x < 0 || y < 0 || x > maxX || y > maxY || !fitsAt(o, x, y) || !freeAt(o, x, y)) continue;
-        const d = (x - t.x) ** 2 + (y - t.y) ** 2;
-        if (d < bd) { bd = d; at = [x, y]; }
-      }
-    }
-    if (at) setAt(o, at[0], at[1]);
-  }
-  const started = new Set(warm.filter(o => sites[o.members[0].inst]));
-  for (const o of slicesObjs) {
-    if (started.has(o)) continue;
-    let done = false;
-    for (let tries = 0; tries < 20000 && !done; tries++) {
-      // a window around the centre that grows with the attempts
-      const r = Math.min(1, 0.25 + tries / 4000);
-      const x = Math.floor(maxX / 2 + (random() - 0.5) * (maxX + 1) * r), y = Math.floor(maxY / 2 + (random() - 0.5) * (maxY + 1) * r);
-      if (x < 0 || y < 0 || !fitsAt(o, x, y)) continue;
-      if (!freeAt(o, x, y)) continue;
-      setAt(o, x, y);
-      done = true;
-    }
-    if (!done) {
-      // exhaustive search
-      outer: for (let x = 0; x <= maxX; x++) for (let y = 0; y <= maxY; y++) {
-        if (!fitsAt(o, x, y) || !freeAt(o, x, y)) continue;
-        setAt(o, x, y);
-        done = true;
-        break outer;
-      }
-    }
-    if (!done) throw new PlaceError(`place: no room for a group of ${o.members.length} slices (${o.macro || 'slice'})`);
-  }
-  // positions (tiles, y upward) of every instance
-  const posX = new Float64Array(N), posY = new Float64Array(N);
-  for (let i = 0; i < N; i++) { if (!sites[i]) throw new PlaceError(`place: ${packed.insts[i].name} not placed`); posX[i] = sites[i].px; posY[i] = sites[i].py; }
-  const posPairs = () => Array.from({ length: N }, (_, i) => [posX[i], posY[i]]);
+
+  // the I/O pads: the clock inputs with no LOC on dedicated paths, the others on free pads (place-iobs.js)
+  const { dcmClkinWarnings, padFits } = mountIobs({
+    bufgSites, dev, packed, padOk, start, bankAdd, bankV, bufClaimed, bufOwner, bufgOfPad, bufgRank, clashAt, clkinPad,
+    dcmObjs, dcmPadsOf, freePads, lineServes, objs, padReachOf, padUsed, preBuf, ri, sites, takeBuf, vccoOf
+  });
+
+  // clock buffers: by the pad (or DCM) that drives them (place-bufgs.js)
+  mountBufgs({
+    bufgSites, dev, packed, bufClaimed, bufOwner, lineServes, objs, padReachOf, preBuf, sites, takeBuf, warnings
+  });
+
+  // block RAMs and multipliers: on their sites (RAMB16_XxYy, MULT18X18_XxYy) (place-hard.js)
+  const { allowedOf, hardOk, hardSites, hardUsed, setHard } = mountHard({
+    clockSites, dev, packed, start, N, clockReachOf, loads, objs, ri, sites
+  });
+
+  // ---------------------------------------------------------------- slices: legal anchors, occupancy (place-slices.js)
+  const { allowedAtG, anchorX, anchorY, fitsAt, gidx, gridSite, maxX, maxY, occ, posPairs, posX, posY, setAt } = mountSlices({
+    dev, packed, start, N, allowedOf, objs, random, sites
+  });
 
   // ---------------------------------------------------------------- nets and cost
   // nets for the cost: not the clocks (global lines), not the constants, not the carry links;
@@ -947,176 +465,16 @@ export function place(packed, dev, { seed = 1, effort = 1, timing = 1.5, clockSi
   // ---------------------------------------------------------------- moves
   const movable = objs.filter(o => (o.kind === 'macro') || (o.kind === 'iob' && !o.fixed) || ((o.kind === 'bram' || o.kind === 'mult') && !o.fixed && hardSites[o.kind].length > 1));
   if (!movable.length) return finish();
-  // a proposed move: the instances that change site (chInst[0 .. chN), to chSite), and what commit
-  // needs (mv)
-  const maxMembers = Math.max(1, ...objs.map(o => (o.members ? o.members.length : 1)));
-  const chInst = new Int32Array(2 * maxMembers + 2);
-  const chSite = new Array(2 * maxMembers + 2).fill(null);
-  let chN = 0;
-  const mv = { kind: '', o: null, other: null, p: null, x: 0, y: 0, nDisp: 0 };
-  const newG = new Int32Array(maxMembers), freedG = new Int32Array(maxMembers), dispInst = new Int32Array(maxMembers);
   let rlim = Math.max(maxX, maxY);
-  const padsFor = { in: [...dev.pads.values()], out: [...dev.pads.values()].filter(p => !p.inputOnly) };
-  // propose a move into chInst / chSite / mv; false: none
-  function propose() {
-    const o = movable[ri(movable.length)];
-    chN = 0;
-    if (o.kind === 'bram' || o.kind === 'mult') {
-      // another site of its kind (swapping with the instance there)
-      const cands = hardSites[o.kind];
-      const p = cands[ri(cands.length)];
-      const other = hardUsed[o.kind].get(p.name);
-      if (other === o || (other && other.fixed)) return false;
-      const cur = sites[o.inst];
-      if (!hardOk(o, p, other) || (other && !hardOk(other, cur, o))) return false;
-      chInst[chN] = o.inst; chSite[chN++] = p;
-      if (other) { chInst[chN] = other.inst; chSite[chN++] = cur; }
-      mv.kind = 'hard'; mv.o = o; mv.other = other; mv.p = p;
-      return true;
-    }
-    if (o.kind === 'iob') {
-      const cands = padsFor[o.dir === 'in' ? 'in' : 'out'];
-      const p = cands[ri(cands.length)];
-      const other = padUsed.get(p.name);
-      if (other === o) return false;
-      if (other && (other.fixed || (other.dir !== 'in' && sites[o.inst].inputOnly))) return false;
-      if (!padFits(o.inst, p) && padFits(o.inst, sites[o.inst])) return false;
-      if (other && !padFits(other.inst, sites[o.inst]) && padFits(other.inst, p)) return false;
-      // (no two registers of one kind on different clocks in a pair, #749)
-      const after = q => (q === p ? o : q === sites[o.inst] ? other : padUsed.get(q.name));
-      if (clashAt(o.inst, p, after) || (other && clashAt(other.inst, sites[o.inst], after))) return false;
-      // both I/Os must suit the VCCO of the bank they go to
-      const old = sites[o.inst], vo = vccoOf(o.inst), vt = other ? vccoOf(other.inst) : null;
-      bankAdd(old, vo, -1); if (other) bankAdd(p, vt, -1);
-      const ok = bankOk(p, vo) && (!other || bankOk(old, vt)) && (bankOfPad(p) !== bankOfPad(old) || vo == null || vt == null || vo === vt);
-      bankAdd(old, vo, 1); if (other) bankAdd(p, vt, 1);
-      if (!ok) return false;
-      chInst[chN] = o.inst; chSite[chN++] = p;
-      if (other) { chInst[chN] = other.inst; chSite[chN++] = old; }
-      mv.kind = 'iob'; mv.o = o; mv.other = other; mv.p = p;
-      return true;
-    }
-    const ax = anchorX[o.id], ay = anchorY[o.id];
-    const r = Math.max(1, Math.round(rlim));
-    const x = ax + ri(2 * r + 1) - r, y = ay + ri(2 * r + 1) - r;
-    if ((x === ax && y === ay) || x < 0 || y < 0 || !fitsAt(o, x, y)) return false;
-    const mem = o.members, nm = mem.length;
-    for (let j = 0; j < nm; j++) newG[j] = gidx(x + mem[j].dx, y + mem[j].dy);
-    // the slices it leaves (its old slices not among the new), in member order, and the single
-    // slices on its new slices, which step into them
-    let nFreed = 0, nDisp = 0;
-    for (let j = 0; j < nm; j++) {
-      const g = gidx(ax + mem[j].dx, ay + mem[j].dy);
-      let inNew = false;
-      for (let q = 0; q < nm; q++) if (newG[q] === g) { inNew = true; break; }
-      if (!inNew) freedG[nFreed++] = g;
-    }
-    for (let j = 0; j < nm; j++) {
-      const i = occ[newG[j]];
-      if (i < 0 || objOf[i] === o.id) continue;
-      if (objs[objOf[i]].members.length > 1) return false;   // only single slices step aside
-      dispInst[nDisp++] = i;
-    }
-    for (let j = 0; j < nDisp; j++) if (!allowedAtG(dispInst[j], freedG[j])) return false;
-    for (let j = 0; j < nm; j++) { chInst[chN] = mem[j].inst; chSite[chN++] = gridSite[newG[j]]; }
-    for (let j = 0; j < nDisp; j++) { chInst[chN] = dispInst[j]; chSite[chN++] = gridSite[freedG[j]]; }
-    mv.kind = 'slice'; mv.o = o; mv.x = x; mv.y = y; mv.nDisp = nDisp;
-    return true;
-  }
-  // the cost change of the proposed move: the nets and connections it touches (each once, in the
-  // order met), their new costs and delays kept for commit
-  const netMark = new Int32Array(NN), connMark = new Int32Array(NC);
-  let mark = 0;
-  const tNets = new Int32Array(NN), tNetCost = new Float64Array(NN), netQ = new Int32Array(NN);
-  const tBox = new Float64Array(4 * NN), tBoxN = new Int32Array(4 * NN);
-  const tConns = new Int32Array(NC), tConnDelay = new Float64Array(NC);
-  let nT = 0, nTC = 0, dbbL = 0, dtcL = 0;
-  const saveX = new Float64Array(chInst.length), saveY = new Float64Array(chInst.length);
-  // the moved pins of each touched net: a list per net (head[q], then next[]) of change indexes
-  let maxNets = 1;
-  for (let i = 0; i < N; i++) maxNets = Math.max(maxNets, instNetStart[i + 1] - instNetStart[i]);
-  const head = new Int32Array(NN), lnkC = new Int32Array(chInst.length * maxNets), lnkNext = new Int32Array(chInst.length * maxNets);
-  // one side (x: o = 0, y: o = 2) of the box of touched net q after its moved pins leave their old
-  // positions (saved) for their new ones (pos), from its box before (box[b]), into tBox[4q + o]:
-  // false when an edge loses all its pins (the pins must be scanned again)
-  const moveSide = (q, b, o, P, S) => {
-    let lo = box[b + o], hi = box[b + o + 1], nlo = boxN[b + o], nhi = boxN[b + o + 1];
-    for (let l = head[q]; l >= 0; l = lnkNext[l]) { const v = S[lnkC[l]]; if (v === lo) nlo--; if (v === hi) nhi--; }
-    for (let l = head[q]; l >= 0; l = lnkNext[l]) {
-      const v = P[chInst[lnkC[l]]];
-      if (v < lo) { lo = v; nlo = 1; } else if (v === lo) nlo++;
-      if (v > hi) { hi = v; nhi = 1; } else if (v === hi) nhi++;
-    }
-    if (nlo <= 0 || nhi <= 0) return false;
-    const w = 4 * q + o;
-    tBox[w] = lo; tBox[w + 1] = hi; tBoxN[w] = nlo; tBoxN[w + 1] = nhi;
-    return true;
-  };
-  function delta() {
-    mark++;
-    nT = 0; nTC = 0;
-    let nl = 0;
-    for (let c = 0; c < chN; c++) {
-      const i = chInst[c];
-      for (let q = instNetStart[i], e = instNetStart[i + 1]; q < e; q++) {
-        const k = netOf[q];
-        if (netMark[k] !== mark) { netMark[k] = mark; netQ[k] = nT; head[nT] = -1; tNets[nT++] = k; }
-        const qk = netQ[k];
-        lnkC[nl] = c; lnkNext[nl] = head[qk]; head[qk] = nl++;
-      }
-      if (lambda) for (let q = instConnStart[i], e = instConnStart[i + 1]; q < e; q++) { const j = connOf[q]; if (connMark[j] !== mark) { connMark[j] = mark; tConns[nTC++] = j; } }
-    }
-    for (let c = 0; c < chN; c++) { const i = chInst[c]; saveX[c] = posX[i]; saveY[c] = posY[i]; posX[i] = chSite[c].px; posY[i] = chSite[c].py; }
-    let dbb = 0, dtc = 0;
-    for (let q = 0; q < nT; q++) {
-      const k = tNets[q], o = 4 * q;
-      let c;
-      // a larger net: its box from the old one and its moved pins, unless an edge loses all its
-      // pins (a small net: scanned, as fast)
-      if (netStart[k + 1] - netStart[k] > BOX_SCAN && moveSide(q, 4 * k, 0, posX, saveX) && moveSide(q, 4 * k, 2, posY, saveY)) c = netW[k] * ((tBox[o + 1] - tBox[o]) + (tBox[o + 3] - tBox[o + 2]));
-      else c = scanBox(k, tBox, tBoxN, o);
-      tNetCost[q] = c; dbb += c - netCostOf[k];
-    }
-    for (let q = 0; q < nTC; q++) { const j = tConns[q], d = cdelay(j); tConnDelay[q] = d; dtc += cW[j] * (d - cD[j]); }
-    for (let c = 0; c < chN; c++) { const i = chInst[c]; posX[i] = saveX[c]; posY[i] = saveY[c]; }
-    dbbL = dbb; dtcL = dtc;
-    return (1 - lambda) * dbb / bbNorm + lambda * dtc / tcNorm;
-  }
-  function commit() {
-    if (mv.kind === 'hard') {
-      const { o, other, p } = mv;
-      const old = sites[o.inst];
-      if (other) { hardUsed[o.kind].delete(p.name); setHard(o, p); setHard(other, old); posX[other.inst] = old.px; posY[other.inst] = old.py; } else setHard(o, p);
-      posX[o.inst] = p.px; posY[o.inst] = p.py;
-    } else if (mv.kind === 'iob') {
-      const { o, other, p } = mv;
-      const old = sites[o.inst];
-      const vo = vccoOf(o.inst), vt = other ? vccoOf(other.inst) : null;
-      bankAdd(old, vo, -1); bankAdd(p, vo, 1);
-      if (other) { bankAdd(p, vt, -1); bankAdd(old, vt, 1); }
-      padUsed.delete(old.name);
-      if (other) { padUsed.set(old.name, other); sites[other.inst] = old; posX[other.inst] = old.px; posY[other.inst] = old.py; }
-      padUsed.set(p.name, o); sites[o.inst] = p; posX[o.inst] = p.px; posY[o.inst] = p.py;
-    } else {
-      const { o, x, y, nDisp } = mv;
-      const ax = anchorX[o.id], ay = anchorY[o.id];
-      for (const m of o.members) occ[gidx(ax + m.dx, ay + m.dy)] = -1;
-      for (let j = 0; j < nDisp; j++) {
-        const i = dispInst[j], g = freedG[j], s = gridSite[g];
-        occ[g] = i; sites[i] = s; posX[i] = s.px; posY[i] = s.py;
-        anchorX[objOf[i]] = s.x; anchorY[objOf[i]] = s.y;
-      }
-      setAt(o, x, y);
-      for (const m of o.members) { posX[m.inst] = sites[m.inst].px; posY[m.inst] = sites[m.inst].py; }
-    }
-    for (let q = 0; q < nT; q++) {
-      const k = tNets[q];
-      netCostOf[k] = tNetCost[q];
-      for (let e = 0; e < 4; e++) { box[4 * k + e] = tBox[4 * q + e]; boxN[4 * k + e] = tBoxN[4 * q + e]; }
-    }
-    for (let q = 0; q < nTC; q++) cD[tConns[q]] = tConnDelay[q];
-    bb += dbbL; tc += dtcL;
-  }
+  // the moves: one proposed, its change of cost, its commit (place-moves.js)
+  const { commit, delta, propose } = mountMoves({
+    dev, N, NC, NN, allowedAtG, anchorX, anchorY, bankAdd, bankOk, bb: () => bb, bbNorm: () => bbNorm, box, boxN, cD,
+    cW, cdelay, clashAt, connOf, fitsAt, gidx, gridSite, hardOk, hardSites, hardUsed, instConnStart, instNetStart,
+    lambda, movable, netCostOf, netOf, netStart, netW, objOf, objs, occ, padFits, padUsed, posX, posY, ri,
+    rlim: () => rlim, scanBox, setAt, setHard, sites, tc: () => tc, tcNorm: () => tcNorm, vccoOf,
+    setBb: (v) => { bb = v; }, setTc: (v) => { tc = v; }
+  });
+
 
   // ---------------------------------------------------------------- annealing
   // initial temperature: 20 x the standard deviation of the cost changes of random moves
