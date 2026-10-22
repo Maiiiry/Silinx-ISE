@@ -2,7 +2,8 @@
 // without a test bench: Edit Stimuli, its timing (the clock found), clicks on the cycles of the inputs (the
 // simulation runs again at once), a bus value typed in, an expected output wrong (the mismatch in red, in the
 // bar and the console) then filled in from the simulation, saved in the project and run again when ISim opens,
-// Save as Test Bench (a simulation source that passes), and the texts in Portuguese.
+// Save as Test Bench (a simulation source that passes), and the texts in Portuguese; a bus expanded and its bits
+// clicked one at a time (#919), in the modern and classic interfaces and in the Tasks interface's Simulate.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject } from './harness.js';
@@ -222,3 +223,117 @@ uiTest('ISim stimuli (#336) of a test bench: the inputs of its unit under test, 
   await page.waitFor((d) => /TEST PASSED: 6 vector/.test(document.querySelector(`${d} .isim-console`)?.innerText || ''), [DOC], { what: 'TEST PASSED', timeout: 20000 });
   assert.deepEqual(page.dialogs, []);
 });
+
+// #919: a bus expanded, its bits edited one at a time. The line of the waves of a port (or of its bit `bit`, a bus
+// expanded: its bits after it, the leftmost first), the rows being the module's ports, no groups
+const lineOf = (page, name, bit = null) => page.eval((n, b) => {
+  let line = 0;
+  for (const r of window.Silinx.active.view.state.rows) {
+    const t = r.sig?.t;
+    if (r.sig?.name === n) return b == null ? line : line + 1 + (t.left >= t.right ? t.left - b : b - t.left);
+    line += 1 + (r.expanded ? t.w : 0);
+  }
+  return -1;
+}, name, bit);
+const clickLine = async (page, line, k, P) => page.click(await page.eval((tt, l) => {
+  const s = window.Silinx.active.view.state, c = document.querySelector('.doc:not([hidden]) .isim-waves').getBoundingClientRect();
+  return { x: c.left + (tt - s.t0) / s.scale, y: c.top + 30 + l * 20 + 10 - s.scrollY };
+}, k * P + P / 2, line));
+// a bus's twisty in the names column: expanded (or collapsed)
+const expand = async (page, name, open = true) => {
+  const line = await lineOf(page, name);
+  await page.click(await page.eval((l) => {
+    const s = window.Silinx.active.view.state, c = document.querySelector('.doc:not([hidden]) .isim-names').getBoundingClientRect();
+    return { x: c.left + 8, y: c.top + 30 + l * 20 + 10 - s.scrollY };
+  }, line));
+  await page.waitFor((n, o) => window.Silinx.active.view.state.rows.find((r) => r.sig?.name === n).expanded === o, [name, open], { what: `${name} ${open ? 'expanded' : 'collapsed'}` });
+};
+// Edit Stimuli on, 8 cycles of 20 ns (clk the clock); then d's bits clicked: d(3) from cycle 2, d(0) in cycle 2 only
+// (0 → 1, then 1 → Z → X → 0 from cycle 3), load in cycle 2: q loads 1001 and keeps it (en 0)
+async function editBits(page) {
+  await page.click(`${DOC} .isim-toolbar .tb-btn[title^="Edit Stimuli"]`);
+  await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg [name=cycles]`), [DOC], { what: 'Stimulus Timing' });
+  await page.fill(`${DOC} .isim-stim-dlg [name=cycles]`, '8');
+  await page.click(`${DOC} .isim-stim-dlg [data-a=ok]`);
+  await simTime(page, '160,000');
+  const P = 20000;
+  await expand(page, 'd');
+  await clickLine(page, await lineOf(page, 'd', 3), 2, P);
+  await page.waitFor(() => window.Silinx.active.view.state.stim.m.inputs.d.join(' ') === '0000 0000 1000 1000 1000 1000 1000 1000', [], { what: 'd(3) from cycle 2' });
+  assert.ok(!await page.eval((d) => document.querySelector(`${d} .isim-stim-dlg`), DOC), 'no value dialog for a bit');
+  await clickLine(page, await lineOf(page, 'd', 0), 2, P);
+  for (let n = 0; n < 3; n++) await clickLine(page, await lineOf(page, 'd', 0), 3, P);
+  await page.waitFor(() => window.Silinx.active.view.state.stim.m.inputs.d.join(' ') === '0000 0000 1001 1000 1000 1000 1000 1000', [], { what: 'd(0) in cycle 2' });
+  await clickLine(page, await lineOf(page, 'load'), 2, P);
+  for (let n = 0; n < 3; n++) await clickLine(page, await lineOf(page, 'load'), 3, P);
+  await page.waitFor(() => window.Silinx.active.view.state.stim.m.inputs.load.join('') === '00100000', [], { what: 'load in cycle 2' });
+  await simTime(page, '160,000');
+  assert.equal(await value(page, 'q'), '1001');
+  return P;
+}
+
+uiTest('#919 ISim stimuli: a bus expanded, its bits clicked one at a time (an input\'s, an expected output\'s), the bus whole again, saved, Save as Test Bench, Portuguese', E, async (page) => {
+  await makeProject(env, { name: 'StimBits', top: 'ctr', files: { 'src/ctr.vhd': CTR } });
+  await page.openProject('StimBits');
+  await page.click('input[name=view][value=sim]');
+  await simulate(page, 'ctr');
+  await simTime(page, '1,000,000');
+  const P = await editBits(page);
+  // q's MSB expected 0 in cycle 7 (q is 1001): a mismatch on its bit; a click again: 1, all right (d collapsed: q's
+  // bits in view)
+  await expand(page, 'd', false);
+  await expand(page, 'q');
+  await clickLine(page, await lineOf(page, 'q', 3), 7, P);
+  await page.waitFor((d) => /1 mismatch\(es\)$/.test(document.querySelector(`${d} .isim-stim-st`).textContent), [DOC], { what: 'the mismatch' });
+  assert.deepEqual(await page.eval(() => window.Silinx.active.view.state.stim.bad), [{ port: 'q', k: 7, expected: '0---', got: '1001' }]);
+  await clickLine(page, await lineOf(page, 'q', 3), 7, P);
+  await page.waitFor((d) => /expected outputs OK$/.test(document.querySelector(`${d} .isim-stim-st`).textContent), [DOC], { what: 'expected OK' });
+  assert.deepEqual((await stim(page)).expected.q, ['----', '----', '----', '----', '----', '----', '----', '1---']);
+  // the bus's row: its value dialog, the note on its bits; 0011 from cycle 2 up to d's next change (cycle 3)
+  await clickLine(page, await lineOf(page, 'd'), 2, P);
+  await page.waitFor((d) => document.querySelector(`${d} .isim-stim-dlg [name=value]`), [DOC], { what: 'Input Value' });
+  assert.deepEqual(await page.eval((d) => [...document.querySelectorAll(`${d} .isim-stim-dlg .isim-dlg-note`)].map((n) => n.textContent), DOC),
+    ['Bits, most significant first (0 1 Z X), h… hexadecimal or d… decimal; it holds up to the next change.', 'Expand the bus to change one of its bits: a click on its wave, as on a 1-bit signal.']);
+  await page.eval(TEXTS);
+  const setLang = (l) => page.eval(async (x) => { (await import('/js/i18n.js')).setLanguage(x); }, l);
+  const dlgTexts = () => page.eval((d) => window.__uiTexts(document.querySelector(`${d} .isim-stim-dlg`)), DOC);
+  const en = await dlgTexts();
+  await setLang('pt');
+  const pt = await dlgTexts();
+  await setLang('en');
+  assert.deepEqual(untranslated(en, pt, [/^@?(d|2|0000)$/]), []);
+  assert.ok(pt.includes('Expanda o barramento para mudar um dos seus bits: um clique na sua onda, como num sinal de 1 bit.'), pt.join(' | '));
+  await page.fill(`${DOC} .isim-stim-dlg [name=value]`, '0011');
+  await page.click(`${DOC} .isim-stim-dlg [data-a=ok]`);
+  await page.waitFor(() => window.Silinx.active.view.state.stim.m.inputs.d.join(' ') === '0000 0000 0011 1000 1000 1000 1000 1000', [], { what: 'd whole in cycle 2' });
+  await simTime(page, '160,000');
+  assert.equal(await value(page, 'q'), '0011');
+  await page.click(`${DOC} .isim-stimbar [data-stim=fill]`);
+  await page.waitFor(async () => { const j = await (await fetch('/api/projects/StimBits')).json(); return j.stimuli?.ctr?.expected?.q?.[7] === '0011'; }, [], { what: 'stimuli saved' });
+  assert.deepEqual((await saved('StimBits')).inputs.d, ['0000', '0000', '0011', '1000', '1000', '1000', '1000', '1000']);
+  // Save as Test Bench: the bits as edited, the test bench passes
+  await page.click(`${DOC} .isim-stimbar [data-stim=save]`);
+  await page.waitFor(() => [...document.querySelectorAll('.dlg-overlay')].pop()?.querySelector('input'), [], { what: 'test bench name' });
+  await page.click('.dlg-overlay .dlg-buttons button', { text: 'OK' });
+  await page.waitFor(async () => (await (await fetch('/api/projects/StimBits')).json()).files.some((f) => f.path === 'src/tb_ctr.vhd' && f.role === 'sim'), [], { what: 'tb_ctr.vhd', timeout: 20000 });
+  await simulate(page, 'tb_ctr');
+  await page.waitFor((d) => /TEST PASSED: 8 vector/.test(document.querySelector(`${d} .isim-console`)?.innerText || ''), [DOC], { what: 'TEST PASSED', timeout: 20000 });
+  assert.doesNotMatch(await consoleText(page), /Error|Warning/);
+  assert.deepEqual(page.dialogs, []);
+});
+
+// the Tasks interface (a development build's, #838): its Simulate hosts the same ISim, the bits edited there too
+uiTest('#919 ISim stimuli in Tasks ▸ Simulate: a bus expanded, its bits clicked one at a time', E, async (page) => {
+  await makeProject(env, { name: 'StimBitsTasks', top: 'ctr', files: { 'src/ctr.vhd': CTR } });
+  await page.eval(() => localStorage.setItem('silinx.ui', 'tasks'));
+  await page.reload();
+  await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx?.startupChecked, [], { what: 'app boot' });
+  await page.openProject('StimBitsTasks');
+  await page.click('#task-switch .task-btn[data-task="sim"]');
+  await page.click('#task-empty button');
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && document.querySelector('.doc:not([hidden]) .isim .isim-wavewin'), [], { what: 'ISim', timeout: 30000 });
+  await simTime(page, '1,000,000');
+  await editBits(page);
+  await page.waitFor(async () => (await (await fetch('/api/projects/StimBitsTasks')).json()).stimuli?.ctr?.inputs?.d?.[2] === '1001', [], { what: 'stimuli saved' });
+  assert.deepEqual(page.dialogs, []);
+}, { build: { commit: 'abc1234', date: '2026-10-21 12:00' } });

@@ -221,6 +221,7 @@ const PT = {
   'Expected Value': 'Valor Esperado', 'From Cycle:': 'A partir do Ciclo:', 'Value:': 'Valor:', 'Save as Test Bench': 'Guardar como Bancada de Teste',
   'Bits, most significant first (0 1 Z X), h… hexadecimal or d… decimal; it holds up to the next change.': 'Bits, o mais significativo primeiro (0 1 Z X), h… hexadecimal ou d… decimal; mantém-se até à mudança seguinte.',
   'Bits, most significant first (0 1, - not checked), h… hexadecimal or d… decimal; - alone: not checked.': 'Bits, o mais significativo primeiro (0 1, - não verificado), h… hexadecimal ou d… decimal; - sozinho: não verificado.',
+  'Expand the bus to change one of its bits: a click on its wave, as on a 1-bit signal.': 'Expanda o barramento para mudar um dos seus bits: um clique na sua onda, como num sinal de 1 bit.',
   // schematic viewer
   'Zoom In (+)': 'Ampliar (+)', 'Zoom Out (−)': 'Reduzir (−)', 'Zoom to Full View (F)': 'Ver Tudo (F)', 'Up one level (Backspace)': 'Subir um nível (Backspace)',
   'Empty schematic — this unit has no ports, logic or instances.': 'Esquemático vazio — esta unidade não tem portos, lógica nem instâncias.',
