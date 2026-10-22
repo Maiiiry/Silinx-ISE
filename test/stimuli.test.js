@@ -10,7 +10,7 @@ import * as V from '../core/values.js';
 import { tbPorts, generateTestbench } from '../core/testbench.js';
 import {
   newStimuli, normalizeStimuli, cyclePs, nextBit, nextExpected, paintCells, editInput, editExpected, stimulusPlan,
-  checkExpected, fillExpected, testbenchOptions, applyStimuli, MAX_CYCLES,
+  paintBit, editInputBit, editExpectedBit, checkExpected, fillExpected, testbenchOptions, applyStimuli, MAX_CYCLES,
 } from '../core/stimuli.js';
 
 const COUNTER_VHD = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
@@ -47,8 +47,23 @@ const GATE_V = `module g (input a, input b, input [2:0] d, output y, output [2:0
   assign s = d + 1;
 endmodule`;
 
+// #919: a bus edited one bit at a time; d descending, v ascending (its bit 0 the leftmost): s = d + 1, y = v(0) and not v(2)
+const BITS_VHD = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity h is
+  port (d : in std_logic_vector(2 downto 0); v : in std_logic_vector(0 to 2); s : out std_logic_vector(2 downto 0); y : out std_logic);
+end h;
+architecture rtl of h is
+begin
+  s <= std_logic_vector(unsigned(d) + 1);
+  y <= v(0) and not v(2);
+end rtl;`;
+const BITS_V = `module h (input [2:0] d, input [0:2] v, output [2:0] s, output y);
+  assign s = d + 1;
+  assign y = v[0] & ~v[2];
+endmodule`;
+
 const src = (text, lang, name) => ({ path: `${name}.${lang === 'vhdl' ? 'vhd' : 'v'}`, lang, text });
-const types = { q: 'std_logic_vector(3 downto 0)', d: 'std_logic_vector(2 downto 0)', s: 'std_logic_vector(2 downto 0)' };
+const types = { q: 'std_logic_vector(3 downto 0)', d: 'std_logic_vector(2 downto 0)', s: 'std_logic_vector(2 downto 0)', v: 'std_logic_vector(0 to 2)' };
 
 // the module simulated with the model's stimuli, as the wave window does: { ports, sim, valueAt(port, t) }
 function runModel(dut, top, m) {
@@ -116,6 +131,45 @@ test('stimuli model: a click paints from its cycle up to the next change, 0 → 
   assert.deepEqual([editExpected(m, 'y', 0, 'Z'), editExpected(m, 'y', 0, '-')], [false, false]);
 });
 
+test('stimuli model (#919): one bit of a bus painted from its cycle up to its next change, the other bits kept; the whole bus after', () => {
+  assert.deepEqual(paintBit(['000', '000', '010', '010', '000'], 1, 1, '1'), ['000', '010', '010', '010', '000']);
+  assert.deepEqual(paintBit(['000', '001', '011', '001'], 0, 2, '1'), ['001', '001', '011', '001'], 'up to the bit\'s change, whatever the other bits do');
+  assert.deepEqual(paintBit(['00'], 0, 5, '1'), ['00']);
+  const m = newStimuli([{ name: 'd', dir: 'in', width: 3 }, { name: 's', dir: 'out', width: 3 }], { cycles: 5 });
+  // a click: 0 → 1 → Z → X → 0, as a 1-bit input; bit 2 (the LSB) from cycle 1, bit 0 (the MSB) from cycle 3
+  assert.equal(editInputBit(m, 'd', 2, 1), true);
+  assert.deepEqual(m.inputs.d, ['000', '001', '001', '001', '001']);
+  assert.equal(editInputBit(m, 'd', 0, 3), true);
+  assert.deepEqual(m.inputs.d, ['000', '001', '001', '101', '101']);
+  assert.deepEqual([2, 3, 4].map(() => (editInputBit(m, 'd', 1, 4), m.inputs.d[4])), ['111', '1Z1', '1X1']);
+  assert.equal(editInputBit(m, 'd', 1, 4), true);
+  assert.equal(m.inputs.d[4], '101', 'X → 0');
+  // a value given; the bit already that, a bit not 0 1 Z X, out of range, unknown port: no change
+  assert.equal(editInputBit(m, 'd', 2, 0, 'z'), true);
+  assert.deepEqual(m.inputs.d, ['00Z', '001', '001', '101', '101']);
+  assert.deepEqual([editInputBit(m, 'd', 2, 0, 'Z'), editInputBit(m, 'd', 2, 0, '01'), editInputBit(m, 'd', 2, 0, '-'), editInputBit(m, 'd', 3, 0),
+    editInputBit(m, 'd', -1, 0), editInputBit(m, 'd', 0.5, 0), editInputBit(m, 'd', 0, 5), editInputBit(m, 'e', 0, 0), editInputBit(m, 's', 0, 0)],
+  [false, false, false, false, false, false, false, false, false]);
+  // back to the whole bus: its value from cycle 1, up to the bus's next change (cycle 3)
+  assert.equal(editInput(m, 'd', 1, '110'), true);
+  assert.deepEqual(m.inputs.d, ['00Z', '110', '110', '101', '101']);
+  // an output's bit: - → 0 → 1 → -, the other bits not checked
+  assert.equal(editExpectedBit(m, 's', 0, 2), true);
+  assert.deepEqual(m.expected.s, ['---', '---', '0--', '0--', '0--']);
+  assert.equal(editExpectedBit(m, 's', 0, 4), true);
+  assert.deepEqual(m.expected.s, ['---', '---', '0--', '0--', '1--']);
+  assert.equal(editExpectedBit(m, 's', 2, 3, '1'), true);
+  assert.deepEqual(m.expected.s, ['---', '---', '0--', '0-1', '1-1']);
+  assert.deepEqual([editExpectedBit(m, 's', 2, 3, '1'), editExpectedBit(m, 's', 2, 3, 'Z'), editExpectedBit(m, 'd', 0, 0)], [false, false, false]);
+  assert.equal(editExpectedBit(m, 's', 0, 4), true);
+  assert.equal(m.expected.s[4], '--1', '1 → -');
+  // checked bit by bit: only the bits expected
+  const got = { s: ['000', '000', '011', '110', '000'] };
+  assert.deepEqual(checkExpected(m, (p, t) => got[p][Math.floor(t / cyclePs(m))]), [{ port: 's', k: 3, expected: '0-1', got: '110' }, { port: 's', k: 4, expected: '--1', got: '000' }]);
+  // saved and read back: the same
+  assert.deepEqual(normalizeStimuli(JSON.parse(JSON.stringify(m)), [{ name: 'd', dir: 'in', width: 3 }, { name: 's', dir: 'out', width: 3 }]), m);
+});
+
 test('stimuli plan: input changes, the clock, check times (with a clock and combinational)', () => {
   const ports = [{ name: 'clk', dir: 'in', width: 1 }, { name: 'en', dir: 'in', width: 1 }, { name: 'q', dir: 'out', width: 4 }];
   const m = newStimuli(ports, { clock: 'clk', periodNs: 10, cycles: 3 });
@@ -179,6 +233,48 @@ for (const [lang, dut] of [['vhdl', src(GATE_VHD, 'vhdl', 'g')], ['verilog', src
     const log = runTb(dut, tb, lang, 'g_tbw');
     assert.ok(log.some(l => /TEST PASSED: 6 vector/.test(l)), log.join('\n'));
     assert.deepEqual(log.problems, [], 'no warnings');
+  });
+}
+
+for (const [lang, dut] of [['vhdl', src(BITS_VHD, 'vhdl', 'h')], ['verilog', src(BITS_V, 'verilog', 'h')]]) {
+  test(`stimuli with buses edited one bit at a time (#919, ${lang}): the simulation and the test bench drive each bit as edited`, () => {
+    const ports0 = tbPorts(elaborate(compile([dut]), 'h'), types);
+    const m = newStimuli(ports0, { stepNs: 10, cycles: 8 });
+    // d's bits: d(0) 1 from cycle 1, d(1) from cycle 2 to 5, d(2) from cycle 4; v's bits (ascending): v(0) from cycle 3,
+    // v(2) from cycle 6; then d whole from cycle 7: 010
+    editInputBit(m, 'd', 2, 1);
+    editInputBit(m, 'd', 1, 2); editInputBit(m, 'd', 1, 6, '0');
+    editInputBit(m, 'd', 0, 4);
+    editInputBit(m, 'v', 0, 3);
+    editInputBit(m, 'v', 2, 6);
+    editInput(m, 'd', 7, '010');
+    assert.deepEqual(m.inputs.d, ['000', '001', '011', '011', '111', '111', '101', '010']);
+    assert.deepEqual(m.inputs.v, ['000', '000', '000', '100', '100', '100', '101', '101']);
+    // expected: s's MSB, s(2), bit by bit: 1 in cycles 2, 3 and 6, 0 in 4, 5 and 7 (the others not checked)
+    editExpectedBit(m, 's', 0, 2, '1');
+    editExpectedBit(m, 's', 0, 4, '0');
+    editExpectedBit(m, 's', 0, 6, '1'); editExpectedBit(m, 's', 0, 7, '0');
+    assert.deepEqual(m.expected.s, ['---', '---', '1--', '1--', '0--', '0--', '1--', '0--']);
+    // an independent model: s = d + 1, y = v(0) and not v(2), v's leftmost bit being v(0)
+    const r = runModel(dut, 'h', m);
+    const want = m.inputs.d.map(d => ((parseInt(d, 2) + 1) & 7).toString(2).padStart(3, '0'));
+    const checks = stimulusPlan(m).checks;
+    assert.deepEqual(checks.map(t => r.valueAt('s', t)), want);
+    assert.deepEqual(checks.map(t => r.valueAt('y', t)), m.inputs.v.map(v => (v[0] === '1' && v[2] === '0' ? '1' : '0')));
+    assert.deepEqual(checkExpected(m, r.valueAt), []);
+    // the test bench: the vectors as edited (d v, cycle 6: 101 101), it passes; with one expected bit wrong, it fails there
+    const tb = (mm, name) => generateTestbench(testbenchOptions(mm, { name, lang, uut: { name: 'h' }, ports: r.ports }));
+    const text = tb(m, 'h_tbw');
+    assert.match(text, lang === 'vhdl' ? /6 => "101101"/ : /vin\[6\] = 6'b101101;/);
+    const log = runTb(dut, text, lang, 'h_tbw');
+    assert.ok(log.some(l => /TEST PASSED: 8 vector/.test(l)), log.join('\n'));
+    assert.deepEqual(log.problems, [], 'no warnings');
+    editExpectedBit(m, 's', 2, 2, '1'); editExpectedBit(m, 's', 2, 3, '-');
+    assert.deepEqual(m.expected.s, ['---', '---', '1-1', '1--', '0--', '0--', '1--', '0--']);
+    assert.deepEqual(checkExpected(m, r.valueAt), [{ port: 's', k: 2, expected: '1-1', got: '100' }]);
+    const bad = runTb(dut, tb(m, 'h_bad'), lang, 'h_bad');
+    assert.ok(bad.some(l => /^vector 2:/.test(l)), bad.join('\n'));
+    assert.ok(bad.some(l => /TEST FAILED: 1 of 8 vector/.test(l)), bad.join('\n'));
   });
 }
 

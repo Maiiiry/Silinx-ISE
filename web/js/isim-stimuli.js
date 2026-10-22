@@ -1,9 +1,10 @@
 // ISim's drawn stimuli (#405: out of mountISim; #336, core/stimuli.js): Edit Stimuli on, a click on a cycle of an
 // input changes it there and up to its next change (0 → 1 → Z → X; a bus: a value typed in), on an output its expected
-// value (- → 0 → 1); the simulation restarts and runs the stimuli at once, the expected outputs checked (the mismatches
-// red); their timing and a bus's value in dialogs. mountStimuli(ctx) is called by mountISim where this code was.
+// value (- → 0 → 1), a bit of a bus expanded as a 1-bit port (#919: the bus's value follows from its bits); the
+// simulation restarts and runs the stimuli at once, the expected outputs checked (the mismatches red); their timing
+// and a bus's value in dialogs. mountStimuli(ctx) is called by mountISim where this code was.
 import * as V from '/core/values.js';
-import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, checkExpected, fillExpected, stimulusPlan, parseCellValue } from '/core/stimuli.js';
+import { newStimuli, normalizeStimuli, cyclePs, editInput, editExpected, editInputBit, editExpectedBit, checkExpected, fillExpected, stimulusPlan, parseCellValue } from '/core/stimuli.js';
 import { esc, h } from './dom.js';
 import { fmtTime, ROW_H, RULER_H } from './isim.js';
 
@@ -20,7 +21,17 @@ export function mountStimuli(ctx) {
     if (on && !st.stim.m) timingDialog();
     else invalidate(false);
   }
-  const stimPort = (it) => (it && !it.bit && it.row.kind === 'sig' ? stimPortOf.get(it.row.sig) || null : null);
+  // a line of the waves that has stimuli: { p, i } (i: a bus's bit as a cell's bits count it, from the left; null: the
+  // whole port), or null
+  const stimLine = (it) => {
+    const p = it && it.row.kind === 'sig' ? stimPortOf.get(it.row.sig) : null;
+    if (!p) return null;
+    if (!it.bit) return { p, i: null };
+    const i = p.width - 1 - it.bit.pos;
+    return i >= 0 && i < p.width ? { p, i } : null;
+  };
+  // the bits of a port's mismatch that are wrong (a bit row's mismatch: its bit is one of them)
+  const badBits = (b) => [...b.expected].map((e, i) => (e !== '-' && e !== b.got[i] ? i : -1)).filter(i => i >= 0);
   const portBits = (port, t) => { const sig = topSig.get(port); return sig ? V.toBin(sim.valueAt(sig, t)) : ''; };
   function stimChanged(rerun) {
     stimOpt.onChange?.(JSON.parse(JSON.stringify(st.stim.m)));
@@ -61,13 +72,15 @@ export function mountStimuli(ctx) {
   // a click on the waves in Edit Stimuli: true when it was on a cell of a port (edited)
   function stimClick(x, y) {
     const m = st.stim.m;
-    const i = rowAtY(y), p = m ? stimPort(flat()[i]) : null;
+    const i = rowAtY(y), line = m ? stimLine(flat()[i]) : null, p = line?.p;
     if (!p || p.name === m.clock) return false;
     const k = Math.floor(tOf(x) / cyclePs(m));
     if (k < 0 || k >= m.cycles) return false;
     selectRow(i, {});
     const isIn = p.dir === 'in';
-    if (p.width === 1) {
+    if (line.i != null) {
+      if (isIn ? editInputBit(m, p.name, line.i, k) : editExpectedBit(m, p.name, line.i, k)) stimChanged(isIn);
+    } else if (p.width === 1) {
       if (isIn ? editInput(m, p.name, k) : editExpected(m, p.name, k)) stimChanged(isIn);
     } else cellDialog(p, k, isIn);
     return true;
@@ -75,11 +88,12 @@ export function mountStimuli(ctx) {
   function drawStim(ctx, first, last) {
     const m = st.stim.m, P = cyclePs(m);
     const k0 = Math.max(0, Math.floor(st.t0 / P)), k1 = Math.min(m.cycles - 1, Math.ceil(tOf(width()) / P));
-    const bad = new Set(st.stim.bad.map(b => `${b.port}:${b.k}`));
+    const bad = new Set(st.stim.bad.flatMap(b => [`${b.port}:${b.k}`, ...badBits(b).map(j => `${b.port}:${b.k}:${j}`)]));
     setFont(ctx, 9); ctx.textBaseline = 'top';
     for (let i = first; i <= last; i++) {
-      const it = flat()[i], p = stimPort(it);
+      const line = stimLine(flat()[i]), p = line?.p;
       if (!p) continue;
+      const key = (k) => (line.i == null ? `${p.name}:${k}` : `${p.name}:${k}:${line.i}`);
       const y = RULER_H + i * ROW_H - st.scrollY;
       if (st.stim.on && p.name !== m.clock) {
         // the cycles of the grid
@@ -90,12 +104,13 @@ export function mountStimuli(ctx) {
       const exp = m.expected[p.name];
       if (!exp) continue;
       for (let k = k0; k <= k1; k++) {
-        if (!/[01]/.test(exp[k])) continue;
-        const xa = xOf(k * P), xb = xOf((k + 1) * P);
-        if (bad.has(`${p.name}:${k}`)) { ctx.fillStyle = 'rgba(230,40,40,0.35)'; ctx.fillRect(xa, y + 1, xb - xa, ROW_H - 2); }
-        ctx.fillStyle = bad.has(`${p.name}:${k}`) ? '#ff6b6b' : '#5fbf6a';
+        const e = line.i == null ? exp[k] : exp[k][line.i];
+        if (!/[01]/.test(e)) continue;
+        const xa = xOf(k * P), xb = xOf((k + 1) * P), wrong = bad.has(key(k));
+        if (wrong) { ctx.fillStyle = 'rgba(230,40,40,0.35)'; ctx.fillRect(xa, y + 1, xb - xa, ROW_H - 2); }
+        ctx.fillStyle = wrong ? '#ff6b6b' : '#5fbf6a';
         ctx.fillRect(xa + 1, y + ROW_H - 3, Math.max(1, xb - xa - 2), 2);
-        if (st.stim.on && xb - xa > 8 + 6 * exp[k].length) ctx.fillText(exp[k], xa + 3, y + 1);
+        if (st.stim.on && xb - xa > 8 + 6 * e.length) ctx.fillText(e, xa + 3, y + 1);
       }
     }
     ctx.textBaseline = 'middle';
@@ -157,6 +172,7 @@ export function mountStimuli(ctx) {
             <label>Value:</label><input name="value" value="${esc(list[k])}">
           </div>
           <div class="isim-dlg-note">${isIn ? 'Bits, most significant first (0 1 Z X), h… hexadecimal or d… decimal; it holds up to the next change.' : 'Bits, most significant first (0 1, - not checked), h… hexadecimal or d… decimal; - alone: not checked.'}</div>
+          <div class="isim-dlg-note">Expand the bus to change one of its bits: a click on its wave, as on a 1-bit signal.</div>
           <div class="isim-dlg-err"></div>
         </div>
         <div class="isim-dlg-btns"><button class="btn primary" data-a="ok">OK</button><button class="btn" data-a="cancel">Cancel</button></div>

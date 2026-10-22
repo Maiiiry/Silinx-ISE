@@ -11,6 +11,8 @@
 // rises in the middle of each cycle and falls at its end; the inputs of cycle k change at its start (k · period,
 // a falling edge) and the outputs are checked at its end, just before the inputs change again. Without a clock
 // (combinational), cycle k is the step k: inputs at k · step, outputs checked at (k + 1) · step.
+// A bus is edited whole (its value) or one bit at a time (#919: a bit of it expanded in the waves): either way its
+// cells keep all its bits, so the test bench drives the whole bus as its bits were edited.
 
 import * as V from './values.js';
 
@@ -90,6 +92,39 @@ export function editExpected(m, port, k, value = null) {
   const v = value == null ? nextExpected(list[k]) : String(value).toUpperCase();
   if (v.length !== list[k].length || !/^[01-]+$/.test(v) || v === list[k]) return false;
   paintCells(list, k, v);
+  return true;
+}
+
+/**
+ * Set bit i (0 = the leftmost, MSB first) of cell k of a bus's list to `bit`, from cycle k up to the bit's next change
+ * (the cells after k whose bit i held the old one take the new one; their other bits stay). Returns the list.
+ */
+export function paintBit(list, k, i, bit) {
+  if (k < 0 || k >= list.length || i < 0 || i >= list[k].length) return list;
+  const old = list[k][i];
+  for (let j = k; j < list.length && list[j][i] === old; j++) list[j] = list[j].slice(0, i) + bit + list[j].slice(i + 1);
+  return list;
+}
+
+/**
+ * A click on cycle k of bit i of a bus input (#919: i counts from the left, MSB first, as the cells' bits): its next
+ * value (0 → 1 → Z → X) or `value`, as a 1-bit input's; the bus's value follows. Returns true if it changed.
+ */
+export function editInputBit(m, port, i, k, value = null) {
+  const list = m.inputs[port];
+  if (!list || k < 0 || k >= list.length || !Number.isInteger(i) || i < 0 || i >= list[k].length) return false;
+  const v = value == null ? nextBit(list[k][i]) : String(value).toUpperCase();
+  if (!STIM_BITS.includes(v) || v === list[k][i]) return false;
+  paintBit(list, k, i, v);
+  return true;
+}
+/** A click on cycle k of bit i of a bus output's expected values (#919): its next one (- → 0 → 1) or `value`. */
+export function editExpectedBit(m, port, i, k, value = null) {
+  const list = m.expected[port];
+  if (!list || k < 0 || k >= list.length || !Number.isInteger(i) || i < 0 || i >= list[k].length) return false;
+  const v = value == null ? nextExpected(list[k][i]) : String(value).toUpperCase();
+  if (!['0', '1', '-'].includes(v) || v === list[k][i]) return false;
+  paintBit(list, k, i, v);
   return true;
 }
 

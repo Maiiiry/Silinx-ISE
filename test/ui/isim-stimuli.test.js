@@ -1,7 +1,7 @@
 // UI: ISim's drawn stimuli (web/js/isim-stimuli.js, #405: out of mountISim; #336), mounted alone in the page with a
 // window of its own whose actions are recorded: Edit Stimuli on and off, the timing dialog and its errors, a click
 // on a cycle of an input, of an output, of a bus (its value dialog), the run of the stimuli and the check of the
-// expected outputs, Fill Expected, and the drawing of the expected values.
+// expected outputs, Fill Expected, and the drawing of the expected values; a bus expanded, its bits clicked (#919).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest } from './harness.js';
@@ -12,8 +12,9 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
 // a window of a module with the inputs a (1 bit) and b (4 bits) and the output y: rows a, b, y in that order, a
-// cycle 100 px wide at 10 ns a step; y's simulated value is 1 from 20 ns. `model`: saved stimuli.
-const MOUNT = async (model = null) => {
+// cycle 100 px wide at 10 ns a step; y's simulated value is 1 from 20 ns. `model`: saved stimuli. `bits`: also the
+// output q (2 bits, simulated 10), b and q expanded: rows a, b, b(3) … b(0), y, q, q(1), q(0)
+const MOUNT = async (model = null, bits = false) => {
   const { mountStimuli } = await import('/js/isim-stimuli.js');
   const { normalizeStimuli } = await import('/core/stimuli.js');
   const V = await import('/core/values.js');
@@ -27,14 +28,15 @@ const MOUNT = async (model = null) => {
   root.append(stimBar, btn);
   document.body.append(root);
   const calls = [];
-  const ports = [{ name: 'a', dir: 'in', width: 1 }, { name: 'b', dir: 'in', width: 4 }, { name: 'y', dir: 'out', width: 1 }];
+  const ports = [{ name: 'a', dir: 'in', width: 1 }, { name: 'b', dir: 'in', width: 4 }, { name: 'y', dir: 'out', width: 1 }, ...(bits ? [{ name: 'q', dir: 'out', width: 2 }] : [])];
   const sigs = Object.fromEntries(ports.map((p) => [p.name, { name: p.name, path: `top.${p.name}` }]));
   const top = { name: 'top', path: 'top', ports: ports.map((p) => ({ name: p.name, sig: sigs[p.name] })) };
   const topSig = new Map(top.ports.map((p) => [p.name, p.sig]));
   const stimPortOf = new Map(ports.map((p) => [sigs[p.name], p]));
-  const sim = { now: 0, valueAt: (s, t) => (s === sigs.y ? V.fromInt(t >= 20000 ? 1 : 0, 1, false) : V.fromInt(0, s === sigs.b ? 4 : 1, false)) };
+  const sim = { now: 0, valueAt: (s, t) => (s === sigs.y ? V.fromInt(t >= 20000 ? 1 : 0, 1, false) : s === sigs.q ? V.fromInt(2, 2, false) : V.fromInt(0, s === sigs.b ? 4 : 1, false)) };
   const st = { stim: { on: false, m: model && normalizeStimuli(model, ports), bad: [] }, t0: 0 };
-  const flat = ports.map((p) => ({ row: { kind: 'sig', sig: sigs[p.name] } }));
+  // (a bit's line as isim-rows.js makes it: bit { index, pos }, pos 0 the LSB)
+  const flat = ports.flatMap((p) => { const row = { kind: 'sig', sig: sigs[p.name] }; return [{ row, bit: null }, ...(bits && p.width > 1 ? [...Array(p.width)].map((_, j) => ({ row, bit: { index: p.width - 1 - j, pos: p.width - 1 - j } })) : [])]; });
   let dlg = null;
   const rec = (name) => (...a) => { calls.push([name, ...a]); };
   const stim = mountStimuli({ st, sim, design: { top }, stimOpt: { ports, onChange: (m) => calls.push(['onChange', m]) }, stimInst: top, topSig, stimPortOf,
@@ -185,4 +187,69 @@ uiTest('#405 ISim drawn stimuli: saved stimuli run and their mismatches logged; 
   assert.equal(out.closed, null);
   assert.equal(out.opened, 'Stimulus Timing');
   assert.deepEqual(out.cancelled, { on: false, dialog: null });
+});
+
+uiTest('#919 ISim drawn stimuli: a bus expanded, a click on one of its bits as on a 1-bit port; the bus whole after; an output\'s bit expected, its mismatch on its row', E, async (page) => {
+  await page.eval(MOUNT, { version: 1, clock: null, periodNs: 20, stepNs: 10, cycles: 4, inputs: {}, expected: {} }, true);
+  const out = await page.eval(async () => {
+    const { stim, st, calls, cell, title, set, press, status, settle } = window.__stim;
+    const r = {};
+    st.stim.on = true; st.scrollY = 0;
+    // b(0) (row 5, the LSB) from cycle 1: 0 → 1, the simulation runs again; again in cycle 2: Z from there
+    r.click = stim.stimClick(...cell(5, 1));
+    await settle();
+    r.after = calls.splice(0).map((c) => c[0]);
+    stim.stimClick(...cell(5, 2));
+    await settle();
+    r.b1 = [...st.stim.m.inputs.b];
+    // b(3) (row 2, the MSB) from cycle 3: no dialog, the other bits kept
+    stim.stimClick(...cell(2, 3));
+    await settle();
+    r.dialog = title();
+    r.b2 = [...st.stim.m.inputs.b];
+    // the bus row: its value dialog, the note on its bits; h6 from cycle 1, up to the bus's next change (cycle 2)
+    stim.stimClick(...cell(1, 1));
+    r.bus = { title: title(), notes: [...document.querySelectorAll('.isim-dlg-note')].map((n) => n.textContent) };
+    set({ value: 'h6' });
+    press('ok');
+    await settle();
+    r.b3 = [...st.stim.m.inputs.b];
+    calls.splice(0);
+    // q(1) (row 8, its MSB) expected: - → 0, checked at once (q is 10: a mismatch), no run; q(0) (row 9) - → 0 → 1 in cycle 0
+    stim.stimClick(...cell(8, 2));
+    stim.stimClick(...cell(9, 0)); stim.stimClick(...cell(9, 0));
+    r.q = [...st.stim.m.expected.q];
+    r.afterQ = calls.splice(0).map((c) => c[0]);
+    r.status = status();
+    r.bad = JSON.parse(JSON.stringify(st.stim.bad));
+    // the drawing of rows 7..9 (q, q(1), q(0)): [row, cycle, colour] of the marks of the expected values, their texts
+    const c = document.createElement('canvas');
+    const ctx = c.getContext('2d');
+    const rects = [];
+    const fillRect = ctx.fillRect.bind(ctx);
+    ctx.fillRect = (x, y, w, h) => { rects.push([Math.floor((y - 30) / 20), Math.floor(x / 100), ctx.fillStyle]); fillRect(x, y, w, h); };
+    const texts = [];
+    ctx.fillText = (t, x, y) => texts.push([Math.floor((y - 30) / 20), Math.floor(x / 100), t]);
+    stim.drawStim(ctx, 7, 9);
+    r.rects = rects.filter((x) => x[2] !== 'rgba(230, 40, 40, 0.35)');
+    r.texts = texts;
+    return r;
+  });
+  assert.deepEqual(await page.eval(async () => { const m = await import('/js/isim.js'); return [m.ROW_H, m.RULER_H]; }), [20, 30], '(the rows of the drawing)');
+  assert.equal(out.click, true);
+  assert.deepEqual(out.after, ['selectRow', 'onChange', 'restart', 'echo', 'enqueue', 'runTo']);
+  assert.deepEqual(out.b1, ['0000', '0001', '000Z', '000Z']);
+  assert.equal(out.dialog, null);
+  assert.deepEqual(out.b2, ['0000', '0001', '000Z', '100Z']);
+  assert.deepEqual(out.bus, { title: 'Input Value', notes: ['Bits, most significant first (0 1 Z X), h… hexadecimal or d… decimal; it holds up to the next change.',
+    'Expand the bus to change one of its bits: a click on its wave, as on a 1-bit signal.'] });
+  assert.deepEqual(out.b3, ['0000', '0110', '000Z', '100Z']);
+  assert.deepEqual(out.q, ['-1', '-1', '01', '01']);
+  assert.deepEqual(out.afterQ, ['selectRow', 'onChange', 'invalidate', 'selectRow', 'onChange', 'invalidate', 'selectRow', 'onChange', 'invalidate']);
+  assert.deepEqual(out.status, ['4 cycles (combinational, step 10 ns): 4 mismatch(es)', true]);
+  assert.deepEqual(out.bad, [0, 1, 2, 3].map((k) => ({ port: 'q', k, expected: k < 2 ? '-1' : '01', got: '10' })));
+  // q's row: every cell red (each has a wrong bit); q(1): cycles 2, 3 red; q(0): every cell red (1 expected, 0 got)
+  const RED = '#ff6b6b';
+  assert.deepEqual(out.rects, [[7, 0, RED], [7, 1, RED], [7, 2, RED], [7, 3, RED], [8, 2, RED], [8, 3, RED], [9, 0, RED], [9, 1, RED], [9, 2, RED], [9, 3, RED]]);
+  assert.deepEqual(out.texts, [[7, 0, '-1'], [7, 1, '-1'], [7, 2, '01'], [7, 3, '01'], [8, 2, '0'], [8, 3, '0'], [9, 0, '1'], [9, 1, '1'], [9, 2, '1'], [9, 3, '1']]);
 });
