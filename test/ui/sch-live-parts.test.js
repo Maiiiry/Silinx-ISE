@@ -1,0 +1,102 @@
+// UI: the parts of the schematic's Try it (#405: out of liveController in web/js/sch-live.js): the inputs
+// (sch-live-inputs.js: a bus's value editor, its header, a bad value refused, the radix, +1, 0, Set, Escape; a clock's
+// Run and Pause, Step stopping it) and the panel (sch-live-instance.js: its title and notes, a module instance's pins).
+// The whole Try it: test/ui/livesim.test.js.
+import { before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { setupUi, uiTest, makeProject } from './harness.js';
+import { newDoc, normalizeDoc, symbolPins } from '../../core/schdoc.js';
+
+let env;
+before(async () => { env = await setupUi(); });
+after(async () => { await env?.teardown?.(); });
+const E = () => env;
+
+const HALF = 'library ieee; use ieee.std_logic_1164.all;\nentity half is port (x, y : in std_logic; s, c : out std_logic); end;\narchitecture a of half is begin s <= x xor y; c <= x and y; end;\n';
+const MODULES = { half: { name: 'half', lang: 'vhdl', ports: [{ name: 'x', dir: 'in', width: 1 }, { name: 'y', dir: 'in', width: 1 }, { name: 's', dir: 'out', width: 1 }, { name: 'c', dir: 'out', width: 1 }] } };
+
+// an AND gate, a D flip-flop, a 4-bit adder and an instance of the 'half' module, each with I/O markers
+function schematic() {
+  const doc = newDoc('live', 'vhdl');
+  let wid = 0;
+  const sym = (type, x, y, params = {}, name) => { const s = { id: `S${doc.symbols.length + 1}`, type, x, y, rot: 0, mirror: false, name: name || `U${doc.symbols.length + 1}`, params }; doc.symbols.push(s); return s; };
+  const pin = (s, n) => symbolPins(normalizeDoc({ ...doc, symbols: [s] }).symbols[0], MODULES).find((q) => q.name === n);
+  const io = (s, n, name, dir, width = 1) => {
+    const p = pin(s, n), at = { x: p.x + (dir === 'in' ? -60 : 60), y: p.y };
+    doc.ports.push({ id: `P${doc.ports.length + 1}`, name, dir, width, x: at.x, y: at.y });
+    doc.wires.push({ id: `W${++wid}`, points: [at, { x: p.x, y: p.y }] });
+  };
+  const g = sym('and2', 300, 100);
+  io(g, 'I0', 'a', 'in'); io(g, 'I1', 'b', 'in'); io(g, 'O', 'y', 'out');
+  const ff = sym('fd', 300, 250);
+  io(ff, 'D', 'd', 'in'); io(ff, 'C', 'clk', 'in'); io(ff, 'Q', 'q', 'out');
+  const ad = sym('add', 300, 400, { width: 4 });
+  io(ad, 'A', 'p', 'in', 4); io(ad, 'B', 'n', 'in', 4); io(ad, 'S', 'r', 'out', 4);
+  const m = sym('module', 300, 560, { module: 'half', generics: {} }, 'u_half');
+  io(m, 'x', 'x1', 'in'); io(m, 'y', 'x2', 'in'); io(m, 's', 'sum', 'out');
+  return doc;
+}
+
+const ED = '.doc:not([hidden]) .sch-editor';
+const portId = (doc, name) => doc.ports.find((p) => p.name === name).id;
+// class of the wire drawn from an I/O marker (its value level)
+const wireLevel = (page, wireId) => page.eval((sel, id) => [...document.querySelector(`${sel} g.wire[data-id="${id}"]`).classList].find((c) => c.startsWith('lv-')) || null, ED, wireId);
+
+uiTest('#405 Try it parts: the bus value editor, the clock\'s Run and Pause, the panel and a module instance\'s pins', E, async (page) => {
+  const doc = schematic();
+  await makeProject(env, { name: 'LiveParts', files: { 'src/half.vhd': HALF, 'src/live.sch.json': JSON.stringify(doc) } });
+  await page.openProject('LiveParts');
+  await page.eval(() => window.SilinxApp.openSch('src/live.sch.json'));
+  await page.waitFor((sel) => window.Silinx.active?.id === 'sch:src/live.sch.json' && document.querySelector(`${sel} .se-btn[data-act=sim]`), [ED]);
+  await page.click(`${ED} .se-btn[data-act=sim]`);
+  await page.waitFor((sel) => document.querySelector(`${sel} .se-simlayer .lv-ctl`), [ED], { what: 'Try it' });
+  const ev = (fn, ...a) => page.eval(fn, ED, ...a);
+  // ---- the panel: its title and notes; no instance yet
+  assert.equal(await ev((sel) => document.querySelector(`${sel} .se-props .se-ptitle`).textContent), 'Trying it out');
+  assert.match(await ev((sel) => document.querySelector(`${sel} .se-props .se-note`).textContent), /^Click an input to change it: 1-bit inputs toggle/);
+  assert.equal(await ev((sel) => document.querySelector(`${sel} .lv-inst`).innerHTML), '');
+  // ---- the bus editor of p (4 bits): its header, a bad value refused, the radix, +1, 0, Set
+  await page.click(`${ED} .lv-ctl[data-port="${portId(doc, 'p')}"]`);
+  await page.waitFor(() => document.activeElement?.matches('.lv-edit-in'), [], { what: 'bus editor focused' });
+  assert.equal(await ev((sel) => document.querySelector(`${sel} .lv-editor .lv-edit-head`).textContent), 'p (4 bits)×');
+  assert.deepEqual(await ev((sel) => [...document.querySelectorAll(`${sel} .lv-editor .btn`)].map((b) => b.textContent)), ['−1', '+1', '0', 'Set']);
+  await page.eval(() => { document.activeElement.value = 'zz'; });
+  await page.key('Enter');
+  assert.deepEqual(await ev((sel) => [!!document.querySelector(`${sel} .lv-editor`), document.querySelector(`${sel} .lv-edit-in`).classList.contains('bad')]), [true, true]);
+  await page.eval(() => { document.activeElement.value = '0x5'; });
+  await page.click(`${ED} .lv-editor .btn`, { text: '+1' });
+  const field = () => ev((sel) => document.querySelector(`${sel} .lv-edit-in`).value);
+  assert.equal(await field(), '1');
+  await page.eval((sel) => { const s = document.querySelector(`${sel} .lv-editor select`); s.value = 'bin'; s.dispatchEvent(new Event('change')); }, ED);
+  assert.equal(await field(), '0001');
+  await page.click(`${ED} .lv-editor .btn`, { text: '0' });
+  assert.equal(await field(), '0000');
+  await page.eval((sel) => { document.querySelector(`${sel} .lv-edit-in`).value = '0110'; }, ED);
+  await page.click(`${ED} .lv-editor .btn`, { text: 'Set' });
+  await page.waitFor((sel) => !document.querySelector(`${sel} .lv-editor`), [ED], { what: 'the editor closed' });
+  const rVal = `${ED} .se-simlayer .lv-out[data-port="${portId(doc, 'r')}"] .lv-val`;
+  await page.waitFor((s) => document.querySelector(s)?.textContent === '6', [rVal], { what: 'r = 6 + 0' });
+  // Escape closes it, the value kept
+  await page.click(`${ED} .lv-ctl[data-port="${portId(doc, 'p')}"]`);
+  await page.waitFor(() => document.activeElement?.matches('.lv-edit-in'), [], { what: 'bus editor again' });
+  await page.key('Escape');
+  await page.waitFor((sel) => !document.querySelector(`${sel} .lv-editor`), [ED], { what: 'closed by Escape' });
+  assert.equal(await page.eval((s) => document.querySelector(s).textContent, rVal), '6');
+  // ---- the clock: Run (Pause shown, on), Step stops it
+  const run = `${ED} .se-simbar .lv-run`;
+  const runState = () => page.eval((s) => [document.querySelector(s).textContent, document.querySelector(s).classList.contains('on')], run);
+  assert.deepEqual(await runState(), ['Run', false]);
+  await page.click(run);
+  assert.deepEqual(await runState(), ['Pause', true]);
+  await page.click(run);
+  assert.deepEqual(await runState(), ['Run', false]);
+  await page.click(run);
+  await page.click(`${ED} .se-simbar .lv-step`);
+  assert.deepEqual(await runState(), ['Run', false]);
+  // ---- a module instance clicked: its pins in the panel
+  await page.click(`${ED} .se-btn[data-act="fit"]`);
+  await page.click(`${ED} g.sym[data-id="S4"] .hitbox`);
+  await page.waitFor((sel) => document.querySelectorAll(`${sel} .lv-ports tr`).length === 4, [ED], { what: 'instance pin table' });
+  assert.equal(await ev((sel) => document.querySelector(`${sel} .lv-inst .se-ptitle`).textContent), 'u_half : half');
+  assert.deepEqual(await ev((sel) => [...document.querySelectorAll(`${sel} .lv-ports tr`)].map((r) => [...r.cells].map((c) => c.textContent).join(' '))), ['x in 0', 'y in 0', 's out 0', 'c out 0']);
+});
