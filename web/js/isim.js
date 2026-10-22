@@ -14,9 +14,8 @@
 // Time is in picoseconds everywhere.
 
 import * as V from '/core/values.js';
-import { toVCD } from '/core/simulator.js';
 import { onPrefsChange } from './modern.js';
-import { normalizeStimuli, applyStimuli } from '/core/stimuli.js';
+import { normalizeStimuli } from '/core/stimuli.js';
 import { h } from './dom.js';
 import { mountConsole } from './isim-console.js';
 import { mountForces } from './isim-forces.js';
@@ -29,11 +28,16 @@ import { mountInput } from './isim-input.js';
 import { mountRows } from './isim-rows.js';
 import { mountMenu } from './isim-menu.js';
 import { mountTree } from './isim-tree.js';
+import { mountApi } from './isim-api.js';
+import { mountToolbar } from './isim-toolbar.js';
+import { mountView } from './isim-view.js';
+import { mountStatus } from './isim-status.js';
+import { mountColors } from './isim-colors.js';
 
 // ------------------------------------------------------------------------------- constants
 export const ROW_H = 20;
 export const RULER_H = 30;
-const UNITS = { fs: 1e-3, ps: 1, ns: 1e3, us: 1e6, ms: 1e9 };
+export const UNITS = { fs: 1e-3, ps: 1, ns: 1e3, us: 1e6, ms: 1e9 };
 const DEFAULT_CAP = 1e9; // 1 ms
 
 const S = (b) => `<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">${b}</svg>`;
@@ -318,83 +322,21 @@ export function mountISim(container, opts = {}) {
   const waveArea = $('.isim-wavearea');
   const leftEl = $('.isim-left'), bottomEl = $('.isim-bottom');
 
-  // ---------------------------------------------------------------- toolbar
-  const tb = $('.isim-toolbar');
-  const btns = {};
-  const addBtn = (key, title, fn) => {
-    const b = h('button', { class: 'tb-btn', html: ICON[key] }); b.title = title; b.type = 'button';
-    b.addEventListener('click', () => { fn(); });
-    tb.appendChild(b); btns[key] = b; return b;
-  };
-  const sep = () => tb.appendChild(h('span', { class: 'tb-sep' }));
-  addBtn('restart', 'Restart', () => api.restart());
-  addBtn('runAll', 'Run All', () => { echo('run all'); enqueue('run all', () => api.runAll()); });
-  addBtn('runFor', 'Run for the specified time', () => runForUi());
-  const rfVal = h('input', { class: 'isim-rf-val' }); rfVal.value = String(opts.defaultRunTime?.value ?? 1); rfVal.title = 'Simulation run time';
-  const rfUnit = h('select', { class: 'isim-rf-unit', html: Object.keys(UNITS).map(u => `<option>${u}</option>`).join('') });
-  rfUnit.value = opts.defaultRunTime?.unit ?? 'us'; rfUnit.title = 'Time unit';
-  tb.appendChild(rfVal); tb.appendChild(rfUnit);
-  rfVal.addEventListener('keydown', e => { if (e.key === 'Enter') runForUi(); });
-  addBtn('step', 'Step (advance to the next scheduled event)', () => api.step());
-  addBtn('brk', 'Break', () => breakCommands());
-  sep();
-  addBtn('zoomIn', 'Zoom In', () => zoomAt(0.5));
-  addBtn('zoomOut', 'Zoom Out', () => zoomAt(2));
-  addBtn('zoomFit', 'Zoom to Full View', () => zoomFit());
-  sep();
-  addBtn('toStart', 'Go to Time 0', () => { setCursor(0); ensureVisible(0); });
-  addBtn('toEnd', 'Go to Latest Time', () => { setCursor(sim.now); ensureVisible(sim.now); });
-  addBtn('prevEdge', 'Previous Transition (selected signal)', () => jumpEdge(-1));
-  addBtn('nextEdge', 'Next Transition (selected signal)', () => jumpEdge(1));
-  sep();
-  addBtn('marker', 'Add Marker at cursor', () => addMarker(st.cursor));
-  const radixBtn = addBtn('radix', 'Radix of selected signals', () => {
-    const r = radixBtn.getBoundingClientRect();
-    showMenu(r.left, r.bottom, radixItems());
+  // ---------------------------------------------------------------- toolbar (isim-toolbar.js)
+  const { btns, rfUnit, rfVal, stimBar } = mountToolbar({
+    opts, $, addMarker: (...a) => addMarker(...a), api: () => api, breakCommands: (...a) => breakCommands(...a),
+    echo: (...a) => echo(...a), enqueue: (...a) => enqueue(...a), ensureVisible: (...a) => ensureVisible(...a),
+    exportVCD: (...a) => exportVCD(...a), fillStim: (...a) => fillStim(...a), jumpEdge: (...a) => jumpEdge(...a),
+    logLine: (...a) => logLine(...a), radixItems: (...a) => radixItems(...a), setCursor: (...a) => setCursor(...a),
+    showMenu: (...a) => showMenu(...a), sim, st,
+    stimOpt, timingDialog: (...a) => timingDialog(...a), toggleStim: (...a) => toggleStim(...a),
+    zoomAt: (...a) => zoomAt(...a), zoomFit: (...a) => zoomFit(...a)
   });
-  sep();
-  addBtn('vcd', 'Export waveform as VCD', () => exportVCD());
-  // the stimuli drawn on the inputs' waveforms (#336), with their bar of commands
-  const stimBar = h('div', { class: 'isim-stimbar' });
-  stimBar.hidden = true;
-  if (stimOpt) {
-    sep();
-    // with its label, so that drawing stimuli is seen among the icons (#853)
-    addBtn('stim', 'Edit Stimuli: click the waveforms of the inputs (as the HDL Bencher)', () => toggleStim()).append(h('span', { class: 'tb-label', text: 'Edit Stimuli' }));
-    stimBar.innerHTML = `<span class="isim-stim-h">Stimuli</span><button class="btn" data-stim="timing">Timing…</button><button class="btn" data-stim="fill">Fill Expected Outputs</button>`
-      + `<button class="btn" data-stim="save">Save as Test Bench…</button><button class="btn" data-stim="stop">Stop Editing</button><span class="isim-stim-st"></span>`;
-    tb.after(stimBar);
-    stimBar.querySelector('[data-stim=timing]').onclick = () => timingDialog();
-    stimBar.querySelector('[data-stim=fill]').onclick = () => fillStim();
-    stimBar.querySelector('[data-stim=save]').onclick = () => { if (st.stim.m) stimOpt.onSaveTestbench?.(JSON.parse(JSON.stringify(st.stim.m))); };
-    stimBar.querySelector('[data-stim=stop]').onclick = () => toggleStim(false);
-  }
-  btns.brk.disabled = true;
 
-  function runForUi() {
-    const ps = parseTime(rfVal.value, rfUnit.value);
-    if (!(ps > 0)) { logLine(`ERROR: invalid run time '${rfVal.value} ${rfUnit.value}'`, 'error'); return; }
-    const s = `run ${rfVal.value} ${rfUnit.value}`;
-    echo(s);
-    enqueue(s, () => api.runFor(Math.max(1, ps)));
-  }
-
-  // ---------------------------------------------------------------- theme colours
-  function readColors() {
-    const cs = getComputedStyle(root);
-    const g = (n, d) => (cs.getPropertyValue(n).trim() || d);
-    colors = {
-      bg: g('--wave-bg', '#000'), grid: g('--wave-grid', '#303030'), fg: g('--wave-fg', '#00ff00'),
-      x: g('--wave-x', '#ff0000'), z: g('--wave-z', '#4080ff'), text: g('--wave-text', '#fff'),
-      cursor: g('--wave-cursor', '#ffff00'), marker: g('--wave-marker', '#00c0ff'), names: g('--wave-names-bg', '#fff'),
-      accent: g('--accent', '#316ac5'), accentFg: g('--accent-fg', '#fff'), border: g('--border', '#a0a0a0'),
-      borderLight: g('--border-light', '#d4d0c8'), fgText: g('--fg', '#000'), muted: g('--muted', '#6d6d6d'),
-      header: g('--bg', '#f0f0f0'),
-      // the header of the names and the time ruler (themes: web/css/modern.css)
-      head1: g('--wave-head-1', '#fbfbfb'), head2: g('--wave-head-2', '#e3e3e3'), rulerFg: g('--wave-ruler-fg', '#000'), rulerTick: g('--wave-ruler-tick', '#555'),
-      font: g('--font', 'Tahoma, Arial, sans-serif'), mono: g('--mono', 'Consolas, monospace'),
-    };
-  }
+  // ---------------------------------------------------------------- theme colours (isim-colors.js)
+  const { readColors } = mountColors({
+    root, setColors: (v) => { colors = v; }
+  });
 
   // ---------------------------------------------------------------- canvas sizing (HiDPI)
   let dpr = window.devicePixelRatio || 1;
@@ -427,68 +369,13 @@ export function mountISim(container, opts = {}) {
   // ---------------------------------------------------------------- rows model and commands (isim-rows.js)
   // (made here, in mount order; the Objects panel and the forces, made below, are used when the rows change or from their menu)
   const { flat, rebuildFlat, clearBits, newRow, addSignals, instSignals, itemWave, valueOf, itemType, itemRadix, selectedItems, removeSelectedRows,
-    renameDivider, radixItems, waveRowMenu } = mountRows({ st, sim, onOpenSource, updateVScroll, invalidate, renderObjects: () => renderObjects(),
+    renameDivider, radixItems, waveRowMenu } = mountRows({ st, sim, onOpenSource, updateVScroll: (...a) => updateVScroll(...a), invalidate,
+    renderObjects: () => renderObjects(),
     forceDialog: (...a) => forceDialog(...a), isForced: (...a) => isForced(...a), removeForces: (...a) => removeForces(...a), openSource });
 
-  // ---------------------------------------------------------------- view math
-  const xOf = (t) => (t - st.t0) / st.scale;
-  const tOf = (x) => st.t0 + x * st.scale;
-  function endTime() { return Math.max(sim.now, 1); }
-  function applyFit() {
-    if (WW <= 1) measure();
-    const span = sim.now > 0 ? Math.max(sim.now, 1000) : 1e6;
-    st.t0 = 0; st.scale = span / Math.max(50, WW - 10);
-  }
-  function zoomFit() { st.fit = true; applyFit(); invalidate(); }
-  function zoomAt(f, x = null) {
-    const px = x ?? (st.cursor >= st.t0 && st.cursor <= tOf(WW) ? xOf(st.cursor) : WW / 2);
-    const tc = tOf(px);
-    const maxScale = Math.max(endTime(), 1000) * 4 / Math.max(WW, 1);
-    st.scale = clamp(st.scale * f, 0.002, maxScale);
-    st.t0 = tc - px * st.scale;
-    st.fit = false;
-    clampView(); invalidate();
-  }
-  function clampView() {
-    const span = WW * st.scale;
-    const maxT0 = Math.max(0, Math.max(endTime(), span) - span * 0.5);
-    st.t0 = clamp(st.t0, 0, Math.max(maxT0, 0));
-  }
-  function ensureVisible(t) {
-    const span = WW * st.scale;
-    if (t < st.t0 || t > st.t0 + span) { st.t0 = Math.max(0, t - span / 2); st.fit = false; clampView(); }
-    invalidate();
-  }
-
-  // ---------------------------------------------------------------- scrollbars
-  // where the view last put the time's scrollbar: a scroll event that finds it there is the view's own, not the
-  // user's (#915: the view's scrolls were counted, a count that drifted when the browser fired an event the view
-  // had not caused, and the view's own scroll of a frame before, arriving late, took the time back from a
-  // two-finger scroll). The rows' scrollbar is the rows' scroll itself (st.scrollY follows it).
-  let setLeft = null;
-  function totalRowsH() { return flat().length * ROW_H + RULER_H + ROW_H; }
-  function updateVScroll() {
-    const inner = vsc.firstElementChild;
-    inner.style.height = totalRowsH() + 'px';
-    st.scrollY = clamp(st.scrollY, 0, Math.max(0, totalRowsH() - WH));
-    if (Math.abs(vsc.scrollTop - st.scrollY) > 0.5) { vsc.scrollTop = st.scrollY; }
-  }
-  let hTotal = 1, hSpacer = 1;
-  function updateHScroll() {
-    const span = WW * st.scale;
-    hTotal = Math.max(endTime(), st.t0 + span);
-    const cw2 = hsc.clientWidth || WW;
-    hSpacer = Math.min(4e6, Math.max(cw2, cw2 * hTotal / span));
-    hsc.firstElementChild.style.width = hSpacer + 'px';
-    const sl = (st.t0 / hTotal) * hSpacer;
-    if (Math.abs(hsc.scrollLeft - sl) > 1) { hsc.scrollLeft = sl; setLeft = hsc.scrollLeft; }
-  }
-  on(vsc, 'scroll', () => {
-    st.scrollY = vsc.scrollTop; invalidate(false);
-  });
-  on(hsc, 'scroll', () => {
-    if (setLeft !== null && Math.abs(hsc.scrollLeft - setLeft) <= 1) return;
-    st.t0 = (hsc.scrollLeft / hSpacer) * hTotal; st.fit = false; invalidate(false);
+  // ---------------------------------------------------------------- view math (isim-view.js)
+  const { applyFit, clampView, ensureVisible, tOf, updateHScroll, updateVScroll, xOf, zoomAt, zoomFit } = mountView({
+    WH: () => WH, WW: () => WW, flat, hsc, invalidate: (...a) => invalidate(...a), measure, on, sim, st, vsc
   });
 
   // ---------------------------------------------------------------- rendering (isim-draw.js)
@@ -513,51 +400,11 @@ export function mountISim(container, opts = {}) {
     flat, dragRow: () => dragRow(), xOf, tOf, itemWave, valueOf, itemType, itemRadix, isForced: (...a) => isForced(...a),
     drawStim: (...a) => drawStim(...a) });
 
-  // ---------------------------------------------------------------- status
-  const stMsg = $('.isim-st-msg'), stTime = $('.isim-st-time'), stDelta = $('.isim-st-delta'), prog = $('.isim-progress');
-  function updateStatus() {
-    stTime.textContent = `Sim Time: ${sim.now.toLocaleString('en-US')} ps`;
-    $('.isim-cursor-info').textContent = `Cursor: ${fmtTime(st.cursor)}`;
-    stDelta.textContent = st.activeMarker ? `Marker: ${fmtTime(st.activeMarker.t)}   Δ = ${fmtTime(Math.abs(st.cursor - st.activeMarker.t))}` : '';
-    btns.brk.disabled = !st.running;
-    for (const k of ['restart', 'runAll', 'runFor', 'step']) btns[k].disabled = st.running;
-    prog.style.display = st.running ? '' : 'none';
-    if (st.running) {
-      const f = clamp((sim.now - st.runStart) / Math.max(1, st.runTarget - st.runStart), 0, 1);
-      prog.firstElementChild.style.width = (f * 100).toFixed(1) + '%';
-    }
-  }
-  function setMsg(s) { stMsg.textContent = s; }
-
-  // ---------------------------------------------------------------- cursor / markers / edges
-  function setCursor(t) {
-    st.cursor = Math.max(0, Math.round(t));
-    objDirty = true; invalidate(false);
-  }
-  function addMarker(t) {
-    const m = { id: st.markerSeq++, t: Math.round(t) };
-    st.markers.push(m); st.activeMarker = m; invalidate(false);
-    return m;
-  }
-  function removeMarker(m) {
-    st.markers = st.markers.filter(x => x !== m);
-    if (st.activeMarker === m) st.activeMarker = st.markers[st.markers.length - 1] || null;
-    invalidate(false);
-  }
-  function jumpEdge(dir) {
-    const its = selectedItems().filter(f => f.row.kind === 'sig' && f.row.sig.wave);
-    if (!its.length) { setMsg('Select a signal in the wave window first'); return; }
-    let best = null;
-    for (const it of its) {
-      const w = itemWave(it);
-      let t;
-      if (dir > 0) { const i = lowerBound(w.t, st.cursor + 1); t = i < w.t.length ? w.t[i] : null; }
-      else { const i = lowerBound(w.t, st.cursor) - 1; t = i >= 0 && w.t[i] > 0 ? w.t[i] : (i >= 0 && w.t[i] === 0 && st.cursor > 0 ? 0 : null); }
-      if (t != null && t <= sim.now && (best === null || (dir > 0 ? t < best : t > best))) best = t;
-    }
-    if (best === null) { setMsg('No more transitions'); return; }
-    setCursor(best); ensureVisible(best);
-  }
+  // ---------------------------------------------------------------- status (isim-status.js)
+  const { addMarker, jumpEdge, removeMarker, setCursor, setMsg, updateStatus } = mountStatus({
+    $, btns, ensureVisible, invalidate, itemWave, objDirty: () => objDirty, selectedItems, sim, st,
+    setObjDirty: (v) => { objDirty = v; }
+  });
 
   // ---------------------------------------------------------------- the wave window's pointer and keys (isim-input.js)
   // (made here, in mount order; the drawn stimuli, made below, are clicked when editing is on)
@@ -648,101 +495,15 @@ export function mountISim(container, opts = {}) {
   const { enqueue, runTo, followEnd, step: stepEvent, breakCommands, destroy: stopRuns, isDestroyed } = mountRun({ st, sim, runAllCap,
     logLine, setMsg, invalidate, setCursor, tOf, width: () => WW, applyFit, objectsChanged: () => { objDirty = true; } });
 
-  // ---------------------------------------------------------------- public API
-  const api = {
-    refresh() { readColors(); renderTree(); renderObjects(); rebuildFlat(); layout(); },
-    runFor(ps) { return runTo(Math.max(1, Math.round(ps)), 'Run'); },
-    runAll() { return runTo(runAllCap, 'Run All'); },
-    step() { stepEvent(); },
-    restart(silentEcho) {
-      if (st.running) { st.breakReq = true; }
-      if (!silentEcho) echo('restart');
-      sim.reset();
-      clearBits();
-      for (const f of st.forces) injectForce(f);
-      if (st.stim.m) applyStimuli(sim, n => topSig.get(n) || null, st.stim.m);
-      st.cursor = 0; st.t0 = 0;
-      if (st.fit) applyFit();
-      logLine('Simulator is doing circuit initialization process.');
-      logLine('Finished circuit initialization process.');
-      if (st.forces.length) logLine(`${st.forces.length} force(s) re-applied.`);
-      setMsg('Ready'); objDirty = true; invalidate();
-    },
-    addSignals(sigs) { addSignals(sigs); },
-    destroy() {
-      st.breakReq = true; stopRuns();
-      if (rafId) cancelAnimationFrame(rafId);
-      closeDialog();
-      for (const c of cleanups.splice(0)) c();
-      root.remove();
-    },
-    getState() {
-      return {
-        // (a group by its index among the rows: its members' `group`)
-        rows: st.rows.map(r => ({
-          ...(r.kind === 'div' ? { kind: 'div', name: r.name } : r.kind === 'group' ? { kind: 'group', name: r.name, expanded: r.expanded } : { kind: 'sig', path: r.sig.path, radix: r.radix, expanded: r.expanded }),
-          ...(r.group != null ? { group: st.rows.findIndex(g => g.id === r.group) } : {}),
-        })),
-        cursor: st.cursor, markers: st.markers.map(m => m.t), t0: st.t0, scale: st.scale, fit: st.fit,
-        nameW: st.nameW, valW: st.valW, leftW, consoleH,
-        runTime: { value: rfVal.value, unit: rfUnit.value },
-        curInst: st.curInst?.path ?? null,
-        forces: st.forces.map(f => ({ path: f.sig.path, start: f.start, repeat: f.repeat, end: f.end, endRelease: f.endRelease, desc: f.desc, pattern: f.pattern.map(p => ({ off: p.off, bits: V.toBin(p.val) })) })),
-      };
-    },
-    setState(s) {
-      if (!s) return;
-      if (Array.isArray(s.rows)) {
-        st.rows = [];
-        const ids = new Map();   // index in s.rows of a group -> its new row id
-        s.rows.forEach((r, i) => {
-          let row = null;
-          if (r.kind === 'div') row = { id: st.rowSeq++, kind: 'div', name: r.name };
-          else if (r.kind === 'group') { row = { id: st.rowSeq++, kind: 'group', name: r.name, expanded: r.expanded !== false }; ids.set(i, row.id); }
-          else { const sig = design.signals.find(x => x.path === r.path); if (sig) row = newRow(sig, { radix: r.radix || 'default', expanded: !!r.expanded }); }
-          if (row && r.group != null && ids.has(r.group)) row.group = ids.get(r.group);
-          if (row) st.rows.push(row);
-        });
-        st.sel.clear();
-      }
-      if (s.cursor != null) st.cursor = s.cursor;
-      if (Array.isArray(s.markers)) { st.markers = s.markers.map(t => ({ id: st.markerSeq++, t })); st.activeMarker = st.markers[st.markers.length - 1] || null; }
-      if (s.scale) { st.scale = s.scale; st.t0 = s.t0 || 0; st.fit = !!s.fit; }
-      if (s.nameW) st.nameW = s.nameW; if (s.valW) st.valW = s.valW;
-      if (s.leftW) leftW = s.leftW; if (s.consoleH) consoleH = s.consoleH;
-      if (s.runTime) { rfVal.value = s.runTime.value; rfUnit.value = s.runTime.unit; }
-      if (s.curInst) { const i = findInst(s.curInst); if (i) st.curInst = i; }
-      if (Array.isArray(s.forces)) {
-        for (const f of s.forces) {
-          const sig = design.signals.find(x => x.path === f.path);
-          if (!sig || !sig.wave) continue;
-          const pattern = f.pattern.map(p => ({ off: p.off, val: V.withSign(V.resize(V.fromBits(p.bits), sig.t.w, false), !!sig.t.s) }));
-          const ff = { id: st.forceSeq++, sig, pattern, start: f.start, repeat: f.repeat, end: f.end ?? null, endRelease: f.endRelease !== false, desc: f.desc };
-          st.forces.push(ff);
-          if (!sim.finished && (ff.end == null || ff.end > sim.now)) injectForce(ff);
-        }
-      }
-      applySizes(); renderTree(); renderObjects(); rebuildFlat(); layout();
-    },
-    // extras
-    redraw() { if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } needScroll = true; draw(); },
-    exec: (cmd) => execCommand(cmd),
-    exportVCD: () => exportVCD(),
-    get state() { return st; },
-  };
-
-  function exportVCD() {
-    try {
-      const text = toVCD(design, sim);
-      const blob = new Blob([text], { type: 'text/plain' });
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = `${design.top?.name || 'waveform'}.vcd`;
-      document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-      logLine(`Waveform exported to ${a.download} (${(text.length / 1024).toFixed(1)} KB)`);
-    } catch (e) { logLine(`ERROR: VCD export failed: ${e.message}`, 'error'); }
-  }
+  // ---------------------------------------------------------------- public API (isim-api.js)
+  const { api, exportVCD } = mountApi({
+    addSignals, applyFit, applySizes, cleanups, clearBits, closeDialog, consoleH: () => consoleH, design, draw, echo,
+    execCommand, findInst, injectForce, invalidate, layout, leftW: () => leftW, logLine, needScroll: () => needScroll,
+    newRow, objDirty: () => objDirty, rafId: () => rafId, readColors, rebuildFlat, renderObjects, renderTree, rfUnit,
+    rfVal, root, runAllCap, runTo, setMsg, sim, st, stepEvent, stopRuns, topSig, setObjDirty: (v) => { objDirty = v; },
+    setLeftW: (v) => { leftW = v; }, setConsoleH: (v) => { consoleH = v; }, setRafId: (v) => { rafId = v; },
+    setNeedScroll: (v) => { needScroll = v; }
+  });
 
   // ---------------------------------------------------------------- init
   readColors();
