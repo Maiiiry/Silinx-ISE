@@ -1,0 +1,94 @@
+// The browser edition's versioned assets kept in Cache Storage (#967): Yosys in WebAssembly
+// (assets/vendor/yowasp-yosys/<its version>/gen/*, 16.7 MB gzipped) and the device descriptions and the
+// bit database (assets/<version>/devices|bitdb/*). Their URLs name their version, so that what one holds
+// never changes: they are read from the cache with no request at all. The browser's HTTP cache kept them
+// 10 minutes only (GitHub Pages' max-age=600), and its revalidation downloaded Yosys again whenever the
+// site had been deployed since (its ETags are the files' times of deployment: every push to main).
+// - assetFetch(scope): the scope's fetch replaced by one that reads and fills the cache, for the flow
+//   worker and the Yosys workers (YoWASP's bundle takes globalThis.fetch when it loads: replaced before);
+//   self-contained, its text goes into the Yosys Blob workers (assetFetchSource);
+// - prefetchAssets: what a device's Implement needs, fetched into the cache when a project opens;
+// - pruneAssetCache: the entries of this edition's other versions deleted.
+// Where Cache Storage is not available (a page opened from a file: an opaque origin; an http page that
+// is not localhost) nothing changes: the HTTP cache, as before.
+
+export const ASSET_CACHE = 'silinx-assets';
+/** Is url one of the versioned assets (its content never changes)? */
+export const isVersionedAsset = url => /\/vendor\/yowasp-yosys\/\d[^/]*\/gen\/[^/?#]+$|\/assets\/(\d+\.\d+\.\d+[^/]*|dev-[0-9a-f]+)\/(devices|bitdb)\/[^/?#]+$/.test(String(url));
+
+/** The scope's fetch reads the versioned assets from Cache Storage, and puts there those it fetches. Returns
+ *  whether it replaced it. Self-contained: assetFetchSource writes its text into the Yosys Blob workers. */
+export function assetFetch(scope = globalThis, name = 'silinx-assets') {
+  const net = scope.fetch;
+  if (typeof net !== 'function' || net.assetCache) return false;
+  const versioned = url => /\/vendor\/yowasp-yosys\/\d[^/]*\/gen\/[^/?#]+$|\/assets\/(\d+\.\d+\.\d+[^/]*|dev-[0-9a-f]+)\/(devices|bitdb)\/[^/?#]+$/.test(url);
+  const open = () => { try { return scope.caches ? scope.caches.open(name) : null; } catch { return null; } };   // (an opaque origin throws)
+  const cached = async (input, init) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input?.url;
+    if (!url || !versioned(url) || (init?.method && init.method !== 'GET')) return net.call(scope, input, init);
+    let cache = null;
+    try {
+      cache = await open();
+      const hit = cache && await cache.match(url);
+      if (hit) return hit;
+    } catch { cache = null; }
+    const res = await net.call(scope, input, init);
+    // (kept as it is read: the copy goes into the cache while the caller reads the response; a full disk keeps nothing)
+    if (cache && res.ok && res.status === 200) cache.put(url, res.clone()).catch(() => {});
+    return res;
+  };
+  cached.assetCache = true;
+  scope.fetch = cached;
+  return true;
+}
+
+/** The code that installs assetFetch in a worker, for the front of a Yosys Blob worker's code (core/synth-open.js
+ *  yosysWorkerSource): run before its import of YoWASP's bundle. */
+export const assetFetchSource = () => `(${assetFetch})(self, ${JSON.stringify(ASSET_CACHE)});\n`;
+
+const cacheOf = async (scope = globalThis) => { try { return scope.caches ? await scope.caches.open(ASSET_CACHE) : null; } catch { return null; } };
+
+/** Is url in the cache? (false where there is no cache) */
+export async function assetCached(url, scope = globalThis) {
+  try { return !!await (await cacheOf(scope))?.match(String(url)); } catch { return false; }
+}
+
+/** The files of Yosys's bundle (YoWASP's gen/): what its first run fetches. */
+export const YOSYS_FILES = ['bundle.js', 'yosys.core.wasm', 'yosys.core2.wasm', 'yosys.core3.wasm', 'yosys.core4.wasm', 'yosys-resources.0.tar'];
+
+/**
+ * Fetch urls into the cache, one at a time, those it holds skipped: { fetched, bytes } (bytes: as their Content-Length says, compressed).
+ * Nothing without a cache, with Save-Data, or on a 2G/3G connection. A failure stops quietly (the run fetches them).
+ */
+export async function prefetchAssets(urls, { scope = globalThis, fetchFn = scope.fetch?.bind(scope) } = {}) {
+  const out = { fetched: 0, bytes: 0 };
+  const conn = scope.navigator?.connection;
+  if (conn?.saveData || /(^|-)[23]g$/.test(conn?.effectiveType || '')) return out;
+  const cache = await cacheOf(scope);
+  if (!cache || !fetchFn) return out;
+  for (const url of urls.map(String)) {
+    try {
+      if (await cache.match(url)) continue;
+      const res = await fetchFn(url);
+      if (!res.ok) continue;
+      const bytes = Number(res.headers.get('content-length')) || 0;
+      await cache.put(url, res);
+      out.fetched++; out.bytes += bytes;
+    } catch { break; }
+  }
+  return out;
+}
+
+/** Delete the cached versioned assets under root (this edition's assets/) that are not under one of the keep prefixes
+ *  (this version's): what an update left. The other edition's (the site's dev/ beside its root) are not touched. */
+export async function pruneAssetCache(root, keep, { scope = globalThis } = {}) {
+  const cache = await cacheOf(scope);
+  if (!cache) return 0;
+  let n = 0;
+  for (const req of await cache.keys()) {
+    const u = req.url;
+    if (!u.startsWith(root) || !isVersionedAsset(u) || keep.some(k => u.startsWith(k))) continue;
+    if (await cache.delete(req)) n++;
+  }
+  return n;
+}

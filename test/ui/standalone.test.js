@@ -3,7 +3,8 @@
 // example and simulates it; the site (--site: the page and the assets of the Silinx toolchain, as
 // GitHub Pages publishes it), served over HTTP, implements blinky in the browser down to the bitstream and programs it into a
 // (simulated) Basys2 over WebUSB; it keeps the projects in a folder on the disk (File System Access
-// API, through a fake folder) or, without that API, in the browser's storage.
+// API, through a fake folder) or, without that API, in the browser's storage; what Implement needs is kept in
+// Cache Storage, downloaded when a project opens (#967).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -21,6 +22,7 @@ import crypto from 'node:crypto';
 import { createZip } from '../../core/zip.js';
 
 let env, plain, html, site, server, siteUrl, build, skip = null;
+const served = [];   // (the paths the site served, #967)
 before(async () => {
   env = await setupUi({ server: false });
   if (env.skip) return;
@@ -56,6 +58,7 @@ before(async () => {
     const rel = decodeURIComponent(new URL(req.url, 'http://x').pathname).replace(/^\/+/, '').replace(/^dev\//, '').replace(/^$/, 'index.html') || 'index.html';
     // (the simulated Digilent board of the programming test, the fake folder of the workspace folder tests)
     const TEST = { '__test/adept-sim.js': 'adept-sim.js', '__test/fs-access-fake.js': 'fs-access-fake.js' };
+    served.push(rel);
     const f = TEST[rel] ? path.join(ROOT, 'test/fixtures', TEST[rel]) : path.join(site, rel);
     if (!f.startsWith(site + path.sep) && !rel.startsWith('__test/')) { res.writeHead(403).end(); return; }
     try {
@@ -534,6 +537,86 @@ uiTest('#280 browser edition: Generate Programming File again, the design unchan
   const st = await page.eval(() => window.SilinxApp.S.status);
   for (const id of ['synth', 'translate', 'map', 'par', 'impl', 'bitgen']) assert.ok(['ok', 'warn'].includes(st[id]), `${id}: ${st[id]}`);
 }, { url: () => 'about:blank', timeout: 240000 });
+
+uiTest('#967 browser edition: what Implement needs is downloaded when a project opens and kept in Cache Storage; Implement then fetches none of it, after a reload too', E, async (page) => {
+  const assets = `${siteUrl}assets/`;
+  const versioned = () => served.filter((p) => /^assets\/(vendor\/yowasp-yosys\/[^/]+\/gen\/(?!bundle\.js)|dev-[0-9a-f]+\/(devices|bitdb)\/)/.test(p));
+  const boot = async () => {
+    await page.goto(siteUrl);
+    await page.waitFor(() => window.SilinxApp && document.querySelector('#menubar .item') && window.Silinx.devices, [], { what: 'site boot' });
+  };
+  const cached = () => page.eval(async () => (await (await caches.open('silinx-assets')).keys()).map((r) => r.url));
+  const run = async () => {
+    const before = (await page.consoleText()).length;
+    await page.treeRow('#procs', 'Generate Programming File', { dbl: true, exact: true });
+    await page.waitFor((b) => /Process "Generate Programming File" (completed successfully|failed)/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the flow', timeout: 120000 });
+    await page.waitFor(() => !window.Silinx.busy, [], { what: 'flow finished' });
+    return (await page.consoleText()).slice(before);
+  };
+  await boot();
+  // an empty cache, but for an older version's device description and the development edition's (dev/ beside the site)
+  await page.eval(async (a) => {
+    await caches.delete('silinx-assets');
+    const c = await caches.open('silinx-assets');
+    await c.put(`${a}0.0.1/devices/xc3s250ecp132-4.json.gz`, new Response('old'));
+    await c.put(`${a.replace(/assets\/$/, 'dev/assets/')}dev-0000000/devices/xc3s250ecp132-4.json.gz`, new Response('the dev edition\'s'));
+  }, assets);
+  served.length = 0;
+  await page.menu('File', 'New Project…');
+  await page.waitDialog('New Project Wizard');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'Kept');
+  await page.fill('.dlg-overlay .wiz-main select', 'blinky', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main select', 'basys2', { index: 0 });
+  await page.dialogButton('Next >');
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.project?.name === 'Kept' && window.Silinx.project.top);
+  // in the background, a moment after the project opened: Yosys, the XC3S250E's device description and its bit database
+  const want = [...['bundle.js', 'yosys.core.wasm', 'yosys.core2.wasm', 'yosys.core3.wasm', 'yosys.core4.wasm', 'yosys-resources.0.tar'].map((f) => `vendor/yowasp-yosys/[^/]+/gen/${f}`),
+    'dev-[0-9a-f]+/devices/xc3s250ecp132-4.json.gz', ...['s3e-tiles', 'xc3s250e-tiles', 'xc3s250e-layout', 'xc3s250e-lut', 'xc3s250e-bram', 'xc3s250e-cp132-pads'].map((f) => `dev-[0-9a-f]+/bitdb/${f}.json`)];
+  await page.waitFor((a, w) => caches.open('silinx-assets').then((c) => c.keys()).then((ks) => w.every((p) => ks.some((k) => new RegExp(`^${a}${p}$`).test(k.url)))), [assets.replace(/[.]/g, '\\.'), want], { what: 'the assets prefetched', timeout: 60000 });
+  const keys = await cached();
+  assert.equal(keys.length, want.length + 1, keys.join('\n'));
+  // the older version's entry pruned, the development edition's kept
+  assert.ok(!keys.some((k) => k.includes('/0.0.1/')));
+  assert.ok(keys.some((k) => k.includes('/dev/assets/dev-0000000/')));
+  assert.equal(versioned().filter((p) => p.endsWith('yosys.core.wasm')).length, 1, 'Yosys downloaded once');
+  // the first Implement: nothing of them fetched, Yosys said kept
+  await page.click('input[name=view][value=impl]');
+  served.length = 0;
+  let log = await run();
+  assert.match(log, /Loading Yosys \(WebAssembly, kept by this browser\)…/);
+  assert.match(log, /=== SILINX STEP synth ===[\s\S]*=== SILINX DONE ===/);
+  assert.match(log, /Process "Generate Programming File" completed successfully/);
+  assert.doesNotMatch(log, /WARNING|ERROR|Downloading/);
+  assert.deepEqual(versioned(), []);
+  // a reload (a new flow worker, new Yosys workers): still from the cache
+  await boot();
+  await page.waitFor(() => window.Silinx.project?.name === 'Kept');
+  await page.eval(() => { window.Silinx.synthDone = null; });   // (the synthesis run again: Yosys loaded)
+  await page.click('input[name=view][value=impl]');
+  served.length = 0;
+  log = await run();
+  assert.match(log, /Loading Yosys \(WebAssembly, kept by this browser\)…/);
+  assert.match(log, /=== SILINX STEP synth ===/);
+  assert.match(log, /Process "Generate Programming File" completed successfully/);
+  assert.deepEqual(versioned(), []);
+  // an empty cache and no prefetch: the run says what it waits for, downloads them and keeps them
+  await page.send('Page.addScriptToEvaluateOnNewDocument', { source: 'window.SILINX_PREPARE_DELAY = 1e9;' });
+  await page.eval(() => caches.delete('silinx-assets'));
+  await boot();
+  await page.waitFor(() => window.Silinx.project?.name === 'Kept');
+  await page.eval(() => { window.Silinx.synthDone = null; });
+  await page.click('input[name=view][value=impl]');
+  served.length = 0;
+  log = await run();
+  assert.match(log, /Downloading Yosys, the synthesis tool \(WebAssembly, about 17 MB: once, then kept by this browser\)…/);
+  assert.doesNotMatch(log, /Loading Yosys/);
+  assert.match(log, /Process "Generate Programming File" completed successfully/);
+  assert.ok(versioned().some((p) => p.endsWith('yosys.core.wasm')) && versioned().some((p) => p.endsWith('.json.gz')));
+  await page.waitFor(() => caches.open('silinx-assets').then((c) => c.keys()).then((ks) => ks.length >= 8), [], { what: 'kept by the run' });
+}, { url: () => 'about:blank', timeout: 300000 });
 
 uiTest('browser edition: File ▸ Open Workspace Folder… keeps the projects in a folder on the disk, in the full application\'s format', E, async (page) => {
   const fakeUrl = `${siteUrl}__test/fs-access-fake.js`;

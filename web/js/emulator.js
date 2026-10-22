@@ -342,9 +342,10 @@ let siteYosys = null;
 export async function emulatorYosys(standalone) {
   if (!standalone) return (await import('./yosys-client.js')).yosysBrowser;
   if (!siteYosys) {
-    const [{ yosysPool }, { yosysBundleUrl }, { yosysWorkerSource }] = await Promise.all([import('./yosys-client.js'), import('./open-flow-browser.js'), import('/core/synth-open.js')]);
+    const [{ yosysPool }, { yosysBundleUrl }, { yosysWorkerSource }, { assetFetchSource }] = await Promise.all([import('./yosys-client.js'), import('./open-flow-browser.js'), import('/core/synth-open.js'), import('./asset-cache.js')]);
     const bundle = yosysBundleUrl();
-    const url = URL.createObjectURL(new Blob([yosysWorkerSource(bundle)], { type: 'text/javascript' }));
+    // (Yosys from the browser's Cache Storage, #967)
+    const url = URL.createObjectURL(new Blob([assetFetchSource() + yosysWorkerSource(bundle)], { type: 'text/javascript' }));
     siteYosys = yosysPool({ spawn: () => new Worker(url), workers: 1 });   // (a classic worker: from file:// too, #512)
   }
   return siteYosys;
