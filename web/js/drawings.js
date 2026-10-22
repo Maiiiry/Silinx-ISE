@@ -285,6 +285,7 @@ async function loadTtFromModule(ttPath) {
 // The schematic of a truth table (#694): always generated from the table, in its HDL logic form (the
 // gates of its HDL's expressions: core/logic.js schematicFromTable), a read-only view of its module (a
 // badge of its row in the Design pane), redrawn whenever the table changes. Not a file of the project.
+// Simulate tries it out on the drawing (#946).
 async function ttSchematicDoc(model) {
   const { schematicFromTable, validateTable, normalizeTable } = await import('/core/logic.js');
   const m = normalizeTable(model);
@@ -304,7 +305,8 @@ export async function openTtSchematic(ttPath) {
       const bar = h('div', { class: 'doc-toolbar tt-sch-bar' });
       const host = h('div', { class: 'doc-body' });
       el.append(bar, host);
-      const ed = mountSchEditor(host, { doc: first.doc, readOnly: true });
+      // (not editable, but simulated in place: its inputs clicked, its outputs those of the table, #946)
+      const ed = mountSchEditor(host, { doc: first.doc, readOnly: true, simulate: true });
       d.viewer = ed;
       d.showTt = ({ doc, errors }) => {
         bar.innerHTML = '';

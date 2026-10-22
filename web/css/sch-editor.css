@@ -312,7 +312,7 @@
 
 .sch-editor .se-keep, .sch-editor .se-names, .sch-editor .se-hops { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; white-space: nowrap; padding: 0 4px; cursor: pointer; }
 .sch-editor.read-only .se-keep { display: none; }
-.sch-editor.read-only [data-act="sim"] { display: none; }
+.sch-editor.read-only:not(.ro-sim) [data-act="sim"] { display: none; }   /* a truth table's schematic simulates (#946) */
 
 /* ------------------------------------------------------------------ live simulation (sch-live.js) */
 .sch-editor .se-simbar {
