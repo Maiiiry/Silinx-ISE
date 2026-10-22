@@ -80,7 +80,13 @@ uiTest('Schematic (Wizard): bidirectional markers on the right edge; live simula
   await page.openProject('IoSw');
   await openWizard(page, 'Schematic (Wizard)', 'bus_io', 'Schematic Wizard');
   await next(page, 'Inputs and Outputs');
-  for (const p of ['sw', 'led', 'data', 'sda']) await quick(page, p);
+  // the user's own rows (the Schematic Wizard suggests no ports, #950)
+  for (const [k, [name, dir, width]] of [['sw', 'in', 4], ['led', 'out', 8], ['data', 'inout', 8], ['sda', 'inout', 1]].entries()) {
+    await page.click('.dlg-overlay .mw-add');
+    await page.fill('.dlg-overlay .mw-pname', name, { index: k });
+    await page.fill('.dlg-overlay .mw-pdir', dir, { index: k });
+    await page.fill('.dlg-overlay .mw-pwidth', String(width), { index: k });
+  }
   await next(page, 'Summary');
   assert.match(await page.eval(() => document.querySelector('.dlg-overlay .mw-summary').textContent), /Bidirectional markers \(right edge, below the outputs\): data \[7:0\], sda/);
   await next(page, null);

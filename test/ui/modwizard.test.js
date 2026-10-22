@@ -1,7 +1,8 @@
 // UI: the beginner wizards of New Source. Module (Wizard): a sequential VHDL module with an
 // asynchronous reset, an enable and a bus, built with the quick-add buttons (a reserved word is
-// refused), opened in the editor and compiling; Schematic (Wizard): a Verilog schematic with board
-// I/O and a clock, opened in the schematic editor with its markers placed; both wizards in Portuguese.
+// refused), opened in the editor and compiling; Schematic (Wizard): an empty port table (no suggested
+// ports), the user's own ports added, edited and removed, the schematic opened with its markers placed
+// and its VHDL and Verilog with exactly those ports, or no ports at all; both wizards in Portuguese.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
@@ -32,6 +33,8 @@ const next = async (page, title) => {
   if (title) await page.waitFor((t) => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent === t, [title], { what: `wizard page ${title}` });
 };
 const quick = (page, port) => page.click(`.dlg-overlay .mw-qa[data-port=${port}]`);
+// the generated HDL's warnings of a fresh schematic: its markers are not wired yet (the same in both languages)
+const UNWIRED = ['sw', 'led', 'data'].map((n) => `I/O marker '${n}' is not connected`);
 const errText = (page) => page.eval(() => document.querySelector('.dlg-overlay .wiz-main').nextElementSibling.textContent);
 
 uiTest('Module (Wizard): sequential VHDL module, asynchronous reset, enable and a bus; reserved word refused; opened and compiling', E, async (page) => {
@@ -79,7 +82,18 @@ uiTest('Module (Wizard): sequential VHDL module, asynchronous reset, enable and 
   await page.waitFor(() => window.Silinx.modules.some((m) => m.name === 'counter8'));
 });
 
-uiTest('Schematic (Wizard): Verilog schematic with board I/O and a clock, markers placed, opened in the schematic editor', E, async (page) => {
+// the HDL a schematic generates, compiled and elaborated in one language: its ports and its warnings
+const hdlOf = (doc, lang) => {
+  const g = generateHdl({ ...doc, lang });
+  const lib = compile([{ path: `src/${doc.name}.${lang === 'vhdl' ? 'vhd' : 'v'}`, lang, text: g.code }]);
+  const d = elaborate(lib, doc.name);
+  const all = [...g.diagnostics, ...lib.errors, ...d.diags];
+  return { code: g.code, errors: all.filter((x) => x.severity === 'error').map((x) => x.message), warnings: all.filter((x) => x.severity === 'warning').map((x) => x.message) };
+};
+const ED = '.dlg-overlay';
+const portRows = (page) => page.eval((s) => [...document.querySelectorAll(`${s} .mw-pname`)].map((e, k) => `${e.value}:${document.querySelectorAll(`${s} .mw-pdir`)[k].value}:${document.querySelectorAll(`${s} .mw-pwidth`)[k].value}`), ED);
+
+uiTest('Schematic (Wizard): the port table starts empty (no suggested ports); the ports the user adds, edits and removes are the schematic\'s and its VHDL and Verilog ports (#950)', E, async (page) => {
   await makeProject(env, { name: 'SwPj' });
   await page.openProject('SwPj');
   await openWizard(page, 'Schematic (Wizard)', 'board_io', 'Schematic Wizard');
@@ -87,29 +101,76 @@ uiTest('Schematic (Wizard): Verilog schematic with board I/O and a clock, marker
   await page.fill('.dlg-overlay .mw-desc', 'Switches to LEDs.');
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .mw-file').textContent), 'src/board_io.sch.json');
   await next(page, 'Inputs and Outputs');
-  await page.dialogButton('Next >');
-  await page.waitFor(() => /Add at least one input or output/.test(document.querySelector('.dlg-overlay .wiz-main').nextElementSibling.textContent));
-  for (const p of ['sw', 'btn', 'led', 'seg', 'an']) await quick(page, p);
-  await page.fill('.dlg-overlay .mw-clkchk', true);
+  // only the table: no rows, no quick-add buttons, no clock checkbox
+  assert.deepEqual(await portRows(page), []);
+  assert.deepEqual(await page.eval(() => ['.mw-qa', '.mw-quick', '.mw-clkchk', '.mw-clkname'].filter((s) => document.querySelector(`.dlg-overlay ${s}`))), []);
+  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .mw-ports').textContent), /No ports yet: use Add Port\./);
+  // Add Port, edited: names, directions, widths
+  for (let k = 0; k < 4; k++) await page.click('.dlg-overlay .mw-add');
+  assert.deepEqual(await portRows(page), ['p1:in:1', 'p2:in:1', 'p3:in:1', 'p4:in:1']);
+  for (const [k, name, dir, width] of [[0, 'sw', 'in', 4], [1, 'go', 'in', 1], [2, 'led', 'out', 8], [3, 'data', 'inout', 2]]) {
+    await page.fill('.dlg-overlay .mw-pname', name, { index: k });
+    await page.fill('.dlg-overlay .mw-pdir', dir, { index: k });
+    await page.fill('.dlg-overlay .mw-pwidth', String(width), { index: k });
+  }
+  // removed: the second row
+  await page.click('.dlg-overlay .mw-pdel', { index: 1 });
+  assert.deepEqual(await portRows(page), ['sw:in:4', 'led:out:8', 'data:inout:2']);
   await next(page, 'Summary');
-  assert.match(await page.eval(() => document.querySelector('.dlg-overlay .mw-summary').textContent), /Input markers \(left edge\): sw \[3:0\], btn \[3:0\], clk/);
+  const sum = await page.eval(() => document.querySelector('.dlg-overlay .mw-summary').textContent);
+  assert.match(sum, /Input markers \(left edge\): sw \[3:0\]\n/);
+  assert.match(sum, /Output markers \(right edge\): led \[7:0\]\n/);
+  assert.match(sum, /Bidirectional markers \(right edge, below the outputs\): data \[1:0\]\n/);
+  assert.doesNotMatch(sum, /Clock/);
   await next(page, null);
   await page.waitNoDialog();
   await page.waitFor(() => window.Silinx.active?.id === 'sch:src/board_io.sch.json' && window.Silinx.active.schEditor, [], { what: 'schematic editor' });
   const doc = await page.eval(() => window.Silinx.active.schEditor.getDoc());
   assert.equal(doc.lang, 'verilog');
-  assert.deepEqual(doc.ports.map((p) => `${p.name}:${p.dir}:${p.width}`), ['sw:in:4', 'btn:in:4', 'clk:in:1', 'led:out:8', 'seg:out:7', 'an:out:4']);
+  assert.deepEqual(doc.ports.map((p) => `${p.name}:${p.dir}:${p.width}`), ['sw:in:4', 'led:out:8', 'data:inout:2']);
   const ins = doc.ports.filter((p) => p.dir === 'in'), outs = doc.ports.filter((p) => p.dir === 'out');
   assert.ok(ins.every((p) => p.x === ins[0].x) && outs.every((p) => p.x === outs[0].x) && ins[0].x < outs[0].x - 800);
   // the description is drawn on the sheet
   assert.match(await page.eval(() => document.querySelector('.doc:not([hidden]) .se-desc')?.textContent || ''), /Switches to LEDs\./);
   const saved = JSON.parse(await readWs(env, 'SwPj', 'src/board_io.sch.json'));
-  assert.equal(saved.ports.length, 6);
-  const g = generateHdl(saved);
-  assert.ok(g.diagnostics.every((x) => x.severity === 'warning'), JSON.stringify(g.diagnostics));
-  const lib = compile([{ path: 'src/board_io.v', lang: 'verilog', text: g.code }]);
-  const d = elaborate(lib, 'board_io');
-  assert.deepEqual([...lib.errors, ...d.diags].filter((x) => x.severity === 'error').map((x) => x.message), []);
+  assert.deepEqual(saved.ports.map((p) => p.name), ['sw', 'led', 'data']);
+  // the generated HDL: exactly these ports, in VHDL and in Verilog; the expected warnings (nothing drives
+  // the outputs yet), no errors
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = hdlOf(saved, lang);
+    assert.deepEqual(r.errors, [], `${lang}: ${r.code}`);
+    const ports = lang === 'vhdl'
+      ? [...r.code.matchAll(/^\s*(\w+)\s*:\s*(in|out|inout)\s+(std_logic(?:_vector\((\d+) downto 0\))?)/gm)].map((m) => `${m[1]}:${m[2]}:${m[4] ? +m[4] + 1 : 1}`)
+      : [...r.code.matchAll(/^\s*(input|output|inout)\s+(?:wire\s+)?(?:\[(\d+):0\]\s*)?(\w+)/gm)].map((m) => `${m[3]}:${{ input: 'in', output: 'out', inout: 'inout' }[m[1]]}:${m[2] ? +m[2] + 1 : 1}`);
+    assert.deepEqual(ports, ['sw:in:4', 'led:out:8', 'data:inout:2'], `${lang}: ${r.code}`);
+    assert.deepEqual(r.warnings, UNWIRED, `${lang} warnings`);
+  }
+});
+
+uiTest('Schematic (Wizard): finishing with no ports makes a schematic with no I/O markers and an HDL module with no ports (#950)', E, async (page) => {
+  await makeProject(env, { name: 'SwNone' });
+  await page.openProject('SwNone');
+  await openWizard(page, 'Schematic (Wizard)', 'empty_sch', 'Schematic Wizard');
+  await page.fill('.dlg-overlay .wiz-main select', 'vhdl');
+  await next(page, 'Inputs and Outputs');
+  // a port added and removed again: back to the empty table
+  await page.click('.dlg-overlay .mw-add');
+  await page.click('.dlg-overlay .mw-pdel');
+  assert.deepEqual(await portRows(page), []);
+  await next(page, 'Summary');
+  const sum = await page.eval(() => document.querySelector('.dlg-overlay .mw-summary').textContent);
+  assert.match(sum, /Input markers \(left edge\): none\nOutput markers \(right edge\): none\n/);
+  await next(page, null);
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.id === 'sch:src/empty_sch.sch.json' && window.Silinx.active.schEditor, [], { what: 'schematic editor' });
+  const saved = JSON.parse(await readWs(env, 'SwNone', 'src/empty_sch.sch.json'));
+  assert.deepEqual(saved.ports, []);
+  for (const lang of ['vhdl', 'verilog']) {
+    const r = hdlOf(saved, lang);
+    assert.deepEqual(r.errors, [], `${lang}: ${r.code}`);
+    assert.deepEqual(r.warnings, [], `${lang} warnings`);
+    assert.doesNotMatch(r.code, lang === 'vhdl' ? /\bport\s*\(/ : /\b(input|output|inout)\b/);
+  }
 });
 
 uiTest('Portuguese: the New Source list and every page of the Module and Schematic wizards are translated', E, async (page) => {
@@ -139,8 +200,7 @@ uiTest('Portuguese: the New Source list and every page of the Module and Schemat
     for (let k = 0; k < pages; k++) {
       if (k === 1) {
         await compare(`${title} page 2 (empty)`);
-        for (const p of ['clk', 'reset', 'enable', 'q', 'y']) await quick(page, p);
-        if (title === 'Schematic Wizard') await page.fill('.dlg-overlay .mw-clkname', 'ck');
+        if (title === 'Schematic Wizard') { await page.click('.dlg-overlay .mw-add'); await page.fill('.dlg-overlay .mw-pdir', 'out'); } else for (const p of ['clk', 'reset', 'enable', 'q', 'y']) await quick(page, p);
       }
       if (k === 2 && title === 'Module Wizard') {
         await page.click('.dlg-overlay details.mw-gen summary');

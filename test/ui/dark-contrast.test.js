@@ -263,8 +263,8 @@ for (const theme of ['dark', 'light']) {
         await name();
         for (let p = 1; ; p++) {
           const title = await page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent || '');
-          // the Module / Schematic wizards: a port from the quick buttons
-          if (title === 'Inputs and Outputs') await page.click('.dlg-overlay .mw-qa');
+          // the Module Wizard: a port from the quick buttons; the Schematic Wizard (no quick buttons, #950): Add Port
+          if (title === 'Inputs and Outputs') await page.click(await page.eval(() => !!document.querySelector('.dlg-overlay .mw-qa')) ? '.dlg-overlay .mw-qa' : '.dlg-overlay .mw-add');
           if (/Expected Outputs/.test(title)) {
             assert.ok(await page.eval(() => !!document.querySelector('.dlg-overlay th.th-drive')), 'the drive column of the bidirectional port');
             await page.click('.dlg-overlay .btn', { text: 'Fill Expected from Current Design' });
