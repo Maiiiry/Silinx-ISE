@@ -21,7 +21,7 @@ const BIG_FILES = new Set([
 const BIG_FUNCTIONS = new Set([
   'core/open-flow-core.js runOpenFlow',
   'core/synth-open.js synthesizeOpen',
-  'web/js/asm-editor.js mountAsmEditor', 'web/js/editor.js createEditor',
+  'web/js/asm-editor.js mountAsmEditor',
   'web/js/emulator.js mountEmulator', 'web/js/fsm-editor.js mountFsmEditor',
   'web/js/isim.js mountISim', 'web/js/petri-editor.js mountPetriEditor', 'web/js/sch-editor.js mountSchEditor', 'web/js/sch-live.js liveController',
   'web/js/schematic-view.js mountSchematic',
