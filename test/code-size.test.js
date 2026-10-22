@@ -16,13 +16,13 @@ const MAX_FILE = 1000, MAX_FUNCTION = 300;
 
 // over the limit on 2026-10-22; split them, never add to these lists
 const BIG_FILES = new Set([
-  'core/asm-from-hdl.js', 'core/asm.js', 'core/compiled-sim.js', 'core/elab-expr.js', 'core/elaborate.js', 'core/fpga/pack.js',
+  'core/asm-from-hdl.js', 'core/asm.js', 'core/elab-expr.js', 'core/elaborate.js', 'core/fpga/pack.js',
   'core/fpga/place.js', 'core/fpga/timing.js', 'core/fsm.js', 'core/interp.js', 'core/isesch.js', 'core/logic.js', 'core/schdoc.js',
   'core/synth-open.js', 'core/verilog/parser.js', 'core/vhdl/parser.js', 'server/devices.js',
   'web/js/drawings.js', 'web/js/wizards.js',
 ]);
 const BIG_FUNCTIONS = new Set([
-  'core/asm-from-hdl.js asmFromHdl', 'core/asm-hdl-analysis.js analyzeModule', 'core/asm.js analyze', 'core/compiled-sim.js compileNetlist',
+  'core/asm-from-hdl.js asmFromHdl', 'core/asm-hdl-analysis.js analyzeModule', 'core/asm.js analyze',
   'core/compiled-words.js wordLevel', 'core/fpga/pack.js packWith', 'core/fpga/place.js place', 'core/fpga/route.js routeDesign',
   'core/lint.js designChecks', 'core/open-flow-core.js runOpenFlow',
   'core/scopes.js analyzeVhdl', 'core/synth-open.js synthesizeOpen',
