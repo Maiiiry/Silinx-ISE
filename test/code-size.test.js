@@ -16,7 +16,6 @@ const MAX_FILE = 1000, MAX_FUNCTION = 300;
 
 // over the limit on 2026-10-22; split them, never add to these lists
 const BIG_FILES = new Set([
-  'core/elaborate.js',
   'core/synth-open.js',
 ]);
 const BIG_FUNCTIONS = new Set([
