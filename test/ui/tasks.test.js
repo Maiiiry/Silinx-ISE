@@ -581,9 +581,9 @@ uiTest('Tasks: the message centre: every line\'s source, the filter following th
   await page.click('#mc-cmd input');
   await page.type('run 2 us');
   await page.key('Enter');
-  await page.waitFor((b) => document.querySelector('.isim-st-time').textContent !== b, [before], { what: 'ISim ran' });
+  // (until the run has ended: Sim Time changes as it goes, #932)
+  await page.waitFor((b) => { const t = document.querySelector('.isim-st-time').textContent; return t !== b && /3,000,000 ps/.test(t); }, [before], { what: 'ISim ran 2 us' });
   await page.waitFor(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'SSim> run 2 us' && l.dataset.src === 'sim' && l.getClientRects().length), [], { what: 'the command in the message centre' });
-  assert.match(await page.eval(() => document.querySelector('.isim-st-time').textContent), /3,000,000 ps/);
   // folded: the last line of the filter
   await page.click('#task-bar [data-act="console"]');
   const last = await page.eval(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].filter((l) => l.textContent.trim()).pop().textContent);
