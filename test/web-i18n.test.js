@@ -156,6 +156,33 @@ test('the Development menu\'s Pen and Touch Test (#1054): its labels, its states
   assert.equal(t('Pointers down at once: 2 (most: 3)'), 'Ponteiros premidos ao mesmo tempo: 2 (máximo: 3)');
 });
 
+test('the handwritten input (#1056): the texts of its modules and the recognizer\'s messages are translated', async () => {
+  // the literals of the dialog and the pad: texts of elements, messages, titles (besides the labels checked above)
+  const missing = [];
+  let n = 0;
+  for (const f of ['ink-dialog.js', 'ink-pad.js']) {
+    const src = fs.readFileSync(path.join(WEB, f), 'utf8');
+    for (const m of src.matchAll(/(?:\}, |textContent = |showMsg\(\[|return )(['"])((?:(?!\1).)*[a-z]{2}(?:(?!\1).)*)\1/g)) { n++; if (t(m[2]) === m[2]) missing.push(`${f}: ${m[2]}`); }
+  }
+  assert.deepEqual(missing, []);
+  assert.ok(n >= 12, `${n} texts`);
+  const T = {
+    'Samples of your handwriting: 3': 'Amostras da sua letra: 3', "Sample of 'A' saved.": "Amostra de 'A' guardada.",
+    'Type one symbol of the set: A B C': 'Escreva um símbolo do conjunto: A B C',
+    'A symbol was not recognized (shown as ?): write it again, or teach Silinx your handwriting.': 'Um símbolo não foi reconhecido (mostrado como ?): escreva-o de novo, ou ensine ao Silinx a sua letra.',
+    '2 symbols were not recognized (shown as ?): write them again, or teach Silinx your handwriting.': '2 símbolos não foram reconhecidos (mostrados como ?): escreva-os de novo, ou ensine ao Silinx a sua letra.',
+    "More than one '=': only the first one separates the name from the expression.": "Mais de um '=': só o primeiro separa o nome da expressão.",
+    'Nothing written: write the expression on the pad.': 'Nada escrito: escreva a expressão na área de escrita.',
+    'Expression: 1 to 6 inputs (it has 7).': 'Expressão: 1 a 6 entradas (tem 7).', "Expression: 'F-1' is not a valid output name.": "Expressão: 'F-1' não é um nome de saída válido.",
+    "Expression: the output 'a' is also an input.": "Expressão: a saída 'a' é também uma entrada.", "Expression: unexpected '+' (at position 3)": "Expressão: unexpected '+' (at position 3)",
+    'Handwritten…': 'Manuscrita…', 'Handwritten Expression': 'Expressão Manuscrita', 'Teach Silinx my handwriting': 'Ensinar ao Silinx a minha letra',
+  };
+  for (const [en, pt] of Object.entries(T)) assert.equal(t(en), pt, en);
+  // the recognizer's own messages, as it writes them
+  const { recognizeExpression, InkError } = await import('../core/ink/expression.js');
+  assert.throws(() => recognizeExpression([]), (e) => e instanceof InkError && t(e.message) !== e.message);
+});
+
 test('ISim groups (#341): the menu items and the prompt are translated', () => {
   assert.deepEqual(['New Group', 'Rename Group...', 'Ungroup', 'Group name:'].map(t), ['Novo Grupo', 'Mudar Nome do Grupo...', 'Desagrupar', 'Nome do grupo:']);
 });

@@ -1,0 +1,201 @@
+// UI: handwritten Boolean expressions (#1056). The New Source wizard's truth table made from an expression written
+// on the Handwritten Expression dialog's pad with the mouse, a finger and a pen (CDP input: pointer events of each
+// type), the table's inputs, output and column from it; the truth table editor's Handwritten…, with a stroke drawn by
+// page.touchDrag, filling the column of the output named; Undo Stroke, Clear, a hand resting on the screen while
+// the pen writes (ignored); Teach Silinx my handwriting (a sample saved, used, forgotten); the dialog in Portuguese,
+// its warnings and its errors. The console's lines are asserted; no warnings.
+import { before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { setupUi, uiTest, makeProject, chromeOnly } from './harness.js';
+import { writeText } from '../../core/ink/synth.js';
+
+let env;
+before(async () => { env = await setupUi(); });
+after(async () => { await env?.teardown?.(); });
+const E = () => env;
+
+const T = '.doc:not([hidden]) .tt-editor';
+const D = '.dlg-overlay .ink-dialog';
+const warnings = (page) => page.console.filter((m) => /^warn/.test(m.type)).map((m) => m.text);
+const canvasAt = (page) => page.eval((d) => { const r = document.querySelector(`${d} .ink-canvas`).getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }, D);
+const recognized = (page) => page.eval((d) => document.querySelector(`${d} .ink-text`).value, D);
+const message = (page) => page.eval((d) => document.querySelector(`${d} .ink-msg`).innerText.trim(), D);
+const cells = (page, out) => page.eval((t, o) => [...document.querySelectorAll(`${t} .tt-cell[data-out="${o}"]`)].map((c) => c.textContent).join(''), T, out);
+
+/** One stroke through the client points, with the mouse, a pen or a finger. */
+async function stroke(page, pts, kind) {
+  const p = pts.map((q) => ({ x: Math.round(q.x * 10) / 10, y: Math.round(q.y * 10) / 10 }));
+  if (kind === 'touch') {
+    const at = (q) => [{ x: q.x, y: q.y, id: 1, radiusX: 1, radiusY: 1, force: 1 }];
+    await page.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(p[0]) });
+    for (const q of p.slice(1)) await page.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: at(q) });
+    await page.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    return;
+  }
+  const ev = (type, q, buttons) => page.send('Input.dispatchMouseEvent', { type, x: q.x, y: q.y, button: type === 'mouseMoved' ? 'none' : 'left', buttons, clickCount: 1, pointerType: kind, force: kind === 'pen' ? 0.5 : undefined });
+  await ev('mouseMoved', p[0], 0);
+  await ev('mousePressed', p[0], 1);
+  for (const q of p.slice(1)) await page.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: q.x, y: q.y, button: 'left', buttons: 1, pointerType: kind });
+  await ev('mouseReleased', p.at(-1), 0);
+}
+
+/** Write a text on the pad (the font's hand, mildly): kind(i) is the tool of stroke i; returns the boxes of its characters (client). */
+async function write(page, text, { kind = () => 'pen', seed = 3, bars = [] } = {}) {
+  const c = await canvasAt(page);
+  const w = writeText(text, { seed, amount: 0.4, size: 64, x: 24, y: 30, bars });
+  for (const [i, s] of w.strokes.entries()) await stroke(page, s.map((q) => ({ x: c.x + q.x, y: c.y + q.y })), kind(i));
+  return w.boxes.map((b) => b && { minX: c.x + b.minX, maxX: c.x + b.maxX, minY: c.y + b.minY, maxY: c.y + b.maxY });
+}
+const waitText = (page, text) => page.waitFor((d, t) => document.querySelector(`${d} .ink-text`)?.value === t, [D, text], { what: `recognized '${text}'` });
+
+uiTest('Handwritten expressions: a truth table from the New Source wizard, the editor\'s column, Undo Stroke and Clear', E, async (page) => {
+  await page.eval(() => localStorage.removeItem('silinx.ink.samples'));
+  await makeProject(env, { name: 'Ink', files: {} });
+  await page.openProject('Ink');
+  await page.menu('Tools', 'Truth Table / Karnaugh Map…');
+  await page.waitDialog('New Source Wizard');
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'hand');
+  // the expression row: a truth table's only
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .wiz-main .form-grid > label')].map((l) => l.textContent)), ['Source type:', 'File name:', 'Location:', 'Expression:']);
+  await page.click('.dlg-overlay .ns-tt-ink');
+  await page.waitDialog('Handwritten Expression');
+  // the pad: a finger writes on it, the page does not pan
+  assert.equal(await page.eval((d) => getComputedStyle(document.querySelector(`${d} .ink-canvas`)).touchAction, D), 'none');
+  // no text field in focus (an on-screen keyboard would cover the pad)
+  await page.waitFor((d) => !document.querySelector(d).contains(document.activeElement), [D], { what: 'nothing in focus' });
+  // F and = with the mouse, A·B' with a finger, + C with a pen
+  const text = "F=A·B'+C";
+  const { owner } = writeText(text, { seed: 3, amount: 0.4 });
+  const tool = (k) => (owner[k] < 2 ? 'mouse' : owner[k] < 6 ? 'touch' : 'pen');
+  assert.deepEqual([...new Set(owner.map((_, k) => tool(k)))], ['mouse', 'touch', 'pen']);
+  await write(page, text, { kind: tool });
+  await waitText(page, "F = A·B' + C");
+  assert.equal(await message(page), '');
+  // a hand resting on the screen while the pen writes: no stroke
+  const c = await canvasAt(page);
+  await stroke(page, [{ x: c.x + c.w - 40, y: c.y + 30 }, { x: c.x + c.w - 30, y: c.y + 120 }], 'touch');
+  await page.eval(() => new Promise((r) => setTimeout(r, 400)));
+  assert.equal(await recognized(page), "F = A·B' + C");
+  // a stroke more, undone; Clear empties the pad, a stroke written again
+  await stroke(page, [{ x: c.x + c.w - 60, y: c.y + 40 }, { x: c.x + c.w - 60, y: c.y + 110 }], 'pen');
+  await page.waitFor((d) => /^F = A·B' \+ C.+/.test(document.querySelector(`${d} .ink-text`).value), [D], { what: 'a character more' });
+  await page.click(`${D} .ink-undo`);
+  await waitText(page, "F = A·B' + C");
+  await page.click(`${D} .ink-clear`);
+  await waitText(page, '');
+  await write(page, text, { kind: () => 'pen' });
+  await waitText(page, "F = A·B' + C");
+  await page.dialogButton('Insert');
+  await page.waitDialog('New Source Wizard');
+  assert.equal(await page.eval(() => document.querySelector('.ns-tt-expr').value), "F = A·B' + C");
+  await page.dialogButton('Next >');
+  const summary = await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main pre')?.textContent, [], { what: 'the summary' });
+  assert.match(summary, /\nSource Type: Truth Table\nSource Name: hand\.tt\.json\n\nExpression: F = A·B' \+ C$/);
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/hand.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor'), [], { what: 'truth table editor' });
+  const doc = JSON.parse(await page.eval(async () => (await fetch('/api/projects/Ink/file?path=src%2Fhand.tt.json')).text()));
+  assert.deepEqual([doc.inputs, doc.outputs, doc.table, doc.exprs], [['A', 'B', 'C'], ['F'], { F: '01011101' }, { F: "A·B' + C" }]);
+  assert.equal(await cells(page, 'F'), '01011101');
+  const lines = (await page.consoleText()).split('\n');
+  assert.deepEqual(lines.slice(lines.findIndex((l) => /^Project ".*" opened/.test(l)) + 1), [
+    'src/hand.vhd generated from src/hand.tt.json (every source has its HDL)',
+    "Created Truth Table 'src/hand.tt.json'.",
+  ]);
+
+  // the editor: F = A | C, its | drawn by a finger with page.touchDrag
+  await page.click(`${T} .tt-ink`);
+  await page.waitDialog('Handwritten Expression');
+  const boxes = await write(page, 'F=A C', { kind: () => 'mouse', seed: 5 });
+  const x = (boxes[2].maxX + boxes[4].minX) / 2;
+  await page.touchDrag({ x, y: boxes[2].minY - 6 }, { x, y: boxes[2].maxY + 4 }, { steps: 10 });
+  await waitText(page, 'F = A|C');
+  await page.dialogButton('Insert');
+  await page.waitNoDialog();
+  await page.waitFor((t) => document.querySelector(`${t} .tt-expr-in`).value === 'A|C', [T], { what: 'the expression inserted' });
+  assert.equal(await cells(page, 'F'), '01011111');
+  assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-expr-err`).textContent, T), '');
+  // an expression with an input the table does not have: the parser's error, the dialog stays open
+  await page.click(`${T} .tt-ink`);
+  await page.waitDialog('Handwritten Expression');
+  await write(page, 'F=A+D', { seed: 2 });
+  await waitText(page, 'F = A + D');
+  assert.equal(await message(page), "unknown variable 'D' (the inputs are A, B, C) (at position 5)");
+  await page.dialogButton('Insert');
+  assert.equal(await page.eval(() => document.querySelectorAll('.dlg-overlay').length), 1);
+  // corrected by hand in the text
+  await page.fill(`${D} .ink-text`, 'F = A + B');
+  assert.equal(await message(page), '');
+  await page.dialogButton('Insert');
+  await page.waitNoDialog();
+  await page.waitFor((t) => document.querySelector(`${t} .tt-expr-in`).value === 'A + B', [T], { what: 'the corrected expression' });
+  assert.equal(await cells(page, 'F'), '00111111');
+  assert.deepEqual(warnings(page), []);
+}, { skip: chromeOnly });
+
+uiTest('Handwritten expressions: Teach Silinx my handwriting, and the dialog in Portuguese with its warnings and errors', E, async (page) => {
+  await page.eval(() => localStorage.removeItem('silinx.ink.samples'));
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  try {
+    void page.eval(async () => { window.__ink = (await import('/js/ink-dialog.js')).handwrittenExpression(); });
+    await page.waitDialog('Expressão Manuscrita');
+    const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), summary, label, .hint')].map((e) => e.textContent.trim()).filter(Boolean), D);
+    assert.deepEqual(labels, [
+      "Escreva a expressão com uma caneta, um dedo ou o rato, p.ex. F = A·B' + C. Uma barra sobre letras é NOT; um ponto ou um * é AND.",
+      'Desfazer Traço', 'Limpar', 'Reconhecido:', 'Ensinar ao Silinx a minha letra',
+      'Escreva um símbolo na área de escrita, escreva-o aqui e guarde-o: o Silinx passa a ler também a sua maneira de o escrever. As amostras ficam só neste navegador.',
+      'Símbolo:', 'Guardar Amostra', 'Esquecer as Minhas Amostras', 'Inserir', 'Cancelar',
+    ]);
+    assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-count`).textContent, D), 'Amostras da sua letra: 0');
+    // nothing written: Insert says what to do
+    await page.dialogButton('Inserir');
+    assert.equal(await message(page), "Escreva uma expressão, p.ex. F = A·B' + C.");
+    // an A written as a star: not a symbol of the set, until it is taught
+    const c = await canvasAt(page);
+    // five straight strokes from point j of a circle to the point 2.5 rad further
+    const at = (x0, y0, r, a) => ({ x: c.x + x0 + r * Math.cos(a), y: c.y + y0 + r * Math.sin(a) });
+    const star = (x0, y0, r) => Array.from({ length: 5 }, (_, j) => {
+      const [p, q] = [at(x0, y0, r, j * 1.2566), at(x0, y0, r, j * 1.2566 + 2.5)];
+      return Array.from({ length: 9 }, (_, k) => ({ x: p.x + (q.x - p.x) * k / 8, y: p.y + (q.y - p.y) * k / 8 }));
+    });
+    for (const s of star(60, 70, 34)) await stroke(page, s, 'pen');
+    await waitText(page, '?');
+    assert.equal(await message(page), 'Um símbolo não foi reconhecido (mostrado como ?): escreva-o de novo, ou ensine ao Silinx a sua letra.\nunexpected character \'?\' (at position 1)');
+    await page.click(`${D} .ink-teach summary`);
+    await page.fill(`${D} .ink-sym`, 'é');
+    await page.click(`${D} .ink-save`);
+    assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-teach .ink-msg`).textContent, D),
+      "Escreva um símbolo do conjunto: A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 & ' ( ) * + = ^ _ | ~ ¬ · ⊕");
+    await page.fill(`${D} .ink-sym`, 'A');
+    await page.click(`${D} .ink-save`);
+    assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-teach .ink-msg`).textContent, D), "Amostra de 'A' guardada.");
+    assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-count`).textContent, D), 'Amostras da sua letra: 1');
+    await waitText(page, '');
+    const kept = await page.eval(() => JSON.parse(localStorage.getItem('silinx.ink.samples')));
+    assert.deepEqual([kept.length, kept[0].c, kept[0].s.length], [1, 'A', 5]);
+    // nothing on the pad: no sample
+    await page.click(`${D} .ink-save`);
+    assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-teach .ink-msg`).textContent, D), 'Escreva primeiro o símbolo na área de escrita.');
+    // the star now reads as A
+    for (const s of star(60, 70, 30)) await stroke(page, s, 'pen');
+    const plusB = writeText('+B', { seed: 2, amount: 0.3, size: 64, x: 120, y: 38 }).strokes;
+    for (const s of plusB) await stroke(page, s.map((q) => ({ x: c.x + q.x, y: c.y + q.y })), 'pen');
+    await waitText(page, 'A + B');
+    assert.equal(await message(page), '');
+    // forgotten
+    await page.click(`${D} .ink-forget`);
+    assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-teach .ink-msg`).textContent, D), 'As suas amostras foram esquecidas.');
+    assert.equal(await page.eval((d) => document.querySelector(`${d} .ink-count`).textContent, D), 'Amostras da sua letra: 0');
+    assert.equal(await page.eval(() => localStorage.getItem('silinx.ink.samples')), '[]');
+    // two '=': the warning
+    await page.click(`${D} .ink-clear`);
+    await write(page, 'F=A=B', { seed: 1 });
+    await waitText(page, 'F = A = B');
+    assert.equal(await message(page), "Mais de um '=': só o primeiro separa o nome da expressão.\nunexpected character '=' (at position 3)");
+    await page.dialogButton('Cancelar');
+    await page.waitNoDialog();
+    assert.equal(await page.eval(() => window.__ink), null);
+  } finally { await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en')); }
+  assert.deepEqual(warnings(page), []);
+}, { skip: chromeOnly });

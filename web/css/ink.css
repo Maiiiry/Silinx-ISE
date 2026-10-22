@@ -1,0 +1,19 @@
+/* The Handwritten Expression dialog and its drawing pad (web/js/ink-dialog.js, web/js/ink-pad.js). */
+.ink-dialog { display: flex; flex-direction: column; gap: 6px; }
+.ink-pad { border: 1px solid var(--border, #a0a0a0); border-radius: 3px; background: var(--panel, #fff); }
+.ink-canvas { display: block; width: 100%; height: min(240px, 38vh); touch-action: none; cursor: crosshair; color: var(--fg, #000);
+  --ink-guide: var(--border, #a0a0a0); --ink-label: var(--accent, #316ac5); }
+.ink-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ink-text { flex: 1; min-width: 200px; font-family: var(--mono, monospace); font-size: 15px; }
+.ink-sym { width: 3em; text-align: center; font-family: var(--mono, monospace); }
+.ink-msg { min-height: 16px; }
+/* (the dialog is centred: what grows under the pad would move the pad under the pen, so the parts below it keep
+   their height and scroll) */
+.ink-dlg .ink-msg { height: 4.5em; overflow-y: auto; }
+.ink-msg.ink-warn { color: var(--danger, #c00); }
+.ink-count { color: var(--muted, #6d6d6d); }
+.ink-teach summary { cursor: pointer; color: var(--title-fg, #15428b); }
+.ink-teach > .hint, .ink-teach > .ink-row { margin-top: 4px; }
+/* the New Source wizard's expression of a truth table */
+.ns-tt-row { display: flex; align-items: center; gap: 6px; }
+.ns-tt-expr { flex: 1; font-family: var(--mono, monospace); }

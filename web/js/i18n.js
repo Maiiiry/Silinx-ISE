@@ -11,6 +11,7 @@
 // Code can also call t('English text') directly.
 
 import { TT_PT, TT_PT_PATTERNS } from './i18n-truthtable.js';
+import { INK_PT, INK_PT_PATTERNS } from './i18n-ink.js';
 import { IO_PT, IO_PT_PATTERNS } from './i18n-inout.js';
 import { LINT_PT } from './i18n-lint.js';
 import { EDITOR_PT, EDITOR_PT_PATTERNS } from './i18n-editor.js';
@@ -736,6 +737,7 @@ PT_PATTERNS.push(
   [/^Could not check for updates: (.+)\.$/, 'Não foi possível procurar atualizações: $1.'],
 );
 Object.assign(PT, TT_PT); PT_PATTERNS.unshift(...TT_PT_PATTERNS);   // Truth Table / Karnaugh Map tool
+Object.assign(PT, INK_PT); PT_PATTERNS.unshift(...INK_PT_PATTERNS);   // the handwritten input (#1056)
 Object.assign(PT, IO_PT); PT_PATTERNS.unshift(...IO_PT_PATTERNS);   // bidirectional (inout) ports of the wizards
 Object.assign(PT, LINT_PT);   // design checks (the help texts of the messages are in core/hints.js)
 Object.assign(PT, EDITOR_PT); PT_PATTERNS.unshift(...EDITOR_PT_PATTERNS);   // HDL editor: Rename Symbol, quick fixes

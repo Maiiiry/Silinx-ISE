@@ -69,12 +69,23 @@ export async function newSourceWizard({ type } = {}) {
     return null;
   };
   const typeShown = h('span');   // (the page is drawn once: the type set on show)
+  // a truth table: an optional expression, typed or written by hand (#1056), gives its inputs, its output and its column
+  const ttExpr = h('input', { type: 'text', class: 'ns-tt-expr', spellcheck: 'false', placeholder: "optional, e.g. F = A·B' + C" });
+  const ttHand = h('button', { type: 'button', class: 'btn ns-tt-ink', title: 'Write the expression by hand: with a pen, a finger or the mouse', onclick: async () => {
+    const { handwrittenExpression } = await import('./ink-dialog.js');
+    const r = await handwrittenExpression();
+    if (r) ttExpr.value = r.text;
+  } }, 'Handwritten…');
+  const [ttLbl, ttRow] = field('Expression:', h('div', { class: 'ns-tt-row' }, ttExpr, ttHand));
+  const fileGrid = h('div', { class: 'form-grid' }, ...field('Source type:', typeShown), ...field('File name:', fname), ...field('Location:', loc));
+  // (the expression's row on the page of a truth table only)
+  const typeShownAt = () => { typeShown.textContent = st.label; if (st.id === 'tt') fileGrid.append(ttLbl, ttRow); else { ttLbl.remove(); ttRow.remove(); } };
   const pFile = {
     title: 'File Name and Location',
     render: () => h('div', {},
-      h('div', { class: 'form-grid' }, ...field('Source type:', typeShown), ...field('File name:', fname), ...field('Location:', loc)),
+      fileGrid,
       h('label', { style: { display: 'block', marginTop: '12px' } }, h('input', { type: 'checkbox', checked: true, disabled: true }), ' Add to project')),
-    onShow: () => { typeShown.textContent = st.label; setTimeout(() => fname.focus(), 0); },
+    onShow: () => { typeShownAt(); setTimeout(() => fname.focus(), 0); },
     noNext: () => !!st.only,   // a wizard-only type: Wizard
     validate: async () => {
       const n = nameOf();
@@ -86,6 +97,10 @@ export async function newSourceWizard({ type } = {}) {
       if (!['hdl', 'ucf', 'mem'].includes(st.id)) {
         const r = reservedError(n.split('/').pop().replace(/[^A-Za-z0-9_]/g, '_'));
         if (r) return `${r}: choose another name.`;
+      }
+      if (st.id === 'tt' && ttExpr.value.trim()) {
+        const e = await ttFromExpression(ttExpr.value);
+        if (typeof e === 'string') return e;
       }
       // a drawing: its module (named as the file) and its HDL file must be free (#230)
       if (isView(p)) {
@@ -177,7 +192,8 @@ export async function newSourceWizard({ type } = {}) {
       const lg = langSel.value === 'verilog' ? 'Verilog' : 'VHDL';
       summary.textContent = `Project Navigator will create a new skeleton source with the following specifications.\n\nAdd to Project: Yes\nSource Directory: ${loc.value}\nSource Type: ${st.label}${st.ext ? '' : ` (${lg})`}\nSource Name: ${n}${extOf(st)}\n` +
         (st.id === 'hdl' ? `\nEntity name: ${entName.value}\n${langSel.value === 'vhdl' ? `Architecture name: ${archName.value}\n` : ''}\nPort Definitions:\n${ports.map(p => `    ${p.name.padEnd(12)} ${p.bus ? `Bus[${p.msb}:${p.lsb}]` : 'Pin'.padEnd(8)}  ${p.dir}`).join('\n')}` : '') +
-        (st.id === 'tb' ? `\nAssociated Source: ${uutName}` : '');
+        (st.id === 'tb' ? `\nAssociated Source: ${uutName}` : '') +
+        (st.id === 'tt' && ttExpr.value.trim() ? `\nExpression: ${ttExpr.value.trim()}` : '');
     },
   };
   const pages = () => {
@@ -234,7 +250,10 @@ export async function newSourceWizard({ type } = {}) {
     }
     case 'tt': {
       const { newTable } = await import('/core/logic.js');
-      text = JSON.stringify({ ...newTable(n.replace(/[^A-Za-z0-9_]/g, '_'), ['a', 'b', 'c'], ['f']), lang: pj.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl' }, null, 2);
+      const e = ttExpr.value.trim() ? await ttFromExpression(ttExpr.value) : null;
+      const table = e ? { ...newTable(n.replace(/[^A-Za-z0-9_]/g, '_'), e.inputs, [e.output]), table: { [e.output]: e.column }, exprs: { [e.output]: e.expr } }
+        : newTable(n.replace(/[^A-Za-z0-9_]/g, '_'), ['a', 'b', 'c'], ['f']);
+      text = JSON.stringify({ ...table, lang: pj.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl' }, null, 2);
       break;
     }
   }
@@ -249,6 +268,23 @@ export async function newSourceWizard({ type } = {}) {
   if (st.id === 'fsm') { app.openFsm(path); return; }
   if (st.id === 'petri') { app.openPetri(path); return; }
   if (st.id === 'asm') app.openAsm(path); else if (st.id === 'tt') app.openTt(path); else if (st.id === 'sch') app.openSch(path); else app.openFile(path);
+}
+
+// a truth table from "name = expression" (#1056): its inputs (the expression's, 1 to 6), its output (the name, else f)
+// and the output's column; or the error to show
+async function ttFromExpression(text) {
+  const { splitEquation, expressionInputs } = await import('/core/ink/expression.js');
+  const { parseExpr, exprColumn, MAX_EDIT_INPUTS } = await import('/core/logic.js');
+  const { name, expr } = splitEquation(text);
+  let inputs;
+  try { inputs = expressionInputs(expr); } catch (e) { return `Expression: ${e.message}`; }
+  if (inputs.length < 1 || inputs.length > MAX_EDIT_INPUTS) return `Expression: 1 to ${MAX_EDIT_INPUTS} inputs (it has ${inputs.length}).`;
+  const output = name || 'f';
+  if (!NAME_RE.test(output)) return `Expression: '${output}' is not a valid output name.`;
+  const r = reservedError(output) || inputs.map(reservedError).find(Boolean);
+  if (r) return `${r}: choose another name.`;
+  if (inputs.some(i => i.toLowerCase() === output.toLowerCase())) return `Expression: the output '${output}' is also an input.`;
+  return { inputs, output, expr, column: exprColumn(parseExpr(expr, { vars: inputs }), inputs) };
 }
 
 // the wizard of a source type (New Source ▸ Wizard, #958) with the file name and location typed; a file name that is
