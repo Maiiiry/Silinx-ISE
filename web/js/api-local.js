@@ -19,6 +19,7 @@ import { createZip, readZip, browserCodec, textOf } from '../../core/zip.js';
 import { runBrowserFlow, browserOpenStatus } from './open-flow-browser.js';
 import { ADEPT_FILTERS, ADEPT_VENDOR, scanAdept, programAdept, bitHeader } from '../../core/adept.js';
 import { promAdept, PROM_OPS } from '../../core/xcf.js';
+import { noWebUsb } from '../../core/webusb-support.js';
 import { browserStore, folderStore, projectOps, copyProjects, emptyProjectJson, normalizeProjectJson, projectFromZip, safePath, NAME_RE, saveBuildResults, readBuildResults, BUILD_VIEW, DEV_SITE } from './project-store.js';
 import { MODEL_VERSION } from '../../core/xdl.js';
 
@@ -100,11 +101,10 @@ function fakeJob(kind, lines, status = 'error', error) {
   return { job: id };
 }
 const FULL_APP = 'the full Silinx application (run `npm start` in the Silinx folder and open http://127.0.0.1:8642; File > Download Project Bundle moves a project there)';
-const NO_WEBUSB = 'programming from the browser needs Chrome or Edge (WebUSB), with the page opened from https:// or http://localhost (not from a file); or program the downloaded .bit with the full Silinx application, Digilent Adept or iMPACT';
 // the board's Digilent USB (the user chooses it once; the browser remembers the permission)
 async function adeptDevice() {
   const usb = globalThis.navigator?.usb;
-  if (!usb) fail(NO_WEBUSB);
+  if (!usb) fail(noWebUsb());
   const known = (await usb.getDevices()).filter(d => d.vendorId === ADEPT_VENDOR);
   if (known.length) return known[0];
   try { return await usb.requestDevice({ filters: ADEPT_FILTERS }); } catch (e) {
