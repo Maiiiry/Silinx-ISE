@@ -642,11 +642,12 @@ uiTest('Silinx and Xilinx zip: export, import as a new project, and a failing im
 });
 
 uiTest('New Project wizard: Top-Level Source Type Schematic / FSM / ASM / Truth Table starts the project with that top and its synchronized HDL', E, async (page) => {
-  const cases = [['sch', 'top.sch.json', 'vhdl'], ['fsm', 'top.fsm.json', 'verilog'], ['asm', 'top.asm.json', 'vhdl'], ['tt', 'top.tt.json', 'verilog']];
-  for (const [type, file, lang] of cases) {
+  const cases = [['sch', 'top.sch.json', 'vhdl', 'Schematic'], ['fsm', 'top.fsm.json', 'verilog', 'Finite State Machine (FSM)'],
+    ['asm', 'top.asm.json', 'vhdl', 'Algorithmic State Machine (ASM)'], ['tt', 'top.tt.json', 'verilog', 'Truth Table']];
+  for (const [type, file, lang, label] of cases) {
     const name = `Top_${type}`;
     const r = await newProject(page, { name, lang, top: type });
-    assert.match(r.summary, /Top-Level Source Type: (Schematic|State Machine \((FSM|ASM)\)|Truth Table)/);
+    assert.ok(r.summary.includes(`Top-Level Source Type: ${label}\n`), r.summary);
     await page.waitFor((n) => window.Silinx.project?.name === n && window.Silinx.project.top === 'top', [name], { what: `${name}: top = top` });
     const hdl = `src/top.${lang === 'vhdl' ? 'vhd' : 'v'}`;
     const pj = JSON.parse(await readWs(env, name, 'silinx.json'));
