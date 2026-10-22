@@ -376,7 +376,8 @@ function compiledHost() {
  * Mount the emulator.
  * @param {HTMLElement} container
  * @param {{ design, board, assignments, title?, files?, onOpenSource? }} opts
- *   engine: { netlist: { json, top } (netlistOf: the compiled engine) | null, reason: why not, onChange(engine) }
+ *   engine: { netlist: { json, top } (netlistOf: the compiled engine) | null, reason: why not, auto: why the event-driven
+ *     engine by default (a slow device, #952), onChange(engine) }
  */
 export function mountEmulator(container, { design, board, assignments, title = '', files, timing = null, model = null, engine = null }) {
   injectStyle();
@@ -679,6 +680,7 @@ export function mountEmulator(container, { design, board, assignments, title = '
       + 'each display digit keeps the last pattern it showed between its refreshes, as your eye does on the real board. Buttons: press and hold; Shift+click keeps a button pressed.'));
   // why the event-driven engine runs it (the design could not be compiled), what the compiled one warns of
   if (engineNote) side.append(h('div', { class: 'emu-hint' }, `Not compiled (${engineNote}): the event-driven simulator runs the design.`));
+  else if (engine?.auto && !compiled) side.append(h('div', { class: 'emu-hint emu-engine-auto' }, `The event-driven engine by default on this device (${engine.auto}): choose Engine ▸ Compiled to run the design at the board's real speed.`));
   for (const w of compiled?.warnings || []) side.append(h('div', { class: 'emu-hint' }, `Compiled engine: ${w}`));
 
   // ------------------------------------------------------------------------------- simulation

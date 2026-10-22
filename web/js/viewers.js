@@ -5,6 +5,7 @@ import { h, dialog, alertDlg, confirmDlg, promptDlg, toast } from './ui.js';
 import { compile, elaborate } from '/core/compile.js';
 import { primitiveSources } from '/core/unisim.js';
 import { Simulator } from '/core/simulator.js';
+import { ENGINE_KEY, defaultEngine } from '/core/emulate-engine.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
 import * as wiz from './wizards.js';
 import { countEvent } from './analytics.js';
@@ -318,6 +319,9 @@ async function confirmElabErrors(title, lib, design) {
 }
 
 // ---- Board emulator: the design (behavioural RTL) on a virtual board, wired by the UCF
+// the engine the user chose last (#952: remembered, it wins over the default)
+const enginePref = () => { try { return localStorage.getItem(ENGINE_KEY); } catch { return null; } };
+const setEnginePref = (e) => { try { localStorage.setItem(ENGINE_KEY, e); } catch { /* ignore */ } };
 export async function openEmulator(mod, { scale, model = null, engine = null } = {}) {
   if (!mod) { toast('Select the top module first'); return; }
   await saveAll();
@@ -347,13 +351,16 @@ export async function openEmulator(mod, { scale, model = null, engine = null } =
   if (!S.ucfText) log('WARNING: the project has no UCF: the ports are not connected to the board (use I/O Pin Planning).', 'warn');
   const files = await readDataFiles();
   const { mountEmulator, emulatorYosys } = await import('./emulator.js');
+  // the engine: the one asked for (the Engine selector), else the user's last choice, else the compiled one,
+  // or on a slow device (a phone, a tablet, few cores: #952) the event-driven one, which starts at once
+  const chosen = engine ? { engine, auto: null } : defaultEngine({ saved: enginePref() });
   // the engine (#418): the design compiled (its netlist by Yosys, at the timing generics' real values unless
   // divided), else (it cannot be, or the event-driven engine is chosen) the event-driven simulator, with the
   // large timing generics (dividers, debouncers) divided so that the design visibly runs. The document opens
   // at once, the board once the design is compiled (Yosys may take seconds to load the first time).
   async function start() {
     let netlist = null, reason = null, d = design, k = scale;
-    if (engine !== 'event') {
+    if (chosen.engine !== 'event') {
       const s1 = k ?? 1;
       const d1 = s1 > 1 && gens.length ? elaborate(lib, mod, { generics: scaledGenerics(gens, s1) }) : design;
       try {
@@ -377,7 +384,7 @@ export async function openEmulator(mod, { scale, model = null, engine = null } =
       const wait = document.createElement('div');
       wait.className = 'emu-hint';
       wait.style.padding = '12px';
-      wait.textContent = engine === 'event' ? 'Starting the Board Emulator…' : 'Compiling the design for the Board Emulator (Yosys)…';
+      wait.textContent = chosen.engine === 'event' ? 'Starting the Board Emulator…' : 'Compiling the design for the Board Emulator (Yosys)…';
       el.append(wait);
       start().then((r) => {
         if (closed) return;
@@ -386,7 +393,7 @@ export async function openEmulator(mod, { scale, model = null, engine = null } =
           timing: { gens, scale: r.scale, onChange: (k) => setTimeout(() => openEmulator(mod, { scale: k, model, engine }), 0) },
           model: { current: model, available: models, names: SIM_MODEL_NAMES,
             onChange: (m) => setTimeout(() => openEmulator(mod, { model: m || null, engine }), 0) },
-          engine: { netlist: r.netlist, reason: r.reason, onChange: (e) => setTimeout(() => openEmulator(mod, { model, engine: e }), 0) } });
+          engine: { netlist: r.netlist, reason: r.reason, auto: chosen.auto, onChange: (e) => { setEnginePref(e); setTimeout(() => openEmulator(mod, { model, engine: e }), 0); } } });
         doc.view = view;
         log(`Board Emulator: '${mod}' (${model ? `${SIM_MODEL_NAMES[model]} netlist` : 'RTL'}, ${view.engine === 'compiled' ? 'compiled' : 'event-driven'}) on ${board.name} — ${view.wiring.bits.length} port bit(s) on board resources${view.wiring.unmapped.length ? `, ${view.wiring.unmapped.length} not connected` : ''}.`, 'ok');
       }).catch((e) => { if (!closed) { wait.textContent = `Cannot build the design: ${e.message}`; log(`ERROR: Board Emulator: ${e.message}`, 'err'); } });
