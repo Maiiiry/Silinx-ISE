@@ -22,7 +22,7 @@ const BIG_FILES = new Set([
   'web/js/drawings.js',
 ]);
 const BIG_FUNCTIONS = new Set([
-  'core/compiled-words.js wordLevel', 'core/fpga/route.js routeDesign',
+  'core/compiled-words.js wordLevel',
   'core/open-flow-core.js runOpenFlow',
   'core/synth-open.js synthesizeOpen',
   'web/js/asm-editor.js mountAsmEditor', 'web/js/editor.js createEditor',
