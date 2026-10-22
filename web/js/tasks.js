@@ -8,7 +8,8 @@
 //   folded into the activity bar (on a narrow screen: the drawer, closed), the messages open or folded to
 //   their tabs, a document maximized or not, and its documents (the tabs of the other tasks are hidden),
 //   the last one in front; a document brought to the front makes its task the current one;
-// - the messages: the bottom panel as the message centre (web/js/messages.js, #798), its filter following the task;
+// - the messages: the bottom panel's message centre (web/js/messages.js, #798; every interface's: #925), its filter
+//   following the task;
 // - Simulate (web/js/tasks-sim.js, #800): the waves get the screen, its side panel ISim's Instances and Objects;
 //   it runs the test bench with the model chosen in the task's bar;
 // - Emulate (web/js/tasks-emu.js, #801): the board fits the task's area, its side panel the emulator's Watch;
@@ -26,7 +27,7 @@
 import { h } from './ui.js';
 import { icons } from './icons.js';
 import { isNarrow, setDrawer, drawerOpen } from './narrow.js';
-import { buildMessages, unbuildMessages, messagesTask, initMessages } from './messages.js';
+import { messagesTask, initMessages } from './messages.js';
 import { benchSelect, editBench, modelSelect, newBench, refreshBench, simChoices, simTarget, simulate } from './tasks-sim.js';
 import { fitBoard, initEmulate } from './tasks-emu.js';
 import { implementationEnded, showTopProcesses } from './tasks-impl.js';
@@ -305,7 +306,6 @@ function build() {
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain }),
     h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…')));
-  buildMessages(app);
   app.renderHierarchy();   // (one tree, no views: #799)
   refreshDots();
 }
@@ -325,7 +325,7 @@ function fitHeader() {
 function unbuild() {
   for (const id of PARTS) document.getElementById(id)?.remove();
   delete document.getElementById('topbar').dataset.fit;
-  unbuildMessages();
+  messagesTask(null);   // (the other interfaces: every source, #925)
   shownTask = null;
   app.renderHierarchy();
   const r = root();
@@ -336,7 +336,7 @@ function unbuild() {
 export function initTasks(a) {
   app = a;
   load();
-  initMessages();
+  initMessages(app);   // (the message centre: every interface's, #925)
   fitSoon = initEmulate(() => on() && current() === 'emu');
   initProgram(() => arrangeProgram(on(), PROG));
   const $ = id => document.getElementById(id);

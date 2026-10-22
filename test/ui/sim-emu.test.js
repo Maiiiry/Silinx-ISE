@@ -48,8 +48,8 @@ uiTest('ISim: Simulate Behavioral Model runs the test bench; waveforms and objec
     for (let i = 0; i < d.length; i += 16) colors.add((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
     return colors.size > 3;
   }, [], { what: 'the waveform canvas shows traces' });
-  // ISim> run 500 ns
-  await page.click('.isim-cmdline input');
+  // SSim> run 500 ns
+  await page.click('#mc-cmd input');   // (ISim's command line: the bottom console's, #925)
   await page.type('run 500 ns');
   await page.key('Enter');
   await page.waitFor(() => /Sim Time: 1,500,000 ps/.test(document.querySelector('.isim-st-time').textContent), [], { what: 'run 500 ns' });
@@ -100,6 +100,49 @@ const digit = (page, k) => page.eval((i) => window.Silinx.active.view.outputs?.d
 
 // #347: a manual clock (test/fixtures/open-flow/feat_manual_clock: a D flip-flop clocked by BTN0, CLOCK_DEDICATED_ROUTE
 // = FALSE): the emulator does not drive the clk port at 50 MHz, LD0 takes SW0 only at a press of BTN0
+// #925: the message centre in this interface too (modern, or classic with SILINX_UI_INTERFACE): ISim's console and the
+// emulator's Messages box in the bottom console, its lines tagged by source, filtered; one command line, ISim's while an
+// ISim window is in front (its history on ↑), the command palette otherwise
+uiTest('#925 message centre: ISim\'s console and command line, the emulator\'s Messages, in the bottom console', E, async (page) => {
+  await makeProject(env, { name: 'MsgCentre', template: 'blinky' });
+  await page.openProject('MsgCentre');
+  // the filters: every source by default (no task to follow)
+  assert.deepEqual(await page.eval(() => [...document.querySelectorAll('#mc-filters .filt')].map((b) => [b.textContent, b.getAttribute('aria-pressed')])),
+    [['All', 'true'], ['Check Syntax', 'false'], ['Simulation', 'false'], ['Emulator', 'false'], ['Synthesis', 'false'], ['Implementation', 'false'], ['Board', 'false']]);
+  await page.click('input[name=view][value=sim]');
+  await page.treeRow('#hier', 'tb_top');
+  await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'isim' && window.Silinx.active.view && !window.Silinx.active.view.state.running
+    && /Sim Time: 1,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'ISim', timeout: 20000 });
+  // ISim's console not in its window; its lines in the bottom console, under Simulation
+  assert.equal(await page.eval(() => document.querySelector('.doc:not([hidden]) .isim-bottom').getBoundingClientRect().height), 0);
+  await page.waitFor(() => [...document.querySelectorAll('#console-log .ln[data-src="sim"]')].some((l) => /circuit initialization/.test(l.textContent)), [], { what: 'ISim\'s lines' });
+  // the command line: ISim's while its window is in front
+  assert.equal(await page.eval(() => document.querySelector('#mc-cmd .mc-prompt').textContent), 'SSim>');
+  await page.click('#mc-cmd input');
+  await page.type('run 2 us');
+  await page.key('Enter');
+  await page.waitFor(() => /Sim Time: 3,000,000 ps/.test(document.querySelector('.isim-st-time')?.textContent || ''), [], { what: 'ISim ran', timeout: 20000 });
+  assert.ok(await page.eval(() => [...document.querySelectorAll('#console-log .ln')].some((l) => l.textContent === 'SSim> run 2 us' && l.dataset.src === 'sim')));
+  // its history: ↑ brings the command back
+  await page.key('ArrowUp');
+  assert.equal(await page.eval(() => document.querySelector('#mc-cmd input').value), 'run 2 us');
+  // the Simulation filter: ISim's lines only
+  await page.click('#mc-filters .filt[data-src="sim"]');
+  const shownSrc = await page.eval(() => [...new Set([...document.querySelectorAll('#console-log .ln')].filter((l) => l.getClientRects().length).map((l) => l.dataset.src))]);
+  assert.deepEqual(shownSrc, ['sim']);
+  await page.click('#mc-filters .filt[data-src="all"]');
+  // another document in front: the command palette's line
+  await page.eval(() => window.SilinxApp.openFile('src/top.vhd'));
+  await page.waitFor(() => document.querySelector('#mc-cmd .mc-prompt').textContent === '›', [], { what: 'the palette\'s line' });
+  // the emulator: its line under Emulator, its Messages box not in its window
+  await page.click('input[name=view][value=impl]');
+  await page.treeRow('#procs', 'Emulate Behavioral Model (RTL)', { dbl: true, exact: true });
+  await page.waitFor(() => window.Silinx.active?.id === 'emulator' && window.Silinx.active.view?.outputs, [], { what: 'the emulator', timeout: 60000 });
+  assert.ok(!(await page.eval(() => !!document.querySelector('.doc:not([hidden]) .emu-log')?.getClientRects().length)), 'the Messages box not shown');
+  assert.ok(await page.eval(() => [...document.querySelectorAll('#console-log .ln[data-src="emu"]')].some((l) => /^Board Emulator: 'top'/.test(l.textContent))));
+}, { timeout: 120000 });
+
 uiTest('board emulator: a manual clock on a button (BTN0) — the flip-flop takes the switch only at a press', E, async (page) => {
   const fx = (f) => fs.readFileSync(path.join(ROOT, 'test/fixtures/open-flow/feat_manual_clock', f), 'utf8');
   await makeProject(env, { name: 'EmuManual', board: 'basys2', top: 'top', constraints: 'constraints/manual.ucf', files: { 'src/top.vhd': fx('top.vhd'), 'constraints/manual.ucf': fx('manual.ucf') } });

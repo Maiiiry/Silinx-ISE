@@ -1,15 +1,15 @@
-// The message centre of the Tasks interface (#798, #782): the bottom panel as the one place of every
-// flow's messages, built in that interface only (web/js/tasks.js calls it; the modern and classic ones keep
-// their Console, ISim's console and the emulator's Messages box).
+// The message centre (#798, #782; in every interface since #925): the bottom panel as the one place of every
+// flow's messages (web/js/tasks.js starts it; its look: web/css/messages.css).
 // - Each line of the Console says where it comes from (data-src): Check Syntax, Simulation, Emulator,
 //   Synthesis, Implementation, Board, or the application ('app'); sourceOf() reads it from the processes'
 //   headers ("Started : …", "=== SILINX STEP …", iMPACT's "Programming FPGA (SRAM)..."): the lines after a
 //   header are its process's.
-// - Filters by source follow the task in front (Implement: Synthesis and Implementation) until the viewer
-//   picks one; All shows every line.
+// - Filters by source follow the task in front in the Tasks interface (Implement: Synthesis and Implementation)
+//   until the viewer picks one; All shows every line (the modern and classic interfaces' default: no task).
 // - Folded (tasks.js), the panel shows its last line of the current filter.
 // - ISim's console and the emulator's Messages box are hidden; their lines come here (Simulation, Emulator).
-// - One command line: ISim's commands while simulating (ISim> run 1 us), else the command palette.
+// - One command line: ISim's commands while simulating (SSim> run 1 us; Simulate in front, or an ISim window in the
+//   other interfaces; its history on ↑ / ↓), else the command palette.
 // The sources and the filters (sourceOf, filterSources) have no DOM and are unit tested (test/messages.test.js).
 
 import { h } from './ui.js';
@@ -46,10 +46,12 @@ export function filterSources(filter, task) {
 }
 
 // ------------------------------------------------------------------ the page
-let app = null, picked = null, task = 'edit', built = false, cur = 'app';
+let app = null, picked = null, task = null, built = false, cur = 'app';
 const $ = id => document.getElementById(id);
 const shownSources = () => filterSources(picked, task);
-const isimOpen = () => !!document.querySelector('#workspace .isim .isim-cmdline input');
+const isimInput = () => document.querySelector('#workspace .isim .isim-cmdline input');
+// ISim's commands: in the Tasks interface while Simulate is in front, in the others while an ISim window is
+const simulating = () => !!isimInput() && (task === 'sim' || (task === null && app?.S.active?.id === 'isim'));
 
 function tag(ln) {
   if (!ln.dataset.src) ln.dataset.src = cur = sourceOf(ln.textContent, cur);
@@ -111,8 +113,8 @@ async function runCommand(input) {
   const v = input.value.trim();
   if (!v) return;
   input.value = '';
-  const isim = document.querySelector('#workspace .isim .isim-cmdline input');
-  if (task === 'sim' && isim) {
+  const isim = isimInput();
+  if (simulating()) {
     isim.value = v;
     isim.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
     return;
@@ -123,7 +125,7 @@ async function runCommand(input) {
   if (q) { q.value = v; q.dispatchEvent(new Event('input', { bubbles: true })); }
 }
 function prompt() {
-  const sim = task === 'sim' && isimOpen();
+  const sim = simulating();
   const p = document.querySelector('#mc-cmd .mc-prompt'), input = document.querySelector('#mc-cmd input');
   if (!p) return;
   p.textContent = sim ? 'SSim>' : '›';
@@ -131,28 +133,31 @@ function prompt() {
 }
 
 /** Builds the message centre (the Tasks interface). `a` is the app (web/js/app.js). */
-export function buildMessages(a) {
-  app = a;
-  if (built) return;
+function build() {
   built = true;
   $('console-tabs').append(h('div', { id: 'mc-filters', role: 'group', 'aria-label': 'Messages from' },
     ...['all', ...SOURCES].map(src => h('button', { class: 'filt', type: 'button', 'data-src': src, onclick: () => { picked = src; refilter(); } }, SOURCE_LABEL[src]))),
     h('div', { id: 'mc-last', 'data-no-i18n': true }));
   const input = h('input', { type: 'text', spellcheck: 'false', autocomplete: 'off', 'aria-label': 'Command line' });
-  input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); runCommand(input); } });
-  $('console-wrap').append(h('div', { id: 'mc-cmd' }, h('span', { class: 'mc-prompt' }), input));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); runCommand(input); return; }
+    // (ISim's history: its own command line's, which keeps it)
+    const isim = isimInput();
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && isim && simulating()) {
+      e.preventDefault();
+      isim.dispatchEvent(new KeyboardEvent('keydown', { key: e.key, bubbles: true }));
+      input.value = isim.value;
+    }
+  });
+  // (under the console's lines: modern's grid row 3, classic's before the tabs under them; web/css/messages.css)
+  $('console-body').after(h('div', { id: 'mc-cmd' }, h('span', { class: 'mc-prompt' }), input));
   retagAll();
   refilter();
   prompt();
   follow();
 }
-export function unbuildMessages() {
-  if (!built) return;
-  built = false;
-  for (const id of ['mc-filters', 'mc-last', 'mc-cmd']) $(id)?.remove();
-  for (const ln of $('console-log').children) { ln.classList.remove('mc-off'); delete ln.dataset.src; }
-}
-/** The task in front: the filter follows it (what the viewer picked is forgotten). */
+/** The task in front (the Tasks interface; null in the others: every source): the filter follows it (what the
+ *  viewer picked is forgotten). */
 export function messagesTask(t) {
   task = t;
   picked = null;
@@ -161,8 +166,11 @@ export function messagesTask(t) {
   prompt();
 }
 
-// the Console's new lines, and the documents opened (ISim, the emulator): followed while built
-export function initMessages() {
+/** Builds the message centre and follows the Console's new lines, the documents opened (ISim, the emulator) and the
+ *  one in front (the command line's prompt). `a` is the app (web/js/app.js). */
+export function initMessages(a) {
+  app = a;
+  build();
   new MutationObserver(ms => {
     if (!built) return;
     for (const m of ms) for (const el of m.addedNodes) if (el.nodeType === 1 && !el.dataset.src) tag(el);
@@ -176,4 +184,5 @@ export function initMessages() {
     soon = true;
     requestAnimationFrame(() => { soon = false; follow(); prompt(); });
   }).observe($('workspace'), { childList: true, subtree: true });
+  new MutationObserver(() => prompt()).observe($('doc-tabs'), { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
 }
