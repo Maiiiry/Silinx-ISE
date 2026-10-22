@@ -5,8 +5,9 @@
 //                    tri-state) ports (friendly table with quick-add buttons) -> kind of logic
 //                    (combinational / sequential with clock,
 //                    reset and enable; generics) -> summary with a preview of the code.
-//   schematicWizard: name, language and description -> inputs and outputs (same table, optional
-//                    clock input) -> summary; it creates a .sch.json with the I/O markers placed.
+//   schematicWizard: name, language and description -> inputs and outputs (the same table, empty,
+//                    no quick-add buttons: only the user's own ports, #950) -> summary; it creates a
+//                    .sch.json with the I/O markers placed.
 // Generators: core/modgen.js.
 import { api } from './api.js';
 import { icons } from './icons.js';
@@ -67,14 +68,15 @@ export function namePage({ title, name, lang, loc, sch, withArch, guard, ext = n
 }
 
 // ---------------------------------------------------------------- the friendly port table
-/** The table of the ports (dirs: the directions offered, noQuick: quick-add buttons left out; the Petri Net Wizard: in and out only, no clk / reset, its own fields). */
-export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'out', 'inout'], noQuick = [] }) {
+/** The table of the ports (dirs: the directions offered, noQuick: quick-add buttons left out; the Petri Net Wizard: in and out only, no clk / reset, its own fields; quickAdd false: no quick-add buttons at all, the Schematic Wizard, #950). */
+export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'out', 'inout'], noQuick = [], quickAdd = true }) {
   const tbl = h('table', { class: 'grid mw-ports' });
   const quick = h('div', { class: 'mw-quick', style: { display: 'flex', flexDirection: 'column', gap: '4px', margin: '6px 0' } });
   const has = n => ports.some(p => p.name.toLowerCase() === n.toLowerCase());
   const add = p => { ports.push({ name: p.name, dir: p.dir, width: p.width, desc: p.desc || '' }); render(); onChange(); };
   const renderQuick = () => {
     quick.innerHTML = '';
+    if (!quickAdd) return;
     for (const dir of dirs) {
       const row = h('div', { style: { display: 'flex', gap: '4px', flexWrap: 'wrap', alignItems: 'center' } },
         h('span', { style: { width: '120px' } }, dir === 'in' ? 'Quick add (inputs):' : dir === 'out' ? 'Quick add (outputs):' : 'Quick add (bidirectional):'));
@@ -107,7 +109,7 @@ export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'ou
       const del = h('button', { class: 'tb-btn mw-pdel', html: icons.remove, title: 'Remove', onclick: () => { ports.splice(k, 1); render(); onChange(); } });
       tbl.append(h('tr', {}, h('td', {}, nm), h('td', {}, dir), h('td', { style: { whiteSpace: 'nowrap' } }, w, bits), h('td', { style: { width: '100%' } }, ds), h('td', {}, del)));
     });
-    if (!ports.length) tbl.append(h('tr', {}, h('td', { colspan: 5, class: 'hint', style: { padding: '8px' } }, 'No ports yet: use the quick-add buttons or Add Port.')));
+    if (!ports.length) tbl.append(h('tr', {}, h('td', { colspan: 5, class: 'hint', style: { padding: '8px' } }, quickAdd ? 'No ports yet: use the quick-add buttons or Add Port.' : 'No ports yet: use Add Port.')));
     renderQuick();
   };
   const addBtn = h('button', { class: 'btn mw-add', onclick: () => {
@@ -121,8 +123,8 @@ export function portEditor(ports, { lang, onChange = () => {}, dirs = ['in', 'ou
     h('div', { class: 'hint' }, dirs.includes('inout')
       ? 'One row per input, output or bidirectional (inout) port. Width 1 is a single bit (std_logic / wire); a width N makes a bus of N bits, numbered N-1 downto 0.'
       : 'One row per input or output port. Width 1 is a single bit (std_logic / wire); a width N makes a bus of N bits, numbered N-1 downto 0.'),
-    quick,
-    h('div', { style: { maxHeight: '230px', overflow: 'auto', border: '1px solid var(--frame)' } }, tbl),
+    ...(quickAdd ? [quick] : []),
+    h('div', { style: { marginTop: quickAdd ? '0' : '6px', maxHeight: '230px', overflow: 'auto', border: '1px solid var(--frame)' } }, tbl),
     h('div', { style: { marginTop: '6px' } }, addBtn));
   const check = name => {
     const bad = ports.find(p => p.width === '' || !Number.isInteger(+p.width));
@@ -294,22 +296,14 @@ export async function schematicWizard({ name = '', location = 'src', lang = null
   if (!S.project) return;
   const L = lang || (S.project.preferredLanguage === 'verilog' ? 'verilog' : 'vhdl');
   const p1 = namePage({ title: 'Name and Language', name, lang: L, loc: location, sch: true, guard });
+  // the table starts empty, no suggested ports (#950); no ports at all is a schematic with no markers yet
   const ports = [];
-  const clkChk = h('input', { type: 'checkbox', class: 'mw-clkchk' });
-  const clkName = h('input', { type: 'text', class: 'mw-clkname', value: 'clk', style: { width: '100px' } });
-  const syncClk = () => { clkName.disabled = !clkChk.checked; };
-  clkChk.addEventListener('change', syncClk);
-  syncClk();
-  const pe = portEditor(ports, { lang: p1.lang });
-  const clockOf = () => (clkChk.checked ? clkName.value.trim() : null);
-  const doc = () => schematicFromPorts({ name: p1.name(), lang: p1.lang(), description: p1.desc.value, ports: ports.map(p => ({ ...p, width: +p.width })), clock: clockOf() });
+  const pe = portEditor(ports, { lang: p1.lang, quickAdd: false });
+  const doc = () => schematicFromPorts({ name: p1.name(), lang: p1.lang(), description: p1.desc.value, ports: ports.map(p => ({ ...p, width: +p.width })) });
   const p2 = {
     title: 'Inputs and Outputs',
-    render: () => h('div', {}, pe.node,
-      h('div', { class: 'form-grid', style: { marginTop: '10px' } },
-        h('label', {}, clkChk, ' Clock input:'), clkName)),
+    render: () => pe.node,
     validate: () => {
-      if (!ports.length && !clockOf()) return 'Add at least one input or output.';
       const err = pe.check(p1.name());
       if (err) return err;
       try { doc(); } catch (e) { return e.message; }
@@ -330,7 +324,6 @@ export async function schematicWizard({ name = '', location = 'src', lang = null
         `Input markers (left edge): ${ins.map(portText).join(', ') || 'none'}`,
         `Output markers (right edge): ${outs.map(portText).join(', ') || 'none'}`,
         ...(ios.length ? [`Bidirectional markers (right edge, below the outputs): ${ios.map(portText).join(', ')}`] : []),
-        `Clock input: ${clockOf() || 'none'}`,
         '',
         'Then place the symbols in the middle of the sheet and wire them to the markers.',
       ].join('\n');
