@@ -8,6 +8,7 @@
 //     onOpenModule(moduleName) {},
 //   });
 //   readOnly: true             // view only: pan/zoom/select/inspect, no edits (RTL schematic viewer)
+//   simulate: true             // with readOnly: Simulate kept, the drawing not editable (a truth table's schematic, #946)
 //   device                     // the project's part (a record of S.devices.parts): its family's Device Primitives in the
 //                              // palette, their count in Symbol Info (#791); ed.setDevice(part) when it changes
 //   ed.getDoc(); ed.setDoc(doc); ed.setLink(file); ed.setModules(modules); ed.fit(); ed.destroy();
@@ -106,11 +107,13 @@ export function mountSchEditor(container, opts = {}) {
   let lastDiags = null;
   let genLang = doc.lang;
   const readOnly = !!opts.readOnly;
+  const canSim = !readOnly || !!opts.simulate;   // read-only blocks editing the drawing, not simulating it (#946)
   let live = null;                    // live simulation controller (web/js/sch-live.js) while simulating
   let liveStarting = false;
 
   container.classList.add('sch-editor');
   container.classList.toggle('read-only', readOnly);
+  container.classList.toggle('ro-sim', readOnly && canSim);
   if (!container.hasAttribute('tabindex')) container.tabIndex = 0;
   container.innerHTML = '';
 
@@ -184,7 +187,7 @@ export function mountSchEditor(container, opts = {}) {
     let prevSep = true;                                   // a separator at the start is not needed
     let lastSep = null;
     for (const el of tb.children) {
-      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo', 'sim'].includes(el.dataset.act)) continue;   // hidden by .read-only CSS
+      if (el.classList.contains('se-keep') || el.classList.contains('se-opts') || ['wire', 'net', 'io', 'rotate', 'mirror', 'delete', 'undo', 'redo'].includes(el.dataset.act) || (el.dataset.act === 'sim' && !canSim)) continue;   // hidden by .read-only CSS
       if (el.classList.contains('se-sep')) { if (prevSep) el.style.display = 'none'; else { prevSep = true; lastSep = el; } }
       else { prevSep = false; lastSep = null; }
     }
@@ -755,7 +758,7 @@ export function mountSchEditor(container, opts = {}) {
   // ---------------- live simulation (Logisim style): web/js/sch-live.js on core/schlive.js
   const toCanvas = pt => ({ x: pt.x * view.s + view.tx, y: pt.y * view.s + view.ty });
   async function enterSim() {
-    if (live || liveStarting || readOnly || destroyed) return;
+    if (live || liveStarting || !canSim || destroyed) return;
     if (wireDraw) finishWire();
     if (tool !== 'select') setTool('select');
     liveStarting = true;
