@@ -35,3 +35,18 @@ test('implementFirstText: why, then the question; nothing to ask for a file up t
   assert.equal(implementFirstText('ok', 'top'), null);
   assert.equal(implementFirstText('running', 'top'), null);
 });
+
+test('#1084 built but the file not there (the browser edition after a reload): gone, and asked to implement again', () => {
+  const built = { synth: 'ok', translate: 'ok', map: 'ok', par: 'ok', bitgen: 'ok' };
+  assert.equal(programFileState(built, false), 'gone');
+  assert.equal(programFileState(built, true), 'ok');
+  assert.equal(programFileState(built, undefined), 'ok', 'not known (the API did not answer): as before');
+  // the other states come first: the file's presence is asked only of a build that is up to date
+  assert.equal(programFileState({}, false), 'none');
+  assert.equal(programFileState({ ...built, bitgen: 'stale' }, false), 'stale');
+  assert.equal(programFileState({ ...built, par: 'err' }, false), 'err');
+  assert.equal(programFileState({ ...built, map: 'running' }, false), 'running');
+  assert.deepEqual(implementFirstText('gone', 'esq')[0], "The programming file of 'esq' is not in the project's build folder any more.");
+  assert.deepEqual(implementFirstText('gone', 'esq', true), ["The programming file of 'esq' is not in this browser any more (a build is kept for the browser session only).",
+    'Implement the design first? When it ends without errors, the FPGA is programmed.']);
+});

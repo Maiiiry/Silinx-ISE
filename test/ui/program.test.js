@@ -4,6 +4,8 @@
 // it once it is built, No programming nothing (#1024); every operation of the PROM shown at once, no More… (#1025).
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import fsp from 'node:fs/promises';
+import path from 'node:path';
 import { setupUi, uiTest, makeProject } from './harness.js';
 
 let env;
@@ -123,6 +125,15 @@ uiTest('#1024 Program FPGA with no programming file, or an old one: implement fi
   await page.click(PROGRAM_FPGA);
   await page.waitFor(() => window.__programmed.length === 2, [], { what: 'programmed again' });
   assert.equal(await question(page), null);
+  // #1084: built, but the file is gone (the browser edition after a reload; here, removed from build/): asked again, why
+  await fsp.rename(path.join(env.server.workspace, 'ProgImpl', 'build/gates.bit'), path.join(env.server.workspace, 'ProgImpl', 'build/gates.bit.away'));
+  await page.click(PROGRAM_FPGA);
+  await page.waitDialog('Program FPGA');
+  assert.deepEqual(await question(page), ['Program FPGA', "The programming file of 'gates' is not in the project's build folder any more.", ...ask.slice(2)]);
+  await page.dialogButton('No');
+  await page.waitNoDialog();
+  assert.equal((await programmed(page)).length, 2);
+  await fsp.rename(path.join(env.server.workspace, 'ProgImpl', 'build/gates.bit.away'), path.join(env.server.workspace, 'ProgImpl', 'build/gates.bit'));
   // the sources changed (the constraints): older than the sources, asked; No
   await page.eval(() => window.SilinxApp.openFile('constraints/gates.ucf'));
   await page.waitFor(() => window.Silinx.active?.id === 'file:constraints/gates.ucf' && !!window.Silinx.active.editor, [], { what: 'the constraints' });

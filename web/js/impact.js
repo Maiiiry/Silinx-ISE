@@ -121,9 +121,11 @@ export function mountImpact(el) {
   // it (#1024; as Generate and Simulate, #490); false when it is not built (No, or the implementation failed)
   const fileReady = async () => {
     if (bitData || !pj?.top || bitfile.value.trim() !== fpgaFile) return true;   // (a file of the student's choice)
-    const st = programFileState(S.status);
+    // (is the file there: a build in the browser's storage is gone after a reload, its processes' state is not, #1084)
+    const there = await api.bitinfo(pj.name).then(b => b?.available, () => undefined);
+    const st = programFileState(S.status, there);
     if (st === 'running') { toast('The design is being implemented: program it when it ends', 'error'); return false; }
-    const text = implementFirstText(st, pj.top);
+    const text = implementFirstText(st, pj.top, !!api.standalone);
     if (!text) return true;
     const go = await dialog({
       title: 'Program FPGA', width: 440, className: 'impact-implement-dlg',
