@@ -528,6 +528,11 @@ PT_PATTERNS.unshift(
   [/^Not compiled: (.+)$/, 'Não compilado: $1'],
   [/^Not compiled \((.+)\): the event-driven simulator runs the design\.$/, 'Não compilado ($1): o projeto corre no simulador por eventos.'],
   [/^Compiled engine: (.+)$/, 'Motor compilado: $1'],
+  // the event-driven engine by default on a slow device (#952): why (core/emulate-engine.js slowDevice)
+  [/^The event-driven engine by default on this device \((.+)\): choose Engine ▸ Compiled to run the design at the board's real speed\.$/,
+    (m, w) => `O motor por eventos por omissão neste dispositivo (${w.split(', ').map((x) => x === 'a phone or tablet' ? 'um telemóvel ou tablet'
+      : x.replace(/^(\d+) processor cores?$/, (y, n) => `${n} ${n === '1' ? 'núcleo' : 'núcleos'} de processador`).replace(/^([\d.]+) GB of memory$/, (y, n) => `${n.replace('.', ',')} GB de memória`)).join(', ')}): `
+      + 'escolha Motor ▸ Compilado para correr o projeto à velocidade real da placa.'],
   // the VGA monitor (#420): what it measured, what is not 640x480 at 60 Hz
   [/^640×480 · (.+) Hz · line (.+) µs · (\d+) lines$/, '640×480 · $1 Hz · linha de $2 µs · $3 linhas'],
   [/^640×480 · line (.+) µs · no VSYNC$/, '640×480 · linha de $1 µs · sem VSYNC'],
