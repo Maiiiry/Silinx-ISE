@@ -193,6 +193,8 @@ test('window: the runner\'s service started and stopped through svc.sh, or as ro
   const env = { RUNNER_DIR: '/r', RUNNER_DAEMON: '/Library/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner.plist' };
   assert.deepEqual(serviceCommands('start', env), [
     { cmd: 'launchctl', args: ['bootout', 'system/com.github.pmnmalo.silinx-ise.runner'], cwd: '/', optional: true },
+    // launchd refused the bootstrap of a daemon still exiting (5: Input/output error, 22 October): waited for
+    { cmd: '/bin/sh', args: ['-c', 'i=0; while launchctl print system/com.github.pmnmalo.silinx-ise.runner >/dev/null 2>&1 && [ $i -lt 30 ]; do sleep 1; i=$((i+1)); done'], cwd: '/', optional: true },
     { cmd: 'launchctl', args: ['bootstrap', 'system', env.RUNNER_DAEMON], cwd: '/', optional: false },
   ]);
   assert.deepEqual(serviceCommands('stop', env), [{ cmd: 'launchctl', args: ['bootout', 'system/com.github.pmnmalo.silinx-ise.runner'], cwd: '/', optional: false }]);
