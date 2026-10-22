@@ -143,7 +143,16 @@ html[data-layout="tasks"][data-task="sim"] :is(#left-pages, #v-split, #drawer-bt
 html[data-layout="tasks"]:is([data-task="sim"], [data-task="emu"]) #left { width: auto !important; min-width: 0; }
 html[data-layout="tasks"][data-task="sim"][data-side="folded"] .isim :is(.isim-left, .isim-split-main) { display: none; }
 /* the model to simulate */
-#task-model { display: none; }
+#task-model, #task-bench, .task-bench-edit { display: none; }
+html[data-layout="tasks"][data-task="sim"] #task-bench { display: inline-block; height: 32px; margin-left: 8px; max-width: 200px;
+  border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
+html[data-layout="tasks"][data-task="sim"] .task-bench-edit { display: inline-flex; margin-left: 4px; }
+#task-empty .task-empty-bench[hidden] { display: none; }
+/* a narrow screen: the task's bar wraps under the toolbar's buttons rather than past the edge (#917) */
+@media (max-width: 1024px) {
+  html[data-layout="tasks"] #toolbar { flex-wrap: wrap; height: auto; min-height: 44px; row-gap: 4px; padding-block: 4px; }
+  html[data-layout="tasks"] #task-bar { flex-wrap: wrap; row-gap: 4px; }
+}
 html[data-layout="tasks"][data-task="sim"] #task-model { display: inline-block; height: 32px; margin-left: 8px; max-width: 200px;
   border: 1px solid var(--m-border-strong); border-radius: 7px; background: var(--m-surface); color: var(--m-fg); font: inherit; padding: 0 6px; }
 @media (pointer: coarse) { html[data-layout="tasks"][data-task="sim"] #task-model { height: 40px; } }
