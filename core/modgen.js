@@ -1,8 +1,8 @@
 // Generators of the beginner wizards of the New Source dialog (web/js/modwizard.js):
 //
-//   Module (Wizard):     generateModule(opts) -> VHDL or Verilog text of a new module, commented,
+//   Module Wizard:       generateModule(opts) -> VHDL or Verilog text of a new module, commented,
 //                        with a combinational or a sequential (clocked) template.
-//   Schematic (Wizard):  schematicFromPorts(opts) -> a .sch.json document with the I/O markers
+//   Schematic Wizard:    schematicFromPorts(opts) -> a .sch.json document with the I/O markers
 //                        placed tidily (inputs on the left, outputs on the right).
 //
 // Both take the ports as the wizard's friendly table gives them:

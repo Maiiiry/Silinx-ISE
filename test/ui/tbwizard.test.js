@@ -4,6 +4,7 @@
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, readWs } from './harness.js';
+import { newSourceWizardOf } from './new-source-helpers.js';
 
 let env;
 before(async () => { env = await setupUi(); });
@@ -27,14 +28,10 @@ const COUNTER = `module counter(input clk, input rst, input en, output reg [2:0]
 endmodule
 `;
 
-// New Source ▸ Test Bench (Wizard): file name, Finish -> the Test Bench Wizard opens with that name
+// New Source ▸ Test Bench (HDL), the file name, Wizard (#958) -> the Test Bench Wizard opens with that name
 const openTbw = async (page, name) => {
-  await page.menu('Project', 'New Source…');
-  await page.waitDialog('New Source Wizard');
-  await page.eval(() => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => /^\s*Test Bench \(Wizard\)\s*$/.test(e.textContent)); r.scrollIntoView(); r.click(); });
-  await page.dialogButton('Finish');
-  await page.waitDialog('Test Bench Wizard');
-  await page.fill('.dlg-overlay .wiz-main input[type=text]', name);
+  await newSourceWizardOf(page, 'Test Bench (HDL)', name, 'Test Bench Wizard');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .wiz-main input[type=text]').value), name);
 };
 
 // next page of the wizard (the primary button) and wait for page `title`

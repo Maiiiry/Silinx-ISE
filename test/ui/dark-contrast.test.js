@@ -247,20 +247,23 @@ for (const theme of ['dark', 'light']) {
     const types = await page.eval(() => [...document.querySelectorAll('.dlg-overlay .src-types .st')].map((e) => e.textContent.trim()));
     assert.ok(types.length >= 10, types.join(' | '));
     await closeDialogs(page);
-    for (const [k, type] of types.entries()) {
+    // every type, then the Module, Schematic, Petri Net and Test Bench wizards through the Wizard button (#958)
+    const runs = [...types.map((t) => [t, false]), ...['Module (HDL)', 'Schematic (Diagram)', 'Petri Net (Diagram)', 'Test Bench (HDL)'].map((t) => [types.find((x) => x.endsWith(t)), true])];
+    for (const [k, [type, wiz]] of runs.entries()) {
       await page.menu('Project', 'New Source…');
       await page.waitDialog('New Source Wizard');
       await page.eval((t) => { const r = [...document.querySelectorAll('.dlg-overlay .src-types .st')].find((e) => e.textContent.trim() === t); r.scrollIntoView(); r.click(); }, type);
-      await check(`New Source ${type}`);
-      // the name on the next page (the File Name and Location page, or the wizard's own)
+      if (!wiz) await check(`New Source ${type}`);
+      // the name on the File Name and Location page (a wizard opens with it)
       let named = false;
       const name = async () => { if (!named && await page.eval(() => !!document.querySelector('.dlg-overlay .wiz-main input[type=text]'))) { await page.fill('.dlg-overlay .wiz-main input[type=text]', `s${k}`); named = true; } };
-      while (await nextPage(page)) { await name(); await check(`New Source ${type}, next page`); }
-      // the wizards: Finish opens them; every page, the Test Bench wizard's vectors filled in
-      if (/\(Wizard\)/.test(type)) {
-        await page.dialogButton('Finish');
-        await page.waitFor(() => document.querySelector('.dlg-overlay .dlg-title span')?.textContent.endsWith('Wizard') && !/New Source/.test(document.querySelector('.dlg-overlay .dlg-title span').textContent));
+      if (!wiz) while (await nextPage(page)) { await name(); await check(`New Source ${type}, next page`); }
+      // the wizards: Wizard on the File Name and Location page opens them; every page, the Test Bench wizard's vectors filled in
+      if (wiz) {
+        await nextPage(page);
         await name();
+        await page.dialogButton('Wizard');
+        await page.waitFor(() => document.querySelector('.dlg-overlay .dlg-title span')?.textContent.endsWith('Wizard') && !/New Source/.test(document.querySelector('.dlg-overlay .dlg-title span').textContent));
         for (let p = 1; ; p++) {
           const title = await page.eval(() => document.querySelector('.dlg-overlay .wiz-main h3')?.textContent || '');
           // the Module Wizard: a port from the quick buttons; the Schematic Wizard (no quick buttons, #950): Add Port

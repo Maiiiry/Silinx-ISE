@@ -179,10 +179,12 @@ uiTest('#230 New Source: a Petri net, a truth table and the Petri Net Wizard ref
   // the Petri Net Wizard (its first page)
   await page.menu('Project', 'New Source…');
   await page.waitDialog('New Source Wizard');
-  await pickType('Petri Net (Wizard)');
-  await page.dialogButton('Finish');
+  await pickType('Petri Net (Diagram)');
+  await page.dialogButton('Next >');
+  await page.fill('.dlg-overlay .wiz-main input[type=text]', 'maj');
+  await page.dialogButton('Wizard');   // (#958)
   await page.waitDialog('Petri Net Wizard');
-  await page.fill('.dlg-overlay .mw-name', 'maj');
+  assert.equal(await page.eval(() => document.querySelector('.dlg-overlay .mw-name').value), 'maj');
   await page.dialogButton('Next >');
   await page.waitFor(() => /src\/maj\.vhd already exists: the HDL generated from the new source would be written there\. Choose another name\./.test(document.querySelector('.dlg-overlay .wiz').innerText), [], { what: 'refused' });
   assert.match(await wizText(), /Name and Language/);

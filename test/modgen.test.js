@@ -1,4 +1,4 @@
-// core/modgen.js: the generators of the Module (Wizard) and Schematic (Wizard) of the New Source
+// core/modgen.js: the generators of the Module Wizard and the Schematic Wizard of the New Source
 // dialog. Every option combination of the module generator compiles, elaborates and simulates in
 // both languages; the port table checks; the schematic generator makes I/O markers that pass
 // netlist() / generateHdl() with only "not connected" warnings, and its HDL compiles and simulates.

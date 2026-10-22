@@ -571,7 +571,8 @@ PT_PATTERNS.push(
 );
 // New Source types, Module Wizard and Schematic Wizard (web/js/modwizard.js, core/modgen.js)
 Object.assign(PT, {
-  'Module (HDL)': 'Módulo (HDL)', 'Module (Wizard)': 'Módulo (Assistente)', 'Schematic (Diagram)': 'Esquemático (Diagrama)', 'Schematic (Wizard)': 'Esquemático (Assistente)',
+  'Module (HDL)': 'Módulo (HDL)', 'Schematic (Diagram)': 'Esquemático (Diagrama)',
+  'Wizard': 'Assistente', 'Clock Manager (DCM / PLL)': 'Gestor de Relógio (DCM / PLL)',   // New Source's Wizard button (#958)
   'Module Wizard': 'Assistente de Módulo', 'Schematic Wizard': 'Assistente de Esquemático',
   'Name and Language': 'Nome e Linguagem', 'Inputs and Outputs': 'Entradas e Saídas', 'Kind of Logic': 'Tipo de Lógica',
   'The wizard creates a schematic with an I/O marker for each input and output, ready for you to place the symbols and wire them.':

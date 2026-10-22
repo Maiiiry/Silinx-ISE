@@ -67,8 +67,10 @@ function devicePicker(db, device) {
   };
 }
 
-// Multi-page wizard driver. pages: [{ title, render() -> Node, validate?() -> string|null }]
-export function wizard(title, pages, { width = 720, finishLabel = 'Finish' } = {}) {
+// Multi-page wizard driver. pages: [{ title, render() -> Node, validate?() -> string|null, noNext?() -> true: Next > disabled }]
+// extra: a button before < Back on the pages it is shown on, closing the wizard with its value
+// ({ label, value, shown(page), disabled?(), validate?() -> string|null }; New Source's Wizard, #958)
+export function wizard(title, pages, { width = 720, finishLabel = 'Finish', extra = null } = {}) {
   return new Promise(resolve => {
     let idx = 0;
     const side = h('div', { class: 'wiz-side' }, h('div', { class: 'logo' }, 'Silinx'), ...pages.map(p => h('div', { class: 'step' }, p.title)));
@@ -82,8 +84,11 @@ export function wizard(title, pages, { width = 720, finishLabel = 'Finish' } = {
       pages[idx].onShow?.();
       side.querySelectorAll('.step').forEach((s, i) => s.classList.toggle('cur', i === idx));
       if (ctl) {
-        ctl.buttons[0].el.disabled = idx === 0;
-        ctl.buttons[1].el.textContent = idx === pages.length - 1 ? finishLabel : 'Next >';
+        const k = extra ? 1 : 0;
+        if (extra) { const b = ctl.buttons[0].el; b.style.display = extra.shown(pages[idx]) ? '' : 'none'; b.disabled = !!extra.disabled?.(); }
+        ctl.buttons[k].el.disabled = idx === 0;
+        ctl.buttons[k + 1].el.textContent = idx === pages.length - 1 ? finishLabel : 'Next >';
+        ctl.buttons[k + 1].el.disabled = !!pages[idx].noNext?.();
       }
       err.textContent = '';
     };
@@ -97,6 +102,7 @@ export function wizard(title, pages, { width = 720, finishLabel = 'Finish' } = {
     dialog({
       title, width, body,
       buttons: [
+        ...(extra ? [{ label: extra.label, value: extra.value, validate: async () => { const msg = await extra.validate?.(); err.textContent = msg || ''; return !msg; } }] : []),
         { label: '< Back', validate: () => { if (idx > 0) { idx--; render(); } return false; } },
         { label: 'Next >', primary: true, value: true, validate: next },
         { label: 'Cancel', value: false },

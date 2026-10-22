@@ -1,5 +1,6 @@
 // The New Source wizard (moved from wizards.js, #405): the source type, its file name and location, then the
-// type's pages; Finish writes the skeleton source, or opens the wizard of a wizard type.
+// type's pages; Finish writes the skeleton source. The Wizard button of the File Name and Location page opens the
+// type's wizard instead (#958).
 import { api } from './api.js';
 import { icons, icon } from './icons.js';
 import { h } from './ui.js';
@@ -11,32 +12,29 @@ import { reservedError } from '/core/reserved.js';
 import { wizard, field, select, replaceGuard, closeBeforeReplace, moduleElsewhere, drawnHdlTaken, NAME_RE, FILE_RE } from './wizards.js';
 
 const SOURCE_TYPES = [
-  // hdl / tb / tbwiz / modwiz / schwiz: VHDL or Verilog, chosen in the wizard (the extension follows the language)
+  // hdl / tb: VHDL or Verilog, chosen in the wizard (the extension follows the language)
+  // wiz: the wizard the Wizard button opens (#958); only: no plain source, Next > disabled
   { id: 'tt', label: 'Truth Table', ico: 'truthtable', ext: '.tt.json', dir: 'src' },
-  { id: 'hdl', label: 'Module (HDL)', ico: 'vhdl', ext: null, dir: 'src' },
-  { id: 'modwiz', label: 'Module (Wizard)', ico: 'template', ext: null, dir: 'src' },
-  { id: 'sch', label: 'Schematic (Diagram)', ico: 'schematic', ext: '.sch.json', dir: 'src' },
-  { id: 'schwiz', label: 'Schematic (Wizard)', ico: 'schematic', ext: '.sch.json', dir: 'src' },
+  { id: 'hdl', label: 'Module (HDL)', ico: 'vhdl', ext: null, dir: 'src', wiz: 'module' },
+  { id: 'sch', label: 'Schematic (Diagram)', ico: 'schematic', ext: '.sch.json', dir: 'src', wiz: 'schematic' },
   { id: 'fsm', label: 'State Machine (FSM)', ico: 'fsm', ext: '.fsm.json', dir: 'src' },
   { id: 'asm', label: 'State Machine (ASM)', ico: 'asm', ext: '.asm.json', dir: 'src' },
-  { id: 'petri', label: 'Petri Net (Diagram)', ico: 'petri', ext: '.pn.json', dir: 'src' },
-  { id: 'pnwiz', label: 'Petri Net (Wizard)', ico: 'petri', ext: '.pn.json', dir: 'src' },
-  { id: 'clkwiz', label: 'Clocking Wizard', ico: 'template', ext: null, dir: 'src' },
-  { id: 'bramwiz', label: 'Block Memory', ico: 'template', ext: null, dir: 'src' },
-  { id: 'tb', label: 'Test Bench (HDL)', ico: 'vhdl', ext: null, dir: 'sim' },
-  { id: 'tbwiz', label: 'Test Bench (Wizard)', ico: 'template', ext: null, dir: 'sim' },
+  { id: 'petri', label: 'Petri Net (Diagram)', ico: 'petri', ext: '.pn.json', dir: 'src', wiz: 'petri' },
+  { id: 'clkwiz', label: 'Clock Manager (DCM / PLL)', ico: 'template', ext: null, dir: 'src', wiz: 'clock', only: true },
+  { id: 'bramwiz', label: 'Block Memory', ico: 'template', ext: null, dir: 'src', wiz: 'memory', only: true },
+  { id: 'tb', label: 'Test Bench (HDL)', ico: 'vhdl', ext: null, dir: 'sim', wiz: 'testbench' },
   { id: 'ucf', label: 'Implementation Constraints File', ico: 'ucf', ext: '.ucf', dir: 'constraints' },
   { id: 'mem', label: 'Memory Initialization File (.mem)', ico: 'file', ext: '.mem', dir: 'src' },
   // not in the list any more; newSourceWizard({ type: 'vhdl-pkg' }) still creates one
   { id: 'vhdl-pkg', label: 'VHDL Package', ico: 'vhdl', ext: '.vhd', dir: 'src', hidden: true },
 ];
-// the wizards opened by Finish on page 1 (New Source asks only the file name and location)
-const WIZARD_TYPES = new Set(['tbwiz', 'modwiz', 'schwiz', 'pnwiz', 'clkwiz', 'bramwiz']);
 
 export async function newSourceWizard({ type } = {}) {
   if (!S.project) return;
-  // old type ids (vhdl, verilog, vhdl-tb, verilog-tb) still accepted: they preset the language
-  const LEGACY = { vhdl: ['hdl', 'vhdl'], verilog: ['hdl', 'verilog'], 'vhdl-tb': ['tb', 'vhdl'], 'verilog-tb': ['tb', 'verilog'] };
+  // old type ids (vhdl, verilog, vhdl-tb, verilog-tb) still accepted: they preset the language; the old wizard types
+  // (modwiz, schwiz, pnwiz, tbwiz) select the type whose Wizard button opens that wizard (#958)
+  const LEGACY = { vhdl: ['hdl', 'vhdl'], verilog: ['hdl', 'verilog'], 'vhdl-tb': ['tb', 'vhdl'], 'verilog-tb': ['tb', 'verilog'],
+    modwiz: ['hdl'], schwiz: ['sch'], pnwiz: ['petri'], tbwiz: ['tb'] };
   let st = SOURCE_TYPES.find(t => t.id === (LEGACY[type]?.[0] || type)) || SOURCE_TYPES.find(t => t.id === 'hdl');   // default: Module (HDL)
   const shown = () => SOURCE_TYPES.filter(t => !t.hidden || t === st);
   // language of HDL modules and test benches (Define Module / Associate Source pages)
@@ -52,7 +50,7 @@ export async function newSourceWizard({ type } = {}) {
       const row = h('div', { class: `st${t === st ? ' sel' : ''}` }, icon(t.ico), t.label);
       row.addEventListener('click', () => {
         st = t; loc.value = t.dir; renderList();
-        // the number of pages depends on the type: Finish right here for the wizards
+        // the number of pages depends on the type
         const btn = [...(list.closest('.dlg')?.querySelectorAll('.dlg-buttons .btn') || [])].find(b => b.classList.contains('primary'));
         if (btn) btn.textContent = pages().length === 1 ? 'Finish' : 'Next >';
       });
@@ -66,17 +64,24 @@ export async function newSourceWizard({ type } = {}) {
     render: () => h('div', {}, h('div', { class: 'hint' }, 'Select the type of the new source; its name and location come next.'), list),
     validate: () => null,
   };
-  // the file name and the location (the wizards that write the file themselves ask on their own pages)
+  // the file name and the location; Wizard (#958) opens the type's wizard with them (it asks the rest on its pages)
+  const nameOf = () => fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json|fsm\.json|pn\.json)$/i, '');
+  const fileError = () => {
+    if (!FILE_RE.test(nameOf())) return 'Enter a valid file name (letters, digits, _ and -).';
+    if (!/^[A-Za-z0-9_/-]+$/.test(loc.value.trim())) return 'Invalid location.';
+    return null;
+  };
   const pFile = {
     title: 'File Name and Location',
     render: () => h('div', {},
       h('div', { class: 'form-grid' }, ...field('Source type:', h('span', {}, st.label)), ...field('File name:', fname), ...field('Location:', loc)),
       h('label', { style: { display: 'block', marginTop: '12px' } }, h('input', { type: 'checkbox', checked: true, disabled: true }), ' Add to project')),
     onShow: () => setTimeout(() => fname.focus(), 0),
+    noNext: () => !!st.only,   // a wizard-only type: Wizard
     validate: async () => {
-      const n = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json|fsm\.json|pn\.json)$/i, '');
-      if (!FILE_RE.test(n)) return 'Enter a valid file name (letters, digits, _ and -).';
-      if (!/^[A-Za-z0-9_/-]+$/.test(loc.value.trim())) return 'Invalid location.';
+      const n = nameOf();
+      const e = fileError();
+      if (e) return e;
       const p = `${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`;
       // the module named as the file (a drawing, a test bench, a package): not a reserved word of VHDL or
       // Verilog, in any letter case (#679; a module's own name is asked on the next page)
@@ -180,7 +185,7 @@ export async function newSourceWizard({ type } = {}) {
   const pages = () => {
     if (st.id === 'hdl') return [p1, pFile, p2, pSum];
     if (st.id === 'tb') return [p1, pFile, p2tb, pSum];
-    if (WIZARD_TYPES.has(st.id)) return [p1];   // Finish opens the Test Bench / Module / Schematic / Petri Net Wizard (name and location there)
+    if (st.only) return [p1, pFile];   // the wizard only: Wizard on the File Name page
     return [p1, pFile, pSum];
   };
   // The wizard driver takes a fixed page list; rebuild when the type changes on page 1.
@@ -190,31 +195,13 @@ export async function newSourceWizard({ type } = {}) {
     const nn = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
     return guard(`${loc.value.trim().replace(/\/+$/, '')}/${nn}${extOf(st)}`);
   };
-  const ok = await wizard('New Source Wizard', proxy, { width: 760 });
+  const ok = await wizard('New Source Wizard', proxy, {
+    width: 760,
+    extra: { label: 'Wizard', value: 'wizard', shown: p => p === pFile, disabled: () => !st.wiz, validate: fileError },
+  });
   if (!ok) return;
+  if (ok === 'wizard') return openWizard(st.wiz, { name: nameOf(), location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
   const n = fname.value.trim().replace(/\.(vhd|vhdl|v|ucf|mem|asm\.json|tt\.json|sch\.json)$/i, '');
-  if (st.id === 'tbwiz') {
-    const { testBenchWizard } = await import('./tbwizard.js');
-    return testBenchWizard({ module: S.sel?.module, name: n || null, location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
-  }
-  if (st.id === 'modwiz' || st.id === 'schwiz') {
-    const mw = await import('./modwizard.js');
-    // a file name that is not an identifier (e.g. with -) becomes the suggested module name
-    const ident = n.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '');
-    return (st.id === 'modwiz' ? mw.moduleWizard : mw.schematicWizard)({ name: ident, location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
-  }
-  if (st.id === 'pnwiz') {
-    const { petriWizard } = await import('./petri-wizard.js');
-    return petriWizard({ location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
-  }
-  if (st.id === 'clkwiz') {
-    const { clockWizard } = await import('./clock-wizard.js');
-    return clockWizard({ location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
-  }
-  if (st.id === 'bramwiz') {
-    const { blockMemoryWizard } = await import('./bram-wizard.js');
-    return blockMemoryWizard({ location: loc.value.trim().replace(/\/+$/, ''), lang: langSel.value });
-  }
   const path = `${loc.value.trim().replace(/\/+$/, '')}/${n}${extOf(st)}`;
   let text;
   const pj = S.project;
@@ -267,6 +254,20 @@ export async function newSourceWizard({ type } = {}) {
   if (st.id === 'fsm') { app.openFsm(path); return; }
   if (st.id === 'petri') { app.openPetri(path); return; }
   if (st.id === 'asm') app.openAsm(path); else if (st.id === 'tt') app.openTt(path); else if (st.id === 'sch') app.openSch(path); else app.openFile(path);
+}
+
+// the wizard of a source type (New Source ▸ Wizard, #958) with the file name and location typed; a file name that is
+// not an identifier (e.g. with -) becomes the suggested module name
+async function openWizard(wiz, { name, location, lang }) {
+  const ident = name.replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/_$/, '');
+  switch (wiz) {
+    case 'module': return (await import('./modwizard.js')).moduleWizard({ name: ident, location, lang });
+    case 'schematic': return (await import('./modwizard.js')).schematicWizard({ name: ident, location, lang });
+    case 'petri': return (await import('./petri-wizard.js')).petriWizard({ name: ident, location, lang });
+    case 'testbench': return (await import('./tbwizard.js')).testBenchWizard({ module: S.sel?.module, name: name || null, location, lang });
+    case 'clock': return (await import('./clock-wizard.js')).clockWizard({ name: ident, location, lang });
+    case 'memory': return (await import('./bram-wizard.js')).blockMemoryWizard({ name: ident, location, lang });
+  }
 }
 
 function uutInfo(m) {

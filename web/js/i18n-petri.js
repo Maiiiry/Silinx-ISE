@@ -44,7 +44,7 @@ export const PETRI_PT = {
   'These two are joined already: change the weight of that arc': 'Estes dois já estão ligados: mude o peso desse arco',
   'Close the panel': 'Fechar o painel',
   // the Petri Net Wizard (#208, web/js/petri-wizard.js)
-  'Petri Net Wizard': 'Assistente de Rede de Petri', 'Petri Net (Wizard)': 'Rede de Petri (Assistente)', 'Petri Net (Diagram)': 'Rede de Petri (Diagrama)',
+  'Petri Net Wizard': 'Assistente de Rede de Petri', 'Petri Net (Diagram)': 'Rede de Petri (Diagrama)',
   'Petri net (module) name:': 'Nome da rede de Petri (módulo):',
   'The wizard creates a Petri net with its inputs and outputs declared, ready for you to draw its places, transitions and arcs; its HDL is generated from it.':
     'O assistente cria uma rede de Petri com as entradas e saídas declaradas, pronta para desenhar os lugares, as transições e os arcos; o HDL é gerado a partir dela.',
