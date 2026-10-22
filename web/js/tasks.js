@@ -278,6 +278,7 @@ function taskButton(t) {
 // the task switchers, the task's bar and the page of a task with no document: there in the Tasks interface
 // only (the other interfaces' pages, their tests and their translations do not have them)
 const PARTS = ['task-switch', 'task-tabs', 'task-bar', 'task-empty'];   // (their ids)
+const PAGE_NAME = { start: 'Start', design: 'Design', files: 'Files', libraries: 'Libraries' };
 function build() {
   const $ = id => document.getElementById(id);
   if ($('task-bar')) return;
@@ -306,6 +307,8 @@ function build() {
   $('workspace').append(h('div', { id: 'task-empty', hidden: true },
     h('span', { class: 'ico' }), h('h2'), h('p'), h('button', { class: 'm-step', type: 'button', onclick: runMain }),
     h('button', { class: 'btn task-empty-bench', type: 'button', onclick: () => newBench(app) }, 'Create a test bench (Wizard)…')));
+  // Edit's pages: tabs above the hierarchy, the closed pages' name their tooltip (web/css/tasks.css, #984)
+  for (const t of $('left-tabs').querySelectorAll('.tab')) t.title = PAGE_NAME[t.dataset.page];
   app.renderHierarchy();   // (one tree, no views: #799)
   refreshDots();
 }
@@ -325,6 +328,7 @@ function fitHeader() {
 function unbuild() {
   for (const id of PARTS) document.getElementById(id)?.remove();
   delete document.getElementById('topbar').dataset.fit;
+  for (const t of document.querySelectorAll('#left-tabs .tab')) t.removeAttribute('title');
   messagesTask(null);   // (the other interfaces: every source, #925)
   shownTask = null;
   app.renderHierarchy();
