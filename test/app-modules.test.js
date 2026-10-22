@@ -6,12 +6,18 @@ import fs from 'node:fs';
 
 const read = f => fs.readFileSync(new URL(`../web/js/${f}`, import.meta.url), 'utf8');
 const app = read('app.js');
-const exportsOf = code => new Set([...code.matchAll(/^export (?:async )?(?:function|const|let) (\w+)/gm)].map(m => m[1]));
+// (a name a module re-exports, `export { … }`, from a module split out of it later, counts too)
+const exportsOf = code => new Set([...code.matchAll(/^export (?:async )?(?:function|const|let) (\w+)/gm)].map(m => m[1])
+  .concat([...code.matchAll(/^export \{([^}]*)\}/gm)].flatMap(m => m[1].split(',').map(s => s.trim()).filter(Boolean))));
 const importedFrom = (code, mod) => {
   const m = new RegExp(`^import \\{([^}]*)\\} from '\\./${mod.replace('.', '\\.')}';`, 'm').exec(code);
   return m ? m[1].split(',').map(s => s.trim()).filter(Boolean) : null;
 };
 const definedIn = (code, name) => new RegExp(`^(?:export )?(?:async )?function ${name}\\(|^(?:export )?(?:let|const) ${name}\\b`, 'm').test(code);
+
+// the modules split out of a part later (#405): a part's functions are defined in it or in them
+const SPLIT = { 'drawings.js': ['drawings-tt.js'] };
+const readPart = mod => [mod, ...(SPLIT[mod] || [])].map(read).join('\n');
 
 // the modules taken out of app.js and the functions each one owns
 const PARTS = {
@@ -49,10 +55,12 @@ const PARTS = {
     'saveStimTestbench', 'confirmElabErrors', 'openEmulator'],
   'rename.js': ['renameSymbolIn', 'extOf', 'dirOf', 'renameDialog', 'renameSource'],
 };
+// every module out of app.js, the ones split out of a part included
+const MODULES = [...Object.keys(PARTS), ...Object.values(SPLIT).flat()];
 
 test('#405 app.js split: each moved function is defined in its module only', () => {
   for (const [mod, names] of Object.entries(PARTS)) {
-    const code = read(mod);
+    const code = readPart(mod);
     for (const name of names) {
       assert.ok(definedIn(code, name), `${name} in ${mod}`);
       assert.ok(!definedIn(app, name), `${name} not in app.js any more`);
@@ -101,7 +109,7 @@ test('#405 project.js: open / close / reload keep their call order (the queues o
 // The modules import app.js and app.js imports them (a cycle): a module's top level reads nothing app.js
 // defines, or it would read it before app.js has run: its top-level constants are literals or functions.
 test('#405 app.js split: a module\'s top-level constants use nothing imported from app.js', () => {
-  for (const mod of Object.keys(PARTS)) {
+  for (const mod of MODULES) {
     const code = read(mod), fromApp = importedFrom(code, 'app.js');
     for (const m of code.matchAll(/^(?:export )?(?:const|let) (\w+) = ([^\n]*(?:\n {2}[^\n]*)*)/gm)) {
       if (/^(?:async )?(?:\([^)]*\)|\w+) =>/.test(m[2])) continue;   // a function: run later
@@ -121,7 +129,7 @@ test('#405 implement.js: the implementation processes, Check Constraints and Sto
 });
 
 test('#405 drawings.js: the drawings\' editors and their HDL synchronization left app.js', () => {
-  const code = read('drawings.js');
+  const code = readPart('drawings.js');
   for (const s of ["import('./asm-editor.js')", "import('./truthtable.js')", "import('./fsm-editor.js')", "import('./petri-editor.js')"])
     assert.ok(code.includes(s) && !app.includes(s), s);
   // the names other modules took from app.js come from drawings.js now
@@ -133,7 +141,7 @@ test('#405 drawings.js: the drawings\' editors and their HDL synchronization lef
 // every name a module imports from app.js or a module split out of it is exported there (a name that moved
 // with a later part is imported from its new module)
 test('#405 app.js split: the imports among app.js and its modules name what the other module exports', () => {
-  const mods = ['app.js', ...Object.keys(PARTS)];
+  const mods = ['app.js', ...MODULES];
   for (const mod of mods) {
     const code = read(mod);
     for (const other of mods) {
@@ -154,7 +162,7 @@ test('#405 processes.js: the Processes panel, Check Syntax and the processes\' s
 
 // app.js's own one-letter helper ($ = getElementById) is not imported: a module that calls it defines its own
 test('#405 app.js split: a module calling $() defines it', () => {
-  for (const mod of Object.keys(PARTS)) {
+  for (const mod of MODULES) {
     const code = read(mod);
     if (/(?:^|[^\w.$])\$\(/m.test(code)) assert.match(code, /^const \$ = id => document\.getElementById\(id\);$/m, mod);
   }
@@ -199,7 +207,7 @@ const usesName = (body, n) => (n === '$' ? /(?<![\w$.])\$\(/.test(body)
   : new RegExp(`(?<![\\w$.])${n}(?![\\w$])(?!\\s*:(?!:))`).test(body));
 
 test('#405 app.js split: every name of app.js\'s world a module uses is imported or defined there', () => {
-  const mods = ['app.js', ...Object.keys(PARTS)];
+  const mods = ['app.js', ...MODULES];
   const known = new Set(mods.flatMap(m => { const c = read(m); return [...topNames(c), ...imported(c)]; }));
   for (const mod of mods) {
     const code = read(mod), have = new Set([...topNames(code), ...imported(code)]), body = codeOnly(code);
