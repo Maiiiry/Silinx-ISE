@@ -232,10 +232,10 @@
   "flow": "complete",
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 338,
-   "luts": 671,
+   "slices": 339,
+   "luts": 673,
    "ffs": 389,
-   "period": 10.238
+   "period": 9.637
   }
  },
  "fpu-multiplier": {
@@ -408,9 +408,9 @@
   "quality": {
    "part": "xc3s250ecp132-4",
    "slices": 100,
-   "luts": 191,
+   "luts": 192,
    "ffs": 36,
-   "period": 8.692
+   "period": 8.301
   }
  },
  "itc99-b12": {
@@ -441,9 +441,9 @@
   "quality": {
    "part": "xc3s250ecp132-4",
    "slices": 42,
-   "luts": 83,
+   "luts": 82,
    "ffs": 64,
-   "period": 5.737
+   "period": 5.535
   }
  },
  "itc99-b14": {
@@ -605,10 +605,10 @@
   },
   "quality": {
    "part": "xc3s250ecp132-4",
-   "slices": 66,
-   "luts": 114,
-   "ffs": 118,
-   "period": 4.795
+   "slices": 49,
+   "luts": 96,
+   "ffs": 54,
+   "period": 4.324
   }
  },
  "iwls05-simple-spi": {

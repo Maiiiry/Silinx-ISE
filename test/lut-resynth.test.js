@@ -118,7 +118,7 @@ test('#652 a round that cannot make every end of the critical path shallower is 
   assert.equal(shallower(mod, 20, netlistLevels(mod)), null);
   assert.equal(resynthCritical(json, 'spi', () => [{ cell: 'ff', port: 'C' }]), null);
   // a round per critical path, RESYNTH_RULE.rounds at most
-  assert.deepEqual(RESYNTH_RULE, { rounds: 16, leaves: 8, candidates: 10 });
+  assert.deepEqual(RESYNTH_RULE, { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12 });
 });
 
 test('#652 the same LUT made for several ends is one LUT: two inverters of one LUT (as Yosys\'s extractinv makes them) on two critical ends', () => {
@@ -145,6 +145,60 @@ test('#652 the same LUT made for several ends is one LUT: two inverters of one L
   }
   // the netlist names: n2's net now the same bit as n1's
   assert.deepEqual(m.netnames.n2.bits, m.netnames.n1.bits);
+});
+
+// iwls05-sasc's receive FIFO (#652): its write enable we (level 2) of the pointers' equality (level 1), and the pointers
+// again through a LUT of level 2, into the full flag's D (level 3); the LUTs as Yosys and ABC map them (their INITs)
+const FIFO = ['gb', 'din', 'rp0', 'rp1', 'wp0', 'wp1', 'vr', 'v'];
+function fifoNetlist() {
+  const bit = Object.fromEntries(FIFO.map((n, i) => [n, i + 2]));
+  const lut = (ins, init, out) => ({ type: `LUT${ins.length}`, parameters: { INIT: init }, port_directions: { ...Object.fromEntries(ins.map((_, i) => [`I${i}`, 'input'])), O: 'output' },
+    connections: { ...Object.fromEntries(ins.map((b, i) => [`I${i}`, [b]])), O: [out] } });
+  const [eq, we, inc, nx, d] = [20, 21, 22, 23, 24];
+  const cells = {
+    eq: lut([bit.rp1, bit.wp1, bit.rp0, bit.wp0], '1001000000001001', eq),
+    we: lut([bit.gb, eq, bit.vr, bit.v], '0000011100000000', we),
+    inc: lut([bit.wp1, bit.wp0], '0110', inc),
+    nx: lut([inc, bit.rp1, bit.rp0, bit.wp0], '0000100110010000', nx),
+    d: lut([bit.gb, bit.din, we, nx], '1111001000100010', d),
+    ff: { type: 'FDRE', parameters: {}, port_directions: { C: 'input', CE: 'input', D: 'input', R: 'input', Q: 'output' }, connections: { C: [bit.din], CE: ['1'], D: [d], R: ['0'], Q: [30] } },
+  };
+  const ports = { ...Object.fromEntries(FIFO.map(n => [n, { direction: 'input', bits: [bit[n]] }])), q: { direction: 'output', bits: [30, we] } };
+  const netnames = { ...Object.fromEntries(Object.entries(ports).map(([n, p]) => [n, { bits: p.bits }])), eq: { bits: [eq] }, we: { bits: [we] }, inc: { bits: [inc] }, nx: { bits: [nx] }, d: { bits: [d] } };
+  return { bit, json: { modules: { fifo: { attributes: { top: '1' }, ports, cells, netnames } } } };
+}
+
+test('#652 a cone that converges again (iwls05-sasc\'s FIFO): no LUT h or h(g(A), S) of level 2, a tree of LUT4s is; the same function on every input, the readers of the old LUTs kept', () => {
+  const { bit, json } = fifoNetlist();
+  const mod = json.modules.fifo;
+  const lv = netlistLevels(mod);
+  assert.deepEqual([20, 21, 22, 23, 24].map(lv.level), [1, 2, 1, 2, 3]);
+  // the forms of one or two LUTs: none (without the tree)
+  assert.equal(shallower(mod, 24, lv, { ...RESYNTH_RULE, treeLeaves: 0 }), null);
+  assert.equal(resynthCritical(json, 'fifo', () => [{ cell: 'ff', port: 'D' }], { ...RESYNTH_RULE, treeLeaves: 0 }), null);
+  // the tree: its LUTs of 4 inputs at most, its last the root's, level 2
+  const ch = shallower(mod, 24, lv);
+  assert.ok(ch?.tree, JSON.stringify(ch));
+  assert.ok(ch.tree.every(l => l.inputs.length >= 2 && l.inputs.length <= 4 && l.table.length === 1 << l.inputs.length));
+  const r = resynthCritical(json, 'fifo', () => [{ cell: 'ff', port: 'D' }]);
+  assert.ok(r);
+  const m = r.json.modules.fifo;
+  assert.equal(r.rounds, 1);
+  assert.equal(netlistLevels(m).level(24), 2, 'the full flag\'s D one level shallower');
+  assert.deepEqual(m.cells.ff.connections.D, [24]);
+  // we is a port's bit, so its LUT (and the equality it reads) stays; the tree's g of wp1 ^ wp0 is inc, read instead of
+  // made again; nx, read by the old root only, is removed: 5 LUTs -> 6
+  assert.ok(m.cells.we && m.cells.eq && !m.cells.nx);
+  assert.ok(Object.values(m.cells.d.connections).some(b => b[0] === 22), 'inc read by the new root');
+  assert.equal(Object.values(m.cells).filter(c => /^LUT/.test(c.type)).length, 6);
+  assert.ok(Object.values(m.cells).every(c => !/^LUT/.test(c.type) || +c.type[3] <= 4));
+  for (let v = 0; v < 1 << FIFO.length; v++) {
+    const inputs = new Map(FIFO.map((n, i) => [bit[n], (v >> i) & 1]));
+    assert.equal(value(m, 24, inputs), value(mod, 24, inputs), `d, inputs ${v}`);
+    assert.equal(value(m, 21, inputs), value(mod, 21, inputs), `we, inputs ${v}`);
+  }
+  // a cone of more leaves than RESYNTH_RULE.treeLeaves: no tree
+  assert.equal(shallower(mod, 24, lv, { ...RESYNTH_RULE, treeLeaves: 7 }), null);
 });
 
 // the same shift register as a design: its registered inputs, the enable and the load as spi-fpga-slave writes them

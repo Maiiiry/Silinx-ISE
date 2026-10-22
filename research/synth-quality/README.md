@@ -1261,6 +1261,50 @@ itc99-b09 at High +6.4 %, verilog-uart at High +11.5 % (the estimate's seed 1 to
 Every bitstream byte-identical to ISE's bitgen (CRC on and off), every DRC 0 errors; vtr-ch-intrinsics's one DRC
 warning (a gated clock, its latches) is main's too.
 
+### A tree of LUT4s where one or two LUTs cannot do it (#652, 2026-10-22)
+
+After #745 and #784 most critical ends of the corpus still had no shallower form of one or two LUTs: on the 120
+syntheses (the corpus's 53 designs of 1500 LUTs at most and the 7 examples, both efforts) the critical ends' roots were
+mostly functions of 5 to 16 leaves, and a pure AND or OR of literals (which balancing alone would fix) only on itc99-b10,
+iwls05-ss-pcm and uart-for-fpga. Two other ideas measured first, on the cached netlists:
+
+- the critical inputs of a root made shallower in its place (a recursive form, depth 1 to 4): 1-2 designs changed;
+- an AND / OR of literals rebuilt balanced: 3 designs, each with another end that stays.
+
+**The change** (`core/lut-resynth.js`, `shallowerTree`): when neither h nor h(g(A), S) exists, the root's cone is cut
+(the latest LUT expanded first) at up to `RESYNTH_RULE.treeLeaves` (12) leaves, its function over them made a tree of
+LUT4s by disjoint decompositions F = h(g(A), rest), A of 2 to 4 leaves (g's level the lowest first, then the larger A:
+the first whose values give F two columns), then the same with h, until 4 inputs are left; kept when the root's level
+is L-1 at most. An identical LUT already in the netlist is read instead of made again, as before. iwls05-sasc's receive
+FIFO is the case: its full flag reads the pointers through two LUTs of level 2 (the write enable, a port's, and the next
+pointer's equality), which one g cannot hold; the tree reads the pointers' XOR (a LUT the netlist has) and two new LUTs,
+level 2 (`test/lut-resynth.test.js`, its LUTs as Yosys and ABC map them). 16 leaves would add itc99-b14 and
+vtr-mkPktMerge but cost 11 s over the 120 syntheses (up to 1 s each), against 0.4 s for 12.
+
+Measured as #745 was (main 1d895f9, seed 1, Silinx's static timing, routed): 6 of the 120 builds changed, all faster:
+
+| design | effort | LUTs | slices | levels | estimate (ns) | routed (ns) | |
+|---|---|---|---|---|---|---|---:|
+| iwls05-sasc | High | 104 → 52 | 66 → 49 | 2 → 2 | 3.97 → 3.97 | 4.999 → 4.195 | −16.1 % |
+| itc99-b13 | High | 71 → 70 | 42 → 42 | 4 → 3 | 5.81 → 4.69 | 6.008 → 5.389 | −10.3 % |
+| fpu-adder | both | 486 → 488 | 338 → 339 | 6 → 6 | 8.86 → 8.07 | 9.981 → 9.639 | −3.4 % |
+| iwls05-sasc | Normal | 94 → 95 | 65 → 65 | 3 → 2 | 4.17 → 3.97 | 4.912 → 4.860 | −1.1 % |
+| itc99-b11 | Normal | 123 → 124 | 97 → 97 | 5 → 5 | 7.89 → 7.87 | 8.472 → 8.413 | −0.7 % |
+
+iwls05-sasc at High: its shallower netlist lets the distributed RAM candidate (`lutram`) be kept, its two 4 × 8 FIFOs
+in RAM16X1Ds instead of 64 flip-flops (the corpus: 118 → 54 flip-flops). Every changed netlist simulates as its RTL
+(the corpus's diff stage); test/designs-corpus/expected.json has the four designs' new sizes. Over the 60 designs:
+Normal −0.09 %, High −0.53 %; slices 10756 → 10757 and 10717 → 10701.
+
+**ISE's check** (on the Mac mini, the 6 changed routings, main against the change): trce **5.80 % shorter** in geometric
+mean: iwls05-sasc at High 5.048 → 4.409 ns (−12.7 %), itc99-b13 at High 6.329 → 5.720 (−9.6 %), fpu-adder 10.381 → 9.621
+(−7.3 %, both efforts), itc99-b11 −1.4 %; iwls05-sasc at Normal 5.063 → 5.293 (+4.5 %: one level less by the estimate,
+slower routed). Every DRC 0 errors and 0 warnings, xdl2ncd no warning, every `.bit` byte-identical to ISE's bitgen (CRC
+on and off).
+
+Still not shallower: vtr-stereovision3's set of a counter (a 7-leaf function of its state machine, no disjoint
+decomposition), iwls05-usb-phy (10 of its 20 critical ends), the EPFL designs' ends of more than 12 leaves.
+
 ## 4:1 multiplexers in the wider mapping (#54)
 
 The EPFL barrel shifter (`bar`, 128 bits shifted by 7, written as gates: decoded 4:1 multiplexers on the shift
