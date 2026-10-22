@@ -1,9 +1,10 @@
 // Silinx - placement and routing of a schematic made from HDL (#405: out of schdoc.js): the symbols and I/O markers
 // laid out by layers (or by the graph layout given), then the wires routed square between their pins, around the
-// symbols. schdoc.js re-exports what it exported. Isomorphic ES module: no DOM and no Node APIs.
+// symbols (a path that came out overlapping routed again, core/schpath.js, #948). schdoc.js re-exports what it exported. Isomorphic ES module: no DOM and no Node APIs.
 import {
   SIDE_V, joinWires, key, netlist, onSeg, portBox, r10, snap, symbolBox, symbolDef, symbolPins
 } from './schdoc.js';
+import { segPoints, untangleWires, wireGrid } from './schpath.js';
 
 // ===================================================================== placement & routing
 function epPos(doc, ep, modules, cache) {
@@ -167,6 +168,7 @@ export async function placeAndRoute(doc, conns, { layout, modules, nk }) {
       }
       const wires = [], labels = [];
       const netWires = [];   // [net, its wire ids]
+      const labelAt = [];    // [{ L: the wire's points from the driver, ids: its net's wires, net }]
       perNet.forEach((polys, k) => {
         const n = conns[k];
         const lines = mergeNetWires(polys);
@@ -176,19 +178,25 @@ export async function placeAndRoute(doc, conns, { layout, modules, nk }) {
         if (!n.name.startsWith('__n') && !n.eps.some(e => e.port)) {
           const src = n.drivers[0] || n.eps[0];
           const a = epPos(doc, src, modules, cache);
-          // put the label on the wire that starts at the driver pin, a little away from it
+          // put the label on the wire that starts at the driver pin, a little away from it (where, once all the
+          // wires are drawn: on no other net's wire, #948)
           const w0 = lines.find(L => (L[0].x === a.x && L[0].y === a.y) || (L[L.length - 1].x === a.x && L[L.length - 1].y === a.y)) || lines[0];
-          if (w0) {
-            const L = w0[0].x === a.x && w0[0].y === a.y ? w0 : w0.slice().reverse();
-            const b = L[1];
-            const d = Math.sign(b.x - a.x) * Math.min(20, Math.abs(b.x - a.x)) || 0, dy = Math.sign(b.y - a.y) * Math.min(20, Math.abs(b.y - a.y)) || 0;
-            labels.push({ id: `L${labels.length + 1}`, x: a.x + d, y: a.y + dy, net: n.name });
-          }
+          if (w0) labelAt.push({ L: w0[0].x === a.x && w0[0].y === a.y ? w0 : w0.slice().reverse(), ids, net: n.name });
         }
       });
+      for (const { L, ids, net } of labelAt) {
+        const g = wireGrid({ symbols: doc.symbols, ports: doc.ports, labels, wires: wires.filter(w => !ids.has(w.id)) }, { modules });
+        const pts = [];
+        for (let i = 0; i + 1 < L.length; i++) for (const q of segPoints(L[i], L[i + 1])) if (!pts.some(p => p.x === q.x && p.y === q.y)) pts.push(q);
+        const free = pts.slice(1).filter(q => { const k = key(q.x, q.y); return !g.h.has(k) && !g.v.has(k) && !g.vtx.has(k) && !g.labels.has(k) && !g.fixed.has(k); });
+        const q = free.find(p => Math.abs(p.x - L[0].x) + Math.abs(p.y - L[0].y) >= 20) || free[0] || pts[Math.min(2, pts.length - 1)];
+        labels.push({ id: `L${labels.length + 1}`, x: q.x, y: q.y, net });
+      }
       doc.wires = wires; doc.labels = labels;
       // each net's wires joined where they branch and at its pins (#678)
       for (const [n, ids] of netWires) joinWires(doc, n.eps.map(e => epPos(doc, e, modules, cache)), ids);
+      // a path snapped onto another wire, over a pin or through a body routed again around them (#948)
+      untangleWires(doc, { modules });
       done = true;
       // verify connectivity; fall back to labelled stubs for nets that came out wrong
       const bad = verifyImport(doc, conns, modules, nk);
