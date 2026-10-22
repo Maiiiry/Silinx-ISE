@@ -18,7 +18,7 @@ const MAX_FILE = 1000, MAX_FUNCTION = 300;
 const BIG_FILES = new Set([
   'core/asm-from-hdl.js', 'core/asm.js', 'core/elab-expr.js', 'core/elaborate.js',
   'core/fpga/timing.js', 'core/fsm.js', 'core/interp.js', 'core/isesch.js', 'core/logic.js',
-  'core/synth-open.js', 'core/verilog/parser.js', 'core/vhdl/parser.js', 'server/devices.js',
+  'core/synth-open.js', 'core/vhdl/parser.js', 'server/devices.js',
   'web/js/drawings.js', 'web/js/wizards.js',
 ]);
 const BIG_FUNCTIONS = new Set([
