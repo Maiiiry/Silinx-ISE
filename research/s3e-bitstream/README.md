@@ -61,6 +61,7 @@ reference design implemented by ISE (`top.xdl`, `top.bit`, from `top.v` / `top.u
 | `measure-846.sh` (`gen-sidebufg.mjs bufgmux1-846.json`) | #846: a BUFGMUX_1's DISABLE_ATTR HIGH on each of the 24 global buffers: BUFGMUX_1 designs implemented by ISE, the setting set back to LOW on one buffer at a time (`gen-sitevar.mjs`, `ana-sitevar.mjs`) |
 | `dcm-pads.mjs`, `gen-dcmpad.mjs`, `measure-92.sh` | #92: every pad's dedicated path to a DCM's CLKIN and the switches on it the database lacks; designs whose DCMs take CLKIN from each of their clock pads in turn, implemented by ISE and measured by PIP drop |
 | `gen-dcmomux.mjs`, `measure-dcmomux.sh` | #2: the DCMs' output multiplexer (`DCM_<output> -> OMUXk`); designs with every output of every DCM through each line, its BUFG LOC'd on the line's buffer, implemented by ISE and measured by PIP drop (`--list`: the pairs and the unknown ones) |
+| `gen-bramclk.mjs`, `gen-clkpad.mjs`, `measure-bramclk.sh` | #2: the block RAMs' and multipliers' clock pins from every global line (`GCLKk -> BRAM_CLKj`) and the global clock pads' dedicated paths to the top and bottom buffers (`CKIk -> GCLKj`); designs implemented by ISE, measured by PIP drop (`--list`: the pairs and the unknown ones) |
 | `pip-exceptions.mjs` | The PIPs a tile type's features offer that some or all of its tiles do not have (#74), from the device descriptions, checked with ISE's arc probe: `absent` / `absentIn` in `db/s3e-tiles.json` and `db/<device>-tiles.json`, honoured by the router |
 | `impl-remote.sh`, `who-sets.mjs`, `gen-sitedrop.mjs`, `ana-sitedrop.mjs`, `gen-iorand.mjs`, `clkh-ll.mjs`, `ll-splitters.mjs`, `dcm-mirror.mjs` | Stage F: `ise-impl.sh` on the remote machine for any part (`PART`); which feature of the database sets a bit; the settings of I/O, DCM and clock-buffer sites removed one at a time from a design routed by ISE; every pad at random settings; the XC3S1200E's long-line splitters (CLKH_LL's; the others', #709); the other DCMs' settings as mirror images of the top-left one's |
 
@@ -1117,6 +1118,38 @@ bank: `gen-iobidir.mjs` now gives the clock the design's standard).
   at the same place on the XC3S100E, XC3S500E and XC3S1200E): byte-identical to ISE's bitgen, CRC on and off, no DRC error or warning, no
   warning of xdl2ncd or of the open flow.
 - Runtime: 6 designs implemented by ISE (2 minutes), 30 xdl + bitgen runs (2 minutes), 8 checks of the open flow.
+
+### The block RAMs' clocks and the clock pads' paths (2026-10-22, #2)
+
+Found with the device's coverage, not in the issue's list: of the switches into the block RAMs' and multipliers' clock
+pins (`GCLKk -> BRAM_CLKj` of the block-RAM interconnect tiles: BRAM1_SMALL's BRAM_CLK2 / BRAM_CLK3 are a RAMB16's CLKA /
+CLKB, BRAM2_SMALL's BRAM_CLK0 a MULT18X18SIO's CLK) the database had 4 of 24, the lines the designs so far happened to
+use. Of the eight top and bottom global buffers, two reached a CLKA and one a CLKB or a multiplier's CLK, so the placer
+refused a design with two clocks on block-RAM ports B or on registered multipliers ("no block RAM site whose clock
+pins the lines of … reach"). And of the sixteen dedicated paths from the global clock pads to those buffers
+(`CLKT_CKIk -> CLKT_GCLKj`, `CLKB_CKIk -> CLKB_GCLKj`: two pads per buffer) it had 3.
+
+- **Designs** (implemented by ISE from HDL): `gen-bramclk.mjs` gives every clock pin of every block RAM and multiplier
+  the line of a switch not measured yet (eight clocks, each on a BUFG LOC'd on a top or bottom buffer, their pads
+  through general routing: `CLOCK_DEDICATED_ROUTE = FALSE`); on the XC3S250E twice, the switches on other sites the
+  second time, once on the XC3S1200E. `gen-clkpad.mjs` puts each buffer on each of its two pads (two rounds).
+- **Measured** (`measure-bramclk.sh`): every PIP of the 10 routed designs removed by codewords (`gen-pipdrop.mjs`, 210
+  xdl + bitgen runs), `ana-pipdrop.mjs`, `pips-to-db.mjs`. Kept in `measured/learn-18bram-clk-pips.json`: the 24
+  block-RAM clock switches (two bits each, a row and a column of the tile's clock multiplexer: `GCLK0 -> BRAM_CLK2`
+  `4,44 4,46`, … `GCLK7 -> BRAM_CLK2` `4,38 4,45`) and the 15 pad paths of CLKT / CLKB measured (one bit each), the same
+  on both devices, the known ones as before.
+- **Result:** every top and bottom buffer reaches every block RAM's CLKA and CLKB and every multiplier's CLK on the
+  four devices, and every one of the sixteen pad paths is known. The 10 designs are byte-identical to ISE's bitgen
+  (the XC3S1200E's with #709's splitters). `test/fixtures/open-flow/feat_bram_clocks` (four clocks, each on a block RAM's
+  port B and a multiplier's registers) is refused with main's database and routes now, on lines 4-7. It and the
+  fixtures of the block RAMs, multipliers and clocks (feat_bram, hard_prim, feat_mult, feat_mult_chain, feat_constmult,
+  feat_const_bram, feat_const_mult, feat_clocks12, feat_manual_clock) are byte-identical to ISE's bitgen (CRC on and off),
+  DRC 0 errors, 0 warnings.
+- **The placer's choices that change:** a clock LOC'd on M4 / N9 (the bottom GCLK pin) takes its own buffer,
+  BUFGMUX_X2Y1, on its dedicated path, also for block RAMs and multipliers (before: BUFGMUX_X2Y11 through general
+  routing, with a warning, #56); feat_dcm_bufgin's clock goes on B7 / D9 and BUFGMUX_X1Y10 (before B8 / C8). Checked
+  against ISE: the clock fixtures on the four devices (feat_dcm_bufgin, feat_clocks12), feat_constmult on M4, feat_dcm,
+  feat_dcm_pads, feat_side_clock: byte-identical, DRC 0 errors, 0 warnings.
 
 ### The PIPs a tile does not have (2026-10-13, #74)
 

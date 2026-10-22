@@ -1,6 +1,6 @@
 // The open-flow fixtures of the hard blocks (test/fixtures/open-flow: block RAMs, multipliers, DCMs (two of
 // them on clock pads' dedicated paths of their own, #92), their control pins tied to constants, #50; a pad's global
-// buffer into a DCM's CLKIN, #94; input registers on pads whose neighbour is unused, #751; twelve clocks, #95; two side GCLK pins on their own side buffers, #641; shift registers, fixed and read at a variable tap, #5, chained through Q15, #2; multipliers cascaded through BCIN, #2; a manual clock, a button
+// buffer into a DCM's CLKIN, #94; input registers on pads whose neighbour is unused, #751; twelve clocks, #95; two side GCLK pins on their own side buffers, #641; shift registers, fixed and read at a variable tap, #5, chained through Q15, #2; multipliers cascaded through BCIN, #2; four clocks on block RAMs' ports and multipliers, #2; a manual clock, a button
 // through the general routing into a global buffer, #347; paths across the XC3S1200E on its long-line splitters, #709) with Xilinx ISE 14.7 (opt-in, as
 // test/ise/examples.test.js: it needs ISE's Docker image): the Silinx toolchain's routed design of
 // each passes ISE's design rule check with no error and no warning, and Silinx's bitstream is
@@ -21,7 +21,7 @@ import { deviceSites } from '../../core/fpga/place.js';
 const enabled = process.env.SILINX_ISE_TESTS === '1';
 // the host only from the environment (never written in a file)
 const skip = !enabled ? 'set SILINX_ISE_TESTS=1 to run the ISE tests' : !process.env.SILINX_ISE_HOST ? 'set SILINX_ISE_HOST=user@host (the machine with the ISE Docker image), or local (the image here)' : false;
-const FIXTURES = ['feat_bram', 'feat_mult', 'feat_mult_chain', 'feat_constmult', 'feat_dcm', 'feat_dcm_pads', 'feat_iob_plain', 'feat_iob_lines', 'feat_iob_pair', 'feat_iob_lone', 'feat_iob_ddr', 'feat_iob_ddr_v', 'feat_iob_bidir', 'feat_iob_bidir_v', 'feat_dcm_bufgin', 'feat_clocks12', 'feat_side_clock', 'feat_bufgmux', 'feat_bufgmux_1', 'hard_prim', 'feat_const_bram', 'feat_const_mult', 'feat_const_dcm', 'feat_srl', 'feat_srl_var', 'feat_srl_chain', 'feat_manual_clock', 'feat_ll_splitters'];
+const FIXTURES = ['feat_bram', 'feat_mult', 'feat_mult_chain', 'feat_constmult', 'feat_dcm', 'feat_dcm_pads', 'feat_iob_plain', 'feat_iob_lines', 'feat_iob_pair', 'feat_iob_lone', 'feat_iob_ddr', 'feat_iob_ddr_v', 'feat_iob_bidir', 'feat_iob_bidir_v', 'feat_dcm_bufgin', 'feat_clocks12', 'feat_side_clock', 'feat_bufgmux', 'feat_bufgmux_1', 'hard_prim', 'feat_const_bram', 'feat_const_mult', 'feat_const_dcm', 'feat_srl', 'feat_srl_var', 'feat_srl_chain', 'feat_manual_clock', 'feat_ll_splitters', 'feat_bram_clocks'];
 
 test('the open-flow fixtures of the hard blocks: Silinx\'s bitstream byte-identical to ISE\'s, ISE\'s DRC clean, no warning', { skip, timeout: 60 * 60000 }, () => {
   const r = spawnSync(process.execPath, [path.join(ROOT, 'scripts/check-open-flow.mjs'), ...FIXTURES.map(f => path.join(ROOT, 'test/fixtures/open-flow', f))], { encoding: 'utf8', env: process.env });
