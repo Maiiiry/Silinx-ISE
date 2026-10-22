@@ -24,6 +24,7 @@ showed it.
 | `model.mjs` | Joins as rules in switch-box coordinates, applied to every switch box: the predicted joins |
 | `hypotheses.mjs` | Test designs for joins: one net per hypothesis; ISE's DRC says which are joined. A tile with no slice is driven from a neighbouring CLB across known joins |
 | `gen-observe.mjs` | Random designs over the CLB slices for ISE to route |
+| `gen-obshdl.mjs` | Observation designs in HDL for ISE to implement: every block RAM's and multiplier's outputs, every pad's input (round 5) |
 | `build.mjs` | Measurements -> the packed format of the shipped graphs (`core/fpga/device.js`) |
 | `prototype.mjs` | The phase-2 prototype: observe, predict, tests, verdicts, build the measured CLB array, compare it with the shipped graph; `score`: the tests' verdicts against the shipped graph |
 
@@ -365,3 +366,25 @@ untestable**: of them only 247 are in a tile with an observed source. The observ
 (the block-RAM OMUX joins are 987 of the 2671) and their pads' inputs reach few of the I/O tiles' hexes. The next step:
 observation designs that use every block RAM's outputs and every pad's input (ISE-routed HDL, as `impl-remote.sh io
 bram`), then the same rounds.
+
+### Round 5: every block RAM, every multiplier, every pad (2026-10-22)
+
+Observation designs for the sources round 4 lacked (`gen-obshdl.mjs`, implemented by ISE from HDL): `bram`, the 12
+block RAMs (LOC'd), every data and parity output into a register; `mult`, the 12 multipliers (LOC'd), every output
+bit into a register; `pads`, 90 of the 92 pads, each an input into the logic (65 of them bidirectional, their outputs
+and enables from registers). Observed with the eight designs before: 11 designs, 107 489 distinct PIPs, 2073 sites,
+45 864 joins. Then the join tests of the 3388 joins round 3 left untestable, from the IOB and block-RAM sources
+(`SOURCES=1 MAXJOINS=3 MAXDEPTH=5`), ISE 14.7 on the Mac mini (`ise-remote.sh` now takes `RWBASE`, a folder Docker
+Desktop shares, #482):
+
+| Round | Tests (designs, ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 5 | 986 (17, 58 s): 270 new, 716 of round 4's again | new: 184 joins, 86 islands | **all**; round 4's 716 the same verdicts |
+
+**2401 stay untestable** (CLB-I/O 913, I/O-I/O 322, block RAM-CLB 954, block RAM-block RAM 157, block RAM-I/O 55;
+1056 of them with an end on a block-RAM tile's OMUX). The new sources reach few of them: the block RAMs' and
+multipliers' outputs leave through the few output-multiplexer lines ISE's router chose, and a pad's input reaches its
+I/O tile's hexes only where ISE routed it that way. To reach them: tests that drive each output
+line on purpose (a routed path chosen by Silinx, from a block-RAM output pin through each OMUX line, as
+`joinTestDesigns` does from slices), the next round. Rounds 1-5: 22 063 tests, no disagreement with the shipped graph.
+
