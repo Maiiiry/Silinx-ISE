@@ -170,6 +170,15 @@ uiTest('Edit ▸ Cut / Copy / Paste / Delete in the ASM, FSM and Petri net edito
   const D = '.doc:not([hidden])';
   const model = () => page.eval(() => { const d = window.Silinx.active; return (d.asmEditor || d.fsmEditor || d.petriEditor).getModel(); });
   const focus = (sel) => page.eval((x) => document.querySelector(x).focus(), sel);
+  // the centre of an element once the view is fitted (an editor fits it on a frame after it is drawn): the same twice in
+  // a row; a click before that missed the element, now and then (#894)
+  const settled = async (sel) => {
+    const at = () => page.eval((x) => { const r = document.querySelector(x).getBoundingClientRect(); return `${r.left + r.width / 2},${r.top + r.height / 2}`; }, sel);
+    let p0 = null;
+    for (let i = 0; i < 20; i++) { const p1 = await at(); if (p1 === p0) break; p0 = p1; await new Promise((r) => setTimeout(r, 100)); }
+    const [x, y] = p0.split(',').map(Number);
+    return { x, y };
+  };
   // ASM: nothing selected → Cut / Copy / Delete off, nothing to paste; Ctrl+A, Edit ▸ Copy, Edit ▸ Paste
   await page.eval(() => window.SilinxApp.openAsm('src/ctl.asm.json'));
   await page.waitFor((d) => window.Silinx.active?.id === 'asm:src/ctl.asm.json' && document.querySelector(`${d} [data-node]`), [D], { what: 'the ASM chart' });
@@ -200,8 +209,8 @@ uiTest('Edit ▸ Cut / Copy / Paste / Delete in the ASM, FSM and Petri net edito
   // FSM: a state selected (a click), Ctrl+C, Ctrl+V; a transition: Copy off, Delete on
   await page.eval(() => window.SilinxApp.openFsm('src/det.fsm.json'));
   await page.waitFor((d) => window.Silinx.active?.id === 'fsm:src/det.fsm.json' && document.querySelector(`${d} [data-state=s2] .fsm-circle`), [D], { what: 'the FSM' });
-  const c = await page.eval((d) => { const b = document.querySelector(`${d} [data-state=s2] .fsm-circle`).getBoundingClientRect(); return { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }, D);
-  await page.click(c);
+  await page.click(await settled(`${D} [data-state=s2] .fsm-circle`));
+  await page.waitFor(() => window.Silinx.active.fsmEditor.canCopy(), [], { what: 'the state selected' });
   m = await editItems(page);
   assert.deepEqual([m.Cut, m.Copy, m.Delete], [true, true, true]);
   await focus(`${D} .fsm-editor`);
@@ -216,12 +225,7 @@ uiTest('Edit ▸ Cut / Copy / Paste / Delete in the ASM, FSM and Petri net edito
   // Petri net: a place selected, Edit ▸ Cut, Edit ▸ Paste: it comes back (its arcs do not: they lead to the rest)
   await page.eval(() => window.SilinxApp.openPetri('src/net.pn.json'));
   await page.waitFor((d) => window.Silinx.active?.id === 'pn:src/net.pn.json' && document.querySelector(`${d} [data-id=p2] circle`), [D], { what: 'the Petri net' });
-  // (where the place is once the view is fitted: the same twice in a row)
-  const at = () => page.eval((d) => { const r = document.querySelector(`${d} [data-id=p2] circle`).getBoundingClientRect(); return `${r.left + r.width / 2},${r.top + r.height / 2}`; }, D);
-  let p0 = null;
-  for (let i = 0; i < 20; i++) { const p1 = await at(); if (p1 === p0) break; p0 = p1; await new Promise((r) => setTimeout(r, 100)); }
-  const [px, py] = p0.split(',').map(Number);
-  await page.click({ x: px, y: py });
+  await page.click(await settled(`${D} [data-id=p2] circle`));
   await page.waitFor((d) => document.querySelector(`${d} [data-id=p2]`)?.classList.contains('sel'), [D], { what: 'the place selected' });
   assert.equal((await editItems(page)).Cut, true);
   await page.menu('Edit', 'Cut');
