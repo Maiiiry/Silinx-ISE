@@ -19,7 +19,7 @@ const BIG_FILES = new Set([
   'core/asm-from-hdl.js', 'core/asm.js', 'core/elab-expr.js', 'core/elaborate.js',
   'core/fpga/timing.js', 'core/isesch.js',
   'core/synth-open.js', 'server/devices.js',
-  'web/js/drawings.js', 'web/js/wizards.js',
+  'web/js/drawings.js',
 ]);
 const BIG_FUNCTIONS = new Set([
   'core/asm-from-hdl.js asmFromHdl', 'core/asm-hdl-analysis.js analyzeModule', 'core/asm.js analyze',
