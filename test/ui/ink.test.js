@@ -62,6 +62,15 @@ uiTest('Handwritten expressions: a truth table from the New Source wizard, the e
   await page.waitDialog('Handwritten Expression');
   // the pad: a finger writes on it, the page does not pan
   assert.equal(await page.eval((d) => getComputedStyle(document.querySelector(`${d} .ink-canvas`)).touchAction, D), 'none');
+  // an iPad's pen (#1086): the dialog's text not selected by it, its fields still editable, the pad's touches' own
+  // actions cancelled
+  assert.deepEqual(await page.eval((d) => {
+    const dlg = document.querySelector(d).closest('.dlg'), sel = (e) => getComputedStyle(e).userSelect;
+    const t = document.querySelector(`${d} .ink-canvas`), r = t.getBoundingClientRect();
+    const touch = new Touch({ identifier: 9, target: t, clientX: r.left + 20, clientY: r.top + 20 });
+    const ev = (type) => { const e = new TouchEvent(type, { cancelable: true, bubbles: true, touches: [touch], targetTouches: [touch], changedTouches: [touch] }); t.dispatchEvent(e); return e.defaultPrevented; };
+    return [sel(dlg.querySelector('.hint')), sel(dlg.querySelector('.ink-text')), ev('touchstart'), ev('touchmove')];
+  }, D), ['none', 'text', true, true]);
   // no text field in focus (an on-screen keyboard would cover the pad)
   await page.waitFor((d) => !document.querySelector(d).contains(document.activeElement), [D], { what: 'nothing in focus' });
   // F and = with the mouse, A·B' with a finger, + C with a pen
