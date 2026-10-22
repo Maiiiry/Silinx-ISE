@@ -36,7 +36,7 @@ function injectStyle() {
 .emu-bar { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-bottom: 1px solid var(--border, #aaa); background: var(--panel-alt, #f7f7f7); flex-wrap: wrap; }
 .emu-bar .sep { width: 1px; height: 20px; background: var(--frame); margin: 0 4px; }
 .emu-bar .stat { margin-left: auto; color: var(--grey-3); font-family: var(--mono, monospace); font-variant-numeric: tabular-nums;
-  flex: 1 1 0; min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  flex: 1 1 0; min-width: min(100%, 84ch); text-align: right; }   /* (the whole line, t = … ns · … cycles · … kHz (…% of real time): a row of its own when the controls leave it no room, two lines on a window too narrow for one, never cut, #918) */
 .emu-main { display: flex; gap: 12px; padding: 12px; flex-wrap: wrap; align-items: flex-start; }
 .emu-board { background: linear-gradient(#25603d, #1d4f32); border-radius: 10px; padding: 14px 18px 12px; color: #e9f3ea; box-shadow: 0 2px 8px #0005; min-width: 520px; }
 .emu-board h3 { margin: 0 0 10px; font-size: 13px; letter-spacing: .04em; color: #fff; font-weight: 600; }
