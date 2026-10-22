@@ -348,8 +348,8 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await reloadToolchain(page);
   await page.click('input[name=view][value=impl]');
   assert.deepEqual((await procLabels(page)).find((p) => p.label === 'View Technology Schematic'), { label: 'View Technology Schematic', disabled: false, title: '' });
-  await checkTechSchematic(page, { top: 'top', blocks: ['u_pre', 'u_speed', 'u_knight', 'u_display'], inside: 'u_pre',
-    message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 511 cells in 4 block(s): u_display (61), u_knight (52), u_speed (203), u_pre (67)." });
+  await checkTechSchematic(page, { top: 'top', blocks: ['u_pre', 'u_speed', 'u_knight', 'u_count', 'u_display'], inside: 'u_pre',
+    message: "Technology Schematic of 'top': the netlist of the Silinx toolchain's synthesis (build/open/top.json), 511 cells in 5 block(s): u_display (61), u_knight (52), u_speed (216), u_count (84), u_pre (67)." });
   assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
   // Portuguese: the view's bar, its tab and the LUT's function have no untranslated text (the netlist's names apart)
   await page.eval(TEXTS);
@@ -366,7 +366,7 @@ uiTest('open mode: View Technology Schematic of blinky and pong without ISE: the
   await page.openProject('OpenTechPong');
   await page.click('input[name=view][value=impl]');
   const pong = await checkTechSchematic(page, { top: 'pong', blocks: ['display', 'dbL', 'dbR', 'db1', 'db2', 'timer_logic'], inside: 'dbL',
-    message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1009 cells in 21 block(s): " });
+    message: "Technology Schematic of 'pong': the netlist of the Silinx toolchain's synthesis (build/open/pong.json), 1009 cells in 19 block(s): " });
   // the cells and nets as the netlist writes them (#131): pong's lockL and pressL (Verilog names), not lockl, pressl
   assert.ok(pong.top.syms.some((x) => x.name === 'lockL_logic' && x.module === 'lockL_logic'), pong.top.syms.map((x) => x.name).join(' '));
   // (with Yosys 0.70 pressL's flip-flop is in its block pressL_logic, not a cell pressL_FDRE of the top module)
@@ -446,9 +446,9 @@ uiTest('RTL and Technology Schematic in Portuguese: the palette, its tooltips, t
   await page.treeRow('#procs', 'View Technology Schematic', { dbl: true, exact: true });
   await waitTech(page, 'top');
   const tech = await viewerTexts(page);
-  assert.deepEqual(tech.kinds, ['wire', 'sym:module', 'sym:constant', 'sym:slice', 'port', 'label']);
+  assert.deepEqual(tech.kinds, ['wire', 'sym:module', 'sym:constant', 'sym:slice', 'sym:busjoin', 'port', 'label']);
   assert.deepEqual(tech.untranslated, []);
-  for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo LUT4', 'Pinos (5)', 'Função do LUT (INIT)'])
+  for (const s of ['Propriedades', 'Esquemático Tecnológico (só de leitura): a netlist pós-síntese', 'Módulo LUT3', 'Pinos (4)', 'Larguras das entradas (MSB primeiro)', 'Função do LUT (INIT)'])
     assert.ok(tech.pt.has(s), `${s}: ${[...tech.pt].join(' | ')}`);
   assert.deepEqual((await page.consoleText()).split('\n').filter((l) => /warning|error/i.test(l)), []);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });

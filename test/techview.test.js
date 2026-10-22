@@ -112,6 +112,25 @@ test('technologyNetlist: the instances to group by can be given (the elaborated 
   assert.equal(r.text, r.flat);
 });
 
+// #1003: a signal of the top driven from inside an instance (the reader names the net by its shortest name, the
+// top's): the cell in that instance, not on the top level
+test('technologyNetlist: a cell driving a signal of the top that is also a signal inside an instance belongs to that instance (#1003)', () => {
+  const nl = JSON.parse(JSON.stringify(JSON_NL));
+  const before = technologyNetlist(nl).model.cells.find(c => c.type === 'RAMB16_S1');
+  assert.equal(before.group, null, 'mem_out: a signal of the top');
+  nl.modules.top.netnames['u_m.dout'] = { hide_name: 0, bits: [15] };
+  const r = technologyNetlist(nl);
+  assert.equal(r.model.cells.find(c => c.type === 'RAMB16_S1').group, 'u_m');
+  assert.deepEqual(Object.keys(r.groups).sort(), ['u_m', 'u_r']);
+  assert.ok(r.model.nets.some(n => n.name === 'mem_out'), 'the net keeps the top\'s name');
+  // two instances' names on one net: the shortest's; a hidden name is not one
+  nl.modules.top.netnames['u_long.dout_reg'] = { hide_name: 0, bits: [15] };
+  nl.modules.top.netnames['u_h.x'] = { hide_name: 1, bits: [15] };
+  assert.equal(technologyNetlist(nl).model.cells.find(c => c.type === 'RAMB16_S1').group, 'u_m');
+  // the instances given: a name inside one not given does not count
+  assert.equal(technologyNetlist(nl, { groups: ['u_r', 'u_long'] }).model.cells.find(c => c.type === 'RAMB16_S1').group, 'u_long');
+});
+
 test('lutFunction: a LUT\'s INIT as an equation (ISE\'s notation) and a truth table', () => {
   assert.deepEqual(lutFunction('X"AC"', 3), {
     inputs: ['I2', 'I1', 'I0'], equation: 'O = I0*I2 + I1*!I2',
@@ -140,8 +159,8 @@ test('lutFunction: a LUT\'s INIT as an equation (ISE\'s notation) and a truth ta
 test('the examples blinky and pong, synthesized by Yosys: technology netlists by instance that compile and are drawn', { timeout: 300000 }, async () => {
   const ELK = (await import('elkjs/lib/elk.bundled.js')).default;
   const elk = new ELK();
-  // (blinky's BCD counter u_count drives the top's signal digits: its cells in the top's own logic)
-  for (const [name, want] of [['blinky', { u_pre: 67, u_speed: 203, u_knight: 52, u_display: 61 }], ['pong', null]]) {
+  // (blinky's BCD counter u_count drives the top's signal digits, and u_speed its step: their cells in them, #1003)
+  for (const [name, want] of [['blinky', { u_pre: 67, u_speed: 216, u_knight: 52, u_count: 84, u_display: 61 }], ['pong', null]]) {
     const ex = example(name);
     const design = elaborate(compile([...primitiveSources(ex.design), ...ex.design]), ex.project.top);
     const syn = await synthesizeOpen(design, { run: yosysNode });
