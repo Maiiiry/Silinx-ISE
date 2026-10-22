@@ -276,6 +276,9 @@ In short:
   or its Platform Flash PROM so that the design starts at power-up, over USB (WebUSB: Chrome or Edge on
   a computer, Chrome on an Android tablet). Projects are kept in the browser, or (Chrome / Edge) in a
   folder on the disk with *File ▸ Open Workspace Folder…*, in the full application's project format.
+  Chrome or Edge can **install the site as an app** (*Install app*, or *Add to Home screen* on Android: a
+  tablet, a classroom's interactive display): it opens in a window of its own, and once a project has
+  been opened it also opens and implements with no network.
   **`Silinx-ISE.html`** from the [latest release](https://github.com/pmnmalo/Silinx-ISE/releases/latest)
   is the same page in one file, to keep or open offline (its synthesis tools come from the site the
   first time; programming the board needs the site's address). For a course page (Moodle…), link the site's address as a URL: an HTML file uploaded to

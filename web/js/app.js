@@ -11,6 +11,7 @@ import { startI18n, t } from './i18n.js';
 import { applyPrefs, toggleTheme } from './modern.js';
 import { initDrawer, drawerGiveWay, leftTabClicked } from './narrow.js';
 import { initTasks } from './tasks.js';
+import { registerServiceWorker } from './pwa.js';
 import { createHistory } from './history.js';
 import { viewHdl } from '/core/view-hdl.js';
 import { modulesFromLibrary } from '/core/schdoc.js';
@@ -865,6 +866,8 @@ export function setView(v) {
 async function boot() {
   applyPrefs();
   startI18n();
+  // the site's page: installable as an app, kept for offline use (#1051)
+  if (globalThis.SILINX_STANDALONE) registerServiceWorker();
   document.querySelectorAll('.ico-inline[data-icon]').forEach(e => { e.innerHTML = icons[e.dataset.icon] || ''; });
   setupMenus();
   setupToolbar();
