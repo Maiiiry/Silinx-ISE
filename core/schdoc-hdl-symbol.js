@@ -2,7 +2,7 @@
 // entity and its instance, a device primitive's UNISIM instance with its attributes, a gate, a flip-flop, the other
 // kinds by cases (schdoc-hdl-cases.js, schdoc-hdl-more.js). Isomorphic ES module: no DOM and no Node APIs.
 import { SYMBOLS, newDoc, symbolPins } from './schdoc.js';
-import { genericValue, initWords, primitiveOf } from './primitives.js';
+import { componentDecl, genericValue, initWords, primitiveOf } from './primitives.js';
 import { mountSymbolCases } from './schdoc-hdl-cases.js';
 import { mountSymbolCasesMore } from './schdoc-hdl-more.js';
 import { BLOCK_MARK, generateHdl } from './schdoc-hdl.js';
@@ -11,7 +11,7 @@ import { BLOCK_MARK, generateHdl } from './schdoc-hdl.js';
 export function mountSymbolHdl(ctx) {
   const {
     INN, OUTN, PW, assign, blockLang, body, ci, clsOf, declared, defs, diags, doc, extra, fresh, inNet, init, isBlock,
-    isolated, lang, modules, name, netName, netType, nk, nl, outRead, tie, used, vtype, warnOpen, wrapV, zero, setUnisim
+    isolated, lang, modules, name, netName, netType, nk, nl, outRead, tie, used, vtype, warnOpen, wrapV, zero, setUnisim, addComponent
   } = ctx;
 
   // the blocks' own entities: one per kind and parameters (and the pins it uses)
@@ -78,10 +78,10 @@ export function mountSymbolHdl(ctx) {
         return [q.name, n && !isolated(n) ? OUTN(s, q.name) : null];
       }
       const n = inNet(s, q.name);
-      // (an input its settings leave unused: open in Verilog, `.B()`, #893; VHDL ties it, UNISIM's component giving it no
-      // default, ISE's map warning PhysDesignRules:1135 then)
-      return [q.name, n ? outRead.get(n) || netName(n) : q.free && !ci ? null : lit(q.width, q.tie)];
+      // (an input its settings leave unused: open, #893; in VHDL through a component of its own giving it a default, #963)
+      return [q.name, n ? outRead.get(n) || netName(n) : q.free ? null : lit(q.width, q.tie)];
     });
+    if (ci && r.pins.some(q => q.free && conns.find(([k]) => k === q.name)[1] == null)) addComponent(r.name, componentDecl(r));
     for (const [x, y] of r.exclusive || []) {
       if (conns.find(([k]) => k === x)?.[1] && conns.find(([k]) => k === y)?.[1]) diags.push({ severity: 'error', message: `${s.name}: ${r.name}'s outputs ${x} and ${y} cannot both be used: connect one of them`, ref });
     }

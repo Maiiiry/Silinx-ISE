@@ -80,9 +80,13 @@ export const declarationMethods = {
         this.region?.names.push({ name, what: 'component', line: tok.line });
         this.acceptKw('is');
         if (this.acceptKw('generic')) this.guard(() => { this.parseGenericList(); this.expectOp(';'); });
-        if (this.acceptKw('port')) this.guard(() => { this.parsePortList(); this.expectOp(';'); });
+        // (its ports kept apart from the declarations, for the architecture: their defaults are those of an instance's
+        // open inputs, #963)
+        let ports = [];
+        if (this.acceptKw('port')) this.guard(() => { ports = this.parsePortList(); this.expectOp(';'); });
         this.expectKw('end');
         this.endOf('component');
+        (this.components ||= []).push({ name, ports });
         return [];
       }
       case 'pure': case 'impure': case 'function': case 'procedure': {

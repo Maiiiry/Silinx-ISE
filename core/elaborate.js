@@ -145,6 +145,7 @@ export function buildLibrary(parsedFiles) {
       lib.errors.push(...labelErrors(a.labels, names, a.file, { labels: false }));
     }
     ent.decls = [...(ent.decls || []), ...a.decls];
+    if (a.components) ent.components = a.components;
     ent.items = a.items;
     ent.uses = [...new Set([...(ent.uses || []), ...(a.uses || [])])];
     ent.archFile = a.file;
@@ -681,11 +682,19 @@ function elabChild(E, it) {
     for (const p of mod.ports) {
       // (a primitive's input left open on purpose in Verilog, `.B()` of a cascaded MULT18X18SIO: as XST, no warning, #893)
       if (E.lang === 'verilog' && String(mod.file || '').startsWith('<silinx>/') && openPorts.has(p.name)) continue;
+      // (VHDL: an input open whose component, declared in the architecture, gives it a default, #963)
+      if (E.lang === 'vhdl' && openPorts.has(p.name) && compDefault(E, it.module, p.name)) continue;
       if (p.dir === 'in' && !portConns.has(p.name) && !p.default)
         diag(E, `input port '${p.name}' of '${iname}' is not connected`, it.loc, 'warning');
     }
     E.inst.children.push(child);
   });
+}
+
+// Whether the component `comp` declared in the module being elaborated (VHDL) gives its port `port` a default
+function compDefault(E, comp, port) {
+  const c = (E.inst.mod?.components || []).find(d => d.name.toLowerCase() === String(comp).toLowerCase());
+  return !!c?.ports.find(q => q.name.toLowerCase() === port.toLowerCase())?.default;
 }
 
 // The bits of lvalue L from bit lo, w bits (a concatenation: the parts these bits fall in)
