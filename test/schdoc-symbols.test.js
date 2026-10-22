@@ -1,0 +1,43 @@
+// The schematic symbol library (#405: core/schdoc-symbols.js out of schdoc.js): schdoc.js still exports its names;
+// every symbol of the library, placed at each rotation, has its pins on the grid and in its box, their names unique;
+// an I/O marker's box holds its connection point, on every side and for every direction.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import * as schdoc from '../core/schdoc.js';
+import * as symbols from '../core/schdoc-symbols.js';
+
+test('#405 symbol library: schdoc.js exports the module\'s names', () => {
+  // (ROT_OK: schdoc.js's own, which it never exported)
+  for (const [k, v] of Object.entries(symbols)) if (k !== 'ROT_OK') assert.equal(schdoc[k], v, k);
+  assert.equal(schdoc.ROT_OK, undefined);
+  assert.ok(Object.keys(symbols.SYMBOLS).length > 100);
+});
+
+test('#405 symbol library: every symbol, every rotation: its pins on the grid, in its box, their names unique', () => {
+  const { SYMBOLS, symbolPins, symbolBox, normalizeDoc } = { ...symbols, normalizeDoc: schdoc.normalizeDoc };
+  let n = 0;
+  for (const type of Object.keys(SYMBOLS)) {
+    for (const rot of [0, 90, 180, 270]) {
+      const sym = normalizeDoc({ symbols: [{ id: 'S1', type, name: 'U1', x: 400, y: 400, rot, params: {} }] }).symbols[0];
+      const pins = symbolPins(sym), box = symbolBox(sym);
+      assert.equal(new Set(pins.map(p => p.name)).size, pins.length, `${type} ${rot}: pin names`);
+      for (const p of pins) {
+        assert.ok(p.x % 10 === 0 && p.y % 10 === 0, `${type} ${rot} ${p.name}: on the grid (${p.x}, ${p.y})`);
+        assert.ok(p.x >= box.x && p.x <= box.x + box.w && p.y >= box.y && p.y <= box.y + box.h, `${type} ${rot} ${p.name}: in the box`);
+        assert.ok(['in', 'out', 'inout'].includes(p.dir), `${type} ${p.name}: ${p.dir}`);
+      }
+      n++;
+    }
+  }
+  assert.equal(n, Object.keys(SYMBOLS).length * 4);
+});
+
+test('#405 symbol library: an I/O marker\'s box holds its connection point', () => {
+  for (const dir of ['in', 'out', 'inout']) {
+    for (const side of symbols.PORT_SIDES) {
+      const port = { id: 'P1', name: 'a', dir, side, width: 1, x: 200, y: 200 };
+      const b = symbols.portBox(port);
+      assert.ok(port.x >= b.x && port.x <= b.x + b.w && port.y >= b.y && port.y <= b.y + b.h, `${dir} ${side}`);
+    }
+  }
+});
