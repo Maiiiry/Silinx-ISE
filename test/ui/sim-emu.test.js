@@ -350,6 +350,34 @@ begin
   led <= a & b;
 end rtl;
 `;
+// #918: the status line (t = … ns · … cycles · … kHz (…% of real time)) at the bar's end was flex-basis 0 with no minimum
+// width: at some window widths the controls left it a few pixels or none, and it disappeared; now it takes a row of its
+// own then, the whole line shown (no ellipsis), in every interface
+uiTest('#918 board emulator: its status line whole at every window width (a row of its own when the controls leave no room), in every interface', E, async (page) => {
+  await emulatorProject(page, 'EmuStat', 'basys2', { 'src/cnt.vhd': EMU_COUNT }, 'cnt');
+  await page.waitFor(() => /^t = .* cycles .* kHz \(.*% of real time\)$/.test(document.querySelector('.doc:not([hidden]) .emu-bar .stat')?.textContent || ''), [], { what: 'the status line' });
+  const cut = [];
+  for (const ui of ['modern', 'classic', 'tasks']) {
+    await page.eval(async (u) => (await import('/js/modern.js')).setInterface(u), ui);
+    if (ui === 'tasks') { await page.waitFor(() => document.documentElement.dataset.layout === 'tasks'); await page.click('#task-switch .task-btn[data-task="emu"]'); }
+    for (let w = 600; w <= 1920; w += 20) {
+      await page.setViewport(w, 900);
+      // (a narrow screen's drawer, over the document, closed)
+      await page.eval(async () => { (await import('/js/narrow.js')).setDrawer(false, { remember: false }); });
+      await page.eval(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+      const st = await page.eval(() => {
+        const e = document.querySelector('.doc:not([hidden]) .emu-bar .stat'), r = e.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return { whole: r.width > 0 && e.scrollWidth <= e.clientWidth + 1, inside: r.left >= 0 && r.right <= innerWidth, seen: !!hit && e.contains(hit) };
+      });
+      if (!st.whole || !st.inside || !st.seen) cut.push(`${ui} ${w} px: ${JSON.stringify(st)}`);
+    }
+  }
+  assert.deepEqual(cut, [], 'the whole status line, inside the window, not covered');
+  await page.eval(async () => (await import('/js/modern.js')).setInterface('modern'));
+  await page.setViewport(1366, 768);
+}, { timeout: 300000, build: { commit: 'abc1234', date: '2026-10-21 12:00' } });
+
 uiTest('board emulator: a design with a combinational loop runs on the event-driven engine, the reason shown (and in Portuguese)', E, async (page) => {
   await emulatorProject(page, 'EmuLoop', 'basys2', { 'src/lp.vhd': EMU_LOOP }, 'lp');
   const b = await bar(page);
