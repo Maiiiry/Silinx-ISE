@@ -30,7 +30,7 @@ import { resourceOfPrimitive } from './resources.js';
 
 const tx = (en, pt) => ({ en, pt });
 // (vec: a vector of one bit in UNISIM, std_logic_vector(0 downto 0): the parity of a 9-bit port; free: an input the
-// primitive's settings leave unused, left open in Verilog when unconnected rather than tied, as ISE wants it, #893)
+// primitive's settings leave unused, left open when unconnected rather than tied, as ISE wants it, #893, #963)
 const pin = (name, dir, width, func, o = {}) => ({ name, dir, width, tie: dir === 'in' ? (o.tie ?? '0') : null, need: !!o.need, clock: !!o.clock,
   ...(o.vec ? { vec: true } : {}), ...(o.free ? { free: true } : {}), func });
 const int = (name, def, min, max, meaning) => ({ name, kind: 'int', default: def, min, max, meaning });
@@ -375,6 +375,21 @@ const realText = n => (Number.isInteger(n) ? n.toFixed(1) : String(n));
  * (out of range, not a number, not hexadecimal). A real has its decimal point (2.0); a boolean is TRUE / FALSE in
  * VHDL and "TRUE" / "FALSE" in Verilog (as Xilinx's Verilog UNISIM); a hexadecimal value X"…" / <bits>'h….
  */
+const VHDL_GENERIC_TYPES = { int: 'integer', real: 'real', string: 'string', bool: 'boolean', hex: 'bit_vector' };
+/**
+ * The VHDL component declaration of a primitive (primitiveOf's) whose free inputs have a default, for an instance that
+ * leaves one of them open (UNISIM's gives them none, so `B => open` is XST's HDLParsers:856, #963). Declared in the
+ * architecture it hides UNISIM's; its BOX_TYPE "PRIMITIVE", as UNISIM's, makes XST take it as the primitive (without
+ * it, Xst:2211 "black box" and Xst:753).
+ */
+export function componentDecl(r) {
+  const type = q => (q.width > 1 || q.vec ? `std_logic_vector(${q.width - 1} downto 0)` : 'std_ulogic');
+  const gens = r.generics.map(g => `${g.name} : ${VHDL_GENERIC_TYPES[g.kind]}`);
+  const ports = r.pins.map(q => `${q.name} : ${q.dir} ${type(q)}${q.free ? ` := ${q.width > 1 || q.vec ? "(others => '0')" : "'0'"}` : ''}`);
+  return [`component ${r.name}`, ...(gens.length ? [`  generic (${gens.join('; ')});`] : []), `  port (${ports.join(';\n        ')});`, 'end component;',
+    `attribute BOX_TYPE of ${r.name} : component is "PRIMITIVE";`].join('\n');
+}
+
 export function genericValue(g, v, lang) {
   const vl = lang === 'verilog';
   const s = String(v ?? '').trim();

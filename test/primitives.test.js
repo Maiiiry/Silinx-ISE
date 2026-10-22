@@ -329,17 +329,20 @@ test('a primitive\'s unconnected inputs: the ones it needs a warning, the others
   assert.deepEqual(mult('CASCADE', ['BCIN']), []);
   assert.deepEqual(mult('CASCADE', ['B']), ['warning: input pin BCIN of U1 (MULT18X18SIO) is not connected']);
   assert.deepEqual(mult('DIRECT', ['BCIN']), ['warning: input pin B of U1 (MULT18X18SIO) is not connected']);
-  // (#893) the cascade's B, which it does not use, open in Verilog: not tied to zeros (ISE's map warns PhysDesignRules:1135
-  // then); VHDL ties it (UNISIM's component gives B no default; a component of its own makes XST warn more: Xst:2211, 753)
+  // (#893, #963) the cascade's B, which it does not use, open: not tied to zeros (ISE's map warns PhysDesignRules:1135
+  // then); in VHDL through a component of its own giving B a default (UNISIM's gives it none), its BOX_TYPE "PRIMITIVE"
+  // as UNISIM's (without it XST warns Xst:2211 "black box" and Xst:753)
   for (const lang of ['vhdl', 'verilog']) {
     const doc = sheet('casc', [{ type: 'mult18x18sio', params: { B_INPUT: 'CASCADE', AREG: 0, BREG: 0, PREG: 0 }, wired: ['A', 'BCIN', 'P'] }], lang);
     const g = generateHdl(doc, { lang });
     assert.deepEqual(msgs(g.diagnostics), [], lang);
     if (lang === 'vhdl') {
-      assert.ok(g.code.includes(`    B => "${'0'.repeat(18)}",`), g.code);
-      assert.doesNotMatch(g.code, /component/);
+      assert.ok(g.code.includes('    B => open,'), g.code);
+      assert.match(g.code, /architecture schematic of casc is\n {2}attribute BOX_TYPE : string;\n {2}component MULT18X18SIO\n {4}generic \(AREG : integer; BREG : integer; PREG : integer; B_INPUT : string\);\n {4}port \(A : in std_logic_vector\(17 downto 0\);\n {10}B : in std_logic_vector\(17 downto 0\) := \(others => '0'\);\n {10}BCIN : in std_logic_vector\(17 downto 0\);/);
+      assert.match(g.code, /\n {2}end component;\n {2}attribute BOX_TYPE of MULT18X18SIO : component is "PRIMITIVE";\nbegin\n/);
     } else assert.ok(g.code.includes('  .B(),'), g.code);
-    // compiled, elaborated (no message: `.B()` an input left open on purpose) and simulated: P = A × BCIN
+    // compiled, elaborated (no message: `.B()` an input left open on purpose, `B => open` its component's default) and
+    // simulated: P = A × BCIN
     const srcs = [{ path: g.filename, lang, text: g.code }];
     const lib = compile([...primitiveSources(srcs), ...srcs]);
     const d = elaborate(lib, 'casc');
@@ -349,14 +352,39 @@ test('a primitive\'s unconnected inputs: the ones it needs a warning, the others
     sim.run(1000);
     assert.equal(port('p').val.v, BigInt.asUintN(36, -2100n), lang);
   }
-  // the DIRECT one: its BCIN tied (it is not free), in Verilog too
+  // the DIRECT one: its BCIN tied (it is not free), no component of its own
   const direct = generateHdl(sheet('dir', [{ type: 'mult18x18sio', wired: ['A', 'B', 'CLK', 'P'] }], 'verilog'));
   assert.ok(direct.code.includes(".BCIN(18'b0)"), direct.code);
+  const directV = generateHdl(sheet('dir', [{ type: 'mult18x18sio', wired: ['A', 'B', 'CLK', 'P'] }]));
+  assert.ok(directV.code.includes(`BCIN => "${'0'.repeat(18)}"`), directV.code);
+  assert.doesNotMatch(directV.code, /component|BOX_TYPE/);
   // Silinx's elaboration: a primitive's input left out (not `.B()`) or VHDL's `B => open` still warns
   const el = (lang, text) => { const srcs = [{ path: lang === 'vhdl' ? 't.vhd' : 't.v', lang, text }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return msgs([...lib.errors, ...elaborate(lib, 't').diags]); };
   const ports = "CEA(1'b1), .CEB(1'b1), .CEP(1'b1), .CLK(c), .RSTA(1'b0), .RSTB(1'b0), .RSTP(1'b0)";
   assert.deepEqual(el('verilog', `module t(input c, input [17:0] a, b, output [35:0] p); MULT18X18SIO #(.B_INPUT("CASCADE")) u (.A(a), .BCIN(b), .${ports}, .P(p)); endmodule`), ["warning: input port 'b' of 'u' is not connected"]);
   assert.deepEqual(el('verilog', `module t(input c, input [17:0] a, b, output [35:0] p); MULT18X18SIO #(.B_INPUT("CASCADE")) u (.A(a), .B(), .BCIN(b), .${ports}, .P(p)); endmodule`), []);
+  // VHDL: `B => open` warns with UNISIM's component (no default), not with one of its own giving B a default
+  const vh = (comp, b) => `library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;
+entity t is port (c : in std_logic; a, b : in std_logic_vector(17 downto 0); p : out std_logic_vector(35 downto 0)); end t;
+architecture x of t is
+${comp ? `  component MULT18X18SIO
+    generic (B_INPUT : string);
+    port (A : in std_logic_vector(17 downto 0); B : in std_logic_vector(17 downto 0)${b}; BCIN : in std_logic_vector(17 downto 0);
+          CEA, CEB, CEP, CLK, RSTA, RSTB, RSTP : in std_ulogic; BCOUT : out std_logic_vector(17 downto 0); P : out std_logic_vector(35 downto 0));
+  end component;` : ''}
+begin
+  u : MULT18X18SIO generic map (B_INPUT => "CASCADE")
+    port map (A => a, B => open, BCIN => b, CEA => '1', CEB => '1', CEP => '1', CLK => c, RSTA => '0', RSTB => '0', RSTP => '0', BCOUT => open, P => p);
+end x;`;
+  assert.deepEqual(el('vhdl', vh(false)), ["warning: input port 'b' of 'u' is not connected"]);
+  assert.deepEqual(el('vhdl', vh(true, '')), ["warning: input port 'b' of 'u' is not connected"]);
+  assert.deepEqual(el('vhdl', vh(true, " := (others => '0')")), []);
+  // (the entity in one file, its architecture with the component in another)
+  const whole = vh(true, " := (others => '0')"), cut = whole.indexOf('end t;') + 'end t;'.length;
+  const srcs2 = [{ path: 'e.vhd', lang: 'vhdl', text: whole.slice(0, cut) },
+    { path: 'a.vhd', lang: 'vhdl', text: `library ieee; use ieee.std_logic_1164.all; library unisim; use unisim.vcomponents.all;${whole.slice(cut)}` }];
+  const lib2 = compile([...primitiveSources(srcs2), ...srcs2]);
+  assert.deepEqual(msgs([...lib2.errors, ...elaborate(lib2, 't').diags]), []);
   // (a module of the design's own: `.x()` warns)
   assert.deepEqual(el('verilog', 'module s(input x, output y); assign y = x; endmodule\nmodule t(output y); s u (.x(), .y(y)); endmodule'), ["warning: input port 'x' of 'u' is not connected"]);
   // a DSP48A1's clock enables tied to 1, its resets to 0, its wide inputs to zeros

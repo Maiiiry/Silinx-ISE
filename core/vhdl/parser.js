@@ -416,7 +416,9 @@ class Parser {
     this.expectKw('is');
     const arch = { kind: 'architecture', name, entity, loc: this.loc(tok), uses: [...uses], decls: [], items: [] };
     this.inRegion((region) => {
+      this.components = [];
       arch.decls = this.parseDeclarativePart(arch.uses);
+      if (this.components.length) arch.components = this.components;
       const names = declaredNames(arch.decls);   // (before the declarations of its blocks join them)
       this.expectKw('begin');
       arch.items = this.parseConcurrentItems(arch.decls);
@@ -493,7 +495,7 @@ class Parser {
       } else if (u.kind === 'architecture' && !entityNames.has(u.entity)) {
         out.push({ kind: 'architecture', name: u.name, entity: u.entity, lang: 'vhdl', file: this.file,
           loc: u.loc, decls: u.decls, items: u.items, uses: dedupe(u.uses), ...(u.slvArith ? { slvArith: u.slvArith } : {}),
-          ...(u.labels?.length ? { labels: u.labels } : {}) });
+          ...(u.labels?.length ? { labels: u.labels } : {}), ...(u.components ? { components: u.components } : {}) });
       }
     }
     // merge architectures into their entity (last one wins)
@@ -501,6 +503,7 @@ class Parser {
       if (u.kind !== 'architecture' || !modules.has(u.entity)) continue;
       const { m, entityDecls } = modules.get(u.entity);
       m.decls = [...entityDecls, ...u.decls];
+      if (u.components) m.components = u.components; else delete m.components;
       m.items = u.items;
       m.uses = dedupe([...m.uses, ...u.uses]);
       m.arch = u.name;

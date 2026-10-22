@@ -197,11 +197,13 @@ export function generateHdl(docIn, opts = {}) {
 
   // (set when a device primitive is instanced: the UNISIM library in the context clause)
   let unisim = false;
+  // (the components declared in the architecture: a device primitive's with an input left open, #963)
+  const components = new Map();
   // the blocks' own entities: one per kind and parameters (and the pins it uses) (schdoc-hdl-symbol.js)
   const { subs, symbolHdl, syms } = mountSymbolHdl({
     INN, OUTN, PW, assign, blockLang, body, ci, clsOf, declared, defs, diags, doc, extra, fresh, inNet, init, isBlock,
     isolated, lang, modules, name, netName, netType, nk, nl, outRead, tie, used, vtype, warnOpen, wrapV, zero,
-    setUnisim: (v) => { unisim = v; }
+    setUnisim: (v) => { unisim = v; }, addComponent: (n, text) => components.set(n, text)
   });
 
   for (const s of syms) symbolHdl(s);
@@ -264,6 +266,7 @@ export function generateHdl(docIn, opts = {}) {
     if (plist.length) L.push(`  port (\n${plist.map(x => `    ${x}`).join(';\n')}\n  );`);
     L.push(`end entity ${name};`, '', `architecture ${arch} of ${name} is`);
     if (vdecls) L.push(vdecls);
+    if (components.size) L.push('  attribute BOX_TYPE : string;', ...[...components.values()].map(c => indent(c, '  ')));
     L.push(...sigDecls, 'begin', stmts, `end architecture ${arch};`, '');
     code = L.join('\n');
   } else {
