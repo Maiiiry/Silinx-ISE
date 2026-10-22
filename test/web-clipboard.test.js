@@ -3,7 +3,7 @@
 // the browser has no clipboard-read permission (Firefox, Safari: their Paste prompt stays open in the way, #888).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readClip, writeClip, READ_WAIT_MS } from '../web/js/clipboard.js';
+import { readClip, writeClip, canPasteText, READ_WAIT_MS } from '../web/js/clipboard.js';
 
 // a browser's clipboard: readText answering with `read` (a function giving its promise); its clipboard-read
 // permission's state (Chromium), or `perm` 'none': no such permission (Firefox, Safari: the query throws)
@@ -53,4 +53,25 @@ test('#888 no clipboard-read permission (Firefox, Safari) or refused: the system
   // granted (Chromium after the viewer allowed it): read
   browser(async () => 'from elsewhere', 'granted');
   assert.equal(await readClip('text'), 'from elsewhere');
+});
+
+test('#888 a text Paste is enabled when it has something to paste: the system clipboard where it is read, else a copy made here', async () => {
+  // (the module's first answer: no navigator in Node, the system clipboard not read; then each browser's)
+  browser(async () => '', 'none');
+  await readClip('text', 20);
+  assert.equal(canPasteText(), true, 'a copy was made earlier in this file');
+  browser(async () => 'x', 'prompt');
+  await readClip('text', 20);
+  assert.equal(canPasteText(), true, 'Chromium: the system clipboard');
+});
+
+test('#888 nothing copied and the system clipboard not read (Firefox, Safari): a text Paste is off; on after a copy', async () => {
+  browser(async () => 'never read', 'none');
+  const C = await import('../web/js/clipboard.js?nothing-copied');   // (a fresh module: nothing copied yet)
+  await C.readClip('text', 20);
+  assert.equal(C.canPasteText(), false);
+  assert.equal(await C.readClip('text', 20), null);
+  C.writeClip('text', 'now copied');
+  assert.equal(C.canPasteText(), true);
+  assert.equal(await C.readClip('text', 20), 'now copied');
 });

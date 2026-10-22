@@ -61,9 +61,10 @@ export async function readClip(kind, wait = READ_WAIT_MS) {
 async function systemReadable() {
   try {
     const p = await navigator.permissions?.query?.({ name: 'clipboard-read' });
-    return !!p && p.state !== 'denied';
-  } catch { return false; }
+    return (readable = !!p && p.state !== 'denied');
+  } catch { return (readable = false); }
 }
+systemReadable();
 
 /** The same, from a paste event (Ctrl+V: the browser gives the page the clipboard with no permission asked). */
 export const clipFromEvent = (e, kind) => fromText(e.clipboardData?.getData('text/plain') ?? null, kind);
@@ -81,6 +82,11 @@ export function pasteFromKey(kind, paste) {
 
 /** Whether something of kind was copied in this session (the menus' Paste is enabled by it). */
 export const hasClip = kind => !!mem && (kind === 'text' || mem.kind === kind);
+// whether the system clipboard is read (systemReadable), known once the browser has answered (null: not yet)
+let readable = null;
+/** Whether a text Paste has something to paste: the system clipboard where it is read (Chromium), else a copy made
+ *  in this session (Firefox, Safari: a menu's Paste with nothing copied did nothing, #888). */
+export const canPasteText = () => readable !== false || hasClip('text');
 
 /** Record a copy made by the browser itself (Ctrl+C in a text editor, a copy event of an editor), so that
  *  the app's own clipboard follows it when the system clipboard cannot be read. */
