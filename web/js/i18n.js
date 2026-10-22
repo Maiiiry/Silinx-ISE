@@ -542,6 +542,8 @@ PT_PATTERNS.unshift(
   // Program FPGA with no programming file, or one older than the sources (#1024): implement the design first
   [/^There is no programming file of '(.+)' yet\.$/, "Ainda não há ficheiro de programação de '$1'."],
   [/^The programming file of '(.+)' is older than the sources\.$/, "O ficheiro de programação de '$1' é mais antigo do que as fontes."],
+  [/^The programming file of '(.+)' is not in this browser any more \(a build is kept for the browser session only\)\.$/, "O ficheiro de programação de '$1' já não está neste browser (uma compilação só fica guardada durante a sessão do browser)."],
+  [/^The programming file of '(.+)' is not in the project's build folder any more\.$/, "O ficheiro de programação de '$1' já não está na pasta build do projeto."],
   [/^The last implementation of '(.+)' failed\.$/, "A última implementação de '$1' falhou."],
   // board emulator
   [/^Divide the timing generics \((.*)\) so that the design runs visibly at the emulator's speed$/, 'Dividir os genéricos de temporização ($1) para que o projeto avance visivelmente à velocidade do emulador'],
