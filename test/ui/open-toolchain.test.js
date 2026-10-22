@@ -190,10 +190,10 @@ uiTest('open mode: Generate Text Power Report of blinky without ISE: the estimat
 
 // Back-annotate Pin Locations in the Silinx toolchain (#118): blinky without a board, its UCF without the
 // LOCs of four LEDs and a switch; the pads the placer chose are added to the UCF (after the preview);
-// built again, nothing more to add
+// built again, nothing more to add (the pads of the two placements at Normal, #651; #938)
 const BA_UCF = fs.readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), '../../examples/blinky/constraints/top.ucf'), 'utf8')
   .split('\n').map((l) => (/"(led<[4-7]>|sw<3>)"/.test(l) ? l.replace(/LOC = "\w+" \| /, '') : l)).join('\n');
-const BA_PINS = ['NET "led<4>" LOC = "M4";', 'NET "led<5>" LOC = "N4";', 'NET "led<6>" LOC = "H13";', 'NET "led<7>" LOC = "N5";', 'NET "sw<3>" LOC = "N6";'];
+const BA_PINS = ['NET "led<4>" LOC = "J3";', 'NET "led<5>" LOC = "M4";', 'NET "led<6>" LOC = "N7";', 'NET "led<7>" LOC = "L13";', 'NET "sw<3>" LOC = "P8";'];
 uiTest('open mode: Back-annotate Pin Locations writes the pins the placer chose into the UCF; Portuguese', E, async (page) => {
   await env.server.api('PUT', '/api/toolchain', { mode: 'silinx' });
   await makeProject(env, { name: 'OpenPins', template: 'blinky', board: null, files: { 'constraints/top.ucf': BA_UCF } });
