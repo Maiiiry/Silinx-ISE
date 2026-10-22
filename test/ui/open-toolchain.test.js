@@ -528,7 +528,7 @@ uiTest('#121 open mode: Generate Post-Translate / Post-Map Simulation Model of b
   const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK|ERROR/.test(t) ? t : null; }, [], { timeout: 120000, what: 'the simulation of the model' });
   assert.match(out, /Simulation finished OK/);
   assert.doesNotMatch(out, /ERROR/);
-  assert.equal(await page.eval(() => window.Silinx.active.title), 'ISim (tb_top, Post-Map)');
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Map)');
   assert.match(await page.consoleText(), /with the post-map netlist of 'top'/);
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 420000 });
@@ -570,7 +570,7 @@ uiTest('#122 open mode: Generate Post-Place & Route Simulation Model of blinky, 
   const out = await page.waitFor(() => { const t = document.querySelector('.doc:not([hidden]) .isim-console')?.innerText || ''; return window.Silinx.active?.id === 'isim' && /Simulation finished OK|ERROR|Error/.test(t) ? t : null; }, [], { timeout: 180000, what: 'the simulation of the model' });
   assert.match(out, /Simulation finished OK/);
   assert.doesNotMatch(out, /ERROR|Error|Timing violation/);
-  assert.equal(await page.eval(() => window.Silinx.active.title), 'ISim (tb_top, Post-Place & Route)');
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Place & Route)');
   await env.server.api('PUT', '/api/toolchain', { mode: 'local' });
 }, { timeout: 480000 });
 
@@ -634,7 +634,7 @@ uiTest('#490 open mode: Simulate Post-Synthesis Model with no model offers "Gene
   assert.equal(lines.filter((l) => /^Started : "Generate Post-Synthesis Simulation Model"/.test(l)).length, 1);
   // no warning (the netlist's library cells are not the model's: #493)
   assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
-  assert.equal(await page.eval(() => window.Silinx.active.title), 'ISim (tb_top, Post-Synthesis)');
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Synthesis)');
   // the test bench passes on the generated netlist
   for (let k = 0; ; k++) {
     await page.fill('.doc:not([hidden]) .isim-cmdline input', 'run all');

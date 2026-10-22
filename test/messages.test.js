@@ -20,7 +20,7 @@ const SESSION = [
   ['Process "Check Syntax" completed successfully', 'check'],
   ['Started : "Simulate Behavioral Model".', 'sim'],
   ['Building simulation model for top \'tb_pong\'...', 'sim'],
-  ['Simulation model ready: 49 signals, 19 processes. Launching ISim view.', 'sim'],
+  ['Simulation model ready: 49 signals, 19 processes. Launching SSim view.', 'sim'],
   ['Started : "Behavioral Check Syntax".', 'check'],
   ['Process "Check Syntax" completed successfully', 'check'],
   ['Board Emulator: \'pong\' (RTL, compiled) on Digilent Basys2 — 27 port bit(s) on board resources.', 'emu'],

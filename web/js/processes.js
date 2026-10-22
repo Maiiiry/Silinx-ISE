@@ -73,7 +73,7 @@ function selectionProcesses() {
   if (sel.type !== 'module') return [{ id: 'none', label: 'No processes for the selected item', ico: 'process', disabled: true }];
   const mod = sel.module;
   if (S.view === 'sim') return [
-    { id: 'isim', label: 'ISim Simulator', ico: 'sim', children: [
+    { id: 'isim', label: 'SSim Simulator', ico: 'sim', children: [
       { id: 'sim-check', label: 'Behavioral Check Syntax', ico: 'process', run: () => checkSyntax(mod, true) },
       { id: 'sim-run', label: 'Simulate Behavioral Model', ico: 'wave', run: () => runSimulation(mod) },
       ...Object.entries(SIM_MODEL_NAMES).map(([step, name]) => ({ id: `sim-${step}`, label: `Simulate ${name} Model`, ico: 'wave', run: () => runSimulation(mod, step) })),

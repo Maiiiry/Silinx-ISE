@@ -68,8 +68,8 @@ test('arrangement: the task in front gets the space; what the viewer left wins; 
 
 test('#854 docDetail: the module and the model a single document\'s title says; the tasks whose document is single', () => {
   assert.deepEqual(T.SINGLE, ['sim', 'emu', 'prog']);
-  assert.deepEqual(T.docDetail('ISim (top)'), { module: 'top', model: null });
-  assert.deepEqual(T.docDetail('ISim (tb_pong, Post-Synthesis)'), { module: 'tb_pong', model: 'Post-Synthesis' });
+  assert.deepEqual(T.docDetail('SSim (top)'), { module: 'top', model: null });
+  assert.deepEqual(T.docDetail('SSim (tb_pong, Post-Synthesis)'), { module: 'tb_pong', model: 'Post-Synthesis' });
   assert.deepEqual(T.docDetail('Board Emulator (pong, Post-Place & Route)'), { module: 'pong', model: 'Post-Place & Route' });
   assert.deepEqual(T.docDetail('iMPACT'), { module: null, model: null });
   assert.deepEqual(T.docDetail(undefined), { module: null, model: null });

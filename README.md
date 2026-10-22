@@ -100,8 +100,8 @@ for Xilinx FPGAs supported by ISE 14.7.
   VGA connector, its sync timing measured (line period, frame rate, lines, pulses, polarities) and
   what is not 640×480 at 60 Hz pointed out.
   It can also run what the tools built: the post-synthesis, post-translate, post-map and post-place &
-  route netlists (the Silinx toolchain's own, or ISE's netgen), on the board or in ISim, the Silinx
-  toolchain's post-place & route netlist in ISim with its timing (its SDF: the delays, the glitches a
+  route netlists (the Silinx toolchain's own, or ISE's netgen), on the board or in SSim, the Silinx
+  toolchain's post-place & route netlist in SSim with its timing (its SDF: the delays, the glitches a
   gate filters, the setup checks), with Silinx's own models of the
   UNISIM / SIMPRIM primitives (functional): LUTs, flip-flops, latches, carry
   logic, SRLs, distributed and block RAM, multipliers, clock buffers and DCMs (CLK0/90/180/270,
@@ -111,17 +111,17 @@ for Xilinx FPGAs supported by ISE 14.7.
   Technology Schematic (the post-synthesis netlist, regrouped by the design's modules), Generate Post-Synthesis / Translate / Map / Place & Route
   Simulation Model, Post-Place & Route Static Timing, Text Power Report (xpwr), Back-annotate Pin
   Locations (pin2ucf, merged into the UCF).
-- **Behavioural simulation** with Silinx's own simulator, written from scratch in JavaScript:
+- **Behavioural simulation** with Silinx's own simulator, SSim (the Silinx Simulator), written from scratch in JavaScript:
   4-state logic, delta cycles, VHDL/Verilog testbenches (`wait`, `#delay`, `assert`/`report`,
-  `$display`, `$readmemh`…), an **ISim**-style waveform window (dividers, groups of signals), force/clock to
+  `$display`, `$readmemh`…), a waveform window in the style of Xilinx's ISim (dividers, groups of signals), force/clock to
   simulate modules without a testbench, VCD export.
 - **Stimuli drawn on the waveforms**, as the HDL Bencher (Test Bench Waveform) of the old ISE: simulating a
-  module without a test bench, *Edit Stimuli* in ISim lays its inputs out as a grid of cycles (a clock and its
+  module without a test bench, *Edit Stimuli* in SSim lays its inputs out as a grid of cycles (a clock and its
   period, or combinational with a time step). A click on a cycle of an input changes it there and up to its
   next change (0 → 1 → Z → X; a bus gets a value typed in) and the simulation runs again at once. Expected
   outputs, clicked in or filled in from the simulation, are checked (mismatches in red). Simulating a test bench,
   it draws the inputs of its unit under test, over what the bench drives them with. The stimuli are saved
-  in the project and run when ISim opens; *Save as Test Bench…* writes them as a self-checking VHDL / Verilog
+  in the project and run when SSim opens; *Save as Test Bench…* writes them as a self-checking VHDL / Verilog
   test bench.
 - **Test Bench Wizard** (*New Source ▸ Test Bench (Wizard)*, or right-click a module): writes a
   self-checking VHDL or Verilog test bench for a module. Input vectors: every combination of the
@@ -129,7 +129,7 @@ for Xilinx FPGAs supported by ISE 14.7.
   (sequential designs get one vector per clock cycle). The expected outputs of each vector are
   typed in (what the design should do) or filled in from a simulation of the current design (a
   regression test); `-` bits are not checked. The bench reports every mismatch with its inputs and
-  ends with *TEST PASSED* / *TEST FAILED*; it is VHDL-93 / Verilog-2001, so it also runs in ISim.
+  ends with *TEST PASSED* / *TEST FAILED*; it is VHDL-93 / Verilog-2001, so it also runs in Xilinx's ISim.
   **Bidirectional (inout) ports** get two columns: what the bench *drives* on the bus (a value, like
   an input; `Z` or empty releases it so that the design can drive it — per bit, e.g. `ZZ01`) and the
   value *expected* on the bus (checked like an output). The bench declares a resolved signal
@@ -312,10 +312,10 @@ editors and the drawings, simulation, and the Silinx toolchain (synthesis, place
 - **Less memory per tab**: a large design may fail in synthesis or implementation.
 - **The right-click menus open with a long press** (a finger or a pen held still for half a second)
   on a Design-pane row or badge, a document tab, a Files view row, a symbol of the schematic
-  editor's list or the ISim wave window; the keyboard's context-menu key (or Shift+F10) opens the
+  editor's list or the SSim wave window; the keyboard's context-menu key (or Shift+F10) opens the
   Design pane's too.
 - **Two fingers move a drawing, a pinch zooms it** (the schematic, ASM chart, state diagram and
-  Petri net editors, the ISim wave window); one finger selects and moves its parts.
+  Petri net editors, the SSim wave window); one finger selects and moves its parts.
 - **Landscape or portrait**: in landscape the layout is the desktop's. In portrait (1024 px wide or
   less) the Design pane is a drawer, opened by the button at the left of the header. The drawing
   editors' properties (and the schematic's symbols) open over the drawing with their toolbar's
@@ -416,7 +416,7 @@ npm run build:standalone    # writes dist/Silinx-ISE.html (~5 MB)
 ```
 
 One file, no server: open it in a browser or share it. It includes the editor, schematics, ASM
-editor, simulation/ISim, pin planner and ISE project import/export; the examples (*gates*, *traffic*,
+editor, simulation/SSim, pin planner and ISE project import/export; the examples (*gates*, *traffic*,
 *blinky*, *pong*, *stopwatch*, *clock*, *vga*) are embedded. Projects are stored in the browser (*File ▸ Download / Open Project Bundle* to move
 them), or, in Chrome / Edge, in a folder on the disk (*File ▸ Open Workspace Folder…*: the File
 System Access API; each project a folder as the full application writes it, so the same folder opens
@@ -549,7 +549,7 @@ core/       VHDL/Verilog parsers, elaborator, simulator, schematics, ASM, UCF, z
             core/fpga: the Silinx toolchain (pack, place, route, timing, bitstream); adept.js / xcf.js:
             the board and its Platform Flash programmed over WebUSB
 server/     HTTP server, projects, ISE flow, programmers, boards/devices, .xise
-web/        Project Navigator UI (modern and ISE-like, web/css/modern.css): editor, ISim, schematics, ASM, pin planner, iMPACT
+web/        Project Navigator UI (modern and ISE-like, web/css/modern.css): editor, SSim, schematics, ASM, pin planner, iMPACT
 docker/ise/ builder kit for the private Xilinx ISE 14.7 Docker image
 scripts/    adepttool installer/patch, Platform Flash programmer, standalone build
 examples/   example projects for the Basys2 / Nexys2 (the Silinx toolchain's devices): gates (the first one: logic

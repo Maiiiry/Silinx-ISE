@@ -306,13 +306,13 @@ export function mountISim(container, opts = {}) {
     <div class="ise-panel isim-bottom">
       <div class="isim-tabs"><span class="isim-tab sel">Console</span><span class="isim-tab-sp"></span><button class="isim-clear" title="Clear console">Clear</button></div>
       <div class="isim-console" tabindex="0"></div>
-      <div class="isim-cmdline"><span>ISim&gt;</span><input type="text" spellcheck="false" autocomplete="off" placeholder="Type a command (help)"></div>
+      <div class="isim-cmdline"><span>SSim&gt;</span><input type="text" spellcheck="false" autocomplete="off" placeholder="Type a command (help)"></div>
     </div>
     <div class="isim-status"><span class="isim-st-msg">Ready</span><span class="isim-progress"><span></span></span><span class="isim-st-delta"></span><span class="isim-st-time"></span></div>
   `;
   container.appendChild(root);
   const $ = (s) => root.querySelector(s);
-  $('.isim-title-text').textContent = opts.title || `ISim - [${design.top?.name ?? 'design'}]`;
+  $('.isim-title-text').textContent = opts.title || `SSim - [${design.top?.name ?? 'design'}]`;
   const treeEl = $('.isim-tree'), objBody = $('.isim-objs tbody'), cons = $('.isim-console'), cmdInput = $('.isim-cmdline input');
   const cn = $('.isim-names'), cw = $('.isim-waves'), vsc = $('.isim-vscroll'), hsc = $('.isim-hscroll');
   const waveArea = $('.isim-wavearea');
@@ -751,7 +751,7 @@ export function mountISim(container, opts = {}) {
   }
   rebuildFlat();
   renderObjects();
-  logLine('ISim (Silinx behavioural simulator)');
+  logLine('SSim (Silinx behavioural simulator)');
   logLine('Time resolution is 1 ps');
   logLine('Simulator is doing circuit initialization process.');
   logLine('Finished circuit initialization process.');

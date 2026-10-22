@@ -100,7 +100,7 @@ const PT = {
   'Edit Constraints (Text)': 'Editar Restrições (Texto)', 'Synthesize - XST': 'Sintetizar - XST', 'Synthesize - Yosys (open)': 'Sintetizar - Yosys (aberto)', 'Implement Design': 'Implementar Projeto',
   'Translate': 'Traduzir', 'Map': 'Mapear', 'Place & Route': 'Posicionar e Encaminhar', 'Generate Programming File': 'Gerar Ficheiro de Programação',
   'Configure Target Device': 'Configurar Dispositivo', 'Manage Configuration Project (iMPACT)': 'Gerir Projeto de Configuração (iMPACT)',
-  'ISim Simulator': 'Simulador ISim', 'Behavioral Check Syntax': 'Verificar Sintaxe (Comportamental)',
+  'SSim Simulator': 'Simulador SSim', 'Behavioral Check Syntax': 'Verificar Sintaxe (Comportamental)',
   'View/Edit State Diagram (ASM)': 'Ver/Editar Diagrama de Estados (ASM)', 'No processes for the selected item': 'Sem processos para o item selecionado',
   // dialogs & wizards
   'Cancel': 'Cancelar', 'Yes': 'Sim', 'No': 'Não', 'Next >': 'Seguinte >', '< Back': '< Anterior', 'Finish': 'Concluir', 'Import': 'Importar',
@@ -111,7 +111,7 @@ const PT = {
   'Select the device and design flow for the project.': 'Selecione o dispositivo e o fluxo de projeto.',
   'Evaluation Development Board:': 'Placa de Desenvolvimento:', 'Product Category:': 'Categoria de Produto:', 'Family:': 'Família:',
   'Device:': 'Dispositivo:', 'Package:': 'Encapsulamento:', 'Speed:': 'Velocidade:', 'Top-Level Source Type:': 'Tipo de Fonte de Topo:',
-  'Synthesis Tool:': 'Ferramenta de Síntese:', 'Silinx (VHDL/Verilog; no ISE needed)': 'Silinx (VHDL/Verilog; sem o ISE)', 'XST (VHDL/Verilog; Xilinx ISE)': 'XST (VHDL/Verilog; Xilinx ISE)', 'Simulator:': 'Simulador:', 'Preferred Language:': 'Linguagem Preferida:',
+  'Synthesis Tool:': 'Ferramenta de Síntese:', 'Silinx (VHDL/Verilog; no ISE needed)': 'Silinx (VHDL/Verilog; sem o ISE)', 'XST (VHDL/Verilog; Xilinx ISE)': 'XST (VHDL/Verilog; Xilinx ISE)', 'SSim (VHDL/Verilog; Silinx Simulator)': 'SSim (VHDL/Verilog; Simulador Silinx)', 'Simulator:': 'Simulador:', 'Preferred Language:': 'Linguagem Preferida:',
   'VHDL Source Analysis Standard:': 'Norma de Análise VHDL:', 'None Specified': 'Nenhuma', 'All': 'Todas',
   'Project name must start with a letter and contain only letters, digits and _.': 'O nome do projeto deve começar por uma letra e conter apenas letras, dígitos e _.',
   'No projects found in the workspace.': 'Não foram encontrados projetos na pasta de trabalho.',
@@ -314,7 +314,7 @@ const PT = {
   'Post-Synthesis': 'Pós-Síntese', 'Post-Translate': 'Pós-Translate', 'Post-Map': 'Pós-Map', 'Post-Place & Route': 'Pós-Place & Route',
   // its message centre (web/js/messages.js, #798)
   'Emulator': 'Emulador', 'Synthesis': 'Síntese', 'Messages from': 'Mensagens de', 'Command line': 'Linha de comandos',
-  'Type an ISim command (help)': 'Escreva um comando do ISim (help)', 'Type a command or a file name': 'Escreva um comando ou o nome de um ficheiro',
+  'Type an SSim command (help)': 'Escreva um comando do SSim (help)', 'Type a command or a file name': 'Escreva um comando ou o nome de um ficheiro',
   // modern interface (web/js/modern.js, web/js/palette.js): View ▸ Interface / Theme, header, design flow, command palette
   'Interface': 'Interface', 'Modern': 'Moderna', 'Classic': 'Clássica',
   'Theme': 'Tema', 'System': 'Sistema', 'Light': 'Claro', 'Dark': 'Escuro', 'Command Palette…': 'Paleta de Comandos…',

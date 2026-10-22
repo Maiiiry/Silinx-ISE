@@ -516,8 +516,8 @@ uiTest('#309 a signal with two drivers: ERROR:Xst:528 Multi-source in Check Synt
   await page.treeRow('#hier', 'tb_top');
   const before = (await page.consoleText()).length;
   await page.treeRow('#procs', 'Simulate Behavioral Model', { dbl: true, exact: true });
-  await page.waitFor((b) => /Process "Check Syntax" failed|Launching ISim/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the simulation' });
-  assert.doesNotMatch((await page.consoleText()).slice(before), /Launching ISim/);
+  await page.waitFor((b) => /Process "Check Syntax" failed|Launching SSim/.test(document.getElementById('console-log').innerText.slice(b)), [before], { what: 'the simulation' });
+  assert.doesNotMatch((await page.consoleText()).slice(before), /Launching SSim/);
 });
 
 // the editor's Find / Go to Line: Ctrl+F, Ctrl+G (Cmd+F on a Mac, where the browser runs the editor's Mac key map)

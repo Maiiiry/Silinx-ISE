@@ -245,14 +245,14 @@ async function runSimulationInner(mod, model) {
   const sim = new Simulator(design, { files });
   if (!design.top) { setStatus(procId, 'err'); log(`ERROR: cannot elaborate '${mod}': ${design.diags.map(d => d.message).join('; ')}`, 'err'); return; }
   if (!await confirmElabErrors(title, lib, design)) { setStatus(procId, 'err'); return; }
-  log(`Simulation model ready: ${design.signals.length} signals, ${design.procs.length} processes. Launching ISim view.`, 'ok');
+  log(`Simulation model ready: ${design.signals.length} signals, ${design.procs.length} processes. Launching SSim view.`, 'ok');
   setStatus(procId, 'ok');
   const { mountISim } = await import('./isim.js');
   const id = 'isim';
   const old = findDoc(id);
   if (old) await closeDoc(old);
   openDoc({
-    id, title: `ISim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: `isim:${mod}${model ? `@${model}` : ''}`,
+    id, title: `SSim (${mod}${model ? `, ${SIM_MODEL_NAMES[model]}` : ''})`, icon: 'wave', reopen: `isim:${mod}${model ? `@${model}` : ''}`,
     create(el) {
       // ISim runs 1000 ns at start-up, or the module's drawn stimuli (#336), saved in the project: of the module's
       // inputs, or (a test bench, no ports) of its unit under test's, forced over what the bench drives them with

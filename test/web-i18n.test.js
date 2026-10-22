@@ -121,6 +121,14 @@ test('emulator (#347): the manual clock note is translated', () => {
   assert.equal(t('Manual clock ck (SW): one edge per press · not emulated: x'), 'Relógio manual ck (SW): um flanco em cada pressão · não emulado: x');
 });
 
+test('SSim (#920): the simulator\'s labels translated with its name, SSim; no label of it says ISim', () => {
+  assert.deepEqual(['SSim Simulator', 'Type an SSim command (help)', 'SSim (VHDL/Verilog; Silinx Simulator)'].map(t),
+    ['Simulador SSim', 'Escreva um comando do SSim (help)', 'SSim (VHDL/Verilog; Simulador Silinx)']);
+  // (ISim, Xilinx's simulator, only in the trademark notice)
+  const isim = [...sourceLabels()].map(([s]) => s).filter((s) => /\bISim\b/.test(s) && !/trademarks of AMD/.test(s));
+  assert.deepEqual(isim, []);
+});
+
 test('ISim groups (#341): the menu items and the prompt are translated', () => {
   assert.deepEqual(['New Group', 'Rename Group...', 'Ungroup', 'Group name:'].map(t), ['Novo Grupo', 'Mudar Nome do Grupo...', 'Desagrupar', 'Nome do grupo:']);
 });

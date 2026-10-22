@@ -232,7 +232,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
         ...field('Speed:', dp.spdSel),
         ...field('Top-Level Source Type:', topType), topNote,
         ...field('Synthesis Tool:', synthSel),
-        ...field('Simulator:', select(['Silinx ISim-compatible (VHDL/Verilog)'], '')),
+        ...field('Simulator:', select(['SSim (VHDL/Verilog; Silinx Simulator)'], '')),
         ...field('Preferred Language:', langSel),
         ...field('VHDL Source Analysis Standard:', select(['VHDL-93', 'VHDL-2008'], 'VHDL-93')),
       )),
@@ -249,7 +249,7 @@ export async function newProjectWizard({ template = 'empty' } = {}) {
         `Project Navigator will create a new project with the following specifications.\n\n` +
         `Project:\n  Project Name: ${name.value.trim()}\n  Template:     ${tplSel.value}\n\n` +
         `Device:\n  Board:        ${b ? b.name : 'None Specified'}\n  Family:       ${dp.familyName()}\n  Device:       ${dp.value().part.toUpperCase()}\n  Package:      ${dp.value().package.toUpperCase()}\n  Speed:        ${dp.value().speed}\n\n` +
-        `Flow:\n  Top-Level Source Type: ${TOP_TYPES.find(t => t.id === topType.value).label}\n  Synthesis Tool:     ${SYNTH_TOOLS.find(t => t[0] === synthSel.value)[1]}\n  Simulator:          Silinx behavioural simulator\n  Preferred Language: ${langSel.value.toUpperCase()}`));
+        `Flow:\n  Top-Level Source Type: ${TOP_TYPES.find(t => t.id === topType.value).label}\n  Synthesis Tool:     ${SYNTH_TOOLS.find(t => t[0] === synthSel.value)[1]}\n  Simulator:          SSim (Silinx behavioural simulator)\n  Preferred Language: ${langSel.value.toUpperCase()}`));
     },
   };
   const ok = await wizard('New Project Wizard', [p1, p2, p3]);

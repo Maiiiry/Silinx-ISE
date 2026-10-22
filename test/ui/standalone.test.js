@@ -949,7 +949,7 @@ uiTest('browser edition: Simulate Post-Synthesis Model with no model: "Generate 
   assert.ok(lines.includes(done), lines.join('\n'));
   assert.ok(lines.indexOf(done) < lines.indexOf('Started : "Simulate Post-Synthesis Model".'), lines.join('\n'));
   assert.deepEqual(lines.filter((l) => /^(WARNING|ERROR)/i.test(l)), []);
-  assert.equal(await page.eval(() => window.Silinx.active.title), 'ISim (tb_top, Post-Synthesis)');
+  assert.equal(await page.eval(() => window.Silinx.active.title), 'SSim (tb_top, Post-Synthesis)');
 }, { url: () => 'about:blank', timeout: 300000 });
 
 // #483: the browser edition keeps every path inside the project by itself (project-store.js safePath),
