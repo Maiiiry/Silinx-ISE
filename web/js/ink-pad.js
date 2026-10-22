@@ -5,8 +5,10 @@
 // characters recognized can be shown under their ink.
 //
 //   const pad = mountInkPad(host, { onStroke(strokes) });
-//   pad.strokes(), pad.undo(), pad.clear(), pad.setLabels([{ ch, box }]), pad.view(), pad.fit(), pad.canvas,
-//   pad.destroy()
+//   pad.strokes(), pad.undo(), pad.redo(), pad.canUndo(), pad.canRedo(), pad.clear(), pad.setLabels([{ ch, box }]),
+//   pad.view(), pad.fit(), pad.onChange(f), pad.canvas, pad.destroy()
+//   padButtons(pad) -> the row of its Undo, Redo and Clear buttons (and their keys: Ctrl/Cmd+Z, Ctrl+Y, Ctrl/Cmd+Shift+Z)
+// Undo takes back the last stroke or the last Clear, Redo does it again; a new stroke ends what can be redone (#1092).
 // Styles: web/css/ink.css.
 import { h, twoFingerView } from './ui.js';
 
@@ -18,6 +20,10 @@ export function mountInkPad(host, { onStroke } = {}) {
   const fitBtn = h('button', { type: 'button', class: 'btn ink-fit', title: 'Show the whole drawing', onclick: () => fit() }, 'Fit');
   host.append(fitBtn);
   let strokes = [], cur = null, penSeen = false, labels = [];
+  // what was done ({ add: stroke } | { clear: the strokes before }) and what was undone, to redo
+  const done = [], undone = [], listeners = new Set();
+  // (the strokes changed: the dialog's recognizer, the buttons' states)
+  const changed = () => { onStroke?.(strokes); listeners.forEach(f => f()); };
   // the view: a point (x, y) of the pad is at (x·s + ox, y·s + oy) on the canvas
   const v = { s: 1, ox: 0, oy: 0 };
   const ctx = canvas.getContext('2d');
@@ -89,9 +95,11 @@ export function mountInkPad(host, { onStroke } = {}) {
   };
   const up = e => {
     if (!cur || e.pointerId !== cur.id) return;
+    done.push({ add: cur.pts });
+    undone.length = 0;
     cur = null;
     draw();
-    onStroke?.(strokes);
+    changed();
   };
   // two fingers: the view's (wired first: the first finger's stroke dropped when the second comes)
   twoFingerView(canvas, {
@@ -116,11 +124,53 @@ export function mountInkPad(host, { onStroke } = {}) {
   return {
     canvas,
     strokes: () => strokes.map(s => s.map(p => ({ ...p }))),
-    undo() { if (cur) return; strokes.pop(); labels = []; draw(); onStroke?.(strokes); },
-    clear() { cur = null; strokes = []; labels = []; draw(); onStroke?.(strokes); },
+    undo() {
+      const a = !cur && done.pop();
+      if (!a) return;
+      if (a.add) strokes.splice(strokes.lastIndexOf(a.add), 1); else strokes = a.clear;
+      undone.push(a);
+      labels = []; draw(); changed();
+    },
+    redo() {
+      const a = !cur && undone.pop();
+      if (!a) return;
+      if (a.add) strokes.push(a.add); else strokes = [];
+      done.push(a);
+      labels = []; draw(); changed();
+    },
+    onChange: f => listeners.add(f),
+    canUndo: () => done.length > 0,
+    canRedo: () => undone.length > 0,
+    clear() {
+      if (cur) { strokes.splice(strokes.indexOf(cur.pts), 1); cur = null; }
+      if (strokes.length) { done.push({ clear: strokes }); undone.length = 0; }
+      strokes = []; labels = []; draw(); changed();
+    },
     setLabels(list) { labels = list || []; draw(); },
     view: () => ({ ...v }),
     fit,
     destroy() { ro?.disconnect(); canvas.remove(); },
   };
+}
+
+/** The pad's Undo, Redo and Clear (#1092): disabled when there is nothing to do; Ctrl/Cmd+Z and Ctrl+Y (or
+ *  Ctrl/Cmd+Shift+Z) while its dialog is open, outside the text fields. */
+export function padButtons(pad) {
+  const b = (cls, label, title, fn) => h('button', { type: 'button', class: `btn ${cls}`, title, onclick: fn }, label);
+  const undo = b('ink-undo', 'Undo', 'Take back the last stroke, or the last Clear (Ctrl+Z)', () => pad.undo());
+  const redo = b('ink-redo', 'Redo', 'Do again what was taken back (Ctrl+Y)', () => pad.redo());
+  const clear = b('ink-clear', 'Clear', 'Clear the pad (Undo brings the drawing back)', () => pad.clear());
+  const row = h('div', { class: 'ink-row' }, undo, redo, clear);
+  const sync = () => { undo.disabled = !pad.canUndo(); redo.disabled = !pad.canRedo(); clear.disabled = !pad.strokes().length; };
+  pad.onChange(sync);
+  sync();
+  const key = e => {
+    if (!row.isConnected) { removeEventListener('keydown', key, true); return; }
+    if (!(e.ctrlKey || e.metaKey) || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    const k = e.key.toLowerCase();
+    const act = k === 'z' && !e.shiftKey ? () => pad.undo() : k === 'y' || (k === 'z' && e.shiftKey) ? () => pad.redo() : null;
+    if (act) { e.preventDefault(); e.stopPropagation(); act(); }
+  };
+  addEventListener('keydown', key, true);
+  return row;
 }

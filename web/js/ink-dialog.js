@@ -7,7 +7,7 @@
 //     vars: the inputs' names when they are known (the truth table's), else the expression's own are used
 // Styles: web/css/ink.css.
 import { h, dialog } from './ui.js';
-import { mountInkPad } from './ink-pad.js';
+import { mountInkPad, padButtons } from './ink-pad.js';
 import { recognizeExpression, splitEquation, expressionInputs, InkError } from '/core/ink/expression.js';
 import { builtinTemplates, userTemplates, encodeSample, validSamples } from '/core/ink/templates.js';
 import { boxOf } from '/core/ink/segment.js';
@@ -99,9 +99,7 @@ export function handwrittenExpression({ vars = null, title = 'Handwritten Expres
   const body = h('div', { class: 'ink-dialog' },
     h('div', { class: 'hint' }, "Write the expression with a pen, a finger or the mouse, e.g. F = A·B' + C. A bar over letters is NOT; a dot or a * is AND."),
     padHost,
-    h('div', { class: 'ink-row' },
-      h('button', { type: 'button', class: 'btn ink-undo', onclick: () => pad.undo() }, 'Undo Stroke'),
-      h('button', { type: 'button', class: 'btn ink-clear', onclick: () => pad.clear() }, 'Clear')),
+    padButtons(pad),
     h('div', { class: 'ink-row' }, h('label', {}, 'Recognized:'), text),
     msg,
     teach);
