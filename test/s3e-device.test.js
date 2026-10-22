@@ -10,6 +10,10 @@ import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '..
 import { joinTestDesigns, parseJoinTests } from '../research/s3e-device/hypotheses.mjs';
 import { rng, clbSlices, observeXdl } from '../research/s3e-device/gen-observe.mjs';
 import { tileCandidates, siteCandidates, censusCandidates } from '../research/s3e-device/candidates.mjs';
+import { bram, mult, pads } from '../research/s3e-device/gen-obshdl.mjs';
+import { loadDeviceCache } from '../core/fpga/device-node.js';
+import { compile, elaborate } from '../core/compile.js';
+import { primitiveSources } from '../core/unisim.js';
 import { parseXdl } from '../core/xdl.js';
 
 test('wireFamily: doubles, hexes, long lines, output multiplexers, carry, clock, block-RAM pins', () => {
@@ -342,4 +346,23 @@ test('gen-observe: seeded random designs over the CLB slices', () => {
   assert.equal(sinks.length, 12 * 8);   // every LUT input driven once
   assert.equal(new Set(sinks.map(p => `${p.inst}.${p.pin}`)).size, 96);
   assert.ok(d.nets.every(n => n.outpins.length === 1 && n.pips.length === 0));
+});
+
+test('gen-obshdl: observation designs with every block RAM, every multiplier, the pads, each LOC\'d where it must be, read by Silinx\'s front end (#3, round 5)', () => {
+  const dev = loadDeviceCache('xc3s250ecp132-4');
+  // (no error and no warning, from compile or elaboration)
+  const read = v => { const srcs = [{ path: 'top.v', lang: 'verilog', text: v }]; const lib = compile([...primitiveSources(srcs), ...srcs]); return [lib.errors, elaborate(lib, 'top').diags]; };
+  const b = bram(dev, 'xc3s250ecp132-4'), m = mult(dev, 'xc3s250ecp132-4'), p = pads(90, 24, 'xc3s250ecp132-4');
+  // every site of the device, once
+  const locs = ucf => [...ucf.matchAll(/^INST "u(\d+)" LOC = "(\S+)" ;$/gm)].map(x => x[2]);
+  assert.deepEqual(locs(b.ucf).sort(), dev.sites('RAMB16').map(s => s.name).sort());
+  assert.deepEqual(locs(m.ucf).sort(), dev.sites('MULT18X18SIO').map(s => s.name).sort());
+  assert.equal(locs(b.ucf).length, 12);
+  assert.equal(p.ucf, '', 'the pads placed by ISE');
+  // each output of each block RAM / multiplier into a register (18 per RAM, 36 per multiplier)
+  assert.equal((b.v.match(/r\d+\[\d+\]/g) || []).length, 12 * 18);
+  assert.equal((m.v.match(/r\d+\[\d+\]/g) || []).length, 12 * 36);
+  // 90 pads: the clock, 24 inputs, 65 bidirectional
+  assert.match(p.v, /module top\(input clk, input \[23:0\] i, inout \[64:0\] p\);/);
+  for (const v of [b.v, m.v, p.v]) assert.deepEqual(read(v), [[], []]);
 });
