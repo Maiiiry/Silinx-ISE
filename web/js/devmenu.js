@@ -1,10 +1,12 @@
 // The Development menu of a development build (#707): the changes since the last release, by type (its issue's
 // label: Features, Bug fixes, Other), each a window with its text and its issue on GitHub; all of them in one
-// window; the build's commit. Its data is the build's (scripts/build-info.mjs devChanges, in core/version.js
-// BUILD): a release, and the local server, have none and show no menu. The changes' text comes from
+// window; the build's commit; the Pen and Touch Test (devmenu-pointer.js, #1054). Its data is the build's
+// (scripts/build-info.mjs devChanges, in core/version.js BUILD): a release, and the local server, have none and
+// show no menu. The changes' text comes from
 // changes/*.md: written as text (h), its **bold** and `code` as elements, never as HTML.
 import { h, dialog } from './ui.js';
 import { BUILD, REPOSITORY } from '/core/version.js';
+import { pointerTestDialog } from './devmenu-pointer.js';
 
 const TYPES = [['feature', 'Features'], ['bugfix', 'Bug fixes'], ['other', 'Other']];
 const HEADINGS = { feature: 'Features', bugfix: 'Bug fixes', other: 'Other changes' };
@@ -60,5 +62,7 @@ export function developmentMenu(build = BUILD) {
     '-',
     { label: build.since ? `All Changes since ${build.since}…` : 'All Changes since the Last Release…', action: () => changesDialog(build) },
     { label: `This Build on GitHub (commit ${build.commit})`, action: () => open(`https://github.com/${REPOSITORY}/commit/${build.commit}`) },
+    '-',
+    { label: 'Pen and Touch Test…', action: () => pointerTestDialog() },
   ] };
 }
