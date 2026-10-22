@@ -127,6 +127,8 @@ test('install.sh --system: the runner a daemon of its own user, the window root\
   assert.match(r.read(path.join(r.dir, '.env')), /^ACTIONS_RUNNER_HOOK_JOB_STARTED=\S+$/m);
   assert.equal(fs.existsSync(path.join(r.lib, 'Application Support/Silinx-ISE-runner')), false, 'the old folder removed');
   assert.equal(r.read(path.join(r.dir, 'runsvc.sh')), '#!/bin/bash\n', 'runsvc.sh from bin/, as svc.sh install makes it');
+  // the PATH runsvc.sh exports to the runner: Docker's CLI in /usr/local/bin (#904), not sudo's secure_path
+  assert.equal(r.read(path.join(r.dir, '.path')), '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin\n');
   // the runner's daemon: its own user, not loaded by the installer (the window starts it)
   const runner = r.read(path.join(r.lib, 'LaunchDaemons/com.github.pmnmalo.silinx-ise.runner.plist'));
   assert.match(runner, /<key>UserName<\/key><string>iserunner<\/string>/);
@@ -144,7 +146,7 @@ test('install.sh --system: the runner a daemon of its own user, the window root\
     'launchctl bootout system/com.github.pmnmalo.silinx-ise.runner-window',
     'launchctl bootout system/com.github.pmnmalo.silinx-ise.runner',
     `chown -R root:wheel ${dest}`,
-    `chown iserunner ${r.dir}/_tmp ${r.dir}/_diag ${r.dir}/runsvc.sh ${r.dir}/.env`,
+    `chown iserunner ${r.dir}/_tmp ${r.dir}/_diag ${r.dir}/runsvc.sh ${r.dir}/.path ${r.dir}/.env`,
     `chown root:wheel ${r.lib}/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner.plist ${r.lib}/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner-window.plist`,
     `launchctl bootstrap system ${r.lib}/LaunchDaemons/com.github.pmnmalo.silinx-ise.runner-window.plist`,
   ]);
