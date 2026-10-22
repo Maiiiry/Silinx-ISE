@@ -158,6 +158,13 @@ uiTest('#987 the header: the project and its document, not the product and versi
     assert.match(pj.window, /^HeadPj — Silinx ISE \S/, look);
     assert.match(pj.text, look === 'Classic' ? /^S HeadPj - \[.+\]$/ : /^S HeadPj$/, look);
   }
+  // in Portuguese the classic title bar's Design Summary too (#1007)
+  await subMenu(page, 'View', 'Interface', 'Classic');
+  await page.waitFor(() => document.documentElement.dataset.ui === 'classic');
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
+  await page.waitFor(() => document.getElementById('title-text').textContent === 'HeadPj - [Resumo do Projeto]', [], { what: 'Portuguese' });
+  await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en'));
+  await subMenu(page, 'View', 'Interface', 'Modern');
 }, O);
 
 uiTest('theme: follows the system, View ▸ Theme ▸ Dark / Light / System, header button; remembered', E, async (page) => {
