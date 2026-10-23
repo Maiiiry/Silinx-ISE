@@ -176,21 +176,34 @@ function shallowerWide(mod, root, { driver, level }, rule) {
   for (let m = 0; m < G.length; m++) { let x = 0; keep.forEach((v, j) => { x |= ((m >> j) & 1) << v; }); G[m] = F[x]; }
   F = G;
   const vars = keep.map(i => leaves[i]);
-  // the selects: the k latest (the multiplexers' selects are the faster way in), MUXF5's the latest of them
+  // the selects: k of the leaves, the latest first (the multiplexers' selects are the faster way in), MUXF5's the latest
+  // of them; each cofactor a LUT of the data leaves it depends on only (a LUT pin its equation leaves out, its net still
+  // there, is ISE's "incomplete connectivity", #652), none constant (a MUXF5 reads two LUTs: no LUT without inputs)
   const k = n - 4;
-  const order = vars.map((_, i) => i).sort((a, b) => level(vars[b]) - level(vars[a]));
-  const sel = order.slice(0, k), data = order.slice(k).sort((a, b) => a - b);
-  const luts = [];
-  for (let v = 0; v < 1 << k; v++) {
-    const table = Array.from({ length: 16 }, (_, d) => {
-      let m = 0;
-      data.forEach((x, j) => { m |= ((d >> j) & 1) << x; });
-      sel.forEach((x, j) => { m |= ((v >> j) & 1) << x; });
-      return F[m];
-    });
-    luts.push({ inputs: data.map(i => vars[i]), table });
+  const byLevel = vars.map((_, i) => i).sort((a, b) => level(vars[b]) - level(vars[a]));
+  const choices = [...combinations(byLevel, k)];
+  for (const sel of choices) {
+    const data = byLevel.filter(i => !sel.includes(i)).sort((a, b) => a - b);
+    const luts = [];
+    for (let v = 0; v < 1 << k && luts.length === v; v++) {
+      const T = Uint8Array.from({ length: 16 }, (_, d) => {
+        let m = 0;
+        data.forEach((x, j) => { m |= ((d >> j) & 1) << x; });
+        sel.forEach((x, j) => { m |= ((v >> j) & 1) << x; });
+        return F[m];
+      });
+      const used = data.map((_, j) => j).filter(j => dependsOn(T, 16, j));
+      if (!used.length) break;
+      const table = Array.from({ length: 1 << used.length }, (_, d) => {
+        let m = 0;
+        used.forEach((j, q) => { m |= ((d >> q) & 1) << j; });
+        return T[m];
+      });
+      luts.push({ inputs: used.map(j => vars[data[j]]), table });
+    }
+    if (luts.length === 1 << k) return { root, wide: { selects: sel.map(i => vars[i]), luts } };
   }
-  return { root, wide: { selects: sel.map(i => vars[i]), luts } };
+  return null;
 }
 
 // F (a table over vars, var i bit i of the row; lv their levels) as a tree of LUT4s of level maxLevel at most, by
