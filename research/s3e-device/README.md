@@ -388,3 +388,23 @@ I/O tile's hexes only where ISE routed it that way. To reach them: tests that dr
 line on purpose (a routed path chosen by Silinx, from a block-RAM output pin through each OMUX line, as
 `joinTestDesigns` does from slices), the next round. Rounds 1-5: 22 063 tests, no disagreement with the shipped graph.
 
+
+### Round 6: every block-RAM output line (2026-10-23)
+
+Round 5's 1056 untestable joins on a block-RAM tile's OMUX had a cause in the tests, not in the sources: the block-RAM
+tiles' PIPs came from ISE's routes only, so the OMUX lines ISE never took looked absent, and a block RAM's output was
+placed on its site tile's pin wire with nothing joining it to the interconnect tile. `prototype.mjs tests` now takes,
+with `DBPIPS=1`, the block-RAM tiles' PIPs from the bit database too (their own features and the CLB's switch box,
+less `absent`, #74), and with `SOURCEXDL=…` the join where each output enters its interconnect tile, read from ISE's
+routed designs (`blockRamOutputJoins`: `BRAMSITE2/RAMB16_DOA0 -> BRAM_DOA0_INT0`, joined to `BRAM0_SMALL/BRAM_DOA0`).
+A first run without that join gave 1503 islands, 1050 of them against the shipped graph: the test's own path was
+cut at the site tile, not the join under test.
+
+| Round | Tests (designs, ISE time) | ISE's verdicts | Agree with the shipped graph |
+|---|---|---|---|
+| 6 | 2106 (19, 329 s): 1120 new, 986 of rounds 4-5 again | new: 749 joins, 371 islands | **all**; the 986 the same verdicts |
+
+**Every block-RAM join is tested.** 1281 stay untestable, all of the I/O tiles (CLB-I/O 907, I/O-I/O 321, block
+RAM-I/O 53): the hexes that begin in an I/O tile and its OMUX, which a pad's input reaches only where ISE routed it.
+The next step: the same for the I/O tiles (their PIPs need the arc probe per type, the database sharing them between
+types). Rounds 1-6: 23 183 tests, no disagreement.

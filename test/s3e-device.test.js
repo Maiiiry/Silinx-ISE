@@ -2,7 +2,7 @@
 // the observation of ISE-routed nets, the join rules, the xdl2ncd probes, the DRC join tests.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { wireFamily, tileXY, observeNet, observeDesign, resolveAmbiguous, joinRule } from '../research/s3e-device/observe.mjs';
+import { wireFamily, tileXY, observeNet, observeDesign, resolveAmbiguous, joinRule, blockRamOutputJoins } from '../research/s3e-device/observe.mjs';
 import { switchGrid, gridRule, applyRules, closeRules, segmentRules, nodesOf } from '../research/s3e-device/model.mjs';
 import { measuredLines, packMeasured } from '../research/s3e-device/build.mjs';
 import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
@@ -365,4 +365,24 @@ test('gen-obshdl: observation designs with every block RAM, every multiplier, th
   // 90 pads: the clock, 24 inputs, 65 bidirectional
   assert.match(p.v, /module top\(input clk, input \[23:0\] i, inout \[64:0\] p\);/);
   for (const v of [b.v, m.v, p.v]) assert.deepEqual(read(v), [[], []]);
+});
+
+test('blockRamOutputJoins: where a block RAM\'s output enters its interconnect tile, from ISE\'s routed net (#3, round 6)', () => {
+  const d = parseXdl(`design "t" xc3s250ecp132-4 v3.2 ;
+net "do0" ,
+  outpin "u0" DOA0 ,
+  inpin "r0" BY ,
+  pip BRAM0_SMALL_X3Y6 BRAM_DOA0 -> E6BEG6 ,
+  pip BRAMSITE2_BRK_X4Y6 RAMB16_DOA0 -> BRAM_DOA0_INT0 ,
+  pip CLB_X9Y6 E6MID6 -> N2BEG6 ,
+  ;
+net "x" ,
+  outpin "s" X ,
+  pip CLB_X1Y1 X0 -> OMUX0 ,
+  ;
+`);
+  const isInterconnect = t => /^BRAM\d_SMALL/.test(t);
+  assert.deepEqual(blockRamOutputJoins(d, isInterconnect), [['BRAMSITE2_BRK_X4Y6/BRAM_DOA0_INT0', 'BRAM0_SMALL_X3Y6/BRAM_DOA0']]);
+  // (no interconnect tile among the PIPs: no join)
+  assert.deepEqual(blockRamOutputJoins(d, () => false), []);
 });
