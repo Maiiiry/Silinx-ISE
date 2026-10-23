@@ -372,6 +372,33 @@ test('timing-fit: reportgen -delay\'s report read back (names wrapped at 80 colu
   assert.deepEqual(d.get(`${long}.net_FX`), { driver: `${long}.lut1.FX`, loads: new Map([[`${long}.lut0.FXINB`, 0]]) });
 });
 
+test('#1103 a PERIOD on the port of a clock with no path between two of its flip-flops (one register stage): met, no path to time, not missing', () => {
+  // clk -> BUFG -> one flip-flop, its D from a pad and its Q to a pad: the analysis has no clock (no flip-flop to flip-flop path)
+  const d = parseXdl(`design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "clk" "IBUF",placed BIOIS_X1Y0 P11 , cfg " " ;
+inst "bufg" "BUFGMUX",placed CLKB_X13Y0 BUFGMUX0 , cfg " " ;
+inst "vcc" "VCC",placed CLKB_X13Y0 VCC_X1Y1 , cfg " " ;
+inst "reg" "SLICEL",placed CLB_X1Y1 SLICE_X0Y0 , cfg " " ;
+net "vcc_s" , outpin "vcc" VCCOUT , inpin "bufg" S , ;
+net "clk_in" , outpin "clk" I , inpin "bufg" I0 , ;
+net "clk_g" , outpin "bufg" O , inpin "reg" CLK , ;
+`);
+  const checks = checkPeriods({ clocks: [] }, d, [{ net: 'clk', period: 20 }, { net: 'other', period: 10 }]);
+  assert.deepEqual(checks, [
+    { clock: 'clk_g', port: 'clk', required: 20, period: 0, slack: 20, met: true, noPaths: true },
+    { port: 'other', required: 10, missing: true },
+  ]);
+  assert.deepEqual(timingReport({ clocks: [] }, checks).slice(0, 2), [
+    'constraint PERIOD 20 ns on clk: met (no path between two flip-flops of its clock to time)',
+    'constraint PERIOD 10 ns on other: no clock of the design comes from this port',
+  ]);
+  // a port whose clock reaches no flip-flop: missing still
+  const none = parseXdl(`design "t" xc3s250ecp132-4 v3.2 , cfg "";
+inst "clk" "IBUF",placed BIOIS_X1Y0 P11 , cfg " " ;
+`);
+  assert.deepEqual(checkPeriods({ clocks: [] }, none, [{ net: 'clk', period: 20 }]), [{ port: 'clk', required: 20, missing: true }]);
+});
+
 test('PERIOD constraints: a clock found from its port through the clock buffers; met / not met / missing', () => {
   const d = parseXdl(`design "t" xc3s250ecp132-4 v3.2 , cfg "";
 inst "clk" "IBUF",placed BIOIS_X1Y0 P11 , cfg " " ;

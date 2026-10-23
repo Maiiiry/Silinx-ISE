@@ -52,7 +52,8 @@ export function mountFlowReports(ctx) {
       minPeriodNs: worst ? +worst.toFixed(3) : null, maxFreqMHz: worst ? +(1000 / worst).toFixed(3) : null,
       clocks: sta.clocks.map(c => ({ clock: c.clock, port: clockPort(design, c.clock), minPeriodNs: +c.period.toFixed(3), maxFreqMHz: +(1000 / c.period).toFixed(3) })),
       constraints: [...periods.filter(c => !c.missing).map(c => ({ name: `PERIOD ${c.port}${c.via ? ` ${c.via}` : ''}`, constraint: `PERIOD ${c.constraint ?? c.required} ns on ${c.port}${c.via ? `, ${c.via}` : ''}`, required: c.required,
-        minPeriodNs: +c.period.toFixed(3), maxFreqMHz: +(1000 / c.period).toFixed(3), timingErrors: c.met ? 0 : 1, slackNs: +c.slack.toFixed(3) })),
+        // (no path between two flip-flops of its clock, #1103: no period to give)
+        minPeriodNs: c.noPaths ? null : +c.period.toFixed(3), maxFreqMHz: c.noPaths ? null : +(1000 / c.period).toFixed(3), timingErrors: c.met ? 0 : 1, slackNs: +c.slack.toFixed(3) })),
       // (a switching limit not met, #661: the pin's period as the value, as trce counts it under its PERIOD)
       ...swFailed.map(c => ({ name: `Component Switching Limit ${c.resource}`, constraint: `${c.limit}: ${c.bound} period limit ${c.bound === 'max' ? c.max : c.min} ns`,
         required: c.bound === 'max' ? c.max : c.min, minPeriodNs: c.period, timingErrors: 1, slackNs: +c.slack.toFixed(3) })),

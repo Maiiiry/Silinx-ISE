@@ -96,3 +96,15 @@ uiTest('Design Summary, not yet implemented: a Spartan-3 part\'s 8 global clock 
   assert.deepEqual(await shown(page, 'ResS3'), [['Number of Slice Flip Flops', '3840'], ['Number of 4 input LUTs', '3840'], ['Number of occupied Slices', '1920'],
     ['Number of bonded IOBs', '173'], ['Number of BUFGMUXs', '8']]);
 });
+
+uiTest('#1103 Design Summary: a PERIOD on a clock with no path between two flip-flops: met, "no path between flip-flops to time", no period of 0 ns', E, async (page) => {
+  await makeProject(env, { name: 'NoPaths', template: 'blinky' });
+  const timing = { met: true, timingErrors: 0, score: null, minPeriodNs: null, maxFreqMHz: null, clocks: [],
+    constraints: [{ name: 'PERIOD clk', constraint: 'PERIOD 20 ns on clk', required: 20, minPeriodNs: null, maxFreqMHz: null, timingErrors: 0, slackNs: 20 }] };
+  await writeWs(env, 'NoPaths', 'build/reports.json', JSON.stringify({ source: 'open', top: 'top', synthesis: SYNTH, map: MAP, timing, simModels: {}, files: {}, summary: { synthesized: true, mapped: true, routed: true } }));
+  await page.openProject('NoPaths');
+  await page.waitFor(() => /Timing \(post Place & Route/.test(document.querySelector('.doc:not([hidden])')?.innerText || ''), [], { what: 'the summary\'s timing' });
+  const rows = await page.eval(() => [...document.querySelectorAll('.doc:not([hidden]) .summary-table')].find((t) => /^Timing/.test(t.caption?.textContent || ''))
+    .querySelectorAll('tr').values().map((r) => [...r.children].map((c) => c.textContent)).toArray());
+  assert.deepEqual(rows, [['Timing Constraints', 'All constraints met'], ['PERIOD clk', 'PERIOD 20 ns on clk — met, no path between flip-flops to time']]);
+});

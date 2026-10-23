@@ -59,7 +59,7 @@ export function mountSummary(el) {
       page.append(h('table', { class: 'summary-table' }, h('caption', {}, open ? 'Timing (post Place & Route, Silinx toolchain estimate)' : 'Timing (post Place & Route)'),
         h('tr', {}, h('th', {}, 'Timing Constraints'), h('td', { class: tm.met === false ? 'status-bad' : 'status-good' }, tm.met === false ? (open ? `Not met (${tm.timingErrors} constraints)` : `Not met (${tm.timingErrors} errors, score ${tm.score})`) : 'All constraints met')),
         tm.minPeriodNs ? h('tr', {}, h('th', {}, 'Minimum period'), h('td', {}, `${tm.minPeriodNs} ns (maximum frequency ${tm.maxFreqMHz} MHz)`)) : null,
-        ...(tm.constraints || []).map(c => h('tr', {}, h('th', {}, c.name), h('td', {}, `${c.constraint} — ${c.timingErrors ? `${c.timingErrors} errors` : 'met'}, ${c.minPeriodNs} ns`)))));
+        ...(tm.constraints || []).map(c => h('tr', {}, h('th', {}, c.name), h('td', {}, `${c.constraint} — ${c.timingErrors ? `${c.timingErrors} errors` : 'met'}, ${c.minPeriodNs == null ? 'no path between flip-flops to time' : `${c.minPeriodNs} ns`}`)))));
     }
     const bh = rep?.bit?.header;
     if (bh) {
