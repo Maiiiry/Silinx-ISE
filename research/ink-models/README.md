@@ -24,6 +24,8 @@ Nothing here is part of the app: the page is not loaded, served or built by Sili
   slower; its own figures are to be measured (below).
 - **Safari's engine (WebKit) runs all of it** — WebGPU, 4 threads, the same answers and times as
   Chrome on the Mac — so the iPad can be measured too (over HTTPS, steps below).
+- **iPad (8 GB): none fits.** Safari reloads the page after a few recognitions with every model,
+  TrOCR included: ONNX Runtime Web costs WebKit 1.4–2.5 GB before the first drawing.
 - **Recommendation:** no model now. Expressions are what the templates are best at too, tables are a
   grid of `0`/`1` cells (geometry plus a digit classifier), and schematics need either the templates'
   shape recognition or a model trained on Silinx-style drawings. If expressions turn out to be the
@@ -199,6 +201,15 @@ WebGPU (`?gpucache=default` for ONNX Runtime's own; `disabled` fails in ONNX Run
 also loaded in a fresh worker, so that one model's memory is not left behind when the next one loads.
 WebAssembly is no lighter in WebKit (SmolVLM 4.3 GB) and 4–8 times slower than WebGPU, as on the Mac.
 These are resident sizes on a Mac, where the GPU's memory is the processor's; the iPad decides.
+
+**On the iPad (iPad Pro M4, 8 GB) it does not fit, whatever the model.** With `lazyRelease`, Safari
+still reloads the page, even with TrOCR-small after 6 or 7 recognitions. WebKit's cost is above all
+the runtime's, not the weights': loading TrOCR on WebAssembly (65 MB of weights, one thread) takes the
+browser from 0.5 to 1.9 GB on the Mac, on WebGPU to 3.0 GB, and the recognitions add 0.6 GB more, while
+Safari gives a tab of an 8 GB iPad around 3 GB. (TrOCR's half-precision build, which would halve its
+WebGPU weights, is refused by ONNX Runtime as an invalid model.) A model in Safari would need a runtime
+far lighter than Transformers.js with ONNX Runtime Web, or an iPad with 16 GB; the templates need a few
+megabytes.
 
 `serve.mjs --https` works for the board too, instead of the Chrome flag: Android's Settings ▸ Security ▸
 Encryption & credentials ▸ Install a certificate ▸ CA certificate, with the same `spike-ca.cer`.
