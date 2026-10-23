@@ -1,0 +1,291 @@
+{
+ "stage": "S6-0 (night 1)",
+ "ise": "ISE 14.7 map + par of Silinx's EDIF",
+ "measure": "half-perimeter wirelength in tiles (the placer's cost)",
+ "boards": {
+  "nexys3": {
+   "gates": {
+    "ise": {
+     "wirelength": 55.3,
+     "connections": 6,
+     "perConnection": 9.21,
+     "slices": 1
+    },
+    "silinx": {
+     "wirelength": 53.8,
+     "wirelengths": [
+      55,
+      53.8,
+      53.8
+     ],
+     "connections": 6,
+     "perConnection": 8.97,
+     "slices": 1,
+     "delay": 0
+    }
+   },
+   "traffic": {
+    "ise": {
+     "wirelength": 832.6,
+     "connections": 253,
+     "perConnection": 3.29,
+     "slices": 45
+    },
+    "silinx": {
+     "wirelength": 787.6,
+     "wirelengths": [
+      908.6,
+      787.6,
+      824.8
+     ],
+     "connections": 249,
+     "perConnection": 3.16,
+     "slices": 34,
+     "delay": 6.62
+    }
+   },
+   "blinky": {
+    "ise": {
+     "wirelength": 744.9,
+     "connections": 218,
+     "perConnection": 3.42,
+     "slices": 53
+    },
+    "silinx": {
+     "wirelength": 1307.5,
+     "wirelengths": [
+      1307.5,
+      1317.2,
+      1312.2
+     ],
+     "connections": 372,
+     "perConnection": 3.51,
+     "slices": 54,
+     "delay": 4.54
+    }
+   },
+   "pong": {
+    "ise": {
+     "wirelength": 2298,
+     "connections": 789,
+     "perConnection": 2.91,
+     "slices": 141
+    },
+    "silinx": {
+     "wirelength": 2772.1,
+     "wirelengths": [
+      2784.3,
+      2772.1,
+      2798.8
+     ],
+     "connections": 831,
+     "perConnection": 3.34,
+     "slices": 117,
+     "delay": 10.4
+    }
+   },
+   "stopwatch": {
+    "ise": {
+     "wirelength": 2629,
+     "connections": 704,
+     "perConnection": 3.73,
+     "slices": 113
+    },
+    "silinx": {
+     "wirelength": 2541.5,
+     "wirelengths": [
+      2547.1,
+      2891.5,
+      2541.5
+     ],
+     "connections": 732,
+     "perConnection": 3.47,
+     "slices": 84,
+     "delay": 9.08
+    }
+   },
+   "clock": {
+    "ise": {
+     "wirelength": 1758.4,
+     "connections": 585,
+     "perConnection": 3.01,
+     "slices": 119
+    },
+    "silinx": {
+     "wirelength": 1946,
+     "wirelengths": [
+      2016.9,
+      2031.4,
+      1946
+     ],
+     "connections": 596,
+     "perConnection": 3.27,
+     "slices": 87,
+     "delay": 6.16
+    }
+   },
+   "vga": {
+    "ise": {
+     "wirelength": 1597.9,
+     "connections": 424,
+     "perConnection": 3.77,
+     "slices": 61
+    },
+    "silinx": {
+     "wirelength": 1179.6,
+     "wirelengths": [
+      1228.1,
+      1179.6,
+      1267.8
+     ],
+     "connections": 439,
+     "perConnection": 2.69,
+     "slices": 52,
+     "delay": 5.44
+    }
+   }
+  },
+  "atlys": {
+   "gates": {
+    "ise": {
+     "wirelength": 289,
+     "connections": 6,
+     "perConnection": 48.17,
+     "slices": 1
+    },
+    "silinx": {
+     "wirelength": 289,
+     "wirelengths": [
+      289,
+      289,
+      289
+     ],
+     "connections": 6,
+     "perConnection": 48.17,
+     "slices": 1,
+     "delay": 0
+    }
+   },
+   "traffic": {
+    "ise": {
+     "wirelength": 2170.5,
+     "connections": 255,
+     "perConnection": 8.51,
+     "slices": 49
+    },
+    "silinx": {
+     "wirelength": 1346.9,
+     "wirelengths": [
+      1457.6,
+      1346.9,
+      1458.2
+     ],
+     "connections": 249,
+     "perConnection": 5.41,
+     "slices": 34,
+     "delay": 6.57
+    }
+   },
+   "blinky": {
+    "ise": {
+     "wirelength": 1877.4,
+     "connections": 215,
+     "perConnection": 8.73,
+     "slices": 51
+    },
+    "silinx": {
+     "wirelength": 2392.4,
+     "wirelengths": [
+      2515.1,
+      2392.4,
+      2439.9
+     ],
+     "connections": 372,
+     "perConnection": 6.43,
+     "slices": 54,
+     "delay": 4.8
+    }
+   },
+   "pong": {
+    "ise": {
+     "wirelength": 3802.5,
+     "connections": 795,
+     "perConnection": 4.78,
+     "slices": 141
+    },
+    "silinx": {
+     "wirelength": 3517.7,
+     "wirelengths": [
+      3517.7,
+      3819.8,
+      3976.4
+     ],
+     "connections": 831,
+     "perConnection": 4.23,
+     "slices": 117,
+     "delay": 10.79
+    }
+   },
+   "stopwatch": {
+    "ise": {
+     "wirelength": 3135.1,
+     "connections": 695,
+     "perConnection": 4.51,
+     "slices": 113
+    },
+    "silinx": {
+     "wirelength": 3352.7,
+     "wirelengths": [
+      3680,
+      3352.7,
+      3788.9
+     ],
+     "connections": 732,
+     "perConnection": 4.58,
+     "slices": 84,
+     "delay": 10.16
+    }
+   },
+   "clock": {
+    "ise": {
+     "wirelength": 2997.3,
+     "connections": 587,
+     "perConnection": 5.11,
+     "slices": 116
+    },
+    "silinx": {
+     "wirelength": 3101.7,
+     "wirelengths": [
+      3369.7,
+      3363.1,
+      3101.7
+     ],
+     "connections": 596,
+     "perConnection": 5.2,
+     "slices": 87,
+     "delay": 6.16
+    }
+   },
+   "vga": {
+    "ise": {
+     "wirelength": 1568.5,
+     "connections": 425,
+     "perConnection": 3.69,
+     "slices": 60
+    },
+    "silinx": {
+     "wirelength": 1475.7,
+     "wirelengths": [
+      1475.7,
+      1516.7,
+      1565.7
+     ],
+     "connections": 439,
+     "perConnection": 3.36,
+     "slices": 52,
+     "delay": 5.38
+    }
+   }
+  }
+ }
+}

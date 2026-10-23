@@ -1,0 +1,219 @@
+{
+ "ise": "ISE 14.7: xdl -xdl2ncd, par -k, drc",
+ "designs": {
+  "blinky-atlys": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "blinky-nexys3": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "clock-atlys": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "clock-nexys3": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "gates-atlys": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 5
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "gates-nexys3": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 5
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "pong-atlys": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "pong-nexys3": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "stopwatch-atlys": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:2410": 1,
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 1,
+     "messages": {
+      "WARNING:PhysDesignRules:2410": 1
+     }
+    }
+   }
+  },
+  "stopwatch-nexys3": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:2410": 1,
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 1,
+     "messages": {
+      "WARNING:PhysDesignRules:2410": 1
+     }
+    }
+   }
+  },
+  "traffic-atlys": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "traffic-nexys3": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "vga-atlys": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  },
+  "vga-nexys3": {
+   "placed": {
+    "xdl2ncd": "ok",
+    "messages": {
+     "WARNING:PhysDesignRules:10": 30,
+     "WARNING:PhysDesignRules": 1
+    },
+    "par": "complete",
+    "drc": {
+     "errors": 0,
+     "warnings": 0,
+     "messages": {}
+    }
+   }
+  }
+ }
+}

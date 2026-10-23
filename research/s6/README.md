@@ -150,6 +150,28 @@ nodes), the XC6SLX45 in 14 s, 2.9 MB (369 templates, 1 397 026 nodes, loaded in 
 and PIPs exactly the reports'. Shipped in `core/fpga/devices/` as the Spartan-3E boards' are. A slice's carry goes
 up by a switch of its own tile (`XL_COUT -> XL_COUT_N`, the CIN of the slice above), not by a wire.
 
+### The placer (#729, 2026-10-24)
+
+`core/fpga/s6/`: `phys.js` (the packed slices and the cells of their own sites as site instances, the nets as site
+pins, the constants as power nets), `sites.js` (the device's sites: a carry chain's next stage and a DSP cascade from
+the routing graph, the 32 GCLK pads and the BUFGMUX each reaches, the banks), `place.js` / `place-moves.js` (the
+annealing, as the Spartan-3E placer's), `place-timing.js` (a simple delay estimate until #731), `place-check.js`
+(the rules) and `xdl.js` (the placed design as XDL, the sites' settings as ISE's primitive definitions name them).
+What the slices' definitions in ISE's device report taught: a 5FF's D is O5's only (#1143); a 5FF is written
+`A5FF:<name>:` with no value; a LUT equation names A1 … A6 in every position; a power net needs a source in XDL: the
+TIEOFF of the pin's switch box (HARD1 / HARD0), or, for a pin no TIEOFF reaches (GND_WIRE does not go to the I/O
+logic: an output tied to 0), a free LUT of a slice nearby (`_GND_SOURCE::C`), as ISE does; a position whose A6 is
+tied high names it in its O6 equation (`(A6+~A6)*(…)`, an unused O6 too).
+
+Every example is placed legally on both parts in under a second. Measured by the placer's own cost against ISE's
+placement of the same netlists (`compare-place.mjs`, `measured/place-compare.json`), the wirelength per connection is
+0.6 to 1.2 times ISE's (ISE's map trims the netlist further: fewer nets, so the totals are not comparable). ISE
+reads every placement of the 7 examples on both boards (`xdl -xdl2ncd`), routes it completely keeping it (`par -k`)
+and its DRC finds no error; its one warning is stopwatch's 9K block RAM note (PhysDesignRules:2410), which ISE's own
+implementation of stopwatch has too (`ise-place-check.sh`, `summarize-ise-check.mjs`, `measured/ise-check.json`).
+The first round taught the last two rules above: ISE refuses a power net without a source, and an A6 tied high that
+the O6 equation does not name (PhysDesignRules:1709).
+
 ## The order of the work
 
 1. **Without ISE** (night 0, this one): the plan and the issues; the simulation models of the Spartan-6
@@ -216,3 +238,7 @@ others; without it the Spartan-6 is refused as before. The browser edition has n
 | `night1-remote.sh` | Night 1 on the machine with Docker and ISE (`SILINX_ISE_HOST` on the command line) |
 | `summarize-night1.mjs` | Night 1's results as `measured/night1.json` (counts and observations, no Xilinx file) |
 | `bits6.mjs` | Reads a Spartan-6 `.bit`: its header and the UG380 packets (16-bit words) |
+| `compare-place.mjs` | The placer against ISE's placement of the same netlists (night 1): `measured/place-compare.json` |
+| `place-xdl.mjs` | The examples placed (and with `--route`, routed) as XDL, for ISE's check |
+| `ise-place-check.sh` | Inside the ISE container: `xdl -xdl2ncd`, `par -k` and `drc` of the placed XDL, `drc` of the routed one |
+| `summarize-ise-check.mjs` | That check's logs as `measured/ise-check.json` (the messages by id and count) |
