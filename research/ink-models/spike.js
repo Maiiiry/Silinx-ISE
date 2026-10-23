@@ -7,26 +7,38 @@ const $ = id => document.getElementById(id);
 const canvas = $('ink'), g = canvas.getContext('2d', { willReadFrequently: true });
 const SAMPLES = await (await fetch('samples.json')).json();
 const results = { env: {}, runs: [] };
-// ?threads=1 (WebAssembly threads) and ?dtype={…} (JSON, per ONNX file) override the defaults.
+// ?threads=1 (WebAssembly threads), ?dtype={…} (JSON, per ONNX file) and ?gpucache=disabled|lazyRelease|simple|bucket
+// (how ONNX Runtime's WebGPU backend keeps the buffers it frees) override the defaults.
 const params = new URLSearchParams(location.search);
 const THREADS = params.get('threads') ? Number(params.get('threads')) : undefined;
 const DTYPE = params.get('dtype') ? JSON.parse(params.get('dtype')) : undefined;
+// lazyRelease by default: in Safari the default cache keeps every buffer a recognition used and the iPad's tab is
+// reloaded after a few drawings (Florence-2 ends at 1.4 GB in WebKit instead of 4.8 GB); Chrome is the same with either.
+const GPU_CACHE = params.get('gpucache') === 'default' ? undefined : params.get('gpucache') || 'lazyRelease';
 
 // ---- the worker ------------------------------------------------------------------------------
-const worker = new Worker('worker.js', { type: 'module' });
-let nextId = 1;
+// A fresh worker for every model loaded: ending the old one frees all it held (Safari keeps a disposed model's
+// WebGPU memory, and the iPad's tab is reloaded once it has too much).
+let worker = null, nextId = 1;
 const waiting = new Map();
-const ready = new Promise(resolve => {
-  worker.onmessage = ({ data }) => {
-    if (data.type === 'ready') return resolve(data);
-    const w = waiting.get(data.id);
-    if (!w) return;
-    if (data.type === 'progress') return w.progress?.(data);
-    waiting.delete(data.id);
-    data.type === 'error' ? w.reject(new Error(data.message)) : w.resolve(data);
-  };
-});
-worker.onerror = e => setStatus(`Worker failed: ${e.message}`);
+function startWorker() {
+  worker?.terminate();
+  for (const w of waiting.values()) w.reject(new Error('The worker was restarted'));
+  waiting.clear();
+  worker = new Worker('worker.js', { type: 'module' });
+  worker.onerror = e => setStatus(`Worker failed: ${e.message}`);
+  return new Promise(resolve => {
+    worker.onmessage = ({ data }) => {
+      if (data.type === 'ready') return resolve(data);
+      const w = waiting.get(data.id);
+      if (!w) return;
+      if (data.type === 'progress') return w.progress?.(data);
+      waiting.delete(data.id);
+      data.type === 'error' ? w.reject(new Error(data.message)) : w.resolve(data);
+    };
+  });
+}
+let ready = startWorker();
 function call(msg, progress, transfer) {
   const id = nextId++;
   return new Promise((resolve, reject) => {
@@ -142,14 +154,16 @@ async function loadModel(key, backend) {
   const files = {};
   const warm = await cachedFiles(key);
   setStatus(`Loading ${m.label} on ${backend}…`);
-  const r = await call({ type: 'load', key, backend, dtype: DTYPE, threads: THREADS }, p => {
+  if (loaded) { loaded = null; ready = startWorker(); }
+  await ready;
+  const r = await call({ type: 'load', key, backend, dtype: DTYPE, threads: THREADS, gpuCache: GPU_CACHE }, p => {
     files[p.file] = [p.loaded, p.total];
     const [l, t] = Object.values(files).reduce(([a, b], [x, y]) => [a + x, b + y], [0, 0]);
     setStatus(`Loading ${m.label} on ${backend}: ${mb(l)} of ${mb(t)} MB`);
   });
   loaded = { key, backend };
   const run = {
-    model: key, backend, dtype: r.dtype, threads: r.threads, cachedOnnxFiles: warm,
+    model: key, backend, dtype: r.dtype, threads: r.threads, gpuCache: r.gpuCache, cachedOnnxFiles: warm,
     downloadMB: mb(downloadBytes(key, backend)), loadedMB: mb(r.bytes), loadS: +(r.loadMs / 1000).toFixed(1),
     memoryAfterLoadMB: await memoryMB(), samples: [],
   };
@@ -178,11 +192,16 @@ async function runSamples(run) {
     run[`${k}Score`] = +(xs.reduce((a, x) => a + x.score, 0) / xs.length).toFixed(2);
   }
   results.runs.push(run);
+  keep();
   render();
   return run;
 }
 
 // ---- results ---------------------------------------------------------------------------------
+// Kept by the browser after every run, so that the runs before a reload (a tab out of memory) are not lost.
+const STORE = 'ink-models-results';
+function keep() { try { localStorage.setItem(STORE, JSON.stringify(results.runs)); } catch { /* storage unavailable */ } }
+try { results.runs.push(...(JSON.parse(localStorage.getItem(STORE)) || [])); } catch { /* none kept */ }
 const mb = b => +(b / 1048576).toFixed(1);
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
 function render() {
@@ -222,9 +241,10 @@ $('env').textContent = `Transformers.js ${e.transformers} · ${e.cores} cores ·
   `WebGPU: ${e.webgpu ? `${e.webgpu.vendor || '?'} ${e.webgpu.architecture || ''}${e.webgpu.f16 ? ', f16' : ''}` : 'no'} · ` +
   `cross-origin isolated (threads, memory): ${e.crossOriginIsolated ? 'yes' : 'no'} · ${e.userAgent}`;
 if (!e.webgpu) $('backend').value = 'wasm';
-setStatus('Ready: load a model.');
+setStatus(results.runs.length ? 'Ready: the results kept are below.' : 'Ready: load a model.');
+render();
 
-$('load').onclick = () => busy(() => loadModel($('model').value, $('backend').value).then(r => { results.runs.push(r); render(); }));
+$('load').onclick = () => busy(() => loadModel($('model').value, $('backend').value));
 $('recognize').onclick = () => busy(async () => {
   if (!loaded) throw new Error('Load a model first');
   const r = await recognize($('kind').value);
@@ -238,6 +258,7 @@ $('benchAll').onclick = () => busy(() => runAll($('backend').value));
 $('copy').onclick = () => navigator.clipboard.writeText(JSON.stringify(results, null, 2)).then(() => setStatus('Results copied.'));
 $('download').onclick = () => save(new Blob([JSON.stringify(results, null, 2)], { type: 'application/json' }), `ink-models-${Date.now()}.json`);
 $('forget').onclick = async () => { await caches.delete('transformers-cache'); setStatus('Model cache cleared.'); };
+$('forgetResults').onclick = () => { results.runs.length = 0; keep(); render(); setStatus('Results forgotten.'); };
 
 function save(blob, name) {
   const a = document.createElement('a');
@@ -247,8 +268,10 @@ function save(blob, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+// The models not measured yet on this backend: after a reload, Run every model goes on where it stopped.
 async function runAll(backend, keys = Object.keys(MODELS)) {
-  for (const key of keys) await runSamples(await loadModel(key, backend));
+  const done = k => results.runs.some(r => r.model === k && r.backend === backend && r.samples?.length === SAMPLES.length);
+  for (const key of keys.filter(k => !done(k))) await runSamples(await loadModel(key, backend));
   setStatus('Done.');
   return results;
 }
