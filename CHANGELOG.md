@@ -3,6 +3,798 @@
 What changed in each version of Silinx ISE. The newest version is first. Each section is also
 the "What's new" text of its GitHub release.
 
+## 15.13.0
+
+In short:
+
+- **Schematic Try it: the clock's tick seen:** a click on a clock's I/O marker (one cycle) turns it green for a moment;
+  it stays green while the clock runs.
+- **Schematics: I/O markers take their direction from what they connect to:** a marker wired to a symbol's output
+  becomes an output, to an input an input (to a bidirectional pin, bidirectional).
+- **The Board Emulator's status line is readable while it runs:** the time, the cycles and the rate change twice a
+  second, not on every frame (it flickered).
+- **No false PERIOD warning:** a PERIOD on the clock of a design with one register stage (no path between two of its
+  flip-flops) is no longer reported as "no clock of the design comes from this port"; it is met, with no path to time.
+- **The Design pane:** no "Hierarchy" heading above the design tree any more; the tree comes right under the View
+  selector.
+- **Handwritten input, a preview:** hand-drawn Boolean expressions, truth tables and schematics (gates,
+  flip-flops, wires), read offline, with a pad that zooms and has Redo, and a Pen and Touch Test: while they do not
+  read real handwriting well enough, they are in the Development menu of the development builds only.
+- **Program FPGA after a reload:** in the browser, Program FPGA offers to implement the design again when its
+  programming file is gone (a build is kept for the browser session only), instead of failing with "no bitstream".
+- **Programming on an iPad:** the message no longer says to use Chrome or Edge, already in use there: no browser on an
+  iPad or iPhone can program the board (all run on Safari's engine, without WebUSB); it says to program the
+  downloaded .bit from a computer or an Android tablet.
+- **No Design Utilities in the Processes:** the group and its View HDL Instantiation Template are gone, in every
+  interface; the HDL editor's Instantiate module writes the same instantiation.
+- **Try it on the RTL and the Technology Schematic:** View RTL Schematic and View Technology Schematic have the
+  schematic editor's Try it: click the inputs (switches, bus values, the clock's Step or Run) and watch the
+  circuit work, its wires and pins coloured by their values, inside an instance too; Esc stops.
+- **The Tasks interface: View RTL Schematic in Implement:** Synthesize's RTL Schematic opens in Implement, where its
+  process is, as the Technology Schematic does, not in Design.
+- **A wire drawn as one stroke:** with Add Wire, trace a stroke with the pen, a finger or the mouse from a pin or
+  a wire to another one, along any curve: it becomes a wire between them, routed square around the symbols.
+  Clicking corner by corner works as before.
+- **Silinx as an app:** Chrome and Edge offer to install the site (*Install app*; *Add to Home screen* on an
+  Android tablet or a classroom's interactive display). It opens in a window of its own, with no address
+  bar, and once a project has been opened it opens and implements with no network too.
+- **The Tasks interface's Edit task is called Design:** its button, its tooltip and its page; "Design" in
+  Portuguese too.
+- **No project chip in the header:** the project's name, which opened Open Project from the header of the modern and
+  Tasks interfaces, is gone; a project is opened from File or the Start page, and its name is in Design.
+- **The Tasks interface without the status bar:** its bottom line (the last message, the device and board, the
+  storage) is gone; the messages are in the message centre, the device and board in Design.
+- **Tasks ▸ Simulate:** the simulator's icons are in the waves' own top line (where "Default.wcfg" was): the waves get
+  the toolbar's height.
+- **Program PROM:** every operation of the PROM (Program PROM, Verify, Erase, Back up PROM, Reload FPGA from PROM)
+  is shown at once; no "More…" button.
+- **Program FPGA implements first:** with no programming file yet, or one older than the sources, Program FPGA asks
+  whether to implement the design first, and programs the board once it is built. The Tasks interface's Program no
+  longer has the lines "No programming file yet — Implement" and "Up to date with the sources".
+- **Tasks ▸ Program:** the programming panel uses the whole width of the window, as in the modern and classic
+  interfaces.
+- The Tasks interface's Emulate: the emulation's time and rate (t = … ns · … cycles · … kHz) right below the board,
+  in place of the board's line.
+- The Tasks interface's Emulate: the board keeps its size when the window is made smaller; the Watch and the VGA
+  monitor go below the board instead, and the emulator's area scrolls.
+- The Tasks interface's Emulate: the Board Emulator opens with its Watch panel shown, beside the board (below it on a
+  narrow screen).
+- **Simulator: Save and Load Wave Configuration:** the simulator's toolbar saves the wave window's signals (their order
+  and radix), dividers, groups and markers as a file of the project (.wcfg, as ISim's) and loads one back into the
+  current simulation; Save VCD is no longer in the toolbar.
+- **Tasks ▸ Simulate:** choosing the model (Behavioral, Post-Synthesis … Post-Place & Route) or the test bench simulates
+  it at once (a model not generated yet is offered to be generated first); the Simulate button beside them is gone.
+- **Tasks ▸ Simulate:** no status line under the waves ("Ready … Sim Time"): the waves have its height.
+- The Tasks interface's Edit: a Test tab after Design lists the project's test benches, so the Design tab shows the
+  design alone.
+- **Technology Schematic:** an instance whose registers drive a signal of the top directly (blinky's BCD counter
+  driving the display's digits) has its own block, not its cells in the top's logic.
+- The Console no longer shows errors of scripts that are not Silinx's (such as "ERROR: func sseError not found" from a
+  browser extension or the host application, after the app stayed open a long time).
+- The console's filter "Check Syntax" is called "Design" (*Projeto*): its lines are the design's checks.
+- The Tasks interface: a schematic's Check writes its errors and warnings in the console below, as every process
+  does, rather than in a panel of the editor; clicking one shows its item in the drawing.
+- The schematic editor's (and a truth table's schematic's) **Simulate** is now **Try it** (*Experimentar*): it runs
+  the circuit in the drawing, click the inputs and watch the wires, and is no longer confused with the design flow's
+  Simulate (the test bench's waveforms).
+- The Tasks interface: a task's coloured dot is explained by its button's tooltip, for example "Implement — done with
+  warnings".
+- The header no longer shows "Silinx ISE" and its version, in the modern and classic interfaces (as in the Tasks
+  interface): the classic title bar shows the project and its document, the modern header the logo and the project.
+  The product and version are the logo's tooltip, the window's title and in Help ▸ About.
+- The Tasks interface's Edit: Start, Design, Files and Libraries are tabs at the top of the side panel, above the
+  hierarchy, rather than a column of their own: more room for the editor.
+- **Blinky counts on the display:** the blinky example shows on the board's 4-digit 7-segment display how
+  many steps its LED pattern has made, in decimal from 0000 to 9999 (SW0 resets it, a pause stops it).
+- **New Source: shorter type names:** *Schematic*, *Finite State Machine (FSM)*, *Algorithmic State Machine (ASM)*,
+  *Petri Net* and *Test Bench* (in Portuguese too); the New Project wizard's top-level types the same.
+- **New Source, < Back and another type:** after going back and choosing another source type, the wizard's steps,
+  its Next > / Finish button and the File Name page follow the new type, not the first one.
+- **Implement in the browser, faster the first time:** the site downloads Yosys (17 MB) and the board's device
+  description when a project opens, in the background, and keeps them; Implement no longer waits for them,
+  nor downloads them again after the site is updated.
+- **New Source: a Wizard button:** the source types have no "(Wizard)" entries any more; on the File Name and
+  Location page, *Wizard | < Back | Next > | Cancel*: Next > makes the plain source, Wizard opens the type's wizard
+  (Module, Schematic, Petri Net, Test Bench, the Clocking Wizard, Block Memory) with the name typed.
+- Schematics: VCC and GND have a Width in the Properties panel; a VCC or GND of 8 bits ties a whole bus to 1s or 0s.
+- **Board Emulator on a tablet or a phone:** it starts at once on the event-driven engine, instead of compiling the
+  design first; the Engine selector still runs it compiled, and the engine you choose is remembered.
+- The Schematic Wizard suggests no ports any more: its Inputs and Outputs page is only the table, where you add your
+  own ports.
+- **Schematic editor:** an I/O marker's Properties no longer show Rotate, Mirror and Delete buttons; the toolbar
+  and Ctrl+R / Ctrl+M / Del still turn, mirror and delete it.
+- **Schematic wires no longer overlap:** a wire drawn along another wire, over a pin or a marker, or through a symbol
+  is nudged a step aside onto a clear path; a symbol moved or pasted onto a wire has that wire routed around it; the
+  schematics made from HDL draw their nets with wires where they used to fall back to labelled stubs. Only the drawn
+  paths change: the wires' ends, the nets and the generated HDL stay the same.
+- **Simulate a truth table's schematic:** the schematic generated from a truth table has the schematic editor's
+  Simulate: click its inputs and watch its outputs and wires, the values of the table; the drawing stays read-only.
+- One console in the modern and classic interfaces too: the simulator's (SSim's) console and command line and the board
+  emulator's messages are in the Console at the bottom, with filters by source (All, Design, Simulation,
+  Emulator, Synthesis, Implementation, Board).
+- **The simulator is SSim:** Silinx's own simulator is now called SSim (the Silinx Simulator) in the Processes
+  pane, its tab, its console and prompt, the New Project wizard and the README; ISim is Xilinx's (its "I" is ISE's).
+  The console's force command is `ssim force`; `isim force` still works.
+- **Edit Stimuli: one bit of a bus at a time:** in ISim, with a bus expanded, a click on the wave of one of its bits
+  changes that bit as a 1-bit signal's (0 → 1 → Z → X on an input, - → 0 → 1 for an expected output); the bus's value
+  follows from its bits.
+- **The Board Emulator's status line no longer disappears:** at some window widths the line at the end of its bar
+  (t = … ns · … cycles · … kHz (…% of real time)) shrank to nothing or was cut short; it now goes to a row of its own
+  when the controls leave no room for the whole line, in every interface.
+- **The waveform viewer keeps the whole of a two-finger scroll:** the time's scrollbar, following the view a frame
+  later, could take back the gesture's last step (a few pixels of time) when its scroll event came late.
+- **Shorter control paths with the Silinx toolchain:** a critical LUT that one or two LUTs cannot make shallower is now
+  rebuilt as a tree of LUTs (by ISE's timing iwls05-sasc 12.7 % faster and a quarter smaller at Optimization Effort High, itc99-b13 9.6 %,
+  fpu-adder 7.3 %).
+- **Faster designs with wide state decoding:** a critical function of 6 or 7 signals that no LUT tree makes shallower
+  is now built as XST does, LUTs into the slice's wide multiplexers (MUXF5, MUXF6, MUXF7): verilog-uart 12 % faster,
+  vtr-stereovision3 3.5 % (with fewer LUTs).
+- **Faster small designs at Optimization Effort Normal with the Silinx toolchain:** Place & Route makes two placements
+  of a design of 500 slices at most and keeps the faster, as High does: 1.25 % shorter critical paths on average, up to
+  14 % by ISE's trce (the clock example), for a second or two more on a small design; a larger one is placed once, as
+  before.
+- **Open synthesis:** a large round-robin arbiter written as gates takes about 8 % fewer LUTs and slices at High; the T80
+  routes about 7 % faster at High.
+- **Block RAMs and multipliers on any global clock:** a block RAM's port B and a multiplier's registers can now take any
+  of the eight top and bottom global clocks in the Silinx toolchain (before, only one of them, so a design with two
+  such clocks was refused), and a clock on any global clock pad reaches its buffer on the pad's dedicated path.
+
+In detail:
+
+- **A clock marker ticked (#1110):** one cycle left the marker at its level (0), so nothing showed the click. It is
+  green TICK_MS (300 ms) after a click, and while the clock runs (web/js/sch-live.js, sch-live-inputs.js,
+  sch-editor.css); back to its level after, or on Pause.
+- **An I/O marker's direction from the pins an edit connects it to (#1109):** core/schdoc-markers.js compares the
+  netlist before and after an edit (a wire drawn, the marker or a symbol moved): a marker whose net gained symbols'
+  pins becomes an output when an output pin drives the net, bidirectional on an inout pin, else an input. It is done
+  in the same edit (web/js/sch-edits.js), so one Undo reverts both; a direction set in the properties stays, since
+  that edit connects no new pin.
+- **The status line's rewrites (#1106):** while the emulator runs, web/js/emulator-paint.js rewrites it STAT_MS
+  (500 ms) apart at most; paused, stepped, powered off or stopped by an error, at once. It was every frame, 180
+  rewrites in 3 s.
+- **The standalone edition's UI test after #1085 (#1104):** a build said done whose bitstream the browser does not have
+  is now asked about (#1084); the test expects the question and its reason, no longer the old failure line.
+- **A PERIOD on a clock with no path to time (#1103):** checkPeriods (core/fpga/timing-checks.js) finds the clock from
+  the port among the flip-flops' clocks when the static timing has no path for it: met, `noPaths`, as trce's
+  "0 paths analyzed". The timing report says so, the Design Summary's row says "no path between flip-flops to time"
+  (not a period of 0 ns), and the warning stays for a port that clocks nothing.
+- **Tasks ▸ Simulate: the test bench's Edit button (#1102):** its label centred in the button (web/css/tasks.css made it
+  `inline-flex` without centring its content).
+- **The Start page's spacing (#1101):** "Project Commands" right under the pane's caption, at the page's own padding
+  (31 → 18 px in the modern interface, 14 in the classic one), as the Design pane's content.
+- **No "Hierarchy" heading in the Design pane (#1100):** removed from web/index.html with its styles and its
+  translation, in every interface.
+- **Handwriting from the Development menu only (#1098):** the schematic editor's toolbar, the truth table editor
+  (Handwritten…, Handwritten Table…) and the New Source wizard's truth table (Handwritten…) no longer offer it; the
+  Development menu has Handwritten Expression… and Handwritten Truth Table… (on the open truth table: its output's
+  column, its whole table) and Handwritten Schematic… (on the open schematic, not on a read-only view), each disabled
+  when no such editor is open. The New Source wizard keeps its typed expression.
+- **The design corpus's expectations: the T80 meets its period (#1096):** since the T80 was routed faster (Refs #370,
+  #651) its 20 ns PERIOD on clk_n is met, and the Nightly reported the warning "PERIOD 20 ns on clk_n not met" as
+  vanished; `test/designs-corpus/expected.json` no longer expects it, and the README's results table follows (`run.mjs --table`).
+- **The handwriting pad's Undo and Redo (#1092):** the pad keeps what was done (a stroke, a Clear) and what was
+  undone; Undo takes back the last of them (a Clear: the drawing comes back), Redo does it again, a new stroke ends
+  what can be redone. `padButtons` (`web/js/ink-pad.js`) gives the three dialogs their Undo, Redo and Clear, disabled
+  when there is nothing to do, and Ctrl/Cmd+Z, Ctrl+Y and Ctrl/Cmd+Shift+Z outside their text fields.
+- **The handwriting pad's view (#1088):** two fingers pinch and pan it (`twoFingerView`, as in the drawing editors,
+  #674; a stroke the first finger had started is dropped), the wheel zooms it about the pointer, *Fit* (over the pad's
+  corner) shows the whole drawing; the strokes are kept in the pad's own coordinates, so what is recognized does not
+  change with the view. The Handwritten Schematic dialog fills the browser's window: the pad most of it, the circuit
+  read and the messages in a column beside it (under it on a narrow screen).
+- **The handwriting pad on an iPad (#1086):** the pad cancels its touches' own actions (iPadOS selected the dialog's
+  text around the pen, or took the writing for Scribble's), and the handwriting dialogs' text is not selectable (their
+  text fields are); the pointer events, which draw, still come.
+- **Program FPGA asks whether the file is there (#1084):** the processes' state comes back with the project after a
+  reload, the browser's bitstream does not. The file's state (web/js/impact-file.js) is now also the API's bitinfo:
+  built but not there is 'gone', and Program FPGA asks to implement first, saying why (in the browser, or the
+  project's build folder in the full application); in Portuguese.
+- **Hand-drawn flip-flops (#1083, a follow-up of #1067):** `core/ink/flipflops.js` finds the boxes (a closed square
+  stroke, or square lines meeting at their ends, with labels inside: an empty box is not one), reads the labels on
+  their left (the inputs, a wedge for the clock) and on their right (Q, Q with a bar or a prime), and chooses the
+  library's symbol (fd, ft, fjk and their variants by the controls drawn, `ffVariant`). `core/ink/schematic.js` takes
+  the flip-flops apart from the gates, ties each wire on a box's left side to the label beside it, a wire on its right
+  to Q or Q̄, reads a wire that loops back (its ends close, all of it square), and joins the wires leaving one output
+  into one net; its errors: a label that is not a pin, no clock, no data input, a pin without its wire or with two,
+  no wire from the outputs, controls the library has no flip-flop for. `core/ink/schematic-doc.js` makes a Q̄ an
+  inverter after the Q. The dialog lists a flip-flop with its pins. Held-out circuits (a toggle, a register with an
+  enable and a clear, a 2-bit counter, a JK; `core/ink/synth-flipflop.js`) are read, made into a schematic with a
+  clean netlist, and their HDL, compiled and clocked (`compileDesign`), gives every cycle the outputs computed from the
+  drawing's description (`test/ink-flipflops.test.js`).
+- **A small k is read as a k:** it was taken for a letter whose capital is the same shape, larger, so `clk` was read
+  as `clK` (#1083).
+- **The private-data scan and browser versions (#1080):** a product's four-part version after its name and a slash,
+  as in a User-Agent string (`Chrome/…`), is no longer read as an IP address; an address after `://` or a path's `/`
+  still is (scripts/check-private-data.mjs). It replaces #1027's allow-list entry, and test/private-data.test.js
+  passes again with research/ink-models' results (#1060).
+- **Why the board cannot be programmed from this browser (#1079):** core/webusb-support.js gives the reason, an iPad
+  or iPhone's of its own (an iPad that says it is a Mac: a touch screen); iMPACT's help in the browser edition names
+  them too.
+- **The Pen and Touch Test's drawing area in the theme's colours (#1077):** its border and background were colours
+  written in the code (white in the dark theme too), which the dark theme's check of the pages refused on `main`.
+- **No Design Utilities (#1072):** the Processes' Design Utilities group (`web/js/processes.js`), its only process,
+  View HDL Instantiation Template, the read-only template document it opened (`openInstTemplate`, `web/js/app.js`,
+  documents `tpl:<module>`) and their Portuguese labels are removed. `instTemplate` (`web/js/editor.js`) stays, for
+  Instantiate module. Tests: `test/ui/editing.test.js` (the Processes list neither), `test/tasks.test.js`,
+  `test/web-helpers.test.js`.
+- **The #839 UI test after the project chip's removal (#1068):** with no project chip (#1042) the Tasks header has more
+  room, and at 1280 × 800 every label fits; `test/ui/tasks.test.js`'s #839 now looks for the width where only the
+  current task's label shows (from 1280 down to 1040 px) rather than assuming 1280.
+- **A schematic drawn by hand (#1067, stage 3 of #1055):** `core/ink/schematic.js` reads the drawing: the wires are the
+  square open strokes; the gates the tall groups of the other strokes shaped as a gate (their outlines in
+  `core/ink/gates.js`, $P templates: AND, OR, XOR, a triangle; a letter is not one), with the square lines all in their
+  box (an AND's or a triangle's back) and a small ring at the tip (an inversion: NAND, NOR, XNOR, NOT); a wire end on a
+  gate's left side is one of its inputs (from the top), at its tip its output, on another wire a junction, at a name
+  the net's name (an input, or an output when a gate drives the net); the errors (a gate without its wires, the inputs
+  a gate has, outputs joined, a wire from nowhere) and warnings (an output without a name, a name or a wire end astray).
+  `core/ink/schematic-doc.js` makes it a schematic: Silinx's symbols where the gates were drawn, the I/O markers at the
+  names, each net routed square by `routePath` (#1052's router). The Handwritten Schematic dialog
+  (`web/js/ink-schematic-dialog.js`) lists the gates with their types and the names, to correct, and replaces the
+  editor's drawing in one edit (`web/js/sch-ink.js`). Held-out circuits (`core/ink/synth-schematic.js`) all read with
+  their logic, 22 of 24 with every name, their netlists clean, their HDL simulating to their truth tables
+  (`test/ink-schematic.test.js`).
+- **The slant of the writing** is now measured on its nearly upright parts only, and not on a single letter's
+  diagonal (a Z read as an E, #1067).
+- **A truth table drawn by hand (#1066, stage 2 of #1055):** `core/ink/table.js` finds the ruling lines (long straight
+  strokes), the rows (by their lines or their gaps; the small marks join the nearest), the columns (the cells of the
+  rows below the header, aligned), reads the header's names together on their line (`recognizeWords` in
+  `core/ink/expression.js`: the case by the digits' height, an i or a j by its dot) and each cell as 0, 1 or X; the
+  inputs end at the only upright line across the table, or the double one of a full grid, else the last column is the
+  output (a warning). The table's text (`A B | F`, a row a line) is shown to correct and read back by
+  `tableFromText` (the rows in any order; a row missing, repeated or contradicted, a value not 0 / 1 / X, the names:
+  warnings and errors). The Handwritten Truth Table dialog (`web/js/ink-table-dialog.js`) fills the editor's inputs,
+  outputs and columns, one step of Undo. Held-out tables (`core/ink/synth-table.js`: other hands than the templates',
+  with lines or a full grid) are read exactly 38 times of 40, every cell right (`test/ink-table.test.js`).
+- **Try it on the read-only viewers (#1064):** the drawing of the RTL Schematic (the elaborated design) or of
+  the Technology Schematic (the synthesized netlist's device cells: LUTs, flip-flops, carry chain, buffers) is
+  simulated live with the design's sources or the netlist's primitive models, and the values of the instance's
+  generics; on gates and blinky the outputs equal the RTL simulation's. Try it on a drawing whose module's file
+  defines other modules too (the netlist, a module with its submodules) keeps them; the device primitives'
+  clock pins (through IBUFG / BUFG) make a clock input steppable.
+- **Tasks: the RTL Schematic in Implement (#1063):** `taskOfDoc` (`web/js/tasks.js`) gives `rtl:<module>` documents
+  to Implement, as `tech:` ones. Tests: `test/tasks.test.js` (taskOfDoc), `test/ui/tasks.test.js` (#1063: opened
+  from Implement's Processes, Implement in front, not among Design's documents; fails on the old code).
+- **Handwritten Boolean expressions, Silinx's own offline recognizer (#1056, stage 1 of #1055):** `core/ink/` (pure,
+  no dependencies, no network): the $P point-cloud recognizer (`pdollar.js`, with the amount of ink as a second
+  measure); the ink split into characters by its layout (`segment.js`: the slant made upright, strokes that overlap or
+  meet, the dot of an i or a j, a prime apart, overbars); the expression read (`expression.js`: primes and dots by
+  their place, `=` by its two lines, capital or small by the letter's height, the symbols written alike chosen by
+  `parseExpr`, brackets balanced, an overbar as NOT); built-in templates made by `scripts/ink-templates.mjs` from a
+  skeleton font (`font.js`, `synth.js`) into `core/ink/templates.json`; the user's samples as preferred templates
+  (`templates.js`). The Handwritten Expression dialog (`web/js/ink-dialog.js`, its pad `web/js/ink-pad.js`: pen,
+  touch and mouse, a resting hand ignored once a pen writes): the truth table editor's *Handwritten…* fills the
+  column of the output named; the New Source wizard's Truth Table has an optional expression, typed or handwritten,
+  that gives the table's inputs, output and column. Held-out handwriting (other seeds, stronger distortions than the
+  templates') is read at 99% glyph by glyph (221 of 222) and 90% expression by expression (76 of 84,
+  `test/ink.test.js`).
+- **The Development menu's Pen and Touch Test (#1054):** a drawing area where each pointer leaves a trail in its
+  own colour; each pointer's `pointerType`, `pointerId`, `isPrimary`, pressure, contact size, tilt and buttons, live;
+  the number of pointers down at once; what Silinx would do with it (one touch or a pen edits, a second touch is the
+  two-finger pan and zoom, a long press the context menu); the screen's touch points, `pointer` / `any-pointer` /
+  `hover` media queries, pixel ratio and viewport; **Copy Report**, all of it as text.
+- **Add Wire: a freehand stroke made into a routed wire (#1052):** a press on a pin, an I/O marker or a wire
+  that moves 16 screen pixels or more is a stroke, shown as a light ink trail; lifted on another pin, marker or
+  wire, the wire router (`routePath`) joins the two points with a square wire clear of the other wires and the
+  bodies, and the stroke's shape is dropped. The drawn wire's rules hold (it connects at its ends only, a wire
+  between two named nets is refused). A stroke lifted elsewhere, or where it started, leaves the drawing
+  unchanged; a shorter press is a click, the wire drawn corner by corner as before; a second finger pans and
+  zooms. The Add Wire hint says so, in Portuguese too (`web/js/sch-stroke.js`).
+- **The site installable, the page kept for offline use (#1051):** the site's `index.html` links a web app
+  manifest (`manifest.webmanifest`: standalone, started and scoped in the edition's folder, so that the
+  stable edition and `dev/` are two apps, each with its own storage as before; icons drawn by
+  `scripts/pwa-icons.mjs`) and registers a service worker (`sw.js`, from `web/js/sw.js`) scoped to that
+  folder: the page from the network first, its copy when there is none; the manifest and icons kept; the
+  versioned assets read from their cache (#967), Yosys's bundle among them, which its workers import
+  rather than fetch; nothing else intercepted (`version.json`, GitHub's API, the usage counter, the
+  root's `dev/`). The downloaded `Silinx-ISE.html` and the application have none of it
+  (`scripts/pwa.mjs`, `web/js/sw-policy.js`, `web/js/pwa.js`).
+- **Tasks: the Design task (#1046):** `TASK_LABEL.edit` is "Design" (its id `edit` kept, for the kept state and the
+  documents). In Portuguese it stays "Design", not "Projeto" (the Project menu's, beside it in the header):
+  `web/js/i18n.js` keeps a text untranslated inside an element marked `data-i18n-keep="Design"` (the task's button,
+  its empty page's heading), and the tooltip pattern ("Design — concluído, sem avisos"). The Design pane and the
+  console's Design filter keep "Projeto". Tests: `test/tasks.test.js`, `test/web-i18n.test.js`,
+  `test/ui/tasks.test.js` (the labels and tooltips in English and Portuguese).
+- **No project chip (#1042):** `#title-project` (`web/index.html`), its text (`web/js/project.js`), its click
+  (`web/js/app.js`) and its styles (`modern.css`'s `.m-chip`, `tasks.css`) removed, in every interface (classic had
+  it hidden already). Tests: `test/ui/tasks.test.js` (#1042: none in Tasks, modern and classic),
+  `test/ui/modern.test.js`, `test/modern.test.js`.
+- **Tasks: no status bar (#1039):** `web/css/tasks.css` hides `#statusbar` under `data-layout="tasks"`; the
+  modern and classic interfaces keep it. Test: `test/ui/tasks.test.js` (hidden in Tasks, shown in modern before
+  and after).
+- **A pull request's UI tests in every part (#1032):** `scripts/related-tests.mjs --shard i/n` balances the
+  related UI tests over the parts by their measured times too (the heaviest with the lightest part of the unit
+  tests), instead of all of them in part 1, which passed its 45 minutes on a change of an example.
+- **The New Project wizard's UI test and the shorter source type names (#1031):** each top-level source
+  type's label checked as the wizard names it (Finite State Machine (FSM), Algorithmic State Machine (ASM)).
+- **The private-data scan and browser versions (#1027):** Chrome's four-part version in test/emulate-engine.test.js's
+  User-Agent strings is not an address: in the scan's allow-list with its reason (scripts/check-private-data.mjs);
+  test/private-data.test.js passes again.
+- **Tasks ▸ Simulate: the simulator's icons in the wave window's line (#1026):** in the Tasks interface the
+  simulator's toolbar moves into the wave window's caption, whose name ("Default.wcfg") and cursor text are no longer
+  shown (`placeSimToolbar` in web/js/tasks-sim.js, web/css/tasks.css); back under the title bar in the modern and
+  classic interfaces.
+- **Program PROM: every operation shown, no More… (#1025):** the Tasks interface's Program hid Verify, Erase, Back up
+  PROM and Reload FPGA from PROM behind a "More…" button; they are shown with Program PROM, as in the modern and
+  classic interfaces, and the button is removed. A UI test in the three interfaces and in Portuguese.
+- **Program FPGA with no programming file, or an old one: implement first (#1024):** in every interface, Program FPGA
+  with the project's own programming file not built, older than the sources, or from an implementation that failed
+  asks whether to implement the design first (Yes / No); Yes runs Generate Programming File, then programs the FPGA
+  when it ends without errors, as Generate and Simulate does (#490); No programs nothing. A .bit file of the
+  student's choice is programmed as it is. The Tasks interface's line about the file's state (and its Implement
+  button) is removed. The file's state comes from the implementation processes' (web/js/impact-file.js, unit
+  tested); UI tests in the three interfaces and in Portuguese, the programmer stood in for.
+- **Tasks ▸ Program as wide as its page (#1023):** the programming panel (the chain, Program FPGA or PROM, the
+  board's settings) was 920 pixels wide at most in the Tasks interface; it takes the whole width available, as the
+  modern and classic interfaces' did already (a UI test at a desktop's and a laptop's width, in the three
+  interfaces).
+- **The Tasks interface's Emulate: the emulator's status below the board (#1022):** its status line (t = … ns ·
+  … cycles · … kHz (…% of real time)) moves from the end of the emulator's bar to right below the board, replacing the
+  line "Digilent Basys2 — top · Clock clk: 50 MHz on the board"; in Portuguese too. The modern and classic interfaces
+  keep it at the end of the bar, the board's line below the board.
+- **The Tasks interface's Emulate: the board keeps its proper size (#1021):** the board's picture is never zoomed below
+  its own size (it was down to 0.3 on a small window); on a large window it is still enlarged, at most 1.5 times, to
+  the room beside the Watch. When the width runs short, the Watch and then the VGA monitor wrap to the next row, below
+  the board, and the emulator's area scrolls (across too, on a tablet in portrait narrower than the board). The modern
+  and classic interfaces are unchanged.
+- **The Tasks interface's Emulate: the Watch shown at first (#1020):** the task's side panel (the emulator's Watch, its
+  timing generics and hints) is open the first time, rather than folded; folded by the viewer, it stays folded. The
+  modern and classic interfaces are unchanged.
+- **The simulator's wave configuration as a file (#1019):** Save Wave Configuration and Load Wave Configuration in the
+  simulator's toolbar, in every interface (web/js/isim-wcfg.js; web/js/sim-wcfg.js: the file next to the simulated
+  module's source by default, an existing one replaced when confirmed, the project's .wcfg files offered when loading,
+  the module's own first); the file is ISim's .wcfg XML (core/wcfg.js: written and read, a file written by ISim read
+  too); a signal the design does not have is said in the simulator's console and left out. The toolbar's VCD export
+  is removed (the command line's `sim --vcd` stays).
+- **Tasks ▸ Simulate: a choice simulates; no Simulate button (#1018):** the task's bar's model and test bench choices
+  run the simulation as soon as they change (web/js/tasks-sim.js), through `runSimulation`, which offers "Generate and
+  Simulate" for a model not generated yet (#490); a choice made while another simulation is being prepared replaces
+  it (`runSimulation`'s `stale`: the earlier one opens no window). The task's bar has no Simulate button in Simulate
+  (web/css/tasks.css); the task's page keeps its own. The modern and classic interfaces are unchanged.
+- **Tasks ▸ Simulate: no "Ready … Sim Time" status line (#1017):** the simulator's status line is not shown in the
+  Tasks interface (the time is where the waves are, the state in the message centre); the modern and classic
+  interfaces keep it.
+- **The Tasks interface's Edit: a Test tab (#1016):** the side panel's tabs get Test right after Design, a page with
+  the project's test benches (the sources of association Simulation) and their units under test, which leave Design's
+  tree. A test bench opens, is checked (Edit's Check) and is removed from the project from it as from Design; its
+  button, and its context menu, add one with the Test Bench Wizard (the new one Simulate's) or a copy of a source; with
+  none, the page says so. The modern and classic interfaces are unchanged.
+- **CodeMirror updated (#1014):** @codemirror/autocomplete 6.20.4 and @codemirror/view 6.43.15, patch releases of
+  the editor's modules; the third-party notices with them.
+- **The classic title bar in Portuguese (#1007):** "<project> - [Design Summary]" read "[Design Summary]" in English
+  since #987 took the product name out of it; it is translated (Resumo do Projeto).
+- **The Technology Schematic's blocks by instance (#1003):** a cell that drives a signal of the top which is also a
+  signal inside an instance (Yosys names the net by its shortest name, the top's: `digits<3>` for `u_count.ones<3>`)
+  belongs to that instance (`core/fpga/techview.js`); blinky's view has five blocks (u_count's 84 cells), pong's 19.
+- **Only Silinx's own failed promises in the Console (#997):** the handler of unhandled promise rejections (#408)
+  reports a rejection in the Console and the Errors tab only when its stack has a frame of the app's own scripts (the
+  page's origin; the standalone file's folder from `file://`; the page's `blob:` workers), or when it is an Error with no
+  frames (one the browser makes). An extension's or an injected script's rejection, and a reason that is not an Error,
+  are left to the browser's console (`web/js/own-error.js`).
+- **The console's Design filter (#994):** the message centre's source of the design's checks (Check Syntax, Check
+  Constraints, Check Schematic) is called Design rather than Check Syntax.
+- **Check Schematic in the console below (#993):** in the Tasks interface the schematic editor's Check writes a
+  process's messages in the message centre (a header, its errors and warnings, its result), under the Design source, in
+  the Errors and Warnings tabs too, and opens the messages; each error or warning's line takes the editor to its item.
+  The editor asks first (a cancelable event, `web/js/tasks-check.js`); in the modern and classic interfaces its own
+  panel is shown as before.
+- **The schematic's live simulation is Try it (#992):** its button (Simulate → Try it), its mode's badge, panel title
+  and hint (Live simulation → Trying it out), its exit button (Stop Simulation → Stop) and its messages (Simulation
+  refused / Cannot simulate / Simulation stopped → Cannot try it out / Stopped), in English and Portuguese. The design
+  flow's Simulate is unchanged.
+- **The task switcher's dots explained (#991):** each task button's tooltip says the state its dot shows (done, no
+  warnings; done with warnings; errors; out of date (a source changed); running…), in English and Portuguese; with no
+  dot, the task's name only.
+- **The header without the product and version (#987):** the modern header's brand (`#title-brand`, "Silinx ISE" and
+  the version) is gone, and the classic title bar reads "project - [document]" (or "Project Navigator" with no project)
+  rather than "Silinx ISE 15.12.0 - project - [document]". The logo's tooltip is the product and version.
+- **The Tasks interface's Edit: its pages as tabs at the top of the side panel (#984):** the activity bar, Edit's only
+  since #876, is a row above the hierarchy: the open page shows its icon and name, the others their icon, their name
+  the tooltip (and their accessible name). With the side panel folded neither is shown; on a narrow screen they are the
+  drawer's top row. The modern and classic interfaces are unchanged.
+- **The blinky example's step counter (#983):** a decimal (BCD) counter (`src/bcd_counter.vhd`, 0000 to 9999
+  and then 0000 again) counts each step of the LED pattern (each move of the knight rider's light, each count of
+  the binary counter; not while paused) and the clock example's display driver (`src/sevenseg.v`) shows it on the
+  four digits, multiplexed (active-low segments and anodes, one digit per ms); the UCF has the display's pins, the
+  test bench checks the count, the pause, the wrap from 9999 to 0000 and the reset, and fails on a wrong design
+  (`test/blinky-example.test.js`); the Board Emulator shows the digits counting on the Basys2 and the Nexys2.
+- **New Source's type names (#975):** Schematic (Diagram), State Machine (FSM), State Machine (ASM), Petri Net
+  (Diagram) and Test Bench (HDL) become Schematic, Finite State Machine (FSM), Algorithmic State Machine (ASM),
+  Petri Net and Test Bench, and the New Project wizard's FSM and ASM top-level types follow; Portuguese: Esquemático,
+  Máquina de Estados Finitos (FSM), Máquina de Estados Algorítmica (ASM), Rede de Petri, Bancada de Teste. Only the
+  labels change (the type ids and the files are the same: projects load as before). README and the UI tests updated.
+- **New Source follows the type selected last (#974):** the wizard driver takes its pages as a function and draws
+  the steps on the side and the buttons from the pages now on every render, with a `refresh` that New Source's
+  type list calls on a click (it replaces a Proxy that faked a fixed page list and a hand-patched button label);
+  the File Name and Location page shows the type now. A UI test (modern and classic) walks every ordered pair of
+  types (Next >, < Back, the other type, Next >), every page of the last type forward and back to the source it
+  makes, Cancel and New Source again, and Wizard after a change of type.
+- **The browser edition's assets kept in Cache Storage (#967):** Yosys in WebAssembly and the device descriptions
+  and bit database, whose URLs name their version, are read from the browser's Cache Storage with no request
+  (`web/js/asset-cache.js`, in the flow's worker and the Yosys workers). The HTTP cache kept them 10 minutes
+  (GitHub Pages' `max-age=600`), and every deployment of the site changed their ETags, so that Implement
+  downloaded the 16.7 MB again; measured, the first Implement of blinky took 18.9 s instead of 5.7 s at 10 Mbit/s,
+  and the download from the site alone 36 to 169 s. They are fetched when a project opens (not with Save-Data or
+  on 2G/3G), the older versions' entries deleted; the console says "Downloading Yosys … about 17 MB: once" when it
+  has to. A page opened from a file has no Cache Storage: the HTTP cache, as before.
+- **A cascaded multiplier's B left open in VHDL too (#963):** a schematic's MULT18X18SIO with B_INPUT CASCADE, its B
+  unconnected, is generated in VHDL with `B => open` and a component of its own declared in the architecture, its B
+  given a default (UNISIM's gives it none) and its BOX_TYPE "PRIMITIVE" as UNISIM's: ISE builds it with no warning (its
+  map's PhysDesignRules:1135 gone). Silinx's VHDL keeps a component declaration's ports: an input left open whose
+  component gives it a default is not reported as unconnected.
+- **New Source's Wizard button (#958):** Module (Wizard), Schematic (Wizard), Petri Net (Wizard), Test Bench
+  (Wizard) and Clocking Wizard leave the list (the Clocking Wizard's type is now *Clock Manager (DCM / PLL)*); the
+  File Name and Location page has a Wizard button before < Back, which opens the selected type's wizard with the
+  file name and the location typed (the Clocking Wizard and Block Memory take the name as the module's). It is
+  shown disabled for a type with no wizard (Truth Table, FSM, ASM, constraints, .mem), and Next > is disabled for
+  a type that is only a wizard (Clock Manager, Block Memory). The old type ids (`modwiz`, `schwiz`, `pnwiz`,
+  `tbwiz`) select the matching type. A wizard-made module still reopens its wizard from the Design pane. The
+  wizard driver takes an extra button and a page's `noNext`. UI tests: `test/ui/new-source.test.js` (modern,
+  classic, Tasks, Portuguese) and every wizard's test through the button.
+- **VCC and GND with a Width (#953):** a parameter like the other symbols' widths, 1 for a new symbol; the output pin a
+  bus of that width (its width drawn by it), checked against its net with the usual `width mismatch` error; generated
+  as `(others => '1')` / `(others => '0')` in VHDL and `{N{1'b1}}` / `{N{1'b0}}` in Verilog, and simulated in place.
+  A VCC / GND saved before has no Width and keeps taking its net's width (the panel says so), its HDL unchanged.
+  ISE .sch export: a VCC / GND wider than a bit, exported as a constant symbol, now has the constant's output pin `O`,
+  so it is read back connected.
+- **The event-driven engine by default on slow devices (#952):** a phone or tablet (User-Agent Client Hints'
+  `mobile`, a mobile User-Agent, an iPad that says it is a Mac but has a touch screen), fewer than 4 processor
+  cores or less than 4 GB of memory (`deviceMemory`) start the Board Emulator on the event-driven engine, and its
+  side panel says why; a browser API that is missing says nothing (`core/emulate-engine.js`). The engine the user
+  chooses in the Engine selector is remembered and wins over the default, on any device.
+- **Schematic Wizard, no suggested ports (#950):** the Inputs and Outputs page has no quick-add buttons (inputs,
+  outputs, bidirectional) and no Clock input checkbox: the table starts empty and Add Port adds a row. Finishing with
+  no ports is allowed: a schematic with no I/O markers yet, its VHDL and Verilog a module with no ports. The Module
+  Wizard keeps its quick-add buttons, and Module (HDL)'s Define Module page is unchanged.
+- **No Rotate / Mirror / Delete buttons in the I/O marker's Properties (#949):** the buttons left the marker's
+  panel; the multi-selection panel keeps its own.
+- **Wire paths that avoid overlaps (#948):** `core/schpath.js` holds the grid of what a path must keep clear of and an
+  orthogonal A* router on it. A path never runs along another wire's segment, never passes over a pin, an I/O marker,
+  a net name or another wire's end or bend, never enters a symbol's or a marker's body, and bends only on a free
+  point; it may cross a wire at a right angle (a hop-over, #756). Among the clear paths it prefers few bends and
+  crossings, leaves and enters a pin or a marker by its side, and keeps a grid step from parallel wires and from the
+  bodies. `wireClashes(doc)` lists what a drawing breaks of these rules. A wire drawn by hand (Add Wire) is kept as
+  drawn when it is clear, otherwise routed between its ends along the drawn path, leaving it only where it must
+  (`nudgeWire`). After a move or a paste, the wires with a clash the drawing did not have before are routed again
+  (`untangleNew`; old clashes elsewhere stay as drawn); the wires re-routed after a move use the same router
+  (`core/schroute.js`). A schematic made from HDL has its overlapping paths routed again (`untangleWires`) and puts a
+  net's name on a point of its wire that no other net's wire crosses: a name at a crossing used to join the two nets,
+  and the check that follows then replaced their wires by labelled stubs (in modules of six of the seven examples).
+  A wire keeps its id and its two ends, so the netlist and the generated VHDL and Verilog are unchanged (#754's rule,
+  a wire never joins two named nets, stays). Tests: `test/schpath.test.js` (the router, the nudge, the examples' and the
+  generated schematics, moves), `test/ui/sch-wires.test.js`.
+- **The truth table's schematic simulated in place (#946):** read-only blocks editing a drawing, not simulating it:
+  the schematic editor's `simulate` option keeps Simulate in a read-only view (the truth table's schematic, opened
+  from its Schematic badge), with no editing tool and no edit by keys; a change of the table stops the simulation
+  as it redraws the schematic. The RTL and Technology schematics are unchanged. A UI test (modern, classic, Tasks,
+  Portuguese) sets every input combination of a table with the switches: the outputs are the table's, every net 0
+  or 1, the drawing unchanged.
+- **UI tests, Back-annotate Pin Locations (#938):** the two tests (open mode, browser edition) expect the pads the placer
+  chooses since #651's two placements at Optimization Effort Normal; they failed on main.
+- **A flaky UI test: the Tasks message centre's (#932):** the test waits for ISim's Sim Time to reach the end of the
+  `run 2 us` it typed, rather than reading it once the time first changes (while the run was still going).
+- **The message centre in every interface (#925):** the Tasks interface's message centre (#798) is built in the
+  modern and classic interfaces as well. Each Console line says where it comes from, and the filters above the Console
+  show one source or all of them (All by default; the Tasks interface follows its task). SSim's console is mirrored
+  into the Console and its own bottom panel is hidden; SSim's command line is the Console's (prompt `SSim>`, with the
+  history on ArrowUp / ArrowDown) while a simulation is in front, the command palette otherwise. The emulator's Messages
+  box is in the Console too. The styles moved from tasks.css to a stylesheet of their own, `web/css/messages.css`.
+- **The Tasks interface's Implement: its own processes only; the Design Summary's cards no longer overlap (#923):**
+  Emulate on Board and Configure Target Device, the Emulate and Program tasks', are left out of Implement's
+  processes (each process row now carries its id, `data-proc`). The summary's cards are a wrapping row rather than a
+  grid, which left each table's caption out of its height, so the cards overlapped. The modern and classic interfaces
+  are unchanged.
+- **ISim renamed SSim, the Silinx Simulator (#920):** every label, message and document of the app's simulator
+  (core/simulator.js) says SSim, in English and Portuguese: "SSim Simulator" / "Simulador SSim", the tab
+  "SSim (top, model)", the console's first line and its `SSim>` prompt, the New Project wizard's simulator and
+  summary. The console's command is `ssim force add | remove`, and the Force Constant / Force Clock dialogs echo
+  it; `isim force`, its old name, is still accepted. The internal names stay (the files isim-*.js, the `.isim`
+  classes, the document id `isim` and the `isim:` reopen key), so saved sessions and projects open as before.
+  Xilinx's ISim keeps its name where it is meant: ISE's project property, the notes on what Xilinx ISim accepts,
+  the trademark notice.
+- **ISim's drawn stimuli: a bus's bits edited one by one (#919):** a click on a cycle of a bit of an expanded bus paints
+  that bit from the cycle up to its next change, the other bits kept; an output's bit holds its own expected value,
+  checked alone (its mismatch red on its row and the bus's), and the grid and the expected values are drawn on the bit
+  rows. Nothing new is saved: the stimuli keep a bus's bits per cycle, so Save as Test Bench (VHDL and Verilog) drives
+  the bus as its bits were edited, and the bus's value dialog sets it whole again (its note says the bus can be
+  expanded to change a bit).
+- **The emulator's status line keeps room for the whole line (#918):** it was `flex: 1 1 0; min-width: 0` in a bar that
+  wraps, so it always stayed on the controls' row, shrunk to a few pixels or none when they nearly filled it; with
+  `min-width: min(100%, 84ch)` it wraps to a row of its own instead, the whole line shown (on two lines in a window too
+  narrow for one, never cut). The UI test scans the window
+  from 600 to 1920 px in the modern, classic and Tasks interfaces.
+- **The Tasks interface's Simulate: the test bench chosen, made and opened from its bar (#917):** the design tree being
+  Edit's, Simulate's bar lists the project's test benches, then its design modules (a module simulated with stimuli
+  drawn in ISim); the one chosen becomes the simulation top, as Set as Top Module does in the Simulation view. "New
+  Test Bench (Wizard)…" opens the wizard for the top and chooses the bench it makes; Edit opens the chosen module's
+  source. A project with no test bench says so on Simulate's page and offers the wizard. On a narrow screen the task's
+  bar wraps under the toolbar.
+- **The waveform viewer's time scrollbar tells its own scrolls from the user's by where it was put (#915):** the view
+  counted the scrolls it made and ignored as many scroll events; an event the view had not caused made the count
+  drift, and the event of the view's own scroll of a frame before, arriving after a two-finger scroll moved the time
+  on, set the time back to the scrollbar's old place (the UI test of #674 found 88 px of a 100 px scroll on a CI run).
+  A scroll event that finds the scrollbar where the view last put it is now ignored; the rows' scrollbar needed no
+  count (the rows follow it). UI test: test/ui/touch-pan.test.js (the two-finger scroll and a late scroll event in
+  one task; the scrollbar moved by the user still scrolls the time).
+- **CI: the UI tests in three parts per interface (#912):** `scripts/test-shard.mjs --ui` balances the UI test
+  files (`test/ui/*.test.js`) by their times in `test/timings.json`, as the unit tests' parts; the `ui` job runs
+  each interface in three parts (six jobs of about 10 minutes, the longest file 7), one file at a time. The
+  `--test-concurrency=1` that CI gave the UI tests came after their files, where `node --test` takes no option:
+  they ran three files at a time. Each part uploads its files' times (`ui-times-<interface>-<part>`), which
+  `scripts/update-test-timings.mjs` merges with the unit tests' (a UI file's time the slower interface's); a
+  file's time is now its own process's, from the runner's summary of the file (the UI tests' own events name
+  their helper, `test/ui/harness.js`). The UI timings start from a CI run of 22 October 2026 (each test's time in
+  its output, summed by its file; then three files at a time).
+- **The ISE runner's PATH with Docker's CLI (#904):** registering the runner as its own user with `sudo` left
+  sudo's `secure_path` in its `.path`, which `runsvc.sh` exports over the daemon's PATH, so the ISE jobs found no
+  `docker` (`/usr/local/bin`). `install.sh --system` now writes `.path` with the daemon's PATH, owned by the
+  runner's user. Tests: `test/ise-runner.test.js`.
+- **The ISE runner's evening window waits for its scheduled runs (#901):** the window closed after any finished run
+  of `ise.yml` since its opening, so a run by hand inside it closed it before the scheduled run, which GitHub starts
+  hours late and which then found the runner off line. A window opened by the schedule now counts the scheduled runs
+  only (`window.mjs` `runs`, `event=schedule`); one opened by hand still closes after a run of either workflow.
+  Tests: `test/ise-runner.test.js` (the API's query; a run by hand inside the evening's window, as on 21 October).
+- **The runner's daemon started again only once launchd has let it go (#901):** `window.sh open` right after a
+  restart unloaded the daemon and loaded it at once, which launchd refused (`5: Input/output error`), leaving the
+  runner off line; `serviceCommands` now waits (up to 30 s) for the daemon to be gone before loading it.
+- **A flaky UI test fixed (#894):** test/ui/clipboard.test.js clicked the FSM's state before the editor had fitted
+  its view (a frame after it is drawn), so the click missed it now and then. It now waits, as the Petri net step
+  already did, until the state's position is the same twice in a row, and for the state to be selected.
+- **A cascaded multiplier's B left open in Verilog (#893):** a schematic's MULT18X18SIO with B_INPUT CASCADE, its B
+  unconnected, is generated in Verilog with `.B()` instead of B tied to zeros, which ISE's map warned about
+  (PhysDesignRules:1135); Silinx's elaboration says nothing of a primitive's input left open on purpose (`.B()`), as XST.
+  In VHDL B stays tied (UNISIM's component gives it no default; a component of its own makes XST warn Xst:2211 and 753):
+  ISE's map still warns there.
+- **Tasks: no empty column in Simulate and Emulate (#882):** their side panel is ISim's Instances and Objects,
+  or the emulator's Watch. The Design pane is hidden there, and its column no longer keeps its width
+  (web/css/tasks.css), whether the side panel is open or folded.
+- **The Tasks interface: the activity bar in Edit only (#876):** Start, Design, Files and Libraries are Edit's pages,
+  so the other tasks no longer show them. Simulate and Emulate have no left column (their side panel is ISim's
+  Instances and Objects, the emulator's Watch); Implement's side panel is its Processes whichever page Edit left in
+  front; Program has no side panel, nor its button. The modern and classic interfaces are unchanged.
+- **The Tasks interface's Program task: iMPACT arranged for the task (#803):** the programming file and its state
+  come first (up to date with the sources, out of date, none yet, or failed, with Implement when it is not up to
+  date), then the chain, Initialize Chain and Program FPGA or Program PROM, each with its line. The board,
+  programming tool and cable fields fold away when a board is selected (it chooses them); the PROM's other
+  operations (Verify, Erase, Back up, Reload) are behind More…. iMPACT's programming is unchanged; the modern and
+  classic interfaces show it as before.
+- **Bit database, XC3S1200E: every long-line splitter measured, and used by the router (#709):** the centre column's
+  (CLKV_LL, CLKT_LL, CLKB_LL: the horizontal long lines joined across it), the I/O columns' (CLKL_IOIS_LL /
+  CLKR_IOIS_LL) and the side DCM columns' (CLKLH_DCM_LL / CLKRH_DCM_LL: the vertical ones joined across the centre
+  row), all 48 switches of each, one bit each, measured with ISE (`research/s3e-bitstream/ll-splitters.mjs`, 46
+  rounds of `gen-pipcover.mjs`; a switch's bit is the one candidate all its observations share). Before, 92 of the
+  336 were known and none could be routed. The router takes them where they are faster, as CLKH_LL's since #23; the
+  placer's delay table leaves out the splitter types' own switches only (`knownRouting` `delayPip`). ISE's
+  bitstreams of 1427 earlier XC3S1200E designs: 480 byte-identical (150 before), none left with an unknown splitter.
+- **The critical LUTs made shallower as a tree of LUT4s (#652):** when neither one LUT nor two (h(g(A), S)) can make the
+  LUT ending a critical path one level shallower, its cone (up to 12 leaves, the latest LUTs expanded first) is rebuilt
+  as a tree of LUT4s by disjoint decompositions, its output and so its fan-out kept (`core/lut-resynth.js`,
+  `shallowerTree`); kept by `DEPTH_RULE` as before. On the corpus's 53 designs of 1500 LUTs at most and the 7 examples:
+  6 of the 120 builds changed, all faster by Silinx's static timing (iwls05-sasc at High −16.1 %, 66 → 49 slices, its
+  FIFOs in distributed RAM; itc99-b13 at High −10.3 %; fpu-adder −3.4 %), the others the same; every changed netlist
+  simulates as its design. By ISE's trce on the 6 changed routings: 5.80 % shorter (iwls05-sasc at High −12.7 %,
+  itc99-b13 at High −9.6 %, fpu-adder −7.3 %; iwls05-sasc at Normal +4.5 %), every bitstream byte-identical to ISE's
+  bitgen with a clean DRC. research/synth-quality/README.md, "A tree of LUT4s where one or two LUTs cannot do it".
+- **The critical LUTs made shallower: the wide multiplexers, and the ends that can be (#652):** core/lut-resynth.js.
+  - A critical LUT whose cone has 5 to 7 signals at a level three below it, and no form of one or two LUTs or a tree
+    of LUT4s, becomes its 2^k cofactors as LUT4s into MUXF5, MUXF6 and MUXF7, selected by its k latest signals (a LUT
+    level and the multiplexers). vtr-stereovision3's I2C clock line and stop, a 128-entry case of its 7-bit state,
+    were 4 to 5 levels of LUTs. Each cofactor's LUT reads only the signals it depends on (ISE refuses a LUT pin its
+    equation leaves out), and none is constant.
+  - A round makes shallower the critical ends it can and leaves the others; the pass ends when a round makes none
+    (before, a round was undone when one end could not be made shallower). DEPTH_RULE keeps the result or not.
+  - Measured on 20 designs of the corpus (the routed period, Silinx's STA, mean of placer seeds 1–3 where it changed):
+    verilog-uart −12.2 %, vtr-stereovision3 −3.5 % (129 → 119 LUTs, 78 → 76 slices), iwls05-usb-phy −0.8 %, serv −0.6 %;
+    the other 16 unchanged; every netlist simulates as its design. ISE's check of the four changed designs: every
+    bitstream byte-identical to ISE's bitgen, DRC and xdl2ncd clean.
+- **Two placements at Optimization Effort Normal for a design of 500 slices at most (#651):** a placement's seed moves a
+  design's critical path by several per cent, and on the small designs, the ones furthest from ISE at Normal, the
+  placement is most of what is left of the gap. The flows (`core/open-flow-core.js`, Implement Design and the
+  Post-Place & Route model's design) now make `effortTries(effort, slices)` placements (`core/fpga/place-route.js`):
+  `HIGH_TRIES` (2) at High, `NORMAL_TRIES` (2 up to 500 slices) at Normal, else one; the console says both periods and
+  the seed kept. Measured with Silinx's static timing on the corpus's 53 designs of 1500 LUTs at most and the 7
+  examples at Normal (the same netlists): 1.25 % shorter in geometric mean over the 60 (two placements for every size:
+  1.42 %), 23 designs faster (verilog-axis-fifo −11.2 %, the clock example −10.4 %, spi-fpga-slave −7.3 %,
+  uart-for-fpga −5.6 %, verilog-i2c-master −4.8 %, epfl-i2c −4.5 %), one slower (iwls05-usb-phy +2.2 %: register
+  replication from the other placement), the slices the same. The place and route of a small design takes 0–2 s more;
+  of 400–700 slices it would take 1.5 times as long, so those keep one placement. By ISE's trce on the 24 changed
+  routings: 2.38 % shorter in geometric mean (the clock example −14.3 %, verilog-axis-fifo −9.1 %, vga −5.3 %,
+  spi-fpga-slave −5.2 %, verilog-lfsr-crc −4.6 %), 6 slower by 2.1 % at most, every bitstream byte-identical to ISE's
+  bitgen with a clean DRC. research/s3e-route/README.md, "Two placements at Normal for a small design".
+- The ASM chart editor's code split (#405): its model operations (`web/js/asm-ops.js`), its view
+  (`web/js/asm-view.js`), Arrange (`web/js/asm-layout.js`) and its pointer and keys (`web/js/asm-pointer.js`), out of
+  `mountAsmEditor` (764 → 292 lines); no change in behaviour.
+- **core/asm-from-hdl.js split: the decision trees, the comparison and the text candidates (#405):** an ASM chart
+  made from HDL's per-state decision trees (asm-trees.js), the charts' structural comparison (asm-same.js) and
+  asmFromHdl's text candidates (asm-candidates.js) move to modules of their own (asm-from-hdl.js 1385 → 727 lines,
+  asmFromHdl 326 → 273). No change in behaviour: every HDL file of the repository and the HDL of the 454 charts the
+  ASM tests make, read back with and without the chart as `previous` (1839 results), give the same charts as
+  before. Tests: `test/asm-from-hdl-parts.test.js`.
+- **core/asm-hdl-analysis.js split: analyzeModule's states, synchronisers and logic bodies (#405):** the states
+  of the state register (asm-hdl-states.js), the input synchronisers (asm-hdl-sync.js) and the logic bodies with
+  the every-cycle blocks (asm-hdl-bodies.js) move to modules of their own, called where they were (analyzeModule
+  459 → 292 lines). No change in behaviour: every HDL file of the repository and the HDL of the 454 charts the ASM
+  tests make (1840 results) give the same charts as before. Tests: `test/asm-hdl-parts.test.js`.
+- **core/asm.js split: the expression language, its HDL and analyze's graph checks (#405):** the ASM charts'
+  expression language (asm-expr.js), the expressions' VHDL and Verilog (asm-emit.js) and analyze's checks of the
+  chart's graph (asm-graph.js) move to modules of their own; asm.js still exports them (asm.js 1393 → 753 lines,
+  analyze 302 → 189). No change in behaviour: the 454 charts the ASM and FSM tests analyze give the same analysis,
+  validation and VHDL and Verilog as before. Tests: `test/asm-parts.test.js`.
+- **server/devices.js split: the boards in server/boards.js (#405):** the boards' table moves to a module of its
+  own, the device family it shares with the parts to server/family.js; devices.js still exports both (devices.js
+  1023 → 517 lines). No change in behaviour: the same device database, boards and every board and variant resolved
+  as before. Tests: `test/boards.test.js`.
+- **core/compiled-sim.js split: compileNetlist in eight parts (#405):** the compiled simulator's constants and helpers
+  move to compiled-helpers.js (CompileError among them), its VGA monitor to compiled-vga.js, and compileNetlist's
+  parts to modules of their own: the netlist read (compiled-cells.js), the expressions (compiled-exprs.js), the
+  elements (compiled-elements.js), the clocks and DCMs (compiled-clocks.js), the activity (compiled-activity.js), the
+  edges and counts (compiled-watch.js), the loop's steps and template (compiled-steps.js), the code
+  (compiled-generate.js) (compileNetlist 691 → 103 lines; compiled-sim.js 1209 → 345); compiled-sim.js still exports
+  everything it did. No change in behaviour: every netlist of the compiled simulator's tests compiles to the same code,
+  with every activity, wide values and a split run(). Tests: `test/compiled-parts.test.js`.
+- **core/compiled-words.js split: wordLevel's cells of one bit and its registers (#405):** the cells of one bit
+  with the carry chains (compiled-words-bits.js) and the registers proposed (compiled-words-regs.js) move to mounts
+  of their own, called where they were (wordLevel 428 → 288 lines). No change in behaviour: the 82 gate-level
+  netlists the compiled simulator's and models' tests make give the same word-level netlists as before. Tests:
+  `test/compiled-words-parts.test.js`.
+- The drawings' code split (#405): the truth tables (a table opened in its editor, kept in sync with its HDL module
+  both ways, a table loaded from a module, the table's schematic view) in `web/js/drawings-tt.js`, out of
+  `web/js/drawings.js` (1101 → 906 lines); no change in behaviour.
+- The HDL editor's code split (#405): its completion (the words offered at the cursor and their ranking, the kind
+  letters, a template inserted, the languages' vocabulary) in `web/js/editor-complete.js`, out of `createEditor`
+  (366 → 289 lines); no change in behaviour.
+- **core/elab-expr.js split: the calls in core/elab-call.js (#405):** the built-in VHDL subprograms, std.textio's
+  procedures, Verilog's system functions and calls, overloads and subprogram binding move to a module of their own;
+  elab-expr.js still exports what it did (elab-expr.js 1129 → 719 lines). No change in behaviour: every HDL folder of
+  the repository elaborates the same, and the designs that simulate standalone give the same values and messages.
+  Tests: `test/elab-call.test.js`.
+- **core/elaborate.js split: the instances and the statements (#405):** a module's instance elaborated
+  (elab-instance.js) and the sequential statements bound (elab-stmt.js) move to modules of their own; elaborate.js
+  still exports what it did (elaborate.js 1689 → 897 lines). No change in behaviour: every HDL folder of the
+  repository elaborates the same, and the designs that simulate standalone give the same values and messages.
+  Tests: `test/elab-parts.test.js`.
+- The Board Emulator's code split (#405): its toolbar (`web/js/emulator-toolbar.js`), the board's parts and layout
+  (`web/js/emulator-board.js`), the VGA monitor and the side panel (`web/js/emulator-side.js`) and its painting
+  (`web/js/emulator-paint.js`), out of `mountEmulator` (535 → 289 lines); no change in behaviour.
+- The FPGA view's code split (#405): the details of a selected site (its site, tile, module, port and pin, I/O
+  standard, the elements inside, a LUT's contents, the connections) in `web/js/fpgaview-details.js`, out of
+  `mountFpgaView` (348 → 255 lines); no change in behaviour.
+- The state diagram editor's code split (#405): its history (`web/js/fsm-history.js`), its view
+  (`web/js/fsm-view.js`), its inline editing (`web/js/fsm-inline.js`), its pointer and keys (`web/js/fsm-pointer.js`)
+  and its bottom panel, the tables, the HDL and the simulation (`web/js/fsm-bottom.js`), out of `mountFsmEditor`
+  (718 → 292 lines); no change in behaviour.
+- **core/fsm.js split: the HDL and the ASM chart conversions (#405):** an FSM diagram's VHDL and Verilog
+  (fsm-hdl.js) and its conversions to and from an ASM chart (fsm-asm.js) move to modules of their own; fsm.js still
+  exports them (fsm.js 1326 → 812 lines). No change in behaviour: the diagrams, charts and HDL of the repository and
+  every call the FSM and ASM tests make (235) give the same HDL, charts and diagrams as before. Tests:
+  `test/fsm-parts.test.js`.
+- **core/interp.js split: formatting and std.textio (#405):** the simulator's strings and formatting
+  (interp-format.js: images, times, $display's formats) and std.textio with math_real (interp-textio.js) move to
+  modules of their own; interp.js still exports them (interp.js 1105 → 865 lines). No change in behaviour: every HDL
+  folder of the repository elaborates the same, and the designs that simulate standalone give the same values and
+  messages over 5 µs. Tests: `test/interp-parts.test.js`.
+- **core/isesch.js split: the library symbols' HDL in core/isesch-hdl.js (#405):** the exact HDL of the ISE
+  library symbols with no Silinx twin (gates with inverted inputs, multiplexers, decoders, comparators, adders,
+  counters, flip-flops, tri-states, multipliers) moves to a module of its own (isesch.js 1217 → 981 lines). No change
+  in behaviour: the 168 library names' templates (1008, both languages) and the repository's ISE schematics, imported,
+  are the same as before. Tests: `test/isesch-hdl.test.js`.
+- ISim's drawing code split (#405): the drawing of one wave (a scalar's levels, a bus's values, the dense bursts) in
+  `web/js/isim-draw-wave.js`, out of `mountDraw` (363 → 250 lines); no change in behaviour.
+- ISim's window code split again (#405): its toolbar (`web/js/isim-toolbar.js`), its view of time and scrollbars
+  (`web/js/isim-view.js`), its status bar and cursor (`web/js/isim-status.js`), its public API with the state saved
+  and restored and the VCD export (`web/js/isim-api.js`), and its colours (`web/js/isim-colors.js`), out of
+  `mountISim` (538 → 295 lines); no change in behaviour.
+- **core/lint.js split: designChecks' later rules in core/lint-design.js (#405):** the combinational loops, unused
+  and unassigned signals, names differing only in case, clocks, Verilog's = / <= and integers without a range move
+  to a mount of their own, called where they were (designChecks 468 → 257 lines). No change in behaviour: every
+  design of the repository, every top, with each option set (366 runs), gives the same findings as before. Tests:
+  `test/lint-design.test.js`.
+- **core/logic.js split: the gate schematic of a truth table in core/logic-sch.js (#405):** a truth table's
+  outputs as trees of gates placed and wired as a schematic move to a module of their own; logic.js still exports
+  them (logic.js 1245 → 940 lines). No change in behaviour: the repository's truth tables and 120 random ones, in
+  every form and both languages (2420 results), give the same schematics and errors as before. Tests:
+  `test/logic-sch.test.js`.
+- **web/js/wizards.js split: the New Source wizard in web/js/new-source.js (#405):** newSourceWizard, its source
+  types and the test bench's port reading move as they were to a module of their own; wizards.js still exports
+  newSourceWizard (wizards.js 1209 → 938 lines, off the list of files over the limit). No change in behaviour.
+  Tests: `test/new-source-module.test.js`.
+- **core/open-flow-core.js split: runOpenFlow's simulation models and its timing, bitstream and reports (#405):**
+  the open flow's simulation models (open-flow-models.js) and its timing, bitstreams, back-annotated pins and power
+  estimate (open-flow-reports.js) move to mounts of their own, called where they were (runOpenFlow 483 → 247 lines).
+  No change in behaviour: every example through every step, from the synthesis to the PROM bitstream, gives the same
+  log, reports and files as before, the bitstreams byte for byte. Tests: `test/open-flow-parts.test.js`.
+- **core/fpga/pack.js split: packWith in thirteen parts (#405):** the packer's parts move to modules of their own,
+  each called where its code was: the netlist prepared (pack-prep.js), the slices under construction
+  (pack-slices.js), the registers in the IOBs (pack-iobregs.js), the carry chains (pack-carry.js), the wide
+  multiplexers (pack-muxes.js), the distributed RAMs and shift registers (pack-mems.js), the LUTs and flip-flops
+  (pack-luts.js), the IOB settings (pack-iobcfg.js), the block RAMs (pack-bram.js), the DCMs and multipliers
+  (pack-dcm-mult.js), the pads and clock buffers (pack-pads.js), the site pins of the connections (pack-nets.js) and
+  the configuration strings (pack-cfg.js) (packWith 1538 → 109 lines; pack.js 1767 → 351). No change in behaviour:
+  the 558 packed designs of the packer's, placer's, router's and I/O registers' tests are byte-identical to before,
+  as fast. Tests: `test/pack-parts.test.js`.
+- The Petri net editor's code split (#405): its drawing (`web/js/petri-draw.js`), its side panel
+  (`web/js/petri-side.js`) and its bottom panel, the simulation, the HDL and the analysis (`web/js/petri-sim.js`),
+  out of `mountPetriEditor` (519 → 278 lines); no change in behaviour.
+- **core/fpga/place.js split: place in seven parts (#405):** the placer's parts before the annealing move to modules
+  of their own, each called where its code was: the pads and clock reach (place-pads.js), the DCMs
+  (place-dcms.js), the I/O pads (place-iobs.js), the global clock buffers (place-bufgs.js), the block RAMs and
+  multipliers (place-hard.js), the slices (place-slices.js), and the annealing's moves (place-moves.js) (place
+  888 → 239 lines; place.js 1222 → 580). No change in behaviour: the 342 placements of the placer's, the router's
+  and the I/O registers' tests are byte-identical to before, in the same time. Tests: `test/place-parts.test.js`.
+- **core/fpga/route.js split: routeDesign's power nets, delays, polish and output (#405):** the power nets with no
+  source (route-power.js), the connections' delays (route-delays.js), the polish after the routing (route-polish.js)
+  and the routed design written (route-output.js) move to mounts of their own, called where they were (routeDesign
+  484 → 291 lines). No change in behaviour: the 92 routings of the router's, placer's and I/O registers' tests are
+  byte-identical to before, no slower. Tests: `test/route-parts.test.js`.
+- The schematic editor's code split (#405): its skeleton, toolbar, palette, view, edits, selection operations,
+  mouse, keyboard, Check, Try it, Symbol Info and small helpers in modules of their own (`web/js/sch-dom.js`,
+  `sch-toolbar.js`, `sch-palette.js`, `sch-view.js`, `sch-edits.js`, `sch-select.js`, `sch-mouse.js`, `sch-keys.js`,
+  `sch-check.js`, `sch-try.js`, `sch-info.js`, `sch-ui.js`), out of `mountSchEditor` (874 → 299 lines); no change in
+  behaviour. The last function over the limit: `test/code-size.test.js`'s lists are empty.
+- The schematic's Try it code split (#405): its inputs, the clocks and the bus value editor
+  (`web/js/sch-live-inputs.js`), and its panel with a module instance's pins (`web/js/sch-live-instance.js`), out of
+  `liveController` (373 → 278 lines); no change in behaviour.
+- **core/schdoc.js split: a schematic made from HDL in core/schdoc-from-hdl.js (#405):** schematicFromHdl and
+  modulesFromLibrary move to a module of their own, the placement and routing to schdoc-place.js, and two parts of
+  schematicFromHdl to schdoc-source.js (the source text pieces) and schdoc-gates.js (the gate conversion);
+  schematicFromHdl 586 → 286 lines, schdoc.js 2286 → 1276; schdoc.js still exports them. No change in behaviour: every
+  design of the repository becomes the same schematic. Tests: `test/schdoc-from-hdl.test.js`.
+- **core/schdoc.js split: the symbol library in core/schdoc-symbols.js (#405):** the symbols, their parameters and
+  local geometry and the I/O markers' geometry move to a module of their own; schdoc.js still exports every name it
+  did, and is now under the 1000-line limit (1276 → 777). No change in behaviour: every symbol type and preset
+  (608 sheets, both languages) and every schematic and HDL folder of the repository (289 results) give the same
+  documents and HDL as before. Tests: `test/schdoc-symbols.test.js`.
+- The RTL schematic viewer's code split (#405): its rendering (`web/js/schematic-render.js`), its hover, selection
+  and tooltip (`web/js/schematic-hover.js`) and its SVG export (`web/js/schematic-export.js`), out of
+  `mountSchematic` (519 → 290 lines); no change in behaviour.
+- **core/scopes.js split: analyzeVhdl's scope helpers in core/scopes-vhdl.js (#405):** a scope opened, a design
+  unit's scope and a declaration's type move to a module of their own (analyzeVhdl 312 → 295 lines). No change in
+  behaviour: every HDL file of the repository, with damaged copies of each (1122 texts), gives the same scopes,
+  symbols and occurrences as before. Tests: `test/scopes-vhdl.test.js`.
+- The open synthesis's code split (#405): running Yosys (`core/synth-open-yosys.js`), the critical path of a
+  netlist (`core/synth-open-path.js`) and the depth-oriented mappings (`core/synth-open-depth.js`), out of
+  `core/synth-open.js` (1387 → 848 lines; `synthesizeOpen` 478 → 198); no change in behaviour.
+- The Test Bench Wizard's code split (#405): its vectors page (the table of the vectors, Fill Expected from Current
+  Design, the vectors as bits for the generator) in `web/js/tbwizard-vectors.js`, out of `testBenchWizard`
+  (324 → 231 lines); no change in behaviour.
+- **core/fpga/timing.js split: the logic's arcs and the timing checks (#405):** each instance's timing arcs
+  (timing-arcs.js) and the clock and constraint checks with the timing report (timing-checks.js) move to modules of
+  their own; timing.js still exports them (timing.js 1203 → 729 lines). No change in behaviour: on the 70 routed
+  designs of the router's and placer's tests, the timing graph, every instance's arcs, the clock sources and ports
+  and the switching checks are the same as before. Tests: `test/timing-parts.test.js`.
+- **core/verilog/parser.js split: the parser's methods in three parts (#405):** the parser class's generate
+  blocks, functions and instances (parser-items.js), statements (parser-stmts.js) and expressions
+  (parser-exprs.js) move to modules of their own, assigned to its prototype; its definitions to parser-defs.js
+  (parser.js 1461 → 780 lines). No change in behaviour: every Verilog file of the repository, with damaged copies of
+  each (400 texts), parses to the same units and errors as before. Tests: `test/verilog-parser-parts.test.js`.
+- **core/vhdl/parser.js split: declarations, concurrent and sequential statements (#405):** the parser's
+  declarations (parse-decls.js), concurrent statements (parse-concurrent.js) and sequential statements (parse-seq.js)
+  move to modules of their own, methods of the parser as its expressions already were (parse-expr.js); its shared
+  definitions and helpers to parse-defs.js and parse-helpers.js (parser.js 1720 → 517 lines). No change in
+  behaviour: every VHDL file of the repository, with damaged copies of each (1096 texts), parses to the same units
+  and errors as before. Tests: `test/vhdl-parser-parts.test.js`.
+- **server/impl-routes.js split: the ISE project routes in server/xise-routes.js (#405):** the .xise export, import
+  and sync and the project zip's export and import move to a module of their own, mounted where they were
+  (registerImplRoutes 320 → 167 lines). No change in behaviour: the same 20 routes registered in the same order.
+  Tests: `test/xise-routes.test.js`.
+- **The fourth balanced candidate: its area mapping made four more times (#370):** the mapping balanced once more onto
+  LUT4s alone (`DEPTH_ABC2_LUT4`) ends with four more rounds of ABC's area mapping (choices, mapping, `mfs2 -M 5000`),
+  each sharing more of a round-robin arbiter's terms at the same depth: the EPFL arbiter in the corpus's I/O wrapper
+  1537 → 1410 LUTs and 769 → 705 slices at High (8 levels, 9.92 ns estimated both); a 32-request arbiter written as
+  gates 320 → 248 LUTs. On the design corpus the T80 at High takes the candidate's new netlist inside its
+  distributed-RAM mapping (1782 → 1720 LUTs, 992 → 961 slices, routed 7 % faster); the other designs and the examples
+  keep their netlists and warnings (the stopwatch example one LUT fewer). The candidate's remap takes about 1.6 times
+  as long (the arbiter's 10 s → 16 s), beside the other three.
+- **Device measurements, round 5 (#3):** observation designs with every block RAM, every multiplier and 90 pads
+  (`research/s3e-device/gen-obshdl.mjs`), implemented by ISE, as sources for the join tests round 4 could not drive:
+  270 new tests (184 joins, 86 islands) and round 4's 716 again, every verdict agreeing with the shipped graph;
+  2401 joins stay untestable. `ise-remote.sh` runs in a folder Docker Desktop shares (`RWBASE`, #482).
+- **Bit database: the block RAMs' and multipliers' clock pins from every global line, the clock pads' paths to the
+  global buffers (#2):** the switches `GCLKk -> BRAM_CLKj` of the block-RAM interconnect tiles (20 of 24 were unknown)
+  and `CLKT_CKIk -> CLKT_GCLKj` / `CLKB_CKIk -> CLKB_GCLKj` (13 of 16 unknown), measured with ISE on designs that clock
+  every block RAM and multiplier from each line and every buffer from each of its pads
+  (`research/s3e-bitstream/gen-bramclk.mjs`, `gen-clkpad.mjs`, `measure-bramclk.sh`: 10 designs, 210 xdl + bitgen
+  runs). The designs are byte-identical to ISE's bitgen; `feat_bram_clocks`, refused before, routes. A clock on the
+  bottom GCLK pin (M4 / N9) now takes its own buffer on its dedicated path, with no warning (#56).
+
 ## 15.12.0
 
 The Silinx toolchain is now a production toolchain, no longer marked experimental. Its circuits are faster:
