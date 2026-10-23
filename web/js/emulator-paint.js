@@ -7,6 +7,9 @@ import { h } from './dom.js';
 import { lcdText } from '/core/emulate.js';
 
 /** { paint, setStat } of mountEmulator (compiled(), dirty(), lcd(), lcdDirty(), lcdView(), logN(), paints(), powered(), prev(), rateWin(), running(), vgaView(): its current values). */
+// (the status line's rewrites while running: twice a second at most, #1106)
+export const STAT_MS = 500;
+
 export function mountEmuPaint(ctx) {
   const {
     compiled, digits, dirty, lcd, lcdDirty, lcdView, leds, logEl, logN, paints, period, powered, prev, rateWin, running,
@@ -14,6 +17,8 @@ export function mountEmuPaint(ctx) {
   } = ctx;
 
   const setStat = (t) => { if (stat.textContent !== t) stat.textContent = t; };
+  // (while it runs, the line rewritten STAT_MS apart at most: every frame, its figures changed too fast to be read, #1106)
+  let statAt = -Infinity;
   // (each LED's style written only when its brightness changed: the glow is a repaint)
   const ledShown = [];
   function paint() {
@@ -39,9 +44,14 @@ export function mountEmuPaint(ctx) {
     const nowMs = performance.now();
     if (nowMs - rateWin().t > 1000) { rateWin().rate = rateWin().cyc * 1000 / (nowMs - rateWin().t); setRateWin({ t: nowMs, cyc: 0, rate: rateWin().rate }); }
     const r = running() ? rateWin().rate : 0;
-    if (!powered()) { setStat('Power off'); return; }
+    if (!powered()) { setStat('Power off'); statAt = -Infinity; return; }
+    if (running() && sim.finished !== 'error' && nowMs - statAt < STAT_MS) { logLines(); return; }
+    statAt = running() ? nowMs : -Infinity;
     setStat(`t = ${formatTime(sim.now)} · ${Math.round(sim.now / period).toLocaleString()} cycles${running() ? ` · ${r >= 1000 ? `${(r / 1000).toFixed(1)} kHz` : `${Math.round(r)} Hz`} (${(r * period / 1e10).toFixed(r * period / 1e10 < 1 ? 3 : 1)}% of real time)` : ''}${sim.finished === 'error' ? ' · stopped by an error' : ''}`);
-    // simulator messages
+    logLines();
+  }
+  // the simulator's messages, new ones into the log
+  function logLines() {
     const log = sim.log;
     if (log.length !== logN()) {
       for (const e of log.slice(Math.max(logN(), log.length - 50))) logEl.append(h('div', { class: e.kind }, `${formatTime(e.time)}  ${e.kind === 'print' ? '' : `${e.kind.toUpperCase()}: `}${e.text}`));
