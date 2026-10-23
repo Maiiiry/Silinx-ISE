@@ -69,6 +69,7 @@ function value(mod, b, inputs) {
     if (typeof x !== 'number') return +(x === '1');
     if (inputs.has(x)) return inputs.get(x);
     const c = drv.get(x);
+    if (/^MUXF/.test(c.type)) return ev(c.connections.S[0]) ? ev(c.connections.I1[0]) : ev(c.connections.I0[0]);
     const k = +c.type[3], init = c.parameters.INIT;
     let i = 0;
     for (let j = 0; j < k; j++) i |= ev(c.connections[`I${j}`][0]) << j;
@@ -107,18 +108,109 @@ test('#652 the enable of spi-fpga-slave\'s shift register: 2 levels instead of 3
   assert.equal(netlistLevels(mod).level(22), 3);
 });
 
-test('#652 a round that cannot make every end of the critical path shallower is undone: nothing changed', () => {
-  const { json } = spiNetlist();
-  // the D logic (a LUT3 of load, level 3) has no shallower form of a LUT and one LUT more: the round with it is undone
-  const ends = () => [{ cell: 'ff', port: 'CE' }, { cell: 'ff', port: 'D' }];
+test('#652 a round makes the ends it can shallower and leaves the others; none it can: nothing changed', () => {
+  const { bit, json } = spiNetlist();
+  // the D logic (a LUT3 of load, level 3) has no shallower form (8 leaves: too many for the wide multiplexers either);
+  // the enable has: the round makes the enable 2 levels and leaves D as it was
   const mod = json.modules.spi;
   assert.equal(shallower(mod, 23, netlistLevels(mod)), null);
-  assert.equal(resynthCritical(json, 'spi', ends), null);
-  // a LUT of level 1 (nothing shallower) and an end that is no LUT's (an input): none either
+  const r = resynthCritical(json, 'spi', () => [{ cell: 'ff', port: 'CE' }, { cell: 'ff', port: 'D' }]);
+  assert.ok(r);
+  assert.deepEqual([r.rounds, r.luts], [1, 1]);
+  const m = r.json.modules.spi;
+  assert.deepEqual([22, 23].map(netlistLevels(m).level), [2, 3]);
+  assert.deepEqual(m.cells.d, mod.cells.d, 'D\'s LUT as it was');
+  for (let v = 0; v < 1 << INPUTS.length; v++) {
+    const inputs = new Map(INPUTS.map((n, i) => [bit[n], (v >> i) & 1]));
+    assert.equal(value(m, 22, inputs), value(mod, 22, inputs), `en, inputs ${v}`);
+    assert.equal(value(m, 23, inputs), value(mod, 23, inputs), `d, inputs ${v}`);
+  }
+  // only ends with no shallower form: nothing (a LUT of level 1; an end that is no LUT's, an input)
+  assert.equal(resynthCritical(json, 'spi', () => [{ cell: 'ff', port: 'D' }]), null);
   assert.equal(shallower(mod, 20, netlistLevels(mod)), null);
   assert.equal(resynthCritical(json, 'spi', () => [{ cell: 'ff', port: 'C' }]), null);
   // a round per critical path, RESYNTH_RULE.rounds at most
-  assert.deepEqual(RESYNTH_RULE, { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12 });
+  assert.deepEqual(RESYNTH_RULE, { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12, wideLeaves: 7 });
+});
+
+// a function of 7 inputs with no disjoint decomposition (vtr-stereovision3's I2C clock line: a 128-entry case of its 7-bit
+// state, #652), as a deep netlist: its 8 cofactors on a4..a6 (level 1), then LUT3 multiplexers on a4, a5, a6 (levels
+// 2, 3, 4); n of the inputs (5 to 7) used, the others left out
+function wideNetlist(F, n) {
+  const lut = (ins, f, out) => ({ type: `LUT${ins.length}`, parameters: { INIT: Array.from({ length: 1 << ins.length }, (_, m) => +!!f(ins.map((_, i) => (m >> i) & 1))).reverse().join('') },
+    port_directions: { ...Object.fromEntries(ins.map((_, i) => [`I${i}`, 'input'])), O: 'output' }, connections: { ...Object.fromEntries(ins.map((b, i) => [`I${i}`, [b]])), O: [out] } });
+  const a = Array.from({ length: n }, (_, i) => i + 2);
+  const cells = {}, k = n - 4;
+  let next = 40, level = [];
+  for (let v = 0; v < 1 << k; v++) {
+    const o = next++;
+    cells[`c${v}`] = lut(a.slice(0, 4), x => F[x.reduce((m, b, i) => m | (b << i), 0) | (v << 4)], o);
+    level.push(o);
+  }
+  for (let j = 0; j < k; j++) {
+    level = Array.from({ length: level.length / 2 }, (_, i) => {
+      const o = next++;
+      cells[`m${j}_${i}`] = lut([level[2 * i], level[2 * i + 1], a[4 + j]], ([x0, x1, s]) => (s ? x1 : x0), o);
+      return o;
+    });
+  }
+  const root = level[0];
+  cells.ff = { type: 'FDRE', parameters: {}, port_directions: { C: 'input', CE: 'input', D: 'input', R: 'input', Q: 'output' }, connections: { C: [30], CE: ['1'], D: [root], R: ['0'], Q: [31] } };
+  const ports = { ...Object.fromEntries(a.map((b, i) => [`a${i}`, { direction: 'input', bits: [b] }])), clk: { direction: 'input', bits: [30] }, q: { direction: 'output', bits: [31] } };
+  return { a, root, json: { modules: { w: { attributes: { top: '1' }, ports, cells, netnames: Object.fromEntries(Object.entries(ports).map(([nm, p]) => [nm, { bits: p.bits }])) } } } };
+}
+
+test('#652 a function of 6 or 7 inputs with no decomposition: LUT4s into MUXF5, MUXF6 and MUXF7 (one LUT level and the slice\'s multiplexers, as XST), its own cells, the same function on every input', () => {
+  for (const n of [7, 6]) {
+    let F;
+    // a function of all n inputs with no form of one or two LUTs nor a tree (a random one: retried until so)
+    for (let tries = 0; ; tries++) {
+      F = Uint8Array.from({ length: 1 << n }, () => +(rng() < 0.5));
+      const { json, root } = wideNetlist(F, n);
+      const mod = json.modules.w;
+      if (!shallower(mod, root, netlistLevels(mod), { ...RESYNTH_RULE, wideLeaves: 0 })) break;
+      assert.ok(tries < 50);
+    }
+    const { a, root, json } = wideNetlist(F, n);
+    const mod = json.modules.w;
+    const lv = netlistLevels(mod);
+    assert.equal(lv.level(root), n - 3, `n ${n}`);
+    const ch = shallower(mod, root, lv);
+    assert.ok(ch?.wide, `n ${n}: ${JSON.stringify(ch)}`);
+    const r = resynthCritical(json, 'w', () => [{ cell: 'ff', port: 'D' }]);
+    assert.ok(r, `n ${n}`);
+    const m = r.json.modules.w;
+    const k = n - 4, count = t => Object.values(m.cells).filter(c => c.type === t).length;
+    // 2^k LUT4s, 2^(k-1) MUXF5, … one multiplexer last, driving the root (the flip-flop's D kept)
+    assert.deepEqual([count('LUT4'), count('MUXF5'), count('MUXF6'), count('MUXF7')], [1 << k, 1 << (k - 1), k >= 2 ? 1 << (k - 2) : 0, k >= 3 ? 1 : 0], `n ${n}`);
+    assert.equal(Object.values(m.cells).filter(c => /^LUT/.test(c.type)).length, 1 << k, `n ${n}: the old LUTs removed`);
+    assert.deepEqual(m.cells.ff.connections.D, [root]);
+    assert.equal(m.cells[Object.keys(m.cells).find(c => m.cells[c].connections.O?.[0] === root)].type, `MUXF${4 + k}`, `n ${n}`);
+    assert.equal(netlistLevels(m).level(root), 2, `n ${n}: a LUT and a MUXF5 (MUXF6 and MUXF7 not a level)`);
+    // a MUXF5's inputs are LUTs only it reads (its slice's F and G); a MUXF6's and a MUXF7's the multiplexers below
+    const readers = b => Object.values(m.cells).filter(c => Object.entries(c.connections).some(([p, bits]) => c.port_directions[p] === 'input' && bits.includes(b))).length;
+    for (const c of Object.values(m.cells).filter(x => /^MUXF/.test(x.type))) {
+      for (const p of ['I0', 'I1']) {
+        const d = Object.values(m.cells).find(x => x.connections.O?.[0] === c.connections[p][0]);
+        assert.equal(d.type, c.type === 'MUXF5' ? 'LUT4' : `MUXF${+c.type[4] - 1}`);
+        assert.equal(readers(c.connections[p][0]), 1);
+      }
+    }
+    for (let v = 0; v < 1 << n; v++) {
+      const inputs = new Map(a.map((b, i) => [b, (v >> i) & 1]));
+      assert.equal(value(m, root, inputs), F[v], `n ${n}, inputs ${v}`);
+    }
+    // without it (wideLeaves 0): nothing changed
+    assert.equal(resynthCritical(json, 'w', () => [{ cell: 'ff', port: 'D' }], { ...RESYNTH_RULE, wideLeaves: 0 }), null);
+  }
+  // 5 inputs: its 2 levels are the wide form's (a LUT and a MUXF5): nothing to gain
+  {
+    const F = Uint8Array.from({ length: 32 }, () => +(rng() < 0.5));
+    const { root, json } = wideNetlist(F, 5);
+    const mod = json.modules.w;
+    assert.equal(netlistLevels(mod).level(root), 2);
+    assert.equal(shallower(mod, root, netlistLevels(mod)), null);
+  }
 });
 
 test('#652 the same LUT made for several ends is one LUT: two inverters of one LUT (as Yosys\'s extractinv makes them) on two critical ends', () => {
@@ -264,4 +356,67 @@ test('#652 the open synthesis: the enable on 2 levels of LUTs (the speedup\'s 2 
   const before = await synthesizeOpen(des, { run: yosysNode, effort: 'normal', resynth: false });
   close(criticalDelay(before.files['shift.json'], 'shift'), 0.59 + 0.45 + 0.70 + 0.45 + 0.70 + 0.45 + 0.70 + 0.45 + 0.55, 'before');
   assert.deepEqual([before.util.luts, before.depth.resynth], [11, undefined]);
+});
+
+// an I2C sequencer as vtr-stereovision3 writes it (#652): a 7-bit state counted while not stopped, restarted by start;
+// the clock line, the stop and the data line a 128-entry case of it (the data line some states' address bit)
+const iicRng = (s => () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x80000000; })(7);
+const scl = Array.from({ length: 128 }, () => +(iicRng() < 0.5));
+const stop = Array.from({ length: 128 }, (_, i) => +(i === 127 || iicRng() < 0.08));
+const sda = Array.from({ length: 128 }, () => Math.floor(iicRng() * 10));
+const sdaV = i => (sda[i] < 8 ? `addr[${sda[i]}]` : `1'b${sda[i] - 8}`), sdaH = i => (sda[i] < 8 ? `addr(${sda[i]})` : `'${sda[i] - 8}'`);
+const IIC_VERILOG = `module iic(input clk, input start, input [7:0] a, output reg scl = 1'b0, output reg sda = 1'b0);
+  reg [6:0] st = 7'd0;
+  reg stop = 1'b0;
+  reg [7:0] addr = 8'd0;
+  always @(posedge clk) begin
+    addr <= a;
+    if (!stop) st <= st + 7'd1; else if (start) st <= 7'd1;
+    case (st)
+${scl.map((b, i) => `      7'd${i}: begin scl <= 1'b${b}; stop <= 1'b${stop[i]}; sda <= ${sdaV(i)}; end`).join('\n')}
+    endcase
+  end
+endmodule
+`;
+const IIC_VHDL = `library ieee; use ieee.std_logic_1164.all; use ieee.numeric_std.all;
+entity iic is port (clk, start : in std_logic; a : in std_logic_vector(7 downto 0); scl, sda : out std_logic); end iic;
+architecture rtl of iic is
+  signal st : unsigned(6 downto 0) := (others => '0');
+  signal stop, rscl, rsda : std_logic := '0';
+  signal addr : std_logic_vector(7 downto 0) := (others => '0');
+begin
+  process (clk) begin
+    if rising_edge(clk) then
+      addr <= a;
+      if stop = '0' then st <= st + 1; elsif start = '1' then st <= to_unsigned(1, 7); end if;
+      case to_integer(st) is
+${scl.map((b, i) => `        when ${i} => rscl <= '${b}'; stop <= '${stop[i]}'; rsda <= ${sdaH(i)};`).join('\n')}
+        when others => null;
+      end case;
+    end if;
+  end process;
+  scl <= rscl; sda <= rsda;
+end rtl;
+`;
+
+test('#652 the open synthesis of an I2C sequencer (vtr-stereovision3\'s): its clock line and stop as LUT4s into the wide multiplexers, the data line\'s end left; fewer LUTs, kept by DEPTH_RULE at both efforts, in VHDL and in Verilog; the netlist simulates as the design, no warning', { timeout: 600000 }, async () => {
+  for (const [lang, text] of [['vhdl', IIC_VHDL], ['verilog', IIC_VERILOG]]) {
+    const des = elaborate(compile([{ path: lang === 'vhdl' ? 'd.vhd' : 'd.v', lang, text }]), 'iic');
+    for (const effort of ['normal', 'high']) {
+      const what = `${lang} ${effort}`;
+      const r = await synthesizeOpen(des, { run: yosysNode, effort });
+      const json = r.files['iic.json'];
+      // (main: the round undone, its data line's end having no shallower form: 161 LUTs, no multiplexer)
+      assert.deepEqual({ ...r.depth.resynth, ns: +r.depth.resynth.ns.toFixed(2) }, { rounds: 1, changed: 2, ns: 7.62, luts: 126, slices: 67, kept: true }, what);
+      assert.deepEqual([r.util.luts, r.util.muxes, r.util.flipFlops, logicLevels(json, 'iic')], [126, 14, 18, 6], what);
+      assert.equal(+criticalDelay(json, 'iic').toFixed(2), 7.62, what);
+      // the multiplexers: MUXF5 … MUXF7 of the clock line's and the stop's trees (two LUT4s for each MUXF5)
+      const cells = Object.values((typeof json === 'string' ? JSON.parse(json) : json).modules.iic.cells);
+      const n = t => cells.filter(c => c.type === t).length;
+      assert.deepEqual([n('MUXF5'), n('MUXF6'), n('MUXF7')], [8, 4, 2], what);
+      assert.deepEqual(r.warnings, [], what);
+      const cmp = compareNetlist(des, r, { name: `resynth-wide-${lang}-${effort}`, seed: 'iic', sim: { cycles: 600 } });
+      assert.equal(cmp.status, 'pass', cmp.report || cmp.reason);
+    }
+  }
 });

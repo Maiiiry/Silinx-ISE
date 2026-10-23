@@ -16,11 +16,17 @@
 //     first), by disjoint decompositions F = h(g(A), rest), A of 2 to 4 signals and the earliest first, then the same
 //     with h: a cone that converges again (iwls05-sasc's FIFO, where its pointers reach the root through two LUTs of
 //     level 2: one g cannot hold them, two can);
+//   - else, for a function of 5 to RESYNTH_RULE.wideLeaves (7) leaves of level L-3 at most with no such decomposition
+//     (vtr-stereovision3's I2C clock, a 128-entry case of its 7-bit state: 5 levels of LUTs, XST's one LUT level and
+//     its multiplexers), the slice's wide multiplexers: its 2^k cofactors on k = n-4 of the leaves (the latest) as
+//     LUT4s, into MUXF5, MUXF6 and MUXF7 selected by them (a LUT level and fast multiplexers, as XST maps it); these
+//     cells only its own (a MUXF5's LUTs are its slice's F and G), never shared;
 // all found by truth tables of up to 2^MAX_LEAVES rows, so the new netlist computes the same functions by
-// construction. A round makes every end of the critical path one level shallower (else it is undone and the
-// pass ends), until the critical path's ends cannot be (another kind of cell, a function with no such
-// decomposition) or RESYNTH_RULE.rounds rounds.
-export const RESYNTH_RULE = { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12 };
+// construction. A round makes the ends of the critical path that it can one level shallower (or more: the wide
+// multiplexers) and leaves the others (vtr-stereovision3: its I2C data line, a function of 20 flip-flops, kept the
+// clock line's and the stop's from being made, #652); the pass ends when a round makes none (another kind of cell, a
+// function with no such decomposition) or after RESYNTH_RULE.rounds rounds. DEPTH_RULE keeps the result or not.
+export const RESYNTH_RULE = { rounds: 16, leaves: 8, candidates: 10, treeLeaves: 12, wideLeaves: 7 };
 
 const isLut = t => /^(LUT[1-4]|INV|BUF)$/.test(t);
 const LEVEL_CELL = t => /^(LUT[1-6]|INV|MUXF5)$/.test(t);
@@ -138,7 +144,53 @@ export function decompose(F, N, A, S) {
  *  table }, g: { inputs, table } | null }, or { root, tree: [{ inputs, table }] } (the tree's LUTs, the last the root's;
  *  an input { lut: k } the tree's LUT k), or null. */
 export function shallower(mod, root, ctx, rule = RESYNTH_RULE) {
-  return shallowerLut(mod, root, ctx, rule) || (rule.treeLeaves ? shallowerTree(mod, root, ctx, rule) : null);
+  return shallowerLut(mod, root, ctx, rule) || (rule.treeLeaves ? shallowerTree(mod, root, ctx, rule) : null)
+    || (rule.wideLeaves ? shallowerWide(mod, root, ctx, rule) : null);
+}
+
+// the LUT at level L made LUT4s into MUXF5 … MUXF7 of level L-1 at most (a LUT and a MUXF5 above its leaves of level
+// L-3 at most) over its cone cut at a level L-3 or lower, 5 to rule.wideLeaves leaves it depends on: { root, wide:
+// { selects (the leaves the multiplexers choose by, the latest; MUXF5's first), luts: [{ inputs, table }] (the cofactors,
+// select values 0 … 2^k-1 in order) } } or null
+function shallowerWide(mod, root, { driver, level }, rule) {
+  const cells = mod.cells;
+  const L = level(root), c = cells[driver.get(root)];
+  if (L < 3 || !c || !isLut(c.type)) return null;
+  // its cone cut at a level t (L-3 at most; lower when that has too many leaves: a cone that converges again, as a
+  // state machine's decoding, has fewer leaves further down), expanded whole, not one LUT at a time
+  let leaves = null;
+  for (let t = L - 3; t >= 0 && !leaves; t--) {
+    const z = cone(cells, driver, root, b => level(b) > t, rule.wideLeaves * 4);
+    if (z && z.leaves.every(b => level(b) <= t)) {
+      const [T] = tables(cells, driver, z.leaves, [root]);
+      if (z.leaves.filter((_, i) => dependsOn(T, T.length, i)).length <= rule.wideLeaves) leaves = z.leaves;
+    }
+  }
+  if (!leaves) return null;
+  let [F] = tables(cells, driver, leaves, [root]);
+  // the leaves F depends on
+  const keep = leaves.map((_, i) => i).filter(i => dependsOn(F, F.length, i));
+  const n = keep.length;
+  if (n < 5 || n > rule.wideLeaves) return null;
+  const G = new Uint8Array(1 << n);
+  for (let m = 0; m < G.length; m++) { let x = 0; keep.forEach((v, j) => { x |= ((m >> j) & 1) << v; }); G[m] = F[x]; }
+  F = G;
+  const vars = keep.map(i => leaves[i]);
+  // the selects: the k latest (the multiplexers' selects are the faster way in), MUXF5's the latest of them
+  const k = n - 4;
+  const order = vars.map((_, i) => i).sort((a, b) => level(vars[b]) - level(vars[a]));
+  const sel = order.slice(0, k), data = order.slice(k).sort((a, b) => a - b);
+  const luts = [];
+  for (let v = 0; v < 1 << k; v++) {
+    const table = Array.from({ length: 16 }, (_, d) => {
+      let m = 0;
+      data.forEach((x, j) => { m |= ((d >> j) & 1) << x; });
+      sel.forEach((x, j) => { m |= ((v >> j) & 1) << x; });
+      return F[m];
+    });
+    luts.push({ inputs: data.map(i => vars[i]), table });
+  }
+  return { root, wide: { selects: sel.map(i => vars[i]), luts } };
 }
 
 // F (a table over vars, var i bit i of the row; lv their levels) as a tree of LUT4s of level maxLevel at most, by
@@ -284,6 +336,7 @@ function lutKey(inputs, table) {
 // one LUT each would load its inputs 14 times), the root's readers moved to it when it is h's (not a port's bit)
 function applyChange(mod, ch, driver, fresh) {
   const name = driver.get(ch.root);
+  if (ch.wide) return applyWide(mod, ch, name, fresh);
   const luts = Object.values(mod.cells).filter(c => isLut(c.type));
   const existing = (ins, t) => { const key = lutKey(ins, t); return luts.find(c => lutKey(lutInputs(c), lutTable(c)) === key)?.connections.O[0]; };
   if (ch.tree) {
@@ -326,6 +379,34 @@ function applyChange(mod, ch, driver, fresh) {
   return ch.root;
 }
 
+const muxCell = (type, i0, i1, sel, out, attributes = {}) => ({
+  hide_name: 1, type, parameters: {}, attributes,
+  port_directions: { I0: 'input', I1: 'input', S: 'input', O: 'output' }, connections: { I0: [i0], I1: [i1], S: [sel], O: [out] },
+});
+// the wide form made: its cofactors' LUTs, then the MUXF5s, MUXF6s and MUXF7 (the last one drives the root, whose LUT
+// goes), all new (never one already in the netlist: a MUXF5 reads its own slice's two LUTs)
+function applyWide(mod, ch, name, fresh) {
+  const { selects, luts } = ch.wide;
+  const attributes = mod.cells[name].attributes;
+  delete mod.cells[name];
+  let level = luts.map(l => {
+    const b = fresh();
+    mod.cells[`$silinx$resynth$lut${b}`] = lutCell(l.inputs, l.table, b);
+    mod.netnames[`$silinx$resynth$net${b}`] = { hide_name: 1, bits: [b], attributes: {} };
+    return b;
+  });
+  selects.forEach((s, j) => {
+    const last = j === selects.length - 1;
+    level = Array.from({ length: level.length / 2 }, (_, i) => {
+      const b = last ? ch.root : fresh();
+      mod.cells[`$silinx$resynth$muxf${5 + j}_${b}`] = muxCell(`MUXF${5 + j}`, level[2 * i], level[2 * i + 1], s, b, last ? attributes : {});
+      if (!last) mod.netnames[`$silinx$resynth$net${b}`] = { hide_name: 1, bits: [b], attributes: {} };
+      return b;
+    });
+  });
+  return ch.root;
+}
+
 // the LUTs whose outputs nothing reads, removed
 function sweep(mod) {
   for (;;) {
@@ -353,18 +434,19 @@ export function resynthCritical(json, top, ends, rule = RESYNTH_RULE) {
     const next = JSON.parse(JSON.stringify(nl));
     const mod = modOf(next);
     const roots = [...new Set(ends(next).map(e => mod.cells[e.cell]?.connections[e.port]?.[0]))];
-    let made = 0, ok = roots.length > 0;
+    let made = 0;
     for (const root of roots) {
       const ctx = netlistLevels(mod);
       const ch = typeof root === 'number' ? shallower(mod, root, ctx, rule) : null;
-      if (!ch) { ok = false; break; }
+      if (!ch) continue;
       applyChange(mod, ch, ctx.driver, fresh);
       made++;
     }
-    if (!ok) break;
+    if (!made) break;
     sweep(mod);
     nl = next;
     luts += made;
   }
   return luts ? { json: nl, rounds, luts } : null;
 }
+
