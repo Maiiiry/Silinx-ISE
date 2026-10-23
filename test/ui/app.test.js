@@ -823,3 +823,27 @@ uiTest('#1101 the Start page: "Project Commands" right under the pane\'s caption
   assert.ok(g.first <= 20, `${g.first} px`);
   assert.ok(g.second > 0, 'the next heading keeps its space above');
 });
+
+uiTest('#1128 the document tabs: one width, every close button shown (not only on hover), at the same place: three clicks at one point close three tabs', E, async (page) => {
+  await makeProject(env, { name: 'TabsPj', template: 'blinky' });
+  await page.openProject('TabsPj');
+  for (const f of ['src/top.vhd', 'src/knight.vhd', 'src/speed_ctrl.vhd']) await page.eval((p) => window.SilinxApp.openFile(p), f);
+  await page.waitFor(() => document.querySelectorAll('#doc-tabs .tab').length >= 4, [], { what: 'the tabs' });
+  // the tabs after the Design Summary's, the three files (the first one active? the last opened is)
+  const tabs = () => page.eval(() => [...document.querySelectorAll('#doc-tabs .tab')].filter((t) => t.getClientRects().length).map((t) => {
+    const r = t.getBoundingClientRect(), c = t.querySelector('.tclose'), cr = c.getBoundingClientRect();
+    return { label: t.querySelector('.tlabel').textContent, w: Math.round(r.width), close: getComputedStyle(c).visibility === 'visible' && cr.width > 0, at: Math.round(cr.left - r.left), x: cr.left + cr.width / 2, y: cr.top + cr.height / 2 };
+  }));
+  const t0 = await tabs();
+  assert.ok(t0.length >= 4, JSON.stringify(t0));
+  assert.equal(new Set(t0.map((t) => t.w)).size, 1, `one width: ${JSON.stringify(t0.map((t) => [t.label, t.w]))}`);
+  assert.ok(t0.every((t) => t.close), `every close button shown: ${JSON.stringify(t0.map((t) => [t.label, t.close]))}`);
+  assert.equal(new Set(t0.map((t) => t.at)).size, 1, 'the close button at the same place in each');
+  // the first tab's ×, clicked three times without moving: the tabs after it come in its place, one after another
+  const first = { x: t0[0].x, y: t0[0].y };
+  for (let k = 1; k <= 3; k++) {
+    await page.click(first);
+    await page.waitFor((n) => [...document.querySelectorAll('#doc-tabs .tab')].filter((t) => t.getClientRects().length).length === n, [t0.length - k], { what: `${k} closed` });
+  }
+  assert.deepEqual((await tabs()).map((t) => t.label), [t0[3].label, ...t0.slice(4).map((t) => t.label)]);
+});
