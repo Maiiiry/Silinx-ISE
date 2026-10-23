@@ -809,3 +809,17 @@ uiTest('a reload comes back to the simulation (ISim) and the board emulator, run
   assert.deepEqual((await docs()).docs, ['summary Design Summary']);
   assert.equal(await page.eval(() => document.querySelector('.dlg-overlay')), null, 'no message');
 }, { timeout: 180000 });
+
+uiTest('#1101 the Start page: "Project Commands" right under the pane\'s caption (the page\'s own padding), as the Design pane\'s content', E, async (page) => {
+  await page.click('#left-tabs .tab[data-page="start"]');
+  await page.waitFor(() => document.querySelector('#start-page .start-box h3'), [], { what: 'the Start page' });
+  const g = await page.eval(() => {
+    const cap = document.querySelector('.left-page[data-page="start"] .caption').getBoundingClientRect();
+    const h3s = [...document.querySelectorAll('#start-page .start-box h3')];
+    const pad = parseFloat(getComputedStyle(document.querySelector('#start-page > .page')).paddingTop);
+    return { first: Math.round(h3s[0].getBoundingClientRect().top - cap.bottom), pad: Math.round(pad), text: h3s[0].textContent, second: parseFloat(getComputedStyle(h3s[1]).marginTop) };
+  });
+  assert.deepEqual([g.text, g.first], ['Project Commands', g.pad], JSON.stringify(g));
+  assert.ok(g.first <= 20, `${g.first} px`);
+  assert.ok(g.second > 0, 'the next heading keeps its space above');
+});
