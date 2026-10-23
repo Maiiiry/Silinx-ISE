@@ -121,6 +121,10 @@ if (cmd === 'observe') {
   // (SOURCEXDL=a.xdl,b.xdl: ISE's routed designs, round 6: where a block RAM's output enters its interconnect tile, the
   // join of the site tile's BRAM_DO…_INTk (RAMB16_DO… -> BRAM_DO…_INTk) and the interconnect's BRAM_DO… (the from-wire of
   // the net's first PIP there), so that a test reaches every OMUX line through the bit database's BRAM_DO… -> OMUXk)
+  // (PROBED=probe.json, round 7: the PIPs the arc probe confirmed in each tile, probe-run.mjs on candidates.mjs io: the I/O
+  // tiles' switches the database shares between types, each asked of xdl -xdl2ncd in that very tile)
+  const probed = new Map();
+  if (process.env.PROBED) for (const p of readJson(process.env.PROBED).pips.yes) { if (!probed.has(p.tile)) probed.set(p.tile, []); probed.get(p.tile).push([p.from, p.to, 0]); }
   const pinJoins = (process.env.SOURCEXDL || '').split(',').filter(Boolean).flatMap(f => blockRamOutputJoins(parseXdl(fs.readFileSync(f, 'utf8')), t => /^BRAM\d_SMALL/.test(dbType(t))));
   const known = [...obs.joins, ...pinJoins, ...tested.flatMap(d => readJson(path.join(d, 'verdicts.json')).filter(v => v[2] === 'join').map(v => [v[0], v[1]]))];
   const joinedTo = new Map();
@@ -142,7 +146,7 @@ if (cmd === 'observe') {
   }
   const r = joinTestDesigns({
     part: PART, joins, slicesOf, pinWire: (pos, pin) => pins.get(`${pos}.${pin}`)?.[0],
-    pipsOf: t => pipsOf(dbType(t)).filter(([a, b, f]) => !(f & PIP_BIDI)),
+    pipsOf: t => [...pipsOf(dbType(t)), ...(probed.get(t) || [])].filter(([a, b, f]) => !(f & PIP_BIDI)),
     joined: k => joinedTo.get(k) || [], nodeOf: k => (root.has(k) ? members.get(root.get(k)) : [k]),
     maxJoins, maxDepth: +(process.env.MAXDEPTH ?? 3), sourcesOf: t => extra.get(t) || [],
   });

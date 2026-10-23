@@ -4,6 +4,7 @@
 //   node candidates.mjs tiles obs.json out.json      switch-box tiles: the observed prefixes at every X / Y of their kind
 //   node candidates.mjs sites clb-tiles.txt out.json  a SLICEM on every slice site (the SLICEL sites refuse it), VCC sites
 //   node candidates.mjs census clb-tiles.txt out.json every PIP of the database's CLB types in every CLB
+//   node candidates.mjs io obs.json out.json          every PIP of the database's I/O types in every observed I/O tile (#3, round 7)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -69,6 +70,31 @@ export function censusCandidates(clbs, tilesDb, brkRows) {
   return pips;
 }
 
+/** I/O census candidates (#3, round 7): every PIP feature of the database's type of each observed I/O tile (its own and
+ *  the CLB switch box it shares), the PIPs ISE's routes showed there left out, and those the database records the type
+ *  lacks (`absent`, #74). The database names an I/O tile's own wires as the CLB's (`rename`: IOIS_F1_B0 is F1_B0): a
+ *  wire is the tile's IOIS_<name> where ISE's routes showed one in an I/O tile, else <name>. */
+export function ioCandidates(obs, tilesDb, dbType) {
+  const io = t => /IOIS|IBUFS/.test(tileXY(t)?.prefix || '');
+  const seenWires = new Set(obs.pips.filter(p => io(p.tile)).flatMap(p => [p.from, p.to]));
+  const name = w => (seenWires.has(`IOIS_${w}`) ? `IOIS_${w}` : w);
+  const seenPips = new Set(obs.pips.map(p => `${p.tile} ${p.from} ${p.to}`));
+  const pips = [];
+  for (const t of new Set(obs.pips.map(p => p.tile).filter(io))) {
+    const ty = tilesDb.types[dbType(t)];
+    if (!ty) continue;
+    const absent = new Set(ty.absent || []);
+    const all = new Set([...Object.keys(ty.features || {}), ...Object.keys(tilesDb.types[ty.sameAs]?.features || {})]);
+    for (const f of all) {
+      const m = /^(\S+)->(\S+)$/.exec(f);
+      if (!m || absent.has(f) || absent.has(m[1]) || absent.has(m[2])) continue;
+      const [a, b] = [name(m[1]), name(m[2])];
+      if (!seenPips.has(`${t} ${a} ${b}`)) pips.push({ tile: t, from: a, to: b, dir: '->' });
+    }
+  }
+  return pips;
+}
+
 if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1]))) {
   const [cmd, input, out] = process.argv.slice(2);
   const read = f => JSON.parse(fs.readFileSync(f, 'utf8'));
@@ -79,7 +105,10 @@ if (process.argv[1] && import.meta.url.endsWith(path.basename(process.argv[1])))
   else if (cmd === 'census') {
     const db = path.join(HERE, '../s3e-bitstream/db');
     res = { part: PART, pips: censusCandidates(lines(input), read(path.join(db, 's3e-tiles.json')), read(path.join(db, `${DEVICE}-layout.json`)).brkRows || []) };
-  } else { console.error('usage: candidates.mjs tiles|sites|census input out.json'); process.exit(1); }
+  } else if (cmd === 'io') {
+    const db = read(path.join(HERE, '../s3e-bitstream/db/s3e-tiles.json'));
+    res = { part: PART, pips: ioCandidates(read(input), db, t => tileXY(t).prefix) };
+  } else { console.error('usage: candidates.mjs tiles|sites|census|io input out.json'); process.exit(1); }
   fs.writeFileSync(out, JSON.stringify(res));
   console.log(`${(res.pips || res.sites).length} candidates`);
 }

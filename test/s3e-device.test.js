@@ -9,7 +9,7 @@ import { loadDevice, PIP_BIDI } from '../core/fpga/device.js';
 import { probeXdl, probeFirstLine, parseProbeLog, sortPips, sortSites } from '../research/s3e-device/probe.mjs';
 import { joinTestDesigns, parseJoinTests } from '../research/s3e-device/hypotheses.mjs';
 import { rng, clbSlices, observeXdl } from '../research/s3e-device/gen-observe.mjs';
-import { tileCandidates, siteCandidates, censusCandidates } from '../research/s3e-device/candidates.mjs';
+import { tileCandidates, siteCandidates, censusCandidates, ioCandidates } from '../research/s3e-device/candidates.mjs';
 import { bram, mult, pads } from '../research/s3e-device/gen-obshdl.mjs';
 import { loadDeviceCache } from '../core/fpga/device-node.js';
 import { compile, elaborate } from '../core/compile.js';
@@ -385,4 +385,15 @@ net "x" ,
   assert.deepEqual(blockRamOutputJoins(d, isInterconnect), [['BRAMSITE2_BRK_X4Y6/BRAM_DOA0_INT0', 'BRAM0_SMALL_X3Y6/BRAM_DOA0']]);
   // (no interconnect tile among the PIPs: no join)
   assert.deepEqual(blockRamOutputJoins(d, () => false), []);
+});
+
+test('ioCandidates: an I/O tile\'s PIPs from the database\'s features, in the tile\'s own wire names, less the observed and the absent ones (#3, round 7)', () => {
+  const tilesDb = { types: {
+    CENTER_SMALL: { features: { 'F1_B0->X0': [], 'E2BEG0->F1_B0': [], 'W2END4->W2BEG4': [] } },
+    LIOIS: { sameAs: 'CENTER_SMALL', features: { 'IOIS_I0->OMUX3': [] }, absent: ['W2BEG4'] },
+  } };
+  // ISE's routes showed IOIS_F1_B0 in an I/O tile (the database's F1_B0 there), and E2BEG0 -> IOIS_F1_B0 in LIOIS_X0Y5
+  const obs = { pips: [{ tile: 'LIOIS_X0Y5', from: 'E2BEG0', to: 'IOIS_F1_B0' }, { tile: 'CLB_X1Y5', from: 'F1_B0', to: 'X0' }] };
+  const c = ioCandidates(obs, tilesDb, t => tileXY(t).prefix).map(p => `${p.tile} ${p.from}->${p.to}`).sort();
+  assert.deepEqual(c, ['LIOIS_X0Y5 IOIS_F1_B0->X0', 'LIOIS_X0Y5 IOIS_I0->OMUX3']);
 });
