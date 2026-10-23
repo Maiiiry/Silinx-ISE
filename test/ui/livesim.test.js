@@ -158,3 +158,30 @@ uiTest('live schematic simulation is refused with the errors listed (two drivers
   assert.match(await page.eval((sel) => document.querySelector(`${sel} .se-diags`).textContent, ED), /2 drivers/);
   assert.equal(await page.eval((sel) => document.querySelector(sel).classList.contains('sim-mode'), ED), false);
 });
+
+uiTest('#1110 Try it: a clock marker clicked (one cycle) goes green a moment, back to its level after; green while the clock runs, not after Pause', E, async (page) => {
+  const doc = schematic();
+  await makeProject(env, { name: 'TickPj', files: { 'src/half.vhd': HALF, 'src/live.sch.json': JSON.stringify(doc) } });
+  await page.openProject('TickPj');
+  await page.eval(() => window.SilinxApp.openSch('src/live.sch.json'));
+  await page.waitFor((sel) => window.Silinx.active?.id === 'sch:src/live.sch.json' && document.querySelector(`${sel} .se-btn[data-act=sim]`), [ED]);
+  await page.click(`${ED} .se-btn[data-act=sim]`);
+  await page.waitFor((sel) => document.querySelector(`${sel} .se-simlayer .lv-ctl`), [ED], { what: 'simulation mode' });
+  const CLK = `${ED} .se-simlayer .lv-clk[data-port="${portId(doc, 'clk')}"]`;
+  // its box's colour, and whether it is shown ticked
+  const box = () => page.eval((s) => { const g = document.querySelector(s); return { ticked: g.classList.contains('lv-ticked'), fill: getComputedStyle(g.querySelector('.lv-box')).fill }; }, CLK);
+  const dark = (await box()).fill;
+  assert.equal((await box()).ticked, false);
+  await page.click(CLK);
+  const on = await box();
+  assert.deepEqual([on.ticked, on.fill], [true, 'rgb(0, 176, 0)'], 'green once ticked');
+  await page.waitFor((s) => !document.querySelector(s).classList.contains('lv-ticked'), [CLK], { what: 'back to its level', timeout: 2000 });
+  assert.equal((await box()).fill, dark);
+  // Run: green while it runs; Pause: its level again
+  await page.click(`${ED} .se-simbar .lv-run`);
+  await page.waitFor((s) => document.querySelector(s).classList.contains('lv-ticked'), [CLK], { what: 'running' });
+  await new Promise((r) => setTimeout(r, 500));
+  assert.equal((await box()).ticked, true, 'still green while it runs');
+  await page.click(`${ED} .se-simbar .lv-run`);
+  await page.waitFor((s) => !document.querySelector(s).classList.contains('lv-ticked'), [CLK], { what: 'paused' });
+});

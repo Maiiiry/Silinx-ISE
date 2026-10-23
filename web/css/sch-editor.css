@@ -356,6 +356,8 @@
 .sch-editor svg .se-simlayer .lv-sw .lv-box, .sch-editor svg .se-simlayer .lv-clk .lv-box { fill: #2a2a2a; stroke: #000; }
 .sch-editor svg .se-simlayer .lv-sw.lv-1 .lv-box, .sch-editor svg .se-simlayer .lv-clk.lv-1 .lv-box { fill: #00b000; stroke: #005000; }
 .sch-editor svg .se-simlayer .lv-sw.lv-x .lv-box, .sch-editor svg .se-simlayer .lv-clk.lv-x .lv-box { fill: #e00000; }
+/* a clock ticked (a click: one cycle) or running: green, whatever its level (#1110) */
+.sch-editor svg .se-simlayer .lv-clk.lv-ticked .lv-box { fill: #00b000; stroke: #005000; }
 .sch-editor svg .se-simlayer .lv-knob { fill: #fff; }
 .sch-editor svg .se-simlayer .lv-wave { fill: none; stroke: #fff; stroke-width: 1.2; }
 .sch-editor svg .se-simlayer .lv-bus .lv-box, .sch-editor svg .se-simlayer .lv-store .lv-box { fill: #fff; stroke: #1d5c1d; }
