@@ -240,7 +240,13 @@ const e = results.env;
 $('env').textContent = `Transformers.js ${e.transformers} · ${e.cores} cores · ${e.deviceMemoryGB ?? '?'} GB · ` +
   `WebGPU: ${e.webgpu ? `${e.webgpu.vendor || '?'} ${e.webgpu.architecture || ''}${e.webgpu.f16 ? ', f16' : ''}` : 'no'} · ` +
   `cross-origin isolated (threads, memory): ${e.crossOriginIsolated ? 'yes' : 'no'} · ${e.userAgent}`;
-if (!e.webgpu) $('backend').value = 'wasm';
+// WebGPU offered only when the page has an adapter and the worker has navigator.gpu (Transformers.js refuses it otherwise)
+if (!e.webgpu || !info.webgpu) {
+  const gpu = $('backend').querySelector('option[value="webgpu"]');
+  gpu.disabled = true;
+  gpu.textContent = 'WebGPU (not available here)';
+  $('backend').value = 'wasm';
+}
 setStatus(results.runs.length ? 'Ready: the results kept are below.' : 'Ready: load a model.');
 render();
 
