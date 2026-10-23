@@ -1,6 +1,6 @@
 // The spike's Web Worker: loads one model with Transformers.js and recognizes images (#1060).
 // Copyright 2026 Pedro Maló, AGPL-3.0-only.
-// Messages in:  { id, type: 'load', key, backend, dtype?, threads? }  |  { id, type: 'recognize', kind, image: ImageData }
+// Messages in:  { id, type: 'load', key, backend, dtype?, threads?, gpuCache? }  |  { id, type: 'recognize', kind, image: ImageData }
 // Messages out: { id, type: 'progress', … }  |  { id, type: 'done', … }  |  { id, type: 'error', message }
 import { MODELS, PROMPTS, TRANSFORMERS_URL } from './models.js';
 
@@ -9,7 +9,7 @@ T.env.allowLocalModels = false;
 
 let current = null; // { key, family, model, processor, pipe }
 
-async function load({ id, key, backend, dtype, threads }) {
+async function load({ id, key, backend, dtype, threads, gpuCache }) {
   const m = MODELS[key];
   if (threads) T.env.backends.onnx.wasm.numThreads = threads; // before the first session only
   const files = {};
@@ -18,6 +18,7 @@ async function load({ id, key, backend, dtype, threads }) {
     if (p.status === 'progress') postMessage({ id, type: 'progress', file: p.file, loaded: p.loaded, total: p.total });
   };
   const opts = { device: backend, dtype: dtype || m.dtype[backend], revision: m.revision, progress_callback };
+  if (backend === 'webgpu' && gpuCache) opts.session_options = { executionProviders: [{ name: 'webgpu', storageBufferCacheMode: gpuCache }] };
   await (current?.model || current?.pipe)?.dispose?.();
   current = null;
   const t0 = performance.now();
@@ -30,8 +31,11 @@ async function load({ id, key, backend, dtype, threads }) {
   }
   const loadMs = performance.now() - t0;
   const bytes = Object.values(files).reduce((a, b) => a + b, 0);
-  postMessage({ id, type: 'done', loadMs, bytes, files, dtype: opts.dtype, threads: T.env.backends.onnx.wasm?.numThreads ?? null });
+  postMessage({ id, type: 'done', loadMs, bytes, files, dtype: opts.dtype, gpuCache: gpuCache ?? null, threads: T.env.backends.onnx.wasm?.numThreads ?? null });
 }
+
+// A recognition's tensors freed at once, not when the garbage collector comes (Safari's comes late).
+const release = (inputs, ids) => { for (const t of [...Object.values(inputs), ids]) t?.dispose?.(); };
 
 async function recognize({ id, kind, image }) {
   if (!current) throw new Error('No model loaded');
@@ -48,6 +52,7 @@ async function recognize({ id, kind, image }) {
     const ids = await model.generate({ ...inputs, max_new_tokens: p.maxTokens, do_sample: false });
     tokens = ids.dims.at(-1);
     const raw = processor.batch_decode(ids, { skip_special_tokens: false })[0];
+    release(inputs, ids);
     const post = processor.post_process_generation(raw, p.florence2, img.size);
     text = String(post[p.florence2] ?? raw);
   } else {
@@ -60,6 +65,7 @@ async function recognize({ id, kind, image }) {
     const start = inputs.input_ids.dims.at(-1);
     tokens = ids.dims.at(-1) - start;
     text = processor.batch_decode(ids.slice(null, [start, null]), { skip_special_tokens: true })[0];
+    release(inputs, ids);
   }
   postMessage({ id, type: 'done', text: text.trim(), ms: performance.now() - t0, tokens });
 }

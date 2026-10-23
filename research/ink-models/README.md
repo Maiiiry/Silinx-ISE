@@ -181,8 +181,24 @@ repository; its key stays there) and can vouch only for private network addresse
 5. **Run every model** with WebGPU, then with WebAssembly; draw your own with the Pencil; **Save
    results** (Files ▸ Downloads), AirDrop it to the Mac as `results/ipad-<model>.json`.
 6. Memory: Safari gives no measure. If a model is too large for the tab, Safari reloads the page ("A
-   problem repeatedly occurred"): note which model and backend did it.
+   problem repeatedly occurred"): note which model and backend did it. The runs measured before are
+   kept by the page and shown again, and **Run every model** goes on with the models not measured yet
+   (**Forget the results** starts afresh).
 7. Afterwards, remove the profile if you wish (VPN & Device Management ▸ Remove Profile).
+
+### Memory on the iPad: Safari keeps WebGPU's buffers (2026-10-23)
+
+On the iPad, Florence-2 and SmolVLM on WebGPU made Safari reload the page after a few recognitions. In
+WebKit on the Mac the same shows: the whole browser grows from 0.5 GB (the page alone) to 4.8 GB with
+Florence-2 and 5.4 GB with SmolVLM over the first ten recognitions, where Chrome stays under 2.7 GB.
+It is not the page's tensors (freeing them at once changed nothing) but ONNX Runtime's WebGPU backend,
+which keeps the buffers it frees for reuse (`storageBufferCacheMode`, by default). With `lazyRelease`
+it gives them back: Florence-2 ends at 1.4 GB in WebKit instead of 4.8 GB, SmolVLM at 4.6 GB instead of
+5.4 GB, with the same answers and times, and Chrome is unchanged. The page now uses `lazyRelease` for
+WebGPU (`?gpucache=default` for ONNX Runtime's own; `disabled` fails in ONNX Runtime). Every model is
+also loaded in a fresh worker, so that one model's memory is not left behind when the next one loads.
+WebAssembly is no lighter in WebKit (SmolVLM 4.3 GB) and 4–8 times slower than WebGPU, as on the Mac.
+These are resident sizes on a Mac, where the GPU's memory is the processor's; the iPad decides.
 
 `serve.mjs --https` works for the board too, instead of the Chrome flag: Android's Settings ▸ Security ▸
 Encryption & credentials ▸ Install a certificate ▸ CA certificate, with the same `spike-ca.cer`.
