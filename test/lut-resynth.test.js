@@ -160,6 +160,18 @@ function wideNetlist(F, n) {
   return { a, root, json: { modules: { w: { attributes: { top: '1' }, ports, cells, netnames: Object.fromEntries(Object.entries(ports).map(([nm, p]) => [nm, { bits: p.bits }])) } } } };
 }
 
+// a LUT's inputs its table does not depend on (ISE refuses a pin the LUT's equation leaves out, its net still reaching it:
+// "PhysDesignRules:1709 Incomplete connectivity")
+function unusedPins(mod) {
+  const out = [];
+  for (const [nm, c] of Object.entries(mod.cells)) {
+    if (!/^LUT[1-4]$/.test(c.type)) continue;
+    const k = +c.type[3], init = c.parameters.INIT, t = Array.from({ length: 1 << k }, (_, i) => +init[init.length - 1 - i]);
+    for (let j = 0; j < k; j++) if (!t.some((x, i) => !((i >> j) & 1) && x !== t[i | (1 << j)])) out.push(`${nm}.I${j}`);
+  }
+  return out;
+}
+
 test('#652 a function of 6 or 7 inputs with no decomposition: LUT4s into MUXF5, MUXF6 and MUXF7 (one LUT level and the slice\'s multiplexers, as XST), its own cells, the same function on every input', () => {
   for (const n of [7, 6]) {
     let F;
@@ -200,6 +212,7 @@ test('#652 a function of 6 or 7 inputs with no decomposition: LUT4s into MUXF5, 
       const inputs = new Map(a.map((b, i) => [b, (v >> i) & 1]));
       assert.equal(value(m, root, inputs), F[v], `n ${n}, inputs ${v}`);
     }
+    assert.deepEqual(unusedPins(m), [], `n ${n}`);
     // without it (wideLeaves 0): nothing changed
     assert.equal(resynthCritical(json, 'w', () => [{ cell: 'ff', port: 'D' }], { ...RESYNTH_RULE, wideLeaves: 0 }), null);
   }
@@ -419,4 +432,24 @@ test('#652 the open synthesis of an I2C sequencer (vtr-stereovision3\'s): its cl
       assert.equal(cmp.status, 'pass', cmp.report || cmp.reason);
     }
   }
+});
+
+test('#652 the wide form\'s cofactors: a LUT of the inputs each depends on only (ISE\'s incomplete connectivity otherwise), never a LUT without inputs', () => {
+  // F over a0..a5: for a0 = a1 = 1 the parity of a2..a4 (not a5); else a random function of all six. The selects of the
+  // inputs of one level are a0 and a1: that cofactor's LUT has 3 inputs, not 4 (the 4th left out of its equation)
+  const g = Uint8Array.from({ length: 64 }, () => +(rng() < 0.5));
+  const F = Uint8Array.from({ length: 64 }, (_, m) => ((m & 3) === 3 ? ((m >> 2) ^ (m >> 3) ^ (m >> 4)) & 1 : g[m]));
+  const { a, root, json } = wideNetlist(F, 6);
+  const r = resynthCritical(json, 'w', () => [{ cell: 'ff', port: 'D' }]);
+  assert.ok(r);
+  const m = r.json.modules.w;
+  assert.deepEqual(unusedPins(m), []);
+  assert.ok(Object.values(m.cells).some(c => /^MUXF/.test(c.type)));
+  assert.ok(Object.values(m.cells).some(c => c.type === 'LUT3'), 'the cofactor of 3 inputs a LUT3');
+  for (let v = 0; v < 64; v++) assert.equal(value(m, root, new Map(a.map((b, i) => [b, (v >> i) & 1]))), F[v], `inputs ${v}`);
+  // a cofactor constant whatever the selects: F = a5 ? 0 : (a 5-input function): no wide form (a MUXF5 reads two LUTs)
+  const Z = Uint8Array.from({ length: 64 }, (_, m) => ((m >> 5) & 1 ? 0 : g[m]));
+  const z = wideNetlist(Z, 6);
+  const ch = shallower(z.json.modules.w, z.root, netlistLevels(z.json.modules.w));
+  assert.ok(!ch?.wide || ch.wide.luts.every(l => l.inputs.length > 0), JSON.stringify(ch?.wide));
 });
