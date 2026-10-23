@@ -8,7 +8,6 @@
 // data-layout="tasks".
 // The palette's matching (fuzzyScore, rankEntries, menuCommands) has no DOM and is unit tested.
 
-import { BUILD } from '../../core/version.js';
 
 export const UI_KEY = 'silinx.ui';
 export const THEME_KEY = 'silinx.theme';
@@ -24,10 +23,8 @@ export function readPref(key, allowed, def) {
 }
 function writePref(key, v) { try { store()?.setItem(key, v); } catch { /* ignore */ } }
 
-// the Tasks interface (#804) in a development build only, for now (#838): a release, and the local server, offer
-// it not and read a stored 'tasks' (the dev/ site's, which shares the stable one's storage) as the modern one
-export const tasksAvailable = (build = BUILD) => !!build;
-export const getInterface = (build = BUILD) => { const ui = readPref(UI_KEY, INTERFACES, 'modern'); return ui === 'tasks' && !tasksAvailable(build) ? 'modern' : ui; };
+// the interface: modern (the default), classic or tasks (#804), in every build (#1131)
+export const getInterface = () => readPref(UI_KEY, INTERFACES, 'modern');
 export const getTheme = () => readPref(THEME_KEY, THEMES, 'system');
 /** 'light' or 'dark': the theme shown for a preference (`system` follows the OS). */
 export const effectiveTheme = (theme, systemDark) => (theme === 'system' ? (systemDark ? 'dark' : 'light') : theme);
@@ -39,8 +36,8 @@ export function onPrefsChange(fn) { listeners.add(fn); return () => listeners.de
 
 /** Puts the preferences on <html>: data-ui (modern | classic: the look), data-layout (tasks, or none) and
  *  data-theme (light | dark). */
-export function applyPrefs(root = document.documentElement, build = BUILD) {
-  const ui = getInterface(build);
+export function applyPrefs(root = document.documentElement) {
+  const ui = getInterface();
   const theme = getTheme();
   const shown = ui !== 'classic' ? effectiveTheme(theme, !!darkQuery()?.matches) : 'light';   // the ISE look is light only
   root.dataset.ui = ui === 'tasks' ? 'modern' : ui;
@@ -50,7 +47,7 @@ export function applyPrefs(root = document.documentElement, build = BUILD) {
   for (const fn of [...listeners]) { try { fn({ ui, theme, shown }); } catch (e) { console.error(e); } }
   return { ui, theme, shown };
 }
-export function setInterface(ui) { if (INTERFACES.includes(ui) && (ui !== 'tasks' || tasksAvailable())) { writePref(UI_KEY, ui); applyPrefs(); dispatchEvent(new Event('resize')); } }
+export function setInterface(ui) { if (INTERFACES.includes(ui)) { writePref(UI_KEY, ui); applyPrefs(); dispatchEvent(new Event('resize')); } }
 export function setTheme(theme) { if (THEMES.includes(theme)) { writePref(THEME_KEY, theme); applyPrefs(); } }
 /** The theme button: switches between light and dark (View ▸ Theme ▸ System follows the OS again). */
 export function toggleTheme() { setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); }

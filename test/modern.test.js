@@ -61,33 +61,29 @@ test('the Tasks interface (#804): the modern look and its own layout, its theme 
   assert.deepEqual(M.INTERFACES, ['modern', 'classic', 'tasks']);
   const r = fakeRoot();
   mem.set(M.UI_KEY, 'tasks'); mem.set(M.THEME_KEY, 'dark');
-  // (a development build's, for now: #838)
-  const DEV = { commit: 'abc1234' };
-  assert.deepEqual(M.applyPrefs(r, DEV), { ui: 'tasks', theme: 'dark', shown: 'dark' });
+  assert.deepEqual(M.applyPrefs(r), { ui: 'tasks', theme: 'dark', shown: 'dark' });
   assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['modern', 'tasks', 'dark']);
   // back to the modern interface: no layout of its own
   mem.set(M.UI_KEY, 'modern');
   M.applyPrefs(r);
   assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['modern', undefined, 'dark']);
-  mem.set(M.UI_KEY, 'tasks'); M.applyPrefs(r, DEV);
+  mem.set(M.UI_KEY, 'tasks'); M.applyPrefs(r);
   mem.set(M.UI_KEY, 'classic'); M.applyPrefs(r);
   assert.deepEqual([r.dataset.ui, r.dataset.layout, r.dataset.theme], ['classic', undefined, 'light']);
 });
 
-// #838: the Tasks interface in a development build only, for now: a release (and the local server, and Node: no
-// BUILD) reads a stored 'tasks' as the modern interface, and setInterface('tasks') leaves the stored one
-test('#838 the Tasks interface in a development build only: a stored tasks read as modern in a release; not set there', () => {
+// #1131: the Tasks interface in every build (a release, the local server, Node: no BUILD), modern the default
+test('#1131 the Tasks interface in a release too: set and read with no development build; modern the default', () => {
   mem.clear();
-  assert.deepEqual([M.tasksAvailable(null), M.tasksAvailable({ commit: 'abc1234' }), M.tasksAvailable()], [false, true, false]);
-  mem.set(M.UI_KEY, 'tasks');
-  assert.deepEqual([M.getInterface(), M.getInterface(null), M.getInterface({ commit: 'abc1234' })], ['modern', 'modern', 'tasks']);
-  const r = fakeRoot();
-  assert.equal(M.applyPrefs(r).ui, 'modern');
-  assert.deepEqual([r.dataset.ui, r.dataset.layout], ['modern', undefined]);
+  assert.equal(M.getInterface(), 'modern', 'the default');
   globalThis.document = { documentElement: fakeRoot() };
-  mem.set(M.UI_KEY, 'classic');
   M.setInterface('tasks');
-  assert.equal(mem.get(M.UI_KEY), 'classic', 'not stored in a release');
+  assert.equal(mem.get(M.UI_KEY), 'tasks', 'stored');
+  assert.equal(M.getInterface(), 'tasks');
+  const r = fakeRoot();
+  assert.equal(M.applyPrefs(r).ui, 'tasks');
+  assert.deepEqual([r.dataset.ui, r.dataset.layout], ['modern', 'tasks']);
+  assert.equal('tasksAvailable' in M, false, 'no gate');
 });
 
 test('setInterface / setTheme store valid values and notify the listeners', () => {

@@ -19,10 +19,9 @@
 <link rel="stylesheet" href="/css/modern.css">
 <link rel="stylesheet" href="/css/tasks.css">
 <link rel="stylesheet" href="/css/messages.css">
-<script>/* the interface (modern | classic | tasks) and theme before the first paint: web/js/modern.js (tasks in a
-   development build only, #838: its <html data-dev>, or the build's data a test gives) */
-(function () { var d = document.documentElement, ui = 'modern', th = 'system', dev = d.hasAttribute('data-dev') || !!window.__SILINX_BUILD__;
-  try { ui = localStorage.getItem('silinx.ui'); ui = ui === 'classic' || (ui === 'tasks' && dev) ? ui : 'modern'; th = localStorage.getItem('silinx.theme') || 'system'; } catch (e) {}
+<script>/* the interface (modern | classic | tasks) and theme before the first paint: web/js/modern.js */
+(function () { var d = document.documentElement, ui = 'modern', th = 'system';
+  try { ui = localStorage.getItem('silinx.ui'); ui = ui === 'classic' || ui === 'tasks' ? ui : 'modern'; th = localStorage.getItem('silinx.theme') || 'system'; } catch (e) {}
   var dark = th === 'dark' || (th !== 'light' && window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches);
   d.setAttribute('data-ui', ui === 'tasks' ? 'modern' : ui); if (ui === 'tasks') d.setAttribute('data-layout', 'tasks');
   d.setAttribute('data-theme', ui !== 'classic' && dark ? 'dark' : 'light');
