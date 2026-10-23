@@ -1,9 +1,10 @@
-// UI: handwritten Boolean expressions (#1056). The New Source wizard's truth table made from an expression written
-// on the Handwritten Expression dialog's pad with the mouse, a finger and a pen (CDP input: pointer events of each
-// type), the table's inputs, output and column from it; the truth table editor's Handwritten…, with a stroke drawn by
-// page.touchDrag, filling the column of the output named; Undo, Redo (their keys too), Clear undone, a hand resting on the screen while
-// the pen writes (ignored); Teach Silinx my handwriting (a sample saved, used, forgotten); the dialog in Portuguese,
-// its warnings and its errors. The console's lines are asserted; no warnings.
+// UI: handwritten Boolean expressions (#1056), from the Development menu while a preview (#1098). A truth table
+// made by the New Source wizard from a typed expression; the same expression written on the Handwritten Expression
+// dialog's pad with the mouse, a finger and a pen (CDP input: pointer events of each type), filling the output's
+// column; an expression with a stroke drawn by page.touchDrag; Undo, Redo (their keys too), Clear undone, a hand
+// resting on the screen while the pen writes (ignored); Teach Silinx my handwriting (a sample saved, used,
+// forgotten); the dialog in Portuguese, its warnings and its errors; the pad zoomed and moved. The console's lines are
+// asserted; no warnings.
 import { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { setupUi, uiTest, makeProject, chromeOnly } from './harness.js';
@@ -15,6 +16,8 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
 const T = '.doc:not([hidden]) .tt-editor';
+// a development build: its Development menu has the handwritten input while it is a preview (#1098)
+const DEV = { commit: 'abc1234', date: '2026-10-23 12:00', since: '15.12.0', changes: [] };
 const D = '.dlg-overlay .ink-dialog';
 const warnings = (page) => page.console.filter((m) => /^warn/.test(m.type)).map((m) => m.text);
 const canvasAt = (page) => page.eval((d) => { const r = document.querySelector(`${d} .ink-canvas`).getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }, D);
@@ -58,7 +61,26 @@ uiTest('Handwritten expressions: a truth table from the New Source wizard, the e
   await page.fill('.dlg-overlay .wiz-main input[type=text]', 'hand');
   // the expression row: a truth table's only
   assert.deepEqual(await page.eval(() => [...document.querySelectorAll('.dlg-overlay .wiz-main .form-grid > label')].map((l) => l.textContent)), ['Source type:', 'File name:', 'Location:', 'Expression:']);
-  await page.click('.dlg-overlay .ns-tt-ink');
+  // (typed: written by hand from the Development menu only while a preview, #1098)
+  await page.fill('.dlg-overlay .ns-tt-expr', "F = A·B' + C");
+  assert.equal(await page.eval(() => document.querySelector('.ns-tt-expr').value), "F = A·B' + C");
+  await page.dialogButton('Next >');
+  const summary = await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main pre')?.textContent, [], { what: 'the summary' });
+  assert.match(summary, /\nSource Type: Truth Table\nSource Name: hand\.tt\.json\n\nExpression: F = A·B' \+ C$/);
+  await page.dialogButton('Finish');
+  await page.waitNoDialog();
+  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/hand.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor'), [], { what: 'truth table editor' });
+  const doc = JSON.parse(await page.eval(async () => (await fetch('/api/projects/Ink/file?path=src%2Fhand.tt.json')).text()));
+  assert.deepEqual([doc.inputs, doc.outputs, doc.table, doc.exprs], [['A', 'B', 'C'], ['F'], { F: '01011101' }, { F: "A·B' + C" }]);
+  assert.equal(await cells(page, 'F'), '01011101');
+  const lines = (await page.consoleText()).split('\n');
+  assert.deepEqual(lines.slice(lines.findIndex((l) => /^Project ".*" opened/.test(l)) + 1), [
+    'src/hand.vhd generated from src/hand.tt.json (every source has its HDL)',
+    "Created Truth Table 'src/hand.tt.json'.",
+  ]);
+
+  // Development ▸ Handwritten Expression… (#1098): the same expression written with the mouse, a finger and a pen
+  await page.menu('Development', 'Handwritten Expression…');
   await page.waitDialog('Handwritten Expression');
   // the pad: a finger writes on it, the page does not pan
   assert.equal(await page.eval((d) => getComputedStyle(document.querySelector(`${d} .ink-canvas`)).touchAction, D), 'none');
@@ -119,25 +141,12 @@ uiTest('Handwritten expressions: a truth table from the New Source wizard, the e
   await waitText(page, "F = A·B' + C");
   assert.deepEqual(await states(), [true, false, true]);
   await page.dialogButton('Insert');
-  await page.waitDialog('New Source Wizard');
-  assert.equal(await page.eval(() => document.querySelector('.ns-tt-expr').value), "F = A·B' + C");
-  await page.dialogButton('Next >');
-  const summary = await page.waitFor(() => document.querySelector('.dlg-overlay .wiz-main pre')?.textContent, [], { what: 'the summary' });
-  assert.match(summary, /\nSource Type: Truth Table\nSource Name: hand\.tt\.json\n\nExpression: F = A·B' \+ C$/);
-  await page.dialogButton('Finish');
   await page.waitNoDialog();
-  await page.waitFor(() => window.Silinx.active?.id === 'tt:src/hand.tt.json' && document.querySelector('.doc:not([hidden]) .tt-editor'), [], { what: 'truth table editor' });
-  const doc = JSON.parse(await page.eval(async () => (await fetch('/api/projects/Ink/file?path=src%2Fhand.tt.json')).text()));
-  assert.deepEqual([doc.inputs, doc.outputs, doc.table, doc.exprs], [['A', 'B', 'C'], ['F'], { F: '01011101' }, { F: "A·B' + C" }]);
+  await page.waitFor((t) => document.querySelector(`${t} .tt-expr-in`).value === "A·B' + C", [T], { what: 'the expression written' });
   assert.equal(await cells(page, 'F'), '01011101');
-  const lines = (await page.consoleText()).split('\n');
-  assert.deepEqual(lines.slice(lines.findIndex((l) => /^Project ".*" opened/.test(l)) + 1), [
-    'src/hand.vhd generated from src/hand.tt.json (every source has its HDL)',
-    "Created Truth Table 'src/hand.tt.json'.",
-  ]);
 
   // the editor: F = A | C, its | drawn by a finger with page.touchDrag
-  await page.click(`${T} .tt-ink`);
+  await page.menu('Development', 'Handwritten Expression…');
   await page.waitDialog('Handwritten Expression');
   const boxes = await write(page, 'F=A C', { kind: () => 'mouse', seed: 5 });
   const x = (boxes[2].maxX + boxes[4].minX) / 2;
@@ -149,7 +158,7 @@ uiTest('Handwritten expressions: a truth table from the New Source wizard, the e
   assert.equal(await cells(page, 'F'), '01011111');
   assert.equal(await page.eval((t) => document.querySelector(`${t} .tt-expr-err`).textContent, T), '');
   // an expression with an input the table does not have: the parser's error, the dialog stays open
-  await page.click(`${T} .tt-ink`);
+  await page.menu('Development', 'Handwritten Expression…');
   await page.waitDialog('Handwritten Expression');
   await write(page, 'F=A+D', { seed: 2 });
   await waitText(page, 'F = A + D');
@@ -164,7 +173,7 @@ uiTest('Handwritten expressions: a truth table from the New Source wizard, the e
   await page.waitFor((t) => document.querySelector(`${t} .tt-expr-in`).value === 'A + B', [T], { what: 'the corrected expression' });
   assert.equal(await cells(page, 'F'), '00111111');
   assert.deepEqual(warnings(page), []);
-}, { skip: chromeOnly });
+}, { skip: chromeOnly, build: DEV });
 
 uiTest('Handwritten expressions: Teach Silinx my handwriting, and the dialog in Portuguese with its warnings and errors', E, async (page) => {
   await page.eval(() => localStorage.removeItem('silinx.ink.samples'));

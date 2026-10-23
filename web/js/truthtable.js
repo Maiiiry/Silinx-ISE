@@ -4,7 +4,7 @@
 // minimal SOP (1s) or POS (0s), canonical forms Σm / ΠM, minimal SOP and POS with their literal and
 // gate counts, the XOR form when it is cheaper (#435), the NAND-only and NOR-only forms (#694).
 // The expressions are written in the notation chosen, by default with / as NOT (/a·b + c, #434); one may be written
-// by hand (Handwritten…, #1056), and the whole table drawn by hand (Handwritten Table…, #1066). Tables read from a
+// by hand (#1056), and the whole table drawn by hand (#1066), both from the Development menu (#1098). Tables read from a
 // module may have up to 8 inputs (no Karnaugh map then). Logic: core/logic.js. The table always has its HDL module,
 // in its language (the project's preferred one), generated from it by the host (app.js), which keeps both in sync,
 // and its schematic (#694, a view of its module in the Design pane), both in the form chosen in HDL logic; its
@@ -103,7 +103,6 @@ export function mountTtEditor(container, opts = {}) {
     h('label', { title: FORM_TIP }, 'HDL logic:'), formSel, h('label', { title: 'HDL language' }, 'Language:'), langSel,
     h('span', { class: 'tt-sep' }),
     btn('Truth Table from Module…', 'Fill the table with the truth table of a combinational module of the project (exhaustive simulation)', () => opts.onFromModule?.()),
-    btn('Handwritten Table…', 'Draw the whole truth table by hand: with a pen, a finger or the mouse', () => handwrittenTable(), 'tt-ink-table'),
     link);
 
   // ------------------------------------------------------------------ body
@@ -127,7 +126,7 @@ export function mountTtEditor(container, opts = {}) {
   };
   exprIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); applyExpr(); } });
   const exprLbl = h('span', { class: 'tt-expr-lbl' });
-  // written and drawn by hand (#1056, #1066): web/js/tt-ink.js
+  // written and drawn by hand (#1056, #1066; from the Development menu while a preview, #1098): web/js/tt-ink.js
   const ink = {
     model: () => M, alive: () => !destroyed,
     select: o => { if (o !== out) { out = o; render(); } },
@@ -136,8 +135,7 @@ export function mountTtEditor(container, opts = {}) {
   };
   const handwritten = () => import('./tt-ink.js').then(m => m.handwrittenColumn(ink));
   const handwrittenTable = () => import('./tt-ink.js').then(m => m.handwrittenWholeTable(ink));
-  const exprRow = h('div', { class: 'tt-row' }, exprLbl, exprIn, btn('Fill Table', 'Fill the column of this output from the expression', applyExpr),
-    btn('Handwritten…', 'Write the expression by hand: with a pen, a finger or the mouse', handwritten, 'tt-ink'));
+  const exprRow = h('div', { class: 'tt-row' }, exprLbl, exprIn, btn('Fill Table', 'Fill the column of this output from the expression', applyExpr));
   const OPS = "Operators: / ' ~ (NOT), · . * (AND), ⊕ ^ or xor (XOR), xnor, + (OR)";
   exprIn.title = OPS;
   const kmapHost = h('div', { class: 'tt-kmap-host' });
@@ -329,6 +327,7 @@ export function mountTtEditor(container, opts = {}) {
     setLink(file) { linkModel(M, file); hist.forEach((s, i) => { hist[i] = linkSnapshot(s, file); }); renderLink(); },
     refreshLink: () => renderLink(),
     select(o) { if (M.outputs.includes(o)) { out = o; render(); } },
+    handwritten, handwrittenTable,
     destroy() { destroyed = true; container.innerHTML = ''; },
   };
 }

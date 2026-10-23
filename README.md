@@ -214,24 +214,26 @@ for Xilinx FPGAs supported by ISE 14.7.
   NAND or NOR gates only): the *Schematic* badge of the table's row in the Design pane opens it
   (read-only, redrawn whenever the table changes). *Truth Table from Module…* fills the table with the table of any combinational module
   of up to 8 input bits.
-- **Handwritten expressions** (*Handwritten…* beside a truth table's expression, and the New Source wizard's
-  *Truth Table*, whose optional expression gives the table's inputs, its output and its column): write
-  `F = A·B' + C` on a pad with a pen, a finger or the mouse — on an interactive whiteboard or a tablet too. Silinx's
-  own recognizer reads it, offline (a point-cloud recognizer with built-in templates; nothing is sent anywhere):
-  letters, digits, `_`, `+ · * ' ¬ ~ ( ) = ⊕ ^ & |`, and a bar over letters as NOT. The text is shown for you to
-  correct before it is inserted; *Teach Silinx my handwriting* keeps samples of your own way of writing a symbol in
-  the browser. On the pad, two fingers zoom and move the writing area, the mouse wheel zooms it, *Fit* shows the
-  whole drawing; the Handwritten Schematic dialog uses the whole page.
-- **Hand-drawn truth tables** (*Handwritten Table…* in the truth table editor): draw the whole table — the names in
-  a header, a line under it, a line between the inputs and the outputs, a row of 0, 1 or X for each combination —
-  and Silinx reads it offline into its text (`A B | F`, then a row a line), which you correct before it fills the
-  table.
-- **Hand-drawn schematics** (*Handwritten…* in the schematic editor's toolbar): draw a circuit — AND, OR, XOR gates,
-  a triangle for a buffer, a small circle at a gate's output for NOT / NAND / NOR / XNOR, flip-flops as boxes with
-  their pins written inside them (D, T, or J and K, the clock as C, CLK or a wedge, CE, CLR, PRE; Q and Q̄), square
-  wires (looping back too), the inputs' and outputs' names at the wires' ends — and Silinx reads it offline: the gates
-  and flip-flops are listed with their types and the names, to correct, then made into the schematic with Silinx's
-  symbols where you drew them and the wires routed square (Undo brings the drawing before back).
+- **Handwritten input, a preview** (development builds only, from the *Development* menu, while it does not read
+  real handwriting well enough yet). **Handwritten expressions** (*Development ▸ Handwritten Expression…*, on the open
+  truth table: the column of its output; the New Source wizard's *Truth Table* takes a typed expression, which gives
+  the table's inputs, its output and its column): write `F = A·B' + C` on a pad with a pen, a finger or the mouse — on
+  an interactive whiteboard or a tablet too. Silinx's own recognizer reads it, offline (a point-cloud recognizer with
+  built-in templates; nothing is sent anywhere): letters, digits, `_`, `+ · * ' ¬ ~ ( ) = ⊕ ^ & |`, and a bar over
+  letters as NOT. The text is shown for you to correct before it is inserted; *Teach Silinx my handwriting* keeps
+  samples of your own way of writing a symbol in the browser. On the pad, two fingers zoom and move the writing area,
+  the mouse wheel zooms it, *Fit* shows the whole drawing; the Handwritten Schematic dialog uses the whole page.
+- **Hand-drawn truth tables** (a preview, *Development ▸ Handwritten Truth Table…*, on the open truth table): draw
+  the whole table — the names in a header, a line under it, a line between the inputs and the outputs, a row of 0, 1
+  or X for each combination — and Silinx reads it offline into its text (`A B | F`, then a row a line), which you
+  correct before it fills the table.
+- **Hand-drawn schematics** (a preview, *Development ▸ Handwritten Schematic…*, on the open schematic): draw a
+  circuit — AND, OR, XOR gates, a triangle for a buffer, a small circle at a gate's output for NOT / NAND / NOR /
+  XNOR, flip-flops as boxes with their pins written inside them (D, T, or J and K, the clock as C, CLK or a wedge, CE,
+  CLR, PRE; Q and Q̄), square wires (looping back too), the inputs' and outputs' names at the wires' ends — and Silinx
+  reads it offline: the gates and flip-flops are listed with their types and the names, to correct, then made into the
+  schematic with Silinx's symbols where you drew them and the wires routed square (Undo brings the drawing before
+  back).
 - **State diagrams (FSM)** (*Tools ▸ FSM State Diagram Editor…*, New Source ▸ *Finite State Machine (FSM)*,
   `.fsm.json`): the bubble diagram of the 1st-semester courses, Moore or Mealy. Double-click to add
   a state, drag from the rim of a state to another (or to itself) to add a transition, double-click

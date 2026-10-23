@@ -1,5 +1,5 @@
-// UI: hand-drawn truth tables (#1066). The truth table editor's Handwritten Table…: a table drawn on the pad with
-// the mouse, a finger and a pen (CDP input) is read into its text, corrected there, and fills the editor's table
+// UI: hand-drawn truth tables (#1066), Development ▸ Handwritten Truth Table… while a preview (#1098): a table
+// drawn on the pad with the mouse, a finger and a pen (CDP input) is read into its text, corrected there, and fills the editor's table
 // (inputs, outputs, columns), one step of Undo; a table with no line between the inputs and the outputs (the
 // warning), a cell left empty (the error, the dialog stays open); the dialog in Portuguese. No console warnings.
 import { before, after } from 'node:test';
@@ -13,6 +13,8 @@ after(async () => { await env?.teardown?.(); });
 const E = () => env;
 
 const T = '.doc:not([hidden]) .tt-editor';
+// a development build: its Development menu has the handwritten input while it is a preview (#1098)
+const DEV = { commit: 'abc1234', date: '2026-10-23 12:00', since: '15.12.0', changes: [] };
 const D = '.dlg-overlay .ink-dialog';
 const warnings = (page) => page.console.filter((m) => /^warn/.test(m.type)).map((m) => m.text);
 const message = (page) => page.eval((d) => document.querySelector(`${d} .ink-msg`).innerText.trim(), D);
@@ -58,7 +60,7 @@ async function newTable(page, name) {
 
 uiTest('Handwritten Table…: a table drawn with the mouse, a finger and a pen fills the editor\'s table; corrected; Undo', E, async (page) => {
   await newTable(page, 'InkTable');
-  await page.click(`${T} .tt-ink-table`);
+  await page.menu('Development', 'Handwritten Truth Table…');
   await page.waitDialog('Handwritten Truth Table');
   await draw(page, XOR);
   await waitText(page, 'A B | F\n0 0 | 0\n0 1 | 1\n1 0 | 1\n1 1 | 0');
@@ -77,13 +79,13 @@ uiTest('Handwritten Table…: a table drawn with the mouse, a finger and a pen f
   await page.waitFor((t) => document.querySelector(`${t} .tt-inputs`).value === 'a, b, c', [T], { what: 'undone' });
   assert.equal(await cells(page, 'f'), '00000000');
   assert.deepEqual(warnings(page), []);
-}, { skip: chromeOnly });
+}, { skip: chromeOnly, build: DEV });
 
 uiTest('Handwritten Table…: no line between the inputs and the outputs, a cell left empty, a reserved name; in Portuguese', E, async (page) => {
   await newTable(page, 'InkTable2');
   await page.eval(async () => (await import('/js/i18n.js')).setLanguage('pt'));
   try {
-    await page.click(`${T} .tt-ink-table`);
+    await page.menu('Desenvolvimento', 'Tabela de Verdade Manuscrita…');
     await page.waitDialog('Tabela de Verdade Manuscrita');
     const labels = await page.eval((d) => [...document.querySelector(d).closest('.dlg').querySelectorAll('button:not(.dlg-x), label, .hint')].map((e) => e.textContent.trim()), D);
     assert.deepEqual(labels, [
@@ -111,4 +113,4 @@ uiTest('Handwritten Table…: no line between the inputs and the outputs, a cell
     assert.equal(await cells(page, 'f'), '00000000');
   } finally { await page.eval(async () => (await import('/js/i18n.js')).setLanguage('en')); }
   assert.deepEqual(warnings(page), []);
-}, { skip: chromeOnly });
+}, { skip: chromeOnly, build: DEV });
