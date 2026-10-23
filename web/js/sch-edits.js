@@ -1,23 +1,31 @@
 // The schematic editor's edits (#405: out of mountSchEditor in sch-editor.js): an edit made (the drawing normalized,
 // an undo step when it changed, onChange told a moment later), Undo and Redo, the selection pruned after them, and new
 // ids and instance names.
-import { normalizeDoc } from '/core/schdoc.js';
+import { normalizeDoc, netlist } from '/core/schdoc.js';
+import { markerDirections } from '/core/schdoc-markers.js';
 import { KEYS, clone } from './sch-editor.js';
 
 /** { changed, edit, nextId, nextInstName, pruneSel, pushUndo, redo, snapshot, undo } of mountSchEditor (changeTimer(), destroyed(), doc(), lastDiags(), live(), sel(): its current values). */
 export function mountSchEdits(ctx) {
   const {
-    opts, changeTimer, destroyed, doc, lastDiags, live, readOnly, redoStack, render, renderProps, sel, undoStack,
+    opts, changeTimer, destroyed, doc, lastDiags, live, modules, readOnly, redoStack, render, renderProps, sel, undoStack,
     setDoc, setLastDiags, setChangeTimer
   } = ctx;
+  // the netlist of a drawing, null when it cannot be made (the markers' directions then left as they are)
+  const nlOf = d => { try { return netlist(d, { modules: modules() }); } catch { return null; } };
 
   // ---------------- edits, undo, change notification
   const snapshot = () => JSON.stringify(doc());
   function edit(fn, { keepProps = false } = {}) {
     if (readOnly || live()) return;
     const before = snapshot();
+    const nlBefore = nlOf(doc());
     fn();
     setDoc(normalizeDoc(doc()));
+    // an I/O marker the edit connected to symbols' pins takes their direction (#1109), in the same undo step
+    const dirs = nlBefore ? markerDirections(doc(), nlBefore, nlOf(doc())) : [];
+    for (const { port, dir } of dirs) doc().ports.find(p => p.id === port).dir = dir;
+    if (dirs.length) setDoc(normalizeDoc(doc()));
     if (snapshot() !== before) { pushUndo(before); changed(); }
     render();
     if (!keepProps) renderProps();

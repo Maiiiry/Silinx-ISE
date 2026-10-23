@@ -87,3 +87,35 @@ uiTest('#680 schematic: I/O markers placed on empty space (the next free name), 
     await page.key('Escape');
   }
 });
+
+uiTest('#1109 schematic: an input marker wired to an inverter\'s output becomes an output, an output marker wired to its input an input; one Undo reverts both; the HDL follows', E, async (page) => {
+  const doc = newDoc('dr', 'vhdl');
+  const inv = { id: 'S1', type: 'inv', x: 200, y: 200, rot: 0, mirror: false, name: 'XLXI_1', params: {} };
+  doc.symbols.push(inv);
+  const pin = n => symbolPins(normalizeDoc({ ...doc, symbols: [inv] }).symbols[0], {}).find((p) => p.name === n);
+  const I = pin('I'), O = pin('O');
+  // the markers the wrong way round, on empty space: an input on the output's side, an output on the input's
+  const Y = { x: O.x + 60, y: O.y }, A = { x: I.x - 60, y: I.y };
+  doc.ports.push({ id: 'P1', name: 'y', dir: 'in', width: 1, ...Y }, { id: 'P2', name: 'a', dir: 'out', width: 1, ...A });
+  await makeProject(env, { name: 'DirPj', files: { 'src/dr.sch.json': JSON.stringify(doc) } });
+  await page.openProject('DirPj');
+  await page.eval(() => window.SilinxApp.openSch('src/dr.sch.json'));
+  await page.waitFor((ed) => document.querySelectorAll(`${ed} svg .sym`).length === 1, [ED], { what: 'drawn' });
+  const dirs = async () => (await getDoc(page)).ports.map((p) => [p.name, p.dir]);
+  await page.click(`${ED} .se-btn[data-act=wire]`);
+  await page.click(await at(page, O.x, O.y));
+  await page.click(await at(page, Y.x, Y.y));
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.length === 1, [], { what: 'the wire to y' });
+  assert.deepEqual(await dirs(page), [['y', 'out'], ['a', 'out']]);
+  await page.click(await at(page, A.x, A.y));
+  await page.click(await at(page, I.x, I.y));
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.length === 2, [], { what: 'the wire from a' });
+  assert.deepEqual(await dirs(page), [['y', 'out'], ['a', 'in']]);
+  assert.deepEqual(await problems(page), []);
+  await page.waitFor(async () => /y <= not a;/.test(await (await fetch('/api/projects/DirPj/file?path=src%2Fdr.vhd')).text()), [], { what: 'the HDL follows the schematic', timeout: 15000 });
+  assert.match(await readWs(env, 'DirPj', 'src/dr.vhd'), /a : in std_logic;\s*y : out std_logic|y : out std_logic;\s*a : in std_logic/);
+  // one Undo: the last wire and a's direction together
+  await page.eval(() => window.Silinx.active.schEditor.undo());
+  await page.waitFor(() => window.Silinx.active.schEditor.getDoc().wires.length === 1, [], { what: 'undone' });
+  assert.deepEqual(await dirs(page), [['y', 'out'], ['a', 'out']]);
+});

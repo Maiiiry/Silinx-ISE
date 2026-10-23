@@ -224,7 +224,7 @@ export function mountSchEditor(container, opts = {}) {
   // ---------------- edits, undo, change notification (sch-edits.js)
   const { changed, edit, nextId, nextInstName, pruneSel, pushUndo, redo, snapshot, undo } = mountSchEdits({
     opts, changeTimer: () => changeTimer, destroyed: () => destroyed, doc: () => doc, lastDiags: () => lastDiags,
-    live: () => live, readOnly, redoStack, render, renderProps, sel: () => sel, undoStack, setDoc: (v) => { doc = v; },
+    live: () => live, modules: () => modules, readOnly, redoStack, render, renderProps, sel: () => sel, undoStack, setDoc: (v) => { doc = v; },
     setLastDiags: (v) => { lastDiags = v; }, setChangeTimer: (v) => { changeTimer = v; }
   });
 
