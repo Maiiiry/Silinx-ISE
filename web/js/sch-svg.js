@@ -82,7 +82,12 @@ export function bodySvg(sym, def) {
     case 'lib': {
       const b = def.body;
       s += `<rect class="gate" x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/>`;
-      for (const p of pins) s += p.side === 'W' ? lead(0, p.y, b.x, p.y, bus(p)) : lead(b.x + b.w, p.y, p.x, p.y, bus(p));
+      for (const p of pins) {
+        s += p.side === 'W' ? lead(0, p.y, b.x, p.y, bus(p)) : lead(b.x + b.w, p.y, p.x, p.y, bus(p));
+        // (a device primitive's clock: its triangle, as the flip-flops' and the modules', #1135)
+        if (p.clock) s += p.side === 'W' ? `<path class="clk" d="M${b.x},${p.y - 5} L${b.x + 8},${p.y} L${b.x},${p.y + 5}"/>`
+          : `<path class="clk" d="M${b.x + b.w},${p.y - 5} L${b.x + b.w - 8},${p.y} L${b.x + b.w},${p.y + 5}"/>`;
+      }
       break;
     }
     case 'arith': {
@@ -127,10 +132,13 @@ export function bodySvg(sym, def) {
 }
 
 // readable texts, positioned in sheet coordinates
-// the width of a bus pin, beside the end of its lead
+// the width of a bus pin by its lead, 10 px in from its end: inside the symbol's box in every orientation (#1139),
+// above a lead across, beside a lead up or down, turned to read upwards (narrow: clear of the next pin, 20 px away)
 function pinWidth(p) {
-  const o = { W: [-10, -3], E: [10, -3], N: [4, -8], S: [4, 8] }[p.side];
-  return `<text class="pwidth" x="${p.x + o[0]}" y="${p.y + o[1]}" text-anchor="middle">${p.width}</text>`;
+  const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
+  if (v[0]) return `<text class="pwidth" x="${p.x + 10 * v[0]}" y="${p.y - 3}" text-anchor="middle">${p.width}</text>`;
+  const x = p.x + 9, y = p.y + 10 * v[1];
+  return `<text class="pwidth" x="${x}" y="${y}" transform="rotate(-90 ${x} ${y})" text-anchor="middle">${p.width}</text>`;
 }
 // the symbol's type under it (above it turned 180°, beside it turned 90° / 270°), as ISE draws it (#172)
 function typeUnder(sym, def, box, center, name) {
@@ -139,6 +147,17 @@ function typeUnder(sym, def, box, center, name) {
   return `<text class="stype" x="${turned ? box.x + box.w + 3 : t.x}" y="${turned ? center.y + 3 : (sym.rot === 180 ? box.y - 3 : box.y + box.h + 10)}" text-anchor="${turned ? 'start' : 'middle'}">${esc(name)}</text>`;
 }
 const AUTO_NAME = /^(XLXI_\d+|inst_\d+|U\d+)$/;
+// a pin's name inside the body, past its lead and clock triangle (L px from the pin's end); on the top or the bottom
+// side, upright, or turned to read upwards (vertical: names that would not fit 20 px apart, as ISE turns them, #1134)
+function pinName(p, L, label, vertical) {
+  const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
+  if (v[0]) return `<text class="pname" x="${p.x + v[0] * (L + 3)}" y="${p.y + 3}" text-anchor="${v[0] > 0 ? 'start' : 'end'}">${esc(label)}</text>`;
+  if (!vertical) return `<text class="pname" x="${p.x}" y="${p.y + (v[1] > 0 ? L + 10 : -(L + 4))}" text-anchor="middle">${esc(label)}</text>`;
+  const x = p.x + 3, y = p.y + v[1] * (L + 3);
+  return `<text class="pname" x="${x}" y="${y}" transform="rotate(-90 ${x} ${y})" text-anchor="${v[1] > 0 ? 'end' : 'start'}">${esc(label)}</text>`;
+}
+// the names on the top and the bottom turned when one of them is longer than 2 letters
+const verticalNames = (pins, label = p => p.name) => pins.some(p => (p.side === 'N' || p.side === 'S') && label(p).length > 2);
 function textsSvg(sym, def, ctx = {}) {
   let s = '';
   const box = symbolBox(sym, null, def);
@@ -209,33 +228,31 @@ function textsSvg(sym, def, ctx = {}) {
     if (w) { const t = cx(def.body.x + 7, 30); s += `<text class="pname" x="${t.x}" y="${t.y + 3}" text-anchor="middle">${w}</text>`; }
   }
   if (def.shape === 'lib' || def.shape === 'demux' || def.shape === 'ff') {
-    // pin names inside the body, clear of the 20 px leads, upright in every orientation; bus widths beside the pin end
-    for (const p of symbolPins(sym, null, def)) {
-      const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
+    // pin names inside the body, clear of the 20 px leads; bus widths beside the pin end
+    const pins = symbolPins(sym, null, def), vertical = verticalNames(pins);
+    for (const p of pins) {
       // demux select: the lead ends on the sloped edge; clock pins: room for the clock triangle
       const L = 20 + (def.shape === 'demux' && p.ly === def.h ? 6 : 0) + (p.clock ? 8 : 0);
-      let x = p.x, y = p.y, anchor = 'middle';
-      if (v[0]) { x += v[0] * (L + 3); y += 3; anchor = v[0] > 0 ? 'start' : 'end'; } else y += v[1] > 0 ? L + 10 : -(L + 4);
-      s += `<text class="pname" x="${x}" y="${y}" text-anchor="${anchor}">${esc(p.name)}</text>`;
-      if ((p.width || 1) > 1) {
-        const o = { W: [-10, -3], E: [10, -3], N: [6, -4], S: [6, 10] }[p.side];
-        s += `<text class="pwidth" x="${p.x + o[0]}" y="${p.y + o[1]}" text-anchor="${p.side === 'N' || p.side === 'S' ? 'start' : 'middle'}">${p.width}</text>`;
-      }
+      s += pinName(p, L, p.name, vertical);
+      if ((p.width || 1) > 1) s += pinWidth(p);
     }
   } else if (pinLabels) {
-    for (const p of symbolPins(sym, null, def)) {
+    // (each pin's own side, not turned, says which one it is; the turned side, where its name goes, #1134)
+    const pins = symbolPins(sym, null, def);
+    const label = p => (def.shape === 'mux' && p.name.startsWith('D') ? p.name.slice(1) : p.name);
+    const vertical = verticalNames(pins.filter((p, i) => !(def.shape === 'mux' && def.pins[i].side === 'E')), label);
+    for (const [i, p] of pins.entries()) {
+      const own = def.pins[i].side;
       // (the multiplexer's output: no name, its width when a bus, #313)
-      if (def.shape === 'mux' && p.side === 'E') {
-        if ((p.width || 1) > 1) s += `<text class="pwidth" x="${p.x + 10}" y="${p.y - 3}" text-anchor="middle">${p.width}</text>`;
+      if (def.shape === 'mux' && own === 'E') {
+        if ((p.width || 1) > 1) s += pinWidth(p);
         continue;
       }
-      if (def.shape === 'arith' && sym.type !== 'add' && p.side === 'E') { if ((p.width || 1) > 1) s += pinWidth(p); continue; }
-      const v = { W: [1, 0], E: [-1, 0], N: [0, 1], S: [0, -1] }[p.side];
-      const inset = def.shape === 'mux' ? 23 : (def.shape === 'hdl' || def.shape === 'module') ? 23 + (p.clock && p.side === 'W' ? 8 : 0) : 22 + (p.clock ? 8 : 0);
-      const x = p.x + v[0] * inset, y = p.y + v[1] * (p.side === 'S' ? 16 : 14);
-      const anchor = v[0] > 0 ? 'start' : v[0] < 0 ? 'end' : 'middle';
-      const label = def.shape === 'mux' ? (p.name.startsWith('D') ? p.name.slice(1) : p.name) : p.name;
-      s += `<text class="pname" x="${x}" y="${y + (v[1] ? 0 : 3)}" text-anchor="${anchor}">${esc(label)}</text>`;
+      if (def.shape === 'arith' && sym.type !== 'add' && own === 'E') { if ((p.width || 1) > 1) s += pinWidth(p); continue; }
+      // past the lead (20 px; a multiplexer's select, 10 to 20, from its slanted edge) and a clock's triangle
+      const lp = def.pins[i];
+      const L = (def.shape === 'mux' && own === 'S' ? 10 + 10 * (lp.x - def.body.x) / def.body.w : 20) + (p.clock && (def.shape === 'arith' || own === 'W') ? 8 : 0);
+      s += pinName(p, L, label(p), vertical);
       // (the width of a bus pin by it: modules, HDL blocks, multiplexers and demultiplexers, #313; adders,
       // subtractors and comparators, #681)
       if ((p.width || 1) > 1 && ['module', 'hdl', 'mux', 'demux', 'arith'].includes(def.shape)) s += pinWidth(p);

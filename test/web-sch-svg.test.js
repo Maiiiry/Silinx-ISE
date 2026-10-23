@@ -5,7 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import './ui/core-hooks.js';
-import { symbolDef, symbolPins, symbolBox, portBox } from '../core/schdoc.js';
+import { SYMBOLS, defaultParams, symbolDef, symbolPins, symbolBox, portBox } from '../core/schdoc.js';
 
 const { symbolSvg, symbolDrawingSvg, portSvg, bodySvg, hopPath, inLineRuns, wireRun, r1 } = await import('../web/js/sch-svg.js');
 
@@ -104,7 +104,8 @@ test('#953 schematic drawing: a VCC / GND wider than a bit, its width by its out
     assert.deepEqual(w8.map((m) => m[1]), ['8'], type);
     const pin = symbolPins({ id: 'S1', type, x: 200, y: 100, rot: 0, mirror: false, params: { width: 8 } })[0];
     const at = attrs(w8[0][0]);
-    assert.deepEqual([+at.x, +at.y], [pin.x + 4, pin.y + (type === 'vcc' ? 8 : -8)], type);
+    // (by its stem, 10 px in from the pin's end, turned: inside its box, #1139)
+    assert.deepEqual([+at.x, +at.y, at.transform], [pin.x + 9, pin.y + (type === 'vcc' ? -10 : 10), `rotate(-90 ${pin.x + 9} ${pin.y + (type === 'vcc' ? -10 : 10)})`], type);
     assert.doesNotMatch(draw({ width: 1 }), /class="pwidth"/);
     assert.doesNotMatch(draw({}), /class="pwidth"/);
     assert.match(draw({ width: 8 }), new RegExp(`>${type.toUpperCase()}</text>`));
@@ -123,4 +124,64 @@ test('#1122 schematic drawing: a VCC / GND wider than a bit has its stem a bus, 
     // the bar(s) still the shape's
     assert.match(body({ width: 8 }), type === 'vcc' ? /<path class="gate nofill" d="M2,10 H18"\/>/ : /<path class="gate nofill" d="M1,20 H19 M4,24 H16 M7,28 H13"\/>/);
   }
+});
+
+// #1137: every symbol in its 8 orientations (turned 0 / 90 / 180 / 270, mirrored or not): its pin names inside its
+// body, none on a pin's lead (#1134: ADD / SUB / COMP / MUX turned 90° / 270°), the names hidden on purpose (the
+// multiplexer's output, COMP's and SUB's results) hidden turned too, a clock pin's triangle at it (#1135: the device
+// primitives), a bus pin's width inside the symbol's box and off the leads too (#1139). A text's box from its 9 px font (a letter 5.5 px wide at most, 7 px above its baseline, 2 below).
+const ORIENTS = [0, 90, 180, 270].flatMap((rot) => [false, true].map((mirror) => ({ rot, mirror })));
+const ALL = [...Object.keys(SYMBOLS).filter((t) => !['module', 'hdlblock'].includes(t)).map((t) => [t]),
+  ['mux2', { en: true }], ['mux8', { en: true }], ['mux4', { selBus: true }], ['demux', { sel: 3, en: true }],
+  ['add', { width: 4, bits: true, cin: true, cout: true }], ['add', { cin: true, cout: true }], ['sub', { bin: true, bout: true }],
+  ['decoder', { n: 3, bus: true }], ['module', { module: 'sub' }],
+  // (buses: their widths)
+  ['mux4', { width: 8 }], ['mux2', { width: 16, en: true }], ['demux', { sel: 2, width: 8 }], ['compare', { width: 16 }],
+  ['register', { width: 16 }], ['counter', { width: 8, bits: false }], ['constant', { value: '5', width: 8 }], ['vcc', { width: 8 }],
+  ['gnd', { width: 4 }], ['busjoin', { widths: '4,4' }], ['slice', { msb: 7, lsb: 4 }]];
+function textBox(t) {
+  const a = attrs(t), n = t.replace(/<[^>]*>/g, '').replace(/&[a-z]+;/g, 'x').length, w = 5.5 * n, x = +a.x, y = +a.y;
+  const at = a['text-anchor'] || 'start', off = at === 'end' ? -w : at === 'middle' ? -w / 2 : 0;
+  // (turned to read upwards: rotate(-90) about its point)
+  return a.transform ? { x0: x - 7, x1: x + 2, y0: y - off - w, y1: y - off } : { x0: x + off, x1: x + off + w, y0: y - 7, y1: y + 2 };
+}
+const crosses = (b, [p, q]) => Math.max(p.x, q.x) > b.x0 + 0.5 && Math.min(p.x, q.x) < b.x1 - 0.5 && Math.max(p.y, q.y) > b.y0 + 0.5 && Math.min(p.y, q.y) < b.y1 - 0.5;
+
+test('#1137 schematic drawing: every symbol turned and mirrored, its pin names inside its body and off its leads, its clocks\' triangles', () => {
+  const bad = [];
+  for (const [type, params] of ALL) {
+    for (const { rot, mirror } of ORIENTS) {
+      const sym = { id: 'S1', type, x: 200, y: 100, rot, mirror, name: 'U1', params: { ...defaultParams(type), ...(params || {}) } };
+      const def = symbolDef(sym, MODULES), what = `${type}${params ? JSON.stringify(params) : ''} rot ${rot}${mirror ? ' mirrored' : ''}`;
+      const svg = symbolSvg(sym, def);
+      const [a, b, c, d, e, f] = svg.match(/transform="matrix\(([^)]*)\)"/)[1].split(',').map(Number);
+      const at = (x, y) => ({ x: a * x + c * y + e, y: b * x + d * y + f });
+      const leads = [...bodySvg(sym, def).matchAll(/<line class="pin[^"]*"[^>]*>/g)].map((m) => { const l = attrs(m[0]); return [at(+l.x1, +l.y1), at(+l.x2, +l.y2)]; });
+      const p0 = at(def.body.x, def.body.y), p1 = at(def.body.x + def.body.w, def.body.y + def.body.h);
+      const body = { x0: Math.min(p0.x, p1.x) - 1, x1: Math.max(p0.x, p1.x) + 1, y0: Math.min(p0.y, p1.y) - 1, y1: Math.max(p0.y, p1.y) + 1 };
+      const names = [...svg.matchAll(/<text class="pname"[^>]*>[^<]*<\/text>/g)].map((m) => m[0]);
+      const sb = symbolBox(sym, MODULES, def);
+      for (const t of [...svg.matchAll(/<text class="pwidth"[^>]*>[^<]*<\/text>/g)].map((m) => m[0])) {
+        const box = textBox(t), w = t.replace(/<[^>]*>/g, '');
+        if (box.x0 < sb.x - 1 || box.x1 > sb.x + sb.w + 1 || box.y0 < sb.y - 1 || box.y1 > sb.y + sb.h + 1) bad.push(`${what}: width ${w} out of the box`);
+        if (leads.some((l) => crosses(box, l))) bad.push(`${what}: width ${w} on a lead`);
+      }
+      for (const t of names) {
+        const box = textBox(t), name = t.replace(/<[^>]*>/g, '');
+        if (box.x0 < body.x0 || box.x1 > body.x1 || box.y0 < body.y0 || box.y1 > body.y1) bad.push(`${what}: ${name} out of the body`);
+        if (leads.some((l) => crosses(box, l))) bad.push(`${what}: ${name} on a lead`);
+      }
+      // the names hidden on purpose, whatever the orientation
+      const shown = names.map((t) => t.replace(/<[^>]*>/g, ''));
+      if (def.shape === 'mux' || ['sub', 'compare'].includes(type)) {
+        for (const p of def.pins.filter((q) => q.side === 'E')) if (shown.includes(p.name)) bad.push(`${what}: ${p.name} shown`);
+      }
+      // a clock's triangle at its pin's lead end, on the body's edge
+      const clocks = [...bodySvg(sym, def).matchAll(/<path class="clk" d="M([\d.-]+),([\d.-]+) L([\d.-]+),([\d.-]+)/g)].map((m) => ({ x: +m[3], y: +m[4] }));
+      for (const p of def.pins.filter((q) => q.clock)) {
+        if (!clocks.some((k) => Math.abs(k.y - p.y) < 0.5)) bad.push(`${what}: no clock triangle at ${p.name}`);
+      }
+    }
+  }
+  assert.deepEqual(bad, []);
 });
